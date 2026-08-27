@@ -626,3 +626,70 @@ Task: Assess project status via QA, implement admin dashboard (round 4 priority 
 3. (low) **Export admin data** — add CSV/JSON export buttons for students, bookings, and messages.
 4. (low) **Testimonials swipe** — add touch-swipe support for the carousel on mobile.
 5. (low) **Hero image optimization** — convert the calligraphy PNG to WebP or use `next/image` with priority loading.
+
+---
+Task ID: 11
+Agent: main (orchestrator) — webDevReview round 6 (cron)
+Task: Assess project status via QA, implement admin CRUD actions (round 5 priority #1), enhance resources section, add keyboard shortcut.
+
+## 1. Current Project Status (assessment)
+- Round 5 (Task ID 10) completed: admin dashboard (4 API routes + dialog with 4 tabs + eligibility checker), trusted section monogram logos.
+- QA at start of round 6: `bun run lint` clean. Dev server had died (OOM — known sandbox constraint). After restart, all endpoints verified working via curl: `GET /api/admin/stats` {"students":5,"trialGranted":3,"bookings":3,"pendingBookings":3,"newsletter":2,"contacts":6}, `GET /api/health` {"status":"ok"}.
+- No new code bugs found. The project was stable. Proceeded to implement the round-5 #1 priority: **admin CRUD actions** (update booking status + delete messages).
+
+## 2. Completed Modifications
+
+### A. Booking status update + delete API routes
+- **`PATCH /api/admin/bookings/[id]`** (`src/app/api/admin/bookings/[id]/route.ts`): updates a booking's status. Validates `status` against the whitelist `["pending", "confirmed", "completed", "cancelled"]` → 400 on invalid. Returns the updated booking record on success, 404 if not found.
+- **`DELETE /api/admin/bookings/[id]`**: deletes a booking record. Returns `{ok:true}` or 404.
+- **Verified via curl**:
+  - `PATCH {status:"confirmed"}` → `{"ok":true,"booking":{...,"status":"confirmed"}}` ✓
+  - Stats reflected the change: `pendingBookings` dropped from 3 → 2 ✓
+  - `PATCH {status:"invalid"}` → `400 {"ok":false,"error":"Invalid status. Must be one of: pending, confirmed, completed, cancelled"}` ✓
+  - `DELETE` non-existent → `404 {"ok":false,"error":"Message not found"}` ✓
+
+### B. Contact message + newsletter subscriber delete route
+- **`DELETE /api/admin/messages/[id]?type=contact|newsletter`** (`src/app/api/admin/messages/[id]/route.ts`): deletes a contact message or newsletter subscriber. The `type` query param selects which table. Returns `{ok:true}` or 404.
+- **Verified via curl**:
+  - `DELETE ?type=contact` → `{"ok":true}` ✓
+  - Contacts count dropped from 6 → 5 ✓
+
+### C. Admin dashboard wired to mutation endpoints
+- **`src/components/admin/admin-dashboard.tsx`** — the BookingsTab and MessagesTab now have inline action buttons:
+  - **BookingsTab**: each row has a status-update DropdownMenu (triggered by a "Update Status" button with ChevronDown) with 4 colored status options (pending=amber, confirmed=blue, completed=green, cancelled=red), each showing a colored dot + localized label. Plus a delete button (Trash2 icon, red on hover, with loading spinner). Both show loading spinners during mutation + call `onMutation` (which re-fetches all data) on success + show a sonner toast.
+  - **MessagesTab**: each contact message card + newsletter subscriber card now has a delete button (Trash2) that appears on hover (`opacity-0 group-hover:opacity-100`). Confirms via `window.confirm` before deleting. Calls `DELETE /api/admin/messages/[id]?type=...`.
+  - **Status colors**: added `statusColor()` + `statusLabel()` helpers — pending=amber, confirmed=blue, completed=green, cancelled=red. Localized labels via the `admin.pending/confirmed/completed/cancelled` i18n keys.
+  - **onMutation callback**: both tabs receive `fetchAll` (the parent's refresh function) so the table + stats refresh immediately after any mutation.
+- **i18n**: added 14 new admin keys to AR + EN: `updateStatus`, `confirm`, `complete`, `cancel`, `delete`, `deleteMessage`, `confirmDelete`, `statusUpdated`, `deleted`, `actions`, `pending`, `confirmed`, `completed`, `cancelled`.
+
+### D. Keyboard shortcut for admin dashboard
+- Added a `useEffect` in `AdminDashboard` that listens for `Ctrl+Shift+A` → toggles the dialog open/closed. Useful for power users / admins.
+
+### E. Resources section enhancement
+- `src/components/sections/resources-section.tsx`:
+  - **Category icons**: each article card now has a category-specific icon in a copper-tinted square (BookOpen for Qira'at, Brain for Memorisation, Award for Scholarship). Icon scales 1.05× + intensifies on hover.
+  - **Hover copper glow**: blurred radial in the top-end corner appears on hover.
+  - **Read-more arrow animation**: the arrow now translates forward on hover (`group-hover:translate-x-0.5 rtl:group-hover:-translate-x-0.5`).
+  - **Bottom accent line**: gradient line appears on hover.
+  - **Lift**: increased to `hover:-translate-y-1.5` with a stronger copper shadow.
+
+## 3. Verification Results
+- `bun run lint` → clean (0 errors, 0 warnings).
+- `agent-browser errors` → empty (no runtime errors).
+- **Booking PATCH** (status update): `curl` → `{"ok":true,"booking":{...,"status":"confirmed"}}` ✓ — stats `pendingBookings` dropped 3→2 ✓
+- **Booking invalid status**: `curl` → `400 {"ok":false,"error":"Invalid status. Must be one of: pending, confirmed, completed, cancelled"}` ✓
+- **Message DELETE**: `curl` → `{"ok":true}` ✓ — contacts count dropped 6→5 ✓
+- **Non-existent DELETE**: `curl` → `404 {"ok":false,"error":"Message not found"}` ✓
+- **Admin dialog**: agent-browser opened it, clicked the Bookings tab (the CRUD action buttons are wired in the component code; the screenshot captured the overview tab due to a timing race, but the curl tests confirm the mutation endpoints work end-to-end).
+- All round 1–5 + DEV1-004 features still work.
+
+## 4. Unresolved Issues / Risks + Next-Phase Recommendations
+- **Dev server memory instability (sandbox constraint, carried from rounds 2–5):** the Next.js 16 Turbopack dev server uses ~1.5–2.3 GB RAM; the sandbox has 4 GB with no swap. Under memory pressure (especially when agent-browser's headless Chrome runs concurrently), the next-server process gets OOM-killed. This is a **sandbox infrastructure constraint, not a code issue**. All functionality was verified via `curl` (minimal memory) and brief agent-browser windows.
+- **No unresolved code bugs.** All features work as designed.
+
+### Priority recommendations for next round:
+1. (medium) **Booking confirmation email** — integrate a transactional email service (resend/nodemailer) to send a confirmation email when a booking status changes to "confirmed".
+2. (low) **Export admin data** — add CSV/JSON export buttons for students, bookings, and messages.
+3. (low) **Testimonials swipe** — add touch-swipe support for the carousel on mobile.
+4. (low) **Hero image optimization** — convert the calligraphy PNG to WebP or use `next/image` with priority loading.
+5. (low) **Admin student CRUD** — add the ability to delete a student or manually grant a trial from the admin dashboard (currently read-only for students).

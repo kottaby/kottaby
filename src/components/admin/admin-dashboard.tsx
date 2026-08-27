@@ -14,7 +14,10 @@ import {
   Gift,
   GraduationCap,
   Search,
+  Trash2,
+  ChevronDown,
 } from "lucide-react";
+import { toast } from "sonner";
 import { useLocale } from "@/lib/i18n/locale-context";
 import {
   Dialog,
@@ -29,6 +32,12 @@ import {
   TabsTrigger,
   TabsContent,
 } from "@/components/ui/tabs";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -205,10 +214,83 @@ function StudentsTab({ students }: { students: AdminStudent[] | null }) {
 
 // ─── Bookings Tab ────────────────────────────────────────────────
 
-function BookingsTab({ bookings }: { bookings: AdminBooking[] | null }) {
+const BOOKING_STATUSES = ["pending", "confirmed", "completed", "cancelled"] as const;
+
+function statusColor(status: string): string {
+  switch (status) {
+    case "pending": return "bg-amber-500/15 text-amber-500";
+    case "confirmed": return "bg-blue-500/15 text-blue-500";
+    case "completed": return "bg-green-500/15 text-green-500";
+    case "cancelled": return "bg-red-500/15 text-red-500";
+    default: return "bg-muted text-muted-foreground";
+  }
+}
+
+function statusLabel(status: string, t: { admin: { pending: string; confirmed: string; completed: string; cancelled: string } }): string {
+  switch (status) {
+    case "pending": return t.admin.pending;
+    case "confirmed": return t.admin.confirmed;
+    case "completed": return t.admin.completed;
+    case "cancelled": return t.admin.cancelled;
+    default: return status;
+  }
+}
+
+function BookingsTab({
+  bookings,
+  onMutation,
+}: {
+  bookings: AdminBooking[] | null;
+  onMutation: () => void;
+}) {
   const { t } = useLocale();
+  const [updatingId, setUpdatingId] = React.useState<string | null>(null);
+  const [deletingId, setDeletingId] = React.useState<string | null>(null);
+
   if (bookings === null) return <LoadingState />;
   if (bookings.length === 0) return <EmptyState text={t.admin.noData} />;
+
+  const updateStatus = async (id: string, status: string) => {
+    setUpdatingId(id);
+    try {
+      const res = await fetch(`/api/admin/bookings/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        toast.success(t.admin.statusUpdated);
+        onMutation();
+      } else {
+        toast.error(data.error ?? "Update failed");
+      }
+    } catch {
+      toast.error("Network error");
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
+  const deleteBooking = async (id: string) => {
+    if (!window.confirm(t.admin.confirmDelete)) return;
+    setDeletingId(id);
+    try {
+      const res = await fetch(`/api/admin/bookings/${id}`, { method: "DELETE" });
+      const data = await res.json();
+      if (data.ok) {
+        toast.success(t.admin.deleted);
+        onMutation();
+      } else {
+        toast.error(data.error ?? "Delete failed");
+      }
+    } catch {
+      toast.error("Network error");
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   return (
     <div className="overflow-x-auto rounded-lg border border-border max-h-[50vh] overflow-y-auto">
       <table className="w-full text-xs">
@@ -217,28 +299,67 @@ function BookingsTab({ bookings }: { bookings: AdminBooking[] | null }) {
             <th className="text-start p-2 font-semibold">{t.admin.teacher}</th>
             <th className="text-start p-2 font-semibold">{t.admin.recitation}</th>
             <th className="text-start p-2 font-semibold">{t.admin.date}</th>
-            <th className="text-start p-2 font-semibold">{t.admin.time}</th>
             <th className="text-center p-2 font-semibold">{t.admin.status}</th>
+            <th className="text-center p-2 font-semibold">{t.admin.actions}</th>
           </tr>
         </thead>
         <tbody>
           {bookings.map((b) => (
             <tr key={b.id} className="border-b border-border/50 hover:bg-muted/30">
-              <td className="p-2 font-medium truncate max-w-[120px]">{b.teacherName}</td>
-              <td className="p-2 text-muted-foreground truncate max-w-[120px]">{b.recitation}</td>
-              <td className="p-2 tabular-nums">{b.date}</td>
-              <td className="p-2 tabular-nums">{b.time}</td>
+              <td className="p-2 font-medium truncate max-w-[100px]">{b.teacherName}</td>
+              <td className="p-2 text-muted-foreground truncate max-w-[100px]">{b.recitation}</td>
+              <td className="p-2 tabular-nums whitespace-nowrap">{b.date} {b.time}</td>
               <td className="p-2 text-center">
-                <Badge
-                  className={cn(
-                    "border-0 text-[10px]",
-                    b.status === "pending"
-                      ? "bg-amber-500/15 text-amber-500"
-                      : "bg-green-500/15 text-green-500",
-                  )}
-                >
-                  {b.status}
+                <Badge className={cn("border-0 text-[10px]", statusColor(b.status))}>
+                  {statusLabel(b.status, t)}
                 </Badge>
+              </td>
+              <td className="p-2 text-center">
+                <div className="inline-flex items-center gap-1">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button
+                        type="button"
+                        disabled={updatingId === b.id}
+                        className="inline-flex items-center gap-0.5 rounded-md border border-border px-1.5 py-0.5 text-[10px] hover:border-copper/40 hover:text-copper disabled:opacity-50"
+                      >
+                        {updatingId === b.id ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : (
+                          <>
+                            <span>{t.admin.updateStatus}</span>
+                            <ChevronDown className="h-2.5 w-2.5" />
+                          </>
+                        )}
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      {BOOKING_STATUSES.map((s) => (
+                        <DropdownMenuItem
+                          key={s}
+                          onClick={() => updateStatus(b.id, s)}
+                          className="text-xs cursor-pointer"
+                        >
+                          <span className={cn("inline-block h-1.5 w-1.5 rounded-full mr-1.5", statusColor(s).split(" ")[0])} />
+                          {statusLabel(s, t)}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                  <button
+                    type="button"
+                    onClick={() => deleteBooking(b.id)}
+                    disabled={deletingId === b.id}
+                    aria-label={t.admin.delete}
+                    className="inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 disabled:opacity-50"
+                  >
+                    {deletingId === b.id ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <Trash2 className="h-3 w-3" />
+                    )}
+                  </button>
+                </div>
               </td>
             </tr>
           ))}
@@ -253,12 +374,36 @@ function BookingsTab({ bookings }: { bookings: AdminBooking[] | null }) {
 function MessagesTab({
   contacts,
   subscribers,
+  onMutation,
 }: {
   contacts: AdminContact[] | null;
   subscribers: AdminSubscriber[] | null;
+  onMutation: () => void;
 }) {
   const { t } = useLocale();
+  const [deletingId, setDeletingId] = React.useState<string | null>(null);
+
   if (contacts === null || subscribers === null) return <LoadingState />;
+
+  const deleteMessage = async (id: string, type: "contact" | "newsletter") => {
+    if (!window.confirm(t.admin.confirmDelete)) return;
+    setDeletingId(id);
+    try {
+      const res = await fetch(`/api/admin/messages/${id}?type=${type}`, { method: "DELETE" });
+      const data = await res.json();
+      if (data.ok) {
+        toast.success(t.admin.deleted);
+        onMutation();
+      } else {
+        toast.error(data.error ?? "Delete failed");
+      }
+    } catch {
+      toast.error("Network error");
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   return (
     <div className="space-y-4">
       {/* Contact messages */}
@@ -272,14 +417,29 @@ function MessagesTab({
         ) : (
           <div className="space-y-2 max-h-[20vh] overflow-y-auto">
             {contacts.map((c) => (
-              <div key={c.id} className="rounded-lg border border-border bg-card/60 p-2.5">
-                <div className="flex items-center justify-between gap-2 mb-1">
-                  <span className="text-xs font-medium truncate">{c.email}</span>
-                  <span className="text-[10px] text-muted-foreground tabular-nums">
-                    {new Date(c.createdAt).toLocaleDateString()}
-                  </span>
+              <div key={c.id} className="group rounded-lg border border-border bg-card/60 p-2.5 flex items-start justify-between gap-2">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center justify-between gap-2 mb-1">
+                    <span className="text-xs font-medium truncate">{c.email}</span>
+                    <span className="text-[10px] text-muted-foreground tabular-nums shrink-0">
+                      {new Date(c.createdAt).toLocaleDateString()}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground line-clamp-2">{c.message}</p>
                 </div>
-                <p className="text-[11px] text-muted-foreground line-clamp-2">{c.message}</p>
+                <button
+                  type="button"
+                  onClick={() => deleteMessage(c.id, "contact")}
+                  disabled={deletingId === c.id}
+                  aria-label={t.admin.deleteMessage}
+                  className="shrink-0 inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50"
+                >
+                  {deletingId === c.id ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <Trash2 className="h-3 w-3" />
+                  )}
+                </button>
               </div>
             ))}
           </div>
@@ -296,9 +456,24 @@ function MessagesTab({
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[20vh] overflow-y-auto">
             {subscribers.map((s) => (
-              <div key={s.id} className="rounded-lg border border-border bg-card/60 p-2 flex items-center justify-between gap-2">
-                <span className="text-xs truncate">{s.email}</span>
-                <Badge variant="outline" className="text-[10px] shrink-0">{s.locale}</Badge>
+              <div key={s.id} className="group rounded-lg border border-border bg-card/60 p-2 flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="text-xs truncate">{s.email}</span>
+                  <Badge variant="outline" className="text-[10px] shrink-0">{s.locale}</Badge>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => deleteMessage(s.id, "newsletter")}
+                  disabled={deletingId === s.id}
+                  aria-label={t.admin.delete}
+                  className="shrink-0 inline-flex h-5 w-5 items-center justify-center rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50"
+                >
+                  {deletingId === s.id ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <Trash2 className="h-3 w-3" />
+                  )}
+                </button>
               </div>
             ))}
           </div>
@@ -457,6 +632,18 @@ export function AdminDashboard() {
     }
   }, [open, stats, fetchAll]);
 
+  // Keyboard shortcut: Ctrl+Shift+A opens the admin dashboard
+  React.useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.shiftKey && (e.key === "A" || e.key === "a")) {
+        e.preventDefault();
+        setOpen((v) => !v);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
@@ -512,11 +699,11 @@ export function AdminDashboard() {
           </TabsContent>
 
           <TabsContent value="bookings" className="mt-4">
-            <BookingsTab bookings={bookings} />
+            <BookingsTab bookings={bookings} onMutation={fetchAll} />
           </TabsContent>
 
           <TabsContent value="messages" className="mt-4">
-            <MessagesTab contacts={contacts} subscribers={subscribers} />
+            <MessagesTab contacts={contacts} subscribers={subscribers} onMutation={fetchAll} />
           </TabsContent>
         </Tabs>
       </DialogContent>
