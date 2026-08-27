@@ -67,26 +67,62 @@ export function VerseSection() {
           transition={{ duration: 0.5 }}
           className="relative mt-10 overflow-hidden rounded-3xl border border-copper/30 bg-gradient-to-br from-card via-surface-base to-card p-8 md:p-14"
         >
-          {/* Decorative copper corner flourishes */}
+          {/* Decorative copper corner flourishes — all 4 corners */}
           <span className="pointer-events-none absolute top-0 start-0 h-16 w-16 border-t-2 border-s-2 border-copper/50 rounded-tl-3xl" />
           <span className="pointer-events-none absolute bottom-0 end-0 h-16 w-16 border-b-2 border-e-2 border-copper/50 rounded-br-3xl" />
+          <span className="pointer-events-none absolute top-0 end-0 h-16 w-16 border-t-2 border-e-2 border-copper/30 rounded-tr-3xl" />
+          <span className="pointer-events-none absolute bottom-0 start-0 h-16 w-16 border-b-2 border-s-2 border-copper/30 rounded-bl-3xl" />
+
+          {/* Inner copper hairline frame */}
+          <span className="pointer-events-none absolute inset-4 rounded-2xl border border-copper/15" />
 
           {/* Geometric pattern */}
           <div className="pointer-events-none absolute inset-0 bg-islamic-pattern opacity-50" aria-hidden />
 
+          {/* Ambient copper glow behind the verse */}
+          <div
+            className="pointer-events-none absolute top-1/2 start-1/2 h-64 w-64 -translate-x-1/2 -translate-y-1/2 rounded-full opacity-10 blur-2xl"
+            style={{ background: "radial-gradient(circle, var(--copper) 0%, transparent 70%)" }}
+            aria-hidden
+          />
+
           <div className="relative flex flex-col items-center text-center gap-6">
-            <p
+            {/* Bismillah-style ornament above the verse */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.8 }}
+              whileInView={{ opacity: 1, scale: 1 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.6, delay: 0.2 }}
+              className="flex items-center gap-3 text-copper/40"
+              aria-hidden
+            >
+              <span className="h-px w-12 bg-gradient-to-r from-transparent to-copper/40" />
+              <span className="text-2xl">۞</span>
+              <span className="h-px w-12 bg-gradient-to-l from-transparent to-copper/40" />
+            </motion.div>
+
+            <motion.p
+              initial={{ opacity: 0, y: 10 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.7, delay: 0.3 }}
               className="text-4xl md:text-5xl lg:text-6xl font-bold leading-[1.6] text-copper"
               style={{ fontFamily: "var(--font-cairo), var(--font-inter), sans-serif" }}
               lang="ar"
               dir="rtl"
             >
               {t.verse.text}
-            </p>
+            </motion.p>
 
-            <p className="text-lg md:text-xl text-foreground/90 italic">
+            <motion.p
+              initial={{ opacity: 0 }}
+              whileInView={{ opacity: 1 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.5, delay: 0.5 }}
+              className="text-lg md:text-xl text-foreground/90 italic"
+            >
               {t.verse.translation}
-            </p>
+            </motion.p>
 
             <p className="text-sm text-muted-foreground font-medium">
               {t.verse.reference}

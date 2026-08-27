@@ -19,6 +19,7 @@ import { MobileAppSection } from "@/components/sections/mobile-app-section";
 import { TrustedSection } from "@/components/sections/trusted-section";
 import { ResourcesSection } from "@/components/sections/resources-section";
 import { FinalCtaSection } from "@/components/sections/final-cta-section";
+import { SectionDivider } from "@/components/sections/section-divider";
 
 export default function Home() {
   return (
@@ -27,20 +28,28 @@ export default function Home() {
       <SiteHeader />
       <HeroSection />
       <FeaturesSection />
+      <SectionDivider />
       <RecitationsSection />
       <HowItWorksSection />
+      <SectionDivider />
       <RolesSection />
       <TeachersSection />
+      <SectionDivider />
       <CurriculumSection />
       <TestimonialsSection />
+      <SectionDivider />
       <PricingSection />
       <AchievementsSection />
+      <SectionDivider />
       <FaqSection />
       <NewsletterSection />
+      <SectionDivider />
       <ContactSection />
       <VerseSection />
+      <SectionDivider />
       <MobileAppSection />
       <TrustedSection />
+      <SectionDivider />
       <ResourcesSection />
       <FinalCtaSection />
       <SiteFooter />

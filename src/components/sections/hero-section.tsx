@@ -2,10 +2,16 @@
 
 import * as React from "react";
 import { motion } from "framer-motion";
-import { MoonStar, ArrowRight, Sparkles } from "lucide-react";
+import { MoonStar, ArrowRight, Sparkles, ShieldCheck, BadgeCheck, Globe2 } from "lucide-react";
 import { useLocale } from "@/lib/i18n/locale-context";
 import { Button } from "@/components/ui/button";
 import { useCountUp, useInView } from "@/lib/hooks/use-count-up";
+
+const trustIcons: Record<string, React.ComponentType<{ className?: string }>> = {
+  shield: ShieldCheck,
+  badge: BadgeCheck,
+  globe: Globe2,
+};
 
 /** Parse a stat value like "+120", "8,500+", "98%", "10" into { num, prefix, suffix }. */
 function parseStatValue(raw: string): { num: number; prefix: string; suffix: string } {
@@ -155,6 +161,27 @@ export function HeroSection() {
               <span className="relative inline-flex h-2 w-2 rounded-full bg-green-500" />
             </span>
             {t.hero.liveIndicator}
+          </motion.div>
+
+          {/* Trust badges row */}
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.36 }}
+            className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 mt-2"
+          >
+            {t.hero.trustBadges.map((badge, i) => {
+              const Icon = trustIcons[badge.icon] ?? ShieldCheck;
+              return (
+                <div
+                  key={i}
+                  className="flex items-center gap-1.5 text-xs text-muted-foreground"
+                >
+                  <Icon className="h-4 w-4 text-copper" />
+                  <span className="font-medium">{badge.label}</span>
+                </div>
+              );
+            })}
           </motion.div>
         </div>
 

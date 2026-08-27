@@ -13,9 +13,33 @@ export function FeaturesSection() {
     <section
       id="features"
       dir={dir}
-      className="py-20 md:py-28 scroll-mt-20"
+      className="relative py-20 md:py-28 scroll-mt-20 overflow-hidden"
       aria-label="Features"
     >
+      {/* Ambient background layer — gives the glassmorphism cards something to blur */}
+      <div className="pointer-events-none absolute inset-0 -z-10" aria-hidden>
+        {/* Two large copper radial glows that sit behind the grid */}
+        <div
+          className="absolute -top-20 start-1/4 h-96 w-96 rounded-full opacity-[0.07]"
+          style={{ background: "radial-gradient(circle, var(--copper) 0%, transparent 70%)" }}
+        />
+        <div
+          className="absolute bottom-0 end-1/4 h-96 w-96 rounded-full opacity-[0.06]"
+          style={{ background: "radial-gradient(circle, var(--primary) 0%, transparent 70%)" }}
+        />
+        {/* Subtle dot grid for texture */}
+        <div
+          className="absolute inset-0 opacity-[0.05]"
+          style={{
+            backgroundImage: "radial-gradient(circle, currentColor 1px, transparent 1px)",
+            backgroundSize: "28px 28px",
+            maskImage: "radial-gradient(ellipse at center, black 30%, transparent 80%)",
+            WebkitMaskImage:
+              "radial-gradient(ellipse at center, black 30%, transparent 80%)",
+          }}
+        />
+      </div>
+
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <SectionHeader
           badge={t.features.badge}

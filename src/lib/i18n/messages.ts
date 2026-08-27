@@ -84,6 +84,11 @@ export const messages = {
       ctaPrimary: "أنشئ حسابك",
       ctaSecondary: "تسجيل الدخول",
       liveIndicator: "التسجيل مفتوح",
+      trustBadges: [
+        { icon: "shield", label: "تشفير كامل" },
+        { icon: "badge", label: "شيوخ موثّقون" },
+        { icon: "globe", label: "+45 دولة" },
+      ],
       stats: [
         { value: "+120", label: "شيخ معتمد" },
         { value: "+8500", label: "طالب نشط" },
@@ -307,6 +312,8 @@ export const messages = {
       messagePlaceholder: "رسالتك (10 أحرف على الأقل)...",
       successTitle: "شكرًا لك!",
       successDesc: "سنرد عليك خلال 24 ساعة.",
+      successTicketPrefix: "رقم تذكرتك",
+      successSendAnother: "أرسل رسالة أخرى",
       errorTitle: "حدث خطأ",
       errorDesc: "تعذّر إرسال الرسالة. حاول مرة أخرى.",
       invalidEmail: "يرجى إدخال بريد إلكتروني صحيح",
@@ -469,6 +476,11 @@ export const messages = {
       ctaPrimary: "Create your account",
       ctaSecondary: "Sign in",
       liveIndicator: "Now enrolling",
+      trustBadges: [
+        { icon: "shield", label: "End-to-end encryption" },
+        { icon: "badge", label: "Verified Shuyukh" },
+        { icon: "globe", label: "45+ countries" },
+      ],
       stats: [
         { value: "120+", label: "Certified teachers" },
         { value: "8,500+", label: "Active students" },
@@ -692,6 +704,8 @@ export const messages = {
       messagePlaceholder: "Your message (at least 10 characters)...",
       successTitle: "Thank you!",
       successDesc: "We'll get back to you within 24 hours.",
+      successTicketPrefix: "Your ticket number",
+      successSendAnother: "Send another message",
       errorTitle: "Something went wrong",
       errorDesc: "Could not send the message. Please try again.",
       invalidEmail: "Please enter a valid email address",

@@ -35,10 +35,13 @@ export async function POST(req: Request) {
   }
 
   try {
-    await db.contactMessage.create({
+    const record = await db.contactMessage.create({
       data: { email, message, locale },
+      select: { id: true },
     });
-    return NextResponse.json({ ok: true });
+    // Return a short ticket number derived from the record id (first 8 chars, uppercased)
+    const ticket = record.id.replace(/-/g, "").slice(0, 8).toUpperCase();
+    return NextResponse.json({ ok: true, ticket });
   } catch (err) {
     console.error("[contact] error", err);
     return NextResponse.json(

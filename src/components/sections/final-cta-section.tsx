@@ -24,11 +24,13 @@ export function FinalCtaSection() {
           transition={{ duration: 0.5 }}
           className="relative overflow-hidden rounded-3xl border border-copper/30 bg-gradient-to-br from-[#0F1A2A] via-[#101E33] to-[#1B3358] p-10 md:p-16 lg:p-20 text-center"
         >
-          {/* Decorative copper radial glow */}
-          <div
-            className="pointer-events-none absolute -top-32 right-0 h-96 w-96 rounded-full opacity-30"
-            style={{ background: "radial-gradient(circle, var(--copper) 0%, transparent 70%)" }}
+          {/* Animated copper glow — drifts slowly across the banner */}
+          <motion.div
             aria-hidden
+            className="pointer-events-none absolute -top-32 h-96 w-96 rounded-full opacity-30"
+            style={{ background: "radial-gradient(circle, var(--copper) 0%, transparent 70%)" }}
+            animate={{ left: ["0%", "100%", "0%"] }}
+            transition={{ duration: 20, repeat: Infinity, ease: "easeInOut" }}
           />
           <div
             className="pointer-events-none absolute -bottom-32 left-0 h-96 w-96 rounded-full opacity-20"
@@ -38,7 +40,42 @@ export function FinalCtaSection() {
           {/* Faint Islamic geometric watermark */}
           <div className="pointer-events-none absolute inset-0 bg-islamic-pattern opacity-50" aria-hidden />
 
+          {/* Shimmer sweep — a diagonal light band that sweeps across once on view */}
+          <motion.div
+            aria-hidden
+            className="pointer-events-none absolute inset-0"
+            initial={{ opacity: 0 }}
+            whileInView={{ opacity: 1 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.4 }}
+          >
+            <motion.div
+              className="absolute inset-y-0 -start-1/3 w-1/3"
+              style={{
+                background:
+                  "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.06) 50%, transparent 100%)",
+                transform: "skewX(-20deg)",
+              }}
+              initial={{ left: "-33%" }}
+              whileInView={{ left: "133%" }}
+              viewport={{ once: true }}
+              transition={{ duration: 2.2, delay: 0.4, ease: "easeInOut" }}
+            />
+          </motion.div>
+
           <div className="relative mx-auto max-w-2xl flex flex-col items-center gap-6">
+            {/* Small badge above the title */}
+            <motion.span
+              initial={{ opacity: 0, scale: 0.9 }}
+              whileInView={{ opacity: 1, scale: 1 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.4 }}
+              className="inline-flex items-center gap-1.5 rounded-full border border-copper/40 bg-copper/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-copper"
+            >
+              <Sparkles className="h-3 w-3" />
+              {t.hero.badge}
+            </motion.span>
+
             <h2 className="text-3xl md:text-4xl lg:text-5xl font-extrabold tracking-tight text-balance text-white">
               {t.finalCta.title}
             </h2>
