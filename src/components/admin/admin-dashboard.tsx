@@ -177,6 +177,7 @@ function StudentsTab({
   const [query, setQuery] = React.useState("");
   const [roleFilter, setRoleFilter] = React.useState<RoleFilter>("all");
   const [pageLimit, setPageLimit] = React.useState(20);
+  const [selected, setSelected] = React.useState<Set<string>>(new Set());
 
   if (students === null) return <LoadingState />;
 
@@ -243,9 +244,27 @@ function StudentsTab({
     }
   };
 
+  const bulkDeleteStudents = async () => {
+    if (selected.size === 0) return;
+    if (!window.confirm(t.admin.confirmDelete)) return;
+    let ok = 0;
+    for (const id of selected) {
+      try {
+        const res = await fetch(`/api/admin/students/${id}`, { method: "DELETE" });
+        const data = await res.json();
+        if (data.ok) ok++;
+      } catch {
+        // skip
+      }
+    }
+    toast.success(`${ok} ${t.admin.deleted.toLowerCase()}`);
+    setSelected(new Set());
+    onMutation();
+  };
+
   return (
     <div className="space-y-3">
-      {/* Search + role filter + export */}
+      {/* Search + role filter + bulk + export */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 justify-between">
         <div className="relative flex-1 max-w-xs">
           <Search className="absolute start-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
@@ -272,13 +291,35 @@ function StudentsTab({
               {r === "all" ? t.admin.overview : r === "student" ? t.admin.studentRole : r === "teacher" ? t.admin.teacherRole : t.admin.parentRole}
             </button>
           ))}
+          {selected.size > 0 && (
+            <button
+              type="button"
+              onClick={() => bulkDeleteStudents()}
+              className="inline-flex items-center gap-1 rounded-md border border-destructive/30 bg-destructive/10 px-2 py-0.5 text-[10px] font-semibold text-destructive hover:bg-destructive/20"
+            >
+              <Trash2 className="h-3 w-3" />
+              {t.admin.delete} ({selected.size})
+            </button>
+          )}
           <ExportButton type="students" />
         </div>
       </div>
-      <div className="overflow-x-auto rounded-lg border border-border max-h-[42vh] overflow-y-auto">
+      <div className="overflow-x-auto rounded-lg border border-border max-h-[40vh] overflow-y-auto">
         <table className="w-full text-xs">
           <thead className="sticky top-0 bg-card border-b border-border z-10">
             <tr>
+              <th className="p-2 w-8">
+                <input
+                  type="checkbox"
+                  checked={selected.size === filtered.length && filtered.length > 0}
+                  onChange={() => {
+                    if (selected.size === filtered.length) setSelected(new Set());
+                    else setSelected(new Set(filtered.map((s) => s.id)));
+                  }}
+                  className="h-3.5 w-3.5 accent-copper"
+                  aria-label="Select all"
+                />
+              </th>
               <th className="text-start p-2 font-semibold">{t.admin.fullName}</th>
               <th className="text-start p-2 font-semibold">{t.admin.email}</th>
               <th className="text-start p-2 font-semibold">{t.admin.role}</th>
@@ -290,13 +331,27 @@ function StudentsTab({
           <tbody>
             {filtered.length === 0 ? (
               <tr>
-                <td colSpan={6} className="p-8 text-center text-muted-foreground">
+                <td colSpan={7} className="p-8 text-center text-muted-foreground">
                   {t.admin.noData}
                 </td>
               </tr>
             ) : (
               filtered.slice(0, pageLimit).map((s) => (
                 <tr key={s.id} className="border-b border-border/50 hover:bg-muted/30">
+                  <td className="p-2 text-center">
+                    <input
+                      type="checkbox"
+                      checked={selected.has(s.id)}
+                      onChange={() => {
+                        const next = new Set(selected);
+                        if (next.has(s.id)) next.delete(s.id);
+                        else next.add(s.id);
+                        setSelected(next);
+                      }}
+                      className="h-3.5 w-3.5 accent-copper"
+                      aria-label={`Select ${s.fullName}`}
+                    />
+                  </td>
                   <td className="p-2 font-medium truncate max-w-[100px]">{s.fullName}</td>
                 <td className="p-2 text-muted-foreground truncate max-w-[120px]">{s.email}</td>
                 <td className="p-2">
@@ -412,6 +467,8 @@ function BookingsTab({
   const [updatingId, setUpdatingId] = React.useState<string | null>(null);
   const [deletingId, setDeletingId] = React.useState<string | null>(null);
   const [query, setQuery] = React.useState("");
+  const [pageLimit, setPageLimit] = React.useState(20);
+  const [selected, setSelected] = React.useState<Set<string>>(new Set());
 
   if (bookings === null) return <LoadingState />;
   if (bookings.length === 0) return <EmptyState text={t.admin.noData} />;
@@ -468,9 +525,28 @@ function BookingsTab({
     }
   };
 
+  const bulkDelete = async () => {
+    if (selected.size === 0) return;
+    if (!window.confirm(t.admin.confirmDelete)) return;
+    let ok = 0;
+    for (const id of selected) {
+      try {
+        const res = await fetch(`/api/admin/bookings/${id}`, { method: "DELETE" });
+        const data = await res.json();
+        if (data.ok) ok++;
+      } catch {
+        // skip
+      }
+    }
+    toast.success(`${ok} ${t.admin.deleted.toLowerCase()}`);
+    setSelected(new Set());
+    onMutation();
+  };
+
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-2 justify-between">
+      {/* Search + bulk actions + export */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 justify-between">
         <div className="relative flex-1 max-w-xs">
           <Search className="absolute start-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
           <Input
@@ -480,12 +556,36 @@ function BookingsTab({
             className="h-8 ps-8 text-xs"
           />
         </div>
-        <ExportButton type="bookings" />
+        <div className="flex items-center gap-2">
+          {selected.size > 0 && (
+            <button
+              type="button"
+              onClick={() => bulkDelete()}
+              className="inline-flex items-center gap-1 rounded-md border border-destructive/30 bg-destructive/10 px-2 py-1 text-[10px] font-semibold text-destructive hover:bg-destructive/20"
+            >
+              <Trash2 className="h-3 w-3" />
+              {t.admin.delete} ({selected.size})
+            </button>
+          )}
+          <ExportButton type="bookings" />
+        </div>
       </div>
-      <div className="overflow-x-auto rounded-lg border border-border max-h-[42vh] overflow-y-auto">
+      <div className="overflow-x-auto rounded-lg border border-border max-h-[40vh] overflow-y-auto">
         <table className="w-full text-xs">
           <thead className="sticky top-0 bg-card border-b border-border z-10">
             <tr>
+              <th className="p-2 w-8">
+                <input
+                  type="checkbox"
+                  checked={selected.size === filtered.length && filtered.length > 0}
+                  onChange={() => {
+                    if (selected.size === filtered.length) setSelected(new Set());
+                    else setSelected(new Set(filtered.map((b) => b.id)));
+                  }}
+                  className="h-3.5 w-3.5 accent-copper"
+                  aria-label="Select all"
+                />
+              </th>
               <th className="text-start p-2 font-semibold">{t.admin.teacher}</th>
               <th className="text-start p-2 font-semibold">{t.admin.recitation}</th>
               <th className="text-start p-2 font-semibold">{t.admin.date}</th>
@@ -496,13 +596,27 @@ function BookingsTab({
           <tbody>
             {filtered.length === 0 ? (
               <tr>
-                <td colSpan={5} className="p-8 text-center text-muted-foreground">
+                <td colSpan={6} className="p-8 text-center text-muted-foreground">
                   {t.admin.noData}
                 </td>
               </tr>
             ) : (
-              filtered.map((b) => (
+              filtered.slice(0, pageLimit).map((b) => (
             <tr key={b.id} className="border-b border-border/50 hover:bg-muted/30">
+              <td className="p-2 text-center">
+                <input
+                  type="checkbox"
+                  checked={selected.has(b.id)}
+                  onChange={() => {
+                    const next = new Set(selected);
+                    if (next.has(b.id)) next.delete(b.id);
+                    else next.add(b.id);
+                    setSelected(next);
+                  }}
+                  className="h-3.5 w-3.5 accent-copper"
+                  aria-label={`Select ${b.teacherName}`}
+                />
+              </td>
               <td className="p-2 font-medium truncate max-w-[100px]">{b.teacherName}</td>
               <td className="p-2 text-muted-foreground truncate max-w-[100px]">{b.recitation}</td>
               <td className="p-2 tabular-nums whitespace-nowrap">{b.date} {b.time}</td>
@@ -563,6 +677,22 @@ function BookingsTab({
             )}
         </tbody>
       </table>
+      </div>
+      {/* Pagination footer */}
+      <div className="flex items-center justify-between">
+        <p className="text-[10px] text-muted-foreground">
+          {Math.min(pageLimit, filtered.length)} / {filtered.length}
+          {filtered.length !== bookings.length && ` (of ${bookings.length})`}
+        </p>
+        {pageLimit < filtered.length && (
+          <button
+            type="button"
+            onClick={() => setPageLimit((v) => v + 20)}
+            className="text-[10px] font-semibold text-copper hover:underline"
+          >
+            {t.admin.loadMore} →
+          </button>
+        )}
       </div>
     </div>
   );
