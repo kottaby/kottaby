@@ -122,7 +122,13 @@ describe("Gateway concurrency & chaos probes (REQ-073)", () => {
     controller.abort();
 
     // The fetch should reject on client side with AbortError
-    await expect(fetchPromise).rejects.toThrow();
+    let didReject = false;
+    try {
+      await fetchPromise;
+    } catch {
+      didReject = true;
+    }
+    expect(didReject).toBe(true);
 
     // Verify the server is still healthy after the aborted request
     const healthRes = await fetch(`http://localhost:${TEST_PORT}/api/health`);
