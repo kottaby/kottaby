@@ -1,0 +1,50 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Teacher {
+  id          String   @id @default(cuid())
+  name        String
+  nameAr      String
+  specialty   String
+  specialtyAr String
+  location    String
+  locationAr  String
+  rating      Float    @default(4.9)
+  sessions    Int      @default(0)
+  ijazah      String
+  createdAt   DateTime @default(now())
+}
+
+model NewsletterSubscriber {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  locale    String   @default("ar")
+  createdAt DateTime @default(now())
+}
+
+model ContactMessage {
+  id        String   @id @default(cuid())
+  email     String
+  message   String
+  locale    String   @default("ar")
+  createdAt DateTime @default(now())
+}
+
+model Recitation {
+  id         String   @id @default(cuid())
+  name       String
+  nameAr     String
+  narrator   String
+  narratorAr String
+  popular    Boolean  @default(false)
+  createdAt  DateTime @default(now())
+}

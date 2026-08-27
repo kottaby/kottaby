@@ -1,0 +1,661 @@
+// Bilingual messages for Kottaby Academy — Arabic (default) + English
+
+export const messages = {
+  ar: {
+    meta: {
+      title: "كُتّابي أكاديمي | تعلّم القرآن الكريم مع شيوخ معتمدين",
+      description:
+        "منصة عصرية تربط الطلاب بالشيوخ المعتمدين في القراءات العشر. تتبع تقدمك، أتقن التجويد، واحفظ سندك.",
+    },
+
+    common: {
+      brand: "كُتّابي أكاديمي",
+      signIn: "تسجيل الدخول",
+      getStarted: "ابدأ الآن",
+      getStartedFree: "ابدأ مجانًا",
+      createAccount: "أنشئ حسابك",
+      bookSession: "احجز جلسة",
+      readMore: "اقرأ المزيد",
+      learnMore: "اعرف المزيد",
+      popular: "الأكثر شيوعًا",
+      mostPopular: "الأكثر شيوعًا",
+      perMonth: "/ شهريًا",
+      billedMonthly: "شهريًا، يُدفع كل شهر",
+      perYear: "/ سنويًا",
+      save: "وفّر",
+      monthly: "شهري",
+      yearly: "سنوي",
+      comingSoon: "قريبًا",
+      subscribe: "اشترك",
+      send: "إرسال",
+      sendMessage: "أرسل الرسالة",
+      copy: "نسخ",
+      copied: "تم النسخ!",
+      share: "مشاركة",
+      acceptAll: "قبول الكل",
+      decline: "رفض",
+      cookieSettings: "إعدادات الكوكيز",
+      savePreferences: "حفظ التفضيلات",
+      necessary: "ضرورية",
+      analytics: "تحليلية",
+      marketing: "تسويقية",
+      backToTop: "العودة للأعلى",
+      chatWhatsapp: "تواصل عبر واتساب",
+      expandAll: "توسيع الكل",
+      collapseAll: "طي الكل",
+      allSystemsOperational: "جميع الأنظمة تعمل",
+      free: "مجاني",
+      noCreditCard: "لا حاجة لبطاقة ائتمان",
+      downloadAppStore: "حمّل من App Store",
+      downloadPlayStore: "احصل عليه من Google Play",
+    },
+
+    utility: {
+      hijriLabel: "التقويم الهجري",
+      prayersLabel: "مواقيت الصلاة — القاهرة",
+      next: "التالية",
+      inTime: "بعد",
+      fajr: "الفجر",
+      sunrise: "الشروق",
+      dhuhr: "الظهر",
+      asr: "العصر",
+      maghrib: "المغرب",
+      isha: "العشاء",
+    },
+
+    nav: {
+      features: "المميزات",
+      recitations: "القراءات",
+      howItWorks: "كيف يعمل",
+      roles: "الأدوار",
+      teachers: "المعلمون",
+      pricing: "الأسعار",
+      faq: "الأسئلة الشائعة",
+      resources: "المصادر",
+    },
+
+    hero: {
+      badge: "تعلّم القرآن، بأسلوب جديد",
+      titleLead: "تواصل مع",
+      titleAccent: "الشيوخ المعتمدين",
+      titleTail: "",
+      subtitle:
+        "منصة عصرية تربط الطلاب بالمقرئين والمعلمين المعتمدين — تتبع تقدمك، أتقن التجويد، واحفظ سلسلة روايتك.",
+      ctaPrimary: "أنشئ حسابك",
+      ctaSecondary: "تسجيل الدخول",
+      liveIndicator: "التسجيل مفتوح",
+      stats: [
+        { value: "+120", label: "شيخ معتمد" },
+        { value: "+8500", label: "طالب نشط" },
+        { value: "10", label: "قراءات مدعومة" },
+        { value: "+15", label: "دولة" },
+      ],
+    },
+
+    features: {
+      badge: "المميزات",
+      title: "كل ما تحتاجه لإتقان القرآن الكريم",
+      subtitle:
+        "أدوات مصممة بعناية لتنقل طالب العلم من المبتدئ إلى المُجاز بسلاسة وأمان.",
+      items: [
+        { title: "شيوخ موثّقون", body: "كل معلم موثّق ويحمل إجازة معتمدة. تصفّح الملفات، اقرأ التقييمات، واختر المقرئ الذي يناسب أهدافك." },
+        { title: "القراءات العشر", body: "تعلّم أيًا من القراءات العشر المتواترة — من حفص عن عاصم إلى القراءات النادرة — بمناهج منظمة وإشراف خبير." },
+        { title: "تتبّع التقدم", body: "لوحات بصرية تعرض مراحل الحفظ ودقة التجويد والحضور. حدد أهدافك وشاهد رحلتك تتكشف." },
+        { title: "آمن وخاص", body: "بياناتك مشفّرة تمامًا. لا نشارك معلوماتك الشخصية مع أي طرف ثالث — رحلتك التعليمية تبقى لك وحدك." },
+        { title: "جدولة ذكية", body: "احجز الجلسات حسب توقيتك، استقبل التذكيرات، وزامن مع تقويمك. يدير المعلمون أوقاتهم بتقويم مدمج." },
+        { title: "مدفوعات شفافة", body: "ادفع لكل جلسة أو اشترك شهريًا. الفواتير والإيصالات وإدارة الحصص مدمجة — بلا رسوم خفية أبدًا." },
+      ],
+    },
+
+    recitations: {
+      badge: "القراءات",
+      title: "القراءات العشر المتواترة",
+      subtitle:
+        "لكل قراءة سند متصل يرجع إلى النبي ﷺ. اختر ما يناسبك وابدأ رحلتك مع أسانيد العلماء.",
+      searchPlaceholder: "ابحث عن قراءة أو راوٍ...",
+      narrator: "الراوي",
+      isnad: "سند الرواية",
+      popular: "الأكثر شيوعًا",
+      items: [
+        { name: "حفص عن عاصم", translit: "Hafs 'an Asim", narrator: "الإمام عاصم ← حفص", popular: true },
+        { name: "شعبة عن عاصم", translit: "Shu'bah 'an Asim", narrator: "الإمام عاصم ← شعبة", popular: false },
+        { name: "قالون عن نافع", translit: "Qalun 'an Nafi'", narrator: "الإمام نافع ← قالون", popular: false },
+        { name: "ورش عن نافع", translit: "Warsh 'an Nafi'", narrator: "الإمام نافع ← ورش", popular: true },
+        { name: "الدوري عن أبي عمرو", translit: "Al-Duri 'an Abu Amr", narrator: "الإمام أبو عمرو ← الدوري", popular: false },
+        { name: "السوسي عن أبي عمرو", translit: "Al-Susi 'an Abu Amr", narrator: "الإمام أبو عمرو ← السوسي", popular: false },
+        { name: "هشام عن ابن عامر", translit: "Hisham 'an Ibn Amir", narrator: "الإمام ابن عامر ← هشام", popular: false },
+        { name: "ابن ذكوان عن ابن عامر", translit: "Ibn Dhakwan 'an Ibn Amir", narrator: "الإمام ابن عامر ← ابن ذكوان", popular: false },
+        { name: "خلف عن حمزة", translit: "Khalaf 'an Hamzah", narrator: "الإمام حمزة ← خلف", popular: false },
+        { name: "الدوري عن الكسائي", translit: "Al-Duri 'an Al-Kisa'i", narrator: "الإمام الكسائي ← الدوري", popular: false },
+      ],
+    },
+
+    howItWorks: {
+      badge: "كيف يعمل",
+      title: "ابدأ رحلتك في ثلاث خطوات",
+      subtitle: "من التسجيل إلى أول جلسة — عملية بسيطة وواضحة.",
+      steps: [
+        { title: "أنشئ حسابك", body: "سجّل كطالب أو معلم أو ولي أمر. اختر القراءة المفضلة لديك وسنطابقك مع المعلمين المناسبين." },
+        { title: "اختر معلمك", body: "تصفّح ملفات الشيوخ الموثّقين، قارن الأوقات والأسعار، واحجز جلسة تناسب جدولك." },
+        { title: "تعلّم وتتبّع", body: "احضر الجلسات، استقبل الملاحظات، وشاهد تقدمك على لوحتك. عدّل أهدافك في أي وقت." },
+      ],
+    },
+
+    roles: {
+      badge: "للجميع",
+      title: "منصة واحدة، ثلاث رحلات",
+      subtitle: "سواء كنت طالبًا، معلمًا، أو ولي أمر — لدينا مسار يناسبك.",
+      items: [
+        { title: "الطلاب", body: "احفظ، راجع، وأتقن تلاوتك. تتبع المراحل، استقبل ملاحظات شخصية، واكسب الشهادات.", cta: "انضم كطالب" },
+        { title: "المعلمون", body: "شارك علمك، ابنِ قاعدة طلابية، وأدر جدولك — كل ذلك من لوحة واحدة. تقدّم واحصل على التوثيق.", cta: "تقدّم كمعلم" },
+        { title: "أولياء الأمور", body: "اربط حساب طفلك، راقب تقدمه، أدر المدفوعات، وابقَ على اطلاع في كل خطوة.", cta: "انضم كولي أمر" },
+      ],
+    },
+
+    teachers: {
+      badge: "معلمون مميزون",
+      title: "تعلّم من نخبة المعلمين",
+      subtitle: "شيوخ وأساتذة موثّقون بإجازات معتمدة في القراءات العشر.",
+      sessions: "جلسة",
+      items: [
+        { name: "الشيخ عبدالله المصري", specialty: "حفص · نافع (قالون وورش)", location: "القاهرة، مصر", rating: 4.9, sessions: 1240 },
+        { name: "أستاذة مريم البريطانية", specialty: "حفص · علم التجويد", location: "لندن، المملكة المتحدة", rating: 5.0, sessions: 980 },
+        { name: "الشيخ إبراهيم عدن", specialty: "حفص · الدوري · خلف", location: "دبي، الإمارات", rating: 4.8, sessions: 1560 },
+        { name: "الأستاذ حسن المالكي", specialty: "القراءات العشر · مسار الإجازة", location: "المدينة المنورة، السعودية", rating: 5.0, sessions: 2100 },
+      ],
+    },
+
+    curriculum: {
+      badge: "المنهج",
+      title: "خارطة طريق تعلّم القرآن",
+      subtitle: "رحلة متدرجة من الحروف إلى الإجازة.",
+      items: [
+        { title: "الأحرف العربية والنورانية", body: "أتقن الحروف العربية وأشكالها وطريقة النوراني في النطق السليم." },
+        { title: "أساسيات التجويد", body: "تعلّم أحكام التجويد: الإدغام، الإخفاء، الإقلاب، المدّ، والقلقلة." },
+        { title: "حفظ جزء عمّ", body: "ابدأ بحفظ الجزء الثلاثين بتكرار موجّه وتطبيق أحكام التجويد." },
+        { title: "حفظ القرآن الكريم", body: "حفظ منهجي للقرآن كاملًا مع جداول المراجعة وتتبّع التقدم." },
+        { title: "مسار الإجازة", body: "استعد لنيل إجازتك — سند متصل يربطك بالنبي ﷺ." },
+      ],
+    },
+
+    testimonials: {
+      badge: "آراء الطلاب",
+      title: "ماذا يقول مجتمعنا",
+      subtitle: "قصص حقيقية من طلاب ومعلمين وأولياء أمور.",
+      items: [
+        { quote: "ربطتني أكاديمية كُتّابي بشيخ يحمل إجازة في حفص وورش. تحسّن تجويدي بشكل كبير خلال ثلاثة أشهر فقط.", name: "أحمد الفارسي", role: "طالب، الإمارات" },
+        { quote: "كمعلم، تجعل المنصة الجدولة وإدارة الطلاب أمرًا سهلًا. يمكنني التركيز تمامًا على ما يهم — تعليم القرآن.", name: "الشيخ يوسف رمضان", role: "معلم، مصر" },
+        { quote: "أستطيع مراقبة تقدم ابني، رؤية حضوره، والتواصل مع معلمه. يمنحني راحة بال كاملة.", name: "فاطمة الحسن", role: "ولي أمر، ماليزيا" },
+      ],
+    },
+
+    pricing: {
+      badge: "الأسعار",
+      title: "أسعار بسيطة وشفافة",
+      subtitle: "اختر الخطة المناسبة لك. غيّر أو ألغِ في أي وقت.",
+      save: "وفّر 20%",
+      plans: [
+        { name: "المستكشف", priceMonthly: 0, priceYearly: 0, tagline: "لا حاجة لبطاقة ائتمان", cta: "ابدأ مجانًا", features: ["جلسة تجريبية مجانية", "تصفّح ملفات المعلمين", "الوصول إلى كتالوج القراءات", "الوصول إلى المنتدى المجتمعي"] },
+        { name: "الطالب", priceMonthly: 29, priceYearly: 23, tagline: "شهريًا، يُدفع كل شهر", cta: "ابدأ الآن", features: ["حجز جلسات غير محدودة", "لوحة تتبّع التقدم", "تسجيلات الجلسات والملاحظات", "مطابقة أولوية مع المعلمين", "شهادة إتمام"] },
+        { name: "العائلة", priceMonthly: 59, priceYearly: 47, tagline: "شهريًا، حتى 4 أعضاء", cta: "اختر العائلة", features: ["كل ما في خطة الطالب", "حتى 4 حسابات عائلية", "لوحة ولي الأمر وأدوات التحكم", "محفظة عائلية مشتركة", "تقارير تقدّم أسبوعية", "دعم عائلي مخصص"] },
+      ],
+    },
+
+    achievements: {
+      badge: "الإنجازات",
+      title: "موثوق من مجتمع تعلّم القرآن",
+      subtitle: "أرقام تعكس ثقة آلاف الطلاب والمعلمين حول العالم.",
+      items: [
+        { value: 50000, suffix: "+", label: "جلسة مكتملة" },
+        { value: 340, suffix: "+", label: "إجازة ممنوحة" },
+        { value: 120000, suffix: "+", label: "ساعة تدريس" },
+        { value: 98, suffix: "%", label: "رضا الطلاب" },
+        { value: 45, suffix: "+", label: "دولة" },
+        { value: 28000, suffix: "+", label: "جزء محفوظ" },
+      ],
+    },
+
+    faq: {
+      badge: "الأسئلة الشائعة",
+      title: "الأسئلة المتكررة",
+      subtitle: "كل ما تريد معرفته عن المنصة والإجازات والقراءات.",
+      items: [
+        { q: "ما هي الإجازة ولماذا تهمّ؟", a: "الإجازة شهادة تُخوّل حاملها تعليم رواية معينة ونقلها. كل معلم في كُتّابي أكاديمي يحمل إجازة واحدة على الأقل، ما يضمن أسانيد أصيلة متصلة بالنبي ﷺ." },
+        { q: "ما القراءات التي يمكنني تعلّمها؟", a: "ندعم القراءات العشر المتواترة، من حفص عن عاصم الشائعة إلى قراءات نادرة كخلف عن حمزة. يمكنك التبديل بين الروايات أو تعلّم عدة قراءات معًا." },
+        { q: "كيف يعمل التسعير؟", a: "يحدد المعلمون أسعارهم لكل جلسة. تدفع فقط مقابل الجلسات التي تحجزها — لا اشتراك مطلوب. يمكن لأولياء الأمور تمويل محافظ أبنائهم لدفع سلس." },
+        { q: "هل المنصة آمنة للأطفال؟", a: "بالتأكيد. لأولياء الأمور إشراف كامل: اعتماد الجلسات، مراقبة التقدم، إدارة المدفوعات، والتحكم في الاتصالات. كل الجلسات مُسجّلة لضمان الجودة." },
+        { q: "هل يمكنني التجربة قبل الالتزام؟", a: "نعم! يحصل الطلاب الجدد على جلسة تجريبية مجانية مع معلم موثّق. جرّب المنصة، قابل معلمك، وقرر إذا كانت مناسبة — دون أي دفع." },
+      ],
+    },
+
+    newsletter: {
+      badge: "ابقَ على اطلاع",
+      title: "احصل على رؤى تعلّم القرآن في بريدك",
+      subtitle: "اشترك في نشرتنا الأسبوعية للحصول على نصائح ومقالات حصرية.",
+      emailPlaceholder: "بريدك الإلكتروني",
+      successTitle: "تم الاشتراك بنجاح!",
+      successDesc: "تحقق من بريدك لتأكيد الاشتراك.",
+      errorTitle: "حدث خطأ",
+      errorDesc: "تعذّر الاشتراك. حاول مرة أخرى.",
+      invalidEmail: "يرجى إدخال بريد إلكتروني صحيح",
+      disclaimer: "نحترم خصوصيتك. ألغِ الاشتراك في أي وقت.",
+    },
+
+    contact: {
+      badge: "تواصل معنا",
+      title: "لديك سؤال؟ يسعدنا سماعك",
+      subtitle: "فريقنا متاح للرد على استفساراتك خلال 24 ساعة.",
+      emailPlaceholder: "بريدك الإلكتروني",
+      messagePlaceholder: "رسالتك (10 أحرف على الأقل)...",
+      successTitle: "شكرًا لك!",
+      successDesc: "سنرد عليك خلال 24 ساعة.",
+      errorTitle: "حدث خطأ",
+      errorDesc: "تعذّر إرسال الرسالة. حاول مرة أخرى.",
+      invalidEmail: "يرجى إدخال بريد إلكتروني صحيح",
+      shortMessage: "الرسالة يجب أن تكون 10 أحرف على الأقل",
+    },
+
+    verse: {
+      badge: "آية اليوم",
+      title: "آية اليوم",
+      subtitle: "تأمّل في كلام الله كل يوم.",
+      text: "إِنَّ مَعَ الْعُسْرِ يُسْرًا",
+      translation: "إنّ مع العسر يسرًا.",
+      reference: "سورة الشرح (94: 6)",
+    },
+
+    mobileApp: {
+      badge: "تطبيق الجوال",
+      title: "تعلّم أينما كنت مع تطبيقنا",
+      subtitle: "حمّل تطبيق كُتّابي للحصول على تجربة تعلّم متكاملة على هاتفك.",
+      features: [
+        "احجز وأدر الجلسات من أي مكان",
+        "استقبل إشعارات فورية للدروس القادمة",
+        "وصول دون اتصال لملاحظات الحفظ",
+        "دخول بيومتري سريع وآمن",
+      ],
+    },
+
+    trusted: {
+      badge: "موثوق من",
+      title: "موثوق من المؤسسات حول العالم",
+      subtitle: "جامعات ومعاهد رائدة تثق بنا لتعليم القرآن.",
+      partners: [
+        "جامعة الأزهر",
+        "الجامعة الإسلامية بالمدينة",
+        "دار الحديث",
+        "مركز النور",
+        "أكاديمية القرآن بلندن",
+        "معهد التجويد",
+      ],
+    },
+
+    resources: {
+      badge: "المصادر",
+      title: "أفكار وأدلة",
+      subtitle: "مقالات مختارة لإثراء رحلتك مع كتاب الله.",
+      items: [
+        { title: "دليل المبتدئين للقراءات العشر", category: "القراءات", date: "15 ديسمبر 2025", excerpt: "تعرّف على القراءات العشر المتواترة وأئمتها وكيفية الاختيار بينها." },
+        { title: "خمس تقنيات مجرّبة لحفظ القرآن", category: "الحفظ", date: "8 ديسمبر 2025", excerpt: "أساليب عملية أثبتت فعاليتها في تثبيت الحفظ على المدى الطويل." },
+        { title: "فهم الإجازة: طريقك إلى الشهادة", category: "العلم", date: "29 نوفمبر 2025", excerpt: "كل ما تحتاج معرفته عن الإجازة وشروطها وكيفية الحصول عليها." },
+      ],
+    },
+
+    finalCta: {
+      title: "هل أنت مستعد لبدء رحلتك مع القرآن؟",
+      subtitle: "انضم إلى آلاف الطلاب الذين يتعلّمون القرآن مع معلمين معتمدين اليوم.",
+      cta: "ابدأ الآن — مجانًا",
+    },
+
+    footer: {
+      tagline: "نربط الطلاب بالشيوخ المعتمدين — حفاظًا على سلسلة الرواية.",
+      columnsTitle: {
+        product: "المنتج",
+        company: "الشركة",
+        legal: "القانونية",
+      },
+      columns: {
+        product: ["المميزات", "القراءات", "الأسعار"],
+        company: ["من نحن", "الوظائف", "اتصل بنا"],
+        legal: ["سياسة الخصوصية", "شروط الخدمة", "سياسة الكوكيز"],
+      },
+      copyright: "© 2025 كُتّابي أكاديمي. جميع الحقوق محفوظة.",
+    },
+
+    cookie: {
+      title: "نحترم خصوصيتك",
+      body: "نستخدم ملفات تعريف الارتباط لتحسين تجربتك وتحليل الأداء وتخصيص المحتوى. اضبط تفضيلاتك في أي وقت.",
+    },
+  },
+
+  en: {
+    meta: {
+      title: "Kottaby Academy | Learn the Quran with certified Shuyukh",
+      description:
+        "A modern platform that connects students with certified Quran reciters and teachers across all 10 Qira'at. Track progress, master Tajweed, preserve your recitation chain.",
+    },
+
+    common: {
+      brand: "Kottaby Academy",
+      signIn: "Sign in",
+      getStarted: "Get started",
+      getStartedFree: "Get started — it's free",
+      createAccount: "Create your account",
+      bookSession: "Book session",
+      readMore: "Read more",
+      learnMore: "Learn more",
+      popular: "Popular",
+      mostPopular: "Most Popular",
+      perMonth: "/mo",
+      billedMonthly: "per month, billed monthly",
+      perYear: "/yr",
+      save: "Save",
+      monthly: "Monthly",
+      yearly: "Yearly",
+      comingSoon: "Coming soon",
+      subscribe: "Subscribe",
+      send: "Send",
+      sendMessage: "Send message",
+      copy: "Copy",
+      copied: "Copied!",
+      share: "Share",
+      acceptAll: "Accept all",
+      decline: "Decline",
+      cookieSettings: "Cookie settings",
+      savePreferences: "Save preferences",
+      necessary: "Necessary",
+      analytics: "Analytics",
+      marketing: "Marketing",
+      backToTop: "Back to top",
+      chatWhatsapp: "Chat with us on WhatsApp",
+      expandAll: "Expand all",
+      collapseAll: "Collapse all",
+      allSystemsOperational: "All systems operational",
+      free: "Free",
+      noCreditCard: "No credit card required",
+      downloadAppStore: "Download on the App Store",
+      downloadPlayStore: "Get it on Google Play",
+    },
+
+    utility: {
+      hijriLabel: "Hijri Date",
+      prayersLabel: "Prayer Times — Cairo",
+      next: "next",
+      inTime: "in",
+      fajr: "Fajr",
+      sunrise: "Sunrise",
+      dhuhr: "Dhuhr",
+      asr: "Asr",
+      maghrib: "Maghrib",
+      isha: "Isha",
+    },
+
+    nav: {
+      features: "Features",
+      recitations: "Recitations",
+      howItWorks: "How it works",
+      roles: "Roles",
+      teachers: "Teachers",
+      pricing: "Pricing",
+      faq: "FAQ",
+      resources: "Resources",
+    },
+
+    hero: {
+      badge: "Quran learning, reimagined",
+      titleLead: "Connect with certified",
+      titleAccent: "Shuyukh",
+      titleTail: "",
+      subtitle:
+        "A modern platform that links students with approved reciters and teachers — track your progress, master Tajweed, and preserve your recitation chain.",
+      ctaPrimary: "Create your account",
+      ctaSecondary: "Sign in",
+      liveIndicator: "Now enrolling",
+      stats: [
+        { value: "120+", label: "Certified teachers" },
+        { value: "8,500+", label: "Active students" },
+        { value: "10", label: "Qira'at supported" },
+        { value: "15+", label: "Countries served" },
+      ],
+    },
+
+    features: {
+      badge: "Features",
+      title: "Everything you need to master the Quran",
+      subtitle:
+        "Tools thoughtfully crafted to take a student of knowledge from beginner to certified, smoothly and safely.",
+      items: [
+        { title: "Verified Shuyukh", body: "Every teacher is vetted and holds an approved ijazah. Browse profiles, read reviews, and choose the reciter who fits your goals." },
+        { title: "All 10 Qira'at", body: "Learn any of the ten canonical recitations — from Hafs an Asim to the rare Qira'at — with structured curricula and expert guidance." },
+        { title: "Progress tracking", body: "Visual dashboards show your memorisation milestones, Tajweed accuracy, and attendance. Set goals and watch your journey unfold." },
+        { title: "Secure & private", body: "Your data is encrypted end-to-end. We never share personal information with third parties — your learning journey stays yours." },
+        { title: "Smart scheduling", body: "Book sessions in your timezone, get reminders, and sync with your calendar. Teachers manage availability with a built-in calendar." },
+        { title: "Transparent payments", body: "Pay per session or subscribe monthly. Invoices, receipts, and quota management are built in — no hidden fees, ever." },
+      ],
+    },
+
+    recitations: {
+      badge: "Qira'at",
+      title: "The ten canonical recitations",
+      subtitle:
+        "Each Qira'ah has a unique chain of transmission (isnad) tracing back to the Prophet ﷺ. Choose one and begin your journey with the scholars' chains.",
+      searchPlaceholder: "Search recitation or narrator...",
+      narrator: "Narrator",
+      isnad: "Isnad chain",
+      popular: "Popular",
+      items: [
+        { name: "حفص عن عاصم", translit: "Hafs 'an Asim", narrator: "Imam Asim ← Hafs", popular: true },
+        { name: "شعبة عن عاصم", translit: "Shu'bah 'an Asim", narrator: "Imam Asim ← Shu'bah", popular: false },
+        { name: "قالون عن نافع", translit: "Qalun 'an Nafi'", narrator: "Imam Nafi' ← Qalun", popular: false },
+        { name: "ورش عن نافع", translit: "Warsh 'an Nafi'", narrator: "Imam Nafi' ← Warsh", popular: true },
+        { name: "الدوري عن أبي عمرو", translit: "Al-Duri 'an Abu Amr", narrator: "Imam Abu Amr ← Al-Duri", popular: false },
+        { name: "السوسي عن أبي عمرو", translit: "Al-Susi 'an Abu Amr", narrator: "Imam Abu Amr ← Al-Susi", popular: false },
+        { name: "هشام عن ابن عامر", translit: "Hisham 'an Ibn Amir", narrator: "Imam Ibn Amir ← Hisham", popular: false },
+        { name: "ابن ذكوان عن ابن عامر", translit: "Ibn Dhakwan 'an Ibn Amir", narrator: "Imam Ibn Amir ← Ibn Dhakwan", popular: false },
+        { name: "خلف عن حمزة", translit: "Khalaf 'an Hamzah", narrator: "Imam Hamzah ← Khalaf", popular: false },
+        { name: "الدوري عن الكسائي", translit: "Al-Duri 'an Al-Kisa'i", narrator: "Imam Al-Kisa'i ← Al-Duri", popular: false },
+      ],
+    },
+
+    howItWorks: {
+      badge: "How it works",
+      title: "Start your journey in three steps",
+      subtitle: "From sign-up to first session — a simple, clear process.",
+      steps: [
+        { title: "Create your account", body: "Sign up as a student, teacher, or parent. Choose your preferred recitation and we'll match you with the right educators." },
+        { title: "Pick your teacher", body: "Browse verified Shuyukh profiles, compare availability and rates, and book a session that fits your schedule." },
+        { title: "Learn & track", body: "Attend sessions, get feedback, and watch your progress unfold on your dashboard. Adjust your goals anytime." },
+      ],
+    },
+
+    roles: {
+      badge: "For everyone",
+      title: "One platform, three journeys",
+      subtitle: "Whether you're a student, teacher, or parent — there's a path for you.",
+      items: [
+        { title: "Students", body: "Memorise, revise, and perfect your recitation. Track milestones, get personalised feedback, and earn certificates.", cta: "Join as student" },
+        { title: "Teachers", body: "Share your knowledge, build your student base, and manage your schedule — all from one dashboard. Apply and get verified.", cta: "Apply as teacher" },
+        { title: "Parents", body: "Link your child's account, monitor their progress, manage payments, and stay informed every step of the way.", cta: "Join as parent" },
+      ],
+    },
+
+    teachers: {
+      badge: "Featured Teachers",
+      title: "Learn from the best",
+      subtitle: "Verified Shuyukh and Ustadhs with certified ijazahs across the ten Qira'at.",
+      sessions: "sessions",
+      items: [
+        { name: "Sheikh Abdullah Al-Misri", specialty: "Hafs · Nafi' (Qalun & Warsh)", location: "Cairo, Egypt", rating: 4.9, sessions: 1240 },
+        { name: "Ustadha Maryam Al-Britani", specialty: "Hafs · Tajweed Science", location: "London, UK", rating: 5.0, sessions: 980 },
+        { name: "Sheikh Ibrahim Aden", specialty: "Hafs · Ad-Duri · Khalaf", location: "Dubai, UAE", rating: 4.8, sessions: 1560 },
+        { name: "Ustadh Hassan Al-Maliki", specialty: "All 10 Qira'at · Ijazah Pathway", location: "Madinah, KSA", rating: 5.0, sessions: 2100 },
+      ],
+    },
+
+    curriculum: {
+      badge: "Curriculum",
+      title: "Your Quranic learning roadmap",
+      subtitle: "A graded journey from letters to ijazah.",
+      items: [
+        { title: "Arabic Alphabet & Nooraniyyah", body: "Master the Arabic letters, their forms, and the Nooraniyyah method for proper pronunciation." },
+        { title: "Tajweed Fundamentals", body: "Learn the rules of Tajweed: Idgham, Ikhfa, Iqlab, Madd, and Qalqalah." },
+        { title: "Juz Amma Memorisation", body: "Begin memorising the 30th Juz with guided repetition and Tajweed application." },
+        { title: "Quran Memorisation (Hifz)", body: "Systematic memorisation of the entire Quran with revision schedules and progress tracking." },
+        { title: "Ijazah Pathway", body: "Prepare for and earn your Ijazah — a certified chain of transmission back to the Prophet." },
+      ],
+    },
+
+    testimonials: {
+      badge: "Testimonials",
+      title: "What our community says",
+      subtitle: "Real stories from students, teachers, and parents.",
+      items: [
+        { quote: "Kottaby Academy connected me with a sheikh who has an ijazah in Hafs and Warsh. My Tajweed has improved dramatically in just three months.", name: "Ahmed Al-Farsi", role: "Student, UAE" },
+        { quote: "As a teacher, the platform makes scheduling and student management effortless. I can focus entirely on what matters — teaching the Quran.", name: "Sheikh Yusuf Ramadan", role: "Teacher, Egypt" },
+        { quote: "I can monitor my son's progress, see his attendance, and communicate with his teacher. It gives me complete peace of mind.", name: "Fatima Al-Hassan", role: "Parent, Malaysia" },
+      ],
+    },
+
+    pricing: {
+      badge: "Pricing",
+      title: "Simple, transparent pricing",
+      subtitle: "Choose the plan that fits you. Change or cancel anytime.",
+      save: "Save 20%",
+      plans: [
+        { name: "Explorer", priceMonthly: 0, priceYearly: 0, tagline: "No credit card required", cta: "Start free", features: ["1 free trial session", "Browse teacher profiles", "Access Qira'at catalogue", "Community forum access"] },
+        { name: "Student", priceMonthly: 29, priceYearly: 23, tagline: "per month, billed monthly", cta: "Get started", features: ["Unlimited session bookings", "Progress tracking dashboard", "Session recordings & notes", "Priority teacher matching", "Certificate of completion"] },
+        { name: "Family", priceMonthly: 59, priceYearly: 47, tagline: "per month, up to 4 members", cta: "Choose family", features: ["Everything in Student plan", "Up to 4 family accounts", "Parent dashboard & controls", "Shared family wallet", "Weekly progress reports", "Dedicated family support"] },
+      ],
+    },
+
+    achievements: {
+      badge: "Achievements",
+      title: "Trusted by the Quran learning community",
+      subtitle: "Numbers that reflect the trust of thousands of students and teachers worldwide.",
+      items: [
+        { value: 50000, suffix: "+", label: "Sessions completed" },
+        { value: 340, suffix: "+", label: "Ijazahs granted" },
+        { value: 120000, suffix: "+", label: "Hours of teaching" },
+        { value: 98, suffix: "%", label: "Student satisfaction" },
+        { value: 45, suffix: "+", label: "Countries" },
+        { value: 28000, suffix: "+", label: "Juz memorised" },
+      ],
+    },
+
+    faq: {
+      badge: "FAQ",
+      title: "Frequently asked questions",
+      subtitle: "Everything you need to know about the platform, ijazahs, and Qira'at.",
+      items: [
+        { q: "What is an ijazah and why does it matter?", a: "An ijazah is a certificate authorising its holder to teach and transmit a specific Qira'ah. Every teacher on Kottaby Academy holds at least one ijazah, ensuring authentic, unbroken chains of transmission back to the Prophet ﷺ." },
+        { q: "Which Qira'at can I learn?", a: "We support all ten canonical Qira'at, from the popular Hafs 'an 'Asim to rarer readings like Khalaf 'an Hamzah. You can switch between recitations or learn multiple simultaneously." },
+        { q: "How does pricing work?", a: "Teachers set their own per-session rates. You pay only for the sessions you book — no subscriptions required. Parents can fund their children's wallets for seamless payment." },
+        { q: "Is the platform safe for children?", a: "Absolutely. Parents have full oversight: approve sessions, monitor progress, manage payments, and control communications. All sessions are recorded for quality assurance." },
+        { q: "Can I try before committing?", a: "Yes! New students receive a free trial session with a verified teacher. Experience the platform, meet your teacher, and decide if it's the right fit — no payment required." },
+      ],
+    },
+
+    newsletter: {
+      badge: "Stay updated",
+      title: "Get Quranic learning insights delivered to your inbox",
+      subtitle: "Subscribe to our weekly newsletter for exclusive tips and articles.",
+      emailPlaceholder: "Your email address",
+      successTitle: "Successfully subscribed!",
+      successDesc: "Check your inbox to confirm your subscription.",
+      errorTitle: "Something went wrong",
+      errorDesc: "Could not subscribe. Please try again.",
+      invalidEmail: "Please enter a valid email address",
+      disclaimer: "We respect your privacy. Unsubscribe at any time.",
+    },
+
+    contact: {
+      badge: "Get in touch",
+      title: "Have a question? We'd love to hear from you",
+      subtitle: "Our team is available to respond to your inquiries within 24 hours.",
+      emailPlaceholder: "Your email address",
+      messagePlaceholder: "Your message (at least 10 characters)...",
+      successTitle: "Thank you!",
+      successDesc: "We'll get back to you within 24 hours.",
+      errorTitle: "Something went wrong",
+      errorDesc: "Could not send the message. Please try again.",
+      invalidEmail: "Please enter a valid email address",
+      shortMessage: "Message must be at least 10 characters",
+    },
+
+    verse: {
+      badge: "Daily Verse",
+      title: "Verse of the Day",
+      subtitle: "Reflect on the word of Allah each day.",
+      text: "إِنَّ مَعَ الْعُسْرِ يُسْرًا",
+      translation: "Indeed, with hardship comes ease.",
+      reference: "Surah Ash-Sharh (94:6)",
+    },
+
+    mobileApp: {
+      badge: "Mobile App",
+      title: "Learn on the go with our mobile app",
+      subtitle: "Download the Kottaby app for a complete learning experience on your phone.",
+      features: [
+        "Book and manage sessions from anywhere",
+        "Receive push notifications for upcoming lessons",
+        "Offline access to your memorisation notes",
+        "Biometric login for quick and secure access",
+      ],
+    },
+
+    trusted: {
+      badge: "Trusted By",
+      title: "Trusted by institutions worldwide",
+      subtitle: "Leading universities and institutes trust us for Quran education.",
+      partners: [
+        "Al-Azhar Institute",
+        "Islamic University of Madinah",
+        "Dar Al-Hadith",
+        "Markaz Al-Noor",
+        "Quran Academy London",
+        "Tajweed Institute",
+      ],
+    },
+
+    resources: {
+      badge: "Resources",
+      title: "Insights & guides",
+      subtitle: "Curated articles to enrich your journey with the Book of Allah.",
+      items: [
+        { title: "A Beginner's Guide to the 10 Qira'at", category: "Qira'at", date: "Dec 15, 2025", excerpt: "Learn about the ten canonical Qira'at, their imams, and how to choose between them." },
+        { title: "5 Proven Techniques for Effective Hifz", category: "Memorisation", date: "Dec 8, 2025", excerpt: "Practical methods proven effective in long-term memorisation retention." },
+        { title: "Understanding Ijazah: Your Path to Certification", category: "Scholarship", date: "Nov 29, 2025", excerpt: "Everything you need to know about ijazah, its conditions, and how to obtain it." },
+      ],
+    },
+
+    finalCta: {
+      title: "Ready to begin your Quranic journey?",
+      subtitle: "Join thousands of students learning the Quran with certified teachers today.",
+      cta: "Get started — it's free",
+    },
+
+    footer: {
+      tagline: "Connecting students with certified Shuyukh — preserving the chain of recitation.",
+      columnsTitle: {
+        product: "Product",
+        company: "Company",
+        legal: "Legal",
+      },
+      columns: {
+        product: ["Features", "Recitations", "Pricing"],
+        company: ["About us", "Careers", "Contact"],
+        legal: ["Privacy policy", "Terms of service", "Cookie policy"],
+      },
+      copyright: "© 2025 Kottaby Academy. All rights reserved.",
+    },
+
+    cookie: {
+      title: "We value your privacy",
+      body: "We use cookies to improve your experience, analyse performance, and personalise content. Adjust your preferences anytime.",
+    },
+  },
+} as const;
+
+export type Messages = typeof messages;
+export type Locale = keyof Messages;
+export type LocaleMessages = Messages["en"];

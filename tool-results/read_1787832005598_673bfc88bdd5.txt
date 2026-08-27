@@ -1,0 +1,2002 @@
+     1→     1→"use client";
+     2→     2→
+     3→     3→import {
+     4→     4→  AutoStoriesOutlined as BookIcon,
+     5→     5→  WorkspacePremiumOutlined as CertificateIcon,
+     6→     6→  CheckCircleOutlined as CheckIcon,
+     7→     7→  TimelapseOutlined as ClockIcon,
+     8→     8→  Close as CloseIcon,
+     9→     9→  ContentCopy as CopyIcon,
+    10→    10→  NightsStayOutlined as CrescentIcon,
+    11→    11→  DarkModeOutlined,
+    12→    12→  ExpandMore,
+    13→    13→  FilterListOutlined as FilterIcon,
+    14→    14→  PublicOutlined as GlobeIcon,
+    15→    15→  GroupsOutlined as GroupsIcon,
+    16→    16→  KeyboardArrowLeft,
+    17→    17→  KeyboardArrowRight,
+    18→    18→  KeyboardArrowUp,
+    19→    19→  LightModeOutlined,
+    20→    20→  LocationOnOutlined as LocationIcon,
+    21→    21→  MailOutlined as MailIcon,
+    22→    22→  Menu as MenuIcon,
+    23→    23→  MosqueOutlined as MosqueIcon,
+    24→    24→  PaymentsOutlined as PaymentsIcon,
+    25→    25→  PersonOutlined as PersonIcon,
+    26→    26→  PhoneAndroid as PhoneAndroidIcon,
+    27→    27→  PhoneIphone as PhoneIphoneIcon,
+    28→    28→  MenuBookOutlined as QuranIcon,
+    29→    29→  ScheduleOutlined as ScheduleIcon,
+    30→    30→  SchoolOutlined as SchoolIcon,
+    31→    31→  SecurityOutlined as SecurityIcon,
+    32→    32→  Share as ShareIcon,
+    33→    33→  Star,
+    34→    34→  StarRateOutlined as StarRateIcon,
+    35→    35→  TrendingUpOutlined as TrendingIcon,
+    36→    36→  EmojiEventsOutlined as TrophyIcon,
+    37→    37→} from "@mui/icons-material";
+    38→    38→import {
+    39→    39→  Accordion,
+    40→    40→  AccordionDetails,
+    41→    41→  AccordionSummary,
+    42→    42→  Alert,
+    43→    43→  Box,
+    44→    44→  Button,
+    45→    45→  Chip,
+    46→    46→  CircularProgress,
+    47→    47→  Container,
+    48→    48→  Dialog,
+    49→    49→  DialogActions,
+    50→    50→  DialogContent,
+    51→    51→  DialogTitle,
+    52→    52→  Fab,
+    53→    53→  FormControlLabel,
+    54→    54→  IconButton,
+    55→    55→  TextField as MuiTextField,
+    56→    56→  Snackbar,
+    57→    57→  Stack,
+    58→    58→  Switch,
+    59→    59→  Tooltip,
+    60→    60→  Typography,
+    61→    61→} from "@mui/material";
+    62→    62→import { useColorScheme } from "@mui/material/styles";
+    63→    63→import Link from "next/link";
+    64→    64→import {
+    65→    65→  type ReactNode,
+    66→    66→  type SyntheticEvent,
+    67→    67→  useCallback,
+    68→    68→  useEffect,
+    69→    69→  useMemo,
+    70→    70→  useRef,
+    71→    71→  useState,
+    72→    72→  useSyncExternalStore,
+    73→    73→} from "react";
+    74→    74→import { LocaleSwitcher } from "@/frontend/components/LocaleSwitcher";
+    75→    75→import { SiteFooter } from "@/frontend/components/SiteFooter";
+    76→    76→import { Landing, useAppLocale, useAppTranslation } from "@/shared/locale";
+    77→    77→
+    78→    78→/**
+    79→    79→ * Landing page — the public front door of Kottaby Academy at `/`.
+    80→    80→ *
+    81→    81→ * Replaces the prior `redirect("/dashboard")` (which bounced anonymous
+    82→    82→ * visitors to `/login` and wasted the most valuable URL). This page is a
+    83→    83→ * rich marketing surface: hero, stats bar, features grid, recitations
+    84→    84→ * showcase, how-it-works, roles, testimonials, FAQ, newsletter, final CTA,
+    85→    85→ * and footer.
+    86→    86→ *
+    87→    87→ * **Lightweight by design**: no Apollo queries, no auth hooks, no mutation
+    88→    88→ * imports — only MUI + i18n. This keeps the turbopack compile footprint
+    89→    89→ * small enough to survive the 4 GB / no-swap sandbox.
+    90→    90→ *
+    91→    91→ * Design (Midnight Blue + Copper brand):
+    92→    92→ *  - Hero: midnight-blue gradient with Islamic geometric tessellation +
+    93→    93→ *    copper radial glow. Big headline with copper accent word.
+    94→    94→ *  - Sections alternate between `background.default` and `background.paper`
+    95→    95→ *    for rhythm.
+    96→    96→ *  - All accents (badges, icons, underlines, buttons) use copper
+    97→    97→ *    (`secondary-main`).
+    98→    98→ *
+    99→    99→ * Client component — needs `useAppTranslation(Landing)` for bilingual copy.
+   100→   100→ * RTL is handled automatically by MUI + the locale-aware Emotion cache.
+   101→   101→ */
+   102→   102→// ─── Scroll-spy hook ───────────────────────────────────────────────
+   103→   103→
+   104→   104→function useScrollSpy(sectionIds: readonly string[]): string {
+   105→   105→  const [activeId, setActiveId] = useState("");
+   106→   106→  useEffect(() => {
+   107→   107→    const observers: IntersectionObserver[] = [];
+   108→   108→    for (const id of sectionIds) {
+   109→   109→      const el = document.getElementById(id);
+   110→   110→      if (!el) continue;
+   111→   111→      const obs = new IntersectionObserver(
+   112→   112→        ([entry]) => {
+   113→   113→          if (entry.isIntersecting) setActiveId(id);
+   114→   114→        },
+   115→   115→        { threshold: 0.2, rootMargin: "-80px 0px -50% 0px" }
+   116→   116→      );
+   117→   117→      obs.observe(el);
+   118→   118→      observers.push(obs);
+   119→   119→    }
+   120→   120→    return () => {
+   121→   121→      for (const o of observers) o.disconnect();
+   122→   122→    };
+   123→   123→  }, [sectionIds]);
+   124→   124→  return activeId;
+   125→   125→}
+   126→   126→
+   127→   127→export default function LandingPage(): ReactNode {
+   128→   128→  const t = useAppTranslation(Landing);
+   129→   129→  const { mode, setMode } = useColorScheme();
+   130→   130→  const [mobileOpen, setMobileOpen] = useState(false);
+   131→   131→  const prevMode = useRef(mode);
+   132→   132→  const [modeFlash, setModeFlash] = useState(false);
+   133→   133→
+   134→   134→  useEffect(() => {
+   135→   135→    document.documentElement.style.scrollBehavior = "smooth";
+   136→   136→  }, []);
+   137→   137→
+   138→   138→  useEffect(() => {
+   139→   139→    // Uniform cleanup kind on every path (oxlint consistent-return): the
+   140→   140→    // timer only exists on real mode flips.
+   141→   141→    if (prevMode.current === mode) {
+   142→   142→      return undefined;
+   143→   143→    }
+   144→   144→    prevMode.current = mode;
+   145→   145→    setModeFlash(true);
+   146→   146→    const timer = setTimeout(() => setModeFlash(false), 300);
+   147→   147→    return () => clearTimeout(timer);
+   148→   148→  }, [mode]);
+   149→   149→
+   150→   150→  const sectionIds = useMemo(
+   151→   151→    () =>
+   152→   152→      [
+   153→   153→        "verse",
+   154→   154→        "features",
+   155→   155→        "recitations",
+   156→   156→        "curriculum",
+   157→   157→        "how-it-works",
+   158→   158→        "achievements",
+   159→   159→        "teachers",
+   160→   160→        "roles",
+   161→   161→        "pricing",
+   162→   162→        "testimonials",
+   163→   163→        "faq",
+   164→   164→        "newsletter",
+   165→   165→        "contact",
+   166→   166→        "app",
+   167→   167→      ] as const,
+   168→   168→    []
+   169→   169→  );
+   170→   170→  const activeSection = useScrollSpy(sectionIds);
+   171→   171→
+   172→   172→  const navLinks = [
+   173→   173→    { label: t.navVerse, href: "#verse" },
+   174→   174→    { label: t.navApp, href: "#app" },
+   175→   175→    { label: t.navFeatures, href: "#features" },
+   176→   176→    { label: t.navRecitations, href: "#recitations" },
+   177→   177→    { label: t.navHowItWorks, href: "#how-it-works" },
+   178→   178→    { label: t.navRoles, href: "#roles" },
+   179→   179→    { label: t.navTestimonials, href: "#testimonials" },
+   180→   180→    { label: t.navFaq, href: "#faq" },
+   181→   181→    { label: t.navPricing, href: "#pricing" },
+   182→   182→    { label: t.navContact, href: "#contact" },
+   183→   183→    { label: t.navAchievements, href: "#achievements" },
+   184→   184→    { label: t.navTeachers, href: "#teachers" },
+   185→   185→    { label: t.navCurriculum, href: "#curriculum" },
+   186→   186→    { label: t.navResources, href: "#resources" },
+   187→   187→  ];
+   188→   188→
+   189→   189→  // The desktop bar shows the 8 primary sections that measurably fit at
+   190→   190→  // 1200-1366px alongside brand + actions. The landing now has 14 anchors
+   191→   191→  // (teachers/resources added by the spotlight/resources sections): the
+   192→   192→  // 12-link set overlapped the locale switcher by 76px at 1280, and a
+   193→   193→  // 10-link set still clipped by 30px. Hidden anchors stay in the mobile
+   194→   194→  // drawer and remain reachable by scroll (#verse = page top, #app = bottom,
+   195→   195→  // #contact = footer column + newsletter CTA).
+   196→   196→  const desktopNavHidden = new Set(["#verse", "#app", "#contact", "#resources", "#roles", "#testimonials"]);
+   197→   197→  const desktopNavLinks = navLinks.filter(l => !desktopNavHidden.has(l.href));
+   198→   198→
+   199→   199→  return (
+   200→   200→    <Box
+   201→   201→      component="div"
+   202→   202→      sx={{
+   203→   203→        display: "flex",
+   204→   204→        flexDirection: "column",
+   205→   205→        minHeight: "100vh",
+   206→   206→        bgcolor: "var(--mui-palette-background-default)",
+   207→   207→      }}
+   208→   208→    >
+   209→   209→      {/* === Skip-to-content (a11y) === */}
+   210→   210→      <Box
+   211→   211→        component="a"
+   212→   212→        href="#main-content"
+   213→   213→        sx={{
+   214→   214→          position: "fixed",
+   215→   215→          top: 8,
+   216→   216→          insetInlineStart: 8,
+   217→   217→          zIndex: 2000,
+   218→   218→          px: 2,
+   219→   219→          py: 1,
+   220→   220→          borderRadius: 1.5,
+   221→   221→          bgcolor: "var(--mui-palette-secondary-main)",
+   222→   222→          color: "var(--mui-palette-onSecondary)",
+   223→   223→          fontWeight: 700,
+   224→   224→          fontSize: 14,
+   225→   225→          textDecoration: "none",
+   226→   226→          boxShadow: "0 4px 14px rgba(0,0,0,0.3)",
+   227→   227→          transform: "translateY(-200%)",
+   228→   228→          transition: "transform 0.2s ease",
+   229→   229→          "&:focus-visible": { transform: "translateY(0)" },
+   230→   230→        }}
+   231→   231→      >
+   232→   232→        {t.a11ySkipToContent}
+   233→   233→      </Box>
+   234→   234→
+   235→   235→      {/* === Scroll progress bar === */}
+   236→   236→      <ScrollProgressBar />
+   237→   237→
+   238→   238→      {/* === Top nav === */}
+   239→   239→      <Box
+   240→   240→        component="nav"
+   241→   241→        sx={{
+   242→   242→          position: "sticky",
+   243→   243→          top: 0,
+   244→   244→          zIndex: 100,
+   245→   245→          backdropFilter: "blur(12px)",
+   246→   246→          bgcolor: "color-mix(in srgb, var(--mui-palette-primary-dark) 70%, transparent)",
+   247→   247→          borderBottom: "1px solid var(--mui-palette-divider)",
+   248→   248→        }}
+   249→   249→      >
+   250→   250→        <Container maxWidth="lg">
+   251→   251→          <Stack direction="row" sx={{ alignItems: "center", justifyContent: "space-between", py: 1.5 }}>
+   252→   252→            <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
+   253→   253→              <BrandMark size={32} />
+   254→   254→              <Typography
+   255→   255→                sx={{ fontSize: 17, fontWeight: 700, letterSpacing: "-0.01em", color: "var(--mui-palette-onPrimary)" }}
+   256→   256→              >
+   257→   257→                Kottaby Academy
+   258→   258→              </Typography>
+   259→   259→            </Stack>
+   260→   260→
+   261→   261→            {/* Desktop section nav links */}
+   262→   262→            <Stack
+   263→   263→              direction="row"
+   264→   264→              spacing={0}
+   265→   265→              sx={{ alignItems: "center", display: { xs: "none", lg: "flex" }, overflow: "hidden" }}
+   266→   266→            >
+   267→   267→              {desktopNavLinks.map(link => {
+   268→   268→                const isActive = link.href === `#${activeSection}`;
+   269→   269→                return (
+   270→   270→                  <Button
+   271→   271→                    key={link.href}
+   272→   272→                    component="a"
+   273→   273→                    href={link.href}
+   274→   274→                    size="small"
+   275→   275→                    sx={{
+   276→   276→                      minWidth: "auto",
+   277→   277→                      px: 0.25,
+   278→   278→                      py: 0.5,
+   279→   279→                      fontSize: 12,
+   280→   280→                      fontWeight: 600,
+   281→   281→                      textTransform: "none",
+   282→   282→                      whiteSpace: "nowrap",
+   283→   283→                      ...(isActive
+   284→   284→                        ? {
+   285→   285→                            color: "var(--mui-palette-secondary-light)",
+   286→   286→                            position: "relative",
+   287→   287→                            "&::after": {
+   288→   288→                              content: '""',
+   289→   289→                              position: "absolute",
+   290→   290→                              bottom: -2,
+   291→   291→                              left: "10%",
+   292→   292→                              width: "80%",
+   293→   293→                              height: 2,
+   294→   294→                              bgcolor: "var(--mui-palette-secondary-main)",
+   295→   295→                              borderRadius: 1,
+   296→   296→                              transition: "all 0.2s ease",
+   297→   297→                            },
+   298→   298→                          }
+   299→   299→                        : {
+   300→   300→                            color: "var(--mui-palette-onPrimary)",
+   301→   301→                            opacity: 0.7,
+   302→   302→                          }),
+   303→   303→                      "&:hover": { opacity: 1 },
+   304→   304→                      transition: "color 0.2s ease, opacity 0.2s ease",
+   305→   305→                    }}
+   306→   306→                  >
+   307→   307→                    {link.label}
+   308→   308→                  </Button>
+   309→   309→                );
+   310→   310→              })}
+   311→   311→            </Stack>
+   312→   312→
+   313→   313→            {/* Desktop actions — hidden on xs/sm */}
+   314→   314→            <Stack direction="row" spacing={1.25} sx={{ alignItems: "center", display: { xs: "none", md: "flex" } }}>
+   315→   315→              <LocaleSwitcher />
+   316→   316→              {/* Dark mode toggle */}
+   317→   317→              <Button
+   318→   318→                onClick={() => setMode(mode === "dark" ? "light" : "dark")}
+   319→   319→                sx={{
+   320→   320→                  minWidth: "auto",
+   321→   321→                  p: 1,
+   322→   322→                  color: "var(--mui-palette-secondary-light)",
+   323→   323→                  borderRadius: 2,
+   324→   324→                  "&:hover": { bgcolor: "color-mix(in srgb, var(--mui-palette-secondary-main) 15%, transparent)" },
+   325→   325→                }}
+   326→   326→                aria-label={t.a11yToggleColorMode}
+   327→   327→              >
+   328→   328→                {mode === "dark" ? <LightModeOutlined /> : <DarkModeOutlined />}
+   329→   329→              </Button>
+   330→   330→              <Button
+   331→   331→                component={Link}
+   332→   332→                href="/login"
+   333→   333→                variant="text"
+   334→   334→                sx={{ color: "var(--mui-palette-onPrimary)", fontWeight: 600, textTransform: "none" }}
+   335→   335→              >
+   336→   336→                {t.navSignIn}
+   337→   337→              </Button>
+   338→   338→              <Button
+   339→   339→                component={Link}
+   340→   340→                href="/register"
+   341→   341→                variant="contained"
+   342→   342→                sx={{
+   343→   343→                  position: "relative",
+   344→   344→                  overflow: "hidden",
+   345→   345→                  bgcolor: "var(--mui-palette-secondary-main)",
+   346→   346→                  color: "var(--mui-palette-onSecondary)",
+   347→   347→                  fontWeight: 700,
+   348→   348→                  textTransform: "none",
+   349→   349→                  borderRadius: 2,
+   350→   350→                  px: 2.5,
+   351→   351→                  "&::after": {
+   352→   352→                    content: '""',
+   353→   353→                    position: "absolute",
+   354→   354→                    top: 0,
+   355→   355→                    left: "-100%",
+   356→   356→                    width: "100%",
+   357→   357→                    height: "100%",
+   358→   358→                    background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent)",
+   359→   359→                    transition: "left 0.5s ease",
+   360→   360→                  },
+   361→   361→                  "&:hover": {
+   362→   362→                    bgcolor: "var(--mui-palette-secondary-dark)",
+   363→   363→                    "&::after": { left: "100%" },
+   364→   364→                  },
+   365→   365→                }}
+   366→   366→              >
+   367→   367→                {t.navGetStarted}
+   368→   368→              </Button>
+   369→   369→            </Stack>
+   370→   370→
+   371→   371→            {/* Mobile hamburger button — visible on xs/sm only */}
+   372→   372→            <Stack direction="row" spacing={1} sx={{ alignItems: "center", display: { xs: "flex", md: "none" } }}>
+   373→   373→              <Button
+   374→   374→                onClick={() => setMode(mode === "dark" ? "light" : "dark")}
+   375→   375→                sx={{
+   376→   376→                  minWidth: "auto",
+   377→   377→                  p: 1,
+   378→   378→                  color: "var(--mui-palette-secondary-light)",
+   379→   379→                  borderRadius: 2,
+   380→   380→                  "&:hover": { bgcolor: "color-mix(in srgb, var(--mui-palette-secondary-main) 15%, transparent)" },
+   381→   381→                }}
+   382→   382→                aria-label={t.a11yToggleColorMode}
+   383→   383→              >
+   384→   384→                {mode === "dark" ? <LightModeOutlined /> : <DarkModeOutlined />}
+   385→   385→              </Button>
+   386→   386→              <Button
+   387→   387→                onClick={() => setMobileOpen(prev => !prev)}
+   388→   388→                sx={{
+   389→   389→                  minWidth: "auto",
+   390→   390→                  p: 1,
+   391→   391→                  color: "var(--mui-palette-onPrimary)",
+   392→   392→                  borderRadius: 2,
+   393→   393→                  "&:hover": { bgcolor: "color-mix(in srgb, var(--mui-palette-onPrimary) 10%, transparent)" },
+   394→   394→                }}
+   395→   395→                aria-label={t.a11yToggleMenu}
+   396→   396→              >
+   397→   397→                {mobileOpen ? <CloseIcon /> : <MenuIcon />}
+   398→   398→              </Button>
+   399→   399→            </Stack>
+   400→   400→          </Stack>
+   401→   401→
+   402→   402→          {/* Mobile nav backdrop */}
+   403→   403→          <Box
+   404→   404→            onClick={() => setMobileOpen(false)}
+   405→   405→            sx={theme => ({
+   406→   406→              position: "fixed",
+   407→   407→              inset: 0,
+   408→   408→              bgcolor: `color-mix(in srgb, ${theme.palette.common.black} 50%, transparent)`,
+   409→   409→              zIndex: 99,
+   410→   410→              opacity: mobileOpen ? 1 : 0,
+   411→   411→              pointerEvents: mobileOpen ? "auto" : "none",
+   412→   412→              transition: "opacity 0.3s ease",
+   413→   413→            })}
+   414→   414→          />
+   415→   415→
+   416→   416→          {/* Mobile slide-down menu */}
+   417→   417→          <Box
+   418→   418→            sx={{
+   419→   419→              // 12 nav links + auth CTAs exceed the old 500px cap, silently
+   420→   420→              // clipping the trailing Achievements/Curriculum entries.
+   421→   421→              maxHeight: mobileOpen ? 720 : 0,
+   422→   422→              overflowY: "auto",
+   423→   423→              overflowX: "hidden",
+   424→   424→              transition: "max-height 0.35s cubic-bezier(0.16, 1, 0.3, 1)",
+   425→   425→            }}
+   426→   426→          >
+   427→   427→            <Stack
+   428→   428→              spacing={1}
+   429→   429→              sx={{
+   430→   430→                py: 2,
+   431→   431→                borderTop: "1px solid var(--mui-palette-divider)",
+   432→   432→              }}
+   433→   433→            >
+   434→   434→              {navLinks.map(link => {
+   435→   435→                const isActive = link.href === `#${activeSection}`;
+   436→   436→                return (
+   437→   437→                  <Button
+   438→   438→                    key={link.href}
+   439→   439→                    href={link.href}
+   440→   440→                    fullWidth
+   441→   441→                    onClick={() => setMobileOpen(false)}
+   442→   442→                    sx={{
+   443→   443→                      color: isActive ? "var(--mui-palette-secondary-light)" : "var(--mui-palette-onPrimary)",
+   444→   444→                      justifyContent: "flex-start",
+   445→   445→                      fontWeight: 600,
+   446→   446→                      textTransform: "none",
+   447→   447→                      borderRadius: 1.5,
+   448→   448→                      px: 2,
+   449→   449→                      py: 1.2,
+   450→   450→                      borderLeft: isActive ? "3px solid var(--mui-palette-secondary-main)" : "3px solid transparent",
+   451→   451→                      "&:hover": { bgcolor: "color-mix(in srgb, var(--mui-palette-secondary-main) 12%, transparent)" },
+   452→   452→                    }}
+   453→   453→                  >
+   454→   454→                    {link.label}
+   455→   455→                  </Button>
+   456→   456→                );
+   457→   457→              })}
+   458→   458→              <Stack direction="row" spacing={1.5} sx={{ pt: 1.5, px: 1 }}>
+   459→   459→                <Button
+   460→   460→                  component={Link}
+   461→   461→                  href="/login"
+   462→   462→                  variant="outlined"
+   463→   463→                  fullWidth
+   464→   464→                  sx={{
+   465→   465→                    color: "var(--mui-palette-onPrimary)",
+   466→   466→                    borderColor: "color-mix(in srgb, var(--mui-palette-onPrimary) 30%, transparent)",
+   467→   467→                    fontWeight: 600,
+   468→   468→                    textTransform: "none",
+   469→   469→                    borderRadius: 2,
+   470→   470→                  }}
+   471→   471→                >
+   472→   472→                  {t.navSignIn}
+   473→   473→                </Button>
+   474→   474→                <Button
+   475→   475→                  component={Link}
+   476→   476→                  href="/register"
+   477→   477→                  variant="contained"
+   478→   478→                  fullWidth
+   479→   479→                  sx={{
+   480→   480→                    position: "relative",
+   481→   481→                    overflow: "hidden",
+   482→   482→                    bgcolor: "var(--mui-palette-secondary-main)",
+   483→   483→                    color: "var(--mui-palette-onSecondary)",
+   484→   484→                    fontWeight: 700,
+   485→   485→                    textTransform: "none",
+   486→   486→                    borderRadius: 2,
+   487→   487→                    "&::after": {
+   488→   488→                      content: '""',
+   489→   489→                      position: "absolute",
+   490→   490→                      top: 0,
+   491→   491→                      left: "-100%",
+   492→   492→                      width: "100%",
+   493→   493→                      height: "100%",
+   494→   494→                      background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent)",
+   495→   495→                      transition: "left 0.5s ease",
+   496→   496→                    },
+   497→   497→                    "&:hover": {
+   498→   498→                      bgcolor: "var(--mui-palette-secondary-dark)",
+   499→   499→                      "&::after": { left: "100%" },
+   500→   500→                    },
+   501→   501→                  }}
+   502→   502→                >
+   503→   503→                  {t.navGetStarted}
+   504→   504→                </Button>
+   505→   505→              </Stack>
+   506→   506→            </Stack>
+   507→   507→          </Box>
+   508→   508→        </Container>
+   509→   509→      </Box>
+   510→   510→
+   511→   511→      <HeroSection />
+   512→   512→      <HijriPrayerStrip />
+   513→   513→      <Box component="main" id="main-content">
+   514→   514→        <VerseSection />
+   515→   515→        <FadeInBox>
+   516→   516→          <StatsBar />
+   517→   517→        </FadeInBox>
+   518→   518→        <IslamicDivider />
+   519→   519→        <FadeInBox>
+   520→   520→          <PartnersSection />
+   521→   521→        </FadeInBox>
+   522→   522→        <FadeInBox id="features">
+   523→   523→          <FeaturesSection />
+   524→   524→        </FadeInBox>
+   525→   525→        <IslamicDivider />
+   526→   526→        <FadeInBox id="recitations">
+   527→   527→          <RecitationsSection />
+   528→   528→        </FadeInBox>
+   529→   529→        <FadeInBox id="curriculum">
+   530→   530→          <CurriculumSection />
+   531→   531→        </FadeInBox>
+   532→   532→        <IslamicDivider />
+   533→   533→        <FadeInBox id="how-it-works">
+   534→   534→          <HowItWorksSection />
+   535→   535→        </FadeInBox>
+   536→   536→        <FadeInBox id="achievements">
+   537→   537→          <AchievementsSection />
+   538→   538→        </FadeInBox>
+   539→   539→        <IslamicDivider />
+   540→   540→        <FadeInBox id="teachers">
+   541→   541→          <TeacherSpotlightSection />
+   542→   542→        </FadeInBox>
+   543→   543→        <IslamicDivider />
+   544→   544→        <FadeInBox id="roles">
+   545→   545→          <RolesSection />
+   546→   546→        </FadeInBox>
+   547→   547→        <FadeInBox id="pricing">
+   548→   548→          <PricingSection />
+   549→   549→        </FadeInBox>
+   550→   550→        <IslamicDivider />
+   551→   551→        <FadeInBox id="testimonials">
+   552→   552→          <TestimonialsSection />
+   553→   553→        </FadeInBox>
+   554→   554→        <IslamicDivider />
+   555→   555→        <FadeInBox id="resources">
+   556→   556→          <ResourcesSection />
+   557→   557→        </FadeInBox>
+   558→   558→        <FadeInBox id="faq">
+   559→   559→          <FaqSection />
+   560→   560→        </FadeInBox>
+   561→   561→        <IslamicDivider />
+   562→   562→        <FadeInBox id="newsletter">
+   563→   563→          <NewsletterSection />
+   564→   564→        </FadeInBox>
+   565→   565→        <FadeInBox id="contact">
+   566→   566→          <ContactSection />
+   567→   567→        </FadeInBox>
+   568→   568→        <IslamicDivider />
+   569→   569→        <FadeInBox id="app">
+   570→   570→          <MobileAppSection />
+   571→   571→        </FadeInBox>
+   572→   572→        <FadeInBox>
+   573→   573→          <CtaSection />
+   574→   574→        </FadeInBox>
+   575→   575→      </Box>
+   576→   576→      {/* Mode transition overlay */}
+   577→   577→      <Box
+   578→   578→        aria-hidden
+   579→   579→        sx={{
+   580→   580→          position: "fixed",
+   581→   581→          inset: 0,
+   582→   582→          zIndex: 9999,
+   583→   583→          pointerEvents: "none",
+   584→   584→          bgcolor: mode === "dark" ? "var(--mui-palette-primary-dark)" : "var(--mui-palette-background-default)",
+   585→   585→          opacity: modeFlash ? 1 : 0,
+   586→   586→          transition: "opacity 0.3s ease",
+   587→   587→        }}
+   588→   588→      />
+   589→   589→      <SiteFooter />
+   590→   590→      {/* Islamic banner above footer — shine gradient accent */}
+   591→   591→      <Box
+   592→   592→        aria-hidden
+   593→   593→        sx={{
+   594→   594→          height: 4,
+   595→   595→          background:
+   596→   596→            "linear-gradient(90deg, var(--mui-palette-secondary-dark), var(--mui-palette-secondary-main), var(--mui-palette-secondary-light), var(--mui-palette-secondary-main), var(--mui-palette-secondary-dark))",
+   597→   597→          backgroundSize: "200% 100%",
+   598→   598→          animation: "footerBannerShine 6s linear infinite",
+   599→   599→          "@keyframes footerBannerShine": {
+   600→   600→            "0%": { backgroundPosition: "200% center" },
+   601→   601→            "100%": { backgroundPosition: "-200% center" },
+   602→   602→          },
+   603→   603→        }}
+   604→   604→      />
+   605→   605→      <BackToTopButton />
+   606→   606→      <WhatsAppButton />
+   607→   607→      <CookieConsent />
+   608→   608→    </Box>
+   609→   609→  );
+   610→   610→}
+   611→   611→
+   612→   612→// ─── Scroll progress bar ────────────────────────────────────────────
+   613→   613→
+   614→   614→/** This layout makes <body> the scroll container (overflow: hidden auto), so
+   615→   615→ * window scrollY stays 0 while the page visually scrolls. Reads take the
+   616→   616→ * maximal position across all candidate scrollers; the capture-phase
+   617→   617→ * listener catches the non-bubbling scroll event fired at the body. */
+   618→   618→function getMaxScrollTop(): number {
+   619→   619→  return Math.max(window.scrollY, document.documentElement.scrollTop, document.body.scrollTop);
+   620→   620→}
+   621→   621→
+   622→   622→const isNumericChar = (ch: string): boolean => (ch >= "0" && ch <= "9") || ch === ",";
+   623→   623→const isDigitChar = (ch: string): boolean => ch >= "0" && ch <= "9";
+   624→   624→
+   625→   625→/** RFC-lite email-shape check for client-side hints: single "@", non-empty
+   626→   626→ * local and domain parts, at least one dot in the domain, no whitespace and
+   627→   627→ * no further "@" characters. Linear scan — avoids the regex-backtracking
+   628→   628→ * class (sonarjs/super-linear-regex) entirely. */
+   629→   629→function isEmailLike(value: string): boolean {
+   630→   630→  const at = value.indexOf("@");
+   631→   631→  if (at <= 0 || at === value.length - 1) return false;
+   632→   632→  const domain = value.slice(at + 1);
+   633→   633→  if (domain.includes("@") || /\s/.test(value)) return false;
+   634→   634→  const dot = domain.lastIndexOf(".");
+   635→   635→  return dot > 0 && dot < domain.length - 1;
+   636→   636→}
+   637→   637→
+   638→   638→function ScrollProgressBar(): ReactNode {
+   639→   639→  const [progress, setProgress] = useState(0);
+   640→   640→
+   641→   641→  const handleScroll = useCallback(() => {
+   642→   642→    const scrollTop = getMaxScrollTop();
+   643→   643→    const scrollHeight =
+   644→   644→      document.body.scrollHeight > document.documentElement.scrollHeight
+   645→   645→        ? document.body.scrollHeight
+   646→   646→        : document.documentElement.scrollHeight;
+   647→   647→    const clientHeight = document.documentElement.clientHeight;
+   648→   648→    const total = scrollHeight - clientHeight;
+   649→   649→    const pct = total > 0 ? (scrollTop / total) * 100 : 0;
+   650→   650→    setProgress(pct);
+   651→   651→  }, []);
+   652→   652→
+   653→   653→  useEffect(() => {
+   654→   654→    // Initial read is deferred to a frame: a synchronous setState in the
+   655→   655→    // effect body trips react/set-state-in-effect (cascading render).
+   656→   656→    const raf = requestAnimationFrame(handleScroll);
+   657→   657→    window.addEventListener("scroll", handleScroll, { passive: true, capture: true });
+   658→   658→    return () => {
+   659→   659→      cancelAnimationFrame(raf);
+   660→   660→      window.removeEventListener("scroll", handleScroll, { capture: true });
+   661→   661→    };
+   662→   662→  }, [handleScroll]);
+   663→   663→
+   664→   664→  return (
+   665→   665→    <Box
+   666→   666→      aria-hidden
+   667→   667→      sx={{
+   668→   668→        position: "fixed",
+   669→   669→        top: 0,
+   670→   670→        left: 0,
+   671→   671→        right: 0,
+   672→   672→        height: 3,
+   673→   673→        zIndex: 200,
+   674→   674→        bgcolor: "var(--mui-palette-background-default)",
+   675→   675→      }}
+   676→   676→    >
+   677→   677→      <Box
+   678→   678→        sx={{
+   679→   679→          height: "100%",
+   680→   680→          width: `${progress}%`,
+   681→   681→          bgcolor: "var(--mui-palette-secondary-main)",
+   682→   682→          transition: "width 0.1s linear",
+   683→   683→        }}
+   684→   684→      />
+   685→   685→    </Box>
+   686→   686→  );
+   687→   687→}
+   688→   688→
+   689→   689→// ─── Scroll-triggered fade-in hook ───────────────────────────────────
+   690→   690→
+   691→   691→function useFadeInOnScroll() {
+   692→   692→  const ref = useRef<HTMLDivElement>(null);
+   693→   693→  const [visible, setVisible] = useState(false);
+   694→   694→
+   695→   695→  useEffect(() => {
+   696→   696→    const el = ref.current;
+   697→   697→    let observer: IntersectionObserver | undefined;
+   698→   698→    if (el) {
+   699→   699→      observer = new IntersectionObserver(
+   700→   700→        ([entry]) => {
+   701→   701→          if (entry.isIntersecting) {
+   702→   702→            setVisible(true);
+   703→   703→            observer?.unobserve(el);
+   704→   704→          }
+   705→   705→        },
+   706→   706→        { threshold: 0.08 }
+   707→   707→      );
+   708→   708→      observer.observe(el);
+   709→   709→    }
+   710→   710→    return () => observer?.disconnect();
+   711→   711→  }, []);
+   712→   712→
+   713→   713→  return { ref, visible };
+   714→   714→}
+   715→   715→
+   716→   716→// ─── FadeInBox wrapper ───────────────────────────────────────────────
+   717→   717→
+   718→   718→function FadeInBox({
+   719→   719→  children,
+   720→   720→  id,
+   721→   721→  delay = 0,
+   722→   722→}: {
+   723→   723→  readonly children: ReactNode;
+   724→   724→  readonly id?: string;
+   725→   725→  readonly delay?: number;
+   726→   726→}) {
+   727→   727→  const { ref, visible } = useFadeInOnScroll();
+   728→   728→  return (
+   729→   729→    <Box
+   730→   730→      ref={ref}
+   731→   731→      id={id}
+   732→   732→      sx={{
+   733→   733→        opacity: visible ? 1 : 0,
+   734→   734→        transform: visible ? "translateY(0)" : "translateY(20px)",
+   735→   735→        transition: `all 0.6s cubic-bezier(0.16, 1, 0.3, 1) ${delay}ms`,
+   736→   736→        // Anchor targets must clear the sticky navbar (65px) plus the 20px
+   737→   737→        // fade-in translateY offset that the anchor-scroll geometry can
+   738→   738→        // capture mid-transition (otherwise headings land under the bar).
+   739→   739→        scrollMarginTop: 96,
+   740→   740→      }}
+   741→   741→    >
+   742→   742→      {children}
+   743→   743→    </Box>
+   744→   744→  );
+   745→   745→}
+   746→   746→
+   747→   747→// ─── Animated counter ────────────────────────────────────────────────
+   748→   748→
+   749→   749→function AnimatedCounter({ raw }: { readonly raw: string }): ReactNode {
+   750→   750→  const { num, suffix } = parseStatValue(raw);
+   751→   751→  const [count, setCount] = useState(0);
+   752→   752→  const [started, setStarted] = useState(false);
+   753→   753→  const spanRef = useRef<HTMLSpanElement>(null);
+   754→   754→
+   755→   755→  useEffect(() => {
+   756→   756→    const el = spanRef.current;
+   757→   757→    let observer: IntersectionObserver | undefined;
+   758→   758→    if (el) {
+   759→   759→      observer = new IntersectionObserver(
+   760→   760→        ([entry]) => {
+   761→   761→          if (entry.isIntersecting && !started) {
+   762→   762→            setStarted(true);
+   763→   763→            observer?.unobserve(el);
+   764→   764→          }
+   765→   765→        },
+   766→   766→        { threshold: 0.3 }
+   767→   767→      );
+   768→   768→      observer.observe(el);
+   769→   769→    }
+   770→   770→    return () => observer?.disconnect();
+   771→   771→  }, [started]);
+   772→   772→
+   773→   773→  useEffect(() => {
+   774→   774→    if (!started) return;
+   775→   775→    const duration = 2000;
+   776→   776→    const startTime = performance.now();
+   777→   777→
+   778→   778→    function easeOutCubic(x: number): number {
+   779→   779→      return 1 - (1 - x) ** 3;
+   780→   780→    }
+   781→   781→
+   782→   782→    function tick(now: number) {
+   783→   783→      const elapsed = now - startTime;
+   784→   784→      const progress = Math.min(elapsed / duration, 1);
+   785→   785→      const eased = easeOutCubic(progress);
+   786→   786→      setCount(Math.floor(eased * num));
+   787→   787→      if (progress < 1) {
+   788→   788→        requestAnimationFrame(tick);
+   789→   789→      } else {
+   790→   790→        setCount(num);
+   791→   791→      }
+   792→   792→    }
+   793→   793→
+   794→   794→    requestAnimationFrame(tick);
+   795→   795→  }, [started, num]);
+   796→   796→
+   797→   797→  return (
+   798→   798→    <span ref={spanRef}>
+   799→   799→      {count.toLocaleString()}
+   800→   800→      {suffix}
+   801→   801→    </span>
+   802→   802→  );
+   803→   803→}
+   804→   804→
+   805→   805→/** Parse a stat string like "120+" or "8,500+" into { num, suffix }.
+   806→   806→ * Linear scan instead of regex — avoids super-linear backtracking. */
+   807→   807→function parseStatValue(raw: string): { num: number; suffix: string } {
+   808→   808→  if (raw.length === 0 || !isDigitChar(raw[0])) return { num: 0, suffix: raw };
+   809→   809→  let end = 1;
+   810→   810→  while (end < raw.length && isNumericChar(raw[end])) {
+   811→   811→    end += 1;
+   812→   812→  }
+   813→   813→  const numPart = raw.slice(0, end);
+   814→   814→  const suffixPart = raw.slice(end);
+   815→   815→  return { num: parseInt(numPart.replace(/,/g, ""), 10) || 0, suffix: suffixPart };
+   816→   816→}
+   817→   817→
+   818→   818→// ─── Back to top button ──────────────────────────────────────────────
+   819→   819→
+   820→   820→function BackToTopButton(): ReactNode {
+   821→   821→  const t = useAppTranslation(Landing);
+   822→   822→  const [show, setShow] = useState(false);
+   823→   823→
+   824→   824→  useEffect(() => {
+   825→   825→    const onScroll = () => setShow(getMaxScrollTop() > 600);
+   826→   826→    onScroll();
+   827→   827→    window.addEventListener("scroll", onScroll, { passive: true, capture: true });
+   828→   828→    return () => window.removeEventListener("scroll", onScroll, { capture: true });
+   829→   829→  }, []);
+   830→   830→
+   831→   831→  const scrollToTop = useCallback(() => {
+   832→   832→    document.body.scrollTop = 0;
+   833→   833→    document.documentElement.scrollTop = 0;
+   834→   834→    window.scrollTo({ top: 0, behavior: "smooth" });
+   835→   835→  }, []);
+   836→   836→
+   837→   837→  return (
+   838→   838→    <Tooltip title={t.a11yBackToTop} placement="top" arrow>
+   839→   839→      <span>
+   840→   840→        <Fab
+   841→   841→          size="small"
+   842→   842→          onClick={scrollToTop}
+   843→   843→          aria-label={t.a11yBackToTop}
+   844→   844→          sx={{
+   845→   845→            position: "fixed",
+   846→   846→            bottom: 24,
+   847→   847→            insetInlineEnd: 24,
+   848→   848→            bgcolor: "var(--mui-palette-secondary-main)",
+   849→   849→            color: "var(--mui-palette-onSecondary)",
+   850→   850→            zIndex: 50,
+   851→   851→            opacity: show ? 1 : 0,
+   852→   852→            pointerEvents: show ? "auto" : "none",
+   853→   853→            transition: "opacity 0.3s ease",
+   854→   854→            boxShadow: "0 4px 14px rgba(184,115,51,0.35)",
+   855→   855→            "&:hover": { bgcolor: "var(--mui-palette-secondary-dark)" },
+   856→   856→          }}
+   857→   857→        >
+   858→   858→          <KeyboardArrowUp />
+   859→   859→        </Fab>
+   860→   860→      </span>
+   861→   861→    </Tooltip>
+   862→   862→  );
+   863→   863→}
+   864→   864→
+   865→   865→// ─── Hijri date & prayer times (Cairo) ──────────────────────────────
+   866→   866→// Pure client-side solar astronomy — no external API. Standard
+   867→   867→// PrayTimes-style formulas: Julian day → sun declination + equation of
+   868→   868→// time; Egyptian General Authority angles (Fajr 19.5°, Isha 17.5°);
+   869→   869→// Shafi'i Asr (shadow factor 1). Cairo stays on DST, so the UTC offset
+   870→   870→// is derived per-instant from Intl. Rendered post-mount only to keep
+   871→   871→// SSR and client markup identical (time-dependent content).
+   872→   872→
+   873→   873→const CAIRO_LAT = 30.0444;
+   874→   874→const CAIRO_LNG = 31.2357;
+   875→   875→const FAJR_ANGLE = 19.5;
+   876→   876→const ISHA_ANGLE = 17.5;
+   877→   877→const SUNRISE_ALT_DEG = 0.833; // refraction-corrected solar disc
+   878→   878→
+   879→   879→const toRad = (deg: number): number => (deg * Math.PI) / 180;
+   880→   880→const toDeg = (rad: number): number => (rad * 180) / Math.PI;
+   881→   881→const fixHour = (h: number): number => ((h % 24) + 24) % 24;
+   882→   882→
+   883→   883→/** Sun declination (deg) and equation of time (hours) for a Julian day. */
+   884→   884→function sunPosition(jd: number): { declination: number; equationOfTime: number } {
+   885→   885→  const d = jd - 2451545.0;
+   886→   886→  const g = (((357.529 + 0.98560028 * d) % 360) + 360) % 360;
+   887→   887→  const q = (((280.459 + 0.98564736 * d) % 360) + 360) % 360;
+   888→   888→  const l = (((q + 1.915 * Math.sin(toRad(g)) + 0.02 * Math.sin(toRad(2 * g))) % 360) + 360) % 360;
+   889→   889→  const e = 23.439 - 0.00000036 * d;
+   890→   890→  const ra = toDeg(Math.atan2(Math.cos(toRad(e)) * Math.sin(toRad(l)), Math.cos(toRad(l)))) / 15;
+   891→   891→  const declination = toDeg(Math.asin(Math.sin(toRad(e)) * Math.sin(toRad(l))));
+   892→   892→  const equationOfTime = q / 15 - fixHour(ra);
+   893→   893→  return { declination, equationOfTime };
+   894→   894→}
+   895→   895→
+   896→   896→/** Hour angle (hours from local noon) for the sun at `angleDeg` below horizon. */
+   897→   897→function hourAngleFor(declination: number, angleDeg: number): number {
+   898→   898→  const cosH =
+   899→   899→    (-Math.sin(toRad(angleDeg)) - Math.sin(toRad(declination)) * Math.sin(toRad(CAIRO_LAT))) /
+   900→   900→    (Math.cos(toRad(declination)) * Math.cos(toRad(CAIRO_LAT)));
+   901→   901→  return toDeg(Math.acos(Math.min(1, Math.max(-1, cosH)))) / 15;
+   902→   902→}
+   903→   903→
+   904→   904→/** DST-aware UTC offset (hours) for Africa/Cairo at the given instant. */
+   905→   905→function cairoOffsetHours(date: Date): number {
+   906→   906→  try {
+   907→   907→    const parts = new Intl.DateTimeFormat("en-US", {
+   908→   908→      timeZone: "Africa/Cairo",
+   909→   909→      timeZoneName: "longOffset",
+   910→   910→    }).formatToParts(date);
+   911→   911→    const tz = parts.find(p => p.type === "timeZoneName")?.value ?? "GMT+03:00";
+   912→   912→    const m = /GMT([+-])(\d{2}):(\d{2})/.exec(tz);
+   913→   913→    if (!m) {
+   914→   914→      return 3;
+   915→   915→    }
+   916→   916→    const sign = m[1] === "-" ? -1 : 1;
+   917→   917→    return sign * (Number(m[2]) + Number(m[3]) / 60);
+   918→   918→  } catch {
+   919→   919→    return 3;
+   920→   920→  }
+   921→   921→}
+   922→   922→
+   923→   923→interface PrayerDaySchedule {
+   924→   924→  fajr: number;
+   925→   925→  sunrise: number;
+   926→   926→  dhuhr: number;
+   927→   927→  asr: number;
+   928→   928→  maghrib: number;
+   929→   929→  isha: number;
+   930→   930→}
+   931→   931→
+   932→   932→/** Cairo prayer times as local clock hours (0-24) for the date's solar day. */
+   933→   933→function cairoPrayerSchedule(date: Date): PrayerDaySchedule {
+   934→   934→  const offset = cairoOffsetHours(date);
+   935→   935→  const jd = date.getTime() / 86400000 + 2440587.5 - CAIRO_LNG / (15 * 24);
+   936→   936→  const { declination, equationOfTime } = sunPosition(jd);
+   937→   937→  const dhuhr = 12 + offset - CAIRO_LNG / 15 - equationOfTime;
+   938→   938→  const asrAltitude = toDeg(Math.atan(1 / (1 + Math.tan(toRad(Math.abs(CAIRO_LAT - declination))))));
+   939→   939→  return {
+   940→   940→    fajr: dhuhr - hourAngleFor(declination, FAJR_ANGLE),
+   941→   941→    sunrise: dhuhr - hourAngleFor(declination, SUNRISE_ALT_DEG),
+   942→   942→    dhuhr,
+   943→   943→    asr: dhuhr + hourAngleFor(declination, -asrAltitude),
+   944→   944→    maghrib: dhuhr + hourAngleFor(declination, SUNRISE_ALT_DEG),
+   945→   945→    isha: dhuhr + hourAngleFor(declination, ISHA_ANGLE),
+   946→   946→  };
+   947→   947→}
+   948→   948→
+   949→   949→/** Next prayer (skipping sunrise) as [key, hours-from-now-including-rollover]. */
+   950→   950→function nextPrayer(schedule: PrayerDaySchedule, nowHours: number): { key: string; inHours: number } {
+   951→   951→  const order: { key: string; at: number }[] = [
+   952→   952→    { key: "fajr", at: schedule.fajr },
+   953→   953→    { key: "dhuhr", at: schedule.dhuhr },
+   954→   954→    { key: "asr", at: schedule.asr },
+   955→   955→    { key: "maghrib", at: schedule.maghrib },
+   956→   956→    { key: "isha", at: schedule.isha },
+   957→   957→  ];
+   958→   958→  for (const p of order) {
+   959→   959→    if (p.at > nowHours) {
+   960→   960→      return { key: p.key, inHours: p.at - nowHours };
+   961→   961→    }
+   962→   962→  }
+   963→   963→  return { key: "fajr", inHours: schedule.fajr + 24 - nowHours };
+   964→   964→}
+   965→   965→
+   966→   966→/** UTC-midnight epoch ms for the date part of `d` (module scope: the React
+   967→   967→    compiler misreads the uppercase `Date.UTC` member as a component). */
+   968→   968→function utcMidnightOf(d: Date): number {
+   969→   969→  const t = new Date(d);
+   970→   970→  t.setUTCHours(0, 0, 0, 0);
+   971→   971→  return t.getTime();
+   972→   972→}
+   973→   973→
+   974→   974→function HijriPrayerStrip(): ReactNode {
+   975→   975→  const t = useAppTranslation(Landing);
+   976→   976→  const locale = useAppLocale();
+   977→   977→  const [now, setNow] = useState<Date | null>(null);
+   978→   978→
+   979→   979→  useEffect(() => {
+   980→   980→    // rAF-deferred initial read (set-state-in-effect: sync setState inside
+   981→   981→    // effects triggers cascading renders — same pattern as ScrollProgressBar).
+   982→   982→    let id: ReturnType<typeof setInterval> | undefined;
+   983→   983→    const raf = requestAnimationFrame(() => {
+   984→   984→      setNow(new Date());
+   985→   985→      id = setInterval(() => setNow(new Date()), 30000);
+   986→   986→    });
+   987→   987→    return () => {
+   988→   988→      cancelAnimationFrame(raf);
+   989→   989→      if (id !== undefined) {
+   990→   990→        clearInterval(id);
+   991→   991→      }
+   992→   992→    };
+   993→   993→  }, []);
+   994→   994→
+   995→   995→  const model = useMemo(() => {
+   996→   996→    if (!now) {
+   997→   997→      return null;
+   998→   998→    }
+   999→   999→    const offset = cairoOffsetHours(now);
+  1000→  1000→    const schedule = cairoPrayerSchedule(now);
+  1001→  1001→    const utcHours = now.getUTCHours() + now.getUTCMinutes() / 60;
+  1002→  1002→    const nowHours = fixHour(utcHours + offset);
+  1003→  1003→    const next = nextPrayer(schedule, nowHours);
+  1004→  1004→    const utcMidnight = utcMidnightOf(now);
+  1005→  1005→    const timeFmt = new Intl.DateTimeFormat(locale === "ar" ? "ar-EG" : "en-US", {
+  1006→  1006→      hour: "numeric",
+  1007→  1007→      minute: "2-digit",
+  1008→  1008→      hour12: true,
+  1009→  1009→      timeZone: "Africa/Cairo",
+  1010→  1010→    });
+  1011→  1011→    const fmt = (hours: number): string => timeFmt.format(new Date(utcMidnight + (hours - offset) * 3600000));
+  1012→  1012→    const hijriFmt = new Intl.DateTimeFormat(
+  1013→  1013→      locale === "ar" ? "ar-EG-u-ca-islamic-umalqura" : "en-u-ca-islamic-umalqura",
+  1014→  1014→      { day: "numeric", month: "long", year: "numeric" }
+  1015→  1015→    );
+  1016→  1016→    const totalMin = Math.max(0, Math.round(next.inHours * 60));
+  1017→  1017→    const cdH = Math.floor(totalMin / 60);
+  1018→  1018→    const cdM = totalMin % 60;
+  1019→  1019→    return {
+  1020→  1020→      hijri: hijriFmt.format(now),
+  1021→  1021→      times: [
+  1022→  1022→        { key: "fajr", label: t.prayerFajr, value: fmt(schedule.fajr) },
+  1023→  1023→        { key: "sunrise", label: t.prayerSunrise, value: fmt(schedule.sunrise) },
+  1024→  1024→        { key: "dhuhr", label: t.prayerDhuhr, value: fmt(schedule.dhuhr) },
+  1025→  1025→        { key: "asr", label: t.prayerAsr, value: fmt(schedule.asr) },
+  1026→  1026→        { key: "maghrib", label: t.prayerMaghrib, value: fmt(schedule.maghrib) },
+  1027→  1027→        { key: "isha", label: t.prayerIsha, value: fmt(schedule.isha) },
+  1028→  1028→      ],
+  1029→  1029→      nextKey: next.key,
+  1030→  1030→      countdown: cdH > 0 ? `${cdH}:${String(cdM).padStart(2, "0")}` : `${cdM}:00`,
+  1031→  1031→    };
+  1032→  1032→  }, [now, locale, t]);
+  1033→  1033→
+  1034→  1034→  return (
+  1035→  1035→    <Box
+  1036→  1036→      component="section"
+  1037→  1037→      aria-label={t.hijriStripAriaLabel}
+  1038→  1038→      sx={{
+  1039→  1039→        borderBottom: "1px solid var(--mui-palette-divider)",
+  1040→  1040→        bgcolor: "color-mix(in srgb, var(--mui-palette-primary-main) 14%, transparent)",
+  1041→  1041→        minHeight: { xs: 56, md: 52 },
+  1042→  1042→        display: "flex",
+  1043→  1043→        alignItems: "center",
+  1044→  1044→      }}
+  1045→  1045→    >
+  1046→  1046→      <Container maxWidth="lg">
+  1047→  1047→        {model === null ? (
+  1048→  1048→          <Stack direction="row" sx={{ alignItems: "center", justifyContent: "center", py: 1, opacity: 0.4 }}>
+  1049→  1049→            <CircularProgress size={16} thickness={5} aria-hidden />
+  1050→  1050→          </Stack>
+  1051→  1051→        ) : (
+  1052→  1052→          <Stack
+  1053→  1053→            direction={{ xs: "column", md: "row" }}
+  1054→  1054→            spacing={{ xs: 0.75, md: 2 }}
+  1055→  1055→            sx={{ alignItems: { md: "center" }, justifyContent: { md: "space-between" }, py: 0.75 }}
+  1056→  1056→          >
+  1057→  1057→            {/* Hijri date chip */}
+  1058→  1058→            <Stack direction="row" spacing={1} sx={{ alignItems: "center", justifyContent: "center" }}>
+  1059→  1059→              <Box
+  1060→  1060→                aria-hidden
+  1061→  1061→                sx={{
+  1062→  1062→                  display: "flex",
+  1063→  1063→                  alignItems: "center",
+  1064→  1064→                  justifyContent: "center",
+  1065→  1065→                  width: 26,
+  1066→  1066→                  height: 26,
+  1067→  1067→                  borderRadius: "50%",
+  1068→  1068→                  bgcolor: "color-mix(in srgb, var(--mui-palette-secondary-main) 18%, transparent)",
+  1069→  1069→                  color: "var(--mui-palette-secondary-light)",
+  1070→  1070→                }}
+  1071→  1071→              >
+  1072→  1072→                <CrescentIcon sx={{ fontSize: 15 }} />
+  1073→  1073→              </Box>
+  1074→  1074→              <Typography sx={{ fontSize: 12, opacity: 0.65, fontWeight: 600 }}>{t.hijriToday}</Typography>
+  1075→  1075→              <Typography sx={{ fontSize: 13, fontWeight: 700, color: "var(--mui-palette-onPrimary)" }}>
+  1076→  1076→                {model.hijri}
+  1077→  1077→              </Typography>
+  1078→  1078→            </Stack>
+  1079→  1079→
+  1080→  1080→            {/* Prayer times row */}
+  1081→  1081→            <Stack
+  1082→  1082→              direction="row"
+  1083→  1083→              spacing={0.75}
+  1084→  1084→              sx={{ alignItems: "center", justifyContent: "center", flexWrap: "wrap", rowGap: 0.5 }}
+  1085→  1085→            >
+  1086→  1086→              {model.times.map(p => {
+  1087→  1087→                const isNext = p.key === model.nextKey;
+  1088→  1088→                return (
+  1089→  1089→                  <Stack
+  1090→  1090→                    key={p.key}
+  1091→  1091→                    direction="row"
+  1092→  1092→                    spacing={0.75}
+  1093→  1093→                    sx={{
+  1094→  1094→                      alignItems: "center",
+  1095→  1095→                      px: 1.25,
+  1096→  1096→                      py: 0.4,
+  1097→  1097→                      borderRadius: 99,
+  1098→  1098→                      ...(isNext
+  1099→  1099→                        ? {
+  1100→  1100→                            bgcolor: "color-mix(in srgb, var(--mui-palette-secondary-main) 22%, transparent)",
+  1101→  1101→                            border: "1px solid var(--mui-palette-secondary-main)",
+  1102→  1102→                          }
+  1103→  1103→                        : {}),
+  1104→  1104→                    }}
+  1105→  1105→                  >
+  1106→  1106→                    <Typography
+  1107→  1107→                      sx={{
+  1108→  1108→                        fontSize: 11.5,
+  1109→  1109→                        fontWeight: isNext ? 800 : 600,
+  1110→  1110→                        color: isNext ? "var(--mui-palette-secondary-light)" : undefined,
+  1111→  1111→                        opacity: isNext ? 1 : 0.6,
+  1112→  1112→                      }}
+  1113→  1113→                    >
+  1114→  1114→                      {p.label}
+  1115→  1115→                    </Typography>
+  1116→  1116→                    <Typography sx={{ fontSize: 12, fontWeight: 700, opacity: isNext ? 1 : 0.85 }}>
+  1117→  1117→                      {p.value}
+  1118→  1118→                    </Typography>
+  1119→  1119→                    {isNext && (
+  1120→  1120→                      <Typography
+  1121→  1121→                        sx={{
+  1122→  1122→                          fontSize: 11,
+  1123→  1123→                          fontWeight: 700,
+  1124→  1124→                          color: "var(--mui-palette-secondary-light)",
+  1125→  1125→                          display: "inline-flex",
+  1126→  1126→                          alignItems: "center",
+  1127→  1127→                          gap: 0.25,
+  1128→  1128→                        }}
+  1129→  1129→                      >
+  1130→  1130→                        · {t.prayerIn} {model.countdown}
+  1131→  1131→                      </Typography>
+  1132→  1132→                    )}
+  1133→  1133→                  </Stack>
+  1134→  1134→                );
+  1135→  1135→              })}
+  1136→  1136→            </Stack>
+  1137→  1137→          </Stack>
+  1138→  1138→        )}
+  1139→  1139→      </Container>
+  1140→  1140→    </Box>
+  1141→  1141→  );
+  1142→  1142→}
+  1143→  1143→
+  1144→  1144→// ─── Islamic decorative divider ───────────────────────────────────
+  1145→  1145→
+  1146→  1146→function IslamicDivider(): ReactNode {
+  1147→  1147→  return (
+  1148→  1148→    <Box
+  1149→  1149→      aria-hidden
+  1150→  1150→      sx={{
+  1151→  1151→        display: "flex",
+  1152→  1152→        alignItems: "center",
+  1153→  1153→        justifyContent: "center",
+  1154→  1154→        py: 1,
+  1155→  1155→        px: 4,
+  1156→  1156→      }}
+  1157→  1157→    >
+  1158→  1158→      <Box
+  1159→  1159→        sx={{
+  1160→  1160→          flex: 1,
+  1161→  1161→          height: 1,
+  1162→  1162→          background:
+  1163→  1163→            "linear-gradient(90deg, transparent, color-mix(in srgb, var(--mui-palette-secondary-main) 45%, transparent) 30%, color-mix(in srgb, var(--mui-palette-secondary-main) 45%, transparent) 70%, transparent)",
+  1164→  1164→        }}
+  1165→  1165→      />
+  1166→  1166→      {/* Center diamond ornament */}
+  1167→  1167→      <Box
+  1168→  1168→        sx={{
+  1169→  1169→          width: 12,
+  1170→  1170→          height: 12,
+  1171→  1171→          transform: "rotate(45deg)",
+  1172→  1172→          bgcolor: "var(--mui-palette-secondary-main)",
+  1173→  1173→          opacity: 0.85,
+  1174→  1174→          mx: 2,
+  1175→  1175→          flexShrink: 0,
+  1176→  1176→          animation: "dividerSpin 12s linear infinite",
+  1177→  1177→          boxShadow: "0 0 10px rgba(184,115,51,0.55)",
+  1178→  1178→          "@keyframes dividerSpin": {
+  1179→  1179→            "0%": { transform: "rotate(45deg)" },
+  1180→  1180→            "100%": { transform: "rotate(405deg)" },
+  1181→  1181→          },
+  1182→  1182→        }}
+  1183→  1183→      />
+  1184→  1184→      <Box
+  1185→  1185→        sx={{
+  1186→  1186→          width: 4,
+  1187→  1187→          height: 4,
+  1188→  1188→          borderRadius: "50%",
+  1189→  1189→          bgcolor: "var(--mui-palette-secondary-main)",
+  1190→  1190→          opacity: 0.45,
+  1191→  1191→          mx: 1,
+  1192→  1192→          flexShrink: 0,
+  1193→  1193→        }}
+  1194→  1194→      />
+  1195→  1195→      <Box
+  1196→  1196→        sx={{
+  1197→  1197→          width: 4,
+  1198→  1198→          height: 4,
+  1199→  1199→          borderRadius: "50%",
+  1200→  1200→          bgcolor: "var(--mui-palette-secondary-main)",
+  1201→  1201→          opacity: 0.45,
+  1202→  1202→          mx: 1,
+  1203→  1203→          flexShrink: 0,
+  1204→  1204→        }}
+  1205→  1205→      />
+  1206→  1206→      <Box
+  1207→  1207→        sx={{
+  1208→  1208→          width: 12,
+  1209→  1209→          height: 12,
+  1210→  1210→          transform: "rotate(45deg)",
+  1211→  1211→          bgcolor: "var(--mui-palette-secondary-main)",
+  1212→  1212→          opacity: 0.85,
+  1213→  1213→          mx: 2,
+  1214→  1214→          flexShrink: 0,
+  1215→  1215→          animation: "dividerSpin 12s linear infinite",
+  1216→  1216→          boxShadow: "0 0 10px rgba(184,115,51,0.55)",
+  1217→  1217→          "@keyframes dividerSpin": {
+  1218→  1218→            "0%": { transform: "rotate(45deg)" },
+  1219→  1219→            "100%": { transform: "rotate(405deg)" },
+  1220→  1220→          },
+  1221→  1221→        }}
+  1222→  1222→      />
+  1223→  1223→      <Box
+  1224→  1224→        sx={{
+  1225→  1225→          flex: 1,
+  1226→  1226→          height: 1,
+  1227→  1227→          background:
+  1228→  1228→            "linear-gradient(90deg, transparent, color-mix(in srgb, var(--mui-palette-secondary-main) 45%, transparent) 30%, color-mix(in srgb, var(--mui-palette-secondary-main) 45%, transparent) 70%, transparent)",
+  1229→  1229→        }}
+  1230→  1230→      />
+  1231→  1231→    </Box>
+  1232→  1232→  );
+  1233→  1233→}
+  1234→  1234→
+  1235→  1235→// ─── Hero particles ──────────────────────────────────────────────
+  1236→  1236→
+  1237→  1237→function HeroParticles(): ReactNode {
+  1238→  1238→  const particles = useMemo(
+  1239→  1239→    () =>
+  1240→  1240→      Array.from({ length: 25 }, (_, i) => ({
+  1241→  1241→        id: i,
+  1242→  1242→        left: `${(i * 37 + 13) % 100}%`,
+  1243→  1243→        top: `${(i * 53 + 7) % 100}%`,
+  1244→  1244→        // 2px base — a size of 1 would serialize as "100%" in MUI sx
+  1245→  1245→        // (number 1 is treated as a fraction), which rendered full-hero
+  1246→  1246→        // copper circles. Explicit px strings keep the intent unambiguous.
+  1247→  1247→        size: 2 + (i % 3),
+  1248→  1248→        delay: `${(i * 0.7) % 4}s`,
+  1249→  1249→        duration: `${2 + (i % 3)}s`,
+  1250→  1250→      })),
+  1251→  1251→    []
+  1252→  1252→  );
+  1253→  1253→
+  1254→  1254→  return (
+  1255→  1255→    <Box
+  1256→  1256→      aria-hidden
+  1257→  1257→      sx={{
+  1258→  1258→        position: "absolute",
+  1259→  1259→        inset: 0,
+  1260→  1260→        pointerEvents: "none",
+  1261→  1261→        zIndex: 0,
+  1262→  1262→      }}
+  1263→  1263→    >
+  1264→  1264→      {particles.map(p => (
+  1265→  1265→        <Box
+  1266→  1266→          key={p.id}
+  1267→  1267→          sx={{
+  1268→  1268→            position: "absolute",
+  1269→  1269→            left: p.left,
+  1270→  1270→            top: p.top,
+  1271→  1271→            width: `${p.size}px`,
+  1272→  1272→            height: `${p.size}px`,
+  1273→  1273→            borderRadius: "50%",
+  1274→  1274→            bgcolor: "var(--mui-palette-secondary-light)",
+  1275→  1275→            animation: `twinkle ${p.duration} ease-in-out ${p.delay} infinite`,
+  1276→  1276→            "@keyframes twinkle": {
+  1277→  1277→              "0%": { opacity: 0 },
+  1278→  1278→              "50%": { opacity: 0.8 },
+  1279→  1279→              "100%": { opacity: 0 },
+  1280→  1280→            },
+  1281→  1281→          }}
+  1282→  1282→        />
+  1283→  1283→      ))}
+  1284→  1284→    </Box>
+  1285→  1285→  );
+  1286→  1286→}
+  1287→  1287→
+  1288→  1288→// ─── Hero ────────────────────────────────────────────────────────────
+  1289→  1289→
+  1290→  1290→function HeroSection(): ReactNode {
+  1291→  1291→  const t = useAppTranslation(Landing);
+  1292→  1292→
+  1293→  1293→  return (
+  1294→  1294→    <Box
+  1295→  1295→      component="section"
+  1296→  1296→      sx={{
+  1297→  1297→        position: "relative",
+  1298→  1298→        overflow: "hidden",
+  1299→  1299→        // In a constrained column-flex ancestor, overflow:hidden makes the
+  1300→  1300→        // flex min-height resolve to 0 and this section can shrink-collapse
+  1301→  1301→        // (observed as a 0px hero under a stale dev graph). Pin it open.
+  1302→  1302→        flexShrink: 0,
+  1303→  1303→        background:
+  1304→  1304→          "linear-gradient(160deg, var(--mui-palette-primary-dark) 0%, var(--mui-palette-primary-main) 50%, var(--mui-palette-primary-dark) 100%)",
+  1305→  1305→        color: "var(--mui-palette-onPrimary)",
+  1306→  1306→      }}
+  1307→  1307→    >
+  1308→  1308→      <HeroParticles />
+  1309→  1309→      {/* Islamic geometric tessellation overlay */}
+  1310→  1310→      <Box
+  1311→  1311→        aria-hidden
+  1312→  1312→        sx={{
+  1313→  1313→          position: "absolute",
+  1314→  1314→          inset: 0,
+  1315→  1315→          opacity: 0.06,
+  1316→  1316→          pointerEvents: "none",
+  1317→  1317→          backgroundImage:
+  1318→  1318→            "repeating-linear-gradient(45deg, transparent, transparent 32px, var(--mui-palette-secondary-light) 32px, var(--mui-palette-secondary-light) 34px), repeating-linear-gradient(-45deg, transparent, transparent 32px, var(--mui-palette-secondary-light) 32px, var(--mui-palette-secondary-light) 34px)",
+  1319→  1319→        }}
+  1320→  1320→      />
+  1321→  1321→      {/* Copper radial glow top-right */}
+  1322→  1322→      <Box
+  1323→  1323→        aria-hidden
+  1324→  1324→        sx={{
+  1325→  1325→          position: "absolute",
+  1326→  1326→          top: "-15%",
+  1327→  1327→          insetInlineEnd: "-10%",
+  1328→  1328→          width: "55%",
+  1329→  1329→          height: "70%",
+  1330→  1330→          background: "radial-gradient(circle, var(--mui-palette-secondary-main) 0%, transparent 65%)",
+  1331→  1331→          opacity: 0.18,
+  1332→  1332→          pointerEvents: "none",
+  1333→  1333→        }}
+  1334→  1334→      />
+  1335→  1335→
+  1336→  1336→      {/* Floating decorative circles */}
+  1337→  1337→      <Box
+  1338→  1338→        aria-hidden
+  1339→  1339→        sx={{
+  1340→  1340→          position: "absolute",
+  1341→  1341→          top: "12%",
+  1342→  1342→          insetInlineEnd: "8%",
+  1343→  1343→          width: 180,
+  1344→  1344→          height: 180,
+  1345→  1345→          borderRadius: "50%",
+  1346→  1346→          border: "2px solid var(--mui-palette-secondary-main)",
+  1347→  1347→          opacity: 0.12,
+  1348→  1348→          pointerEvents: "none",
+  1349→  1349→        }}
+  1350→  1350→      />
+  1351→  1351→      <Box
+  1352→  1352→        aria-hidden
+  1353→  1353→        sx={{
+  1354→  1354→          position: "absolute",
+  1355→  1355→          bottom: "18%",
+  1356→  1356→          insetInlineStart: "5%",
+  1357→  1357→          width: 100,
+  1358→  1358→          height: 100,
+  1359→  1359→          borderRadius: "50%",
+  1360→  1360→          bgcolor: "var(--mui-palette-secondary-main)",
+  1361→  1361→          opacity: 0.07,
+  1362→  1362→          pointerEvents: "none",
+  1363→  1363→        }}
+  1364→  1364→      />
+  1365→  1365→      <Box
+  1366→  1366→        aria-hidden
+  1367→  1367→        sx={{
+  1368→  1368→          position: "absolute",
+  1369→  1369→          top: "55%",
+  1370→  1370→          insetInlineEnd: "22%",
+  1371→  1371→          width: 60,
+  1372→  1372→          height: 60,
+  1373→  1373→          borderRadius: "50%",
+  1374→  1374→          border: "1.5px solid var(--mui-palette-secondary-light)",
+  1375→  1375→          opacity: 0.1,
+  1376→  1376→          pointerEvents: "none",
+  1377→  1377→        }}
+  1378→  1378→      />
+  1379→  1379→      <Box
+  1380→  1380→        aria-hidden
+  1381→  1381→        sx={{
+  1382→  1382→          position: "absolute",
+  1383→  1383→          bottom: "10%",
+  1384→  1384→          insetInlineEnd: "40%",
+  1385→  1385→          width: 40,
+  1386→  1386→          height: 40,
+  1387→  1387→          borderRadius: "50%",
+  1388→  1388→          bgcolor: "var(--mui-palette-secondary-light)",
+  1389→  1389→          opacity: 0.08,
+  1390→  1390→          pointerEvents: "none",
+  1391→  1391→        }}
+  1392→  1392→      />
+  1393→  1393→
+  1394→  1394→      <Container maxWidth="lg" sx={{ position: "relative", zIndex: 1, py: { xs: 8, md: 12 } }}>
+  1395→  1395→        <Stack spacing={4} sx={{ alignItems: "flex-start", maxWidth: 760 }}>
+  1396→  1396→          {/* Live indicator badge */}
+  1397→  1397→          <Stack
+  1398→  1398→            direction="row"
+  1399→  1399→            spacing={1}
+  1400→  1400→            sx={{
+  1401→  1401→              alignItems: "center",
+  1402→  1402→              px: 2,
+  1403→  1403→              py: 0.75,
+  1404→  1404→              borderRadius: 99,
+  1405→  1405→              border: "1px solid var(--mui-palette-secondary-main)",
+  1406→  1406→              bgcolor: "color-mix(in srgb, var(--mui-palette-secondary-main) 12%, transparent)",
+  1407→  1407→            }}
+  1408→  1408→          >
+  1409→  1409→            <Box
+  1410→  1410→              aria-hidden
+  1411→  1411→              sx={theme => ({
+  1412→  1412→                width: 8,
+  1413→  1413→                height: 8,
+  1414→  1414→                borderRadius: "50%",
+  1415→  1415→                bgcolor: theme.palette.success.main,
+  1416→  1416→                position: "relative",
+  1417→  1417→                "&::after": {
+  1418→  1418→                  content: '""',
+  1419→  1419→                  position: "absolute",
+  1420→  1420→                  inset: -3,
+  1421→  1421→                  borderRadius: "50%",
+  1422→  1422→                  border: "2px solid",
+  1423→  1423→                  borderColor: theme.palette.success.main,
+  1424→  1424→                  animation: "livePulse 1.5s ease-in-out infinite",
+  1425→  1425→                },
+  1426→  1426→                "@keyframes livePulse": {
+  1427→  1427→                  "0%": { opacity: 0.6, transform: "scale(0.8)" },
+  1428→  1428→                  "50%": { opacity: 0, transform: "scale(1.4)" },
+  1429→  1429→                  "100%": { opacity: 0, transform: "scale(1.4)" },
+  1430→  1430→                },
+  1431→  1431→              })}
+  1432→  1432→            />
+  1433→  1433→            <Typography variant="caption" sx={{ fontWeight: 600, letterSpacing: "0.04em", textTransform: "none" }}>
+  1434→  1434→              {t.heroLiveLabel}
+  1435→  1435→            </Typography>
+  1436→  1436→          </Stack>
+  1437→  1437→
+  1438→  1438→          {/* Badge */}
+  1439→  1439→          <Stack
+  1440→  1440→            direction="row"
+  1441→  1441→            spacing={1}
+  1442→  1442→            sx={{
+  1443→  1443→              alignItems: "center",
+  1444→  1444→              px: 2,
+  1445→  1445→              py: 0.75,
+  1446→  1446→              borderRadius: 99,
+  1447→  1447→              border: "1px solid var(--mui-palette-secondary-main)",
+  1448→  1448→              bgcolor: "color-mix(in srgb, var(--mui-palette-secondary-main) 12%, transparent)",
+  1449→  1449→            }}
+  1450→  1450→          >
+  1451→  1451→            <Box
+  1452→  1452→              aria-hidden
+  1453→  1453→              sx={{ width: 6, height: 6, borderRadius: "50%", bgcolor: "var(--mui-palette-secondary-light)" }}
+  1454→  1454→            />
+  1455→  1455→            <Typography variant="caption" sx={{ fontWeight: 600, letterSpacing: "0.04em", textTransform: "none" }}>
+  1456→  1456→              {t.heroBadge}
+  1457→  1457→            </Typography>
+  1458→  1458→          </Stack>
+  1459→  1459→
+  1460→  1460→          {/* Headline with gradient accent word */}
+  1461→  1461→          <Typography
+  1462→  1462→            variant="h1"
+  1463→  1463→            sx={{
+  1464→  1464→              fontSize: { xs: 36, md: 56 },
+  1465→  1465→              fontWeight: 800,
+  1466→  1466→              lineHeight: 1.1,
+  1467→  1467→              letterSpacing: "-0.03em",
+  1468→  1468→              m: 0,
+  1469→  1469→            }}
+  1470→  1470→          >
+  1471→  1471→            {t.heroTitle}{" "}
+  1472→  1472→            <Box
+  1473→  1473→              component="span"
+  1474→  1474→              sx={{
+  1475→  1475→                background:
+  1476→  1476→                  "linear-gradient(135deg, var(--mui-palette-secondary-light) 0%, var(--mui-palette-secondary-main) 100%)",
+  1477→  1477→                backgroundClip: "text",
+  1478→  1478→                WebkitBackgroundClip: "text",
+  1479→  1479→                color: "transparent",
+  1480→  1480→              }}
+  1481→  1481→            >
+  1482→  1482→              {t.heroTitleAccent}
+  1483→  1483→            </Box>
+  1484→  1484→          </Typography>
+  1485→  1485→
+  1486→  1486→          {/* Subtitle */}
+  1487→  1487→          <Typography
+  1488→  1488→            variant="h6"
+  1489→  1489→            component="p"
+  1490→  1490→            sx={{ maxWidth: 580, lineHeight: 1.6, opacity: 0.85, fontWeight: 400, fontSize: { xs: 16, md: 18 } }}
+  1491→  1491→          >
+  1492→  1492→            {t.heroSubtitle}
+  1493→  1493→          </Typography>
+  1494→  1494→
+  1495→  1495→          {/* CTAs */}
+  1496→  1496→          <Stack direction={{ xs: "column", sm: "row" }} spacing={2} sx={{ pt: 1 }}>
+  1497→  1497→            <Button
+  1498→  1498→              component={Link}
+  1499→  1499→              href="/register"
+  1500→  1500→              variant="contained"
+  1501→  1501→              size="large"
+  1502→  1502→              sx={{
+  1503→  1503→                position: "relative",
+  1504→  1504→                overflow: "hidden",
+  1505→  1505→                bgcolor: "var(--mui-palette-secondary-main)",
+  1506→  1506→                color: "var(--mui-palette-onSecondary)",
+  1507→  1507→                fontWeight: 700,
+  1508→  1508→                textTransform: "none",
+  1509→  1509→                fontSize: 16,
+  1510→  1510→                borderRadius: 2,
+  1511→  1511→                px: 4,
+  1512→  1512→                py: 1.5,
+  1513→  1513→                boxShadow: "0 8px 24px rgba(184,115,51,0.35)",
+  1514→  1514→                "&:hover": {
+  1515→  1515→                  bgcolor: "var(--mui-palette-secondary-dark)",
+  1516→  1516→                  transform: "translateY(-2px)",
+  1517→  1517→                  "&::after": {
+  1518→  1518→                    content: '""',
+  1519→  1519→                    position: "absolute",
+  1520→  1520→                    top: 0,
+  1521→  1521→                    left: "-100%",
+  1522→  1522→                    width: "100%",
+  1523→  1523→                    height: "100%",
+  1524→  1524→                    background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.25), transparent)",
+  1525→  1525→                    transition: "left 0.5s ease",
+  1526→  1526→                  },
+  1527→  1527→                },
+  1528→  1528→                "&:hover::after": {
+  1529→  1529→                  left: "100%",
+  1530→  1530→                },
+  1531→  1531→                transition: "all 0.2s ease",
+  1532→  1532→              }}
+  1533→  1533→            >
+  1534→  1534→              {t.heroCtaPrimary}
+  1535→  1535→            </Button>
+  1536→  1536→            <Button
+  1537→  1537→              component={Link}
+  1538→  1538→              href="/login"
+  1539→  1539→              variant="outlined"
+  1540→  1540→              size="large"
+  1541→  1541→              sx={{
+  1542→  1542→                color: "var(--mui-palette-onPrimary)",
+  1543→  1543→                borderColor: "color-mix(in srgb, var(--mui-palette-onPrimary) 30%, transparent)",
+  1544→  1544→                fontWeight: 700,
+  1545→  1545→                textTransform: "none",
+  1546→  1546→                fontSize: 16,
+  1547→  1547→                borderRadius: 2,
+  1548→  1548→                px: 4,
+  1549→  1549→                py: 1.5,
+  1550→  1550→                "&:hover": {
+  1551→  1551→                  borderColor: "var(--mui-palette-secondary-light)",
+  1552→  1552→                  bgcolor: "color-mix(in srgb, var(--mui-palette-secondary-main) 8%, transparent)",
+  1553→  1553→                },
+  1554→  1554→                transition: "all 0.2s ease",
+  1555→  1555→              }}
+  1556→  1556→            >
+  1557→  1557→              {t.heroCtaSecondary}
+  1558→  1558→            </Button>
+  1559→  1559→          </Stack>
+  1560→  1560→        </Stack>
+  1561→  1561→      </Container>
+  1562→  1562→    </Box>
+  1563→  1563→  );
+  1564→  1564→}
+  1565→  1565→
+  1566→  1566→// ─── Verse of the Day ───────────────────────────────────────────
+  1567→  1567→
+  1568→  1568→function VerseSection(): ReactNode {
+  1569→  1569→  const t = useAppTranslation(Landing);
+  1570→  1570→  const [copied, setCopied] = useState(false);
+  1571→  1571→
+  1572→  1572→  const handleCopy = useCallback(async () => {
+  1573→  1573→    try {
+  1574→  1574→      await navigator.clipboard.writeText(`${t.verseArabic}\n${t.verseTranslation}\n${t.verseReference}`);
+  1575→  1575→      setCopied(true);
+  1576→  1576→      setTimeout(() => setCopied(false), 2000);
+  1577→  1577→    } catch {
+  1578→  1578→      // Fallback: no-op if clipboard API fails
+  1579→  1579→    }
+  1580→  1580→  }, [t.verseArabic, t.verseTranslation, t.verseReference]);
+  1581→  1581→
+  1582→  1582→  const handleShare = useCallback(async () => {
+  1583→  1583→    const shareText = `${t.verseArabic}\n${t.verseTranslation}\n${t.verseReference}`;
+  1584→  1584→    if (navigator.share) {
+  1585→  1585→      try {
+  1586→  1586→        await navigator.share({ title: t.verseBadge, text: shareText });
+  1587→  1587→      } catch {
+  1588→  1588→        // User cancelled or share failed
+  1589→  1589→      }
+  1590→  1590→    } else {
+  1591→  1591→      try {
+  1592→  1592→        await navigator.clipboard.writeText(shareText);
+  1593→  1593→        setCopied(true);
+  1594→  1594→        setTimeout(() => setCopied(false), 2000);
+  1595→  1595→      } catch {
+  1596→  1596→        // Fallback: no-op
+  1597→  1597→      }
+  1598→  1598→    }
+  1599→  1599→  }, [t.verseArabic, t.verseTranslation, t.verseReference, t.verseBadge]);
+  1600→  1600→
+  1601→  1601→  return (
+  1602→  1602→    <Box
+  1603→  1603→      id="verse"
+  1604→  1604→      component="section"
+  1605→  1605→      sx={{
+  1606→  1606→        position: "relative",
+  1607→  1607→        overflow: "hidden",
+  1608→  1608→        // Anchor jump must clear the sticky navbar + fade-in offset race.
+  1609→  1609→        scrollMarginTop: 96,
+  1610→  1610→        background:
+  1611→  1611→          "linear-gradient(200deg, var(--mui-palette-primary-dark) 0%, var(--mui-palette-primary-main) 60%, var(--mui-palette-primary-dark) 100%)",
+  1612→  1612→        color: "var(--mui-palette-onPrimary)",
+  1613→  1613→        py: { xs: 8, md: 12 },
+  1614→  1614→      }}
+  1615→  1615→    >
+  1616→  1616→      {/* Islamic geometric pattern overlay */}
+  1617→  1617→      <Box
+  1618→  1618→        aria-hidden
+  1619→  1619→        sx={{
+  1620→  1620→          position: "absolute",
+  1621→  1621→          inset: 0,
+  1622→  1622→          opacity: 0.05,
+  1623→  1623→          pointerEvents: "none",
+  1624→  1624→          backgroundImage:
+  1625→  1625→            "repeating-linear-gradient(45deg, transparent, transparent 32px, var(--mui-palette-secondary-light) 32px, var(--mui-palette-secondary-light) 34px), repeating-linear-gradient(-45deg, transparent, transparent 32px, var(--mui-palette-secondary-light) 32px, var(--mui-palette-secondary-light) 34px)",
+  1626→  1626→        }}
+  1627→  1627→      />
+  1628→  1628→      {/* Decorative copper radial glow on the left */}
+  1629→  1629→      <Box
+  1630→  1630→        aria-hidden
+  1631→  1631→        sx={{
+  1632→  1632→          position: "absolute",
+  1633→  1633→          top: "-10%",
+  1634→  1634→          insetInlineStart: "-15%",
+  1635→  1635→          width: "50%",
+  1636→  1636→          height: "80%",
+  1637→  1637→          background: "radial-gradient(circle, var(--mui-palette-secondary-main) 0%, transparent 60%)",
+  1638→  1638→          opacity: 0.15,
+  1639→  1639→          pointerEvents: "none",
+  1640→  1640→        }}
+  1641→  1641→      />
+  1642→  1642→
+  1643→  1643→      <Container maxWidth="lg" sx={{ position: "relative", zIndex: 1 }}>
+  1644→  1644→        <Stack spacing={4} sx={{ alignItems: "center", textAlign: "center" }}>
+  1645→  1645→          {/* Badge */}
+  1646→  1646→          <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
+  1647→  1647→            <Box aria-hidden sx={{ width: 24, height: 2, bgcolor: "var(--mui-palette-secondary-main)" }} />
+  1648→  1648→            <Typography
+  1649→  1649→              variant="overline"
+  1650→  1650→              sx={{
+  1651→  1651→                fontWeight: 700,
+  1652→  1652→                letterSpacing: "0.12em",
+  1653→  1653→                color: "var(--mui-palette-secondary-main)",
+  1654→  1654→                lineHeight: 1,
+  1655→  1655→              }}
+  1656→  1656→            >
+  1657→  1657→              {t.verseBadge}
+  1658→  1658→            </Typography>
+  1659→  1659→            <Box aria-hidden sx={{ width: 24, height: 2, bgcolor: "var(--mui-palette-secondary-main)" }} />
+  1660→  1660→          </Stack>
+  1661→  1661→
+  1662→  1662→          {/* Title */}
+  1663→  1663→          <Typography
+  1664→  1664→            component="h3"
+  1665→  1665→            sx={{
+  1666→  1666→              fontWeight: 800,
+  1667→  1667→              fontSize: { xs: 26, md: 34 },
+  1668→  1668→              letterSpacing: "-0.02em",
+  1669→  1669→              lineHeight: 1.2,
+  1670→  1670→              m: 0,
+  1671→  1671→              color: "var(--mui-palette-onPrimary)",
+  1672→  1672→            }}
+  1673→  1673→          >
+  1674→  1674→            {t.verseTitle}
+  1675→  1675→          </Typography>
+  1676→  1676→
+  1677→  1677→          {/* Decorative horizontal line */}
+  1678→  1678→          <Box
+  1679→  1679→            aria-hidden
+  1680→  1680→            sx={{
+  1681→  1681→              width: 60,
+  1682→  1682→              height: 2,
+  1683→  1683→              bgcolor: "var(--mui-palette-secondary-main)",
+  1684→  1684→              borderRadius: 1,
+  1685→  1685→            }}
+  1686→  1686→          />
+  1687→  1687→
+  1688→  1688→          {/* Arabic verse text */}
+  1689→  1689→          <Typography
+  1690→  1690→            sx={{
+  1691→  1691→              fontFamily: '"Cairo", sans-serif',
+  1692→  1692→              fontSize: { xs: 32, md: 48 },
+  1693→  1693→              fontWeight: 700,
+  1694→  1694→              direction: "rtl",
+  1695→  1695→              lineHeight: 1.8,
+  1696→  1696→              color: "var(--mui-palette-secondary-light)",
+  1697→  1697→              maxWidth: 700,
+  1698→  1698→            }}
+  1699→  1699→          >
+  1700→  1700→            {t.verseArabic}
+  1701→  1701→          </Typography>
+  1702→  1702→
+  1703→  1703→          {/* Surah chip */}
+  1704→  1704→          <Chip
+  1705→  1705→            label={t.verseSurah}
+  1706→  1706→            variant="outlined"
+  1707→  1707→            size="small"
+  1708→  1708→            sx={{
+  1709→  1709→              borderColor: "var(--mui-palette-secondary-main)",
+  1710→  1710→              color: "var(--mui-palette-secondary-light)",
+  1711→  1711→              fontWeight: 600,
+  1712→  1712→              fontSize: 13,
+  1713→  1713→            }}
+  1714→  1714→          />
+  1715→  1715→
+  1716→  1716→          {/* Translation */}
+  1717→  1717→          <Typography
+  1718→  1718→            variant="body1"
+  1719→  1719→            sx={{
+  1720→  1720→              fontStyle: "italic",
+  1721→  1721→              maxWidth: 560,
+  1722→  1722→              lineHeight: 1.7,
+  1723→  1723→              opacity: 0.85,
+  1724→  1724→              fontSize: { xs: 16, md: 18 },
+  1725→  1725→            }}
+  1726→  1726→          >
+  1727→  1727→            {t.verseTranslation}
+  1728→  1728→          </Typography>
+  1729→  1729→
+  1730→  1730→          {/* Reference */}
+  1731→  1731→          <Typography
+  1732→  1732→            variant="caption"
+  1733→  1733→            sx={{
+  1734→  1734→              opacity: 0.6,
+  1735→  1735→              letterSpacing: "0.02em",
+  1736→  1736→            }}
+  1737→  1737→          >
+  1738→  1738→            {t.verseReference}
+  1739→  1739→          </Typography>
+  1740→  1740→
+  1741→  1741→          {/* Subtitle */}
+  1742→  1742→          <Typography
+  1743→  1743→            variant="body2"
+  1744→  1744→            sx={{
+  1745→  1745→              maxWidth: 480,
+  1746→  1746→              lineHeight: 1.6,
+  1747→  1747→              opacity: 0.75,
+  1748→  1748→              mt: -0.5,
+  1749→  1749→            }}
+  1750→  1750→          >
+  1751→  1751→            {t.verseSubtitle}
+  1752→  1752→          </Typography>
+  1753→  1753→
+  1754→  1754→          {/* Copy / Share buttons */}
+  1755→  1755→          <Stack direction="row" spacing={1} sx={{ mt: -1 }}>
+  1756→  1756→            <IconButton
+  1757→  1757→              onClick={handleCopy}
+  1758→  1758→              size="small"
+  1759→  1759→              aria-label={t.verseCopy}
+  1760→  1760→              sx={{
+  1761→  1761→                color: "var(--mui-palette-secondary-light)",
+  1762→  1762→                "&:hover": { bgcolor: "color-mix(in srgb, var(--mui-palette-secondary-light) 15%, transparent)" },
+  1763→  1763→              }}
+  1764→  1764→            >
+  1765→  1765→              <CopyIcon sx={{ fontSize: 18 }} />
+  1766→  1766→            </IconButton>
+  1767→  1767→            <Typography
+  1768→  1768→              variant="caption"
+  1769→  1769→              sx={{
+  1770→  1770→                color: "var(--mui-palette-secondary-light)",
+  1771→  1771→                opacity: copied ? 1 : 0.7,
+  1772→  1772→                lineHeight: 2.5,
+  1773→  1773→                fontWeight: copied ? 600 : 400,
+  1774→  1774→              }}
+  1775→  1775→            >
+  1776→  1776→              {copied ? t.verseCopied : t.verseCopy}
+  1777→  1777→            </Typography>
+  1778→  1778→            <Box sx={{ width: 8 }} />
+  1779→  1779→            <IconButton
+  1780→  1780→              onClick={handleShare}
+  1781→  1781→              size="small"
+  1782→  1782→              aria-label={t.verseShare}
+  1783→  1783→              sx={{
+  1784→  1784→                color: "var(--mui-palette-secondary-light)",
+  1785→  1785→                "&:hover": { bgcolor: "color-mix(in srgb, var(--mui-palette-secondary-light) 15%, transparent)" },
+  1786→  1786→              }}
+  1787→  1787→            >
+  1788→  1788→              <ShareIcon sx={{ fontSize: 18 }} />
+  1789→  1789→            </IconButton>
+  1790→  1790→            <Typography
+  1791→  1791→              variant="caption"
+  1792→  1792→              sx={{ color: "var(--mui-palette-secondary-light)", opacity: 0.7, lineHeight: 2.5 }}
+  1793→  1793→            >
+  1794→  1794→              {t.verseShare}
+  1795→  1795→            </Typography>
+  1796→  1796→          </Stack>
+  1797→  1797→        </Stack>
+  1798→  1798→      </Container>
+  1799→  1799→    </Box>
+  1800→  1800→  );
+  1801→  1801→}
+  1802→  1802→
+  1803→  1803→// ─── Stats bar ───────────────────────────────────────────────────────
+  1804→  1804→
+  1805→  1805→function StatsBar(): ReactNode {
+  1806→  1806→  const t = useAppTranslation(Landing);
+  1807→  1807→  const statsRef = useRef<HTMLDivElement>(null);
+  1808→  1808→  const [inView, setInView] = useState(false);
+  1809→  1809→
+  1810→  1810→  useEffect(() => {
+  1811→  1811→    const el = statsRef.current;
+  1812→  1812→    let obs: IntersectionObserver | undefined;
+  1813→  1813→    if (el) {
+  1814→  1814→      obs = new IntersectionObserver(
+  1815→  1815→        ([entry]) => {
+  1816→  1816→          if (entry.isIntersecting) {
+  1817→  1817→            setInView(true);
+  1818→  1818→            obs?.unobserve(el);
+  1819→  1819→          }
+  1820→  1820→        },
+  1821→  1821→        { threshold: 0.3 }
+  1822→  1822→      );
+  1823→  1823→      obs.observe(el);
+  1824→  1824→    }
+  1825→  1825→    return () => obs?.disconnect();
+  1826→  1826→  }, []);
+  1827→  1827→
+  1828→  1828→  const statIcons: ReactNode[] = [
+  1829→  1829→    <SchoolIcon key="t" />,
+  1830→  1830→    <GroupsIcon key="s" />,
+  1831→  1831→    <BookIcon key="b" />,
+  1832→  1832→    <GlobeIcon key="g" />,
+  1833→  1833→  ];
+  1834→  1834→
+  1835→  1835→  const stats = [
+  1836→  1836→    { value: t.statsTeachers, label: t.statsTeachersLabel },
+  1837→  1837→    { value: t.statsStudents, label: t.statsStudentsLabel },
+  1838→  1838→    { value: t.statsRecitations, label: t.statsRecitationsLabel },
+  1839→  1839→    { value: t.statsCountries, label: t.statsCountriesLabel },
+  1840→  1840→  ];
+  1841→  1841→
+  1842→  1842→  return (
+  1843→  1843→    <Box
+  1844→  1844→      component="section"
+  1845→  1845→      ref={statsRef}
+  1846→  1846→      sx={{
+  1847→  1847→        position: "relative",
+  1848→  1848→        bgcolor: "var(--mui-palette-primary-dark)",
+  1849→  1849→        color: "var(--mui-palette-onPrimary)",
+  1850→  1850→        borderBottom: "1px solid var(--mui-palette-divider)",
+  1851→  1851→      }}
+  1852→  1852→    >
+  1853→  1853→      {/* Subtle geometric pattern overlay (lighter than hero) */}
+  1854→  1854→      <Box
+  1855→  1855→        aria-hidden
+  1856→  1856→        sx={{
+  1857→  1857→          position: "absolute",
+  1858→  1858→          inset: 0,
+  1859→  1859→          opacity: 0.03,
+  1860→  1860→          pointerEvents: "none",
+  1861→  1861→          backgroundImage:
+  1862→  1862→            "repeating-linear-gradient(45deg, transparent, transparent 32px, var(--mui-palette-secondary-light) 32px, var(--mui-palette-secondary-light) 34px), repeating-linear-gradient(-45deg, transparent, transparent 32px, var(--mui-palette-secondary-light) 32px, var(--mui-palette-secondary-light) 34px)",
+  1863→  1863→        }}
+  1864→  1864→      />
+  1865→  1865→      <Container maxWidth="lg" sx={{ position: "relative", zIndex: 1 }}>
+  1866→  1866→        <Stack
+  1867→  1867→          direction={{ xs: "column", sm: "row" }}
+  1868→  1868→          spacing={{ xs: 2, sm: 0 }}
+  1869→  1869→          sx={{ py: 3, justifyContent: "space-around", alignItems: "center" }}
+  1870→  1870→        >
+  1871→  1871→          {stats.map((s, idx) => (
+  1872→  1872→            <Stack key={s.label} spacing={0.5} sx={{ alignItems: "center", textAlign: "center", flex: 1 }}>
+  1873→  1873→              <Box
+  1874→  1874→                sx={{
+  1875→  1875→                  width: 32,
+  1876→  1876→                  height: 32,
+  1877→  1877→                  borderRadius: "50%",
+  1878→  1878→                  bgcolor: "color-mix(in srgb, var(--mui-palette-secondary-main) 15%, transparent)",
+  1879→  1879→                  color: "var(--mui-palette-secondary-main)",
+  1880→  1880→                  display: "flex",
+  1881→  1881→                  alignItems: "center",
+  1882→  1882→                  justifyContent: "center",
+  1883→  1883→                  mb: 0.5,
+  1884→  1884→                  opacity: inView ? 1 : 0,
+  1885→  1885→                  animation: inView ? "statIconPulse 0.6s ease-out" : "none",
+  1886→  1886→                  "@keyframes statIconPulse": {
+  1887→  1887→                    "0%": { transform: "scale(0.5)", opacity: 0 },
+  1888→  1888→                    "60%": { transform: "scale(1.15)", opacity: 1 },
+  1889→  1889→                    "100%": { transform: "scale(1)", opacity: 1 },
+  1890→  1890→                  },
+  1891→  1891→                  "& svg": { fontSize: 18 },
+  1892→  1892→                }}
+  1893→  1893→              >
+  1894→  1894→                {statIcons[idx]}
+  1895→  1895→              </Box>
+  1896→  1896→              <Typography
+  1897→  1897→                sx={{
+  1898→  1898→                  fontSize: { xs: 28, md: 36 },
+  1899→  1899→                  fontWeight: 800,
+  1900→  1900→                  color: "var(--mui-palette-secondary-light)",
+  1901→  1901→                  lineHeight: 1,
+  1902→  1902→                  textShadow: "0 0 24px rgba(184,115,51,0.3)",
+  1903→  1903→                }}
+  1904→  1904→              >
+  1905→  1905→                <AnimatedCounter raw={s.value} />
+  1906→  1906→              </Typography>
+  1907→  1907→              <Typography variant="caption" sx={{ opacity: 0.7, textTransform: "none", letterSpacing: "0.02em" }}>
+  1908→  1908→                {s.label}
+  1909→  1909→              </Typography>
+  1910→  1910→            </Stack>
+  1911→  1911→          ))}
+  1912→  1912→        </Stack>
+  1913→  1913→      </Container>
+  1914→  1914→    </Box>
+  1915→  1915→  );
+  1916→  1916→}
+  1917→  1917→
+  1918→  1918→// ─── Partners / Trusted By section ───────────────────────────────────
+  1919→  1919→
+  1920→  1920→function PartnersSection(): ReactNode {
+  1921→  1921→  const t = useAppTranslation(Landing);
+  1922→  1922→  const partners = [t.partner1Name, t.partner2Name, t.partner3Name, t.partner4Name, t.partner5Name, t.partner6Name];
+  1923→  1923→  const cardSx = {
+  1924→  1924→    minWidth: 160,
+  1925→  1925→    p: 2.5,
+  1926→  1926→    borderRadius: 2,
+  1927→  1927→    border: "1px solid var(--mui-palette-divider)",
+  1928→  1928→    bgcolor: "var(--mui-palette-background-default)",
+  1929→  1929→    display: "flex",
+  1930→  1930→    alignItems: "center",
+  1931→  1931→    justifyContent: "center",
+  1932→  1932→    textAlign: "center",
+  1933→  1933→    flexShrink: 0,
+  1934→  1934→    transition: "border-color 0.2s ease",
+  1935→  1935→    "&:hover": { borderColor: "var(--mui-palette-secondary-main)" },
+  1936→  1936→  };
+  1937→  1937→
+  1938→  1938→  return (
+  1939→  1939→    <SectionWrapper badge={t.partnersBadge} title={t.partnersTitle} subtitle={t.partnersSubtitle} bg="paper">
+  1940→  1940→      <Box sx={{ position: "relative", overflow: "hidden" }}>
+  1941→  1941→        {/* Left fade gradient */}
+  1942→  1942→        <Box
+  1943→  1943→          aria-hidden
+  1944→  1944→          sx={{
+  1945→  1945→            position: "absolute",
+  1946→  1946→            top: 0,
+  1947→  1947→            left: 0,
+  1948→  1948→            bottom: 0,
+  1949→  1949→            width: 60,
+  1950→  1950→            zIndex: 2,
+  1951→  1951→            background: "linear-gradient(90deg, var(--mui-palette-background-paper), transparent)",
+  1952→  1952→            pointerEvents: "none",
+  1953→  1953→          }}
+  1954→  1954→        />
+  1955→  1955→        {/* Right fade gradient */}
+  1956→  1956→        <Box
+  1957→  1957→          aria-hidden
+  1958→  1958→          sx={{
+  1959→  1959→            position: "absolute",
+  1960→  1960→            top: 0,
+  1961→  1961→            right: 0,
+  1962→  1962→            bottom: 0,
+  1963→  1963→            width: 60,
+  1964→  1964→            zIndex: 2,
+  1965→  1965→            background: "linear-gradient(270deg, var(--mui-palette-background-paper), transparent)",
+  1966→  1966→            pointerEvents: "none",
+  1967→  1967→          }}
+  1968→  1968→        />
+  1969→  1969→        <Box
+  1970→  1970→          sx={{
+  1971→  1971→            display: "flex",
+  1972→  1972→            gap: 2.5,
+  1973→  1973→            width: "fit-content",
+  1974→  1974→            animation: "partnersMarquee 35s linear infinite",
+  1975→  1975→            "&:hover": { animationPlayState: "paused" },
+  1976→  1976→            "@keyframes partnersMarquee": {
+  1977→  1977→              "0%": { transform: "translateX(0)" },
+  1978→  1978→              "100%": { transform: "translateX(calc(-50% - 10px))" },
+  1979→  1979→            },
+  1980→  1980→          }}
+  1981→  1981→        >
+  1982→  1982→          {partners.map(name => (
+  1983→  1983→            <Box key={name} sx={cardSx}>
+  1984→  1984→              <Typography
+  1985→  1985→                sx={{
+  1986→  1986→                  fontWeight: 700,
+  1987→  1987→                  fontSize: { xs: 13, md: 15 },
+  1988→  1988→                  color: "var(--mui-palette-text-primary)",
+  1989→  1989→                  lineHeight: 1.3,
+  1990→  1990→                  whiteSpace: "nowrap",
+  1991→  1991→                }}
+  1992→  1992→              >
+  1993→  1993→                {name}
+  1994→  1994→              </Typography>
+  1995→  1995→            </Box>
+  1996→  1996→          ))}
+  1997→  1997→          {partners.map(name => (
+  1998→  1998→            <Box key={`${name}-dup`} sx={cardSx}>
+  1999→  1999→              <Typography
+  2000→  2000→                sx={{
+
+[showing lines 1-2000 of 2002; use offset=2001 with limit to continue reading]

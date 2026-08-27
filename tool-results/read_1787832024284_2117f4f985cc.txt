@@ -1,0 +1,602 @@
+   100→   100→   100→ * RTL is handled automatically by MUI + the locale-aware Emotion cache.
+   101→   101→   101→ */
+   102→   102→   102→// ─── Scroll-spy hook ───────────────────────────────────────────────
+   103→   103→   103→
+   104→   104→   104→function useScrollSpy(sectionIds: readonly string[]): string {
+   105→   105→   105→  const [activeId, setActiveId] = useState("");
+   106→   106→   106→  useEffect(() => {
+   107→   107→   107→    const observers: IntersectionObserver[] = [];
+   108→   108→   108→    for (const id of sectionIds) {
+   109→   109→   109→      const el = document.getElementById(id);
+   110→   110→   110→      if (!el) continue;
+   111→   111→   111→      const obs = new IntersectionObserver(
+   112→   112→   112→        ([entry]) => {
+   113→   113→   113→          if (entry.isIntersecting) setActiveId(id);
+   114→   114→   114→        },
+   115→   115→   115→        { threshold: 0.2, rootMargin: "-80px 0px -50% 0px" }
+   116→   116→   116→      );
+   117→   117→   117→      obs.observe(el);
+   118→   118→   118→      observers.push(obs);
+   119→   119→   119→    }
+   120→   120→   120→    return () => {
+   121→   121→   121→      for (const o of observers) o.disconnect();
+   122→   122→   122→    };
+   123→   123→   123→  }, [sectionIds]);
+   124→   124→   124→  return activeId;
+   125→   125→   125→}
+   126→   126→   126→
+   127→   127→   127→export default function LandingPage(): ReactNode {
+   128→   128→   128→  const t = useAppTranslation(Landing);
+   129→   129→   129→  const { mode, setMode } = useColorScheme();
+   130→   130→   130→  const [mobileOpen, setMobileOpen] = useState(false);
+   131→   131→   131→  const prevMode = useRef(mode);
+   132→   132→   132→  const [modeFlash, setModeFlash] = useState(false);
+   133→   133→   133→
+   134→   134→   134→  useEffect(() => {
+   135→   135→   135→    document.documentElement.style.scrollBehavior = "smooth";
+   136→   136→   136→  }, []);
+   137→   137→   137→
+   138→   138→   138→  useEffect(() => {
+   139→   139→   139→    // Uniform cleanup kind on every path (oxlint consistent-return): the
+   140→   140→   140→    // timer only exists on real mode flips.
+   141→   141→   141→    if (prevMode.current === mode) {
+   142→   142→   142→      return undefined;
+   143→   143→   143→    }
+   144→   144→   144→    prevMode.current = mode;
+   145→   145→   145→    setModeFlash(true);
+   146→   146→   146→    const timer = setTimeout(() => setModeFlash(false), 300);
+   147→   147→   147→    return () => clearTimeout(timer);
+   148→   148→   148→  }, [mode]);
+   149→   149→   149→
+   150→   150→   150→  const sectionIds = useMemo(
+   151→   151→   151→    () =>
+   152→   152→   152→      [
+   153→   153→   153→        "verse",
+   154→   154→   154→        "features",
+   155→   155→   155→        "recitations",
+   156→   156→   156→        "curriculum",
+   157→   157→   157→        "how-it-works",
+   158→   158→   158→        "achievements",
+   159→   159→   159→        "teachers",
+   160→   160→   160→        "roles",
+   161→   161→   161→        "pricing",
+   162→   162→   162→        "testimonials",
+   163→   163→   163→        "faq",
+   164→   164→   164→        "newsletter",
+   165→   165→   165→        "contact",
+   166→   166→   166→        "app",
+   167→   167→   167→      ] as const,
+   168→   168→   168→    []
+   169→   169→   169→  );
+   170→   170→   170→  const activeSection = useScrollSpy(sectionIds);
+   171→   171→   171→
+   172→   172→   172→  const navLinks = [
+   173→   173→   173→    { label: t.navVerse, href: "#verse" },
+   174→   174→   174→    { label: t.navApp, href: "#app" },
+   175→   175→   175→    { label: t.navFeatures, href: "#features" },
+   176→   176→   176→    { label: t.navRecitations, href: "#recitations" },
+   177→   177→   177→    { label: t.navHowItWorks, href: "#how-it-works" },
+   178→   178→   178→    { label: t.navRoles, href: "#roles" },
+   179→   179→   179→    { label: t.navTestimonials, href: "#testimonials" },
+   180→   180→   180→    { label: t.navFaq, href: "#faq" },
+   181→   181→   181→    { label: t.navPricing, href: "#pricing" },
+   182→   182→   182→    { label: t.navContact, href: "#contact" },
+   183→   183→   183→    { label: t.navAchievements, href: "#achievements" },
+   184→   184→   184→    { label: t.navTeachers, href: "#teachers" },
+   185→   185→   185→    { label: t.navCurriculum, href: "#curriculum" },
+   186→   186→   186→    { label: t.navResources, href: "#resources" },
+   187→   187→   187→  ];
+   188→   188→   188→
+   189→   189→   189→  // The desktop bar shows the 8 primary sections that measurably fit at
+   190→   190→   190→  // 1200-1366px alongside brand + actions. The landing now has 14 anchors
+   191→   191→   191→  // (teachers/resources added by the spotlight/resources sections): the
+   192→   192→   192→  // 12-link set overlapped the locale switcher by 76px at 1280, and a
+   193→   193→   193→  // 10-link set still clipped by 30px. Hidden anchors stay in the mobile
+   194→   194→   194→  // drawer and remain reachable by scroll (#verse = page top, #app = bottom,
+   195→   195→   195→  // #contact = footer column + newsletter CTA).
+   196→   196→   196→  const desktopNavHidden = new Set(["#verse", "#app", "#contact", "#resources", "#roles", "#testimonials"]);
+   197→   197→   197→  const desktopNavLinks = navLinks.filter(l => !desktopNavHidden.has(l.href));
+   198→   198→   198→
+   199→   199→   199→  return (
+   200→   200→   200→    <Box
+   201→   201→   201→      component="div"
+   202→   202→   202→      sx={{
+   203→   203→   203→        display: "flex",
+   204→   204→   204→        flexDirection: "column",
+   205→   205→   205→        minHeight: "100vh",
+   206→   206→   206→        bgcolor: "var(--mui-palette-background-default)",
+   207→   207→   207→      }}
+   208→   208→   208→    >
+   209→   209→   209→      {/* === Skip-to-content (a11y) === */}
+   210→   210→   210→      <Box
+   211→   211→   211→        component="a"
+   212→   212→   212→        href="#main-content"
+   213→   213→   213→        sx={{
+   214→   214→   214→          position: "fixed",
+   215→   215→   215→          top: 8,
+   216→   216→   216→          insetInlineStart: 8,
+   217→   217→   217→          zIndex: 2000,
+   218→   218→   218→          px: 2,
+   219→   219→   219→          py: 1,
+   220→   220→   220→          borderRadius: 1.5,
+   221→   221→   221→          bgcolor: "var(--mui-palette-secondary-main)",
+   222→   222→   222→          color: "var(--mui-palette-onSecondary)",
+   223→   223→   223→          fontWeight: 700,
+   224→   224→   224→          fontSize: 14,
+   225→   225→   225→          textDecoration: "none",
+   226→   226→   226→          boxShadow: "0 4px 14px rgba(0,0,0,0.3)",
+   227→   227→   227→          transform: "translateY(-200%)",
+   228→   228→   228→          transition: "transform 0.2s ease",
+   229→   229→   229→          "&:focus-visible": { transform: "translateY(0)" },
+   230→   230→   230→        }}
+   231→   231→   231→      >
+   232→   232→   232→        {t.a11ySkipToContent}
+   233→   233→   233→      </Box>
+   234→   234→   234→
+   235→   235→   235→      {/* === Scroll progress bar === */}
+   236→   236→   236→      <ScrollProgressBar />
+   237→   237→   237→
+   238→   238→   238→      {/* === Top nav === */}
+   239→   239→   239→      <Box
+   240→   240→   240→        component="nav"
+   241→   241→   241→        sx={{
+   242→   242→   242→          position: "sticky",
+   243→   243→   243→          top: 0,
+   244→   244→   244→          zIndex: 100,
+   245→   245→   245→          backdropFilter: "blur(12px)",
+   246→   246→   246→          bgcolor: "color-mix(in srgb, var(--mui-palette-primary-dark) 70%, transparent)",
+   247→   247→   247→          borderBottom: "1px solid var(--mui-palette-divider)",
+   248→   248→   248→        }}
+   249→   249→   249→      >
+   250→   250→   250→        <Container maxWidth="lg">
+   251→   251→   251→          <Stack direction="row" sx={{ alignItems: "center", justifyContent: "space-between", py: 1.5 }}>
+   252→   252→   252→            <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
+   253→   253→   253→              <BrandMark size={32} />
+   254→   254→   254→              <Typography
+   255→   255→   255→                sx={{ fontSize: 17, fontWeight: 700, letterSpacing: "-0.01em", color: "var(--mui-palette-onPrimary)" }}
+   256→   256→   256→              >
+   257→   257→   257→                Kottaby Academy
+   258→   258→   258→              </Typography>
+   259→   259→   259→            </Stack>
+   260→   260→   260→
+   261→   261→   261→            {/* Desktop section nav links */}
+   262→   262→   262→            <Stack
+   263→   263→   263→              direction="row"
+   264→   264→   264→              spacing={0}
+   265→   265→   265→              sx={{ alignItems: "center", display: { xs: "none", lg: "flex" }, overflow: "hidden" }}
+   266→   266→   266→            >
+   267→   267→   267→              {desktopNavLinks.map(link => {
+   268→   268→   268→                const isActive = link.href === `#${activeSection}`;
+   269→   269→   269→                return (
+   270→   270→   270→                  <Button
+   271→   271→   271→                    key={link.href}
+   272→   272→   272→                    component="a"
+   273→   273→   273→                    href={link.href}
+   274→   274→   274→                    size="small"
+   275→   275→   275→                    sx={{
+   276→   276→   276→                      minWidth: "auto",
+   277→   277→   277→                      px: 0.25,
+   278→   278→   278→                      py: 0.5,
+   279→   279→   279→                      fontSize: 12,
+   280→   280→   280→                      fontWeight: 600,
+   281→   281→   281→                      textTransform: "none",
+   282→   282→   282→                      whiteSpace: "nowrap",
+   283→   283→   283→                      ...(isActive
+   284→   284→   284→                        ? {
+   285→   285→   285→                            color: "var(--mui-palette-secondary-light)",
+   286→   286→   286→                            position: "relative",
+   287→   287→   287→                            "&::after": {
+   288→   288→   288→                              content: '""',
+   289→   289→   289→                              position: "absolute",
+   290→   290→   290→                              bottom: -2,
+   291→   291→   291→                              left: "10%",
+   292→   292→   292→                              width: "80%",
+   293→   293→   293→                              height: 2,
+   294→   294→   294→                              bgcolor: "var(--mui-palette-secondary-main)",
+   295→   295→   295→                              borderRadius: 1,
+   296→   296→   296→                              transition: "all 0.2s ease",
+   297→   297→   297→                            },
+   298→   298→   298→                          }
+   299→   299→   299→                        : {
+   300→   300→   300→                            color: "var(--mui-palette-onPrimary)",
+   301→   301→   301→                            opacity: 0.7,
+   302→   302→   302→                          }),
+   303→   303→   303→                      "&:hover": { opacity: 1 },
+   304→   304→   304→                      transition: "color 0.2s ease, opacity 0.2s ease",
+   305→   305→   305→                    }}
+   306→   306→   306→                  >
+   307→   307→   307→                    {link.label}
+   308→   308→   308→                  </Button>
+   309→   309→   309→                );
+   310→   310→   310→              })}
+   311→   311→   311→            </Stack>
+   312→   312→   312→
+   313→   313→   313→            {/* Desktop actions — hidden on xs/sm */}
+   314→   314→   314→            <Stack direction="row" spacing={1.25} sx={{ alignItems: "center", display: { xs: "none", md: "flex" } }}>
+   315→   315→   315→              <LocaleSwitcher />
+   316→   316→   316→              {/* Dark mode toggle */}
+   317→   317→   317→              <Button
+   318→   318→   318→                onClick={() => setMode(mode === "dark" ? "light" : "dark")}
+   319→   319→   319→                sx={{
+   320→   320→   320→                  minWidth: "auto",
+   321→   321→   321→                  p: 1,
+   322→   322→   322→                  color: "var(--mui-palette-secondary-light)",
+   323→   323→   323→                  borderRadius: 2,
+   324→   324→   324→                  "&:hover": { bgcolor: "color-mix(in srgb, var(--mui-palette-secondary-main) 15%, transparent)" },
+   325→   325→   325→                }}
+   326→   326→   326→                aria-label={t.a11yToggleColorMode}
+   327→   327→   327→              >
+   328→   328→   328→                {mode === "dark" ? <LightModeOutlined /> : <DarkModeOutlined />}
+   329→   329→   329→              </Button>
+   330→   330→   330→              <Button
+   331→   331→   331→                component={Link}
+   332→   332→   332→                href="/login"
+   333→   333→   333→                variant="text"
+   334→   334→   334→                sx={{ color: "var(--mui-palette-onPrimary)", fontWeight: 600, textTransform: "none" }}
+   335→   335→   335→              >
+   336→   336→   336→                {t.navSignIn}
+   337→   337→   337→              </Button>
+   338→   338→   338→              <Button
+   339→   339→   339→                component={Link}
+   340→   340→   340→                href="/register"
+   341→   341→   341→                variant="contained"
+   342→   342→   342→                sx={{
+   343→   343→   343→                  position: "relative",
+   344→   344→   344→                  overflow: "hidden",
+   345→   345→   345→                  bgcolor: "var(--mui-palette-secondary-main)",
+   346→   346→   346→                  color: "var(--mui-palette-onSecondary)",
+   347→   347→   347→                  fontWeight: 700,
+   348→   348→   348→                  textTransform: "none",
+   349→   349→   349→                  borderRadius: 2,
+   350→   350→   350→                  px: 2.5,
+   351→   351→   351→                  "&::after": {
+   352→   352→   352→                    content: '""',
+   353→   353→   353→                    position: "absolute",
+   354→   354→   354→                    top: 0,
+   355→   355→   355→                    left: "-100%",
+   356→   356→   356→                    width: "100%",
+   357→   357→   357→                    height: "100%",
+   358→   358→   358→                    background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent)",
+   359→   359→   359→                    transition: "left 0.5s ease",
+   360→   360→   360→                  },
+   361→   361→   361→                  "&:hover": {
+   362→   362→   362→                    bgcolor: "var(--mui-palette-secondary-dark)",
+   363→   363→   363→                    "&::after": { left: "100%" },
+   364→   364→   364→                  },
+   365→   365→   365→                }}
+   366→   366→   366→              >
+   367→   367→   367→                {t.navGetStarted}
+   368→   368→   368→              </Button>
+   369→   369→   369→            </Stack>
+   370→   370→   370→
+   371→   371→   371→            {/* Mobile hamburger button — visible on xs/sm only */}
+   372→   372→   372→            <Stack direction="row" spacing={1} sx={{ alignItems: "center", display: { xs: "flex", md: "none" } }}>
+   373→   373→   373→              <Button
+   374→   374→   374→                onClick={() => setMode(mode === "dark" ? "light" : "dark")}
+   375→   375→   375→                sx={{
+   376→   376→   376→                  minWidth: "auto",
+   377→   377→   377→                  p: 1,
+   378→   378→   378→                  color: "var(--mui-palette-secondary-light)",
+   379→   379→   379→                  borderRadius: 2,
+   380→   380→   380→                  "&:hover": { bgcolor: "color-mix(in srgb, var(--mui-palette-secondary-main) 15%, transparent)" },
+   381→   381→   381→                }}
+   382→   382→   382→                aria-label={t.a11yToggleColorMode}
+   383→   383→   383→              >
+   384→   384→   384→                {mode === "dark" ? <LightModeOutlined /> : <DarkModeOutlined />}
+   385→   385→   385→              </Button>
+   386→   386→   386→              <Button
+   387→   387→   387→                onClick={() => setMobileOpen(prev => !prev)}
+   388→   388→   388→                sx={{
+   389→   389→   389→                  minWidth: "auto",
+   390→   390→   390→                  p: 1,
+   391→   391→   391→                  color: "var(--mui-palette-onPrimary)",
+   392→   392→   392→                  borderRadius: 2,
+   393→   393→   393→                  "&:hover": { bgcolor: "color-mix(in srgb, var(--mui-palette-onPrimary) 10%, transparent)" },
+   394→   394→   394→                }}
+   395→   395→   395→                aria-label={t.a11yToggleMenu}
+   396→   396→   396→              >
+   397→   397→   397→                {mobileOpen ? <CloseIcon /> : <MenuIcon />}
+   398→   398→   398→              </Button>
+   399→   399→   399→            </Stack>
+   400→   400→   400→          </Stack>
+   401→   401→   401→
+   402→   402→   402→          {/* Mobile nav backdrop */}
+   403→   403→   403→          <Box
+   404→   404→   404→            onClick={() => setMobileOpen(false)}
+   405→   405→   405→            sx={theme => ({
+   406→   406→   406→              position: "fixed",
+   407→   407→   407→              inset: 0,
+   408→   408→   408→              bgcolor: `color-mix(in srgb, ${theme.palette.common.black} 50%, transparent)`,
+   409→   409→   409→              zIndex: 99,
+   410→   410→   410→              opacity: mobileOpen ? 1 : 0,
+   411→   411→   411→              pointerEvents: mobileOpen ? "auto" : "none",
+   412→   412→   412→              transition: "opacity 0.3s ease",
+   413→   413→   413→            })}
+   414→   414→   414→          />
+   415→   415→   415→
+   416→   416→   416→          {/* Mobile slide-down menu */}
+   417→   417→   417→          <Box
+   418→   418→   418→            sx={{
+   419→   419→   419→              // 12 nav links + auth CTAs exceed the old 500px cap, silently
+   420→   420→   420→              // clipping the trailing Achievements/Curriculum entries.
+   421→   421→   421→              maxHeight: mobileOpen ? 720 : 0,
+   422→   422→   422→              overflowY: "auto",
+   423→   423→   423→              overflowX: "hidden",
+   424→   424→   424→              transition: "max-height 0.35s cubic-bezier(0.16, 1, 0.3, 1)",
+   425→   425→   425→            }}
+   426→   426→   426→          >
+   427→   427→   427→            <Stack
+   428→   428→   428→              spacing={1}
+   429→   429→   429→              sx={{
+   430→   430→   430→                py: 2,
+   431→   431→   431→                borderTop: "1px solid var(--mui-palette-divider)",
+   432→   432→   432→              }}
+   433→   433→   433→            >
+   434→   434→   434→              {navLinks.map(link => {
+   435→   435→   435→                const isActive = link.href === `#${activeSection}`;
+   436→   436→   436→                return (
+   437→   437→   437→                  <Button
+   438→   438→   438→                    key={link.href}
+   439→   439→   439→                    href={link.href}
+   440→   440→   440→                    fullWidth
+   441→   441→   441→                    onClick={() => setMobileOpen(false)}
+   442→   442→   442→                    sx={{
+   443→   443→   443→                      color: isActive ? "var(--mui-palette-secondary-light)" : "var(--mui-palette-onPrimary)",
+   444→   444→   444→                      justifyContent: "flex-start",
+   445→   445→   445→                      fontWeight: 600,
+   446→   446→   446→                      textTransform: "none",
+   447→   447→   447→                      borderRadius: 1.5,
+   448→   448→   448→                      px: 2,
+   449→   449→   449→                      py: 1.2,
+   450→   450→   450→                      borderLeft: isActive ? "3px solid var(--mui-palette-secondary-main)" : "3px solid transparent",
+   451→   451→   451→                      "&:hover": { bgcolor: "color-mix(in srgb, var(--mui-palette-secondary-main) 12%, transparent)" },
+   452→   452→   452→                    }}
+   453→   453→   453→                  >
+   454→   454→   454→                    {link.label}
+   455→   455→   455→                  </Button>
+   456→   456→   456→                );
+   457→   457→   457→              })}
+   458→   458→   458→              <Stack direction="row" spacing={1.5} sx={{ pt: 1.5, px: 1 }}>
+   459→   459→   459→                <Button
+   460→   460→   460→                  component={Link}
+   461→   461→   461→                  href="/login"
+   462→   462→   462→                  variant="outlined"
+   463→   463→   463→                  fullWidth
+   464→   464→   464→                  sx={{
+   465→   465→   465→                    color: "var(--mui-palette-onPrimary)",
+   466→   466→   466→                    borderColor: "color-mix(in srgb, var(--mui-palette-onPrimary) 30%, transparent)",
+   467→   467→   467→                    fontWeight: 600,
+   468→   468→   468→                    textTransform: "none",
+   469→   469→   469→                    borderRadius: 2,
+   470→   470→   470→                  }}
+   471→   471→   471→                >
+   472→   472→   472→                  {t.navSignIn}
+   473→   473→   473→                </Button>
+   474→   474→   474→                <Button
+   475→   475→   475→                  component={Link}
+   476→   476→   476→                  href="/register"
+   477→   477→   477→                  variant="contained"
+   478→   478→   478→                  fullWidth
+   479→   479→   479→                  sx={{
+   480→   480→   480→                    position: "relative",
+   481→   481→   481→                    overflow: "hidden",
+   482→   482→   482→                    bgcolor: "var(--mui-palette-secondary-main)",
+   483→   483→   483→                    color: "var(--mui-palette-onSecondary)",
+   484→   484→   484→                    fontWeight: 700,
+   485→   485→   485→                    textTransform: "none",
+   486→   486→   486→                    borderRadius: 2,
+   487→   487→   487→                    "&::after": {
+   488→   488→   488→                      content: '""',
+   489→   489→   489→                      position: "absolute",
+   490→   490→   490→                      top: 0,
+   491→   491→   491→                      left: "-100%",
+   492→   492→   492→                      width: "100%",
+   493→   493→   493→                      height: "100%",
+   494→   494→   494→                      background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent)",
+   495→   495→   495→                      transition: "left 0.5s ease",
+   496→   496→   496→                    },
+   497→   497→   497→                    "&:hover": {
+   498→   498→   498→                      bgcolor: "var(--mui-palette-secondary-dark)",
+   499→   499→   499→                      "&::after": { left: "100%" },
+   500→   500→   500→                    },
+   501→   501→   501→                  }}
+   502→   502→   502→                >
+   503→   503→   503→                  {t.navGetStarted}
+   504→   504→   504→                </Button>
+   505→   505→   505→              </Stack>
+   506→   506→   506→            </Stack>
+   507→   507→   507→          </Box>
+   508→   508→   508→        </Container>
+   509→   509→   509→      </Box>
+   510→   510→   510→
+   511→   511→   511→      <HeroSection />
+   512→   512→   512→      <HijriPrayerStrip />
+   513→   513→   513→      <Box component="main" id="main-content">
+   514→   514→   514→        <VerseSection />
+   515→   515→   515→        <FadeInBox>
+   516→   516→   516→          <StatsBar />
+   517→   517→   517→        </FadeInBox>
+   518→   518→   518→        <IslamicDivider />
+   519→   519→   519→        <FadeInBox>
+   520→   520→   520→          <PartnersSection />
+   521→   521→   521→        </FadeInBox>
+   522→   522→   522→        <FadeInBox id="features">
+   523→   523→   523→          <FeaturesSection />
+   524→   524→   524→        </FadeInBox>
+   525→   525→   525→        <IslamicDivider />
+   526→   526→   526→        <FadeInBox id="recitations">
+   527→   527→   527→          <RecitationsSection />
+   528→   528→   528→        </FadeInBox>
+   529→   529→   529→        <FadeInBox id="curriculum">
+   530→   530→   530→          <CurriculumSection />
+   531→   531→   531→        </FadeInBox>
+   532→   532→   532→        <IslamicDivider />
+   533→   533→   533→        <FadeInBox id="how-it-works">
+   534→   534→   534→          <HowItWorksSection />
+   535→   535→   535→        </FadeInBox>
+   536→   536→   536→        <FadeInBox id="achievements">
+   537→   537→   537→          <AchievementsSection />
+   538→   538→   538→        </FadeInBox>
+   539→   539→   539→        <IslamicDivider />
+   540→   540→   540→        <FadeInBox id="teachers">
+   541→   541→   541→          <TeacherSpotlightSection />
+   542→   542→   542→        </FadeInBox>
+   543→   543→   543→        <IslamicDivider />
+   544→   544→   544→        <FadeInBox id="roles">
+   545→   545→   545→          <RolesSection />
+   546→   546→   546→        </FadeInBox>
+   547→   547→   547→        <FadeInBox id="pricing">
+   548→   548→   548→          <PricingSection />
+   549→   549→   549→        </FadeInBox>
+   550→   550→   550→        <IslamicDivider />
+   551→   551→   551→        <FadeInBox id="testimonials">
+   552→   552→   552→          <TestimonialsSection />
+   553→   553→   553→        </FadeInBox>
+   554→   554→   554→        <IslamicDivider />
+   555→   555→   555→        <FadeInBox id="resources">
+   556→   556→   556→          <ResourcesSection />
+   557→   557→   557→        </FadeInBox>
+   558→   558→   558→        <FadeInBox id="faq">
+   559→   559→   559→          <FaqSection />
+   560→   560→   560→        </FadeInBox>
+   561→   561→   561→        <IslamicDivider />
+   562→   562→   562→        <FadeInBox id="newsletter">
+   563→   563→   563→          <NewsletterSection />
+   564→   564→   564→        </FadeInBox>
+   565→   565→   565→        <FadeInBox id="contact">
+   566→   566→   566→          <ContactSection />
+   567→   567→   567→        </FadeInBox>
+   568→   568→   568→        <IslamicDivider />
+   569→   569→   569→        <FadeInBox id="app">
+   570→   570→   570→          <MobileAppSection />
+   571→   571→   571→        </FadeInBox>
+   572→   572→   572→        <FadeInBox>
+   573→   573→   573→          <CtaSection />
+   574→   574→   574→        </FadeInBox>
+   575→   575→   575→      </Box>
+   576→   576→   576→      {/* Mode transition overlay */}
+   577→   577→   577→      <Box
+   578→   578→   578→        aria-hidden
+   579→   579→   579→        sx={{
+   580→   580→   580→          position: "fixed",
+   581→   581→   581→          inset: 0,
+   582→   582→   582→          zIndex: 9999,
+   583→   583→   583→          pointerEvents: "none",
+   584→   584→   584→          bgcolor: mode === "dark" ? "var(--mui-palette-primary-dark)" : "var(--mui-palette-background-default)",
+   585→   585→   585→          opacity: modeFlash ? 1 : 0,
+   586→   586→   586→          transition: "opacity 0.3s ease",
+   587→   587→   587→        }}
+   588→   588→   588→      />
+   589→   589→   589→      <SiteFooter />
+   590→   590→   590→      {/* Islamic banner above footer — shine gradient accent */}
+   591→   591→   591→      <Box
+   592→   592→   592→        aria-hidden
+   593→   593→   593→        sx={{
+   594→   594→   594→          height: 4,
+   595→   595→   595→          background:
+   596→   596→   596→            "linear-gradient(90deg, var(--mui-palette-secondary-dark), var(--mui-palette-secondary-main), var(--mui-palette-secondary-light), var(--mui-palette-secondary-main), var(--mui-palette-secondary-dark))",
+   597→   597→   597→          backgroundSize: "200% 100%",
+   598→   598→   598→          animation: "footerBannerShine 6s linear infinite",
+   599→   599→   599→          "@keyframes footerBannerShine": {
+   600→   600→   600→            "0%": { backgroundPosition: "200% center" },
+   601→   601→   601→            "100%": { backgroundPosition: "-200% center" },
+   602→   602→   602→          },
+   603→   603→   603→        }}
+   604→   604→   604→      />
+   605→   605→   605→      <BackToTopButton />
+   606→   606→   606→      <WhatsAppButton />
+   607→   607→   607→      <CookieConsent />
+   608→   608→   608→    </Box>
+   609→   609→   609→  );
+   610→   610→   610→}
+   611→   611→   611→
+   612→   612→   612→// ─── Scroll progress bar ────────────────────────────────────────────
+   613→   613→   613→
+   614→   614→   614→/** This layout makes <body> the scroll container (overflow: hidden auto), so
+   615→   615→   615→ * window scrollY stays 0 while the page visually scrolls. Reads take the
+   616→   616→   616→ * maximal position across all candidate scrollers; the capture-phase
+   617→   617→   617→ * listener catches the non-bubbling scroll event fired at the body. */
+   618→   618→   618→function getMaxScrollTop(): number {
+   619→   619→   619→  return Math.max(window.scrollY, document.documentElement.scrollTop, document.body.scrollTop);
+   620→   620→   620→}
+   621→   621→   621→
+   622→   622→   622→const isNumericChar = (ch: string): boolean => (ch >= "0" && ch <= "9") || ch === ",";
+   623→   623→   623→const isDigitChar = (ch: string): boolean => ch >= "0" && ch <= "9";
+   624→   624→   624→
+   625→   625→   625→/** RFC-lite email-shape check for client-side hints: single "@", non-empty
+   626→   626→   626→ * local and domain parts, at least one dot in the domain, no whitespace and
+   627→   627→   627→ * no further "@" characters. Linear scan — avoids the regex-backtracking
+   628→   628→   628→ * class (sonarjs/super-linear-regex) entirely. */
+   629→   629→   629→function isEmailLike(value: string): boolean {
+   630→   630→   630→  const at = value.indexOf("@");
+   631→   631→   631→  if (at <= 0 || at === value.length - 1) return false;
+   632→   632→   632→  const domain = value.slice(at + 1);
+   633→   633→   633→  if (domain.includes("@") || /\s/.test(value)) return false;
+   634→   634→   634→  const dot = domain.lastIndexOf(".");
+   635→   635→   635→  return dot > 0 && dot < domain.length - 1;
+   636→   636→   636→}
+   637→   637→   637→
+   638→   638→   638→function ScrollProgressBar(): ReactNode {
+   639→   639→   639→  const [progress, setProgress] = useState(0);
+   640→   640→   640→
+   641→   641→   641→  const handleScroll = useCallback(() => {
+   642→   642→   642→    const scrollTop = getMaxScrollTop();
+   643→   643→   643→    const scrollHeight =
+   644→   644→   644→      document.body.scrollHeight > document.documentElement.scrollHeight
+   645→   645→   645→        ? document.body.scrollHeight
+   646→   646→   646→        : document.documentElement.scrollHeight;
+   647→   647→   647→    const clientHeight = document.documentElement.clientHeight;
+   648→   648→   648→    const total = scrollHeight - clientHeight;
+   649→   649→   649→    const pct = total > 0 ? (scrollTop / total) * 100 : 0;
+   650→   650→   650→    setProgress(pct);
+   651→   651→   651→  }, []);
+   652→   652→   652→
+   653→   653→   653→  useEffect(() => {
+   654→   654→   654→    // Initial read is deferred to a frame: a synchronous setState in the
+   655→   655→   655→    // effect body trips react/set-state-in-effect (cascading render).
+   656→   656→   656→    const raf = requestAnimationFrame(handleScroll);
+   657→   657→   657→    window.addEventListener("scroll", handleScroll, { passive: true, capture: true });
+   658→   658→   658→    return () => {
+   659→   659→   659→      cancelAnimationFrame(raf);
+   660→   660→   660→      window.removeEventListener("scroll", handleScroll, { capture: true });
+   661→   661→   661→    };
+   662→   662→   662→  }, [handleScroll]);
+   663→   663→   663→
+   664→   664→   664→  return (
+   665→   665→   665→    <Box
+   666→   666→   666→      aria-hidden
+   667→   667→   667→      sx={{
+   668→   668→   668→        position: "fixed",
+   669→   669→   669→        top: 0,
+   670→   670→   670→        left: 0,
+   671→   671→   671→        right: 0,
+   672→   672→   672→        height: 3,
+   673→   673→   673→        zIndex: 200,
+   674→   674→   674→        bgcolor: "var(--mui-palette-background-default)",
+   675→   675→   675→      }}
+   676→   676→   676→    >
+   677→   677→   677→      <Box
+   678→   678→   678→        sx={{
+   679→   679→   679→          height: "100%",
+   680→   680→   680→          width: `${progress}%`,
+   681→   681→   681→          bgcolor: "var(--mui-palette-secondary-main)",
+   682→   682→   682→          transition: "width 0.1s linear",
+   683→   683→   683→        }}
+   684→   684→   684→      />
+   685→   685→   685→    </Box>
+   686→   686→   686→  );
+   687→   687→   687→}
+   688→   688→   688→
+   689→   689→   689→// ─── Scroll-triggered fade-in hook ───────────────────────────────────
+   690→   690→   690→
+   691→   691→   691→function useFadeInOnScroll() {
+   692→   692→   692→  const ref = useRef<HTMLDivElement>(null);
+   693→   693→   693→  const [visible, setVisible] = useState(false);
+   694→   694→   694→
+   695→   695→   695→  useEffect(() => {
+   696→   696→   696→    const el = ref.current;
+   697→   697→   697→    let observer: IntersectionObserver | undefined;
+   698→   698→   698→    if (el) {
+   699→   699→   699→      observer = new IntersectionObserver(
+
+[showing lines 100-699 of 2002; use offset=700 with limit to continue reading]
