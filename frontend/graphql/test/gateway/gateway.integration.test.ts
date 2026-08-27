@@ -195,26 +195,24 @@ describe("Gateway integration matrix (REQ-071)", () => {
   // DEFERRED: No role-gated operation exists in the current schema. The only
   // auth-gated field is `me` with `authenticated: true`. Role-gated surfaces
   // (e.g. admin-only mutations) will land in Sprint-1. Documented in outcome.
-  test.failing("(f) authenticated-but-forbidden role-gated op → extensions.code = FORBIDDEN", async () => {
-    // This test is intentionally marked failing — no role-gated operation
+  test.skip("(f) authenticated-but-forbidden role-gated op → extensions.code = FORBIDDEN", async () => {
+    // This test is intentionally skipped — no role-gated operation
     // exists in the schema to probe. When Sprint-1 admin surfaces land,
     // this test should be updated to authenticate as a Student and call
     // an admin-gated mutation, asserting FORBIDDEN.
-    expect(true).toBe(false);
   });
 
   // ── (g) Synthetic raw non-DomainError throw → masked INTERNAL_SERVER_ERROR
   // DEFERRED: No test-only forced-failure fixture field exists in the schema.
   // Creating one requires an env-gated field registration that does not ship
   // in production builds. Documented in outcome.
-  test.failing("(g) synthetic raw non-DomainError throw → masked INTERNAL_SERVER_ERROR; no stack/SQL/env/path leakage", async () => {
+  test.skip("(g) synthetic raw non-DomainError throw → masked INTERNAL_SERVER_ERROR; no stack/SQL/env/path leakage", async () => {
     // This test requires a test-only query field that throws a raw Error
     // (not a DomainError). When such a fixture is added (env-gated), this
     // test should call it and assert:
     //   1. Response status is 200 (Apollo convention)
     //   2. extensions.code is INTERNAL_SERVER_ERROR
     //   3. Response body contains no stack traces, SQL, env vars, or paths
-    expect(true).toBe(false);
   });
 
   // ── (h) X-Request-Id header → echoed in error requestId ───────────────
@@ -244,13 +242,12 @@ describe("Gateway integration matrix (REQ-071)", () => {
   // cookie inspection requires a registered user. When the CI environment has
   // PostgreSQL, this test should be re-enabled with the proven testClient
   // register + raw fetch login pattern.
-  test.failing("(i) login happy path → three Set-Cookie headers (session_id, refresh_token, access_token)", async () => {
+  test.skip("(i) login happy path → three Set-Cookie headers (session_id, refresh_token, access_token)", async () => {
     // Registration + login pattern (deferred — SQLite sandbox limitation):
     // 1. Register via testClient (proven pattern from auth.test.ts)
     // 2. Login via raw fetch to inspect Set-Cookie headers
     // 3. Assert three Set-Cookie: session_id, refresh_token, access_token
     // 4. Verify cookie attribute flags per DEV2-001 matrix
-    expect(true).toBe(false);
   });
 
   // ── (j) /api/health GET → 200 + envelope ─────────────────────────────
@@ -293,22 +290,20 @@ describe("Gateway integration matrix (REQ-071)", () => {
   // ── (j) X-Idempotency-Key → present in resolved context ────────────────
   // DEFERRED: Cannot observe ctx.idempotencyKey from outside the request
   // without a test-only field that echoes it back. Same fixture gap as (g).
-  test.failing("(X-Idempotency-Key) header → present in resolved context", async () => {
+  test.skip("(X-Idempotency-Key) header → present in resolved context", async () => {
     // When a test-only field exists that echoes ctx.idempotencyKey,
     // this test should send X-Idempotency-Key and verify the response.
-    expect(true).toBe(false);
   });
 
   // ── (m) logout forced-failure → clearing Set-Cookie STILL present ──────
   // DEFERRED: Requires the same test-only forced-failure injection mechanism
   // as (g). The logout resolver always succeeds (clears cookies unconditionally),
   // so there is no failure path to probe without a synthetic fault.
-  test.failing("(logout forced-failure) → clearing Set-Cookie headers STILL present", async () => {
+  test.skip("(logout forced-failure) → clearing Set-Cookie headers STILL present", async () => {
     // When a forced-failure mechanism exists, this test should call a
     // mutation that: (1) pushes clearing cookies to authCookieOut, then
     // (2) throws a raw error. Assert that the clearing Set-Cookie headers
     // are still present on the response (REQ-042).
-    expect(true).toBe(false);
   });
 
   // ── (n) Preflight/CORS → no wildcard Access-Control-Allow-Origin ──────

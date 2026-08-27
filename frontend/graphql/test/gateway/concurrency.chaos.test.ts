@@ -135,10 +135,9 @@ describe("Concurrency & Chaos Tier (REQ-074)", () => {
   //   4. Assert response B carries only B's cookies
   //   5. Assert no cross-contamination
   // Documented in deferred-items.md as BLT-11.
-  test.failing("(deferred) two concurrent logins → response cookie isolation", async () => {
+  test.skip("(deferred) two concurrent logins → response cookie isolation", async () => {
     // Requires PostgreSQL CI environment for user registration.
     // Implementation pattern: register two users, fire parallel raw fetch
     // login requests, inspect Set-Cookie headers for isolation.
-    expect(true).toBe(false);
   });
 });
