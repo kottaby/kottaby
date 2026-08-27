@@ -70,7 +70,7 @@ describe("Gateway concurrency & chaos probes (REQ-073)", () => {
         headers: { "Content-Type": "application/json", "X-Request-Id": "chaos-auth-2" },
         body: graphqlBody("query MeCheck2 { me { email } }"),
       }),
-      // 1 unknown field → 200 with GRAPHQL_VALIDATION_FAILED
+      // 1 unknown field → 400 with GRAPHQL_VALIDATION_FAILED
       fetch(GRAPHQL_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json", "X-Request-Id": "chaos-unk-1" },
@@ -100,11 +100,11 @@ describe("Gateway concurrency & chaos probes (REQ-073)", () => {
     expect(m1.status).toBe(405);
     expect(m2.status).toBe(405);
 
-    // GraphQL error responses: 200 (Apollo wire convention)
+    // GraphQL error responses: 200 for execution errors (auth scopes), 400 for validation errors
     if (!a1 || !a2 || !u1) throw new Error("Missing GraphQL error response");
     expect(a1.status).toBe(200);
     expect(a2.status).toBe(200);
-    expect(u1.status).toBe(200);
+    expect(u1.status).toBe(400);
   });
 
   // ── (2) Client disconnect (aborted request) → clean server behavior ────
