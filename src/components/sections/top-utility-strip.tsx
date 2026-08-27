@@ -79,12 +79,14 @@ export function TopUtilityStrip() {
 
   React.useEffect(() => {
     setNow(new Date());
-    const id = setInterval(() => setNow(new Date()), 30000);
+    // Update every 10s for a live clock feel (the countdown updates on the same tick)
+    const id = setInterval(() => setNow(new Date()), 10000);
     return () => clearInterval(id);
   }, []);
 
   const hijri = now ? toHijri(now) : null;
   const next = now ? getNextPrayer(now) : null;
+  const clock = now ? `${pad(now.getHours())}:${pad(now.getMinutes())}` : "—";
 
   const prayerLabels: Record<PrayerTime["key"], string> = {
     fajr: t.utility.fajr,
@@ -103,7 +105,7 @@ export function TopUtilityStrip() {
     >
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="flex flex-col sm:flex-row items-center justify-between gap-2 py-1.5 text-xs text-muted-foreground">
-          {/* Hijri date */}
+          {/* Hijri date + live clock */}
           <div className="flex items-center gap-2">
             <span className="font-semibold text-copper">
               {hijri
@@ -113,7 +115,14 @@ export function TopUtilityStrip() {
                 : "—"}
             </span>
             <span className="hidden sm:inline opacity-60">·</span>
-            <span className="hidden sm:inline opacity-80">{t.utility.hijriLabel}</span>
+            {/* Live clock */}
+            <span className="hidden sm:inline-flex items-center gap-1 tabular-nums opacity-80">
+              <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+                <circle cx="12" cy="12" r="10" />
+                <polyline points="12 6 12 12 16 14" />
+              </svg>
+              {clock}
+            </span>
           </div>
 
           {/* Prayer times */}

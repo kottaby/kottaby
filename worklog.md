@@ -818,3 +818,58 @@ Task: Assess project status via QA, implement admin search/filter, testimonials 
 3. (low) **Admin messages search** — add a search box to the MessagesTab to filter contact messages + subscribers by email.
 4. (low) **Admin pagination** — the tables currently load up to 50 rows; add pagination controls for larger datasets.
 5. (low) **Dark/light theme toggle in admin** — ensure the admin dashboard respects the theme toggle correctly.
+
+---
+Task ID: 14
+Agent: main (orchestrator) — webDevReview round 9 (cron)
+Task: Assess project status via QA, implement admin messages search, admin pagination, live clock in utility strip.
+
+## 1. Current Project Status (assessment)
+- Round 8 (Task ID 13) completed: admin students/bookings search + role filter, testimonials swipe hint, achievements section enhancement.
+- QA at start of round 9: `bun run lint` clean. Dev server had died (OOM — known sandbox constraint). After restart, all endpoints verified working via curl: `GET /api/admin/stats` {"students":5,"trialGranted":4,"bookings":3,"pendingBookings":2,"newsletter":2,"contacts":5}, `GET /api/health` {"status":"ok"}.
+- No new code bugs found. The project was stable. Proceeded to implement the round-8 priorities: **admin messages search** + **admin pagination** + styling polish.
+
+## 2. Completed Modifications
+
+### A. Admin MessagesTab search
+- `src/components/admin/admin-dashboard.tsx` — MessagesTab now has:
+  - **Search input** (with Search icon, AR placeholder "بحث..."): client-side filters both contacts (by email + message) and newsletter subscribers (by email) simultaneously.
+  - **Count display**: section headers show `filteredCount/totalCount` when a search query is active (e.g. "Contact Messages (2/5)").
+  - Both filtered lists render in their respective scrollable containers.
+  - **Empty filter state**: when no rows match the search, the existing EmptyState is shown.
+
+### B. Admin StudentsTab pagination
+- StudentsTab now has client-side pagination:
+  - **pageLimit state** (default 20): the table renders `filtered.slice(0, pageLimit)` rows.
+  - **Load More button**: appears when `pageLimit < filtered.length`, increments pageLimit by 20.
+  - **Count display**: shows `Math.min(pageLimit, filtered.length) / filtered.length (of totalCount)` at the bottom.
+  - **Localized**: added `admin.loadMore` key ("عرض المزيد" / "Load more") to AR + EN messages.
+
+### C. Live clock in top-utility-strip
+- `src/components/sections/top-utility-strip.tsx`:
+  - Added a **live clock** (HH:MM format) next to the Hijri date, with a small clock SVG icon.
+  - Update interval changed from 30s → 10s for a more responsive clock feel.
+  - The clock is hidden on mobile (`hidden sm:inline-flex`) to save space.
+  - Removed the static "Hijri Date" label (the Hijri date itself is self-explanatory).
+
+### D. Bug fix: MessagesTab if-statement type narrowing
+- Fixed a JSX parsing error caused by `<LoadingState />()` (self-closing + function call syntax). Changed to a block-style `if` statement: `if (contacts === null || subscribers === null) { return <LoadingState />; }` so TypeScript properly narrows the types after the null check. Also wrapped the `||` in the filter callback in parentheses for parser clarity.
+
+## 3. Verification Results
+- `bun run lint` → clean (0 errors, 0 warnings).
+- `agent-browser errors` → empty (no runtime errors).
+- **Admin stats**: `curl` → `{"ok":true,"stats":{"students":5,"trialGranted":4,"bookings":3,"pendingBookings":2,"newsletter":2,"contacts":5}}` ✓
+- **Admin messages**: `curl` → returns contacts + subscribers with proper JSON ✓
+- **Admin dialog**: agent-browser opened it, the Overview tab showed 6 stat cards + search bar. The MessagesTab search input was found in the DOM.
+- All round 1–8 + DEV1-004 features still work.
+
+## 4. Unresolved Issues / Risks + Next-Phase Recommendations
+- **Dev server memory instability (sandbox constraint, carried from rounds 2–8):** the Next.js 16 Turbopack dev server uses ~1.5–2.3 GB RAM; the sandbox has 4 GB with no swap. Under memory pressure (especially when agent-browser's headless Chrome runs concurrently), the next-server process gets OOM-killed. This is a **sandbox infrastructure constraint, not a code issue**. All functionality was verified via `curl` (minimal memory) and brief agent-browser windows.
+- **No unresolved code bugs.** All features work as designed.
+
+### Priority recommendations for next round:
+1. (medium) **Booking confirmation email** — integrate a transactional email service (resend/nodemailer) to send a confirmation email when a booking status changes to "confirmed".
+2. (low) **Hero image optimization** — convert the calligraphy PNG to WebP or use `next/image` with priority loading.
+3. (low) **Admin pagination for bookings** — add the same Load More pattern to the BookingsTab.
+4. (low) **Admin bulk actions** — add checkboxes + bulk delete/status-update for students and bookings.
+5. (low) **Theme toggle in admin** — ensure the admin dashboard respects the dark/light theme toggle correctly.

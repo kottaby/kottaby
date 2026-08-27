@@ -176,6 +176,7 @@ function StudentsTab({
   const [actingId, setActingId] = React.useState<string | null>(null);
   const [query, setQuery] = React.useState("");
   const [roleFilter, setRoleFilter] = React.useState<RoleFilter>("all");
+  const [pageLimit, setPageLimit] = React.useState(20);
 
   if (students === null) return <LoadingState />;
 
@@ -294,7 +295,7 @@ function StudentsTab({
                 </td>
               </tr>
             ) : (
-              filtered.map((s) => (
+              filtered.slice(0, pageLimit).map((s) => (
                 <tr key={s.id} className="border-b border-border/50 hover:bg-muted/30">
                   <td className="p-2 font-medium truncate max-w-[100px]">{s.fullName}</td>
                 <td className="p-2 text-muted-foreground truncate max-w-[120px]">{s.email}</td>
@@ -356,10 +357,22 @@ function StudentsTab({
           </tbody>
         </table>
       </div>
-      {/* Filter count */}
-      <p className="text-[10px] text-muted-foreground text-end">
-        {filtered.length} / {students.length}
-      </p>
+      {/* Filter count + load more */}
+      <div className="flex items-center justify-between">
+        <p className="text-[10px] text-muted-foreground">
+          {Math.min(pageLimit, filtered.length)} / {filtered.length}
+          {filtered.length !== students.length && ` (of ${students.length})`}
+        </p>
+        {pageLimit < filtered.length && (
+          <button
+            type="button"
+            onClick={() => setPageLimit((v) => v + 20)}
+            className="text-[10px] font-semibold text-copper hover:underline"
+          >
+            {t.admin.loadMore} →
+          </button>
+        )}
+      </div>
     </div>
   );
 }
@@ -568,8 +581,20 @@ function MessagesTab({
 }) {
   const { t } = useLocale();
   const [deletingId, setDeletingId] = React.useState<string | null>(null);
+  const [query, setQuery] = React.useState("");
 
-  if (contacts === null || subscribers === null) return <LoadingState />;
+  if (contacts === null || subscribers === null) {
+    return <LoadingState />;
+  }
+
+  // Client-side search: filter contacts + subscribers by email
+  const q = query.trim().toLowerCase();
+  const filteredContacts = q
+    ? contacts.filter((c) => (c.email.toLowerCase().includes(q) || c.message.toLowerCase().includes(q)))
+    : contacts;
+  const filteredSubscribers = q
+    ? subscribers.filter((s) => s.email.toLowerCase().includes(q))
+    : subscribers;
 
   const deleteMessage = async (id: string, type: "contact" | "newsletter") => {
     if (!window.confirm(t.admin.confirmDelete)) return;
@@ -592,22 +617,33 @@ function MessagesTab({
 
   return (
     <div className="space-y-4">
-      {/* Export buttons */}
-      <div className="flex gap-2 justify-end">
-        <ExportButton type="contacts" />
-        <ExportButton type="newsletter" />
+      {/* Search + export buttons */}
+      <div className="flex items-center gap-2 justify-between">
+        <div className="relative flex-1 max-w-xs">
+          <Search className="absolute start-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+          <Input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder={t.admin.search}
+            className="h-8 ps-8 text-xs"
+          />
+        </div>
+        <div className="flex gap-2">
+          <ExportButton type="contacts" />
+          <ExportButton type="newsletter" />
+        </div>
       </div>
       {/* Contact messages */}
       <div>
         <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
           <Mail className="h-3.5 w-3.5" />
-          {t.admin.contactMsgs} ({contacts.length})
+          {t.admin.contactMsgs} ({filteredContacts.length}{q ? `/${contacts.length}` : ""})
         </h4>
-        {contacts.length === 0 ? (
+        {filteredContacts.length === 0 ? (
           <EmptyState text={t.admin.noData} />
         ) : (
           <div className="space-y-2 max-h-[20vh] overflow-y-auto">
-            {contacts.map((c) => (
+            {filteredContacts.map((c) => (
               <div key={c.id} className="group rounded-lg border border-border bg-card/60 p-2.5 flex items-start justify-between gap-2">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center justify-between gap-2 mb-1">
@@ -640,13 +676,13 @@ function MessagesTab({
       <div>
         <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
           <Mail className="h-3.5 w-3.5" />
-          {t.admin.newsletterSubs} ({subscribers.length})
+          {t.admin.newsletterSubs} ({filteredSubscribers.length}{q ? `/${subscribers.length}` : ""})
         </h4>
-        {subscribers.length === 0 ? (
+        {filteredSubscribers.length === 0 ? (
           <EmptyState text={t.admin.noData} />
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[20vh] overflow-y-auto">
-            {subscribers.map((s) => (
+            {filteredSubscribers.map((s) => (
               <div key={s.id} className="group rounded-lg border border-border bg-card/60 p-2 flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2 min-w-0">
                   <span className="text-xs truncate">{s.email}</span>
