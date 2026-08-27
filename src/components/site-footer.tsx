@@ -10,6 +10,7 @@ import {
   Facebook,
 } from "lucide-react";
 import { useLocale } from "@/lib/i18n/locale-context";
+import { AdminDashboard } from "@/components/admin/admin-dashboard";
 
 interface FooterLink {
   href: string;
@@ -96,6 +97,7 @@ export function SiteFooter() {
               ))}
             </div>
             <ServiceStatusChip />
+            <AdminDashboard />
           </div>
 
           {/* Link columns */}

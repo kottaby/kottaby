@@ -565,3 +565,64 @@ Task: Implement the DEV1-004 spec (free-trial-session-provisioning) from the ori
 ## 5. Unresolved Issues / Risks
 - **Dev server memory instability (sandbox constraint, carried from rounds 2–4):** the Next.js 16 Turbopack dev server uses ~1.5–2.3 GB RAM; the sandbox has 4 GB with no swap. Under memory pressure (especially when agent-browser's headless Chrome runs concurrently), the next-server process gets OOM-killed. This is a **sandbox infrastructure constraint, not a code issue**. All functionality was verified via `curl` (minimal memory) and brief agent-browser windows.
 - **No unresolved code bugs.** All spec REQ-* contracts verified.
+
+---
+Task ID: 10
+Agent: main (orchestrator) — webDevReview round 5 (cron)
+Task: Assess project status via QA, implement admin dashboard (round 4 priority #1), enhance trusted section with monogram logos.
+
+## 1. Current Project Status (assessment)
+- Round 4 (Task ID 8) + DEV1-004 (Task ID 9) completed: hero calligraphy image, roles/curriculum polish, back-to-top ring, free trial provisioning (Student model + repository + service + registration hook + API routes + landing page section).
+- QA at start of round 5: `bun run lint` clean. Dev server had died (OOM — known sandbox constraint). After restart, all endpoints verified working via curl: `GET /` 200, `GET /api/health` {"status":"ok"}, `GET /api/newsletter/count` {"count":2}, `GET /api/booking` {"count":3}, `POST /api/register` {"ok":true,"trialGranted":true}.
+- No new code bugs found. The project was stable. Proceeded to implement the round-4 #1 priority recommendation: **admin dashboard view**.
+
+## 2. Completed Modifications
+
+### A. Admin Dashboard API Routes (4 new endpoints)
+- **`GET /api/admin/stats`** (`src/app/api/admin/stats/route.ts`): aggregate counts via `Promise.all` — students (total + trial-granted), bookings (total + pending), newsletter subscribers, contact messages. Also returns `studentsByRole` groupBy breakdown. Verified: `{"ok":true,"stats":{"students":5,"trialGranted":3,"bookings":3,"pendingBookings":3,"newsletter":2,"contacts":6}}`.
+- **`GET /api/admin/students`** (`src/app/api/admin/students/route.ts`): paginated student list with segregated balance lanes + computed `eligible` + `hasTrial` flags. Query params: `?limit=50&offset=0&role=student`.
+- **`GET /api/admin/bookings`** (`src/app/api/admin/bookings/route.ts`): paginated booking list. Query params: `?limit=50&status=pending`.
+- **`GET /api/admin/messages`** (`src/app/api/admin/messages/route.ts`): combined contact messages + newsletter subscribers in one call via `Promise.all`. Query param: `?type=contact|newsletter`.
+
+### B. AdminDashboard Dialog Component
+- **`src/components/admin/admin-dashboard.tsx`** — a comprehensive admin view (shadcn Dialog + Tabs) with 4 tabs:
+  1. **Overview**: 6 animated stat cards (students, trial grants, bookings, pending bookings, newsletter, contacts) with staggered fade-in. The trial-grants card is copper-accented to highlight the DEV1-004 feature. Includes a **student eligibility checker** (enter a student ID → fetches `/api/students/[id]` → shows name, trial balance, eligibility status).
+  2. **Students**: scrollable table with sticky header — columns: name, email, role badge, trial balance (copper check + count), eligible badge (green/outline). Hover row highlight.
+  3. **Bookings**: scrollable table — columns: teacher, recitation, date, time, status badge (amber for pending, green for confirmed).
+  4. **Messages**: two sections — contact messages (card list with email + date + message preview) + newsletter subscribers (grid with email + locale badge).
+- **Refresh button** in the header re-fetches all 4 endpoints in parallel.
+- **Auto-load on open**: fetches all data when the dialog first opens (lazy — no data fetched until the admin button is clicked).
+- **Trigger button**: a subtle "Admin Dashboard" button with a Shield icon, placed in the footer next to the service-status chip.
+- **Bilingual**: full `admin` i18n namespace (44 keys) added to both AR + EN messages.
+- **VLM verdict**: "dialog clearly visible, well-formed, correctly centered. 6 stat cards with clear numerical counts. Eligibility checker present. No visual bugs, RTL consistent, Midnight Blue/Copper theme applied uniformly."
+
+### C. Trusted/Partners Section Enhancement
+- `src/components/sections/trusted-section.tsx` — added a `PartnerMonogram` component:
+  - Derives a 2-letter monogram from each partner name (e.g. "Al-Azhar" → "AA").
+  - Alternates between copper-tinted and primary-tinted monogram backgrounds for visual variety.
+  - Monogram in a 48×48 rounded square with border that intensifies on hover.
+  - Partner name below in smaller text.
+  - Cards now stack vertically (monogram + name) instead of just text, with enhanced hover lift + copper shadow.
+  - Removed the `grayscale` filter (was dulling the cards) — now full-color with hover border glow.
+
+## 3. Verification Results
+- `bun run lint` → clean (0 errors, 0 warnings).
+- `agent-browser errors` → empty (no runtime errors).
+- **Admin stats endpoint**: `curl` → `{"ok":true,"stats":{"students":5,"trialGranted":3,"bookings":3,"pendingBookings":3,"newsletter":2,"contacts":6}}` ✓
+- **Admin students endpoint**: returns students with `balanceTrial`, `trialGrantedAt`, `eligible`, `hasTrial` ✓
+- **Admin bookings endpoint**: returns bookings with teacher, recitation, date, time, status ✓
+- **Admin messages endpoint**: returns contacts + subscribers ✓
+- **Admin dialog**: agent-browser found the "لوحة الإدارة" button in the footer, clicked it → dialog opened with 6 stat cards + 4 tabs + eligibility checker ✓
+- **VLM visual analysis**: "dialog well-formed, 6 stat cards with real numbers, no visual bugs, RTL consistent, theme applied uniformly" ✓
+- All round 1–4 + DEV1-004 features still work (booking modal, live subscriber count, JSON-LD, free trial provisioning, contact ticket, trust badges, section dividers, verse frame, final-cta animation, hero calligraphy).
+
+## 4. Unresolved Issues / Risks + Next-Phase Recommendations
+- **Dev server memory instability (sandbox constraint, carried from rounds 2–4):** the Next.js 16 Turbopack dev server uses ~1.5–2.3 GB RAM; the sandbox has 4 GB with no swap. Under memory pressure (especially when agent-browser's headless Chrome runs concurrently), the next-server process gets OOM-killed. This is a **sandbox infrastructure constraint, not a code issue**. All functionality was verified via `curl` (minimal memory) and brief agent-browser windows.
+- **No unresolved code bugs.** All features work as designed.
+
+### Priority recommendations for next round:
+1. (medium) **Admin CRUD actions** — add the ability to update booking status (pending → confirmed → completed) + delete spam contact messages directly from the admin dashboard.
+2. (medium) **Booking confirmation email** — integrate a transactional email service (resend/nodemailer) to send a confirmation email when a booking is created.
+3. (low) **Export admin data** — add CSV/JSON export buttons for students, bookings, and messages.
+4. (low) **Testimonials swipe** — add touch-swipe support for the carousel on mobile.
+5. (low) **Hero image optimization** — convert the calligraphy PNG to WebP or use `next/image` with priority loading.
