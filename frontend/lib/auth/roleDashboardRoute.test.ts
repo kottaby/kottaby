@@ -10,7 +10,11 @@
 
 import { describe, expect, test } from "bun:test";
 import { UserRole } from "@/frontend/graphql/generated/gql/graphql";
-import { resolvePostAuthTarget, roleDashboardPath } from "@/frontend/lib/auth/roleDashboardRoute";
+import {
+  isDashboardDispatcherRedirect,
+  resolvePostAuthTarget,
+  roleDashboardPath,
+} from "@/frontend/lib/auth/roleDashboardRoute";
 
 describe("roleDashboardPath — role → dashboard route", () => {
   test("maps every codegen (capitalized) UserRole to its dashboard", () => {
@@ -61,6 +65,30 @@ describe("resolvePostAuthTarget — post-login redirect precedence", () => {
     expect(resolvePostAuthTarget("//evil.example/x", UserRole.Admin)).toBe("/admin/dashboard");
     expect(resolvePostAuthTarget("javascript:alert(1)", UserRole.Admin)).toBe("/admin/dashboard");
     expect(resolvePostAuthTarget("/\\evil.example", UserRole.Admin)).toBe("/admin/dashboard");
+  });
+
+  test("rejects every isSafeRedirect-accepted variant of the dispatcher path", () => {
+    // The gateway loop is driven by the PATH, not the literal string: a
+    // trailing slash, query, or hash all land on the same `/dashboard`
+    // dispatcher the preview gateway ping-pongs (CodeRabbit review of the
+    // DEV2-004 PR — the trailing-slash variant still looped).
+    expect(resolvePostAuthTarget("/dashboard/", UserRole.Admin)).toBe("/admin/dashboard");
+    expect(resolvePostAuthTarget("/dashboard?from=login", UserRole.Teacher)).toBe("/teacher/dashboard");
+    expect(resolvePostAuthTarget("/dashboard#section", UserRole.Student)).toBe("/student/dashboard");
+    expect(resolvePostAuthTarget("/dashboard/?utm_source=bookmark", UserRole.Parent)).toBe("/parent/dashboard");
+  });
+
+  test("isDashboardDispatcherRedirect classifies by parsed pathname only", () => {
+    // Dispatcher variants → rejected.
+    expect(isDashboardDispatcherRedirect("/dashboard")).toBe(true);
+    expect(isDashboardDispatcherRedirect("/dashboard/")).toBe(true);
+    expect(isDashboardDispatcherRedirect("/dashboard?from=login")).toBe(true);
+    expect(isDashboardDispatcherRedirect("/dashboard#section")).toBe(true);
+    // Look-alikes are NOT the dispatcher — still legitimate redirect targets.
+    expect(isDashboardDispatcherRedirect("/dashboardx")).toBe(false);
+    expect(isDashboardDispatcherRedirect("/dashboard/admin")).toBe(false);
+    expect(isDashboardDispatcherRedirect("/teacher/dashboard")).toBe(false);
+    expect(isDashboardDispatcherRedirect("/sessions")).toBe(false);
   });
 
   test("falls back to the role dashboard when the param is missing", () => {

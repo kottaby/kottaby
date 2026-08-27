@@ -130,8 +130,14 @@ for (const locale of ["ar", "en"] as AppLocale[]) {
 
   describe(`ApplicantStatusCard (${locale === "ar" ? "RTL/arabic" : "LTR/english"})`, () => {
     test("branch 1 — query in flight renders the busy skeleton card", () => {
-      // No responses ⇒ the operation never settles in this harness.
-      const { container } = renderCard([], locale);
+      // `delay: Infinity` keeps the operation permanently in flight (MockLink
+      // returns a never-settling Observable for it). An EMPTY mock list would
+      // NOT leave the query pending — MockLink emits an async unmatched-
+      // operation error instead (CodeRabbit review of the DEV2-004 PR).
+      const { container } = renderCard(
+        [{ request: { query: myApplicantProfileQueryDocument }, delay: Infinity }],
+        locale
+      );
 
       const skeleton = screen.getByTestId("applicant-status-card-loading");
       expect(skeleton.getAttribute("aria-busy")).toBe("true");

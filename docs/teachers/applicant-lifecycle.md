@@ -33,7 +33,7 @@ The determination of whether an applicant may (re-)purchase a verification plan 
 
 The cooldown-active predicate (INV-TV3 semantics):
 
-```
+```text
 cooldownActive ⇔ cooldown_until IS NOT NULL AND cooldown_until > now()
 ```
 

@@ -65,14 +65,47 @@ export function roleDashboardPath(role: string | UserRole | null | undefined): s
 }
 
 /**
+ * True when `redirectParam` lands on the bare `/dashboard` dispatcher in ANY
+ * of the variants `isSafeRedirect` accepts — `/dashboard`, `/dashboard/`,
+ * `/dashboard?from=login`, `/dashboard#section`. Every variant resolves to
+ * the same dispatcher pathname the preview gateway ping-pongs (301 ↔ 308,
+ * see the module doc), so the comparison must run on the parsed pathname —
+ * a literal string check only catches the exact `/dashboard` spelling.
+ *
+ * Comparison strips trailing slashes and stays case-sensitive (RFC 3986):
+ * look-alikes such as `/dashboardx` or `/dashboard/admin` are NOT the
+ * dispatcher and remain legitimate redirect targets. Caller contract: run
+ * `isSafeRedirect` first — this predicate only classifies, it does not
+ * re-validate origin/scheme.
+ */
+export function isDashboardDispatcherRedirect(redirectParam: string): boolean {
+  let pathname: string;
+  try {
+    // Same-origin safety was already established by `isSafeRedirect`;
+    // parsing here only extracts the pathname. A hostile absolute URL would
+    // classify by ITS pathname — rejection stays the fail-safe direction.
+    pathname = new URL(redirectParam, "http://localhost").pathname;
+  } catch {
+    return false;
+  }
+  // Strip trailing slashes without a regex — the anchored-quantifier
+  // `/\/+$/` form trips `sonarjs/super-linear-regex`.
+  while (pathname.length > 1 && pathname.endsWith("/")) {
+    pathname = pathname.slice(0, -1);
+  }
+  return pathname === "/dashboard";
+}
+
+/**
  * Resolve the post-authentication navigation target.
  *
  * Precedence:
  *  1. `redirectParam` when it is a safe same-origin path (per
- *     `isSafeRedirect`) **and** not the bare `/dashboard` dispatcher path —
- *     legacy bookmarks / old errorLink URLs can still carry
- *     `?redirect=%2Fdashboard`, and navigating there re-enters the
- *     gateway loop above.
+ *     `isSafeRedirect`) **and** not the `/dashboard` dispatcher path in any
+ *     variant (per `isDashboardDispatcherRedirect`) — legacy bookmarks /
+ *     old errorLink URLs can still carry `?redirect=%2Fdashboard` (or a
+ *     trailing-slash / query / hash decorated form), and navigating there
+ *     re-enters the gateway loop above.
  *  2. Otherwise the caller's role-specific dashboard via
  *     `roleDashboardPath`.
  */
@@ -80,7 +113,7 @@ export function resolvePostAuthTarget(
   redirectParam: string | null | undefined,
   role: string | UserRole | null | undefined
 ): string {
-  if (redirectParam && isSafeRedirect(redirectParam) && redirectParam !== "/dashboard") {
+  if (redirectParam && isSafeRedirect(redirectParam) && !isDashboardDispatcherRedirect(redirectParam)) {
     return redirectParam;
   }
   return roleDashboardPath(role);

@@ -7,6 +7,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useRef, useState } from "react";
 import { AuthFormHeader, AuthSubmitButton, PasswordField } from "@/frontend/components/AuthFormShared";
 import { useAuth } from "@/frontend/hooks/useAuth";
+import { isDashboardDispatcherRedirect } from "@/frontend/lib/auth/roleDashboardRoute";
 import { extractErrorCode } from "@/frontend/lib/graphql-error-utils";
 import { isSafeRedirect } from "@/frontend/lib/safeRedirect";
 import { Auth, useAppTranslation } from "@/shared/locale";
@@ -46,12 +47,13 @@ export function LoginForm() {
         // Explicit safe `?redirect=` target wins. With NO param, do NOT
         // navigate here: the `(auth)` layout's authenticated-bounce effect
         // owns the fallback and routes by the fresh user role
-        // (`resolvePostAuthTarget`). Bare "/dashboard" is never pushed —
-        // the preview gateway 301s it to "/dashboard/" while Next 308s it
-        // back, an infinite browser redirect loop
-        // (see `frontend/lib/auth/roleDashboardRoute.ts`).
+        // (`resolvePostAuthTarget`). The "/dashboard" dispatcher path — in
+        // ANY of its accepted variants ("/dashboard/", "/dashboard?x",
+        // "/dashboard#s") — is never pushed: the preview gateway 301s it to
+        // "/dashboard/" while Next 308s it back, an infinite browser
+        // redirect loop (see `frontend/lib/auth/roleDashboardRoute.ts`).
         const redirectParam = searchParams.get("redirect");
-        if (redirectParam && isSafeRedirect(redirectParam) && redirectParam !== "/dashboard") {
+        if (redirectParam && isSafeRedirect(redirectParam) && !isDashboardDispatcherRedirect(redirectParam)) {
           router.push(redirectParam);
         }
       } catch (err) {

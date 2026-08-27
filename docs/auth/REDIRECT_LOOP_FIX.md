@@ -171,7 +171,7 @@ through untouched). Next.js (default `trailingSlash: false`) answers
 `308 /dashboard/ → /dashboard`. A browser sent to bare `/dashboard`
 therefore ping-pongs between the two forever:
 
-```
+```text
 browser → GET /dashboard    → gateway 301 → /dashboard/
 browser → GET /dashboard/   → Next 308    → /dashboard
 browser → GET /dashboard    → gateway 301 → /dashboard/   … ∞
