@@ -125,6 +125,7 @@ export const messages = {
       grantTrial: "منح التجربة",
       grantTrialSuccess: "تم منح الجلسة التجريبية",
       deleteStudent: "حذف الطالب",
+      search: "بحث...",
     },
 
     utility: {
@@ -594,6 +595,7 @@ export const messages = {
       grantTrial: "Grant Trial",
       grantTrialSuccess: "Trial session granted",
       deleteStudent: "Delete Student",
+      search: "Search...",
     },
 
     utility: {

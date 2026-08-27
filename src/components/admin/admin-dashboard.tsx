@@ -162,6 +162,9 @@ function OverviewTab({ stats }: { stats: AdminStats | null }) {
 
 // ─── Students Tab ────────────────────────────────────────────────
 
+const ROLE_FILTERS = ["all", "student", "teacher", "parent"] as const;
+type RoleFilter = (typeof ROLE_FILTERS)[number];
+
 function StudentsTab({
   students,
   onMutation,
@@ -171,8 +174,24 @@ function StudentsTab({
 }) {
   const { t } = useLocale();
   const [actingId, setActingId] = React.useState<string | null>(null);
+  const [query, setQuery] = React.useState("");
+  const [roleFilter, setRoleFilter] = React.useState<RoleFilter>("all");
 
   if (students === null) return <LoadingState />;
+
+  // Client-side filter: by role + search query (name/email contains)
+  const filtered = students.filter((s) => {
+    if (roleFilter !== "all" && s.role !== roleFilter) return false;
+    if (query.trim()) {
+      const q = query.trim().toLowerCase();
+      return (
+        s.fullName.toLowerCase().includes(q) ||
+        s.email.toLowerCase().includes(q)
+      );
+    }
+    return true;
+  });
+
   if (students.length === 0) {
     return (
       <div className="space-y-3">
@@ -225,8 +244,37 @@ function StudentsTab({
 
   return (
     <div className="space-y-3">
-      <ExportButton type="students" />
-      <div className="overflow-x-auto rounded-lg border border-border max-h-[45vh] overflow-y-auto">
+      {/* Search + role filter + export */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 justify-between">
+        <div className="relative flex-1 max-w-xs">
+          <Search className="absolute start-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+          <Input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder={t.admin.search}
+            className="h-8 ps-8 text-xs"
+          />
+        </div>
+        <div className="flex items-center gap-1.5">
+          {ROLE_FILTERS.map((r) => (
+            <button
+              key={r}
+              type="button"
+              onClick={() => setRoleFilter(r)}
+              className={cn(
+                "rounded-full px-2.5 py-0.5 text-[10px] font-semibold border transition-all",
+                roleFilter === r
+                  ? "bg-copper/15 border-copper/40 text-copper"
+                  : "border-border text-muted-foreground hover:border-copper/30",
+              )}
+            >
+              {r === "all" ? t.admin.overview : r === "student" ? t.admin.studentRole : r === "teacher" ? t.admin.teacherRole : t.admin.parentRole}
+            </button>
+          ))}
+          <ExportButton type="students" />
+        </div>
+      </div>
+      <div className="overflow-x-auto rounded-lg border border-border max-h-[42vh] overflow-y-auto">
         <table className="w-full text-xs">
           <thead className="sticky top-0 bg-card border-b border-border z-10">
             <tr>
@@ -239,9 +287,16 @@ function StudentsTab({
             </tr>
           </thead>
           <tbody>
-            {students.map((s) => (
-              <tr key={s.id} className="border-b border-border/50 hover:bg-muted/30">
-                <td className="p-2 font-medium truncate max-w-[100px]">{s.fullName}</td>
+            {filtered.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="p-8 text-center text-muted-foreground">
+                  {t.admin.noData}
+                </td>
+              </tr>
+            ) : (
+              filtered.map((s) => (
+                <tr key={s.id} className="border-b border-border/50 hover:bg-muted/30">
+                  <td className="p-2 font-medium truncate max-w-[100px]">{s.fullName}</td>
                 <td className="p-2 text-muted-foreground truncate max-w-[120px]">{s.email}</td>
                 <td className="p-2">
                   <Badge variant="outline" className="text-[10px]">
@@ -296,10 +351,15 @@ function StudentsTab({
                   </div>
                 </td>
               </tr>
-            ))}
+              ))
+            )}
           </tbody>
         </table>
       </div>
+      {/* Filter count */}
+      <p className="text-[10px] text-muted-foreground text-end">
+        {filtered.length} / {students.length}
+      </p>
     </div>
   );
 }
@@ -338,9 +398,21 @@ function BookingsTab({
   const { t } = useLocale();
   const [updatingId, setUpdatingId] = React.useState<string | null>(null);
   const [deletingId, setDeletingId] = React.useState<string | null>(null);
+  const [query, setQuery] = React.useState("");
 
   if (bookings === null) return <LoadingState />;
   if (bookings.length === 0) return <EmptyState text={t.admin.noData} />;
+
+  // Client-side filter: search by teacher name, recitation, or status
+  const filtered = bookings.filter((b) => {
+    if (!query.trim()) return true;
+    const q = query.trim().toLowerCase();
+    return (
+      b.teacherName.toLowerCase().includes(q) ||
+      b.recitation.toLowerCase().includes(q) ||
+      b.status.toLowerCase().includes(q)
+    );
+  });
 
   const updateStatus = async (id: string, status: string) => {
     setUpdatingId(id);
@@ -385,8 +457,19 @@ function BookingsTab({
 
   return (
     <div className="space-y-3">
-      <ExportButton type="bookings" />
-      <div className="overflow-x-auto rounded-lg border border-border max-h-[45vh] overflow-y-auto">
+      <div className="flex items-center gap-2 justify-between">
+        <div className="relative flex-1 max-w-xs">
+          <Search className="absolute start-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+          <Input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder={t.admin.search}
+            className="h-8 ps-8 text-xs"
+          />
+        </div>
+        <ExportButton type="bookings" />
+      </div>
+      <div className="overflow-x-auto rounded-lg border border-border max-h-[42vh] overflow-y-auto">
         <table className="w-full text-xs">
           <thead className="sticky top-0 bg-card border-b border-border z-10">
             <tr>
@@ -398,7 +481,14 @@ function BookingsTab({
             </tr>
           </thead>
           <tbody>
-            {bookings.map((b) => (
+            {filtered.length === 0 ? (
+              <tr>
+                <td colSpan={5} className="p-8 text-center text-muted-foreground">
+                  {t.admin.noData}
+                </td>
+              </tr>
+            ) : (
+              filtered.map((b) => (
             <tr key={b.id} className="border-b border-border/50 hover:bg-muted/30">
               <td className="p-2 font-medium truncate max-w-[100px]">{b.teacherName}</td>
               <td className="p-2 text-muted-foreground truncate max-w-[100px]">{b.recitation}</td>
@@ -456,7 +546,8 @@ function BookingsTab({
                 </div>
               </td>
             </tr>
-          ))}
+              ))
+            )}
         </tbody>
       </table>
       </div>

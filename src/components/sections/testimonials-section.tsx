@@ -135,6 +135,13 @@ export function TestimonialsSection() {
               ))}
             </div>
           )}
+
+          {/* Mobile swipe hint */}
+          {count > 1 && (
+            <p className="mt-3 text-center text-[10px] text-muted-foreground/60 sm:hidden">
+              ← Swipe →
+            </p>
+          )}
         </div>
       </div>
     </section>
