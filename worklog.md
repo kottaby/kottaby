@@ -693,3 +693,74 @@ Task: Assess project status via QA, implement admin CRUD actions (round 5 priori
 3. (low) **Testimonials swipe** — add touch-swipe support for the carousel on mobile.
 4. (low) **Hero image optimization** — convert the calligraphy PNG to WebP or use `next/image` with priority loading.
 5. (low) **Admin student CRUD** — add the ability to delete a student or manually grant a trial from the admin dashboard (currently read-only for students).
+
+---
+Task ID: 12
+Agent: main (orchestrator) — webDevReview round 7 (cron)
+Task: Assess project status via QA, implement CSV export + admin student management, enhance how-it-works section.
+
+## 1. Current Project Status (assessment)
+- Round 6 (Task ID 11) completed: admin CRUD actions (booking status update + delete, message delete), keyboard shortcut, resources section enhancement.
+- QA at start of round 7: `bun run lint` clean. Dev server had died (OOM — known sandbox constraint). After restart, all endpoints verified working via curl: `GET /api/admin/stats` {"students":5,"trialGranted":3,"bookings":3,"pendingBookings":2,"newsletter":2,"contacts":5}, `GET /api/health` {"status":"ok"}.
+- No new code bugs found. The project was stable. Proceeded to implement the round-6 priorities: **CSV export** + **admin student management**.
+
+## 2. Completed Modifications
+
+### A. CSV Export API Route
+- **`GET /api/admin/export?type=students|bookings|contacts|newsletter`** (`src/app/api/admin/export/route.ts`): exports admin data as a CSV file (UTF-8 with BOM for Excel Arabic support). Returns `Content-Type: text/csv; charset=utf-8` + `Content-Disposition: attachment; filename="kottaby-<type>-<date>.csv"`. Includes a `toCSV()` helper that quotes fields containing commas/quotes/newlines.
+- **4 export types**: students (id, email, name, role, 4 balance lanes, trialGrantedAt, locale, createdAt), bookings (id, teacher, recitation, date, time, status, notes, locale, createdAt), contacts (id, email, message, locale, createdAt), newsletter (id, email, locale, createdAt).
+- **Verified via curl**:
+  - `GET ?type=students` → `Content-Disposition: attachment; filename="kottaby-students-2026-08-27.csv"` with `content-type: text/csv; charset=utf-8` ✓
+  - `GET ?type=bookings` → CSV with UTF-8 BOM + headers `ID,Teacher,Recitation,Date,Time,Status,Notes,Locale,Created At` ✓
+
+### B. ExportButton Component
+- `src/components/admin/admin-dashboard.tsx` — added a reusable `ExportButton` component that fetches the CSV as a Blob, creates an object URL, triggers a download via a temporary `<a>` element, and shows a loading spinner + sonner toast.
+- **Export buttons placed**:
+  - StudentsTab: 1 export button (students) at the top.
+  - BookingsTab: 1 export button (bookings) at the top.
+  - MessagesTab: 2 export buttons (contacts + newsletter) at the top.
+
+### C. Admin Student Management API
+- **`PATCH /api/admin/students/[id]`** (`src/app/api/admin/students/[id]/route.ts`): admin manual trial grant. Body `{ action: "grant-trial" }`. Uses the canonical `StudentTrialService.grantFreeTrial` entry point (REQ-017 — the same guarded conditional UPDATE as registration). Returns the updated student record + `trialGranted: true`. Returns 404 if student not found, 409 if already granted.
+- **`DELETE /api/admin/students/[id]`**: deletes a student record. Returns `{ok:true}` or 404.
+- **Verified via curl**:
+  - `PATCH {action:"grant-trial"}` → `{"ok":true,"student":{...,"balanceTrial":1,"trialGrantedAt":"2026-08-27T14:52:28.442Z"},"trialGranted":true}` ✓
+  - Stats `trialGranted` increased from 3 → 4 ✓
+
+### D. StudentsTab wired to mutation endpoints
+- The StudentsTab now has per-row action buttons:
+  - **Grant Trial** (Gift icon, copper on hover) — only shown for students without `trialGrantedAt`. Calls `PATCH /api/admin/students/[id]` with `action: "grant-trial"`.
+  - **Delete Student** (Trash2 icon, red on hover) — calls `DELETE /api/admin/students/[id]` with a `window.confirm`.
+  - Both show loading spinners + call `onMutation` (fetchAll) on success + sonner toasts.
+  - Added an "Actions" column header.
+- **Export button** at the top of the tab.
+
+### E. i18n keys
+- Added 5 new admin keys to AR + EN: `export` ("تصدير CSV" / "Export CSV"), `grantTrial`, `grantTrialSuccess`, `deleteStudent`.
+
+### F. How-It-Works section enhancement
+- `src/components/sections/how-it-works-section.tsx`:
+  - **Animated connecting line**: replaced the static dashed border with a `motion.div` that scales from 0 → 1 on scroll-into-view (gradient `from-transparent via-copper/40 to-transparent`).
+  - **Ambient copper glow**: blurred radial (5% opacity) at the end for depth.
+  - **Icon hover effects**: the circle border turns full copper + fills with `bg-copper/5` + copper glow shadow on hover. Icon scales 1.1×.
+  - **Pulsing ring**: an `animate-ping` border appears on hover around the icon circle.
+  - **Title color**: turns copper on hover.
+
+## 3. Verification Results
+- `bun run lint` → clean (0 errors, 0 warnings).
+- `agent-browser errors` → empty (no runtime errors).
+- **CSV export** (students): `curl` → `Content-Disposition: attachment; filename="kottaby-students-2026-08-27.csv"` with `text/csv; charset=utf-8` ✓
+- **CSV export** (bookings): returns CSV with UTF-8 BOM + proper headers ✓
+- **Student grant-trial**: `curl` → `{"ok":true,"student":{...,"balanceTrial":1,"trialGrantedAt":"2026-..."},"trialGranted":true}` ✓ — stats `trialGranted` increased 3→4 ✓
+- All round 1–6 + DEV1-004 features still work.
+
+## 4. Unresolved Issues / Risks + Next-Phase Recommendations
+- **Dev server memory instability (sandbox constraint, carried from rounds 2–6):** the Next.js 16 Turbopack dev server uses ~1.5–2.3 GB RAM; the sandbox has 4 GB with no swap. Under memory pressure (especially when agent-browser's headless Chrome runs concurrently), the next-server process gets OOM-killed. This is a **sandbox infrastructure constraint, not a code issue**. All functionality was verified via `curl` (minimal memory) and brief agent-browser windows.
+- **No unresolved code bugs.** All features work as designed.
+
+### Priority recommendations for next round:
+1. (medium) **Booking confirmation email** — integrate a transactional email service (resend/nodemailer) to send a confirmation email when a booking status changes to "confirmed".
+2. (low) **Testimonials swipe** — add touch-swipe support for the carousel on mobile.
+3. (low) **Hero image optimization** — convert the calligraphy PNG to WebP or use `next/image` with priority loading.
+4. (low) **Admin student role filter** — add a dropdown to filter the students table by role (student/teacher/parent).
+5. (low) **Admin search** — add a search box to filter students/bookings/messages by name/email.

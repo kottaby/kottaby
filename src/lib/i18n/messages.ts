@@ -121,6 +121,10 @@ export const messages = {
       confirmed: "مؤكّد",
       completed: "مكتمل",
       cancelled: "ملغى",
+      export: "تصدير CSV",
+      grantTrial: "منح التجربة",
+      grantTrialSuccess: "تم منح الجلسة التجريبية",
+      deleteStudent: "حذف الطالب",
     },
 
     utility: {
@@ -586,6 +590,10 @@ export const messages = {
       confirmed: "Confirmed",
       completed: "Completed",
       cancelled: "Cancelled",
+      export: "Export CSV",
+      grantTrial: "Grant Trial",
+      grantTrialSuccess: "Trial session granted",
+      deleteStudent: "Delete Student",
     },
 
     utility: {

@@ -16,6 +16,7 @@ import {
   Search,
   Trash2,
   ChevronDown,
+  Download,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useLocale } from "@/lib/i18n/locale-context";
@@ -161,53 +162,144 @@ function OverviewTab({ stats }: { stats: AdminStats | null }) {
 
 // ─── Students Tab ────────────────────────────────────────────────
 
-function StudentsTab({ students }: { students: AdminStudent[] | null }) {
+function StudentsTab({
+  students,
+  onMutation,
+}: {
+  students: AdminStudent[] | null;
+  onMutation: () => void;
+}) {
   const { t } = useLocale();
+  const [actingId, setActingId] = React.useState<string | null>(null);
+
   if (students === null) return <LoadingState />;
-  if (students.length === 0) return <EmptyState text={t.admin.noData} />;
+  if (students.length === 0) {
+    return (
+      <div className="space-y-3">
+        <ExportButton type="students" />
+        <EmptyState text={t.admin.noData} />
+      </div>
+    );
+  }
+
+  const grantTrial = async (id: string) => {
+    setActingId(id);
+    try {
+      const res = await fetch(`/api/admin/students/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "grant-trial" }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        toast.success(t.admin.grantTrialSuccess);
+        onMutation();
+      } else {
+        toast.error(data.error ?? "Grant failed");
+      }
+    } catch {
+      toast.error("Network error");
+    } finally {
+      setActingId(null);
+    }
+  };
+
+  const deleteStudent = async (id: string) => {
+    if (!window.confirm(t.admin.confirmDelete)) return;
+    setActingId(id);
+    try {
+      const res = await fetch(`/api/admin/students/${id}`, { method: "DELETE" });
+      const data = await res.json();
+      if (data.ok) {
+        toast.success(t.admin.deleted);
+        onMutation();
+      } else {
+        toast.error(data.error ?? "Delete failed");
+      }
+    } catch {
+      toast.error("Network error");
+    } finally {
+      setActingId(null);
+    }
+  };
+
   return (
-    <div className="overflow-x-auto rounded-lg border border-border max-h-[50vh] overflow-y-auto">
-      <table className="w-full text-xs">
-        <thead className="sticky top-0 bg-card border-b border-border z-10">
-          <tr>
-            <th className="text-start p-2 font-semibold">{t.admin.fullName}</th>
-            <th className="text-start p-2 font-semibold">{t.admin.email}</th>
-            <th className="text-start p-2 font-semibold">{t.admin.role}</th>
-            <th className="text-center p-2 font-semibold">{t.admin.trial}</th>
-            <th className="text-center p-2 font-semibold">{t.admin.eligible}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {students.map((s) => (
-            <tr key={s.id} className="border-b border-border/50 hover:bg-muted/30">
-              <td className="p-2 font-medium truncate max-w-[120px]">{s.fullName}</td>
-              <td className="p-2 text-muted-foreground truncate max-w-[140px]">{s.email}</td>
-              <td className="p-2">
-                <Badge variant="outline" className="text-[10px]">
-                  {s.role === "student" ? t.admin.studentRole : s.role === "teacher" ? t.admin.teacherRole : t.admin.parentRole}
-                </Badge>
-              </td>
-              <td className="p-2 text-center">
-                {s.trialGrantedAt ? (
-                  <span className="inline-flex items-center gap-0.5 text-copper">
-                    <CheckCircle2 className="h-3.5 w-3.5" />
-                    <span className="tabular-nums">{s.balanceTrial}</span>
-                  </span>
-                ) : (
-                  <XCircle className="h-3.5 w-3.5 text-muted-foreground inline" />
-                )}
-              </td>
-              <td className="p-2 text-center">
-                {s.eligible ? (
-                  <Badge className="bg-green-500/15 text-green-500 border-0 text-[10px]">{t.admin.yes}</Badge>
-                ) : (
-                  <Badge variant="outline" className="text-[10px]">{t.admin.no}</Badge>
-                )}
-              </td>
+    <div className="space-y-3">
+      <ExportButton type="students" />
+      <div className="overflow-x-auto rounded-lg border border-border max-h-[45vh] overflow-y-auto">
+        <table className="w-full text-xs">
+          <thead className="sticky top-0 bg-card border-b border-border z-10">
+            <tr>
+              <th className="text-start p-2 font-semibold">{t.admin.fullName}</th>
+              <th className="text-start p-2 font-semibold">{t.admin.email}</th>
+              <th className="text-start p-2 font-semibold">{t.admin.role}</th>
+              <th className="text-center p-2 font-semibold">{t.admin.trial}</th>
+              <th className="text-center p-2 font-semibold">{t.admin.eligible}</th>
+              <th className="text-center p-2 font-semibold">{t.admin.actions}</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {students.map((s) => (
+              <tr key={s.id} className="border-b border-border/50 hover:bg-muted/30">
+                <td className="p-2 font-medium truncate max-w-[100px]">{s.fullName}</td>
+                <td className="p-2 text-muted-foreground truncate max-w-[120px]">{s.email}</td>
+                <td className="p-2">
+                  <Badge variant="outline" className="text-[10px]">
+                    {s.role === "student" ? t.admin.studentRole : s.role === "teacher" ? t.admin.teacherRole : t.admin.parentRole}
+                  </Badge>
+                </td>
+                <td className="p-2 text-center">
+                  {s.trialGrantedAt ? (
+                    <span className="inline-flex items-center gap-0.5 text-copper">
+                      <CheckCircle2 className="h-3.5 w-3.5" />
+                      <span className="tabular-nums">{s.balanceTrial}</span>
+                    </span>
+                  ) : (
+                    <XCircle className="h-3.5 w-3.5 text-muted-foreground inline" />
+                  )}
+                </td>
+                <td className="p-2 text-center">
+                  {s.eligible ? (
+                    <Badge className="bg-green-500/15 text-green-500 border-0 text-[10px]">{t.admin.yes}</Badge>
+                  ) : (
+                    <Badge variant="outline" className="text-[10px]">{t.admin.no}</Badge>
+                  )}
+                </td>
+                <td className="p-2 text-center">
+                  <div className="inline-flex items-center gap-1">
+                    {!s.trialGrantedAt && (
+                      <button
+                        type="button"
+                        onClick={() => grantTrial(s.id)}
+                        disabled={actingId === s.id}
+                        aria-label={t.admin.grantTrial}
+                        title={t.admin.grantTrial}
+                        className="inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground hover:text-copper hover:bg-copper/10 disabled:opacity-50"
+                      >
+                        {actingId === s.id ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : (
+                          <Gift className="h-3 w-3" />
+                        )}
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => deleteStudent(s.id)}
+                      disabled={actingId === s.id}
+                      aria-label={t.admin.deleteStudent}
+                      title={t.admin.deleteStudent}
+                      className="inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 disabled:opacity-50"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
@@ -292,19 +384,21 @@ function BookingsTab({
   };
 
   return (
-    <div className="overflow-x-auto rounded-lg border border-border max-h-[50vh] overflow-y-auto">
-      <table className="w-full text-xs">
-        <thead className="sticky top-0 bg-card border-b border-border z-10">
-          <tr>
-            <th className="text-start p-2 font-semibold">{t.admin.teacher}</th>
-            <th className="text-start p-2 font-semibold">{t.admin.recitation}</th>
-            <th className="text-start p-2 font-semibold">{t.admin.date}</th>
-            <th className="text-center p-2 font-semibold">{t.admin.status}</th>
-            <th className="text-center p-2 font-semibold">{t.admin.actions}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {bookings.map((b) => (
+    <div className="space-y-3">
+      <ExportButton type="bookings" />
+      <div className="overflow-x-auto rounded-lg border border-border max-h-[45vh] overflow-y-auto">
+        <table className="w-full text-xs">
+          <thead className="sticky top-0 bg-card border-b border-border z-10">
+            <tr>
+              <th className="text-start p-2 font-semibold">{t.admin.teacher}</th>
+              <th className="text-start p-2 font-semibold">{t.admin.recitation}</th>
+              <th className="text-start p-2 font-semibold">{t.admin.date}</th>
+              <th className="text-center p-2 font-semibold">{t.admin.status}</th>
+              <th className="text-center p-2 font-semibold">{t.admin.actions}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {bookings.map((b) => (
             <tr key={b.id} className="border-b border-border/50 hover:bg-muted/30">
               <td className="p-2 font-medium truncate max-w-[100px]">{b.teacherName}</td>
               <td className="p-2 text-muted-foreground truncate max-w-[100px]">{b.recitation}</td>
@@ -365,6 +459,7 @@ function BookingsTab({
           ))}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }
@@ -406,6 +501,11 @@ function MessagesTab({
 
   return (
     <div className="space-y-4">
+      {/* Export buttons */}
+      <div className="flex gap-2 justify-end">
+        <ExportButton type="contacts" />
+        <ExportButton type="newsletter" />
+      </div>
       {/* Contact messages */}
       <div>
         <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
@@ -565,6 +665,48 @@ function EligibilityChecker() {
   );
 }
 
+// ─── Export Button ────────────────────────────────────────────────
+
+function ExportButton({ type }: { type: "students" | "bookings" | "contacts" | "newsletter" }) {
+  const { t } = useLocale();
+  const [loading, setLoading] = React.useState(false);
+
+  const exportCSV = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/admin/export?type=${type}`);
+      if (!res.ok) throw new Error("Export failed");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = res.headers.get("Content-Disposition")?.split("filename=")[1]?.replace(/"/g, "") ?? `kottaby-${type}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast.success(t.admin.export);
+    } catch {
+      toast.error("Export failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Button
+      variant="outline"
+      size="sm"
+      onClick={exportCSV}
+      disabled={loading}
+      className="h-7 text-xs self-end hover:border-copper hover:text-copper"
+    >
+      {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
+      {t.admin.export}
+    </Button>
+  );
+}
+
 // ─── Loading / Empty helpers ─────────────────────────────────────
 
 function LoadingState() {
@@ -695,7 +837,7 @@ export function AdminDashboard() {
           </TabsContent>
 
           <TabsContent value="students" className="mt-4">
-            <StudentsTab students={students} />
+            <StudentsTab students={students} onMutation={fetchAll} />
           </TabsContent>
 
           <TabsContent value="bookings" className="mt-4">
