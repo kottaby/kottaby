@@ -10,6 +10,7 @@ import { TeachersSection } from "@/components/sections/teachers-section";
 import { CurriculumSection } from "@/components/sections/curriculum-section";
 import { TestimonialsSection } from "@/components/sections/testimonials-section";
 import { PricingSection } from "@/components/sections/pricing-section";
+import { FreeTrialSection } from "@/components/sections/free-trial-section";
 import { AchievementsSection } from "@/components/sections/achievements-section";
 import { FaqSection } from "@/components/sections/faq-section";
 import { NewsletterSection } from "@/components/sections/newsletter-section";
@@ -39,6 +40,7 @@ export default function Home() {
       <TestimonialsSection />
       <SectionDivider />
       <PricingSection />
+      <FreeTrialSection />
       <AchievementsSection />
       <SectionDivider />
       <FaqSection />

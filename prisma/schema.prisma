@@ -61,3 +61,27 @@ model Booking {
   status     String   @default("pending")
   createdAt  DateTime @default(now())
 }
+
+/// DEV1-004 — Student record with segregated balance lanes.
+/// INV-B1: all balance lanes are non-negative integers (enforced at app layer;
+/// SQLite via Prisma doesn't support CHECK constraints declaratively).
+/// INV-B5: trial lane (balanceTrial) is segregated from paid intent lanes
+/// (balanceHifz / balanceTajweed / balanceReviews).
+/// INV-B7: trial_granted_at is the one-time grant marker (NULL until first grant).
+/// INV-B8: consumption decrements balanceTrial before any paid lane (forward contract).
+model Student {
+  id             String    @id @default(cuid())
+  email          String    @unique
+  fullName       String
+  role           String    @default("student") // student | teacher | parent
+  // Trial lane (segregated, one-time grant)
+  balanceTrial   Int       @default(0)
+  trialGrantedAt DateTime?
+  // Paid intent lanes (subscription-bound, INV-B5)
+  balanceHifz    Int       @default(0)
+  balanceTajweed Int       @default(0)
+  balanceReviews Int       @default(0)
+  locale         String    @default("ar")
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+}

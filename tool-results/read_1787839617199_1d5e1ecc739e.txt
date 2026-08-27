@@ -1,0 +1,713 @@
+     1→---
+     2→name: spec-implementation
+     3→description: >
+     4→  Companion implementation skill to spec-driven-development. Executes feature plans
+     5→  task-by-task with per-file quality verification (sub-loop.ts), semantic review checklist,
+     6→  instruction verification, interleaved tests, mid-point review gate, post-implementation
+     7→  parallel review waves, deferred-items enforcement, and knowledge propagation. Adapts
+     8→  workflow for full-spec, quick-spec, and micro-spec plans. Keeps orchestrator context
+     9→  minimal by delegating all editing to pool-based parallel subagents.
+    10→license: MIT
+    11→compatibility: Claude Code, Cursor, VS Code, Windsurf
+    12→metadata:
+    13→  category: methodology
+    14→  complexity: advanced
+    15→  author: Kiro Team
+    16→  version: "1.0.0"
+    17→---
+    18→
+    19→# Spec Implementation
+    20→
+    21→You are an **implementation orchestrator** for plans created by the `spec-driven-development` skill. Your job is to execute a completed plan (specs, design/implementation, trackable-tasks) task-by-task, ensuring each task passes quality gates, semantic review, and instruction verification before proceeding.
+    22→
+    23→## When to Use This Skill
+    24→
+    25→**Use when:**
+    26→- A feature plan exists under `.ai/plans/<feature-name>/` with `trackable-tasks.md` (or `tasks.md`)
+    27→- The plan has passed `plan-review` ([.agents/skills/plan-review/SKILL.md](file://../.agents/skills/plan-review/SKILL.md)) (Phase 1.5 gate)
+    28→- Implementation work needs to begin
+    29→
+    30→**Do NOT use when:**
+    31→- No plan exists yet — use [.agents/skills/spec-driven-development/SKILL.md](file://../.agents/skills/spec-driven-development/SKILL.md) to create one first
+    32→- The plan has NOT passed `plan-review` — invoke [.agents/skills/plan-review/SKILL.md](file://../.agents/skills/plan-review/SKILL.md) first 
+    33→- Only a simple bug fix is needed — fix directly
+    34→
+    35→## Orchestrator Discipline (CRITICAL)
+    36→
+    37→You are an **orchestrator**, not an editor. Following the pattern proven by `repo-review` and `fix-oxlint`:
+    38→
+    39→1. **NEVER read source files yourself** — delegate all file reading to subagents
+    40→2. **NEVER run build/test commands yourself** — delegate to subagents or use `task` agent type
+    41→3. **Hold only**: the task list, outcome summaries, baseline counts, and aggregated findings
+    42→4. **Delegate all editing** to `general-purpose` subagents via the `task` tool
+    43→5. **Aggregate results** as one-line records: `[STATUS] <task-id>: <file> — <summary>`
+    44→
+    45→This discipline is what allows you to manage 30+ task plans without exhausting context.
+    46→
+    47→## Plan Intake & Validation
+    48→
+    49→### Step 1: Detect Plan Type
+    50→
+    51→Read the plan directory `.ai/plans/<feature-name>/` to determine the spec type:
+    52→
+    53→| Files Present | Spec Type | Workflow |
+    54→|---|---|---|
+    55→| `specs.md` + `implementation.md` + `trackable-tasks.md` | Full spec | All phases, all gates |
+    56→| `spec.md` + `design.md` + `tasks.md` (older format) | Full spec (legacy) | All phases, all gates |
+    57→| `quick-spec.md` (or single combined doc) | Quick spec | Reduced gates (see §Quick-Spec Adaptation) |
+    58→| `micro-spec.md` (or minimal doc) | Micro spec | Minimal gates (see §Micro-Spec Adaptation) |
+    59→
+    60→Also check for:
+    61→- `outcome/` directory — existing outcome files to read
+    62→- `deferred-items.md` — deferred-items ledger
+    63→- `ui-spec/` or `ui/` — nested sub-plans
+    64→- `prototype/` directory — Stitch MCP UI prototypes (see §Prototype-Aware Implementation)
+    65→- `skill-improvement-observations.md` or `skill-improvement-outcome.md` — prior learnings
+    66→
+    67→### Step 2: Validate Plan Readiness
+    68→
+    69→Before executing any task, verify:
+    70→1. **Plan-review gate passed**: Check for `outcome/plan-review-R*.md` files. If none exist, invoke `@plan-review` first.
+    71→2. **Tasks have checkboxes**: Every task in `trackable-tasks.md` must have `[ ]` checkboxes.
+    72→3. **Tasks reference requirements**: Each task should have `_Requirements: REQ-N_` traceability tags.
+    73→4. **No stale in-progress markers**: No `[-]` markers from a previous incomplete run (if found, resume from that point).
+    74→
+    75→### Step 3: Establish the Plan Inventory
+    76→
+    77→Ask the user (via `ask_user`) which scope to execute:
+    78→
+    79→```
+    80→Which scope would you like to implement?
+    81→- All phases (full plan execution)
+    82→- Specific phases only (e.g., Phase 1-3 backend only)
+    83→- Specific task IDs only (e.g., Task 1.1, 1.2, 5.3)
+    84→- Resume from last incomplete task
+    85→```
+    86→
+    87→Parse the task list and build an in-memory execution queue. Group tasks by phase and dependency.
+    88→
+    89→## Prototype-Aware Implementation
+    90→
+    91→If the plan directory contains a `prototype/` subdirectory (typically produced by the `stitch` skill's Plan-to-Prototype Recipe — kebab-case `.html` + `.png` pairs, one per screen), treat it as a **first-class input to UI implementation**.
+    92→
+    93→### Intake (Step 1 extension)
+    94→
+    95→- List `.ai/plans/<feature-name>/prototype/`. If present, build the screen inventory: each kebab-case name maps to a UI surface (page, modal/tab state, drawer, mobile variant — `*-modal`, `*-drawer`, `*-mobile` suffixes are state/view variants of the base screen, not separate routes).
+    96→- If prototypes are missing AND the plan has meaningful UI work, offer to generate them via the `stitch` skill before starting (ask the user once; do not block on it).
+    97→
+    98→### Before implementing any UI task
+    99→
+   100→Dispatch the executing subagent with the matching prototype artifacts attached to its prompt:
+   101→
+   102→1. **Screenshot first (`*.png`)** — the subagent reads the screenshot to form a visual imagination of the target: layout structure, hierarchy, section ordering, density, and interaction affordances.
+   103→2. **HTML second (`*.html`)** — extract concrete details: element order, labels/copy, colors, spacing rhythm, component structure. Strip the Tailwind-CDN classes mentally; translate to the project's MUI + theme-palette conventions (never hardcode prototype colors; map to `theme.palette` tokens per `frontend/THEME_PALETTE.md`).
+   104→3. **Spec remains the authority** — prototype vs. spec conflicts are always resolved in favor of the plan's specs/design. The prototype is a visualization of the spec, not a source of new requirements.
+   105→
+   106→### Prototype fidelity rules (CRITICAL)
+   107→
+   108→- **Prototype data is 100% FAKE** — every name, row, metric, count, date, currency amount, and status in the screenshot/HTML is invented placeholder data. **Zero fake data may survive into the implementation.** EVERY rendered value must come from a real data source end-to-end: mock state is prohibited even temporarily — wire the actual path at implementation time (GraphQL document → generated Apollo hook → Pothos resolver → service → repository → Drizzle query; or server-component → service), never leaving hardcoded literals in JSX, fixtures, or stores. The only permitted exception is recognized scaffolding state (`AppSkeleton` placeholders, empty states via `AppEmptyState`, error states) — never fabricated rows.
+   109→- A prototype is an **imagination aid, not the final target**. The final implementation must be **equal or better** than the prototype: same information architecture and UX flow, but upgraded to project standards (MUI components, theme palette tokens, i18n via `shared/locale`, RTL support, accessibility, AppDataGrid/PageContainer/shared-scaffold patterns).
+   110→- **Never copy prototype HTML/CSS verbatim** — no Tailwind classes, no inline hex colors, no hardcoded strings. Translate, don't transplant.
+   111→- **Respect domain conventions over prototype shorthand** — e.g. if the prototype shows a table, implement `AppDataGrid` with the established grid patterns; if it shows a dialog, follow the existing dialog/form (RHF + Zod) patterns.
+   112→- Matches between prototype copy and i18n keys are hints for which translation namespaces/keys to create — still follow `shared/AGENTS.md` i18n rules.
+   113→
+   114→### Subagent prompt integration
+   115→
+   116→For every UI task, add to the per-subagent prompt:
+   117→
+   118→```
+   119→Prototype reference (visual imagination aid — final must be equal or better, translated to MUI/theme/i18n conventions):
+   120→- Screenshot: .ai/plans/<feature-name>/prototype/<screen>.png (READ FIRST)
+   121→- HTML: .ai/plans/<feature-name>/prototype/<screen>.html
+   122→- State variants if present: <screen>-modal, <screen>-drawer, <screen>-mobile
+   123→ALL data in prototypes is fake placeholder content — implement real data flows only; zero hardcoded fixtures in components/stores.
+   124→Spec and design documents remain authoritative on any conflict.
+   125→```
+   126→
+   127→### Review integration
+   128→
+   129→- **Mid-point review + post-implementation review waves**: when reviewing UI tasks, reviewers compare the implementation against the corresponding prototype (layout/flow parity check) in addition to the spec — flag regressions where the result is worse than the prototype without a functional reason. Reviewers MUST also scan for leftover fake data: every hardcoded name, row, metric, or literal entity value in a component/store is a CRITICAL finding unless it is an approved skeleton/empty/error scaffolding state.
+   130→- **Execution Summary**: list which screens followed prototypes and note any intentional divergences (with reasons).
+   131→
+   132→## Phase 0: Pre-Implementation Baseline (MANDATORY)
+   133→
+   134→**Purpose:** Establish error baseline to distinguish new issues from pre-existing ones.
+   135→
+   136→### Baseline Capture
+   137→
+   138→Dispatch a `task` subagent to run:
+   139→
+   140→```bash
+   141→# Record tsgo error count
+   142→~/.bun/bin/bun tsgo 2>&1 | grep "error TS" | wc -l > /tmp/baseline-tsgo.txt
+   143→
+   144→# Record biome warnings
+   145→~/.bun/bin/bun biome:check 2>&1 | grep -c "warn" > /tmp/baseline-biome.txt
+   146→
+   147→# Record lint output
+   148→~/.bun/bin/bun run scripts/lint-service.ts --json --id baseline > /tmp/baseline-lint.json
+   149→
+   150→# Record modified file set baseline
+   151→git stash list > /tmp/baseline-stash.txt
+   152→git diff --name-only > /tmp/baseline-files.txt
+   153→```
+   154→
+   155→### Deferred-Items Ledger
+   156→
+   157→If `deferred-items.md` does not exist, create it from the template:
+   158→
+   159→```bash
+   160→cp .agents/spec-process-guide/templates/deferred-items-template.md .ai/plans/<feature-name>/deferred-items.md
+   161→```
+   162→
+   163→### Baseline Outcome File
+   164→
+   165→Write `.ai/plans/<feature-name>/outcome/phase0-baseline-outcome.md` documenting:
+   166→- tsgo error count, biome warning count, lint status
+   167→- Any pre-existing issues to ignore during post-implementation review
+   168→- The `git diff --name-only` baseline (files already modified before implementation)
+   169→
+   170→**Evidence:** Four implementations (quota, whatsapp, cron, auto-meeting-url) showed baseline confusion caused wasted debugging time. This step prevents that.
+   171→
+   172→## Task Execution Protocol
+   173→
+   174→### The Three Mandatory Execution Rules
+   175→
+   176→Every task — without exception — follows these three rules:
+   177→
+   178→1. **Pre-Execution Outcome Knowledge Read**: Before executing ANY task, read ALL existing files in `.ai/plans/<feature-name>/outcome/`. This absorbs prior research, pitfalls, and cross-file dependencies without re-doing analysis.
+   179→
+   180→2. **Post-Execution Outcome File Creation**: Upon completing a task, create `.ai/plans/<feature-name>/outcome/<task-id>-outcome.md` documenting:
+   181→   - Summary of what was implemented
+   182→   - Files created/modified
+   183→   - Files NOT modified (and why)
+   184→   - Verification results (sub-loop.ts output)
+   185→   - Carry-forward knowledge for future subtasks
+   186→   - Cross-file dependencies discovered
+   187→
+   188→3. **Task Progress Checkbox Tracking**: Update the task checkbox `[ ]` → `[x]` in `trackable-tasks.md` upon completing each subtask. Use `[-]` for in-progress.
+   189→
+   190→### Per-Task Execution Flow
+   191→
+   192→For each task in the execution queue:
+   193→
+   194→```
+   195→┌─────────────────────────────────────────────────────────────┐
+   196→│  1. READ all existing outcome/ files                        │
+   197→│  2. READ the task definition from trackable-tasks          │
+   198→│  3. READ applicable AGENTS.md + instructions files          │
+   199→│  4. EXECUTE the implementation (create/modify source files) │
+   200→│  5. QUALITY LOOP (X.Y.QL via sub-loop.ts per file)          │
+   201→│  6. TEST ENGINEERING (X.Y.TE via write-tests/test-expert)   │
+   202→│  7. SECURITY AUDIT (X.Y.SEC via idor-testing/pentester)     │
+   203→│  8. SEMANTIC REVIEW (X.Y.SR agent self-review checklist)    │
+   204→│  9. INSTRUCTION VERIFICATION (X.Y.IV against rule files)    │
+   205→│ 10. WRITE outcome file (<task-id>-outcome.md)               │
+   206→│ 11. UPDATE checkboxes [ ] → [x]                             │
+   207→│ 12. CHECK deferred-items for new entries                    │
+   208→└─────────────────────────────────────────────────────────────┘
+   209→```
+   210→
+   211→### Dispatch Model
+   212→
+   213→**Pool-based parallel dispatch** (proven by fix-oxlint):
+   214→- Maximum **16 concurrent** `general-purpose` subagents (24 causes rate-limiting)
+   215→- Fill-on-completion: when a subagent finishes, immediately dispatch the next queued task
+   216→- Tasks touching the same files or sharing types must be **grouped sequentially** (like quality-gate's tsgo grouping)
+   217→- Tasks touching disjoint files can run in parallel
+   218→
+   219→**Grouping rules:**
+   220→1. Tasks sharing a type file (e.g., `backend/types/quota.types.ts`) → same group, sequential
+   221→2. Tasks sharing a schema file (e.g., `backend/db/schema/quota.ts`) → same group, sequential
+   222→3. Tasks in different layers with no file overlap → parallel
+   223→4. Tasks with explicit dependencies (`_Requirements: REQ-N_` pointing to prior task output) → sequential
+   224→
+   225→**Per-subagent prompt must include:**
+   226→- Task ID and full task description from `trackable-tasks.md`
+   227→- Applicable AGENTS.md file paths (from the task's `Files/components` section)
+   228→- Applicable `.agents/instructions/*.md` file paths
+   229→- Requirement references for traceability
+   230→- Outcome directory path: `.ai/plans/<feature-name>/outcome/`
+   231→- Instruction: "Read ALL existing outcome files first, then execute the task, then run quality verification, then write your outcome file, then update the checkbox"
+   232→
+   233→## Per-File Quality Verification
+   234→
+   235→### Unified Quality Gate
+   236→
+   237→After creating/modifying ANY file, the executing subagent MUST run the **unified per-file quality verification script**:
+   238→
+   239→```bash
+   240→bun run scripts/health/sub-loop.ts <the-file> --lifecycle duplicates
+   241→```
+   242→
+   243→This single script replaces running `tsgo`, `biome:check`, `oxlint`, `lint:type-aware`, and `check:duplicates` individually. It runs them all in strict progressive order and short-circuits at the first failing check.
+   244→
+   245→**Lifecycle stages:**
+   246→
+   247→| `--lifecycle` | Checks run (strict order, short-circuit) |
+   248→|---|---|
+   249→| `tsgo` | tsgo only |
+   250→| `biome` | tsgo → oxlint → biome:check |
+   251→| `lint` | tsgo → oxlint → biome:check → lint:type-aware |
+   252→| `duplicates` | tsgo → oxlint → biome:check → lint:type-aware → check:duplicates |
+   253→
+   254→**What the script handles automatically:**
+   255→- Discovers and prints ALL applicable `.agents/instructions/*.instructions.md` files
+   256→- Discovers and prints ALL applicable layer `AGENTS.md` files
+   257→- Enforces the Fix-Or-Report rule (fix within same file; report cross-file dependencies)
+   258→- Runs `check:duplicates` (at duplicates lifecycle)
+   259→
+   260→**Exit codes:** `0` = all checks passed · `1` = stopped at a failing check · `2` = invalid arguments
+   261→
+   262→Fix all errors and re-run until exit 0 before proceeding.
+   263→
+   264→### Test File Verification
+   265→
+   266→When the task involves test files, use the run-test script instead of sub-loop.ts:
+   267→
+   268→```bash
+   269→bun run scripts/run-test/run-test.ts <test-path>
+   270→bun run scripts/run-test/run-test.ts --last <test-path>          # View result (AI-optimized)
+   271→bun run scripts/run-test/run-test.ts --last --focus "<pattern>" <test-path>  # Filtered
+   272→```
+   273→
+   274→This is **mandatory for database tests** — raw `bun test` swallows deadlocks and transaction issues.
+   275→
+   276→## Semantic Review Checklist (Agent Self-Review)
+   277→
+   278→The `sub-loop.ts` script catches syntax/format/duplication/code-health issues but **structurally cannot detect** race conditions, dead code, type cascades, or cross-layer violations. Four implementations (whatsapp, quota, cron, auto-meeting-url) showed 100% of tasks reported "quality gate passed" while harboring semantic bugs requiring 5-12 post-implementation review rounds.
+   279→
+   280→Before marking ANY subtask `[x]`, the executing subagent MUST verify:
+   281→
+   282→### Race Conditions & Concurrency
+   283→- [ ] No read-then-write sequences without atomicity (SELECT FOR UPDATE / transaction / advisory lock)
+   284→- [ ] No module-level mutable state (Maps, Sets, arrays) without bounded size
+   285→- [ ] All async credit/balance/quota deductions use SELECT FOR UPDATE or advisory locks
+   286→- [ ] All Redis operations are atomic (use `SET NX EX`, not separate `SET NX` + `GET`)
+   287→
+   288→### Environment & Configuration
+   289→- [ ] All `resolveEnvConfig("<KEY>")` calls have matching entry in `env-config-keys.ts`
+   290→- [ ] All `resetX()` / cache-invalidation functions invalidate ALL keys resolved via `resolveEnvConfig`
+   291→- [ ] No credential/secret setters accepting empty strings
+   292→
+   293→### Code Quality & Clean Comments
+   294→- [ ] No dead branches (all `if` paths reachable, every `throw` reachable)
+   295→- [ ] No cross-layer imports (frontend → backend, shared → frontend/backend)
+   296→- [ ] No manual ReturnType construction (use `toReturnType` helper where applicable)
+   297→- [ ] **Clean Comments & JSDocs (CRITICAL)**:
+   298→  - ZERO references to internal plan artifacts (e.g. NEVER write `REQ-1`, `REQ-2.1`, `Task 3.2`, `Phase 4`, or cite `.ai/plans/...` / `specs.md` / `tasks.md` in code comments or JSDoc).
+   299→  - Code comments and JSDoc MUST describe the *what*, *why*, and *domain behavior* of the code in clean, production-grade technical terms without mentioning planning meta-artifacts.
+   300→  - No noisy or trivial comments repeating the obvious (e.g. `// calculate total` above `calculateTotal()`).
+   301→
+   302→### Schema & Types
+   303→- [ ] Schema columns in migrations exist in Drizzle schema (and vice versa)
+   304→- [ ] All enums imported as value imports (not `import type`) when used in runtime expressions
+   305→- [ ] No string literals where enum types expected — always use enum members
+   306→- [ ] Pothos input types accept `T | null | undefined` (not just `T | undefined`)
+   307→- [ ] DB column names match `$inferSelect` names (e.g., `delta` not `amount`, `reasonNote` not `notes`)
+   308→
+   309→### Deferred Work
+   310→- [ ] No deferred items without entry in `.ai/plans/<feature-name>/deferred-items.md`
+   311→
+   312→### Scope Boundary
+   313→- [ ] Only files listed in the task definition were modified
+   314→- [ ] No refactoring of files outside the task scope (even if "while I'm here...")
+   315→- [ ] `git diff --name-only` matches expected file list from the task
+   316→
+   317→## Instruction Verification
+   318→
+   319→After `sub-loop.ts` passes, the subagent MUST read and validate the file against ALL applicable instruction files. The `sub-loop.ts` script **automatically discovers and prints** the applicable files — the subagent reads those printed paths (no manual lookup needed):
+   320→
+   321→- **Layer AGENTS.md**: Printed by `sub-loop.ts` under "AGENTS.md files (read before fixing)"
+   322→- **.agents/instructions/*.md**: Printed by `sub-loop.ts` under "Instruction files (read before fixing)"
+   323→
+   324→The task-to-instructions mapping:
+   325→
+   326→| File Path Pattern | Instruction File |
+   327→|---|---|
+   328→| `frontend/**/*.ts(x)`, `app/**/*.ts(x)` | `frontend.instructions.md` |
+   329→| `backend/**/*.ts` | `backend.instructions.md` |
+   330→| `**/*.test.ts(x)`, `**/*.spec.ts(x)`, `scripts/run-test/**/*.ts` | `tests.instructions.md` |
+   331→
+   332→| File Path Prefix | Additional AGENTS.md |
+   333→|---|---|
+   334→| `app/` | `app/AGENTS.md` |
+   335→| `shared/` | `shared/AGENTS.md` |
+   336→| `frontend/views/` | `frontend/views/AGENTS.md`, `frontend/AGENTS.md` |
+   337→| `frontend/stores/` | `frontend/stores/AGENTS.md`, `frontend/AGENTS.md` |
+   338→| `frontend/common/graphql/` | `frontend/common/graphql/AGENTS.md`, `frontend/AGENTS.md` |
+   339→| `backend/services/` | `backend/services/AGENTS.md`, `backend/AGENTS.md` |
+   340→| `backend/graphql/` | `backend/graphql/AGENTS.md`, `backend/AGENTS.md` |
+   341→| `backend/db/repo/` | `backend/db/repo/AGENTS.md`, `backend/AGENTS.md` |
+   342→| `backend/db/seeds/` | `backend/db/seeds/AGENTS.md`, `backend/AGENTS.md` |
+   343→| `backend/types/` | `backend/types/AGENTS.md`, `backend/AGENTS.md` |
+   344→
+   345→## Interleaved Test Execution
+   346→
+   347→Each builder/adapter/service task should include paired tests as subtasks using [.agents/skills/write-tests/SKILL.md](file://../.agents/skills/write-tests/SKILL.md) and [.agents/skills/test-expert/SKILL.md](file://../.agents/skills/test-expert/SKILL.md):
+   348→
+   349→```
+   350→- [ ] 5. Implement MetaCloudApiAdapter
+   351→  - [ ] 5.1 Implement adapter interface methods
+   352→    - Core logic, error handling, retries
+   353→    - Quality Loop (sub-loop.ts --lifecycle duplicates) + Semantic Review
+   354→  - [ ] 5.2 Write paired tests via write-tests & test-expert
+   355→    - Test file: backend/services/.../test/meta-cloud-api.adapter.test.ts
+   356→    - Apply 4-Tier Test Framework (test-expert):
+   357→      • Tier 1: 100% branch and statement coverage
+   358→      • Tier 2: Boundary & edge cases (empty strings, nullability, unicode/emoji, limits)
+   359→      • Tier 3: Monkey & chaos cases (randomized fuzz payloads, concurrent replay bursts)
+   360→      • Tier 4: Security & abuse tests (payload injection, secret header leaks, forged signatures)
+   361→    - Enforce layer rules (write-tests): Mock outbound integrations, no live network calls
+   362→    - Quality Loop (sub-loop.ts --lifecycle duplicates)
+   363→  - [ ] 5.3 Run test suite via `bun run test/scripts/run-test.ts <test-path>` and verify all pass
+   364→  - [ ] 5.4 Quality loop on both implementation + test files
+   365→```
+   366→
+   367→**When to interleave tests:**
+   368→- Builder/adapter tasks — always
+   369→- Service layer tasks — recommended
+   370→- Repository layer tasks — recommended (100% coverage target, `runInRollback` + `tx` propagation)
+   371→- Complex business logic tasks — recommended
+   372→
+   373→**When to defer tests:**
+   374→- Simple utility functions — batch at phase end
+   375→- UI component tests — batch at phase end
+   376→- E2E & Penetration tests — requires complete feature (executed in Phase 5 / review wave via [.agents/skills/pentester/SKILL.md](file://../.agents/skills/pentester/SKILL.md))
+   377→
+   378→**Evidence:** whatsapp Task 4 builders shipped without tests; integration issues discovered late. Interleaved tests provide immediate feedback.
+   379→
+   380→## Mid-Point Review Gate (CONDITIONAL)
+   381→
+   382→### When to Use
+   383→- Multi-phase plans with **>15 total tasks**
+   384→- Plans with distinct backend + frontend phases
+   385→- Features with complex service/repository layers
+   386→
+   387→### When to Skip
+   388→- Single-phase plans
+   389→- Frontend-only features
+   390→- Plans with <10 tasks
+   391→
+   392→### Process
+   393→
+   394→After the backend phases complete and BEFORE frontend phases begin:
+   395→
+   396→1. Dispatch backend-scoped review subagents in parallel:
+   397→   - `review-backend` (scope: all `backend/` files modified so far)
+   398→   - `review-types` (scope: all `backend/types/` files)
+   399→   - `review-config` (scope: env-config, drizzle.config, migration files)
+   400→
+   401→2. Each review subagent:
+   402→   - Receives the list of modified files (from `git diff --name-only` vs baseline)
+   403→   - Reads the applicable instruction files and AGENTS.md
+   404→   - Reports findings as: `[SEVERITY] file:line — description`
+   405→
+   406→3. Aggregate findings:
+   407→   - Deduplicate overlapping findings
+   408→   - Categorize: CRITICAL / HIGH / MEDIUM / LOW
+   409→   - **Filter out pre-existing issues** — compare against Phase 0 baseline
+   410→   - Focus on new code only
+   411→
+   412→4. Dispatch fix subagents per file cluster (1 subagent per 3-5 related files):
+   413→   - Each uses `.agents/instructions/*.instructions.md` as guardrails
+   414→   - Runs `bun run scripts/health/sub-loop.ts <file> --lifecycle duplicates` per file
+   415→   - Reports cross-file dependencies using the standard block format
+   416→
+   417→5. Re-run backend review on fixed files until zero backend-specific findings
+   418→
+   419→6. Write outcome: `.ai/plans/<feature-name>/outcome/midpoint-review-R1.md`
+   420→
+   421→**Evidence:** whatsapp R3 comprehensive review after 9 tasks found 23 findings (2 HIGH) that accumulated. Mid-point gate would have caught these after backend (Task 6) before frontend propagation.
+   422→
+   423→## Post-Implementation Review Wave (MANDATORY for >10 tasks)
+   424→
+   425→After ALL implementation tasks complete and BEFORE knowledge propagation:
+   426→
+   427→### Step 1: Scope Determination
+   428→
+   429→```bash
+   430→git diff --name-only  # vs Phase 0 baseline
+   431→```
+   432→
+   433→This gives the exact set of files created/modified by this plan. Review is scoped to these files only.
+   434→
+   435→### Step 2: Parallel Review Dispatch
+   436→
+   437→Dispatch these review subagents via the `task` tool in a **single response** (parallel):
+   438→
+   439→**review-types** (scope: all new/modified type files)
+   440→- Canonical type naming
+   441→- No duplicate type definitions
+   442→- Import path consistency (all `@/` aliases, no relative imports)
+   443→- Enum usage (value imports vs type imports) correct everywhere
+   444→
+   445→**review-backend** (scope: all new/modified `backend/` files)
+   446→- Architecture compliance
+   447→- TOCTOU race conditions
+   448→- Dead code (unused exports, unreachable methods)
+   449→- Cross-layer imports
+   450→- Race conditions in repository methods
+   451→
+   452→**review-frontend** (scope: all new/modified `frontend/`, `app/` files)
+   453→- MUI v9 compliance
+   454→- Apollo hook patterns
+   455→- Zustand store patterns
+   456→- Theme compliance
+   457→- Component patterns
+   458→
+   459→**pentester & backend-security** (scope: all new/modified endpoints, resolvers, mutations, webhooks)
+   460→- Probing for BOLA / IDOR cross-tenant data leaks
+   461→- Vertical privilege escalation on admin/supervisor mutations
+   462→- GraphQL query depth/complexity and batching abuse
+   463→- Webhook signature forgery (timingSafeEqual verification)
+   464→- SQL/LIKE injection wildcard tests
+   465→
+   466→### Step 3: Findings Aggregation
+   467→
+   468→1. Collect findings from all subagents
+   469→2. Deduplicate overlapping findings
+   470→3. Categorize: CRITICAL / HIGH / MEDIUM / LOW
+   471→4. **Filter out pre-existing issues** — compare against Phase 0 baseline counts
+   472→5. Only NEW findings block — pre-existing issues are logged but not blocking
+   473→
+   474→### Step 4: Fix Phase
+   475→
+   476→1. Dispatch fix subagents per file cluster (1 subagent per 3-5 related files)
+   477→2. Each fix subagent:
+   478→   - Uses `.agents/instructions/*.instructions.md` as guardrails
+   479→   - Runs `bun run scripts/health/sub-loop.ts <file> --lifecycle duplicates` per file
+   480→   - Reports cross-file dependencies to orchestrator
+   481→3. Orchestrator coordinates multi-file fixes
+   482→
+   483→### Step 5: Verification
+   484→
+   485→- Re-run review subagents on fixed files
+   486→- Repeat until **zero feature-specific findings** remain
+   487→- Write outcome: `.ai/plans/<feature-name>/outcome/post-implementation-review.md`
+   488→
+   489→**Evidence:** All four implementations required 5-12 post-implementation review rounds because this pattern was ad-hoc. Formalizing it reduces rounds to 2-3.
+   490→
+   491→## Deferred-Items Enforcement
+   492→
+   493→### During Implementation
+   494→Any subagent that discovers work belonging to another task/phase, or encounters a blocking dependency, MUST:
+   495→1. Add a row to `.ai/plans/<feature-name>/deferred-items.md`
+   496→2. Use status: 🔄 In Progress or ❌ Blocked
+   497→3. Include the source task ID and target task ID
+   498→
+   499→### Final Quality Gate (Before Knowledge Propagation)
+   500→
+   501→Before executing the knowledge propagation task, verify all deferred items are resolved:
+   502→
+   503→```bash
+   504→grep -c "❌\|⚠️" .ai/plans/<feature-name>/deferred-items.md
+   505→# Expected: 0 — otherwise plan is BLOCKED
+   506→```
+   507→
+   508→If any ❌ or ⚠️ remains, the plan CANNOT be marked complete. Dispatch subagents to resolve the blocked items or escalate to the user.
+   509→
+   510→## Knowledge Propagation (Final Task)
+   511→
+   512→After all implementation tasks and post-implementation review are complete, execute the knowledge propagation task. This is the last task in every plan.
+   513→
+   514→### Process
+   515→
+   516→1. **Read ALL outcome files** in `.ai/plans/<feature-name>/outcome/`
+   517→2. **Extract recurring patterns/gotchas** — non-obvious engineering gotchas, library/runtime breaking behaviors, or architectural invariants discovered across tasks
+   518→3. **Filter for Global Battle-Tested Knowledge (CRITICAL)**:
+   519→   - **DO NOT add to AGENTS.md / instructions**: Plan-specific constraints, feature business logic, temporary migration steps, entity-specific database schemas/columns, or one-off feature instructions.
+   520→   - **DO add to AGENTS.md / instructions**: Permanent, codebase-wide architectural rules, library/tooling breaking pitfalls (Next.js 16, React 19, MUI v9, Drizzle, Apollo, Bun), concurrency/deadlock rules, or cross-cutting safety invariants that every future developer/agent must follow.
+   521→   - **DO add to `docs/<domain>/<topic>.md`**: Deep domain architecture guides, pattern catalogs, and feature references.
+   522→4. **Identify knowledge propagation targets** using the domain-to-artifacts mapping (below)
+   523→5. **Propagate learnings** to permanent project knowledge:
+   524→
+   525→### What Gets Updated
+   526→
+   527→| Artifact | Action |
+   528→|---|---|
+   529→| **Canonical reference doc** | Create `docs/<domain>/<topic>.md` consolidating patterns, rules, gotchas, architecture diagrams |
+   530→| **Layer AGENTS.md** | Add ONLY permanent, global, battle-tested architectural rules (1-2 lines, no code) and a one-line pointer to the doc in `Important References`. NEVER add plan-specific constraints or entity rules. |
+   531→| **Skills** | Update `.agents/skills/<skill>/SKILL.md` if new patterns affect the skill's domain |
+   532→| **Instructions** | Update `.agents/instructions/<layer>.instructions.md` if new permanent conventions should be enforced |
+   533→| **Root AGENTS.md** | Add new doc to "Important References" section |
+   534→
+   535→### Domain-to-Artifacts Mapping
+   536→
+   537→| Plan Domain | Docs Subdir | AGENTS.md to Update | Skills to Update | Instructions to Update |
+   538→|---|---|---|---|---|
+   539→| Drizzle / DB patterns | `docs/drizzle/` | `backend/db/repo/AGENTS.md`, `backend/db/schema/AGENTS.md`, `backend/AGENTS.md` | `.agents/skills/drizzle/SKILL.md` | `backend.instructions.md` |
+   540→| DB migrations | `docs/drizzle/` | `backend/db/schema/AGENTS.md`, `backend/AGENTS.md` | `.agents/skills/drizzle-migrations/SKILL.md`, `.agents/skills/drizzle-generate/SKILL.md` | `backend.instructions.md` |
+   541→| GraphQL / Pothos | `docs/graphql/` | `backend/graphql/AGENTS.md`, `backend/graphql/pothos/AGENTS.md`, `frontend/common/graphql/AGENTS.md` | — | `backend.instructions.md` |
+   542→| Backend services | `docs/services/` | `backend/services/AGENTS.md`, `backend/AGENTS.md` | — | `backend.instructions.md` |
+   543→| Backend types / enums | `docs/backend/` | `backend/types/AGENTS.md`, `backend/enum/AGENTS.md`, `backend/AGENTS.md` | — | `backend.instructions.md` |
+   544→| Frontend components / views | `docs/frontend/` | `frontend/AGENTS.md`, `frontend/views/AGENTS.md` | `.agents/skills/frontend-patterns/SKILL.md` | `frontend.instructions.md` |
+   545→| Frontend mobile/desktop | `docs/frontend/` | `frontend/mobile/AGENTS.md`, `frontend/desktop/AGENTS.md`, `frontend/views/AGENTS.md` | `.agents/skills/refactor-mobile-desktop/SKILL.md` | `mobile-desktop.instructions.md` |
+   546→| Frontend stores / state | `docs/frontend/` | `frontend/common/stores/AGENTS.md`, `frontend/AGENTS.md` | `.agents/skills/frontend-patterns/SKILL.md` | `frontend.instructions.md` |
+   547→| Frontend GraphQL / Apollo | `docs/frontend/` | `frontend/common/graphql/AGENTS.md`, `frontend/common/graphql/sharedDocuments/AGENTS.md` | — | `frontend.instructions.md` |
+   548→| Testing (DB) | `docs/testing/` | `backend/db/test/AGENTS.md`, `backend/db/test/logic/AGENTS.md` | `.agents/skills/fix-db-tests/SKILL.md` | `tests.instructions.md` |
+   549→| Testing (UI / E2E) | `docs/testing/` | `test/ui/AGENTS.md` | `.agents/skills/fix-tests/SKILL.md` | `tests.instructions.md` |
+   550→| i18n / locale | `docs/i18n/` | `shared/AGENTS.md` | — | — |
+   551→| Auth / security | `docs/auth/` | `backend/services/AGENTS.md`, `backend/AGENTS.md` | `.agents/skills/security-review/SKILL.md` | `backend.instructions.md` |
+   552→| App Router / Next.js | `docs/app/` | `app/AGENTS.md` | — | `frontend.instructions.md` |
+   553→| Quality gates / CI | `docs/quality/` | `AGENTS.md` (root) | `.agents/skills/quality-gate/SKILL.md`, `.agents/skills/quality-loop/SKILL.md` | — |
+   554→| Idempotency | `docs/` (top-level) | `backend/services/AGENTS.md` | — | `backend.instructions.md` |
+   555→| Bun / runtime | `docs/bun/` | `AGENTS.md` (root) | — | — |
+   556→
+   557→### Verification
+   558→
+   559→```bash
+   560→bun run scripts/health/sub-loop.ts <each-modified-file> --lifecycle duplicates
+   561→```
+   562→
+   563→Write outcome: `.ai/plans/<feature-name>/outcome/<task-id>-knowledge-propagation-outcome.md`
+   564→
+   565→## Cross-File Dependency Protocol
+   566→
+   567→When a subagent discovers that fixing an issue requires modifying ANOTHER file outside its assignment, it MUST NOT modify that file. Instead it reports:
+   568→
+   569→```
+   570→CROSS-FILE DEPENDENCY:
+   571→  Target file: <this file>
+   572→  Blocked by: <other file that needs changes>
+   573→  Rule violated: <which rule from instruction file or AGENTS.md>
+   574→  Required fix: <description of what the other file needs>
+   575→```
+   576→
+   577→### Orchestrator Handling
+   578→
+   579→1. Collect all CROSS-FILE DEPENDENCY reports
+   580→2. Deduplicate by target file
+   581→3. Dispatch follow-up subagents for the blocked files
+   582→4. After follow-up completes, re-verify the original files
+   583→
+   584→This protocol is critical for multi-file plans where type changes cascade across layers (e.g., `backend/types/` → `backend/services/` → `backend/graphql/` → `frontend/` → `codegen`).
+   585→
+   586→**Evidence:** quota implementation documented "cross-file type cascade" as a key gap — type changes in Phase 1 rippled to Phase 4 and were discovered late.
+   587→
+   588→## Quick-Spec Adaptation
+   589→
+   590→For plans using `quick-spec-template.md` (1-3 day features, single combined document):
+   591→
+   592→### What's Preserved
+   593→- Phase 0 baseline
+   594→- Per-task quality loop (sub-loop.ts)
+   595→- Semantic review checklist
+   596→- Outcome file protocol (read before, write after, checkbox update)
+   597→- Post-implementation review wave (if >10 tasks)
+   598→
+   599→### What's Reduced
+   600→- No mid-point review gate (plans are typically <15 tasks)
+   601→- Knowledge propagation simplified: update only the most directly relevant AGENTS.md + create a single doc
+   602→- No plan-review gate (quick-specs skip Phase 1.5)
+   603→- Instruction verification still happens via sub-loop auto-discovery
+   604→
+   605→### Execution
+   606→Parse the single combined document for task checkboxes. Execute each with the full per-task flow. No phase grouping needed — tasks are sequential.
+   607→
+   608→## Micro-Spec Adaptation
+   609→
+   610→For plans using `micro-spec-template.md` (<1 day changes, minimal documentation):
+   611→
+   612→### What's Preserved
+   613→- Per-file quality loop (sub-loop.ts --lifecycle biome minimum, duplicates if available)
+   614→- Outcome file protocol (at least one outcome file)
+   615→- Checkbox tracking
+   616→
+   617→### What's Skipped
+   618→- Phase 0 baseline (per-file verification is sufficient for small changes)
+   619→- Semantic review checklist (reduced to scope boundary check only)
+   620→- Post-implementation review wave
+   621→- Knowledge propagation (learns are captured in the outcome file)
+   622→- Mid-point review gate
+   623→
+   624→### Execution
+   625→Single subagent, single file at a time. No parallel dispatch. Run sub-loop.ts per file, write one outcome file, update checkbox.
+   626→
+   627→## Multi-Phase Plan Pattern
+   628→
+   629→Some plans (e.g., duplications) split into multiple self-contained phase directories, each with its own requirements/design/tasks/outcome. For these:
+   630→
+   631→1. Execute each phase as a **separate mini-plan**
+   632→2. Each phase re-establishes its own baseline (error counts may have changed from prior phases)
+   633→3. Each phase runs `@plan-review` at Task 0 before executing
+   634→4. Outcome files accumulate across phases — a later phase reads ALL prior phases' outcomes
+   635→5. Commit after each phase completes
+   636→
+   637→## Commit Protocol
+   638→
+   639→After each phase or logical task group completes:
+   640→
+   641→1. **Stage only plan-related files** — never use `git add .`
+   642→2. Use the `commit-scoped` skill for automated scoped commits
+   643→3. Commit message format:
+   644→   ```
+   645→   <type>(<scope>): <description>
+   646→
+   647→   Plan: .ai/plans/<feature-name>/
+   648→   Phase: <phase-name>
+   649→   Tasks: <task-ids>
+   650→
+   651→   Co-authored-by: Copilot <[EMAIL_REDACTED]>
+   652→   ```
+   653→
+   654→## Common Pitfalls to Avoid
+   655→
+   656→1. **Skipping Phase 0 baseline**: Without baseline, you cannot distinguish new issues from pre-existing ones during post-implementation review. This caused wasted debugging in 4 implementations.
+   657→
+   658→2. **Reading source files in orchestrator**: Keep context minimal. Delegate ALL file reading to subagents. The orchestrator only holds task lists, outcome summaries, and finding aggregates.
+   659→
+   660→3. **Parallel dispatch of coupled tasks**: Tasks sharing types/schemas must be sequential. Parallel execution of coupled tasks causes type conflicts and race conditions.
+   661→
+   662→4. **Skipping semantic review**: Quality loops (sub-loop.ts) catch mechanical issues but miss semantic bugs (race conditions, dead code, type cascades). 100% of tasks in past implementations reported "quality gate passed" while harboring semantic bugs.
+   663→
+   664→5. **Not reading outcome files before execution**: Each task MUST read ALL existing outcome files first. This absorbs prior research and avoids re-doing analysis. Skipping this causes duplicate work and missed cross-file dependencies.
+   665→
+   666→6. **Incomplete outcome files**: Outcome files that only list "what was done" without carry-forward knowledge, pitfalls, and cross-file dependencies are useless to future subtasks. Follow the full structure.
+   667→
+   668→7. **Conflating migrate vs push**: Use `bun db push` for Drizzle schema changes. Use `bun db migrate` for custom SQL only. Document this in every plan's implementation guide.
+   669→
+   670→8. **Deferring without logging**: Every deferred item MUST have a row in `deferred-items.md`. Untracked deferred items are lost work.
+   671→
+   672→9. **Skipping plan-review gate**: Running `@plan-review` before implementation caught 28 issues in auto-meeting-url (requiring only 3 review rounds). Skipping it in quota/whatsapp/cron required 5-12 post-implementation rounds.
+   673→
+   674→10. **Not filtering pre-existing issues in review**: Post-implementation review must compare against Phase 0 baseline. Reporting pre-existing issues as new wastes fix cycles.
+   675→
+   676→11. **Ignoring the `prototype/` directory**: When prototypes exist, subagents that never open the screenshot arrive at generic layouts and lose layout/flow parity with what was already designed. Conversely, copying prototype Tailwind/hex colors verbatim violates MUI/theme conventions — translate, don't transplant.
+   677→
+   678→12. **Letting prototype fake data leak into code**: Every row/name/amount in a prototype is invented. Hardcoding any of it into components, stores, or "temporary" fixtures is a critical defect — wire real data flows (GraphQL → hook → resolver → service → repository) from the start or use approved loading/empty/error scaffolding states only.
+   679→
+   680→12. **Treating prototypes as spec**: The prototype visualizes the spec; it does not extend it. New fields/buttons seen only in a prototype are not requirements — check specs/`implementation.md` first.
+   681→
+   682→## Execution Summary Template
+   683→
+   684→At the end of implementation, provide the user with:
+   685→
+   686→```
+   687→## Implementation Summary
+   688→
+   689→**Plan**: .ai/plans/<feature-name>/
+   690→**Spec Type**: Full / Quick / Micro
+   691→**Tasks Executed**: X/Y
+   692→**Tasks Deferred**: N (all resolved: ✅)
+   693→
+   694→### Quality Verification
+   695→- tsgo: 0 new errors (baseline: N)
+   696→- biome: 0 new warnings (baseline: N)
+   697→- lint: 0 new errors (baseline: N)
+   698→- check:duplicates: 0 new warnings
+   699→
+   700→### Review Waves
+   701→- Mid-point review: N rounds, M findings fixed
+   702→- Post-implementation review: N rounds, M findings fixed
+   703→
+   704→### Knowledge Propagation
+   705→- Doc created: docs/<domain>/<topic>.md
+   706→- AGENTS.md updated: <list>
+   707→- Skills updated: <list>
+   708→- Instructions updated: <list>
+   709→
+   710→### Outcome Files
+   711→- <count> outcome files written to .ai/plans/<feature-name>/outcome/
+   712→```
+   713→

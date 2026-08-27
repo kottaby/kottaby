@@ -50,6 +50,20 @@ export const messages = {
       downloadPlayStore: "احصل عليه من Google Play",
     },
 
+    trial: {
+      badge: "جلسة تجريبية مجانية",
+      title: "ابدأ بجلسة تجريبية مجانية",
+      subtitle: "يحصل كل طالب جديد على جلسة تجريبية واحدة مجانًا — جرّب المنصة قبل الالتزام.",
+      grantedTitle: "تم منح الجلسة التجريبية!",
+      grantedDesc: "لديك جلسة تجريبية واحدة جاهزة. احجزها مع أي شيخ معتمد.",
+      balanceLabel: "رصيدك التجريبي",
+      sessionsUnit: "جلسة",
+      cta: "سجّل كطالب",
+      alreadyGrantedError: "تم منح رصيد الجلسة التجريبية لهذا الطالب مسبقًا.",
+      emailExistsError: "يوجد حساب بهذا البريد الإلكتروني بالفعل.",
+      eligibilityNote: "تُستهلك الجلسة التجريبية قبل أي رصيد مدفوع.",
+    },
+
     utility: {
       hijriLabel: "التقويم الهجري",
       prayersLabel: "مواقيت الصلاة — القاهرة",
@@ -440,6 +454,20 @@ export const messages = {
       noCreditCard: "No credit card required",
       downloadAppStore: "Download on the App Store",
       downloadPlayStore: "Get it on Google Play",
+    },
+
+    trial: {
+      badge: "Free trial session",
+      title: "Start with a free trial session",
+      subtitle: "Every new student receives one free trial session — try the platform before committing.",
+      grantedTitle: "Trial session granted!",
+      grantedDesc: "You have one trial session ready. Book it with any certified Sheikh.",
+      balanceLabel: "Your trial balance",
+      sessionsUnit: "session",
+      cta: "Register as student",
+      alreadyGrantedError: "The free trial credit has already been granted for this student.",
+      emailExistsError: "An account with this email already exists.",
+      eligibilityNote: "Trial session is consumed before any paid balance.",
     },
 
     utility: {
