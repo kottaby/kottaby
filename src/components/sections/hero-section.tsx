@@ -5,10 +5,44 @@ import { motion } from "framer-motion";
 import { MoonStar, ArrowRight, Sparkles } from "lucide-react";
 import { useLocale } from "@/lib/i18n/locale-context";
 import { Button } from "@/components/ui/button";
+import { useCountUp, useInView } from "@/lib/hooks/use-count-up";
+
+/** Parse a stat value like "+120", "8,500+", "98%", "10" into { num, prefix, suffix }. */
+function parseStatValue(raw: string): { num: number; prefix: string; suffix: string } {
+  const m = raw.match(/^([^\d]*)([\d.,]+)(.*)$/);
+  if (!m) return { num: 0, prefix: "", suffix: raw };
+  const prefix = m[1] ?? "";
+  const suffix = m[3] ?? "";
+  const num = Number((m[2] ?? "0").replace(/,/g, ""));
+  return { num, prefix, suffix };
+}
+
+function HeroStat({ value, label, delay }: { value: string; label: string; delay: number }) {
+  const { ref, inView } = useInView<HTMLDivElement>({ threshold: 0.4 });
+  const parsed = React.useMemo(() => parseStatValue(value), [value]);
+  const animated = useCountUp(parsed.num, inView, 1400);
+
+  return (
+    <motion.div
+      ref={ref}
+      initial={{ opacity: 0, y: 18 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5, delay }}
+      className="flex flex-col items-center text-center gap-1 rounded-2xl border border-border bg-card/50 backdrop-blur-sm p-5 transition-all hover:border-copper/40 hover:-translate-y-1 hover:shadow-[0_0_25px_rgba(224,152,92,0.1)]"
+    >
+      <span className="text-3xl md:text-4xl font-extrabold text-copper tabular-nums">
+        {parsed.prefix}
+        {animated.toLocaleString()}
+        {parsed.suffix}
+      </span>
+      <span className="text-xs md:text-sm text-muted-foreground">{label}</span>
+    </motion.div>
+  );
+}
 
 export function HeroSection() {
   const { t, dir } = useLocale();
-  const Arrow = dir === "rtl" ? ArrowRight : ArrowRight;
+  const Arrow = ArrowRight;
 
   return (
     <section
@@ -24,8 +58,26 @@ export function HeroSection() {
           className="absolute -top-32 right-0 h-[32rem] w-[32rem] rounded-full opacity-30"
           style={{ background: "radial-gradient(circle, var(--copper) 0%, transparent 60%)" }}
         />
+        {/* Secondary subtle copper glow bottom-left for depth */}
+        <div
+          className="absolute -bottom-40 -left-20 h-[28rem] w-[28rem] rounded-full opacity-20"
+          style={{ background: "radial-gradient(circle, var(--copper) 0%, transparent 65%)" }}
+        />
+        {/* Subtle grid lines for depth */}
+        <div
+          className="absolute inset-0 opacity-[0.04]"
+          style={{
+            backgroundImage:
+              "linear-gradient(to right, currentColor 1px, transparent 1px), linear-gradient(to bottom, currentColor 1px, transparent 1px)",
+            backgroundSize: "44px 44px",
+            maskImage:
+              "radial-gradient(ellipse at center, black 30%, transparent 75%)",
+            WebkitMaskImage:
+              "radial-gradient(ellipse at center, black 30%, transparent 75%)",
+          }}
+        />
         {/* Faint Islamic geometric pattern */}
-        <div className="absolute inset-0 bg-islamic-pattern" />
+        <div className="absolute inset-0 bg-islamic-pattern opacity-60" />
         {/* Subtle navy gradient overlay bottom */}
         <div className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-background to-transparent" />
       </div>
@@ -106,7 +158,7 @@ export function HeroSection() {
           </motion.div>
         </div>
 
-        {/* Stats bar */}
+        {/* Stats bar with count-up */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -114,17 +166,12 @@ export function HeroSection() {
           className="mt-16 md:mt-24 grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-8"
         >
           {t.hero.stats.map((stat, i) => (
-            <div
+            <HeroStat
               key={i}
-              className="flex flex-col items-center text-center gap-1 rounded-2xl border border-border bg-card/50 backdrop-blur-sm p-5 transition-all hover:border-copper/40 hover:-translate-y-1"
-            >
-              <span className="text-3xl md:text-4xl font-extrabold text-copper tabular-nums">
-                {stat.value}
-              </span>
-              <span className="text-xs md:text-sm text-muted-foreground">
-                {stat.label}
-              </span>
-            </div>
+              value={stat.value}
+              label={stat.label}
+              delay={0.5 + i * 0.08}
+            />
           ))}
         </motion.div>
       </div>

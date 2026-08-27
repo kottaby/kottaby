@@ -52,9 +52,20 @@ export function SiteHeader() {
   const toggleTheme = () => setTheme(theme === "dark" ? "light" : "dark");
   const toggleLocale = () => setLocale(locale === "ar" ? "en" : "ar");
 
+  // Map kebab-case section IDs to the camelCase keys used in the nav messages object.
+  const navKeyMap: Record<string, string> = {
+    "features": "features",
+    "recitations": "recitations",
+    "how-it-works": "howItWorks",
+    "roles": "roles",
+    "teachers": "teachers",
+    "pricing": "pricing",
+    "faq": "faq",
+    "resources": "resources",
+  };
   const navItems = sectionIds.map((id) => ({
     href: `#${id}`,
-    label: t.nav[id],
+    label: (t.nav as Record<string, string>)[navKeyMap[id] ?? id] ?? id,
     id,
   }));
 

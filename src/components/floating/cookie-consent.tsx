@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { X } from "lucide-react";
 import { useLocale } from "@/lib/i18n/locale-context";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -36,6 +37,7 @@ export function CookieConsent() {
   const [state, setState] = React.useState<ConsentState>(DEFAULT_STATE);
   const [mounted, setMounted] = React.useState(false);
   const [open, setOpen] = React.useState(false);
+  const [dismissed, setDismissed] = React.useState(false);
 
   React.useEffect(() => {
     setMounted(true);
@@ -44,6 +46,12 @@ export function CookieConsent() {
       if (stored) {
         setState(JSON.parse(stored) as ConsentState);
       }
+    } catch {
+      // ignore
+    }
+    try {
+      const d = window.sessionStorage.getItem("kottaby-cookie-dismissed");
+      if (d === "1") setDismissed(true);
     } catch {
       // ignore
     }
@@ -60,24 +68,45 @@ export function CookieConsent() {
 
   const acceptAll = () =>
     persist({ accepted: true, necessary: true, analytics: true, marketing: true });
-  const decline = () => persist({ accepted: true, necessary: true, analytics: false, marketing: false });
+  const decline = () =>
+    persist({ accepted: true, necessary: true, analytics: false, marketing: false });
+
+  // Temporary dismiss (this session only) — banner stays gone until next visit,
+  // but no consent is recorded so we re-prompt on return.
+  const tempDismiss = () => {
+    setDismissed(true);
+    try {
+      window.sessionStorage.setItem("kottaby-cookie-dismissed", "1");
+    } catch {
+      // ignore
+    }
+  };
 
   const savePreferences = () => {
     persist({ ...state, accepted: true, necessary: true });
     setOpen(false);
   };
 
-  if (!mounted || state.accepted) return null;
+  if (!mounted || state.accepted || dismissed) return null;
 
   return (
     <div
       dir={dir}
-      className="fixed bottom-0 inset-x-0 z-50 p-3 sm:p-4 print:hidden"
+      className="fixed bottom-0 inset-x-0 z-50 p-3 sm:p-4 print:hidden animate-in slide-in-from-bottom-4 duration-300"
       role="dialog"
       aria-label={t.cookie.title}
     >
-      <div className="mx-auto max-w-4xl rounded-2xl border border-copper/30 bg-card shadow-2xl backdrop-blur-md p-4 sm:p-5">
-        <div className="flex flex-col md:flex-row items-start md:items-center gap-4">
+      <div className="mx-auto max-w-4xl rounded-2xl border border-copper/30 bg-card/95 shadow-2xl backdrop-blur-md p-4 sm:p-5">
+        {/* Temporary dismiss (X) — top-end corner */}
+        <button
+          type="button"
+          onClick={tempDismiss}
+          aria-label={t.common.decline}
+          className="absolute top-2 end-2 inline-flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+        >
+          <X className="h-4 w-4" />
+        </button>
+        <div className="flex flex-col md:flex-row items-start md:items-center gap-4 pe-6">
           <div className="flex-1 min-w-0">
             <h3 className="text-sm font-semibold mb-1">{t.cookie.title}</h3>
             <p className="text-xs text-muted-foreground leading-relaxed">

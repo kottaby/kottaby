@@ -159,3 +159,118 @@ Stage Summary:
 - All 19 sections render, API routes (health, newsletter, contact) functional
 - Sticky-footer requirement satisfied
 - The Kottaby LMS landing page is production-ready and runnable
+
+---
+Task ID: 5
+Agent: main (orchestrator) — webDevReview round 1 (cron)
+Task: Assess project status via agent-browser QA, fix bugs, improve styling, add new features.
+
+## 1. Current Project Status (assessment)
+- Project: Kottaby Academy LMS — Next.js 16 + shadcn/ui + Tailwind 4 + Prisma/SQLite + next-themes.
+- Built in Task ID 3 (22 sections, bilingual AR/EN + RTL, Midnight Blue + Copper brand, dark default).
+- Verified in Task ID 4 (no runtime errors, all interactions worked).
+- `bun run lint` was clean. Dev server served `GET /` → 200 with no console errors.
+
+## 2. QA Findings (agent-browser + VLM analysis)
+### Bugs found
+- **BUG-A (high):** Header nav "how-it-works" link rendered EMPTY (no text).
+  Root cause: `sectionIds` uses kebab-case `"how-it-works"` but `t.nav` uses camelCase
+  key `howItWorks`. So `t.nav["how-it-works"]` → `undefined` → empty `<a>`. Affected both
+  desktop nav AND mobile sheet menu. Verified: snapshot showed `link [ref=e61]` with no name.
+- **BUG-B (high):** Cookie consent banner (`fixed bottom-0`) covered content below it
+  (e.g. the verse copy/share buttons, pricing cards). Verified by agent-browser:
+  clicking `#verse` Copy button failed with "Element is covered by <div.fixed.bottom-0>".
+
+### Polish opportunities (VLM-suggested)
+- Hero stats were static numbers — a count-up animation on scroll-into-view would add polish.
+- Hero background was a single radial glow — subtle grid + secondary glow would add depth.
+- Footer had no `id` attribute (scroll-spy / direct-link couldn't target it).
+
+## 3. Completed Modifications
+
+### Bug fixes
+- **BUG-A fixed:** `src/components/site-header.tsx` — added a `navKeyMap` that translates
+  kebab-case section IDs → camelCase nav keys (`"how-it-works" → "howItWorks"`). Verified:
+  nav now shows "كيف يعمل" (AR) / "How it works" (EN).
+- **BUG-B fixed:** `src/components/floating/cookie-consent.tsx` — added an explicit
+  dismiss (X) button in the top-end corner (aria-label = decline). Temporary dismiss
+  persists to `sessionStorage` (banner returns next session, no consent recorded).
+  Also added `bg-card/95`, slide-in animation, `pe-6` padding so the X doesn't overlap text.
+  Verified: clicking X hides the banner; booking "Book session" button then clickable.
+
+### Styling improvements
+- **Hero stats count-up:** `src/components/sections/hero-section.tsx` — extracted a
+  `parseStatValue()` helper that handles "+120"/"8,500+"/"98%"/"10" → {num, prefix, suffix}.
+  Each `HeroStat` now uses `useInView` + `useCountUp` to animate from 0 → target when scrolled
+  into view (respects prefers-reduced-motion). Verified: stats animate on scroll.
+- **Hero background depth:** added a subtle CSS grid overlay (44px, 4% opacity, radial mask)
+  + a secondary copper radial glow bottom-left. Verified via VLM: "clean grid layout, no bugs".
+- **Shared hook:** `src/lib/hooks/use-count-up.ts` — extracted `useCountUp` + `useInView`
+  from achievements-section into a reusable hook. Refactored achievements-section to use it (DRY).
+- **Footer `id`:** added `id="footer"` to `<footer>` element in `src/components/site-footer.tsx`.
+
+### New features
+1. **Reading Progress Bar** (`src/components/floating/reading-progress-bar.tsx`):
+   a slim 3px copper gradient bar fixed to `top-0 z-[60]` that fills with scroll progress.
+   Uses requestAnimationFrame + passive scroll/resize listeners. Mounted in
+   `src/app/layout.tsx` above `<main>`. Verified: 0% at top, ~5.6% at 800px scroll.
+2. **FAQ "Still have questions?" helper card** (`src/components/sections/faq-section.tsx`):
+   a copper-bordered card below the accordion with a HelpCircle icon, heading, body text,
+   and a "Contact us" button linking to `#contact`. Added i18n keys `faq.stillHaveQuestions`,
+   `faq.stillHaveQuestionsBody`, `faq.contactUs` (AR + EN). Verified: renders with link to #contact.
+3. **Pricing "Compare plans" expandable table** (`src/components/sections/pricing-section.tsx`):
+   a ghost toggle button below the 3 plan cards expands/collapses a 14-row × 3-column comparison
+   table (AnimatePresence height animation). Boolean cells render ✓ (copper) / − (muted);
+   string cells render the value. Added i18n keys `pricing.comparePlans`, `pricing.hideComparison`,
+   `pricing.comparisonFeatures` (14 keys), `pricing.comparisonValues` (14×3 matrix) — AR + EN.
+   Verified: expands to 14 rows, collapses, re-renders in EN with localized feature names.
+4. **Teacher Booking Modal** (`src/components/teacher-booking-modal.tsx`):
+   a shadcn Dialog that opens when any "Book session" button is clicked. Shows teacher summary
+   (gradient avatar, name, specialty, rating, location), then a form with: Recitation (Select,
+   6 options), Date (Select, next 14 days localized), Time (Select, 8 slots), Notes (Textarea),
+   duration hint (30 min), and a "Confirm booking" submit button with loading spinner. On submit:
+   simulates async, closes modal, shows success sonner toast. Added i18n keys
+   `teachers.booking.*` (16 keys) — AR + EN. Verified: opened, selected date "الجمعة، ٢٨ أغسطس",
+   selected time 18:00, submitted → toast "تم تأكيد الحجز!".
+5. **Newsletter subscriber count social proof** (`src/components/sections/newsletter-section.tsx`):
+   a copper Users-icon chip below the form showing "Join 12,000+ learners receiving our weekly
+   newsletter." Added a second copper glow bottom-start for balance. Added i18n key
+   `newsletter.subscriberCount` — AR + EN. Verified: chip renders with the count text.
+
+## 4. Verification Results
+- `bun run lint` → clean (no errors, no warnings).
+- `agent-browser errors` → empty (no runtime errors).
+- `agent-browser console` → only React DevTools info + HMR connected.
+- Dev server: all `GET /` → 200, `GET /api/health` → 200.
+- Interaction tests all passed:
+  - Nav "How it works" link text renders (AR + EN) ✓
+  - Cookie X dismiss hides banner (sessionStorage) ✓
+  - Reading progress bar fills on scroll (0% → 5.6% at 800px) ✓
+  - FAQ helper card + "Contact us" link to #contact ✓
+  - Pricing compare table expands (14 rows × 3 cols) + collapses ✓
+  - Teacher booking modal: opens, date/time select works, submit → success toast ✓
+  - Newsletter subscriber count chip renders ✓
+  - Theme toggle (dark↔light) still works ✓
+  - Language toggle (ar↔en) re-renders all new features bilingually ✓
+- VLM visual analysis: hero (desktop EN + mobile AR), newsletter, FAQ helper, pricing comparison
+  — all rated "polished and professional, no visual bugs".
+
+## 5. Unresolved Issues / Risks + Next-Phase Recommendations
+- **No unresolved bugs.** All QA findings from this round were fixed.
+- **Teacher booking is simulated** (no `/api/booking` endpoint yet). Next phase: add a
+  `Booking` Prisma model + `POST /api/booking` route + persist bookings. Add an admin view.
+- **Subscriber count (12,000+) is hardcoded** copy. Next phase: add `GET /api/newsletter/count`
+  to return the real `NewsletterSubscriber.count()` and render it live.
+- **Mobile sheet menu** could auto-close on nav-click (currently stays open). Minor UX polish.
+- **Testimonials carousel arrows** are `hidden sm:inline-flex` (dots-only on mobile) —
+  acceptable, but next phase could make the cards swipeable with visible tap hints on mobile.
+- **Images:** all decorative elements are CSS/SVG (no external images). Next phase could
+  generate a hero calligraphy illustration + partner logos via the image-generation skill.
+- **SEO:** meta tags exist; could add JSON-LD (`EducationalOrganization` schema) next phase.
+
+## 6. Priority Recommendations for Next Round
+1. (medium) Wire the booking modal to a real `POST /api/booking` endpoint + Booking Prisma model.
+2. (medium) Live newsletter subscriber count via `GET /api/newsletter/count`.
+3. (medium) Add JSON-LD structured data for SEO (EducationalOrganization + FAQPage schema).
+4. (low) Auto-close mobile sheet on nav link click.
+5. (low) Generate a hero calligraphy background image + partner logos.

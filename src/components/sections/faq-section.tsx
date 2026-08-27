@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Plus, Minus } from "lucide-react";
+import { Plus, Minus, HelpCircle } from "lucide-react";
 import { useLocale } from "@/lib/i18n/locale-context";
 import {
   Accordion,
@@ -89,6 +89,37 @@ export function FaqSection() {
               </AccordionItem>
             ))}
           </Accordion>
+        </motion.div>
+
+        {/* "Still have questions?" helper card → contact */}
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: "-50px" }}
+          transition={{ duration: 0.45, delay: 0.1 }}
+          className="mt-8 relative overflow-hidden rounded-2xl border border-copper/30 bg-gradient-to-br from-copper/10 via-card to-card p-6 sm:p-8 text-center"
+        >
+          <div
+            className="pointer-events-none absolute -top-16 -right-16 h-40 w-40 rounded-full opacity-20"
+            style={{ background: "radial-gradient(circle, var(--copper) 0%, transparent 70%)" }}
+            aria-hidden
+          />
+          <div className="relative flex flex-col items-center gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-copper/15 text-copper">
+              <HelpCircle className="h-6 w-6" />
+            </div>
+            <h3 className="text-lg font-semibold">{t.faq.stillHaveQuestions}</h3>
+            <p className="text-sm text-muted-foreground max-w-md mx-auto leading-relaxed">
+              {t.faq.stillHaveQuestionsBody}
+            </p>
+            <Button
+              asChild
+              size="sm"
+              className="mt-1 bg-copper text-copper-foreground hover:bg-copper/90"
+            >
+              <a href="#contact">{t.faq.contactUs}</a>
+            </Button>
+          </div>
         </motion.div>
       </div>
     </section>

@@ -6,6 +6,7 @@ import { LocaleProvider } from "@/lib/i18n/locale-context";
 import { Toaster } from "@/components/ui/sonner";
 import { FloatingButtons } from "@/components/floating/floating-buttons";
 import { CookieConsent } from "@/components/floating/cookie-consent";
+import { ReadingProgressBar } from "@/components/floating/reading-progress-bar";
 
 const cairo = Cairo({
   variable: "--font-cairo",
@@ -67,6 +68,7 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <LocaleProvider>
+            <ReadingProgressBar />
             <main className="flex-1">{children}</main>
             <FloatingButtons />
             <CookieConsent />

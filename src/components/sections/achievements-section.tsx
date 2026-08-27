@@ -3,35 +3,7 @@
 import * as React from "react";
 import { useLocale } from "@/lib/i18n/locale-context";
 import { SectionHeader } from "./section-header";
-
-function useCountUp(target: number, inView: boolean, durationMs = 1600) {
-  const [value, setValue] = React.useState(0);
-  const startedRef = React.useRef(false);
-
-  React.useEffect(() => {
-    if (!inView || startedRef.current) return;
-    startedRef.current = true;
-    const reduce =
-      typeof window !== "undefined" &&
-      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (reduce) {
-      setValue(target);
-      return;
-    }
-    const start = performance.now();
-    let raf: number;
-    const tick = (now: number) => {
-      const p = Math.min((now - start) / durationMs, 1);
-      const eased = 1 - Math.pow(1 - p, 3);
-      setValue(Math.round(target * eased));
-      if (p < 1) raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [inView, target, durationMs]);
-
-  return value;
-}
+import { useCountUp, useInView } from "@/lib/hooks/use-count-up";
 
 function AchievementTile({
   target,
@@ -42,20 +14,7 @@ function AchievementTile({
   suffix: string;
   label: string;
 }) {
-  const ref = React.useRef<HTMLDivElement | null>(null);
-  const [inView, setInView] = React.useState(false);
-
-  React.useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const obs = new IntersectionObserver(
-      (entries) => entries.forEach((e) => e.isIntersecting && setInView(true)),
-      { threshold: 0.3 }
-    );
-    obs.observe(el);
-    return () => obs.disconnect();
-  }, []);
-
+  const { ref, inView } = useInView<HTMLDivElement>({ threshold: 0.3 });
   const value = useCountUp(target, inView);
 
   return (

@@ -50,6 +50,7 @@ export function SiteFooter() {
 
   return (
     <footer
+      id="footer"
       dir={dir}
       className="relative mt-auto w-full bg-[var(--footer-bg)] text-foreground overflow-hidden"
       aria-labelledby="footer-heading"

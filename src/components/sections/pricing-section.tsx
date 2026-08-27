@@ -1,8 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { motion } from "framer-motion";
-import { Check } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Check, Minus, ChevronDown } from "lucide-react";
 import { useLocale } from "@/lib/i18n/locale-context";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,25 @@ import { SectionHeader } from "./section-header";
 export function PricingSection() {
   const { t, dir } = useLocale();
   const [cycle, setCycle] = React.useState<"monthly" | "yearly">("monthly");
+  const [showComparison, setShowComparison] = React.useState(false);
+
+  // Feature rows for the comparison table. Order matches comparisonValues columns.
+  const featureRows: Array<{ key: keyof typeof t.pricing.comparisonFeatures; values: readonly (string | boolean)[] }> = [
+    { key: "sessions", values: t.pricing.comparisonValues[0] },
+    { key: "trial", values: t.pricing.comparisonValues[1] },
+    { key: "teacherProfiles", values: t.pricing.comparisonValues[2] },
+    { key: "qiraatCatalog", values: t.pricing.comparisonValues[3] },
+    { key: "community", values: t.pricing.comparisonValues[4] },
+    { key: "progressDashboard", values: t.pricing.comparisonValues[5] },
+    { key: "recordings", values: t.pricing.comparisonValues[6] },
+    { key: "priorityMatching", values: t.pricing.comparisonValues[7] },
+    { key: "certificate", values: t.pricing.comparisonValues[8] },
+    { key: "familyAccounts", values: t.pricing.comparisonValues[9] },
+    { key: "parentDashboard", values: t.pricing.comparisonValues[10] },
+    { key: "sharedWallet", values: t.pricing.comparisonValues[11] },
+    { key: "weeklyReports", values: t.pricing.comparisonValues[12] },
+    { key: "dedicatedSupport", values: t.pricing.comparisonValues[13] },
+  ];
 
   return (
     <section
@@ -118,6 +137,86 @@ export function PricingSection() {
             );
           })}
         </div>
+
+        {/* Compare plans toggle */}
+        <div className="mt-10 flex justify-center">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setShowComparison((v) => !v)}
+            className="gap-1.5 text-muted-foreground hover:text-copper"
+            aria-expanded={showComparison}
+          >
+            {showComparison ? t.pricing.hideComparison : t.pricing.comparePlans}
+            <ChevronDown
+              className={`h-4 w-4 transition-transform ${showComparison ? "rotate-180" : ""}`}
+            />
+          </Button>
+        </div>
+
+        {/* Expandable comparison table */}
+        <AnimatePresence initial={false}>
+          {showComparison && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.3, ease: "easeInOut" }}
+              className="overflow-hidden"
+            >
+              <div className="mt-6 overflow-x-auto rounded-2xl border border-border bg-card">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-border bg-surface-low/40">
+                      <th className="text-start font-semibold p-4 min-w-[180px]">
+                        {/* empty corner */}
+                      </th>
+                      {t.pricing.plans.map((plan, i) => (
+                        <th
+                          key={i}
+                          className={`text-center font-semibold p-4 ${i === 1 ? "text-copper" : ""}`}
+                        >
+                          {plan.name}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {featureRows.map((row, rIdx) => (
+                      <tr
+                        key={row.key}
+                        className={rIdx % 2 === 1 ? "bg-surface-low/20" : ""}
+                      >
+                        <td className="p-4 text-muted-foreground font-medium">
+                          {t.pricing.comparisonFeatures[row.key]}
+                        </td>
+                        {row.values.map((val, cIdx) => (
+                          <td key={cIdx} className="p-4 text-center">
+                            {typeof val === "boolean" ? (
+                              val ? (
+                                <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-copper/15 text-copper">
+                                  <Check className="h-3.5 w-3.5" strokeWidth={3} />
+                                </span>
+                              ) : (
+                                <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-muted text-muted-foreground">
+                                  <Minus className="h-3 w-3" />
+                                </span>
+                              )
+                            ) : (
+                              <span className="font-medium text-foreground/90 tabular-nums">
+                                {val}
+                              </span>
+                            )}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </section>
   );

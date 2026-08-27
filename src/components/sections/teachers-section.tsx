@@ -7,9 +7,20 @@ import { useLocale } from "@/lib/i18n/locale-context";
 import { teacherGradients, getInitials } from "@/lib/data";
 import { Button } from "@/components/ui/button";
 import { SectionHeader } from "./section-header";
+import {
+  TeacherBookingModal,
+  type Teacher,
+} from "@/components/teacher-booking-modal";
 
 export function TeachersSection() {
   const { t, dir } = useLocale();
+  const [bookingTeacher, setBookingTeacher] = React.useState<Teacher | null>(null);
+  const [modalOpen, setModalOpen] = React.useState(false);
+
+  const openBooking = (teacher: Teacher) => {
+    setBookingTeacher(teacher);
+    setModalOpen(true);
+  };
 
   return (
     <section
@@ -79,6 +90,7 @@ export function TeachersSection() {
                 <Button
                   variant="outline"
                   size="sm"
+                  onClick={() => openBooking(teacher as unknown as Teacher)}
                   className="w-full mt-1 hover:border-copper hover:text-copper"
                 >
                   {t.common.bookSession}
@@ -89,6 +101,12 @@ export function TeachersSection() {
           })}
         </div>
       </div>
+
+      <TeacherBookingModal
+        teacher={bookingTeacher}
+        open={modalOpen}
+        onOpenChange={setModalOpen}
+      />
     </section>
   );
 }

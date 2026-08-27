@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { motion } from "framer-motion";
-import { Mail, Loader2 } from "lucide-react";
+import { Mail, Loader2, Users } from "lucide-react";
 import { toast } from "sonner";
 import { useLocale } from "@/lib/i18n/locale-context";
 import { Input } from "@/components/ui/input";
@@ -63,6 +63,10 @@ export function NewsletterSection() {
             style={{ background: "radial-gradient(circle, var(--copper) 0%, transparent 70%)" }}
             aria-hidden
           />
+          <div className="pointer-events-none absolute -bottom-20 -start-20 h-56 w-56 rounded-full opacity-15"
+            style={{ background: "radial-gradient(circle, var(--copper) 0%, transparent 70%)" }}
+            aria-hidden
+          />
           <div className="relative mx-auto max-w-xl flex flex-col items-center text-center gap-5">
             <SectionHeader
               badge={t.newsletter.badge}
@@ -95,6 +99,12 @@ export function NewsletterSection() {
                 )}
               </Button>
             </form>
+
+            {/* Subscriber count social proof */}
+            <div className="flex items-center gap-2 rounded-full border border-border bg-card/60 px-3.5 py-1.5 text-xs text-muted-foreground">
+              <Users className="h-3.5 w-3.5 text-copper" />
+              <span>{t.newsletter.subscriberCount}</span>
+            </div>
 
             <p className="text-xs text-muted-foreground">
               {t.newsletter.disclaimer}
