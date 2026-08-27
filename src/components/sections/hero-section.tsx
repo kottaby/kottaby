@@ -59,6 +59,17 @@ export function HeroSection() {
     >
       {/* Decorative background */}
       <div className="pointer-events-none absolute inset-0 -z-10" aria-hidden>
+        {/* Generated Islamic calligraphy/geometric watermark — very low opacity + radial mask */}
+        <div
+          className="absolute inset-0 bg-cover bg-center opacity-[0.12]"
+          style={{
+            backgroundImage: "url(/images/hero-calligraphy.png)",
+            maskImage:
+              "radial-gradient(ellipse 80% 70% at center, black 20%, transparent 85%)",
+            WebkitMaskImage:
+              "radial-gradient(ellipse 80% 70% at center, black 20%, transparent 85%)",
+          }}
+        />
         {/* Radial copper glow top-right */}
         <div
           className="absolute -top-32 right-0 h-[32rem] w-[32rem] rounded-full opacity-30"
@@ -82,8 +93,6 @@ export function HeroSection() {
               "radial-gradient(ellipse at center, black 30%, transparent 75%)",
           }}
         />
-        {/* Faint Islamic geometric pattern */}
-        <div className="absolute inset-0 bg-islamic-pattern opacity-60" />
         {/* Subtle navy gradient overlay bottom */}
         <div className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-background to-transparent" />
       </div>

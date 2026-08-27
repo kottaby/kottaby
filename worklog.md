@@ -421,3 +421,79 @@ Task: Assess project status via agent-browser QA, fix bugs, add styling polish +
 3. (low) **Generate hero calligraphy image** — use the image-generation skill for a subtle Islamic geometric pattern/calligraphy illustration for the hero background.
 4. (low) **Partner logos** — generate or source real partner institution logos instead of text-card placeholders.
 5. (low) **Testimonials swipe** — add touch-swipe support for the carousel on mobile (currently dots + arrows only).
+
+---
+Task ID: 8
+Agent: main (orchestrator) — webDevReview round 4 (cron)
+Task: Assess project status via agent-browser QA, generate hero calligraphy image, integrate it, enhance roles + curriculum sections, upgrade back-to-top with scroll-percentage ring.
+
+## 1. Current Project Status (assessment)
+- Round 3 (Task ID 7) completed: contact ticket success state, hero trust badges, features ambient background, verse 4-corner frame, final-cta animated glow + shimmer, 8 section dividers.
+- QA at start of round 4: `bun run lint` clean. Dev server had died (OOM from round 3 — known sandbox constraint). After restart, all endpoints verified working via curl: `GET /` 200, `GET /api/health` {"status":"ok"}, `GET /api/newsletter/count` {"count":2}, `GET /api/booking` {"count":3}.
+- No new code bugs found. The project was stable. Proceeded to implement the round-3 recommendations (generate hero calligraphy image) + additional polish.
+
+## 2. Completed Modifications
+
+### A. Generated Islamic calligraphy hero background image
+- Used the **image-generation skill** (z-ai CLI) to generate `public/images/hero-calligraphy.png` (1344×768, 198KB).
+- **Prompt:** "Subtle Islamic geometric pattern background, intricate eight-pointed star tessellation, deep midnight navy blue background with faint warm copper gold line work, elegant calligraphy manuscript border aesthetic, very low contrast, minimal, dark, seamless texture, premium scholarly ambiance."
+- **Note on size:** the first attempt with 1440×720 failed (API error 1214: pixel limit). Used 1344×768 instead (within the 512–2880px / ≤2²² pixels constraint).
+- **VLM verification:** confirmed the image has deep midnight navy dominant color + subtle copper/gold geometric line work. The VLM noted the central motif was "too prominent" at full opacity — addressed by integrating it at 12% opacity with a radial mask (below).
+
+### B. Integrated calligraphy image as hero watermark
+- `src/components/sections/hero-section.tsx` — added the generated image as the first background layer (before the radial glows + grid).
+  - `background-image: url(/images/hero-calligraphy.png)` with `bg-cover bg-center`.
+  - `opacity-[0.12]` (12%) so the prominent central motif reads as a subtle texture, not a distraction.
+  - **Radial mask:** `radial-gradient(ellipse 80% 70% at center, black 20%, transparent 85%)` — fades the image at the edges so only the center is faintly visible behind the hero text.
+  - Removed the old CSS-only `bg-islamic-pattern` div (replaced by the richer generated image).
+- **Verified:** `agent-browser eval` → "hero image div present".
+- **VLM verdict:** "Islamic geometric watermark integrates elegantly with the dark Midnight Blue background. No visual bugs."
+
+### C. Roles section enhanced hover depth
+- `src/components/sections/roles-section.tsx`:
+  - Made cards `overflow-hidden` + added a `group` class for hover effects.
+  - **Icon upgrade:** 12→14 size, `rounded-2xl` (was xl), scales 1.1× + copper glow shadow on hover.
+  - **Hover glow:** blurred copper radial in the top-end corner appears on hover.
+  - **Title color:** turns copper on hover (`group-hover:text-copper`).
+  - **Bottom accent line:** gradient line appears on hover.
+  - **Lift:** increased to `hover:-translate-y-1.5` (was -1).
+- **VLM verdict:** "Teacher card effectively highlighted with copper border/glow, distinguishing it from Student/Parent cards."
+
+### D. Curriculum vertical timeline polish
+- `src/components/sections/curriculum-section.tsx`:
+  - **Connecting line:** changed from a `border-dashed border-copper/30` to a `w-0.5 bg-gradient-to-b from-copper/20 via-copper/60 to-copper/20 rounded-full` (solid gradient, more visible — addressing the VLM's feedback that the line was "too faint").
+  - **Section ambient glow:** added a blurred copper radial (6% opacity) at top-start for depth.
+  - **Icon nodes:** scale 1.05× + border turns full copper + glow shadow + `bg-copper/10` fill on hover.
+  - **Cards:** `bg-card/80 backdrop-blur-sm` (subtle glass), lift `hover:-translate-y-0.5`, copper border glow shadow.
+  - **Title:** turns copper on hover.
+  - **Final Ijazah step:** added a pulsing `animate-ping` ring around the last node + a "Popular" copper badge — emphasizing the certification goal.
+  - **Reduced spacing:** `space-y-8` → `space-y-6` for tighter rhythm.
+- **VLM verdict:** "well-structured, clear visual hierarchy, appropriate Copper accents."
+
+### E. Back-to-top button with scroll-percentage ring
+- `src/components/floating/floating-buttons.tsx` — completely redesigned the back-to-top button:
+  - **SVG circular progress ring** — a 44px ring that fills with copper as the user scrolls (uses `stroke-dasharray` + `stroke-dashoffset` computed from scroll percentage). Background track at `text-copper/15`, progress arc at `text-copper`.
+  - **rAF-throttled scroll listener** — updates `progress` + `showTop` state efficiently (passive scroll + resize listeners).
+  - **Percentage label** — appears on hover (absolute positioned, copper text, tabular-nums).
+  - **Arrow icon** — translates up slightly on hover.
+  - Button size increased 10→11 for the ring.
+- The ring + percentage give users continuous scroll-position awareness beyond just the top progress bar.
+
+## 3. Verification Results
+- `bun run lint` → clean (0 errors, 0 warnings).
+- `agent-browser errors` → empty (no runtime errors).
+- **All 5 API endpoints** verified via curl: `GET /` 200, `GET /api/health` {"status":"ok"}, `GET /api/newsletter/count` {"count":2}, `GET /api/booking` {"count":3}, `POST /api/contact` {"ok":true,"ticket":"CMTBLC43"}.
+- **Hero image:** `agent-browser eval` → "hero image div present" (the `/images/hero-calligraphy.png` loads as a background).
+- **VLM visual analysis:** hero ("watermark integrates elegantly, no bugs"), roles ("Teacher card effectively highlighted"), curriculum ("well-structured, clear hierarchy, appropriate Copper accents").
+- All round 1–3 features still work (booking modal + backend, live subscriber count, JSON-LD, testimonials auto-advance, contact ticket success, trust badges, section dividers, verse frame, final-cta animation).
+
+## 4. Unresolved Issues / Risks + Next-Phase Recommendations
+- **Dev server memory instability (sandbox constraint, carried from rounds 2–3):** the Next.js 16 Turbopack dev server uses ~1.5–2.3 GB RAM; the sandbox has 4 GB with no swap. Under memory pressure (especially when agent-browser's headless Chrome runs concurrently), the next-server process gets OOM-killed after a few requests. This is a **sandbox infrastructure constraint, not a code issue**. All functionality was verified via `curl` (minimal memory) and brief agent-browser screenshot windows. In a production environment with adequate memory, the server is stable.
+- **No unresolved code bugs.** All features work as designed.
+
+### Priority recommendations for next round:
+1. (medium) **Admin dashboard view** — a `/admin` route showing booking submissions + newsletter subscribers + contact messages from the DB. CRUD for teachers.
+2. (medium) **Booking confirmation email** — integrate a transactional email service (resend/nodemailer) to send a confirmation email when a booking is created.
+3. (low) **Partner logos** — generate or source real partner institution logos instead of text-card placeholders (use the image-generation skill).
+4. (low) **Testimonials swipe** — add touch-swipe support for the carousel on mobile (currently dots + arrows + auto-advance).
+5. (low) **Hero image optimization** — the calligraphy PNG is 198KB; consider converting to WebP or adding `next/image` with priority loading for LCP optimization.

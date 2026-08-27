@@ -36,31 +36,46 @@ export function RolesSection() {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, margin: "-50px" }}
                 transition={{ duration: 0.45, delay: i * 0.08 }}
-                className={`relative flex flex-col gap-4 rounded-2xl border bg-card p-7 transition-all hover:-translate-y-1 ${
+                className={`group relative flex flex-col gap-4 overflow-hidden rounded-2xl border bg-card p-7 transition-all hover:-translate-y-1.5 ${
                   isTeacher
                     ? "border-copper/60 shadow-[0_0_30px_rgba(224,152,92,0.18)] md:scale-[1.03]"
                     : "border-border hover:border-copper/40 hover:shadow-lg"
                 }`}
               >
+                {/* Decorative copper glow that appears on hover */}
+                <span
+                  className="pointer-events-none absolute -top-16 -end-16 h-40 w-40 rounded-full opacity-0 blur-2xl transition-opacity duration-500 group-hover:opacity-100"
+                  style={{
+                    background:
+                      "radial-gradient(circle, rgba(224,152,92,0.2) 0%, transparent 70%)",
+                  }}
+                  aria-hidden
+                />
+
                 {isTeacher && (
                   <span className="absolute -top-3 start-1/2 -translate-x-1/2 rtl:translate-x-1/2 rtl:left-auto rtl:right-1/2 rounded-full bg-copper px-3 py-0.5 text-[10px] font-bold uppercase tracking-wide text-copper-foreground shadow">
                     {t.common.mostPopular}
                   </span>
                 )}
 
-                {/* Icon */}
-                <div className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-copper/10 border border-copper/20 text-copper">
-                  <Icon className="h-6 w-6" />
+                {/* Icon — scales + glows on hover */}
+                <div className="relative inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-copper/10 border border-copper/20 text-copper transition-all group-hover:bg-copper/20 group-hover:scale-110 group-hover:shadow-[0_0_20px_rgba(224,152,92,0.3)]">
+                  <Icon className="h-7 w-7" />
                 </div>
 
-                <h3 className="text-xl font-semibold">{role.title}</h3>
-                <p className="text-sm text-muted-foreground leading-relaxed flex-1">
+                <h3 className="relative text-xl font-semibold transition-colors group-hover:text-copper">
+                  {role.title}
+                </h3>
+                <p className="relative text-sm text-muted-foreground leading-relaxed flex-1">
                   {role.body}
                 </p>
 
+                {/* Bottom accent line — appears on hover */}
+                <span className="absolute inset-x-7 -bottom-px h-px bg-gradient-to-r from-transparent via-copper/40 to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
+
                 <Button
                   variant={isTeacher ? "default" : "outline"}
-                  className={`mt-2 w-full ${
+                  className={`relative mt-2 w-full ${
                     isTeacher
                       ? "bg-copper text-copper-foreground hover:bg-copper/90"
                       : "hover:border-copper hover:text-copper"
