@@ -48,3 +48,16 @@ model Recitation {
   popular    Boolean  @default(false)
   createdAt  DateTime @default(now())
 }
+
+model Booking {
+  id         String   @id @default(cuid())
+  teacherName String
+  teacherNameAr String
+  recitation String
+  date       String
+  time       String
+  notes      String   @default("")
+  locale     String   @default("ar")
+  status     String   @default("pending")
+  createdAt  DateTime @default(now())
+}

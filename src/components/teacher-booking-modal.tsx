@@ -109,14 +109,34 @@ export function TeacherBookingModal({
       );
       return;
     }
+    if (!teacher) return;
     setSubmitting(true);
-    // Simulate a booking request (no backend endpoint for bookings yet)
-    await new Promise((r) => setTimeout(r, 700));
-    setSubmitting(false);
-    onOpenChange(false);
-    toast.success(t.teachers.booking.successTitle, {
-      description: t.teachers.booking.successDesc,
-    });
+    try {
+      const res = await fetch("/api/booking", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          teacherName: teacher.name,
+          teacherNameAr: teacher.name,
+          recitation,
+          date,
+          time,
+          notes,
+          locale,
+        }),
+      });
+      if (!res.ok) throw new Error("Network error");
+      setSubmitting(false);
+      onOpenChange(false);
+      toast.success(t.teachers.booking.successTitle, {
+        description: t.teachers.booking.successDesc,
+      });
+    } catch {
+      setSubmitting(false);
+      toast.error(t.teachers.booking.errorTitle, {
+        description: t.teachers.booking.errorDesc,
+      });
+    }
   };
 
   return (

@@ -295,6 +295,8 @@ export const messages = {
       invalidEmail: "يرجى إدخال بريد إلكتروني صحيح",
       disclaimer: "نحترم خصوصيتك. ألغِ الاشتراك في أي وقت.",
       subscriberCount: "انضم إلى أكثر من 12,000 متعلّم يتلقّون نشرتنا الأسبوعية.",
+      subscriberCountLive: "انضم إلى {count}+ متعلّم يتلقّون نشرتنا الأسبوعية.",
+      subscribersUnit: "متعلّم",
     },
 
     contact: {
@@ -678,6 +680,8 @@ export const messages = {
       invalidEmail: "Please enter a valid email address",
       disclaimer: "We respect your privacy. Unsubscribe at any time.",
       subscriberCount: "Join 12,000+ learners receiving our weekly newsletter.",
+      subscriberCountLive: "Join {count}+ learners receiving our weekly newsletter.",
+      subscribersUnit: "learners",
     },
 
     contact: {

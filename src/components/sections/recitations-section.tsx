@@ -60,12 +60,21 @@ export function RecitationsSection() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: "-40px" }}
               transition={{ duration: 0.35, delay: Math.min(i * 0.04, 0.3) }}
-              className="group relative flex flex-col gap-3 rounded-2xl border border-border bg-card p-6 transition-all hover:-translate-y-1 hover:border-copper/40 hover:shadow-[0_0_25px_rgba(224,152,92,0.1)]"
+              className="group relative flex flex-col gap-3 overflow-hidden rounded-2xl border border-border bg-card p-6 transition-all duration-300 hover:-translate-y-1.5 hover:border-copper/50 hover:shadow-[0_12px_40px_-12px_rgba(224,152,92,0.25)]"
             >
-              <div className="flex items-start justify-between gap-2">
+              {/* Hover glow ring — copper radial in the corner */}
+              <span
+                className="pointer-events-none absolute -top-12 -end-12 h-32 w-32 rounded-full opacity-0 blur-2xl transition-opacity duration-500 group-hover:opacity-100"
+                style={{
+                  background:
+                    "radial-gradient(circle, rgba(224,152,92,0.22) 0%, transparent 70%)",
+                }}
+                aria-hidden
+              />
+              <div className="relative flex items-start justify-between gap-2">
                 <div className="flex-1">
                   <h3
-                    className="text-2xl font-bold leading-tight"
+                    className="text-2xl font-bold leading-tight transition-colors group-hover:text-copper"
                     style={{ fontFamily: "var(--font-cairo), var(--font-inter), sans-serif" }}
                     lang={dir === "rtl" ? "ar" : "en"}
                   >
@@ -83,7 +92,7 @@ export function RecitationsSection() {
                 )}
               </div>
 
-              <div className="border-t border-border/60 pt-3 mt-1">
+              <div className="relative border-t border-border/60 pt-3 mt-1">
                 <p className="text-[11px] uppercase tracking-wider text-muted-foreground/70 mb-1">
                   {t.recitations.narrator}
                 </p>

@@ -7,6 +7,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { FloatingButtons } from "@/components/floating/floating-buttons";
 import { CookieConsent } from "@/components/floating/cookie-consent";
 import { ReadingProgressBar } from "@/components/floating/reading-progress-bar";
+import { JsonLd } from "@/components/seo/json-ld";
 
 const cairo = Cairo({
   variable: "--font-cairo",
@@ -61,6 +62,7 @@ export default function RootLayout({
   return (
     <html lang="ar" dir="rtl" suppressHydrationWarning className={`${cairo.variable} ${inter.variable}`}>
       <body className="bg-background text-foreground min-h-screen flex flex-col antialiased">
+        <JsonLd />
         <ThemeProvider
           attribute="class"
           defaultTheme="dark"

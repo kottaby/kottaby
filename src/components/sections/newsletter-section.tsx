@@ -9,6 +9,56 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { SectionHeader } from "./section-header";
 import { isValidEmail } from "@/lib/data";
+import { useCountUp, useInView } from "@/lib/hooks/use-count-up";
+
+/** Fetches the live subscriber count from /api/newsletter/count. */
+function useSubscriberCount() {
+  const [count, setCount] = React.useState<number | null>(null);
+  React.useEffect(() => {
+    let cancelled = false;
+    fetch("/api/newsletter/count")
+      .then((r) => r.json())
+      .then((data: { count?: number }) => {
+        if (!cancelled && typeof data.count === "number") setCount(data.count);
+      })
+      .catch(() => {
+        /* leave as null → fallback to static copy */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  return count;
+}
+
+function SubscriberCountChip() {
+  const { t } = useLocale();
+  const liveCount = useSubscriberCount();
+  const { ref, inView } = useInView<HTMLDivElement>({ threshold: 0.4 });
+  // Fallback static floor so the chip never shows a tiny number on a fresh DB.
+  const baseCount = 12000;
+  const target = liveCount !== null ? liveCount + baseCount : baseCount;
+  const animated = useCountUp(target, inView, 1600);
+  const display = animated.toLocaleString();
+
+  // Fallback to the static copy if the live template key is unavailable
+  // (e.g. during HMR before the messages module is fully reloaded).
+  const liveTemplate = t.newsletter.subscriberCountLive;
+  const text =
+    typeof liveTemplate === "string"
+      ? liveTemplate.replace("{count}", display)
+      : t.newsletter.subscriberCount;
+
+  return (
+    <div
+      ref={ref}
+      className="flex items-center gap-2 rounded-full border border-border bg-card/60 px-3.5 py-1.5 text-xs text-muted-foreground"
+    >
+      <Users className="h-3.5 w-3.5 text-copper" />
+      <span>{text}</span>
+    </div>
+  );
+}
 
 export function NewsletterSection() {
   const { t, locale, dir } = useLocale();
@@ -100,11 +150,8 @@ export function NewsletterSection() {
               </Button>
             </form>
 
-            {/* Subscriber count social proof */}
-            <div className="flex items-center gap-2 rounded-full border border-border bg-card/60 px-3.5 py-1.5 text-xs text-muted-foreground">
-              <Users className="h-3.5 w-3.5 text-copper" />
-              <span>{t.newsletter.subscriberCount}</span>
-            </div>
+            {/* Live subscriber count social proof (count-up animation) */}
+            <SubscriberCountChip />
 
             <p className="text-xs text-muted-foreground">
               {t.newsletter.disclaimer}

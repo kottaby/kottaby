@@ -20,6 +20,7 @@ export function TestimonialsSection() {
   const [api, setApi] = React.useState<CarouselApi>();
   const [current, setCurrent] = React.useState(0);
   const [count, setCount] = React.useState(0);
+  const [paused, setPaused] = React.useState(false);
 
   React.useEffect(() => {
     if (!api) return;
@@ -31,6 +32,20 @@ export function TestimonialsSection() {
       api.off("select", onSelect);
     };
   }, [api]);
+
+  // Auto-advance every 6s, pauses on hover or when tab is hidden.
+  React.useEffect(() => {
+    if (!api || paused) return;
+    const reduce =
+      typeof window !== "undefined" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduce) return;
+    const interval = window.setInterval(() => {
+      if (document.hidden) return;
+      api.scrollNext();
+    }, 6000);
+    return () => window.clearInterval(interval);
+  }, [api, paused]);
 
   return (
     <section
@@ -46,7 +61,13 @@ export function TestimonialsSection() {
           subtitle={t.testimonials.subtitle}
         />
 
-        <div className="mt-14 max-w-3xl mx-auto px-4 sm:px-12">
+        <div
+          className="mt-14 max-w-3xl mx-auto px-4 sm:px-12"
+          onMouseEnter={() => setPaused(true)}
+          onMouseLeave={() => setPaused(false)}
+          onFocus={() => setPaused(true)}
+          onBlur={() => setPaused(false)}
+        >
           <Carousel
             setApi={setApi}
             opts={{ loop: true, align: "center", direction: dir === "rtl" ? "rtl" : "ltr" }}

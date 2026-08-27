@@ -33,14 +33,24 @@ export function FeaturesSection() {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, margin: "-60px" }}
                 transition={{ duration: 0.4, delay: i * 0.06 }}
-                className="group relative rounded-2xl border border-border bg-card p-6 transition-all hover:-translate-y-1 hover:shadow-lg hover:border-copper/40 hover:shadow-[0_0_30px_rgba(224,152,92,0.08)]"
+                className="group relative overflow-hidden rounded-2xl border border-border bg-card/60 backdrop-blur-md p-6 transition-all hover:-translate-y-1.5 hover:shadow-lg hover:border-copper/40 hover:shadow-[0_0_30px_rgba(224,152,92,0.12)]"
               >
+                {/* Glassmorphism sheen — top-left highlight */}
+                <span
+                  className="pointer-events-none absolute -top-px -start-px h-20 w-20 rounded-tl-2xl opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+                  style={{
+                    background:
+                      "radial-gradient(circle at top left, rgba(224,152,92,0.18) 0%, transparent 70%)",
+                  }}
+                  aria-hidden
+                />
+
                 {/* Icon */}
-                <div className="mb-5 inline-flex h-12 w-12 items-center justify-center rounded-xl bg-copper/10 border border-copper/20 text-copper transition-all group-hover:bg-copper/20 group-hover:scale-105">
+                <div className="relative mb-5 inline-flex h-12 w-12 items-center justify-center rounded-xl bg-copper/10 border border-copper/20 text-copper transition-all group-hover:bg-copper/20 group-hover:scale-110 group-hover:shadow-[0_0_18px_rgba(224,152,92,0.35)]">
                   <Icon className="h-6 w-6" />
                 </div>
-                <h3 className="text-lg font-semibold mb-2">{feature.title}</h3>
-                <p className="text-sm text-muted-foreground leading-relaxed">
+                <h3 className="relative text-lg font-semibold mb-2">{feature.title}</h3>
+                <p className="relative text-sm text-muted-foreground leading-relaxed">
                   {feature.body}
                 </p>
 

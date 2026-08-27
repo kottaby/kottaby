@@ -45,10 +45,9 @@ export function LocaleProvider({ children }: { children: React.ReactNode }) {
 
   const setLocale = React.useCallback((l: Locale) => setLocaleState(l), []);
   const dir: "rtl" | "ltr" = locale === "ar" ? "rtl" : "ltr";
-  const value = React.useMemo(
-    () => ({ locale, setLocale, t: messages[locale], dir }),
-    [locale, setLocale, dir]
-  );
+  // Note: `messages[locale]` is read on every render (not memoized) so that
+  // HMR updates to messages.ts propagate immediately without a locale change.
+  const value: LocaleContextValue = { locale, setLocale, t: messages[locale], dir };
 
   return <LocaleContext.Provider value={value}>{children}</LocaleContext.Provider>;
 }

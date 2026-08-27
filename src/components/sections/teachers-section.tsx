@@ -49,13 +49,24 @@ export function TeachersSection() {
                 transition={{ duration: 0.4, delay: i * 0.06 }}
                 className="group flex flex-col gap-4 rounded-2xl border border-border bg-card p-5 transition-all hover:-translate-y-1 hover:border-copper/40 hover:shadow-lg hover:shadow-[0_0_25px_rgba(224,152,92,0.1)]"
               >
-                {/* Gradient avatar */}
+                {/* Gradient avatar with copper ring shine on hover */}
                 <div className="flex justify-center">
                   <div
-                    className={`flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br ${gradient} ring-2 ring-border group-hover:ring-copper/40 transition-all shadow-lg`}
+                    className={`relative flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br ${gradient} ring-2 ring-border group-hover:ring-copper/50 transition-all shadow-lg group-hover:shadow-[0_0_25px_rgba(224,152,92,0.3)]`}
                     aria-hidden
                   >
-                    <span className="text-xl font-bold text-white">
+                    {/* Rotating copper conic shine — appears on hover */}
+                    <span
+                      className="pointer-events-none absolute inset-0 rounded-full opacity-0 transition-opacity duration-500 group-hover:opacity-100"
+                      style={{
+                        background:
+                          "conic-gradient(from 0deg, transparent 0%, rgba(224,152,92,0.5) 25%, transparent 50%, rgba(224,152,92,0.3) 75%, transparent 100%)",
+                        mask: "radial-gradient(circle, transparent 62%, black 64%)",
+                        WebkitMask:
+                          "radial-gradient(circle, transparent 62%, black 64%)",
+                      }}
+                    />
+                    <span className="relative text-xl font-bold text-white">
                       {initials}
                     </span>
                   </div>
