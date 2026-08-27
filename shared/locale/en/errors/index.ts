@@ -19,4 +19,16 @@ export const errorsEn: ErrorsLabels = {
   accountSuspended: "This account is suspended.",
   tokenExpired: "Your session has expired. Please sign in again.",
   forbiddenRole: "You do not have permission to access this page.",
+  planCatalog: {
+    planNotFound: "Subscription plan not found.",
+    planAlreadyInactive: "Plan is already inactive.",
+    planAlreadyActive: "Plan is already active.",
+    planTitleRequired: "Plan title is required.",
+    planTitleTooLong: "Plan title cannot exceed 255 characters.",
+    planSessionCountInvalid: "Session count must be a positive integer.",
+    planPriceInvalid: "Price must be a positive decimal number with up to two decimal places.",
+    planCurrencyInvalid: "Currency must be a valid 3-letter ISO code.",
+    planIntervalDaysInvalid: "Validity interval must be a positive integer representing days.",
+    planPatchEmpty: "At least one field must be provided to update the plan.",
+  },
 };

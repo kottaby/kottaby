@@ -118,7 +118,12 @@ export const gqlSchemaBuilder = new SchemaBuilder<{
       return true;
     },
     // OR semantics over the role set — `roles.includes(ctx.role)` (REQ-020).
-    role: (roles: UserRole[]) => (ctx.role ? roles.includes(ctx.role) : false),
+    role: (roles: UserRole[]) => {
+      if (!ctx.user) {
+        throw new UnauthorizedError("Authentication required.");
+      }
+      return ctx.role ? roles.includes(ctx.role) : false;
+    },
     // DEV2-002 placeholder — always passes; DEV2-002 wires to
     // PermissionsService.getUserContext(ctx.user.id).
     permission: () => true,

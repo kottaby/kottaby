@@ -14,3 +14,4 @@
  * add their mutations as additional side-effect imports.
  */
 import "./auth.mutation";
+import "./plan-catalog.mutation";
