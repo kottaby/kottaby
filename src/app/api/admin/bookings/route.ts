@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { logger } from "@/lib/errors";
 
 /**
  * GET /api/admin/bookings — list recent booking submissions.
@@ -30,7 +31,7 @@ export async function GET(req: Request) {
       total,
     });
   } catch (err) {
-    console.error("[admin/bookings] error", err);
+    logger.error("[admin/bookings] error", err);
     return NextResponse.json(
       { ok: false, error: "Server error" },
       { status: 500 },

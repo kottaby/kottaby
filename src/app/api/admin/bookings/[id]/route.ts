@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { logger } from "@/lib/errors";
 
 const VALID_STATUSES = ["pending", "confirmed", "completed", "cancelled"] as const;
 type BookingStatus = (typeof VALID_STATUSES)[number];
@@ -56,7 +57,7 @@ export async function PATCH(
 
     return NextResponse.json({ ok: true, booking: updated });
   } catch (err) {
-    console.error("[admin/bookings/[id]] PATCH error", err);
+    logger.error("[admin/bookings/[id]] PATCH error", err);
     return NextResponse.json(
       { ok: false, error: "Server error" },
       { status: 500 },
@@ -85,7 +86,7 @@ export async function DELETE(
     await db.booking.delete({ where: { id } });
     return NextResponse.json({ ok: true });
   } catch (err) {
-    console.error("[admin/bookings/[id]] DELETE error", err);
+    logger.error("[admin/bookings/[id]] DELETE error", err);
     return NextResponse.json(
       { ok: false, error: "Server error" },
       { status: 500 },

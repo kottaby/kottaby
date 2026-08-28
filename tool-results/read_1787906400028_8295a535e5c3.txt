@@ -1,0 +1,1112 @@
+     1→"use client";
+     2→
+     3→import * as React from "react";
+     4→import { motion } from "framer-motion";
+     5→import {
+     6→  Shield,
+     7→  Users,
+     8→  Calendar,
+     9→  Mail,
+    10→  RefreshCw,
+    11→  Loader2,
+    12→  CheckCircle2,
+    13→  XCircle,
+    14→  Gift,
+    15→  GraduationCap,
+    16→  Search,
+    17→  Trash2,
+    18→  ChevronDown,
+    19→  Download,
+    20→} from "lucide-react";
+    21→import { toast } from "sonner";
+    22→import { useLocale } from "@/lib/i18n/locale-context";
+    23→import {
+    24→  Dialog,
+    25→  DialogContent,
+    26→  DialogHeader,
+    27→  DialogTitle,
+    28→  DialogTrigger,
+    29→} from "@/components/ui/dialog";
+    30→import {
+    31→  Tabs,
+    32→  TabsList,
+    33→  TabsTrigger,
+    34→  TabsContent,
+    35→} from "@/components/ui/tabs";
+    36→import {
+    37→  DropdownMenu,
+    38→  DropdownMenuContent,
+    39→  DropdownMenuItem,
+    40→  DropdownMenuTrigger,
+    41→} from "@/components/ui/dropdown-menu";
+    42→import { Button } from "@/components/ui/button";
+    43→import { Input } from "@/components/ui/input";
+    44→import { Badge } from "@/components/ui/badge";
+    45→import { cn } from "@/lib/utils";
+    46→
+    47→// ─── Types ───────────────────────────────────────────────────────
+    48→
+    49→interface AdminStats {
+    50→  students: number;
+    51→  trialGranted: number;
+    52→  bookings: number;
+    53→  pendingBookings: number;
+    54→  newsletter: number;
+    55→  contacts: number;
+    56→}
+    57→
+    58→interface AdminStudent {
+    59→  id: string;
+    60→  email: string;
+    61→  fullName: string;
+    62→  role: string;
+    63→  balanceTrial: number;
+    64→  balanceHifz: number;
+    65→  balanceTajweed: number;
+    66→  balanceReviews: number;
+    67→  trialGrantedAt: string | null;
+    68→  locale: string;
+    69→  createdAt: string;
+    70→  eligible: boolean;
+    71→  hasTrial: boolean;
+    72→}
+    73→
+    74→interface AdminBooking {
+    75→  id: string;
+    76→  teacherName: string;
+    77→  recitation: string;
+    78→  date: string;
+    79→  time: string;
+    80→  notes: string;
+    81→  locale: string;
+    82→  status: string;
+    83→  createdAt: string;
+    84→}
+    85→
+    86→interface AdminContact {
+    87→  id: string;
+    88→  email: string;
+    89→  message: string;
+    90→  locale: string;
+    91→  createdAt: string;
+    92→}
+    93→
+    94→interface AdminSubscriber {
+    95→  id: string;
+    96→  email: string;
+    97→  locale: string;
+    98→  createdAt: string;
+    99→}
+   100→
+   101→// ─── Stat Card ───────────────────────────────────────────────────
+   102→
+   103→function StatCard({
+   104→  icon: Icon,
+   105→  label,
+   106→  value,
+   107→  accent,
+   108→  delay,
+   109→}: {
+   110→  icon: React.ComponentType<{ className?: string }>;
+   111→  label: string;
+   112→  value: number;
+   113→  accent?: boolean;
+   114→  delay: number;
+   115→}) {
+   116→  return (
+   117→    <motion.div
+   118→      initial={{ opacity: 0, y: 12 }}
+   119→      animate={{ opacity: 1, y: 0 }}
+   120→      transition={{ duration: 0.3, delay }}
+   121→      className={cn(
+   122→        "rounded-xl border p-4 flex items-center gap-3",
+   123→        accent
+   124→          ? "border-copper/40 bg-copper/5"
+   125→          : "border-border bg-card/60",
+   126→      )}
+   127→    >
+   128→      <div
+   129→        className={cn(
+   130→          "flex h-10 w-10 items-center justify-center rounded-lg shrink-0",
+   131→          accent ? "bg-copper/15 text-copper" : "bg-muted text-muted-foreground",
+   132→        )}
+   133→      >
+   134→        <Icon className="h-5 w-5" />
+   135→      </div>
+   136→      <div className="min-w-0">
+   137→        <p className="text-[11px] uppercase tracking-wider text-muted-foreground truncate">
+   138→          {label}
+   139→        </p>
+   140→        <p className="text-2xl font-bold tabular-nums">{value.toLocaleString()}</p>
+   141→      </div>
+   142→    </motion.div>
+   143→  );
+   144→}
+   145→
+   146→// ─── Overview Tab ────────────────────────────────────────────────
+   147→
+   148→function OverviewTab({ stats }: { stats: AdminStats | null }) {
+   149→  const { t } = useLocale();
+   150→  if (!stats) return <LoadingState />;
+   151→  return (
+   152→    <div className="grid grid-cols-2 md:grid-cols-3 gap-3 p-1">
+   153→      <StatCard icon={GraduationCap} label={t.admin.totalStudents} value={stats.students} delay={0} />
+   154→      <StatCard icon={Gift} label={t.admin.trialGrants} value={stats.trialGranted} accent delay={0.05} />
+   155→      <StatCard icon={Calendar} label={t.admin.totalBookings} value={stats.bookings} delay={0.1} />
+   156→      <StatCard icon={Calendar} label={t.admin.pendingBookings} value={stats.pendingBookings} delay={0.15} />
+   157→      <StatCard icon={Mail} label={t.admin.newsletterSubs} value={stats.newsletter} delay={0.2} />
+   158→      <StatCard icon={Mail} label={t.admin.contactMsgs} value={stats.contacts} delay={0.25} />
+   159→    </div>
+   160→  );
+   161→}
+   162→
+   163→// ─── Students Tab ────────────────────────────────────────────────
+   164→
+   165→const ROLE_FILTERS = ["all", "student", "teacher", "parent"] as const;
+   166→type RoleFilter = (typeof ROLE_FILTERS)[number];
+   167→
+   168→function StudentsTab({
+   169→  students,
+   170→  onMutation,
+   171→}: {
+   172→  students: AdminStudent[] | null;
+   173→  onMutation: () => void;
+   174→}) {
+   175→  const { t } = useLocale();
+   176→  const [actingId, setActingId] = React.useState<string | null>(null);
+   177→  const [query, setQuery] = React.useState("");
+   178→  const [roleFilter, setRoleFilter] = React.useState<RoleFilter>("all");
+   179→  const [pageLimit, setPageLimit] = React.useState(20);
+   180→  const [selected, setSelected] = React.useState<Set<string>>(new Set());
+   181→
+   182→  if (students === null) return <LoadingState />;
+   183→
+   184→  // Client-side filter: by role + search query (name/email contains)
+   185→  const filtered = students.filter((s) => {
+   186→    if (roleFilter !== "all" && s.role !== roleFilter) return false;
+   187→    if (query.trim()) {
+   188→      const q = query.trim().toLowerCase();
+   189→      return (
+   190→        s.fullName.toLowerCase().includes(q) ||
+   191→        s.email.toLowerCase().includes(q)
+   192→      );
+   193→    }
+   194→    return true;
+   195→  });
+   196→
+   197→  if (students.length === 0) {
+   198→    return (
+   199→      <div className="space-y-3">
+   200→        <ExportButton type="students" />
+   201→        <EmptyState text={t.admin.noData} />
+   202→      </div>
+   203→    );
+   204→  }
+   205→
+   206→  const grantTrial = async (id: string) => {
+   207→    setActingId(id);
+   208→    try {
+   209→      const res = await fetch(`/api/admin/students/${id}`, {
+   210→        method: "PATCH",
+   211→        headers: { "Content-Type": "application/json" },
+   212→        body: JSON.stringify({ action: "grant-trial" }),
+   213→      });
+   214→      const data = await res.json();
+   215→      if (data.ok) {
+   216→        toast.success(t.admin.grantTrialSuccess);
+   217→        onMutation();
+   218→      } else {
+   219→        toast.error(data.error ?? "Grant failed");
+   220→      }
+   221→    } catch {
+   222→      toast.error("Network error");
+   223→    } finally {
+   224→      setActingId(null);
+   225→    }
+   226→  };
+   227→
+   228→  const deleteStudent = async (id: string) => {
+   229→    if (!window.confirm(t.admin.confirmDelete)) return;
+   230→    setActingId(id);
+   231→    try {
+   232→      const res = await fetch(`/api/admin/students/${id}`, { method: "DELETE" });
+   233→      const data = await res.json();
+   234→      if (data.ok) {
+   235→        toast.success(t.admin.deleted);
+   236→        onMutation();
+   237→      } else {
+   238→        toast.error(data.error ?? "Delete failed");
+   239→      }
+   240→    } catch {
+   241→      toast.error("Network error");
+   242→    } finally {
+   243→      setActingId(null);
+   244→    }
+   245→  };
+   246→
+   247→  const bulkDeleteStudents = async () => {
+   248→    if (selected.size === 0) return;
+   249→    if (!window.confirm(t.admin.confirmDelete)) return;
+   250→    let ok = 0;
+   251→    for (const id of selected) {
+   252→      try {
+   253→        const res = await fetch(`/api/admin/students/${id}`, { method: "DELETE" });
+   254→        const data = await res.json();
+   255→        if (data.ok) ok++;
+   256→      } catch {
+   257→        // skip
+   258→      }
+   259→    }
+   260→    toast.success(`${ok} ${t.admin.deleted.toLowerCase()}`);
+   261→    setSelected(new Set());
+   262→    onMutation();
+   263→  };
+   264→
+   265→  return (
+   266→    <div className="space-y-3">
+   267→      {/* Search + role filter + bulk + export */}
+   268→      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 justify-between">
+   269→        <div className="relative flex-1 max-w-xs">
+   270→          <Search className="absolute start-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+   271→          <Input
+   272→            value={query}
+   273→            onChange={(e) => setQuery(e.target.value)}
+   274→            placeholder={t.admin.search}
+   275→            className="h-8 ps-8 text-xs"
+   276→          />
+   277→        </div>
+   278→        <div className="flex items-center gap-1.5">
+   279→          {ROLE_FILTERS.map((r) => (
+   280→            <button
+   281→              key={r}
+   282→              type="button"
+   283→              onClick={() => setRoleFilter(r)}
+   284→              className={cn(
+   285→                "rounded-full px-2.5 py-0.5 text-[10px] font-semibold border transition-all",
+   286→                roleFilter === r
+   287→                  ? "bg-copper/15 border-copper/40 text-copper"
+   288→                  : "border-border text-muted-foreground hover:border-copper/30",
+   289→              )}
+   290→            >
+   291→              {r === "all" ? t.admin.overview : r === "student" ? t.admin.studentRole : r === "teacher" ? t.admin.teacherRole : t.admin.parentRole}
+   292→            </button>
+   293→          ))}
+   294→          {selected.size > 0 && (
+   295→            <button
+   296→              type="button"
+   297→              onClick={() => bulkDeleteStudents()}
+   298→              className="inline-flex items-center gap-1 rounded-md border border-destructive/30 bg-destructive/10 px-2 py-0.5 text-[10px] font-semibold text-destructive hover:bg-destructive/20"
+   299→            >
+   300→              <Trash2 className="h-3 w-3" />
+   301→              {t.admin.delete} ({selected.size})
+   302→            </button>
+   303→          )}
+   304→          <ExportButton type="students" />
+   305→        </div>
+   306→      </div>
+   307→      <div className="overflow-x-auto rounded-lg border border-border max-h-[40vh] overflow-y-auto">
+   308→        <table className="w-full text-xs">
+   309→          <thead className="sticky top-0 bg-card border-b border-border z-10">
+   310→            <tr>
+   311→              <th className="p-2 w-8">
+   312→                <input
+   313→                  type="checkbox"
+   314→                  checked={selected.size === filtered.length && filtered.length > 0}
+   315→                  onChange={() => {
+   316→                    if (selected.size === filtered.length) setSelected(new Set());
+   317→                    else setSelected(new Set(filtered.map((s) => s.id)));
+   318→                  }}
+   319→                  className="h-3.5 w-3.5 accent-copper"
+   320→                  aria-label="Select all"
+   321→                />
+   322→              </th>
+   323→              <th className="text-start p-2 font-semibold">{t.admin.fullName}</th>
+   324→              <th className="text-start p-2 font-semibold">{t.admin.email}</th>
+   325→              <th className="text-start p-2 font-semibold">{t.admin.role}</th>
+   326→              <th className="text-center p-2 font-semibold">{t.admin.trial}</th>
+   327→              <th className="text-center p-2 font-semibold">{t.admin.eligible}</th>
+   328→              <th className="text-center p-2 font-semibold">{t.admin.actions}</th>
+   329→            </tr>
+   330→          </thead>
+   331→          <tbody>
+   332→            {filtered.length === 0 ? (
+   333→              <tr>
+   334→                <td colSpan={7} className="p-8 text-center text-muted-foreground">
+   335→                  {t.admin.noData}
+   336→                </td>
+   337→              </tr>
+   338→            ) : (
+   339→              filtered.slice(0, pageLimit).map((s) => (
+   340→                <tr key={s.id} className="border-b border-border/50 hover:bg-muted/30">
+   341→                  <td className="p-2 text-center">
+   342→                    <input
+   343→                      type="checkbox"
+   344→                      checked={selected.has(s.id)}
+   345→                      onChange={() => {
+   346→                        const next = new Set(selected);
+   347→                        if (next.has(s.id)) next.delete(s.id);
+   348→                        else next.add(s.id);
+   349→                        setSelected(next);
+   350→                      }}
+   351→                      className="h-3.5 w-3.5 accent-copper"
+   352→                      aria-label={`Select ${s.fullName}`}
+   353→                    />
+   354→                  </td>
+   355→                  <td className="p-2 font-medium truncate max-w-[100px]">{s.fullName}</td>
+   356→                <td className="p-2 text-muted-foreground truncate max-w-[120px]">{s.email}</td>
+   357→                <td className="p-2">
+   358→                  <Badge variant="outline" className="text-[10px]">
+   359→                    {s.role === "student" ? t.admin.studentRole : s.role === "teacher" ? t.admin.teacherRole : t.admin.parentRole}
+   360→                  </Badge>
+   361→                </td>
+   362→                <td className="p-2 text-center">
+   363→                  {s.trialGrantedAt ? (
+   364→                    <span className="inline-flex items-center gap-0.5 text-copper">
+   365→                      <CheckCircle2 className="h-3.5 w-3.5" />
+   366→                      <span className="tabular-nums">{s.balanceTrial}</span>
+   367→                    </span>
+   368→                  ) : (
+   369→                    <XCircle className="h-3.5 w-3.5 text-muted-foreground inline" />
+   370→                  )}
+   371→                </td>
+   372→                <td className="p-2 text-center">
+   373→                  {s.eligible ? (
+   374→                    <Badge className="bg-green-500/15 text-green-500 border-0 text-[10px]">{t.admin.yes}</Badge>
+   375→                  ) : (
+   376→                    <Badge variant="outline" className="text-[10px]">{t.admin.no}</Badge>
+   377→                  )}
+   378→                </td>
+   379→                <td className="p-2 text-center">
+   380→                  <div className="inline-flex items-center gap-1">
+   381→                    {!s.trialGrantedAt && (
+   382→                      <button
+   383→                        type="button"
+   384→                        onClick={() => grantTrial(s.id)}
+   385→                        disabled={actingId === s.id}
+   386→                        aria-label={t.admin.grantTrial}
+   387→                        title={t.admin.grantTrial}
+   388→                        className="inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground hover:text-copper hover:bg-copper/10 disabled:opacity-50"
+   389→                      >
+   390→                        {actingId === s.id ? (
+   391→                          <Loader2 className="h-3 w-3 animate-spin" />
+   392→                        ) : (
+   393→                          <Gift className="h-3 w-3" />
+   394→                        )}
+   395→                      </button>
+   396→                    )}
+   397→                    <button
+   398→                      type="button"
+   399→                      onClick={() => deleteStudent(s.id)}
+   400→                      disabled={actingId === s.id}
+   401→                      aria-label={t.admin.deleteStudent}
+   402→                      title={t.admin.deleteStudent}
+   403→                      className="inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 disabled:opacity-50"
+   404→                    >
+   405→                      <Trash2 className="h-3 w-3" />
+   406→                    </button>
+   407→                  </div>
+   408→                </td>
+   409→              </tr>
+   410→              ))
+   411→            )}
+   412→          </tbody>
+   413→        </table>
+   414→      </div>
+   415→      {/* Filter count + load more */}
+   416→      <div className="flex items-center justify-between">
+   417→        <p className="text-[10px] text-muted-foreground">
+   418→          {Math.min(pageLimit, filtered.length)} / {filtered.length}
+   419→          {filtered.length !== students.length && ` (of ${students.length})`}
+   420→        </p>
+   421→        {pageLimit < filtered.length && (
+   422→          <button
+   423→            type="button"
+   424→            onClick={() => setPageLimit((v) => v + 20)}
+   425→            className="text-[10px] font-semibold text-copper hover:underline"
+   426→          >
+   427→            {t.admin.loadMore} →
+   428→          </button>
+   429→        )}
+   430→      </div>
+   431→    </div>
+   432→  );
+   433→}
+   434→
+   435→// ─── Bookings Tab ────────────────────────────────────────────────
+   436→
+   437→const BOOKING_STATUSES = ["pending", "confirmed", "completed", "cancelled"] as const;
+   438→
+   439→function statusColor(status: string): string {
+   440→  switch (status) {
+   441→    case "pending": return "bg-amber-500/15 text-amber-500";
+   442→    case "confirmed": return "bg-blue-500/15 text-blue-500";
+   443→    case "completed": return "bg-green-500/15 text-green-500";
+   444→    case "cancelled": return "bg-red-500/15 text-red-500";
+   445→    default: return "bg-muted text-muted-foreground";
+   446→  }
+   447→}
+   448→
+   449→function statusLabel(status: string, t: { admin: { pending: string; confirmed: string; completed: string; cancelled: string } }): string {
+   450→  switch (status) {
+   451→    case "pending": return t.admin.pending;
+   452→    case "confirmed": return t.admin.confirmed;
+   453→    case "completed": return t.admin.completed;
+   454→    case "cancelled": return t.admin.cancelled;
+   455→    default: return status;
+   456→  }
+   457→}
+   458→
+   459→function BookingsTab({
+   460→  bookings,
+   461→  onMutation,
+   462→}: {
+   463→  bookings: AdminBooking[] | null;
+   464→  onMutation: () => void;
+   465→}) {
+   466→  const { t } = useLocale();
+   467→  const [updatingId, setUpdatingId] = React.useState<string | null>(null);
+   468→  const [deletingId, setDeletingId] = React.useState<string | null>(null);
+   469→  const [query, setQuery] = React.useState("");
+   470→  const [pageLimit, setPageLimit] = React.useState(20);
+   471→  const [selected, setSelected] = React.useState<Set<string>>(new Set());
+   472→
+   473→  if (bookings === null) return <LoadingState />;
+   474→  if (bookings.length === 0) return <EmptyState text={t.admin.noData} />;
+   475→
+   476→  // Client-side filter: search by teacher name, recitation, or status
+   477→  const filtered = bookings.filter((b) => {
+   478→    if (!query.trim()) return true;
+   479→    const q = query.trim().toLowerCase();
+   480→    return (
+   481→      b.teacherName.toLowerCase().includes(q) ||
+   482→      b.recitation.toLowerCase().includes(q) ||
+   483→      b.status.toLowerCase().includes(q)
+   484→    );
+   485→  });
+   486→
+   487→  const updateStatus = async (id: string, status: string) => {
+   488→    setUpdatingId(id);
+   489→    try {
+   490→      const res = await fetch(`/api/admin/bookings/${id}`, {
+   491→        method: "PATCH",
+   492→        headers: { "Content-Type": "application/json" },
+   493→        body: JSON.stringify({ status }),
+   494→      });
+   495→      const data = await res.json();
+   496→      if (data.ok) {
+   497→        toast.success(t.admin.statusUpdated);
+   498→        onMutation();
+   499→      } else {
+   500→        toast.error(data.error ?? "Update failed");
+   501→      }
+   502→    } catch {
+   503→      toast.error("Network error");
+   504→    } finally {
+   505→      setUpdatingId(null);
+   506→    }
+   507→  };
+   508→
+   509→  const deleteBooking = async (id: string) => {
+   510→    if (!window.confirm(t.admin.confirmDelete)) return;
+   511→    setDeletingId(id);
+   512→    try {
+   513→      const res = await fetch(`/api/admin/bookings/${id}`, { method: "DELETE" });
+   514→      const data = await res.json();
+   515→      if (data.ok) {
+   516→        toast.success(t.admin.deleted);
+   517→        onMutation();
+   518→      } else {
+   519→        toast.error(data.error ?? "Delete failed");
+   520→      }
+   521→    } catch {
+   522→      toast.error("Network error");
+   523→    } finally {
+   524→      setDeletingId(null);
+   525→    }
+   526→  };
+   527→
+   528→  const bulkDelete = async () => {
+   529→    if (selected.size === 0) return;
+   530→    if (!window.confirm(t.admin.confirmDelete)) return;
+   531→    let ok = 0;
+   532→    for (const id of selected) {
+   533→      try {
+   534→        const res = await fetch(`/api/admin/bookings/${id}`, { method: "DELETE" });
+   535→        const data = await res.json();
+   536→        if (data.ok) ok++;
+   537→      } catch {
+   538→        // skip
+   539→      }
+   540→    }
+   541→    toast.success(`${ok} ${t.admin.deleted.toLowerCase()}`);
+   542→    setSelected(new Set());
+   543→    onMutation();
+   544→  };
+   545→
+   546→  return (
+   547→    <div className="space-y-3">
+   548→      {/* Search + bulk actions + export */}
+   549→      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 justify-between">
+   550→        <div className="relative flex-1 max-w-xs">
+   551→          <Search className="absolute start-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+   552→          <Input
+   553→            value={query}
+   554→            onChange={(e) => setQuery(e.target.value)}
+   555→            placeholder={t.admin.search}
+   556→            className="h-8 ps-8 text-xs"
+   557→          />
+   558→        </div>
+   559→        <div className="flex items-center gap-2">
+   560→          {selected.size > 0 && (
+   561→            <button
+   562→              type="button"
+   563→              onClick={() => bulkDelete()}
+   564→              className="inline-flex items-center gap-1 rounded-md border border-destructive/30 bg-destructive/10 px-2 py-1 text-[10px] font-semibold text-destructive hover:bg-destructive/20"
+   565→            >
+   566→              <Trash2 className="h-3 w-3" />
+   567→              {t.admin.delete} ({selected.size})
+   568→            </button>
+   569→          )}
+   570→          <ExportButton type="bookings" />
+   571→        </div>
+   572→      </div>
+   573→      <div className="overflow-x-auto rounded-lg border border-border max-h-[40vh] overflow-y-auto">
+   574→        <table className="w-full text-xs">
+   575→          <thead className="sticky top-0 bg-card border-b border-border z-10">
+   576→            <tr>
+   577→              <th className="p-2 w-8">
+   578→                <input
+   579→                  type="checkbox"
+   580→                  checked={selected.size === filtered.length && filtered.length > 0}
+   581→                  onChange={() => {
+   582→                    if (selected.size === filtered.length) setSelected(new Set());
+   583→                    else setSelected(new Set(filtered.map((b) => b.id)));
+   584→                  }}
+   585→                  className="h-3.5 w-3.5 accent-copper"
+   586→                  aria-label="Select all"
+   587→                />
+   588→              </th>
+   589→              <th className="text-start p-2 font-semibold">{t.admin.teacher}</th>
+   590→              <th className="text-start p-2 font-semibold">{t.admin.recitation}</th>
+   591→              <th className="text-start p-2 font-semibold">{t.admin.date}</th>
+   592→              <th className="text-center p-2 font-semibold">{t.admin.status}</th>
+   593→              <th className="text-center p-2 font-semibold">{t.admin.actions}</th>
+   594→            </tr>
+   595→          </thead>
+   596→          <tbody>
+   597→            {filtered.length === 0 ? (
+   598→              <tr>
+   599→                <td colSpan={6} className="p-8 text-center text-muted-foreground">
+   600→                  {t.admin.noData}
+   601→                </td>
+   602→              </tr>
+   603→            ) : (
+   604→              filtered.slice(0, pageLimit).map((b) => (
+   605→            <tr key={b.id} className="border-b border-border/50 hover:bg-muted/30">
+   606→              <td className="p-2 text-center">
+   607→                <input
+   608→                  type="checkbox"
+   609→                  checked={selected.has(b.id)}
+   610→                  onChange={() => {
+   611→                    const next = new Set(selected);
+   612→                    if (next.has(b.id)) next.delete(b.id);
+   613→                    else next.add(b.id);
+   614→                    setSelected(next);
+   615→                  }}
+   616→                  className="h-3.5 w-3.5 accent-copper"
+   617→                  aria-label={`Select ${b.teacherName}`}
+   618→                />
+   619→              </td>
+   620→              <td className="p-2 font-medium truncate max-w-[100px]">{b.teacherName}</td>
+   621→              <td className="p-2 text-muted-foreground truncate max-w-[100px]">{b.recitation}</td>
+   622→              <td className="p-2 tabular-nums whitespace-nowrap">{b.date} {b.time}</td>
+   623→              <td className="p-2 text-center">
+   624→                <Badge className={cn("border-0 text-[10px]", statusColor(b.status))}>
+   625→                  {statusLabel(b.status, t)}
+   626→                </Badge>
+   627→              </td>
+   628→              <td className="p-2 text-center">
+   629→                <div className="inline-flex items-center gap-1">
+   630→                  <DropdownMenu>
+   631→                    <DropdownMenuTrigger asChild>
+   632→                      <button
+   633→                        type="button"
+   634→                        disabled={updatingId === b.id}
+   635→                        className="inline-flex items-center gap-0.5 rounded-md border border-border px-1.5 py-0.5 text-[10px] hover:border-copper/40 hover:text-copper disabled:opacity-50"
+   636→                      >
+   637→                        {updatingId === b.id ? (
+   638→                          <Loader2 className="h-3 w-3 animate-spin" />
+   639→                        ) : (
+   640→                          <>
+   641→                            <span>{t.admin.updateStatus}</span>
+   642→                            <ChevronDown className="h-2.5 w-2.5" />
+   643→                          </>
+   644→                        )}
+   645→                      </button>
+   646→                    </DropdownMenuTrigger>
+   647→                    <DropdownMenuContent align="end">
+   648→                      {BOOKING_STATUSES.map((s) => (
+   649→                        <DropdownMenuItem
+   650→                          key={s}
+   651→                          onClick={() => updateStatus(b.id, s)}
+   652→                          className="text-xs cursor-pointer"
+   653→                        >
+   654→                          <span className={cn("inline-block h-1.5 w-1.5 rounded-full mr-1.5", statusColor(s).split(" ")[0])} />
+   655→                          {statusLabel(s, t)}
+   656→                        </DropdownMenuItem>
+   657→                      ))}
+   658→                    </DropdownMenuContent>
+   659→                  </DropdownMenu>
+   660→                  <button
+   661→                    type="button"
+   662→                    onClick={() => deleteBooking(b.id)}
+   663→                    disabled={deletingId === b.id}
+   664→                    aria-label={t.admin.delete}
+   665→                    className="inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 disabled:opacity-50"
+   666→                  >
+   667→                    {deletingId === b.id ? (
+   668→                      <Loader2 className="h-3 w-3 animate-spin" />
+   669→                    ) : (
+   670→                      <Trash2 className="h-3 w-3" />
+   671→                    )}
+   672→                  </button>
+   673→                </div>
+   674→              </td>
+   675→            </tr>
+   676→              ))
+   677→            )}
+   678→        </tbody>
+   679→      </table>
+   680→      </div>
+   681→      {/* Pagination footer */}
+   682→      <div className="flex items-center justify-between">
+   683→        <p className="text-[10px] text-muted-foreground">
+   684→          {Math.min(pageLimit, filtered.length)} / {filtered.length}
+   685→          {filtered.length !== bookings.length && ` (of ${bookings.length})`}
+   686→        </p>
+   687→        {pageLimit < filtered.length && (
+   688→          <button
+   689→            type="button"
+   690→            onClick={() => setPageLimit((v) => v + 20)}
+   691→            className="text-[10px] font-semibold text-copper hover:underline"
+   692→          >
+   693→            {t.admin.loadMore} →
+   694→          </button>
+   695→        )}
+   696→      </div>
+   697→    </div>
+   698→  );
+   699→}
+   700→
+   701→// ─── Messages Tab ────────────────────────────────────────────────
+   702→
+   703→function MessagesTab({
+   704→  contacts,
+   705→  subscribers,
+   706→  onMutation,
+   707→}: {
+   708→  contacts: AdminContact[] | null;
+   709→  subscribers: AdminSubscriber[] | null;
+   710→  onMutation: () => void;
+   711→}) {
+   712→  const { t } = useLocale();
+   713→  const [deletingId, setDeletingId] = React.useState<string | null>(null);
+   714→  const [query, setQuery] = React.useState("");
+   715→
+   716→  if (contacts === null || subscribers === null) {
+   717→    return <LoadingState />;
+   718→  }
+   719→
+   720→  // Client-side search: filter contacts + subscribers by email
+   721→  const q = query.trim().toLowerCase();
+   722→  const filteredContacts = q
+   723→    ? contacts.filter((c) => (c.email.toLowerCase().includes(q) || c.message.toLowerCase().includes(q)))
+   724→    : contacts;
+   725→  const filteredSubscribers = q
+   726→    ? subscribers.filter((s) => s.email.toLowerCase().includes(q))
+   727→    : subscribers;
+   728→
+   729→  const deleteMessage = async (id: string, type: "contact" | "newsletter") => {
+   730→    if (!window.confirm(t.admin.confirmDelete)) return;
+   731→    setDeletingId(id);
+   732→    try {
+   733→      const res = await fetch(`/api/admin/messages/${id}?type=${type}`, { method: "DELETE" });
+   734→      const data = await res.json();
+   735→      if (data.ok) {
+   736→        toast.success(t.admin.deleted);
+   737→        onMutation();
+   738→      } else {
+   739→        toast.error(data.error ?? "Delete failed");
+   740→      }
+   741→    } catch {
+   742→      toast.error("Network error");
+   743→    } finally {
+   744→      setDeletingId(null);
+   745→    }
+   746→  };
+   747→
+   748→  return (
+   749→    <div className="space-y-4">
+   750→      {/* Search + export buttons */}
+   751→      <div className="flex items-center gap-2 justify-between">
+   752→        <div className="relative flex-1 max-w-xs">
+   753→          <Search className="absolute start-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+   754→          <Input
+   755→            value={query}
+   756→            onChange={(e) => setQuery(e.target.value)}
+   757→            placeholder={t.admin.search}
+   758→            className="h-8 ps-8 text-xs"
+   759→          />
+   760→        </div>
+   761→        <div className="flex gap-2">
+   762→          <ExportButton type="contacts" />
+   763→          <ExportButton type="newsletter" />
+   764→        </div>
+   765→      </div>
+   766→      {/* Contact messages */}
+   767→      <div>
+   768→        <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
+   769→          <Mail className="h-3.5 w-3.5" />
+   770→          {t.admin.contactMsgs} ({filteredContacts.length}{q ? `/${contacts.length}` : ""})
+   771→        </h4>
+   772→        {filteredContacts.length === 0 ? (
+   773→          <EmptyState text={t.admin.noData} />
+   774→        ) : (
+   775→          <div className="space-y-2 max-h-[20vh] overflow-y-auto">
+   776→            {filteredContacts.map((c) => (
+   777→              <div key={c.id} className="group rounded-lg border border-border bg-card/60 p-2.5 flex items-start justify-between gap-2">
+   778→                <div className="min-w-0 flex-1">
+   779→                  <div className="flex items-center justify-between gap-2 mb-1">
+   780→                    <span className="text-xs font-medium truncate">{c.email}</span>
+   781→                    <span className="text-[10px] text-muted-foreground tabular-nums shrink-0">
+   782→                      {new Date(c.createdAt).toLocaleDateString()}
+   783→                    </span>
+   784→                  </div>
+   785→                  <p className="text-[11px] text-muted-foreground line-clamp-2">{c.message}</p>
+   786→                </div>
+   787→                <button
+   788→                  type="button"
+   789→                  onClick={() => deleteMessage(c.id, "contact")}
+   790→                  disabled={deletingId === c.id}
+   791→                  aria-label={t.admin.deleteMessage}
+   792→                  className="shrink-0 inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50"
+   793→                >
+   794→                  {deletingId === c.id ? (
+   795→                    <Loader2 className="h-3 w-3 animate-spin" />
+   796→                  ) : (
+   797→                    <Trash2 className="h-3 w-3" />
+   798→                  )}
+   799→                </button>
+   800→              </div>
+   801→            ))}
+   802→          </div>
+   803→        )}
+   804→      </div>
+   805→      {/* Newsletter subscribers */}
+   806→      <div>
+   807→        <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
+   808→          <Mail className="h-3.5 w-3.5" />
+   809→          {t.admin.newsletterSubs} ({filteredSubscribers.length}{q ? `/${subscribers.length}` : ""})
+   810→        </h4>
+   811→        {filteredSubscribers.length === 0 ? (
+   812→          <EmptyState text={t.admin.noData} />
+   813→        ) : (
+   814→          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[20vh] overflow-y-auto">
+   815→            {filteredSubscribers.map((s) => (
+   816→              <div key={s.id} className="group rounded-lg border border-border bg-card/60 p-2 flex items-center justify-between gap-2">
+   817→                <div className="flex items-center gap-2 min-w-0">
+   818→                  <span className="text-xs truncate">{s.email}</span>
+   819→                  <Badge variant="outline" className="text-[10px] shrink-0">{s.locale}</Badge>
+   820→                </div>
+   821→                <button
+   822→                  type="button"
+   823→                  onClick={() => deleteMessage(s.id, "newsletter")}
+   824→                  disabled={deletingId === s.id}
+   825→                  aria-label={t.admin.delete}
+   826→                  className="shrink-0 inline-flex h-5 w-5 items-center justify-center rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50"
+   827→                >
+   828→                  {deletingId === s.id ? (
+   829→                    <Loader2 className="h-3 w-3 animate-spin" />
+   830→                  ) : (
+   831→                    <Trash2 className="h-3 w-3" />
+   832→                  )}
+   833→                </button>
+   834→              </div>
+   835→            ))}
+   836→          </div>
+   837→        )}
+   838→      </div>
+   839→    </div>
+   840→  );
+   841→}
+   842→
+   843→// ─── Eligibility Checker ─────────────────────────────────────────
+   844→
+   845→function EligibilityChecker() {
+   846→  const { t } = useLocale();
+   847→  const [studentId, setStudentId] = React.useState("");
+   848→  const [loading, setLoading] = React.useState(false);
+   849→  const [result, setResult] = React.useState<{
+   850→    eligible: boolean;
+   851→    hasTrial: boolean;
+   852→    hasPaid: boolean;
+   853→    balanceTrial: number;
+   854→    student?: { fullName: string; email: string; role: string };
+   855→  } | null>(null);
+   856→
+   857→  const check = async () => {
+   858→    if (!studentId.trim()) return;
+   859→    setLoading(true);
+   860→    setResult(null);
+   861→    try {
+   862→      const res = await fetch(`/api/students/${studentId.trim()}`);
+   863→      const data = await res.json();
+   864→      if (data.ok) {
+   865→        setResult({
+   866→          eligible: data.eligibility.eligible,
+   867→          hasTrial: data.eligibility.hasTrial,
+   868→          hasPaid: data.eligibility.hasPaid,
+   869→          balanceTrial: data.student.balanceTrial,
+   870→          student: {
+   871→            fullName: data.student.fullName,
+   872→            email: data.student.email,
+   873→            role: data.student.role,
+   874→          },
+   875→        });
+   876→      } else {
+   877→        setResult({ eligible: false, hasTrial: false, hasPaid: false, balanceTrial: 0 });
+   878→      }
+   879→    } catch {
+   880→      setResult({ eligible: false, hasTrial: false, hasPaid: false, balanceTrial: 0 });
+   881→    } finally {
+   882→      setLoading(false);
+   883→    }
+   884→  };
+   885→
+   886→  return (
+   887→    <div className="rounded-lg border border-copper/30 bg-copper/5 p-3 space-y-2">
+   888→      <h4 className="text-xs font-semibold uppercase tracking-wider text-copper flex items-center gap-1.5">
+   889→        <Search className="h-3.5 w-3.5" />
+   890→        {t.admin.checkEligibility}
+   891→      </h4>
+   892→      <div className="flex gap-2">
+   893→        <Input
+   894→          value={studentId}
+   895→          onChange={(e) => setStudentId(e.target.value)}
+   896→          placeholder={t.admin.enterStudentId}
+   897→          className="h-8 text-xs font-mono"
+   898→          onKeyDown={(e) => e.key === "Enter" && check()}
+   899→        />
+   900→        <Button size="sm" onClick={check} disabled={loading} className="h-8 bg-copper text-copper-foreground hover:bg-copper/90 shrink-0">
+   901→          {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : t.admin.check}
+   902→        </Button>
+   903→      </div>
+   904→      {result && (
+   905→        <div className="text-xs space-y-1 pt-1">
+   906→          {result.student ? (
+   907→            <>
+   908→              <p className="font-medium">{result.student.fullName} — {result.student.email}</p>
+   909→              <p className="text-muted-foreground">
+   910→                {t.admin.trial}: {result.balanceTrial} | {t.admin.eligible}:{" "}
+   911→                <span className={result.eligible ? "text-green-500 font-medium" : "text-destructive"}>
+   912→                  {result.eligible ? t.admin.yes : t.admin.no}
+   913→                </span>
+   914→              </p>
+   915→            </>
+   916→          ) : (
+   917→            <p className="text-destructive">{t.admin.noData}</p>
+   918→          )}
+   919→        </div>
+   920→      )}
+   921→    </div>
+   922→  );
+   923→}
+   924→
+   925→// ─── Export Button ────────────────────────────────────────────────
+   926→
+   927→function ExportButton({ type }: { type: "students" | "bookings" | "contacts" | "newsletter" }) {
+   928→  const { t } = useLocale();
+   929→  const [loading, setLoading] = React.useState(false);
+   930→
+   931→  const exportCSV = async () => {
+   932→    setLoading(true);
+   933→    try {
+   934→      const res = await fetch(`/api/admin/export?type=${type}`);
+   935→      if (!res.ok) throw new Error("Export failed");
+   936→      const blob = await res.blob();
+   937→      const url = URL.createObjectURL(blob);
+   938→      const a = document.createElement("a");
+   939→      a.href = url;
+   940→      a.download = res.headers.get("Content-Disposition")?.split("filename=")[1]?.replace(/"/g, "") ?? `kottaby-${type}.csv`;
+   941→      document.body.appendChild(a);
+   942→      a.click();
+   943→      document.body.removeChild(a);
+   944→      URL.revokeObjectURL(url);
+   945→      toast.success(t.admin.export);
+   946→    } catch {
+   947→      toast.error("Export failed");
+   948→    } finally {
+   949→      setLoading(false);
+   950→    }
+   951→  };
+   952→
+   953→  return (
+   954→    <Button
+   955→      variant="outline"
+   956→      size="sm"
+   957→      onClick={exportCSV}
+   958→      disabled={loading}
+   959→      className="h-7 text-xs self-end hover:border-copper hover:text-copper"
+   960→    >
+   961→      {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
+   962→      {t.admin.export}
+   963→    </Button>
+   964→  );
+   965→}
+   966→
+   967→// ─── Loading / Empty helpers ─────────────────────────────────────
+   968→
+   969→function LoadingState() {
+   970→  const { t } = useLocale();
+   971→  return (
+   972→    <div className="flex items-center justify-center py-12 text-muted-foreground gap-2">
+   973→      <Loader2 className="h-4 w-4 animate-spin" />
+   974→      <span className="text-sm">{t.admin.loading}</span>
+   975→    </div>
+   976→  );
+   977→}
+   978→
+   979→function EmptyState({ text }: { text: string }) {
+   980→  return (
+   981→    <div className="flex items-center justify-center py-12 text-muted-foreground text-sm">
+   982→      {text}
+   983→    </div>
+   984→  );
+   985→}
+   986→
+   987→// ─── Main AdminDashboard Dialog ──────────────────────────────────
+   988→
+   989→export function AdminDashboard() {
+   990→  const { t, dir } = useLocale();
+   991→  const [open, setOpen] = React.useState(false);
+   992→  const [stats, setStats] = React.useState<AdminStats | null>(null);
+   993→  const [students, setStudents] = React.useState<AdminStudent[] | null>(null);
+   994→  const [bookings, setBookings] = React.useState<AdminBooking[] | null>(null);
+   995→  const [contacts, setContacts] = React.useState<AdminContact[] | null>(null);
+   996→  const [subscribers, setSubscribers] = React.useState<AdminSubscriber[] | null>(null);
+   997→  const [loading, setLoading] = React.useState(false);
+   998→
+   999→  const fetchAll = React.useCallback(async () => {
+  1000→    setLoading(true);
+  1001→    try {
+  1002→      const [statsRes, studentsRes, bookingsRes, messagesRes] = await Promise.all([
+  1003→        fetch("/api/admin/stats"),
+  1004→        fetch("/api/admin/students?limit=50"),
+  1005→        fetch("/api/admin/bookings?limit=50"),
+  1006→        fetch("/api/admin/messages?limit=50"),
+  1007→      ]);
+  1008→      const [statsData, studentsData, bookingsData, messagesData] = await Promise.all([
+  1009→        statsRes.json(),
+  1010→        studentsRes.json(),
+  1011→        bookingsRes.json(),
+  1012→        messagesRes.json(),
+  1013→      ]);
+  1014→      if (statsData.ok) setStats(statsData.stats);
+  1015→      if (studentsData.ok) setStudents(studentsData.students);
+  1016→      if (bookingsData.ok) setBookings(bookingsData.bookings);
+  1017→      if (messagesData.ok) {
+  1018→        setContacts(messagesData.contacts);
+  1019→        setSubscribers(messagesData.subscribers);
+  1020→      }
+  1021→    } catch {
+  1022→      // ignore — stale state shown
+  1023→    } finally {
+  1024→      setLoading(false);
+  1025→    }
+  1026→  }, []);
+  1027→
+  1028→  React.useEffect(() => {
+  1029→    if (open && stats === null) {
+  1030→      fetchAll();
+  1031→    }
+  1032→  }, [open, stats, fetchAll]);
+  1033→
+  1034→  // Keyboard shortcut: Ctrl+Shift+A opens the admin dashboard
+  1035→  React.useEffect(() => {
+  1036→    const onKey = (e: KeyboardEvent) => {
+  1037→      if (e.ctrlKey && e.shiftKey && (e.key === "A" || e.key === "a")) {
+  1038→        e.preventDefault();
+  1039→        setOpen((v) => !v);
+  1040→      }
+  1041→    };
+  1042→    window.addEventListener("keydown", onKey);
+  1043→    return () => window.removeEventListener("keydown", onKey);
+  1044→  }, []);
+  1045→
+  1046→  return (
+  1047→    <Dialog open={open} onOpenChange={setOpen}>
+  1048→      <DialogTrigger asChild>
+  1049→        <button
+  1050→          type="button"
+  1051→          aria-label={t.admin.trigger}
+  1052→          className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card/40 px-3 py-1 text-xs text-muted-foreground transition-all hover:text-copper hover:border-copper/40"
+  1053→        >
+  1054→          <Shield className="h-3.5 w-3.5" />
+  1055→          {t.admin.trigger}
+  1056→        </button>
+  1057→      </DialogTrigger>
+  1058→      <DialogContent
+  1059→        dir={dir}
+  1060→        className="sm:max-w-3xl max-h-[85vh] overflow-y-auto"
+  1061→      >
+  1062→        <DialogHeader>
+  1063→          <div className="flex items-center justify-between gap-3">
+  1064→            <DialogTitle className="flex items-center gap-2">
+  1065→              <Shield className="h-5 w-5 text-copper" />
+  1066→              {t.admin.title}
+  1067→            </DialogTitle>
+  1068→            <Button
+  1069→              variant="outline"
+  1070→              size="sm"
+  1071→              onClick={fetchAll}
+  1072→              disabled={loading}
+  1073→              className="h-7 text-xs hover:border-copper hover:text-copper"
+  1074→            >
+  1075→              {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+  1076→              {t.admin.refresh}
+  1077→            </Button>
+  1078→          </div>
+  1079→        </DialogHeader>
+  1080→
+  1081→        <Tabs defaultValue="overview" className="w-full">
+  1082→          <TabsList className="grid grid-cols-4 w-full h-9">
+  1083→            <TabsTrigger value="overview" className="text-xs">{t.admin.overview}</TabsTrigger>
+  1084→            <TabsTrigger value="students" className="text-xs">{t.admin.students}</TabsTrigger>
+  1085→            <TabsTrigger value="bookings" className="text-xs">{t.admin.bookings}</TabsTrigger>
+  1086→            <TabsTrigger value="messages" className="text-xs">{t.admin.messages}</TabsTrigger>
+  1087→          </TabsList>
+  1088→
+  1089→          <TabsContent value="overview" className="mt-4">
+  1090→            <OverviewTab stats={stats} />
+  1091→            <div className="mt-4">
+  1092→              <EligibilityChecker />
+  1093→            </div>
+  1094→          </TabsContent>
+  1095→
+  1096→          <TabsContent value="students" className="mt-4">
+  1097→            <StudentsTab students={students} onMutation={fetchAll} />
+  1098→          </TabsContent>
+  1099→
+  1100→          <TabsContent value="bookings" className="mt-4">
+  1101→            <BookingsTab bookings={bookings} onMutation={fetchAll} />
+  1102→          </TabsContent>
+  1103→
+  1104→          <TabsContent value="messages" className="mt-4">
+  1105→            <MessagesTab contacts={contacts} subscribers={subscribers} onMutation={fetchAll} />
+  1106→          </TabsContent>
+  1107→        </Tabs>
+  1108→      </DialogContent>
+  1109→    </Dialog>
+  1110→  );
+  1111→}
+  1112→

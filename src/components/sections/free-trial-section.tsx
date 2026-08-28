@@ -20,7 +20,7 @@ import { isValidEmail } from "@/lib/data";
  * The registration form POSTs to /api/register which:
  *  1. Creates the student record
  *  2. Grants the trial credit atomically inside the same transaction (REQ-011/018)
- *  3. Returns the studentId + trialGranted flag
+ *  3. Returns the studentId
  */
 export function FreeTrialSection() {
   const { t, locale, dir } = useLocale();
@@ -29,7 +29,6 @@ export function FreeTrialSection() {
   const [loading, setLoading] = React.useState(false);
   const [result, setResult] = React.useState<{
     studentId: string;
-    trialGranted: boolean;
   } | null>(null);
 
   const onSubmit = async (e: React.FormEvent) => {
@@ -52,7 +51,6 @@ export function FreeTrialSection() {
       const data: {
         ok?: boolean;
         studentId?: string;
-        trialGranted?: boolean;
         code?: string;
         error?: string;
       } = await res.json();
@@ -61,7 +59,6 @@ export function FreeTrialSection() {
       }
       setResult({
         studentId: data.studentId ?? "",
-        trialGranted: data.trialGranted ?? false,
       });
       toast.success(t.trial.grantedTitle, { description: t.trial.grantedDesc });
       setEmail("");
@@ -240,7 +237,7 @@ function SuccessCard({
   result,
   onReset,
 }: {
-  result: { studentId: string; trialGranted: boolean };
+  result: { studentId: string };
   onReset: () => void;
 }) {
   const { t, locale } = useLocale();

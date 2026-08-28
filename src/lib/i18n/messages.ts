@@ -127,6 +127,11 @@ export const messages = {
       deleteStudent: "حذف الطالب",
       search: "بحث...",
       loadMore: "عرض المزيد",
+      networkError: "خطأ في الشبكة",
+      exportFailed: "فشل التصدير",
+      updateFailed: "فشل التحديث",
+      deleteFailed: "فشل الحذف",
+      grantFailed: "فشل المنح",
     },
 
     utility: {
@@ -598,6 +603,11 @@ export const messages = {
       deleteStudent: "Delete Student",
       search: "Search...",
       loadMore: "Load more",
+      networkError: "Network error",
+      exportFailed: "Export failed",
+      updateFailed: "Update failed",
+      deleteFailed: "Delete failed",
+      grantFailed: "Grant failed",
     },
 
     utility: {

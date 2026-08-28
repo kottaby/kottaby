@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { RegistrationService, type UserRole } from "@/lib/services/registration.service";
 import { DomainError, ValidationError } from "@/lib/errors";
+import { logger } from "@/lib/errors";
 
 export async function POST(req: Request) {
   let body: {
@@ -54,7 +55,7 @@ export async function POST(req: Request) {
         { status: err.httpStatus },
       );
     }
-    console.error("[register] unexpected error", err);
+    logger.error("[register] unexpected error", err);
     return NextResponse.json(
       { ok: false, error: "Server error" },
       { status: 500 },

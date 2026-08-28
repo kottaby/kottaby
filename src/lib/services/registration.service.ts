@@ -4,6 +4,7 @@ import { StudentRepository } from "@/lib/repo/student.repository";
 import { StudentTrialService } from "@/lib/services/student-trial.service";
 import { ConflictError, ValidationError } from "@/lib/errors";
 import { messages, type Locale } from "@/lib/i18n/messages";
+import { logger } from "@/lib/errors";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -20,7 +21,6 @@ export interface RegisterResult {
   ok: true;
   studentId: string;
   role: UserRole;
-  trialGranted: boolean;
 }
 
 /**
@@ -84,21 +84,18 @@ export const RegistrationService = {
         );
 
         // REQ-011/015 — grant trial ONLY for the student role
-        let trialGranted = false;
         if (input.role === "student") {
           // REQ-018 — grant inside the same tx; rolls back if anything after fails
           await StudentTrialService.grantFreeTrial(student.id, input.locale, tx);
-          trialGranted = true;
         }
 
-        return { studentId: student.id, trialGranted };
+        return { studentId: student.id };
       });
 
       return {
         ok: true,
         studentId: result.studentId,
         role: input.role,
-        trialGranted: result.trialGranted,
       };
     } catch (err) {
       // Re-throw domain errors as-is (ConflictError, ValidationError)
@@ -106,7 +103,7 @@ export const RegistrationService = {
         throw err;
       }
       // Unexpected DB error — log + wrap
-      console.error("[registration] unexpected error", err);
+      logger.error("[registration] unexpected error", err);
       throw err;
     }
   },

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { logger } from "@/lib/errors";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -40,7 +41,7 @@ export async function POST(req: Request) {
     });
     return NextResponse.json({ ok: true });
   } catch (err) {
-    console.error("[newsletter] error", err);
+    logger.error("[newsletter] error", err);
     return NextResponse.json(
       { ok: false, error: "Server error" },
       { status: 500 }

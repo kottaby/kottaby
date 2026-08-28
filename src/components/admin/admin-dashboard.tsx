@@ -216,10 +216,10 @@ function StudentsTab({
         toast.success(t.admin.grantTrialSuccess);
         onMutation();
       } else {
-        toast.error(data.error ?? "Grant failed");
+        toast.error(data.error ?? t.admin.grantFailed);
       }
     } catch {
-      toast.error("Network error");
+      toast.error(t.admin.networkError);
     } finally {
       setActingId(null);
     }
@@ -235,10 +235,10 @@ function StudentsTab({
         toast.success(t.admin.deleted);
         onMutation();
       } else {
-        toast.error(data.error ?? "Delete failed");
+        toast.error(data.error ?? t.admin.deleteFailed);
       }
     } catch {
-      toast.error("Network error");
+      toast.error(t.admin.networkError);
     } finally {
       setActingId(null);
     }
@@ -371,7 +371,7 @@ function StudentsTab({
                 </td>
                 <td className="p-2 text-center">
                   {s.eligible ? (
-                    <Badge className="bg-green-500/15 text-green-500 border-0 text-[10px]">{t.admin.yes}</Badge>
+                    <Badge className="bg-copper/15 text-copper border-0 text-[10px]">{t.admin.yes}</Badge>
                   ) : (
                     <Badge variant="outline" className="text-[10px]">{t.admin.no}</Badge>
                   )}
@@ -439,9 +439,9 @@ const BOOKING_STATUSES = ["pending", "confirmed", "completed", "cancelled"] as c
 function statusColor(status: string): string {
   switch (status) {
     case "pending": return "bg-amber-500/15 text-amber-500";
-    case "confirmed": return "bg-blue-500/15 text-blue-500";
-    case "completed": return "bg-green-500/15 text-green-500";
-    case "cancelled": return "bg-red-500/15 text-red-500";
+    case "confirmed": return "bg-primary/15 text-primary";
+    case "completed": return "bg-copper/15 text-copper";
+    case "cancelled": return "bg-destructive/15 text-destructive";
     default: return "bg-muted text-muted-foreground";
   }
 }
@@ -497,10 +497,10 @@ function BookingsTab({
         toast.success(t.admin.statusUpdated);
         onMutation();
       } else {
-        toast.error(data.error ?? "Update failed");
+        toast.error(data.error ?? t.admin.updateFailed);
       }
     } catch {
-      toast.error("Network error");
+      toast.error(t.admin.networkError);
     } finally {
       setUpdatingId(null);
     }
@@ -516,10 +516,10 @@ function BookingsTab({
         toast.success(t.admin.deleted);
         onMutation();
       } else {
-        toast.error(data.error ?? "Delete failed");
+        toast.error(data.error ?? t.admin.deleteFailed);
       }
     } catch {
-      toast.error("Network error");
+      toast.error(t.admin.networkError);
     } finally {
       setDeletingId(null);
     }
@@ -736,10 +736,10 @@ function MessagesTab({
         toast.success(t.admin.deleted);
         onMutation();
       } else {
-        toast.error(data.error ?? "Delete failed");
+        toast.error(data.error ?? t.admin.deleteFailed);
       }
     } catch {
-      toast.error("Network error");
+      toast.error(t.admin.networkError);
     } finally {
       setDeletingId(null);
     }
@@ -932,7 +932,7 @@ function ExportButton({ type }: { type: "students" | "bookings" | "contacts" | "
     setLoading(true);
     try {
       const res = await fetch(`/api/admin/export?type=${type}`);
-      if (!res.ok) throw new Error("Export failed");
+      if (!res.ok) throw new Error(t.admin.exportFailed);
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -944,7 +944,7 @@ function ExportButton({ type }: { type: "students" | "bookings" | "contacts" | "
       URL.revokeObjectURL(url);
       toast.success(t.admin.export);
     } catch {
-      toast.error("Export failed");
+      toast.error(t.admin.exportFailed);
     } finally {
       setLoading(false);
     }

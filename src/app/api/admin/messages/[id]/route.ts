@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { logger } from "@/lib/errors";
 
 /**
  * DELETE /api/admin/messages/[id]?type=contact|newsletter
@@ -38,7 +39,7 @@ export async function DELETE(
 
     return NextResponse.json({ ok: true });
   } catch (err) {
-    console.error("[admin/messages/[id]] DELETE error", err);
+    logger.error("[admin/messages/[id]] DELETE error", err);
     return NextResponse.json(
       { ok: false, error: "Server error" },
       { status: 500 },

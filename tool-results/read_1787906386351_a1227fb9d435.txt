@@ -1,0 +1,478 @@
+     1→# AGENTS.md
+     2→
+     3→This document provides essential context for AI agents working in this codebase. It focuses on non-obvious patterns, gotchas, and commands that aren't self-evident from reading individual files.
+     4→
+     5→## Project Overview
+     6→
+     7→Kottaby is a Next.js 16 (App Router) full-stack application using:
+     8→- **Runtime**: Bun (not Node.js)
+     9→- **Frontend**: React 19, MUI v9, Apollo Client v4, Zustand
+    10→- **Backend**: Pothos GraphQL, Drizzle ORM, PostgreSQL
+    11→- **Testing**: Bun test runner, Vitest for Storybook, Playwright for E2E
+    12→- **i18n**: **Custom compile-time TypeScript system** in `shared/locale/` (replaces legacy `next-intl`; see `shared/AGENTS.md` for rules). Next.js native `[locale]` routing preserved.
+    13→
+    14→## Essential Commands
+    15→
+    16→All commands use Bun. The specific binary path `~/.bun/bin/bun` is required in some environments.
+    17→
+    18→```bash
+    19→# Development
+    20→bun run dev                    # Start dev server with Turbopack on port 3000
+    21→bun run dev:safe               # Safe dev mode via scripts/safe-dev.ts
+    22→bun run debug                  # Same as dev (alias for debugging workflows)
+    23→bun run dev:inspect            # Start dev server with Node inspector enabled (--inspect)
+    24→
+    25→# Build & Type Check
+    26→bun run build                  # Next.js production build
+    27→bun run tsgo                   # Fast TypeScript checking (tsgo, not tsc)
+    28→
+    29→# Linting & Formatting (in-process serialized lint service)
+    30→bun run lint                   # Full-repo ESLint; in-process serialized lint service — safe for parallel sub-agents
+    31→bun run lint:fix               # Full-repo ESLint with auto-fix
+    32→bun lint:type-aware            # Type-aware ESLint (sonarjs rules requiring type context); use --fix to auto-fix
+    33→bun run format                 # Biome formatter
+    34→bun run biome:check            # Biome lint + format + unsafe fixes
+    35→
+    36→# GraphQL Code Generation (REQUIRED after schema/document changes)
+    37→bun run generate:gqlSchema     # Generate GraphQL schema from Pothos
+    38→bun codegen                    # Generate TypeScript types from schema
+    39→
+    40→# Testing (layer-specific)
+    41→bun run build:test             # Build production bundle for UI/E2E tests (.next-test-prod) — REQUIRED before test:ui:e2e
+    42→bun run test                   # All tests
+    43→bun run test:db                # Database repository tests (parallel via test/scripts/run-db-tests-parallel.ts)
+    44→bun run test:db:sequential     # Database tests (sequential, for debugging)
+    45→bun run test:integration       # Provider integration smokes (parallel via test/scripts/run-integration-tests-parallel.ts)
+    46→bun run test:integration:sequential  # Integration tests (sequential, for debugging)
+    47→bun run test:live-comm         # Communication provider integration subset
+    48→bun run test:live-fx           # FX provider integration subset
+    49→bun run test:services          # Backend services tests (parallel via test/scripts/run-services-tests-parallel.ts)
+    50→bun run test:services:sequential # Backend services tests (sequential, for debugging)
+    51→bun run test:graphql           # GraphQL integration tests (dev server via test/scripts/run-server-tests.ts)
+    52→bun run test:ui:components     # UI component tests (Happy DOM, no server)
+    53→bun run test:ui:e2e            # End-to-end tests (dev/production server — test/scripts/run-server-tests.ts --e2e)
+    54→bun run test:ui                # All UI tests (components + e2e + static)
+    55→bun run test:ui:kill           # Kill test servers on port 3099 only (never dev:3000 or start:4000)
+    56→
+    57→# Run database tests with log capture (AI agents MUST use this instead of raw `bun test`)
+    58→bun run test/scripts/run-test.ts <test-path>        # Run with log capture
+    59→bun run test/scripts/run-test.ts --last <path>      # View last result (AI-optimized)
+    60→bun run test/scripts/run-test.ts --last --focus "<pattern>" <path>  # Filtered view
+    61→
+    62→# Quality Gates
+    63→bun quality-gate               # Automated quality verification (tsgo → oxlint → biome → lint → duplicates)
+    64→bun quality-gate:fresh         # Reset state and run fresh
+    65→
+    66→# Database
+    67→bun run db                      # Database actions via scripts/dbActions/ (generate, push, migrate, seed, studio — reset & cleanGenerate disabled by repo policy)
+    68→```
+    69→
+    70→## Architecture Layers
+    71→
+    72→The codebase follows strict layer separation. Each layer has its own `AGENTS.md` with detailed rules.
+    73→
+    74→### Layer Hierarchy (read layer-specific AGENTS.md before working in each)
+    75→
+    76→| Layer | Path | AGENTS.md Location |
+    77→|-------|------|-------------------|
+    78→| App Router | `app/` | `app/AGENTS.md` |
+    79→| Shared | `shared/` | `shared/AGENTS.md` |
+    80→| Frontend Views | `frontend/views/` | `frontend/views/AGENTS.md` |
+    81→| Frontend Stores | `frontend/stores/` | `frontend/stores/AGENTS.md` |
+    82→| Frontend GraphQL | `frontend/graphql/` | `frontend/graphql/AGENTS.md` |
+    83→| Backend Services | `backend/services/` | `backend/services/AGENTS.md` |
+    84→| Backend GraphQL/Pothos | `backend/graphql/` | `backend/graphql/AGENTS.md` |
+    85→| Database Repositories | `backend/db/repo/` | `backend/db/repo/AGENTS.md` |
+    86→| Database Seeds | `backend/db/seeds/` | `backend/db/seeds/AGENTS.md` |
+    87→| Backend Types | `backend/types/` | `backend/types/AGENTS.md` |
+    88→| Backend Enums | `backend/enum/` | `backend/enum/AGENTS.md` |
+    89→
+    90→### Data Flow
+    91→
+    92→```
+    93→Client Component → Apollo Hook → GraphQL API → Pothos Resolver → Service → Repository → Database
+    94→Server Component → Cached Wrapper → Service → Repository → Database
+    95→```
+    96→
+    97→**Critical**: Server Components call services directly (not GraphQL). Client Components use Apollo hooks.
+    98→
+    99→## Non-Obvious Patterns & Gotchas
+   100→
+   101→### Next.js 16 Breaking Changes
+   102→This is NOT standard Next.js. APIs and conventions differ from training data. **Always read `node_modules/next/dist/docs/` before writing Next.js code.**
+   103→
+   104→### Logging
+   105→- **NEVER use `console.*` directly** - ESLint will error
+   106→- Always use: `import { logger } from '@/frontend/utils/logger'` (frontend) or `@/backend/lib/logger` (backend)
+   107→- Methods: `logger.info`, `logger.warn`, `logger.error`, `logger.debug`, `logger.logDomainError`
+   108→- **Domain / Expected Rejections**: Use `logger.logDomainError(msg, ctx)` when handling business rejections, 4xx equivalents, `NotFoundError`, or `ValidationError`. It automatically logs as `debug` in test mode (`TEST_SERVER=1`) to keep test logs compact and as `warn` in production.
+   109→
+   110→### MUI v9 Breaking Changes
+   111→- Style props (`fontWeight`, `textAlign`, `mb`, `mt`, `p`, `display`, etc.) are NOT valid direct props on Typography, Stack, Box, Grid
+   112→- Always use `sx` prop: `<Typography sx={{ fontWeight: 700, mb: 1 }}>`
+   113→- Icon naming changed: `*Outline` → `*Outlined` (e.g., `ErrorOutline` → `ErrorOutlined`)
+   114→- See `frontend/AGENTS.md` for complete list
+   115→
+   116→### React 19 Changes
+   117→- `FormEvent` is deprecated/removed. Use `React.SubmitEvent` or `React.SyntheticEvent<HTMLFormElement>`
+   118→- Cast FormData results: `(formData.get("name") as string | null) ?? ""`
+   119→
+   120→### Path Aliases
+   121→- The `@/*` path alias maps to the project root (`./`), configured in `tsconfig.json` under `compilerOptions.paths`
+   122→- All imports use this pattern: `import { logger } from "@/backend/lib"` (never relative paths)
+   123→- Examples: `@/backend/services/` → `./backend/services/`, `@/frontend/views/` → `./frontend/views/`
+   124→
+   125→### Barrel Files (`index.ts`) Conventions
+   126→- **Shortest import path**: Always import from the highest available barrel (e.g. `@/backend/services`, not `@/backend/services/communication/channels/whatsapp/cloud-api`). If a barrel doesn't exist at the needed level, create one.
+   127→- **Nested barrels**: Every nested subdirectory that has exportable modules MUST have its own `index.ts`. Parent barrels re-export from nested barrels (`export * from "./subdir"`), never from nested files directly (`export * from "./subdir/file"` is prohibited).
+   128→- **Prefer `export *`**: Use `export * from "./module"` exclusively. Avoid named re-exports (`export { A, B } from "./module"`) unless two source files export the same symbol name (collision) — in that case, rename the function in the source file so `export *` works, rather than aliasing in the barrel.
+   129→- **`./` not `@/` in barrels**: `index.ts` files MUST use relative `./` paths, not `@/` path aliases. Example: `export * from "./requests"`, not `export * from "@/backend/services/.../requests"`.
+   130→- **No `../` in barrels**: `index.ts` files MUST NOT use `../` or `./../` — only `./` paths to files/subdirs in the same directory or one level down.
+   131→- **Max one `/` per path**: Each `export * from` path in an `index.ts` MUST NOT contain more than one `/`. Example: `export * from "./requests"` (one `/`) is allowed; `export * from "./requests/get-phone-number.request"` (two `/`) is prohibited — use `export * from "./requests"` and let the `requests/index.ts` barrel handle the rest.
+   132→- **No imports in barrels**: `index.ts` files contain ONLY `export *` (or collision-disambiguation `export { }`) statements — never `import` statements. The only exception is GraphQL mutation/query layers where imports register types in the GraphQL schema (not re-exported).
+   133→- **Unique export names**: When multiple files in the same directory export functions with the same generic name (e.g. `buildRequest`, `parseResponse`), rename them to unique descriptive names in the source files (e.g. `buildGetPhoneNumberRequest`, `parseGetPhoneNumberResponse`) so the barrel can use `export *` without aliasing.
+   134→- **Collision registry**: When `export *` causes a naming collision (TS2308 or ESLint `import-x/export`), keep `export { }` for the colliding symbol and document the exception in `ai/plans/reexport-elimination/outcome/collisions-registry.md`. See `docs/architecture/import-export-conventions.md` for full rules.
+   135→- **`export type { }` stays**: `export type { X } from "./file"` is NOT converted to `export *` — type-only re-exports are intentional and keep type semantics explicit.
+   136→- **No re-export shims**: Files that only re-export from another directory (`export { X } from "@/other/dir/file"`) are prohibited. Consumers must import directly from the original source. Delete shim files and update consumers.
+   137→
+   138→### Shared Layer
+   139→- `shared/` is used by both frontend and backend — it must **never** import from `@/frontend/**`, `@/backend/**`, or `@/app/**` (ESLint enforced).
+   140→- Cross-layer enums and constants belong in `shared/constants/`; utilities in `shared/lib/`. See `shared/AGENTS.md`.
+   141→
+   142→### Database Testing Critical Rules
+   143→- **ALWAYS use `runInRollback` wrapper** for database tests
+   144→- **ALWAYS pass `tx` to ALL repository methods** inside transactions - mixing `tx` queries with `db`-backed repo calls causes deadlocks
+   145→- **NEVER use `expect(...).rejects.toThrow()` inside `runInRollback`** - causes deadlocks. Use try/catch helper pattern instead
+   146→- **NEVER query seed data** - always create test data using helpers in `entity-setup.ts`
+   147→- Verify entity-setup helper signatures before use - they vary significantly
+   148→
+   149→### GraphQL Document Conventions
+   150→- Documents live in `frontend/graphql/sharedDocuments/<domain>.documents.ts`
+   151→- Naming: `{entityName}QueryDocument`, `{entityName}MutationDocument`
+   152→- **Always include `id` field** on every object type for Apollo cache normalization
+   153→- **NO `useLazyQuery`** - use stateful `useQuery` exclusively
+   154→- Import hooks from `"@apollo/client/react"`, not `"@apollo/client"`
+   155→
+   156→### Type Definition Pattern (CRITICAL)
+   157→All layers use types from `backend/types/{entity}.types.ts`:
+   158→- `{Entity}SelectType`, `{Entity}InsertType` - database types
+   159→- `{Entity}ReturnType`, `{Entity}SubmitInput` - service/API types
+   160→- `DBTransaction`, `DBQueryExecutor` - database transaction/executor types (now in `@/backend/types`, moved from `@/backend/db/db.types`)
+   161→- **Never create local type definitions in Pothos files** - always import from `@/backend/types`
+   162→- **Service-layer `.types.ts` files are prohibited** - all types live in `backend/types/`; split runtime code into `.helpers.ts`/`.constants.ts`
+   163→- Single canonical GraphQL object type per entity
+   164→
+   165→### i18n / Localized Errors
+   166→- All user-facing error messages must use the **compile-time translation system** in `shared/locale/`
+   167→- **Server Components**: use `getTranslations(locale, "namespace")` from `@/shared/locale/server`
+   168→- **Client Components**: use `useAppTranslation("namespace")` from `@/shared/locale/client`
+   169→- **GraphQL Resolvers**: use `ctx.t("namespace")` — already bound to `ctx.locale`
+   170→- **API Routes / Scripts / Tests**: use `getServerTranslations(locale, "namespace")` from `@/shared/locale/server-graphql`
+   171→- **Pluralization**: define as `(count: number) => string` in type schema, implement in each locale file
+   172→- **Interpolation**: define as `(param: string, ...) => string` in type schema, implement with template literals
+   173→- **Never hardcode error strings** — always use typed translation functions
+   174→- The legacy `next-intl` package has been removed; all translation namespaces now live in `shared/locale/`. Never import `next-intl`, `getBackendTranslations`, or from `shared/messages/` (the directory no longer exists).
+   175→
+   176→### Theme & Styling
+   177→- **NO hardcoded colors** - all colors from theme palette
+   178→- Use theme callback: `sx={(theme) => ({ color: theme.palette.primary.main })}`
+   179→- Use Material 3 `on<Color>` siblings for contrast (e.g., `theme.palette.onPrimary`)
+   180→- See `frontend/THEME_PALETTE.md` for tokens
+   181→
+   182→## Code Quality Workflow
+   183→
+   184→After making changes:
+   185→1. Run `bun quality-gate` - it handles tsgo, oxlint, biome, lint, duplicates sequentially
+   186→2. If DUPLICATES fails: run `bun run check:duplicates` to see cross-file clones. Fix by extracting shared scaffolds/utilities (see `docs/frontend/duplication-elimination-patterns.md`). NEVER add `jscpd:ignore` comments or modify `.jscpd.json`.
+   187→3. Re-run `bun quality-gate` to resume from last failed stage
+   188→4. Use `bun quality-gate:fresh` only for clean-slate verification
+   189→
+   190→**⚠️ NEVER CLEAR CACHES.** Neither `quality-gate` nor `quality-loop` may ever clear cache files.
+   191→This includes:
+   192→- ESLint cache (`.eslintcache`, `.eslintcache-type-aware`) — always preserved by `lint-service.ts`
+   193→The `quality-gate:fresh` / `--fresh` flag only clears the quality-gate **state file**
+   194→(`.quality-gate-state.json`), which tracks stage progress — it does NOT touch any cache.
+   195→Never manually delete cache files either.
+   196→
+   197→## Lint Service (In-Process Serialized ESLint)
+   198→
+   199→The project uses a unified lint service (`scripts/lint-service.ts`) that provides both a CLI and programmatic API. It runs ESLint with serialized execution to prevent CPU/memory contention when multiple callers (e.g., sub-agents, quality-gate stages) lint concurrently within the same process. No HTTP server, no port binding — everything is in-process TypeScript.
+   200→
+   201→### Running lint from the command line
+   202→
+   203→**Full-repo lint** (via `eslint.config.js` `files`/`ignores` block):
+   204→```bash
+   205→bun run lint
+   206→```
+   207→
+   208→**File-scoped lint** (faster when you only touched specific files):
+   209→```bash
+   210→bun run scripts/lint-service.ts -f <file1> -f <file2> --id <caller-id>
+   211→```
+   212→
+   213→**Auto-fix mode**:
+   214→```bash
+   215→bun run lint:fix
+   216→```
+   217→
+   218→**JSON output** (for scripting/automation):
+   219→```bash
+   220→bun run scripts/lint-service.ts -f <file> --json --id <caller-id>
+   221→# Returns: { success: boolean, output: string, exitCode: number, metrics: {...} }
+   222→```
+   223→
+   224→The CLI exits with ESLint's exit code (0 = clean, 1 = lint errors, 2 = config/usage errors), so CI pipelines and quality gates detect failures correctly.
+   225→
+   226→### Programmatic API (from TypeScript)
+   227→
+   228→Import and call directly from scripts or tests:
+   229→
+   230→```typescript
+   231→import { requestLint, requestFullRepoLint } from "@/scripts/lint-service";
+   232→
+   233→// Lint specific files
+   234→const result = await requestLint("sub-loop", ["backend/types/foo.types.ts"]);
+   235→// Returns: { success: boolean, output: string, exitCode: number }
+   236→
+   237→// Full-repo lint (empty files array)
+   238→const fullResult = await requestFullRepoLint("cli");
+   239→```
+   240→
+   241→**When to use programmatic vs CLI:**
+   242→- Use the programmatic API when your script already runs in a Bun/Node process and can import TypeScript (e.g., `sub-loop.ts`, orchestrator scripts).
+   243→- Use the CLI when invoking from shell commands or external tools (e.g., GitHub Actions, pre-commit hooks, extensions).
+   244→
+   245→### Environment Variables
+   246→
+   247→- `LINT_QUEUE_CONCURRENCY` — ESLint `--concurrency` value (default `4`; set to `auto` to let ESLint decide).
+   248→- `LINT_QUEUE_TIMEOUT_MS` — Per-request timeout in milliseconds (default: 300000 for file-scoped, 1200000 for full-repo).
+   249→
+   250→### Other quality commands are safe to run in parallel
+   251→
+   252→- `bun tsgo` — Safe to run concurrently (read-only type checker)
+   253→- `bun biome:check` — Safe to run concurrently (lightweight formatter/linter)
+   254→- `bun run test:*` — Safe to run concurrently (isolated test runners)
+   255→- `bun run lint` — Safe to run directly; uses the in-process service (no server startup required). When multiple callers import `requestLint()` in the same process, requests serialize through an in-memory FIFO queue.
+   256→- `bun run check:duplicates` — Uses process lock with dedicated `duplicates` namespace; serialized via `run-locked-cmd.ts`. Exempt from 5-minute timeout (full-repo scan of 3,000+ files). Sub-loop's per-file jscpd calls `bunx jscpd` directly (no lock needed for intra-file scans).
+   257→
+   258→## Verification Loop (Per-File Level)
+   259→
+   260→When refactoring or creating code, run a per-file verification loop **BEFORE** using the result elsewhere:
+   261→
+   262→1. **After extracting a function** from one file to another: run tsgo + oxlint + biome + lint on the **new file containing the extracted function** BEFORE importing or using it elsewhere.
+   263→2. **After creating a new file**: run tsgo + oxlint + biome + lint on the new file BEFORE importing it anywhere.
+   264→
+   265→```bash
+   266→bun tsgo                          # Type check (safe to run concurrently)
+   267→bun oxlint                         # Oxlint (fast linter, fails on warnings)
+   268→bun biome:check                   # Biome (safe to run concurrently)
+   269→# Lint the specific file:
+   270→bun run scripts/lint-service.ts -f <the-file> --id verify
+   271→```
+   272→
+   273→This catches issues early at the file level before they propagate to the full quality gate.
+   274→
+   275→## Test Runner for Refactoring
+   276→
+   277→When refactoring or fixing a **test file**, use the run-test script instead of raw `bun test`:
+   278→
+   279→```bash
+   280→bun run test/scripts/run-test.ts <test-path>                       # Run with log capture
+   281→bun run test/scripts/run-test.ts --last <test-path>               # View last result (AI-optimized)
+   282→bun run test/scripts/run-test.ts --last --focus "<pattern>" <test-path>  # Filtered view
+   283→```
+   284→
+   285→The run-test script captures output to log files for easier debugging and is mandatory for database tests
+   286→(to capture deadlocks and transaction issues that raw `bun test` may swallow).
+   287→
+   288→## Parallel Subagent Quality Gate Workflow
+   289→
+   290→When running `bun quality-gate`, the orchestrator dispatches **parallel subagents** to fix files
+   291→within each lifecycle stage. Key rules:
+   292→
+   293→### Lifecycle Isolation (No Cross-Stage Interleaving)
+   294→
+   295→- Subagents are dispatched **per lifecycle stage only** — no mixing stages in the same wave
+   296→- Each stage must fully complete before advancing to the next
+   297→- Stage order: `tsgo` → `oxlint` → `biome:check` → `lint` → `duplicates`
+   298→
+   299→### Subagent Dispatch Model
+   300→
+   301→- **One subagent per file** — maximum parallelism
+   302→- **tsgo uses grouped parallel**: bundle related files (same import chain, same directory, same type
+   303→  dependency) into batches. Fix a batch in parallel, verify, then move to the next batch
+   304→- **oxlint/biome/lint/duplicates**: full parallel — all files at once
+   305→
+   306→### Per-File Verification via `scripts/health/sub-loop.ts`
+   307→
+   308→Each subagent calls the automation script to verify its file:
+   309→
+   310→```bash
+   311→bun run scripts/health/sub-loop.ts <file-path> --lifecycle <stage>
+   312→```
+   313→
+   314→The script runs a **progressive loop** (tsgo → oxlint → biome → lint → duplicates) and
+   315→**short-circuits at the first failing check**. The subagent fixes the errors and re-runs until
+   316→the script exits 0. The `--lifecycle` arg controls the target stage:
+   317→
+   318→| `--lifecycle` | Checks run (in order) |
+   319→|---------------|----------------------|
+   320→| `tsgo` | tsgo only |
+   321→| `biome` | tsgo → oxlint → biome |
+   322→| `lint` | tsgo → oxlint → biome → lint (via queue client) |
+   323→| `duplicates` | tsgo → oxlint → biome → lint → check:duplicates |
+   324→
+   325→**Progressive enforcement**: no skipping ahead. If tsgo fails, only fix tsgo — don't run
+   326→oxlint/biome/lint/duplicates until tsgo passes.
+   327→
+   328→### Instruction File & AGENTS.md Discovery (Per-File)
+   329→
+   330→The `scripts/health/sub-loop.ts` script automatically discovers and prints which instruction
+   331→files and AGENTS.md files apply to the target file. Subagents MUST read ALL listed files before
+   332→fixing. The mapping is:
+   333→
+   334→**Instruction files** (`.github/instructions/*.instructions.md`):
+   335→
+   336→| File Path Pattern | Instruction File |
+   337→|---|---|
+   338→| `frontend/**/*.ts(x)`, `app/**/*.ts(x)` | `frontend.instructions.md` |
+   339→| `backend/**/*.ts` | `backend.instructions.md` |
+   340→| `**/*.test.ts(x)`, `**/*.spec.ts(x)`, `scripts/run-test/**/*.ts` | `tests.instructions.md` |
+   341→
+   342→A file may match **multiple** instruction files (e.g., `backend/db/test/*.test.ts` matches
+   343→both `backend.instructions.md` and `tests.instructions.md`). Read ALL matching files.
+   344→
+   345→**AGENTS.md files** (in addition to root `AGENTS.md` which is always applicable):
+   346→
+   347→| File Path Prefix | Additional AGENTS.md Files |
+   348→|---|---|
+   349→| `app/` | `app/AGENTS.md` |
+   350→| `shared/` | `shared/AGENTS.md` |
+   351→| `frontend/views/` | `frontend/views/AGENTS.md`, `frontend/AGENTS.md` |
+   352→| `frontend/stores/` | `frontend/stores/AGENTS.md`, `frontend/AGENTS.md` |
+   353→| `frontend/graphql/sharedDocuments/` | `frontend/graphql/sharedDocuments/AGENTS.md`, `frontend/graphql/AGENTS.md`, `frontend/AGENTS.md` |
+   354→| `frontend/graphql/` | `frontend/graphql/AGENTS.md`, `frontend/AGENTS.md` |
+   355→| `backend/services/` | `backend/services/AGENTS.md`, `backend/AGENTS.md` |
+   356→| `backend/graphql/` | `backend/graphql/AGENTS.md`, `backend/AGENTS.md` |
+   357→| `backend/db/repo/` | `backend/db/repo/AGENTS.md`, `backend/AGENTS.md` |
+   358→| `backend/db/seeds/` | `backend/db/seeds/AGENTS.md`, `backend/AGENTS.md` |
+   359→| `backend/db/test/` | `backend/db/test/AGENTS.md`, `backend/AGENTS.md` |
+   360→| `backend/types/` | `backend/types/AGENTS.md`, `backend/AGENTS.md` |
+   361→| `scripts/run-test/` | `scripts/run-test/AGENTS.md` |
+   362→
+   363→### Fix-Or-Report Rule for Cross-File Violations
+   364→
+   365→After reading the applicable instruction files and AGENTS.md, subagents check for rule violations:
+   366→- **Fix within the SAME file**: if the violation can be fixed in the assigned file, fix it directly.
+   367→- **Report cross-file dependencies**: if fixing requires modifying ANOTHER file, do NOT modify it.
+   368→  Report to the orchestrator using:
+   369→  ```
+   370→  CROSS-FILE DEPENDENCY:
+   371→    Target file: <this file>
+   372→    Blocked by: <other file that needs changes>
+   373→    Rule violated: <which rule from instruction file or AGENTS.md>
+   374→    Required fix: <description of what the other file needs>
+   375→  ```
+   376→- **Never modify a file you were not assigned to.** The orchestrator coordinates multi-file changes
+   377→  by dispatching a follow-up subagent wave for the dependency files.
+   378→
+   379→## AI Agent Communication Rules
+   380→
+   381→- **NEVER create summary markdown files** (SUMMARY.md, CHANGES.md, REPORT.md, etc.)
+   382→- **DO respond in chat** with clear summary of what was done
+   383→- Exception: Documentation files that are part of project structure (README.md, CONTRIBUTING.md)
+   384→
+   385→## File Organization
+   386→
+   387→### Frontend
+   388→- `frontend/views/dashboard/` - Domain-organized page components
+   389→- `frontend/stores/` - Zustand stores (mock stores for Storybook)
+   390→- `frontend/components/ui/` - Shared UI components (AppDataGrid, MetricCard, PageContainer, etc.)
+   391→- `frontend/graphql/sharedDocuments/` - GraphQL documents by domain
+   392→- `frontend/graphql/generated/` - Auto-generated types (do not edit)
+   393→
+   394→### Backend
+   395→- `backend/db/schema/` - Drizzle table definitions
+   396→- `backend/db/repo/` - Repository layer (data access only)
+   397→- `backend/services/` - Business logic, organized by domain
+   398→- `backend/graphql/pothos/` - Pothos GraphQL definitions
+   399→- `backend/types/` - Canonical type definitions
+   400→- `backend/lib/` - Utilities (auth, logger, env, etc.)
+   401→
+   402→### Testing
+   403→- `backend/db/test/repo/` - Repository unit tests (100% coverage required)
+   404→- `backend/db/test/logic/` - Business logic integration tests
+   405→- `frontend/graphql/test/` - GraphQL integration tests (dev server; use testClient, not raw fetch)
+   406→- `test/ui/` - UI tests — see `test/ui/AGENTS.md`
+   407→- `test/ui/components/` - Component tests (Happy DOM + mocked Apollo; no server)
+   408→- `test/ui/e2e/` - End-to-end tests (production server; requires `bun run build:test` first)
+   409→
+   410→## Important References
+   411→
+   412→- `frontend/COMPONENT_PATTERNS.md` - Dashboard UI patterns
+   413→- `frontend/IMPLEMENTATION_LEARNINGS.md` - Error resolutions from past mistakes
+   414→- `frontend/NEW_PAGE_WORKFLOW.md` - Required workflow for new pages
+   415→- `frontend/THEME_PALETTE.md` - Color tokens and access patterns
+   416→- `docs/IDEMPOTENCY.md` - Idempotency patterns
+   417→- `docs/drizzle/prepared-statements.md` - Drizzle Prepared Statements 2.0 pattern reference
+   418→- `docs/drizzle/neon-http-client.md` - Neon HTTP Client & Provider-Agnostic Stateless Queries reference
+   419→- `docs/graphql/dataloader-batching.md` - Pothos DataLoader batching pattern reference
+   420→- `docs/services/entity-cache-service.md` - Entity Cache Service pattern reference
+   421→- `docs/services/meeting-providers.md` - Meeting provider adapter/factory pattern reference (auto URL generation) *(doc file absent from this tree — pending the meeting-services ticket; see `ai/plans/dev3-002-shared-error-handling-response-contracts/deferred-items.md` BLT-03)*
+   422→- `docs/services/zoom-token-types.md` - Zoom token kinds (SDK JWT, OBF, ZAK, S2S OAuth, per-user OAuth) semantics and constraints
+   423→- `docs/services/whatsapp-cloud-api.md` - WhatsApp Cloud API integration reference (adapter, factory, webhook, dispatch, schema, opt-in, frontend) *(doc file absent from this tree — pending the WhatsApp-integration ticket; see `ai/plans/dev3-002-shared-error-handling-response-contracts/deferred-items.md` BLT-03)*
+   424→- `docs/services/general-user-creation.md` - General user creation pattern (createUserOfType null extension, specialized group filtering, cache eviction)
+   425→- `docs/billing/quota-system.md` - Quota System: append-only ledger, FIFO selection, periodic rollover, on-demand scheduling integration
+   426→- `.github/CODE_REVIEW_CHECKLIST.md` - Code review guidelines
+   427→- `docs/services/cron-service.md` - Cron service pattern reference
+   428→- `docs/frontend/ui-shared-scaffold-pattern.md` - UI Shared Scaffold (*Shared.tsx) pattern for common/desktop/mobile triplication
+   429→- `docs/frontend/duplication-elimination-patterns.md` - Duplication elimination patterns A-G (scaffold extraction, shared utility, dead code deletion, store consolidation, scaffold extension, shared view scaffold, locale type consolidation) — Phase 6 eliminated 96% of duplications (475→18 pairs) with zero jscpd:ignore
+   430→- `docs/frontend/meeting-integrations-ui.md` - Meeting Integrations UI canonical reference (MetricCardGrid, AppDataGrid, OAuth callback, reconnect-all, status badges, clipboard, i18n namespaces, mobile-desktop responsive, Zod schema factory, animations, permission-gated cross-links, lint workarounds, accessibility)
+   431→- `docs/frontend/whatsapp-ui-patterns.md` - WhatsApp UI canonical reference (ViewModel composable hooks, URL-synced tabs, dialog state, per-row loading, i18n label helpers, StatusBadge, animations, accessibility, testing patterns, gotchas)
+   432→- `docs/frontend/quota-ui-patterns.md` - Quota UI canonical reference (tier isolation, RHF 3-generic pattern, cache.updateQuery for paginated lists, StatusBadge categories, MetricCard animations, reduced-motion CSS in sx, Storybook ErrorState naming, component test tier-view mocking, i18n CLDR plurals, 150-line file limit, QuotaFormAccessProvider RBAC)
+   433→- `docs/testing/shared-test-runner.md` - Shared parallel test runner pattern
+   434→- `docs/backend/shared-types-pattern.md` - Cross-layer shared types in shared/types/
+   435→- `docs/backend/meeting-adapter-base.md` - Meeting provider adapter base class pattern reference
+   436→- `docs/backend/billing-repo-factory.md` - Billing repo factory with configurable hooks pattern reference
+   437→- `docs/backend/schema-helpers.md` - Schema column and junction table helpers pattern reference
+   438→- `docs/app/with-page-auth.md` - App router page auth wrapper pattern reference
+   439→- `docs/testing/mock-navigation-helpers.md` - Test mock navigation helpers pattern reference
+   440→- `docs/auth/manager-role-mapping.md` - Manager role mapping architecture & permission group slug convention
+   441→- `docs/i18n/locale-namespace-migration.md` - Locale namespace migration from monolithic to sub-module directories
+   442→- `docs/auth/permission-architecture.md` - Client-side permission architecture (3-tier model, wrapper removal rationale)
+   443→- `docs/auth/supervisor-permissions.md` - Supervisor permission model (teacher/student/parent management, staff exclusion, system group editing, authScope pattern)
+   444→- `docs/i18n/cross-layer-enum-migration.md` - Cross-layer enum delete/codemod pattern (currency/timezone/class-instance-detail workflow)
+   445→- `docs/backend/service-base-pattern.md` - Service base class, shared resolvers, insert payload builders, auth session helpers
+   446→- `docs/backend/types-consolidation.md` - Types consolidation: moving `.types.ts` from service layer to `backend/types/`, split rules, barrel conventions
+   447→- `docs/graphql/pothos-field-factories.md` - Pothos field helpers, input field helpers, and query field factory idioms
+   448→- `docs/architecture/import-export-conventions.md` - Import/export barrel conventions, `export *` rules, collision registry, re-export elimination summary
+   449→- `docs/quality/linting-rules.md` - Oxlint & ESLint/sonarjs lint rule fix recipes and config overrides
+   450→- `docs/quality/ci-pipeline.md` - CI pipeline canonical reference (.github/workflows/ci.yml trigger model, job/stage topology, caching rules, security posture, branch-protection admin setup, local reproduction commands, sabotage evidence)
+   451→- `docs/workflows/plan-doc-reconciliation.md` - Plan-vs-canonical-doc reconciliation workflow (docs-only plan pattern, anchor-on-text, outcome-pointer rule, known-open-issues propagation, phantom-spec-code handling, markdown link-integrity loop)
+   452→- `docs/backend/serverless-cold-start-optimization.md` - Serverless cold-start optimization patterns (permission context, env-config pre-warm, singleton persistence, HTTP batching, client log batching)
+   453→- `docs/backend/login-cold-start-resilience.md` - Login cold-start resilience patterns (fail-open rate limiter, retryTransient on DB reads, frontend retry on SERVICE_UNAVAILABLE, env-config transient short TTL) *(doc file absent from this tree — rule text lives in `backend/graphql/AGENTS.md` §Serverless Cold-Start Optimization; `SERVICE_UNAVAILABLE` transport semantics in `docs/graphql/error-handling-contract.md`; see dev3-002 BLT-03)*
+   454→- `docs/graphql/error-handling-contract.md` — Shared error handling & response contract: REQ-010 code↔HTTP taxonomy + legacy alias normalization, masking/redaction pipeline & correlation bounds, API envelope shapes `{data,requestId}` / `{error:{…}}` with exemptions register, REQ-061 client mapping table, and the per-guarantee test-suite matrix
+   455→- `docs/graphql/domain-error-extensions-code.md` - DomainError → GraphQLError extensions.code propagation pattern
+   456→- `docs/observability/new-relic-integration.md` - New Relic APM integration (Hybrid Agent, GraphQL resolver tracing, zero dev/test overhead)
+   457→- `docs/drizzle/dbml-to-drizzle-schema-migration.md` - DBML→Drizzle schema migration canonical method
+   458→- `docs/auth/user-registration.md` — User registration canonical reference (role→child mapping, handshake generation, atomicity pattern, BOPLA/BFLA defenses, 23505→ConflictError translation, JWT auth flow)
+   459→- `docs/auth/qiraah-selection-and-c5.md` — Qira'ah selection and the C.5 invariant (canonical RecitationReading catalog, public recitationReadings query, registration preferredRecitation contract, deferred persistence, security rules)
+   460→- `docs/auth/jwt-authentication-service.md` — JWT authentication service canonical reference (token claims contract, cookie matrix, redirect-loop fix, authScopes, SSR auth, page guards, role-based dashboards, DEV2-002 RBAC consumption guide)
+   461→- `docs/backend/cross-stream-contracts.md` — Cross-stream contract types canonical reference (DEV2-003: 6 contracts, composition-only rule, forbidden-field registry, consumer-ticket wiring, change governance)
+   462→- `docs/graphql/api-gateway-and-routing.md` — API gateway & routing canonical reference (dev3-003: seven-step request pipeline in `app/api/graphql/route.ts`, transport-failure matrix + `MAX_GRAPHQL_BODY_BYTES`, default-deny public-operation allowlist gate, the two sanctioned health probes, ROUTE_INVENTORY registration rule (A4), REQ-018 operation-registration contract)
+   463→
+   464→
+   465→## Linting Rules
+   466→
+   467→- **Oxlint & ESLint/sonarjs fix recipes**: See `docs/quality/linting-rules.md` for all lint rule patterns, code examples, and config overrides. NEVER add `oxlint-disable` comments — fix the root cause.
+   468→
+   469→<!-- BEGIN:nextjs-agent-rules -->
+   470→
+   471→# This is NOT the Next.js you know
+   472→
+   473→This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+   474→
+   475→This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+   476→
+   477→<!-- END:nextjs-agent-rules -->
+   478→

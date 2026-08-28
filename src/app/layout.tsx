@@ -22,18 +22,18 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Kottaby Academy | Learn the Quran with certified Shuyukh",
+  title: "كُتّابي أكاديمي | تعلّم القرآن الكريم مع شيوخ معتمدين",
   description:
-    "A modern platform that connects students with certified Quran reciters and teachers across all 10 Qira'at. Track progress, master Tajweed, preserve your recitation chain.",
+    "منصة عصرية تربط الطلاب بالشيوخ المعتمدين في القراءات العشر. تتبع تقدمك، أتقن التجويد، واحفظ سندك.",
   keywords: [
-    "Quran",
-    "Tajweed",
-    "Qira'at",
-    "Ijazah",
-    "Islamic education",
-    "Shuyukh",
-    "Kottaby",
-    "Hifz",
+    "القرآن",
+    "التجويد",
+    "القراءات",
+    "الإجازة",
+    "التعليم الإسلامي",
+    "الشيوخ",
+    "كُتّابي",
+    "الحفظ",
   ],
   authors: [{ name: "Kottaby Academy" }],
   icons: {

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { logger } from "@/lib/errors";
 
 /**
  * GET /api/admin/messages — list contact messages + newsletter subscribers.
@@ -42,7 +43,7 @@ export async function GET(req: Request) {
       totals: { contacts: contactTotal, newsletter: newsletterTotal },
     });
   } catch (err) {
-    console.error("[admin/messages] error", err);
+    logger.error("[admin/messages] error", err);
     return NextResponse.json(
       { ok: false, error: "Server error" },
       { status: 500 },

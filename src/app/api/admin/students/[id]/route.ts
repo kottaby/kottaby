@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { StudentTrialService } from "@/lib/services/student-trial.service";
+import { ConflictError, logger } from "@/lib/errors";
 
 /**
  * PATCH /api/admin/students/[id] — admin manual trial grant.
@@ -52,13 +53,17 @@ export async function PATCH(
         trialGranted: updated?.trialGrantedAt !== null,
       });
     } catch (err) {
-      // ConflictError if already granted
-      const msg = err instanceof Error ? err.message : "Server error";
-      const isConflict =
-        msg.includes("already granted") || msg.includes("مسبقًا");
+      // ConflictError if already granted (use instanceof, not string sniffing)
+      if (err instanceof ConflictError) {
+        return NextResponse.json(
+          { ok: false, code: err.code, error: err.message },
+          { status: err.httpStatus },
+        );
+      }
+      logger.error("[admin/students/[id]] grant-trial error", err);
       return NextResponse.json(
-        { ok: false, error: msg },
-        { status: isConflict ? 409 : 500 },
+        { ok: false, error: "Server error" },
+        { status: 500 },
       );
     }
   }
@@ -90,7 +95,7 @@ export async function DELETE(
     await db.student.delete({ where: { id } });
     return NextResponse.json({ ok: true });
   } catch (err) {
-    console.error("[admin/students/[id]] DELETE error", err);
+    logger.error("[admin/students/[id]] DELETE error", err);
     return NextResponse.json(
       { ok: false, error: "Server error" },
       { status: 500 },

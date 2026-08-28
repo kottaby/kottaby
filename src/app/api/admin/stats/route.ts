@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { logger } from "@/lib/errors";
 
 /**
  * GET /api/admin/stats — aggregate counts for the admin dashboard.
@@ -48,7 +49,7 @@ export async function GET() {
       })),
     });
   } catch (err) {
-    console.error("[admin/stats] error", err);
+    logger.error("[admin/stats] error", err);
     return NextResponse.json(
       { ok: false, error: "Server error" },
       { status: 500 },

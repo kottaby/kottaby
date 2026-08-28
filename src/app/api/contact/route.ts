@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { logger } from "@/lib/errors";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -43,7 +44,7 @@ export async function POST(req: Request) {
     const ticket = record.id.replace(/-/g, "").slice(0, 8).toUpperCase();
     return NextResponse.json({ ok: true, ticket });
   } catch (err) {
-    console.error("[contact] error", err);
+    logger.error("[contact] error", err);
     return NextResponse.json(
       { ok: false, error: "Server error" },
       { status: 500 }

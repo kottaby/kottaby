@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { logger } from "@/lib/errors";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_RE = /^\d{2}:\d{2}$/;
@@ -60,7 +61,7 @@ export async function POST(req: Request) {
     });
     return NextResponse.json({ ok: true });
   } catch (err) {
-    console.error("[booking] error", err);
+    logger.error("[booking] error", err);
     return NextResponse.json(
       { ok: false, error: "Server error" },
       { status: 500 }
@@ -73,7 +74,7 @@ export async function GET() {
     const count = await db.booking.count();
     return NextResponse.json({ count });
   } catch (err) {
-    console.error("[booking/count] error", err);
+    logger.error("[booking/count] error", err);
     return NextResponse.json(
       { count: 0, error: "Server error" },
       { status: 500 }

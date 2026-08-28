@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { logger } from "@/lib/errors";
 
 /**
  * GET /api/admin/export?type=students|bookings|contacts|newsletter
@@ -108,7 +109,7 @@ export async function GET(req: Request) {
     // Prepend UTF-8 BOM so Excel reads Arabic correctly
     return new NextResponse("\uFEFF" + csv, { status: 200, headers });
   } catch (err) {
-    console.error("[admin/export] error", err);
+    logger.error("[admin/export] error", err);
     return NextResponse.json(
       { ok: false, error: "Server error" },
       { status: 500 },

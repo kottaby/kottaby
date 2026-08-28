@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { logger } from "@/lib/errors";
 
 /**
  * GET /api/admin/students — list students with trial balance + eligibility.
@@ -48,7 +49,7 @@ export async function GET(req: Request) {
       total,
     });
   } catch (err) {
-    console.error("[admin/students] error", err);
+    logger.error("[admin/students] error", err);
     return NextResponse.json(
       { ok: false, error: "Server error" },
       { status: 500 },
