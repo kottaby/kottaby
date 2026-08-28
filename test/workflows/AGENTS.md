@@ -30,7 +30,7 @@ through the real service layer against the real test database. Canonical referen
    both that a dispatch happened and **which userIds it targeted**.
 6. **Never `expect(...).rejects.toThrow()`.** Use a try/catch helper and assert translated
    substrings from `getServerTranslations("en").errorsTranslations` — no hardcoded English strings.
-7. **Use `bun:test` imports only.** No Jest/Vitest imports, no `console.*`, no `any` casts.
+7. **Use `bun:test` for test-framework imports.** Do not use Jest or Vitest; no `console.*`, no `any` casts.
 8. **`@/` import aliases** (e.g. `@/test/workflows/helpers`), never relative parent paths.
 9. **Never use demo/seeded rows as fixtures.** Always create your own entities via
    `backend/db/test/entity-setup.ts` helpers (`createTestUser`, `createTestStudent`,

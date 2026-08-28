@@ -4,11 +4,11 @@ Cross-actor **journey tests**: sequential, actor-attributed workflows where acto
 teacher) performs an action that changes shared state, and actor B (e.g. a supervisor) observes
 and responds — executed through the **real service layer** against the **real test database**.
 
-> **Status:** The `test/workflows/` layer is **defined by this document** and does not exist yet.
-> The first journey implementation scaffolds the directory — domain subdirectories plus
-> `test/workflows/helpers/` (cast-provisioning and cleanup helpers with a pure `export *`
-> barrel) — matching the plan-generator invariant that every cross-actor workflow in the
-> requirements maps to exactly one `test/workflows/<domain>/<journey>.test.ts` task.
+> **Status:** The `test/workflows/` directory currently contains only its rules file; no
+> journey implementations exist yet. The first journey implementation scaffolds
+> `helpers/` and the first domain subdirectory — matching the plan-generator invariant
+> that every cross-actor workflow in the requirements maps to exactly one
+> `test/workflows/<domain>/<journey>.test.ts` task.
 
 ## What a journey is
 
