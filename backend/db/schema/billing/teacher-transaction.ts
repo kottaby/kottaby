@@ -5,7 +5,7 @@ import { session } from "@/backend/db/schema/classes/session";
 import { transactionStatus, transactionType } from "@/backend/db/schema/enums";
 
 /**
- * Teacher transaction ledger table (DBML `teacher_transaction`, L355–L370).
+ * Teacher transaction ledger table (`teacher_transaction`).
  *
  * Append-only ledger of every financial movement against a teacher's wallet:
  * earnings (session completion), withdrawals (B.10 payout), and bonuses.

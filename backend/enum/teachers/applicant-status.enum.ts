@@ -1,7 +1,6 @@
 /**
  * ApplicantStatus enum — canonical lifecycle vocabulary for the `applicants`
- * table (`applicants.status`, varchar(50)). Values derived from the
- * `db/schema.dbml` note on `applicants.status` (ground truth per REQ-002):
+ * table (`applicants.status`, varchar(50)). Canonical values (per REQ-002):
  * 'pending, in_evaluation, failed, passed'. There is NO pgEnum backing this
  * column — this TS enum plus its guard are the sole runtime authority
  * (REQ-012).

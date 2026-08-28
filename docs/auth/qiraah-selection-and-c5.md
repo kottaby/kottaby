@@ -486,7 +486,7 @@ If durable user-level Qira'ah persistence is required, escalate via the DEV1-001
 bun db push   # adding a users.preferred_recitation column without a DEV1-001-approved schema task
 
 # ✅ REQUIRED — escalate via deferred-items.md (D1)
-# Open a DEV1-001 schema task → pick Candidate A / B / C → run validate:dbml → then implement
+# Open a DEV1-001 schema task → pick Candidate A / B / C → then implement
 ```
 
 ---
@@ -506,13 +506,13 @@ Durable user-level Qira'ah persistence is **blocked** on a DEV1-001/DEV3-001 sch
 | ID | Option | Pros | Cons | Owner |
 |---|---|---|---|---|
 | A | `users.preferred_recitation` column (single-value) | Low-friction, co-located with the user row, simple read on `me` | Single value only (no ranking, no history) | DEV1-001 (schema) |
-| B | `user_recitation_preferences` table (multi-row) | Supports ranking/multiple preferences + history | Extra table + join on `me`; more complex | DEV1-001 (schema) + DEV3-001 (DBML) |
+| B | `user_recitation_preferences` table (multi-row) | Supports ranking/multiple preferences + history | Extra table + join on `me`; more complex | DEV1-001 (schema) + DEV3-001 (schema validation) |
 | C | Defer to DEV3-007 session-recitation only (no user-level persistence) | Simplest — no schema change | No user-level preference; preference is captured per-session at booking time | DEV3-007 |
 
 ### When D1 lands
 
 The following files will need updates:
-1. **DEV1-001/DEV3-001:** add the column/table to DBML + Drizzle schema; run `bun validate:dbml`; create a migration.
+1. **DEV1-001/DEV3-001:** add the column/table to the Drizzle schema (`backend/db/schema/`); create a migration.
 2. **DEV1-003 follow-up:** update `AuthService.stripPasswordHash` and `gqlContextFactory.ts` to populate `preferredRecitation` from the new persistence target instead of `null`.
 3. **DEV2-002:** implement the `setMyPreferredRecitation` mutation (deferred item D2). MUST source identifiers from `ctx.user.id` (BOLA/IDOR defense). MUST validate via `RecitationCatalogService.validateReading`. MUST be `authScope`-gated (authenticated users only).
 4. **DEV1-003 follow-up (optional):** update the `me` query to surface the persisted preference (currently always `null` on the me path).

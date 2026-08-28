@@ -3,7 +3,7 @@ import { notificationType } from "@/backend/db/schema/enums";
 import { users } from "@/backend/db/schema/users/users";
 
 /**
- * Persisted notifications table (DBML `notifications`, L446–L463).
+ * Persisted notifications table (`notifications`).
  *
  * Stores per-user notifications for session requests, completions,
  * cancellations, parent-link requests, system broadcasts, payment
@@ -16,7 +16,7 @@ import { users } from "@/backend/db/schema/users/users";
  * notification. `user_id` cascades on user deletion (a user's
  * notifications disappear with them).
  *
- * Per DBML there is NO `updated_at` column — notifications are write-once
+ * Per spec there is NO `updated_at` column — notifications are write-once
  * except for the `is_read` flip, which is permitted in place.
  *
  * Indexes:

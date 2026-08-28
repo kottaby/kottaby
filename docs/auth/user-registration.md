@@ -258,7 +258,7 @@ DEV1-002 delivers a complete auth vertical slice alongside registration. The flo
 ### 7.2 Login
 
 `mutation login(input: { email, password })` → `AuthService.login`:
-1. `UserRepository.findByEmail(email)` — case-insensitive per DBML collation.
+1. `UserRepository.findByEmail(email)` — case-insensitive collation.
 2. `comparePassword(plaintext, hash)` — bcrypt.
 3. Governance check: `isDeleted || isBlocked || suspended` → `UnauthorizedError` (generic — never discloses which).
 4. Sign `access_token` (15min, HS256) + `refresh_token` (7day, HS256).
@@ -373,7 +373,6 @@ Never hardcode error strings — always use typed translation functions.
 |---|---|
 | `tsgo` (DEV1-002 files) | 0 errors |
 | `biome:check` (DEV1-002 files) | 0 errors / 0 warnings |
-| `validate:dbml` | GREEN (22 tables, 15 enums) |
 | `sub-loop --lifecycle duplicates` per file | exit 0 |
 | End-to-end GraphQL suite | 6/6 operations verified live (register, login, me, refreshToken, wrong-password, anonymous-me) |
 | Midpoint review R1 | 0 feature-specific findings (1 bug fixed: Drizzle cause-chain traversal) |

@@ -4,8 +4,8 @@ Canonical reference for `.github/workflows/ci.yml` (the DEV3-001 merge-blocking 
 
 ## Why
 
-- **Merge blocking by default.** Seven individually required status checks (`workflow-sanity`, `quality`, `dbml-validation`, `docs-validation`, `tests-db`, `tests-services`, `tests-ui`) gate every merge into `develop`/`main`. Schema drift, broken Mermaid diagrams, lint regressions, and failing suites cannot land silently (`REQ-010..018`).
-- **Local truth equals CI truth.** No CI-only shell logic exists: each `run:` step calls the repo's own canonical commands (`bun tsgo`, `bun validate:dbml`, `bun run scripts/ci/validate-docs-ci.ts`, …), so "passed locally" cannot diverge from "passed in CI" (`REQ-027`, verified differentially in Phase 5 — see the reproduction table under [Rules](#rules)).
+- **Merge blocking by default.** Six individually required status checks (`workflow-sanity`, `quality`, `docs-validation`, `tests-db`, `tests-services`, `tests-ui`) gate every merge into `develop`/`main`. Broken Mermaid diagrams, lint regressions, and failing suites cannot land silently (`REQ-010..018`).
+- **Local truth equals CI truth.** No CI-only shell logic exists: each `run:` step calls the repo's own canonical commands (`bun tsgo`, `bun run scripts/ci/validate-docs-ci.ts`, …), so "passed locally" cannot diverge from "passed in CI" (`REQ-027`, verified differentially in Phase 5 — see the reproduction table under [Rules](#rules)).
 - **Surgical failure attribution.** A red PR is traceable to its failing domain by check name alone; tool output reaches the log unpolluted (`REQ-026/053`). This property is load-bearing: it was exercised by four sabotage classes in Phase 5 (see [Rollout Summary](#rollout-summary)).
 - **Self-validating documentation.** This very document lives inside the `docs/**` watch surface of `docs-validation`: its topology diagram below must pass `bun run scripts/validate-mermaid.ts docs/quality/ci-pipeline.md` (`REQ-080`, gate closure proven in Task 7.1.QL).
 
@@ -26,7 +26,6 @@ Canonical reference for `.github/workflows/ci.yml` (the DEV3-001 merge-blocking 
 |---|---|---|---|
 | `workflow-sanity` | — | 5 min | actionlint over all workflow YAML with SHA256-checked pinned binary (`REQ-029`) |
 | `quality` | `workflow-sanity` | 15 min | fail-fast chain `bun tsgo` → `bun run oxlint` → `bun biome:check` → `bun run lint` → `bun run check:duplicates`, then cleanliness guard + codegen drift gate (`REQ-014/015`) |
-| `dbml-validation` | — (parallel) | 5 min | `bun validate:dbml` over `db/schema.dbml`, unconditional, never path-filtered (`REQ-016`) |
 | `docs-validation` | — (parallel) | 5 min | Mermaid validation via `bun run scripts/ci/validate-docs-ci.ts` — PR diff scope, full set on push (`REQ-017/063`) |
 | `tests-db` | `quality` | 30 min | ephemeral Postgres 16 service; `.env.test` materialization; `bun --env-file=.env.test run db push --env-file=.env.test`; `bun run test:db` (`REQ-020/021/022/043`) |
 | `tests-services` | `quality` | 30 min | `bun run test:services` with adapters mocked per `backend/services/AGENTS.md` |
@@ -42,24 +41,22 @@ flowchart TD
     PUSH["push: develop, main"] --> CONC
     CONC["concurrency group ci-workflow_ref-PRnumber-or-ref<br/>CONCURRENCY BEHAVIOR: newer PR pushes cancel the older in-flight run;<br/>pushes to develop or main are never cancelled (audit trail kept)"] --> WS
     CONC --> Q
-    CONC --> DBML
+    CONC --> Q
     CONC --> DOCS
     WS["workflow-sanity: actionlint, 5m"] --> Q
     Q["quality: tsgo, oxlint, biome:check, lint, check:duplicates<br/>plus cleanliness guard and GraphQL codegen drift gate, 15m"] --> TDB
     Q --> TSVC
     Q --> TUI
-    DBML["dbml-validation: bun validate:dbml, 5m, parallel lane"]
     DOCS["docs-validation: changed docs or full set on push, 5m, parallel lane"]
     TDB["tests-db: postgres:16 digest-pinned service container<br/>db push into ephemeral DB, test:db, 30m"]
     TSVC["tests-services: test:services, 30m"]
     TUI["tests-ui: test:ui:components, 30m"]
-    WS --> CHKS["7 named required checks: workflow-sanity, quality,<br/>dbml-validation, docs-validation, tests-db, tests-services, tests-ui"]
-    DBML --> CHKS
+    WS --> CHKS["6 named required checks: workflow-sanity, quality,<br/>docs-validation, tests-db, tests-services, tests-ui"]
     DOCS --> CHKS
     TDB --> CHKS
     TSVC --> CHKS
     TUI --> CHKS
-    CHKS --> MERGE["merge allowed only when ALL SEVEN checks are green"]
+    CHKS --> MERGE["merge allowed only when ALL SIX checks are green"]
 ```
 
 ## Rules
@@ -100,7 +97,7 @@ Restore/save halves are separate steps with split keys; caches are never cleared
 
 ### GraphQL codegen drift gate (`REQ-061` — SHIPPED)
 
-Decision #13 evaluated-and-enabled the gate instead of deferring: three consecutive local runs produced byte-identical generated artifacts (stable md5s), and live quality-job executions stayed green — the determinism precondition `REQ-061` demanded was evidenced BEFORE shipping it as required (see `ai/plans/dev3-001-cicd-pipeline-with-dbml-mermaid-validati/outcome/3.3-outcome.md` §codegen). Documented deviation: the command ingests the committed template directly via `--env-file=.env.test.ci` (same mechanism as every repo test entry point) because `backend/db/index.ts` requires a non-empty `DATABASE_URL` at module init; the schema build never opens a connection and the fixture value is inert, not a secret.
+Decision #13 evaluated-and-enabled the gate instead of deferring: three consecutive local runs produced byte-identical generated artifacts (stable md5s), and live quality-job executions stayed green — the determinism precondition `REQ-061` demanded was evidenced BEFORE shipping it as required (see the DEV3-001 outcome `3.3-outcome.md` §codegen under `ai/finished_plans/sprint_0/`). Documented deviation: the command ingests the committed template directly via `--env-file=.env.test.ci` (same mechanism as every repo test entry point) because `backend/db/index.ts` requires a non-empty `DATABASE_URL` at module init; the schema build never opens a connection and the fixture value is inert, not a secret.
 
 ### Local reproduction commands (Phase 5.9 differential parity audit)
 
@@ -113,13 +110,12 @@ Identical strings to the workflow `run:` blocks (sandbox: bun 1.3.14 = `packageM
 | 3 | `bun biome:check` | 0 | "No fixes applied" expected |
 | 4 | `bun run lint` | 0 | one sandbox transient (worker/cache artifact under hardlinked worktree) exited 1 with ZERO diagnostics; clean reruns ×2 and identical-SHA CI greens prove parity — documented honestly, zero repo impact |
 | 5 | `bun run check:duplicates` | 0 | Found 0 clones |
-| 6 | `bun validate:dbml` | 0 | 22 tables, 15 enums |
-| 7 | `bun run scripts/ci/materialize-env-test.ts` | n/a | Tier-tested (31 cases) + live CI logs; needs `.env.test.ci` present and CI override vars for real runs |
-| 8 | `bun --env-file=.env.test run db push --env-file=.env.test` | — | structural proof locally (no Postgres in sandbox); live leg green in `tests-db` runs |
-| 9 | `bun run test:db` / `bun run test:services` | via CI | success across multiple live runs; locally requires materialized `.env.test` + Postgres |
-| 10 | `bun run test:ui:components` | 0 | runs WITHOUT `.env.test` present — consumes committed `.env.test.ci` only |
-| 11 | `EVENT_NAME=push bun run scripts/ci/validate-docs-ci.ts` | 0 | full-set mode — reproduces push-mode validation exactly |
-| 12 | `bun --env-file=.env.test.ci run generate:gqlSchema && bun codegen && git diff --exit-code` | 0 | drift-gate determinism ×3 |
+| 6 | `bun run scripts/ci/materialize-env-test.ts` | n/a | Tier-tested (31 cases) + live CI logs; needs `.env.test.ci` present and CI override vars for real runs |
+| 7 | `bun --env-file=.env.test run db push --env-file=.env.test` | — | structural proof locally (no Postgres in sandbox); live leg green in `tests-db` runs |
+| 8 | `bun run test:db` / `bun run test:services` | via CI | success across multiple live runs; locally requires materialized `.env.test` + Postgres |
+| 9 | `bun run test:ui:components` | 0 | runs WITHOUT `.env.test` present — consumes committed `.env.test.ci` only |
+| 10 | `EVENT_NAME=push bun run scripts/ci/validate-docs-ci.ts` | 0 | full-set mode — reproduces push-mode validation exactly |
+| 11 | `bun --env-file=.env.test.ci run generate:gqlSchema && bun codegen && git diff --exit-code` | 0 | drift-gate determinism ×3 |
 
 Suite-level local runner convention: `KOTTABY_TEST_RUNNER_OK=1 bun --env-file=.env.test.ci test --parallel=1 scripts/ci/*.test.ts scripts/validate-mermaid.test.ts` (135 tests / 0 failures at phase-6 tip).
 
@@ -172,7 +168,6 @@ Payload staged at `/tmp/dev3-ruleset-payload.json` — the seven contexts are by
         "required_status_checks": [
           { "context": "workflow-sanity",  "integration_id": 15368 },
           { "context": "quality",          "integration_id": 15368 },
-          { "context": "dbml-validation",  "integration_id": 15368 },
           { "context": "docs-validation",  "integration_id": 15368 },
           { "context": "tests-db",         "integration_id": 15368 },
           { "context": "tests-services",   "integration_id": 15368 },
@@ -197,7 +192,7 @@ gh api -H "X-GitHub-Api-Version: 2022-11-28" repos/ahmedhosnypro/kottaby_academy
          checks: (.rules[] | select(.type=="required_status_checks") | [.parameters.required_status_checks[].context]) }'
 ```
 
-Assert-on-view: enforcement=`active`; include == `["refs/heads/develop","refs/heads/main"]`; bypass empty; strict=`true`; checks array equals the seven context strings IN ORDER.
+Assert-on-view: enforcement=`active`; include == `["refs/heads/develop","refs/heads/main"]`; bypass empty; strict=`true`; checks array equals the six context strings IN ORDER.
 
 Staging note (orchestrator release choreography): the ruleset is authored to bind both branches FROM DAY ONE by content, but application follows a DEVELOP-FIRST posture — apply while feature-branch PRs target `develop` so sabotage/verification evidence accrues against `develop` gating FIRST; binding for `main` is deferred until multi-session development traffic subsides to avoid self-inflicted merge lockouts mid-stream. Creation is one-shot and retry-safe: a duplicate-name 422 means VERIFY the existing object via the query above — never blanket-delete blindly. Evidence to capture at application time: HTTP 201, GET verification JSON, and the Phase-5-style merge-block screenshot (`mergeStateStatus: BLOCKED`). Live status at authoring time (@ tip `c6fb95d` + this commit): `GET /repos/{owner}/{repo}/rulesets` returns `[]` — application pending human admin, tracked in the forward-deferred register below.
 
@@ -206,7 +201,7 @@ Staging note (orchestrator release choreography): the ruleset is authored to bin
 | Concern | Outcome file | Run(s) / SHAs (condensed) |
 |---|---|---|
 | Positive-path all-green baseline (`REQ-070`) | `outcome/5.1-outcome.md` | run `33000132770` @ `3117110` — all 7 ✅ |
-| DBML sabotage → red-only target → revert (`REQ-071`) | `outcome/5.2-outcome.md` | sabotage `a74ed8b` run `33000962941` (`dbml-validation` ❌ alone) → revert `66b377c` run `33001336200` green |
+| Retired schema-validation sabotage → red-only target → revert (`REQ-071`) | `outcome/5.2-outcome.md` | sabotage `a74ed8b` run `33000962941` (schema-validation job ❌ alone, job since retired) → revert `66b377c` run `33001336200` green |
 | Mermaid sabotage file+line attribution; code-only no-op (`REQ-072`) | `outcome/5.3-outcome.md` | sabotage `259cbe4` run `33001700741` (`docs-validation` ❌, `:156:` attribution) → revert `d6ff0c9` run `33001970522`; retained probe `1d865b7` run `33002369615` no-op green |
 | Quality sabotage fail-fast first offender (`REQ-073/026/015`) | `outcome/5.4-outcome.md` | sabotage `eba25c6` run `33002786546` (`quality` ❌ at tsgo, later steps skipped) → revert `e20bbb5` run `33002951236` green |
 | Test sabotage + idempotent rerun (`REQ-074/041`) | `outcome/5.5-outcome.md` | sabotage `961a684` run `33003316939` (`tests-ui` ❌ alone) → revert/re-run attempt=2 `33003793967` success |
@@ -216,7 +211,7 @@ Staging note (orchestrator release choreography): the ruleset is authored to bin
 | Fork-safety static proof (`REQ-031`) | `outcome/5.10-fork-safety-outcome.md` | greps: zero `secrets.`; single `pull_request_target` hit = ban comment; read-only permissions throughout |
 | Steady-state sign-off run (phase-6 tip) | `outcome/post-implementation-review.md` | run `33009956904` @ `c6fb95d` — all 7 ✅ |
 
-Ruleset merge-block capture fallback: with no ruleset yet applied, `dbml-validation FAILURE` up-to-date-on-head (run `33000962941` rollup) stands in as the required-check-failure half of the future `BLOCKED` proof, per `outcome/5.2-outcome.md`.
+Ruleset merge-block capture fallback: with no ruleset yet applied, the (now retired) schema-validation job's `FAILURE` up-to-date-on-head (run `33000962941` rollup) stands in as the required-check-failure half of the future `BLOCKED` proof, per `outcome/5.2-outcome.md`.
 
 ### Forward-deferred items register
 
@@ -229,10 +224,10 @@ Conditional forward-guards on record (trigger-activated, no current ticket owed)
 
 ## Related Documents
 
-- Ground-truth schema validated by `dbml-validation`: [`db/schema.dbml`](../../db/schema.dbml)
-- Validators: [`scripts/validate-dbml.ts`](../../scripts/validate-dbml.ts) · [`scripts/validate-mermaid.ts`](../../scripts/validate-mermaid.ts)
+- Ground-truth schema: `backend/db/schema/` (Drizzle — sole structural source of truth)
+- Validators: [`scripts/validate-mermaid.ts`](../../scripts/validate-mermaid.ts)
 - CI composition trio: [`scripts/ci/validate-docs-ci.ts`](../../scripts/ci/validate-docs-ci.ts) · [`scripts/ci/changed-docs.ts`](../../scripts/ci/changed-docs.ts) · [`scripts/ci/materialize-env-test.ts`](../../scripts/ci/materialize-env-test.ts)
 - The gated workflow itself: [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml) (its header links back here)
 - House sibling doc: [`docs/quality/linting-rules.md`](./linting-rules.md)
-- Verification evidence ledger: [`ai/plans/dev3-001-cicd-pipeline-with-dbml-mermaid-validati/outcome/`](../../ai/plans/dev3-001-cicd-pipeline-with-dbml-mermaid-validati/outcome/)
-- Plan artifacts: [`ai/plans/dev3-001-cicd-pipeline-with-dbml-mermaid-validati/`](../../ai/plans/dev3-001-cicd-pipeline-with-dbml-mermaid-validati/) (`plan.md` Decisions #1–#14, `specs.md` REQ-001..085, `tasks.md`)
+- Verification evidence ledger: the DEV3-001 plan `outcome/` directory under [`ai/finished_plans/sprint_0/`](../../ai/finished_plans/sprint_0/)
+- Plan artifacts: the DEV3-001 plan directory under [`ai/finished_plans/sprint_0/`](../../ai/finished_plans/sprint_0/) (`plan.md` Decisions #1–#14, `specs.md` REQ-001..085, `tasks.md`)

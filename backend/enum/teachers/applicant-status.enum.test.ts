@@ -37,7 +37,7 @@ function memberReturningFunction(): string {
 describe("isApplicantStatus", () => {
   // ---- Tier 1: Branch/Statement Coverage ----
   describe("Tier 1 — branch coverage", () => {
-    test("canonical value set frozen exactly as planned (DBML note / REQ-012)", () => {
+    test("canonical value set frozen exactly as planned (REQ-012)", () => {
       expect((Object.values(ApplicantStatus) as string[]).join("|")).toBe("pending|in_evaluation|failed|passed");
     });
 

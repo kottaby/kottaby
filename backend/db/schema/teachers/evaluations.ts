@@ -4,7 +4,7 @@ import { session } from "@/backend/db/schema/classes/session";
 import { users } from "@/backend/db/schema/users/users";
 
 /**
- * Evaluations table (DBML `evaluations`).
+ * Evaluations table (`evaluations`).
  *
  * Records a certified sheikh's evaluation of a candidate (B.1). The
  * `evaluated_id` is the person being evaluated (cascade delete — their

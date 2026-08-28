@@ -29,7 +29,7 @@
 /**
  * Stable API values for recitation readings (Qira'at).
  *
- * Values are lowercase snake_case to match the DBML / GraphQL enum convention.
+ * Values are lowercase snake_case to match the GraphQL enum convention.
  * Labels (display names) live in `shared/locale/{en,ar}/recitation/` and are
  * resolved at runtime via `useAppTranslation(Recitation)` (client) or
  * `getServerTranslations(locale).recitationTranslations` (server).

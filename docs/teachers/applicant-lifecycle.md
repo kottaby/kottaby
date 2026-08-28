@@ -11,7 +11,7 @@ This document is the single canonical reference for the teacher-applicant lifecy
 
 ## 1. Applicant State Machine (REQ-013)
 
-The `applicants.status` column (varchar(50), default `'pending'`) carries the lifecycle vocabulary `pending`, `in_evaluation`, `failed`, `passed` — byte-identical to the note on `applicants.status` in `db/schema.dbml` and to the TS enum `ApplicantStatus` (`backend/enum/teachers/applicant-status.enum.ts`), which is the sole runtime vocabulary authority (no pgEnum backs the column; REQ-012). A stored value may only enter typed flow after passing the fail-closed guard `isApplicantStatus` (REQ-075).
+The `applicants.status` column (varchar(50), default `'pending'`) carries the lifecycle vocabulary `pending`, `in_evaluation`, `failed`, `passed` — byte-identical to the TS enum `ApplicantStatus` (`backend/enum/teachers/applicant-status.enum.ts`), which is the sole runtime vocabulary authority (no pgEnum backs the column; REQ-012). A stored value may only enter typed flow after passing the fail-closed guard `isApplicantStatus` (REQ-075).
 
 | Transition | Trigger | Owning ticket | DEV2-004's role |
 |---|---|---|---|
@@ -144,7 +144,7 @@ Bindings to `docs/specs/state-machine-invariants.md` (INV-TV1..TV7, quoted as th
 
 ### 7.2 B.6 / B.7 anchoring (quoted from `docs/specs/open-decisions-and-gaps.md`)
 
-- **B.6 (Failed Applicant — Teacher vs. Student Record)** — *"Move failed applicants to a separate `applicants` table. … The `teacher` table is reserved for verified sheikhs only. When an applicant fails, their record is moved to `applicants`. If they re-apply after cooldown, a new `teacher` record is created upon passing."* The `applicants` table is THE lifecycle home; REQ-010/011 lock that registration lands here; REQ-013 defines its `status` vocabulary exactly as the DBML note specifies.
+- **B.6 (Failed Applicant — Teacher vs. Student Record)** — *"Move failed applicants to a separate `applicants` table. … The `teacher` table is reserved for verified sheikhs only. When an applicant fails, their record is moved to `applicants`. If they re-apply after cooldown, a new `teacher` record is created upon passing."* The `applicants` table is THE lifecycle home; REQ-010/011 lock that registration lands here; REQ-013 defines its `status` vocabulary accordingly.
 - **B.7 (Teacher Record Creation Timing)** — *"Create `teacher` record only after passing verification. … Before that, the user exists in the `applicants` table."* Re-locked at REQ-010 (zero `teacher` rows at registration, permanently tested) and REQ-033 (no path in this ticket mints a `teacher` row).
 
 ### 7.3 Workflow 01 stage mapping

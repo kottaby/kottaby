@@ -4,7 +4,7 @@ import { session } from "@/backend/db/schema/classes/session";
 import { surahJuzRef } from "@/backend/db/schema/enums";
 
 /**
- * Homework table (DBML `home_work`, L402–L419).
+ * Homework table (`home_work`).
  *
  * Per-session homework assignment with two parallel tracks:
  *  - `current_*`: the new assignment (from/to ayah, grade, surah/juz ref).
@@ -16,7 +16,7 @@ import { surahJuzRef } from "@/backend/db/schema/enums";
  *
  * Cascade delete: removing a session removes its homework row.
  *
- * Table name in DBML is `home_work` (snake_case, two words) — preserved
+ * Table name is `home_work` (snake_case, two words) — preserved
  * exactly. The TS export is camelCase `homeWork` per AGENTS convention.
  */
 export const homeWork = pgTable(

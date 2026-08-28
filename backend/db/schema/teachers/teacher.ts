@@ -4,7 +4,7 @@ import { teacherRequestPreference } from "@/backend/db/schema/enums";
 import { users } from "@/backend/db/schema/users/users";
 
 /**
- * Teacher role-child table (DBML `teacher`).
+ * Teacher role-child table (`teacher`).
  *
  * Shared PK = FK to users.id with cascade delete (no auto-increment; the row
  * is created only after a users row with role 'teacher' is inserted AND the
@@ -12,9 +12,9 @@ import { users } from "@/backend/db/schema/users/users";
  * `applicants` table (B.6) — they never produce a teacher row.
  *
  * `subjects` is a varchar(255) holding a JSON array of subjects
- * (quran, tajweed, tafsir, etc.) per DBML note.
+ * (quran, tajweed, tafsir, etc.).
  * `request_preference` (B.16) governs how the teacher handles concurrent
- * session requests; pgEnum is nullable per DBML (no `not null`).
+ * session requests; pgEnum is nullable (no `not null`).
  */
 export const teacher = pgTable(
   "teacher",

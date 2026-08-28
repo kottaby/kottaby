@@ -4,7 +4,7 @@ import { students } from "@/backend/db/schema/students/students";
 import { teacher } from "@/backend/db/schema/teachers/teacher";
 
 /**
- * Session table (DBML `session`, L297–L319).
+ * Session table (`session`).
  *
  * The central scheduling entity: a single meeting between a teacher and a
  * student. `teacher_id` → teacher.id (restrict: cannot delete a teacher who
@@ -15,7 +15,7 @@ import { teacher } from "@/backend/db/schema/teachers/teacher";
  * scheduled → started → completed | cancelled | disputed. `session_type`
  * distinguishes regular student sessions from teacher evaluations and
  * re-evaluations (A.8). `intent` (A.10) is an optional classification of what
- * the session is for (hifz, tajweed, evaluation) — nullable per DBML.
+ * the session is for (hifz, tajweed, evaluation) — nullable.
  *
  * Financial escrow (B.3/B.4): `fee` is the platform-set session fee (nullable
  * decimal); `fee_held` flags whether the fee is currently in escrow (held at

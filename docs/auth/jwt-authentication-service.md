@@ -475,7 +475,6 @@ Deferred: D1 (`permission` scope wiring), D2 (`assertNotSuspended` helper), D3 (
 | `bun biome:check` | **376 files, 0 fixes applied** |
 | `bun run oxlint` | **0 warnings, 0 errors** — 356 files, 301 rules |
 | `bun run lint:type-aware` | **0** |
-| `bun validate:dbml` | **GREEN** — 22 tables, 15 enums |
 
 ---
 

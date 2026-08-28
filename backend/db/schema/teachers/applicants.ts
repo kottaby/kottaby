@@ -2,7 +2,7 @@ import { integer, pgTable, timestamp, varchar } from "drizzle-orm/pg-core";
 import { users } from "@/backend/db/schema/users/users";
 
 /**
- * Failed teacher applicants table (DBML `applicants`).
+ * Failed teacher applicants table (`applicants`).
  *
  * Shared PK = FK to users.id with cascade delete (no auto-increment; per
  * reconciliation R10 — applicants is a shared-PK child, not a separate
@@ -10,9 +10,9 @@ import { users } from "@/backend/db/schema/users/users";
  * verification (B.6). A `teacher` row is created only after passing (B.7).
  *
  * `status` is a varchar(50) string defaulting to "pending" — the values
- * (pending, in_evaluation, failed, passed) are documented in the DBML note
- * but not modelled as a pgEnum (DBML uses varchar). Tracked here as a plain
- * varchar so the state machine is enforced at the service layer.
+ * (pending, in_evaluation, failed, passed) are semantic, but the column is a
+ * plain varchar (no pgEnum) so the state machine is enforced at the service
+ * layer.
  */
 export const applicants = pgTable("applicants", {
   id: integer("id")

@@ -1,7 +1,7 @@
 # Draft Academy — Documentation Suite
 
 > **Master Index & Traceability Matrix**
-> **Source of truth:** `draft_docs/1-sc.en.md`, `draft_docs/2-admin-sc.en.md`, `db/schema.dbml`
+> **Source of truth:** `draft_docs/1-sc.en.md`, `draft_docs/2-admin-sc.en.md`, `backend/db/schema/` (Drizzle schema)
 
 ---
 
@@ -43,7 +43,7 @@ docs/
 | **2. C4 Architecture** | `c4-architecture`, `mermaid-diagrams` | `architecture/c4-system-context.mmd`, `architecture/c4-container.mmd`, `architecture/architecture-overview.md` | ✅ Complete |
 | **3. User Scenarios** | `customer-journey-map`, `user-story-mapping` | `scenarios/personas.md`, `scenarios/customer-journey-maps.md`, `scenarios/user-story-map.md` | ✅ Complete |
 | **4. Deep-Dive Workflows** | `mermaid-diagrams` | `workflows/01-05-*.md` (5 files) | ✅ Complete |
-| **5. Formal Specification** | `to-spec`, `dbml-database-docs` | `specs/functional-requirements.md`, `specs/state-machine-invariants.md`, `specs/open-decisions-and-gaps.md` | ✅ Complete |
+| **5. Formal Specification** | `to-spec` | `specs/functional-requirements.md`, `specs/state-machine-invariants.md`, `specs/open-decisions-and-gaps.md` | ✅ Complete |
 
 ---
 
@@ -60,7 +60,6 @@ docs/
 | `workflows/04-parent-supervision-handshake.md` | `bun validate:mermaid` | ✅ 2 blocks OK |
 | `workflows/05-admin-governance-override.md` | `bun validate:mermaid` | ✅ 5 blocks OK |
 | `specs/state-machine-invariants.md` | `bun validate:mermaid` | ✅ 4 blocks OK |
-| `db/schema.dbml` | `bun validate:dbml` | ✅ OK |
 
 **Total Mermaid diagrams validated: 20 blocks across 9 files — all passing.**
 
@@ -146,5 +145,5 @@ docs/
 | No tech stack selection | ✅ No specific technologies mentioned beyond payment gateways listed in source |
 | No UI/visual design | ✅ Focus on user actions, inputs, outputs, state transitions, and business rules |
 | Zero guessing | ✅ All ambiguities resolved in `open-decisions-and-gaps.md` |
-| Mandatory diagram validation | ✅ All 20 Mermaid blocks and DBML validated successfully |
-| Source-bound | ✅ All content derived strictly from `draft_docs/` and `db/schema.dbml` |
+| Mandatory diagram validation | ✅ All 20 Mermaid blocks validated successfully |
+| Source-bound | ✅ All content derived strictly from `draft_docs/` and `backend/db/schema/` |

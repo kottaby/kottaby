@@ -4,7 +4,7 @@ import { paymentGateway, subscriptionStatus } from "@/backend/db/schema/enums";
 import { users } from "@/backend/db/schema/users/users";
 
 /**
- * Subscriptions table (DBML `subscriptions`, L246–L263).
+ * Subscriptions table (`subscriptions`).
  *
  * A subscription is owned by a generic `user_id` (A.9 lifecycle: pending →
  * active → expired/cancelled/suspended). It links a purchaser (any role —
@@ -14,7 +14,7 @@ import { users } from "@/backend/db/schema/users/users";
  *
  * Both FKs use `restrict` delete semantics: a user or plan with active
  * subscriptions cannot be hard-deleted until the subscriptions are resolved.
- * Indexes on `user_id` and `plan_id` per DBML `indexes { ... }` block.
+ * Indexes on `user_id` and `plan_id`.
  */
 export const subscriptions = pgTable(
   "subscriptions",
