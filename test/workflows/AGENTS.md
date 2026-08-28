@@ -49,8 +49,8 @@ While iterating on one journey (log capture, AI-optimized output):
 bun run test/scripts/run-test.ts test/workflows/<domain>/<workflow>.test.ts
 ```
 
-The whole layer (no dedicated runner script):
+The whole layer (via the approved runner):
 
 ```bash
-bun test test/workflows
+bun run test/scripts/run-test.ts test/workflows
 ```

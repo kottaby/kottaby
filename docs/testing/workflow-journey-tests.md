@@ -98,8 +98,8 @@ journeys exist to catch.
 - Shared cast/scaffolding lives in `test/workflows/helpers/` (never per-file duplicates), with a
   pure `export *` barrel.
 - Layer rules for AI agents: `test/workflows/AGENTS.md`.
-- Run the suite with `bun test test/workflows`; while iterating on a single journey use
-  `bun run test/scripts/run-test.ts test/workflows/<domain>/<workflow>.test.ts`.
+- Run the suite with `bun run test/scripts/run-test.ts test/workflows`; while iterating on a
+  single journey use `bun run test/scripts/run-test.ts test/workflows/<domain>/<workflow>.test.ts`.
 
 ## Recording journeys from specs
 
