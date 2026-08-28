@@ -1,13 +1,18 @@
 {
   "compilerOptions": {
-    "target": "esnext",
-    "lib": ["dom", "dom.iterable", "esnext"],
-    "module": "esnext",
+    "target": "ES2017",
+    "lib": [
+      "dom",
+      "dom.iterable",
+      "esnext"
+    ],
+    "allowJs": true,
     "skipLibCheck": true,
-    "moduleDetection": "force",
+    "strict": true,
     "noEmit": true,
+    "noImplicitAny": false,
     "esModuleInterop": true,
-    "allowImportingTsExtensions": true,
+    "module": "esnext",
     "moduleResolution": "bundler",
     "resolveJsonModule": true,
     "isolatedModules": true,
@@ -18,53 +23,20 @@
         "name": "next"
       }
     ],
-    /* Linting */
-    "strict": true,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
-    "noFallthroughCasesInSwitch": true,
     "paths": {
-      "@/*": ["./*"]
-    },
-    "allowJs": true,
-    "types": ["bun"]
+      "@/*": [
+        "./src/*"
+      ]
+    }
   },
   "include": [
-    ".storybook/**/*.ts",
-    ".storybook/**/*.tsx",
     "next-env.d.ts",
-    "**/*.d.ts",
     "**/*.ts",
     "**/*.tsx",
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts"
   ],
   "exclude": [
-    // Dot-directories (except `.storybook`, which is explicitly included above).
-    "**/ai/**",
-    "**/.agents/**",
-    "**/.cursor/**",
-    "**/.git/**",
-    "**/.github/**",
-    "**/.husky/**",
-    "**/.kiro/**",
-    "**/.next/**",
-    "**/.next-dev/**",
-    "**/.next-test*/**",
-    "**/.playwright-mcp/**",
-    "**/.scannerwork/**",
-    "**/.stakpak/**",
-    "**/.vercel/**",
-    "**/.vscode/**",
-    // Build output / dependency dirs that don't start with a dot.
-    "node_modules",
-    "dist",
-    "out",
-    "build",
-    "storybook-static",
-    // Source subtrees deliberately excluded from type-checking.
-    "Kottaby",
-    "frontend/graphql/generated",
-    "**/unRefactored_tests"
+    "node_modules"
   ]
 }
