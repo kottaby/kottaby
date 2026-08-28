@@ -256,7 +256,7 @@ describe("isSessionIntent / assertSessionIntent", () => {
       }
     });
 
-    test("case-smuggling attempts MUST fail (REQ-053)", () => {
+    test("case-smuggling attempts MUST fail (no case-folding, no normalization)", () => {
       expect(isSessionIntent("HIFZ")).toBe(false);
       expect(isSessionIntent("Hifz ")).toBe(false);
       expect(isSessionIntent("\ufeffhifz")).toBe(false);

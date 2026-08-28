@@ -25,9 +25,9 @@ export type SessionEventNotificationType =
   | NotificationType.SessionCancellation;
 
 /**
- * Decision #4 — both-or-neither polymorphic pointer.
+ * Both-or-neither polymorphic pointer.
  * Eliminates the invalid half-populated state (type set / id null)
- * at the type level (REQ-021).
+ * at the type level.
  */
 export type SessionEventNotificationEntityRef =
   | {
@@ -40,13 +40,13 @@ export type SessionEventNotificationEntityRef =
     };
 
 export interface SessionEventNotificationContract {
-  /** BOLA — recipient-resolved server-side (DEV3-010). */
+  /** BOLA — recipient-resolved server-side. */
   readonly userId: NotificationSelectType["userId"];
   readonly type: SessionEventNotificationType;
   readonly title: NotificationSelectType["title"];
   readonly body: NotificationSelectType["body"];
-  /** docs/IDEMPOTENCY.md (REQ-027) — optional for fire-and-forget notifications. */
+  /** Idempotency key (see docs/IDEMPOTENCY.md) — optional for fire-and-forget notifications. */
   readonly idempotencyKey?: string;
-  /** A.4 — paired via union; half-populated state is unrepresentable. `isRead` absent (system-managed). */
+  /** Paired via union; half-populated state is unrepresentable. `isRead` absent (system-managed). */
   readonly entityRef: SessionEventNotificationEntityRef;
 }

@@ -10,12 +10,11 @@ import { students } from "@/backend/db/schema/students/students";
  * lessons.id (set null: removing a lesson preserves the progress row as a
  * historical record without a dangling lesson reference).
  *
- * Per R8: `progress` has only `student_id`, `lesson_id`, and timestamps —
- * NO `completed_at` or `score` columns (those were in the plan prose only).
+ * `progress` has only `student_id`, `lesson_id`, and timestamps —
+ * NO `completed_at` or `score` columns.
  *
- * CROSS-FILE DEP: imports `lessons` from the same classes domain (relative
- * `./lessons` import per CONTRACT). Imports `students` from the students
- * domain (deep import).
+ * Imports `lessons` from the same classes domain (relative `./lessons`
+ * import). Imports `students` from the students domain (deep import).
  */
 export const progress = pgTable(
   "progress",

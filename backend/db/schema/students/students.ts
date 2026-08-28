@@ -7,12 +7,12 @@ import { users } from "@/backend/db/schema/users/users";
  *
  * Shared PK = FK to users.id with cascade delete (no auto-increment; the row
  * is created only after a users row with role 'student' is inserted).
- * Governance fields (is_deleted, suspended, is_blocked) live on users (A.7).
- * One parent per student (B.12) via parent_id → users.id (set null on delete).
- * Handshake code (A.3) is unique and required for parent linking.
+ * Governance fields (is_deleted, suspended, is_blocked) live on users.
+ * One parent per student via parent_id → users.id (set null on delete).
+ * Handshake code is unique and required for parent linking.
  *
  * Balance CHECK constraints (balance_* >= 0) are an additional safeguard
- * beyond the base schema, added here to honor INV-B1 (non-negative balances)
+ * beyond the base schema, enforcing non-negative balances
  * at the DB layer.
  */
 export const students = pgTable(

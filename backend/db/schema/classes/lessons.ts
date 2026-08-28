@@ -8,7 +8,7 @@ import { plans } from "@/backend/db/schema/billing/plans";
  * (`plan_id` → plans.id, set null on plan deletion — the lesson survives as
  * a standalone unit). `title` is a short human-readable label (nullable).
  *
- * CROSS-FILE DEP: imports `plans` from the billing domain. No circular dep
+ * Imports `plans` from the billing domain. No circular dep
  * (plans does not import lessons).
  *
  * Lessons are referenced by `progress` (same classes domain, see

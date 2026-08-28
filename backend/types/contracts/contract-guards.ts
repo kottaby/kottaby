@@ -36,14 +36,14 @@ const VALID_EVALUATION_SESSION_TYPES = new Set<string>([SessionType.TeacherEvalu
 
 /**
  * Parses a JSON-encoded subjects string from the DB into a readonly string array.
- * Plan §4.2 exact behavioral contract:
+ * Behavioral contract:
  *   - `null` → `[]`
  *   - empty/whitespace → throw ValidationError
  *   - malformed JSON → throw ValidationError
  *   - non-array → throw ValidationError
  *   - non-string items → throw ValidationError
  *
- * REQ-053: fail-closed, no normalization.
+ * Fail-closed, no normalization.
  */
 export function parseTeacherSubjects(
   raw: TeacherSelectType["subjects"],
@@ -71,7 +71,7 @@ export function parseTeacherSubjects(
 
 /**
  * Fail-closed boolean predicate for SessionIntent values.
- * No case-folding, no normalization (REQ-053).
+ * No case-folding, no normalization.
  */
 export function isSessionIntent(value: string): value is SessionIntent {
   return VALID_SESSION_INTENTS.has(value);
@@ -79,7 +79,7 @@ export function isSessionIntent(value: string): value is SessionIntent {
 
 /**
  * Asserts a value is a valid SessionIntent; throws ValidationError otherwise.
- * REQ-053: fail-closed, no case-folding.
+ * Fail-closed, no case-folding.
  */
 export function assertSessionIntent(value: string, t: GuardTranslationBag): asserts value is SessionIntent {
   if (!isSessionIntent(value)) {
@@ -114,11 +114,11 @@ export function assertEvaluationSessionType(
 }
 
 /**
- * INV-S3 — Constructor-funnel for EscrowTriggerContract.
+ * Constructor-funnel for EscrowTriggerContract.
  * Both confirmation timestamps must be non-null; otherwise throws ConflictError
  * (state conflict, not input-shape error).
  *
- * Decision #3: the ONLY sanctioned constructor for EscrowTriggerContract.
+ * The ONLY sanctioned constructor for EscrowTriggerContract.
  */
 export function buildEscrowTrigger(
   state: DualConfirmationState,

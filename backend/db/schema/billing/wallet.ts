@@ -12,7 +12,7 @@ import { teacher } from "@/backend/db/schema/teachers/teacher";
  * wallet balance is updated atomically by the trigger that enforces
  * transaction immutability + wallet consistency.
  *
- * Per spec the wallet is created when a teacher is approved (A.6/B.5).
+ * The wallet is created when a teacher is approved.
  */
 export const wallet = pgTable(
   "wallet",

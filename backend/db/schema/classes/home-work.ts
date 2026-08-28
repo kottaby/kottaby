@@ -12,7 +12,7 @@ import { surahJuzRef } from "@/backend/db/schema/enums";
  *
  * Grades are integers in [0, 100] (CHECK enforced, nullable until graded).
  * `current_surah_juz` / `revision_surah_juz` are nullable surahJuzRef enums
- * (B.11) classifying which surah or juz the assignment covers.
+ * classifying which surah or juz the assignment covers.
  *
  * Cascade delete: removing a session removes its homework row.
  *

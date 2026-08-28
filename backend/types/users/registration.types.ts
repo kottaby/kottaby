@@ -62,7 +62,7 @@ export interface RegistrationSubmitInput {
  * Internal registration input variant permitting `role: "admin"`.
  *
  * Service-only — used by `RegistrationService.createAdminUser` for the
- * privileged DEV3-016/018 onboarding path. NOT exposed via any Pothos input
+ * privileged admin-onboarding path. NOT exposed via any Pothos input
  * type (the public mutation rejects `role: "admin"` via the
  * `RegisterPublicRolePothosEnum`).
  */
@@ -74,7 +74,7 @@ export interface AdminRegistrationSubmitInput {
   readonly gender?: Gender;
   readonly country: string;
   readonly role: "admin";
-  /** Optional preferred recitation reading (same C.5 guardrail as public input). */
+  /** Optional preferred recitation reading (not persisted to `recitation`, same as public input). */
   readonly preferredRecitation?: RecitationReading | null;
 }
 
@@ -82,14 +82,14 @@ export interface AdminRegistrationSubmitInput {
  * Service return shape for registration.
  *
  * `passwordHash` is structurally omitted from `UserSelectType` so the hash can
- * never leak to a resolver payload, log, or GraphQL response (REQ-020). The
+ * never leak to a resolver payload, log, or GraphQL response. The
  * `role` field is the `userRole` pgEnum value union ("admin" | "teacher" |
  * "student" | "parent") — runtime-equivalent to the `UserRole` TS enum but
  * typed as a string literal union (Drizzle's `$inferSelect` produces this
  * shape from `pgEnum`).
  *
  * `preferredRecitation` echoes the validated selection (contract metadata —
- * not persisted to `recitation` per C.5). `null` when no selection was made.
+ * not persisted to `recitation`). `null` when no selection was made.
  */
 export type RegistrationReturnType = Omit<UserSelectType, "passwordHash"> & {
   readonly preferredRecitation: RecitationReading | null;

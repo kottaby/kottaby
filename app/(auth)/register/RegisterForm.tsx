@@ -293,13 +293,13 @@ export function RegisterForm() {
         setTimeout(() => router.push("/login"), 1500);
       } catch (err) {
         // Server tier FIRST: project extensions.fields[] into RHF pairs via
-        // the REQ-061 mapping (hasForm:true direct call — the app-scope
+        // the client mapping (hasForm:true direct call — the app-scope
         // listener seam is left untouched). Unknown wire paths skipped.
         const projected = projectMutationFieldErrors(err);
         const applied = applyProjectedFieldErrors(projected, isRegisterFieldPath, (field, errorOptions) =>
           setError(field, { type: "server", message: errorOptions.message })
         );
-        if (applied > 0) return; // per-field mapping REPLACES the global fallback (REQ-061)
+        if (applied > 0) return; // per-field mapping REPLACES the global fallback
 
         const code = extractErrorCode(err);
         if (code === "CONFLICT") {
@@ -381,7 +381,7 @@ export function RegisterForm() {
                   <PersonIcon fontSize="small" sx={{ mr: 1, color: "var(--mui-palette-action-active)" }} />
                 ),
               },
-              // audit-R4: error text arrives without moving focus (RHF's
+              // Error text arrives without moving focus (RHF's
               // ref lands on the wrapper), so the helper node itself must be
               // a polite live region for SR announcement.
               formHelperText: { "aria-live": "polite" },
@@ -475,7 +475,7 @@ export function RegisterForm() {
                         onClick={() => setShowPassword(!showPassword)}
                         edge="end"
                         size="small"
-                        // audit-R4: v9 ButtonBase has no focus ring — this toggle
+                        // v9 ButtonBase has no focus ring — this toggle
                         // was invisible to keyboard users when focused.
                         sx={focusVisibleRingSx}
                       >
@@ -520,7 +520,7 @@ export function RegisterForm() {
               onBlur={roleField.field.onBlur}
               value={selectedRole}
               onChange={event => roleField.field.onChange(roleFromSelectValue(event.target.value))}
-              // audit-R4: wire the error-helper id explicitly so SR users get
+              // Wire the error-helper id explicitly so SR users get
               // the message when the select is focused (see helper below).
               aria-describedby={getRoleSelectDescribedBy(Boolean(errors.role))}
             >
@@ -528,7 +528,7 @@ export function RegisterForm() {
               <MenuItem value="Teacher">{t.roleTeacher}</MenuItem>
               <MenuItem value="Parent">{t.roleParent}</MenuItem>
             </Select>
-            {/* audit-R7/P2: explicit taller line-height so two-line helper
+            {/* Explicit taller line-height so two-line helper
                 copy (Arabic role descriptions) keeps legible line boxes. */}
             {errors.role ? (
               <FormHelperText error id="register-role-error-helper" aria-live="polite" sx={helperTextSx}>
@@ -542,10 +542,10 @@ export function RegisterForm() {
             ) : null}
           </FormControl>
 
-          {/* DEV1-003: Recitation reading (Qira'ah) selector — premium card grid.
-              C.5 guardrail: NOT persisted to `recitation` table (session-linked). */}
+          {/* Recitation reading (Qira'ah) selector — premium card grid.
+              Guardrail: NOT persisted to `recitation` table (session-linked). */}
           <Box>
-            {/* audit-R4: variant=subtitle2 defaulted to an <h6> element — a
+            {/* variant=subtitle2 defaulted to an <h6> element — a
                 level-6 heading stranded mid-form (1→6 jump). Same look, no
                 false outline entry. */}
             <Typography
@@ -566,7 +566,7 @@ export function RegisterForm() {
           </Box>
 
           {errorMessage ? (
-            // audit-R7/P1: same radius token as the floating host toast that
+            // Same radius token as the floating host toast that
             // accompanies this surface on masked failures.
             <Alert severity="error" variant="filled" sx={{ borderRadius: 2 }}>
               {errorMessage}
@@ -595,7 +595,7 @@ export function RegisterForm() {
               bgcolor: "var(--mui-palette-secondary-main)",
               color: "var(--mui-palette-onSecondary)",
               boxShadow: theme => `0 6px 16px ${theme.palette.secondary.main}33`,
-              // audit-R4: v9 ButtonBase ships no keyboard-focus style; the
+              // v9 ButtonBase ships no keyboard-focus style; the
               // primary submit was invisible when tabbed to.
               "&.Mui-focusVisible": {
                 outline: "2px solid",
@@ -652,7 +652,7 @@ function SectionLabel({ children }: { readonly children: React.ReactNode }) {
         }}
         aria-hidden
       />
-      {/* audit-R7/P2: latin-tracked overline spacing reads broken on Arabic
+      {/* Latin-tracked overline spacing reads broken on Arabic
           script — collapse tracking to 0 whenever the document lang is ar. */}
       <Typography
         variant="overline"
@@ -730,7 +730,7 @@ function PasswordStrengthMeter({ pw, t }: { readonly pw: string; readonly t: Aut
 /**
  * Maps the role-select error state to the id of its helper node.
  *
- * Extracted (audit-R4) so the component body's cognitive complexity stays
+ * Extracted so the component body's cognitive complexity stays
  * inside the sonar budget while the aria-describedby link stays explicit —
  * FormControl's auto-link does not reach manual Select compositions in v9.
  */

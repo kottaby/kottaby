@@ -37,12 +37,11 @@ export interface GatewayRequestMetadata {
 
 /**
  * Exhaustive transport-level rejection taxonomy for the GraphQL route's
- * pre-engine guard tier (Task 2.2 `guardTransport`; REQ-010 steps 1–3).
+ * pre-engine guard tier (`guardTransport`).
  *
  * TS union ONLY — deliberately NOT represented as a `pgEnum`,
- * `backend/db/schema/enums.ts` entry, or Pothos enum (D3; gate finding:
- * no enum anywhere). Producers map each kind onto a real HTTP status at
- * the route boundary (`METHOD_NOT_ALLOWED` → 405 + `Allow: POST`,
+ * `backend/db/schema/enums.ts` entry, or Pothos enum. Producers map each
+ * kind onto a real HTTP status at the route boundary (`METHOD_NOT_ALLOWED` → 405 + `Allow: POST`,
  * `UNSUPPORTED_CONTENT_TYPE` → 400, `PAYLOAD_TOO_LARGE` → 413,
  * `MALFORMED_JSON` → 400).
  */
@@ -54,14 +53,14 @@ export type TransportErrorKind =
 
 /**
  * Result-object contract returned by every pure transport guard helper
- * (D5 — result unions, never throw-as-control-flow): the discriminated
+ * (result unions, never throw-as-control-flow): the discriminated
  * union narrows on `ok`.
  *
  * - Success arm carries the parsed request body as `unknown` so consumers
  *   MUST run their own narrowing/validation before use (no implicit any
  *   escape hatch beyond explicit `unknown`).
  * - Failure arm carries ONLY the machine kind — no raw header echoes,
- *   body fragments, or internal paths cross this contract (REQ-033/034);
+ *   body fragments, or internal paths cross this contract;
  *   localization + envelope shaping happen downstream in the route.
  */
 export type TransportGuardResult =

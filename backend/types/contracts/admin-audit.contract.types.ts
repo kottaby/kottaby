@@ -30,7 +30,7 @@ export interface AuditLogWriteContract {
 }
 
 /**
- * REQ-023 — Actor hand-off context.
+ * Actor hand-off context.
  * PROHIBITED: email, phone, credentials, tokens, governance flags.
  */
 export interface ActorContextRef {

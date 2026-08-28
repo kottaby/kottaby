@@ -26,13 +26,13 @@ export type TeacherMatchingLanguagesInput = Pick<StudentSelectType, "primaryLang
 
 export interface TeacherAvailabilitySnapshotContract {
   readonly teacherId: TeacherSelectType["id"];
-  /** INV-A1 — online status at snapshot time. Consumer MUST re-assert under lock (REQ-041). */
+  /** Online status at snapshot time. Consumer MUST re-assert under lock. */
   readonly isOnline: TeacherSelectType["isOnline"];
-  /** Preserved verbatim as `string | null` from Drizzle decimal — REQ-011. */
+  /** Preserved verbatim as `string | null` from Drizzle decimal. */
   readonly averageRating: TeacherSelectType["averageRating"];
-  /** REQ-015 — parsed from raw JSON-string `subjects` column via `parseTeacherSubjects()`. */
+  /** Parsed from the raw JSON-string `subjects` column via `parseTeacherSubjects()`. */
   readonly subjects: TeacherSubjectsParsed;
-  /** B.16 — teacher's preference when receiving unsolicited session requests. */
+  /** Teacher's preference when receiving unsolicited session requests. */
   readonly requestPreference: TeacherRequestPreference;
   /** Matcher-relevant: teacher's country for geographic matching. */
   readonly country: UserSelectType["country"];

@@ -31,7 +31,7 @@ import type { UserSelectType } from "@/backend/types/users/user.types";
 /**
  * Public login input contract.
  *
- * Field whitelist (BOPLA — REQ-051): only `email` + `password` appear here.
+ * Field whitelist (BOPLA): only `email` + `password` appear here.
  * `role`, `id`, governance fields, etc. are server-controlled and
  * structurally absent from this type — login never mutates them, and the
  * issued `role` claim comes solely from the DB.
@@ -59,7 +59,7 @@ export interface AuthTokensReturnType {
 
 /**
  * Authenticated user return type — `UserSelectType` with `passwordHash`
- * structurally omitted so the hash can never leak (REQ-020 / REQ-053).
+ * structurally omitted so the hash can never leak.
  */
 export type AuthUserReturnType = Omit<UserSelectType, "passwordHash">;
 
@@ -70,7 +70,7 @@ export type AuthUserReturnType = Omit<UserSelectType, "passwordHash">;
  * httpOnly cookie; the client doesn't need the correlation id.
  */
 export interface LoginPayloadReturnType {
-  /** Authenticated user with `passwordHash` stripped (REQ-020). */
+  /** Authenticated user with `passwordHash` stripped. */
   readonly user: AuthUserReturnType;
   /** Short-lived access token (15 min). Returned in payload + httpOnly cookie. */
   readonly accessToken: string;
