@@ -1,3 +1,4 @@
+import { applicantAr } from "@/shared/locale/ar/applicant";
 import { authAr } from "@/shared/locale/ar/auth";
 import { commonAr } from "@/shared/locale/ar/common";
 import { dashboardAr } from "@/shared/locale/ar/dashboard";
@@ -15,4 +16,5 @@ export const arMessages: Translations = {
   dashboardTranslations: dashboardAr,
   landingTranslations: landingAr,
   plansTranslations: plansAr,
+  applicantTranslations: applicantAr,
 };

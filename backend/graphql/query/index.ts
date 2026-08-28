@@ -18,3 +18,4 @@ import "./auth.query";
 import "./health.query";
 import "./plan-catalog.query";
 import "./recitation.query";
+import "./teachers";

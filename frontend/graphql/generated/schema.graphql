@@ -1,3 +1,20 @@
+type ApplicantProfile {
+  canPurchaseVerification: Boolean!
+  cooldownActive: Boolean!
+  cooldownUntil: String
+  id: Int!
+  lastAttemptAt: String
+  status: ApplicantStatus!
+  verificationAttempts: Int!
+}
+
+enum ApplicantStatus {
+  Failed
+  InEvaluation
+  Passed
+  Pending
+}
+
 """Input fields required to create a new subscription plan."""
 input CreatePlanInput {
   """3-letter uppercase currency code (e.g. 'EGP')."""
@@ -139,6 +156,7 @@ type Query {
   Returns the authenticated user (or null for anonymous). Anonymous callers receive null — the AuthProvider uses this to detect expired access tokens and silently restore the session via `refreshToken`.
   """
   me: User
+  myApplicantProfile: ApplicantProfile
 
   """Returns the active subscription plans catalog for authenticated users."""
   planCatalog: [Plan!]!

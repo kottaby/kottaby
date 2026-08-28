@@ -1,3 +1,4 @@
+import { Applicant } from "@/shared/locale/namespaces/applicant";
 import { Auth } from "@/shared/locale/namespaces/auth";
 import { Common } from "@/shared/locale/namespaces/common";
 import { Dashboard } from "@/shared/locale/namespaces/dashboard";
@@ -6,6 +7,7 @@ import { Landing } from "@/shared/locale/namespaces/landing";
 import { Plans } from "@/shared/locale/namespaces/plans";
 import { Recitation } from "@/shared/locale/namespaces/recitation";
 
+export * from "./applicant";
 export * from "./auth";
 export * from "./common";
 export * from "./dashboard";
@@ -17,6 +19,7 @@ export * from "./recitation";
 export * from "./translation";
 
 export const namespaces = {
+  Applicant,
   Auth,
   Common,
   Dashboard,

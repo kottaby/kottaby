@@ -31,4 +31,7 @@ export const errorsAr: ErrorsLabels = {
     planIntervalDaysInvalid: "يجب أن تكون مدة الصلاحية رقماً صحيحاً موجباً بالأيام.",
     planPatchEmpty: "يجب تقديم حقل واحد على الأقل لتحديث الخطة.",
   },
+  applicantNotFound: "لم يتم العثور على طلب التقديم كمعلم قرآن.",
+  applicantCooldownActive: "يمكنك إعادة التقديم للتحقق كمعلم قرآن بعد {cooldownUntil}.",
+  applicantStatusCorrupt: "تعذر قراءة حالة طلبك. يرجى التواصل مع فريق الدعم.",
 };
