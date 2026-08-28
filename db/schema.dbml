@@ -275,14 +275,16 @@ Table student_subscriptions {
 }
 
 Table plans {
-  id            integer       [pk, increment]
-  title         varchar(255)  [not null]
-  session_count integer       [not null, check: `session_count > 0`]
-  price         decimal(10,2) [not null, check: `price >= 0`]
-  currency      char(3)       [not null, default: 'EGP']
-  interval_days integer       [not null, check: `interval_days > 0`]
-  created_at    timestamp     [default: `now()`]
-  updated_at    timestamp     [default: `now()`]
+  id             integer       [pk, increment]
+  title          varchar(255)  [not null]
+  session_count  integer       [not null, check: `session_count > 0`]
+  price          decimal(10,2) [not null, check: `price >= 0`]
+  currency       char(3)       [not null, default: 'EGP']
+  interval_days  integer       [not null, check: `interval_days > 0`]
+  is_active      boolean       [not null, default: true, note: 'INV-PC1: Deactivated plans are hidden from public catalog']
+  deactivated_at timestamp     [note: 'INV-PC1: Null when active; populated on deactivation']
+  created_at     timestamp     [default: `now()`]
+  updated_at     timestamp     [default: `now()`]
 }
 
 Table wallet {

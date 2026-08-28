@@ -5,6 +5,19 @@
  *
  * Keys are lowercase camelCase of the SCREAMING_SNAKE_CASE codes.
  */
+export interface PlanCatalogErrorsLabels {
+  readonly planNotFound: string;
+  readonly planAlreadyInactive: string;
+  readonly planAlreadyActive: string;
+  readonly planTitleRequired: string;
+  readonly planTitleTooLong: string;
+  readonly planSessionCountInvalid: string;
+  readonly planPriceInvalid: string;
+  readonly planCurrencyInvalid: string;
+  readonly planIntervalDaysInvalid: string;
+  readonly planPatchEmpty: string;
+}
+
 export interface ErrorsLabels {
   readonly unauthorized: string;
   readonly forbidden: string;
@@ -30,6 +43,7 @@ export interface ErrorsLabels {
   readonly tokenExpired: string;
   /** "You do not have permission to access this page." — role-mismatch deny (DEV2-002 REQ-011). */
   readonly forbiddenRole: string;
+  readonly planCatalog: PlanCatalogErrorsLabels;
   /** "Teacher application not found." — self-applicants lookup miss → NotFoundError("APPLICANT") (DEV2-004 REQ-050). */
   readonly applicantNotFound: string;
   /**
@@ -43,3 +57,7 @@ export interface ErrorsLabels {
   /** Fail-closed deny when an applicants row status cannot be interpreted as a known ApplicantStatus. */
   readonly applicantStatusCorrupt: string;
 }
+
+export type ErrorMessageKey = {
+  [K in keyof ErrorsLabels]: ErrorsLabels[K] extends string ? K : never;
+}[keyof ErrorsLabels];

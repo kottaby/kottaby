@@ -26,7 +26,7 @@
  * this module only DESCRIBES that row so callers route consistently.
  */
 
-import type { ErrorsLabels } from "@/shared/locale/types/errors";
+import type { ErrorMessageKey } from "@/shared/locale/types/errors";
 
 /**
  * Structural mirror of the boundary's wire shape for ONE
@@ -168,7 +168,7 @@ export interface GraphQLErrorAction {
    * Task 1.2 final key list). Consumers render
    * `useAppTranslation(Errors)[messageKey]` — never the server `message`.
    */
-  readonly messageKey: keyof ErrorsLabels;
+  readonly messageKey: ErrorMessageKey;
   readonly tone: GraphQLErrorActionTone;
   /** A manual-retry affordance may be offered (RATE_LIMITED/SERVICE_UNAVAILABLE). */
   readonly retryable: boolean;

@@ -1,3 +1,4 @@
+import { seedOrGetPlans } from "@/backend/db/seeds/billing";
 import {
   loadSeedConfig,
   logFailedSeedSteps,
@@ -17,6 +18,10 @@ export async function runAllSeeds(config?: SeedConfig): Promise<void> {
   // Step 1: Users (Admin, Teacher Applicant, Parent, Student)
   const usersStep = await runSeedStep("users", () => seedOrGetUsers(seedConfig));
   stepResults.push(usersStep);
+
+  // Step 2: Plans (Catalog plans + verification plan + deactivated demo plan)
+  const plansStep = await runSeedStep("plans", () => seedOrGetPlans("en"));
+  stepResults.push(plansStep);
 
   logFailedSeedSteps(stepResults);
 
