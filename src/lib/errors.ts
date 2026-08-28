@@ -71,8 +71,18 @@ export const logger = {
       }),
     );
   },
-  info(message: string, meta?: Record<string, unknown>): void {
+  error(message: string, meta?: unknown): void {
     console.error(
+      JSON.stringify({
+        level: "error",
+        message,
+        meta: meta instanceof Error ? { name: meta.name, message: meta.message } : meta,
+        timestamp: new Date().toISOString(),
+      }),
+    );
+  },
+  info(message: string, meta?: Record<string, unknown>): void {
+    console.log(
       JSON.stringify({
         level: "info",
         message,

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { logger } from "@/lib/errors";
+import { requireAdmin } from "@/lib/middleware/admin-auth";
 
 /**
  * GET /api/admin/stats — aggregate counts for the admin dashboard.
@@ -10,6 +11,8 @@ import { logger } from "@/lib/errors";
  * trial-grant metrics (granted vs. pending) for the DEV1-004 feature.
  */
 export async function GET() {
+  const authError = requireAdmin(req);
+  if (authError) return authError;
   try {
     const [
       studentCount,

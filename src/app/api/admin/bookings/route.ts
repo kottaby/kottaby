@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { logger } from "@/lib/errors";
+import { requireAdmin } from "@/lib/middleware/admin-auth";
 
 /**
  * GET /api/admin/bookings — list recent booking submissions.
@@ -8,6 +9,8 @@ import { logger } from "@/lib/errors";
  * Query params: ?limit=50&status=pending
  */
 export async function GET(req: Request) {
+  const authError = requireAdmin(req);
+  if (authError) return authError;
   try {
     const url = new URL(req.url);
     const limit = Math.min(Number(url.searchParams.get("limit") ?? "50"), 200);

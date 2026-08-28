@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { StudentTrialService } from "@/lib/services/student-trial.service";
 import { ConflictError, logger } from "@/lib/errors";
+import { requireAdmin } from "@/lib/middleware/admin-auth";
 
 /**
  * PATCH /api/admin/students/[id] — admin manual trial grant.
@@ -16,6 +17,8 @@ export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const authError = requireAdmin(req ?? _req);
+  if (authError) return authError;
   const { id } = await params;
 
   let body: { action?: unknown };
@@ -81,6 +84,8 @@ export async function DELETE(
   _req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const authError = requireAdmin(req ?? _req);
+  if (authError) return authError;
   const { id } = await params;
 
   try {

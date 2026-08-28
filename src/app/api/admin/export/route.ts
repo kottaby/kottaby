@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { logger } from "@/lib/errors";
+import { requireAdmin } from "@/lib/middleware/admin-auth";
 
 /**
  * GET /api/admin/export?type=students|bookings|contacts|newsletter
@@ -9,6 +10,8 @@ import { logger } from "@/lib/errors";
  * Returns a `text/csv` attachment with the appropriate filename.
  */
 export async function GET(req: Request) {
+  const authError = requireAdmin(req);
+  if (authError) return authError;
   const url = new URL(req.url);
   const type = url.searchParams.get("type") ?? "students";
 

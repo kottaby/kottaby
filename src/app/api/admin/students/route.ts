@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { logger } from "@/lib/errors";
+import { requireAdmin } from "@/lib/middleware/admin-auth";
 
 /**
  * GET /api/admin/students — list students with trial balance + eligibility.
@@ -9,6 +10,8 @@ import { logger } from "@/lib/errors";
  * Returns the segregated balance lanes + trial grant marker for each student.
  */
 export async function GET(req: Request) {
+  const authError = requireAdmin(req);
+  if (authError) return authError;
   try {
     const url = new URL(req.url);
     const limit = Math.min(Number(url.searchParams.get("limit") ?? "50"), 200);

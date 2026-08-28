@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { logger } from "@/lib/errors";
+import { requireAdmin } from "@/lib/middleware/admin-auth";
 
 const VALID_STATUSES = ["pending", "confirmed", "completed", "cancelled"] as const;
 type BookingStatus = (typeof VALID_STATUSES)[number];
@@ -17,6 +18,8 @@ export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const authError = requireAdmin(req ?? _req);
+  if (authError) return authError;
   const { id } = await params;
 
   let body: { status?: unknown };
@@ -72,6 +75,8 @@ export async function DELETE(
   _req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const authError = requireAdmin(req ?? _req);
+  if (authError) return authError;
   const { id } = await params;
 
   try {

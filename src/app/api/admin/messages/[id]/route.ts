@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { logger } from "@/lib/errors";
+import { requireAdmin } from "@/lib/middleware/admin-auth";
 
 /**
  * DELETE /api/admin/messages/[id]?type=contact|newsletter
@@ -12,6 +13,8 @@ export async function DELETE(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const authError = requireAdmin(req ?? _req);
+  if (authError) return authError;
   const { id } = await params;
   const url = new URL(req.url);
   const type = url.searchParams.get("type") ?? "contact";
