@@ -1,6 +1,6 @@
 /**
  * SessionStatus enum — mirrors the `session_status` pgEnum in
- * `backend/db/schema/enums.ts`. Values are canonical (per REQ-002).
+ * `backend/db/schema/enums.ts`. Values are canonical.
  * See `docs/specs/state-machine-invariants.md`
  * (INV-S*) for valid transition rules.
  */

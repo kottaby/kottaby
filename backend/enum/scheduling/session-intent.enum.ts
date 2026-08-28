@@ -1,6 +1,6 @@
 /**
  * SessionIntent enum — mirrors the `session_intent` pgEnum in
- * `backend/db/schema/enums.ts`. Values are canonical (per REQ-002).
+ * `backend/db/schema/enums.ts`. Values are canonical.
  * What the session is for (hifz, tajweed, evaluation).
  */
 export enum SessionIntent {

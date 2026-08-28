@@ -1,6 +1,6 @@
 /**
  * SubscriptionStatus enum — mirrors the `subscription_status` pgEnum in
- * `backend/db/schema/enums.ts`. Values are canonical (per REQ-002).
+ * `backend/db/schema/enums.ts`. Values are canonical.
  * Subscription lifecycle.
  */
 export enum SubscriptionStatus {

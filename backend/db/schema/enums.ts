@@ -2,7 +2,7 @@ import { pgEnum } from "drizzle-orm/pg-core";
 
 /**
  * pgEnum registry — single source of truth for all 15 PostgreSQL enums.
- * Values + order are canonical (per REQ-002) and mirrored in the matching
+ * Values + order are canonical and mirrored in the matching
  * TypeScript enums under `backend/enum/`.
  */
 

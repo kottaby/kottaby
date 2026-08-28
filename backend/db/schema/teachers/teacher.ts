@@ -8,12 +8,12 @@ import { users } from "@/backend/db/schema/users/users";
  *
  * Shared PK = FK to users.id with cascade delete (no auto-increment; the row
  * is created only after a users row with role 'teacher' is inserted AND the
- * applicant has passed verification B.7). Failed applicants remain in the
- * `applicants` table (B.6) — they never produce a teacher row.
+ * applicant has passed verification). Failed applicants remain in the
+ * `applicants` table — they never produce a teacher row.
  *
  * `subjects` is a varchar(255) holding a JSON array of subjects
  * (quran, tajweed, tafsir, etc.).
- * `request_preference` (B.16) governs how the teacher handles concurrent
+ * `request_preference` governs how the teacher handles concurrent
  * session requests; pgEnum is nullable (no `not null`).
  */
 export const teacher = pgTable(

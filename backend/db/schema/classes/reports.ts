@@ -12,7 +12,7 @@ import { session } from "@/backend/db/schema/classes/session";
  * structurally allowed (the application layer enforces the one-per-session
  * invariant if desired).
  *
- * REQ-019 / R6: NO `teacher_id` column. The teacher is reached via
+ * NO `teacher_id` column. The teacher is reached via
  * session.teacher_id — the column was removed as redundant. Access path:
  * reports → session → teacher → users.
  *

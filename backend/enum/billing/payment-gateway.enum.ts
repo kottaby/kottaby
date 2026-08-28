@@ -1,6 +1,6 @@
 /**
  * PaymentGateway enum — mirrors the `payment_gateway` pgEnum in
- * `backend/db/schema/enums.ts`. Values are canonical (per REQ-002).
+ * `backend/db/schema/enums.ts`. Values are canonical.
  * NOTE: order matters — stripe, paypal, paymob, fawry, offline_cash,
  * bank_transfer, scholarship, other.
  */

@@ -4,7 +4,7 @@
  * `app/api` route layer (`ApiErrorEnvelopeReturnType` /
  * `ApiSuccessEnvelopeReturnType`).
  *
- * Layer rules (dev3-002 plan §2.2 + Decision D3):
+ * Layer rules:
  *  - Types ONLY. No runtime values, no GraphQL/Pothos object shapes —
  *    this file must never be referenced by the SDL generator.
  *  - `ErrorCode` is a transport **string union**, NOT a `pgEnum`, Drizzle
@@ -17,23 +17,22 @@
  * boundary post-processors (taxonomy masking/envelope finalizers) map them
  * onto these shapes. Producers MUST whitelist every property explicitly —
  * especially `details?: unknown`, which may never receive raw input echoes,
- * SQL fragments, stack traces, or PII (REQ-033).
+ * SQL fragments, stack traces, or PII.
  *
- * @see ai/plans/dev3-002-shared-error-handling-response-contracts/plan.md §2.2
  * @see docs/graphql/domain-error-extensions-code.md
  */
 
 /**
- * REQ-010 canonical category codes — the exhaustive transport-level error
+ * Canonical category codes — the exhaustive transport-level error
  * taxonomy for both GraphQL extensions and REST-style JSON envelopes.
  *
  * Transport metadata only; deliberately NOT represented as a `pgEnum`,
- * `backend/db/schema/enums.ts` entry, or GraphQL enum (Decision D3 — codes
- * are runtime strings, never database values).
+ * `backend/db/schema/enums.ts` entry, or GraphQL enum — codes are runtime
+ * strings, never database values.
  *
  * Note: legacy producers still emitting `RATE_LIMIT_EXCEEDED` (e.g. the
  * `RateLimitExceededError` 429 path) are normalized to the `"RATE_LIMITED"`
- * category by the error-code taxonomy module (alias rule, Task 2.1) before
+ * category by the error-code taxonomy module (alias rule) before
  * crossing the boundary.
  */
 export type ErrorCode =

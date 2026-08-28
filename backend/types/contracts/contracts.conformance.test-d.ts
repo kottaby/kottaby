@@ -1,5 +1,5 @@
 /**
- * Type-Level Conformance Suite (REQ-070).
+ * Type-Level Conformance Suite.
  * Validated by `bun tsgo` (the compiler is the test runner).
  * `.test-d.ts` suffix = outside bun test runner glob.
  *
@@ -44,7 +44,7 @@ const v = (x: unknown): boolean => Boolean(x);
 
 // ========== POSITIVES (must compile) ==========
 
-// Contract 1 — SessionRequest (A.8, A.10, B.2, B.3, B.4, INV-S4)
+// Positive — SessionRequest (Hifz)
 v({
   studentId: 1,
   teacherId: 2,

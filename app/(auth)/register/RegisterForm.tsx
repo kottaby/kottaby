@@ -44,15 +44,15 @@ import { applyProjectedFieldErrors, projectMutationFieldErrors } from "@/fronten
 import { Auth, Recitation, useAppTranslation } from "@/shared/locale";
 import type { AuthLabels } from "@/shared/locale/types/auth";
 
-/** Minimum password length (REQ-041) — mirrors `registration.service.ts`. */
+/** Minimum password length — mirrors `registration.service.ts`. */
 const MIN_PASSWORD_LENGTH = 8;
 
-/** audit-R7/P1+P2: shared helper-text treatment for the manual helper nodes
+/** Shared helper-text treatment for the manual helper nodes
  * (consistent rhythm across loading/error/idle states and roomier line boxes
  * for multi-line Arabic copy). */
 const helperTextSx = { lineHeight: 1.6 };
 
-/** audit-R7/P1: honor prefers-reduced-motion for the submit CTA motion.
+/** Honor prefers-reduced-motion for the submit CTA motion.
  * Expressed as an embedded media query so it holds even before hydration
  * (equivalent to the useMediaQuery({ noSsr:true }) convention, minus the
  * hydration-timing risk). */
@@ -87,8 +87,8 @@ function isValidEmailShape(email: string): boolean {
 }
 
 /**
- * Field paths the server may address in `extensions.fields[]` pairs
- * (REQ-015). Whitelist-guarded before any pair reaches RHF `setError` —
+ * Field paths the server may address in `extensions.fields[]` pairs.
+ * Whitelist-guarded before any pair reaches RHF `setError` —
  * unknown/spoofed wire paths are dropped instead of force-cast into form
  * state. KEEP IN SYNC with {@link RegisterFormValues}.
  */
@@ -162,17 +162,16 @@ interface RegisterFormValues {
  * Information" and "Preferences".
  *
  * State: React Hook Form owns the inputs (`register` + `Controller`) so a
- * single `setError(field, { message })` sink serves BOTH validation tiers
- * (dev3-002 Task 4.3):
- *  - Client tier: `auth`-namespace rules on every field (existing keys only
- *    — REQ-055), revalidated on change after submit ⇒ errors clear-on-fix.
+ * single `setError(field, { message })` sink serves BOTH validation tiers:
+ *  - Client tier: `auth`-namespace rules on every field (existing keys
+ *    only), revalidated on change after submit ⇒ errors clear-on-fix.
  *  - Server tier: on mutation failure the raw Apollo error runs through
- *    `projectMutationFieldErrors` (the 4.1 REQ-061 table re-entered with
+ *    `projectMutationFieldErrors` (the client mapping table re-entered with
  *    `hasForm:true`); returned `extensions.fields[]` pairs are whitelisted
  *    through {@link isRegisterFieldPath} and applied via
  *    `applyProjectedFieldErrors`. When pairs were applied the global alert
- *    stays suppressed — per-field mapping REPLACES the fallback copy
- *    (REQ-061); otherwise the pre-existing code branches render unchanged
+ *    stays suppressed — per-field mapping REPLACES the fallback copy;
+ *    otherwise the pre-existing code branches render unchanged
  *    (CONFLICT → `emailAlreadyExists`, VALIDATION → localized wire message,
  *    else → `registrationFailed`).
  *
@@ -192,7 +191,7 @@ export function RegisterForm() {
   const tRecitation = useAppTranslation(Recitation);
   const router = useRouter();
 
-  // DEV1-003: fetch the canonical recitation-reading catalog (public query,
+  // Fetch the canonical recitation-reading catalog (public query,
   // no auth required). Used to populate the selector dropdown.
   const { data: recitationData, loading: recitationLoading } = useQuery(recitationReadingsQueryDocument);
   const recitationOptions = recitationData?.recitationReadings ?? [];
@@ -283,8 +282,8 @@ export function RegisterForm() {
               gender: data.gender,
               country: data.country.trim(),
               role: data.role,
-              // DEV1-003: pass the optional preferredRecitation (null when no selection).
-              // C.5 guardrail: NOT persisted to `recitation` — contract metadata only.
+              // Pass the optional preferredRecitation (null when no selection).
+              // Guardrail: NOT persisted to `recitation` — contract metadata only.
               preferredRecitation: data.preferredRecitation,
             },
           },

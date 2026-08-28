@@ -1,12 +1,12 @@
 /**
  * Runtime guards & assertion helpers for the contract library.
- * Pure, stateless, zero DB coupling (REQ-042).
+ * Pure, stateless, zero DB coupling.
  *
- * Guard discipline (REQ-052): return parsed canonical value or throw;
+ * Guard discipline: return parsed canonical value or throw;
  * `is*` boolean predicates + `assert*` throwers are the ONLY pattern;
- * silent null-swallowing is PROHIBITED (fail-closed, REQ-053).
+ * silent null-swallowing is PROHIBITED (fail-closed).
  *
- * Translation bags are PARAMETERS — zero i18n imports in this library (REQ-051).
+ * Translation bags are PARAMETERS — zero i18n imports in this library.
  */
 import { SessionIntent } from "@/backend/enum/scheduling/session-intent.enum";
 import { SessionType } from "@/backend/enum/scheduling/session-type.enum";
@@ -21,7 +21,7 @@ import type { TeacherSelectType } from "@/backend/types/teachers/teacher.types";
 
 /**
  * Minimal translation-bag shape required by guards.
- * Callers provide their own resolved translations (REQ-051).
+ * Callers provide their own resolved translations.
  */
 export interface GuardTranslationBag {
   readonly subjectsParseInvalid: string;

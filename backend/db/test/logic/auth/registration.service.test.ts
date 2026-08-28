@@ -12,24 +12,21 @@
  *    pre-existing seed data.
  *  - Uses `bun:test` (describe/test/expect).
  *
- * Coverage map (REQ-060..REQ-064):
- *  - Role matrix (REQ-061): student → users + students rows, balances zeroed,
+ * Coverage map:
+ *  - Role matrix: student → users + students rows, balances zeroed,
  *    handshakeCode present; teacher → users + applicants rows, teacher
  *    rowcount delta = 0; parent → users + parents rows.
- *  - Duplicate email → ConflictError (REQ-062).
- *  - Missing/invalid fields → ValidationError (REQ-062).
- *  - Short password → ValidationError (REQ-062, REQ-041).
- *  - BOPLA: input with extra fields is ignored (REQ-062, REQ-023).
- *  - Atomicity: child-insert failure → zero residual rows (REQ-063, REQ-030).
- *  - Password stored hashed (REQ-063, REQ-020).
+ *  - Duplicate email → ConflictError.
+ *  - Missing/invalid fields → ValidationError.
+ *  - Short password → ValidationError.
+ *  - BOPLA: input with extra fields is ignored.
+ *  - Atomicity: child-insert failure → zero residual rows.
+ *  - Password stored hashed.
  *
- * DEV2-004 Task 5.1 extension — REQ-071 registration contract locks in the
- * dedicated "DEV2-004 registration contract locks" describe below:
- * exact-row-count teacher registration (REQ-010), applicants-defaults
- * signature (REQ-011), forced child-insert rollback residual proof on users
- * AND applicants (REQ-040), duplicate-email race convergence + ConflictError
- * mapping (REQ-040 idempotency). The existing DEV1-002 cases above are
- * untouched.
+ * A dedicated "registration contract locks" describe below pins:
+ * exact-row-count teacher registration, the applicants-defaults signature,
+ * forced child-insert rollback residual proof on users AND applicants, and
+ * duplicate-email race convergence + ConflictError mapping (idempotency).
  */
 
 import { describe, expect, test } from "bun:test";
@@ -54,7 +51,7 @@ const UNIQUE_VIOLATION_PG_CODE = "23505";
 
 /**
  * Marker message proving the forced failure fired at the applicants child-insert
- * stage inside the service-owned nested transaction (DEV2-004 REQ-040 proof).
+ * stage inside the service-owned nested transaction (rollback residual proof).
  */
 const FORCED_APPLICANT_FAILURE_MESSAGE = "DEV2-004 forced applicants-insert failure";
 
@@ -77,7 +74,7 @@ const TEST_DEFAULT_CREDENTIAL = "password123";
 /**
  * Type guard for the optional `passwordHash` property on a registration
  * result. Used to assert that the plaintext hash never leaks to the return
- * shape (REQ-020) without resorting to an unsafe cast.
+ * shape without resorting to an unsafe cast.
  */
 function getPasswordHash(value: unknown): unknown {
   if (typeof value === "object" && value !== null && "passwordHash" in value) {
@@ -113,8 +110,8 @@ async function countRows(tx: DBTransaction, table: PgTable): Promise<number> {
  * stub, runs `run`, then restores the original implementation. Returns how
  * many times the stub fired.
  *
- * Reuses the injection mechanism proven by this module's DEV1-002 atomicity
- * test: because the test passes an outer tx, the failure erupts INSIDE the
+ * Reuses the injection mechanism proven by this module's service-level
+ * atomicity tests: because the test passes an outer tx, the failure erupts INSIDE the
  * service-owned nested transaction at the child-insert stage, exercising the
  * SAVEPOINT-aware rollback without touching any production file.
  */
@@ -179,7 +176,7 @@ function hasUniqueViolationCode(error: unknown): boolean {
 }
 
 describe("RegistrationService.registerUser", () => {
-  // ─── Role matrix (REQ-061) ──────────────────────────────────────────
+  // ─── Role matrix ─────────────────────────────────────────────────────
 
   test("student: creates users + students rows with zeroed balances + handshakeCode", async () => {
     await runInRollback(async tx => {
@@ -192,7 +189,7 @@ describe("RegistrationService.registerUser", () => {
       expect(result.email).toBe(input.email);
       expect(result.fullName).toBe(input.fullName);
       expect(result.role).toBe("student");
-      // passwordHash MUST NOT be present in the return shape (REQ-020).
+      // passwordHash MUST NOT be present in the return shape.
       expect(getPasswordHash(result)).toBeUndefined();
 
       // Students row created with zeroed balances + handshakeCode (REQ-012).

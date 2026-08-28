@@ -1,5 +1,5 @@
 /**
- * Static Forbidden-Pattern Assertions Suite (REQ-073).
+ * Static Forbidden-Pattern Assertions Suite.
  * bun:test file-content scans enforcing structural invariants.
  */
 import { beforeAll, describe, expect, test } from "bun:test";
@@ -64,7 +64,7 @@ function sliceInterfaceBody(content: string, matchIndex: number): string {
   return content.slice(bodyStart, bodyEnd);
 }
 
-describe("REQ-073 Static Forbidden-Pattern Assertions", () => {
+describe("Static Forbidden-Pattern Assertions", () => {
   let files: Map<string, string>;
 
   beforeAll(async () => {

@@ -1,29 +1,27 @@
 /**
- * Gateway request-context + transport-guard contract types
- * (dev3-003 plan §2.2–§2.3 · Tasks 1.1 → 2.2/3.2/3.3).
+ * Gateway request-context + transport-guard contract types.
  *
  * Layer rules:
- *  - Types ONLY. Zero runtime exports (statically enforced by gateway
- *    assertion A5, Task 2.3).
+ *  - Types ONLY. Zero runtime exports (statically enforced by the gateway
+ *    assertion suite).
  *  - `TransportErrorKind` is a TypeScript string union, NEVER a DB/
- *    Drizzle/Pothos enum (D3 precedent — transport metadata is not a
- *    persisted value; plan §2.3 "Enums: None").
+ *    Drizzle/Pothos enum — transport metadata is not a persisted value.
  *  - Every property is `readonly` across all shapes here.
  *  - No cross-layer imports (`shared/`, `frontend/`, `app/`) — pure types.
  */
 
 /**
  * Documentary contract for the two gateway correlation headers captured
- * around the GraphQL pipeline (Tasks 3.2 step 2–3 / 3.3).
+ * around the GraphQL pipeline.
  *
  * This is a DOCUMENTARY type only — no runtime construction site exists or
  * may be introduced for it; the live context is assembled in-place inside
- * `gqlContextFactory` (extend-in-place rule D10/REQ-004).
+ * `gqlContextFactory` (extend-in-place rule).
  *
- * SECURITY / BOLA §6.1 note: both values originate from inbound request
+ * SECURITY / BOLA note: both values originate from inbound request
  * headers that are NON-AUTHORIZATION by contract — they can never grant,
  * influence, or substitute identity. Identity is derived EXCLUSIVELY by
- * the auth cookie factory path (REQ-030); a client-supplied
+ * the auth cookie factory path; a client-supplied
  * `X-Request-Id` / `X-Idempotency-Key` is correlation metadata only and
  * must never be trusted as an authentication signal by any layer.
  */

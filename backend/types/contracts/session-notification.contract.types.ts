@@ -1,16 +1,14 @@
 /**
- * Contract 5 — Session Event Notifications (Dev 3 → Dev 1),
- * TEAM_ALLOCATION.md §Contract 5.
- * Decision refs: A.4; INV-P3.
+ * Session Event Notifications contract (Dev 3 → Dev 1).
  *
- * Parent notifications are system OUTPUTS only — linking workflows
- * DEV1-013/014/015 are explicitly excluded from this contract.
+ * Parent notifications are system OUTPUTS only — linking workflows are
+ * explicitly excluded from this contract.
  *
- * **A.4:** `isRead` is system-managed and MUST NOT appear in input shapes.
+ * `isRead` is system-managed and MUST NOT appear in input shapes.
  * `id`/`createdAt` are system-set and excluded from input.
  *
- * **BOLA (REQ-033):** `userId` is recipient-resolved server-side.
- * Client may NEVER push `userId` for another user (DEV3-010 binding rule).
+ * **BOLA:** `userId` is recipient-resolved server-side.
+ * Client may NEVER push `userId` for another user.
  */
 import type { NotificationType } from "@/backend/enum/notifications/notification-type.enum";
 import type { NotificationSelectType } from "@/backend/types/notifications/notification.types";
@@ -18,7 +16,7 @@ import type { NotificationSelectType } from "@/backend/types/notifications/notif
 /**
  * Enum-member union for session-event notification types.
  * Sibling types (ParentLinkRequest, SystemBroadcast, PaymentConfirmation,
- * EvaluationResult) are handled by sibling contracts per REQ-021 —
+ * EvaluationResult) are handled by sibling contracts —
  * they are NOT built here.
  */
 export type SessionEventNotificationType =

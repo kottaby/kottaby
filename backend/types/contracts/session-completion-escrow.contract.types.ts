@@ -1,8 +1,9 @@
 /**
- * Contract 3 — Dual Confirmation & Escrow Trio (Dev 3 → Dev 1 + Dev 2),
- * TEAM_ALLOCATION.md §Contract 3.
- * Decision refs: B.2, B.3, B.4, B.18, Decision #3 (constructor-funnel).
- * Invariants: INV-S3, INV-W1/W3/W4/W6/W7/W8, INV-PAY2.
+ * Dual Confirmation & Escrow Trio contract (Dev 3 → Dev 1 + Dev 2).
+ *
+ * Escrow-trigger construction requires both party confirmations and is
+ * funneled through a single constructor helper; wallet credits are
+ * session-linked earnings, immutable post-insert.
  */
 import { TransactionStatus } from "@/backend/enum/billing/transaction-status.enum";
 import { TransactionType } from "@/backend/enum/billing/transaction-type.enum";
@@ -14,10 +15,10 @@ export const WALLET_CREDIT_TRANSACTION_TYPE = TransactionType.Earning;
 export const WALLET_CREDIT_TRANSACTION_STATUS = TransactionStatus.Completed;
 
 /**
- * B.2 — caller-timestamp partials advance ONLY their own column;
- * full state is re-read from DB (REQ-043).
+ * Caller-timestamp partials advance ONLY their own column;
+ * full state is re-read from DB.
  * Escrow trigger NOT constructible from two independent half-confirms
- * — read-modify-write mandate implemented in DEV3-012.
+ * — read-modify-write is required.
  */
 export interface DualConfirmationState {
   readonly sessionId: SessionSelectType["id"];

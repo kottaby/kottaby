@@ -6,7 +6,7 @@ import { gender, userRole } from "@/backend/db/schema/enums";
  *
  * Governance fields (is_deleted, suspended, is_blocked) apply to all roles.
  * Role-specific data lives in admin/teacher/students/parents child tables via
- * shared PK. Column names + types are canonical per REQ-002.
+ * shared PK. Column names + types are the canonical contract across layers.
  */
 export const users = pgTable(
   "users",
