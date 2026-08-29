@@ -12,7 +12,9 @@
  *   styling) · found + linkable (can-link copy) · found + already-linked
  *   (already-linked copy; both assert NO CTA element and no raw identity
  *   leaked) · server `VALIDATION` re-judgment (inline input error) ·
- *   `FORBIDDEN` denial (PermissionDeniedFallback) · generic transport error.
+ *   `FORBIDDEN` denial (PermissionDeniedFallback) · generic transport error ·
+ *   generic transport error retried WITHOUT editing the field (the unchanged
+ *   code forces a `refetch` — error first, success on the retry).
  *
  * Translation discipline: assertions reference ONLY the PRELOADED label
  * objects resolved through `HandshakeCode.getLabels(getTranslations(locale))`
@@ -407,6 +409,50 @@ for (const locale of ["ar", "en"] as AppLocale[]) {
       // Not the denial surface, not the not-found state.
       expect(screen.queryByText(te.forbiddenRole)).toBeNull();
       expect(screen.queryByTestId("handshake-discovery-not-found")).toBeNull();
+    });
+
+    test("generic failure then resubmit of the UNCHANGED code → forced refetch replaces the stale error with success", async () => {
+      const traffic = createNetworkTraffic();
+      // TWO mocks for the IDENTICAL request — MockLink consumes its response
+      // queue in order: the first submit fails generically, the resubmit's
+      // forced refetch resolves with the found payload.
+      renderDiscovery(
+        traffic,
+        [
+          failureMock("INTERNAL_SERVER_ERROR"),
+          lookupResponseMock(FIXTURE_HANDSHAKE_CODE, { maskedName: MASKED_STUDENT_NAME, linkable: true }),
+        ],
+        locale
+      );
+      const user = userEvent.setup();
+      const input = screen.getByLabelText(t.inputLabel);
+
+      // First submit: the query fires and fails generically.
+      await submitSearch(user, input, t.searchAction, FIXTURE_LOWERCASE_INPUT);
+      await waitFor(() => {
+        expect(screen.getByText(te.internalServerError)).toBeDefined();
+      });
+
+      // Retry WITHOUT touching the field: the unchanged code keeps
+      // `validatedCode` identical, which without the forced refetch leaves
+      // the stateful query silent and the stale error on screen forever.
+      await user.click(screen.getByRole("button", { name: t.searchAction }));
+
+      // The retry re-queried: the masked card replaces the stale error.
+      const resultCard = await screen.findByTestId("handshake-discovery-result");
+      expect(screen.getByText(MASKED_STUDENT_NAME)).toBeDefined();
+      expect(screen.queryByText(te.internalServerError)).toBeNull();
+      // Minimal disclosure holds on the recovered branch too.
+      expect(resultCard.textContent?.includes(RAW_STUDENT_NAME)).toBe(false);
+      expect(resultCard.textContent?.includes(CONTACT_SENTINEL)).toBe(false);
+
+      // Exactly two operations — the failed attempt and the forced refetch —
+      // both carrying the same normalized uppercase variable.
+      expect(traffic.operationNames).toEqual([FIND_OPERATION_NAME, FIND_OPERATION_NAME]);
+      expect(traffic.capturedVariables).toEqual([
+        { code: FIXTURE_HANDSHAKE_CODE },
+        { code: FIXTURE_HANDSHAKE_CODE },
+      ]);
     });
   });
 }

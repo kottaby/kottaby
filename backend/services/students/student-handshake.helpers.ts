@@ -10,7 +10,7 @@
  * missing its window start or duration), the child is treated as actively
  * governed — missing data must never widen discovery visibility.
  */
-import type { UserSelectType } from "@/backend/types";
+import type { HandshakeDiscoveryRowType } from "@/backend/types";
 
 /** Milliseconds per day — the unit of `users.suspended_period_days`. */
 const MS_PER_DAY = 86_400_000;
@@ -18,6 +18,11 @@ const MS_PER_DAY = 86_400_000;
 /**
  * Fail-closed: any governed state excludes the child from parent discovery by
  * collapsing the lookup to "does not exist".
+ *
+ * The input is the `UserSelectType` half of the canonical discovery row —
+ * `Omit<HandshakeDiscoveryRowType, "parentId">`, single-sourced from
+ * `@/backend/types` so the governance key set can never drift from the row
+ * type (`fullName` rides along and is ignored by the predicate).
  *
  *  - `isDeleted` or `isBlocked` → always excluded;
  *  - not suspended → included;
@@ -27,7 +32,7 @@ const MS_PER_DAY = 86_400_000;
  *  - lapsed suspension (window end at or before `now`) → included.
  */
 export function isGovernanceExcludedFromDiscovery(
-  governance: Pick<UserSelectType, "isDeleted" | "isBlocked" | "suspended" | "suspendedAt" | "suspendedPeriodDays">,
+  governance: Omit<HandshakeDiscoveryRowType, "parentId">,
   now: Date
 ): boolean {
   if (governance.isDeleted || governance.isBlocked) {

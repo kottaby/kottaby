@@ -23,7 +23,9 @@ import { Errors, HandshakeCode, useAppTranslation } from "@/shared/locale";
  * `useQuery` receives `skipToken` until a code validates, which is the
  * zero-network proof for malformed input (no `useLazyQuery` anywhere).
  * Editing the field clears `validatedCode`, so a stale result never lingers
- * beside fresh input.
+ * beside fresh input; resubmitting the UNCHANGED code forces a `refetch`,
+ * so a retry after a generic error always re-queries instead of persisting
+ * the stale error.
  *
  * Outcome state machine (derived per render — no stored result state):
  *
@@ -49,7 +51,7 @@ export function HandshakeDiscoveryContainer(props: Readonly<HandshakeDiscoveryCo
   const [validatedCode, setValidatedCode] = useState<string | null>(null);
   const [formatError, setFormatError] = useState(false);
 
-  const { data, loading, error } = useQuery(
+  const { data, error, loading, refetch } = useQuery(
     findStudentByHandshakeCodeQueryDocument,
     validatedCode === null ? skipToken : { variables: { code: validatedCode } }
   );
@@ -82,6 +84,16 @@ export function HandshakeDiscoveryContainer(props: Readonly<HandshakeDiscoveryCo
       return;
     }
     setFormatError(false);
+    // Resubmitting the UNCHANGED code (the retry path after a generic error
+    // leaves the field untouched): `validatedCode` already holds this exact
+    // value, so re-setting it is a no-op state update the query never sees —
+    // the stale error would persist forever. Force the retry through
+    // `refetch` instead (still no `useLazyQuery`; the skip gate remains the
+    // only authority over when a query exists at all).
+    if (normalized === validatedCode) {
+      void refetch({ code: normalized });
+      return;
+    }
     setValidatedCode(normalized);
   };
 

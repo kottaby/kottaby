@@ -69,6 +69,13 @@ const enErrors = getServerTranslations(LOCALE_EN).errorsTranslations;
 /** Governance input shape accepted by the pure predicate. */
 type GovernanceInputType = Parameters<typeof isGovernanceExcludedFromDiscovery>[0];
 
+/**
+ * Fixture display name — rides along in the governance input shape (the
+ * `UserSelectType` half of the canonical discovery row) and is ignored by
+ * the predicate.
+ */
+const GOVERNANCE_FIXTURE_FULL_NAME = "Governance Fixture";
+
 /** A committed student fixture: real users + students rows with a known code. */
 interface StudentFixtureType {
   readonly userId: number;
@@ -129,7 +136,14 @@ function governanceFixture(
   suspendedAt: Date | null,
   suspendedPeriodDays: number | null
 ): GovernanceInputType {
-  return { isDeleted, isBlocked, suspended, suspendedAt, suspendedPeriodDays };
+  return {
+    fullName: GOVERNANCE_FIXTURE_FULL_NAME,
+    isDeleted,
+    isBlocked,
+    suspended,
+    suspendedAt,
+    suspendedPeriodDays,
+  };
 }
 
 /**
