@@ -513,7 +513,7 @@
 
 ### 7.1 Canonical Document
 
-- [ ] 7.1 [Author `docs/notifications/realtime-engine.md`]
+- [x] 7.1 [Author `docs/notifications/realtime-engine.md`]
   - Structure: Why → Pattern → Rules → What NOT to Do → Rollout Summary → Related Documents
   - Mandatory content: persist-first/push-second rule (REQ-011); publish-after-commit + caller-tx receipt composition (REQ-012/042) with consumption-guide code sketch; emit contract + localization-at-emitter boundary (engine never translates — REQ-015/028); WS handshake security model + full close-code vocabulary (4401/4429/4009/1013/1001); backplane port + both adapters + fail-open-on-push-failure ruling; fail-open idempotency deviation rationale (D5); catch-up self-heal contract; connection-cap policy; bounded-state exception scope; consumption guide for DEV3-011 / DEV1-016 / DEV1-017 / DEV2-016 / DEV3-012 / DEV3-013 / DEV3-022d (import engine contracts, never write rows directly, honor publish-after-commit)
   - Explicit statement: NO new state-machine invariants minted (append-only + one-way read latch is documented, not INV-numbered); INV-P3 referenced as ENABLED-BY this engine
@@ -521,7 +521,7 @@
 
 ### 7.2 Decisions Addendum
 
-- [ ] 7.2 [Record reconciliation addenda in `docs/specs/open-decisions-and-gaps.md`]
+- [x] 7.2 [Record reconciliation addenda in `docs/specs/open-decisions-and-gaps.md`]
   - (i) WS-via-sidecar topology ruling (App Router cannot host WS; sidecar not an `app/api` surface)
   - (ii) emit-fail-open vs booking-fail-closed idempotency distinction (with `docs/IDEMPOTENCY.md` cross-ref)
   - (iii) copy-localization-at-emitter ruling + the `users.locale` forward gap (owned by deferred item D2)
@@ -530,7 +530,7 @@
 
 ### 7.3 AGENTS.md & Cross-Link Updates
 
-- [ ] 7.3 [Layer knowledge propagation]
+- [x] 7.3 [Layer knowledge propagation]
   - `backend/services/AGENTS.md`: +1–2 lines — NotificationEngine single-writer rule + canonical doc link
   - `backend/db/repo/AGENTS.md`: +1 line — guarded self-scope update pattern note (`WHERE id AND user_id` precedent)
   - `test/workflows/AGENTS.md`: VERIFY authored content from Task 2.1 is final (journey-layer rules: committed fixtures, tracked teardown, spied side effects, honest permissions, NO `runInRollback`)
@@ -540,7 +540,7 @@
 
 ### 7.4 Outcome Synthesis & Final Gate
 
-- [ ] 7.4 [Close the plan]
+- [x] 7.4 [Close the plan]
   - Verify EVERY task has its `outcome/<task-id>-outcome.md`; `outcome/plan-review-R1.md` predates implementation tasks
   - Final verification bundle re-run and recorded: baseline delta = 0; schema drift empty; codegen artifacts committed; all suites (`backend/db/test/logic/notifications`, engine services, WS, GraphQL integration, component, chaos, `bun test test/workflows`) green across two consecutive runs
   - Deferred-items final grep gate (REQ-083) executed and recorded
