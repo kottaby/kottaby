@@ -131,4 +131,12 @@ export interface DashboardLabels {
   readonly comingSoonMetaTitle: string;
   /** Next.js metadata description for the catch-all "coming soon" page */
   readonly comingSoonMetaDescription: string;
+  /** Dashboard: quick-actions section title */
+  readonly quickActionsTitle: string;
+  /** Dashboard: recent-activity section title */
+  readonly recentActivityTitle: string;
+  /** Dashboard: recent-activity empty-state title */
+  readonly recentActivityEmptyTitle: string;
+  /** Dashboard: recent-activity empty-state body */
+  readonly recentActivityEmptyBody: string;
 }

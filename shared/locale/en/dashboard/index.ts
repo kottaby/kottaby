@@ -61,4 +61,9 @@ export const dashboardEn: DashboardLabels = {
   profileMetaDescription: "View your Kottaby Academy profile information.",
   comingSoonMetaTitle: "Coming soon — Kottaby Academy",
   comingSoonMetaDescription: "This page is not available yet. Check back soon.",
+  quickActionsTitle: "Quick actions",
+  recentActivityTitle: "Recent activity",
+  recentActivityEmptyTitle: "Nothing here yet",
+  recentActivityEmptyBody:
+    "Your latest sessions, subscriptions, and notifications will appear here as you use the academy.",
 };

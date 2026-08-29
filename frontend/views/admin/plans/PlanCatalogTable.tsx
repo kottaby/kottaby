@@ -210,11 +210,14 @@ function PlanCatalogDesktopTable({
           {plans.map(plan => (
             <TableRow key={plan.id} hover sx={{ "&:last-child td": { borderBottom: 0 } }}>
               {/* Title — admin-authored content, ellipsis-truncated so a
-                  runaway name cannot blow out the row layout. */}
+                  runaway name cannot blow out the row layout; the full
+                  title stays reachable via a hover/focus tooltip. */}
               <TableCell sx={{ maxWidth: 240 }}>
-                <Typography variant="body1" noWrap sx={{ fontWeight: 600 }}>
-                  {plan.title}
-                </Typography>
+                <Tooltip title={plan.title} enterTouchDelay={300}>
+                  <Typography variant="body1" noWrap sx={{ fontWeight: 600 }}>
+                    {plan.title}
+                  </Typography>
+                </Tooltip>
               </TableCell>
               <TableCell>{plan.sessionCount}</TableCell>
               {/* price + currency: the server-canonical decimal STRING is

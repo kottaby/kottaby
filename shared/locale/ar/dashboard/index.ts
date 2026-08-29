@@ -60,4 +60,8 @@ export const dashboardAr: DashboardLabels = {
   profileMetaDescription: "عرض معلومات ملفك الشخصي في أكاديمية درافت.",
   comingSoonMetaTitle: "قريباً — أكاديمية درافت",
   comingSoonMetaDescription: "هذه الصفحة غير متاحة بعد. يرجى التحقق لاحقاً.",
+  quickActionsTitle: "إجراءات سريعة",
+  recentActivityTitle: "النشاط الأخير",
+  recentActivityEmptyTitle: "لا يوجد نشاط بعد",
+  recentActivityEmptyBody: "ستظهر هنا أحدث جلساتك واشتراكاتك وإشعاراتك أثناء استخدامك للأكاديمية.",
 };

@@ -264,40 +264,65 @@ export function AuditLogContainer({ labels }: Readonly<AuditLogContainerProps>):
         onClear={clearFilters}
         dateRangeError={dateRangeError}
       />
-      {/* Page-size control sits OUTSIDE the table (a compact toolbar row) —
-          it re-pages the read, so it belongs to the container's controls. */}
+      {/* Toolbar row — visible range on the reading-direction start edge,
+          the rows-per-page select on the end edge. The page-size control
+          re-pages the read, so it belongs to the container's controls. */}
       <PageSizeSelect
         labels={t}
         value={pageSize}
         options={PAGE_SIZE_OPTIONS}
         onChange={changePageSize}
         disabled={loading}
+        rangeLabel={
+          page && page.adminAuditLogs.total > 0
+            ? t.pageInfo(offset + 1, Math.min(offset + pageSize, page.adminAuditLogs.total), page.adminAuditLogs.total)
+            : undefined
+        }
       />
       {surface}
     </Stack>
   );
 }
 
-/** Compact rows-per-page select (the toolbar row above the table). */
+/**
+ * Toolbar row above the trail table — the visible range label (when there
+ * are rows) sits on the start edge, the compact rows-per-page select on the
+ * end edge, so the bar reads as one balanced control strip in RTL and LTR.
+ */
 function PageSizeSelect({
   labels,
   value,
   options,
   onChange,
   disabled,
+  rangeLabel,
 }: {
   readonly labels: AuditLabels;
   readonly value: number;
   readonly options: readonly number[];
   readonly onChange: (size: number) => void;
   readonly disabled: boolean;
+  readonly rangeLabel?: string;
 }): ReactNode {
   return (
     <Stack
       spacing={1}
-      sx={{ flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 1.5 }}
+      sx={{
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        flexWrap: "wrap",
+        gap: 1.5,
+      }}
       data-testid="audit-page-size"
     >
+      {rangeLabel ? (
+        <Typography variant="body2" sx={theme => ({ color: theme.palette.text.secondary, fontWeight: 600 })}>
+          {rangeLabel}
+        </Typography>
+      ) : (
+        <Box />
+      )}
       <FormControl size="small" sx={{ minWidth: 128 }}>
         <InputLabel id="audit-page-size-label">{labels.rowsPerPage}</InputLabel>
         <Select

@@ -390,7 +390,7 @@ export function MySubscriptionsContainer({ labels }: Readonly<MySubscriptionsCon
           <Box
             sx={{
               display: "grid",
-              gridTemplateColumns: { xs: "repeat(3, 1fr)", sm: "repeat(3, minmax(0, 220px))" },
+              gridTemplateColumns: { xs: "repeat(3, minmax(0, 1fr))", sm: "repeat(3, minmax(0, 1fr))" },
               gap: 1.5,
             }}
           >

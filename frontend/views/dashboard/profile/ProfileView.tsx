@@ -194,13 +194,16 @@ export function ProfileView(): ReactNode {
         />
       </Stack>
 
-      {/* === Info grid: Account Info + Recitation === */}
+      {/* === Info grid: Account Info | (Recitation + Account status) ===
+          Column 2 stacks the short recitation + status cards so both
+          columns carry equal visual weight at md+ (no half-dead card). */}
       <Box
         sx={{
           display: "grid",
           gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
           gap: 2,
           mb: 2,
+          alignItems: "start",
         }}
       >
         {/* Account info card */}
@@ -227,76 +230,78 @@ export function ProfileView(): ReactNode {
           </CardContent>
         </Card>
 
-        {/* Recitation preference card */}
-        <Card
-          elevation={0}
-          sx={theme => ({
-            borderRadius: 3,
-            border: "1px solid",
-            borderColor: theme.palette.outlineVariant,
-          })}
-        >
-          <CardContent sx={{ p: 3 }}>
-            <Stack direction="row" spacing={1} sx={{ alignItems: "center", mb: 2 }}>
-              <MenuBookIcon fontSize="small" sx={theme => ({ color: theme.palette.primary.main })} />
-              <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
-                {t.recitationReading}
-              </Typography>
-            </Stack>
-            {recitationLabel ? (
-              <Box
-                sx={theme => ({
-                  p: 2,
-                  borderRadius: 2,
-                  bgcolor: theme.palette.primaryContainer,
-                  color: theme.palette.onPrimaryContainer,
-                })}
-              >
-                <Typography variant="body1" sx={{ fontWeight: 600 }}>
-                  {recitationLabel}
+        {/* Column 2: recitation preference + account status, stacked */}
+        <Stack spacing={2}>
+          {/* Recitation preference card */}
+          <Card
+            elevation={0}
+            sx={theme => ({
+              borderRadius: 3,
+              border: "1px solid",
+              borderColor: theme.palette.outlineVariant,
+            })}
+          >
+            <CardContent sx={{ p: 3 }}>
+              <Stack direction="row" spacing={1} sx={{ alignItems: "center", mb: 2 }}>
+                <MenuBookIcon fontSize="small" sx={theme => ({ color: theme.palette.primary.main })} />
+                <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+                  {t.recitationReading}
                 </Typography>
-                {recitationDesc ? (
-                  <Typography variant="caption" sx={{ opacity: 0.85, mt: 0.5, display: "block" }}>
-                    {recitationDesc}
+              </Stack>
+              {recitationLabel ? (
+                <Box
+                  sx={theme => ({
+                    p: 2,
+                    borderRadius: 2,
+                    bgcolor: theme.palette.primaryContainer,
+                    color: theme.palette.onPrimaryContainer,
+                  })}
+                >
+                  <Typography variant="body1" sx={{ fontWeight: 600 }}>
+                    {recitationLabel}
                   </Typography>
-                ) : null}
-              </Box>
-            ) : (
-              <Alert severity="info" variant="outlined">
-                {tRecitation.selectHelper}
-              </Alert>
-            )}
-          </CardContent>
-        </Card>
-      </Box>
+                  {recitationDesc ? (
+                    <Typography variant="caption" sx={{ opacity: 0.85, mt: 0.5, display: "block" }}>
+                      {recitationDesc}
+                    </Typography>
+                  ) : null}
+                </Box>
+              ) : (
+                <Alert severity="info" variant="outlined">
+                  {tRecitation.selectHelper}
+                </Alert>
+              )}
+            </CardContent>
+          </Card>
 
-      {/* === Account status card === */}
-      <Card
-        elevation={0}
-        sx={theme => ({
-          borderRadius: 3,
-          border: "1px solid",
-          borderColor: theme.palette.outlineVariant,
-          mb: 2,
-        })}
-      >
-        <CardContent sx={{ p: 3 }}>
-          <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 2 }}>
-            {t.accountStatus}
-          </Typography>
-          <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", gap: 1 }}>
-            <StatusBadge
-              active={!user.isDeleted && !user.suspended && !user.isBlocked}
-              label={t.statusActive}
-              Icon={CheckCircleIcon}
-              tone="success"
-            />
-            <StatusBadge active={user.isDeleted} label={t.statusDeleted} Icon={WarningIcon} tone="error" />
-            <StatusBadge active={user.suspended} label={t.statusSuspended} Icon={WarningIcon} tone="warning" />
-            <StatusBadge active={user.isBlocked} label={t.statusBlocked} Icon={BlockIcon} tone="error" />
-          </Stack>
-        </CardContent>
-      </Card>
+          {/* Account status card (col-2 of the info grid) */}
+          <Card
+            elevation={0}
+            sx={theme => ({
+              borderRadius: 3,
+              border: "1px solid",
+              borderColor: theme.palette.outlineVariant,
+            })}
+          >
+            <CardContent sx={{ p: 3 }}>
+              <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 2 }}>
+                {t.accountStatus}
+              </Typography>
+              <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", gap: 1 }}>
+                <StatusBadge
+                  active={!user.isDeleted && !user.suspended && !user.isBlocked}
+                  label={t.statusActive}
+                  Icon={CheckCircleIcon}
+                  tone="success"
+                />
+                <StatusBadge active={user.isDeleted} label={t.statusDeleted} Icon={WarningIcon} tone="error" />
+                <StatusBadge active={user.suspended} label={t.statusSuspended} Icon={WarningIcon} tone="warning" />
+                <StatusBadge active={user.isBlocked} label={t.statusBlocked} Icon={BlockIcon} tone="error" />
+              </Stack>
+            </CardContent>
+          </Card>
+        </Stack>
+      </Box>
 
       {/* === Change password card === */}
       <ChangePasswordCard t={t} showPasswordLabel={tAuth.showPassword} hidePasswordLabel={tAuth.hidePassword} />
