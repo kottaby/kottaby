@@ -29,6 +29,7 @@ import { enMessages } from "@/shared/locale/en/messages";
 import { Applicant } from "@/shared/locale/namespaces/applicant";
 import { Auth } from "@/shared/locale/namespaces/auth";
 import { Common } from "@/shared/locale/namespaces/common";
+import { Dashboard } from "@/shared/locale/namespaces/dashboard";
 import { Errors } from "@/shared/locale/namespaces/errors";
 import { Landing } from "@/shared/locale/namespaces/landing";
 import { Notifications } from "@/shared/locale/namespaces/notifications";
@@ -83,4 +84,7 @@ for (const translations of [arMessages, enMessages]) {
   // surfaces missing-key drift at preload time.
   Notifications.getLabels(translations);
   Common.getLabels(translations);
+  // Warm the Dashboard handle so the app-bar/sidebar badge suites surface
+  // missing-key drift at preload time (nav labels + app-bar strings).
+  Dashboard.getLabels(translations);
 }

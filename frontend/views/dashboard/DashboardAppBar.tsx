@@ -11,6 +11,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 import { LocaleSwitcher } from "@/frontend/components/LocaleSwitcher";
+import { NotificationUnreadBadge } from "@/frontend/components/ui/NotificationUnreadBadge";
 import { useAuth } from "@/frontend/hooks/useAuth";
 import { useThemeMode } from "@/frontend/hooks/useThemeMode";
 import { roleDashboardPath } from "@/frontend/lib/auth/roleDashboardRoute";
@@ -32,7 +33,8 @@ export interface DashboardAppBarProps {
  *
  * Layout (LTR order; mirrored in RTL via MUI's `direction: rtl`):
  *  - Left: hamburger (mobile only) + "Kottaby Academy" brand wordmark.
- *  - Right: locale switcher, theme toggle, user avatar + email + sign-out.
+ *  - Right: locale switcher, theme toggle, notifications bell (unread badge
+ *    → `/notifications`), user avatar + email + sign-out.
  *
  * Auth-aware: reads `useAuth()` to render either the user's info + sign-out
  * (authenticated) or a "Sign in" link (anonymous). The auth redirect itself
@@ -124,6 +126,11 @@ export function DashboardAppBar({ onMenuClick, showMenuButton }: Readonly<Dashbo
               {mode === "light" ? <DarkModeIcon /> : <LightModeIcon />}
             </IconButton>
           </Tooltip>
+
+          {/* Notifications bell — unread badge linked to the inbox
+              (mounted here so every authenticated role sees it; the shell
+              socket maintains the cached count, REQ-063c/065/067) */}
+          <NotificationUnreadBadge />
 
           {/* User identity + sign-out (authenticated only) */}
           {user ? (
