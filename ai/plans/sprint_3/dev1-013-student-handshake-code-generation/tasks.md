@@ -126,7 +126,7 @@
 
 ## Phase 2: Test Locks, Journey Harness, Repositories & Backend Services
 
-### - [ ] 2.1 Permanent Generation & Constraint Lock Tests (TEST-FIRST; verify-only production path)
+### - [x] 2.1 Permanent Generation & Constraint Lock Tests (TEST-FIRST; verify-only production path)
 - **Test files** (inside the sanctioned logic/db test tree, e.g. `backend/db/test/...` + logic suite per repo conventions — follow `backend/db/test/AGENTS.md`):
   - **Format lock (REQ-010):** N=50 student fixtures created via `entity-setup.ts` (real `RegistrationService` path where the helper supports it; otherwise registered students backstopped by direct `createForRegistration`) — assert EVERY `handshakeCode` matches `HANDSHAKE_CODE_PATTERN`, is non-null, and row defaults are exact.
   - **Uniqueness lock (REQ-012):** forced duplicate insert (same code on a second students row) inside `runInRollback` → `expectRepoError` asserting the TRANSLATED-message substring of the unique-constraint violation (never raw keys).
@@ -143,7 +143,7 @@
 - [ ] 2.1.IV **Instruction Verification**: read `backend/db/test/AGENTS.md` (incl. rule 15 — fixtures not seeds) and auto-discovered instruction files; confirm compliance.
 - Outcome: `outcome/2.1-generation-lock-tests-outcome.md`.
 
-### - [ ] 2.2 Scaffold `test/workflows/` + Write Handshake-Discovery Journey Test (TEST-FIRST — REQ-077)
+### - [x] 2.2 Scaffold `test/workflows/` + Write Handshake-Discovery Journey Test (TEST-FIRST — REQ-077)
 - **Scaffold (mandatory — the layer does not exist per 0.2):**
   - `test/workflows/AGENTS.md` — journey rules per Architectural Invariant 10: sequential actor-attributed steps calling REAL services against the REAL test DB; fixtures COMMITTED in `beforeAll` and HARD-DELETED in `afterAll` with tracked IDs; `runInRollback` FORBIDDEN (services spawn their own transactions); permissions resolve honestly via real role membership — NEVER monkey-patched; side effects (none exist in this ticket — REQ-023) asserted absent; spies configured for notification dispatch should any future step emit one (NEVER real email/SMS/push).
   - `test/workflows/helpers/journey-fixtures.ts` — cast builders: `registerStudentActor()` (real `RegistrationService.registerUser` → returns `{ userId, handshakeCode }`), `registerParentActor()`, `linkStudentToParentFixture(studentId, parentUserId)` (direct repository write emulating DEV1-014's future mutation), `setGovernanceFixture(userId, { isDeleted | isBlocked | suspended... })`, and a tracked-ID registry powering the `afterAll` hard-delete teardown.
@@ -165,7 +165,7 @@
 - [ ] 2.2.IV **Instruction Verification**: validate the new `test/workflows/AGENTS.md` against Architectural Invariant 10 and auto-discovered instruction files.
 - Outcome: `outcome/2.2-journey-harness-outcome.md`.
 
-### - [ ] 2.3 Repository — Additive Read Methods on `backend/db/repo/students/student.repository.ts`
+### - [x] 2.3 Repository — Additive Read Methods on `backend/db/repo/students/student.repository.ts`
 - Add exactly two methods (existing methods untouched):
   - `findHandshakeCodeByStudentId(studentId: number, tx?: DBTransaction): Promise<string | null>` — single-column equality read via the `queryDb(tx)` Neon-HTTP-eligible pattern.
   - `findDiscoveryByHandshakeCode(code: string, tx?: DBTransaction): Promise<HandshakeDiscoveryRowType | null>` — students⋈users JOIN on shared PK selecting EXACTLY the `Pick`'d columns; parameterized equality `eq(students.handshakeCode, code)`; NO LIKE/ILIKE, NO `sql` templates (zero inline-comment/parameter-binding hazard), NO `inArray`, NO prepared-statement misuse.
@@ -179,7 +179,7 @@
 - [ ] 2.3.IV **Instruction Verification**: read `backend/db/repo/AGENTS.md` (queryDb pattern, optional-last `tx`, no-prepared-statement note for single-scalar equality) and auto-discovered instruction files; confirm compliance.
 - Outcome: `outcome/2.3-student-repository-lookups-outcome.md`.
 
-### - [ ] 2.4 Service — `backend/services/students/student-handshake.service.ts` + Governance Helper
+### - [x] 2.4 Service — `backend/services/students/student-handshake.service.ts` + Governance Helper
 - Create `backend/services/students/student-handshake.helpers.ts` (runtime file — NOT `.types.ts`):
   - `isGovernanceExcludedFromDiscovery(governance, now: Date): boolean` per plan §4.1 — fail-closed: `isDeleted || isBlocked` → excluded; `!suspended` → included; suspended with missing `suspendedAt`/`suspendedPeriodDays` → excluded (fail-closed); active-window math `suspendedAt + periodDays > now` → excluded.
 - Create `backend/services/students/student-handshake.service.ts`:
@@ -219,7 +219,7 @@
 
 ## Phase 3: GraphQL Resolvers & API Surface
 
-### - [ ] 3.1 Pothos Object Type + Query Module
+### - [x] 3.1 Pothos Object Type + Query Module
 - Create `backend/graphql/pothos/students/handshake-code.pothos.ts` (+ sub-directory barrel if absent): `gqlSchemaBuilder.objectRef<HandshakeCodeLookupReturnType>("HandshakeCodeLookup")` exposing ONLY `maskedName: t.exposeString(...)` and `linkable: t.exposeBoolean(...)`. **NO `id` field BY DESIGN** (REQ-019/D7); backing type imported from `@/backend/types` (never a local type).
 - Create `backend/graphql/query/students/handshake-code.query.ts` (+ barrel wiring per `docs/graphql/api-gateway-and-routing.md` §8 side-effect registration):
   - `myHandshakeCode: String!` — `authScopes: { $all: { authenticated: true, role: [UserRole.Student] } }`; thin resolver: `StudentHandshakeService.getMyHandshakeCode(ctx.user.id, ctx.locale)`.
@@ -235,7 +235,7 @@
 - [ ] 3.1.IV **Instruction Verification**: read `backend/graphql/AGENTS.md`, `backend/graphql/query/` conventions, `docs/graphql/api-gateway-and-routing.md`, and auto-discovered instruction files; confirm compliance.
 - Outcome: `outcome/3.1-graphql-surface-outcome.md`.
 
-### - [ ] 3.2 Codegen Sync (Same Change Set)
+### - [x] 3.2 Codegen Sync (Same Change Set)
 - Run `bun run generate:gqlSchema && bun codegen`; commit ALL generated artifacts IN THIS TASK's change set.
 - Diff discipline: the schema/typed-document diff contains ONLY this ticket's additions (two queries + `HandshakeCodeLookup`); any unrelated drift → investigate before proceeding (do not absorb foreign diffs silently).
 - _Requirements: REQ-062_
@@ -244,7 +244,7 @@
 - [ ] 3.2.IV **Instruction Verification**: confirm with `frontend/graphql/AGENTS.md` + backend graphql conventions that artifact placement matches expectations.
 - Outcome: `outcome/3.2-codegen-sync-outcome.md`.
 
-### - [ ] 3.3 GraphQL Integration Test Matrix
+### - [x] 3.3 GraphQL Integration Test Matrix
 - New integration spec via `setupTestServerLifecycle` + `testClient` (domain-consistent location per existing integration test conventions):
   - **Full REQ-031/065 role matrix on BOTH queries** (one parameterized table test): anonymous → `UNAUTHORIZED`; student/parent happy paths; EVERY wrong role (incl. parent-on-`myHandshakeCode`, student-on-`findStudentByHandshakeCode`, teacher, supervisor, super-admin) → `FORBIDDEN`.
   - **Happy-path payload contract:** response object has EXACTLY `{ maskedName, linkable }`; a **forbidden-key scan** asserts absence of `id`, `studentId`, `userId`, `email`, `phone`, `parentId`, `isDeleted`, `isBlocked`, `suspended*` on the payload (REQ-019/033).
@@ -369,19 +369,19 @@
 
 > All four waves may run concurrently against the completed change set; each writes its own outcome; any blocking finding cycles the owning task back open before Phase 7.
 
-### - [ ] 6.1 `review-types` Wave
+### - [x] 6.1 `review-types` Wave
 - Verify: canonical-types discipline (REQ-003) — `HandshakeCodeLookupReturnType`/`HandshakeDiscoveryRowType` composition via `Pick` only; zero local types in Pothos files; zero service-layer `.types.ts`; readonly immutability; barrel coherence; `tsgo` clean vs baseline.
 - Outcome: `outcome/6.1-review-types-outcome.md`.
 
-### - [ ] 6.2 `review-backend` Wave
+### - [x] 6.2 `review-backend` Wave
 - Verify: normalize-then-validate ordering (REQ-020); governance-collapse equivalence of nonexistent-vs-governed (REQ-021/033); `tx` propagation (REQ-043); DomainError taxonomy + `extensions.code` matrix (REQ-050); log hygiene incl. D11 code-elision (REQ-052); silent happy path (REQ-053); 100% coverage evidence present; journey suite realism (real services, committed fixtures, tracked teardown, no `runInRollback`).
 - Outcome: `outcome/6.2-review-backend-outcome.md`.
 
-### - [ ] 6.3 `review-frontend` Wave
+### - [x] 6.3 `review-frontend` Wave
 - Verify: MUI v9 `sx`-only discipline; `*Outlined` icons; theme-palette-only colors; `React.SubmitEvent` usage; skip-gate (no network on invalid input); no `useLazyQuery`; embedded `keyFields:false` registered + documents omit `id`; translation-driven everything (enum-property access); ERR rendering per `extensions.code`; RTL mirroring + LTR code atoms; both Agent-Browser self-loops evidenced with final screenshot matrices.
 - Outcome: `outcome/6.3-review-frontend-outcome.md`.
 
-### - [ ] 6.4 `pentester` Wave + Deferred-Items Gate
+### - [x] 6.4 `pentester` Wave + Deferred-Items Gate
 - Independent adversarial review: BOLA (zero-argument self-query; capability-by-code rationale audited against REQ-030 — confirm parent-role gate + minimal payload make the capability safe); BFLA `$all` scope correctness on BOTH queries incl. sibling-role cells (REQ-031); BOPLA closed inputs (REQ-032); oracle hygiene — network-level indistinguishability of {nonexistent, governed} and absence of timing/difference signals worth asserting (REQ-033); injection fuzz closure on `code` (REQ-035); rate-limit residual risk formally bounded to deferred item **D2** (REQ-034) — flagged posture must match the ledger, no scope creep.
 - **Deferred-items gate:** `grep -c "❌\|⚠️" ai/plans/dev1-013-student-handshake-code-generation/deferred-items.md` MUST equal 0 EXCLUDING the three pre-seeded forward notes D1 (→DEV1-014), D2 (→DEV2-002), D3 (→DEV3-019); verify each forward note cites its owning ticket and non-blocking status (REQ-083).
 - Outcome: `outcome/6.4-pentester-and-deferred-gate-outcome.md`.
@@ -391,7 +391,7 @@
 
 ## Phase 7: Knowledge Propagation & Documentation
 
-### - [ ] 7.1 Canonical Doc — `docs/parents/handshake-code-discovery.md`
+### - [x] 7.1 Canonical Doc — `docs/parents/handshake-code-discovery.md`
 - Create following the standard structure (Why → Pattern → Rules → What NOT to Do → Rollout Summary → Related Documents), covering:
   - Code format + generation contract (link `docs/auth/user-registration.md` §2; collision model: 16⁸ ≈ 4.3B space, in-transaction bounded retry on `23505`, `ConflictError` on exhaustion — describe, never re-implement) (REQ-024).
   - Discovery payload minimalism ruling (REQ-015..019) + mask algorithm contract (deterministic, grapheme-aware, total function, empty-input placeholder).
@@ -404,7 +404,7 @@
 - [ ] 7.1.SR **Semantic Review**: structure checklist satisfied; every numeric/behavioral claim matches shipped code (no aspirational content); English-only domain doc per docs conventions.
 - Outcome: `outcome/7.1-canonical-doc-outcome.md`.
 
-### - [ ] 7.2 Cross-Links & AGENTS.md Propagation (rule-only one-liners)
+### - [x] 7.2 Cross-Links & AGENTS.md Propagation (rule-only one-liners)
 - Append ONE-line cross-reference into `docs/auth/user-registration.md`'s handshake section pointing at the new canonical doc (no renumbering, no content edits).
 - Append ONE-line cross-reference into `docs/workflows/04-parent-supervision-handshake.md` (related/implementation notes).
 - `docs/specs/state-machine-invariants.md`: add a pointer line ONLY if one does not already exist (INV-P1..P4 binding; zero renumbering or content edits of existing invariants) (REQ-081).
@@ -417,7 +417,7 @@
 - [ ] 7.2.SR **Semantic Review**: every AGENTS addition is a single rule line with a doc pointer; no duplicated guidance between docs and AGENTS entries.
 - Outcome: `outcome/7.2-knowledge-propagation-outcome.md`.
 
-### - [ ] 7.3 Outcome Synthesis & Final Gate
+### - [x] 7.3 Outcome Synthesis & Final Gate
 - Write `ai/plans/dev1-013-student-handshake-code-generation/outcome/final-synthesis-outcome.md`:
   - Task ledger: every task id → status → outcome file link (completeness: every `[x]` must map to an existing outcome; the 0.3 plan-review outcome predates all implementation outcomes).
   - Baseline comparison table (0.1 vs final): `tsgo` / `biome:check` / lint-service — zero new findings asserted command-by-command (REQ-076).
