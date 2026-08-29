@@ -1041,6 +1041,11 @@ function HijriPrayerStrip(): ReactNode {
         minHeight: { xs: 56, md: 52 },
         display: "flex",
         alignItems: "center",
+        // Pin the strip open inside the page's column-flex ancestor — the
+        // mobile layout stacks two rows (~77px) and the flex min-height
+        // would otherwise resolve below content (clipped chips, the same
+        // shrink-collapse HeroSection guards against).
+        flexShrink: 0,
       }}
     >
       <Container maxWidth="lg">

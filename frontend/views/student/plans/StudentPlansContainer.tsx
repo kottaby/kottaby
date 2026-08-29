@@ -276,7 +276,7 @@ export function StudentPlansContainer({ labels }: Readonly<StudentPlansContainer
       <Box
         sx={{
           display: "grid",
-          gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)", lg: "repeat(3, 1fr)" },
+          gridTemplateColumns: { xs: "1fr", sm: "repeat(auto-fit, minmax(258px, 1fr))" },
           gap: 2.5,
         }}
         aria-busy="true"
@@ -310,7 +310,7 @@ export function StudentPlansContainer({ labels }: Readonly<StudentPlansContainer
       <Box
         sx={{
           display: "grid",
-          gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)", lg: "repeat(3, 1fr)" },
+          gridTemplateColumns: { xs: "1fr", sm: "repeat(auto-fit, minmax(258px, 1fr))" },
           gap: 2.5,
         }}
         data-testid="student-plans-grid"

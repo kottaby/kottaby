@@ -192,8 +192,14 @@ function QuickActionsSection({ t }: Readonly<{ t: DashboardLabels }>): ReactNode
       </Typography>
       <Box
         sx={{
+          // auto-fit: roles with fewer destinations (parent → 2) stretch
+          // their tiles across the content width instead of stranding an
+          // empty half-row.
           display: "grid",
-          gridTemplateColumns: { xs: "repeat(2, minmax(0, 1fr))", sm: "repeat(4, 1fr)" },
+          gridTemplateColumns: {
+            xs: "repeat(2, minmax(0, 1fr))",
+            sm: "repeat(auto-fit, minmax(230px, 1fr))",
+          },
           gap: { xs: 1.5, sm: 2 },
         }}
       >
