@@ -31,10 +31,9 @@
  *      actor       → `AdminAuditActor!`
  */
 
-import type { AuditLogActorSummary, AuditLogWithActor } from "@/backend/db/repo/audit/audit-log.repository";
 import { gqlSchemaBuilder } from "@/backend/graphql/pothos/builder";
 import { DateTimePothosScalar } from "@/backend/graphql/pothos/shared/datetime.pothos";
-import type { AuditTrailPage } from "@/backend/services/audit/audit-log.service";
+import type { AuditLogActorSummary, AuditLogWithActor, AuditTrailPage } from "@/backend/types";
 
 /** The narrow actor summary embedded in every trail row. */
 export const AdminAuditActorPothosObject = gqlSchemaBuilder

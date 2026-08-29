@@ -97,7 +97,8 @@ gqlSchemaBuilder.queryField("adminAuditLogs", t =>
     resolve: async (_root, args, ctx) => {
       // TS narrowing only — unreachable behind `$all { authenticated: true }`.
       if (!ctx.user) {
-        throw new UnauthorizedError("Authentication required.");
+        const tErrors = await ctx.t("errorsTranslations");
+        throw new UnauthorizedError(tErrors.unauthorized);
       }
       return AuditLogService.listAuditTrail({
         actorId: args.actorId ?? undefined,

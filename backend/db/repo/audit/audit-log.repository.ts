@@ -26,42 +26,14 @@ import { and, count, desc, eq, gte, lte, type SQL } from "drizzle-orm";
 import { db } from "@/backend/db";
 import { auditLogs } from "@/backend/db/schema/audit/audit-logs";
 import { users } from "@/backend/db/schema/users/users";
-import type { AuditLogInsertType, AuditLogSelectType, DBTransaction } from "@/backend/types";
-
-/** The narrow actor summary embedded in every audit row the admin reads. */
-export interface AuditLogActorSummary {
-  readonly id: number;
-  readonly fullName: string;
-  readonly email: string;
-}
-
-/** One audit-trail row with its actor summary embedded. */
-export interface AuditLogWithActor {
-  readonly id: number;
-  readonly actorId: number;
-  readonly actionType: AuditLogSelectType["actionType"];
-  readonly entityType: string;
-  readonly entityId: number | null;
-  readonly details: string | null;
-  readonly createdAt: Date;
-  readonly actor: AuditLogActorSummary;
-}
-
-/** Every filter the admin audit-trail viewer can express (all optional). */
-export interface AuditLogListFilters {
-  readonly actorId?: number;
-  readonly actionType?: AuditLogSelectType["actionType"];
-  readonly entityType?: string;
-  readonly entityId?: number;
-  /** Inclusive lower bound on `created_at`. */
-  readonly createdFrom?: Date;
-  /** Inclusive upper bound on `created_at`. */
-  readonly createdTo?: Date;
-  /** Page size (the service clamps and validates; the repo does not). */
-  readonly limit: number;
-  /** Zero-based row offset. */
-  readonly offset: number;
-}
+import type {
+  AuditLogActorSummary,
+  AuditLogInsertType,
+  AuditLogListFilters,
+  AuditLogSelectType,
+  AuditLogWithActor,
+  DBTransaction,
+} from "@/backend/types";
 
 export namespace AuditLogRepository {
   /**

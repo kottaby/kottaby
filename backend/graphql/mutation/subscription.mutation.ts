@@ -87,7 +87,8 @@ gqlSchemaBuilder.mutationField("requestPlanSubscription", t =>
     resolve: async (_root, args, ctx) => {
       // TS narrowing only — unreachable behind `$all { authenticated: true }`.
       if (!ctx.user) {
-        throw new UnauthorizedError("Authentication required.");
+        const tErrors = await ctx.t("errorsTranslations");
+        throw new UnauthorizedError(tErrors.unauthorized);
       }
       // `ID` arrives as a string — the service validates positive-integer
       // semantics and rejects anything else with the localized not-found
@@ -119,7 +120,8 @@ gqlSchemaBuilder.mutationField("verifySubscriptionPayment", t =>
     resolve: async (_root, args, ctx) => {
       // TS narrowing only — unreachable behind `$all { authenticated: true }`.
       if (!ctx.user) {
-        throw new UnauthorizedError("Authentication required.");
+        const tErrors = await ctx.t("errorsTranslations");
+        throw new UnauthorizedError(tErrors.unauthorized);
       }
       // `ID` arrives as a string — the service validates positive-integer
       // semantics (localized not-found validation error otherwise). The
@@ -157,7 +159,8 @@ gqlSchemaBuilder.mutationField("adminCancelSubscription", t =>
     resolve: async (_root, args, ctx) => {
       // TS narrowing only — unreachable behind `$all { authenticated: true }`.
       if (!ctx.user) {
-        throw new UnauthorizedError("Authentication required.");
+        const tErrors = await ctx.t("errorsTranslations");
+        throw new UnauthorizedError(tErrors.unauthorized);
       }
       // `ID` arrives as a string — the service validates positive-integer
       // semantics and fences terminal states + lost races with the

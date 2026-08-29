@@ -41,8 +41,8 @@ import type { Translations } from "@/shared/locale/types/message";
 export interface Context {
   /** Active request locale (e.g. "en" / "ar"). Defaulted from cookie/header. */
   readonly locale: string;
-  /** Lazy namespace loader — `await ctx.t("auth")` → `AuthLabels`. */
-  readonly t: (namespace: keyof Translations) => Promise<Translations[keyof Translations]>;
+  /** Lazy namespace loader — `await ctx.t("authTranslations")` → `AuthLabels` (key-narrowed). */
+  readonly t: <K extends keyof Translations>(namespace: K) => Promise<Translations[K]>;
   /**
    * Per-request correlation id — resolved ONCE here from the inbound
    * `X-Request-Id` header (opaque, bounded, control-char free) or a locally

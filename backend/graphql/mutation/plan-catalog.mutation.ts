@@ -64,7 +64,8 @@ gqlSchemaBuilder.mutationField("createPlan", t =>
     resolve: async (_root, args, ctx) => {
       // TS narrowing only — unreachable behind `$all { authenticated: true }`.
       if (!ctx.user) {
-        throw new UnauthorizedError("Authentication required.");
+        const tErrors = await ctx.t("errorsTranslations");
+        throw new UnauthorizedError(tErrors.unauthorized);
       }
       // Explicit field-by-field mapping (BOPLA boundary): only the five
       // caller-editable fields cross into the service; the input type makes
@@ -102,7 +103,8 @@ gqlSchemaBuilder.mutationField("updatePlan", t =>
     },
     resolve: async (_root, args, ctx) => {
       if (!ctx.user) {
-        throw new UnauthorizedError("Authentication required.");
+        const tErrors = await ctx.t("errorsTranslations");
+        throw new UnauthorizedError(tErrors.unauthorized);
       }
       // Partial-patch builder: only DEFINED fields enter the service patch —
       // an empty input stays an empty patch (the service owns the
@@ -148,7 +150,8 @@ gqlSchemaBuilder.mutationField("setPlanActiveStatus", t =>
     },
     resolve: async (_root, args, ctx) => {
       if (!ctx.user) {
-        throw new UnauthorizedError("Authentication required.");
+        const tErrors = await ctx.t("errorsTranslations");
+        throw new UnauthorizedError(tErrors.unauthorized);
       }
       // The ONLY lifecycle state-transition surface — idempotency conflicts
       // (PLAN_ALREADY_ACTIVE / PLAN_ALREADY_INACTIVE) are service-owned.

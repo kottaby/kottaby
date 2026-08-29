@@ -1,0 +1,48 @@
+import type { ErrorsLabels } from "@/shared/locale/types/errors";
+export const errorsAr: ErrorsLabels = {
+  unauthorized: "مطلوب تسجيل الدخول.",
+  forbidden: "ليست لديك صلاحية لتنفيذ هذا الإجراء.",
+  validation: "إدخال غير صحيح.",
+  conflict: "حدث تعارض مع الحالة الحالية.",
+  duplicateRequest: "هذه القيمة مستخدمة بالفعل.",
+  rateLimitExceeded: "طلبات كثيرة جداً. يرجى المحاولة لاحقاً.",
+  notFound: "المورد المطلوب غير موجود.",
+  internalServerError: "حدث خطأ داخلي في الخادم.",
+  badRequest: "طلب غير صحيح.",
+  serviceUnavailable: "الخدمة غير متاحة مؤقتاً. يرجى المحاولة لاحقاً.",
+  invalidLocale: "لغة غير صالحة. اللغات المدعومة: en, ar.",
+  invalidOrigin: "مصدر الطلب غير مسموح به.",
+  failedToSetLocale: "فشل تعيين اللغة. يرجى المحاولة مرة أخرى.",
+  accountDeleted: "تم حذف هذا الحساب.",
+  accountBlocked: "تم حظر هذا الحساب.",
+  accountSuspended: "هذا الحساب موقوف.",
+  tokenExpired: "انتهت جلستك. يرجى تسجيل الدخول مرة أخرى.",
+  forbiddenRole: "ليست لديك صلاحية للوصول إلى هذه الصفحة.",
+  applicantNotFound: "لم يتم العثور على طلب التقديم كمعلم قرآن.",
+  applicantCooldownActive: "يمكنك إعادة التقديم للتحقق كمعلم قرآن بعد {cooldownUntil}.",
+  applicantStatusCorrupt: "تعذر قراءة حالة طلبك. يرجى التواصل مع فريق الدعم.",
+  // Plan-catalog domain errors — natural RTL phrasing matching the existing tone.
+  planNotFound: "الخطة المطلوبة غير موجودة.",
+  planAlreadyInactive: "هذه الخطة غير مفعّلة بالفعل.",
+  planAlreadyActive: "هذه الخطة مفعّلة بالفعل.",
+  planTitleRequired: "يرجى إدخال عنوان الخطة.",
+  planTitleTooLong: "عنوان الخطة طويل جداً.",
+  planSessionCountInvalid: "يجب أن يكون عدد الجلسات رقماً موجباً.",
+  planPriceInvalid: "يجب أن يكون سعر الخطة مبلغاً موجباً صحيحاً.",
+  planCurrencyInvalid: "العملة المختارة غير مدعومة.",
+  planIntervalDaysInvalid: "يجب أن تكون الفترة عدداً موجباً من الأيام.",
+  planPatchEmpty: "لا توجد تغييرات لحفظها.",
+  // Subscription-request domain errors (DEV1-006 Phase A).
+  planInactive: "هذه الباقة لم تعد متاحة للاشتراك.",
+  subscriptionRequestExists: "لديك طلب قيد المعالجة لهذه الباقة بالفعل.",
+  // Subscription payment-verification domain errors (DEV1-006 Phase B).
+  subscriptionNotFound: "طلب الاشتراك المطلوب غير موجود.",
+  subscriptionAlreadyResolved: "تمت معالجة طلب الاشتراك هذا بالفعل.",
+  // Admin subscription-lifecycle filter error (DEV1-009).
+  subscriptionStatusInvalid: "حالة الاشتراك المحددة للتصفية غير معروفة.",
+  paymentMethodInvalid: "طريقة الدفع المختارة غير مدعومة.",
+  paymentReferenceInvalid: "يرجى إدخال مرجع الدفع (من ١ إلى ٢٥٥ حرفاً).",
+  // Audit-trail domain errors (DEV3-020 Phase 1).
+  auditActionTypeInvalid: "مرشّح نوع الإجراء المختار غير مدعوم.",
+  auditDetailsOverflow: "يتجاوز سجل التدقيق لهذا الإجراء الحجم المسموح به.",
+};

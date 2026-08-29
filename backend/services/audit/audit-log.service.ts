@@ -30,10 +30,17 @@
  * Immutability: corrections are NEW compensating rows (the append-only
  * doctrine), never edits — the repository exposes no update/delete at all.
  */
-import { type AuditLogListFilters, AuditLogRepository, type AuditLogWithActor } from "@/backend/db/repo";
+import { AuditLogRepository } from "@/backend/db/repo";
 import { ValidationError } from "@/backend/lib/errors";
 import { logger } from "@/backend/lib/logger";
-import type { AuditLogInsertType, AuditLogSelectType, DBTransaction } from "@/backend/types";
+import type {
+  AuditLogListFilters,
+  AuditLogSelectType,
+  AuditTrailPage,
+  DBTransaction,
+  RecordAdminActionInput,
+} from "@/backend/types";
+import { getServerTranslations } from "@/shared/locale/server-graphql";
 
 /** The `details` column's varchar(2000) bound — enforced fail-closed. */
 const AUDIT_DETAILS_MAX_LENGTH = 2000;
@@ -43,33 +50,6 @@ export const AUDIT_TRAIL_MAX_LIMIT = 100;
 
 /** The default page size when the caller omits one. */
 export const AUDIT_TRAIL_DEFAULT_LIMIT = 50;
-
-/** Machine-readable action descriptor carried inside `details`. */
-export type AuditEntityType = "plans" | "subscriptions";
-
-/** Input shape for one auditable admin action. */
-export interface RecordAdminActionInput {
-  /** The acting admin's user id (audit_logs.actor_id — never null). */
-  readonly actorId: number;
-  /** The audit_action_type enum verb. */
-  readonly actionType: AuditLogInsertType["actionType"];
-  /** The affected entity family (machine code, never user content). */
-  readonly entityType: AuditEntityType;
-  /** The affected row's id, when the action targets one. */
-  readonly entityId?: number;
-  /** The action's machine code (e.g. PLAN_CREATED) — lands in `details`. */
-  readonly actionCode: string;
-  /** Additional id/machine-code context (never field values). */
-  readonly details?: Record<string, string | number | readonly string[]>;
-}
-
-/** The paginated trail page + grand total behind the admin viewer. */
-export interface AuditTrailPage {
-  readonly items: AuditLogWithActor[];
-  readonly total: number;
-  readonly limit: number;
-  readonly offset: number;
-}
 
 /**
  * Serializes the id-limited details payload. Returns `null` when the caller
@@ -99,7 +79,8 @@ export namespace AuditLogService {
    */
   export async function recordAdminAction(
     input: RecordAdminActionInput,
-    tx: DBTransaction
+    tx: DBTransaction,
+    locale: string = "en"
   ): Promise<AuditLogSelectType> {
     const details = serializeDetails(input);
     if (details !== null && details.length > AUDIT_DETAILS_MAX_LENGTH) {
@@ -109,9 +90,7 @@ export namespace AuditLogService {
         entityId: input.entityId ?? null,
         length: details.length,
       });
-      throw new ValidationError(
-        `Audit details for ${input.actionCode} exceed the ${AUDIT_DETAILS_MAX_LENGTH}-char bound.`
-      );
+      throw new ValidationError(getServerTranslations(locale).errorsTranslations.auditDetailsOverflow);
     }
     return AuditLogRepository.insertAuditLog(
       {

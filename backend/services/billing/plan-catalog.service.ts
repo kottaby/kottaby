@@ -140,7 +140,8 @@ async function recordPlanAudit(
   actionType: "create" | "update",
   actionCode: string,
   planId: number,
-  changedFields?: readonly string[]
+  changedFields?: readonly string[],
+  locale: string = "en"
 ): Promise<void> {
   if (actorId === undefined) {
     logger.info(`Plan catalog transition (system, unaudited): ${actionCode}`, {
@@ -161,7 +162,8 @@ async function recordPlanAudit(
         ...(changedFields !== undefined && changedFields.length > 0 ? { fields: changedFields } : {}),
       },
     },
-    tx
+    tx,
+    locale
   );
 }
 
@@ -466,7 +468,7 @@ export namespace PlanCatalogService {
         throw translatePlanPersistenceError(error, t);
       }
 
-      await recordPlanAudit(scopedTx, actorId, "create", "PLAN_CREATED", row.id);
+      await recordPlanAudit(scopedTx, actorId, "create", "PLAN_CREATED", row.id, undefined, locale);
       return row;
     });
   }
@@ -521,7 +523,7 @@ export namespace PlanCatalogService {
       }
 
       // Field NAMES (never values) ride the audit details.
-      await recordPlanAudit(scopedTx, actorId, "update", "PLAN_UPDATED", updated.id, Object.keys(whitelisted));
+      await recordPlanAudit(scopedTx, actorId, "update", "PLAN_UPDATED", updated.id, Object.keys(whitelisted), locale);
       return updated;
     });
   }
@@ -569,7 +571,9 @@ export namespace PlanCatalogService {
         actorId,
         "update",
         isActive ? "PLAN_ACTIVATED" : "PLAN_DEACTIVATED",
-        transitioned.id
+        transitioned.id,
+        undefined,
+        locale
       );
       return transitioned;
     });
