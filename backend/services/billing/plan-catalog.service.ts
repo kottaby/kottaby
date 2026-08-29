@@ -16,6 +16,7 @@ import type {
   ApiFieldErrorType,
   DBTransaction,
   PlanInsertType,
+  PlanListForAdminOptions,
   PlanReturnType,
   PlanSubmitInput,
   PlanUpdateInput,
@@ -203,6 +204,26 @@ function validateAndExtractPlanPatch(patch: PlanUpdateInput, tErrors: ErrorsLabe
 
 export namespace PlanCatalogService {
   /**
+   * Coerces a GraphQL `ID` argument into a plan id using STRICT numeric
+   * parsing (REQ-032). Unlike `Number.parseInt`, `Number()` rejects trailing
+   * garbage (`"12abc"` -> NaN) so a malformed id can never silently address an
+   * unrelated plan row; any non-integer / non-positive result maps onto the
+   * canonical `PLAN_NOT_FOUND` domain error.
+   */
+  export function coercePlanId(rawId: string | number, locale?: string): number {
+    const tErrors = getServerTranslations(locale ?? "en").errorsTranslations;
+    const id = Number(rawId);
+    if (!Number.isInteger(id) || id < 1) {
+      logger.logDomainError("Plan id failed strict numeric coercion", {
+        code: "PLAN_NOT_FOUND",
+        entity: "plans",
+      });
+      throw new NotFoundError("PLAN", tErrors.planCatalog.planNotFound);
+    }
+    return id;
+  }
+
+  /**
    * Creates a new subscription plan in the catalog.
    */
   export async function createPlan(
@@ -338,15 +359,11 @@ export namespace PlanCatalogService {
     return PlanRepository.listActive(tx);
   }
 
-  export interface ListForAdminOptions {
-    readonly includeInactive?: boolean;
-  }
-
   /**
    * Lists plans for admin management.
    */
   export async function listForAdmin(
-    options: ListForAdminOptions = {},
+    options: PlanListForAdminOptions = {},
     _locale?: string,
     tx?: DBTransaction
   ): Promise<PlanReturnType[]> {

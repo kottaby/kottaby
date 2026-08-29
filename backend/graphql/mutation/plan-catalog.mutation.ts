@@ -54,7 +54,7 @@ gqlSchemaBuilder.mutationField("updatePlan", t =>
       }),
     },
     resolve: async (_root, args, ctx) => {
-      const planId = Number.parseInt(String(args.id), 10);
+      const planId = PlanCatalogService.coercePlanId(args.id, ctx.locale);
       return PlanCatalogService.updatePlan(
         planId,
         {
@@ -91,7 +91,7 @@ gqlSchemaBuilder.mutationField("setPlanActiveStatus", t =>
       }),
     },
     resolve: async (_root, args, ctx) => {
-      const planId = Number.parseInt(String(args.id), 10);
+      const planId = PlanCatalogService.coercePlanId(args.id, ctx.locale);
       return PlanCatalogService.setPlanActiveStatus(planId, args.isActive, ctx.locale);
     },
   })

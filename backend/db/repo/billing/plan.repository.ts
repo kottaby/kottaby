@@ -6,12 +6,36 @@
  *  - Uses conditional guarded updates (`setActiveStatusOnce`) to prevent race conditions.
  *  - Uses `listActive` as the single canonical predicate for public active plans.
  *
- * All methods take an optional `tx: DBTransaction` as their last parameter.
+ * Reads follow the `backend/db/repo/AGENTS.md` "Neon HTTP Client for Bare
+ * Reads (CRITICAL)" rule: non-transactional reads run as raw parameterized SQL
+ * through `queryDb` (Neon HTTP fast path when eligible); when a transaction is
+ * supplied, the read executes as a Drizzle select on that executor.
+ *
+ * Write methods take an optional `tx: DBTransaction` as their last parameter.
  */
 import { and, asc, eq } from "drizzle-orm";
-import { db } from "@/backend/db";
+import { db, queryDb } from "@/backend/db";
 import { plans } from "@/backend/db/schema/billing/plans";
-import type { DBTransaction, PlanInsertType, PlanSelectType, PlanUpdateInput } from "@/backend/types";
+import type { DBQueryExecutor, DBTransaction, PlanInsertType, PlanSelectType, PlanUpdateInput } from "@/backend/types";
+
+/**
+ * Type guard — narrows `DBQueryExecutor` to `DBTransaction`.
+ *
+ * `DBTransaction` (Drizzle's `PgAsyncTransaction`) exposes the `.select()`
+ * builder API; raw `Pool` / `PoolClient` from `pg` do not. The presence of
+ * `.select` therefore distinguishes the two at runtime without an unsafe
+ * cast.
+ */
+function isDBTransaction(tx: DBQueryExecutor): tx is DBTransaction {
+  return typeof tx === "object" && "select" in tx;
+}
+
+/** Shared column projection with camelCase aliasing for raw `queryDb` reads. */
+const PLAN_READ_COLUMNS = `
+  id, title, session_count AS "sessionCount", price, currency,
+  interval_days AS "intervalDays", is_active AS "isActive",
+  deactivated_at AS "deactivatedAt", created_at AS "createdAt", updated_at AS "updatedAt"
+`;
 
 export namespace PlanRepository {
   /**
@@ -82,10 +106,15 @@ export namespace PlanRepository {
    *
    * @returns True if a row with the given ID exists in the database.
    */
-  export async function existsById(id: number, tx?: DBTransaction): Promise<boolean> {
-    const executor = tx ?? db;
-    const [row] = await executor.select({ id: plans.id }).from(plans).where(eq(plans.id, id)).limit(1);
-    return !!row;
+  export async function existsById(id: number, tx?: DBQueryExecutor): Promise<boolean> {
+    if (tx && isDBTransaction(tx)) {
+      // Transactional read — Drizzle select on the supplied executor.
+      const rows = await tx.select({ id: plans.id }).from(plans).where(eq(plans.id, id)).limit(1);
+      return rows.length > 0;
+    }
+    // Non-transactional read — raw SQL via queryDb (Neon HTTP fast path).
+    const result = await queryDb<{ id: number }>(`SELECT id FROM plans WHERE id = $1 LIMIT 1`, [id]);
+    return result.rows.length > 0;
   }
 
   /**
@@ -93,10 +122,15 @@ export namespace PlanRepository {
    *
    * @returns The plan row, or null if not found.
    */
-  export async function findById(id: number, tx?: DBTransaction): Promise<PlanSelectType | null> {
-    const executor = tx ?? db;
-    const [row] = await executor.select().from(plans).where(eq(plans.id, id)).limit(1);
-    return row ?? null;
+  export async function findById(id: number, tx?: DBQueryExecutor): Promise<PlanSelectType | null> {
+    if (tx && isDBTransaction(tx)) {
+      // Transactional read — Drizzle select on the supplied executor.
+      const rows = await tx.select().from(plans).where(eq(plans.id, id)).limit(1);
+      return rows[0] ?? null;
+    }
+    // Non-transactional read — raw SQL via queryDb (Neon HTTP fast path).
+    const result = await queryDb<PlanSelectType>(`SELECT ${PLAN_READ_COLUMNS} FROM plans WHERE id = $1 LIMIT 1`, [id]);
+    return result.rows[0] ?? null;
   }
 
   /**
@@ -104,9 +138,16 @@ export namespace PlanRepository {
    *
    * Single active predicate: `WHERE is_active = true ORDER BY created_at ASC`.
    */
-  export async function listActive(tx?: DBTransaction): Promise<PlanSelectType[]> {
-    const executor = tx ?? db;
-    return executor.select().from(plans).where(eq(plans.isActive, true)).orderBy(asc(plans.createdAt));
+  export async function listActive(tx?: DBQueryExecutor): Promise<PlanSelectType[]> {
+    if (tx && isDBTransaction(tx)) {
+      // Transactional read — Drizzle select on the supplied executor.
+      return tx.select().from(plans).where(eq(plans.isActive, true)).orderBy(asc(plans.createdAt));
+    }
+    // Non-transactional read — raw SQL via queryDb (Neon HTTP fast path).
+    const result = await queryDb<PlanSelectType>(
+      `SELECT ${PLAN_READ_COLUMNS} FROM plans WHERE is_active = true ORDER BY created_at ASC`
+    );
+    return result.rows;
   }
 
   /**
@@ -114,8 +155,13 @@ export namespace PlanRepository {
    *
    * Query: `ORDER BY created_at ASC`.
    */
-  export async function listAll(tx?: DBTransaction): Promise<PlanSelectType[]> {
-    const executor = tx ?? db;
-    return executor.select().from(plans).orderBy(asc(plans.createdAt));
+  export async function listAll(tx?: DBQueryExecutor): Promise<PlanSelectType[]> {
+    if (tx && isDBTransaction(tx)) {
+      // Transactional read — Drizzle select on the supplied executor.
+      return tx.select().from(plans).orderBy(asc(plans.createdAt));
+    }
+    // Non-transactional read — raw SQL via queryDb (Neon HTTP fast path).
+    const result = await queryDb<PlanSelectType>(`SELECT ${PLAN_READ_COLUMNS} FROM plans ORDER BY created_at ASC`);
+    return result.rows;
   }
 }

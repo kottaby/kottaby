@@ -85,3 +85,58 @@ RETURNING *;
   - Look up verification plan by title: `"New Teacher Verification & Evaluation Plan"` (`sessionCount = 5`).
 - **DEV1-009 (Ledger & Invoicing):**
   - Compose `PlanRepository.findById(id, tx)` directly within billing transactions.
+---
+
+## 6. Security Rulings (post-implementation review)
+
+These rulings were recorded during the DEV1-005 implementation review and are
+binding for all downstream tickets touching this surface.
+
+### REQ-030 — scope-auth shape (SECURITY)
+
+The REQ-030 spec text literally prescribed `authScopes: { authenticated: true, role: [UserRole.Admin] }`.
+That literal shape is **UNSAFE** with the pothos scope-auth plugin's default
+strategy (`"any"` = OR across scope keys): the composite reads
+`authenticated OR admin`, so **any authenticated account (student, parent,
+teacher) passes the `authenticated` key and may create/update/flip plans**.
+An E2E probe confirmed a STUDENT token successfully calling `createPlan`
+under the literal shape.
+
+**Ruling:** admin plan surfaces use `authScopes: { role: [UserRole.Admin] }`
+ONLY. The `role` scope already fails closed for anonymous callers (the
+builder's role scope throws the localized `UnauthorizedError` -> 401) and
+requires the exact admin role for everyone else (403 otherwise). The literal
+composite shape must not be reintroduced.
+
+**Platform suggestion (pending DEV2-002 owner ack):** set
+`scopeAuth.defaultStrategy: "all"` builder-wide so a future composite scope
+fails closed by default instead of open.
+
+### REQ-050 — error-code taxonomy
+
+Plan domain failures use the fixed `PLAN_*` codes carried by the shared
+errors namespace (`PLAN_NOT_FOUND`, `PLAN_ALREADY_ACTIVE`,
+`PLAN_ALREADY_INACTIVE`, `PLAN_TITLE_*`, `PLAN_PRICE_INVALID`,
+`PLAN_CURRENCY_INVALID`, `PLAN_INTERVAL_DAYS_INVALID`, `PLAN_PATCH_EMPTY`).
+Ad-hoc per-row "custom codes" outside this taxonomy are forbidden — they
+would bypass the code->label parity tests and the client error map.
+
+### REQ-060 — timestamps serialize as strings
+
+`deactivatedAt` / `createdAt` / `updatedAt` are exposed as ISO-8601 **String**
+GraphQL fields (resolved via `.toISOString()`), not a `DateTime` scalar —
+matching the wire contract consumed by the locale-aware formatting layer.
+
+### Field bounds (defense in depth)
+
+`sessionCount >= 1`, `intervalDays >= 1` and `price` as a positive decimal
+with at most 2 fraction digits are enforced by DB CHECK constraints AND by
+service-layer validation. Client-side bounds (form dialogs) exist for UX only
+and are never trusted by the server.
+
+### Localized 401 boundary
+
+The builder's scope layer now resolves `UnauthorizedError` messages from the
+`errors` locale namespace (`unauthorized` label) instead of a hardcoded
+string — 401 copy follows the caller's locale like every other domain
+message.
