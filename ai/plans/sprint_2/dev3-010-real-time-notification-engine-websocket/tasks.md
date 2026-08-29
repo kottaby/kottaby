@@ -430,22 +430,22 @@
 
 ### 4.4 App-Bar Badge + Navigation Integration
 
-- [ ] 4.4 [Integrate unread badge + navigation entry across all role shells]
+- [x] 4.4 [Integrate unread badge + navigation entry across all role shells]
   - Wire app-bar bell (`NotificationsOutlined`) + badge bound to `myUnreadNotificationCount` (existing polling posture cadence preserved); badge aria uses the namespace pluralization function; link → `/notifications`
   - Add "Notifications" sidebar entry under the existing general nav group for each role (student / parent / teacher-applicant / teacher-certified / super admin) per current nav config — NO new nav group, NO new bottom-nav slot unless the role's bottom nav already carries a notifications affordance
   - Verify per-role reachability (REQ-065) and single-socket ownership with badge mounted at authenticated shell level
   - _Requirements: REQ-063, REQ-065, REQ-066, REQ-067_
-  - [ ] 4.4.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts <each-touched-file> --lifecycle duplicates` (exit 0)
-  - [ ] 4.4.TE **Unit / Component Tests**: badge rendering + pluralization (0/1/N, en + ar); nav entry presence per role; mount/unmount remount stability (no duplicate listeners)
-  - [ ] 4.4.BF **Agent-Browser Functional Self-Loop**:
+  - [x] 4.4.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts <each-touched-file> --lifecycle duplicates` (exit 0)
+  - [x] 4.4.TE **Unit / Component Tests**: badge rendering + pluralization (0/1/N, en + ar); nav entry presence per role; mount/unmount remount stability (no duplicate listeners)
+  - [x] 4.4.BF **Agent-Browser Functional Self-Loop**:
     • For EACH role fixture: login → badge visible → navigate via bell/sidebar to `/notifications` → count on badge equals unread rows in feed
     • Realtime arrival (harness emit) → badge +1 instantly, no full-page refetch
     • Iterative loop until all roles clean
-  - [ ] 4.4.BS **Agent-Browser Visual & Styling Self-Loop (Screenshot Analysis)**:
+  - [x] 4.4.BS **Agent-Browser Visual & Styling Self-Loop (Screenshot Analysis)**:
     • Badge + bell across 3 viewports × 2 locales; badge overflow typography (99+), RTL badge anchoring, focus/hover states, contrast in dark/light if theme supports
     • Iterative screenshot → defect → `sx` patch → re-capture loop
-  - [ ] 4.4.SR **Semantic Review**: nav additions follow existing config shape; zero hardcoded strings; `*Outlined` icon naming
-  - [ ] 4.4.IV **Instruction Verification**: validate against nav/app-bar conventions in `frontend/AGENTS.md`
+  - [x] 4.4.SR **Semantic Review**: nav additions follow existing config shape; zero hardcoded strings; `*Outlined` icon naming
+  - [x] 4.4.IV **Instruction Verification**: validate against nav/app-bar conventions in `frontend/AGENTS.md`
   - Outcome: `outcome/4.4-outcome.md`
 
 ---

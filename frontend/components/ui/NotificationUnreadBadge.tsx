@@ -49,8 +49,8 @@ const BADGE_OVERFLOW_MAX = 99;
  * bell action label with the pluralized unread-count announcement —
  * `badgeAriaLabel — unreadCount(n)` (the ApiStatusIndicator tooltip
  * composition precedent) — so screen readers announce both the action and
- * the state. RTL mirrors automatically (MUI direction-aware badge anchor;
- * no directional properties).
+ * the state. RTL mirrors the badge anchor to the bell's top-END corner via
+ * the `[dir=rtl]` sx override below (MUI v9's badge anchor is physical).
  *
  * MUI v9 discipline: `sx`-only styling, `theme.palette.*` via theme
  * callbacks, `*Outlined` icon, MUI severity color slot for the badge.
@@ -79,7 +79,24 @@ export function NotificationUnreadBadge(): ReactNode {
           color: theme.palette.text.primary,
         })}
       >
-        <Badge badgeContent={unread} color="error" max={BADGE_OVERFLOW_MAX}>
+        <Badge
+          badgeContent={unread}
+          color="error"
+          max={BADGE_OVERFLOW_MAX}
+          sx={{
+            // MUI v9's badge anchor is PHYSICAL (`inset` + translate CSS
+            // vars set inline on the badge slot) — it does NOT mirror under
+            // RTL. Anchor the badge at the bell's top-END corner: under
+            // `[dir=rtl]` (the app sets document dir per locale and never
+            // sets `theme.direction`) flip the vars to the top-left corner.
+            // `!important` is required to override the inline slot style.
+            "[dir=rtl] & .MuiBadge-badge": {
+              "--Badge-inset": "0 auto 0 0 !important",
+              "--Badge-origin": "0% 0% !important",
+              "--Badge-translate": "-50%, -50% !important",
+            },
+          }}
+        >
           <NotificationsOutlined />
         </Badge>
       </IconButton>
