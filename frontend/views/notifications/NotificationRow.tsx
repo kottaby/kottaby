@@ -1,0 +1,170 @@
+"use client";
+
+import { DoneOutlined } from "@mui/icons-material";
+import { Box, Button, Chip, IconButton, Stack, Typography } from "@mui/material";
+import type { ReactNode } from "react";
+import type { MyNotificationsQuery_myNotifications_items } from "@/frontend/graphql/generated/gql/graphql";
+import { formatApplicantDate } from "@/frontend/lib/i18n/format-date";
+import {
+  NOTIFICATION_TYPE_ICONS,
+  NOTIFICATION_TYPE_LABEL_ACCESSORS,
+} from "@/frontend/views/notifications/notification-type-presentation";
+import type { NotificationsLabels } from "@/shared/locale/types/notifications";
+
+interface NotificationRowProps {
+  /** One normalized `Notification` row (all eight public fields). */
+  readonly notification: MyNotificationsQuery_myNotifications_items;
+  /** `notifications` namespace labels (property access only). */
+  readonly labels: NotificationsLabels;
+  /** Active app locale (drives the locale-aware timestamp stamp). */
+  readonly locale: string;
+  /** Mark-one handler — receives the notification id (STRING wire form). */
+  readonly onMarkRead: (id: string) => void;
+  /** Whether THIS row's mark-read mutation is in flight. */
+  readonly markReadPending?: boolean;
+}
+
+/**
+ * NotificationRow — one inbox row (REQ-063b): leading type icon → content
+ * (title / body / type chip + timestamp) → mark-read action. The DOM order
+ * icon→content→action mirrors visually under RTL (plain flex rows reverse
+ * with `dir="rtl"` — no physical margins anywhere).
+ *
+ * Content renders as TEXT nodes through MUI `Typography` ONLY (REQ-028 —
+ * emitter copy is untrusted; raw-HTML rendering is prohibited across
+ * `frontend/views/notifications/**` and statically scanned).
+ *
+ * Unread posture (plan §5.5 visual matrix): the row tints through the
+ * `theme.palette.action.selected` token, a dot chip (accessible name =
+ * `filterUnread`) flags the unread state, the title carries the bold weight,
+ * and the mark-read action is offered; read rows render un-tinted with no
+ * dot and no action.
+ *
+ * Touch posture: `sm+` shows the inline secondary button; on `xs` the action
+ * is a ≥44px icon-only button with the translated row-context `aria-label`
+ * (`markReadAriaLabel`) — a single-action row keeps a direct affordance
+ * rather than an overflow menu.
+ */
+export function NotificationRow({
+  notification,
+  labels,
+  locale,
+  onMarkRead,
+  markReadPending = false,
+}: Readonly<NotificationRowProps>): ReactNode {
+  const TypeIcon = NOTIFICATION_TYPE_ICONS[notification.type];
+  const unread = !notification.isRead;
+  const markReadLabel = labels.markReadAriaLabel(notification.title);
+
+  const handleMarkRead = (): void => {
+    onMarkRead(notification.id);
+  };
+
+  return (
+    <Box
+      component="li"
+      sx={theme => ({
+        display: "flex",
+        flexDirection: "row",
+        alignItems: "flex-start",
+        gap: { xs: 1.5, sm: 2 },
+        p: { xs: 1.5, sm: 2 },
+        borderRadius: 2,
+        bgcolor: unread ? theme.palette.action.selected : "transparent",
+      })}
+    >
+      <Box
+        aria-hidden
+        sx={theme => ({
+          flexShrink: 0,
+          width: 40,
+          height: 40,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          borderRadius: "50%",
+          bgcolor: theme.palette.primaryContainer,
+          color: theme.palette.onPrimaryContainer,
+        })}
+      >
+        <TypeIcon fontSize="small" />
+      </Box>
+      <Stack spacing={0.5} sx={{ flex: 1, minWidth: 0 }}>
+        <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
+          {unread ? (
+            <Box
+              aria-label={labels.filterUnread}
+              sx={theme => ({
+                flexShrink: 0,
+                width: 8,
+                height: 8,
+                borderRadius: "50%",
+                bgcolor: theme.palette.primary.main,
+              })}
+            />
+          ) : null}
+          <Typography
+            variant="subtitle1"
+            component="h2"
+            noWrap
+            sx={theme => ({
+              fontWeight: unread ? 700 : 500,
+              color: theme.palette.text.primary,
+              minWidth: 0,
+            })}
+          >
+            {notification.title}
+          </Typography>
+        </Stack>
+        {notification.body !== null ? (
+          <Typography variant="body2" sx={theme => ({ color: theme.palette.text.secondary, lineHeight: 1.5 })}>
+            {notification.body}
+          </Typography>
+        ) : null}
+        <Stack direction="row" spacing={1} sx={{ alignItems: "center", flexWrap: "wrap", marginTop: 0.5 }}>
+          <Chip
+            icon={<TypeIcon fontSize="small" />}
+            label={NOTIFICATION_TYPE_LABEL_ACCESSORS[notification.type](labels)}
+            size="small"
+            variant="outlined"
+            sx={theme => ({ minHeight: 28, color: theme.palette.text.secondary })}
+          />
+          <Typography variant="caption" sx={theme => ({ color: theme.palette.text.secondary })}>
+            <time dateTime={notification.createdAt}>{formatApplicantDate(notification.createdAt, locale)}</time>
+          </Typography>
+        </Stack>
+      </Stack>
+      {unread ? (
+        <Stack direction="row" spacing={1} sx={{ flexShrink: 0, alignItems: "center" }}>
+          <Button
+            size="small"
+            variant="outlined"
+            startIcon={<DoneOutlined />}
+            disabled={markReadPending}
+            aria-label={markReadLabel}
+            onClick={handleMarkRead}
+            sx={{
+              display: { xs: "none", sm: "inline-flex" },
+              flexShrink: 0,
+            }}
+          >
+            {labels.markRead}
+          </Button>
+          <IconButton
+            size="small"
+            aria-label={markReadLabel}
+            disabled={markReadPending}
+            onClick={handleMarkRead}
+            sx={{
+              display: { xs: "inline-flex", sm: "none" },
+              minHeight: 44,
+              minWidth: 44,
+            }}
+          >
+            <DoneOutlined fontSize="small" />
+          </IconButton>
+        </Stack>
+      ) : null}
+    </Box>
+  );
+}
