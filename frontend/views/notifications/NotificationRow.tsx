@@ -3,6 +3,8 @@
 import { DoneOutlined } from "@mui/icons-material";
 import { Box, Button, Chip, IconButton, Stack, Typography } from "@mui/material";
 import type { ReactNode } from "react";
+// audit-R4: shared keyboard-focus ring (v9 ButtonBase ships none).
+import { focusVisibleRingSx } from "@/frontend/components/ui/focusRing";
 import type { MyNotificationsQuery_myNotifications_items } from "@/frontend/graphql/generated/gql/graphql";
 import { formatApplicantDate } from "@/frontend/lib/i18n/format-date";
 import {
@@ -175,6 +177,7 @@ export function NotificationRow({
             aria-label={markReadLabel}
             onClick={handleMarkRead}
             sx={{
+              ...focusVisibleRingSx,
               display: { xs: "none", sm: "inline-flex" },
               flexShrink: 0,
             }}
@@ -187,6 +190,7 @@ export function NotificationRow({
             disabled={markReadPending}
             onClick={handleMarkRead}
             sx={{
+              ...focusVisibleRingSx,
               display: { xs: "inline-flex", sm: "none" },
               minHeight: 44,
               minWidth: 44,

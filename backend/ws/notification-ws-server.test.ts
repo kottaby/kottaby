@@ -14,7 +14,8 @@
  *    (through a REAL RedisPubSubTransport over an in-memory bus client);
  *    egress payload allowlist (smuggled runtime properties never reach the
  *    wire); graceful shutdown `1001` observed on the wire + clean client
- *    close; shutdown idempotency.
+ *    close; shutdown idempotency; a handshake completing INSIDE the shutdown
+ *    drain window policy-closes `1001` without registering.
  *  - Tier 3: missed-pong ×2 termination (dead peer via a minimal raw-TCP
  *    client that never pongs — spec-compliant clients auto-pong, so
  *    non-responsiveness must be simulated below the client API) with a live
@@ -380,7 +381,13 @@ function connectRawPeer(host: string, port: number, token: string): RawWsClient 
     buffer = Buffer.concat([buffer, chunk]);
     if (upgradeEnd === -1) {
       upgradeEnd = buffer.indexOf("\r\n\r\n");
-      return;
+      if (upgradeEnd === -1) {
+        return; // response headers still incomplete
+      }
+      // Header terminator found in THIS chunk — its remainder may already
+      // carry frames (a policy-closed handshake's close frame is written
+      // back-to-back with the 101 response and coalesces into the same
+      // segment), so fall through to the scan instead of returning.
     }
     // Scan the frame region only: a close frame is opcode 0x8 (server frames
     // are unmasked), first payload bytes are the 2-byte close code.
@@ -631,6 +638,35 @@ describe("Tier 2 — malformed bus payloads, egress allowlist, graceful shutdown
     const refused = connectClient(server.url, token);
     const refusedClose = await nextCloseCode(refused, 2_000);
     expect(refusedClose.code).toBe(1006);
+    raw.destroy();
+  });
+
+  test("a handshake completing inside the shutdown drain window policy-closes 1001 and never registers", async () => {
+    // Wide-enough drain window (production floor is 500ms) so the mid-drain
+    // handshake deterministically lands inside it (the harness's 120ms
+    // default would race machine scheduling).
+    const server = await bootServer({ shutdownDrainTimeoutMs: 600 });
+    const token = await mintAccessToken(131);
+
+    // Begin shutdown WITHOUT awaiting: `shuttingDown` flips synchronously and
+    // the registry sweep + clear run immediately, while the listener keeps
+    // accepting upgrades through the whole drain window.
+    const shutdownPromise = server.handle.shutdown();
+    await new Promise(resolve => setTimeout(resolve, 50));
+
+    // The mid-drain handshake (valid origin + cookie + token): without the
+    // post-verify re-check its registration would land AFTER registry.clear()
+    // — a stranded socket that never sees the `1001` sweep (only the forced
+    // stop's abrupt teardown, with NO close frame on the wire).
+    const raw = connectRawPeer(server.host, server.port, token);
+    await raw.closed;
+    expect(raw.closeFrame()).toEqual({ code: 1001, reason: "server shutting down" });
+
+    // The drain-window handshake never registered into the drained registry.
+    expect(server.handle.connectionCount).toBe(0);
+    expect(server.handle.connectionCountForUser(131)).toBe(0);
+
+    await shutdownPromise;
     raw.destroy();
   });
 });

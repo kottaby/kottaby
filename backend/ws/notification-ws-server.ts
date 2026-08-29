@@ -14,7 +14,8 @@
  *   3. `access_token` httpOnly cookie read (the ONLY identity source; query
  *      strings and every other header are never read — tokens in URLs leak
  *      into logs).
- *   4. `verifyAccessToken` (null on ANY failure → policy close `4401`).
+ *   4. `verifyAccessToken` (null on ANY failure → policy close `4401`);
+ *      post-await re-check — shutdown begun mid-verify → policy close `1001`.
  *   5. `userId` from the verified token's `sub` claim (positive-int coerce).
  *   6. Registration: global cap → policy close `1013`; per-user cap → the
  *      OLDEST connection for that user is evicted with `4009`.
@@ -386,6 +387,15 @@ export async function startNotificationWsServer(
           ws.close(NOTIFICATION_WS_CLOSE_CODES.overloaded, "server overloaded");
           return;
         }
+        if (shuttingDown) {
+          // Drain-window race backstop (Wave D R3 F1r3): shutdown began while
+          // this handshake was in flight — the registry was already swept +
+          // cleared, so a registration landing now would strand this socket
+          // past the `1001` sweep (it would only ever see the forced stop's
+          // abrupt teardown). Close it gracefully instead.
+          ws.close(NOTIFICATION_WS_CLOSE_CODES.shutdown, "server shutting down");
+          return;
+        }
         evictOldestForUser(userId, connId);
         registry.set(connId, { userId, ws, missedPongs: 0 });
         indexRegister(userId, connId);
@@ -434,52 +444,68 @@ export async function startNotificationWsServer(
       const peer = server.requestIP(request);
       const ipKey = peer?.address ?? "unknown";
       if (!throttle.tryAcquire(ipKey)) {
-        if (server.upgrade(request, { data: rejectedSocket("throttled", NOTIFICATION_WS_CLOSE_CODES.throttled) })) {
-          return undefined;
-        }
-        return new Response("Too Many Requests", { status: 429 });
+        return upgradeRejectedHandshake(
+          request,
+          server,
+          "throttled",
+          NOTIFICATION_WS_CLOSE_CODES.throttled,
+          new Response("Too Many Requests", { status: 429 })
+        );
       }
 
       // (3) `access_token` httpOnly cookie — the ONLY identity source.
       const cookieHeader = request.headers.get("cookie");
       const token = parseCookies(cookieHeader)[AUTH_COOKIE_NAMES.accessToken] ?? "";
       if (token === "") {
-        if (
-          server.upgrade(request, {
-            data: rejectedSocket("unauthenticated", NOTIFICATION_WS_CLOSE_CODES.unauthenticated),
-          })
-        ) {
-          return undefined;
-        }
-        return new Response("Unauthorized", { status: 401 });
+        return upgradeRejectedHandshake(
+          request,
+          server,
+          "unauthenticated",
+          NOTIFICATION_WS_CLOSE_CODES.unauthenticated,
+          new Response("Unauthorized", { status: 401 })
+        );
       }
 
       // (4) Verify (null on ANY failure — invalid signature, expired, wrong
       // issuer/type, malformed — fail-closed `4401`).
       const payload = await verifyAccessToken(token);
       if (payload === null) {
-        if (
-          server.upgrade(request, {
-            data: rejectedSocket("unauthenticated", NOTIFICATION_WS_CLOSE_CODES.unauthenticated),
-          })
-        ) {
-          return undefined;
-        }
-        return new Response("Unauthorized", { status: 401 });
+        return upgradeRejectedHandshake(
+          request,
+          server,
+          "unauthenticated",
+          NOTIFICATION_WS_CLOSE_CODES.unauthenticated,
+          new Response("Unauthorized", { status: 401 })
+        );
+      }
+
+      // (4b) Post-await shutdown re-check (Wave D R3 F1r3): the verify await
+      // is a suspension point — shutdown may have swept + cleared the
+      // registry while the token verified. Do NOT register a fresh
+      // connection into a drained server: upgrade + policy-close `1001` so
+      // the client still observes the graceful shutdown code (a plain 503
+      // only when the listener already stopped accepting upgrades).
+      if (shuttingDown) {
+        return upgradeRejectedHandshake(
+          request,
+          server,
+          "server shutting down",
+          NOTIFICATION_WS_CLOSE_CODES.shutdown,
+          new Response("Service Unavailable", { status: 503 })
+        );
       }
 
       // (5) userId from the verified `sub` claim (positive-int coerce — the
       // verifier already derives it; the sidecar re-asserts the invariant).
       const userId = payload.userId;
       if (!Number.isSafeInteger(userId) || userId <= 0) {
-        if (
-          server.upgrade(request, {
-            data: rejectedSocket("unauthenticated", NOTIFICATION_WS_CLOSE_CODES.unauthenticated),
-          })
-        ) {
-          return undefined;
-        }
-        return new Response("Unauthorized", { status: 401 });
+        return upgradeRejectedHandshake(
+          request,
+          server,
+          "unauthenticated",
+          NOTIFICATION_WS_CLOSE_CODES.unauthenticated,
+          new Response("Unauthorized", { status: 401 })
+        );
       }
 
       // (6) Upgrade; registration + cap enforcement happen atomically in open().
@@ -610,4 +636,20 @@ export async function startNotificationWsServer(
 /** Socket data for a handshake that completed the pipeline but must policy-close. */
 function rejectedSocket(reason: string, code: number): NotificationWsSocketData {
   return { connId: randomUUID(), userId: null, reject: { code, reason } };
+}
+
+/**
+ * Upgrades a policy-rejected handshake: the socket completes the HTTP upgrade
+ * and `open()` policy-closes it with `code`/`reason` (so the client observes
+ * the close code on the wire). The plain HTTP `fallback` applies only when
+ * the listener already refuses upgrades.
+ */
+function upgradeRejectedHandshake(
+  request: Request,
+  server: Bun.Server<NotificationWsSocketData>,
+  reason: string,
+  code: number,
+  fallback: Response
+): Response | undefined {
+  return server.upgrade(request, { data: rejectedSocket(reason, code) }) ? undefined : fallback;
 }

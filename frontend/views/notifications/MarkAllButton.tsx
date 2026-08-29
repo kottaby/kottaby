@@ -3,6 +3,8 @@
 import { DoneAllOutlined } from "@mui/icons-material";
 import { Button, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle } from "@mui/material";
 import { type ReactNode, useState } from "react";
+// audit-R4: shared keyboard-focus ring (v9 ButtonBase ships none).
+import { focusVisibleRingSx } from "@/frontend/components/ui/focusRing";
 import type { CommonLabels } from "@/shared/locale/types/common";
 import type { NotificationsLabels } from "@/shared/locale/types/notifications";
 
@@ -50,6 +52,7 @@ export function MarkAllButton({
         disabled={disabled || pending}
         onClick={() => setConfirmOpen(true)}
         sx={{
+          ...focusVisibleRingSx,
           flexShrink: 0,
           minHeight: 44,
           width: { xs: "100%", sm: "auto" },
@@ -63,10 +66,10 @@ export function MarkAllButton({
           <DialogContentText>{labels.markAllConfirmBody}</DialogContentText>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setConfirmOpen(false)} disabled={pending}>
+          <Button onClick={() => setConfirmOpen(false)} disabled={pending} sx={focusVisibleRingSx}>
             {commonLabels.cancel}
           </Button>
-          <Button variant="contained" onClick={handleConfirm} disabled={pending} autoFocus>
+          <Button variant="contained" onClick={handleConfirm} disabled={pending} autoFocus sx={focusVisibleRingSx}>
             {labels.markAllRead}
           </Button>
         </DialogActions>

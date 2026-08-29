@@ -3,6 +3,7 @@
 import { Close as CloseIcon, NotificationsOutlined } from "@mui/icons-material";
 import { Alert, Box, IconButton, Snackbar, Typography } from "@mui/material";
 import type { ReactNode } from "react";
+import { focusVisibleRingSx } from "@/frontend/components/ui/focusRing";
 import { useNotificationRealtime } from "@/frontend/hooks/use-notification-realtime";
 import { Common, useAppTranslation } from "@/shared/locale";
 
@@ -84,7 +85,8 @@ export function NotificationRealtimeToastHost(): ReactNode {
                 aria-label={commonT.close}
                 size="small"
                 onClick={() => dismissToast(toast.id)}
-                sx={{ color: "inherit" }}
+                // audit-R4: shared keyboard-focus ring (v9 ButtonBase ships none).
+                sx={{ ...focusVisibleRingSx, color: "inherit" }}
               >
                 <CloseIcon fontSize="small" />
               </IconButton>

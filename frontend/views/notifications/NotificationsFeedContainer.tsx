@@ -6,6 +6,8 @@ import { useApolloClient, useMutation, useQuery } from "@apollo/client/react";
 import { Close as CloseIcon, DoneAllOutlined } from "@mui/icons-material";
 import { Alert, Box, Button, IconButton, Snackbar, Stack, Typography } from "@mui/material";
 import { type ReactNode, useMemo, useState } from "react";
+// audit-R4: shared keyboard-focus ring (v9 ButtonBase ships none).
+import { focusVisibleRingSx } from "@/frontend/components/ui/focusRing";
 import type { MyNotificationsFilterInput, NotificationType } from "@/frontend/graphql/generated/gql/graphql";
 import {
   markAllNotificationsReadMutationDocument,
@@ -310,7 +312,7 @@ export function NotificationsFeedContainer(): ReactNode {
               size="small"
               disabled={page === 0 || listQuery.loading}
               onClick={() => setPage(current => Math.max(0, current - 1))}
-              sx={{ minHeight: 44 }}
+              sx={{ ...focusVisibleRingSx, minHeight: 44 }}
             >
               {commonT.previousPage}
             </Button>
@@ -322,7 +324,7 @@ export function NotificationsFeedContainer(): ReactNode {
               size="small"
               disabled={!(pageData?.hasMore ?? false) || listQuery.loading}
               onClick={() => setPage(current => current + 1)}
-              sx={{ minHeight: 44 }}
+              sx={{ ...focusVisibleRingSx, minHeight: 44 }}
             >
               {commonT.nextPage}
             </Button>
@@ -415,7 +417,8 @@ export function NotificationsFeedContainer(): ReactNode {
                   aria-label={commonT.close}
                   size="small"
                   onClick={() => setMarkAllAffectedCount(null)}
-                  sx={{ color: "inherit" }}
+                  // audit-R4: shared keyboard-focus ring (v9 ButtonBase ships none).
+                  sx={{ ...focusVisibleRingSx, color: "inherit" }}
                 >
                   <CloseIcon fontSize="small" />
                 </IconButton>

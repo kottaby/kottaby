@@ -3,6 +3,8 @@
 import { RefreshOutlined } from "@mui/icons-material";
 import { Alert, AlertTitle, Button, Stack, Typography } from "@mui/material";
 import type { ReactNode } from "react";
+// audit-R4: shared keyboard-focus ring (v9 ButtonBase ships none).
+import { focusVisibleRingSx } from "@/frontend/components/ui/focusRing";
 import { PermissionDeniedFallback } from "@/frontend/components/ui/PermissionDeniedFallback";
 import { RetryableNotice } from "@/frontend/components/ui/RetryableNotice";
 import type { CommonLabels } from "@/shared/locale/types/common";
@@ -66,7 +68,7 @@ export function NotificationFeedError({
           disabled={retryPending}
           onClick={onRetry}
           startIcon={<RefreshOutlined />}
-          sx={{ flexShrink: 0, minHeight: { xs: 44 } }}
+          sx={{ ...focusVisibleRingSx, flexShrink: 0, minHeight: { xs: 44 } }}
         >
           {commonLabels.retry}
         </Button>

@@ -3,6 +3,8 @@
 import { FilterListOutlined } from "@mui/icons-material";
 import { Box, Button, Chip, Divider, Stack } from "@mui/material";
 import { type ReactNode, useState } from "react";
+// audit-R4: shared keyboard-focus ring (v9 ButtonBase ships none).
+import { focusVisibleRingSx } from "@/frontend/components/ui/focusRing";
 import type { NotificationType } from "@/frontend/graphql/generated/gql/graphql";
 import {
   NOTIFICATION_TYPE_CHIP_ORDER,
@@ -69,6 +71,7 @@ export function NotificationFilterChips({
         aria-expanded={filtersOpen}
         onClick={() => setFiltersOpen(open => !open)}
         sx={{
+          ...focusVisibleRingSx,
           // Collapsed-filter affordance exists ONLY on the mobile breakpoint.
           display: { xs: "inline-flex", sm: "none" },
           alignSelf: "flex-start",
@@ -94,7 +97,7 @@ export function NotificationFilterChips({
           color={readFilter === "all" ? "primary" : "default"}
           variant={readFilter === "all" ? "filled" : "outlined"}
           onClick={() => onReadFilterChange("all")}
-          sx={{ minHeight: 36 }}
+          sx={{ ...focusVisibleRingSx, minHeight: 36 }}
         />
         <Chip
           label={labels.filterUnread}
@@ -104,7 +107,7 @@ export function NotificationFilterChips({
           color={readFilter === "unread" ? "primary" : "default"}
           variant={readFilter === "unread" ? "filled" : "outlined"}
           onClick={() => onReadFilterChange("unread")}
-          sx={{ minHeight: 36 }}
+          sx={{ ...focusVisibleRingSx, minHeight: 36 }}
         />
         <Divider
           orientation="vertical"
@@ -126,7 +129,7 @@ export function NotificationFilterChips({
               variant={selected ? "filled" : "outlined"}
               onClick={() => onTypeFilterChange(selected ? null : type)}
               // Generous height keeps taller Arabic glyphs unclipped.
-              sx={{ minHeight: 36 }}
+              sx={{ ...focusVisibleRingSx, minHeight: 36 }}
             />
           );
         })}
