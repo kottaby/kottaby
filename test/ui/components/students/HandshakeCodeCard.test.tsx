@@ -50,8 +50,35 @@ import { renderWithWrapper } from "@/test/ui/components/TestWrapper";
  */
 const FIXTURE_HANDSHAKE_CODE = "KSB-4F7A2C91";
 
-/** Real-time sleep past the card's 2s confirmation window (the card owns the window). */
-const TRANSIENT_CLEAR_SLEEP_MS = 2600;
+/** Poll cadence while waiting for the card's own transient-clear timer to fire. */
+const TRANSIENT_CLEAR_POLL_INTERVAL_MS = 50;
+
+/**
+ * Failure bound for the transient-clear poll — a generous multiple of the
+ * card's confirmation window (the card owns the window, the test never
+ * re-states it). NOT part of the happy path: the poll exits the moment the
+ * clear is observed, long before this bound.
+ */
+const TRANSIENT_CLEAR_POLL_DEADLINE_MS = 3000;
+
+/**
+ * Deadline-aware replacement for a fixed real-timer sleep: polls `probe`
+ * until it observes `true`, so there is NO sleep-vs-timer margin to flake on
+ * — each iteration exits the instant the condition flips, and the deadline
+ * exists only to fail fast (and well inside the per-test timeout budget).
+ * Recursive formulation because the sleep is inherently sequential (the
+ * `no-await-in-loop` rule rightly flags parallelizable awaits in loops).
+ */
+async function pollUntil(probe: () => boolean, deadlineAt: number, intervalMs: number): Promise<boolean> {
+  if (probe()) {
+    return true;
+  }
+  if (Date.now() >= deadlineAt) {
+    return false;
+  }
+  await new Promise(resolve => setTimeout(resolve, intervalMs));
+  return pollUntil(probe, deadlineAt, intervalMs);
+}
 
 // ----------------------------------------------------------------------------
 // Apollo mocks
@@ -310,10 +337,22 @@ describe("HandshakeCodeCard (transient confirmation, en)", () => {
       expect(screen.getByText(t.codeCopied)).toBeDefined();
     });
     // The notice is TRANSIENT: it auto-clears once the confirmation window
-    // elapses. Real-timer sleep + direct query — deterministic under this
-    // runner (waitFor's polling path adds ~2s of act-wrapper overhead here,
-    // which would push past the suite's per-test timeout budget).
-    await new Promise(resolve => setTimeout(resolve, TRANSIENT_CLEAR_SLEEP_MS));
+    // elapses. bun:test DOES ship fake timers (sinon-style — `setTimeout`
+    // gains an own `clock`), but @testing-library's waitFor detects fake
+    // timers only through a GLOBAL `jest`, which bun:test never exposes —
+    // `jest.useFakeTimers()` would therefore stall every findBy*/waitFor in
+    // this case (and no fake-timer precedent exists anywhere in the repo).
+    // The robust conversion is a DEADLINE POLL: plain sleeps + direct queries
+    // (no waitFor act-wrapper overhead — the reason the old fixed sleep was
+    // chosen) that exits the moment the card's own clear timer has flushed.
+    // The old 2600ms-vs-2000ms margin — the flake seed — is gone: the happy
+    // path is "observed clear", the deadline is a pure failure bound.
+    const cleared = await pollUntil(
+      () => screen.queryByText(t.codeCopied) === null,
+      Date.now() + TRANSIENT_CLEAR_POLL_DEADLINE_MS,
+      TRANSIENT_CLEAR_POLL_INTERVAL_MS
+    );
+    expect(cleared).toBe(true);
     expect(screen.queryByText(t.codeCopied)).toBeNull();
     // The live region stays mounted (idle again) — never unmounts on success.
     expect(screen.getByTestId("handshake-code-card").querySelector("output")).not.toBeNull();

@@ -31,9 +31,26 @@ import type { HandshakeCodeLabels } from "@/shared/locale/types/handshakeCode";
  */
 export interface DashboardNavItem {
   readonly route: string;
-  readonly labelKey: keyof DashboardLabels | keyof HandshakeCodeLabels;
+  readonly labelKey: NavLabelKey;
   readonly Icon: SvgIconComponent;
 }
+
+/**
+ * Nav-label keys owned by BOTH label namespaces. A cross-namespace key
+ * collision would make the runtime `key in dashboardEn` discrimination
+ * silently prefer the dashboard bundle, so colliding keys are carved OUT of
+ * the nav label-key union: a future collision fails at COMPILE time at the
+ * nav-item definition site (pick a key owned by exactly one namespace)
+ * instead of resolving ambiguously at runtime. The namespaces are disjoint
+ * today — a pure future-proofing guard with zero current behavior change.
+ */
+type CollidingNavLabelKeys = keyof DashboardLabels & keyof HandshakeCodeLabels;
+
+/**
+ * A nav label key owned by EXACTLY ONE label namespace — the discriminator
+ * `isDashboardLabelKey` stays total and unambiguous over this union.
+ */
+export type NavLabelKey = Exclude<keyof DashboardLabels | keyof HandshakeCodeLabels, CollidingNavLabelKeys>;
 
 /**
  * Type guard: is this nav label key owned by the `dashboard` namespace?
@@ -42,8 +59,12 @@ export interface DashboardNavItem {
  * compile-pinned on every locale leaf, so a key present on one leaf is
  * present on all. Feature-owned keys (e.g. the handshake-code nav label)
  * fall through to the `handshakeCode` label bundle at resolve time.
+ *
+ * `NavLabelKey` excludes cross-namespace collisions at the type level, so
+ * for every admissible key exactly ONE of the two branches can match — the
+ * guard can never silently prefer the dashboard bundle.
  */
-function isDashboardLabelKey(key: DashboardNavItem["labelKey"]): key is keyof DashboardLabels {
+function isDashboardLabelKey(key: NavLabelKey): key is keyof DashboardLabels {
   return key in dashboardEn;
 }
 
