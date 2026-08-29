@@ -48,7 +48,7 @@ export const plansAr: PlansLabels = {
   statusChangeErrorMessage: "تعذّر تحديث الحالة.",
   validationTitleMessage: "يجب أن يتكوّن العنوان من 3 إلى 100 حرف.",
   validationSessionCountMessage: "يجب أن يكون عدد الجلسات عددًا صحيحًا موجبًا.",
-  validationPriceMessage: "يجب أن يكون السعر رقمًا عشريًا موجبًا صالحًا (مثال: 250.00).",
+  validationPriceMessage: "يجب أن يكون السعر رقمًا عشريًا غير سالب صالحًا بحد أقصى منزلتين عشريتين (مثال: 250.00).",
   validationCurrencyMessage: "يجب أن تكون العملة رمزًا من 3 أحرف (مثل EGP، USD).",
   validationIntervalDaysMessage: "يجب أن تكون مدة الصلاحية بالأيام عددًا صحيحًا موجبًا.",
 };

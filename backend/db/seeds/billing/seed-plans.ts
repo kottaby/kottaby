@@ -91,6 +91,15 @@ export async function seedOrGet(locale = "en", tx?: DBTransaction): Promise<Plan
         if (!(error instanceof ConflictError)) {
           throw error;
         }
+        if (tx) {
+          // A uniqueness violation aborts the supplied transaction (any
+          // further statement would fail with 25P02), and a single
+          // transaction cannot race itself — true cross-process seeding
+          // always runs without a tx. Recovery is therefore only meaningful
+          // (and only possible) on the pooled non-tx path; fail fast with
+          // the real ConflictError instead of a confusing aborted-tx error.
+          throw error;
+        }
         logger.warn(`Seed race on plan "${planSpec.title}" — recovering via re-read`);
         const raced = await findPlanByTitle(planSpec.title, locale, tx);
         if (!raced) {

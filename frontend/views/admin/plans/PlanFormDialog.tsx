@@ -118,7 +118,9 @@ function PlanFormContent({
 
     const priceTrimmed = form.price.trim();
     const priceRegex = /^\d+(\.\d{1,2})?$/;
-    if (!priceRegex.test(priceTrimmed) || Number.parseFloat(priceTrimmed) <= 0) {
+    // Non-negative per the plan contract (price >= 0.00 — "0.00" is a valid
+    // free plan); the server CHECK/service layer remains the authority.
+    if (!priceRegex.test(priceTrimmed) || Number.parseFloat(priceTrimmed) < 0) {
       errors.price = t.validationPriceMessage;
     }
 
