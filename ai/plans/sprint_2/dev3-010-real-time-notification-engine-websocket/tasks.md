@@ -492,7 +492,7 @@
 
 ### 6.1 Parallel Review Waves
 
-- [ ] 6.1 [Run parallel review waves — all four, findings triaged before Phase 7]
+- [x] 6.1 [Run parallel review waves — all four, findings triaged before Phase 7]
   - **Wave A — review-types**: canonical types extended additively only; zero service-layer `.types.ts`; zero local Pothos types; enum value-import discipline; `DBTransaction` sourcing
   - **Wave B — review-backend**: engine single-writer rule (no other NEW `notifications` writers — grep evidence); publish-after-commit ordering; tx propagation; guarded self-scope updates; bounded sidecar state; transports/env-registry parity; error-taxonomy compliance (`DomainError` subclasses only); logging hygiene (`logger` only, context caps)
   - **Wave C — review-frontend**: sx-only, palette-token colors, `*Outlined` icons, enum-handle i18n with property access, no `dangerouslySetInnerHTML` in notification subtree, Apollo-only state truth, `useQuery`-stateful-only, no stores/persist involvement
@@ -502,7 +502,7 @@
 
 ### 6.2 Deferred-Items & Ledger Gate
 
-- [ ] 6.2 [Deferred-items gate]
+- [x] 6.2 [Deferred-items gate]
   - `grep -c "❌\|⚠️" ai/plans/dev3-010-realtime-notification-engine/deferred-items.md` equals 0 EXCLUDING the pre-seeded forward items D1–D4 (each with owning ticket recorded, non-blocking)
   - Any newly-discovered gap (e.g., `read_at`, per-user locale) recorded against its owning future ticket — NEVER patched inline
   - _Requirements: REQ-048, REQ-083_
