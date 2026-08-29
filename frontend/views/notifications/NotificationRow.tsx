@@ -17,13 +17,19 @@ import type { NotificationsLabels } from "@/shared/locale/types/notifications";
  * expose its state as REAL text content for screen readers instead of an
  * ARIA name on a name-prohibited generic element (the oxlint
  * `prefer-tag-over-role` rule rejects `role="img"` shims here).
+ *
+ * The length values are px STRING literals (not bare numbers): MUI's sx
+ * transforms reinterpret numeric literals as spacing/theme tokens — `width: 1`
+ * becomes `100%`, `margin: -1` becomes `-8px` — which would blow the clipped
+ * box up to viewport size and leak blank scrollable space below the feed.
+ * The px strings match the canonical `@mui/utils/visuallyHidden` recipe.
  */
 const VISUALLY_HIDDEN_TEXT_SX = {
   position: "absolute",
-  width: 1,
-  height: 1,
+  width: "1px",
+  height: "1px",
   padding: 0,
-  margin: -1,
+  margin: "-1px",
   overflow: "hidden",
   clip: "rect(0 0 0 0)",
   clipPath: "inset(50%)",

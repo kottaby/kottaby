@@ -614,8 +614,16 @@ async function publishReceiptsFromIndex(
   // store-then-publish order): the receipt is only reachable here after the
   // caller's commit, so storing it can never ghost a rolled-back emission.
   const cache = options?.cache;
-  if (receipt.emitClaimKey !== undefined && cache !== undefined) {
-    await storeEmitReceiptQuietly(cache, receipt.emitClaimKey, receipt);
+  if (receipt.emitClaimKey !== undefined) {
+    if (cache === undefined) {
+      // Keyed receipt but NO claim cache injected at publish time — the
+      // claim was already consumed at emit time, so the receipt cannot be
+      // stored and replays will fail open. Mirrors the emit-side
+      // fail-open warn (deviation D5): one structured warn, then skip.
+      warnEmitIdempotencyUnavailable();
+    } else {
+      await storeEmitReceiptQuietly(cache, receipt.emitClaimKey, receipt);
+    }
   }
   const representativeRow = receipt.notifications.at(0);
   if (representativeRow !== undefined) {

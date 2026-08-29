@@ -256,6 +256,16 @@ for (const locale of ["ar", "en"] as AppLocale[]) {
       const rowChildren = firstRow?.children ?? [];
       expect(rowChildren.length).toBeGreaterThanOrEqual(2);
       expect(rowChildren[0]?.getAttribute("aria-hidden")).toBe("true");
+
+      // The unread row (ROW_A) additionally carries the visually-hidden
+      // unread-flag text — REAL content for screen readers. Scoped to the
+      // row so the identically named filter-rail chip can't satisfy the
+      // translation-driven matcher (Wave C R2 F2 pin). The instanceof guard
+      // narrows without an unsafe type assertion.
+      if (!(firstRow instanceof HTMLElement)) {
+        throw new Error("expected the first feed row to be an HTMLElement");
+      }
+      expect(within(firstRow).getByText(t.filterUnread)).toBeDefined();
     });
 
     test("empty inbox renders the localized empty state and disables the sweep", async () => {

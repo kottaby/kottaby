@@ -1154,6 +1154,47 @@ describe("NotificationEngine own-commit path (real commits; publish-after-commit
     expect(transportSpy.publishCount).toBe(1);
   });
 
+  test("tx-path keyed emit: publishReceipts WITHOUT a cache still publishes and fires ONE unavailable-warn (skip-time mirror of the emit-side warn)", async () => {
+    const recipient = committedUsers.at(1);
+    if (!recipient) {
+      throw new Error("expected the second committed fixture recipient to exist");
+    }
+    const transportSpy = new SpiedFanoutTransport();
+    const cache = new ScriptedClaimCache();
+    const idempotencyKey = `${CLAIM_KEY_FIXTURE}-txnocache`;
+    const input = singleInput(recipient.id, { idempotencyKey });
+    const beforeCount = await countNotificationsFor(db, recipient.id);
+    const logs = recordDomainLogs();
+
+    try {
+      // (1) Emit WITH the claim cache inside a REAL committed caller tx: the
+      // claim is consumed at emit time and the returned receipt carries the
+      // hashed claim key (nothing stored or published yet).
+      const receipt = receiptOf(
+        await db.transaction(async tx =>
+          NotificationEngine.emitForUser(input, "en", tx, { transport: transportSpy, cache })
+        )
+      );
+      expect(receipt.emitClaimKey).toBe(buildEmitClaimKey([recipient.id], input.type, idempotencyKey));
+      expect(cache.stored.size).toBe(0);
+      expect(transportSpy.publishCount).toBe(0);
+      expect(logs.entries).toEqual([]);
+
+      // (2) The caller's post-commit hook runs WITHOUT a cache injected: the
+      // receipt store is skipped (the consumed claim leaves replays
+      // fail-open)…
+      await NotificationEngine.publishReceipts([receipt], "en", { transport: transportSpy });
+      expect(cache.stored.size).toBe(0);
+      // …the publish STILL happened exactly once…
+      expect(transportSpy.publishCount).toBe(1);
+      expect(await countNotificationsFor(db, recipient.id)).toBe(beforeCount + 1);
+      // …and exactly ONE structured unavailable-warn fired — no silent skip.
+      expect(logs.entries).toEqual([{ code: "NOTIFICATION_IDEMPOTENCY_DEGRADED", entity: "notifications" }]);
+    } finally {
+      logs.spy.mockRestore();
+    }
+  });
+
   test("publish failure post-commit is swallowed WITH a degradation log; the rows stay committed", async () => {
     const recipient = committedUsers.at(0);
     if (!recipient) {
