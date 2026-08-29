@@ -1,5 +1,7 @@
 "use client";
 
+import type { ApolloCache } from "@apollo/client";
+import type { ModifierDetails } from "@apollo/client/cache";
 import { useApolloClient, useMutation, useQuery } from "@apollo/client/react";
 import { Close as CloseIcon, DoneAllOutlined } from "@mui/icons-material";
 import { Alert, Box, Button, IconButton, Snackbar, Stack, Typography } from "@mui/material";
@@ -47,6 +49,66 @@ const MARK_ALL_SNACKBAR_AUTOHIDE_MS = 6000;
 /** Removes one id from the pending mark-read set (state-updater helper). */
 function withoutPendingId(ids: readonly string[], id: string): readonly string[] {
   return ids.filter(pendingId => pendingId !== id);
+}
+
+/** Runtime guard for parsed store-field argument objects. */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+/**
+ * Whether the `myNotifications` cache window named by `storeFieldName` was
+ * queried with exactly `filter` (the feed's active window).
+ *
+ * Store field names look like `myNotifications({"filter":{...}})`; the
+ * arguments segment is JSON (Apollo's canonical key serialization), parsed
+ * defensively — an unparseable or foreign-shaped name never matches.
+ */
+function isInboxWindowForFilter(storeFieldName: string, filter: MyNotificationsFilterInput): boolean {
+  const argsStart = storeFieldName.indexOf("(");
+  if (argsStart < 0) {
+    return false;
+  }
+  try {
+    const parsed: unknown = JSON.parse(storeFieldName.slice(argsStart + 1, storeFieldName.lastIndexOf(")")));
+    if (!isRecord(parsed) || !isRecord(parsed.filter)) {
+      return false;
+    }
+    const candidate = parsed.filter;
+    return (
+      candidate.isRead === filter.isRead &&
+      candidate.type === filter.type &&
+      candidate.limit === filter.limit &&
+      candidate.offset === filter.offset
+    );
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Post-sweep cache hygiene (4.3b BF defect fix): the mark-all mutation
+ * returns a bare `Int`, so NOTHING restyles the normalized rows of the
+ * sweep — only the refetched ACTIVE window converges. Every OTHER cached
+ * `myNotifications` window (other filter combinations, other pages, the
+ * realtime hook's `filter: null` page) still holds its pre-sweep snapshot,
+ * and a later switch back to such a window (or an SPA revisit of the feed)
+ * would re-render already-swept rows as unread — contradicting the refetched
+ * unread-count summary in the header.
+ *
+ * Dropping those stale windows (returning `undefined` from the modifier
+ * deletes the field) makes the next observation of each window refetch from
+ * the network instead of serving the pre-sweep snapshot. The ACTIVE window
+ * is spared — it was just refetched by the sweep's `refetchQueries`.
+ */
+function dropStaleInboxWindows(cache: ApolloCache, activeFilter: MyNotificationsFilterInput): void {
+  cache.modify({
+    id: "ROOT_QUERY",
+    fields: {
+      myNotifications: (existing: unknown, details: ModifierDetails) =>
+        isInboxWindowForFilter(details.storeFieldName, activeFilter) ? existing : undefined,
+    },
+  });
 }
 
 /**
@@ -162,6 +224,7 @@ export function NotificationsFeedContainer(): ReactNode {
           ],
           awaitRefetchQueries: true,
         });
+        dropStaleInboxWindows(client.cache, filter);
         setMarkAllAffectedCount(result.data?.markAllNotificationsRead ?? 0);
       } catch (error: unknown) {
         logger.debug({ caller: "NotificationsFeedContainer" }, "[NotificationsFeed] Mark-all mutation rejected", {

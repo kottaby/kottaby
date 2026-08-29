@@ -404,7 +404,7 @@
 
 ### 4.3 Notifications Feed Page (Server Shell + Client Container)
 
-- [ ] 4.3 [Implement `/notifications` feed page + full client view tree]
+- [x] 4.3 [Implement `/notifications` feed page + full client view tree]
   - Create `app/(dashboard)/notifications/page.tsx` — Server Component: `withPageAuth`-class authenticated-all-roles guard (anonymous → redirect to `/login`); `await getTranslations(locale)`; delegates to client container
   - Create `frontend/views/notifications/NotificationsFeedContainer.tsx` (+ `NotificationFilterChips`, `NotificationList`, `NotificationRow`, `MarkAllButton`, empty state, skeleton rows, error surface): `useAppTranslation(Translation.Notifications)`; `useQuery(myNotificationsQueryDocument)` + `useQuery(myUnreadNotificationCountQueryDocument)` (polling posture per conventions); filter state (type chips for all 7 types + read toggle) + pagination in local state; per-row mark-read + mark-all with affected-count snackbar
   - MUI v9 discipline: `sx`-only styling, `theme.palette.*` via theme callback (zero hex/rgb), `*Outlined` icons only, logical RTL properties (`marginInlineStart` etc.), unread rows via `theme.palette.action.selected`-class tokens, `React.SubmitEvent` where applicable
@@ -412,20 +412,20 @@
   - Accessibility: `aria-busy` on list region, translated per-row action `aria-label`s, `PermissionDeniedFallback`-family error surface
   - Applicable instructions: `frontend/AGENTS.md`, `frontend/views/AGENTS.md`, `frontend/components/ui/AGENTS.md`
   - _Requirements: REQ-028, REQ-063, REQ-065, REQ-066, REQ-068_
-  - [ ] 4.3.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts <each-file> --lifecycle duplicates` (exit 0)
-  - [ ] 4.3.TE **Unit / Component Tests**: Happy DOM + Apollo `MockedProvider` + `translation-preload.ts` + `readTranslation(handle, locale)` + shared `TestWrapper locale`: populated feed / empty state / filter chips / mark-one + mark-all flows / error + loading skeletons / RTL rendering / realtime-toast path (mocked hook event) — translation-driven matchers ONLY, zero hardcoded strings; `dangerouslySetInnerHTML` static scan green
-  - [ ] 4.3.BF **Agent-Browser Functional Self-Loop**:
+  - [x] 4.3.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts <each-file> --lifecycle duplicates` (exit 0)
+  - [x] 4.3.TE **Unit / Component Tests**: Happy DOM + Apollo `MockedProvider` + `translation-preload.ts` + `readTranslation(handle, locale)` + shared `TestWrapper locale`: populated feed / empty state / filter chips / mark-one + mark-all flows / error + loading skeletons / RTL rendering / realtime-toast path (mocked hook event) — translation-driven matchers ONLY, zero hardcoded strings; `dangerouslySetInnerHTML` static scan green
+  - [x] 4.3.BF **Agent-Browser Functional Self-Loop**:
     • Launch dev server; connect via agent-browser (Playwright)
     • Anonymous `GET /notifications` → redirect to `/login?redirect=/notifications` asserted
     • Login as student fixture → feed renders; empty state → (emit via service harness) → row appears; mark-one transitions row; badge decrements; filter chips (type + unread) filter correctly over the wire; mark-all returns affected count snackbar
     • Error-state drill (blocked route / forced failure) → retry button recovers
     • Iterative self-loop: patch interactions/validation defects → re-run until clean
-  - [ ] 4.3.BS **Agent-Browser Visual & Styling Self-Loop (Screenshot Analysis)**:
+  - [x] 4.3.BS **Agent-Browser Visual & Styling Self-Loop (Screenshot Analysis)**:
     • Screenshots at 1440x900 / 768x1024 / 375x812 × en + ar: inline filters desktop, wrapped chips tablet, collapsed filter affordance mobile; RTL mirroring of row icon→content→action ordering; unread tint tokens; skeleton geometry matches final rows; Arabic chip heights (no glyph clipping); empty/error states centered with generous rhythm
     • Analyze for: palette-token compliance, typography hierarchy, margin/padding rhythm, truncation/overflow, contrast
     • Iterative self-loop: screenshot → identify defect → patch `sx` → re-capture → repeat until polished; ReviewMediaFile images handled ONE at a time
-  - [ ] 4.3.SR **Semantic Review**: zero direct style props; zero hardcoded strings/colors; `useAppTranslation` enum handle + property access; `*Outlined` icons; text-only content rendering
-  - [ ] 4.3.IV **Instruction Verification**: validate against `frontend.instructions.md`, `mobile-desktop.instructions.md` (auto-discovered), layer AGENTS.md files
+  - [x] 4.3.SR **Semantic Review**: zero direct style props; zero hardcoded strings/colors; `useAppTranslation` enum handle + property access; `*Outlined` icons; text-only content rendering
+  - [x] 4.3.IV **Instruction Verification**: validate against `frontend.instructions.md`, `mobile-desktop.instructions.md` (auto-discovered), layer AGENTS.md files
   - Outcome: `outcome/4.3-outcome.md`
 
 ### 4.4 App-Bar Badge + Navigation Integration
