@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX IF NOT EXISTS "subscriptions_pending_user_plan_uq" ON "subscriptions" ("user_id","plan_id") WHERE "status" = 'pending';

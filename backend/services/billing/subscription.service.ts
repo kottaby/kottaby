@@ -48,12 +48,9 @@
  *    `planId` and nothing else — the caller cannot forge status, dates, or
  *    payment columns through any surface here.
  */
-import { eq } from "drizzle-orm";
 import { db } from "@/backend/db";
-import { PlanRepository, SubscriptionRepository } from "@/backend/db/repo";
+import { PlanRepository, SubscriptionRepository, UserRepository } from "@/backend/db/repo";
 import type { OfflineVerificationPaymentMethod } from "@/backend/db/repo/billing/subscription.repository";
-import { plans } from "@/backend/db/schema/billing/plans";
-import { users } from "@/backend/db/schema/users/users";
 import { ConflictError, ValidationError } from "@/backend/lib/errors";
 import { logger } from "@/backend/lib/logger";
 import { AuditLogService } from "@/backend/services/audit/audit-log.service";
@@ -68,6 +65,12 @@ import { getServerTranslations } from "@/shared/locale/server-graphql";
 
 /** Localized error-translation slice consumed by this service. */
 type SubscriptionErrorTranslations = ReturnType<typeof getServerTranslations>["errorsTranslations"];
+
+/** PostgreSQL unique-violation SQLSTATE — the race fence behind SUBSCRIPTION_REQUEST_EXISTS. */
+const PG_UNIQUE_VIOLATION_CODE = "23505";
+
+/** The partial unique index fencing one unresolved (user, plan) request pair. */
+const SUBSCRIPTIONS_PENDING_USER_PLAN_UQ = "subscriptions_pending_user_plan_uq";
 
 /** The owner-scoped read projection: subscription row + its plan row. */
 export type SubscriptionWithPlan = SubscriptionReturnType & { plan: PlanReturnType };
@@ -161,7 +164,8 @@ async function emitSubscriptionAuditSeam(
   tx: DBTransaction,
   actorId?: number,
   extras: Record<string, string | number> = {},
-  actionType: AuditLogSelectType["actionType"] = "update"
+  actionType: AuditLogSelectType["actionType"] = "update",
+  locale: string = "en"
 ): Promise<void> {
   if (actorId === undefined) {
     logger.info(`Subscription transition: ${code}`, { code, entityId: subscriptionId, planId, ...extras });
@@ -176,8 +180,62 @@ async function emitSubscriptionAuditSeam(
       actionCode: code,
       details: { subscriptionId, planId, ...extras },
     },
-    tx
+    tx,
+    locale
   );
+}
+
+/**
+ * Inserts the PENDING request, translating the partial-unique-index race
+ * fence into the domain conflict. The probe + plan lock above shrink the
+ * race window under normal scheduling; the DATABASE index
+ * (`subscriptions_pending_user_plan_uq`) is what makes it zero — two
+ * concurrent transactions can never both commit an unresolved (user, plan)
+ * pair, and the loser surfaces here as a clean localized conflict instead
+ * of a raw SQLSTATE (CodeRabbit finding, PR #30 review).
+ */
+async function insertPendingOrRace(
+  userId: number,
+  planId: number,
+  tx: DBTransaction,
+  t: SubscriptionErrorTranslations
+): Promise<SubscriptionReturnType> {
+  try {
+    return await SubscriptionRepository.insertPending({ userId, planId }, tx);
+  } catch (error) {
+    if (isPendingUniqueViolation(error)) {
+      logSubscriptionRejection(
+        "SUBSCRIPTION_REQUEST_EXISTS",
+        "Subscription request lost a race: a pending request already exists for this plan",
+        { userId, planId }
+      );
+      throw new ConflictError("SUBSCRIPTION_REQUEST_EXISTS", t.subscriptionRequestExists);
+    }
+    throw error;
+  }
+}
+
+/**
+ * Walks an unknown error's cause chain looking for the pending-request
+ * unique fence. Uses `in`-narrowing throughout; no error shape is assumed
+ * or cast (same discipline as the plan-catalog check-violation walker).
+ */
+function isPendingUniqueViolation(error: unknown): boolean {
+  let current: unknown = error;
+  const seen = new Set<unknown>();
+  while (current instanceof Error && !seen.has(current)) {
+    seen.add(current);
+    if (
+      "code" in current &&
+      current.code === PG_UNIQUE_VIOLATION_CODE &&
+      "constraint" in current &&
+      current.constraint === SUBSCRIPTIONS_PENDING_USER_PLAN_UQ
+    ) {
+      return true;
+    }
+    current = (current as { cause?: unknown }).cause;
+  }
+  return false;
 }
 
 /**
@@ -338,7 +396,7 @@ export namespace SubscriptionService {
         throw new ConflictError("PLAN_INACTIVE", t.planInactive);
       }
 
-      const row = await SubscriptionRepository.insertPending({ userId, planId: validatedPlanId }, tx);
+      const row = await insertPendingOrRace(userId, validatedPlanId, tx, t);
       // Actorless user act — logger marker only, no audit row (DEV3-020
       // scope: ADMIN actions; the request's owner is not an admin).
       await emitSubscriptionAuditSeam("SUBSCRIPTION_REQUESTED", row.id, row.planId, tx);
@@ -497,8 +555,7 @@ export namespace SubscriptionService {
       // Plain plan read (NO active predicate — REQ-017 posture documented
       // above). FK restrict makes a dangling planId unreachable; the check
       // stays defensive and fails loudly, never silently reshapes.
-      const planRows = await tx.select().from(plans).where(eq(plans.id, existing.planId)).limit(1);
-      const plan = planRows[0];
+      const plan = await PlanRepository.planById(existing.planId, tx);
       if (!plan) {
         logger.error("Payment verification hit a dangling plan reference (FK restrict violation?)", {
           subscriptionId: validatedSubscriptionId,
@@ -551,7 +608,9 @@ export namespace SubscriptionService {
         input.verifiedBy,
         {
           verifiedBy: input.verifiedBy,
-        }
+        },
+        "update",
+        locale
       );
       return { ...activated, plan };
     });
@@ -703,8 +762,7 @@ export namespace SubscriptionService {
       // Plain plan read (NO active predicate — REQ-017 posture documented
       // above). FK restrict makes a dangling planId unreachable; the check
       // stays defensive and fails loudly, never silently reshapes.
-      const planRows = await tx.select().from(plans).where(eq(plans.id, existing.planId)).limit(1);
-      const plan = planRows[0];
+      const plan = await PlanRepository.planById(existing.planId, tx);
       if (!plan) {
         logger.error("Cancellation hit a dangling plan reference (FK restrict violation?)", {
           subscriptionId: validatedSubscriptionId,
@@ -731,12 +789,7 @@ export namespace SubscriptionService {
       // Narrow purchaser summary for the wire shape (id / fullName / email
       // — never the full `users` row). FK restrict makes a dangling userId
       // unreachable; the check stays defensive and fails loudly.
-      const userRows = await tx
-        .select({ id: users.id, fullName: users.fullName, email: users.email })
-        .from(users)
-        .where(eq(users.id, cancelled.userId))
-        .limit(1);
-      const user = userRows[0];
+      const user = await UserRepository.findSummaryById(cancelled.userId, tx);
       if (!user) {
         logger.error("Cancellation hit a dangling user reference (FK restrict violation?)", {
           subscriptionId: validatedSubscriptionId,
@@ -754,7 +807,8 @@ export namespace SubscriptionService {
         tx,
         input.cancelledBy,
         { cancelledBy: input.cancelledBy },
-        "suspend"
+        "suspend",
+        locale
       );
       return { ...cancelled, plan, user };
     });

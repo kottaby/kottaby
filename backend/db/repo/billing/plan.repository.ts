@@ -64,6 +64,7 @@ FROM plans`;
 const LIST_ACTIVE_SQL = `${PLAN_READ_COLUMNS_SQL} WHERE is_active = true ORDER BY created_at ASC`;
 const LIST_ALL_SQL = `${PLAN_READ_COLUMNS_SQL} ORDER BY created_at ASC`;
 const EXISTS_BY_ID_SQL = "SELECT id FROM plans WHERE id = $1 LIMIT 1";
+const PLAN_BY_ID_SQL = `${PLAN_READ_COLUMNS_SQL} WHERE id = $1 LIMIT 1`;
 
 export namespace PlanRepository {
   /**
@@ -169,6 +170,24 @@ export namespace PlanRepository {
     }
     const result = await queryDb<{ id: number }>(EXISTS_BY_ID_SQL, [id]);
     return result.rows.length > 0;
+  }
+
+  /**
+   * Plain single-plan read with NO lifecycle predicate — the defensive
+   * fallback read for verify/cancel (FK restrict makes a dangling planId
+   * unreachable; callers fail loudly if it ever happens). Purchase-time
+   * validation uses `lockActivePlanById` instead — that one enforces the
+   * active-catalog visibility rule under a row lock.
+   *
+   * @returns The full plan row, or `null` when no plan has that id.
+   */
+  export async function planById(id: number, tx?: DBTransaction): Promise<PlanSelectType | null> {
+    if (tx) {
+      const rows = await tx.select().from(plans).where(eq(plans.id, id)).limit(1);
+      return rows[0] ?? null;
+    }
+    const result = await queryDb<PlanSelectType>(PLAN_BY_ID_SQL, [id]);
+    return result.rows[0] ?? null;
   }
 
   /**

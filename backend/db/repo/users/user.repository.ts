@@ -15,7 +15,7 @@
 import { eq } from "drizzle-orm";
 import { queryDb } from "@/backend/db";
 import { users } from "@/backend/db/schema/users/users";
-import type { DBQueryExecutor, DBTransaction, UserInsertType, UserSelectType } from "@/backend/types";
+import type { DBQueryExecutor, DBTransaction, UserInsertType, UserSelectType, UserSummary } from "@/backend/types";
 
 /**
  * Type guard — narrows `DBQueryExecutor` to `DBTransaction`.
@@ -87,6 +87,34 @@ export namespace UserRepository {
               is_blocked AS "isBlocked", blocked_at AS "blockedAt",
               last_active_at AS "lastActiveAt",
               created_at AS "createdAt", updated_at AS "updatedAt"
+       FROM users WHERE id = $1 LIMIT 1`,
+      [id]
+    );
+    return result.rows[0] ?? null;
+  }
+
+  /**
+   * Narrow purchaser summary (id / fullName / email) — the least-privilege
+   * projection for wire shapes that embed "who bought this" without ever
+   * loading the full `users` row (mirrors the audit trail's actor summary;
+   * the full row carries credentials and moderation columns the wire must
+   * never receive).
+   *
+   * @returns The 3-field summary, or `null` if no user has that id.
+   */
+  export async function findSummaryById(id: number, tx?: DBQueryExecutor): Promise<UserSummary | null> {
+    if (tx && isDBTransaction(tx)) {
+      // Transactional read — Drizzle projection on the supplied executor.
+      const rows = await tx
+        .select({ id: users.id, fullName: users.fullName, email: users.email })
+        .from(users)
+        .where(eq(users.id, id))
+        .limit(1);
+      return rows[0] ?? null;
+    }
+    // Non-transactional read — raw SQL via queryDb (Neon HTTP fast path).
+    const result = await queryDb<UserSummary>(
+      `SELECT id, full_name AS "fullName", email
        FROM users WHERE id = $1 LIMIT 1`,
       [id]
     );
