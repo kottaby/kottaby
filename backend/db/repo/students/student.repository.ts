@@ -35,6 +35,17 @@ export namespace StudentRepository {
    * `parentId` is `null` at registration — set later via the parent
    * handshake flow.
    *
+   * The insert runs inside its own savepoint (a Drizzle nested transaction
+   * opened on the supplied `tx`): a unique-constraint rejection rolls back
+   * ONLY this insert and rethrows the driver error unchanged, leaving the
+   * caller's transaction usable. That is what lets the registration
+   * service's bounded collision retry regenerate a fresh code and insert
+   * again on the SAME transaction — without the savepoint, a rejected
+   * insert aborts the surrounding transaction and every subsequent
+   * statement on it fails with an aborted-transaction error. On success the
+   * savepoint is released, which is transparent to the surrounding
+   * registration transaction (same atomicity as a bare insert).
+   *
    * @returns The inserted student row.
    */
   export async function createForRegistration(
@@ -42,21 +53,23 @@ export namespace StudentRepository {
     handshakeCode: string,
     tx: DBTransaction
   ): Promise<StudentSelectType> {
-    const [row] = await tx
-      .insert(students)
-      .values({
-        id: userId,
-        handshakeCode,
-        balanceHifz: 0,
-        balanceTajweed: 0,
-        balanceReviews: 0,
-        parentId: null,
-      })
-      .returning();
-    if (!row) {
-      throw new Error("StudentRepository.createForRegistration: insert returned no rows");
-    }
-    return row;
+    return tx.transaction(async sp => {
+      const [row] = await sp
+        .insert(students)
+        .values({
+          id: userId,
+          handshakeCode,
+          balanceHifz: 0,
+          balanceTajweed: 0,
+          balanceReviews: 0,
+          parentId: null,
+        })
+        .returning();
+      if (!row) {
+        throw new Error("StudentRepository.createForRegistration: insert returned no rows");
+      }
+      return row;
+    });
   }
 
   /**
