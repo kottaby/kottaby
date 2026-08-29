@@ -455,6 +455,7 @@ describe("plan catalog FULL role matrix — REQ-064 + REQ-072 (DEV1-005 Task 3.6
       variables: { includeInactive: true },
       context: bearer(studentToken),
     });
+    expect(result.error).toBeDefined();
     expectMutationError(result.error, "FORBIDDEN");
   });
 
@@ -464,6 +465,7 @@ describe("plan catalog FULL role matrix — REQ-064 + REQ-072 (DEV1-005 Task 3.6
       variables: { includeInactive: true },
       context: bearer(parentToken),
     });
+    expect(result.error).toBeDefined();
     expectMutationError(result.error, "FORBIDDEN");
   });
 
@@ -473,6 +475,7 @@ describe("plan catalog FULL role matrix — REQ-064 + REQ-072 (DEV1-005 Task 3.6
       variables: { includeInactive: true },
       context: bearer(teacherToken),
     });
+    expect(result.error).toBeDefined();
     expectMutationError(result.error, "FORBIDDEN");
   });
 
@@ -511,6 +514,7 @@ describe("plan catalog FULL role matrix — REQ-064 + REQ-072 (DEV1-005 Task 3.6
       mutation: createPlanMutation,
       variables: { input: { ...e2eCreateInput, title: uniquePlanTitle("QA Matrix Anon Plan") } },
     });
+    expect(result.error).toBeDefined();
     expectMutationError(result.error, "UNAUTHORIZED");
   });
 
@@ -520,6 +524,7 @@ describe("plan catalog FULL role matrix — REQ-064 + REQ-072 (DEV1-005 Task 3.6
       variables: { input: { ...e2eCreateInput, title: uniquePlanTitle("QA Matrix Student Plan") } },
       context: bearer(studentToken),
     });
+    expect(result.error).toBeDefined();
     expectMutationError(result.error, "FORBIDDEN");
   });
 
@@ -529,6 +534,7 @@ describe("plan catalog FULL role matrix — REQ-064 + REQ-072 (DEV1-005 Task 3.6
       variables: { input: { ...e2eCreateInput, title: uniquePlanTitle("QA Matrix Parent Plan") } },
       context: bearer(parentToken),
     });
+    expect(result.error).toBeDefined();
     expectMutationError(result.error, "FORBIDDEN");
   });
 
@@ -538,6 +544,7 @@ describe("plan catalog FULL role matrix — REQ-064 + REQ-072 (DEV1-005 Task 3.6
       variables: { input: { ...e2eCreateInput, title: uniquePlanTitle("QA Matrix Teacher Plan") } },
       context: bearer(teacherToken),
     });
+    expect(result.error).toBeDefined();
     expectMutationError(result.error, "FORBIDDEN");
   });
 
@@ -579,6 +586,7 @@ describe("plan catalog FULL role matrix — REQ-064 + REQ-072 (DEV1-005 Task 3.6
       mutation: updatePlanMutation,
       variables: { id: "1", input: { price: "2.00" } },
     });
+    expect(result.error).toBeDefined();
     expectMutationError(result.error, "UNAUTHORIZED");
   });
 
@@ -588,6 +596,7 @@ describe("plan catalog FULL role matrix — REQ-064 + REQ-072 (DEV1-005 Task 3.6
       variables: { id: "1", input: { price: "2.00" } },
       context: bearer(studentToken),
     });
+    expect(result.error).toBeDefined();
     expectMutationError(result.error, "FORBIDDEN");
   });
 
@@ -597,6 +606,7 @@ describe("plan catalog FULL role matrix — REQ-064 + REQ-072 (DEV1-005 Task 3.6
       variables: { id: "1", input: { price: "2.00" } },
       context: bearer(parentToken),
     });
+    expect(result.error).toBeDefined();
     expectMutationError(result.error, "FORBIDDEN");
   });
 
@@ -606,6 +616,7 @@ describe("plan catalog FULL role matrix — REQ-064 + REQ-072 (DEV1-005 Task 3.6
       variables: { id: "1", input: { price: "2.00" } },
       context: bearer(teacherToken),
     });
+    expect(result.error).toBeDefined();
     expectMutationError(result.error, "FORBIDDEN");
   });
 
@@ -642,6 +653,7 @@ describe("plan catalog FULL role matrix — REQ-064 + REQ-072 (DEV1-005 Task 3.6
       mutation: setPlanActiveStatusMutation,
       variables: { id: "1", isActive: false },
     });
+    expect(result.error).toBeDefined();
     expectMutationError(result.error, "UNAUTHORIZED");
   });
 
@@ -651,6 +663,7 @@ describe("plan catalog FULL role matrix — REQ-064 + REQ-072 (DEV1-005 Task 3.6
       variables: { id: "1", isActive: false },
       context: bearer(studentToken),
     });
+    expect(result.error).toBeDefined();
     expectMutationError(result.error, "FORBIDDEN");
   });
 
@@ -660,6 +673,7 @@ describe("plan catalog FULL role matrix — REQ-064 + REQ-072 (DEV1-005 Task 3.6
       variables: { id: "1", isActive: false },
       context: bearer(parentToken),
     });
+    expect(result.error).toBeDefined();
     expectMutationError(result.error, "FORBIDDEN");
   });
 
@@ -669,6 +683,7 @@ describe("plan catalog FULL role matrix — REQ-064 + REQ-072 (DEV1-005 Task 3.6
       variables: { id: "1", isActive: false },
       context: bearer(teacherToken),
     });
+    expect(result.error).toBeDefined();
     expectMutationError(result.error, "FORBIDDEN");
   });
 

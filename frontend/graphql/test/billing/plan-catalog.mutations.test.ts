@@ -438,6 +438,7 @@ describe("plan catalog mutations — admin-only CRUD (DEV1-005 Task 3.3)", () =>
         },
       },
     });
+    expect(result.error).toBeDefined();
     expectMutationError(result.error, "UNAUTHORIZED");
   });
 
@@ -446,6 +447,7 @@ describe("plan catalog mutations — admin-only CRUD (DEV1-005 Task 3.3)", () =>
       mutation: updatePlanMutation,
       variables: { id: "1", input: { price: "2.00" } },
     });
+    expect(result.error).toBeDefined();
     expectMutationError(result.error, "UNAUTHORIZED");
   });
 
@@ -454,6 +456,7 @@ describe("plan catalog mutations — admin-only CRUD (DEV1-005 Task 3.3)", () =>
       mutation: setPlanActiveStatusMutation,
       variables: { id: "1", isActive: false },
     });
+    expect(result.error).toBeDefined();
     expectMutationError(result.error, "UNAUTHORIZED");
   });
 
@@ -471,6 +474,7 @@ describe("plan catalog mutations — admin-only CRUD (DEV1-005 Task 3.3)", () =>
       },
       context: { headers: { Authorization: `Bearer ${studentToken}` } },
     });
+    expect(result.error).toBeDefined();
     expectMutationError(result.error, "FORBIDDEN");
   });
 
@@ -480,6 +484,7 @@ describe("plan catalog mutations — admin-only CRUD (DEV1-005 Task 3.3)", () =>
       variables: { id: "1", input: { price: "2.00" } },
       context: { headers: { Authorization: `Bearer ${studentToken}` } },
     });
+    expect(result.error).toBeDefined();
     expectMutationError(result.error, "FORBIDDEN");
   });
 
@@ -489,6 +494,7 @@ describe("plan catalog mutations — admin-only CRUD (DEV1-005 Task 3.3)", () =>
       variables: { id: "1", isActive: false },
       context: { headers: { Authorization: `Bearer ${studentToken}` } },
     });
+    expect(result.error).toBeDefined();
     expectMutationError(result.error, "FORBIDDEN");
   });
 
@@ -520,6 +526,7 @@ describe("plan catalog mutations — admin-only CRUD (DEV1-005 Task 3.3)", () =>
       variables: { id: "999999", input: { price: "9.99" } },
       context: { headers: { Authorization: `Bearer ${adminToken}` } },
     });
+    expect(result.error).toBeDefined();
     expectMutationError(result.error, "PLAN_NOT_FOUND");
   });
 
@@ -530,6 +537,7 @@ describe("plan catalog mutations — admin-only CRUD (DEV1-005 Task 3.3)", () =>
       variables: { id: String(fixture.id), isActive: false },
       context: { headers: { Authorization: `Bearer ${adminToken}` } },
     });
+    expect(result.error).toBeDefined();
     expectMutationError(result.error, "PLAN_ALREADY_INACTIVE");
   });
 
@@ -540,6 +548,7 @@ describe("plan catalog mutations — admin-only CRUD (DEV1-005 Task 3.3)", () =>
       variables: { id: String(fixture.id), isActive: true },
       context: { headers: { Authorization: `Bearer ${adminToken}` } },
     });
+    expect(result.error).toBeDefined();
     expectMutationError(result.error, "PLAN_ALREADY_ACTIVE");
   });
 

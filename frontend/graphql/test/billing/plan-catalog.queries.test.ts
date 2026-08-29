@@ -318,6 +318,7 @@ describe("planCatalog / adminPlans GraphQL Integration", () => {
       variables: { includeInactive: true },
       context: { headers: { Authorization: `Bearer ${studentToken}` } },
     });
+    expect(result.error).toBeDefined();
     expectMutationError(result.error, "FORBIDDEN");
   });
 
