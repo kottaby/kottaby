@@ -14,8 +14,12 @@
  */
 
 /**
- * Builder prefix shared by the registration generator and every consumer
- * that constructs or reasons about handshake-code shape.
+ * The canonical handshake-code prefix for validation and normalization
+ * consumers — the constant to compose with when constructing, checking, or
+ * teaching the code shape. The registration generator independently emits
+ * the same `KSB-` prefix from its own embedded literal; the parity between
+ * the two (every generated code satisfying `HANDSHAKE_CODE_PATTERN`) is
+ * cross-referenced by the test locks rather than enforced by a shared import.
  */
 export const HANDSHAKE_CODE_PREFIX = "KSB-";
 

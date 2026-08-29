@@ -5,7 +5,7 @@
  * The harness itself must be verifiable NOW, independently of the
  * `StudentHandshakeService` surface the handshake-discovery journey awaits
  * (test-first): every path exercised here — real registration of student and
- * parent actors, governance flips, the DEV1-014 link-emulation write, the
+ * parent actors, governance flips, the parent-link emulation write, the
  * side-effect probes, and the tracked hard-delete teardown — runs through the
  * real `RegistrationService` / `StudentRepository` and direct committed
  * fixture writes against the real test database.
@@ -120,7 +120,7 @@ describe("Journey harness smoke — cast fixtures + tracked teardown (existing s
     expect(governanceRows[0]?.suspendedPeriodDays).toBe(SUSPENSION_PERIOD_DAYS);
   });
 
-  test("link fixture commits students.parent_id (DEV1-014 emulation)", async () => {
+  test("link fixture commits students.parent_id (link-flow emulation)", async () => {
     const linkedParentId = await linkStudentToParentFixture(requireStudent().userId, requireParent().userId);
     expect(linkedParentId).toBe(requireParent().userId);
   });

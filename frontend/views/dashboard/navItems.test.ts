@@ -50,7 +50,7 @@ describe("nav label ownership — exactly one bundle owns each nav key", () => {
     for (const key of usedKeys) {
       const ownedByDashboard = key in dashboardEn;
       const ownedByHandshake = key in handshakeCodeEn;
-      expect(ownedByDashboard === ownedByHandshake).toBe(false);
+      expect(ownedByDashboard).not.toBe(ownedByHandshake);
     }
   });
 });

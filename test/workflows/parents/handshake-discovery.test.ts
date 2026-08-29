@@ -224,8 +224,9 @@ describe("Journey — parent handshake-code discovery (steps 1→8)", () => {
 
   test("Step 5 — Second Parent (Karim): already-linked child resolves linkable:false with zero parent identity", async () => {
     const s = requireState();
-    // Actor: System/linker fixture — the DEV1-014 link mutation emulated by a
-    // committed direct write (production link flow does not exist yet).
+    // Actor: System/linker fixture — the future link-request mutation
+    // emulated by a committed direct write (production link flow does not
+    // exist yet).
     const linkedParentId = await linkStudentToParentFixture(s.yusuf.userId, s.fatima.userId);
     expect(linkedParentId).toBe(s.fatima.userId);
 
@@ -317,9 +318,9 @@ describe("Journey — parent handshake-code discovery (steps 1→8)", () => {
   // Step 7 — record-only (NOT re-tested here): a deleted or blocked CALLER is
   // denied at the upstream context boundary — the fail-closed auth context
   // resolves no session for governed users, so the request never reaches a
-  // resolver or service. That boundary is DEV2-002-owned and verified by its
-  // own suites; the journey records the cross-reference instead of
-  // duplicating it.
+  // resolver or service. That auth-context boundary is owned and verified by
+  // the auth domain's own suites; the journey records the cross-reference
+  // instead of duplicating it.
 
   afterAll(async () => {
     // After registration, every journey step is a pure read — zero

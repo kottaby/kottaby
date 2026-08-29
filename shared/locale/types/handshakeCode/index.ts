@@ -54,9 +54,9 @@ export interface HandshakeCodeLabels {
   readonly foundTitle: string;
   /** Result-card body when the found student is linkable (next-step copy; the link-request action itself is out of scope here). */
   readonly canLinkDescription: string;
-  /** Result-card heading when the found student is already linked to the caller. */
+  /** Result-card heading when the found student is already linked to a parent account (any parent, not necessarily the caller). */
   readonly alreadyLinkedTitle: string;
-  /** Result-card body when the found student is already linked to the caller. */
+  /** Result-card body when the found student is already linked to a parent account (any parent, not necessarily the caller). */
   readonly alreadyLinkedDescription: string;
   // ─── Parent navigation ─────────────────────────────────────────────────────
   /** Sidebar nav item (parent group) linking to the discovery page. */

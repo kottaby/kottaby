@@ -20,7 +20,7 @@
  *    parallel runs never collide.
  *  - Fixture writes (parent-link + governance flips) are module-scope helpers
  *    issuing short COMMITTING `db.transaction(...)` blocks emulating future
- *    production mutations (DEV1-014's link flow, admin-domain governance
+ *    production mutations (the parent-link flow, admin-domain governance
  *    writes) — explicit field-mapped updates, never client-input spreads.
  *  - Teardown deletes every tracked row in FK-safe order (role-child rows
  *    first, then `users`), and residue probes prove the tracked-id list is
@@ -149,8 +149,8 @@ function buildActorEmail(slug: string, prefix: string, actorSequence: number): s
 }
 
 /**
- * Committed direct write setting `students.parent_id` — the DEV1-014 link
- * mutation emulation (the production link flow does not exist yet).
+ * Committed direct write setting `students.parent_id` — emulation of the
+ * future link-request mutation (the production link flow does not exist yet).
  *
  * Returns the post-update `parentId` as the fixture's proof of commit.
  */

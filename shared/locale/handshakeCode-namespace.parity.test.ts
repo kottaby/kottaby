@@ -30,8 +30,7 @@
  *      `<ns>.<ns>` id and its getter resolves to the composed bundle slice.
  *
  * Mirrors the structure of `shared/locale/applicant-namespace.parity.test.ts`
- * (the sibling applicant gate, which pins the DEV2-004 precedent this
- * namespace follows).
+ * (the sibling applicant-namespace gate whose pattern this namespace follows).
  *
  * Pure unit tier — NO server boot, NO network, NO DB. Runs via the mandated
  * runner: `bun run test/scripts/run-test.ts shared/locale/handshakeCode-namespace.parity.test.ts`.

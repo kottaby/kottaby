@@ -7,7 +7,8 @@
  * SHARED DOCUMENTS themselves — the exact operation surface the parent-side
  * discovery and the self-read expose to every Apollo consumer.
  *
- * WHAT THIS LOCKS (Task 4.1 gates — REQ-061 / REQ-063)
+ * WHAT THIS LOCKS (the shared handshake-code read documents — self-read +
+ * parent-side discovery)
  *   1. SHAPE — both documents are single named query operations with exactly
  *      the sanctioned surface: `MyHandshakeCode` (scalar-only root field, ZERO
  *      variables, no object selection at all) and `FindStudentByHandshakeCode`
