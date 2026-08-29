@@ -287,7 +287,7 @@
 
 ### 2.M Mid-Point Review Gate
 
-- [ ] 2.M [Mid-point review — consolidate Phases 0–2 before GraphQL work]
+- [x] 2.M [Mid-point review — consolidate Phases 0–2 before GraphQL work]
   - Consolidate outcomes 0.1–2.8; re-run baseline counters (`bun tsgo`, `bun biome:check`, lint) and record delta vs 0.1 baseline (target: 0 new errors)
   - Confirm: `git diff backend/db/schema/** backend/db/migration/**` EMPTY; enum parity test green; journey suites 2.2/2.3 GREEN across two consecutive runs
   - Confirm deferred-items ledger: zero ❌/⚠️ beyond pre-seeded D1–D4
