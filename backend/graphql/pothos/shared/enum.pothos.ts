@@ -11,14 +11,16 @@
  *    they MUST NOT re-register the same enum (runtime error: "has already
  *    been declared").
  *
- * DEV1-002 registered enums:
+ * Registered enums:
  *  - `UserRole` (full role set incl. "admin")
  *  - `Gender`
  *  - `RegisterPublicRole` (public subset — student/teacher/parent — BFLA)
+ *  - `RecitationReading`, `ApplicantStatus`
  *
  * After registering a new enum here, run `bun run generate:gqlSchema` and
  * `bun codegen` to refresh the SDL + frontend codegen.
  */
+import { ApplicantStatus } from "@/backend/enum/teachers/applicant-status.enum";
 import { Gender } from "@/backend/enum/users/gender.enum";
 import { RegisterPublicRole } from "@/backend/enum/users/register-public-role.enum";
 import { UserRole } from "@/backend/enum/users/user-role.enum";
@@ -38,8 +40,7 @@ export const GenderPothosEnum = gqlSchemaBuilder.enumType(Gender, {
 /**
  * GraphQL `RegisterPublicRole` enum (student|teacher|parent — `admin`
  * intentionally excluded). Enforces BFLA at the schema layer: the public
- * `registerUser` mutation rejects `admin` before any resolver runs
- * (REQ-022).
+ * `registerUser` mutation rejects `admin` before any resolver runs.
  */
 export const RegisterPublicRolePothosEnum = gqlSchemaBuilder.enumType(RegisterPublicRole, {
   name: "RegisterPublicRole",
@@ -48,10 +49,23 @@ export const RegisterPublicRolePothosEnum = gqlSchemaBuilder.enumType(RegisterPu
 /**
  * GraphQL `RecitationReading` enum (Qira'ah catalog — 10 canonical readings).
  *
- * DEV1-003 REQ-012: registered ONCE from the canonical shared enum. The
- * physical `recitation` table is session-linked (C.5) — this enum is for
+ * Registered ONCE from the canonical shared enum. The
+ * physical `recitation` table is session-linked — this enum is for
  * user-preference selection only, not for `recitation.user_id` resurrection.
  */
 export const RecitationReadingPothosEnum = gqlSchemaBuilder.enumType(RecitationReading, {
   name: "RecitationReading",
+});
+
+/**
+ * GraphQL `ApplicantStatus` enum (pending|in_evaluation|failed|passed).
+ *
+ * Registered ONCE from the canonical TS enum
+ * (`backend/enum/teachers/applicant-status.enum.ts`) — the sole runtime
+ * authority over the pgEnum-less `applicants.status` varchar column, whose
+ * stored values are guard-validated with `isApplicantStatus` at the service
+ * boundary before any value carries the GraphQL type.
+ */
+export const ApplicantStatusPothosEnum = gqlSchemaBuilder.enumType(ApplicantStatus, {
+  name: "ApplicantStatus",
 });

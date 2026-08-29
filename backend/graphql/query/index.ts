@@ -10,11 +10,11 @@
  *    sub-directory and add a side-effect import to that sub-directory's
  *    `index.ts`.
  *
- * AUTH1 wires the `me` query. Subsequent tickets (DEV2-002 auth gating,
- * DEV1-005 subscriptions, …) will add their queries as additional
- * side-effect imports.
+ * `auth.query.ts` wires the `me` query; the other entries register the
+ * health, recitation, and teacher-domain queries.
  */
 import "./auth.query";
 import "./health.query";
 import "./plan-catalog.query";
 import "./recitation.query";
+import "./teachers";

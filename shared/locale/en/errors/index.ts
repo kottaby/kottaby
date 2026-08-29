@@ -31,4 +31,7 @@ export const errorsEn: ErrorsLabels = {
     planIntervalDaysInvalid: "Validity interval must be a positive integer representing days.",
     planPatchEmpty: "At least one field must be provided to update the plan.",
   },
+  applicantNotFound: "Teacher application not found.",
+  applicantCooldownActive: "You can re-apply for teacher verification after {cooldownUntil}.",
+  applicantStatusCorrupt: "Your application status could not be read. Please contact support.",
 };

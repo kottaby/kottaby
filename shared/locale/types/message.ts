@@ -1,3 +1,4 @@
+import type { ApplicantLabels } from "@/shared/locale/types/applicant";
 import type { AuthLabels } from "@/shared/locale/types/auth";
 import type { CommonLabels } from "@/shared/locale/types/common";
 import type { DashboardLabels } from "@/shared/locale/types/dashboard";
@@ -14,4 +15,5 @@ export interface Translations {
   dashboardTranslations: DashboardLabels;
   landingTranslations: LandingLabels;
   plansTranslations: PlansLabels;
+  applicantTranslations: ApplicantLabels;
 }
