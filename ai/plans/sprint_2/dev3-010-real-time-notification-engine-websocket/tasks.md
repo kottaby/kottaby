@@ -218,7 +218,7 @@
 
 ### 2.5 Fan-Out Transport Port + Adapters
 
-- [ ] 2.5 [Implement `NotificationFanoutTransport` port + `InProcessTransport` + `RedisPubSubTransport`]
+- [x] 2.5 [Implement `NotificationFanoutTransport` port + `InProcessTransport` + `RedisPubSubTransport`]
   - Create `backend/services/notifications/realtime/fanout-transport.ts`: port interface `publishFanout(userIds: readonly number[], payload: RealtimeNotificationPayload): Promise<void>`
   - `in-process-transport.ts`: direct in-memory tap with subscription registration (only transport legal in tests/harnesses)
   - `redis-pubsub-transport.ts`: channel `kottaby:notifications:fanout`, JSON envelope `{ userIds, payload }`; publish + symmetric `subscribeFanout` side with runtime shape guard (malformed → drop + structured warn, NEVER crash)
@@ -226,11 +226,11 @@
   - NO module-level mutable state in adapters beyond injected client handles (bounded ban honored)
   - Applicable instructions: `backend/services/AGENTS.md` mock-adapter discipline, REQ-024/045
   - _Requirements: REQ-024, REQ-045, REQ-011_
-  - [ ] 2.5.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts <each-file> --lifecycle duplicates` (exit 0)
-  - [ ] 2.5.TE **Test Engineering**: Tier 1 — both adapters publish/subscribe round-trip; Tier 2 — empty userIds; Tier 3 — Redis reconnect behavior (subscriber resumes post-outage); Tier 4 — malformed envelope dropped without exception escaping. In-process adapter in unit tier; Redis adapter behind env-gated suite per existing Redis-dependent test conventions
-  - [ ] 2.5.SEC **Security & Tenancy Audit**: envelope carries only allowlisted payload fields; channel name constant; no user PII on the bus
-  - [ ] 2.5.SR **Semantic Review**: selection factory reads ONLY registered env keys; zero `console.*`; enums/value imports clean
-  - [ ] 2.5.IV **Instruction Verification**: validate against `backend/services/AGENTS.md` + REQ-049
+  - [x] 2.5.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts <each-file> --lifecycle duplicates` (exit 0)
+  - [x] 2.5.TE **Test Engineering**: Tier 1 — both adapters publish/subscribe round-trip; Tier 2 — empty userIds; Tier 3 — Redis reconnect behavior (subscriber resumes post-outage); Tier 4 — malformed envelope dropped without exception escaping. In-process adapter in unit tier; Redis adapter behind env-gated suite per existing Redis-dependent test conventions
+  - [x] 2.5.SEC **Security & Tenancy Audit**: envelope carries only allowlisted payload fields; channel name constant; no user PII on the bus
+  - [x] 2.5.SR **Semantic Review**: selection factory reads ONLY registered env keys; zero `console.*`; enums/value imports clean
+  - [x] 2.5.IV **Instruction Verification**: validate against `backend/services/AGENTS.md` + REQ-049
   - Outcome: `outcome/2.5-outcome.md`
 
 ### 2.6 Engine Service — Emit Paths
