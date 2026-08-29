@@ -52,6 +52,19 @@ import { SubscriptionManagement as SubscriptionManagementNs } from "@/shared/loc
 import { getTranslations } from "@/shared/locale/server";
 import { renderWithWrapper } from "@/test/ui/components/TestWrapper";
 
+/**
+ * `screen.getByTestId` hands back the generic `HTMLElement`; the pagination
+ * controls are `<button>`s, so narrow through this runtime type guard instead
+ * of an `as` cast (oxlint `no-unsafe-type-assertion`). Throws on any
+ * non-button — the assertion then fails just as the cast-based access did.
+ */
+function asButton(element: Element | null): HTMLButtonElement {
+  if (!(element instanceof HTMLButtonElement)) {
+    throw new TypeError("expected an HTMLButtonElement");
+  }
+  return element;
+}
+
 // ----------------------------------------------------------------------------
 // Fixtures + mocks
 // ----------------------------------------------------------------------------
@@ -457,8 +470,8 @@ describe("AdminSubscriptionsContainer — filter + pagination (en)", () => {
 
     const next = screen.getByTestId("admin-subscriptions-next");
     const prev = screen.getByTestId("admin-subscriptions-prev");
-    expect((next as HTMLButtonElement).disabled).toBe(false);
-    expect((prev as HTMLButtonElement).disabled).toBe(true);
+    expect(asButton(next).disabled).toBe(false);
+    expect(asButton(prev).disabled).toBe(true);
 
     fireEvent.click(next);
 
@@ -467,7 +480,7 @@ describe("AdminSubscriptionsContainer — filter + pagination (en)", () => {
     });
     expect(screen.getByText("Subscriber 11")).toBeDefined();
     expect(screen.getByText("Subscriber 12")).toBeDefined();
-    expect((screen.getByTestId("admin-subscriptions-next") as HTMLButtonElement).disabled).toBe(true);
-    expect((screen.getByTestId("admin-subscriptions-prev") as HTMLButtonElement).disabled).toBe(false);
+    expect(asButton(screen.getByTestId("admin-subscriptions-next")).disabled).toBe(true);
+    expect(asButton(screen.getByTestId("admin-subscriptions-prev")).disabled).toBe(false);
   });
 });

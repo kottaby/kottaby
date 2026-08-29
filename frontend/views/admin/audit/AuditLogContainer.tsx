@@ -53,13 +53,17 @@ const DEFAULT_PAGE_SIZE = 20;
 
 /**
  * The RSC-serializable slice of {@link AuditLabels} the server shell hands
- * down — plain strings. Three members are structurally excluded and always
- * resolve through the client handle below: the `pageInfo` formatter (it
- * cannot cross the server/client boundary) and the two details-popover keys
+ * down — plain strings. Four members are structurally excluded and always
+ * resolve through the client handle below: the two range formatters
+ * (`pageInfo` — table footer, `toolbarRange` — toolbar; neither can cross
+ * the server/client boundary) and the two details-popover keys
  * (`detailsExpandAriaLabel` / `detailsPopoverTitle` — consumed ONLY inside
  * the trail table's client-side popover, never by the server shell).
  */
-export type AuditStaticLabels = Omit<AuditLabels, "pageInfo" | "detailsExpandAriaLabel" | "detailsPopoverTitle">;
+export type AuditStaticLabels = Omit<
+  AuditLabels,
+  "pageInfo" | "toolbarRange" | "detailsExpandAriaLabel" | "detailsPopoverTitle"
+>;
 
 export interface AuditLogContainerProps {
   /**
@@ -334,7 +338,7 @@ function PageSizeSelect({
           value={value}
           label={labels.rowsPerPage}
           disabled={disabled}
-          onChange={event => onChange(Number(event.target.value))}
+          onChange={event => onChange(event.target.value)}
         >
           {options.map(size => (
             <MenuItem key={size} value={size}>

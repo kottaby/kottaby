@@ -51,16 +51,33 @@ function titleFormatterOf(
   return typeof value === "function" ? value : undefined;
 }
 
+/** Type guard: narrows a raw `Object.keys` string to a `PaymentVerificationLabels` key. */
+function isPaymentVerificationKey(key: string): key is keyof PaymentVerificationLabels {
+  return key in paymentVerificationEn;
+}
+
+/**
+ * Explicit code-unit comparator for ASCII camelCase locale-key identifiers —
+ * `<`/`>` on strings compare UTF-16 code unit values exactly like the implicit
+ * default sort did, so the sorted output is byte-identical while satisfying
+ * sonarjs/no-alphabetical-sort's requirement for a compare function.
+ */
+const compareByCodeUnit = (a: string, b: string) => {
+  if (a < b) return -1;
+  if (a > b) return 1;
+  return 0;
+};
+
 describe("paymentVerification namespace — locale parity", () => {
   test("en and ar expose the SAME key sets", () => {
-    const enKeys = Object.keys(paymentVerificationEn).sort();
-    const arKeys = Object.keys(paymentVerificationAr).sort();
+    const enKeys = Object.keys(paymentVerificationEn).toSorted(compareByCodeUnit);
+    const arKeys = Object.keys(paymentVerificationAr).toSorted(compareByCodeUnit);
     expect(arKeys).toEqual(enKeys);
   });
 
   test(`every key is present — exactly ${EXPECTED_KEY_COUNT} keys`, () => {
-    expect(Object.keys(paymentVerificationEn).length).toBe(EXPECTED_KEY_COUNT);
-    expect(Object.keys(paymentVerificationAr).length).toBe(EXPECTED_KEY_COUNT);
+    expect(Object.keys(paymentVerificationEn)).toHaveLength(EXPECTED_KEY_COUNT);
+    expect(Object.keys(paymentVerificationAr)).toHaveLength(EXPECTED_KEY_COUNT);
   });
 
   test("plain strings are non-empty and carry no ICU braces (both locales)", () => {
@@ -78,7 +95,7 @@ describe("paymentVerification namespace — locale parity", () => {
   });
 
   test("type-shape parity — formatter keys are formatters in BOTH locales, strings in BOTH", () => {
-    for (const key of Object.keys(paymentVerificationEn) as Array<keyof PaymentVerificationLabels>) {
+    for (const key of Object.keys(paymentVerificationEn).filter(isPaymentVerificationKey)) {
       const enIsFunction = typeof paymentVerificationEn[key] === "function";
       const arIsFunction = typeof paymentVerificationAr[key] === "function";
       expect(enIsFunction, `${key}: en kind`).toBe(arIsFunction);
@@ -102,10 +119,10 @@ describe("paymentVerification namespace — locale parity", () => {
   });
 
   test("INTERPOLATING_KEYS covers exactly the formatter members of the namespace", () => {
-    const formatterKeys = (Object.keys(paymentVerificationEn) as Array<keyof PaymentVerificationLabels>).filter(
-      key => typeof paymentVerificationEn[key] === "function"
-    );
-    expect([...formatterKeys].sort()).toEqual([...INTERPOLATING_KEYS].sort());
+    const formatterKeys = Object.keys(paymentVerificationEn)
+      .filter(isPaymentVerificationKey)
+      .filter(key => typeof paymentVerificationEn[key] === "function");
+    expect(formatterKeys.toSorted(compareByCodeUnit)).toEqual(INTERPOLATING_KEYS.toSorted());
   });
 });
 

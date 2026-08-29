@@ -20,8 +20,7 @@ import {
   ToggleButtonGroup,
   Typography,
 } from "@mui/material";
-import type { ReactNode } from "react";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import type { AdminPendingSubscriptionRequestsQuery_adminPendingSubscriptionRequests } from "@/frontend/graphql/generated/gql/graphql";
 import { formatApplicantDate } from "@/frontend/lib/i18n/format-date";
 import type { PaymentVerificationLabels } from "@/shared/locale/types/paymentVerification";
@@ -57,8 +56,7 @@ import type { PaymentVerificationLabels } from "@/shared/locale/types/paymentVer
  */
 
 /** The two sanctioned offline methods — the wire values the mutation takes. */
-const OFFLINE_METHODS = ["offline_cash", "bank_transfer"] as const;
-type OfflineMethod = (typeof OFFLINE_METHODS)[number];
+type OfflineMethod = "offline_cash" | "bank_transfer";
 
 export interface VerifyPaymentDialogProps {
   /** The pending request being verified (never null while open). */

@@ -19,11 +19,7 @@ import {
 } from "@mui/material";
 import type { SnackbarCloseReason } from "@mui/material/Snackbar";
 import { type ReactNode, useCallback, useRef, useState } from "react";
-import type {
-  PlanCatalogQuery_planCatalog,
-  RequestPlanSubscriptionMutation,
-  RequestPlanSubscriptionMutationVariables,
-} from "@/frontend/graphql/generated/gql/graphql";
+import type { PlanCatalogQuery_planCatalog } from "@/frontend/graphql/generated/gql/graphql";
 import {
   mySubscriptionsQueryDocument,
   planCatalogQueryDocument,
@@ -155,10 +151,9 @@ export function StudentPlansContainer({ labels }: Readonly<StudentPlansContainer
   // (audit-R4 lesson, mirrored from the admin catalog container).
   const nextToastIdRef = useRef(0);
 
-  const [submitRequest, { loading: submitting }] = useMutation<
-    RequestPlanSubscriptionMutation,
-    RequestPlanSubscriptionVariablesAlias
-  >(requestPlanSubscriptionMutationDocument, {
+  // Types flow from the codegen TypedDocumentNode — Apollo Client v4
+  // deprecates manual generics on `useMutation`.
+  const [submitRequest, { loading: submitting }] = useMutation(requestPlanSubscriptionMutationDocument, {
     onError: () => {
       // The masking boundary owns unexpected failures; expected domain
       // conflicts (PLAN_INACTIVE, SUBSCRIPTION_REQUEST_EXISTS) surface with
@@ -388,9 +383,3 @@ export function StudentPlansContainer({ labels }: Readonly<StudentPlansContainer
     </>
   );
 }
-
-/**
- * Local alias for the mutation variables shape — keeps the useMutation
- * generic readable without importing the codegen variables type twice.
- */
-type RequestPlanSubscriptionVariablesAlias = RequestPlanSubscriptionMutationVariables;

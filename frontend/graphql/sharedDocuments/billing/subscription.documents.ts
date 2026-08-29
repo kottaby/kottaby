@@ -1,13 +1,13 @@
 import { gql, type TypedDocumentNode } from "@apollo/client";
 import type {
-  AdminCancelSubscriptionMutation,
-  AdminCancelSubscriptionMutationVariables,
+  AdminCancelSubscriptionByIdMutation,
+  AdminCancelSubscriptionByIdMutationVariables,
   AdminPendingSubscriptionRequestsQuery,
   AdminSubscriptionsQuery,
   AdminSubscriptionsQueryVariables,
   MySubscriptionsQuery,
-  RequestPlanSubscriptionMutation,
-  RequestPlanSubscriptionMutationVariables,
+  RequestPlanEnrollmentMutation,
+  RequestPlanEnrollmentMutationVariables,
   VerifySubscriptionPaymentMutation,
   VerifySubscriptionPaymentMutationVariables,
 } from "@/frontend/graphql/generated/gql/graphql";
@@ -76,10 +76,10 @@ export const mySubscriptionsQueryDocument: TypedDocumentNode<MySubscriptionsQuer
  * normalized cache entry is complete the moment the mutation settles.
  */
 export const requestPlanSubscriptionMutationDocument: TypedDocumentNode<
-  RequestPlanSubscriptionMutation,
-  RequestPlanSubscriptionMutationVariables
+  RequestPlanEnrollmentMutation,
+  RequestPlanEnrollmentMutationVariables
 > = gql`
-  mutation RequestPlanSubscription($planId: ID!) {
+  mutation RequestPlanEnrollment($planId: ID!) {
     requestPlanSubscription(planId: $planId) {
       id
       status
@@ -251,10 +251,10 @@ export const adminSubscriptionsQueryDocument: TypedDocumentNode<
  * Cancelling refunds/credits NOTHING (DEV1-007 owns balances).
  */
 export const adminCancelSubscriptionMutationDocument: TypedDocumentNode<
-  AdminCancelSubscriptionMutation,
-  AdminCancelSubscriptionMutationVariables
+  AdminCancelSubscriptionByIdMutation,
+  AdminCancelSubscriptionByIdMutationVariables
 > = gql`
-  mutation AdminCancelSubscription($subscriptionId: ID!) {
+  mutation AdminCancelSubscriptionById($subscriptionId: ID!) {
     adminCancelSubscription(subscriptionId: $subscriptionId) {
       id
       status

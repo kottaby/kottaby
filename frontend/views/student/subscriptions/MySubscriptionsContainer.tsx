@@ -18,13 +18,10 @@ import {
   Typography,
 } from "@mui/material";
 import type { SnackbarCloseReason } from "@mui/material/Snackbar";
+import type { Palette } from "@mui/material/styles";
 import Link from "next/link";
 import { type ReactNode, useCallback, useMemo, useRef, useState } from "react";
-import type {
-  MySubscriptionsQuery_mySubscriptions,
-  RequestPlanSubscriptionMutation,
-  RequestPlanSubscriptionMutationVariables,
-} from "@/frontend/graphql/generated/gql/graphql";
+import type { MySubscriptionsQuery_mySubscriptions } from "@/frontend/graphql/generated/gql/graphql";
 import {
   mySubscriptionsQueryDocument,
   requestPlanSubscriptionMutationDocument,
@@ -154,6 +151,21 @@ function SubscriptionCardSkeleton(): ReactNode {
   );
 }
 
+/**
+ * Leading-edge accent color for a summary tile — extracted to keep the
+ * `sx` callback free of nested conditionals. Theme-palette tokens only;
+ * the neutral tier rides `primary.main`.
+ */
+function summaryTileAccentColor(accentColor: "success" | "warning" | "neutral", palette: Palette): string {
+  if (accentColor === "success") {
+    return palette.success.main;
+  }
+  if (accentColor === "warning") {
+    return palette.warning.main;
+  }
+  return palette.primary.main;
+}
+
 /** One overview-strip count tile — big numeral + caption + accent ring. */
 function SummaryTile({
   count,
@@ -188,12 +200,7 @@ function SummaryTile({
           top: 0,
           bottom: 0,
           width: 4,
-          bgcolor:
-            accentColor === "success"
-              ? theme.palette.success.main
-              : accentColor === "warning"
-                ? theme.palette.warning.main
-                : theme.palette.primary.main,
+          bgcolor: summaryTileAccentColor(accentColor, theme.palette),
         },
       })}
       data-testid={testId}
@@ -235,10 +242,9 @@ export function MySubscriptionsContainer({ labels }: Readonly<MySubscriptionsCon
   // (audit-R4 lesson, mirrored from the storefront container).
   const nextToastIdRef = useRef(0);
 
-  const [submitRenewal, { loading: submitting }] = useMutation<
-    RequestPlanSubscriptionMutation,
-    RequestPlanSubscriptionMutationVariables
-  >(requestPlanSubscriptionMutationDocument, {
+  // Types flow from the codegen TypedDocumentNode — Apollo Client v4
+  // deprecates manual generics on `useMutation`.
+  const [submitRenewal, { loading: submitting }] = useMutation(requestPlanSubscriptionMutationDocument, {
     onError: () => {
       // The masking boundary owns unexpected failures; expected domain
       // conflicts (PLAN_INACTIVE, SUBSCRIPTION_REQUEST_EXISTS) surface

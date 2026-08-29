@@ -44,6 +44,15 @@ const EXPECTED_KEY_COUNT = 21;
 const TITLE_SENTINEL = "SENTINEL";
 const DAYS_SENTINEL = 30;
 
+/**
+ * Runtime type guard — narrows a `string` key to the namespace's key union
+ * without an unsafe `as` assertion. Every own key of the typed `en` const
+ * satisfies it, so filtering `Object.keys` output is identity-preserving.
+ */
+function isStudentPlansKey(key: string): key is keyof StudentPlansLabels {
+  return key in studentPlansEn;
+}
+
 /** Narrows one locale slot to the day-count formatter kind (undefined otherwise). */
 function dayFormatterOf(
   value: string | ((days: number) => string) | undefined
@@ -58,16 +67,28 @@ function titleFormatterOf(
   return typeof value === "function" ? value : undefined;
 }
 
+/**
+ * Explicit code-unit comparator for ASCII camelCase locale-key identifiers —
+ * `<`/`>` on strings compare UTF-16 code unit values exactly like the implicit
+ * default sort did, so the sorted output is byte-identical while satisfying
+ * sonarjs/no-alphabetical-sort's requirement for a compare function.
+ */
+const compareByCodeUnit = (a: string, b: string) => {
+  if (a < b) return -1;
+  if (a > b) return 1;
+  return 0;
+};
+
 describe("studentPlans namespace — locale parity", () => {
   test("en and ar expose the SAME key sets", () => {
-    const enKeys = Object.keys(studentPlansEn).sort();
-    const arKeys = Object.keys(studentPlansAr).sort();
+    const enKeys = Object.keys(studentPlansEn).toSorted(compareByCodeUnit);
+    const arKeys = Object.keys(studentPlansAr).toSorted(compareByCodeUnit);
     expect(arKeys).toEqual(enKeys);
   });
 
   test(`every key is present — exactly ${EXPECTED_KEY_COUNT} keys`, () => {
-    expect(Object.keys(studentPlansEn).length).toBe(EXPECTED_KEY_COUNT);
-    expect(Object.keys(studentPlansAr).length).toBe(EXPECTED_KEY_COUNT);
+    expect(Object.keys(studentPlansEn)).toHaveLength(EXPECTED_KEY_COUNT);
+    expect(Object.keys(studentPlansAr)).toHaveLength(EXPECTED_KEY_COUNT);
   });
 
   test("plain strings are non-empty and carry no ICU braces (both locales)", () => {
@@ -85,7 +106,7 @@ describe("studentPlans namespace — locale parity", () => {
   });
 
   test("type-shape parity — formatter keys are formatters in BOTH locales, strings in BOTH", () => {
-    for (const key of Object.keys(studentPlansEn) as Array<keyof StudentPlansLabels>) {
+    for (const key of Object.keys(studentPlansEn).filter(isStudentPlansKey)) {
       const enIsFunction = typeof studentPlansEn[key] === "function";
       const arIsFunction = typeof studentPlansAr[key] === "function";
       expect(enIsFunction, `${key}: en kind`).toBe(arIsFunction);
@@ -125,10 +146,10 @@ describe("studentPlans namespace — locale parity", () => {
   });
 
   test("INTERPOLATING_KEYS covers exactly the formatter members of the namespace", () => {
-    const formatterKeys = (Object.keys(studentPlansEn) as Array<keyof StudentPlansLabels>).filter(
-      key => typeof studentPlansEn[key] === "function"
-    );
-    expect([...formatterKeys].sort()).toEqual([...INTERPOLATING_KEYS].sort());
+    const formatterKeys = Object.keys(studentPlansEn)
+      .filter(isStudentPlansKey)
+      .filter(key => typeof studentPlansEn[key] === "function");
+    expect(formatterKeys.toSorted(compareByCodeUnit)).toEqual(INTERPOLATING_KEYS.toSorted());
   });
 });
 

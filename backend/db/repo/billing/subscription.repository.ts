@@ -246,11 +246,12 @@ export namespace SubscriptionRepository {
       .innerJoin(users, eq(subscriptions.userId, users.id))
       .where(eq(subscriptions.status, "pending"))
       .orderBy(asc(subscriptions.createdAt), asc(subscriptions.id));
-    return rows.map(row => ({
-      ...row.subscription,
-      plan: row.plan,
-      user: { id: row.userId, fullName: row.userFullName, email: row.userEmail } satisfies SubscriptionUserSummary,
-    }));
+    return rows.map(row =>
+      Object.assign({}, row.subscription, {
+        plan: row.plan,
+        user: { id: row.userId, fullName: row.userFullName, email: row.userEmail } satisfies SubscriptionUserSummary,
+      })
+    );
   }
 
   /**
@@ -305,11 +306,12 @@ export namespace SubscriptionRepository {
       .orderBy(desc(subscriptions.createdAt), desc(subscriptions.id))
       .limit(filters.limit)
       .offset(filters.offset);
-    return rows.map(row => ({
-      ...row.subscription,
-      plan: row.plan,
-      user: { id: row.userId, fullName: row.userFullName, email: row.userEmail } satisfies SubscriptionUserSummary,
-    }));
+    return rows.map(row =>
+      Object.assign({}, row.subscription, {
+        plan: row.plan,
+        user: { id: row.userId, fullName: row.userFullName, email: row.userEmail } satisfies SubscriptionUserSummary,
+      })
+    );
   }
 
   /**

@@ -381,7 +381,7 @@ export namespace SubscriptionService {
         });
         throw new ValidationError(`Subscription ${row.id} references a missing plan.`);
       }
-      return { ...row, plan };
+      return Object.assign({}, row, { plan });
     });
   }
 

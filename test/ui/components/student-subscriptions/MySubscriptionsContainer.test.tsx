@@ -54,8 +54,8 @@ import { MockedProvider } from "@apollo/client/testing/react";
 import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 import type {
   MySubscriptionsQuery_mySubscriptions,
-  RequestPlanSubscriptionMutation,
-  RequestPlanSubscriptionMutationVariables,
+  RequestPlanEnrollmentMutation,
+  RequestPlanEnrollmentMutationVariables,
 } from "@/frontend/graphql/generated/gql/graphql";
 import {
   mySubscriptionsQueryDocument,
@@ -162,13 +162,13 @@ function deniedMySubscriptionsMock(): MockLink.MockedResponse {
 
 /** `requestPlanSubscription` mock resolving with the created pending row. */
 function renewRequestMock(planId: string, createdId: string): MockLink.MockedResponse {
-  const mutation: RequestPlanSubscriptionMutation = {
+  const mutation: RequestPlanEnrollmentMutation = {
     requestPlanSubscription: subscriptionFixture({ id: createdId, plan: planFixture() }),
   };
   return {
     request: {
       query: requestPlanSubscriptionMutationDocument,
-      variables: { planId } satisfies RequestPlanSubscriptionMutationVariables,
+      variables: { planId } satisfies RequestPlanEnrollmentMutationVariables,
     },
     result: { data: mutation },
   };
@@ -239,11 +239,11 @@ for (const locale of ["ar", "en"] as AppLocale[]) {
       // Card titles render from the payload — the pending + expired rows
       // deliberately share one plan (two lifecycle rows for the same
       // plan), so its title matches TWICE.
-      expect(screen.getAllByText(PENDING_ROW.plan.title).length).toBe(2);
+      expect(screen.getAllByText(PENDING_ROW.plan.title)).toHaveLength(2);
       expect(screen.getByText(ACTIVE_ROW.plan.title)).toBeDefined();
       // Price: decimal STRING + currency rendered verbatim (no coercion /
       // no toFixed anywhere) — all three fixtures share EGP.
-      expect(screen.getAllByText(ACTIVE_ROW.plan.currency).length).toBe(3);
+      expect(screen.getAllByText(ACTIVE_ROW.plan.currency)).toHaveLength(3);
       // Sessions render as-is; the interval goes through the namespace
       // formatter (recomputed here via the SAME formatter — no hardcoded
       // day copy in the assertion).
@@ -270,17 +270,17 @@ for (const locale of ["ar", "en"] as AppLocale[]) {
       // the card composes "Started: Not started yet" / "Ends: Not started
       // yet" (label + value in one text node), so the FULL composed strings
       // are the matchers. Payment reads the neutral dash (no stamps).
-      expect(screen.getAllByText(`${t.labelStarted}: ${t.labelNotStarted}`).length).toBe(1);
-      expect(screen.getAllByText(`${t.labelEnds}: ${t.labelNotStarted}`).length).toBe(1);
+      expect(screen.getAllByText(`${t.labelStarted}: ${t.labelNotStarted}`)).toHaveLength(1);
+      expect(screen.getAllByText(`${t.labelEnds}: ${t.labelNotStarted}`)).toHaveLength(1);
       // Active row: stamped payment renders the machine artifact in the
       // method · reference shape.
       expect(screen.getByText(`${ACTIVE_ROW.paymentMethod} · ${ACTIVE_ROW.paymentReference}`)).toBeDefined();
       // Requested-at + period labels render for the stamped rows.
-      expect(screen.getAllByText(t.labelRequestedAt).length).toBe(2);
-      expect(screen.getAllByText(t.labelPeriod).length).toBe(2);
+      expect(screen.getAllByText(t.labelRequestedAt)).toHaveLength(2);
+      expect(screen.getAllByText(t.labelPeriod)).toHaveLength(2);
       // The mono payment dash renders on the unstamped row (label present,
       // exactly one dash across the two-row surface's payment values).
-      expect(screen.getAllByText(t.labelPayment).length).toBe(2);
+      expect(screen.getAllByText(t.labelPayment)).toHaveLength(2);
     });
 
     test("renew happy path: submit fires the mutation, success toast shows, the row flips to its blocked note", async () => {

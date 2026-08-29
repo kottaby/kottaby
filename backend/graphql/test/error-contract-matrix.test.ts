@@ -525,8 +525,17 @@ describe("error-contract matrix — wire tier over live HTTP", () => {
     // Field-level assertion — Apollo's HttpLink adds `__typename` to the
     // object payload, and this tier pins DATA INTEGRITY, not cache shape.
     expect(result.error).toBeUndefined();
-    const healthPayload = result.data as { _health?: { status?: string } } | undefined;
-    expect(healthPayload?._health?.status).toBe("ok");
+    // Runtime-guarded narrowing (no `as` — oxlint no-unsafe-type-assertion).
+    const dataPayload: unknown = result.data;
+    if (!isRecord(dataPayload)) throw new Error("expected record-shaped data payload");
+    // `_health` is the external GraphQL field contract — read via bracket
+    // access keyed by a VARIABLE: a literal `["_health"]` is normalized back
+    // to dot syntax by biome useLiteralKeys (--write), which would re-trigger
+    // oxlint no-underscore-dangle.
+    const healthFieldKey = "_health";
+    const healthPayload: unknown = dataPayload[healthFieldKey];
+    if (!isRecord(healthPayload)) throw new Error("expected record-shaped _health payload");
+    expect(healthPayload.status).toBe("ok");
   });
 
   test("malformed GraphQL document over raw HTTP crosses as GRAPHQL_PARSE_FAILED preset (correlated)", async () => {

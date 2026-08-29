@@ -333,12 +333,15 @@ export function AuditTrailTable({
   onNext,
   busy,
 }: Readonly<AuditTrailTableProps>): ReactNode {
-  const theme = useTheme();
+  // `muiTheme` (not `theme`): the sx callbacks below take the MUI
+  // Theme Callback Pattern param `theme`, which would shadow a same-named
+  // outer binding (DashboardLayout's `useMediaQuery` convention).
+  const muiTheme = useTheme();
   // `md`+ gets the table; below it the card stack. Mirrors the
   // DashboardLayout `useMediaQuery` convention: the server render emits the
   // mobile-first branch, the client re-renders once the viewport is known —
   // no hydration mismatch (same contract as the plan-catalog table).
-  const isDesktop = useMediaQuery(theme.breakpoints.up("md"));
+  const isDesktop = useMediaQuery(muiTheme.breakpoints.up("md"));
 
   // Pagination arithmetic — the truthful 1-based window into `total`.
   const from = total === 0 ? 0 : offset + 1;
@@ -476,10 +479,7 @@ export function AuditTrailTable({
                 </Stack>
                 <ActorCell actor={entry.actor} dense />
                 <MobileSpecRow label={labels.colEntity} value={entityDisplay(entry.entityType, labels)} />
-                <MobileSpecRow
-                  label={labels.colEntityId}
-                  value={entry.entityId === null ? labels.detailsEmpty : entry.entityId}
-                />
+                <MobileSpecRow label={labels.colEntityId} value={entry.entityId ?? labels.detailsEmpty} />
                 <MobileSpecRow
                   label={labels.colDetails}
                   value={entry.details === null ? labels.detailsEmpty : detailsPreview(entry.details)}

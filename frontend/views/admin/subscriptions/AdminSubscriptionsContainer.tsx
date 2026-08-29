@@ -16,8 +16,6 @@ import {
 import type { SnackbarCloseReason } from "@mui/material/Snackbar";
 import { type ReactNode, useCallback, useMemo, useRef, useState } from "react";
 import type {
-  AdminCancelSubscriptionMutation,
-  AdminCancelSubscriptionMutationVariables,
   AdminSubscriptionsQuery_adminSubscriptions_items,
   AdminSubscriptionsQueryVariables,
 } from "@/frontend/graphql/generated/gql/graphql";
@@ -202,10 +200,9 @@ export function AdminSubscriptionsContainer({ labels }: Readonly<AdminSubscripti
   // (audit-R4 lesson, mirrored from the verification queue).
   const nextToastIdRef = useRef(0);
 
-  const [cancelSubscription, { loading: submitting }] = useMutation<
-    AdminCancelSubscriptionMutation,
-    AdminCancelSubscriptionMutationVariables
-  >(adminCancelSubscriptionMutationDocument, {
+  // Types flow from the codegen TypedDocumentNode — Apollo Client v4
+  // deprecates manual generics on `useMutation`.
+  const [cancelSubscription, { loading: submitting }] = useMutation(adminCancelSubscriptionMutationDocument, {
     onError: () => {
       // The masking boundary owns unexpected failures; expected domain
       // conflicts (SUBSCRIPTION_ALREADY_RESOLVED, …) surface with localized

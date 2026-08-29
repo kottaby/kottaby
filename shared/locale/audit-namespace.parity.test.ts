@@ -38,16 +38,37 @@ const INTERPOLATING_KEYS = ["pageInfo", "toolbarRange"] as const;
 
 const EXPECTED_KEY_COUNT = 44;
 
+/**
+ * Explicit code-unit comparator for ASCII camelCase locale-key identifiers —
+ * `<`/`>` on strings compare UTF-16 code unit values exactly like the implicit
+ * default sort did, so the sorted output is byte-identical while satisfying
+ * sonarjs/no-alphabetical-sort's requirement for a compare function.
+ */
+const compareByCodeUnit = (a: string, b: string) => {
+  if (a < b) return -1;
+  if (a > b) return 1;
+  return 0;
+};
+
+/**
+ * Type guard for `Object.keys(auditEn)` output: every own string key of the
+ * typed `AuditLabels` map is one of its declared keys. `Object.hasOwn` keeps
+ * the check prototype-free, so inherited members can never widen the claim.
+ */
+function isAuditLabelKey(key: string): key is keyof AuditLabels {
+  return Object.hasOwn(auditEn, key);
+}
+
 describe("audit namespace — locale parity", () => {
   test("en and ar expose the SAME key sets", () => {
-    const enKeys = Object.keys(auditEn).sort();
-    const arKeys = Object.keys(auditAr).sort();
+    const enKeys = Object.keys(auditEn).toSorted(compareByCodeUnit);
+    const arKeys = Object.keys(auditAr).toSorted(compareByCodeUnit);
     expect(arKeys).toEqual(enKeys);
   });
 
   test(`every key is present — exactly ${EXPECTED_KEY_COUNT} keys`, () => {
-    expect(Object.keys(auditEn).length).toBe(EXPECTED_KEY_COUNT);
-    expect(Object.keys(auditAr).length).toBe(EXPECTED_KEY_COUNT);
+    expect(Object.keys(auditEn)).toHaveLength(EXPECTED_KEY_COUNT);
+    expect(Object.keys(auditAr)).toHaveLength(EXPECTED_KEY_COUNT);
   });
 
   test("plain strings are non-empty and carry no ICU braces (both locales)", () => {
@@ -65,7 +86,7 @@ describe("audit namespace — locale parity", () => {
   });
 
   test("type-shape parity — formatter keys are formatters in BOTH locales, strings in BOTH", () => {
-    for (const key of Object.keys(auditEn) as Array<keyof AuditLabels>) {
+    for (const key of Object.keys(auditEn).filter(isAuditLabelKey)) {
       const enIsFunction = typeof auditEn[key] === "function";
       const arIsFunction = typeof auditAr[key] === "function";
       expect(enIsFunction, `${key}: en kind`).toBe(arIsFunction);
@@ -87,10 +108,10 @@ describe("audit namespace — locale parity", () => {
   });
 
   test("INTERPOLATING_KEYS covers exactly the formatter members of the namespace", () => {
-    const formatterKeys = (Object.keys(auditEn) as Array<keyof AuditLabels>).filter(
-      key => typeof auditEn[key] === "function"
-    );
-    expect([...formatterKeys].sort()).toEqual([...INTERPOLATING_KEYS].sort());
+    const formatterKeys = Object.keys(auditEn)
+      .filter(isAuditLabelKey)
+      .filter(key => typeof auditEn[key] === "function");
+    expect([...formatterKeys].toSorted(compareByCodeUnit)).toEqual([...INTERPOLATING_KEYS].toSorted(compareByCodeUnit));
   });
 });
 

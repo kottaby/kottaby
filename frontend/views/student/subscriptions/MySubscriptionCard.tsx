@@ -15,7 +15,7 @@ import {
 } from "@mui/icons-material";
 import { Box, Button, Card, CardContent, Chip, Divider, Stack, Typography } from "@mui/material";
 import type { Palette } from "@mui/material/styles";
-import type { ReactNode } from "react";
+import type { ReactElement, ReactNode } from "react";
 import type { MySubscriptionsQuery_mySubscriptions } from "@/frontend/graphql/generated/gql/graphql";
 import { formatApplicantDate } from "@/frontend/lib/i18n/format-date";
 import type { MySubscriptionsLabels } from "@/shared/locale/types/mySubscriptions";
@@ -138,20 +138,22 @@ function statusChipPair(code: string, palette: Palette): { readonly background: 
 
 /**
  * Status icon per machine code — the student surface's at-a-glance status
- * upgrade. Unknown codes render no icon rather than crashing.
+ * upgrade. Returns the ready-to-render icon ELEMENT (bare — MUI's Chip
+ * sizes its `.MuiChip-icon` slot itself) so no component is created during
+ * render. Unknown codes render no icon rather than crashing.
  */
-function statusIcon(code: string): typeof ActiveIcon | null {
+function statusIconElement(code: string): ReactElement | null {
   switch (code) {
     case "active":
-      return ActiveIcon;
+      return <ActiveIcon />;
     case "pending":
-      return PendingIcon;
+      return <PendingIcon />;
     case "cancelled":
-      return CancelledIcon;
+      return <CancelledIcon />;
     case "expired":
-      return ExpiredIcon;
+      return <ExpiredIcon />;
     case "suspended":
-      return InactiveIcon;
+      return <InactiveIcon />;
     default:
       return null;
   }
@@ -267,7 +269,6 @@ export function MySubscriptionCard({
   onRenew,
 }: Readonly<MySubscriptionCardProps>): ReactNode {
   const statusText = statusDisplay(subscription.status, labels);
-  const StatusIcon = statusIcon(subscription.status);
 
   // Validity period — two labeled lines; a pending row has not begun, a
   // non-pending row without a fixed end reads the locale-neutral dash.
@@ -283,6 +284,37 @@ export function MySubscriptionCard({
   const showPendingNote = !showRenewCta && isRenewableStatus(subscription.status) && planHasPendingRequest;
   const showInactiveNote =
     !showRenewCta && isRenewableStatus(subscription.status) && !planIsActive && !planHasPendingRequest;
+
+  // Blocked-note elements — each inner ternary of the action row extracted
+  // into an independent statement (sonarjs/no-nested-conditional): the
+  // pending note wins over the inactive note exactly as the inline chain
+  // did, and a row that renders neither stays null.
+  const inactiveNoteElement = showInactiveNote ? (
+    <Stack
+      spacing={0.5}
+      sx={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 0.75, py: 1 }}
+      data-testid={`my-subscription-blocked-inactive-${subscription.id}`}
+    >
+      <InactiveIcon fontSize="small" sx={theme => ({ color: theme.palette.text.secondary })} aria-hidden />
+      <Typography variant="body2" sx={theme => ({ color: theme.palette.text.secondary, fontWeight: 600 })}>
+        {labels.renewUnavailableInactive}
+      </Typography>
+    </Stack>
+  ) : null;
+  const pendingNoteElement = showPendingNote ? (
+    <Stack
+      spacing={0.5}
+      sx={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 0.75, py: 1 }}
+      data-testid={`my-subscription-blocked-pending-${subscription.id}`}
+    >
+      <PendingIcon fontSize="small" sx={theme => ({ color: theme.palette.text.secondary })} aria-hidden />
+      <Typography variant="body2" sx={theme => ({ color: theme.palette.text.secondary, fontWeight: 600 })}>
+        {labels.renewBlockedPending}
+      </Typography>
+    </Stack>
+  ) : (
+    inactiveNoteElement
+  );
 
   return (
     <Card
@@ -327,7 +359,7 @@ export function MySubscriptionCard({
             {subscription.plan.title}
           </Typography>
           <Chip
-            icon={StatusIcon === null ? undefined : <StatusIcon />}
+            icon={statusIconElement(subscription.status) ?? undefined}
             label={statusText}
             size="small"
             aria-label={`${labels.labelStatus}: ${statusText}`}
@@ -407,29 +439,9 @@ export function MySubscriptionCard({
             >
               {labels.renewCta}
             </Button>
-          ) : showPendingNote ? (
-            <Stack
-              spacing={0.5}
-              sx={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 0.75, py: 1 }}
-              data-testid={`my-subscription-blocked-pending-${subscription.id}`}
-            >
-              <PendingIcon fontSize="small" sx={theme => ({ color: theme.palette.text.secondary })} aria-hidden />
-              <Typography variant="body2" sx={theme => ({ color: theme.palette.text.secondary, fontWeight: 600 })}>
-                {labels.renewBlockedPending}
-              </Typography>
-            </Stack>
-          ) : showInactiveNote ? (
-            <Stack
-              spacing={0.5}
-              sx={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 0.75, py: 1 }}
-              data-testid={`my-subscription-blocked-inactive-${subscription.id}`}
-            >
-              <InactiveIcon fontSize="small" sx={theme => ({ color: theme.palette.text.secondary })} aria-hidden />
-              <Typography variant="body2" sx={theme => ({ color: theme.palette.text.secondary, fontWeight: 600 })}>
-                {labels.renewUnavailableInactive}
-              </Typography>
-            </Stack>
-          ) : null}
+          ) : (
+            pendingNoteElement
+          )}
         </Box>
       </CardContent>
     </Card>

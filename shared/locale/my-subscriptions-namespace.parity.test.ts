@@ -35,7 +35,6 @@ import { mySubscriptionsEn } from "@/shared/locale/en/mySubscriptions";
 import { namespaces } from "@/shared/locale/namespaces/index";
 import { MySubscriptions } from "@/shared/locale/namespaces/mySubscriptions";
 import { getTranslations } from "@/shared/locale/server";
-import type { MySubscriptionsLabels } from "@/shared/locale/types/mySubscriptions";
 
 const INTERPOLATING_KEYS = ["intervalDays", "renewDialogBody"] as const;
 
@@ -58,16 +57,51 @@ function titleFormatterOf(
   return typeof value === "function" ? value : undefined;
 }
 
+/**
+ * Own enumerable string keys of `record`, typed as `keyof T` — the cast-free
+ * equivalent of `Object.keys(record) as Array<keyof T>` (oxlint
+ * no-unsafe-type-assertion). `for...in` only ever binds `Extract<keyof T,
+ * string>` members, and the `hasOwn` guard pins the result to exactly
+ * `Object.keys` semantics (own string keys, same insertion order).
+ */
+function keysOf<T extends object>(record: T): Array<keyof T> {
+  const keys: Array<keyof T> = [];
+  for (const key in record) {
+    if (Object.hasOwn(record, key)) keys.push(key);
+  }
+  return keys;
+}
+
+/**
+ * Code-unit string comparator — the if-chain spelling of
+ * `(a, b) => (a < b ? -1 : a > b ? 1 : 0)` (kept ternary-free for
+ * sonarjs/no-nested-conditional). Relational operators on strings compare
+ * UTF-16 code units, so this reproduces Array.prototype.sort's default
+ * ToString ordering EXACTLY — sorted output is byte-identical to the old
+ * comparator-less `.toSorted()`. `localeCompare` is deliberately avoided:
+ * its locale-sensitive collation may reorder differently than UTF-16 code
+ * units for these camelCase key identifiers.
+ */
+const compareCodeUnits = (a: string, b: string): number => {
+  if (a < b) {
+    return -1;
+  }
+  if (a > b) {
+    return 1;
+  }
+  return 0;
+};
+
 describe("mySubscriptions namespace — locale parity", () => {
   test("en and ar expose the SAME key sets", () => {
-    const enKeys = Object.keys(mySubscriptionsEn).sort();
-    const arKeys = Object.keys(mySubscriptionsAr).sort();
+    const enKeys = Object.keys(mySubscriptionsEn).toSorted(compareCodeUnits);
+    const arKeys = Object.keys(mySubscriptionsAr).toSorted(compareCodeUnits);
     expect(arKeys).toEqual(enKeys);
   });
 
   test(`every key is present — exactly ${EXPECTED_KEY_COUNT} keys`, () => {
-    expect(Object.keys(mySubscriptionsEn).length).toBe(EXPECTED_KEY_COUNT);
-    expect(Object.keys(mySubscriptionsAr).length).toBe(EXPECTED_KEY_COUNT);
+    expect(Object.keys(mySubscriptionsEn)).toHaveLength(EXPECTED_KEY_COUNT);
+    expect(Object.keys(mySubscriptionsAr)).toHaveLength(EXPECTED_KEY_COUNT);
   });
 
   test("plain strings are non-empty and carry no ICU braces (both locales)", () => {
@@ -85,7 +119,7 @@ describe("mySubscriptions namespace — locale parity", () => {
   });
 
   test("type-shape parity — formatter keys are formatters in BOTH locales, strings in BOTH", () => {
-    for (const key of Object.keys(mySubscriptionsEn) as Array<keyof MySubscriptionsLabels>) {
+    for (const key of keysOf(mySubscriptionsEn)) {
       const enIsFunction = typeof mySubscriptionsEn[key] === "function";
       const arIsFunction = typeof mySubscriptionsAr[key] === "function";
       expect(enIsFunction, `${key}: en kind`).toBe(arIsFunction);
@@ -125,10 +159,8 @@ describe("mySubscriptions namespace — locale parity", () => {
   });
 
   test("INTERPOLATING_KEYS covers exactly the formatter members of the namespace", () => {
-    const formatterKeys = (Object.keys(mySubscriptionsEn) as Array<keyof MySubscriptionsLabels>).filter(
-      key => typeof mySubscriptionsEn[key] === "function"
-    );
-    expect([...formatterKeys].sort()).toEqual([...INTERPOLATING_KEYS].sort());
+    const formatterKeys = keysOf(mySubscriptionsEn).filter(key => typeof mySubscriptionsEn[key] === "function");
+    expect([...formatterKeys].toSorted(compareCodeUnits)).toEqual([...INTERPOLATING_KEYS].toSorted(compareCodeUnits));
   });
 });
 

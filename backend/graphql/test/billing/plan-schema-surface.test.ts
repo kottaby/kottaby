@@ -136,8 +136,8 @@ describe("DateTime scalar — Task 3.1 gate amendment", () => {
       throw new Error("DateTime must be a registered GraphQL scalar");
     }
 
-    expect(scalar.serialize(new Date("2025-01-15T09:30:00.000Z"))).toBe("2025-01-15T09:30:00.000Z");
-    expect(scalar.serialize(new Date(0))).toBe("1970-01-01T00:00:00.000Z");
+    expect(scalar.coerceOutputValue(new Date("2025-01-15T09:30:00.000Z"))).toBe("2025-01-15T09:30:00.000Z");
+    expect(scalar.coerceOutputValue(new Date(0))).toBe("1970-01-01T00:00:00.000Z");
   });
 
   test("parses valid ISO-8601 variable values and rejects invalid ones", () => {
@@ -147,8 +147,14 @@ describe("DateTime scalar — Task 3.1 gate amendment", () => {
       throw new Error("DateTime must be a registered GraphQL scalar");
     }
 
-    expect((scalar.parseValue("2025-01-15T09:30:00.000Z") as Date).toISOString()).toBe("2025-01-15T09:30:00.000Z");
-    expect(() => scalar.parseValue("not-a-date")).toThrow();
-    expect(() => scalar.parseValue("2025-13-45T99:00:00.000Z")).toThrow();
+    const parsed = scalar.coerceInputValue("2025-01-15T09:30:00.000Z");
+
+    if (!(parsed instanceof Date)) {
+      throw new Error("DateTime.parseValue must return a Date");
+    }
+
+    expect(parsed.toISOString()).toBe("2025-01-15T09:30:00.000Z");
+    expect(() => scalar.coerceInputValue("not-a-date")).toThrow();
+    expect(() => scalar.coerceInputValue("2025-13-45T99:00:00.000Z")).toThrow();
   });
 });

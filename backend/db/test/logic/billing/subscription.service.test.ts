@@ -61,6 +61,26 @@ import { getServerTranslations } from "@/shared/locale/server-graphql";
 const enErrors = getServerTranslations("en").errorsTranslations;
 const arErrors = getServerTranslations("ar").errorsTranslations;
 
+/**
+ * Type guard for untyped JSON-ish payloads (logger payloads, audit-row
+ * details): narrows `unknown` to `Record<string, unknown>` via a predicate —
+ * the `no-unsafe-type-assertion` escape hatch (docs/quality/linting-rules.md).
+ */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+/**
+ * Type guard for nullable timestamp columns: narrows `Date | null` to
+ * `Date` via `instanceof` (no `as` assertion). Throws a descriptive error
+ * instead of the bare TypeError `getTime()` would raise on `null` — the
+ * test still fails, but with an actionable message.
+ */
+function requireDate(value: Date | null, label: string): Date {
+  if (!(value instanceof Date)) throw new Error(`expected ${label} to be a non-null timestamp`);
+  return value;
+}
+
 describe("SubscriptionService", () => {
   describe("Tier 1 — happy paths and branch coverage", () => {
     test("requestPlanSubscription creates a PENDING subscription with the plan embedded and no payment data", async () => {
@@ -87,7 +107,8 @@ describe("SubscriptionService", () => {
         expect(infoSpy).toHaveBeenCalledTimes(1);
         const [message, payload] = infoSpy.mock.calls[0] ?? ["", {}];
         expect(message).toContain("SUBSCRIPTION_REQUESTED");
-        expect((payload as { entityId?: number }).entityId).toBe(row.id);
+        const payloadRecord: Record<string, unknown> = isRecord(payload) ? payload : {};
+        expect(payloadRecord.entityId).toBe(row.id);
         infoSpy.mockRestore();
       });
     });
@@ -110,7 +131,7 @@ describe("SubscriptionService", () => {
         const second = await SubscriptionService.requestPlanSubscription(user.id, planB.id, "en", tx);
 
         const rows = await SubscriptionService.listMySubscriptions(user.id, "en", tx);
-        expect(rows.length).toBe(2);
+        expect(rows).toHaveLength(2);
         // Newest first.
         expect(rows[0]?.id).toBe(second.id);
         expect(rows[1]?.id).toBe(first.id);
@@ -125,13 +146,18 @@ describe("SubscriptionService", () => {
     test("non-positive and non-integer plan ids reject with the localized plan-not-found ValidationError", async () => {
       await runInRollback(async tx => {
         const user = await createTestUser(tx);
-        for (const badId of [0, -1, 1.5, Number.NaN]) {
-          const error = await expectRepoError(() =>
-            SubscriptionService.requestPlanSubscription(user.id, badId, "en", tx)
-          );
-          expect(error).toBeInstanceOf(ValidationError);
-          expect(error.message).toBe(enErrors.planNotFound);
-        }
+        // The reject matrix is validation-gated (parsePlanId rejects before
+        // any savepoint opens), so the iterations are order-independent and
+        // run in parallel per the no-await-in-loop recipe.
+        await Promise.all(
+          [0, -1, 1.5, Number.NaN].map(async badId => {
+            const error = await expectRepoError(() =>
+              SubscriptionService.requestPlanSubscription(user.id, badId, "en", tx)
+            );
+            expect(error).toBeInstanceOf(ValidationError);
+            expect(error.message).toBe(enErrors.planNotFound);
+          })
+        );
       });
     });
 
@@ -214,7 +240,7 @@ describe("SubscriptionService", () => {
         await tx.update(plans).set({ isActive: false, deactivatedAt: new Date() }).where(eq(plans.id, plan.id));
 
         const rows = await SubscriptionService.listMySubscriptions(user.id, "en", tx);
-        expect(rows.length).toBe(1);
+        expect(rows).toHaveLength(1);
         expect(rows[0]?.status).toBe("pending");
         // The owner still sees the plan row (real lifecycle state, not the
         // active-catalog slice).
@@ -274,8 +300,8 @@ describe("SubscriptionService", () => {
         expect(activated.startDate).not.toBeNull();
         expect(activated.endDate).not.toBeNull();
         // startDate = verification instant; endDate = start + 30 days.
-        const start = activated.startDate as Date;
-        const end = activated.endDate as Date;
+        const start = requireDate(activated.startDate, "startDate");
+        const end = requireDate(activated.endDate, "endDate");
         expect(start.getTime()).toBeGreaterThanOrEqual(before - 1000);
         expect(start.getTime()).toBeLessThanOrEqual(after + 1000);
         expect(end.getTime() - start.getTime()).toBe(30 * 24 * 60 * 60 * 1000);
@@ -291,9 +317,10 @@ describe("SubscriptionService", () => {
         expect(auditRow?.entityType).toBe("subscriptions");
         expect(auditRow?.entityId).toBe(request.id);
         const parsed: unknown = JSON.parse(auditRow?.details ?? "{}");
-        expect((parsed as { code?: string }).code).toBe("SUBSCRIPTION_PAYMENT_VERIFIED");
-        expect((parsed as { planId?: number }).planId).toBe(plan.id);
-        expect((parsed as { verifiedBy?: number }).verifiedBy).toBe(admin.id);
+        const details: Record<string, unknown> = isRecord(parsed) ? parsed : {};
+        expect(details.code).toBe("SUBSCRIPTION_PAYMENT_VERIFIED");
+        expect(details.planId).toBe(plan.id);
+        expect(details.verifiedBy).toBe(admin.id);
       });
     });
 
@@ -308,7 +335,7 @@ describe("SubscriptionService", () => {
         const second = await SubscriptionService.requestPlanSubscription(buyerB.id, planB.id, "en", tx);
 
         const queue = await SubscriptionService.listPendingSubscriptionRequests("en", tx);
-        expect(queue.length).toBe(2);
+        expect(queue).toHaveLength(2);
         // FIFO — oldest request first.
         expect(queue[0]?.id).toBe(first.id);
         expect(queue[1]?.id).toBe(second.id);
@@ -344,17 +371,21 @@ describe("SubscriptionService", () => {
 
     test("non-positive and non-integer subscription ids reject with the localized not-found ValidationError", async () => {
       await runInRollback(async tx => {
-        for (const badId of [0, -1, 1.5, Number.NaN]) {
-          const error = await expectRepoError(() =>
-            SubscriptionService.verifySubscriptionPayment(
-              { subscriptionId: badId, paymentMethod: "offline_cash", paymentReference: "R-1", verifiedBy: 1 },
-              "en",
-              tx
-            )
-          );
-          expect(error).toBeInstanceOf(ValidationError);
-          expect(error.message).toBe(enErrors.subscriptionNotFound);
-        }
+        // Validation-gated rejects (parseSubscriptionId runs before any
+        // savepoint opens) — order-independent, so run in parallel.
+        await Promise.all(
+          [0, -1, 1.5, Number.NaN].map(async badId => {
+            const error = await expectRepoError(() =>
+              SubscriptionService.verifySubscriptionPayment(
+                { subscriptionId: badId, paymentMethod: "offline_cash", paymentReference: "R-1", verifiedBy: 1 },
+                "en",
+                tx
+              )
+            );
+            expect(error).toBeInstanceOf(ValidationError);
+            expect(error.message).toBe(enErrors.subscriptionNotFound);
+          })
+        );
       });
     });
 
@@ -365,17 +396,21 @@ describe("SubscriptionService", () => {
         const request = await SubscriptionService.requestPlanSubscription(user.id, plan.id, "en", tx);
         const domainSpy = spyOn(logger, "logDomainError");
 
-        for (const badMethod of ["stripe", "paypal", "credit", "OFFLINE_CASH"]) {
-          const error = await expectRepoError(() =>
-            SubscriptionService.verifySubscriptionPayment(
-              { subscriptionId: request.id, paymentMethod: badMethod, paymentReference: "R-1", verifiedBy: 1 },
-              "en",
-              tx
-            )
-          );
-          expect(error).toBeInstanceOf(ValidationError);
-          expect(error.message).toBe(enErrors.paymentMethodInvalid);
-        }
+        // Validation-gated rejects (parseOfflinePaymentMethod runs before
+        // any savepoint opens) — order-independent, so run in parallel.
+        await Promise.all(
+          ["stripe", "paypal", "credit", "OFFLINE_CASH"].map(async badMethod => {
+            const error = await expectRepoError(() =>
+              SubscriptionService.verifySubscriptionPayment(
+                { subscriptionId: request.id, paymentMethod: badMethod, paymentReference: "R-1", verifiedBy: 1 },
+                "en",
+                tx
+              )
+            );
+            expect(error).toBeInstanceOf(ValidationError);
+            expect(error.message).toBe(enErrors.paymentMethodInvalid);
+          })
+        );
         expect(domainSpy.mock.calls.some(call => String(call[1]?.code) === "PAYMENT_METHOD_INVALID")).toBe(true);
         domainSpy.mockRestore();
       });
@@ -388,22 +423,26 @@ describe("SubscriptionService", () => {
         const domainSpy = spyOn(logger, "logDomainError");
 
         const first = await SubscriptionService.requestPlanSubscription(user.id, plan.id, "en", tx);
-        for (const badReference of ["", "   ", "x".repeat(256)]) {
-          const error = await expectRepoError(() =>
-            SubscriptionService.verifySubscriptionPayment(
-              {
-                subscriptionId: first.id,
-                paymentMethod: "offline_cash",
-                paymentReference: badReference,
-                verifiedBy: 1,
-              },
-              "en",
-              tx
-            )
-          );
-          expect(error).toBeInstanceOf(ValidationError);
-          expect(error.message).toBe(enErrors.paymentReferenceInvalid);
-        }
+        // Validation-gated rejects (parsePaymentReference runs before any
+        // savepoint opens) — order-independent, so run in parallel.
+        await Promise.all(
+          ["", "   ", "x".repeat(256)].map(async badReference => {
+            const error = await expectRepoError(() =>
+              SubscriptionService.verifySubscriptionPayment(
+                {
+                  subscriptionId: first.id,
+                  paymentMethod: "offline_cash",
+                  paymentReference: badReference,
+                  verifiedBy: 1,
+                },
+                "en",
+                tx
+              )
+            );
+            expect(error).toBeInstanceOf(ValidationError);
+            expect(error.message).toBe(enErrors.paymentReferenceInvalid);
+          })
+        );
         expect(domainSpy.mock.calls.some(call => String(call[1]?.code) === "PAYMENT_REFERENCE_INVALID")).toBe(true);
         domainSpy.mockRestore();
 
@@ -823,9 +862,10 @@ describe("SubscriptionService", () => {
         expect(auditRow?.entityType).toBe("subscriptions");
         expect(auditRow?.entityId).toBe(request.id);
         const parsed: unknown = JSON.parse(auditRow?.details ?? "{}");
-        expect((parsed as { code?: string }).code).toBe("SUBSCRIPTION_CANCELLED");
-        expect((parsed as { planId?: number }).planId).toBe(plan.id);
-        expect((parsed as { cancelledBy?: number }).cancelledBy).toBe(admin.id);
+        const details: Record<string, unknown> = isRecord(parsed) ? parsed : {};
+        expect(details.code).toBe("SUBSCRIPTION_CANCELLED");
+        expect(details.planId).toBe(plan.id);
+        expect(details.cancelledBy).toBe(admin.id);
       });
     });
 

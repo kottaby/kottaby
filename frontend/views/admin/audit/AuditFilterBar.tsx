@@ -56,18 +56,11 @@ export interface AuditFilterValues {
   readonly createdTo: string;
 }
 
-/** The canonical machine values the action/entity selects offer. */
-export const AUDIT_ACTION_TYPE_VALUES = [
-  "create",
-  "update",
-  "delete",
-  "override",
-  "adjust",
-  "suspend",
-  "reactivate",
-] as const;
+/** The canonical machine values the action/entity selects offer (module-local —
+ *  react-refresh requires component files to export components only). */
+const AUDIT_ACTION_TYPE_VALUES = ["create", "update", "delete", "override", "adjust", "suspend", "reactivate"] as const;
 
-export const AUDIT_ENTITY_TYPE_VALUES = ["plans", "subscriptions"] as const;
+const AUDIT_ENTITY_TYPE_VALUES = ["plans", "subscriptions"] as const;
 
 export interface AuditFilterBarProps {
   /** Full audit-namespace labels (property access ONLY inside). */

@@ -55,6 +55,8 @@ if (subIds.length > 0) {
 // Post-state verification.
 const after = await pool.query("select count(*)::int as subs from subscriptions");
 const auditAfter = await pool.query("select count(*)::int as audits from audit_logs");
-console.log(`post-state: subscriptions=${after.rows[0].subs}, audit_logs=${auditAfter.rows[0].audits} (16 = documented permanent footprint)`);
+console.log(
+  `post-state: subscriptions=${after.rows[0].subs}, audit_logs=${auditAfter.rows[0].audits} (16 = documented permanent footprint)`
+);
 
 await pool.end();

@@ -111,7 +111,7 @@ function detailsPreviewOf(details: string | null): string {
 function pageMock(
   items: AdminAuditLogsQuery_adminAuditLogs_items[],
   total: number,
-  variables: Record<string, unknown> = { limit: 20, offset: 0 }
+  variables: { limit?: number; offset?: number } = { limit: 20, offset: 0 }
 ): MockLink.MockedResponse {
   return {
     request: {
@@ -124,8 +124,8 @@ function pageMock(
         adminAuditLogs: {
           items,
           total,
-          limit: (variables.limit as number) ?? 20,
-          offset: (variables.offset as number) ?? 0,
+          limit: variables.limit ?? 20,
+          offset: variables.offset ?? 0,
           __typename: "AdminAuditLogConnection",
         },
       },

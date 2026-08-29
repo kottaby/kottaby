@@ -50,10 +50,31 @@ const EXPECTED_KEY_COUNT = 40;
 const SUBSCRIBER_SENTINEL = "SUBSCRIBER_SENTINEL";
 const PLAN_SENTINEL = "PLAN_SENTINEL";
 
+/**
+ * Explicit code-unit comparator for ASCII camelCase locale-key identifiers —
+ * `<`/`>` on strings compare UTF-16 code unit values exactly like the implicit
+ * default sort did, so the sorted output is byte-identical while satisfying
+ * sonarjs/no-alphabetical-sort's requirement for a compare function.
+ */
+const compareByCodeUnit = (a: string, b: string) => {
+  if (a < b) return -1;
+  if (a > b) return 1;
+  return 0;
+};
+
+/**
+ * Runtime type guard — narrows a `string` key to the namespace's key union
+ * without an unsafe `as` assertion. Every own key of the typed `en` const
+ * satisfies it, so filtering `Object.keys` output is identity-preserving.
+ */
+function isSubscriptionManagementKey(key: string): key is keyof SubscriptionManagementLabels {
+  return key in subscriptionManagementEn;
+}
+
 describe("subscriptionManagement namespace — locale parity", () => {
   test("en and ar expose the SAME key sets", () => {
-    const enKeys = Object.keys(subscriptionManagementEn).sort();
-    const arKeys = Object.keys(subscriptionManagementAr).sort();
+    const enKeys = Object.keys(subscriptionManagementEn).toSorted(compareByCodeUnit);
+    const arKeys = Object.keys(subscriptionManagementAr).toSorted(compareByCodeUnit);
     expect(arKeys).toEqual(enKeys);
   });
 
@@ -77,7 +98,7 @@ describe("subscriptionManagement namespace — locale parity", () => {
   });
 
   test("type-shape parity — formatter keys are formatters in BOTH locales, strings in BOTH", () => {
-    for (const key of Object.keys(subscriptionManagementEn) as Array<keyof SubscriptionManagementLabels>) {
+    for (const key of Object.keys(subscriptionManagementEn).filter(isSubscriptionManagementKey)) {
       const enIsFunction = typeof subscriptionManagementEn[key] === "function";
       const arIsFunction = typeof subscriptionManagementAr[key] === "function";
       expect(enIsFunction, `${key}: en kind`).toBe(arIsFunction);
@@ -114,10 +135,10 @@ describe("subscriptionManagement namespace — locale parity", () => {
   });
 
   test("INTERPOLATING_KEYS covers exactly the formatter members of the namespace", () => {
-    const formatterKeys = (Object.keys(subscriptionManagementEn) as Array<keyof SubscriptionManagementLabels>).filter(
-      key => typeof subscriptionManagementEn[key] === "function"
-    );
-    expect([...formatterKeys].sort()).toEqual([...INTERPOLATING_KEYS].sort());
+    const formatterKeys = Object.keys(subscriptionManagementEn)
+      .filter(isSubscriptionManagementKey)
+      .filter(key => typeof subscriptionManagementEn[key] === "function");
+    expect(formatterKeys.toSorted(compareByCodeUnit)).toEqual(INTERPOLATING_KEYS.toSorted(compareByCodeUnit));
   });
 });
 

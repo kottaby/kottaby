@@ -5,11 +5,7 @@ import { FactCheckOutlined as EmptyStateIcon, ErrorOutlineOutlined as ErrorState
 import { Alert, Box, Button, Skeleton, Snackbar, Stack, Typography } from "@mui/material";
 import type { SnackbarCloseReason } from "@mui/material/Snackbar";
 import { type ReactNode, useCallback, useRef, useState } from "react";
-import type {
-  AdminPendingSubscriptionRequestsQuery_adminPendingSubscriptionRequests,
-  VerifySubscriptionPaymentMutation,
-  VerifySubscriptionPaymentMutationVariables,
-} from "@/frontend/graphql/generated/gql/graphql";
+import type { AdminPendingSubscriptionRequestsQuery_adminPendingSubscriptionRequests } from "@/frontend/graphql/generated/gql/graphql";
 import {
   adminPendingSubscriptionRequestsQueryDocument,
   verifySubscriptionPaymentMutationDocument,
@@ -118,10 +114,9 @@ export function PaymentVerificationContainer({ labels }: Readonly<PaymentVerific
   // (audit-R4 lesson, mirrored from the storefront container).
   const nextToastIdRef = useRef(0);
 
-  const [verifyPayment, { loading: submitting }] = useMutation<
-    VerifySubscriptionPaymentMutation,
-    VerifySubscriptionPaymentMutationVariables
-  >(verifySubscriptionPaymentMutationDocument, {
+  // Types flow from the codegen TypedDocumentNode — Apollo Client v4
+  // deprecates manual generics on `useMutation`.
+  const [verifyPayment, { loading: submitting }] = useMutation(verifySubscriptionPaymentMutationDocument, {
     onError: () => {
       // The masking boundary owns unexpected failures; expected domain
       // conflicts (SUBSCRIPTION_ALREADY_RESOLVED, …) surface with localized

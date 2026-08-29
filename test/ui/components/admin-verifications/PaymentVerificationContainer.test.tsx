@@ -284,10 +284,10 @@ for (const locale of ["ar", "en"] as AppLocale[]) {
       expect(screen.getByRole("button", { name: t.methodBankTransfer })).toBeDefined();
 
       // Blank-reference fence: confirm starts disabled.
-      expect((screen.getByTestId("admin-verify-submit") as HTMLButtonElement).disabled).toBe(true);
+      expect(screen.getByTestId<HTMLButtonElement>("admin-verify-submit").disabled).toBe(true);
 
       fireEvent.change(referenceInput(), { target: { value: "RCPT-001" } });
-      expect((screen.getByTestId("admin-verify-submit") as HTMLButtonElement).disabled).toBe(false);
+      expect(screen.getByTestId<HTMLButtonElement>("admin-verify-submit").disabled).toBe(false);
 
       fireEvent.click(screen.getByTestId("admin-verify-submit"));
 

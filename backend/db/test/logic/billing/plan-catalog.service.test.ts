@@ -508,12 +508,11 @@ describe("PlanCatalogService", () => {
         const first = await PlanCatalogService.setPlanActiveStatus(plan.id, false, "en", undefined, tx);
         expect(first.isActive).toBe(false);
 
-        const error = await expectRepoError(() =>
-          PlanCatalogService.setPlanActiveStatus(plan.id, false, "en", undefined, tx)
+        await expectConflictError(
+          () => PlanCatalogService.setPlanActiveStatus(plan.id, false, "en", undefined, tx),
+          "PLAN_ALREADY_INACTIVE",
+          enErrors.planAlreadyInactive
         );
-        expect(error).toBeInstanceOf(ConflictError);
-        expect((error as ConflictError).code).toBe("PLAN_ALREADY_INACTIVE");
-        expect(error.message).toBe(enErrors.planAlreadyInactive);
 
         const [reread] = await tx.select().from(plans).where(eq(plans.id, plan.id));
         expect(reread?.isActive).toBe(false);

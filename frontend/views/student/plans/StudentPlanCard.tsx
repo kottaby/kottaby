@@ -113,6 +113,23 @@ export function StudentPlanCard({ plan, labels, posture, onSubscribe }: Readonly
   const isPending = posture === "pending";
   const isActive = posture === "active";
 
+  // Informational Active chip as its own statement so the title-row
+  // chip selection below stays a single-level ternary.
+  const activeChip = isActive ? (
+    <Chip
+      icon={<ActiveIcon />}
+      label={labels.activeChip}
+      size="small"
+      aria-label={`${labels.activeChip} — ${plan.title}`}
+      sx={theme => ({
+        bgcolor: theme.palette.successContainer,
+        color: theme.palette.onSuccessContainer,
+        "& .MuiChip-icon": { color: theme.palette.onSuccessContainer },
+      })}
+      data-testid={`student-plan-active-chip-${plan.id}`}
+    />
+  ) : null;
+
   return (
     <Card
       elevation={0}
@@ -166,20 +183,9 @@ export function StudentPlanCard({ plan, labels, posture, onSubscribe }: Readonly
               })}
               data-testid={`student-plan-pending-chip-${plan.id}`}
             />
-          ) : isActive ? (
-            <Chip
-              icon={<ActiveIcon />}
-              label={labels.activeChip}
-              size="small"
-              aria-label={`${labels.activeChip} — ${plan.title}`}
-              sx={theme => ({
-                bgcolor: theme.palette.successContainer,
-                color: theme.palette.onSuccessContainer,
-                "& .MuiChip-icon": { color: theme.palette.onSuccessContainer },
-              })}
-              data-testid={`student-plan-active-chip-${plan.id}`}
-            />
-          ) : null}
+          ) : (
+            activeChip
+          )}
         </Stack>
 
         {/* Price — decimal string verbatim + currency code; the storefront's
