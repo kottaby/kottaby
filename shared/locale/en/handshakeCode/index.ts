@@ -7,7 +7,7 @@ export const handshakeCodeEn: HandshakeCodeLabels = {
   codeCopied: "Code copied",
   copyFailed: "Could not copy the code. Please copy it manually.",
   pageTitle: "Find Your Student",
-  pageDescription: "Enter your student's handshake code to find their profile.",
+  pageDescription: "Enter the handshake code you received from your student to find their profile.",
   inputLabel: "Handshake code",
   searchAction: "Search",
   invalidFormat: "Handshake codes look like KSB-XXXXXXXX (8 hexadecimal characters).",

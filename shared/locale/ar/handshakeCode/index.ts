@@ -10,7 +10,7 @@ export const handshakeCodeAr: HandshakeCodeLabels = {
   pageDescription: "أدخل رمز الربط الذي حصلت عليه من طالبك للعثور على ملفه الشخصي.",
   inputLabel: "رمز الربط",
   searchAction: "بحث",
-  invalidFormat: "تبدو رموز الربط بالصيغة KSB-XXXXXXXX وتتكون من 8 خانات سداسية عشرية.",
+  invalidFormat: "تبدو رموز الربط بالصيغة KSB-XXXXXXXX وتتكون من 8 أحرف سداسية عشرية.",
   notFoundTitle: "لم يتم العثور على الطالب",
   notFoundDescription: "لم نتمكن من العثور على طالب بهذا الرمز. يرجى التحقق من الرمز والمحاولة مرة أخرى.",
   foundTitle: "تم العثور على الطالب",
