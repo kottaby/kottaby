@@ -344,16 +344,16 @@
 
 ### 3.4 Schema Generation, Codegen & Structural Assertions
 
-- [ ] 3.4 [Run schema/codegen + commit generated artifacts + structural schema assertions]
+- [x] 3.4 [Run schema/codegen + commit generated artifacts + structural schema assertions]
   - Run `bun run generate:gqlSchema && bun codegen`; commit ALL generated artifacts in the same change set
   - Add static schema assertion test: generated `schema.graphql` contains ZERO `createNotification`/`updateNotification`/`deleteNotification` operations (BFLA verdict); `Notification` type carries `id`; all four ops present per REQ-060 SDL
   - Verify public-operation allowlist byte-unchanged (`git diff` evidence in outcome)
   - _Requirements: REQ-032, REQ-060, REQ-061, REQ-069_
-  - [ ] 3.4.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts <touched-source-files> --lifecycle duplicates` (exit 0)
-  - [ ] 3.4.TE **Test Engineering**: structural assertion suite green; depth/complexity posture documented (flat object, capped list)
-  - [ ] 3.4.SEC **Security & Tenancy Audit**: BFLA structural verdict recorded; default-deny posture intact
-  - [ ] 3.4.SR **Semantic Review**: generated diff contains ONLY notification additions (no unrelated schema drift)
-  - [ ] 3.4.IV **Instruction Verification**: validate against gateway Rule 8 + REQ-061 (artifacts committed in same change set)
+  - [x] 3.4.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts <touched-source-files> --lifecycle duplicates` (exit 0)
+  - [x] 3.4.TE **Test Engineering**: structural assertion suite green; depth/complexity posture documented (flat object, capped list)
+  - [x] 3.4.SEC **Security & Tenancy Audit**: BFLA structural verdict recorded; default-deny posture intact
+  - [x] 3.4.SR **Semantic Review**: generated diff contains ONLY notification additions (no unrelated schema drift)
+  - [x] 3.4.IV **Instruction Verification**: validate against gateway Rule 8 + REQ-061 (artifacts committed in same change set)
   - Outcome: `outcome/3.4-outcome.md`
 
 ---
