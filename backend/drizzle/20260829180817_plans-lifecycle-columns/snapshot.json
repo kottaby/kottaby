@@ -2,41 +2,22 @@
   "version": "8",
   "dialect": "postgres",
   "id": "afa71d90-ea43-4553-92d8-02333609d6dd",
-  "prevIds": [
-    "68c2234b-d12f-43e2-91df-6f5575a16fb5"
-  ],
+  "prevIds": ["68c2234b-d12f-43e2-91df-6f5575a16fb5"],
   "ddl": [
     {
-      "values": [
-        "create",
-        "update",
-        "delete",
-        "override",
-        "adjust",
-        "suspend",
-        "reactivate"
-      ],
+      "values": ["create", "update", "delete", "override", "adjust", "suspend", "reactivate"],
       "name": "audit_action_type",
       "entityType": "enums",
       "schema": "public"
     },
     {
-      "values": [
-        "male",
-        "female",
-        "other"
-      ],
+      "values": ["male", "female", "other"],
       "name": "gender",
       "entityType": "enums",
       "schema": "public"
     },
     {
-      "values": [
-        "pending",
-        "confirmed",
-        "rejected",
-        "expired"
-      ],
+      "values": ["pending", "confirmed", "rejected", "expired"],
       "name": "link_status",
       "entityType": "enums",
       "schema": "public"
@@ -56,71 +37,37 @@
       "schema": "public"
     },
     {
-      "values": [
-        "stripe",
-        "paypal",
-        "paymob",
-        "fawry",
-        "offline_cash",
-        "bank_transfer",
-        "scholarship",
-        "other"
-      ],
+      "values": ["stripe", "paypal", "paymob", "fawry", "offline_cash", "bank_transfer", "scholarship", "other"],
       "name": "payment_gateway",
       "entityType": "enums",
       "schema": "public"
     },
     {
-      "values": [
-        "pending",
-        "paid",
-        "failed",
-        "refunded"
-      ],
+      "values": ["pending", "paid", "failed", "refunded"],
       "name": "payment_status",
       "entityType": "enums",
       "schema": "public"
     },
     {
-      "values": [
-        "hifz",
-        "tajweed",
-        "evaluation"
-      ],
+      "values": ["hifz", "tajweed", "evaluation"],
       "name": "session_intent",
       "entityType": "enums",
       "schema": "public"
     },
     {
-      "values": [
-        "scheduled",
-        "started",
-        "completed",
-        "cancelled",
-        "disputed"
-      ],
+      "values": ["scheduled", "started", "completed", "cancelled", "disputed"],
       "name": "session_status",
       "entityType": "enums",
       "schema": "public"
     },
     {
-      "values": [
-        "student_session",
-        "teacher_evaluation",
-        "re_evaluation"
-      ],
+      "values": ["student_session", "teacher_evaluation", "re_evaluation"],
       "name": "session_type",
       "entityType": "enums",
       "schema": "public"
     },
     {
-      "values": [
-        "active",
-        "pending",
-        "expired",
-        "cancelled",
-        "suspended"
-      ],
+      "values": ["active", "pending", "expired", "cancelled", "suspended"],
       "name": "subscription_status",
       "entityType": "enums",
       "schema": "public"
@@ -168,42 +115,25 @@
       "schema": "public"
     },
     {
-      "values": [
-        "queue",
-        "reject",
-        "offer_alternatives"
-      ],
+      "values": ["queue", "reject", "offer_alternatives"],
       "name": "teacher_request_preference",
       "entityType": "enums",
       "schema": "public"
     },
     {
-      "values": [
-        "pending",
-        "completed",
-        "failed"
-      ],
+      "values": ["pending", "completed", "failed"],
       "name": "transaction_status",
       "entityType": "enums",
       "schema": "public"
     },
     {
-      "values": [
-        "earning",
-        "withdrawal",
-        "bonus"
-      ],
+      "values": ["earning", "withdrawal", "bonus"],
       "name": "transaction_type",
       "entityType": "enums",
       "schema": "public"
     },
     {
-      "values": [
-        "admin",
-        "teacher",
-        "student",
-        "parent"
-      ],
+      "values": ["admin", "teacher", "student", "parent"],
       "name": "user_role",
       "entityType": "enums",
       "schema": "public"
@@ -3372,14 +3302,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "actor_id"
-      ],
+      "columns": ["actor_id"],
       "schemaTo": "public",
       "tableTo": "users",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "RESTRICT",
       "name": "audit_logs_actor_id_users_id_fkey",
@@ -3389,14 +3315,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "student_id"
-      ],
+      "columns": ["student_id"],
       "schemaTo": "public",
       "tableTo": "students",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "RESTRICT",
       "name": "student_payments_student_id_students_id_fkey",
@@ -3406,14 +3328,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "subscription_id"
-      ],
+      "columns": ["subscription_id"],
       "schemaTo": "public",
       "tableTo": "subscriptions",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "SET NULL",
       "name": "student_payments_subscription_id_subscriptions_id_fkey",
@@ -3423,14 +3341,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "student_id"
-      ],
+      "columns": ["student_id"],
       "schemaTo": "public",
       "tableTo": "students",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
       "name": "student_subscriptions_student_id_students_id_fkey",
@@ -3440,14 +3354,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "subscription_id"
-      ],
+      "columns": ["subscription_id"],
       "schemaTo": "public",
       "tableTo": "subscriptions",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
       "name": "student_subscriptions_subscription_id_subscriptions_id_fkey",
@@ -3457,14 +3367,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "user_id"
-      ],
+      "columns": ["user_id"],
       "schemaTo": "public",
       "tableTo": "users",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "RESTRICT",
       "name": "subscriptions_user_id_users_id_fkey",
@@ -3474,14 +3380,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "plan_id"
-      ],
+      "columns": ["plan_id"],
       "schemaTo": "public",
       "tableTo": "plans",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "RESTRICT",
       "name": "subscriptions_plan_id_plans_id_fkey",
@@ -3491,14 +3393,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "wallet_id"
-      ],
+      "columns": ["wallet_id"],
       "schemaTo": "public",
       "tableTo": "wallet",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "RESTRICT",
       "name": "teacher_transaction_wallet_id_wallet_id_fkey",
@@ -3508,14 +3406,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "session_id"
-      ],
+      "columns": ["session_id"],
       "schemaTo": "public",
       "tableTo": "session",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "SET NULL",
       "name": "teacher_transaction_session_id_session_id_fkey",
@@ -3525,14 +3419,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "teacher_id"
-      ],
+      "columns": ["teacher_id"],
       "schemaTo": "public",
       "tableTo": "teacher",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
       "name": "wallet_teacher_id_teacher_id_fkey",
@@ -3542,14 +3432,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "session_id"
-      ],
+      "columns": ["session_id"],
       "schemaTo": "public",
       "tableTo": "session",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
       "name": "home_work_session_id_session_id_fkey",
@@ -3559,14 +3445,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "plan_id"
-      ],
+      "columns": ["plan_id"],
       "schemaTo": "public",
       "tableTo": "plans",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "SET NULL",
       "name": "lessons_plan_id_plans_id_fkey",
@@ -3576,14 +3458,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "student_id"
-      ],
+      "columns": ["student_id"],
       "schemaTo": "public",
       "tableTo": "students",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
       "name": "progress_student_id_students_id_fkey",
@@ -3593,14 +3471,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "lesson_id"
-      ],
+      "columns": ["lesson_id"],
       "schemaTo": "public",
       "tableTo": "lessons",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "SET NULL",
       "name": "progress_lesson_id_lessons_id_fkey",
@@ -3610,14 +3484,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "session_id"
-      ],
+      "columns": ["session_id"],
       "schemaTo": "public",
       "tableTo": "session",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
       "name": "recitation_session_id_session_id_fkey",
@@ -3627,14 +3497,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "session_id"
-      ],
+      "columns": ["session_id"],
       "schemaTo": "public",
       "tableTo": "session",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
       "name": "reports_session_id_session_id_fkey",
@@ -3644,14 +3510,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "teacher_id"
-      ],
+      "columns": ["teacher_id"],
       "schemaTo": "public",
       "tableTo": "teacher",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "RESTRICT",
       "name": "session_teacher_id_teacher_id_fkey",
@@ -3661,14 +3523,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "student_id"
-      ],
+      "columns": ["student_id"],
       "schemaTo": "public",
       "tableTo": "students",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "RESTRICT",
       "name": "session_student_id_students_id_fkey",
@@ -3678,14 +3536,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "user_id"
-      ],
+      "columns": ["user_id"],
       "schemaTo": "public",
       "tableTo": "users",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
       "name": "notifications_user_id_users_id_fkey",
@@ -3695,14 +3549,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "schemaTo": "public",
       "tableTo": "users",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
       "name": "parents_id_users_id_fkey",
@@ -3712,14 +3562,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "schemaTo": "public",
       "tableTo": "users",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
       "name": "students_id_users_id_fkey",
@@ -3729,14 +3575,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "parent_id"
-      ],
+      "columns": ["parent_id"],
       "schemaTo": "public",
       "tableTo": "users",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "SET NULL",
       "name": "students_parent_id_users_id_fkey",
@@ -3746,14 +3588,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "schemaTo": "public",
       "tableTo": "users",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
       "name": "applicants_id_users_id_fkey",
@@ -3763,14 +3601,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "evaluated_id"
-      ],
+      "columns": ["evaluated_id"],
       "schemaTo": "public",
       "tableTo": "users",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
       "name": "evaluations_evaluated_id_users_id_fkey",
@@ -3780,14 +3614,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "evaluator_id"
-      ],
+      "columns": ["evaluator_id"],
       "schemaTo": "public",
       "tableTo": "users",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "RESTRICT",
       "name": "evaluations_evaluator_id_users_id_fkey",
@@ -3797,14 +3627,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "session_id"
-      ],
+      "columns": ["session_id"],
       "schemaTo": "public",
       "tableTo": "session",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "SET NULL",
       "name": "evaluations_session_id_session_id_fkey",
@@ -3814,14 +3640,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "schemaTo": "public",
       "tableTo": "users",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
       "name": "teacher_id_users_id_fkey",
@@ -3831,14 +3653,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "teacher_id"
-      ],
+      "columns": ["teacher_id"],
       "schemaTo": "public",
       "tableTo": "teacher",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
       "name": "teacher_verification_teacher_id_teacher_id_fkey",
@@ -3848,14 +3666,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "schemaTo": "public",
       "tableTo": "users",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
       "name": "admin_id_users_id_fkey",
@@ -3864,10 +3678,7 @@
       "table": "admin"
     },
     {
-      "columns": [
-        "student_id",
-        "subscription_id"
-      ],
+      "columns": ["student_id", "subscription_id"],
       "nameExplicit": false,
       "name": "student_subscriptions_pkey",
       "entityType": "pks",
@@ -3875,9 +3686,7 @@
       "table": "student_subscriptions"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "audit_logs_pkey",
       "schema": "public",
@@ -3885,9 +3694,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "plans_pkey",
       "schema": "public",
@@ -3895,9 +3702,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "student_payments_pkey",
       "schema": "public",
@@ -3905,9 +3710,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "subscriptions_pkey",
       "schema": "public",
@@ -3915,9 +3718,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "teacher_transaction_pkey",
       "schema": "public",
@@ -3925,9 +3726,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "wallet_pkey",
       "schema": "public",
@@ -3935,9 +3734,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "home_work_pkey",
       "schema": "public",
@@ -3945,9 +3742,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "lessons_pkey",
       "schema": "public",
@@ -3955,9 +3750,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "progress_pkey",
       "schema": "public",
@@ -3965,9 +3758,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "recitation_pkey",
       "schema": "public",
@@ -3975,9 +3766,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "reports_pkey",
       "schema": "public",
@@ -3985,9 +3774,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "session_pkey",
       "schema": "public",
@@ -3995,9 +3782,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "notifications_pkey",
       "schema": "public",
@@ -4005,9 +3790,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "parents_pkey",
       "schema": "public",
@@ -4015,9 +3798,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "students_pkey",
       "schema": "public",
@@ -4025,9 +3806,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "applicants_pkey",
       "schema": "public",
@@ -4035,9 +3814,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "evaluations_pkey",
       "schema": "public",
@@ -4045,9 +3822,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "teacher_pkey",
       "schema": "public",
@@ -4055,9 +3830,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "teacher_verification_pkey",
       "schema": "public",
@@ -4065,9 +3838,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "admin_pkey",
       "schema": "public",
@@ -4075,9 +3846,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "users_pkey",
       "schema": "public",
@@ -4086,9 +3855,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "teacher_id"
-      ],
+      "columns": ["teacher_id"],
       "nullsNotDistinct": false,
       "name": "wallet_teacher_id_unique",
       "entityType": "uniques",
@@ -4097,9 +3864,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "session_id"
-      ],
+      "columns": ["session_id"],
       "nullsNotDistinct": false,
       "name": "recitation_session_id_unique",
       "entityType": "uniques",
@@ -4108,9 +3873,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "handshake_code"
-      ],
+      "columns": ["handshake_code"],
       "nullsNotDistinct": false,
       "name": "students_handshake_code_unique",
       "entityType": "uniques",
@@ -4119,9 +3882,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "email"
-      ],
+      "columns": ["email"],
       "nullsNotDistinct": false,
       "name": "users_email_unique",
       "entityType": "uniques",
