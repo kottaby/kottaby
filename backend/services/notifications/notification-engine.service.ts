@@ -1,6 +1,7 @@
 /**
  * NotificationEngine — the platform's SINGLE write path into the `notifications`
- * table (emit surface; the inbox surface joins this file in Task 2.7).
+ * table (emit surface) and its reader-facing inbox surface (list / unread
+ * count / the one-directional read latch).
  *
  * Write-path contract (persist-first, publish-after-commit):
  *  1. Validate the emit input BEFORE any DB/cache access — every failure is a
@@ -35,7 +36,8 @@
  */
 import { db } from "@/backend/db";
 import { NotificationRepository } from "@/backend/db/repo";
-import type { NotificationType } from "@/backend/enum/notifications/notification-type.enum";
+import { isNotificationType, type NotificationType } from "@/backend/enum/notifications/notification-type.enum";
+import { NotFoundError, ValidationError } from "@/backend/lib/errors";
 import { logger } from "@/backend/lib/logger";
 import {
   attemptEmitClaim,
@@ -44,7 +46,11 @@ import {
   storeEmitReceiptQuietly,
   warnEmitIdempotencyUnavailable,
 } from "@/backend/services/notifications/emit-idempotency";
-import { validateEmitBatchInput, validateEmitInput } from "@/backend/services/notifications/emit-validation";
+import {
+  isPositiveSafeInt,
+  validateEmitBatchInput,
+  validateEmitInput,
+} from "@/backend/services/notifications/emit-validation";
 import type { NotificationFanoutTransport } from "@/backend/services/notifications/realtime/fanout-transport";
 import { resolveFanoutTransport } from "@/backend/services/notifications/realtime/fanout-transport.factory";
 import type {
@@ -53,6 +59,8 @@ import type {
   NotificationEmitBatchInput,
   NotificationEmitInput,
   NotificationInsertType,
+  NotificationListFilterInput,
+  NotificationListPageReturnType,
   NotificationReturnType,
   RealtimeNotificationPayload,
 } from "@/backend/types";
@@ -177,6 +185,90 @@ async function publishAfterCommit(
       errorName: error instanceof Error ? error.name : typeof error,
     });
   }
+}
+
+// ─── Inbox surface helpers (Task 2.7) ────────────────────────────────────────
+
+/**
+ * `NotFoundError` entity name for notifications — the ENTITY ONLY, never the
+ * full code (the double-suffix rule: `NotFoundError("NOTIFICATION", …)`
+ * auto-generates `NOTIFICATION_NOT_FOUND`).
+ */
+const NOTIFICATION_ENTITY = "NOTIFICATION";
+
+/**
+ * Inbox page size applied when the filter's `limit` is absent or null at
+ * runtime (REQ-017: default 20). The canonical
+ * `NotificationListFilterInput` marks `limit` required, but the GraphQL input
+ * carries it as a nullable Int — the runtime default below serves that shape.
+ */
+export const NOTIFICATION_INBOX_DEFAULT_PAGE_LIMIT = 20;
+
+/** Upper bound of the accepted inbox page-size range (REQ-017: 1..50, capped). */
+export const NOTIFICATION_INBOX_MAX_PAGE_LIMIT = 50;
+
+/**
+ * Runtime view of the inbox filter's page-window fields. Reading
+ * `limit`/`offset` through this widened view lets the engine apply its
+ * documented defaults when a non-schema caller (or the GraphQL nullable-Int
+ * input) leaves them absent or null — while still validating whatever value
+ * IS present against the pagination bounds.
+ */
+type InboxWindowView = { readonly limit?: unknown; readonly offset?: unknown };
+
+/**
+ * Validates the caller's user id on every inbox operation (ID-channel
+ * defense-in-depth: resolvers pass the verified `ctx.user.id`, so a
+ * non-positive id can only be a caller bug — rejected before any DB access).
+ */
+function validateInboxUserId(userId: number, validationMessage: string): void {
+  if (!isPositiveSafeInt(userId)) {
+    throw new ValidationError(validationMessage);
+  }
+}
+
+/**
+ * Fail-closed enum guard on an optional notification-type value (defense-in-
+ * depth: the GraphQL enum layer already constrains `type`, but the engine is
+ * also reachable from services and server components).
+ */
+function validateOptionalNotificationType(type: unknown, validationMessage: string): void {
+  if (type !== null && type !== undefined && !isNotificationType(type)) {
+    throw new ValidationError(validationMessage);
+  }
+}
+
+/**
+ * Validates the inbox list filter's optional conjunctive fields (`type` enum
+ * guard, `isRead` boolean guard) and resolves + validates the page window
+ * (`limit` ∈ 1..50 with the documented default, `offset` a non-negative safe
+ * integer defaulting to 0). Every failure throws the localized generic
+ * `ValidationError` BEFORE any DB access.
+ */
+function resolveInboxListRequest(
+  filter: NotificationListFilterInput,
+  validationMessage: string
+): { readonly limit: number; readonly offset: number } {
+  validateOptionalNotificationType(filter.type, validationMessage);
+  if (filter.isRead !== null && filter.isRead !== undefined && typeof filter.isRead !== "boolean") {
+    throw new ValidationError(validationMessage);
+  }
+
+  const view: InboxWindowView = filter;
+  const limit = view.limit ?? NOTIFICATION_INBOX_DEFAULT_PAGE_LIMIT;
+  if (
+    typeof limit !== "number" ||
+    !Number.isSafeInteger(limit) ||
+    limit < 1 ||
+    limit > NOTIFICATION_INBOX_MAX_PAGE_LIMIT
+  ) {
+    throw new ValidationError(validationMessage);
+  }
+  const offset = view.offset ?? 0;
+  if (typeof offset !== "number" || !Number.isSafeInteger(offset) || offset < 0) {
+    throw new ValidationError(validationMessage);
+  }
+  return { limit, offset };
 }
 
 /**
@@ -353,6 +445,133 @@ export namespace NotificationEngine {
     options?: NotificationEngineCallOptions
   ): Promise<void> {
     await publishReceiptsFromIndex(receipts, 0, locale, options);
+  }
+
+  // ─── INBOX surface (GraphQL-consumed; Task 2.7) ───────────────────────────
+
+  /**
+   * Lists one page of the caller's own inbox — the ONLY list surface for
+   * notification rows.
+   *
+   *  - Identity is the `userId` parameter EXCLUSIVELY (resolvers pass the
+   *    verified `ctx.user.id`); the filter carries no identity, so the read
+   *    is self-scoped by construction (REQ-017/030).
+   *  - Input hardening (REQ-054) runs BEFORE any DB access: `limit` ∈ 1..50
+   *    (default 20 when absent/null), `offset` a non-negative safe integer
+   *    (default 0), `type` through the fail-closed enum guard, `isRead` a
+   *    boolean when present.
+   *  - `listForUser` and `countForUser` share ONE repository predicate
+   *    builder, so `items` and `totalCount` always describe the same row set
+   *    (REQ-026 coherence); ordering is `createdAt DESC, id DESC`.
+   *  - `hasMore = offset + items.length < totalCount` — plain pagination
+   *    math, no lookahead query.
+   *
+   * @throws ValidationError  on the FIRST violated input rule — BEFORE any DB
+   *     access.
+   */
+  export async function listMyNotifications(
+    userId: number,
+    filter: NotificationListFilterInput,
+    locale: string,
+    tx?: DBTransaction
+  ): Promise<NotificationListPageReturnType> {
+    const t = getServerTranslations(locale).errorsTranslations;
+
+    validateInboxUserId(userId, t.validation);
+    const { limit, offset } = resolveInboxListRequest(filter, t.validation);
+
+    const items = await NotificationRepository.listForUser(userId, filter, limit, offset, tx);
+    const totalCount = await NotificationRepository.countForUser(userId, filter, tx);
+    return { items, totalCount, hasMore: offset + items.length < totalCount };
+  }
+
+  /**
+   * Counts the caller's unread notifications — the badge read, backed by the
+   * `(user_id, is_read)` composite index (REQ-018). Identity is the `userId`
+   * parameter exclusively; an inbox with no unread rows reports `0`.
+   *
+   * @throws ValidationError  when `userId` fails the positive-safe-int guard —
+   *     BEFORE any DB access.
+   */
+  export async function getMyUnreadCount(userId: number, locale: string, tx?: DBTransaction): Promise<number> {
+    const t = getServerTranslations(locale).errorsTranslations;
+
+    validateInboxUserId(userId, t.validation);
+
+    return NotificationRepository.countUnread(userId, tx);
+  }
+
+  /**
+   * Marks exactly one of the caller's own notifications read — the ONLY
+   * mutation ever applied to an existing notification row (the one-directional
+   * read latch, REQ-019/029).
+   *
+   *  - `notificationId` passes the positive-safe-int guard BEFORE any DB
+   *    access; an invalid-format id rejects with `ValidationError` (never
+   *    `NOTIFICATION_NOT_FOUND`, proving the guard fired first).
+   *  - The repository's guarded single UPDATE keys on `(id, user_id)`: a
+   *    foreign id and a nonexistent id are INDISTINGUISHABLE (zero rows
+   *    matched — no existence oracle, REQ-030/035).
+   *  - Zero matched rows → `NotFoundError("NOTIFICATION", …)` with the
+   *    translated generic copy and ONE structured domain log
+   *    (`{ code, entity, entityId, locale }` — ids/codes only).
+   *  - An already-read row still matches and is returned UNCHANGED — the
+   *    operation is idempotent (no state drift, no duplicate row).
+   */
+  export async function markRead(
+    callerUserId: number,
+    notificationId: number,
+    locale: string,
+    tx?: DBTransaction
+  ): Promise<NotificationReturnType> {
+    const t = getServerTranslations(locale).errorsTranslations;
+
+    validateInboxUserId(callerUserId, t.validation);
+    if (!isPositiveSafeInt(notificationId)) {
+      throw new ValidationError(t.validation);
+    }
+
+    const row = await NotificationRepository.markReadOnce(notificationId, callerUserId, tx);
+    if (row === null) {
+      logger.logDomainError("Notification mark-read denied: no row matches the caller's id pair", {
+        code: "NOTIFICATION_NOT_FOUND",
+        entity: "notifications",
+        entityId: notificationId,
+        locale,
+      });
+      throw new NotFoundError(NOTIFICATION_ENTITY, t.notificationNotFound);
+    }
+    return row;
+  }
+
+  /**
+   * Marks every unread notification of the caller read — a single set-based
+   * UPDATE (`user_id = caller AND is_read = false [AND type = ?]`) returning
+   * the affected-row count (REQ-020).
+   *
+   *  - Identity is the `callerUserId` parameter exclusively; only the
+   *    caller's OWN rows ever flip.
+   *  - The optional `type` filter narrows the sweep to one notification kind
+   *    (validated through the enum guard — defense-in-depth).
+   *  - An empty matching set is NOT an error: the sweep reports `0`.
+   *  - The `is_read = false` conjunct keeps repeat sweeps cheap: rows already
+   *    read never match again, so an idempotent second call reports `0`.
+   *
+   * @throws ValidationError  on a failed caller-id guard or enum guard —
+   *     BEFORE any DB access.
+   */
+  export async function markAllRead(
+    callerUserId: number,
+    type: NotificationType | null,
+    locale: string,
+    tx?: DBTransaction
+  ): Promise<number> {
+    const t = getServerTranslations(locale).errorsTranslations;
+
+    validateInboxUserId(callerUserId, t.validation);
+    validateOptionalNotificationType(type, t.validation);
+
+    return NotificationRepository.markAllReadForUser(callerUserId, type, tx);
   }
 }
 

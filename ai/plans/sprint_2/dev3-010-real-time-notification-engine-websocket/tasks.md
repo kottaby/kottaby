@@ -253,18 +253,18 @@
 
 ### 2.7 Engine Service — Inbox Surface
 
-- [ ] 2.7 [Implement `NotificationEngine` inbox surface (part 2 of the same service file)]
+- [x] 2.7 [Implement `NotificationEngine` inbox surface (part 2 of the same service file)]
   - `listMyNotifications(userId, filter, locale)`: validate limit ∈ [1,50] (default 20), offset ≥ 0 safe-int, type via enum guard → repo `listForUser` + `countForUser` (shared predicate) → `{ items, totalCount, hasMore }` (hasMore = offset + items.length < totalCount)
   - `getMyUnreadCount(userId, locale)` → repo `countUnread` (composite-index read)
   - `markRead(callerUserId, notificationId, locale)`: id via positive-safe-int guard → repo `markReadOnce` → null → `NotFoundError("NOTIFICATION", t.notifications.notificationNotFound)` (entity name only — double-suffix rule); already-read returns row idempotently
   - `markAllRead(callerUserId, type, locale)` → repo `markAllReadForUser` → affected count (0 on empty set)
   - Identity = `callerUserId` parameter ONLY (resolvers pass `ctx.user.id`); no identity accepted from any input object
   - _Requirements: REQ-017, REQ-018, REQ-019, REQ-020, REQ-026, REQ-029, REQ-030, REQ-035, REQ-050_
-  - [ ] 2.7.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts backend/services/notifications/notification-engine.service.ts --lifecycle duplicates` (exit 0)
-  - [ ] 2.7.TE **Test Engineering** (`notification-engine.inbox.test.ts`): Tier 1 — list filters × pagination coherence (`totalCount` agreement per REQ-026), mark-one/mark-all happy paths; Tier 2 — pagination bounds, default limit, empty inbox; Tier 3 — idempotent double mark, mark-all during interleaved emit (new row stays unread — user-favorable), 25-way `Promise.allSettled` mark storms all-fulfilled consistent; Tier 4 — foreign id → `NOTIFICATION_NOT_FOUND` indistinguishable from nonexistent. DB tier `runInRollback` via runner; failure assertions via `expectRepoError` on translated substrings
-  - [ ] 2.7.SEC **Security & Tenancy Audit**: BOLA self-scope by construction (no userId input anywhere on inbox ops); BOPLA whitelist mapping only; oracle-safe denial shape constancy; zero disclosure of foreign-row existence
-  - [ ] 2.7.SR **Semantic Review**: `NotFoundError("NOTIFICATION", …)` entity-name discipline; `logger.logDomainError` with `{ code, entity: "notifications", entityId? }`; no read-then-write; enum guard defense-in-depth
-  - [ ] 2.7.IV **Instruction Verification**: validate against `docs/graphql/domain-error-extensions-code.md`, `backend/services/AGENTS.md`
+  - [x] 2.7.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts backend/services/notifications/notification-engine.service.ts --lifecycle duplicates` (exit 0)
+  - [x] 2.7.TE **Test Engineering** (`notification-engine.inbox.test.ts`): Tier 1 — list filters × pagination coherence (`totalCount` agreement per REQ-026), mark-one/mark-all happy paths; Tier 2 — pagination bounds, default limit, empty inbox; Tier 3 — idempotent double mark, mark-all during interleaved emit (new row stays unread — user-favorable), 25-way `Promise.allSettled` mark storms all-fulfilled consistent; Tier 4 — foreign id → `NOTIFICATION_NOT_FOUND` indistinguishable from nonexistent. DB tier `runInRollback` via runner; failure assertions via `expectRepoError` on translated substrings
+  - [x] 2.7.SEC **Security & Tenancy Audit**: BOLA self-scope by construction (no userId input anywhere on inbox ops); BOPLA whitelist mapping only; oracle-safe denial shape constancy; zero disclosure of foreign-row existence
+  - [x] 2.7.SR **Semantic Review**: `NotFoundError("NOTIFICATION", …)` entity-name discipline; `logger.logDomainError` with `{ code, entity: "notifications", entityId? }`; no read-then-write; enum guard defense-in-depth
+  - [x] 2.7.IV **Instruction Verification**: validate against `docs/graphql/domain-error-extensions-code.md`, `backend/services/AGENTS.md`
   - Outcome: `outcome/2.7-outcome.md`
   - **Post-2.7 check**: J1/J2 journeys (2.2/2.3) now run GREEN: `bun run test/scripts/run-test.ts` both files + `bun test test/workflows`
 
