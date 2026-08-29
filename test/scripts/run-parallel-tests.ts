@@ -7,6 +7,7 @@ import { Glob, type Subprocess } from "bun";
 import { isTestCi } from "@/backend/lib/test-ci-env";
 import { withProcessLock } from "@/scripts/lib/process-lock";
 import { TEST_ENV_FILE } from "@/scripts/lib/test-build-env";
+import { clearPreExistingAuditRows } from "@/test/scripts/cleanup-test-audit-trail";
 import { deduplicateLines, renderProgressBar, stripAnsiCodes } from "@/test/scripts/runner-helpers";
 
 const DEFAULT_TIMEOUT_MS = 60_000;
@@ -18,6 +19,8 @@ export interface RunParallelTestsConfig {
   maxWorkers: number;
   label: string;
   timeoutMs?: number;
+  /** Clear audit rows committed by earlier server-mode runs before spawning workers. */
+  resetAuditTrail?: boolean;
 }
 
 export interface TestRunResult {
@@ -346,11 +349,15 @@ async function processQueue(
 }
 
 export async function runParallelTests(config: RunParallelTestsConfig): Promise<TestRunResult> {
-  const { pattern, cwd, maxWorkers, label, timeoutMs: defaultTimeout = DEFAULT_TIMEOUT_MS } = config;
+  const { pattern, cwd, maxWorkers, label, timeoutMs: defaultTimeout = DEFAULT_TIMEOUT_MS, resetAuditTrail } = config;
   const { bail, coverage, timeoutMs: cliTimeout, filterPaths } = parseCliArgs(process.argv.slice(2));
   const timeoutMs = cliTimeout ?? defaultTimeout;
 
   return withProcessLock(`test-suite: ${label}`, async () => {
+    if (resetAuditTrail) {
+      await clearPreExistingAuditRows(label);
+    }
+
     const glob = new Glob(pattern);
     const discoveredFiles: string[] = [];
 

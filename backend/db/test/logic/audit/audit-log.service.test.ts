@@ -53,6 +53,17 @@ function planSubmitInput() {
   };
 }
 
+/** Type guard — is the value a plain JSON object record (not null/array)? */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/** Parses an audit `details` JSON string into a guarded record; absent or null parses to {}. */
+function parseAuditDetails(details: string | null | undefined): Record<string, unknown> {
+  const parsed: unknown = JSON.parse(details ?? "{}");
+  return isRecord(parsed) ? parsed : {};
+}
+
 describe("AuditLogService — recordAdminAction", () => {
   test("persists the action tuple with the action code serialized into details", async () => {
     await runInRollback(async tx => {
@@ -76,9 +87,9 @@ describe("AuditLogService — recordAdminAction", () => {
       expect(row.entityType).toBe("plans");
       expect(row.entityId).toBe(4242);
       expect(row.details).not.toBeNull();
-      const parsed: unknown = JSON.parse(row.details ?? "{}");
-      expect((parsed as { code?: string }).code).toBe("PLAN_CREATED");
-      expect((parsed as { planId?: number }).planId).toBe(4242);
+      const parsed = parseAuditDetails(row.details);
+      expect(parsed.code).toBe("PLAN_CREATED");
+      expect(parsed.planId).toBe(4242);
       expect(row.createdAt).toBeInstanceOf(Date);
     });
   });
@@ -96,9 +107,9 @@ describe("AuditLogService — recordAdminAction", () => {
         },
         tx
       );
-      const parsed: unknown = JSON.parse(row.details ?? "null");
-      expect((parsed as { code?: string }).code).toBe("SUBSCRIPTION_PAYMENT_VERIFIED");
-      expect(Object.keys(parsed as object)).toEqual(["code"]);
+      const parsed = parseAuditDetails(row.details);
+      expect(parsed.code).toBe("SUBSCRIPTION_PAYMENT_VERIFIED");
+      expect(Object.keys(parsed)).toEqual(["code"]);
     });
   });
 
@@ -203,12 +214,21 @@ describe("AuditLogService — listAuditTrail", () => {
   test("pagination slices the page while the total stays the window-independent count", async () => {
     await runInRollback(async tx => {
       const admin = await createTestUser(tx, { role: "admin" });
-      for (let index = 0; index < 3; index += 1) {
+      // The writes share ONE transaction connection, so they stay sequential
+      // (never Promise.all) — the documented reduce chain replaces await-in-loop.
+      await [0, 1, 2].reduce(async (chain, entityId) => {
+        await chain;
         await AuditLogService.recordAdminAction(
-          { actorId: admin.id, actionType: "create", entityType: "plans", entityId: index, actionCode: "PLAN_CREATED" },
+          {
+            actorId: admin.id,
+            actionType: "create",
+            entityType: "plans",
+            entityId,
+            actionCode: "PLAN_CREATED",
+          },
           tx
         );
-      }
+      }, Promise.resolve());
       const firstPage = await AuditLogService.listAuditTrail({ limit: 2, offset: 0 }, tx);
       expect(firstPage.items).toHaveLength(2);
       expect(firstPage.total).toBe(3);
@@ -231,8 +251,8 @@ describe("DEV3-020 integration — the billing surfaces write the trail", () => 
       expect(entry?.actionType).toBe("create");
       expect(entry?.entityType).toBe("plans");
       expect(entry?.entityId).toBe(plan.id);
-      const parsed: unknown = JSON.parse(entry?.details ?? "{}");
-      expect((parsed as { code?: string }).code).toBe("PLAN_CREATED");
+      const parsed = parseAuditDetails(entry?.details);
+      expect(parsed.code).toBe("PLAN_CREATED");
     });
   });
 
@@ -253,8 +273,8 @@ describe("DEV3-020 integration — the billing surfaces write the trail", () => 
       const page = await AuditLogService.listAuditTrail({ actorId: admin.id, limit: 10, offset: 0 }, tx);
       expect(page.total).toBe(2);
       const updateEntry = page.items[0];
-      const parsed: unknown = JSON.parse(updateEntry?.details ?? "{}");
-      expect((parsed as { fields?: string[] }).fields).toEqual(["sessionCount", "price"]);
+      const parsed = parseAuditDetails(updateEntry?.details);
+      expect(parsed.fields).toEqual(["sessionCount", "price"]);
       // The raw values must NOT ride the trail (privacy posture).
       expect(updateEntry?.details?.includes("199.99")).toBeFalse();
     });
@@ -268,10 +288,7 @@ describe("DEV3-020 integration — the billing surfaces write the trail", () => 
       await PlanCatalogService.setPlanActiveStatus(plan.id, true, "en", admin.id, tx);
 
       const page = await AuditLogService.listAuditTrail({ actorId: admin.id, limit: 10, offset: 0 }, tx);
-      const codes = page.items.map(entry => {
-        const parsed: unknown = JSON.parse(entry.details ?? "{}");
-        return (parsed as { code?: string }).code;
-      });
+      const codes = page.items.map(entry => parseAuditDetails(entry.details).code);
       expect(codes).toContain("PLAN_DEACTIVATED");
       expect(codes).toContain("PLAN_ACTIVATED");
     });
@@ -286,9 +303,19 @@ describe("Immutability — the append-only doctrine holds at the SQL layer", () 
         { actorId: admin.id, actionType: "create", entityType: "plans", entityId: 1, actionCode: "PLAN_CREATED" },
         tx
       );
+      // The trigger failure must erupt inside a NESTED transaction so Drizzle
+      // rolls back to the savepoint — a failed statement would otherwise abort
+      // the outer tx (25P02 on any later statement, so the post-state probe
+      // below needs the recovery). SUCCESS of the nested tx (trigger missing)
+      // still fails the test via expectRepoError.
       await expectRepoError(() =>
-        tx.update(auditLogs).set({ details: '{"code":"TAMPERED"}' }).where(eq(auditLogs.id, row.id))
+        tx.transaction(async sp => {
+          await sp.update(auditLogs).set({ details: '{"code":"TAMPERED"}' }).where(eq(auditLogs.id, row.id));
+        })
       );
+      // The rejected UPDATE must have mutated nothing — the row survives verbatim.
+      const [persisted] = await tx.select().from(auditLogs).where(eq(auditLogs.id, row.id));
+      expect(persisted?.details).toBe(row.details);
     });
   });
 
@@ -299,7 +326,15 @@ describe("Immutability — the append-only doctrine holds at the SQL layer", () 
         { actorId: admin.id, actionType: "create", entityType: "plans", entityId: 1, actionCode: "PLAN_CREATED" },
         tx
       );
-      await expectRepoError(() => tx.delete(auditLogs).where(eq(auditLogs.id, row.id)));
+      // Savepoint recovery — see the UPDATE test above for the doctrine.
+      await expectRepoError(() =>
+        tx.transaction(async sp => {
+          await sp.delete(auditLogs).where(eq(auditLogs.id, row.id));
+        })
+      );
+      // The rejected DELETE must have removed nothing — the row still exists.
+      const persisted = await tx.select().from(auditLogs).where(eq(auditLogs.id, row.id));
+      expect(persisted).toHaveLength(1);
     });
   });
 });

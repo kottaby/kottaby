@@ -96,6 +96,15 @@ const ESLINT_BIN = process.env.BUN_EXEC ?? "bun";
 /** NODE_OPTIONS fragment for TypeScript 6 patch (swaps typescript → @typescript/typescript6) */
 const ESLINT_PATCH = "-r ./scripts/ts6-eslint-patch.cjs";
 
+/**
+ * Full-repo type-aware ESLint heap cap. Typescript-eslint holds whole-program type
+ * info in memory; the previous 8192 MB ceiling let the heap grow unbounded until the
+ * kernel OOM-killed the run (exit 137 → swallowed as a silent exit 1) on hosts with a
+ * 4 GB cgroup. 2048 MB forces GC before the cgroup limit and lets the full-repo
+ * type-aware pass complete (verified: 633 files, exit 0/1 with real diagnostics).
+ */
+const ESLINT_MAX_OLD_SPACE_MB = process.env.LINT_QUEUE_MAX_OLD_SPACE_MB ?? "2048";
+
 /** Default per-request timeout for file-scoped lint runs (5 minutes) */
 const DEFAULT_TIMEOUT_FILES_MS = Number(process.env.LINT_QUEUE_TIMEOUT_MS ?? 300000);
 
@@ -225,7 +234,7 @@ class LintService {
     // Construct the command
     const envPrefix = options.typeAware ? 'ESLINT_TYPE_AWARE="true"' : "";
     const concurrencySetting = options.typeAware ? "1" : CONCURRENCY;
-    const nodeOptions = `${ESLINT_PATCH} --max-old-space-size=8192`;
+    const nodeOptions = `${ESLINT_PATCH} --max-old-space-size=${ESLINT_MAX_OLD_SPACE_MB}`;
     // Type-aware mode toggles parserOptions/rules via ESLINT_TYPE_AWARE; sharing
     // `.eslintcache` with non-type-aware runs can resurface stale parse errors
     // (e.g. resolved merge conflicts). Use a dedicated cache file instead.

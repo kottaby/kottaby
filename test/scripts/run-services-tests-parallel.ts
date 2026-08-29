@@ -12,4 +12,6 @@ await runParallelTests({
   maxWorkers: isSqlite ? 1 : 8,
   label: "backend service",
   timeoutMs: 60_000,
+  // Same server-mode pollution guard as the database suite (shared test DB).
+  resetAuditTrail: !isSqlite,
 });

@@ -12,4 +12,7 @@ await runParallelTests({
   maxWorkers: isSqlite ? 1 : 8,
   label: "database",
   timeoutMs: 60_000,
+  // The trail-reading tests assume a clean audit_logs table; server-mode
+  // suites (test:graphql) commit rows into the same test DB.
+  resetAuditTrail: !isSqlite,
 });
