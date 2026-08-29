@@ -4,6 +4,17 @@
 > **Specs:** `specs.md` (REQ-001..REQ-083, Journeys J1–J2) · **Architecture:** `plan.md` (Decisions D1–D12)
 > **Gate status:** This tasks.md is executable ONLY after `outcome/plan-review-R1.md` approves `plan.md` (Task 0.3).
 
+> **⚠️ EXECUTOR PATH NOTE (from plan-review-R1 — binding):** Every reference to
+> `ai/plans/dev3-010realtime-notification-engine/` (and its `outcome/` / `deferred-items.md` sub-paths) in
+> specs.md / plan.md / this file means the ACTUAL plan directory:
+> **`ai/plans/sprint_2/dev3-010-real-time-notification-engine-websocket/`**. All outcome files, the
+> deferred-items ledger, and the REQ-083 final grep gate use the sprint_2 path. See
+> `outcome/plan-review-R1.md` (Advisories A1–A9) for binding executor dispositions covering: the
+> notifications repository namespace (does NOT pre-exist — Task 2.4 CREATEs it per the sibling repo
+> pattern), the pre-existing `test/workflows/AGENTS.md` (Task 2.1 verifies-and-extends; helpers are new),
+> the `Translation`-enum vocabulary (consume the `defineNamespace` namespace handle — do NOT create a
+> `Translation` enum), and the canonical test runner `bun run test/scripts/run-test.ts <path>`.
+
 ---
 
 ## Non-Negotiable Execution Protocol (applies to EVERY task)
@@ -21,7 +32,7 @@
 
 ### 0.1 Baseline Recording & Deferred-Items Ledger
 
-- [ ] 0.1 [Record error baseline and initialize the deferred-items ledger]
+- [x] 0.1 [Record error baseline and initialize the deferred-items ledger]
   - Run and record verbatim counts: `bun tsgo`, `bun biome:check`, `bun run scripts/lint-service.ts --json --id baseline`, `git diff --name-only`
   - Create `ai/plans/dev3-010-realtime-notification-engine/deferred-items.md` from the template; pre-seed as non-blocking forward items:
     - **D1** — emitter wiring per event type → DEV3-011 / DEV1-016 / DEV1-017 / DEV2-016 / DEV3-012 / DEV3-013 / DEV3-022d
@@ -30,11 +41,11 @@
     - **D4** — multi-channel / unified-preferences integration → notification-preferences ticket
   - Write `outcome/phase0-baseline-outcome.md` with all counts + ledger initialization confirmation
   - _Requirements: REQ-001_
-  - [ ] 0.1.SR **Semantic Review**: baseline artifact paths correct; D1–D4 each carry an owning ticket and non-blocking status
+  - [x] 0.1.SR **Semantic Review**: baseline artifact paths correct; D1–D4 each carry an owning ticket and non-blocking status
 
 ### 0.2 Prerequisite & Dependency Verification (Dependency Guard)
 
-- [ ] 0.2 [Verify pre-existing foundations — READ-ONLY audit]
+- [x] 0.2 [Verify pre-existing foundations — READ-ONLY audit]
   - Verify `backend/db/schema/notifications/notifications.ts` holds exactly the A.4 columns (`id`, `user_id`, `type`, `title`, `body`, `is_read`, `related_entity_type`, `related_entity_id`, `created_at`) + `notifications_user_id_idx` + `notifications_user_id_is_read_idx`
   - Verify `notificationType` pgEnum in `backend/db/schema/enums.ts` and TS mirror `NotificationType` in `backend/enum/notifications/notification-type.enum.ts` both carry exactly the 7 sanctioned values
   - Verify the existing `backend/db/repo/notifications/` repository surface and catalogue its methods for additive extension (never re-implementation)
@@ -42,11 +53,11 @@
   - IF any artifact is missing → record ❌ in `deferred-items.md` and block dependent tasks; NEVER patch DEV1-001-owned structures inline
   - Write audit results to `outcome/0.2-outcome.md`
   - _Requirements: REQ-004, REQ-002_
-  - [ ] 0.2.IV **Instruction Verification**: validate findings against `docs/specs/open-decisions-and-gaps.md` (A.4), `docs/specs/state-machine-invariants.md` (INV-P2/P3), `docs/DATABASE_MIGRATIONS.md`
+  - [x] 0.2.IV **Instruction Verification**: validate findings against `docs/specs/open-decisions-and-gaps.md` (A.4), `docs/specs/state-machine-invariants.md` (INV-P2/P3), `docs/DATABASE_MIGRATIONS.md`
 
 ### 0.3 Plan-Review Gate
 
-- [ ] 0.3 [Plan-review gate — REQUIRED before any Phase 1+ work]
+- [x] 0.3 [Plan-review gate — REQUIRED before any Phase 1+ work]
   - Produce `outcome/plan-review-R1.md` confirming plan.md ↔ specs.md consistency (REQ coverage, D1–D12 decisions, no scope creep)
   - Implementation tasks below MUST NOT begin until this gate passes
   - _Requirements: REQ-083_
