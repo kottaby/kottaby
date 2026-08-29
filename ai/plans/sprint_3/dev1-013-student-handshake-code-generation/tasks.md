@@ -287,13 +287,13 @@
 - _Requirements: REQ-014, REQ-064, REQ-065, REQ-066, REQ-067_
 - [ ] 4.2.QL **Quality Loop**: sub-loop `--lifecycle duplicates` on the new component + the modified container (exit 0 each)
 - [ ] 4.2.TE **Unit / Component Tests**: Happy DOM + Apollo MockedProvider via the sanctioned component runner (`test/ui` conventions): renders the fixture code from a mocked query; translation-driven assertions via `readTranslation(handle, locale)` + `TestWrapper locale` + `translation-preload.ts` (ZERO hardcoded strings); copy-click test (clipboard mocked) → localized confirmation state transition; failure branch (clipboard reject) → `copyFailed`; loading skeleton; `STUDENT_NOT_FOUND`/error branch; BOTH locales (ar + en) exercised; run via `bun run test/scripts/run-test.ts <path>`.
-- [ ] 4.2.BF **Agent-Browser Functional Self-Loop**:
+- [x] 4.2.BF **Agent-Browser Functional Self-Loop**:
   - Launch the dev server; connect via agent-browser (Playwright).
   - Log in as a student fixture → navigate to the profile surface → assert the card renders the REAL handshake code returned by GraphQL (network inspection: `MyHandshakeCode` operation observed once).
   - Click copy → assert clipboard contains the exact code; assert the localized "copied" confirmation appears in en, then repeat the flow in the `ar` locale.
   - Negative path: force the query to fail (route mock/block) → assert the localized error surface renders and no unhandled console errors appear.
   - Iterative self-loop: any functional defect → patch → re-run flow until clean.
-- [ ] 4.2.BS **Agent-Browser Visual & Styling Self-Loop (Screenshot Analysis)**:
+- [x] 4.2.BS **Agent-Browser Visual & Styling Self-Loop (Screenshot Analysis)**:
   - Capture high-resolution screenshots of the card-in-surface at Desktop 1440x900, Tablet 768x1024, Mobile 375x812 × locales en (LTR) + ar (RTL), light + dark themes.
   - Analyze each capture: code chip stays LTR/`unicode-bidi:isolate` inside RTL layout; no text truncation/overflow at 375px; spacing rhythm consistent with the existing profile cards; theme-palette colors only (screenshot pixel-sampling sanity check around borders/backgrounds); skeleton parity with sibling cards.
   - Iterative self-loop: inspect screenshot → identify defect → patch `sx` tokens → re-capture → repeat until visually polished; attach final capture set to the outcome.

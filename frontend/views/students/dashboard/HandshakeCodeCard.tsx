@@ -18,11 +18,16 @@ const COPY_CONFIRMATION_RESET_MS = 2000;
 const copyButtonSx = { minHeight: 44, px: 3 } as const;
 
 /**
- * Mono font stack for the code atom (same token as the theme's
- * `typography.mono` family — the stack is repeated because the public
- * `TypographyVariants` augmentation does not expose the `mono` variant).
+ * Fixed-pitch stack for the code atom. Deliberately a LITERAL stack — not
+ * `var(--font-jetbrains-mono)` — because that variable is never mounted in the
+ * app shell (`app/layout.tsx` loads only `--font-inter`/`--font-cairo`), so a
+ * `var()` reference degrades to the INHERITED proportional font (verified in
+ * the 4.2.BS browser loop: computed `font-family` on the chip was Inter). The
+ * stack prefers locally-installed JetBrains Mono and falls back through the
+ * standard system monospace faces, so the code is always fixed-pitch.
  */
-const MONO_FONT_FAMILY = "var(--font-jetbrains-mono), monospace" as const;
+const MONO_FONT_FAMILY =
+  '"JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace' as const;
 
 /** Copy-outcome state machine: idle → copied (transient) | failed (sticky). */
 type CopyOutcome = "idle" | "copied" | "failed";
