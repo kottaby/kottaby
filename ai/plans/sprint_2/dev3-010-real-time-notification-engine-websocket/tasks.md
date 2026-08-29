@@ -235,7 +235,7 @@
 
 ### 2.6 Engine Service — Emit Paths
 
-- [ ] 2.6 [Implement `NotificationEngine` emit surface — `backend/services/notifications/notification-engine.service.ts` (part 1)]
+- [x] 2.6 [Implement `NotificationEngine` emit surface — `backend/services/notifications/notification-engine.service.ts` (part 1)]
   - `emitForUser(input, locale, tx?)` + `emitForUsers(input, locale, tx?)` + `publishReceipts(receipts, locale)`
   - Validation guard module (`emit-validation.ts` or per service conventions): title non-empty ≤255, entityRef co-presence, positive-safe-int ids, `isNotificationType` enum guard, optional idempotencyKey ≤128 — ALL failures throw `ValidationError` BEFORE any DB access
   - Idempotency claim helper: cache SET-NX-EX on `notif:emit:<sha256(userId:type:key)>` 24h TTL; duplicate → return prior receipt (NO insert, NO publish); cache outage → FAIL OPEN + one structured warn (documented deviation D5); cache adapter INJECTED (no module state)
@@ -244,11 +244,11 @@
   - i18n via `getServerTranslations(locale, "errors")` — property access; zero translation/templating of `title`/`body` (verbatim storage, REQ-015/028)
   - Applicable instructions: `backend/services/AGENTS.md`, `docs/IDEMPOTENCY.md` (deviation ruling), DEV1-002 tx-composition precedent
   - _Requirements: REQ-010, REQ-011, REQ-012, REQ-013, REQ-015, REQ-016, REQ-040, REQ-042, REQ-043, REQ-047_
-  - [ ] 2.6.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts <each-file> --lifecycle duplicates` (exit 0)
-  - [ ] 2.6.TE **Test Engineering** (`backend/services/notifications/notification-engine.emit.test.ts` + DB-bound tier): Tier 1 — emit single/batch happy paths, validation branch matrix, duplicate-key suppression; Tier 2 — boundary titles (0/1/255/256 chars), entityRef half-pairs; Tier 3 — **forced-OUTER-tx rollback → ZERO rows AND ZERO publishes** (spied transport), cache outage fail-open persists + warns, publish-failure post-commit swallowed-with-log; Tier 4 — hostile id/type/key fuzz. Service tier with mocked transport+cache; DB tier in `runInRollback` via `bun run test/scripts/run-test.ts`
-  - [ ] 2.6.SEC **Security & Tenancy Audit**: emit NEVER exposed via GraphQL (imports only by services/tests — grep evidence recorded); BOPLA: field-by-field mapping into `NotificationInsertType`, no spreads; idempotency key hashed (no raw key storage); BFLA containment of `emitForUsers` (REQ-027)
-  - [ ] 2.6.SR **Semantic Review**: publish-after-commit ordering provable from code structure (no publish reachable before commit); zero swallowed errors outside the documented degradation path; enums as value imports; `tx` threaded everywhere
-  - [ ] 2.6.IV **Instruction Verification**: validate against `backend/services/AGENTS.md`, `docs/IDEMPOTENCY.md`, Architectural Invariants 2/3/7
+  - [x] 2.6.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts <each-file> --lifecycle duplicates` (exit 0)
+  - [x] 2.6.TE **Test Engineering** (`backend/services/notifications/notification-engine.emit.test.ts` + DB-bound tier): Tier 1 — emit single/batch happy paths, validation branch matrix, duplicate-key suppression; Tier 2 — boundary titles (0/1/255/256 chars), entityRef half-pairs; Tier 3 — **forced-OUTER-tx rollback → ZERO rows AND ZERO publishes** (spied transport), cache outage fail-open persists + warns, publish-failure post-commit swallowed-with-log; Tier 4 — hostile id/type/key fuzz. Service tier with mocked transport+cache; DB tier in `runInRollback` via `bun run test/scripts/run-test.ts`
+  - [x] 2.6.SEC **Security & Tenancy Audit**: emit NEVER exposed via GraphQL (imports only by services/tests — grep evidence recorded); BOPLA: field-by-field mapping into `NotificationInsertType`, no spreads; idempotency key hashed (no raw key storage); BFLA containment of `emitForUsers` (REQ-027)
+  - [x] 2.6.SR **Semantic Review**: publish-after-commit ordering provable from code structure (no publish reachable before commit); zero swallowed errors outside the documented degradation path; enums as value imports; `tx` threaded everywhere
+  - [x] 2.6.IV **Instruction Verification**: validate against `backend/services/AGENTS.md`, `docs/IDEMPOTENCY.md`, Architectural Invariants 2/3/7
   - Outcome: `outcome/2.6-outcome.md`
 
 ### 2.7 Engine Service — Inbox Surface
