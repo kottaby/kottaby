@@ -40,6 +40,7 @@ const PLAN_CATALOG_KEYS = [
   "planCurrencyInvalid",
   "planIntervalDaysInvalid",
   "planPatchEmpty",
+  "planInactive",
 ] as const;
 
 type PlanCatalogKey = (typeof PLAN_CATALOG_KEYS)[number];
@@ -61,6 +62,7 @@ const KEY_SHAPE: PlanCatalogKeyShape = {
   planCurrencyInvalid: true,
   planIntervalDaysInvalid: true,
   planPatchEmpty: true,
+  planInactive: true,
 };
 
 /** Picks exactly the plan-catalog slice; the picked map is typed
@@ -77,6 +79,7 @@ function pickPlanCatalog(map: ErrorsLabels): Record<PlanCatalogKey, string> {
     planCurrencyInvalid: map.planCurrencyInvalid,
     planIntervalDaysInvalid: map.planIntervalDaysInvalid,
     planPatchEmpty: map.planPatchEmpty,
+    planInactive: map.planInactive,
   };
 }
 
