@@ -28,7 +28,8 @@
  *    identically; suspension ended-in-past is VISIBLE; suspension window
  *    ending EXACTLY at the evaluation instant has lapsed (strict comparison)
  *    vs one ending after it (excluded); suspended with missing window data
- *    fails closed.
+ *    fails closed; suspended with a NON-POSITIVE duration (0/negative —
+ *    corrupt data the unchecked int column accepts) fails closed too.
  *  - Tier 3 (chaos): malformed fuzz (%/_/\, unicode, RTL, emoji, NUL,
  *    empty/whitespace-only, over/under-length) rejects with ValidationError
  *    BEFORE any DB read (repo-method spy: zero calls); three governance
@@ -93,6 +94,8 @@ interface CommittedCastType {
   readonly governedSuspendedCode: string;
   readonly lapsedSuspension: StudentFixtureType;
   readonly incompleteSuspensionCode: string;
+  readonly zeroPeriodSuspensionCode: string;
+  readonly negativePeriodSuspensionCode: string;
   readonly parentUserId: number;
   readonly absentUserId: number;
   readonly absentProbeCode: string;
@@ -249,6 +252,23 @@ beforeAll(async () => {
       fullName: "Nour Khaled",
       suspended: true,
     });
+    // Corrupt-duration variants: `suspended_period_days` is a plain nullable
+    // int with NO CHECK constraint, so 0/negative values can sit in the table.
+    // Both students are actively suspended in intent — the predicate must
+    // treat the non-positive durations as INVALID (fail-closed), never as a
+    // zero-length window that already lapsed.
+    const zeroPeriodSuspension = await createStudentFixture(tx, trackedUserIds, trackedStudentIds, {
+      fullName: "Laila Tariq",
+      suspended: true,
+      suspendedAt: new Date(Date.now() - HOUR_MS),
+      suspendedPeriodDays: 0,
+    });
+    const negativePeriodSuspension = await createStudentFixture(tx, trackedUserIds, trackedStudentIds, {
+      fullName: "Adham Sami",
+      suspended: true,
+      suspendedAt: new Date(Date.now() - HOUR_MS),
+      suspendedPeriodDays: -7,
+    });
     const bareParent = await createTestUser(tx, { role: "parent", fullName: "Karim Mansour" });
     trackedUserIds.push(bareParent.id);
     return {
@@ -260,6 +280,8 @@ beforeAll(async () => {
       governedSuspendedCode: governedSuspended.handshakeCode,
       lapsedSuspension,
       incompleteSuspensionCode: incompleteSuspension.handshakeCode,
+      zeroPeriodSuspensionCode: zeroPeriodSuspension.handshakeCode,
+      negativePeriodSuspensionCode: negativePeriodSuspension.handshakeCode,
       parentUserId: bareParent.id,
     };
   });
@@ -283,6 +305,8 @@ beforeAll(async () => {
     governedSuspendedCode: provisioned.governedSuspendedCode,
     lapsedSuspension: provisioned.lapsedSuspension,
     incompleteSuspensionCode: provisioned.incompleteSuspensionCode,
+    zeroPeriodSuspensionCode: provisioned.zeroPeriodSuspensionCode,
+    negativePeriodSuspensionCode: provisioned.negativePeriodSuspensionCode,
     parentUserId: provisioned.parentUserId,
     absentUserId,
     absentProbeCode,
@@ -473,6 +497,25 @@ describe("StudentHandshakeService.findStudentByHandshakeCode", () => {
     expect(collapsed).toEqual(await StudentHandshakeService.findStudentByHandshakeCode(c.absentProbeCode, LOCALE_EN));
   });
 
+  test("suspended with a NON-POSITIVE period fails closed (corrupt 0/negative durations never widen discovery)", async () => {
+    const c = requireCast();
+    // Both fixtures are actively suspended with a window START an hour ago;
+    // the zero/negative durations are corrupt data the unchecked int column
+    // accepts. Pre-fix, both computed `endsAt ≤ now` and masqueraded as
+    // "lapsed" — keeping an actively-suspended student discoverable.
+    const collapsed = await Promise.all([
+      StudentHandshakeService.findStudentByHandshakeCode(c.zeroPeriodSuspensionCode, LOCALE_EN),
+      StudentHandshakeService.findStudentByHandshakeCode(c.negativePeriodSuspensionCode, LOCALE_EN),
+    ]);
+    const nonexistent = await StudentHandshakeService.findStudentByHandshakeCode(c.absentProbeCode, LOCALE_EN);
+    for (const outcome of collapsed) {
+      expect(outcome).toBeNull();
+      // Same null channel — corrupt governance data is indistinguishable
+      // from a code that never existed.
+      expect(outcome).toEqual(nonexistent);
+    }
+  });
+
   // ─── Tier 3: malformed fuzz rejected PRE-DB ─────────────────────────
 
   test("malformed inputs reject with VALIDATION BEFORE any DB read (repo spy: zero calls)", async () => {
@@ -630,6 +673,25 @@ describe("isGovernanceExcludedFromDiscovery (pure predicate)", () => {
     const now = new Date();
     expect(isGovernanceExcludedFromDiscovery(governanceFixture(false, false, true, null, 30), now)).toBe(true);
     expect(isGovernanceExcludedFromDiscovery(governanceFixture(false, false, true, now, null), now)).toBe(true);
+  });
+
+  test("suspended with a NON-POSITIVE duration fails closed (corrupt data treated as invalid)", () => {
+    const now = new Date();
+    const startedAnHourAgo = new Date(now.getTime() - HOUR_MS);
+    // `suspended_period_days` is a plain nullable int with no CHECK
+    // constraint — 0 and negative values are corrupt governance data. A
+    // zero-day window would otherwise compute `endsAt == suspendedAt` (in the
+    // past) and masquerade as "lapsed" while the student is actively
+    // suspended; the predicate must fail closed on both.
+    expect(isGovernanceExcludedFromDiscovery(governanceFixture(false, false, true, startedAnHourAgo, 0), now)).toBe(
+      true
+    );
+    expect(isGovernanceExcludedFromDiscovery(governanceFixture(false, false, true, startedAnHourAgo, -7), now)).toBe(
+      true
+    );
+    // The invalid-duration verdict is independent of the window start: a
+    // current start with a zero duration is excluded exactly the same way.
+    expect(isGovernanceExcludedFromDiscovery(governanceFixture(false, false, true, now, 0), now)).toBe(true);
   });
 
   // ─── Tier 2: strict active-window boundary ──────────────────────────

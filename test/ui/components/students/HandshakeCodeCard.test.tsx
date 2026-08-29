@@ -8,8 +8,11 @@
  *   loading · happy-path code display (incl. the LTR-isolation pin of the
  *   code chip) · copy success (clipboard double resolves → localized
  *   confirmation) · copy failure (clipboard double rejects → localized
- *   fallback notice) · FORBIDDEN denial (PermissionDeniedFallback) ·
- *   STUDENT_NOT_FOUND (own-row miss edge) · generic transport error
+ *   fallback notice) · copy failure with NO clipboard API
+ *   (`navigator.clipboard === undefined` — the non-secure-context shape →
+ *   the SAME localized fallback notice) · FORBIDDEN denial
+ *   (PermissionDeniedFallback) · STUDENT_NOT_FOUND (own-row miss edge) ·
+ *   generic transport error
  *
  * Translation discipline: assertions reference ONLY the PRELOADED label
  * objects resolved through `HandshakeCode.getLabels(getTranslations(locale))`
@@ -20,7 +23,8 @@
  *
  * Clipboard discipline: `navigator.clipboard` is swapped for an in-test
  * double (captures every `writeText` payload; success/failure selectable per
- * case) and restored after each test — no permissions, no real OS clipboard.
+ * case) or shadowed with `undefined` (the no-Clipboard-API case), and
+ * restored after each test — no permissions, no real OS clipboard.
  *
  * Static discipline verified alongside (grep):
  *   - `useLazyQuery` appears NOWHERE in the component or its consumers;
@@ -279,6 +283,36 @@ for (const locale of ["ar", "en"] as AppLocale[]) {
       });
       // The success confirmation must NOT appear on the failure path.
       expect(screen.queryByText(t.codeCopied)).toBeNull();
+    });
+
+    test("copy failure (no clipboard API) — undefined navigator.clipboard surfaces the localized manual-copy notice", async () => {
+      renderCard([successMock(FIXTURE_HANDSHAKE_CODE)], locale);
+      const user = userEvent.setup();
+      // AFTER setup: shadow the clipboard with `undefined` — the
+      // non-secure-context shape (`navigator.clipboard === undefined`).
+      // happy-dom exposes `clipboard` as a getter-only PROTOTYPE accessor,
+      // so an OWN data property carrying `undefined` is defined to shadow
+      // whatever setup installed; the finally (and afterEach) restores.
+      Object.defineProperty(navigator, "clipboard", {
+        value: undefined,
+        configurable: true,
+        writable: true,
+        enumerable: true,
+      });
+      try {
+        const copyButton = await screen.findByRole("button", { name: t.copyCode });
+        await user.click(copyButton);
+
+        // `navigator.clipboard.writeText` on an undefined clipboard throws
+        // synchronously inside the async handler — the same catch arm routes
+        // it to the localized failure notice (never a crash, never success).
+        await waitFor(() => {
+          expect(screen.getByText(t.copyFailed)).toBeDefined();
+        });
+        expect(screen.queryByText(t.codeCopied)).toBeNull();
+      } finally {
+        Reflect.deleteProperty(navigator, "clipboard");
+      }
     });
 
     test("branch 2 — FORBIDDEN denial renders PermissionDeniedFallback", async () => {

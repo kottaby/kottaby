@@ -6,9 +6,10 @@
  * columns faithfully; deciding whether a governed child stays discoverable is
  * a service concern, and this helper is that single decision point.
  *
- * Fail-closed by design: when governance data is incomplete (a suspended row
- * missing its window start or duration), the child is treated as actively
- * governed — missing data must never widen discovery visibility.
+ * Fail-closed by design: when governance data is incomplete or corrupt (a
+ * suspended row missing its window start or duration, or carrying a
+ * non-positive duration), the child is treated as actively governed —
+ * missing or invalid data must never widen discovery visibility.
  */
 import type { HandshakeDiscoveryRowType } from "@/backend/types";
 
@@ -26,8 +27,12 @@ const MS_PER_DAY = 86_400_000;
  *
  *  - `isDeleted` or `isBlocked` → always excluded;
  *  - not suspended → included;
- *  - suspended with a missing window start or duration → excluded
- *    (fail-closed — incomplete governance data never widens visibility);
+ *  - suspended with a missing window start, a missing duration, or a
+ *    NON-POSITIVE duration → excluded (fail-closed — incomplete or
+ *    corrupt governance data never widens visibility; `suspended_period_days`
+ *    is a plain nullable int with no CHECK constraint, so 0/negative values
+ *    can exist, and a zero-day window would otherwise compute a past `endsAt`
+ *    and masquerade as "lapsed" while the student is actively suspended);
  *  - actively suspended (window end strictly after `now`) → excluded;
  *  - lapsed suspension (window end at or before `now`) → included.
  */
@@ -41,7 +46,11 @@ export function isGovernanceExcludedFromDiscovery(
   if (!governance.suspended) {
     return false;
   }
-  if (!governance.suspendedAt || governance.suspendedPeriodDays === null) {
+  // Fail-closed: `suspendedPeriodDays` is a plain nullable int with no CHECK
+  // constraint — a non-positive value is corrupt governance data (a zero-day
+  // window would compute `endsAt ≤ now` and misclassify an actively-suspended
+  // student as lapsed), so it is treated exactly like a missing one.
+  if (!governance.suspendedAt || governance.suspendedPeriodDays === null || governance.suspendedPeriodDays <= 0) {
     return true;
   }
   const endsAt = new Date(governance.suspendedAt.getTime() + governance.suspendedPeriodDays * MS_PER_DAY);
