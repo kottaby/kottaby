@@ -14,7 +14,10 @@
  * out of in-process/test processes entirely.
  */
 import { getNotificationFanoutTransport, getRedisUrl } from "@/backend/lib/env";
-import type { NotificationFanoutTransport } from "@/backend/services/notifications/realtime/fanout-transport";
+import type {
+  NotificationFanoutSubscriptionSource,
+  NotificationFanoutTransport,
+} from "@/backend/services/notifications/realtime/fanout-transport";
 import { InProcessTransport } from "@/backend/services/notifications/realtime/in-process-transport";
 import {
   type RedisFanoutClient,
@@ -39,6 +42,29 @@ export interface FanoutTransportOptions {
  *   of degrading silently (outages degrade later, at publish time).
  */
 export async function resolveFanoutTransport(options?: FanoutTransportOptions): Promise<NotificationFanoutTransport> {
+  return resolveTransportInstance(options);
+}
+
+/**
+ * Resolves the SUBSCRIBE side of the same env-driven selection — the
+ * WebSocket sidecar's symmetric entry (both concrete adapters implement the
+ * subscription source, but the publish-only port type deliberately does not
+ * expose it).
+ *
+ * Callers that need to own the Redis connection's lifecycle (e.g. the
+ * sidecar entry closing the client on shutdown) inject their client; the
+ * same fail-fast misconfiguration guard as the publish side applies.
+ */
+export async function resolveFanoutSubscriptionSource(
+  options?: FanoutTransportOptions
+): Promise<NotificationFanoutSubscriptionSource> {
+  return resolveTransportInstance(options);
+}
+
+/** Shared selection core — both adapters satisfy BOTH port interfaces. */
+async function resolveTransportInstance(
+  options?: FanoutTransportOptions
+): Promise<InProcessTransport | RedisPubSubTransport> {
   if (getNotificationFanoutTransport() !== "redis") {
     return new InProcessTransport();
   }

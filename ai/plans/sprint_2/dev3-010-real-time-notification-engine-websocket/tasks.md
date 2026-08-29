@@ -270,7 +270,7 @@
 
 ### 2.8 WS Sidecar Server
 
-- [ ] 2.8 [Implement Bun-native WS sidecar — `backend/ws/notification-ws-server.ts` + entry `scripts/start-notification-ws.ts` + `bun run ws` package script]
+- [x] 2.8 [Implement Bun-native WS sidecar — `backend/ws/notification-ws-server.ts` + entry `scripts/start-notification-ws.ts` + `bun run ws` package script]
   - Handshake pipeline (FIXED order): Origin allowlist (`WS_ALLOWED_ORIGINS`) → per-IP token bucket (exceed → close `4429`) → cookie header `access_token` read → `verifyAccessToken` (null → close `4401`) → userId from `sub` claim (positive-int coerce) → register
   - Connection registry (sanctioned bounded exception): `Map<connId, ConnState>`; global cap → reject `1013`; per-user cap → evict OLDEST with `4009`; 30s ping cadence, 2 missed pongs → terminate; graceful shutdown closes `1001`
   - Subscriber wiring: transport-selected subscription (Redis subscribe / in-process tap) → runtime shape guard → fan-out to recipient socket sets; outbound frame = `RealtimeNotificationPayload` JSON only
@@ -278,11 +278,11 @@
   - Logging: connection lifecycle logs carry connId + userId ONLY (no tokens/IPs/payloads); `logger` from `@/backend/lib/logger` exclusively
   - Query-string tokens REFUSED by construction (never read); no other-header identity
   - _Requirements: REQ-021, REQ-022, REQ-023, REQ-033, REQ-034, REQ-037, REQ-045, REQ-046_
-  - [ ] 2.8.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts <each-file> --lifecycle duplicates` (exit 0)
-  - [ ] 2.8.TE **Test Engineering** (dedicated WS suite, ephemeral-port harness + native `WebSocket` clients — NO Playwright at this tier): Tier 1 — valid cookie handshake → connected → push received; two-user routing isolation (one pushed, other provably silent); Tier 2 — malformed bus payload dropped, socket loop intact; graceful shutdown `1001` observed; Tier 3 — missed-pong ×2 termination; reconnect flicker ×N ends with exactly-one live connection; Tier 4 — missing/tampered/expired token → `4401`; bad Origin → reject; query-token attempt → reject; bucket exhaustion → `4429`; cap overflow → oldest evicted `4009`; registry bounds asserted
-  - [ ] 2.8.SEC **Security & Tenancy Audit**: CSWSH defense (Origin FIRST), no identity from URL/headers-payload, fail-closed auth, throttle fail-closed, payload allowlist on outbound frames (no `user_id`/PII)
-  - [ ] 2.8.SR **Semantic Review**: bounded-state exception confined to this module with cap constants; zero unbounded growth; close-code vocabulary matches doc contract exactly (4401/4429/4009/1013/1001)
-  - [ ] 2.8.IV **Instruction Verification**: validate against REQ-022/023/033/034 + process-topology ruling (sidecar NOT under `app/api/**`, exempt from ROUTE_INVENTORY per plan §1.1)
+  - [x] 2.8.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts <each-file> --lifecycle duplicates` (exit 0)
+  - [x] 2.8.TE **Test Engineering** (dedicated WS suite, ephemeral-port harness + native `WebSocket` clients — NO Playwright at this tier): Tier 1 — valid cookie handshake → connected → push received; two-user routing isolation (one pushed, other provably silent); Tier 2 — malformed bus payload dropped, socket loop intact; graceful shutdown `1001` observed; Tier 3 — missed-pong ×2 termination; reconnect flicker ×N ends with exactly-one live connection; Tier 4 — missing/tampered/expired token → `4401`; bad Origin → reject; query-token attempt → reject; bucket exhaustion → `4429`; cap overflow → oldest evicted `4009`; registry bounds asserted
+  - [x] 2.8.SEC **Security & Tenancy Audit**: CSWSH defense (Origin FIRST), no identity from URL/headers-payload, fail-closed auth, throttle fail-closed, payload allowlist on outbound frames (no `user_id`/PII)
+  - [x] 2.8.SR **Semantic Review**: bounded-state exception confined to this module with cap constants; zero unbounded growth; close-code vocabulary matches doc contract exactly (4401/4429/4009/1013/1001)
+  - [x] 2.8.IV **Instruction Verification**: validate against REQ-022/023/033/034 + process-topology ruling (sidecar NOT under `app/api/**`, exempt from ROUTE_INVENTORY per plan §1.1)
   - Outcome: `outcome/2.8-outcome.md`
 
 ### 2.M Mid-Point Review Gate

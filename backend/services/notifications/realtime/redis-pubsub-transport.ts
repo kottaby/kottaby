@@ -117,8 +117,13 @@ const PAYLOAD_DATA_KEYS: readonly string[] = [
  * Projects the payload onto the exact allowlisted field set so nothing beyond
  * the realtime contract can ever cross the bus — even if a caller smuggled
  * extra properties past the compile-time type.
+ *
+ * Exported for the WebSocket sidecar's egress path (2.8): the subscribe side
+ * projects again before writing to a socket, so the allowlist holds on BOTH
+ * bus mediums — including the in-process tap, which delivers objects without
+ * serialization.
  */
-function projectFanoutPayload(payload: RealtimeNotificationPayload): RealtimeNotificationPayload {
+export function projectFanoutPayload(payload: RealtimeNotificationPayload): RealtimeNotificationPayload {
   return {
     v: payload.v,
     kind: payload.kind,
