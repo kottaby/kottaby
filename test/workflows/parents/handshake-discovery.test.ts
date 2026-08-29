@@ -47,11 +47,11 @@ import { getServerTranslations } from "@/shared/locale/server-graphql";
 import {
   catchJourneyError,
   createJourneyCast,
-  linkStudentToParentFixture,
-  setGovernanceFixture,
   type JourneyCastType,
+  linkStudentToParentFixture,
   type ParentActorType,
   type StudentActorType,
+  setGovernanceFixture,
 } from "@/test/workflows/helpers";
 
 const LOCALE = "en";
@@ -153,7 +153,9 @@ describe("Journey — parent handshake-code discovery (specs §2.9 steps 1→8)"
 
     // Service-contract edge (REQ-014): a user with NO students row (the
     // parent) surfaces NotFoundError — STUDENT_NOT_FOUND, localized message.
-    const parentEdge = await catchJourneyError(() => StudentHandshakeService.getMyHandshakeCode(s.fatima.userId, LOCALE));
+    const parentEdge = await catchJourneyError(() =>
+      StudentHandshakeService.getMyHandshakeCode(s.fatima.userId, LOCALE)
+    );
     expect(parentEdge).toBeInstanceOf(NotFoundError);
     if (!(parentEdge instanceof NotFoundError)) {
       throw new Error("expected a NotFoundError from the parent-id edge");
@@ -188,7 +190,10 @@ describe("Journey — parent handshake-code discovery (specs §2.9 steps 1→8)"
     const s = requireState();
     // REQ-020: a lowercase variant of the REAL code normalizes into the exact
     // same discovery outcome as Step 3.
-    const lowered = await StudentHandshakeService.findStudentByHandshakeCode(s.yusuf.handshakeCode.toLowerCase(), LOCALE);
+    const lowered = await StudentHandshakeService.findStudentByHandshakeCode(
+      s.yusuf.handshakeCode.toLowerCase(),
+      LOCALE
+    );
     expect(lowered).toEqual(requireUnlinkedPayload());
 
     // REQ-020 fail-closed: structurally invalid inputs reject with
@@ -196,7 +201,9 @@ describe("Journey — parent handshake-code discovery (specs §2.9 steps 1→8)"
     // BEFORE any DB read (asserted at the service tier by its own suite).
     const invalidProbes = ["KSB-", "KSB-TOOLLONG99", "%KSB-ABCD1234", "   ", "ksb-abcd123g"];
     const errors = await Promise.all(
-      invalidProbes.map(probe => catchJourneyError(() => StudentHandshakeService.findStudentByHandshakeCode(probe, LOCALE)))
+      invalidProbes.map(probe =>
+        catchJourneyError(() => StudentHandshakeService.findStudentByHandshakeCode(probe, LOCALE))
+      )
     );
     for (const error of errors) {
       expect(error).toBeInstanceOf(ValidationError);
