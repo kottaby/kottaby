@@ -16,6 +16,6 @@ export const handshakeCodeAr: HandshakeCodeLabels = {
   foundTitle: "تم العثور على الطالب",
   canLinkDescription: "يمكنك إرسال طلب ربط للتواصل مع هذا الطالب.",
   alreadyLinkedTitle: "تم الربط بالفعل",
-  alreadyLinkedDescription: "هذا الطالب مرتبط بحسابك بالفعل.",
+  alreadyLinkedDescription: "هذا الطالب مرتبط بالفعل بحساب أحد الوالدين.",
   navLinkMyChild: "ربط طفلي",
 };

@@ -25,7 +25,8 @@ import { Errors, HandshakeCode, useAppTranslation } from "@/shared/locale";
  * Editing the field clears `validatedCode`, so a stale result never lingers
  * beside fresh input; resubmitting the UNCHANGED code forces a `refetch`,
  * so a retry after a generic error always re-queries instead of persisting
- * the stale error.
+ * the stale error. The query runs `fetchPolicy: "network-only"` (see the
+ * comment at the `useQuery` call).
  *
  * Outcome state machine (derived per render — no stored result state):
  *
@@ -53,7 +54,16 @@ export function HandshakeDiscoveryContainer(props: Readonly<HandshakeDiscoveryCo
 
   const { data, error, loading, refetch } = useQuery(
     findStudentByHandshakeCodeQueryDocument,
-    validatedCode === null ? skipToken : { variables: { code: validatedCode } }
+    // `network-only`: discovery is a POINT-IN-TIME lookup — the student's
+    // linkage state can change between searches (another parent may link
+    // them at any moment), so the cache has no value here. Without this, an
+    // edit → re-enter-the-SAME-code → resubmit cycle would re-activate the
+    // query and cache-first would replay the stale `maskedName`/`linkable`
+    // without a network round-trip. The skip gate stays the sole authority
+    // over whether a query exists at all; `network-only` only governs how an
+    // activated query resolves (always over the wire; results still write
+    // back through the normal cache policies).
+    validatedCode === null ? skipToken : { fetchPolicy: "network-only", variables: { code: validatedCode } }
   );
 
   const errorCode = error === undefined ? null : extractErrorCode(error);

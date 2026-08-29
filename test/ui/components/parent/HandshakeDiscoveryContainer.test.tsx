@@ -14,7 +14,11 @@
  *   leaked) · server `VALIDATION` re-judgment (inline input error) ·
  *   `FORBIDDEN` denial (PermissionDeniedFallback) · generic transport error ·
  *   generic transport error retried WITHOUT editing the field (the unchanged
- *   code forces a `refetch` — error first, success on the retry).
+ *   code forces a `refetch` — error first, success on the retry) · success
+ *   then EDIT + resubmit of the SAME code (the `network-only` policy forces
+ *   a SECOND wire round-trip — the lookup payload flips `linkable` between
+ *   the two searches, pinning that the refreshed result replaces the stale
+ *   cached one).
  *
  * Translation discipline: assertions reference ONLY the PRELOADED label
  * objects resolved through `HandshakeCode.getLabels(getTranslations(locale))`
@@ -449,10 +453,51 @@ for (const locale of ["ar", "en"] as AppLocale[]) {
       // Exactly two operations — the failed attempt and the forced refetch —
       // both carrying the same normalized uppercase variable.
       expect(traffic.operationNames).toEqual([FIND_OPERATION_NAME, FIND_OPERATION_NAME]);
-      expect(traffic.capturedVariables).toEqual([
-        { code: FIXTURE_HANDSHAKE_CODE },
-        { code: FIXTURE_HANDSHAKE_CODE },
-      ]);
+      expect(traffic.capturedVariables).toEqual([{ code: FIXTURE_HANDSHAKE_CODE }, { code: FIXTURE_HANDSHAKE_CODE }]);
+    });
+
+    test("success then EDIT + resubmit of the SAME code → network-only forces a fresh round-trip with the refreshed result", async () => {
+      const traffic = createNetworkTraffic();
+      // TWO mocks for the IDENTICAL request, consumed in order: the first
+      // lookup finds the student linkable; by the resubmit another parent
+      // has linked them, so the refreshed payload flips `linkable` to false.
+      // Under the previous cache-first policy the second query activation
+      // (edit clears the validated code, resubmit re-sets the SAME value)
+      // replayed the FIRST result from the cache with ZERO wire ops — this
+      // test pins the `network-only` freshness fix.
+      renderDiscovery(
+        traffic,
+        [
+          lookupResponseMock(FIXTURE_HANDSHAKE_CODE, { maskedName: MASKED_STUDENT_NAME, linkable: true }),
+          lookupResponseMock(FIXTURE_HANDSHAKE_CODE, { maskedName: MASKED_STUDENT_NAME, linkable: false }),
+        ],
+        locale
+      );
+      const user = userEvent.setup();
+      const input = screen.getByLabelText(t.inputLabel);
+
+      // First search: the student resolves as linkable.
+      await submitSearch(user, input, t.searchAction, FIXTURE_HANDSHAKE_CODE);
+      expect(await screen.findByTestId("handshake-discovery-result")).toBeDefined();
+      expect(screen.getByText(t.canLinkDescription)).toBeDefined();
+
+      // EDIT the field (every keystroke re-arms the skip gate), re-enter the
+      // SAME code, resubmit — discovery must re-query over the wire instead
+      // of replaying the cached first result.
+      await submitSearch(user, input, t.searchAction, FIXTURE_HANDSHAKE_CODE);
+
+      // The REFRESHED payload replaces the stale linkable state.
+      await waitFor(() => {
+        expect(screen.getByText(t.alreadyLinkedDescription)).toBeDefined();
+      });
+      expect(screen.getByText(t.alreadyLinkedTitle)).toBeDefined();
+      expect(screen.queryByText(t.canLinkDescription)).toBeNull();
+      expect(screen.getByText(MASKED_STUDENT_NAME)).toBeDefined();
+
+      // Exactly two wire operations — the original lookup and the refreshed
+      // resubmit — both carrying the same normalized uppercase variable.
+      expect(traffic.operationNames).toEqual([FIND_OPERATION_NAME, FIND_OPERATION_NAME]);
+      expect(traffic.capturedVariables).toEqual([{ code: FIXTURE_HANDSHAKE_CODE }, { code: FIXTURE_HANDSHAKE_CODE }]);
     });
   });
 }
