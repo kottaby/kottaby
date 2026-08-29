@@ -364,16 +364,16 @@
 
 ### 4.1 Frontend GraphQL Documents
 
-- [ ] 4.1 [Author notification GraphQL documents + barrel exports]
+- [x] 4.1 [Author notification GraphQL documents + barrel exports]
   - Create `frontend/graphql/sharedDocuments/notifications/notification.documents.ts`: `myNotificationsQueryDocument`, `myUnreadNotificationCountQueryDocument`, `markNotificationReadMutationDocument`, `markAllNotificationsReadMutationDocument` as `gql` `TypedDocumentNode`s from `@apollo/client` (never `/core`); `id` in EVERY `Notification` selection; codegen types from `@/frontend/graphql/generated/gql/graphql` only
   - Create sub-barrel `index.ts`; verify top-level barrel re-export path; NO inline literals, NO mapping layers, NO indexed-access workarounds
   - Applicable instructions: `frontend/graphql/AGENTS.md` (or shared documents conventions), REQ-062
   - _Requirements: REQ-062_
-  - [ ] 4.1.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts <each-file> --lifecycle duplicates` (exit 0)
-  - [ ] 4.1.TE **Test Engineering**: codegen type-binding compile gate (`bun tsgo`); document-shape snapshot assertions
-  - [ ] 4.1.SEC **Security & Tenancy Audit**: documents request ONLY self-scoped operations (no identity variables anywhere)
-  - [ ] 4.1.SR **Semantic Review**: hooks discipline preserved for consumers (`@apollo/client/react`, `useQuery` stateful only — documented note); zero dead documents
-  - [ ] 4.1.IV **Instruction Verification**: validate against frontend shared-documents conventions + REQ-062
+  - [x] 4.1.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts <each-file> --lifecycle duplicates` (exit 0)
+  - [x] 4.1.TE **Test Engineering**: codegen type-binding compile gate (`bun tsgo`); document-shape snapshot assertions
+  - [x] 4.1.SEC **Security & Tenancy Audit**: documents request ONLY self-scoped operations (no identity variables anywhere)
+  - [x] 4.1.SR **Semantic Review**: hooks discipline preserved for consumers (`@apollo/client/react`, `useQuery` stateful only — documented note); zero dead documents
+  - [x] 4.1.IV **Instruction Verification**: validate against frontend shared-documents conventions + REQ-062
   - Outcome: `outcome/4.1-outcome.md`
 
 ### 4.2 `useNotificationRealtime` Client Hook
