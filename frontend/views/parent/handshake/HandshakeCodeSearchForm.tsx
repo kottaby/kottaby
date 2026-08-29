@@ -76,7 +76,11 @@ export function HandshakeCodeSearchForm(props: Readonly<HandshakeCodeSearchFormP
             fullWidth
             autoComplete="off"
             slotProps={{
-              htmlInput: { "aria-invalid": props.error },
+              // `KSB-XXXXXXXX` is a Latin code atom — isolate it LTR even
+              // inside the RTL Arabic layout (caret, placeholder and typed
+              // content keep a single left-to-right reading order), while the
+              // field label/helper keep the ambient direction.
+              htmlInput: { "aria-invalid": props.error, dir: "ltr" },
             }}
           />
           <Button

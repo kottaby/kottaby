@@ -263,7 +263,7 @@
 
 ## Phase 4: Frontend — Documents, Cache, Views & Pages
 
-### - [ ] 4.1 GraphQL Documents + Apollo Cache Registration + Embedded-Types List
+### - [x] 4.1 GraphQL Documents + Apollo Cache Registration + Embedded-Types List
 - Create `frontend/graphql/sharedDocuments/students/handshake-code.documents.ts`:
   - `myHandshakeCodeQueryDocument` (`query MyHandshakeCode`) and `findStudentByHandshakeCodeQueryDocument` (`query FindStudentByHandshakeCode($code: String!)`) — `gql` + `TypedDocumentNode<…>` imported from `@apollo/client` (NEVER `/core`); types exclusively from the generated `graphql.ts`; NEITHER document selects `id` on `HandshakeCodeLookup`.
   - Register through the `students` sub-directory barrel (`frontend/graphql/sharedDocuments/students/index.ts`) per `frontend/graphql/sharedDocuments/AGENTS.md`.
@@ -277,7 +277,7 @@
 - [ ] 4.1.IV **Instruction Verification**: read `frontend/graphql/AGENTS.md`, `frontend/graphql/sharedDocuments/AGENTS.md`, and auto-discovered instruction files; confirm compliance.
 - Outcome: `outcome/4.1-shared-documents-outcome.md`.
 
-### - [ ] 4.2 Student "Your Handshake Code" Card (additive, existing profile surface)
+### - [x] 4.2 Student "Your Handshake Code" Card (additive, existing profile surface)
 - Create the card component (e.g. `frontend/components/students/HandshakeCodeCard.tsx` or the co-located view folder matching the existing profile surface's conventions) and MOUNT it additively into the existing student profile/container (NO new student route per D12):
   - `useQuery(myHandshakeCodeQueryDocument)` (hooks from `@apollo/client/react`); loading → skeleton (title + code line + action) per existing skeleton conventions; error → `extensions.code`-branched handling (`FORBIDDEN` → existing `PermissionDeniedFallback`-style pattern; unexpected → localized error state).
   - Code presentation: localized `yourCodeTitle`/`yourCodeDescription`; code chip rendered with `direction: ltr` + `unicodeBidi: isolate` inside `sx` so it reads correctly inside RTL Arabic layouts; fixed-pitch-safe treatment.
@@ -301,7 +301,7 @@
 - [ ] 4.2.IV **Instruction Verification**: read `frontend/AGENTS.md`, `frontend/views/AGENTS.md`, `frontend/components/ui/AGENTS.md`, any `frontend.instructions.md` / `mobile-desktop.instructions.md`; confirm compliance.
 - Outcome: `outcome/4.2-student-handshake-card-outcome.md`.
 
-### - [ ] 4.3 Parent Discovery Page — `/parent/handshake` + Navigation Item
+### - [x] 4.3 Parent Discovery Page — `/parent/handshake` + Navigation Item
 - **Route:** create `app/(dashboard)/parent/handshake/page.tsx` (Server Component) — `withPageAuth({ roles: [UserRole.Parent], redirectTo: "/parent/handshake" })` (anonymous → `/login?redirect=/parent/handshake`; wrong role → `/dashboard`); `await getTranslations(locale)` (single-arg) for shell labels passed as props to the client container.
 - **Client container** `frontend/views/parent/handshake/HandshakeDiscoveryContainer.tsx`:
   - Local state: `codeInput` + `validatedCode` (derived via `normalizeHandshakeCode` + `isHandshakeCode` from the SHARED constants module — frontend consumes the same canonical gate).
@@ -321,7 +321,7 @@
   - `VALIDATION` GraphQL error from server → inline input error; `FORBIDDEN` error → deny surface.
   - SSR guard tests: anonymous → `/login?redirect=/parent/handshake`; student/teacher/super-admin → `/dashboard` (per existing page-auth test conventions).
   - All assertions translation-driven (`readTranslation(handle, locale)` / preload helpers) — zero hardcoded strings; run via `bun run test/scripts/run-test.ts <path>`.
-- [ ] 4.3.BF **Agent-Browser Functional Self-Loop**:
+- [x] 4.3.BF **Agent-Browser Functional Self-Loop**:
   - Anonymous `GET /parent/handshake` → redirect to `/login?redirect=/parent/handshake` (assert target URL).
   - Student login → `/parent/handshake` → redirect to `/dashboard`; teacher login → same (DOM assertion that the page NEVER renders, no flash).
   - Parent login → `/parent/handshake`:
@@ -331,7 +331,7 @@
     - Already-linked fixture code → "already linked" copy; assert NO CTA.
   - en + ar locale flow both executed (locale switch then repeat the found + not-found cases).
   - Iterative self-loop: patch and re-run until every step is clean; record the final green run log in the outcome.
-- [ ] 4.3.BS **Agent-Browser Visual & Styling Self-Loop (Screenshot Analysis)**:
+- [x] 4.3.BS **Agent-Browser Visual & Styling Self-Loop (Screenshot Analysis)**:
   - Capture every outcome state (idle / invalid / searching-skeleton / not-found / found-linkable / found-already-linked / FORBIDDEN surface) at 1440x900, 768x1024, 375x812 × en(LTR)/ar(RTL) × light/dark.
   - Analyze: input/result alignment mirrors correctly in RTL; masked Arabic names render correctly; code-related atoms remain LTR; no truncation/overflow at 375px; palette-only colors (pixel-sample borders/backgrounds); typography hierarchy matches dashboard conventions; not-found state visually distinct from error styling per REQ-067.
   - Iterative self-loop: screenshot → identify defect → patch `sx`/theme tokens → re-capture → repeat until polished; attach final capture matrix to the outcome.
