@@ -119,4 +119,6 @@ export interface ErrorsLabels {
   /** "The audit record for this action exceeds its size limit." — the
    * fail-closed audit write rejected an oversized machine-code payload. */
   readonly auditDetailsOverflow: string;
+  /** "The free trial credit has already been granted for this student." — re-grant attempt on a student whose trial_granted_at marker is non-null. (DEV1-004) */
+  readonly trialAlreadyGranted: string;
 }

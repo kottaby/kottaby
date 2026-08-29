@@ -69,6 +69,7 @@
     "frontend/graphql/generated",
     "**/unRefactored_tests",
     // Local agent tooling library (not app code; references unavailable SDKs).
+    // Sandbox-provided skills directory (gitignored, not part of the project).
     "skills"
   ]
 }

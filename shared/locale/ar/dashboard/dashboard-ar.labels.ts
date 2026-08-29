@@ -63,4 +63,9 @@ export const dashboardAr: DashboardLabels = {
   recentActivityTitle: "النشاط الأخير",
   recentActivityEmptyTitle: "لا يوجد نشاط بعد",
   recentActivityEmptyBody: "ستظهر هنا أحدث جلساتك واشتراكاتك وإشعاراتك أثناء استخدامك للأكاديمية.",
+  gettingStartedTitle: "ابدأ هنا",
+  gettingStartedBody: "مرحباً بك! إليك بعض الإجراءات التي يمكنك اتخاذها للبدء مع حسابك.",
+  gettingStartedTipSessions: "تصفح الجلسات المتاحة واحجز تلاوتك الأولى.",
+  gettingStartedTipSubscriptions: "استكشف خطط الاشتراك لمواصلة رحلة التعلم.",
+  gettingStartedTipNotifications: "تحقق من إشعاراتك للحصول على تحديثات وإعلانات مهمة.",
 };

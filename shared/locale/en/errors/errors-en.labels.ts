@@ -45,4 +45,6 @@ export const errorsEn: ErrorsLabels = {
   // Audit-trail domain errors (DEV3-020 Phase 1).
   auditActionTypeInvalid: "The selected action filter is not supported.",
   auditDetailsOverflow: "The audit record for this action exceeds its size limit.",
+  // Student trial provisioning (DEV1-004).
+  trialAlreadyGranted: "The free trial credit has already been granted for this student.",
 };

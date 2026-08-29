@@ -6,9 +6,22 @@ import {
   HistoryOutlined as HistoryIcon,
   NotificationsOutlined as NotificationsIcon,
   SchoolOutlined as SchoolIcon,
+  SubscriptionsOutlined as SubscriptionsIcon,
+  EmojiObjectsOutlined as TipIcon,
   PaymentsOutlined as WalletIcon,
 } from "@mui/icons-material";
-import { Box, Card, CardContent, Stack, Typography } from "@mui/material";
+import {
+  Box,
+  Card,
+  CardContent,
+  Divider,
+  List,
+  ListItem,
+  ListItemIcon,
+  ListItemText,
+  Stack,
+  Typography,
+} from "@mui/material";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { useAuth } from "@/frontend/hooks/useAuth";
@@ -43,10 +56,11 @@ interface DashboardViewProps {
  *  1. Welcome header (role-adaptive greeting + academy title).
  *  2. Role status slot (teacher → applicant lifecycle card).
  *  3. Stat strip — 4 KPI tiles; 2×2 on phones, 4-across from `sm` up.
- *  4. Quick actions — role-aware navigation tiles reused from the sidebar
+ *  4. Getting started — onboarding tips card (DEV1-004).
+ *  5. Quick actions — role-aware navigation tiles reused from the sidebar
  *     nav map (dashboard/profile self-links excluded), so every dashboard
  *     exposes its destinations as one-tap cards.
- *  5. Recent activity — empty-state panel; wired to real activity feeds as
+ *  6. Recent activity — empty-state panel; wired to real activity feeds as
  *     those subsystems land.
  *
  * MUI v9 patterns: `sx` callback only, `*Outlined` icons, theme palette
@@ -91,8 +105,8 @@ export function DashboardView({ statusSlot }: Readonly<DashboardViewProps>): Rea
         ))}
       </Box>
 
+      <GettingStartedCard />
       <QuickActionsSection t={t} />
-
       <RecentActivitySection t={t} />
     </Box>
   );
@@ -165,6 +179,80 @@ function StatCard({ stat }: Readonly<StatCardProps>): ReactNode {
             <Icon fontSize="medium" />
           </Box>
         </Stack>
+      </CardContent>
+    </Card>
+  );
+}
+
+/** Getting-started guide card shown below the stat grid to fill the landing viewport. */
+function GettingStartedCard(): ReactNode {
+  const t = useAppTranslation(Dashboard);
+
+  const tips: readonly { readonly Icon: typeof SchoolIcon; readonly text: string }[] = [
+    { Icon: SchoolIcon, text: t.gettingStartedTipSessions },
+    { Icon: SubscriptionsIcon, text: t.gettingStartedTipSubscriptions },
+    { Icon: NotificationsIcon, text: t.gettingStartedTipNotifications },
+  ];
+
+  return (
+    <Card
+      elevation={0}
+      sx={theme => ({
+        mt: 3,
+        borderRadius: 3,
+        border: "1px solid",
+        borderColor: theme.palette.outlineVariant,
+        bgcolor: theme.palette.surfaceContainerLow,
+      })}
+    >
+      <CardContent sx={{ p: { xs: 2.5, sm: 3 } }}>
+        <Stack direction="row" spacing={1.5} sx={{ alignItems: "center", mb: 1 }}>
+          <Box
+            sx={theme => ({
+              width: 36,
+              height: 36,
+              borderRadius: 2,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              bgcolor: theme.palette.secondaryContainer,
+              color: theme.palette.onSecondaryContainer,
+              flexShrink: 0,
+            })}
+          >
+            <TipIcon fontSize="small" />
+          </Box>
+          <Typography variant="h6" sx={{ fontWeight: 700 }}>
+            {t.gettingStartedTitle}
+          </Typography>
+        </Stack>
+        <Typography variant="body2" sx={theme => ({ color: theme.palette.text.secondary, mb: 2 })}>
+          {t.gettingStartedBody}
+        </Typography>
+        <Divider sx={theme => ({ borderColor: theme.palette.outlineVariant, mb: 1 })} />
+        <List disablePadding>
+          {tips.map(({ Icon, text }) => (
+            <ListItem key={text} sx={{ px: 0, py: 1 }}>
+              <ListItemIcon sx={{ minWidth: 40 }}>
+                <Box
+                  sx={theme => ({
+                    width: 32,
+                    height: 32,
+                    borderRadius: 1.5,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    bgcolor: theme.palette.primaryContainer,
+                    color: theme.palette.onPrimaryContainer,
+                  })}
+                >
+                  <Icon fontSize="small" />
+                </Box>
+              </ListItemIcon>
+              <ListItemText primary={text} slotProps={{ primary: { sx: { fontSize: "0.875rem", lineHeight: 1.5 } } }} />
+            </ListItem>
+          ))}
+        </List>
       </CardContent>
     </Card>
   );

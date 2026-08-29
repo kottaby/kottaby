@@ -45,4 +45,6 @@ export const errorsAr: ErrorsLabels = {
   // Audit-trail domain errors (DEV3-020 Phase 1).
   auditActionTypeInvalid: "مرشّح نوع الإجراء المختار غير مدعوم.",
   auditDetailsOverflow: "يتجاوز سجل التدقيق لهذا الإجراء الحجم المسموح به.",
+  // Student trial provisioning (DEV1-004).
+  trialAlreadyGranted: "تم منح رصيد الجلسة التجريبية لهذا الطالب مسبقًا.",
 };

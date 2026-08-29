@@ -65,4 +65,9 @@ export const dashboardEn: DashboardLabels = {
   recentActivityEmptyTitle: "Nothing here yet",
   recentActivityEmptyBody:
     "Your latest sessions, subscriptions, and notifications will appear here as you use the academy.",
+  gettingStartedTitle: "Getting Started",
+  gettingStartedBody: "Welcome aboard! Here are a few things you can do to get started with your account.",
+  gettingStartedTipSessions: "Browse available Quran sessions and book your first recitation.",
+  gettingStartedTipSubscriptions: "Explore subscription plans to continue your learning journey.",
+  gettingStartedTipNotifications: "Check your notifications for important updates and announcements.",
 };

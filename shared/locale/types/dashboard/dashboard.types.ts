@@ -139,4 +139,14 @@ export interface DashboardLabels {
   readonly recentActivityEmptyTitle: string;
   /** Dashboard: recent-activity empty-state body */
   readonly recentActivityEmptyBody: string;
+  /** Getting Started section title shown below the stat grid on the dashboard landing (DEV1-004) */
+  readonly gettingStartedTitle: string;
+  /** Getting Started section description body */
+  readonly gettingStartedBody: string;
+  /** Getting Started tip: explore sessions */
+  readonly gettingStartedTipSessions: string;
+  /** Getting Started tip: view subscriptions */
+  readonly gettingStartedTipSubscriptions: string;
+  /** Getting Started tip: check notifications */
+  readonly gettingStartedTipNotifications: string;
 }
