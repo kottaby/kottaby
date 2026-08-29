@@ -371,13 +371,14 @@ describe("SubscriptionService", () => {
 
     test("non-positive and non-integer subscription ids reject with the localized not-found ValidationError", async () => {
       await runInRollback(async tx => {
+        const admin = await createTestUser(tx, { role: "admin" });
         // Validation-gated rejects (parseSubscriptionId runs before any
         // savepoint opens) — order-independent, so run in parallel.
         await Promise.all(
           [0, -1, 1.5, Number.NaN].map(async badId => {
             const error = await expectRepoError(() =>
               SubscriptionService.verifySubscriptionPayment(
-                { subscriptionId: badId, paymentMethod: "offline_cash", paymentReference: "R-1", verifiedBy: 1 },
+                { subscriptionId: badId, paymentMethod: "offline_cash", paymentReference: "R-1", verifiedBy: admin.id },
                 "en",
                 tx
               )
@@ -394,6 +395,7 @@ describe("SubscriptionService", () => {
         const user = await createTestUser(tx);
         const plan = await createTestPlan(tx);
         const request = await SubscriptionService.requestPlanSubscription(user.id, plan.id, "en", tx);
+        const admin = await createTestUser(tx, { role: "admin" });
         const domainSpy = spyOn(logger, "logDomainError");
 
         // Validation-gated rejects (parseOfflinePaymentMethod runs before
@@ -402,7 +404,7 @@ describe("SubscriptionService", () => {
           ["stripe", "paypal", "credit", "OFFLINE_CASH"].map(async badMethod => {
             const error = await expectRepoError(() =>
               SubscriptionService.verifySubscriptionPayment(
-                { subscriptionId: request.id, paymentMethod: badMethod, paymentReference: "R-1", verifiedBy: 1 },
+                { subscriptionId: request.id, paymentMethod: badMethod, paymentReference: "R-1", verifiedBy: admin.id },
                 "en",
                 tx
               )
@@ -420,6 +422,7 @@ describe("SubscriptionService", () => {
       await runInRollback(async tx => {
         const user = await createTestUser(tx);
         const plan = await createTestPlan(tx);
+        const admin = await createTestUser(tx, { role: "admin" });
         const domainSpy = spyOn(logger, "logDomainError");
 
         const first = await SubscriptionService.requestPlanSubscription(user.id, plan.id, "en", tx);
@@ -433,7 +436,7 @@ describe("SubscriptionService", () => {
                   subscriptionId: first.id,
                   paymentMethod: "offline_cash",
                   paymentReference: badReference,
-                  verifiedBy: 1,
+                  verifiedBy: admin.id,
                 },
                 "en",
                 tx
@@ -452,7 +455,7 @@ describe("SubscriptionService", () => {
             subscriptionId: first.id,
             paymentMethod: "offline_cash",
             paymentReference: "R".repeat(255),
-            verifiedBy: 1,
+            verifiedBy: admin.id,
           },
           "en",
           tx
@@ -463,10 +466,16 @@ describe("SubscriptionService", () => {
 
     test("a MISSING subscription id rejects with SUBSCRIPTION_NOT_FOUND (ConflictError)", async () => {
       await runInRollback(async tx => {
+        const admin = await createTestUser(tx, { role: "admin" });
         const domainSpy = spyOn(logger, "logDomainError");
         const error = await expectRepoError(() =>
           SubscriptionService.verifySubscriptionPayment(
-            { subscriptionId: 999_999_999, paymentMethod: "offline_cash", paymentReference: "R-1", verifiedBy: 1 },
+            {
+              subscriptionId: 999_999_999,
+              paymentMethod: "offline_cash",
+              paymentReference: "R-1",
+              verifiedBy: admin.id,
+            },
             "en",
             tx
           )
@@ -484,10 +493,16 @@ describe("SubscriptionService", () => {
         const plan = await createTestPlan(tx);
         const request = await SubscriptionService.requestPlanSubscription(user.id, plan.id, "en", tx);
         await tx.update(subscriptions).set({ status: "cancelled" }).where(eq(subscriptions.id, request.id));
+        const admin = await createTestUser(tx, { role: "admin" });
 
         const error = await expectRepoError(() =>
           SubscriptionService.verifySubscriptionPayment(
-            { subscriptionId: request.id, paymentMethod: "offline_cash", paymentReference: "R-1", verifiedBy: 1 },
+            {
+              subscriptionId: request.id,
+              paymentMethod: "offline_cash",
+              paymentReference: "R-1",
+              verifiedBy: admin.id,
+            },
             "en",
             tx
           )
@@ -502,11 +517,12 @@ describe("SubscriptionService", () => {
         const user = await createTestUser(tx);
         const plan = await createTestPlan(tx);
         const request = await SubscriptionService.requestPlanSubscription(user.id, plan.id, "en", tx);
+        const admin = await createTestUser(tx, { role: "admin" });
         const input = {
           subscriptionId: request.id,
           paymentMethod: "offline_cash" as const,
           paymentReference: "RCPT-DUP",
-          verifiedBy: 1,
+          verifiedBy: admin.id,
         };
 
         const first = await SubscriptionService.verifySubscriptionPayment(input, "en", tx);
@@ -524,13 +540,14 @@ describe("SubscriptionService", () => {
         const plan = await createTestPlan(tx);
         const request = await SubscriptionService.requestPlanSubscription(user.id, plan.id, "en", tx);
         await tx.update(plans).set({ isActive: false, deactivatedAt: new Date() }).where(eq(plans.id, plan.id));
+        const admin = await createTestUser(tx, { role: "admin" });
 
         const activated = await SubscriptionService.verifySubscriptionPayment(
           {
             subscriptionId: request.id,
             paymentMethod: "bank_transfer",
             paymentReference: "TRF-POST-DEACT",
-            verifiedBy: 1,
+            verifiedBy: admin.id,
           },
           "en",
           tx
@@ -543,9 +560,15 @@ describe("SubscriptionService", () => {
 
     test("verification rejections switch to Arabic literals under locale=ar", async () => {
       await runInRollback(async tx => {
+        const admin = await createTestUser(tx, { role: "admin" });
         const notFound = await expectRepoError(() =>
           SubscriptionService.verifySubscriptionPayment(
-            { subscriptionId: 999_999_999, paymentMethod: "offline_cash", paymentReference: "R-1", verifiedBy: 1 },
+            {
+              subscriptionId: 999_999_999,
+              paymentMethod: "offline_cash",
+              paymentReference: "R-1",
+              verifiedBy: admin.id,
+            },
             "ar",
             tx
           )
@@ -558,7 +581,7 @@ describe("SubscriptionService", () => {
 
         const badMethod = await expectRepoError(() =>
           SubscriptionService.verifySubscriptionPayment(
-            { subscriptionId: request.id, paymentMethod: "stripe", paymentReference: "R-1", verifiedBy: 1 },
+            { subscriptionId: request.id, paymentMethod: "stripe", paymentReference: "R-1", verifiedBy: admin.id },
             "ar",
             tx
           )
@@ -567,7 +590,7 @@ describe("SubscriptionService", () => {
 
         const badReference = await expectRepoError(() =>
           SubscriptionService.verifySubscriptionPayment(
-            { subscriptionId: request.id, paymentMethod: "offline_cash", paymentReference: "  ", verifiedBy: 1 },
+            { subscriptionId: request.id, paymentMethod: "offline_cash", paymentReference: "  ", verifiedBy: admin.id },
             "ar",
             tx
           )
@@ -575,13 +598,23 @@ describe("SubscriptionService", () => {
         expect(badReference.message).toBe(arErrors.paymentReferenceInvalid);
 
         await SubscriptionService.verifySubscriptionPayment(
-          { subscriptionId: request.id, paymentMethod: "offline_cash", paymentReference: "RCPT-AR", verifiedBy: 1 },
+          {
+            subscriptionId: request.id,
+            paymentMethod: "offline_cash",
+            paymentReference: "RCPT-AR",
+            verifiedBy: admin.id,
+          },
           "ar",
           tx
         );
         const alreadyResolved = await expectRepoError(() =>
           SubscriptionService.verifySubscriptionPayment(
-            { subscriptionId: request.id, paymentMethod: "offline_cash", paymentReference: "RCPT-AR", verifiedBy: 1 },
+            {
+              subscriptionId: request.id,
+              paymentMethod: "offline_cash",
+              paymentReference: "RCPT-AR",
+              verifiedBy: admin.id,
+            },
             "ar",
             tx
           )
@@ -767,9 +800,10 @@ describe("SubscriptionService", () => {
         const buyer = await createTestUser(tx);
         const plan = await createTestPlan(tx);
         const request = await SubscriptionService.requestPlanSubscription(buyer.id, plan.id, "en", tx);
+        const admin = await createTestUser(tx, { role: "admin" });
 
         const cancelled = await SubscriptionService.cancelSubscription(
-          { subscriptionId: request.id, cancelledBy: 1 },
+          { subscriptionId: request.id, cancelledBy: admin.id },
           "en",
           tx
         );
@@ -787,19 +821,20 @@ describe("SubscriptionService", () => {
         const buyer = await createTestUser(tx);
         const planA = await createTestPlan(tx);
         const planB = await createTestPlan(tx);
+        const admin = await createTestUser(tx, { role: "admin" });
         const expiredRow = await SubscriptionService.requestPlanSubscription(buyer.id, planA.id, "en", tx);
         const suspendedRow = await SubscriptionService.requestPlanSubscription(buyer.id, planB.id, "en", tx);
         await tx.update(subscriptions).set({ status: "expired" }).where(eq(subscriptions.id, expiredRow.id));
         await tx.update(subscriptions).set({ status: "suspended" }).where(eq(subscriptions.id, suspendedRow.id));
 
         const expiredError = await expectRepoError(() =>
-          SubscriptionService.cancelSubscription({ subscriptionId: expiredRow.id, cancelledBy: 1 }, "en", tx)
+          SubscriptionService.cancelSubscription({ subscriptionId: expiredRow.id, cancelledBy: admin.id }, "en", tx)
         );
         expect(expiredError).toBeInstanceOf(ConflictError);
         expect(expiredError.message).toBe(enErrors.subscriptionAlreadyResolved);
 
         const suspendedError = await expectRepoError(() =>
-          SubscriptionService.cancelSubscription({ subscriptionId: suspendedRow.id, cancelledBy: 1 }, "ar", tx)
+          SubscriptionService.cancelSubscription({ subscriptionId: suspendedRow.id, cancelledBy: admin.id }, "ar", tx)
         );
         expect(suspendedError).toBeInstanceOf(ConflictError);
         expect(suspendedError.message).toBe(arErrors.subscriptionAlreadyResolved);
@@ -811,17 +846,18 @@ describe("SubscriptionService", () => {
         const buyer = await createTestUser(tx);
         const plan = await createTestPlan(tx);
         const request = await SubscriptionService.requestPlanSubscription(buyer.id, plan.id, "en", tx);
+        const admin = await createTestUser(tx, { role: "admin" });
         const domainSpy = spyOn(logger, "logDomainError");
 
         const first = await SubscriptionService.cancelSubscription(
-          { subscriptionId: request.id, cancelledBy: 1 },
+          { subscriptionId: request.id, cancelledBy: admin.id },
           "en",
           tx
         );
         expect(first.status).toBe("cancelled");
 
         const error = await expectRepoError(() =>
-          SubscriptionService.cancelSubscription({ subscriptionId: request.id, cancelledBy: 1 }, "en", tx)
+          SubscriptionService.cancelSubscription({ subscriptionId: request.id, cancelledBy: admin.id }, "en", tx)
         );
         expect(error).toBeInstanceOf(ConflictError);
         expect(error.message).toBe(enErrors.subscriptionAlreadyResolved);
@@ -832,14 +868,15 @@ describe("SubscriptionService", () => {
 
     test("a MISSING id rejects with SUBSCRIPTION_NOT_FOUND; a non-positive id rejects with the localized ValidationError", async () => {
       await runInRollback(async tx => {
+        const admin = await createTestUser(tx, { role: "admin" });
         const notFound = await expectRepoError(() =>
-          SubscriptionService.cancelSubscription({ subscriptionId: 999_999_999, cancelledBy: 1 }, "en", tx)
+          SubscriptionService.cancelSubscription({ subscriptionId: 999_999_999, cancelledBy: admin.id }, "en", tx)
         );
         expect(notFound).toBeInstanceOf(ConflictError);
         expect(notFound.message).toBe(enErrors.subscriptionNotFound);
 
         const invalid = await expectRepoError(() =>
-          SubscriptionService.cancelSubscription({ subscriptionId: 0, cancelledBy: 1 }, "en", tx)
+          SubscriptionService.cancelSubscription({ subscriptionId: 0, cancelledBy: admin.id }, "en", tx)
         );
         expect(invalid).toBeInstanceOf(ValidationError);
         expect(invalid.message).toBe(enErrors.subscriptionNotFound);
