@@ -469,7 +469,7 @@
 
 ### 5.3 Chaos / Concurrency Tier
 
-- [ ] 5.3 [Chaos & concurrency suite]
+- [x] 5.3 [Chaos & concurrency suite]
   - 25-way concurrent mark-one/mark-all storms (`Promise.allSettled`, same user) → all-fulfilled + consistent final state (REQ-044)
   - Parallel emit batches → full row-set + ordering invariants (`createdAt` batch-equal, `id` tiebreak)
   - Reconnect flicker storm (close↔open × N) → exactly-one live connection, zero duplicated toasts (client harness)

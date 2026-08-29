@@ -16,6 +16,12 @@
  *   unmount → single close(1000) · no listener/toast duplication across
  *   remounts.
  *
+ * Chaos tier (tasks.md 5.3, appended describe): a close↔open flicker storm
+ * keeps exactly one live connection with zero duplicated toasts (replay
+ * dedupe by id, REQ-076); unicode/RTL/control-char payload frames render as
+ * literal text — no crash, no script materialization (REQ-028 client half;
+ * the storage half lives in notification-engine.chaos.test.ts).
+ *
  * Translation discipline: every rendered string resolves through
  * `Notifications.getLabels(getTranslations(locale))` /
  * `Common.getLabels(...)` — ZERO hardcoded UI copy. Fixture titles and ids
@@ -284,6 +290,37 @@ function sleep(ms: number): Promise<void> {
   return new Promise(resolve => {
     setTimeout(resolve, ms);
   });
+}
+
+/**
+ * Seeded client whose MockLink serves the initial page PLUS one catch-up
+ * pair per planned reconnect — every catch-up converges to the SAME server
+ * truth (["500"], 1), so any replay the sidecar re-delivers is observably
+ * stale: a duplicate toast or a cache drift is the only way it could stick.
+ */
+async function createFlickerClient(reconnects: number): Promise<ApolloClient> {
+  const catchUpPair: MockLink.MockedResponse[] = [
+    {
+      request: { query: myUnreadNotificationCountQueryDocument },
+      result: { data: { myUnreadNotificationCount: 1 } },
+    },
+    {
+      request: { query: myNotificationsQueryDocument, variables: { filter: null } },
+      result: { data: { myNotifications: listPageData(["500"], 1) } },
+    },
+  ];
+  const mocks: MockLink.MockedResponse[] = [...catchUpPair];
+  for (let reconnect = 0; reconnect < reconnects; reconnect++) {
+    mocks.push(...catchUpPair);
+  }
+  const client = new ApolloClient({
+    link: new MockLink([...mocks]),
+    cache: createApolloCache(),
+    defaultOptions: { query: { errorPolicy: "none" } },
+  });
+  await client.query({ query: myUnreadNotificationCountQueryDocument });
+  await client.query({ query: myNotificationsQueryDocument, variables: { filter: null } });
+  return client;
 }
 
 // ─── Wire frame handling ────────────────────────────────────────────────────
@@ -675,5 +712,119 @@ describe("getNotificationReconnectDelay", () => {
 
   test("negative attempt counts clamp to the first step", () => {
     expect(getNotificationReconnectDelay(-3, () => 0.5)).toBe(1000);
+  });
+});
+
+// ─── Chaos tier (tasks.md 5.3 — REQ-044/REQ-076 client half) ────────────────
+
+describe("useNotificationRealtime — chaos tier (reconnect flicker + hostile payloads)", () => {
+  test("a close↔open flicker storm keeps exactly ONE live connection and zero duplicated toasts (replay dedupe by id)", async () => {
+    const locale: AppLocale = "en";
+    const labels = Notifications.getLabels(getTranslations(locale));
+    const replayTitle = "chaos-flicker-replay";
+
+    // Four flickers keep the whole storm inside the 6s toast auto-hide
+    // window, so "exactly one toast" is assertable at every cycle — each
+    // reopen re-delivers a BURST of three replayed frames, so the dedupe
+    // gate absorbs 13 deliveries of one id in total.
+    const FLICKERS = 4;
+    const REPLAY_BURST = 3;
+    const client = await createFlickerClient(FLICKERS);
+
+    renderHost(client, locale);
+    const first = currentSocket();
+    act(() => {
+      first.simulateOpen();
+    });
+    // The one legitimate delivery: exactly one toast, one prepend, one bump.
+    act(() => {
+      first.simulateMessage(makeFrameRaw(777, replayTitle));
+    });
+    expect(readCachedListIds(client)).toEqual(["777", "500"]);
+    expect(readCachedCount(client)).toBe(2);
+    expect(screen.getAllByText(labels.realtimeToast(labels.typeSessionRequest, replayTitle))).toHaveLength(1);
+
+    // Index-recursive flicker cycle (the repo's no-await-in-loop pattern —
+    // each close↔open cycle depends on the previous one's reconnect timer).
+    const flickerOnce = async (cycle: number): Promise<void> => {
+      if (cycle > FLICKERS) {
+        return;
+      }
+      // Server restart → close(1001) → backoff → a fresh socket per cycle.
+      act(() => {
+        currentSocket().simulateClose(1001);
+      });
+      await waitFor(() => expect(FakeWebSocket.instances).toHaveLength(cycle + 1), { timeout: 3000 });
+      const reopened = currentSocket();
+      act(() => {
+        reopened.simulateOpen();
+        // The sidecar replays the recent push at-least-once per reconnect.
+        for (let burstIndex = 0; burstIndex < REPLAY_BURST; burstIndex++) {
+          reopened.simulateMessage(makeFrameRaw(777, replayTitle));
+        }
+      });
+      // Dedupe by payload id: NEVER a second toast, no matter the cycle.
+      expect(screen.getAllByText(labels.realtimeToast(labels.typeSessionRequest, replayTitle))).toHaveLength(1);
+      await flickerOnce(cycle + 1);
+    };
+    await flickerOnce(1);
+
+    // The final reopen's catch-up converges the cache to the mocked server
+    // truth — the stale replay never double-bumped anything.
+    await waitFor(() => expect(readCachedCount(client)).toBe(1), { timeout: 3000 });
+    await waitFor(() => expect(readCachedListIds(client)).toEqual(["500"]), { timeout: 3000 });
+
+    // Exactly-one live connection: 1 + FLICKERS sockets were ever built, one
+    // is OPEN, every retired socket is CLOSED, and the push-only protocol
+    // held across the whole storm (zero outbound frames anywhere).
+    expect(FakeWebSocket.instances).toHaveLength(1 + FLICKERS);
+    const liveSockets = FakeWebSocket.instances.filter(socket => socket.readyState === FakeWebSocket.OPEN);
+    expect(liveSockets).toHaveLength(1);
+    for (const socket of FakeWebSocket.instances) {
+      expect(socket.sentFrames).toEqual([]);
+      if (!liveSockets.includes(socket)) {
+        expect(socket.readyState).toBe(FakeWebSocket.CLOSED);
+      }
+    }
+  });
+
+  test("unicode/RTL/control-char payload frames render as literal text — no crash, no script materialization", async () => {
+    const locale: AppLocale = "en";
+    const labels = Notifications.getLabels(getTranslations(locale));
+    const client = await createSeededClient();
+
+    renderHost(client, locale);
+    const socket = currentSocket();
+    act(() => {
+      socket.simulateOpen();
+    });
+
+    // Hostile title: bidi override + RTL/inline marks + zero-width space +
+    // control characters (BEL/BS/ESC/US — deliberately none are DOM
+    // whitespace, so the default text-matching normalizer cannot collapse
+    // them) + astral-plane emoji. Parity with the DB tier's hostile-text
+    // storage fixture (notification-engine.chaos.test.ts).
+    const hostileTitle = "chaos-\u202E\u200Fعرض\u202C\u200E\u200B\u0007\u0008\u001B\u001F\u{1F680}\u{1D11E}";
+    act(() => {
+      socket.simulateMessage(makeFrameRaw(777, hostileTitle));
+    });
+
+    // Renders byte-exact as a literal text node — exactly one toast, no crash.
+    expect(screen.getAllByText(labels.realtimeToast(labels.typeSessionRequest, hostileTitle))).toHaveLength(1);
+    expect(document.querySelectorAll(".MuiAlert-root")).toHaveLength(1);
+
+    // Injection-shaped copy renders as text too (REQ-028 client half).
+    const injectionTitle = "chaos-<script>alert('xss')</script>";
+    act(() => {
+      socket.simulateMessage(makeFrameRaw(778, injectionTitle, "system_broadcast"));
+    });
+    expect(screen.getAllByText(labels.realtimeToast(labels.typeSystemBroadcast, injectionTitle))).toHaveLength(1);
+    expect(document.querySelectorAll(".MuiAlert-root")).toHaveLength(2);
+    // Payload text never materializes as an executable element.
+    expect(document.querySelectorAll("script")).toHaveLength(0);
+
+    // The hostile rows merged into the cache as literal ids, badge bumped twice.
+    expect(readCachedListIds(client)).toEqual(["778", "777", "500"]);
+    expect(readCachedCount(client)).toBe(3);
   });
 });
