@@ -42,4 +42,6 @@ export interface ErrorsLabels {
   readonly applicantCooldownActive: string;
   /** Fail-closed deny when an applicants row status cannot be interpreted as a known ApplicantStatus. */
   readonly applicantStatusCorrupt: string;
+  /** "The notification was not found." — self-scope notification lookup miss → NotFoundError("NOTIFICATION"). */
+  readonly notificationNotFound: string;
 }

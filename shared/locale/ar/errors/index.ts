@@ -22,4 +22,5 @@ export const errorsAr: ErrorsLabels = {
   applicantNotFound: "لم يتم العثور على طلب التقديم كمعلم قرآن.",
   applicantCooldownActive: "يمكنك إعادة التقديم للتحقق كمعلم قرآن بعد {cooldownUntil}.",
   applicantStatusCorrupt: "تعذر قراءة حالة طلبك. يرجى التواصل مع فريق الدعم.",
+  notificationNotFound: "لم يتم العثور على الإشعار.",
 };

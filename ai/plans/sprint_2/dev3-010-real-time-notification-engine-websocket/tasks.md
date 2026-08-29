@@ -70,72 +70,72 @@
 
 ### 1.1 Canonical Types Extension
 
-- [ ] 1.1 [Extend `backend/types/notifications/notification.types.ts` — additive only]
+- [x] 1.1 [Extend `backend/types/notifications/notification.types.ts` — additive only]
   - Add: `NotificationReturnType` (= `NotificationSelectType` alias — GraphQL binding anchor), `NotificationEmitInput`, `NotificationEmitBatchInput`, `NotificationDeliveryReceipt`, `NotificationListFilterInput`, `NotificationListPageReturnType`, `RealtimeNotificationPayload` (exact shapes per plan §2.2)
   - `NotificationType` used at runtime = **value import** from `@/backend/enum/notifications/notification-type.enum`; `DBTransaction` from `@/backend/types`; no barrel change needed (`backend/types/notifications/index.ts` already re-exports)
   - NO service-layer `.types.ts`; NO local Pothos types
   - Applicable instructions: `backend/types/AGENTS.md` (or nearest), `shared/AGENTS.md` import-purity rules
   - _Requirements: REQ-003_
-  - [ ] 1.1.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts backend/types/notifications/notification.types.ts --lifecycle duplicates` (exit 0)
-  - [ ] 1.1.TE **Test Engineering**: type-level compile proof via `bun tsgo`; field-shape unit assertions where runtime-relevant (receipt readonly arrays)
-  - [ ] 1.1.SEC **Security & Tenancy Audit**: confirm `NotificationEmitInput`/`Batch` are structurally incapable of becoming GraphQL inputs (server-internal containment); `RealtimeNotificationPayload` field allowlist excludes PII (`user_id`, email, phone) by construction
-  - [ ] 1.1.SR **Semantic Review**: no `import type`-only usage of `NotificationType` where runtime validation consumes it; zero dead exports
-  - [ ] 1.1.IV **Instruction Verification**: validate against `backend/AGENTS.md` canonical-types rules
+  - [x] 1.1.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts backend/types/notifications/notification.types.ts --lifecycle duplicates` (exit 0)
+  - [x] 1.1.TE **Test Engineering**: type-level compile proof via `bun tsgo`; field-shape unit assertions where runtime-relevant (receipt readonly arrays)
+  - [x] 1.1.SEC **Security & Tenancy Audit**: confirm `NotificationEmitInput`/`Batch` are structurally incapable of becoming GraphQL inputs (server-internal containment); `RealtimeNotificationPayload` field allowlist excludes PII (`user_id`, email, phone) by construction
+  - [x] 1.1.SR **Semantic Review**: no `import type`-only usage of `NotificationType` where runtime validation consumes it; zero dead exports
+  - [x] 1.1.IV **Instruction Verification**: validate against `backend/AGENTS.md` canonical-types rules
   - Outcome: `outcome/1.1-outcome.md`
 
 ### 1.2 Enum Guard + Byte-Parity Static Test
 
-- [ ] 1.2 [Add `isNotificationType` guard + enum byte-parity static test]
+- [x] 1.2 [Add `isNotificationType` guard + enum byte-parity static test]
   - In `backend/enum/notifications/notification-type.enum.ts` (same file, following the `isApplicantStatus` precedent): `isNotificationType(value: unknown): value is NotificationType` via `Object.values(NotificationType).includes(...)`
   - Create static-parity test `backend/enum/notifications/notification-type.enum.test.ts` (or per existing enum-test placement): assert pgEnum `notificationType.enumValues` ↔ TS mirror byte-identical (7 values, order-sensitive per `backend/db/schema/enums.ts`)
   - _Requirements: REQ-014, REQ-004_
-  - [ ] 1.2.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts backend/enum/notifications/notification-type.enum.ts --lifecycle duplicates` (exit 0)
-  - [ ] 1.2.TE **Test Engineering**: Tier 1 — positive for all 7 members; Tier 2 — null/undefined/number/object/casing-variant rejections; run via `bun run test/scripts/run-test.ts <test-path>`
-  - [ ] 1.2.SEC **Security & Tenancy Audit**: guard fails CLOSED (unknown → reject, never `as NotificationType` narrowing)
-  - [ ] 1.2.SR **Semantic Review**: value import used; no string-literal type lists duplicated elsewhere
-  - [ ] 1.2.IV **Instruction Verification**: validate against `backend/enum/**/AGENTS.md` conventions
+  - [x] 1.2.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts backend/enum/notifications/notification-type.enum.ts --lifecycle duplicates` (exit 0)
+  - [x] 1.2.TE **Test Engineering**: Tier 1 — positive for all 7 members; Tier 2 — null/undefined/number/object/casing-variant rejections; run via `bun run test/scripts/run-test.ts <test-path>`
+  - [x] 1.2.SEC **Security & Tenancy Audit**: guard fails CLOSED (unknown → reject, never `as NotificationType` narrowing)
+  - [x] 1.2.SR **Semantic Review**: value import used; no string-literal type lists duplicated elsewhere
+  - [x] 1.2.IV **Instruction Verification**: validate against `backend/enum/**/AGENTS.md` conventions
   - Outcome: `outcome/1.2-outcome.md`
 
 ### 1.3 `errors` Namespace Extension
 
-- [ ] 1.3 [Add `notificationNotFound` to the errors namespace (en + ar + types)]
+- [x] 1.3 [Add `notificationNotFound` to the errors namespace (en + ar + types)]
   - `shared/locale/types/errors/index.ts`: add `notifications: { notificationNotFound: string }` grouping to the errors MessageSchema interface
   - `shared/locale/en/errors/index.ts`: `"The notification was not found."`
   - `shared/locale/ar/errors/index.ts`: `"لم يتم العثور على الإشعار."`
   - MessageSchema parity = compile gate (`bun tsgo` must pass); NO near-duplicate keys (reuse existing generic validation keys for filter/pagination failures)
   - _Requirements: REQ-051_
-  - [ ] 1.3.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts <each-touched-file> --lifecycle duplicates` (exit 0 each)
-  - [ ] 1.3.SR **Semantic Review**: property-access consumers only; full MessageSchema parity across locales; zero hardcoded strings elsewhere compensating for a missing key
-  - [ ] 1.3.IV **Instruction Verification**: validate against `shared/locale/AGENTS.md` errors-namespace policy
+  - [x] 1.3.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts <each-touched-file> --lifecycle duplicates` (exit 0 each)
+  - [x] 1.3.SR **Semantic Review**: property-access consumers only; full MessageSchema parity across locales; zero hardcoded strings elsewhere compensating for a missing key
+  - [x] 1.3.IV **Instruction Verification**: validate against `shared/locale/AGENTS.md` errors-namespace policy
   - Outcome: `outcome/1.3-outcome.md`
 
 ### 1.4 New `notifications` UI Namespace (Full 5-Step Registration)
 
-- [ ] 1.4 [Register the `notifications` UI namespace per `shared/locale/AGENTS.md`]
+- [x] 1.4 [Register the `notifications` UI namespace per `shared/locale/AGENTS.md`]
   - Step 1: types interface in `shared/locale/types/notifications/index.ts` — feed title, empty state, error state, filter labels (`all`, `unread`), type labels for all 7 `NotificationType` values, mark-read / mark-all labels + confirm copy, badge aria label, pluralized unread-count **function** (`unreadCount: (count: number) => string`), realtime toast template, quiet reconnect affordance copy
   - Step 2: `shared/locale/en/notifications/index.ts`
   - Step 3: `shared/locale/ar/notifications/index.ts` (full Arabic copy)
   - Step 4: MessageSchema entry + namespace-paths registration + `defineNamespace("notifications", …)` handle
   - Consumers: client `useAppTranslation(Translation.Notifications)`; server shell `await getTranslations(locale)`; property access only
   - _Requirements: REQ-052, REQ-002_
-  - [ ] 1.4.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts <each-file> --lifecycle duplicates` (exit 0)
-  - [ ] 1.4.TE **Test Engineering**: `bun tsgo` parity gate; pluralization function unit assertions (0/1/2/many in both locales)
-  - [ ] 1.4.SR **Semantic Review**: zero hardcoded user-facing strings; enum-handle consumption verified; Arabic copy present for every key (no English fallthrough)
-  - [ ] 1.4.IV **Instruction Verification**: `shared/locale/AGENTS.md` 5-step procedure followed verbatim
+  - [x] 1.4.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts <each-file> --lifecycle duplicates` (exit 0)
+  - [x] 1.4.TE **Test Engineering**: `bun tsgo` parity gate; pluralization function unit assertions (0/1/2/many in both locales)
+  - [x] 1.4.SR **Semantic Review**: zero hardcoded user-facing strings; enum-handle consumption verified; Arabic copy present for every key (no English fallthrough)
+  - [x] 1.4.IV **Instruction Verification**: `shared/locale/AGENTS.md` 5-step procedure followed verbatim
   - Outcome: `outcome/1.4-outcome.md`
 
 ### 1.5 Env-Config Registry Additions
 
-- [ ] 1.5 [Register WS/fanout env keys in env-config registry]
+- [x] 1.5 [Register WS/fanout env keys in env-config registry]
   - Register: `WS_PORT`, `WS_HOST`, `WS_ALLOWED_ORIGINS`, `NOTIFICATION_FANOUT_TRANSPORT`, Redis connection knobs (reuse existing registration if present), `WS_MAX_CONNECTIONS`, `WS_MAX_CONNECTIONS_PER_USER`
   - Typed getters with dev/test defaults (localhost origins in dev); every `reset*` cache-invalidation path covers every new key
   - Applicable instructions: env-config conventions per REQ-049 + `backend/lib/` AGENTS files
   - _Requirements: REQ-049_
-  - [ ] 1.5.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts <each-touched-file> --lifecycle duplicates` (exit 0)
-  - [ ] 1.5.TE **Test Engineering**: registry-inclusion test; invalidation-coverage test (assert each key cleared by reset path); typed-default assertions
-  - [ ] 1.5.SEC **Security & Tenancy Audit**: no secrets logged; `WS_ALLOWED_ORIGINS` has NO wildcard default; transport default is in-process unless Redis config explicitly present
-  - [ ] 1.5.SR **Semantic Review**: every registered key consumed via the registry (zero raw `process.env` reads in new modules)
-  - [ ] 1.5.IV **Instruction Verification**: validate against env-resolve conventions documented in `backend/lib/**/AGENTS.md`
+  - [x] 1.5.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts <each-touched-file> --lifecycle duplicates` (exit 0)
+  - [x] 1.5.TE **Test Engineering**: registry-inclusion test; invalidation-coverage test (assert each key cleared by reset path); typed-default assertions
+  - [x] 1.5.SEC **Security & Tenancy Audit**: no secrets logged; `WS_ALLOWED_ORIGINS` has NO wildcard default; transport default is in-process unless Redis config explicitly present
+  - [x] 1.5.SR **Semantic Review**: every registered key consumed via the registry (zero raw `process.env` reads in new modules)
+  - [x] 1.5.IV **Instruction Verification**: validate against env-resolve conventions documented in `backend/lib/**/AGENTS.md`
   - Outcome: `outcome/1.5-outcome.md`
 
 ---
