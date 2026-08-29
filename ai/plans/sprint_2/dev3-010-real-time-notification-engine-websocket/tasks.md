@@ -300,18 +300,18 @@
 
 ### 3.1 Enum Registration + Pothos Objects
 
-- [ ] 3.1 [Register `NotificationType` enum + `Notification` / `NotificationListPage` Pothos objects]
+- [x] 3.1 [Register `NotificationType` enum + `Notification` / `NotificationListPage` Pothos objects]
   - `backend/graphql/pothos/shared/enum.pothos.ts`: ADD `NotificationTypePothosEnum` via enum-object form `gqlSchemaBuilder.enumType(NotificationType, { name: "NotificationType" })` — registered ONCE
   - Create `backend/graphql/pothos/notifications/notification.pothos.ts`: single canonical `NotificationPothosObject` = `objectRef<NotificationReturnType>("Notification")`, `id` exposed FIRST, `createdAt` via existing DateTime scalar convention; NO local type defs
   - Create `backend/graphql/pothos/notifications/notification-list-page.pothos.ts`: `NotificationListPage` wrapper (allowed pagination wrapper) backed by `NotificationListPageReturnType`
   - Barrel wiring per gateway Rule 8 + `pothos/index.ts` domain export
   - Applicable instructions: `backend/graphql/AGENTS.md` (single-canonical-type CRITICAL rule, enum-registration CRITICAL rule), `docs/graphql/api-gateway-and-routing.md`
   - _Requirements: REQ-060, REQ-061, REQ-014_
-  - [ ] 3.1.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts <each-file> --lifecycle duplicates` (exit 0)
-  - [ ] 3.1.TE **Test Engineering**: schema-build smoke assertion — `Notification` object present with `id`, enum carries exactly 7 values
-  - [ ] 3.1.SEC **Security & Tenancy Audit**: object exposes ONLY REQ-060 fields (no `userId` surface)
-  - [ ] 3.1.SR **Semantic Review**: single object per entity; enum object-form (no literal arrays); top-level static imports only
-  - [ ] 3.1.IV **Instruction Verification**: validate against `backend/graphql/AGENTS.md` + gateway Rule 8
+  - [x] 3.1.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts <each-file> --lifecycle duplicates` (exit 0)
+  - [x] 3.1.TE **Test Engineering**: schema-build smoke assertion — `Notification` object present with `id`, enum carries exactly 7 values
+  - [x] 3.1.SEC **Security & Tenancy Audit**: object exposes ONLY REQ-060 fields (no `userId` surface)
+  - [x] 3.1.SR **Semantic Review**: single object per entity; enum object-form (no literal arrays); top-level static imports only
+  - [x] 3.1.IV **Instruction Verification**: validate against `backend/graphql/AGENTS.md` + gateway Rule 8
   - Outcome: `outcome/3.1-outcome.md`
 
 ### 3.2 Query Resolvers

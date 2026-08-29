@@ -66,6 +66,33 @@ type Mutation {
   registerUser(input: RegisterUserInput!): User!
 }
 
+type Notification {
+  body: String
+  createdAt: String!
+  id: ID!
+  isRead: Boolean!
+  relatedEntityId: Int
+  relatedEntityType: String
+  title: String!
+  type: NotificationType!
+}
+
+type NotificationListPage {
+  hasMore: Boolean!
+  items: [Notification!]!
+  totalCount: Int!
+}
+
+enum NotificationType {
+  EvaluationResult
+  ParentLinkRequest
+  PaymentConfirmation
+  SessionCancellation
+  SessionCompletion
+  SessionRequest
+  SystemBroadcast
+}
+
 type Query {
   _health: HealthCheck!
 

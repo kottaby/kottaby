@@ -16,10 +16,12 @@
  *  - `Gender`
  *  - `RegisterPublicRole` (public subset — student/teacher/parent — BFLA)
  *  - `RecitationReading`, `ApplicantStatus`
+ *  - `NotificationType` (the seven notification kinds)
  *
  * After registering a new enum here, run `bun run generate:gqlSchema` and
  * `bun codegen` to refresh the SDL + frontend codegen.
  */
+import { NotificationType } from "@/backend/enum/notifications/notification-type.enum";
 import { ApplicantStatus } from "@/backend/enum/teachers/applicant-status.enum";
 import { Gender } from "@/backend/enum/users/gender.enum";
 import { RegisterPublicRole } from "@/backend/enum/users/register-public-role.enum";
@@ -68,4 +70,19 @@ export const RecitationReadingPothosEnum = gqlSchemaBuilder.enumType(RecitationR
  */
 export const ApplicantStatusPothosEnum = gqlSchemaBuilder.enumType(ApplicantStatus, {
   name: "ApplicantStatus",
+});
+
+/**
+ * GraphQL `NotificationType` enum (the seven notification kinds).
+ *
+ * Registered ONCE from the canonical TS enum
+ * (`backend/enum/notifications/notification-type.enum.ts`), which mirrors the
+ * `notification_type` pgEnum byte-for-byte. Per the Pothos enum-object
+ * convention (identical to `UserRole` / `ApplicantStatus`), the enum KEYS are
+ * the GraphQL value names on the wire (`SessionRequest`, …) while the
+ * snake_case string values (`session_request`, …) remain the runtime and
+ * database representation — the GraphQL enum layer maps between them.
+ */
+export const NotificationTypePothosEnum = gqlSchemaBuilder.enumType(NotificationType, {
+  name: "NotificationType",
 });

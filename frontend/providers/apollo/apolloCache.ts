@@ -7,15 +7,18 @@ import { InMemoryCache } from "@apollo/client";
  * filter/pagination changes legitimately return different arrays, including empty ones.
  * Without `merge: false`, Apollo warns that cache data may be lost.
  *
- * `OnlineMeetingInfo`, `AdminNoteInfo` and `HealthCheck` are embedded value
- * types with no `id` field (see `frontend/graphql/generated/schema.graphql`).
+ * `OnlineMeetingInfo`, `AdminNoteInfo`, `HealthCheck` and
+ * `NotificationListPage` are embedded value types with no `id` field (see
+ * `frontend/graphql/generated/schema.graphql`).
  * Marking them `keyFields: false` opts them out of normalization so Apollo
  * does not emit "Cache data may be lost" warnings when these types are written
  * to the cache via different parent objects. They are always read back through
  * their enclosing parent (e.g. a `Session`, an `AdminNote` owner or a future
  * `_health` document), so identifying them by their own fields is unnecessary
  * (`HealthCheck` is the scalar-only probe object exposed by the `_health`
- * gateway query).
+ * gateway query; `NotificationListPage` is the notifications inbox pagination
+ * wrapper whose normalizable entities are the `Notification` rows inside
+ * `items`).
  */
 export function createApolloCache(): InMemoryCache {
   return new InMemoryCache({
@@ -34,6 +37,12 @@ export function createApolloCache(): InMemoryCache {
       // one so any future consumer of `_health` cannot trigger cache-data-loss
       // warnings (frontend/graphql/AGENTS.md embedded-type policy).
       HealthCheck: {
+        keyFields: false,
+      },
+      // Embedded pagination-wrapper value object (no `id`) for the
+      // notifications inbox — the normalizable entities are the `Notification`
+      // rows inside `items`, so the wrapper itself never needs an identity.
+      NotificationListPage: {
         keyFields: false,
       },
       OnlineMeetingInfo: {
