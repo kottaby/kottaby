@@ -74,8 +74,8 @@ function PlanStatusChip({ isActive, activeLabel, inactiveLabel }: PlanStatusChip
   );
 }
 
-function formatDate(dateStr?: string | null): string {
-  if (!dateStr) return "—";
+function formatDate(dateStr: string | null | undefined, emptyLabel: string): string {
+  if (!dateStr) return emptyLabel;
   try {
     const d = new Date(dateStr);
     return d.toLocaleDateString(undefined, {
@@ -183,22 +183,30 @@ export function PlanCatalogTable({
                   <Typography variant="body2" sx={theme => ({ color: theme.palette.text.secondary })}>
                     {t.priceColumn}:{" "}
                     <strong>
-                      {plan.price} {plan.currency}
+                      <span dir="ltr">
+                        {plan.price} {plan.currency}
+                      </span>
                     </strong>{" "}
-                    / {plan.intervalDays}d
+                    {plan.intervalDays} {t.intervalDaysShort}
                   </Typography>
-                  <Typography variant="caption" sx={theme => ({ color: theme.palette.text.secondary })}>
-                    {t.createdAtColumn}: {formatDate(plan.createdAt)}
+                  <Typography variant="caption" sx={theme => ({ color: theme.palette.text.secondary, whiteSpace: "nowrap" })}>
+                    {t.createdAtColumn}: {formatDate(plan.createdAt, t.emptyValue)}
                   </Typography>
                   {!plan.isActive && plan.deactivatedAt && (
-                    <Typography variant="caption" sx={theme => ({ color: theme.palette.error.main })}>
-                      {t.deactivatedAtColumn}: {formatDate(plan.deactivatedAt)}
+                    <Typography variant="caption" sx={theme => ({ color: theme.palette.error.main, whiteSpace: "nowrap" })}>
+                      {t.deactivatedAtColumn}: {formatDate(plan.deactivatedAt, t.emptyValue)}
                     </Typography>
                   )}
                 </Stack>
               </CardContent>
               <CardActions sx={{ px: 2, pb: 2, pt: 0, justifyContent: "flex-end" }}>
-                <Button size="small" startIcon={<EditIcon />} onClick={() => onEdit(plan)} disabled={isActionPending}>
+                <Button
+                  size="small"
+                  startIcon={<EditIcon />}
+                  onClick={() => onEdit(plan)}
+                  disabled={isActionPending}
+                  sx={{ minHeight: 44 }}
+                >
                   {t.editPlanButton}
                 </Button>
                 <Button
@@ -208,6 +216,7 @@ export function PlanCatalogTable({
                   disabled={isActionPending}
                   sx={theme => ({
                     color: plan.isActive ? theme.palette.error.main : theme.palette.primary.main,
+                    minHeight: 44,
                   })}
                 >
                   {plan.isActive ? t.deactivatePlanButton : t.activatePlanButton}
@@ -262,7 +271,9 @@ export function PlanCatalogTable({
                   </TableCell>
                   <TableCell>{plan.sessionCount}</TableCell>
                   <TableCell>
-                    {plan.price} {plan.currency}
+                    <span dir="ltr">
+                      {plan.price} {plan.currency}
+                    </span>
                   </TableCell>
                   <TableCell>{plan.intervalDays}</TableCell>
                   <TableCell>
@@ -272,8 +283,8 @@ export function PlanCatalogTable({
                       inactiveLabel={t.inactiveStatus}
                     />
                   </TableCell>
-                  <TableCell>{formatDate(plan.createdAt)}</TableCell>
-                  <TableCell>{formatDate(plan.deactivatedAt)}</TableCell>
+                  <TableCell sx={{ whiteSpace: "nowrap" }}>{formatDate(plan.createdAt, t.emptyValue)}</TableCell>
+                  <TableCell sx={{ whiteSpace: "nowrap" }}>{formatDate(plan.deactivatedAt, t.emptyValue)}</TableCell>
                   <TableCell align="right">
                     <Stack sx={{ flexDirection: "row", justifyContent: "flex-end", gap: 1 }}>
                       <Tooltip title={t.editPlanButton}>
@@ -283,6 +294,7 @@ export function PlanCatalogTable({
                             onClick={() => onEdit(plan)}
                             disabled={isActionPending}
                             aria-label={`${t.editPlanButton} ${plan.title}`}
+                            sx={{ width: 44, height: 44 }}
                           >
                             <EditIcon fontSize="small" />
                           </IconButton>
@@ -300,6 +312,8 @@ export function PlanCatalogTable({
                                 : `${t.activatePlanButton} ${plan.title}`
                             }
                             sx={theme => ({
+                              width: 44,
+                              height: 44,
                               color: plan.isActive ? theme.palette.error.main : theme.palette.primary.main,
                             })}
                           >

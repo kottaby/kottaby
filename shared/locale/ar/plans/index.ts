@@ -40,4 +40,8 @@ export const plansAr: PlansLabels = {
   updateSuccessToast: "تم تحديث الخطة بنجاح.",
   statusChangeSuccessToast: "تم تحديث حالة الخطة بنجاح.",
   navPlans: "الخطط",
+  metaTitle: "خطط الاشتراك",
+  metaDescription: "إدارة خطط اشتراك الطلاب والأسعار وحالة التفعيل.",
+  intervalDaysShort: "يوم",
+  emptyValue: "—",
 };

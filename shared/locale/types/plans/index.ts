@@ -47,4 +47,11 @@ export interface PlansLabels {
   readonly updateSuccessToast: string;
   readonly statusChangeSuccessToast: string;
   readonly navPlans: string;
+  /** REQ-062 localized page metadata. */
+  readonly metaTitle: string;
+  readonly metaDescription: string;
+  /** Short interval unit label for dense mobile layouts (e.g. "30 يوم" / "30 days"). */
+  readonly intervalDaysShort: string;
+  /** Placeholder for absent values (e.g. no deactivation date). */
+  readonly emptyValue: string;
 }

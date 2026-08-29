@@ -7,7 +7,7 @@
  */
 
 import { describe, expect, test } from "bun:test";
-import { metadata } from "@/app/(dashboard)/admin/plans/page";
+import * as plansPage from "@/app/(dashboard)/admin/plans/page";
 import {
   PlanCatalogContainer,
   PlanCatalogTable,
@@ -16,9 +16,12 @@ import {
 } from "@/frontend/views/admin/plans";
 
 describe("Admin Plans Page (REQ-062)", () => {
-  test("metadata exports title and description", () => {
-    expect(metadata).toBeDefined();
-    expect(metadata.title).toBeDefined();
+  test("exposes localized generateMetadata (not static metadata)", () => {
+    // REQ-062: metadata resolves per-request from the caller's locale cookie,
+    // so the page exports `generateMetadata` instead of a static `metadata`
+    // object. The function is not INVOKED here — it reads cookies via
+    // next/headers, which requires a request scope only available in SSR.
+    expect(typeof plansPage.generateMetadata).toBe("function");
   });
 
   test("frontend view components are exported correctly", () => {

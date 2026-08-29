@@ -42,4 +42,8 @@ export const plansEn: PlansLabels = {
   updateSuccessToast: "Plan updated successfully.",
   statusChangeSuccessToast: "Plan status updated successfully.",
   navPlans: "Plans",
+  metaTitle: "Subscription Plans",
+  metaDescription: "Manage student subscription plans, pricing, and active status.",
+  intervalDaysShort: "days",
+  emptyValue: "—",
 };
