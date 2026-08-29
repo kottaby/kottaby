@@ -28,8 +28,10 @@ import { arMessages } from "@/shared/locale/ar/messages";
 import { enMessages } from "@/shared/locale/en/messages";
 import { Applicant } from "@/shared/locale/namespaces/applicant";
 import { Auth } from "@/shared/locale/namespaces/auth";
+import { Common } from "@/shared/locale/namespaces/common";
 import { Errors } from "@/shared/locale/namespaces/errors";
 import { Landing } from "@/shared/locale/namespaces/landing";
+import { Notifications } from "@/shared/locale/namespaces/notifications";
 
 /** Mutable navigation state consumed by the mocked `next/navigation` exports. */
 export interface TestNavigationState {
@@ -77,4 +79,8 @@ for (const translations of [arMessages, enMessages]) {
   // surface missing-key drift at preload time.
   Applicant.getLabels(translations);
   Errors.getLabels(translations);
+  // Warm the Notifications + Common handles so the realtime-toast suite
+  // surfaces missing-key drift at preload time.
+  Notifications.getLabels(translations);
+  Common.getLabels(translations);
 }
