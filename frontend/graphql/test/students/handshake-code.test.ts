@@ -765,6 +765,11 @@ describe("handshake code — Tier 4 token substitution", () => {
       context: { headers: { Authorization: `Bearer ${substituted}` } },
     });
     expectMutationError(selfRead.error, "FORBIDDEN");
+    // Direct expect() (not only the imported helper): pins the empty data
+    // channel on the 403 path and keeps sonarjs/assertions-in-tests satisfied
+    // in BOTH lint modes — the syntactic matcher cannot follow the
+    // cross-module `expectMutationError` implementation (type-aware can).
+    expect(selfRead.data?.myHandshakeCode).toBeFalsy();
 
     const discovery = await testClient.query({
       query: findStudentByHandshakeCodeDocument,
@@ -772,6 +777,7 @@ describe("handshake code — Tier 4 token substitution", () => {
       context: { headers: { Authorization: `Bearer ${substituted}` } },
     });
     expectMutationError(discovery.error, "FORBIDDEN");
+    expect(discovery.data?.findStudentByHandshakeCode).toBeFalsy();
   });
 });
 

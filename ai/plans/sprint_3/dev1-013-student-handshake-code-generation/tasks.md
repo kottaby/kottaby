@@ -343,7 +343,7 @@
 
 ## Phase 5: Integration & Differential Testing
 
-### - [ ] 5.1 Full Test-Surface Execution & Coverage Evidence
+### - [x] 5.1 Full Test-Surface Execution & Coverage Evidence
 - Run, in order, and capture raw outputs into the outcome:
   - Every new/edited test file individually via `bun run test/scripts/run-test.ts <path>` (enumerate: shared constants spec, mask spec, generation lock suite, repository spec, service spec, graphql integration spec, component specs — student card + parent page, SSR guard specs).
   - `bun test test/workflows` (full journey directory green).
@@ -351,7 +351,7 @@
   - Adjacent-suite differential runs (no regressions): the existing auth/registration test suites (`RegistrationService` locks from DEV1-002 era) must still pass untouched — paste results.
 - _Requirements: REQ-070, REQ-071, REQ-072, REQ-073, REQ-074, REQ-075, REQ-077_
 
-### - [ ] 5.2 Differential & Discipline Verification Gates
+### - [x] 5.2 Differential & Discipline Verification Gates
 - Execute and paste literal command + output into `outcome/5.2-differential-gates-outcome.md`:
   - **Zero schema drift:** `git diff backend/db/schema/** backend/db/migration/**` → EMPTY (REQ-045).
   - **Codegen diff discipline:** generated artifacts diff contains ONLY this ticket's additions (REQ-062).
