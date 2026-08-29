@@ -316,16 +316,16 @@
 
 ### 3.2 Query Resolvers
 
-- [ ] 3.2 [Implement `myNotifications` + `myUnreadNotificationCount` query resolvers]
+- [x] 3.2 [Implement `myNotifications` + `myUnreadNotificationCount` query resolvers]
   - Create `backend/graphql/query/notifications/notification.query.ts`: `authScopes: { authenticated: true }` on BOTH; thin bodies delegating to `NotificationEngine.listMyNotifications(ctx.user.id, filter, ctx.locale)` / `getMyUnreadCount(ctx.user.id, ctx.locale)`; `MyNotificationsFilterInput` input ref bound to Pothos input shape (`type` via registered enum)
   - Domain query barrel side-effect registration per conventions; NO `await import()`; NO business logic/respository imports in resolvers
   - Public-operation allowlist UNCHANGED (default-deny preserved — verify byte-identical `backend/lib/gateway/public-operations.ts`)
   - _Requirements: REQ-017, REQ-018, REQ-032, REQ-060, REQ-061_
-  - [ ] 3.2.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts <each-file> --lifecycle duplicates` (exit 0)
-  - [ ] 3.2.TE **Test Engineering** (integration tier via `setupTestServerLifecycle` + `testClient`): anonymous → `UNAUTHORIZED` on both ops; each role reads ONLY own inbox; filter-over-wire coherence; `id` in selection normalizes
-  - [ ] 3.2.SEC **Security & Tenancy Audit**: zero identity args accepted; scope exactly `{ authenticated: true }` (no role/permission/superAdmin); BFLA: no emit imports anywhere under `backend/graphql/**` (grep evidence recorded)
-  - [ ] 3.2.SR **Semantic Review**: resolvers validation-free (service owns bounds); `ctx.locale` propagated; localized copy via `ctx.t("errors")` only where needed
-  - [ ] 3.2.IV **Instruction Verification**: validate against `backend/graphql/AGENTS.md`, gateway rules 4/8
+  - [x] 3.2.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts <each-file> --lifecycle duplicates` (exit 0)
+  - [x] 3.2.TE **Test Engineering** (integration tier via `setupTestServerLifecycle` + `testClient`): anonymous → `UNAUTHORIZED` on both ops; each role reads ONLY own inbox; filter-over-wire coherence; `id` in selection normalizes
+  - [x] 3.2.SEC **Security & Tenancy Audit**: zero identity args accepted; scope exactly `{ authenticated: true }` (no role/permission/superAdmin); BFLA: no emit imports anywhere under `backend/graphql/**` (grep evidence recorded)
+  - [x] 3.2.SR **Semantic Review**: resolvers validation-free (service owns bounds); `ctx.locale` propagated; localized copy via `ctx.t("errors")` only where needed
+  - [x] 3.2.IV **Instruction Verification**: validate against `backend/graphql/AGENTS.md`, gateway rules 4/8
   - Outcome: `outcome/3.2-outcome.md`
 
 ### 3.3 Mutation Resolvers

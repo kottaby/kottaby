@@ -1,6 +1,6 @@
 /**
  * Notifications-domain Pothos barrel — re-exports the domain's canonical
- * object definitions.
+ * object definitions plus the inbox query's input type.
  *
  * The top-level `backend/graphql/pothos/index.ts` re-exports this module, and
  * `gqlSchema.ts` side-effect-imports that top-level barrel so these object
@@ -10,4 +10,5 @@
  * matching the existing domain conventions.
  */
 export * from "./notification.pothos";
+export * from "./notification-filter-input.pothos";
 export * from "./notification-list-page.pothos";

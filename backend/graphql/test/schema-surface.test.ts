@@ -13,15 +13,22 @@
  *    the type level and behaviorally: selecting `id` fails validation).
  *  - **Surface freeze** — against the frozen baseline inventory (captured
  *    at HEAD `8e5ebb8`, since refreshed for the sanctioned `ApplicantProfile`/
- *    `ApplicantStatus` additions and the notifications additions — enum +
- *    `Notification` + `NotificationListPage`): ZERO new mutations, and a
- *    whole-schema named-type delta of EXACTLY `{HealthCheck}` while the
- *    query set grows only by the sanctioned probe re-registration.
+ *    `ApplicantStatus` additions, the notifications additions — enum +
+ *    `Notification` + `NotificationListPage` — and the sanctioned inbox
+ *    query additions — `myNotifications` + `myUnreadNotificationCount` +
+ *    `MyNotificationsFilterInput`): ZERO new mutations, and a whole-schema
+ *    named-type delta of EXACTLY `{HealthCheck}` while the query set grows
+ *    only by the sanctioned probe re-registration.
  *  - **Notification surface** — the `NotificationType` enum carries exactly
  *    the 7 canonical values (TS-enum keys as GraphQL names, snake_case
  *    runtime values), the `Notification` object exposes `id` FIRST with
  *    EXACTLY the inbox field surface (structurally NO `userId`), and the
  *    `NotificationListPage` wrapper exposes items/totalCount/hasMore.
+ *  - **Notification query surface** — `myNotifications` +
+ *    `myUnreadNotificationCount` carry EXACTLY the `authenticated` scope,
+ *    return the canonical page/scalar shapes, accept ZERO identity
+ *    arguments anywhere (root args AND filter-input fields), and reject
+ *    anonymous in-process execution with UNAUTHORIZED.
  *  - **Allowlist agreement** — the scopeless `_health` field is present in
  *    the closed `PUBLIC_OPERATION_NAMES` tuple / `PUBLIC_OPERATIONS` set
  *    1:1 (schema↔allowlist agreement enforced as code).
@@ -44,6 +51,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import {
   GraphQLEnumType,
+  GraphQLInputObjectType,
   GraphQLObjectType,
   getNamedType,
   graphql,
@@ -61,7 +69,13 @@ import { PUBLIC_OPERATION_NAMES, PUBLIC_OPERATIONS } from "@/backend/lib/gateway
 // ─── sanctioned applicant + notifications additions) ────────────────────────
 
 /** Root query field names present before the probe re-registration. */
-const PRE_3_1_QUERY_FIELDS = ["me", "myApplicantProfile", "recitationReadings"] as const;
+const PRE_3_1_QUERY_FIELDS = [
+  "me",
+  "myApplicantProfile",
+  "myNotifications",
+  "myUnreadNotificationCount",
+  "recitationReadings",
+] as const;
 /** Root mutation field names — must remain UNCHANGED forever. */
 const PRE_3_1_MUTATION_FIELDS = ["login", "logout", "refreshToken", "registerUser"] as const;
 /** GraphQL enum type names — the freeze forbids any new Pothos enum. */
@@ -81,6 +95,7 @@ const PRE_3_1_TYPE_NAMES = [
   "LoginPayload",
   "LogoutPayload",
   "Mutation",
+  "MyNotificationsFilterInput",
   "Notification",
   "NotificationListPage",
   "NotificationType",
@@ -101,6 +116,11 @@ function sdlTypeNames(): string[] {
     .filter(type => !type.name.startsWith("__") && !isSpecifiedScalarType(type))
     .map(type => type.name)
     .toSorted((a, b) => a.localeCompare(b));
+}
+
+/** Runtime record guard (no casts, per test-tier discipline). */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
 }
 
 describe("Query._health — retyped probe surface", () => {
@@ -337,6 +357,124 @@ describe("Notification surface — enum + canonical objects", () => {
     // Wrapper is an embedded value object — no `id` (rows inside `items`
     // are the normalizable entities).
     expect(Object.hasOwn(fields, "id")).toBe(false);
+  });
+});
+
+describe("Notification query surface — self-scoped inbox reads", () => {
+  const queryType = graphQLSchema.getQueryType();
+
+  if (!queryType) {
+    throw new Error("Schema must define a root Query type");
+  }
+
+  // Captured ONCE after the narrowing guard so the hoisted `queryField`
+  // helper below never re-dereferences a possibly-null root type.
+  const rootFields = queryType.getFields();
+
+  function queryField(name: string) {
+    const field = rootFields[name];
+    if (!field) {
+      throw new Error(`Query must register the \`${name}\` root field`);
+    }
+    return field;
+  }
+
+  /** Reads one root field's `authScopes` snapshot off the Pothos extensions (no casts). */
+  function authScopesOf(fieldName: string): Record<string, unknown> {
+    const extensions: unknown = queryField(fieldName).extensions;
+    if (!isRecord(extensions)) throw new Error("expected record-shaped extensions");
+    const pothosOptions: unknown = Reflect.get(extensions, "pothosOptions");
+    if (!isRecord(pothosOptions)) throw new Error("expected record-shaped pothosOptions");
+    const authScopes: unknown = Reflect.get(pothosOptions, "authScopes");
+    if (!isRecord(authScopes)) throw new Error("expected record-shaped authScopes");
+    return authScopes;
+  }
+
+  test("`myNotifications` returns NotificationListPage! with ONE optional filter arg", () => {
+    const field = queryField("myNotifications");
+    expect(field.type.toString()).toBe("NotificationListPage!");
+    const argNames = field.args.map(arg => arg.name).toSorted((a, b) => a.localeCompare(b));
+    expect(argNames).toEqual(["filter"]);
+    const filterArg = field.args[0];
+    if (!filterArg) throw new Error("expected the filter argument");
+    // Optional + nullable input — exactly the SDL contract's
+    // `(filter: MyNotificationsFilterInput)`.
+    expect(filterArg.type.toString()).toBe("MyNotificationsFilterInput");
+  });
+
+  test("`myUnreadNotificationCount` returns Int! with ZERO arguments", () => {
+    const field = queryField("myUnreadNotificationCount");
+    expect(field.type.toString()).toBe("Int!");
+    expect(field.args).toHaveLength(0);
+  });
+
+  test("BOTH inbox queries carry EXACTLY the `authenticated` scope (no role/permission/superAdmin)", () => {
+    for (const name of ["myNotifications", "myUnreadNotificationCount"]) {
+      const scopes = authScopesOf(name);
+      expect(Object.keys(scopes).toSorted((a, b) => a.localeCompare(b))).toEqual(["authenticated"]);
+      expect(scopes.authenticated).toBe(true);
+      // SEC: every authenticated role owns an inbox — no role material may
+      // participate in the scope decision.
+      expect("role" in scopes).toBe(false);
+      expect("permission" in scopes).toBe(false);
+      expect("superAdmin" in scopes).toBe(false);
+    }
+  });
+
+  test("MyNotificationsFilterInput exposes EXACTLY the 4 filter fields, all nullable, ZERO identity fields", () => {
+    const inputType = graphQLSchema.getType("MyNotificationsFilterInput");
+    if (!(inputType instanceof GraphQLInputObjectType)) {
+      throw new Error("MyNotificationsFilterInput must be registered as a GraphQL input type");
+    }
+    const fields = inputType.getFields();
+    expect(Object.keys(fields).toSorted((a, b) => a.localeCompare(b))).toEqual(["isRead", "limit", "offset", "type"]);
+    expect(fields.type?.type.toString()).toBe("NotificationType");
+    expect(fields.isRead?.type.toString()).toBe("Boolean");
+    expect(fields.limit?.type.toString()).toBe("Int");
+    expect(fields.offset?.type.toString()).toBe("Int");
+    // SEC (BOPLA): no identity field of any kind — the inbox is addressed
+    // exclusively by the verified caller context.
+    expect(Object.hasOwn(fields, "userId")).toBe(false);
+    expect(Object.hasOwn(fields, "user")).toBe(false);
+    expect(Object.hasOwn(fields, "id")).toBe(false);
+    expect(Object.hasOwn(fields, "recipientId")).toBe(false);
+  });
+
+  test("anonymous (context-free) in-process execution of BOTH inbox queries yields UNAUTHORIZED", async () => {
+    // Each op asserted in its OWN document: both fields are non-null at the
+    // root, so a combined document would null-propagate the first failure
+    // over its sibling (one error, second field never resolved).
+    const documents = [
+      { source: "{ myNotifications { totalCount } }", path: "myNotifications" },
+      { source: "{ myUnreadNotificationCount }", path: "myUnreadNotificationCount" },
+    ] as const;
+    const results = await Promise.all(
+      documents.map(async document => graphql({ schema: graphQLSchema, source: document.source, contextValue: {} }))
+    );
+    for (const [index, result] of results.entries()) {
+      const errors = result.errors;
+      if (!errors) throw new Error("expected the anonymous inbox query to fail");
+      expect(errors).toHaveLength(1);
+      expect(errors[0]?.extensions?.code).toBe("UNAUTHORIZED");
+      expect(errors[0]?.path).toEqual([documents[index]?.path]);
+    }
+  });
+
+  test("smuggled identity args die at validation BEFORE any resolver runs (zero identity-arg surface)", () => {
+    const unknownRootArg = validate(graphQLSchema, parse("{ myNotifications(userId: 123) { totalCount } }"));
+    expect(unknownRootArg).toHaveLength(1);
+    expect(unknownRootArg[0]?.message).toContain('Unknown argument "userId"');
+
+    const smuggledFilterField = validate(
+      graphQLSchema,
+      parse("{ myNotifications(filter: { userId: 123 }) { totalCount } }")
+    );
+    expect(smuggledFilterField).toHaveLength(1);
+    expect(smuggledFilterField[0]?.message).toContain('unknown field "userId"');
+
+    const unknownCountArg = validate(graphQLSchema, parse("{ myUnreadNotificationCount(userId: 123) }"));
+    expect(unknownCountArg).toHaveLength(1);
+    expect(unknownCountArg[0]?.message).toContain('Unknown argument "userId"');
   });
 });
 
