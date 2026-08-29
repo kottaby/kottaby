@@ -22,4 +22,6 @@ export const errorsEn: ErrorsLabels = {
   applicantNotFound: "Teacher application not found.",
   applicantCooldownActive: "You can re-apply for teacher verification after {cooldownUntil}.",
   applicantStatusCorrupt: "Your application status could not be read. Please contact support.",
+  handshakeCodeInvalid: "Handshake codes look like KSB-XXXXXXXX (8 hexadecimal characters).",
+  studentHandshakeNotFound: "Student record not found.",
 };

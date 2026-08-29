@@ -29,7 +29,7 @@
 
 ## Phase 0: Pre-Implementation Baseline
 
-### - [ ] 0.1 Record Error Baseline & Initialize Deferred-Items Ledger
+### - [x] 0.1 Record Error Baseline & Initialize Deferred-Items Ledger
 - Capture and persist to `outcome/phase0-baseline-outcome.md`:
   - `bun tsgo` error count (exact number + first lines for context)
   - `bun run biome:check` finding count
@@ -41,7 +41,7 @@
   - **D3** — Direct-onboarding (B.6-family) code generation reuse via the shared `generateHandshakeCode` service entry point → owning ticket DEV3-019 (status: forward-note, non-blocking)
 - _Requirements: REQ-001, REQ-034, REQ-083_
 
-### - [ ] 0.2 Dependency Guard — Verify (Do NOT Rebuild) Existing Artifacts
+### - [x] 0.2 Dependency Guard — Verify (Do NOT Rebuild) Existing Artifacts
 - Read and confirm each artifact exists with the expected contract; record file paths + line citations in the outcome. **Reading and asserting only — zero modifications:**
   1. `backend/db/schema/students/students.ts` — `handshake_code varchar(50) NOT NULL`, `unique("students_handshake_code_unique")`, `parent_id` nullable FK → `users.id` ON DELETE SET NULL, shared-PK `students.id = users.id`
   2. `backend/db/schema/users/users.ts` — governance columns: `is_deleted`, `is_blocked`, `suspended`, `suspended_at`, `suspended_period_days`
@@ -54,7 +54,7 @@
 - **STOP RULE:** If any artifact is missing/broken → record ❌ in `deferred-items.md` with the owning ticket and HALT this plan; never patch a DEV1-001/DEV1-002/DEV2-002-owned file inline.
 - _Requirements: REQ-004_
 
-### - [ ] 0.3 Phase-1.5 Plan-Review Gate
+### - [x] 0.3 Phase-1.5 Plan-Review Gate
 - Run the `@plan-review` pass against `specs.md` + `plan.md` before ANY implementation begins; write `outcome/0.3-plan-review-outcome.md` (must PREDATE all implementation outcomes — REQ-083).
 - Resolve any review blockers into either plan amendments or ledger entries before opening Phase 1.
 - _Requirements: REQ-083_
@@ -65,7 +65,7 @@
 
 > **No database schema phase exists for this ticket.** `backend/db/schema/` is the sole structural ground truth and is untouched by construction. `git diff backend/db/schema/** backend/db/migration/**` must remain empty end-to-end.
 
-### - [ ] 1.1 Shared Constants — `shared/constants/handshake-code.constants.ts`
+### - [x] 1.1 Shared Constants — `shared/constants/handshake-code.constants.ts`
 - Create `shared/constants/handshake-code.constants.ts` exporting exactly: `HANDSHAKE_CODE_PREFIX = "KSB-"`, `HANDSHAKE_CODE_PATTERN = /^KSB-[0-9A-F]{8}$/`, `isHandshakeCode(value: unknown): value is string`, `normalizeHandshakeCode(value: string)` (trim → toUpperCase).
 - Add one barrel line to `shared/constants/index.ts`: `export * from "./handshake-code.constants";`.
 - **Layer purity (blocking):** file imports NOTHING. Verify the shared-layer ESLint `no-restricted-imports` ban trivially holds.
@@ -77,7 +77,7 @@
 - [ ] 1.1.IV **Instruction Verification**: read `shared/AGENTS.md` and any `*.instructions.md` auto-discovered for `shared/constants/`; confirm compliance in the outcome.
 - Outcome: `outcome/1.1-handshake-code-constants-outcome.md`.
 
-### - [ ] 1.2 Pure Mask Helper — `shared/lib/mask-full-name.ts`
+### - [x] 1.2 Pure Mask Helper — `shared/lib/mask-full-name.ts`
 - Create `shared/lib/mask-full-name.ts` exporting `maskFullName(fullName: string): string` per plan §2.4:
   - Trim; empty-after-trim → fixed placeholder `"***"` (documented constant).
   - Split on `/\s+/u`; each part → first grapheme + `"***"`; parts joined with single spaces.
@@ -91,7 +91,7 @@
 - [ ] 1.2.IV **Instruction Verification**: read `shared/AGENTS.md` and auto-discovered instruction files for `shared/lib/`; confirm compliance.
 - Outcome: `outcome/1.2-mask-full-name-outcome.md`.
 
-### - [ ] 1.3 Canonical Types — extend `backend/types/students/student.types.ts`
+### - [x] 1.3 Canonical Types — extend `backend/types/students/student.types.ts`
 - Add (additive-only; existing exports unchanged):
   - `HandshakeCodeLookupReturnType` — readonly `{ maskedName: string; linkable: boolean }` (per plan §2.2).
   - `HandshakeDiscoveryRowType` — `Pick<StudentSelectType, "parentId"> & Pick<UserSelectType, "fullName" | "isDeleted" | "isBlocked" | "suspended" | "suspendedAt" | "suspendedPeriodDays">` with `UserSelectType` imported from `@/backend/types` (indexed-access composition only — no re-derived column shapes per the DEV2-003 contract rule).
@@ -105,7 +105,7 @@
 - [ ] 1.3.IV **Instruction Verification**: read `backend/types/AGENTS.md` and auto-discovered instruction files; confirm compliance.
 - Outcome: `outcome/1.3-canonical-types-outcome.md`.
 
-### - [ ] 1.4 i18n — Errors Namespace Extension + New `handshakeCode` UI Namespace (ar + en)
+### - [x] 1.4 i18n — Errors Namespace Extension + New `handshakeCode` UI Namespace (ar + en)
 - **Errors namespace** (`handshakeCode` grouping) — three-file contract edit per `shared/locale/AGENTS.md`:
   - `shared/locale/types/errors/index.ts`: add `handshakeCode: { handshakeCodeInvalid: string; studentHandshakeNotFound: string }` to the errors schema interface.
   - `shared/locale/en/errors/index.ts`: `handshakeCodeInvalid: "Handshake codes look like KSB-XXXXXXXX (8 hexadecimal characters)."`, `studentHandshakeNotFound: "Student record not found."`

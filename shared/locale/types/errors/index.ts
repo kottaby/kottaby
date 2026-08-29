@@ -42,4 +42,8 @@ export interface ErrorsLabels {
   readonly applicantCooldownActive: string;
   /** Fail-closed deny when an applicants row status cannot be interpreted as a known ApplicantStatus. */
   readonly applicantStatusCorrupt: string;
+  /** "Handshake codes look like KSB-XXXXXXXX (8 hexadecimal characters)." — malformed handshake-code reject → ValidationError (VALIDATION). */
+  readonly handshakeCodeInvalid: string;
+  /** "Student record not found." — caller has no students row → NotFoundError("STUDENT"). */
+  readonly studentHandshakeNotFound: string;
 }

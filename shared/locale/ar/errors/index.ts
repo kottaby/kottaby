@@ -22,4 +22,6 @@ export const errorsAr: ErrorsLabels = {
   applicantNotFound: "لم يتم العثور على طلب التقديم كمعلم قرآن.",
   applicantCooldownActive: "يمكنك إعادة التقديم للتحقق كمعلم قرآن بعد {cooldownUntil}.",
   applicantStatusCorrupt: "تعذر قراءة حالة طلبك. يرجى التواصل مع فريق الدعم.",
+  handshakeCodeInvalid: "تبدو رموز الربط بالصيغة KSB-XXXXXXXX وتتكون من 8 خانات سداسية عشرية.",
+  studentHandshakeNotFound: "لم يتم العثور على سجل الطالب.",
 };
