@@ -378,7 +378,7 @@
 
 ### 4.2 `useNotificationRealtime` Client Hook
 
-- [ ] 4.2 [Implement the realtime client hook (WS lifecycle + cache merge + toast)]
+- [x] 4.2 [Implement the realtime client hook (WS lifecycle + cache merge + toast)]
   - Create `frontend/hooks/use-notification-realtime.ts` (or views-adjacent placement per `frontend/AGENTS.md` conventions): opens at most ONE WebSocket per mounted authenticated shell (REQ-067); cookie-based handshake (browser sends httpOnly cookie automatically — NO token handling in JS)
   - Backoff: 1s→2s→4s…cap 30s + jitter; ABORT retry on close codes 4401/4009; deterministic `close(1000)` on unmount; NO toasts on clean close
   - Message handler: JSON shape-guard → `RealtimeNotificationPayload` → dedupe by `data.id` → Apollo cache merge (badge + list update without refetch spam) → localized toast via existing snackbar conventions (`Translation.Notifications` property access)
@@ -386,20 +386,20 @@
   - Local React state/refs ONLY (no stores, no persist); connection state never escapes the hook
   - Applicable instructions: `frontend/AGENTS.md`, `frontend/hooks/AGENTS.md` (if present)
   - _Requirements: REQ-021, REQ-025, REQ-063, REQ-064, REQ-067_
-  - [ ] 4.2.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts <file> --lifecycle duplicates` (exit 0)
-  - [ ] 4.2.TE **Unit / Component Tests**: Happy DOM tier — mocked `WebSocket`: connect message → cache merge dedupe by id; duplicate id → no-op; reconnect → refetch invoked; close(4401) → no retry; unmount → single `close(1000)`; no listener/toast duplication across remounts
-  - [ ] 4.2.BF **Agent-Browser Functional Self-Loop**:
+  - [x] 4.2.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts <file> --lifecycle duplicates` (exit 0)
+  - [x] 4.2.TE **Unit / Component Tests**: Happy DOM tier — mocked `WebSocket`: connect message → cache merge dedupe by id; duplicate id → no-op; reconnect → refetch invoked; close(4401) → no retry; unmount → single `close(1000)`; no listener/toast duplication across remounts
+  - [x] 4.2.BF **Agent-Browser Functional Self-Loop**:
     • Launch dev server + `bun run ws` sidecar; connect via agent-browser (Playwright)
     • Authenticated session → open any dashboard page → confirm exactly ONE WS connection established (network inspection)
     • Trigger a test emit (service harness) → assert toast appears once + badge increments without page refetch
     • Kill sidecar → confirm silent continued polling + no error toasts; restart sidecar → reconnect with catch-up refetch producing identical feed
     • Iterative self-loop: patch and re-test until all flows clean
-  - [ ] 4.2.BS **Agent-Browser Visual & Styling Self-Loop (Screenshot Analysis)**:
+  - [x] 4.2.BS **Agent-Browser Visual & Styling Self-Loop (Screenshot Analysis)**:
     • Capture toast + badge at Desktop 1440x900, Tablet 768x1024, Mobile 375x812 × locales en (LTR) + ar (RTL)
     • Inspect: badge anchoring on app bar in both directions, toast positioning (bottom-center mobile per plan), palette compliance (`theme.palette.*` only), unread-count pluralization rendering in Arabic
     • Iterative self-loop: screenshot → identify defect → patch `sx` tokens → re-capture → repeat until polished
-  - [ ] 4.2.SR **Semantic Review**: no `console.*`; no hardcoded strings/colors; enum-handle translation access; `*Outlined` icons if any; non-serializable socket kept out of stores
-  - [ ] 4.2.IV **Instruction Verification**: validate against `frontend/AGENTS.md` (`.instructions.md` files auto-discovered), REQ-025/064/067
+  - [x] 4.2.SR **Semantic Review**: no `console.*`; no hardcoded strings/colors; enum-handle translation access; `*Outlined` icons if any; non-serializable socket kept out of stores
+  - [x] 4.2.IV **Instruction Verification**: validate against `frontend/AGENTS.md` (`.instructions.md` files auto-discovered), REQ-025/064/067
   - Outcome: `outcome/4.2-outcome.md`
 
 ### 4.3 Notifications Feed Page (Server Shell + Client Container)

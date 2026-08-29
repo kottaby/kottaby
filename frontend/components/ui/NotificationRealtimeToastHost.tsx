@@ -22,7 +22,9 @@ const TOAST_AUTOHIDE_MS = 6000;
  * a fixed bottom-center flex column owns the anchor (each `Snackbar` stays
  * in normal flow, so concurrent toasts never stack on top of each other —
  * including at 375px), logical inset properties mirror under RTL, and every
- * color resolves through MUI severity slots on the theme palette.
+ * color resolves through MUI severity slots on the theme palette. The stack's
+ * bottom anchor is RAISED one toast height above the error host's so a
+ * realtime arrival and a concurrent GraphQL error toast both stay visible.
  */
 export function NotificationRealtimeToastHost(): ReactNode {
   const { toasts, dismissToast } = useNotificationRealtime();
@@ -39,7 +41,14 @@ export function NotificationRealtimeToastHost(): ReactNode {
         position: "fixed",
         insetInlineStart: 0,
         insetInlineEnd: 0,
-        bottom: { xs: 16, sm: 24 },
+        // Raised above the GraphQLErrorSurfaceHost anchor (16/24): both
+        // stacks are bottom-center fixed columns at `zIndex.snackbar`, so an
+        // un-offset anchor would render a realtime arrival exactly ON TOP of
+        // a concurrent error toast, fully occluding it (verified live in the
+        // 4.2.BS loop — overlap-probe screenshot). One toast height + gap
+        // (≈72px + 8px) keeps both visible; deeper multi-error stacks remain
+        // the documented 4.4 carry-forward.
+        bottom: { xs: 96, sm: 104 },
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
