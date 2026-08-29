@@ -10,7 +10,7 @@
 import { describe, expect, test } from "bun:test";
 import { PlanRepository } from "@/backend/db/repo/billing/plan.repository";
 import { createTestPlan } from "@/backend/db/test/entity-setup";
-import { expectRepoError, runInRollback } from "@/backend/db/test/test-utils";
+import { constraintNameOf, expectRepoError, runInRollback } from "@/backend/db/test/test-utils";
 
 describe("PlanRepository", () => {
   // ─── Tier 1: Happy Path Operations ──────────────────────────────────────────
@@ -181,7 +181,11 @@ describe("PlanRepository", () => {
 
   // ─── Tier 4: Security & CHECK Constraints ─────────────────────────────────
 
-  test("insertPlan rejects CHECK constraint violations at DB layer", async () => {
+  // Each CHECK-violation case gets its OWN rollback transaction — a CHECK
+  // violation aborts the surrounding transaction (25P02), so the second case
+  // in the same transaction would report the abort error, not its constraint
+  // (CodeRabbit fix). Constraint names asserted for specificity.
+  test("insertPlan rejects sessionCount CHECK violation at DB layer", async () => {
     await runInRollback(async tx => {
       const err1 = await expectRepoError(async () => {
         await PlanRepository.insertPlan(
@@ -196,7 +200,12 @@ describe("PlanRepository", () => {
         );
       });
       expect(err1).toBeInstanceOf(Error);
+      expect(constraintNameOf(err1)).toBe("plans_session_count_check");
+    });
+  });
 
+  test("insertPlan rejects price CHECK violation at DB layer", async () => {
+    await runInRollback(async tx => {
       const err2 = await expectRepoError(async () => {
         await PlanRepository.insertPlan(
           {
@@ -210,6 +219,7 @@ describe("PlanRepository", () => {
         );
       });
       expect(err2).toBeInstanceOf(Error);
+      expect(constraintNameOf(err2)).toBe("plans_price_check");
     });
   });
 });

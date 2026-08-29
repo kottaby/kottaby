@@ -31,6 +31,7 @@
 
 import { describe, expect, test } from "bun:test";
 import { gql } from "@apollo/client";
+import { UserRole } from "@/frontend/graphql/generated/gql/graphql";
 import { meQueryDocument } from "@/frontend/graphql/sharedDocuments/auth/auth.documents";
 import { extractErrorCode, setupTestServerLifecycle, TEST_PORT, testClient } from "@/test/helpers";
 
@@ -220,7 +221,7 @@ describe("Gateway integration matrix", () => {
             password: GATEWAY_F_CREDENTIAL,
             gender: null,
             country: "EG",
-            role: "Student",
+            role: UserRole.Student,
           },
         },
       }

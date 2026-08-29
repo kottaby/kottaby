@@ -1,1 +1,1 @@
-export * from "./seed-plans";
+export { INITIAL_DEMO_PLANS, seedOrGet as seedOrGetPlans } from "./seed-plans";

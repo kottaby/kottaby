@@ -7,6 +7,8 @@
  */
 
 import { describe, expect, test } from "bun:test";
+import { eq } from "drizzle-orm";
+import { users } from "@/backend/db/schema/users/users";
 import { createTestPlan, createTestUser } from "@/backend/db/test/entity-setup";
 import { runInRollback } from "@/backend/db/test/test-utils";
 import { PlanCatalogService } from "@/backend/services/billing/plan-catalog.service";
@@ -27,7 +29,6 @@ describe("Plan Catalog Preservation Proof (REQ-075)", () => {
       // Snapshot original user state
       const initialUserId = user.id;
       const initialUserEmail = user.email;
-
       // Deactivate plan
       const deactivated = await PlanCatalogService.setPlanActiveStatus(plan.id, false, "en", tx);
       expect(deactivated.id).toBe(plan.id);
@@ -37,9 +38,14 @@ describe("Plan Catalog Preservation Proof (REQ-075)", () => {
       expect(deactivated.sessionCount).toBe(12);
       expect(deactivated.price).toBe("450.00");
 
-      // Verify user record is completely unaffected
-      expect(user.id).toBe(initialUserId);
-      expect(user.email).toBe(initialUserEmail);
+      // Verify user record is completely unaffected — re-read the row from
+      // the DB (tautological in-memory comparisons prove nothing per REQ-075).
+      const [persistedUser] = await tx.select().from(users).where(eq(users.id, initialUserId));
+      if (!persistedUser) {
+        throw new Error("user row was deleted");
+      }
+      expect(persistedUser.id).toBe(initialUserId);
+      expect(persistedUser.email).toBe(initialUserEmail);
     });
   });
 

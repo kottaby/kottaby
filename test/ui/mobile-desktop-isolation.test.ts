@@ -19,7 +19,7 @@
  */
 import { describe, expect, test } from "bun:test";
 import { readdirSync, readFileSync, statSync } from "node:fs";
-import { join, relative, sep } from "node:path";
+import { dirname, join, relative, resolve, sep } from "node:path";
 
 const REPO_ROOT = join(import.meta.dir, "..", "..");
 
@@ -54,14 +54,34 @@ function walkSources(dir: string, out: string[] = []): string[] {
 function extractImports(source: string): string[] {
   const specs: string[] = [];
   // `from "spec"` covers single- AND multi-line static imports/export-from;
-  // a separate pattern catches dynamic `import("spec")`.
-  const patterns = [/from\s*["']([^"']+)["']/g, /import\(\s*["']([^"']+)["']\s*\)/g];
+  // `import "spec"` catches bare side-effect imports (no `from` clause);
+  // a separate pattern catches dynamic `import("spec")`. The side-effect
+  // pattern cannot collide with the dynamic form (`import(`) because a paren
+  // between the keyword and the quote fails `\s*["']`.
+  const patterns = [/from\s*["']([^"']+)["']/g, /import\s*["']([^"']+)["']/g, /import\(\s*["']([^"']+)["']\s*\)/g];
   for (const re of patterns) {
     for (const match of source.matchAll(re)) {
       if (match[1]) specs.push(match[1]);
     }
   }
   return specs;
+}
+
+/**
+ * True when a specifier refers into the repository `test/` directory —
+ * either the aliased form (`@/test/...`) or a relative specifier resolved
+ * against the importing file (e.g. `../../test/ui/e2e/x` from `test/ui/`).
+ */
+function refersIntoTestDir(spec: string, importingFile: string): boolean {
+  if (spec.startsWith("@/test/")) {
+    return true;
+  }
+  if (spec.startsWith("./") || spec.startsWith("../")) {
+    const resolved = resolve(dirname(importingFile), spec);
+    const testDir = join(REPO_ROOT, "test");
+    return resolved === testDir || resolved.startsWith(testDir + sep);
+  }
+  return false;
 }
 
 describe("mobile/desktop isolation — import-boundary scans", () => {
@@ -80,7 +100,7 @@ describe("mobile/desktop isolation — import-boundary scans", () => {
       .filter(file => !file.split(sep).includes("test")) // test specs inside frontend/ are not application modules
       .filter(file => {
         const source = readFileSync(file, "utf8");
-        return extractImports(source).some(spec => spec.startsWith("@/test/"));
+        return extractImports(source).some(spec => refersIntoTestDir(spec, file));
       })
       .map(file => relative(REPO_ROOT, file).split(sep).join("/"));
     expect(offenders).toEqual([]);

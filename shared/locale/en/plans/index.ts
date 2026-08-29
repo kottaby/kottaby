@@ -46,4 +46,11 @@ export const plansEn: PlansLabels = {
   metaDescription: "Manage student subscription plans, pricing, and active status.",
   intervalDaysShort: "days",
   emptyValue: "—",
+  unexpectedErrorMessage: "An unexpected error occurred.",
+  statusChangeErrorMessage: "Failed to update status.",
+  validationTitleMessage: "Title must be between 3 and 100 characters.",
+  validationSessionCountMessage: "Session count must be a positive integer.",
+  validationPriceMessage: "Price must be a valid positive decimal (e.g. 250.00).",
+  validationCurrencyMessage: "Currency must be a 3-letter code (e.g. EGP, USD).",
+  validationIntervalDaysMessage: "Interval days must be a positive integer.",
 };

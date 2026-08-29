@@ -8,7 +8,7 @@
 import { describe, expect, test } from "bun:test";
 import { eq } from "drizzle-orm";
 import { plans } from "@/backend/db/schema/billing/plans";
-import { expectRepoError, runInRollback } from "@/backend/db/test/test-utils";
+import { constraintNameOf, expectRepoError, runInRollback } from "@/backend/db/test/test-utils";
 
 describe("Plan Catalog Schema", () => {
   test("inserts plan with default isActive = true and deactivatedAt = null", async () => {
@@ -63,7 +63,12 @@ describe("Plan Catalog Schema", () => {
     });
   });
 
-  test("rejects plan insert when sessionCount is 0 or negative (plans_session_count_check)", async () => {
+  // Each CHECK-violation case runs in its OWN transaction: after a CHECK
+  // violation the top-level transaction aborts (25P02), so co-locating cases
+  // would make every later insert fail with the abort error instead of its
+  // intended constraint (CodeRabbit fix). Constraint NAMES are asserted so an
+  // aborted-transaction error can never pass for the intended violation.
+  test("rejects plan insert when sessionCount is 0 (plans_session_count_check)", async () => {
     await runInRollback(async tx => {
       const err1 = await expectRepoError(async () => {
         await tx.insert(plans).values({
@@ -75,7 +80,12 @@ describe("Plan Catalog Schema", () => {
         });
       });
       expect(err1).toBeInstanceOf(Error);
+      expect(constraintNameOf(err1)).toBe("plans_session_count_check");
+    });
+  });
 
+  test("rejects plan insert when sessionCount is negative (plans_session_count_check)", async () => {
+    await runInRollback(async tx => {
       const err2 = await expectRepoError(async () => {
         await tx.insert(plans).values({
           title: "Negative Session Plan",
@@ -86,6 +96,7 @@ describe("Plan Catalog Schema", () => {
         });
       });
       expect(err2).toBeInstanceOf(Error);
+      expect(constraintNameOf(err2)).toBe("plans_session_count_check");
     });
   });
 
@@ -101,10 +112,11 @@ describe("Plan Catalog Schema", () => {
         });
       });
       expect(err).toBeInstanceOf(Error);
+      expect(constraintNameOf(err)).toBe("plans_price_check");
     });
   });
 
-  test("rejects plan insert when intervalDays is 0 or negative (plans_interval_days_check)", async () => {
+  test("rejects plan insert when intervalDays is 0 (plans_interval_days_check)", async () => {
     await runInRollback(async tx => {
       const err1 = await expectRepoError(async () => {
         await tx.insert(plans).values({
@@ -116,7 +128,12 @@ describe("Plan Catalog Schema", () => {
         });
       });
       expect(err1).toBeInstanceOf(Error);
+      expect(constraintNameOf(err1)).toBe("plans_interval_days_check");
+    });
+  });
 
+  test("rejects plan insert when intervalDays is negative (plans_interval_days_check)", async () => {
+    await runInRollback(async tx => {
       const err2 = await expectRepoError(async () => {
         await tx.insert(plans).values({
           title: "Negative Interval Plan",
@@ -127,6 +144,7 @@ describe("Plan Catalog Schema", () => {
         });
       });
       expect(err2).toBeInstanceOf(Error);
+      expect(constraintNameOf(err2)).toBe("plans_interval_days_check");
     });
   });
 });

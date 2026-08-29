@@ -129,7 +129,7 @@ matching the wire contract consumed by the locale-aware formatting layer.
 
 ### Field bounds (defense in depth)
 
-`sessionCount >= 1`, `intervalDays >= 1` and `price` as a positive decimal
+`sessionCount >= 1`, `intervalDays >= 1` and `price` as a non-negative decimal
 with at most 2 fraction digits are enforced by DB CHECK constraints AND by
 service-layer validation. Client-side bounds (form dialogs) exist for UX only
 and are never trusted by the server.

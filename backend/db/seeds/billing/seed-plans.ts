@@ -6,6 +6,7 @@
  * Idempotent via title matching.
  */
 
+import { ConflictError } from "@/backend/lib/errors";
 import { logger } from "@/backend/lib/logger";
 import { PlanCatalogService } from "@/backend/services/billing/plan-catalog.service";
 import type { DBTransaction, PlanReturnType, PlanSubmitInput } from "@/backend/types";
@@ -49,7 +50,16 @@ export const INITIAL_DEMO_PLANS: readonly DemoPlanSpec[] = [
   },
 ] as const;
 
-export async function seedOrGetPlans(locale = "en", tx?: DBTransaction): Promise<PlanReturnType[]> {
+/**
+ * Reads the existing plan matching `title` from a fresh admin listing.
+ * Used by the create-race recovery path below.
+ */
+async function findPlanByTitle(title: string, locale: string, tx?: DBTransaction): Promise<PlanReturnType | undefined> {
+  const plans = await PlanCatalogService.listForAdmin({ includeInactive: true }, locale, tx);
+  return plans.find(p => p.title === title);
+}
+
+export async function seedOrGet(locale = "en", tx?: DBTransaction): Promise<PlanReturnType[]> {
   logger.info("Seeding plan catalog via PlanCatalogService...");
   const existingPlans = await PlanCatalogService.listForAdmin({ includeInactive: true }, locale, tx);
   const existingByTitle = new Map(existingPlans.map(p => [p.title, p]));
@@ -60,18 +70,34 @@ export async function seedOrGetPlans(locale = "en", tx?: DBTransaction): Promise
     await previous;
     let plan = existingByTitle.get(planSpec.title);
     if (!plan) {
-      plan = await PlanCatalogService.createPlan(
-        {
-          title: planSpec.title,
-          sessionCount: planSpec.sessionCount,
-          price: planSpec.price,
-          currency: planSpec.currency,
-          intervalDays: planSpec.intervalDays,
-        },
-        locale,
-        tx
-      );
-      logger.info(`Seeded new plan "${plan.title}" (ID: ${plan.id})`);
+      try {
+        plan = await PlanCatalogService.createPlan(
+          {
+            title: planSpec.title,
+            sessionCount: planSpec.sessionCount,
+            price: planSpec.price,
+            currency: planSpec.currency,
+            intervalDays: planSpec.intervalDays,
+          },
+          locale,
+          tx
+        );
+        logger.info(`Seeded new plan "${plan.title}" (ID: ${plan.id})`);
+      } catch (error) {
+        // Race recovery (seeds/AGENTS.md "seed or get" pattern): a concurrent
+        // seed process may create the same title between our look and create.
+        // Only the expected duplicate-title ConflictError is absorbed — any
+        // other failure keeps propagating to `runAllSeeds`.
+        if (!(error instanceof ConflictError)) {
+          throw error;
+        }
+        logger.warn(`Seed race on plan "${planSpec.title}" — recovering via re-read`);
+        const raced = await findPlanByTitle(planSpec.title, locale, tx);
+        if (!raced) {
+          throw error;
+        }
+        plan = raced;
+      }
     }
 
     if (planSpec.shouldBeActive === false && plan.isActive) {

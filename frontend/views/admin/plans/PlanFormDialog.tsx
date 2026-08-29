@@ -106,28 +106,30 @@ function PlanFormContent({
     const errors: FormErrors = {};
     const trimmedTitle = form.title.trim();
     if (trimmedTitle.length < 3 || trimmedTitle.length > 100) {
-      errors.title = "Title must be between 3 and 100 characters.";
+      errors.title = t.validationTitleMessage;
     }
 
-    const sessionCountNum = Number.parseInt(form.sessionCount, 10);
-    if (Number.isNaN(sessionCountNum) || sessionCountNum <= 0) {
-      errors.sessionCount = "Session count must be a positive integer.";
+    // Full-value numeric conversion (never `parseInt`): "1.5" and "1abc" must
+    // both be rejected instead of silently truncating to 1 (CodeRabbit fix).
+    const sessionCountNum = Number(form.sessionCount);
+    if (!Number.isInteger(sessionCountNum) || sessionCountNum <= 0) {
+      errors.sessionCount = t.validationSessionCountMessage;
     }
 
     const priceTrimmed = form.price.trim();
     const priceRegex = /^\d+(\.\d{1,2})?$/;
     if (!priceRegex.test(priceTrimmed) || Number.parseFloat(priceTrimmed) <= 0) {
-      errors.price = "Price must be a valid positive decimal (e.g. 250.00).";
+      errors.price = t.validationPriceMessage;
     }
 
     const currencyTrimmed = form.currency.trim().toUpperCase();
     if (currencyTrimmed.length !== 3) {
-      errors.currency = "Currency must be a 3-letter code (e.g. EGP, USD).";
+      errors.currency = t.validationCurrencyMessage;
     }
 
-    const intervalDaysNum = Number.parseInt(form.intervalDays, 10);
-    if (Number.isNaN(intervalDaysNum) || intervalDaysNum <= 0) {
-      errors.intervalDays = "Interval days must be a positive integer.";
+    const intervalDaysNum = Number(form.intervalDays);
+    if (!Number.isInteger(intervalDaysNum) || intervalDaysNum <= 0) {
+      errors.intervalDays = t.validationIntervalDaysMessage;
     }
 
     setClientErrors(errors);
@@ -142,10 +144,12 @@ function PlanFormContent({
 
     await onSubmit({
       title: form.title.trim(),
-      sessionCount: Number.parseInt(form.sessionCount, 10),
+      // validate() has already guaranteed whole-number conversions; reuse the
+      // exact same conversion instead of a second (truncating) parseInt.
+      sessionCount: Number(form.sessionCount),
       price: form.price.trim(),
       currency: form.currency.trim().toUpperCase(),
-      intervalDays: Number.parseInt(form.intervalDays, 10),
+      intervalDays: Number(form.intervalDays),
     });
   };
 

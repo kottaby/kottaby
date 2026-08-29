@@ -54,4 +54,18 @@ export interface PlansLabels {
   readonly intervalDaysShort: string;
   /** Placeholder for absent values (e.g. no deactivation date). */
   readonly emptyValue: string;
+  /** Generic form-level failure when the thrown error carries no usable message. */
+  readonly unexpectedErrorMessage: string;
+  /** Generic status-toggle failure when the thrown error carries no usable message. */
+  readonly statusChangeErrorMessage: string;
+  /** Client-side validation: plan title length out of bounds. */
+  readonly validationTitleMessage: string;
+  /** Client-side validation: session count must be a positive integer. */
+  readonly validationSessionCountMessage: string;
+  /** Client-side validation: price must be a non-negative decimal with ≤2 fraction digits. */
+  readonly validationPriceMessage: string;
+  /** Client-side validation: currency must be a 3-letter ISO code. */
+  readonly validationCurrencyMessage: string;
+  /** Client-side validation: interval days must be a positive integer. */
+  readonly validationIntervalDaysMessage: string;
 }

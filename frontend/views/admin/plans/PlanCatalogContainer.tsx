@@ -114,7 +114,7 @@ export function PlanCatalogContainer(): React.ReactElement {
       if (err instanceof Error) {
         setFormGlobalError(err.message);
       } else {
-        setFormGlobalError("An unexpected error occurred.");
+        setFormGlobalError(t.unexpectedErrorMessage);
       }
     }
   };
@@ -135,7 +135,7 @@ export function PlanCatalogContainer(): React.ReactElement {
       if (err instanceof Error) {
         setStatusError(err.message);
       } else {
-        setStatusError("Failed to update status.");
+        setStatusError(t.statusChangeErrorMessage);
       }
     } finally {
       setActionLoadingId(null);
