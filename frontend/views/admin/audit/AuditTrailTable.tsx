@@ -407,10 +407,14 @@ export function AuditTrailTable({
         </Typography>
         <Box
           component="pre"
+          dir="ltr"
           sx={theme => ({
             // The machine artifact: LTR + left-aligned INSIDE the RTL chrome,
             // monospace, wrapped and scrollable, fully selectable so admins
-            // can copy ids verbatim.
+            // can copy ids verbatim. The LTR island is established by the
+            // `dir` ATTRIBUTE on purpose — the emotion RTL cache mirrors
+            // CSS `direction`/`text-align` declarations (they would flip
+            // right back to rtl/right), while the attribute is untouched.
             m: 0,
             p: 1.5,
             fontFamily: MONO_FONT_STACK,
@@ -421,8 +425,7 @@ export function AuditTrailTable({
             border: "1px solid",
             borderColor: theme.palette.outlineVariant,
             borderRadius: 2,
-            direction: "ltr",
-            textAlign: "left",
+            textAlign: "start",
             maxWidth: 420,
             maxHeight: 320,
             overflow: "auto",
@@ -453,7 +456,17 @@ export function AuditTrailTable({
                 boxShadow: theme.palette.shadow.card,
               })}
             >
-              <CardContent sx={{ display: "grid", gap: 1.25, p: { xs: 2.5, sm: 3 } }}>
+              <CardContent
+                sx={{
+                  display: "grid",
+                  gap: 1.25,
+                  p: { xs: 2.5, sm: 3 },
+                  // minmax(0, 1fr): the implicit track would otherwise size
+                  // to the widest min-content (unbreakable actor emails),
+                  // pushing every row out past the card's padding in RTL.
+                  gridTemplateColumns: "minmax(0, 1fr)",
+                }}
+              >
                 <Stack
                   spacing={1}
                   sx={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 1 }}

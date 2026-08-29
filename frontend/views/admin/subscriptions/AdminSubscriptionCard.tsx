@@ -209,7 +209,7 @@ function CardSpecRow({
           </Typography>
         )}
         {secondary ? (
-          <Typography variant="caption" sx={theme => ({ color: theme.palette.text.secondary })}>
+          <Typography variant="caption" sx={theme => ({ color: theme.palette.text.secondary, wordBreak: "break-all" })}>
             {secondary}
           </Typography>
         ) : null}
@@ -263,6 +263,10 @@ export function AdminSubscriptionCard({
           p: { xs: 2.5, sm: 3 },
           flexGrow: 1,
           gridTemplateRows: "auto auto 1fr auto",
+          // minmax(0, 1fr): the implicit track would otherwise size to the
+          // widest min-content (the unbreakable subscriber email), pushing
+          // every row past the card's padding edge in RTL.
+          gridTemplateColumns: "minmax(0, 1fr)",
         }}
       >
         {/* Title row — the subscribed plan's title + the status chip. The

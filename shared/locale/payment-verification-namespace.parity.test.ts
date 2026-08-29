@@ -40,7 +40,7 @@ import type { PaymentVerificationLabels } from "@/shared/locale/types/paymentVer
 
 const INTERPOLATING_KEYS = ["verifyDialogBody"] as const;
 
-const EXPECTED_KEY_COUNT = 25;
+const EXPECTED_KEY_COUNT = 26;
 
 const TITLE_SENTINEL = "SENTINEL";
 

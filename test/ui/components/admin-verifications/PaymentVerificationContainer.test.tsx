@@ -233,8 +233,9 @@ for (const locale of ["ar", "en"] as AppLocale[]) {
       expect(screen.getByText(FIRST_ROW.user.fullName)).toBeDefined();
       expect(screen.getByText(FIRST_ROW.user.email)).toBeDefined();
       expect(screen.getByText(SECOND_ROW.user.fullName)).toBeDefined();
-      // Pending status chip echoes the wire state.
-      expect(screen.getByTestId(`admin-verification-status-${FIRST_ROW.id}`).textContent).toBe(FIRST_ROW.status);
+      // Pending status chip is LOCALIZED through the namespace (the wire
+      // enum value must never leak into the UI copy).
+      expect(screen.getByTestId(`admin-verification-status-${FIRST_ROW.id}`).textContent).toBe(t.statusPending);
     });
 
     test("empty queue renders the localized empty state", async () => {

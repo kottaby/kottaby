@@ -79,6 +79,7 @@ export default async function AdminVerificationsPage(): Promise<React.ReactEleme
           labelSessions: t.labelSessions,
           labelPrice: t.labelPrice,
           labelRequestedAt: t.labelRequestedAt,
+          statusPending: t.statusPending,
           verifyCta: t.verifyCta,
           verifyDialogTitle: t.verifyDialogTitle,
           labelPaymentMethod: t.labelPaymentMethod,

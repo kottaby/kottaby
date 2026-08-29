@@ -14,6 +14,7 @@ export const paymentVerificationEn: PaymentVerificationLabels = {
   labelSessions: "Sessions",
   labelPrice: "Price",
   labelRequestedAt: "Requested",
+  statusPending: "Pending",
   verifyCta: "Verify payment",
   verifyDialogTitle: "Confirm payment",
   verifyDialogBody: planTitle =>

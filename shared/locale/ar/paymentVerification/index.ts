@@ -14,6 +14,7 @@ export const paymentVerificationAr: PaymentVerificationLabels = {
   labelSessions: "الجلسات",
   labelPrice: "السعر",
   labelRequestedAt: "تاريخ الطلب",
+  statusPending: "معلّق",
   verifyCta: "تأكيد الدفع",
   verifyDialogTitle: "تأكيد الدفع",
   verifyDialogBody: planTitle => `سجّل الدفعة غير الإلكترونية لباقة «${planTitle}». يؤكد التأكيد تفعيل الاشتراك فوراً.`,

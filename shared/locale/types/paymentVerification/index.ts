@@ -52,6 +52,8 @@ export interface PaymentVerificationLabels {
   readonly labelPrice: string;
   /** Card row label: when the request was submitted (timestamp follows). */
   readonly labelRequestedAt: string;
+  /** Status chip: the queue is pending-only; localizes the wire enum echo. */
+  readonly statusPending: string;
   /** Card primary action: open the verify-payment dialog. */
   readonly verifyCta: string;
 
