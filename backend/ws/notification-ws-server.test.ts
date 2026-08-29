@@ -24,8 +24,9 @@
  *    rejected pre-upgrade; query-string token attempt → `4401`; bucket
  *    exhaustion → `4429` (then refill recovery); global cap → `1013`;
  *    per-user cap → oldest evicted `4009`; inbound application frames
- *    (including an oversized one) ignored with the loop intact; registry
- *    bounds across churn; non-WebSocket requests → 426.
+ *    under the 4 KiB cap ignored with the loop intact; a frame OVER the cap
+ *    dropped by the runtime (that socket closes, siblings unaffected);
+ *    registry bounds across churn; non-WebSocket requests → 426.
  *
  * Runs via the mandated runner:
  * `bun run test/scripts/run-test.ts backend/ws/notification-ws-server.test.ts`
@@ -477,7 +478,7 @@ describe("resolveNotificationWsServerConfig — env seam + overrides", () => {
     expect(WS_PING_INTERVAL_MS).toBe(30_000);
     expect(WS_MISSED_PONG_LIMIT).toBe(2);
     expect(WS_HANDSHAKE_BUCKET_CAPACITY).toBe(5);
-    expect(WS_MAX_INBOUND_FRAME_BYTES).toBe(16 * 1024 * 1024);
+    expect(WS_MAX_INBOUND_FRAME_BYTES).toBe(4096);
   });
 });
 
@@ -848,7 +849,7 @@ describe("Tier 4 — auth failures, origin rejection, throttle, caps, inbound di
     await closeClientQuietly(fourth);
   });
 
-  test("inbound application frames (including oversized ones) are ignored; the push loop stays intact", async () => {
+  test("inbound application frames within the cap are ignored; the push loop stays intact", async () => {
     const server = await bootServer();
     const token = await mintAccessToken(201);
     const client = connectClient(server.url, token);
@@ -856,7 +857,8 @@ describe("Tier 4 — auth failures, origin rejection, throttle, caps, inbound di
 
     client.send("hello");
     client.send(JSON.stringify({ v: 1, kind: "bogus" }));
-    client.send("x".repeat(1024 * 1024));
+    // The largest legal application frame: exactly at the 4 KiB inbound cap.
+    client.send("x".repeat(WS_MAX_INBOUND_FRAME_BYTES));
     await new Promise(resolve => setTimeout(resolve, 300));
 
     expect(client.readyState).toBe(WebSocket.OPEN);
@@ -866,6 +868,32 @@ describe("Tier 4 — auth failures, origin rejection, throttle, caps, inbound di
     const received = JSON.parse(await nextMessage(client));
     expect(received).toEqual(EXPECTED_FRAME_JSON);
     await closeClientQuietly(client);
+  });
+
+  test("an inbound frame OVER the cap is dropped by the runtime: that socket closes and drains, a sibling's push loop stays intact", async () => {
+    const server = await bootServer();
+    const tokenOffending = await mintAccessToken(202);
+    const tokenSibling = await mintAccessToken(203);
+    const offending = connectClient(server.url, tokenOffending);
+    const sibling = connectClient(server.url, tokenSibling);
+    await Promise.all([waitForOpen(offending), waitForOpen(sibling)]);
+    expect(server.handle.connectionCount).toBe(2);
+
+    // One byte over the 4 KiB cap: the runtime drops the message and closes
+    // ONLY the offending socket (the app-owned `message` handler ignores
+    // every application frame — the cap is the runtime's own defense).
+    offending.send(`x${"x".repeat(WS_MAX_INBOUND_FRAME_BYTES)}`);
+    await nextCloseCode(offending);
+
+    await waitForCondition("oversized sender drains from the registry", () => server.handle.connectionCount === 1);
+    expect(server.handle.connectionCountForUser(202)).toBe(0);
+    expect(sibling.readyState).toBe(WebSocket.OPEN);
+
+    // The sibling's push loop is unaffected by the drop.
+    await server.transport.publishFanout([203], makePayload(101));
+    const received = JSON.parse(await nextMessage(sibling));
+    expect(received).toEqual(EXPECTED_FRAME_JSON);
+    await closeClientQuietly(sibling);
   });
 
   test("registry bounds hold across churn: counts track opens/closes exactly and drain to zero", async () => {

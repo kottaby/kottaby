@@ -11,6 +11,26 @@ import {
 } from "@/frontend/views/notifications/notification-type-presentation";
 import type { NotificationsLabels } from "@/shared/locale/types/notifications";
 
+/**
+ * Visually-hidden text styles — the standard clip-into-1px recipe (no
+ * dedicated a11y utility is a direct dependency), so the unread dot can
+ * expose its state as REAL text content for screen readers instead of an
+ * ARIA name on a name-prohibited generic element (the oxlint
+ * `prefer-tag-over-role` rule rejects `role="img"` shims here).
+ */
+const VISUALLY_HIDDEN_TEXT_SX = {
+  position: "absolute",
+  width: 1,
+  height: 1,
+  padding: 0,
+  margin: -1,
+  overflow: "hidden",
+  clip: "rect(0 0 0 0)",
+  clipPath: "inset(50%)",
+  whiteSpace: "nowrap",
+  border: 0,
+} as const;
+
 interface NotificationRowProps {
   /** One normalized `Notification` row (all eight public fields). */
   readonly notification: MyNotificationsQuery_myNotifications_items;
@@ -35,10 +55,12 @@ interface NotificationRowProps {
  * `frontend/views/notifications/**` and statically scanned).
  *
  * Unread posture (plan §5.5 visual matrix): the row tints through the
- * `theme.palette.action.selected` token, a dot chip (accessible name =
- * `filterUnread`) flags the unread state, the title carries the bold weight,
- * and the mark-read action is offered; read rows render un-tinted with no
- * dot and no action.
+ * `theme.palette.action.selected` token (read rows keep the default
+ * transparent element background — no explicit fallback branch), a dot chip
+ * whose visually-hidden text content (`filterUnread`) flags the unread
+ * state to assistive tech, the title carries the bold weight, and the
+ * mark-read action is offered; read rows render un-tinted with no dot and
+ * no action.
  *
  * Touch posture: `sm+` shows the inline secondary button; on `xs` the action
  * is a ≥44px icon-only button with the translated row-context `aria-label`
@@ -70,7 +92,7 @@ export function NotificationRow({
         gap: { xs: 1.5, sm: 2 },
         p: { xs: 1.5, sm: 2 },
         borderRadius: 2,
-        bgcolor: unread ? theme.palette.action.selected : "transparent",
+        bgcolor: unread ? theme.palette.action.selected : undefined,
       })}
     >
       <Box
@@ -93,7 +115,6 @@ export function NotificationRow({
         <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
           {unread ? (
             <Box
-              aria-label={labels.filterUnread}
               sx={theme => ({
                 flexShrink: 0,
                 width: 8,
@@ -101,7 +122,11 @@ export function NotificationRow({
                 borderRadius: "50%",
                 bgcolor: theme.palette.primary.main,
               })}
-            />
+            >
+              <Box component="span" sx={VISUALLY_HIDDEN_TEXT_SX}>
+                {labels.filterUnread}
+              </Box>
+            </Box>
           ) : null}
           <Typography
             variant="subtitle1"

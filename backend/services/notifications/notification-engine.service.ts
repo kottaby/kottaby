@@ -14,9 +14,11 @@
  *     (SAVEPOINT-aware `withTransaction(outerTx)`) — or, when no `tx` is
  *     supplied, inside the engine's OWN commit.
  *  4. Caller-`tx` path returns a `NotificationDeliveryReceipt` WITHOUT
- *     publishing — the CALLER invokes `publishReceipts(receipts, locale)` only
- *     after its own transaction resolves (ghost pushes are impossible by
- *     construction: nothing is published for uncommitted rows).
+ *     publishing — the CALLER invokes `publishReceipts(receipts, locale,
+ *     options)` only after its own transaction resolves (ghost pushes are
+ *     impossible by construction: nothing is published for uncommitted rows;
+ *     the idempotency receipt is likewise STORED at that same post-commit
+ *     point, so a rolled-back emit can never ghost future replays).
  *  5. Own-commit path publishes exactly ONCE per batch — a single
  *     `publishFanout` carrying the FULL recipient list — AFTER the insert
  *     transaction has committed. A publish failure at that point logs
@@ -274,31 +276,33 @@ function resolveInboxListRequest(
 /**
  * Pre-insert idempotency claim for one emission. Returns the PRIOR receipt
  * when a duplicate claim is replayable (the caller must return it WITHOUT
- * inserting or publishing); `undefined` means "proceed with the write"
- * (claim won, or fail-open degradation already warned).
+ * inserting or publishing) plus the claim key under which the completed
+ * receipt must be stored post-commit; `claimKey` is `undefined` when the
+ * emit was unkeyed, ran fail-open with no injected cache (deviation D5), or
+ * was itself a duplicate replay (nothing new to store).
  */
 async function claimOrPriorReceipt(
   idempotencyKey: string | undefined,
   userIds: readonly number[],
   type: NotificationType,
   options: NotificationEngineCallOptions | undefined
-): Promise<NotificationDeliveryReceipt | undefined> {
+): Promise<{ priorReceipt: NotificationDeliveryReceipt | undefined; claimKey: string | undefined }> {
   if (idempotencyKey === undefined) {
-    return undefined;
+    return { priorReceipt: undefined, claimKey: undefined };
   }
   const cache = options?.cache;
   if (cache === undefined) {
     // Keyed emit with no claim cache injected — dedupe capability absent:
     // fail open with one structured warn (deviation D5).
     warnEmitIdempotencyUnavailable();
-    return undefined;
+    return { priorReceipt: undefined, claimKey: undefined };
   }
   const claimKey = buildEmitClaimKey(userIds, type, idempotencyKey);
   const outcome = await attemptEmitClaim(cache, claimKey);
   if (outcome.status === "duplicate") {
-    return outcome.receipt;
+    return { priorReceipt: outcome.receipt, claimKey: undefined };
   }
-  return undefined;
+  return { priorReceipt: undefined, claimKey };
 }
 
 export namespace NotificationEngine {
@@ -310,8 +314,10 @@ export namespace NotificationEngine {
    *    `publishFanout([userId], payload)` AFTER the commit, then returns the
    *    created row.
    *  - With `tx`: the row is written inside the caller's transaction and a
-   *    delivery receipt is returned WITHOUT publishing — the caller publishes
-   *    via `publishReceipts` after its transaction resolves (REQ-012/042).
+   *    delivery receipt (carrying the hashed claim key when the emit was
+   *    keyed) is returned WITHOUT publishing — the caller publishes AND
+   *    stores the receipt via `publishReceipts` after its transaction
+   *    resolves (REQ-012/042).
    *  - With an `idempotencyKey` that is already claimed: the PRIOR receipt is
    *    returned with NO insert and NO publish (REQ-016).
    *
@@ -328,7 +334,12 @@ export namespace NotificationEngine {
 
     validateEmitInput(input, t.validation);
 
-    const priorReceipt = await claimOrPriorReceipt(input.idempotencyKey, [input.userId], input.type, options);
+    const { priorReceipt, claimKey } = await claimOrPriorReceipt(
+      input.idempotencyKey,
+      [input.userId],
+      input.type,
+      options
+    );
     if (priorReceipt !== undefined) {
       return priorReceipt;
     }
@@ -340,19 +351,18 @@ export namespace NotificationEngine {
 
     if (tx !== undefined) {
       const row = await withTransaction(tx, txArg => NotificationRepository.createReturning(insert, txArg));
-      return { notifications: [row], recipientUserIds: [input.userId] };
+      // The claim key rides the receipt (digest form only): publishReceipts
+      // stores the completed receipt under it AFTER the caller's commit.
+      return { notifications: [row], recipientUserIds: [input.userId], emitClaimKey: claimKey };
     }
 
     // Own-commit path: withTransaction(undefined) resolves ONLY once the
     // insert's transaction has committed — everything below is post-commit.
     const row = await withTransaction(undefined, txArg => NotificationRepository.createReturning(insert, txArg));
     const receipt: NotificationDeliveryReceipt = { notifications: [row], recipientUserIds: [input.userId] };
-    if (input.idempotencyKey !== undefined && options?.cache !== undefined) {
-      await storeEmitReceiptQuietly(
-        options.cache,
-        buildEmitClaimKey([input.userId], input.type, input.idempotencyKey),
-        receipt
-      );
+    const ownCache = options?.cache;
+    if (claimKey !== undefined && ownCache !== undefined) {
+      await storeEmitReceiptQuietly(ownCache, claimKey, receipt);
     }
     await publishAfterCommit([input.userId], toRealtimePayload(row), locale, options);
     return row;
@@ -368,11 +378,13 @@ export namespace NotificationEngine {
    *    `createdAt` (ordering tiebreaks deterministically by `id` DESC).
    *  - ONE `publishFanout(userIds, payload)` carrying the FULL recipient list
    *    on the own-commit path — never per-recipient publishes.
-   *  - With `tx`: rows are written in the caller's unit and the receipt is
-   *    returned WITHOUT publishing (the caller's post-commit step is
-   *    `publishReceipts`). The idempotency receipt is only ever STORED after
-   *    a durable commit, so a rolled-back caller transaction can never ghost
-   *    a future replay into returning nonexistent rows.
+   *  - With `tx`: rows are written in the caller's unit and the receipt
+   *    (carrying the hashed claim key when the emit was keyed) is returned
+   *    WITHOUT publishing — the caller's post-commit step is
+   *    `publishReceipts`, which ALSO stores the receipt. The idempotency
+   *    receipt is only ever STORED after a durable commit, so a rolled-back
+   *    caller transaction can never ghost a future replay into returning
+   *    nonexistent rows.
    *
    * @throws ValidationError  on the FIRST violated input rule (including an
    *     empty or duplicate-carrying recipient list) — BEFORE any DB or cache
@@ -388,7 +400,12 @@ export namespace NotificationEngine {
 
     validateEmitBatchInput(input, t.validation);
 
-    const priorReceipt = await claimOrPriorReceipt(input.idempotencyKey, input.userIds, input.type, options);
+    const { priorReceipt, claimKey } = await claimOrPriorReceipt(
+      input.idempotencyKey,
+      input.userIds,
+      input.type,
+      options
+    );
     if (priorReceipt !== undefined) {
       return priorReceipt;
     }
@@ -399,7 +416,9 @@ export namespace NotificationEngine {
 
     if (tx !== undefined) {
       const rows = await withTransaction(tx, txArg => NotificationRepository.createManyReturning(inserts, txArg));
-      return { notifications: rows, recipientUserIds: [...input.userIds] };
+      // The claim key rides the receipt (digest form only): publishReceipts
+      // stores the completed receipt under it AFTER the caller's commit.
+      return { notifications: rows, recipientUserIds: [...input.userIds], emitClaimKey: claimKey };
     }
 
     // Own-commit path: withTransaction(undefined) resolves ONLY once the
@@ -409,12 +428,9 @@ export namespace NotificationEngine {
       notifications: rows,
       recipientUserIds: [...input.userIds],
     };
-    if (input.idempotencyKey !== undefined && options?.cache !== undefined) {
-      await storeEmitReceiptQuietly(
-        options.cache,
-        buildEmitClaimKey(input.userIds, input.type, input.idempotencyKey),
-        receipt
-      );
+    const ownCache = options?.cache;
+    if (claimKey !== undefined && ownCache !== undefined) {
+      await storeEmitReceiptQuietly(ownCache, claimKey, receipt);
     }
     const representativeRow = rows.at(0);
     if (representativeRow !== undefined) {
@@ -424,18 +440,26 @@ export namespace NotificationEngine {
   }
 
   /**
-   * Post-commit publisher for tx-owning emitters: publishes one fan-out PER
-   * receipt (each carrying that receipt's FULL recipient list, payload
-   * projected from its representative first row). Callers invoke this ONLY
-   * after their own transaction has resolved successfully (REQ-012/042).
+   * Post-commit hook for tx-owning emitters: per receipt, it (a) STORES the
+   * completed delivery receipt under its hashed claim key (fail-open
+   * `storeEmitReceiptQuietly` — a cache outage warns and resolves, deviation
+   * D5) and (b) publishes ONE fan-out carrying that receipt's FULL recipient
+   * list, payload projected from its representative first row. Callers invoke
+   * this ONLY after their own transaction has resolved successfully
+   * (REQ-012/042) — the store therefore always follows a durable commit, so
+   * a rolled-back emit can never ghost future replays, and a keyed replay
+   * within the 24h TTL returns the PRIOR receipt instead of duplicating rows.
    *
-   * Publish failures are swallowed WITH a structured
+   * The store applies only to receipts carrying an `emitClaimKey` (keyed
+   * emits whose claim was attempted against the injected cache) and only
+   * when `options.cache` is present; unkeyed or fail-open receipts simply
+   * publish. Publish failures are swallowed WITH a structured
    * `NOTIFICATION_DELIVERY_DEGRADED` log per occurrence (the only sanctioned
    * degradation in this surface — REQ-011/055): the persisted rows remain the
    * truth and clients self-heal through catch-up refetch. An empty receipts
    * array (or a degenerate receipt with no rows) is a documented no-op.
    *
-   * Receipts are published strictly IN ORDER via an index-recursive sweep
+   * Receipts are handled strictly IN ORDER via an index-recursive sweep
    * (the repo's no-await-in-loop pattern), not `Promise.all` — a transport
    * outage on receipt N must not race ahead of receipt N−1's hand-off.
    */
@@ -575,7 +599,7 @@ export namespace NotificationEngine {
   }
 }
 
-/** Sequential in-order publish sweep — see `NotificationEngine.publishReceipts`. */
+/** Sequential in-order publish+store sweep — see `NotificationEngine.publishReceipts`. */
 async function publishReceiptsFromIndex(
   receipts: readonly NotificationDeliveryReceipt[],
   index: number,
@@ -586,6 +610,13 @@ async function publishReceiptsFromIndex(
     return;
   }
   const receipt = receipts[index];
+  // Post-commit receipt store FIRST (mirroring the own-commit path's
+  // store-then-publish order): the receipt is only reachable here after the
+  // caller's commit, so storing it can never ghost a rolled-back emission.
+  const cache = options?.cache;
+  if (receipt.emitClaimKey !== undefined && cache !== undefined) {
+    await storeEmitReceiptQuietly(cache, receipt.emitClaimKey, receipt);
+  }
   const representativeRow = receipt.notifications.at(0);
   if (representativeRow !== undefined) {
     await publishAfterCommit(receipt.recipientUserIds, toRealtimePayload(representativeRow), locale, options);

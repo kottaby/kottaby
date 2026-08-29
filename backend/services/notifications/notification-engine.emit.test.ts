@@ -1100,6 +1100,60 @@ describe("NotificationEngine own-commit path (real commits; publish-after-commit
     expect(transportSpy.publishCount).toBe(1);
   });
 
+  test("tx-path keyed emit: publishReceipts stores the receipt, so a same-key replay returns the PRIOR receipt with ZERO new rows", async () => {
+    const recipient = committedUsers.at(1);
+    if (!recipient) {
+      throw new Error("expected the second committed fixture recipient to exist");
+    }
+    const transportSpy = new SpiedFanoutTransport();
+    const cache = new ScriptedClaimCache();
+    const idempotencyKey = `${CLAIM_KEY_FIXTURE}-txpath`;
+    const input = singleInput(recipient.id, { idempotencyKey });
+    const claimKey = buildEmitClaimKey([recipient.id], input.type, idempotencyKey);
+    const beforeCount = await countNotificationsFor(db, recipient.id);
+
+    // (1) Emit inside a REAL committed caller transaction: the receipt comes
+    // back carrying the hashed claim key, with NOTHING stored or published
+    // yet (pre-commit store would ghost a rolled-back emission).
+    const receipt = receiptOf(
+      await db.transaction(async tx =>
+        NotificationEngine.emitForUser(input, "en", tx, { transport: transportSpy, cache })
+      )
+    );
+    expect(receipt.notifications).toHaveLength(1);
+    expect(receipt.emitClaimKey).toBe(claimKey);
+    expect(cache.stored.size).toBe(0);
+    expect(transportSpy.publishCount).toBe(0);
+
+    // (2) The caller's post-commit hook publishes AND stores the receipt.
+    await NotificationEngine.publishReceipts([receipt], "en", { transport: transportSpy, cache });
+    expect(transportSpy.publishCount).toBe(1);
+    const storedValue = cache.stored.get(claimKey);
+    expect(storedValue).toBeDefined();
+    const revived = storedValue === undefined ? null : parseStoredEmitReceipt(storedValue);
+    if (revived === null) {
+      throw new Error("expected the publishReceipts-stored receipt to parse back");
+    }
+    expect(revived.notifications.map(row => row.id)).toEqual([firstRow(receipt).id]);
+    expect(revived.recipientUserIds).toEqual([recipient.id]);
+    expect(await countNotificationsFor(db, recipient.id)).toBe(beforeCount + 1);
+    const countAfterStore = await countNotificationsFor(db, recipient.id);
+
+    // (3) Same-key replay through the tx path returns the PRIOR receipt —
+    // no insert happens even inside the replay's own transaction unit.
+    await runInRollback(async tx => {
+      const replay = receiptOf(
+        await NotificationEngine.emitForUser(input, "en", tx, { transport: transportSpy, cache })
+      );
+      expect(replay.notifications).toHaveLength(1);
+      expect(firstRow(replay).id).toBe(firstRow(receipt).id);
+      expect(await countNotificationsFor(tx, recipient.id)).toBe(countAfterStore);
+    });
+    // Durable row count is unchanged by the replay; the replay published nothing.
+    expect(await countNotificationsFor(db, recipient.id)).toBe(countAfterStore);
+    expect(transportSpy.publishCount).toBe(1);
+  });
+
   test("publish failure post-commit is swallowed WITH a degradation log; the rows stay committed", async () => {
     const recipient = committedUsers.at(0);
     if (!recipient) {

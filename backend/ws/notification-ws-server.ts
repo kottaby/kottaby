@@ -26,9 +26,12 @@
  * Bounded state (the sanctioned exception, REQ-023/046): every mutable
  * structure here is per-server-instance and explicitly capped — the
  * connection registry (`Map<connId, ConnState>` bounded by the global cap,
- * evicting beyond the per-user cap), the per-IP token-bucket map (bounded by
- * a tracked-IP cap with drop-oldest), and one ping interval timer. All caps
- * are exported constants asserted in tests.
+ * evicting beyond the per-user cap), the per-user connection index
+ * (`Map<userId, Set<connId>>` — a derived view of the registry, maintained at
+ * the same mutation sites, bounded by the same caps) that keeps fan-out
+ * delivery O(recipients) instead of O(recipients × registry), the per-IP
+ * token-bucket map (bounded by a tracked-IP cap with drop-oldest), and one
+ * ping interval timer. All caps are exported constants asserted in tests.
  *
  * Push routing: the sidecar subscribes through the 2.5 transport port
  * (`subscribeFanout`) — envelopes arrive already guard-validated; the
@@ -72,8 +75,15 @@ export const WS_HANDSHAKE_BUCKET_REFILL_INTERVAL_MS = 2_000;
 /** Bound on tracked throttle buckets (distinct IPs) — drop-oldest beyond it. */
 export const WS_THROTTLE_MAX_TRACKED_IPS = 10_000;
 
-/** Defensive inbound frame cap (Bun's documented default; REQ-034). */
-export const WS_MAX_INBOUND_FRAME_BYTES = 16 * 1024 * 1024;
+/**
+ * Inbound frame cap (REQ-034 push-only protocol): the client's only inbound
+ * traffic is WebSocket CONTROL frames (the auto-sent pong acknowledgements
+ * of the server's pings) — a few bytes each — so application-frame budget is
+ * capped tight at 4 KiB. An oversized inbound message is dropped by the
+ * runtime (`maxPayloadLength`), which closes that one socket; the per-socket
+ * failure never touches the push loop or its siblings.
+ */
+export const WS_MAX_INBOUND_FRAME_BYTES = 4096;
 
 /** Grace period for close-frame flush + forced stop during shutdown. */
 export const WS_SHUTDOWN_DRAIN_TIMEOUT_MS = 500;
@@ -252,6 +262,13 @@ export async function startNotificationWsServer(
 ): Promise<NotificationWsServerHandle> {
   const config = resolveNotificationWsServerConfig(options.config);
   const registry = new Map<string, NotificationWsConnState>();
+  // Per-user index — a DERIVED view of the registry (userId → its connIds),
+  // maintained at every registry mutation site (register / evict /
+  // terminate / close / shutdown clear). Bounded by the registry's own
+  // global + per-user caps, so it adds no unbounded state — it only turns
+  // fan-out delivery and per-user counts into O(1) lookups instead of a
+  // synchronous O(recipients × registry) scan per envelope.
+  const connectionsByUser = new Map<number, Set<string>>();
   const throttle = new HandshakeThrottle(
     config.handshakeBucketCapacity,
     config.handshakeBucketRefillIntervalMs,
@@ -263,28 +280,64 @@ export async function startNotificationWsServer(
   let shuttingDown = false;
   let shutdownPromise: Promise<void> | null = null;
 
-  /** Fan-out delivery: recipient ids → registered sockets; frame is the projected payload. */
+  /** Registers `connId` under `userId` in the per-user index. */
+  function indexRegister(userId: number, connId: string): void {
+    let connIds = connectionsByUser.get(userId);
+    if (connIds === undefined) {
+      connIds = new Set<string>();
+      connectionsByUser.set(userId, connIds);
+    }
+    connIds.add(connId);
+  }
+
+  /** Unregisters `connId` from `userId`'s index set (empty sets are dropped). */
+  function indexUnregister(userId: number, connId: string): void {
+    const connIds = connectionsByUser.get(userId);
+    if (connIds === undefined) {
+      return;
+    }
+    connIds.delete(connId);
+    if (connIds.size === 0) {
+      connectionsByUser.delete(userId);
+    }
+  }
+
+  /**
+   * Sends one frame to one indexed connection (no-op on a stale id); a send
+   * failure degrades to ONE structured log — the socket's close event then
+   * drains it from the registry + index.
+   */
+  function sendFrameToConnection(connId: string, frame: string): void {
+    const state = registry.get(connId);
+    if (state === undefined) {
+      return;
+    }
+    try {
+      state.ws.send(frame);
+    } catch (error) {
+      logger.logDomainError("Notification realtime push failed for one connection", {
+        code: "NOTIFICATION_WS_DELIVERY_DEGRADED",
+        entity: "notifications",
+        connId: state.ws.data.connId,
+        userId: state.userId,
+        errorName: error instanceof Error ? error.name : "unknown",
+      });
+    }
+  }
+
+  /** Fan-out delivery: recipient ids → their indexed sockets; frame is the projected payload. */
   const deliverFanout = (userIds: readonly number[], payload: RealtimeNotificationPayload): void => {
     if (shuttingDown) {
       return;
     }
     const frame = JSON.stringify(projectFanoutPayload(payload));
     for (const userId of userIds) {
-      for (const state of registry.values()) {
-        if (state.userId !== userId) {
-          continue;
-        }
-        try {
-          state.ws.send(frame);
-        } catch (error) {
-          logger.logDomainError("Notification realtime push failed for one connection", {
-            code: "NOTIFICATION_WS_DELIVERY_DEGRADED",
-            entity: "notifications",
-            connId: state.ws.data.connId,
-            userId: state.userId,
-            errorName: error instanceof Error ? error.name : "unknown",
-          });
-        }
+      const connIds = connectionsByUser.get(userId);
+      if (connIds === undefined) {
+        continue;
+      }
+      for (const connId of connIds) {
+        sendFrameToConnection(connId, frame);
       }
     }
   };
@@ -335,6 +388,7 @@ export async function startNotificationWsServer(
         }
         evictOldestForUser(userId, connId);
         registry.set(connId, { userId, ws, missedPongs: 0 });
+        indexRegister(userId, connId);
         logger.info("Notification WS connection registered", { connId, userId });
       },
       message() {
@@ -350,6 +404,9 @@ export async function startNotificationWsServer(
       close(ws, code) {
         const { connId, userId } = ws.data;
         if (registry.delete(connId)) {
+          if (userId !== null) {
+            indexUnregister(userId, connId);
+          }
           logger.info("Notification WS connection closed", { connId, userId, code });
         }
       },
@@ -448,6 +505,7 @@ export async function startNotificationWsServer(
       return;
     }
     registry.delete(oldest.ws.data.connId);
+    indexUnregister(userId, oldest.ws.data.connId);
     logger.info("Notification WS connection evicted (per-user cap)", {
       connId: oldest.ws.data.connId,
       userId,
@@ -475,6 +533,7 @@ export async function startNotificationWsServer(
     }
     for (const state of terminated) {
       registry.delete(state.ws.data.connId);
+      indexUnregister(state.userId, state.ws.data.connId);
       logger.info("Notification WS connection terminated (missed pongs)", {
         connId: state.ws.data.connId,
         userId: state.userId,
@@ -519,6 +578,7 @@ export async function startNotificationWsServer(
         }
       }
       registry.clear();
+      connectionsByUser.clear();
       // Grace period for the 1001 close frames to flush, then a forced stop.
       // (Bun's stop() promise is unreliable while sockets existed — bounded
       // by the drain timeout either way, and the listener stops accepting
@@ -541,13 +601,7 @@ export async function startNotificationWsServer(
       return registry.size;
     },
     connectionCountForUser(userId: number): number {
-      let count = 0;
-      for (const state of registry.values()) {
-        if (state.userId === userId) {
-          count += 1;
-        }
-      }
-      return count;
+      return connectionsByUser.get(userId)?.size ?? 0;
     },
     shutdown,
   };

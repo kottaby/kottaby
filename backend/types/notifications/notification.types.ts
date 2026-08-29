@@ -81,6 +81,17 @@ export interface NotificationEmitBatchInput {
 export interface NotificationDeliveryReceipt {
   readonly notifications: readonly NotificationReturnType[];
   readonly recipientUserIds: readonly number[];
+  /**
+   * Hashed idempotency claim key (`buildEmitClaimKey` digest form — the raw
+   * key is never attached) present ONLY when the emit was keyed AND its claim
+   * was attempted against an injected cache. The engine attaches it on the
+   * caller-`tx` path so `NotificationEngine.publishReceipts` — the sanctioned
+   * post-commit hook — can store the completed receipt under it (the value
+   * store must never happen before the caller's transaction resolves, or a
+   * rolled-back emit could ghost future replays). Own-commit receipts keep
+   * the field absent: that path stores directly after its own commit.
+   */
+  readonly emitClaimKey?: string;
 }
 
 /**
