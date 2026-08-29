@@ -457,7 +457,9 @@ describe("notification inbox mutations — anonymous tier", () => {
       `,
       variables: { id: "1" },
     });
-    expectMutationError(result.error, "UNAUTHORIZED");
+    const error = expectMutationError(result.error, "UNAUTHORIZED");
+    // The denial rides the single-error envelope — exactly one error item.
+    expect(error.errors).toHaveLength(1);
   });
 
   test("markAllNotificationsRead answers UNAUTHORIZED for anonymous callers", async () => {
@@ -468,7 +470,9 @@ describe("notification inbox mutations — anonymous tier", () => {
         }
       `,
     });
-    expectMutationError(result.error, "UNAUTHORIZED");
+    const error = expectMutationError(result.error, "UNAUTHORIZED");
+    // The denial rides the single-error envelope — exactly one error item.
+    expect(error.errors).toHaveLength(1);
   });
 
   test("the anonymous denial class is CONSTANT across both ops (same code, message, envelope)", async () => {

@@ -474,7 +474,9 @@ describe("notification inbox queries — anonymous tier", () => {
       `,
       fetchPolicy: "no-cache",
     });
-    expectMutationError(result.error, "UNAUTHORIZED");
+    const error = expectMutationError(result.error, "UNAUTHORIZED");
+    // The denial rides the single-error envelope — exactly one error item.
+    expect(error.errors).toHaveLength(1);
   });
 
   test("myUnreadNotificationCount answers UNAUTHORIZED for anonymous callers", async () => {
@@ -486,7 +488,9 @@ describe("notification inbox queries — anonymous tier", () => {
       `,
       fetchPolicy: "no-cache",
     });
-    expectMutationError(result.error, "UNAUTHORIZED");
+    const error = expectMutationError(result.error, "UNAUTHORIZED");
+    // The denial rides the single-error envelope — exactly one error item.
+    expect(error.errors).toHaveLength(1);
   });
 });
 

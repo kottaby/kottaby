@@ -478,7 +478,7 @@
 
 ### 5.4 Coverage & Final Gates
 
-- [ ] 5.4 [Coverage evidence + baseline + zero-drift gates]
+- [x] 5.4 [Coverage evidence + baseline + zero-drift gates]
   - `bun test --coverage` evidence: 100% statement/branch on ALL new modules (repo additions, engine service, guard helpers, transports, WS server, realtime hook); recorded in `outcome/5.4-outcome.md`
   - `git diff backend/db/schema/** backend/db/migration/**` EMPTY (REQ-048); `backend/lib/gateway/public-operations.ts` byte-unchanged
   - Baseline re-run vs 0.1: `bun tsgo`, `bun biome:check`, lint counts — delta = 0 NEW errors

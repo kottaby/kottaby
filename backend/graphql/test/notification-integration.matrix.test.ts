@@ -748,7 +748,9 @@ describe("integration matrix — anonymous tier (role-less caller × 4 ops)", ()
       `,
       fetchPolicy: "no-cache",
     });
-    expectMutationError(result.error, "UNAUTHORIZED");
+    const error = expectMutationError(result.error, "UNAUTHORIZED");
+    // The denial rides the single-error envelope — exactly one error item.
+    expect(error.errors).toHaveLength(1);
   });
 
   test("myUnreadNotificationCount answers UNAUTHORIZED for anonymous callers", async () => {
@@ -760,7 +762,9 @@ describe("integration matrix — anonymous tier (role-less caller × 4 ops)", ()
       `,
       fetchPolicy: "no-cache",
     });
-    expectMutationError(result.error, "UNAUTHORIZED");
+    const error = expectMutationError(result.error, "UNAUTHORIZED");
+    // The denial rides the single-error envelope — exactly one error item.
+    expect(error.errors).toHaveLength(1);
   });
 
   test("markNotificationRead answers UNAUTHORIZED for anonymous callers", async () => {
@@ -774,7 +778,9 @@ describe("integration matrix — anonymous tier (role-less caller × 4 ops)", ()
       `,
       variables: { id: "1" },
     });
-    expectMutationError(result.error, "UNAUTHORIZED");
+    const error = expectMutationError(result.error, "UNAUTHORIZED");
+    // The denial rides the single-error envelope — exactly one error item.
+    expect(error.errors).toHaveLength(1);
   });
 
   test("markAllNotificationsRead answers UNAUTHORIZED for anonymous callers", async () => {
@@ -785,7 +791,9 @@ describe("integration matrix — anonymous tier (role-less caller × 4 ops)", ()
         }
       `,
     });
-    expectMutationError(result.error, "UNAUTHORIZED");
+    const error = expectMutationError(result.error, "UNAUTHORIZED");
+    // The denial rides the single-error envelope — exactly one error item.
+    expect(error.errors).toHaveLength(1);
   });
 
   test("the anonymous denial shape is CONSTANT across all four operations (REQ-039)", async () => {
