@@ -204,7 +204,7 @@
 - Re-run the 2.2 journey test → all journey steps now GREEN.
 - Outcome: `outcome/2.4-handshake-service-outcome.md`.
 
-### - [ ] 2.M Mid-Point Review Gate
+### - [x] 2.M Mid-Point Review Gate
 - Freeze and audit before GraphQL wiring:
   - Re-run ALL Phase 1–2 test files; capture full green evidence.
   - Confirm the 2.2 journey suite is fully GREEN (8 steps).

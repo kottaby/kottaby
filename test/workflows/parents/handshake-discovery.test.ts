@@ -1,7 +1,7 @@
 /**
- * Cross-actor journey — parent handshake-code discovery (REQ-077).
+ * Cross-actor journey — parent handshake-code discovery.
  *
- * Executes the specs §2.9 ordered step list (steps 1→8) against REAL services
+ * Executes the ordered cross-actor step list (steps 1→8) against REAL services
  * on the REAL test database: sequential, actor-attributed steps where one
  * actor's committed state change is observed by another actor. Cast actors:
  * Student (Yusuf) + three governance-variant students (Bilal, Mariam, Omar),
@@ -22,19 +22,19 @@
  *   StudentHandshakeService.findStudentByHandshakeCode(code: string, locale: string, tx?: DBTransaction):
  *     Promise<HandshakeCodeLookupReturnType | null>
  *
- * GraphQL tier cross-reference (REQ-074, integration matrix task): the
+ * GraphQL tier cross-reference (role-matrix integration tests): the
  * `FORBIDDEN`/`UNAUTHORIZED` role-matrix denials for `myHandshakeCode` and
  * `findStudentByHandshakeCode` are asserted over HTTP by the GraphQL
  * integration tier; the journey layer calls services directly with
  * actor-derived ids and has no scope machinery by design.
  *
- * Notification boundary (AGENTS.md rule 5): this ticket's flows emit NO
- * notifications (REQ-023) and no notification dispatch module exists in the
- * tree yet — there is no external channel to intercept. The observable
- * side-effect contract is asserted directly instead: zero notification and
- * audit rows attributable to any tracked actor (Step 8). When a dispatch
- * boundary lands, journeys whose steps emit notifications MUST spy it —
- * never real email/SMS/push.
+ * Notification boundary (AGENTS.md rule 5): the discovery flows emit NO
+ * notifications (pure reads by contract) and no notification dispatch module
+ * exists in the tree yet — there is no external channel to intercept. The
+ * observable side-effect contract is asserted directly instead: zero
+ * notification and audit rows attributable to any tracked actor (Step 8).
+ * When a dispatch boundary lands, journeys whose steps emit notifications
+ * MUST spy it — never real email/SMS/push.
  */
 
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
@@ -104,7 +104,7 @@ function deriveAbsentHandshakeCode(existing: string): string {
   return `${existing.slice(0, -1)}${replacement}`;
 }
 
-describe("Journey — parent handshake-code discovery (specs §2.9 steps 1→8)", () => {
+describe("Journey — parent handshake-code discovery (steps 1→8)", () => {
   beforeAll(async () => {
     // System actor provisions the full cast through the REAL registration
     // service — each registration is its own committed transaction.
@@ -129,8 +129,8 @@ describe("Journey — parent handshake-code discovery (specs §2.9 steps 1→8)"
     const s = requireState();
     const codes = [s.yusuf.handshakeCode, s.bilal.handshakeCode, s.mariam.handshakeCode, s.omar.handshakeCode];
     for (const code of codes) {
-      // REQ-J1 precondition: matching HANDSHAKE_CODE_PATTERN implies non-null,
-      // non-empty, `KSB-` + exactly 8 uppercase hex characters.
+      // Canonical-format precondition: matching HANDSHAKE_CODE_PATTERN implies
+      // non-null, non-empty, `KSB-` + exactly 8 uppercase hex characters.
       expect(code).toMatch(HANDSHAKE_CODE_PATTERN);
     }
     // Uniqueness across the whole cast (DB-level uniqueness is separately
@@ -145,13 +145,13 @@ describe("Journey — parent handshake-code discovery (specs §2.9 steps 1→8)"
     const ownCode = await StudentHandshakeService.getMyHandshakeCode(s.yusuf.userId, LOCALE);
     expect(ownCode).toBe(s.yusuf.handshakeCode);
 
-    // REQ-J4 cross-fixture isolation: a second student's surface yields HIS
-    // code — Yusuf's id can never surface Bilal's code.
+    // Cross-fixture isolation: a second student's surface yields HIS code —
+    // Yusuf's id can never surface Bilal's code.
     const bilalCode = await StudentHandshakeService.getMyHandshakeCode(s.bilal.userId, LOCALE);
     expect(bilalCode).toBe(s.bilal.handshakeCode);
     expect(bilalCode).not.toBe(ownCode);
 
-    // Service-contract edge (REQ-014): a user with NO students row (the
+    // Service-contract edge: a user with NO students row (the
     // parent) surfaces NotFoundError — STUDENT_NOT_FOUND, localized message.
     const parentEdge = await catchJourneyError(() =>
       StudentHandshakeService.getMyHandshakeCode(s.fatima.userId, LOCALE)
@@ -167,8 +167,8 @@ describe("Journey — parent handshake-code discovery (specs §2.9 steps 1→8)"
   // Step 2b — denial cross-reference (documented, NOT re-tested here):
   // Parent (Fatima) calling `myHandshakeCode` → FORBIDDEN; Anonymous →
   // UNAUTHORIZED. Both denials are owned by the GraphQL scope layer
-  // (`$all: { authenticated: true, role: [UserRole.Student] }` authScopes,
-  // REQ-031) and asserted by the GraphQL integration matrix (REQ-074).
+  // (`$all: { authenticated: true, role: [UserRole.Student] }` authScopes)
+  // and asserted by the GraphQL tier's role-matrix integration tests.
 
   test("Step 3 — Parent (Fatima): exact-code discovery returns the minimal two-key payload", async () => {
     const s = requireState();
@@ -178,25 +178,25 @@ describe("Journey — parent handshake-code discovery (specs §2.9 steps 1→8)"
       throw new Error("expected a discovery payload for Yusuf's real code");
     }
     unlinkedDiscoveryPayload = result;
-    // REQ-J1/REQ-015/REQ-019: EXACTLY two keys — maskedName + linkable, no ids.
+    // Payload closure: EXACTLY two keys — maskedName + linkable, no ids.
     expect(Object.keys(result).toSorted(compareStrings)).toEqual(["linkable", "maskedName"]);
-    // REQ-017: masked identity — never the raw full name.
+    // Masked identity — never the raw full name.
     expect(result.maskedName).not.toBe(s.yusuf.fullName);
-    // REQ-018: unlinked child resolves linkable: true.
+    // Unlinked child resolves linkable: true.
     expect(result.linkable).toBe(true);
   });
 
   test("Step 4 — Parent (Fatima): lowercase resolves identically; garbage rejects pre-DB; valid-missing is null", async () => {
     const s = requireState();
-    // REQ-020: a lowercase variant of the REAL code normalizes into the exact
-    // same discovery outcome as Step 3.
+    // A lowercase variant of the REAL code normalizes into the exact same
+    // discovery outcome as Step 3.
     const lowered = await StudentHandshakeService.findStudentByHandshakeCode(
       s.yusuf.handshakeCode.toLowerCase(),
       LOCALE
     );
     expect(lowered).toEqual(requireUnlinkedPayload());
 
-    // REQ-020 fail-closed: structurally invalid inputs reject with
+    // Fail-closed: structurally invalid inputs reject with
     // ValidationError (VALIDATION) and the localized invalid-format message —
     // BEFORE any DB read (asserted at the service tier by its own suite).
     const invalidProbes = ["KSB-", "KSB-TOOLLONG99", "%KSB-ABCD1234", "   ", "ksb-abcd123g"];
@@ -214,7 +214,7 @@ describe("Journey — parent handshake-code discovery (specs §2.9 steps 1→8)"
       expect(error.message).toContain(errorsTranslations.handshakeCodeInvalid);
     }
 
-    // REQ-016: valid-format-but-missing code → null, NOT an error. Harness
+    // Valid-format-but-missing code → null, NOT an error. Harness
     // grounding first: the derived probe code matches no students row in this
     // database (guards against a freak collision with fixture or seed codes).
     expect(await StudentRepository.findDiscoveryByHandshakeCode(s.absentProbeCode)).toBeNull();
@@ -222,7 +222,7 @@ describe("Journey — parent handshake-code discovery (specs §2.9 steps 1→8)"
     expect(miss).toBeNull();
   });
 
-  test("Step 5 — Second Parent (Karim): already-linked child resolves linkable:false with zero parent identity (REQ-J2)", async () => {
+  test("Step 5 — Second Parent (Karim): already-linked child resolves linkable:false with zero parent identity", async () => {
     const s = requireState();
     // Actor: System/linker fixture — the DEV1-014 link mutation emulated by a
     // committed direct write (production link flow does not exist yet).
@@ -235,7 +235,7 @@ describe("Journey — parent handshake-code discovery (specs §2.9 steps 1→8)"
       throw new Error("expected the already-linked discovery payload");
     }
     expect(karimResult.linkable).toBe(false);
-    // REQ-J2: NO incumbent-parent identity, NO ids, NO contact data — still
+    // Zero incumbent-parent identity, zero ids, zero contact data — still
     // EXACTLY the two sanctioned keys.
     expect(Object.keys(karimResult).toSorted(compareStrings)).toEqual(["linkable", "maskedName"]);
     // Linking flips only the linkable signal; the mask is unchanged.
@@ -253,7 +253,7 @@ describe("Journey — parent handshake-code discovery (specs §2.9 steps 1→8)"
     expect(serialized).not.toContain(s.karim.email);
   });
 
-  test("Step 6a — governance isDeleted collapses discovery to null, byte-identical to a nonexistent code (REQ-J3)", async () => {
+  test("Step 6a — governance isDeleted collapses discovery to null, byte-identical to a nonexistent code", async () => {
     const s = requireState();
     // Ground: the SAME code is discoverable BEFORE the governance flip.
     const before = await StudentHandshakeService.findStudentByHandshakeCode(s.bilal.handshakeCode, LOCALE);
@@ -273,7 +273,7 @@ describe("Journey — parent handshake-code discovery (specs §2.9 steps 1→8)"
     expect(after).toEqual(await StudentHandshakeService.findStudentByHandshakeCode(s.absentProbeCode, LOCALE));
   });
 
-  test("Step 6b — governance isBlocked collapses discovery to null, byte-identical to a nonexistent code (REQ-J3)", async () => {
+  test("Step 6b — governance isBlocked collapses discovery to null, byte-identical to a nonexistent code", async () => {
     const s = requireState();
     const before = await StudentHandshakeService.findStudentByHandshakeCode(s.mariam.handshakeCode, LOCALE);
     if (before === null) {
@@ -291,7 +291,7 @@ describe("Journey — parent handshake-code discovery (specs §2.9 steps 1→8)"
     expect(after).toEqual(await StudentHandshakeService.findStudentByHandshakeCode(s.absentProbeCode, LOCALE));
   });
 
-  test("Step 6c — active suspension collapses discovery to null, byte-identical to a nonexistent code (REQ-J3)", async () => {
+  test("Step 6c — active suspension collapses discovery to null, byte-identical to a nonexistent code", async () => {
     const s = requireState();
     const before = await StudentHandshakeService.findStudentByHandshakeCode(s.omar.handshakeCode, LOCALE);
     if (before === null) {
@@ -322,7 +322,7 @@ describe("Journey — parent handshake-code discovery (specs §2.9 steps 1→8)"
   // duplicating it.
 
   afterAll(async () => {
-    // REQ-023: after registration, every journey step is a pure read — zero
+    // After registration, every journey step is a pure read — zero
     // notification and audit rows may be attributable to any tracked actor.
     const sideEffects = await cast.countSideEffectRows();
     expect(sideEffects.notifications).toBe(0);
