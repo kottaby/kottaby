@@ -275,7 +275,11 @@ export function AuditLogContainer({ labels }: Readonly<AuditLogContainerProps>):
         disabled={loading}
         rangeLabel={
           page && page.adminAuditLogs.total > 0
-            ? t.pageInfo(offset + 1, Math.min(offset + pageSize, page.adminAuditLogs.total), page.adminAuditLogs.total)
+            ? t.toolbarRange(
+                offset + 1,
+                Math.min(offset + pageSize, page.adminAuditLogs.total),
+                page.adminAuditLogs.total
+              )
             : undefined
         }
       />

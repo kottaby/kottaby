@@ -59,6 +59,7 @@ export const auditEn: AuditLabels = {
   paginationPrev: "Previous",
   paginationNext: "Next",
   pageInfo: (from, to, total) => `${from}–${to} of ${total}`,
+  toolbarRange: (from, to, total) => `Showing ${from}–${to} of ${total}`,
   tableSummary: "Immutable audit trail of administrative actions",
   rowsPerPage: "Rows per page",
 };

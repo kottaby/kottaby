@@ -115,6 +115,9 @@ export interface AuditLabels {
   readonly paginationNext: string;
   /** The "{from}-{to} of {total}" range formatter. */
   readonly pageInfo: (from: number, to: number, total: number) => string;
+  /** Toolbar range formatter — "Showing {from}-{to} of {total}" (distinct
+   *  from the table footer's bare {@link pageInfo} window). */
+  readonly toolbarRange: (from: number, to: number, total: number) => string;
   /** Screen-reader context for the trail table (sr-only summary). */
   readonly tableSummary: string;
   /** Rows-per-page toolbar label. */

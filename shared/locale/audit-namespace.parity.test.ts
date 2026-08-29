@@ -34,9 +34,9 @@ import { namespaces } from "@/shared/locale/namespaces/index";
 import { getTranslations } from "@/shared/locale/server";
 import type { AuditLabels } from "@/shared/locale/types/audit";
 
-const INTERPOLATING_KEYS = ["pageInfo"] as const;
+const INTERPOLATING_KEYS = ["pageInfo", "toolbarRange"] as const;
 
-const EXPECTED_KEY_COUNT = 43;
+const EXPECTED_KEY_COUNT = 44;
 
 describe("audit namespace — locale parity", () => {
   test("en and ar expose the SAME key sets", () => {

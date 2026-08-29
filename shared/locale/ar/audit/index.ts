@@ -59,6 +59,7 @@ export const auditAr: AuditLabels = {
   paginationPrev: "السابق",
   paginationNext: "التالي",
   pageInfo: (from, to, total) => `${from}–${to} من ${total}`,
+  toolbarRange: (from, to, total) => `عرض ${from}–${to} من ${total}`,
   tableSummary: "سجل تدقيق غير قابل للتغيير لجميع الإجراءات الإدارية",
   rowsPerPage: "عدد الصفوف",
 };
