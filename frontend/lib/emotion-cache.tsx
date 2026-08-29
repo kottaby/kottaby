@@ -45,7 +45,7 @@ import { type ReactNode, useMemo } from "react";
 import { prefixer } from "stylis";
 import rtlPlugin from "stylis-plugin-rtl";
 import { useAppLocale } from "@/frontend/hooks/useAppLocale";
-import { getLtrScopeCache } from "@/frontend/lib/emotion-ltr-cache";
+import { getLtrEmotionCache, LtrScopeCacheContext } from "@/frontend/lib/emotion-ltr-cache";
 
 let ltrCache: EmotionCache | null = null;
 let rtlCache: EmotionCache | null = null;
@@ -64,12 +64,32 @@ function toServerCompat(cache: EmotionCache): EmotionCache {
   return cache;
 }
 
+/**
+ * Client caches are module singletons (reuse across navigations). On the
+ * SERVER a cache's `inserted` map is per-request state — a shared singleton
+ * would let one concurrent request's flush drain another request's pending
+ * styles mid-stream. So server callers always get a FRESH cache (each SSR
+ * request renders the provider once — `useMemo` recomputes per request);
+ * only the client ever touches the singleton branch.
+ */
 function getLtrCache(): EmotionCache {
+  if (typeof window === "undefined") {
+    return toServerCompat(createCache({ key: "mui-ltr", prepend: true }));
+  }
   ltrCache ??= toServerCompat(createCache({ key: "mui-ltr", prepend: true }));
   return ltrCache;
 }
 
 function getRtlCache(): EmotionCache {
+  if (typeof window === "undefined") {
+    return toServerCompat(
+      createCache({
+        key: "mui-rtl",
+        prepend: true,
+        stylisPlugins: [prefixer, rtlPlugin],
+      })
+    );
+  }
   rtlCache ??= toServerCompat(
     createCache({
       key: "mui-rtl",
@@ -83,9 +103,11 @@ function getRtlCache(): EmotionCache {
 /**
  * Serialize a cache's pending insertions into one hydration-resolvable
  * `<style>` tag (header lists the inserted names so the client cache adopts
- * the tag instead of re-inserting). Resets the server singleton's inserted
- * map afterwards so the next stream chunk / request only emits NEW styles —
- * prevents unbounded growth and duplicate emission across requests.
+ * the tag instead of re-inserting). Resets the request-local cache's
+ * `inserted` map afterwards so the next stream chunk only emits NEW styles —
+ * prevents unbounded growth and duplicate emission. Server caches are
+ * per-request (see the getters above), so this reset can never drain a
+ * concurrent request's pending styles.
  *
  * Server-only side effect (`useServerInsertedHTML` never runs on the client).
  */
@@ -113,6 +135,11 @@ function flushedStyleTag(cache: EmotionCache): ReactNode {
   return tag;
 }
 
+/**
+ * Request-scoped handle on the nested LtrScope cache lives in
+ * `emotion-ltr-cache.ts` (`useLtrScopeCache`) — kept out of this component
+ * file by the react-refresh/only-export-components rule.
+ */
 interface EmotionCacheProviderProps {
   readonly children: ReactNode;
   /** CSP nonce — reserved for future CSP support. */
@@ -121,14 +148,20 @@ interface EmotionCacheProviderProps {
 
 export default function EmotionCacheProvider({ children }: Readonly<EmotionCacheProviderProps>) {
   const locale = useAppLocale();
+  // Per-request on the server (fresh from the getters); client singletons.
   const cache = useMemo(() => (locale === "ar" ? getRtlCache() : getLtrCache()), [locale]);
+  // The nested LtrScope cache shares the same request scope so the flush
+  // below drains BOTH — an Arabic page renders with the main cache AND the
+  // scope cache, and scope styles would otherwise fall back to inline SSR
+  // serialization (same hydration mismatch).
+  const scopeCache = useMemo(() => getLtrEmotionCache(), []);
 
   // Flush the active main cache (mui-rtl / mui-ltr) AND the nested LtrScope
   // cache — an Arabic page uses both, and scope styles would otherwise fall
   // back to inline SSR serialization (same hydration mismatch).
   useServerInsertedHTML(() => {
     const main = flushedStyleTag(cache);
-    const scoped = flushedStyleTag(getLtrScopeCache());
+    const scoped = flushedStyleTag(scopeCache);
     if (main === null && scoped === null) {
       return null;
     }
@@ -140,5 +173,9 @@ export default function EmotionCacheProvider({ children }: Readonly<EmotionCache
     );
   });
 
-  return <CacheProvider value={cache}>{children}</CacheProvider>;
+  return (
+    <LtrScopeCacheContext.Provider value={scopeCache}>
+      <CacheProvider value={cache}>{children}</CacheProvider>
+    </LtrScopeCacheContext.Provider>
+  );
 }

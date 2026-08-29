@@ -4,7 +4,7 @@ import { CacheProvider } from "@emotion/react";
 import Box from "@mui/material/Box";
 import { createTheme, ThemeProvider, useTheme } from "@mui/material/styles";
 import { type ReactNode, useMemo } from "react";
-import { getLtrEmotionCache } from "@/frontend/lib/emotion-ltr-cache";
+import { useLtrScopeCache } from "@/frontend/lib/emotion-ltr-cache";
 
 type LtrScopeProps = {
   readonly children: ReactNode;
@@ -18,9 +18,12 @@ type LtrScopeProps = {
 export function LtrScope({ children }: LtrScopeProps): ReactNode {
   const theme = useTheme();
   const ltrTheme = useMemo(() => createTheme(theme, { direction: "ltr" }), [theme]);
+  // The provider's per-request scope cache — the instance the SSR flush
+  // drains (client: the shared singleton via the same hook fallback).
+  const scopeCache = useLtrScopeCache();
 
   return (
-    <CacheProvider value={getLtrEmotionCache()}>
+    <CacheProvider value={scopeCache}>
       <ThemeProvider theme={ltrTheme}>
         <Box dir="ltr">{children}</Box>
       </ThemeProvider>
