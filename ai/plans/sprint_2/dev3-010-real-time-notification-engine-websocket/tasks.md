@@ -146,23 +146,23 @@
 
 ### 2.1 Scaffold the `test/workflows/` Journey Layer
 
-- [ ] 2.1 [Scaffold `test/workflows/` harness layer — REQUIRED, layer does not exist]
+- [x] 2.1 [Scaffold `test/workflows/` harness layer — REQUIRED, layer does not exist]
   - Create `test/workflows/AGENTS.md` codifying: committed fixtures in `beforeAll`, tracked hard-delete in `afterAll`, NO `runInRollback` (services own their transactions), side effects SPIED never sent, permissions resolved HONESTLY via real user fixtures/permission-group membership (never monkey-patched), sequential actor-attributed steps, cross-actor visibility + denial assertions
   - Create `test/workflows/helpers/tracked-fixtures.ts` — `TrackedFixtures` helper: registry of created entity ids + hard-delete teardown with post-teardown existence checks (zero residue)
   - Create `test/workflows/helpers/actor-context.ts` — actor-context factory producing real `actorUserId`-carrying callers from `entity-setup.ts`-built user fixtures (student / certified teacher / parent / admin)
   - Create `test/workflows/helpers/spied-transport.ts` — in-process fan-out transport spy exposing publish call log (`userIds`, payload) for assertions; installed via the engine's injected transport seam
   - Applicable instructions: Architectural Invariant 10 (system prompt), `test/AGENTS.md` conventions, REQ-077
   - _Requirements: REQ-077, REQ-J5_
-  - [ ] 2.1.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts <each-file> --lifecycle duplicates` (exit 0)
-  - [ ] 2.1.TE **Test Engineering**: harness self-test proving teardown leaves zero residue; verify `bun run test/scripts/run-test.ts` picks up `test/workflows/**`
-  - [ ] 2.1.SEC **Security & Tenancy Audit**: actor-context factory resolves permissions only through REAL user fixtures; document that monkey-patching permission resolution is forbidden by `test/workflows/AGENTS.md`
-  - [ ] 2.1.SR **Semantic Review**: helpers are reusable (no notification-domain bleed into generic helpers); spied transport implements the same `NotificationFanoutTransport` port
-  - [ ] 2.1.IV **Instruction Verification**: validate against Architectural Invariant 10 + REQ-077 wording
+  - [x] 2.1.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts <each-file> --lifecycle duplicates` (exit 0)
+  - [x] 2.1.TE **Test Engineering**: harness self-test proving teardown leaves zero residue; verify `bun run test/scripts/run-test.ts` picks up `test/workflows/**`
+  - [x] 2.1.SEC **Security & Tenancy Audit**: actor-context factory resolves permissions only through REAL user fixtures; document that monkey-patching permission resolution is forbidden by `test/workflows/AGENTS.md`
+  - [x] 2.1.SR **Semantic Review**: helpers are reusable (no notification-domain bleed into generic helpers); spied transport implements the same `NotificationFanoutTransport` port
+  - [x] 2.1.IV **Instruction Verification**: validate against Architectural Invariant 10 + REQ-077 wording
   - Outcome: `outcome/2.1-outcome.md`
 
 ### 2.2 Journey J1 — TEST-FIRST
 
-- [ ] 2.2 [Write Targeted Single-Recipient Delivery journey test — TEST-FIRST]
+- [x] 2.2 [Write Targeted Single-Recipient Delivery journey test — TEST-FIRST]
   - Create `test/workflows/notifications/j1-targeted-single-recipient.test.ts`
   - Provision the actor cast via `test/workflows/helpers/actor-context.ts` (student + certified teacher + parent-outsider) — real permission-group membership rows — NEVER monkey-patch permission resolution
   - Steps as sequential service calls with `actorUserId` (mirroring plan §4.5 J1 table):
@@ -183,7 +183,7 @@
 
 ### 2.3 Journey J2 — TEST-FIRST
 
-- [ ] 2.3 [Write Cohort Broadcast Fan-Out + Offline Persistence journey test — TEST-FIRST]
+- [x] 2.3 [Write Cohort Broadcast Fan-Out + Offline Persistence journey test — TEST-FIRST]
   - Create `test/workflows/notifications/j2-cohort-broadcast-offline-persistence.test.ts`
   - Actor cast via helpers: parents A/B + teacher + anonymous caller
   - Steps as sequential service calls with `actorUserId` (mirroring plan §4.5 J2 table):
@@ -203,17 +203,17 @@
 
 ### 2.4 Repository — Additive Extension
 
-- [ ] 2.4 [Extend `backend/db/repo/notifications/notification.repository.ts` — additive methods only]
+- [x] 2.4 [Extend `backend/db/repo/notifications/notification.repository.ts` — additive methods only]
   - Add: `createReturning`, `createManyReturning` (ONE multi-row INSERT … RETURNING), `countUnread`, `countForUser` (shared predicate builder with list), `listForUser` (conjunctive optional filters + `ORDER BY created_at DESC, id DESC`), `markReadOnce` (guarded single `UPDATE … WHERE id AND user_id RETURNING` → null on zero rows), `markAllReadForUser` (single set-based UPDATE with `is_read = false` + optional type)
   - Every method: `tx?: DBTransaction` LAST parameter; `queryDb(tx)` pattern for non-transactional reads; NO business logic, NO translations; reuse-any-existing-method audit from Task 0.2 honored
   - NO `inArray`; NO prepared statements (writes); NO `--` inside `sql` templates
   - Applicable instructions: `backend/db/repo/AGENTS.md`, `docs/drizzle/prepared-statements.md`
   - _Requirements: REQ-017, REQ-018, REQ-019, REQ-020, REQ-026, REQ-040, REQ-041_
-  - [ ] 2.4.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts backend/db/repo/notifications/notification.repository.ts --lifecycle duplicates` (exit 0)
-  - [ ] 2.4.TE **Test Engineering** (`backend/db/test/logic/notifications/notification.repository.test.ts` or per existing placement): Tier 1 — every method happy path + branch coverage; Tier 2 — limit boundaries (1/50), offset 0, filter-empty; Tier 3 — concurrent mark storms via `Promise.allSettled`; Tier 4 — foreign-id mark → null (no leak). ALL inside `runInRollback`, `tx` passed to EVERY call, fixtures via `entity-setup.ts`, failures via `expectRepoError` translated-substring helper, run via `bun run test/scripts/run-test.ts <path>`
-  - [ ] 2.4.SEC **Security & Tenancy Audit**: every read/write scoped by explicit `userId` parameter; guarded UPDATE proves BOLA containment; zero `{ ...input }` spread into Drizzle (grep-verified); no LIKE/ILIKE surface (wildcards N/A — documented)
-  - [ ] 2.4.SR **Semantic Review**: single-statement discipline (no read-then-write); predicate builder shared between list + count (REQ-026 coherence); zero dead code; no cross-layer imports
-  - [ ] 2.4.IV **Instruction Verification**: validate against `backend/db/repo/AGENTS.md`, Architectural Invariant 3 (tx propagation)
+  - [x] 2.4.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts backend/db/repo/notifications/notification.repository.ts --lifecycle duplicates` (exit 0)
+  - [x] 2.4.TE **Test Engineering** (`backend/db/test/logic/notifications/notification.repository.test.ts` or per existing placement): Tier 1 — every method happy path + branch coverage; Tier 2 — limit boundaries (1/50), offset 0, filter-empty; Tier 3 — concurrent mark storms via `Promise.allSettled`; Tier 4 — foreign-id mark → null (no leak). ALL inside `runInRollback`, `tx` passed to EVERY call, fixtures via `entity-setup.ts`, failures via `expectRepoError` translated-substring helper, run via `bun run test/scripts/run-test.ts <path>`
+  - [x] 2.4.SEC **Security & Tenancy Audit**: every read/write scoped by explicit `userId` parameter; guarded UPDATE proves BOLA containment; zero `{ ...input }` spread into Drizzle (grep-verified); no LIKE/ILIKE surface (wildcards N/A — documented)
+  - [x] 2.4.SR **Semantic Review**: single-statement discipline (no read-then-write); predicate builder shared between list + count (REQ-026 coherence); zero dead code; no cross-layer imports
+  - [x] 2.4.IV **Instruction Verification**: validate against `backend/db/repo/AGENTS.md`, Architectural Invariant 3 (tx propagation)
   - Outcome: `outcome/2.4-outcome.md`
 
 ### 2.5 Fan-Out Transport Port + Adapters
