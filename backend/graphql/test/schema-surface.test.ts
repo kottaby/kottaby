@@ -16,9 +16,12 @@
  *    `ApplicantStatus` additions, the notifications additions — enum +
  *    `Notification` + `NotificationListPage` — and the sanctioned inbox
  *    query additions — `myNotifications` + `myUnreadNotificationCount` +
- *    `MyNotificationsFilterInput`): ZERO new mutations, and a whole-schema
- *    named-type delta of EXACTLY `{HealthCheck}` while the query set grows
- *    only by the sanctioned probe re-registration.
+ *    `MyNotificationsFilterInput` — and the sanctioned inbox read-latch
+ *    mutation additions — `markNotificationRead` +
+ *    `markAllNotificationsRead`): ZERO new mutations beyond the refreshed
+ *    frozen set, and a whole-schema named-type delta of EXACTLY
+ *    `{HealthCheck}` while the query set grows only by the sanctioned probe
+ *    re-registration.
  *  - **Notification surface** — the `NotificationType` enum carries exactly
  *    the 7 canonical values (TS-enum keys as GraphQL names, snake_case
  *    runtime values), the `Notification` object exposes `id` FIRST with
@@ -28,6 +31,11 @@
  *    `myUnreadNotificationCount` carry EXACTLY the `authenticated` scope,
  *    return the canonical page/scalar shapes, accept ZERO identity
  *    arguments anywhere (root args AND filter-input fields), and reject
+ *    anonymous in-process execution with UNAUTHORIZED.
+ *  - **Notification mutation surface** — `markNotificationRead` +
+ *    `markAllNotificationsRead` carry EXACTLY the `authenticated` scope,
+ *    return the canonical row/scalar shapes, accept ZERO identity
+ *    arguments (exactly `id: ID!` / `type: NotificationType`), and reject
  *    anonymous in-process execution with UNAUTHORIZED.
  *  - **Allowlist agreement** — the scopeless `_health` field is present in
  *    the closed `PUBLIC_OPERATION_NAMES` tuple / `PUBLIC_OPERATIONS` set
@@ -76,8 +84,15 @@ const PRE_3_1_QUERY_FIELDS = [
   "myUnreadNotificationCount",
   "recitationReadings",
 ] as const;
-/** Root mutation field names — must remain UNCHANGED forever. */
-const PRE_3_1_MUTATION_FIELDS = ["login", "logout", "refreshToken", "registerUser"] as const;
+/** Root mutation field names — the refreshed frozen baseline (auth quartet + the sanctioned notification read-latch pair). */
+const PRE_3_1_MUTATION_FIELDS = [
+  "login",
+  "logout",
+  "markAllNotificationsRead",
+  "markNotificationRead",
+  "refreshToken",
+  "registerUser",
+] as const;
 /** GraphQL enum type names — the freeze forbids any new Pothos enum. */
 const PRE_3_1_ENUMS = [
   "ApplicantStatus",
@@ -199,7 +214,7 @@ describe("HealthCheck object shape — four scalar fields, no id", () => {
 });
 
 describe("Surface freeze — exactly one addition vs the baseline inventory", () => {
-  test("ZERO new mutations (frozen mutation set unchanged)", () => {
+  test("mutation set is EXACTLY the refreshed frozen baseline (ZERO new mutations beyond it)", () => {
     const mutationFields = graphQLSchema.getMutationType()?.getFields() ?? {};
     const names = Object.keys(mutationFields).toSorted((a, b) => a.localeCompare(b));
 
@@ -475,6 +490,105 @@ describe("Notification query surface — self-scoped inbox reads", () => {
     const unknownCountArg = validate(graphQLSchema, parse("{ myUnreadNotificationCount(userId: 123) }"));
     expect(unknownCountArg).toHaveLength(1);
     expect(unknownCountArg[0]?.message).toContain('Unknown argument "userId"');
+  });
+});
+
+describe("Notification mutation surface — self-scoped read latch", () => {
+  const mutationType = graphQLSchema.getMutationType();
+
+  if (!mutationType) {
+    throw new Error("Schema must define a root Mutation type");
+  }
+
+  // Captured ONCE after the narrowing guard so the hoisted `mutationField`
+  // helper below never re-dereferences a possibly-null root type.
+  const rootFields = mutationType.getFields();
+
+  function mutationField(name: string) {
+    const field = rootFields[name];
+    if (!field) {
+      throw new Error(`Mutation must register the \`${name}\` root field`);
+    }
+    return field;
+  }
+
+  /** Reads one root field's `authScopes` snapshot off the Pothos extensions (no casts). */
+  function authScopesOf(fieldName: string): Record<string, unknown> {
+    const extensions: unknown = mutationField(fieldName).extensions;
+    if (!isRecord(extensions)) throw new Error("expected record-shaped extensions");
+    const pothosOptions: unknown = Reflect.get(extensions, "pothosOptions");
+    if (!isRecord(pothosOptions)) throw new Error("expected record-shaped pothosOptions");
+    const authScopes: unknown = Reflect.get(pothosOptions, "authScopes");
+    if (!isRecord(authScopes)) throw new Error("expected record-shaped authScopes");
+    return authScopes;
+  }
+
+  test("`markNotificationRead` returns Notification! with EXACTLY ONE required `id: ID!` arg", () => {
+    const field = mutationField("markNotificationRead");
+    expect(field.type.toString()).toBe("Notification!");
+    const argNames = field.args.map(arg => arg.name).toSorted((a, b) => a.localeCompare(b));
+    expect(argNames).toEqual(["id"]);
+    const idArg = field.args[0];
+    if (!idArg) throw new Error("expected the id argument");
+    // Required + non-null — exactly the SDL contract's `(id: ID!)`.
+    expect(idArg.type.toString()).toBe("ID!");
+  });
+
+  test("`markAllNotificationsRead` returns Int! with EXACTLY ONE optional `type: NotificationType` arg", () => {
+    const field = mutationField("markAllNotificationsRead");
+    expect(field.type.toString()).toBe("Int!");
+    const argNames = field.args.map(arg => arg.name).toSorted((a, b) => a.localeCompare(b));
+    expect(argNames).toEqual(["type"]);
+    const typeArg = field.args[0];
+    if (!typeArg) throw new Error("expected the type argument");
+    // Optional + nullable — exactly the SDL contract's `(type: NotificationType)`.
+    expect(typeArg.type.toString()).toBe("NotificationType");
+  });
+
+  test("BOTH inbox mutations carry EXACTLY the `authenticated` scope (no role/permission/superAdmin)", () => {
+    for (const name of ["markNotificationRead", "markAllNotificationsRead"]) {
+      const scopes = authScopesOf(name);
+      expect(Object.keys(scopes).toSorted((a, b) => a.localeCompare(b))).toEqual(["authenticated"]);
+      expect(scopes.authenticated).toBe(true);
+      // SEC: every authenticated role owns an inbox — no role material may
+      // participate in the scope decision.
+      expect("role" in scopes).toBe(false);
+      expect("permission" in scopes).toBe(false);
+      expect("superAdmin" in scopes).toBe(false);
+    }
+  });
+
+  test("anonymous (context-free) in-process execution of BOTH inbox mutations yields UNAUTHORIZED", async () => {
+    // Each op asserted in its OWN document: both fields are non-null at the
+    // root, so a combined document would null-propagate the first failure
+    // over its sibling (one error, second field never resolved).
+    const documents = [
+      { source: 'mutation { markNotificationRead(id: "1") { id } }', path: "markNotificationRead" },
+      { source: "mutation { markAllNotificationsRead }", path: "markAllNotificationsRead" },
+    ] as const;
+    const results = await Promise.all(
+      documents.map(async document => graphql({ schema: graphQLSchema, source: document.source, contextValue: {} }))
+    );
+    for (const [index, result] of results.entries()) {
+      const errors = result.errors;
+      if (!errors) throw new Error("expected the anonymous inbox mutation to fail");
+      expect(errors).toHaveLength(1);
+      expect(errors[0]?.extensions?.code).toBe("UNAUTHORIZED");
+      expect(errors[0]?.path).toEqual([documents[index]?.path]);
+    }
+  });
+
+  test("smuggled identity args die at validation BEFORE any resolver runs (zero identity-arg surface)", () => {
+    const smuggledMarkOne = validate(
+      graphQLSchema,
+      parse('mutation { markNotificationRead(id: "1", userId: 123) { id } }')
+    );
+    expect(smuggledMarkOne).toHaveLength(1);
+    expect(smuggledMarkOne[0]?.message).toContain('Unknown argument "userId"');
+
+    const smuggledMarkAll = validate(graphQLSchema, parse("mutation { markAllNotificationsRead(userId: 123) }"));
+    expect(smuggledMarkAll).toHaveLength(1);
+    expect(smuggledMarkAll[0]?.message).toContain('Unknown argument "userId"');
   });
 });
 

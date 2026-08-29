@@ -10,6 +10,8 @@
  *    side-effect import here.
  *
  * `auth.mutation.ts` wires the auth mutations (`registerUser`, `login`,
- * `refreshToken`, `logout`).
+ * `refreshToken`, `logout`); `notifications/` wires the inbox read-latch
+ * mutations (`markNotificationRead`, `markAllNotificationsRead`).
  */
 import "./auth.mutation";
+import "./notifications";

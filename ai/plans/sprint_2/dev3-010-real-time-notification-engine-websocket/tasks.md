@@ -330,16 +330,16 @@
 
 ### 3.3 Mutation Resolvers
 
-- [ ] 3.3 [Implement `markNotificationRead` + `markAllNotificationsRead` mutation resolvers]
+- [x] 3.3 [Implement `markNotificationRead` + `markAllNotificationsRead` mutation resolvers]
   - Create `backend/graphql/mutation/notifications/notification.mutation.ts`: `authScopes: { authenticated: true }`; `markNotificationRead(id: ID!)` → `markRead(ctx.user.id, id, ctx.locale)`; `markAllNotificationsRead(type: NotificationType)` → `markAllRead(ctx.user.id, type, ctx.locale)` returning Int
   - ID-channel discipline: `id` parsed via positive-safe-int guard (no `as number` casts)
   - Domain mutation barrel registration per conventions
   - _Requirements: REQ-019, REQ-020, REQ-030, REQ-031, REQ-032, REQ-060, REQ-061_
-  - [ ] 3.3.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts <each-file> --lifecycle duplicates` (exit 0)
-  - [ ] 3.3.TE **Test Engineering** (integration tier): foreign/nonexistent id → `extensions.code === "NOTIFICATION_NOT_FOUND"` via `expectMutationError`/`CombinedGraphQLError` helpers; idempotent double mark; mark-all + type-filtered + empty-set 0; anonymous → `UNAUTHORIZED`; constant response shapes across denial branches
-  - [ ] 3.3.SEC **Security & Tenancy Audit**: oracle-safe denial constancy (REQ-039); smuggled input fields ignored (BOPLA probe); NO notification-CUD mutations elsehere in schema (structural scan pre-wired for 3.4)
-  - [ ] 3.3.SR **Semantic Review**: thin resolvers; `DomainError` subclasses only (no plain `new Error`); i18n via `ctx.t`
-  - [ ] 3.3.IV **Instruction Verification**: validate against `docs/graphql/domain-error-extensions-code.md`, `backend/graphql/AGENTS.md`
+  - [x] 3.3.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts <each-file> --lifecycle duplicates` (exit 0)
+  - [x] 3.3.TE **Test Engineering** (integration tier): foreign/nonexistent id → `extensions.code === "NOTIFICATION_NOT_FOUND"` via `expectMutationError`/`CombinedGraphQLError` helpers; idempotent double mark; mark-all + type-filtered + empty-set 0; anonymous → `UNAUTHORIZED`; constant response shapes across denial branches
+  - [x] 3.3.SEC **Security & Tenancy Audit**: oracle-safe denial constancy (REQ-039); smuggled input fields ignored (BOPLA probe); NO notification-CUD mutations elsehere in schema (structural scan pre-wired for 3.4)
+  - [x] 3.3.SR **Semantic Review**: thin resolvers; `DomainError` subclasses only (no plain `new Error`); i18n via `ctx.t`
+  - [x] 3.3.IV **Instruction Verification**: validate against `docs/graphql/domain-error-extensions-code.md`, `backend/graphql/AGENTS.md`
   - Outcome: `outcome/3.3-outcome.md`
 
 ### 3.4 Schema Generation, Codegen & Structural Assertions

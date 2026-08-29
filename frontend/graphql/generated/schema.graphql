@@ -60,6 +60,16 @@ type Mutation {
   logout: LogoutPayload!
 
   """
+  Marks every unread notification of the caller read (optionally narrowed to one type) and returns the affected-row count. An empty matching set returns 0; repeat sweeps are idempotent (0).
+  """
+  markAllNotificationsRead(type: NotificationType): Int!
+
+  """
+  Marks one of the caller's own notifications read (idempotent) and returns the row. A foreign or nonexistent id is indistinguishable — NOTIFICATION_NOT_FOUND with no existence oracle.
+  """
+  markNotificationRead(id: ID!): Notification!
+
+  """
   Rotate the JWT pair from a valid refresh token. Returns fresh access + refresh tokens. The new access_token + refresh_token + session_id are also set as httpOnly cookies (rotation invalidates the prior pair).
   """
   refreshToken(refreshToken: String!): RefreshTokenPayload!
