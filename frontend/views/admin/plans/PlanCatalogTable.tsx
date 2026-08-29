@@ -186,14 +186,21 @@ export function PlanCatalogTable({
                       <span dir="ltr">
                         {plan.price} {plan.currency}
                       </span>
-                    </strong>{" "}
+                    </strong>
+                    {" · "}
                     {plan.intervalDays} {t.intervalDaysShort}
                   </Typography>
-                  <Typography variant="caption" sx={theme => ({ color: theme.palette.text.secondary, whiteSpace: "nowrap" })}>
+                  <Typography
+                    variant="caption"
+                    sx={theme => ({ color: theme.palette.text.secondary, whiteSpace: "nowrap" })}
+                  >
                     {t.createdAtColumn}: {formatDate(plan.createdAt, t.emptyValue)}
                   </Typography>
                   {!plan.isActive && plan.deactivatedAt && (
-                    <Typography variant="caption" sx={theme => ({ color: theme.palette.error.main, whiteSpace: "nowrap" })}>
+                    <Typography
+                      variant="caption"
+                      sx={theme => ({ color: theme.palette.error.main, whiteSpace: "nowrap" })}
+                    >
                       {t.deactivatedAtColumn}: {formatDate(plan.deactivatedAt, t.emptyValue)}
                     </Typography>
                   )}
