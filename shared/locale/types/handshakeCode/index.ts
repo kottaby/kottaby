@@ -58,4 +58,7 @@ export interface HandshakeCodeLabels {
   readonly alreadyLinkedTitle: string;
   /** Result-card body when the found student is already linked to the caller. */
   readonly alreadyLinkedDescription: string;
+  // ─── Parent navigation ─────────────────────────────────────────────────────
+  /** Sidebar nav item (parent group) linking to the discovery page. */
+  readonly navLinkMyChild: string;
 }

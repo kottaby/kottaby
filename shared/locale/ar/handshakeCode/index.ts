@@ -17,4 +17,5 @@ export const handshakeCodeAr: HandshakeCodeLabels = {
   canLinkDescription: "يمكنك إرسال طلب ربط للتواصل مع هذا الطالب.",
   alreadyLinkedTitle: "تم الربط بالفعل",
   alreadyLinkedDescription: "هذا الطالب مرتبط بحسابك بالفعل.",
+  navLinkMyChild: "ربط طفلي",
 };

@@ -17,4 +17,5 @@ export const handshakeCodeEn: HandshakeCodeLabels = {
   canLinkDescription: "You can send a link request to connect with this student.",
   alreadyLinkedTitle: "Already linked",
   alreadyLinkedDescription: "This student is already linked to your account.",
+  navLinkMyChild: "Link my child",
 };
