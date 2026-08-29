@@ -454,7 +454,7 @@
 
 ### 5.1 GraphQL Integration Tier (Consolidated)
 
-- [ ] 5.1 [Assemble full GraphQL integration suite — role × operation matrix]
+- [x] 5.1 [Assemble full GraphQL integration suite — role × operation matrix]
   - Via `setupTestServerLifecycle` + `testClient`: anonymous → `UNAUTHORIZED` × 4 ops; each role reads ONLY own inbox (cross-user isolation matrix incl. parent-outsider probes); filter→content coherence over wire; mark flows with `extensions.code` assertions (`NOTIFICATION_NOT_FOUND`, `VALIDATION`, `UNAUTHORIZED`) via `expectMutationError`/`CombinedGraphQLError` helpers; governed (suspended/blocked/deleted) caller → context-level denial (REQ-038)
   - Denial-shape constancy probes (REQ-039); pagination cap probes (limit 51 rejected)
   - Run via `bun run test/scripts/run-test.ts <path>`; deterministic double-run evidence recorded
