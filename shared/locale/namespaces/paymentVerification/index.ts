@@ -1,1 +1,1 @@
-export { PaymentVerification } from "@/shared/locale/namespaces/paymentVerification/paymentVerification.namespace";
+export { PaymentVerification } from "./paymentVerification.namespace";

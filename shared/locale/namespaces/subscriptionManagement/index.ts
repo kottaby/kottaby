@@ -1,1 +1,1 @@
-export { SubscriptionManagement } from "@/shared/locale/namespaces/subscriptionManagement/subscriptionManagement.namespace";
+export { SubscriptionManagement } from "./subscriptionManagement.namespace";
