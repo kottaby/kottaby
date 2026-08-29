@@ -73,7 +73,7 @@ DO $$ BEGIN
         CREATE TYPE "user_role" AS ENUM('admin', 'teacher', 'student', 'parent');
     END IF;
 END $$;--> statement-breakpoint
-CREATE TABLE "audit_logs" (
+CREATE TABLE IF NOT EXISTS "audit_logs" (
 	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "audit_logs_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"actor_id" integer NOT NULL,
 	"action_type" "audit_action_type" NOT NULL,
@@ -82,7 +82,7 @@ CREATE TABLE "audit_logs" (
 	"details" varchar(2000),
 	"created_at" timestamp DEFAULT now() NOT NULL
 );--> statement-breakpoint
-CREATE TABLE "plans" (
+CREATE TABLE IF NOT EXISTS "plans" (
 	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "plans_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"title" varchar(255) NOT NULL,
 	"session_count" integer NOT NULL,
@@ -95,7 +95,7 @@ CREATE TABLE "plans" (
 	CONSTRAINT "plans_price_check" CHECK ("price" >= 0),
 	CONSTRAINT "plans_interval_days_check" CHECK ("interval_days" > 0)
 );--> statement-breakpoint
-CREATE TABLE "student_payments" (
+CREATE TABLE IF NOT EXISTS "student_payments" (
 	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "student_payments_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"student_id" integer NOT NULL,
 	"subscription_id" integer,
@@ -113,7 +113,7 @@ CREATE TABLE IF NOT EXISTS "student_subscriptions" (
 	"enrolled_at" timestamp DEFAULT now() NOT NULL,
 	CONSTRAINT "student_subscriptions_pkey" PRIMARY KEY("student_id","subscription_id")
 );--> statement-breakpoint
-CREATE TABLE "subscriptions" (
+CREATE TABLE IF NOT EXISTS "subscriptions" (
 	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "subscriptions_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"user_id" integer NOT NULL,
 	"plan_id" integer NOT NULL,
@@ -126,7 +126,7 @@ CREATE TABLE "subscriptions" (
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL
 );--> statement-breakpoint
-CREATE TABLE "teacher_transaction" (
+CREATE TABLE IF NOT EXISTS "teacher_transaction" (
 	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "teacher_transaction_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"wallet_id" integer NOT NULL,
 	"session_id" integer,
@@ -138,7 +138,7 @@ CREATE TABLE "teacher_transaction" (
 	"updated_at" timestamp DEFAULT now() NOT NULL,
 	CONSTRAINT "teacher_transaction_amount_check" CHECK ("amount" >= 0)
 );--> statement-breakpoint
-CREATE TABLE "wallet" (
+CREATE TABLE IF NOT EXISTS "wallet" (
 	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "wallet_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"teacher_id" integer NOT NULL CONSTRAINT "wallet_teacher_id_unique" UNIQUE,
 	"balance" numeric(10,2) DEFAULT '0' NOT NULL,
@@ -148,7 +148,7 @@ CREATE TABLE "wallet" (
 	CONSTRAINT "wallet_balance_check" CHECK ("balance" >= 0),
 	CONSTRAINT "wallet_total_earning_check" CHECK ("total_earning" >= 0)
 );--> statement-breakpoint
-CREATE TABLE "home_work" (
+CREATE TABLE IF NOT EXISTS "home_work" (
 	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "home_work_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"session_id" integer NOT NULL,
 	"current_from_ayah" integer,
@@ -164,21 +164,21 @@ CREATE TABLE "home_work" (
 	CONSTRAINT "home_work_current_grade_check" CHECK ("current_grade" >= 0 AND "current_grade" <= 100),
 	CONSTRAINT "home_work_revision_grade_check" CHECK ("revision_grade" >= 0 AND "revision_grade" <= 100)
 );--> statement-breakpoint
-CREATE TABLE "lessons" (
+CREATE TABLE IF NOT EXISTS "lessons" (
 	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "lessons_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"plan_id" integer,
 	"title" varchar(255),
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL
 );--> statement-breakpoint
-CREATE TABLE "progress" (
+CREATE TABLE IF NOT EXISTS "progress" (
 	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "progress_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"student_id" integer NOT NULL,
 	"lesson_id" integer,
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL
 );--> statement-breakpoint
-CREATE TABLE "recitation" (
+CREATE TABLE IF NOT EXISTS "recitation" (
 	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "recitation_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"session_id" integer NOT NULL CONSTRAINT "recitation_session_id_unique" UNIQUE,
 	"name" varchar(255) NOT NULL,
@@ -186,7 +186,7 @@ CREATE TABLE "recitation" (
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL
 );--> statement-breakpoint
-CREATE TABLE "reports" (
+CREATE TABLE IF NOT EXISTS "reports" (
 	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "reports_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"session_id" integer NOT NULL,
 	"teacher_notes" text,
@@ -195,7 +195,7 @@ CREATE TABLE "reports" (
 	"updated_at" timestamp DEFAULT now() NOT NULL,
 	CONSTRAINT "reports_student_rating_by_teacher_check" CHECK ("student_rating_by_teacher" >= 0 AND "student_rating_by_teacher" <= 5)
 );--> statement-breakpoint
-CREATE TABLE "session" (
+CREATE TABLE IF NOT EXISTS "session" (
 	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "session_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"teacher_id" integer NOT NULL,
 	"student_id" integer NOT NULL,
@@ -212,7 +212,7 @@ CREATE TABLE "session" (
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL
 );--> statement-breakpoint
-CREATE TABLE "notifications" (
+CREATE TABLE IF NOT EXISTS "notifications" (
 	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "notifications_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"user_id" integer NOT NULL,
 	"type" "notification_type" NOT NULL,
@@ -252,7 +252,7 @@ CREATE TABLE IF NOT EXISTS "applicants" (
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL
 );--> statement-breakpoint
-CREATE TABLE "evaluations" (
+CREATE TABLE IF NOT EXISTS "evaluations" (
 	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "evaluations_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"evaluated_id" integer NOT NULL,
 	"evaluator_id" integer NOT NULL,
@@ -277,7 +277,7 @@ CREATE TABLE IF NOT EXISTS "teacher" (
 	"updated_at" timestamp DEFAULT now() NOT NULL,
 	CONSTRAINT "teacher_average_rating_check" CHECK ("average_rating" >= 0 AND "average_rating" <= 5)
 );--> statement-breakpoint
-CREATE TABLE "teacher_verification" (
+CREATE TABLE IF NOT EXISTS "teacher_verification" (
 	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "teacher_verification_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"teacher_id" integer NOT NULL,
 	"tajweed_level" varchar(50),
@@ -290,7 +290,7 @@ CREATE TABLE IF NOT EXISTS "admin" (
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL
 );--> statement-breakpoint
-CREATE TABLE "users" (
+CREATE TABLE IF NOT EXISTS "users" (
 	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "users_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"full_name" varchar(255) NOT NULL,
 	"email" varchar(255) NOT NULL CONSTRAINT "users_email_unique" UNIQUE,

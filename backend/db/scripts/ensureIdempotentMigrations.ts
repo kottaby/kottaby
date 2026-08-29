@@ -114,11 +114,20 @@ function transformDropObject(trimmed: string): string | null {
  * and {@link transformAddConstraint}). Indexes are handled separately by
  * {@link transformCreateIndex}.
  */
+/**
+ * Detects a true `CREATE TABLE … AS <query>` (CTAS) statement. Only the query-start
+ * forms (`AS SELECT`, `AS VALUES`, `AS EXECUTE`, `AS TABLE`) count — a bare `\bAS\b`
+ * would false-positive on column grammar like `GENERATED ALWAYS AS IDENTITY`, which
+ * previously caused plain CREATE TABLE statements to skip the `IF NOT EXISTS` guard
+ * and fail with PG 42P07 on existing databases.
+ */
+const CTAS_PATTERN = /\bCREATE\s+TABLE\b[\s\S]*?\bAS\s+(?:SELECT|VALUES|EXECUTE|TABLE)\b/i;
+
 function transformCreateTable(trimmed: string): string | null {
   if (
     /\bCREATE\s+TABLE\b/i.test(trimmed) &&
     !/\bCREATE\s+TABLE\s+IF\s+NOT\s+EXISTS\b/i.test(trimmed) &&
-    !/\bCREATE\s+TABLE\b[\s\S]*?\bAS\b/i.test(trimmed) &&
+    !CTAS_PATTERN.test(trimmed) &&
     !/DO\s+\$\$/i.test(trimmed)
   ) {
     return trimmed.replace(/\bCREATE\s+TABLE\b/gi, "CREATE TABLE IF NOT EXISTS");
