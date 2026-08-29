@@ -1,7 +1,7 @@
 import type { AuthLabels } from "@/shared/locale/types/auth";
 export const authAr: AuthLabels = {
   registerTitle: "أنشئ حسابك",
-  registerSubtitle: "انضم إلى أكاديمية درافت كطالب أو معلم أو ولي أمر.",
+  registerSubtitle: "انضم إلى أكاديمية كتّاب كطالب أو معلم أو ولي أمر.",
   fullName: "الاسم الكامل",
   email: "البريد الإلكتروني",
   phone: "رقم الهاتف",
@@ -31,7 +31,7 @@ export const authAr: AuthLabels = {
   registrationFailed: "فشل التسجيل. يرجى المحاولة مرة أخرى.",
   rateLimitExceeded: "طلبات كثيرة جداً. يرجى المحاولة لاحقاً.",
   loginTitle: "مرحباً بعودتك",
-  loginSubtitle: "سجّل الدخول إلى حسابك في أكاديمية درافت.",
+  loginSubtitle: "سجّل الدخول إلى حسابك في أكاديمية كتّاب.",
   loginEmail: "البريد الإلكتروني",
   loginPassword: "كلمة المرور",
   loginSubmit: "تسجيل الدخول",
@@ -64,6 +64,6 @@ export const authAr: AuthLabels = {
   passwordStrengthStrong: "قوي",
   forgotPassword: "نسيت كلمة المرور؟",
   rememberMe: "تذكرني",
-  loginMetaTitle: "أكاديمية درافت — تسجيل الدخول",
-  registerMetaTitle: "أكاديمية درافت — إنشاء حساب",
+  loginMetaTitle: "أكاديمية كتّاب — تسجيل الدخول",
+  registerMetaTitle: "أكاديمية كتّاب — إنشاء حساب",
 };

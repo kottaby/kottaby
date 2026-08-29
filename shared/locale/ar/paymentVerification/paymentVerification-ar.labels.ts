@@ -8,7 +8,7 @@ export const paymentVerificationAr: PaymentVerificationLabels = {
   errorStateTitle: "تعذّر تحميل قائمة التحقق",
   errorStateBody: "حدث خطأ ما أثناء جلب الطلبات المعلّقة. يمكنك المحاولة مرة أخرى.",
   errorStateRetry: "حاول مجدداً",
-  labelRequestedBy: "مطلوب من",
+  labelRequestedBy: "مقدّم الطلب",
   labelPlan: "الباقة",
   labelSessions: "الجلسات",
   labelPrice: "السعر",

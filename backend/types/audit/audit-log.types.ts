@@ -3,7 +3,7 @@ import type { auditLogs } from "@/backend/db/schema/audit/audit-logs";
 export type AuditLogSelectType = typeof auditLogs.$inferSelect;
 export type AuditLogInsertType = typeof auditLogs.$inferInsert;
 
-/** Machine-readable action descriptor carried inside `details`. */
+/** The entity families that can be audited (machine codes, never user content). */
 export type AuditEntityType = "plans" | "subscriptions";
 /** Input shape for one auditable admin action. */
 export interface RecordAdminActionInput {

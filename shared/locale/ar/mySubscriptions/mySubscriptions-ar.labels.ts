@@ -25,7 +25,12 @@ export const mySubscriptionsAr: MySubscriptionsLabels = {
   labelPrice: "السعر",
   labelSessions: "الجلسات",
   labelInterval: "التجديد",
-  intervalDays: days => `كل ${days} يومًا`,
+  intervalDays: days => {
+    if (days === 1) return "كل يوم";
+    if (days === 2) return "كل يومين";
+    if (days >= 3 && days <= 10) return `كل ${days} أيام`;
+    return `كل ${days} يومًا`;
+  },
   labelPeriod: "الفترة",
   labelStarted: "بدأت",
   labelEnds: "تنتهي",

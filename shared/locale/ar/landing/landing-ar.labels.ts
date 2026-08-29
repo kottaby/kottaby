@@ -25,7 +25,7 @@ export const landingAr: LandingLabels = {
   // Features section
   featuresBadge: "الميزات",
   featuresTitle: "كل ما تحتاجه لإتقان القرآن",
-  featuresSubtitle: "من أول حرفة إلى التجويد المتقدم، توفّر أكاديمية كتّاب الأدوات والمعلمين والمنهج لتوجيه كل خطوة.",
+  featuresSubtitle: "من أول حرف إلى التجويد المتقدم، توفّر أكاديمية كتّاب الأدوات والمعلمين والمنهج لتوجيه كل خطوة.",
   featureVerifiedTitle: "شيوخ موثّقون",
   featureVerifiedBody:
     "كل معلم موثّق وحاصل على إجازة معتمدة. تصفّح الملفات، اقرأ التقييمات، واختر القارئ الذي يناسب أهدافك.",
@@ -99,7 +99,7 @@ export const landingAr: LandingLabels = {
   faqSubtitle: "كل ما تحتاج معرفته عن أكاديمية كتّاب. لم تجد إجابة؟ تواصل مع فريق الدعم.",
   faq1Question: "ما هي الإجازة ولماذا تهم؟",
   faq1Answer:
-    "الإجازة هي شهادة تُفوّض حاملها بتعليم وترواية قراءة معيّنة. كل معلم في أكاديمية كتّاب حاصل على إجازة واحدة على الأقل، مما يضمن سلاسل نقل أصيلة ومتّصلة إلى النبي ﷺ.",
+    "الإجازة هي شهادة تُفوّض حاملها بتعليم ورواية قراءة معيّنة. كل معلم في أكاديمية كتّاب حاصل على إجازة واحدة على الأقل، مما يضمن سلاسل نقل أصيلة ومتّصلة إلى النبي ﷺ.",
   faq2Question: "ما القراءات التي يمكنني تعلّمها؟",
   faq2Answer:
     "ندعم القراءات العشر المتواترة كاملة، من حفص عن عاصم الشائعة إلى القراءات النادرة مثل خلف عن حمزة. يمكنك التبديل بين القراءات أو تعلّم أكثر من واحدة في الوقت نفسه.",
@@ -150,7 +150,7 @@ export const landingAr: LandingLabels = {
   appF1: "احجز وأدر جلساتك من أي مكان",
   appF2: "استلم إشعارات فورية للدروس القادمة",
   appF3: "الوصول بدون إنترنت لملاحظات الحفظ",
-  appF4: "تسجيل دخل بالبصمة للوصول السريع والآمن",
+  appF4: "تسجيل دخول بالبصمة للوصول السريع والآمن",
   appCtaAppStore: "حمّل من App Store",
   appCtaPlayStore: "حمّل من Google Play",
 
@@ -202,12 +202,12 @@ export const landingAr: LandingLabels = {
   // Pricing toggle
   pricingToggleMonthly: "شهري",
   pricingToggleYearly: "سنوي",
-  pricingYearlyDiscount: "وفر 20%",
-  pricingPlanProPriceYearly: "23$",
-  pricingPlanFamilyPriceYearly: "47$",
+  pricingYearlyDiscount: "وفر ٢٠٪",
+  pricingPlanProPriceYearly: "٢٣$",
+  pricingPlanFamilyPriceYearly: "٤٧$",
   pricingPlanFreePriceNoteYearly: "مجاني دائمًا",
   pricingPlanProPriceNoteYearly: "شهريًا، مدفوعة سنويًا",
-  pricingPlanFamilyPriceNoteYearly: "شهريًا، مدفوعة سنويًا لما يصل إلى 4 أعضاء",
+  pricingPlanFamilyPriceNoteYearly: "شهريًا، مدفوعة سنويًا لما يصل إلى ٤ أعضاء",
 
   // Testimonial carousel
   testimonialPrev: "السابق",
@@ -318,7 +318,7 @@ export const landingAr: LandingLabels = {
   newsletterError: "يرجى إدخال عنوان بريد إلكتروني صحيح",
   newsletterSuccess: "تم الاشتراك! تحقق من بريدك الإلكتروني للتأكيد.",
   contactEmailError: "يرجى إدخال بريد إلكتروني صحيح",
-  contactMessageError: "يجب أن تكون الرسالة 10 أحرف على الأقل",
+  contactMessageError: "يجب أن تكون الرسالة ١٠ أحرف على الأقل",
   // FAQ expand/collapse
   faqExpandAll: "توسيع الكل",
   faqCollapseAll: "طي الكل",

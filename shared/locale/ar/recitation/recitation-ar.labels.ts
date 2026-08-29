@@ -1,6 +1,6 @@
 import type { RecitationLabels } from "@/shared/locale/types/recitation";
 export const recitationAr: RecitationLabels = {
-  selectTitle: "القراءة (القيراءة)",
+  selectTitle: "القراءة",
   selectHelper: "اختر قراءتك المفضلة للقرآن الكريم. يساعدنا هذا في مطابقتك مع المعلمين المناسبين. يمكنك تغييره لاحقاً.",
   selectDescription: "اختر قراءتك المفضلة",
   hafsAnAsim: "حفص عن عاصم",
@@ -18,7 +18,7 @@ export const recitationAr: RecitationLabels = {
   qalunAnNafiDesc: "منتشرة في ليبيا وتونس",
   alDuriAnAbiAmrDesc: "منتشرة في السودان وشرق أفريقيا",
   alSusiAnAbiAmrDesc: "تُمارس في أجزاء من شمال أفريقيا",
-  khalafAnHamzahDesc: "قراءة متفرع أقل انتشاراً",
+  khalafAnHamzahDesc: "قراءة متواترة أقل انتشاراً",
   khalladAnAsimDesc: "إحدى روايتي عاصم",
   shubahAnAsimDesc: "الرواية الأخرى لعاصم",
   alBazziAnIbnKathirDesc: "إحدى روايتي ابن كثير",
