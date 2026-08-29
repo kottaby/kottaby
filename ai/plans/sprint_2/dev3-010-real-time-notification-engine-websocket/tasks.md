@@ -462,7 +462,7 @@
 
 ### 5.2 WS Sidecar Suite Consolidation
 
-- [ ] 5.2 [Final WS harness consolidation + transport-degradation path]
+- [x] 5.2 [Final WS harness consolidation + transport-degradation path]
   - Consolidate 2.8.TE harness into the committed suite location (runner-registered per REQ-079); add Redis-outage degradation test: emit during outage → row persisted, zero pushes, structured warn logged, subscriber resumes post-recovery
   - Deterministic double-run evidence (two consecutive green runs recorded)
   - _Requirements: REQ-011, REQ-045, REQ-073, REQ-078, REQ-079_
