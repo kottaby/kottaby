@@ -51,7 +51,7 @@ export interface DashboardNavItem {
 const NAV_ITEMS_BY_ROLE: Record<UserRole, readonly DashboardNavItem[]> = {
   [UserRole.Student]: [
     { route: "/student/dashboard", labelKey: "dashboard", Icon: DashboardIcon },
-    { route: "/sessions", labelKey: "sessions", Icon: SessionsIcon },
+    { route: "/student/sessions", labelKey: "sessions", Icon: SessionsIcon },
     { route: "/subscriptions", labelKey: "subscriptions", Icon: SubscriptionsIcon },
     { route: "/homework", labelKey: "homework", Icon: HomeworkIcon },
     { route: "/profile", labelKey: "profile", Icon: ProfileIcon },
