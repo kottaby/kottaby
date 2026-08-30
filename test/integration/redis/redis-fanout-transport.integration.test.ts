@@ -50,7 +50,10 @@ function makePayload(): RealtimeNotificationPayload {
     v: 1,
     kind: "notification",
     data: {
-      id: 314,
+      // Unique per run (epoch ms) — with a SHARED Redis database, unrelated
+      // envelopes can cross this subscription on the same channel; the
+      // receipt filter below keys on this identity.
+      id: Date.now(),
       type: "evaluation_result",
       title: "Evaluation published",
       body: "Your evaluation is ready to view.",
@@ -88,12 +91,17 @@ describe.skipIf(!redisReachable)("RedisPubSubTransport + IoredisFanoutClient @li
     const transport = new RedisPubSubTransport(client);
     const receipts: Receipt[] = [];
     let subscription: Awaited<ReturnType<typeof transport.subscribeFanout>> | undefined;
+    const payload = makePayload();
     try {
-      subscription = await transport.subscribeFanout((userIds, payload) => {
-        receipts.push({ userIds, payload });
+      subscription = await transport.subscribeFanout((userIds, received) => {
+        // Shared-Redis guard: record ONLY this run's envelope (keyed on the
+        // unique payload id) so unrelated channel traffic cannot satisfy
+        // waitForReceipt or pollute the length/payload assertions.
+        if (received.data.id === payload.data.id) {
+          receipts.push({ userIds, payload: received });
+        }
       });
 
-      const payload = makePayload();
       await transport.publishFanout([314], payload);
       await waitForReceipt(receipts, Date.now() + 5000);
 

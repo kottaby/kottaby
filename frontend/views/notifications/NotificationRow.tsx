@@ -92,8 +92,7 @@ export function NotificationRow({
   // client (the generated enum misses the runtime value) — fall back to a
   // neutral icon instead of rendering an undefined component type.
   const TypeIcon = NOTIFICATION_TYPE_ICONS[notification.type] ?? NotificationsOutlined;
-  const typeLabelAccessor =
-    NOTIFICATION_TYPE_LABEL_ACCESSORS[notification.type] ?? (fallbackLabels => fallbackLabels.title);
+  const typeLabelAccessor = NOTIFICATION_TYPE_LABEL_ACCESSORS[notification.type] ?? (() => notification.title);
   const unread = !notification.isRead;
   const markReadLabel = labels.markReadAriaLabel(notification.title);
 
