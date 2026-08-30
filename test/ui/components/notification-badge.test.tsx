@@ -134,6 +134,9 @@ function authUser(role: UserRole): AuthUser {
     phone: null,
     country: null,
     gender: null,
+    // The `me` selection gained `locale` (R2-users-locale-b); unset for the
+    // badge fixtures — the bell never reads it.
+    locale: null,
     role,
     preferredRecitation: null,
     isDeleted: false,
