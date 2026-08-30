@@ -16,8 +16,12 @@
  *   4. the session insert with server-side defaults (lifecycle state, type,
  *      intent, platform fee, hold marker + provenance lane, confirmation
  *      deadline) followed by the claim's session-id backfill.
- * A replayed booking (duplicate claim key) resolves to the already-created
- * session — a success-equivalent outcome for the retried caller.
+ * A replayed booking (duplicate claim key) THROWS `ConflictError(
+ * "DUPLICATE_REQUEST")` — never a row (2026-08-30 replay-throw ruling).
+ * Throwing is what keeps the replayed attempt free of charge: its own
+ * partial writes roll back with the transaction (zero new rows, no second
+ * debit); the success-equivalent experience is the client-side mapping of
+ * the 409 per the error-handling contract (REQ-065).
  *
  * Transitions (`startSession` / `completeSession` / `cancelSession`) are
  * single guarded repository UPDATEs; a zero-row match is classified by ONE
@@ -147,11 +151,15 @@ export namespace SessionLifecycleService {
    * backfill run in a fixed order; any failure rolls the whole booking back,
    * which also releases the claim (a failed booking never burns its key).
    *
-   * On a duplicate claim key the flow replays: a claim owned by the same
-   * caller resolves to the already-created session (success-equivalent); a
-   * stale claim without a session pointer surfaces the duplicate-replay
-   * conflict; a key spent by a different caller is denied with the
-   * oracle-safe session-not-found error.
+   * On a duplicate claim key the flow REPLAYS BY THROWING: every same-caller
+   * duplicate — a claim with or without its session pointer, and a vanished
+   * claim (fail-closed) — surfaces the `ConflictError("DUPLICATE_REQUEST")`
+   * conflict; this attempt's own partial writes (its debit-ladder step) roll
+   * back with the transaction, so the replay commits zero new rows and burns
+   * no second allowance unit (REQ-073). The success-equivalent experience is
+   * the client-side REQ-065 mapping of the 409. A key spent by a DIFFERENT
+   * caller is denied with the oracle-safe session-not-found error — another
+   * user's claim is never surfaced.
    *
    * @param studentId  The acting student's id (context-resolved server-side
    *     by the caller; shared PK with the users table).
@@ -163,8 +171,8 @@ export namespace SessionLifecycleService {
    * @param outerTx  Optional outer transaction. When provided (test path),
    *     the flow runs inside a SAVEPOINT on it; production callers omit it
    *     and the service opens its own transaction.
-   * @returns The booked session row — or, on a replay, the exact row the
-   *     original request created.
+   * @returns The booked session row for a FIRST booking; a replay never
+   *     returns — it throws `ConflictError("DUPLICATE_REQUEST")`.
    */
   export async function createSession(
     studentId: number,
@@ -549,20 +557,23 @@ export namespace SessionLifecycleService {
   /**
    * Resolves a duplicate-claim booking into its replay outcome.
    *
-   * A claim owned by the acting caller with a resolvable session pointer
-   * replays success-equivalently: the already-created session row is
-   * returned exactly as the original request returned it. A spent key
-   * without a resolvable session (a stale orphan claim) surfaces the
-   * duplicate-replay conflict identically. A key spent by a DIFFERENT caller
-   * is denied with the oracle-safe session-not-found error — another user's
-   * claim is never surfaced.
+   * Every same-caller duplicate — a claim with or without its session
+   * pointer, and a vanished claim (fail-closed) — surfaces the
+   * duplicate-replay conflict. THROWING (never returning a row) is what
+   * makes a replay free of charge: this attempt's own partial writes (its
+   * debit-ladder step) roll back with the transaction, so the replay
+   * commits zero new rows and burns no second allowance unit (REQ-073);
+   * the success-equivalent experience is the client-side mapping of this
+   * 409 per the error-handling contract (`duplicateSuccessEquivalent`).
+   * A key spent by a DIFFERENT caller is denied with the oracle-safe
+   * session-not-found error — another user's claim is never surfaced.
    */
   async function replayBooking(
     key: string,
     actorStudentId: number,
     tx: DBTransaction,
     t: ReturnType<typeof getServerTranslations>["errorsTranslations"]
-  ): Promise<SessionReturnType> {
+  ): Promise<never> {
     const claim = await SessionRequestIdempotencyRepository.findByKey(key, tx);
     if (claim !== null && claim.userId !== actorStudentId) {
       logger.logDomainError("Session booking replay denied: key claimed by another caller", {
@@ -572,32 +583,11 @@ export namespace SessionLifecycleService {
       });
       throw new NotFoundError("SESSION", t.sessionNotFound);
     }
-    // Optional-chain + nullish-coalesce resolves the claim and its session
-    // pointer in one expression: a null claim (fail-closed) and a claim
-    // without a session pointer both funnel into the same conflict below.
-    const claimedSessionId = claim?.sessionId ?? null;
-    if (claimedSessionId === null) {
-      logger.logDomainError("Session booking replay blocked: spent key without a resolvable session", {
-        code: "DUPLICATE_REQUEST",
-        entity: "session",
-      });
-      throw new ConflictError("DUPLICATE_REQUEST", t.duplicateRequest);
-    }
-    const replayed = await SessionRepository.findById(claimedSessionId, tx);
-    if (replayed === null) {
-      logger.logDomainError("Session booking replay blocked: claim's session pointer unresolved", {
-        code: "DUPLICATE_REQUEST",
-        entity: "session",
-        entityId: claimedSessionId,
-      });
-      throw new ConflictError("DUPLICATE_REQUEST", t.duplicateRequest);
-    }
-    logger.logDomainError("Session booking replayed to the already-created session", {
+    logger.logDomainError("Session booking replay blocked: key already claimed", {
       code: "DUPLICATE_REQUEST",
       entity: "session",
-      entityId: replayed.id,
     });
-    return replayed;
+    throw new ConflictError("DUPLICATE_REQUEST", t.duplicateRequest);
   }
 
   /**

@@ -47,8 +47,9 @@ DEV3-004 ships the **P2P session lifecycle vertical slice**: one creation mutati
 │                  └─ miss → ValidationError(INSUFFICIENT_BALANCE) → ROLLBACK│
 │     PHASE 3: SessionRequestIdempotencyRepository.insertClaim(                │
 │              { idempotencyKey, userId }, tx)                                 │
-│              └─ 23505 → cause-chain → DUPLICATE_REQUEST (replay → read +     │
-│                  return the ALREADY-CREATED session; success-equivalent)     │
+│              └─ 23505 → cause-chain → DUPLICATE_REQUEST (replay THROWS the   │
+│                  409 — client maps it success-equivalent per REQ-065; the    │
+│                  replay tx rolls back its own partial writes → zero new rows)│
 │     PHASE 4: SessionRepository.insertSession(insert, tx)  INSERT … RETURNING │
 │              defaults layered server-side only (status/type/fee/feeHeld/     │
 │              deadline = now+24h)                                             │
@@ -730,3 +731,5 @@ app/(dashboard)/teacher/sessions/page.tsx              (Server Component, same p
 ---
 
 **Traceability note for consumers (binding):** DEV3-005 SHALL extend (never duplicate) these guarded transition primitives when enforcing INV-S6/S7/S8; DEV3-011 SHALL wire notifications at the documented seams without adding write surfaces here; DEV3-012/013 SHALL consume `fee_held` + `held_balance_lane` EXACTLY as defined (dual-confirm flips `fee_held=false` and credits the wallet; the timeout sweeper reuses THIS ticket's same-lane refund primitive); DEV3-021 SHALL ship the admin surface under its own scopes honoring the REQ-030 sensitivity ruling; DEV2-016 SHALL treat `confirmedByTeacherAt`/`status` as the rating-eligibility substrate. Each SHALL cite this plan's REQ ranges in its own traceability matrix; Phase-1.5 `@plan-review` gates enforce citation.
+
+> Ruling (2026-08-30, orchestrator, 2.8 implementation): the idempotency replay path THROWS `ConflictError("DUPLICATE_REQUEST", …)` and never returns the pre-existing session row from the service. The success-equivalent experience is the CLIENT-side mapping of the 409 (REQ-065 `duplicateSuccessEquivalent` info notice). Throwing guarantees the replayed attempt's own partial writes (its debit-ladder step) roll back with the transaction — zero new rows, zero second allowance unit (REQ-073). The journey expectation (replay → `DUPLICATE_REQUEST`; zero new rows) and REQ-064's error-matrix cell both assert the surfaced 409.
