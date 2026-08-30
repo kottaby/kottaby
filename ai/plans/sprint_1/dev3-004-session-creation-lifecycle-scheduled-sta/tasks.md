@@ -101,16 +101,16 @@
 
 ### 1.4 — Shared Platform Fee Constants (B.3)
 
-- [ ] 1.4 [Create `shared/constants/session-fees.constants.ts`]
+- [x] 1.4 [Create `shared/constants/session-fees.constants.ts`]
   - **Files:** CREATE `shared/constants/session-fees.constants.ts` (`SESSION_FEE_HIFZ`/`SESSION_FEE_TAJWEED` decimal strings, `SESSION_FEE_CURRENCY = "EGP"`, `SESSION_CONFIRMATION_WINDOW_MS` = 24h); UPDATE `shared/constants/index.ts` barrel.
   - Decimal STRINGS end-to-end (DEV1-005 money discipline); zero arithmetic on fees anywhere.
   - **Rules:** `shared/` NEVER imports from `@/frontend`, `@/backend`, `@/app` — this file has ZERO imports.
   - _Requirements: REQ-021_
-  - [ ] 1.4.QL **Quality Loop**: sub-loop (exit 0)
-  - [ ] 1.4.TE **Test Engineering**: Tier 1 — constant shape assertions (decimal-string format via regex, currency literal); Tier 2 — window constant equals exactly 86_400_000.
-  - [ ] 1.4.SEC **Security & Tenancy Audit**: fee is server-owned; input structurally cannot carry it (BOPLA tie-in with 1.3).
-  - [ ] 1.4.SR **Semantic Review**: purity (no imports, no env reads); zero dead constants.
-  - [ ] 1.4.IV **Instruction Verification**: `shared/AGENTS.md` if present.
+  - [x] 1.4.QL **Quality Loop**: sub-loop (exit 0)
+  - [x] 1.4.TE **Test Engineering**: Tier 1 — constant shape assertions (decimal-string format via regex, currency literal); Tier 2 — window constant equals exactly 86_400_000.
+  - [x] 1.4.SEC **Security & Tenancy Audit**: fee is server-owned; input structurally cannot carry it (BOPLA tie-in with 1.3).
+  - [x] 1.4.SR **Semantic Review**: purity (no imports, no env reads); zero dead constants.
+  - [x] 1.4.IV **Instruction Verification**: `shared/AGENTS.md` if present.
   - Write `outcome/1.4-outcome.md`.
 
 ### 1.5 — i18n Registrations (errors grouping + new `sessions` UI namespace)
