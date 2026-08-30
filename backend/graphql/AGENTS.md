@@ -1,6 +1,12 @@
 # Backend GraphQL & Pothos Layer Rules
 
 - **Framework**: We use Pothos to build our GraphQL schema code-first.
+- **Pothos HMR in dev (hayes/pothos#49)**: Turbopack HMR can re-evaluate a Pothos definition module while the SchemaBuilder survives, throwing "Duplicate typename" / "Duplicate field". The defense is four-fold:
+  1. `SchemaBuilder.allowPluginReRegistration = true` in dev (`pothos/builder.ts`).
+  2. `enablePothosDevHmr(builder)` from `backend/graphql/pothos-hmr.ts` retires superseded ConfigStore registrations before adding the new one (never wrap `ref.onConfig` — it re-enters `updateConfig` and overflows the stack).
+  3. `pothos/builder.ts` dynamically imports `gqlSchema.definitions.ts` in dev, creating an HMR dependency edge so every definition change re-evaluates the builder module against a fresh SchemaBuilder. Do NOT cache the builder on `globalThis` — that pins a stale ConfigStore across HMR.
+  4. `app/api/graphql/route.ts` `getHandler()` swaps Apollo onto the new `graphQLSchema` when the module export changes.
+  All four layers are dev-only (`NODE_ENV !== "production"`).
 - **Auth scopes + RBAC: see `docs/auth/jwt-authentication-service.md` for the canonical `authScopes` contract (`authenticated` / `role` / `permission` / `superAdmin` / `notImpersonating`), 401-vs-403 decision state chart, fail-closed rule, `me` `authenticated` boundary, and DEV2-002 RBAC consumption guide.**
 - **Nullability**: In Pothos, fields are non-nullable by default unless explicitly set to `nullable: true`. Ensure your TypeScript types align with your Pothos definitions.
 - **Resolvers**: Pothos field resolvers should generally delegate to the `backend/services/` layer, rather than putting business logic inside the GraphQL definitions or calling Repositories directly.
