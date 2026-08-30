@@ -44,4 +44,6 @@ export interface ErrorsLabels {
   readonly applicantStatusCorrupt: string;
   /** "The notification was not found." — self-scope notification lookup miss → NotFoundError("NOTIFICATION"). */
   readonly notificationNotFound: string;
+  /** "The free trial credit has already been granted for this student." — re-grant attempt on a student whose trial_granted_at marker is non-null. */
+  readonly trialAlreadyGranted: string;
 }

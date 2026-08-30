@@ -4,7 +4,7 @@
  * Wiring order (CRITICAL):
  *  1. Import `gqlSchemaBuilder` (Pothos SchemaBuilder with plugins loaded).
  *  2. Import the definitions barrel (`gqlSchema.definitions.ts`) — registers
- *     the Pothos object barrel, the enum registry, and every root
+ *     the Pothos object barrel, the scalar + enum registries, and every root
  *     query/mutation field on the builder via side-effect imports. The barrel
  *     is a dedicated module so the builder can dynamically import it in
  *     development, creating the HMR dependency edge that yields a fresh

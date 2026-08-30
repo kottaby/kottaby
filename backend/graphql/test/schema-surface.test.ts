@@ -22,8 +22,9 @@
  *    (D2 backend vertical) — the `AppLocale` enum + `User.locale` + the
  *    `updateMyLocale` mutation): ZERO new mutations beyond the refreshed
  *    frozen set, and a whole-schema named-type delta of EXACTLY
- *    `{HealthCheck}` while the query set grows only by the sanctioned probe
- *    re-registration.
+ *    `{DateTime, HealthCheck}` (the probe type plus the `DateTime` scalar
+ *    registered in `shared/scalar.pothos.ts`) while the query set grows
+ *    only by the sanctioned probe re-registration.
  *  - **Notification surface** — the `NotificationType` enum carries exactly
  *    the 7 canonical values (TS-enum keys as GraphQL names, snake_case
  *    runtime values), the `Notification` object exposes `id` FIRST with
@@ -238,7 +239,7 @@ describe("HealthCheck object shape — four scalar fields, no id", () => {
   });
 });
 
-describe("Surface freeze — exactly one addition vs the baseline inventory", () => {
+describe("Surface freeze — pinned additions vs the baseline inventory", () => {
   test("mutation set is EXACTLY the refreshed frozen baseline (ZERO new mutations beyond it)", () => {
     const mutationFields = graphQLSchema.getMutationType()?.getFields() ?? {};
     const names = Object.keys(mutationFields).toSorted((a, b) => a.localeCompare(b));
@@ -247,7 +248,7 @@ describe("Surface freeze — exactly one addition vs the baseline inventory", ()
     expect(names).not.toContain("_health");
   });
 
-  test("ZERO new enums (frozen enum set unchanged)", () => {
+  test("enum set is pinned (every new enum named explicitly)", () => {
     const enumNames = Object.values(graphQLSchema.getTypeMap())
       .filter(type => type instanceof GraphQLEnumType && !type.name.startsWith("__"))
       .map(type => type.name)
@@ -256,14 +257,14 @@ describe("Surface freeze — exactly one addition vs the baseline inventory", ()
     expect(enumNames).toEqual([...PRE_3_1_ENUMS]);
   });
 
-  test("whole-schema named-type delta is EXACTLY one new type: HealthCheck", () => {
+  test("whole-schema named-type delta is pinned: HealthCheck + DateTime scalar", () => {
     const post = new Set(sdlTypeNames());
 
     for (const name of PRE_3_1_TYPE_NAMES) {
       expect(post.has(name)).toBe(true);
     }
     const additions = sdlTypeNames().filter(name => !(PRE_3_1_TYPE_NAMES as readonly string[]).includes(name));
-    expect(additions).toEqual(["HealthCheck"]);
+    expect(additions).toEqual(["DateTime", "HealthCheck"]);
   });
 });
 
@@ -343,8 +344,9 @@ describe("Notification surface — enum + canonical objects", () => {
     expect(Object.keys(fields).toSorted((a, b) => a.localeCompare(b))).toEqual(
       [...CANONICAL_NOTIFICATION_FIELDS].toSorted((a, b) => a.localeCompare(b))
     );
-    // Exact field types per the contract (ISO-8601 string convention for
-    // timestamps — there is no DateTime scalar in this registry).
+    // Exact field types per the contract (the inbox deliberately keeps the
+    // ISO-8601 string convention for timestamps — NOT the `DateTime` scalar
+    // now registered in `shared/scalar.pothos.ts`).
     expect(field("id").type.toString()).toBe("ID!");
     expect(field("type").type.toString()).toBe("NotificationType!");
     expect(field("title").type.toString()).toBe("String!");

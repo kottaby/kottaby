@@ -23,4 +23,5 @@ export const errorsEn: ErrorsLabels = {
   applicantCooldownActive: "You can re-apply for teacher verification after {cooldownUntil}.",
   applicantStatusCorrupt: "Your application status could not be read. Please contact support.",
   notificationNotFound: "The notification was not found.",
+  trialAlreadyGranted: "The free trial credit has already been granted for this student.",
 };

@@ -14,10 +14,12 @@
  *  - `id` is exposed FIRST (Apollo cache normalization, CRITICAL rule) as a
  *    GraphQL `ID!` over the integer primary key.
  *
- * Timestamp exposure: there is no `DateTime` scalar in this builder/registry,
- * so `createdAt` rides the established ISO-8601 UTC string convention
- * (`HealthCheck` / `ApplicantProfile` precedents). The canonical TS shape
- * stays `Date`; only this presentation layer serializes via `toISOString()`.
+ * Timestamp exposure: although the shared registry now provides a `DateTime`
+ * scalar (`shared/scalar.pothos.ts`, registered via the definitions barrel),
+ * `createdAt` deliberately keeps the established ISO-8601 UTC string
+ * convention pinned by the inbox contract (`HealthCheck` precedent and the
+ * schema-surface freeze). The canonical TS shape stays `Date`; only this
+ * presentation layer serializes via `toISOString()`.
  *
  * Enum exposure: `type` maps the `notification_type` pgEnum string union onto
  * the registered `NotificationTypePothosEnum` through the fail-closed

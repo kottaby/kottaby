@@ -23,4 +23,5 @@ export const errorsAr: ErrorsLabels = {
   applicantCooldownActive: "يمكنك إعادة التقديم للتحقق كمعلم قرآن بعد {cooldownUntil}.",
   applicantStatusCorrupt: "تعذر قراءة حالة طلبك. يرجى التواصل مع فريق الدعم.",
   notificationNotFound: "لم يتم العثور على الإشعار.",
+  trialAlreadyGranted: "تم منح رصيد الجلسة التجريبية لهذا الطالب مسبقًا.",
 };

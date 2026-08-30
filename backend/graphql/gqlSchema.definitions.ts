@@ -8,9 +8,11 @@
  * fresh SchemaBuilder before types re-register (see hayes/pothos#49).
  *
  * Ordering mirrors the wiring order documented in `gqlSchema.ts`:
- * object barrel → enum registry → mutation barrel → query barrel.
+ * object barrel → scalar registry → enum registry → mutation barrel →
+ * query barrel.
  */
 import "@/backend/graphql/pothos";
+import "@/backend/graphql/pothos/shared/scalar.pothos";
 import "@/backend/graphql/pothos/shared/enum.pothos";
 import "@/backend/graphql/mutation";
 import "@/backend/graphql/query";
