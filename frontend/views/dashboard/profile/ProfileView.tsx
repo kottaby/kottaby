@@ -607,11 +607,16 @@ function LanguagePreferenceCard({ t }: Readonly<LanguagePreferenceCardProps>): R
         }
         // App-wide switch — the LocaleSwitcher flow: cookie + html dir +
         // providers flip through the server re-render.
-        await fetch("/api/set-locale", {
+        const response = await fetch("/api/set-locale", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ locale: next }),
         });
+        if (!response.ok) {
+          // 4xx/5xx must surface the failure state — refreshing anyway would
+          // re-render with the OLD active locale and mask the rejection.
+          throw new Error(`set-locale failed with status ${response.status}`);
+        }
         router.refresh();
       } catch (error: unknown) {
         setHasFailed(true);

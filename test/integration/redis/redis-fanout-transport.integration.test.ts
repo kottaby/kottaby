@@ -87,19 +87,29 @@ describe.skipIf(!redisReachable)("RedisPubSubTransport + IoredisFanoutClient @li
     const client = new IoredisFanoutClient(redisUrl);
     const transport = new RedisPubSubTransport(client);
     const receipts: Receipt[] = [];
-    const subscription = await transport.subscribeFanout((userIds, payload) => {
-      receipts.push({ userIds, payload });
-    });
+    let subscription: Awaited<ReturnType<typeof transport.subscribeFanout>> | undefined;
+    try {
+      subscription = await transport.subscribeFanout((userIds, payload) => {
+        receipts.push({ userIds, payload });
+      });
 
-    const payload = makePayload();
-    await transport.publishFanout([314], payload);
-    await waitForReceipt(receipts, Date.now() + 5000);
+      const payload = makePayload();
+      await transport.publishFanout([314], payload);
+      await waitForReceipt(receipts, Date.now() + 5000);
 
-    expect(receipts).toHaveLength(1);
-    expect(receipts[0]?.userIds).toEqual([314]);
-    expect(receipts[0]?.payload).toEqual(payload);
-
-    await subscription.unsubscribe();
-    await client.close();
+      expect(receipts).toHaveLength(1);
+      expect(receipts[0]?.userIds).toEqual([314]);
+      expect(receipts[0]?.payload).toEqual(payload);
+    } finally {
+      // Release Redis resources on EVERY path (subscribe/publish/poll/assert
+      // failures) — an open subscription or client would keep the worker
+      // alive until the CI timeout. client.close() must run even when
+      // unsubscribe() itself fails.
+      try {
+        await subscription?.unsubscribe();
+      } finally {
+        await client.close();
+      }
+    }
   });
 });

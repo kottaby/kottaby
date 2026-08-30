@@ -33,5 +33,12 @@ export function darkOutlinedContrastSx(theme: Theme): CSSObject {
   return {
     color: theme.palette.primary.light,
     borderColor: theme.palette.primary.light,
+    // The sx lift would otherwise win over MUI's `.Mui-disabled` rule and a
+    // disabled outlined button would look enabled in dark mode — restore the
+    // theme's disabled tokens for that state.
+    "&.Mui-disabled": {
+      color: theme.palette.action.disabled,
+      borderColor: theme.palette.action.disabledBackground,
+    },
   };
 }

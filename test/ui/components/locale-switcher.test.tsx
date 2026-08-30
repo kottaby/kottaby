@@ -241,8 +241,14 @@ describe("LocaleSwitcher authenticated write-through", () => {
     expect(testNavigationState.refreshCount).toBe(1);
 
     // …and the account write-through fired with the WIRE value ("en" → "En")…
-    const localeMutation = operations.find(operation => operation.operationName === "UpdateMyLocale");
-    expect(localeMutation).toBeDefined();
+    // The write-through is non-blocking: the UpdateMyLocale operation can
+    // reach the recording link AFTER the /api/set-locale POST resolves —
+    // wait for it instead of racing the one-shot find.
+    const localeMutation = await waitFor(() => {
+      const recorded = operations.find(operation => operation.operationName === "UpdateMyLocale");
+      expect(recorded).toBeDefined();
+      return recorded;
+    });
     expect(localeMutation?.variables).toEqual({ locale: WireAppLocale.En });
 
     // …writing the persisted value back into the `me` query cache.

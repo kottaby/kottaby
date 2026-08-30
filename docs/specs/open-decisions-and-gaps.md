@@ -295,5 +295,5 @@ All schema changes have been validated against the Drizzle schema in `backend/db
 ### A.4.3: Notification Copy Localization — at the Emitter, Not the Engine
 > **✅ RESOLVED**
 >
-> **Decision:** Notification copy stored in the `notifications` table (A.4) is localized by the **emitter at emit time** (REQ-015/028); the engine stores `title`/`body` verbatim and never translates or templates. Per-recipient locale routing awaits the future `users.locale` column decision (deferred item D2, owned by that future ticket — never patched inline by an emitter); emitters currently pass a single locale per batch.
-> **Spec impact:** `users.locale` remains a forward gap owned by deferred item D2. See `docs/notifications/realtime-engine.md` §3.3.
+> **Decision:** Notification copy stored in the `notifications` table (A.4) is localized by the **emitter at emit time** (REQ-015/028); the engine stores `title`/`body` verbatim and never translates or templates. Emitters pass a single locale per batch; per-recipient locale routing is not yet wired through the engine.
+> **Spec impact:** Deferred item D2 is RESOLVED in DEV3-010 — `users.locale` (nullable, `AppLocale`) now exists with the `updateMyLocale` mutation. Per-recipient fan-out routing off that column remains open. See `docs/notifications/realtime-engine.md` §3.3.

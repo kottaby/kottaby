@@ -68,10 +68,12 @@ gqlSchemaBuilder.queryField("myNotifications", t =>
       // resolution time (anonymous callers never get past the scope step).
       // This branch exists purely for TypeScript narrowing — the repo-wide
       // no-non-null-assertion rule forbids dereferencing the nullable
-      // context directly; the thrown message mirrors builder.ts's own
-      // `authenticated` scope verbatim and is unreachable in practice.
+      // context directly. Unreachable in practice; per the resolver-i18n
+      // rule the message flows through ctx.t (its en copy is identical to
+      // builder.ts's `authenticated` scope literal).
       if (!ctx.user) {
-        throw new UnauthorizedError("Authentication required.");
+        const tErrors = await ctx.t("errorsTranslations");
+        throw new UnauthorizedError(tErrors.unauthorized);
       }
       const filter = args.filter;
       return NotificationEngine.listMyNotifications(
@@ -101,7 +103,8 @@ gqlSchemaBuilder.queryField("myUnreadNotificationCount", t =>
     resolve: async (_root, _args, ctx) => {
       // TypeScript narrowing only — see the `myNotifications` note above.
       if (!ctx.user) {
-        throw new UnauthorizedError("Authentication required.");
+        const tErrors = await ctx.t("errorsTranslations");
+        throw new UnauthorizedError(tErrors.unauthorized);
       }
       return NotificationEngine.getMyUnreadCount(ctx.user.id, ctx.locale);
     },

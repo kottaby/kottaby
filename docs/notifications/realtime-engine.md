@@ -19,7 +19,7 @@ This engine is the substrate that **enables INV-P3** ("a parent receives real-ti
 
 Persist-first / push-second, in one pipeline:
 
-```
+```text
 domain service (emitter)
   └─ NotificationEngine.emitForUser(s)(input, locale, tx?)     [backend/services/notifications/notification-engine.service.ts]
        1. validateEmitInput / validateEmitBatchInput           [emit-validation.ts] — fail-closed, PRE-DB, PRE-cache
@@ -65,6 +65,7 @@ A row must be committed before any push referencing it may exist. The engine's o
 When the emitter owns a transaction, the engine joins it as a **SAVEPOINT** (`outerTx.transaction(fn)` — the DEV1-002 pattern) and returns a `NotificationDeliveryReceipt` **without publishing**. The caller publishes only after its unit resolves:
 
 ```typescript
+import { NotificationType } from "@/backend/enum/notifications/notification-type.enum";
 import { NotificationEngine } from "@/backend/services/notifications";
 
 // A tx-owning emitter (e.g. session completion inside the session unit):
@@ -73,7 +74,7 @@ const receipt = await db.transaction(async (tx) => {
   return NotificationEngine.emitForUsers(
     {
       userIds: [parentId],
-      type: "session_completion",            // NotificationType value (wire name)
+      type: NotificationType.SessionCompletion, // NotificationType member (wire name)
       title, body,                            // caller-composed copy — stored VERBATIM (§3.3)
       relatedEntityType: "session",
       relatedEntityId: session.id,
@@ -90,6 +91,8 @@ await NotificationEngine.publishReceipts([receipt], locale);
 ```
 
 Emitters that do NOT own a transaction call `emitForUser(input, locale)` (or `emitForUsers(input, locale)`) with no `tx`: the engine commits its own unit, stores the receipt (when a claim cache is injected), and publishes exactly one `publishFanout` carrying the **full recipient list** — a batch is one insert unit, one `new Date()` (REQ-047), and one publish (REQ-013). `publishReceipts` sweeps receipts strictly in order, one publish per receipt; `[]` and row-less receipts are no-ops.
+
+**Batch publish id ruling (REQ-013 × REQ-021):** a batch publish's envelope carries the FIRST sibling row's `id` (the representative projection — journey J2 pins `[rowA.id, rowB.id]` acceptance). Per-recipient ids cannot ride a single envelope without N publishes, which REQ-013 forbids; a recipient that acts on the representative id before the next refetch hits the repository ownership guard, and REQ-025's refetch-is-truth self-healing replaces the client cache entry with the caller's own row on the next list read. Do not "fix" this into per-recipient publishes without amending REQ-013.
 
 **Emit contract (fail-closed, pre-DB, pre-cache — `ValidationError` before any DB/cache access):** `title` non-empty-after-trim ≤ 255 (stored verbatim; the emptiness check is validation, never transformation) · `body` nullable string · `type` via the fail-closed `isNotificationType` guard · `relatedEntityType`/`relatedEntityId` strict co-presence (type ≤ 100, id positive safe int) · recipient ids positive safe ints · batch lists non-empty with no duplicate recipient ids (a duplicated cohort member is a caller bug) · optional `idempotencyKey` non-empty ≤ 128.
 

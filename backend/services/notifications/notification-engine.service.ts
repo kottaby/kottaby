@@ -432,6 +432,15 @@ export namespace NotificationEngine {
     if (claimKey !== undefined && ownCache !== undefined) {
       await storeEmitReceiptQuietly(ownCache, claimKey, receipt);
     }
+    // Batch publish ruling (REQ-013 x REQ-021): ONE bus publish carries the
+    // full recipient list; its envelope's data.id is the FIRST sibling row's
+    // id (the representative projection — journey J2 pins this acceptance).
+    // Per-recipient ids would require N publishes, which REQ-013 forbids; a
+    // recipient acting on the representative id before the next refetch hits
+    // the repository ownership guard, and REQ-025's refetch-is-truth
+    // self-healing replaces the client cache entry with the caller's own row
+    // on the next list read. Do NOT "fix" into per-recipient publishes
+    // without amending REQ-013 (see docs/notifications/realtime-engine.md).
     const representativeRow = rows.at(0);
     if (representativeRow !== undefined) {
       await publishAfterCommit(input.userIds, toRealtimePayload(representativeRow), locale, options);
@@ -625,6 +634,10 @@ async function publishReceiptsFromIndex(
       await storeEmitReceiptQuietly(cache, receipt.emitClaimKey, receipt);
     }
   }
+  // Batch publish ruling (REQ-013 x REQ-021): representative first-row
+  // projection on ONE publish — see the emitForUsers site's comment and
+  // docs/notifications/realtime-engine.md (per-recipient publishes are
+  // forbidden by REQ-013; REQ-025 refetch self-heals the client cache).
   const representativeRow = receipt.notifications.at(0);
   if (representativeRow !== undefined) {
     await publishAfterCommit(receipt.recipientUserIds, toRealtimePayload(representativeRow), locale, options);

@@ -108,10 +108,12 @@ gqlSchemaBuilder.mutationField("markNotificationRead", t =>
       // resolution time (anonymous callers never get past the scope step).
       // This branch exists purely for TypeScript narrowing — the repo-wide
       // no-non-null-assertion rule forbids dereferencing the nullable
-      // context directly; the thrown message mirrors builder.ts's own
-      // `authenticated` scope verbatim and is unreachable in practice.
+      // context directly. Unreachable in practice; per the resolver-i18n
+      // rule the message flows through ctx.t (its en copy is identical to
+      // builder.ts's `authenticated` scope literal).
       if (!ctx.user) {
-        throw new UnauthorizedError("Authentication required.");
+        const tErrors = await ctx.t("errorsTranslations");
+        throw new UnauthorizedError(tErrors.unauthorized);
       }
       // ID-channel discipline: canonical wire-form guard here; the engine's
       // positive-safe-int gate owns the pre-DB rejection (see file docs).
@@ -137,7 +139,8 @@ gqlSchemaBuilder.mutationField("markAllNotificationsRead", t =>
     resolve: async (_root, args, ctx) => {
       // TypeScript narrowing only — see the `markNotificationRead` note above.
       if (!ctx.user) {
-        throw new UnauthorizedError("Authentication required.");
+        const tErrors = await ctx.t("errorsTranslations");
+        throw new UnauthorizedError(tErrors.unauthorized);
       }
       // The optional enum filter forwards as-is; the engine's enum guard is
       // the defense-in-depth re-validation (non-schema transports).

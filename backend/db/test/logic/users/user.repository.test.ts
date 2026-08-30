@@ -29,7 +29,7 @@
 
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { randomUUID } from "node:crypto";
-import { eq } from "drizzle-orm";
+import { eq, max } from "drizzle-orm";
 import { db } from "@/backend/db";
 import { UserRepository } from "@/backend/db/repo";
 import { users } from "@/backend/db/schema/users/users";
@@ -127,7 +127,7 @@ describe("UserRepository.updateLocale — transactional write branch", () => {
   test("returns null for an id that matches no user", async () => {
     await runInRollback(async tx => {
       // Any id above the identity maximum cannot exist during this transaction.
-      const [maxRow] = await tx.select({ maxId: users.id }).from(users);
+      const [maxRow] = await tx.select({ maxId: max(users.id) }).from(users);
       const absentId = (maxRow?.maxId ?? 0) + 1_000_000;
 
       const updated = await UserRepository.updateLocale(absentId, "en", tx);

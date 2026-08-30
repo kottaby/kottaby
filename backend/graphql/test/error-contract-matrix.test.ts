@@ -538,10 +538,15 @@ describe("error-contract matrix — wire tier over live HTTP", () => {
     expect(health.status).toBe("ok");
     expect(health.service).toBe("kottaby");
     // version/timestamp vary per process/call — assert them structurally
-    // (non-empty version string; parseable ISO-8601 instant).
+    // (non-empty version string; ISO-8601 instant). Date.parse alone also
+    // accepts human-readable dates ("August 30, 2026") — pin the ISO pattern
+    // FIRST, then parse.
     expect(typeof health.version === "string" && health.version.length > 0).toBe(true);
+    const ISO_8601_INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$/;
     const timestamp: unknown = health.timestamp;
-    expect(typeof timestamp === "string" && !Number.isNaN(Date.parse(timestamp))).toBe(true);
+    expect(
+      typeof timestamp === "string" && ISO_8601_INSTANT.test(timestamp) && !Number.isNaN(Date.parse(timestamp))
+    ).toBe(true);
   });
 
   test("malformed GraphQL document over raw HTTP crosses as GRAPHQL_PARSE_FAILED preset (correlated)", async () => {

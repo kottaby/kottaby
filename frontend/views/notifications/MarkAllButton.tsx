@@ -64,10 +64,17 @@ export function MarkAllButton({
       >
         {labels.markAllRead}
       </Button>
-      <Dialog open={confirmOpen} onClose={() => setConfirmOpen(false)} maxWidth="xs" fullWidth>
-        <DialogTitle>{labels.markAllConfirmTitle}</DialogTitle>
+      <Dialog
+        open={confirmOpen}
+        onClose={() => setConfirmOpen(false)}
+        maxWidth="xs"
+        fullWidth
+        aria-labelledby="mark-all-confirm-title"
+        aria-describedby="mark-all-confirm-body"
+      >
+        <DialogTitle id="mark-all-confirm-title">{labels.markAllConfirmTitle}</DialogTitle>
         <DialogContent>
-          <DialogContentText>{labels.markAllConfirmBody}</DialogContentText>
+          <DialogContentText id="mark-all-confirm-body">{labels.markAllConfirmBody}</DialogContentText>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setConfirmOpen(false)} disabled={pending} sx={focusVisibleRingSx}>

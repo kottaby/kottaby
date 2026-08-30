@@ -406,6 +406,11 @@ export function useNotificationRealtime(): UseNotificationRealtimeResult {
 
     /** REQ-025 catch-up: refetch inbox page 1 + unread count (self-heal). */
     const catchUp = async (): Promise<void> => {
+      // Hybrid self-heal: (a) the explicit unfiltered page-1 + count refetch
+      // works even when NO watcher is mounted (non-inbox routes), and
+      // (b) refetchQueries refreshes EVERY active variant of the inbox/count
+      // documents — including the FILTERED view a mounted feed watches — so
+      // a reconnect cannot leave a stale filtered list behind.
       const results = await Promise.allSettled([
         client.query({
           query: myNotificationsQueryDocument,
@@ -413,6 +418,9 @@ export function useNotificationRealtime(): UseNotificationRealtimeResult {
           fetchPolicy: "network-only",
         }),
         client.query({ query: myUnreadNotificationCountQueryDocument, fetchPolicy: "network-only" }),
+        client.refetchQueries({
+          include: [myNotificationsQueryDocument, myUnreadNotificationCountQueryDocument],
+        }),
       ]);
       if (disposed) {
         return;

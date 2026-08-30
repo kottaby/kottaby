@@ -7,9 +7,8 @@
  * in a single batch (one multi-row insert, ONE realtime publish carrying both
  * recipient ids, one batch timestamp), parent B is offline when the publish
  * fires yet still finds the persisted row on first read, and only each owner
- * can observe or flip their own copy. Authored TEST-FIRST — the suite is
- * written against the engine's PLANNED API surface and stays RED
- * (module-not-found) until the engine service exists (Tasks 2.6/2.7); the
+ * can observe or flip their own copy. Authored TEST-FIRST against the
+ * engine's API surface (Tasks 2.6/2.7), which now ships; the
  * contract assumptions it encodes EXTEND Journey J1's (same journey layer,
  * same per-call options seam `{ transport, cache }` on the emit paths —
  * 2.2-outcome §3c — see the Task 2.3 outcome document) and are binding for

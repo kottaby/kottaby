@@ -25,6 +25,16 @@ import { startNotificationWsServer } from "@/backend/ws";
 
 async function main(): Promise<void> {
   const transportSelection: NotificationFanoutTransport = getNotificationFanoutTransport();
+  // Cross-process invariant: this entry is a SEPARATE process from Next.js,
+  // so an in-process tap can never receive publishes from the app process
+  // (each process builds its own InProcessTransport). Fail fast with an
+  // actionable message instead of silently never delivering anything.
+  if (transportSelection === "in-process") {
+    logger.error(
+      'Notification WS sidecar requires the Redis bus: NOTIFICATION_FANOUT_TRANSPORT resolved to "in-process", but a standalone sidecar process cannot receive in-process fan-out from the Next.js process. Set REDIS_URL (or NOTIFICATION_FANOUT_TRANSPORT=redis) — see docs/notifications/realtime-engine.md.'
+    );
+    process.exit(1);
+  }
   const redisUrl = getRedisUrl();
   const redisClient =
     transportSelection === "redis" && redisUrl !== undefined ? new IoredisFanoutClient(redisUrl) : undefined;

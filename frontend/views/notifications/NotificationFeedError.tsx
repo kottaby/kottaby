@@ -47,10 +47,10 @@ export function NotificationFeedError({
   if (errorCode === "UNAUTHORIZED" || errorCode === "FORBIDDEN") {
     return <PermissionDeniedFallback />;
   }
-  if (errorCode === "RATE_LIMITED" || errorCode === "SERVICE_UNAVAILABLE") {
+  if (errorCode === "RATE_LIMITED" || errorCode === "RATE_LIMIT_EXCEEDED" || errorCode === "SERVICE_UNAVAILABLE") {
     return (
       <RetryableNotice
-        kind={errorCode === "RATE_LIMITED" ? "RATE_LIMITED" : "SERVICE_UNAVAILABLE"}
+        kind={errorCode === "SERVICE_UNAVAILABLE" ? "SERVICE_UNAVAILABLE" : "RATE_LIMITED"}
         onRetry={onRetry}
         retryInFlight={retryPending}
       />

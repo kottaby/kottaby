@@ -30,6 +30,7 @@
 import { isNotificationType } from "@/backend/enum/notifications/notification-type.enum";
 import { gqlSchemaBuilder } from "@/backend/graphql/pothos/builder";
 import { NotificationTypePothosEnum } from "@/backend/graphql/pothos/shared/enum.pothos";
+import { ValidationError } from "@/backend/lib/errors";
 import type { NotificationReturnType } from "@/backend/types";
 
 /**
@@ -46,9 +47,12 @@ export const NotificationPothosObject = gqlSchemaBuilder.objectRef<NotificationR
     // is narrowed onto the registered enum (fail-closed, no casts).
     type: t.field({
       type: NotificationTypePothosEnum,
-      resolve: parent => {
+      resolve: async (parent, _args, ctx) => {
         if (!isNotificationType(parent.type)) {
-          throw new Error(`Unexpected notification type: ${parent.type}`);
+          // Fail-closed deny on a corrupt stored enum (the applicantStatusCorrupt
+          // precedent) — translated per the resolver-i18n rule via ctx.t.
+          const tErrors = await ctx.t("errorsTranslations");
+          throw new ValidationError("NOTIFICATION_TYPE_CORRUPT", tErrors.notificationTypeCorrupt);
         }
         return parent.type;
       },

@@ -28,7 +28,7 @@
  *  - Tier 4 (security): the returned payload NEVER carries `passwordHash`.
  */
 import { describe, expect, test } from "bun:test";
-import { eq } from "drizzle-orm";
+import { eq, max } from "drizzle-orm";
 import { users } from "@/backend/db/schema/users/users";
 import { createTestUser } from "@/backend/db/test/entity-setup";
 import { expectRepoError, runInRollback } from "@/backend/db/test/test-utils";
@@ -115,7 +115,7 @@ describe("AuthService.updateMyLocale — invalid locale rejection (closed set)",
 describe("AuthService.updateMyLocale — vanished-caller rejection", () => {
   test("an id matching no user rejects with the localized unauthorized error (no existence oracle)", async () => {
     await runInRollback(async tx => {
-      const [maxRow] = await tx.select({ maxId: users.id }).from(users);
+      const [maxRow] = await tx.select({ maxId: max(users.id) }).from(users);
       const absentId = (maxRow?.maxId ?? 0) + 1_000_000;
 
       const error = await expectRepoError(() => AuthService.updateMyLocale(absentId, "ar", "en", tx));

@@ -25,6 +25,7 @@ import {
   RecitationReadingPothosEnum,
   UserRolePothosEnum,
 } from "@/backend/graphql/pothos/shared/enum.pothos";
+import { ValidationError } from "@/backend/lib/errors";
 import type { RegistrationReturnType } from "@/backend/types";
 
 /**
@@ -49,11 +50,14 @@ export const UserPothosObject = gqlSchemaBuilder.objectRef<RegistrationReturnTyp
     locale: t.field({
       type: AppLocalePothosEnum,
       nullable: true,
-      resolve: parent => {
+      resolve: async (parent, _args, ctx) => {
         if (!parent.locale) return null;
         const locale = toAppLocale(parent.locale);
         if (locale === null) {
-          throw new Error(`Unexpected user locale: ${parent.locale}`);
+          // Fail-closed deny on a corrupt stored enum (the applicantStatusCorrupt
+          // precedent) — translated per the resolver-i18n rule via ctx.t.
+          const tErrors = await ctx.t("errorsTranslations");
+          throw new ValidationError("USER_LOCALE_CORRUPT", tErrors.userLocaleCorrupt);
         }
         return locale;
       },

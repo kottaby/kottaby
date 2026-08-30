@@ -1,6 +1,6 @@
 "use client";
 
-import { DoneOutlined } from "@mui/icons-material";
+import { DoneOutlined, NotificationsOutlined } from "@mui/icons-material";
 import { Box, Button, Chip, IconButton, Stack, Tooltip, Typography } from "@mui/material";
 import type { ReactNode } from "react";
 // audit-R4: shared keyboard-focus ring (v9 ButtonBase ships none).
@@ -88,7 +88,12 @@ export function NotificationRow({
   onMarkRead,
   markReadPending = false,
 }: Readonly<NotificationRowProps>): ReactNode {
-  const TypeIcon = NOTIFICATION_TYPE_ICONS[notification.type];
+  // Schema-drift guard: a newer server enum member can reach an older
+  // client (the generated enum misses the runtime value) — fall back to a
+  // neutral icon instead of rendering an undefined component type.
+  const TypeIcon = NOTIFICATION_TYPE_ICONS[notification.type] ?? NotificationsOutlined;
+  const typeLabelAccessor =
+    NOTIFICATION_TYPE_LABEL_ACCESSORS[notification.type] ?? (fallbackLabels => fallbackLabels.title);
   const unread = !notification.isRead;
   const markReadLabel = labels.markReadAriaLabel(notification.title);
 
@@ -163,7 +168,7 @@ export function NotificationRow({
         <Stack direction="row" spacing={1} sx={{ alignItems: "center", flexWrap: "wrap", marginTop: 0.5 }}>
           <Chip
             icon={<TypeIcon fontSize="small" />}
-            label={NOTIFICATION_TYPE_LABEL_ACCESSORS[notification.type](labels)}
+            label={typeLabelAccessor(labels)}
             size="small"
             variant="outlined"
             sx={theme => ({ minHeight: 28, color: theme.palette.text.secondary })}
