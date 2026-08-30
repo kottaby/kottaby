@@ -155,10 +155,34 @@ function mergeFieldsIntoExtensions(
   return { ...options, extensions: { ...options?.extensions, fields } };
 }
 
-/** Conflict (duplicate email, handshake collision exhausted, etc.). Code: `CONFLICT`. */
+/**
+ * Conflict (duplicate email, handshake collision exhausted, etc.).
+ * Overloaded constructor:
+ *
+ * @example new ConflictError(message) // code = "CONFLICT"
+ * @example new ConflictError(message, options) // code = "CONFLICT" + options
+ * @example new ConflictError("DUPLICATE_REQUEST", message) // custom code
+ * @example new ConflictError("SESSION_INVALID_TRANSITION", message, options) // full form
+ */
 export class ConflictError extends DomainError {
-  constructor(message: string, options?: GraphQLErrorOptions) {
-    super("CONFLICT", message, options);
+  constructor(message: string, options?: GraphQLErrorOptions);
+  constructor(code: string, message: string, options?: GraphQLErrorOptions);
+  constructor(codeOrMessage: string, messageOrOptions?: string | GraphQLErrorOptions, options?: GraphQLErrorOptions) {
+    let code: string;
+    let message: string;
+    let ctorOptions: GraphQLErrorOptions | undefined;
+    if (typeof messageOrOptions === "string") {
+      // Forms: (code, message) · (code, message, options)
+      code = codeOrMessage;
+      message = messageOrOptions;
+      ctorOptions = options;
+    } else {
+      // Forms: (message) · (message, options) — fixed "CONFLICT" code default.
+      code = "CONFLICT";
+      message = codeOrMessage;
+      ctorOptions = messageOrOptions;
+    }
+    super(code, message, ctorOptions);
   }
 }
 
