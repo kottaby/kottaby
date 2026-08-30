@@ -47,4 +47,7 @@ export const errorsEn: ErrorsLabels = {
   auditDetailsOverflow: "The audit record for this action exceeds its size limit.",
   // Student trial provisioning (DEV1-004).
   trialAlreadyGranted: "The free trial credit has already been granted for this student.",
+  // Student handshake-code validation (upstream PR #34).
+  handshakeCodeInvalid: "Handshake codes look like KSB-XXXXXXXX (8 hexadecimal characters).",
+  studentHandshakeNotFound: "Student record not found.",
 };

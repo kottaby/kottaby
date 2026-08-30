@@ -4,6 +4,7 @@ import { authAr } from "@/shared/locale/ar/auth";
 import { commonAr } from "@/shared/locale/ar/common";
 import { dashboardAr } from "@/shared/locale/ar/dashboard";
 import { errorsAr } from "@/shared/locale/ar/errors";
+import { handshakeCodeAr } from "@/shared/locale/ar/handshakeCode";
 import { landingAr } from "@/shared/locale/ar/landing";
 import { mySubscriptionsAr } from "@/shared/locale/ar/mySubscriptions";
 import { paymentVerificationAr } from "@/shared/locale/ar/paymentVerification";
@@ -14,7 +15,6 @@ import { subscriptionManagementAr } from "@/shared/locale/ar/subscriptionManagem
 import type { Translations } from "@/shared/locale/types/message";
 
 export const arMessages: Translations = {
-  auditTranslations: auditAr,
   commonTranslations: commonAr,
   authTranslations: authAr,
   errorsTranslations: errorsAr,
@@ -22,9 +22,11 @@ export const arMessages: Translations = {
   dashboardTranslations: dashboardAr,
   landingTranslations: landingAr,
   applicantTranslations: applicantAr,
-  plansTranslations: plansAr,
-  studentPlansTranslations: studentPlansAr,
+  handshakeCodeTranslations: handshakeCodeAr,
+  auditTranslations: auditAr,
   mySubscriptionsTranslations: mySubscriptionsAr,
   paymentVerificationTranslations: paymentVerificationAr,
+  plansTranslations: plansAr,
+  studentPlansTranslations: studentPlansAr,
   subscriptionManagementTranslations: subscriptionManagementAr,
 };

@@ -26,8 +26,9 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { useAuth } from "@/frontend/hooks/useAuth";
 import { type DashboardNavItem, getNavItemsForRole, resolveNavItemLabel } from "@/frontend/views/dashboard/navItems";
-import { Dashboard, useAppTranslation } from "@/shared/locale";
+import { Dashboard, HandshakeCode, useAppTranslation } from "@/shared/locale";
 import type { DashboardLabels } from "@/shared/locale/types/dashboard";
+import type { HandshakeCodeLabels } from "@/shared/locale/types/handshakeCode";
 
 /** Stat card shape — used by the dashboard's stat strip. */
 interface DashboardStat {
@@ -68,6 +69,7 @@ interface DashboardViewProps {
  */
 export function DashboardView({ statusSlot }: Readonly<DashboardViewProps>): ReactNode {
   const t = useAppTranslation(Dashboard);
+  const hc = useAppTranslation(HandshakeCode);
   const { user } = useAuth();
 
   const welcomeText = user ? t.welcome(user.fullName) : t.title;
@@ -106,7 +108,7 @@ export function DashboardView({ statusSlot }: Readonly<DashboardViewProps>): Rea
       </Box>
 
       <GettingStartedCard />
-      <QuickActionsSection t={t} />
+      <QuickActionsSection t={t} hc={hc} />
       <RecentActivitySection t={t} />
     </Box>
   );
@@ -263,7 +265,7 @@ function GettingStartedCard(): ReactNode {
  * cards (the sidebar nav map reused; dashboard/profile self-links excluded
  * so the strip only exposes MOVES, not where the user already is).
  */
-function QuickActionsSection({ t }: Readonly<{ t: DashboardLabels }>): ReactNode {
+function QuickActionsSection({ t, hc }: Readonly<{ t: DashboardLabels; hc: HandshakeCodeLabels }>): ReactNode {
   const { user } = useAuth();
   const actions = getNavItemsForRole(user?.role ?? null)
     .filter(item => item.labelKey !== "dashboard" && item.labelKey !== "profile")
@@ -292,7 +294,7 @@ function QuickActionsSection({ t }: Readonly<{ t: DashboardLabels }>): ReactNode
         }}
       >
         {actions.map(item => (
-          <QuickActionTile key={item.route} item={item} label={resolveNavItemLabel(item, t)} />
+          <QuickActionTile key={item.route} item={item} label={resolveNavItemLabel(item, t, hc)} />
         ))}
       </Box>
     </Box>

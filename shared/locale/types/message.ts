@@ -4,6 +4,7 @@ import type { AuthLabels } from "@/shared/locale/types/auth";
 import type { CommonLabels } from "@/shared/locale/types/common";
 import type { DashboardLabels } from "@/shared/locale/types/dashboard";
 import type { ErrorsLabels } from "@/shared/locale/types/errors";
+import type { HandshakeCodeLabels } from "@/shared/locale/types/handshakeCode";
 import type { LandingLabels } from "@/shared/locale/types/landing";
 import type { MySubscriptionsLabels } from "@/shared/locale/types/mySubscriptions";
 import type { PaymentVerificationLabels } from "@/shared/locale/types/paymentVerification";
@@ -13,7 +14,6 @@ import type { StudentPlansLabels } from "@/shared/locale/types/studentPlans";
 import type { SubscriptionManagementLabels } from "@/shared/locale/types/subscriptionManagement";
 
 export interface Translations {
-  auditTranslations: AuditLabels;
   commonTranslations: CommonLabels;
   authTranslations: AuthLabels;
   errorsTranslations: ErrorsLabels;
@@ -21,9 +21,11 @@ export interface Translations {
   dashboardTranslations: DashboardLabels;
   landingTranslations: LandingLabels;
   applicantTranslations: ApplicantLabels;
-  plansTranslations: PlansLabels;
-  studentPlansTranslations: StudentPlansLabels;
+  handshakeCodeTranslations: HandshakeCodeLabels;
+  auditTranslations: AuditLabels;
   mySubscriptionsTranslations: MySubscriptionsLabels;
   paymentVerificationTranslations: PaymentVerificationLabels;
+  plansTranslations: PlansLabels;
+  studentPlansTranslations: StudentPlansLabels;
   subscriptionManagementTranslations: SubscriptionManagementLabels;
 }

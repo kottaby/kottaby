@@ -93,6 +93,11 @@ enum Gender {
   Other
 }
 
+type HandshakeCodeLookup {
+  linkable: Boolean!
+  maskedName: String!
+}
+
 type HealthCheck {
   service: String!
   status: String!
@@ -164,12 +169,14 @@ type Query {
   adminPendingSubscriptionRequests: [AdminSubscriptionRequest!]!
   adminPlans(includeInactive: Boolean = true): [Plan!]!
   adminSubscriptions(limit: Int, offset: Int, status: String): AdminSubscriptionConnection!
+  findStudentByHandshakeCode(code: String!): HandshakeCodeLookup
 
   """
   Returns the authenticated user (or null for anonymous). Anonymous callers receive null — the AuthProvider uses this to detect expired access tokens and silently restore the session via `refreshToken`.
   """
   me: User
   myApplicantProfile: ApplicantProfile
+  myHandshakeCode: String!
   mySubscriptions: [Subscription!]!
   planCatalog: [Plan!]!
 

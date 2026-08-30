@@ -47,4 +47,7 @@ export const errorsAr: ErrorsLabels = {
   auditDetailsOverflow: "يتجاوز سجل التدقيق لهذا الإجراء الحجم المسموح به.",
   // Student trial provisioning (DEV1-004).
   trialAlreadyGranted: "تم منح رصيد الجلسة التجريبية لهذا الطالب مسبقًا.",
+  // Student handshake-code validation (upstream PR #34).
+  handshakeCodeInvalid: "تبدو رموز الربط بالصيغة KSB-XXXXXXXX وتتكون من 8 أحرف سداسية عشرية.",
+  studentHandshakeNotFound: "لم يتم العثور على سجل الطالب.",
 };
