@@ -392,6 +392,34 @@ for (const locale of ["ar", "en"] as AppLocale[]) {
   });
 }
 
+// ─── Sidebar list semantics (axe `list` rule, audit R2) ─────────────────────
+
+for (const locale of ["ar", "en"] as AppLocale[]) {
+  describe(`DashboardSidebar list semantics (${locale === "ar" ? "RTL/arabic" : "LTR/english"})`, () => {
+    test("nav renders valid ul > li > a — every list child is an li whose direct child is the nav anchor", () => {
+      for (const shell of ROLE_SHELLS) {
+        cleanup();
+        const { container } = renderSidebar(shell.role, locale);
+        const expectedRoutes = getNavItemsForRole(shell.role).map(item => item.route);
+
+        // Both drawers (temporary + permanent) mount the same nav list —
+        // assert EVERY rendered ul, not just the first.
+        const lists = Array.from(container.querySelectorAll("nav ul"));
+        expect(lists.length).toBeGreaterThanOrEqual(1);
+        for (const list of lists) {
+          const children = Array.from(list.children);
+          expect(children.map(child => child.tagName)).toEqual(expectedRoutes.map(() => "LI"));
+          expect(children.map(child => child.children[0]?.getAttribute("href"))).toEqual(expectedRoutes);
+          // The anchor is a DIRECT li child (ul > li > a), not a descendant.
+          for (const child of children) {
+            expect(child.children[0]?.tagName).toBe("A");
+          }
+        }
+      }
+    });
+  });
+}
+
 // ─── Nav config declaration (REQ-065, plan §5.2) ────────────────────────────
 
 describe("navItems config declares the Notifications entry per role", () => {
