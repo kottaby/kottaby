@@ -72,14 +72,12 @@ gqlSchemaBuilder.mutationField("updateMyLocale", t =>
       }
       // Defense-in-depth layering (the markNotificationRead NaN-guard
       // precedent): the AppLocale enum already rejects any non-locale
-      // literal at validation time, and `String(...)` normalizes the wire
-      // form; the service's own `isAppLocale` gate — the single
-      // localized-rejection construction site — re-validates for non-schema
-      // transports and future callers. The enum member's runtime value IS
-      // the canonical locale string ("ar" | "en"), identical to the
-      // persisted `users.locale` value.
-      const localeArg = String(args.locale);
-      return AuthService.updateMyLocale(ctx.user.id, localeArg, ctx.locale);
+      // literal at validation time; the service's own `isAppLocale` gate —
+      // the single localized-rejection construction site — re-validates for
+      // non-schema transports and future callers. The enum member's runtime
+      // value IS the canonical locale string ("ar" | "en"), identical to the
+      // persisted `users.locale` value, so it flows through unchanged.
+      return AuthService.updateMyLocale(ctx.user.id, args.locale, ctx.locale);
     },
   })
 );

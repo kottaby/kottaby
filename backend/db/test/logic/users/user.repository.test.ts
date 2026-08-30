@@ -84,9 +84,8 @@ beforeAll(async () => {
 
 afterAll(async () => {
   // Hard-delete ONLY the committed fixtures this file created (Rule 9).
-  for (const id of committedFixtureIds) {
-    await db.delete(users).where(eq(users.id, id));
-  }
+  // Independent row deletes — parallel via Promise.all (no-await-in-loop).
+  await Promise.all(committedFixtureIds.map(id => db.delete(users).where(eq(users.id, id))));
 });
 
 describe("UserRepository.updateLocale — transactional write branch", () => {
