@@ -42,7 +42,7 @@ Both fields carry the explicit `$all` conjunction in `authScopes` (`backend/grap
 
 ### 2. Code format
 
-```
+```text
 KSB-<exactly 8 uppercase hexadecimal characters [0-9A-F]>   e.g. KSB-ABCD1234
 ```
 

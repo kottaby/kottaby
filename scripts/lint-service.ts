@@ -110,7 +110,10 @@ const DEFAULT_TIMEOUT_FULL_REPO_MS = Number(process.env.LINT_QUEUE_TIMEOUT_MS ??
 /** Default ESLint child heap cap (MB) — only used when the machine can afford it. */
 const DEFAULT_MAX_OLD_SPACE_MB = 8192;
 
-/** Never clamp the ESLint child heap below this (MB). */
+/**
+ * Preferred ESLint child heap floor (MB) — applied only when the detected
+ * memory budget can afford it; never raised above the budget itself.
+ */
 const MIN_MAX_OLD_SPACE_MB = 2048;
 
 /** Fraction of total memory the ESLint child heap may use when clamping. */
@@ -146,7 +149,9 @@ function readCgroupMemoryLimitBytes(): number | null {
  *   1. LINT_MAX_OLD_SPACE_MB env var — explicit override, wins outright
  *   2. min(8192, floor(totalMemMB * 0.7)), where totalMemMB is the smaller of
  *      the cgroup limit and os.totalmem()
- *   3. Clamped to a 2048 MB floor
+ *   3. Floored at 2048 MB — but the floor never exceeds the detected budget
+ *      (a floor above the budget would cap the heap above what the host can
+ *      afford and re-introduce the OOM-kill this sizing exists to prevent)
  */
 const MAX_OLD_SPACE_MB: number = (() => {
   const override = Number.parseInt(process.env.LINT_MAX_OLD_SPACE_MB ?? "", 10);
@@ -155,11 +160,16 @@ const MAX_OLD_SPACE_MB: number = (() => {
   const cgroupBytes = readCgroupMemoryLimitBytes();
   const totalBytes = cgroupBytes === null ? totalmem() : Math.min(cgroupBytes, totalmem());
   const totalMb = Math.floor(totalBytes / (1024 * 1024));
+  const budgetMb = Math.floor(totalMb * HEAP_FRACTION_OF_TOTAL);
 
-  return Math.max(
-    MIN_MAX_OLD_SPACE_MB,
-    Math.min(DEFAULT_MAX_OLD_SPACE_MB, Math.floor(totalMb * HEAP_FRACTION_OF_TOTAL))
-  );
+  // The 2048 MB floor is clamped to the detected budget: the returned heap
+  // must NEVER exceed what the host can actually afford. On hosts below
+  // ~2.9 GiB (budget < 2048 MB), min(MIN, budget) collapses to the budget, so
+  // the floor degrades to a no-op instead of restoring 2048 MB over a smaller
+  // cgroup (e.g. a 2 GiB cgroup: budget = 1433, not 2048 = the whole cgroup)
+  // — which would OOM-kill the ESLint child exactly like the old hardcoded
+  // 8192 did.
+  return Math.min(DEFAULT_MAX_OLD_SPACE_MB, Math.max(Math.min(MIN_MAX_OLD_SPACE_MB, budgetMb), budgetMb));
 })();
 
 /** Upper bound for adaptive concurrency — the historical flat default. */

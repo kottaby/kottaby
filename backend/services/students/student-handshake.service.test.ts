@@ -99,11 +99,19 @@ interface CommittedCastType {
   readonly parentUserId: number;
   readonly absentUserId: number;
   readonly absentProbeCode: string;
-  readonly trackedStudentIds: readonly number[];
-  readonly trackedUserIds: readonly number[];
 }
 
 let cast: CommittedCastType | null = null;
+
+/**
+ * Tracked committed-fixture ids — MODULE scope, populated as the `beforeAll`
+ * fixture helpers run, so `afterAll` can hard-delete them even when a
+ * post-commit step in `beforeAll` fails BEFORE `cast` is assigned (a `null`
+ * cast must never prevent teardown: `requireCast()` would throw here and the
+ * already-committed rows would leak in the shared test DB).
+ */
+const trackedUserIds: number[] = [];
+const trackedStudentIds: number[] = [];
 
 function requireCast(): CommittedCastType {
   if (cast === null) {
@@ -150,13 +158,11 @@ function governanceFixture(
 }
 
 /**
- * Creates a committed student fixture (user + students row) and tracks both
- * ids for the `afterAll` hard delete.
+ * Creates a committed student fixture (user + students row); both ids are
+ * tracked in the module-scope registries for the `afterAll` hard delete.
  */
 async function createStudentFixture(
   tx: DBTransaction,
-  trackedUserIds: number[],
-  trackedStudentIds: number[],
   userOverrides: Partial<UserSelectType>,
   studentOverrides: Partial<StudentSelectType> = {}
 ): Promise<StudentFixtureType> {
@@ -212,43 +218,34 @@ const LOG_SECURITY_PROBES: readonly string[] = [
 // ─── Committed cast provisioning + tracked teardown ────────────────────
 
 beforeAll(async () => {
-  const trackedUserIds: number[] = [];
-  const trackedStudentIds: number[] = [];
-
   const provisioned = await db.transaction(async tx => {
-    const student = await createStudentFixture(tx, trackedUserIds, trackedStudentIds, {
+    const student = await createStudentFixture(tx, {
       fullName: "Yusuf Rahman",
     });
     const linkedParent = await createTestUser(tx, { role: "parent", fullName: "Fatima Nour" });
     trackedUserIds.push(linkedParent.id);
-    const linkedStudent = await createStudentFixture(
-      tx,
-      trackedUserIds,
-      trackedStudentIds,
-      { fullName: "Bilal Said" },
-      { parentId: linkedParent.id }
-    );
-    const governedDeleted = await createStudentFixture(tx, trackedUserIds, trackedStudentIds, {
+    const linkedStudent = await createStudentFixture(tx, { fullName: "Bilal Said" }, { parentId: linkedParent.id });
+    const governedDeleted = await createStudentFixture(tx, {
       fullName: "Mariam Fouad",
       isDeleted: true,
     });
-    const governedBlocked = await createStudentFixture(tx, trackedUserIds, trackedStudentIds, {
+    const governedBlocked = await createStudentFixture(tx, {
       fullName: "Omar Adel",
       isBlocked: true,
     });
-    const governedSuspended = await createStudentFixture(tx, trackedUserIds, trackedStudentIds, {
+    const governedSuspended = await createStudentFixture(tx, {
       fullName: "Hana Mostafa",
       suspended: true,
       suspendedAt: new Date(Date.now() - HOUR_MS),
       suspendedPeriodDays: 30,
     });
-    const lapsedSuspension = await createStudentFixture(tx, trackedUserIds, trackedStudentIds, {
+    const lapsedSuspension = await createStudentFixture(tx, {
       fullName: "Sara Ibrahim",
       suspended: true,
       suspendedAt: new Date(Date.now() - 30 * DAY_MS),
       suspendedPeriodDays: 1,
     });
-    const incompleteSuspension = await createStudentFixture(tx, trackedUserIds, trackedStudentIds, {
+    const incompleteSuspension = await createStudentFixture(tx, {
       fullName: "Nour Khaled",
       suspended: true,
     });
@@ -257,13 +254,13 @@ beforeAll(async () => {
     // Both students are actively suspended in intent — the predicate must
     // treat the non-positive durations as INVALID (fail-closed), never as a
     // zero-length window that already lapsed.
-    const zeroPeriodSuspension = await createStudentFixture(tx, trackedUserIds, trackedStudentIds, {
+    const zeroPeriodSuspension = await createStudentFixture(tx, {
       fullName: "Laila Tariq",
       suspended: true,
       suspendedAt: new Date(Date.now() - HOUR_MS),
       suspendedPeriodDays: 0,
     });
-    const negativePeriodSuspension = await createStudentFixture(tx, trackedUserIds, trackedStudentIds, {
+    const negativePeriodSuspension = await createStudentFixture(tx, {
       fullName: "Adham Sami",
       suspended: true,
       suspendedAt: new Date(Date.now() - HOUR_MS),
@@ -310,23 +307,28 @@ beforeAll(async () => {
     parentUserId: provisioned.parentUserId,
     absentUserId,
     absentProbeCode,
-    trackedStudentIds,
-    trackedUserIds,
   };
 });
 
 afterAll(async () => {
-  const c = requireCast();
-  // FK-safe hard delete inside one committing transaction: students rows
-  // first, then the users rows they reference.
-  await db.transaction(async tx => {
-    await Promise.all(c.trackedStudentIds.map(id => tx.delete(students).where(eq(students.id, id))));
-    await Promise.all(c.trackedUserIds.map(id => tx.delete(users).where(eq(users.id, id))));
-  });
+  // Unconditional teardown from the MODULE-scope id arrays — deliberately NOT
+  // gated on `requireCast()`: when a post-commit step of `beforeAll` failed
+  // before `cast` was assigned, the fixture rows are STILL committed and must
+  // still be hard-deleted (the committed-fixture hygiene rule). Both arrays
+  // are empty-safe (a failed-before-any-fixture beforeAll leaves nothing to
+  // delete; drizzle's `inArray(col, [])` folds to `false`).
+  if (trackedStudentIds.length > 0 || trackedUserIds.length > 0) {
+    // FK-safe hard delete inside one committing transaction: students rows
+    // first, then the users rows they reference.
+    await db.transaction(async tx => {
+      await Promise.all(trackedStudentIds.map(id => tx.delete(students).where(eq(students.id, id))));
+      await Promise.all(trackedUserIds.map(id => tx.delete(users).where(eq(users.id, id))));
+    });
+  }
   // Residue probes — every tracked row is gone on a fresh read.
   const [userRows, studentRows] = await Promise.all([
-    db.select({ id: users.id }).from(users).where(inArray(users.id, c.trackedUserIds)),
-    db.select({ id: students.id }).from(students).where(inArray(students.id, c.trackedStudentIds)),
+    db.select({ id: users.id }).from(users).where(inArray(users.id, trackedUserIds)),
+    db.select({ id: students.id }).from(students).where(inArray(students.id, trackedStudentIds)),
   ]);
   expect(userRows).toHaveLength(0);
   expect(studentRows).toHaveLength(0);
@@ -637,7 +639,7 @@ describe("StudentHandshakeService.findStudentByHandshakeCode", () => {
 
       // Per-actor probes: no side-effect row is attributable to any tracked id.
       const attributable = await Promise.all(
-        c.trackedUserIds.map(async id => {
+        trackedUserIds.map(async id => {
           const [notificationRows, auditRows] = await Promise.all([
             db.select({ id: notifications.id }).from(notifications).where(eq(notifications.userId, id)),
             db

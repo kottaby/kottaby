@@ -323,16 +323,21 @@ describe("Journey — parent handshake-code discovery (steps 1→8)", () => {
   // instead of duplicating it.
 
   afterAll(async () => {
-    // After registration, every journey step is a pure read — zero
-    // notification and audit rows may be attributable to any tracked actor.
+    // Measure side-effects FIRST (the actor rows must still exist for the
+    // attributable-row probes), but ASSERT only AFTER teardown: an assertion
+    // throwing before `cast.teardown()` would skip the hard delete entirely
+    // and leak every committed fixture row in the shared test DB.
     const sideEffects = await cast.countSideEffectRows();
-    expect(sideEffects.notifications).toBe(0);
-    expect(sideEffects.auditLogs).toBe(0);
 
     // Step 8 — teardown: every tracked fixture id hard-deleted in FK-safe
     // order; residue probes on every touched table return empty.
     await cast.teardown();
     const residue = await cast.residueCounts();
+
+    // After registration, every journey step is a pure read — zero
+    // notification and audit rows may be attributable to any tracked actor.
+    expect(sideEffects.notifications).toBe(0);
+    expect(sideEffects.auditLogs).toBe(0);
     expect(residue.users).toBe(0);
     expect(residue.students).toBe(0);
     expect(residue.parents).toBe(0);
