@@ -244,7 +244,8 @@ const fullResult = await requestFullRepoLint("cli");
 
 ### Environment Variables
 
-- `LINT_QUEUE_CONCURRENCY` — ESLint `--concurrency` value (default `4`; set to `auto` to let ESLint decide).
+- `LINT_QUEUE_CONCURRENCY` — ESLint `--concurrency` value (default: adaptive `1`–`4`, derived from CPU count and memory budget — prevents OOM-kills on memory-constrained hosts; set to `auto` to let ESLint decide).
+- `LINT_MAX_OLD_SPACE_MB` — ESLint child heap cap in MB (default: adaptive, clamped to `2048`–`8192`). Note: with `--concurrency=N` the worst-case memory is `(N+1) × heap`, so lower concurrency on small hosts.
 - `LINT_QUEUE_TIMEOUT_MS` — Per-request timeout in milliseconds (default: 300000 for file-scoped, 1200000 for full-repo).
 
 ### Other quality commands are safe to run in parallel

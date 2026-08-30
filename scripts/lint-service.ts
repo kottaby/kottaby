@@ -35,7 +35,8 @@
  *   performance. A dedicated cache location is used per mode to avoid stale parse errors.
  *
  * Environment variables:
- *   - LINT_QUEUE_CONCURRENCY   Override eslint --concurrency (default: 4; "auto" allowed)
+ *   - LINT_QUEUE_CONCURRENCY   Override eslint --concurrency (default: adaptive 1-4,
+ *                              derived from CPU count and memory budget; "auto" allowed)
  *   - LINT_QUEUE_TIMEOUT_MS     Override per-request timeout in ms (default: 300000 files, 1200000 full-repo)
  *   - LINT_MAX_OLD_SPACE_MB    Override the eslint child --max-old-space-size heap cap in MB
  *                              (default: adaptive — see MAX_OLD_SPACE_MB below)
@@ -55,12 +56,12 @@
  * Exit codes (CLI):
  *   0 = ESLint passed (no errors)
  *   1 = ESLint reported problems
- *   2 = Invalid arguments or service fault
+ *   2 = Invalid arguments, service fault, or eslint killed by signal (e.g. OOM-kill)
  */
 
 import { exec } from "node:child_process";
 import { readFileSync } from "node:fs";
-import { totalmem } from "node:os";
+import { availableParallelism, totalmem } from "node:os";
 import { parseArgs } from "node:util";
 import { withProcessLock } from "@/scripts/lib/process-lock";
 
@@ -105,9 +106,6 @@ const DEFAULT_TIMEOUT_FILES_MS = Number(process.env.LINT_QUEUE_TIMEOUT_MS ?? 300
 
 /** Default per-request timeout for full-repo lint runs (5 minutes) */
 const DEFAULT_TIMEOUT_FULL_REPO_MS = Number(process.env.LINT_QUEUE_TIMEOUT_MS ?? 1200000);
-
-/** ESLint concurrency value (default 4; override via LINT_QUEUE_CONCURRENCY env var) */
-const CONCURRENCY = process.env.LINT_QUEUE_CONCURRENCY ?? "4";
 
 /** Default ESLint child heap cap (MB) — only used when the machine can afford it. */
 const DEFAULT_MAX_OLD_SPACE_MB = 8192;
@@ -163,6 +161,57 @@ const MAX_OLD_SPACE_MB: number = (() => {
     Math.min(DEFAULT_MAX_OLD_SPACE_MB, Math.floor(totalMb * HEAP_FRACTION_OF_TOTAL))
   );
 })();
+
+/** Upper bound for adaptive concurrency — the historical flat default. */
+const MAX_CONCURRENCY = 4;
+
+/**
+ * Peak RSS a single ESLint isolate (main thread or one --concurrency worker) needs
+ * for a cold full-repo run, rounded up from the ~1.7 GiB measured on this repo.
+ * Used to derive how many concurrent isolates the memory budget can afford.
+ */
+const PER_ISOLATE_MB = 2048;
+
+/**
+ * Adaptive ESLint worker concurrency.
+ *
+ * `--concurrency=N` (N > 1) makes ESLint lint files in N worker-thread isolates
+ * alongside the main-thread isolate, and every isolate gets its own V8 heap
+ * capped by --max-old-space-size. The adaptive heap therefore bounds a single
+ * isolate, not the (N + 1) × heap worst case: on a 4 GiB cgroup (no swap),
+ * --concurrency=4 got the whole eslint process OOM-killed (SIGKILL → silent
+ * exit-1 with empty output) on every cold-cache full-repo run.
+ *
+ * Resolution order:
+ *   1. LINT_QUEUE_CONCURRENCY env var — explicit override, wins outright ("auto" allowed)
+ *   2. min(4, cpuWorkers, memWorkers), floored at 1, where:
+ *        cpuWorkers = availableParallelism() >> 1  (mirrors ESLint's own "auto" heuristic)
+ *        memWorkers = floor(heapBudget / PER_ISOLATE_MB) - 1  (reserve one isolate for the
+ *                     main thread; a value of 1 keeps eslint single-threaded)
+ */
+const CONCURRENCY: string = (() => {
+  const override = process.env.LINT_QUEUE_CONCURRENCY;
+  if (override !== undefined && override !== "") return override;
+
+  const cpuWorkers = Math.max(1, availableParallelism() >> 1);
+  const memWorkers = Math.max(1, Math.floor(MAX_OLD_SPACE_MB / PER_ISOLATE_MB) - 1);
+  return String(Math.max(1, Math.min(MAX_CONCURRENCY, cpuWorkers, memWorkers)));
+})();
+
+/**
+ * Human-readable notice appended to the eslint output when the child process is
+ * killed by a signal instead of exiting (e.g. kernel OOM-killer SIGKILL on
+ * memory-constrained hosts, or the exec timeout SIGTERM). Without this, signal
+ * deaths surface as a silent exit-1 with empty output, which is undebuggable
+ * from CI logs.
+ */
+function signalDeathNotice(signal: string): string {
+  const oomHint =
+    signal === "SIGKILL"
+      ? " (likely the kernel OOM-killer — lower LINT_QUEUE_CONCURRENCY or LINT_MAX_OLD_SPACE_MB)"
+      : "";
+  return `\n[lint-service] eslint was terminated by signal ${signal} instead of exiting${oomHint}.`;
+}
 
 // ─── LintService (In-Process Queue + ESLint Executor) ──────────────────────
 
@@ -315,7 +364,7 @@ class LintService {
           maxBuffer: 50 * 1024 * 1024, // 50MB
         },
         (error, stdout, stderr) => {
-          const output = (stdout || "") + (stderr || "");
+          let output = (stdout || "") + (stderr || "");
           const rawCode = error?.code;
           let exitCode = 0;
           if (error) {
@@ -323,6 +372,12 @@ class LintService {
               exitCode = rawCode;
             } else if (typeof rawCode === "string") {
               exitCode = Number.parseInt(rawCode, 10) || 1;
+            } else if (error.signal) {
+              // Signal death (OOM-kill SIGKILL, timeout SIGTERM, ...): there are no
+              // lint findings to report — map to the service-fault exit code and
+              // append a diagnostic so the failure is visible instead of silent.
+              exitCode = 2;
+              output += signalDeathNotice(error.signal);
             } else {
               exitCode = 1;
             }
