@@ -88,15 +88,15 @@
 
 ### 1.3 — Canonical Types Extensions
 
-- [ ] 1.3 [Extend session canonical types + create claim-table types]
+- [x] 1.3 [Extend session canonical types + create claim-table types]
   - **Files:** UPDATE `backend/types/classes/session.types.ts` additive-only: `SessionReturnType` (= `SessionSelectType`), `SessionStudentIntentType` (Hifz|Tajweed), `SessionSubmitInput` (`{ teacherId, intent }` — closed BOPLA whitelist), `SessionListFilterInput`, `SessionPageReturnType`, `SessionTransitionProbeRowType`; CREATE `backend/types/classes/session-request-idempotency.types.ts` (Select/Insert from `$infer*`); UPDATE `backend/types/classes/index.ts` barrel.
   - NO service-layer `.types.ts`; NO local types anywhere downstream; `DBTransaction` from `@/backend/types`.
   - _Requirements: REQ-003_
-  - [ ] 1.3.QL **Quality Loop**: sub-loop on both type files (exit 0)
-  - [ ] 1.3.TE **Test Engineering**: compile-level conformance — a `satisfies`-pinned static test asserting the planned insert shape honors `SessionRequestContract` invariants (`feeHeld: true` literal, non-null fee/deadline, intent ⊆ Hifz|Tajweed, key present); structurally-closed input test (excess keys are type-errors).
-  - [ ] 1.3.SEC **Security & Tenancy Audit**: server-controlled fields structurally absent from `SessionSubmitInput` (id/status/sessionType/fee/feeHeld/deadlines/heldBalanceLane/confirmedBy*/studentId).
-  - [ ] 1.3.SR **Semantic Review**: additive-only diff on existing file; never redefines contract types (consumed from `@/backend/types/contracts`).
-  - [ ] 1.3.IV **Instruction Verification**: `backend/types/AGENTS.md`.
+  - [x] 1.3.QL **Quality Loop**: sub-loop on both type files (exit 0)
+  - [x] 1.3.TE **Test Engineering**: compile-level conformance — a `satisfies`-pinned static test asserting the planned insert shape honors `SessionRequestContract` invariants (`feeHeld: true` literal, non-null fee/deadline, intent ⊆ Hifz|Tajweed, key present); structurally-closed input test (excess keys are type-errors).
+  - [x] 1.3.SEC **Security & Tenancy Audit**: server-controlled fields structurally absent from `SessionSubmitInput` (id/status/sessionType/fee/feeHeld/deadlines/heldBalanceLane/confirmedBy*/studentId).
+  - [x] 1.3.SR **Semantic Review**: additive-only diff on existing file; never redefines contract types (consumed from `@/backend/types/contracts`).
+  - [x] 1.3.IV **Instruction Verification**: `backend/types/AGENTS.md`.
   - Write `outcome/1.3-outcome.md`.
 
 ### 1.4 — Shared Platform Fee Constants (B.3)
