@@ -156,3 +156,6 @@ sandbox.*.sh
 .zscripts/
 .browser-auth/
 scripts/build/
+.z-ai-config
+.z-ai-config.bak
+.z-ai-config.project
