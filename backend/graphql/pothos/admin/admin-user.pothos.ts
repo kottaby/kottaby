@@ -27,17 +27,19 @@
  *  - Enums are imported from the shared enum registry — never re-registered.
  */
 import { isApplicantStatus } from "@/backend/enum/teachers/applicant-status.enum";
-import { toGender } from "@/backend/enum/users/gender.enum";
-import { toUserRole } from "@/backend/enum/users/user-role.enum";
 import { gqlSchemaBuilder } from "@/backend/graphql/pothos/builder";
 import {
   AdminUserGovernanceFilterPothosEnum,
   ApplicantStatusPothosEnum,
   AuditActionTypePothosEnum,
   GenderPothosEnum,
-  RegisterPublicRolePothosEnum,
   UserRolePothosEnum,
 } from "@/backend/graphql/pothos/shared/enum.pothos";
+import {
+  nullableUserGenderField,
+  userRegistrationInputFields,
+  userRoleField,
+} from "@/backend/graphql/pothos/shared/userFieldHelpers";
 import { ApplicantProfilePothosObject } from "@/backend/graphql/pothos/teachers/applicant.pothos";
 import type {
   AdminParentSnapshotReturnType,
@@ -64,29 +66,9 @@ export const AdminUserListItemPothosObject = gqlSchemaBuilder
       fullName: t.exposeString("fullName"),
       email: t.exposeString("email"),
       phone: t.exposeString("phone", { nullable: true }),
-      role: t.field({
-        type: UserRolePothosEnum,
-        resolve: parent => {
-          const role = toUserRole(parent.role);
-          if (role === null) {
-            throw new Error(`Unexpected user role: ${parent.role}`);
-          }
-          return role;
-        },
-      }),
+      role: userRoleField(t),
       country: t.exposeString("country", { nullable: true }),
-      gender: t.field({
-        type: GenderPothosEnum,
-        nullable: true,
-        resolve: parent => {
-          if (!parent.gender) return null;
-          const gender = toGender(parent.gender);
-          if (gender === null) {
-            throw new Error(`Unexpected user gender: ${parent.gender}`);
-          }
-          return gender;
-        },
-      }),
+      gender: nullableUserGenderField(t),
       dateOfBirth: t.exposeString("dateOfBirth", { nullable: true }),
       isDeleted: t.field({ type: "Boolean", resolve: parent => parent.isDeleted }),
       suspended: t.field({ type: "Boolean", resolve: parent => parent.suspended }),
@@ -258,29 +240,9 @@ export const AdminUserDetailPothosObject = gqlSchemaBuilder
       fullName: t.exposeString("fullName"),
       email: t.exposeString("email"),
       phone: t.exposeString("phone", { nullable: true }),
-      role: t.field({
-        type: UserRolePothosEnum,
-        resolve: parent => {
-          const role = toUserRole(parent.role);
-          if (role === null) {
-            throw new Error(`Unexpected user role: ${parent.role}`);
-          }
-          return role;
-        },
-      }),
+      role: userRoleField(t),
       dateOfBirth: t.exposeString("dateOfBirth", { nullable: true }),
-      gender: t.field({
-        type: GenderPothosEnum,
-        nullable: true,
-        resolve: parent => {
-          if (!parent.gender) return null;
-          const gender = toGender(parent.gender);
-          if (gender === null) {
-            throw new Error(`Unexpected user gender: ${parent.gender}`);
-          }
-          return gender;
-        },
-      }),
+      gender: nullableUserGenderField(t),
       country: t.exposeString("country", { nullable: true }),
       isDeleted: t.field({ type: "Boolean", nullable: true, resolve: parent => parent.isDeleted ?? false }),
       deletedAt: t.field({
@@ -359,15 +321,7 @@ export const AdminUserFiltersInput = gqlSchemaBuilder.inputType("AdminUserFilter
  * structurally excluded at the schema layer; BFLA).
  */
 export const AdminCreateUserInput = gqlSchemaBuilder.inputType("AdminCreateUserInput", {
-  fields: t => ({
-    fullName: t.string({ required: true }),
-    email: t.string({ required: true }),
-    phone: t.string({ required: true }),
-    password: t.string({ required: true }),
-    gender: t.field({ type: GenderPothosEnum, required: false }),
-    country: t.string({ required: true }),
-    role: t.field({ type: RegisterPublicRolePothosEnum, required: true }),
-  }),
+  fields: t => ({ ...userRegistrationInputFields(t) }),
 });
 
 /**

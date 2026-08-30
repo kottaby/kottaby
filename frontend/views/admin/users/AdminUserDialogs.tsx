@@ -39,13 +39,15 @@ import {
   InputLabel,
   MenuItem,
   Select,
+  Snackbar,
   Stack,
   TextField,
   Typography,
 } from "@mui/material";
 import { type ReactNode, type SubmitEventHandler, useState } from "react";
 import type { Gender } from "@/frontend/graphql/generated/gql/graphql";
-import { extractErrorCode, extractErrorMessage, extractFieldErrors } from "@/frontend/lib/graphql-error-utils";
+import { extractErrorCode } from "@/frontend/lib/graphql-error-utils";
+import { useAdminUserFormFeedback } from "@/frontend/views/admin/users/useAdminUserFormFeedback";
 import type { AdminUsersLabels } from "@/shared/locale/types/adminUsers";
 
 /**
@@ -104,34 +106,19 @@ export function EditUserDialog({ labels, user, loading, onClose, onSubmit }: Edi
     gender: (user.gender ?? "") as "" | "Male" | "Female" | "Other",
     dateOfBirth: user.dateOfBirth ?? "",
   });
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-  // Top-level fallback for rejections WITHOUT a field payload (e.g.
-  // USER_NOT_FOUND on a stale row) — without it the dialog would stay open
-  // with zero feedback, leaving the admin to guess why nothing happened.
-  const [formError, setFormError] = useState<string | null>(null);
+  const { fieldErrors, formError, runWithFeedback } = useAdminUserFormFeedback();
 
   const handleSubmit: SubmitEventHandler<HTMLFormElement> = async e => {
     e.preventDefault();
-    setFieldErrors({});
-    setFormError(null);
-    try {
-      await onSubmit({
+    await runWithFeedback(() =>
+      onSubmit({
         fullName: form.fullName || undefined,
         phone: form.phone || undefined,
         country: form.country || undefined,
         gender: form.gender || undefined,
         dateOfBirth: form.dateOfBirth || undefined,
-      });
-    } catch (err) {
-      // `err` is `unknown` in a catch block (strict mode) — no `as unknown`
-      // cast needed before passing to the field-error extractor.
-      const errors = extractFieldErrors(err);
-      if (Object.keys(errors).length > 0) {
-        setFieldErrors(errors);
-      } else {
-        setFormError(extractErrorMessage(err));
-      }
-    }
+      })
+    );
   };
 
   return (
@@ -162,21 +149,14 @@ export function EditUserDialog({ labels, user, loading, onClose, onSubmit }: Edi
               error={!!fieldErrors.country}
               helperText={fieldErrors.country}
             />
-            <FormControl fullWidth error={!!fieldErrors.gender}>
-              <InputLabel htmlFor={EDIT_GENDER_ID}>{labels.editDialog.gender}</InputLabel>
-              <Select
-                id={EDIT_GENDER_ID}
-                value={form.gender}
-                label={labels.editDialog.gender}
-                onChange={e => setForm({ ...form, gender: e.target.value as "" | "Male" | "Female" | "Other" })}
-              >
-                <MenuItem value="">{labels.genderOptions.unspecified}</MenuItem>
-                <MenuItem value="Male">{labels.genderOptions.male}</MenuItem>
-                <MenuItem value="Female">{labels.genderOptions.female}</MenuItem>
-                <MenuItem value="Other">{labels.genderOptions.other}</MenuItem>
-              </Select>
-              {fieldErrors.gender && <FormHelperText>{fieldErrors.gender}</FormHelperText>}
-            </FormControl>
+            <AdminUserGenderSelect
+              labels={labels}
+              id={EDIT_GENDER_ID}
+              label={labels.editDialog.gender}
+              value={form.gender}
+              onChange={gender => setForm({ ...form, gender })}
+              error={fieldErrors.gender}
+            />
             <TextField
               label={labels.editDialog.dateOfBirth}
               type="date"
@@ -254,5 +234,85 @@ export function DeleteConfirmDialog({ labels, user, loading, onClose, onConfirm 
         </Button>
       </DialogActions>
     </Dialog>
+  );
+}
+
+/** Gender option values shared by the create- and edit-user dialogs. */
+type AdminUserGenderValue = "" | "Male" | "Female" | "Other";
+
+interface AdminUserGenderSelectProps {
+  readonly labels: AdminUsersLabels;
+  /** Stable element id wiring `InputLabel htmlFor` ↔ `Select id` (a11y). */
+  readonly id: string;
+  /** Visible label — the caller picks its own namespace block
+   *  (`editDialog.gender` vs `createDialog.gender`). */
+  readonly label: string;
+  readonly value: AdminUserGenderValue;
+  readonly onChange: (value: AdminUserGenderValue) => void;
+  /**
+   * Field-error string, `undefined` when the field has no VALIDATION error.
+   * The create dialog always passes `undefined` (its gender select renders
+   * without the error affordance); the edit dialog projects
+   * `fieldErrors.gender` (red select + message below it), so the two
+   * dialogs' pre-extraction behavior is preserved exactly.
+   */
+  readonly error: string | undefined;
+}
+
+/**
+ * Gender select shared by `EditUserDialog` (here) and the directory's
+ * `CreateUserDialog` — identical option set, option copy, and label wiring
+ * on both surfaces (single source for the four `genderOptions` MenuItems).
+ * `Select`'s generic is pinned by the `value` prop type, so
+ * `e.target.value` arrives already typed as `AdminUserGenderValue` — no
+ * `as` cast at the caller.
+ */
+export function AdminUserGenderSelect({
+  labels,
+  id,
+  label,
+  value,
+  onChange,
+  error,
+}: AdminUserGenderSelectProps): ReactNode {
+  return (
+    <FormControl fullWidth error={!!error}>
+      <InputLabel htmlFor={id}>{label}</InputLabel>
+      <Select id={id} value={value} label={label} onChange={e => onChange(e.target.value)}>
+        <MenuItem value="">{labels.genderOptions.unspecified}</MenuItem>
+        <MenuItem value="Male">{labels.genderOptions.male}</MenuItem>
+        <MenuItem value="Female">{labels.genderOptions.female}</MenuItem>
+        <MenuItem value="Other">{labels.genderOptions.other}</MenuItem>
+      </Select>
+      {error && <FormHelperText>{error}</FormHelperText>}
+    </FormControl>
+  );
+}
+
+interface AdminUserSuccessSnackbarProps {
+  /** `null` keeps the snackbar closed; any string renders it. */
+  readonly message: string | null;
+  readonly onClose: () => void;
+}
+
+/**
+ * Success-feedback snackbar shared by the directory and the detail
+ * containers — identical open/close semantics (4s auto-hide, bottom-center
+ * anchor, filled success alert with an explicit close affordance) after
+ * every completed admin write (create / update / soft-delete / reactivate /
+ * clipboard copy).
+ */
+export function AdminUserSuccessSnackbar({ message, onClose }: AdminUserSuccessSnackbarProps): ReactNode {
+  return (
+    <Snackbar
+      open={message !== null}
+      autoHideDuration={4000}
+      onClose={onClose}
+      anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+    >
+      <Alert severity="success" variant="filled" onClose={onClose}>
+        {message}
+      </Alert>
+    </Snackbar>
   );
 }

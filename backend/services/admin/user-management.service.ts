@@ -52,14 +52,7 @@
  *    schema delta, the conditional `StudentTrialService.grantFreeTrial`
  *    call will be wired into the student-creation flow.
  */
-import { randomUUID } from "node:crypto";
-import {
-  AdminUserRepository,
-  ApplicantRepository,
-  ParentRepository,
-  StudentRepository,
-  UserRepository,
-} from "@/backend/db/repo";
+import { AdminUserRepository, UserRepository } from "@/backend/db/repo";
 import type {
   AdminUserDetailRow,
   AdminUserDirectoryRow,
@@ -82,6 +75,7 @@ import {
 } from "@/backend/lib/errors";
 import { logger } from "@/backend/lib/logger";
 import { AuditService } from "@/backend/services/admin/audit.service";
+import { createRoleChild, createStudentWithHandshakeRetry, isValidEmail } from "@/backend/services/shared";
 import type {
   AdminCreateUserSubmitInput,
   AdminUpdateUserPatchInput,
@@ -119,9 +113,6 @@ const MIN_PAGE = 1;
 const MIN_PAGE_SIZE = 1;
 const MAX_PAGE_SIZE = 100;
 const DEFAULT_PAGE_SIZE = 25;
-
-/** Bounded retry budget for handshake-code collision on student creation. */
-const HANDSHAKE_RETRY_LIMIT = 5;
 
 /** The `audit_logs.details` column ceiling — payloads are capped BEFORE insert. */
 const AUDIT_DETAILS_MAX_LENGTH = 2000;
@@ -177,60 +168,6 @@ function projectChangedFields(details: string | null): readonly string[] | null 
   } catch {
     return null;
   }
-}
-
-/**
- * Email shape validator — RFC-5322-lite (sufficient for the create contract;
- * the DB unique constraint is the authoritative guard). Two-step check
- * (split on `@` + verify domain has a dot) to avoid super-linear regex
- * backtracking.
- */
-function isValidEmail(email: string): boolean {
-  if (email.length === 0 || email.length > 254) return false;
-  const atIdx = email.indexOf("@");
-  if (atIdx < 1) return false;
-  if (atIdx !== email.lastIndexOf("@")) return false;
-  const local = email.slice(0, atIdx);
-  const domain = email.slice(atIdx + 1);
-  if (domain.length < 3) return false;
-  const dotIdx = domain.indexOf(".");
-  if (dotIdx < 1 || dotIdx === domain.length - 1) return false;
-  if (/\s/.test(local) || /\s/.test(domain)) return false;
-  return true;
-}
-
-/**
- * Generates a fresh `handshake_code` of the form `KSB-<8 uppercase alphanumeric>`.
- * Uses `crypto.randomUUID()` for entropy (matches the `varchar(50)` column
- * constraint with comfortable headroom). Pure — no I/O, no module-level
- * mutable state.
- */
-function generateHandshakeCode(): string {
-  const hex = randomUUID().replace(/-/g, "").toUpperCase();
-  return `KSB-${hex.slice(0, 8)}`;
-}
-
-/**
- * Detects a PostgreSQL unique-violation (`23505`) or SQLite equivalent on a
- * thrown error. Traverses the Drizzle `DrizzleQueryError.cause` chain to
- * find the original PG error code. Used by the handshake retry loop to
- * decide whether to retry vs. surface the error.
- */
-function isUniqueViolation(error: unknown): boolean {
-  let current: unknown = error;
-  const seen = new Set<unknown>();
-  while (current instanceof Error && !seen.has(current)) {
-    seen.add(current);
-    if ("code" in current && current.code === "23505") {
-      return true;
-    }
-    const message = current.message;
-    if (message.includes("UNIQUE constraint failed") || message.includes("SQLITE_CONSTRAINT_UNIQUE")) {
-      return true;
-    }
-    current = (current as { cause?: unknown }).cause;
-  }
-  return false;
 }
 
 /**
@@ -944,7 +881,15 @@ export namespace AdminUserManagementService {
         const insert = buildCreateUserInsert(input, passwordHash);
         const created = await UserRepository.create(insert, tx);
 
-        await createRoleChild(created.id, input.role, locale, tx);
+        await createRoleChild(created.id, input.role, tx, async (userId, childTx) => {
+          // Trial lane stays dormant on the admin surface — no grant call.
+          await createStudentWithHandshakeRetry(
+            userId,
+            childTx,
+            "admin user creation",
+            cause => new ConflictError("HANDSHAKE_EXHAUSTED", tErrors.adminUsers.handshakeExhausted, { cause })
+          );
+        });
 
         // Audit row shares the caller's transaction fate.
         await AuditService.createAuditLog(
@@ -960,82 +905,6 @@ export namespace AdminUserManagementService {
       // Map 23505 on `users.email` → localized ConflictError.
       throw translateDbError(error, t.authTranslations.emailAlreadyExists);
     }
-  }
-
-  /**
-   * Inserts the role-specific child row inside the caller's transaction.
-   *  - student → `students` row with zeroed balances + server-generated
-   *    `handshake_code` (bounded retry on unique violation). The trial
-   *    lane is dormant — no `balance_trial` column exists yet; the
-   *    conditional trial-grant call is omitted until the lane lands.
-   *  - teacher → `applicants` row with `status='pending'` (NO `teacher`
-   *    row — the certification step belongs to the verification loop).
-   *  - parent → `parents` row (PK only).
-   */
-  async function createRoleChild(
-    userId: number,
-    role: "student" | "teacher" | "parent",
-    locale: string,
-    tx: DBTransaction
-  ): Promise<void> {
-    switch (role) {
-      case "student": {
-        await createStudentWithHandshakeRetry(userId, locale, tx);
-        return;
-      }
-      case "teacher": {
-        await ApplicantRepository.create(userId, tx);
-        return;
-      }
-      case "parent": {
-        await ParentRepository.createForRegistration(userId, tx);
-        return;
-      }
-      default: {
-        const exhaustive: never = role;
-        throw new Error(`Unexpected role: ${String(exhaustive)}`);
-      }
-    }
-  }
-
-  /**
-   * Inserts the `students` row, retrying handshake-code generation on
-   * unique-violation up to `HANDSHAKE_RETRY_LIMIT` times. On exhaustion,
-   * throws `ConflictError` and logs via `logger.logDomainError` (never
-   * `console.*`).
-   */
-  async function createStudentWithHandshakeRetry(userId: number, locale: string, tx: DBTransaction): Promise<void> {
-    const tErrors = getServerTranslations(locale).errorsTranslations;
-    const attemptInsert = async (attempt: number, lastError: unknown): Promise<void> => {
-      if (attempt > HANDSHAKE_RETRY_LIMIT) {
-        logger.logDomainError("Handshake code retry budget exhausted during admin user creation", {
-          code: "HANDSHAKE_EXHAUSTED",
-          entity: "students",
-          entityId: userId,
-          attempts: String(HANDSHAKE_RETRY_LIMIT),
-        });
-        throw new ConflictError("HANDSHAKE_EXHAUSTED", tErrors.adminUsers.handshakeExhausted, {
-          cause: lastError instanceof Error ? lastError : undefined,
-        });
-      }
-      const handshakeCode = generateHandshakeCode();
-      try {
-        await StudentRepository.createForRegistration(userId, handshakeCode, tx);
-        return;
-      } catch (error) {
-        if (!isUniqueViolation(error)) {
-          throw error;
-        }
-        logger.logDomainError("Handshake code collision during admin user creation", {
-          code: "HANDSHAKE_COLLISION",
-          entity: "students",
-          entityId: userId,
-          attempt: String(attempt),
-        });
-        return attemptInsert(attempt + 1, error);
-      }
-    };
-    return attemptInsert(1, null);
   }
 
   /**

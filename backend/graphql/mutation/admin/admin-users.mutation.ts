@@ -35,22 +35,23 @@ import {
   AdminUserDetailPothosObject,
 } from "@/backend/graphql/pothos/admin";
 import { gqlSchemaBuilder } from "@/backend/graphql/pothos/builder";
-import { UnauthorizedError, ValidationError } from "@/backend/lib/errors";
+import { requirePositiveIntId } from "@/backend/graphql/shared";
+import { UnauthorizedError } from "@/backend/lib/errors";
 import { AdminUserManagementService } from "@/backend/services";
 
 /**
- * Positive-safe-integer guard for ID arguments. Rejects `0`, negatives,
- * `NaN`, non-integers, and out-of-`Number.MAX_SAFE_INTEGER` values BEFORE
- * any DB round-trip.
+ * Shared preamble for ID-scoped admin user mutations: enforces the
+ * authenticated actor and validates the positive-safe-integer `id` arg.
+ * Returns the validated target id alongside the actor's user id.
  */
-function requirePositiveIntId(value: number | undefined | null, field: string): number {
-  if (value === undefined || value === null) {
-    throw new ValidationError(`${field} is required`);
+function resolveAdminUserMutationTarget(
+  user: { readonly id: number } | null,
+  rawId: number
+): { id: number; actorId: number } {
+  if (!user) {
+    throw new UnauthorizedError("Authentication required.");
   }
-  if (!Number.isInteger(value) || value <= 0 || value > Number.MAX_SAFE_INTEGER) {
-    throw new ValidationError(`${field} must be a positive safe integer`);
-  }
-  return value;
+  return { id: requirePositiveIntId(rawId, "id"), actorId: user.id };
 }
 
 // Side-effect: register the `adminCreateUser` mutation field.
@@ -104,11 +105,7 @@ gqlSchemaBuilder.mutationField("adminUpdateUser", t =>
       },
     },
     resolve: async (_root, args, ctx) => {
-      if (!ctx.user) {
-        throw new UnauthorizedError("Authentication required.");
-      }
-      const id = requirePositiveIntId(args.id, "id");
-      const actorId = ctx.user.id;
+      const { id, actorId } = resolveAdminUserMutationTarget(ctx.user, args.id);
       const { input } = args;
       return AdminUserManagementService.updateUser(
         id,
@@ -141,11 +138,7 @@ gqlSchemaBuilder.mutationField("adminSetUserDeleted", t =>
       },
     },
     resolve: async (_root, args, ctx) => {
-      if (!ctx.user) {
-        throw new UnauthorizedError("Authentication required.");
-      }
-      const id = requirePositiveIntId(args.id, "id");
-      const actorId = ctx.user.id;
+      const { id, actorId } = resolveAdminUserMutationTarget(ctx.user, args.id);
       return AdminUserManagementService.setUserDeleted(id, args.deleted, actorId, ctx.locale);
     },
   })

@@ -36,23 +36,9 @@ import {
   AdminUserStatsPothosObject,
 } from "@/backend/graphql/pothos/admin";
 import { gqlSchemaBuilder } from "@/backend/graphql/pothos/builder";
+import { requirePositiveIntId } from "@/backend/graphql/shared";
 import { UnauthorizedError, ValidationError } from "@/backend/lib/errors";
 import { AdminUserManagementService } from "@/backend/services";
-
-/**
- * Positive-safe-integer guard for ID arguments. Rejects `0`, negatives,
- * `NaN`, non-integers, and out-of-`Number.MAX_SAFE_INTEGER` values BEFORE
- * any DB round-trip.
- */
-function requirePositiveIntId(value: number | undefined | null, field: string): number {
-  if (value === undefined || value === null) {
-    throw new ValidationError(`${field} is required`);
-  }
-  if (!Number.isInteger(value) || value <= 0 || value > Number.MAX_SAFE_INTEGER) {
-    throw new ValidationError(`${field} must be a positive safe integer`);
-  }
-  return value;
-}
 
 /**
  * Positive-safe-integer guard for pagination arguments. `page` must be ≥ 1;

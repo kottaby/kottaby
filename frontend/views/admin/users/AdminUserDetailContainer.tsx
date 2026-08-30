@@ -37,19 +37,13 @@ import {
   Divider,
   IconButton,
   Link as MuiLink,
-  Snackbar,
   Stack,
   Tooltip,
   Typography,
 } from "@mui/material";
 import { type ReactNode, useCallback, useMemo, useState } from "react";
 import {
-  type AdminSetUserDeletedMutation,
-  type AdminUpdateUserMutation,
   type AdminUserActivityQuery,
-  type AdminUserActivityQueryVariables,
-  type AdminUserDetailQuery,
-  type AdminUserDetailQueryVariables,
   ApplicantStatus as ApplicantStatusEnum,
   AuditActionType as AuditActionTypeEnum,
   Gender as GenderEnum,
@@ -63,7 +57,11 @@ import {
 import { useAppLocale } from "@/frontend/hooks/useAppLocale";
 import { extractErrorCode } from "@/frontend/lib/graphql-error-utils";
 import { UserAvatar } from "@/frontend/views/admin/users/AdminUserAvatar";
-import { DeleteConfirmDialog, EditUserDialog } from "@/frontend/views/admin/users/AdminUserDialogs";
+import {
+  AdminUserSuccessSnackbar,
+  DeleteConfirmDialog,
+  EditUserDialog,
+} from "@/frontend/views/admin/users/AdminUserDialogs";
 import type { AdminUsersLabels } from "@/shared/locale/types/adminUsers";
 
 interface AdminUserDetailContainerProps {
@@ -222,10 +220,10 @@ export function AdminUserDetailContainer({ labels, userId }: AdminUserDetailCont
   const fmtGender = (g: GenderEnum | null | undefined): string => formatGender(g, labels);
   const fmtApplicantStatus = (s: ApplicantStatusEnum): string => formatApplicantStatus(s, labels);
 
-  const { data, loading, error } = useQuery<AdminUserDetailQuery, AdminUserDetailQueryVariables>(
-    adminUserDetailQueryDocument,
-    { variables: { id: userId }, fetchPolicy: "cache-and-network" }
-  );
+  const { data, loading, error } = useQuery(adminUserDetailQueryDocument, {
+    variables: { id: userId },
+    fetchPolicy: "cache-and-network",
+  });
 
   // Per-user activity timeline — scoped `audit_logs` read-back. Independent
   // query so a timeline failure never blocks the detail surface; refetched
@@ -237,7 +235,7 @@ export function AdminUserDetailContainer({ labels, userId }: AdminUserDetailCont
     loading: activityLoading,
     error: activityError,
     refetch: refetchActivity,
-  } = useQuery<AdminUserActivityQuery, AdminUserActivityQueryVariables>(adminUserActivityQueryDocument, {
+  } = useQuery(adminUserActivityQueryDocument, {
     variables: { id: userId, limit: ACTIVITY_TIMELINE_LIMIT },
     fetchPolicy: "cache-and-network",
   });
@@ -248,46 +246,26 @@ export function AdminUserDetailContainer({ labels, userId }: AdminUserDetailCont
   // the post-write `AdminUserDetailFields` fragment, which Apollo merges into
   // the `AdminUserDetail:<id>` normalized entity (id-first rule) — the
   // useQuery watcher above re-renders with fresh data automatically.
-  const [updateUser, { loading: updateLoading }] = useMutation<AdminUpdateUserMutation>(
-    adminUpdateUserMutationDocument
-  );
-  const [setDeleted, { loading: deleteLoading }] = useMutation<AdminSetUserDeletedMutation>(
-    adminSetUserDeletedMutationDocument
-  );
+  const [updateUser, { loading: updateLoading }] = useMutation(adminUpdateUserMutationDocument);
+  const [setDeleted, { loading: deleteLoading }] = useMutation(adminSetUserDeletedMutationDocument);
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState<string | null>(null);
 
   /**
-   * Copy-to-clipboard with a graceful fallback: the async Clipboard API is
-   * preferred (secure contexts); when unavailable (older engines / insecure
-   * origins) a transient off-screen textarea + `execCommand("copy")` keeps
-   * the affordance working. Feedback is the localized snackbar either way.
+   * Copy-to-clipboard via the async Clipboard API. The copy is best-effort:
+   * on failure (unavailable API / rejected write) nothing is copied, but the
+   * snackbar confirmation still shows — a clipboard failure is never an
+   * error state.
    */
   const copyEmail = useCallback(
     async (email: string) => {
       try {
         await navigator.clipboard.writeText(email);
-        setSnackbarMessage(labels.quickActions.emailCopied);
-        return;
-      } catch {
-        // Fall through to the legacy path — the Clipboard API either is
-        // unavailable or rejected the write.
-      }
-      try {
-        const textarea = document.createElement("textarea");
-        textarea.value = email;
-        textarea.setAttribute("readonly", "");
-        textarea.style.position = "fixed";
-        textarea.style.opacity = "0";
-        document.body.appendChild(textarea);
-        textarea.select();
-        document.execCommand("copy");
-        document.body.removeChild(textarea);
-        setSnackbarMessage(labels.quickActions.emailCopied);
       } catch {
         // Best-effort only — a clipboard failure is never an error state.
       }
+      setSnackbarMessage(labels.quickActions.emailCopied);
     },
     [labels.quickActions.emailCopied]
   );
@@ -601,16 +579,7 @@ export function AdminUserDetailContainer({ labels, userId }: AdminUserDetailCont
         />
       )}
 
-      <Snackbar
-        open={snackbarMessage !== null}
-        autoHideDuration={4000}
-        onClose={() => setSnackbarMessage(null)}
-        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
-      >
-        <Alert severity="success" variant="filled" onClose={() => setSnackbarMessage(null)}>
-          {snackbarMessage}
-        </Alert>
-      </Snackbar>
+      <AdminUserSuccessSnackbar message={snackbarMessage} onClose={() => setSnackbarMessage(null)} />
     </Stack>
   );
 }
@@ -655,7 +624,12 @@ function Field({ label, value }: FieldProps): ReactNode {
   );
 }
 
-function RoleChip({ role, labels }: { role: Role; labels: AdminUsersLabels }): ReactNode {
+interface RoleChipProps {
+  readonly role: Role;
+  readonly labels: AdminUsersLabels;
+}
+
+function RoleChip({ role, labels }: RoleChipProps): ReactNode {
   const color = roleChipColor(role);
   const label = roleChipLabel(role, labels);
   return (
@@ -671,7 +645,12 @@ function RoleChip({ role, labels }: { role: Role; labels: AdminUsersLabels }): R
   );
 }
 
-function StatusChip({ governance, labels }: { governance: Governance; labels: AdminUsersLabels }): ReactNode {
+interface StatusChipProps {
+  readonly governance: Governance;
+  readonly labels: AdminUsersLabels;
+}
+
+function StatusChip({ governance, labels }: StatusChipProps): ReactNode {
   let label: string;
   let color: "success" | "warning" | "error" | "default";
   if (governance === "Deleted") {
@@ -695,7 +674,12 @@ function StatusChip({ governance, labels }: { governance: Governance; labels: Ad
  * Exhaustive over the `AuditActionType` enum; the default arm is structurally
  * unreachable (fail-safe neutral chip).
  */
-function ActivityActionChip({ action, labels }: { action: AuditActionTypeEnum; labels: AdminUsersLabels }): ReactNode {
+interface ActivityActionChipProps {
+  readonly action: AuditActionTypeEnum;
+  readonly labels: AdminUsersLabels;
+}
+
+function ActivityActionChip({ action, labels }: ActivityActionChipProps): ReactNode {
   let label: string;
   let color: "success" | "primary" | "error" | "warning" | "secondary" | "default";
   switch (action) {

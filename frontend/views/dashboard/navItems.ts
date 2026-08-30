@@ -44,21 +44,27 @@ export interface DashboardNavItem {
  * (gateway 301s `/dashboard` → `/dashboard/`, Next.js 308s it back — see
  * `frontend/lib/auth/roleDashboardRoute.ts`).
  *
- * Routes that don't have a real page yet resolve to the `app/(dashboard)/[feature]/page.tsx`
- * catch-all, which renders the `ComingSoonView`. Real routes (Dashboard,
- * Profile) take precedence over the catch-all per Next.js route resolution.
+ * Routes point at their canonical role-scoped pages; routes whose pages have
+ * not shipped yet fall through to the `app/(dashboard)/[feature]/page.tsx`
+ * catch-all, which renders the `ComingSoonView`.
+ *
+ * Canonical retargets (per sprint plans):
+ *  - Sessions → `/student/sessions` / `/teacher/sessions` (DEV3-004 — a
+ *    RETARGET of the former shared `/sessions` catch-all link)
+ *  - Admin Users → `/admin/users` (DEV3-016 — the directory page exists)
+ *  - Admin Plans → `/admin/plans` (DEV1-005)
  */
 const NAV_ITEMS_BY_ROLE: Record<UserRole, readonly DashboardNavItem[]> = {
   [UserRole.Student]: [
     { route: "/student/dashboard", labelKey: "dashboard", Icon: DashboardIcon },
-    { route: "/sessions", labelKey: "sessions", Icon: SessionsIcon },
+    { route: "/student/sessions", labelKey: "sessions", Icon: SessionsIcon },
     { route: "/subscriptions", labelKey: "subscriptions", Icon: SubscriptionsIcon },
     { route: "/homework", labelKey: "homework", Icon: HomeworkIcon },
     { route: "/profile", labelKey: "profile", Icon: ProfileIcon },
   ],
   [UserRole.Teacher]: [
     { route: "/teacher/dashboard", labelKey: "dashboard", Icon: DashboardIcon },
-    { route: "/sessions", labelKey: "sessions", Icon: SessionsIcon },
+    { route: "/teacher/sessions", labelKey: "sessions", Icon: SessionsIcon },
     { route: "/schedule", labelKey: "schedule", Icon: ScheduleIcon },
     { route: "/wallet", labelKey: "wallet", Icon: WalletIcon },
     { route: "/profile", labelKey: "profile", Icon: ProfileIcon },
@@ -70,10 +76,10 @@ const NAV_ITEMS_BY_ROLE: Record<UserRole, readonly DashboardNavItem[]> = {
   ],
   [UserRole.Admin]: [
     { route: "/admin/dashboard", labelKey: "dashboard", Icon: DashboardIcon },
-    { route: "/users", labelKey: "users", Icon: UsersIcon },
+    { route: "/admin/users", labelKey: "users", Icon: UsersIcon },
     { route: "/teachers", labelKey: "teachers", Icon: TeachersIcon },
     { route: "/students", labelKey: "students", Icon: StudentsIcon },
-    { route: "/plans", labelKey: "plans", Icon: PlansIcon },
+    { route: "/admin/plans", labelKey: "plans", Icon: PlansIcon },
     { route: "/audit", labelKey: "audit", Icon: AuditIcon },
     { route: "/profile", labelKey: "profile", Icon: ProfileIcon },
   ],

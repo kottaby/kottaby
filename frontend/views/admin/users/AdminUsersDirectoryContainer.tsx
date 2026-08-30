@@ -53,7 +53,6 @@ import {
   Link as MuiLink,
   Select,
   Skeleton,
-  Snackbar,
   Stack,
   Table,
   TableBody,
@@ -74,9 +73,6 @@ import { type ReactNode, type SubmitEventHandler, useState } from "react";
 // remaining specifiers are types-only and use the inline `type` keyword
 // (keeps the single-import form clean under `verbatimModuleSyntax`).
 import {
-  type AdminCreateUserMutation,
-  type AdminSetUserDeletedMutation,
-  type AdminUpdateUserMutation,
   AdminUserGovernanceFilter,
   type AdminUserStatsQuery,
   type AdminUsersQuery,
@@ -90,9 +86,15 @@ import {
   adminUserStatsQueryDocument,
   adminUsersQueryDocument,
 } from "@/frontend/graphql/sharedDocuments/admin";
-import { extractErrorCode, extractErrorMessage, extractFieldErrors } from "@/frontend/lib/graphql-error-utils";
+import { extractErrorCode } from "@/frontend/lib/graphql-error-utils";
 import { UserAvatar } from "@/frontend/views/admin/users/AdminUserAvatar";
-import { DeleteConfirmDialog, EditUserDialog } from "@/frontend/views/admin/users/AdminUserDialogs";
+import {
+  AdminUserGenderSelect,
+  AdminUserSuccessSnackbar,
+  DeleteConfirmDialog,
+  EditUserDialog,
+} from "@/frontend/views/admin/users/AdminUserDialogs";
+import { useAdminUserFormFeedback } from "@/frontend/views/admin/users/useAdminUserFormFeedback";
 import type { AdminUsersLabels } from "@/shared/locale/types/adminUsers";
 
 type AdminUserListItem = AdminUsersQuery["adminUsers"]["items"][number];
@@ -225,14 +227,14 @@ export function AdminUsersDirectoryContainer({ labels }: AdminUsersDirectoryCont
     pageSize,
   };
 
-  const { data, loading, error } = useQuery<AdminUsersQuery>(adminUsersQueryDocument, {
+  const { data, loading, error } = useQuery(adminUsersQueryDocument, {
     variables,
     fetchPolicy: "cache-and-network",
   });
 
   // Overview-stats strip — refreshed alongside the directory after every
   // write (all three mutations list the stats document in `refetchQueries`).
-  const { data: statsData, loading: statsLoading } = useQuery<AdminUserStatsQuery>(adminUserStatsQueryDocument, {
+  const { data: statsData, loading: statsLoading } = useQuery(adminUserStatsQueryDocument, {
     fetchPolicy: "cache-and-network",
   });
 
@@ -240,18 +242,18 @@ export function AdminUsersDirectoryContainer({ labels }: AdminUsersDirectoryCont
   // strip so the counters stay honest without a manual reload.
   const refetchAfterWrite = [{ query: adminUsersQueryDocument, variables }, { query: adminUserStatsQueryDocument }];
 
-  const [createUser, { loading: createLoading }] = useMutation<AdminCreateUserMutation>(
-    adminCreateUserMutationDocument,
-    { refetchQueries: refetchAfterWrite, awaitRefetchQueries: true }
-  );
-  const [updateUser, { loading: updateLoading }] = useMutation<AdminUpdateUserMutation>(
-    adminUpdateUserMutationDocument,
-    { refetchQueries: refetchAfterWrite, awaitRefetchQueries: true }
-  );
-  const [setDeleted, { loading: deleteLoading }] = useMutation<AdminSetUserDeletedMutation>(
-    adminSetUserDeletedMutationDocument,
-    { refetchQueries: refetchAfterWrite, awaitRefetchQueries: true }
-  );
+  const [createUser, { loading: createLoading }] = useMutation(adminCreateUserMutationDocument, {
+    refetchQueries: refetchAfterWrite,
+    awaitRefetchQueries: true,
+  });
+  const [updateUser, { loading: updateLoading }] = useMutation(adminUpdateUserMutationDocument, {
+    refetchQueries: refetchAfterWrite,
+    awaitRefetchQueries: true,
+  });
+  const [setDeleted, { loading: deleteLoading }] = useMutation(adminSetUserDeletedMutationDocument, {
+    refetchQueries: refetchAfterWrite,
+    awaitRefetchQueries: true,
+  });
 
   const items = data?.adminUsers.items ?? [];
   const totalCount = data?.adminUsers.totalCount ?? 0;
@@ -373,16 +375,7 @@ export function AdminUsersDirectoryContainer({ labels }: AdminUsersDirectoryCont
         />
       )}
 
-      <Snackbar
-        open={snackbarMessage !== null}
-        autoHideDuration={4000}
-        onClose={() => setSnackbarMessage(null)}
-        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
-      >
-        <Alert severity="success" variant="filled" onClose={() => setSnackbarMessage(null)}>
-          {snackbarMessage}
-        </Alert>
-      </Snackbar>
+      <AdminUserSuccessSnackbar message={snackbarMessage} onClose={() => setSnackbarMessage(null)} />
     </Stack>
   );
 }
@@ -400,7 +393,10 @@ interface StatsBarProps {
 /**
  * Renders the numeric value cell of a stats card. Uses early-return
  * branches instead of a nested ternary so the JSX in `StatsBar` stays
- * declarative (sonarjs/no-nested-conditional).
+ * declarative (sonarjs/no-nested-conditional). Every branch returns a JSX
+ * element — the scalar value and the em-dash fallback are wrapped in
+ * fragments so the function's return type is uniform
+ * (sonarjs/function-return-type).
  *
  * Priority order: loading skeleton → loaded value → fallback em-dash
  * (the em-dash covers both "no stats yet" and "stats present but field
@@ -411,9 +407,9 @@ function renderStatValue(loading: boolean, hasStats: boolean, value: number | un
     return <Skeleton variant="text" width={28} sx={{ display: "inline-block" }} />;
   }
   if (hasStats) {
-    return value;
+    return <>{value}</>;
   }
-  return "—";
+  return <>—</>;
 }
 
 /**
@@ -843,7 +839,7 @@ function DirectoryTable(props: DirectoryTableProps): ReactNode {
   );
 }
 
-function RoleChip({ role, labels }: { role: Role; labels: AdminUsersLabels }): ReactNode {
+function RoleChip({ role, labels }: Readonly<{ role: Role; labels: AdminUsersLabels }>): ReactNode {
   // Filled (not outlined) variant — outlined `color="primary"` on a
   // white cell fails WCAG AA contrast (the outlined variant renders
   // only the chip border + text in the theme color, leaving the
@@ -868,7 +864,7 @@ function RoleChip({ role, labels }: { role: Role; labels: AdminUsersLabels }): R
   return <Chip size="small" color={color} label={label} variant="filled" />;
 }
 
-function StatusChip({ user, labels }: { user: AdminUserListItem; labels: AdminUsersLabels }): ReactNode {
+function StatusChip({ user, labels }: Readonly<{ user: AdminUserListItem; labels: AdminUsersLabels }>): ReactNode {
   let label: string;
   let color: "success" | "warning" | "error" | "default";
   if (user.isDeleted) {
@@ -925,18 +921,12 @@ function CreateUserDialog({ labels, loading, onClose, onSubmit }: CreateDialogPr
     country: "",
     role: "Student" as "Student" | "Teacher" | "Parent",
   });
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-  // Top-level fallback for rejections WITHOUT a field payload (e.g. a
-  // duplicate-email CONFLICT) — without it the dialog would stay open with
-  // zero feedback, leaving the admin to guess why nothing happened.
-  const [formError, setFormError] = useState<string | null>(null);
+  const { fieldErrors, formError, runWithFeedback } = useAdminUserFormFeedback();
 
   const handleSubmit: SubmitEventHandler<HTMLFormElement> = async e => {
     e.preventDefault();
-    setFieldErrors({});
-    setFormError(null);
-    try {
-      await onSubmit({
+    await runWithFeedback(() =>
+      onSubmit({
         fullName: form.fullName,
         email: form.email,
         phone: form.phone,
@@ -944,17 +934,8 @@ function CreateUserDialog({ labels, loading, onClose, onSubmit }: CreateDialogPr
         gender: form.gender || undefined,
         country: form.country,
         role: form.role,
-      });
-    } catch (err) {
-      // `err` is `unknown` in a catch block (strict mode) — no `as unknown`
-      // cast needed before passing to the error extractor helpers.
-      const errors = extractFieldErrors(err);
-      if (Object.keys(errors).length > 0) {
-        setFieldErrors(errors);
-      } else {
-        setFormError(extractErrorMessage(err));
-      }
-    }
+      })
+    );
   };
 
   return (
@@ -998,20 +979,17 @@ function CreateUserDialog({ labels, loading, onClose, onSubmit }: CreateDialogPr
               error={!!fieldErrors.password}
               helperText={fieldErrors.password}
             />
-            <FormControl fullWidth>
-              <InputLabel htmlFor={CREATE_GENDER_ID}>{labels.createDialog.gender}</InputLabel>
-              <Select
-                id={CREATE_GENDER_ID}
-                value={form.gender}
-                label={labels.createDialog.gender}
-                onChange={e => setForm({ ...form, gender: e.target.value as "" | "Male" | "Female" | "Other" })}
-              >
-                <MenuItem value="">{labels.genderOptions.unspecified}</MenuItem>
-                <MenuItem value="Male">{labels.genderOptions.male}</MenuItem>
-                <MenuItem value="Female">{labels.genderOptions.female}</MenuItem>
-                <MenuItem value="Other">{labels.genderOptions.other}</MenuItem>
-              </Select>
-            </FormControl>
+            <AdminUserGenderSelect
+              labels={labels}
+              id={CREATE_GENDER_ID}
+              label={labels.createDialog.gender}
+              value={form.gender}
+              onChange={gender => setForm({ ...form, gender })}
+              // The create dialog never projected a gender field error before
+              // the extraction — `undefined` keeps that behavior. (The edit
+              // dialog passes `fieldErrors.gender` through the same prop.)
+              error={undefined}
+            />
             <TextField
               label={labels.createDialog.country}
               value={form.country}

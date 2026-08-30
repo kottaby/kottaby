@@ -15,14 +15,9 @@
  * object in future tickets — GraphQL's selection mechanism lets clients
  * request only what they need.
  */
-import { toGender } from "@/backend/enum/users/gender.enum";
-import { toUserRole } from "@/backend/enum/users/user-role.enum";
 import { gqlSchemaBuilder } from "@/backend/graphql/pothos/builder";
-import {
-  GenderPothosEnum,
-  RecitationReadingPothosEnum,
-  UserRolePothosEnum,
-} from "@/backend/graphql/pothos/shared/enum.pothos";
+import { RecitationReadingPothosEnum } from "@/backend/graphql/pothos/shared/enum.pothos";
+import { nullableUserGenderField, userRoleField } from "@/backend/graphql/pothos/shared/userFieldHelpers";
 import type { RegistrationReturnType } from "@/backend/types";
 
 /**
@@ -41,33 +36,12 @@ export const UserPothosObject = gqlSchemaBuilder.objectRef<RegistrationReturnTyp
     // Nullable — country is optional in the schema.
     country: t.exposeString("country", { nullable: true }),
     // Nullable — gender is optional in the schema.
-    gender: t.field({
-      type: GenderPothosEnum,
-      nullable: true,
-      resolve: parent => {
-        if (!parent.gender) return null;
-        const gender = toGender(parent.gender);
-        if (gender === null) {
-          throw new Error(`Unexpected user gender: ${parent.gender}`);
-        }
-        return gender;
-      },
-    }),
-    role: t.field({
-      type: UserRolePothosEnum,
-      // `RegistrationReturnType.role` is the `userRole` pgEnum string union
-      // ("admin" | "teacher" | "student" | "parent"); map to the `UserRole`
-      // TS enum for Pothos's `ValuesFromEnum` slot. Runtime-equivalent.
-      // Uses the shared `toUserRole` helper so an unexpected value surfaces
-      // as a resolver error rather than an unsafe cast.
-      resolve: parent => {
-        const role = toUserRole(parent.role);
-        if (role === null) {
-          throw new Error(`Unexpected user role: ${parent.role}`);
-        }
-        return role;
-      },
-    }),
+    gender: nullableUserGenderField(t),
+    // `RegistrationReturnType.role` is the `userRole` pgEnum string union
+    // ("admin" | "teacher" | "student" | "parent"); mapped to the `UserRole`
+    // TS enum for Pothos's `ValuesFromEnum` slot by the shared
+    // `resolveUserRole` resolver (fail-closed on unexpected values).
+    role: userRoleField(t),
     // Echo the validated preferred recitation reading (contract
     // metadata — NOT persisted to the `recitation` table). Nullable: null when
     // the user didn't select a reading during registration.
