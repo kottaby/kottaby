@@ -333,7 +333,7 @@ describe("useNotificationRealtime (Happy DOM, mocked WebSocket)", () => {
 
     renderHost(client, locale);
     const socket = currentSocket();
-    expect(socket.url).toBe("ws://localhost:3001");
+    expect(socket.url).toBe("ws://localhost:3101");
 
     act(() => {
       socket.simulateOpen();

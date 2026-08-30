@@ -3,7 +3,7 @@
 /**
  * Locale-aware Emotion cache provider for the MUI theme tree.
  *
- * Creates TWO caches:
+ * Two cache configurations:
  *  - `mui-ltr` — standard cache (no RTL plugin) for English / LTR layouts.
  *  - `mui-rtl` — cache with `stylis-plugin-rtl` for Arabic / RTL layouts.
  *
@@ -13,45 +13,49 @@
  * direction but NOT physical spacing — causing TextField icons, padding, and
  * adornments to appear on the wrong side.
  *
- * The cache is selected based on the current locale (read from
- * `LocaleContext`). When the locale changes, the cache swaps, causing a
- * one-time style re-injection (acceptable for a locale switch).
+ * SSR/hydration: styles are collected into `<head>` via MUI's
+ * `AppRouterCacheProvider` (`useServerInsertedHTML`) instead of Emotion's
+ * default inline `<style data-emotion>` nodes at the component position. The
+ * inline approach produced a hydration mismatch on every full-document load:
+ * the server HTML carried the `<style>` siblings inline in `<body>` while the
+ * client's first render emitted none (client-side insertion targets `<head>`),
+ * so React discarded and regenerated the entire subtree — killing event
+ * handlers until the recovery re-render completed.
  *
- * NOTE on `nonce`: reserved for future CSP support (see module note in the
- * original static cache). Not currently applied.
+ * The cache is selected by the current locale (`LocaleContext`, seeded from
+ * the `NEXT_LOCALE` cookie by the root layout). `AppRouterCacheProvider`
+ * captures its options at mount, so the provider is keyed by `locale` — a
+ * locale switch (which always does a full navigation via /api/set-locale)
+ * remounts the provider with a fresh cache.
+ *
+ * NOTE on `nonce`: passed through to the Emotion cache for CSP support.
  */
-import createCache, { type EmotionCache } from "@emotion/cache";
-import { CacheProvider } from "@emotion/react";
+import type { Options as EmotionCacheOptions } from "@emotion/cache";
+import { AppRouterCacheProvider } from "@mui/material-nextjs/v16-appRouter";
 import { type ReactNode, useMemo } from "react";
 import { prefixer } from "stylis";
 import rtlPlugin from "stylis-plugin-rtl";
 import { useAppLocale } from "@/frontend/hooks/useAppLocale";
 
-let ltrCache: EmotionCache | null = null;
-let rtlCache: EmotionCache | null = null;
-
-function getLtrCache(): EmotionCache {
-  ltrCache ??= createCache({ key: "mui-ltr", prepend: true });
-  return ltrCache;
-}
-
-function getRtlCache(): EmotionCache {
-  rtlCache ??= createCache({
-    key: "mui-rtl",
-    prepend: true,
-    stylisPlugins: [prefixer, rtlPlugin],
-  });
-  return rtlCache;
+function getCacheOptions(locale: string): EmotionCacheOptions {
+  if (locale === "ar") {
+    return { key: "mui-rtl", prepend: true, stylisPlugins: [prefixer, rtlPlugin] };
+  }
+  return { key: "mui-ltr", prepend: true };
 }
 
 interface EmotionCacheProviderProps {
   readonly children: ReactNode;
-  /** CSP nonce — reserved for future CSP support. */
+  /** CSP nonce — forwarded to the Emotion cache. */
   readonly nonce?: string;
 }
 
-export default function EmotionCacheProvider({ children }: Readonly<EmotionCacheProviderProps>) {
+export default function EmotionCacheProvider({ children, nonce }: Readonly<EmotionCacheProviderProps>) {
   const locale = useAppLocale();
-  const cache = useMemo(() => (locale === "ar" ? getRtlCache() : getLtrCache()), [locale]);
-  return <CacheProvider value={cache}>{children}</CacheProvider>;
+  const options = useMemo(() => ({ ...getCacheOptions(locale), nonce }), [locale, nonce]);
+  return (
+    <AppRouterCacheProvider key={locale} options={options}>
+      {children}
+    </AppRouterCacheProvider>
+  );
 }
