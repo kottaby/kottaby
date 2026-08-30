@@ -1,7 +1,8 @@
-import { boolean, decimal, index, integer, pgTable, timestamp } from "drizzle-orm/pg-core";
+import { boolean, decimal, index, integer, pgTable, timestamp, varchar } from "drizzle-orm/pg-core";
 import { sessionIntent, sessionStatus, sessionType } from "@/backend/db/schema/enums";
 import { students } from "@/backend/db/schema/students/students";
 import { teacher } from "@/backend/db/schema/teachers/teacher";
+import type { HeldBalanceLane } from "@/backend/enum/scheduling/held-balance-lane.enum";
 
 /**
  * Session table (`session`).
@@ -19,7 +20,11 @@ import { teacher } from "@/backend/db/schema/teachers/teacher";
  *
  * Financial escrow: `fee` is the platform-set session fee (nullable
  * decimal); `fee_held` flags whether the fee is currently in escrow (held at
- * request, decremented at completion). Dual confirmation:
+ * request, decremented at completion). `held_balance_lane` records which
+ * student balance lane funded the hold ('trial' | 'hifz' | 'tajweed',
+ * nullable varchar — NULL while no fee is held and after the hold is
+ * released or consumed; a cancellation refund always returns to the same
+ * lane that paid). Dual confirmation:
  * `confirmed_by_student_at` + `confirmed_by_teacher_at` track each side's
  * confirmation; `confirmation_deadline` is the 24h window from request.
  *
@@ -44,6 +49,7 @@ export const session = pgTable(
     intent: sessionIntent("intent"),
     fee: decimal("fee", { precision: 10, scale: 2 }),
     feeHeld: boolean("fee_held").default(false),
+    heldBalanceLane: varchar("held_balance_lane", { length: 20 }).$type<HeldBalanceLane>(),
     startedAt: timestamp("started_at"),
     endedAt: timestamp("ended_at"),
     confirmedByStudentAt: timestamp("confirmed_by_student_at"),

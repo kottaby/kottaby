@@ -74,16 +74,16 @@
 
 ### 1.2 — Schema Deltas (REQ-013, push-only)
 
-- [ ] 1.2 [Schema: `session.held_balance_lane` column + `session_request_idempotency` table]
+- [x] 1.2 [Schema: `session.held_balance_lane` column + `session_request_idempotency` table]
   - **Files:** UPDATE `backend/db/schema/classes/session.ts` (ADD `heldBalanceLane: varchar("held_balance_lane", { length: 20 }).$type<HeldBalanceLane>()` — nullable, no CHECK, no index); CREATE `backend/db/schema/classes/session-request-idempotency.ts` (`id` identity PK; `idempotencyKey varchar(128) NOT NULL` + unique; `userId → users.id ON DELETE CASCADE`; `sessionId → session.id ON DELETE SET NULL`; `createdAt defaultNow()`; user-id index); UPDATE `backend/db/schema/classes/index.ts` barrel.
   - Apply via `bun run db push` ONLY — no custom SQL migration, no `db reset`/`cleanGenerate` (`docs/DATABASE_MIGRATIONS.md`).
   - Verify `git diff backend/db/schema/** backend/db/migration/**` contains EXACTLY these two artifacts.
   - _Requirements: REQ-013, REQ-045_
-  - [ ] 1.2.QL **Quality Loop**: sub-loop on both schema files (exit 0)
-  - [ ] 1.2.TE **Test Engineering**: Tier 1 — column presence/type round-trip (insert with/without lane; `$inferSelect` yields `HeldBalanceLane | null`); Tier 2 — key at 128-char boundary accepted, 129 rejected; Tier 3 — FK cascade/delete-set-null behavior probes; Tier 4 — nothing in schema is client-reachable. `runInRollback` discipline.
-  - [ ] 1.2.SEC **Security & Tenancy Audit**: claim table keyed by key + userId (key is opaque ≤128, never logged); FK cascade preserves INV-U4-adjacent cleanup; no oracle columns.
-  - [ ] 1.2.SR **Semantic Review**: sole-ground-truth discipline; `.$type<>()` flows enum into inference (zero downstream casts); no inline `--` in any `sql` (none present).
-  - [ ] 1.2.IV **Instruction Verification**: `backend/db/schema/AGENTS.md`, `docs/DATABASE_MIGRATIONS.md`.
+  - [x] 1.2.QL **Quality Loop**: sub-loop on both schema files (exit 0)
+  - [x] 1.2.TE **Test Engineering**: Tier 1 — column presence/type round-trip (insert with/without lane; `$inferSelect` yields `HeldBalanceLane | null`); Tier 2 — key at 128-char boundary accepted, 129 rejected; Tier 3 — FK cascade/delete-set-null behavior probes; Tier 4 — nothing in schema is client-reachable. `runInRollback` discipline.
+  - [x] 1.2.SEC **Security & Tenancy Audit**: claim table keyed by key + userId (key is opaque ≤128, never logged); FK cascade preserves INV-U4-adjacent cleanup; no oracle columns.
+  - [x] 1.2.SR **Semantic Review**: sole-ground-truth discipline; `.$type<>()` flows enum into inference (zero downstream casts); no inline `--` in any `sql` (none present).
+  - [x] 1.2.IV **Instruction Verification**: `backend/db/schema/AGENTS.md`, `docs/DATABASE_MIGRATIONS.md`.
   - Write `outcome/1.2-outcome.md`.
 
 ### 1.3 — Canonical Types Extensions
