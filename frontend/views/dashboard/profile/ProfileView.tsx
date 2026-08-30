@@ -669,7 +669,7 @@ function LanguagePreferenceCard({ t }: Readonly<LanguagePreferenceCardProps>): R
             color: theme.palette.text.secondary,
           })}
         >
-          {savedDiffers && persistedLocale !== null ? t.languageSaved(languageName(persistedLocale)) : t.languageNotice}
+          {savedDiffers ? t.languageSaved(languageName(persistedLocale)) : t.languageNotice}
         </Typography>
       </CardContent>
     </Card>
