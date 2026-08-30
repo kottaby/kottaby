@@ -23,4 +23,11 @@ export const errorsAr: ErrorsLabels = {
   applicantCooldownActive: "يمكنك إعادة التقديم للتحقق كمعلم قرآن بعد {cooldownUntil}.",
   applicantStatusCorrupt: "تعذر قراءة حالة طلبك. يرجى التواصل مع فريق الدعم.",
   trialAlreadyGranted: "تم منح رصيد الجلسة التجريبية لهذا الطالب مسبقًا.",
+  sessionNotFound: "لم يتم العثور على الجلسة المطلوبة.",
+  sessionInvalidTransition: "لا يمكن تنفيذ هذا الإجراء على الجلسة في حالتها الحالية.",
+  teacherNotCertified: "المعلم المحدد غير معتمد حالياً.",
+  teacherNotFound: "لم يتم العثور على المعلم المحدد.",
+  insufficientBalance: "رصيدك غير كافٍ لإتمام هذا الطلب.",
+  idempotencyKeyRequired: "مفتاح منع تكرار الطلب مفقود. يرجى إعادة المحاولة.",
+  invalidSessionIntent: "غرض الجلسة المطلوب غير صالح.",
 };

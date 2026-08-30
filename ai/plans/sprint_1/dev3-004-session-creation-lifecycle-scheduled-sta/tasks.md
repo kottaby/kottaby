@@ -115,16 +115,16 @@
 
 ### 1.5 — i18n Registrations (errors grouping + new `sessions` UI namespace)
 
-- [ ] 1.5 [Add flat `ErrorsLabels` session keys + new `sessions` UI namespace]
+- [x] 1.5 [Add flat `ErrorsLabels` session keys + new `sessions` UI namespace]
   - **(a) errors keys:** UPDATE `shared/locale/types/errors/index.ts`, `shared/locale/en/errors/index.ts`, `shared/locale/ar/errors/index.ts` — add EXACTLY the SEVEN REQ-051 keys as FLAT camelCase keys directly on the existing `ErrorsLabels` interface (flat prefixed convention, existing members at `shared/locale/types/errors/index.ts:8-47`; NO nested `sessions:` group): `sessionNotFound`, `sessionInvalidTransition`, `teacherNotCertified`, `teacherNotFound`, `insufficientBalance`, `idempotencyKeyRequired`, `invalidSessionIntent` — `TEACHER_NOT_FOUND` maps onto the NEW `teacherNotFound` key (NOT the existing generic `notFound`), and REUSE existing `duplicateRequest`/`validation`/`forbidden`/`unauthorized`/`notFound`/`internalServerError` for their existing generic surfaces (no near-duplicates). **Ruling (2026-08-30, orchestrator):** REQ-051's 7-key list is the single source of truth — this task previously listed only SIX keys and mapped `TEACHER_NOT_FOUND` onto the existing `notFound` key (dropping the mandated `teacherNotFound`); fixed to match REQ-051 verbatim (plan §2.7(a) reconciled to the same registry).
   - **(b) NEW `sessions` UI namespace:** full registration per the **Namespace Registration checklist in `shared/AGENTS.md`** (§Namespace Registration ~:236-241 — `shared/locale/AGENTS.md` is 33 lines and carries NO such checklist): `*Labels` interface in `shared/locale/types/sessions/index.ts`, `en` + `ar` implementations, entry on the top-level **`Translations`** interface (`shared/locale/types/message.ts:9`), namespace-path registration, and a `Sessions` **namespace handle const** via `defineNamespace` (`shared/locale/namespaces/define-namespace.ts:8-13` — NO `Translation` enum exists); keys per plan §2.7(b) (page titles, filter labels, column labels, status chips incl. `statusDisputed` for vocabulary stability, action copy, cancel-dialog copy, notice copy incl. `duplicateBookingInfo`, `holdReleasedNotice`, generic error copy).
   - Compile gate: `bun tsgo` `Translations` parity (missing key = failure).
   - _Requirements: REQ-002, REQ-051, REQ-065_
-  - [ ] 1.5.QL **Quality Loop**: sub-loop on every touched locale file (exit 0)
-  - [ ] 1.5.TE **Test Engineering**: Tier 1 — parity tests (en/ar key-set equality for both the error keys and the new namespace); Tier 2 — Arabic natural-phrasing review note recorded in outcome; Tier 3 — synchronous `getTranslations(locale)` resolution (warmed via `test/ui/components/translation-preload.ts`; the `readTranslation`/`translation-cache-store` helper documented there does NOT exist on this branch) for a sample of keys in both locales.
-  - [ ] 1.5.SEC **Security & Tenancy Audit**: error copy is generic-state only — never embeds other-party identity, lane values, governance flags (REQ-033/036).
-  - [ ] 1.5.SR **Semantic Review**: `Sessions` `defineNamespace` handle const registered and consumed as `useAppTranslation(Sessions)`; property-access convention preserved; no string-literal namespaces introduced.
-  - [ ] 1.5.IV **Instruction Verification**: `shared/AGENTS.md` Namespace Registration checklist.
+  - [x] 1.5.QL **Quality Loop**: sub-loop on every touched locale file (exit 0)
+  - [x] 1.5.TE **Test Engineering**: Tier 1 — parity tests (en/ar key-set equality for both the error keys and the new namespace); Tier 2 — Arabic natural-phrasing review note recorded in outcome; Tier 3 — synchronous `getTranslations(locale)` resolution (warmed via `test/ui/components/translation-preload.ts`; the `readTranslation`/`translation-cache-store` helper documented there does NOT exist on this branch) for a sample of keys in both locales.
+  - [x] 1.5.SEC **Security & Tenancy Audit**: error copy is generic-state only — never embeds other-party identity, lane values, governance flags (REQ-033/036).
+  - [x] 1.5.SR **Semantic Review**: `Sessions` `defineNamespace` handle const registered and consumed as `useAppTranslation(Sessions)`; property-access convention preserved; no string-literal namespaces introduced.
+  - [x] 1.5.IV **Instruction Verification**: `shared/AGENTS.md` Namespace Registration checklist.
   - Write `outcome/1.5-outcome.md`.
 
 ---

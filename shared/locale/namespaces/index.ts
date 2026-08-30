@@ -5,6 +5,7 @@ import { Dashboard } from "@/shared/locale/namespaces/dashboard";
 import { Errors } from "@/shared/locale/namespaces/errors";
 import { Landing } from "@/shared/locale/namespaces/landing";
 import { Recitation } from "@/shared/locale/namespaces/recitation";
+import { Sessions } from "@/shared/locale/namespaces/sessions";
 
 export * from "./applicant";
 export * from "./auth";
@@ -14,6 +15,7 @@ export * from "./define-namespace";
 export * from "./errors";
 export * from "./landing";
 export * from "./recitation";
+export * from "./sessions";
 export * from "./translation";
 
 export const namespaces = {
@@ -24,4 +26,5 @@ export const namespaces = {
   Errors,
   Landing,
   Recitation,
+  Sessions,
 } as const;

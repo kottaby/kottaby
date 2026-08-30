@@ -5,6 +5,7 @@ import type { DashboardLabels } from "@/shared/locale/types/dashboard";
 import type { ErrorsLabels } from "@/shared/locale/types/errors";
 import type { LandingLabels } from "@/shared/locale/types/landing";
 import type { RecitationLabels } from "@/shared/locale/types/recitation";
+import type { SessionsLabels } from "@/shared/locale/types/sessions";
 
 export interface Translations {
   commonTranslations: CommonLabels;
@@ -14,4 +15,5 @@ export interface Translations {
   dashboardTranslations: DashboardLabels;
   landingTranslations: LandingLabels;
   applicantTranslations: ApplicantLabels;
+  sessionsTranslations: SessionsLabels;
 }
