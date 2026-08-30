@@ -281,41 +281,41 @@
 
 ### 3.2 — Query Resolvers
 
-- [ ] 3.2 [Implement session query resolvers]
+- [x] 3.2 [Implement session query resolvers]
   - **File:** CREATE `backend/graphql/query/classes/session-lifecycle.query.ts` — `sessionById` (`{ authenticated: true }`, nullable payload), `myStudentSessions` / `myTeacherSessions` (`{ $all: { authenticated: true, role: [UserRole.Student|Teacher] } }`).
   - Thin delegation: boundary id/pagination/filter validation forwarded to `SessionLifecycleService` with `ctx.user.id` + `ctx.locale`; ZERO business logic; ZERO repo calls; top-level static imports ONLY (gate A1: no `await import(`).
   - _Requirements: REQ-020, REQ-032, REQ-061, REQ-064_
-  - [ ] 3.2.QL **Quality Loop**: sub-loop (exit 0)
-  - [ ] 3.2.TE **Test Engineering**: integration tier via `setupTestServerLifecycle` + `testClient` — role matrix cells for the three queries from REQ-064 (incl. anonymous `UNAUTHORIZED`, wrong-role `FORBIDDEN`, oracle-null pairings); filter coherence (`totalCount` matches filtered list).
-  - [ ] 3.2.SEC **Security & Tenancy Audit**: `$all` conjunction (plain key-map is ANY-semantics — known-wrong); governance denial for deleted/blocked/suspended users happens ONLY at login (`backend/services/auth/auth.service.ts:78-81`) and SSR (`frontend/lib/auth/server-auth.ts:97-99`) — `createGraphQLContext`/`UserRepository.findById` carry NO governance filter; the REQ-023 verification asserts login/SSR denial PLUS the service-layer governance re-check now DECIDED (Ruling 2026-08-30, bounded scope): acting-user re-check (deleted/blocked/suspended → `FORBIDDEN`) on `createSession`/`startSession`/`completeSession` ONLY — `cancelSession` EXEMPT (a governed student may still cancel in-flight; REQ-023 no-punishment clause). The queries in this task carry no re-check; the mutation re-check cells are implemented in 2.8 and asserted in 3.3/5.2.
-  - [ ] 3.2.SR **Semantic Review**: `UserRole` VALUE import; `ctx.t("errors")` usage only where resolver-level construction occurs (none expected); zero logic duplication of service rules.
-  - [ ] 3.2.IV **Instruction Verification**: `backend/graphql/AGENTS.md`, `docs/auth/jwt-authentication-service.md` scopes contract.
+  - [x] 3.2.QL **Quality Loop**: sub-loop (exit 0)
+  - [x] 3.2.TE **Test Engineering**: integration tier via `setupTestServerLifecycle` + `testClient` — role matrix cells for the three queries from REQ-064 (incl. anonymous `UNAUTHORIZED`, wrong-role `FORBIDDEN`, oracle-null pairings); filter coherence (`totalCount` matches filtered list).
+  - [x] 3.2.SEC **Security & Tenancy Audit**: `$all` conjunction (plain key-map is ANY-semantics — known-wrong); governance denial for deleted/blocked/suspended users happens ONLY at login (`backend/services/auth/auth.service.ts:78-81`) and SSR (`frontend/lib/auth/server-auth.ts:97-99`) — `createGraphQLContext`/`UserRepository.findById` carry NO governance filter; the REQ-023 verification asserts login/SSR denial PLUS the service-layer governance re-check now DECIDED (Ruling 2026-08-30, bounded scope): acting-user re-check (deleted/blocked/suspended → `FORBIDDEN`) on `createSession`/`startSession`/`completeSession` ONLY — `cancelSession` EXEMPT (a governed student may still cancel in-flight; REQ-023 no-punishment clause). The queries in this task carry no re-check; the mutation re-check cells are implemented in 2.8 and asserted in 3.3/5.2.
+  - [x] 3.2.SR **Semantic Review**: `UserRole` VALUE import; `ctx.t("errors")` usage only where resolver-level construction occurs (none expected); zero logic duplication of service rules.
+  - [x] 3.2.IV **Instruction Verification**: `backend/graphql/AGENTS.md`, `docs/auth/jwt-authentication-service.md` scopes contract.
   - Write `outcome/3.2-outcome.md`.
 
 ### 3.3 — Mutation Resolvers
 
-- [ ] 3.3 [Implement lifecycle mutation resolvers]
+- [x] 3.3 [Implement lifecycle mutation resolvers]
   - **File:** CREATE `backend/graphql/mutation/classes/session-lifecycle.mutation.ts` — `createSession` (`$all{authenticated, role:[Student]}`; passes `ctx.idempotencyKey`), `startSession`/`completeSession` (`$all{authenticated, role:[Teacher]}`), `cancelSession` (`{ authenticated: true }` + service-side participant predicate).
   - **Teacher denial on `createSession` (Ruling 2026-08-30, B3):** the static scope remains EXACTLY `$all{authenticated, role:[Student]}` — teacher-role callers (certified OR applicant) are unconditionally `FORBIDDEN` (REQ-064 cell as amended; REQ-011's students-row carve-out struck and deferred → D7; INV-TV6 honest-denial preserved; REQ-032 static scope stands).
   - Thin delegation only; boundary id-shape validation at service; resolvers carry NO branching beyond delegation.
   - _Requirements: REQ-014, REQ-015, REQ-016, REQ-017, REQ-032, REQ-061_
-  - [ ] 3.3.QL **Quality Loop**: sub-loop (exit 0)
-  - [ ] 3.3.TE **Test Engineering**: integration tier — every REQ-064 mutation cell with `expectMutationError`-class helpers asserting `extensions.code` exactly per REQ-050 (incl. missing idempotency key → `VALIDATION`; `DUPLICATE_REQUEST` replay; terminal regression → `SESSION_INVALID_TRANSITION`; decertified complete → `TEACHER_NOT_CERTIFIED`; foreign → `SESSION_NOT_FOUND` oracle pairing; teacher-role callers (certified + applicant) → `FORBIDDEN` on `createSession` — Ruling 2026-08-30).
-  - [ ] 3.3.SEC **Security & Tenancy Audit**: NO admin bypass; allowlist untouched (assert byte-unchanged); idempotency key consumed propagation-only (never re-derived, never authorization-relevant).
-  - [ ] 3.3.SR **Semantic Review**: no `await import(`; no local types; no inline strings (errors flow from service translations); no BOPLA leakage in input mapping.
-  - [ ] 3.3.IV **Instruction Verification**: `backend/graphql/AGENTS.md`, `docs/IDEMPOTENCY.md`.
+  - [x] 3.3.QL **Quality Loop**: sub-loop (exit 0)
+  - [x] 3.3.TE **Test Engineering**: integration tier — every REQ-064 mutation cell with `expectMutationError`-class helpers asserting `extensions.code` exactly per REQ-050 (incl. missing idempotency key → `VALIDATION`; `DUPLICATE_REQUEST` replay; terminal regression → `SESSION_INVALID_TRANSITION`; decertified complete → `TEACHER_NOT_CERTIFIED`; foreign → `SESSION_NOT_FOUND` oracle pairing; teacher-role callers (certified + applicant) → `FORBIDDEN` on `createSession` — Ruling 2026-08-30).
+  - [x] 3.3.SEC **Security & Tenancy Audit**: NO admin bypass; allowlist untouched (assert byte-unchanged); idempotency key consumed propagation-only (never re-derived, never authorization-relevant).
+  - [x] 3.3.SR **Semantic Review**: no `await import(`; no local types; no inline strings (errors flow from service translations); no BOPLA leakage in input mapping.
+  - [x] 3.3.IV **Instruction Verification**: `backend/graphql/AGENTS.md`, `docs/IDEMPOTENCY.md`.
   - Write `outcome/3.3-outcome.md`.
 
 ### 3.4 — Registration, Codegen & Structural Gates
 
-- [ ] 3.4 [Register barrels, run codegen, assert structural gates]
+- [x] 3.4 [Register barrels, run codegen, assert structural gates]
   - **Files:** UPDATE query/mutation domain barrels with side-effect imports per gateway Rule 8; run `bun run generate:gqlSchema && bun codegen`; commit generated artifacts in the SAME change set (zero unrelated drift).
   - Gates: allowlist-coverage gate green (public-operations byte-unchanged); gate A1 scan (zero `await import(` in resolver trees); gate A2 (zero literal-array enum registrations); SDL diff contains ONLY this ticket's seven operations + two types + enum registrations.
   - _Requirements: REQ-060, REQ-061, REQ-074, REQ-076_
-  - [ ] 3.4.QL **Quality Loop**: sub-loop on barrel files (exit 0)
-  - [ ] 3.4.TE **Test Engineering**: SDL snapshot parity test committed; allowlist gate suite run.
-  - [ ] 3.4.SR **Semantic Review**: generated code never hand-edited; barrel changes strictly additive.
-  - [ ] 3.4.IV **Instruction Verification**: `docs/graphql/api-gateway-and-routing.md` Rule 8.
+  - [x] 3.4.QL **Quality Loop**: sub-loop on barrel files (exit 0)
+  - [x] 3.4.TE **Test Engineering**: SDL snapshot parity test committed; allowlist gate suite run.
+  - [x] 3.4.SR **Semantic Review**: generated code never hand-edited; barrel changes strictly additive.
+  - [x] 3.4.IV **Instruction Verification**: `docs/graphql/api-gateway-and-routing.md` Rule 8.
   - Write `outcome/3.4-outcome.md`.
 
 ---

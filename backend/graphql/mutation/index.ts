@@ -10,6 +10,9 @@
  *    side-effect import here.
  *
  * `auth.mutation.ts` wires the auth mutations (`registerUser`, `login`,
- * `refreshToken`, `logout`).
+ * `refreshToken`, `logout`); the `classes` sub-directory barrel wires the
+ * session lifecycle mutations (`createSession`, `startSession`,
+ * `completeSession`, `cancelSession`).
  */
 import "./auth.mutation";
+import "./classes";

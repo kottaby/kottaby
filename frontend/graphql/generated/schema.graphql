@@ -15,6 +15,11 @@ enum ApplicantStatus {
   Pending
 }
 
+input CreateSessionInput {
+  intent: SessionIntent!
+  teacherId: ID!
+}
+
 """
 A date-time string at UTC, such as 2007-12-03T10:15:30Z, compliant with the `date-time` format outlined in section 5.6 of the RFC 3339 profile of the ISO 8601 standard for representation of dates and times using the Gregorian calendar.
 """
@@ -55,6 +60,21 @@ type LogoutPayload {
 
 type Mutation {
   """
+  Cancel one of the caller's scheduled/started sessions (either participant) and release the held fee to its original lane. Non-participants and nonexistent ids are indistinguishable SESSION_NOT_FOUND denials.
+  """
+  cancelSession(id: ID!, reason: String): Session!
+
+  """
+  Complete one of the caller's started sessions (teacher-only; certification is re-asserted inside the guarded UPDATE).
+  """
+  completeSession(id: ID!): Session!
+
+  """
+  Book one session against a certified teacher. Student-only; the booking is idempotent per the X-Idempotency-Key request header (a replayed key surfaces DUPLICATE_REQUEST).
+  """
+  createSession(input: CreateSessionInput!): Session!
+
+  """
   Authenticate with email + password. Returns the authenticated user + access + refresh tokens. The access_token + refresh_token + session_id are also set as httpOnly cookies.
   """
   login(email: String!, password: String!): LoginPayload!
@@ -69,6 +89,11 @@ type Mutation {
   """
   refreshToken(refreshToken: String!): RefreshTokenPayload!
   registerUser(input: RegisterUserInput!): User!
+
+  """
+  Start one of the caller's scheduled sessions (teacher-only guarded transition).
+  """
+  startSession(id: ID!): Session!
 }
 
 type Query {
@@ -79,11 +104,14 @@ type Query {
   """
   me: User
   myApplicantProfile: ApplicantProfile
+  myStudentSessions(filter: SessionListFilterInput, page: Int = 1, pageSize: Int = 25): SessionPage!
+  myTeacherSessions(filter: SessionListFilterInput, page: Int = 1, pageSize: Int = 25): SessionPage!
 
   """
   Returns the canonical list of recitation readings (Qira'at) for the registration form selector. Public — no authentication required. The values are stable API identifiers; display labels are resolved client-side via the i18n recitation namespace.
   """
   recitationReadings: [RecitationReading!]!
+  sessionById(id: ID!): Session
 }
 
 enum RecitationReading {
@@ -126,10 +154,39 @@ input RegisterUserInput {
   role: RegisterPublicRole!
 }
 
+type Session {
+  confirmationDeadline: DateTime
+  confirmedByStudentAt: DateTime
+  confirmedByTeacherAt: DateTime
+  createdAt: DateTime!
+  endedAt: DateTime
+  fee: String
+  feeHeld: Boolean!
+  id: ID!
+  intent: SessionIntent
+  sessionType: SessionType!
+  startedAt: DateTime
+  status: SessionStatus!
+  studentId: ID!
+  teacherId: ID!
+  updatedAt: DateTime!
+}
+
 enum SessionIntent {
   Evaluation
   Hifz
   Tajweed
+}
+
+input SessionListFilterInput {
+  status: SessionStatus
+}
+
+type SessionPage {
+  items: [Session!]!
+  page: Int!
+  pageSize: Int!
+  totalCount: Int!
 }
 
 enum SessionStatus {

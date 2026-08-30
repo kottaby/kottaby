@@ -12,18 +12,24 @@
  *    and carries NO `id` field (embedded value object — proven both at
  *    the type level and behaviorally: selecting `id` fails validation).
  *  - **Surface freeze** — against the frozen baseline inventory (captured
- *    at HEAD `8e5ebb8`): ZERO new mutations, and all post-baseline
- *    additions are pinned by name — query fields grow ONLY by the
- *    sanctioned probe `_health` and `myApplicantProfile` (DEV2-004), the
- *    enum set grows ONLY by `ApplicantStatus` (DEV2-004) and the
- *    DEV3-004 scheduling trio (`SessionStatus`, `SessionType`,
- *    `SessionIntent` — registered in `shared/enum.pothos.ts`), and the
- *    whole-schema named-type delta is exactly {ApplicantProfile,
- *    ApplicantStatus, DateTime, HealthCheck} (DEV2-004 surface + the
- *    `DateTime` scalar registered in `shared/scalar.pothos.ts`) plus the
- *    DEV3-004 scheduling enums. The `Session`/`SessionPage` objects join
- *    the production type map only once the Phase-3 resolver modules
- *    import them (root-field wiring, DEV3-004 tasks 3.2/3.3).
+ *    at HEAD `8e5ebb8`): every post-baseline addition is pinned by name —
+ *    query fields grow ONLY by the sanctioned probe `_health`,
+ *    `myApplicantProfile` (DEV2-004) and the DEV3-004 participant-read
+ *    trio (`sessionById`, `myStudentSessions`, `myTeacherSessions`); the
+ *    mutation set grows ONLY by the DEV3-004 lifecycle quartet
+ *    (`createSession`, `startSession`, `completeSession`,
+ *    `cancelSession`); the enum set grows ONLY by `ApplicantStatus`
+ *    (DEV2-004) and the DEV3-004 scheduling trio (`SessionStatus`,
+ *    `SessionType`, `SessionIntent` — registered ONCE in
+ *    `shared/enum.pothos.ts`); and the whole-schema named-type delta is
+ *    exactly {ApplicantProfile, ApplicantStatus, DateTime, HealthCheck}
+ *    (DEV2-004 surface + the `DateTime` scalar registered in
+ *    `shared/scalar.pothos.ts`), the DEV3-004 scheduling enums, and the
+ *    DEV3-004 session objects/inputs (`Session`, `SessionPage`,
+ *    `CreateSessionInput`, `SessionListFilterInput`) — the latter joined
+ *    the production type map when the Phase-3 resolver modules wired the
+ *    root fields (DEV3-004 tasks 3.2/3.3) and the barrels were registered
+ *    (task 3.4).
  *  - **Allowlist agreement** — the scopeless `_health` field is present in
  *    the closed `PUBLIC_OPERATION_NAMES` tuple / `PUBLIC_OPERATIONS` set
  *    1:1 (schema↔allowlist agreement enforced as code).
@@ -35,7 +41,10 @@
  *    `frontend/graphql/generated/schema.graphql` is BYTE-IDENTICAL to a
  *    fresh `printSchema(lexicographicSortSchema(graphQLSchema))` emission,
  *    i.e. generated artifacts are in lockstep with the code-first builder
- *    (read-only disk access; the suite writes NOTHING).
+ *    (read-only disk access; the suite writes NOTHING). Belt-and-braces
+ *    pins assert the DEV3-004 session surface is really inside the
+ *    committed artifact (seven root operations + the two object types +
+ *    the two input types).
  *
  * Pure unit tier — NO server boot, NO network, NO DB. Runs via the mandated
  * runner: `bun run test/scripts/run-test.ts backend/graphql/test/schema-surface.test.ts`.
@@ -62,8 +71,18 @@ import { PUBLIC_OPERATION_NAMES, PUBLIC_OPERATIONS } from "@/backend/lib/gateway
 
 /** Root query field names present before the probe re-registration. */
 const PRE_3_1_QUERY_FIELDS = ["me", "recitationReadings"] as const;
-/** Root mutation field names — must remain UNCHANGED forever. */
+/** Root mutation field names present before the DEV3-004 lifecycle quartet. */
 const PRE_3_1_MUTATION_FIELDS = ["login", "logout", "refreshToken", "registerUser"] as const;
+/**
+ * DEV3-004 session lifecycle root fields — registered ONCE via the
+ * side-effect barrels (`query|mutation/classes/index.ts` → top-level
+ * barrel → `gqlSchema.ts`); role-gated/authenticated per REQ-032 and
+ * therefore deliberately ABSENT from the public-operation allowlist
+ * (`backend/lib/gateway/public-operations.ts` stays byte-unchanged).
+ */
+const DEV3_004_QUERY_FIELDS = ["myStudentSessions", "myTeacherSessions", "sessionById"] as const;
+/** DEV3-004 lifecycle mutation quartet (plan §3.1/§3.2 — REQ-060/061). */
+const DEV3_004_MUTATION_FIELDS = ["cancelSession", "completeSession", "createSession", "startSession"] as const;
 /** GraphQL enum type names — every new Pothos enum must be pinned here by name. */
 const PRE_3_1_ENUMS = ["ApplicantStatus", "Gender", "RecitationReading", "RegisterPublicRole", "UserRole"] as const;
 /** DEV3-004 scheduling enum trio — registered ONCE in `shared/enum.pothos.ts`. */
@@ -82,6 +101,12 @@ const PRE_3_1_TYPE_NAMES = [
   "User",
   "UserRole",
 ] as const;
+/**
+ * DEV3-004 session surface — objects + inputs that enter the named-type
+ * map when the resolver modules register the root fields (plan §3.1 SDL).
+ * The scheduling enum trio is pinned separately (see `DEV3_004_ENUMS`).
+ */
+const DEV3_004_TYPE_NAMES = ["CreateSessionInput", "Session", "SessionListFilterInput", "SessionPage"] as const;
 
 // ─── Schema walk helpers ─────────────────────────────────────────────────────
 
@@ -100,17 +125,21 @@ describe("Query._health — retyped probe surface", () => {
     throw new Error("Schema must define a root Query type");
   }
 
-  test("root query retains EXACTLY the baseline fields plus the probe", () => {
+  test("root query retains EXACTLY the baseline fields plus the pinned additions", () => {
     expect(queryType).toBeDefined();
     const fieldNames = Object.keys(queryType.getFields());
     // Baseline survivors intact…
     for (const name of PRE_3_1_QUERY_FIELDS) {
       expect(fieldNames).toContain(name);
     }
-    // …and the ONLY additions beyond them are the probe and the DEV2-004
-    // applicant-profile query.
+    // …and the ONLY additions beyond them are the probe, the DEV2-004
+    // applicant-profile query, and the DEV3-004 participant-read trio.
     const additions = fieldNames.filter(name => !(PRE_3_1_QUERY_FIELDS as readonly string[]).includes(name));
-    expect(additions.toSorted((a, b) => a.localeCompare(b))).toEqual(["_health", "myApplicantProfile"]);
+    expect(additions.toSorted((a, b) => a.localeCompare(b))).toEqual([
+      "_health",
+      "myApplicantProfile",
+      ...DEV3_004_QUERY_FIELDS,
+    ]);
   });
 
   test("`_health` is NON-NULLABLE `HealthCheck!` (retyped from the String! placeholder)", () => {
@@ -170,11 +199,20 @@ describe("HealthCheck object shape — four scalar fields, no id", () => {
 });
 
 describe("Surface freeze — pinned additions vs the baseline inventory", () => {
-  test("ZERO new mutations (frozen mutation set unchanged)", () => {
+  test("mutation set grows ONLY by the DEV3-004 lifecycle quartet", () => {
     const mutationFields = graphQLSchema.getMutationType()?.getFields() ?? {};
     const names = Object.keys(mutationFields).toSorted((a, b) => a.localeCompare(b));
 
-    expect(names).toEqual([...PRE_3_1_MUTATION_FIELDS]);
+    // Baseline survivors intact…
+    for (const name of PRE_3_1_MUTATION_FIELDS) {
+      expect(names).toContain(name);
+    }
+    // …and the ONLY additions are the DEV3-004 quartet (all authScopes-
+    // gated — none of them is allowlist material; the public-operation
+    // registry stays byte-unchanged).
+    expect(names).toEqual(
+      [...PRE_3_1_MUTATION_FIELDS, ...DEV3_004_MUTATION_FIELDS].toSorted((a, b) => a.localeCompare(b))
+    );
     expect(names).not.toContain("_health");
   });
 
@@ -187,14 +225,23 @@ describe("Surface freeze — pinned additions vs the baseline inventory", () => 
     expect(enumNames).toEqual([...PRE_3_1_ENUMS, ...DEV3_004_ENUMS].toSorted((a, b) => a.localeCompare(b)));
   });
 
-  test("whole-schema named-type delta is pinned: HealthCheck + DEV2-004 applicant surface + DateTime scalar + DEV3-004 scheduling enums", () => {
+  test("whole-schema named-type delta is pinned: HealthCheck + DEV2-004 applicant surface + DateTime scalar + DEV3-004 scheduling enums + session objects/inputs", () => {
     const post = new Set(sdlTypeNames());
 
     for (const name of PRE_3_1_TYPE_NAMES) {
       expect(post.has(name)).toBe(true);
     }
     const additions = sdlTypeNames().filter(name => !(PRE_3_1_TYPE_NAMES as readonly string[]).includes(name));
-    expect(additions).toEqual(["ApplicantProfile", "ApplicantStatus", "DateTime", "HealthCheck", ...DEV3_004_ENUMS]);
+    expect(additions).toEqual(
+      [
+        "ApplicantProfile",
+        "ApplicantStatus",
+        "DateTime",
+        "HealthCheck",
+        ...DEV3_004_TYPE_NAMES,
+        ...DEV3_004_ENUMS,
+      ].toSorted((a, b) => a.localeCompare(b))
+    );
   });
 });
 
@@ -242,5 +289,22 @@ describe("Codegen sync — committed SDL is byte-identical to the built schema",
     // Belt-and-braces: the synced artifact really contains the retyped probe.
     expect(committedSdl).toContain("_health: HealthCheck!");
     expect(committedSdl).toContain("type HealthCheck {");
+    // …and the DEV3-004 session surface (7 root operations + 2 object
+    // types + 2 input types) is really inside the committed artifact.
+    expect(committedSdl).toContain("sessionById(id: ID!): Session");
+    expect(committedSdl).toContain(
+      "myStudentSessions(filter: SessionListFilterInput, page: Int = 1, pageSize: Int = 25): SessionPage!"
+    );
+    expect(committedSdl).toContain(
+      "myTeacherSessions(filter: SessionListFilterInput, page: Int = 1, pageSize: Int = 25): SessionPage!"
+    );
+    expect(committedSdl).toContain("createSession(input: CreateSessionInput!): Session!");
+    expect(committedSdl).toContain("startSession(id: ID!): Session!");
+    expect(committedSdl).toContain("completeSession(id: ID!): Session!");
+    expect(committedSdl).toContain("cancelSession(id: ID!, reason: String): Session!");
+    expect(committedSdl).toContain("type Session {");
+    expect(committedSdl).toContain("type SessionPage {");
+    expect(committedSdl).toContain("input CreateSessionInput {");
+    expect(committedSdl).toContain("input SessionListFilterInput {");
   });
 });
