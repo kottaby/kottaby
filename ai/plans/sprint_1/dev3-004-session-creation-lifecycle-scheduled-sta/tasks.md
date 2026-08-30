@@ -324,15 +324,15 @@
 
 ### 4.1 — Frontend GraphQL Documents
 
-- [ ] 4.1 [Implement `session.documents.ts` shared documents]
+- [x] 4.1 [Implement `session.documents.ts` shared documents]
   - **Files:** CREATE the `frontend/graphql/sharedDocuments/scheduling/` subtree FROM SCRATCH — it does NOT exist today (`sharedDocuments/` holds only `auth/`, `teachers/`, `documents.contract.test.ts`, `index.ts`; no `class-session.documents.ts` exists anywhere): CREATE `frontend/graphql/sharedDocuments/scheduling/session.documents.ts`; CREATE `frontend/graphql/sharedDocuments/scheduling/index.ts` sub-barrel; UPDATE the top-level `frontend/graphql/sharedDocuments/index.ts` barrel with `export * from "./scheduling"`.
   - Seven documents per plan §5.4 (`sessionByIdQueryDocument`, `myStudentSessionsQueryDocument`, `myTeacherSessionsQueryDocument`, `createSessionMutationDocument`, `startSessionMutationDocument`, `completeSessionMutationDocument`, `cancelSessionMutationDocument`) — `gql` + `TypedDocumentNode` from `@apollo/client`; codegen types from `@/frontend/graphql/generated/gql/graphql` ONLY; `id` in EVERY `Session` selection; hooks from `@apollo/client/react` in consumers; NO `useLazyQuery`.
   - **Instructions:** `frontend/graphql/sharedDocuments/AGENTS.md`.
   - _Requirements: REQ-062_
-  - [ ] 4.1.QL **Quality Loop**: sub-loop (exit 0)
-  - [ ] 4.1.TE **Test Engineering**: compile-level selection-set conformance (every `Session` selection carries `id`); codegen type-resolves with zero inline literals or mapping layers.
-  - [ ] 4.1.SR **Semantic Review**: hooks from `@apollo/client/react`; no `/core` imports; zero dead exports.
-  - [ ] 4.1.IV **Instruction Verification**: `frontend/graphql/sharedDocuments/AGENTS.md`.
+  - [x] 4.1.QL **Quality Loop**: sub-loop (exit 0)
+  - [x] 4.1.TE **Test Engineering**: compile-level selection-set conformance (every `Session` selection carries `id`); codegen type-resolves with zero inline literals or mapping layers.
+  - [x] 4.1.SR **Semantic Review**: hooks from `@apollo/client/react`; no `/core` imports; zero dead exports.
+  - [x] 4.1.IV **Instruction Verification**: `frontend/graphql/sharedDocuments/AGENTS.md`.
   - Write `outcome/4.1-outcome.md`.
 
 ### 4.2 — Student Sessions Page (`/student/sessions`)
