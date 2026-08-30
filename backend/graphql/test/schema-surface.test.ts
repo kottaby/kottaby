@@ -12,17 +12,13 @@
  *    and carries NO `id` field (embedded value object — proven both at
  *    the type level and behaviorally: selecting `id` fails validation).
  *  - **Surface freeze** — against the frozen baseline inventory (captured
- *    at HEAD `8e5ebb8`) PLUS the reviewed post-baseline additions that
- *    were reconciled into the freeze lists (DEV2-004 applicant profile
- *    surface and DEV1-005 plan-catalog billing surface — see the
- *    `POST_BASELINE_*_ADDITIONS` tuples): the root query/mutation sets
- *    and the whole-schema named-type set may only ever grow by THOSE
- *    sanctioned entries, never ad hoc.
- *    History: the freeze lists originally pinned `ZERO new mutations /
- *    enums / one type delta` and drifted stale when DEV2-004 and DEV1-005
- *    landed their reviewed surfaces; they were reconciled at Task 3.4 of
- *    DEV1-005 (the DEV2-004 drift pre-dates that task and was proven
- *    unrelated to the billing work by Task 3.1).
+ *    at HEAD `8e5ebb8`): ZERO new mutations, and all post-baseline
+ *    additions are pinned by name — query fields grow ONLY by the
+ *    sanctioned probe `_health` and `myApplicantProfile` (DEV2-004), the
+ *    enum set grows ONLY by `ApplicantStatus` (DEV2-004), and the
+ *    whole-schema named-type delta is exactly `{ApplicantProfile,
+ *    ApplicantStatus, DateTime, HealthCheck}` (DEV2-004 surface + the
+ *    `DateTime` scalar registered in `shared/scalar.pothos.ts`).
  *  - **Allowlist agreement** — the scopeless `_health` field is present in
  *    the closed `PUBLIC_OPERATION_NAMES` tuple / `PUBLIC_OPERATIONS` set
  *    1:1 (schema↔allowlist agreement enforced as code).
@@ -61,10 +57,10 @@ import { PUBLIC_OPERATION_NAMES, PUBLIC_OPERATIONS } from "@/backend/lib/gateway
 
 /** Root query field names present before the probe re-registration. */
 const PRE_3_1_QUERY_FIELDS = ["me", "recitationReadings"] as const;
-/** Root mutation field names in the baseline (post-baseline additions are enumerated separately below). */
+/** Root mutation field names — must remain UNCHANGED forever. */
 const PRE_3_1_MUTATION_FIELDS = ["login", "logout", "refreshToken", "registerUser"] as const;
-/** GraphQL enum type names — the freeze forbids any new Pothos enum. */
-const PRE_3_1_ENUMS = ["Gender", "RecitationReading", "RegisterPublicRole", "UserRole"] as const;
+/** GraphQL enum type names — every new Pothos enum must be pinned here by name. */
+const PRE_3_1_ENUMS = ["ApplicantStatus", "Gender", "RecitationReading", "RegisterPublicRole", "UserRole"] as const;
 /** Non-root object/enum/scalar SDL type names in the baseline (introspection `__*` and spec scalars excluded). */
 const PRE_3_1_TYPE_NAMES = [
   "Gender",
@@ -79,57 +75,6 @@ const PRE_3_1_TYPE_NAMES = [
   "User",
   "UserRole",
 ] as const;
-
-// ─── Sanctioned post-baseline additions (reconciled @ Task 3.4, HEAD c70248b) ──
-// Reviewed surfaces that joined the schema AFTER the frozen baseline. Each
-// tuple is the EXACT, CLOSED set of names its plan was authorized to add —
-// anything else on top of `PRE_3_1_* + POST_BASELINE_*` is a regression.
-
-/** Query root fields: the `_health` probe (DEV1-001), the DEV2-004 applicant profile read, the DEV1-005 catalog reads, the DEV1-006 Phase A owner-scoped subscription read, the DEV1-006 Phase B admin verification-queue read, the DEV3-020 Phase 1 admin audit-trail read, the DEV1-009 admin lifecycle-list read. */
-const POST_BASELINE_QUERY_ADDITIONS = [
-  "_health",
-  "adminAuditLogs",
-  "adminPendingSubscriptionRequests",
-  "adminPlans",
-  "adminSubscriptions",
-  "myApplicantProfile",
-  "mySubscriptions",
-  "planCatalog",
-] as const;
-/** Mutation root fields: the DEV1-005 admin plan-catalog trio (admin-gated; NO delete surface — INV-PC3), the DEV1-006 Phase A subscriber request (subscriber-gated, D2-enforced), the DEV1-006 Phase B admin verification (admin-gated, guarded transition), and the DEV1-009 admin cancel (admin-gated, guarded transition). */
-const POST_BASELINE_MUTATION_ADDITIONS = [
-  "adminCancelSubscription",
-  "createPlan",
-  "requestPlanSubscription",
-  "setPlanActiveStatus",
-  "updatePlan",
-  "verifySubscriptionPayment",
-] as const;
-/** Enum types: the DEV2-004 applicant status enum. */
-const POST_BASELINE_ENUM_ADDITIONS = ["ApplicantStatus"] as const;
-/** Non-root SDL type names: the DEV2-004 applicant surface, the DEV1-005 billing surface, the DEV1-006 subscription surface, the DEV3-020 Phase 1 audit surface, the DEV1-009 admin lifecycle surface, and the probe's `HealthCheck` VO. Order is the runtime's `localeCompare` collation (Admin* sorts before Applicant*) — must match `sdlTypeNames()` verbatim. */
-const POST_BASELINE_TYPE_ADDITIONS = [
-  "AdminAuditActor",
-  "AdminAuditLog",
-  "AdminAuditLogConnection",
-  "AdminSubscription",
-  "AdminSubscriptionConnection",
-  "AdminSubscriptionRequest",
-  "AdminSubscriptionUser",
-  "ApplicantProfile",
-  "ApplicantStatus",
-  "CreatePlanInput",
-  "DateTime",
-  "HealthCheck",
-  "Plan",
-  "Subscription",
-  "UpdatePlanInput",
-] as const;
-
-/** Deterministic merge of a frozen baseline tuple with its sanctioned additions. */
-function frozenSet(baseline: readonly string[], additions: readonly string[]): string[] {
-  return [...baseline, ...additions].toSorted((a, b) => a.localeCompare(b));
-}
 
 // ─── Schema walk helpers ─────────────────────────────────────────────────────
 
@@ -148,17 +93,17 @@ describe("Query._health — retyped probe surface", () => {
     throw new Error("Schema must define a root Query type");
   }
 
-  test("root query retains EXACTLY the baseline fields plus the sanctioned additions", () => {
+  test("root query retains EXACTLY the baseline fields plus the probe", () => {
     expect(queryType).toBeDefined();
     const fieldNames = Object.keys(queryType.getFields());
     // Baseline survivors intact…
     for (const name of PRE_3_1_QUERY_FIELDS) {
       expect(fieldNames).toContain(name);
     }
-    // …and the ONLY additions beyond them are the sanctioned post-baseline
-    // fields (probe + DEV2-004 applicant profile + DEV1-005 catalog reads).
+    // …and the ONLY additions beyond them are the probe and the DEV2-004
+    // applicant-profile query.
     const additions = fieldNames.filter(name => !(PRE_3_1_QUERY_FIELDS as readonly string[]).includes(name));
-    expect(additions.toSorted((a, b) => a.localeCompare(b))).toEqual([...POST_BASELINE_QUERY_ADDITIONS]);
+    expect(additions.toSorted((a, b) => a.localeCompare(b))).toEqual(["_health", "myApplicantProfile"]);
   });
 
   test("`_health` is NON-NULLABLE `HealthCheck!` (retyped from the String! placeholder)", () => {
@@ -217,32 +162,32 @@ describe("HealthCheck object shape — four scalar fields, no id", () => {
   });
 });
 
-describe("Surface freeze — baseline inventory plus sanctioned post-baseline additions", () => {
-  test("mutation set frozen to baseline + the sanctioned DEV1-005 plan-catalog trio", () => {
+describe("Surface freeze — pinned additions vs the baseline inventory", () => {
+  test("ZERO new mutations (frozen mutation set unchanged)", () => {
     const mutationFields = graphQLSchema.getMutationType()?.getFields() ?? {};
     const names = Object.keys(mutationFields).toSorted((a, b) => a.localeCompare(b));
 
-    expect(names).toEqual(frozenSet(PRE_3_1_MUTATION_FIELDS, POST_BASELINE_MUTATION_ADDITIONS));
+    expect(names).toEqual([...PRE_3_1_MUTATION_FIELDS]);
     expect(names).not.toContain("_health");
   });
 
-  test("enum set frozen to baseline + the sanctioned DEV2-004 ApplicantStatus", () => {
+  test("enum set is pinned (every new enum named explicitly)", () => {
     const enumNames = Object.values(graphQLSchema.getTypeMap())
       .filter(type => type instanceof GraphQLEnumType && !type.name.startsWith("__"))
       .map(type => type.name)
       .toSorted((a, b) => a.localeCompare(b));
 
-    expect(enumNames).toEqual(frozenSet(PRE_3_1_ENUMS, POST_BASELINE_ENUM_ADDITIONS));
+    expect(enumNames).toEqual([...PRE_3_1_ENUMS]);
   });
 
-  test("whole-schema named-type delta is EXACTLY the sanctioned post-baseline additions", () => {
+  test("whole-schema named-type delta is pinned: HealthCheck + DEV2-004 applicant surface + DateTime scalar", () => {
     const post = new Set(sdlTypeNames());
 
     for (const name of PRE_3_1_TYPE_NAMES) {
       expect(post.has(name)).toBe(true);
     }
     const additions = sdlTypeNames().filter(name => !(PRE_3_1_TYPE_NAMES as readonly string[]).includes(name));
-    expect(additions).toEqual([...POST_BASELINE_TYPE_ADDITIONS]);
+    expect(additions).toEqual(["ApplicantProfile", "ApplicantStatus", "DateTime", "HealthCheck"]);
   });
 });
 

@@ -1,68 +1,9 @@
-type AdminAuditActor {
-  email: String!
-  fullName: String!
-  id: ID!
-}
-
-type AdminAuditLog {
-  actionType: String!
-  actor: AdminAuditActor!
-  createdAt: DateTime!
-  details: String
-  entityId: Int
-  entityType: String!
-  id: ID!
-}
-
-type AdminAuditLogConnection {
-  items: [AdminAuditLog!]!
-  limit: Int!
-  offset: Int!
-  total: Int!
-}
-
-type AdminSubscription {
-  createdAt: DateTime!
-  endDate: DateTime
-  id: ID!
-  paymentMethod: String
-  paymentReference: String
-  paymentVerifiedAt: DateTime
-  plan: Plan!
-  startDate: DateTime
-  status: String!
-  updatedAt: DateTime!
-  user: AdminSubscriptionUser!
-}
-
-type AdminSubscriptionConnection {
-  items: [AdminSubscription!]!
-  limit: Int!
-  offset: Int!
-  total: Int!
-}
-
-type AdminSubscriptionRequest {
-  createdAt: DateTime!
-  id: ID!
-  plan: Plan!
-  status: String!
-  updatedAt: DateTime!
-  user: AdminSubscriptionUser!
-}
-
-type AdminSubscriptionUser {
-  email: String!
-  fullName: String!
-  id: ID!
-}
-
 type ApplicantProfile {
   canPurchaseVerification: Boolean!
   cooldownActive: Boolean!
-  cooldownUntil: String
+  cooldownUntil: DateTime
   id: Int!
-  lastAttemptAt: String
+  lastAttemptAt: DateTime
   status: ApplicantStatus!
   verificationAttempts: Int!
 }
@@ -74,14 +15,9 @@ enum ApplicantStatus {
   Pending
 }
 
-input CreatePlanInput {
-  currency: String!
-  intervalDays: Int!
-  price: String!
-  sessionCount: Int!
-  title: String!
-}
-
+"""
+A date-time string at UTC, such as 2007-12-03T10:15:30Z, compliant with the `date-time` format outlined in section 5.6 of the RFC 3339 profile of the ISO 8601 standard for representation of dates and times using the Gregorian calendar.
+"""
 scalar DateTime
 
 enum Gender {
@@ -118,9 +54,6 @@ type LogoutPayload {
 }
 
 type Mutation {
-  adminCancelSubscription(subscriptionId: ID!): AdminSubscription!
-  createPlan(input: CreatePlanInput!): Plan!
-
   """
   Authenticate with email + password. Returns the authenticated user + access + refresh tokens. The access_token + refresh_token + session_id are also set as httpOnly cookies.
   """
@@ -136,39 +69,16 @@ type Mutation {
   """
   refreshToken(refreshToken: String!): RefreshTokenPayload!
   registerUser(input: RegisterUserInput!): User!
-  requestPlanSubscription(planId: ID!): Subscription!
-  setPlanActiveStatus(id: ID!, isActive: Boolean!): Plan!
-  updatePlan(id: ID!, input: UpdatePlanInput!): Plan!
-  verifySubscriptionPayment(paymentMethod: String!, paymentReference: String!, subscriptionId: ID!): Subscription!
-}
-
-type Plan {
-  createdAt: DateTime!
-  currency: String!
-  deactivatedAt: DateTime
-  id: ID!
-  intervalDays: Int!
-  isActive: Boolean!
-  price: String!
-  sessionCount: Int!
-  title: String!
-  updatedAt: DateTime!
 }
 
 type Query {
   _health: HealthCheck!
-  adminAuditLogs(actionType: String, actorId: Int, createdFrom: DateTime, createdTo: DateTime, entityId: Int, entityType: String, limit: Int, offset: Int): AdminAuditLogConnection!
-  adminPendingSubscriptionRequests: [AdminSubscriptionRequest!]!
-  adminPlans(includeInactive: Boolean = true): [Plan!]!
-  adminSubscriptions(limit: Int, offset: Int, status: String): AdminSubscriptionConnection!
 
   """
   Returns the authenticated user (or null for anonymous). Anonymous callers receive null — the AuthProvider uses this to detect expired access tokens and silently restore the session via `refreshToken`.
   """
   me: User
   myApplicantProfile: ApplicantProfile
-  mySubscriptions: [Subscription!]!
-  planCatalog: [Plan!]!
 
   """
   Returns the canonical list of recitation readings (Qira'at) for the registration form selector. Public — no authentication required. The values are stable API identifiers; display labels are resolved client-side via the i18n recitation namespace.
@@ -214,27 +124,6 @@ input RegisterUserInput {
   phone: String!
   preferredRecitation: RecitationReading
   role: RegisterPublicRole!
-}
-
-type Subscription {
-  createdAt: DateTime!
-  endDate: DateTime
-  id: ID!
-  paymentMethod: String
-  paymentReference: String
-  paymentVerifiedAt: DateTime
-  plan: Plan!
-  startDate: DateTime
-  status: String!
-  updatedAt: DateTime!
-}
-
-input UpdatePlanInput {
-  currency: String
-  intervalDays: Int
-  price: String
-  sessionCount: Int
-  title: String
 }
 
 type User {
