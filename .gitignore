@@ -147,3 +147,12 @@ node_modules/
 # PGlite in-process Postgres data dirs (binary, runtime-mutated)
 db/pglite
 db/pglite-test
+
+
+sandbox.*.sh
+
+/skills/
+/agent-ctx/
+.zscripts/
+.browser-auth/
+scripts/build/
