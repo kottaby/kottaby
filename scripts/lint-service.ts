@@ -37,6 +37,8 @@
  * Environment variables:
  *   - LINT_QUEUE_CONCURRENCY   Override eslint --concurrency (default: 4; "auto" allowed)
  *   - LINT_QUEUE_TIMEOUT_MS     Override per-request timeout in ms (default: 300000 files, 1200000 full-repo)
+ *   - LINT_MAX_OLD_SPACE_MB    Override the eslint child --max-old-space-size heap cap in MB
+ *                              (default: adaptive — see MAX_OLD_SPACE_MB below)
  *
  * CLI Usage:
  *   bun run scripts/lint-service.ts                             # Full-repo lint
@@ -57,6 +59,8 @@
  */
 
 import { exec } from "node:child_process";
+import { readFileSync } from "node:fs";
+import { totalmem } from "node:os";
 import { parseArgs } from "node:util";
 import { withProcessLock } from "@/scripts/lib/process-lock";
 
@@ -104,6 +108,61 @@ const DEFAULT_TIMEOUT_FULL_REPO_MS = Number(process.env.LINT_QUEUE_TIMEOUT_MS ??
 
 /** ESLint concurrency value (default 4; override via LINT_QUEUE_CONCURRENCY env var) */
 const CONCURRENCY = process.env.LINT_QUEUE_CONCURRENCY ?? "4";
+
+/** Default ESLint child heap cap (MB) — only used when the machine can afford it. */
+const DEFAULT_MAX_OLD_SPACE_MB = 8192;
+
+/** Never clamp the ESLint child heap below this (MB). */
+const MIN_MAX_OLD_SPACE_MB = 2048;
+
+/** Fraction of total memory the ESLint child heap may use when clamping. */
+const HEAP_FRACTION_OF_TOTAL = 0.7;
+
+/**
+ * Read the cgroup memory limit in bytes, or null when unavailable/unlimited.
+ * Checks cgroup v2 (memory.max) then v1 (memory/memory.limit_in_bytes); a v2
+ * value of "max" means unlimited. os.totalmem() reports host RAM rather than
+ * the cgroup limit on Linux, so the caller uses the smaller of the two.
+ */
+function readCgroupMemoryLimitBytes(): number | null {
+  for (const path of ["/sys/fs/cgroup/memory.max", "/sys/fs/cgroup/memory/memory.limit_in_bytes"]) {
+    let raw: string;
+    try {
+      raw = readFileSync(path, "utf8").trim();
+    } catch {
+      continue; // File absent (non-Linux or different cgroup version) — try next.
+    }
+    if (raw === "max") return null; // Unlimited → fall back to os.totalmem()
+    const bytes = Number.parseInt(raw, 10);
+    if (Number.isFinite(bytes) && bytes > 0) return bytes;
+  }
+  return null;
+}
+
+/**
+ * Adaptive Node heap cap (MB) for the ESLint child process.
+ *
+ * The previous hardcoded 8192 assumed ~7GB CI runners; on smaller hosts (e.g.
+ * a 4 GiB cgroup with no swap) the child was OOM-killed (SIGKILL/exit 137 →
+ * silent exit-1 with no output). Resolution order:
+ *   1. LINT_MAX_OLD_SPACE_MB env var — explicit override, wins outright
+ *   2. min(8192, floor(totalMemMB * 0.7)), where totalMemMB is the smaller of
+ *      the cgroup limit and os.totalmem()
+ *   3. Clamped to a 2048 MB floor
+ */
+const MAX_OLD_SPACE_MB: number = (() => {
+  const override = Number.parseInt(process.env.LINT_MAX_OLD_SPACE_MB ?? "", 10);
+  if (override > 0) return override;
+
+  const cgroupBytes = readCgroupMemoryLimitBytes();
+  const totalBytes = cgroupBytes === null ? totalmem() : Math.min(cgroupBytes, totalmem());
+  const totalMb = Math.floor(totalBytes / (1024 * 1024));
+
+  return Math.max(
+    MIN_MAX_OLD_SPACE_MB,
+    Math.min(DEFAULT_MAX_OLD_SPACE_MB, Math.floor(totalMb * HEAP_FRACTION_OF_TOTAL))
+  );
+})();
 
 // ─── LintService (In-Process Queue + ESLint Executor) ──────────────────────
 
@@ -225,7 +284,7 @@ class LintService {
     // Construct the command
     const envPrefix = options.typeAware ? 'ESLINT_TYPE_AWARE="true"' : "";
     const concurrencySetting = options.typeAware ? "1" : CONCURRENCY;
-    const nodeOptions = `${ESLINT_PATCH} --max-old-space-size=8192`;
+    const nodeOptions = `${ESLINT_PATCH} --max-old-space-size=${MAX_OLD_SPACE_MB}`;
     // Type-aware mode toggles parserOptions/rules via ESLINT_TYPE_AWARE; sharing
     // `.eslintcache` with non-type-aware runs can resurface stale parse errors
     // (e.g. resolved merge conflicts). Use a dedicated cache file instead.
