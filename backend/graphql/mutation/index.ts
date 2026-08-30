@@ -14,3 +14,4 @@
  */
 import "./auth.mutation";
 import "./admin";
+import "./plan-catalog.mutation";

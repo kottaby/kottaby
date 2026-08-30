@@ -282,15 +282,19 @@ const MUTATION_SURFACE_INVENTORY_QUERY_DOCUMENT: DocumentNode = gql`
  * still belong on this drift-guard list because the contract is "every
  * deployed Mutation root field is enumerated" — otherwise any new
  * mutation ships without an explicit decision about warning propagation.
+ * Also includes DEV1-005 plan mutations: `createPlan`, `setPlanActiveStatus`, `updatePlan`.
  */
 const KNOWN_LIVE_MUTATION_FIELDS = [
   "adminCreateUser",
   "adminSetUserDeleted",
   "adminUpdateUser",
+  "createPlan",
   "login",
   "logout",
   "refreshToken",
   "registerUser",
+  "setPlanActiveStatus",
+  "updatePlan",
 ];
 /** Documented precedent surfaces that must ADOPT Rules #6/#7 when wired. */
 const DOCUMENTED_WARNING_SURFACES_PENDING = ["releaseQuotaIfDeducted", "deleteClassInstance"];

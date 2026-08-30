@@ -24,7 +24,7 @@
  * this module only DESCRIBES that row so callers route consistently.
  */
 
-import type { ErrorsLabels } from "@/shared/locale/types/errors";
+import type { ErrorMessageKey } from "@/shared/locale/types/errors";
 
 /**
  * Structural mirror of the boundary's wire shape for ONE
@@ -166,12 +166,12 @@ export interface GraphQLErrorAction {
    * `useAppTranslation(Errors)[messageKey]` — never the server `message`.
    *
    * The handle is restricted to the leaf-string keys of {@link ErrorsLabels}.
-   * Grouped sub-blocks (e.g. the `adminUsers` nesting) carry their own
+   * Grouped sub-blocks (e.g. `adminUsers`, `planCatalog`) carry their own
    * property paths and are surfaced through dedicated consumer surfaces,
    * never through this transport mapper, so they are excluded from the
    * renderable handle union.
    */
-  readonly messageKey: keyof Omit<ErrorsLabels, "adminUsers">;
+  readonly messageKey: ErrorMessageKey;
   readonly tone: GraphQLErrorActionTone;
   /** A manual-retry affordance may be offered (RATE_LIMITED/SERVICE_UNAVAILABLE). */
   readonly retryable: boolean;
