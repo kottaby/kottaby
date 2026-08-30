@@ -218,6 +218,7 @@
     "@storybook/addon-onboarding": "^10.5.10",
     "@storybook/addon-themes": "^10.5.10",
     "@storybook/addon-vitest": "^10.5.10",
+    "@storybook/icons": "^2.1.0",
     "@storybook/nextjs-vite": "^10.5.10",
     "@tailwindcss/postcss": "^4.3.3",
     "@testing-library/jest-dom": "^7.0.1",

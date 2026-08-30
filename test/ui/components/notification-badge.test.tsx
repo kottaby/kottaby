@@ -31,12 +31,15 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { ApolloClient, ApolloLink } from "@apollo/client";
 import { ApolloProvider } from "@apollo/client/react";
 import { MockLink } from "@apollo/client/testing";
-import { act, cleanup, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 import { NotificationUnreadBadge } from "@/frontend/components/ui/NotificationUnreadBadge";
 import { AuthContext, type AuthContextType, type AuthUser } from "@/frontend/context/AuthContext";
 import { ThemeContext, type ThemeContextType } from "@/frontend/context/ThemeContext";
 import { UserRole } from "@/frontend/graphql/generated/gql/graphql";
-import { myUnreadNotificationCountQueryDocument } from "@/frontend/graphql/sharedDocuments";
+import {
+  myNotificationsQueryDocument,
+  myUnreadNotificationCountQueryDocument,
+} from "@/frontend/graphql/sharedDocuments";
 import { createApolloCache } from "@/frontend/providers/apollo/apolloCache";
 import { DashboardAppBar } from "@/frontend/views/dashboard/DashboardAppBar";
 import { DashboardSidebar } from "@/frontend/views/dashboard/DashboardSidebar";
@@ -86,7 +89,10 @@ afterEach(() => {
 
 /**
  * Builds a test client whose counting link fronts a single unread-count
- * mock — the link-level counter is the dedupe / cache-observation seam.
+ * mock — the link-level counter is the dedupe / cache-observation seam —
+ * plus an EMPTY drawer-window list mock: the bell now hosts
+ * `NotificationDrawer` (drawer-plan DR-1), so click-toggle assertions must
+ * not die on an unmocked `myNotifications` operation.
  */
 function createBadgeClient(count: number): { client: ApolloClient; requestCount: () => number } {
   let requests = 0;
@@ -101,6 +107,17 @@ function createBadgeClient(count: number): { client: ApolloClient; requestCount:
         {
           request: { query: myUnreadNotificationCountQueryDocument },
           result: { data: { myUnreadNotificationCount: count } },
+        },
+        {
+          request: {
+            query: myNotificationsQueryDocument,
+            variables: { filter: { isRead: null, type: null, limit: 5, offset: 0 } },
+          },
+          result: {
+            data: {
+              myNotifications: { __typename: "NotificationListPage", items: [], totalCount: 0, hasMore: false },
+            },
+          },
         },
       ]),
     ]),
@@ -208,23 +225,40 @@ for (const locale of ["ar", "en"] as AppLocale[]) {
   const t = Notifications.getLabels(getTranslations(locale));
 
   describe(`NotificationUnreadBadge (${locale === "ar" ? "RTL/arabic" : "LTR/english"})`, () => {
-    test("plural unread count: link to /notifications with composed accessible name and visible count", async () => {
+    test("plural unread count: bell button with composed accessible name and visible count toggles the drawer (DR-1)", async () => {
       const { container } = renderBadge(createBadgeClient(7).client, locale);
 
       const bell = await waitFor(() => {
-        const link = screen.getByRole("link", { name: `${t.badgeAriaLabel} — ${t.unreadCount(7)}` });
-        expect(link).toBeDefined();
-        return link;
+        const button = screen.getByRole("button", { name: `${t.badgeAriaLabel} — ${t.unreadCount(7)}` });
+        expect(button).toBeDefined();
+        return button;
       });
-      expect(bell.getAttribute("href")).toBe("/notifications");
+      // The bell is a drawer toggle now — NOT a navigation anchor.
+      expect(bell.getAttribute("aria-haspopup")).toBe("dialog");
+      expect(bell.getAttribute("aria-expanded")).toBe("false");
+      expect(bell.getAttribute("href")).toBeNull();
       expect(badgeElement(container)?.textContent).toBe("7");
+
+      // Open: the popover surfaces its pinned footer link to the full page.
+      fireEvent.click(bell);
+      await waitFor(() => {
+        expect(bell.getAttribute("aria-expanded")).toBe("true");
+      });
+      const viewAll = await screen.findByRole("link", { name: t.viewAllNotifications });
+      expect(viewAll.getAttribute("href")).toBe("/notifications");
+
+      // A second click closes the drawer again.
+      fireEvent.click(bell);
+      await waitFor(() => {
+        expect(bell.getAttribute("aria-expanded")).toBe("false");
+      });
     });
 
     test("singular unread count: accessible name uses the singular pluralization branch", async () => {
       const { container } = renderBadge(createBadgeClient(1).client, locale);
 
       await waitFor(() => {
-        expect(screen.getByRole("link", { name: `${t.badgeAriaLabel} — ${t.unreadCount(1)}` })).toBeDefined();
+        expect(screen.getByRole("button", { name: `${t.badgeAriaLabel} — ${t.unreadCount(1)}` })).toBeDefined();
       });
       expect(badgeElement(container)?.textContent).toBe("1");
     });
@@ -233,7 +267,7 @@ for (const locale of ["ar", "en"] as AppLocale[]) {
       const { container } = renderBadge(createBadgeClient(0).client, locale);
 
       await waitFor(() => {
-        expect(screen.getByRole("link", { name: `${t.badgeAriaLabel} — ${t.unreadCount(0)}` })).toBeDefined();
+        expect(screen.getByRole("button", { name: `${t.badgeAriaLabel} — ${t.unreadCount(0)}` })).toBeDefined();
       });
       // MUI hides the badge span for a zero count (showZero stays false).
       expect(badgeElement(container)?.className.includes("MuiBadge-invisible")).toBe(true);
@@ -243,7 +277,7 @@ for (const locale of ["ar", "en"] as AppLocale[]) {
       const { container } = renderBadge(createBadgeClient(150).client, locale);
 
       await waitFor(() => {
-        expect(screen.getByRole("link", { name: `${t.badgeAriaLabel} — ${t.unreadCount(150)}` })).toBeDefined();
+        expect(screen.getByRole("button", { name: `${t.badgeAriaLabel} — ${t.unreadCount(150)}` })).toBeDefined();
       });
       // "99+" is MUI's computed overflow display (max prop), not copy.
       expect(badgeElement(container)?.textContent).toBe("99+");
@@ -261,7 +295,7 @@ describe("NotificationUnreadBadge lifecycle (Happy DOM, mocked WebSocket)", () =
     renderAppBar(UserRole.Student, locale);
 
     await waitFor(() => {
-      expect(screen.getByRole("link", { name: `${t.badgeAriaLabel} — ${t.unreadCount(7)}` })).toBeDefined();
+      expect(screen.getByRole("button", { name: `${t.badgeAriaLabel} — ${t.unreadCount(7)}` })).toBeDefined();
     });
     expect(webSocketConstructions).toBe(0);
   });
@@ -279,7 +313,7 @@ describe("NotificationUnreadBadge lifecycle (Happy DOM, mocked WebSocket)", () =
 
     // BOTH badges render the same count from the ONE in-flight query.
     await waitFor(() => {
-      expect(screen.getAllByRole("link", { name: `${t.badgeAriaLabel} — ${t.unreadCount(5)}` })).toHaveLength(2);
+      expect(screen.getAllByRole("button", { name: `${t.badgeAriaLabel} — ${t.unreadCount(5)}` })).toHaveLength(2);
     });
     expect(requestCount()).toBe(1);
   });
@@ -289,7 +323,7 @@ describe("NotificationUnreadBadge lifecycle (Happy DOM, mocked WebSocket)", () =
 
     const first = renderBadge(client, locale);
     await waitFor(() => {
-      expect(screen.getByRole("link", { name: `${t.badgeAriaLabel} — ${t.unreadCount(5)}` })).toBeDefined();
+      expect(screen.getByRole("button", { name: `${t.badgeAriaLabel} — ${t.unreadCount(5)}` })).toBeDefined();
     });
     expect(requestCount()).toBe(1);
 
@@ -298,7 +332,7 @@ describe("NotificationUnreadBadge lifecycle (Happy DOM, mocked WebSocket)", () =
     // link is never re-executed (no duplicate query, no duplicate listener).
     renderBadge(client, locale);
     await waitFor(() => {
-      expect(screen.getByRole("link", { name: `${t.badgeAriaLabel} — ${t.unreadCount(5)}` })).toBeDefined();
+      expect(screen.getByRole("button", { name: `${t.badgeAriaLabel} — ${t.unreadCount(5)}` })).toBeDefined();
     });
     expect(requestCount()).toBe(1);
   });
@@ -337,11 +371,13 @@ for (const locale of ["ar", "en"] as AppLocale[]) {
     const { container } = renderAppBar(UserRole.Student, locale);
 
     const bell = await waitFor(() => {
-      const link = screen.getByRole("link", { name: `${t.badgeAriaLabel} — ${t.unreadCount(7)}` });
-      expect(link).toBeDefined();
-      return link;
+      const button = screen.getByRole("button", { name: `${t.badgeAriaLabel} — ${t.unreadCount(7)}` });
+      expect(button).toBeDefined();
+      return button;
     });
-    expect(bell.getAttribute("href")).toBe("/notifications");
+    // The bell hosts the drawer (no direct navigation) — the full page stays
+    // reachable via the sidebar entry and the drawer's footer link.
+    expect(bell.getAttribute("aria-haspopup")).toBe("dialog");
     expect(badgeElement(container)?.textContent).toBe("7");
   });
 }

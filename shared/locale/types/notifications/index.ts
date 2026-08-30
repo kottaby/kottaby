@@ -9,6 +9,8 @@
  *    labels, mark-read/mark-all affordances, and the realtime toast).
  *  - Frontend app-bar bell badge (`useAppTranslation(Notifications)` for the
  *    badge accessible name + the pluralized unread-count announcement).
+ *  - Frontend app-bar bell drawer (`NotificationDrawer` — the header title,
+ *    mark-all action, loading/empty/error branches, and the view-all footer).
  *  - The notifications server page shell (`getTranslations(locale)` →
  *    `notificationsTranslations` slice).
  *
@@ -76,6 +78,11 @@ export interface NotificationsLabels {
    * dual/3–10-plural/11+-counted branch rules.
    */
   readonly unreadCount: (count: number) => string;
+  /**
+   * Bell-drawer footer action — navigates from the floating drawer to the
+   * full notifications page (`/notifications`).
+   */
+  readonly viewAllNotifications: string;
   /**
    * Realtime-arrival toast template — receives the localized type display
    * label and the notification title; output is the full toast message.

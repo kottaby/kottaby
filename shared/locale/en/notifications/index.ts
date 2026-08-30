@@ -31,6 +31,7 @@ export const notificationsEn: NotificationsLabels = {
     if (count === 1) return "1 unread notification";
     return `${count} unread notifications`;
   },
+  viewAllNotifications: "View all notifications",
   realtimeToast: (typeLabel: string, notificationTitle: string) =>
     `New notification — ${typeLabel}: ${notificationTitle}`,
   reconnecting: "Reconnecting…",

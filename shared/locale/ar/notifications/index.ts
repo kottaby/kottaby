@@ -35,6 +35,7 @@ export const notificationsAr: NotificationsLabels = {
     if (count >= 3 && count <= 10) return `${count} إشعارات غير مقروءة`;
     return `${count} إشعاراً غير مقروءاً`;
   },
+  viewAllNotifications: "عرض كل الإشعارات",
   realtimeToast: (typeLabel: string, notificationTitle: string) => `إشعار جديد — ${typeLabel}: ${notificationTitle}`,
   reconnecting: "جارٍ إعادة الاتصال…",
   reconnectedQuietly: "تم استعادة الإشعارات الفورية",
