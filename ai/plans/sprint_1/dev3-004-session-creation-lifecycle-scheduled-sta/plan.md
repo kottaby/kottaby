@@ -143,7 +143,7 @@ myStudentSessions / myTeacherSessions  (role-gated lists)
 | `sessionType` / `sessionIntent` enums | full value sets incl. `evaluation` (structurally rejected by this surface) | same file |
 | `students` balance lanes | `balanceHifz`/`balanceReviews`/`balanceTajweed` (`int`, default 0, CHECK ≥ 0); `balanceTrial` NOT NULL DEFAULT 0 + CHECK; `trialGrantedAt` | `backend/db/schema/students/students.ts` |
 | `teacher` certification flag | `isApproved boolean default false`; shared PK → `users.id` cascade | `backend/db/schema/teachers/teacher.ts` |
-| `users` governance (A.7) | fail-closed governance enforced at login/SSR (DEV2-001/002) — the GraphQL context boundary carries NO governance filter; governance columns are never read here | `backend/db/schema/users/users.ts` |
+| `users` governance (A.7) | fail-closed governance enforced at login/SSR (DEV2-001/002) — the GraphQL context boundary carries NO governance filter; in this slice the service layer reads governance columns only for the acting-user re-check on create/start/complete (cancelSession exempt — Ruling 2026-08-30); journey fixtures materialize them | `backend/db/schema/users/users.ts` |
 
 **Diff discipline (REQ-045):** at completion, `git diff backend/db/schema/** backend/db/migration/**` contains EXACTLY the two REQ-013 artifacts below and nothing else. `db reset`/`cleanGenerate` remain permanently disabled (`docs/DATABASE_MIGRATIONS.md`); the deltas apply via `bun run db push` in the same commit set as the code.
 

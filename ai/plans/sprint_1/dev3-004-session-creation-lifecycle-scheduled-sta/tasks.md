@@ -23,7 +23,7 @@
 
 - [x] 0.1 [Record baseline and seed deferred-items ledger]
   - Record baseline error counts: `bun tsgo`, `bun biome:check`, `bun run scripts/lint-service.ts --json --id baseline`, `git diff --name-only` → capture into `outcome/0.1-outcome.md` (per protocol #5).
-  - Initialize `ai/plans/sprint_1/dev3-004-session-creation-lifecycle-scheduled-sta/deferred-items.md` (the file already EXISTS in this plan dir as an empty template; plan.md — updated separately — defines D1–D5) by seeding the following non-blocking forward items into it:
+  - Initialize `ai/plans/sprint_1/dev3-004-session-creation-lifecycle-scheduled-sta/deferred-items.md` (the file already EXISTS in this plan dir as an empty template; plan.md — updated separately — defines D1–D5, extended D6–D7 by gate rulings) by seeding the following non-blocking forward items into it:
     - **D1** — session request/lifecycle event notifications → DEV3-010/DEV3-011
     - **D2** — dual-confirmation student confirm + 24h auto-cancel sweeper + wallet credit → DEV3-012/DEV3-013
     - **D3** — `is_online` availability assertion + directory wiring → DEV3-008/DEV2-011
@@ -50,7 +50,7 @@
 
 ### 0.3 — Phase-1.5 Plan-Review Gate (predates ALL implementation)
 
-- [ ] 0.3 [Run `@plan-review` against specs.md + plan.md]
+- [x] 0.3 [Run `@plan-review` against specs.md + plan.md]
   - Invoke the plan-review gate; record its outcome to `outcome/0.3-outcome.md` (per protocol #5).
   - Gate MUST predate any Phase 1+ file edit (REQ-083); resolve every blocking finding before proceeding.
   - _Requirements: REQ-083_
@@ -61,15 +61,15 @@
 
 ### 1.1 — HeldBalanceLane TS Enum (provenance vocabulary)
 
-- [ ] 1.1 [Create `HeldBalanceLane` enum + type guard]
+- [x] 1.1 [Create `HeldBalanceLane` enum + type guard]
   - **Files:** CREATE `backend/enum/scheduling/held-balance-lane.enum.ts` (`Trial`/`Hifz`/`Tajweed` string enum + `isHeldBalanceLane` guard); UPDATE `backend/enum/scheduling/index.ts` barrel.
   - **Instructions:** `backend/enum/AGENTS.md`, ApplicantStatus varchar-enum precedent (DEV1-001/DEV2-004).
   - _Requirements: REQ-013(a), REQ-045_
-  - [ ] 1.1.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts backend/enum/scheduling/held-balance-lane.enum.ts --lifecycle duplicates` (exit 0)
-  - [ ] 1.1.TE **Test Engineering**: 4-Tier — Tier 1 branch coverage of guard (valid members, casing variants, empty string); Tier 2 boundary (unicode/RTL strings); Tier 3 chaos (symbol/object/null/undefined hostile fuzz); Tier 4 (guard can never coerce a non-string). Run via `bun run test/scripts/run-test.ts <path>`.
-  - [ ] 1.1.SEC **Security & Tenancy Audit**: vocabulary is app-layer only; no DB CHECK added (ApplicantStatus precedent); never accepted from client input anywhere.
-  - [ ] 1.1.SR **Semantic Review**: enum used via VALUE import only; zero dead exports; no cross-layer imports.
-  - [ ] 1.1.IV **Instruction Verification**: validate against `backend/enum/AGENTS.md`.
+  - [x] 1.1.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts backend/enum/scheduling/held-balance-lane.enum.ts --lifecycle duplicates` (exit 0)
+  - [x] 1.1.TE **Test Engineering**: 4-Tier — Tier 1 branch coverage of guard (valid members, casing variants, empty string); Tier 2 boundary (unicode/RTL strings); Tier 3 chaos (symbol/object/null/undefined hostile fuzz); Tier 4 (guard can never coerce a non-string). Run via `bun run test/scripts/run-test.ts <path>`.
+  - [x] 1.1.SEC **Security & Tenancy Audit**: vocabulary is app-layer only; no DB CHECK added (ApplicantStatus precedent); never accepted from client input anywhere.
+  - [x] 1.1.SR **Semantic Review**: enum used via VALUE import only; zero dead exports; no cross-layer imports.
+  - [x] 1.1.IV **Instruction Verification**: validate against `backend/enum/AGENTS.md`.
   - Write `outcome/1.1-outcome.md`.
 
 ### 1.2 — Schema Deltas (REQ-013, push-only)
@@ -258,7 +258,7 @@
 - [ ] 2.M [Mid-point review: backend core]
   - Compile/lint delta vs Phase-0 baseline = 0 on touched files; sub-loop green on 2.4–2.8 outputs.
   - Re-run journey suites J1/J2 — now expected GREEN; run the full new DB/service suites; confirm 100% coverage instrumentation on new code paths.
-  - Review ledger: no new ❌/⚠️ beyond D1–D5; record any emergent gap with owner.
+  - Review ledger: no new ❌/⚠️ beyond D1–D7; record any emergent gap with owner.
   - Write `outcome/2.M-midpoint-outcome.md`; block Phase 3 until green.
   - _Requirements: REQ-070, REQ-076, REQ-083_
 
@@ -401,7 +401,7 @@
   - **review-backend wave**: four-phase create ordering; guarded single-statement transitions; probe classification-only; `tx` propagation audit on EVERY new/changed repo method; zero cross-layer imports; REQ-019 grep gates (zero notifications/audit/wallet/transaction/report/recitation imports or writes in the slice); REQ-031 zero-`...input` grep gate; REQ-036 log-hygiene scan (no `console.*`, no keys/payloads in log context).
   - **review-frontend wave**: MUI v9 sx-only compliance; palette-token exclusivity; `*Outlined` icons; `React.SubmitEvent`; translation `defineNamespace` handle-const property access (no `Translation` enum exists); no `useLazyQuery`; codegen-types-only; nav conventions.
   - **pentester wave**: BOLA oracle-safety (foreign≡nonexistent), BOPLA closed inputs, BFLA scope exactness + no admin bypass, INV-S1/S2 structural terminality, INV-S5 TOCTOU-free certification, idempotency-claim abuse review, REQ-034 injection N/A attestation.
-  - **Deferred-items check**: `grep -c "❌\|⚠️"` on the ledger = EXACTLY the pre-seeded D1–D5 (each owner-referenced, non-blocking).
+  - **Deferred-items check**: `grep -c "❌\|⚠️"` on the ledger = EXACTLY the pre-seeded D1–D7 (each owner-referenced, non-blocking).
   - Every wave finding either fixed-in-pass or recorded with owner; blocking findings loop back to the owning phase.
   - _Requirements: REQ-018, REQ-019, REQ-030..REQ-036, REQ-041, REQ-076, REQ-083_
   - Write `outcome/6.1-review-waves-outcome.md` (one subsection per wave).
@@ -432,7 +432,7 @@
   - Write `outcome/7.3-outcome.md`.
 
 - [ ] 7.4 [Outcome synthesis & final gate]
-  - Verify every task has its `outcome/<id>-outcome.md`; synthesize `outcome/final-outcome.md` (what shipped, gates evidence, journey twice-green proof, coverage proof, baseline delta = 0, ledger state: only D1–D5 remain ⚠️-free forward items).
+  - Verify every task has its `outcome/<id>-outcome.md`; synthesize `outcome/final-outcome.md` (what shipped, gates evidence, journey twice-green proof, coverage proof, baseline delta = 0, ledger state: only D1–D7 remain ⚠️-free forward items).
   - Final assertion run: baseline diff = 0 new errors; `git diff backend/db/schema/** backend/db/migration/**` = EXACTLY REQ-013's two artifacts.
   - _Requirements: REQ-076, REQ-083_
   - Write `outcome/7.4-final-outcome.md`.
