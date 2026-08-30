@@ -11,10 +11,11 @@
  *    `index.ts`.
  *
  * `auth.query.ts` wires the `me` query; the other entries register the
- * health, recitation, and teacher-domain queries.
+ * health, recitation, teacher-domain, and student-domain queries.
  */
 import "./auth.query";
 import "./health.query";
 import "./recitation.query";
+import "./students";
 import "./teachers";
 import "./admin";

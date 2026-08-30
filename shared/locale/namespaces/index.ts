@@ -4,6 +4,7 @@ import { Auth } from "@/shared/locale/namespaces/auth";
 import { Common } from "@/shared/locale/namespaces/common";
 import { Dashboard } from "@/shared/locale/namespaces/dashboard";
 import { Errors } from "@/shared/locale/namespaces/errors";
+import { HandshakeCode } from "@/shared/locale/namespaces/handshakeCode";
 import { Landing } from "@/shared/locale/namespaces/landing";
 import { Recitation } from "@/shared/locale/namespaces/recitation";
 
@@ -14,6 +15,7 @@ export * from "./common";
 export * from "./dashboard";
 export * from "./define-namespace";
 export * from "./errors";
+export * from "./handshakeCode";
 export * from "./landing";
 export * from "./recitation";
 export * from "./translation";
@@ -25,6 +27,7 @@ export const namespaces = {
   Common,
   Dashboard,
   Errors,
+  HandshakeCode,
   Landing,
   Recitation,
 } as const;

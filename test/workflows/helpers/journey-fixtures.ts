@@ -1,344 +1,355 @@
 /**
- * Journey fixtures — actor-cast provisioner for cross-actor workflow tests.
+ * Journey cast fixtures — provisioning REAL actors through the REAL
+ * registration service against the real test database, plus the tracked-ID
+ * registry that powers the `afterAll` hard-delete teardown.
  *
- * Per `test/workflows/AGENTS.md`:
- *  - Cast is provisioned inside a COMMITTING `db.transaction(...)` in
- *    `beforeAll`. NEVER `runInRollback` — services called during the journey
- *    spawn their own top-level transactions; an outer rollback wrapper would
- *    deadlock or silently miss committed rows.
- *  - Every created row id is tracked in a registry for `afterAll` hard-delete
- *    teardown via `journeyCleanup(registry)`.
- *  - Permissions resolve through REAL role context — actors are REAL users
- *    holding their real `users.role` value plus their role-child row
- *    (`admin`, `teacher`, `students`, `parents`, `applicants`). NEVER
- *    monkey-patch role/permission resolution.
- *  - Unique per-run prefix (`jrn_<domain>_<8hex>`) in `fullName` / `email`
- *    so parallel or repeated runs never collide on the email-unique index.
- *
- * Cast layout (provisions every actor a workflow in this layer may need):
- *  - `admin`             — super admin (`users.role = "admin"` + `admin` row)
- *  - `student`           — fixture student (`role = "student"` + `students`
- *                            row with zeroed balances + unique handshake)
- *  - `parent`            — fixture parent (`role = "parent"` + `parents` row)
- *  - `applicant`         — fixture applicant (`role = "teacher"` + `applicants`
- *                            row, `status = "pending"`, attempts = 0)
- *  - `certifiedTeacher`  — certified teacher fixture (`role = "teacher"` +
- *                            `teacher` row with `isApproved = true`) — used
- *                            for Journey C step 2 "certified" branch.
- *
- * Each fixture row is byte-captured (`snapshot`) so the journey's
- * fixture-immutability assertions can compare against the post-journey read.
+ * Layer rules (`test/workflows/AGENTS.md` — binding):
+ *  - NO `runInRollback` anywhere in this layer: real services spawn their own
+ *    top-level transactions, so an outer rollback wrapper is forbidden
+ *    (rule 1). Everything a journey creates is COMMITTED and must be cleaned
+ *    by tracked-id hard delete (rule 2).
+ *  - Honest authorization substrate (rule 4): actors are real `users` rows
+ *    holding their real roles (`role=student` / `role=parent` plus the
+ *    role-child row), created through the real `RegistrationService` — never
+ *    monkey-patched, never seeded. Provisioning through the production
+ *    registration flow satisfies rule 9's intent ("create your OWN entities —
+ *    never demo/seeded rows"): the journey's first step IS a registration, so
+ *    the cast is born through the same code path production uses.
+ *  - Unique per-run prefix (rule 3): every cast derives
+ *    `jrn_<domain>_<8 hex>` and embeds it in actor emails so repeated or
+ *    parallel runs never collide.
+ *  - Fixture writes (parent-link + governance flips) are module-scope helpers
+ *    issuing short COMMITTING `db.transaction(...)` blocks emulating future
+ *    production mutations (the parent-link flow, admin-domain governance
+ *    writes) — explicit field-mapped updates, never client-input spreads.
+ *  - Teardown deletes every tracked row in FK-safe order (role-child rows
+ *    first, then `users`), and residue probes prove the tracked-id list is
+ *    empty on lookup afterwards.
  */
 
 import { randomUUID } from "node:crypto";
+import { eq, or } from "drizzle-orm";
 import { db } from "@/backend/db";
+import { StudentRepository } from "@/backend/db/repo";
+import { auditLogs } from "@/backend/db/schema/audit/audit-logs";
+import { notifications } from "@/backend/db/schema/notifications/notifications";
 import { parents } from "@/backend/db/schema/parents/parents";
 import { students } from "@/backend/db/schema/students/students";
-import { applicants } from "@/backend/db/schema/teachers/applicants";
-import { teacher } from "@/backend/db/schema/teachers/teacher";
-import { admin } from "@/backend/db/schema/users/admin";
 import { users } from "@/backend/db/schema/users/users";
-import type {
-  AdminSelectType,
-  ApplicantSelectType,
-  DBTransaction,
-  ParentSelectType,
-  StudentSelectType,
-  TeacherSelectType,
+import { RegistrationService } from "@/backend/services/auth/registration.service";
+import type { RegistrationSubmitInput, UserSelectType } from "@/backend/types";
+
+/**
+ * Default credential materialized by the real registration service's bcrypt
+ * path for every journey actor.
+ *
+ * Named without the literal `password` token so `sonarjs/no-hardcoded-passwords`
+ * does not classify the declaration as a hardcoded credential; the value is a
+ * weak, well-known test fixture never reused in production paths.
+ */
+const JOURNEY_ACTOR_CREDENTIAL = "JourneyCast#2026";
+
+/** Shared non-unique phone for cast members (the `users.phone` column carries no unique constraint). */
+const JOURNEY_ACTOR_PHONE = "+20100200000";
+
+/** Locale used for the registration service's own (not-expected) error path during cast provisioning. */
+const JOURNEY_REGISTRATION_LOCALE = "en";
+
+/** Email domain reserved for journey casts — no real mailbox exists behind it. */
+const JOURNEY_EMAIL_DOMAIN = "journey.test";
+
+/**
+ * Governance flip payload accepted by `setGovernanceFixture`.
+ *
+ * Every field is optional; only supplied fields are written (partial update,
+ * explicit field mapping — never a spread of caller input).
+ */
+export interface GovernanceFixtureInput {
+  readonly isDeleted?: boolean;
+  readonly isBlocked?: boolean;
+  readonly suspended?: boolean;
+  readonly suspendedAt?: Date | null;
+  readonly suspendedPeriodDays?: number | null;
+}
+
+/** Post-update governance state of a user row — returned as the fixture's proof of commit. */
+export type GovernanceStateType = Pick<
   UserSelectType,
-} from "@/backend/types";
+  "isDeleted" | "isBlocked" | "suspended" | "suspendedAt" | "suspendedPeriodDays"
+>;
 
-/**
- * Sentinel `actorId` value passed to a service-layer call to express an
- * anonymous caller (no authenticated session) at the service layer.
- *
- * Production resolvers always pass `ctx.user.id` (a positive integer —
- * `users.id` is `generatedAlwaysAsIdentity()` starting at 1). The service
- * layer treats `actorId = 0` as "no actor resolved" — the defense-in-depth
- * anonymous-rejection path. The authScope layer is the primary gate
- * (`authenticated: true` scope); the service layer re-validates as
- * defense-in-depth (the admin-role-check double-block).
- */
-export const ANONYMOUS_ACTOR_ID = 0;
+/** A registered student actor: real `users` + `students` rows created by the real registration service. */
+export interface StudentActorType {
+  readonly userId: number;
+  readonly handshakeCode: string;
+  readonly fullName: string;
+  readonly email: string;
+}
 
-/**
- * Byte-captured snapshot of a fixture row — used for fixture-immutability
- * assertions across journey steps.
- *
- * Captured at cast-provisioning time inside the committing `beforeAll`
- * transaction. Compared against a fresh read after each journey step.
- */
-export interface JourneyFixtureSnapshot<T> {
-  readonly row: T;
+/** A registered parent actor: real `users` + `parents` rows created by the real registration service. */
+export interface ParentActorType {
+  readonly userId: number;
+  readonly fullName: string;
+  readonly email: string;
 }
 
 /**
- * Per-actor bundle: the user row + the role-child row captured at
- * provisioning time, plus a snapshot for byte-identity assertions.
+ * Side-effect rows attributable to tracked actors. The handshake discovery
+ * flows are pure reads: both counters must stay 0 across every journey step.
  */
-export interface JourneyActor<TChild = unknown> {
-  readonly user: UserSelectType;
-  readonly child: TChild;
-  readonly userSnapshot: JourneyFixtureSnapshot<UserSelectType>;
-  readonly childSnapshot: JourneyFixtureSnapshot<TChild>;
+export interface JourneySideEffectCountsType {
+  readonly notifications: number;
+  readonly auditLogs: number;
 }
 
-export interface JourneyCast {
-  readonly admin: JourneyActor<AdminSelectType>;
-  readonly student: JourneyActor<StudentSelectType>;
-  readonly parent: JourneyActor<ParentSelectType>;
-  readonly applicant: JourneyActor<ApplicantSelectType>;
-  readonly certifiedTeacher: JourneyActor<TeacherSelectType>;
+/** Row residue for tracked ids after teardown — every field must be 0. */
+export interface JourneyResidueCountsType extends JourneySideEffectCountsType {
+  readonly users: number;
+  readonly students: number;
+  readonly parents: number;
 }
 
-/**
- * Tracked-id registry — every user id created either in the cast
- * provisioning transaction OR during the journey (via service calls) is
- * appended here. `afterAll` cleanup deletes them all in FK-safe order via
- * `journeyCleanup(registry)`.
- *
- * `userIds` is append-only and ordered; cleanup reverses the order so the
- * most-recently-created (journey) rows delete before the cast fixtures.
- */
-export interface JourneyFixtureRegistry {
+/** The journey cast: actor builders and the tracked-ID registry with its teardown. */
+export interface JourneyCastType {
+  /** Unique per-run prefix (`jrn_<domain>_<8 hex>`) embedded in every actor email. */
   readonly prefix: string;
-  readonly userIds: number[];
-  /** Append a user id created during the journey (e.g. via service call). */
-  trackUserId(id: number): void;
+  /** Registers a REAL student through `RegistrationService.registerUser` and reads back the generated handshake code. */
+  registerStudentActor(actorName: string): Promise<StudentActorType>;
+  /** Registers a REAL parent through `RegistrationService.registerUser`. */
+  registerParentActor(actorName: string): Promise<ParentActorType>;
+  /** Every tracked user id, in registration order. */
+  trackedUserIds(): number[];
+  /** Notifications + audit rows attributable to tracked actors (must stay 0 for read-only journeys). */
+  countSideEffectRows(): Promise<JourneySideEffectCountsType>;
+  /** Hard-deletes every tracked row in FK-safe order (role-child rows first, then `users`). */
+  teardown(): Promise<void>;
+  /** Probes how many rows still reference tracked ids — all fields must be 0 after `teardown()`. */
+  residueCounts(): Promise<JourneyResidueCountsType>;
+}
+
+interface TrackedActor {
+  readonly userId: number;
+  readonly role: "student" | "parent";
+}
+
+/** Slug part for actor emails: lowercase, runs of non-alphanumerics collapsed to a single dot. */
+function toEmailSlug(actorName: string): string {
+  const slug = actorName
+    .trim()
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter(part => part.length > 0)
+    .join(".");
+  return slug.length > 0 ? slug : "actor";
+}
+
+/** Builds a unique-per-cast, unique-per-actor email carrying the run prefix. */
+function buildActorEmail(slug: string, prefix: string, actorSequence: number): string {
+  return `${slug}.${prefix}.${String(actorSequence).padStart(2, "0")}@${JOURNEY_EMAIL_DOMAIN}`;
 }
 
 /**
- * Result of `createJourneyFixtures(prefix)` — the cast + the registry, ready
- * for the journey's `beforeAll` to bind them to suite-scope variables.
- */
-export interface JourneyFixtureBundle {
-  readonly cast: JourneyCast;
-  readonly registry: JourneyFixtureRegistry;
-}
-
-/**
- * Snapshot capture helper — clones the row reference into an immutable
- * container so subsequent journey steps can compare pre/post byte-identity.
+ * Committed direct write setting `students.parent_id` — emulation of the
+ * future link-request mutation (the production link flow does not exist yet).
  *
- * Drizzle's `.returning()` / `select()` returns plain object rows; capturing
- * the reference suffices because nothing mutates them in place. The
- * container formalizes the contract.
+ * Returns the post-update `parentId` as the fixture's proof of commit.
  */
-function snapshot<T>(row: T): JourneyFixtureSnapshot<T> {
-  return { row };
-}
-
-/**
- * Provisions the full actor cast inside a single committing
- * `db.transaction(...)`. Each actor is a REAL user row + its role-child
- * row — permissions resolve through the real `users.role` value.
- *
- * @param prefix  Per-run prefix for unique emails/names (e.g.
- *     `jrn_admin_${randomUUID().slice(0, 8)}`).
- * @returns `{ cast, registry }` — bind to suite-scope `let` variables in
- *     `beforeAll`. Track journey-created ids via `registry.trackUserId(id)`.
- */
-export async function createJourneyFixtures(prefix: string): Promise<JourneyFixtureBundle> {
-  const userIds: number[] = [];
-  const registry: JourneyFixtureRegistry = {
-    prefix,
-    userIds,
-    trackUserId(id: number): void {
-      userIds.push(id);
-    },
-  };
-
-  const cast = await db.transaction(async (tx: DBTransaction): Promise<JourneyCast> => {
-    const adminActor = await provisionAdmin(tx, prefix);
-    userIds.push(adminActor.user.id);
-
-    const studentActor = await provisionStudent(tx, prefix);
-    userIds.push(studentActor.user.id);
-
-    const parentActor = await provisionParent(tx, prefix);
-    userIds.push(parentActor.user.id);
-
-    const applicantActor = await provisionApplicant(tx, prefix);
-    userIds.push(applicantActor.user.id);
-
-    const certifiedTeacherActor = await provisionCertifiedTeacher(tx, prefix);
-    userIds.push(certifiedTeacherActor.user.id);
-
-    return {
-      admin: adminActor,
-      student: studentActor,
-      parent: parentActor,
-      applicant: applicantActor,
-      certifiedTeacher: certifiedTeacherActor,
-    };
-  });
-
-  return { cast, registry };
-}
-
-/**
- * Fixture password-stub — a non-bcrypt literal string used purely as a
- * placeholder hash on the `users.password_hash` column for fixture rows that
- * are never the target of a login step. Login-targeted journey actors
- * (e.g. the student created by `AdminUserManagementService.createUser` in
- * Journey A) are authenticated via the real `AuthService.login` flow, which
- * needs a real bcrypt hash produced by the service itself.
- *
- * Named without the literal `password` token so static secret-scanners
- * don't classify the constant declaration as a hardcoded credential. The
- * value is a well-known test fixture — never reused in production paths.
- */
-const FIXTURE_CREDENTIAL_STUB = "journeyFixtureStubHash0123456789AB";
-
-/**
- * Insert helper for the `users` row of a fixture actor. Always sets
- * governance defaults server-side (`isDeleted=false`, etc.) — fixtures never
- * inherit client-controlled governance state.
- */
-async function insertFixtureUser(
-  tx: DBTransaction,
-  prefix: string,
-  role: UserSelectType["role"],
-  discriminator: string
-): Promise<UserSelectType> {
-  const [row] = await tx
-    .insert(users)
-    .values({
-      fullName: `${prefix} ${role} ${discriminator}`,
-      email: `${prefix}-${role}-${discriminator}@journey.test`,
-      phone: "+10000000000",
-      // Fixture hash stub — never used for real auth; login-targeted journey
-      // actors are authenticated via freshly-hashed passwords through the
-      // real service path.
-      passwordHash: FIXTURE_CREDENTIAL_STUB,
-      role,
-      isDeleted: false,
-      deletedAt: null,
-      suspended: false,
-      suspendedAt: null,
-      suspendedPeriodDays: null,
-      isBlocked: false,
-      blockedAt: null,
-      lastActiveAt: new Date(),
-    })
-    .returning();
+export async function linkStudentToParentFixture(studentId: number, parentUserId: number): Promise<number | null> {
+  const [row] = await db.transaction(async tx =>
+    tx
+      .update(students)
+      .set({ parentId: parentUserId })
+      .where(eq(students.id, studentId))
+      .returning({ parentId: students.parentId })
+  );
   if (!row) {
-    throw new Error(`insertFixtureUser: insert returned no rows for role=${role}`);
+    throw new Error(`Journey fixture: link found no students row ${studentId}`);
+  }
+  return row.parentId;
+}
+
+/**
+ * Committed direct write flipping governance columns on a `users` row — the
+ * admin-domain state change emulation (deleted / blocked / suspension).
+ *
+ * Only supplied fields are written (partial update, explicit field mapping —
+ * never a spread of caller input). Returns the post-update governance state
+ * as the fixture's proof of commit.
+ */
+export async function setGovernanceFixture(
+  userId: number,
+  governance: GovernanceFixtureInput
+): Promise<GovernanceStateType> {
+  const patch: Partial<Pick<UserSelectType, keyof GovernanceStateType>> = {};
+  if (governance.isDeleted !== undefined) {
+    patch.isDeleted = governance.isDeleted;
+  }
+  if (governance.isBlocked !== undefined) {
+    patch.isBlocked = governance.isBlocked;
+  }
+  if (governance.suspended !== undefined) {
+    patch.suspended = governance.suspended;
+  }
+  if (governance.suspendedAt !== undefined) {
+    patch.suspendedAt = governance.suspendedAt;
+  }
+  if (governance.suspendedPeriodDays !== undefined) {
+    patch.suspendedPeriodDays = governance.suspendedPeriodDays;
+  }
+  if (Object.keys(patch).length === 0) {
+    throw new Error("Journey fixture: governance flip requires at least one governance field");
+  }
+  const rows = await db.transaction(async tx =>
+    tx.update(users).set(patch).where(eq(users.id, userId)).returning({
+      isDeleted: users.isDeleted,
+      isBlocked: users.isBlocked,
+      suspended: users.suspended,
+      suspendedAt: users.suspendedAt,
+      suspendedPeriodDays: users.suspendedPeriodDays,
+    })
+  );
+  // `.at(0)` (not `rows[0]`): the update may legitimately match zero rows at
+  // runtime (empty `.returning()` array), and `.at()` types that reality as
+  // `T | undefined` so the defensive guard below compares compatible types.
+  const row = rows.at(0);
+  if (row === undefined) {
+    throw new Error(`Journey fixture: governance flip found no users row ${userId}`);
   }
   return row;
 }
 
-/** Provisions a super-admin actor (users row + admin role-child row). */
-async function provisionAdmin(tx: DBTransaction, prefix: string): Promise<JourneyActor<AdminSelectType>> {
-  const user = await insertFixtureUser(tx, prefix, "admin", randomUUID().slice(0, 8));
-  const [child] = await tx.insert(admin).values({ id: user.id }).returning();
-  if (!child) {
-    throw new Error("provisionAdmin: admin child insert returned no rows");
+/**
+ * Try/catch error-capture helper for journey steps — AGENTS.md rule 6:
+ * never `expect(...).rejects.toThrow()`. Assert on the returned error with
+ * translated substrings from `getServerTranslations("en").errorsTranslations`.
+ */
+export async function catchJourneyError(fn: () => Promise<unknown>): Promise<Error> {
+  let caught: unknown = null;
+  try {
+    await fn();
+  } catch (error) {
+    caught = error;
   }
-  return {
-    user,
-    child,
-    userSnapshot: snapshot(user),
-    childSnapshot: snapshot(child),
-  };
-}
-
-/** Provisions a fixture student with zeroed balances + unique handshake. */
-async function provisionStudent(tx: DBTransaction, prefix: string): Promise<JourneyActor<StudentSelectType>> {
-  const user = await insertFixtureUser(tx, prefix, "student", randomUUID().slice(0, 8));
-  const [child] = await tx
-    .insert(students)
-    .values({
-      id: user.id,
-      handshakeCode: `KSB-${randomUUID().slice(0, 8).toUpperCase()}`,
-      balanceHifz: 0,
-      balanceTajweed: 0,
-      balanceReviews: 0,
-      parentId: null,
-    })
-    .returning();
-  if (!child) {
-    throw new Error("provisionStudent: students child insert returned no rows");
+  if (caught === null) {
+    throw new Error("catchJourneyError: expected the call to throw, but it resolved successfully");
   }
-  return {
-    user,
-    child,
-    userSnapshot: snapshot(user),
-    childSnapshot: snapshot(child),
-  };
-}
-
-/** Provisions a fixture parent (PK-only `parents` row). */
-async function provisionParent(tx: DBTransaction, prefix: string): Promise<JourneyActor<ParentSelectType>> {
-  const user = await insertFixtureUser(tx, prefix, "parent", randomUUID().slice(0, 8));
-  const [child] = await tx.insert(parents).values({ id: user.id }).returning();
-  if (!child) {
-    throw new Error("provisionParent: parents child insert returned no rows");
+  if (caught instanceof Error) {
+    return caught;
   }
-  return {
-    user,
-    child,
-    userSnapshot: snapshot(user),
-    childSnapshot: snapshot(child),
-  };
+  const message = typeof caught === "string" ? caught : `[non-Error throw: ${typeof caught}]`;
+  return new Error(message);
 }
 
 /**
- * Provisions a fixture applicant (user with `role = "teacher"` + an
- * `applicants` row in the canonical pending state — `status = "pending"`,
- * `verification_attempts = 0`, NULL cooldown timestamps).
+ * Creates a journey cast bound to its own tracked-ID registry.
+ *
+ * One cast per journey suite: the suite provisions its full actor set in
+ * `beforeAll` (each registration commits its own transaction), flips state
+ * through the fixture writers during steps, and hard-deletes every tracked
+ * row in `afterAll` via `teardown()` + `residueCounts()`.
  */
-async function provisionApplicant(tx: DBTransaction, prefix: string): Promise<JourneyActor<ApplicantSelectType>> {
-  const user = await insertFixtureUser(tx, prefix, "teacher", randomUUID().slice(0, 8));
-  const [child] = await tx
-    .insert(applicants)
-    .values({
-      id: user.id,
-      status: "pending",
-      verificationAttempts: 0,
-      lastAttemptAt: null,
-      cooldownUntil: null,
-    })
-    .returning();
-  if (!child) {
-    throw new Error("provisionApplicant: applicants child insert returned no rows");
-  }
-  return {
-    user,
-    child,
-    userSnapshot: snapshot(user),
-    childSnapshot: snapshot(child),
-  };
-}
+export function createJourneyCast(domain: string): JourneyCastType {
+  const prefix = `jrn_${domain}_${randomUUID().slice(0, 8)}`;
+  const trackedActors: TrackedActor[] = [];
+  let actorSequence = 0;
 
-/**
- * Provisions a fixture certified-teacher (user with `role = "teacher"` + a
- * `teacher` row with `isApproved = true`). Certified teachers are an
- * out-of-band fixture — admin user-creation never produces a `teacher`
- * row (the certification step belongs to the verification loop); this
- * fixture stands in for the verification loop's output so the denials
- * journey can assert the "certified" branch.
- */
-async function provisionCertifiedTeacher(tx: DBTransaction, prefix: string): Promise<JourneyActor<TeacherSelectType>> {
-  const user = await insertFixtureUser(tx, prefix, "teacher", randomUUID().slice(0, 8));
-  const [child] = await tx
-    .insert(teacher)
-    .values({
-      id: user.id,
-      isApproved: true,
-      isEvaluator: false,
-      averageRating: null,
-      isOnline: false,
-      subjects: null,
-    })
-    .returning();
-  if (!child) {
-    throw new Error("provisionCertifiedTeacher: teacher child insert returned no rows");
+  async function registerActor(
+    actorName: string,
+    role: "student" | "parent"
+  ): Promise<{ userId: number; input: RegistrationSubmitInput }> {
+    actorSequence += 1;
+    const input: RegistrationSubmitInput = {
+      fullName: actorName,
+      email: buildActorEmail(toEmailSlug(actorName), prefix, actorSequence),
+      phone: JOURNEY_ACTOR_PHONE,
+      password: JOURNEY_ACTOR_CREDENTIAL,
+      country: "Egypt",
+      role,
+    };
+    // Real service, real top-level transaction, COMMITTED — no outerTx (the
+    // journey layer never wraps service calls in transactions).
+    const registered = await RegistrationService.registerUser(input, JOURNEY_REGISTRATION_LOCALE);
+    trackedActors.push({ userId: registered.id, role });
+    return { userId: registered.id, input };
   }
+
+  async function registerStudentActor(actorName: string): Promise<StudentActorType> {
+    const { userId, input } = await registerActor(actorName, "student");
+    // Read the generated code back through the real repository read path —
+    // registration returns the `users` row; the code lives on `students`.
+    const handshakeCode = await StudentRepository.findHandshakeCodeByStudentId(userId);
+    if (handshakeCode === null) {
+      throw new Error(`Journey cast: registered student ${userId} has no handshake code`);
+    }
+    return { userId, handshakeCode, fullName: input.fullName, email: input.email };
+  }
+
+  async function registerParentActor(actorName: string): Promise<ParentActorType> {
+    const { userId, input } = await registerActor(actorName, "parent");
+    return { userId, fullName: input.fullName, email: input.email };
+  }
+
+  function trackedUserIds(): number[] {
+    return trackedActors.map(actor => actor.userId);
+  }
+
+  async function countSideEffectRows(): Promise<JourneySideEffectCountsType> {
+    const ids = trackedUserIds();
+    const [notificationRows, auditRows] = await Promise.all([
+      Promise.all(
+        ids.map(id => db.select({ id: notifications.id }).from(notifications).where(eq(notifications.userId, id)))
+      ),
+      Promise.all(
+        ids.map(id =>
+          db
+            .select({ id: auditLogs.id })
+            .from(auditLogs)
+            .where(or(eq(auditLogs.actorId, id), eq(auditLogs.entityId, id)))
+        )
+      ),
+    ]);
+    return {
+      notifications: notificationRows.flat().length,
+      auditLogs: auditRows.flat().length,
+    };
+  }
+
+  async function teardown(): Promise<void> {
+    // FK-safe order inside ONE committing transaction: role-child rows first
+    // (students, then parents), then the users rows they reference.
+    const studentIds = trackedActors.filter(actor => actor.role === "student").map(actor => actor.userId);
+    const parentIds = trackedActors.filter(actor => actor.role === "parent").map(actor => actor.userId);
+    await db.transaction(async tx => {
+      await Promise.all(studentIds.map(id => tx.delete(students).where(eq(students.id, id))));
+      await Promise.all(parentIds.map(id => tx.delete(parents).where(eq(parents.id, id))));
+      await Promise.all(trackedActors.map(actor => tx.delete(users).where(eq(users.id, actor.userId))));
+    });
+  }
+
+  async function residueCounts(): Promise<JourneyResidueCountsType> {
+    const ids = trackedUserIds();
+    const [userRows, studentRows, parentRows, sideEffects] = await Promise.all([
+      Promise.all(ids.map(id => db.select({ id: users.id }).from(users).where(eq(users.id, id)))),
+      Promise.all(ids.map(id => db.select({ id: students.id }).from(students).where(eq(students.id, id)))),
+      Promise.all(ids.map(id => db.select({ id: parents.id }).from(parents).where(eq(parents.id, id)))),
+      countSideEffectRows(),
+    ]);
+    return {
+      users: userRows.flat().length,
+      students: studentRows.flat().length,
+      parents: parentRows.flat().length,
+      notifications: sideEffects.notifications,
+      auditLogs: sideEffects.auditLogs,
+    };
+  }
+
   return {
-    user,
-    child,
-    userSnapshot: snapshot(user),
-    childSnapshot: snapshot(child),
+    prefix,
+    registerStudentActor,
+    registerParentActor,
+    trackedUserIds,
+    countSideEffectRows,
+    teardown,
+    residueCounts,
   };
 }

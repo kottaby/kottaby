@@ -31,5 +31,7 @@ export const errorsEn: ErrorsLabels = {
     userPatchEmpty: "No updatable fields were supplied.",
     handshakeExhausted: "Could not generate a unique handshake code. Please try again.",
   },
+  handshakeCodeInvalid: "Handshake codes look like KSB-XXXXXXXX (8 hexadecimal characters).",
+  studentHandshakeNotFound: "Student record not found.",
   trialAlreadyGranted: "The free trial credit has already been granted for this student.",
 };

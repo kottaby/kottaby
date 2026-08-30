@@ -29,7 +29,7 @@
 
 ## Phase 0: Pre-Implementation Baseline
 
-### - [ ] 0.1 Record Error Baseline & Initialize Deferred-Items Ledger
+### - [x] 0.1 Record Error Baseline & Initialize Deferred-Items Ledger
 - Capture and persist to `outcome/phase0-baseline-outcome.md`:
   - `bun tsgo` error count (exact number + first lines for context)
   - `bun run biome:check` finding count
@@ -41,7 +41,7 @@
   - **D3** — Direct-onboarding (B.6-family) code generation reuse via the shared `generateHandshakeCode` service entry point → owning ticket DEV3-019 (status: forward-note, non-blocking)
 - _Requirements: REQ-001, REQ-034, REQ-083_
 
-### - [ ] 0.2 Dependency Guard — Verify (Do NOT Rebuild) Existing Artifacts
+### - [x] 0.2 Dependency Guard — Verify (Do NOT Rebuild) Existing Artifacts
 - Read and confirm each artifact exists with the expected contract; record file paths + line citations in the outcome. **Reading and asserting only — zero modifications:**
   1. `backend/db/schema/students/students.ts` — `handshake_code varchar(50) NOT NULL`, `unique("students_handshake_code_unique")`, `parent_id` nullable FK → `users.id` ON DELETE SET NULL, shared-PK `students.id = users.id`
   2. `backend/db/schema/users/users.ts` — governance columns: `is_deleted`, `is_blocked`, `suspended`, `suspended_at`, `suspended_period_days`
@@ -54,7 +54,7 @@
 - **STOP RULE:** If any artifact is missing/broken → record ❌ in `deferred-items.md` with the owning ticket and HALT this plan; never patch a DEV1-001/DEV1-002/DEV2-002-owned file inline.
 - _Requirements: REQ-004_
 
-### - [ ] 0.3 Phase-1.5 Plan-Review Gate
+### - [x] 0.3 Phase-1.5 Plan-Review Gate
 - Run the `@plan-review` pass against `specs.md` + `plan.md` before ANY implementation begins; write `outcome/0.3-plan-review-outcome.md` (must PREDATE all implementation outcomes — REQ-083).
 - Resolve any review blockers into either plan amendments or ledger entries before opening Phase 1.
 - _Requirements: REQ-083_
@@ -65,7 +65,7 @@
 
 > **No database schema phase exists for this ticket.** `backend/db/schema/` is the sole structural ground truth and is untouched by construction. `git diff backend/db/schema/** backend/db/migration/**` must remain empty end-to-end.
 
-### - [ ] 1.1 Shared Constants — `shared/constants/handshake-code.constants.ts`
+### - [x] 1.1 Shared Constants — `shared/constants/handshake-code.constants.ts`
 - Create `shared/constants/handshake-code.constants.ts` exporting exactly: `HANDSHAKE_CODE_PREFIX = "KSB-"`, `HANDSHAKE_CODE_PATTERN = /^KSB-[0-9A-F]{8}$/`, `isHandshakeCode(value: unknown): value is string`, `normalizeHandshakeCode(value: string)` (trim → toUpperCase).
 - Add one barrel line to `shared/constants/index.ts`: `export * from "./handshake-code.constants";`.
 - **Layer purity (blocking):** file imports NOTHING. Verify the shared-layer ESLint `no-restricted-imports` ban trivially holds.
@@ -77,7 +77,7 @@
 - [ ] 1.1.IV **Instruction Verification**: read `shared/AGENTS.md` and any `*.instructions.md` auto-discovered for `shared/constants/`; confirm compliance in the outcome.
 - Outcome: `outcome/1.1-handshake-code-constants-outcome.md`.
 
-### - [ ] 1.2 Pure Mask Helper — `shared/lib/mask-full-name.ts`
+### - [x] 1.2 Pure Mask Helper — `shared/lib/mask-full-name.ts`
 - Create `shared/lib/mask-full-name.ts` exporting `maskFullName(fullName: string): string` per plan §2.4:
   - Trim; empty-after-trim → fixed placeholder `"***"` (documented constant).
   - Split on `/\s+/u`; each part → first grapheme + `"***"`; parts joined with single spaces.
@@ -91,7 +91,7 @@
 - [ ] 1.2.IV **Instruction Verification**: read `shared/AGENTS.md` and auto-discovered instruction files for `shared/lib/`; confirm compliance.
 - Outcome: `outcome/1.2-mask-full-name-outcome.md`.
 
-### - [ ] 1.3 Canonical Types — extend `backend/types/students/student.types.ts`
+### - [x] 1.3 Canonical Types — extend `backend/types/students/student.types.ts`
 - Add (additive-only; existing exports unchanged):
   - `HandshakeCodeLookupReturnType` — readonly `{ maskedName: string; linkable: boolean }` (per plan §2.2).
   - `HandshakeDiscoveryRowType` — `Pick<StudentSelectType, "parentId"> & Pick<UserSelectType, "fullName" | "isDeleted" | "isBlocked" | "suspended" | "suspendedAt" | "suspendedPeriodDays">` with `UserSelectType` imported from `@/backend/types` (indexed-access composition only — no re-derived column shapes per the DEV2-003 contract rule).
@@ -105,7 +105,7 @@
 - [ ] 1.3.IV **Instruction Verification**: read `backend/types/AGENTS.md` and auto-discovered instruction files; confirm compliance.
 - Outcome: `outcome/1.3-canonical-types-outcome.md`.
 
-### - [ ] 1.4 i18n — Errors Namespace Extension + New `handshakeCode` UI Namespace (ar + en)
+### - [x] 1.4 i18n — Errors Namespace Extension + New `handshakeCode` UI Namespace (ar + en)
 - **Errors namespace** (`handshakeCode` grouping) — three-file contract edit per `shared/locale/AGENTS.md`:
   - `shared/locale/types/errors/index.ts`: add `handshakeCode: { handshakeCodeInvalid: string; studentHandshakeNotFound: string }` to the errors schema interface.
   - `shared/locale/en/errors/index.ts`: `handshakeCodeInvalid: "Handshake codes look like KSB-XXXXXXXX (8 hexadecimal characters)."`, `studentHandshakeNotFound: "Student record not found."`
@@ -126,7 +126,7 @@
 
 ## Phase 2: Test Locks, Journey Harness, Repositories & Backend Services
 
-### - [ ] 2.1 Permanent Generation & Constraint Lock Tests (TEST-FIRST; verify-only production path)
+### - [x] 2.1 Permanent Generation & Constraint Lock Tests (TEST-FIRST; verify-only production path)
 - **Test files** (inside the sanctioned logic/db test tree, e.g. `backend/db/test/...` + logic suite per repo conventions — follow `backend/db/test/AGENTS.md`):
   - **Format lock (REQ-010):** N=50 student fixtures created via `entity-setup.ts` (real `RegistrationService` path where the helper supports it; otherwise registered students backstopped by direct `createForRegistration`) — assert EVERY `handshakeCode` matches `HANDSHAKE_CODE_PATTERN`, is non-null, and row defaults are exact.
   - **Uniqueness lock (REQ-012):** forced duplicate insert (same code on a second students row) inside `runInRollback` → `expectRepoError` asserting the TRANSLATED-message substring of the unique-constraint violation (never raw keys).
@@ -143,7 +143,7 @@
 - [ ] 2.1.IV **Instruction Verification**: read `backend/db/test/AGENTS.md` (incl. rule 15 — fixtures not seeds) and auto-discovered instruction files; confirm compliance.
 - Outcome: `outcome/2.1-generation-lock-tests-outcome.md`.
 
-### - [ ] 2.2 Scaffold `test/workflows/` + Write Handshake-Discovery Journey Test (TEST-FIRST — REQ-077)
+### - [x] 2.2 Scaffold `test/workflows/` + Write Handshake-Discovery Journey Test (TEST-FIRST — REQ-077)
 - **Scaffold (mandatory — the layer does not exist per 0.2):**
   - `test/workflows/AGENTS.md` — journey rules per Architectural Invariant 10: sequential actor-attributed steps calling REAL services against the REAL test DB; fixtures COMMITTED in `beforeAll` and HARD-DELETED in `afterAll` with tracked IDs; `runInRollback` FORBIDDEN (services spawn their own transactions); permissions resolve honestly via real role membership — NEVER monkey-patched; side effects (none exist in this ticket — REQ-023) asserted absent; spies configured for notification dispatch should any future step emit one (NEVER real email/SMS/push).
   - `test/workflows/helpers/journey-fixtures.ts` — cast builders: `registerStudentActor()` (real `RegistrationService.registerUser` → returns `{ userId, handshakeCode }`), `registerParentActor()`, `linkStudentToParentFixture(studentId, parentUserId)` (direct repository write emulating DEV1-014's future mutation), `setGovernanceFixture(userId, { isDeleted | isBlocked | suspended... })`, and a tracked-ID registry powering the `afterAll` hard-delete teardown.
@@ -165,7 +165,7 @@
 - [ ] 2.2.IV **Instruction Verification**: validate the new `test/workflows/AGENTS.md` against Architectural Invariant 10 and auto-discovered instruction files.
 - Outcome: `outcome/2.2-journey-harness-outcome.md`.
 
-### - [ ] 2.3 Repository — Additive Read Methods on `backend/db/repo/students/student.repository.ts`
+### - [x] 2.3 Repository — Additive Read Methods on `backend/db/repo/students/student.repository.ts`
 - Add exactly two methods (existing methods untouched):
   - `findHandshakeCodeByStudentId(studentId: number, tx?: DBTransaction): Promise<string | null>` — single-column equality read via the `queryDb(tx)` Neon-HTTP-eligible pattern.
   - `findDiscoveryByHandshakeCode(code: string, tx?: DBTransaction): Promise<HandshakeDiscoveryRowType | null>` — students⋈users JOIN on shared PK selecting EXACTLY the `Pick`'d columns; parameterized equality `eq(students.handshakeCode, code)`; NO LIKE/ILIKE, NO `sql` templates (zero inline-comment/parameter-binding hazard), NO `inArray`, NO prepared-statement misuse.
@@ -179,7 +179,7 @@
 - [ ] 2.3.IV **Instruction Verification**: read `backend/db/repo/AGENTS.md` (queryDb pattern, optional-last `tx`, no-prepared-statement note for single-scalar equality) and auto-discovered instruction files; confirm compliance.
 - Outcome: `outcome/2.3-student-repository-lookups-outcome.md`.
 
-### - [ ] 2.4 Service — `backend/services/students/student-handshake.service.ts` + Governance Helper
+### - [x] 2.4 Service — `backend/services/students/student-handshake.service.ts` + Governance Helper
 - Create `backend/services/students/student-handshake.helpers.ts` (runtime file — NOT `.types.ts`):
   - `isGovernanceExcludedFromDiscovery(governance, now: Date): boolean` per plan §4.1 — fail-closed: `isDeleted || isBlocked` → excluded; `!suspended` → included; suspended with missing `suspendedAt`/`suspendedPeriodDays` → excluded (fail-closed); active-window math `suspendedAt + periodDays > now` → excluded.
 - Create `backend/services/students/student-handshake.service.ts`:
@@ -204,7 +204,7 @@
 - Re-run the 2.2 journey test → all journey steps now GREEN.
 - Outcome: `outcome/2.4-handshake-service-outcome.md`.
 
-### - [ ] 2.M Mid-Point Review Gate
+### - [x] 2.M Mid-Point Review Gate
 - Freeze and audit before GraphQL wiring:
   - Re-run ALL Phase 1–2 test files; capture full green evidence.
   - Confirm the 2.2 journey suite is fully GREEN (8 steps).
@@ -219,7 +219,7 @@
 
 ## Phase 3: GraphQL Resolvers & API Surface
 
-### - [ ] 3.1 Pothos Object Type + Query Module
+### - [x] 3.1 Pothos Object Type + Query Module
 - Create `backend/graphql/pothos/students/handshake-code.pothos.ts` (+ sub-directory barrel if absent): `gqlSchemaBuilder.objectRef<HandshakeCodeLookupReturnType>("HandshakeCodeLookup")` exposing ONLY `maskedName: t.exposeString(...)` and `linkable: t.exposeBoolean(...)`. **NO `id` field BY DESIGN** (REQ-019/D7); backing type imported from `@/backend/types` (never a local type).
 - Create `backend/graphql/query/students/handshake-code.query.ts` (+ barrel wiring per `docs/graphql/api-gateway-and-routing.md` §8 side-effect registration):
   - `myHandshakeCode: String!` — `authScopes: { $all: { authenticated: true, role: [UserRole.Student] } }`; thin resolver: `StudentHandshakeService.getMyHandshakeCode(ctx.user.id, ctx.locale)`.
@@ -235,7 +235,7 @@
 - [ ] 3.1.IV **Instruction Verification**: read `backend/graphql/AGENTS.md`, `backend/graphql/query/` conventions, `docs/graphql/api-gateway-and-routing.md`, and auto-discovered instruction files; confirm compliance.
 - Outcome: `outcome/3.1-graphql-surface-outcome.md`.
 
-### - [ ] 3.2 Codegen Sync (Same Change Set)
+### - [x] 3.2 Codegen Sync (Same Change Set)
 - Run `bun run generate:gqlSchema && bun codegen`; commit ALL generated artifacts IN THIS TASK's change set.
 - Diff discipline: the schema/typed-document diff contains ONLY this ticket's additions (two queries + `HandshakeCodeLookup`); any unrelated drift → investigate before proceeding (do not absorb foreign diffs silently).
 - _Requirements: REQ-062_
@@ -244,7 +244,7 @@
 - [ ] 3.2.IV **Instruction Verification**: confirm with `frontend/graphql/AGENTS.md` + backend graphql conventions that artifact placement matches expectations.
 - Outcome: `outcome/3.2-codegen-sync-outcome.md`.
 
-### - [ ] 3.3 GraphQL Integration Test Matrix
+### - [x] 3.3 GraphQL Integration Test Matrix
 - New integration spec via `setupTestServerLifecycle` + `testClient` (domain-consistent location per existing integration test conventions):
   - **Full REQ-031/065 role matrix on BOTH queries** (one parameterized table test): anonymous → `UNAUTHORIZED`; student/parent happy paths; EVERY wrong role (incl. parent-on-`myHandshakeCode`, student-on-`findStudentByHandshakeCode`, teacher, supervisor, super-admin) → `FORBIDDEN`.
   - **Happy-path payload contract:** response object has EXACTLY `{ maskedName, linkable }`; a **forbidden-key scan** asserts absence of `id`, `studentId`, `userId`, `email`, `phone`, `parentId`, `isDeleted`, `isBlocked`, `suspended*` on the payload (REQ-019/033).
@@ -263,7 +263,7 @@
 
 ## Phase 4: Frontend — Documents, Cache, Views & Pages
 
-### - [ ] 4.1 GraphQL Documents + Apollo Cache Registration + Embedded-Types List
+### - [x] 4.1 GraphQL Documents + Apollo Cache Registration + Embedded-Types List
 - Create `frontend/graphql/sharedDocuments/students/handshake-code.documents.ts`:
   - `myHandshakeCodeQueryDocument` (`query MyHandshakeCode`) and `findStudentByHandshakeCodeQueryDocument` (`query FindStudentByHandshakeCode($code: String!)`) — `gql` + `TypedDocumentNode<…>` imported from `@apollo/client` (NEVER `/core`); types exclusively from the generated `graphql.ts`; NEITHER document selects `id` on `HandshakeCodeLookup`.
   - Register through the `students` sub-directory barrel (`frontend/graphql/sharedDocuments/students/index.ts`) per `frontend/graphql/sharedDocuments/AGENTS.md`.
@@ -277,7 +277,7 @@
 - [ ] 4.1.IV **Instruction Verification**: read `frontend/graphql/AGENTS.md`, `frontend/graphql/sharedDocuments/AGENTS.md`, and auto-discovered instruction files; confirm compliance.
 - Outcome: `outcome/4.1-shared-documents-outcome.md`.
 
-### - [ ] 4.2 Student "Your Handshake Code" Card (additive, existing profile surface)
+### - [x] 4.2 Student "Your Handshake Code" Card (additive, existing profile surface)
 - Create the card component (e.g. `frontend/components/students/HandshakeCodeCard.tsx` or the co-located view folder matching the existing profile surface's conventions) and MOUNT it additively into the existing student profile/container (NO new student route per D12):
   - `useQuery(myHandshakeCodeQueryDocument)` (hooks from `@apollo/client/react`); loading → skeleton (title + code line + action) per existing skeleton conventions; error → `extensions.code`-branched handling (`FORBIDDEN` → existing `PermissionDeniedFallback`-style pattern; unexpected → localized error state).
   - Code presentation: localized `yourCodeTitle`/`yourCodeDescription`; code chip rendered with `direction: ltr` + `unicodeBidi: isolate` inside `sx` so it reads correctly inside RTL Arabic layouts; fixed-pitch-safe treatment.
@@ -287,13 +287,13 @@
 - _Requirements: REQ-014, REQ-064, REQ-065, REQ-066, REQ-067_
 - [ ] 4.2.QL **Quality Loop**: sub-loop `--lifecycle duplicates` on the new component + the modified container (exit 0 each)
 - [ ] 4.2.TE **Unit / Component Tests**: Happy DOM + Apollo MockedProvider via the sanctioned component runner (`test/ui` conventions): renders the fixture code from a mocked query; translation-driven assertions via `readTranslation(handle, locale)` + `TestWrapper locale` + `translation-preload.ts` (ZERO hardcoded strings); copy-click test (clipboard mocked) → localized confirmation state transition; failure branch (clipboard reject) → `copyFailed`; loading skeleton; `STUDENT_NOT_FOUND`/error branch; BOTH locales (ar + en) exercised; run via `bun run test/scripts/run-test.ts <path>`.
-- [ ] 4.2.BF **Agent-Browser Functional Self-Loop**:
+- [x] 4.2.BF **Agent-Browser Functional Self-Loop**:
   - Launch the dev server; connect via agent-browser (Playwright).
   - Log in as a student fixture → navigate to the profile surface → assert the card renders the REAL handshake code returned by GraphQL (network inspection: `MyHandshakeCode` operation observed once).
   - Click copy → assert clipboard contains the exact code; assert the localized "copied" confirmation appears in en, then repeat the flow in the `ar` locale.
   - Negative path: force the query to fail (route mock/block) → assert the localized error surface renders and no unhandled console errors appear.
   - Iterative self-loop: any functional defect → patch → re-run flow until clean.
-- [ ] 4.2.BS **Agent-Browser Visual & Styling Self-Loop (Screenshot Analysis)**:
+- [x] 4.2.BS **Agent-Browser Visual & Styling Self-Loop (Screenshot Analysis)**:
   - Capture high-resolution screenshots of the card-in-surface at Desktop 1440x900, Tablet 768x1024, Mobile 375x812 × locales en (LTR) + ar (RTL), light + dark themes.
   - Analyze each capture: code chip stays LTR/`unicode-bidi:isolate` inside RTL layout; no text truncation/overflow at 375px; spacing rhythm consistent with the existing profile cards; theme-palette colors only (screenshot pixel-sampling sanity check around borders/backgrounds); skeleton parity with sibling cards.
   - Iterative self-loop: inspect screenshot → identify defect → patch `sx` tokens → re-capture → repeat until visually polished; attach final capture set to the outcome.
@@ -301,7 +301,7 @@
 - [ ] 4.2.IV **Instruction Verification**: read `frontend/AGENTS.md`, `frontend/views/AGENTS.md`, `frontend/components/ui/AGENTS.md`, any `frontend.instructions.md` / `mobile-desktop.instructions.md`; confirm compliance.
 - Outcome: `outcome/4.2-student-handshake-card-outcome.md`.
 
-### - [ ] 4.3 Parent Discovery Page — `/parent/handshake` + Navigation Item
+### - [x] 4.3 Parent Discovery Page — `/parent/handshake` + Navigation Item
 - **Route:** create `app/(dashboard)/parent/handshake/page.tsx` (Server Component) — `withPageAuth({ roles: [UserRole.Parent], redirectTo: "/parent/handshake" })` (anonymous → `/login?redirect=/parent/handshake`; wrong role → `/dashboard`); `await getTranslations(locale)` (single-arg) for shell labels passed as props to the client container.
 - **Client container** `frontend/views/parent/handshake/HandshakeDiscoveryContainer.tsx`:
   - Local state: `codeInput` + `validatedCode` (derived via `normalizeHandshakeCode` + `isHandshakeCode` from the SHARED constants module — frontend consumes the same canonical gate).
@@ -321,7 +321,7 @@
   - `VALIDATION` GraphQL error from server → inline input error; `FORBIDDEN` error → deny surface.
   - SSR guard tests: anonymous → `/login?redirect=/parent/handshake`; student/teacher/super-admin → `/dashboard` (per existing page-auth test conventions).
   - All assertions translation-driven (`readTranslation(handle, locale)` / preload helpers) — zero hardcoded strings; run via `bun run test/scripts/run-test.ts <path>`.
-- [ ] 4.3.BF **Agent-Browser Functional Self-Loop**:
+- [x] 4.3.BF **Agent-Browser Functional Self-Loop**:
   - Anonymous `GET /parent/handshake` → redirect to `/login?redirect=/parent/handshake` (assert target URL).
   - Student login → `/parent/handshake` → redirect to `/dashboard`; teacher login → same (DOM assertion that the page NEVER renders, no flash).
   - Parent login → `/parent/handshake`:
@@ -331,7 +331,7 @@
     - Already-linked fixture code → "already linked" copy; assert NO CTA.
   - en + ar locale flow both executed (locale switch then repeat the found + not-found cases).
   - Iterative self-loop: patch and re-run until every step is clean; record the final green run log in the outcome.
-- [ ] 4.3.BS **Agent-Browser Visual & Styling Self-Loop (Screenshot Analysis)**:
+- [x] 4.3.BS **Agent-Browser Visual & Styling Self-Loop (Screenshot Analysis)**:
   - Capture every outcome state (idle / invalid / searching-skeleton / not-found / found-linkable / found-already-linked / FORBIDDEN surface) at 1440x900, 768x1024, 375x812 × en(LTR)/ar(RTL) × light/dark.
   - Analyze: input/result alignment mirrors correctly in RTL; masked Arabic names render correctly; code-related atoms remain LTR; no truncation/overflow at 375px; palette-only colors (pixel-sample borders/backgrounds); typography hierarchy matches dashboard conventions; not-found state visually distinct from error styling per REQ-067.
   - Iterative self-loop: screenshot → identify defect → patch `sx`/theme tokens → re-capture → repeat until polished; attach final capture matrix to the outcome.
@@ -343,7 +343,7 @@
 
 ## Phase 5: Integration & Differential Testing
 
-### - [ ] 5.1 Full Test-Surface Execution & Coverage Evidence
+### - [x] 5.1 Full Test-Surface Execution & Coverage Evidence
 - Run, in order, and capture raw outputs into the outcome:
   - Every new/edited test file individually via `bun run test/scripts/run-test.ts <path>` (enumerate: shared constants spec, mask spec, generation lock suite, repository spec, service spec, graphql integration spec, component specs — student card + parent page, SSR guard specs).
   - `bun test test/workflows` (full journey directory green).
@@ -351,7 +351,7 @@
   - Adjacent-suite differential runs (no regressions): the existing auth/registration test suites (`RegistrationService` locks from DEV1-002 era) must still pass untouched — paste results.
 - _Requirements: REQ-070, REQ-071, REQ-072, REQ-073, REQ-074, REQ-075, REQ-077_
 
-### - [ ] 5.2 Differential & Discipline Verification Gates
+### - [x] 5.2 Differential & Discipline Verification Gates
 - Execute and paste literal command + output into `outcome/5.2-differential-gates-outcome.md`:
   - **Zero schema drift:** `git diff backend/db/schema/** backend/db/migration/**` → EMPTY (REQ-045).
   - **Codegen diff discipline:** generated artifacts diff contains ONLY this ticket's additions (REQ-062).
@@ -369,19 +369,19 @@
 
 > All four waves may run concurrently against the completed change set; each writes its own outcome; any blocking finding cycles the owning task back open before Phase 7.
 
-### - [ ] 6.1 `review-types` Wave
+### - [x] 6.1 `review-types` Wave
 - Verify: canonical-types discipline (REQ-003) — `HandshakeCodeLookupReturnType`/`HandshakeDiscoveryRowType` composition via `Pick` only; zero local types in Pothos files; zero service-layer `.types.ts`; readonly immutability; barrel coherence; `tsgo` clean vs baseline.
 - Outcome: `outcome/6.1-review-types-outcome.md`.
 
-### - [ ] 6.2 `review-backend` Wave
+### - [x] 6.2 `review-backend` Wave
 - Verify: normalize-then-validate ordering (REQ-020); governance-collapse equivalence of nonexistent-vs-governed (REQ-021/033); `tx` propagation (REQ-043); DomainError taxonomy + `extensions.code` matrix (REQ-050); log hygiene incl. D11 code-elision (REQ-052); silent happy path (REQ-053); 100% coverage evidence present; journey suite realism (real services, committed fixtures, tracked teardown, no `runInRollback`).
 - Outcome: `outcome/6.2-review-backend-outcome.md`.
 
-### - [ ] 6.3 `review-frontend` Wave
+### - [x] 6.3 `review-frontend` Wave
 - Verify: MUI v9 `sx`-only discipline; `*Outlined` icons; theme-palette-only colors; `React.SubmitEvent` usage; skip-gate (no network on invalid input); no `useLazyQuery`; embedded `keyFields:false` registered + documents omit `id`; translation-driven everything (enum-property access); ERR rendering per `extensions.code`; RTL mirroring + LTR code atoms; both Agent-Browser self-loops evidenced with final screenshot matrices.
 - Outcome: `outcome/6.3-review-frontend-outcome.md`.
 
-### - [ ] 6.4 `pentester` Wave + Deferred-Items Gate
+### - [x] 6.4 `pentester` Wave + Deferred-Items Gate
 - Independent adversarial review: BOLA (zero-argument self-query; capability-by-code rationale audited against REQ-030 — confirm parent-role gate + minimal payload make the capability safe); BFLA `$all` scope correctness on BOTH queries incl. sibling-role cells (REQ-031); BOPLA closed inputs (REQ-032); oracle hygiene — network-level indistinguishability of {nonexistent, governed} and absence of timing/difference signals worth asserting (REQ-033); injection fuzz closure on `code` (REQ-035); rate-limit residual risk formally bounded to deferred item **D2** (REQ-034) — flagged posture must match the ledger, no scope creep.
 - **Deferred-items gate:** `grep -c "❌\|⚠️" ai/plans/dev1-013-student-handshake-code-generation/deferred-items.md` MUST equal 0 EXCLUDING the three pre-seeded forward notes D1 (→DEV1-014), D2 (→DEV2-002), D3 (→DEV3-019); verify each forward note cites its owning ticket and non-blocking status (REQ-083).
 - Outcome: `outcome/6.4-pentester-and-deferred-gate-outcome.md`.
@@ -391,7 +391,7 @@
 
 ## Phase 7: Knowledge Propagation & Documentation
 
-### - [ ] 7.1 Canonical Doc — `docs/parents/handshake-code-discovery.md`
+### - [x] 7.1 Canonical Doc — `docs/parents/handshake-code-discovery.md`
 - Create following the standard structure (Why → Pattern → Rules → What NOT to Do → Rollout Summary → Related Documents), covering:
   - Code format + generation contract (link `docs/auth/user-registration.md` §2; collision model: 16⁸ ≈ 4.3B space, in-transaction bounded retry on `23505`, `ConflictError` on exhaustion — describe, never re-implement) (REQ-024).
   - Discovery payload minimalism ruling (REQ-015..019) + mask algorithm contract (deterministic, grapheme-aware, total function, empty-input placeholder).
@@ -404,7 +404,7 @@
 - [ ] 7.1.SR **Semantic Review**: structure checklist satisfied; every numeric/behavioral claim matches shipped code (no aspirational content); English-only domain doc per docs conventions.
 - Outcome: `outcome/7.1-canonical-doc-outcome.md`.
 
-### - [ ] 7.2 Cross-Links & AGENTS.md Propagation (rule-only one-liners)
+### - [x] 7.2 Cross-Links & AGENTS.md Propagation (rule-only one-liners)
 - Append ONE-line cross-reference into `docs/auth/user-registration.md`'s handshake section pointing at the new canonical doc (no renumbering, no content edits).
 - Append ONE-line cross-reference into `docs/workflows/04-parent-supervision-handshake.md` (related/implementation notes).
 - `docs/specs/state-machine-invariants.md`: add a pointer line ONLY if one does not already exist (INV-P1..P4 binding; zero renumbering or content edits of existing invariants) (REQ-081).
@@ -417,7 +417,7 @@
 - [ ] 7.2.SR **Semantic Review**: every AGENTS addition is a single rule line with a doc pointer; no duplicated guidance between docs and AGENTS entries.
 - Outcome: `outcome/7.2-knowledge-propagation-outcome.md`.
 
-### - [ ] 7.3 Outcome Synthesis & Final Gate
+### - [x] 7.3 Outcome Synthesis & Final Gate
 - Write `ai/plans/dev1-013-student-handshake-code-generation/outcome/final-synthesis-outcome.md`:
   - Task ledger: every task id → status → outcome file link (completeness: every `[x]` must map to an existing outcome; the 0.3 plan-review outcome predates all implementation outcomes).
   - Baseline comparison table (0.1 vs final): `tsgo` / `biome:check` / lint-service — zero new findings asserted command-by-command (REQ-076).

@@ -1,13 +1,7 @@
 /**
- * Journey test scaffolding barrel — pure `export *` re-export.
- *
- * Per `test/workflows/AGENTS.md` rule 10: shared scaffolding lives in
- * `test/workflows/helpers/` with a pure `export *` barrel. Paths use
- * `./`-only imports (one `/` max per export path).
- *
- * Consumers (`test/workflows/<domain>/<workflow>.test.ts`) import via
- * `@/test/workflows/helpers`.
+ * Journey helpers barrel — pure `export *` re-exports of the flat helper
+ * modules in this directory (one path segment per export path, per
+ * `test/workflows/AGENTS.md` rule 10).
  */
 
-export * from "./journey-cleanup";
 export * from "./journey-fixtures";
