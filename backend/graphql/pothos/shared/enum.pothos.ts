@@ -16,10 +16,14 @@
  *  - `Gender`
  *  - `RegisterPublicRole` (public subset — student/teacher/parent — BFLA)
  *  - `RecitationReading`, `ApplicantStatus`
+ *  - `SessionStatus`, `SessionType`, `SessionIntent` (scheduling domain)
  *
  * After registering a new enum here, run `bun run generate:gqlSchema` and
  * `bun codegen` to refresh the SDL + frontend codegen.
  */
+import { SessionIntent } from "@/backend/enum/scheduling/session-intent.enum";
+import { SessionStatus } from "@/backend/enum/scheduling/session-status.enum";
+import { SessionType } from "@/backend/enum/scheduling/session-type.enum";
 import { ApplicantStatus } from "@/backend/enum/teachers/applicant-status.enum";
 import { Gender } from "@/backend/enum/users/gender.enum";
 import { RegisterPublicRole } from "@/backend/enum/users/register-public-role.enum";
@@ -68,4 +72,40 @@ export const RecitationReadingPothosEnum = gqlSchemaBuilder.enumType(RecitationR
  */
 export const ApplicantStatusPothosEnum = gqlSchemaBuilder.enumType(ApplicantStatus, {
   name: "ApplicantStatus",
+});
+
+/**
+ * GraphQL `SessionStatus` enum (scheduled|started|completed|cancelled|disputed).
+ *
+ * Registered ONCE from the canonical TS enum
+ * (`backend/enum/scheduling/session-status.enum.ts`) mirroring the
+ * `session_status` pgEnum. The `disputed` member exists in the enum with NO
+ * transition surface producing it in this slice (B.18 — a future ticket owns
+ * the producer), so no client can ever receive it today.
+ */
+export const SessionStatusPothosEnum = gqlSchemaBuilder.enumType(SessionStatus, {
+  name: "SessionStatus",
+});
+
+/**
+ * GraphQL `SessionType` enum (student_session|teacher_evaluation|re_evaluation).
+ *
+ * Registered ONCE from the canonical TS enum
+ * (`backend/enum/scheduling/session-type.enum.ts`) mirroring the
+ * `session_type` pgEnum.
+ */
+export const SessionTypePothosEnum = gqlSchemaBuilder.enumType(SessionType, {
+  name: "SessionType",
+});
+
+/**
+ * GraphQL `SessionIntent` enum (hifz|tajweed|evaluation).
+ *
+ * Registered ONCE from the canonical TS enum
+ * (`backend/enum/scheduling/session-intent.enum.ts`) mirroring the
+ * `session_intent` pgEnum. Nullable on session fields: intent is optional on
+ * the table (evaluation sessions carry it; student bookings pin Hifz/Tajweed).
+ */
+export const SessionIntentPothosEnum = gqlSchemaBuilder.enumType(SessionIntent, {
+  name: "SessionIntent",
 });

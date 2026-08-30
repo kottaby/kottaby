@@ -15,10 +15,15 @@
  *    at HEAD `8e5ebb8`): ZERO new mutations, and all post-baseline
  *    additions are pinned by name — query fields grow ONLY by the
  *    sanctioned probe `_health` and `myApplicantProfile` (DEV2-004), the
- *    enum set grows ONLY by `ApplicantStatus` (DEV2-004), and the
- *    whole-schema named-type delta is exactly `{ApplicantProfile,
- *    ApplicantStatus, DateTime, HealthCheck}` (DEV2-004 surface + the
- *    `DateTime` scalar registered in `shared/scalar.pothos.ts`).
+ *    enum set grows ONLY by `ApplicantStatus` (DEV2-004) and the
+ *    DEV3-004 scheduling trio (`SessionStatus`, `SessionType`,
+ *    `SessionIntent` — registered in `shared/enum.pothos.ts`), and the
+ *    whole-schema named-type delta is exactly {ApplicantProfile,
+ *    ApplicantStatus, DateTime, HealthCheck} (DEV2-004 surface + the
+ *    `DateTime` scalar registered in `shared/scalar.pothos.ts`) plus the
+ *    DEV3-004 scheduling enums. The `Session`/`SessionPage` objects join
+ *    the production type map only once the Phase-3 resolver modules
+ *    import them (root-field wiring, DEV3-004 tasks 3.2/3.3).
  *  - **Allowlist agreement** — the scopeless `_health` field is present in
  *    the closed `PUBLIC_OPERATION_NAMES` tuple / `PUBLIC_OPERATIONS` set
  *    1:1 (schema↔allowlist agreement enforced as code).
@@ -61,6 +66,8 @@ const PRE_3_1_QUERY_FIELDS = ["me", "recitationReadings"] as const;
 const PRE_3_1_MUTATION_FIELDS = ["login", "logout", "refreshToken", "registerUser"] as const;
 /** GraphQL enum type names — every new Pothos enum must be pinned here by name. */
 const PRE_3_1_ENUMS = ["ApplicantStatus", "Gender", "RecitationReading", "RegisterPublicRole", "UserRole"] as const;
+/** DEV3-004 scheduling enum trio — registered ONCE in `shared/enum.pothos.ts`. */
+const DEV3_004_ENUMS = ["SessionIntent", "SessionStatus", "SessionType"] as const;
 /** Non-root object/enum/scalar SDL type names in the baseline (introspection `__*` and spec scalars excluded). */
 const PRE_3_1_TYPE_NAMES = [
   "Gender",
@@ -177,17 +184,17 @@ describe("Surface freeze — pinned additions vs the baseline inventory", () => 
       .map(type => type.name)
       .toSorted((a, b) => a.localeCompare(b));
 
-    expect(enumNames).toEqual([...PRE_3_1_ENUMS]);
+    expect(enumNames).toEqual([...PRE_3_1_ENUMS, ...DEV3_004_ENUMS].toSorted((a, b) => a.localeCompare(b)));
   });
 
-  test("whole-schema named-type delta is pinned: HealthCheck + DEV2-004 applicant surface + DateTime scalar", () => {
+  test("whole-schema named-type delta is pinned: HealthCheck + DEV2-004 applicant surface + DateTime scalar + DEV3-004 scheduling enums", () => {
     const post = new Set(sdlTypeNames());
 
     for (const name of PRE_3_1_TYPE_NAMES) {
       expect(post.has(name)).toBe(true);
     }
     const additions = sdlTypeNames().filter(name => !(PRE_3_1_TYPE_NAMES as readonly string[]).includes(name));
-    expect(additions).toEqual(["ApplicantProfile", "ApplicantStatus", "DateTime", "HealthCheck"]);
+    expect(additions).toEqual(["ApplicantProfile", "ApplicantStatus", "DateTime", "HealthCheck", ...DEV3_004_ENUMS]);
   });
 });
 

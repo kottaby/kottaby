@@ -126,6 +126,26 @@ input RegisterUserInput {
   role: RegisterPublicRole!
 }
 
+enum SessionIntent {
+  Evaluation
+  Hifz
+  Tajweed
+}
+
+enum SessionStatus {
+  Cancelled
+  Completed
+  Disputed
+  Scheduled
+  Started
+}
+
+enum SessionType {
+  ReEvaluation
+  StudentSession
+  TeacherEvaluation
+}
+
 type User {
   country: String
   email: String!

@@ -268,15 +268,15 @@
 
 ### 3.1 — Pothos Enum & Object Registration
 
-- [ ] 3.1 [Register missing enums + `Session` / `SessionPage` canonical objects]
+- [x] 3.1 [Register missing enums + `Session` / `SessionPage` canonical objects]
   - **Files:** UPDATE `backend/graphql/pothos/shared/enum.pothos.ts` — register ONLY the missing of `SessionStatus`/`SessionIntent`/`SessionType` via enum-object form (`gqlSchemaBuilder.enumType(SessionStatus, { name: "SessionStatus" })`); re-registration and literal-array forms are BOTH runtime/Rule violations. CREATE `backend/graphql/pothos/classes/session.pothos.ts` — single canonical `SessionPothosObject` backed by `SessionReturnType` (`id` FIRST; `teacherId`/`studentId` exposed per REQ-060; `heldBalanceLane` DELIBERATELY ABSENT) + `SessionPage` wrapper (the sanctioned list-wrapper exception).
   - `heldBalanceLane` must NOT appear in SDL.
   - _Requirements: REQ-060, REQ-031_
-  - [ ] 3.1.QL **Quality Loop**: sub-loop on both files (exit 0)
-  - [ ] 3.1.TE **Test Engineering**: SDL snapshot test — `Session` shape parity vs plan §3.1; enum registered exactly once (builder construction does not throw); schema builds cleanly.
-  - [ ] 3.1.SEC **Security & Tenancy Audit**: internal provenance column unreachable from SDL; no `disputed` producer surface exists.
-  - [ ] 3.1.SR **Semantic Review**: NO local types (canonical `SessionReturnType` only); enum VALUE imports.
-  - [ ] 3.1.IV **Instruction Verification**: `backend/graphql/AGENTS.md`, `docs/graphql/api-gateway-and-routing.md`.
+  - [x] 3.1.QL **Quality Loop**: sub-loop on both files (exit 0)
+  - [x] 3.1.TE **Test Engineering**: SDL snapshot test — `Session` shape parity vs plan §3.1; enum registered exactly once (builder construction does not throw); schema builds cleanly.
+  - [x] 3.1.SEC **Security & Tenancy Audit**: internal provenance column unreachable from SDL; no `disputed` producer surface exists.
+  - [x] 3.1.SR **Semantic Review**: NO local types (canonical `SessionReturnType` only); enum VALUE imports.
+  - [x] 3.1.IV **Instruction Verification**: `backend/graphql/AGENTS.md`, `docs/graphql/api-gateway-and-routing.md`.
   - Write `outcome/3.1-outcome.md`.
 
 ### 3.2 — Query Resolvers
