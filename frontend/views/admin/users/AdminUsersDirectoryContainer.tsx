@@ -67,19 +67,22 @@ import {
 } from "@mui/material";
 import Link from "next/link";
 import { type ReactNode, type SubmitEventHandler, useState } from "react";
-import type {
-  AdminCreateUserMutation,
-  AdminSetUserDeletedMutation,
-  AdminUpdateUserMutation,
-  AdminUserStatsQuery,
-  AdminUsersQuery,
-  AdminUsersQueryVariables,
-} from "@/frontend/graphql/generated/gql/graphql";
 // `UserRole` and `AdminUserGovernanceFilter` are emitted as runtime string
 // enums by GraphQL codegen — they must be imported as VALUES (not
 // `import type`) so we can use `UserRole.Admin` etc. as runtime constants
-// in the `toUserRole` / `toGovernanceFilter` conversion helpers.
-import { AdminUserGovernanceFilter, UserRole } from "@/frontend/graphql/generated/gql/graphql";
+// in the `toUserRole` / `toGovernanceFilter` conversion helpers. The
+// remaining specifiers are types-only and use the inline `type` keyword
+// (keeps the single-import form clean under `verbatimModuleSyntax`).
+import {
+  type AdminCreateUserMutation,
+  type AdminSetUserDeletedMutation,
+  type AdminUpdateUserMutation,
+  AdminUserGovernanceFilter,
+  type AdminUserStatsQuery,
+  type AdminUsersQuery,
+  type AdminUsersQueryVariables,
+  UserRole,
+} from "@/frontend/graphql/generated/gql/graphql";
 import {
   adminCreateUserMutationDocument,
   adminSetUserDeletedMutationDocument,
