@@ -133,13 +133,13 @@
 
 ### 2.1 — Journey Harness Scaffold (`test/workflows/helpers/`)
 
-- [ ] 2.1 [Scaffold journey helper layer if absent]
+- [x] 2.1 [Scaffold journey helper layer if absent]
   - **Files:** CREATE `test/workflows/helpers/journey-fixtures.ts` (tracked-ID registry + FK-order-aware hard-delete cleanup); CREATE `test/workflows/helpers/session-cast.ts` (cast builders over `entity-setup.ts`: student-with-trial, student-with-paid-lane, student-with-both, zero-balance student, certified teacher, teacher applicant (applicants row ONLY — INV-TV1 by construction), second student/teacher, parent, admin fixtures with REAL role/permission rows); UPDATE `test/workflows/AGENTS.md` append-only with helpers guidance (no rewrite of existing rules).
   - Rules: NO `runInRollback` in this layer; fixtures committed; permissions resolved by REAL membership rows — never monkey-patched; external side effects (none in this ticket) asserted by row-count deltas.
   - _Requirements: REQ-077_
-  - [ ] 2.1.QL **Quality Loop**: sub-loop on both helper files (exit 0)
-  - [ ] 2.1.SR **Semantic Review**: helpers contain zero business logic; cleanup is total (two consecutive suite runs prove idempotent teardown).
-  - [ ] 2.1.IV **Instruction Verification**: `test/workflows/AGENTS.md`, `docs/testing/workflow-journey-tests.md`.
+  - [x] 2.1.QL **Quality Loop**: sub-loop on both helper files (exit 0)
+  - [x] 2.1.SR **Semantic Review**: helpers contain zero business logic; cleanup is total (two consecutive suite runs prove idempotent teardown).
+  - [x] 2.1.IV **Instruction Verification**: `test/workflows/AGENTS.md`, `docs/testing/workflow-journey-tests.md`.
   - Write `outcome/2.1-outcome.md`.
 
 ### 2.2 — Journey J1: Full Happy Lifecycle (TEST-FIRST)
