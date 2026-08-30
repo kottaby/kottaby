@@ -529,9 +529,11 @@ describe("error-contract matrix — wire tier over live HTTP", () => {
     expect(result.error).toBeUndefined();
     const data: unknown = result.data;
     if (!isRecord(data)) throw new Error("expected record-shaped data");
-    // Bracket access keeps the `_health` field name out of member-access
-    // position (no-underscore-dangle; external GraphQL wire field).
-    const health: unknown = data._health;
+    // Reflect.get keeps the `_health` wire-field name out of member-access
+    // position (no-underscore-dangle; same pattern as the schema-surface
+    // suite's extensions read — bracket access would be re-normalized to
+    // dot notation by biome's useNormalizedAccessor).
+    const health: unknown = Reflect.get(data, "_health");
     if (!isRecord(health)) throw new Error("expected record-shaped _health payload");
     expect(health.status).toBe("ok");
     expect(health.service).toBe("kottaby");
