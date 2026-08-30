@@ -72,6 +72,12 @@ function parseActionTypeFilter(actionType: string, locale: string): AuditLogSele
   return match;
 }
 
+/** Normalize a Pothos DateTime arg (Date | string | null | undefined) to Date | undefined. */
+function normalizeDateTime(value: Date | string | null | undefined): Date | undefined {
+  if (value == null) return undefined;
+  return value instanceof Date ? value : new Date(value);
+}
+
 // Side-effect: register the `adminAuditLogs` admin-gated query field.
 gqlSchemaBuilder.queryField("adminAuditLogs", t =>
   t.field({
@@ -108,8 +114,8 @@ gqlSchemaBuilder.queryField("adminAuditLogs", t =>
             : undefined,
         entityType: args.entityType ?? undefined,
         entityId: args.entityId ?? undefined,
-        createdFrom: args.createdFrom ?? undefined,
-        createdTo: args.createdTo ?? undefined,
+        createdFrom: normalizeDateTime(args.createdFrom),
+        createdTo: normalizeDateTime(args.createdTo),
         limit: args.limit ?? 50,
         offset: args.offset ?? 0,
       });
