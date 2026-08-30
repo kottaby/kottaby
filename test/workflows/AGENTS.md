@@ -26,7 +26,7 @@ through the real service layer against the real test database. Canonical referen
    the suite). Provision inside ONE committing transaction so setup is commit-or-nothing: a
    throwing `beforeAll` rolls back and leaves nothing behind.
 3. **Unique UUID prefixes.** Every suite derives a per-run prefix
-   (`const prefix = \`jrn_<domain>_${randomUUID().slice(0, 8)}\``) used in names/notes so repeated
+   (`` const prefix = `jrn_<domain>_${randomUUID().slice(0, 8)}` ``) used in names/notes so repeated
    or parallel runs never collide.
 4. **Honest authorization only.** Actors are real users holding their real roles (`users.role` +
    role-child rows). Never monkey-patch role/permission resolution in a journey — negative steps

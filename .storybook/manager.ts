@@ -49,12 +49,12 @@ const UiThemeToggle = memo(function UiThemeToggle() {
   }, [mode]);
 
   const toggle = useCallback(() => {
-    setMode(prev => {
-      const next: UiThemeMode = prev === "dark" ? "light" : "dark";
-      window.localStorage.setItem(UI_THEME_STORAGE_KEY, next);
-      return next;
-    });
-  }, []);
+    // Persist in the event handler, NOT inside a state updater — Strict Mode
+    // may invoke updaters twice; localStorage writes must stay outside them.
+    const next: UiThemeMode = mode === "dark" ? "light" : "dark";
+    window.localStorage.setItem(UI_THEME_STORAGE_KEY, next);
+    setMode(next);
+  }, [mode]);
 
   return h(
     ToggleButton,

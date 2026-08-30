@@ -110,7 +110,9 @@ export function NotificationUnreadBadge(): ReactNode {
               // sets `theme.direction`) flip the vars to the top-left corner.
               // `!important` is required to override the inline slot style.
               "[dir=rtl] & .MuiBadge-badge": {
-                "--Badge-inset": "0 auto 0 0 !important",
+                // inset shorthand is top/right/bottom/left — leaving bottom
+                // at `auto` keeps the badge content-sized (never stretched).
+                "--Badge-inset": "0 auto auto 0 !important",
                 "--Badge-origin": "0% 0% !important",
                 "--Badge-translate": "-50%, -50% !important",
               },
