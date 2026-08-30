@@ -1,3 +1,8 @@
+enum AppLocale {
+  Ar
+  En
+}
+
 type ApplicantProfile {
   canPurchaseVerification: Boolean!
   cooldownActive: Boolean!
@@ -74,6 +79,11 @@ type Mutation {
   """
   refreshToken(refreshToken: String!): RefreshTokenPayload!
   registerUser(input: RegisterUserInput!): User!
+
+  """
+  Persists the caller's app locale preference (UI + notification-copy language) and returns the updated user. Idempotent. Self-scoped — identity is derived from the verified context, never from arguments.
+  """
+  updateMyLocale(locale: AppLocale!): User!
 }
 
 input MyNotificationsFilterInput {
@@ -183,6 +193,7 @@ type User {
   id: Int!
   isBlocked: Boolean!
   isDeleted: Boolean!
+  locale: AppLocale
   phone: String
 
   """

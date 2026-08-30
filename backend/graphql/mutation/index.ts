@@ -11,7 +11,10 @@
  *
  * `auth.mutation.ts` wires the auth mutations (`registerUser`, `login`,
  * `refreshToken`, `logout`); `notifications/` wires the inbox read-latch
- * mutations (`markNotificationRead`, `markAllNotificationsRead`).
+ * mutations (`markNotificationRead`, `markAllNotificationsRead`);
+ * `user.mutation.ts` wires the caller-scoped profile mutations
+ * (`updateMyLocale`).
  */
 import "./auth.mutation";
 import "./notifications";
+import "./user.mutation";

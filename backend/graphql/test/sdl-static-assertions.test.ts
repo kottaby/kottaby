@@ -17,9 +17,14 @@
  *    text. Notification emission is service-internal ONLY — the GraphQL
  *    write surface is exactly the read-latch pair.
  *  - **Root-set freeze** — the Mutation root is EXACTLY the refreshed frozen
- *    6-op baseline (auth quartet + the sanctioned notification read-latch
- *    pair) and the Query root is EXACTLY the frozen baseline + the `_health`
- *    probe (mirrors the `PRE_3_1_*` inventories in schema-surface.test.ts).
+ *    7-op baseline (auth quartet + the sanctioned notification read-latch
+ *    pair + the sanctioned users-locale mutation) and the Query root is
+ *    EXACTLY the frozen baseline + the `_health` probe (mirrors the
+ *    `PRE_3_1_*` inventories in schema-surface.test.ts).
+ *  - **Users-locale surface (D2)** — `updateMyLocale(locale: AppLocale!): User!`
+ *    is present with its EXACT SDL signature, `User.locale` is the nullable
+ *    `AppLocale` enum, and the `AppLocale` enum carries exactly the two
+ *    canonical values.
  *  - **REQ-060 four-ops contract** — `myNotifications`,
  *    `myUnreadNotificationCount`, `markNotificationRead`,
  *    `markAllNotificationsRead` are present with their EXACT SDL signatures
@@ -46,12 +51,19 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { type InputObjectTypeDefinitionNode, Kind, type ObjectTypeDefinitionNode, parse, type TypeNode } from "graphql";
+import {
+  type EnumTypeDefinitionNode,
+  type InputObjectTypeDefinitionNode,
+  Kind,
+  type ObjectTypeDefinitionNode,
+  parse,
+  type TypeNode,
+} from "graphql";
 
 // ─── Frozen baselines (mirror the refreshed PRE_3_1_* inventories in ─────────
 // ─── schema-surface.test.ts — the single sanctioned growth history) ──────────
 
-/** Root mutation fields — the auth quartet + the sanctioned notification read-latch pair. */
+/** Root mutation fields — the auth quartet + the sanctioned notification read-latch pair + the sanctioned users-locale mutation (D2). */
 const FROZEN_MUTATION_FIELDS = [
   "login",
   "logout",
@@ -59,6 +71,7 @@ const FROZEN_MUTATION_FIELDS = [
   "markNotificationRead",
   "refreshToken",
   "registerUser",
+  "updateMyLocale",
 ] as const;
 
 /** Root query fields — the frozen baseline + the sanctioned inbox reads + the probe. */
@@ -204,7 +217,7 @@ describe("BFLA structural verdict — zero notification CUD surface (REQ-032)", 
     }
   });
 
-  test("Mutation root is EXACTLY the refreshed frozen 6-op baseline — the notification write surface is the read-latch pair only", () => {
+  test("Mutation root is EXACTLY the refreshed frozen 7-op baseline — the notification write surface is the read-latch pair only", () => {
     const names = fieldSurfaces("Mutation").map(surface => surface.name);
     expect(names.toSorted((a, b) => a.localeCompare(b))).toEqual([...FROZEN_MUTATION_FIELDS]);
   });
@@ -238,6 +251,12 @@ describe("REQ-060 four-ops contract — exact SDL signatures on the artifact", (
     const surface = fieldSurface("Mutation", "markAllNotificationsRead");
     expect(surface.type).toBe("Int!");
     expect(surface.args).toEqual([{ name: "type", type: "NotificationType" }]);
+  });
+
+  test("`updateMyLocale(locale: AppLocale!): User!` — the D2 users-locale signature", () => {
+    const surface = fieldSurface("Mutation", "updateMyLocale");
+    expect(surface.type).toBe("User!");
+    expect(surface.args).toEqual([{ name: "locale", type: "AppLocale!" }]);
   });
 
   test("MyNotificationsFilterInput carries EXACTLY the four REQ-060 filter fields, all nullable", () => {
@@ -308,5 +327,25 @@ describe("Notification object — `id` + REQ-069 depth/complexity posture", () =
     );
     expect(hasSubscriptionRoot).toBe(false);
     expect(sdlText).not.toContain("Subscription");
+  });
+});
+
+describe("Users-locale surface (D2) — AppLocale enum + User.locale on the artifact", () => {
+  test("AppLocale enum carries EXACTLY the two canonical values (Ar, En)", () => {
+    const appLocaleEnum = sdlDocument.definitions.find(
+      (definition): definition is EnumTypeDefinitionNode =>
+        definition.kind === Kind.ENUM_TYPE_DEFINITION && definition.name.value === "AppLocale"
+    );
+    if (!appLocaleEnum) {
+      throw new Error("Generated SDL must define the `AppLocale` enum type");
+    }
+    const values = (appLocaleEnum.values ?? []).map(value => value.name.value).toSorted((a, b) => a.localeCompare(b));
+    expect(values).toEqual(["Ar", "En"]);
+  });
+
+  test("`User.locale` is the NULLABLE AppLocale enum on the artifact", () => {
+    const surface = fieldSurface("User", "locale");
+    expect(surface.type).toBe("AppLocale");
+    expect(surface.args).toEqual([]);
   });
 });

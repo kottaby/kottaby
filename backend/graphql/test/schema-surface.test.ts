@@ -18,7 +18,9 @@
  *    query additions — `myNotifications` + `myUnreadNotificationCount` +
  *    `MyNotificationsFilterInput` — and the sanctioned inbox read-latch
  *    mutation additions — `markNotificationRead` +
- *    `markAllNotificationsRead`): ZERO new mutations beyond the refreshed
+ *    `markAllNotificationsRead` — and the sanctioned users-locale additions
+ *    (D2 backend vertical) — the `AppLocale` enum + `User.locale` + the
+ *    `updateMyLocale` mutation): ZERO new mutations beyond the refreshed
  *    frozen set, and a whole-schema named-type delta of EXACTLY
  *    `{HealthCheck}` while the query set grows only by the sanctioned probe
  *    re-registration.
@@ -37,6 +39,11 @@
  *    return the canonical row/scalar shapes, accept ZERO identity
  *    arguments (exactly `id: ID!` / `type: NotificationType`), and reject
  *    anonymous in-process execution with UNAUTHORIZED.
+ *  - **Users-locale surface (D2)** — `updateMyLocale` carries EXACTLY the
+ *    `authenticated` scope, takes exactly `locale: AppLocale!`, returns
+ *    `User!`, `User.locale` is the nullable `AppLocale` enum, the enum
+ *    carries exactly the 2 canonical values, and anonymous in-process
+ *    execution rejects with UNAUTHORIZED.
  *  - **Allowlist agreement** — the scopeless `_health` field is present in
  *    the closed `PUBLIC_OPERATION_NAMES` tuple / `PUBLIC_OPERATIONS` set
  *    1:1 (schema↔allowlist agreement enforced as code).
@@ -84,7 +91,7 @@ const PRE_3_1_QUERY_FIELDS = [
   "myUnreadNotificationCount",
   "recitationReadings",
 ] as const;
-/** Root mutation field names — the refreshed frozen baseline (auth quartet + the sanctioned notification read-latch pair). */
+/** Root mutation field names — the refreshed frozen baseline (auth quartet + the sanctioned notification read-latch pair + the sanctioned users-locale mutation). */
 const PRE_3_1_MUTATION_FIELDS = [
   "login",
   "logout",
@@ -92,10 +99,12 @@ const PRE_3_1_MUTATION_FIELDS = [
   "markNotificationRead",
   "refreshToken",
   "registerUser",
+  "updateMyLocale",
 ] as const;
 /** GraphQL enum type names — the freeze forbids any new Pothos enum. */
 const PRE_3_1_ENUMS = [
   "ApplicantStatus",
+  "AppLocale",
   "Gender",
   "NotificationType",
   "RecitationReading",
@@ -104,6 +113,7 @@ const PRE_3_1_ENUMS = [
 ] as const;
 /** Non-root object/enum/scalar SDL type names in the baseline (introspection `__*` and spec scalars excluded). */
 const PRE_3_1_TYPE_NAMES = [
+  "AppLocale",
   "ApplicantProfile",
   "ApplicantStatus",
   "Gender",
@@ -136,6 +146,21 @@ function sdlTypeNames(): string[] {
 /** Runtime record guard (no casts, per test-tier discipline). */
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
+}
+
+/**
+ * Reads a root field's `authScopes` snapshot off the Pothos extensions
+ * (no casts). Shared by the users-locale surface describe below; the
+ * notification-mutation describe keeps its own closure-scoped twins.
+ */
+function authScopesSnapshot(field: { readonly extensions?: unknown }): Record<string, unknown> {
+  const extensions: unknown = field.extensions;
+  if (!isRecord(extensions)) throw new Error("expected record-shaped extensions");
+  const pothosOptions: unknown = Reflect.get(extensions, "pothosOptions");
+  if (!isRecord(pothosOptions)) throw new Error("expected record-shaped pothosOptions");
+  const authScopes: unknown = Reflect.get(pothosOptions, "authScopes");
+  if (!isRecord(authScopes)) throw new Error("expected record-shaped authScopes");
+  return authScopes;
 }
 
 describe("Query._health — retyped probe surface", () => {
@@ -589,6 +614,105 @@ describe("Notification mutation surface — self-scoped read latch", () => {
     const smuggledMarkAll = validate(graphQLSchema, parse("mutation { markAllNotificationsRead(userId: 123) }"));
     expect(smuggledMarkAll).toHaveLength(1);
     expect(smuggledMarkAll[0]?.message).toContain('Unknown argument "userId"');
+  });
+});
+
+describe("Users-locale surface (D2 backend vertical) — self-scoped locale preference", () => {
+  const mutationType = graphQLSchema.getMutationType();
+
+  if (!mutationType) {
+    throw new Error("Schema must define a root Mutation type");
+  }
+
+  // Captured ONCE after the narrowing guard — direct lookups below never
+  // re-dereference a possibly-null root type.
+  const rootFields = mutationType.getFields();
+
+  /** Fail-fast field lookup for the users-locale root field. */
+  function updateMyLocaleField() {
+    const field = rootFields.updateMyLocale;
+    if (!field) {
+      throw new Error("Mutation must register the `updateMyLocale` root field");
+    }
+    return field;
+  }
+
+  test("`updateMyLocale` returns User! with EXACTLY ONE required `locale: AppLocale!` arg", () => {
+    const field = updateMyLocaleField();
+    expect(field.type.toString()).toBe("User!");
+    const argNames = field.args.map(arg => arg.name).toSorted((a, b) => a.localeCompare(b));
+    expect(argNames).toEqual(["locale"]);
+    const localeArg = field.args[0];
+    if (!localeArg) throw new Error("expected the locale argument");
+    // Required + non-null — exactly the SDL contract's `(locale: AppLocale!)`.
+    expect(localeArg.type.toString()).toBe("AppLocale!");
+  });
+
+  test("`updateMyLocale` carries EXACTLY the `authenticated` scope (no role/permission/superAdmin)", () => {
+    const scopes = authScopesSnapshot(updateMyLocaleField());
+    expect(Object.keys(scopes).toSorted((a, b) => a.localeCompare(b))).toEqual(["authenticated"]);
+    expect(scopes.authenticated).toBe(true);
+    // SEC: every authenticated role owns a locale preference — no role
+    // material may participate in the scope decision.
+    expect("role" in scopes).toBe(false);
+    expect("permission" in scopes).toBe(false);
+    expect("superAdmin" in scopes).toBe(false);
+  });
+
+  test("AppLocale enum carries EXACTLY the 2 canonical values (keys on the wire, lowercase runtime values)", () => {
+    const enumType = graphQLSchema.getType("AppLocale");
+
+    if (!(enumType instanceof GraphQLEnumType)) {
+      throw new Error("AppLocale must be registered as a GraphQL enum type");
+    }
+
+    const values = enumType.getValues();
+    expect(values).toHaveLength(2);
+    expect(values.map(value => value.name).toSorted((a, b) => a.localeCompare(b))).toEqual(["Ar", "En"]);
+    // Runtime values stay the canonical lowercase locale strings —
+    // byte-identical to the pgEnum / TS enum / shared `locales` list.
+    expect(values.map(value => value.value).toSorted((a, b) => a.localeCompare(b))).toEqual(["ar", "en"]);
+  });
+
+  test("`User.locale` is the NULLABLE AppLocale enum (unset until the user picks one)", () => {
+    const userType = graphQLSchema.getType("User");
+
+    if (!(userType instanceof GraphQLObjectType)) {
+      throw new Error("User must be registered as a GraphQL object type");
+    }
+
+    const localeField = userType.getFields().locale;
+    if (!localeField) {
+      throw new Error("User must register the `locale` field");
+    }
+    expect(localeField.type.toString()).toBe("AppLocale");
+  });
+
+  test("anonymous (context-free) in-process execution of updateMyLocale yields UNAUTHORIZED", async () => {
+    const result = await graphql({
+      schema: graphQLSchema,
+      source: "mutation { updateMyLocale(locale: Ar) { id } }",
+      contextValue: {},
+    });
+    const errors = result.errors;
+    if (!errors) throw new Error("expected the anonymous locale mutation to fail");
+    expect(errors).toHaveLength(1);
+    expect(errors[0]?.extensions?.code).toBe("UNAUTHORIZED");
+    expect(errors[0]?.path).toEqual(["updateMyLocale"]);
+  });
+
+  test("smuggled identity args die at validation BEFORE any resolver runs (zero identity-arg surface)", () => {
+    const smuggledUserId = validate(
+      graphQLSchema,
+      parse("mutation { updateMyLocale(locale: Ar, userId: 123) { id } }")
+    );
+    expect(smuggledUserId).toHaveLength(1);
+    expect(smuggledUserId[0]?.message).toContain('Unknown argument "userId"');
+
+    // The closed enum rejects non-locale literals at validation time too.
+    const invalidLiteral = validate(graphQLSchema, parse("mutation { updateMyLocale(locale: fr) { id } }"));
+    expect(invalidLiteral).toHaveLength(1);
+    expect(invalidLiteral[0]?.message).toContain('Value "fr" does not exist in "AppLocale" enum');
   });
 });
 

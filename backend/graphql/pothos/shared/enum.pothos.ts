@@ -17,12 +17,14 @@
  *  - `RegisterPublicRole` (public subset — student/teacher/parent — BFLA)
  *  - `RecitationReading`, `ApplicantStatus`
  *  - `NotificationType` (the seven notification kinds)
+ *  - `AppLocale` (the per-user UI/copy preference — "ar" | "en")
  *
  * After registering a new enum here, run `bun run generate:gqlSchema` and
  * `bun codegen` to refresh the SDL + frontend codegen.
  */
 import { NotificationType } from "@/backend/enum/notifications/notification-type.enum";
 import { ApplicantStatus } from "@/backend/enum/teachers/applicant-status.enum";
+import { AppLocale } from "@/backend/enum/users/app-locale.enum";
 import { Gender } from "@/backend/enum/users/gender.enum";
 import { RegisterPublicRole } from "@/backend/enum/users/register-public-role.enum";
 import { UserRole } from "@/backend/enum/users/user-role.enum";
@@ -37,6 +39,17 @@ export const UserRolePothosEnum = gqlSchemaBuilder.enumType(UserRole, {
 /** GraphQL `Gender` enum (male|female|other). */
 export const GenderPothosEnum = gqlSchemaBuilder.enumType(Gender, {
   name: "Gender",
+});
+
+/**
+ * GraphQL `AppLocale` enum (ar|en) — the per-user UI/copy preference.
+ *
+ * Backed by the canonical TS mirror (`backend/enum/users/app-locale.enum.ts`),
+ * which the parity test pins byte-identical to BOTH the `app_locale` pgEnum
+ * (`users.locale`) and the shared locale list (`shared/locale/AppLocale.ts`).
+ */
+export const AppLocalePothosEnum = gqlSchemaBuilder.enumType(AppLocale, {
+  name: "AppLocale",
 });
 
 /**
