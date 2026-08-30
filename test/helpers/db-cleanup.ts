@@ -75,8 +75,12 @@ function restoreClause(state: AuditTriggerState): ReturnType<typeof sql> {
  * (even on failure — the restore lives in `finally`). When the table
  * carries no user triggers (push-provisioned dev/test databases), `fn`
  * runs directly with zero DDL round-trips.
+ *
+ * Exported for cross-suite reuse: `test/workflows/helpers/journey-cleanup.ts`
+ * wraps its two audit-log deletes in the same suspension wrapper instead of
+ * re-implementing the trigger dance (single source of truth).
  */
-async function withAuditDeleteTriggersSuspended<T>(fn: () => Promise<T>): Promise<T> {
+export async function withAuditDeleteTriggersSuspended<T>(fn: () => Promise<T>): Promise<T> {
   const discovered = await db.execute<{ tgname: string; tgenabled: string }>(
     sql`SELECT tgname, tgenabled FROM pg_trigger WHERE tgrelid = 'audit_logs'::regclass AND NOT tgisinternal`
   );

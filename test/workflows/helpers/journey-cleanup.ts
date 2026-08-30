@@ -30,7 +30,10 @@ import { applicants } from "@/backend/db/schema/teachers/applicants";
 import { teacher } from "@/backend/db/schema/teachers/teacher";
 import { admin } from "@/backend/db/schema/users/admin";
 import { users } from "@/backend/db/schema/users/users";
-import type { JourneyFixtureRegistry } from "@/test/workflows/helpers/journey-fixtures";
+// Deep import (same rationale as the chaos suite — the `test/helpers`
+// barrel pulls the Apollo test client into backend-only graphs).
+import { withAuditDeleteTriggersSuspended } from "@/test/helpers/db-cleanup";
+import type { JourneyFixtureRegistry } from "@/test/workflows/helpers/journey-actor-fixtures";
 
 /**
  * Hard-deletes every tracked row id in FK-safe order. Idempotent — safe to
@@ -63,18 +66,27 @@ export async function journeyCleanup(registry: JourneyFixtureRegistry): Promise<
   // Reverse-insertion-order so journey-created rows delete before cast rows.
   const orderedIds = [...registry.userIds].toReversed();
 
-  // 1. audit_logs — actor_id has ON DELETE RESTRICT; must precede users.
-  await db.delete(auditLogs).where(inArray(auditLogs.actorId, orderedIds));
+  // 1+2. audit_logs — actor_id has ON DELETE RESTRICT; must precede users.
+  // Plus a defensive sweep of rows referencing journey users as the ENTITY
+  // (entity_id is nullable — no FK). Both deletes run under
+  // `withAuditDeleteTriggersSuspended`: migrate-provisioned databases (CI
+  // + local dev after `bun db migrate`) install an append-only
+  // immutability trigger on audit_logs (INV-W6) that would otherwise
+  // RAISE on the DELETE. The wrapper discovers, disables, and restores
+  // every user trigger's exact firing state (`pg_trigger.tgenabled`).
+  await withAuditDeleteTriggersSuspended(async () => {
+    await db.delete(auditLogs).where(inArray(auditLogs.actorId, orderedIds));
 
-  // 2. audit_logs — entity_id is nullable (no FK); defensive cleanup of
-  //    orphaned rows referencing journey users as the entity. The raw
-  //    parameterized query sidesteps Drizzle's `inArray` typing friction
-  //    on nullable integer columns.
-  await queryDb(
-    `DELETE FROM audit_logs
-     WHERE entity_type = 'user' AND entity_id = ANY($1::int[])`,
-    [orderedIds]
-  );
+    // audit_logs — entity_id is nullable (no FK); defensive cleanup of
+    // orphaned rows referencing journey users as the entity. The raw
+    // parameterized query sidesteps Drizzle's `inArray` typing friction
+    // on nullable integer columns.
+    await queryDb(
+      `DELETE FROM audit_logs
+       WHERE entity_type = 'user' AND entity_id = ANY($1::int[])`,
+      [orderedIds]
+    );
+  });
 
   // 3. role-child rows (shared-PK children; FK ON DELETE CASCADE — but we
   //    delete explicitly for determinism and to keep the cleanup independent
