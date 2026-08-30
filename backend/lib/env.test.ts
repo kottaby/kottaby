@@ -81,7 +81,12 @@ function restoreEnv(): void {
 }
 
 /** The dev/test default allowlist, asserted in several suites below. */
-const DEFAULT_ORIGINS = ["http://localhost:3000", "http://127.0.0.1:3000"];
+const DEFAULT_ORIGINS = [
+  "http://localhost:3000",
+  "http://127.0.0.1:3000",
+  "http://localhost:3001",
+  "http://127.0.0.1:3001",
+];
 
 // ─── Registry inclusion ─────────────────────────────────────────────────────
 
@@ -156,14 +161,14 @@ describe("invalidation coverage — resetEnvironmentCache re-reads every realtim
   afterEach(restoreEnv);
 
   test("WS_PORT: stale until reset, re-read after reset, default after removal", () => {
-    expect(getWebSocketPort()).toBe(3001); // builds the cache from cleared env
+    expect(getWebSocketPort()).toBe(3101); // builds the cache from cleared env
     process.env.WS_PORT = "4321";
-    expect(getWebSocketPort()).toBe(3001); // STALE — reads go through the cache
+    expect(getWebSocketPort()).toBe(3101); // STALE — reads go through the cache
     resetEnvironmentCache();
     expect(getWebSocketPort()).toBe(4321); // reset re-reads the key
     delete process.env.WS_PORT;
     resetEnvironmentCache();
-    expect(getWebSocketPort()).toBe(3001); // removal + reset → default returns
+    expect(getWebSocketPort()).toBe(3101); // removal + reset → default returns
   });
 
   test("WS_HOST: stale until reset, re-read after reset, default after removal", () => {
@@ -242,8 +247,8 @@ describe("typed dev/test defaults — every realtime key absent", () => {
   });
   afterEach(restoreEnv);
 
-  test("WS_PORT defaults to 3001", () => {
-    expect(getWebSocketPort()).toBe(3001);
+  test("WS_PORT defaults to 3101", () => {
+    expect(getWebSocketPort()).toBe(3101);
   });
 
   test("WS_HOST defaults to the loopback address", () => {
@@ -305,12 +310,12 @@ describe("parsing boundaries", () => {
     expect(getWebSocketPort()).toBe(65535);
   });
 
-  test("WS_PORT rejects malformed/out-of-range values → default 3001", () => {
+  test("WS_PORT rejects malformed/out-of-range values → default 3101", () => {
     const invalidValues = ["-1", "65536", "abc", "3.5", "", "   ", "3001abc", "0x10", "99999999999999999999"];
     for (const invalid of invalidValues) {
       process.env.WS_PORT = invalid;
       resetEnvironmentCache();
-      expect(getWebSocketPort()).toBe(3001);
+      expect(getWebSocketPort()).toBe(3101);
     }
   });
 

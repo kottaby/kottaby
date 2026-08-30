@@ -70,10 +70,14 @@ const MAX_CONCURRENT_TOASTS = 3;
 
 /**
  * Dev/test default sidecar port — matches `WS_PORT`'s registered dev default
- * in `backend/lib/env.ts`. Production deploys override the full URL via
- * `NEXT_PUBLIC_NOTIFICATION_WS_URL` (D3 owns provisioning).
+ * in `backend/lib/env.ts`. Deliberately distinct from the Next.js dev server
+ * port range (3000/3001): deriving the socket URL from the app host with a
+ * port shared by the dev server would send every handshake to the Next.js
+ * HTTP server, which closes it before the upgrade (silent reconnect storm).
+ * Production deploys override the full URL via `NEXT_PUBLIC_NOTIFICATION_WS_URL`
+ * (D3 owns provisioning).
  */
-const DEFAULT_NOTIFICATION_WS_PORT = 3001;
+const DEFAULT_NOTIFICATION_WS_PORT = 3101;
 
 /**
  * Resolves the notification sidecar URL.
@@ -82,7 +86,7 @@ const DEFAULT_NOTIFICATION_WS_PORT = 3001;
  *    production points it at the `wss://` edge that proxies the sidecar.
  * 2. Otherwise the URL is derived from the app origin's HOST with the
  *    sidecar's default dev port: cookies are scoped by host (ports never
- *    participate), so `ws://<app-host>:3001` keeps the httpOnly
+ *    participate), so `ws://<app-host>:3101` keeps the httpOnly
  *    `access_token` cookie riding the handshake as a same-site request.
  */
 function resolveNotificationWsUrl(): string {

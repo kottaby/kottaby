@@ -451,9 +451,14 @@ describe("resolveNotificationWsServerConfig — env seam + overrides", () => {
 
     const config = resolveNotificationWsServerConfig();
 
-    expect(config.port).toBe(3001);
+    expect(config.port).toBe(3101);
     expect(config.host).toBe("127.0.0.1");
-    expect(config.allowedOrigins).toEqual(["http://localhost:3000", "http://127.0.0.1:3000"]);
+    expect(config.allowedOrigins).toEqual([
+      "http://localhost:3000",
+      "http://127.0.0.1:3000",
+      "http://localhost:3001",
+      "http://127.0.0.1:3001",
+    ]);
     expect(config.maxConnections).toBe(1000);
     expect(config.maxConnectionsPerUser).toBe(5);
     expect(config.pingIntervalMs).toBe(30_000);

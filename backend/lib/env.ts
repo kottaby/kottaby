@@ -56,20 +56,28 @@ let cachedConfig: EnvironmentConfig | null = null;
  */
 export type NotificationFanoutTransport = "redis" | "in-process";
 
-/** WebSocket sidecar listen port used when `WS_PORT` is unset or unusable. */
-const DEFAULT_WS_PORT = 3001;
+/** WebSocket sidecar listen port used when `WS_PORT` is unset or unusable.
+ *  NOT 3000/3001 — those belong to the Next.js dev server (which may run on
+ *  either); the sidecar must never collide with the HTTP app. */
+const DEFAULT_WS_PORT = 3101;
 
 /** WebSocket sidecar listen host used when `WS_HOST` is unset or empty. */
 const DEFAULT_WS_HOST = "127.0.0.1";
 
 /**
  * Dev/test origin allowlist used when `WS_ALLOWED_ORIGINS` is unset or
- * unusable — the loopback hostnames of the Next.js dev server (:3000).
+ * unusable — the loopback hostnames of the Next.js dev server on BOTH :3000
+ * and :3001 (Next auto-increments to 3001 whenever 3000 is occupied).
  * A wildcard (`"*"`) is NEVER a default: the WebSocket handshake carries
  * credentials, so an allow-all origin would re-open the cross-site
  * WebSocket hijacking hole the allowlist exists to close.
  */
-const DEFAULT_WS_ALLOWED_ORIGINS: readonly string[] = Object.freeze(["http://localhost:3000", "http://127.0.0.1:3000"]);
+const DEFAULT_WS_ALLOWED_ORIGINS: readonly string[] = Object.freeze([
+  "http://localhost:3000",
+  "http://127.0.0.1:3000",
+  "http://localhost:3001",
+  "http://127.0.0.1:3001",
+]);
 
 /** Global connection cap used when `WS_MAX_CONNECTIONS` is unset or unusable. */
 const DEFAULT_WS_MAX_CONNECTIONS = 1000;
@@ -180,7 +188,7 @@ export interface EnvironmentConfig {
   databaseEncryptionKey: string | undefined;
   /** Node environment. */
   nodeEnv: string;
-  /** WebSocket sidecar listen port (0 = ephemeral port; dev default 3001). */
+  /** WebSocket sidecar listen port (0 = ephemeral port; dev default 3101). */
   wsPort: number;
   /** WebSocket sidecar listen host (dev default `"127.0.0.1"`). */
   wsHost: string;
@@ -300,7 +308,7 @@ export function resolveEnvConfig(key: string): string | undefined {
  * WebSocket sidecar listen port (`WS_PORT`).
  *
  * Valid values are integers 0–65535 (0 binds an ephemeral OS port — used by
- * sidecar test suites); anything else falls back to the dev default (3001).
+ * sidecar test suites); anything else falls back to the dev default (3101).
  */
 export function getWebSocketPort(): number {
   return getEnvironmentConfig().wsPort;
