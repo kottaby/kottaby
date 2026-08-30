@@ -3,16 +3,18 @@
 import {
   CancelOutlined as CancelledIcon,
   CheckCircleOutlined as CompletedIcon,
-  PlayCircleOutlined as StartedIcon,
   ReportProblemOutlined as DisputedIcon,
   ScheduleOutlined as ScheduledIcon,
+  PlayCircleOutlined as StartedIcon,
   type SvgIconComponent,
 } from "@mui/icons-material";
 import { Alert, Box, Button, Chip, Stack, Typography } from "@mui/material";
 import type { Palette } from "@mui/material/styles";
 import type { ReactNode } from "react";
-import type { MyStudentSessionsQuery_myStudentSessions_items } from "@/frontend/graphql/generated/gql/graphql";
-import { SessionStatus } from "@/frontend/graphql/generated/gql/graphql";
+import {
+  type MyStudentSessionsQuery_myStudentSessions_items,
+  SessionStatus,
+} from "@/frontend/graphql/generated/gql/graphql";
 import { formatApplicantDate } from "@/frontend/lib/i18n/format-date";
 import { SESSION_FEE_CURRENCY } from "@/shared/constants";
 import { Sessions, useAppLocale, useAppTranslation } from "@/shared/locale";
@@ -81,7 +83,10 @@ const STATUS_TONE: Record<string, StatusTone> = {
 };
 
 /** Tone → Material 3 container/on-container pair (ProfileView pattern). */
-const TONE_COLORS: Record<string, { readonly bg: (palette: Palette) => string; readonly fg: (palette: Palette) => string }> = {
+const TONE_COLORS: Record<
+  string,
+  { readonly bg: (palette: Palette) => string; readonly fg: (palette: Palette) => string }
+> = {
   info: { bg: p => p.infoContainer, fg: p => p.onInfoContainer },
   primary: { bg: p => p.primaryContainer, fg: p => p.onPrimaryContainer },
   success: { bg: p => p.successContainer, fg: p => p.onSuccessContainer },
@@ -113,11 +118,11 @@ export function SessionRow({ session, alertMessage, onCancelIntent }: Readonly<S
   const locale = useAppLocale();
 
   const statusLabelKey = STATUS_LABEL_KEY[session.status];
-  const statusLabel = statusLabelKey === undefined ? String(session.status) : t[statusLabelKey];
+  const statusLabel = statusLabelKey in t ? t[statusLabelKey] : session.status;
   const statusTone = STATUS_TONE[session.status] ?? "warning";
   const toneColors = TONE_COLORS[statusTone] ?? TONE_COLORS.warning;
 
-  const isCancellable = CANCELLABLE_STATUSES[session.status] === true;
+  const isCancellable = session.status in CANCELLABLE_STATUSES;
 
   const feeText = session.fee === null ? NO_VALUE_PLACEHOLDER : `${session.fee} ${SESSION_FEE_CURRENCY}`;
   const deadlineText =

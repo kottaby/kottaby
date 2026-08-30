@@ -72,6 +72,16 @@ const SNACKBAR_AUTOHIDE_MS = 6000;
 /** Skeleton row count — approximates list density without claiming data. */
 const LOADING_ROW_COUNT = 3;
 
+/**
+ * Stable skeleton keys — module-scope so the loading rows never key off the
+ * render-time array index (`noArrayIndexKey`) while keeping one-to-one
+ * cardinality with {@link LOADING_ROW_COUNT}.
+ */
+const LOADING_ROW_KEYS: readonly string[] = Array.from(
+  { length: LOADING_ROW_COUNT },
+  (_, index) => `skeleton-${index}`
+);
+
 /** One transient container-level notice rendered in the MUI Snackbar slot. */
 interface ContainerNotice {
   readonly message: string;
@@ -222,6 +232,7 @@ export function StudentSessionsContainer(): ReactNode {
       </Stack>
       {cancelDialogSessionId !== null ? (
         <CancelSessionConfirmDialog
+          key={cancelDialogSessionId}
           sessionId={cancelDialogSessionId}
           open
           onClose={closeCancelDialog}
@@ -291,9 +302,9 @@ function SessionsErrorNotice({ message }: Readonly<SessionsErrorNoticeProps>): R
 function SessionsLoadingSkeleton(): ReactNode {
   return (
     <Stack aria-busy="true" data-testid="student-sessions-loading" sx={{ gap: 2 }}>
-      {Array.from({ length: LOADING_ROW_COUNT }, (_, index) => (
+      {LOADING_ROW_KEYS.map(key => (
         <Box
-          key={index}
+          key={key}
           sx={theme => ({
             display: "grid",
             gap: 1.5,

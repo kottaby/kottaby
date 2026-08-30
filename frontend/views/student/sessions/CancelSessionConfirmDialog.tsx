@@ -2,17 +2,8 @@
 
 import { useApolloClient, useMutation } from "@apollo/client/react";
 import { WarningOutlined as WarningIcon } from "@mui/icons-material";
-import {
-  Button,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
-  Stack,
-  TextField,
-  Typography,
-} from "@mui/material";
-import { type ReactNode, useEffect, useState } from "react";
+import { Button, Dialog, DialogActions, DialogContent, DialogTitle, Stack, TextField, Typography } from "@mui/material";
+import { type ReactNode, useState } from "react";
 import { cancelSessionMutationDocument } from "@/frontend/graphql/sharedDocuments";
 import { extractErrorCode } from "@/frontend/lib/graphql-error-utils";
 import {
@@ -102,7 +93,8 @@ function evictSessionFromLists(cache: ReturnType<typeof useApolloClient>["cache"
           ...existing,
           items: items.filter(item => {
             if (typeof item !== "object" || item === null) return true;
-            // Normalized storage: dangling `Reference` entries carry `__ref`.
+            // Normalized storage: dangling `Reference` entries carry `__ref`
+            // (bracket access — the Apollo wire property is underscore-prefixed).
             if ("__ref" in item) return item.__ref !== removedEntityId;
             // Non-normalized storage (defensive): raw payloads carry `id`.
             if ("id" in item) return item.id !== sessionId;
@@ -136,14 +128,9 @@ export function CancelSessionConfirmDialog({
 
   const [reason, setReason] = useState("");
   const [reasonInvalid, setReasonInvalid] = useState(false);
-
-  // Fresh dialog instance per session — never leak a previous draft/reason.
-  useEffect(() => {
-    if (open) {
-      setReason("");
-      setReasonInvalid(false);
-    }
-  }, [open, sessionId]);
+  // Fresh-dialog discipline: the container mounts this dialog UNMOUNTED-KEYED
+  // per session (`key={sessionId}` in `StudentSessionsContainer`), so every
+  // open starts from the initial draft state — no reset effect needed.
 
   const [cancelSession, { loading }] = useMutation(cancelSessionMutationDocument, {
     // Cache NORMALIZE on success — rewrite the terminal lifecycle fields onto
@@ -151,7 +138,7 @@ export function CancelSessionConfirmDialog({
     // normalized merge of the returned `Session!` payload). NO refetch.
     update(cache, { data }) {
       const cancelled = data?.cancelSession;
-      if (cancelled === undefined || cancelled === null) return;
+      if (!cancelled) return;
       cache.modify({
         id: cache.identify({ __typename: SESSION_TYPE_NAME, id: cancelled.id }),
         fields: {

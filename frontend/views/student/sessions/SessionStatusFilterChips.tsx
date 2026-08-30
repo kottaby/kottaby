@@ -101,7 +101,7 @@ export function SessionStatusFilterChips({ value, onChange }: Readonly<SessionSt
     >
       {FILTER_TOKENS.map(token => {
         const labelKey = FILTER_LABEL_KEY_BY_TOKEN[token];
-        const label = labelKey === undefined ? token : t[labelKey];
+        const label = labelKey in t ? t[labelKey] : token;
         return (
           <ToggleButton
             key={token}
@@ -114,6 +114,21 @@ export function SessionStatusFilterChips({ value, onChange }: Readonly<SessionSt
               textTransform: "none",
               fontWeight: 600,
               borderColor: theme.palette.outlineVariant,
+              // Separated-pill restoration — MUI's grouped (connected) styling
+              // zeroes the inner corners, dissolves one border edge to
+              // transparent and pulls siblings 1px together. This row is a
+              // GAPPED pill group (flexWrap + gap 1), so every grouped slot
+              // (`*Button` slot classes, v6+) restores the full pill outline
+              // in BOTH directions (the grouped rules carry physical
+              // properties that misplace in RTL).
+              "&.MuiToggleButtonGroup-firstButton, &.MuiToggleButtonGroup-middleButton, &.MuiToggleButtonGroup-lastButton":
+                {
+                  borderRadius: 999,
+                  border: "1px solid",
+                  borderColor: theme.palette.outlineVariant,
+                  marginLeft: 0,
+                  marginRight: 0,
+                },
               "&.Mui-selected": {
                 bgcolor: theme.palette.primaryContainer,
                 color: theme.palette.onPrimaryContainer,
