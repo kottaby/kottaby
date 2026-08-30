@@ -1,9 +1,9 @@
 type ApplicantProfile {
   canPurchaseVerification: Boolean!
   cooldownActive: Boolean!
-  cooldownUntil: String
+  cooldownUntil: DateTime
   id: Int!
-  lastAttemptAt: String
+  lastAttemptAt: DateTime
   status: ApplicantStatus!
   verificationAttempts: Int!
 }
@@ -33,10 +33,20 @@ input CreatePlanInput {
   title: String!
 }
 
+"""
+A date-time string at UTC, such as 2007-12-03T10:15:30Z, compliant with the `date-time` format outlined in section 5.6 of the RFC 3339 profile of the ISO 8601 standard for representation of dates and times using the Gregorian calendar.
+"""
+scalar DateTime
+
 enum Gender {
   Female
   Male
   Other
+}
+
+type HandshakeCodeLookup {
+  linkable: Boolean!
+  maskedName: String!
 }
 
 type HealthCheck {
@@ -151,12 +161,14 @@ type Query {
     """Whether to include deactivated plans in the returned list."""
     includeInactive: Boolean = true
   ): [Plan!]!
+  findStudentByHandshakeCode(code: String!): HandshakeCodeLookup
 
   """
   Returns the authenticated user (or null for anonymous). Anonymous callers receive null — the AuthProvider uses this to detect expired access tokens and silently restore the session via `refreshToken`.
   """
   me: User
   myApplicantProfile: ApplicantProfile
+  myHandshakeCode: String!
 
   """Returns the active subscription plans catalog for authenticated users."""
   planCatalog: [Plan!]!
