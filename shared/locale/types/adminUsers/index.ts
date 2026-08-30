@@ -36,12 +36,18 @@ export interface AdminUsersLabels {
     readonly name: string;
     /** Header cell for the user's email column. */
     readonly email: string;
+    /** Header cell for the user's phone-number column. */
+    readonly phone: string;
     /** Header cell for the user's role column. */
     readonly role: string;
     /** Header cell for the user's country column. */
     readonly country: string;
     /** Header cell for the governance status column. */
     readonly status: string;
+    /** Header cell for the combined status/details column (governance badge + role-child chips). */
+    readonly statusDetails: string;
+    /** Header cell for the governance windows column. */
+    readonly governance: string;
     /** Header cell for the last-active timestamp column. */
     readonly lastActive: string;
     /** Header cell for the account-creation timestamp column. */
@@ -97,6 +103,26 @@ export interface AdminUsersLabels {
     readonly emailCopied: string;
   };
 
+  /**
+   * Chip labels rendered inside the combined Status/Details column of the
+   * directory table — role-child verification, certification, and
+   * parent-link chips plus the unrelated fallback for pure admin rows.
+   */
+  readonly directoryChips: {
+    /** Italic fallback line for admin rows with no role-child details. */
+    readonly systemUser: string;
+    /** Chip shown when the underlying account is verified. */
+    readonly verified: string;
+    /** Chip shown when the teacher account is certified. */
+    readonly certified: string;
+    /** Chip shown when the student account is linked to a parent. */
+    readonly parentLinked: string;
+    /** Caption unit composed after a linked-children count (`${count} ${childrenLabel}` in the component). */
+    readonly childrenLabel: string;
+    /** Chip shown when a teacher application is awaiting review. */
+    readonly pendingReview: string;
+  };
+
   /** Role labels rendered as chips inside the role column. */
   readonly roleLabels: {
     /** Role chip for a super-admin account. */
@@ -123,6 +149,8 @@ export interface AdminUsersLabels {
     readonly searchPlaceholder: string;
     /** "Clear filters" button — restores the directory to its unfiltered state. */
     readonly clear: string;
+    /** First quick-filter chip on mobile — clears the role filter to show every role. */
+    readonly chipsAll: string;
   };
 
   /** Empty-state copy rendered inside the table body when no rows match. */
@@ -165,20 +193,33 @@ export interface AdminUsersLabels {
   readonly createDialog: {
     /** Dialog title for the create-user dialog. */
     readonly title: string;
+    /** Subtitle line under the title — sets expectations about what creation does NOT attach. */
+    readonly subtitle: string;
     /** Field label for the full name input. */
     readonly fullName: string;
+    /** Placeholder shown inside an empty full-name input. */
+    readonly fullNamePlaceholder: string;
     /** Field label for the email input. */
     readonly email: string;
     /** Field label for the phone input. */
     readonly phone: string;
     /** Field label for the initial password input. */
     readonly password: string;
+    /** Helper text under the initial-password input. */
+    readonly passwordHelper: string;
     /** Field label for the gender select. */
     readonly gender: string;
     /** Field label for the country select. */
     readonly country: string;
     /** Field label for the role select. */
     readonly role: string;
+    /** Role segment-labels for the role selector; student/parent reuse `roleLabels` instead. */
+    readonly roleSegments: {
+      /** Segment label for creating a teacher-applicant account. */
+      readonly teacherApplicant: string;
+    };
+    /** Info callout at the bottom of the create dialog — applicant status and admin restriction. */
+    readonly callout: string;
     /** Submit button label for the create dialog. */
     readonly submit: string;
     /** Cancel button label for the create dialog. */
@@ -189,6 +230,8 @@ export interface AdminUsersLabels {
   readonly editDialog: {
     /** Dialog title for the edit-user dialog. */
     readonly title: string;
+    /** Subtitle line under the title — states the dialog only edits profile details. */
+    readonly subtitle: string;
     /** Field label for the full name input. */
     readonly fullName: string;
     /** Field label for the phone input. */
@@ -205,7 +248,7 @@ export interface AdminUsersLabels {
     readonly cancel: string;
   };
 
-  /** Soft-delete confirm dialog copy. */
+  /** Soft-delete confirm dialog copy (deactivate semantics — the account is soft-deleted). */
   readonly deleteConfirm: {
     /** Dialog title for the soft-delete confirm dialog. */
     readonly title: string;
@@ -213,6 +256,8 @@ export interface AdminUsersLabels {
     readonly message: string;
     /** Secondary consequences line listing what survives the soft-delete. */
     readonly consequences: string;
+    /** Info-callout line under the body; the role chip is rendered separately by the component. */
+    readonly roleNote: string;
     /** Confirm button label for the soft-delete dialog. */
     readonly confirm: string;
     /** Cancel button label for the soft-delete dialog. */
@@ -263,6 +308,43 @@ export interface AdminUsersLabels {
     readonly suspendedAt: string;
     /** Field label for the block timestamp on the governance card. */
     readonly blockedAt: string;
+    /** Field label for the account-creation timestamp on the profile card. */
+    readonly memberSince: string;
+    /** Field label for the last-active timestamp on the profile card. */
+    readonly lastActiveLabel: string;
+    /** Info strip at the bottom of the profile card — email/role are system-managed. */
+    readonly profileReadonlyNote: string;
+    /** Info strip at the bottom of the governance card — windows live in the Governance module. */
+    readonly governanceNote: string;
+    /**
+     * Teacher-application progress card on the detail page — application
+     * stats, review stepper, and the read-only certification note.
+     */
+    readonly teacherApplication: {
+      /** Subtitle under the card title. */
+      readonly subtitle: string;
+      /** "of" word joining the completed/total stats counters (`0 of 3`). */
+      readonly statsOf: string;
+      /** Label for the submitted-at stat in the stats panel. */
+      readonly submitted: string;
+      /** Stepper step 1 label — application submitted. */
+      readonly stepSubmitted: string;
+      /** Stepper step 2 label — application under review. */
+      readonly stepUnderReview: string;
+      /** Stepper step 3 label — teacher certified. */
+      readonly stepCertified: string;
+      /** Read-only note under the stepper — certification is managed elsewhere. */
+      readonly note: string;
+    };
+    /** Student trial-status block inside the student role-child card. */
+    readonly studentStatus: {
+      /** Row label for the trial status. */
+      readonly trialStatus: string;
+      /** Amber chip shown while the student is in the trial window. */
+      readonly trialChip: string;
+      /** Caption unit composed after the trial balance (`${count} ${creditsLabel}` in the component). */
+      readonly creditsLabel: string;
+    };
     /** Field labels for the applicant role-child snapshot card. */
     readonly applicantFields: {
       readonly status: string;
@@ -344,6 +426,10 @@ export interface AdminUsersLabels {
     readonly empty: string;
     /** Accessibility label for the per-entry action chip. */
     readonly entryActionLabel: string;
+    /** Trailing text link in the card header — navigates to the full audit view. */
+    readonly viewAll: string;
+    /** Full-width outlined footer button — navigates to the complete audit log. */
+    readonly viewFullAuditLog: string;
     /** Caption prefix before the changed-field names list. */
     readonly changedFields: string;
     /** sr-only suffix identifying the acting admin on each entry. */
@@ -368,6 +454,11 @@ export interface AdminUsersLabels {
   readonly pagination: {
     /** "Page" word in the page-of-total counter. */
     readonly page: string;
+    /**
+     * Leading word of the range caption, composed as
+     * `${showingPrefix} ${from}–${to} ${of} ${total}` in the component.
+     */
+    readonly showingPrefix: string;
     /** "of" word in the page-of-total counter. */
     readonly of: string;
     /** "Total" word on the total-count row. */
