@@ -31,8 +31,13 @@
 
 import { describe, expect, test } from "bun:test";
 import { gql } from "@apollo/client";
-import { UserRole } from "@/frontend/graphql/generated/gql/graphql";
-import { meQueryDocument } from "@/frontend/graphql/sharedDocuments/auth/auth.documents";
+import { RegisterPublicRole } from "@/frontend/graphql/generated/gql/graphql";
+import {
+  loginMutationDocument,
+  meQueryDocument,
+  registerUserMutationDocument,
+} from "@/frontend/graphql/sharedDocuments/auth/auth.documents";
+import { createPlanMutationDocument } from "@/frontend/graphql/sharedDocuments/billing/plan-catalog.documents";
 import { extractErrorCode, setupTestServerLifecycle, TEST_PORT, testClient } from "@/test/helpers";
 
 // ─── Transport-level helpers ──────────────────────────────────────────────
@@ -208,72 +213,55 @@ describe("Gateway integration matrix", () => {
     //    the same credential (registerUser returns the User — the JWT pair is
     //    issued by the login mutation; no seed dependency either way).
     const regEmail = `gateway-f-${Date.now()}@test.local`;
-    const regRes = await graphqlFetch(
-      `mutation RegisterGatewayF($input: RegisterUserInput!) {
-        registerUser(input: $input) { id }
-      }`,
-      {
-        variables: {
-          input: {
-            fullName: "Gateway F Probe",
-            email: regEmail,
-            phone: "+201234567890",
-            password: GATEWAY_F_CREDENTIAL,
-            gender: null,
-            country: "EG",
-            role: UserRole.Student,
-          },
+    const registerResult = await testClient.mutate({
+      mutation: registerUserMutationDocument,
+      variables: {
+        input: {
+          fullName: "Gateway F Probe",
+          email: regEmail,
+          phone: "+2[CPF_REDACTED]",
+          password: GATEWAY_F_CREDENTIAL,
+          gender: null,
+          country: "EG",
+          preferredRecitation: null,
+          role: RegisterPublicRole.Student,
         },
-      }
-    );
-    const regRaw = await regRes.json();
-    const regData = isObject(regRaw) && isObject(regRaw.data) ? regRaw.data : undefined;
-    const regPayload = regData && isObject(regData.registerUser) ? regData.registerUser : undefined;
-    // GraphQL `ID` may serialize numerically on the wire — accept both shapes.
-    if (!regPayload || (typeof regPayload.id !== "string" && typeof regPayload.id !== "number")) {
-      throw new Error(`registerUser returned no user id: ${JSON.stringify(regRaw ?? null).slice(0, 500)}`);
+      },
+    });
+
+    const registeredUser = registerResult.data?.registerUser;
+    if (!registeredUser) {
+      throw new Error(`registerUser returned no data: ${registerResult.error?.message ?? "no error detail"}`);
     }
 
-    const loginRes = await graphqlFetch(
-      `mutation LoginGatewayF($email: String!, $credential: String!) {
-        login(email: $email, password: $credential) { accessToken }
-      }`,
-      { variables: { email: regEmail, credential: GATEWAY_F_CREDENTIAL } }
-    );
-    const loginRaw = await loginRes.json();
-    const loginData = isObject(loginRaw) && isObject(loginRaw.data) ? loginRaw.data : undefined;
-    const loginPayload = loginData && isObject(loginData.login) ? loginData.login : undefined;
-    const accessToken = loginPayload?.accessToken;
+    const loginResult = await testClient.mutate({
+      mutation: loginMutationDocument,
+      variables: { email: regEmail, password: GATEWAY_F_CREDENTIAL },
+    });
+    const accessToken = loginResult.data?.login?.accessToken;
     if (typeof accessToken !== "string") {
-      throw new Error(`login returned no accessToken: ${JSON.stringify(loginRaw ?? null).slice(0, 500)}`);
+      throw new Error(`login returned no accessToken: ${loginResult.error?.message ?? "no error detail"}`);
     }
 
-    // 2. The student token attempts the admin-only plan mutation.
-    const res = await graphqlFetch(
-      `mutation CreatePlanGatewayF($input: CreatePlanInput!) {
-        createPlan(input: $input) { id }
-      }`,
-      {
-        headers: { Authorization: `Bearer ${accessToken}` },
-        variables: {
-          input: {
-            title: "gateway-f-probe-plan",
-            sessionCount: 1,
-            price: "10.00",
-            currency: "EGP",
-            intervalDays: 30,
-          },
+    // 2. The student token attempts the admin-only plan mutation (the
+    //    Authorization header travels via the per-query Apollo request context).
+    const result = await testClient.mutate({
+      mutation: createPlanMutationDocument,
+      variables: {
+        input: {
+          title: "gateway-f-probe-plan",
+          sessionCount: 1,
+          price: "10.00",
+          currency: "EGP",
+          intervalDays: 30,
         },
-      }
-    );
+      },
+      context: { headers: { Authorization: `Bearer ${accessToken}` } },
+    });
 
-    // Transport stays 200 — the rejection rides the domain error channel.
-    expect(res.status).toBe(200);
-    const raw = await res.json();
-    const body = parseGraphqlErrorBody(raw);
-    expect(body.errors).toBeDefined();
-    expect(body.errors?.length).toBeGreaterThan(0);
-    expect(body.errors?.[0]?.extensions?.code).toBe("FORBIDDEN");
+    // Transport-200 convention — the rejection rides the domain error channel.
+    expect(result.data?.createPlan ?? null).toBeNull();
+    expect(extractErrorCode(result.error)).toBe("FORBIDDEN");
   });
 
   // ── (g) Synthetic raw non-DomainError throw → masked INTERNAL_SERVER_ERROR

@@ -24,10 +24,12 @@ export async function runAllSeeds(config?: SeedConfig): Promise<void> {
   const plansStep = await runSeedStep("plans", () => seedOrGetPlans("en"));
   stepResults.push(plansStep);
 
-  // Step 3: Demo student trial-grant reconcile. Runs after the user seeder so
-  // the demo student row exists; applies the production grant entry point
-  // only to rows whose trial marker is still null.
-  const studentsStep = await runSeedStep("students", () => seedOrGetStudents());
+  // Step 3: Demo student trial-grant reconcile. Receives the users-step result
+  // so the created demo student(s) are passed through explicitly; the seeder
+  // falls back to the shared demo-user specs for rows that already existed
+  // (the users-step result only contains newly created users) and applies the
+  // production grant entry point only to rows whose trial marker is still null.
+  const studentsStep = await runSeedStep("students", () => seedOrGetStudents(usersStep.value ?? []));
   stepResults.push(studentsStep);
 
   logFailedSeedSteps(stepResults);
