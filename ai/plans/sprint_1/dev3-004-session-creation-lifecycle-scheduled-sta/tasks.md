@@ -179,30 +179,30 @@
 
 ### 2.4 — StudentRepository: Guarded Lane Debit & Refund (additive)
 
-- [ ] 2.4 [Add `decrementLaneIfAvailable` + `incrementLane` to existing `StudentRepository`]
+- [x] 2.4 [Add `decrementLaneIfAvailable` + `incrementLane` to existing `StudentRepository`]
   - **Files:** UPDATE `backend/db/repo/students/student.repository.ts` ONLY (additive; never fork/re-implement).
   - `decrementLaneIfAvailable(studentId: number, lane: HeldBalanceLane, tx?: DBTransaction): Promise<boolean>` — ONE guarded conditional UPDATE per lane (`UPDATE students SET balance_<lane> = balance_<lane> - 1, updated_at = now() WHERE id = $1 AND balance_<lane> > 0`), lane column resolved from a frozen `{ HeldBalanceLane → column }` map keyed by enum members (never caller strings); returns row-match boolean.
   - `incrementLane(studentId: number, lane: HeldBalanceLane, tx?: DBTransaction): Promise<void>` — unguarded `+1` refund (no upper bound exists; CHECK ≥ 0 cannot trip on `+1`).
   - **Instructions:** `backend/db/repo/AGENTS.md`; DEV1-004 `grantFreeTrialOnce` guarded-decrement precedent.
   - _Requirements: REQ-012, REQ-017, REQ-042, REQ-044, REQ-071_
-  - [ ] 2.4.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts backend/db/repo/students/student.repository.ts --lifecycle duplicates` (exit 0)
-  - [ ] 2.4.TE **Test Engineering**: 4-Tier — Tier 1: every lane branch (trial/hifz/tajweed hit + miss → boolean correctness, `runInRollback`, `tx` passed); Tier 2: balance exactly 1 → 0; balance 0 → miss; Tier 3: concurrent decrements on one row via `Promise.allSettled` → exactly one crosses; CHECK never tripped; Tier 4: lane-column map cannot be reached by caller string injection. Run via `bun run test/scripts/run-test.ts <path>`; failures asserted via `expectRepoError`-class helpers on translated substrings; NEVER `rejects.toThrow()` inside `runInRollback`.
-  - [ ] 2.4.SEC **Security & Tenancy Audit**: BOLA — studentId always server-derived (verified at service layer); BOPLA — no spread; guarded predicate prevents negative-balance writes (INV-B1).
-  - [ ] 2.4.SR **Semantic Review**: zero business logic in repo; `tx` LAST parameter on both methods; enum VALUE import; no `inArray`; no `sql` with `--` comments.
-  - [ ] 2.4.IV **Instruction Verification**: `backend/db/repo/AGENTS.md`, `docs/drizzle/prepared-statements.md` (N/A — writes).
+  - [x] 2.4.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts backend/db/repo/students/student.repository.ts --lifecycle duplicates` (exit 0)
+  - [x] 2.4.TE **Test Engineering**: 4-Tier — Tier 1: every lane branch (trial/hifz/tajweed hit + miss → boolean correctness, `runInRollback`, `tx` passed); Tier 2: balance exactly 1 → 0; balance 0 → miss; Tier 3: concurrent decrements on one row via `Promise.allSettled` → exactly one crosses; CHECK never tripped; Tier 4: lane-column map cannot be reached by caller string injection. Run via `bun run test/scripts/run-test.ts <path>`; failures asserted via `expectRepoError`-class helpers on translated substrings; NEVER `rejects.toThrow()` inside `runInRollback`.
+  - [x] 2.4.SEC **Security & Tenancy Audit**: BOLA — studentId always server-derived (verified at service layer); BOPLA — no spread; guarded predicate prevents negative-balance writes (INV-B1).
+  - [x] 2.4.SR **Semantic Review**: zero business logic in repo; `tx` LAST parameter on both methods; enum VALUE import; no `inArray`; no `sql` with `--` comments.
+  - [x] 2.4.IV **Instruction Verification**: `backend/db/repo/AGENTS.md`, `docs/drizzle/prepared-statements.md` (N/A — writes).
   - Write `outcome/2.4-outcome.md`.
 
 ### 2.5 — TeacherRepository: Certification Lock (NEW repo)
 
-- [ ] 2.5 [Create `TeacherRepository` with `lockForCertificationCheck`]
+- [x] 2.5 [Create `TeacherRepository` with `lockForCertificationCheck`]
   - **Files:** CREATE `backend/db/repo/teachers/teacher.repository.ts` with a NEW `TeacherRepository` namespace — it does NOT exist today (`backend/db/repo/teachers/` holds only `applicant.repository.ts` (`ApplicantRepository`) + `index.ts`; no `TeacherRepository` symbol exists anywhere); UPDATE `backend/db/repo/teachers/index.ts` barrel (`export * from "./teacher.repository"`).
   - `lockForCertificationCheck(teacherId: number, tx: DBTransaction): Promise<{ id: number; isApproved: boolean | null } | null>` — `SELECT id, is_approved FROM teacher WHERE id = $1 FOR UPDATE` via Drizzle `.for("update")`; write-path → NO prepared statement.
   - _Requirements: REQ-011, REQ-044 (D4)_
-  - [ ] 2.5.QL **Quality Loop**: sub-loop (exit 0)
-  - [ ] 2.5.TE **Test Engineering**: Tier 1 — existing approved row returns `{id, isApproved:true}`; unapproved returns flag false; nonexistent returns null; Tier 4 — the lock is observable: two interleaved txs serialize on the same teacher row (locked-read assertion under concurrent tx pair).
-  - [ ] 2.5.SEC **Security & Tenancy Audit**: parameterized id only; lock scope = transaction (no cross-tx leakage); applicant user-id resolves to null (INV-TV1 honest failure).
-  - [ ] 2.5.SR **Semantic Review**: returns minimal projection; no i18n/logger imports in repo.
-  - [ ] 2.5.IV **Instruction Verification**: `backend/db/repo/AGENTS.md`.
+  - [x] 2.5.QL **Quality Loop**: sub-loop (exit 0)
+  - [x] 2.5.TE **Test Engineering**: Tier 1 — existing approved row returns `{id, isApproved:true}`; unapproved returns flag false; nonexistent returns null; Tier 4 — the lock is observable: two interleaved txs serialize on the same teacher row (locked-read assertion under concurrent tx pair).
+  - [x] 2.5.SEC **Security & Tenancy Audit**: parameterized id only; lock scope = transaction (no cross-tx leakage); applicant user-id resolves to null (INV-TV1 honest failure).
+  - [x] 2.5.SR **Semantic Review**: returns minimal projection; no i18n/logger imports in repo.
+  - [x] 2.5.IV **Instruction Verification**: `backend/db/repo/AGENTS.md`.
   - Write `outcome/2.5-outcome.md`.
 
 ### 2.6 — SessionRepository (NEW)
