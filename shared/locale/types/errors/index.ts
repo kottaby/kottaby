@@ -46,4 +46,6 @@ export interface ErrorsLabels {
   readonly handshakeCodeInvalid: string;
   /** "Student record not found." — caller has no students row → NotFoundError("STUDENT"). */
   readonly studentHandshakeNotFound: string;
+  /** "The free trial credit has already been granted for this student." — re-grant attempt on a student whose trial_granted_at marker is non-null. */
+  readonly trialAlreadyGranted: string;
 }
