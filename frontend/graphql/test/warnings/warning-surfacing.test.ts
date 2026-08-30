@@ -276,16 +276,19 @@ const MUTATION_SURFACE_INVENTORY_QUERY_DOCUMENT: DocumentNode = gql`
 `;
 
 /** The exhaustive live root-mutation inventory (ground truth at lock time). */
-// Refreshed for the sanctioned additions (mirrors the schema-surface freeze
-// baseline): notification read-latch pair (DEV3-010) + users-locale (D2).
+// Refreshed for the sanctioned additions: notification read-latch pair
+// (DEV3-010) + users-locale (D2) + billing plan-catalog CRUD (upstream #28).
 const KNOWN_LIVE_MUTATION_FIELDS = [
+  "createPlan",
   "login",
   "logout",
   "markAllNotificationsRead",
   "markNotificationRead",
   "refreshToken",
   "registerUser",
+  "setPlanActiveStatus",
   "updateMyLocale",
+  "updatePlan",
 ];
 /** Documented precedent surfaces that must ADOPT Rules #6/#7 when wired. */
 const DOCUMENTED_WARNING_SURFACES_PENDING = ["releaseQuotaIfDeducted", "deleteClassInstance"];

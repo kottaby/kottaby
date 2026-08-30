@@ -8,6 +8,7 @@
   4. `app/api/graphql/route.ts` `getHandler()` swaps Apollo onto the new `graphQLSchema` when the module export changes.
   All four layers are dev-only (`NODE_ENV !== "production"`).
 - **Auth scopes + RBAC: see `docs/auth/jwt-authentication-service.md` for the canonical `authScopes` contract (`authenticated` / `role` / `permission` / `superAdmin` / `notImpersonating`), 401-vs-403 decision state chart, fail-closed rule, `me` `authenticated` boundary, and DEV2-002 RBAC consumption guide.**
+- **Plan catalog operations: see `docs/billing/plan-catalog.md` for role-scoped queries/mutations and Apollo cache `id` normalization requirements.**
 - **Nullability**: In Pothos, fields are non-nullable by default unless explicitly set to `nullable: true`. Ensure your TypeScript types align with your Pothos definitions.
 - **Resolvers**: Pothos field resolvers should generally delegate to the `backend/services/` layer, rather than putting business logic inside the GraphQL definitions or calling Repositories directly.
 - **Cache Updates**: Ensure `id` fields are always exposed on GraphQL objects so the Apollo client can auto-update its cache.

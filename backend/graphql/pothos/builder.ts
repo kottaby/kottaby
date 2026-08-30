@@ -126,7 +126,7 @@ export const gqlSchemaBuilder = new SchemaBuilder<{
     // requests, vs `FORBIDDEN` (403) for insufficient role/permission.
     authenticated: () => {
       if (!ctx.user) {
-        throw new UnauthorizedError("Authentication required.");
+        throw new UnauthorizedError(getServerTranslations(ctx.locale).errorsTranslations.unauthorized);
       }
       return true;
     },

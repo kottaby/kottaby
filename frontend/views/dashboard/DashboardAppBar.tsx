@@ -131,8 +131,11 @@ export function DashboardAppBar({ onMenuClick, showMenuButton }: Readonly<Dashbo
             textDecoration: "none",
             color: theme.palette.text.primary,
             fontWeight: 700,
-            fontSize: { xs: 17, sm: 20 },
+            // Upstream main reduced the xs size to 16 (billing CRUD refresh);
+            // keep that tighter value — stricter against 375px overflow.
+            fontSize: { xs: 16, sm: 20 },
             letterSpacing: "-0.01em",
+            whiteSpace: "nowrap",
             flexGrow: 1,
             flexShrink: 1,
             minWidth: 0,

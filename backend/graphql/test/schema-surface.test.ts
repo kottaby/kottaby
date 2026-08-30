@@ -84,25 +84,31 @@ import { graphQLSchema } from "@/backend/graphql/gqlSchema";
 import { PUBLIC_OPERATION_NAMES, PUBLIC_OPERATIONS } from "@/backend/lib/gateway";
 
 // ─── Frozen baseline inventory (captured @ HEAD 8e5ebb8; refreshed for the ────
-// ─── sanctioned applicant + notifications additions) ────────────────────────
+// ─── sanctioned applicant + notifications + users-locale + DEV1-013 handshake ─
+// ─── + DEV1-005 plan-catalog additions) ──────────────────────────────────────
 
-/** Root query field names present before the probe re-registration. */
+/** Root query field names — the frozen baseline (probe re-registration excluded). */
 const PRE_3_1_QUERY_FIELDS = [
+  "adminPlans",
   "me",
   "myApplicantProfile",
   "myNotifications",
   "myUnreadNotificationCount",
+  "planCatalog",
   "recitationReadings",
 ] as const;
-/** Root mutation field names — the refreshed frozen baseline (auth quartet + the sanctioned notification read-latch pair + the sanctioned users-locale mutation). */
+/** Root mutation field names — the frozen baseline (auth quartet + notification read-latch pair + users-locale + plan-catalog CRUD). */
 const PRE_3_1_MUTATION_FIELDS = [
+  "createPlan",
   "login",
   "logout",
   "markAllNotificationsRead",
   "markNotificationRead",
   "refreshToken",
   "registerUser",
+  "setPlanActiveStatus",
   "updateMyLocale",
+  "updatePlan",
 ] as const;
 /** GraphQL enum type names — the freeze forbids any new Pothos enum. */
 const PRE_3_1_ENUMS = [
@@ -119,6 +125,7 @@ const PRE_3_1_TYPE_NAMES = [
   "AppLocale",
   "ApplicantProfile",
   "ApplicantStatus",
+  "CreatePlanInput",
   "Gender",
   "LoginPayload",
   "LogoutPayload",
@@ -127,11 +134,13 @@ const PRE_3_1_TYPE_NAMES = [
   "Notification",
   "NotificationListPage",
   "NotificationType",
+  "Plan",
   "Query",
   "RecitationReading",
   "RefreshTokenPayload",
   "RegisterPublicRole",
   "RegisterUserInput",
+  "UpdatePlanInput",
   "User",
   "UserRole",
 ] as const;

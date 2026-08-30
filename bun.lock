@@ -194,7 +194,7 @@
         "happy-dom": "^20.12.0",
         "husky": "^9.1.7",
         "jest": "^30.5.0",
-        "jscpd": "^5.0.16",
+        "jscpd": "^5.1.0",
         "knip": "^6.33.0",
         "lint-staged": "^17.4.1",
         "mockdate": "^3.0.5",
@@ -3427,7 +3427,7 @@
 
     "jsbn": ["jsbn@0.1.1", "", {}, "sha512-UVU9dibq2JcFWxQPA6KCqj5O42VOmAY3zQUfEKxU0KpTGXwNoCjkX1e13eHNvw/xPynt6pU0rZ1htjWTNTSXsg=="],
 
-    "jscpd": ["jscpd@5.0.16", "", { "optionalDependencies": { "jscpd-darwin-arm64": "5.0.16", "jscpd-darwin-x64": "5.0.16", "jscpd-linux-arm64-gnu": "5.0.16", "jscpd-linux-x64-gnu": "5.0.16", "jscpd-linux-x64-musl": "5.0.16", "jscpd-windows-x64-msvc": "5.0.16" }, "bin": { "jscpd": "run-jscpd.js" } }, "sha512-TiQ4zKtKeldep6UswXFHjVCDhVdLBaJyQcZjhCSzVOmKpT6HBj0jUZiphP1vK1X3VSSuzwcfifJVNpsOIiwRCg=="],
+    "jscpd": ["jscpd@5.1.0", "", { "optionalDependencies": { "jscpd-darwin-arm64": "5.0.16", "jscpd-darwin-x64": "5.0.16", "jscpd-linux-arm64-gnu": "5.0.16", "jscpd-linux-x64-gnu": "5.0.16", "jscpd-linux-x64-musl": "5.0.16", "jscpd-windows-arm64-msvc": "5.0.16", "jscpd-windows-x64-msvc": "5.0.16" }, "bin": { "jscpd": "run-jscpd.js" } }, "sha512-Tg/ZeXjJblZQJaqFeR9XlVc9/RQdt6bFg9/6wvCxy0iom7jKJA6ojIfr9q1qiZih5KEt7uvsQERxQNqkEaefZg=="],
 
     "jscpd-darwin-arm64": ["jscpd-darwin-arm64@5.0.16", "", { "os": "darwin", "cpu": "arm64" }, "sha512-Tu6OAg3Rp6m7LCZqOtPViJxYGTKXTLrI/xMyjEKe79N9L7GpbI3XhgotGDpoE+PjLRbgJgGhRKbkKK18FPySmQ=="],
 
