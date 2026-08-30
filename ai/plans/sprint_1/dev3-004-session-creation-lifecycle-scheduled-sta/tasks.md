@@ -207,17 +207,17 @@
 
 ### 2.6 — SessionRepository (NEW)
 
-- [ ] 2.6 [Implement `SessionRepository`]
+- [x] 2.6 [Implement `SessionRepository`]
   - **File:** CREATE `backend/db/repo/classes/session.repository.ts` (namespace `SessionRepository`; every method `tx?: DBTransaction` LAST).
   - Methods per plan §4.2: `insertSession` (INSERT … RETURNING); `findById`; `startSessionOnce` (`WHERE id ∧ teacher_id ∧ status='scheduled'` sets `startedAt/updatedAt`); `completeSessionOnce` (`status='started'` + fused `EXISTS(SELECT 1 FROM teacher WHERE teacher.id = session.teacher_id AND is_approved)` sets `completed/endedAt/confirmedByTeacherAt`); `cancelSessionOnce` (`id ∧ (student_id=? ∨ teacher_id=?) ∧ status IN ('scheduled','started')` sets `cancelled`, `feeHeld=false`); `findTransitionProbe` (Pick-projection cold probe ONLY); `listForStudent`/`listForTeacher` + `countForStudent`/`countForTeacher` sharing ONE module-scope predicate builder (`ORDER BY created_at DESC, id DESC`, bound LIMIT/OFFSET).
   - Reads use `queryDb(tx)` pattern; NO prepared statements; NO `inArray`; NO `--` comments in any `sql`.
   - **Instructions:** `backend/db/repo/AGENTS.md`; DEV1-005 guarded-update + probe precedent.
   - _Requirements: REQ-010, REQ-015, REQ-016, REQ-017, REQ-020, REQ-041, REQ-044, REQ-047, REQ-071_
-  - [ ] 2.6.QL **Quality Loop**: sub-loop (exit 0)
-  - [ ] 2.6.TE **Test Engineering**: 4-Tier — Tier 1: every method's hit/miss branch (`runInRollback`, `tx` everywhere, `entity-setup.ts` fixtures only); Tier 2: pagination edges (page 1 exact-size, page beyond range → empty items + honest totalCount); Tier 3: guarded transitions under `Promise.allSettled` duplication → exactly one winner per transition; Tier 4: status filter validated BEFORE reaching query (service-boundary test tie-in); constraint probes prove INV-S4 NOT NULL rejection.
-  - [ ] 2.6.SEC **Security & Tenancy Audit**: every mutation predicate carries ownership+state atomically (TOCTOU = 0); probe is classification-only and never influences writes; participant predicate is SQL-side, never input-derived.
-  - [ ] 2.6.SR **Semantic Review**: zero business logic; shared predicate helper guarantees list/count coherence; no dead methods; `SessionStatus` enum VALUE import in predicates — never string literals.
-  - [ ] 2.6.IV **Instruction Verification**: `backend/db/repo/AGENTS.md`, `docs/drizzle/prepared-statements.md`.
+  - [x] 2.6.QL **Quality Loop**: sub-loop (exit 0)
+  - [x] 2.6.TE **Test Engineering**: 4-Tier — Tier 1: every method's hit/miss branch (`runInRollback`, `tx` everywhere, `entity-setup.ts` fixtures only); Tier 2: pagination edges (page 1 exact-size, page beyond range → empty items + honest totalCount); Tier 3: guarded transitions under `Promise.allSettled` duplication → exactly one winner per transition; Tier 4: status filter validated BEFORE reaching query (service-boundary test tie-in); constraint probes prove INV-S4 NOT NULL rejection.
+  - [x] 2.6.SEC **Security & Tenancy Audit**: every mutation predicate carries ownership+state atomically (TOCTOU = 0); probe is classification-only and never influences writes; participant predicate is SQL-side, never input-derived.
+  - [x] 2.6.SR **Semantic Review**: zero business logic; shared predicate helper guarantees list/count coherence; no dead methods; `SessionStatus` enum VALUE import in predicates — never string literals.
+  - [x] 2.6.IV **Instruction Verification**: `backend/db/repo/AGENTS.md`, `docs/drizzle/prepared-statements.md`.
   - Write `outcome/2.6-outcome.md`.
 
 ### 2.7 — SessionRequestIdempotencyRepository (NEW)
