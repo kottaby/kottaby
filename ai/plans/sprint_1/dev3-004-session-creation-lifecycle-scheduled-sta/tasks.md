@@ -144,7 +144,7 @@
 
 ### 2.2 — Journey J1: Full Happy Lifecycle (TEST-FIRST)
 
-- [ ] 2.2 [Write Full Happy Lifecycle journey test — TEST-FIRST]
+- [x] 2.2 [Write Full Happy Lifecycle journey test — TEST-FIRST]
   - **Create** `test/workflows/sessions/session-lifecycle.journey.test.ts` — one file for the J1 cross-actor workflow (written BEFORE the service surface exists; expected to fail red until 2.7 lands).
   - Provision the actor cast via `test/workflows/helpers/session-cast.ts` (real permission-group membership rows — NEVER monkey-patch permission resolution): student A (trial + 1 hifz unit), student B (trial only), certified teacher T, applicant AP.
   - Steps as sequential service calls with `actorUserId`:
@@ -164,7 +164,7 @@
 
 ### 2.3 — Journey J2: Hostile & Boundary Legs (TEST-FIRST)
 
-- [ ] 2.3 [Write Hostile & Denials journey test — TEST-FIRST]
+- [x] 2.3 [Write Hostile & Denials journey test — TEST-FIRST]
   - **Create** `test/workflows/sessions/session-lifecycle-denials.journey.test.ts`.
   - Legs:
     1. *Student* targets applicant AP → `TEACHER_NOT_FOUND`; caller balances untouched (INV-TV1).
@@ -255,7 +255,7 @@
 
 ### 2.M — Mid-Point Review Gate
 
-- [ ] 2.M [Mid-point review: backend core]
+- [x] 2.M [Mid-point review: backend core]
   - Compile/lint delta vs Phase-0 baseline = 0 on touched files; sub-loop green on 2.4–2.8 outputs.
   - Re-run journey suites J1/J2 — now expected GREEN; run the full new DB/service suites; confirm 100% coverage instrumentation on new code paths.
   - Review ledger: no new ❌/⚠️ beyond D1–D7; record any emergent gap with owner.
