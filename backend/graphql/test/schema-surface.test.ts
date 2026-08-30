@@ -1,5 +1,5 @@
 /**
- * GraphQL schema surface assertion suite — "exactly one addition" gate +
+ * GraphQL schema surface assertion suite — pinned-additions gate +
  * codegen-sync proof.
  *
  * What this locks down:
@@ -12,9 +12,14 @@
  *    and carries NO `id` field (embedded value object — proven both at
  *    the type level and behaviorally: selecting `id` fails validation).
  *  - **Surface freeze** — against the frozen baseline inventory (captured
- *    at HEAD `8e5ebb8`): ZERO new mutations, ZERO new enums, and a
- *    whole-schema named-type delta of EXACTLY `{HealthCheck}` while the
- *    query set grows only by the sanctioned probe re-registration.
+ *    at HEAD `8e5ebb8`): ZERO new mutations, and all post-baseline
+ *    additions are pinned by name — query fields grow ONLY by the
+ *    sanctioned probe `_health`, the DEV2-004 `myApplicantProfile`
+ *    query and the student-handshake queries (DEV1-013), the enum set
+ *    grows ONLY by `ApplicantStatus` (DEV2-004), and the whole-schema
+ *    named-type delta is exactly the DEV2-004 applicant surface, the
+ *    `DateTime` scalar (registered in `shared/scalar.pothos.ts`) and
+ *    the `HandshakeCodeLookup` object (DEV1-013).
  *  - **Allowlist agreement** — the scopeless `_health` field is present in
  *    the closed `PUBLIC_OPERATION_NAMES` tuple / `PUBLIC_OPERATIONS` set
  *    1:1 (schema↔allowlist agreement enforced as code).
@@ -51,9 +56,9 @@ import { PUBLIC_OPERATION_NAMES, PUBLIC_OPERATIONS } from "@/backend/lib/gateway
 
 // ─── Frozen baseline inventory (captured @ HEAD 8e5ebb8) ─────────────────────
 
-/** Root query field names present BEFORE dev3-003 Phase 3 (plus DEV1-005 additions). */
+/** Root query field names present BEFORE dev3-003 Phase 3 (plus DEV1-005 plan-catalog additions). */
 const PRE_3_1_QUERY_FIELDS = ["adminPlans", "me", "planCatalog", "recitationReadings"] as const;
-/** Root mutation field names. */
+/** Root mutation field names — must remain UNCHANGED forever. */
 const PRE_3_1_MUTATION_FIELDS = [
   "createPlan",
   "login",
@@ -63,8 +68,8 @@ const PRE_3_1_MUTATION_FIELDS = [
   "setPlanActiveStatus",
   "updatePlan",
 ] as const;
-/** GraphQL enum type names — REQ-060 forbids any new Pothos enum. */
-const PRE_3_1_ENUMS = ["Gender", "RecitationReading", "RegisterPublicRole", "UserRole"] as const;
+/** GraphQL enum type names — every new Pothos enum must be pinned here by name. */
+const PRE_3_1_ENUMS = ["ApplicantStatus", "Gender", "RecitationReading", "RegisterPublicRole", "UserRole"] as const;
 /** Non-root object/enum/scalar SDL type names in the baseline (introspection `__*` and spec scalars excluded). */
 const PRE_3_1_TYPE_NAMES = [
   "CreatePlanInput",
@@ -107,9 +112,15 @@ describe("Query._health — retyped probe surface", () => {
     for (const name of PRE_3_1_QUERY_FIELDS) {
       expect(fieldNames).toContain(name);
     }
-    // …and the ONLY addition beyond them is the probe itself.
+    // …and the ONLY additions beyond them are the probe, the DEV2-004
+    // applicant-profile query, and the student-handshake queries (DEV1-013).
     const additions = fieldNames.filter(name => !(PRE_3_1_QUERY_FIELDS as readonly string[]).includes(name));
-    expect(additions.toSorted((a, b) => a.localeCompare(b))).toEqual(["_health"]);
+    expect(additions.toSorted((a, b) => a.localeCompare(b))).toEqual([
+      "_health",
+      "findStudentByHandshakeCode",
+      "myApplicantProfile",
+      "myHandshakeCode",
+    ]);
   });
 
   test("`_health` is NON-NULLABLE `HealthCheck!` (retyped from the String! placeholder)", () => {
@@ -168,7 +179,7 @@ describe("HealthCheck object shape — four scalar fields, no id", () => {
   });
 });
 
-describe("Surface freeze — exactly one addition vs the baseline inventory", () => {
+describe("Surface freeze — pinned additions vs the baseline inventory", () => {
   test("ZERO new mutations (frozen mutation set unchanged)", () => {
     const mutationFields = graphQLSchema.getMutationType()?.getFields() ?? {};
     const names = Object.keys(mutationFields).toSorted((a, b) => a.localeCompare(b));
@@ -177,7 +188,7 @@ describe("Surface freeze — exactly one addition vs the baseline inventory", ()
     expect(names).not.toContain("_health");
   });
 
-  test("ZERO new enums (frozen enum set unchanged)", () => {
+  test("enum set is pinned (every new enum named explicitly)", () => {
     const enumNames = Object.values(graphQLSchema.getTypeMap())
       .filter(type => type instanceof GraphQLEnumType && !type.name.startsWith("__"))
       .map(type => type.name)
@@ -186,14 +197,20 @@ describe("Surface freeze — exactly one addition vs the baseline inventory", ()
     expect(enumNames).toEqual([...PRE_3_1_ENUMS]);
   });
 
-  test("whole-schema named-type delta is EXACTLY one new type: HealthCheck", () => {
+  test("whole-schema named-type delta is pinned: DEV2-004 applicant surface + DateTime scalar + handshake-code surface", () => {
     const post = new Set(sdlTypeNames());
 
     for (const name of PRE_3_1_TYPE_NAMES) {
       expect(post.has(name)).toBe(true);
     }
     const additions = sdlTypeNames().filter(name => !(PRE_3_1_TYPE_NAMES as readonly string[]).includes(name));
-    expect(additions).toEqual(["HealthCheck"]);
+    expect(additions).toEqual([
+      "ApplicantProfile",
+      "ApplicantStatus",
+      "DateTime",
+      "HandshakeCodeLookup",
+      "HealthCheck",
+    ]);
   });
 });
 
