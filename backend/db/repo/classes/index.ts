@@ -11,3 +11,4 @@
  */
 
 export * from "./session.repository";
+export * from "./session-request-idempotency.repository";

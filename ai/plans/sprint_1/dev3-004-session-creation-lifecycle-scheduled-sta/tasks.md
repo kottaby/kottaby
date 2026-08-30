@@ -222,15 +222,15 @@
 
 ### 2.7 — SessionRequestIdempotencyRepository (NEW)
 
-- [ ] 2.7 [Implement `SessionRequestIdempotencyRepository`]
+- [x] 2.7 [Implement `SessionRequestIdempotencyRepository`]
   - **File:** CREATE `backend/db/repo/classes/session-request-idempotency.repository.ts`.
   - Methods: `insertClaim(insert, tx?)` (raw INSERT; 23505 bubbles to service cause-chain handler); `updateClaimSessionId(claimId, sessionId, tx?)` (phase-4 backfill); `findByKey(key, tx?)` (replay-branch join).
   - _Requirements: REQ-013(b), REQ-014, REQ-071_
-  - [ ] 2.7.QL **Quality Loop**: sub-loop (exit 0)
-  - [ ] 2.7.TE **Test Engineering**: Tier 1 — insert/find/backfill round-trip inside `runInRollback`; Tier 2 — 128-char key accepted; Tier 3 — duplicate insert surfaces 23505 with the PG cause chain intact (DEV1-002 cycle-safe traversal fixture — assert via `isUniqueViolation`-style helper); Tier 4 — key never coerced/truncated silently.
-  - [ ] 2.7.SEC **Security & Tenancy Audit**: key is opaque bound parameter; never logged; userId FK cascade correct.
-  - [ ] 2.7.SR **Semantic Review**: minimal surface (3 methods); zero cross-domain imports.
-  - [ ] 2.7.IV **Instruction Verification**: `backend/db/repo/AGENTS.md`, `docs/IDEMPOTENCY.md`.
+  - [x] 2.7.QL **Quality Loop**: sub-loop (exit 0)
+  - [x] 2.7.TE **Test Engineering**: Tier 1 — insert/find/backfill round-trip inside `runInRollback`; Tier 2 — 128-char key accepted; Tier 3 — duplicate insert surfaces 23505 with the PG cause chain intact (DEV1-002 cycle-safe traversal fixture — assert via `isUniqueViolation`-style helper); Tier 4 — key never coerced/truncated silently.
+  - [x] 2.7.SEC **Security & Tenancy Audit**: key is opaque bound parameter; never logged; userId FK cascade correct.
+  - [x] 2.7.SR **Semantic Review**: minimal surface (3 methods); zero cross-domain imports.
+  - [x] 2.7.IV **Instruction Verification**: `backend/db/repo/AGENTS.md`, `docs/IDEMPOTENCY.md`.
   - Write `outcome/2.7-outcome.md`.
 
 ### 2.8 — SessionLifecycleService (NEW — the state machine core)
