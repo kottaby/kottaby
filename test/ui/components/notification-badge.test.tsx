@@ -51,6 +51,7 @@ import {
 } from "@/frontend/views/dashboard/navItems";
 import type { AppLocale } from "@/shared/locale/AppLocale";
 import { Dashboard } from "@/shared/locale/namespaces/dashboard";
+import { HandshakeCode } from "@/shared/locale/namespaces/handshakeCode";
 import { Notifications } from "@/shared/locale/namespaces/notifications";
 import { getTranslations } from "@/shared/locale/server";
 import { renderWithWrapper } from "@/test/ui/components/TestWrapper";
@@ -475,7 +476,8 @@ describe("navItems config declares the Notifications entry per role", () => {
     // The label resolves through the translation system in BOTH locales.
     for (const locale of ["ar", "en"] as AppLocale[]) {
       const td = Dashboard.getLabels(getTranslations(locale));
-      expect(resolveNavItemLabel(notificationsEntryFor(UserRole.Parent), td)).toBe(td.notifications);
+      const th = HandshakeCode.getLabels(getTranslations(locale));
+      expect(resolveNavItemLabel(notificationsEntryFor(UserRole.Parent), td, th)).toBe(td.notifications);
     }
   });
 });

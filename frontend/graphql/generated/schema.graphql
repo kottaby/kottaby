@@ -31,6 +31,11 @@ enum Gender {
   Other
 }
 
+type HandshakeCodeLookup {
+  linkable: Boolean!
+  maskedName: String!
+}
+
 type HealthCheck {
   service: String!
   status: String!
@@ -127,12 +132,14 @@ enum NotificationType {
 
 type Query {
   _health: HealthCheck!
+  findStudentByHandshakeCode(code: String!): HandshakeCodeLookup
 
   """
   Returns the authenticated user (or null for anonymous). Anonymous callers receive null — the AuthProvider uses this to detect expired access tokens and silently restore the session via `refreshToken`.
   """
   me: User
   myApplicantProfile: ApplicantProfile
+  myHandshakeCode: String!
 
   """
   One page of the caller's own inbox — items (newest first), totalCount, hasMore. Optional conjunctive filters (type, isRead) and page window (limit 1..50 default 20, offset default 0).

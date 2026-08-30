@@ -25,5 +25,7 @@ export const errorsAr: ErrorsLabels = {
   notificationTypeCorrupt: "تعذر قراءة هذا الإشعار. يرجى التواصل مع فريق الدعم.",
   userLocaleCorrupt: "تعذر قراءة تفضيل اللغة. يرجى التواصل مع فريق الدعم.",
   notificationNotFound: "لم يتم العثور على الإشعار.",
+  handshakeCodeInvalid: "تبدو رموز الربط بالصيغة KSB-XXXXXXXX وتتكون من 8 أحرف سداسية عشرية.",
+  studentHandshakeNotFound: "لم يتم العثور على سجل الطالب.",
   trialAlreadyGranted: "تم منح رصيد الجلسة التجريبية لهذا الطالب مسبقًا.",
 };

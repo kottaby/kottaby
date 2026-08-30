@@ -3,6 +3,7 @@ import { authEn } from "@/shared/locale/en/auth";
 import { commonEn } from "@/shared/locale/en/common";
 import { dashboardEn } from "@/shared/locale/en/dashboard";
 import { errorsEn } from "@/shared/locale/en/errors";
+import { handshakeCodeEn } from "@/shared/locale/en/handshakeCode";
 import { landingEn } from "@/shared/locale/en/landing";
 import { notificationsEn } from "@/shared/locale/en/notifications";
 import { recitationEn } from "@/shared/locale/en/recitation";
@@ -17,4 +18,5 @@ export const enMessages: Translations = {
   landingTranslations: landingEn,
   applicantTranslations: applicantEn,
   notificationsTranslations: notificationsEn,
+  handshakeCodeTranslations: handshakeCodeEn,
 };

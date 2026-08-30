@@ -18,8 +18,9 @@ import type { ReactNode } from "react";
 import { focusVisibleRingSx } from "@/frontend/components/ui/focusRing";
 import { useAuth } from "@/frontend/hooks/useAuth";
 import { type DashboardNavItem, getNavItemsForRole, resolveNavItemLabel } from "@/frontend/views/dashboard/navItems";
-import { Dashboard, useAppTranslation } from "@/shared/locale";
+import { Dashboard, HandshakeCode, useAppTranslation } from "@/shared/locale";
 import type { DashboardLabels } from "@/shared/locale/types/dashboard";
+import type { HandshakeCodeLabels } from "@/shared/locale/types/handshakeCode";
 
 /**
  * Props for `DashboardSidebar` — the temporary-drawer open state is hoisted
@@ -61,6 +62,7 @@ const DRAWER_WIDTH = 264;
  */
 export function DashboardSidebar({ mobileOpen, onMobileClose }: Readonly<DashboardSidebarProps>): ReactNode {
   const t = useAppTranslation(Dashboard);
+  const handshakeCodeLabels = useAppTranslation(HandshakeCode);
   const { user } = useAuth();
   const pathname = usePathname();
 
@@ -73,7 +75,14 @@ export function DashboardSidebar({ mobileOpen, onMobileClose }: Readonly<Dashboa
       <Box component="nav" aria-label={t.sidebarAriaLabel} sx={{ flex: 1, overflowY: "auto", py: 1 }}>
         <List>
           {navItems.map(item => (
-            <SidebarListItem key={item.route} item={item} t={t} pathname={pathname} onNavigate={onMobileClose} />
+            <SidebarListItem
+              key={item.route}
+              item={item}
+              t={t}
+              handshakeCodeLabels={handshakeCodeLabels}
+              pathname={pathname}
+              onNavigate={onMobileClose}
+            />
           ))}
         </List>
       </Box>
@@ -129,13 +138,20 @@ export function DashboardSidebar({ mobileOpen, onMobileClose }: Readonly<Dashboa
 interface SidebarListItemProps {
   readonly item: DashboardNavItem;
   readonly t: DashboardLabels;
+  readonly handshakeCodeLabels: HandshakeCodeLabels;
   readonly pathname: string;
   readonly onNavigate: () => void;
 }
 
 /** Renders a single sidebar nav item with active-route highlighting. */
-function SidebarListItem({ item, t, pathname, onNavigate }: Readonly<SidebarListItemProps>): ReactNode {
-  const label = resolveNavItemLabel(item, t);
+function SidebarListItem({
+  item,
+  t,
+  handshakeCodeLabels,
+  pathname,
+  onNavigate,
+}: Readonly<SidebarListItemProps>): ReactNode {
+  const label = resolveNavItemLabel(item, t, handshakeCodeLabels);
   const Icon = item.Icon;
   // Active when the current pathname equals the item's route. Nav items are
   // exact paths (the dashboard item points straight at its role-specific

@@ -7,8 +7,8 @@ import { InMemoryCache } from "@apollo/client";
  * filter/pagination changes legitimately return different arrays, including empty ones.
  * Without `merge: false`, Apollo warns that cache data may be lost.
  *
- * `OnlineMeetingInfo`, `AdminNoteInfo`, `HealthCheck` and
- * `NotificationListPage` are embedded value types with no `id` field (see
+ * `OnlineMeetingInfo`, `AdminNoteInfo`, `HealthCheck`, `NotificationListPage`
+ * and `HandshakeCodeLookup` are embedded value types with no `id` field (see
  * `frontend/graphql/generated/schema.graphql`).
  * Marking them `keyFields: false` opts them out of normalization so Apollo
  * does not emit "Cache data may be lost" warnings when these types are written
@@ -18,7 +18,9 @@ import { InMemoryCache } from "@apollo/client";
  * (`HealthCheck` is the scalar-only probe object exposed by the `_health`
  * gateway query; `NotificationListPage` is the notifications inbox pagination
  * wrapper whose normalizable entities are the `Notification` rows inside
- * `items`).
+ * `items`; `HandshakeCodeLookup` is the masked parent-discovery payload —
+ * `maskedName` + `linkable` only — and must NEVER be keyed by
+ * identity-derived values).
  */
 export function createApolloCache(): InMemoryCache {
   return new InMemoryCache({
@@ -43,6 +45,12 @@ export function createApolloCache(): InMemoryCache {
       // notifications inbox — the normalizable entities are the `Notification`
       // rows inside `items`, so the wrapper itself never needs an identity.
       NotificationListPage: {
+        keyFields: false,
+      },
+      // Embedded masked parent-discovery value object (no `id` by design) —
+      // cached inline under its parent query field, never normalized into a
+      // standalone (identity-derived) cache key.
+      HandshakeCodeLookup: {
         keyFields: false,
       },
       OnlineMeetingInfo: {

@@ -7,7 +7,9 @@
  * paints `primary.main` (#3D6BA0) on the dark feed canvas at ~3.3:1 — below
  * the WCAG AA 4.5:1 text threshold. Light mode already clears AA with
  * `primary.main` (#1E3A5F) by a wide margin, so the helper must stay a no-op
- * there.
+ * there. In dark mode the `&.Mui-disabled` state keeps the theme's disabled
+ * tokens — the lift would otherwise win over MUI's `.Mui-disabled` rule and
+ * a disabled outlined button would look enabled.
  *
  * Pure unit tier (the `notifications-static-scan.test.ts` precedent): no
  * server, no DOM — the helper is a synchronous theme → sx-fragment function,
@@ -30,6 +32,12 @@ describe("darkOutlinedContrastSx (notifications outlined-button contrast lift)",
     expect(darkOutlinedContrastSx(darkTheme)).toEqual({
       color: darkTheme.palette.primary.light,
       borderColor: darkTheme.palette.primary.light,
+      // Disabled state keeps the theme's disabled tokens — the sx lift would
+      // otherwise win over MUI's `.Mui-disabled` rule.
+      "&.Mui-disabled": {
+        color: darkTheme.palette.action.disabled,
+        borderColor: darkTheme.palette.action.disabledBackground,
+      },
     });
   });
 });

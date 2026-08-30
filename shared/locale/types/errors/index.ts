@@ -48,6 +48,10 @@ export interface ErrorsLabels {
   readonly userLocaleCorrupt: string;
   /** "The notification was not found." — self-scope notification lookup miss → NotFoundError("NOTIFICATION"). */
   readonly notificationNotFound: string;
+  /** "Handshake codes look like KSB-XXXXXXXX (8 hexadecimal characters)." — malformed handshake-code reject → ValidationError (VALIDATION). */
+  readonly handshakeCodeInvalid: string;
+  /** "Student record not found." — caller has no students row → NotFoundError("STUDENT"). */
+  readonly studentHandshakeNotFound: string;
   /** "The free trial credit has already been granted for this student." — re-grant attempt on a student whose trial_granted_at marker is non-null. */
   readonly trialAlreadyGranted: string;
 }

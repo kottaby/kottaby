@@ -25,5 +25,7 @@ export const errorsEn: ErrorsLabels = {
   notificationTypeCorrupt: "This notification could not be read. Please contact support.",
   userLocaleCorrupt: "Your language preference could not be read. Please contact support.",
   notificationNotFound: "The notification was not found.",
+  handshakeCodeInvalid: "Handshake codes look like KSB-XXXXXXXX (8 hexadecimal characters).",
+  studentHandshakeNotFound: "Student record not found.",
   trialAlreadyGranted: "The free trial credit has already been granted for this student.",
 };
