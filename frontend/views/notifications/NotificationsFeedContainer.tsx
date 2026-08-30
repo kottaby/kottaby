@@ -28,6 +28,7 @@ import {
   NotificationList,
   NotificationSkeletonList,
 } from "@/frontend/views/notifications/NotificationList";
+import { darkOutlinedContrastSx } from "@/frontend/views/notifications/outlined-button-contrast";
 import { Common, Notifications, useAppLocale, useAppTranslation } from "@/shared/locale";
 
 /**
@@ -180,6 +181,13 @@ export function NotificationsFeedContainer(): ReactNode {
    * normalized cache entry the feed query produced (row restyles without a
    * refetch); the cached unread count decrements in lockstep — the same
    * `ROOT_QUERY.myUnreadNotificationCount` modifier the realtime hook bumps.
+   *
+   * Cache hygiene (the mark-all `dropStaleInboxWindows` pattern, 4.3b BF):
+   * every OTHER cached `myNotifications` window still lists the flipped row
+   * — most visibly the unread window, which would keep rendering the
+   * already-read row on the next switch to it. Dropping those windows makes
+   * their next observation refetch from the network; the ACTIVE window is
+   * spared so the deliberate in-place restyle (no refetch) is preserved.
    */
   const handleMarkRead = (id: string): void => {
     const wasUnread = items.some(item => item.id === id && !item.isRead);
@@ -195,6 +203,7 @@ export function NotificationsFeedContainer(): ReactNode {
                 typeof count === "number" ? Math.max(0, count - 1) : count,
             },
           });
+          dropStaleInboxWindows(client.cache, filter);
         }
       } catch (error: unknown) {
         // The global error surface owns the UX (extensions.code mapping);
@@ -254,8 +263,16 @@ export function NotificationsFeedContainer(): ReactNode {
   };
 
   // Filter changes reset pagination — a new window starts at offset 0.
+  // Single-selection semantics (QA round 2): "All" IS the unfiltered reset —
+  // selecting it also drops an active category filter, so the rail can never
+  // show "All" and a type chip pressed at the same time (clicking "All"
+  // while a category is active was a dead button that left the list
+  // narrowed). "Unread" keeps its orthogonal read-state interplay.
   const handleReadFilterChange = (next: NotificationReadFilter): void => {
     setReadFilter(next);
+    if (next === "all") {
+      setTypeFilter(null);
+    }
     setPage(0);
   };
   const handleTypeFilterChange = (next: NotificationType | null): void => {
@@ -312,7 +329,12 @@ export function NotificationsFeedContainer(): ReactNode {
               size="small"
               disabled={page === 0 || listQuery.loading}
               onClick={() => setPage(current => Math.max(0, current - 1))}
-              sx={{ ...focusVisibleRingSx, minHeight: 44 }}
+              // QA round 2 (axe serious): dark-mode outlined text/border lift.
+              sx={theme => ({
+                ...focusVisibleRingSx,
+                ...darkOutlinedContrastSx(theme),
+                minHeight: 44,
+              })}
             >
               {commonT.previousPage}
             </Button>
@@ -324,7 +346,12 @@ export function NotificationsFeedContainer(): ReactNode {
               size="small"
               disabled={!(pageData?.hasMore ?? false) || listQuery.loading}
               onClick={() => setPage(current => current + 1)}
-              sx={{ ...focusVisibleRingSx, minHeight: 44 }}
+              // QA round 2 (axe serious): dark-mode outlined text/border lift.
+              sx={theme => ({
+                ...focusVisibleRingSx,
+                ...darkOutlinedContrastSx(theme),
+                minHeight: 44,
+              })}
             >
               {commonT.nextPage}
             </Button>

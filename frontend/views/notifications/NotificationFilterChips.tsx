@@ -39,6 +39,12 @@ interface NotificationFilterChipsProps {
  * toggle (`All` / `Unread`) plus one chip per `NotificationType` value (all
  * seven, single-select — clicking the active type chip clears it).
  *
+ * Selection semantics (QA round 2): "All" is selected IFF no other filter is
+ * active — it reads as the unfiltered reset, so an active "Unread" or type
+ * chip deselects it, and clicking it clears BOTH filters (the container
+ * drops the type filter on the "all" read-filter transition). "Unread" and
+ * a type chip MAY be pressed together (read-state × type are orthogonal).
+ *
  * Responsive posture (plan §5.5): chips render inline on `sm+` and wrap on
  * tablet; on `xs` the rail collapses behind a translated
  * `FilterListOutlined` toggle row (`aria-expanded` announces the state).
@@ -60,6 +66,13 @@ export function NotificationFilterChips({
   // Mobile-only collapsed state — `sm+` always shows the rail (the toggle
   // button itself is hidden on `sm+`).
   const [filtersOpen, setFiltersOpen] = useState(false);
+
+  // "All" is the no-filter state, not merely the read-state default: it is
+  // selected IFF no other filter is active (single-selection semantics, QA
+  // round 2). A read-state narrowing ("Unread") OR an active type chip
+  // deselects "All"; the container's read-filter handler drops the type
+  // filter when "All" is selected, so the two can never be pressed together.
+  const allSelected = readFilter === "all" && typeFilter === null;
 
   return (
     <Stack spacing={1.5} sx={{ width: "100%" }}>
@@ -93,9 +106,9 @@ export function NotificationFilterChips({
           label={labels.filterAll}
           clickable
           disabled={disabled}
-          aria-pressed={readFilter === "all"}
-          color={readFilter === "all" ? "primary" : "default"}
-          variant={readFilter === "all" ? "filled" : "outlined"}
+          aria-pressed={allSelected}
+          color={allSelected ? "primary" : "default"}
+          variant={allSelected ? "filled" : "outlined"}
           onClick={() => onReadFilterChange("all")}
           sx={{ ...focusVisibleRingSx, minHeight: 36 }}
         />

@@ -338,6 +338,50 @@ for (const locale of ["ar", "en"] as AppLocale[]) {
       expect(screen.getByRole("button", { name: t.typeSystemBroadcast }).getAttribute("aria-pressed")).toBe("true");
     });
 
+    test("All chip is the true reset — a category press deselects it, activating it clears the type filter", async () => {
+      renderFeed(
+        [
+          countMock(2),
+          listMock(ALL_PAGE_ONE, feedPageData([ROW_A, ROW_B], 2, false)),
+          listMock(BROADCAST_PAGE_ONE, feedPageData([ROW_B], 1, false)),
+          // Spare page-one mock: a wire re-serve of the reset window gets
+          // answered; a cache-first serve simply leaves it unused.
+          listMock(ALL_PAGE_ONE, feedPageData([ROW_A, ROW_B], 2, false)),
+        ],
+        locale
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText(ROW_A_TITLE)).toBeDefined();
+        expect(screen.getByText(ROW_B_TITLE)).toBeDefined();
+      });
+
+      // Unfiltered baseline: "All" is the pressed chip.
+      expect(screen.getByRole("button", { name: t.filterAll }).getAttribute("aria-pressed")).toBe("true");
+
+      // Activating a category chip deselects "All" (single-select
+      // semantics, QA round 2) while narrowing the list to that type.
+      fireEvent.click(screen.getByRole("button", { name: t.typeSystemBroadcast }));
+      await waitFor(() => {
+        expect(screen.queryByText(ROW_A_TITLE)).toBeNull();
+        expect(screen.getByText(ROW_B_TITLE)).toBeDefined();
+      });
+      expect(screen.getByRole("button", { name: t.filterAll }).getAttribute("aria-pressed")).toBe("false");
+      expect(screen.getByRole("button", { name: t.typeSystemBroadcast }).getAttribute("aria-pressed")).toBe("true");
+
+      // Activating "All" clears the category filter — the list is
+      // unfiltered again and the rail reads All pressed, category released
+      // (the read-filter handler drops the type filter on the "all"
+      // transition, so the two can never read pressed together).
+      fireEvent.click(screen.getByRole("button", { name: t.filterAll }));
+      await waitFor(() => {
+        expect(screen.getByText(ROW_A_TITLE)).toBeDefined();
+        expect(screen.getByText(ROW_B_TITLE)).toBeDefined();
+      });
+      expect(screen.getByRole("button", { name: t.filterAll }).getAttribute("aria-pressed")).toBe("true");
+      expect(screen.getByRole("button", { name: t.typeSystemBroadcast }).getAttribute("aria-pressed")).toBe("false");
+    });
+
     test("mark-one restyles the row without a refetch and decrements the pluralized summary", async () => {
       const { container } = renderFeed(
         [
@@ -368,6 +412,67 @@ for (const locale of ["ar", "en"] as AppLocale[]) {
         expect(screen.getByText(ROW_A_TITLE)).toBeDefined();
         expect(screen.getByText(t.unreadCount(0))).toBeDefined();
       });
+    });
+
+    test("mark-one drops the cached unread window — the next Unread switch refetches over the wire", async () => {
+      const { container } = renderFeed(
+        [
+          countMock(1),
+          listMock(ALL_PAGE_ONE, feedPageData([ROW_A, ROW_B], 2, false)),
+          // First Unread visit — caches the PRE-mark-read snapshot ([ROW_A]).
+          listMock(UNREAD_PAGE_ONE, feedPageData([ROW_A], 1, false)),
+          {
+            request: { query: markNotificationReadMutationDocument, variables: { id: "101" } },
+            result: { data: { markNotificationRead: feedRow({ isRead: true }) } },
+          },
+          // Post-drop refetch of the unread window: the flipped row no longer
+          // matches isRead=false — the fresh response comes back EMPTY.
+          listMock(UNREAD_PAGE_ONE, feedPageData([], 0, false)),
+          // Spare All-window mock (a cache-first serve leaves it unused).
+          listMock(ALL_PAGE_ONE, feedPageData([ROW_A, ROW_B], 2, false)),
+        ],
+        locale
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText(ROW_A_TITLE)).toBeDefined();
+        expect(screen.getByText(t.unreadCount(1))).toBeDefined();
+      });
+
+      // Visit the Unread window so its pre-mark snapshot lands in the cache.
+      fireEvent.click(screen.getByRole("button", { name: t.filterUnread }));
+      await waitFor(() => {
+        expect(screen.queryByText(ROW_B_TITLE)).toBeNull();
+        expect(screen.getByText(ROW_A_TITLE)).toBeDefined();
+      });
+
+      // Back to the All window, then flip ROW_A read in place (no refetch —
+      // the mark-one contract asserted by the sibling test above).
+      fireEvent.click(screen.getByRole("button", { name: t.filterAll }));
+      await waitFor(() => {
+        expect(screen.getByText(ROW_B_TITLE)).toBeDefined();
+      });
+
+      const buttons = markReadButtons(container, t.markReadAriaLabel(ROW_A_TITLE));
+      expect(buttons.length).toBeGreaterThanOrEqual(1);
+      fireEvent.click(buttons[0]);
+
+      await waitFor(() => {
+        expect(markReadButtons(container, t.markReadAriaLabel(ROW_A_TITLE))).toHaveLength(0);
+        expect(screen.getByText(t.unreadCount(0))).toBeDefined();
+      });
+
+      // The mark-one cache-drop evicted the stale unread window (the
+      // mark-all `dropStaleInboxWindows` pattern, applied per-row): switching
+      // to Unread MUST miss the cache and refetch over the wire — the fresh
+      // EMPTY response renders the empty state, where the stale snapshot
+      // would keep listing the already-read row's title.
+      fireEvent.click(screen.getByRole("button", { name: t.filterUnread }));
+      await waitFor(() => {
+        expect(screen.queryByText(ROW_A_TITLE)).toBeNull();
+        expect(screen.getByTestId("notifications-empty")).toBeDefined();
+      });
+      expect(screen.getByRole("button", { name: t.filterUnread }).getAttribute("aria-pressed")).toBe("true");
     });
 
     test("mark-all confirm flow sweeps, refetches and surfaces the affected-count snackbar", async () => {

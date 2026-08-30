@@ -5,6 +5,7 @@ import { Button, Dialog, DialogActions, DialogContent, DialogContentText, Dialog
 import { type ReactNode, useState } from "react";
 // audit-R4: shared keyboard-focus ring (v9 ButtonBase ships none).
 import { focusVisibleRingSx } from "@/frontend/components/ui/focusRing";
+import { darkOutlinedContrastSx } from "@/frontend/views/notifications/outlined-button-contrast";
 import type { CommonLabels } from "@/shared/locale/types/common";
 import type { NotificationsLabels } from "@/shared/locale/types/notifications";
 
@@ -51,12 +52,15 @@ export function MarkAllButton({
         startIcon={<DoneAllOutlined />}
         disabled={disabled || pending}
         onClick={() => setConfirmOpen(true)}
-        sx={{
+        // QA round 2 (axe serious): dark-mode outlined text/border lift —
+        // same treatment as the pager / row mark-read outlined buttons.
+        sx={theme => ({
           ...focusVisibleRingSx,
+          ...darkOutlinedContrastSx(theme),
           flexShrink: 0,
           minHeight: 44,
           width: { xs: "100%", sm: "auto" },
-        }}
+        })}
       >
         {labels.markAllRead}
       </Button>
