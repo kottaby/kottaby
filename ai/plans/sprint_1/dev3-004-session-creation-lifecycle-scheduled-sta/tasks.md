@@ -410,19 +410,19 @@
 
 ## Phase 7: Knowledge Propagation & Documentation
 
-- [ ] 7.1 [Canonical doc: `docs/sessions/session-lifecycle.md`]
+- [x] 7.1 [Canonical doc: `docs/sessions/session-lifecycle.md`]
   - Structure: Why → State machine + guarded-transition pattern → four-phase creation invariant → hold-as-debit ruling & B.4 reconciliation (supersedes TEAM_ALLOCATION Contract-1 phrasing) → trial-first ladder + same-lane refund → idempotency claim design → **oracle ruling contrast-with-plans + anti-copy-paste warning** (sessions sensitive ⇒ collapse; plans public ⇒ NOT_FOUND fine) → `is_online` deferral note (D3) → consumer-guidance table for DEV3-005/006/011/012/013/021 + DEV2-016 → Rollout summary → Related Documents.
   - Bind invariants: INV-S1..S8 (S6/S7/S8 explicitly DEV3-005-owned), INV-B1/B4/B8, INV-W3/W4, INV-U2/U5, INV-TV1; decisions A.8/A.10/B.2/B.3/B.4/B.18/C.5.
   - _Requirements: REQ-080, REQ-081_
   - Write `outcome/7.1-outcome.md`.
 
-- [ ] 7.2 [Decisions addendum + state-machine cross-reference]
+- [x] 7.2 [Decisions addendum + state-machine cross-reference]
   - Append addendum to `docs/specs/open-decisions-and-gaps.md`: (i) hold-as-debit + same-lane refund ruling; (ii) interim constant fees (forward: plan-linked pricing → DEV3-013); (iii) `is_online` assertion deferral (owners DEV3-008/DEV2-011); (iv) `session_request_idempotency` table + 24h-sweeper deferral; (v) sessions-are-sensitive oracle ruling (contrast DEV1-005).
   - `docs/specs/state-machine-invariants.md`: cross-reference line ONLY — zero renumbering.
   - _Requirements: REQ-081_
   - Write `outcome/7.2-outcome.md`.
 
-- [ ] 7.3 [AGENTS.md propagation — rule-only one-liners]
+- [x] 7.3 [AGENTS.md propagation — rule-only one-liners]
   - `backend/services/AGENTS.md` — SessionLifecycleService + hold-ordering rule + zero-notification rule (pointer to canonical doc).
   - `backend/db/repo/AGENTS.md` — guarded transition pattern + provenance column note + `FOR UPDATE` certification lock note.
   - `backend/graphql/AGENTS.md` — participant-scoped ops + `$all` reuse pattern note.
@@ -431,7 +431,7 @@
   - _Requirements: REQ-082_
   - Write `outcome/7.3-outcome.md`.
 
-- [ ] 7.4 [Outcome synthesis & final gate]
+- [x] 7.4 [Outcome synthesis & final gate]
   - Verify every task has its `outcome/<id>-outcome.md`; synthesize `outcome/final-outcome.md` (what shipped, gates evidence, journey twice-green proof, coverage proof, baseline delta = 0, ledger state: only D1–D7 remain ⚠️-free forward items).
   - Final assertion run: baseline diff = 0 new errors; `git diff backend/db/schema/** backend/db/migration/**` = EXACTLY REQ-013's two artifacts.
   - _Requirements: REQ-076, REQ-083_
