@@ -55,7 +55,7 @@ import { HeldBalanceLane, isHeldBalanceLane } from "@/backend/enum/scheduling/he
 import { SessionIntent } from "@/backend/enum/scheduling/session-intent.enum";
 import { SessionStatus } from "@/backend/enum/scheduling/session-status.enum";
 import { SessionType } from "@/backend/enum/scheduling/session-type.enum";
-import { ConflictError, NotFoundError, ValidationError } from "@/backend/lib/errors";
+import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from "@/backend/lib/errors";
 import { logger } from "@/backend/lib/logger";
 import { withTransaction } from "@/backend/services/shared/withTransaction";
 import type {
@@ -536,7 +536,9 @@ export namespace SessionLifecycleService {
    * boundary (deleted/blocked/suspended accounts are denied; a vanished
    * caller fails closed). The login/SSR boundary enforces the same gate —
    * this is the defense-in-depth layer for callers holding still-valid
-   * tokens.
+   * tokens. The denial is a typed `ForbiddenError` (`extensions.code` =
+   * `FORBIDDEN`, 403 per the error-code taxonomy) — the authorization
+   * class for an authorization denial, never the Conflict class.
    */
   async function assertActorGovernanceClean(
     actorUserId: number,
@@ -550,7 +552,7 @@ export namespace SessionLifecycleService {
         entity: "session",
         entityId: actorUserId,
       });
-      throw new ConflictError("FORBIDDEN", t.forbidden);
+      throw new ForbiddenError(t.forbidden);
     }
   }
 

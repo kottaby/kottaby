@@ -468,6 +468,7 @@ describe("Session lifecycle queries — REQ-064 query-row matrix", () => {
       query: myStudentSessionsDocument,
       context: { headers: { Authorization: `Bearer ${teacherAuth.accessToken}` } },
     });
+    expect(asTeacher.error).toBeDefined();
     expectMutationError(asTeacher.error, "FORBIDDEN");
 
     const asParent = await testClient.query({
@@ -540,6 +541,7 @@ describe("Session lifecycle queries — REQ-064 query-row matrix", () => {
       query: myTeacherSessionsDocument,
       context: { headers: { Authorization: `Bearer ${studentAuth.accessToken}` } },
     });
+    expect(result.error).toBeDefined();
     expectMutationError(result.error, "FORBIDDEN");
   });
 

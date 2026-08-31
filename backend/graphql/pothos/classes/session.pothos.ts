@@ -21,9 +21,11 @@
  *
  * Enum fields map the pgEnum string unions carried by the canonical select
  * row onto the Pothos enums registered ONCE in `shared/enum.pothos.ts`
- * through exhaustive, type-safe mapping helpers — never `as` casts. An
- * unrecognized value surfaces as a resolver error rather than passing
- * through silently. Timestamps use the `DateTime` scalar (registered in
+ * through exhaustive, type-safe mapping helpers — never `as` casts. Each
+ * helper's switch is exhaustive over the pgEnum vocabulary (no `default`);
+ * an unrecognized value cannot pass through silently — it fails the
+ * helper's compile-time `never` guard and surfaces as a resolver error at
+ * runtime. Timestamps use the `DateTime` scalar (registered in
  * `shared/scalar.pothos.ts`, backed by `DateTimeResolver` from
  * `graphql-scalars`): `Date | null` on the canonical shape, ISO-8601 UTC on
  * the wire.
@@ -44,14 +46,20 @@ import {
 import type { SessionPageReturnType, SessionReturnType } from "@/backend/types";
 
 /**
- * Maps a runtime session-status string (from the `session_status` pgEnum
- * row) to the `SessionStatus` TS enum. Returns `null` for an unrecognized
- * value so callers can surface a resolver error instead of an unsafe cast.
- * The string values mirror the enum members exactly; TypeScript does not
- * allow assigning a plain string to a nominal enum without an explicit
- * conversion, so this exhaustive switch replaces the cast pattern.
+ * Maps the `session_status` pgEnum value carried by the canonical
+ * `SessionReturnType` row onto the `SessionStatus` TS enum.
+ *
+ * EXHAUSTIVE over the pgEnum vocabulary — one case per member, NO
+ * `default`: the scrutinee is the canonical row column's literal union, so
+ * a future `session_status` pgEnum member added to `backend/db/schema/enums.ts`
+ * WITHOUT a matching case here fails the trailing `never` assignment at
+ * compile time (the silent `default → null` escape hatch is deliberately
+ * absent). The trailing throw is the fail-closed fallback for that
+ * impossible branch: unreachable while the switch stays exhaustive, it
+ * still guards a runtime-only drift (a DB enum ahead of the TS schema) by
+ * surfacing a resolver error instead of passing an unmapped value through.
  */
-function toSessionStatus(status: string): SessionStatus | null {
+function toSessionStatus(status: SessionReturnType["status"]): SessionStatus {
   switch (status) {
     case "scheduled":
       return SessionStatus.Scheduled;
@@ -63,16 +71,21 @@ function toSessionStatus(status: string): SessionStatus | null {
       return SessionStatus.Cancelled;
     case "disputed":
       return SessionStatus.Disputed;
-    default:
-      return null;
   }
+  // Exhaustiveness guard — the pgEnum union above guarantees this is
+  // unreachable (the registration.service.ts fail-closed idiom, without a
+  // `default` clause).
+  const exhaustive: never = status;
+  throw new Error(`Unexpected session status: ${String(exhaustive)}`);
 }
 
 /**
- * Maps a runtime session-type string (from the `session_type` pgEnum row)
- * to the `SessionType` TS enum — exhaustive switch, `null` on mismatch.
+ * Maps the `session_type` pgEnum value carried by the canonical
+ * `SessionReturnType` row onto the `SessionType` TS enum — exhaustive
+ * switch (one case per member, no `default`) with the same fail-closed
+ * never-guard fallback as {@link toSessionStatus}.
  */
-function toSessionType(sessionType: string): SessionType | null {
+function toSessionType(sessionType: SessionReturnType["sessionType"]): SessionType {
   switch (sessionType) {
     case "student_session":
       return SessionType.StudentSession;
@@ -80,17 +93,23 @@ function toSessionType(sessionType: string): SessionType | null {
       return SessionType.TeacherEvaluation;
     case "re_evaluation":
       return SessionType.ReEvaluation;
-    default:
-      return null;
   }
+  // Exhaustiveness guard — the pgEnum union above guarantees this is
+  // unreachable (the registration.service.ts fail-closed idiom, without a
+  // `default` clause).
+  const exhaustive: never = sessionType;
+  throw new Error(`Unexpected session type: ${String(exhaustive)}`);
 }
 
 /**
- * Maps a runtime session-intent string (from the `session_intent` pgEnum
- * row) to the `SessionIntent` TS enum — exhaustive switch, `null` on
- * mismatch.
+ * Maps the `session_intent` pgEnum value carried by the canonical
+ * `SessionReturnType` row onto the `SessionIntent` TS enum — exhaustive
+ * switch (one case per member, no `default`) with the same fail-closed
+ * never-guard fallback as {@link toSessionStatus}. The column's `null`
+ * (a legitimate stored value) is resolved by the `intent` field before
+ * this mapper is reached.
  */
-function toSessionIntent(intent: string): SessionIntent | null {
+function toSessionIntent(intent: NonNullable<SessionReturnType["intent"]>): SessionIntent {
   switch (intent) {
     case "hifz":
       return SessionIntent.Hifz;
@@ -98,9 +117,12 @@ function toSessionIntent(intent: string): SessionIntent | null {
       return SessionIntent.Tajweed;
     case "evaluation":
       return SessionIntent.Evaluation;
-    default:
-      return null;
   }
+  // Exhaustiveness guard — the pgEnum union above guarantees this is
+  // unreachable (the registration.service.ts fail-closed idiom, without a
+  // `default` clause).
+  const exhaustive: never = intent;
+  throw new Error(`Unexpected session intent: ${String(exhaustive)}`);
 }
 
 /**
@@ -119,28 +141,18 @@ export const SessionPothosObject = gqlSchemaBuilder.objectRef<SessionReturnType>
     teacherId: t.exposeID("teacherId"),
     studentId: t.exposeID("studentId"),
     // Lifecycle status — mapped exhaustively onto the registered
-    // `SessionStatus` enum (`disputed` has no producer in this slice).
+    // `SessionStatus` enum (`disputed` has no producer in this slice); an
+    // unmapped value fails the mapper's compile-time exhaustiveness guard
+    // and throws fail-closed at runtime.
     status: t.field({
       type: SessionStatusPothosEnum,
-      resolve: parent => {
-        const status = toSessionStatus(parent.status);
-        if (status === null) {
-          throw new Error(`Unexpected session status: ${parent.status}`);
-        }
-        return status;
-      },
+      resolve: parent => toSessionStatus(parent.status),
     }),
     // Session type — mapped exhaustively onto the registered `SessionType`
     // enum.
     sessionType: t.field({
       type: SessionTypePothosEnum,
-      resolve: parent => {
-        const sessionType = toSessionType(parent.sessionType);
-        if (sessionType === null) {
-          throw new Error(`Unexpected session type: ${parent.sessionType}`);
-        }
-        return sessionType;
-      },
+      resolve: parent => toSessionType(parent.sessionType),
     }),
     // Booking intent — nullable: optional on the table (evaluation sessions
     // carry it; student bookings pin Hifz/Tajweed).
@@ -149,11 +161,7 @@ export const SessionPothosObject = gqlSchemaBuilder.objectRef<SessionReturnType>
       nullable: true,
       resolve: parent => {
         if (parent.intent === null) return null;
-        const intent = toSessionIntent(parent.intent);
-        if (intent === null) {
-          throw new Error(`Unexpected session intent: ${parent.intent}`);
-        }
-        return intent;
+        return toSessionIntent(parent.intent);
       },
     }),
     // Platform-set fee — nullable at the DB level (decimal → string on the

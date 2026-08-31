@@ -59,7 +59,12 @@ interface CancelSessionConfirmDialogProps {
   /** Id of the session being cancelled. */
   readonly sessionId: string;
   readonly open: boolean;
-  /** Dismiss intent (cancel button / backdrop) — ignored by the container while pending. */
+  /**
+   * Dismiss intent (cancel Button / backdrop click / Escape) — ignored
+   * while the cancel mutation is pending: the Dialog's `onClose` is gated
+   * on the `loading` flag below and the cancel Button is separately
+   * `disabled={loading}`.
+   */
   readonly onClose: () => void;
   /** Success — the cache already carries the cancelled state. */
   readonly onCancelled: (sessionId: string) => void;
@@ -208,10 +213,19 @@ export function CancelSessionConfirmDialog({
     void cancelSession({ variables: { id: sessionId, reason: trimmed.length === 0 ? null : trimmed } });
   };
 
+  // Dismissal gate — enforces the `onClose` prop contract at the dialog
+  // itself: backdrop click and Escape are IGNORED while the mutation is
+  // pending (the cancel Button is separately disabled while loading).
+  const handleDialogClose = (): void => {
+    if (!loading) {
+      onClose();
+    }
+  };
+
   return (
     <Dialog
       open={open}
-      onClose={onClose}
+      onClose={handleDialogClose}
       fullWidth
       maxWidth="sm"
       slotProps={{ paper: { component: "form", onSubmit: handleSubmit } }}

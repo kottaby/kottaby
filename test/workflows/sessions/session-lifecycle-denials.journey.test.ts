@@ -52,7 +52,7 @@ import { HeldBalanceLane } from "@/backend/enum/scheduling/held-balance-lane.enu
 import { SessionIntent } from "@/backend/enum/scheduling/session-intent.enum";
 import { SessionStatus } from "@/backend/enum/scheduling/session-status.enum";
 import { SessionType } from "@/backend/enum/scheduling/session-type.enum";
-import { ConflictError, DomainError, NotFoundError, ValidationError } from "@/backend/lib/errors";
+import { DomainError, ForbiddenError, NotFoundError, ValidationError } from "@/backend/lib/errors";
 import { SessionLifecycleService } from "@/backend/services/classes/session-lifecycle.service";
 import type { SessionSelectType, SessionSubmitInput } from "@/backend/types";
 import { SESSION_CONFIRMATION_WINDOW_MS, SESSION_FEE_HIFZ } from "@/shared/constants/session-fees.constants";
@@ -526,7 +526,7 @@ describe("Journey J2 — session lifecycle hostile & boundary legs", () => {
 
     // ── Governed write attempts: with the accounts in the real governed
     // state (blocked), the service's defense-in-depth re-check denies
-    // create/start/complete with the typed FORBIDDEN conflict — the admin
+    // create/start/complete with the typed FORBIDDEN denial — the admin
     // gets NO bypass through the service surface either.
     await db.update(users).set({ isBlocked: true }).where(eq(users.id, admin.userId));
     await db.update(users).set({ isBlocked: true }).where(eq(users.id, parent.userId));
@@ -539,7 +539,7 @@ describe("Journey J2 — session lifecycle hostile & boundary legs", () => {
         "en"
       )
     );
-    expect(adminCreate).toBeInstanceOf(ConflictError);
+    expect(adminCreate).toBeInstanceOf(ForbiddenError);
     expect(rejectionCode(adminCreate)).toBe("FORBIDDEN");
     expect(adminCreate.message).toBe(t().forbidden);
 
