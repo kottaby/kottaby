@@ -58,4 +58,9 @@ export interface ErrorsLabels {
   readonly idempotencyKeyRequired: string;
   /** Pre-DB intent validation reject — the requested intent is not bookable on this surface. */
   readonly invalidSessionIntent: string;
+  /**
+   * Pre-DB withdrawal-amount reject — the requested payout amount failed
+   * the decimal-string validation matrix (shape or non-positive value).
+   */
+  readonly walletInvalidAmount: string;
 }

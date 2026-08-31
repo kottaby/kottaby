@@ -30,4 +30,5 @@ export const errorsEn: ErrorsLabels = {
   insufficientBalance: "Your balance is insufficient for this request.",
   idempotencyKeyRequired: "A request idempotency key is required. Please retry the request.",
   invalidSessionIntent: "The requested session intent is not valid for this request.",
+  walletInvalidAmount: "Enter a valid withdrawal amount (a positive value with up to 2 decimal places).",
 };

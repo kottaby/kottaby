@@ -6,6 +6,7 @@ import { errorsAr } from "@/shared/locale/ar/errors";
 import { landingAr } from "@/shared/locale/ar/landing";
 import { recitationAr } from "@/shared/locale/ar/recitation";
 import { sessionsAr } from "@/shared/locale/ar/sessions";
+import { walletAr } from "@/shared/locale/ar/wallet";
 import type { Translations } from "@/shared/locale/types/message";
 
 export const arMessages: Translations = {
@@ -17,4 +18,5 @@ export const arMessages: Translations = {
   landingTranslations: landingAr,
   applicantTranslations: applicantAr,
   sessionsTranslations: sessionsAr,
+  walletTranslations: walletAr,
 };

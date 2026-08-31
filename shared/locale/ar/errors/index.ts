@@ -30,4 +30,5 @@ export const errorsAr: ErrorsLabels = {
   insufficientBalance: "رصيدك غير كافٍ لإتمام هذا الطلب.",
   idempotencyKeyRequired: "مفتاح منع تكرار الطلب مفقود. يرجى إعادة المحاولة.",
   invalidSessionIntent: "غرض الجلسة المطلوب غير صالح.",
+  walletInvalidAmount: "أدخل مبلغ سحب صالحاً (قيمة موجبة بخانتين عشريتين كحد أقصى).",
 };

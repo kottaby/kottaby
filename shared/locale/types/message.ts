@@ -6,6 +6,7 @@ import type { ErrorsLabels } from "@/shared/locale/types/errors";
 import type { LandingLabels } from "@/shared/locale/types/landing";
 import type { RecitationLabels } from "@/shared/locale/types/recitation";
 import type { SessionsLabels } from "@/shared/locale/types/sessions";
+import type { WalletLabels } from "@/shared/locale/types/wallet";
 
 export interface Translations {
   commonTranslations: CommonLabels;
@@ -16,4 +17,5 @@ export interface Translations {
   landingTranslations: LandingLabels;
   applicantTranslations: ApplicantLabels;
   sessionsTranslations: SessionsLabels;
+  walletTranslations: WalletLabels;
 }
