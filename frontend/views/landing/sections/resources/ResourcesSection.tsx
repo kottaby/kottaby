@@ -1,7 +1,7 @@
 import { Box } from "@mui/material";
 import type { ReactNode } from "react";
+import { SectionWrapper } from "@/frontend/views/landing/layout";
 import { ResourceCard } from "@/frontend/views/landing/sections/resources/ResourceCard";
-import { SectionWrapper } from "@/frontend/views/landing/shared-sections";
 import { Landing, useAppTranslation } from "@/shared/locale";
 
 // ─── Resources section ───────────────────────────────────────────

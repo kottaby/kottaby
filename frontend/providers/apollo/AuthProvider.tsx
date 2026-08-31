@@ -3,7 +3,7 @@
 import { useApolloClient } from "@apollo/client/react";
 import { type ReactNode, useMemo, useState } from "react";
 import { AuthContext, type AuthContextType } from "@/frontend/context/AuthContext";
-import { useNetworkConnectivity } from "@/frontend/hooks/useNetworkConnectivity";
+import { useNetworkConnectivity } from "@/frontend/hooks/connectivity";
 import { useAuthLogin } from "@/frontend/providers/apollo/useAuthLogin";
 import { useAuthLogout } from "@/frontend/providers/apollo/useAuthLogout";
 import { useRefreshSession } from "@/frontend/providers/apollo/useRefreshSession";

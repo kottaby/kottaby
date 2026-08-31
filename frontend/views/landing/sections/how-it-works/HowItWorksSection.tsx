@@ -1,7 +1,7 @@
 import { Box } from "@mui/material";
 import { type ReactNode, useEffect, useRef, useState } from "react";
+import { SectionWrapper } from "@/frontend/views/landing/layout";
 import { HowItWorkStep } from "@/frontend/views/landing/sections/how-it-works/HowItWorkStep";
-import { SectionWrapper } from "@/frontend/views/landing/shared-sections";
 import { Landing, useAppTranslation } from "@/shared/locale";
 
 // ─── How it works ───────────────────────────────────────────────────

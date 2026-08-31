@@ -10,7 +10,7 @@ import {
   Typography,
 } from "@mui/material";
 import type { ReactNode } from "react";
-import { ctaShimmerSx } from "@/frontend/views/landing/landing-styles";
+import { ctaShimmerSx } from "@/frontend/views/landing/utils";
 import { Landing, useAppTranslation } from "@/shared/locale";
 
 /** Cookie preferences dialog: necessary (locked) + analytics + marketing toggles. */

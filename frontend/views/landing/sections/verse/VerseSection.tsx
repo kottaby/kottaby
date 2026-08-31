@@ -1,9 +1,9 @@
 import { Box, Container, Stack, Typography } from "@mui/material";
 import type { ReactNode } from "react";
+import { SectionBadge } from "@/frontend/views/landing/layout";
 import { VerseActions } from "@/frontend/views/landing/sections/verse/VerseActions";
 import { VerseDecor } from "@/frontend/views/landing/sections/verse/VerseDecor";
 import { VerseTexts } from "@/frontend/views/landing/sections/verse/VerseTexts";
-import { SectionBadge } from "@/frontend/views/landing/shared-sections";
 import { Landing, useAppTranslation } from "@/shared/locale";
 
 // ─── Verse of the Day ───────────────────────────────────────────

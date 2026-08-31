@@ -1,9 +1,9 @@
 import { Alert, Box, Snackbar, Stack, Typography } from "@mui/material";
 import { type ReactNode, type SyntheticEvent, useState } from "react";
-import { isEmailLike } from "@/frontend/views/landing/landing-validation";
+import { SectionWrapper } from "@/frontend/views/landing/layout";
 import { ContactEmailField, ContactMessageField } from "@/frontend/views/landing/sections/contact/ContactFields";
 import { ContactSubmitButton } from "@/frontend/views/landing/sections/contact/ContactSubmitButton";
-import { SectionWrapper } from "@/frontend/views/landing/shared-sections";
+import { isEmailLike } from "@/frontend/views/landing/utils";
 import { Landing, useAppTranslation } from "@/shared/locale";
 
 // ─── Contact section ────────────────────────────────────────────────

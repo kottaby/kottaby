@@ -2,18 +2,18 @@
 
 import { Box, CircularProgress, Divider } from "@mui/material";
 import type { ReactNode } from "react";
-import { useAuth } from "@/frontend/hooks/useAuth";
+import { useAuth } from "@/frontend/hooks/auth";
 import { getRecitationDescription, getRecitationLabel } from "@/frontend/lib/recitation-labels";
-import { AccountInfoCard } from "@/frontend/views/dashboard/profile/AccountInfoCard";
-import { AccountStatusCard } from "@/frontend/views/dashboard/profile/AccountStatusCard";
-import { ChangePasswordCard } from "@/frontend/views/dashboard/profile/ChangePasswordCard";
-import { LanguagePreferenceCard } from "@/frontend/views/dashboard/profile/LanguagePreferenceCard";
-import { ProfileActions } from "@/frontend/views/dashboard/profile/ProfileActions";
-import { ProfileHeader } from "@/frontend/views/dashboard/profile/ProfileHeader";
-import { getGenderLabel, getRoleLabel } from "@/frontend/views/dashboard/profile/profileLabels";
-import { RecitationCard } from "@/frontend/views/dashboard/profile/RecitationCard";
-import { SignInPromptCard } from "@/frontend/views/dashboard/profile/SignInPromptCard";
-import { useMounted } from "@/frontend/views/dashboard/profile/useMounted";
+import {
+  AccountInfoCard,
+  AccountStatusCard,
+  ChangePasswordCard,
+  LanguagePreferenceCard,
+  RecitationCard,
+  SignInPromptCard,
+} from "@/frontend/views/dashboard/profile/cards";
+import { ProfileActions, ProfileHeader } from "@/frontend/views/dashboard/profile/ui";
+import { getGenderLabel, getRoleLabel, useMounted } from "@/frontend/views/dashboard/profile/utils";
 import { Auth, Dashboard, Recitation, useAppTranslation } from "@/shared/locale";
 
 /**

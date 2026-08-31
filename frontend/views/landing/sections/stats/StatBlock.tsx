@@ -1,6 +1,6 @@
 import { Box, Stack, Typography } from "@mui/material";
 import type { ReactNode } from "react";
-import { AnimatedCounter } from "@/frontend/views/landing/AnimatedCounter";
+import { AnimatedCounter } from "@/frontend/views/landing/layout";
 
 /** One stat cell: pulsing icon, animated counter, label. */
 export function StatBlock({

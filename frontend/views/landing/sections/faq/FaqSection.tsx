@@ -1,7 +1,7 @@
 import { Box, Button, Stack } from "@mui/material";
 import { type ReactNode, useCallback, useMemo, useState } from "react";
+import { SectionWrapper } from "@/frontend/views/landing/layout";
 import { FaqAccordionItem } from "@/frontend/views/landing/sections/faq/FaqAccordionItem";
-import { SectionWrapper } from "@/frontend/views/landing/shared-sections";
 import { Landing, useAppTranslation } from "@/shared/locale";
 
 // ─── FAQ ─────────────────────────────────────────────────────────────

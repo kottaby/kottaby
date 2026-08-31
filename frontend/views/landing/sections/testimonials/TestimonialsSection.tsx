@@ -1,8 +1,7 @@
 import { Box, Stack } from "@mui/material";
 import { type ReactNode, useCallback, useState } from "react";
+import { SectionWrapper, TestimonialNavButton } from "@/frontend/views/landing/layout";
 import { TestimonialSlide } from "@/frontend/views/landing/sections/testimonials/TestimonialSlide";
-import { SectionWrapper } from "@/frontend/views/landing/shared-sections";
-import { TestimonialNavButton } from "@/frontend/views/landing/TestimonialNavButton";
 import { Landing, useAppTranslation } from "@/shared/locale";
 
 // ─── Testimonials ────────────────────────────────────────────────────

@@ -1,6 +1,6 @@
 import { Box, Button, CircularProgress, TextField as MuiTextField, Stack } from "@mui/material";
 import type { ReactNode, SyntheticEvent } from "react";
-import { ctaShimmerSx } from "@/frontend/views/landing/landing-styles";
+import { ctaShimmerSx } from "@/frontend/views/landing/utils";
 import { Landing, useAppTranslation } from "@/shared/locale";
 
 /** Newsletter email input + submit row. */

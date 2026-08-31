@@ -97,8 +97,8 @@ export default defineConfig({
       },
     },
     {
-      // Translation dictionaries scale with content; they are declarative data.
-      files: ["shared/locale/**"],
+      // Translation dictionaries & generated timezone constants scale with data size.
+      files: ["shared/locale/**", "shared/constants/iana-timezone*.ts", "shared/constants/iana-timezones.ts"],
       rules: {
         "max-lines": "off",
       },

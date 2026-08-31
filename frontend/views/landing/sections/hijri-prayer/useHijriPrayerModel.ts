@@ -5,7 +5,7 @@ import {
   fixHour,
   nextPrayer,
   utcMidnightOf,
-} from "@/frontend/views/landing/prayer-times";
+} from "@/frontend/views/landing/utils";
 import { Landing, useAppLocale, useAppTranslation } from "@/shared/locale";
 
 interface HijriPrayerModel {

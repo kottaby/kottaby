@@ -5,7 +5,7 @@ import type {
   MyNotificationsFilterInput,
   MyNotificationsQuery_myNotifications_items,
 } from "@/frontend/graphql/generated/gql/graphql";
-import { useNotificationMarkActions } from "@/frontend/hooks/use-notification-mark-actions";
+import { useNotificationMarkActions } from "@/frontend/hooks/notifications";
 import { logger } from "@/frontend/lib/logger";
 
 /** Stable identity for the "no rows pending" initial state. */

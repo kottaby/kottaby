@@ -46,7 +46,7 @@ import {
 import { parseArgs, printHelp, validateArgs } from "@/scripts/health/sub-loop-args";
 import { checkBiome, checkDuplicates, checkLint, checkOxlint, checkTsgo } from "@/scripts/health/sub-loop-checks";
 import { printApplicableRuleFiles } from "@/scripts/health/sub-loop-rule-files";
-import { withProcessLock } from "@/scripts/lib/process-lock";
+import { withProcessLock } from "@/scripts/lib";
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 const PROJECT_ROOT = process.cwd();

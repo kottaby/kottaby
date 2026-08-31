@@ -1,7 +1,7 @@
 import { Box } from "@mui/material";
 import type { ReactNode } from "react";
+import { SectionWrapper } from "@/frontend/views/landing/layout";
 import { TeacherCard } from "@/frontend/views/landing/sections/teachers/TeacherCard";
-import { SectionWrapper } from "@/frontend/views/landing/shared-sections";
 import { Landing, useAppTranslation } from "@/shared/locale";
 
 // ─── Teacher Spotlight section ───────────────────────────────────

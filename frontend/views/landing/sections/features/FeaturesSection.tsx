@@ -8,8 +8,8 @@ import {
 } from "@mui/icons-material";
 import { Box } from "@mui/material";
 import type { ReactNode } from "react";
+import { SectionWrapper } from "@/frontend/views/landing/layout";
 import { FeatureCard } from "@/frontend/views/landing/sections/features/FeatureCard";
-import { SectionWrapper } from "@/frontend/views/landing/shared-sections";
 import { Landing, useAppTranslation } from "@/shared/locale";
 
 // ─── Features ────────────────────────────────────────────────────────

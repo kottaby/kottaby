@@ -79,10 +79,10 @@ export const MAX_LOCK_AGE_MS = 5 * 60 * 1000;
 /** Queue polling interval in milliseconds */
 export const POLL_INTERVAL_MS = 250;
 
-export const YELLOW = "\x1b[33m";
-export const GREEN = "\x1b[32m";
-export const CYAN = "\x1b[36m";
-export const NC = "\x1b[0m";
+export const LOCK_YELLOW = "\x1b[33m";
+export const LOCK_GREEN = "\x1b[32m";
+export const LOCK_CYAN = "\x1b[36m";
+export const LOCK_NC = "\x1b[0m";
 
 // ─── Per-namespace path helpers ──────────────────────────────────────────────
 
@@ -215,7 +215,9 @@ export function getActiveLock(ns: string): ActiveLockInfo | null {
     const alive = isPidRunning(info.pid);
     const exempt = isTimeoutExempt(info.description);
     if (!alive || (!exempt && Date.now() - info.acquiredAt > MAX_LOCK_AGE_MS)) {
-      console.log(`${YELLOW}[process-lock]${NC} Cleaning up stale lock held by PID ${info.pid} (${info.description})`);
+      console.log(
+        `${LOCK_YELLOW}[process-lock]${LOCK_NC} Cleaning up stale lock held by PID ${info.pid} (${info.description})`
+      );
       try {
         unlinkSync(activeLockFile);
       } catch {
@@ -279,7 +281,7 @@ export function createReleaseCallback(ns: string, description: string): () => vo
       } catch {
         /* ignore active lock release error */
       }
-      console.log(`${CYAN}[process-lock]${NC} Released lock for "${description}" (PID: ${process.pid})`);
+      console.log(`${LOCK_CYAN}[process-lock]${LOCK_NC} Released lock for "${description}" (PID: ${process.pid})`);
     }
   };
   releases.add(release);

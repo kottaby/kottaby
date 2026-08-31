@@ -4,16 +4,16 @@ import { Box } from "@mui/material";
 import { useColorScheme } from "@mui/material/styles";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { SiteFooter } from "@/frontend/components/SiteFooter";
-import { BackToTopButton } from "@/frontend/views/landing/BackToTopButton";
-import { FooterBanner } from "@/frontend/views/landing/FooterBanner";
-import { LandingMainSections } from "@/frontend/views/landing/LandingMainSections";
-import { LandingNav } from "@/frontend/views/landing/LandingNav";
-import { ModeFlashOverlay } from "@/frontend/views/landing/ModeFlashOverlay";
-import { ScrollProgressBar } from "@/frontend/views/landing/ScrollProgressBar";
-import { SkipToContentLink } from "@/frontend/views/landing/SkipToContentLink";
+import {
+  BackToTopButton,
+  FooterBanner,
+  LandingMainSections,
+  ModeFlashOverlay,
+  ScrollProgressBar,
+  SkipToContentLink,
+} from "@/frontend/views/landing/layout";
+import { LANDING_SECTION_IDS, LandingNav, useLandingNavLinks, useScrollSpy } from "@/frontend/views/landing/nav";
 import { CookieConsent, HeroSection, HijriPrayerStrip, WhatsAppButton } from "@/frontend/views/landing/sections";
-import { LANDING_SECTION_IDS, useLandingNavLinks } from "@/frontend/views/landing/useLandingNavLinks";
-import { useScrollSpy } from "@/frontend/views/landing/useScrollSpy";
 
 /**
  * Landing page — the public front door of Kottaby Academy at `/`.

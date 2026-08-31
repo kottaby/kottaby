@@ -33,18 +33,18 @@
 import { existsSync, readdirSync, unlinkSync } from "node:fs";
 import {
   asyncSleep,
-  CYAN,
   claimActiveLock,
   createReleaseCallback,
   ensureLockDirs,
-  GREEN,
   getActiveLock,
   getLockNamespace,
   getReentryCount,
   isProcessDescendantOf,
   isTimeoutExempt,
   LOCK_BASE_DIR,
-  NC,
+  LOCK_CYAN,
+  LOCK_GREEN,
+  LOCK_NC,
   POLL_INTERVAL_MS,
   setReentryCount,
 } from "@/scripts/lib/process-lock-helpers";
@@ -57,11 +57,6 @@ import {
   registerActiveTicket,
   unregisterActiveTicket,
 } from "@/scripts/lib/process-lock-tickets";
-
-// ─── Public re-exports (preserve the original module surface) ───────────────
-
-export type { ActiveLockInfo, QueueTicketInfo } from "@/scripts/lib/process-lock-helpers";
-export { isPidAlive, isPidRunning, isTimeoutExempt } from "@/scripts/lib/process-lock-helpers";
 
 // ─── Stale Cleanup ───────────────────────────────────────────────────────────
 
@@ -109,7 +104,7 @@ export async function acquireProcessLock(description: string): Promise<() => voi
   // 2. Queue registration
   const { ticketPath, ticketInfo } = createQueueTicket(ns, description);
   registerActiveTicket(ticketPath);
-  console.log(`${CYAN}[process-lock]${NC} Enqueued request for "${description}" (PID: ${process.pid})`);
+  console.log(`${LOCK_CYAN}[process-lock]${LOCK_NC} Enqueued request for "${description}" (PID: ${process.pid})`);
 
   const cleanupTicket = () => {
     unregisterActiveTicket(ticketPath);
@@ -139,7 +134,7 @@ export async function acquireProcessLock(description: string): Promise<() => voi
         cleanupTicket();
         setReentryCount(ns, 1);
         console.log(
-          `${GREEN}[process-lock]${NC} Acquired lock for "${description}" (PID: ${process.pid}). Executing...`
+          `${LOCK_GREEN}[process-lock]${LOCK_NC} Acquired lock for "${description}" (PID: ${process.pid}). Executing...`
         );
         return createReleaseCallback(ns, description);
       }

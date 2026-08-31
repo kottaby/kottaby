@@ -63,7 +63,7 @@ import {
   printSummary,
   stageCleanFiles,
 } from "@/scripts/health/sub-loop-uncommitted-report";
-import { withProcessLock } from "@/scripts/lib/process-lock";
+import { withProcessLock } from "@/scripts/lib";
 
 // ─── Main ──────────────────────────────────────────────────────────────────
 

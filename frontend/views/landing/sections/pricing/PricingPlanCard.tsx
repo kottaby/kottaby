@@ -2,13 +2,8 @@ import { CheckCircleOutlined as CheckIcon } from "@mui/icons-material";
 import { Box, Button, Stack, Typography } from "@mui/material";
 import Link from "next/link";
 import type { ReactNode } from "react";
-import {
-  POPULAR_CARD_SX,
-  POPULAR_CTA_SX,
-  STANDARD_CARD_SX,
-  STANDARD_CTA_SX,
-} from "@/frontend/views/landing/landing-styles";
 import { PricingPopularAccents } from "@/frontend/views/landing/sections/pricing/PricingPopularAccents";
+import { POPULAR_CARD_SX, POPULAR_CTA_SX, STANDARD_CARD_SX, STANDARD_CTA_SX } from "@/frontend/views/landing/utils";
 import { Landing, useAppTranslation } from "@/shared/locale";
 
 /** Canonical shape of a pricing tier after yearly/monthly resolution. */

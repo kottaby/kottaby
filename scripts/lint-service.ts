@@ -64,7 +64,7 @@
  */
 
 import { exec } from "node:child_process";
-import { withProcessLock } from "@/scripts/lib/process-lock";
+import { withProcessLock } from "@/scripts/lib";
 import { runLintCli } from "@/scripts/lint-service-cli";
 import {
   CONCURRENCY,

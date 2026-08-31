@@ -1,4 +1,6 @@
 import { type ReactNode, useCallback, useState } from "react";
+import { CookieConsentBanner } from "@/frontend/views/landing/sections/floating/CookieConsentBanner";
+import { CookieSettingsDialog } from "@/frontend/views/landing/sections/floating/CookieSettingsDialog";
 import {
   COOKIE_ANALYTICS_KEY,
   COOKIE_CONSENT_KEY,
@@ -6,9 +8,7 @@ import {
   notifyConsentChanged,
   useCookiePreference,
   useNeedsConsentBanner,
-} from "@/frontend/views/landing/cookie-consent-store";
-import { CookieConsentBanner } from "@/frontend/views/landing/sections/floating/CookieConsentBanner";
-import { CookieSettingsDialog } from "@/frontend/views/landing/sections/floating/CookieSettingsDialog";
+} from "@/frontend/views/landing/utils";
 
 export function CookieConsent(): ReactNode {
   const [cookieDialogOpen, setCookieDialogOpen] = useState(false);

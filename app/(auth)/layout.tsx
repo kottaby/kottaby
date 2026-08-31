@@ -2,11 +2,9 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { type ReactNode, useEffect } from "react";
-import { AuthBrandPanel } from "@/app/(auth)/AuthBrandPanel";
-import { AuthFormPanel } from "@/app/(auth)/AuthFormPanel";
-import { AuthLayoutStyles } from "@/app/(auth)/AuthLayoutStyles";
-import { useAuth } from "@/frontend/hooks/useAuth";
+import { useAuth } from "@/frontend/hooks/auth";
 import { resolvePostAuthTarget } from "@/frontend/lib/auth/roleDashboardRoute";
+import { AuthBrandPanel, AuthFormPanel, AuthLayoutStyles } from "@/frontend/views/auth/layout";
 
 /**
  * Auth route group layout — branded **2-column split-screen** wrapper for

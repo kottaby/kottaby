@@ -8,8 +8,8 @@ import {
 } from "@mui/icons-material";
 import { Box, Container, Stack, Typography } from "@mui/material";
 import type { ReactNode } from "react";
+import { SectionBadge } from "@/frontend/views/landing/layout";
 import { AchievementCard } from "@/frontend/views/landing/sections/achievements/AchievementCard";
-import { SectionBadge } from "@/frontend/views/landing/shared-sections";
 import { Landing, useAppTranslation } from "@/shared/locale";
 
 // ─── Achievements ────────────────────────────────────────────────────

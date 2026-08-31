@@ -1,6 +1,6 @@
 import { Box, Stack, Typography } from "@mui/material";
 import type { ReactNode } from "react";
-import { SectionWrapper } from "@/frontend/views/landing/shared-sections";
+import { SectionWrapper } from "@/frontend/views/landing/layout";
 import { Landing, useAppTranslation } from "@/shared/locale";
 
 // ─── Curriculum Roadmap ─────────────────────────────────────────────

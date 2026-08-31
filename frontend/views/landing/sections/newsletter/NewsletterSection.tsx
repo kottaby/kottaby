@@ -1,9 +1,9 @@
 import { CheckCircleOutlined as CheckIcon, MailOutlined as MailIcon } from "@mui/icons-material";
 import { Box, Stack, Typography } from "@mui/material";
 import { type ReactNode, type SyntheticEvent, useCallback, useState } from "react";
-import { isEmailLike } from "@/frontend/views/landing/landing-validation";
-import { NewsletterShell } from "@/frontend/views/landing/NewsletterShell";
+import { NewsletterShell } from "@/frontend/views/landing/layout";
 import { NewsletterEmailForm } from "@/frontend/views/landing/sections/newsletter/NewsletterEmailForm";
+import { isEmailLike } from "@/frontend/views/landing/utils";
 import { Landing, useAppTranslation } from "@/shared/locale";
 
 // ─── Newsletter CTA ──────────────────────────────────────────────────

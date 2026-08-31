@@ -5,8 +5,8 @@ import {
 } from "@mui/icons-material";
 import { Box, Button, Stack, Typography } from "@mui/material";
 import type { ReactNode } from "react";
+import { SectionWrapper } from "@/frontend/views/landing/layout";
 import { PhoneMockup } from "@/frontend/views/landing/sections/mobile-app/PhoneMockup";
-import { SectionWrapper } from "@/frontend/views/landing/shared-sections";
 import { Landing, useAppTranslation } from "@/shared/locale";
 
 // ─── Mobile App section ──────────────────────────────────────────

@@ -16,14 +16,8 @@ import {
   validateInboxUserId,
   validateOptionalNotificationType,
 } from "@/backend/services/notifications/notification-engine.inbox";
-import {
-  toNotificationInsert,
-  toRealtimePayload,
-} from "@/backend/services/notifications/notification-engine.projections";
-import {
-  publishAfterCommit,
-  publishReceiptsFromIndex,
-} from "@/backend/services/notifications/notification-engine.publish";
+import { toNotificationInsert } from "@/backend/services/notifications/notification-engine.projections";
+import { publishReceiptsFromIndex } from "@/backend/services/notifications/notification-engine.publish";
 import type { NotificationFanoutTransport } from "@/backend/services/notifications/realtime/fanout-transport";
 import type {
   DBTransaction,
@@ -74,7 +68,12 @@ export namespace NotificationEngine {
     }
 
     const row = await withTransaction(undefined, txArg => NotificationRepository.createReturning(insert, txArg));
-    await publishAfterCommit([input.userId], toRealtimePayload(row), locale, options);
+    const receipt: NotificationDeliveryReceipt = {
+      notifications: [row],
+      recipientUserIds: [input.userId],
+      emitClaimKey: claimKey,
+    };
+    await publishReceiptsFromIndex([receipt], 0, locale, options);
     return row;
   }
 
@@ -109,11 +108,9 @@ export namespace NotificationEngine {
     const receipt: NotificationDeliveryReceipt = {
       notifications: rows,
       recipientUserIds: [...input.userIds],
+      emitClaimKey: claimKey,
     };
-    const representativeRow = rows.at(0);
-    if (representativeRow !== undefined) {
-      await publishAfterCommit(input.userIds, toRealtimePayload(representativeRow), locale, options);
-    }
+    await publishReceiptsFromIndex([receipt], 0, locale, options);
     return receipt;
   }
 

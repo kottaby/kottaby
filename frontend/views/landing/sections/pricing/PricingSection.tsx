@@ -1,9 +1,9 @@
 import { Box } from "@mui/material";
 import { type ReactNode, useState } from "react";
+import { SectionWrapper } from "@/frontend/views/landing/layout";
 import { PricingPeriodToggle } from "@/frontend/views/landing/sections/pricing/PricingPeriodToggle";
 import { PricingPlanCard } from "@/frontend/views/landing/sections/pricing/PricingPlanCard";
 import { usePricingPlans } from "@/frontend/views/landing/sections/pricing/usePricingPlans";
-import { SectionWrapper } from "@/frontend/views/landing/shared-sections";
 import { Landing, useAppTranslation } from "@/shared/locale";
 
 // ─── Pricing section ────────────────────────────────────────────────

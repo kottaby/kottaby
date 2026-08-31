@@ -18,10 +18,10 @@ import {
   getQueueDir,
   isPidRunning,
   isTimeoutExempt,
+  LOCK_NC,
+  LOCK_YELLOW,
   MAX_LOCK_AGE_MS,
-  NC,
   type QueueTicketInfo,
-  YELLOW,
 } from "@/scripts/lib/process-lock-helpers";
 
 /**
@@ -219,7 +219,7 @@ export function checkQueuePosition(
   return logIfStateChanged(
     stateStr,
     lastLoggedState,
-    `${YELLOW}[process-lock]${NC} Lock held by PID ${activePid} (${activeDesc}). Position in queue: ${pos}/${total}. Waiting...`
+    `${LOCK_YELLOW}[process-lock]${LOCK_NC} Lock held by PID ${activePid} (${activeDesc}). Position in queue: ${pos}/${total}. Waiting...`
   );
 }
 
@@ -229,6 +229,6 @@ export function checkWaitingPosition(ns: string, ticketInfo: QueueTicketInfo, la
   return logIfStateChanged(
     stateStr,
     lastLoggedState,
-    `${YELLOW}[process-lock]${NC} Waiting for turn in queue. Position: ${pos}/${total}...`
+    `${LOCK_YELLOW}[process-lock]${LOCK_NC} Waiting for turn in queue. Position: ${pos}/${total}...`
   );
 }

@@ -1,8 +1,8 @@
 import { FilterListOutlined as FilterIcon } from "@mui/icons-material";
 import { TextField as MuiTextField } from "@mui/material";
 import { type ReactNode, useMemo, useState } from "react";
+import { SectionWrapper } from "@/frontend/views/landing/layout";
 import { RecitationGrid } from "@/frontend/views/landing/sections/recitations/RecitationGrid";
-import { SectionWrapper } from "@/frontend/views/landing/shared-sections";
 import { Landing, useAppTranslation } from "@/shared/locale";
 
 // ─── Recitations showcase ────────────────────────────────────────────

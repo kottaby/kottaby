@@ -5,8 +5,8 @@ import {
 } from "@mui/icons-material";
 import { Box } from "@mui/material";
 import type { ReactNode } from "react";
+import { SectionWrapper } from "@/frontend/views/landing/layout";
 import { RoleCard } from "@/frontend/views/landing/sections/roles/RoleCard";
-import { SectionWrapper } from "@/frontend/views/landing/shared-sections";
 import { Landing, useAppTranslation } from "@/shared/locale";
 
 // ─── Roles ───────────────────────────────────────────────────────────
