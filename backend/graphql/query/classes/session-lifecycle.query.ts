@@ -173,8 +173,9 @@ gqlSchemaBuilder.queryField("sessionById", t =>
       }
       // `ID` arrives as a string on the wire; the service boundary is
       // numeric. The conversion is a pure scalar coercion — every shape
-      // decision (positive safe integer, existence, participation) is the
-      // SERVICE's, answered through the parameterized lookup.
+      // decision is the SERVICE's: the positive-safe-integer id guard
+      // answers a malformed id with the oracle-safe `null` pre-DB (REQ-054),
+      // and the parameterized lookup answers existence and participation.
       return SessionLifecycleService.getSessionById(ctx.user.id, Number(args.id));
     },
   })

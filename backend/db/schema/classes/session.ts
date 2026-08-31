@@ -22,9 +22,11 @@ import type { HeldBalanceLane } from "@/backend/enum/scheduling/held-balance-lan
  * decimal); `fee_held` flags whether the fee is currently in escrow (held at
  * request, decremented at completion). `held_balance_lane` records which
  * student balance lane funded the hold ('trial' | 'hifz' | 'tajweed',
- * nullable varchar — NULL while no fee is held and after the hold is
- * released or consumed; a cancellation refund always returns to the same
- * lane that paid). Dual confirmation:
+ * nullable varchar) and is the row's PERMANENT refund provenance: NULL only
+ * while no fee has ever been held; once a booking places a hold the lane is
+ * never rewritten or nulled — release and consumption flip `fee_held` only,
+ * and every cancellation/timeout refund reads the recorded lane and returns
+ * to that same lane that paid. Dual confirmation:
  * `confirmed_by_student_at` + `confirmed_by_teacher_at` track each side's
  * confirmation; `confirmation_deadline` is the 24h window from request.
  *

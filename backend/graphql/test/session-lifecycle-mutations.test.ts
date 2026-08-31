@@ -13,6 +13,8 @@
  *  - Missing idempotency key on `createSession` → `VALIDATION` (pre-DB).
  *  - Same-key replay → `DUPLICATE_REQUEST` (409) on the second call.
  *  - Hostile booking intent (`Evaluation`) → `VALIDATION` (service guard).
+ *  - Malformed target id (`"12abc"`) → `VALIDATION` (REQ-054 pre-DB
+ *    id-shape guard on the service boundary — never a masked 500).
  *  - Nonexistent/uncertifiable `teacherId` (an applicant's users.id) →
  *    `TEACHER_NOT_FOUND`.
  *  - Terminal/regressive transitions → `SESSION_INVALID_TRANSITION`
@@ -579,5 +581,20 @@ describe("REQ-064/REQ-050 — cancelSession participant predicate + oracle pairi
     const payload = payloadOf(result, "cancelSession");
     expect(payload.status).toBe("Cancelled");
     expect(payload.feeHeld).toBe(false);
+  });
+});
+
+// ─── Section 7 — REQ-054 malformed target-id shape guard (pre-DB) ────────────
+
+describe("REQ-054 — malformed target-id shape guard (pre-DB VALIDATION)", () => {
+  test("startSession with a malformed id ('12abc') → VALIDATION (never a masked 500)", async () => {
+    // The `ID` variable rides the wire VERBATIM as the raw string — the
+    // boundary's shape-only `Number()` parse turns it into NaN, and the
+    // service's pre-DB positive-safe-integer guard denies it BEFORE any
+    // database work (REQ-050: extensions.code VALIDATION, 422 — the same
+    // taxonomy cell as every other service-side input guard).
+    const result = await teacherT.mutate({ mutation: START_SESSION_DOC, variables: { id: "12abc" } });
+    expect(result.error).toBeDefined();
+    expectMutationError(result.error, "VALIDATION");
   });
 });

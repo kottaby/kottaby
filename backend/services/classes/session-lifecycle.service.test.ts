@@ -498,6 +498,76 @@ describe("SessionLifecycleService — transactional flows (runInRollback)", () =
     });
   });
 
+  test("session-id shape guards: malformed TARGET session ids are denied VALIDATION pre-DB on start/complete/cancel and null on the read (REQ-054)", async () => {
+    await runInRollback(async tx => {
+      const actors = await createSessionActors(tx);
+      await setLaneBalances(tx, actors.studentUserId, { trial: 1 });
+
+      // The malformed-id matrix — each member is the runtime shape the
+      // boundary's shape-only `Number()` parse yields for a malformed `ID`
+      // string ("abc"/"12abc" → NaN, "1.5" → 1.5, "1e20" → 1e20 — outside
+      // the safe-integer range — plus "-1"/"0"): NONE is a positive safe
+      // integer, so every attempt must fail the pre-DB guard with the
+      // canonical VALIDATION denial, never a SQL round-trip (pg 22P02 →
+      // masked 500).
+      const malformedIds: number[] = [Number.NaN, 1.5, 1e20, -1, 0];
+
+      // The boundary-skipped raw-string leg: a raw "abc" id delivered by a
+      // caller that skipped the boundary's `Number()` parse entirely. The
+      // hostile runtime value is laundered through the codebase's lint-clean
+      // Object.assign overlay mechanism (no unsafe assertion) — the runtime
+      // value is NOT a primitive number, so the guard's typeof leg fails
+      // closed exactly as it would for the string itself.
+      const skippedParseId: number = Object.assign(0, { hostileRawId: "abc" });
+
+      // Every guard fires before ANY query is issued, so the whole matrix
+      // runs as one parallel batch (the suite's pre-DB-guard idiom), each
+      // denial asserted inside its own promise chain.
+      await Promise.all([
+        ...malformedIds.flatMap(badId => [
+          expectRepoError(() => SessionLifecycleService.startSession(actors.teacherUserId, badId, "en", tx)).then(
+            error => expectDomainDenial(error, "VALIDATION", t().validation)
+          ),
+          expectRepoError(() => SessionLifecycleService.completeSession(actors.teacherUserId, badId, "en", tx)).then(
+            error => expectDomainDenial(error, "VALIDATION", t().validation)
+          ),
+          expectRepoError(() =>
+            SessionLifecycleService.cancelSession(actors.studentUserId, badId, null, "en", tx)
+          ).then(error => expectDomainDenial(error, "VALIDATION", t().validation)),
+        ]),
+        expectRepoError(() =>
+          SessionLifecycleService.startSession(actors.teacherUserId, skippedParseId, "en", tx)
+        ).then(error => expectDomainDenial(error, "VALIDATION", t().validation)),
+        expectRepoError(() =>
+          SessionLifecycleService.completeSession(actors.teacherUserId, skippedParseId, "en", tx)
+        ).then(error => expectDomainDenial(error, "VALIDATION", t().validation)),
+        expectRepoError(() =>
+          SessionLifecycleService.cancelSession(actors.studentUserId, skippedParseId, null, "en", tx)
+        ).then(error => expectDomainDenial(error, "VALIDATION", t().validation)),
+      ]);
+
+      // The read's oracle-safe null channel: a malformed id resolves to the
+      // SAME null as a nonexistent id — before any database read, never an
+      // error (the read surface has no locale). The guard short-circuits
+      // pre-DB (no query is issued), so the matrix runs as one parallel
+      // batch like the denial legs above.
+      await Promise.all(
+        [...malformedIds, skippedParseId].map(badId =>
+          SessionLifecycleService.getSessionById(actors.studentUserId, badId, tx).then(nullChannel =>
+            expect(nullChannel).toBeNull()
+          )
+        )
+      );
+
+      // Zero writes through the whole matrix: no session row, no claim, no
+      // lane delta — the guards fired before any database work.
+      expect(await countSessionsForStudent(tx, actors.studentUserId)).toBe(0);
+      expect(await countClaimsForUser(tx, actors.studentUserId)).toBe(0);
+      const balances = await readLaneBalances(tx, actors.studentUserId);
+      expect(balances.trial).toBe(1);
+    });
+  });
+
   test("intent guard: intent=evaluation is rejected PRE-DB — VALIDATION, zero writes (no session, no claim, no debit)", async () => {
     await runInRollback(async tx => {
       const actors = await createSessionActors(tx);

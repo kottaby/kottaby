@@ -23,6 +23,12 @@
  * debit); the success-equivalent experience is the client-side mapping of
  * the 409 per the error-handling contract (REQ-065).
  *
+ * Every path guards the caller-supplied target session id as a positive
+ * safe integer BEFORE any database work (REQ-054): the three mutations deny
+ * a malformed id with the canonical `VALIDATION` error, and the participant
+ * read degrades one to the oracle-safe `null` — a garbage id can never reach
+ * SQL.
+ *
  * Transitions (`startSession` / `completeSession` / `cancelSession`) are
  * single guarded repository UPDATEs; a zero-row match is classified by ONE
  * cold probe read that never influences any write. Cancellation refunds the
@@ -115,6 +121,37 @@ function intentLaneFor(intent: SessionStudentIntentType): HeldBalanceLane {
 /** Positive safe-integer guard for caller-supplied identifiers (no casts). */
 function isPositiveSafeInteger(value: number): boolean {
   return Number.isSafeInteger(value) && value > 0;
+}
+
+/**
+ * The target-session-id shape check for the four non-create paths (REQ-054):
+ * a session id is valid ONLY as a positive safe integer — a NaN, fractional,
+ * out-of-safe-range, non-positive, or non-number runtime value fails closed.
+ * `unknown` is the honest parameter type: the GraphQL boundary parses the
+ * `ID` argument shape-only (`Number(args.id)`), so the runtime value here is
+ * NOT statically guaranteed to be a well-formed number — it may be the NaN,
+ * fractional, or overflow shape that parse yields for a malformed string, or
+ * a payload that skipped the boundary parse entirely.
+ */
+function isPositiveSafeSessionId(id: unknown): boolean {
+  return typeof id === "number" && isPositiveSafeInteger(id);
+}
+
+/**
+ * Pre-DB `VALIDATION` denial for a malformed target session id on the three
+ * mutation paths — the exact guard idiom `createSession` applies to its
+ * participant ids, shared by all three transitions so the entry points can
+ * never drift apart. The throw happens BEFORE any database work (before the
+ * governance probe and the guarded UPDATE), so a garbage id can never reach
+ * SQL (pg 22P02 → masked 500) and never spends a probe read.
+ */
+function assertPositiveSafeSessionId(
+  id: unknown,
+  t: ReturnType<typeof getServerTranslations>["errorsTranslations"]
+): void {
+  if (!isPositiveSafeSessionId(id)) {
+    throw new ValidationError(t.validation);
+  }
 }
 
 /**
@@ -294,10 +331,13 @@ export namespace SessionLifecycleService {
   /**
    * Starts a scheduled session exactly once, as its owning teacher.
    *
-   * The teacher's governance state is re-asserted first. The guarded
-   * transition writes the start and audit stamps from one captured instant
-   * and never touches the confirmation deadline. A zero-row match is
-   * classified by one cold probe read: an unknown id and a non-owning
+   * The target session id is guarded as a positive safe integer BEFORE any
+   * database work (REQ-054 — the boundary parses `ID` shape-only, so a
+   * malformed id is the canonical `VALIDATION` denial, never a SQL
+   * round-trip). The teacher's governance state is re-asserted next. The
+   * guarded transition writes the start and audit stamps from one captured
+   * instant and never touches the confirmation deadline. A zero-row match
+   * is classified by one cold probe read: an unknown id and a non-owning
    * caller both surface the oracle-safe session-not-found error, and any
    * other miss cause is a lifecycle-state conflict.
    *
@@ -316,6 +356,11 @@ export namespace SessionLifecycleService {
   ): Promise<SessionReturnType> {
     const t = getServerTranslations(locale).errorsTranslations;
 
+    // Pre-DB id-shape guard (REQ-054) — BEFORE the governance probe: a
+    // malformed target id is the canonical VALIDATION denial, never a
+    // SQL round-trip.
+    assertPositiveSafeSessionId(sessionId, t);
+
     // Governance re-check — the acting teacher must be governance-clean.
     await assertActorGovernanceClean(teacherUserId, t, tx);
 
@@ -329,9 +374,13 @@ export namespace SessionLifecycleService {
   /**
    * Completes a started session exactly once, as its owning teacher.
    *
-   * The teacher's governance state is re-asserted first. The guarded
-   * transition fuses the certification re-assertion into its own predicate —
-   * a teacher decertified between booking and completion matches zero rows —
+   * The target session id is guarded as a positive safe integer BEFORE any
+   * database work (REQ-054 — the boundary parses `ID` shape-only, so a
+   * malformed id is the canonical `VALIDATION` denial, never a SQL
+   * round-trip). The teacher's governance state is re-asserted next. The
+   * guarded transition fuses the certification re-assertion into its own
+   * predicate — a teacher decertified between booking and completion matches
+   * zero rows —
    * and writes the end, confirmation, and audit stamps from one captured
    * instant. Report or homework side effects are deliberately absent: this
    * transition touches only the session row. A zero-row match is classified
@@ -353,6 +402,11 @@ export namespace SessionLifecycleService {
   ): Promise<SessionReturnType> {
     const t = getServerTranslations(locale).errorsTranslations;
 
+    // Pre-DB id-shape guard (REQ-054) — BEFORE the governance probe: a
+    // malformed target id is the canonical VALIDATION denial, never a
+    // SQL round-trip.
+    assertPositiveSafeSessionId(sessionId, t);
+
     // Governance re-check — the acting teacher must be governance-clean.
     await assertActorGovernanceClean(teacherUserId, t, tx);
 
@@ -367,9 +421,13 @@ export namespace SessionLifecycleService {
    * Cancels a cancellable session (pre-start or in-progress) as either
    * participant, releasing the held fee back to the lane that funded it.
    *
-   * Deliberately NO governance re-check: releasing an in-flight hold stays
-   * available to a governed participant (governance flips never rewrite
-   * history). The optional reason is length-guarded and then DISCARDED —
+   * The target session id is guarded as a positive safe integer BEFORE any
+   * database work (REQ-054 — the boundary parses `ID` shape-only, so a
+   * malformed id is the canonical `VALIDATION` denial, never a SQL
+   * round-trip). Deliberately NO governance re-check: releasing an in-flight
+   * hold stays available to a governed participant (governance flips never
+   * rewrite history). The optional reason is length-guarded and then
+   * DISCARDED —
    * this flow persists no reason; the session status-history surface owns
    * that persistence. The guarded transition keeps the start stamp and never
    * writes an end stamp. On success, a row whose provenance lane is set is
@@ -397,6 +455,11 @@ export namespace SessionLifecycleService {
     outerTx?: DBTransaction
   ): Promise<SessionReturnType> {
     const t = getServerTranslations(locale).errorsTranslations;
+
+    // Pre-DB id-shape guard (REQ-054) — the FIRST check of the flow, before
+    // the reason guard: a malformed target id is the canonical VALIDATION
+    // denial, never a SQL round-trip.
+    assertPositiveSafeSessionId(sessionId, t);
 
     // The reason is guarded, then discarded — never persisted by this flow.
     if (reason !== null && reason.trim().length > MAX_CANCEL_REASON_LENGTH) {
@@ -431,8 +494,13 @@ export namespace SessionLifecycleService {
    * Reads one session for a participant: the row is returned only when the
    * caller is the session's student or its teacher. A nonexistent id and a
    * non-participant caller resolve to the identical `null` (oracle-safe —
-   * the two cases are indistinguishable). Unknown/garbage ids degrade to
-   * `null` through the parameterized lookup; no error is raised.
+   * the two cases are indistinguishable). A malformed id — anything but a
+   * positive safe integer, including the NaN/1.5/overflow shapes the
+   * boundary's shape-only `Number` parse yields for garbage `ID` strings —
+   * short-circuits to the SAME `null` before any database read (the pre-DB
+   * shape guard, REQ-054); well-formed-but-unknown ids degrade to `null`
+   * through the parameterized lookup. No error is ever raised: this read
+   * surface has no locale and its only answer shape is `null`.
    *
    * @param callerUserId  The calling participant's id.
    * @param sessionId  The target session id.
@@ -444,6 +512,15 @@ export namespace SessionLifecycleService {
     sessionId: number,
     tx?: DBTransaction
   ): Promise<SessionReturnType | null> {
+    // Oracle-safe malformed-id channel (REQ-054): anything that is not a
+    // positive safe integer — the NaN/1.5/overflow shapes the boundary's
+    // shape-only `Number` parse yields for garbage `ID` strings — resolves
+    // to the SAME `null` as a nonexistent id, BEFORE any database read. No
+    // error is raised (this read surface has no locale and never throws).
+    if (!isPositiveSafeSessionId(sessionId)) {
+      return null;
+    }
+
     const row = await SessionRepository.findById(sessionId, tx);
     if (row === null) {
       return null;
