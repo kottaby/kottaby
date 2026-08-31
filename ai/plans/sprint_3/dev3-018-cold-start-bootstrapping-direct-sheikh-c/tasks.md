@@ -37,19 +37,19 @@
 
 - [ ] 0.2 [Prerequisite verification — substrate existence audit (verify-then-claim)]
   - VERIFY each of the following exists in-tree (record `path:line` anchors in the outcome; ANY absence ⇒ ❌ ledger entry + dependent-task block, never inline-patch a foreign layer):
-    - `AuditService.createAuditLog` + `AuditLogWriteContract`: `backend/services/admin/audit.service.ts:34-42`, `backend/types/contracts/admin-audit.contract.types.ts`
-    - `AuditActionType.Override`: `backend/enum/audit/audit-action-type.enum.ts:5` + `override` pgEnum value `backend/db/schema/enums.ts:38-46`
-    - `AdminUserManagementService.createUser`/`getUserDetail`/`getUserActivity` + private `assertActorAdmin`: `backend/services/admin/user-management.service.ts:121-149, 522-586`
-    - `UserRepository.findById`: `backend/db/repo/users/user.repository.ts:29-47`
+    - `AuditService.createAuditLog` + `AuditLogWriteContract`: `backend/services/admin/audit.service.ts:82-90`, `backend/types/contracts/admin-audit.contract.types.ts`
+    - `AuditActionType.Override`: `backend/enum/audit/audit-action-type.enum.ts:10` + `override` pgEnum value `backend/db/schema/enums.ts:66-74`
+    - `AdminUserManagementService.createUser`/`getUserDetail`/`getUserActivity` + private `assertActorAdmin`: `backend/services/admin/user-management.service.ts:240-271, 503-580`
+    - `UserRepository.findById`: `backend/db/repo/users/user.repository.ts:75-95`
     - `ApplicantRepository.findByUserId`: `backend/db/repo/teachers/applicant.repository.ts`
-    - `NotificationEngine.emitForUser`/`publishReceipts` + `NotificationEngineCallOptions` seam: `backend/services/notifications/notification-engine.service.ts:32-35, 159-235`
-    - `withTransaction`: `backend/lib/db/with-transaction.ts` (consumed by `user-management.service.ts:13`)
-    - Pothos `$all` precedent: `backend/graphql/mutation/admin/admin-users.mutation.ts:26-31`
-    - `AdminUserDetailPothosObject`: `backend/graphql/pothos/admin/admin-user.pothos.ts:153-218`
-    - `ConflictError(code, message)` overload: `backend/lib/errors.ts:90-100` (+ `translateDbError`/`isUniqueViolation` cause-chain helpers: `backend/lib/errors.ts:106-139`)
-    - Frozen-six `PUBLIC_OPERATIONS`: `backend/lib/gateway/public-operations.ts:1-13`
-    - Journey harness: `test/workflows/AGENTS.md`, `provisionAdminActor` factory family, `SpiedFanoutTransport`, `test/helpers/db-cleanup.ts:30-51` (`withAuditDeleteTriggersSuspended`), `docs/testing/workflow-journey-tests.md`
-  - VERIFY ABSENCE (CREATE items, never "extend"): `backend/db/repo/teachers/teacher.repository.ts` absent (`backend/db/repo/teachers/index.ts:1` exports only `./applicant.repository`); `backend/services/admin/admin-gate.helpers.ts` absent; `frontend/views/admin/**` prose-only absent (confirms D-UI deferral).
+    - `NotificationEngine.emitForUser`/`publishReceipts` + `NotificationEngineCallOptions` seam: `backend/services/notifications/notification-engine.service.ts:77-82, 327-369`
+    - `withTransaction`: `backend/lib/db/with-transaction.ts` (imported at `user-management.service.ts:67`)
+    - Pothos `$all` precedent: `backend/graphql/mutation/admin/admin-users.mutation.ts:64-66`
+    - `AdminUserDetailPothosObject`: `backend/graphql/pothos/admin/admin-user.pothos.ts:235-300`
+    - `ConflictError(code, message)` overload: `backend/lib/errors.ts:170-182` (+ cause-chain traversal parity: `translateDbError` at `backend/lib/errors.ts:200-208`, `isUniqueViolation` at `backend/services/shared/user-provisioning.helpers.ts:74`)
+    - Frozen-six `PUBLIC_OPERATIONS`: `backend/lib/gateway/public-operations.ts:36-59`
+    - Journey harness: `test/workflows/AGENTS.md`, `provisionAdminActor` factory family, `SpiedFanoutTransport`, `test/helpers/db-cleanup.ts:83` (`withAuditDeleteTriggersSuspended`, JSDoc 72-82), `docs/testing/workflow-journey-tests.md`
+  - VERIFY ABSENCE (CREATE items, never "extend"): `backend/db/repo/teachers/teacher.repository.ts` absent (`backend/db/repo/teachers/index.ts:1` exports only `./applicant.repository`); `backend/services/admin/admin-gate.helpers.ts` absent; NO teacher-certification affordance on any `frontend/views/admin/**` surface (the views layer itself is shipped — users + plans surfaces; confirms D-UI deferral of the affordance only).
   - Write `ai/plans/sprint_3/dev3-018-cold-start-bootstrapping-direct-sheikh-c/outcome/0.2-outcome.md`.
   - [ ] 0.2.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts ai/plans/sprint_3/dev3-018-cold-start-bootstrapping-direct-sheikh-c/outcome/0.2-outcome.md --lifecycle duplicates` (exit 0)
   - [ ] 0.2.SR **Semantic Review**: every EXISTING claim carries a `path:line` anchor; every ABSENCE claim was grep-verified; no prose-only artifacts treated as real.
@@ -60,7 +60,7 @@
 ## PHASE 1 — Types, Enums & i18n (NO DATABASE SCHEMA — zero-drift gate REQ-045)
 
 - [ ] 1.1 [Add canonical type `TeacherColdStartCertificationInput`]
-  - UPDATE `backend/types/teachers/teacher.types.ts` (currently only `TeacherSelectType`/`TeacherInsertType`, bundle lines 1-3) — ADD:
+  - UPDATE `backend/types/teachers/teacher.types.ts` (currently only `TeacherSelectType`/`TeacherInsertType`, lines 1-4) — ADD:
     ```typescript
     export interface TeacherColdStartCertificationInput {
       readonly userId: number;
@@ -97,7 +97,7 @@
 ## PHASE 2 — Repositories & Backend Services (journey test FIRST)
 
 - [ ] 2.1 [Write Cold-Start Certification journey test — TEST-FIRST]
-  - Create `test/workflows/admin/cold-start-certification.journey.test.ts` — one file covering ALL of journey J-1 (specs §2.9, steps 1–13). The harness EXISTS per `test/workflows/AGENTS.md` (verified in task 0.2) — if verification failed, THIS task must scaffold helpers + `test/workflows/AGENTS.md` per Architectural Invariant 10 before authoring the journey.
+  - Create `test/workflows/admin/cold-start-certification.journey.test.ts` — one file covering ALL of journey J-1 (specs §2.9, steps 1–13). The harness is VERIFIED PRESENT: `test/workflows/admin/` already exists with two shipped journeys (admin-user-lifecycle, admin-user-denials) and all harness helpers exist per `test/workflows/AGENTS.md` — no scaffolding is needed before authoring the journey.
   - Provision the actor cast via `provisionAdminActor`-family helpers (Admin A certifier, Admin B observer, student denial probe, governed admin) with REAL permission/role rows — NEVER monkey-patch permission resolution; unique prefix `jrn_cold_<uuid8>`.
   - Steps as sequential service calls with honest `actorUserId`s implementing J-1 exactly:
     1. Committed cast in ONE `db.transaction` inside `beforeAll`.
@@ -112,7 +112,7 @@
     10. Repeat call → `TEACHER_ALREADY_CERTIFIED`; audit count for target stays exactly 2; NO second notification.
     11. Cooldown supersession: failed + future `cooldownUntil` applicant certified → `passed` + `cooldownUntil:null`.
     12. Elevation path: fixture `{isApproved:false, isEvaluator:false}` + `makeEvaluator:false` → `{isApproved:true, isEvaluator:false}`; audit `details.elevation="elevated"`.
-    13. Teardown: tracked hard-delete in FK-safe order incl. notifications + audit rows via `withAuditDeleteTriggersSuspended` (`test/helpers/db-cleanup.ts:30-51`); post-teardown re-probes prove ZERO residue.
+    13. Teardown: tracked hard-delete in FK-safe order incl. notifications + audit rows via `withAuditDeleteTriggersSuspended` (`test/helpers/db-cleanup.ts:83`, JSDoc 72-82); post-teardown re-probes prove ZERO residue.
   - Assertions MUST include cross-actor visibility after every step AND every denial path's zero-side-effect oracles.
   - `runInRollback` is FORBIDDEN here (services spawn their own transactions); committed fixtures in `beforeAll`; tracked teardown in `afterAll`.
   - Notification fan-out SPIED via the service `options` seam (`SpiedFanoutTransport`) — NEVER real email/SMS/push.
@@ -129,7 +129,7 @@
 - [ ] 2.2 [Implement `TeacherRepository` — CREATE]
   - CREATE `backend/db/repo/teachers/teacher.repository.ts` with namespace `TeacherRepository`:
     - `findById(id: number, tx?: DBTransaction): Promise<TeacherSelectType | null>` — plain PK read via `(tx ?? db)` executor.
-    - `insertColdStartCertified(id: number, makeEvaluator: boolean, tx: DBTransaction): Promise<TeacherSelectType>` — field-by-field INSERT `{ id, isApproved: true, isEvaluator: makeEvaluator }`; schema defaults carry `averageRating:null`, `isOnline:false`, `subjects:null`, `requestPreference:"queue"` (`backend/db/schema/teachers/teacher.ts:11-16`); raw 23505 surfaces untranslated (service concern).
+    - `insertColdStartCertified(id: number, makeEvaluator: boolean, tx: DBTransaction): Promise<TeacherSelectType>` — field-by-field INSERT `{ id, isApproved: true, isEvaluator: makeEvaluator }`; schema defaults carry `averageRating:null`, `isOnline:false`, `subjects:null`, `requestPreference:"queue"` (`backend/db/schema/teachers/teacher.ts:25-30`); raw 23505 surfaces untranslated (service concern).
     - `elevateToCertified(id: number, makeEvaluator: boolean, tx: DBTransaction): Promise<TeacherSelectType | null>` — SINGLE guarded `UPDATE … SET isApproved=true, isEvaluator=<flag>, updatedAt=now() WHERE id=? AND isApproved=false RETURNING *`.
   - UPDATE `backend/db/repo/teachers/index.ts` — add `export * from "./teacher.repository";` (currently line 1 only).
   - Repo rules: every method takes `tx` LAST; no prepared statements on writes; NO `inArray`+placeholder; NO inline `--` comments inside `sql` templates; never spread input objects.
@@ -159,9 +159,9 @@
 
 - [ ] 2.4 [Extract shared admin gate — CREATE `admin-gate.helpers.ts`, REWIRE DEV3-016 service (first-lander)]
   - CREATE `backend/services/admin/admin-gate.helpers.ts`:
-    - `assertActorAdmin(actorId, locale, outerTx?)` — moved VERBATIM (byte-parity) from `backend/services/admin/user-management.service.ts:121-149`.
-    - NEW `assertActorAdminActive(actorId, locale, outerTx?)` — role gate PLUS governance clause in deterministic order `isDeleted → ForbiddenError(t.accountDeleted)`; `isBlocked → ForbiddenError(t.accountBlocked)`; `suspended → ForbiddenError(t.accountSuspended)` (existing flat keys `shared/locale/en/errors/index.ts:16-18` — no new keys). ONE `logger.logDomainError` per denial with `{ code, entity: "user", entityId: actorId, locale }`; ZERO reads/writes past the gate.
-  - UPDATE `backend/services/admin/user-management.service.ts` — DELETE the private copy, import from the helper. ZERO behavior drift: the 47-test service suite + 8-test chaos suite are the regression lock — run both and require unchanged green.
+    - `assertActorAdmin(actorId, locale, outerTx?)` — moved VERBATIM (byte-parity) from `backend/services/admin/user-management.service.ts:240-271`.
+    - NEW `assertActorAdminActive(actorId, locale, outerTx?)` — role gate PLUS governance clause in deterministic order `isDeleted → ForbiddenError(t.accountDeleted)`; `isBlocked → ForbiddenError(t.accountBlocked)`; `suspended → ForbiddenError(t.accountSuspended)` (existing flat keys `shared/locale/en/errors/index.ts:17-19` — no new keys). ONE `logger.logDomainError` per denial with `{ code, entity: "user", entityId: actorId, locale }`; ZERO reads/writes past the gate.
+  - UPDATE `backend/services/admin/user-management.service.ts` — DELETE the private copy, import from the helper. ZERO behavior drift: the 61-test service suite + 3-test chaos suite are the regression lock — run both and require unchanged green.
   - UPDATE `backend/services/admin/index.ts` — add `export * from "./admin-gate.helpers";`.
   - Extraction-collision rule (REQ-004): re-verify `admin-gate.helpers.ts` is still absent before creating; if DEV3-022c/022d landed it first, consume-and-extend additively instead of creating (record which branch was taken in the outcome).
   - Instruction files: `.agents/instructions/backend.instructions.md`
@@ -222,7 +222,7 @@
 - [ ] 3.2 [Codegen + frozen-baseline re-pin — SAME change set]
   - Run `bun run generate:gqlSchema && bun codegen`; commit regenerated `frontend/graphql/generated/**` artifacts in the SAME change set.
   - UPDATE `backend/graphql/test/sdl-static-assertions.test.ts` — `FROZEN_MUTATION_FIELDS` gains `"adminCertifyTeacherColdStart"` (sorted).
-  - UPDATE `backend/graphql/test/schema-surface.test.ts` — `PRE_3_1_MUTATION_FIELDS` re-pinned per plan §3.5 reconciliation rule: current LIVE inventory PLUS the new field (the bundle's frozen arrays visibly lag the live tree — `adminCreateUser`/`adminUpdateUser`/`adminSetUserDeleted` already shipped; re-pin to reality, never shrink to the stale view).
+  - UPDATE `backend/graphql/test/schema-surface.test.ts` — `PRE_3_1_MUTATION_FIELDS` re-pinned per plan §3.5 reconciliation rule: current LIVE inventory PLUS the new field (the bundle's frozen arrays visibly lag the live tree — `sdl-static-assertions.test.ts` `FROZEN_MUTATION_FIELDS` omits the already-shipped `adminCreateUser`/`adminUpdateUser`/`adminSetUserDeleted` AND `createPlan`/`updatePlan`/`setPlanActiveStatus`, its `FROZEN_QUERY_FIELDS` omits the shipped admin queries, and `schema-surface.test.ts` `PRE_3_1_MUTATION_FIELDS` omits the three admin mutations; re-pin to reality, never shrink to the stale view).
   - VERIFY untouched-green: `bun run test/scripts/run-test.ts backend/graphql/test/handshake-code-surface.test.ts` (frozen-six public allowlist unchanged) and the committed-vs-live SDL byte-parity check (`plan-catalog.schema.test.ts` precedent).
   - [ ] 3.2.QL **Quality Loop**: sub-loop on both edited test files + regenerated artifact dirs (exit 0).
   - [ ] 3.2.TE **Test Engineering**: `bun run test/scripts/run-test.ts backend/graphql/test/schema-surface.test.ts` + `sdl-static-assertions.test.ts` green with the new pins.
@@ -276,7 +276,7 @@
 - [ ] 5.2 [Cross-entity purity oracle + devil's-advocate differential run — REQ-020]
   - Extend service tests (5.x assertions live in `backend/services/admin/cold-start-certification.service.test.ts` or the chaos file): snapshot COUNTs of `users`, `wallet`, `subscriptions`, `plans`, `session`, `teacher_transaction`-adjacent tables before/after a successful certification ⇒ UNCHANGED; only `teacher`/`applicants`/`audit_logs`/`notifications` move.
   - Run the FULL affected sweep green: `bun run test/scripts/run-test.ts backend/services/admin`, `bun run test/scripts/run-test.ts backend/db/repo/teachers`, `bun run test/scripts/run-test.ts backend/graphql/test`, `bun run test/scripts/run-test.ts shared/locale`, `bun run test/scripts/run-test.ts frontend/graphql`, `bun run test/scripts/run-test.ts test/workflows/admin/cold-start-certification.journey.test.ts`.
-  - Verify DEV3-016 regression locks unchanged-green (service 47 + chaos 8 suites).
+  - Verify DEV3-016 regression locks unchanged-green (service 61 + chaos 3 suites).
   - [ ] 5.2.SR **Semantic Review**: no test weakened to pass; every failure is fixed in implementation, not in the assertion.
   - _Requirements: REQ-020, REQ-070..REQ-076 (070-076)_
 

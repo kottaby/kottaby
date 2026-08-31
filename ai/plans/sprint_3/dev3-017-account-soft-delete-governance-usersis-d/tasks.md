@@ -31,15 +31,15 @@
 
 - [ ] 0.2 [Verify reuse substrate & conditional-shape probes (Reuse-Not-Rebuild guard)]
   - Verify-then-claim against the LIVE tree (read the files, record `path:line` anchors in the outcome):
-    - `AdminUserRepository.setDeletedOnce` NULL-safe guarded UPDATE + RETURNING (`backend/db/repo/admin/admin-user.repository.ts:327-347`) and its zero-row classifier consumption.
-    - `AuditService.createAuditLog(contract, tx)` (`backend/services/admin/audit.service.ts:34-42`) and the private `buildAuditContract` closure inside `user-management.service.ts`.
-    - `AdminUserManagementService.setUserDeleted` (`backend/services/admin/user-management.service.ts:625-672`) incl. the self-protection placement (lines 638-644) and `getUserDetail` composition (lines 522-543).
-    - `assertUserActive` (`backend/services/auth/auth.service.ts:30-37`) and its call sites (login ~line 70, refreshToken ~line 119); SSR gate (`backend/lib/auth/server-auth.ts:33-40`).
-    - `isGovernanceExcludedFromDiscovery` suspended-branch math (`backend/services/students/student-handshake.helpers.ts:3-18`) — the extraction source of truth.
-    - `AuditActionType.Suspend`/`Reactivate` members (`backend/enum/audit/audit-action-type.enum.ts:6,8`); `audit_action_type` pgEnum inventory (`backend/db/schema/enums.ts:38-46`).
-    - `withTransaction` (`backend/lib/db/with-transaction.ts` — anchor via its import at `user-management.service.ts:13`); `withAuditDeleteTriggersSuspended` (`test/helpers/db-cleanup.ts:30-51`); journey harness presence (`test/workflows/AGENTS.md`, `test/workflows/helpers/`).
-    - `AdminUserDetailPothosObject` governance fields (`backend/graphql/pothos/admin/admin-user.pothos.ts:153-218`); `AdminUserDetailFields` fragment `id`-first (`frontend/graphql/sharedDocuments/admin/admin-users.documents.ts:36-88`); existing error keys `accountDeleted/accountBlocked/accountSuspended` (`shared/locale/en/errors/index.ts:16-18`, ar twin).
-    - Frontend container PROBE: locate `app/(dashboard)/admin/users/[id]/page.tsx` and `frontend/views/admin/users/` — record whether they exist in the live tree (bundle says PROSE-only); if absent or differently shaped, record a ⚠️ hazard in the outcome and scope task 5.2 accordingly (UPDATE-if-present / CREATE-if-absent of the governance section component against the verified container).
+    - `AdminUserRepository.setDeletedOnce` NULL-safe guarded UPDATE + RETURNING (`backend/db/repo/admin/admin-user.repository.ts:627-647`) and its zero-row classifier consumption.
+    - `AuditService.createAuditLog(input, tx)` (`backend/services/admin/audit.service.ts:82-90`) and the private `buildAuditContract` closure inside `user-management.service.ts`.
+    - `AdminUserManagementService.setUserDeleted` (`backend/services/admin/user-management.service.ts:972-1028`) incl. the self-protection placement (lines 988-996) and `getUserDetail` composition (lines 809-833).
+    - `assertUserActive` (`backend/services/auth/auth.service.ts:91-98`) and its call sites (login ~line 156, refreshToken ~line 244); SSR gate (`backend/lib/auth/server-auth.ts:99-106`).
+    - `isGovernanceExcludedFromDiscovery` suspended-branch math (`backend/services/students/student-handshake.helpers.ts:39-59`) — the extraction source of truth.
+    - `AuditActionType.Suspend`/`Reactivate` members (`backend/enum/audit/audit-action-type.enum.ts:12-13`); `audit_action_type` pgEnum inventory (`backend/db/schema/enums.ts:66-74`).
+    - `withTransaction` (`backend/lib/db/with-transaction.ts` — anchor via its import at `user-management.service.ts:67`); `withAuditDeleteTriggersSuspended` (`test/helpers/db-cleanup.ts:83-109`); journey harness presence (`test/workflows/AGENTS.md`, `test/workflows/helpers/`).
+    - `AdminUserDetailPothosObject` governance fields (`backend/graphql/pothos/admin/admin-user.pothos.ts:235-300`); `AdminUserDetailFields` fragment `id`-first (`frontend/graphql/sharedDocuments/admin/admin-users.documents.ts:50-103`); existing error keys `accountDeleted/accountBlocked/accountSuspended` (`shared/locale/en/errors/index.ts:17-19`, ar twin).
+    - Frontend container VERIFY: `app/(dashboard)/admin/users/[id]/page.tsx` and `frontend/views/admin/users/AdminUserDetailContainer.tsx` are CONFIRMED on disk — read the container's internal structure and props BEFORE editing (update-in-place; if the container's shape diverges from expectation, record a ⚠️ hazard in the outcome and scope task 4.3 accordingly).
     - `admin-guards.helpers.ts` CONDITIONAL: record PRESENT/ABSENT. If PRESENT, record whether its strict variant (if any) evaluates `suspended` as plain flag or via a window predicate (drives task 2.2's consume vs upgrade path).
   - Verify schema-surface baseline freshness: empirically compare `printSchema(lexicographicSortSchema(graphQLSchema))` Mutation/Query roots against `backend/graphql/test/schema-surface.test.ts` and `backend/graphql/test/sdl-static-assertions.test.ts` inventories; record STALE or CURRENT (drives task 4.3's reconcile-then-extend branch).
   - IF any reuse artifact is missing → record a ❌ ledger entry in `ai/plans/sprint_3/dev3-017-account-soft-delete-governance-usersis-d/deferred-items.md` and BLOCK dependent tasks — never fork a second writer/guard/transition engine.
@@ -87,7 +87,7 @@
       now: Date
     ): boolean
     ```
-  - EXACT semantics (extracted from `student-handshake.helpers.ts:3-18`): `suspended` falsy → `false`; `suspendedAt` missing OR `suspendedPeriodDays` missing OR `≤ 0` → `true` (fail-CLOSED); otherwise `suspendedAt.getTime() + suspendedPeriodDays × 86_400_000 > now.getTime()` (STRICT `>` — an expiry landing exactly on `now` has LAPSED).
+  - EXACT semantics (extracted from `student-handshake.helpers.ts:39-59`): `suspended` falsy → `false`; `suspendedAt` missing OR `suspendedPeriodDays` missing OR `≤ 0` → `true` (fail-CLOSED); otherwise `suspendedAt.getTime() + suspendedPeriodDays × 86_400_000 > now.getTime()` (STRICT `>` — an expiry landing exactly on `now` has LAPSED).
   - ZERO imports beyond inline types; no logging; no side effects; pure function.
   - Instruction files: `.agents/instructions/backend.instructions.md`.
   - _Requirements: REQ-017_
@@ -140,7 +140,7 @@
     8. Fixture-write S into a LAPSED suspension (`suspended=true`, `suspendedAt = now−10d`, `periodDays = 7` via direct fixture update) → S's login SUCCEEDS; columns BYTE-IDENTICAL before/after (REQ-019 zero-write proof); B's detail read still shows the window fields; A unsuspends S → columns cleared under audit.
     9. Denial battery: S (non-admin) calls `setUserSuspended` → `ForbiddenError` zero writes; A self-targets → `USER_SELF_SUSPENSION_FORBIDDEN` zero writes/zero audit; A re-suspends active S → `USER_ALREADY_SUSPENDED`; A unsuspends a clean user → `USER_NOT_SUSPENDED`; Governed Admin G calls governance → strict-guard `ForbiddenError`; `actorId = 0` (anonymous) → `UnauthorizedError`.
     10. Teacher T control: `users(T)` + `applicants(T)` rows byte-identical across the whole journey (cross-role containment, REQ-015).
-    11. Teardown: tracked hard-delete in FK-safe order via `withAuditDeleteTriggersSuspended` (`test/helpers/db-cleanup.ts:30-51`) + `deleteUsersByIds`; notifications row counts asserted unchanged; residue re-probes = 0.
+    11. Teardown: tracked hard-delete in FK-safe order via `withAuditDeleteTriggersSuspended` (`test/helpers/db-cleanup.ts:83-109`) + `deleteUsersByIds`; notifications row counts asserted unchanged; residue re-probes = 0.
   - Side-effect channel: ROW-COUNT oracles only (this surface emits ZERO notifications — D12; NO `SpiedFanoutTransport` wiring).
   - The journey MUST fail-red at authoring time (service surface absent) and turn green only after Phase 2/3 tasks land — that progression is recorded in the outcome.
   - Verify: `bun run test/scripts/run-test.ts test/workflows` (NEVER raw `bun test`).
@@ -149,7 +149,7 @@
 
 - [ ] 2.2 [Create-or-consume shared admin guard module + strict window-aware variant]
   - Target: `backend/services/admin/admin-guards.helpers.ts`.
-  - **Branch A (ABSENT — sibling DEV3-018 not landed):** CREATE the module via BEHAVIOR-PRESERVING extraction of the private `assertActorAdmin` (`user-management.service.ts:121-149`) — identical behavior; delete the private copy from `user-management.service.ts` and import the helper (DEV3-016's EXISTING methods keep RELAXED semantics — REQ-031; their existing suites are the byte-equivalence net). ADD:
+  - **Branch A (ABSENT — sibling DEV3-018 not landed):** CREATE the module via BEHAVIOR-PRESERVING extraction of the private `assertActorAdmin` (`user-management.service.ts:240-271`) — identical behavior; delete the private copy from `user-management.service.ts` and import the helper (DEV3-016's EXISTING methods keep RELAXED semantics — REQ-031; their existing suites are the byte-equivalence net). ADD:
     ```typescript
     export async function assertActiveActorAdmin(actorId: number, locale: string, outerTx?: DBTransaction): Promise<void>;
     ```
@@ -164,7 +164,7 @@
   - [ ] 2.2.IV **Instruction Verification**: `.agents/instructions/backend.instructions.md` + auto-discovered AGENTS.md from sub-loop.
 
 - [ ] 2.3 [Extend `AdminUserRepository` — guarded governance transitions + classifier probe]
-  - Modify `backend/db/repo/admin/admin-user.repository.ts` (EXTEND — mirror `setDeletedOnce` at lines 327-347):
+  - Modify `backend/db/repo/admin/admin-user.repository.ts` (EXTEND — mirror `setDeletedOnce` at lines 627-647):
     - `setSuspendedOnce(id, target: boolean, periodDays: number | null, tx: DBTransaction): Promise<AdminUserSafeSelect | null>` — NULL-safe guarded single statement; suspend direction sets `suspended=true, suspended_at=now, suspended_period_days=<periodDays>, updated_at=now` guarded by `(suspended = false OR suspended IS NULL) AND (is_deleted = false OR is_deleted IS NULL)`; unsuspend direction clears ALL THREE to `false/NULL/NULL` guarded by `suspended = true AND (is_deleted = false OR is_deleted IS NULL)`; `RETURNING <SAFE_USER_SELECT>`.
     - `setBlockedOnce(id, target: boolean, tx): Promise<AdminUserSafeSelect | null>` — block sets `is_blocked=true, blocked_at=now, updated_at=now` guarded by `(is_blocked = false OR is_blocked IS NULL) AND (is_deleted …)`; unblock clears both guarded by `is_blocked = true AND (is_deleted …)`; `RETURNING <SAFE_USER_SELECT>`.
     - `findGovernanceState(id, tx?: DBQueryExecutor): Promise<GovernanceProbeRowType | null>` — SELECTs ONLY the five probe columns (NEVER `passwordHash`, NEVER `*`).
@@ -183,7 +183,7 @@
     export async function setUserSuspended(id, suspended, periodDays: number | null, actorId, locale, outerTx?: DBTransaction): Promise<AdminUserDetailReturnType>;
     export async function setUserBlocked(id, blocked, actorId, locale, outerTx?: DBTransaction): Promise<AdminUserDetailReturnType>;
     ```
-  - Ordered pipeline (suspend shown; block mirrors with its axis/codes): (1) `assertActiveActorAdmin(actorId, locale, outerTx)` PRE-transaction when no outerTx; (2) `id` positive-safe-int re-assertion (`ValidationError` with the existing validation key, mirroring lines 89-91); (3) `suspended === true` ⇒ `periodDays` integer in `1..3650` else `ValidationError(tErrors.adminUsers.suspensionPeriodInvalid, [{ field: "periodDays", code: "SUSPENSION_PERIOD_INVALID", message: tErrors.adminUsers.suspensionPeriodInvalid }])` PRE-DB; `suspended === false` ⇒ `periodDays` IGNORED (never validated, never forwarded); (4) `withTransaction(outerTx, async tx => …)`: self-check `id === actorId` → `ConflictError("USER_SELF_SUSPENSION_FORBIDDEN", …)` / `"USER_SELF_BLOCK_FORBIDDEN"` BEFORE any write (placement mirrors lines 638-644); guarded repo call → row ⇒ proceed; `null` ⇒ classifier via `findGovernanceState(id, tx)` → `null` ⇒ `NotFoundError("USER", tErrors.adminUsers.userNotFound)`; `isDeleted === true` → `ConflictError("USER_ALREADY_DELETED", …)`; axis already-ON (ON direction) → `USER_ALREADY_SUSPENDED`/`USER_ALREADY_BLOCKED`; axis not-ON (OFF direction) → `USER_NOT_SUSPENDED`/`USER_NOT_BLOCKED` (verified `ConflictError(code, message)` overload, `backend/lib/errors.ts:90-99`); (5) ONE in-tx audit row via the EXISTING private `buildAuditContract`: suspend → `AuditActionType.Suspend` + `details { changedFields: ["suspended","suspendedAt","suspendedPeriodDays"], suspended: true, suspendedPeriodDays }`; unsuspend → `Reactivate` + `{ changedFields: […], suspended: false }`; block → `Suspend` + `{ changedFields: ["isBlocked","blockedAt"], blocked: true }`; unblock → `Reactivate` + `{ …, blocked: false }` (ZERO PII in details); (6) return `getUserDetail(id, locale, actorId, tx)` (composition reuse — document the relaxed inner re-check pass as a reviewer note).
+  - Ordered pipeline (suspend shown; block mirrors with its axis/codes): (1) `assertActiveActorAdmin(actorId, locale, outerTx)` PRE-transaction when no outerTx; (2) `id` positive-safe-int re-assertion (`ValidationError` with the existing validation key, mirroring lines 181-183); (3) `suspended === true` ⇒ `periodDays` integer in `1..3650` else `ValidationError(tErrors.adminUsers.suspensionPeriodInvalid, [{ field: "periodDays", code: "SUSPENSION_PERIOD_INVALID", message: tErrors.adminUsers.suspensionPeriodInvalid }])` PRE-DB; `suspended === false` ⇒ `periodDays` IGNORED (never validated, never forwarded); (4) `withTransaction(outerTx, async tx => …)`: self-check `id === actorId` → `ConflictError("USER_SELF_SUSPENSION_FORBIDDEN", …)` / `"USER_SELF_BLOCK_FORBIDDEN"` BEFORE any write (placement mirrors lines 988-996); guarded repo call → row ⇒ proceed; `null` ⇒ classifier via `findGovernanceState(id, tx)` → `null` ⇒ `NotFoundError("USER", tErrors.adminUsers.userNotFound)`; `isDeleted === true` → `ConflictError("USER_ALREADY_DELETED", …)`; axis already-ON (ON direction) → `USER_ALREADY_SUSPENDED`/`USER_ALREADY_BLOCKED`; axis not-ON (OFF direction) → `USER_NOT_SUSPENDED`/`USER_NOT_BLOCKED` (verified `ConflictError(code, message)` overload, `backend/lib/errors.ts:170-182`); (5) ONE in-tx audit row via the EXISTING private `buildAuditContract`: suspend → `AuditActionType.Suspend` + `details { changedFields: ["suspended","suspendedAt","suspendedPeriodDays"], suspended: true, suspendedPeriodDays }`; unsuspend → `Reactivate` + `{ changedFields: […], suspended: false }`; block → `Suspend` + `{ changedFields: ["isBlocked","blockedAt"], blocked: true }`; unblock → `Reactivate` + `{ …, blocked: false }` (ZERO PII in details); (6) return `getUserDetail(id, locale, actorId, tx)` (composition reuse — document the relaxed inner re-check pass as a reviewer note).
   - Every denial: EXACTLY ONE `logger.logDomainError({ code, entity: "user", entityId, locale })`; ZERO audit rows; ZERO notification rows; happy path SILENT (REQ-053).
   - `AuditActionType` as VALUE import with MEMBERS (never string literals).
   - Instruction files: `.agents/instructions/backend.instructions.md`.
@@ -201,7 +201,7 @@
   - [ ] 2.4.IV **Instruction Verification**: `.agents/instructions/backend.instructions.md` + auto-discovered AGENTS.md.
 
 - [ ] 2.5 [Chaos tier — concurrent single-winner proofs]
-  - Extend the governance test surface (dedicated chaos block in `backend/services/admin/user-governance.service.test.ts` or its sibling chaos file following the `user-management.chaos.test.ts:42-55` committed-fixture lifecycle): `Promise.allSettled` over (a) suspend×2 same target, (b) suspend⚡unsuspend opposing race, (c) block×2 — assert EXACTLY ONE winner, loser receives the REQ-013 conflict, final state ≡ winner's direction, and EXACTLY ONE new audit row for the winning direction; SKIP under `isPgliteProvider()` (`test/helpers/skip-when-pglite.ts:2-4`) with the skip recorded.
+  - Extend the governance test surface (dedicated chaos block in `backend/services/admin/user-governance.service.test.ts` or its sibling chaos file following the `user-management.chaos.test.ts:122-147` committed-fixture lifecycle): `Promise.allSettled` over (a) suspend×2 same target, (b) suspend⚡unsuspend opposing race, (c) block×2 — assert EXACTLY ONE winner, loser receives the REQ-013 conflict, final state ≡ winner's direction, and EXACTLY ONE new audit row for the winning direction; SKIP under `isPgliteProvider()` (`test/helpers/skip-when-pglite.ts:48-50`) with the skip recorded.
   - Verify: `bun run test/scripts/run-test.ts` on the chaos suite.
   - Instruction files: `.agents/instructions/tests.instructions.md`, `.agents/instructions/backend.instructions.md`.
   - _Requirements: REQ-043_
@@ -225,8 +225,8 @@
     ```
     with `authScopes: { $all: { authenticated: true, role: [UserRole.Admin] } }` on EACH (`$all` conjunction load-bearing; `UserRole` as VALUE import with MEMBER). Thin resolvers: `if (!ctx.user) throw new UnauthorizedError((await ctx.t("errorsTranslations")).unauthorized)`; delegate `AdminUserManagementService.setUserSuspended(requirePositiveIntId(args.id, "id"), args.suspended, args.periodDays ?? null, ctx.user.id, ctx.locale)` and `…setUserBlocked(requirePositiveIntId(args.id, "id"), args.blocked, ctx.user.id, ctx.locale)`; NO try/catch (DomainErrors propagate to the finalizer); NO local types (args derive from the Pothos field inference; canonical types only).
   - Modify `backend/graphql/mutation/admin/index.ts`: add `import "./admin-governance.mutation";` to the existing barrel.
-  - `PUBLIC_OPERATIONS` (`backend/lib/gateway/public-operations.ts:1-13`) UNTOUCHED — verify unchanged.
-  - Run `bun run generate:gqlSchema && bun codegen`; commit regenerated artifacts in the SAME changeset; committed-SDL↔live-SDL parity test (`plan-catalog.schema.test.ts:50-55`) green.
+  - `PUBLIC_OPERATIONS` (`backend/lib/gateway/public-operations.ts:36-46`) UNTOUCHED — verify unchanged.
+  - Run `bun run generate:gqlSchema && bun codegen`; commit regenerated artifacts in the SAME changeset; committed-SDL↔live-SDL parity test (`backend/graphql/test/plan-catalog.schema.test.ts:67-73`) green.
   - Instruction files: `.agents/instructions/backend.instructions.md`.
   - _Requirements: REQ-002, REQ-003, REQ-030, REQ-032, REQ-033, REQ-050, REQ-060_
   - [ ] 3.1.QL **Quality Loop**: sub-loop `--lifecycle duplicates` on the new mutation file + barrel (exit 0).
@@ -236,10 +236,10 @@
   - [ ] 3.1.IV **Instruction Verification**: `.agents/instructions/backend.instructions.md`.
 
 - [ ] 3.2 [Auth boundary consumption — window-honest `assertUserActive` + SSR gate]
-  - Modify `backend/services/auth/auth.service.ts`: widen `assertUserActive`'s input type to include `{ suspendedAt, suspendedPeriodDays }` and change the denial condition to `user.isDeleted || user.isBlocked || isSuspensionActive(user, new Date())` (lines 30-37). Call sites (`login` ~line 70, `refreshToken` ~line 119) pass the SAME fetched row — ZERO call-site signature churn. Denial copy channel UNCHANGED (`t.accountBlocked` — wire-shape constancy).
+  - Modify `backend/services/auth/auth.service.ts`: widen `assertUserActive`'s input type to include `{ suspendedAt, suspendedPeriodDays }` and change the denial condition to `user.isDeleted || user.isBlocked || isSuspensionActive(user, new Date())` (lines 91-98). Call sites (`login` ~line 156, `refreshToken` ~line 244) pass the SAME fetched row — ZERO call-site signature churn. Denial copy channel UNCHANGED (`t.accountBlocked` — wire-shape constancy).
   - Modify `backend/lib/auth/server-auth.ts`: `getServerUserContext` line 33 condition becomes `fetched.isDeleted || fetched.isBlocked || isSuspensionActive(fetched, new Date())`; the existing domain log line unchanged.
-  - `createGraphQLContext` (`gqlContextFactory.ts:91-104`) UNTOUCHED — verify byte-identical; this ticket makes NO context-level governance claim.
-  - Regression lock: `notification-integration.matrix.test.ts:357-370`'s governed-tier `applyGovernanceState` sets `suspended: true` + `suspendedAt: now` WITHOUT a period → fail-closed predicate STILL denies → the governed-tier matrix (lines 873-945) MUST stay green with ZERO edits; any required edit ⇒ STOP and investigate the semantics.
+  - `createGraphQLContext` (`backend/graphql/gqlContextFactory.ts:167-239`) UNTOUCHED — verify byte-identical; this ticket makes NO context-level governance claim.
+  - Regression lock: `notification-integration.matrix.test.ts:514-533`'s governed-tier `applyGovernanceState` sets `suspended: true` + `suspendedAt: now` WITHOUT a period → fail-closed predicate STILL denies → the governed-tier matrix (lines 1139-1272) MUST stay green with ZERO edits; any required edit ⇒ STOP and investigate the semantics.
   - Instruction files: `.agents/instructions/backend.instructions.md`.
   - _Requirements: REQ-017, REQ-018, REQ-019, REQ-035_
   - [ ] 3.2.QL **Quality Loop**: sub-loop `--lifecycle duplicates` on both touched files (exit 0).
@@ -250,7 +250,7 @@
 
 - [ ] 3.3 [Wire-tier matrix — NEW `backend/graphql/test/admin-governance.matrix.test.ts`]
   - Create the wire suite using `setupTestServerLifecycle` + `testClient`/`fetch`, mirroring `notification-integration.matrix.test.ts` patterns (seeded-admin credentials; `registerUser` for targets).
-  - Matrix per mutation: anonymous → `UNAUTHORIZED`; student/parent/teacher → `FORBIDDEN` (pre-resolver, both lines proven); admin happy path payload ≡ post-write DB detail (wire ≡ oracle); invalid ids (`0`, `-5`, non-integer) → validation code; `periodDays` hostilities on the suspend direction → `VALIDATION` with `fields[]` naming `periodDays`; every conflict code (`USER_ALREADY_*`/`USER_NOT_*`/self-protection/`USER_ALREADY_DELETED`/unknown-id `USER_NOT_FOUND`) at its REQ-050 envelope; smuggled/undeclared args → `GRAPHQL_VALIDATION_FAILED`; the EXACT `$all` scope declaration pinned on both fields (introspection/materialization assertion à la `handshake-code-surface.test.ts:59-83`); HTTP governed-login probes: actively-suspended target's `login` → single-error `FORBIDDEN`; lapsed target's `login` → SUCCESS with session payload.
+  - Matrix per mutation: anonymous → `UNAUTHORIZED`; student/parent/teacher → `FORBIDDEN` (pre-resolver, both lines proven); admin happy path payload ≡ post-write DB detail (wire ≡ oracle); invalid ids (`0`, `-5`, non-integer) → validation code; `periodDays` hostilities on the suspend direction → `VALIDATION` with `fields[]` naming `periodDays`; every conflict code (`USER_ALREADY_*`/`USER_NOT_*`/self-protection/`USER_ALREADY_DELETED`/unknown-id `USER_NOT_FOUND`) at its REQ-050 envelope; smuggled/undeclared args → `GRAPHQL_VALIDATION_FAILED`; the EXACT `$all` scope declaration pinned on both fields (introspection/materialization assertion à la `handshake-code-surface.test.ts:125-157`); HTTP governed-login probes: actively-suspended target's `login` → single-error `FORBIDDEN`; lapsed target's `login` → SUCCESS with session payload.
   - Verify: `bun run test/scripts/run-test.ts backend/graphql/test/admin-governance.matrix.test.ts`.
   - Instruction files: `.agents/instructions/tests.instructions.md`, `.agents/instructions/backend.instructions.md`.
   - _Requirements: REQ-030, REQ-032, REQ-050, REQ-052, REQ-060, REQ-073_
@@ -278,7 +278,7 @@
 
 - [ ] 4.1 [Frontend mutation documents — extend admin shared documents]
   - Modify `frontend/graphql/sharedDocuments/admin/admin-users.documents.ts`: ADD `adminSetUserSuspendedMutationDocument: TypedDocumentNode<AdminSetUserSuspendedMutation, AdminSetUserSuspendedMutationVariables>` and `adminSetUserBlockedMutationDocument` analog; BOTH named operations reusing the EXISTING `AdminUserDetailFields` fragment (`id` selected FIRST → Apollo merges into the same `AdminUserDetail:<id>` normalized entry — the detail page re-renders WITHOUT a refetch). NO `useLazyQuery`; hooks will come from `@apollo/client/react` in the view task.
-  - NO `apolloCache.test.ts` or `typePolicies` changes (default normalization applies — verify `frontend/providers/apollo/apolloCache.test.ts:90-99` stays untouched/green).
+  - NO `apolloCache.test.ts` or `typePolicies` changes (default normalization applies — verify `frontend/providers/apollo/apolloCache.test.ts:176-185` stays untouched/green).
   - Instruction files: `.agents/instructions/frontend.instructions.md`, `frontend/graphql/AGENTS.md` (verified existing).
   - _Requirements: REQ-062_
   - [ ] 4.1.QL **Quality Loop**: sub-loop `--lifecycle duplicates` on the documents file (exit 0).

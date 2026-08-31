@@ -47,18 +47,18 @@
 
 Verify each anchor is REAL in the bundled tree (locate it; cite line). ANY miss ⇒ ❌ ledger entry AND dependent tasks block.
 
-- [ ] `backend/services/notifications/notification-engine.service.ts:159-288` — `emitForUser` (caller-tx, returns receipt, no publish) + `publishReceipts` composition
-- [ ] `backend/services/students/student-handshake.helpers.ts:3-18` — `isGovernanceExcludedFromDiscovery(row, now)`
-- [ ] `backend/db/repo/students/student.repository.ts:48-81` — `findDiscoveryByHandshakeCode` (join+payload shape); `:100-115` — `grantFreeTrialOnce` guarded-update precedent
-- [ ] `backend/db/repo/users/user.repository.ts:63-92` — `findLocalesByIds`; `shared/locale/AppLocale.ts:3` — `defaultLocale = "ar"`
+- [ ] `backend/services/notifications/notification-engine.service.ts:288-340` — `emitForUser` (caller-tx, returns receipt, no publish) + `publishReceipts` composition (at ~340+)
+- [ ] `backend/services/students/student-handshake.helpers.ts:33-60` — `isGovernanceExcludedFromDiscovery(row, now)`
+- [ ] `backend/db/repo/students/student.repository.ts:78-120` — `findDiscoveryByHandshakeCode` (join+payload shape)
+- [ ] `backend/db/repo/users/user.repository.ts:200-250` — `findLocalesByIds`; `shared/locale/AppLocale.ts:10` — `defaultLocale = "ar"`
 - [ ] `backend/lib/db/with-transaction` — `withTransaction(outerTx, fn)` (import anchored at `backend/services/admin/user-management.service.ts:13`)
-- [ ] `backend/lib/errors.ts:14-17` (`NotFoundError` entity form), `:90-99` (`ConflictError(code, message)` overload — VERIFIED before assigning codes)
+- [ ] `backend/lib/errors.ts:24-30` (`NotFoundError` entity form), `:90-130` (`ConflictError` class with overloads — VERIFIED before assigning codes)
 - [ ] `backend/enum/shared/link-status.enum.ts:1-6` — `LinkStatus` exists, NO `isLinkStatus` guard; `backend/enum/teachers/applicant-status.enum.ts:7-9` — `isApplicantStatus` precedent
-- [ ] `backend/db/schema/enums.ts:28` — `linkStatus` pgEnum inventory `["pending","confirmed","rejected","expired"]` — FROZEN, this ticket is its first consumer
-- [ ] Journey harness EXISTS: `test/workflows/AGENTS.md` + `test/workflows/helpers/` (`TrackedFixtures`, `provisionParentActor`, `provisionStudentActor`, `SpiedFanoutTransport`) — anchored by imports at `backend/services/notifications/realtime/fanout-transport.test.ts:12` and `notification-engine.emit.test.ts:31`. Do NOT re-scaffold. VERIFY each helper's signature before use; record any signature drift.
+- [ ] `backend/db/schema/enums.ts:54` — `linkStatus` pgEnum inventory `["pending","confirmed","rejected","expired"]` — FROZEN, this ticket is its first consumer
+- [ ] Journey harness DOES NOT EXIST: `test/workflows/AGENTS.md` exists but `test/workflows/helpers/` directory and helpers (`TrackedFixtures`, `provisionParentActor`, `provisionStudentActor`, `SpiedFanoutTransport`) do NOT exist — the AGENTS.md says "Status: The shared harness is scaffolded" but this is aspirational. Task 2.1 must CREATE the harness, not reuse it. Referenced test files (`fanout-transport.test.ts`, `notification-engine.emit.test.ts`) also do not exist.
 - [ ] `test/helpers/skip-when-pglite.ts:1-5` — `isPgliteProvider`
 - [ ] `shared/lib/mask-full-name.ts` — `maskFullName` signature (referenced at `backend/services/students/student-handshake.service.ts:7`; VERIFY the export name + signature in the bundle before fronting it in 4.x types)
-- [ ] `shared/locale/client/use-app-translation.ts:1-12` — `useAppTranslation(handle)` contract; `shared/locale/server.ts:12-14` (`getTranslations` 1-arg); `shared/locale/server-graphql.ts:2-4` (`getServerTranslations` 1-arg)
+- [ ] `shared/locale/client/use-app-translation.ts:1-12` — `useAppTranslation` OVERLOAD contract: `useAppTranslation(): Translations` + `useAppTranslation<TLabels>(handle: NamespaceHandle<TLabels>): TLabels`; `shared/locale/server.ts:12-14` (`getTranslations` 1-arg); `shared/locale/server-graphql.ts:2-4` (`getServerTranslations` 1-arg)
 - [ ] `frontend/lib/auth/withPageAuth.ts:15-30` — `{ roles, redirectTo }` signature; `frontend/lib/auth/roleDashboardRoute.ts:9-22` — `roleDashboardPath(ctx.role)`
 - [ ] Frontend prose-only UI verification planned at implementation time (NOT now, no code writes yet): `frontend/views/parent/handshake/HandshakeDiscoveryContainer.tsx`, `app/(dashboard)/parent/handshake/page.tsx`, `test/ui/AGENTS.md` harness (`TestWrapper`, translation preload) — record provisional verdicts in the ledger; final verify happens inside tasks 4.2/4.3.
 - [ ] 0.2.QL **Quality Loop:** outcomes written; ledger up-to-date; `bun run scripts/health/sub-loop.ts ai/plans/sprint_3/dev1-014-parent-child-link-request-workflow-7-day/outcome/0-prereq-outcome.md --lifecycle duplicates` (exit 0)
@@ -173,7 +173,7 @@ Verify each anchor is REAL in the bundled tree (locate it; cite line). ANY miss 
 **REQ:** REQ-076, REQ-090..REQ-096, REQ-046 (teardown order) · specs §2.9 · plan §4.4
 
 - Create `test/workflows/parents/parent-link-request.journey.test.ts` — one file covering the three journeys (A/B/C)
-- Reuse the EXISTING harness (0.2 verified): `TrackedFixtures`, `provisionParentActor`, `provisionStudentActor`, `SpiedFanoutTransport` from `test/workflows/helpers/` (DO NOT scaffold; `test/workflows/AGENTS.md` rules already live)
+- CREATE the journey harness: `test/workflows/helpers/` with `TrackedFixtures`, `provisionParentActor`, `provisionStudentActor`, `SpiedFanoutTransport` (the AGENTS.md says "scaffolded" but it's aspirational — must be built from scratch)
 - Provision the actor cast (specs §2.9): Parent A, Parent B, Student S, Governed Student G, Already-Linked Student L (pre-linked to A)
 - Steps as sequential service calls with `actorUserId`. REQ-011 REQ-016-style assertions per plan §4.4 visibility matrix. Assert cross-actor visibility AND denial paths honestly (REAL permission/group membership; NEVER monkey-patched)
 - Committed fixtures in ONE `beforeAll` `db.transaction`; tracked hard-delete in `afterAll` with deletion ordering: `parent_link_requests` FIRST, then `students`, then `users` (REQ-046 — reverse-registration per `test/workflows/AGENTS.md` rule 2); mandatory ZERO-residue re-probes after teardown
@@ -187,7 +187,7 @@ Verify each anchor is REAL in the bundled tree (locate it; cite line). ANY miss 
 - [ ] 2.1.TE **Test Engineering:** `bun run test/scripts/run-test.ts test/workflows/parents/parent-link-request.journey.test.ts` — RED against service-surface absence at this stage (correct); every later task that touches the service MUST keep it runnable
 - [ ] 2.1.SEC **Security & Tenancy Audit:** denials exercised through REAL role + governance resolution; zero notification side effects on denials; fingerprint logging free of codes/names/emails
 - [ ] 2.1.SR **Semantic Review:** no monkey-patching; every actor call carries an honest `actorUserId`; per-step assertions exist for BOTH actor visibility and cross-actor invariance
-- [ ] 2.1.IV **Instruction Verification:** `test/workflows/AGENTS.md` + `docs/testing/workflow-journey-tests.md` + `.agents/instructions/tests.instructions.md`
+- [ ] 2.1.IV **Instruction Verification:** `test/workflows/AGENTS.md` (to be created with harness rules) + `docs/testing/workflow-journey-tests.md` + `.agents/instructions/tests.instructions.md`
 - _Requirements: REQ-076, REQ-090..REQ-096, REQ-046_
 
 ### 2.2 [ ] Implement `ParentLinkRequestRepository` + additive `StudentRepository` methods + register barrels

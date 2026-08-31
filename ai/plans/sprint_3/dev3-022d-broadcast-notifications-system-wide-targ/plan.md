@@ -71,8 +71,8 @@ Recipients observe rows exclusively through the pre-existing self-scoped inbox (
 | D4 | Fail-closed recipient cap `BROADCAST_MAX_RECIPIENTS = 5000`, chunked mode deferred | (a) chunk-loop; (b) cap + defer | (a) spreads one mutation across N transactions — weakens the single-atomic-unit + single-fan-out contract (engine REQ-013) | (b) per spec DB-4. One batch insert stays far under PG's 65 535-param ceiling; chunking joins `deferred-items.md` with an owner |
 | D5 | Emission via engine caller-tx receipt composition: `emitForUsers(…, tx)` → commit → `publishReceipts([receipt])` | (a) engine own-commit path (no tx); (b) caller-tx | (a) audit row would live in a SECOND transaction — a crash between them orphans audit or insert. (b) publishes nothing pre-commit (engine REQ-042 provable) | (b) mandated by REQ-021/022: inserts + audit share ONE tx; the receipt crosses the boundary; publish is structurally post-commit |
 | D6 | Idempotency: `X-Idempotency-Key` header → `ctx.idempotencyKey` → engine `idempotencyKey`; production claim cache = NEW `RedisClaimCache` (ioredis) behind `resolveBroadcastClaimCache()`; replay detection via `receipt.emitClaimKey === undefined` under (key ∧ cache) | (a) no idempotency; (b) claim + stored receipt replay | (a) a double-click on a 5 000-user cohort writes twice — unacceptable for an admin broadcast. (b) engine already ships the exact port; replay returns the stored receipt with ZERO writes | (b) per specs REQ-023 and decision A.4.2 (fail-open deviation honored: no Redis ⇒ engine warn + proceed) |
-| D7 | Audit: exactly ONE `audit_logs` row per accepted broadcast, in-tx, `entityType: "notification_broadcast"`, `entityId: null` — widening `AuditLogWriteContract.entityId` to `number \| null` | (a) drop audit; (b) widen contract | (a) violates Workflow 05 §7.2 ("Notification Broadcast" is audit-listed). (b) additive; `audit_logs.entity_id` is ALREADY nullable (`backend/db/schema/audit/audit-logs.ts:13: entityId: integer("entity_id")` — no `.notNull()`) | (b) per spec DB-5. Additive widening breaks no consumer; conformance suites pin the shape |
-| D8 | Admin gate is DOUBLE-WALLED: Pothos `$all: { authenticated, role: [Admin] }` AND service-layer actor re-check via an extracted shared `assertActorAdmin` | (a) scope only; (b) both walls | Auth scopes alone are the transport boundary; the service must not trust it when invoked from future non-GraphQL callers | (b) per REQ-030, mirroring `user-management.service.ts:121` (`assertActorAdmin`) — extracted to a shared module to avoid a forked copy |
+| D7 | Audit: exactly ONE `audit_logs` row per accepted broadcast, in-tx, `entityType: "notification_broadcast"`, `entityId: null` — widening `AuditLogWriteContract.entityId` to `number \| null` | (a) drop audit; (b) widen contract | (a) violates Workflow 05 §7.2 ("Notification Broadcast" is audit-listed). (b) additive; `audit_logs.entity_id` is ALREADY nullable (`backend/db/schema/audit/audit-logs.ts:39: entityId: integer("entity_id")` — no `.notNull()`) | (b) per spec DB-5. Additive widening breaks no consumer; conformance suites pin the shape |
+| D8 | Admin gate is DOUBLE-WALLED: Pothos `$all: { authenticated, role: [Admin] }` AND service-layer actor re-check via an extracted shared `assertActorAdmin` | (a) scope only; (b) both walls | Auth scopes alone are the transport boundary; the service must not trust it when invoked from future non-GraphQL callers | (b) per REQ-030, mirroring `user-management.service.ts:240-271` (`assertActorAdmin`) — extracted to a shared module to avoid a forked copy |
 | D9 | Broadcast copy is admin-authored free text stored VERBATIM (engine never translates); no per-recipient localization | (a) templated per-locale copy; (b) verbatim | (a) invents a per-recipient fan-out the engine deliberately defers (its D2). (b) matches localization-at-emitter (A.4.3): there is nothing to translate | (b). REQ-020 / DB-3. `dir="auto"` covers RTL rendering client-side |
 | D10 | Frontend: dedicated `/admin/broadcasts` page (server-guarded) + per-request header delivery via Apollo operation context; `createAuthLink` gains an additive merge of `operation.getContext().headers` | (a) key in the input DTO; (b) header via context | (a) pollutes the closed input surface with a transport concern (BOPLA-adjacent). (b) matches the gateway contract (key lives where it lives — a header) | (b) REQ-023 + REQ-060. The authLink merge is additive: existing writers (token, preflight, operation name) are unchanged; absent context headers are a no-op |
 
@@ -84,12 +84,12 @@ Recipients observe rows exclusively through the pre-existing self-scoped inbox (
 
 | Element | Ground truth (bundled anchor) | Status |
 |---|---|---|
-| `notifications` table (`id`, `userId` FK cascade, `type` notificationType enum, `title varchar(255)`, `body text`, `isRead`, `relatedEntityType varchar(100)`, `relatedEntityId int`, `createdAt`) | `backend/db/schema/notifications/notifications.ts:4-23` | REUSE — zero columns touched |
-| `system_broadcast` enum value exists in `notification_type` | `backend/db/schema/enums.ts:34` (inside the 29-37 `notificationType` pgEnum) | REUSE — no enum migration |
-| `users` governance + cohort columns: `role` (userRole pgEnum), `country varchar(100)`, `isDeleted`, `isBlocked`, `suspended` (+ window fields) | `backend/db/schema/users/users.ts:3-31` | READ only |
-| `subscriptions`: `userId` (generic owner FK — decision B.8/C.2), `planId`, `status`, `startDate`, `endDate` | `backend/db/schema/billing/subscriptions.ts:5-29` | READ only |
-| `plans.id` (existence probe target) | `backend/db/schema/billing/plans.ts:3-25` | READ only |
-| `audit_logs.entityId` nullable | `backend/db/schema/audit/audit-logs.ts:13` (`entityId: integer("entity_id")`) | READ only — no column change needed for the `null` audit entity id |
+| `notifications` table (`id`, `userId` FK cascade, `type` notificationType enum, `title varchar(255)`, `body text`, `isRead`, `relatedEntityType varchar(100)`, `relatedEntityId int`, `createdAt`) | `backend/db/schema/notifications/notifications.ts:27-46` | REUSE — zero columns touched |
+| `system_broadcast` enum value exists in `notification_type` | `backend/db/schema/enums.ts:61` (inside the 56-64 `notificationType` pgEnum) | REUSE — no enum migration |
+| `users` governance + cohort columns: `role` (userRole pgEnum), `country varchar(100)`, `isDeleted`, `isBlocked`, `suspended` (+ window fields) | `backend/db/schema/users/users.ts:11-45` | READ only |
+| `subscriptions`: `userId` (generic owner FK — decision B.8/C.2), `planId`, `status`, `startDate`, `endDate` | `backend/db/schema/billing/subscriptions.ts:19-42` | READ only |
+| `plans.id` (existence probe target) | `backend/db/schema/billing/plans.ts:14-36` | READ only |
+| `audit_logs.entityId` nullable | `backend/db/schema/audit/audit-logs.ts:39` (`entityId: integer("entity_id")`) | READ only — no column change needed for the `null` audit entity id |
 
 **Schema-drift gate (REQ-044):** `git diff -- backend/db/schema/** backend/db/migration/**` MUST be empty. `bun run db push` / `db migrate` are NEVER invoked by this ticket. The `BroadcastAudienceType` enum is TS-only — NO `pgEnum` entry in `backend/db/schema/enums.ts`.
 
@@ -205,7 +205,6 @@ The public-operations allowlist (`backend/lib/gateway/public-operations.ts`) is 
 | Student | ❌ `FORBIDDEN` | ✅ own inbox only (`all` / matching cohorts) |
 | Parent | ❌ `FORBIDDEN` | ✅ own inbox only |
 | Teacher (applicant or certified) | ❌ `FORBIDDEN` | ✅ own inbox only |
-| Supervisor | ❌ `FORBIDDEN` | via `role` cohort if ever granted (`role:admin` is admins only) |
 | Super Admin (real `admin` row) | ✅ | ✅ (administrators receive `all`/`role:admin` broadcasts) |
 | Governed (`isDeleted`/`isBlocked`) | ❌ (SSR/login already fail-closed; scope layer also 401/403 on missing identity) | ❌ EXCLUDED from every cohort (REQ-015) |
 
@@ -234,7 +233,7 @@ export namespace AdminBroadcastService {
 2. `validateBroadcastCopyAndAudience(input, locale)` — pure, fail-closed, PRE-DB:
    - `title`: trim → non-empty, ≤255 (engine ceiling) → else `ValidationError("BROADCAST_TITLE_INVALID", t.broadcastTitleInvalid)`.
    - `body`: `null` or string (pass-through; engine bounds it).
-   - audience: `isBroadcastAudienceType(type)` MUST hold; companion coherence: `Role ⇒ isUserRole(role) && country/planId absent`, `Country ⇒ country trimmed non-empty ≤100 && role/planId absent`, `Plan ⇒ isPositiveSafeInt(planId) && role/country absent`, `All ⇒ all companions absent`. Any violation → `ValidationError("BROADCAST_AUDIENCE_INVALID", t.broadcastAudienceInvalid)`.
+   - audience: `isBroadcastAudienceType(type)` MUST hold; companion coherence: `Role ⇒ toUserRole(role) !== null && country/planId absent`, `Country ⇒ country trimmed non-empty ≤100 && role/planId absent`, `Plan ⇒ isPositiveSafeInt(planId) && role/country absent`, `All ⇒ all companions absent`. Any violation → `ValidationError("BROADCAST_AUDIENCE_INVALID", t.broadcastAudienceInvalid)`.
 3. Resolve cohort: `BroadcastAudienceRepository.resolveAudienceIds(selector, readTx)` where `readTx = outerTx` when supplied (tx-propagation rule REQ-042) else plain read. Plan cohort: `PlanRepository.existsById(planId, tx)` FIRST → miss ⇒ `NotFoundError("PLAN", t.planCatalog.planNotFound)` (admin-scope oracle ruling, REQ-033).
 4. Empty cohort → `ValidationError("BROADCAST_AUDIENCE_EMPTY", t.broadcastAudienceEmpty)`; `> BROADCAST_MAX_RECIPIENTS (5000)` → `ValidationError("BROADCAST_AUDIENCE_TOO_LARGE", t.broadcastAudienceTooLarge)`. Zero writes on both.
 5. `withTransaction(outerTx, async tx => { … })`:
@@ -259,11 +258,11 @@ export class RedisClaimCache implements NotificationIdempotencyClaimCache {
 export function resolveBroadcastClaimCache(): NotificationIdempotencyClaimCache | undefined;
 ```
 
-`resolveBroadcastClaimCache()` is stateless (mirrors `resolveFanoutTransport`, `backend/services/notifications/realtime/fanout-transport.factory.ts:14`): no `REDIS_URL` ⇒ `undefined` (hermetic default; the engine then logs its single `NOTIFICATION_IDEMPOTENCY_DEGRADED` warn and emits anyway — documented fail-open, A.4.2). When configured, a lazily-constructed shared `ioredis` client (module-level lazy singleton promise — the shape the engine itself uses for its default transport memo) backs the cache. The client is created `lazyConnect: true`; any command failure surfaces to the engine's fail-open handlers, never to the caller.
+`resolveBroadcastClaimCache()` is stateless (mirrors `resolveFanoutTransport`, `backend/services/notifications/realtime/fanout-transport.factory.ts:44`): no `REDIS_URL` ⇒ `undefined` (hermetic default; the engine then logs its single `NOTIFICATION_IDEMPOTENCY_DEGRADED` warn and emits anyway — documented fail-open, A.4.2). The fanout-transport factory is documented STATELESS (no memoization, no module-level mutable state; its only laziness is a lazy `await import` of ioredis when Redis is configured) — the new cache module likewise keeps no eager module state: the `ioredis` client is constructed lazily via the same `await import` pattern on first configured use. The client is created `lazyConnect: true`; any command failure surfaces to the engine's fail-open handlers, never to the caller.
 
 ### 4.3 Shared Admin Guard — `backend/services/admin/assert-actor-admin.ts` (CREATE) + `user-management.service.ts` (UPDATE, dedupe)
 
-The `assertActorAdmin` logic currently private at `user-management.service.ts:121-149` moves VERBATIM (errors, logging shape, `ANONYMOUS_ACTOR_ID = 0` rule) into the shared module; `AdminUserManagementService` imports it (its 8 chaos/service tests keep passing unchanged — the extraction is behavior-identical). `backend/services/admin/index.ts` gains the export. `AdminBroadcastService` consumes the same function — ONE canonical admin-actor gate.
+The `assertActorAdmin` logic currently private at `user-management.service.ts:240-271` moves VERBATIM (errors, logging shape, `ANONYMOUS_ACTOR_ID = 0` rule) into the shared module; `AdminUserManagementService` imports it (its 8 chaos/service tests keep passing unchanged — the extraction is behavior-identical). `backend/services/admin/index.ts` gains the export. `AdminBroadcastService` consumes the same function — ONE canonical admin-actor gate.
 
 ### 4.4 Repository — `backend/db/repo/notifications/broadcast-audience.repository.ts` (CREATE)
 
@@ -281,7 +280,7 @@ Four SQL shapes (parameterized; non-tx branch via `queryDb` with numbered `$n` p
 - **all:** `SELECT id FROM users WHERE coalesce(is_deleted,false)=false AND coalesce(is_blocked,false)=false ORDER BY id ASC`
 - **role:** same + `AND role = $1`
 - **country:** same + `AND country = $1` (exact `eq`, country already trimmed — NO LIKE anywhere; the `escapeLikeWildcards` mandate is N/A by construction, documented)
-- **plan (join + DISTINCT):** `SELECT DISTINCT u.id FROM users u JOIN subscriptions s ON s.user_id = u.id WHERE s.plan_id = $1 AND s.status = 'active' AND now() >= coalesce(s.start_date, now()) AND (s.end_date IS NULL OR now() < s.end_date) AND coalesce(u.is_deleted,false)=false AND coalesce(u.is_blocked,false)=false ORDER BY u.id ASC` — the active-window predicate is byte-equivalent to the canonical one (`backend/db/repo/admin/admin-user.repository.ts:166-174`), and the owner FK is `subscriptions.user_id` (B.8/C.2 — a verification-plan subscriber counts).
+- **plan (join + DISTINCT):** `SELECT DISTINCT u.id FROM users u JOIN subscriptions s ON s.user_id = u.id WHERE s.plan_id = $1 AND s.status = 'active' AND now() >= coalesce(s.start_date, now()) AND (s.end_date IS NULL OR now() < s.end_date) AND coalesce(u.is_deleted,false)=false AND coalesce(u.is_blocked,false)=false ORDER BY u.id ASC` — the active-window predicate is byte-equivalent to the canonical one (`backend/db/repo/admin/admin-user.repository.ts:337-346`), and the owner FK is `subscriptions.user_id` (B.8/C.2 — a verification-plan subscriber counts).
 
 tx-branch per method uses the equivalent Drizzle builder (`eq`, `and`, `or`, `isNull`, `sql`) with `(tx)` executor; no `inArray`, no prepared statements, no inline `--` comments inside `sql` templates. Add `export * from "./broadcast-audience.repository";` to `backend/db/repo/notifications/index.ts`.
 
@@ -297,7 +296,7 @@ tx-branch per method uses the equivalent Drizzle builder (`eq`, `and`, `or`, `is
 | Recipient cap blow-out | admin input | single mega-insert beyond param ceiling | Fail-closed pre-DB `BROADCAST_AUDIENCE_TOO_LARGE` (REQ-017) |
 | `planId` probing | authenticated non-admin | plan existence oracle | Non-admins never reach the service (double wall REQ-030); admin-scoped `PLAN_NOT_FOUND` is legitimate on an admin surface (REQ-033) |
 
-**TOCTOU windows:** none on mutable shared state. Cohort resolution is a read snapshot of append-only intent; notification rows and the audit row are created (never mutated) inside one tx — there is no read-then-write pattern at all. **No `SELECT FOR UPDATE`, no advisory locks** (nothing contended). The ONLY mutually-exclusive surface is the Redis `SET key NX EX` claim, which IS the atomic primitive (per `docs/IDEMPOTENCY.md`'s 24h TTL via `NOTIFICATION_EMIT_CLAIM_TTL_SECONDS = 86_400`, `emit-idempotency.ts:6`).
+**TOCTOU windows:** none on mutable shared state. Cohort resolution is a read snapshot of append-only intent; notification rows and the audit row are created (never mutated) inside one tx — there is no read-then-write pattern at all. **No `SELECT FOR UPDATE`, no advisory locks** (nothing contended). The ONLY mutually-exclusive surface is the Redis `SET key NX EX` claim, which IS the atomic primitive (per `docs/IDEMPOTENCY.md`'s 24h TTL via `NOTIFICATION_EMIT_CLAIM_TTL_SECONDS = 86_400`, `emit-idempotency.ts:30`).
 
 ### 4.6 Cross-Actor Journey Design (specs §2.9 → journey assertion set)
 
@@ -347,7 +346,7 @@ stateDiagram-v2
 
 ### 5.2 Sidebar & Navigation Integration
 
-`frontend/views/dashboard/navItems.ts` (UPDATE — verified absence: `:58-67` admin list contains dashboard/notifications/users/teachers/students/plans/audit/profile only — this is an ADD, not a retarget):
+`frontend/views/dashboard/navItems.ts` (UPDATE — verified absence: `:126-135` admin list contains dashboard/notifications/users/teachers/students/plans/audit/profile only — this is an ADD, not a retarget):
 
 ```typescript
 { route: "/admin/broadcasts", labelKey: "broadcasts", Icon: CampaignOutlined }
@@ -382,7 +381,7 @@ inserted after the `audit` item in the Admin list. `broadcasts: string` is added
 
 Key set: `pageTitle`, `pageSubtitle`, `titleLabel`, `titlePlaceholder`, `titleRequired`, `bodyLabel`, `bodyPlaceholder`, `audienceLabel`, `audienceAll`, `audienceRole`, `audienceCountry`, `audiencePlan`, `roleLabel`, `countryLabel`, `countryPlaceholder`, `countryHelperText`, `planLabel`, `planLoading`, `previewDisclaimer` ("recipients are resolved at send time"), `confirmTitle`, `confirmBody`, `confirmAction`, `cancelAction`, `sendAction`, `sendingAction`, `successToast(count: number)` (pluralized branches), `errorTitle` (generic send failure).
 
-Errors namespace (flat, domain-prefixed — the `ErrorsLabels` shape): `broadcastTitleInvalid`, `broadcastAudienceInvalid`, `broadcastAudienceEmpty`, `broadcastAudienceTooLarge` added to `shared/locale/types/errors/index.ts` + `en/errors` + `ar/errors` (existing parity walkers then enforce presence in both).
+Errors namespace (flat, domain-prefixed keys alongside the sanctioned `planCatalog`/`adminUsers` groups — the `ErrorsLabels` shape): `broadcastTitleInvalid`, `broadcastAudienceInvalid`, `broadcastAudienceEmpty`, `broadcastAudienceTooLarge` added to `shared/locale/types/errors/index.ts` + `en/errors` + `ar/errors` (existing parity walkers then enforce presence in both).
 
 ### 5.6 Visual Design & Responsive Specifications
 
@@ -407,11 +406,11 @@ Errors namespace (flat, domain-prefixed — the `ErrorsLabels` shape): `broadcas
 ## 6. Security, Authorization & Tenancy Mitigations
 
 - **BFLA (function-level):** double wall — Pothos `$all: { authenticated: true, role: [UserRole.Admin] }` (pre-resolver, extension-introspection-pinned mirroring `handshake-code-surface.test.ts`) AND service-layer `assertActorAdmin` re-verification against the live `users` row (`UserRepository.findById` + `toUserRole`). Anonymous → `UNAUTHORIZED` (401 semantics); non-admin → `FORBIDDEN` (403 semantics); both with ZERO writes and ZERO audit rows (JR-C-1).
-- **BOLA / IDOR:** the mutation carries NO identity arguments — recipients derive exclusively from the audience selector evaluated server-side; the client cannot name a single user. Recipients' later reads run through the pre-existing self-scoped inbox guards (e.g. `markReadOnce` ownership predicate, `notification.repository.ts:128-139`) — unchanged.
+- **BOLA / IDOR:** the mutation carries NO identity arguments — recipients derive exclusively from the audience selector evaluated server-side; the client cannot name a single user. Recipients' later reads run through the pre-existing self-scoped inbox guards (e.g. `markReadOnce` ownership predicate, `notification.repository.ts:269-280`) — unchanged.
 - **BOPLA (mass assignment):** `AdminBroadcastNotificationInput` is a closed Pothos input (`GRAPHQL_VALIDATION_FAILED` on any smuggled field — before resolvers); the service maps field-by-field (`title`, `body`, `audience.type/role/country/planId`) into the emit input — NO `{ ...input }` spread anywhere; governance fields, ids, timestamps, and `userId` lists are structurally unreachable from the client.
 - **Oracle hygiene:** no pre-send recipient-count preview endpoint exists BY DESIGN (REQ-033/DB-6 — the count is only ever returned AFTER the write). `PLAN_NOT_FOUND` is confined to this admin-gated surface (per `docs/admin/user-management.md` D11 — this ruling is NOT exported to non-admin surfaces). Validation denials on cohort size/visibility never enumerate matching users.
 - **Injection:** all cohort SQL is parameterized (`$n` bindings / Drizzle `eq`); country matching is exact equality — NO LIKE/ILIKE surface exists, so wildcard escaping is out-of-scope by construction (documented for review). External copy (`title`/`body`) is stored verbatim and rendered inertly (React-escaped output; `dir="auto"`); engine property tests pin hostile-text storage as inert.
-- **Secrets / PII in logs:** `logger.logDomainError` contexts carry `{ code, entity, entityId?, locale }` only — never recipient lists, copy bodies, or raw idempotency keys (only the SHA-256 claim digest is ever persisted, `emit-idempotency.ts:17-19`); ZERO `console.*` (gateway static-assertion A3 posture extends to the new module).
+- **Secrets / PII in logs:** `logger.logDomainError` contexts carry `{ code, entity, entityId?, locale }` only — never recipient lists, copy bodies, or raw idempotency keys (only the SHA-256 claim digest is ever persisted, `emit-idempotency.ts:67-71`); ZERO `console.*` (gateway static-assertion A3 posture extends to the new module).
 - **Error disclosure:** masked-boundary rules untouched — service `DomainError` subclasses propagate to `extensions.code`; unexpected internals bubble uncaught to the single finalizer plugin (no resolver `try/catch`).
 
 ---

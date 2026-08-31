@@ -16,12 +16,16 @@ This ledger tracks all work deferred from one task to another to ensure no defer
 
 | ID | Deferred Item | Source Task | Target Task | Status | Verified By | Notes |
 |---|---|---|---|---|---|---|
+| D1 | Cron expiry sweep + optional expiry reminder notifications | Plan | Future cron-stream ticket | 📅 Forward | — | Resolved-pointer: owned by future cron-stream ticket |
+| D2 | Distinct `cancelled` link-status vocabulary | Plan | Future product ticket | 📅 Forward | — | Resolved-pointer: owned by future product ticket |
+| D3 | Link revocation / `Unlinked` transition | Plan | Future revoke ticket | 📅 Forward | — | Resolved-pointer: owned by future revoke ticket |
+| D4 | Partial-unique index Drizzle expressibility | Plan | Task 1.2 | 🔄 In Progress | — | Resolved AT task 1.2 implementation time either way, outcomed both ways |
 
 ---
 
 ## Status Values
 
-- ✅ **Done** — Item completed and verified
+- ✅ **Done** — Item completed and verified (with reference to outcome file or commit)
 - ⚠️ **Partial** — Partially completed, needs follow-up work
 - ❌ **Blocked** — Not resolved, plan cannot complete until addressed
 - 🔄 **In Progress** — Currently being worked on

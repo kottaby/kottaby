@@ -34,14 +34,14 @@
 ### 0.2 Prerequisite & Dependency Verification (Anchored, Never Rebuilt)
 
 - [ ] 0.2 [Verify every consumed artifact exists at its cited anchor]
-  - `NotificationEngine.emitForUser` caller-tx receipt + own-commit branches: `backend/services/notifications/notification-engine.service.ts:159-228`; `publishReceipts` at `:229-235`; replay semantics at `:171-175`, `:180`, `:184-187`, `:300-311`.
-  - `isPositiveSafeInt` and `IDEMPOTENCY_KEY_MAX_LENGTH`: `backend/services/notifications/emit-validation.ts:6-9`.
-  - `SessionSelectType`: `backend/types/classes/session.types.ts:2`; `isSessionIntent`: `backend/types/contracts/contract-guards.ts:42-44`; `SessionEventNotificationContract`: `backend/types/contracts/session-notification.contract.types.ts:16-23`.
-  - Schema anchors (read-only): `backend/db/schema/classes/session.ts:5-36`, `backend/db/schema/teachers/teacher.ts:5-24`, `backend/db/schema/students/students.ts:4-33`, `backend/db/schema/users/users.ts:1-31`, `backend/db/schema/notifications/notifications.ts:4-23`, `backend/db/schema/enums.ts:29-37`.
-  - Repo idiom anchor for the tx-vs-`queryDb` driver split: `backend/db/repo/students/student.repository.ts:83-99` (incl. the `DBTransaction` discriminator at `:6-8`); `UserRepository.findLocalesByIds` at `backend/db/repo/users/user.repository.ts:63-92` (reference only — NOT used; the joined read supersedes it).
-  - Error ctor shapes: `NotFoundError` entity-name form vs `ValidationError` overloaded form at `backend/lib/errors.ts:14-18, 29-77`.
-  - Locale anchors: `defaultLocale` at `shared/locale/AppLocale.ts:3`; existing `typeSessionRequest` labels at `shared/locale/en/notifications/index.ts:10` and `ar/notifications/index.ts:13`; flat errors precedent at `shared/locale/types/errors/index.ts:47,49`.
-  - Journey harness: `test/workflows/AGENTS.md` EXISTS (verify — do not scaffold); `SpiedFanoutTransport` import pattern at `backend/services/notifications/notification-engine.emit.test.ts:31`; in-memory claim-cache model at `:101-134`; ghost-proof precedent at `:597-635`.
+  - `NotificationEngine.emitForUser` caller-tx receipt + own-commit branches: `backend/services/notifications/notification-engine.service.ts:327-369`; `publishReceipts` at `:475-481` (delegates to `publishReceiptsFromIndex`); replay semantics at `:302-304`/`:343-345`, keyed receipt at `:356`, fresh-receipt storage at `:363-366`, publish-on-rows at `:641-644`.
+  - `isPositiveSafeInt` and `IDEMPOTENCY_KEY_MAX_LENGTH`: `backend/services/notifications/emit-validation.ts:40, 50-52`.
+  - `SessionSelectType`: `backend/types/classes/session.types.ts:3`; `isSessionIntent`: `backend/types/contracts/contract-guards.ts:76-78`; `SessionEventNotificationContract`: `backend/types/contracts/session-notification.contract.types.ts:42-52`.
+  - Schema anchors (read-only): `backend/db/schema/classes/session.ts:32-63`, `backend/db/schema/teachers/teacher.ts:19-38`, `backend/db/schema/students/students.ts:18-47`, `backend/db/schema/users/users.ts:11-45`, `backend/db/schema/notifications/notifications.ts:27-46`, `backend/db/schema/enums.ts:56-64`.
+  - Repo idiom anchor for the tx-vs-`queryDb` driver split: `backend/db/repo/students/student.repository.ts:96-112` (incl. the `isDBTransaction` discriminator at `:33-36`); `UserRepository.findLocalesByIds` at `backend/db/repo/users/user.repository.ts:152-155` (reference only — NOT used; the joined read supersedes it).
+  - Error ctor shapes: `NotFoundError` entity-name form vs `ValidationError` overloaded form at `backend/lib/errors.ts:37-41, 65-130` (overloads at `:78-86`).
+  - Locale anchors: `defaultLocale` at `shared/locale/AppLocale.ts:3`; existing `typeSessionRequest` labels at `shared/locale/en/notifications/index.ts:11` and `ar/notifications/index.ts:11`; flat errors precedent at `shared/locale/types/errors/index.ts:93,97`.
+  - Journey harness: `test/workflows/AGENTS.md` EXISTS (verify — do not scaffold); `SpiedFanoutTransport` import pattern at `backend/services/notifications/notification-engine.emit.test.ts:70`; in-memory claim-cache model at `:177-215`; ghost-proof precedent at `:780-828`.
   - `entity-setup.ts` signature verification BEFORE any fixture use (`backend/db/test/entity-setup.ts`).
   - IF any anchor is missing: record a ❌ ledger entry and BLOCK the dependent task — never inline-patch a foreign layer.
   - _Requirements: REQ-002, REQ-003, REQ-004_
@@ -81,7 +81,7 @@
   - UPDATE `shared/locale/types/notifications/index.ts`: add six title string slots (`eventSessionRequestTitle`, `eventSessionAcceptedTitle`, `eventSessionDeclinedTitle`, `eventSessionAutoRejectedTitle`, `eventSessionQueuedTitle`, `eventSessionAlternativesOfferedTitle`), six body function slots (`eventSessionRequestBody: (studentName: string, intentLabel: string) => string`; the five outcome bodies `(teacherName: string) => string`), and three intent label string slots (`intentHifz`, `intentTajweed`, `intentEvaluation`).
   - UPDATE `shared/locale/en/notifications/index.ts` and `shared/locale/ar/notifications/index.ts` with concrete copy for all 15 keys; Arabic body/title strings MUST contain Arabic script.
   - UPDATE `shared/locale/types/errors/index.ts` + `en/errors/index.ts` + `ar/errors/index.ts`: FLAT domain-prefixed keys `sessionNotFound` and `sessionIntentCorrupt` (flat precedent: `notificationNotFound`, `studentHandshakeNotFound`).
-  - UPDATE `shared/locale/notifications-namespace.parity.test.ts` in the SAME changeset: extend `MANDATED_KEYS` (26 → 41) and `FUNCTION_KEYS` (4 → 10); keep the "exactly seven `type*`-prefixed slots" pin GREEN (the new keys are `event*`/`intent*`-prefixed, never `type*`); add pins mirroring lines :100-116 asserting every new `ar` string slot contains Arabic script and every new ar function slot returns Arabic-script output.
+  - UPDATE `shared/locale/notifications-namespace.parity.test.ts` in the SAME changeset: extend `MANDATED_KEYS` (26 → 41) and `FUNCTION_KEYS` (4 → 10); keep the "exactly seven `type*`-prefixed slots" pin GREEN (the new keys are `event*`/`intent*`-prefixed, never `type*`); add pins (mirroring the suite's Arabic-script pins — the `ARABIC_SCRIPT` regex at :102 and the pinned Arabic strings at :192-238) asserting every new `ar` string slot contains Arabic script and every new ar function slot returns Arabic-script output.
   - FORBIDDEN anywhere: `next-intl`, `getBackendTranslations`, `shared/messages/`, a NEW namespace, `Translation` enum references.
   - Instructions: `.agents/instructions/backend.instructions.md`; namespace registration rules in `shared/AGENTS.md`.
   - _Requirements: REQ-002, REQ-013, REQ-051_
@@ -101,7 +101,7 @@
   - Create `test/workflows/classes/session-request-notifications.journey.test.ts` — one file for the REQ-090..REQ-095 cross-actor workflow (Student S, Teacher T, preference counterparties U/V/W, isolation observers X/Y, System fixture layer).
   - If `test/workflows/classes/` does not exist, scaffold the directory; the shared harness (`test/workflows/AGENTS.md`, `TrackedFixtures`, helpers) already exists per task 0.2 verification — extend helpers in `test/workflows/helpers/` ONLY if the cast needs rows the helpers cannot yet provision (verify first).
   - Provision the actor cast in `beforeAll` via ONE committing `db.transaction`: entity rows through `backend/db/test/entity-setup.ts` helpers (signatures verified in 0.2); the four `session` rows (S↔T, S↔U, S↔V, S↔W) via DIRECT committed Drizzle inserts (sanctioned fixture-level pattern per plan D9 — the session-creation write path is DEV3-004's, NOT fabricated here). U/V/W teacher rows model B.16 `requestPreference` `reject`/`queue`/`offer_alternatives` respectively. Unique `jrn_sessreq_<uuid8>` prefixing on all fixture identity fields.
-  - Inject `SpiedFanoutTransport` + a suite-local `Map`-backed `NotificationIdempotencyClaimCache` (modeled on `notification-engine.emit.test.ts:101-134`) through the emitters' `options` seam.
+  - Inject `SpiedFanoutTransport` + a suite-local `Map`-backed `NotificationIdempotencyClaimCache` (modeled on `notification-engine.emit.test.ts:177-215`) through the emitters' `options` seam.
   - Steps as sequential REAL service calls (NO GraphQL layer, NO monkey-patched permissions — there is no auth surface on the emitters by construction):
     1. Teacher wave with `(undefined)` tx → assert EXACTLY ONE `notifications` row: `userId=T.id`, `type='session_request'`, `relatedEntityType='session'`, `relatedEntityId=session_ST.id`, `isRead=false`, ARABIC body containing S's fullName + Arabic intent label; spied transport records EXACTLY ONE publish with `userIds === [T.id]`.
     2. Replay the same call under the held claim cache → prior receipt returned, row count unchanged, publish count unchanged (REQ-094).
@@ -126,7 +126,7 @@
   - CREATE `backend/db/repo/classes/session.repository.ts` with `export namespace SessionRepository` exposing EXACTLY two methods:
     - `findById(sessionId: number, tx?: DBQueryExecutor): Promise<SessionSelectType | null>`
     - `findWaveContextById(sessionId: number, tx?: DBQueryExecutor): Promise<SessionWaveContextRow | null>` — ONE joined read returning session id/intent + BOTH participants' `userId`/`fullName`/`locale`.
-  - Driver split per the verified `student.repository.ts:83-99` idiom: tx branch uses Drizzle with TWO `alias(users, "wave_student_user")` / `alias(users, "wave_teacher_user")` from `drizzle-orm/pg-core`, `innerJoin` on `session.studentId`/`session.teacherId`, `where(eq(session.id, sessionId)).limit(1)`; non-tx branch uses ONE flat parameterized `queryDb` statement (the exact SQL in plan §4.1) — NO inline `--` comments in the template, NO prepared statements, NO `inArray`+`sql.placeholder`, NO LIKE/ILIKE anywhere.
+  - Driver split per the verified `student.repository.ts:96-112` idiom: tx branch uses Drizzle with TWO `alias(users, "wave_student_user")` / `alias(users, "wave_teacher_user")` from `drizzle-orm/pg-core`, `innerJoin` on `session.studentId`/`session.teacherId`, `where(eq(session.id, sessionId)).limit(1)`; non-tx branch uses ONE flat parameterized `queryDb` statement (the exact SQL in plan §4.1) — NO inline `--` comments in the template, NO prepared statements, NO `inArray`+`sql.placeholder`, NO LIKE/ILIKE anywhere.
   - CREATE `backend/db/repo/classes/index.ts` (`export * from "./session.repository";`); UPDATE `backend/db/repo/index.ts` top-level barrel (`+ export * from "./classes";`).
   - Row mapping to `SessionWaveContextRow` is field-by-field (NO object spread of raw rows).
   - Instructions: `.agents/instructions/backend.instructions.md` + `backend/db/repo/AGENTS.md` (verify existence from the tree before citing).
@@ -185,7 +185,7 @@
 > **Scope ruling:** this ticket adds ZERO GraphQL surface. Phase 3 exists ONLY as freeze verification; no resolver/Pothos/SDL code is authored.
 
 - [ ] 3.1 [Verify zero-GraphQL-drift posture, end to end]
-  - Run, and confirm GREEN WITHOUT ANY EDITS: `bun run test/scripts/run-test.ts backend/graphql/test/schema-surface.test.ts`, `backend/graphql/test/sdl-static-assertions.test.ts`, `backend/graphql/test/handshake-code-surface.test.ts`, plus the committed-vs-live parity check (`plan-catalog.schema.test.ts:50-55`) and the public-operations test.
+  - Run, and confirm GREEN WITHOUT ANY EDITS: `bun run test/scripts/run-test.ts backend/graphql/test/schema-surface.test.ts`, `backend/graphql/test/sdl-static-assertions.test.ts`, `backend/graphql/test/handshake-code-surface.test.ts`, plus the committed-vs-live parity check (`plan-catalog.schema.test.ts:67-73`) and the public-operations test (`backend/lib/gateway/public-operations.test.ts`).
   - Run `bun run generate:gqlSchema && bun codegen` — MUST be a recorded NO-DIFF proof (`git status` clean on generated artifacts afterward); paste the evidence into the outcome file.
   - Grep-proof: no `sessionRequest` / `requestSession` / `acceptSessionRequest` / `declineSessionRequest` / `*session*` token appears on the Mutation/Query roots.
   - `backend/lib/gateway/public-operations.ts` remains the frozen six — byte-identical.
@@ -201,7 +201,7 @@
 
 - [ ] 4.1 [Confirm shipped-surface consumption with zero frontend deltas]
   - Assert byte-identity: `frontend/views/dashboard/navItems.ts` UNCHANGED; no files under `frontend/views/`, `frontend/components/`, `app/` touched (`git diff --name-only -- frontend/ app/` EMPTY).
-  - DTYPE-level compatibility check (compile-time, no new UI test file): the emitted row satisfies the EXISTING `NotificationReturnType` reading path and the pre-existing `typeSessionRequest` label slot (`shared/locale/en/notifications/index.ts:10`, `ar`:13) — evidenced by service/journey row-shape assertions plus a `bun tsgo` clean pass.
+  - DTYPE-level compatibility check (compile-time, no new UI test file): the emitted row satisfies the EXISTING `NotificationReturnType` reading path and the pre-existing `typeSessionRequest` label slot (`shared/locale/en/notifications/index.ts:11`, `ar`:11) — evidenced by service/journey row-shape assertions plus a `bun tsgo` clean pass.
   - Record the REQ-062 forward contract in the ledger (actionable accept/decline CTA is a session-engine/UI-ticket item — ✅ resolved-pointer; the realtime payload allowlist is engine-owned and frozen here).
   - Record REQ-063 discharge-by-absence (no MUI/v9, React 19, RTL, or nav work exists to verify; `.BF`/`.BS` loops N/A by absence).
   - Write `ai/plans/sprint_2/dev3-011-session-request-notification-to-teacher/outcome/4.1-outcome.md`.
