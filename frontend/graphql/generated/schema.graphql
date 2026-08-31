@@ -25,6 +25,11 @@ A date-time string at UTC, such as 2007-12-03T10:15:30Z, compliant with the `dat
 """
 scalar DateTime
 
+enum DisputeResolution {
+  Cancel
+  Complete
+}
+
 enum Gender {
   Female
   Male
@@ -85,10 +90,20 @@ type Mutation {
   logout: LogoutPayload!
 
   """
+  Open a dispute on one of the caller's scheduled/started sessions (either participant, exactly once, with a required reason). Non-participants and nonexistent ids are indistinguishable SESSION_NOT_FOUND denials; the row waits in the disputed state for admin arbitration.
+  """
+  openSessionDispute(id: ID!, reason: String!): Session!
+
+  """
   Rotate the JWT pair from a valid refresh token. Returns fresh access + refresh tokens. The new access_token + refresh_token + session_id are also set as httpOnly cookies (rotation invalidates the prior pair).
   """
   refreshToken(refreshToken: String!): RefreshTokenPayload!
   registerUser(input: RegisterUserInput!): User!
+
+  """
+  Resolve one disputed session into exactly one terminal state (admin arbitration): Cancel refunds the held fee to its original lane, Complete consumes the hold (never-started disputes are rejected). Non-disputed rows are SESSION_INVALID_TRANSITION conflicts.
+  """
+  resolveSessionDispute(id: ID!, note: String, resolution: DisputeResolution!): Session!
 
   """
   Start one of the caller's scheduled sessions (teacher-only guarded transition).
@@ -98,6 +113,7 @@ type Mutation {
 
 type Query {
   _health: HealthCheck!
+  adminDisputedSessions(filter: SessionListFilterInput, limit: Int = 25, offset: Int = 0): SessionPage!
 
   """
   Returns the authenticated user (or null for anonymous). Anonymous callers receive null — the AuthProvider uses this to detect expired access tokens and silently restore the session via `refreshToken`.
@@ -155,15 +171,20 @@ input RegisterUserInput {
 }
 
 type Session {
+  cancelReason: String
   confirmationDeadline: DateTime
   confirmedByStudentAt: DateTime
   confirmedByTeacherAt: DateTime
   createdAt: DateTime!
+  disputeReason: String
+  disputedAt: DateTime
   endedAt: DateTime
   fee: String
   feeHeld: Boolean!
   id: ID!
   intent: SessionIntent
+  resolutionNote: String
+  resolvedAt: DateTime
   sessionType: SessionType!
   startedAt: DateTime
   status: SessionStatus!

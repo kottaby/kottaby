@@ -86,13 +86,52 @@ const MANDATED_SESSIONS_KEYS = [
   "cancelConfirmBody",
   "cancelReasonLabel",
   "cancelReasonPlaceholder",
+  "openDispute",
+  "disputeConfirmTitle",
+  "disputeConfirmBody",
+  "disputeReasonLabel",
+  "disputeReasonPlaceholder",
+  "disputeReasonRequired",
+  "disputeOpenedNotice",
+  "cancelDisabledDisputed",
+  "cancelReasonLine",
   "sessionStartedNotice",
   "sessionCompletedNotice",
   "sessionCancelledNotice",
   "holdReleasedNotice",
   "duplicateBookingInfo",
   "genericError",
+  "adminDisputesPageTitle",
+  "adminDisputesCountLine",
+  "adminDisputesEmptyTitle",
+  "adminDisputesEmptyBody",
+  "disputeReasonMeta",
+  "disputedAtLabel",
+  "participantsLabel",
+  "resolveDispute",
+  "resolveDisputeTitle",
+  "resolveDisputeBody",
+  "resolutionCancelLabel",
+  "resolutionCancelHelper",
+  "resolutionCompleteLabel",
+  "resolutionCompleteHelper",
+  "resolutionNoteLabel",
+  "resolutionNotePlaceholder",
+  "resolveDisputeSubmit",
+  "disputeResolvedNotice",
+  "disputeReasonExpand",
+  "disputeReasonCollapse",
+  "pagerPreviousLabel",
+  "pagerNextLabel",
 ] as const;
+
+/**
+ * Keys whose values are TEMPLATE FUNCTIONS (the `DashboardLabels.welcome`
+ * precedent) instead of plain strings — the arbitration count line
+ * interpolates the honest total. Resolved by INVOKING them with a sample
+ * argument rather than the string path.
+ */
+const FUNCTION_LABEL_KEYS: ReadonlyArray<string> = ["adminDisputesCountLine"];
 
 /** Keys resolved through `getTranslations(locale)` in the sync-resolution tier. */
 const SYNC_SAMPLE_ERROR_KEYS = ["sessionNotFound", "teacherNotFound", "insufficientBalance"] as const;
@@ -100,6 +139,8 @@ const SYNC_SAMPLE_SESSIONS_KEYS = [
   "studentPageTitle",
   "statusScheduled",
   "statusDisputed",
+  "disputeOpenedNotice",
+  "adminDisputesPageTitle",
   "duplicateBookingInfo",
   "genericError",
 ] as const;
@@ -108,9 +149,11 @@ const SYNC_SAMPLE_SESSIONS_KEYS = [
 const ARABIC_SCRIPT_SAMPLE_KEYS = [
   "studentEmptyBody",
   "cancelConfirmBody",
+  "disputeConfirmBody",
   "statusScheduled",
   "statusDisputed",
   "duplicateBookingInfo",
+  "adminDisputesEmptyBody",
 ] as const;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -136,6 +179,30 @@ function nonEmptyLabelOf(localeMap: object, key: string, localeName: string): st
     throw new Error(`${localeName}.${key} must be a non-empty localized string`);
   }
   return value;
+}
+
+/**
+ * Reads one label slot accepting BOTH value shapes: plain-string keys read
+ * directly; template-function keys (see {@link FUNCTION_LABEL_KEYS}) resolve
+ * by invocation with a sample argument. Throws on anything that does not
+ * produce a non-empty string.
+ */
+function resolvedLabelOf(localeMap: object, key: string, localeName: string): string {
+  if (FUNCTION_LABEL_KEYS.includes(key)) {
+    const fn: unknown = Reflect.get(localeMap, key);
+    if (typeof fn !== "function") {
+      throw new Error(`${localeName}.${key} must be a template function`);
+    }
+    // Reflect.apply (not a direct call): the value is only known as
+    // `Function` here — invoking through the Reflect channel keeps the
+    // unsafe-call lint table satisfied while the result is re-narrowed.
+    const value: unknown = Reflect.apply(fn, undefined, [2]);
+    if (typeof value !== "string" || value.length === 0) {
+      throw new Error(`${localeName}.${key} must resolve to a non-empty localized string`);
+    }
+    return value;
+  }
+  return nonEmptyLabelOf(localeMap, key, localeName);
 }
 
 // ===========================================================================
@@ -182,19 +249,21 @@ describe("sessions namespace — compile-time parity mirror", () => {
 
   test("every value on BOTH maps is a non-empty localized string (zero dead keys)", () => {
     for (const key of Object.keys(sessionsAr)) {
-      expect(nonEmptyLabelOf(sessionsAr, key, "ar").length).toBeGreaterThan(0);
-      expect(nonEmptyLabelOf(sessionsEn, key, "en").length).toBeGreaterThan(0);
+      expect(resolvedLabelOf(sessionsAr, key, "ar").length).toBeGreaterThan(0);
+      expect(resolvedLabelOf(sessionsEn, key, "en").length).toBeGreaterThan(0);
     }
     // Symmetric sweep — guards an en-only key that ar lost via future drift.
     for (const key of Object.keys(sessionsEn)) {
-      expect(nonEmptyLabelOf(sessionsAr, key, "ar").length).toBeGreaterThan(0);
+      expect(resolvedLabelOf(sessionsAr, key, "ar").length).toBeGreaterThan(0);
     }
   });
 
   test("placeholder-name sets agree across ar/en for EVERY sessions key (no locale-local drift)", () => {
     for (const key of Object.keys(sessionsAr)) {
-      const arNames = icuPlaceholdersOf(nonEmptyLabelOf(sessionsAr, key, "ar"));
-      const enNames = icuPlaceholdersOf(nonEmptyLabelOf(sessionsEn, key, "en"));
+      // Template-function keys interpolate through arguments (no ICU braces);
+      // the invocation above still yields comparable resolved strings.
+      const arNames = icuPlaceholdersOf(resolvedLabelOf(sessionsAr, key, "ar"));
+      const enNames = icuPlaceholdersOf(resolvedLabelOf(sessionsEn, key, "en"));
       expect(enNames).toEqual(arNames);
     }
   });

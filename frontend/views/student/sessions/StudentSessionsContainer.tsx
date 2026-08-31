@@ -14,6 +14,7 @@ import { myStudentSessionsQueryDocument } from "@/frontend/graphql/sharedDocumen
 import { extractErrorCode } from "@/frontend/lib/graphql-error-utils";
 import { mapGraphQLErrorByCode, normalizeGraphQLErrorCode } from "@/frontend/providers/apollo/error-link.map";
 import { CancelSessionConfirmDialog } from "@/frontend/views/student/sessions/CancelSessionConfirmDialog";
+import { SessionDisputeConfirmDialog } from "@/frontend/views/student/sessions/SessionDisputeConfirmDialog";
 import { SessionRow } from "@/frontend/views/student/sessions/SessionRow";
 import { SessionStatusFilterChips } from "@/frontend/views/student/sessions/SessionStatusFilterChips";
 import { SessionsEmptyState } from "@/frontend/views/student/sessions/SessionsEmptyState";
@@ -59,6 +60,23 @@ import type { SessionsLabels } from "@/shared/locale/types/sessions";
  * | `DUPLICATE_REQUEST` | informational snackbar with `sessions.duplicateBookingInfo` (never an error treatment — docs/IDEMPOTENCY.md §3) |
  * | `FORBIDDEN` / masked `INTERNAL_SERVER_ERROR` / anything else | error snackbar with the copy the dialog resolved (`errors.forbidden` / `sessions.genericError`); the dialog stays open for a retry |
  *
+ * Dispute-dialog wiring (DEV3-005 R-110) — the `openSessionDispute` mutation
+ * and its code classification live in {@link SessionDisputeConfirmDialog};
+ * EVERY error arm surfaces a snackbar (the dispute vocabulary per plan §4)
+ * and the row stays in the list (no eviction arm — the dialog's docblock):
+ *
+ * | Outcome (extensions.code) | Container behavior |
+ * |---------------------------|--------------------|
+ * | success | `sessions.disputeOpenedNotice` success snackbar; the row flips to its DISPUTED chip via the dialog's cache normalize (no refetch); the dispute dialog closes and the row's `dispute` in-flight slot releases |
+ * | `SESSION_NOT_FOUND` | `errors.sessionNotFound` error snackbar; row stays; dialog closes |
+ * | `SESSION_INVALID_TRANSITION` | `errors.sessionInvalidTransition` error snackbar; row stays; dialog closes |
+ * | `VALIDATION` / `FORBIDDEN` / anything else | error snackbar with the copy the dialog resolved (`errors.validation` / `errors.forbidden` / `sessions.genericError`); the dialog stays open for a retry |
+ *
+ * The dispute affordance participates in the cron-r2 D9-bis per-row slot
+ * book (`Record<sessionId, Set<kind>>` extended with the `dispute` kind):
+ * the row whose dispute dialog is open holds the slot, disabling its own
+ * dispute CTA while the modal owns the mutation.
+ *
  * Query-context errors classify through the SINGLE
  * `mapGraphQLErrorByCode` table (`frontend/providers/apollo/error-link.map.ts`)
  * — never the server `message`.
@@ -103,6 +121,47 @@ function dropRowAlert(alerts: Readonly<Record<string, string>>, sessionId: strin
 }
 
 /**
+ * Per-row action kinds tracked in the container's in-flight slots. `cancel`
+ * is reserved for the dialog-owned mutation (its busy state lives inside
+ * `CancelSessionConfirmDialog`); `dispute` marks the row whose dispute
+ * dialog is open (the dialog-owned mutation — the D9-bis per-row slot book
+ * extended with the DEV3-005 dispute kind).
+ */
+type RowActionKind = "cancel" | "dispute";
+
+/**
+ * In-flight slot book — sessionId → the set of action kinds currently in
+ * flight FOR THAT ROW (cron-r2 D9-bis hardening). Immutable records +
+ * copied sets only: the React state is never mutated in place, so every
+ * `setState` yields a new snapshot and per-row slots clear independently.
+ */
+type InFlightSlots = Readonly<Record<string, ReadonlySet<RowActionKind>>>;
+
+/** Opens a row+kind slot (pure — returns a new record, never mutating). */
+function addInFlightAction(slots: InFlightSlots, sessionId: string, kind: RowActionKind): InFlightSlots {
+  const next = new Set(slots[sessionId] ?? []);
+  next.add(kind);
+  return { ...slots, [sessionId]: next };
+}
+
+/** Closes a row+kind slot, dropping the entry once its set drains (pure). */
+function removeInFlightAction(slots: InFlightSlots, sessionId: string, kind: RowActionKind): InFlightSlots {
+  const previous = slots[sessionId];
+  if (!previous?.has(kind)) return slots;
+  const next = new Set(previous);
+  next.delete(kind);
+  if (next.size === 0) {
+    return Object.fromEntries(Object.entries(slots).filter(([id]) => id !== sessionId));
+  }
+  return { ...slots, [sessionId]: next };
+}
+
+/** Whether THIS row's slot for THIS action kind is currently in flight. */
+function isInFlight(slots: InFlightSlots, sessionId: string, kind: RowActionKind): boolean {
+  return slots[sessionId]?.has(kind) ?? false;
+}
+
+/**
  * The student sessions view: ALWAYS-ON chrome (title + sticky filter chips)
  * over a swapping body — skeleton / permission fallback / error notice /
  * empty (generic or filtered) / rows — plus the cancel-dialog and snackbar
@@ -118,6 +177,14 @@ export function StudentSessionsContainer(): ReactNode {
 
   // Cancel-dialog owner (single dialog slot, re-keyed per session id).
   const [cancelDialogSessionId, setCancelDialogSessionId] = useState<string | null>(null);
+
+  // Dispute-dialog owner (DEV3-005, single dialog slot, re-keyed per id).
+  const [disputeDialogSessionId, setDisputeDialogSessionId] = useState<string | null>(null);
+
+  // Per-row in-flight slots (D9-bis mechanism) — the row whose dispute dialog
+  // is open holds the `dispute` slot, disabling its dispute CTA behind the
+  // modal while its mutation runs.
+  const [inFlightSlots, setInFlightSlots] = useState<InFlightSlots>({});
 
   // sessionId → inline row alert copy (e.g. SESSION_INVALID_TRANSITION).
   const [rowAlerts, setRowAlerts] = useState<Readonly<Record<string, string>>>({});
@@ -144,6 +211,20 @@ export function StudentSessionsContainer(): ReactNode {
   const closeCancelDialog = useCallback((): void => {
     setCancelDialogSessionId(null);
   }, []);
+
+  /** Dispute-dialog open — ALSO claims the row's `dispute` in-flight slot. */
+  const openDisputeDialog = useCallback((sessionId: string): void => {
+    setDisputeDialogSessionId(sessionId);
+    setInFlightSlots(prev => addInFlightAction(prev, sessionId, "dispute"));
+  }, []);
+
+  /** Dispute-dialog close (any outcome) — releases the row's dispute slot. */
+  const closeDisputeDialog = useCallback((): void => {
+    setDisputeDialogSessionId(null);
+    setInFlightSlots(prev =>
+      disputeDialogSessionId === null ? prev : removeInFlightAction(prev, disputeDialogSessionId, "dispute")
+    );
+  }, [disputeDialogSessionId]);
 
   const dismissNotice = useCallback((): void => {
     setNotice(null);
@@ -187,6 +268,47 @@ export function StudentSessionsContainer(): ReactNode {
     // The dialog stays open for a retry (its own documented contract).
   }, []);
 
+  // --- dispute-dialog outcome arms (DEV3-005 — all snackbars; the row
+  // stays in the list; the dialog closes and releases the dispute slot) ---
+
+  const handleDisputed = useCallback(
+    (sessionId: string): void => {
+      setRowAlerts(prev => dropRowAlert(prev, sessionId));
+      setNotice({ message: t.disputeOpenedNotice, severity: "success" });
+      closeDisputeDialog();
+    },
+    [t, closeDisputeDialog]
+  );
+
+  const handleDisputeSessionMissing = useCallback(
+    (sessionId: string): void => {
+      // Deliberately NO eviction arm (see the dispute dialog's docblock) —
+      // the honest surface is the error notice; the row stays in the list.
+      setRowAlerts(prev => dropRowAlert(prev, sessionId));
+      setNotice({ message: te.sessionNotFound, severity: "error" });
+      closeDisputeDialog();
+    },
+    [te, closeDisputeDialog]
+  );
+
+  // No sessionId parameter: the invalid-transition arm never addresses the
+  // row (no inline alert — the dispute vocabulary is snackbar-mapped), and a
+  // parameterless callback stays assignable to the dialog's
+  // `(sessionId: string) => void` prop type.
+  const handleDisputeInvalidTransition = useCallback((): void => {
+    setNotice({ message: te.sessionInvalidTransition, severity: "error" });
+    closeDisputeDialog();
+  }, [te, closeDisputeDialog]);
+
+  /**
+   * Failure arm (VALIDATION / FORBIDDEN / masked) — the dispute dialog
+   * STAYS OPEN for a retry (its own documented contract), so the dispute
+   * slot stays claimed and the snackbar carries the resolved copy.
+   */
+  const handleDisputeFailure = useCallback((message: string): void => {
+    setNotice({ message, severity: "error" });
+  }, []);
+
   // The body below the chrome resolves through the module-scope
   // `StudentSessionsBody` (matrix branches 1–5) — extracting it keeps this
   // orchestrator to state + callbacks only while the chrome above renders in
@@ -206,6 +328,8 @@ export function StudentSessionsContainer(): ReactNode {
         data={data}
         rowAlerts={rowAlerts}
         onCancelIntent={openCancelDialog}
+        onDisputeIntent={openDisputeDialog}
+        disputeInFlightSlots={inFlightSlots}
         t={t}
       />
       {cancelDialogSessionId !== null ? (
@@ -219,6 +343,18 @@ export function StudentSessionsContainer(): ReactNode {
           onInvalidTransition={handleInvalidTransition}
           onDuplicateReplay={handleDuplicateReplay}
           onFailure={handleFailure}
+        />
+      ) : null}
+      {disputeDialogSessionId !== null ? (
+        <SessionDisputeConfirmDialog
+          key={disputeDialogSessionId}
+          sessionId={disputeDialogSessionId}
+          open
+          onClose={closeDisputeDialog}
+          onDisputed={handleDisputed}
+          onSessionMissing={handleDisputeSessionMissing}
+          onInvalidTransition={handleDisputeInvalidTransition}
+          onFailure={handleDisputeFailure}
         />
       ) : null}
       <Snackbar
@@ -244,6 +380,9 @@ interface StudentSessionsBodyProps {
   readonly data: MyStudentSessionsQuery | undefined;
   readonly rowAlerts: Readonly<Record<string, string>>;
   readonly onCancelIntent: (sessionId: string) => void;
+  readonly onDisputeIntent: (sessionId: string) => void;
+  /** Per-row dispute slot book (D9-bis) — dispute CTAs disable per row. */
+  readonly disputeInFlightSlots: InFlightSlots;
   readonly t: SessionsLabels;
 }
 
@@ -260,6 +399,8 @@ function StudentSessionsBody({
   data,
   rowAlerts,
   onCancelIntent,
+  onDisputeIntent,
+  disputeInFlightSlots,
   t,
 }: Readonly<StudentSessionsBodyProps>): ReactNode {
   if (loading && data === undefined) {
@@ -310,6 +451,8 @@ function StudentSessionsBody({
           session={session}
           alertMessage={rowAlerts[session.id] ?? null}
           onCancelIntent={onCancelIntent}
+          onDisputeIntent={onDisputeIntent}
+          disputeDisabled={isInFlight(disputeInFlightSlots, session.id, "dispute")}
         />
       ))}
     </Stack>

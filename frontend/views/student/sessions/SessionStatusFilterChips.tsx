@@ -10,10 +10,10 @@ import type { SessionsLabels } from "@/shared/locale/types/sessions";
  * SessionStatusFilterChips — the student/teacher sessions list status filter.
  *
  * A single-select (`exclusive`) MUI `ToggleButtonGroup` row rendering the
- * "all statuses" token plus the FOUR reachable `SessionStatus` values
- * (`Disputed` is intentionally absent — it is unreachable on today's
- * surfaces; its chip LABEL still exists in `SessionsLabels` for vocabulary
- * stability, but no filter chip is offered for it).
+ * "all statuses" token plus ALL FIVE `SessionStatus` values (DEV3-005 made
+ * `Disputed` reachable on the participant surfaces — a row sits in the
+ * disputed state until an admin resolves it, so its filter chip is offered
+ * like any other lifecycle status).
  *
  * Token-space design (oxlint `no-unsafe-enum-comparison`): the component
  * works exclusively on plain string TOKENS — the "all" token plus the enum
@@ -34,7 +34,8 @@ import type { SessionsLabels } from "@/shared/locale/types/sessions";
 const ALL_TOKEN = "all";
 
 /**
- * Chip order — "all" first, then the four reachable lifecycle statuses.
+ * Chip order — "all" first, then the lifecycle statuses (DEV3-005 adds the
+ * `Disputed` chip — reachable since the dispute surface landed).
  * Plain string tokens, never enum-typed comparisons.
  */
 const FILTER_TOKENS: readonly string[] = [
@@ -43,6 +44,7 @@ const FILTER_TOKENS: readonly string[] = [
   SessionStatus.Started,
   SessionStatus.Completed,
   SessionStatus.Cancelled,
+  SessionStatus.Disputed,
 ];
 
 /** Token → `SessionStatus | null` filter value (`null` = no filtering). */
@@ -52,15 +54,29 @@ const FILTER_STATUS_BY_TOKEN: Record<string, SessionStatus | null> = {
   [SessionStatus.Started]: SessionStatus.Started,
   [SessionStatus.Completed]: SessionStatus.Completed,
   [SessionStatus.Cancelled]: SessionStatus.Cancelled,
+  [SessionStatus.Disputed]: SessionStatus.Disputed,
 };
 
+/**
+ * Filter-chip label-key union — the NARROW slice of `SessionsLabels` the
+ * toolbar may render. The namespace also carries template-function labels
+ * (e.g. `adminDisputesCountLine`) that are NOT renderable as a toggle
+ * label, so the lookup table is keyed by this Pick-union, never the full
+ * `keyof SessionsLabels`.
+ */
+type FilterChipLabelKey = keyof Pick<
+  SessionsLabels,
+  "statusFilterAll" | "statusScheduled" | "statusStarted" | "statusCompleted" | "statusCancelled" | "statusDisputed"
+>;
+
 /** Token → compile-time label key into `SessionsLabels` (property access only). */
-const FILTER_LABEL_KEY_BY_TOKEN: Record<string, keyof SessionsLabels> = {
+const FILTER_LABEL_KEY_BY_TOKEN: Record<string, FilterChipLabelKey> = {
   [ALL_TOKEN]: "statusFilterAll",
   [SessionStatus.Scheduled]: "statusScheduled",
   [SessionStatus.Started]: "statusStarted",
   [SessionStatus.Completed]: "statusCompleted",
   [SessionStatus.Cancelled]: "statusCancelled",
+  [SessionStatus.Disputed]: "statusDisputed",
 };
 
 interface SessionStatusFilterChipsProps {

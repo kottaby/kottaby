@@ -3,12 +3,13 @@
 import {
   CancelOutlined as CancelledIcon,
   CheckCircleOutlined as CompletedIcon,
+  FlagOutlined as DisputeActionIcon,
   ReportProblemOutlined as DisputedIcon,
   ScheduleOutlined as ScheduledIcon,
   PlayCircleOutlined as StartedIcon,
   type SvgIconComponent,
 } from "@mui/icons-material";
-import { Alert, Box, Button, Chip, Stack, Typography } from "@mui/material";
+import { Alert, Box, Button, Chip, Stack, Tooltip, Typography } from "@mui/material";
 import type { Palette } from "@mui/material/styles";
 import type { ReactNode } from "react";
 import {
@@ -65,8 +66,20 @@ import type { SessionsLabels } from "@/shared/locale/types/sessions";
 /** Typographic placeholder for nullable payload values (NOT locale copy). */
 const NO_VALUE_PLACEHOLDER = "—";
 
+/**
+ * Status-chip label-key union — the NARROW slice of `SessionsLabels` the
+ * lifecycle chip may render. The namespace also carries template-function
+ * labels (e.g. `adminDisputesCountLine`) that are NOT renderable as a chip
+ * label, so the lookup table is keyed by this Pick-union, never the full
+ * `keyof SessionsLabels`.
+ */
+type StatusChipLabelKey = keyof Pick<
+  SessionsLabels,
+  "statusScheduled" | "statusStarted" | "statusCompleted" | "statusCancelled" | "statusDisputed"
+>;
+
 /** Chip label key per lifecycle status (vocabulary-stability pin includes `Disputed`). */
-const STATUS_LABEL_KEY: Record<string, keyof SessionsLabels> = {
+const STATUS_LABEL_KEY: Record<string, StatusChipLabelKey> = {
   [SessionStatus.Scheduled]: "statusScheduled",
   [SessionStatus.Started]: "statusStarted",
   [SessionStatus.Completed]: "statusCompleted",
@@ -108,10 +121,26 @@ const TONE_COLORS: Record<
 };
 
 /**
- * Cancellable-lifecycle lookup — the Cancel CTA renders ONLY for these
- * statuses (Record lookup, never an enum comparison).
+ * Cancellable-lifecycle lookup — the Cancel CTA renders ENABLED only for
+ * these statuses (Record lookup, never an enum comparison). Disputed rows
+ * render the CTA DISABLED below (the state machine forbids cancelling a
+ * disputed session — R-110).
  */
 const CANCELLABLE_STATUSES: Record<string, true> = {
+  [SessionStatus.Scheduled]: true,
+  [SessionStatus.Started]: true,
+};
+
+/** Disputed token (Record lookup — the disabled-Cancel state below). */
+const DISPUTED_STATUS: Record<string, true> = {
+  [SessionStatus.Disputed]: true,
+};
+
+/**
+ * Disputable-lifecycle lookup — the dispute CTA renders ONLY for these
+ * statuses (R-110: disputes open from `scheduled` or `started`).
+ */
+const DISPUTABLE_STATUSES: Record<string, true> = {
   [SessionStatus.Scheduled]: true,
   [SessionStatus.Started]: true,
 };
@@ -144,12 +173,30 @@ interface SessionRowProps {
   readonly alertMessage?: string | null;
   /** Cancel-CTA intent — the container owns dialog open/close state. */
   readonly onCancelIntent: (sessionId: string) => void;
+  /**
+   * Dispute-CTA intent (DEV3-005) — the container owns the dispute dialog
+   * open/close state. When omitted the dispute affordance never renders
+   * (the affordance matrix stays caller-driven).
+   */
+  readonly onDisputeIntent?: (sessionId: string) => void;
+  /**
+   * Disabled while THIS row's dispute slot is in flight (per-row slot
+   * book, cron-r2 D9-bis mechanism extended with the `dispute` kind).
+   */
+  readonly disputeDisabled?: boolean;
   /** Extra lifecycle CTAs (teacher Start/Complete); the student path omits it. */
   readonly actions?: ReadonlyArray<SessionRowAction>;
 }
 
 /** One session list card: status chip + intent title + fee/deadline/created meta. */
-export function SessionRow({ session, alertMessage, onCancelIntent, actions }: Readonly<SessionRowProps>): ReactNode {
+export function SessionRow({
+  session,
+  alertMessage,
+  onCancelIntent,
+  onDisputeIntent,
+  disputeDisabled = false,
+  actions,
+}: Readonly<SessionRowProps>): ReactNode {
   const t = useAppTranslation(Sessions);
   const locale = useAppLocale();
 
@@ -159,6 +206,8 @@ export function SessionRow({ session, alertMessage, onCancelIntent, actions }: R
   const toneColors = TONE_COLORS[statusTone] ?? TONE_COLORS.warning;
 
   const isCancellable = session.status in CANCELLABLE_STATUSES;
+  const isDisputed = session.status in DISPUTED_STATUS;
+  const isDisputable = session.status in DISPUTABLE_STATUSES && onDisputeIntent !== undefined;
 
   const feeText = session.fee === null ? NO_VALUE_PLACEHOLDER : `${session.fee} ${SESSION_FEE_CURRENCY}`;
   const deadlineText =
@@ -256,6 +305,33 @@ export function SessionRow({ session, alertMessage, onCancelIntent, actions }: R
           ) : null}
         </Stack>
         {/*
+         * Persisted cancellation reason (DEV3-005 R-107) — rendered ONLY
+         * when the lifecycle set it. Truncated to one line with the FULL
+         * reason reachable through the tooltip (min-width:0 keeps the
+         * truncation RTL-safe inside the wrap-friendly flex row).
+         */}
+        {session.cancelReason !== null ? (
+          <Tooltip title={session.cancelReason} placement="top">
+            <Stack
+              data-testid={`session-cancel-reason-${session.id}`}
+              sx={{
+                gap: 0.5,
+                flexDirection: "row",
+                alignItems: "baseline",
+                minWidth: 0,
+                maxWidth: "100%",
+              }}
+            >
+              <Typography variant="overline" sx={theme => ({ color: theme.palette.text.secondary, flexShrink: 0 })}>
+                {t.cancelReasonLine}
+              </Typography>
+              <Typography variant="body2" noWrap sx={theme => ({ color: theme.palette.text.secondary })}>
+                {session.cancelReason}
+              </Typography>
+            </Stack>
+          </Tooltip>
+        ) : null}
+        {/*
          * Row CTAs hold FULL opacity at idle and never dim — the hover
          * affordance lives on the card shell above (elevation + outline),
          * so touch users (who get no hover) always see every action at its
@@ -274,6 +350,25 @@ export function SessionRow({ session, alertMessage, onCancelIntent, actions }: R
             {action.label}
           </Button>
         ))}
+        {/*
+         * Dispute affordance (DEV3-005 R-110) — same visual family as the
+         * Cancel CTA (outlined, ≥44px touch target) with the warning/amber
+         * accent THROUGH theme tokens, disabled while this row's dispute
+         * slot is in flight. Only for disputable lifecycles.
+         */}
+        {isDisputable && onDisputeIntent !== undefined ? (
+          <Button
+            variant="outlined"
+            color="warning"
+            disabled={disputeDisabled}
+            onClick={() => onDisputeIntent(session.id)}
+            startIcon={<DisputeActionIcon fontSize="small" />}
+            data-testid={`session-action-${session.id}-dispute`}
+            sx={{ minHeight: { xs: 44, sm: 40 }, px: 3 }}
+          >
+            {t.openDispute}
+          </Button>
+        ) : null}
         {isCancellable ? (
           <Button
             variant="outlined"
@@ -283,6 +378,28 @@ export function SessionRow({ session, alertMessage, onCancelIntent, actions }: R
           >
             {t.cancelSession}
           </Button>
+        ) : null}
+        {isDisputed ? (
+          //
+          // The state machine forbids cancelling a disputed session (the
+          // ONLY edge out is admin arbitration) — the CTA stays VISIBLE but
+          // disabled, with the reason reachable via tooltip. MUI tooltips
+          // need a focusable wrapper around a disabled button, hence the
+          // inline span bridge.
+          //
+          <Tooltip title={t.cancelDisabledDisputed} placement="top">
+            <span>
+              <Button
+                variant="outlined"
+                color="error"
+                disabled
+                data-testid={`session-action-${session.id}-cancel-disabled`}
+                sx={{ minHeight: { xs: 44, sm: 40 }, px: 3 }}
+              >
+                {t.cancelSession}
+              </Button>
+            </span>
+          </Tooltip>
         ) : null}
       </Stack>
     </Box>
