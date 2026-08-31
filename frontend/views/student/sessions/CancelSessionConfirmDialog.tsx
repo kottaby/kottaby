@@ -21,8 +21,8 @@ import { Common, Errors, Sessions, useAppTranslation } from "@/shared/locale";
  *
  * | Outcome (extensions.code)                          | Behavior |
  * |----------------------------------------------------|----------|
- * | success                                            | cache NORMALIZE — `update` rewrites `status`/`feeHeld` on the normalized `Session:<id>` entity so the list row converges instantly (the returned `Session!` payload also auto-merges); `onCancelled` up to the container → `sessions.holdReleasedNotice` snackbar |
- * | `SESSION_NOT_FOUND` (not-found family)             | evict the row — list field filtered by `__ref`/`id`, entity evicted, `gc()`; `onSessionMissing` up to the container → `errors.sessionNotFound` snackbar + row disappears |
+ * | success                                            | cache NORMALIZE — `update` rewrites `status`/`feeHeld` on the normalized `Session:<id>` entity so the list row converges instantly (the returned `Session!` payload also auto-merges); `onCancelled` up to the container → the role container's cancelled-session snackbar |
+ * | `SESSION_NOT_FOUND` (not-found family)             | evict the row — BOTH role list fields (`myStudentSessions` + `myTeacherSessions`) filtered by `__ref`/`id`, entity evicted, `gc()`; `onSessionMissing` up to the container → `errors.sessionNotFound` snackbar + row disappears |
  * | `SESSION_INVALID_TRANSITION` (no mapping row — local behavior per AGENTS "caller keeps pre-existing behavior") | `onInvalidTransition` up to the container → row-scoped inline alert with `errors.sessionInvalidTransition` |
  * | `DUPLICATE_REQUEST` (map row: success-equivalent)  | `onDuplicateReplay` → informational notice with `sessions.duplicateBookingInfo` (never an error treatment — docs/IDEMPOTENCY.md §3) |
  * | masked `INTERNAL_SERVER_ERROR` / `FORBIDDEN` / anything else | `onFailure(copy)` → error toast; `FORBIDDEN` carries `errors.forbidden`, everything else the sessions-generic `sessions.genericError` |
@@ -74,33 +74,48 @@ interface CancelSessionConfirmDialogProps {
 }
 
 /**
- * Removes the missing session from the cached `myStudentSessions` lists
- * (filter the reference out of every stored variant), evicts the entity and
- * garbage-collects — the list converges WITHOUT any refetch.
+ * Filters one removed session reference out of a stored paginated list
+ * payload (`items` array) — the shared arm behind BOTH role list fields
+ * below (the dialog is role-neutral: `myStudentSessions` for the student
+ * surface, `myTeacherSessions` for the teacher surface; absent fields are
+ * skipped by `cache.modify` so the other role's cache is untouched).
+ */
+function filterSessionOutOfList(existing: unknown, removedEntityId: string | undefined, sessionId: string): unknown {
+  if (typeof existing !== "object" || existing === null || !("items" in existing)) return existing;
+  const items = existing.items;
+  if (!Array.isArray(items)) return existing;
+  return {
+    ...existing,
+    items: items.filter(item => {
+      if (typeof item !== "object" || item === null) return true;
+      // Normalized storage: dangling `Reference` entries carry `__ref`
+      // (bracket access — the Apollo wire property is underscore-prefixed).
+      if ("__ref" in item) return removedEntityId === undefined ? true : item.__ref !== removedEntityId;
+      // Non-normalized storage (defensive): raw payloads carry `id`.
+      if ("id" in item) return item.id !== sessionId;
+      return true;
+    }),
+  };
+}
+
+/**
+ * Removes the missing session from the cached role list fields
+ * (`myStudentSessions` AND `myTeacherSessions` — every stored variant),
+ * evicts the entity and garbage-collects — the list converges WITHOUT any
+ * refetch.
  */
 function evictSessionFromLists(cache: ReturnType<typeof useApolloClient>["cache"], sessionId: string): void {
   const removedEntityId = cache.identify({ __typename: SESSION_TYPE_NAME, id: sessionId });
   cache.modify({
     id: "ROOT_QUERY",
     fields: {
-      // Applies to EVERY stored variant of the field (args-serialized
+      // Applies to EVERY stored variant of each field (args-serialized
       // storeFieldNames match their bare field name in `modify`).
       myStudentSessions(existing: unknown) {
-        if (typeof existing !== "object" || existing === null || !("items" in existing)) return existing;
-        const items = existing.items;
-        if (!Array.isArray(items)) return existing;
-        return {
-          ...existing,
-          items: items.filter(item => {
-            if (typeof item !== "object" || item === null) return true;
-            // Normalized storage: dangling `Reference` entries carry `__ref`
-            // (bracket access — the Apollo wire property is underscore-prefixed).
-            if ("__ref" in item) return item.__ref !== removedEntityId;
-            // Non-normalized storage (defensive): raw payloads carry `id`.
-            if ("id" in item) return item.id !== sessionId;
-            return true;
-          }),
-        };
+        return filterSessionOutOfList(existing, removedEntityId, sessionId);
+      },
+      myTeacherSessions(existing: unknown) {
+        return filterSessionOutOfList(existing, removedEntityId, sessionId);
       },
     },
   });

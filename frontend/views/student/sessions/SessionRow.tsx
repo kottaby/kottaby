@@ -40,9 +40,18 @@ import type { SessionsLabels } from "@/shared/locale/types/sessions";
  * The Cancel CTA renders ONLY while the row's status is `Scheduled` or
  * `Started` (the cancellable-lifecycle lookup table) — the dialog itself,
  * the mutation and every outcome notice live one level up
- * (`CancelSessionConfirmDialog` + `StudentSessionsContainer`), keeping this
+ * (`CancelSessionConfirmDialog` + the role container), keeping this
  * row a pure affordance. `alertMessage` renders the row-scoped inline alert
  * the container raises (e.g. `SESSION_INVALID_TRANSITION` rejections).
+ *
+ * Role seam (4.3): the optional `actions` prop adds lifecycle CTAs BESIDE the
+ * Cancel button without forking the row — the teacher container passes
+ * Start (`Scheduled`) / Complete (`Started`) descriptors, each carrying its
+ * own in-flight `disabled` state; terminal statuses receive an empty list.
+ * The student path omits the prop entirely, so student behavior and tests are
+ * byte-unchanged. A `TeacherSessionRow` wrapper was rejected because the
+ * Cancel CTA lives INSIDE this row's action stack — the wrapper would have to
+ * duplicate the meta/actions layout to sit next to it.
  *
  * MUI v9 discipline: `sx`-only styling, theme-palette colors through
  * callbacks, `*Outlined` icons only, RTL-safe logical composition (no
@@ -103,17 +112,40 @@ const CANCELLABLE_STATUSES: Record<string, true> = {
   [SessionStatus.Started]: true,
 };
 
+/**
+ * One extra lifecycle CTA rendered beside the Cancel button (teacher
+ * Start/Complete today; generically shaped so the row stays role-agnostic).
+ * `disabled` is the CALLER'S per-mutation in-flight state — the row never
+ * owns mutation bookkeeping.
+ */
+export interface SessionRowAction {
+  /** Stable affordance identity (doubles as the render key + testid suffix). */
+  readonly id: "start" | "complete";
+  /** Compile-time i18n copy resolved by the container. */
+  readonly label: string;
+  /** Disabled while THIS action's own mutation is in flight. */
+  readonly disabled?: boolean;
+  /** Activation intent — the container owns the mutation launch. */
+  readonly onIntent: (sessionId: string) => void;
+}
+
 interface SessionRowProps {
-  /** The session payload row (normalized `Session` entity). */
+  /**
+   * The session payload row (normalized `Session` entity). The student and
+   * teacher list item types are structurally identical codegen shapes, so a
+   * teacher row passes without a mapping layer.
+   */
   readonly session: MyStudentSessionsQuery_myStudentSessions_items;
   /** Row-scoped inline alert copy (e.g. invalid-transition rejection), or absent. */
   readonly alertMessage?: string | null;
   /** Cancel-CTA intent — the container owns dialog open/close state. */
   readonly onCancelIntent: (sessionId: string) => void;
+  /** Extra lifecycle CTAs (teacher Start/Complete); the student path omits it. */
+  readonly actions?: ReadonlyArray<SessionRowAction>;
 }
 
 /** One session list card: status chip + intent title + fee/deadline/created meta. */
-export function SessionRow({ session, alertMessage, onCancelIntent }: Readonly<SessionRowProps>): ReactNode {
+export function SessionRow({ session, alertMessage, onCancelIntent, actions }: Readonly<SessionRowProps>): ReactNode {
   const t = useAppTranslation(Sessions);
   const locale = useAppLocale();
 
@@ -205,6 +237,19 @@ export function SessionRow({ session, alertMessage, onCancelIntent }: Readonly<S
           <MetaCell label={t.deadline} value={deadlineText} />
           <MetaCell label={t.createdAt} value={createdText} />
         </Stack>
+        {(actions ?? []).map(action => (
+          <Button
+            key={action.id}
+            variant="outlined"
+            color="primary"
+            disabled={action.disabled === true}
+            onClick={() => action.onIntent(session.id)}
+            data-testid={`session-action-${session.id}-${action.id}`}
+            sx={{ minHeight: { xs: 44, sm: 40 }, px: 3 }}
+          >
+            {action.label}
+          </Button>
+        ))}
         {isCancellable ? (
           <Button
             variant="outlined"
