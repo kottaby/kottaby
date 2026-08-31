@@ -12,17 +12,25 @@
  *  - **Timing-safe bearer compare** against `CRON_SECRET`
  *    (`node:crypto.timingSafeEqual` over fixed-length SHA-256 digests —
  *    never a plain string compare, no length leak, no early exit); a
- *    missing/mismatched secret is a fail-closed 401. The secret is never
- *    accepted via query string.
- *  - **Mode gates fail closed** — the surface answers 404 unless BOTH
- *    `CRON_EXECUTION_MODE=external` AND `CRON_EXTERNAL_ENABLED=true`; a
- *    disabled or unconfigured deployment exposes no sweep endpoint at
- *    all (indistinguishable from any other unknown path). A deployment
- *    with no secret configured also fails closed (401), never open.
+ *    missing/mismatched secret is a fail-closed 401 through the shared
+ *    `UNAUTHORIZED` envelope. The secret is never accepted via query
+ *    string.
+ *  - **Mode gates fail closed** — the surface answers a BARE 404 unless
+ *    BOTH `CRON_EXECUTION_MODE=external` AND `CRON_EXTERNAL_ENABLED=true`.
+ *    The 404 is deliberately NOT the shared error envelope: every envelope
+ *    carries a `code`, and any code (even a masked one) would tell the
+ *    caller THIS path exists and is special — the oracle the disabled
+ *    surface must never leak (a truly unknown path answers no envelope
+ *    either). The bare response carries no body, no code, no
+ *    `requestId`. The status literal is the ONE number the error-code
+ *    taxonomy cannot express (its nine canonical codes have no 404 row by
+ *    design — REST envelopes never 404) — documented here as the single
+ *    sanctioned exemption.
  *  - **Envelope** — success `{ data: { cancelled, refunded }, requestId }`
- *    through `apiSuccessResponse`; failures use the shared error envelope
- *    with statuses derived through the error-code taxonomy (no numeric
- *    status literals in this file).
+ *    through `apiSuccessResponse`; a THROWN sweep failure (e.g. an
+ *    unreadable lane rolling the sweep back) is caught and masked through
+ *    `apiErrorResponse` (500 `INTERNAL_SERVER_ERROR` + one correlated log
+ *    line) — the handler never lets an error escape raw.
  *
  * The heavy lifting is `SessionLifecycleService.sweepExpiredSessions` —
  * one transaction: the guarded batch cancel + the per-row same-lane
@@ -33,13 +41,16 @@ import { createHash, timingSafeEqual } from "node:crypto";
 import type { NextRequest } from "next/server";
 import { apiErrorResponse, apiSuccessResponse, resolveRequestId } from "@/backend/lib/api";
 import { getEnv } from "@/backend/lib/env";
-import { DomainError, NotFoundError } from "@/backend/lib/errors";
+import { DomainError } from "@/backend/lib/errors";
 import { SessionLifecycleService } from "@/backend/services/classes/session-lifecycle.service";
 
-/** The disabled-surface denial — classified to 404 (endpoint-shaped 404). */
-function sweepDisabledError(): NotFoundError {
-  return new NotFoundError("ENDPOINT", "Sweep endpoint is not available on this deployment.");
-}
+/**
+ * The ONE status the error-code taxonomy cannot express: the endpoint-shaped
+ * 404 of a disabled sweep surface. See the module docblock — deliberately a
+ * BARE response (no envelope, no code, no requestId) so a disabled
+ * deployment is indistinguishable from any other unknown path (R-204).
+ */
+const ENDPOINT_GONE_STATUS = 404;
 
 /** The failed-auth denial — classified to 401 (UNAUTHORIZED family). */
 function sweepUnauthorizedError(): DomainError {
@@ -67,12 +78,12 @@ export async function GET(request: NextRequest): Promise<Response> {
   const requestId = resolveRequestId(request.headers);
   const envelopeLocale = "en";
 
-  // Mode gates FIRST — a disabled surface is a 404, indistinguishable from
-  // any other unknown path (the endpoint effectively does not exist).
+  // Mode gates FIRST — a disabled surface is a BARE 404, indistinguishable
+  // from any other unknown path (no envelope, no code — see the docblock).
   const executionMode = getEnv("CRON_EXECUTION_MODE");
   const externalEnabled = getEnv("CRON_EXTERNAL_ENABLED");
   if (executionMode !== "external" || externalEnabled !== "true") {
-    return apiErrorResponse(sweepDisabledError(), { requestId, locale: envelopeLocale });
+    return new Response(null, { status: ENDPOINT_GONE_STATUS });
   }
 
   // Bearer gate — timing-safe compare against CRON_SECRET.
@@ -82,6 +93,13 @@ export async function GET(request: NextRequest): Promise<Response> {
     return apiErrorResponse(sweepUnauthorizedError(), { requestId, locale: envelopeLocale });
   }
 
-  const result = await SessionLifecycleService.sweepExpiredSessions();
-  return apiSuccessResponse({ cancelled: result.cancelled, refunded: result.refunded }, { requestId });
+  // The sweep owns its transaction; a thrown failure (unreadable lane →
+  // rolled-back sweep) is masked through the shared envelope — never a raw
+  // escape past the handler.
+  try {
+    const result = await SessionLifecycleService.sweepExpiredSessions();
+    return apiSuccessResponse({ cancelled: result.cancelled, refunded: result.refunded }, { requestId });
+  } catch (error: unknown) {
+    return apiErrorResponse(error, { requestId, locale: envelopeLocale });
+  }
 }
