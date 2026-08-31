@@ -396,7 +396,7 @@
 
 ## Phase 6: Post-Implementation Review Waves (Parallel)
 
-- [ ] 6.1 [Launch parallel review waves + deferred-items check]
+- [x] 6.1 [Launch parallel review waves + deferred-items check]
   - **review-types wave**: canonical-type discipline (no local Pothos types, no service `.types.ts`, contract types consumed-not-redefined, additive-only diffs on existing type files).
   - **review-backend wave**: four-phase create ordering; guarded single-statement transitions; probe classification-only; `tx` propagation audit on EVERY new/changed repo method; zero cross-layer imports; REQ-019 grep gates (zero notifications/audit/wallet/transaction/report/recitation imports or writes in the slice); REQ-031 zero-`...input` grep gate; REQ-036 log-hygiene scan (no `console.*`, no keys/payloads in log context).
   - **review-frontend wave**: MUI v9 sx-only compliance; palette-token exclusivity; `*Outlined` icons; `React.SubmitEvent`; translation `defineNamespace` handle-const property access (no `Translation` enum exists); no `useLazyQuery`; codegen-types-only; nav conventions.
