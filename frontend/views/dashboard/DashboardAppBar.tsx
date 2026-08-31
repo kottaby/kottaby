@@ -3,12 +3,11 @@
 import {
   DarkModeOutlined as DarkModeIcon,
   LightModeOutlined as LightModeIcon,
-  LogoutOutlined as LogoutIcon,
   MenuOutlined as MenuIcon,
 } from "@mui/icons-material";
-import { AppBar, Avatar, Box, IconButton, Stack, Toolbar, Tooltip, Typography } from "@mui/material";
+import { AppBar, IconButton, Stack, Toolbar, Tooltip, Typography } from "@mui/material";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 import { LocaleSwitcher } from "@/frontend/components/LocaleSwitcher";
 import { focusVisibleRingSx } from "@/frontend/components/ui/focusRing";
@@ -16,6 +15,7 @@ import { NotificationUnreadBadge } from "@/frontend/components/ui/NotificationUn
 import { useAuth } from "@/frontend/hooks/useAuth";
 import { useThemeMode } from "@/frontend/hooks/useThemeMode";
 import { roleDashboardPath } from "@/frontend/lib/auth/roleDashboardRoute";
+import { DashboardAppBarUserMenu } from "@/frontend/views/dashboard/DashboardAppBarUserMenu";
 import { Dashboard, useAppTranslation } from "@/shared/locale";
 
 /**
@@ -62,20 +62,9 @@ export interface DashboardAppBarProps {
  */
 export function DashboardAppBar({ onMenuClick, showMenuButton }: Readonly<DashboardAppBarProps>): ReactNode {
   const t = useAppTranslation(Dashboard);
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const { mode, toggleTheme } = useThemeMode();
-  const router = useRouter();
   const pathname = usePathname();
-
-  const handleLogout = () => {
-    logout();
-    router.push("/login");
-  };
-
-  // The avatar shows the first letter of the user's full name (or "U" for
-  // unknown) — a lightweight visual anchor without needing an image asset.
-  const avatarLetter = user?.fullName?.charAt(0).toUpperCase() ?? "U";
-  const avatarAlt = user ? t.userAvatarAlt(user.fullName) : t.title;
 
   // Track the current path so the brand wordmark's `aria-current` reflects
   // the active route (accessibility best practice for nav landmarks). The
@@ -168,60 +157,9 @@ export function DashboardAppBar({ onMenuClick, showMenuButton }: Readonly<Dashbo
               socket maintains the cached count, REQ-063c/065/067) */}
           <NotificationUnreadBadge />
 
-          {/* User identity + sign-out (authenticated only). Below `sm` the
-              identity chip yields its width to the wordmark + controls — the
-              sign-out itself stays mounted in EVERY viewport (QA R2: it was
-              pushed off-canvas at 375px). */}
-          {user ? (
-            <Stack direction="row" sx={{ alignItems: "center", gap: { xs: 1, sm: 1.5 }, flexShrink: 0 }}>
-              <Avatar
-                alt={avatarAlt}
-                sx={theme => ({
-                  width: 32,
-                  height: 32,
-                  bgcolor: theme.palette.primary.main,
-                  color: theme.palette.onPrimary,
-                  fontSize: 14,
-                  fontWeight: 700,
-                  // Avatar-only from `sm`; full name/email from `md`.
-                  display: { xs: "none", sm: "flex" },
-                })}
-              >
-                {avatarLetter}
-              </Avatar>
-              <Box sx={{ display: { xs: "none", md: "block" }, minWidth: 0 }}>
-                <Typography
-                  variant="body2"
-                  sx={theme => ({
-                    fontWeight: 600,
-                    color: theme.palette.text.primary,
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                    maxWidth: 200,
-                  })}
-                >
-                  {user.fullName}
-                </Typography>
-                <Typography
-                  variant="caption"
-                  sx={theme => ({ color: theme.palette.text.secondary, display: "block", lineHeight: 1.2 })}
-                >
-                  {user.email}
-                </Typography>
-              </Box>
-              <Tooltip title={t.signOut}>
-                <IconButton
-                  size="large"
-                  onClick={handleLogout}
-                  aria-label={t.signOut}
-                  sx={theme => ({ ...focusVisibleRingSx, color: theme.palette.text.secondary, flexShrink: 0 })}
-                >
-                  <LogoutIcon />
-                </IconButton>
-              </Tooltip>
-            </Stack>
-          ) : null}
+          {/* User identity + sign-out (authenticated only) — extracted to
+              `DashboardAppBarUserMenu`. */}
+          <DashboardAppBarUserMenu />
         </Stack>
       </Toolbar>
     </AppBar>

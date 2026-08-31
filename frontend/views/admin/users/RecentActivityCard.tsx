@@ -4,9 +4,11 @@
  * RecentActivityCard — the per-user activity timeline card of the admin user
  * DETAIL page (prototype "Recent Activity" / audit trail card).
  *
- * This file is now the SOLE consumer of the audit-entry label logic that
- * previously lived inside `AdminUserDetailContainer` — `actionLabel` and
- * `localizeAuditFieldName` moved here with it.
+ * The audit-entry label logic (`actionLabel` / `localizeAuditFieldName`,
+ * moved out of `AdminUserDetailContainer` earlier) now lives in
+ * `activityAuditLabels.ts`; the timeline body (`TimelineEntry` /
+ * `ActivityBody`) and the footer `ActivityAuditButton` live in
+ * `activityTimeline.tsx`.
  *
  * Composition:
  *  - Title row: HistoryOutlined (primary) + title + trailing "View All"
@@ -27,151 +29,13 @@
  */
 
 import { HistoryOutlined as HistoryIcon } from "@mui/icons-material";
-import { Alert, Box, Button, CircularProgress, Stack, Typography } from "@mui/material";
+import { Box, Button, Stack, Typography } from "@mui/material";
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { type AdminUserActivityQuery, AuditActionType } from "@/frontend/graphql/generated/gql/graphql";
+import type { AdminUserActivityQuery } from "@/frontend/graphql/generated/gql/graphql";
+import type { ActivityLabels } from "@/frontend/views/admin/users/activityAuditLabels";
+import { ActivityAuditButton, ActivityBody } from "@/frontend/views/admin/users/activityTimeline";
 import { DetailCard, DetailCardTitle } from "@/frontend/views/admin/users/UserDetailPrimitives";
-import type { AdminUsersLabels } from "@/shared/locale/types/adminUsers";
-
-type ActivityEntry = AdminUserActivityQuery["adminUserActivity"][number];
-
-type ActivityLabels = Pick<AdminUsersLabels, "activity" | "errorState" | "headers" | "createDialog" | "editDialog">;
-
-/** Localized action label for an audit entry (Record lookup — no enum switch). */
-function actionLabel(action: AuditActionType, labels: ActivityLabels): string {
-  const labelsByAction: Record<AuditActionType, string> = {
-    [AuditActionType.Create]: labels.activity.actionCreate,
-    [AuditActionType.Update]: labels.activity.actionUpdate,
-    [AuditActionType.Delete]: labels.activity.actionDelete,
-    [AuditActionType.Reactivate]: labels.activity.actionReactivate,
-    [AuditActionType.Suspend]: labels.activity.actionSuspend,
-    [AuditActionType.Override]: labels.activity.actionOverride,
-    [AuditActionType.Adjust]: labels.activity.actionAdjust,
-  };
-  return labelsByAction[action];
-}
-
-/**
- * Localizes a raw audit `changedFields` column name (e.g. `"fullName"`)
- * using the existing label blocks; unknown names fall back to the raw
- * string (future fields render honestly instead of blanking out).
- */
-function localizeAuditFieldName(field: string, labels: ActivityLabels): string {
-  switch (field) {
-    case "fullName":
-      return labels.headers.name;
-    case "email":
-      return labels.headers.email;
-    case "phone":
-      return labels.createDialog.phone;
-    case "country":
-      return labels.headers.country;
-    case "gender":
-      return labels.createDialog.gender;
-    case "dateOfBirth":
-      return labels.editDialog.dateOfBirth;
-    case "role":
-      return labels.headers.role;
-    default:
-      return field;
-  }
-}
-
-interface TimelineEntryProps {
-  readonly entry: ActivityEntry;
-  readonly isLatest: boolean;
-  readonly hasNext: boolean;
-  readonly labels: ActivityLabels;
-  /** Locale-bound relative-time formatter. */
-  readonly formatRelative: (raw: string | null | undefined) => string;
-}
-
-function TimelineEntry({ entry, isLatest, hasNext, labels, formatRelative }: TimelineEntryProps): ReactNode {
-  return (
-    <Box component="li" sx={{ display: "flex", gap: 1.5 }}>
-      <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", flexShrink: 0, width: 12 }}>
-        <Box
-          aria-hidden
-          sx={theme => ({
-            width: 10,
-            height: 10,
-            borderRadius: "50%",
-            flexShrink: 0,
-            mt: "5px",
-            bgcolor: isLatest ? theme.palette.primary.main : theme.palette.surfaceContainerHighest,
-          })}
-        />
-        {hasNext && (
-          <Box aria-hidden sx={theme => ({ flex: 1, width: 1, minHeight: 24, bgcolor: theme.palette.divider })} />
-        )}
-      </Box>
-      <Box sx={{ minWidth: 0, pb: 1.5 }}>
-        <Typography variant="body2" sx={{ fontWeight: 600 }}>
-          {actionLabel(entry.actionType, labels)}
-        </Typography>
-        <Typography variant="caption" sx={theme => ({ display: "block", color: theme.palette.text.secondary })}>
-          {labels.activity.byActor} {entry.actorName} · {formatRelative(entry.createdAt)}
-        </Typography>
-        {entry.changedFields && entry.changedFields.length > 0 && (
-          <Typography variant="caption" sx={theme => ({ display: "block", color: theme.palette.text.secondary })}>
-            {labels.activity.changedFields}{" "}
-            {entry.changedFields.map(field => localizeAuditFieldName(field, labels)).join(", ")}
-          </Typography>
-        )}
-      </Box>
-    </Box>
-  );
-}
-
-interface ActivityBodyProps {
-  readonly loading: boolean;
-  readonly entries: ReadonlyArray<ActivityEntry> | undefined;
-  readonly error: unknown;
-  readonly labels: ActivityLabels;
-  readonly formatRelative: (raw: string | null | undefined) => string;
-}
-
-/**
- * Body renderer in priority order: loading spinner (initial load only —
- * refresh keeps stale data) → inline error → centered empty state → the
- * newest-first timeline. A top-level function keeps the card body free of
- * nested ternaries (sonarjs/no-nested-conditional).
- */
-function ActivityBody({ loading, entries, error, labels, formatRelative }: ActivityBodyProps): ReactNode {
-  if (loading && !entries) {
-    return (
-      <Stack sx={{ alignItems: "center", py: 3 }}>
-        <CircularProgress size={24} />
-      </Stack>
-    );
-  }
-  if (error) {
-    return <Alert severity="warning">{labels.errorState.title}</Alert>;
-  }
-  const items = entries ?? [];
-  if (items.length === 0) {
-    return (
-      <Typography variant="body2" sx={theme => ({ py: 4, textAlign: "center", color: theme.palette.text.secondary })}>
-        {labels.activity.empty}
-      </Typography>
-    );
-  }
-  return (
-    <Box component="ol" sx={{ m: 0, p: 0, listStyle: "none" }} aria-label={labels.activity.title}>
-      {items.map((entry, index) => (
-        <TimelineEntry
-          key={entry.id}
-          entry={entry}
-          isLatest={index === 0}
-          hasNext={index < items.length - 1}
-          labels={labels}
-          formatRelative={formatRelative}
-        />
-      ))}
-    </Box>
-  );
-}
 
 interface RecentActivityCardProps {
   readonly labels: ActivityLabels;
@@ -179,30 +43,6 @@ interface RecentActivityCardProps {
   readonly activityData: AdminUserActivityQuery | undefined;
   readonly activityError: unknown;
   readonly formatRelative: (raw: string | null | undefined) => string;
-}
-
-interface ActivityAuditButtonProps {
-  readonly labels: ActivityLabels;
-  /** Full-width + top margin = the bottom-of-card footer (entries/loading/error);
-   *  inline width = the compact empty state, where the Stack gap owns spacing. */
-  readonly fullWidth: boolean;
-}
-
-/** Outlined "View Full Audit Log" link button — always rendered so the audit surface stays one click away. */
-function ActivityAuditButton({ labels, fullWidth }: ActivityAuditButtonProps): ReactNode {
-  return (
-    <Button
-      component={Link}
-      href="/audit"
-      variant="outlined"
-      sx={theme => ({
-        ...(fullWidth && { mt: 2, width: "100%" }),
-        borderColor: theme.palette.outlineVariant,
-      })}
-    >
-      {labels.activity.viewFullAuditLog}
-    </Button>
-  );
 }
 
 export function RecentActivityCard({

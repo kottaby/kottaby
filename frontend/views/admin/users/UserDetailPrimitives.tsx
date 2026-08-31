@@ -19,9 +19,10 @@
  *    container/`on<Color>Container` pair (mirrors the directory's private
  *    `TonalChip` recipe; kept separate because the directory one is module
  *    private by design).
- *  - `ApplicantStatusChip` — applicant lifecycle status as a tonal chip
- *    (pending/in-evaluation → info, passed → success, failed → error);
- *    shared by the hero chip row and the teacher-application title row.
+ *
+ * `ApplicantStatusChip` (applicant lifecycle status as a tonal chip, shared
+ * by the hero chip row and the teacher-application title row) lives in its
+ * own sibling module `ApplicantStatusChip.tsx`.
  *
  * MUI v9 `sx`-only discipline; zero hardcoded colors — every paint resolves
  * through `theme.palette.*` callbacks.
@@ -31,8 +32,6 @@ import { InfoOutlined as InfoIcon } from "@mui/icons-material";
 import { Box, Card, Chip, Stack, Typography } from "@mui/material";
 import type { Theme } from "@mui/material/styles";
 import type { ReactNode } from "react";
-import { ApplicantStatus } from "@/frontend/graphql/generated/gql/graphql";
-import type { AdminUsersLabels } from "@/shared/locale/types/adminUsers";
 
 /** Detail-surface tonal lanes backed by M3 container/`on<Color>Container` pairs. */
 export type DetailTone = "success" | "warning" | "error" | "info" | "neutral";
@@ -187,35 +186,4 @@ export function DetailTonalChip({ tone, label }: DetailTonalChipProps): ReactNod
       }}
     />
   );
-}
-
-/** Applicant lifecycle status → tonal lane (pending/in-evaluation info, passed success, failed error).
- *  Pending/in-evaluation take the INFO lane (not warning) so the chip can't be
- *  confused with the teacher role's secondary-copper identity it sits beside. */
-const APPLICANT_TONES: Record<ApplicantStatus, DetailTone> = {
-  [ApplicantStatus.Pending]: "info",
-  [ApplicantStatus.InEvaluation]: "info",
-  [ApplicantStatus.Passed]: "success",
-  [ApplicantStatus.Failed]: "error",
-};
-
-/** Localized applicant-status string (Record lookup — no enum switch). */
-function applicantLabelOf(status: ApplicantStatus, labels: AdminUsersLabels["detail"]["applicantStatus"]): string {
-  const labelsByStatus: Record<ApplicantStatus, string> = {
-    [ApplicantStatus.Pending]: labels.pending,
-    [ApplicantStatus.InEvaluation]: labels.inEvaluation,
-    [ApplicantStatus.Passed]: labels.passed,
-    [ApplicantStatus.Failed]: labels.failed,
-  };
-  return labelsByStatus[status];
-}
-
-interface ApplicantStatusChipProps {
-  readonly status: ApplicantStatus;
-  readonly labels: AdminUsersLabels["detail"]["applicantStatus"];
-}
-
-/** Tonal applicant-status chip used by the hero chip row and the teacher-application title row. */
-export function ApplicantStatusChip({ status, labels }: ApplicantStatusChipProps): ReactNode {
-  return <DetailTonalChip tone={APPLICANT_TONES[status]} label={applicantLabelOf(status, labels)} />;
 }

@@ -24,10 +24,12 @@
  * inputs hold a uniform 44px height.
  */
 
-import { AddOutlined as AddIcon, SearchOutlined as SearchIcon } from "@mui/icons-material";
+import { AddOutlined as AddIcon } from "@mui/icons-material";
 import { Box, Button, Card, FormControl, InputLabel, MenuItem, Select, TextField } from "@mui/material";
 import type { ReactNode } from "react";
 import type { DirectoryGovernance, DirectoryRole } from "@/frontend/views/admin/users/adminUsersDirectory.helpers";
+import { DirectoryRoleFilter } from "@/frontend/views/admin/users/DirectoryRoleFilter";
+import { DirectorySearchField } from "@/frontend/views/admin/users/DirectorySearchField";
 import type { AdminUsersLabels } from "@/shared/locale/types/adminUsers";
 
 type ToolbarLabels = Pick<
@@ -77,47 +79,18 @@ export function DirectoryToolbar(props: DirectoryToolbarProps): ReactNode {
       <Box
         sx={{ display: "flex", width: "100%", flexWrap: { xs: "wrap", md: "nowrap" }, gap: 2, alignItems: "center" }}
       >
-        <TextField
+        <DirectorySearchField
           id={SEARCH_ID}
-          hiddenLabel
-          placeholder={labels.filters.searchPlaceholder}
+          labels={labels}
           value={props.searchInput}
-          onChange={event => props.setSearchInput(event.target.value)}
-          slotProps={{
-            htmlInput: { "aria-label": labels.filters.search },
-            input: {
-              startAdornment: (
-                <SearchIcon
-                  fontSize="small"
-                  sx={theme => ({ marginInlineEnd: 1, color: theme.palette.text.secondary })}
-                />
-              ),
-            },
-          }}
-          sx={{
-            flex: { xs: "1 1 100%", md: "0 1 auto" },
-            width: { xs: "100%", md: 400 },
-            maxWidth: 400,
-            // Fixed 44px control height — matches the selects and the Create button.
-            "& .MuiInputBase-root": { height: 44 },
-          }}
+          onChange={props.setSearchInput}
         />
-        <FormControl sx={{ minWidth: 150, flex: { xs: "1 1 100%", sm: "0 1 auto" } }}>
-          <InputLabel htmlFor={ROLE_ID}>{labels.filters.role}</InputLabel>
-          <Select
-            id={ROLE_ID}
-            value={props.roleFilter}
-            label={labels.filters.role}
-            onChange={event => props.setRoleFilter(event.target.value || "")}
-            sx={{ height: 44 }}
-          >
-            <MenuItem value="">{labels.genderOptions.unspecified}</MenuItem>
-            <MenuItem value="Admin">{labels.roleLabels.admin}</MenuItem>
-            <MenuItem value="Teacher">{labels.roleLabels.teacher}</MenuItem>
-            <MenuItem value="Student">{labels.roleLabels.student}</MenuItem>
-            <MenuItem value="Parent">{labels.roleLabels.parent}</MenuItem>
-          </Select>
-        </FormControl>
+        <DirectoryRoleFilter
+          id={ROLE_ID}
+          roleFilter={props.roleFilter}
+          setRoleFilter={props.setRoleFilter}
+          labels={labels}
+        />
         <FormControl sx={{ minWidth: 150, flex: { xs: "1 1 100%", sm: "0 1 auto" } }}>
           <InputLabel htmlFor={GOVERNANCE_ID}>{labels.filters.governance}</InputLabel>
           <Select

@@ -1,17 +1,16 @@
 "use client";
 
-import { DoneOutlined, NotificationsOutlined } from "@mui/icons-material";
-import { Box, Button, Chip, IconButton, Stack, Tooltip, Typography } from "@mui/material";
+import { NotificationsOutlined } from "@mui/icons-material";
+import { Box, Chip, Stack, Typography } from "@mui/material";
 import type { ReactNode } from "react";
-// audit-R4: shared keyboard-focus ring (v9 ButtonBase ships none).
-import { focusVisibleRingSx } from "@/frontend/components/ui/focusRing";
 import type { MyNotificationsQuery_myNotifications_items } from "@/frontend/graphql/generated/gql/graphql";
 import { formatApplicantDate } from "@/frontend/lib/i18n/format-date";
+import { NotificationRowMarkReadAction } from "@/frontend/views/notifications/NotificationRowMarkReadAction";
+import { NotificationRowTypeAvatar } from "@/frontend/views/notifications/NotificationRowTypeAvatar";
 import {
   NOTIFICATION_TYPE_ICONS,
   NOTIFICATION_TYPE_LABEL_ACCESSORS,
 } from "@/frontend/views/notifications/notification-type-presentation";
-import { darkOutlinedContrastSx } from "@/frontend/views/notifications/outlined-button-contrast";
 import type { NotificationsLabels } from "@/shared/locale/types/notifications";
 
 /**
@@ -70,16 +69,6 @@ interface NotificationRowProps {
  * state to assistive tech, the title carries the bold weight, and the
  * mark-read action is offered; read rows render un-tinted with no dot and
  * no action.
- *
- * Touch posture: `sm+` shows the inline secondary button; on `xs` the action
- * is a ≥44px icon-only button with the translated row-context `aria-label`
- * (`markReadAriaLabel`) — a single-action row keeps a direct affordance
- * rather than an overflow menu. Both affordances carry a row-context
- * `Tooltip` (the NotificationUnreadBadge / LocaleSwitcher precedent) so
- * pointer users get the same target-of-action context screen readers
- * announce, and the inline button paints through the dark-mode outlined
- * contrast lift (`darkOutlinedContrastSx`) so its label clears AA in both
- * color schemes.
  */
 export function NotificationRow({
   notification,
@@ -113,22 +102,7 @@ export function NotificationRow({
         bgcolor: unread ? theme.palette.action.selected : undefined,
       })}
     >
-      <Box
-        aria-hidden
-        sx={theme => ({
-          flexShrink: 0,
-          width: 40,
-          height: 40,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          borderRadius: "50%",
-          bgcolor: theme.palette.primaryContainer,
-          color: theme.palette.onPrimaryContainer,
-        })}
-      >
-        <TypeIcon fontSize="small" />
-      </Box>
+      <NotificationRowTypeAvatar icon={TypeIcon} />
       <Stack spacing={0.5} sx={{ flex: 1, minWidth: 0 }}>
         <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
           {unread ? (
@@ -178,43 +152,12 @@ export function NotificationRow({
         </Stack>
       </Stack>
       {unread ? (
-        <Stack direction="row" spacing={1} sx={{ flexShrink: 0, alignItems: "center" }}>
-          <Tooltip title={markReadLabel}>
-            <Button
-              size="small"
-              variant="outlined"
-              startIcon={<DoneOutlined />}
-              disabled={markReadPending}
-              aria-label={markReadLabel}
-              onClick={handleMarkRead}
-              // QA round 2 (axe serious): dark-mode outlined text/border lift.
-              sx={theme => ({
-                ...focusVisibleRingSx,
-                ...darkOutlinedContrastSx(theme),
-                display: { xs: "none", sm: "inline-flex" },
-                flexShrink: 0,
-              })}
-            >
-              {labels.markRead}
-            </Button>
-          </Tooltip>
-          <Tooltip title={markReadLabel}>
-            <IconButton
-              size="small"
-              aria-label={markReadLabel}
-              disabled={markReadPending}
-              onClick={handleMarkRead}
-              sx={{
-                ...focusVisibleRingSx,
-                display: { xs: "inline-flex", sm: "none" },
-                minHeight: 44,
-                minWidth: 44,
-              }}
-            >
-              <DoneOutlined fontSize="small" />
-            </IconButton>
-          </Tooltip>
-        </Stack>
+        <NotificationRowMarkReadAction
+          markReadLabel={markReadLabel}
+          buttonLabel={labels.markRead}
+          markReadPending={markReadPending}
+          onMarkRead={handleMarkRead}
+        />
       ) : null}
     </Box>
   );

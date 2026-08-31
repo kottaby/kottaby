@@ -4,32 +4,14 @@ import {
   CalendarMonthOutlined as CalendarIcon,
   NotificationsOutlined as NotificationsIcon,
   SchoolOutlined as SchoolIcon,
-  SubscriptionsOutlined as SubscriptionsIcon,
-  EmojiObjectsOutlined as TipIcon,
   PaymentsOutlined as WalletIcon,
 } from "@mui/icons-material";
-import {
-  Box,
-  Card,
-  CardContent,
-  Divider,
-  List,
-  ListItem,
-  ListItemIcon,
-  ListItemText,
-  Stack,
-  Typography,
-} from "@mui/material";
+import { Box, Stack, Typography } from "@mui/material";
 import type { ReactNode } from "react";
 import { useAuth } from "@/frontend/hooks/useAuth";
+import { DashboardGettingStartedCard } from "@/frontend/views/dashboard/DashboardGettingStartedCard";
+import { type DashboardStat, DashboardStatCard } from "@/frontend/views/dashboard/DashboardStatCard";
 import { Dashboard, useAppTranslation } from "@/shared/locale";
-
-/** Stat card shape — used by the dashboard's placeholder stat strip. */
-interface DashboardStat {
-  readonly label: string;
-  readonly value: string;
-  readonly Icon: typeof SchoolIcon;
-}
 
 interface DashboardViewProps {
   /**
@@ -93,148 +75,11 @@ export function DashboardView({ statusSlot }: Readonly<DashboardViewProps>): Rea
         }}
       >
         {stats.map(stat => (
-          <StatCard key={stat.label} stat={stat} />
+          <DashboardStatCard key={stat.label} stat={stat} />
         ))}
       </Box>
 
-      <GettingStartedCard />
+      <DashboardGettingStartedCard />
     </Box>
-  );
-}
-
-interface StatCardProps {
-  readonly stat: DashboardStat;
-}
-
-/** Renders a single placeholder stat card. */
-function StatCard({ stat }: Readonly<StatCardProps>): ReactNode {
-  const { label, value, Icon } = stat;
-  return (
-    <Card
-      elevation={0}
-      sx={theme => ({
-        borderRadius: 3,
-        border: "1px solid",
-        borderColor: theme.palette.outlineVariant,
-        bgcolor: theme.palette.surfaceContainerLow,
-      })}
-    >
-      <CardContent sx={{ p: 3 }}>
-        <Stack direction="row" spacing={2} sx={{ alignItems: "center", justifyContent: "space-between" }}>
-          <Box>
-            <Typography
-              variant="caption"
-              sx={theme => ({
-                color: theme.palette.text.secondary,
-                textTransform: "uppercase",
-                letterSpacing: "0.08em",
-                fontWeight: 600,
-              })}
-            >
-              {label}
-            </Typography>
-            <Typography
-              variant="h4"
-              sx={theme => ({
-                fontWeight: 700,
-                color: theme.palette.text.primary,
-                mt: 0.5,
-              })}
-            >
-              {value}
-            </Typography>
-          </Box>
-          <Box
-            sx={theme => ({
-              width: 44,
-              height: 44,
-              borderRadius: 2,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              bgcolor: theme.palette.primaryContainer,
-              color: theme.palette.onPrimaryContainer,
-              flexShrink: 0,
-            })}
-          >
-            <Icon fontSize="medium" />
-          </Box>
-        </Stack>
-      </CardContent>
-    </Card>
-  );
-}
-
-/** Getting-started guide card shown below the stat grid to fill the landing viewport. */
-function GettingStartedCard(): ReactNode {
-  const t = useAppTranslation(Dashboard);
-
-  const tips: readonly { readonly Icon: typeof SchoolIcon; readonly text: string }[] = [
-    { Icon: SchoolIcon, text: t.gettingStartedTipSessions },
-    { Icon: SubscriptionsIcon, text: t.gettingStartedTipSubscriptions },
-    { Icon: NotificationsIcon, text: t.gettingStartedTipNotifications },
-  ];
-
-  return (
-    <Card
-      elevation={0}
-      sx={theme => ({
-        mt: 3,
-        borderRadius: 3,
-        border: "1px solid",
-        borderColor: theme.palette.outlineVariant,
-        bgcolor: theme.palette.surfaceContainerLow,
-      })}
-    >
-      <CardContent sx={{ p: { xs: 2.5, sm: 3 } }}>
-        <Stack direction="row" spacing={1.5} sx={{ alignItems: "center", mb: 1 }}>
-          <Box
-            sx={theme => ({
-              width: 36,
-              height: 36,
-              borderRadius: 2,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              bgcolor: theme.palette.secondaryContainer,
-              color: theme.palette.onSecondaryContainer,
-              flexShrink: 0,
-            })}
-          >
-            <TipIcon fontSize="small" />
-          </Box>
-          <Typography variant="h6" sx={{ fontWeight: 700 }}>
-            {t.gettingStartedTitle}
-          </Typography>
-        </Stack>
-        <Typography variant="body2" sx={theme => ({ color: theme.palette.text.secondary, mb: 2 })}>
-          {t.gettingStartedBody}
-        </Typography>
-        <Divider sx={theme => ({ borderColor: theme.palette.outlineVariant, mb: 1 })} />
-        <List disablePadding>
-          {tips.map(({ Icon, text }) => (
-            <ListItem key={text} sx={{ px: 0, py: 1 }}>
-              <ListItemIcon sx={{ minWidth: 40 }}>
-                <Box
-                  sx={theme => ({
-                    width: 32,
-                    height: 32,
-                    borderRadius: 1.5,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    bgcolor: theme.palette.primaryContainer,
-                    color: theme.palette.onPrimaryContainer,
-                  })}
-                >
-                  <Icon fontSize="small" />
-                </Box>
-              </ListItemIcon>
-              <ListItemText primary={text} slotProps={{ primary: { sx: { fontSize: "0.875rem", lineHeight: 1.5 } } }} />
-            </ListItem>
-          ))}
-        </List>
-      </CardContent>
-    </Card>
   );
 }

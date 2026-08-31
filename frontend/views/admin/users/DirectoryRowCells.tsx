@@ -6,39 +6,40 @@
  *
  * Both surfaces render the SAME semantic content per row — role pill, status
  * /details chips, governance headline, relative "last active" copy, and the
- * kebab actions menu — so the rendering lives here once and each surface
- * composes it.
+ * kebab actions menu — so the rendering lives in this component family and
+ * each surface composes it.
+ *
+ * This module hosts the shared row types plus the role pill, the governance
+ * headline, and the relative-time cell; the remaining cells live in their
+ * own siblings:
+ *  - `DirectoryStatusDetails`  → ./DirectoryStatusDetails
+ *  - `DirectoryActionsMenu`    → ./DirectoryActionsMenu
+ *  - `DirectoryEmptyState`     → ./DirectoryEmptyState
  *
  * Every color is resolved through a `sx` theme callback against the M3
  * container/`on<Color>Container` pairs (light + dark variants defined in the
  * theme palettes); the semantic → lane mapping comes from
- * `adminUsersDirectory.helpers.ts`.
+ * `adminUsersDirectory.helpers.ts`, and the tone → token lookup from
+ * `directoryToneColors.ts` (`DirectoryToneChip` paints the pills).
  *
- * Only components leave this module — the tone→token lookup below is private
- * (`react-refresh/only-export-components`).
+ * Only components (plus the row types) leave this module — the tone→token
+ * lookup lives in `directoryToneColors.ts` so the component files stay
+ * within `react-refresh/only-export-components`.
  */
 
+import { Box, Typography } from "@mui/material";
+import type { ReactNode } from "react";
+import type { AdminUsersQuery } from "@/frontend/graphql/generated/gql/graphql";
 import {
-  BlockOutlined as BlockIcon,
-  EditOutlined as EditIcon,
-  MoreVertOutlined as MoreVertIcon,
-  PersonOutlineOutlined as PersonIcon,
-  RefreshOutlined as RefreshIcon,
-} from "@mui/icons-material";
-import { Box, Chip, IconButton, Menu, MenuItem, Stack, Typography } from "@mui/material";
-import type { Theme } from "@mui/material/styles";
-import { type ReactNode, useState } from "react";
-import { type AdminUsersQuery, ApplicantStatus } from "@/frontend/graphql/generated/gql/graphql";
-import {
-  asDirectoryRole,
   type DirectoryGovernance,
   type DirectoryRole,
-  type DirectoryTone,
   formatDirectoryRelativeTime,
   governanceLabel,
   governanceToneKey,
   roleToneKey,
 } from "@/frontend/views/admin/users/adminUsersDirectory.helpers";
+import { TonalChip } from "@/frontend/views/admin/users/DirectoryToneChip";
+import { toneColors } from "@/frontend/views/admin/users/directoryToneColors";
 import type { AdminUsersLabels } from "@/shared/locale/types/adminUsers";
 
 /** Directory list-item row consumed by the cell components. */
@@ -57,81 +58,6 @@ type RowCellLabels = Pick<
   | "deleteConfirm"
   | "reactivateConfirm"
 >;
-
-interface ToneColors {
-  readonly bg: string;
-  readonly fg: string;
-  readonly dot: string;
-}
-
-/**
- * Tone lane → M3 token triple (private — module-scope, non-exported, so the
- * file stays component-only for `react-refresh/only-export-components`).
- * Every lane maps to a `*Container`/`on*Container` pair defined in BOTH
- * `lightPalette.ts` and `darkPalette.ts`; the neutral lane uses the
- * documented surface pair; the dot tracks the matching `.main` family.
- */
-function toneColors(theme: Theme, tone: DirectoryTone): ToneColors {
-  switch (tone) {
-    case "error":
-      return { bg: theme.palette.errorContainer, fg: theme.palette.onErrorContainer, dot: theme.palette.error.main };
-    case "warning":
-      return {
-        bg: theme.palette.warningContainer,
-        fg: theme.palette.onWarningContainer,
-        dot: theme.palette.warning.main,
-      };
-    case "success":
-      return {
-        bg: theme.palette.successContainer,
-        fg: theme.palette.onSuccessContainer,
-        dot: theme.palette.success.main,
-      };
-    case "primary":
-      return {
-        bg: theme.palette.primaryContainer,
-        fg: theme.palette.onPrimaryContainer,
-        dot: theme.palette.primary.main,
-      };
-    case "secondary":
-      return {
-        bg: theme.palette.secondaryContainer,
-        fg: theme.palette.onSecondaryContainer,
-        dot: theme.palette.secondary.main,
-      };
-    default:
-      return {
-        bg: theme.palette.surfaceContainerHighest,
-        fg: theme.palette.onSurfaceVariant,
-        dot: theme.palette.onSurfaceVariant,
-      };
-  }
-}
-
-interface TonalChipProps {
-  readonly tone: DirectoryTone;
-  readonly label: string;
-}
-
-/** Small pill chip painted from a M3 container/`on<Color>Container` pair. */
-function TonalChip({ tone, label }: TonalChipProps): ReactNode {
-  return (
-    <Chip
-      size="small"
-      label={label}
-      sx={theme => {
-        const colors = toneColors(theme, tone);
-        return {
-          height: 26,
-          borderRadius: "999px",
-          fontWeight: 600,
-          bgcolor: colors.bg,
-          color: colors.fg,
-        };
-      }}
-    />
-  );
-}
 
 interface DirectoryRolePillProps {
   readonly role: DirectoryRole;
@@ -162,64 +88,17 @@ export function DirectoryRolePill({ role, labels, muted = false }: DirectoryRole
   return <TonalChip tone={muted ? "neutral" : roleToneKey(role)} label={label} />;
 }
 
-/**
- * THE em-dash fallback for an unset cell value. Kept as a constant so the
- * details cell and the relative-time cell share one glyph source.
- */
-const EM_DASH = "—";
-
-interface DirectoryStatusDetailsProps {
-  readonly user: DirectoryUserItem;
-  readonly labels: Pick<AdminUsersLabels, "directoryChips">;
+interface DirectoryRelativeTimeProps {
+  readonly value: string | null | undefined;
+  /** Bound app locale (`useAppLocale()`) — fed to `Intl.RelativeTimeFormat`. */
+  readonly locale: "ar" | "en";
 }
 
-/**
- * Status/details cell — the per-role headline the prototype renders instead
- * of a generic status chip:
- *  - admin/system rows: italic `text.secondary` "System User" line;
- *  - teachers: `pendingReview` (warning lane) while the application is
- *    pending / in evaluation, else `certified` (secondary lane) when the
- *    teacher is approved;
- *  - students: `parentLinked` (success lane) when the student is linked;
- *  - parents: `<count> <childrenLabel>` (neutral lane) when linked;
- *  - anything else: the em-dash fallback.
- */
-export function DirectoryStatusDetails({ user, labels }: DirectoryStatusDetailsProps): ReactNode {
-  const role = asDirectoryRole(user.role);
-  if (role === "Admin") {
-    return (
-      <Typography variant="body2" sx={theme => ({ fontStyle: "italic", color: theme.palette.text.secondary })}>
-        {labels.directoryChips.systemUser}
-      </Typography>
-    );
-  }
-  if (role === "Teacher") {
-    if (user.applicantStatus === ApplicantStatus.Pending || user.applicantStatus === ApplicantStatus.InEvaluation) {
-      return <TonalChip tone="warning" label={labels.directoryChips.pendingReview} />;
-    }
-    if (user.teacherIsApproved) {
-      return <TonalChip tone="secondary" label={labels.directoryChips.certified} />;
-    }
-    return <EmDash />;
-  }
-  if (role === "Student") {
-    if (user.studentHasParentLink) {
-      return <TonalChip tone="success" label={labels.directoryChips.parentLinked} />;
-    }
-    return <EmDash />;
-  }
-  const linkedChildren = user.parentLinkedChildrenCount ?? 0;
-  if (linkedChildren > 0) {
-    return <TonalChip tone="neutral" label={`${linkedChildren} ${labels.directoryChips.childrenLabel}`} />;
-  }
-  return <EmDash />;
-}
-
-/** Muted em-dash rendered in `text.secondary` for empty cell values. */
-function EmDash(): ReactNode {
+/** Localized "last active" cell text; em-dash when the timestamp is unset. */
+export function DirectoryRelativeTime({ value, locale }: DirectoryRelativeTimeProps): ReactNode {
   return (
     <Typography variant="body2" component="span" sx={theme => ({ color: theme.palette.text.secondary })}>
-      {EM_DASH}
+      {formatDirectoryRelativeTime(value, locale)}
     </Typography>
   );
 }
@@ -297,113 +176,6 @@ export function DirectoryGovernanceLabel({
         {text}
       </Typography>
     </Box>
-  );
-}
-
-interface DirectoryRelativeTimeProps {
-  readonly value: string | null | undefined;
-  /** Bound app locale (`useAppLocale()`) — fed to `Intl.RelativeTimeFormat`. */
-  readonly locale: "ar" | "en";
-}
-
-/** Localized "last active" cell text; em-dash when the timestamp is unset. */
-export function DirectoryRelativeTime({ value, locale }: DirectoryRelativeTimeProps): ReactNode {
-  return (
-    <Typography variant="body2" component="span" sx={theme => ({ color: theme.palette.text.secondary })}>
-      {formatDirectoryRelativeTime(value, locale)}
-    </Typography>
-  );
-}
-
-interface DirectoryActionsMenuProps {
-  readonly user: DirectoryUserItem;
-  readonly labels: Pick<AdminUsersLabels, "headers" | "editDialog" | "deleteConfirm" | "reactivateConfirm">;
-  readonly onEdit: (user: DirectoryUserItem) => void;
-  readonly onDelete: (user: DirectoryUserItem) => void;
-}
-
-/**
- * Kebab actions menu per row — replaces the two verbal buttons the old
- * table rendered per row. The Deactivate item paints in the `error` lane;
- * for already-deleted rows the same slot becomes Reactivate (default
- * ink). Both wire straight into the container's existing dialog callbacks,
- * so the edit / soft-delete / reactivate flows are unchanged.
- */
-export function DirectoryActionsMenu({ user, labels, onEdit, onDelete }: DirectoryActionsMenuProps): ReactNode {
-  const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
-  const isReactivate = user.isDeleted;
-  const close = () => setAnchorEl(null);
-  return (
-    <>
-      <IconButton
-        aria-label={labels.headers.actions}
-        aria-haspopup="menu"
-        aria-expanded={anchorEl ? true : undefined}
-        onClick={event => setAnchorEl(event.currentTarget)}
-        sx={{ minWidth: 44, minHeight: 44 }}
-      >
-        <MoreVertIcon />
-      </IconButton>
-      <Menu anchorEl={anchorEl} open={anchorEl !== null} onClose={close}>
-        <MenuItem
-          onClick={() => {
-            close();
-            onEdit(user);
-          }}
-        >
-          <EditIcon fontSize="small" sx={theme => ({ marginInlineEnd: 1.5, color: theme.palette.text.secondary })} />
-          {labels.editDialog.title}
-        </MenuItem>
-        <MenuItem
-          onClick={() => {
-            close();
-            onDelete(user);
-          }}
-          sx={theme =>
-            isReactivate
-              ? {}
-              : {
-                  color: theme.palette.error.main,
-                  "& .MuiSvgIcon-root": { color: theme.palette.error.main },
-                }
-          }
-        >
-          {isReactivate ? (
-            <RefreshIcon
-              fontSize="small"
-              sx={theme => ({ marginInlineEnd: 1.5, color: theme.palette.text.secondary })}
-            />
-          ) : (
-            <BlockIcon fontSize="small" sx={{ marginInlineEnd: 1.5 }} />
-          )}
-          {isReactivate ? labels.reactivateConfirm.confirm : labels.deleteConfirm.confirm}
-        </MenuItem>
-      </Menu>
-    </>
-  );
-}
-
-interface DirectoryEmptyStateProps {
-  readonly labels: Pick<AdminUsersLabels, "emptyState">;
-  readonly hasFilters: boolean;
-}
-
-/**
- * Empty-state block rendered inside the desktop table body and (wrapped in
- * a card) on the mobile list — the copy (`labels.emptyState`) and the
- * two-variant title/message selection are unchanged from the old table.
- */
-export function DirectoryEmptyState({ labels, hasFilters }: DirectoryEmptyStateProps): ReactNode {
-  return (
-    <Stack spacing={1} sx={{ alignItems: "center", py: 6 }}>
-      <PersonIcon sx={theme => ({ fontSize: 48, color: theme.palette.text.secondary })} />
-      <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
-        {hasFilters ? labels.emptyState.filteredTitle : labels.emptyState.title}
-      </Typography>
-      <Typography sx={theme => ({ color: theme.palette.text.secondary })}>
-        {hasFilters ? labels.emptyState.filteredMessage : labels.emptyState.message}
-      </Typography>
-    </Stack>
   );
 }
 
