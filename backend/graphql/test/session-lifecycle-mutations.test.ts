@@ -288,21 +288,25 @@ describe("REQ-064 mutation matrix — anonymous callers (UNAUTHORIZED)", () => {
       mutation: CREATE_SESSION_DOC,
       variables: { input: { teacherId: 1, intent: "Hifz" } },
     });
+    expect(result.error).toBeDefined();
     expectMutationError(result.error, "UNAUTHORIZED");
   });
 
   test("anonymous startSession → UNAUTHORIZED", async () => {
     const result = await testClient.mutate({ mutation: START_SESSION_DOC, variables: { id: sessionAId } });
+    expect(result.error).toBeDefined();
     expectMutationError(result.error, "UNAUTHORIZED");
   });
 
   test("anonymous completeSession → UNAUTHORIZED", async () => {
     const result = await testClient.mutate({ mutation: COMPLETE_SESSION_DOC, variables: { id: sessionAId } });
+    expect(result.error).toBeDefined();
     expectMutationError(result.error, "UNAUTHORIZED");
   });
 
   test("anonymous cancelSession → UNAUTHORIZED", async () => {
     const result = await testClient.mutate({ mutation: CANCEL_SESSION_DOC, variables: { id: sessionBId } });
+    expect(result.error).toBeDefined();
     expectMutationError(result.error, "UNAUTHORIZED");
   });
 });
@@ -315,6 +319,7 @@ describe("REQ-064 mutation matrix — wrong-role callers (FORBIDDEN)", () => {
       mutation: CREATE_SESSION_DOC,
       variables: { input: { teacherId: cast.teacher.userId, intent: "Hifz" } },
     });
+    expect(result.error).toBeDefined();
     expectMutationError(result.error, "FORBIDDEN");
   });
 
@@ -323,6 +328,7 @@ describe("REQ-064 mutation matrix — wrong-role callers (FORBIDDEN)", () => {
       mutation: CREATE_SESSION_DOC,
       variables: { input: { teacherId: cast.teacher.userId, intent: "Hifz" } },
     });
+    expect(result.error).toBeDefined();
     expectMutationError(result.error, "FORBIDDEN");
   });
 
@@ -331,6 +337,7 @@ describe("REQ-064 mutation matrix — wrong-role callers (FORBIDDEN)", () => {
       mutation: CREATE_SESSION_DOC,
       variables: { input: { teacherId: cast.teacher.userId, intent: "Hifz" } },
     });
+    expect(result.error).toBeDefined();
     expectMutationError(result.error, "FORBIDDEN");
   });
 
@@ -339,36 +346,43 @@ describe("REQ-064 mutation matrix — wrong-role callers (FORBIDDEN)", () => {
       mutation: CREATE_SESSION_DOC,
       variables: { input: { teacherId: cast.teacher.userId, intent: "Hifz" } },
     });
+    expect(result.error).toBeDefined();
     expectMutationError(result.error, "FORBIDDEN");
   });
 
   test("student startSession → FORBIDDEN", async () => {
     const result = await studentA.mutate({ mutation: START_SESSION_DOC, variables: { id: sessionAId } });
+    expect(result.error).toBeDefined();
     expectMutationError(result.error, "FORBIDDEN");
   });
 
   test("student completeSession → FORBIDDEN", async () => {
     const result = await studentA.mutate({ mutation: COMPLETE_SESSION_DOC, variables: { id: sessionAId } });
+    expect(result.error).toBeDefined();
     expectMutationError(result.error, "FORBIDDEN");
   });
 
   test("parent startSession → FORBIDDEN", async () => {
     const result = await parent.mutate({ mutation: START_SESSION_DOC, variables: { id: sessionAId } });
+    expect(result.error).toBeDefined();
     expectMutationError(result.error, "FORBIDDEN");
   });
 
   test("admin startSession → FORBIDDEN", async () => {
     const result = await admin.mutate({ mutation: START_SESSION_DOC, variables: { id: sessionAId } });
+    expect(result.error).toBeDefined();
     expectMutationError(result.error, "FORBIDDEN");
   });
 
   test("parent completeSession → FORBIDDEN", async () => {
     const result = await parent.mutate({ mutation: COMPLETE_SESSION_DOC, variables: { id: sessionAId } });
+    expect(result.error).toBeDefined();
     expectMutationError(result.error, "FORBIDDEN");
   });
 
   test("admin completeSession → FORBIDDEN", async () => {
     const result = await admin.mutate({ mutation: COMPLETE_SESSION_DOC, variables: { id: sessionAId } });
+    expect(result.error).toBeDefined();
     expectMutationError(result.error, "FORBIDDEN");
   });
 });
@@ -381,6 +395,7 @@ describe("REQ-064/REQ-050 — createSession idempotency + input guards", () => {
       mutation: CREATE_SESSION_DOC,
       variables: { input: { teacherId: cast.teacher.userId, intent: "Hifz" } },
     });
+    expect(result.error).toBeDefined();
     expectMutationError(result.error, "VALIDATION");
   });
 
@@ -413,6 +428,7 @@ describe("REQ-064/REQ-050 — createSession idempotency + input guards", () => {
       mutation: CREATE_SESSION_DOC,
       variables: { input: { teacherId: cast.teacher.userId, intent: "Evaluation" } },
     });
+    expect(result.error).toBeDefined();
     expectMutationError(result.error, "VALIDATION");
   });
 
@@ -424,6 +440,7 @@ describe("REQ-064/REQ-050 — createSession idempotency + input guards", () => {
       mutation: CREATE_SESSION_DOC,
       variables: { input: { teacherId: cast.applicant.userId, intent: "Hifz" } },
     });
+    expect(result.error).toBeDefined();
     expectMutationError(result.error, "TEACHER_NOT_FOUND");
   });
 });
@@ -433,11 +450,13 @@ describe("REQ-064/REQ-050 — createSession idempotency + input guards", () => {
 describe("REQ-064/REQ-050 — start/complete transition cells", () => {
   test("foreign certified teacher startSession → SESSION_NOT_FOUND (oracle-safe)", async () => {
     const result = await teacher2.mutate({ mutation: START_SESSION_DOC, variables: { id: sessionAId } });
+    expect(result.error).toBeDefined();
     expectMutationError(result.error, "SESSION_NOT_FOUND");
   });
 
   test("teacher applicant startSession → SESSION_NOT_FOUND (no session can exist for him)", async () => {
     const result = await applicant.mutate({ mutation: START_SESSION_DOC, variables: { id: sessionAId } });
+    expect(result.error).toBeDefined();
     expectMutationError(result.error, "SESSION_NOT_FOUND");
   });
 
@@ -450,6 +469,7 @@ describe("REQ-064/REQ-050 — start/complete transition cells", () => {
 
   test("double start → SESSION_INVALID_TRANSITION (terminal regression)", async () => {
     const result = await teacherT.mutate({ mutation: START_SESSION_DOC, variables: { id: sessionAId } });
+    expect(result.error).toBeDefined();
     expectMutationError(result.error, "SESSION_INVALID_TRANSITION");
   });
 
@@ -463,11 +483,13 @@ describe("REQ-064/REQ-050 — start/complete transition cells", () => {
 
   test("double complete → SESSION_INVALID_TRANSITION (terminal regression)", async () => {
     const result = await teacherT.mutate({ mutation: COMPLETE_SESSION_DOC, variables: { id: sessionAId } });
+    expect(result.error).toBeDefined();
     expectMutationError(result.error, "SESSION_INVALID_TRANSITION");
   });
 
   test("start after completed → SESSION_INVALID_TRANSITION (terminal state)", async () => {
     const result = await teacherT.mutate({ mutation: START_SESSION_DOC, variables: { id: sessionAId } });
+    expect(result.error).toBeDefined();
     expectMutationError(result.error, "SESSION_INVALID_TRANSITION");
   });
 });
@@ -477,6 +499,7 @@ describe("REQ-064/REQ-050 — start/complete transition cells", () => {
 describe("REQ-064/REQ-050 — decertified completeSession", () => {
   test("completeSession while Scheduled → SESSION_INVALID_TRANSITION (wrong state)", async () => {
     const result = await teacher2.mutate({ mutation: COMPLETE_SESSION_DOC, variables: { id: sessionDId } });
+    expect(result.error).toBeDefined();
     expectMutationError(result.error, "SESSION_INVALID_TRANSITION");
   });
 
@@ -491,6 +514,7 @@ describe("REQ-064/REQ-050 — decertified completeSession", () => {
     // EXISTS predicate reads) — then the guarded complete matches zero rows.
     await db.update(teacher).set({ isApproved: false }).where(eq(teacher.id, cast.secondTeacher.userId));
     const result = await teacher2.mutate({ mutation: COMPLETE_SESSION_DOC, variables: { id: sessionDId } });
+    expect(result.error).toBeDefined();
     expectMutationError(result.error, "TEACHER_NOT_CERTIFIED");
   });
 });
@@ -503,6 +527,7 @@ describe("REQ-064/REQ-050 — cancelSession participant predicate + oracle pairi
       mutation: CANCEL_SESSION_DOC,
       variables: { id: sessionCId, reason: "not mine" },
     });
+    expect(result.error).toBeDefined();
     expectMutationError(result.error, "SESSION_NOT_FOUND");
   });
 
@@ -511,16 +536,19 @@ describe("REQ-064/REQ-050 — cancelSession participant predicate + oracle pairi
       mutation: CANCEL_SESSION_DOC,
       variables: { id: "999999999", reason: null },
     });
+    expect(result.error).toBeDefined();
     expectMutationError(result.error, "SESSION_NOT_FOUND");
   });
 
   test("parent cancel → SESSION_NOT_FOUND (authenticated, never participant)", async () => {
     const result = await parent.mutate({ mutation: CANCEL_SESSION_DOC, variables: { id: sessionCId } });
+    expect(result.error).toBeDefined();
     expectMutationError(result.error, "SESSION_NOT_FOUND");
   });
 
   test("admin cancel → SESSION_NOT_FOUND (NO admin bypass)", async () => {
     const result = await admin.mutate({ mutation: CANCEL_SESSION_DOC, variables: { id: sessionCId } });
+    expect(result.error).toBeDefined();
     expectMutationError(result.error, "SESSION_NOT_FOUND");
   });
 
@@ -542,6 +570,7 @@ describe("REQ-064/REQ-050 — cancelSession participant predicate + oracle pairi
 
   test("double cancel → SESSION_INVALID_TRANSITION (never double-refunds)", async () => {
     const result = await studentA.mutate({ mutation: CANCEL_SESSION_DOC, variables: { id: sessionBId } });
+    expect(result.error).toBeDefined();
     expectMutationError(result.error, "SESSION_INVALID_TRANSITION");
   });
 
