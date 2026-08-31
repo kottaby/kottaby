@@ -9,6 +9,7 @@ export const sessionsAr: SessionsLabels = {
   fee: "الرسوم",
   deadline: "الموعد النهائي",
   createdAt: "تاريخ الإنشاء",
+  teacherConfirmedAt: "تأكيد المعلم",
   studentEmptyTitle: "لا توجد جلسات بعد",
   studentEmptyBody: "عند حجزك جلسة مع أحد المعلمين، ستظهر هنا.",
   teacherEmptyTitle: "لا توجد جلسات بعد",

@@ -9,6 +9,7 @@ export const sessionsEn: SessionsLabels = {
   fee: "Fee",
   deadline: "Deadline",
   createdAt: "Created",
+  teacherConfirmedAt: "Teacher confirmed",
   studentEmptyTitle: "No sessions yet",
   studentEmptyBody: "When you book a session with a teacher, it will appear here.",
   teacherEmptyTitle: "No sessions yet",

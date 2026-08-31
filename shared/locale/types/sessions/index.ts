@@ -34,6 +34,8 @@ export interface SessionsLabels {
   readonly deadline: string;
   /** List column label — creation moment (locale date formatter). */
   readonly createdAt: string;
+  /** List column label — teacher-confirmation moment (rendered only when set). */
+  readonly teacherConfirmedAt: string;
   /** Empty-state heading on the student sessions page. */
   readonly studentEmptyTitle: string;
   /** Empty-state body on the student sessions page. */

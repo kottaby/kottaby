@@ -163,6 +163,9 @@ export function SessionRow({ session, alertMessage, onCancelIntent, actions }: R
       : formatApplicantDate(session.confirmationDeadline, locale);
   const createdText = formatApplicantDate(session.createdAt, locale);
   const intentText = session.intent ?? NO_VALUE_PLACEHOLDER;
+  /** Teacher-confirmation moment — rendered ONLY when the lifecycle set it. */
+  const teacherConfirmedText =
+    session.confirmedByTeacherAt === null ? null : formatApplicantDate(session.confirmedByTeacherAt, locale);
 
   return (
     <Box
@@ -236,6 +239,9 @@ export function SessionRow({ session, alertMessage, onCancelIntent, actions }: R
           <MetaCell label={t.fee} value={feeText} />
           <MetaCell label={t.deadline} value={deadlineText} />
           <MetaCell label={t.createdAt} value={createdText} />
+          {teacherConfirmedText !== null ? (
+            <MetaCell label={t.teacherConfirmedAt} value={teacherConfirmedText} />
+          ) : null}
         </Stack>
         {(actions ?? []).map(action => (
           <Button
