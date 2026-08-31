@@ -111,6 +111,7 @@ export default defineConfig({
       files: [
         "frontend/views/student/sessions/CancelSessionConfirmDialog.tsx",
         "frontend/views/teacher/sessions/TeacherSessionsContainer.tsx",
+        "frontend/views/admin/disputes/ResolveDisputeDialog.tsx",
       ],
       rules: {
         "no-underscore-dangle": "off",
