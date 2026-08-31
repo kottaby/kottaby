@@ -108,7 +108,10 @@ export default defineConfig({
       // Apollo cache `Reference` entities carry the protocol-mandated `__ref`
       // wire property; the underscore prefix is not ours to rename and biome's
       // unsafe autofix reverts bracket access back to member access.
-      files: ["frontend/views/student/sessions/CancelSessionConfirmDialog.tsx"],
+      files: [
+        "frontend/views/student/sessions/CancelSessionConfirmDialog.tsx",
+        "frontend/views/teacher/sessions/TeacherSessionsContainer.tsx",
+      ],
       rules: {
         "no-underscore-dangle": "off",
       },
