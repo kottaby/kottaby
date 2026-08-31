@@ -1281,5 +1281,60 @@ for (const locale of STUI_LOCALES) {
       expect(within(settledRow).getByText(t.statusScheduled)).toBeDefined();
       expect(within(settledRow).getByRole("button", { name: t.openDispute }).getAttribute("disabled")).toBeNull();
     });
+
+    // DEV3-012 — the teacher surface's confirm-state display (the row is
+    // payload-driven, so the shared SessionRow renders it for BOTH roles):
+    // a completed hold-marked unstamped row shows the awaiting pill (WHY
+    // the wallet credit has not fired) and NEVER a confirm CTA (the
+    // teacher's stamp was already written by completeSession), while a
+    // student-stamped row shows the confirmation meta cell instead.
+    test("branch 23 — DEV3-012 confirm-state display: awaiting pill + stamp meta, never a confirm CTA", async () => {
+      const pendingId = "9306";
+      const stampedId = "9307";
+      const confirmedIso = "2099-02-11T09:15:00.000Z";
+      renderTeacherSessions(
+        [
+          teacherListPageMock([
+            sessionFixture({
+              id: pendingId,
+              status: SessionStatus.Completed,
+              fee: "180.00",
+              feeHeld: true,
+              confirmationDeadline: null,
+            }),
+            sessionFixture({
+              id: stampedId,
+              status: SessionStatus.Completed,
+              fee: "95.00",
+              feeHeld: false,
+              confirmedByStudentAt: confirmedIso,
+              confirmationDeadline: null,
+            }),
+          ]),
+        ],
+        locale
+      );
+
+      await waitForSessionRow(pendingId);
+
+      // 1. Pending row: the awaiting pill renders; NO confirm CTA exists on
+      //    the teacher surface (no confirm action is ever passed) and the
+      //    terminal status renders no cancel/dispute affordances either.
+      const pendingRow = screen.getByTestId(`session-row-${pendingId}`);
+      expect(within(pendingRow).getByTestId(`session-awaiting-confirmation-${pendingId}`).textContent).toBe(
+        t.awaitingStudentConfirmation
+      );
+      expect(within(pendingRow).queryByRole("button", { name: t.confirmCompletion })).toBeNull();
+      expect(within(pendingRow).queryByRole("button", { name: t.startSession })).toBeNull();
+      expect(within(pendingRow).queryByRole("button", { name: t.completeSession })).toBeNull();
+      expect(within(pendingRow).queryByRole("button", { name: t.cancelSession })).toBeNull();
+
+      // 2. Stamped row: the student-confirmation meta cell replaces the
+      //    pill (dual-confirmation visibility for the teacher).
+      const stampedRow = screen.getByTestId(`session-row-${stampedId}`);
+      expect(within(stampedRow).getByText(t.studentConfirmedAt)).toBeDefined();
+      expect(within(stampedRow).getAllByText(expectedStamp(confirmedIso, locale)).length).toBeGreaterThanOrEqual(1);
+      expect(within(stampedRow).queryByTestId(`session-awaiting-confirmation-${stampedId}`)).toBeNull();
+    });
   });
 }

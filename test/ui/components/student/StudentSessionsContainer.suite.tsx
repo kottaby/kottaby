@@ -21,6 +21,11 @@
  *   hold-released snackbar + cache-driven chip flip) · dispute flow
  *   (DEV3-005: dialog open + REQUIRED-reason gate blocking an empty submit
  *   + clean dismissal; the typed wire arm + its error arm are deferred) ·
+ *   confirm-completion flow (DEV3-012: affordance matrix over the three
+ *   Completed shapes — pending CTA + awaiting pill, arbitration-settled
+ *   none, stamped meta cell — success snackbar + cache-driven stamp/hold
+ *   convergence, invalid-transition row alert; the container-owned
+ *   SESSION_NOT_FOUND eviction arm is deferred) ·
  *   SESSION_NOT_FOUND (row evicted) · SESSION_INVALID_TRANSITION (inline row
  *   alert) · DUPLICATE_REQUEST (info snackbar — success-equivalent) ·
  *   filtered-empty (chips stay mounted + distinct filtered copy) · copy
@@ -54,10 +59,13 @@
  *   - `useLazyQuery` appears NOWHERE in the view or its consumers;
  *   - the ONLY `.skip(` markers in this suite are deliberate environment
  *     deferrals: the cancel-flow typing arm + the cancel SESSION_NOT_FOUND
- *     eviction arm (D8/D9 in deferred-items.md) and the DEV3-005 dispute
- *     typed/error arms (D8-family — branches 6c + 6d) — never a `test.only(`
+ *     eviction arm (D8/D9 in deferred-items.md), the DEV3-005 dispute
+ *     typed/error arms (D8-family — branches 6c + 6d) and the DEV3-012
+ *     confirm SESSION_NOT_FOUND eviction arm (D9-family — branch 6h, the
+ *     cache-surgery-under-active-observer shape) — never a `test.only(`
  *     or a silent drop; every deferred flow is compensated by the
- *     real-browser loop (4.2.BF / the DEV3-005 4.1 agent-browser pass).
+ *     real-browser loop (4.2.BF / the DEV3-005 + DEV3-012 4.1 agent-browser
+ *     passes).
  */
 
 import { afterEach, describe, expect, test } from "bun:test";
@@ -80,6 +88,7 @@ import {
 } from "@/frontend/graphql/generated/gql/graphql";
 import {
   cancelSessionMutationDocument,
+  confirmSessionCompletionMutationDocument,
   myStudentSessionsQueryDocument,
   openSessionDisputeMutationDocument,
 } from "@/frontend/graphql/sharedDocuments";
@@ -119,6 +128,9 @@ const CANCEL_SESSION_ID = "9201";
 /** The Scheduled row exercised by every dispute-dialog flow (DEV3-005). */
 const DISPUTE_SESSION_ID = "9205";
 
+/** The Completed row exercised by every confirm flow (DEV3-012). */
+const CONFIRM_SESSION_ID = "9207";
+
 /** First row id of the populated page (settled-render wait handle). */
 const FIRST_POPULATED_ID = "9101";
 
@@ -133,6 +145,9 @@ const DISPUTE_REASON_TYPED = "  Teacher never showed up  ";
 
 /** The trimmed value the dispute dialog sends on the wire (reason REQUIRED). */
 const DISPUTE_REASON_SENT = DISPUTE_REASON_TYPED.trim();
+
+/** Student-confirmation moment returned by the confirm success mock (DEV3-012). */
+const CONFIRMED_ISO = "2099-01-10T14:05:00.000Z";
 
 /** SessionRow's typographic no-value placeholder (NOT locale copy). */
 const EM_DASH = "—";
@@ -357,6 +372,52 @@ function disputeErrorMock(code: string): MockLink.MockedResponse {
     request: {
       query: openSessionDisputeMutationDocument,
       variables: { id: DISPUTE_SESSION_ID, reason: DISPUTE_REASON_SENT },
+    },
+    result: {
+      errors: [{ message: `${code} (masked transport surface)`, extensions: { code } }],
+    },
+  };
+}
+
+/**
+ * The completed hold-marked row (DEV3-012's exactly-once pending shape) the
+ * confirm CTAs render on: `Completed` ∧ student stamp unset ∧ `feeHeld`.
+ */
+const CONFIRM_PENDING_SESSION = sessionFixture({
+  id: CONFIRM_SESSION_ID,
+  status: SessionStatus.Completed,
+  fee: "175.00",
+  feeHeld: true,
+  confirmationDeadline: null,
+});
+
+/** The confirmed wire payload the confirm success mock returns (hold released). */
+const CONFIRMED_PAYLOAD = sessionFixture({
+  id: CONFIRM_SESSION_ID,
+  status: SessionStatus.Completed,
+  fee: "175.00",
+  feeHeld: false,
+  confirmedByStudentAt: CONFIRMED_ISO,
+  confirmationDeadline: null,
+});
+
+/** Confirm-mutation mock resolving the confirmed payload (student stamp set). */
+function confirmSuccessMock(): MockLink.MockedResponse {
+  return {
+    request: {
+      query: confirmSessionCompletionMutationDocument,
+      variables: { id: CONFIRM_SESSION_ID },
+    },
+    result: { data: { confirmSessionCompletion: CONFIRMED_PAYLOAD } },
+  };
+}
+
+/** Confirm-mutation mock failing with a transport-shaped `extensions.code`. */
+function confirmErrorMock(code: string): MockLink.MockedResponse {
+  return {
+    request: {
+      query: confirmSessionCompletionMutationDocument,
+      variables: { id: CONFIRM_SESSION_ID },
     },
     result: {
       errors: [{ message: `${code} (masked transport surface)`, extensions: { code } }],
@@ -694,6 +755,177 @@ for (const locale of STUI_LOCALES) {
       const settledRow = screen.getByTestId(`session-row-${DISPUTE_SESSION_ID}`);
       expect(within(settledRow).getByText(t.statusScheduled)).toBeDefined();
       expect(within(settledRow).getByRole("button", { name: t.openDispute }).getAttribute("disabled")).toBeNull();
+    });
+
+    // DEV3-012 (R-201/R-202) — the confirm affordance matrix. Three
+    // Completed shapes on ONE page: the exactly-once pending shape (hold
+    // marked + stamp unset → Confirm CTA + awaiting pill), the
+    // arbitration-settled shape (hold already consumed → NO affordance —
+    // the idempotent mutation would return the row untouched), and the
+    // student-stamped shape (the confirm meta cell renders instead).
+    test("branch 6e — confirm affordance matrix (DEV3-012): pending vs arbitration-settled vs stamped", async () => {
+      const settledId = "9208";
+      const stampedId = "9209";
+      renderSessions(
+        [
+          listPageMock([
+            CONFIRM_PENDING_SESSION,
+            sessionFixture({
+              id: settledId,
+              status: SessionStatus.Completed,
+              fee: "90.00",
+              feeHeld: false,
+              confirmationDeadline: null,
+            }),
+            sessionFixture({
+              id: stampedId,
+              status: SessionStatus.Completed,
+              fee: "60.00",
+              feeHeld: false,
+              confirmedByStudentAt: CONFIRMED_ISO,
+              confirmationDeadline: null,
+            }),
+          ]),
+        ],
+        locale
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId(`session-row-${CONFIRM_SESSION_ID}`)).toBeDefined();
+      });
+
+      // 1. Pending row: Confirm CTA (enabled) + awaiting pill; the terminal
+      //    status renders NO cancel (visible-disabled or otherwise) and NO
+      //    dispute affordance.
+      const pendingRow = screen.getByTestId(`session-row-${CONFIRM_SESSION_ID}`);
+      const confirmCta = within(pendingRow).getByRole("button", { name: t.confirmCompletion });
+      expect(confirmCta.getAttribute("disabled")).toBeNull();
+      expect(within(pendingRow).getByTestId(`session-action-${CONFIRM_SESSION_ID}-confirm`)).toBeDefined();
+      expect(within(pendingRow).getByTestId(`session-awaiting-confirmation-${CONFIRM_SESSION_ID}`).textContent).toBe(
+        t.awaitingStudentConfirmation
+      );
+      expect(within(pendingRow).queryByRole("button", { name: t.cancelSession })).toBeNull();
+      expect(within(pendingRow).queryByTestId(`session-action-${CONFIRM_SESSION_ID}-cancel-disabled`)).toBeNull();
+      expect(within(pendingRow).queryByRole("button", { name: t.openDispute })).toBeNull();
+      // The stamp meta cell is absent until the mutation sets it.
+      expect(within(pendingRow).queryByText(t.studentConfirmedAt)).toBeNull();
+
+      // 2. Arbitration-settled row (hold consumed, stamp unset): the honest
+      //    matrix renders NOTHING to confirm.
+      const settledRow = screen.getByTestId(`session-row-${settledId}`);
+      expect(within(settledRow).queryByRole("button", { name: t.confirmCompletion })).toBeNull();
+      expect(within(settledRow).queryByTestId(`session-awaiting-confirmation-${settledId}`)).toBeNull();
+
+      // 3. Student-stamped row: the confirmation meta cell replaces every
+      //    confirm affordance.
+      const stampedRow = screen.getByTestId(`session-row-${stampedId}`);
+      expect(within(stampedRow).queryByRole("button", { name: t.confirmCompletion })).toBeNull();
+      expect(within(stampedRow).queryByTestId(`session-awaiting-confirmation-${stampedId}`)).toBeNull();
+      expect(within(stampedRow).getByText(t.studentConfirmedAt)).toBeDefined();
+      expect(within(stampedRow).getAllByText(expectedStamp(CONFIRMED_ISO, locale)).length).toBeGreaterThanOrEqual(1);
+    });
+
+    // DEV3-012 — the confirm SUCCESS arm runs ACTIVE: no dialog, no typed
+    // input — the exact direct-mutation shape the teacher suite proves
+    // runner-safe (its branches 7/8).
+    test("branch 6f — confirm success: notice snackbar + stamp meta appears + affordances leave via cache", async () => {
+      renderSessions([listPageMock([CONFIRM_PENDING_SESSION]), confirmSuccessMock()], locale);
+
+      await waitFor(() => {
+        expect(screen.getByTestId(`session-row-${CONFIRM_SESSION_ID}`)).toBeDefined();
+      });
+      fireEvent.click(
+        within(screen.getByTestId(`session-row-${CONFIRM_SESSION_ID}`)).getByRole("button", {
+          name: t.confirmCompletion,
+        })
+      );
+
+      // Success snackbar with the confirmed copy.
+      await waitFor(() => {
+        expect(screen.getByText(t.sessionConfirmedNotice)).toBeDefined();
+      });
+      expect(snackbarSeverityClass(t.sessionConfirmedNotice)).toContain("MuiAlert-colorSuccess");
+
+      // The row converges via the normalized cache (same id, NO refetch):
+      // the student-stamp meta cell appears, the pending pill + Confirm CTA
+      // leave, and the completed chip holds.
+      await waitFor(() => {
+        expect(
+          within(screen.getByTestId(`session-row-${CONFIRM_SESSION_ID}`)).getByText(t.studentConfirmedAt)
+        ).toBeDefined();
+      });
+      const settledRow = screen.getByTestId(`session-row-${CONFIRM_SESSION_ID}`);
+      expect(within(settledRow).getAllByText(expectedStamp(CONFIRMED_ISO, locale)).length).toBeGreaterThanOrEqual(1);
+      expect(within(settledRow).queryByRole("button", { name: t.confirmCompletion })).toBeNull();
+      expect(within(settledRow).queryByTestId(`session-awaiting-confirmation-${CONFIRM_SESSION_ID}`)).toBeNull();
+      expect(within(settledRow).getByText(t.statusCompleted)).toBeDefined();
+      // The in-flight slot released with no eviction side effect.
+      expect(screen.queryByText(te.sessionNotFound)).toBeNull();
+    });
+
+    // DEV3-012 — the confirm rejection arm mirrors the teacher lifecycle
+    // matrix: SESSION_INVALID_TRANSITION → row-scoped inline alert, row
+    // unchanged, CTA re-enabled once the mutation settled.
+    test("branch 6g — confirm SESSION_INVALID_TRANSITION: row-scoped inline alert, row unchanged", async () => {
+      renderSessions([listPageMock([CONFIRM_PENDING_SESSION]), confirmErrorMock("SESSION_INVALID_TRANSITION")], locale);
+
+      await waitFor(() => {
+        expect(screen.getByTestId(`session-row-${CONFIRM_SESSION_ID}`)).toBeDefined();
+      });
+      fireEvent.click(
+        within(screen.getByTestId(`session-row-${CONFIRM_SESSION_ID}`)).getByRole("button", {
+          name: t.confirmCompletion,
+        })
+      );
+
+      await waitFor(() => {
+        expect(
+          within(screen.getByTestId(`session-row-${CONFIRM_SESSION_ID}`)).getByText(te.sessionInvalidTransition)
+        ).toBeDefined();
+      });
+      const alert = screen.getByText(te.sessionInvalidTransition).closest(".MuiAlert-root");
+      expect(alert?.className ?? "").toContain("MuiAlert-colorError");
+      // The lifecycle is untouched — chip stays completed, the pending pill
+      // holds, no success notice, and the CTA is re-enabled.
+      const settledRow = screen.getByTestId(`session-row-${CONFIRM_SESSION_ID}`);
+      expect(within(settledRow).getByText(t.statusCompleted)).toBeDefined();
+      expect(within(settledRow).getByTestId(`session-awaiting-confirmation-${CONFIRM_SESSION_ID}`)).toBeDefined();
+      expect(screen.queryByText(t.sessionConfirmedNotice)).toBeNull();
+      expect(within(settledRow).getByRole("button", { name: t.confirmCompletion }).getAttribute("disabled")).toBeNull();
+    });
+
+    // D9-class (deferred-items.md D9 family) — SKIPped: the container-owned
+    // eviction arm (confirm mutation → `myStudentSessions` list filter +
+    // `evict` + `gc()` broadcast into the active useQuery observer) is the
+    // SAME cache-surgery-under-active-observer shape the teacher suite
+    // documents as killed/runaway deterministically under Happy DOM (its
+    // branch 17, exit 124 timeout + multi-GB RSS spiral even run alone).
+    // Body INTACT — one-line flip re-enables. Compensating control: the
+    // real-browser DEV3-012 4.1 agent-browser loop drives the confirm
+    // surface end-to-end (the arm itself is a byte-pattern copy of the
+    // teacher container's proven production wiring).
+    test.skip("branch 6h — confirm SESSION_NOT_FOUND: error snackbar + row evicted from the list", async () => {
+      renderSessions([listPageMock([CONFIRM_PENDING_SESSION]), confirmErrorMock("SESSION_NOT_FOUND")], locale);
+
+      await waitFor(() => {
+        expect(screen.getByTestId(`session-row-${CONFIRM_SESSION_ID}`)).toBeDefined();
+      });
+      fireEvent.click(
+        within(screen.getByTestId(`session-row-${CONFIRM_SESSION_ID}`)).getByRole("button", {
+          name: t.confirmCompletion,
+        })
+      );
+
+      // The container's eviction arm: list filtered + entity evicted + gc —
+      // the row leaves WITHOUT a refetch and the empty state takes over.
+      await waitFor(() => {
+        expect(screen.getByText(te.sessionNotFound)).toBeDefined();
+      });
+      expect(snackbarSeverityClass(te.sessionNotFound)).toContain("MuiAlert-colorError");
+      await waitFor(() => {
+        expect(screen.queryByTestId(`session-row-${CONFIRM_SESSION_ID}`)).toBeNull();
+      });
+      expect(screen.getByTestId("student-sessions-empty")).toBeDefined();
     });
 
     // D8 (deferred-items.md) — branch 7 is SKIPPed in this environment:

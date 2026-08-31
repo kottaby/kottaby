@@ -131,7 +131,7 @@ const MANDATED_SESSIONS_KEYS = [
  * interpolates the honest total. Resolved by INVOKING them with a sample
  * argument rather than the string path.
  */
-const FUNCTION_LABEL_KEYS: ReadonlyArray<string> = ["adminDisputesCountLine"];
+const FUNCTION_LABEL_KEYS: ReadonlySet<string> = new Set(["adminDisputesCountLine"]);
 
 /** Keys resolved through `getTranslations(locale)` in the sync-resolution tier. */
 const SYNC_SAMPLE_ERROR_KEYS = ["sessionNotFound", "teacherNotFound", "insufficientBalance"] as const;
@@ -188,7 +188,7 @@ function nonEmptyLabelOf(localeMap: object, key: string, localeName: string): st
  * produce a non-empty string.
  */
 function resolvedLabelOf(localeMap: object, key: string, localeName: string): string {
-  if (FUNCTION_LABEL_KEYS.includes(key)) {
+  if (FUNCTION_LABEL_KEYS.has(key)) {
     const fn: unknown = Reflect.get(localeMap, key);
     if (typeof fn !== "function") {
       throw new Error(`${localeName}.${key} must be a template function`);
