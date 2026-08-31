@@ -18,7 +18,9 @@
  *   4.BFBS filtered-empty fix) · populated rows (status chips per key ·
  *   verbatim fee + currency · formatted deadline/created · cancel affordance
  *   matrix) · cancel flow (dialog → reason → React.SubmitEvent submit →
- *   hold-released snackbar + cache-driven chip flip) ·
+ *   hold-released snackbar + cache-driven chip flip) · dispute flow
+ *   (DEV3-005: dialog open + REQUIRED-reason gate blocking an empty submit
+ *   + clean dismissal; the typed wire arm + its error arm are deferred) ·
  *   SESSION_NOT_FOUND (row evicted) · SESSION_INVALID_TRANSITION (inline row
  *   alert) · DUPLICATE_REQUEST (info snackbar — success-equivalent) ·
  *   filtered-empty (chips stay mounted + distinct filtered copy) · copy
@@ -50,10 +52,12 @@
  *
  * Static discipline verified alongside (grep):
  *   - `useLazyQuery` appears NOWHERE in the view or its consumers;
- *   - the ONLY `.skip(` markers in this suite are the two deliberate
- *     environment deferrals (branch 7 typing + branch 8 eviction-arm OOM,
- *     D8/D9 in deferred-items.md) — never a `test.only(` or a silent drop;
- *     both flows are compensated by the real-browser 4.2.BF loop.
+ *   - the ONLY `.skip(` markers in this suite are deliberate environment
+ *     deferrals: the cancel-flow typing arm + the cancel SESSION_NOT_FOUND
+ *     eviction arm (D8/D9 in deferred-items.md) and the DEV3-005 dispute
+ *     typed/error arms (D8-family — branches 6c + 6d) — never a `test.only(`
+ *     or a silent drop; every deferred flow is compensated by the
+ *     real-browser loop (4.2.BF / the DEV3-005 4.1 agent-browser pass).
  */
 
 import { afterEach, describe, expect, test } from "bun:test";
@@ -74,8 +78,13 @@ import {
   SessionStatus,
   SessionType,
 } from "@/frontend/graphql/generated/gql/graphql";
-import { cancelSessionMutationDocument, myStudentSessionsQueryDocument } from "@/frontend/graphql/sharedDocuments";
+import {
+  cancelSessionMutationDocument,
+  myStudentSessionsQueryDocument,
+  openSessionDisputeMutationDocument,
+} from "@/frontend/graphql/sharedDocuments";
 import { MAX_CANCEL_REASON_LENGTH } from "@/frontend/views/student/sessions/CancelSessionConfirmDialog";
+import { MAX_DISPUTE_REASON_LENGTH } from "@/frontend/views/student/sessions/SessionDisputeConfirmDialog";
 import { StudentSessionsContainer } from "@/frontend/views/student/sessions/StudentSessionsContainer";
 import { SESSION_FEE_CURRENCY } from "@/shared/constants";
 import type { AppLocale } from "@/shared/locale/AppLocale";
@@ -107,6 +116,9 @@ const DEADLINE_ISO = "2099-01-11T20:30:00.000Z";
 /** The row exercised by every cancel-dialog flow. */
 const CANCEL_SESSION_ID = "9201";
 
+/** The Scheduled row exercised by every dispute-dialog flow (DEV3-005). */
+const DISPUTE_SESSION_ID = "9205";
+
 /** First row id of the populated page (settled-render wait handle). */
 const FIRST_POPULATED_ID = "9101";
 
@@ -115,6 +127,12 @@ const REASON_TYPED = "  Schedule conflict  ";
 
 /** The trimmed value the dialog sends on the wire (`reason` is optional). */
 const REASON_SENT = REASON_TYPED.trim();
+
+/** Raw text typed into the dispute dialog (padded — proves the UI-seam trim). */
+const DISPUTE_REASON_TYPED = "  Teacher never showed up  ";
+
+/** The trimmed value the dispute dialog sends on the wire (reason REQUIRED). */
+const DISPUTE_REASON_SENT = DISPUTE_REASON_TYPED.trim();
 
 /** SessionRow's typographic no-value placeholder (NOT locale copy). */
 const EM_DASH = "—";
@@ -153,6 +171,12 @@ function sessionFixture(overrides?: Partial<MyStudentSessionsQuery_myStudentSess
     confirmedByTeacherAt: null,
     createdAt: CREATED_ISO,
     updatedAt: CREATED_ISO,
+    // DEV3-005 dispute/cancel-audit columns — nullable, defaulted off.
+    cancelReason: null,
+    disputeReason: null,
+    disputedAt: null,
+    resolutionNote: null,
+    resolvedAt: null,
     ...overrides,
   };
 }
@@ -169,7 +193,7 @@ const CANCELLED_PAYLOAD = sessionFixture({
 });
 
 /** One populated page: one row per REACHABLE status, mixed nullable meta. */
-const POPULATED_ROWS: ReadonlyArray<readonly [SessionFixture, keyof SessionsLabels]> = [
+const POPULATED_ROWS: ReadonlyArray<readonly [SessionFixture, StatusChipLabelKey]> = [
   [
     sessionFixture({ id: FIRST_POPULATED_ID, intent: SessionIntent.Hifz, fee: "150.50", feeHeld: true }),
     "statusScheduled",
@@ -204,6 +228,16 @@ const POPULATED_ROWS: ReadonlyArray<readonly [SessionFixture, keyof SessionsLabe
 
 /** Cancellable-lifecycle tokens (the row's affordance matrix, enum-typed). */
 const CANCELLABLE_STATUSES: ReadonlySet<SessionStatus> = new Set([SessionStatus.Scheduled, SessionStatus.Started]);
+
+/**
+ * Status-chip label-key union — the NARROW slice of `SessionsLabels` the row
+ * chip may render (the namespace also carries template-function labels like
+ * `adminDisputesCountLine` that are not valid chip labels).
+ */
+type StatusChipLabelKey = keyof Pick<
+  SessionsLabels,
+  "statusScheduled" | "statusStarted" | "statusCompleted" | "statusCancelled" | "statusDisputed"
+>;
 
 // ---------------------------------------------------------------------------
 // Mock builders
@@ -288,6 +322,41 @@ function cancelErrorMock(code: string): MockLink.MockedResponse {
     request: {
       query: cancelSessionMutationDocument,
       variables: { id: CANCEL_SESSION_ID, reason: null },
+    },
+    result: {
+      errors: [{ message: `${code} (masked transport surface)`, extensions: { code } }],
+    },
+  };
+}
+
+/** Dispute-open moment returned by the openSessionDispute success mock. */
+const DISPUTED_ISO = "2099-01-10T13:20:00.000Z";
+
+/** The disputed wire payload the dispute success mock returns (same id). */
+const DISPUTED_PAYLOAD = sessionFixture({
+  id: DISPUTE_SESSION_ID,
+  status: SessionStatus.Disputed,
+  disputeReason: DISPUTE_REASON_SENT,
+  disputedAt: DISPUTED_ISO,
+});
+
+/** Dispute-mutation mock resolving the disputed payload (reason persisted). */
+function disputeSuccessMock(): MockLink.MockedResponse {
+  return {
+    request: {
+      query: openSessionDisputeMutationDocument,
+      variables: { id: DISPUTE_SESSION_ID, reason: DISPUTE_REASON_SENT },
+    },
+    result: { data: { openSessionDispute: DISPUTED_PAYLOAD } },
+  };
+}
+
+/** Dispute-mutation mock failing with a transport-shaped `extensions.code`. */
+function disputeErrorMock(code: string): MockLink.MockedResponse {
+  return {
+    request: {
+      query: openSessionDisputeMutationDocument,
+      variables: { id: DISPUTE_SESSION_ID, reason: DISPUTE_REASON_SENT },
     },
     result: {
       errors: [{ message: `${code} (masked transport surface)`, extensions: { code } }],
@@ -481,15 +550,150 @@ for (const locale of STUI_LOCALES) {
       }
 
       // Toolbar: the "all" token is rendered + selected, every reachable
-      // status chip is offered, and Disputed is intentionally absent
-      // (unreachable on today's surfaces — vocabulary-stability pin only).
+      // status chip is offered — including Disputed (DEV3-005 made the
+      // disputed state reachable on participant surfaces, so its chip is
+      // offered like any other lifecycle status).
       const allToken = screen.getByRole("button", { name: t.statusFilterAll });
       expect(allToken.getAttribute("aria-pressed")).toBe("true");
       expect(screen.getByRole("button", { name: t.statusScheduled })).toBeDefined();
       expect(screen.getByRole("button", { name: t.statusStarted })).toBeDefined();
       expect(screen.getByRole("button", { name: t.statusCompleted })).toBeDefined();
       expect(screen.getByRole("button", { name: t.statusCancelled })).toBeDefined();
-      expect(screen.queryByText(t.statusDisputed)).toBeNull();
+      expect(screen.getByRole("button", { name: t.statusDisputed })).toBeDefined();
+    });
+
+    // DEV3-005 (R-110) — branch 6b is the dispute dialog's runner-safe
+    // surface: click + submit events DO cross the MUI Dialog portal (only
+    // TYPED input is the D8 dead-end), so open → REQUIRED-gate → dismiss
+    // runs ACTIVE. No mutation mock is chained: the REQUIRED gate must keep
+    // the empty submit off the wire (a leaked call would surface as an
+    // unmatched MockLink operation and fail the branch).
+    test("branch 6b — dispute dialog (DEV3-005): opens, REQUIRED-reason gate blocks an empty submit, dismisses cleanly", async () => {
+      renderSessions([listPageMock([sessionFixture({ id: DISPUTE_SESSION_ID })])], locale);
+
+      await waitFor(() => {
+        expect(screen.getByTestId(`session-row-${DISPUTE_SESSION_ID}`)).toBeDefined();
+      });
+
+      // 1. Row dispute CTA → the dispute dialog opens (the row holds its
+      //    `dispute` in-flight slot while the modal owns the mutation).
+      const row = screen.getByTestId(`session-row-${DISPUTE_SESSION_ID}`);
+      fireEvent.click(within(row).getByRole("button", { name: t.openDispute }));
+      const dialog = await waitFor(() => screen.getByRole("dialog"));
+      expect(within(dialog).getByText(t.disputeConfirmTitle)).toBeDefined();
+      expect(within(dialog).getByText(t.disputeConfirmBody)).toBeDefined();
+      expect(within(dialog).getByRole("button", { name: tc.cancel })).toBeDefined();
+      const submitButton = within(dialog).getByRole("button", { name: t.openDispute });
+      expect(submitButton.getAttribute("type")).toBe("submit");
+      // The counter renders the INITIAL raw-character count.
+      expect(within(dialog).getByText(`0/${MAX_DISPUTE_REASON_LENGTH}`)).toBeDefined();
+
+      // 2. Empty submit — the UI-seam REQUIRED gate blocks the wire call:
+      //    aria-invalid raises, the localized error helper swaps in for the
+      //    counter, and the dialog STAYS OPEN.
+      fireEvent.submit(dialog);
+      const reasonInput = within(dialog).getByRole("textbox");
+      expect(reasonInput.getAttribute("aria-invalid")).toBe("true");
+      expect(within(dialog).getByText(t.disputeReasonRequired)).toBeDefined();
+      expect(screen.getByRole("dialog")).toBeDefined();
+
+      // 3. Dismissing closes without a mutation (the row's dispute slot
+      //    releases with the dialog).
+      fireEvent.click(within(dialog).getByRole("button", { name: tc.cancel }));
+      await waitFor(() => {
+        expect(screen.queryByRole("dialog")).toBeNull();
+      });
+      // The row is untouched — still scheduled with every affordance live
+      // (the dispute slot released with the dialog).
+      const settledRow = screen.getByTestId(`session-row-${DISPUTE_SESSION_ID}`);
+      expect(within(settledRow).getByText(t.statusScheduled)).toBeDefined();
+      expect(within(settledRow).getByRole("button", { name: t.openDispute }).getAttribute("disabled")).toBeNull();
+    });
+
+    // D8-class (deferred-items.md D8 family) — SKIPped: the dispute reason
+    // is REQUIRED (R-110), so every wire-reaching dispute arm needs TYPED
+    // input into the MUI Dialog portal textarea — exactly the input
+    // delivery React 19 + Happy DOM do not support (the controlled
+    // onChange never fires; the native-setter + bubbled input event is also
+    // unreachable). Body INTACT — one-line flip re-enables. Compensating
+    // controls: the real-browser DEV3-005 4.1 agent-browser loop (open
+    // dispute → chip flips) + the branch-6b empty-submit gate above.
+    test.skip("branch 6c — dispute flow typed: live counter → submit → success snackbar + DISPUTED chip flip", async () => {
+      renderSessions([listPageMock([sessionFixture({ id: DISPUTE_SESSION_ID })]), disputeSuccessMock()], locale);
+
+      await waitFor(() => {
+        expect(screen.getByTestId(`session-row-${DISPUTE_SESSION_ID}`)).toBeDefined();
+      });
+      const row = screen.getByTestId(`session-row-${DISPUTE_SESSION_ID}`);
+      fireEvent.click(within(row).getByRole("button", { name: t.openDispute }));
+      const dialog = await waitFor(() => screen.getByRole("dialog"));
+
+      // Type the (padded) reason — the live counter counts RAW characters.
+      const reasonInput = within(dialog).getByRole("textbox");
+      fireEvent.change(reasonInput, { target: { value: DISPUTE_REASON_TYPED } });
+      expect(within(dialog).getByText(`${DISPUTE_REASON_TYPED.length}/${MAX_DISPUTE_REASON_LENGTH}`)).toBeDefined();
+
+      // Submit through the dialog's form element (React.SubmitEvent path).
+      fireEvent.submit(dialog);
+
+      // Dialog closes + success snackbar with the dispute-opened copy.
+      await waitFor(() => {
+        expect(screen.queryByRole("dialog")).toBeNull();
+      });
+      await waitFor(() => {
+        expect(screen.getByText(t.disputeOpenedNotice)).toBeDefined();
+      });
+      expect(snackbarSeverityClass(t.disputeOpenedNotice)).toContain("MuiAlert-colorSuccess");
+
+      // Row converges via the normalized cache — chip flips to DISPUTED
+      // (same id, no refetch); the Cancel CTA stays VISIBLE but DISABLED
+      // (the state machine forbids cancelling a disputed session) and the
+      // dispute affordance leaves with the lifecycle.
+      await waitFor(() => {
+        expect(
+          within(screen.getByTestId(`session-row-${DISPUTE_SESSION_ID}`)).getByText(t.statusDisputed)
+        ).toBeDefined();
+      });
+      const settledRow = screen.getByTestId(`session-row-${DISPUTE_SESSION_ID}`);
+      expect(within(settledRow).queryByText(t.statusScheduled)).toBeNull();
+      expect(within(settledRow).queryByRole("button", { name: t.openDispute })).toBeNull();
+      expect(
+        within(settledRow).getByTestId(`session-action-${DISPUTE_SESSION_ID}-cancel-disabled`).getAttribute("disabled")
+      ).not.toBeNull();
+    });
+
+    // D8-class (deferred-items.md D8 family) — SKIPped for the same typed-
+    // input reason as branch 6c: the dispute error arms are only reachable
+    // with a valid typed reason. Body INTACT — one-line flip re-enables.
+    // Compensating control: the real-browser DEV3-005 4.1 loop drives the
+    // error surface (raced/invalid dispute → localized snackbar).
+    test.skip("branch 6d — dispute submit error: SESSION_INVALID_TRANSITION → error snackbar, row stays scheduled", async () => {
+      renderSessions(
+        [listPageMock([sessionFixture({ id: DISPUTE_SESSION_ID })]), disputeErrorMock("SESSION_INVALID_TRANSITION")],
+        locale
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId(`session-row-${DISPUTE_SESSION_ID}`)).toBeDefined();
+      });
+      const row = screen.getByTestId(`session-row-${DISPUTE_SESSION_ID}`);
+      fireEvent.click(within(row).getByRole("button", { name: t.openDispute }));
+      const dialog = await waitFor(() => screen.getByRole("dialog"));
+
+      const reasonInput = within(dialog).getByRole("textbox");
+      fireEvent.change(reasonInput, { target: { value: DISPUTE_REASON_TYPED } });
+      fireEvent.submit(dialog);
+
+      // Error snackbar (the dispute vocabulary is snackbar-mapped, NOT the
+      // cancel flow's row-scoped inline alert); the row stays scheduled.
+      await waitFor(() => {
+        expect(screen.getByText(te.sessionInvalidTransition)).toBeDefined();
+      });
+      expect(snackbarSeverityClass(te.sessionInvalidTransition)).toContain("MuiAlert-colorError");
+      expect(screen.queryByRole("dialog")).toBeNull();
+      const settledRow = screen.getByTestId(`session-row-${DISPUTE_SESSION_ID}`);
+      expect(within(settledRow).getByText(t.statusScheduled)).toBeDefined();
+      expect(within(settledRow).getByRole("button", { name: t.openDispute }).getAttribute("disabled")).toBeNull();
     });
 
     // D8 (deferred-items.md) — branch 7 is SKIPPed in this environment:
