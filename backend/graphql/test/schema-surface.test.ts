@@ -20,7 +20,8 @@
  *    the mutation set grows ONLY by the DEV3-004 lifecycle quartet
  *    (`createSession`, `startSession`, `completeSession`,
  *    `cancelSession`) AND the DEV3-005 dispute pair (`openSessionDispute`,
- *    `resolveSessionDispute`); the enum set grows ONLY by `ApplicantStatus`
+ *    `resolveSessionDispute`) AND the DEV3-012 dual-confirmation mutation
+ *    (`confirmSessionCompletion`); the enum set grows ONLY by `ApplicantStatus`
  *    (DEV2-004), the DEV3-004 scheduling trio (`SessionStatus`,
  *    `SessionType`, `SessionIntent` — registered ONCE in
  *    `shared/enum.pothos.ts`) and the DEV3-005 arbitration vocabulary
@@ -92,6 +93,8 @@ const DEV3_005_QUERY_FIELDS = ["adminDisputedSessions"] as const;
 const DEV3_004_MUTATION_FIELDS = ["cancelSession", "completeSession", "createSession", "startSession"] as const;
 /** DEV3-005 dispute mutation pair (R-102/R-104). */
 const DEV3_005_MUTATION_FIELDS = ["openSessionDispute", "resolveSessionDispute"] as const;
+/** DEV3-012 dual-confirmation mutation (R-201/R-202). */
+const DEV3_012_MUTATION_FIELDS = ["confirmSessionCompletion"] as const;
 /** DEV3-005 arbitration outcome vocabulary — registered ONCE, no pgEnum backing. */
 const DEV3_005_ENUMS = ["DisputeResolution"] as const;
 /** DEV3-005 nullable `Session` fields — the dispute + reason surface (R-105/R-107). */
@@ -227,13 +230,17 @@ describe("Surface freeze — pinned additions vs the baseline inventory", () => 
     for (const name of PRE_3_1_MUTATION_FIELDS) {
       expect(names).toContain(name);
     }
-    // …and the ONLY additions are the DEV3-004 quartet and the DEV3-005
-    // dispute pair (all authScopes-gated — none of them is allowlist
-    // material; the public-operation registry stays byte-unchanged).
+    // …and the ONLY additions are the DEV3-004 quartet, the DEV3-005
+    // dispute pair, and the DEV3-012 dual-confirmation mutation (all
+    // authScopes-gated — none of them is allowlist material; the
+    // public-operation registry stays byte-unchanged).
     expect(names).toEqual(
-      [...PRE_3_1_MUTATION_FIELDS, ...DEV3_004_MUTATION_FIELDS, ...DEV3_005_MUTATION_FIELDS].toSorted((a, b) =>
-        a.localeCompare(b)
-      )
+      [
+        ...PRE_3_1_MUTATION_FIELDS,
+        ...DEV3_004_MUTATION_FIELDS,
+        ...DEV3_005_MUTATION_FIELDS,
+        ...DEV3_012_MUTATION_FIELDS,
+      ].toSorted((a, b) => a.localeCompare(b))
     );
     expect(names).not.toContain("_health");
   });
@@ -380,5 +387,8 @@ describe("Codegen sync — committed SDL is byte-identical to the built schema",
     for (const field of DEV3_005_SESSION_FIELDS) {
       expect(committedSdl).toContain(field);
     }
+    // …and the DEV3-012 dual-confirmation mutation is really inside the
+    // committed artifact.
+    expect(committedSdl).toContain("confirmSessionCompletion(id: ID!): Session!");
   });
 });

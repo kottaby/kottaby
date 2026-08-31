@@ -474,6 +474,72 @@ export namespace SessionRepository {
   }
 
   /**
+   * DEV3-012 (R-202) — completes the dual confirmation EXACTLY once: a
+   * single guarded UPDATE whose predicate requires row identity, the
+   * student being the caller, the row already `completed` with the
+   * teacher's stamp written (structurally true of every completed row —
+   * `completeSessionOnce` writes it), the student stamp still absent, AND
+   * the escrow hold still marked — the credit's exactly-once guard lives
+   * in the statement itself, so a replayed confirm matches zero rows and
+   * can never double-credit. Flips `fee_held = false` (the hold consumed
+   * by earning) and writes the student stamp from one captured instant;
+   * the caller composes the wallet credit on the SAME transaction.
+   *
+   * @returns The updated row (its `fee` and `teacherId` feed the credit
+   *          slice), or `null` when zero rows matched (already confirmed,
+   *          hold already released, wrong state, non-participant, unknown
+   *          id — the caller classifies via the transition probe).
+   */
+  export async function confirmStudentCompletionOnce(
+    id: number,
+    studentUserId: number,
+    tx?: DBTransaction
+  ): Promise<SessionSelectType | null> {
+    const now = new Date();
+    const executor = tx ?? db;
+    const rows = await executor
+      .update(session)
+      .set({ confirmedByStudentAt: now, feeHeld: false, updatedAt: now })
+      .where(
+        and(
+          eq(session.id, id),
+          eq(session.studentId, studentUserId),
+          eq(session.status, SessionStatus.Completed),
+          eq(session.feeHeld, true),
+          isNotNull(session.confirmedByTeacherAt),
+          sql`${session.confirmedByStudentAt} IS NULL`
+        )
+      )
+      .returning();
+    return rows[0] ?? null;
+  }
+
+  /**
+   * DEV3-012 (R-203) — the B.2 deadline sweep: ONE guarded batch UPDATE
+   * cancelling every still-`scheduled` session whose confirmation deadline
+   * has passed. The deadline is never re-armed anywhere (B.2 — written at
+   * creation only), so `confirmation_deadline < now` is a stable
+   * predicate. The statement clears the hold marker (the caller refunds
+   * each returned row's recorded lane through the shared same-lane
+   * primitive); rows WITHOUT a hold match too (a deadline breach cancels
+   * regardless of escrow) — a NULL lane on a returned row means there is
+   * nothing to refund. Idempotent: a second run matches zero rows.
+   *
+   * @param now  The caller's single captured sweep instant — every row's
+   *     `updated_at` shares it, and the deadline comparison uses the same
+   *     clock reading.
+   * @returns Every cancelled row (the caller refunds the held ones).
+   */
+  export async function sweepExpiredScheduledOnce(now: Date, tx?: DBTransaction): Promise<SessionSelectType[]> {
+    const executor = tx ?? db;
+    return executor
+      .update(session)
+      .set({ status: SessionStatus.Cancelled, feeHeld: false, updatedAt: now })
+      .where(and(eq(session.status, SessionStatus.Scheduled), sql`${session.confirmationDeadline} < ${now}`))
+      .returning();
+  }
+
+  /**
    * Lists the student's own sessions, newest first, paged. Consumes the
    * shared module-scope predicate builder together with
    * `countForStudent`, so the page window and the honest total describe the

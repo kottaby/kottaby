@@ -67,6 +67,7 @@ import {
   StudentRepository,
   TeacherRepository,
   UserRepository,
+  WalletRepository,
 } from "@/backend/db/repo";
 import { DisputeResolution, isDisputeResolution } from "@/backend/enum/scheduling/dispute-resolution.enum";
 import { HeldBalanceLane, isHeldBalanceLane } from "@/backend/enum/scheduling/held-balance-lane.enum";
@@ -119,6 +120,9 @@ const SESSION_STARTED_STATUS: string = SessionStatus.Started;
  * admin resolution classification compare against this identity).
  */
 const SESSION_DISPUTED_STATUS: string = SessionStatus.Disputed;
+/** String-typed member for probe-projection comparisons (the probe's
+ *  `status` is the raw varchar union — see the sibling constants). */
+const SESSION_COMPLETED_STATUS: string = SessionStatus.Completed;
 
 /**
  * The admin role widened to a plain string at module scope: the user row's
@@ -698,6 +702,161 @@ export namespace SessionLifecycleService {
   }
 
   /**
+   * DEV3-012 (R-201/R-202) — the student's completion confirmation, the
+   * second half of the dual-confirmation contract.
+   *
+   * The target session id is guarded as a positive safe integer BEFORE any
+   * database work (REQ-054). Deliberately NO governance re-check (mirroring
+   * the cancel/dispute exemption: confirming one's own completed lesson is
+   * a participant self-service act; the participant predicate is the whole
+   * authorization surface). The flow is IDEMPOTENT and its financial slice
+   * fires EXACTLY once per session:
+   *
+   *  - STUDENT caller on a completed row with the hold still marked and
+   *    both stamps completable: ONE guarded UPDATE writes the student
+   *    stamp and flips `fee_held = false` (the exactly-once guard lives in
+   *    the statement's predicate), then — same transaction — the credit
+   *    slice composes through the wallet repository: the teacher's wallet
+   *    row is ensured (idempotent ON CONFLICT insert; no approval-time
+   *    wallet writer exists yet), ONE `earning` ledger row is inserted
+   *    with the session's `fee` taken verbatim, and the wallet's
+   *    `balance`/`total_earning` increase by exactly that fee (no DB
+   *    trigger exists — the increment is explicit, atomic with the ledger
+   *    row).
+   *  - Already-confirmed student, an already-released hold (admin
+   *    arbitration consumed it first), or the TEACHER caller (whose stamp
+   *    `completeSessionOnce` already wrote): the current row is returned
+   *    untouched — ZERO financial writes, the honest idempotent answer.
+   *  - A zero-row guarded miss on a live-state row is classified by one
+   *    cold probe read (unknown/non-participant → not-found, oracle-safe;
+   *    anything else → transition conflict), so a foreign caller can never
+   *    distinguish a missing row from one they do not own.
+   *
+   * @param callerUserId  The acting participant's id (the session's student
+   *     or its teacher).
+   * @param sessionId  The target session id.
+   * @param locale  Active request locale (for the localized error messages).
+   * @param outerTx  Optional outer transaction. When provided (test path),
+   *     the flow runs inside a SAVEPOINT on it; production callers omit it
+   *     and the service opens its own transaction.
+   */
+  export async function confirmSessionCompletion(
+    callerUserId: number,
+    sessionId: number,
+    locale: string,
+    outerTx?: DBTransaction
+  ): Promise<SessionReturnType> {
+    const t = getServerTranslations(locale).errorsTranslations;
+
+    // Pre-DB id-shape guard (REQ-054) — the FIRST check of the flow.
+    assertPositiveSafeSessionId(sessionId, t);
+
+    return withTransaction(outerTx, async tx => {
+      // The exactly-once slice: student stamp + hold release in ONE guarded
+      // statement. Zero rows ⇒ classify (idempotent arms vs denials below).
+      const confirmed = await SessionRepository.confirmStudentCompletionOnce(sessionId, callerUserId, tx);
+      if (confirmed !== null) {
+        // A hold-marked row always carries its platform fee (DEV3-004
+        // creation invariant) — a null here is a data impossibility that
+        // fails closed instead of crediting an unpriced lesson.
+        if (confirmed.fee === null) {
+          logger.error("Dual-confirmation blocked: completed hold-marked session without a fee", {
+            sessionId: confirmed.id,
+          });
+          throw new Error("SessionLifecycleService.confirmSessionCompletion: missing session fee");
+        }
+        // R-202 credit slice — same transaction, composed through the
+        // wallet repository: ensure the wallet, insert the `earning`
+        // ledger row with the fee VERBATIM, increment the wallet.
+        const teacherWallet = await WalletRepository.ensureWalletOnce(confirmed.teacherId, tx);
+        await WalletRepository.creditEarningOnce(
+          {
+            walletId: teacherWallet.id,
+            sessionId: confirmed.id,
+            amount: confirmed.fee,
+            description: `Session #${confirmed.id} earning (dual confirmation)`,
+          },
+          tx
+        );
+        return confirmed;
+      }
+
+      // Zero-row miss — classify. The probe read is classification-only.
+      const probe = await SessionRepository.findTransitionProbe(sessionId, tx);
+      if (probe === null || (probe.studentId !== callerUserId && probe.teacherId !== callerUserId)) {
+        logger.logDomainError("Session confirmation denied: session not found for caller", {
+          code: "SESSION_NOT_FOUND",
+          entity: "session",
+          entityId: sessionId,
+        });
+        throw new NotFoundError("SESSION", t.sessionNotFound);
+      }
+
+      // Participant idempotence arms — the row exists and the caller owns
+      // it. Any already-settled shape returns the CURRENT row untouched:
+      // the student re-confirming, the teacher confirming (their stamp was
+      // written by `completeSessionOnce`), or a hold the admin arbitration
+      // already consumed. A `completed` row is the only idempotent shape.
+      if (probe.status === SESSION_COMPLETED_STATUS) {
+        const current = await SessionRepository.findById(sessionId, tx);
+        if (current !== null) {
+          return current;
+        }
+      }
+
+      logger.logDomainError("Session confirmation denied: session not confirmable in its current state", {
+        code: "SESSION_INVALID_TRANSITION",
+        entity: "session",
+        entityId: sessionId,
+      });
+      throw new ConflictError("SESSION_INVALID_TRANSITION", t.sessionInvalidTransition);
+    });
+  }
+
+  /**
+   * DEV3-012 (R-203) — the B.2 deadline sweeper: cancels every
+   * still-`scheduled` session whose confirmation deadline has passed and
+   * refunds each held row's fee to its recorded provenance lane.
+   *
+   * ONE captured `now` drives both the deadline comparison and the stamps.
+   * The batch UPDATE (guarded on the scheduled state and the expired
+   * deadline) returns the cancelled rows; each returned row with a
+   * recorded lane is refunded through the ONE shared same-lane primitive
+   * on the same transaction — a NULL lane (DEV1-era rows with no hold)
+   * means nothing to refund. Idempotent: a second sweep matches zero
+   * rows. Zero notification/audit writes (out of contract).
+   *
+   * @param outerTx  Optional outer transaction. When provided (test path),
+   *     the flow runs inside a SAVEPOINT on it; production callers omit it
+   *     and the service opens its own transaction.
+   * @returns Honest counts: `cancelled` rows and how many of them carried
+   *     a refunded hold.
+   */
+  export async function sweepExpiredSessions(outerTx?: DBTransaction): Promise<{
+    readonly cancelled: number;
+    readonly refunded: number;
+  }> {
+    return withTransaction(outerTx, async tx => {
+      const now = new Date();
+      const expired = await SessionRepository.sweepExpiredScheduledOnce(now, tx);
+      let refunded = 0;
+      for (const row of expired) {
+        if (row.heldBalanceLane === null) {
+          continue;
+        }
+        // Sequential BY DESIGN: every refund composes on the ONE sweep
+        // transaction — interleaving them (Promise.all) would obscure the
+        // fail-closed ordering (an unreadable-lane refusal rolls the whole
+        // sweep back) for zero speedup on a single connection.
+        // oxlint-disable-next-line no-await-in-loop
+        await refundHeldLaneToProvenance(row, "sweepExpiredSessions", tx);
+        refunded += 1;
+      }
+      return { cancelled: expired.length, refunded };
+    });
+  }
+
+  /**
    * Reads one session for a participant: the row is returned only when the
    * caller is the session's student or its teacher. A nonexistent id and a
    * non-participant caller resolve to the identical `null` (oracle-safe —
@@ -938,7 +1097,7 @@ export namespace SessionLifecycleService {
    */
   async function refundHeldLaneToProvenance(
     resolved: SessionReturnType,
-    context: "cancelSession" | "resolveSessionDispute",
+    context: "cancelSession" | "resolveSessionDispute" | "sweepExpiredSessions",
     tx: DBTransaction
   ): Promise<void> {
     if (resolved.heldBalanceLane === null) {

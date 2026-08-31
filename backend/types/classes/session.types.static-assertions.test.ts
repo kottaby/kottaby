@@ -140,9 +140,13 @@ describe("Session Canonical Types — Static Structural Assertions", () => {
 
   test("5. Transition probe row is a Pick projection of the select row (five classification columns)", () => {
     const code = codeLines(libCode(files, "session.types.ts")).join("\n");
-    expect(code).toContain("export type SessionTransitionProbeRowType = Pick<");
-    expect(code).toContain("Pick<SessionSelectType");
-    expect(code).toContain('"id" | "status" | "startedAt" | "studentId" | "teacherId"');
+    // Whitespace-normalized: biome wraps the >100-column signature across
+    // lines — the STRUCTURE (Pick of the select row over exactly these five
+    // members) is the pin, not the line wrapping.
+    const normalized = code.replace(/\s+/g, " ");
+    expect(normalized).toContain(
+      'export type SessionTransitionProbeRowType = Pick< SessionSelectType, "id" | "status" | "startedAt" | "studentId" | "teacherId" >;'
+    );
   });
 
   test("6. Claim-table types derive exactly the two $infer projections — nothing else", () => {

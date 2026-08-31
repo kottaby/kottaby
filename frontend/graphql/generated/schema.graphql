@@ -75,6 +75,11 @@ type Mutation {
   completeSession(id: ID!): Session!
 
   """
+  Confirm a completed session as its student (the teacher's stamp is written by completion), completing the dual confirmation: the escrow hold is consumed and the teacher's wallet is credited exactly once. Repeat confirms, the teacher caller, and arbitration-settled rows are idempotent no-ops returning the current row. Non-participants and nonexistent ids are indistinguishable SESSION_NOT_FOUND denials.
+  """
+  confirmSessionCompletion(id: ID!): Session!
+
+  """
   Book one session against a certified teacher. Student-only; the booking is idempotent per the X-Idempotency-Key request header (a replayed key surfaces DUPLICATE_REQUEST).
   """
   createSession(input: CreateSessionInput!): Session!

@@ -288,3 +288,33 @@ gqlSchemaBuilder.mutationField("resolveSessionDispute", t =>
     },
   })
 );
+
+// Side-effect: register the `confirmSessionCompletion` mutation field.
+gqlSchemaBuilder.mutationField("confirmSessionCompletion", t =>
+  t.field({
+    type: SessionPothosObject,
+    args: {
+      id: t.arg({ type: "ID", required: true }),
+    },
+    description:
+      "Confirm a completed session as its student (the teacher's stamp is written by completion), completing the dual confirmation: the escrow hold is consumed and the teacher's wallet is credited exactly once. Repeat confirms, the teacher caller, and arbitration-settled rows are idempotent no-ops returning the current row. Non-participants and nonexistent ids are indistinguishable SESSION_NOT_FOUND denials.",
+    // `{ authenticated: true }` ONLY — the participant predicate is
+    // service-side (mirrors `cancelSession`/`openSessionDispute`): both
+    // participants may act on their row; every other authenticated role
+    // (incl. parent/admin) is denied by the service with the oracle-safe
+    // SESSION_NOT_FOUND. A plain single-key map needs no `$all` wrapper.
+    authScopes: {
+      authenticated: true,
+    },
+    resolve: async (_root, args, ctx) => {
+      // TypeScript narrowing only — see `createSession` above.
+      if (!ctx.user) {
+        throw new UnauthorizedError("Authentication required.");
+      }
+      // `ID` arrives as a string on the wire; the service boundary is
+      // numeric (shape-only `Number` parse — every shape decision is the
+      // SERVICE's REQ-054 guard).
+      return SessionLifecycleService.confirmSessionCompletion(ctx.user.id, Number(args.id), ctx.locale);
+    },
+  })
+);

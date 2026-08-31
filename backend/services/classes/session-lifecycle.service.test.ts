@@ -77,6 +77,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { eq, sql } from "drizzle-orm";
 import { db } from "@/backend/db";
+import { WalletRepository } from "@/backend/db/repo";
 import { session } from "@/backend/db/schema/classes/session";
 import { sessionRequestIdempotency } from "@/backend/db/schema/classes/session-request-idempotency";
 import { students } from "@/backend/db/schema/students/students";
@@ -2069,5 +2070,212 @@ describe("SessionLifecycleService — REQ-043 chaos (production tx path, committ
       .where(eq(sessionRequestIdempotency.idempotencyKey, sharedKey));
     expect(claimRows).toHaveLength(1);
     expect(claimRows[0]?.sessionId).toBe(fulfillments[0]?.id);
+  });
+});
+
+// ─── DEV3-012 dual confirmation + deadline sweeper ──────────────────────────
+
+describe("SessionLifecycleService — DEV3-012 dual confirmation (runInRollback)", () => {
+  test("confirmSessionCompletion happy path: student stamp + hold release + EXACTLY ONE earning credit (ledger row + wallet increment) in one flow", async () => {
+    await runInRollback(async tx => {
+      const actors = await createSessionActors(tx);
+      await setLaneBalances(tx, actors.studentUserId, { trial: 1 });
+      const row = await bookSession(
+        tx,
+        actors.studentUserId,
+        actors.teacherUserId,
+        SessionIntent.Hifz,
+        "key-d12-confirm-happy"
+      );
+      await SessionLifecycleService.startSession(actors.teacherUserId, row.id, "en", tx);
+      await SessionLifecycleService.completeSession(actors.teacherUserId, row.id, "en", tx);
+
+      const confirmed = await SessionLifecycleService.confirmSessionCompletion(actors.studentUserId, row.id, "en", tx);
+
+      // The row: student stamp written, hold consumed by earning.
+      expect(confirmed.status).toBe(SessionStatus.Completed);
+      expect(confirmed.confirmedByStudentAt).not.toBeNull();
+      expect(confirmed.confirmedByTeacherAt).not.toBeNull();
+      expect(confirmed.feeHeld).toBe(false);
+
+      // The credit slice: EXACTLY ONE earning ledger row with the fee
+      // verbatim, and the wallet incremented by exactly that fee.
+      const walletRow = await WalletRepository.findByTeacherId(actors.teacherUserId, tx);
+      expect(walletRow).not.toBeNull();
+      const expectedFee = SESSION_FEE_HIFZ;
+      expect(walletRow?.balance).toBe(expectedFee);
+      expect(walletRow?.totalEarning).toBe(expectedFee);
+      const ledger = await WalletRepository.listTransactionsByWalletId(walletRow?.id ?? -1, tx);
+      expect(ledger).toHaveLength(1);
+      expect(ledger[0]?.type).toBe("earning");
+      expect(ledger[0]?.amount).toBe(expectedFee);
+      expect(ledger[0]?.sessionId).toBe(row.id);
+      expect(ledger[0]?.status).toBe("completed");
+
+      // The student's lanes: debited at booking, NEVER refunded by the
+      // confirm (the hold is consumed by earning, not released).
+      const balances = await readLaneBalances(tx, actors.studentUserId);
+      expect(balances.trial).toBe(0);
+    });
+  });
+
+  test("confirmSessionCompletion is IDEMPOTENT: a replayed confirm returns the current row with ZERO new financial writes", async () => {
+    await runInRollback(async tx => {
+      const actors = await createSessionActors(tx);
+      await setLaneBalances(tx, actors.studentUserId, { trial: 1 });
+      const row = await bookSession(
+        tx,
+        actors.studentUserId,
+        actors.teacherUserId,
+        SessionIntent.Hifz,
+        "key-d12-confirm-replay"
+      );
+      await SessionLifecycleService.startSession(actors.teacherUserId, row.id, "en", tx);
+      await SessionLifecycleService.completeSession(actors.teacherUserId, row.id, "en", tx);
+      await SessionLifecycleService.confirmSessionCompletion(actors.studentUserId, row.id, "en", tx);
+
+      const walletBefore = await WalletRepository.findByTeacherId(actors.teacherUserId, tx);
+      const ledgerBefore = await WalletRepository.listTransactionsByWalletId(walletBefore?.id ?? -1, tx);
+
+      const replayed = await SessionLifecycleService.confirmSessionCompletion(actors.studentUserId, row.id, "en", tx);
+
+      expect(replayed.id).toBe(row.id);
+      expect(replayed.feeHeld).toBe(false);
+      expect(replayed.confirmedByStudentAt).not.toBeNull();
+      const walletAfter = await WalletRepository.findByTeacherId(actors.teacherUserId, tx);
+      expect(walletAfter?.balance).toBe(walletBefore?.balance);
+      const ledgerAfter = await WalletRepository.listTransactionsByWalletId(walletAfter?.id ?? -1, tx);
+      expect(ledgerAfter).toHaveLength(ledgerBefore.length);
+    });
+  });
+
+  test("confirmSessionCompletion by the TEACHER is an idempotent no-op: the row returns untouched, zero financial writes", async () => {
+    await runInRollback(async tx => {
+      const actors = await createSessionActors(tx);
+      await setLaneBalances(tx, actors.studentUserId, { trial: 1 });
+      const row = await bookSession(
+        tx,
+        actors.studentUserId,
+        actors.teacherUserId,
+        SessionIntent.Hifz,
+        "key-d12-confirm-teacher"
+      );
+      await SessionLifecycleService.startSession(actors.teacherUserId, row.id, "en", tx);
+      await SessionLifecycleService.completeSession(actors.teacherUserId, row.id, "en", tx);
+
+      const result = await SessionLifecycleService.confirmSessionCompletion(actors.teacherUserId, row.id, "en", tx);
+
+      // The teacher's stamp was already written by completion; the STUDENT
+      // stamp is untouched and the hold is still frozen — no credit ran.
+      expect(result.id).toBe(row.id);
+      expect(result.confirmedByStudentAt).toBeNull();
+      expect(result.feeHeld).toBe(true);
+      const walletRow = await WalletRepository.findByTeacherId(actors.teacherUserId, tx);
+      expect(walletRow).toBeNull();
+    });
+  });
+
+  test("confirmSessionCompletion denials: scheduled row → SESSION_INVALID_TRANSITION; foreign caller → oracle-safe SESSION_NOT_FOUND", async () => {
+    await runInRollback(async tx => {
+      const actors = await createSessionActors(tx);
+      await setLaneBalances(tx, actors.studentUserId, { trial: 1 });
+      const foreign = await createTestUser(tx, { role: "student" });
+      const row = await bookSession(
+        tx,
+        actors.studentUserId,
+        actors.teacherUserId,
+        SessionIntent.Hifz,
+        "key-d12-confirm-denials"
+      );
+
+      const transitionError = await expectRepoError(() =>
+        SessionLifecycleService.confirmSessionCompletion(actors.studentUserId, row.id, "en", tx)
+      );
+      expectDomainDenial(transitionError, "SESSION_INVALID_TRANSITION", t().sessionInvalidTransition);
+
+      const foreignError = await expectRepoError(() =>
+        SessionLifecycleService.confirmSessionCompletion(foreign.id, row.id, "en", tx)
+      );
+      expectDomainDenial(foreignError, "SESSION_NOT_FOUND", t().sessionNotFound);
+    });
+  });
+});
+
+describe("SessionLifecycleService — DEV3-012 deadline sweeper (runInRollback)", () => {
+  test("sweepExpiredSessions: expired scheduled rows cancel + same-lane refund; live rows untouched; second sweep is a zero-row no-op", async () => {
+    await runInRollback(async tx => {
+      const actors = await createSessionActors(tx);
+      await setLaneBalances(tx, actors.studentUserId, { trial: 2 });
+      const expiredHeld = await bookSession(
+        tx,
+        actors.studentUserId,
+        actors.teacherUserId,
+        SessionIntent.Hifz,
+        "key-d12-sweep-held"
+      );
+      const live = await bookSession(
+        tx,
+        actors.studentUserId,
+        actors.teacherUserId,
+        SessionIntent.Hifz,
+        "key-d12-sweep-live"
+      );
+
+      // Force the first row past its deadline (deadline is never re-armed
+      // by design — the test plays the clock, not the lifecycle).
+      await tx
+        .update(session)
+        .set({ confirmationDeadline: new Date(Date.now() - 1000) })
+        .where(eq(session.id, expiredHeld.id));
+
+      const result = await SessionLifecycleService.sweepExpiredSessions(tx);
+
+      expect(result.cancelled).toBe(1);
+      expect(result.refunded).toBe(1);
+
+      const swept = await readSessionRow(tx, expiredHeld.id);
+      expect(swept?.status).toBe(SessionStatus.Cancelled);
+      expect(swept?.feeHeld).toBe(false);
+      const untouched = await readSessionRow(tx, live.id);
+      expect(untouched?.status).toBe(SessionStatus.Scheduled);
+      expect(untouched?.feeHeld).toBe(true);
+
+      // The same-lane refund: the trial lane that funded the hold is
+      // re-incremented exactly once.
+      const balances = await readLaneBalances(tx, actors.studentUserId);
+      expect(balances.trial).toBe(1);
+
+      // Idempotent: the second sweep matches zero rows.
+      const second = await SessionLifecycleService.sweepExpiredSessions(tx);
+      expect(second.cancelled).toBe(0);
+      expect(second.refunded).toBe(0);
+    });
+  });
+
+  test("sweepExpiredSessions: a no-hold legacy row (NULL lane) cancels with NO refund counted", async () => {
+    await runInRollback(async tx => {
+      const actors = await createSessionActors(tx);
+      await setLaneBalances(tx, actors.studentUserId, { trial: 1 });
+      const legacy = await bookSession(
+        tx,
+        actors.studentUserId,
+        actors.teacherUserId,
+        SessionIntent.Hifz,
+        "key-d12-sweep-legacy"
+      );
+      // DEV1-era shape: no hold, no recorded lane.
+      await tx
+        .update(session)
+        .set({ feeHeld: false, heldBalanceLane: null, confirmationDeadline: new Date(Date.now() - 1000) })
+        .where(eq(session.id, legacy.id));
+
+      const result = await SessionLifecycleService.sweepExpiredSessions(tx);
+
+      expect(result.cancelled).toBe(1);
+      expect(result.refunded).toBe(0);
+      const swept = await readSessionRow(tx, legacy.id);
+      expect(swept?.status).toBe(SessionStatus.Cancelled);
+      expect(swept?.heldBalanceLane).toBeNull();
+    });
   });
 });

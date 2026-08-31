@@ -15,6 +15,7 @@
  */
 
 export * from "./admin";
+export * from "./billing";
 export * from "./classes";
 export * from "./parents";
 export * from "./students";
