@@ -370,22 +370,22 @@
 
 ## Phase 5: Integration & Differential Testing
 
-- [ ] 5.1 [Lifecycle chaos & concurrency differential suite]
+- [x] 5.1 [Lifecycle chaos & concurrency differential suite]
   - Consolidate/rerun REQ-043 `Promise.allSettled` scenarios end-to-end against REAL DB: (a) double-start; (b) start⚡cancel race (refund iff cancel wins); (c) double-complete (timestamp written once); (d) two creations vs single unit (exactly one session, lanes never negative, CHECKs intact); (e) N-way same-key replay (one session, one debit, N−1 `DUPLICATE_REQUEST`).
   - REQ-042 exact-refund-once across double-cancel; REQ-040 forced-failure rollback + key reuse.
   - Run via `bun run test/scripts/run-test.ts <path>`; outcomes capture final-state assertions.
   - _Requirements: REQ-040, REQ-042, REQ-043, REQ-073_
-  - [ ] 5.1.SR **Semantic Review**: no timing sleeps (synchronization via barriers/latches); deterministic assertions only.
+  - [x] 5.1.SR **Semantic Review**: no timing sleeps (synchronization via barriers/latches); deterministic assertions only. (Satisfied — zero `sleep`/`setTimeout` in the suite; all five REQ-043 scenarios synchronize via `Promise.allSettled` barriers at :1276/:1299/:1339/:1368/:1400; only `Date.now()` uses are the deadline-boundary clock bracket. Evidence: outcome/5.1-outcome.md §3.)
   - Write `outcome/5.1-outcome.md`.
 
-- [ ] 5.2 [GraphQL integration matrix — full REQ-064 grid]
+- [x] 5.2 [GraphQL integration matrix — full REQ-064 grid]
   - `setupTestServerLifecycle` + `testClient`: assert EVERY cell of the REQ-064 matrix with `extensions.code` exactness (anonymous/wrong-role/participant/applicant/parent/admin rows × seven operations + two routes); oracle shape-constancy pairings (foreign id ≡ nonexistent id — identical shapes and near-identical timing envelopes); filter coherence; SDL snapshot parity; allowlist untouched; zero unauthenticated session-create surface.
   - **Ruling 2026-08-30 cells (assert explicitly):** (B3) `createSession` × teacher-role callers — certified teacher AND applicant — → `FORBIDDEN`, unconditional (static `role:[Student]` scope stands; REQ-011 carve-out struck → D7; INV-TV6 honest-denial preserved for applicants). (B4) governance re-check: governed acting user (deleted/blocked/suspended fixture) on `createSession`/`startSession`/`completeSession` → `FORBIDDEN`; the SAME governed participant on `cancelSession` (own in-flight session) → still succeeds (cancel exempt per REQ-023 no-punishment clause).
   - _Requirements: REQ-064, REQ-074, REQ-030, REQ-033_
-  - [ ] 5.2.SR **Semantic Review**: fixtures via `entity-setup.ts`; translation-substring error assertions (never raw keys).
+  - [x] 5.2.SR **Semantic Review**: fixtures via `entity-setup.ts`; translation-substring error assertions (never raw keys). (Satisfied — grids build via `buildSessionJourneyCast`, the sanctioned wrapper over `backend/db/test/entity-setup.ts` factories; message-layer localization proven by error-contract-matrix `tEn`/`tAr` verbatim assertions (35/36 — the 1 fail is a pre-existing out-of-slice `_health` wire-probe drift, reported with owner). Evidence: outcome/5.2-outcome.md §3-4.)
   - Write `outcome/5.2-outcome.md`.
 
-- [ ] 5.3 [Gates: coverage, journeys, baseline delta]
+- [x] 5.3 [Gates: coverage, journeys, baseline delta]
   - `bun test --coverage` — 100% statement/branch evidence on ALL new service/repo/helper code (archive in outcomes).
   - Journey suites J1 + J2 green TWICE consecutively (`bun run test/scripts/run-test.ts test/workflows` — never raw `bun test`) — REQ-J6 honest-cleanup proof.
   - Final `bun tsgo` / `bun biome:check` / `bun run scripts/lint-service.ts --json --id final` — delta vs Phase-0 baseline = 0 new errors; codegen artifacts committed with zero unrelated drift; REQ-045 schema-diff evidence attached.
