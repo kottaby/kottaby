@@ -49,7 +49,14 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import type { MockLink } from "@apollo/client/testing";
 import { MockedProvider } from "@apollo/client/testing/react";
-import { cleanup, fireEvent, getQueriesForElement, type RenderResult, type Screen, waitFor } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  getQueriesForElement,
+  type RenderResult,
+  type Screen,
+  waitFor,
+} from "@testing-library/react";
 import {
   type MyWalletQuery_myWallet_transactions,
   TransactionStatus,
@@ -339,7 +346,10 @@ for (const locale of STUI_LOCALES) {
     });
 
     test("branch 4 — zeroed fresh-teacher wallet: honest 0.00 cards, empty ledger, enabled CTA", async () => {
-      const { container } = renderWallet([walletQueryMock(walletFixture({ balance: ZERO_BALANCE, totalEarning: ZERO_BALANCE }))], locale);
+      const { container } = renderWallet(
+        [walletQueryMock(walletFixture({ balance: ZERO_BALANCE, totalEarning: ZERO_BALANCE }))],
+        locale
+      );
 
       await waitFor(() => {
         expect(screen.getByTestId("wallet-balance-card-value").textContent).toBe(ZERO_BALANCE);
@@ -347,7 +357,7 @@ for (const locale of STUI_LOCALES) {
       expect(screen.getByTestId("wallet-earning-card-value").textContent).toBe(ZERO_BALANCE);
       // The currency label rides the constant wallet currency (one label
       // PER balance card — both cards render it).
-      expect(screen.getAllByText("EGP").length).toBe(2);
+      expect(screen.getAllByText("EGP")).toHaveLength(2);
       // The empty ledger state is the honest fresh-teacher surface.
       expect(screen.getByTestId("wallet-ledger-empty")).toBeDefined();
       expect(screen.getByText(t.ledgerEmptyTitle)).toBeDefined();
@@ -371,13 +381,17 @@ for (const locale of STUI_LOCALES) {
       expect(screen.getByTestId("wallet-ledger-row-901-amount").textContent).toBe("+150.50");
       expect(screen.getByText(t.typeEarning)).toBeDefined();
       expect(screen.getByTestId("wallet-ledger-row-901-status").textContent).toContain(t.statusCompleted);
-      expect(screen.getByText(`Session #9001 earning (dual confirmation) · ${expectedStamp(EARNING_ISO, locale)}`)).toBeDefined();
+      expect(
+        screen.getByText(`Session #9001 earning (dual confirmation) · ${expectedStamp(EARNING_ISO, locale)}`)
+      ).toBeDefined();
 
       // Withdrawal row: − sign, pending chip.
       expect(screen.getByTestId("wallet-ledger-row-902-amount").textContent).toBe("-40.00");
       expect(screen.getByText(t.typeWithdrawal)).toBeDefined();
       expect(screen.getByTestId("wallet-ledger-row-902-status").textContent).toContain(t.statusPending);
-      expect(screen.getByText(`Withdrawal request (pending payout) · ${expectedStamp(WITHDRAWAL_ISO, locale)}`)).toBeDefined();
+      expect(
+        screen.getByText(`Withdrawal request (pending payout) · ${expectedStamp(WITHDRAWAL_ISO, locale)}`)
+      ).toBeDefined();
 
       // Bonus row: + sign (the bonus prefix is + per the display contract).
       expect(screen.getByTestId("wallet-ledger-row-903-amount").textContent).toBe("+10.00");
@@ -487,10 +501,7 @@ for (const locale of STUI_LOCALES) {
     // Body INTACT behind one `.skip(` flip; compensated by the REAL-BROWSER
     // 4.1 loop.
     test.skip("branch 9 — withdrawal SUCCESS: dialog closes, success snackbar, balance + ledger converge via cache normalization", async () => {
-      renderWallet(
-        [walletQueryMock(walletFixture()), withdrawalSuccessMock(AMOUNT_SENT, UPDATED_WALLET)],
-        locale
-      );
+      renderWallet([walletQueryMock(walletFixture()), withdrawalSuccessMock(AMOUNT_SENT, UPDATED_WALLET)], locale);
 
       await waitFor(() => {
         expect(screen.getByTestId("wallet-balance-card-value").textContent).toBe(BALANCE);

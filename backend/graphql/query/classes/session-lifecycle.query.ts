@@ -1,5 +1,5 @@
 /**
- * Session lifecycle query resolvers — the participant read surface (REQ-020)
+ * Session lifecycle query resolvers — the participant read surface
  * plus the admin arbitration listing:
  *
  *  - `sessionById(id: ID!): Session` — nullable; the row is returned ONLY to
@@ -18,7 +18,7 @@
  *    the scope's job) and never raises localized errors.
  *
  * authScopes 401/403 split (verified against @pothos/plugin-scope-auth@4.1.7
- * — the DEV2-004/DEV1-013 `$all` lesson; REQ-032):
+ * — the explicit `$all` conjunction lesson):
  *  - `sessionById` is authenticated-but-role-agnostic: the participant
  *    predicate is SERVICE-side (a non-participant gets `null`, never an
  *    error — existence is never disclosed cross-participant).
@@ -33,7 +33,7 @@
  *    authenticated non-students / non-teachers fail the `role` scope into
  *    the canonical localized ForbiddenError (FORBIDDEN / 403).
  *
- * Resolver bodies are THIN DELEGATION (REQ-061):
+ * Resolver bodies are THIN DELEGATION:
  *  - Identity comes EXCLUSIVELY from the verified context (`ctx.user.id`);
  *    the lists take no caller-supplied identity surface of any kind (BOLA).
  *  - Boundary validation (filter vocabulary, page/pageSize bounds) is
@@ -41,9 +41,9 @@
  *    bounds pre-DB and echoes the effective values honestly; the resolver
  *    re-validates nothing and carries ZERO business logic.
  *  - Zero repository calls; top-level static imports ONLY (no `await
- *    import(` — gate A1).
+ *    import(`).
  *  - The reads take NO locale: they never raise localized errors (service
- *    contract, task 2.8 outcome §8.3); the only resolver-local throw is the
+ *    contract); the only resolver-local throw is the
  *    TypeScript-narrowing guard below, whose message mirrors builder.ts's
  *    own `authenticated` scope verbatim.
  *
@@ -117,7 +117,7 @@ function registerParticipantSessionsField(
       type: SessionPagePothosObject,
       args: {
         filter: t.arg({ type: SessionListFilterPothosInput, required: false }),
-        // SDL defaults per plan §3.1 (`page: Int = 1`, `pageSize: Int = 25`);
+        // SDL defaults (`page: Int = 1`, `pageSize: Int = 25`);
         // the service re-normalizes the effective bounds pre-DB and echoes
         // them honestly — the resolver forwards, never clamps.
         page: t.arg.int({ required: false, defaultValue: 1 }),
@@ -154,15 +154,15 @@ gqlSchemaBuilder.queryField("sessionById", t =>
   t.field({
     type: SessionPothosObject,
     // Nullable payload — `null` answers BOTH "nonexistent id" and
-    // "non-participant caller" with ONE indistinguishable null (oracle-safe,
-    // plan §3.3 null channel). The service guarantees the constant shape.
+    // "non-participant caller" with ONE indistinguishable null (oracle-safe).
+    // The service guarantees the constant shape.
     nullable: true,
     args: {
       id: t.arg.id({ required: true }),
     },
     // Authenticated but role-agnostic: both participants (student AND
     // teacher) must reach the field; the participant predicate lives
-    // service-side (REQ-032/D8). Anonymous callers get the `authenticated`
+    // service-side. Anonymous callers get the `authenticated`
     // scope's UNAUTHORIZED (401) before the resolver ever runs.
     authScopes: {
       authenticated: true,
@@ -180,7 +180,7 @@ gqlSchemaBuilder.queryField("sessionById", t =>
       // `ID` arrives as a string on the wire; the service boundary is
       // numeric. The conversion is a pure scalar coercion — every shape
       // decision is the SERVICE's: the positive-safe-integer id guard
-      // answers a malformed id with the oracle-safe `null` pre-DB (REQ-054),
+      // answers a malformed id with the oracle-safe `null` pre-DB,
       // and the parameterized lookup answers existence and participation.
       return SessionLifecycleService.getSessionById(ctx.user.id, Number(args.id));
     },

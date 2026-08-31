@@ -45,13 +45,14 @@ import type { SessionsLabels } from "@/shared/locale/types/sessions";
  * `sharedDocuments/AGENTS.md`). Page-level authorization is owned by the
  * server guard (`withPageAuth`) — this container performs no role logic.
  *
- * Teacher lifecycle (REQ-063 + DEV3-005 R-110): **Start** on `Scheduled`,
+ * Teacher lifecycle: **Start** on `Scheduled`,
  * **Complete** on `Started`, **Cancel** on `Scheduled`/`Started`, **dispute**
  * affordance on `Scheduled`/`Started` — each affordance disabled while ITS
  * OWN row+kind slot is in flight (a `Record<sessionId, Set<actionKind>>` of
  * per-row slots — concurrent same-kind actions on two rows disable BOTH CTAs
  * and each clears independently, so an earlier row's CTA can never re-enable
- * mid-flight; DEV3-005 extends the book with the `dispute` kind); terminal
+ * mid-flight; the book extends with the `dispute` kind for the dispute
+ * affordance); terminal
  * rows (`Completed`/`Cancelled`) render NO action affordances, and DISPUTED
  * rows keep the Cancel CTA VISIBLE but disabled (the state machine forbids
  * cancelling a disputed session — the only edge out is admin arbitration).
@@ -62,8 +63,7 @@ import type { SessionsLabels } from "@/shared/locale/types/sessions";
  * The chrome (page title + filter chips) renders in EVERY branch; only the
  * body BELOW it swaps — the former early returns omitted the chrome on
  * skeleton/error/empty, stranding the user with no filter row exactly when
- * the page went bare (accepted-as-is in the 4.BFBS visual loop — resolved
- * here):
+ * the page went bare (resolved here):
  *
  * | # | Condition | Body (below the always-on chrome) |
  * |---|-----------|-----------------------------------|
@@ -76,7 +76,7 @@ import type { SessionsLabels } from "@/shared/locale/types/sessions";
  *
  * Mutation outcome wiring — `startSession` / `completeSession` are owned
  * HERE; cancel ownership stays in the reused `CancelSessionConfirmDialog`
- * (whose `update`/eviction arms already normalize the cache) and the DEV3-005
+ * (whose `update`/eviction arms already normalize the cache) and the
  * dispute ownership lives in the reused `SessionDisputeConfirmDialog` (every
  * error arm → snackbar, row stays; success → cache normalize + slot release
  * — see the student container's dispute table, byte-identical wiring).
@@ -147,7 +147,7 @@ function dropRowAlert(alerts: Readonly<Record<string, string>>, sessionId: strin
 /**
  * Per-row lifecycle action kinds tracked in the container's in-flight slots.
  * `cancel` is reserved for the dialog-owned mutation (its busy state lives
- * inside `CancelSessionConfirmDialog`); `dispute` marks the row whose DEV3-005
+ * inside `CancelSessionConfirmDialog`); `dispute` marks the row whose
  * dispute dialog is open (dialog-owned mutation — the slot book extended
  * with the dispute kind); the container slots start/complete.
  */
@@ -155,7 +155,7 @@ type RowActionKind = "start" | "complete" | "cancel" | "dispute";
 
 /**
  * In-flight slot book — sessionId → the set of action kinds currently in
- * flight FOR THAT ROW (D9-bis). Immutable records + copied sets only: the
+ * flight FOR THAT ROW. Immutable records + copied sets only: the
  * React state is never mutated in place, so every `setState` yields a new
  * snapshot and per-row slots clear independently of their siblings.
  */
@@ -332,7 +332,7 @@ export function TeacherSessionsContainer(): ReactNode {
   // Cancel-dialog owner (single dialog slot, re-keyed per session id).
   const [cancelDialogSessionId, setCancelDialogSessionId] = useState<string | null>(null);
 
-  // Dispute-dialog owner (DEV3-005, single dialog slot, re-keyed per id).
+  // Dispute-dialog owner (single dialog slot, re-keyed per id).
   const [disputeDialogSessionId, setDisputeDialogSessionId] = useState<string | null>(null);
 
   // sessionId → inline row alert copy (SESSION_INVALID_TRANSITION /
@@ -342,7 +342,7 @@ export function TeacherSessionsContainer(): ReactNode {
   // Single transient notice slot (success / info / error snackbar).
   const [notice, setNotice] = useState<ContainerNotice | null>(null);
 
-  // Per-row in-flight slots (D9-bis) — sessionId → set of action kinds in
+  // Per-row in-flight slots — sessionId → set of action kinds in
   // flight for THAT row. A row's CTA disables iff its OWN row+kind slot is
   // open: concurrent same-kind actions on two rows disable BOTH CTAs, and
   // each clears independently on its own resolution.
@@ -424,7 +424,7 @@ export function TeacherSessionsContainer(): ReactNode {
     // The dialog stays open for a retry (its own documented contract).
   }, []);
 
-  // --- dispute-dialog outcome arms (DEV3-005 — all snackbars; the row
+  // --- dispute-dialog outcome arms (all snackbars; the row
   // stays in the list; the dialog closes and releases the dispute slot) ---
 
   const handleDisputed = useCallback(
@@ -565,7 +565,7 @@ export function TeacherSessionsContainer(): ReactNode {
   // The body below the chrome resolves through the module-scope
   // `TeacherSessionsBody` (matrix branches 1–5) — extracting it keeps this
   // orchestrator to state + callbacks only while the chrome above renders in
-  // EVERY branch (the user never loses the filter row — 4.BFBS fix).
+  // EVERY branch (the user never loses the filter row).
   return (
     <Stack data-testid="teacher-sessions-view" sx={{ gap: 3 }}>
       <Stack sx={{ gap: 2 }}>
@@ -637,7 +637,7 @@ interface TeacherSessionsBodyProps {
   readonly rowAlerts: Readonly<Record<string, string>>;
   readonly onCancelIntent: (sessionId: string) => void;
   readonly onDisputeIntent: (sessionId: string) => void;
-  /** Per-row dispute slot book (D9-bis) — dispute CTAs disable per row. */
+  /** Per-row dispute slot book — dispute CTAs disable per row. */
   readonly disputeInFlightSlots: InFlightSlots;
   readonly inFlightSlots: InFlightSlots;
   readonly onStart: (sessionId: string) => void;

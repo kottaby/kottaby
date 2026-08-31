@@ -1202,8 +1202,14 @@ describe("SessionRepository — transactional paths (runInRollback)", () => {
       "teacher",
       "eq(teacher.id, session.teacherId)",
       "eq(teacher.isApproved, true)",
+      // Guarded-statement predicate fragments: schema column objects compared
+      // SQL-side (never rendered caller values) and the transition methods'
+      // locally captured clock scalar (bound as a parameter, request-free).
+      "session.confirmedByStudentAt",
+      "session.confirmationDeadline",
+      "now",
     ]);
-    expect(interpolations).toHaveLength(14);
+    expect(interpolations).toHaveLength(17);
     for (const interpolation of interpolations) {
       expect(ALLOWED.has(interpolation)).toBe(true);
     }
@@ -1217,17 +1223,48 @@ describe("SessionRepository — transactional paths (runInRollback)", () => {
     expect(repoSource.includes(".prepare(")).toBe(false);
     expect(repoSource.includes("sql.placeholder")).toBe(false);
     expect(repoSource.includes("--")).toBe(false);
-    expect(repoSource.includes("let ")).toBe(false);
+    // The `let` scan runs at statement position over COMMENT-STRIPPED
+    // source: prose words inside docblocks (e.g. "wallet") must never trip
+    // the mutable-state pin, while any real `let` declaration in code still
+    // does. The scan is pure string/indexOf work — regex-free on purpose
+    // (lint's super-linear-regex rule rejects even the linear alternatives).
+    let inBlockComment = false;
+    const hasLetDeclaration = repoSource.split("\n").some(line => {
+      let code = line;
+      if (inBlockComment) {
+        const closer = code.indexOf("*/");
+        if (closer === -1) return false;
+        inBlockComment = false;
+        code = code.slice(closer + 2);
+      }
+      for (;;) {
+        const opener = code.indexOf("/*");
+        if (opener === -1) break;
+        const closer = code.indexOf("*/", opener + 2);
+        if (closer === -1) {
+          inBlockComment = true;
+          return false;
+        }
+        code = code.slice(0, opener) + code.slice(closer + 2);
+      }
+      const lineComment = code.indexOf("//");
+      if (lineComment !== -1) {
+        code = code.slice(0, lineComment);
+      }
+      const trimmed = code.trimStart();
+      return trimmed.startsWith("let ") || trimmed.startsWith("let\t");
+    });
+    expect(hasLetDeclaration).toBe(false);
   });
 
   test("source: executor discipline — reads fall back to queryDb, writes to the pool, tx last on every signature", () => {
     expect(repoSource.includes("const executor = tx ?? db;")).toBe(true);
-    expect(repoSource.match(/const executor = tx \?\? db;/g) ?? []).toHaveLength(7);
+    expect(repoSource.match(/const executor = tx \?\? db;/g) ?? []).toHaveLength(9);
     expect(repoSource.match(/queryDb</g) ?? []).toHaveLength(6);
-    // Fifteen exported methods, every one ending in the optional tx (LAST
+    // Seventeen exported methods, every one ending in the optional tx (LAST
     // param); no REQUIRED-tx signature exists in this repository.
-    expect(repoSource.match(/export async function /g) ?? []).toHaveLength(15);
-    expect((repoSource.match(/tx\?: DBTransaction/g) ?? []).length).toBeGreaterThanOrEqual(15);
+    expect(repoSource.match(/export async function /g) ?? []).toHaveLength(17);
+    expect((repoSource.match(/tx\?: DBTransaction/g) ?? []).length).toBeGreaterThanOrEqual(17);
     expect(repoSource.includes("tx: DBTransaction")).toBe(false);
   });
 

@@ -13,10 +13,11 @@
  *
  * GROUND TRUTH ANCHOR (honesty pin, Section A):
  *   The quota / class-instance domains are NOT yet materialized in this tree —
- *   the live schema exposes exactly { login, logout, refreshToken,
- *   registerUser }. Test A2 pins that inventory gap so the moment those
- *   domains land, this suite fails loudly until they adopt the locked shapes
- *   (and gets updated to point Section B's reproduction directly at them).
+ *   the live schema exposes exactly the twelve session/auth/wallet mutations
+ *   pinned in KNOWN_LIVE_MUTATION_FIELDS below. Test A2 pins the inventory
+ *   gap so the moment those domains land, this suite fails loudly until they
+ *   adopt the locked shapes (and gets updated to point Section B's
+ *   reproduction directly at them).
  *   The gap is a known wiring task, owned by whichever change introduces
  *   `deleteClassInstance`.
  *
@@ -272,8 +273,23 @@ const MUTATION_SURFACE_INVENTORY_QUERY_DOCUMENT: DocumentNode = gql`
   }
 `;
 
-/** The exhaustive live root-mutation inventory (ground truth at lock time). */
-const KNOWN_LIVE_MUTATION_FIELDS = ["login", "logout", "refreshToken", "registerUser"];
+/** The exhaustive live root-mutation inventory (ground truth at lock time,
+ *  derived from the committed SDL `frontend/graphql/generated/schema.graphql`:
+ *  4 auth mutations + the 7-mutation session family + the wallet payout). */
+const KNOWN_LIVE_MUTATION_FIELDS = [
+  "cancelSession",
+  "completeSession",
+  "confirmSessionCompletion",
+  "createSession",
+  "login",
+  "logout",
+  "openSessionDispute",
+  "refreshToken",
+  "registerUser",
+  "requestWithdrawal",
+  "resolveSessionDispute",
+  "startSession",
+];
 /** Documented precedent surfaces that must ADOPT Rules #6/#7 when wired. */
 const DOCUMENTED_WARNING_SURFACES_PENDING = ["releaseQuotaIfDeducted", "deleteClassInstance"];
 

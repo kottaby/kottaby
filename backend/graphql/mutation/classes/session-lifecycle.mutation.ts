@@ -1,28 +1,28 @@
 /**
  * Session lifecycle mutations — `createSession`, `startSession`,
- * `completeSession`, `cancelSession`, `openSessionDispute`, and
- * `resolveSessionDispute` (plan §3.1/§3.2 — REQ-060/061 + the DEV3-005
- * dispute pair).
+ * `completeSession`, `cancelSession`, `openSessionDispute`,
+ * `resolveSessionDispute`, and `confirmSessionCompletion` (the dispute
+ * pair + the dual-confirmation completion).
  *
  * Contract:
  *  - `createSession(input: CreateSessionInput!): Session!`
- *      Student-only (REQ-032 `$all` conjunction). Books one session against
+ *      Student-only (`$all` scope conjunction). Books one session against
  *      a certified teacher. The student identity is resolved SERVER-side
  *      from `ctx.user.id` — never client-supplied (BOLA). The request's
  *      idempotency key rides through VERBATIM exactly as captured by
  *      `createGraphQLContext` (`ctx.idempotencyKey`, PROPAGATION-ONLY per
  *      `docs/IDEMPOTENCY.md` + gateway Rule 3: never re-derived, never
  *      trimmed, never authorization-relevant); a missing/empty key fails
- *      `VALIDATION` service-side, pre-DB (REQ-014).
+ *      `VALIDATION` service-side, pre-DB.
  *  - `startSession(id: ID!): Session!` / `completeSession(id: ID!): Session!`
- *      Teacher-only guarded transitions (REQ-015/016). `id` parsing at this
+ *      Teacher-only guarded transitions. `id` parsing at this
  *      boundary is shape-only (`Number`); the service re-validates it as a
  *      positive safe integer and classifies every zero-row miss (unknown ≡
  *      foreign ≡ `SESSION_NOT_FOUND`; wrong state →
  *      `SESSION_INVALID_TRANSITION`; decertified complete →
  *      `TEACHER_NOT_CERTIFIED`).
  *  - `cancelSession(id: ID!, reason: String): Session!`
- *      Any AUTHENTICATED caller (REQ-032/REQ-017 — no role gate); the
+ *      Any AUTHENTICATED caller (no role gate); the
  *      participant predicate lives entirely service-side. A non-participant
  *      (parent/admin included — NO bypass) and a nonexistent id are
  *      indistinguishable `SESSION_NOT_FOUND` denials (oracle-safe). The
@@ -55,17 +55,16 @@
  *    (extensions.code UNAUTHORIZED / 401 — explicit throws pass through
  *    builder.ts's unauthorizedError mapping VERBATIM), while authenticated
  *    wrong-role callers fail the `role` scope into the canonical localized
- *    ForbiddenError (FORBIDDEN / 403). On `createSession` this is the
- *    Ruling 2026-08-30 (B3) surface: teacher-role callers (certified OR
- *    applicant) are unconditionally FORBIDDEN — REQ-064 as amended; honest
- *    denial, never an existence oracle.
+ *    ForbiddenError (FORBIDDEN / 403). On `createSession` the denial is
+ *    unconditional: teacher-role callers (certified OR applicant) are
+ *    always FORBIDDEN — an honest denial, never an existence oracle.
  *
  * Resolvers are THIN DELEGATION ONLY (`backend/graphql/mutation/AGENTS.md`
  * + `backend/graphql/AGENTS.md`): no business logic, no repository calls,
  * no try/catch — DomainErrors from `SessionLifecycleService` propagate
- * uncaught to the masking boundary with their `extensions.code` untouched
- * (REQ-050); all localized messaging happens inside the service via
- * `ctx.locale` propagation. Top-level static imports only (gate A1).
+ * uncaught to the masking boundary with their `extensions.code` untouched;
+ * all localized messaging happens inside the service via
+ * `ctx.locale` propagation. Top-level static imports only.
  *
  * Per `backend/graphql/mutation/AGENTS.md`:
  *  - This file has NO named exports — it registers root fields at import
@@ -95,7 +94,7 @@ gqlSchemaBuilder.mutationField("createSession", t =>
       "Book one session against a certified teacher. Student-only; the booking is idempotent per the X-Idempotency-Key request header (a replayed key surfaces DUPLICATE_REQUEST).",
     // Explicit `$all` conjunction per the 401/403 split documented above.
     // Teacher-role callers (certified or applicant) fail the `role` leg —
-    // the unconditional FORBIDDEN of Ruling 2026-08-30 (B3).
+    // the unconditional FORBIDDEN.
     authScopes: {
       $all: {
         authenticated: true,
@@ -116,12 +115,13 @@ gqlSchemaBuilder.mutationField("createSession", t =>
       // `{ teacherId, intent }` (`SessionSubmitInput`). The SDL enum carries
       // the full `SessionIntent` vocabulary, and the booking-out-of-
       // vocabulary member (`evaluation`) must REACH the service's runtime
-      // guard (`VALIDATION` + `invalidSessionIntent`, pre-DB — REQ-050).
+      // guard (`VALIDATION` + `invalidSessionIntent`, pre-DB).
       // The compiler cannot see that value (`SessionSubmitInput` narrows to
       // the bookable pair), so the runtime value is overlaid onto a
-      // correctly-typed base via Object.assign — the codebase's lint-clean
-      // mechanism for deliberate hostile-value propagation (the same
-      // pattern the service suite uses to prove the guard). No unsafe
+      // correctly-typed base via Object.assign — an intent-overlay typing
+      // residual tracked for future typing work, using the codebase's
+      // lint-clean mechanism for deliberate hostile-value propagation (the
+      // same pattern the service suite uses to prove the guard). No unsafe
       // assertion, no local type, no branching; `teacherId` is a shape-only
       // ID→number boundary parse the service re-validates.
       const baseInput: SessionSubmitInput = {
@@ -202,7 +202,7 @@ gqlSchemaBuilder.mutationField("cancelSession", t =>
     description:
       "Cancel one of the caller's scheduled/started sessions (either participant) and release the held fee to its original lane. Non-participants and nonexistent ids are indistinguishable SESSION_NOT_FOUND denials.",
     // `{ authenticated: true }` ONLY — the participant predicate is
-    // service-side (REQ-032/D8): both participants may cancel; every other
+    // service-side: both participants may cancel; every other
     // authenticated role (incl. parent/admin) is denied by the service with
     // the oracle-safe SESSION_NOT_FOUND. A plain single-key map needs no
     // `$all` wrapper (no conjunction to force).
@@ -244,7 +244,7 @@ gqlSchemaBuilder.mutationField("openSessionDispute", t =>
       }
       // `ID` arrives as a string on the wire; the service boundary is
       // numeric (shape-only `Number` parse — every shape decision is the
-      // SERVICE's REQ-054 guard). The `reason` is a non-null GraphQL
+      // SERVICE's id guard). The `reason` is a non-null GraphQL
       // `String`; the service validates/normalizes it pre-DB.
       return SessionLifecycleService.openSessionDispute(ctx.user.id, Number(args.id), args.reason, ctx.locale);
     },
@@ -313,7 +313,7 @@ gqlSchemaBuilder.mutationField("confirmSessionCompletion", t =>
       }
       // `ID` arrives as a string on the wire; the service boundary is
       // numeric (shape-only `Number` parse — every shape decision is the
-      // SERVICE's REQ-054 guard).
+      // SERVICE's id guard).
       return SessionLifecycleService.confirmSessionCompletion(ctx.user.id, Number(args.id), ctx.locale);
     },
   })

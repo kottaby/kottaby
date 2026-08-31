@@ -436,7 +436,7 @@ function WalletBody({ loading, error, data, locale, t }: Readonly<WalletBodyProp
     const code = rawCode === null ? "" : normalizeGraphQLErrorCode(rawCode);
     const action = mapGraphQLErrorByCode(code, { contextKind: "query", hasForm: false });
     if (action?.kind === "permission-fallback" || action?.kind === "auth-recovery") {
-            return <PermissionDeniedFallback />;
+      return <PermissionDeniedFallback />;
     }
     return (
       <Alert data-testid="wallet-error-notice" severity="error" variant="outlined" sx={{ borderRadius: 2 }}>

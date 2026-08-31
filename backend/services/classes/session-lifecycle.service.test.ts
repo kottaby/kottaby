@@ -1309,14 +1309,79 @@ describe("SessionLifecycleService — transactional flows (runInRollback)", () =
   const serviceSource = readFileSync(SERVICE_FILE, "utf8");
   const serviceFromClauses = serviceSource.match(/from "[^"]+"/g) ?? [];
 
-  test("source: ZERO imports of notification/audit/wallet/transaction-ledger/report modules — the sole service import is withTransaction", () => {
-    const serviceImports = serviceFromClauses.filter(clause => clause.includes("@/backend/services/"));
-    expect(serviceImports).toEqual(['from "@/backend/services/shared/withTransaction"']);
-
-    for (const clause of serviceFromClauses) {
-      expect(/services\/(notification|audit|wallet|transaction|report|billing)/.test(clause)).toBe(false);
-      expect(/CommunicationService|dispatchWithPreferences|QuotaService|logReport/.test(clause)).toBe(false);
+  test("source: the service's ONLY cross-surface channel is the wallet-credit slice — imports are a pinned allowlist (wallet rides the repository barrel, no notification/audit/report service import)", () => {
+    // HONEST PIN: the wallet dependency rides the `@/backend/db/repo` barrel,
+    // so scanning module specifiers for "wallet" alone proves nothing. The
+    // pin therefore does three concrete things:
+    //  1. every `from "…"` specifier must be on the explicit allowlist —
+    //     any NEW import (a direct wallet/notification/audit/report/billing
+    //     service import included) fails until the allowlist consciously
+    //     admits it;
+    //  2. the ONE `@/backend/db/` specifier is the repository barrel itself
+    //     (no deep repository bypass), and the barrel's named import list is
+    //     pinned — WalletRepository rides it BY NAME and no other repository
+    //     surface is reachable;
+    //  3. the ONLY `@/backend/services/` specifier is the shared transaction
+    //     helper — no cross-surface service import of any kind.
+    const specifiers = serviceFromClauses.map(clause => clause.replace(/^from "/, "").replace(/"$/, ""));
+    const allowedSpecifiers: ReadonlySet<string> = new Set([
+      "@/backend/db/repo",
+      "@/backend/enum/scheduling/dispute-resolution.enum",
+      "@/backend/enum/scheduling/held-balance-lane.enum",
+      "@/backend/enum/scheduling/session-intent.enum",
+      "@/backend/enum/scheduling/session-status.enum",
+      "@/backend/enum/scheduling/session-type.enum",
+      "@/backend/enum/users/user-role.enum",
+      "@/backend/lib/errors",
+      "@/backend/lib/logger",
+      "@/backend/services/shared/withTransaction",
+      "@/backend/types",
+      "@/shared/constants/session-fees.constants",
+      "@/shared/locale/server-graphql",
+    ]);
+    for (const specifier of specifiers) {
+      expect(allowedSpecifiers.has(specifier)).toBe(true);
     }
+    // No duplicate import statements of the same module.
+    expect(new Set(specifiers).size).toBe(specifiers.length);
+
+    // (2) The repository surface is exactly the shared barrel, and its named
+    // members are pinned (WalletRepository is the sanctioned wallet channel).
+    const repoSpecifiers = specifiers.filter(specifier => specifier.includes("@/backend/db/"));
+    expect(repoSpecifiers).toEqual(["@/backend/db/repo"]);
+    const barrelImport = /import \{([^}]+)\} from "@\/backend\/db\/repo";/.exec(serviceSource);
+    expect(barrelImport).not.toBeNull();
+    const barrelMembers = (barrelImport?.[1] ?? "")
+      .split(",")
+      .map(member => member.trim())
+      .filter(member => member.length > 0);
+    expect(barrelMembers).toEqual([
+      "SessionRepository",
+      "SessionRequestIdempotencyRepository",
+      "StudentRepository",
+      "TeacherRepository",
+      "UserRepository",
+      "WalletRepository",
+    ]);
+
+    // (3) The only cross-surface-shaped import is the shared tx helper.
+    const serviceImports = specifiers.filter(specifier => specifier.includes("@/backend/services/"));
+    expect(serviceImports).toEqual(["@/backend/services/shared/withTransaction"]);
+  });
+
+  test("source: the specifier allowlist has no dynamic-import escape hatch — zero import( / require( call sites in the service", () => {
+    // HONEST PIN: the allowlist above reads ONLY static `from "…"` clauses,
+    // so a dynamic `import("…")` or `require(…)` would load a module without
+    // ever entering that scan and silently bypass the financial-isolation
+    // allowlist. The service must therefore contain ZERO dynamic import call
+    // sites. If this fails, the newly loaded module is unaccounted for:
+    // replace the dynamic load with a statically pinned import (admitting its
+    // specifier on the allowlist above) or consciously extend BOTH pins in
+    // the same change.
+    const dynamicImportSites = serviceSource.match(/\bimport\s*\(/g) ?? [];
+    const requireCallSites = serviceSource.match(/\brequire\s*\(/g) ?? [];
+    expect(dynamicImportSites).toEqual([]);
+    expect(requireCallSites).toEqual([]);
   });
 
   test("source: zero console.* calls and zero raw process.env reads in the service", () => {

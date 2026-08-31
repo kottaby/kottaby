@@ -19,14 +19,14 @@
  *      intent, platform fee, hold marker + provenance lane, confirmation
  *      deadline) followed by the claim's session-id backfill.
  * A replayed booking (duplicate claim key) THROWS `ConflictError(
- * "DUPLICATE_REQUEST")` — never a row (2026-08-30 replay-throw ruling).
+ * "DUPLICATE_REQUEST")` — never a row.
  * Throwing is what keeps the replayed attempt free of charge: its own
  * partial writes roll back with the transaction (zero new rows, no second
  * debit); the success-equivalent experience is the client-side mapping of
- * the 409 per the error-handling contract (REQ-065).
+ * the 409 per the error-handling contract.
  *
  * Every path guards the caller-supplied target session id as a positive
- * safe integer BEFORE any database work (REQ-054): the three mutations deny
+ * safe integer BEFORE any database work: the three mutations deny
  * a malformed id with the canonical `VALIDATION` error, and the participant
  * read degrades one to the oracle-safe `null` — a garbage id can never reach
  * SQL.
@@ -52,9 +52,12 @@
  * Cancellation is deliberately exempt so a governed participant can still
  * release an in-flight hold later.
  *
- * Side-effect-free by contract: this module imports nothing from the
- * notification, audit, wallet, transaction-ledger, or report surfaces. All
- * user-facing messages resolve through `getServerTranslations(locale)`;
+ * Cross-surface dependency policy: the module's ONLY cross-surface
+ * dependency is the wallet repository, composed into the dual-confirmation
+ * flow to credit the teacher's earnings when the student confirms a
+ * completed session; it imports nothing from the notification, audit, or
+ * report surfaces. All user-facing messages resolve through
+ * `getServerTranslations(locale)`;
  * rejections log via `logger.logDomainError` with `{code, entity, entityId}`
  * only — never idempotency keys, payloads, or the other participant's data.
  * No module-level mutable state; no swallowed catches; every mutation flow
@@ -156,7 +159,7 @@ function isPositiveSafeInteger(value: number): boolean {
 }
 
 /**
- * The target-session-id shape check for the four non-create paths (REQ-054):
+ * The target-session-id shape check for the four non-create paths:
  * a session id is valid ONLY as a positive safe integer — a NaN, fractional,
  * out-of-safe-range, non-positive, or non-number runtime value fails closed.
  * `unknown` is the honest parameter type: the GraphQL boundary parses the
@@ -259,8 +262,8 @@ export namespace SessionLifecycleService {
    * claim (fail-closed) — surfaces the `ConflictError("DUPLICATE_REQUEST")`
    * conflict; this attempt's own partial writes (its debit-ladder step) roll
    * back with the transaction, so the replay commits zero new rows and burns
-   * no second allowance unit (REQ-073). The success-equivalent experience is
-   * the client-side REQ-065 mapping of the 409. A key spent by a DIFFERENT
+   * no second allowance unit. The success-equivalent experience is
+   * the client-side mapping of the 409. A key spent by a DIFFERENT
    * caller is denied with the oracle-safe session-not-found error — another
    * user's claim is never surfaced.
    *
@@ -398,7 +401,7 @@ export namespace SessionLifecycleService {
    * Starts a scheduled session exactly once, as its owning teacher.
    *
    * The target session id is guarded as a positive safe integer BEFORE any
-   * database work (REQ-054 — the boundary parses `ID` shape-only, so a
+   * database work (the boundary parses `ID` shape-only, so a
    * malformed id is the canonical `VALIDATION` denial, never a SQL
    * round-trip). The teacher's governance state is re-asserted next. The
    * guarded transition writes the start and audit stamps from one captured
@@ -422,7 +425,7 @@ export namespace SessionLifecycleService {
   ): Promise<SessionReturnType> {
     const t = getServerTranslations(locale).errorsTranslations;
 
-    // Pre-DB id-shape guard (REQ-054) — BEFORE the governance probe: a
+    // Pre-DB id-shape guard — BEFORE the governance probe: a
     // malformed target id is the canonical VALIDATION denial, never a
     // SQL round-trip.
     assertPositiveSafeSessionId(sessionId, t);
@@ -441,7 +444,7 @@ export namespace SessionLifecycleService {
    * Completes a started session exactly once, as its owning teacher.
    *
    * The target session id is guarded as a positive safe integer BEFORE any
-   * database work (REQ-054 — the boundary parses `ID` shape-only, so a
+   * database work (the boundary parses `ID` shape-only, so a
    * malformed id is the canonical `VALIDATION` denial, never a SQL
    * round-trip). The teacher's governance state is re-asserted next. The
    * guarded transition fuses the certification re-assertion into its own
@@ -468,7 +471,7 @@ export namespace SessionLifecycleService {
   ): Promise<SessionReturnType> {
     const t = getServerTranslations(locale).errorsTranslations;
 
-    // Pre-DB id-shape guard (REQ-054) — BEFORE the governance probe: a
+    // Pre-DB id-shape guard — BEFORE the governance probe: a
     // malformed target id is the canonical VALIDATION denial, never a
     // SQL round-trip.
     assertPositiveSafeSessionId(sessionId, t);
@@ -488,7 +491,7 @@ export namespace SessionLifecycleService {
    * participant, releasing the held fee back to the lane that funded it.
    *
    * The target session id is guarded as a positive safe integer BEFORE any
-   * database work (REQ-054 — the boundary parses `ID` shape-only, so a
+   * database work (the boundary parses `ID` shape-only, so a
    * malformed id is the canonical `VALIDATION` denial, never a SQL
    * round-trip). Deliberately NO governance re-check: releasing an in-flight
    * hold stays available to a governed participant (governance flips never
@@ -523,7 +526,7 @@ export namespace SessionLifecycleService {
   ): Promise<SessionReturnType> {
     const t = getServerTranslations(locale).errorsTranslations;
 
-    // Pre-DB id-shape guard (REQ-054) — the FIRST check of the flow, before
+    // Pre-DB id-shape guard — the FIRST check of the flow, before
     // the reason guard: a malformed target id is the canonical VALIDATION
     // denial, never a SQL round-trip.
     assertPositiveSafeSessionId(sessionId, t);
@@ -551,7 +554,7 @@ export namespace SessionLifecycleService {
    * participant, moving the row into the arbitration state exactly once.
    *
    * The target session id is guarded as a positive safe integer BEFORE any
-   * database work (REQ-054). The reason is REQUIRED: trimmed non-empty and
+   * database work. The reason is REQUIRED: trimmed non-empty and
    * ≤500 chars, validated pre-DB. Deliberately NO governance re-check
    * (mirroring the cancel exemption: a dispute is a participant's
    * self-protection action over their own row; the participant predicate is
@@ -580,7 +583,7 @@ export namespace SessionLifecycleService {
   ): Promise<SessionReturnType> {
     const t = getServerTranslations(locale).errorsTranslations;
 
-    // Pre-DB id-shape guard (REQ-054) — the FIRST check of the flow, before
+    // Pre-DB id-shape guard — the FIRST check of the flow, before
     // the reason guard.
     assertPositiveSafeSessionId(sessionId, t);
 
@@ -601,7 +604,7 @@ export namespace SessionLifecycleService {
    * ADMIN (the arbitration surface).
    *
    * The target session id is guarded as a positive safe integer BEFORE any
-   * database work (REQ-054). The resolution vocabulary is re-guarded at
+   * database work. The resolution vocabulary is re-guarded at
    * runtime (a payload that skipped the GraphQL enum boundary fails closed
    * pre-DB) and the optional note is trimmed, ≤500-checked, and persisted
    * (`resolution_note`; whitespace-only persists as NULL). The caller's
@@ -647,7 +650,7 @@ export namespace SessionLifecycleService {
   ): Promise<SessionReturnType> {
     const t = getServerTranslations(locale).errorsTranslations;
 
-    // Pre-DB id-shape guard (REQ-054) — the FIRST check of the flow.
+    // Pre-DB id-shape guard — the FIRST check of the flow.
     assertPositiveSafeSessionId(sessionId, t);
 
     // The resolution vocabulary is a closed runtime guard (BOPLA — a
@@ -702,11 +705,11 @@ export namespace SessionLifecycleService {
   }
 
   /**
-   * DEV3-012 (R-201/R-202) — the student's completion confirmation, the
-   * second half of the dual-confirmation contract.
+   * The student's completion confirmation — the second half of the
+   * dual-confirmation contract.
    *
    * The target session id is guarded as a positive safe integer BEFORE any
-   * database work (REQ-054). Deliberately NO governance re-check (mirroring
+   * database work. Deliberately NO governance re-check (mirroring
    * the cancel/dispute exemption: confirming one's own completed lesson is
    * a participant self-service act; the participant predicate is the whole
    * authorization surface). The flow is IDEMPOTENT and its financial slice
@@ -748,7 +751,7 @@ export namespace SessionLifecycleService {
   ): Promise<SessionReturnType> {
     const t = getServerTranslations(locale).errorsTranslations;
 
-    // Pre-DB id-shape guard (REQ-054) — the FIRST check of the flow.
+    // Pre-DB id-shape guard — the FIRST check of the flow.
     assertPositiveSafeSessionId(sessionId, t);
 
     return withTransaction(outerTx, async tx => {
@@ -756,8 +759,8 @@ export namespace SessionLifecycleService {
       // statement. Zero rows ⇒ classify (idempotent arms vs denials below).
       const confirmed = await SessionRepository.confirmStudentCompletionOnce(sessionId, callerUserId, tx);
       if (confirmed !== null) {
-        // A hold-marked row always carries its platform fee (DEV3-004
-        // creation invariant) — a null here is a data impossibility that
+        // A hold-marked row always carries its platform fee (the booking
+        // invariant) — a null here is a data impossibility that
         // fails closed instead of crediting an unpriced lesson.
         if (confirmed.fee === null) {
           logger.error("Dual-confirmation blocked: completed hold-marked session without a fee", {
@@ -765,7 +768,7 @@ export namespace SessionLifecycleService {
           });
           throw new Error("SessionLifecycleService.confirmSessionCompletion: missing session fee");
         }
-        // R-202 credit slice — same transaction, composed through the
+        // Teacher-earning credit slice — same transaction, composed through the
         // wallet repository: ensure the wallet, insert the `earning`
         // ledger row with the fee VERBATIM, increment the wallet.
         const teacherWallet = await WalletRepository.ensureWalletOnce(confirmed.teacherId, tx);
@@ -814,15 +817,15 @@ export namespace SessionLifecycleService {
   }
 
   /**
-   * DEV3-012 (R-203) — the B.2 deadline sweeper: cancels every
-   * still-`scheduled` session whose confirmation deadline has passed and
-   * refunds each held row's fee to its recorded provenance lane.
+   * The confirmation-deadline sweeper: cancels every still-`scheduled`
+   * session whose confirmation deadline has passed and refunds each held
+   * row's fee to its recorded provenance lane.
    *
    * ONE captured `now` drives both the deadline comparison and the stamps.
    * The batch UPDATE (guarded on the scheduled state and the expired
    * deadline) returns the cancelled rows; each returned row with a
    * recorded lane is refunded through the ONE shared same-lane primitive
-   * on the same transaction — a NULL lane (DEV1-era rows with no hold)
+   * on the same transaction — a NULL lane (rows with no hold)
    * means nothing to refund. Idempotent: a second sweep matches zero
    * rows. Zero notification/audit writes (out of contract).
    *
@@ -864,7 +867,7 @@ export namespace SessionLifecycleService {
    * positive safe integer, including the NaN/1.5/overflow shapes the
    * boundary's shape-only `Number` parse yields for garbage `ID` strings —
    * short-circuits to the SAME `null` before any database read (the pre-DB
-   * shape guard, REQ-054); well-formed-but-unknown ids degrade to `null`
+   * shape guard); well-formed-but-unknown ids degrade to `null`
    * through the parameterized lookup. No error is ever raised: this read
    * surface has no locale and its only answer shape is `null`.
    *
@@ -878,7 +881,7 @@ export namespace SessionLifecycleService {
     sessionId: number,
     tx?: DBTransaction
   ): Promise<SessionReturnType | null> {
-    // Oracle-safe malformed-id channel (REQ-054): anything that is not a
+    // Oracle-safe malformed-id channel: anything that is not a
     // positive safe integer — the NaN/1.5/overflow shapes the boundary's
     // shape-only `Number` parse yields for garbage `ID` strings — resolves
     // to the SAME `null` as a nonexistent id, BEFORE any database read. No
@@ -1120,7 +1123,7 @@ export namespace SessionLifecycleService {
    * duplicate-replay conflict. THROWING (never returning a row) is what
    * makes a replay free of charge: this attempt's own partial writes (its
    * debit-ladder step) roll back with the transaction, so the replay
-   * commits zero new rows and burns no second allowance unit (REQ-073);
+   * commits zero new rows and burns no second allowance unit;
    * the success-equivalent experience is the client-side mapping of this
    * 409 per the error-handling contract (`duplicateSuccessEquivalent`).
    * A key spent by a DIFFERENT caller is denied with the oracle-safe

@@ -44,8 +44,8 @@ import type { SessionsLabels } from "@/shared/locale/types/sessions";
  * Render branches (visual state matrix) — the chrome (page title + filter
  * chips) renders in EVERY branch; only the body BELOW it swaps. The former
  * early returns omitted the chrome on skeleton/error/empty, which stranded
- * the user with no filter row exactly when the page went bare (accepted-as-is
- * in the 4.BFBS visual loop — resolved here):
+ * the user with no filter row exactly when the page went bare (resolved
+ * here):
  *
  * | # | Condition | Body (below the always-on chrome) |
  * |---|-----------|-----------------------------------|
@@ -68,9 +68,9 @@ import type { SessionsLabels } from "@/shared/locale/types/sessions";
  * | `DUPLICATE_REQUEST` | informational snackbar with `sessions.duplicateBookingInfo` (never an error treatment — docs/IDEMPOTENCY.md §3) |
  * | `FORBIDDEN` / masked `INTERNAL_SERVER_ERROR` / anything else | error snackbar with the copy the dialog resolved (`errors.forbidden` / `sessions.genericError`); the dialog stays open for a retry |
  *
- * Dispute-dialog wiring (DEV3-005 R-110) — the `openSessionDispute` mutation
+ * Dispute-dialog wiring — the `openSessionDispute` mutation
  * and its code classification live in {@link SessionDisputeConfirmDialog};
- * EVERY error arm surfaces a snackbar (the dispute vocabulary per plan §4)
+ * EVERY error arm surfaces a snackbar (the dispute error vocabulary)
  * and the row stays in the list (no eviction arm — the dialog's docblock):
  *
  * | Outcome (extensions.code) | Container behavior |
@@ -80,12 +80,12 @@ import type { SessionsLabels } from "@/shared/locale/types/sessions";
  * | `SESSION_INVALID_TRANSITION` | `errors.sessionInvalidTransition` error snackbar; row stays; dialog closes |
  * | `VALIDATION` / `FORBIDDEN` / anything else | error snackbar with the copy the dialog resolved (`errors.validation` / `errors.forbidden` / `sessions.genericError`); the dialog stays open for a retry |
  *
- * The dispute affordance participates in the cron-r2 D9-bis per-row slot
+ * The dispute affordance participates in the per-row slot
  * book (`Record<sessionId, Set<kind>>` extended with the `dispute` kind):
  * the row whose dispute dialog is open holds the slot, disabling its own
  * dispute CTA while the modal owns the mutation.
  *
- * Confirm-completion wiring (DEV3-012 R-201/R-202) — the `confirmSessionCompletion`
+ * Confirm-completion wiring — the `confirmSessionCompletion`
  * mutation is owned HERE (no dialog: the row's Confirm CTA fires directly,
  * its consequence explainer riding the CTA tooltip), mirroring the teacher
  * container's direct lifecycle mutations:
@@ -152,15 +152,15 @@ function dropRowAlert(alerts: Readonly<Record<string, string>>, sessionId: strin
  * Per-row action kinds tracked in the container's in-flight slots. `cancel`
  * is reserved for the dialog-owned mutation (its busy state lives inside
  * `CancelSessionConfirmDialog`); `dispute` marks the row whose dispute
- * dialog is open (the dialog-owned mutation — the D9-bis per-row slot book
- * extended with the DEV3-005 dispute kind); `confirm` marks the row whose
- * DEV3-012 confirm mutation is in flight (container-owned, no dialog).
+ * dialog is open (the dialog-owned mutation — the per-row slot book
+ * extended with the dispute kind); `confirm` marks the row whose
+ * confirm mutation is in flight (container-owned, no dialog).
  */
 type RowActionKind = "cancel" | "dispute" | "confirm";
 
 /**
  * In-flight slot book — sessionId → the set of action kinds currently in
- * flight FOR THAT ROW (cron-r2 D9-bis hardening). Immutable records +
+ * flight FOR THAT ROW. Immutable records +
  * copied sets only: the React state is never mutated in place, so every
  * `setState` yields a new snapshot and per-row slots clear independently.
  */
@@ -237,7 +237,7 @@ function evictSessionFromStudentLists(cache: ReturnType<typeof useApolloClient>[
 }
 
 /**
- * DEV3-012 confirm error arm — classifies the mutation error and routes
+ * Confirm error arm — classifies the mutation error and routes
  * the outcome table (the class docblock's confirm wiring): not-found
  * family → student-list eviction + error snackbar;
  * `SESSION_INVALID_TRANSITION` → row-scoped inline alert; `FORBIDDEN` →
@@ -282,7 +282,7 @@ function handleConfirmMutationError(
 }
 
 /**
- * DEV3-012 confirm affordance matrix: the Confirm descriptor renders ONLY
+ * Confirm affordance matrix: the Confirm descriptor renders ONLY
  * on the exactly-once pending shape (`Completed` ∧ student stamp unset ∧
  * hold still marked) — the SAME predicate the row's pending pill keys off.
  * The descriptor disables while THIS row's `confirm` slot is in flight and
@@ -332,10 +332,10 @@ export function StudentSessionsContainer(): ReactNode {
   // Cancel-dialog owner (single dialog slot, re-keyed per session id).
   const [cancelDialogSessionId, setCancelDialogSessionId] = useState<string | null>(null);
 
-  // Dispute-dialog owner (DEV3-005, single dialog slot, re-keyed per id).
+  // Dispute-dialog owner (single dialog slot, re-keyed per id).
   const [disputeDialogSessionId, setDisputeDialogSessionId] = useState<string | null>(null);
 
-  // Per-row in-flight slots (D9-bis mechanism) — the row whose dispute dialog
+  // Per-row in-flight slots — the row whose dispute dialog
   // is open holds the `dispute` slot, disabling its dispute CTA behind the
   // modal while its mutation runs.
   const [inFlightSlots, setInFlightSlots] = useState<InFlightSlots>({});
@@ -422,7 +422,7 @@ export function StudentSessionsContainer(): ReactNode {
     // The dialog stays open for a retry (its own documented contract).
   }, []);
 
-  // --- dispute-dialog outcome arms (DEV3-005 — all snackbars; the row
+  // --- dispute-dialog outcome arms (all snackbars; the row
   // stays in the list; the dialog closes and releases the dispute slot) ---
 
   const handleDisputed = useCallback(
@@ -463,7 +463,7 @@ export function StudentSessionsContainer(): ReactNode {
     setNotice({ message, severity: "error" });
   }, []);
 
-  // --- confirm-completion mutation (DEV3-012 — container-owned, no dialog)
+  // --- confirm-completion mutation (container-owned, no dialog)
   // Per-call options carry the session id in scope so every outcome arm can
   // address ITS row (row alerts, in-flight clearing) precisely.
 
@@ -518,7 +518,7 @@ export function StudentSessionsContainer(): ReactNode {
   // The body below the chrome resolves through the module-scope
   // `StudentSessionsBody` (matrix branches 1–5) — extracting it keeps this
   // orchestrator to state + callbacks only while the chrome above renders in
-  // EVERY branch (the user never loses the filter row — 4.BFBS fix).
+  // EVERY branch (the user never loses the filter row).
   return (
     <Stack data-testid="student-sessions-view" sx={{ gap: 3 }}>
       <Stack sx={{ gap: 2 }}>
@@ -589,11 +589,11 @@ interface StudentSessionsBodyProps {
   readonly rowAlerts: Readonly<Record<string, string>>;
   readonly onCancelIntent: (sessionId: string) => void;
   readonly onDisputeIntent: (sessionId: string) => void;
-  /** Per-row dispute slot book (D9-bis) — dispute CTAs disable per row. */
+  /** Per-row dispute slot book — dispute CTAs disable per row. */
   readonly disputeInFlightSlots: InFlightSlots;
-  /** Full per-row slot book — the DEV3-012 confirm CTA disables per row. */
+  /** Full per-row slot book — the confirm CTA disables per row. */
   readonly inFlightSlots: InFlightSlots;
-  /** Confirm-CTA intent (DEV3-012) — the container owns the mutation. */
+  /** Confirm-CTA intent — the container owns the mutation. */
   readonly onConfirm: (sessionId: string) => void;
   readonly t: SessionsLabels;
 }

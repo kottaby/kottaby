@@ -474,16 +474,17 @@ export namespace SessionRepository {
   }
 
   /**
-   * DEV3-012 (R-202) — completes the dual confirmation EXACTLY once: a
-   * single guarded UPDATE whose predicate requires row identity, the
-   * student being the caller, the row already `completed` with the
-   * teacher's stamp written (structurally true of every completed row —
-   * `completeSessionOnce` writes it), the student stamp still absent, AND
-   * the escrow hold still marked — the credit's exactly-once guard lives
-   * in the statement itself, so a replayed confirm matches zero rows and
-   * can never double-credit. Flips `fee_held = false` (the hold consumed
-   * by earning) and writes the student stamp from one captured instant;
-   * the caller composes the wallet credit on the SAME transaction.
+   * Student completion confirmation — commits the student's half of the
+   * dual confirmation EXACTLY once: a single guarded UPDATE whose predicate
+   * requires row identity, the student being the caller, the row already
+   * `completed` with the teacher's stamp written (structurally true of
+   * every completed row — `completeSessionOnce` writes it), the student
+   * stamp still absent, AND the escrow hold still marked — the credit's
+   * exactly-once guard lives in the statement itself, so a replayed
+   * confirm matches zero rows and can never double-credit. Flips
+   * `fee_held = false` (the hold consumed by earning) and writes the
+   * student stamp from one captured instant; the caller composes the
+   * wallet credit on the SAME transaction.
    *
    * @returns The updated row (its `fee` and `teacherId` feed the credit
    *          slice), or `null` when zero rows matched (already confirmed,
@@ -515,11 +516,11 @@ export namespace SessionRepository {
   }
 
   /**
-   * DEV3-012 (R-203) — the B.2 deadline sweep: ONE guarded batch UPDATE
-   * cancelling every still-`scheduled` session whose confirmation deadline
-   * has passed. The deadline is never re-armed anywhere (B.2 — written at
-   * creation only), so `confirmation_deadline < now` is a stable
-   * predicate. The statement clears the hold marker (the caller refunds
+   * Confirmation-deadline sweeper: ONE guarded batch UPDATE cancelling
+   * every still-`scheduled` session whose confirmation deadline has
+   * passed. The deadline is never re-armed anywhere (written at creation
+   * only), so `confirmation_deadline < now` is a stable predicate. The
+   * statement clears the hold marker (the caller refunds
    * each returned row's recorded lane through the shared same-lane
    * primitive); rows WITHOUT a hold match too (a deadline breach cancels
    * regardless of escrow) — a NULL lane on a returned row means there is
