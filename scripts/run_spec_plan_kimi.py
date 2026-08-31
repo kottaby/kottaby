@@ -867,7 +867,7 @@ UI tasks MUST include 2 dedicated agent-browser self-loops (functional loop and 
     • Visually inspect and analyze screenshots for: MUI v9 theme palette compliance (no hardcoded hex/rgb), typography hierarchy, padding/margin rhythm, text truncation/overflows, RTL mirroring alignments, dark/light contrast
     • Iterative self-loop: inspect screenshot -> identify UI defect -> patch MUI `sx` tokens -> re-capture screenshot -> repeat until visually polished
   - [ ] X.Y.SR **Semantic Review**: Verify zero direct style props (sx only), no hardcoded strings/colors, useAppTranslation property access, *Outlined icons
-  - [ ] X.Y.IV **Instruction Verification**: Validate against `.agents/instructions/frontend.instructions.md` + layer AGENTS.md (the ONLY instruction files are `.agents/instructions/{frontend,backend,tests}.instructions.md` — nothing else exists)
+  - [ ] X.Y.IV **Instruction Verification**: Validate against `.agents/instructions/frontend.instructions.md` + layer AGENTS.md (the ONLY instruction files are `.agents/instructions/{{frontend,backend,tests}}.instructions.md` — nothing else exists)
 ```
 
 Do NOT omit subtasks. Do NOT use `...` placeholders. Provide the complete, exhaustive task breakdown."""
