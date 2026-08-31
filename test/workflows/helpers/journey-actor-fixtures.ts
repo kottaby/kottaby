@@ -288,7 +288,10 @@ async function provisionParent(tx: DBTransaction, prefix: string): Promise<Journ
  * `applicants` row in the canonical pending state — `status = "pending"`,
  * `verification_attempts = 0`, NULL cooldown timestamps).
  */
-async function provisionApplicant(tx: DBTransaction, prefix: string): Promise<JourneyActorFixture<ApplicantSelectType>> {
+async function provisionApplicant(
+  tx: DBTransaction,
+  prefix: string
+): Promise<JourneyActorFixture<ApplicantSelectType>> {
   const user = await insertFixtureUser(tx, prefix, "teacher", randomUUID().slice(0, 8));
   const [child] = await tx
     .insert(applicants)
@@ -319,7 +322,10 @@ async function provisionApplicant(tx: DBTransaction, prefix: string): Promise<Jo
  * fixture stands in for the verification loop's output so the denials
  * journey can assert the "certified" branch.
  */
-async function provisionCertifiedTeacher(tx: DBTransaction, prefix: string): Promise<JourneyActorFixture<TeacherSelectType>> {
+async function provisionCertifiedTeacher(
+  tx: DBTransaction,
+  prefix: string
+): Promise<JourneyActorFixture<TeacherSelectType>> {
   const user = await insertFixtureUser(tx, prefix, "teacher", randomUUID().slice(0, 8));
   const [child] = await tx
     .insert(teacher)

@@ -26,8 +26,8 @@
 import { AuditActionType } from "@/backend/enum/audit/audit-action-type.enum";
 import { NotificationType } from "@/backend/enum/notifications/notification-type.enum";
 import { ApplicantStatus } from "@/backend/enum/teachers/applicant-status.enum";
-import { AppLocale } from "@/backend/enum/users/app-locale.enum";
 import { AdminUserGovernanceFilter } from "@/backend/enum/users/admin-user-governance-filter.enum";
+import { AppLocale } from "@/backend/enum/users/app-locale.enum";
 import { Gender } from "@/backend/enum/users/gender.enum";
 import { RegisterPublicRole } from "@/backend/enum/users/register-public-role.enum";
 import { UserRole } from "@/backend/enum/users/user-role.enum";
