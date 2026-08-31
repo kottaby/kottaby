@@ -6,6 +6,8 @@ import type { DashboardLabels } from "@/shared/locale/types/dashboard";
 import type { ErrorsLabels } from "@/shared/locale/types/errors";
 import type { HandshakeCodeLabels } from "@/shared/locale/types/handshakeCode";
 import type { LandingLabels } from "@/shared/locale/types/landing";
+import type { NotificationsLabels } from "@/shared/locale/types/notifications";
+import type { PlansLabels } from "@/shared/locale/types/plans";
 import type { RecitationLabels } from "@/shared/locale/types/recitation";
 
 export interface Translations {
@@ -15,7 +17,9 @@ export interface Translations {
   recitationTranslations: RecitationLabels;
   dashboardTranslations: DashboardLabels;
   landingTranslations: LandingLabels;
+  plansTranslations: PlansLabels;
   applicantTranslations: ApplicantLabels;
   adminUsersTranslations: AdminUsersLabels;
+  notificationsTranslations: NotificationsLabels;
   handshakeCodeTranslations: HandshakeCodeLabels;
 }

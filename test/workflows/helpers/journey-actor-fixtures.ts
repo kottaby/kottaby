@@ -76,7 +76,7 @@ export interface JourneyFixtureSnapshot<T> {
  * Per-actor bundle: the user row + the role-child row captured at
  * provisioning time, plus a snapshot for byte-identity assertions.
  */
-export interface JourneyActor<TChild = unknown> {
+export interface JourneyActorFixture<TChild = unknown> {
   readonly user: UserSelectType;
   readonly child: TChild;
   readonly userSnapshot: JourneyFixtureSnapshot<UserSelectType>;
@@ -84,11 +84,11 @@ export interface JourneyActor<TChild = unknown> {
 }
 
 export interface JourneyCast {
-  readonly admin: JourneyActor<AdminSelectType>;
-  readonly student: JourneyActor<StudentSelectType>;
-  readonly parent: JourneyActor<ParentSelectType>;
-  readonly applicant: JourneyActor<ApplicantSelectType>;
-  readonly certifiedTeacher: JourneyActor<TeacherSelectType>;
+  readonly admin: JourneyActorFixture<AdminSelectType>;
+  readonly student: JourneyActorFixture<StudentSelectType>;
+  readonly parent: JourneyActorFixture<ParentSelectType>;
+  readonly applicant: JourneyActorFixture<ApplicantSelectType>;
+  readonly certifiedTeacher: JourneyActorFixture<TeacherSelectType>;
 }
 
 /**
@@ -229,7 +229,7 @@ async function insertFixtureUser(
 }
 
 /** Provisions a super-admin actor (users row + admin role-child row). */
-async function provisionAdmin(tx: DBTransaction, prefix: string): Promise<JourneyActor<AdminSelectType>> {
+async function provisionAdmin(tx: DBTransaction, prefix: string): Promise<JourneyActorFixture<AdminSelectType>> {
   const user = await insertFixtureUser(tx, prefix, "admin", randomUUID().slice(0, 8));
   const [child] = await tx.insert(admin).values({ id: user.id }).returning();
   if (!child) {
@@ -244,7 +244,7 @@ async function provisionAdmin(tx: DBTransaction, prefix: string): Promise<Journe
 }
 
 /** Provisions a fixture student with zeroed balances + unique handshake. */
-async function provisionStudent(tx: DBTransaction, prefix: string): Promise<JourneyActor<StudentSelectType>> {
+async function provisionStudent(tx: DBTransaction, prefix: string): Promise<JourneyActorFixture<StudentSelectType>> {
   const user = await insertFixtureUser(tx, prefix, "student", randomUUID().slice(0, 8));
   const [child] = await tx
     .insert(students)
@@ -269,7 +269,7 @@ async function provisionStudent(tx: DBTransaction, prefix: string): Promise<Jour
 }
 
 /** Provisions a fixture parent (PK-only `parents` row). */
-async function provisionParent(tx: DBTransaction, prefix: string): Promise<JourneyActor<ParentSelectType>> {
+async function provisionParent(tx: DBTransaction, prefix: string): Promise<JourneyActorFixture<ParentSelectType>> {
   const user = await insertFixtureUser(tx, prefix, "parent", randomUUID().slice(0, 8));
   const [child] = await tx.insert(parents).values({ id: user.id }).returning();
   if (!child) {
@@ -288,7 +288,7 @@ async function provisionParent(tx: DBTransaction, prefix: string): Promise<Journ
  * `applicants` row in the canonical pending state — `status = "pending"`,
  * `verification_attempts = 0`, NULL cooldown timestamps).
  */
-async function provisionApplicant(tx: DBTransaction, prefix: string): Promise<JourneyActor<ApplicantSelectType>> {
+async function provisionApplicant(tx: DBTransaction, prefix: string): Promise<JourneyActorFixture<ApplicantSelectType>> {
   const user = await insertFixtureUser(tx, prefix, "teacher", randomUUID().slice(0, 8));
   const [child] = await tx
     .insert(applicants)
@@ -319,7 +319,7 @@ async function provisionApplicant(tx: DBTransaction, prefix: string): Promise<Jo
  * fixture stands in for the verification loop's output so the denials
  * journey can assert the "certified" branch.
  */
-async function provisionCertifiedTeacher(tx: DBTransaction, prefix: string): Promise<JourneyActor<TeacherSelectType>> {
+async function provisionCertifiedTeacher(tx: DBTransaction, prefix: string): Promise<JourneyActorFixture<TeacherSelectType>> {
   const user = await insertFixtureUser(tx, prefix, "teacher", randomUUID().slice(0, 8));
   const [child] = await tx
     .insert(teacher)

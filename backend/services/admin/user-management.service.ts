@@ -585,6 +585,7 @@ function assembleDetail(row: AdminUserDetailRow, locale: string): AdminUserDetai
     isBlocked: row.isBlocked ?? false,
     blockedAt: row.blockedAt,
     lastActiveAt: row.lastActiveAt,
+    locale: row.locale,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
     applicant,

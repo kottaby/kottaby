@@ -10,7 +10,15 @@
  *    side-effect import here.
  *
  * `auth.mutation.ts` wires the auth mutations (`registerUser`, `login`,
- * `refreshToken`, `logout`).
+ * `refreshToken`, `logout`); `admin/` wires the admin user-management
+ * mutations; `notifications/` wires the inbox read-latch mutations
+ * (`markNotificationRead`, `markAllNotificationsRead`);
+ * `plan-catalog.mutation.ts` wires the admin billing plan-catalog CRUD;
+ * `user.mutation.ts` wires the caller-scoped profile mutations
+ * (`updateMyLocale`).
  */
 import "./auth.mutation";
 import "./admin";
+import "./notifications";
+import "./plan-catalog.mutation";
+import "./user.mutation";

@@ -124,31 +124,6 @@ function useScrollSpy(sectionIds: readonly string[]): string {
   return activeId;
 }
 
-// ─── Shared color-mode toggle button ────────────────────────────
-
-function ColorModeToggleButton({
-  mode,
-  onToggle,
-  ariaLabel,
-}: Readonly<{ mode: string | undefined; onToggle: () => void; ariaLabel: string }>): ReactNode {
-  return (
-    <Button
-      onClick={onToggle}
-      sx={{
-        minWidth: 44,
-        minHeight: 44,
-        p: 1,
-        color: "var(--mui-palette-secondary-light)",
-        borderRadius: 2,
-        "&:hover": { bgcolor: "color-mix(in srgb, var(--mui-palette-secondary-main) 15%, transparent)" },
-      }}
-      aria-label={ariaLabel}
-    >
-      {mode === "dark" ? <LightModeOutlined /> : <DarkModeOutlined />}
-    </Button>
-  );
-}
-
 export default function LandingPage(): ReactNode {
   const t = useAppTranslation(Landing);
   const { mode, setMode } = useColorScheme();
@@ -338,6 +313,7 @@ export default function LandingPage(): ReactNode {
             {/* Desktop actions — hidden on xs/sm */}
             <Stack direction="row" spacing={1.25} sx={{ alignItems: "center", display: { xs: "none", md: "flex" } }}>
               <LocaleSwitcher />
+              {/* Dark mode toggle */}
               <ColorModeToggleButton
                 mode={mode}
                 onToggle={() => setMode(mode === "dark" ? "light" : "dark")}
@@ -351,35 +327,7 @@ export default function LandingPage(): ReactNode {
               >
                 {t.navSignIn}
               </Button>
-              <Button
-                component={Link}
-                href="/register"
-                variant="contained"
-                sx={{
-                  position: "relative",
-                  overflow: "hidden",
-                  bgcolor: "var(--mui-palette-secondary-main)",
-                  color: "var(--mui-palette-onSecondary)",
-                  fontWeight: 700,
-                  textTransform: "none",
-                  borderRadius: 2,
-                  px: 2.5,
-                  "&::after": {
-                    content: '""',
-                    position: "absolute",
-                    top: 0,
-                    left: "-100%",
-                    width: "100%",
-                    height: "100%",
-                    background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent)",
-                    transition: "left 0.5s ease",
-                  },
-                  "&:hover": {
-                    bgcolor: "var(--mui-palette-secondary-dark)",
-                    "&::after": { left: "100%" },
-                  },
-                }}
-              >
+              <Button component={Link} href="/register" variant="contained" sx={{ ...ctaShimmerSx, px: 2.5 }}>
                 {t.navGetStarted}
               </Button>
             </Stack>
@@ -394,8 +342,7 @@ export default function LandingPage(): ReactNode {
               <Button
                 onClick={() => setMobileOpen(prev => !prev)}
                 sx={{
-                  minWidth: 44,
-                  minHeight: 44,
+                  minWidth: "auto",
                   p: 1,
                   color: "var(--mui-palette-onPrimary)",
                   borderRadius: 2,
@@ -455,8 +402,7 @@ export default function LandingPage(): ReactNode {
                       textTransform: "none",
                       borderRadius: 1.5,
                       px: 2,
-                      py: 1.5,
-                      minHeight: 44,
+                      py: 1.2,
                       borderLeft: isActive ? "3px solid var(--mui-palette-secondary-main)" : "3px solid transparent",
                       "&:hover": { bgcolor: "color-mix(in srgb, var(--mui-palette-secondary-main) 12%, transparent)" },
                     }}
@@ -477,41 +423,11 @@ export default function LandingPage(): ReactNode {
                     fontWeight: 600,
                     textTransform: "none",
                     borderRadius: 2,
-                    minHeight: 44,
                   }}
                 >
                   {t.navSignIn}
                 </Button>
-                <Button
-                  component={Link}
-                  href="/register"
-                  variant="contained"
-                  fullWidth
-                  sx={{
-                    position: "relative",
-                    overflow: "hidden",
-                    bgcolor: "var(--mui-palette-secondary-main)",
-                    color: "var(--mui-palette-onSecondary)",
-                    fontWeight: 700,
-                    textTransform: "none",
-                    borderRadius: 2,
-                    minHeight: 44,
-                    "&::after": {
-                      content: '""',
-                      position: "absolute",
-                      top: 0,
-                      left: "-100%",
-                      width: "100%",
-                      height: "100%",
-                      background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent)",
-                      transition: "left 0.5s ease",
-                    },
-                    "&:hover": {
-                      bgcolor: "var(--mui-palette-secondary-dark)",
-                      "&::after": { left: "100%" },
-                    },
-                  }}
-                >
+                <Button component={Link} href="/register" variant="contained" fullWidth sx={ctaShimmerSx}>
                   {t.navGetStarted}
                 </Button>
               </Stack>
@@ -645,6 +561,187 @@ function isEmailLike(value: string): boolean {
   if (domain.includes("@") || /\s/.test(value)) return false;
   const dot = domain.lastIndexOf(".");
   return dot > 0 && dot < domain.length - 1;
+}
+
+// ─── Shared landing markup helpers (single source for repeated blocks) ───────
+
+/** Shimmer-sweep CTA button styling (nav, mobile drawer, cookie dialog). */
+const ctaShimmerSx = {
+  position: "relative",
+  overflow: "hidden",
+  bgcolor: "var(--mui-palette-secondary-main)",
+  color: "var(--mui-palette-onSecondary)",
+  fontWeight: 700,
+  textTransform: "none",
+  borderRadius: 2,
+  "&::after": {
+    content: '""',
+    position: "absolute",
+    top: 0,
+    left: "-100%",
+    width: "100%",
+    height: "100%",
+    background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent)",
+    transition: "left 0.5s ease",
+  },
+  "&:hover": {
+    bgcolor: "var(--mui-palette-secondary-dark)",
+    "&::after": { left: "100%" },
+  },
+};
+
+/** Dark/light mode toggle — rendered in both the desktop and mobile header rows. */
+function ColorModeToggleButton({
+  mode,
+  onToggle,
+  ariaLabel,
+}: Readonly<{ mode: string | undefined; onToggle: () => void; ariaLabel: string }>): ReactNode {
+  return (
+    <Button
+      onClick={onToggle}
+      sx={{
+        minWidth: "auto",
+        p: 1,
+        color: "var(--mui-palette-secondary-light)",
+        borderRadius: 2,
+        "&:hover": { bgcolor: "color-mix(in srgb, var(--mui-palette-secondary-main) 15%, transparent)" },
+      }}
+      aria-label={ariaLabel}
+    >
+      {mode === "dark" ? <LightModeOutlined /> : <DarkModeOutlined />}
+    </Button>
+  );
+}
+
+/** Spinning diamond ornament used on both sides of the Islamic divider. */
+function DividerDiamond(): ReactNode {
+  return (
+    <Box
+      sx={{
+        width: 12,
+        height: 12,
+        transform: "rotate(45deg)",
+        bgcolor: "var(--mui-palette-secondary-main)",
+        opacity: 0.85,
+        mx: 2,
+        flexShrink: 0,
+        animation: "dividerSpin 12s linear infinite",
+        boxShadow: "0 0 10px rgba(184,115,51,0.55)",
+        "@keyframes dividerSpin": {
+          "0%": { transform: "rotate(45deg)" },
+          "100%": { transform: "rotate(405deg)" },
+        },
+      }}
+    />
+  );
+}
+
+const sectionBadgeLineSx = {
+  width: 24,
+  height: 2,
+  bgcolor: "var(--mui-palette-secondary-main)",
+};
+
+/** Overline badge with a leading rule (optionally a trailing rule) for section headers. */
+function SectionBadge({
+  label,
+  showTrailingLine = false,
+}: Readonly<{ label: ReactNode; showTrailingLine?: boolean }>): ReactNode {
+  return (
+    <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
+      <Box aria-hidden sx={sectionBadgeLineSx} />
+      <Typography
+        variant="overline"
+        sx={{
+          fontWeight: 700,
+          letterSpacing: "0.12em",
+          color: "var(--mui-palette-secondary-main)",
+          lineHeight: 1,
+        }}
+      >
+        {label}
+      </Typography>
+      {showTrailingLine ? <Box aria-hidden sx={sectionBadgeLineSx} /> : null}
+    </Stack>
+  );
+}
+
+/** Circular prev/next arrow for the testimonials carousel. */
+function TestimonialNavButton({
+  side,
+  label,
+  disabled,
+  onClick,
+}: Readonly<{
+  side: "left" | "right";
+  label: string;
+  disabled: boolean;
+  onClick: () => void;
+}>): ReactNode {
+  return (
+    <IconButton
+      aria-label={label}
+      onClick={onClick}
+      disabled={disabled}
+      sx={{
+        position: "absolute",
+        top: "50%",
+        [side]: { xs: -8, md: -48 },
+        transform: "translateY(-50%)",
+        zIndex: 2,
+        width: 40,
+        height: 40,
+        border: "2px solid var(--mui-palette-secondary-main)",
+        borderRadius: "50%",
+        color: "var(--mui-palette-secondary-main)",
+        "&:hover": {
+          bgcolor: "var(--mui-palette-secondary-main)",
+          color: "var(--mui-palette-onSecondary)",
+        },
+        "&:disabled": {
+          opacity: 0.3,
+          borderColor: "var(--mui-palette-divider)",
+          color: "var(--mui-palette-text-disabled)",
+        },
+      }}
+    >
+      {side === "left" ? <KeyboardArrowLeft /> : <KeyboardArrowRight />}
+    </IconButton>
+  );
+}
+
+/** Newsletter section shell with the pulsing accent border (used by both success and form states). */
+const newsletterShellSx = {
+  position: "relative",
+  bgcolor: "var(--mui-palette-background-paper)",
+  py: { xs: 6, md: 10 },
+  pl: 3,
+  "&::before": {
+    content: '""',
+    position: "absolute",
+    top: 0,
+    left: 0,
+    bottom: 0,
+    width: 5,
+    background: "linear-gradient(to bottom, var(--mui-palette-secondary-main), transparent)",
+    animation: "newsletterBorderPulse 2s ease-in-out infinite",
+    "@keyframes newsletterBorderPulse": {
+      "0%, 100%": { opacity: 0.7 },
+      "50%": { opacity: 1 },
+    },
+  },
+};
+
+function NewsletterShell({ children }: Readonly<{ children: ReactNode }>): ReactNode {
+  return (
+    <Box component="section" sx={newsletterShellSx}>
+      <Container maxWidth="lg">
+        <Stack spacing={3} sx={{ alignItems: "center", textAlign: "center", maxWidth: 560, mx: "auto" }}>
+          {children}
+        </Stack>
+      </Container>
+    </Box>
+  );
 }
 
 function ScrollProgressBar(): ReactNode {
@@ -850,6 +947,7 @@ function BackToTopButton(): ReactNode {
     <Tooltip title={t.a11yBackToTop} placement="top" arrow>
       <span>
         <Fab
+          size="small"
           onClick={scrollToTop}
           aria-label={t.a11yBackToTop}
           sx={{
@@ -1154,57 +1252,6 @@ function HijriPrayerStrip(): ReactNode {
 
 // ─── Islamic decorative divider ───────────────────────────────────
 
-function DividerLine(): ReactNode {
-  return (
-    <Box
-      sx={{
-        flex: 1,
-        height: 1,
-        background:
-          "linear-gradient(90deg, transparent, color-mix(in srgb, var(--mui-palette-secondary-main) 45%, transparent) 30%, color-mix(in srgb, var(--mui-palette-secondary-main) 45%, transparent) 70%, transparent)",
-      }}
-    />
-  );
-}
-
-function DividerDiamond(): ReactNode {
-  return (
-    <Box
-      sx={{
-        width: 12,
-        height: 12,
-        transform: "rotate(45deg)",
-        bgcolor: "var(--mui-palette-secondary-main)",
-        opacity: 0.85,
-        mx: 2,
-        flexShrink: 0,
-        animation: "dividerSpin 12s linear infinite",
-        boxShadow: "0 0 10px rgba(184,115,51,0.55)",
-        "@keyframes dividerSpin": {
-          "0%": { transform: "rotate(45deg)" },
-          "100%": { transform: "rotate(405deg)" },
-        },
-      }}
-    />
-  );
-}
-
-function DividerDot(): ReactNode {
-  return (
-    <Box
-      sx={{
-        width: 4,
-        height: 4,
-        borderRadius: "50%",
-        bgcolor: "var(--mui-palette-secondary-main)",
-        opacity: 0.45,
-        mx: 1,
-        flexShrink: 0,
-      }}
-    />
-  );
-}
-
 function IslamicDivider(): ReactNode {
   return (
     <Box
@@ -1217,13 +1264,47 @@ function IslamicDivider(): ReactNode {
         px: 4,
       }}
     >
-      <DividerLine />
+      <Box
+        sx={{
+          flex: 1,
+          height: 1,
+          background:
+            "linear-gradient(90deg, transparent, color-mix(in srgb, var(--mui-palette-secondary-main) 45%, transparent) 30%, color-mix(in srgb, var(--mui-palette-secondary-main) 45%, transparent) 70%, transparent)",
+        }}
+      />
       {/* Center diamond ornament */}
       <DividerDiamond />
-      <DividerDot />
-      <DividerDot />
+      <Box
+        sx={{
+          width: 4,
+          height: 4,
+          borderRadius: "50%",
+          bgcolor: "var(--mui-palette-secondary-main)",
+          opacity: 0.45,
+          mx: 1,
+          flexShrink: 0,
+        }}
+      />
+      <Box
+        sx={{
+          width: 4,
+          height: 4,
+          borderRadius: "50%",
+          bgcolor: "var(--mui-palette-secondary-main)",
+          opacity: 0.45,
+          mx: 1,
+          flexShrink: 0,
+        }}
+      />
       <DividerDiamond />
-      <DividerLine />
+      <Box
+        sx={{
+          flex: 1,
+          height: 1,
+          background:
+            "linear-gradient(90deg, transparent, color-mix(in srgb, var(--mui-palette-secondary-main) 45%, transparent) 30%, color-mix(in srgb, var(--mui-palette-secondary-main) 45%, transparent) 70%, transparent)",
+        }}
+      />
     </Box>
   );
 }
@@ -1559,27 +1640,6 @@ function HeroSection(): ReactNode {
   );
 }
 
-// ─── Shared section badge row ────────────────────────────────────────────
-
-function SectionBadgeRow({ label }: Readonly<{ label: string }>): ReactNode {
-  return (
-    <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
-      <Box aria-hidden sx={{ width: 24, height: 2, bgcolor: "var(--mui-palette-secondary-main)" }} />
-      <Typography
-        variant="overline"
-        sx={{
-          fontWeight: 700,
-          letterSpacing: "0.12em",
-          color: "var(--mui-palette-secondary-main)",
-          lineHeight: 1,
-        }}
-      >
-        {label}
-      </Typography>
-    </Stack>
-  );
-}
-
 // ─── Verse of the Day ───────────────────────────────────────────
 
 function VerseSection(): ReactNode {
@@ -1660,10 +1720,7 @@ function VerseSection(): ReactNode {
       <Container maxWidth="lg" sx={{ position: "relative", zIndex: 1 }}>
         <Stack spacing={4} sx={{ alignItems: "center", textAlign: "center" }}>
           {/* Badge */}
-          <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
-            <SectionBadgeRow label={t.verseBadge} />
-            <Box aria-hidden sx={{ width: 24, height: 2, bgcolor: "var(--mui-palette-secondary-main)" }} />
-          </Stack>
+          <SectionBadge label={t.verseBadge} showTrailingLine />
 
           {/* Title */}
           <Typography
@@ -1758,14 +1815,12 @@ function VerseSection(): ReactNode {
           </Typography>
 
           {/* Copy / Share buttons */}
-          <Stack direction="row" spacing={1} sx={{ mt: -1, alignItems: "center" }}>
+          <Stack direction="row" spacing={1} sx={{ mt: -1 }}>
             <IconButton
               onClick={handleCopy}
               size="small"
               aria-label={t.verseCopy}
               sx={{
-                minHeight: 44,
-                minWidth: 44,
                 color: "var(--mui-palette-secondary-light)",
                 "&:hover": { bgcolor: "color-mix(in srgb, var(--mui-palette-secondary-light) 15%, transparent)" },
               }}
@@ -1789,8 +1844,6 @@ function VerseSection(): ReactNode {
               size="small"
               aria-label={t.verseShare}
               sx={{
-                minHeight: 44,
-                minWidth: 44,
                 color: "var(--mui-palette-secondary-light)",
                 "&:hover": { bgcolor: "color-mix(in srgb, var(--mui-palette-secondary-light) 15%, transparent)" },
               }}
@@ -2511,7 +2564,7 @@ function AchievementsSection(): ReactNode {
       <Container maxWidth="lg" sx={{ position: "relative", zIndex: 1 }}>
         {/* Section header */}
         <Stack spacing={1.5} sx={{ mb: 5, maxWidth: 640 }}>
-          <SectionBadgeRow label={t.achievementsBadge} />
+          <SectionBadge label={t.achievementsBadge} />
           <Typography
             variant="h3"
             sx={{ fontWeight: 800, fontSize: { xs: 26, md: 34 }, letterSpacing: "-0.02em", lineHeight: 1.2, m: 0 }}
@@ -2769,8 +2822,7 @@ const POPULAR_CTA_SX = {
   fontWeight: 700,
   textTransform: "none",
   borderRadius: 2,
-  py: 1.5,
-  minHeight: 44,
+  py: 1.2,
   "&::after": {
     content: '""',
     position: "absolute",
@@ -2798,8 +2850,7 @@ const STANDARD_CTA_SX = {
   fontWeight: 700,
   textTransform: "none",
   borderRadius: 2,
-  py: 1.5,
-  minHeight: 44,
+  py: 1.2,
   "&:hover": {
     bgcolor: "color-mix(in srgb, var(--mui-palette-secondary-main) 8%, transparent)",
     borderColor: "var(--mui-palette-secondary-dark)",
@@ -3039,12 +3090,12 @@ function PricingSection(): ReactNode {
           }}
         >
           <Button
+            size="small"
             onClick={() => setYearly(false)}
             sx={{
               borderRadius: 99,
               px: 2,
-              py: 1,
-              minHeight: 44,
+              py: 0.5,
               fontWeight: 600,
               textTransform: "none",
               fontSize: 14,
@@ -3061,12 +3112,12 @@ function PricingSection(): ReactNode {
             {t.pricingToggleMonthly}
           </Button>
           <Button
+            size="small"
             onClick={() => setYearly(true)}
             sx={{
               borderRadius: 99,
               px: 2,
-              py: 1,
-              minHeight: 44,
+              py: 0.5,
               fontWeight: 600,
               textTransform: "none",
               fontSize: 14,
@@ -3103,54 +3154,6 @@ function PricingSection(): ReactNode {
 
 // ─── Testimonials ────────────────────────────────────────────────────
 
-const TESTIMONIAL_STAR_SLOTS = ["star-1", "star-2", "star-3", "star-4", "star-5"] as const;
-
-function TestimonialNavButton({
-  ariaLabel,
-  onClick,
-  disabled,
-  side,
-  children,
-}: Readonly<{
-  ariaLabel: string;
-  onClick: () => void;
-  disabled: boolean;
-  side: "left" | "right";
-  children: ReactNode;
-}>): ReactNode {
-  return (
-    <IconButton
-      aria-label={ariaLabel}
-      onClick={onClick}
-      disabled={disabled}
-      sx={{
-        position: "absolute",
-        top: "50%",
-        left: side === "left" ? { xs: -8, md: -48 } : undefined,
-        right: side === "right" ? { xs: -8, md: -48 } : undefined,
-        transform: "translateY(-50%)",
-        zIndex: 2,
-        width: 44,
-        height: 44,
-        border: "2px solid var(--mui-palette-secondary-main)",
-        borderRadius: "50%",
-        color: "var(--mui-palette-secondary-main)",
-        "&:hover": {
-          bgcolor: "var(--mui-palette-secondary-main)",
-          color: "var(--mui-palette-onSecondary)",
-        },
-        "&:disabled": {
-          opacity: 0.3,
-          borderColor: "var(--mui-palette-divider)",
-          color: "var(--mui-palette-text-disabled)",
-        },
-      }}
-    >
-      {children}
-    </IconButton>
-  );
-}
-
 function TestimonialsSection(): ReactNode {
   const t = useAppTranslation(Landing);
   const [current, setCurrent] = useState(0);
@@ -3178,19 +3181,15 @@ function TestimonialsSection(): ReactNode {
     >
       <Box sx={{ position: "relative" }}>
         {/* Previous button */}
-        <TestimonialNavButton ariaLabel={t.testimonialPrev} onClick={handlePrev} disabled={current === 0} side="left">
-          <KeyboardArrowLeft />
-        </TestimonialNavButton>
+        <TestimonialNavButton side="left" label={t.testimonialPrev} onClick={handlePrev} disabled={current === 0} />
 
         {/* Next button */}
         <TestimonialNavButton
-          ariaLabel={t.testimonialNext}
+          side="right"
+          label={t.testimonialNext}
           onClick={handleNext}
           disabled={current === total - 1}
-          side="right"
-        >
-          <KeyboardArrowRight />
-        </TestimonialNavButton>
+        />
 
         {/* Carousel viewport */}
         <Box sx={{ overflow: "hidden" }}>
@@ -3267,9 +3266,11 @@ function TestimonialsSection(): ReactNode {
 
                   {/* Star ratings */}
                   <Stack direction="row" spacing={0.25} sx={{ mb: 2, position: "relative", zIndex: 1 }}>
-                    {TESTIMONIAL_STAR_SLOTS.map(slot => (
-                      <Star key={slot} sx={{ fontSize: 18, color: "var(--mui-palette-secondary-main)" }} />
-                    ))}
+                    <Star sx={{ fontSize: 18, color: "var(--mui-palette-secondary-main)" }} />
+                    <Star sx={{ fontSize: 18, color: "var(--mui-palette-secondary-main)" }} />
+                    <Star sx={{ fontSize: 18, color: "var(--mui-palette-secondary-main)" }} />
+                    <Star sx={{ fontSize: 18, color: "var(--mui-palette-secondary-main)" }} />
+                    <Star sx={{ fontSize: 18, color: "var(--mui-palette-secondary-main)" }} />
                   </Stack>
 
                   <Typography
@@ -3328,9 +3329,8 @@ function TestimonialsSection(): ReactNode {
           </Box>
         </Box>
 
-        {/* Dot indicators — touch target floor 44×44 (WCAG AAA) while the
-            visible dot stays small for a clean carousel look. */}
-        <Stack direction="row" spacing={0.5} sx={{ justifyContent: "center", mt: 3 }}>
+        {/* Dot indicators */}
+        <Stack direction="row" spacing={1} sx={{ justifyContent: "center", mt: 3 }}>
           {testimonials.map((_item, idx) => (
             <Box
               key={_item.name}
@@ -3339,34 +3339,15 @@ function TestimonialsSection(): ReactNode {
               onClick={() => setCurrent(idx)}
               aria-label={`Testimonial ${idx + 1}`}
               sx={{
-                minWidth: 44,
-                minHeight: 44,
-                p: 0,
-                border: "none",
-                bgcolor: "transparent",
+                width: idx === current ? 24 : 8,
+                height: 8,
+                borderRadius: 99,
+                bgcolor: idx === current ? "var(--mui-palette-secondary-main)" : "transparent",
+                border: idx === current ? "none" : "2px solid var(--mui-palette-secondary-main)",
+                transition: "all 0.3s ease",
                 cursor: "pointer",
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center",
-                "&:focus-visible": {
-                  outline: "2px solid var(--mui-palette-secondary-main)",
-                  outlineOffset: 2,
-                  borderRadius: 1,
-                },
               }}
-            >
-              <Box
-                aria-hidden
-                sx={{
-                  width: idx === current ? 24 : 8,
-                  height: 8,
-                  borderRadius: 99,
-                  bgcolor: idx === current ? "var(--mui-palette-secondary-main)" : "transparent",
-                  border: idx === current ? "none" : "2px solid var(--mui-palette-secondary-main)",
-                  transition: "all 0.3s ease",
-                }}
-              />
-            </Box>
+            />
           ))}
         </Stack>
       </Box>
@@ -3427,14 +3408,14 @@ function FaqSection(): ReactNode {
       <Stack spacing={2} sx={{ maxWidth: 800, mx: "auto" }}>
         <Stack direction="row" sx={{ justifyContent: "flex-end" }}>
           <Button
+            size="small"
             onClick={handleToggleAll}
             sx={{
               color: "var(--mui-palette-secondary-main)",
               textTransform: "none",
               fontWeight: 600,
               fontSize: 13,
-              p: 1,
-              minHeight: 44,
+              p: 0.5,
               "&:hover": { bgcolor: "color-mix(in srgb, var(--mui-palette-secondary-main) 8%, transparent)" },
             }}
           >
@@ -3512,40 +3493,6 @@ function FaqSection(): ReactNode {
 
 // ─── Newsletter CTA ──────────────────────────────────────────────────
 
-function NewsletterSectionShell({ children }: Readonly<{ children: ReactNode }>): ReactNode {
-  return (
-    <Box
-      component="section"
-      sx={{
-        position: "relative",
-        bgcolor: "var(--mui-palette-background-paper)",
-        py: { xs: 6, md: 10 },
-        pl: 3,
-        "&::before": {
-          content: '""',
-          position: "absolute",
-          top: 0,
-          left: 0,
-          bottom: 0,
-          width: 5,
-          background: "linear-gradient(to bottom, var(--mui-palette-secondary-main), transparent)",
-          animation: "newsletterBorderPulse 2s ease-in-out infinite",
-          "@keyframes newsletterBorderPulse": {
-            "0%, 100%": { opacity: 0.7 },
-            "50%": { opacity: 1 },
-          },
-        },
-      }}
-    >
-      <Container maxWidth="lg">
-        <Stack spacing={3} sx={{ alignItems: "center", textAlign: "center", maxWidth: 560, mx: "auto" }}>
-          {children}
-        </Stack>
-      </Container>
-    </Box>
-  );
-}
-
 function NewsletterSection(): ReactNode {
   const t = useAppTranslation(Landing);
   const [email, setEmail] = useState("");
@@ -3572,7 +3519,7 @@ function NewsletterSection(): ReactNode {
 
   if (success) {
     return (
-      <NewsletterSectionShell>
+      <NewsletterShell>
         <CheckIcon sx={{ fontSize: 48, color: "var(--mui-palette-secondary-main)" }} />
         <Typography
           variant="h3"
@@ -3580,12 +3527,12 @@ function NewsletterSection(): ReactNode {
         >
           {t.newsletterSuccess}
         </Typography>
-      </NewsletterSectionShell>
+      </NewsletterShell>
     );
   }
 
   return (
-    <NewsletterSectionShell>
+    <NewsletterShell>
       {/* Badge */}
       <Stack
         direction="row"
@@ -3672,32 +3619,7 @@ function NewsletterSection(): ReactNode {
             type="submit"
             variant="contained"
             disabled={loading}
-            sx={{
-              position: "relative",
-              overflow: "hidden",
-              bgcolor: "var(--mui-palette-secondary-main)",
-              color: "var(--mui-palette-onSecondary)",
-              fontWeight: 700,
-              textTransform: "none",
-              borderRadius: 2,
-              px: 3,
-              minHeight: 44,
-              whiteSpace: "nowrap",
-              "&::after": {
-                content: '""',
-                position: "absolute",
-                top: 0,
-                left: "-100%",
-                width: "100%",
-                height: "100%",
-                background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent)",
-                transition: "left 0.5s ease",
-              },
-              "&:hover": {
-                bgcolor: "var(--mui-palette-secondary-dark)",
-                "&::after": { left: "100%" },
-              },
-            }}
+            sx={{ ...ctaShimmerSx, px: 3, whiteSpace: "nowrap" }}
           >
             {loading ? <CircularProgress size={20} color="inherit" /> : t.newsletterButton}
           </Button>
@@ -3707,7 +3629,7 @@ function NewsletterSection(): ReactNode {
       <Typography variant="caption" sx={{ opacity: 0.6, mt: 1 }}>
         {t.newsletterDisclaimer}
       </Typography>
-    </NewsletterSectionShell>
+    </NewsletterShell>
   );
 }
 
@@ -3839,8 +3761,7 @@ function ContactSection(): ReactNode {
               textTransform: "none",
               borderRadius: 2,
               px: 4,
-              py: 1.5,
-              minHeight: 44,
+              py: 1.2,
               "&::after": {
                 content: '""',
                 position: "absolute",
@@ -4428,13 +4349,12 @@ function CookieConsent(): ReactNode {
             <Stack direction="row" spacing={1} sx={{ flexShrink: 0 }}>
               <Button
                 onClick={handleDecline}
+                size="small"
                 sx={{
                   color: "var(--mui-palette-text-secondary)",
                   textTransform: "none",
                   fontWeight: 600,
                   borderRadius: 2,
-                  minHeight: 44,
-                  px: 2,
                   "&:hover": { bgcolor: "color-mix(in srgb, var(--mui-palette-text-secondary) 8%, transparent)" },
                 }}
               >
@@ -4442,13 +4362,12 @@ function CookieConsent(): ReactNode {
               </Button>
               <Button
                 onClick={openSettings}
+                size="small"
                 sx={{
                   color: "var(--mui-palette-secondary-main)",
                   textTransform: "none",
                   fontWeight: 600,
                   borderRadius: 2,
-                  minHeight: 44,
-                  px: 2,
                   "&:hover": { bgcolor: "color-mix(in srgb, var(--mui-palette-secondary-main) 8%, transparent)" },
                 }}
               >
@@ -4457,6 +4376,7 @@ function CookieConsent(): ReactNode {
               <Button
                 onClick={handleAccept}
                 variant="contained"
+                size="small"
                 sx={{
                   position: "relative",
                   overflow: "hidden",
@@ -4465,8 +4385,6 @@ function CookieConsent(): ReactNode {
                   textTransform: "none",
                   fontWeight: 700,
                   borderRadius: 2,
-                  minHeight: 44,
-                  px: 2,
                   "&::after": {
                     content: '""',
                     position: "absolute",
@@ -4541,33 +4459,7 @@ function CookieConsent(): ReactNode {
           </Stack>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 3 }}>
-          <Button
-            onClick={handleSaveCookieSettings}
-            variant="contained"
-            sx={{
-              position: "relative",
-              overflow: "hidden",
-              bgcolor: "var(--mui-palette-secondary-main)",
-              color: "var(--mui-palette-onSecondary)",
-              fontWeight: 700,
-              textTransform: "none",
-              borderRadius: 2,
-              "&::after": {
-                content: '""',
-                position: "absolute",
-                top: 0,
-                left: "-100%",
-                width: "100%",
-                height: "100%",
-                background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent)",
-                transition: "left 0.5s ease",
-              },
-              "&:hover": {
-                bgcolor: "var(--mui-palette-secondary-dark)",
-                "&::after": { left: "100%" },
-              },
-            }}
-          >
+          <Button onClick={handleSaveCookieSettings} variant="contained" sx={ctaShimmerSx}>
             {t.cookieDialogSave}
           </Button>
         </DialogActions>
@@ -4603,7 +4495,7 @@ function SectionWrapper({
     >
       <Container maxWidth="lg">
         <Stack spacing={1.5} sx={{ mb: 5, maxWidth: 640 }}>
-          <SectionBadgeRow label={badge} />
+          <SectionBadge label={badge} />
           {/* Decorative diamond */}
           <Box
             aria-hidden
@@ -4803,12 +4695,11 @@ function TeacherSpotlightSection(): ReactNode {
               href="/register"
               variant="outlined"
               fullWidth
+              size="small"
               sx={{
                 position: "relative",
                 zIndex: 1,
                 mt: "auto",
-                minHeight: 44,
-                py: 1.5,
                 borderColor: "var(--mui-palette-secondary-main)",
                 color: "var(--mui-palette-secondary-main)",
                 fontWeight: 700,
@@ -4927,19 +4818,10 @@ function ResourcesSection(): ReactNode {
                 fontSize: 14,
                 textTransform: "none",
                 p: 0,
-                minHeight: 44,
-                minWidth: 44,
-                display: "inline-flex",
-                alignItems: "center",
                 background: "none",
                 border: "none",
                 cursor: "pointer",
                 "&:hover": { textDecoration: "underline" },
-                "&:focus-visible": {
-                  outline: "2px solid var(--mui-palette-secondary-main)",
-                  outlineOffset: 2,
-                  borderRadius: 1,
-                },
               }}
             >
               {t.resourceReadMore}

@@ -130,6 +130,11 @@ type AdminUserStats {
   totalCount: Int!
 }
 
+enum AppLocale {
+  Ar
+  En
+}
+
 type ApplicantProfile {
   canPurchaseVerification: Boolean!
   cooldownActive: Boolean!
@@ -155,6 +160,24 @@ enum AuditActionType {
   Reactivate
   Suspend
   Update
+}
+
+"""Input fields required to create a new subscription plan."""
+input CreatePlanInput {
+  """3-letter uppercase currency code (e.g. 'EGP')."""
+  currency: String!
+
+  """Plan duration in days (integer >= 1)."""
+  intervalDays: Int!
+
+  """Exact price formatted as numeric string (e.g. '150.00')."""
+  price: String!
+
+  """Total sessions included (integer >= 1)."""
+  sessionCount: Int!
+
+  """Plan title (1..255 characters)."""
+  title: String!
 }
 
 """
@@ -205,6 +228,12 @@ type Mutation {
   adminSetUserDeleted(deleted: Boolean!, id: Int!): AdminUserDetail!
   adminUpdateUser(id: Int!, input: AdminUpdateUserInput!): AdminUserDetail!
 
+  """Creates a new subscription plan in the catalog (Admin only)."""
+  createPlan(
+    """Input fields for the new subscription plan."""
+    input: CreatePlanInput!
+  ): Plan!
+
   """
   Authenticate with email + password. Returns the authenticated user + access + refresh tokens. The access_token + refresh_token + session_id are also set as httpOnly cookies.
   """
@@ -216,14 +245,122 @@ type Mutation {
   logout: LogoutPayload!
 
   """
+  Marks every unread notification of the caller read (optionally narrowed to one type) and returns the affected-row count. An empty matching set returns 0; repeat sweeps are idempotent (0).
+  """
+  markAllNotificationsRead(type: NotificationType): Int!
+
+  """
+  Marks one of the caller's own notifications read (idempotent) and returns the row. A foreign or nonexistent id is indistinguishable — NOTIFICATION_NOT_FOUND with no existence oracle.
+  """
+  markNotificationRead(id: ID!): Notification!
+
+  """
   Rotate the JWT pair from a valid refresh token. Returns fresh access + refresh tokens. The new access_token + refresh_token + session_id are also set as httpOnly cookies (rotation invalidates the prior pair).
   """
   refreshToken(refreshToken: String!): RefreshTokenPayload!
   registerUser(input: RegisterUserInput!): User!
+
+  """Activates or deactivates an existing subscription plan (Admin only)."""
+  setPlanActiveStatus(
+    """ID of the subscription plan."""
+    id: ID!
+
+    """Target active state for the plan."""
+    isActive: Boolean!
+  ): Plan!
+
+  """
+  Persists the caller's app locale preference (UI + notification-copy language) and returns the updated user. Idempotent. Self-scoped — identity is derived from the verified context, never from arguments.
+  """
+  updateMyLocale(locale: AppLocale!): User!
+
+  """Updates mutable fields on an existing subscription plan (Admin only)."""
+  updatePlan(
+    """ID of the subscription plan to update."""
+    id: ID!
+
+    """Updated fields for the subscription plan."""
+    input: UpdatePlanInput!
+  ): Plan!
+}
+
+input MyNotificationsFilterInput {
+  isRead: Boolean
+  limit: Int
+  offset: Int
+  type: NotificationType
+}
+
+type Notification {
+  body: String
+  createdAt: String!
+  id: ID!
+  isRead: Boolean!
+  relatedEntityId: Int
+  relatedEntityType: String
+  title: String!
+  type: NotificationType!
+}
+
+type NotificationListPage {
+  hasMore: Boolean!
+  items: [Notification!]!
+  totalCount: Int!
+}
+
+enum NotificationType {
+  EvaluationResult
+  ParentLinkRequest
+  PaymentConfirmation
+  SessionCancellation
+  SessionCompletion
+  SessionRequest
+  SystemBroadcast
+}
+
+"""A subscription plan in the Kottaby catalog."""
+type Plan {
+  """Timestamp when the plan record was created."""
+  createdAt: String!
+
+  """Three-letter ISO currency code (e.g. EGP, USD)."""
+  currency: String!
+
+  """Timestamp when the plan was deactivated, or null if currently active."""
+  deactivatedAt: String
+
+  """Unique plan identifier (Apollo cache normalization key)."""
+  id: ID!
+
+  """Duration of the billing/service cycle in days."""
+  intervalDays: Int!
+
+  """
+  Flag indicating whether this plan is actively offered in the student catalog.
+  """
+  isActive: Boolean!
+
+  """Plan price represented as an exact decimal string."""
+  price: String!
+
+  """Number of lesson sessions included in this plan."""
+  sessionCount: Int!
+
+  """Human-readable title of the subscription plan."""
+  title: String!
+
+  """Timestamp when the plan record was last modified."""
+  updatedAt: String!
 }
 
 type Query {
   _health: HealthCheck!
+
+  """Admin-only query to list plans, optionally including inactive plans."""
+  adminPlans(
+    """Whether to include deactivated plans in the returned list."""
+    includeInactive: Boolean = true
+  ): [Plan!]!
   adminUserActivity(id: Int!, limit: Int): [AdminUserActivityEntry!]!
   adminUserDetail(id: Int!): AdminUserDetail!
   adminUserStats: AdminUserStats!
@@ -236,6 +373,19 @@ type Query {
   me: User
   myApplicantProfile: ApplicantProfile
   myHandshakeCode: String!
+
+  """
+  One page of the caller's own inbox — items (newest first), totalCount, hasMore. Optional conjunctive filters (type, isRead) and page window (limit 1..50 default 20, offset default 0).
+  """
+  myNotifications(filter: MyNotificationsFilterInput): NotificationListPage!
+
+  """
+  The caller's unread notification count — the badge read (0 for an all-read or empty inbox).
+  """
+  myUnreadNotificationCount: Int!
+
+  """Returns the active subscription plans catalog for authenticated users."""
+  planCatalog: [Plan!]!
 
   """
   Returns the canonical list of recitation readings (Qira'at) for the registration form selector. Public — no authentication required. The values are stable API identifiers; display labels are resolved client-side via the i18n recitation namespace.
@@ -283,6 +433,24 @@ input RegisterUserInput {
   role: RegisterPublicRole!
 }
 
+"""Mutable fields for updating an existing subscription plan."""
+input UpdatePlanInput {
+  """Updated currency code."""
+  currency: String
+
+  """Updated duration in days."""
+  intervalDays: Int
+
+  """Updated price string."""
+  price: String
+
+  """Updated session count."""
+  sessionCount: Int
+
+  """Updated plan title."""
+  title: String
+}
+
 type User {
   country: String
   email: String!
@@ -291,6 +459,7 @@ type User {
   id: Int!
   isBlocked: Boolean!
   isDeleted: Boolean!
+  locale: AppLocale
   phone: String
 
   """

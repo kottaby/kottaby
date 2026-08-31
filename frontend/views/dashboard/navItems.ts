@@ -1,5 +1,8 @@
 "use client";
 
+// Admin navigation map for the dashboard sidebar. Import order: MUI icons,
+// then app modules (barrel discipline — codegen module imports the types).
+
 import {
   AssessmentOutlined as AuditIcon,
   FamilyRestroomOutlined as ChildrenIcon,
@@ -73,7 +76,10 @@ function isDashboardLabelKey(key: NavLabelKey): key is keyof DashboardLabels {
  *
  * The dashboard + profile links are present for ALL roles (every user has a
  * dashboard landing + a profile). Role-specific links (Sessions, Subscriptions,
- * Wallet, etc.) are gated by role per the FR catalog.
+ * Wallet, etc.) are gated by role per the FR catalog. The Notifications
+ * inbox link is present for ALL roles too (every authenticated audience has
+ * an inbox — REQ-065), positioned right after each role's dashboard entry
+ * (plan §5.2: existing general nav group, no new group).
  *
  * Each role's dashboard item points DIRECTLY at its role-specific route
  * (`/teacher/dashboard`, …) instead of the bare `/dashboard` dispatcher:
@@ -83,7 +89,9 @@ function isDashboardLabelKey(key: NavLabelKey): key is keyof DashboardLabels {
  *
  * Routes point at their canonical role-scoped pages; routes whose pages have
  * not shipped yet fall through to the `app/(dashboard)/[feature]/page.tsx`
- * catch-all, which renders the `ComingSoonView`.
+ * catch-all, which renders the `ComingSoonView`. Real routes (Dashboard,
+ * Profile, Notifications) take precedence over the catch-all per Next.js
+ * route resolution.
  *
  * Canonical retargets (per sprint plans):
  *  - Sessions → `/student/sessions` / `/teacher/sessions` (DEV3-004 — a
@@ -94,6 +102,7 @@ function isDashboardLabelKey(key: NavLabelKey): key is keyof DashboardLabels {
 const NAV_ITEMS_BY_ROLE: Record<UserRole, readonly DashboardNavItem[]> = {
   [UserRole.Student]: [
     { route: "/student/dashboard", labelKey: "dashboard", Icon: DashboardIcon },
+    { route: "/notifications", labelKey: "notifications", Icon: NotificationsIcon },
     { route: "/student/sessions", labelKey: "sessions", Icon: SessionsIcon },
     { route: "/subscriptions", labelKey: "subscriptions", Icon: SubscriptionsIcon },
     { route: "/homework", labelKey: "homework", Icon: HomeworkIcon },
@@ -101,6 +110,7 @@ const NAV_ITEMS_BY_ROLE: Record<UserRole, readonly DashboardNavItem[]> = {
   ],
   [UserRole.Teacher]: [
     { route: "/teacher/dashboard", labelKey: "dashboard", Icon: DashboardIcon },
+    { route: "/notifications", labelKey: "notifications", Icon: NotificationsIcon },
     { route: "/teacher/sessions", labelKey: "sessions", Icon: SessionsIcon },
     { route: "/schedule", labelKey: "schedule", Icon: ScheduleIcon },
     { route: "/wallet", labelKey: "wallet", Icon: WalletIcon },
@@ -108,12 +118,14 @@ const NAV_ITEMS_BY_ROLE: Record<UserRole, readonly DashboardNavItem[]> = {
   ],
   [UserRole.Parent]: [
     { route: "/parent/dashboard", labelKey: "dashboard", Icon: DashboardIcon },
+    { route: "/notifications", labelKey: "notifications", Icon: NotificationsIcon },
     { route: "/children", labelKey: "children", Icon: ChildrenIcon },
     { route: "/parent/handshake", labelKey: "navLinkMyChild", Icon: LinkChildIcon },
     { route: "/profile", labelKey: "profile", Icon: ProfileIcon },
   ],
   [UserRole.Admin]: [
     { route: "/admin/dashboard", labelKey: "dashboard", Icon: DashboardIcon },
+    { route: "/notifications", labelKey: "notifications", Icon: NotificationsIcon },
     { route: "/admin/users", labelKey: "users", Icon: UsersIcon },
     { route: "/teachers", labelKey: "teachers", Icon: TeachersIcon },
     { route: "/students", labelKey: "students", Icon: StudentsIcon },

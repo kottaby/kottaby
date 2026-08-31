@@ -70,6 +70,7 @@ const SAFE_USER_SELECT = {
   isBlocked: users.isBlocked,
   blockedAt: users.blockedAt,
   lastActiveAt: users.lastActiveAt,
+  locale: users.locale,
   createdAt: users.createdAt,
   updatedAt: users.updatedAt,
 } as const;
@@ -186,6 +187,7 @@ export interface AdminUserDetailRow {
   readonly isBlocked: boolean | null;
   readonly blockedAt: Date | null;
   readonly lastActiveAt: Date | null;
+  readonly locale: UserSelectType["locale"];
   readonly createdAt: Date;
   readonly updatedAt: Date;
   readonly applicantStatus: string | null;
