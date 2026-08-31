@@ -101,9 +101,7 @@ DEFAULT_INCLUDE_PATTERNS = (
     "test/scripts/**,"
     "test/helpers/**,"
     "codegen.ts,"
-    "package.json,"
-    "ai/plans/**/specs.md,"
-    "ai/plans/**/plan.md"
+    "package.json"
 )
 
 SYSTEM_BASE_PROMPT = """# Kottab LMS — Principal Software Architect & Spec-Driven Engine
@@ -360,6 +358,8 @@ def run_repomix(
     ignore_patterns = [
         "**/node_modules/**",
         "**/.git/**",
+        "**/ai/**",
+        "**/.ai/**",
         "**/*.png",
         "**/*.jpg",
         "**/*.jpeg",
@@ -539,13 +539,39 @@ def is_retryable_llm_error(exc: Exception) -> bool:
     if isinstance(exc, (openai.APIConnectionError, openai.APITimeoutError, openai.RateLimitError)):
         return True
     if isinstance(exc, openai.APIStatusError):
+        # 400 Bad Request, 401 Unauthorized, 403 Forbidden, 404 Not Found are NOT retryable
         return exc.status_code >= 500 or exc.status_code in (408, 409, 429)
     # Bare openai.APIError without a status (e.g. "[504]: ... retrying on a fresh socket")
     if isinstance(exc, openai.APIError):
+        # Check if error message indicates client-side bad request or context length
+        err_str = str(exc).lower()
+        if "400" in err_str or "context_length_exceeded" in err_str or "input exceeds" in err_str:
+            return False
         return True
     if isinstance(exc, (ConnectionError, TimeoutError)):
         return True
     return False
+
+
+def format_llm_error_message(exc: Exception, model: str) -> str:
+    """Formats an API error into a clean, human-readable message with actionable suggestions."""
+    err_str = str(exc)
+    if "context_length_exceeded" in err_str or "Input exceeds maximum input tokens" in err_str:
+        return (
+            f"❌ Context Length Exceeded for model '{model}'\n\n"
+            f"Details: {exc}\n\n"
+            f"💡 Suggested Solutions:\n"
+            f"  1. Use a model with larger context window (e.g. --model nvidia/moonshotai/kimi-k3)\n"
+            f"  2. Enable repomix compression: --compress\n"
+            f"  3. Narrow the included file patterns: --include '<pattern>'"
+        )
+    if isinstance(exc, openai.AuthenticationError) or "401" in err_str:
+        return (
+            f"❌ Authentication Failed for model '{model}'\n\n"
+            f"Details: {exc}\n\n"
+            f"💡 Check your API key or router configuration."
+        )
+    return f"❌ API Error for model '{model}': {exc}"
 
 
 def call_llm_stream(
@@ -638,10 +664,9 @@ def call_llm_stream(
             )
             time.sleep(backoff)
 
-    raise RuntimeError(
-        f"❌ [{stage_name}] failed after {max_retries} attempt(s). Last error: "
-        f"{type(last_error).__name__}: {last_error}"
-    ) from last_error
+    formatted_msg = format_llm_error_message(last_error, model)
+    print(f"\n\n{formatted_msg}", file=sys.stderr)
+    sys.exit(1)
 
 
 def build_specs_prompt(packed_xml: str, ticket_text: str, plan_dir: Path) -> Tuple[str, str]:
@@ -1123,6 +1148,14 @@ def main():
     reduction = len(raw_code) - len(context_code)
     pct = (reduction / len(raw_code)) * 100 if raw_code else 0
     print(f"📉 Whitespace minified: {len(raw_code):,} -> {len(context_code):,} chars (-{pct:.1f}%)")
+
+    # Rough token estimation (~3.6 chars/token in mixed XML/code)
+    estimated_tokens = int(len(context_code) / 3.6) + len(ticket_text.split()) + 2000
+    print(f"📊 Estimated Prompt Tokens: ~{estimated_tokens:,} tokens")
+
+    if args.context_limit and estimated_tokens > args.context_limit:
+        print(f"\n⚠️ WARNING: Estimated tokens (~{estimated_tokens:,}) exceed --context-limit ({args.context_limit:,})!", file=sys.stderr)
+        print(f"💡 If the request fails, try passing '--compress' or selecting a model with a larger context window.\n", file=sys.stderr)
 
     if args.dry_run:
         plan_dir.mkdir(parents=True, exist_ok=True)
