@@ -18,10 +18,13 @@
  *  - `RecitationReading`, `ApplicantStatus`
  *  - `SessionStatus`, `SessionType`, `SessionIntent` (scheduling domain)
  *  - `DisputeResolution` (admin arbitration outcome vocabulary)
+ *  - `TransactionType`, `TransactionStatus` (billing ledger vocabulary, DEV3-013)
  *
  * After registering a new enum here, run `bun run generate:gqlSchema` and
  * `bun codegen` to refresh the SDL + frontend codegen.
  */
+import { TransactionStatus } from "@/backend/enum/billing/transaction-status.enum";
+import { TransactionType } from "@/backend/enum/billing/transaction-type.enum";
 import { DisputeResolution } from "@/backend/enum/scheduling/dispute-resolution.enum";
 import { SessionIntent } from "@/backend/enum/scheduling/session-intent.enum";
 import { SessionStatus } from "@/backend/enum/scheduling/session-status.enum";
@@ -124,4 +127,28 @@ export const SessionTypePothosEnum = gqlSchemaBuilder.enumType(SessionType, {
  */
 export const SessionIntentPothosEnum = gqlSchemaBuilder.enumType(SessionIntent, {
   name: "SessionIntent",
+});
+
+/**
+ * GraphQL `TransactionType` enum (earning|withdrawal|bonus) — the
+ * `teacher_transaction` ledger vocabulary (DEV3-013).
+ *
+ * Registered ONCE from the canonical TS enum
+ * (`backend/enum/billing/transaction-type.enum.ts`) mirroring the
+ * `transaction_type` pgEnum.
+ */
+export const TransactionTypePothosEnum = gqlSchemaBuilder.enumType(TransactionType, {
+  name: "TransactionType",
+});
+
+/**
+ * GraphQL `TransactionStatus` enum (pending|completed|failed) — the
+ * `teacher_transaction` ledger settlement vocabulary (DEV3-013).
+ *
+ * Registered ONCE from the canonical TS enum
+ * (`backend/enum/billing/transaction-status.enum.ts`) mirroring the
+ * `transaction_status` pgEnum.
+ */
+export const TransactionStatusPothosEnum = gqlSchemaBuilder.enumType(TransactionStatus, {
+  name: "TransactionStatus",
 });

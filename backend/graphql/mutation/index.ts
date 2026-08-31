@@ -12,7 +12,9 @@
  * `auth.mutation.ts` wires the auth mutations (`registerUser`, `login`,
  * `refreshToken`, `logout`); the `classes` sub-directory barrel wires the
  * session lifecycle mutations (`createSession`, `startSession`,
- * `completeSession`, `cancelSession`).
+ * `completeSession`, `cancelSession`); the `billing` sub-directory barrel
+ * wires the wallet payout mutation (`requestWithdrawal`, DEV3-013).
  */
 import "./auth.mutation";
+import "./billing";
 import "./classes";

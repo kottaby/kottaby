@@ -95,6 +95,12 @@ const DEV3_004_MUTATION_FIELDS = ["cancelSession", "completeSession", "createSes
 const DEV3_005_MUTATION_FIELDS = ["openSessionDispute", "resolveSessionDispute"] as const;
 /** DEV3-012 dual-confirmation mutation (R-201/R-202). */
 const DEV3_012_MUTATION_FIELDS = ["confirmSessionCompletion"] as const;
+/** DEV3-013 wallet read — the teacher-only wallet + ledger surface (R-301). */
+const DEV3_013_QUERY_FIELDS = ["myWallet"] as const;
+/** DEV3-013 wallet payout write — the teacher-only withdrawal request (R-302). */
+const DEV3_013_MUTATION_FIELDS = ["requestWithdrawal"] as const;
+/** DEV3-013 billing ledger vocabulary — registered ONCE in `shared/enum.pothos.ts`. */
+const DEV3_013_ENUMS = ["TransactionStatus", "TransactionType"] as const;
 /** DEV3-005 arbitration outcome vocabulary — registered ONCE, no pgEnum backing. */
 const DEV3_005_ENUMS = ["DisputeResolution"] as const;
 /** DEV3-005 nullable `Session` fields — the dispute + reason surface (R-105/R-107). */
@@ -129,6 +135,8 @@ const PRE_3_1_TYPE_NAMES = [
  * The scheduling enum trio is pinned separately (see `DEV3_004_ENUMS`).
  */
 const DEV3_004_TYPE_NAMES = ["CreateSessionInput", "Session", "SessionListFilterInput", "SessionPage"] as const;
+/** DEV3-013 billing objects + input (R-301/R-302) — the wallet surface types. */
+const DEV3_013_TYPE_NAMES = ["RequestWithdrawalInput", "TeacherTransaction", "Wallet"] as const;
 
 // ─── Schema walk helpers ─────────────────────────────────────────────────────
 
@@ -159,9 +167,13 @@ describe("Query._health — retyped probe surface", () => {
     // the DEV3-005 admin arbitration listing.
     const additions = fieldNames.filter(name => !(PRE_3_1_QUERY_FIELDS as readonly string[]).includes(name));
     expect(additions.toSorted((a, b) => a.localeCompare(b))).toEqual(
-      ["_health", "myApplicantProfile", ...DEV3_004_QUERY_FIELDS, ...DEV3_005_QUERY_FIELDS].toSorted((a, b) =>
-        a.localeCompare(b)
-      )
+      [
+        "_health",
+        "myApplicantProfile",
+        ...DEV3_004_QUERY_FIELDS,
+        ...DEV3_005_QUERY_FIELDS,
+        ...DEV3_013_QUERY_FIELDS,
+      ].toSorted((a, b) => a.localeCompare(b))
     );
   });
 
@@ -240,6 +252,7 @@ describe("Surface freeze — pinned additions vs the baseline inventory", () => 
         ...DEV3_004_MUTATION_FIELDS,
         ...DEV3_005_MUTATION_FIELDS,
         ...DEV3_012_MUTATION_FIELDS,
+        ...DEV3_013_MUTATION_FIELDS,
       ].toSorted((a, b) => a.localeCompare(b))
     );
     expect(names).not.toContain("_health");
@@ -252,7 +265,7 @@ describe("Surface freeze — pinned additions vs the baseline inventory", () => 
       .toSorted((a, b) => a.localeCompare(b));
 
     expect(enumNames).toEqual(
-      [...PRE_3_1_ENUMS, ...DEV3_004_ENUMS, ...DEV3_005_ENUMS].toSorted((a, b) => a.localeCompare(b))
+      [...PRE_3_1_ENUMS, ...DEV3_004_ENUMS, ...DEV3_005_ENUMS, ...DEV3_013_ENUMS].toSorted((a, b) => a.localeCompare(b))
     );
   });
 
@@ -291,7 +304,7 @@ describe("Surface freeze — pinned additions vs the baseline inventory", () => 
     }
   });
 
-  test("whole-schema named-type delta is pinned: HealthCheck + DEV2-004 applicant surface + DateTime scalar + DEV3-004 scheduling enums + session objects/inputs + DEV3-005 arbitration enum", () => {
+  test("whole-schema named-type delta is pinned: HealthCheck + DEV2-004 applicant surface + DateTime scalar + DEV3-004 scheduling enums + session objects/inputs + DEV3-005 arbitration enum + DEV3-013 wallet surface", () => {
     const post = new Set(sdlTypeNames());
 
     for (const name of PRE_3_1_TYPE_NAMES) {
@@ -307,6 +320,8 @@ describe("Surface freeze — pinned additions vs the baseline inventory", () => 
         ...DEV3_004_TYPE_NAMES,
         ...DEV3_004_ENUMS,
         ...DEV3_005_ENUMS,
+        ...DEV3_013_TYPE_NAMES,
+        ...DEV3_013_ENUMS,
       ].toSorted((a, b) => a.localeCompare(b))
     );
   });
@@ -390,5 +405,12 @@ describe("Codegen sync — committed SDL is byte-identical to the built schema",
     // …and the DEV3-012 dual-confirmation mutation is really inside the
     // committed artifact.
     expect(committedSdl).toContain("confirmSessionCompletion(id: ID!): Session!");
+    // …and the DEV3-013 wallet surface (2 root operations + the payout
+    // input + the two ledger enums) is really inside the committed artifact.
+    expect(committedSdl).toContain("myWallet: Wallet!");
+    expect(committedSdl).toContain("requestWithdrawal(input: RequestWithdrawalInput!): Wallet!");
+    expect(committedSdl).toContain("input RequestWithdrawalInput {");
+    expect(committedSdl).toContain("enum TransactionType {");
+    expect(committedSdl).toContain("enum TransactionStatus {");
   });
 });
