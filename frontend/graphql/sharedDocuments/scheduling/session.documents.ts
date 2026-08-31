@@ -6,6 +6,8 @@ import type {
   CancelSessionMutationVariables,
   CompleteSessionMutation,
   CompleteSessionMutationVariables,
+  ConfirmSessionCompletionMutation,
+  ConfirmSessionCompletionMutationVariables,
   CreateSessionMutation,
   CreateSessionMutationVariables,
   MyStudentSessionsQuery,
@@ -24,14 +26,15 @@ import type {
 
 /**
  * Shared GraphQL documents for the session lifecycle + dispute domain
- * (DEV3-004 + DEV3-005).
+ * (DEV3-004 + DEV3-005 + DEV3-012).
  *
- * Ten operations over the DEV3-004 SDL surface: three reads
+ * Eleven operations over the DEV3-004 SDL surface: three reads
  * (`sessionById`, `myStudentSessions`, `myTeacherSessions`), the
  * lifecycle quartet of mutations (`createSession`, `startSession`,
- * `completeSession`, `cancelSession`) and the DEV3-005 dispute trio
+ * `completeSession`, `cancelSession`), the DEV3-005 dispute trio
  * (`openSessionDispute`, `resolveSessionDispute` mutations + the
- * `adminDisputedSessions` admin read). Every `Session` payload selects
+ * `adminDisputedSessions` admin read) and the DEV3-012 dual-confirmation
+ * mutation (`confirmSessionCompletion`). Every `Session` payload selects
  * `id` first so Apollo Client normalizes returned rows into the cache —
  * consumers converge lists via the returned `Session!` payloads WITHOUT
  * refetch storms (per `sharedDocuments/AGENTS.md` "id Field Requirement"
@@ -310,6 +313,47 @@ export const openSessionDisputeMutationDocument: TypedDocumentNode<
 > = gql`
   mutation OpenSessionDispute($id: ID!, $reason: String!) {
     openSessionDispute(id: $id, reason: $reason) {
+      id
+      status
+      intent
+      sessionType
+      fee
+      feeHeld
+      studentId
+      teacherId
+      startedAt
+      endedAt
+      confirmationDeadline
+      confirmedByStudentAt
+      confirmedByTeacherAt
+      createdAt
+      updatedAt
+      cancelReason
+      disputeReason
+      disputedAt
+      resolutionNote
+      resolvedAt
+    }
+  }
+`;
+
+/**
+ * `confirmSessionCompletion(id: ID!)` — DEV3-012 (R-201/R-202): the
+ * student's completion confirmation, the second dual-confirmation half.
+ * IDEMPOTENT — a repeat confirm, the teacher caller, or an already-released
+ * hold returns the current `Session!` payload with ZERO financial writes;
+ * the FIRST student confirm on a completed hold-marked row writes the
+ * student stamp and credits the teacher's wallet server-side (one atomic
+ * slice). Non-participants and nonexistent ids are indistinguishable
+ * `SESSION_NOT_FOUND` denials (oracle-safe); a non-completed row denies
+ * with `SESSION_INVALID_TRANSITION`.
+ */
+export const confirmSessionCompletionMutationDocument: TypedDocumentNode<
+  ConfirmSessionCompletionMutation,
+  ConfirmSessionCompletionMutationVariables
+> = gql`
+  mutation ConfirmSessionCompletion($id: ID!) {
+    confirmSessionCompletion(id: $id) {
       id
       status
       intent

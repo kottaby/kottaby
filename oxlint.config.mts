@@ -110,6 +110,7 @@ export default defineConfig({
       // unsafe autofix reverts bracket access back to member access.
       files: [
         "frontend/views/student/sessions/CancelSessionConfirmDialog.tsx",
+        "frontend/views/student/sessions/StudentSessionsContainer.tsx",
         "frontend/views/teacher/sessions/TeacherSessionsContainer.tsx",
         "frontend/views/admin/disputes/ResolveDisputeDialog.tsx",
       ],

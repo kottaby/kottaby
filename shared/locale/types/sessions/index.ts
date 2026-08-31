@@ -36,6 +36,8 @@ export interface SessionsLabels {
   readonly createdAt: string;
   /** List column label — teacher-confirmation moment (rendered only when set). */
   readonly teacherConfirmedAt: string;
+  /** List column label — student-confirmation moment (DEV3-012; rendered only when set). */
+  readonly studentConfirmedAt: string;
   /** Empty-state heading on the student sessions page. */
   readonly studentEmptyTitle: string;
   /** Empty-state body on the student sessions page. */
@@ -62,6 +64,18 @@ export interface SessionsLabels {
   readonly startSession: string;
   /** Teacher action — complete a started session. */
   readonly completeSession: string;
+  /**
+   * Student action (DEV3-012) — confirm a completed session (the second
+   * dual-confirmation half; releases the held fee to the teacher's wallet).
+   */
+  readonly confirmCompletion: string;
+  /**
+   * Confirm-CTA tooltip (DEV3-012) — the financial consequence of the
+   * student's confirmation (the held fee becomes the teacher's earning).
+   */
+  readonly confirmCompletionTooltip: string;
+  /** Row hint — a completed session still awaiting the student's confirmation. */
+  readonly awaitingStudentConfirmation: string;
   /** Action — cancel a scheduled session (opens the confirm dialog). */
   readonly cancelSession: string;
   /** Cancel-confirm dialog title. */
@@ -94,6 +108,8 @@ export interface SessionsLabels {
   readonly sessionStartedNotice: string;
   /** Success notice — the session was completed. */
   readonly sessionCompletedNotice: string;
+  /** Success notice (DEV3-012) — the student confirmed; the held fee reached the teacher's wallet. */
+  readonly sessionConfirmedNotice: string;
   /** Success notice — the session was cancelled. */
   readonly sessionCancelledNotice: string;
   /** Success notice — the held fee was released back to the caller's balance. */

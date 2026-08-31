@@ -5,6 +5,7 @@ import {
   CheckCircleOutlined as CompletedIcon,
   FlagOutlined as DisputeActionIcon,
   ReportProblemOutlined as DisputedIcon,
+  HourglassTopOutlined as PendingConfirmIcon,
   ScheduleOutlined as ScheduledIcon,
   PlayCircleOutlined as StartedIcon,
   type SvgIconComponent,
@@ -19,6 +20,7 @@ import {
 import { formatApplicantDate } from "@/frontend/lib/i18n/format-date";
 import { SESSION_FEE_CURRENCY } from "@/shared/constants";
 import { Sessions, useAppLocale, useAppTranslation } from "@/shared/locale";
+import type { AppLocale } from "@/shared/locale/AppLocale";
 import type { SessionsLabels } from "@/shared/locale/types/sessions";
 
 /**
@@ -48,11 +50,20 @@ import type { SessionsLabels } from "@/shared/locale/types/sessions";
  * Role seam (4.3): the optional `actions` prop adds lifecycle CTAs BESIDE the
  * Cancel button without forking the row — the teacher container passes
  * Start (`Scheduled`) / Complete (`Started`) descriptors, each carrying its
- * own in-flight `disabled` state; terminal statuses receive an empty list.
- * The student path omits the prop entirely, so student behavior and tests are
- * byte-unchanged. A `TeacherSessionRow` wrapper was rejected because the
- * Cancel CTA lives INSIDE this row's action stack — the wrapper would have to
- * duplicate the meta/actions layout to sit next to it.
+ * own in-flight `disabled` state; the DEV3-012 student container passes the
+ * Confirm descriptor (`Completed` + stamp unset + hold marked), which may
+ * additionally carry a `tooltip` (the financial consequence explainer) and
+ * a `color` token; terminal statuses receive an empty list otherwise.
+ * The student path historically omitted the prop entirely. A
+ * `TeacherSessionRow` wrapper was rejected because the Cancel CTA lives
+ * INSIDE this row's action stack — the wrapper would have to duplicate the
+ * meta/actions layout to sit next to it.
+ *
+ * DEV3-012 confirm-state display: the row renders the student-confirmation
+ * meta cell whenever the stamp is set (dual-confirmation visibility for
+ * BOTH roles) and an "awaiting student confirmation" info pill on the
+ * exactly-once pending shape (`Completed` ∧ stamp unset ∧ `feeHeld`) — the
+ * teacher surface's explanation of WHY the wallet credit has not fired.
  *
  * Hover polish: the card shell carries the idle→hover emphasis (elevation
  * + outline transition); the action buttons keep full opacity at idle so
@@ -131,6 +142,16 @@ const CANCELLABLE_STATUSES: Record<string, true> = {
   [SessionStatus.Started]: true,
 };
 
+/**
+ * Confirm-pending lookup (DEV3-012) — the student's confirm affordance and
+ * the "awaiting student confirmation" hint key off this status via Record
+ * lookup (never an enum comparison). The row additionally requires the
+ * student stamp to be unset and the hold still marked (below).
+ */
+const CONFIRM_PENDING_STATUSES: Record<string, true> = {
+  [SessionStatus.Completed]: true,
+};
+
 /** Disputed token (Record lookup — the disabled-Cancel state below). */
 const DISPUTED_STATUS: Record<string, true> = {
   [SessionStatus.Disputed]: true,
@@ -147,17 +168,24 @@ const DISPUTABLE_STATUSES: Record<string, true> = {
 
 /**
  * One extra lifecycle CTA rendered beside the Cancel button (teacher
- * Start/Complete today; generically shaped so the row stays role-agnostic).
- * `disabled` is the CALLER'S per-mutation in-flight state — the row never
- * owns mutation bookkeeping.
+ * Start/Complete today, the DEV3-012 student Confirm tomorrow; generically
+ * shaped so the row stays role-agnostic). `disabled` is the CALLER'S
+ * per-mutation in-flight state — the row never owns mutation bookkeeping.
  */
 export interface SessionRowAction {
   /** Stable affordance identity (doubles as the render key + testid suffix). */
-  readonly id: "start" | "complete";
+  readonly id: "start" | "complete" | "confirm";
   /** Compile-time i18n copy resolved by the container. */
   readonly label: string;
   /** Disabled while THIS action's own mutation is in flight. */
   readonly disabled?: boolean;
+  /**
+   * Optional consequence explainer (DEV3-012 confirm) — rendered as a
+   * tooltip; the row stays a pure affordance either way.
+   */
+  readonly tooltip?: string;
+  /** MUI color token for the CTA (defaults to the lifecycle `primary`). */
+  readonly color?: "primary" | "success" | "warning";
   /** Activation intent — the container owns the mutation launch. */
   readonly onIntent: (sessionId: string) => void;
 }
@@ -208,17 +236,7 @@ export function SessionRow({
   const isCancellable = session.status in CANCELLABLE_STATUSES;
   const isDisputed = session.status in DISPUTED_STATUS;
   const isDisputable = session.status in DISPUTABLE_STATUSES && onDisputeIntent !== undefined;
-
-  const feeText = session.fee === null ? NO_VALUE_PLACEHOLDER : `${session.fee} ${SESSION_FEE_CURRENCY}`;
-  const deadlineText =
-    session.confirmationDeadline === null
-      ? NO_VALUE_PLACEHOLDER
-      : formatApplicantDate(session.confirmationDeadline, locale);
-  const createdText = formatApplicantDate(session.createdAt, locale);
   const intentText = session.intent ?? NO_VALUE_PLACEHOLDER;
-  /** Teacher-confirmation moment — rendered ONLY when the lifecycle set it. */
-  const teacherConfirmedText =
-    session.confirmedByTeacherAt === null ? null : formatApplicantDate(session.confirmedByTeacherAt, locale);
 
   return (
     <Box
@@ -289,21 +307,7 @@ export function SessionRow({
           justifyContent: "space-between",
         }}
       >
-        <Stack
-          sx={{
-            gap: 1.5,
-            flexDirection: "row",
-            flexWrap: "wrap",
-            alignItems: "baseline",
-          }}
-        >
-          <MetaCell label={t.fee} value={feeText} />
-          <MetaCell label={t.deadline} value={deadlineText} />
-          <MetaCell label={t.createdAt} value={createdText} />
-          {teacherConfirmedText !== null ? (
-            <MetaCell label={t.teacherConfirmedAt} value={teacherConfirmedText} />
-          ) : null}
-        </Stack>
+        <SessionRowMeta session={session} locale={locale} />
         {/*
          * Persisted cancellation reason (DEV3-005 R-107) — rendered ONLY
          * when the lifecycle set it. Truncated to one line with the FULL
@@ -337,19 +341,7 @@ export function SessionRow({
          * so touch users (who get no hover) always see every action at its
          * normal strength. The ≥44px mobile hit target stays pinned.
          */}
-        {(actions ?? []).map(action => (
-          <Button
-            key={action.id}
-            variant="outlined"
-            color="primary"
-            disabled={action.disabled === true}
-            onClick={() => action.onIntent(session.id)}
-            data-testid={`session-action-${session.id}-${action.id}`}
-            sx={{ minHeight: { xs: 44, sm: 40 }, px: 3 }}
-          >
-            {action.label}
-          </Button>
-        ))}
+        <RowActionButtons actions={actions} sessionId={session.id} />
         {/*
          * Dispute affordance (DEV3-005 R-110) — same visual family as the
          * Cancel CTA (outlined, ≥44px touch target) with the warning/amber
@@ -403,6 +395,136 @@ export function SessionRow({
         ) : null}
       </Stack>
     </Box>
+  );
+}
+
+/**
+ * The meta band: fee / deadline / created (+ the teacher & student
+ * confirmation moments when the lifecycle set them) and the DEV3-012
+ * pending pill. Extracted module-scope so the row's own cognitive
+ * complexity stays under the sonar ceiling; the confirm-pending derivation
+ * travels WITH the values it decorates.
+ */
+function SessionRowMeta({
+  session,
+  locale,
+}: Readonly<{ session: MyStudentSessionsQuery_myStudentSessions_items; locale: AppLocale }>): ReactNode {
+  const t = useAppTranslation(Sessions);
+
+  const feeText = session.fee === null ? NO_VALUE_PLACEHOLDER : `${session.fee} ${SESSION_FEE_CURRENCY}`;
+  const deadlineText =
+    session.confirmationDeadline === null
+      ? NO_VALUE_PLACEHOLDER
+      : formatApplicantDate(session.confirmationDeadline, locale);
+  const createdText = formatApplicantDate(session.createdAt, locale);
+  /** Teacher-confirmation moment — rendered ONLY when the lifecycle set it. */
+  const teacherConfirmedText =
+    session.confirmedByTeacherAt === null ? null : formatApplicantDate(session.confirmedByTeacherAt, locale);
+  /** Student-confirmation moment (DEV3-012) — rendered ONLY when the stamp is set. */
+  const studentConfirmedText =
+    session.confirmedByStudentAt === null ? null : formatApplicantDate(session.confirmedByStudentAt, locale);
+  /**
+   * DEV3-012 confirm-pending state — a completed row whose student stamp is
+   * still unset AND whose hold is still marked (the exactly-once financial
+   * shape). An arbitration-settled hold (`feeHeld = false`) is NOT pending:
+   * the mutation would return the row untouched, so no affordance claims it.
+   */
+  const isConfirmPending =
+    session.status in CONFIRM_PENDING_STATUSES && session.confirmedByStudentAt === null && session.feeHeld;
+
+  return (
+    <Stack
+      sx={{
+        gap: 1.5,
+        flexDirection: "row",
+        flexWrap: "wrap",
+        alignItems: "baseline",
+      }}
+    >
+      <MetaCell label={t.fee} value={feeText} />
+      <MetaCell label={t.deadline} value={deadlineText} />
+      <MetaCell label={t.createdAt} value={createdText} />
+      {teacherConfirmedText !== null ? <MetaCell label={t.teacherConfirmedAt} value={teacherConfirmedText} /> : null}
+      {studentConfirmedText !== null ? <MetaCell label={t.studentConfirmedAt} value={studentConfirmedText} /> : null}
+      {isConfirmPending ? (
+        <AwaitingConfirmationPill sessionId={session.id} label={t.awaitingStudentConfirmation} />
+      ) : null}
+    </Stack>
+  );
+}
+
+/**
+ * DEV3-012 pending hint — a completed session whose hold is still marked
+ * and whose student stamp is unset. On the teacher surface it explains WHY
+ * the wallet credit has not fired; on the student surface it names what the
+ * Confirm CTA settles. Info-toned pill through theme tokens (no raw hex).
+ */
+function AwaitingConfirmationPill({ sessionId, label }: Readonly<{ sessionId: string; label: string }>): ReactNode {
+  return (
+    <Chip
+      icon={<PendingConfirmIcon fontSize="small" />}
+      label={label}
+      size="small"
+      variant="outlined"
+      data-testid={`session-awaiting-confirmation-${sessionId}`}
+      sx={theme => ({
+        alignSelf: "center",
+        borderColor: theme.palette.infoContainer,
+        bgcolor: theme.palette.surfaceContainerLowest,
+        color: theme.palette.onInfoContainer,
+        "& .MuiChip-icon": {
+          color: theme.palette.onInfoContainer,
+        },
+      })}
+    />
+  );
+}
+
+/**
+ * The caller-supplied lifecycle CTAs (teacher Start/Complete, DEV3-012
+ * student Confirm) — module-scope extraction keeps the row's own cognitive
+ * complexity under the sonar ceiling while the mapping stays byte-identical.
+ * The tooltip-carrying variant (DEV3-012 confirm) rides the SAME
+ * testid/button shape as the plain variant so callers and suites stay
+ * uniform.
+ */
+function RowActionButtons({
+  actions,
+  sessionId,
+}: Readonly<{ actions: ReadonlyArray<SessionRowAction> | undefined; sessionId: string }>): ReactNode {
+  return (
+    <>
+      {(actions ?? []).map(action =>
+        action.tooltip === undefined ? (
+          <Button
+            key={action.id}
+            variant="outlined"
+            color={action.color ?? "primary"}
+            disabled={action.disabled === true}
+            onClick={() => action.onIntent(sessionId)}
+            data-testid={`session-action-${sessionId}-${action.id}`}
+            sx={{ minHeight: { xs: 44, sm: 40 }, px: 3 }}
+          >
+            {action.label}
+          </Button>
+        ) : (
+          <Tooltip key={action.id} title={action.tooltip} placement="top">
+            <span>
+              <Button
+                variant="outlined"
+                color={action.color ?? "primary"}
+                disabled={action.disabled === true}
+                onClick={() => action.onIntent(sessionId)}
+                data-testid={`session-action-${sessionId}-${action.id}`}
+                sx={{ minHeight: { xs: 44, sm: 40 }, px: 3 }}
+              >
+                {action.label}
+              </Button>
+            </span>
+          </Tooltip>
+        )
+      )}
+    </>
   );
 }
 
