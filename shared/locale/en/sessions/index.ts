@@ -14,6 +14,8 @@ export const sessionsEn: SessionsLabels = {
   studentEmptyBody: "When you book a session with a teacher, it will appear here.",
   teacherEmptyTitle: "No sessions yet",
   teacherEmptyBody: "When students book sessions with you, they will appear here.",
+  filteredEmptyTitle: "No sessions match this filter",
+  filteredEmptyBody: "Try a different status to see more of your sessions.",
   statusScheduled: "Scheduled",
   statusStarted: "In progress",
   statusCompleted: "Completed",

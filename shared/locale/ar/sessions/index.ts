@@ -14,6 +14,8 @@ export const sessionsAr: SessionsLabels = {
   studentEmptyBody: "عند حجزك جلسة مع أحد المعلمين، ستظهر هنا.",
   teacherEmptyTitle: "لا توجد جلسات بعد",
   teacherEmptyBody: "عند حجز الطلاب جلسات معك، ستظهر هنا.",
+  filteredEmptyTitle: "لا توجد جلسات مطابقة لهذا الفلتر",
+  filteredEmptyBody: "جرّب حالة مختلفة لعرض المزيد من جلساتك.",
   statusScheduled: "مجدولة",
   statusStarted: "جارية",
   statusCompleted: "مكتملة",

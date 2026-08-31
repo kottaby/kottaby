@@ -13,13 +13,16 @@
  * per branch of the student sessions visual state matrix, driven across BOTH
  * locales:
  *
- *   loading skeleton · FORBIDDEN fallback · generic error · empty page ·
- *   populated rows (status chips per key · verbatim fee + currency ·
- *   formatted deadline/created · cancel affordance matrix) · cancel flow
- *   (dialog → reason → React.SubmitEvent submit → hold-released snackbar +
- *   cache-driven chip flip) · SESSION_NOT_FOUND (row evicted) ·
- *   SESSION_INVALID_TRANSITION (inline row alert) · DUPLICATE_REQUEST
- *   (info snackbar — success-equivalent) · copy contract pin.
+ *   loading skeleton · FORBIDDEN fallback · generic error · empty page (all
+ *   of them keeping the ALWAYS-ON title + filter-chips chrome mounted — the
+ *   4.BFBS filtered-empty fix) · populated rows (status chips per key ·
+ *   verbatim fee + currency · formatted deadline/created · cancel affordance
+ *   matrix) · cancel flow (dialog → reason → React.SubmitEvent submit →
+ *   hold-released snackbar + cache-driven chip flip) ·
+ *   SESSION_NOT_FOUND (row evicted) · SESSION_INVALID_TRANSITION (inline row
+ *   alert) · DUPLICATE_REQUEST (info snackbar — success-equivalent) ·
+ *   filtered-empty (chips stay mounted + distinct filtered copy) · copy
+ *   contract pin.
  *
  * Translation discipline: assertions reference ONLY the PRELOADED label
  * objects resolved through `Sessions.getLabels(getTranslations(locale))`,
@@ -119,6 +122,18 @@ const EM_DASH = "—";
 /** Exact variables the container sends for the unfiltered stateful query. */
 const ALL_FILTER_VARIABLES = { filter: null, page: null, pageSize: null };
 
+/**
+ * Exact variables the container sends once a status chip is active — the
+ * filtered-empty branch clicks a chip and the query re-keys to THESE.
+ */
+function filteredFilterVariables(status: SessionStatus): {
+  filter: { status: SessionStatus };
+  page: null;
+  pageSize: null;
+} {
+  return { filter: { status }, page: null, pageSize: null };
+}
+
 /** Deterministic payload builder mirroring the closed 14-field wire shape. */
 function sessionFixture(overrides?: Partial<MyStudentSessionsQuery_myStudentSessions_items>): SessionFixture {
   return {
@@ -197,6 +212,23 @@ const CANCELLABLE_STATUSES: ReadonlySet<SessionStatus> = new Set([SessionStatus.
 function listPageMock(items: ReadonlyArray<SessionFixture>): MockLink.MockedResponse {
   return {
     request: { query: myStudentSessionsQueryDocument, variables: ALL_FILTER_VARIABLES },
+    result: {
+      data: {
+        myStudentSessions: {
+          items: [...items],
+          page: 1,
+          pageSize: 25,
+          totalCount: items.length,
+        },
+      },
+    },
+  };
+}
+
+/** Single-operation mock answering the stateful query for an ACTIVE filter. */
+function filteredPageMock(status: SessionStatus, items: ReadonlyArray<SessionFixture>): MockLink.MockedResponse {
+  return {
+    request: { query: myStudentSessionsQueryDocument, variables: filteredFilterVariables(status) },
     result: {
       data: {
         myStudentSessions: {
@@ -342,17 +374,21 @@ for (const locale of STUI_LOCALES) {
   const tc = CommonNs.getLabels(getTranslations(locale));
 
   describe(`StudentSessionsContainer (${locale === "ar" ? "RTL/arabic" : "LTR/english"})`, () => {
-    test("branch 1 — query in flight renders the busy skeleton list", () => {
+    test("branch 1 — query in flight renders the busy skeleton list under the always-on chrome", () => {
       const { container } = renderSessions([pendingListMock()], locale);
 
       const skeleton = screen.getByTestId("student-sessions-loading");
       expect(skeleton.getAttribute("aria-busy")).toBe("true");
       // No settled surface may leak into the skeleton.
-      expect(container.querySelector("[data-testid='student-sessions-view']")).toBeNull();
       expect(container.querySelector("[data-testid='student-sessions-empty']")).toBeNull();
       expect(container.querySelector("[data-testid='student-sessions-error']")).toBeNull();
-      expect(container.textContent?.includes(t.studentPageTitle)).toBe(false);
       expect(container.textContent?.includes(t.studentEmptyTitle)).toBe(false);
+      // The chrome NEVER drops — title + filter chips stay mounted even on
+      // the skeleton (the pre-fix early return stranded the user without
+      // them).
+      expect(container.querySelector("[data-testid='student-sessions-view']")).not.toBeNull();
+      expect(screen.getByText(t.studentPageTitle)).toBeDefined();
+      expect(screen.getByRole("button", { name: t.statusFilterAll }).getAttribute("aria-pressed")).toBe("true");
     });
 
     test("branch 2 — FORBIDDEN renders the shared permission fallback", async () => {
@@ -362,9 +398,10 @@ for (const locale of STUI_LOCALES) {
         expect(screen.getByText(te.forbiddenRole)).toBeDefined();
         expect(screen.getByText(te.forbidden)).toBeDefined();
       });
-      // The deny surface REPLACES the page entirely — never bare null.
-      expect(container.querySelector("[data-testid='student-sessions-view']")).toBeNull();
+      // The deny surface REPLACES the body only — the chrome stays mounted.
+      expect(container.querySelector("[data-testid='student-sessions-view']")).not.toBeNull();
       expect(container.querySelector("[data-testid='student-sessions-loading']")).toBeNull();
+      expect(screen.getByText(t.studentPageTitle)).toBeDefined();
     });
 
     test("branch 3 — masked INTERNAL_SERVER_ERROR surfaces the generic inline alert", async () => {
@@ -376,10 +413,11 @@ for (const locale of STUI_LOCALES) {
       expect(screen.getByText(t.genericError)).toBeDefined();
       // The permission fallback must NOT appear for non-deny codes.
       expect(screen.queryByText(te.forbiddenRole)).toBeNull();
-      expect(container.querySelector("[data-testid='student-sessions-view']")).toBeNull();
+      expect(container.querySelector("[data-testid='student-sessions-view']")).not.toBeNull();
+      expect(screen.getByText(t.studentPageTitle)).toBeDefined();
     });
 
-    test("branch 4 — empty page renders the localized empty state", async () => {
+    test("branch 4 — empty page (all-statuses view) renders the localized empty state under the chrome", async () => {
       const { container } = renderSessions([listPageMock([])], locale);
 
       await waitFor(() => {
@@ -387,8 +425,11 @@ for (const locale of STUI_LOCALES) {
       });
       expect(screen.getByText(t.studentEmptyTitle)).toBeDefined();
       expect(screen.getByText(t.studentEmptyBody)).toBeDefined();
-      expect(container.querySelector("[data-testid='student-sessions-view']")).toBeNull();
       expect(container.querySelector("[data-testid='student-sessions-loading']")).toBeNull();
+      // The chrome stays mounted above the empty state — title + chips.
+      expect(container.querySelector("[data-testid='student-sessions-view']")).not.toBeNull();
+      expect(screen.getByText(t.studentPageTitle)).toBeDefined();
+      expect(screen.getByRole("button", { name: t.statusFilterAll })).toBeDefined();
     });
 
     test("branch 5 — populated: rows, status chips per key, verbatim fee, formatted meta", async () => {
@@ -596,6 +637,37 @@ for (const locale of STUI_LOCALES) {
       expect(bodyText).not.toContain("sessions.sessions");
       expect(bodyText).not.toContain("{");
       expect(bodyText).not.toContain("}");
+    });
+
+    test("branch 12 — filtered-empty keeps the filter chips mounted and swaps in the distinct filtered copy", async () => {
+      // One Scheduled row only — clicking the Cancelled chip re-keys the
+      // query variables and the Cancelled page settles EMPTY.
+      renderSessions(
+        [listPageMock([sessionFixture({ id: FIRST_POPULATED_ID })]), filteredPageMock(SessionStatus.Cancelled, [])],
+        locale
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId(`session-row-${FIRST_POPULATED_ID}`)).toBeDefined();
+      });
+
+      fireEvent.click(screen.getByRole("button", { name: t.statusCancelled }));
+
+      // The empty-state testid survives the re-key…
+      await waitFor(() => {
+        expect(screen.getByTestId("student-sessions-empty")).toBeDefined();
+      });
+      // …the filter chips row is STILL in the DOM with the clicked chip
+      // selected (the pre-fix early return dropped the chrome here)…
+      expect(screen.getByText(t.studentPageTitle)).toBeDefined();
+      const cancelledChip = screen.getByRole("button", { name: t.statusCancelled });
+      expect(cancelledChip.getAttribute("aria-pressed")).toBe("true");
+      expect(screen.getByRole("button", { name: t.statusFilterAll })).toBeDefined();
+      // …and the DISTINCT filtered-empty copy renders (never the generic).
+      expect(screen.getByText(t.filteredEmptyTitle)).toBeDefined();
+      expect(screen.getByText(t.filteredEmptyBody)).toBeDefined();
+      expect(screen.queryByText(t.studentEmptyTitle)).toBeNull();
+      expect(screen.queryByText(t.studentEmptyBody)).toBeNull();
     });
   });
 }

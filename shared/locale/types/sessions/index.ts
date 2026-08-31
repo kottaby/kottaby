@@ -44,6 +44,10 @@ export interface SessionsLabels {
   readonly teacherEmptyTitle: string;
   /** Empty-state body on the teacher sessions page. */
   readonly teacherEmptyBody: string;
+  /** Filtered-empty heading — a status filter is active and matched nothing. */
+  readonly filteredEmptyTitle: string;
+  /** Filtered-empty body — steers the user to another status chip. */
+  readonly filteredEmptyBody: string;
   /** Status chip — scheduled (awaiting start). */
   readonly statusScheduled: string;
   /** Status chip — started (in progress). */

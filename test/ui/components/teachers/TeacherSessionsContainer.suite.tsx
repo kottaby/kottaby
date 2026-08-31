@@ -14,16 +14,20 @@
  * locales:
  *
  *   loading skeleton · FORBIDDEN fallback · generic error · applicant EMPTY
- *   page · populated rows (status chips per key · verbatim fee + currency ·
- *   formatted deadline/created · Start/Complete/Cancel action-visibility
- *   matrix — NOTHING on terminal rows) · per-mutation in-flight disabling ·
- *   start success (chip flip via cache normalization) · complete success
+ *   page (all of them keeping the ALWAYS-ON title + filter-chips chrome
+ *   mounted — the 4.BFBS filtered-empty fix) · populated rows (status chips
+ *   per key · verbatim fee + currency · formatted deadline/created ·
+ *   Start/Complete/Cancel action-visibility matrix — NOTHING on terminal
+ *   rows) · per-mutation in-flight disabling · concurrent same-kind starts
+ *   (per-row slots: both CTAs disable together, each resolves independently)
+ *   · start success (chip flip via cache normalization) · complete success
  *   (terminal) · TEACHER_NOT_CERTIFIED (inline row alert) ·
  *   SESSION_INVALID_TRANSITION (inline row alert, CTA + reused-dialog
- *   submit) · cancel dialog open/dismiss/submit-affordance · copy
- *   contract pin. The dialog's typing/success/eviction arms and the
- *   container's eviction arm are the documented environment deferrals
- *   (D8/D9 family — see the test.skip comments; compensated by 4.3.BF).
+ *   submit) · cancel dialog open/dismiss/submit-affordance · filtered-empty
+ *   (chips stay mounted + distinct filtered copy) · copy contract pin. The
+ *   dialog's typing/success/eviction arms and the container's eviction arm
+ *   are the documented environment deferrals (D8/D9 family — see the
+ *   test.skip comments; compensated by 4.3.BF).
  *
  * Translation discipline: assertions reference ONLY the PRELOADED label
  * objects resolved through `Sessions.getLabels(getTranslations(locale))`,
@@ -134,6 +138,18 @@ const EM_DASH = "—";
 /** Exact variables the container sends for the unfiltered stateful query. */
 const ALL_FILTER_VARIABLES = { filter: null, page: null, pageSize: null };
 
+/**
+ * Exact variables the container sends once a status chip is active — the
+ * filtered-empty branch clicks a chip and the query re-keys to THESE.
+ */
+function filteredFilterVariables(status: SessionStatus): {
+  filter: { status: SessionStatus };
+  page: null;
+  pageSize: null;
+} {
+  return { filter: { status }, page: null, pageSize: null };
+}
+
 /** Deterministic payload builder mirroring the closed 14-field wire shape. */
 function sessionFixture(overrides?: Partial<MyTeacherSessionsQuery_myTeacherSessions_items>): SessionFixture {
   return {
@@ -233,6 +249,23 @@ const EXPECTED_ACTIONS_BY_STATUS: Record<string, readonly ActionKind[]> = {
 function teacherListPageMock(items: ReadonlyArray<SessionFixture>): MockLink.MockedResponse {
   return {
     request: { query: myTeacherSessionsQueryDocument, variables: ALL_FILTER_VARIABLES },
+    result: {
+      data: {
+        myTeacherSessions: {
+          items: [...items],
+          page: 1,
+          pageSize: 25,
+          totalCount: items.length,
+        },
+      },
+    },
+  };
+}
+
+/** Single-operation mock answering the stateful query for an ACTIVE filter. */
+function teacherFilteredPageMock(status: SessionStatus, items: ReadonlyArray<SessionFixture>): MockLink.MockedResponse {
+  return {
+    request: { query: myTeacherSessionsQueryDocument, variables: filteredFilterVariables(status) },
     result: {
       data: {
         myTeacherSessions: {
@@ -488,17 +521,21 @@ for (const locale of STUI_LOCALES) {
   };
 
   describe(`TeacherSessionsContainer (${locale === "ar" ? "RTL/arabic" : "LTR/english"})`, () => {
-    test("branch 1 — query in flight renders the busy skeleton list", () => {
+    test("branch 1 — query in flight renders the busy skeleton list under the always-on chrome", () => {
       const { container } = renderTeacherSessions([pendingListMock()], locale);
 
       const skeleton = screen.getByTestId("teacher-sessions-loading");
       expect(skeleton.getAttribute("aria-busy")).toBe("true");
       // No settled surface may leak into the skeleton.
-      expect(container.querySelector("[data-testid='teacher-sessions-view']")).toBeNull();
       expect(container.querySelector("[data-testid='teacher-sessions-empty']")).toBeNull();
       expect(container.querySelector("[data-testid='teacher-sessions-error']")).toBeNull();
-      expect(container.textContent?.includes(t.teacherPageTitle)).toBe(false);
       expect(container.textContent?.includes(t.teacherEmptyTitle)).toBe(false);
+      // The chrome NEVER drops — title + filter chips stay mounted even on
+      // the skeleton (the pre-fix early return stranded the user without
+      // them).
+      expect(container.querySelector("[data-testid='teacher-sessions-view']")).not.toBeNull();
+      expect(screen.getByText(t.teacherPageTitle)).toBeDefined();
+      expect(screen.getByRole("button", { name: t.statusFilterAll }).getAttribute("aria-pressed")).toBe("true");
     });
 
     test("branch 2 — FORBIDDEN renders the shared permission fallback", async () => {
@@ -508,9 +545,10 @@ for (const locale of STUI_LOCALES) {
         expect(screen.getByText(te.forbiddenRole)).toBeDefined();
         expect(screen.getByText(te.forbidden)).toBeDefined();
       });
-      // The deny surface REPLACES the page entirely — never bare null.
-      expect(container.querySelector("[data-testid='teacher-sessions-view']")).toBeNull();
+      // The deny surface REPLACES the body only — the chrome stays mounted.
+      expect(container.querySelector("[data-testid='teacher-sessions-view']")).not.toBeNull();
       expect(container.querySelector("[data-testid='teacher-sessions-loading']")).toBeNull();
+      expect(screen.getByText(t.teacherPageTitle)).toBeDefined();
     });
 
     test("branch 3 — masked INTERNAL_SERVER_ERROR surfaces the generic inline alert", async () => {
@@ -522,10 +560,11 @@ for (const locale of STUI_LOCALES) {
       expect(screen.getByText(t.genericError)).toBeDefined();
       // The permission fallback must NOT appear for non-deny codes.
       expect(screen.queryByText(te.forbiddenRole)).toBeNull();
-      expect(container.querySelector("[data-testid='teacher-sessions-view']")).toBeNull();
+      expect(container.querySelector("[data-testid='teacher-sessions-view']")).not.toBeNull();
+      expect(screen.getByText(t.teacherPageTitle)).toBeDefined();
     });
 
-    test("branch 4 — applicant teacher (empty page, never an error) renders the localized empty state", async () => {
+    test("branch 4 — applicant teacher (empty all-statuses page, never an error) renders the localized empty state under the chrome", async () => {
       const { container } = renderTeacherSessions([teacherListPageMock([])], locale);
 
       await waitFor(() => {
@@ -535,9 +574,12 @@ for (const locale of STUI_LOCALES) {
       expect(screen.getByText(t.teacherEmptyBody)).toBeDefined();
       // NEVER an error treatment for the applicant teacher.
       expect(container.querySelector("[data-testid='teacher-sessions-error']")).toBeNull();
-      expect(container.querySelector("[data-testid='teacher-sessions-view']")).toBeNull();
       expect(container.querySelector("[data-testid='teacher-sessions-loading']")).toBeNull();
       expect(screen.queryByText(te.forbiddenRole)).toBeNull();
+      // The chrome stays mounted above the empty state — title + chips.
+      expect(container.querySelector("[data-testid='teacher-sessions-view']")).not.toBeNull();
+      expect(screen.getByText(t.teacherPageTitle)).toBeDefined();
+      expect(screen.getByRole("button", { name: t.statusFilterAll })).toBeDefined();
     });
 
     test("branch 5 — populated: rows, chips per key, verbatim fee, formatted meta, action-visibility matrix", async () => {
@@ -930,6 +972,101 @@ for (const locale of STUI_LOCALES) {
       // filtered + entity evicted + gc — the row leaves WITHOUT a refetch
       // and the empty state takes over.
       await expectRowEvictedToEmptyState(ROW_SCHEDULED_A, te.sessionNotFound);
+    });
+
+    test("branch 18 — filtered-empty keeps the filter chips mounted and swaps in the distinct filtered copy", async () => {
+      // One Scheduled row only — clicking the Cancelled chip re-keys the
+      // query variables and the Cancelled page settles EMPTY.
+      renderTeacherSessions(
+        [
+          teacherListPageMock([sessionFixture({ id: ROW_SCHEDULED_A })]),
+          teacherFilteredPageMock(SessionStatus.Cancelled, []),
+        ],
+        locale
+      );
+
+      await waitForSessionRow(ROW_SCHEDULED_A);
+
+      fireEvent.click(screen.getByRole("button", { name: t.statusCancelled }));
+
+      // The empty-state testid survives the re-key…
+      await waitFor(() => {
+        expect(screen.getByTestId("teacher-sessions-empty")).toBeDefined();
+      });
+      // …the filter chips row is STILL in the DOM with the clicked chip
+      // selected (the pre-fix early return dropped the chrome here)…
+      expect(screen.getByText(t.teacherPageTitle)).toBeDefined();
+      const cancelledChip = screen.getByRole("button", { name: t.statusCancelled });
+      expect(cancelledChip.getAttribute("aria-pressed")).toBe("true");
+      expect(screen.getByRole("button", { name: t.statusFilterAll })).toBeDefined();
+      // …and the DISTINCT filtered-empty copy renders (never the generic).
+      expect(screen.getByText(t.filteredEmptyTitle)).toBeDefined();
+      expect(screen.getByText(t.filteredEmptyBody)).toBeDefined();
+      expect(screen.queryByText(t.teacherEmptyTitle)).toBeNull();
+      expect(screen.queryByText(t.teacherEmptyBody)).toBeNull();
+    });
+
+    test("branch 19 — concurrent same-kind starts: BOTH rows' CTAs disable together, each slot resolves on its own mutation", async () => {
+      const scheduledRowA = sessionFixture({ id: ROW_SCHEDULED_A });
+      const scheduledRowB = sessionFixture({ id: ROW_SCHEDULED_B });
+      renderTeacherSessions(
+        [
+          teacherListPageMock([scheduledRowA, scheduledRowB]),
+          // A's mutation NEVER settles here — its slot stays open for the
+          // whole branch, which is exactly what the pre-D9-bis single-slot
+          // bookkeeping lost track of.
+          pendingStartMock(ROW_SCHEDULED_A),
+          startSuccessMock(
+            ROW_SCHEDULED_B,
+            sessionFixture({ id: ROW_SCHEDULED_B, status: SessionStatus.Started, startedAt: STARTED_ISO })
+          ),
+        ],
+        locale
+      );
+
+      // Start row A — its OWN slot disables its CTA…
+      const rowA = await waitForSessionRow(ROW_SCHEDULED_A);
+      fireEvent.click(within(rowA).getByRole("button", { name: t.startSession }));
+      await waitFor(() => {
+        expect(
+          within(screen.getByTestId(`session-row-${ROW_SCHEDULED_A}`))
+            .getByRole("button", { name: t.startSession })
+            .getAttribute("disabled")
+        ).not.toBeNull();
+      });
+
+      // …then row B WHILE A is mid-flight: B's CTA disables AND A's STAYS
+      // disabled (the old per-kind single slot re-enabled A here).
+      const rowB = screen.getByTestId(`session-row-${ROW_SCHEDULED_B}`);
+      fireEvent.click(within(rowB).getByRole("button", { name: t.startSession }));
+      await waitFor(() => {
+        expect(
+          within(screen.getByTestId(`session-row-${ROW_SCHEDULED_B}`))
+            .getByRole("button", { name: t.startSession })
+            .getAttribute("disabled")
+        ).not.toBeNull();
+      });
+      expect(
+        within(screen.getByTestId(`session-row-${ROW_SCHEDULED_A}`))
+          .getByRole("button", { name: t.startSession })
+          .getAttribute("disabled")
+      ).not.toBeNull();
+
+      // B resolves FIRST and flips ONLY B: chip → started, Complete CTA
+      // appears — A's Start remains disabled because A's OWN mutation is
+      // still in flight (each slot clears on its own resolution).
+      await waitFor(() => {
+        expect(within(screen.getByTestId(`session-row-${ROW_SCHEDULED_B}`)).getByText(t.statusStarted)).toBeDefined();
+      });
+      expect(screen.getByText(t.sessionStartedNotice)).toBeDefined();
+      expect(
+        within(screen.getByTestId(`session-row-${ROW_SCHEDULED_A}`))
+          .getByRole("button", { name: t.startSession })
+          .getAttribute("disabled")
+      ).not.toBeNull();
+      expect(
+        within(screen.getByTestId(`session-row-${ROW_SCHEDULED_B}`)).getByRole("button", { name: t.completeSession })
+      ).toBeDefined();
     });
   });
 }

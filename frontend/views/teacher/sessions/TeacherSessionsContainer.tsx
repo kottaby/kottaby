@@ -1,10 +1,12 @@
 "use client";
 
 import { useApolloClient, useMutation, useQuery } from "@apollo/client/react";
+import { SchoolOutlined as EmptyIcon, FilterListOutlined as FilteredIcon } from "@mui/icons-material";
 import { Alert, Box, Skeleton, Snackbar, Stack, Typography } from "@mui/material";
 import { type ReactNode, useCallback, useState } from "react";
 import { PermissionDeniedFallback } from "@/frontend/components/ui/PermissionDeniedFallback";
 import {
+  type MyTeacherSessionsQuery,
   type MyTeacherSessionsQuery_myTeacherSessions_items,
   SessionStatus,
 } from "@/frontend/graphql/generated/gql/graphql";
@@ -22,6 +24,7 @@ import {
 import { CancelSessionConfirmDialog } from "@/frontend/views/student/sessions/CancelSessionConfirmDialog";
 import { SessionRow, type SessionRowAction } from "@/frontend/views/student/sessions/SessionRow";
 import { SessionStatusFilterChips } from "@/frontend/views/student/sessions/SessionStatusFilterChips";
+import { SessionsEmptyState } from "@/frontend/views/student/sessions/SessionsEmptyState";
 import { Errors, Sessions, useAppTranslation } from "@/shared/locale";
 import type { ErrorsLabels } from "@/shared/locale/types/errors";
 import type { SessionsLabels } from "@/shared/locale/types/sessions";
@@ -43,21 +46,29 @@ import type { SessionsLabels } from "@/shared/locale/types/sessions";
  *
  * Teacher lifecycle (REQ-063): **Start** on `Scheduled`, **Complete** on
  * `Started`, **Cancel** on `Scheduled`/`Started` — each affordance disabled
- * while ITS OWN mutation is in flight (tracked per mutation kind AND session
- * id, so sibling rows and the other action kind stay interactive); terminal
- * rows (`Completed`/`Cancelled`/`Disputed`) render NO action affordances.
+ * while ITS OWN row+kind slot is in flight (a `Record<sessionId,
+ * Set<actionKind>>` of per-row slots — concurrent same-kind actions on two
+ * rows disable BOTH CTAs and each clears independently, so an earlier row's
+ * CTA can never re-enable mid-flight); terminal rows
+ * (`Completed`/`Cancelled`/`Disputed`) render NO action affordances.
  * The applicant teacher never owns sessions — the server answers an empty
  * page and the localized EMPTY state renders (never an error).
  *
- * Render branches (visual state matrix — mirrors the student container):
+ * Render branches (visual state matrix — mirrors the student container).
+ * The chrome (page title + filter chips) renders in EVERY branch; only the
+ * body BELOW it swaps — the former early returns omitted the chrome on
+ * skeleton/error/empty, stranding the user with no filter row exactly when
+ * the page went bare (accepted-as-is in the 4.BFBS visual loop — resolved
+ * here):
  *
- * | # | Condition | Surface |
- * |---|-----------|---------|
+ * | # | Condition | Body (below the always-on chrome) |
+ * |---|-----------|-----------------------------------|
  * | 1 | query in flight (no settled payload yet) | skeleton list rows (`aria-busy`) |
  * | 2 | query error, mapping-table denial family (`permission-fallback` / `auth-recovery`) | shared `PermissionDeniedFallback` |
  * | 3 | any other query error (masked 500 …) | inline `Alert` with `sessions.genericError` |
- * | 4 | zero items for the active filter (incl. the applicant teacher) | empty-state Stack (`teacherEmptyTitle` / `teacherEmptyBody`) |
- * | 5 | rows present | `SessionRow` list + filter chips header + lifecycle CTAs |
+ * | 4a | zero items, NO status filter active (incl. the applicant teacher) | empty state (`teacherEmptyTitle` / `teacherEmptyBody`, school icon) |
+ * | 4b | zero items, status filter ACTIVE | distinct filtered-empty state (`filteredEmptyTitle` / `filteredEmptyBody`, filter-list icon) |
+ * | 5 | rows present | `SessionRow` list with lifecycle CTAs |
  *
  * Mutation outcome wiring — `startSession` / `completeSession` are owned
  * HERE; cancel ownership stays in the reused `CancelSessionConfirmDialog`
@@ -123,6 +134,45 @@ interface ContainerNotice {
 function dropRowAlert(alerts: Readonly<Record<string, string>>, sessionId: string): Readonly<Record<string, string>> {
   if (!(sessionId in alerts)) return alerts;
   return Object.fromEntries(Object.entries(alerts).filter(([id]) => id !== sessionId));
+}
+
+/**
+ * Per-row lifecycle action kinds tracked in the container's in-flight slots.
+ * `cancel` is reserved for the dialog-owned mutation (its busy state lives
+ * inside `CancelSessionConfirmDialog`); the container slots start/complete.
+ */
+type RowActionKind = "start" | "complete" | "cancel";
+
+/**
+ * In-flight slot book — sessionId → the set of action kinds currently in
+ * flight FOR THAT ROW (D9-bis). Immutable records + copied sets only: the
+ * React state is never mutated in place, so every `setState` yields a new
+ * snapshot and per-row slots clear independently of their siblings.
+ */
+type InFlightSlots = Readonly<Record<string, ReadonlySet<RowActionKind>>>;
+
+/** Opens a row+kind slot (pure — returns a new record, never mutating). */
+function addInFlightAction(slots: InFlightSlots, sessionId: string, kind: RowActionKind): InFlightSlots {
+  const next = new Set(slots[sessionId] ?? []);
+  next.add(kind);
+  return { ...slots, [sessionId]: next };
+}
+
+/** Closes a row+kind slot, dropping the entry once its set drains (pure). */
+function removeInFlightAction(slots: InFlightSlots, sessionId: string, kind: RowActionKind): InFlightSlots {
+  const previous = slots[sessionId];
+  if (!previous?.has(kind)) return slots;
+  const next = new Set(previous);
+  next.delete(kind);
+  if (next.size === 0) {
+    return Object.fromEntries(Object.entries(slots).filter(([id]) => id !== sessionId));
+  }
+  return { ...slots, [sessionId]: next };
+}
+
+/** Whether THIS row's slot for THIS action kind is currently in flight. */
+function isInFlight(slots: InFlightSlots, sessionId: string, kind: RowActionKind): boolean {
+  return slots[sessionId]?.has(kind) ?? false;
 }
 
 /**
@@ -221,15 +271,15 @@ function handleLifecycleMutationError(
 
 /**
  * Lifecycle → affordance matrix: Start on `Scheduled`, Complete on `Started`,
- * NOTHING on terminal rows. Each descriptor disables while its OWN mutation
- * is in flight for THIS row (`startInFlightId` / `completeInFlightId`).
+ * NOTHING on terminal rows. Each descriptor disables while ITS OWN row+kind
+ * slot is in flight (`isInFlight` over the per-row slot book) — sibling rows
+ * and the other action kind stay interactive.
  */
 function teacherActionsForSession(
   session: MyTeacherSessionsQuery_myTeacherSessions_items,
   wiring: {
     readonly t: SessionsLabels;
-    readonly startInFlightId: string | null;
-    readonly completeInFlightId: string | null;
+    readonly inFlightSlots: InFlightSlots;
     readonly onStart: (sessionId: string) => void;
     readonly onComplete: (sessionId: string) => void;
   }
@@ -239,7 +289,7 @@ function teacherActionsForSession(
     actions.push({
       id: "start",
       label: wiring.t.startSession,
-      disabled: wiring.startInFlightId === session.id,
+      disabled: isInFlight(wiring.inFlightSlots, session.id, "start"),
       onIntent: wiring.onStart,
     });
   }
@@ -247,7 +297,7 @@ function teacherActionsForSession(
     actions.push({
       id: "complete",
       label: wiring.t.completeSession,
-      disabled: wiring.completeInFlightId === session.id,
+      disabled: isInFlight(wiring.inFlightSlots, session.id, "complete"),
       onIntent: wiring.onComplete,
     });
   }
@@ -255,9 +305,10 @@ function teacherActionsForSession(
 }
 
 /**
- * The teacher sessions view: filter chips header, skeleton/empty/error
- * branches, session rows with lifecycle CTAs, the cancel dialog and the
- * snackbar chrome.
+ * The teacher sessions view: ALWAYS-ON chrome (title + sticky filter chips)
+ * over a swapping body — skeleton / permission fallback / error notice /
+ * empty (generic or filtered) / rows with lifecycle CTAs — plus the cancel
+ * dialog and the snackbar chrome.
  */
 export function TeacherSessionsContainer(): ReactNode {
   const t = useAppTranslation(Sessions);
@@ -278,10 +329,11 @@ export function TeacherSessionsContainer(): ReactNode {
   // Single transient notice slot (success / info / error snackbar).
   const [notice, setNotice] = useState<ContainerNotice | null>(null);
 
-  // Per-kind in-flight session id — the row's OWN CTA disables while its
-  // mutation is in flight; sibling rows (and the other action kind) stay live.
-  const [startInFlightId, setStartInFlightId] = useState<string | null>(null);
-  const [completeInFlightId, setCompleteInFlightId] = useState<string | null>(null);
+  // Per-row in-flight slots (D9-bis) — sessionId → set of action kinds in
+  // flight for THAT row. A row's CTA disables iff its OWN row+kind slot is
+  // open: concurrent same-kind actions on two rows disable BOTH CTAs, and
+  // each clears independently on its own resolution.
+  const [inFlightSlots, setInFlightSlots] = useState<InFlightSlots>({});
 
   const { data, loading, error } = useQuery(myTeacherSessionsQueryDocument, {
     variables: {
@@ -345,6 +397,16 @@ export function TeacherSessionsContainer(): ReactNode {
     // The dialog stays open for a retry (its own documented contract).
   }, []);
 
+  // Slot-clearing arms — hoisted to stable callbacks so the mutation
+  // closures below stay shallow while each per-row updater stays immutable.
+  const clearStartInFlight = useCallback((sessionId: string): void => {
+    setInFlightSlots(prev => removeInFlightAction(prev, sessionId, "start"));
+  }, []);
+
+  const clearCompleteInFlight = useCallback((sessionId: string): void => {
+    setInFlightSlots(prev => removeInFlightAction(prev, sessionId, "complete"));
+  }, []);
+
   // --- startSession mutation (Scheduled → Started) -------------------------
   // Per-call options carry the session id in scope so every outcome arm can
   // address ITS row (row alerts, in-flight clearing) precisely.
@@ -353,7 +415,7 @@ export function TeacherSessionsContainer(): ReactNode {
 
   const handleStart = useCallback(
     (sessionId: string): void => {
-      setStartInFlightId(sessionId);
+      setInFlightSlots(prev => addInFlightAction(prev, sessionId, "start"));
       void startSession({
         variables: { id: sessionId },
         // Cache NORMALIZE — rewrite the transitioned fields onto the
@@ -372,7 +434,7 @@ export function TeacherSessionsContainer(): ReactNode {
           });
         },
         onCompleted: result => {
-          setStartInFlightId(null);
+          clearStartInFlight(sessionId);
           setRowAlerts(prev => dropRowAlert(prev, result.startSession.id));
           setNotice({ message: t.sessionStartedNotice, severity: "success" });
         },
@@ -382,13 +444,13 @@ export function TeacherSessionsContainer(): ReactNode {
             sessionId,
             t,
             te,
-            clearInFlight: () => setStartInFlightId(null),
+            clearInFlight: () => clearStartInFlight(sessionId),
             setRowAlerts,
             setNotice,
           }),
       });
     },
-    [startSession, client, t, te]
+    [startSession, client, t, te, clearStartInFlight]
   );
 
   // --- completeSession mutation (Started → Completed) ----------------------
@@ -397,7 +459,7 @@ export function TeacherSessionsContainer(): ReactNode {
 
   const handleComplete = useCallback(
     (sessionId: string): void => {
-      setCompleteInFlightId(sessionId);
+      setInFlightSlots(prev => addInFlightAction(prev, sessionId, "complete"));
       void completeSession({
         variables: { id: sessionId },
         update(cache, { data: resultData }) {
@@ -413,7 +475,7 @@ export function TeacherSessionsContainer(): ReactNode {
           });
         },
         onCompleted: result => {
-          setCompleteInFlightId(null);
+          clearCompleteInFlight(sessionId);
           setRowAlerts(prev => dropRowAlert(prev, result.completeSession.id));
           setNotice({ message: t.sessionCompletedNotice, severity: "success" });
         },
@@ -423,51 +485,19 @@ export function TeacherSessionsContainer(): ReactNode {
             sessionId,
             t,
             te,
-            clearInFlight: () => setCompleteInFlightId(null),
+            clearInFlight: () => clearCompleteInFlight(sessionId),
             setRowAlerts,
             setNotice,
           }),
       });
     },
-    [completeSession, client, t, te]
+    [completeSession, client, t, te, clearCompleteInFlight]
   );
 
-  // Branch 1 — first fetch for the active filter: skeleton rows announce
-  // busy semantics. A cache-hit variables change keeps the settled list
-  // mounted (no skeleton flash on filter round-trips).
-  if (loading && data === undefined) {
-    return <SessionsLoadingSkeleton />;
-  }
-
-  // Branches 2–3 — settled failures: denial family vs generic surfaced copy.
-  if (error) {
-    const rawCode = extractErrorCode(error);
-    const code = rawCode === null ? "" : normalizeGraphQLErrorCode(rawCode);
-    const action = mapGraphQLErrorByCode(code, { contextKind: "query", hasForm: false });
-    // Denial family — FORBIDDEN maps to the shared section fallback;
-    // UNAUTHORIZED (auth-recovery) surfaces identically after the error
-    // link's refresh-retry path has given up (ApplicantStatusCard precedent).
-    if (action?.kind === "permission-fallback" || action?.kind === "auth-recovery") {
-      return <PermissionDeniedFallback />;
-    }
-    return <SessionsErrorNotice message={t.genericError} />;
-  }
-
-  // Apollo settles queries with data-or-error; this narrow guard keeps the
-  // compiler informed without unsafe assertions.
-  if (!data) {
-    return <SessionsLoadingSkeleton />;
-  }
-
-  const sessions: readonly MyTeacherSessionsQuery_myTeacherSessions_items[] = data.myTeacherSessions.items;
-
-  // Branch 4 — empty page for the active filter (the applicant teacher's
-  // permanent state: an empty page, NEVER an error).
-  if (sessions.length === 0) {
-    return <TeacherSessionsEmptyState t={t} />;
-  }
-
-  // Branch 5 — rows + lifecycle CTAs + cancel dialog + snackbar chrome.
+  // The body below the chrome resolves through the module-scope
+  // `TeacherSessionsBody` (matrix branches 1–5) — extracting it keeps this
+  // orchestrator to state + callbacks only while the chrome above renders in
+  // EVERY branch (the user never loses the filter row — 4.BFBS fix).
   return (
     <Stack data-testid="teacher-sessions-view" sx={{ gap: 3 }}>
       <Stack sx={{ gap: 2 }}>
@@ -476,23 +506,18 @@ export function TeacherSessionsContainer(): ReactNode {
         </Typography>
         <SessionStatusFilterChips value={statusFilter} onChange={handleFilterChange} />
       </Stack>
-      <Stack sx={{ gap: 2 }}>
-        {sessions.map(session => (
-          <SessionRow
-            key={session.id}
-            session={session}
-            alertMessage={rowAlerts[session.id] ?? null}
-            onCancelIntent={openCancelDialog}
-            actions={teacherActionsForSession(session, {
-              t,
-              startInFlightId,
-              completeInFlightId,
-              onStart: handleStart,
-              onComplete: handleComplete,
-            })}
-          />
-        ))}
-      </Stack>
+      <TeacherSessionsBody
+        statusFilter={statusFilter}
+        loading={loading}
+        error={error}
+        data={data}
+        rowAlerts={rowAlerts}
+        onCancelIntent={openCancelDialog}
+        inFlightSlots={inFlightSlots}
+        onStart={handleStart}
+        onComplete={handleComplete}
+        t={t}
+      />
       {cancelDialogSessionId !== null ? (
         <CancelSessionConfirmDialog
           key={cancelDialogSessionId}
@@ -522,23 +547,95 @@ export function TeacherSessionsContainer(): ReactNode {
   );
 }
 
-interface TeacherSessionsEmptyStateProps {
+interface TeacherSessionsBodyProps {
+  readonly statusFilter: SessionStatus | null;
+  readonly loading: boolean;
+  readonly error: unknown;
+  readonly data: MyTeacherSessionsQuery | undefined;
+  readonly rowAlerts: Readonly<Record<string, string>>;
+  readonly onCancelIntent: (sessionId: string) => void;
+  readonly inFlightSlots: InFlightSlots;
+  readonly onStart: (sessionId: string) => void;
+  readonly onComplete: (sessionId: string) => void;
   readonly t: SessionsLabels;
 }
 
-/** Empty list for the active filter — centered heading + explanatory body. */
-function TeacherSessionsEmptyState({ t }: Readonly<TeacherSessionsEmptyStateProps>): ReactNode {
+/**
+ * The swapping body BELOW the always-on chrome — matrix branches 1–5 as a
+ * pure presentational resolver (module-scope so the container stays a
+ * state+callbacks orchestrator): skeleton / permission fallback / error
+ * notice / empty (generic vs filtered) / rows with lifecycle CTAs.
+ */
+function TeacherSessionsBody({
+  statusFilter,
+  loading,
+  error,
+  data,
+  rowAlerts,
+  onCancelIntent,
+  inFlightSlots,
+  onStart,
+  onComplete,
+  t,
+}: Readonly<TeacherSessionsBodyProps>): ReactNode {
+  if (loading && data === undefined) {
+    // Branch 1 — first fetch for the active filter: skeleton rows announce
+    // busy semantics. A cache-hit variables change keeps the settled list
+    // mounted (no skeleton flash on filter round-trips).
+    return <SessionsLoadingSkeleton />;
+  }
+  // Branches 2–3 — settled failures: denial family vs generic surfaced copy.
+  if (error) {
+    const rawCode = extractErrorCode(error);
+    const code = rawCode === null ? "" : normalizeGraphQLErrorCode(rawCode);
+    const action = mapGraphQLErrorByCode(code, { contextKind: "query", hasForm: false });
+    // Denial family — FORBIDDEN maps to the shared section fallback;
+    // UNAUTHORIZED (auth-recovery) surfaces identically after the error
+    // link's refresh-retry path has given up (ApplicantStatusCard precedent).
+    if (action?.kind === "permission-fallback" || action?.kind === "auth-recovery") {
+      return <PermissionDeniedFallback />;
+    }
+    return <SessionsErrorNotice message={t.genericError} />;
+  }
+  // Apollo settles queries with data-or-error; this narrow guard keeps the
+  // compiler informed without unsafe assertions.
+  if (!data) {
+    return <SessionsLoadingSkeleton />;
+  }
+  const sessions: readonly MyTeacherSessionsQuery_myTeacherSessions_items[] = data.myTeacherSessions.items;
+  if (sessions.length === 0) {
+    // Branches 4a/4b — an empty page (the applicant teacher's permanent
+    // state: an empty page, NEVER an error). The DISTINCT filtered-empty
+    // copy (with the filter-list icon) only when a status chip is active;
+    // the generic empty state stays reserved for the unfiltered "all" view.
+    const isFiltered = statusFilter !== null;
+    return (
+      <SessionsEmptyState
+        testId="teacher-sessions-empty"
+        icon={isFiltered ? FilteredIcon : EmptyIcon}
+        title={isFiltered ? t.filteredEmptyTitle : t.teacherEmptyTitle}
+        body={isFiltered ? t.filteredEmptyBody : t.teacherEmptyBody}
+      />
+    );
+  }
+  // Branch 5 — rows + lifecycle CTAs (each CTA disabled iff ITS OWN row+kind
+  // slot is open).
   return (
-    <Stack
-      data-testid="teacher-sessions-empty"
-      sx={{ alignItems: "center", gap: 1, py: { xs: 6, sm: 10 }, textAlign: "center" }}
-    >
-      <Typography variant="h6" component="h2" sx={{ fontWeight: 700 }}>
-        {t.teacherEmptyTitle}
-      </Typography>
-      <Typography variant="body2" sx={theme => ({ color: theme.palette.text.secondary, maxWidth: 420 })}>
-        {t.teacherEmptyBody}
-      </Typography>
+    <Stack sx={{ gap: 2 }}>
+      {sessions.map(session => (
+        <SessionRow
+          key={session.id}
+          session={session}
+          alertMessage={rowAlerts[session.id] ?? null}
+          onCancelIntent={onCancelIntent}
+          actions={teacherActionsForSession(session, {
+            t,
+            inFlightSlots,
+            onStart,
+            onComplete,
+          })}
+        />
+      ))}
     </Stack>
   );
 }

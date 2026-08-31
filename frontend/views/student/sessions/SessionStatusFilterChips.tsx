@@ -1,6 +1,6 @@
 "use client";
 
-import { ToggleButton, ToggleButtonGroup } from "@mui/material";
+import { Box, ToggleButton, ToggleButtonGroup } from "@mui/material";
 import type { ReactNode } from "react";
 import { SessionStatus } from "@/frontend/graphql/generated/gql/graphql";
 import { Sessions, useAppTranslation } from "@/shared/locale";
@@ -84,64 +84,88 @@ function tokenForFilterValue(value: SessionStatus | null): string {
   return FILTER_STATUS_BY_TOKEN[value] ?? ALL_TOKEN;
 }
 
-/** Single-select chip row for the sessions status filter. */
+/**
+ * Single-select chip row for the sessions status filter.
+ *
+ * The row docks into a STICKY bar: the dashboard AppBar is sticky at `top: 0`
+ * with `minHeight` 56/64 (xs→sm), so the bar pins right under it and the
+ * filter stays reachable while the list scrolls (`zIndex.appBar - 1` keeps
+ * it beneath the bar). A static hairline bottom edge echoes the AppBar's
+ * border without any scroll listener (the scroll-conditional border/shadow
+ * variant was declined — static styling only).
+ */
 export function SessionStatusFilterChips({ value, onChange }: Readonly<SessionStatusFilterChipsProps>): ReactNode {
   const t = useAppTranslation(Sessions);
   const activeToken = tokenForFilterValue(value);
 
   return (
-    <ToggleButtonGroup
-      exclusive
-      value={activeToken}
-      onChange={(_, token) => {
-        if (typeof token !== "string") return;
-        onChange(FILTER_STATUS_BY_TOKEN[token] ?? null);
-      }}
-      sx={{ flexWrap: "wrap", gap: 1 }}
-    >
-      {FILTER_TOKENS.map(token => {
-        const labelKey = FILTER_LABEL_KEY_BY_TOKEN[token];
-        const label = labelKey in t ? t[labelKey] : token;
-        return (
-          <ToggleButton
-            key={token}
-            value={token}
-            aria-pressed={token === activeToken}
-            sx={theme => ({
-              minHeight: { xs: 44, sm: 36 },
-              px: 2.5,
-              borderRadius: 999,
-              textTransform: "none",
-              fontWeight: 600,
-              borderColor: theme.palette.outlineVariant,
-              // Separated-pill restoration — MUI's grouped (connected) styling
-              // zeroes the inner corners, dissolves one border edge to
-              // transparent and pulls siblings 1px together. This row is a
-              // GAPPED pill group (flexWrap + gap 1), so every grouped slot
-              // (`*Button` slot classes, v6+) restores the full pill outline
-              // in BOTH directions (the grouped rules carry physical
-              // properties that misplace in RTL).
-              "&.MuiToggleButtonGroup-firstButton, &.MuiToggleButtonGroup-middleButton, &.MuiToggleButtonGroup-lastButton":
-                {
-                  borderRadius: 999,
-                  border: "1px solid",
-                  borderColor: theme.palette.outlineVariant,
-                  marginLeft: 0,
-                  marginRight: 0,
-                },
-              "&.Mui-selected": {
-                bgcolor: theme.palette.primaryContainer,
-                color: theme.palette.onPrimaryContainer,
-                "&:hover": {
-                  bgcolor: theme.palette.primaryContainer,
-                },
-              },
-            })}
-          >
-            {label}
-          </ToggleButton>
-        );
+    <Box
+      sx={theme => ({
+        position: "sticky",
+        top: { xs: 56, sm: 64 },
+        zIndex: theme.zIndex.appBar - 1,
+        bgcolor: theme.palette.surfaceContainer,
+        backdropFilter: "blur(8px)",
+        borderRadius: 2,
+        py: 1,
+        px: { xs: 0.5, sm: 1 },
+        borderBottom: "1px solid",
+        borderBottomColor: theme.palette.outlineVariant,
       })}
-    </ToggleButtonGroup>
+    >
+      <ToggleButtonGroup
+        exclusive
+        value={activeToken}
+        onChange={(_, token) => {
+          if (typeof token !== "string") return;
+          onChange(FILTER_STATUS_BY_TOKEN[token] ?? null);
+        }}
+        sx={{ flexWrap: "wrap", gap: 1 }}
+      >
+        {FILTER_TOKENS.map(token => {
+          const labelKey = FILTER_LABEL_KEY_BY_TOKEN[token];
+          const label = labelKey in t ? t[labelKey] : token;
+          return (
+            <ToggleButton
+              key={token}
+              value={token}
+              aria-pressed={token === activeToken}
+              sx={theme => ({
+                minHeight: { xs: 44, sm: 36 },
+                px: 2.5,
+                borderRadius: 999,
+                textTransform: "none",
+                fontWeight: 600,
+                borderColor: theme.palette.outlineVariant,
+                // Separated-pill restoration — MUI's grouped (connected) styling
+                // zeroes the inner corners, dissolves one border edge to
+                // transparent and pulls siblings 1px together. This row is a
+                // GAPPED pill group (flexWrap + gap 1), so every grouped slot
+                // (`*Button` slot classes, v6+) restores the full pill outline
+                // in BOTH directions (the grouped rules carry physical
+                // properties that misplace in RTL).
+                "&.MuiToggleButtonGroup-firstButton, &.MuiToggleButtonGroup-middleButton, &.MuiToggleButtonGroup-lastButton":
+                  {
+                    borderRadius: 999,
+                    border: "1px solid",
+                    borderColor: theme.palette.outlineVariant,
+                    marginLeft: 0,
+                    marginRight: 0,
+                  },
+                "&.Mui-selected": {
+                  bgcolor: theme.palette.primaryContainer,
+                  color: theme.palette.onPrimaryContainer,
+                  "&:hover": {
+                    bgcolor: theme.palette.primaryContainer,
+                  },
+                },
+              })}
+            >
+              {label}
+            </ToggleButton>
+          );
+        })}
+      </ToggleButtonGroup>
+    </Box>
   );
 }

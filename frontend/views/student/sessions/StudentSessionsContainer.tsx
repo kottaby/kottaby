@@ -1,10 +1,12 @@
 "use client";
 
 import { useQuery } from "@apollo/client/react";
+import { EventOutlined as EmptyIcon, FilterListOutlined as FilteredIcon } from "@mui/icons-material";
 import { Alert, Box, Skeleton, Snackbar, Stack, Typography } from "@mui/material";
 import { type ReactNode, useCallback, useState } from "react";
 import { PermissionDeniedFallback } from "@/frontend/components/ui/PermissionDeniedFallback";
 import type {
+  MyStudentSessionsQuery,
   MyStudentSessionsQuery_myStudentSessions_items,
   SessionStatus,
 } from "@/frontend/graphql/generated/gql/graphql";
@@ -14,6 +16,7 @@ import { mapGraphQLErrorByCode, normalizeGraphQLErrorCode } from "@/frontend/pro
 import { CancelSessionConfirmDialog } from "@/frontend/views/student/sessions/CancelSessionConfirmDialog";
 import { SessionRow } from "@/frontend/views/student/sessions/SessionRow";
 import { SessionStatusFilterChips } from "@/frontend/views/student/sessions/SessionStatusFilterChips";
+import { SessionsEmptyState } from "@/frontend/views/student/sessions/SessionsEmptyState";
 import { Errors, Sessions, useAppTranslation } from "@/shared/locale";
 import type { SessionsLabels } from "@/shared/locale/types/sessions";
 
@@ -29,15 +32,20 @@ import type { SessionsLabels } from "@/shared/locale/types/sessions";
  * owned by the server guard (`withPageAuth`) — this container performs no
  * role logic.
  *
- * Render branches (visual state matrix):
+ * Render branches (visual state matrix) — the chrome (page title + filter
+ * chips) renders in EVERY branch; only the body BELOW it swaps. The former
+ * early returns omitted the chrome on skeleton/error/empty, which stranded
+ * the user with no filter row exactly when the page went bare (accepted-as-is
+ * in the 4.BFBS visual loop — resolved here):
  *
- * | # | Condition | Surface |
- * |---|-----------|---------|
+ * | # | Condition | Body (below the always-on chrome) |
+ * |---|-----------|-----------------------------------|
  * | 1 | query in flight (no settled payload yet) | skeleton list rows mirroring the `ApplicantStatusCard` loading skeleton (`aria-busy`) |
  * | 2 | query error, mapping-table denial family (`permission-fallback` / `auth-recovery`) | shared `PermissionDeniedFallback` |
  * | 3 | any other query error (masked 500 …) | inline `Alert` with `sessions.genericError` |
- * | 4 | zero items for the active filter | empty-state Stack (`studentEmptyTitle` / `studentEmptyBody`) |
- * | 5 | rows present | `SessionRow` list + filter chips header |
+ * | 4a | zero items, NO status filter active | empty state (`studentEmptyTitle` / `studentEmptyBody`, calendar icon) |
+ * | 4b | zero items, status filter ACTIVE | distinct filtered-empty state (`filteredEmptyTitle` / `filteredEmptyBody`, filter-list icon) |
+ * | 5 | rows present | `SessionRow` list |
  *
  * Mutation outcome wiring — the `cancelSession` mutation and its code
  * classification live in {@link CancelSessionConfirmDialog}; the container
@@ -95,8 +103,10 @@ function dropRowAlert(alerts: Readonly<Record<string, string>>, sessionId: strin
 }
 
 /**
- * The student sessions view: filter chips header, skeleton/empty/error
- * branches, session rows and the cancel-dialog + snackbar chrome.
+ * The student sessions view: ALWAYS-ON chrome (title + sticky filter chips)
+ * over a swapping body — skeleton / permission fallback / error notice /
+ * empty (generic or filtered) / rows — plus the cancel-dialog and snackbar
+ * chrome.
  */
 export function StudentSessionsContainer(): ReactNode {
   const t = useAppTranslation(Sessions);
@@ -177,41 +187,10 @@ export function StudentSessionsContainer(): ReactNode {
     // The dialog stays open for a retry (its own documented contract).
   }, []);
 
-  // Branch 1 — first fetch for the active filter: skeleton rows announce
-  // busy semantics. A cache-hit variables change keeps the settled list
-  // mounted (no skeleton flash on filter round-trips).
-  if (loading && data === undefined) {
-    return <SessionsLoadingSkeleton />;
-  }
-
-  // Branches 2–3 — settled failures: denial family vs generic surfaced copy.
-  if (error) {
-    const rawCode = extractErrorCode(error);
-    const code = rawCode === null ? "" : normalizeGraphQLErrorCode(rawCode);
-    const action = mapGraphQLErrorByCode(code, { contextKind: "query", hasForm: false });
-    // Denial family — FORBIDDEN maps to the shared section fallback;
-    // UNAUTHORIZED (auth-recovery) surfaces identically after the error
-    // link's refresh-retry path has given up (ApplicantStatusCard precedent).
-    if (action?.kind === "permission-fallback" || action?.kind === "auth-recovery") {
-      return <PermissionDeniedFallback />;
-    }
-    return <SessionsErrorNotice message={t.genericError} />;
-  }
-
-  // Apollo settles queries with data-or-error; this narrow guard keeps the
-  // compiler informed without unsafe assertions.
-  if (!data) {
-    return <SessionsLoadingSkeleton />;
-  }
-
-  const sessions: readonly MyStudentSessionsQuery_myStudentSessions_items[] = data.myStudentSessions.items;
-
-  // Branch 4 — empty page for the active filter.
-  if (sessions.length === 0) {
-    return <StudentSessionsEmptyState t={t} />;
-  }
-
-  // Branch 5 — rows + cancel dialog + snackbar chrome.
+  // The body below the chrome resolves through the module-scope
+  // `StudentSessionsBody` (matrix branches 1–5) — extracting it keeps this
+  // orchestrator to state + callbacks only while the chrome above renders in
+  // EVERY branch (the user never loses the filter row — 4.BFBS fix).
   return (
     <Stack data-testid="student-sessions-view" sx={{ gap: 3 }}>
       <Stack sx={{ gap: 2 }}>
@@ -220,16 +199,15 @@ export function StudentSessionsContainer(): ReactNode {
         </Typography>
         <SessionStatusFilterChips value={statusFilter} onChange={handleFilterChange} />
       </Stack>
-      <Stack sx={{ gap: 2 }}>
-        {sessions.map(session => (
-          <SessionRow
-            key={session.id}
-            session={session}
-            alertMessage={rowAlerts[session.id] ?? null}
-            onCancelIntent={openCancelDialog}
-          />
-        ))}
-      </Stack>
+      <StudentSessionsBody
+        statusFilter={statusFilter}
+        loading={loading}
+        error={error}
+        data={data}
+        rowAlerts={rowAlerts}
+        onCancelIntent={openCancelDialog}
+        t={t}
+      />
       {cancelDialogSessionId !== null ? (
         <CancelSessionConfirmDialog
           key={cancelDialogSessionId}
@@ -259,23 +237,81 @@ export function StudentSessionsContainer(): ReactNode {
   );
 }
 
-interface StudentSessionsEmptyStateProps {
+interface StudentSessionsBodyProps {
+  readonly statusFilter: SessionStatus | null;
+  readonly loading: boolean;
+  readonly error: unknown;
+  readonly data: MyStudentSessionsQuery | undefined;
+  readonly rowAlerts: Readonly<Record<string, string>>;
+  readonly onCancelIntent: (sessionId: string) => void;
   readonly t: SessionsLabels;
 }
 
-/** Empty list for the active filter — centered heading + explanatory body. */
-function StudentSessionsEmptyState({ t }: Readonly<StudentSessionsEmptyStateProps>): ReactNode {
+/**
+ * The swapping body BELOW the always-on chrome — matrix branches 1–5 as a
+ * pure presentational resolver (module-scope so the container stays a
+ * state+callbacks orchestrator): skeleton / permission fallback / error
+ * notice / empty (generic vs filtered) / rows.
+ */
+function StudentSessionsBody({
+  statusFilter,
+  loading,
+  error,
+  data,
+  rowAlerts,
+  onCancelIntent,
+  t,
+}: Readonly<StudentSessionsBodyProps>): ReactNode {
+  if (loading && data === undefined) {
+    // Branch 1 — first fetch for the active filter: skeleton rows announce
+    // busy semantics. A cache-hit variables change keeps the settled list
+    // mounted (no skeleton flash on filter round-trips).
+    return <SessionsLoadingSkeleton />;
+  }
+  // Branches 2–3 — settled failures: denial family vs generic surfaced copy.
+  if (error) {
+    const rawCode = extractErrorCode(error);
+    const code = rawCode === null ? "" : normalizeGraphQLErrorCode(rawCode);
+    const action = mapGraphQLErrorByCode(code, { contextKind: "query", hasForm: false });
+    // Denial family — FORBIDDEN maps to the shared section fallback;
+    // UNAUTHORIZED (auth-recovery) surfaces identically after the error
+    // link's refresh-retry path has given up (ApplicantStatusCard precedent).
+    if (action?.kind === "permission-fallback" || action?.kind === "auth-recovery") {
+      return <PermissionDeniedFallback />;
+    }
+    return <SessionsErrorNotice message={t.genericError} />;
+  }
+  // Apollo settles queries with data-or-error; this narrow guard keeps the
+  // compiler informed without unsafe assertions.
+  if (!data) {
+    return <SessionsLoadingSkeleton />;
+  }
+  const sessions: readonly MyStudentSessionsQuery_myStudentSessions_items[] = data.myStudentSessions.items;
+  if (sessions.length === 0) {
+    // Branches 4a/4b — an empty page: the DISTINCT filtered-empty copy
+    // (with the filter-list icon) only when a status chip is active; the
+    // generic empty state stays reserved for the unfiltered "all" view.
+    const isFiltered = statusFilter !== null;
+    return (
+      <SessionsEmptyState
+        testId="student-sessions-empty"
+        icon={isFiltered ? FilteredIcon : EmptyIcon}
+        title={isFiltered ? t.filteredEmptyTitle : t.studentEmptyTitle}
+        body={isFiltered ? t.filteredEmptyBody : t.studentEmptyBody}
+      />
+    );
+  }
+  // Branch 5 — rows.
   return (
-    <Stack
-      data-testid="student-sessions-empty"
-      sx={{ alignItems: "center", gap: 1, py: { xs: 6, sm: 10 }, textAlign: "center" }}
-    >
-      <Typography variant="h6" component="h2" sx={{ fontWeight: 700 }}>
-        {t.studentEmptyTitle}
-      </Typography>
-      <Typography variant="body2" sx={theme => ({ color: theme.palette.text.secondary, maxWidth: 420 })}>
-        {t.studentEmptyBody}
-      </Typography>
+    <Stack sx={{ gap: 2 }}>
+      {sessions.map(session => (
+        <SessionRow
+          key={session.id}
+          session={session}
+          alertMessage={rowAlerts[session.id] ?? null}
+          onCancelIntent={onCancelIntent}
+        />
+      ))}
     </Stack>
   );
 }

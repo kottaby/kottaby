@@ -53,6 +53,10 @@ import type { SessionsLabels } from "@/shared/locale/types/sessions";
  * Cancel CTA lives INSIDE this row's action stack — the wrapper would have to
  * duplicate the meta/actions layout to sit next to it.
  *
+ * Hover polish: the card shell carries the idle→hover emphasis (elevation
+ * + outline transition); the action buttons keep full opacity at idle so
+ * no affordance is ever hover-gated.
+ *
  * MUI v9 discipline: `sx`-only styling, theme-palette colors through
  * callbacks, `*Outlined` icons only, RTL-safe logical composition (no
  * physical margins), ≥44px touch target on the mobile CTA.
@@ -179,6 +183,14 @@ export function SessionRow({ session, alertMessage, onCancelIntent, actions }: R
         borderColor: theme.palette.outlineVariant,
         bgcolor: theme.palette.surfaceContainerLow,
         boxShadow: theme.palette.shadow.card,
+        // Hover lift — elevation + outline emphasis ease in together. The
+        // emphasis step goes from the rest `outlineVariant` line to the
+        // stronger `outline` token (the palette's accent outline).
+        transition: theme.transitions.create(["box-shadow", "transform", "border-color"]),
+        "&:hover": {
+          boxShadow: theme.shadows[4],
+          borderColor: theme.palette.outline,
+        },
       })}
     >
       <Stack
@@ -243,6 +255,12 @@ export function SessionRow({ session, alertMessage, onCancelIntent, actions }: R
             <MetaCell label={t.teacherConfirmedAt} value={teacherConfirmedText} />
           ) : null}
         </Stack>
+        {/*
+         * Row CTAs hold FULL opacity at idle and never dim — the hover
+         * affordance lives on the card shell above (elevation + outline),
+         * so touch users (who get no hover) always see every action at its
+         * normal strength. The ≥44px mobile hit target stays pinned.
+         */}
         {(actions ?? []).map(action => (
           <Button
             key={action.id}
