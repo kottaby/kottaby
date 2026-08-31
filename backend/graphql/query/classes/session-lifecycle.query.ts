@@ -1,5 +1,6 @@
 /**
- * Session lifecycle query resolvers — the participant read surface (REQ-020):
+ * Session lifecycle query resolvers — the participant read surface (REQ-020)
+ * plus the admin arbitration listing:
  *
  *  - `sessionById(id: ID!): Session` — nullable; the row is returned ONLY to
  *    its student or its teacher. A nonexistent id and a non-participant
@@ -10,6 +11,11 @@
  *  - `myTeacherSessions(filter, page = 1, pageSize = 25): SessionPage!` —
  *    the acting teacher's own sessions (identical shape over the
  *    owning-teacher predicate).
+ *  - `adminDisputedSessions(filter, limit = 25, offset = 0): SessionPage!` —
+ *    the admin arbitration work queue: every `disputed` row, newest first,
+ *    with the same limit clamps as the participant lists (1..50, default
+ *    25). Admin-only; the read takes no caller identity (the role gate is
+ *    the scope's job) and never raises localized errors.
  *
  * authScopes 401/403 split (verified against @pothos/plugin-scope-auth@4.1.7
  * — the DEV2-004/DEV1-013 `$all` lesson; REQ-032):
@@ -191,4 +197,47 @@ registerParticipantSessionsField("myStudentSessions", UserRole.Student, (ownerId
 // role over the owning-teacher predicate.
 registerParticipantSessionsField("myTeacherSessions", UserRole.Teacher, (ownerId, filter, page, pageSize) =>
   SessionLifecycleService.listMyTeacherSessions(ownerId, filter, page, pageSize)
+);
+
+// Side-effect: register the `adminDisputedSessions` query field — the admin
+// arbitration listing over the pinned `disputed` scope.
+gqlSchemaBuilder.queryField("adminDisputedSessions", t =>
+  t.field({
+    type: SessionPagePothosObject,
+    args: {
+      filter: t.arg({ type: SessionListFilterPothosInput, required: false }),
+      // SDL defaults per the shared clamps (`limit: Int = 25`,
+      // `offset: Int = 0`); the service re-normalizes the effective window
+      // pre-DB and echoes it honestly — the resolver forwards, never
+      // clamps.
+      limit: t.arg.int({ required: false, defaultValue: 25 }),
+      offset: t.arg.int({ required: false, defaultValue: 0 }),
+    },
+    // Explicit `$all` conjunction per the 401/403 split documented in the
+    // file header (plain key-map = ANY semantics — known-wrong pattern):
+    // anonymous callers hit UNAUTHORIZED (401), authenticated non-admins
+    // fail the `role` leg into the canonical localized FORBIDDEN (403).
+    authScopes: {
+      $all: {
+        authenticated: true,
+        role: [UserRole.Admin],
+      },
+    },
+    resolve: async (_root, args, ctx) => {
+      // The `$all { authenticated: true }` leg guarantees a verified user
+      // row at resolution time (anonymous callers never get past the scope
+      // step). This branch exists purely for TypeScript narrowing — see
+      // the participant factory above for the full rationale.
+      if (!ctx.user) {
+        throw new UnauthorizedError("Authentication required.");
+      }
+      // The absent filter arg becomes the empty filter (both members drop
+      // out at the service guard — filters never error); the absent
+      // limit/offset restore the declared SDL defaults for an EXPLICIT
+      // `null`, and the service owns every clamp. The read takes NO caller
+      // identity: the pinned `disputed` scope needs none.
+      const filter: SessionListFilterInput = args.filter ?? {};
+      return SessionLifecycleService.listAdminDisputedSessions(filter, args.limit ?? 25, args.offset ?? 0);
+    },
+  })
 );

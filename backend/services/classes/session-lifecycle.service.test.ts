@@ -1,7 +1,8 @@
 /**
  * SessionLifecycleService tests — the booking + lifecycle state machine
  * (`createSession`, `startSession`, `completeSession`, `cancelSession`,
- * `getSessionById`, and the participant list pair) against the live
+ * `openSessionDispute`, `resolveSessionDispute`, `getSessionById`, the
+ * participant list pair, and the admin disputed listing) against the live
  * `kottaby_test_db` PostgreSQL instance, on REAL repositories.
  *
  * Per `backend/db/test/AGENTS.md` (the DB-backed service-test rules the
@@ -24,7 +25,7 @@
  *  - Tier 1 (branch/statement): every debit-ladder branch (trial hit, hifz
  *    hit, tajweed hit, total miss → `INSUFFICIENT_BALANCE` with zero rows
  *    and a still-reusable key); every probe-classification branch on
- *    start/complete/cancel (unknown id and foreign actor →
+ *    start/complete/cancel/dispute (unknown id and foreign actor →
  *    `SESSION_NOT_FOUND`, wrong state → `SESSION_INVALID_TRANSITION`,
  *    owned+started completion with a decertified teacher →
  *    `TEACHER_NOT_CERTIFIED`); the replay branch (same key →
@@ -36,15 +37,20 @@
  *    complete with cancel deliberately EXEMPT (a governed student can
  *    still release an in-flight hold); teacher-lock branches (missing
  *    teacher → `TEACHER_NOT_FOUND`, unapproved/null-certification →
- *    `TEACHER_NOT_CERTIFIED`); oracle-safe read branches.
+ *    `TEACHER_NOT_CERTIFIED`); oracle-safe read branches; the dispute
+ *    pair (participant open from both live states with the hold frozen;
+ *    admin arbitration over both outcomes with the role re-check).
  *  - Tier 2 (boundary): confirmation deadline = captured now +
  *    86_400_000 ms EXACTLY (bracketed); fee "25.00" decimal STRING per
- *    intent; cancel reason 500 chars accepted-and-discarded, 501 rejected
- *    (trim-normalized); idempotency key EXACTLY 128 chars accepted
- *    verbatim; pagination boundaries (page 1, pageSize 1 and 50, out-of-
- *    range page/size normalized to 1/25 per the implemented contract, out-
- *    of-vocabulary filter drops out); held-balance provenance (Trial when
- *    the trial lane won, paid lane when the trial lane was empty).
+ *    intent; cancel reason 500 chars accepted-and-persisted (trim-
+ *    normalized), 501 rejected; dispute reason empty/whitespace/501
+ *    rejected pre-DB; arbitration note trims to NULL when whitespace-only;
+ *    idempotency key EXACTLY 128 chars accepted verbatim; pagination
+ *    boundaries (page 1, pageSize 1 and 50, out-of-range page/size
+ *    normalized to 1/25 per the implemented contract, out-of-vocabulary
+ *    filter drops out); held-balance provenance (Trial when the trial lane
+ *    won, paid lane when the trial lane was empty); the admin listing's
+ *    limit clamp (1..50 default 25) with the honest page echo.
  *  - Tier 3 (rollback-path chaos): REQ-040 forced session-insert failure
  *    (a file-local trigger raises mid-flow) → ZERO rows in `session`,
  *    the claim table, and the students lane delta, and the key is
@@ -78,6 +84,7 @@ import { teacher } from "@/backend/db/schema/teachers/teacher";
 import { users } from "@/backend/db/schema/users/users";
 import { createTestStudent, createTestUser } from "@/backend/db/test/entity-setup";
 import { expectRepoError, runInRollback } from "@/backend/db/test/test-utils";
+import { DisputeResolution } from "@/backend/enum/scheduling/dispute-resolution.enum";
 import { HeldBalanceLane } from "@/backend/enum/scheduling/held-balance-lane.enum";
 import { SessionIntent } from "@/backend/enum/scheduling/session-intent.enum";
 import { SessionStatus } from "@/backend/enum/scheduling/session-status.enum";
@@ -498,10 +505,11 @@ describe("SessionLifecycleService — transactional flows (runInRollback)", () =
     });
   });
 
-  test("session-id shape guards: malformed TARGET session ids are denied VALIDATION pre-DB on start/complete/cancel and null on the read (REQ-054)", async () => {
+  test("session-id shape guards: malformed TARGET session ids are denied VALIDATION pre-DB on start/complete/cancel/dispute and null on the read (REQ-054)", async () => {
     await runInRollback(async tx => {
       const actors = await createSessionActors(tx);
       await setLaneBalances(tx, actors.studentUserId, { trial: 1 });
+      const admin = await createTestUser(tx, { role: "admin" });
 
       // The malformed-id matrix — each member is the runtime shape the
       // boundary's shape-only `Number()` parse yields for a malformed `ID`
@@ -534,6 +542,12 @@ describe("SessionLifecycleService — transactional flows (runInRollback)", () =
           expectRepoError(() =>
             SessionLifecycleService.cancelSession(actors.studentUserId, badId, null, "en", tx)
           ).then(error => expectDomainDenial(error, "VALIDATION", t().validation)),
+          expectRepoError(() =>
+            SessionLifecycleService.openSessionDispute(actors.studentUserId, badId, "reason", "en", tx)
+          ).then(error => expectDomainDenial(error, "VALIDATION", t().validation)),
+          expectRepoError(() =>
+            SessionLifecycleService.resolveSessionDispute(admin.id, badId, DisputeResolution.Cancel, null, "en", tx)
+          ).then(error => expectDomainDenial(error, "VALIDATION", t().validation)),
         ]),
         expectRepoError(() =>
           SessionLifecycleService.startSession(actors.teacherUserId, skippedParseId, "en", tx)
@@ -543,6 +557,19 @@ describe("SessionLifecycleService — transactional flows (runInRollback)", () =
         ).then(error => expectDomainDenial(error, "VALIDATION", t().validation)),
         expectRepoError(() =>
           SessionLifecycleService.cancelSession(actors.studentUserId, skippedParseId, null, "en", tx)
+        ).then(error => expectDomainDenial(error, "VALIDATION", t().validation)),
+        expectRepoError(() =>
+          SessionLifecycleService.openSessionDispute(actors.studentUserId, skippedParseId, "reason", "en", tx)
+        ).then(error => expectDomainDenial(error, "VALIDATION", t().validation)),
+        expectRepoError(() =>
+          SessionLifecycleService.resolveSessionDispute(
+            admin.id,
+            skippedParseId,
+            DisputeResolution.Cancel,
+            null,
+            "en",
+            tx
+          )
         ).then(error => expectDomainDenial(error, "VALIDATION", t().validation)),
       ]);
 
@@ -1035,7 +1062,7 @@ describe("SessionLifecycleService — transactional flows (runInRollback)", () =
     });
   });
 
-  test("cancel reason boundary: 500 chars (trim-normalized) accepted and DISCARDED; 501 rejected pre-DB", async () => {
+  test("cancel reason boundary: 500 chars (trim-normalized) accepted and PERSISTED; 501 rejected pre-DB", async () => {
     await runInRollback(async tx => {
       const actors = await createSessionActors(tx);
       await setLaneBalances(tx, actors.studentUserId, { trial: 2 });
@@ -1055,6 +1082,7 @@ describe("SessionLifecycleService — transactional flows (runInRollback)", () =
       const stillHeld = await readSessionRow(tx, rejectedSession.id);
       expect(stillHeld?.status).toBe(SessionStatus.Scheduled);
       expect(stillHeld?.feeHeld).toBe(true);
+      expect(stillHeld?.cancelReason).toBeNull();
 
       // Whitespace beyond 500 content chars trims away — accepted.
       const acceptedSession = await bookSession(
@@ -1072,9 +1100,31 @@ describe("SessionLifecycleService — transactional flows (runInRollback)", () =
         tx
       );
       expect(cancelled.status).toBe(SessionStatus.Cancelled);
-      // The reason is deliberately DISCARDED — the row carries no such column.
-      expect(Object.hasOwn(cancelled, "reason")).toBe(false);
+      // The reason is persisted TRIMMED inside the guarded UPDATE
+      // (`cancel_reason` — R-107; a whitespace-only reason persists NULL).
+      expect(cancelled.cancelReason).toBe("y".repeat(500));
+      const cancelledRow = await readSessionRow(tx, acceptedSession.id);
+      expect(cancelledRow?.cancelReason).toBe("y".repeat(500));
 
+      // A whitespace-only reason maps to NULL — nothing is persisted.
+      const bareSession = await bookSession(
+        tx,
+        actors.studentUserId,
+        actors.teacherUserId,
+        SessionIntent.Hifz,
+        "key-reason-blank"
+      );
+      const bareCancelled = await SessionLifecycleService.cancelSession(
+        actors.studentUserId,
+        bareSession.id,
+        "   ",
+        "en",
+        tx
+      );
+      expect(bareCancelled.status).toBe(SessionStatus.Cancelled);
+      expect(bareCancelled.cancelReason).toBeNull();
+
+      // Zero behavior change otherwise: the refund primitive still ran.
       const balances = await readLaneBalances(tx, actors.studentUserId);
       expect(balances.trial).toBe(1);
     });
@@ -1271,6 +1321,528 @@ describe("SessionLifecycleService — transactional flows (runInRollback)", () =
   test("source: zero console.* calls and zero raw process.env reads in the service", () => {
     expect(/console\./.test(serviceSource)).toBe(false);
     expect(/process\.env/.test(serviceSource)).toBe(false);
+  });
+});
+
+// ─── DEV3-005 dispute pair (openSessionDispute / resolveSessionDispute) ──
+
+describe("SessionLifecycleService — DEV3-005 dispute pair (runInRollback)", () => {
+  test("openSessionDispute happy path: BOTH live states move to disputed with the trimmed reason, the hold frozen, zero balance delta", async () => {
+    await runInRollback(async tx => {
+      const actors = await createSessionActors(tx);
+      await setLaneBalances(tx, actors.studentUserId, { hifz: 2 });
+
+      // From scheduled — the student opens with a reason that needs trimming.
+      const scheduled = await bookSession(
+        tx,
+        actors.studentUserId,
+        actors.teacherUserId,
+        SessionIntent.Hifz,
+        "key-dispute-happy-1"
+      );
+      const fromScheduled = await SessionLifecycleService.openSessionDispute(
+        actors.studentUserId,
+        scheduled.id,
+        "  schedule conflict  ",
+        "en",
+        tx
+      );
+      expect(fromScheduled.status).toBe(SessionStatus.Disputed);
+      expect(fromScheduled.disputeReason).toBe("schedule conflict");
+      expect(fromScheduled.disputedAt).not.toBeNull();
+      // The escrow hold is deliberately FROZEN by the dispute itself —
+      // the money stays held until the admin resolution.
+      expect(fromScheduled.feeHeld).toBe(true);
+      expect(fromScheduled.heldBalanceLane).toBe(HeldBalanceLane.Hifz);
+      // Zero balance delta: the dispute itself moves NO money — the unit
+      // debited at booking time stays in escrow (2 funded, 1 booked).
+      const balancesAfterOpen = await readLaneBalances(tx, actors.studentUserId);
+      expect(balancesAfterOpen.hifz).toBe(1);
+      expect(balancesAfterOpen.trial).toBe(0);
+
+      // From started — the teacher opens on an in-progress row.
+      const started = await bookSession(
+        tx,
+        actors.studentUserId,
+        actors.teacherUserId,
+        SessionIntent.Hifz,
+        "key-dispute-happy-2"
+      );
+      await SessionLifecycleService.startSession(actors.teacherUserId, started.id, "en", tx);
+      const fromStarted = await SessionLifecycleService.openSessionDispute(
+        actors.teacherUserId,
+        started.id,
+        "teacher dispute",
+        "en",
+        tx
+      );
+      expect(fromStarted.status).toBe(SessionStatus.Disputed);
+      expect(fromStarted.disputeReason).toBe("teacher dispute");
+      expect(fromStarted.disputedAt).not.toBeNull();
+      // The start stamp survives the dispute transition.
+      expect(fromStarted.startedAt).not.toBeNull();
+      expect(fromStarted.endedAt).toBeNull();
+    });
+  });
+
+  test("openSessionDispute reason guard: empty, whitespace-only, and 501-char reasons are VALIDATION denials pre-DB with zero writes", async () => {
+    await runInRollback(async tx => {
+      const actors = await createSessionActors(tx);
+      await setLaneBalances(tx, actors.studentUserId, { trial: 1 });
+      const row = await bookSession(
+        tx,
+        actors.studentUserId,
+        actors.teacherUserId,
+        SessionIntent.Hifz,
+        "key-dispute-reason"
+      );
+
+      // The three denial shapes are asserted sequentially — each denial is
+      // independent, and the zero-write oracle is checked after ALL of them.
+      const emptyError = await expectRepoError(() =>
+        SessionLifecycleService.openSessionDispute(actors.studentUserId, row.id, "", "en", tx)
+      );
+      expectDomainDenial(emptyError, "VALIDATION", t().validation);
+      const whitespaceError = await expectRepoError(() =>
+        SessionLifecycleService.openSessionDispute(actors.studentUserId, row.id, "   \t\n  ", "en", tx)
+      );
+      expectDomainDenial(whitespaceError, "VALIDATION", t().validation);
+      const oversizedError = await expectRepoError(() =>
+        SessionLifecycleService.openSessionDispute(actors.studentUserId, row.id, "x".repeat(501), "en", tx)
+      );
+      expectDomainDenial(oversizedError, "VALIDATION", t().validation);
+
+      // Zero writes: the row and the hold are untouched after every denial
+      // (the booking's own debit is the ONLY balance movement — no denial
+      // path refunds or debits).
+      const untouched = await readSessionRow(tx, row.id);
+      expect(untouched?.status).toBe(SessionStatus.Scheduled);
+      expect(untouched?.disputeReason).toBeNull();
+      expect(untouched?.disputedAt).toBeNull();
+      expect(untouched?.feeHeld).toBe(true);
+      const balances = await readLaneBalances(tx, actors.studentUserId);
+      expect(balances.trial).toBe(0);
+    });
+  });
+
+  test("openSessionDispute probe chain: unknown id and non-participants are oracle-safe SESSION_NOT_FOUND; terminal and already-disputed rows are SESSION_INVALID_TRANSITION", async () => {
+    await runInRollback(async tx => {
+      const actorsA = await createSessionActors(tx);
+      const actorsB = await createSessionActors(tx);
+      const outsider = await createTestUser(tx, { role: "parent" });
+      const missingSessionId = await absentSessionId(tx);
+      await setLaneBalances(tx, actorsA.studentUserId, { hifz: 4 });
+
+      // Unknown id.
+      const unknownError = await expectRepoError(() =>
+        SessionLifecycleService.openSessionDispute(actorsA.studentUserId, missingSessionId, "r", "en", tx)
+      );
+      expectDomainDenial(unknownError, "SESSION_NOT_FOUND", t().sessionNotFound);
+
+      // Non-participants (another student, another teacher, a parent
+      // account) are all collapsed onto the SAME oracle-safe denial — a
+      // foreign target is indistinguishable from a nonexistent one.
+      const row = await bookSession(
+        tx,
+        actorsA.studentUserId,
+        actorsA.teacherUserId,
+        SessionIntent.Hifz,
+        "key-dispute-oracle"
+      );
+      const foreignStudentError = await expectRepoError(() =>
+        SessionLifecycleService.openSessionDispute(actorsB.studentUserId, row.id, "r", "en", tx)
+      );
+      expectDomainDenial(foreignStudentError, "SESSION_NOT_FOUND", t().sessionNotFound);
+      const foreignTeacherError = await expectRepoError(() =>
+        SessionLifecycleService.openSessionDispute(actorsB.teacherUserId, row.id, "r", "en", tx)
+      );
+      expectDomainDenial(foreignTeacherError, "SESSION_NOT_FOUND", t().sessionNotFound);
+      const parentError = await expectRepoError(() =>
+        SessionLifecycleService.openSessionDispute(outsider.id, row.id, "r", "en", tx)
+      );
+      expectDomainDenial(parentError, "SESSION_NOT_FOUND", t().sessionNotFound);
+      const stillScheduled = await readSessionRow(tx, row.id);
+      expect(stillScheduled?.status).toBe(SessionStatus.Scheduled);
+
+      // Terminal rows are structurally unreachable (INV-S1/S2 intact).
+      const completed = await bookSession(
+        tx,
+        actorsA.studentUserId,
+        actorsA.teacherUserId,
+        SessionIntent.Hifz,
+        "key-dispute-completed"
+      );
+      await SessionLifecycleService.startSession(actorsA.teacherUserId, completed.id, "en", tx);
+      await SessionLifecycleService.completeSession(actorsA.teacherUserId, completed.id, "en", tx);
+      const completedError = await expectRepoError(() =>
+        SessionLifecycleService.openSessionDispute(actorsA.studentUserId, completed.id, "r", "en", tx)
+      );
+      expectDomainDenial(completedError, "SESSION_INVALID_TRANSITION", t().sessionInvalidTransition);
+
+      const cancelled = await bookSession(
+        tx,
+        actorsA.studentUserId,
+        actorsA.teacherUserId,
+        SessionIntent.Hifz,
+        "key-dispute-cancelled"
+      );
+      await SessionLifecycleService.cancelSession(actorsA.studentUserId, cancelled.id, null, "en", tx);
+      const cancelledError = await expectRepoError(() =>
+        SessionLifecycleService.openSessionDispute(actorsA.teacherUserId, cancelled.id, "r", "en", tx)
+      );
+      expectDomainDenial(cancelledError, "SESSION_INVALID_TRANSITION", t().sessionInvalidTransition);
+
+      // Double-dispute: the second attempt is a transition conflict and
+      // never rewrites the recorded reason.
+      const disputed = await bookSession(
+        tx,
+        actorsA.studentUserId,
+        actorsA.teacherUserId,
+        SessionIntent.Hifz,
+        "key-dispute-double"
+      );
+      await SessionLifecycleService.openSessionDispute(actorsA.studentUserId, disputed.id, "first reason", "en", tx);
+      const doubleError = await expectRepoError(() =>
+        SessionLifecycleService.openSessionDispute(actorsA.teacherUserId, disputed.id, "second reason", "en", tx)
+      );
+      expectDomainDenial(doubleError, "SESSION_INVALID_TRANSITION", t().sessionInvalidTransition);
+      const recorded = await readSessionRow(tx, disputed.id);
+      expect(recorded?.status).toBe(SessionStatus.Disputed);
+      expect(recorded?.disputeReason).toBe("first reason");
+    });
+  });
+
+  test("resolveSessionDispute CANCEL outcome: the SAME same-lane refund primitive fires inside the arbitration transaction — refund and status flip commit atomically", async () => {
+    await runInRollback(async tx => {
+      const actors = await createSessionActors(tx);
+      await setLaneBalances(tx, actors.studentUserId, { hifz: 1 });
+      const admin = await createTestUser(tx, { role: "admin" });
+      const row = await bookSession(
+        tx,
+        actors.studentUserId,
+        actors.teacherUserId,
+        SessionIntent.Hifz,
+        "key-resolve-cancel"
+      );
+      await SessionLifecycleService.openSessionDispute(actors.studentUserId, row.id, "teacher no-show", "en", tx);
+
+      const resolved = await SessionLifecycleService.resolveSessionDispute(
+        admin.id,
+        row.id,
+        DisputeResolution.Cancel,
+        "  refunded in full  ",
+        "en",
+        tx
+      );
+
+      expect(resolved.status).toBe(SessionStatus.Cancelled);
+      expect(resolved.feeHeld).toBe(false);
+      expect(resolved.resolutionNote).toBe("refunded in full");
+      expect(resolved.resolvedAt).not.toBeNull();
+      // A cancellation never writes an end stamp; the dispute reason stays.
+      expect(resolved.endedAt).toBeNull();
+      expect(resolved.disputeReason).toBe("teacher no-show");
+
+      // The refund landed on the recorded provenance lane — EXACTLY one
+      // unit (the lane that funded the hold; the hold marker is cleared).
+      const balances = await readLaneBalances(tx, actors.studentUserId);
+      expect(balances.hifz).toBe(1);
+      expect(balances.trial).toBe(0);
+      expect(balances.tajweed).toBe(0);
+    });
+  });
+
+  test("resolveSessionDispute CANCEL on an unheld disputed row refunds nothing; a whitespace-only note persists NULL", async () => {
+    await runInRollback(async tx => {
+      const actors = await createSessionActors(tx);
+      await setLaneBalances(tx, actors.studentUserId, { trial: 2 });
+      const admin = await createTestUser(tx, { role: "admin" });
+
+      // An unheld row (feeHeld false, no provenance lane) disputed from
+      // scheduled: the CANCEL outcome has no money to move.
+      const unheld = await insertSessionRow(tx, actors, { feeHeld: false, heldBalanceLane: null });
+      await SessionLifecycleService.openSessionDispute(actors.studentUserId, unheld.id, "r", "en", tx);
+      const resolved = await SessionLifecycleService.resolveSessionDispute(
+        admin.id,
+        unheld.id,
+        DisputeResolution.Cancel,
+        "   ",
+        "en",
+        tx
+      );
+      expect(resolved.status).toBe(SessionStatus.Cancelled);
+      expect(resolved.feeHeld).toBe(false);
+      expect(resolved.resolutionNote).toBeNull();
+      const balances = await readLaneBalances(tx, actors.studentUserId);
+      expect(balances.trial).toBe(2);
+      expect(balances.hifz).toBe(0);
+    });
+  });
+
+  test("resolveSessionDispute COMPLETE outcome: consumes the hold with NO wallet credit, writes the end stamp, preserves the start stamp", async () => {
+    await runInRollback(async tx => {
+      const actors = await createSessionActors(tx);
+      await setLaneBalances(tx, actors.studentUserId, { trial: 1 });
+      const admin = await createTestUser(tx, { role: "admin" });
+      const row = await bookSession(
+        tx,
+        actors.studentUserId,
+        actors.teacherUserId,
+        SessionIntent.Hifz,
+        "key-resolve-complete"
+      );
+      const startedAt = await SessionLifecycleService.startSession(actors.teacherUserId, row.id, "en", tx);
+      await SessionLifecycleService.openSessionDispute(actors.teacherUserId, row.id, "disputed mid-session", "en", tx);
+
+      const resolved = await SessionLifecycleService.resolveSessionDispute(
+        admin.id,
+        row.id,
+        DisputeResolution.Complete,
+        "held per policy",
+        "en",
+        tx
+      );
+
+      expect(resolved.status).toBe(SessionStatus.Completed);
+      // The hold is consumed — and NO wallet credit is part of this outcome
+      // (D2/DEV3-012 owns credit): the student's lanes stay exactly as they
+      // were after the original debit.
+      expect(resolved.feeHeld).toBe(false);
+      expect(resolved.resolutionNote).toBe("held per policy");
+      expect(resolved.resolvedAt).not.toBeNull();
+      expect(resolved.endedAt).not.toBeNull();
+      expect(resolved.startedAt?.getTime()).toBe(startedAt.startedAt?.getTime());
+
+      const balances = await readLaneBalances(tx, actors.studentUserId);
+      expect(balances.trial).toBe(0);
+      expect(balances.hifz).toBe(0);
+      expect(balances.tajweed).toBe(0);
+    });
+  });
+
+  test("resolveSessionDispute COMPLETE on a never-started dispute is a pre-DB VALIDATION denial — the row stays disputed with its hold intact", async () => {
+    await runInRollback(async tx => {
+      const actors = await createSessionActors(tx);
+      await setLaneBalances(tx, actors.studentUserId, { hifz: 1 });
+      const admin = await createTestUser(tx, { role: "admin" });
+      const row = await bookSession(
+        tx,
+        actors.studentUserId,
+        actors.teacherUserId,
+        SessionIntent.Hifz,
+        "key-resolve-never-started"
+      );
+      await SessionLifecycleService.openSessionDispute(actors.studentUserId, row.id, "never happened", "en", tx);
+
+      const error = await expectRepoError(() =>
+        SessionLifecycleService.resolveSessionDispute(admin.id, row.id, DisputeResolution.Complete, null, "en", tx)
+      );
+      expectDomainDenial(error, "VALIDATION", t().validation);
+
+      // The denial mutated nothing: still disputed, hold still frozen.
+      const untouched = await readSessionRow(tx, row.id);
+      expect(untouched?.status).toBe(SessionStatus.Disputed);
+      expect(untouched?.feeHeld).toBe(true);
+      expect(untouched?.endedAt).toBeNull();
+      expect(untouched?.resolutionNote).toBeNull();
+      expect(untouched?.resolvedAt).toBeNull();
+    });
+  });
+
+  test("resolveSessionDispute probe chain: unknown id → SESSION_NOT_FOUND; non-disputed rows → SESSION_INVALID_TRANSITION; double-resolve → SESSION_INVALID_TRANSITION", async () => {
+    await runInRollback(async tx => {
+      const actors = await createSessionActors(tx);
+      const admin = await createTestUser(tx, { role: "admin" });
+      const missingSessionId = await absentSessionId(tx);
+
+      // Unknown id.
+      const unknownError = await expectRepoError(() =>
+        SessionLifecycleService.resolveSessionDispute(
+          admin.id,
+          missingSessionId,
+          DisputeResolution.Cancel,
+          null,
+          "en",
+          tx
+        )
+      );
+      expectDomainDenial(unknownError, "SESSION_NOT_FOUND", t().sessionNotFound);
+
+      // A scheduled row is not resolvable — the guarded predicate misses.
+      const scheduled = await insertSessionRow(tx, actors);
+      const scheduledError = await expectRepoError(() =>
+        SessionLifecycleService.resolveSessionDispute(admin.id, scheduled.id, DisputeResolution.Cancel, null, "en", tx)
+      );
+      expectDomainDenial(scheduledError, "SESSION_INVALID_TRANSITION", t().sessionInvalidTransition);
+      const stillScheduled = await readSessionRow(tx, scheduled.id);
+      expect(stillScheduled?.status).toBe(SessionStatus.Scheduled);
+
+      // Double-resolve: the second attempt matches zero rows.
+      const row = await insertSessionRow(tx, actors);
+      await SessionLifecycleService.openSessionDispute(actors.studentUserId, row.id, "r", "en", tx);
+      await SessionLifecycleService.resolveSessionDispute(admin.id, row.id, DisputeResolution.Cancel, "n", "en", tx);
+      const doubleError = await expectRepoError(() =>
+        SessionLifecycleService.resolveSessionDispute(admin.id, row.id, DisputeResolution.Complete, "n2", "en", tx)
+      );
+      expectDomainDenial(doubleError, "SESSION_INVALID_TRANSITION", t().sessionInvalidTransition);
+      const finalRow = await readSessionRow(tx, row.id);
+      expect(finalRow?.status).toBe(SessionStatus.Cancelled);
+      expect(finalRow?.resolutionNote).toBe("n");
+      expect(finalRow?.startedAt).toBeNull();
+    });
+  });
+
+  test("resolveSessionDispute admin governance re-check: non-admin callers and governed admins fail closed FORBIDDEN before any state change", async () => {
+    await runInRollback(async tx => {
+      const actors = await createSessionActors(tx);
+      const row = await insertSessionRow(tx, actors);
+      await SessionLifecycleService.openSessionDispute(actors.studentUserId, row.id, "r", "en", tx);
+
+      // A still-authenticated non-admin (student) fails the role leg.
+      const studentError = await expectRepoError(() =>
+        SessionLifecycleService.resolveSessionDispute(
+          actors.studentUserId,
+          row.id,
+          DisputeResolution.Cancel,
+          null,
+          "en",
+          tx
+        )
+      );
+      expectDomainDenial(studentError, "FORBIDDEN", t().forbidden);
+
+      // Governance-flipped admins fail closed too (isDeleted / isBlocked /
+      // suspended) — the user row is the authority, never the token. The
+      // three variants are asserted sequentially (each denial is
+      // independent and leaves the row untouched for the next).
+      const deletedAdmin = await createTestUser(tx, { role: "admin", isDeleted: true });
+      const deletedError = await expectRepoError(() =>
+        SessionLifecycleService.resolveSessionDispute(deletedAdmin.id, row.id, DisputeResolution.Cancel, null, "en", tx)
+      );
+      expectDomainDenial(deletedError, "FORBIDDEN", t().forbidden);
+      const blockedAdmin = await createTestUser(tx, { role: "admin", isBlocked: true });
+      const blockedError = await expectRepoError(() =>
+        SessionLifecycleService.resolveSessionDispute(blockedAdmin.id, row.id, DisputeResolution.Cancel, null, "en", tx)
+      );
+      expectDomainDenial(blockedError, "FORBIDDEN", t().forbidden);
+      const suspendedAdmin = await createTestUser(tx, { role: "admin", suspended: true });
+      const suspendedError = await expectRepoError(() =>
+        SessionLifecycleService.resolveSessionDispute(
+          suspendedAdmin.id,
+          row.id,
+          DisputeResolution.Cancel,
+          null,
+          "en",
+          tx
+        )
+      );
+      expectDomainDenial(suspendedError, "FORBIDDEN", t().forbidden);
+
+      // Unknown admin id → same fail-closed FORBIDDEN.
+      const absentAdminId = await absentUserId(tx);
+      const absentError = await expectRepoError(() =>
+        SessionLifecycleService.resolveSessionDispute(absentAdminId, row.id, DisputeResolution.Cancel, null, "en", tx)
+      );
+      expectDomainDenial(absentError, "FORBIDDEN", t().forbidden);
+
+      // Every denial left the row untouched: still disputed, hold intact.
+      const untouched = await readSessionRow(tx, row.id);
+      expect(untouched?.status).toBe(SessionStatus.Disputed);
+      expect(untouched?.feeHeld).toBe(true);
+      expect(untouched?.resolutionNote).toBeNull();
+    });
+  });
+
+  test("listAdminDisputedSessions: honest totals, newest first, limit clamp 1..50 default 25, offset floor, pinned disputed scope", async () => {
+    await runInRollback(async tx => {
+      const actors = await createSessionActors(tx);
+      // Future-stamped createdAt overrides keep the window assertions
+      // deterministic against any other committed disputed rows.
+      const now = Date.now();
+      const dispute1 = await insertSessionRow(tx, actors, { createdAt: new Date(now + 3_600_000) });
+      const dispute2 = await insertSessionRow(tx, actors, { createdAt: new Date(now + 2 * 3_600_000) });
+      const dispute3 = await insertSessionRow(tx, actors, { createdAt: new Date(now + 3 * 3_600_000) });
+      const liveRow = await insertSessionRow(tx, actors, { createdAt: new Date(now + 4 * 3_600_000) });
+
+      // The three disputes open sequentially (each is an independent row,
+      // but the shared oracle reads below require all three to have landed).
+      const opened1 = await SessionLifecycleService.openSessionDispute(
+        actors.studentUserId,
+        dispute1.id,
+        `reason-${dispute1.id}`,
+        "en",
+        tx
+      );
+      expect(opened1.status).toBe(SessionStatus.Disputed);
+      const opened2 = await SessionLifecycleService.openSessionDispute(
+        actors.studentUserId,
+        dispute2.id,
+        `reason-${dispute2.id}`,
+        "en",
+        tx
+      );
+      expect(opened2.status).toBe(SessionStatus.Disputed);
+      const opened3 = await SessionLifecycleService.openSessionDispute(
+        actors.studentUserId,
+        dispute3.id,
+        `reason-${dispute3.id}`,
+        "en",
+        tx
+      );
+      expect(opened3.status).toBe(SessionStatus.Disputed);
+
+      // The full queue: newest first, honest count — the never-disputed
+      // liveRow (newest row overall) never appears.
+      const queue = await SessionLifecycleService.listAdminDisputedSessions({}, 50, 0, tx);
+      expect(queue.totalCount).toBeGreaterThanOrEqual(3);
+      const myIds = [dispute3.id, dispute2.id, dispute1.id];
+      expect(queue.items.slice(0, 3).map(row => row.id)).toEqual(myIds);
+      expect(queue.items.map(row => row.id)).not.toContain(liveRow.id);
+      expect(queue.page).toBe(1);
+      expect(queue.pageSize).toBe(50);
+
+      // The limit clamp mirrors the participant lists exactly (1..50,
+      // default 25) and the offset floors at zero — both normalize
+      // honestly, never error. The page echo is the honest window index.
+      const oversized = await SessionLifecycleService.listAdminDisputedSessions({}, 51, 0, tx);
+      expect(oversized.pageSize).toBe(25);
+      const nonPositive = await SessionLifecycleService.listAdminDisputedSessions({}, 0, 25, tx);
+      expect(nonPositive.pageSize).toBe(25);
+      expect(nonPositive.page).toBe(2);
+      const negativeOffset = await SessionLifecycleService.listAdminDisputedSessions({}, 25, -4, tx);
+      expect(negativeOffset.page).toBe(1);
+
+      // A short window truncates the page; the offset skips forward without
+      // shrinking the honest total.
+      const clamped = await SessionLifecycleService.listAdminDisputedSessions({}, 2, 0, tx);
+      expect(clamped.items.map(row => row.id)).toEqual([dispute3.id, dispute2.id]);
+      expect(clamped.totalCount).toBe(queue.totalCount);
+      const skipped = await SessionLifecycleService.listAdminDisputedSessions({}, 2, 1, tx);
+      expect(skipped.items.map(row => row.id)).toEqual([dispute2.id, dispute1.id]);
+
+      // A filter explicitly contradicting the pinned disputed scope (any
+      // in-vocabulary status other than disputed) is the honest EMPTY page
+      // — zero items AND zero count, coherently.
+      const contradictory = await SessionLifecycleService.listAdminDisputedSessions(
+        { status: SessionStatus.Scheduled },
+        25,
+        0,
+        tx
+      );
+      expect(contradictory.items).toHaveLength(0);
+      expect(contradictory.totalCount).toBe(0);
+
+      // The pinned scope itself: an explicit disputed filter behaves like
+      // the unfiltered queue (one identical set).
+      const pinned = await SessionLifecycleService.listAdminDisputedSessions(
+        { status: SessionStatus.Disputed },
+        25,
+        0,
+        tx
+      );
+      expect(pinned.totalCount).toBe(queue.totalCount);
+      expect(pinned.items.slice(0, 3).map(row => row.id)).toEqual(myIds);
+    });
   });
 });
 

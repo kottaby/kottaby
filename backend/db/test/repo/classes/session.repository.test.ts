@@ -1,9 +1,10 @@
 /**
  * SessionRepository tests — the `session` table's data-access layer
  * (`insertSession`, `findById`, `startSessionOnce`, `completeSessionOnce`,
- * `cancelSessionOnce`, `findTransitionProbe`, and the participant
- * list/count quartet) against the live `kottaby_test_db` PostgreSQL
- * instance.
+ * `cancelSessionOnce`, `openDisputeOnce`, `resolveDisputeCancelOnce`,
+ * `resolveDisputeCompleteOnce`, `findTransitionProbe`, the participant
+ * list/count quartet, and the admin disputed pair) against the live
+ * `kottaby_test_db` PostgreSQL instance.
  *
  * Per `backend/db/test/AGENTS.md`:
  *  - Rollback-isolated tests run inside `runInRollback`; `tx` is passed to
@@ -24,10 +25,12 @@
  * Coverage map:
  *  - Tier 1 (branch/stmt): every method's hit branch returns the full
  *    row/projection; every miss branch (unknown id, non-owner teacher,
- *    non-participant caller, wrong lifecycle state) returns `null` and
- *    writes nothing. Guarded transitions mutate ONLY their documented
- *    columns (deadline never re-armed; cancelled rows keep `startedAt`,
- *    never gain `endedAt`, and keep the provenance lane for the refund).
+ *    non-participant caller, wrong lifecycle state, never-started
+ *    arbitration target) returns `null` and writes nothing. Guarded
+ *    transitions mutate ONLY their documented columns (deadline never
+ *    re-armed; cancelled rows keep `startedAt`, never gain `endedAt`, and
+ *    keep the provenance lane for the refund; the cancel reason and the
+ *    dispute reason/note persist inside their own guarded statements).
  *  - Tier 2 (pagination): newest-first ordering (`created_at DESC`) with
  *    the `id DESC` tiebreak for rows created in the same instant; page 1
  *    exact-size; a mid window; an offset past the end yields empty items
@@ -77,16 +80,21 @@ const PG_NOT_NULL_VIOLATION = "23502";
 
 /** The `session` select-shape keys (TS property names), locale-sorted. */
 const SESSION_ROW_KEYS = [
+  "cancelReason",
   "confirmationDeadline",
   "confirmedByStudentAt",
   "confirmedByTeacherAt",
   "createdAt",
+  "disputedAt",
+  "disputeReason",
   "endedAt",
   "fee",
   "feeHeld",
   "heldBalanceLane",
   "id",
   "intent",
+  "resolutionNote",
+  "resolvedAt",
   "sessionType",
   "startedAt",
   "status",
@@ -250,7 +258,7 @@ describe("SessionRepository — transactional paths (runInRollback)", () => {
       expect(inserted.endedAt).toBeNull();
       expect(inserted.confirmedByStudentAt).toBeNull();
       expect(inserted.confirmedByTeacherAt).toBeNull();
-      // RETURNING * mirrors the $inferSelect shape 1:1 — exactly the 16
+      // RETURNING * mirrors the $inferSelect shape 1:1 — exactly the 21
       // table columns, nothing added, nothing dropped.
       expect(Object.keys(inserted).toSorted((a, b) => a.localeCompare(b))).toEqual([...SESSION_ROW_KEYS]);
     });
@@ -430,7 +438,7 @@ describe("SessionRepository — transactional paths (runInRollback)", () => {
       const actors = await createSessionActors(tx);
       const row = await insertSessionRow(tx, actors);
 
-      const cancelled = await SessionRepository.cancelSessionOnce(row.id, actors.studentUserId, tx);
+      const cancelled = await SessionRepository.cancelSessionOnce(row.id, actors.studentUserId, null, tx);
 
       expect(cancelled).not.toBeNull();
       expect(cancelled?.status).toBe(SessionStatus.Cancelled);
@@ -451,7 +459,7 @@ describe("SessionRepository — transactional paths (runInRollback)", () => {
       const started = await SessionRepository.startSessionOnce(row.id, actors.teacherUserId, tx);
       expect(started?.startedAt).not.toBeNull();
 
-      const cancelled = await SessionRepository.cancelSessionOnce(row.id, actors.teacherUserId, tx);
+      const cancelled = await SessionRepository.cancelSessionOnce(row.id, actors.teacherUserId, null, tx);
 
       expect(cancelled?.status).toBe(SessionStatus.Cancelled);
       expect(cancelled?.feeHeld).toBe(false);
@@ -470,7 +478,7 @@ describe("SessionRepository — transactional paths (runInRollback)", () => {
       // participant predicate is SQL-side, so an unrelated existing user
       // matches neither owner column.
       const rowA = await insertSessionRow(tx, actorsA);
-      const foreignCaller = await SessionRepository.cancelSessionOnce(rowA.id, actorsB.studentUserId, tx);
+      const foreignCaller = await SessionRepository.cancelSessionOnce(rowA.id, actorsB.studentUserId, null, tx);
       expect(foreignCaller).toBeNull();
 
       // Completed rows are structurally unreachable for cancel — the
@@ -479,7 +487,7 @@ describe("SessionRepository — transactional paths (runInRollback)", () => {
       const completedRow = await insertSessionRow(tx, actorsA);
       await SessionRepository.startSessionOnce(completedRow.id, actorsA.teacherUserId, tx);
       await SessionRepository.completeSessionOnce(completedRow.id, actorsA.teacherUserId, tx);
-      const afterComplete = await SessionRepository.cancelSessionOnce(completedRow.id, actorsA.studentUserId, tx);
+      const afterComplete = await SessionRepository.cancelSessionOnce(completedRow.id, actorsA.studentUserId, null, tx);
       expect(afterComplete).toBeNull();
       const stillCompleted = await readSessionRow(tx, completedRow.id);
       expect(stillCompleted.status).toBe(SessionStatus.Completed);
@@ -487,17 +495,219 @@ describe("SessionRepository — transactional paths (runInRollback)", () => {
 
       // Double-cancel: the second attempt matches zero rows.
       const cancelledRow = await insertSessionRow(tx, actorsA);
-      await SessionRepository.cancelSessionOnce(cancelledRow.id, actorsA.studentUserId, tx);
-      const doubleCancel = await SessionRepository.cancelSessionOnce(cancelledRow.id, actorsA.studentUserId, tx);
+      await SessionRepository.cancelSessionOnce(cancelledRow.id, actorsA.studentUserId, null, tx);
+      const doubleCancel = await SessionRepository.cancelSessionOnce(cancelledRow.id, actorsA.studentUserId, null, tx);
       expect(doubleCancel).toBeNull();
 
       // Unknown session id.
-      const unknown = await SessionRepository.cancelSessionOnce(missingSessionId, actorsA.studentUserId, tx);
+      const unknown = await SessionRepository.cancelSessionOnce(missingSessionId, actorsA.studentUserId, null, tx);
       expect(unknown).toBeNull();
     });
   });
 
-  test("findTransitionProbe returns exactly the four-column classification projection", async () => {
+  test("cancelSessionOnce persists the trimmed cancellation reason inside the guarded UPDATE (null when none)", async () => {
+    await runInRollback(async tx => {
+      const actors = await createSessionActors(tx);
+      const withReason = await insertSessionRow(tx, actors);
+      const withoutReason = await insertSessionRow(tx, actors);
+
+      const reasoned = await SessionRepository.cancelSessionOnce(
+        withReason.id,
+        actors.studentUserId,
+        "schedule conflict",
+        tx
+      );
+      expect(reasoned?.status).toBe(SessionStatus.Cancelled);
+      expect(reasoned?.cancelReason).toBe("schedule conflict");
+
+      const bare = await SessionRepository.cancelSessionOnce(withoutReason.id, actors.studentUserId, null, tx);
+      expect(bare?.status).toBe(SessionStatus.Cancelled);
+      expect(bare?.cancelReason).toBeNull();
+    });
+  });
+
+  test("openDisputeOnce moves a scheduled row to disputed, persisting the reason and the dispute stamp", async () => {
+    await runInRollback(async tx => {
+      const actors = await createSessionActors(tx);
+      const row = await insertSessionRow(tx, actors);
+
+      const disputed = await SessionRepository.openDisputeOnce(row.id, actors.teacherUserId, "teacher no-show", tx);
+
+      expect(disputed).not.toBeNull();
+      expect(disputed?.status).toBe(SessionStatus.Disputed);
+      expect(disputed?.disputeReason).toBe("teacher no-show");
+      expect(disputed?.disputedAt).not.toBeNull();
+      expect(disputed?.disputedAt?.getTime()).toBe(disputed?.updatedAt.getTime());
+      // The escrow hold is deliberately untouched — the money stays frozen
+      // until the arbitration outcome.
+      expect(disputed?.feeHeld).toBe(true);
+      expect(disputed?.heldBalanceLane).toBe(HeldBalanceLane.Hifz);
+      // The row carries exactly the 21-column select shape.
+      expect(Object.keys(disputed ?? {}).toSorted((a, b) => a.localeCompare(b))).toEqual([...SESSION_ROW_KEYS]);
+    });
+  });
+
+  test("openDisputeOnce works from BOTH live states and from either participant", async () => {
+    await runInRollback(async tx => {
+      const actors = await createSessionActors(tx);
+      const scheduled = await insertSessionRow(tx, actors);
+      const started = await insertSessionRow(tx, actors);
+      const startedRow = await SessionRepository.startSessionOnce(started.id, actors.teacherUserId, tx);
+      expect(startedRow?.status).toBe(SessionStatus.Started);
+
+      const fromScheduled = await SessionRepository.openDisputeOnce(scheduled.id, actors.studentUserId, "r1", tx);
+      expect(fromScheduled?.status).toBe(SessionStatus.Disputed);
+      const fromStarted = await SessionRepository.openDisputeOnce(started.id, actors.studentUserId, "r2", tx);
+      expect(fromStarted?.status).toBe(SessionStatus.Disputed);
+      expect(fromStarted?.startedAt?.getTime()).toBe(startedRow?.startedAt?.getTime());
+    });
+  });
+
+  test("openDisputeOnce returns null and writes nothing for: wrong state, non-participant caller, unknown id", async () => {
+    await runInRollback(async tx => {
+      const actorsA = await createSessionActors(tx);
+      const actorsB = await createSessionActors(tx);
+      const missingSessionId = await absentSessionId(tx);
+
+      // A REAL non-participant: student B disputes A's session.
+      const rowA = await insertSessionRow(tx, actorsA);
+      const foreignCaller = await SessionRepository.openDisputeOnce(rowA.id, actorsB.studentUserId, "r", tx);
+      expect(foreignCaller).toBeNull();
+
+      // Terminal states are structurally unreachable for a dispute.
+      const completedRow = await insertSessionRow(tx, actorsA);
+      await SessionRepository.startSessionOnce(completedRow.id, actorsA.teacherUserId, tx);
+      await SessionRepository.completeSessionOnce(completedRow.id, actorsA.teacherUserId, tx);
+      const afterComplete = await SessionRepository.openDisputeOnce(completedRow.id, actorsA.studentUserId, "r", tx);
+      expect(afterComplete).toBeNull();
+      const stillCompleted = await readSessionRow(tx, completedRow.id);
+      expect(stillCompleted.status).toBe(SessionStatus.Completed);
+      expect(stillCompleted.disputeReason).toBeNull();
+
+      // Double-dispute: the second attempt matches zero rows and never
+      // rewrites the recorded reason.
+      const disputedRow = await insertSessionRow(tx, actorsA);
+      const first = await SessionRepository.openDisputeOnce(disputedRow.id, actorsA.studentUserId, "first", tx);
+      expect(first?.status).toBe(SessionStatus.Disputed);
+      const doubleDispute = await SessionRepository.openDisputeOnce(
+        disputedRow.id,
+        actorsA.teacherUserId,
+        "second",
+        tx
+      );
+      expect(doubleDispute).toBeNull();
+      const recorded = await readSessionRow(tx, disputedRow.id);
+      expect(recorded.disputeReason).toBe("first");
+
+      // Unknown session id.
+      const unknown = await SessionRepository.openDisputeOnce(missingSessionId, actorsA.studentUserId, "r", tx);
+      expect(unknown).toBeNull();
+    });
+  });
+
+  test("resolveDisputeCancelOnce resolves a disputed row to cancelled, clearing the hold and keeping the provenance lane", async () => {
+    await runInRollback(async tx => {
+      const actors = await createSessionActors(tx);
+      const row = await insertSessionRow(tx, actors);
+      const disputed = await SessionRepository.openDisputeOnce(row.id, actors.studentUserId, "r", tx);
+      expect(disputed?.status).toBe(SessionStatus.Disputed);
+
+      const resolved = await SessionRepository.resolveDisputeCancelOnce(row.id, "refunded in full", tx);
+
+      expect(resolved).not.toBeNull();
+      expect(resolved?.status).toBe(SessionStatus.Cancelled);
+      expect(resolved?.feeHeld).toBe(false);
+      // The provenance lane survives so the caller's same-lane refund can
+      // read it off the returned row.
+      expect(resolved?.heldBalanceLane).toBe(HeldBalanceLane.Hifz);
+      expect(resolved?.resolutionNote).toBe("refunded in full");
+      expect(resolved?.resolvedAt).not.toBeNull();
+      expect(resolved?.resolvedAt?.getTime()).toBe(resolved?.updatedAt.getTime());
+      // A cancellation never writes an end stamp; the dispute reason stays.
+      expect(resolved?.endedAt).toBeNull();
+      expect(resolved?.disputeReason).toBe("r");
+    });
+  });
+
+  test("resolveDisputeCancelOnce accepts a null note and rejects every non-disputed shape", async () => {
+    await runInRollback(async tx => {
+      const actors = await createSessionActors(tx);
+      const missingSessionId = await absentSessionId(tx);
+
+      const row = await insertSessionRow(tx, actors);
+      await SessionRepository.openDisputeOnce(row.id, actors.studentUserId, "r", tx);
+      const bare = await SessionRepository.resolveDisputeCancelOnce(row.id, null, tx);
+      expect(bare?.status).toBe(SessionStatus.Cancelled);
+      expect(bare?.resolutionNote).toBeNull();
+
+      // A scheduled row is not disputed — the guarded predicate misses.
+      const scheduledRow = await insertSessionRow(tx, actors);
+      const notDisputed = await SessionRepository.resolveDisputeCancelOnce(scheduledRow.id, "n", tx);
+      expect(notDisputed).toBeNull();
+      const stillScheduled = await readSessionRow(tx, scheduledRow.id);
+      expect(stillScheduled.status).toBe(SessionStatus.Scheduled);
+      expect(stillScheduled.feeHeld).toBe(true);
+
+      // Double-resolve: the second attempt matches zero rows.
+      const doubleResolve = await SessionRepository.resolveDisputeCancelOnce(row.id, "again", tx);
+      expect(doubleResolve).toBeNull();
+
+      // Unknown session id.
+      const unknown = await SessionRepository.resolveDisputeCancelOnce(missingSessionId, "n", tx);
+      expect(unknown).toBeNull();
+    });
+  });
+
+  test("resolveDisputeCompleteOnce completes a started dispute, consuming the hold and writing the end/resolution stamps", async () => {
+    await runInRollback(async tx => {
+      const actors = await createSessionActors(tx);
+      const row = await insertSessionRow(tx, actors);
+      const started = await SessionRepository.startSessionOnce(row.id, actors.teacherUserId, tx);
+      expect(started?.startedAt).not.toBeNull();
+      await SessionRepository.openDisputeOnce(row.id, actors.studentUserId, "r", tx);
+
+      const resolved = await SessionRepository.resolveDisputeCompleteOnce(row.id, "held per policy", tx);
+
+      expect(resolved).not.toBeNull();
+      expect(resolved?.status).toBe(SessionStatus.Completed);
+      // The hold is consumed in the same guarded statement; no wallet
+      // credit is part of this method.
+      expect(resolved?.feeHeld).toBe(false);
+      expect(resolved?.resolutionNote).toBe("held per policy");
+      expect(resolved?.resolvedAt).not.toBeNull();
+      expect(resolved?.endedAt).not.toBeNull();
+      expect(resolved?.endedAt?.getTime()).toBe(resolved?.resolvedAt?.getTime());
+      // The start stamp is preserved through the arbitration.
+      expect(resolved?.startedAt?.getTime()).toBe(started?.startedAt?.getTime());
+    });
+  });
+
+  test("resolveDisputeCompleteOnce rejects a never-started dispute and every non-disputed shape", async () => {
+    await runInRollback(async tx => {
+      const actors = await createSessionActors(tx);
+      const missingSessionId = await absentSessionId(tx);
+
+      // A disputed row that never started cannot complete — the fused
+      // IS-NOT-NULL predicate misses, and the row stays disputed.
+      const neverStarted = await insertSessionRow(tx, actors);
+      await SessionRepository.openDisputeOnce(neverStarted.id, actors.studentUserId, "r", tx);
+      const rejected = await SessionRepository.resolveDisputeCompleteOnce(neverStarted.id, "n", tx);
+      expect(rejected).toBeNull();
+      const stillDisputed = await readSessionRow(tx, neverStarted.id);
+      expect(stillDisputed.status).toBe(SessionStatus.Disputed);
+      expect(stillDisputed.feeHeld).toBe(true);
+      expect(stillDisputed.resolutionNote).toBeNull();
+
+      // Wrong state + unknown id.
+      const scheduledRow = await insertSessionRow(tx, actors);
+      const notDisputed = await SessionRepository.resolveDisputeCompleteOnce(scheduledRow.id, "n", tx);
+      expect(notDisputed).toBeNull();
+      const unknown = await SessionRepository.resolveDisputeCompleteOnce(missingSessionId, "n", tx);
+      expect(unknown).toBeNull();
+    });
+  });
+
+  test("findTransitionProbe returns exactly the five-column classification projection", async () => {
     await runInRollback(async tx => {
       const actors = await createSessionActors(tx);
       const row = await insertSessionRow(tx, actors);
@@ -507,12 +717,14 @@ describe("SessionRepository — transactional paths (runInRollback)", () => {
       expect(probe).not.toBeNull();
       expect(Object.keys(probe ?? {}).toSorted((a, b) => a.localeCompare(b))).toEqual([
         "id",
+        "startedAt",
         "status",
         "studentId",
         "teacherId",
       ]);
       expect(probe?.id).toBe(row.id);
       expect(probe?.status).toBe(SessionStatus.Scheduled);
+      expect(probe?.startedAt).toBeNull();
       expect(probe?.studentId).toBe(actors.studentUserId);
       expect(probe?.teacherId).toBe(actors.teacherUserId);
     });
@@ -527,7 +739,7 @@ describe("SessionRepository — transactional paths (runInRollback)", () => {
 
       const row = await insertSessionRow(tx, actors);
       await SessionRepository.startSessionOnce(row.id, actors.teacherUserId, tx);
-      await SessionRepository.cancelSessionOnce(row.id, actors.teacherUserId, tx);
+      await SessionRepository.cancelSessionOnce(row.id, actors.teacherUserId, null, tx);
 
       const probe = await SessionRepository.findTransitionProbe(row.id, tx);
       expect(probe?.status).toBe(SessionStatus.Cancelled);
@@ -681,6 +893,68 @@ describe("SessionRepository — transactional paths (runInRollback)", () => {
     });
   });
 
+  test("listAdminDisputed/countAdminDisputed surface exactly the disputed rows, newest first, with honest deltas and clamps", async () => {
+    await runInRollback(async tx => {
+      const actors = await createSessionActors(tx);
+      // My rows are stamped in the FUTURE so they deterministically sort
+      // ahead of any committed disputed rows other workers may have
+      // created (the shared test DB has no committed disputed writers, but
+      // the head-of-list property keeps the window assertions exact).
+      const now = Date.now();
+      const dispute1 = await insertSessionRow(tx, actors, { createdAt: new Date(now + 3_600_000) });
+      const dispute2 = await insertSessionRow(tx, actors, { createdAt: new Date(now + 2 * 3_600_000) });
+      const dispute3 = await insertSessionRow(tx, actors, { createdAt: new Date(now + 3 * 3_600_000) });
+      const liveRow = await insertSessionRow(tx, actors, { createdAt: new Date(now + 4 * 3_600_000) });
+
+      // Honest-count delta: exactly the three disputes I open move the
+      // total (the count companion shares the ONE pinned predicate with
+      // the list). The three opens are sequential — the shared oracle
+      // reads below require all three to have landed.
+      const before = await SessionRepository.countAdminDisputed(tx);
+      const opened1 = await SessionRepository.openDisputeOnce(
+        dispute1.id,
+        actors.studentUserId,
+        `reason-${dispute1.id}`,
+        tx
+      );
+      expect(opened1?.status).toBe(SessionStatus.Disputed);
+      const opened2 = await SessionRepository.openDisputeOnce(
+        dispute2.id,
+        actors.studentUserId,
+        `reason-${dispute2.id}`,
+        tx
+      );
+      expect(opened2?.status).toBe(SessionStatus.Disputed);
+      const opened3 = await SessionRepository.openDisputeOnce(
+        dispute3.id,
+        actors.studentUserId,
+        `reason-${dispute3.id}`,
+        tx
+      );
+      expect(opened3?.status).toBe(SessionStatus.Disputed);
+      const after = await SessionRepository.countAdminDisputed(tx);
+      expect(after - before).toBe(3);
+
+      // Newest first over the pinned predicate; the live (never disputed)
+      // row never appears even though it is the newest row overall.
+      const page = await SessionRepository.listAdminDisputed(25, 0, tx);
+      const myIds = [dispute3.id, dispute2.id, dispute1.id];
+      expect(page.slice(0, 3).map(row => row.id)).toEqual(myIds);
+      expect(page.map(row => row.id)).not.toContain(liveRow.id);
+
+      // Clamps: a short limit truncates the window; the offset skips
+      // forward without shrinking the honest total.
+      const clamped = await SessionRepository.listAdminDisputed(2, 0, tx);
+      expect(clamped.map(row => row.id)).toEqual([dispute3.id, dispute2.id]);
+      const offset = await SessionRepository.listAdminDisputed(2, 1, tx);
+      expect(offset.map(row => row.id)).toEqual([dispute2.id, dispute1.id]);
+      expect(await SessionRepository.countAdminDisputed(tx)).toBe(after);
+
+      // The returned rows carry the full 21-column select shape.
+      expect(Object.keys(page[0] ?? {}).toSorted((a, b) => a.localeCompare(b))).toEqual([...SESSION_ROW_KEYS]);
+    });
+  });
+
   // ─── Tier 3: guarded transitions under duplication ──────────────────
 
   test("double-start under Promise.allSettled produces exactly one winner and a started row", async () => {
@@ -739,8 +1013,8 @@ describe("SessionRepository — transactional paths (runInRollback)", () => {
       const row = await insertSessionRow(tx, actors);
 
       const outcomes = await Promise.allSettled([
-        SessionRepository.cancelSessionOnce(row.id, actors.studentUserId, tx),
-        SessionRepository.cancelSessionOnce(row.id, actors.studentUserId, tx),
+        SessionRepository.cancelSessionOnce(row.id, actors.studentUserId, null, tx),
+        SessionRepository.cancelSessionOnce(row.id, actors.studentUserId, null, tx),
       ]);
 
       expect(outcomes.map(outcome => outcome.status)).toEqual(["fulfilled", "fulfilled"]);
@@ -770,7 +1044,7 @@ describe("SessionRepository — transactional paths (runInRollback)", () => {
       // into a divergent state.
       const outcomes = await Promise.allSettled([
         SessionRepository.startSessionOnce(row.id, actors.teacherUserId, tx),
-        SessionRepository.cancelSessionOnce(row.id, actors.studentUserId, tx),
+        SessionRepository.cancelSessionOnce(row.id, actors.studentUserId, null, tx),
       ]);
 
       expect(outcomes.map(outcome => outcome.status)).toEqual(["fulfilled", "fulfilled"]);
@@ -929,7 +1203,7 @@ describe("SessionRepository — transactional paths (runInRollback)", () => {
       "eq(teacher.id, session.teacherId)",
       "eq(teacher.isApproved, true)",
     ]);
-    expect(interpolations).toHaveLength(9);
+    expect(interpolations).toHaveLength(14);
     for (const interpolation of interpolations) {
       expect(ALLOWED.has(interpolation)).toBe(true);
     }
@@ -948,12 +1222,12 @@ describe("SessionRepository — transactional paths (runInRollback)", () => {
 
   test("source: executor discipline — reads fall back to queryDb, writes to the pool, tx last on every signature", () => {
     expect(repoSource.includes("const executor = tx ?? db;")).toBe(true);
-    expect(repoSource.match(/const executor = tx \?\? db;/g) ?? []).toHaveLength(4);
-    expect(repoSource.match(/queryDb</g) ?? []).toHaveLength(4);
-    // Ten exported methods, every one ending in the optional tx (LAST
+    expect(repoSource.match(/const executor = tx \?\? db;/g) ?? []).toHaveLength(7);
+    expect(repoSource.match(/queryDb</g) ?? []).toHaveLength(6);
+    // Fifteen exported methods, every one ending in the optional tx (LAST
     // param); no REQUIRED-tx signature exists in this repository.
-    expect(repoSource.match(/export async function /g) ?? []).toHaveLength(10);
-    expect((repoSource.match(/tx\?: DBTransaction/g) ?? []).length).toBeGreaterThanOrEqual(10);
+    expect(repoSource.match(/export async function /g) ?? []).toHaveLength(15);
+    expect((repoSource.match(/tx\?: DBTransaction/g) ?? []).length).toBeGreaterThanOrEqual(15);
     expect(repoSource.includes("tx: DBTransaction")).toBe(false);
   });
 
@@ -1042,12 +1316,74 @@ describe("SessionRepository — standalone executor paths (committed fixtures)",
   });
 
   test("cancelSessionOnce runs on the pool fallback", async () => {
-    const cancelled = await SessionRepository.cancelSessionOnce(cancelTargetId, actors.studentUserId);
+    const cancelled = await SessionRepository.cancelSessionOnce(cancelTargetId, actors.studentUserId, null);
 
     expect(cancelled?.status).toBe(SessionStatus.Cancelled);
     expect(cancelled?.feeHeld).toBe(false);
     expect(cancelled?.heldBalanceLane).toBe(HeldBalanceLane.Hifz);
     expect(cancelled?.endedAt).toBeNull();
+  });
+
+  test("the dispute family and the admin pair run on the pool fallback and standalone read paths", async () => {
+    // Committed fixtures for the pool-fallback writes (cancel-outcome and
+    // complete-outcome arbitrations) and the standalone admin reads.
+    const fixture = await db.transaction(async tx => {
+      const pair = await createSessionActors(tx);
+      committedUserIds.push(pair.teacherUserId, pair.studentUserId);
+      const cancelOutcome = await insertSessionRow(tx, pair);
+      const startedOutcome = await insertSessionRow(tx, pair);
+      committedSessionIds.push(cancelOutcome.id, startedOutcome.id);
+      return { pair, cancelOutcome, startedOutcome };
+    });
+
+    // Pool-fallback writes: open a dispute from both live states.
+    const disputedFromScheduled = await SessionRepository.openDisputeOnce(
+      fixture.cancelOutcome.id,
+      fixture.pair.studentUserId,
+      "pool-open-1"
+    );
+    expect(disputedFromScheduled?.status).toBe(SessionStatus.Disputed);
+    expect(disputedFromScheduled?.disputeReason).toBe("pool-open-1");
+
+    const started = await SessionRepository.startSessionOnce(fixture.startedOutcome.id, fixture.pair.teacherUserId);
+    expect(started?.status).toBe(SessionStatus.Started);
+    const disputedFromStarted = await SessionRepository.openDisputeOnce(
+      fixture.startedOutcome.id,
+      fixture.pair.studentUserId,
+      "pool-open-2"
+    );
+    expect(disputedFromStarted?.status).toBe(SessionStatus.Disputed);
+
+    // The standalone admin pair sees both disputed rows (they carry the
+    // newest committed stamps — head of the list).
+    const adminPage = await SessionRepository.listAdminDisputed(25, 0);
+    const adminIds = [fixture.startedOutcome.id, fixture.cancelOutcome.id];
+    expect(adminPage.slice(0, 2).map(row => row.id)).toEqual(adminIds);
+    expect(adminPage[0]?.disputeReason).toBe("pool-open-2");
+    expect(await SessionRepository.countAdminDisputed()).toBeGreaterThanOrEqual(2);
+
+    // The standalone probe surfaces the start stamp for the arbitration.
+    const probe = await SessionRepository.findTransitionProbe(fixture.startedOutcome.id);
+    expect(probe?.startedAt).not.toBeNull();
+
+    // Pool-fallback resolutions: CANCEL releases the hold marker; COMPLETE
+    // consumes it.
+    const cancelled = await SessionRepository.resolveDisputeCancelOnce(fixture.cancelOutcome.id, "pool-cancel");
+    expect(cancelled?.status).toBe(SessionStatus.Cancelled);
+    expect(cancelled?.feeHeld).toBe(false);
+    expect(cancelled?.resolutionNote).toBe("pool-cancel");
+    expect(cancelled?.resolvedAt).not.toBeNull();
+
+    const completed = await SessionRepository.resolveDisputeCompleteOnce(fixture.startedOutcome.id, "pool-complete");
+    expect(completed?.status).toBe(SessionStatus.Completed);
+    expect(completed?.feeHeld).toBe(false);
+    expect(completed?.endedAt).not.toBeNull();
+    expect(completed?.resolvedAt).not.toBeNull();
+
+    // Resolved rows leave the arbitration queue.
+    const remaining = await SessionRepository.listAdminDisputed(25, 0);
+    expect(remaining.map(row => row.id)).not.toContain(fixture.cancelOutcome.id);
+    expect(remaining.map(row => row.id)).not.toContain(fixture.startedOutcome.id);
   });
 
   test("findById runs standalone via the queryDb read path", async () => {
@@ -1064,6 +1400,7 @@ describe("SessionRepository — standalone executor paths (committed fixtures)",
     expect(probe).not.toBeNull();
     expect(Object.keys(probe ?? {}).toSorted((a, b) => a.localeCompare(b))).toEqual([
       "id",
+      "startedAt",
       "status",
       "studentId",
       "teacherId",

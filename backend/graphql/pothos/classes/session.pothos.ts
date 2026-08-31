@@ -141,9 +141,10 @@ export const SessionPothosObject = gqlSchemaBuilder.objectRef<SessionReturnType>
     teacherId: t.exposeID("teacherId"),
     studentId: t.exposeID("studentId"),
     // Lifecycle status — mapped exhaustively onto the registered
-    // `SessionStatus` enum (`disputed` has no producer in this slice); an
-    // unmapped value fails the mapper's compile-time exhaustiveness guard
-    // and throws fail-closed at runtime.
+    // `SessionStatus` enum (the `disputed` member is produced by the
+    // participant dispute transition and consumed by the admin
+    // arbitration); an unmapped value fails the mapper's compile-time
+    // exhaustiveness guard and throws fail-closed at runtime.
     status: t.field({
       type: SessionStatusPothosEnum,
       resolve: parent => toSessionStatus(parent.status),
@@ -180,6 +181,17 @@ export const SessionPothosObject = gqlSchemaBuilder.objectRef<SessionReturnType>
     confirmedByTeacherAt: t.expose("confirmedByTeacherAt", { type: "DateTime", nullable: true }),
     confirmedByStudentAt: t.expose("confirmedByStudentAt", { type: "DateTime", nullable: true }),
     confirmationDeadline: t.expose("confirmationDeadline", { type: "DateTime", nullable: true }),
+    // Dispute + reason surface — nullable passthroughs: `cancelReason`
+    // persists a participant's trimmed cancellation text (NULL for rows
+    // cancelled without one or before the column existed);
+    // `disputeReason`/`disputedAt` record the arbitration request and
+    // `resolutionNote`/`resolvedAt` the admin outcome. Free-text members
+    // are nullable strings; the stamps are nullable `DateTime` scalars.
+    cancelReason: t.exposeString("cancelReason", { nullable: true }),
+    disputeReason: t.exposeString("disputeReason", { nullable: true }),
+    disputedAt: t.expose("disputedAt", { type: "DateTime", nullable: true }),
+    resolutionNote: t.exposeString("resolutionNote", { nullable: true }),
+    resolvedAt: t.expose("resolvedAt", { type: "DateTime", nullable: true }),
     // Row timestamps — NOT NULL columns, non-nullable `DateTime!`.
     createdAt: t.expose("createdAt", { type: "DateTime" }),
     updatedAt: t.expose("updatedAt", { type: "DateTime" }),

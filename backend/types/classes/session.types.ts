@@ -64,8 +64,12 @@ export interface SessionPageReturnType {
 
 /**
  * Cold-path probe row for transition-error classification: the minimal
- * column projection a service reads AFTER a guarded update returns null, to
- * disambiguate not-found vs not-a-participant vs wrong-state. Probe reads
- * never feed writes.
+ * column projection a service reads around a guarded update (after a
+ * zero-row miss; before the arbitration COMPLETE write), to disambiguate
+ * not-found vs not-a-participant vs wrong-state vs a never-started
+ * dispute. Probe reads never feed writes.
  */
-export type SessionTransitionProbeRowType = Pick<SessionSelectType, "id" | "status" | "studentId" | "teacherId">;
+export type SessionTransitionProbeRowType = Pick<
+  SessionSelectType,
+  "id" | "status" | "startedAt" | "studentId" | "teacherId"
+>;

@@ -17,10 +17,12 @@
  *  - `RegisterPublicRole` (public subset — student/teacher/parent — BFLA)
  *  - `RecitationReading`, `ApplicantStatus`
  *  - `SessionStatus`, `SessionType`, `SessionIntent` (scheduling domain)
+ *  - `DisputeResolution` (admin arbitration outcome vocabulary)
  *
  * After registering a new enum here, run `bun run generate:gqlSchema` and
  * `bun codegen` to refresh the SDL + frontend codegen.
  */
+import { DisputeResolution } from "@/backend/enum/scheduling/dispute-resolution.enum";
 import { SessionIntent } from "@/backend/enum/scheduling/session-intent.enum";
 import { SessionStatus } from "@/backend/enum/scheduling/session-status.enum";
 import { SessionType } from "@/backend/enum/scheduling/session-type.enum";
@@ -79,12 +81,26 @@ export const ApplicantStatusPothosEnum = gqlSchemaBuilder.enumType(ApplicantStat
  *
  * Registered ONCE from the canonical TS enum
  * (`backend/enum/scheduling/session-status.enum.ts`) mirroring the
- * `session_status` pgEnum. The `disputed` member exists in the enum with NO
- * transition surface producing it in this slice (B.18 — a future ticket owns
- * the producer), so no client can ever receive it today.
+ * `session_status` pgEnum. The `disputed` member is produced by the
+ * participant dispute transition and consumed by the admin arbitration
+ * (`DisputeResolution` below is the outcome vocabulary).
  */
 export const SessionStatusPothosEnum = gqlSchemaBuilder.enumType(SessionStatus, {
   name: "SessionStatus",
+});
+
+/**
+ * GraphQL `DisputeResolution` enum (Cancel|Complete) — the admin arbitration
+ * outcome vocabulary that exits the non-terminal `disputed` state into
+ * exactly one terminal state.
+ *
+ * Registered ONCE from the canonical TS enum
+ * (`backend/enum/scheduling/dispute-resolution.enum.ts`). There is NO
+ * pgEnum backing this vocabulary — it is a pure transition selector on the
+ * arbitration mutation, never a stored column value.
+ */
+export const DisputeResolutionPothosEnum = gqlSchemaBuilder.enumType(DisputeResolution, {
+  name: "DisputeResolution",
 });
 
 /**

@@ -512,12 +512,18 @@ describe("error-contract matrix — wire tier over live HTTP", () => {
     const result = await testClient.query({
       query: gql`
         query HealthProbe {
-          _health
+          _health {
+            status
+          }
         }
       `,
       fetchPolicy: "no-cache",
     });
-    expect(result.data).toEqual({ _health: "ok" });
+    // `_health` is the retyped NON-NULLABLE `HealthCheck!` object — a bare
+    // selection is a VALIDATION error, so the zero-op probe selects the
+    // `status` subfield (the Apollo normalize layer decorates the object
+    // with its `__typename` — part of the exact wire payload).
+    expect(result.data).toEqual({ _health: { __typename: "HealthCheck", status: "ok" } });
     expect(result.error).toBeUndefined();
   });
 

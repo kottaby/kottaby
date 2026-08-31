@@ -1,5 +1,6 @@
 /**
- * DEV3-004 session SDL surface suite — REQ-060 exact-contract parity.
+ * DEV3-004 session SDL surface suite — REQ-060 exact-contract parity,
+ * extended by the DEV3-005 dispute surface.
  *
  * What this locks down:
  *  - **Clean construction** — the production schema builds without throwing
@@ -10,12 +11,16 @@
  *  - **Enum member parity** — the three scheduling enums expose exactly the
  *    members of their canonical TS enums (`backend/enum/scheduling/`),
  *    mapped member-for-member onto the same runtime values. The `disputed`
- *    member exists per REQ-060/B.18 with NO producing transition surface in
- *    this slice.
- *  - **`Session` shape parity (plan §3.1)** — EXACT field list in the exact
- *    order (`id` FIRST — Apollo cache normalization), each field's exact
- *    GraphQL type string, `heldBalanceLane` DELIBERATELY ABSENT from the
- *    whole SDL (internal escrow provenance, never client-consumed).
+ *    member exists per REQ-060/B.18 and is PRODUCED by the DEV3-005
+ *    participant dispute transition (consumed by the admin arbitration).
+ *    The DEV3-005 `DisputeResolution` arbitration vocabulary (Cancel |
+ *    Complete) is pinned with the same member/value parity contract.
+ *  - **`Session` shape parity (plan §3.1 + DEV3-005 R-105/R-107)** — EXACT
+ *    field list in the exact order (`id` FIRST — Apollo cache
+ *    normalization), each field's exact GraphQL type string (including the
+ *    five nullable dispute/reason fields), `heldBalanceLane` DELIBERATELY
+ *    ABSENT from the whole SDL (internal escrow provenance, never
+ *    client-consumed).
  *  - **`SessionPage` shape parity** — the sanctioned list-wrapper exception:
  *    `items: [Session!]!` + the honest `totalCount`/`page`/`pageSize` echo.
  *
@@ -33,6 +38,7 @@
 
 import { describe, expect, test } from "bun:test";
 import { GraphQLEnumType, GraphQLObjectType, lexicographicSortSchema, printSchema } from "graphql";
+import { DisputeResolution } from "@/backend/enum/scheduling/dispute-resolution.enum";
 import { SessionIntent } from "@/backend/enum/scheduling/session-intent.enum";
 import { SessionStatus } from "@/backend/enum/scheduling/session-status.enum";
 import { SessionType } from "@/backend/enum/scheduling/session-type.enum";
@@ -71,7 +77,12 @@ function requireObject(name: string): GraphQLObjectType {
 
 // ─── Plan §3.1 exact contracts ───────────────────────────────────────────────
 
-/** Exact `Session` field list in plan §3.1 declaration order (`id` FIRST). */
+/**
+ * Exact `Session` field list in plan §3.1 declaration order (`id` FIRST),
+ * extended by the five DEV3-005 dispute/reason fields in their Pothos
+ * declaration position (after the confirmation stamps, before the row
+ * timestamps).
+ */
 const SESSION_FIELD_ORDER = [
   "id",
   "teacherId",
@@ -86,21 +97,31 @@ const SESSION_FIELD_ORDER = [
   "confirmedByTeacherAt",
   "confirmedByStudentAt",
   "confirmationDeadline",
+  "cancelReason",
+  "disputeReason",
+  "disputedAt",
+  "resolutionNote",
+  "resolvedAt",
   "createdAt",
   "updatedAt",
 ] as const;
 
-/** Exact per-field SDL type strings for `Session` (REQ-060). */
+/** Exact per-field SDL type strings for `Session` (REQ-060 + DEV3-005). */
 const SESSION_FIELD_TYPES: Record<string, string> = {
+  cancelReason: "String",
   confirmationDeadline: "DateTime",
   confirmedByStudentAt: "DateTime",
   confirmedByTeacherAt: "DateTime",
   createdAt: "DateTime!",
+  disputeReason: "String",
+  disputedAt: "DateTime",
   endedAt: "DateTime",
   fee: "String",
   feeHeld: "Boolean!",
   id: "ID!",
   intent: "SessionIntent",
+  resolutionNote: "String",
+  resolvedAt: "DateTime",
   sessionType: "SessionType!",
   startedAt: "DateTime",
   status: "SessionStatus!",
@@ -127,7 +148,7 @@ describe("Schema construction — scheduling enums registered exactly once", () 
 });
 
 describe("Scheduling enum member parity vs the canonical TS enums", () => {
-  test("SessionStatus exposes exactly the five canonical members (incl. producer-less `disputed`)", () => {
+  test("SessionStatus exposes exactly the five canonical members (incl. the DEV3-005-produced `disputed`)", () => {
     const enumType = requireEnum("SessionStatus");
 
     expect(
@@ -168,13 +189,27 @@ describe("Scheduling enum member parity vs the canonical TS enums", () => {
       expect(enumType.getValue(memberName)?.value).toBe(memberValue);
     }
   });
+
+  test("DisputeResolution exposes exactly the arbitration vocabulary (Cancel | Complete) with wire-identical values", () => {
+    const enumType = requireEnum("DisputeResolution");
+
+    expect(
+      enumType
+        .getValues()
+        .map(value => value.name)
+        .toSorted((a, b) => a.localeCompare(b))
+    ).toEqual(Object.keys(DisputeResolution).toSorted((a, b) => a.localeCompare(b)));
+    for (const [memberName, memberValue] of Object.entries(DisputeResolution)) {
+      expect(enumType.getValue(memberName)?.value).toBe(memberValue);
+    }
+  });
 });
 
 describe("Session object — plan §3.1 exact shape", () => {
   const sessionType = requireObject("Session");
   const fields = sessionType.getFields();
 
-  test("exposes EXACTLY the plan §3.1 field set (no extras, no omissions)", () => {
+  test("exposes EXACTLY the plan §3.1 field set plus the DEV3-005 dispute fields (no extras, no omissions)", () => {
     // GraphQL.js normalizes the field map (alphabetical key order); the
     // plan §3.1 declaration order (`id` FIRST) lives in the Pothos source
     // and is pinned by the file structure — here the EXACT field SET is

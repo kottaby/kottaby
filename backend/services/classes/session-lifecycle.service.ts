@@ -1,6 +1,8 @@
 /**
  * SessionLifecycleService — the booking + lifecycle state machine for the
- * `session` entity (scheduled → started → completed | cancelled).
+ * `session` entity (scheduled → started → completed | cancelled, with both
+ * live states able to pass through `disputed`: scheduled|started → disputed
+ * → cancelled|completed under admin arbitration).
  *
  * Booking (`createSession`) composes FOUR writes inside ONE transaction, in a
  * fixed order that is never reordered:
@@ -33,8 +35,17 @@
  * single guarded repository UPDATEs; a zero-row match is classified by ONE
  * cold probe read that never influences any write. Cancellation refunds the
  * lane that funded the hold inside the same transaction, and keeps the start
- * stamp while never writing an end stamp. Reads are participant-scoped and
- * oracle-safe: a foreign id is indistinguishable from a nonexistent one.
+ * stamp while never writing an end stamp; the trimmed reason persists inside
+ * the guarded UPDATE itself. Disputes (`openSessionDispute`) are the same
+ * participant-guarded shape from either live state; the arbitration
+ * (`resolveSessionDispute`) is admin-only (defense-in-depth role re-check
+ * on top of the GraphQL scope gate) and resolves a disputed row into exactly
+ * one terminal state — CANCEL refunds the recorded lane through the SAME
+ * same-lane primitive the participant cancel uses (one transaction, no
+ * partial application), COMPLETE requires a written start stamp and consumes
+ * the hold without any wallet credit. Reads are participant-scoped and
+ * oracle-safe: a foreign id is indistinguishable from a nonexistent one
+ * (the admin arbitration surface distinguishes state, never participants).
  *
  * Governance re-checks (deleted/blocked/suspended callers) re-assert the
  * login/SSR fail-closed gate at the service boundary as defense in depth.
@@ -57,10 +68,12 @@ import {
   TeacherRepository,
   UserRepository,
 } from "@/backend/db/repo";
+import { DisputeResolution, isDisputeResolution } from "@/backend/enum/scheduling/dispute-resolution.enum";
 import { HeldBalanceLane, isHeldBalanceLane } from "@/backend/enum/scheduling/held-balance-lane.enum";
 import { SessionIntent } from "@/backend/enum/scheduling/session-intent.enum";
 import { SessionStatus } from "@/backend/enum/scheduling/session-status.enum";
 import { SessionType } from "@/backend/enum/scheduling/session-type.enum";
+import { UserRole } from "@/backend/enum/users/user-role.enum";
 import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from "@/backend/lib/errors";
 import { logger } from "@/backend/lib/logger";
 import { withTransaction } from "@/backend/services/shared/withTransaction";
@@ -83,8 +96,8 @@ import { getServerTranslations } from "@/shared/locale/server-graphql";
 /** The idempotency claim column's maximum key length (varchar(128) backstop). */
 const MAX_IDEMPOTENCY_KEY_LENGTH = 128;
 
-/** A cancellation reason longer than this is rejected before any DB work. */
-const MAX_CANCEL_REASON_LENGTH = 500;
+/** A free-text reason/note longer than this is rejected before any DB work. */
+const MAX_REASON_LENGTH = 500;
 
 /** Default page size for the participant session lists. */
 const DEFAULT_PAGE_SIZE = 25;
@@ -99,6 +112,21 @@ const MAX_PAGE_SIZE = 50;
  * the vocabulary still flows from the enum, never from a bare literal.
  */
 const SESSION_STARTED_STATUS: string = SessionStatus.Started;
+
+/**
+ * The disputed status widened to a plain string at module scope — the same
+ * probe-row vocabulary treatment (the arbitration's pre-write probe and the
+ * admin resolution classification compare against this identity).
+ */
+const SESSION_DISPUTED_STATUS: string = SessionStatus.Disputed;
+
+/**
+ * The admin role widened to a plain string at module scope: the user row's
+ * `role` is the raw pg-enum string union, so the arbitration caller's
+ * defense-in-depth role re-assertion compares against the enum member's
+ * string identity — the vocabulary still flows from the enum.
+ */
+const USER_ADMIN_ROLE: string = UserRole.Admin;
 
 /**
  * Resolves the platform fee constant for a bookable intent. The fee is a
@@ -152,6 +180,40 @@ function assertPositiveSafeSessionId(
   if (!isPositiveSafeSessionId(id)) {
     throw new ValidationError(t.validation);
   }
+}
+
+/**
+ * Normalizes a REQUIRED free-text dispute reason: trims, then rejects
+ * whitespace-only and over-limit content with the pre-DB `VALIDATION`
+ * denial. The trimmed value is what the guarded UPDATE persists.
+ */
+function normalizeRequiredReasonText(
+  value: string,
+  t: ReturnType<typeof getServerTranslations>["errorsTranslations"]
+): string {
+  const trimmed = value.trim();
+  if (trimmed.length === 0 || trimmed.length > MAX_REASON_LENGTH) {
+    throw new ValidationError(t.validation);
+  }
+  return trimmed;
+}
+
+/**
+ * Normalizes an OPTIONAL free-text reason/note (the cancel reason and the
+ * arbitration note): trims, rejects over-limit content with the pre-DB
+ * `VALIDATION` denial, and maps a whitespace-only value to `null` (nothing
+ * is persisted for an empty contribution). The trimmed value is what the
+ * guarded UPDATE persists.
+ */
+function normalizeOptionalReasonText(
+  value: string | null,
+  t: ReturnType<typeof getServerTranslations>["errorsTranslations"]
+): string | null {
+  const trimmed = value === null ? null : value.trim();
+  if (trimmed !== null && trimmed.length > MAX_REASON_LENGTH) {
+    throw new ValidationError(t.validation);
+  }
+  return trimmed !== null && trimmed.length > 0 ? trimmed : null;
 }
 
 /**
@@ -426,22 +488,23 @@ export namespace SessionLifecycleService {
    * malformed id is the canonical `VALIDATION` denial, never a SQL
    * round-trip). Deliberately NO governance re-check: releasing an in-flight
    * hold stays available to a governed participant (governance flips never
-   * rewrite history). The optional reason is length-guarded and then
-   * DISCARDED —
-   * this flow persists no reason; the session status-history surface owns
-   * that persistence. The guarded transition keeps the start stamp and never
-   * writes an end stamp. On success, a row whose provenance lane is set is
-   * refunded by one unit on that same lane inside the same transaction
-   * (unguarded increment — the lane that paid is refunded exactly once);
-   * a terminal or foreign target is classified by one cold probe read
-   * (unknown/non-participant → not-found; anything else → transition
-   * conflict), so a double cancel can never double-refund.
+   * rewrite history). The optional reason is length-guarded and persisted
+   * TRIMMED inside the guarded UPDATE itself (`cancel_reason`; a
+   * whitespace-only reason persists as NULL) — the predicate and stamps are
+   * otherwise unchanged. The guarded transition keeps the start stamp and
+   * never writes an end stamp. On success, a row whose provenance lane is
+   * set is refunded by one unit on that same lane inside the same
+   * transaction through the shared same-lane refund primitive (unguarded
+   * increment — the lane that paid is refunded exactly once); a terminal or
+   * foreign target is classified by one cold probe read (unknown/
+   * non-participant → not-found; anything else → transition conflict), so a
+   * double cancel can never double-refund.
    *
    * @param callerUserId  The acting participant's id (the session's student
    *     or its teacher).
    * @param sessionId  The target session id.
    * @param reason  Optional free-text reason — validated (≤500 chars) and
-   *     deliberately not persisted by this flow.
+   *     persisted trimmed into `cancel_reason` by this flow.
    * @param locale  Active request locale (for the localized error messages).
    * @param outerTx  Optional outer transaction. When provided (test path),
    *     the flow runs inside a SAVEPOINT on it; production callers omit it
@@ -461,32 +524,176 @@ export namespace SessionLifecycleService {
     // denial, never a SQL round-trip.
     assertPositiveSafeSessionId(sessionId, t);
 
-    // The reason is guarded, then discarded — never persisted by this flow.
-    if (reason !== null && reason.trim().length > MAX_CANCEL_REASON_LENGTH) {
-      throw new ValidationError(t.validation);
-    }
+    // The reason is guarded, trimmed, and persisted inside the guarded
+    // UPDATE (NULL when absent or whitespace-only).
+    const cancelReason = normalizeOptionalReasonText(reason, t);
 
     return withTransaction(outerTx, async tx => {
-      const cancelled = await SessionRepository.cancelSessionOnce(sessionId, callerUserId, tx);
+      const cancelled = await SessionRepository.cancelSessionOnce(sessionId, callerUserId, cancelReason, tx);
       if (cancelled === null) {
         throw await rejectTransitionMiss("participantCancel", sessionId, callerUserId, tx, t);
       }
 
-      // Refund the lane that funded the hold — same transaction, same lane.
-      // The provenance column is a varchar read back from the row: an
-      // unreadable value fails closed (the refusal rolls the cancellation
-      // back, leaving the hold and the row consistent).
-      if (cancelled.heldBalanceLane !== null) {
-        if (!isHeldBalanceLane(cancelled.heldBalanceLane)) {
-          logger.error("Session cancellation blocked: unreadable held-balance lane", {
-            sessionId: cancelled.id,
-          });
-          throw new Error("SessionLifecycleService.cancelSession: unreadable held-balance lane");
-        }
-        await StudentRepository.incrementLane(cancelled.studentId, cancelled.heldBalanceLane, tx);
-      }
+      // Refund the lane that funded the hold — same transaction, same lane,
+      // through the ONE shared same-lane refund primitive.
+      await refundHeldLaneToProvenance(cancelled, "cancelSession", tx);
 
       return cancelled;
+    });
+  }
+
+  /**
+   * Opens a dispute on a live session (pre-start or in-progress) as either
+   * participant, moving the row into the arbitration state exactly once.
+   *
+   * The target session id is guarded as a positive safe integer BEFORE any
+   * database work (REQ-054). The reason is REQUIRED: trimmed non-empty and
+   * ≤500 chars, validated pre-DB. Deliberately NO governance re-check
+   * (mirroring the cancel exemption: a dispute is a participant's
+   * self-protection action over their own row; the participant predicate is
+   * the whole authorization surface). The escrow hold is deliberately
+   * untouched — the money stays frozen until the admin resolution. A
+   * zero-row match is classified by one cold probe read (unknown/
+   * non-participant → not-found, oracle-safe; anything else → transition
+   * conflict), so a double dispute can never rewrite a recorded reason.
+   *
+   * @param callerUserId  The acting participant's id (the session's student
+   *     or its teacher).
+   * @param sessionId  The target session id.
+   * @param reason  REQUIRED free-text reason — trimmed non-empty, ≤500
+   *     chars, persisted into `dispute_reason`.
+   * @param locale  Active request locale (for the localized error messages).
+   * @param outerTx  Optional outer transaction. When provided (test path),
+   *     the flow runs inside a SAVEPOINT on it; production callers omit it
+   *     and the service opens its own transaction.
+   */
+  export async function openSessionDispute(
+    callerUserId: number,
+    sessionId: number,
+    reason: string,
+    locale: string,
+    outerTx?: DBTransaction
+  ): Promise<SessionReturnType> {
+    const t = getServerTranslations(locale).errorsTranslations;
+
+    // Pre-DB id-shape guard (REQ-054) — the FIRST check of the flow, before
+    // the reason guard.
+    assertPositiveSafeSessionId(sessionId, t);
+
+    // The reason is REQUIRED: trimmed non-empty, ≤500 — validated pre-DB.
+    const disputeReason = normalizeRequiredReasonText(reason, t);
+
+    return withTransaction(outerTx, async tx => {
+      const disputed = await SessionRepository.openDisputeOnce(sessionId, callerUserId, disputeReason, tx);
+      if (disputed === null) {
+        throw await rejectTransitionMiss("participantDispute", sessionId, callerUserId, tx, t);
+      }
+      return disputed;
+    });
+  }
+
+  /**
+   * Resolves a disputed session into exactly one terminal state, as an
+   * ADMIN (the arbitration surface).
+   *
+   * The target session id is guarded as a positive safe integer BEFORE any
+   * database work (REQ-054). The resolution vocabulary is re-guarded at
+   * runtime (a payload that skipped the GraphQL enum boundary fails closed
+   * pre-DB) and the optional note is trimmed, ≤500-checked, and persisted
+   * (`resolution_note`; whitespace-only persists as NULL). The caller's
+   * governance AND admin role are re-asserted from the user row — defense
+   * in depth on top of the GraphQL scope gate (a still-valid token held by
+   * a demoted or governed account fails closed here with the canonical
+   * FORBIDDEN).
+   *
+   * Inside ONE transaction:
+   *  - `Cancel`  → the guarded UPDATE flips the row to `cancelled`, clears
+   *    the hold marker, and writes the note + stamp; the same-lane refund
+   *    (the EXACT primitive the participant cancel composes) runs on the
+   *    same transaction, so the refund and the status flip commit
+   *    atomically — partial application is impossible.
+   *  - `Complete` → one cold probe read FIRST classifies a disputed row
+   *    that never started as pre-DB `VALIDATION` (cannot complete what
+   *    never happened); the guarded UPDATE then flips the row to
+   *    `completed`, consumes the hold (`fee_held = false` — no wallet
+   *    credit), and writes the end/note/stamps. Unknown ids and wrong-state
+   *    rows fall through to the guarded UPDATE and classify through the
+   *    standard probe chain (unknown → not-found; any existing row that
+   *    missed → transition conflict — the admin surface distinguishes
+   *    state, never participants).
+   *
+   * @param adminId  The acting admin's id (context-resolved server-side by
+   *     the caller; shared PK with the users table).
+   * @param sessionId  The target session id.
+   * @param resolution  The arbitration outcome (Cancel | Complete).
+   * @param note  Optional free-text note — trimmed ≤500, persisted into
+   *     `resolution_note`.
+   * @param locale  Active request locale (for the localized error messages).
+   * @param outerTx  Optional outer transaction. When provided (test path),
+   *     the flow runs inside a SAVEPOINT on it; production callers omit it
+   *     and the service opens its own transaction.
+   */
+  export async function resolveSessionDispute(
+    adminId: number,
+    sessionId: number,
+    resolution: DisputeResolution,
+    note: string | null,
+    locale: string,
+    outerTx?: DBTransaction
+  ): Promise<SessionReturnType> {
+    const t = getServerTranslations(locale).errorsTranslations;
+
+    // Pre-DB id-shape guard (REQ-054) — the FIRST check of the flow.
+    assertPositiveSafeSessionId(sessionId, t);
+
+    // The resolution vocabulary is a closed runtime guard (BOPLA — a
+    // payload that skipped the boundary's enum parse fails closed here,
+    // pre-DB).
+    if (!isDisputeResolution(resolution)) {
+      throw new ValidationError(t.validation);
+    }
+
+    // The optional note: trimmed, ≤500 — validated pre-DB; whitespace-only
+    // persists as NULL.
+    const resolutionNote = normalizeOptionalReasonText(note, t);
+
+    // Governance + role re-check — the acting caller must be a
+    // governance-clean ADMIN (defense in depth over the scope gate).
+    await assertAdminGovernanceClean(adminId, t, outerTx);
+
+    return withTransaction(outerTx, async tx => {
+      if (resolution === DisputeResolution.Complete) {
+        // Pre-write classification (one cold probe read): a disputed row
+        // that never started cannot complete — VALIDATION before the
+        // guarded UPDATE. Unknown ids and wrong-state rows fall through to
+        // the guarded UPDATE and classify through the standard probe chain.
+        const probe = await SessionRepository.findTransitionProbe(sessionId, tx);
+        if (probe !== null && probe.status === SESSION_DISPUTED_STATUS && probe.startedAt === null) {
+          logger.logDomainError("Session arbitration denied: disputed session never started", {
+            code: "VALIDATION",
+            entity: "session",
+            entityId: sessionId,
+          });
+          throw new ValidationError(t.validation);
+        }
+      }
+
+      const resolved =
+        resolution === DisputeResolution.Cancel
+          ? await SessionRepository.resolveDisputeCancelOnce(sessionId, resolutionNote, tx)
+          : await SessionRepository.resolveDisputeCompleteOnce(sessionId, resolutionNote, tx);
+      if (resolved === null) {
+        throw await rejectTransitionMiss("adminResolve", sessionId, adminId, tx, t);
+      }
+
+      // CANCEL outcome: refund the lane that funded the hold — same
+      // transaction, same primitive as the participant cancel, so the
+      // refund and the status flip commit atomically.
+      if (resolution === DisputeResolution.Cancel) {
+        await refundHeldLaneToProvenance(resolved, "resolveSessionDispute", tx);
+      }
+
+      return resolved;
     });
   }
 
@@ -606,6 +813,59 @@ export namespace SessionLifecycleService {
     return { items, totalCount, page: bounds.page, pageSize: bounds.pageSize };
   }
 
+  /**
+   * Lists the disputed sessions for the admin arbitration surface, newest
+   * first, paged.
+   *
+   * The limit clamp mirrors the participant lists exactly (1..50, default
+   * 25) and the offset floors at zero — both normalize pre-DB, never
+   * error. The lifecycle filter is guarded against the closed status
+   * vocabulary like every other read; the field's `disputed` scope is
+   * PINNED, so an explicitly contradictory filter (any status other than
+   * disputed) honestly resolves to an empty page without touching the
+   * database, while an absent/whitespace-drop filter returns the full
+   * arbitration queue. The total count is computed under the SAME pinned
+   * predicate as the list, so `totalCount` can never diverge from the
+   * items. The `limit`/`offset` window maps onto the page echo honestly:
+   * `pageSize` is the clamped limit and `page` is the 1-based window index
+   * that contains the requested offset.
+   *
+   * The admin role gate lives at the GraphQL scope (`$all { authenticated,
+   * role: [Admin] }`); this read takes no caller identity and never raises
+   * localized errors (the read-surface contract).
+   *
+   * @param filter  Optional lifecycle filter (absent/null members drop
+   *     out; a non-disputed member contradicts the pinned scope).
+   * @param limit  Requested page size (1..50; invalid values normalize to
+   *     the default).
+   * @param offset  Requested row offset (≥ 0; invalid values normalize to
+   *     0).
+   * @param tx  Optional transaction — propagated to both reads.
+   */
+  export async function listAdminDisputedSessions(
+    filter: SessionListFilterInput,
+    limit: number,
+    offset: number,
+    tx?: DBTransaction
+  ): Promise<SessionPageReturnType> {
+    const safeLimit = Number.isSafeInteger(limit) && limit >= 1 && limit <= MAX_PAGE_SIZE ? limit : DEFAULT_PAGE_SIZE;
+    const safeOffset = Number.isSafeInteger(offset) && offset >= 0 ? offset : 0;
+    const page = Math.floor(safeOffset / safeLimit) + 1;
+
+    // A filter explicitly contradicting the pinned disputed scope (any
+    // in-vocabulary status other than disputed) matches zero rows by
+    // definition — the honest empty page, no database round-trip.
+    const guardedStatus = guardStatusFilter(filter).status;
+    if (guardedStatus !== null && guardedStatus !== SessionStatus.Disputed) {
+      return { items: [], totalCount: 0, page, pageSize: safeLimit };
+    }
+
+    const items = await SessionRepository.listAdminDisputed(safeLimit, safeOffset, tx);
+    const totalCount = await SessionRepository.countAdminDisputed(tx);
+
+    return { items, totalCount, page, pageSize: safeLimit };
+  }
+
   // ─── Internals ────────────────────────────────────────────────────────
 
   /**
@@ -631,6 +891,66 @@ export namespace SessionLifecycleService {
       });
       throw new ForbiddenError(t.forbidden);
     }
+  }
+
+  /**
+   * Re-asserts the FULL arbitration authorization for a caller at the
+   * service boundary: the account must be governance-clean AND hold the
+   * admin role. The GraphQL scope gate enforces the same role leg — this
+   * is the defense-in-depth layer for still-valid tokens held by an
+   * account that was demoted or governed after login (the DB row is the
+   * authority, never the token). The denial is the typed `ForbiddenError`
+   * (`extensions.code` = `FORBIDDEN`, 403 per the error-code taxonomy).
+   */
+  async function assertAdminGovernanceClean(
+    actorUserId: number,
+    t: ReturnType<typeof getServerTranslations>["errorsTranslations"],
+    tx?: DBTransaction
+  ): Promise<void> {
+    const actor = await UserRepository.findById(actorUserId, tx);
+    if (!actor || actor.isDeleted || actor.isBlocked || actor.suspended) {
+      logger.logDomainError("Session arbitration denied: caller account is governed", {
+        code: "FORBIDDEN",
+        entity: "session",
+        entityId: actorUserId,
+      });
+      throw new ForbiddenError(t.forbidden);
+    }
+    if (actor.role !== USER_ADMIN_ROLE) {
+      logger.logDomainError("Session arbitration denied: caller is not an admin", {
+        code: "FORBIDDEN",
+        entity: "session",
+        entityId: actorUserId,
+      });
+      throw new ForbiddenError(t.forbidden);
+    }
+  }
+
+  /**
+   * Refunds a cancelled/resolved row's held fee to its recorded provenance
+   * lane — the ONE same-lane primitive shared by the participant cancel
+   * and the arbitration CANCEL outcome, always on the caller's transaction
+   * (the refund and its status flip commit atomically or not at all). A
+   * row with no recorded lane has nothing to refund. The provenance column
+   * is a varchar read back from the row: an unreadable value fails closed
+   * (the refusal rolls the cancellation/resolution back, leaving the hold
+   * and the row consistent).
+   */
+  async function refundHeldLaneToProvenance(
+    resolved: SessionReturnType,
+    context: "cancelSession" | "resolveSessionDispute",
+    tx: DBTransaction
+  ): Promise<void> {
+    if (resolved.heldBalanceLane === null) {
+      return;
+    }
+    if (!isHeldBalanceLane(resolved.heldBalanceLane)) {
+      logger.error("Session lifecycle blocked: unreadable held-balance lane", {
+        sessionId: resolved.id,
+      });
+      throw new Error(`SessionLifecycleService.${context}: unreadable held-balance lane`);
+    }
+    await StudentRepository.incrementLane(resolved.studentId, resolved.heldBalanceLane, tx);
   }
 
   /**
@@ -677,14 +997,17 @@ export namespace SessionLifecycleService {
    * Classification (after the probe):
    *  - unknown id → session-not-found;
    *  - a caller the row does not belong to → session-not-found (oracle-safe:
-   *    a foreign target is indistinguishable from a nonexistent one);
+   *    a foreign target is indistinguishable from a nonexistent one) — for
+   *    the participant kinds; the admin arbitration kind is role-gated
+   *    upstream and NOT participant-gated, so any existing row that missed
+   *    is a lifecycle-state conflict;
    *  - everything else is a lifecycle-state conflict — EXCEPT the completion
    *    of an owned in-progress row, where the fused certification predicate
    *    inside the guarded statement is the only remaining miss cause and the
    *    typed certification conflict is surfaced instead.
    */
   async function rejectTransitionMiss(
-    kind: "teacherStart" | "teacherComplete" | "participantCancel",
+    kind: "teacherStart" | "teacherComplete" | "participantCancel" | "participantDispute" | "adminResolve",
     sessionId: number,
     actorUserId: number,
     tx: DBTransaction | undefined,
@@ -713,6 +1036,39 @@ export namespace SessionLifecycleService {
       // cause (a terminal state, or a row mid-transition at the guarded
       // statement's instant) is lifecycle-state-class.
       logger.logDomainError("Session transition denied: session not cancellable in its current state", {
+        code: "SESSION_INVALID_TRANSITION",
+        entity: "session",
+        entityId: sessionId,
+      });
+      throw new ConflictError("SESSION_INVALID_TRANSITION", t.sessionInvalidTransition);
+    }
+
+    if (kind === "participantDispute") {
+      if (probe.studentId !== actorUserId && probe.teacherId !== actorUserId) {
+        logger.logDomainError("Session dispute denied: caller is not a participant", {
+          code: "SESSION_NOT_FOUND",
+          entity: "session",
+          entityId: sessionId,
+        });
+        throw new NotFoundError("SESSION", t.sessionNotFound);
+      }
+      // The row exists and the caller participates: every remaining miss
+      // cause (a terminal or already-disputed row, or a row mid-transition
+      // at the guarded statement's instant) is lifecycle-state-class.
+      logger.logDomainError("Session dispute denied: session not disputable in its current state", {
+        code: "SESSION_INVALID_TRANSITION",
+        entity: "session",
+        entityId: sessionId,
+      });
+      throw new ConflictError("SESSION_INVALID_TRANSITION", t.sessionInvalidTransition);
+    }
+
+    if (kind === "adminResolve") {
+      // The arbitration surface is role-gated upstream and NOT
+      // participant-gated: any existing row that failed the guarded
+      // predicate is a lifecycle-state conflict (the admin is trusted to
+      // see state, never participant membership).
+      logger.logDomainError("Session arbitration denied: session not resolvable in its current state", {
         code: "SESSION_INVALID_TRANSITION",
         entity: "session",
         entityId: sessionId,

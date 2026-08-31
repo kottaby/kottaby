@@ -14,22 +14,25 @@
  *  - **Surface freeze** — against the frozen baseline inventory (captured
  *    at HEAD `8e5ebb8`): every post-baseline addition is pinned by name —
  *    query fields grow ONLY by the sanctioned probe `_health`,
- *    `myApplicantProfile` (DEV2-004) and the DEV3-004 participant-read
- *    trio (`sessionById`, `myStudentSessions`, `myTeacherSessions`); the
- *    mutation set grows ONLY by the DEV3-004 lifecycle quartet
+ *    `myApplicantProfile` (DEV2-004), the DEV3-004 participant-read
+ *    trio (`sessionById`, `myStudentSessions`, `myTeacherSessions`) and
+ *    the DEV3-005 admin arbitration listing (`adminDisputedSessions`);
+ *    the mutation set grows ONLY by the DEV3-004 lifecycle quartet
  *    (`createSession`, `startSession`, `completeSession`,
- *    `cancelSession`); the enum set grows ONLY by `ApplicantStatus`
- *    (DEV2-004) and the DEV3-004 scheduling trio (`SessionStatus`,
+ *    `cancelSession`) AND the DEV3-005 dispute pair (`openSessionDispute`,
+ *    `resolveSessionDispute`); the enum set grows ONLY by `ApplicantStatus`
+ *    (DEV2-004), the DEV3-004 scheduling trio (`SessionStatus`,
  *    `SessionType`, `SessionIntent` — registered ONCE in
- *    `shared/enum.pothos.ts`); and the whole-schema named-type delta is
+ *    `shared/enum.pothos.ts`) and the DEV3-005 arbitration vocabulary
+ *    (`DisputeResolution`); and the whole-schema named-type delta is
  *    exactly {ApplicantProfile, ApplicantStatus, DateTime, HealthCheck}
  *    (DEV2-004 surface + the `DateTime` scalar registered in
- *    `shared/scalar.pothos.ts`), the DEV3-004 scheduling enums, and the
+ *    `shared/scalar.pothos.ts`), the DEV3-004 scheduling enums, the
  *    DEV3-004 session objects/inputs (`Session`, `SessionPage`,
- *    `CreateSessionInput`, `SessionListFilterInput`) — the latter joined
- *    the production type map when the Phase-3 resolver modules wired the
- *    root fields (DEV3-004 tasks 3.2/3.3) and the barrels were registered
- *    (task 3.4).
+ *    `CreateSessionInput`, `SessionListFilterInput`) and the DEV3-005
+ *    arbitration enum — the session objects joined the production type
+ *    map when the Phase-3 resolver modules wired the root fields
+ *    (DEV3-004 tasks 3.2/3.3) and the barrels were registered (task 3.4).
  *  - **Allowlist agreement** — the scopeless `_health` field is present in
  *    the closed `PUBLIC_OPERATION_NAMES` tuple / `PUBLIC_OPERATIONS` set
  *    1:1 (schema↔allowlist agreement enforced as code).
@@ -44,7 +47,9 @@
  *    (read-only disk access; the suite writes NOTHING). Belt-and-braces
  *    pins assert the DEV3-004 session surface is really inside the
  *    committed artifact (seven root operations + the two object types +
- *    the two input types).
+ *    the two input types) plus the DEV3-005 dispute surface (the three
+ *    new root operations, the arbitration enum, and the five nullable
+ *    `Session` fields).
  *
  * Pure unit tier — NO server boot, NO network, NO DB. Runs via the mandated
  * runner: `bun run test/scripts/run-test.ts backend/graphql/test/schema-surface.test.ts`.
@@ -81,8 +86,22 @@ const PRE_3_1_MUTATION_FIELDS = ["login", "logout", "refreshToken", "registerUse
  * (`backend/lib/gateway/public-operations.ts` stays byte-unchanged).
  */
 const DEV3_004_QUERY_FIELDS = ["myStudentSessions", "myTeacherSessions", "sessionById"] as const;
+/** DEV3-005 admin arbitration listing — the admin-gated disputed queue. */
+const DEV3_005_QUERY_FIELDS = ["adminDisputedSessions"] as const;
 /** DEV3-004 lifecycle mutation quartet (plan §3.1/§3.2 — REQ-060/061). */
 const DEV3_004_MUTATION_FIELDS = ["cancelSession", "completeSession", "createSession", "startSession"] as const;
+/** DEV3-005 dispute mutation pair (R-102/R-104). */
+const DEV3_005_MUTATION_FIELDS = ["openSessionDispute", "resolveSessionDispute"] as const;
+/** DEV3-005 arbitration outcome vocabulary — registered ONCE, no pgEnum backing. */
+const DEV3_005_ENUMS = ["DisputeResolution"] as const;
+/** DEV3-005 nullable `Session` fields — the dispute + reason surface (R-105/R-107). */
+const DEV3_005_SESSION_FIELDS = [
+  "cancelReason",
+  "disputeReason",
+  "disputedAt",
+  "resolutionNote",
+  "resolvedAt",
+] as const;
 /** GraphQL enum type names — every new Pothos enum must be pinned here by name. */
 const PRE_3_1_ENUMS = ["ApplicantStatus", "Gender", "RecitationReading", "RegisterPublicRole", "UserRole"] as const;
 /** DEV3-004 scheduling enum trio — registered ONCE in `shared/enum.pothos.ts`. */
@@ -133,13 +152,14 @@ describe("Query._health — retyped probe surface", () => {
       expect(fieldNames).toContain(name);
     }
     // …and the ONLY additions beyond them are the probe, the DEV2-004
-    // applicant-profile query, and the DEV3-004 participant-read trio.
+    // applicant-profile query, the DEV3-004 participant-read trio, and
+    // the DEV3-005 admin arbitration listing.
     const additions = fieldNames.filter(name => !(PRE_3_1_QUERY_FIELDS as readonly string[]).includes(name));
-    expect(additions.toSorted((a, b) => a.localeCompare(b))).toEqual([
-      "_health",
-      "myApplicantProfile",
-      ...DEV3_004_QUERY_FIELDS,
-    ]);
+    expect(additions.toSorted((a, b) => a.localeCompare(b))).toEqual(
+      ["_health", "myApplicantProfile", ...DEV3_004_QUERY_FIELDS, ...DEV3_005_QUERY_FIELDS].toSorted((a, b) =>
+        a.localeCompare(b)
+      )
+    );
   });
 
   test("`_health` is NON-NULLABLE `HealthCheck!` (retyped from the String! placeholder)", () => {
@@ -199,7 +219,7 @@ describe("HealthCheck object shape — four scalar fields, no id", () => {
 });
 
 describe("Surface freeze — pinned additions vs the baseline inventory", () => {
-  test("mutation set grows ONLY by the DEV3-004 lifecycle quartet", () => {
+  test("mutation set grows ONLY by the DEV3-004 lifecycle quartet AND the DEV3-005 dispute pair", () => {
     const mutationFields = graphQLSchema.getMutationType()?.getFields() ?? {};
     const names = Object.keys(mutationFields).toSorted((a, b) => a.localeCompare(b));
 
@@ -207,11 +227,13 @@ describe("Surface freeze — pinned additions vs the baseline inventory", () => 
     for (const name of PRE_3_1_MUTATION_FIELDS) {
       expect(names).toContain(name);
     }
-    // …and the ONLY additions are the DEV3-004 quartet (all authScopes-
-    // gated — none of them is allowlist material; the public-operation
-    // registry stays byte-unchanged).
+    // …and the ONLY additions are the DEV3-004 quartet and the DEV3-005
+    // dispute pair (all authScopes-gated — none of them is allowlist
+    // material; the public-operation registry stays byte-unchanged).
     expect(names).toEqual(
-      [...PRE_3_1_MUTATION_FIELDS, ...DEV3_004_MUTATION_FIELDS].toSorted((a, b) => a.localeCompare(b))
+      [...PRE_3_1_MUTATION_FIELDS, ...DEV3_004_MUTATION_FIELDS, ...DEV3_005_MUTATION_FIELDS].toSorted((a, b) =>
+        a.localeCompare(b)
+      )
     );
     expect(names).not.toContain("_health");
   });
@@ -222,10 +244,47 @@ describe("Surface freeze — pinned additions vs the baseline inventory", () => 
       .map(type => type.name)
       .toSorted((a, b) => a.localeCompare(b));
 
-    expect(enumNames).toEqual([...PRE_3_1_ENUMS, ...DEV3_004_ENUMS].toSorted((a, b) => a.localeCompare(b)));
+    expect(enumNames).toEqual(
+      [...PRE_3_1_ENUMS, ...DEV3_004_ENUMS, ...DEV3_005_ENUMS].toSorted((a, b) => a.localeCompare(b))
+    );
   });
 
-  test("whole-schema named-type delta is pinned: HealthCheck + DEV2-004 applicant surface + DateTime scalar + DEV3-004 scheduling enums + session objects/inputs", () => {
+  test("DisputeResolution exposes exactly the arbitration vocabulary (Cancel | Complete)", () => {
+    const disputeEnum = graphQLSchema.getType("DisputeResolution");
+
+    if (!(disputeEnum instanceof GraphQLEnumType)) {
+      throw new Error("DisputeResolution must be registered as a GraphQL enum type");
+    }
+    expect(
+      disputeEnum
+        .getValues()
+        .map(value => value.name)
+        .toSorted((a, b) => a.localeCompare(b))
+    ).toEqual(["Cancel", "Complete"]);
+  });
+
+  test("Session exposes EXACTLY the DEV3-004 field set plus the five DEV3-005 nullable dispute fields", () => {
+    const sessionType = graphQLSchema.getType("Session");
+
+    if (!(sessionType instanceof GraphQLObjectType)) {
+      throw new Error("Session must be registered as a GraphQL object type");
+    }
+    const fields = sessionType.getFields();
+    for (const name of DEV3_005_SESSION_FIELDS) {
+      expect(Object.hasOwn(fields, name)).toBe(true);
+    }
+    // All five are nullable (no `!` wrapping) — the dispute/reason data is
+    // optional on every row (rows cancelled/disputed/resolved before this
+    // ticket carry NULL).
+    for (const name of ["cancelReason", "disputeReason", "resolutionNote"]) {
+      expect(fields[name]?.type.toString()).toBe("String");
+    }
+    for (const name of ["disputedAt", "resolvedAt"]) {
+      expect(fields[name]?.type.toString()).toBe("DateTime");
+    }
+  });
+
+  test("whole-schema named-type delta is pinned: HealthCheck + DEV2-004 applicant surface + DateTime scalar + DEV3-004 scheduling enums + session objects/inputs + DEV3-005 arbitration enum", () => {
     const post = new Set(sdlTypeNames());
 
     for (const name of PRE_3_1_TYPE_NAMES) {
@@ -240,6 +299,7 @@ describe("Surface freeze — pinned additions vs the baseline inventory", () => 
         "HealthCheck",
         ...DEV3_004_TYPE_NAMES,
         ...DEV3_004_ENUMS,
+        ...DEV3_005_ENUMS,
       ].toSorted((a, b) => a.localeCompare(b))
     );
   });
@@ -306,5 +366,19 @@ describe("Codegen sync — committed SDL is byte-identical to the built schema",
     expect(committedSdl).toContain("type SessionPage {");
     expect(committedSdl).toContain("input CreateSessionInput {");
     expect(committedSdl).toContain("input SessionListFilterInput {");
+    // …and the DEV3-005 dispute surface (3 root operations + the
+    // arbitration enum + the five nullable Session fields) is really
+    // inside the committed artifact.
+    expect(committedSdl).toContain("openSessionDispute(id: ID!, reason: String!): Session!");
+    expect(committedSdl).toContain(
+      "resolveSessionDispute(id: ID!, note: String, resolution: DisputeResolution!): Session!"
+    );
+    expect(committedSdl).toContain(
+      "adminDisputedSessions(filter: SessionListFilterInput, limit: Int = 25, offset: Int = 0): SessionPage!"
+    );
+    expect(committedSdl).toContain("enum DisputeResolution {");
+    for (const field of DEV3_005_SESSION_FIELDS) {
+      expect(committedSdl).toContain(field);
+    }
   });
 });

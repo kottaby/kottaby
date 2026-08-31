@@ -1,6 +1,8 @@
 /**
  * Session lifecycle mutations — `createSession`, `startSession`,
- * `completeSession`, and `cancelSession` (plan §3.1/§3.2 — REQ-060/061).
+ * `completeSession`, `cancelSession`, `openSessionDispute`, and
+ * `resolveSessionDispute` (plan §3.1/§3.2 — REQ-060/061 + the DEV3-005
+ * dispute pair).
  *
  * Contract:
  *  - `createSession(input: CreateSessionInput!): Session!`
@@ -24,8 +26,24 @@
  *      participant predicate lives entirely service-side. A non-participant
  *      (parent/admin included — NO bypass) and a nonexistent id are
  *      indistinguishable `SESSION_NOT_FOUND` denials (oracle-safe). The
- *      optional `reason` is pass-through only (validated then DISCARDED by
- *      the service — DEV3-005 owns persistence).
+ *      optional `reason` is validated, trimmed, and persisted by the
+ *      service into `cancel_reason`.
+ *  - `openSessionDispute(id: ID!, reason: String!): Session!`
+ *      Any AUTHENTICATED caller (no role gate, mirroring `cancelSession`);
+ *      the participant predicate lives entirely service-side — a
+ *      non-participant (admin/parent included) and a nonexistent id are the
+ *      SAME oracle-safe `SESSION_NOT_FOUND`. The `reason` is required and
+ *      validated service-side (trimmed non-empty, ≤ 500, pre-DB
+ *      `VALIDATION`); the row moves `scheduled|started → disputed` exactly
+ *      once (wrong state → `SESSION_INVALID_TRANSITION`).
+ *  - `resolveSessionDispute(id: ID!, resolution: DisputeResolution!, note: String): Session!`
+ *      Admin-only (`$all` conjunction — authenticated wrong-role callers
+ *      fail the `role` leg into the canonical localized FORBIDDEN); the
+ *      service re-asserts the admin role + governance from the user row as
+ *      defense in depth. The arbitration resolves a `disputed` row into
+ *      exactly one terminal state (`Cancel` → refund via the same-lane
+ *      primitive; `Complete` → hold consumed, never-started rows are
+ *      pre-DB `VALIDATION` denials).
  *
  * authScopes 401/403 split (mirrors `query/teachers/applicant.query.ts`,
  * verified against @pothos/plugin-scope-auth@4.1.7):
@@ -61,6 +79,7 @@ import { UserRole } from "@/backend/enum/users/user-role.enum";
 import { gqlSchemaBuilder } from "@/backend/graphql/pothos/builder";
 import { CreateSessionInput } from "@/backend/graphql/pothos/classes/create-session-input.pothos";
 import { SessionPothosObject } from "@/backend/graphql/pothos/classes/session.pothos";
+import { DisputeResolutionPothosEnum } from "@/backend/graphql/pothos/shared/enum.pothos";
 import { UnauthorizedError } from "@/backend/lib/errors";
 import { SessionLifecycleService } from "@/backend/services";
 import type { SessionSubmitInput } from "@/backend/types";
@@ -196,6 +215,76 @@ gqlSchemaBuilder.mutationField("cancelSession", t =>
         throw new UnauthorizedError("Authentication required.");
       }
       return SessionLifecycleService.cancelSession(ctx.user.id, Number(args.id), args.reason ?? null, ctx.locale);
+    },
+  })
+);
+
+// Side-effect: register the `openSessionDispute` mutation field.
+gqlSchemaBuilder.mutationField("openSessionDispute", t =>
+  t.field({
+    type: SessionPothosObject,
+    args: {
+      id: t.arg({ type: "ID", required: true }),
+      reason: t.arg({ type: "String", required: true }),
+    },
+    description:
+      "Open a dispute on one of the caller's scheduled/started sessions (either participant, exactly once, with a required reason). Non-participants and nonexistent ids are indistinguishable SESSION_NOT_FOUND denials; the row waits in the disputed state for admin arbitration.",
+    // `{ authenticated: true }` ONLY — the participant predicate is
+    // service-side (mirrors `cancelSession`): both participants may dispute
+    // their row; every other authenticated role (incl. parent/admin) is
+    // denied by the service with the oracle-safe SESSION_NOT_FOUND. A plain
+    // single-key map needs no `$all` wrapper (no conjunction to force).
+    authScopes: {
+      authenticated: true,
+    },
+    resolve: async (_root, args, ctx) => {
+      // TypeScript narrowing only — see `createSession` above.
+      if (!ctx.user) {
+        throw new UnauthorizedError("Authentication required.");
+      }
+      // `ID` arrives as a string on the wire; the service boundary is
+      // numeric (shape-only `Number` parse — every shape decision is the
+      // SERVICE's REQ-054 guard). The `reason` is a non-null GraphQL
+      // `String`; the service validates/normalizes it pre-DB.
+      return SessionLifecycleService.openSessionDispute(ctx.user.id, Number(args.id), args.reason, ctx.locale);
+    },
+  })
+);
+
+// Side-effect: register the `resolveSessionDispute` mutation field.
+gqlSchemaBuilder.mutationField("resolveSessionDispute", t =>
+  t.field({
+    type: SessionPothosObject,
+    args: {
+      id: t.arg({ type: "ID", required: true }),
+      resolution: t.arg({ type: DisputeResolutionPothosEnum, required: true }),
+      note: t.arg({ type: "String", required: false }),
+    },
+    description:
+      "Resolve one disputed session into exactly one terminal state (admin arbitration): Cancel refunds the held fee to its original lane, Complete consumes the hold (never-started disputes are rejected). Non-disputed rows are SESSION_INVALID_TRANSITION conflicts.",
+    // Explicit `$all` conjunction per the 401/403 split documented above:
+    // anonymous callers hit UNAUTHORIZED (401), authenticated non-admins
+    // fail the `role` leg into the canonical localized FORBIDDEN (403).
+    // The service additionally re-asserts the admin role + governance from
+    // the user row (defense in depth).
+    authScopes: {
+      $all: {
+        authenticated: true,
+        role: [UserRole.Admin],
+      },
+    },
+    resolve: async (_root, args, ctx) => {
+      // TypeScript narrowing only — see `createSession` above.
+      if (!ctx.user) {
+        throw new UnauthorizedError("Authentication required.");
+      }
+      return SessionLifecycleService.resolveSessionDispute(
+        ctx.user.id,
+        Number(args.id),
+        args.resolution,
+        args.note ?? null,
+        ctx.locale
+      );
     },
   })
 );

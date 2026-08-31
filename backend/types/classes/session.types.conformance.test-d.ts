@@ -70,6 +70,11 @@ v({
   confirmedByStudentAt: null,
   confirmedByTeacherAt: null,
   confirmationDeadline: new Date(),
+  cancelReason: null,
+  disputeReason: null,
+  disputedAt: null,
+  resolutionNote: null,
+  resolvedAt: null,
   createdAt: new Date(),
   updatedAt: new Date(),
 } satisfies SessionReturnType);
@@ -219,6 +224,46 @@ v({
   updatedAt: new Date(),
 } satisfies SessionSubmitInput);
 
+// Negative — the persisted cancellation reason is server-written
+v({
+  teacherId: 2,
+  intent: SessionIntent.Hifz,
+  // @ts-expect-error — cancelReason is server-controlled
+  cancelReason: "changed plans",
+} satisfies SessionSubmitInput);
+
+// Negative — the dispute reason is server-written
+v({
+  teacherId: 2,
+  intent: SessionIntent.Hifz,
+  // @ts-expect-error — disputeReason is server-controlled
+  disputeReason: "teacher no-show",
+} satisfies SessionSubmitInput);
+
+// Negative — the dispute stamp is server-written
+v({
+  teacherId: 2,
+  intent: SessionIntent.Hifz,
+  // @ts-expect-error — disputedAt is server-controlled
+  disputedAt: new Date(),
+} satisfies SessionSubmitInput);
+
+// Negative — the arbitration note is server-written
+v({
+  teacherId: 2,
+  intent: SessionIntent.Hifz,
+  // @ts-expect-error — resolutionNote is server-controlled
+  resolutionNote: "refunded in full",
+} satisfies SessionSubmitInput);
+
+// Negative — the arbitration stamp is server-written
+v({
+  teacherId: 2,
+  intent: SessionIntent.Hifz,
+  // @ts-expect-error — resolvedAt is server-controlled
+  resolvedAt: new Date(),
+} satisfies SessionSubmitInput);
+
 // Negative — evaluation intent is not bookable through the submit input
 v({
   teacherId: 2,
@@ -280,6 +325,7 @@ v({
 v({
   id: 1,
   status: SessionStatus.Started,
+  startedAt: null,
   studentId: 1,
   teacherId: 2,
 } satisfies SessionTransitionProbeRowType);
@@ -288,9 +334,9 @@ v({
 type ProbeKeys = keyof SessionTransitionProbeRowType;
 const probeProjection: Equals<
   SessionTransitionProbeRowType,
-  Pick<SessionSelectType, "id" | "status" | "studentId" | "teacherId">
+  Pick<SessionSelectType, "id" | "status" | "startedAt" | "studentId" | "teacherId">
 > = true;
-const probeKeys: Equals<ProbeKeys, "id" | "status" | "studentId" | "teacherId"> = true;
+const probeKeys: Equals<ProbeKeys, "id" | "status" | "startedAt" | "studentId" | "teacherId"> = true;
 v(probeProjection);
 v(probeKeys);
 
@@ -298,9 +344,10 @@ v(probeKeys);
 v({
   id: 1,
   status: SessionStatus.Started,
+  startedAt: null,
   studentId: 1,
   teacherId: 2,
-  // @ts-expect-error — the probe row projects only the four classification columns
+  // @ts-expect-error — the probe row projects only the five classification columns
   fee: "25.00",
 } satisfies SessionTransitionProbeRowType);
 
@@ -308,6 +355,7 @@ v({
 // @ts-expect-error — status mandatory on the probe row
 const noStatusProbe: SessionTransitionProbeRowType = {
   id: 1,
+  startedAt: null,
   studentId: 1,
   teacherId: 2,
 };

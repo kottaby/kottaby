@@ -25,6 +25,11 @@ const FORBIDDEN_SUBMIT_FIELDS = [
   "confirmedByTeacherAt",
   "startedAt",
   "endedAt",
+  "cancelReason",
+  "disputeReason",
+  "disputedAt",
+  "resolutionNote",
+  "resolvedAt",
   "createdAt",
   "updatedAt",
 ];
@@ -133,11 +138,11 @@ describe("Session Canonical Types — Static Structural Assertions", () => {
     expect(memberCount(body)).toBe(4);
   });
 
-  test("5. Transition probe row is a Pick projection of the select row (four classification columns)", () => {
+  test("5. Transition probe row is a Pick projection of the select row (five classification columns)", () => {
     const code = codeLines(libCode(files, "session.types.ts")).join("\n");
     expect(code).toContain("export type SessionTransitionProbeRowType = Pick<");
     expect(code).toContain("Pick<SessionSelectType");
-    expect(code).toContain('"id" | "status" | "studentId" | "teacherId"');
+    expect(code).toContain('"id" | "status" | "startedAt" | "studentId" | "teacherId"');
   });
 
   test("6. Claim-table types derive exactly the two $infer projections — nothing else", () => {
