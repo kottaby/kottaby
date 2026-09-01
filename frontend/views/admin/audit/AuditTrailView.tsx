@@ -49,8 +49,8 @@ import { AuditTrailFilterBar } from "@/frontend/views/admin/audit/AuditTrailFilt
 import { AuditTrailResults } from "@/frontend/views/admin/audit/AuditTrailResults";
 import { AuditTrailLoadError, AuditTrailSkeleton } from "@/frontend/views/admin/audit/AuditTrailStates";
 import {
-  type AuditTrailFiltersSeed,
   type AppliedAuditTrailFilters,
+  type AuditTrailFiltersSeed,
   actionLabelsOf,
   appliedFiltersFromSubmitInput,
   buildFiltersInput,

@@ -14,8 +14,8 @@ import { type ReactNode, useState } from "react";
 import type { AuditActionType } from "@/frontend/graphql/generated/gql/graphql";
 import { AuditTrailFilterFields } from "@/frontend/views/admin/audit/AuditTrailFilterFields";
 import {
-  type AuditTrailFiltersSeed,
   type AppliedAuditTrailFilters,
+  type AuditTrailFiltersSeed,
   appliedFiltersFromDrafts,
   draftsFromSubmitInput,
   type FilterDrafts,
