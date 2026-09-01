@@ -5,6 +5,19 @@
  *
  * Keys are lowercase camelCase of the SCREAMING_SNAKE_CASE codes.
  */
+export interface PlanCatalogErrorsLabels {
+  readonly planNotFound: string;
+  readonly planAlreadyInactive: string;
+  readonly planAlreadyActive: string;
+  readonly planTitleRequired: string;
+  readonly planTitleTooLong: string;
+  readonly planSessionCountInvalid: string;
+  readonly planPriceInvalid: string;
+  readonly planCurrencyInvalid: string;
+  readonly planIntervalDaysInvalid: string;
+  readonly planPatchEmpty: string;
+}
+
 export interface ErrorsLabels {
   readonly unauthorized: string;
   readonly forbidden: string;
@@ -30,6 +43,7 @@ export interface ErrorsLabels {
   readonly tokenExpired: string;
   /** "You do not have permission to access this page." — role-mismatch deny. */
   readonly forbiddenRole: string;
+  readonly planCatalog: PlanCatalogErrorsLabels;
   /** "Teacher application not found." — self-applicants lookup miss → NotFoundError("APPLICANT"). */
   readonly applicantNotFound: string;
   /**
@@ -42,6 +56,45 @@ export interface ErrorsLabels {
   readonly applicantCooldownActive: string;
   /** Fail-closed deny when an applicants row status cannot be interpreted as a known ApplicantStatus. */
   readonly applicantStatusCorrupt: string;
+  /**
+   * Admin-user-management domain failures surfaced to operators through the
+   * `errors` namespace. Each leaf is a self-contained sentence (no key echo)
+   * consumed by admin services via property access on the localized bundle:
+   * `errorsTranslations.adminUsers.<key>`. Admin-authored identifiers (email,
+   * user id, role values) MUST NOT appear in these strings — only generic,
+   * user-facing copy.
+   */
+  readonly adminUsers: {
+    /** Lookup miss for a user id that does not resolve to a `users` row. */
+    readonly userNotFound: string;
+    /** Conflict when soft-deleting an account that is already soft-deleted. */
+    readonly userAlreadyDeleted: string;
+    /** Conflict when reactivating an account that is not currently soft-deleted. */
+    readonly userNotDeleted: string;
+    /** Self-protection deny: an admin attempted to soft-delete their own account. */
+    readonly userSelfDeactivationForbidden: string;
+    /** Creation deny: an admin attempted to provision an `admin` role through this surface. */
+    readonly adminRoleCreationForbidden: string;
+    /** Validation deny: a profile patch carried no whitelisted field. */
+    readonly userPatchEmpty: string;
+    /**
+     * Near-unreachable deny: server-generated `handshake_code` retry budget
+     * exhausted on consecutive unique-violation collisions. Surfaced as
+     * `ConflictError("HANDSHAKE_EXHAUSTED", …)`; admin-authored identifiers
+     * MUST NOT appear in the message — only generic copy.
+     */
+    readonly handshakeExhausted: string;
+  };
+  /** Fail-closed deny when a stored notifications.type value is not a known NotificationType member. */
+  readonly notificationTypeCorrupt: string;
+  /** Fail-closed deny when a stored users.locale value is not a known AppLocale member. */
+  readonly userLocaleCorrupt: string;
+  /** "The notification was not found." — self-scope notification lookup miss → NotFoundError("NOTIFICATION"). */
+  readonly notificationNotFound: string;
+  /** "Handshake codes look like KSB-XXXXXXXX (8 hexadecimal characters)." — malformed handshake-code reject → ValidationError (VALIDATION). */
+  readonly handshakeCodeInvalid: string;
+  /** "Student record not found." — caller has no students row → NotFoundError("STUDENT"). */
+  readonly studentHandshakeNotFound: string;
   /** "The free trial credit has already been granted for this student." — re-grant attempt on a student whose trial_granted_at marker is non-null. */
   readonly trialAlreadyGranted: string;
   /** "The requested session was not found." — session lookup or ownership miss on any session surface. */
@@ -64,3 +117,7 @@ export interface ErrorsLabels {
    */
   readonly walletInvalidAmount: string;
 }
+
+export type ErrorMessageKey = {
+  [K in keyof ErrorsLabels]: ErrorsLabels[K] extends string ? K : never;
+}[keyof ErrorsLabels];

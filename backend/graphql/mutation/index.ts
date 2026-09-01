@@ -10,11 +10,20 @@
  *    side-effect import here.
  *
  * `auth.mutation.ts` wires the auth mutations (`registerUser`, `login`,
- * `refreshToken`, `logout`); the `classes` sub-directory barrel wires the
- * session lifecycle mutations (`createSession`, `startSession`,
- * `completeSession`, `cancelSession`); the `billing` sub-directory barrel
- * wires the wallet payout mutation (`requestWithdrawal`, DEV3-013).
+ * `refreshToken`, `logout`); `admin/` wires the admin user-management
+ * mutations; the `classes` sub-directory barrel wires the session lifecycle
+ * mutations (`createSession`, `startSession`, `completeSession`,
+ * `cancelSession`); the `billing` sub-directory barrel wires the wallet
+ * payout mutation (`requestWithdrawal`, DEV3-013) and the admin plan-catalog
+ * CRUD; `notifications/` wires the inbox read-latch mutations
+ * (`markNotificationRead`, `markAllNotificationsRead`);
+ * `user.mutation.ts` wires the caller-scoped profile mutations
+ * (`updateMyLocale`).
  */
 import "./auth.mutation";
+import "./admin";
 import "./billing";
 import "./classes";
+import "./notifications";
+import "./plan-catalog.mutation";
+import "./user.mutation";

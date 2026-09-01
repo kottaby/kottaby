@@ -244,7 +244,8 @@ const fullResult = await requestFullRepoLint("cli");
 
 ### Environment Variables
 
-- `LINT_QUEUE_CONCURRENCY` — ESLint `--concurrency` value (default `4`; set to `auto` to let ESLint decide).
+- `LINT_QUEUE_CONCURRENCY` — ESLint `--concurrency` value (default: adaptive `1`–`4`, derived from CPU count and memory budget — prevents OOM-kills on memory-constrained hosts; set to `auto` to let ESLint decide).
+- `LINT_MAX_OLD_SPACE_MB` — ESLint child heap cap in MB (default: adaptive, clamped to `2048`–`8192`). Note: with `--concurrency=N` the worst-case memory is `(N+1) × heap`, so lower concurrency on small hosts.
 - `LINT_QUEUE_TIMEOUT_MS` — Per-request timeout in milliseconds (default: 300000 for file-scoped, 1200000 for full-repo).
 
 ### Other quality commands are safe to run in parallel
@@ -414,6 +415,7 @@ After reading the applicable instruction files and AGENTS.md, subagents check fo
 - `frontend/NEW_PAGE_WORKFLOW.md` - Required workflow for new pages
 - `frontend/THEME_PALETTE.md` - Color tokens and access patterns
 - `docs/IDEMPOTENCY.md` - Idempotency patterns
+- `docs/notifications/realtime-engine.md` - Real-time notification engine (WebSocket): persist-first/push-second, single-writer emit contract, sidecar topology, fail-open idempotency deviation
 - `docs/drizzle/prepared-statements.md` - Drizzle Prepared Statements 2.0 pattern reference
 - `docs/drizzle/neon-http-client.md` - Neon HTTP Client & Provider-Agnostic Stateless Queries reference
 - `docs/graphql/dataloader-batching.md` - Pothos DataLoader batching pattern reference
@@ -460,6 +462,8 @@ After reading the applicable instruction files and AGENTS.md, subagents check fo
 - `docs/backend/cross-stream-contracts.md` — Cross-stream contract types canonical reference (DEV2-003: 6 contracts, composition-only rule, forbidden-field registry, consumer-ticket wiring, change governance)
 - `docs/graphql/api-gateway-and-routing.md` — API gateway & routing canonical reference (dev3-003: seven-step request pipeline in `app/api/graphql/route.ts`, transport-failure matrix + `MAX_GRAPHQL_BODY_BYTES`, default-deny public-operation allowlist gate, the two sanctioned health probes, ROUTE_INVENTORY registration rule (A4), REQ-018 operation-registration contract)
 - `docs/teachers/applicant-lifecycle.md` — Teacher applicant lifecycle canonical reference (DEV2-004: `applicants` state machine REQ-013, cooldown/attempt contracts REQ-014/015/016, zero-arg `myApplicantProfile` query contract REQ-017, INV-TV1..TV7 + B.6/B.7 anchoring, consumer guidance for DEV2-005..010/DEV3-019)
+- `docs/admin/user-management.md` — Admin user-management canonical reference (DEV3-016: directory/filter/search contract incl. `escapeLikeWildcards` mandate, guarded soft-delete/reactivate pattern, role-child projection rules, audit-emission contract — writer-side, in-tx, denials write ZERO audit rows — JR-C-1, self-protection rule, `USER_NOT_FOUND` oracle ruling — admin-surface-only, MUST NOT be copy-pasted to non-admin surfaces, shared-PK "one user, four role children" model, idempotency ruling, scope-split record for DEV3-017..022b consumer obligations; A.5/A.7/B.6/B.7/INV-U1..U5/INV-TV1 + Workflow 05 anchoring)
+- `docs/parents/handshake-code-discovery.md` — Parent handshake-code discovery canonical reference (code format + generation contract by reference, minimal masked payload with no `id`, governance-exclusion collapse, null-not-error not-found, advisory `linkable` semantics, binding link-request forward contract, brute-force posture)
 - `docs/students/free-trial-provisioning.md` — Free Trial Provisioning canonical reference (one-time trial credit grant for new students, dedicated `balance_trial` lane, grant-once guarded UPDATE, DEV3 booking-eligibility & decrement forward contract)
 - `docs/sessions/session-lifecycle.md` — Session lifecycle canonical reference (DEV3-004: state machine + guarded-transition pattern, four-phase creation invariant, hold-as-debit + same-lane refund, idempotency claim design, sessions-are-sensitive oracle ruling + anti-copy-paste warning, consumer guidance for DEV3-005/006/011/012/013/021 + DEV2-016)
 

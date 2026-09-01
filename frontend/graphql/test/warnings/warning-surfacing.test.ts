@@ -13,8 +13,12 @@
  *
  * GROUND TRUTH ANCHOR (honesty pin, Section A):
  *   The quota / class-instance domains are NOT yet materialized in this tree —
- *   the live schema exposes exactly the twelve session/auth/wallet mutations
- *   pinned in KNOWN_LIVE_MUTATION_FIELDS below. Test A2 pins the inventory
+ *   the live schema exposes exactly the twenty live root mutations pinned in
+ *   KNOWN_LIVE_MUTATION_FIELDS below: the auth quartet, the notification
+ *   read-latch pair (DEV3-010), the users-locale mutation (D2), the billing
+ *   plan-catalog CRUD (upstream #28), the DEV3-016 admin user-management
+ *   trio, the 7-mutation session family (DEV3-004/005/012) and the wallet
+ *   payout (DEV3-013). Test A2 pins the inventory
  *   gap so the moment those domains land, this suite fails loudly until they
  *   adopt the locked shapes (and gets updated to point Section B's
  *   reproduction directly at them).
@@ -45,7 +49,7 @@
  * wrapper-agnostic.
  */
 
-import { describe, expect, test } from "bun:test";
+import { expect, test } from "bun:test";
 import { CombinedGraphQLErrors, gql } from "@apollo/client";
 import {
   type DocumentNode,
@@ -61,7 +65,7 @@ import {
   GraphQLString,
 } from "graphql";
 import { logoutMutationDocument } from "@/frontend/graphql/sharedDocuments/auth/auth.documents";
-import { expectMutationError, setupTestServerLifecycle, testClient } from "@/test/helpers";
+import { describeGraphqlSuite, expectMutationError, setupTestServerLifecycle, testClient } from "@/test/helpers";
 
 // ─── Surfaced-literal fixtures (SEC: literal-pinned ⇒ PII/secret-free) ──────
 
@@ -273,27 +277,40 @@ const MUTATION_SURFACE_INVENTORY_QUERY_DOCUMENT: DocumentNode = gql`
   }
 `;
 
-/** The exhaustive live root-mutation inventory (ground truth at lock time,
- *  derived from the committed SDL `frontend/graphql/generated/schema.graphql`:
- *  4 auth mutations + the 7-mutation session family + the wallet payout). */
+/**
+ * The exhaustive live root-mutation inventory (ground truth at lock time,
+ * derived from the committed SDL `frontend/graphql/generated/schema.graphql`):
+ * the auth quartet + the notification read-latch pair + users-locale +
+ * plan-catalog CRUD + the DEV3-016 admin trio + the 7-mutation session family
+ * + the wallet payout.
+ */
 const KNOWN_LIVE_MUTATION_FIELDS = [
+  "adminCreateUser",
+  "adminSetUserDeleted",
+  "adminUpdateUser",
   "cancelSession",
   "completeSession",
   "confirmSessionCompletion",
+  "createPlan",
   "createSession",
   "login",
   "logout",
+  "markAllNotificationsRead",
+  "markNotificationRead",
   "openSessionDispute",
   "refreshToken",
   "registerUser",
   "requestWithdrawal",
   "resolveSessionDispute",
+  "setPlanActiveStatus",
   "startSession",
+  "updateMyLocale",
+  "updatePlan",
 ];
 /** Documented precedent surfaces that must ADOPT Rules #6/#7 when wired. */
 const DOCUMENTED_WARNING_SURFACES_PENDING = ["releaseQuotaIfDeducted", "deleteClassInstance"];
 
-describe("Warning-surfacing contract lock — Section A: live GraphQL surface (wire)", () => {
+describeGraphqlSuite("Warning-surfacing contract lock — Section A: live GraphQL surface (wire)", () => {
   setupTestServerLifecycle();
 
   test("A1. deployed Mutation root exposes exactly the documented inventory set", async () => {
@@ -338,7 +355,7 @@ describe("Warning-surfacing contract lock — Section A: live GraphQL surface (w
   });
 });
 
-describe("Warning-surfacing contract lock — Section B: documented propagation semantics", () => {
+describeGraphqlSuite("Warning-surfacing contract lock — Section B: documented propagation semantics", () => {
   test("B1. deleteClassInstance-shaped partial success surfaces warnings INSIDE payload data", async () => {
     const result = await runWarningScenario(DELETE_CLASS_INSTANCE_WARNING_DOCUMENT, "success");
     expect(result.errors).toBeUndefined();

@@ -156,33 +156,29 @@ function mergeFieldsIntoExtensions(
 }
 
 /**
- * Conflict (duplicate email, handshake collision exhausted, etc.).
- * Overloaded constructor:
+ * Conflict (duplicate email, handshake collision exhausted, self-deactivation
+ * guard, role-creation-defense deny, invalid session transition, etc.).
+ * Defaults to code `CONFLICT`; overloads accept a custom `code` for typed
+ * conflict variants (e.g. `SESSION_INVALID_TRANSITION`,
+ * `USER_SELF_DEACTIVATION_FORBIDDEN`, `ADMIN_ROLE_CREATION_FORBIDDEN`) so
+ * the GraphQL transport can branch on the specific failure while remaining
+ * a `ConflictError` subclass for `instanceof` checks.
  *
- * @example new ConflictError(message) // code = "CONFLICT"
- * @example new ConflictError(message, options) // code = "CONFLICT" + options
- * @example new ConflictError("DUPLICATE_REQUEST", message) // custom code
+ * @example new ConflictError("An account with this email already exists.")
+ * @example new ConflictError("DUPLICATE_REQUEST", "…") // custom code
  * @example new ConflictError("SESSION_INVALID_TRANSITION", message, options) // full form
  */
 export class ConflictError extends DomainError {
   constructor(message: string, options?: GraphQLErrorOptions);
   constructor(code: string, message: string, options?: GraphQLErrorOptions);
   constructor(codeOrMessage: string, messageOrOptions?: string | GraphQLErrorOptions, options?: GraphQLErrorOptions) {
-    let code: string;
-    let message: string;
-    let ctorOptions: GraphQLErrorOptions | undefined;
     if (typeof messageOrOptions === "string") {
-      // Forms: (code, message) · (code, message, options)
-      code = codeOrMessage;
-      message = messageOrOptions;
-      ctorOptions = options;
+      // Custom-code form: (code, message, options?)
+      super(codeOrMessage, messageOrOptions, options);
     } else {
-      // Forms: (message) · (message, options) — fixed "CONFLICT" code default.
-      code = "CONFLICT";
-      message = codeOrMessage;
-      ctorOptions = messageOrOptions;
+      // Default-code form: (message, options?)
+      super("CONFLICT", codeOrMessage, messageOrOptions);
     }
-    super(code, message, ctorOptions);
   }
 }
 

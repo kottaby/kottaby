@@ -45,6 +45,20 @@ const eslintConfig = defineConfig([
     "Kottaby/**",
     "storybook-static/**",
     "docs/**",
+    // Gitignored local/sandbox artifacts not covered by the dot-dir rule.
+    "coverage/**",
+    "prompt/**",
+    "qa-shots/**",
+    "tool-results/**",
+    "download/**",
+    "report/**",
+    "jscpd-admin/**",
+    "jscpd-intra/**",
+    "jscpd-output/**",
+    "jscpd-all/**",
+    "agent-ctx/**",
+    // Transpiled locale artifacts (gitignored, generated at dev time).
+    "shared/locale/**/*.js",
     // File patterns
     "**/*.d.ts",
     "next-env.d.ts",
@@ -156,11 +170,11 @@ const eslintConfig = defineConfig([
       ...(process.env.ESLINT_TYPE_AWARE === "true"
         ? {
             "@typescript-eslint/await-thenable": "error",
-            "@typescript-eslint/no-unnecessary-type-assertion": "warn",
-            "@typescript-eslint/no-base-to-string": "warn",
+            "@typescript-eslint/no-unnecessary-type-assertion": "error",
+            "@typescript-eslint/no-base-to-string": "error",
             "@typescript-eslint/prefer-optional-chain": "error",
             "@typescript-eslint/prefer-nullish-coalescing": "error",
-            "sonarjs/deprecation": "warn",
+            "sonarjs/deprecation": "error",
           }
         : {}),
 

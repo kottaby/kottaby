@@ -97,10 +97,16 @@ written through different parent objects.
 
 Current embedded types:
 - `AdminNoteInfo` (fields: `content`, `lastUpdated`) — no `id`.
+- `HandshakeCodeLookup` (fields: `linkable`, `maskedName`) — no `id`; masked
+  parent-discovery payload, cached inline under `Query.findStudentByHandshakeCode`;
+  see `docs/parents/handshake-code-discovery.md` for the payload contract.
 - `OnlineMeetingInfo` (fields: `joinUrl`, `logoUrl`, `meetingId`, `platform`,
   `providerName`, `source`) — no `id`.
 - `HealthCheck` (fields: `service`, `status`, `timestamp`, `version`) — no `id`;
   scalar-only probe object exposed by `Query._health` (dev3-003 Task 4.1).
+- `NotificationListPage` (fields: `hasMore`, `items`, `totalCount`) — no `id`;
+  notifications-inbox pagination wrapper (dev3-010 Task 3.1). The normalizable
+  entities are the `Notification` rows inside `items` (each carries `id`).
 
 If you add a new GraphQL type without an `id` field, add it to `typePolicies`
 in `apolloCache.ts` with `keyFields: false` and list it here.

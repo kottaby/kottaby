@@ -19,6 +19,9 @@
  *  - `SessionStatus`, `SessionType`, `SessionIntent` (scheduling domain)
  *  - `DisputeResolution` (admin arbitration outcome vocabulary)
  *  - `TransactionType`, `TransactionStatus` (billing ledger vocabulary, DEV3-013)
+ *  - `AdminUserGovernanceFilter` (active|suspended|blocked|deleted — admin directory filter)
+ *  - `NotificationType` (the seven notification kinds)
+ *  - `AppLocale` (the per-user UI/copy preference — "ar" | "en")
  *
  * After registering a new enum here, run `bun run generate:gqlSchema` and
  * `bun codegen` to refresh the SDL + frontend codegen.
@@ -29,7 +32,11 @@ import { DisputeResolution } from "@/backend/enum/scheduling/dispute-resolution.
 import { SessionIntent } from "@/backend/enum/scheduling/session-intent.enum";
 import { SessionStatus } from "@/backend/enum/scheduling/session-status.enum";
 import { SessionType } from "@/backend/enum/scheduling/session-type.enum";
+import { AuditActionType } from "@/backend/enum/audit/audit-action-type.enum";
+import { NotificationType } from "@/backend/enum/notifications/notification-type.enum";
 import { ApplicantStatus } from "@/backend/enum/teachers/applicant-status.enum";
+import { AdminUserGovernanceFilter } from "@/backend/enum/users/admin-user-governance-filter.enum";
+import { AppLocale } from "@/backend/enum/users/app-locale.enum";
 import { Gender } from "@/backend/enum/users/gender.enum";
 import { RegisterPublicRole } from "@/backend/enum/users/register-public-role.enum";
 import { UserRole } from "@/backend/enum/users/user-role.enum";
@@ -44,6 +51,17 @@ export const UserRolePothosEnum = gqlSchemaBuilder.enumType(UserRole, {
 /** GraphQL `Gender` enum (male|female|other). */
 export const GenderPothosEnum = gqlSchemaBuilder.enumType(Gender, {
   name: "Gender",
+});
+
+/**
+ * GraphQL `AppLocale` enum (ar|en) — the per-user UI/copy preference.
+ *
+ * Backed by the canonical TS mirror (`backend/enum/users/app-locale.enum.ts`),
+ * which the parity test pins byte-identical to BOTH the `app_locale` pgEnum
+ * (`users.locale`) and the shared locale list (`shared/locale/AppLocale.ts`).
+ */
+export const AppLocalePothosEnum = gqlSchemaBuilder.enumType(AppLocale, {
+  name: "AppLocale",
 });
 
 /**
@@ -151,4 +169,44 @@ export const TransactionTypePothosEnum = gqlSchemaBuilder.enumType(TransactionTy
  */
 export const TransactionStatusPothosEnum = gqlSchemaBuilder.enumType(TransactionStatus, {
   name: "TransactionStatus",
+});
+
+/**
+ * GraphQL `AdminUserGovernanceFilter` enum (active|suspended|blocked|deleted).
+ *
+ * Backs the admin user directory `governance` filter. Unknown transport values
+ * fail GraphQL input validation before any resolver runs; absent or `null`
+ * drops out at the service layer (the directory falls back to the unfiltered
+ * listing rather than erroring).
+ */
+export const AdminUserGovernanceFilterPothosEnum = gqlSchemaBuilder.enumType(AdminUserGovernanceFilter, {
+  name: "AdminUserGovernanceFilter",
+});
+
+/**
+ * GraphQL `AuditActionType` enum (create|update|delete|override|adjust|
+ * suspend|reactivate).
+ *
+ * Registered ONCE from the canonical TS enum that mirrors the
+ * `audit_action_type` pgEnum. Backs the per-user activity timeline on the
+ * admin user detail surface (scoped `audit_logs` read-back); the global
+ * audit-trail browsing surface remains owned by DEV3-020.
+ */
+export const AuditActionTypePothosEnum = gqlSchemaBuilder.enumType(AuditActionType, {
+  name: "AuditActionType",
+});
+
+/**
+ * GraphQL `NotificationType` enum (the seven notification kinds).
+ *
+ * Registered ONCE from the canonical TS enum
+ * (`backend/enum/notifications/notification-type.enum.ts`), which mirrors the
+ * `notification_type` pgEnum byte-for-byte. Per the Pothos enum-object
+ * convention (identical to `UserRole` / `ApplicantStatus`), the enum KEYS are
+ * the GraphQL value names on the wire (`SessionRequest`, …) while the
+ * snake_case string values (`session_request`, …) remain the runtime and
+ * database representation — the GraphQL enum layer maps between them.
+ */
+export const NotificationTypePothosEnum = gqlSchemaBuilder.enumType(NotificationType, {
+  name: "NotificationType",
 });

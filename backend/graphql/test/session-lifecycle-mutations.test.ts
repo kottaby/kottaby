@@ -49,7 +49,7 @@ import { signAccessToken } from "@/backend/lib/auth/jwt";
 import { expectMutationError, setupTestServerLifecycle, TEST_PORT, testClient } from "@/test/helpers";
 import {
   buildSessionJourneyCast,
-  createJourneyFixtureRegistry,
+  createSessionFixtureRegistry,
   journeyPrefix,
   type SessionJourneyCast,
 } from "@/test/workflows/helpers";
@@ -70,7 +70,7 @@ const KEY_REPLAY = `${PREFIX}-key-replay`;
 const KEY_PROBE = `${PREFIX}-key-probe`;
 
 /** The fixture registry — every created session id is hard-deleted in afterAll. */
-const registry = createJourneyFixtureRegistry();
+const registry = createSessionFixtureRegistry();
 
 let cast: SessionJourneyCast;
 

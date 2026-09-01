@@ -10,7 +10,7 @@
  * Consumers call builders inside their committed `beforeAll` transaction:
  *
  * ```ts
- * const registry = createJourneyFixtureRegistry();
+ * const registry = createSessionFixtureRegistry();
  * let cast: SessionJourneyCast;
  * beforeAll(async () => {
  *   await db.transaction(async tx => {
@@ -56,7 +56,7 @@ import type {
   TeacherSelectType,
   UserSelectType,
 } from "@/backend/types";
-import type { JourneyFixtureRegistry } from "@/test/workflows/helpers/journey-fixtures";
+import type { SessionFixtureRegistry } from "@/test/workflows/helpers/journey-fixture-registry";
 
 /**
  * Student balance-lane profile — units per lane (0/omitted = lane empty).
@@ -178,7 +178,7 @@ async function createCastUser(
 /** Builds any student cast member from a lane profile and tracks both rows. */
 async function buildStudentCastMember(
   tx: DBTransaction,
-  registry: JourneyFixtureRegistry,
+  registry: SessionFixtureRegistry,
   profile: StudentLaneProfile,
   label?: string
 ): Promise<StudentCastMember> {
@@ -192,7 +192,7 @@ async function buildStudentCastMember(
 /** Builds a teacher-role cast member with an explicit `teacher` row shape. */
 async function buildTeacherCastMember(
   tx: DBTransaction,
-  registry: JourneyFixtureRegistry,
+  registry: SessionFixtureRegistry,
   isApproved: boolean,
   label?: string
 ): Promise<TeacherCastMember> {
@@ -216,7 +216,7 @@ async function buildTeacherCastMember(
  */
 export async function buildStudentWithTrial(
   tx: DBTransaction,
-  registry: JourneyFixtureRegistry,
+  registry: SessionFixtureRegistry,
   units = 1,
   label?: string
 ): Promise<StudentCastMember> {
@@ -230,7 +230,7 @@ export async function buildStudentWithTrial(
  */
 export async function buildStudentWithPaidLane(
   tx: DBTransaction,
-  registry: JourneyFixtureRegistry,
+  registry: SessionFixtureRegistry,
   lane: PaidSessionLane,
   units = 1,
   label?: string
@@ -246,7 +246,7 @@ export async function buildStudentWithPaidLane(
  */
 export async function buildStudentWithBoth(
   tx: DBTransaction,
-  registry: JourneyFixtureRegistry,
+  registry: SessionFixtureRegistry,
   options: { trial?: number; paidLane?: PaidSessionLane; paidUnits?: number } = {},
   label?: string
 ): Promise<StudentCastMember> {
@@ -262,7 +262,7 @@ export async function buildStudentWithBoth(
 /** Student with every lane empty — the zero-balance booking denial leg. */
 export async function buildZeroBalanceStudent(
   tx: DBTransaction,
-  registry: JourneyFixtureRegistry,
+  registry: SessionFixtureRegistry,
   label?: string
 ): Promise<StudentCastMember> {
   return buildStudentCastMember(tx, registry, {}, label);
@@ -275,7 +275,7 @@ export async function buildZeroBalanceStudent(
  */
 export async function buildSecondStudent(
   tx: DBTransaction,
-  registry: JourneyFixtureRegistry,
+  registry: SessionFixtureRegistry,
   profile: StudentLaneProfile = {},
   label?: string
 ): Promise<StudentCastMember> {
@@ -288,7 +288,7 @@ export async function buildSecondStudent(
  */
 export async function buildCertifiedTeacher(
   tx: DBTransaction,
-  registry: JourneyFixtureRegistry,
+  registry: SessionFixtureRegistry,
   label?: string
 ): Promise<TeacherCastMember> {
   return buildTeacherCastMember(tx, registry, true, label);
@@ -300,7 +300,7 @@ export async function buildCertifiedTeacher(
  */
 export async function buildSecondCertifiedTeacher(
   tx: DBTransaction,
-  registry: JourneyFixtureRegistry,
+  registry: SessionFixtureRegistry,
   label?: string
 ): Promise<TeacherCastMember> {
   return buildTeacherCastMember(tx, registry, true, label);
@@ -313,7 +313,7 @@ export async function buildSecondCertifiedTeacher(
  */
 export async function buildTeacherApplicant(
   tx: DBTransaction,
-  registry: JourneyFixtureRegistry,
+  registry: SessionFixtureRegistry,
   label?: string
 ): Promise<ApplicantCastMember> {
   const user = await createCastUser(tx, "teacher", label);
@@ -326,7 +326,7 @@ export async function buildTeacherApplicant(
 /** Parent actor: real parent-role user + real `parents` row. */
 export async function buildParent(
   tx: DBTransaction,
-  registry: JourneyFixtureRegistry,
+  registry: SessionFixtureRegistry,
   label?: string
 ): Promise<ParentCastMember> {
   const user = await createCastUser(tx, "parent", label);
@@ -339,7 +339,7 @@ export async function buildParent(
 /** Admin actor: real admin-role user + real `admin` row (NO bypass is implied). */
 export async function buildAdmin(
   tx: DBTransaction,
-  registry: JourneyFixtureRegistry,
+  registry: SessionFixtureRegistry,
   label?: string
 ): Promise<AdminCastMember> {
   const user = await createCastUser(tx, "admin", label);
@@ -360,7 +360,7 @@ export async function buildAdmin(
  */
 export async function buildSessionJourneyCast(
   tx: DBTransaction,
-  registry: JourneyFixtureRegistry,
+  registry: SessionFixtureRegistry,
   options: SessionJourneyCastOptions
 ): Promise<SessionJourneyCast> {
   const prefix = options.prefix;

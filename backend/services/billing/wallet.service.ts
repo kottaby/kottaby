@@ -40,7 +40,7 @@
 import { UserRepository, WalletRepository } from "@/backend/db/repo";
 import { ConflictError, ForbiddenError, ValidationError } from "@/backend/lib/errors";
 import { logger } from "@/backend/lib/logger";
-import { withTransaction } from "@/backend/services/shared/withTransaction";
+import { withTransaction } from "@/backend/lib/db/with-transaction";
 import type { DBTransaction, WalletViewType } from "@/backend/types";
 import { getServerTranslations } from "@/shared/locale/server-graphql";
 

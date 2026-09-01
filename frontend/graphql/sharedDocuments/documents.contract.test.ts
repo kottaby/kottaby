@@ -12,13 +12,13 @@
  *      export convention (`{EntityName}MutationDocument` ↔ `mutation …`).
  *   2. Channel table — mutations vs queries match `sharedDocuments/AGENTS.md`.
  *   3. Variable wiring — declared variable sets line up with the generated
- *      `…Variables` contracts (input / email+password / refreshToken / none /
- *      the DEV3-004 session lifecycle signatures).
+ *      `…Variables` contracts (input / email+password / locale / refreshToken /
+ *      none / the DEV3-004 session lifecycle signatures / the DEV3-013 payout).
  *   4. `id` field requirement — every object-typed selection set the Apollo
- *      cache normalizes (`registerUser`, `me`, `login.user`, EVERY DEV3-004
- *      `Session` payload + `SessionPage.items`) selects `id`; scalar-only
- *      payloads (`refreshToken`, `logout`, `recitationReadings`) correctly
- *      select no objects needing one.
+ *      cache normalizes (`registerUser`, `me`, `login.user`, `updateMyLocale`,
+ *      EVERY DEV3-004 `Session` payload + `SessionPage.items`) selects `id`;
+ *      scalar-only payloads (`refreshToken`, `logout`, `recitationReadings`)
+ *      correctly select no objects needing one.
  *   5. Barrel parity — deep-import and top-level barrel paths resolve to the
  *      IDENTICAL document instance (consumer import conventions table).
  *
@@ -55,6 +55,8 @@ import type {
   SessionByIdQueryVariables,
   StartSessionMutation,
   StartSessionMutationVariables,
+  UpdateMyLocaleMutation,
+  UpdateMyLocaleMutationVariables,
 } from "@/frontend/graphql/generated/gql/graphql";
 import {
   registerUserMutationDocument as registerUserViaBarrel,
@@ -66,6 +68,7 @@ import {
   meQueryDocument,
   refreshTokenMutationDocument,
   registerUserMutationDocument,
+  updateMyLocaleMutationDocument,
 } from "@/frontend/graphql/sharedDocuments/auth/auth.documents";
 import { recitationReadingsQueryDocument } from "@/frontend/graphql/sharedDocuments/auth/recitation.documents";
 import {
@@ -143,6 +146,13 @@ const DOCUMENT_CONTRACT_TABLE: readonly DocumentContractRow[] = [
     channel: "mutation",
     variables: ["email", "password"],
     objectSelections: ["login.user"],
+  },
+  {
+    document: updateMyLocaleMutationDocument,
+    operationName: "UpdateMyLocale",
+    channel: "mutation",
+    variables: ["locale"],
+    objectSelections: ["updateMyLocale"],
   },
   {
     document: refreshTokenMutationDocument,
@@ -284,6 +294,35 @@ describe("shared-document contract — id field requirement", () => {
     // Plain enum-list leaf: no sub-selection ⇒ no cache-normalization need.
     expect(readings?.selectionSet).toBeUndefined();
   });
+
+  test("user-shaped selections carry the locale preference field (me + login mirror + updateMyLocale payload)", () => {
+    // R2-users-locale-b: `me` and `login.user` MUST select `locale` in
+    // lockstep (the AuthProvider stores the user from EITHER result — a
+    // selection drift would desynchronize `useAuth().user.locale`), and the
+    // `updateMyLocale` payload returns the persisted value so consumers can
+    // write it back into the same normalized `User` cache entry.
+    const meOperation = singleOperationOrThrow(meQueryDocument);
+    const meField = namedField(meOperation, "me");
+    if (meField === undefined) {
+      throw new Error("expected me selection");
+    }
+    expect(fieldSelections(meField).some(field => field.name.value === "locale")).toBe(true);
+
+    const loginOperation = singleOperationOrThrow(loginMutationDocument);
+    const loginField = namedField(loginOperation, "login");
+    const loginUserField = loginField === undefined ? undefined : namedField(loginField, "user");
+    if (loginUserField === undefined) {
+      throw new Error("expected login.user selection");
+    }
+    expect(fieldSelections(loginUserField).some(field => field.name.value === "locale")).toBe(true);
+
+    const localeOperation = singleOperationOrThrow(updateMyLocaleMutationDocument);
+    const localePayload = namedField(localeOperation, "updateMyLocale");
+    if (localePayload === undefined) {
+      throw new Error("expected updateMyLocale payload selection");
+    }
+    expect(fieldSelections(localePayload).map(field => field.name.value)).toEqual(["id", "email", "locale"]);
+  });
 });
 
 describe("consumer import conventions — barrel ≡ deep import identity", () => {
@@ -303,6 +342,8 @@ describe("consumer import conventions — barrel ≡ deep import identity", () =
     const typedLogout: TypedDocumentNode<LogoutMutation> = logoutMutationDocument;
     const typedMe: TypedDocumentNode<MeQuery> = meQueryDocument;
     const typedRecitation: TypedDocumentNode<RecitationReadingsQuery> = recitationReadingsQueryDocument;
+    const typedUpdateMyLocale: TypedDocumentNode<UpdateMyLocaleMutation, UpdateMyLocaleMutationVariables> =
+      updateMyLocaleMutationDocument;
 
     // DEV3-004 session lifecycle documents (compile-time proof that every
     // `Session` selection conforms to the generated operation types).
@@ -334,5 +375,6 @@ describe("consumer import conventions — barrel ≡ deep import identity", () =
     expect(typedStartSession.loc).toBeDefined();
     expect(typedCompleteSession.loc).toBeDefined();
     expect(typedCancelSession.loc).toBeDefined();
+    expect(typedUpdateMyLocale.loc).toBeDefined();
   });
 });

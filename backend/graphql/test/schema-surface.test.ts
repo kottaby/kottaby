@@ -1,5 +1,5 @@
 /**
- * GraphQL schema surface assertion suite — "exactly one addition" gate +
+ * GraphQL schema surface assertion suite — pinned-additions gate +
  * codegen-sync proof.
  *
  * What this locks down:
@@ -12,28 +12,25 @@
  *    and carries NO `id` field (embedded value object — proven both at
  *    the type level and behaviorally: selecting `id` fails validation).
  *  - **Surface freeze** — against the frozen baseline inventory (captured
- *    at HEAD `8e5ebb8`): every post-baseline addition is pinned by name —
- *    query fields grow ONLY by the sanctioned probe `_health`,
- *    `myApplicantProfile` (DEV2-004), the DEV3-004 participant-read
- *    trio (`sessionById`, `myStudentSessions`, `myTeacherSessions`) and
- *    the DEV3-005 admin arbitration listing (`adminDisputedSessions`);
- *    the mutation set grows ONLY by the DEV3-004 lifecycle quartet
- *    (`createSession`, `startSession`, `completeSession`,
- *    `cancelSession`) AND the DEV3-005 dispute pair (`openSessionDispute`,
- *    `resolveSessionDispute`) AND the DEV3-012 dual-confirmation mutation
- *    (`confirmSessionCompletion`); the enum set grows ONLY by `ApplicantStatus`
- *    (DEV2-004), the DEV3-004 scheduling trio (`SessionStatus`,
- *    `SessionType`, `SessionIntent` — registered ONCE in
- *    `shared/enum.pothos.ts`) and the DEV3-005 arbitration vocabulary
- *    (`DisputeResolution`); and the whole-schema named-type delta is
- *    exactly {ApplicantProfile, ApplicantStatus, DateTime, HealthCheck}
- *    (DEV2-004 surface + the `DateTime` scalar registered in
- *    `shared/scalar.pothos.ts`), the DEV3-004 scheduling enums, the
- *    DEV3-004 session objects/inputs (`Session`, `SessionPage`,
- *    `CreateSessionInput`, `SessionListFilterInput`) and the DEV3-005
- *    arbitration enum — the session objects joined the production type
- *    map when the Phase-3 resolver modules wired the root fields
- *    (DEV3-004 tasks 3.2/3.3) and the barrels were registered (task 3.4).
+ *    at HEAD `8e5ebb8`, since refreshed for the sanctioned baseline
+ *    additions (DEV2-004 applicant surface, the notifications engine — enum
+ *    + inbox queries + read-latch mutations, the users-locale pair, the
+ *    DEV1-013 handshake surface, and the DEV1-005/DEV3-016 admin plan-catalog
+ *    + user-management surfaces): every post-baseline addition is pinned by
+ *    name — the mutation set grows ONLY by the DEV3-004 lifecycle quartet
+ *    (`createSession`, `startSession`, `completeSession`, `cancelSession`),
+ *    the DEV3-005 dispute pair (`openSessionDispute`, `resolveSessionDispute`),
+ *    the DEV3-012 dual-confirmation mutation (`confirmSessionCompletion`) and
+ *    the DEV3-013 payout write (`requestWithdrawal`); the query set grows ONLY
+ *    by the DEV3-004 participant-read trio (`sessionById`, `myStudentSessions`,
+ *    `myTeacherSessions`), the DEV3-005 admin arbitration listing
+ *    (`adminDisputedSessions`) and the DEV3-013 wallet read (`myWallet`);
+ *    the enum set grows ONLY by the DEV3-004 scheduling trio (`SessionStatus`,
+ *    `SessionType`, `SessionIntent`), the DEV3-005 arbitration vocabulary
+ *    (`DisputeResolution`) and the DEV3-013 ledger pair (`TransactionType`,
+ *    `TransactionStatus`); and the whole-schema named-type delta is exactly
+ *    the session objects/inputs + arbitration + ledger enums + wallet
+ *    surface on top of the refreshed baseline delta.
  *  - **Allowlist agreement** — the scopeless `_health` field is present in
  *    the closed `PUBLIC_OPERATION_NAMES` tuple / `PUBLIC_OPERATIONS` set
  *    1:1 (schema↔allowlist agreement enforced as code).
@@ -61,6 +58,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import {
   GraphQLEnumType,
+  GraphQLInputObjectType,
   GraphQLObjectType,
   getNamedType,
   graphql,
@@ -70,15 +68,47 @@ import {
   printSchema,
   validate,
 } from "graphql";
+import { NotificationType } from "@/backend/enum/notifications/notification-type.enum";
 import { graphQLSchema } from "@/backend/graphql/gqlSchema";
 import { PUBLIC_OPERATION_NAMES, PUBLIC_OPERATIONS } from "@/backend/lib/gateway";
 
-// ─── Frozen baseline inventory (captured @ HEAD 8e5ebb8) ─────────────────────
+// ─── Frozen baseline inventory (captured @ HEAD 8e5ebb8; refreshed for the ────
+// ─── sanctioned applicant + notifications + users-locale + DEV1-013 handshake ─
+// ─── + DEV1-005 plan-catalog additions) ──────────────────────────────────────
 
-/** Root query field names present before the probe re-registration. */
-const PRE_3_1_QUERY_FIELDS = ["me", "recitationReadings"] as const;
-/** Root mutation field names present before the DEV3-004 lifecycle quartet. */
-const PRE_3_1_MUTATION_FIELDS = ["login", "logout", "refreshToken", "registerUser"] as const;
+/** Root query field names — the frozen baseline (probe re-registration excluded). */
+const PRE_3_1_QUERY_FIELDS = [
+  "adminPlans",
+  "me",
+  "myApplicantProfile",
+  "myNotifications",
+  "myUnreadNotificationCount",
+  "planCatalog",
+  "recitationReadings",
+] as const;
+/** Root mutation field names — the frozen baseline (auth quartet + notification read-latch pair + users-locale + plan-catalog CRUD). */
+const PRE_3_1_MUTATION_FIELDS = [
+  "createPlan",
+  "login",
+  "logout",
+  "markAllNotificationsRead",
+  "markNotificationRead",
+  "refreshToken",
+  "registerUser",
+  "setPlanActiveStatus",
+  "updateMyLocale",
+  "updatePlan",
+] as const;
+/** GraphQL enum type names — the freeze forbids any new Pothos enum. */
+const PRE_3_1_ENUMS = [
+  "ApplicantStatus",
+  "AppLocale",
+  "Gender",
+  "NotificationType",
+  "RecitationReading",
+  "RegisterPublicRole",
+  "UserRole",
+] as const;
 /**
  * DEV3-004 session lifecycle root fields — registered ONCE via the
  * side-effect barrels (`query|mutation/classes/index.ts` → top-level
@@ -111,21 +141,29 @@ const DEV3_005_SESSION_FIELDS = [
   "resolutionNote",
   "resolvedAt",
 ] as const;
-/** GraphQL enum type names — every new Pothos enum must be pinned here by name. */
-const PRE_3_1_ENUMS = ["ApplicantStatus", "Gender", "RecitationReading", "RegisterPublicRole", "UserRole"] as const;
 /** DEV3-004 scheduling enum trio — registered ONCE in `shared/enum.pothos.ts`. */
 const DEV3_004_ENUMS = ["SessionIntent", "SessionStatus", "SessionType"] as const;
 /** Non-root object/enum/scalar SDL type names in the baseline (introspection `__*` and spec scalars excluded). */
 const PRE_3_1_TYPE_NAMES = [
+  "AppLocale",
+  "ApplicantProfile",
+  "ApplicantStatus",
+  "CreatePlanInput",
   "Gender",
   "LoginPayload",
   "LogoutPayload",
   "Mutation",
+  "MyNotificationsFilterInput",
+  "Notification",
+  "NotificationListPage",
+  "NotificationType",
+  "Plan",
   "Query",
   "RecitationReading",
   "RefreshTokenPayload",
   "RegisterPublicRole",
   "RegisterUserInput",
+  "UpdatePlanInput",
   "User",
   "UserRole",
 ] as const;
@@ -148,6 +186,26 @@ function sdlTypeNames(): string[] {
     .toSorted((a, b) => a.localeCompare(b));
 }
 
+/** Runtime record guard (no casts, per test-tier discipline). */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+/**
+ * Reads a root field's `authScopes` snapshot off the Pothos extensions
+ * (no casts). Shared by the users-locale surface describe below; the
+ * notification-mutation describe keeps its own closure-scoped twins.
+ */
+function authScopesSnapshot(field: { readonly extensions?: unknown }): Record<string, unknown> {
+  const extensions: unknown = field.extensions;
+  if (!isRecord(extensions)) throw new Error("expected record-shaped extensions");
+  const pothosOptions: unknown = Reflect.get(extensions, "pothosOptions");
+  if (!isRecord(pothosOptions)) throw new Error("expected record-shaped pothosOptions");
+  const authScopes: unknown = Reflect.get(pothosOptions, "authScopes");
+  if (!isRecord(authScopes)) throw new Error("expected record-shaped authScopes");
+  return authScopes;
+}
+
 describe("Query._health — retyped probe surface", () => {
   const queryType = graphQLSchema.getQueryType();
 
@@ -162,14 +220,15 @@ describe("Query._health — retyped probe surface", () => {
     for (const name of PRE_3_1_QUERY_FIELDS) {
       expect(fieldNames).toContain(name);
     }
-    // …and the ONLY additions beyond them are the probe, the DEV2-004
-    // applicant-profile query, the DEV3-004 participant-read trio, and
-    // the DEV3-005 admin arbitration listing.
+    // …and the ONLY additions beyond them are the probe, the DEV1-013
+    // student-handshake queries, the DEV3-004 participant-read trio, the
+    // DEV3-005 admin arbitration listing, and the DEV3-013 wallet read.
     const additions = fieldNames.filter(name => !(PRE_3_1_QUERY_FIELDS as readonly string[]).includes(name));
     expect(additions.toSorted((a, b) => a.localeCompare(b))).toEqual(
       [
         "_health",
-        "myApplicantProfile",
+        "findStudentByHandshakeCode",
+        "myHandshakeCode",
         ...DEV3_004_QUERY_FIELDS,
         ...DEV3_005_QUERY_FIELDS,
         ...DEV3_013_QUERY_FIELDS,
@@ -234,7 +293,7 @@ describe("HealthCheck object shape — four scalar fields, no id", () => {
 });
 
 describe("Surface freeze — pinned additions vs the baseline inventory", () => {
-  test("mutation set grows ONLY by the DEV3-004 lifecycle quartet AND the DEV3-005 dispute pair", () => {
+  test("mutation set grows ONLY by the sanctioned additions (DEV3-004 quartet + DEV3-005 dispute pair + DEV3-012 confirm + DEV3-013 payout)", () => {
     const mutationFields = graphQLSchema.getMutationType()?.getFields() ?? {};
     const names = Object.keys(mutationFields).toSorted((a, b) => a.localeCompare(b));
 
@@ -304,7 +363,7 @@ describe("Surface freeze — pinned additions vs the baseline inventory", () => 
     }
   });
 
-  test("whole-schema named-type delta is pinned: HealthCheck + DEV2-004 applicant surface + DateTime scalar + DEV3-004 scheduling enums + session objects/inputs + DEV3-005 arbitration enum + DEV3-013 wallet surface", () => {
+  test("whole-schema named-type delta is pinned: refreshed baseline delta (DateTime scalar + HealthCheck probe + DEV1-013 handshake surface) + DEV3-004 session objects/inputs + scheduling/arbitration/ledger enums + DEV3-013 wallet surface", () => {
     const post = new Set(sdlTypeNames());
 
     for (const name of PRE_3_1_TYPE_NAMES) {
@@ -313,9 +372,8 @@ describe("Surface freeze — pinned additions vs the baseline inventory", () => 
     const additions = sdlTypeNames().filter(name => !(PRE_3_1_TYPE_NAMES as readonly string[]).includes(name));
     expect(additions).toEqual(
       [
-        "ApplicantProfile",
-        "ApplicantStatus",
         "DateTime",
+        "HandshakeCodeLookup",
         "HealthCheck",
         ...DEV3_004_TYPE_NAMES,
         ...DEV3_004_ENUMS,
@@ -324,6 +382,456 @@ describe("Surface freeze — pinned additions vs the baseline inventory", () => 
         ...DEV3_013_ENUMS,
       ].toSorted((a, b) => a.localeCompare(b))
     );
+  });
+});
+
+describe("Notification surface — enum + canonical objects", () => {
+  /** Field names in canonical definition order (drives the `id`-FIRST source pin). */
+  const CANONICAL_NOTIFICATION_FIELDS = [
+    "id",
+    "type",
+    "title",
+    "body",
+    "isRead",
+    "relatedEntityType",
+    "relatedEntityId",
+    "createdAt",
+  ] as const;
+
+  test("NotificationType enum carries EXACTLY the 7 canonical values (keys on the wire, snake_case runtime values)", () => {
+    const enumType = graphQLSchema.getType("NotificationType");
+
+    if (!(enumType instanceof GraphQLEnumType)) {
+      throw new Error("NotificationType must be registered as a GraphQL enum type");
+    }
+
+    const values = enumType.getValues();
+    expect(values).toHaveLength(7);
+    // The built schema is lexicographically sorted (enum-value order carries
+    // no GraphQL semantics), so the pins compare as sorted sets:
+    expect(values.map(value => value.name).toSorted((a, b) => a.localeCompare(b))).toEqual(
+      [
+        "SessionRequest",
+        "SessionCompletion",
+        "SessionCancellation",
+        "ParentLinkRequest",
+        "SystemBroadcast",
+        "PaymentConfirmation",
+        "EvaluationResult",
+      ].toSorted((a, b) => a.localeCompare(b))
+    );
+    // Runtime values stay the canonical snake_case strings — byte-identical
+    // to the pgEnum / TS enum single source of truth.
+    expect(values.map(value => value.value).toSorted((a, b) => a.localeCompare(b))).toEqual(
+      [
+        "session_request",
+        "session_completion",
+        "session_cancellation",
+        "parent_link_request",
+        "system_broadcast",
+        "payment_confirmation",
+        "evaluation_result",
+      ].toSorted((a, b) => a.localeCompare(b))
+    );
+    // Single-source agreement with the canonical TS enum itself.
+    expect(values.map(value => value.name).toSorted((a, b) => a.localeCompare(b))).toEqual(
+      Object.keys(NotificationType).toSorted((a, b) => a.localeCompare(b))
+    );
+    expect(values.map(value => value.value).toSorted((a, b) => a.localeCompare(b))).toEqual(
+      Object.values(NotificationType).toSorted((a, b) => a.localeCompare(b))
+    );
+  });
+
+  test("Notification object exposes `id` and EXACTLY the eight inbox fields (structurally NO `userId`)", () => {
+    const notificationType = graphQLSchema.getType("Notification");
+
+    if (!(notificationType instanceof GraphQLObjectType)) {
+      throw new Error("Notification must be registered as a GraphQL object type");
+    }
+
+    const fields = notificationType.getFields();
+    const field = (name: string) => {
+      const candidate = fields[name];
+      if (!candidate) {
+        throw new Error(`Notification must register the \`${name}\` field`);
+      }
+      return candidate;
+    };
+
+    expect(Object.keys(fields).toSorted((a, b) => a.localeCompare(b))).toEqual(
+      [...CANONICAL_NOTIFICATION_FIELDS].toSorted((a, b) => a.localeCompare(b))
+    );
+    // Exact field types per the contract (the inbox deliberately keeps the
+    // ISO-8601 string convention for timestamps — NOT the `DateTime` scalar
+    // now registered in `shared/scalar.pothos.ts`).
+    expect(field("id").type.toString()).toBe("ID!");
+    expect(field("type").type.toString()).toBe("NotificationType!");
+    expect(field("title").type.toString()).toBe("String!");
+    expect(field("body").type.toString()).toBe("String");
+    expect(field("isRead").type.toString()).toBe("Boolean!");
+    expect(field("relatedEntityType").type.toString()).toBe("String");
+    expect(field("relatedEntityId").type.toString()).toBe("Int");
+    expect(field("createdAt").type.toString()).toBe("String!");
+    // SEC: the recipient `userId` is structurally absent from the surface —
+    // the recipient is implied by the self-scoped caller, never disclosed.
+    expect(Object.hasOwn(fields, "userId")).toBe(false);
+  });
+
+  test("`id` is the FIRST field defined on the canonical object source (Apollo normalization convention)", () => {
+    // The built schema is lexicographically sorted (field order carries no
+    // GraphQL semantics), so the id-FIRST convention is pinned at the
+    // source level — lexical scan by design, like the gateway static gates.
+    const source = readFileSync(
+      resolve(process.cwd(), "backend/graphql/pothos/notifications/notification.pothos.ts"),
+      "utf8"
+    );
+    const fieldsBlock = source.slice(source.indexOf("fields: t => ({"));
+    const positions = CANONICAL_NOTIFICATION_FIELDS.map(name => ({
+      name,
+      at: fieldsBlock.indexOf(`${name}: `),
+    }));
+    for (const { at } of positions) {
+      expect(at).toBeGreaterThanOrEqual(0);
+    }
+    const idPosition = positions.find(position => position.name === "id")?.at ?? -1;
+    for (const { name, at } of positions) {
+      if (name !== "id") {
+        expect(idPosition).toBeLessThan(at);
+      }
+    }
+  });
+
+  test("NotificationListPage wrapper exposes EXACTLY items/totalCount/hasMore", () => {
+    const pageType = graphQLSchema.getType("NotificationListPage");
+
+    if (!(pageType instanceof GraphQLObjectType)) {
+      throw new Error("NotificationListPage must be registered as a GraphQL object type");
+    }
+
+    const fields = pageType.getFields();
+    expect(Object.keys(fields).toSorted((a, b) => a.localeCompare(b))).toEqual(["hasMore", "items", "totalCount"]);
+    expect(fields.items?.type.toString()).toBe("[Notification!]!");
+    expect(fields.totalCount?.type.toString()).toBe("Int!");
+    expect(fields.hasMore?.type.toString()).toBe("Boolean!");
+    // Wrapper is an embedded value object — no `id` (rows inside `items`
+    // are the normalizable entities).
+    expect(Object.hasOwn(fields, "id")).toBe(false);
+  });
+});
+
+describe("Notification query surface — self-scoped inbox reads", () => {
+  const queryType = graphQLSchema.getQueryType();
+
+  if (!queryType) {
+    throw new Error("Schema must define a root Query type");
+  }
+
+  // Captured ONCE after the narrowing guard so the hoisted `queryField`
+  // helper below never re-dereferences a possibly-null root type.
+  const rootFields = queryType.getFields();
+
+  function queryField(name: string) {
+    const field = rootFields[name];
+    if (!field) {
+      throw new Error(`Query must register the \`${name}\` root field`);
+    }
+    return field;
+  }
+
+  /** Reads one root field's `authScopes` snapshot off the Pothos extensions (no casts). */
+  function authScopesOf(fieldName: string): Record<string, unknown> {
+    const extensions: unknown = queryField(fieldName).extensions;
+    if (!isRecord(extensions)) throw new Error("expected record-shaped extensions");
+    const pothosOptions: unknown = Reflect.get(extensions, "pothosOptions");
+    if (!isRecord(pothosOptions)) throw new Error("expected record-shaped pothosOptions");
+    const authScopes: unknown = Reflect.get(pothosOptions, "authScopes");
+    if (!isRecord(authScopes)) throw new Error("expected record-shaped authScopes");
+    return authScopes;
+  }
+
+  test("`myNotifications` returns NotificationListPage! with ONE optional filter arg", () => {
+    const field = queryField("myNotifications");
+    expect(field.type.toString()).toBe("NotificationListPage!");
+    const argNames = field.args.map(arg => arg.name).toSorted((a, b) => a.localeCompare(b));
+    expect(argNames).toEqual(["filter"]);
+    const filterArg = field.args[0];
+    if (!filterArg) throw new Error("expected the filter argument");
+    // Optional + nullable input — exactly the SDL contract's
+    // `(filter: MyNotificationsFilterInput)`.
+    expect(filterArg.type.toString()).toBe("MyNotificationsFilterInput");
+  });
+
+  test("`myUnreadNotificationCount` returns Int! with ZERO arguments", () => {
+    const field = queryField("myUnreadNotificationCount");
+    expect(field.type.toString()).toBe("Int!");
+    expect(field.args).toHaveLength(0);
+  });
+
+  test("BOTH inbox queries carry EXACTLY the `authenticated` scope (no role/permission/superAdmin)", () => {
+    for (const name of ["myNotifications", "myUnreadNotificationCount"]) {
+      const scopes = authScopesOf(name);
+      expect(Object.keys(scopes).toSorted((a, b) => a.localeCompare(b))).toEqual(["authenticated"]);
+      expect(scopes.authenticated).toBe(true);
+      // SEC: every authenticated role owns an inbox — no role material may
+      // participate in the scope decision.
+      expect("role" in scopes).toBe(false);
+      expect("permission" in scopes).toBe(false);
+      expect("superAdmin" in scopes).toBe(false);
+    }
+  });
+
+  test("MyNotificationsFilterInput exposes EXACTLY the 4 filter fields, all nullable, ZERO identity fields", () => {
+    const inputType = graphQLSchema.getType("MyNotificationsFilterInput");
+    if (!(inputType instanceof GraphQLInputObjectType)) {
+      throw new Error("MyNotificationsFilterInput must be registered as a GraphQL input type");
+    }
+    const fields = inputType.getFields();
+    expect(Object.keys(fields).toSorted((a, b) => a.localeCompare(b))).toEqual(["isRead", "limit", "offset", "type"]);
+    expect(fields.type?.type.toString()).toBe("NotificationType");
+    expect(fields.isRead?.type.toString()).toBe("Boolean");
+    expect(fields.limit?.type.toString()).toBe("Int");
+    expect(fields.offset?.type.toString()).toBe("Int");
+    // SEC (BOPLA): no identity field of any kind — the inbox is addressed
+    // exclusively by the verified caller context.
+    expect(Object.hasOwn(fields, "userId")).toBe(false);
+    expect(Object.hasOwn(fields, "user")).toBe(false);
+    expect(Object.hasOwn(fields, "id")).toBe(false);
+    expect(Object.hasOwn(fields, "recipientId")).toBe(false);
+  });
+
+  test("anonymous (context-free) in-process execution of BOTH inbox queries yields UNAUTHORIZED", async () => {
+    // Each op asserted in its OWN document: both fields are non-null at the
+    // root, so a combined document would null-propagate the first failure
+    // over its sibling (one error, second field never resolved).
+    const documents = [
+      { source: "{ myNotifications { totalCount } }", path: "myNotifications" },
+      { source: "{ myUnreadNotificationCount }", path: "myUnreadNotificationCount" },
+    ] as const;
+    const results = await Promise.all(
+      documents.map(async document => graphql({ schema: graphQLSchema, source: document.source, contextValue: {} }))
+    );
+    for (const [index, result] of results.entries()) {
+      const errors = result.errors;
+      if (!errors) throw new Error("expected the anonymous inbox query to fail");
+      expect(errors).toHaveLength(1);
+      expect(errors[0]?.extensions?.code).toBe("UNAUTHORIZED");
+      expect(errors[0]?.path).toEqual([documents[index]?.path]);
+    }
+  });
+
+  test("smuggled identity args die at validation BEFORE any resolver runs (zero identity-arg surface)", () => {
+    const unknownRootArg = validate(graphQLSchema, parse("{ myNotifications(userId: 123) { totalCount } }"));
+    expect(unknownRootArg).toHaveLength(1);
+    expect(unknownRootArg[0]?.message).toContain('Unknown argument "userId"');
+
+    const smuggledFilterField = validate(
+      graphQLSchema,
+      parse("{ myNotifications(filter: { userId: 123 }) { totalCount } }")
+    );
+    expect(smuggledFilterField).toHaveLength(1);
+    expect(smuggledFilterField[0]?.message).toContain('unknown field "userId"');
+
+    const unknownCountArg = validate(graphQLSchema, parse("{ myUnreadNotificationCount(userId: 123) }"));
+    expect(unknownCountArg).toHaveLength(1);
+    expect(unknownCountArg[0]?.message).toContain('Unknown argument "userId"');
+  });
+});
+
+describe("Notification mutation surface — self-scoped read latch", () => {
+  const mutationType = graphQLSchema.getMutationType();
+
+  if (!mutationType) {
+    throw new Error("Schema must define a root Mutation type");
+  }
+
+  // Captured ONCE after the narrowing guard so the hoisted `mutationField`
+  // helper below never re-dereferences a possibly-null root type.
+  const rootFields = mutationType.getFields();
+
+  function mutationField(name: string) {
+    const field = rootFields[name];
+    if (!field) {
+      throw new Error(`Mutation must register the \`${name}\` root field`);
+    }
+    return field;
+  }
+
+  /** Reads one root field's `authScopes` snapshot off the Pothos extensions (no casts). */
+  function authScopesOf(fieldName: string): Record<string, unknown> {
+    const extensions: unknown = mutationField(fieldName).extensions;
+    if (!isRecord(extensions)) throw new Error("expected record-shaped extensions");
+    const pothosOptions: unknown = Reflect.get(extensions, "pothosOptions");
+    if (!isRecord(pothosOptions)) throw new Error("expected record-shaped pothosOptions");
+    const authScopes: unknown = Reflect.get(pothosOptions, "authScopes");
+    if (!isRecord(authScopes)) throw new Error("expected record-shaped authScopes");
+    return authScopes;
+  }
+
+  test("`markNotificationRead` returns Notification! with EXACTLY ONE required `id: ID!` arg", () => {
+    const field = mutationField("markNotificationRead");
+    expect(field.type.toString()).toBe("Notification!");
+    const argNames = field.args.map(arg => arg.name).toSorted((a, b) => a.localeCompare(b));
+    expect(argNames).toEqual(["id"]);
+    const idArg = field.args[0];
+    if (!idArg) throw new Error("expected the id argument");
+    // Required + non-null — exactly the SDL contract's `(id: ID!)`.
+    expect(idArg.type.toString()).toBe("ID!");
+  });
+
+  test("`markAllNotificationsRead` returns Int! with EXACTLY ONE optional `type: NotificationType` arg", () => {
+    const field = mutationField("markAllNotificationsRead");
+    expect(field.type.toString()).toBe("Int!");
+    const argNames = field.args.map(arg => arg.name).toSorted((a, b) => a.localeCompare(b));
+    expect(argNames).toEqual(["type"]);
+    const typeArg = field.args[0];
+    if (!typeArg) throw new Error("expected the type argument");
+    // Optional + nullable — exactly the SDL contract's `(type: NotificationType)`.
+    expect(typeArg.type.toString()).toBe("NotificationType");
+  });
+
+  test("BOTH inbox mutations carry EXACTLY the `authenticated` scope (no role/permission/superAdmin)", () => {
+    for (const name of ["markNotificationRead", "markAllNotificationsRead"]) {
+      const scopes = authScopesOf(name);
+      expect(Object.keys(scopes).toSorted((a, b) => a.localeCompare(b))).toEqual(["authenticated"]);
+      expect(scopes.authenticated).toBe(true);
+      // SEC: every authenticated role owns an inbox — no role material may
+      // participate in the scope decision.
+      expect("role" in scopes).toBe(false);
+      expect("permission" in scopes).toBe(false);
+      expect("superAdmin" in scopes).toBe(false);
+    }
+  });
+
+  test("anonymous (context-free) in-process execution of BOTH inbox mutations yields UNAUTHORIZED", async () => {
+    // Each op asserted in its OWN document: both fields are non-null at the
+    // root, so a combined document would null-propagate the first failure
+    // over its sibling (one error, second field never resolved).
+    const documents = [
+      { source: 'mutation { markNotificationRead(id: "1") { id } }', path: "markNotificationRead" },
+      { source: "mutation { markAllNotificationsRead }", path: "markAllNotificationsRead" },
+    ] as const;
+    const results = await Promise.all(
+      documents.map(async document => graphql({ schema: graphQLSchema, source: document.source, contextValue: {} }))
+    );
+    for (const [index, result] of results.entries()) {
+      const errors = result.errors;
+      if (!errors) throw new Error("expected the anonymous inbox mutation to fail");
+      expect(errors).toHaveLength(1);
+      expect(errors[0]?.extensions?.code).toBe("UNAUTHORIZED");
+      expect(errors[0]?.path).toEqual([documents[index]?.path]);
+    }
+  });
+
+  test("smuggled identity args die at validation BEFORE any resolver runs (zero identity-arg surface)", () => {
+    const smuggledMarkOne = validate(
+      graphQLSchema,
+      parse('mutation { markNotificationRead(id: "1", userId: 123) { id } }')
+    );
+    expect(smuggledMarkOne).toHaveLength(1);
+    expect(smuggledMarkOne[0]?.message).toContain('Unknown argument "userId"');
+
+    const smuggledMarkAll = validate(graphQLSchema, parse("mutation { markAllNotificationsRead(userId: 123) }"));
+    expect(smuggledMarkAll).toHaveLength(1);
+    expect(smuggledMarkAll[0]?.message).toContain('Unknown argument "userId"');
+  });
+});
+
+describe("Users-locale surface (D2 backend vertical) — self-scoped locale preference", () => {
+  const mutationType = graphQLSchema.getMutationType();
+
+  if (!mutationType) {
+    throw new Error("Schema must define a root Mutation type");
+  }
+
+  // Captured ONCE after the narrowing guard — direct lookups below never
+  // re-dereference a possibly-null root type.
+  const rootFields = mutationType.getFields();
+
+  /** Fail-fast field lookup for the users-locale root field. */
+  function updateMyLocaleField() {
+    const field = rootFields.updateMyLocale;
+    if (!field) {
+      throw new Error("Mutation must register the `updateMyLocale` root field");
+    }
+    return field;
+  }
+
+  test("`updateMyLocale` returns User! with EXACTLY ONE required `locale: AppLocale!` arg", () => {
+    const field = updateMyLocaleField();
+    expect(field.type.toString()).toBe("User!");
+    const argNames = field.args.map(arg => arg.name).toSorted((a, b) => a.localeCompare(b));
+    expect(argNames).toEqual(["locale"]);
+    const localeArg = field.args[0];
+    if (!localeArg) throw new Error("expected the locale argument");
+    // Required + non-null — exactly the SDL contract's `(locale: AppLocale!)`.
+    expect(localeArg.type.toString()).toBe("AppLocale!");
+  });
+
+  test("`updateMyLocale` carries EXACTLY the `authenticated` scope (no role/permission/superAdmin)", () => {
+    const scopes = authScopesSnapshot(updateMyLocaleField());
+    expect(Object.keys(scopes).toSorted((a, b) => a.localeCompare(b))).toEqual(["authenticated"]);
+    expect(scopes.authenticated).toBe(true);
+    // SEC: every authenticated role owns a locale preference — no role
+    // material may participate in the scope decision.
+    expect("role" in scopes).toBe(false);
+    expect("permission" in scopes).toBe(false);
+    expect("superAdmin" in scopes).toBe(false);
+  });
+
+  test("AppLocale enum carries EXACTLY the 2 canonical values (keys on the wire, lowercase runtime values)", () => {
+    const enumType = graphQLSchema.getType("AppLocale");
+
+    if (!(enumType instanceof GraphQLEnumType)) {
+      throw new Error("AppLocale must be registered as a GraphQL enum type");
+    }
+
+    const values = enumType.getValues();
+    expect(values).toHaveLength(2);
+    expect(values.map(value => value.name).toSorted((a, b) => a.localeCompare(b))).toEqual(["Ar", "En"]);
+    // Runtime values stay the canonical lowercase locale strings —
+    // byte-identical to the pgEnum / TS enum / shared `locales` list.
+    expect(values.map(value => value.value).toSorted((a, b) => a.localeCompare(b))).toEqual(["ar", "en"]);
+  });
+
+  test("`User.locale` is the NULLABLE AppLocale enum (unset until the user picks one)", () => {
+    const userType = graphQLSchema.getType("User");
+
+    if (!(userType instanceof GraphQLObjectType)) {
+      throw new Error("User must be registered as a GraphQL object type");
+    }
+
+    const localeField = userType.getFields().locale;
+    if (!localeField) {
+      throw new Error("User must register the `locale` field");
+    }
+    expect(localeField.type.toString()).toBe("AppLocale");
+  });
+
+  test("anonymous (context-free) in-process execution of updateMyLocale yields UNAUTHORIZED", async () => {
+    const result = await graphql({
+      schema: graphQLSchema,
+      source: "mutation { updateMyLocale(locale: Ar) { id } }",
+      contextValue: {},
+    });
+    const errors = result.errors;
+    if (!errors) throw new Error("expected the anonymous locale mutation to fail");
+    expect(errors).toHaveLength(1);
+    expect(errors[0]?.extensions?.code).toBe("UNAUTHORIZED");
+    expect(errors[0]?.path).toEqual(["updateMyLocale"]);
+  });
+
+  test("smuggled identity args die at validation BEFORE any resolver runs (zero identity-arg surface)", () => {
+    const smuggledUserId = validate(
+      graphQLSchema,
+      parse("mutation { updateMyLocale(locale: Ar, userId: 123) { id } }")
+    );
+    expect(smuggledUserId).toHaveLength(1);
+    expect(smuggledUserId[0]?.message).toContain('Unknown argument "userId"');
+
+    // The closed enum rejects non-locale literals at validation time too.
+    const invalidLiteral = validate(graphQLSchema, parse("mutation { updateMyLocale(locale: fr) { id } }"));
+    expect(invalidLiteral).toHaveLength(1);
+    expect(invalidLiteral[0]?.message).toContain('Value "fr" does not exist in "AppLocale" enum');
   });
 });
 

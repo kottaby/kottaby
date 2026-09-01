@@ -1334,7 +1334,7 @@ describe("SessionLifecycleService — transactional flows (runInRollback)", () =
       "@/backend/enum/users/user-role.enum",
       "@/backend/lib/errors",
       "@/backend/lib/logger",
-      "@/backend/services/shared/withTransaction",
+      "@/backend/lib/db/with-transaction",
       "@/backend/types",
       "@/shared/constants/session-fees.constants",
       "@/shared/locale/server-graphql",
@@ -1364,9 +1364,11 @@ describe("SessionLifecycleService — transactional flows (runInRollback)", () =
       "WalletRepository",
     ]);
 
-    // (3) The only cross-surface-shaped import is the shared tx helper.
-    const serviceImports = specifiers.filter(specifier => specifier.includes("@/backend/services/"));
-    expect(serviceImports).toEqual(["@/backend/services/shared/withTransaction"]);
+    // (3) The only cross-surface-shaped import is the shared tx helper
+    // (canonical substrate at `@/backend/lib/db/with-transaction` — the
+    // merged repository-wide single truth for SAVEPOINT-vs-top-level tx).
+    const serviceImports = specifiers.filter(specifier => specifier.includes("@/backend/lib/db/"));
+    expect(serviceImports).toEqual(["@/backend/lib/db/with-transaction"]);
   });
 
   test("source: the specifier allowlist has no dynamic-import escape hatch — zero import( / require( call sites in the service", () => {

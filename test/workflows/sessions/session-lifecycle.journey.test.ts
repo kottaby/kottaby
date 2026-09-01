@@ -12,7 +12,7 @@
  * Layer contract (`test/workflows/AGENTS.md` + `docs/testing/workflow-journey-tests.md`):
  *  - NO `runInRollback` — fixtures commit in `beforeAll`; every row
  *    (fixtures AND service-created sessions/claims) is registered in a
- *    `JourneyFixtureRegistry` and hard-deleted FK-safely in `afterAll`.
+ *    `SessionFixtureRegistry` and hard-deleted FK-safely in `afterAll`.
  *  - Per-run `jrn_sessions_<8hex>` prefix on user labels and idempotency
  *    keys — repeated or parallel runs never collide.
  *  - Negative steps fail through the REAL service denials, asserted by
@@ -54,7 +54,7 @@ import {
   countNotificationsForUser,
   countTeacherTransactionsForTeacher,
   countWalletsForTeacher,
-  createJourneyFixtureRegistry,
+  createSessionFixtureRegistry,
   journeyPrefix,
   type SessionJourneyCast,
 } from "@/test/workflows/helpers";
@@ -74,7 +74,7 @@ const KEY_A = `${JOURNEY_PREFIX}-studentA-k1`;
 const KEY_B = `${JOURNEY_PREFIX}-studentB-k2`;
 
 /** The fixture registry — the hard-delete worklist drained by `afterAll`. */
-const registry = createJourneyFixtureRegistry();
+const registry = createSessionFixtureRegistry();
 
 /** The committed actor cast (assigned once by `beforeAll`). */
 let cast: SessionJourneyCast;

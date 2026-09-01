@@ -270,42 +270,33 @@
 | `recitation.user_id` → `session_id` (unique) | C.5 | One per session |
 | `home_work.current_surah_juz`, `revision_surah_juz` added | B.11 | Surah/Juz enum |
 | `users.last_active_at` added | B.15 | Inactivity tracking |
+| `plans.is_active`, `plans.deactivated_at` added | A.11 | Plan catalog deactivation & forward-only lifecycle |
 | 7 new enums created | Multiple | `session_type`, `session_intent`, `subscription_status`, `link_status`, `notification_type`, `audit_action_type`, `surah_juz_ref`, `teacher_request_preference` |
+
+All schema changes have been validated with `bun validate:dbml`.
 
 All schema changes have been validated against the Drizzle schema in `backend/db/schema/` (the sole structural ground truth).
 
 ---
 
-## E. Implementation Addendum — Session Creation & Lifecycle (DEV3-004, 2026-08-31)
+## Implementation Addenda — Real-Time Notification Engine (DEV3-010)
 
-> Recorded per REQ-081 (knowledge propagation). Canonical implementation reference: `docs/sessions/session-lifecycle.md`.
+> Post-resolution rulings recorded when the real-time notification engine (DEV3-010) shipped. Each addendum is bound to **Decision A.4** (the `notifications` table this engine serves); none reopens the 33-decision catalog or the summary counts above.
 
-### E.1: Hold-at-Request = Guarded Debit (Reconciles B.4)
-> **✅ RESOLVED** (ruling, 2026-08-30)
->
-> **Decision:** "hold" means the student's allowance lane is **debited by one unit at request time** via the trial-first guarded ladder (INV-B8: `balance_trial` first, then the intent lane `balance_hifz`/`balance_tajweed`); the winning lane is recorded as provenance in the new nullable `session.held_balance_lane` varchar(20) column (once placed, never rewritten or nulled — release/consumption flips `fee_held` only); cancellation re-increments the **SAME** lane exactly once (unguarded `+1`, same transaction, driven by the guarded cancel UPDATE's RETURNING row). **This supersedes `docs/planning/TEAM_ALLOCATION.md` Contract 1's older phrasing ("held, not decremented")** — escrow-hold semantics are only meaningful if the lane was debited at request. B.4's escrow model is thereby implemented as debit-at-request + same-lane refund + the `fee_held` marker; the **wallet-side** release/credit lands with DEV3-012/013.
-> **Schema impact:** `session.held_balance_lane varchar(20) NULL` (`.$type<HeldBalanceLane>()`, no CHECK, no index) + the same-lane refund primitive in `StudentRepository.incrementLane`. Pre-existing DEV1-004-era rows carry `fee_held = false` and a NULL lane — cancelling them refunds nothing (correct: no hold exists).
-
-### E.2: Interim Constant Session Fees (Refines B.3)
+### A.4.1: WebSocket Delivery Topology — Standalone Sidecar, Not an App Router Route
 > **✅ RESOLVED**
 >
-> **Decision:** Until plan-linked pricing exists, the platform-set fee is served from `shared/constants/session-fees.constants.ts` — `SESSION_FEE_HIFZ = "25.00"`, `SESSION_FEE_TAJWEED = "25.00"`, `SESSION_FEE_CURRENCY = "EGP"`, `SESSION_CONFIRMATION_WINDOW_MS = 86_400_000`. Decimal **strings** carried end-to-end (zero arithmetic on fees — DEV1-005 money discipline); the GraphQL input structurally omits `fee` (BOPLA).
-> **Forward contract:** plan-linked pricing refinement is owned by **DEV3-013** (per plan decision D10); do not add per-plan fee inputs to the wire before that ticket lands.
+> **Decision:** The Next.js App Router cannot host a WebSocket server, so real-time delivery for the `notifications` table (A.4) runs in a standalone sidecar process: `bun run ws` (`scripts/start-notification-ws.ts`) boots a Bun-native server (`Bun.serve`) on `WS_HOST:WS_PORT` (dev default `ws://127.0.0.1:3101` — not 3000/3001, which the dev server occupies). The sidecar is NOT an `app/api/**` surface and is exempt from `ROUTE_INVENTORY` (DEV3-010 plan §1.1); the browser connects same-host via the `NEXT_PUBLIC_NOTIFICATION_WS_URL` override or a derived `:3101` endpoint. Cross-process fan-out (Next.js server ↔ sidecar) requires the Redis pub/sub bus — the in-process adapter is valid only for tests and single-process runs.
+> **Spec impact:** None (no schema change). See `docs/notifications/realtime-engine.md` §2 (topology) and §3.5 (backplane port + both adapters).
 
-### E.3: `is_online` Availability Assertion — Deferred
-> **⏸ DEFERRED** (ledger D3)
+### A.4.2: Notification Emission Idempotency — Fail-Open, Unlike the Booking Surfaces
+> **✅ RESOLVED**
 >
-> **Decision:** DEV3-004 asserts **certification only** (`teacher.is_approved`, INV-S5) at booking. `teacher.is_online` defaults `false` and NO surface to set it exists until DEV2-011 (Sprint 2) — asserting availability in Sprint 1 would make ALL bookings impossible. The `is_online` availability assertion and teacher-directory wiring are owned by **DEV3-008 / DEV2-011**. (DEV2-011/012 also own the in-session `is_online = false` lock — INV-S6/A2 — with DEV3-005.)
-> **Schema impact:** none (no column change; the column pre-exists).
+> **Decision:** Writing to the `notifications` table (A.4) degrades **fail-open** on an idempotency-cache outage: the emit proceeds with at most one structured warn, and the worst case is a duplicate notification row — benign, user-dismissable noise. This is a deliberate, documented deviation (DEV3-010 plan decision D5) from `docs/IDEMPOTENCY.md`'s fail-closed posture, which mandates `X-Idempotency-Key` protection with `409 Conflict` / `DUPLICATE_REQUEST` for booking-class mutations (Students, Invoices, Class Instances, Payments) — a duplicate booking or payment is money, not noise, so those surfaces fail closed while notification emission is outside that doc's mandated key set. A cache blip must not block session completion or payment confirmation.
+> **Spec impact:** None. Full rationale and claim-cache mechanics: `docs/notifications/realtime-engine.md` §3.6.
 
-### E.4: `session_request_idempotency` Claim Table + 24h Sweeper Deferral
-> **✅ IMPLEMENTED** (sweeper deferred — ledger D2)
+### A.4.3: Notification Copy Localization — at the Emitter, Not the Engine
+> **✅ RESOLVED**
 >
-> **Decision:** Booking idempotency is enforced at the DB level via the new `session_request_idempotency` claim table (`idempotency_key varchar(128) UNIQUE NOT NULL`, `user_id NOT NULL` FK cascade, `session_id NULL` FK set-null, `created_at`), extending `docs/IDEMPOTENCY.md`'s class-instance booking mandate to P2P `session` bookings by intent consistency. A replayed key raises PG `23505` → the service **throws** `ConflictError("DUPLICATE_REQUEST")` (409) — never a success-shaped return; the replayed attempt's own partial writes roll back with the transaction (zero new rows, no second debit), and the success-equivalent experience is the CLIENT-side REQ-065 mapping (`duplicateBookingInfo` info notice). A failed booking rolls its claim back — the key is released and reusable.
-> **Deferral:** the 24h claim sweeper / expiry job is NOT shipped (claims are harmless rows); it is owned by **DEV3-012** together with the 24h dual-confirmation auto-cancel sweep.
-
-### E.5: Sessions-Are-Sensitive Disclosure (Oracle) Ruling
-> **✅ RESOLVED** (contrast: DEV1-005 plan-catalog ruling)
->
-> **Decision:** A `session` row reveals balances, counterparty identity, and lifecycle state — all private to its two participants. Therefore, on EVERY session read and mutation, a **foreign id and a nonexistent id are indistinguishable**: `sessionById` resolves to the identical `null`, and transition denials for foreign/nonexistent/non-participant targets (including parents and admins) carry a byte-identical `SESSION_NOT_FOUND` shape. Error text never contains the other party's identity, balances, or governance state.
-> **Contrast:** the plan catalog (DEV1-005) is public marketing data readable by anonymous visitors — there, a distinguishable `NOT_FOUND` for a nonexistent plan is acceptable and the stricter collapse is unnecessary. The two rulings are structurally symmetric and semantically opposite; copy neither into the other domain. Documented exception on the session surface: the **teacher-target** entity on `createSession` keeps a distinguishable oracle (`TEACHER_NOT_FOUND` vs `TEACHER_NOT_CERTIFIED`) because teacher existence becomes public with the DEV3-008 directory — legitimate booking-caller UX. See `docs/sessions/session-lifecycle.md` §7 (anti-copy-paste warning).
+> **Decision:** Notification copy stored in the `notifications` table (A.4) is localized by the **emitter at emit time** (REQ-015/028); the engine stores `title`/`body` verbatim and never translates or templates. Emitters pass a single locale per batch; per-recipient locale routing is not yet wired through the engine.
+> **Spec impact:** Deferred item D2 is RESOLVED in DEV3-010 — `users.locale` (nullable, `AppLocale`) now exists with the `updateMyLocale` mutation. Per-recipient fan-out routing off that column remains open. See `docs/notifications/realtime-engine.md` §3.3.

@@ -5,6 +5,10 @@
  * lint-queue-client.ts, lint-queue-config.ts) into a single purely-typed TypeScript
  * service with both a CLI and programmatic API.
  *
+ * Structure (extracted for size):
+ *   - lint-service-config.ts  Types, constants, adaptive heap/concurrency sizing
+ *   - lint-service-cli.ts     CLI argument parsing and output rendering
+ *
  * Architecture:
  *   - In-process FIFO queue for serialized ESLint execution within one Bun process
  *   - CLI for shell invocation (supports --files, --fix, --json, --verbose)
@@ -35,8 +39,11 @@
  *   performance. A dedicated cache location is used per mode to avoid stale parse errors.
  *
  * Environment variables:
- *   - LINT_QUEUE_CONCURRENCY   Override eslint --concurrency (default: 4; "auto" allowed)
+ *   - LINT_QUEUE_CONCURRENCY   Override eslint --concurrency (default: adaptive 1-4,
+ *                              derived from CPU count and memory budget; "auto" allowed)
  *   - LINT_QUEUE_TIMEOUT_MS     Override per-request timeout in ms (default: 300000 files, 1200000 full-repo)
+ *   - LINT_MAX_OLD_SPACE_MB    Override the eslint child --max-old-space-size heap cap in MB
+ *                              (default: adaptive — see MAX_OLD_SPACE_MB in lint-service-config.ts)
  *
  * CLI Usage:
  *   bun run scripts/lint-service.ts                             # Full-repo lint
@@ -53,57 +60,27 @@
  * Exit codes (CLI):
  *   0 = ESLint passed (no errors)
  *   1 = ESLint reported problems
- *   2 = Invalid arguments or service fault
+ *   2 = Invalid arguments, service fault, or eslint killed by signal (e.g. OOM-kill)
  */
 
 import { exec } from "node:child_process";
-import { parseArgs } from "node:util";
-import { withProcessLock } from "@/scripts/lib/process-lock";
+import { withProcessLock } from "@/scripts/lib";
+import { runLintCli } from "@/scripts/lint-service-cli";
+import {
+  CONCURRENCY,
+  DEFAULT_TIMEOUT_FILES_MS,
+  DEFAULT_TIMEOUT_FULL_REPO_MS,
+  ESLINT_BIN,
+  ESLINT_PATCH,
+  type LintExecutionResult,
+  type LintOptions,
+  type LintResult,
+  MAX_OLD_SPACE_MB,
+  signalDeathNotice,
+} from "@/scripts/lint-service-config";
 
-// ─── Types ──────────────────────────────────────────────────────────────────
-
-export type LintResult = { success: boolean; output: string; exitCode: number };
-
-export interface LintOptions {
-  fix?: boolean;
-  json?: boolean;
-  verbose?: boolean;
-  typeAware?: boolean;
-  /** ESLint --max-warnings (e.g. 0 to fail on any warning). */
-  maxWarnings?: number;
-}
-
-export interface LintMetrics {
-  id: string;
-  scope: "full-repo" | "files";
-  fileCount: number;
-  durationMs: number;
-  enqueuedAt: number;
-  startedAt: number;
-  finishedAt: number;
-  queueDepthAtEnqueue: number;
-}
-
-export interface LintExecutionResult extends LintResult {
-  metrics: LintMetrics;
-}
-
-// ─── Constants ──────────────────────────────────────────────────────────────
-
-/** ESLint binary invocation via Bun (resolved from PATH, not hardcoded). */
-const ESLINT_BIN = process.env.BUN_EXEC ?? "bun";
-
-/** NODE_OPTIONS fragment for TypeScript 6 patch (swaps typescript → @typescript/typescript6) */
-const ESLINT_PATCH = "-r ./scripts/ts6-eslint-patch.cjs";
-
-/** Default per-request timeout for file-scoped lint runs (5 minutes) */
-const DEFAULT_TIMEOUT_FILES_MS = Number(process.env.LINT_QUEUE_TIMEOUT_MS ?? 300000);
-
-/** Default per-request timeout for full-repo lint runs (5 minutes) */
-const DEFAULT_TIMEOUT_FULL_REPO_MS = Number(process.env.LINT_QUEUE_TIMEOUT_MS ?? 1200000);
-
-/** ESLint concurrency value (default 4; override via LINT_QUEUE_CONCURRENCY env var) */
-const CONCURRENCY = process.env.LINT_QUEUE_CONCURRENCY ?? "4";
+// Types stay importable from this module's original path for existing consumers.
+export type { LintExecutionResult, LintMetrics, LintOptions, LintResult } from "@/scripts/lint-service-config";
 
 // ─── LintService (In-Process Queue + ESLint Executor) ──────────────────────
 
@@ -223,16 +200,13 @@ class LintService {
     const maxWarningsFlag = options.maxWarnings !== undefined ? `--max-warnings ${options.maxWarnings}` : "";
 
     // Construct the command
-    const envPrefix = options.typeAware ? 'ESLINT_TYPE_AWARE="true"' : "";
     const concurrencySetting = options.typeAware ? "1" : CONCURRENCY;
-    const nodeOptions = `${ESLINT_PATCH} --max-old-space-size=8192`;
+    const nodeOptions = `${ESLINT_PATCH} --max-old-space-size=${MAX_OLD_SPACE_MB}`;
     // Type-aware mode toggles parserOptions/rules via ESLINT_TYPE_AWARE; sharing
     // `.eslintcache` with non-type-aware runs can resurface stale parse errors
     // (e.g. resolved merge conflicts). Use a dedicated cache file instead.
     const cacheLocation = options.typeAware ? ".eslintcache-type-aware" : ".eslintcache";
     const cmd = [
-      envPrefix,
-      `NODE_OPTIONS="${nodeOptions}"`,
       ESLINT_BIN,
       "x eslint",
       "--cache",
@@ -251,12 +225,17 @@ class LintService {
         cmd,
         {
           cwd: process.cwd(),
-          shell: "bash",
+          shell: process.platform === "win32" ? undefined : "bash",
+          env: {
+            ...process.env,
+            NODE_OPTIONS: nodeOptions,
+            ...(options.typeAware ? { ESLINT_TYPE_AWARE: "true" } : {}),
+          },
           timeout,
           maxBuffer: 50 * 1024 * 1024, // 50MB
         },
         (error, stdout, stderr) => {
-          const output = (stdout || "") + (stderr || "");
+          let output = (stdout || "") + (stderr || "");
           const rawCode = error?.code;
           let exitCode = 0;
           if (error) {
@@ -264,6 +243,12 @@ class LintService {
               exitCode = rawCode;
             } else if (typeof rawCode === "string") {
               exitCode = Number.parseInt(rawCode, 10) || 1;
+            } else if (error.signal) {
+              // Signal death (OOM-kill SIGKILL, timeout SIGTERM, ...): there are no
+              // lint findings to report — map to the service-fault exit code and
+              // append a diagnostic so the failure is visible instead of silent.
+              exitCode = 2;
+              output += signalDeathNotice(error.signal);
             } else {
               exitCode = 1;
             }
@@ -324,121 +309,7 @@ export async function requestLintWithMetrics(
 
 // ─── CLI Entrypoint ─────────────────────────────────────────────────────────
 
-function getUnknownErrorCode(err: unknown): string | undefined {
-  if (typeof err !== "object" || err === null || !("code" in err)) {
-    return undefined;
-  }
-  const code = Reflect.get(err, "code");
-  return typeof code === "string" ? code : undefined;
-}
-
-function printHelp(): void {
-  console.log(`
-Lint Service — Unified In-Process ESLint CLI
-
-Usage:
-  bun run scripts/lint-service.ts [options]
-
-Options:
-  -f, --files <path>     File to lint (repo-relative). Repeat for multiple files.
-                         Omit for full-repo lint via eslint.config.js.
-  -i, --id <string>      Caller identifier (default: "cli")
-  --fix                  Apply ESLint auto-fixes
-  --json                 Output result as JSON (includes metrics)
-  --type-aware           Enable type-aware mode (implies --max-warnings=0)
-  --max-warnings <num>   Fail if warnings exceed this count (default: 0, or -1 to disable)
-  -v, --verbose          Log queue state and timing to stderr
-  -h, --help             Show this help
-
-Exit codes:
-  0 = ESLint passed (no errors)
-  1 = ESLint reported problems
-  2 = Invalid arguments or service fault
-
-Examples:
-  bun run scripts/lint-service.ts                         # Full-repo lint (--max-warnings=0)
-  bun run scripts/lint-service.ts -f src/foo.ts          # Single file
-  bun run scripts/lint-service.ts -f a.ts -f b.ts        # Multiple files
-  bun run scripts/lint-service.ts --fix                  # Full-repo with auto-fix
-  bun run scripts/lint-service.ts -f file.ts --json      # JSON output
-`);
-}
-
-function writeLintResult(result: LintExecutionResult, json: boolean, verbose: boolean): void {
-  if (json) {
-    console.log(JSON.stringify(result, null, 2));
-    return;
-  }
-
-  process.stdout.write(result.output || "");
-  if (verbose) {
-    console.error(`\n[lint-service] Duration: ${result.metrics.durationMs}ms`);
-    console.error(`[lint-service] Queue depth at enqueue: ${result.metrics.queueDepthAtEnqueue}`);
-  }
-}
-
-function handleCliError(err: unknown): never {
-  if (getUnknownErrorCode(err) === "ERR_PARSE_ARGS_UNKNOWN_OPTION") {
-    console.error("Error: Invalid arguments\n");
-    printHelp();
-    process.exit(2);
-  }
-  const message = err instanceof Error ? err.message : String(err);
-  console.error(`Error: ${message}`);
-  if (process.argv.includes("--verbose") || process.argv.includes("-v")) {
-    const stack = err instanceof Error ? err.stack : undefined;
-    if (stack) console.error(stack);
-  }
-  process.exit(2);
-}
-
-async function main(): Promise<void> {
-  try {
-    const args = parseArgs({
-      options: {
-        files: { type: "string", short: "f", multiple: true },
-        id: { type: "string", short: "i", default: "cli" },
-        fix: { type: "boolean", default: false },
-        json: { type: "boolean", default: false },
-        "type-aware": { type: "boolean", default: false },
-        "max-warnings": { type: "string", default: undefined },
-        verbose: { type: "boolean", short: "v", default: false },
-        help: { type: "boolean", short: "h", default: false },
-      },
-      allowPositionals: false,
-      strict: true,
-    });
-
-    if (args.values.help) {
-      printHelp();
-      process.exit(0);
-    }
-
-    const files = args.values.files ?? [];
-    const id = args.values.id ?? "cli";
-    const fix = args.values.fix ?? false;
-    const json = args.values.json ?? false;
-    const typeAware = args.values["type-aware"] ?? false;
-    const verbose = args.values.verbose ?? false;
-
-    // Resolve maxWarnings: CLI flag takes precedence; otherwise default to 0 (fail on any warning).
-    // Use -1 to explicitly allow unlimited warnings.
-    let maxWarnings: number | undefined;
-    if (args.values["max-warnings"] !== undefined) {
-      maxWarnings = Number.parseInt(args.values["max-warnings"], 10);
-    } else {
-      maxWarnings = 0;
-    }
-
-    const result = await requestLintWithMetrics(id, files, { fix, json, verbose, typeAware, maxWarnings });
-    writeLintResult(result, json, verbose);
-    process.exit(result.exitCode);
-  } catch (err: unknown) {
-    handleCliError(err);
-  }
-}
-
 // Run CLI if this file is the main module
 if (import.meta.main) {
-  void main();
+  void runLintCli(requestLintWithMetrics);
 }

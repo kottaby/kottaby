@@ -80,7 +80,7 @@ import { SessionType } from "@/backend/enum/scheduling/session-type.enum";
 import { UserRole } from "@/backend/enum/users/user-role.enum";
 import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from "@/backend/lib/errors";
 import { logger } from "@/backend/lib/logger";
-import { withTransaction } from "@/backend/services/shared/withTransaction";
+import { withTransaction } from "@/backend/lib/db/with-transaction";
 import type {
   DBTransaction,
   SessionListFilterInput,

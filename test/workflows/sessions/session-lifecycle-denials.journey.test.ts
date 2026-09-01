@@ -61,7 +61,7 @@ import {
   buildSessionJourneyCast,
   countAuditLogsForActor,
   countNotificationsForUser,
-  createJourneyFixtureRegistry,
+  createSessionFixtureRegistry,
   journeyPrefix,
   type SessionJourneyCast,
 } from "@/test/workflows/helpers";
@@ -152,7 +152,7 @@ async function nonexistentSessionId(): Promise<number> {
 
 // ─── Journey state (ordered tests share the committed cast) ─────────────
 
-const registry = createJourneyFixtureRegistry();
+const registry = createSessionFixtureRegistry();
 const PREFIX = journeyPrefix("sessions");
 let cast: SessionJourneyCast;
 let secondSessionId = 0; // the zero-balance student's funded booking (leg 2)
