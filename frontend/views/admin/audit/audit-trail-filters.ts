@@ -173,7 +173,7 @@ export function appliedFiltersFromSubmitInput(
   return {
     actionType: initialFilters.actionType ?? null,
     actorId: initialFilters.actorId ?? null,
-    entityType: initialFilters.entityType?.trim() || null,
+    entityType: (initialFilters.entityType ?? "").trim() || null,
     entityId: initialFilters.entityId ?? null,
     from: initialFilters.from === undefined ? null : parseUtcDayStart(initialFilters.from),
     to: initialFilters.to === undefined ? null : parseUtcDayEndExclusive(initialFilters.to),
