@@ -358,7 +358,7 @@ Verify each anchor is REAL in the bundled tree (locate it; cite line). ANY miss 
 - [ ] 4.1.IV **Instruction Verification:** `.agents/instructions/frontend.instructions.md` + `frontend/graphql/AGENTS.md` (EXISTS in bundle — verified at 0.2)
 - _Requirements: REQ-063_
 
-### 4.2 [-] Student link-requests page — `app/(dashboard)/student/link-requests/page.tsx` + container + components
+### 4.2 [x] Student link-requests page — `app/(dashboard)/student/link-requests/page.tsx` + container + components
 **REQ:** REQ-020, REQ-064, REQ-065, REQ-077 · plan §5.1/§5.3/§5.5
 
 - CREATE `app/(dashboard)/student/link-requests/page.tsx` — Server Component:
@@ -374,8 +374,8 @@ Verify each anchor is REAL in the bundled tree (locate it; cite line). ANY miss 
   - Skeleton / empty / `PermissionDeniedFallback` / `RetryableNotice` branches
   - `focusVisibleRingSx` on interactive elements; `Box component="output" aria-busy` for the list region
 - i18n: `const t = useAppTranslation(ParentLink);` — HANDLE CONST, property access; NEVER strings; NEVER `next-intl`
-- [ ] 4.2.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts app/(dashboard)/student/link-requests/page.tsx --lifecycle duplicates` AND `bun run scripts/health/sub-loop.ts frontend/views/students/link-requests/StudentLinkRequestsContainer.tsx --lifecycle duplicates` (exit 0)
-- [ ] 4.2.TE **Unit / Component Tests:** `bun run test:ui:components` — CREATE component test for `StudentLinkRequestsContainer` (Happy DOM + Apollo MockedProvider):
+- [x] 4.2.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts app/(dashboard)/student/link-requests/page.tsx --lifecycle duplicates` AND `bun run scripts/health/sub-loop.ts frontend/views/students/link-requests/StudentLinkRequestsContainer.tsx --lifecycle duplicates` (exit 0)
+- [x] 4.2.TE **Unit / Component Tests:** `bun run test:ui:components` — CREATE component test for `StudentLinkRequestsContainer` (Happy DOM + Apollo MockedProvider):
   - Render pending-live row → CTAs enabled
   - Render expired-computed row → chip shows expired
   - Render confirmed/rejected rows → CTAs absent, chips correct
@@ -395,11 +395,11 @@ Verify each anchor is REAL in the bundled tree (locate it; cite line). ANY miss 
   - Screenshot inspection via a short-lived visual-inspection subagent (NEVER `ReadMediaFile` in the orchestrator — `test/ui/AGENTS.md` context-isolation rule)
   - Checks: MUI v9 theme palette only (no hardcoded hex/rgb), typography hierarchy, padding/margin rhythm, no truncation/overflow on the parent name + expiry line, RTL mirroring alignment (logical properties only), Arabic line-height not clipped, ≥44px CTAs, chip color roles from `theme.palette` (success/warning/error — never ad-hoc)
   - Iterative self-loop: screenshot → identify defect → patch `sx` tokens → re-capture → repeat until visually polished
-- [ ] 4.2.SR **Semantic Review:** zero direct style props on Typography/Box/Stack/Grid (sx-only); zero hardcoded colors (`theme.palette.*` only); `*Outlined` icons; `useAppTranslation(ParentLink)` property access; `dir="auto"` on name text; no `console.*` (`@/frontend/lib/logger` if logging needed)
-- [ ] 4.2.IV **Instruction Verification:** `.agents/instructions/frontend.instructions.md` + `frontend/AGENTS.md` + `app/AGENTS.md` (both EXIST in bundle — verified at 0.2)
+- [x] 4.2.SR **Semantic Review:** zero direct style props on Typography/Box/Stack/Grid (sx-only); zero hardcoded colors (`theme.palette.*` only); `*Outlined` icons; `useAppTranslation(ParentLink)` property access; `dir="auto"` on name text; no `console.*` (`@/frontend/lib/logger` if logging needed)
+- [x] 4.2.IV **Instruction Verification:** `.agents/instructions/frontend.instructions.md` + `frontend/AGENTS.md` + `app/AGENTS.md` (both EXIST in bundle — verified at 0.2)
 - _Requirements: REQ-020, REQ-064, REQ-065, REQ-077_
 
-### 4.3 [-] Parent handshake page — outgoing-requests section + send affordance (UPDATE-with-verify on prose-referenced container)
+### 4.3 [x] Parent handshake page — outgoing-requests section + send affordance (UPDATE-with-verify on prose-referenced container)
 **REQ:** REQ-011 contract, REQ-012 null-collapse UX, REQ-020 (masked-name list), REQ-065, REQ-077 · plan §5.4/§5.5
 
 - **VERIFY FIRST (prose-only artifacts):**
@@ -413,8 +413,8 @@ Verify each anchor is REAL in the bundled tree (locate it; cite line). ANY miss 
   - Post-cancel: refetch the list; row disappears from live state and shows `rejected` chip (the withdrawal fold)
   - Empty state via `outgoingEmptyTitle`/`outgoingEmptyBody`; skeleton / `PermissionDeniedFallback` / `RetryableNotice` branches
 - No `useLazyQuery`; no cache surgery beyond refetch; `focusVisibleRingSx`, `aria-busy` regions, translation-handle assertions only
-- [ ] 4.3.QL **Quality Loop:** for each created/modified file: `bun run scripts/health/sub-loop.ts <path> --lifecycle duplicates` (exit 0)
-- [ ] 4.3.TE **Unit / Component Tests:** `bun run test:ui:components` — component tests for the section + container-augmented send affordance:
+- [x] 4.3.QL **Quality Loop:** for each created/modified file: `bun run scripts/health/sub-loop.ts <path> --lifecycle duplicates` (exit 0)
+- [x] 4.3.TE **Unit / Component Tests:** `bun run test:ui:components` — component tests for the section + container-augmented send affordance:
   - `linkable: true` → CTA visible; click → mutation called with `{ code }` exact variables
   - Success → success state per `sendRequestSuccessToast` + refetch
   - `null` mutation payload → `sendUnavailableNotice` (REQ-012 UX)
@@ -430,8 +430,8 @@ Verify each anchor is REAL in the bundled tree (locate it; cite line). ANY miss 
 - [ ] 4.3.BS **Agent-Browser Visual & Styling Self-Loop (Screenshot Analysis):**
   - Screenshots at 1440/768/375 × `en`/`ar` for the handshake result card + outgoing list in BOTH empty and populated states, expired chip state, cancel dialog
   - Subagent-based visual inspection (per 4.2.BS rules); patch `sx` tokens iteratively to reach palette compliance, RTL alignment, no truncation, ≥44px CTAs
-- [ ] 4.3.SR **Semantic Review:** UPDATE-with-verify ledger recorded honestly (prose-only downgrade OR confirmed shape); `sx`-only; `*Outlined` icons; `useAppTranslation(ParentLink)`; `dir="auto"` on names; no `console.*`
-- [ ] 4.3.IV **Instruction Verification:** `.agents/instructions/frontend.instructions.md` + `frontend/AGENTS.md`
+- [x] 4.3.SR **Semantic Review:** UPDATE-with-verify ledger recorded honestly (prose-only downgrade OR confirmed shape); `sx`-only; `*Outlined` icons; `useAppTranslation(ParentLink)`; `dir="auto"` on names; no `console.*`
+- [x] 4.3.IV **Instruction Verification:** `.agents/instructions/frontend.instructions.md` + `frontend/AGENTS.md`
 - _Requirements: REQ-011, REQ-012, REQ-020, REQ-065, REQ-077_
 
 ### 4.4 [ ] Student nav item + nav ownership matrix stays green
