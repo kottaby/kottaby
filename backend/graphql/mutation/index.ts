@@ -20,5 +20,6 @@
 import "./auth.mutation";
 import "./admin";
 import "./notifications";
+import "./parents";
 import "./plan-catalog.mutation";
 import "./user.mutation";

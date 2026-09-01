@@ -276,7 +276,7 @@ Verify each anchor is REAL in the bundled tree (locate it; cite line). ANY miss 
 
 ## Phase 3: GraphQL Resolvers & API Handlers
 
-### 3.1 [ ] Register `LinkStatus` Pothos enum + CREATE Pothos objects for both request shapes
+### 3.1 [x] Register `LinkStatus` Pothos enum + CREATE Pothos objects for both request shapes
 **REQ:** REQ-060, REQ-011-scalar rules · plan §3.2
 
 - UPDATE `backend/graphql/pothos/shared/enum.pothos.ts` — REGISTER ONCE, enum-OBJECT form ONLY:
@@ -289,13 +289,13 @@ Verify each anchor is REAL in the bundled tree (locate it; cite line). ANY miss 
 - CREATE `backend/graphql/pothos/parents/index.ts` — side-effect + re-export line
 - NO local types in the Pothos file; canonical types from `@/backend/types/parents` ONLY
 - Timestamp fields use the registered `DateTime` scalar (`backend/graphql/pothos/shared/scalar.pothos.ts:28` — `DateTimeScalar`); NO `toISOString()` hand-serialization for new fields
-- [ ] 3.1.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts backend/graphql/pothos/shared/enum.pothos.ts --lifecycle duplicates` AND `bun run scripts/health/sub-loop.ts backend/graphql/pothos/parents/parent-link-request.pothos.ts --lifecycle duplicates` AND `bun run scripts/health/sub-loop.ts backend/graphql/pothos/parents/index.ts --lifecycle duplicates` (exit 0)
-- [ ] 3.1.TE **Test Engineering:** schema rebuild smoke — `bun tsgo` count == baseline; enum registered exactly once (introspection probe of `LinkStatus` shows the four members `Pending Confirmed Rejected Expired` — enum-OBJECT form surfaces the TS VALUE names per the Pothos contract)
-- [ ] 3.1.SEC **Security & Tenancy Audit:** object types expose ONLY the canonical return type fields — no extra columns slip via spreading; id is `ID!` and the first exposed field (Apollo normalization)
-- [ ] 3.1.SR **Semantic Review:** enum-object form (NOT the string-array form); single registration; no `String`-for-timestamp regressions
-- [ ] 3.1.IV **Instruction Verification:** `.agents/instructions/backend.instructions.md` + Architectural Invariant 11 (scalars)
+- [x] 3.1.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts backend/graphql/pothos/shared/enum.pothos.ts --lifecycle duplicates` AND `bun run scripts/health/sub-loop.ts backend/graphql/pothos/parents/parent-link-request.pothos.ts --lifecycle duplicates` AND `bun run scripts/health/sub-loop.ts backend/graphql/pothos/parents/index.ts --lifecycle duplicates` (exit 0)
+- [x] 3.1.TE **Test Engineering:** schema rebuild smoke — `bun tsgo` count == baseline; enum registered exactly once (introspection probe of `LinkStatus` shows the four members `Pending Confirmed Rejected Expired` — enum-OBJECT form surfaces the TS VALUE names per the Pothos contract)
+- [x] 3.1.SEC **Security & Tenancy Audit:** object types expose ONLY the canonical return type fields — no extra columns slip via spreading; id is `ID!` and the first exposed field (Apollo normalization)
+- [x] 3.1.SR **Semantic Review:** enum-object form (NOT the string-array form); single registration; no `String`-for-timestamp regressions
+- [x] 3.1.IV **Instruction Verification:** `.agents/instructions/backend.instructions.md` + Architectural Invariant 11 (scalars)
 
-### 3.2 [ ] CREATE query + mutation resolvers (thin) with `$all` role gates and the ID parser
+### 3.2 [x] CREATE query + mutation resolvers (thin) with `$all` role gates and the ID parser
 **REQ:** REQ-030, REQ-060, REQ-062 · plan §3.2/§3.4/§3.5
 
 - CREATE `backend/graphql/query/parents/parent-link.query.ts`:
@@ -310,13 +310,13 @@ Verify each anchor is REAL in the bundled tree (locate it; cite line). ANY miss 
 - CREATE `backend/graphql/query/parents/index.ts`, `backend/graphql/mutation/parents/index.ts` side-effect barrels
 - UPDATE `backend/graphql/query/index.ts` + `backend/graphql/mutation/index.ts` — one `import "./parents";` line each
 - `backend/lib/gateway/public-operations.ts` — UNTOUCHED (frozen six; all five ops are scope-gated)
-- [ ] 3.2.QL **Quality Loop:** for each created/modified file: `bun run scripts/health/sub-loop.ts <path> --lifecycle duplicates` (exit 0)
-- [ ] 3.2.TE **Test Engineering:** thin-delegation unit coverage is deliberately deferred to the wire matrix (task 5.1); HERE run only the compile smoke: `bun tsgo` == baseline
-- [ ] 3.2.SEC **Security & Tenancy Audit:**
+- [x] 3.2.QL **Quality Loop:** for each created/modified file: `bun run scripts/health/sub-loop.ts <path> --lifecycle duplicates` (exit 0)
+- [x] 3.2.TE **Test Engineering:** thin-delegation unit coverage is deliberately deferred to the wire matrix (task 5.1); HERE run only the compile smoke: `bun tsgo` == baseline
+- [x] 3.2.SEC **Security & Tenancy Audit:**
   - `$all` conjunction on EVERY op (ANY-semantics hazard from `docs/teachers/applicant-lifecycle.md` §3 avoided)
   - All five resolver bodies can be audited in <30 lines each (thin); `requestId` parsed BEFORE any service call; NO identity-arg acceptance anywhere
-- [ ] 3.2.SR **Semantic Review:** NO try/catch; NO rethrow-mutating catches; NO local types; enum VALUE imports (`UserRole`); localized denial paths only via `ctx.t(...)`
-- [ ] 3.2.IV **Instruction Verification:** `.agents/instructions/backend.instructions.md` + `docs/graphql/api-gateway-and-routing.md` (default-deny allowlist untouched)
+- [x] 3.2.SR **Semantic Review:** NO try/catch; NO rethrow-mutating catches; NO local types; enum VALUE imports (`UserRole`); localized denial paths only via `ctx.t(...)`
+- [x] 3.2.IV **Instruction Verification:** `.agents/instructions/backend.instructions.md` + `docs/graphql/api-gateway-and-routing.md` (default-deny allowlist untouched)
 - _Requirements: REQ-030, REQ-060, REQ-062_
 
 ### 3.3 [ ] Codegen + schema-surface baseline reconcile-then-extend (TWO documented steps in ONE changeset)
