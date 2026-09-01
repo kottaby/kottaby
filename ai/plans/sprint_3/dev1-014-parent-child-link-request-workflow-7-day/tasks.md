@@ -319,7 +319,7 @@ Verify each anchor is REAL in the bundled tree (locate it; cite line). ANY miss 
 - [x] 3.2.IV **Instruction Verification:** `.agents/instructions/backend.instructions.md` + `docs/graphql/api-gateway-and-routing.md` (default-deny allowlist untouched)
 - _Requirements: REQ-030, REQ-060, REQ-062_
 
-### 3.3 [ ] Codegen + schema-surface baseline reconcile-then-extend (TWO documented steps in ONE changeset)
+### 3.3 [x] Codegen + schema-surface baseline reconcile-then-extend (TWO documented steps in ONE changeset)
 **REQ:** REQ-061 · plan §3.3
 
 - **STEP 1 — Re-anchor (reconcile):** rebuild the current SDL (`bun run generate:gqlSchema`); update `backend/graphql/test/schema-surface.test.ts` (the stale `PRE_3_1_*` baseline at `:19-71`) and `backend/graphql/test/sdl-static-assertions.test.ts` (`FROZEN_*` at `:12-28`) to reflect the CURRENT LIVE surface (which includes the already-shipped DEV3-016 admin surface). Record the reconcile decision + anchors in `outcome/3.3-outcome.md`. NEVER do this silently.
@@ -332,11 +332,11 @@ Verify each anchor is REAL in the bundled tree (locate it; cite line). ANY miss 
   - Pin DateTime scalar usage on the six timestamp fields (NO `String` leakage)
 - Run `bun codegen`; commit generated artifacts in the SAME change set (incl. `frontend/graphql/generated/**` + `frontend/graphql/generated/schema.graphql`)
 - Verify `plan-catalog.schema.test.ts` committed-vs-live SDL byte-parity stays GREEN
-- [ ] 3.3.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts backend/graphql/test/schema-surface.test.ts --lifecycle duplicates` AND `bun run scripts/health/sub-loop.ts backend/graphql/test/sdl-static-assertions.test.ts --lifecycle duplicates` (exit 0)
-- [ ] 3.3.TE **Test Engineering:** `bun run test/scripts/run-test.ts backend/graphql/test/schema-surface.test.ts`; `bun run test/scripts/run-test.ts backend/graphql/test/sdl-static-assertions.test.ts`; `bun run test/scripts/run-test.ts backend/graphql/test/plan-catalog.schema.test.ts` — ALL GREEN in the two-step order
-- [ ] 3.3.SEC **Security & Tenancy Audit:** no accidental de-registration of the frozen `PUBLIC_OPERATIONS` six; no new root fields beyond the five pinned
-- [ ] 3.3.SR **Semantic Review:** the reconcile step is documented and traceable; baselines grew monotonically (except where the stale entries were re-worded to match live naming — recorded each one)
-- [ ] 3.3.IV **Instruction Verification:** `.agents/instructions/backend.instructions.md` + Architectural Invariant 11 (scalar registration has already been done in-tree — this task confirms, doesn't add)
+- [x] 3.3.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts backend/graphql/test/schema-surface.test.ts --lifecycle duplicates` AND `bun run scripts/health/sub-loop.ts backend/graphql/test/sdl-static-assertions.test.ts --lifecycle duplicates` (exit 0)
+- [x] 3.3.TE **Test Engineering:** `bun run test/scripts/run-test.ts backend/graphql/test/schema-surface.test.ts`; `bun run test/scripts/run-test.ts backend/graphql/test/sdl-static-assertions.test.ts`; `bun run test/scripts/run-test.ts backend/graphql/test/plan-catalog.schema.test.ts` — ALL GREEN in the two-step order
+- [x] 3.3.SEC **Security & Tenancy Audit:** no accidental de-registration of the frozen `PUBLIC_OPERATIONS` six; no new root fields beyond the five pinned
+- [x] 3.3.SR **Semantic Review:** the reconcile step is documented and traceable; baselines grew monotonically (except where the stale entries were re-worded to match live naming — recorded each one)
+- [x] 3.3.IV **Instruction Verification:** `.agents/instructions/backend.instructions.md` + Architectural Invariant 11 (scalar registration has already been done in-tree — this task confirms, doesn't add)
 
 ---
 

@@ -17,10 +17,26 @@
  *    text. Notification emission is service-internal ONLY — the GraphQL
  *    write surface is exactly the read-latch pair.
  *  - **Root-set freeze** — the Mutation root is EXACTLY the refreshed frozen
- *    7-op baseline (auth quartet + the sanctioned notification read-latch
- *    pair + the sanctioned users-locale mutation) and the Query root is
- *    EXACTLY the frozen baseline + the `_health` probe (mirrors the
- *    `PRE_3_1_*` inventories in schema-surface.test.ts).
+ *    baseline and the Query root is EXACTLY the frozen baseline + the
+ *    `_health` probe (mirrors the `PRE_3_1_*` inventories in
+ *    schema-surface.test.ts). **DEV1-014 task 3.3 performed the documented
+ *    reconcile-then-extend (REQ-061):** the stale arrays predated the DEV1-005
+ *    plan-catalog CRUD, the DEV1-013 student-handshake queries, AND the
+ *    shipped DEV3-016 admin surface — STEP ONE re-anchored them to the live
+ *    artifact (+6 mutation fields, +8 query fields); STEP TWO extended the
+ *    now-current baselines with the DEV1-014 parent-link surface (+3
+ *    mutation fields, +2 query fields). Every anchor change is listed in
+ *    `outcome/3.3-outcome.md`; growth is monotonic, nothing was deleted.
+ *  - **Parent-link surface (DEV1-014, REQ-061 extend pins)** — the five root
+ *    fields carry their EXACT SDL signatures on the artifact (both list
+ *    queries NON-paginated `[T!]!` with ZERO arguments;
+ *    `requestParentChildLink` the ONLY nullable new mutation — the REQ-012
+ *    collapse contract); the `LinkStatus` enum carries EXACTLY the four
+ *    canonical members; both objects expose EXACTLY the six canonical
+ *    fields with the `DateTime` scalar on ALL six timestamps (zero `String`
+ *    leakage); and NO parent-link page/connection wrapper exists — the
+ *    lists are plain arrays, the pagination contract is the service's 50-row
+ *    cap, never SDL pagination plumbing.
  *  - **Users-locale surface (D2)** — `updateMyLocale(locale: AppLocale!): User!`
  *    is present with its EXACT SDL signature, `User.locale` is the nullable
  *    `AppLocale` enum, and the `AppLocale` enum carries exactly the two
@@ -61,26 +77,59 @@ import {
 } from "graphql";
 
 // ─── Frozen baselines (mirror the refreshed PRE_3_1_* inventories in ─────────
-// ─── schema-surface.test.ts — the single sanctioned growth history) ──────────
+// ─── schema-surface.test.ts — the single sanctioned growth history). ────────
+// ─── DEV1-014 task 3.3 (REQ-061): reconcile-then-extend, both steps recorded ─
+// ─── in `outcome/3.3-outcome.md`. RECONCILE (STEP 1 — never silent): the      ─
+// ─── arrays predated the DEV1-005 plan-catalog CRUD, the DEV1-013 handshake    ─
+// ─── queries, and the shipped DEV3-016 admin surface — re-anchored to the     ─
+// ─── live artifact. EXTEND (STEP 2): the DEV1-014 parent-link surface folded ─
+// ─── in. Growth is monotonic; no stale entry was deleted, only re-anchored.   ─
 
-/** Root mutation fields — the auth quartet + the sanctioned notification read-latch pair + the sanctioned users-locale mutation (D2). */
+/** Root mutation fields — auth quartet + notification read-latch pair + users-locale (D2) + plan-catalog CRUD + DEV3-016 admin writes + the DEV1-014 parent-link trio. */
 const FROZEN_MUTATION_FIELDS = [
+  // DEV3-016 reconcile: the admin user-management writes shipped before 3.1.
+  "adminCreateUser",
+  "adminSetUserDeleted",
+  "adminUpdateUser",
+  // DEV1-014 extend: the three link-request mutations (`requestParentChildLink`
+  // is the ONLY nullable one — pinned in the parent-link describe below).
+  "cancelParentLinkRequest",
+  // DEV1-005 reconcile: the plan-catalog CRUD shipped before 3.1.
+  "createPlan",
   "login",
   "logout",
   "markAllNotificationsRead",
   "markNotificationRead",
   "refreshToken",
   "registerUser",
+  "requestParentChildLink",
+  "respondToParentLinkRequest",
+  "setPlanActiveStatus",
   "updateMyLocale",
+  "updatePlan",
 ] as const;
 
-/** Root query fields — the frozen baseline + the sanctioned inbox reads + the probe. */
+/** Root query fields — the frozen baseline + the sanctioned inbox reads + the probe + plan-catalog + DEV1-013 handshake + DEV3-016 admin reads + the DEV1-014 parent-link lists. */
 const FROZEN_QUERY_FIELDS = [
   "_health",
+  // DEV1-005 reconcile: the plan-catalog reads shipped before 3.1.
+  "adminPlans",
+  // DEV3-016 reconcile: the admin user-management reads shipped before 3.1.
+  "adminUserActivity",
+  "adminUserDetail",
+  "adminUsers",
+  "adminUserStats",
+  // DEV1-013 reconcile: the student-handshake queries shipped before 3.1.
+  "findStudentByHandshakeCode",
   "me",
   "myApplicantProfile",
+  "myHandshakeCode",
+  // DEV1-014 extend: the two role-gated link-request lists (NON-paginated).
+  "myIncomingParentLinkRequests",
   "myNotifications",
+  "myOutgoingParentLinkRequests",
   "myUnreadNotificationCount",
+  "planCatalog",
   "recitationReadings",
 ] as const;
 
@@ -217,7 +266,7 @@ describe("BFLA structural verdict — zero notification CUD surface (REQ-032)", 
     }
   });
 
-  test("Mutation root is EXACTLY the refreshed frozen 7-op baseline — the notification write surface is the read-latch pair only", () => {
+  test("Mutation root is EXACTLY the refreshed frozen baseline — the notification write surface is still the read-latch pair only", () => {
     const names = fieldSurfaces("Mutation").map(surface => surface.name);
     expect(names.toSorted((a, b) => a.localeCompare(b))).toEqual([...FROZEN_MUTATION_FIELDS]);
   });
@@ -326,7 +375,13 @@ describe("Notification object — `id` + REQ-069 depth/complexity posture", () =
       definition => definition.kind === Kind.OBJECT_TYPE_DEFINITION && definition.name.value === "Subscription"
     );
     expect(hasSubscriptionRoot).toBe(false);
-    expect(sdlText).not.toContain("Subscription");
+    // REWORDED at DEV1-014 task 3.3 (reconcile step): the original lexical
+    // scan (`sdlText` must not contain the token `Subscription`) went stale
+    // when the DEV3-016 admin surface shipped
+    // `AdminStudentSnapshot.hasActiveSubscription` /
+    // `studentHasActiveSubscription` — the invariant is about the ROOT
+    // operation type, so the scan is narrowed to the type-declaration token.
+    expect(sdlText).not.toContain("type Subscription");
   });
 });
 
@@ -347,5 +402,96 @@ describe("Users-locale surface (D2) — AppLocale enum + User.locale on the arti
     const surface = fieldSurface("User", "locale");
     expect(surface.type).toBe("AppLocale");
     expect(surface.args).toEqual([]);
+  });
+});
+
+describe("Parent-link surface (DEV1-014 extend) — artifact-side pins (REQ-061)", () => {
+  test("`myOutgoingParentLinkRequests: [OutgoingParentLinkRequest!]!` — NON-paginated, ZERO arguments", () => {
+    const surface = fieldSurface("Query", "myOutgoingParentLinkRequests");
+    expect(surface.type).toBe("[OutgoingParentLinkRequest!]!");
+    expect(surface.args).toEqual([]);
+  });
+
+  test("`myIncomingParentLinkRequests: [IncomingParentLinkRequest!]!` — NON-paginated, ZERO arguments", () => {
+    const surface = fieldSurface("Query", "myIncomingParentLinkRequests");
+    expect(surface.type).toBe("[IncomingParentLinkRequest!]!");
+    expect(surface.args).toEqual([]);
+  });
+
+  test("`requestParentChildLink(code: String!): OutgoingParentLinkRequest` — the ONLY nullable new mutation (REQ-012 collapse)", () => {
+    const surface = fieldSurface("Mutation", "requestParentChildLink");
+    expect(surface.type).toBe("OutgoingParentLinkRequest");
+    expect(surface.args).toEqual([{ name: "code", type: "String!" }]);
+
+    // The only-nullable pin, across ALL THREE new mutations on the artifact:
+    const newMutationSurfaces = ["cancelParentLinkRequest", "requestParentChildLink", "respondToParentLinkRequest"].map(
+      name => fieldSurface("Mutation", name)
+    );
+    const nullableNames = newMutationSurfaces
+      .filter(mutationSurface => !mutationSurface.type.endsWith("!"))
+      .map(mutationSurface => mutationSurface.name);
+    expect(nullableNames).toEqual(["requestParentChildLink"]);
+  });
+
+  test("`respondToParentLinkRequest(requestId: ID!, accept: Boolean!): IncomingParentLinkRequest!`", () => {
+    const surface = fieldSurface("Mutation", "respondToParentLinkRequest");
+    expect(surface.type).toBe("IncomingParentLinkRequest!");
+    // The deterministic emission sorts arguments alphabetically.
+    expect(surface.args).toEqual([
+      { name: "accept", type: "Boolean!" },
+      { name: "requestId", type: "ID!" },
+    ]);
+  });
+
+  test("`cancelParentLinkRequest(requestId: ID!): OutgoingParentLinkRequest!`", () => {
+    const surface = fieldSurface("Mutation", "cancelParentLinkRequest");
+    expect(surface.type).toBe("OutgoingParentLinkRequest!");
+    expect(surface.args).toEqual([{ name: "requestId", type: "ID!" }]);
+  });
+
+  test("LinkStatus enum carries EXACTLY the four canonical members on the artifact", () => {
+    const linkStatusEnum = sdlDocument.definitions.find(
+      (definition): definition is EnumTypeDefinitionNode =>
+        definition.kind === Kind.ENUM_TYPE_DEFINITION && definition.name.value === "LinkStatus"
+    );
+    if (!linkStatusEnum) {
+      throw new Error("Generated SDL must define the `LinkStatus` enum type");
+    }
+    const values = (linkStatusEnum.values ?? []).map(value => value.name.value).toSorted((a, b) => a.localeCompare(b));
+    expect(values).toEqual(["Confirmed", "Expired", "Pending", "Rejected"]);
+  });
+
+  test("BOTH objects expose EXACTLY the six canonical fields — DateTime on ALL six timestamps, zero String leakage", () => {
+    for (const [typeName, counterpartyField] of [
+      ["OutgoingParentLinkRequest", "studentMaskedName"],
+      ["IncomingParentLinkRequest", "parentFullName"],
+    ] as const) {
+      const surfaces = fieldSurfaces(typeName);
+      expect(surfaces.map(surface => surface.name).toSorted((a, b) => a.localeCompare(b))).toEqual(
+        ["createdAt", "expiresAt", "id", counterpartyField, "respondedAt", "status"].toSorted((a, b) =>
+          a.localeCompare(b)
+        )
+      );
+      const byName = new Map(surfaces.map(surface => [surface.name, surface]));
+      expect(byName.get("id")?.type).toBe("ID!");
+      expect(byName.get("status")?.type).toBe("LinkStatus!");
+      expect(byName.get(counterpartyField)?.type).toBe("String!");
+      // NO String leakage — every timestamp rides the registered `DateTime`
+      // scalar; `respondedAt` is the ONLY nullable field on either object.
+      expect(byName.get("createdAt")?.type).toBe("DateTime!");
+      expect(byName.get("expiresAt")?.type).toBe("DateTime!");
+      expect(byName.get("respondedAt")?.type).toBe("DateTime");
+    }
+  });
+
+  test("the parent-link family stays FLAT — the ONLY ParentLinkRequest-named SDL types are the two objects (no page/connection wrapper)", () => {
+    const parentLinkTypeDeclarations =
+      sdlText.match(/^(?:type|enum|input|scalar|interface|union) \w*ParentLinkRequest\w*/gm) ?? [];
+    expect(
+      parentLinkTypeDeclarations.map(declaration => declaration.split(" ")[1]).toSorted((a, b) => a.localeCompare(b))
+    ).toEqual(["IncomingParentLinkRequest", "OutgoingParentLinkRequest"]);
+    // Belt-and-braces: neither wrapper spelling exists anywhere in the artifact.
+    expect(sdlText).not.toContain("ParentLinkRequestListPage");
+    expect(sdlText).not.toContain("ParentLinkRequestConnection");
   });
 });
