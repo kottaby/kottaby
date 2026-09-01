@@ -48,49 +48,49 @@
 
 > No Drizzle schema changes exist in this ticket (REQ-042 zero-drift gate). The only conditional structural artifact is the REQ-020 trigger SQL file decided by Task 0.2.
 
-- [ ] **1.1 Create canonical audit-trail types**
+- [x] **1.1 Create canonical audit-trail types**
   - CREATE `backend/types/audit/audit-trail.types.ts` exactly per plan §2.2: `AdminAuditTrailFiltersSubmitInput`, `AdminAuditLogEntryReturnType`, `AdminAuditLogPageReturnType` (all `readonly`, `AuditActionType` value-typed, nullable `entityId`/`details`).
   - UPDATE `backend/types/audit/index.ts:1` — add `export * from "./audit-trail.types";` alongside the existing `./audit-log.types` re-export.
   - Applicable instructions: root `AGENTS.md`; `.agents/instructions/backend.instructions.md`. NO service-layer `.types.ts`; NO type re-declaration of `AuditLogSelectType`/`InsertType`.
   - _Requirements: REQ-003, REQ-010, REQ-061_
-  - [ ] 1.1.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts backend/types/audit/audit-trail.types.ts --lifecycle duplicates` (exit 0); also on `backend/types/audit/index.ts`.
-  - [ ] 1.1.TE **Test Engineering:** compile-level guarantee — `bun tsgo` delta = 0; referenced from service/resolver tasks that consume the types (their suites are the behavioral pin).
-  - [ ] 1.1.SEC **Security & Tenancy Audit:** filter input contains NO identity-authority fields; return types expose no fields beyond REQ-010's closed projection.
-  - [ ] 1.1.SR **Semantic Review:** canonical location honored; no local duplicates of the table types; `AuditActionType` imported as a type from `@/backend/enum/audit/audit-action-type.enum`.
-  - [ ] 1.1.IV **Instruction Verification:** validate against `.agents/instructions/backend.instructions.md` + root `AGENTS.md`.
+  - [x] 1.1.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts backend/types/audit/audit-trail.types.ts --lifecycle duplicates` (exit 0); also on `backend/types/audit/index.ts`.
+  - [x] 1.1.TE **Test Engineering:** compile-level guarantee — `bun tsgo` delta = 0; referenced from service/resolver tasks that consume the types (their suites are the behavioral pin).
+  - [x] 1.1.SEC **Security & Tenancy Audit:** filter input contains NO identity-authority fields; return types expose no fields beyond REQ-010's closed projection.
+  - [x] 1.1.SR **Semantic Review:** canonical location honored; no local duplicates of the table types; `AuditActionType` imported as a type from `@/backend/enum/audit/audit-action-type.enum`.
+  - [x] 1.1.IV **Instruction Verification:** validate against `.agents/instructions/backend.instructions.md` + root `AGENTS.md`.
   - Write `outcome/1.1-outcome.md`.
 
-- [ ] **1.2 Immutability trigger verification (VERIFIED PRESENT + SHIPPED — proven, not created)**
+- [x] **1.2 Immutability trigger verification (VERIFIED PRESENT + SHIPPED — proven, not created)**
   - The trigger SQL is VERIFIED present at `backend/db/migration/3-immutability-triggers.sql` and ALREADY SHIPPED as `backend/drizzle/20260825222701_custom_3-immutability-triggers/migration.sql` (idempotent: `CREATE OR REPLACE FUNCTION` + `DROP TRIGGER IF EXISTS`, covering `audit_logs` via `prevent_audit_logs_update/delete` alongside `student_payments`/`teacher_transaction`). This task confirms that fact: consume the existing trigger by reference; NO new file by default; record the confirmation in the outcome.
   - **Drift branch (only if Task 0.2's grep contradicts the verified finding):** CREATE one new idempotent custom SQL migration under `backend/db/migration/**` per `docs/DATABASE_MIGRATIONS.md` (the sanctioned raw-SQL channel for triggers): `CREATE OR REPLACE FUNCTION` raising on `UPDATE`/`DELETE` of `audit_logs` + `DROP TRIGGER IF EXISTS` + `CREATE TRIGGER`. NO inline `--` comments inside any `sql` template (parameter-binding hazard). Apply to the migrate-capable dev DB via `bun db migrate`.
   - FORBIDDEN: any change under `backend/db/schema/**`; `bun run db push` is NOT the trigger channel.
   - _Requirements: REQ-020, REQ-042_
-  - [ ] 1.2.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts <migration-file> --lifecycle duplicates` (exit 0).
-  - [ ] 1.2.TE **Test Engineering:** the behavioral pin is Task 2.5's trigger-tier test (`pg_trigger` probe; update/delete attempted via `expectRepoError` try/catch); the migration-DDL idempotence pin (file contains `CREATE OR REPLACE` + `DROP TRIGGER IF EXISTS`) lives in Task 2.5(c).
-  - [ ] 1.2.SEC **Security & Tenancy Audit:** trigger covers UPDATE and DELETE on `audit_logs` only; function raises unconditionally; no other table touched.
-  - [ ] 1.2.SR **Semantic Review:** idempotent (re-runnable), matches `docs/DATABASE_MIGRATIONS.md` conventions; zero Drizzle schema drift.
-  - [ ] 1.2.IV **Instruction Verification:** validate against `.agents/instructions/backend.instructions.md`, `backend/db/AGENTS.md` (if present per sub-loop discovery), `docs/DATABASE_MIGRATIONS.md`.
+  - [x] 1.2.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts <migration-file> --lifecycle duplicates` (exit 0).
+  - [x] 1.2.TE **Test Engineering:** the behavioral pin is Task 2.5's trigger-tier test (`pg_trigger` probe; update/delete attempted via `expectRepoError` try/catch); the migration-DDL idempotence pin (file contains `CREATE OR REPLACE` + `DROP TRIGGER IF EXISTS`) lives in Task 2.5(c).
+  - [x] 1.2.SEC **Security & Tenancy Audit:** trigger covers UPDATE and DELETE on `audit_logs` only; function raises unconditionally; no other table touched.
+  - [x] 1.2.SR **Semantic Review:** idempotent (re-runnable), matches `docs/DATABASE_MIGRATIONS.md` conventions; zero Drizzle schema drift.
+  - [x] 1.2.IV **Instruction Verification:** validate against `.agents/instructions/backend.instructions.md`, `backend/db/AGENTS.md` (if present per sub-loop discovery), `docs/DATABASE_MIGRATIONS.md`.
   - Write `outcome/1.2-outcome.md` (MUST record the branch taken and the environment applied to).
 
 ---
 
 ## Phase 2: Repositories & Backend Services
 
-- [ ] **2.1 Shared admin gate + audit coercion extraction (`admin-gate.helpers.ts` — VERIFY-OR-CREATE, D2)**
+- [x] **2.1 Shared admin gate + audit coercion extraction (`admin-gate.helpers.ts` — VERIFY-OR-CREATE, D2)**
   - **IF** Task 0.2 found `backend/services/admin/admin-gate.helpers.ts` existing (DEV3-022c landed first): import `assertActorAdmin` from it; ADD `toAuditActionType` extracted VERBATIM from `backend/services/admin/user-management.service.ts:130-149` (extend, never fork).
   - **ELSE:** CREATE `backend/services/admin/admin-gate.helpers.ts` carrying BOTH functions extracted VERBATIM: `assertActorAdmin(actorId, locale, outerTx?)` (from `user-management.service.ts:240-271`) and `toAuditActionType(raw)` (from :130-149).
   - UPDATE `backend/services/admin/user-management.service.ts`: DELETE the private copies; import from the shared module. ZERO behavior/API drift — the existing DEV3-016 suites are the byte-equivalence regression lock.
   - UPDATE `backend/services/admin/index.ts`: export the helpers module.
   - Applicable instructions: `.agents/instructions/backend.instructions.md`, `backend/services/AGENTS.md`.
   - _Requirements: REQ-004, REQ-030, REQ-076_
-  - [ ] 2.1.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts backend/services/admin/admin-gate.helpers.ts --lifecycle duplicates` (exit 0) — MUST NOT report a clone of the two functions anywhere else after the edit; run on `user-management.service.ts` too.
-  - [ ] 2.1.TE **Test Engineering:** `bun run test/scripts/run-test.ts backend/services/admin/user-management.service.test.ts` + `user-management.chaos.test.ts` — byte-green, unchanged.
-  - [ ] 2.1.SEC **Security & Tenancy Audit:** gate semantics unchanged (actorId=0 → `UnauthorizedError`; non-admin → `ForbiddenError`; exactly one bounded `logDomainError` per denial; zero writes).
-  - [ ] 2.1.SR **Semantic Review:** verbatim extraction (diff the function bodies); no new dependencies; no dead exports.
-  - [ ] 2.1.IV **Instruction Verification:** validate against auto-discovered AGENTS/instruction files.
+  - [x] 2.1.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts backend/services/admin/admin-gate.helpers.ts --lifecycle duplicates` (exit 0) — MUST NOT report a clone of the two functions anywhere else after the edit; run on `user-management.service.ts` too.
+  - [x] 2.1.TE **Test Engineering:** `bun run test/scripts/run-test.ts backend/services/admin/user-management.service.test.ts` + `user-management.chaos.test.ts` — byte-green, unchanged.
+  - [x] 2.1.SEC **Security & Tenancy Audit:** gate semantics unchanged (actorId=0 → `UnauthorizedError`; non-admin → `ForbiddenError`; exactly one bounded `logDomainError` per denial; zero writes).
+  - [x] 2.1.SR **Semantic Review:** verbatim extraction (diff the function bodies); no new dependencies; no dead exports.
+  - [x] 2.1.IV **Instruction Verification:** validate against auto-discovered AGENTS/instruction files.
   - Write `outcome/2.1-outcome.md`.
 
-- [ ] **2.2 [Write global audit-trail journey test — TEST-FIRST]**
+- [x] **2.2 [Write global audit-trail journey test — TEST-FIRST]**
   - Create `test/workflows/admin/audit-trail.journey.test.ts` (create `test/workflows/admin/` if absent) — authored BEFORE the service surface of Task 2.4 exists; it MUST fail at this point (red state captured in the outcome) and be re-run green in Phase 5.
   - Provision the actor cast via `provisionAdminActor` (×2: producer Admin A, observer Admin B) / `provisionStudentActor` / `provisionParentActor` from `@/test/workflows/helpers` — REAL permission/role rows; NEVER monkey-patch permission resolution.
   - Steps as sequential REAL service calls with REAL `actorUserId`s per specs §2.9 ordered step list:
@@ -108,50 +108,50 @@
   - _Requirements: REQ-075; J-AUD-01..05_
   - Write `outcome/2.2-outcome.md` (records the red-state signature for later differential comparison).
 
-- [ ] **2.3 Implement `AuditTrailRepository` (`backend/db/repo/audit/`)**
+- [x] **2.3 Implement `AuditTrailRepository` (`backend/db/repo/audit/`)**
   - CREATE `backend/db/repo/audit/audit-trail.repository.ts`: `AuditTrailRepository.listEntries(filters, limit, offset, tx?)` and `countEntries(filters, tx?)`; module-local exported row types `NormalizedAuditTrailFilters` + `AuditTrailEntryRow` (raw `actionType: string` — coercion is service-owned, D6) per plan §2.3.
   - Implementation contract: executor `(tx ?? db)` (precedent `admin-user.repository.ts:515`); ONE shared `buildWhere` with conjunctive parameterized `eq`/`gte`/`lt` conditions that drop out when absent; inner join `users` on `actor_id` projecting `actorName: users.fullName` (pattern from `getActivity`, `admin-user.repository.ts:515-526`); order `desc(createdAt), desc(id)`; `.limit().offset()`; `tx?: DBTransaction` LAST on every method.
   - FORBIDDEN on this file: LIKE/ILIKE (`escapeLikeWildcards` obligation never arises — D5), prepared statements (dynamic filter chain — `docs/drizzle/prepared-statements.md`), inline `--` in `sql` templates, governance filtering of any kind (REQ-022), any write call.
   - CREATE `backend/db/repo/audit/index.ts` (`export * from "./audit-trail.repository";`); UPDATE top-level `backend/db/repo/index.ts` adding `export * from "./audit";`.
   - Applicable instructions: `.agents/instructions/backend.instructions.md`, `backend/db/repo/AGENTS.md`, `backend/db/AGENTS.md` (as discovered).
   - _Requirements: REQ-010, REQ-011, REQ-012, REQ-013, REQ-017, REQ-022, REQ-034, REQ-041, REQ-070_
-  - [ ] 2.3.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts backend/db/repo/audit/audit-trail.repository.ts --lifecycle duplicates` (exit 0).
-  - [ ] 2.3.TE **Test Engineering (REQ-070):** CREATE `backend/db/test/logic/audit/audit-trail.repository.test.ts` under `runInRollback` with `tx` propagated to EVERY call and `expectRepoError` try/catch (NEVER `rejects.toThrow`): each filter dimension alone + combined; ordering + `id` tiebreak; page-window continuity with no overlap; out-of-range page → empty items, honest count; empty-set honesty; join projection integrity (`actorName` present); null `entityId`/`details` pass-through; zero-write oracle (row counts unchanged). Run: `bun run test/scripts/run-test.ts backend/db/test/logic/audit/audit-trail.repository.test.ts`.
-  - [ ] 2.3.SEC **Security & Tenancy Audit:** all values Drizzle-parameterized; zero LIKE surface; filters are data, never authorization inputs (REQ-031); no governance filters.
-  - [ ] 2.3.SR **Semantic Review:** no dead code; repo-local row types documented as the DEV3-016 precedent; no cross-layer imports.
-  - [ ] 2.3.IV **Instruction Verification:** validate against auto-discovered AGENTS/instruction files incl. `backend/db/repo/AGENTS.md`.
+  - [x] 2.3.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts backend/db/repo/audit/audit-trail.repository.ts --lifecycle duplicates` (exit 0).
+  - [x] 2.3.TE **Test Engineering (REQ-070):** CREATE `backend/db/test/logic/audit/audit-trail.repository.test.ts` under `runInRollback` with `tx` propagated to EVERY call and `expectRepoError` try/catch (NEVER `rejects.toThrow`): each filter dimension alone + combined; ordering + `id` tiebreak; page-window continuity with no overlap; out-of-range page → empty items, honest count; empty-set honesty; join projection integrity (`actorName` present); null `entityId`/`details` pass-through; zero-write oracle (row counts unchanged). Run: `bun run test/scripts/run-test.ts backend/db/test/logic/audit/audit-trail.repository.test.ts`.
+  - [x] 2.3.SEC **Security & Tenancy Audit:** all values Drizzle-parameterized; zero LIKE surface; filters are data, never authorization inputs (REQ-031); no governance filters.
+  - [x] 2.3.SR **Semantic Review:** no dead code; repo-local row types documented as the DEV3-016 precedent; no cross-layer imports.
+  - [x] 2.3.IV **Instruction Verification:** validate against auto-discovered AGENTS/instruction files incl. `backend/db/repo/AGENTS.md`.
   - Write `outcome/2.3-outcome.md`.
 
-- [ ] **2.4 Implement `AuditTrailService.listAuditTrail`**
+- [x] **2.4 Implement `AuditTrailService.listAuditTrail`**
   - CREATE `backend/services/admin/audit-trail.service.ts` per plan §4.2; export via `backend/services/admin/index.ts`.
   - Pipeline (load-bearing order, REQ-053): ① `assertActorAdmin(actorId, locale, outerTx)` (Task 2.1 shared module); ② pre-DB filter structural validation — positive-safe-integer guard on `actorId`/`entityId` (REQ-015); `entityType` trim / drop-if-empty / >100 → `ValidationError`; `actionType` membership re-assertion vs `Object.values(AuditActionType)` fail-closed (REQ-016); `from`/`to` valid Dates, `from < to` strictly (REQ-014); ③ pagination pre-DB: `page ?? 1` positive int, `pageSize ?? 25` int in `1..100` (REQ-013); ④ ONE REPEATABLE READ transaction (D3 — txConfig shape verified in Task 0.2, else first-statement `SET TRANSACTION ISOLATION LEVEL` fallback) containing `countEntries` + `listEntries` with the SAME `tx`; ⑤ map rows via `toAuditActionType`; `null` → plain `new Error(...)` masked-internal (D6, precedent `user-management.service.ts:787-792`).
   - Contracts: honest empty `{items: [], totalCount: 0, page, pageSize}` (REQ-017); `details` verbatim pass-through (D8); happy path logs NOTHING; each denial exactly ONE bounded `logDomainError` `{ code, entity: "audit_logs", entityId?, locale }` (REQ-035); closed error set only (REQ-050); `outerTx?: DBTransaction` trailing; canonical types only.
   - Applicable instructions: `.agents/instructions/backend.instructions.md`, `backend/services/AGENTS.md`.
   - _Requirements: REQ-010..018, REQ-021, REQ-030, REQ-031, REQ-033, REQ-035, REQ-040, REQ-041, REQ-043, REQ-044, REQ-050..053_
-  - [ ] 2.4.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts backend/services/admin/audit-trail.service.ts --lifecycle duplicates` (exit 0).
-  - [ ] 2.4.TE **Test Engineering (REQ-071):** CREATE `backend/services/admin/audit-trail.service.test.ts` targeting 100% statement/branch on new code: gate denials (`actorId=0` → `UnauthorizedError`; resolvable non-admin → `ForbiddenError`; ZERO reads beyond gate, ZERO writes, ONE bounded log per denial — JR-C-1 extension oracles for REQ-018/052); full validation boundary matrix (pageSize 1/100/101; page 0/negative/fractional; fractional/negative/oversized ids; entityType 100/101 chars; from ≥ to; invalid Date; corrupt actionType input) — every pre-DB tier proves zero row contact (REQ-053); happy-path mapping + determinism (equal inputs → equal output on a stable set); REQ-017 oracles; REQ-040 single-transaction snapshot assertion (tx propagation spy); D6 corrupt-stored-enum masked-internal branch. Run: `bun run test/scripts/run-test.ts backend/services/admin/audit-trail.service.test.ts`.
-  - [ ] 2.4.SEC **Security & Tenancy Audit:** BFLA service self-check before any read; BOPLA closed-input assumption documented (resolver whitelists — Task 3.1); no filter payload / `details` content / actor PII in logs; no new domain codes; no LIKE surface.
-  - [ ] 2.4.SR **Semantic Review:** atomicity of the read snapshot; env-config untouched; zero dead code; no service-layer `.types.ts`; enums as value imports; validation precedence matches REQ-053 exactly.
-  - [ ] 2.4.IV **Instruction Verification:** validate against auto-discovered AGENTS/instruction files.
+  - [x] 2.4.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts backend/services/admin/audit-trail.service.ts --lifecycle duplicates` (exit 0).
+  - [x] 2.4.TE **Test Engineering (REQ-071):** CREATE `backend/services/admin/audit-trail.service.test.ts` targeting 100% statement/branch on new code: gate denials (`actorId=0` → `UnauthorizedError`; resolvable non-admin → `ForbiddenError`; ZERO reads beyond gate, ZERO writes, ONE bounded log per denial — JR-C-1 extension oracles for REQ-018/052); full validation boundary matrix (pageSize 1/100/101; page 0/negative/fractional; fractional/negative/oversized ids; entityType 100/101 chars; from ≥ to; invalid Date; corrupt actionType input) — every pre-DB tier proves zero row contact (REQ-053); happy-path mapping + determinism (equal inputs → equal output on a stable set); REQ-017 oracles; REQ-040 single-transaction snapshot assertion (tx propagation spy); D6 corrupt-stored-enum masked-internal branch. Run: `bun run test/scripts/run-test.ts backend/services/admin/audit-trail.service.test.ts`.
+  - [x] 2.4.SEC **Security & Tenancy Audit:** BFLA service self-check before any read; BOPLA closed-input assumption documented (resolver whitelists — Task 3.1); no filter payload / `details` content / actor PII in logs; no new domain codes; no LIKE surface.
+  - [x] 2.4.SR **Semantic Review:** atomicity of the read snapshot; env-config untouched; zero dead code; no service-layer `.types.ts`; enums as value imports; validation precedence matches REQ-053 exactly.
+  - [x] 2.4.IV **Instruction Verification:** validate against auto-discovered AGENTS/instruction files.
   - Write `outcome/2.4-outcome.md`.
 
-- [ ] **2.5 Immutability proof triple (static scan + trigger tier + DDL idempotence)**
+- [x] **2.5 Immutability proof triple (static scan + trigger tier + DDL idempotence)**
   - CREATE `backend/db/test/logic/audit/audit-immutability.test.ts` per `backend/db/test/AGENTS.md` conventions:
     - (a) **REQ-019 static scan:** zero production callsites of `update(auditLogs)`/`delete(auditLogs)` across `backend/**` (path-allowlist `test/**` teardown infrastructure incl. `test/helpers/db-cleanup.ts`); `AuditService` module surface exposes NO mutation method beyond `createAuditLog`.
     - (b) **REQ-020 trigger tier (environment-branched):** probe `pg_trigger` (shape per `test/helpers/db-cleanup.ts:84-86`), gated by `isPgliteProvider()` (`test/helpers/skip-when-pglite.ts`): WITH triggers present → direct `tx.update(auditLogs)` and `tx.delete(auditLogs)` MUST throw inside `runInRollback`, asserted via `expectRepoError` try/catch (NEVER `rejects.toThrow`); WITHOUT triggers (push-provisioned) → assert the REQ-019 structural tier and RECORD the push-vs-migrate gap in the outcome.
     - (c) **Migration-DDL pin:** IF the Task-1.2 SQL file exists, assert idempotent DDL content (`CREATE OR REPLACE` + `DROP TRIGGER IF EXISTS`); IF consumed-by-reference, pin the found file's idempotence instead.
   - Applicable instructions: `.agents/instructions/backend.instructions.md` (and `.agents/instructions/tests.instructions.md` per discovery), `backend/db/test/AGENTS.md`.
   - _Requirements: REQ-019, REQ-020, REQ-042, REQ-072_
-  - [ ] 2.5.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts backend/db/test/logic/audit/audit-immutability.test.ts --lifecycle duplicates` (exit 0).
-  - [ ] 2.5.TE **Test Engineering:** run `bun run test/scripts/run-test.ts backend/db/test/logic/audit/audit-immutability.test.ts`; the test IS the tier — ensure the environment branch actually observed is recorded (trigger-present vs absent).
-  - [ ] 2.5.SEC **Security & Tenancy Audit:** scan covers ALL production roots (no blind spots like a missed service directory); allowlist is path-exact, not glob-loose; the test itself never leaves writes committed.
-  - [ ] 2.5.SR **Semantic Review:** honest branching (no force-skipping the trigger tier); assertions use `expectRepoError` convention; zero `console.*`.
-  - [ ] 2.5.IV **Instruction Verification:** validate against auto-discovered AGENTS/instruction files.
+  - [x] 2.5.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts backend/db/test/logic/audit/audit-immutability.test.ts --lifecycle duplicates` (exit 0).
+  - [x] 2.5.TE **Test Engineering:** run `bun run test/scripts/run-test.ts backend/db/test/logic/audit/audit-immutability.test.ts`; the test IS the tier — ensure the environment branch actually observed is recorded (trigger-present vs absent).
+  - [x] 2.5.SEC **Security & Tenancy Audit:** scan covers ALL production roots (no blind spots like a missed service directory); allowlist is path-exact, not glob-loose; the test itself never leaves writes committed.
+  - [x] 2.5.SR **Semantic Review:** honest branching (no force-skipping the trigger tier); assertions use `expectRepoError` convention; zero `console.*`.
+  - [x] 2.5.IV **Instruction Verification:** validate against auto-discovered AGENTS/instruction files.
   - Write `outcome/2.5-outcome.md` (MUST name which trigger-tier branch executed).
 
 ### Phase 2.M: Mid-Point Review Gate
 
-- [ ] **2.M Mid-point review gate**
+- [x] **2.M Mid-point review gate**
   - Consolidate: journey test authored (red) ✔; repo+service implemented with green unit tiers ✔; gate extraction byte-equivalence ✔; immutability triple recorded ✔.
   - Re-run: `bun tsgo`, `bun run oxlint`, `bun biome:check` — deltas vs Phase-0 baseline recorded; targeted suites: `bun run test/scripts/run-test.ts backend/services/admin` and `bun run test/scripts/run-test.ts backend/db/test/logic/audit`.
   - Verify ledger `ai/plans/sprint_3/dev3-020-immutable-audit-logging-for-all-admin-ac/deferred-items.md` has no unplanned ❌/⚠️ entries; if any, resolve or explicitly defer with owner before proceeding past this gate.
