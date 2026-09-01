@@ -21,13 +21,13 @@
 
 ## Phase 0: Pre-Implementation Baseline
 
-- [ ] **0.1 Record error baseline & initialize deferred-items ledger**
+- [x] **0.1 Record error baseline & initialize deferred-items ledger**
   - Run and record counts: `bun tsgo`, `bun run oxlint`, `bun biome:check`, `bun run lint --json --id baseline`; capture pre-existing modified files via `git diff --name-only`.
   - Initialize `ai/plans/sprint_3/dev3-020-immutable-audit-logging-for-all-admin-ac/deferred-items.md` from `.agents/spec-process-guide/templates/deferred-items-template.md`, pre-seeded with the six resolved-as-reference entries from plan.md: **D-ET-DROPDOWN, D-GOV-WINDOW, D-KEYSET, D-EXPORT, D-DETAIL-PROJECTION, D-TRIGGER-PUSH-GAP**.
   - Write `ai/plans/sprint_3/dev3-020-immutable-audit-logging-for-all-admin-ac/outcome/phase0-baseline-outcome.md` with counts + modified-file set.
   - _Requirements: REQ-001, REQ-082_
 
-- [ ] **0.2 Prerequisite verification & prose-phantom sweep (verify-then-claim — MANDATORY)**
+- [x] **0.2 Prerequisite verification & prose-phantom sweep (verify-then-claim — MANDATORY)**
   - Verify each against LIVE code; record one verified-fact row per item in the outcome; any missing required artifact → ❌ ledger entry blocking the dependent task:
     1. Grep `backend/db/migration/**` for an audit-immutability trigger (`audit_logs` + `trigger`) → decides REQ-020 verify-vs-create branch.
     2. `backend/db/repo/audit/` — VERIFIED ABSENT → expected CREATE.
@@ -162,33 +162,33 @@
 
 ## Phase 3: GraphQL Resolvers & API Handlers
 
-- [ ] **3.1 Pothos objects/input + `adminAuditLogs` query registration**
+- [x] **3.1 Pothos objects/input + `adminAuditLogs` query registration**
   - CREATE `backend/graphql/pothos/admin/audit-trail.pothos.ts` per plan §3.2: `AdminAuditLogEntry` (via `objectRef<AdminAuditLogEntryReturnType>` — `t.exposeID("id")` FIRST, `actionType` via the REUSED `AuditActionTypePothosEnum` (NEVER re-register), `actorId`/`actorName`/`entityType`, nullable `entityId`/`details`, `createdAt` via `t.expose("createdAt", { type: "DateTime" })` — D4, NEVER `String` + `toISOString()`); `AdminAuditLogPage` embedded wrapper (NO `id`); `AdminAuditLogFiltersInput` closed six-member input, `from`/`to` as `DateTime` fields. NO local types — canonical imports from `@/backend/types`.
   - CREATE `backend/graphql/query/admin/audit-trail.query.ts`: ONE `queryField("adminAuditLogs", …)` with `authScopes: { $all: { authenticated: true, role: [UserRole.Admin] } }` (precedent `admin-users.query.ts:74-79`); thin resolver: `ctx.user` belt + `UnauthorizedError((await ctx.t("errorsTranslations")).unauthorized)` (pattern `backend/graphql/mutation/notifications/notification.mutation.ts:114-117`), then EXPLICIT field-by-field copies into `AdminAuditTrailFiltersSubmitInput` (NO `{ ...input }` spread — BOPLA, REQ-032), passing `args.page ?? null`, `args.pageSize ?? null`, `ctx.locale`, `ctx.user.id`. NO try/catch, NO business logic.
   - UPDATE barrels: `backend/graphql/pothos/admin/index.ts` (+ one export line) and `backend/graphql/query/admin/index.ts` (+ one import line).
   - DO NOT touch `backend/lib/gateway/public-operations.ts` — the frozen six stay frozen (load-bearing REQ-060 / Invariant-rule 3).
   - Applicable instructions: `.agents/instructions/backend.instructions.md`, `backend/graphql/AGENTS.md`, `backend/graphql/pothos/AGENTS.md` (as discovered).
   - _Requirements: REQ-030, REQ-032, REQ-050, REQ-051, REQ-060, REQ-061_
-  - [ ] 3.1.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts` on both new files (exit 0).
-  - [ ] 3.1.TE **Test Engineering:** deferred to Task 3.3 wire matrix (the resolver is behaviorally covered there; builder-level smoke via `bun run generate:gqlSchema` in Task 3.2 catching duplicate-enum/duplicate-type registration errors).
-  - [ ] 3.1.SEC **Security & Tenancy Audit:** `$all` conjunction load-bearing (anonymous → `UNAUTHORIZED`, non-admin → `FORBIDDEN` pre-resolver); closed input shape dies smuggled fields at schema validation; scalar discipline (`DateTime`, no hand-serialization).
-  - [ ] 3.1.SR **Semantic Review:** thin-resolver rule honored; no local type declarations in Pothos files; enum REUSE not re-registration; no dead code.
-  - [ ] 3.1.IV **Instruction Verification:** validate against auto-discovered AGENTS/instruction files + `docs/graphql/api-gateway-and-routing.md` §8 registration recipe.
+  - [x] 3.1.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts` on both new files (exit 0).
+  - [x] 3.1.TE **Test Engineering:** deferred to Task 3.3 wire matrix (the resolver is behaviorally covered there; builder-level smoke via `bun run generate:gqlSchema` in Task 3.2 catching duplicate-enum/duplicate-type registration errors).
+  - [x] 3.1.SEC **Security & Tenancy Audit:** `$all` conjunction load-bearing (anonymous → `UNAUTHORIZED`, non-admin → `FORBIDDEN` pre-resolver); closed input shape dies smuggled fields at schema validation; scalar discipline (`DateTime`, no hand-serialization).
+  - [x] 3.1.SR **Semantic Review:** thin-resolver rule honored; no local type declarations in Pothos files; enum REUSE not re-registration; no dead code.
+  - [x] 3.1.IV **Instruction Verification:** validate against auto-discovered AGENTS/instruction files + `docs/graphql/api-gateway-and-routing.md` §8 registration recipe.
   - Write `outcome/3.1-outcome.md`.
 
-- [ ] **3.2 Codegen + schema-surface baseline re-pin (SAME change set — atomic)**
+- [x] **3.2 Codegen + schema-surface baseline re-pin (SAME change set — atomic)**
   - Run `bun run generate:gqlSchema && bun codegen`; commit regenerated artifacts (SDL + generated types) IN THE SAME change set as Task 3.1.
   - UPDATE `backend/graphql/test/schema-surface.test.ts`: additions assertion gains `"adminAuditLogs"` (sorted computed literal — VERIFY against the live regenerated schema; absorb any concurrently-landed sibling Sprint-3 fields additively, NEVER drop entries); whole-schema type-name additions gain `AdminAuditLogEntry`, `AdminAuditLogFiltersInput`, `AdminAuditLogPage`.
   - UPDATE `backend/graphql/test/sdl-static-assertions.test.ts`: `FROZEN_QUERY_FIELDS` gains `"adminAuditLogs"` in sorted position (verify live contents first; reconcile the documented possibility that the frozen list predates DEV3-016's surface — re-pin against the regenerated SDL and RECORD the reconciliation).
   - KEEP GREEN UNCHANGED: `backend/graphql/test/plan-catalog.schema.test.ts` committed-SDL byte-parity; `backend/graphql/test/handshake-code-surface.test.ts` frozen-six public-allowlist pin — NO edits to those files.
   - Run: `bun run test/scripts/run-test.ts backend/graphql/test/schema-surface.test.ts` (+ the other three surface files).
   - _Requirements: REQ-060, REQ-061, REQ-062_
-  - [ ] 3.2.QL **Quality Loop:** sub-loop on both edited test files (exit 0).
-  - [ ] 3.2.SR **Semantic Review:** additive-only baselines; no snapshot hand-editing outside the regenerated SDL; surface tests assert computed sorted literals, not duplicated stale lists.
-  - [ ] 3.2.IV **Instruction Verification:** validate against auto-discovered AGENTS/instruction files.
+  - [x] 3.2.QL **Quality Loop:** sub-loop on both edited test files (exit 0).
+  - [x] 3.2.SR **Semantic Review:** additive-only baselines; no snapshot hand-editing outside the regenerated SDL; surface tests assert computed sorted literals, not duplicated stale lists.
+  - [x] 3.2.IV **Instruction Verification:** validate against auto-discovered AGENTS/instruction files.
   - Write `outcome/3.2-outcome.md` (MUST record the final frozen-list literals and any sibling-surface absorption).
 
-- [ ] **3.3 GraphQL wire matrix (anonymous / roles / BOPLA probes / hostile inputs)**
+- [x] **3.3 GraphQL wire matrix (anonymous / roles / BOPLA probes / hostile inputs)**
   - CREATE `backend/graphql/test/audit-trail.query.test.ts` per the `notification-integration.matrix.test.ts` precedent (`setupTestServerLifecycle` + `testClient` + raw-HTTP probes):
     - anonymous → `UNAUTHORIZED` (pre-resolver);
     - student / teacher / parent → `FORBIDDEN` (pre-resolver);
@@ -199,11 +199,11 @@
     - corrupt-stored-enum and unexpected-internal paths → masked `INTERNAL_SERVER_ERROR` per `graphqlErrorsFinalizer` contract (chaos probe via service-layer fault injection where feasible).
   - Applicable instructions: `.agents/instructions/backend.instructions.md` (+ tests instructions per discovery), `backend/graphql/AGENTS.md`.
   - _Requirements: REQ-030, REQ-032, REQ-050, REQ-073_
-  - [ ] 3.3.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts backend/graphql/test/audit-trail.query.test.ts --lifecycle duplicates` (exit 0).
-  - [ ] 3.3.TE **Test Engineering:** run `bun run test/scripts/run-test.ts backend/graphql/test/audit-trail.query.test.ts` — 4-tier mapping: Tier 1 (happy + denial matrix), Tier 2 (boundary pageSize/page), Tier 3 (masked-internal chaos), Tier 4 (smuggle + bad-enum security probes).
-  - [ ] 3.3.SEC **Security & Tenancy Audit:** the matrix IS the BFLA/BOPLA wire proof; assert deny happens pre-resolver (no service hit) via row-count oracle or resolver spy.
-  - [ ] 3.3.SR **Semantic Review:** closed code set assertions only (`UNAUTHORIZED`/`FORBIDDEN`/`GRAPHQL_VALIDATION_FAILED`/`VALIDATION`/masked `INTERNAL_SERVER_ERROR`); no code minted ad hoc.
-  - [ ] 3.3.IV **Instruction Verification:** validate against auto-discovered AGENTS/instruction files.
+  - [x] 3.3.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts backend/graphql/test/audit-trail.query.test.ts --lifecycle duplicates` (exit 0).
+  - [x] 3.3.TE **Test Engineering:** run `bun run test/scripts/run-test.ts backend/graphql/test/audit-trail.query.test.ts` — 4-tier mapping: Tier 1 (happy + denial matrix), Tier 2 (boundary pageSize/page), Tier 3 (masked-internal chaos), Tier 4 (smuggle + bad-enum security probes).
+  - [x] 3.3.SEC **Security & Tenancy Audit:** the matrix IS the BFLA/BOPLA wire proof; assert deny happens pre-resolver (no service hit) via row-count oracle or resolver spy.
+  - [x] 3.3.SR **Semantic Review:** closed code set assertions only (`UNAUTHORIZED`/`FORBIDDEN`/`GRAPHQL_VALIDATION_FAILED`/`VALIDATION`/masked `INTERNAL_SERVER_ERROR`); no code minted ad hoc.
+  - [x] 3.3.IV **Instruction Verification:** validate against auto-discovered AGENTS/instruction files.
   - Write `outcome/3.3-outcome.md`.
 
 ---

@@ -16,11 +16,14 @@
  *    name, and the forbidden tokens must not appear anywhere in the artifact
  *    text. Notification emission is service-internal ONLY — the GraphQL
  *    write surface is exactly the read-latch pair.
- *  - **Root-set freeze** — the Mutation root is EXACTLY the refreshed frozen
- *    7-op baseline (auth quartet + the sanctioned notification read-latch
- *    pair + the sanctioned users-locale mutation) and the Query root is
- *    EXACTLY the frozen baseline + the `_health` probe (mirrors the
- *    `PRE_3_1_*` inventories in schema-surface.test.ts).
+ *  - **Root-set freeze** — the Mutation root is EXACTLY the re-pinned frozen
+ *    set (auth quartet + the sanctioned notification read-latch pair + the
+ *    sanctioned users-locale mutation + the plan-catalog CRUD trio + the
+ *    admin user-management mutation trio) and the Query root is EXACTLY the
+ *    re-pinned frozen set (the baseline + the `_health` probe + the inbox
+ *    reads + the plan-catalog reads + the admin user-management directory
+ *    reads + the `adminAuditLogs` trail read — mirrors the `PRE_3_1_*`
+ *    inventories in schema-surface.test.ts).
  *  - **Users-locale surface (D2)** — `updateMyLocale(locale: AppLocale!): User!`
  *    is present with its EXACT SDL signature, `User.locale` is the nullable
  *    `AppLocale` enum, and the `AppLocale` enum carries exactly the two
@@ -60,27 +63,44 @@ import {
   type TypeNode,
 } from "graphql";
 
-// ─── Frozen baselines (mirror the refreshed PRE_3_1_* inventories in ─────────
+// ─── Frozen baselines — RE-PINNED against the regenerated SDL artifact with ──
+// ─── the admin user-management, plan-catalog, handshake and audit-trail ─────
+// ─── surfaces absorbed additively (mirror the PRE_3_1_* inventories in ──────
 // ─── schema-surface.test.ts — the single sanctioned growth history) ──────────
 
-/** Root mutation fields — the auth quartet + the sanctioned notification read-latch pair + the sanctioned users-locale mutation (D2). */
+/** Root mutation fields — auth quartet + the notification read-latch pair + the users-locale mutation + plan-catalog CRUD + the admin user-management trio. */
 const FROZEN_MUTATION_FIELDS = [
+  "adminCreateUser",
+  "adminSetUserDeleted",
+  "adminUpdateUser",
+  "createPlan",
   "login",
   "logout",
   "markAllNotificationsRead",
   "markNotificationRead",
   "refreshToken",
   "registerUser",
+  "setPlanActiveStatus",
   "updateMyLocale",
+  "updatePlan",
 ] as const;
 
-/** Root query fields — the frozen baseline + the sanctioned inbox reads + the probe. */
+/** Root query fields — the baseline + the probe + the inbox reads + the plan-catalog reads + the admin user-management directory reads + the `adminAuditLogs` trail read. */
 const FROZEN_QUERY_FIELDS = [
   "_health",
+  "adminAuditLogs",
+  "adminPlans",
+  "adminUserActivity",
+  "adminUserDetail",
+  "adminUsers",
+  "adminUserStats",
+  "findStudentByHandshakeCode",
   "me",
   "myApplicantProfile",
+  "myHandshakeCode",
   "myNotifications",
   "myUnreadNotificationCount",
+  "planCatalog",
   "recitationReadings",
 ] as const;
 
@@ -217,12 +237,12 @@ describe("BFLA structural verdict — zero notification CUD surface (REQ-032)", 
     }
   });
 
-  test("Mutation root is EXACTLY the refreshed frozen 7-op baseline — the notification write surface is the read-latch pair only", () => {
+  test("Mutation root is EXACTLY the re-pinned frozen set — the notification write surface is the read-latch pair only", () => {
     const names = fieldSurfaces("Mutation").map(surface => surface.name);
     expect(names.toSorted((a, b) => a.localeCompare(b))).toEqual([...FROZEN_MUTATION_FIELDS]);
   });
 
-  test("Query root is EXACTLY the frozen baseline + the `_health` probe (zero unsanctioned growth)", () => {
+  test("Query root is EXACTLY the re-pinned frozen set (zero unsanctioned growth)", () => {
     const names = fieldSurfaces("Query").map(surface => surface.name);
     expect(names.toSorted((a, b) => a.localeCompare(b))).toEqual([...FROZEN_QUERY_FIELDS]);
   });
@@ -326,7 +346,14 @@ describe("Notification object — `id` + REQ-069 depth/complexity posture", () =
       definition => definition.kind === Kind.OBJECT_TYPE_DEFINITION && definition.name.value === "Subscription"
     );
     expect(hasSubscriptionRoot).toBe(false);
-    expect(sdlText).not.toContain("Subscription");
+    // Lexical belt-and-braces — WORD-BOUNDARY scoped: the artifact
+    // legitimately carries the token as an INFIX inside field names
+    // (`hasActiveSubscription`, `studentHasActiveSubscription`) and in
+    // lowercase "subscription plan" description prose, so a raw substring
+    // scan false-positives. The word-boundary scan still catches any real
+    // `Subscription` type/root-field spelling (preceded/followed by
+    // non-word characters in SDL).
+    expect(sdlText).not.toMatch(/\bSubscription\b/);
   });
 });
 
