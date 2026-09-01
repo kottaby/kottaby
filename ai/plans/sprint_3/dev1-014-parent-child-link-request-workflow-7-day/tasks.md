@@ -342,7 +342,7 @@ Verify each anchor is REAL in the bundled tree (locate it; cite line). ANY miss 
 
 ## Phase 4: Frontend GraphQL Documents, Stores & UI Views
 
-### 4.1 [ ] Frontend documents + barrel wiring + document-contract test (id-first, `useQuery`-only, no `useLazyQuery`)
+### 4.1 [x] Frontend documents + barrel wiring + document-contract test (id-first, `useQuery`-only, no `useLazyQuery`)
 **REQ:** REQ-063 · plan §5.4
 
 - CREATE `frontend/graphql/sharedDocuments/parents/parent-link.documents.ts` — five named operations EXACTLY per plan §5.4:
@@ -352,10 +352,10 @@ Verify each anchor is REAL in the bundled tree (locate it; cite line). ANY miss 
 - CREATE `frontend/graphql/sharedDocuments/parents/index.ts` barrel; UPDATE `frontend/graphql/sharedDocuments/index.ts` (currently 1–6 lines) with one line
 - CREATE `frontend/graphql/sharedDocuments/parents/parent-link.documents.test.ts` mirroring `frontend/graphql/sharedDocuments/notifications/notification.documents.test.ts`: operation names, variable sets, id-first structurally, selection-set closures. Exported document consts follow the `{camelCase}QueryDocument` / `{camelCase}MutationDocument` convention (`frontend/graphql/sharedDocuments/AGENTS.md`; live precedent `notification.documents.ts:30` `myNotificationsQueryDocument`): `myOutgoingParentLinkRequestsQueryDocument`, `myIncomingParentLinkRequestsQueryDocument`, `requestParentChildLinkMutationDocument`, `respondToParentLinkRequestMutationDocument`, `cancelParentLinkRequestMutationDocument`.
 - Apollo cache policy UNTOUCHED — `frontend/providers/apollo/apolloCache.test.ts:167-192` (the `keyFields:false` assertions) STAYS GREEN (both objects carry real `id`s; no `keyFields: false` needed)
-- [ ] 4.1.QL **Quality Loop:** for each created/modified file: `bun run scripts/health/sub-loop.ts <path> --lifecycle duplicates` (exit 0)
-- [ ] 4.1.TE **Unit / Component Tests:** `bun run test/scripts/run-test.ts frontend/graphql/sharedDocuments/parents/parent-link.documents.test.ts` — GREEN; `bun run test/scripts/run-test.ts frontend/providers/apollo/apolloCache.test.ts` — STILL GREEN UNTOUCHED
-- [ ] 4.1.SR **Semantic Review:** `useQuery`-only (no `useLazyQuery`); `id` first in every selection; `TypedDocumentNode` on every document; no inline `gql` strings in components
-- [ ] 4.1.IV **Instruction Verification:** `.agents/instructions/frontend.instructions.md` + `frontend/graphql/AGENTS.md` (EXISTS in bundle — verified at 0.2)
+- [x] 4.1.QL **Quality Loop:** for each created/modified file: `bun run scripts/health/sub-loop.ts <path> --lifecycle duplicates` (exit 0)
+- [x] 4.1.TE **Unit / Component Tests:** `bun run test/scripts/run-test.ts frontend/graphql/sharedDocuments/parents/parent-link.documents.test.ts` — GREEN; `bun run test/scripts/run-test.ts frontend/providers/apollo/apolloCache.test.ts` — STILL GREEN UNTOUCHED
+- [x] 4.1.SR **Semantic Review:** `useQuery`-only (no `useLazyQuery`); `id` first in every selection; `TypedDocumentNode` on every document; no inline `gql` strings in components
+- [x] 4.1.IV **Instruction Verification:** `.agents/instructions/frontend.instructions.md` + `frontend/graphql/AGENTS.md` (EXISTS in bundle — verified at 0.2)
 - _Requirements: REQ-063_
 
 ### 4.2 [ ] Student link-requests page — `app/(dashboard)/student/link-requests/page.tsx` + container + components
@@ -434,16 +434,16 @@ Verify each anchor is REAL in the bundled tree (locate it; cite line). ANY miss 
 - [ ] 4.3.IV **Instruction Verification:** `.agents/instructions/frontend.instructions.md` + `frontend/AGENTS.md`
 - _Requirements: REQ-011, REQ-012, REQ-020, REQ-065, REQ-077_
 
-### 4.4 [ ] Student nav item + nav ownership matrix stays green
+### 4.4 [x] Student nav item + nav ownership matrix stays green
 **REQ:** REQ-064 · plan §5.2
 
 - UPDATE `frontend/views/dashboard/nav/navItems.ts` student array (`:103-109`) — ONE entry `{ route: "/student/link-requests", labelKey: "linkRequests", Icon: LinkChildIcon }` (the `LinkChildIcon` import ALREADY exists at `navItems.ts:11`; RETARGET semantics: no existing item targets this route, so this is an ADD, not a duplicate)
 - NO new translation labels here (the `linkRequests` key was registered in task 1.1 on Dashboard)
 - No mobile bottom-nav work (no such component exists; the temporary MUI Drawer picks the item up automatically)
-- [ ] 4.4.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts frontend/views/dashboard/nav/navItems.ts --lifecycle duplicates` (exit 0)
-- [ ] 4.4.TE **Unit Tests:** `bun run test/scripts/run-test.ts frontend/views/dashboard/nav/navItems.test.ts` — GREEN (the `:7-17` ownership matrix still sees `linkRequests` owned ONLY by Dashboard)
-- [ ] 4.4.SR **Semantic Review:** one entry added; no duplicates; no new label keys in this task; icon import reused
-- [ ] 4.4.IV **Instruction Verification:** `.agents/instructions/frontend.instructions.md` + `frontend/AGENTS.md`
+- [x] 4.4.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts frontend/views/dashboard/nav/navItems.ts --lifecycle duplicates` (exit 0)
+- [x] 4.4.TE **Unit Tests:** `bun run test/scripts/run-test.ts frontend/views/dashboard/nav/navItems.test.ts` — GREEN (the `:7-17` ownership matrix still sees `linkRequests` owned ONLY by Dashboard)
+- [x] 4.4.SR **Semantic Review:** one entry added; no duplicates; no new label keys in this task; icon import reused
+- [x] 4.4.IV **Instruction Verification:** `.agents/instructions/frontend.instructions.md` + `frontend/AGENTS.md`
 - _Requirements: REQ-064_
 
 ---
