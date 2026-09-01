@@ -258,7 +258,7 @@ Verify each anchor is REAL in the bundled tree (locate it; cite line). ANY miss 
 - [x] 2.3.IV **Instruction Verification:** `.agents/instructions/backend.instructions.md` + `backend/services/AGENTS.md` (the service-layer rules; repo rule additions come in Phase 7 docs)
 - _Requirements: REQ-011..REQ-024, REQ-031..REQ-035, REQ-040..REQ-044, REQ-050, REQ-053, REQ-054, REQ-071_
 
-### 2.4 [ ] **Phase 2.M Mid-Point Review Gate**
+### 2.4 [x] **Phase 2.M Mid-Point Review Gate**
 **REQ:** REQ-083 protocol · architectural checkpoint before the GraphQL surface
 
 - Re-read ALL outcomes under `outcome/`; confirm journey (2.1) is GREEN; repo tier (2.2.TE) 100% green; service tier (2.3.TE) green
@@ -268,9 +268,9 @@ Verify each anchor is REAL in the bundled tree (locate it; cite line). ANY miss 
   - `bun tsgo` count == 0.1 baseline; `bun biome:check` count == 0.1 baseline
 - Write `outcome/2.M-midpoint-outcome.md` — list deviations, ledger deltas, and Phase-3 readiness
 - HARD GATE: any ❌ in the ledger BLOCKS Phase 3 until resolved or resolved-pointer recorded.
-- [ ] 2.4.QL **Quality Loop:** outcome file present, ledger consistent
-- [ ] 2.4.SR **Semantic Review:** journey green because the SERVICE surface is correct — not because tests were weakened (diff-review the journey since 2.1 for scope creep)
-- [ ] 2.4.IV **Instruction Verification:** `.agents/instructions/{backend,tests}.instructions.md`
+- [x] 2.4.QL **Quality Loop:** outcome file present, ledger consistent
+- [x] 2.4.SR **Semantic Review:** journey green because the SERVICE surface is correct — not because tests were weakened (diff-review the journey since 2.1 for scope creep)
+- [x] 2.4.IV **Instruction Verification:** `.agents/instructions/{backend,tests}.instructions.md`
 
 ---
 
