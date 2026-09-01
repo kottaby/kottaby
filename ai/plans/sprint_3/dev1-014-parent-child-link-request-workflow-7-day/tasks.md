@@ -227,7 +227,7 @@ Verify each anchor is REAL in the bundled tree (locate it; cite line). ANY miss 
 - [x] 2.2.IV **Instruction Verification:** `.agents/instructions/backend.instructions.md` + `backend/db/repo/AGENTS.md` (reader path for repo rules)
 - _Requirements: REQ-010, REQ-032, REQ-033, REQ-037, REQ-040, REQ-041, REQ-070_
 
-### 2.3 [ ] Implement `ParentLinkRequestService` (create/respond/cancel/lists) — engine composition + fail-closed actor re-check
+### 2.3 [x] Implement `ParentLinkRequestService` (create/respond/cancel/lists) — engine composition + fail-closed actor re-check
 **REQ:** REQ-011..REQ-024, REQ-031..REQ-035, REQ-040..REQ-044, REQ-050, REQ-053, REQ-054, REQ-071· plan §4.2/§4.3
 
 - CREATE `backend/services/parents/parent-link-request.service.ts`, CREATE `backend/services/parents/index.ts`, UPDATE `backend/services/index.ts` (one re-export line)
@@ -240,8 +240,8 @@ Verify each anchor is REAL in the bundled tree (locate it; cite line). ANY miss 
   - **`listMyOutgoing` / `listMyIncoming`**: relaxed-read actor re-check (self-scope honesty — self-scoped by the VERIFIED actorId regardless of request payload) → repo list → per-row computed render: `status === LinkStatus.Pending && expiresAt <= now` ⇒ surface `LinkStatus.Expired` WITHOUT writing (read purity, REQ-015); read-mapping goes through `isLinkStatus` (fail-closed on corrupt stored status)
   - Copy composition: via `getServerTranslations(recipientLocale).notificationsTranslations.eventParentLink*` — recipient-locale at the EMITTER (engine §3.3, DEV3-018 D6)
   - Log hygiene: `logDomainError` contexts EXACTLY `{ code, entity: "parent_link_requests" | "students" | "users", entityId?, locale }` — NEVER codes, NEVER names, NEVER emails, NEVER the submitted handshake code (R8 carried forward); happy path emits NOTHING (REQ-054)
-- [ ] 2.3.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts backend/services/parents/parent-link-request.service.ts --lifecycle duplicates` AND `bun run scripts/health/sub-loop.ts backend/services/parents/index.ts --lifecycle duplicates` AND `bun run scripts/health/sub-loop.ts backend/services/index.ts --lifecycle duplicates` (exit 0)
-- [ ] 2.3.TE **Test Engineering (4-Tier, `backend/services/parents/parent-link-request.service.test.ts`; REQ-071):**
+- [x] 2.3.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts backend/services/parents/parent-link-request.service.ts --lifecycle duplicates` AND `bun run scripts/health/sub-loop.ts backend/services/parents/index.ts --lifecycle duplicates` AND `bun run scripts/health/sub-loop.ts backend/services/index.ts --lifecycle duplicates` (exit 0)
+- [x] 2.3.TE **Test Engineering (4-Tier, `backend/services/parents/parent-link-request.service.test.ts`; REQ-071):**
   - Tier 1 branch/stmt: every branch of request/respond/cancel/lists; recipient-locale resolution incl. `defaultLocale` fallback; publish discriminant (own-commit vs caller-tx — caller-tx NEVER publishes)
   - Tier 2 boundary: `expiresAt` at exactly now, now−1ms, now+1ms; strict-`>` predicate proven; one-captured-`now` deterministic within a single call
   - Tier 3 chaos: forced repo failure unmasks; post-claim injected failure rolls back the ENTIRE tx (zero residual rows across `parent_link_requests`/`students`/`notifications`)
@@ -249,13 +249,13 @@ Verify each anchor is REAL in the bundled tree (locate it; cite line). ANY miss 
   - Counts pinned: per REQ-053 each denial writes ZERO rows across `parent_link_requests`/`students`/`notifications`/`audit_logs`
   - Run: `bun run test/scripts/run-test.ts backend/services/parents/parent-link-request.service.test.ts` AND `bun run test:services`
   - Journey 2.1 turns GREEN at the end of this task (confirm via `bun run test/scripts/run-test.ts test/workflows/parents/parent-link-request.journey.test.ts`)
-- [ ] 2.3.SEC **Security & Tenancy Audit:**
+- [x] 2.3.SEC **Security & Tenancy Audit:**
   - REQ-031 actor re-check runs FIRST on every mutation/read; ZERO BYPASS PATHS
   - REQ-034 oracle matrix enforced: null-collapse equality; constant-shape NOT_FOUND; honest conflict codes; timing parity assertions where materially meaningful
   - BOPLA: every DB payload field-by-field; `relatedEntityType: "parent_link_request"` literal; `relatedEntityId` is the created request id
   - NO LIKE/ILIKE; capability-by-code targeting (the student id never crosses the wire)
-- [ ] 2.3.SR **Semantic Review:** `withTransaction` owns every mutation; guarded updates only; single-writer notifications (engine); single-writer `students.parent_id` (the new repo method); no dead code; no cross-layer imports (`services/**` importing from `@/backend/db/**` only via repos)
-- [ ] 2.3.IV **Instruction Verification:** `.agents/instructions/backend.instructions.md` + `backend/services/AGENTS.md` (the service-layer rules; repo rule additions come in Phase 7 docs)
+- [x] 2.3.SR **Semantic Review:** `withTransaction` owns every mutation; guarded updates only; single-writer notifications (engine); single-writer `students.parent_id` (the new repo method); no dead code; no cross-layer imports (`services/**` importing from `@/backend/db/**` only via repos)
+- [x] 2.3.IV **Instruction Verification:** `.agents/instructions/backend.instructions.md` + `backend/services/AGENTS.md` (the service-layer rules; repo rule additions come in Phase 7 docs)
 - _Requirements: REQ-011..REQ-024, REQ-031..REQ-035, REQ-040..REQ-044, REQ-050, REQ-053, REQ-054, REQ-071_
 
 ### 2.4 [ ] **Phase 2.M Mid-Point Review Gate**

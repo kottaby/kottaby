@@ -463,6 +463,17 @@ describe("Journey — parent→child link request workflow (DEV1-014, journeys A
 
     const linkedParentId = await linkStudentToParentFixture(provisioned.studentL.userId, provisioned.parentA.userId);
     expect(linkedParentId).toBe(provisioned.parentA.userId);
+
+    // Snapshot refresh (honest pre-state): the byte-captured users rows are
+    // re-read AFTER the committed governance + link fixtures, so the Step-9
+    // fixture-stability probe compares against the TRUE pre-journey rows —
+    // including G's active suspension — instead of the pre-governance cast
+    // (the governance write is part of the honest pre-journey pre-state).
+    const postSetupSnapshots = await db
+      .select()
+      .from(users)
+      .where(inArray(users.id, castUserIds(provisioned)));
+    state = { ...provisioned, userSnapshots: new Map(postSetupSnapshots.map(row => [row.id, row])) };
   });
 
   // ── Journey A — request → notify → confirm → linked ──────────────────────
@@ -731,7 +742,14 @@ describe("Journey — parent→child link request workflow (DEV1-014, journeys A
     expect(bOutgoing[0]?.id).toBe(bRequestId);
     const aOutgoingAfter = await requireService().listMyOutgoing(s.parentA.userId, LOCALE);
     expect(aOutgoingAfter[0]?.status).toBe(LinkStatus.Confirmed);
-    expect((await requireService().listMyIncoming(s.studentS.userId, LOCALE))[0]?.status).toBe(LinkStatus.Confirmed);
+    // Sibling visibility from the deciding student's OWN incoming list: rows
+    // are selected BY ID (the repo pins created_at DESC ordering, so the
+    // later-created sibling sorts first — index selection would read the
+    // wrong row). BOTH rows are asserted: A's confirmed, B's expired.
+    const sIncoming = await requireService().listMyIncoming(s.studentS.userId, LOCALE);
+    expect(sIncoming).toHaveLength(2);
+    expect(sIncoming.find(row => row.id === aRequestId)?.status).toBe(LinkStatus.Confirmed);
+    expect(sIncoming.find(row => row.id === bRequestId)?.status).toBe(LinkStatus.Expired);
 
     // The sibling row is MATERIALIZED expired in the database, and zero
     // pending rows remain for S.
@@ -795,6 +813,12 @@ describe("Journey — parent→child link request workflow (DEV1-014, journeys A
     expect(fIncoming).not.toHaveLength(0);
     const fRequestId = fIncoming[0].id;
 
+    // Delta pin: earlier journey steps legitimately notified this parent
+    // (Step 8's accepted copy lives in the same inbox), so the rejected-notify
+    // property is pinned as EXACTLY ONE NEW parent-link row, bound to THIS
+    // request id.
+    const parentAInboxBefore = await linkInboxRowsFor(s.parentA.userId);
+
     const rejected = await requireService().respondToLinkRequest(
       fRequestId,
       false,
@@ -817,8 +841,11 @@ describe("Journey — parent→child link request workflow (DEV1-014, journeys A
     expect(await studentParentId(s.studentF.userId)).toBeNull();
     expect(await pendingCountForStudent(s.studentF.userId)).toBe(0);
 
-    // ONE rejected notification to the parent; ONE publish to the parent.
-    expect(await linkInboxRowsFor(s.parentA.userId)).toHaveLength(1);
+    // ONE rejected notification to the parent (exactly one NEW row since the
+    // step began, bound to the rejected request); ONE publish to the parent.
+    const parentAInboxAfter = await linkInboxRowsFor(s.parentA.userId);
+    expect(parentAInboxAfter.length - parentAInboxBefore.length).toBe(1);
+    expect(parentAInboxAfter.filter(row => row.relatedEntityId === fRequestId)).toHaveLength(1);
     expectSinglePublish(s.parentA.userId, fRequestId);
     transportSpy.clear();
 
@@ -843,7 +870,13 @@ describe("Journey — parent→child link request workflow (DEV1-014, journeys A
 
     // Exactly ONE live pending for (A, F) — the rejected row does not block.
     expect(await pendingCountForStudent(s.studentF.userId)).toBe(1);
-    expect(await requireService().listMyIncoming(s.studentF.userId, LOCALE)).toHaveLength(1);
+    // The incoming list is the pair's HISTORY (repo §4.1: all statuses,
+    // newest first): the rejected row stays visible beside the fresh pending,
+    // pinned by id — never by position.
+    const fIncomingAfter = await requireService().listMyIncoming(s.studentF.userId, LOCALE);
+    expect(fIncomingAfter).toHaveLength(2);
+    expect(fIncomingAfter.find(row => row.id === reapplied.id)?.status).toBe(LinkStatus.Pending);
+    expect(fIncomingAfter.find(row => row.id !== reapplied.id)?.status).toBe(LinkStatus.Rejected);
     expectSinglePublish(s.studentF.userId, reapplied.id);
     transportSpy.clear();
   });
@@ -931,7 +964,12 @@ describe("Journey — parent→child link request workflow (DEV1-014, journeys A
     expect(await studentParentId(s.studentF.userId)).toBeNull();
     const row = await requestRowById(reappliedId);
     expect(row?.status).toBe(LinkStatus.Rejected);
-    expect(await db.$count(parentLinkRequests, eq(parentLinkRequests.parentId, s.parentA.userId))).toBe(2);
+    expect(
+      await db.$count(
+        parentLinkRequests,
+        and(eq(parentLinkRequests.parentId, s.parentA.userId), eq(parentLinkRequests.studentId, s.studentF.userId))
+      )
+    ).toBe(2);
 
     // A's outgoing list now shows the folded row as rejected.
     const aOutgoing = await requireService().listMyOutgoing(s.parentA.userId, LOCALE);
@@ -958,6 +996,9 @@ describe("Journey — parent→child link request workflow (DEV1-014, journeys A
 
   test("Journey C · Step 17 — System: backdated-expiresAt fixture committed DIRECTLY (honest fixture control)", async () => {
     const s = requireState();
+    // The student's inbox must be UNCHANGED by the fixture write (silent):
+    // pinned as a delta, since earlier journey steps legitimately notified F.
+    const fInboxBeforeFixture = (await linkInboxRowsFor(s.studentF.userId)).length;
     // expiresAt is application-written, so committing a stale deadline
     // directly is honest fixture control — REQ-094's genuinely-expired row.
     const backdated = await db.transaction(async (tx: DBTransaction): Promise<ParentLinkRequestRow> => {
@@ -981,7 +1022,7 @@ describe("Journey — parent→child link request workflow (DEV1-014, journeys A
     expect(backdated.expiresAt.getTime()).toBeLessThan(Date.now());
     expect(await studentParentId(s.studentF.userId)).toBeNull();
     // The student's inbox must be UNCHANGED by the fixture write (silent).
-    expect(await linkInboxRowsFor(s.studentF.userId)).toHaveLength(1);
+    expect(await linkInboxRowsFor(s.studentF.userId)).toHaveLength(fInboxBeforeFixture);
     expectZeroPublishes();
   });
 
@@ -1024,6 +1065,13 @@ describe("Journey — parent→child link request workflow (DEV1-014, journeys A
 
   test("Journey C · Step 19 — sequential race-loser emulation: second confirm after the committed first ⇒ TARGET_ALREADY_LINKED, claim rolled back", async () => {
     const s = requireState();
+    // Zero-notify pin: earlier journey steps legitimately populated both
+    // parents' inboxes, so the race-loser silence is pinned as a DELTA (no
+    // NEW inbox rows for anyone).
+    const [aInboxBefore, bInboxBefore] = await Promise.all([
+      linkInboxRowsFor(s.parentA.userId),
+      linkInboxRowsFor(s.parentB.userId),
+    ]);
     // Sequential emulation of the B12 race window: a SECOND live pending for
     // the winner's student, committed directly (the concurrent-window sibling
     // the guarded sibling-expiry could not have seen). The TRUE concurrent
@@ -1069,8 +1117,8 @@ describe("Journey — parent→child link request workflow (DEV1-014, journeys A
     expect(loserRow?.status).toBe(LinkStatus.Pending);
     expect(await studentParentId(s.studentS.userId)).toBe(s.parentA.userId);
     expect(await pendingCountForStudent(s.studentS.userId)).toBe(1);
-    expect(await linkInboxRowsFor(s.parentA.userId)).toHaveLength(1);
-    expect(await linkInboxRowsFor(s.parentB.userId)).toHaveLength(0);
+    expect(await linkInboxRowsFor(s.parentA.userId)).toHaveLength(aInboxBefore.length);
+    expect(await linkInboxRowsFor(s.parentB.userId)).toHaveLength(bInboxBefore.length);
     expectZeroPublishes();
   });
 
