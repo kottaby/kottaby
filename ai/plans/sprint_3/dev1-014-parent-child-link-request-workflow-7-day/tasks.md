@@ -24,7 +24,7 @@
 
 ## Phase 0: Pre-Implementation Baseline
 
-### 0.1 [x] Record baseline & initialize deferred-items ledger
+### 0.1 [ ] Record baseline & initialize deferred-items ledger
 **REQ:** REQ-001
 
 - Run and capture counts:
@@ -38,76 +38,76 @@
   - D3 link revocation / `Unlinked` transition (future revoke ticket) — resolved-pointer
   - D4 partial-unique index Drizzle expressibility — resolved AT task 1.2 implementation time either way, outcomed both ways
 - Write `ai/plans/sprint_3/dev1-014-parent-child-link-request-workflow-7-day/outcome/0-baseline-outcome.md` with: counts, pre-existing modified files, ledger seed content.
-- [x] 0.1.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts ai/plans/sprint_3/dev1-014-parent-child-link-request-workflow-7-day/deferred-items.md --lifecycle duplicates` (exit 0)
-- [x] 0.1.SR **Semantic Review:** baseline numbers are real captured stdout (not invented); ledger has ZERO open ❌/⚠️ items at seed time.
-- [x] 0.1.IV **Instruction Verification:** validate against `.agents/instructions/tests.instructions.md` (baseline capture discipline) — the ONLY instruction files are `.agents/instructions/{frontend,backend,tests}.instructions.md`.
+- [ ] 0.1.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts ai/plans/sprint_3/dev1-014-parent-child-link-request-workflow-7-day/deferred-items.md --lifecycle duplicates` (exit 0)
+- [ ] 0.1.SR **Semantic Review:** baseline numbers are real captured stdout (not invented); ledger has ZERO open ❌/⚠️ items at seed time.
+- [ ] 0.1.IV **Instruction Verification:** validate against `.agents/instructions/tests.instructions.md` (baseline capture discipline) — the ONLY instruction files are `.agents/instructions/{frontend,backend,tests}.instructions.md`.
 
-### 0.2 [x] Prerequisite & substrate verification (reuse-never-fork guard)
+### 0.2 [ ] Prerequisite & substrate verification (reuse-never-fork guard)
 **REQ:** REQ-004
 
 Verify each anchor is REAL in the bundled tree (locate it; cite line). ANY miss ⇒ ❌ ledger entry AND dependent tasks block.
 
-- [x] `backend/services/notifications/notification-engine.service.ts:288-340` — `emitForUser` (caller-tx, returns receipt, no publish) + `publishReceipts` composition (at ~340+)
-- [x] `backend/services/students/student-handshake.helpers.ts:33-60` — `isGovernanceExcludedFromDiscovery(row, now)`
-- [x] `backend/db/repo/students/student.repository.ts:78-120` — `findDiscoveryByHandshakeCode` (join+payload shape)
-- [x] `backend/db/repo/users/user.repository.ts:200-250` — `findLocalesByIds`; `shared/locale/AppLocale.ts:10` — `defaultLocale = "ar"`
-- [x] `backend/lib/db/with-transaction` — `withTransaction(outerTx, fn)` (import anchored at `backend/services/admin/user-management.service.ts:13`)
-- [x] `backend/lib/errors.ts:24-30` (`NotFoundError` entity form), `:90-130` (`ConflictError` class with overloads — VERIFIED before assigning codes)
-- [x] `backend/enum/shared/link-status.enum.ts:1-6` — `LinkStatus` exists, NO `isLinkStatus` guard; `backend/enum/teachers/applicant-status.enum.ts:7-9` — `isApplicantStatus` precedent
-- [x] `backend/db/schema/enums.ts:54` — `linkStatus` pgEnum inventory `["pending","confirmed","rejected","expired"]` — FROZEN, this ticket is its first consumer
-- [x] Journey harness DOES NOT EXIST: `test/workflows/AGENTS.md` exists but `test/workflows/helpers/` directory and helpers (`TrackedFixtures`, `provisionParentActor`, `provisionStudentActor`, `SpiedFanoutTransport`) do NOT exist — the AGENTS.md says "Status: The shared harness is scaffolded" but this is aspirational. Task 2.1 must CREATE the harness, not reuse it. Referenced test files (`fanout-transport.test.ts`, `notification-engine.emit.test.ts`) also do not exist. *(VERIFIED STALE by 0.2 — harness EXISTS; ledger D5; 2.1 REUSES — see `outcome/0.2-prereq-outcome.md` §1.5)*
-- [x] `test/helpers/skip-when-pglite.ts:1-5` — `isPgliteProvider`
-- [x] `shared/lib/mask-full-name.ts` — `maskFullName` signature (referenced at `backend/services/students/student-handshake.service.ts:7`; VERIFY the export name + signature in the bundle before fronting it in 4.x types)
-- [x] `shared/locale/client/use-app-translation.ts:1-12` — `useAppTranslation` OVERLOAD contract: `useAppTranslation(): Translations` + `useAppTranslation<TLabels>(handle: NamespaceHandle<TLabels>): TLabels`; `shared/locale/server.ts:12-14` (`getTranslations` 1-arg); `shared/locale/server-graphql.ts:2-4` (`getServerTranslations` 1-arg)
-- [x] `frontend/lib/auth/withPageAuth.ts:15-30` — `{ roles, redirectTo }` signature; `frontend/lib/auth/roleDashboardRoute.ts:9-22` — `roleDashboardPath(ctx.role)`
-- [x] Frontend prose-only UI verification planned at implementation time (NOT now, no code writes yet): `frontend/views/parent/handshake/HandshakeDiscoveryContainer.tsx`, `app/(dashboard)/parent/handshake/page.tsx`, `test/ui/AGENTS.md` harness (`TestWrapper`, translation preload) — record provisional verdicts in the ledger; final verify happens inside tasks 4.2/4.3. *(0.2 provisional verdicts: ALL THREE EXIST — no downgrade needed; see `outcome/0.2-prereq-outcome.md` §1.7)*
-- [x] 0.2.QL **Quality Loop:** outcomes written; ledger up-to-date; `bun run scripts/health/sub-loop.ts ai/plans/sprint_3/dev1-014-parent-child-link-request-workflow-7-day/outcome/0-prereq-outcome.md --lifecycle duplicates` (exit 0)
-- [x] 0.2.SR **Semantic Review:** every claimed EXISTING artifact carries a live `path:line` anchor produced by this task; any prose-only artifact is DOWNGRADED to CREATE in the dependent task.
-- [x] 0.2.IV **Instruction Verification:** validate against `.agents/instructions/backend.instructions.md`.
+- [ ] `backend/services/notifications/notification-engine.service.ts:288-340` — `emitForUser` (caller-tx, returns receipt, no publish) + `publishReceipts` composition (at ~340+)
+- [ ] `backend/services/students/student-handshake.helpers.ts:33-60` — `isGovernanceExcludedFromDiscovery(row, now)`
+- [ ] `backend/db/repo/students/student.repository.ts:78-120` — `findDiscoveryByHandshakeCode` (join+payload shape)
+- [ ] `backend/db/repo/users/user.repository.ts:200-250` — `findLocalesByIds`; `shared/locale/AppLocale.ts:10` — `defaultLocale = "ar"`
+- [ ] `backend/lib/db/with-transaction` — `withTransaction(outerTx, fn)` (import anchored at `backend/services/admin/user-management.service.ts:13`)
+- [ ] `backend/lib/errors.ts:24-30` (`NotFoundError` entity form), `:90-130` (`ConflictError` class with overloads — VERIFIED before assigning codes)
+- [ ] `backend/enum/shared/link-status.enum.ts:1-6` — `LinkStatus` exists, NO `isLinkStatus` guard; `backend/enum/teachers/applicant-status.enum.ts:7-9` — `isApplicantStatus` precedent
+- [ ] `backend/db/schema/enums.ts:54` — `linkStatus` pgEnum inventory `["pending","confirmed","rejected","expired"]` — FROZEN, this ticket is its first consumer
+- [ ] Journey harness DOES NOT EXIST: `test/workflows/AGENTS.md` exists but `test/workflows/helpers/` directory and helpers (`TrackedFixtures`, `provisionParentActor`, `provisionStudentActor`, `SpiedFanoutTransport`) do NOT exist — the AGENTS.md says "Status: The shared harness is scaffolded" but this is aspirational. Task 2.1 must CREATE the harness, not reuse it. Referenced test files (`fanout-transport.test.ts`, `notification-engine.emit.test.ts`) also do not exist.
+- [ ] `test/helpers/skip-when-pglite.ts:1-5` — `isPgliteProvider`
+- [ ] `shared/lib/mask-full-name.ts` — `maskFullName` signature (referenced at `backend/services/students/student-handshake.service.ts:7`; VERIFY the export name + signature in the bundle before fronting it in 4.x types)
+- [ ] `shared/locale/client/use-app-translation.ts:1-12` — `useAppTranslation` OVERLOAD contract: `useAppTranslation(): Translations` + `useAppTranslation<TLabels>(handle: NamespaceHandle<TLabels>): TLabels`; `shared/locale/server.ts:12-14` (`getTranslations` 1-arg); `shared/locale/server-graphql.ts:2-4` (`getServerTranslations` 1-arg)
+- [ ] `frontend/lib/auth/withPageAuth.ts:15-30` — `{ roles, redirectTo }` signature; `frontend/lib/auth/roleDashboardRoute.ts:9-22` — `roleDashboardPath(ctx.role)`
+- [ ] Frontend prose-only UI verification planned at implementation time (NOT now, no code writes yet): `frontend/views/parent/handshake/HandshakeDiscoveryContainer.tsx`, `app/(dashboard)/parent/handshake/page.tsx`, `test/ui/AGENTS.md` harness (`TestWrapper`, translation preload) — record provisional verdicts in the ledger; final verify happens inside tasks 4.2/4.3.
+- [ ] 0.2.QL **Quality Loop:** outcomes written; ledger up-to-date; `bun run scripts/health/sub-loop.ts ai/plans/sprint_3/dev1-014-parent-child-link-request-workflow-7-day/outcome/0-prereq-outcome.md --lifecycle duplicates` (exit 0)
+- [ ] 0.2.SR **Semantic Review:** every claimed EXISTING artifact carries a live `path:line` anchor produced by this task; any prose-only artifact is DOWNGRADED to CREATE in the dependent task.
+- [ ] 0.2.IV **Instruction Verification:** validate against `.agents/instructions/backend.instructions.md`.
 
-### 0.3 [x] Phase-1.5 `@plan-review` gate
+### 0.3 [ ] Phase-1.5 `@plan-review` gate
 **REQ:** REQ-083
 
 - Invoke the plan-review agent on `specs.md` + `plan.md` + `tasks.md` of `ai/plans/sprint_3/dev1-014-parent-child-link-request-workflow-7-day/`.
 - Capture the review verdict to `outcome/plan-review-R1.md`. HARD GATE: zero violations before Phase 1 starts; otherwise fix the plan first.
-- [x] 0.3.QL **Quality Loop:** gate outcome file present & complete
-- [x] 0.3.SR **Semantic Review:** every violation either fixed in plan/tasks or downgraded to a recorded ledger entry — NO silent ignores.
-- [x] 0.3.IV **Instruction Verification:** the review checklist itself came from `.agents/instructions/{backend,frontend}.instructions.md`.
+- [ ] 0.3.QL **Quality Loop:** gate outcome file present & complete
+- [ ] 0.3.SR **Semantic Review:** every violation either fixed in plan/tasks or downgraded to a recorded ledger entry — NO silent ignores.
+- [ ] 0.3.IV **Instruction Verification:** the review checklist itself came from `.agents/instructions/{backend,frontend}.instructions.md`.
 
 ---
 
 ## Phase 1: Types, Enums & Database Schema
 
-### 1.1 [x] i18n increments — errors flat keys, notification copy slots, dashboard nav label, NEW `parentLink` namespace (full registration)
+### 1.1 [ ] i18n increments — errors flat keys, notification copy slots, dashboard nav label, NEW `parentLink` namespace (full registration)
 **REQ:** REQ-002, REQ-051, REQ-052, REQ-066, REQ-075 · `shared/AGENTS.md` checklist is the registration reference
 
-- **Errors namespace (FLAT, camelCase-mirroring codes — precedent `handshakeCodeInvalid` at `shared/locale/en/errors/index.ts:49`):**
+- **Errors namespace (FLAT, camelCase-mirroring codes — precedent `handshakeCodeInvalid` at `shared/locale/en/errors/index.ts:48`):**
   - `shared/locale/types/errors/index.ts` — ADD FLAT keys to `ErrorsLabels`: `parentLinkTargetAlreadyLinked`, `parentLinkAlreadyPending`, `parentLinkRequestExpired`, `parentLinkRequestAlreadyResolved`, `parentLinkRequestNotFound` (NO new nested groupings)
   - `shared/locale/en/errors/index.ts` + `shared/locale/ar/errors/index.ts` — both leaves, Arabic-script in ar
 - **Notifications namespace (SIX new non-`type*` slots):**
   - `shared/locale/types/notifications/index.ts` (`NotificationsLabels`): `eventParentLinkRequestTitle`, `eventParentLinkRequestBody: (parentName: string) => string`, `eventParentLinkAcceptedTitle`, `eventParentLinkAcceptedBody: (studentName: string) => string`, `eventParentLinkRejectedTitle`, `eventParentLinkRejectedBody: (studentName: string) => string`
   - `shared/locale/en/notifications/index.ts` + `shared/locale/ar/notifications/index.ts` — both leaves; Arabic Arabic-script pins in functions too
-  - `shared/locale/notifications-namespace.parity.test.ts` (MANDATED_KEYS at `:50`; live 26-key baseline verified at the 0.3 gate) — SAME changeset: `MANDATED_KEYS` 26 → 32; function-slot inventory 4 → 7; the "exactly seven `type*` keys" pin stays GREEN UNCHANGED
-- **Dashboard nav label:** `shared/locale/types/dashboard/index.ts` + `shared/locale/en/dashboard/index.ts` + `shared/locale/ar/dashboard/index.ts` — ADD `linkRequests: string`. Owner: Dashboard ONLY (the navItems ownership matrix at `frontend/views/dashboard/nav/navItems.test.ts:7-17` stays green).
+  - `shared/locale/notifications-namespace.parity.test.ts:8-35` — SAME changeset: `MANDATED_KEYS` 26 → 32; function-slot inventory 4 → 7; the "exactly seven `type*` keys" pin stays GREEN UNCHANGED
+- **Dashboard nav label:** `shared/locale/types/dashboard/index.ts` + `shared/locale/en/dashboard/index.ts` + `shared/locale/ar/dashboard/index.ts` — ADD `linkRequests: string`. Owner: Dashboard ONLY (the navItems ownership matrix at `navItems.test.ts:19-29` stays green).
 - **NEW `parentLink` namespace end-to-end:**
   - CREATE `shared/locale/types/parentLink/index.ts` — `ParentLinkLabels` with EXACTLY the plan §5.6 inventory (`studentPageTitle`, `studentPageSubtitle`, `incomingEmptyTitle`, `incomingEmptyBody`, `fromLabel`, `sentAtLabel`, `expiresLine: (date: string) => string`, `statusPending`, `statusConfirmed`, `statusRejected`, `statusExpired`, `confirmAction`, `rejectAction`, `confirmDialogTitle`, `confirmDialogBody: (parentName: string) => string`, `rejectDialogTitle`, `rejectDialogBody: (parentName: string) => string`, `confirmSuccessToast`, `rejectSuccessToast`, `cancelAction`, `cancelDialogTitle`, `cancelDialogBody`, `cancelSuccessToast`, `outgoingTitle`, `outgoingEmptyTitle`, `outgoingEmptyBody`, `sendRequestAction`, `sendRequestSuccessToast`, `requestPendingNotice`, `sendUnavailableNotice`)
   - CREATE `shared/locale/en/parentLink/index.ts` + `shared/locale/ar/parentLink/index.ts` (Arabic-script in EVERY ar slot incl. function outputs)
   - CREATE `shared/locale/namespaces/parentLink/parentLink.namespace.ts` (+ `index.ts`) — `export const ParentLink = defineNamespace<ParentLinkLabels>("parentLink.parentLink", t => t.parentLinkTranslations)`
   - UPDATE `shared/locale/namespaces/index.ts` (registry + `export *`)
-  - UPDATE `shared/locale/types/message.ts` (`Translations` interface at `:13-25` gains `parentLinkTranslations: ParentLinkLabels`) + BOTH `shared/locale/en/messages.ts` and `shared/locale/ar/messages.ts` bundles
+  - UPDATE `shared/locale/types/message.ts:12-24` (`Translations` gains `parentLinkTranslations: ParentLinkLabels`) + BOTH `shared/locale/en/messages.ts` and `shared/locale/ar/messages.ts` bundles
   - CREATE `shared/locale/parentLink-namespace.parity.test.ts` mirroring `notifications-namespace.parity.test.ts` (key-set identity, non-empty, Arabic-script pins, function-slot parity, registry/bundle pins)
 - **Files must NEVER import `@/backend/**`, `@/frontend/**`, `@/app/**` (layer isolation, hard rule).**
-- [x] 1.1.QL **Quality Loop:** for EACH of the above paths: `bun run scripts/health/sub-loop.ts <path> --lifecycle duplicates` (exit 0)
-- [x] 1.1.TE **Test Engineering:**
+- [ ] 1.1.QL **Quality Loop:** for EACH of the above paths: `bun run scripts/health/sub-loop.ts <path> --lifecycle duplicates` (exit 0)
+- [ ] 1.1.TE **Test Engineering:**
   - Run `bun run test/scripts/run-test.ts shared/locale/notifications-namespace.parity.test.ts` — GREEN with 32 keys + 7 function slots
   - Run `bun run test/scripts/run-test.ts shared/locale/parentLink-namespace.parity.test.ts` — GREEN
   - Run `bun run test/scripts/run-test.ts shared/locale/errors-namespace.parity.test.ts` — unchanged shape, GREEN
-  - Run `bun run test/scripts/run-test.ts frontend/views/dashboard/nav/navItems.test.ts` — still green (no route added yet — see task 4.4; this task only adds the LABEL; matrix ownership stays valid)
-- [x] 1.1.SEC **Security & Tenancy Audit:** no user input reaches these slots unsanitized (copy functions receive already-assembled names only); zero secrets/PII in labels.
-- [x] 1.1.SR **Semantic Review:** FLAT-key discipline kept; no `Translation` enum invented; no `next-intl` import; all copy slots used by specs §2.5/§5 are present (spec-traceable).
-- [x] 1.1.IV **Instruction Verification:** validate against `shared/AGENTS.md` checklist + `.agents/instructions/backend.instructions.md` (locale discipline lives in backend instructions).
+  - Run `bun run test/scripts/run-test.ts frontend/views/dashboard/navItems.test.ts` — still green (no route added yet — see task 4.4; this task only adds the LABEL; matrix ownership stays valid)
+- [ ] 1.1.SEC **Security & Tenancy Audit:** no user input reaches these slots unsanitized (copy functions receive already-assembled names only); zero secrets/PII in labels.
+- [ ] 1.1.SR **Semantic Review:** FLAT-key discipline kept; no `Translation` enum invented; no `next-intl` import; all copy slots used by specs §2.5/§5 are present (spec-traceable).
+- [ ] 1.1.IV **Instruction Verification:** validate against `shared/AGENTS.md` checklist + `.agents/instructions/backend.instructions.md` (locale discipline lives in backend instructions).
 
-### 1.2 [x] NEW table `parent_link_requests` + parents barrel + delivery via `bun run db push` (+ ledger decision on Drizzle expressibility)
+### 1.2 [ ] NEW table `parent_link_requests` + parents barrel + delivery via `bun run db push` (+ ledger decision on Drizzle expressibility)
 **REQ:** REQ-010, REQ-045, REQ-046 · plan D4
 
 - CREATE `backend/db/schema/parents/parent-link-requests.ts` EXACTLY per plan §2.2:
@@ -117,17 +117,17 @@ Verify each anchor is REAL in the bundled tree (locate it; cite line). ANY miss 
   - Indexes: `(parent_id)`, `(student_id)`, PARTIAL UNIQUE `(parent_id, student_id) WHERE status='pending'`
 - UPDATE `backend/db/schema/parents/index.ts` — ONE line: `export * from "./parent-link-requests";`
 - Delivery:
-  - FIRST attempt: Drizzle-native partial unique (`unique(...).on(...).where(sql`${t.status} = 'pending'`)`) — verify it compiles *(VERIFIED — the `unique(...)` constraint-builder has NO `.where()` in bundled drizzle-orm 1.0.0-rc.4 and crashes push; RESOLVED NATIVE via `uniqueIndex(...).on(...).where(...)` — zero custom SQL; ledger D4 ✅; `outcome/1.2-schema-outcome.md` §3)*
-  - Run `bun run db push` per `docs/DATABASE_MIGRATIONS.md` *(executed via `DATABASE_URL=… bunx drizzle-kit push --force --config=drizzle.config.ts` to BOTH app_db + app_db_test — package.json's `db:push` is `.env.sqlite`-wired in this sandbox and the injected process-env `DATABASE_URL` overrides `.env`; see `outcome/1.2-schema-outcome.md` §4)*
+  - FIRST attempt: Drizzle-native partial unique (`unique(...).on(...).where(sql`${t.status} = 'pending'`)`) — verify it compiles
+  - Run `bun run db push` per `docs/DATABASE_MIGRATIONS.md`
   - IF the partial-unique `.where()` proves unexpressible in the bundled Drizzle version ⇒ fallback = ONE ADDITIVE custom SQL file under `backend/db/migration/` + new drizzle folder; RECORD the choice + reason in the ledger (D4) and in `outcome/1.2-outcome.md`
 - VERIFY drift gate: `git diff backend/db/schema/**` shows EXACTLY the new table file + the one-line barrel edit — `enums.ts`/`students.ts`/`users.ts` untouched
-- [x] 1.2.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts backend/db/schema/parents/parent-link-requests.ts --lifecycle duplicates` AND `bun run scripts/health/sub-loop.ts backend/db/schema/parents/index.ts --lifecycle duplicates` (exit 0)
-- [x] 1.2.TE **Test Engineering:** schema smoke test — assert table + 3 indexes + partial-unique WHERE predicate visible in `db push` dry-run / introspection output; assert table importable from barrel without circular-deps warnings (`bun tsgo` stays at baseline)
-- [x] 1.2.SEC **Security & Tenancy Audit:** FKs are both RESTRICT (append-and-transition-only history rows); NO cascade semantics were added; the partial unique is the duplicate-pending final arbiter (D4)
-- [x] 1.2.SR **Semantic Review:** zero enum inventory edits; zero edits to `enums.ts`/`students.ts`/`users.ts`; the table file is ADDITIVE-ONLY
-- [x] 1.2.IV **Instruction Verification:** validate against `docs/DATABASE_MIGRATIONS.md` + `.agents/instructions/backend.instructions.md`
+- [ ] 1.2.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts backend/db/schema/parents/parent-link-requests.ts --lifecycle duplicates` AND `bun run scripts/health/sub-loop.ts backend/db/schema/parents/index.ts --lifecycle duplicates` (exit 0)
+- [ ] 1.2.TE **Test Engineering:** schema smoke test — assert table + 3 indexes + partial-unique WHERE predicate visible in `db push` dry-run / introspection output; assert table importable from barrel without circular-deps warnings (`bun tsgo` stays at baseline)
+- [ ] 1.2.SEC **Security & Tenancy Audit:** FKs are both RESTRICT (append-and-transition-only history rows); NO cascade semantics were added; the partial unique is the duplicate-pending final arbiter (D4)
+- [ ] 1.2.SR **Semantic Review:** zero enum inventory edits; zero edits to `enums.ts`/`students.ts`/`users.ts`; the table file is ADDITIVE-ONLY
+- [ ] 1.2.IV **Instruction Verification:** validate against `docs/DATABASE_MIGRATIONS.md` + `.agents/instructions/backend.instructions.md`
 
-### 1.3 [x] Shared constant + enum guard (additive, zero behavior change elsewhere)
+### 1.3 [ ] Shared constant + enum guard (additive, zero behavior change elsewhere)
 **REQ:** REQ-003, REQ-015, REQ-044 · plan §2.4/§2.5
 
 - CREATE `shared/constants/parent-link-request.constants.ts`:
@@ -142,13 +142,13 @@ Verify each anchor is REAL in the bundled tree (locate it; cite line). ANY miss 
     return typeof value === "string" && (Object.values(LinkStatus) as string[]).includes(value);
   }
   ```
-- [x] 1.3.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts shared/constants/parent-link-request.constants.ts --lifecycle duplicates` AND `bun run scripts/health/sub-loop.ts backend/enum/shared/link-status.enum.ts --lifecycle duplicates` (exit 0)
-- [x] 1.3.TE **Test Engineering:** compact sibling guard test `backend/enum/shared/link-status.enum.test.ts` mirroring `applicant-status.enum.test.ts` — accepts all four enum members, rejects `"Pending"` case-flipped/whitespace/empty/number/object/null/undefined; boundary fuzz. Run `bun run test/scripts/run-test.ts backend/enum/shared/link-status.enum.test.ts`
-- [x] 1.3.SEC **Security & Tenancy Audit:** guard is pure — no I/O, no global state; fail-closed by construction
-- [x] 1.3.SR **Semantic Review:** enum imported as VALUE; shared/constants carries zero backend imports; TTL semantics match strict-`>` predicate design (REQ-015)
-- [x] 1.3.IV **Instruction Verification:** `.agents/instructions/backend.instructions.md`
+- [ ] 1.3.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts shared/constants/parent-link-request.constants.ts --lifecycle duplicates` AND `bun run scripts/health/sub-loop.ts backend/enum/shared/link-status.enum.ts --lifecycle duplicates` (exit 0)
+- [ ] 1.3.TE **Test Engineering:** compact sibling guard test `backend/enum/shared/link-status.enum.test.ts` mirroring `applicant-status.enum.test.ts` — accepts all four enum members, rejects `"Pending"` case-flipped/whitespace/empty/number/object/null/undefined; boundary fuzz. Run `bun run test/scripts/run-test.ts backend/enum/shared/link-status.enum.test.ts`
+- [ ] 1.3.SEC **Security & Tenancy Audit:** guard is pure — no I/O, no global state; fail-closed by construction
+- [ ] 1.3.SR **Semantic Review:** enum imported as VALUE; shared/constants carries zero backend imports; TTL semantics match strict-`>` predicate design (REQ-015)
+- [ ] 1.3.IV **Instruction Verification:** `.agents/instructions/backend.instructions.md`
 
-### 1.4 [x] Canonical types — link-request types + students link-target row + barrels
+### 1.4 [ ] Canonical types — link-request types + students link-target row + barrels
 **REQ:** REQ-003 · plan §2.3
 
 - CREATE `backend/types/parents/parent-link-request.types.ts`:
@@ -159,21 +159,21 @@ Verify each anchor is REAL in the bundled tree (locate it; cite line). ANY miss 
 - UPDATE `backend/types/parents/index.ts` — `export * from "./parent-link-request.types";` (prefix shape at `backend/types/parents/index.ts:1`)
 - UPDATE `backend/types/students/student.types.ts` — ADD `StudentLinkTargetRowType { studentId, parentId: number|null, fullName, isDeleted, isBlocked, suspended, suspendedAt, suspendedPeriodDays }` (server-internal — NEVER a GraphQL payload)
 - NO service-layer `.types.ts` files appear anywhere (hard rule)
-- [x] 1.4.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts backend/types/parents/parent-link-request.types.ts --lifecycle duplicates` AND `bun run scripts/health/sub-loop.ts backend/types/parents/index.ts --lifecycle duplicates` AND `bun run scripts/health/sub-loop.ts backend/types/students/student.types.ts --lifecycle duplicates` (exit 0)
-- [x] 1.4.TE **Test Engineering:** `bun tsgo` re-run — error count == 0.1 baseline (no new errors)
-- [x] 1.4.SEC **Security & Tenancy Audit:** types carry ONLY the fields the GraphQL surface promises (BOPLA at the return-type boundary); `StudentLinkTargetRowType` carries governance columns needed for REQ-031-style reads but is never serialized over the wire
-- [x] 1.4.SR **Semantic Review:** no local resolver types planned; all types centralized; readonly discipline on return types
-- [x] 1.4.IV **Instruction Verification:** `.agents/instructions/backend.instructions.md`
+- [ ] 1.4.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts backend/types/parents/parent-link-request.types.ts --lifecycle duplicates` AND `bun run scripts/health/sub-loop.ts backend/types/parents/index.ts --lifecycle duplicates` AND `bun run scripts/health/sub-loop.ts backend/types/students/student.types.ts --lifecycle duplicates` (exit 0)
+- [ ] 1.4.TE **Test Engineering:** `bun tsgo` re-run — error count == 0.1 baseline (no new errors)
+- [ ] 1.4.SEC **Security & Tenancy Audit:** types carry ONLY the fields the GraphQL surface promises (BOPLA at the return-type boundary); `StudentLinkTargetRowType` carries governance columns needed for REQ-031-style reads but is never serialized over the wire
+- [ ] 1.4.SR **Semantic Review:** no local resolver types planned; all types centralized; readonly discipline on return types
+- [ ] 1.4.IV **Instruction Verification:** `.agents/instructions/backend.instructions.md`
 
 ---
 
 ## Phase 2: Repositories & Backend Services
 
-### 2.1 [x] Write parent-link-request journey test — TEST-FIRST
+### 2.1 [ ] Write parent-link-request journey test — TEST-FIRST
 **REQ:** REQ-076, REQ-090..REQ-096, REQ-046 (teardown order) · specs §2.9 · plan §4.4
 
 - Create `test/workflows/parents/parent-link-request.journey.test.ts` — one file covering the three journeys (A/B/C)
-- REUSE the EXISTING journey harness — import everything from the `@/test/workflows/helpers` barrel: `TrackedFixtures`, `provisionParentActor` / `provisionStudentActor` (siblings `provisionCertifiedTeacherActor` / `provisionAdminActor`), `SpiedFanoutTransport`, `createJourneyCast`, `journeyCleanup` — ALL EXIST (ledger D5; live anchors in `outcome/0.2-prereq-outcome.md` §1.5; `test/workflows/AGENTS.md:7-10` "the shared harness is scaffolded" is REAL, not aspirational). Do NOT re-create any helper; extend the harness with a NEW file + one barrel line ONLY if a genuinely new helper is required — never fork existing ones.
+- CREATE the journey harness: `test/workflows/helpers/` with `TrackedFixtures`, `provisionParentActor`, `provisionStudentActor`, `SpiedFanoutTransport` (the AGENTS.md says "scaffolded" but it's aspirational — must be built from scratch)
 - Provision the actor cast (specs §2.9): Parent A, Parent B, Student S, Governed Student G, Already-Linked Student L (pre-linked to A)
 - Steps as sequential service calls with `actorUserId`. REQ-011 REQ-016-style assertions per plan §4.4 visibility matrix. Assert cross-actor visibility AND denial paths honestly (REAL permission/group membership; NEVER monkey-patched)
 - Committed fixtures in ONE `beforeAll` `db.transaction`; tracked hard-delete in `afterAll` with deletion ordering: `parent_link_requests` FIRST, then `students`, then `users` (REQ-046 — reverse-registration per `test/workflows/AGENTS.md` rule 2); mandatory ZERO-residue re-probes after teardown
@@ -183,14 +183,14 @@ Verify each anchor is REAL in the bundled tree (locate it; cite line). ANY miss 
 - Assertions include (REQ-090..096): EXACTLY ONE publish per notify-boundary; null-collapse byte-equality (miss ≡ governed); REQ-091 sibling-expiry visibility by BOTH parents; REQ-092 zero-notify on already-linked; REQ-093 constant-shape `PARENT_LINK_REQUEST_NOT_FOUND` for foreign-id and nonexistent-id from BOTH directions; REQ-094 silent expiry + persisted `expired` row; REQ-095 duplicate-pending count=1; REQ-096 zero rows after collapse
 - Chaos race (REQ-042/043 wiring into the journey or a sibling focused file — if you keep the journey file clean, the race proofs land in the chaos tier at 5.2; the journey covers the SEQUENTIAL second-confirm-reject): sequential second-confirm AFTER a committed first-confirm ⇒ `PARENT_LINK_TARGET_ALREADY_LINKED`; sibling pendings of the winner's student ALL `expired`
 - Initial state: RED (no service surface yet) — this is the expected TEST-FIRST posture; it TURNS GREEN at task 2.3/3.x completion
-- [x] 2.1.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts test/workflows/parents/parent-link-request.journey.test.ts --lifecycle duplicates` (exit 0)
-- [x] 2.1.TE **Test Engineering:** `bun run test/scripts/run-test.ts test/workflows/parents/parent-link-request.journey.test.ts` — RED against service-surface absence at this stage (correct); every later task that touches the service MUST keep it runnable
-- [x] 2.1.SEC **Security & Tenancy Audit:** denials exercised through REAL role + governance resolution; zero notification side effects on denials; fingerprint logging free of codes/names/emails
-- [x] 2.1.SR **Semantic Review:** no monkey-patching; every actor call carries an honest `actorUserId`; per-step assertions exist for BOTH actor visibility and cross-actor invariance
-- [x] 2.1.IV **Instruction Verification:** `test/workflows/AGENTS.md` (EXISTS — harness rules live) + `docs/testing/workflow-journey-tests.md` + `.agents/instructions/tests.instructions.md`
+- [ ] 2.1.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts test/workflows/parents/parent-link-request.journey.test.ts --lifecycle duplicates` (exit 0)
+- [ ] 2.1.TE **Test Engineering:** `bun run test/scripts/run-test.ts test/workflows/parents/parent-link-request.journey.test.ts` — RED against service-surface absence at this stage (correct); every later task that touches the service MUST keep it runnable
+- [ ] 2.1.SEC **Security & Tenancy Audit:** denials exercised through REAL role + governance resolution; zero notification side effects on denials; fingerprint logging free of codes/names/emails
+- [ ] 2.1.SR **Semantic Review:** no monkey-patching; every actor call carries an honest `actorUserId`; per-step assertions exist for BOTH actor visibility and cross-actor invariance
+- [ ] 2.1.IV **Instruction Verification:** `test/workflows/AGENTS.md` (to be created with harness rules) + `docs/testing/workflow-journey-tests.md` + `.agents/instructions/tests.instructions.md`
 - _Requirements: REQ-076, REQ-090..REQ-096, REQ-046_
 
-### 2.2 [x] Implement `ParentLinkRequestRepository` + additive `StudentRepository` methods + register barrels
+### 2.2 [ ] Implement `ParentLinkRequestRepository` + additive `StudentRepository` methods + register barrels
 **REQ:** REQ-010 (delivery read), REQ-032, REQ-033, REQ-037, REQ-040 (tx propagation), REQ-041 (guarded-only), REQ-070 (repo tier) · plan §4.1
 
 - CREATE `backend/db/repo/parents/parent-link-request.repository.ts` with EXACTLY these methods (`tx` LAST, `tx ?? db` executor discipline):
@@ -204,44 +204,44 @@ Verify each anchor is REAL in the bundled tree (locate it; cite line). ANY miss 
   - `listOutgoingForParent(parentId, tx?): Promise<OutgoingRow[]>` — join `users` for `fullName`; `ORDER BY created_at DESC, id DESC LIMIT 50`
   - `listIncomingForStudent(studentId, tx?): Promise<IncomingRow[]>` — join `users` on `parentId`; same ordering/cap
   - `findOutgoingRowById(requestId, tx?)` / `findIncomingRowById(requestId, tx?)` — single-row join reads for success-path payloads
-  - Repo-local exported interfaces `OutgoingParentLinkRequestRow` / `IncomingParentLinkRequestRow` mirror the `AdminUserDirectoryRow` precedent (`backend/db/repo/admin/admin-user-row-types.ts:72` — the sanctioned row-types sibling file in the repo sub-directory)
+  - Repo-local exported interfaces `OutgoingParentLinkRequestRow` / `IncomingParentLinkRequestRow` mirror the `AdminUserDirectoryRow` precedent at `backend/db/repo/admin/admin-user.repository.ts:41-61`
 - UPDATE `backend/db/repo/parents/index.ts` — one new re-export line
 - UPDATE `backend/db/repo/students/student.repository.ts` — ADD, at a location consistent with sibling methods (do NOT touch existing methods):
   - `findLinkTargetByHandshakeCode(code, tx?): Promise<StudentLinkTargetRowType | null>` — parameterized equality ONLY (zero LIKE/ILIKE); join to `users` for governance columns + `fullName`
   - `linkParentIfUnlinked(studentId, parentId, tx): Promise<StudentSelectType | null>` — ONE guarded `UPDATE students SET parent_id = $2, updated_at = now() WHERE id = $1 AND parent_id IS NULL RETURNING *` — THE only production writer of a non-null `students.parent_id`
 - NO `SELECT FOR UPDATE`, NO advisory locks, NO read-then-write patterns (D2)
-- [x] 2.2.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts backend/db/repo/parents/parent-link-request.repository.ts --lifecycle duplicates` AND `bun run scripts/health/sub-loop.ts backend/db/repo/parents/index.ts --lifecycle duplicates` AND `bun run scripts/health/sub-loop.ts backend/db/repo/students/student.repository.ts --lifecycle duplicates` (exit 0)
-- [x] 2.2.TE **Test Engineering (4-Tier via repo suite; REQ-070):**
+- [ ] 2.2.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts backend/db/repo/parents/parent-link-request.repository.ts --lifecycle duplicates` AND `bun run scripts/health/sub-loop.ts backend/db/repo/parents/index.ts --lifecycle duplicates` AND `bun run scripts/health/sub-loop.ts backend/db/repo/students/student.repository.ts --lifecycle duplicates` (exit 0)
+- [ ] 2.2.TE **Test Engineering (4-Tier via repo suite; REQ-070):**
   - CREATE `backend/db/repo/parents/parent-link-request.repository.test.ts` + ADDITIVE blocks in `backend/db/repo/students/student.repository.test.ts`
   - Tier 1: create/findById/findPendingByPair round-trips; guarded claims ALL zero-row classifier arms (nonexistent id, wrong owner, already-resolved, expired-at-write instant); sibling expiry counts + exclusion of winner; cancel scopes; lists ordering/deterministic tie-break + LIMIT 50; join payloads carry the counterpart name column
   - Tier 2: boundary — claim exactly at `expiresAt` (`expires_at > now` FALSE) returns NULL; strict-`>` parity at ±1ms
   - Tier 3: partial-unique insert conflict assertion shared with the service tier (the service owns the final mapping, repo only asserts the raw DB error surfaces 23505); concurrent inserts skip-gated under pglite via `isPgliteProvider`
   - Tier 4: `runInRollback` everywhere; `tx` propagation proven (every method callable under outer `tx` and with default `db`); `expectRepoError` try/catch — NEVER `rejects.toThrow`; fixtures only via `entity-setup.ts` helpers (verify helper signatures from the bundle FIRST); zero raw SQL construction beyond parameterized equality
   - Run: `bun run test/scripts/run-test.ts backend/db/repo/parents/parent-link-request.repository.test.ts` and the repo suite tier via `bun run test:db`
-- [x] 2.2.SEC **Security & Tenancy Audit:**
+- [ ] 2.2.SEC **Security & Tenancy Audit:**
   - Ownership predicates inlined into UPDATE WHERE-clauses (BOLA at the statement level)
   - BOPLA: insert payload = EXACTLY `{ parentId, studentId, expiresAt }` field-by-field; NO `{ ...input }` anywhere
   - No LIKE/ILIKE in ANY new method (REQ-037)
   - `linkParentIfUnlinked` is the ONLY writer pinned by the upcoming static scan (task 5.3)
-- [x] 2.2.SR **Semantic Review:** every state transition is a single guarded UPDATE + RETURNING; zero TOCTOU; zero dead code; enum used as VALUE import; no `console.*`
-- [x] 2.2.IV **Instruction Verification:** `.agents/instructions/backend.instructions.md` + `backend/db/repo/AGENTS.md` (reader path for repo rules)
+- [ ] 2.2.SR **Semantic Review:** every state transition is a single guarded UPDATE + RETURNING; zero TOCTOU; zero dead code; enum used as VALUE import; no `console.*`
+- [ ] 2.2.IV **Instruction Verification:** `.agents/instructions/backend.instructions.md` + `backend/db/repo/AGENTS.md` (reader path for repo rules)
 - _Requirements: REQ-010, REQ-032, REQ-033, REQ-037, REQ-040, REQ-041, REQ-070_
 
-### 2.3 [x] Implement `ParentLinkRequestService` (create/respond/cancel/lists) — engine composition + fail-closed actor re-check
+### 2.3 [ ] Implement `ParentLinkRequestService` (create/respond/cancel/lists) — engine composition + fail-closed actor re-check
 **REQ:** REQ-011..REQ-024, REQ-031..REQ-035, REQ-040..REQ-044, REQ-050, REQ-053, REQ-054, REQ-071· plan §4.2/§4.3
 
 - CREATE `backend/services/parents/parent-link-request.service.ts`, CREATE `backend/services/parents/index.ts`, UPDATE `backend/services/index.ts` (one re-export line)
 - Namespace-export shape (`ParentLinkRequestService.{requestLink, respondToLinkRequest, cancelLinkRequest, listMyOutgoing, listMyIncoming}`) with signatures EXACTLY per plan §4.2
 - Service internals:
   - **Module-private actor re-check (REQ-031)** — one local function used by every mutation + read path: fresh `UserRepository.findById(actorId, tx)`; missing/id≤0 → `UnauthorizedError(t.unauthorized)`; role mismatch → `ForbiddenError(t.forbidden)`; `isDeleted || isBlocked || suspended` → `ForbiddenError(t.forbidden)` (constant copy). EACH denial = ONE `logDomainError` `{ code, entity: "users", entityId, locale }`, ZERO writes, ZERO notifications (JR-C-1 parity)
-  - **`requestLink`** per plan §4.2 ordered pipeline: normalize+validate code PRE-DB (`ValidationError(t.handshakeCodeInvalid)` — EXISTING key, verified at `shared/locale/en/errors/index.ts:49`) → actor re-check (parent) → ONE `withTransaction(outerTx, …)`: ONE captured `now`; `findLinkTargetByHandshakeCode`; null/governance-excluded ⇒ return `null` (REQ-012); `parentId !== null` ⇒ `ConflictError("PARENT_LINK_TARGET_ALREADY_LINKED", t.parentLinkTargetAlreadyLinked)`; `findPendingByPair` ⇒ `ConflictError("PARENT_LINK_ALREADY_PENDING", …)`; `create` wrapped in 23505 cause-chain traversal via `isUniqueViolation` (`backend/services/shared/user-provisioning.helpers.ts:54`) mapping to SAME conflict; resolve recipient locale via `findLocalesByIds` + `defaultLocale` fallback; in-tx `NotificationEngine.emitForUser({ userId: studentId, type: NotificationType.ParentLinkRequest, title, body, relatedEntityType: "parent_link_request", relatedEntityId: created.id }, recipientLocale, tx, options)`; own-commit only → `NotificationEngine.publishReceipts(...)`; return outgoing-mapped payload with `maskFullName(target.fullName)`
+  - **`requestLink`** per plan §4.2 ordered pipeline: normalize+validate code PRE-DB (`ValidationError(t.handshakeCodeInvalid)` — EXISTING key, verified at `shared/locale/en/errors/index.ts:48`) → actor re-check (parent) → ONE `withTransaction(outerTx, …)`: ONE captured `now`; `findLinkTargetByHandshakeCode`; null/governance-excluded ⇒ return `null` (REQ-012); `parentId !== null` ⇒ `ConflictError("PARENT_LINK_TARGET_ALREADY_LINKED", t.parentLinkTargetAlreadyLinked)`; `findPendingByPair` ⇒ `ConflictError("PARENT_LINK_ALREADY_PENDING", …)`; `create` wrapped in 23505 cause-chain traversal via `isUniqueViolation` (`backend/services/shared/user-provisioning.helpers.ts:29-44`) mapping to SAME conflict; resolve recipient locale via `findLocalesByIds` + `defaultLocale` fallback; in-tx `NotificationEngine.emitForUser({ userId: studentId, type: NotificationType.ParentLinkRequest, title, body, relatedEntityType: "parent_link_request", relatedEntityId: created.id }, recipientLocale, tx, options)`; own-commit only → `NotificationEngine.publishReceipts(...)`; return outgoing-mapped payload with `maskFullName(target.fullName)`
   - **`respondToLinkRequest`** per plan §4.2: actor re-check (student) → ONE tx → `respondToPendingForStudent` guarded claim; null → classifier via `findById` (nonexistent/foreign ⇒ constant `NotFoundError("PARENT_LINK_REQUEST", t.parentLinkRequestNotFound)`; non-pending ⇒ `..._ALREADY_RESOLVED`; pending-but-dead ⇒ `markExpiredIfPending` + `..._EXPIRED`); accept=true: `linkParentIfUnlinked` guarded link write (zero rows ⇒ `PARENT_LINK_TARGET_ALREADY_LINKED` — the WHOLE tx rolls back; NO ghost confirmation), then `expireSiblingPendingsForStudent`, then in-tx `emitForUser` to the parent in parent's persisted locale (accepted copy + student's name), post-commit publish; accept=false: in-tx `emitForUser` (rejected copy) + NO students write + NO sibling expiry
   - **`cancelLinkRequest`**: actor re-check (parent) → tx → `cancelPendingForParent`; zero rows ⇒ SAME classifier; success ⇒ ZERO notifications (silent withdrawal); return outgoing-shaped payload via `findOutgoingRowById`
   - **`listMyOutgoing` / `listMyIncoming`**: relaxed-read actor re-check (self-scope honesty — self-scoped by the VERIFIED actorId regardless of request payload) → repo list → per-row computed render: `status === LinkStatus.Pending && expiresAt <= now` ⇒ surface `LinkStatus.Expired` WITHOUT writing (read purity, REQ-015); read-mapping goes through `isLinkStatus` (fail-closed on corrupt stored status)
   - Copy composition: via `getServerTranslations(recipientLocale).notificationsTranslations.eventParentLink*` — recipient-locale at the EMITTER (engine §3.3, DEV3-018 D6)
   - Log hygiene: `logDomainError` contexts EXACTLY `{ code, entity: "parent_link_requests" | "students" | "users", entityId?, locale }` — NEVER codes, NEVER names, NEVER emails, NEVER the submitted handshake code (R8 carried forward); happy path emits NOTHING (REQ-054)
-- [x] 2.3.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts backend/services/parents/parent-link-request.service.ts --lifecycle duplicates` AND `bun run scripts/health/sub-loop.ts backend/services/parents/index.ts --lifecycle duplicates` AND `bun run scripts/health/sub-loop.ts backend/services/index.ts --lifecycle duplicates` (exit 0)
-- [x] 2.3.TE **Test Engineering (4-Tier, `backend/services/parents/parent-link-request.service.test.ts`; REQ-071):**
+- [ ] 2.3.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts backend/services/parents/parent-link-request.service.ts --lifecycle duplicates` AND `bun run scripts/health/sub-loop.ts backend/services/parents/index.ts --lifecycle duplicates` AND `bun run scripts/health/sub-loop.ts backend/services/index.ts --lifecycle duplicates` (exit 0)
+- [ ] 2.3.TE **Test Engineering (4-Tier, `backend/services/parents/parent-link-request.service.test.ts`; REQ-071):**
   - Tier 1 branch/stmt: every branch of request/respond/cancel/lists; recipient-locale resolution incl. `defaultLocale` fallback; publish discriminant (own-commit vs caller-tx — caller-tx NEVER publishes)
   - Tier 2 boundary: `expiresAt` at exactly now, now−1ms, now+1ms; strict-`>` predicate proven; one-captured-`now` deterministic within a single call
   - Tier 3 chaos: forced repo failure unmasks; post-claim injected failure rolls back the ENTIRE tx (zero residual rows across `parent_link_requests`/`students`/`notifications`)
@@ -249,16 +249,16 @@ Verify each anchor is REAL in the bundled tree (locate it; cite line). ANY miss 
   - Counts pinned: per REQ-053 each denial writes ZERO rows across `parent_link_requests`/`students`/`notifications`/`audit_logs`
   - Run: `bun run test/scripts/run-test.ts backend/services/parents/parent-link-request.service.test.ts` AND `bun run test:services`
   - Journey 2.1 turns GREEN at the end of this task (confirm via `bun run test/scripts/run-test.ts test/workflows/parents/parent-link-request.journey.test.ts`)
-- [x] 2.3.SEC **Security & Tenancy Audit:**
+- [ ] 2.3.SEC **Security & Tenancy Audit:**
   - REQ-031 actor re-check runs FIRST on every mutation/read; ZERO BYPASS PATHS
   - REQ-034 oracle matrix enforced: null-collapse equality; constant-shape NOT_FOUND; honest conflict codes; timing parity assertions where materially meaningful
   - BOPLA: every DB payload field-by-field; `relatedEntityType: "parent_link_request"` literal; `relatedEntityId` is the created request id
   - NO LIKE/ILIKE; capability-by-code targeting (the student id never crosses the wire)
-- [x] 2.3.SR **Semantic Review:** `withTransaction` owns every mutation; guarded updates only; single-writer notifications (engine); single-writer `students.parent_id` (the new repo method); no dead code; no cross-layer imports (`services/**` importing from `@/backend/db/**` only via repos)
-- [x] 2.3.IV **Instruction Verification:** `.agents/instructions/backend.instructions.md` + `backend/services/AGENTS.md` (the service-layer rules; repo rule additions come in Phase 7 docs)
+- [ ] 2.3.SR **Semantic Review:** `withTransaction` owns every mutation; guarded updates only; single-writer notifications (engine); single-writer `students.parent_id` (the new repo method); no dead code; no cross-layer imports (`services/**` importing from `@/backend/db/**` only via repos)
+- [ ] 2.3.IV **Instruction Verification:** `.agents/instructions/backend.instructions.md` + `backend/services/AGENTS.md` (the service-layer rules; repo rule additions come in Phase 7 docs)
 - _Requirements: REQ-011..REQ-024, REQ-031..REQ-035, REQ-040..REQ-044, REQ-050, REQ-053, REQ-054, REQ-071_
 
-### 2.4 [x] **Phase 2.M Mid-Point Review Gate**
+### 2.4 [ ] **Phase 2.M Mid-Point Review Gate**
 **REQ:** REQ-083 protocol · architectural checkpoint before the GraphQL surface
 
 - Re-read ALL outcomes under `outcome/`; confirm journey (2.1) is GREEN; repo tier (2.2.TE) 100% green; service tier (2.3.TE) green
@@ -268,15 +268,15 @@ Verify each anchor is REAL in the bundled tree (locate it; cite line). ANY miss 
   - `bun tsgo` count == 0.1 baseline; `bun biome:check` count == 0.1 baseline
 - Write `outcome/2.M-midpoint-outcome.md` — list deviations, ledger deltas, and Phase-3 readiness
 - HARD GATE: any ❌ in the ledger BLOCKS Phase 3 until resolved or resolved-pointer recorded.
-- [x] 2.4.QL **Quality Loop:** outcome file present, ledger consistent
-- [x] 2.4.SR **Semantic Review:** journey green because the SERVICE surface is correct — not because tests were weakened (diff-review the journey since 2.1 for scope creep)
-- [x] 2.4.IV **Instruction Verification:** `.agents/instructions/{backend,tests}.instructions.md`
+- [ ] 2.4.QL **Quality Loop:** outcome file present, ledger consistent
+- [ ] 2.4.SR **Semantic Review:** journey green because the SERVICE surface is correct — not because tests were weakened (diff-review the journey since 2.1 for scope creep)
+- [ ] 2.4.IV **Instruction Verification:** `.agents/instructions/{backend,tests}.instructions.md`
 
 ---
 
 ## Phase 3: GraphQL Resolvers & API Handlers
 
-### 3.1 [x] Register `LinkStatus` Pothos enum + CREATE Pothos objects for both request shapes
+### 3.1 [ ] Register `LinkStatus` Pothos enum + CREATE Pothos objects for both request shapes
 **REQ:** REQ-060, REQ-011-scalar rules · plan §3.2
 
 - UPDATE `backend/graphql/pothos/shared/enum.pothos.ts` — REGISTER ONCE, enum-OBJECT form ONLY:
@@ -288,38 +288,38 @@ Verify each anchor is REAL in the bundled tree (locate it; cite line). ANY miss 
   - `IncomingParentLinkRequestPothosObject` — same skeleton with `parentFullName`
 - CREATE `backend/graphql/pothos/parents/index.ts` — side-effect + re-export line
 - NO local types in the Pothos file; canonical types from `@/backend/types/parents` ONLY
-- Timestamp fields use the registered `DateTime` scalar (`backend/graphql/pothos/shared/scalar.pothos.ts:28` — `DateTimeScalar`); NO `toISOString()` hand-serialization for new fields
-- [x] 3.1.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts backend/graphql/pothos/shared/enum.pothos.ts --lifecycle duplicates` AND `bun run scripts/health/sub-loop.ts backend/graphql/pothos/parents/parent-link-request.pothos.ts --lifecycle duplicates` AND `bun run scripts/health/sub-loop.ts backend/graphql/pothos/parents/index.ts --lifecycle duplicates` (exit 0)
-- [x] 3.1.TE **Test Engineering:** schema rebuild smoke — `bun tsgo` count == baseline; enum registered exactly once (introspection probe of `LinkStatus` shows the four members `Pending Confirmed Rejected Expired` — enum-OBJECT form surfaces the TS VALUE names per the Pothos contract)
-- [x] 3.1.SEC **Security & Tenancy Audit:** object types expose ONLY the canonical return type fields — no extra columns slip via spreading; id is `ID!` and the first exposed field (Apollo normalization)
-- [x] 3.1.SR **Semantic Review:** enum-object form (NOT the string-array form); single registration; no `String`-for-timestamp regressions
-- [x] 3.1.IV **Instruction Verification:** `.agents/instructions/backend.instructions.md` + Architectural Invariant 11 (scalars)
+- Timestamp fields use the registered `DateTime` scalar (`backend/graphql/pothos/shared/scalar.pothos.ts:1-4`); NO `toISOString()` hand-serialization for new fields
+- [ ] 3.1.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts backend/graphql/pothos/shared/enum.pothos.ts --lifecycle duplicates` AND `bun run scripts/health/sub-loop.ts backend/graphql/pothos/parents/parent-link-request.pothos.ts --lifecycle duplicates` AND `bun run scripts/health/sub-loop.ts backend/graphql/pothos/parents/index.ts --lifecycle duplicates` (exit 0)
+- [ ] 3.1.TE **Test Engineering:** schema rebuild smoke — `bun tsgo` count == baseline; enum registered exactly once (introspection probe of `LinkStatus` shows the four members `Pending Confirmed Rejected Expired` — enum-OBJECT form surfaces the TS VALUE names per the Pothos contract)
+- [ ] 3.1.SEC **Security & Tenancy Audit:** object types expose ONLY the canonical return type fields — no extra columns slip via spreading; id is `ID!` and the first exposed field (Apollo normalization)
+- [ ] 3.1.SR **Semantic Review:** enum-object form (NOT the string-array form); single registration; no `String`-for-timestamp regressions
+- [ ] 3.1.IV **Instruction Verification:** `.agents/instructions/backend.instructions.md` + Architectural Invariant 11 (scalars)
 
-### 3.2 [x] CREATE query + mutation resolvers (thin) with `$all` role gates and the ID parser
+### 3.2 [ ] CREATE query + mutation resolvers (thin) with `$all` role gates and the ID parser
 **REQ:** REQ-030, REQ-060, REQ-062 · plan §3.2/§3.4/§3.5
 
 - CREATE `backend/graphql/query/parents/parent-link.query.ts`:
-  - `myOutgoingParentLinkRequests` — `authScopes: { $all: { authenticated: true, role: [UserRole.Parent] } }` (the proven conjunction pattern at `handshake-code.query.ts:60-66`)
+  - `myOutgoingParentLinkRequests` — `authScopes: { $all: { authenticated: true, role: [UserRole.Parent] } }` (the proven conjunction pattern at `handshake-code.query.ts:9-15`)
   - `myIncomingParentLinkRequests` — `role: [UserRole.Student]`
-  - Each resolver: guard `ctx.user` via localized `UnauthorizedError(ctx.t("errorsTranslations").unauthorized)` (pattern `backend/graphql/mutation/notifications/notification.mutation.ts:114-116`) → delegate to service → return verbatim; NO try/catch; NO local types
+  - Each resolver: guard `ctx.user` via localized `UnauthorizedError(ctx.t("errorsTranslations").unauthorized)` (pattern `backend/graphql/mutation/notifications/notification.mutation.ts:31-34`) → delegate to service → return verbatim; NO try/catch; NO local types
 - CREATE `backend/graphql/mutation/parents/parent-link.mutation.ts`:
   - `requestParentChildLink(code: String!): OutgoingParentLinkRequest` — `$all` Parent scope; `nullable: true` type config (REQ-012 collapse contract — the resolver maps service `null` verbatim)
   - `respondToParentLinkRequest(requestId: ID!, accept: Boolean!): IncomingParentLinkRequest!` — `$all` Student scope
   - `cancelParentLinkRequest(requestId: ID!): OutgoingParentLinkRequest!` — `$all` Parent scope
-  - Module-local `parseLinkRequestIdArg` mirroring `notification.mutation.ts:81` (`parseNotificationIdArg`): `/^[1-9]\d*$/` + `isPositiveSafeInt` (from `emit-validation.ts:50`); invalid → `ValidationError(t.validation)` pre-DB
+  - Module-local `parseLinkRequestIdArg` mirroring `notification.mutation.ts:7-18`: `/^[1-9]\d*$/` + `isPositiveSafeInt` (from `emit-validation.ts:7-9`); invalid → `ValidationError(t.validation)` pre-DB
 - CREATE `backend/graphql/query/parents/index.ts`, `backend/graphql/mutation/parents/index.ts` side-effect barrels
 - UPDATE `backend/graphql/query/index.ts` + `backend/graphql/mutation/index.ts` — one `import "./parents";` line each
 - `backend/lib/gateway/public-operations.ts` — UNTOUCHED (frozen six; all five ops are scope-gated)
-- [x] 3.2.QL **Quality Loop:** for each created/modified file: `bun run scripts/health/sub-loop.ts <path> --lifecycle duplicates` (exit 0)
-- [x] 3.2.TE **Test Engineering:** thin-delegation unit coverage is deliberately deferred to the wire matrix (task 5.1); HERE run only the compile smoke: `bun tsgo` == baseline
-- [x] 3.2.SEC **Security & Tenancy Audit:**
+- [ ] 3.2.QL **Quality Loop:** for each created/modified file: `bun run scripts/health/sub-loop.ts <path> --lifecycle duplicates` (exit 0)
+- [ ] 3.2.TE **Test Engineering:** thin-delegation unit coverage is deliberately deferred to the wire matrix (task 5.1); HERE run only the compile smoke: `bun tsgo` == baseline
+- [ ] 3.2.SEC **Security & Tenancy Audit:**
   - `$all` conjunction on EVERY op (ANY-semantics hazard from `docs/teachers/applicant-lifecycle.md` §3 avoided)
   - All five resolver bodies can be audited in <30 lines each (thin); `requestId` parsed BEFORE any service call; NO identity-arg acceptance anywhere
-- [x] 3.2.SR **Semantic Review:** NO try/catch; NO rethrow-mutating catches; NO local types; enum VALUE imports (`UserRole`); localized denial paths only via `ctx.t(...)`
-- [x] 3.2.IV **Instruction Verification:** `.agents/instructions/backend.instructions.md` + `docs/graphql/api-gateway-and-routing.md` (default-deny allowlist untouched)
+- [ ] 3.2.SR **Semantic Review:** NO try/catch; NO rethrow-mutating catches; NO local types; enum VALUE imports (`UserRole`); localized denial paths only via `ctx.t(...)`
+- [ ] 3.2.IV **Instruction Verification:** `.agents/instructions/backend.instructions.md` + `docs/graphql/api-gateway-and-routing.md` (default-deny allowlist untouched)
 - _Requirements: REQ-030, REQ-060, REQ-062_
 
-### 3.3 [x] Codegen + schema-surface baseline reconcile-then-extend (TWO documented steps in ONE changeset)
+### 3.3 [ ] Codegen + schema-surface baseline reconcile-then-extend (TWO documented steps in ONE changeset)
 **REQ:** REQ-061 · plan §3.3
 
 - **STEP 1 — Re-anchor (reconcile):** rebuild the current SDL (`bun run generate:gqlSchema`); update `backend/graphql/test/schema-surface.test.ts` (the stale `PRE_3_1_*` baseline at `:19-71`) and `backend/graphql/test/sdl-static-assertions.test.ts` (`FROZEN_*` at `:12-28`) to reflect the CURRENT LIVE surface (which includes the already-shipped DEV3-016 admin surface). Record the reconcile decision + anchors in `outcome/3.3-outcome.md`. NEVER do this silently.
@@ -332,17 +332,17 @@ Verify each anchor is REAL in the bundled tree (locate it; cite line). ANY miss 
   - Pin DateTime scalar usage on the six timestamp fields (NO `String` leakage)
 - Run `bun codegen`; commit generated artifacts in the SAME change set (incl. `frontend/graphql/generated/**` + `frontend/graphql/generated/schema.graphql`)
 - Verify `plan-catalog.schema.test.ts` committed-vs-live SDL byte-parity stays GREEN
-- [x] 3.3.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts backend/graphql/test/schema-surface.test.ts --lifecycle duplicates` AND `bun run scripts/health/sub-loop.ts backend/graphql/test/sdl-static-assertions.test.ts --lifecycle duplicates` (exit 0)
-- [x] 3.3.TE **Test Engineering:** `bun run test/scripts/run-test.ts backend/graphql/test/schema-surface.test.ts`; `bun run test/scripts/run-test.ts backend/graphql/test/sdl-static-assertions.test.ts`; `bun run test/scripts/run-test.ts backend/graphql/test/plan-catalog.schema.test.ts` — ALL GREEN in the two-step order
-- [x] 3.3.SEC **Security & Tenancy Audit:** no accidental de-registration of the frozen `PUBLIC_OPERATIONS` six; no new root fields beyond the five pinned
-- [x] 3.3.SR **Semantic Review:** the reconcile step is documented and traceable; baselines grew monotonically (except where the stale entries were re-worded to match live naming — recorded each one)
-- [x] 3.3.IV **Instruction Verification:** `.agents/instructions/backend.instructions.md` + Architectural Invariant 11 (scalar registration has already been done in-tree — this task confirms, doesn't add)
+- [ ] 3.3.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts backend/graphql/test/schema-surface.test.ts --lifecycle duplicates` AND `bun run scripts/health/sub-loop.ts backend/graphql/test/sdl-static-assertions.test.ts --lifecycle duplicates` (exit 0)
+- [ ] 3.3.TE **Test Engineering:** `bun run test/scripts/run-test.ts backend/graphql/test/schema-surface.test.ts`; `bun run test/scripts/run-test.ts backend/graphql/test/sdl-static-assertions.test.ts`; `bun run test/scripts/run-test.ts backend/graphql/test/plan-catalog.schema.test.ts` — ALL GREEN in the two-step order
+- [ ] 3.3.SEC **Security & Tenancy Audit:** no accidental de-registration of the frozen `PUBLIC_OPERATIONS` six; no new root fields beyond the five pinned
+- [ ] 3.3.SR **Semantic Review:** the reconcile step is documented and traceable; baselines grew monotonically (except where the stale entries were re-worded to match live naming — recorded each one)
+- [ ] 3.3.IV **Instruction Verification:** `.agents/instructions/backend.instructions.md` + Architectural Invariant 11 (scalar registration has already been done in-tree — this task confirms, doesn't add)
 
 ---
 
 ## Phase 4: Frontend GraphQL Documents, Stores & UI Views
 
-### 4.1 [x] Frontend documents + barrel wiring + document-contract test (id-first, `useQuery`-only, no `useLazyQuery`)
+### 4.1 [ ] Frontend documents + barrel wiring + document-contract test (id-first, `useQuery`-only, no `useLazyQuery`)
 **REQ:** REQ-063 · plan §5.4
 
 - CREATE `frontend/graphql/sharedDocuments/parents/parent-link.documents.ts` — five named operations EXACTLY per plan §5.4:
@@ -350,24 +350,24 @@ Verify each anchor is REAL in the bundled tree (locate it; cite line). ANY miss 
   - Every object selection orders `id` FIRST
   - Each exported as a `TypedDocumentNode<…>` typed from the single generated `graphql.ts`
 - CREATE `frontend/graphql/sharedDocuments/parents/index.ts` barrel; UPDATE `frontend/graphql/sharedDocuments/index.ts` (currently 1–6 lines) with one line
-- CREATE `frontend/graphql/sharedDocuments/parents/parent-link.documents.test.ts` mirroring `frontend/graphql/sharedDocuments/notifications/notification.documents.test.ts`: operation names, variable sets, id-first structurally, selection-set closures. Exported document consts follow the `{camelCase}QueryDocument` / `{camelCase}MutationDocument` convention (`frontend/graphql/sharedDocuments/AGENTS.md`; live precedent `notification.documents.ts:30` `myNotificationsQueryDocument`): `myOutgoingParentLinkRequestsQueryDocument`, `myIncomingParentLinkRequestsQueryDocument`, `requestParentChildLinkMutationDocument`, `respondToParentLinkRequestMutationDocument`, `cancelParentLinkRequestMutationDocument`.
-- Apollo cache policy UNTOUCHED — `frontend/providers/apollo/apolloCache.test.ts:167-192` (the `keyFields:false` assertions) STAYS GREEN (both objects carry real `id`s; no `keyFields: false` needed)
-- [x] 4.1.QL **Quality Loop:** for each created/modified file: `bun run scripts/health/sub-loop.ts <path> --lifecycle duplicates` (exit 0)
-- [x] 4.1.TE **Unit / Component Tests:** `bun run test/scripts/run-test.ts frontend/graphql/sharedDocuments/parents/parent-link.documents.test.ts` — GREEN; `bun run test/scripts/run-test.ts frontend/providers/apollo/apolloCache.test.ts` — STILL GREEN UNTOUCHED
-- [x] 4.1.SR **Semantic Review:** `useQuery`-only (no `useLazyQuery`); `id` first in every selection; `TypedDocumentNode` on every document; no inline `gql` strings in components
-- [x] 4.1.IV **Instruction Verification:** `.agents/instructions/frontend.instructions.md` + `frontend/graphql/AGENTS.md` (EXISTS in bundle — verified at 0.2)
+- CREATE `frontend/graphql/sharedDocuments/parents/parent-link.documents.test.ts` mirroring `frontend/graphql/sharedDocuments/notifications/notification.documents.test.ts`: operation names, variable sets, id-first structurally, selection-set closures
+- Apollo cache policy UNTOUCHED — `frontend/providers/apollo/apolloCache.test.ts:90-99` STAYS GREEN (both objects carry real `id`s; no `keyFields: false` needed)
+- [ ] 4.1.QL **Quality Loop:** for each created/modified file: `bun run scripts/health/sub-loop.ts <path> --lifecycle duplicates` (exit 0)
+- [ ] 4.1.TE **Unit / Component Tests:** `bun run test/scripts/run-test.ts frontend/graphql/sharedDocuments/parents/parent-link.documents.test.ts` — GREEN; `bun run test/scripts/run-test.ts frontend/providers/apollo/apolloCache.test.ts` — STILL GREEN UNTOUCHED
+- [ ] 4.1.SR **Semantic Review:** `useQuery`-only (no `useLazyQuery`); `id` first in every selection; `TypedDocumentNode` on every document; no inline `gql` strings in components
+- [ ] 4.1.IV **Instruction Verification:** `.agents/instructions/frontend.instructions.md` + `frontend/graphql/AGENTS.md` (EXISTS in bundle — verified at 0.2)
 - _Requirements: REQ-063_
 
-### 4.2 [ ] Student link-requests page — `app/(dashboard)/student/link-requests/page.tsx` + container + components
+### 4.2 [-] Student link-requests page — `app/(dashboard)/student/link-requests/page.tsx` + container + components
 **REQ:** REQ-020, REQ-064, REQ-065, REQ-077 · plan §5.1/§5.3/§5.5
 
 - CREATE `app/(dashboard)/student/link-requests/page.tsx` — Server Component:
-  - `withPageAuth({ roles: [UserRole.Student], redirectTo: "/student/link-requests" })` (`frontend/lib/auth/withPageAuth.ts` — options `:34-47`, fn `:67-105`)
-  - Wrong-role fallback via `roleDashboardPath(ctx.role)` (`frontend/lib/auth/roleDashboardRoute.ts:52-65`; Parent → `/parent/dashboard` at `:39`) — bare `/dashboard` FORBIDDEN
-  - `getTranslations(locale)` (ONE argument — returns full `Translations` tree; `shared/locale/server.ts:15-17`); namespace via property access
+  - `withPageAuth({ roles: [UserRole.Student], redirectTo: "/student/link-requests" })` (`frontend/lib/auth/withPageAuth.ts:15-30`)
+  - Wrong-role fallback via `roleDashboardPath(ctx.role)` (`frontend/lib/auth/roleDashboardRoute.ts:9-22`) — bare `/dashboard` FORBIDDEN
+  - `getTranslations(locale)` (ONE argument — returns full `Translations` tree; `shared/locale/server.ts:12-14`); namespace via property access
   - Render `<StudentLinkRequestsContainer />`
 - CREATE `frontend/views/students/link-requests/StudentLinkRequestsContainer.tsx` (client):
-  - `useQuery(myIncomingParentLinkRequestsQueryDocument)`; `useMutation(respondToParentLinkRequestMutationDocument)`
+  - `useQuery(MyIncomingParentLinkRequestsDocument)`; `useMutation(RespondToParentLinkRequestDocument)`
   - Per-row card: `parentFullName` (dir auto), status chip, expires line via `t.expiresLine(formattedDate)`, Confirm/Reject CTAs (≥44px, `LoadingButton` in-flight disable per REQ-065 pattern)
   - Confirm/Reject dialogs wired through `confirmDialogBody(parentName)`/`rejectDialogBody(parentName)` function slots
   - Mutation flow: disable buttons while in-flight; on success `refetch()` the query; on `PARENT_LINK_REQUEST_EXPIRED`/`..._ALREADY_RESOLVED`/NOT_FOUND map `extensions.code` to localized inline `Alert` from the errors tree
@@ -399,17 +399,17 @@ Verify each anchor is REAL in the bundled tree (locate it; cite line). ANY miss 
 - [ ] 4.2.IV **Instruction Verification:** `.agents/instructions/frontend.instructions.md` + `frontend/AGENTS.md` + `app/AGENTS.md` (both EXIST in bundle — verified at 0.2)
 - _Requirements: REQ-020, REQ-064, REQ-065, REQ-077_
 
-### 4.3 [ ] Parent handshake page — outgoing-requests section + send affordance (UPDATE-with-verify on prose-referenced container)
+### 4.3 [-] Parent handshake page — outgoing-requests section + send affordance (UPDATE-with-verify on prose-referenced container)
 **REQ:** REQ-011 contract, REQ-012 null-collapse UX, REQ-020 (masked-name list), REQ-065, REQ-077 · plan §5.4/§5.5
 
 - **VERIFY FIRST (prose-only artifacts):**
   - `frontend/views/parent/handshake/HandshakeDiscoveryContainer.tsx` — VERIFY existence + shape + the `linkable: true` result-state branch where the send affordance belongs. IF missing ⇒ CREATE the container + the smallest `app/(dashboard)/parent/handshake/page.tsx` (server guard parent) honestly, noting the prose-only downgrade in the ledger.
   - `app/(dashboard)/parent/handshake/page.tsx` — same verification posture.
 - UPDATE `frontend/views/parent/handshake/HandshakeDiscoveryContainer.tsx` (or CREATE if verify proved absence):
-  - On a `linkable: true` discovery result, render a Send Request CTA (≥44px) wired to `useMutation(requestParentChildLinkMutationDocument)`; on payload `null` → render the `t.sendUnavailableNotice` info state (the null-collapse UX, REQ-012); on `PARENT_LINK_ALREADY_PENDING`/`PARENT_LINK_TARGET_ALREADY_LINKED` → localized inline `Alert` from the errors tree
+  - On a `linkable: true` discovery result, render a Send Request CTA (≥44px) wired to `useMutation(RequestParentChildLinkDocument)`; on payload `null` → render the `t.sendUnavailableNotice` info state (the null-collapse UX, REQ-012); on `PARENT_LINK_ALREADY_PENDING`/`PARENT_LINK_TARGET_ALREADY_LINKED` → localized inline `Alert` from the errors tree
 - CREATE `frontend/views/parent/handshake/OutgoingLinkRequestsSection.tsx`:
-  - `useQuery(myOutgoingParentLinkRequestsQueryDocument)`
-  - Rows: `studentMaskedName` (dir auto, masked-name contract REQ-020), computed status chip (expired-computed rendering), expiry line, Cancel CTA ONLY on live-pending rows (≥44px), wired to `useMutation(cancelParentLinkRequestMutationDocument)` + cancel dialog (title/body via `cancelDialogTitle`/`cancelDialogBody`)
+  - `useQuery(MyOutgoingParentLinkRequestsDocument)`
+  - Rows: `studentMaskedName` (dir auto, masked-name contract REQ-020), computed status chip (expired-computed rendering), expiry line, Cancel CTA ONLY on live-pending rows (≥44px), wired to `useMutation(CancelParentLinkRequestDocument)` + cancel dialog (title/body via `cancelDialogTitle`/`cancelDialogBody`)
   - Post-cancel: refetch the list; row disappears from live state and shows `rejected` chip (the withdrawal fold)
   - Empty state via `outgoingEmptyTitle`/`outgoingEmptyBody`; skeleton / `PermissionDeniedFallback` / `RetryableNotice` branches
 - No `useLazyQuery`; no cache surgery beyond refetch; `focusVisibleRingSx`, `aria-busy` regions, translation-handle assertions only
@@ -434,16 +434,16 @@ Verify each anchor is REAL in the bundled tree (locate it; cite line). ANY miss 
 - [ ] 4.3.IV **Instruction Verification:** `.agents/instructions/frontend.instructions.md` + `frontend/AGENTS.md`
 - _Requirements: REQ-011, REQ-012, REQ-020, REQ-065, REQ-077_
 
-### 4.4 [x] Student nav item + nav ownership matrix stays green
+### 4.4 [ ] Student nav item + nav ownership matrix stays green
 **REQ:** REQ-064 · plan §5.2
 
-- UPDATE `frontend/views/dashboard/nav/navItems.ts` student array (`:103-109`) — ONE entry `{ route: "/student/link-requests", labelKey: "linkRequests", Icon: LinkChildIcon }` (the `LinkChildIcon` import ALREADY exists at `navItems.ts:11`; RETARGET semantics: no existing item targets this route, so this is an ADD, not a duplicate)
+- UPDATE `frontend/views/dashboard/navItems.ts` student array (`:35-42`) — ONE entry `{ route: "/student/link-requests", labelKey: "linkRequests", Icon: LinkChildIcon }` (the `LinkChildIcon` import ALREADY exists at `navItems.ts:8`; RETARGET semantics: no existing item targets this route, so this is an ADD, not a duplicate)
 - NO new translation labels here (the `linkRequests` key was registered in task 1.1 on Dashboard)
 - No mobile bottom-nav work (no such component exists; the temporary MUI Drawer picks the item up automatically)
-- [x] 4.4.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts frontend/views/dashboard/nav/navItems.ts --lifecycle duplicates` (exit 0)
-- [x] 4.4.TE **Unit Tests:** `bun run test/scripts/run-test.ts frontend/views/dashboard/nav/navItems.test.ts` — GREEN (the `:7-17` ownership matrix still sees `linkRequests` owned ONLY by Dashboard)
-- [x] 4.4.SR **Semantic Review:** one entry added; no duplicates; no new label keys in this task; icon import reused
-- [x] 4.4.IV **Instruction Verification:** `.agents/instructions/frontend.instructions.md` + `frontend/AGENTS.md`
+- [ ] 4.4.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts frontend/views/dashboard/navItems.ts --lifecycle duplicates` (exit 0)
+- [ ] 4.4.TE **Unit Tests:** `bun run test/scripts/run-test.ts frontend/views/dashboard/navItems.test.ts` — GREEN (the `:19-29` ownership matrix still sees `linkRequests` owned ONLY by Dashboard)
+- [ ] 4.4.SR **Semantic Review:** one entry added; no duplicates; no new label keys in this task; icon import reused
+- [ ] 4.4.IV **Instruction Verification:** `.agents/instructions/frontend.instructions.md` + `frontend/AGENTS.md`
 - _Requirements: REQ-064_
 
 ---
@@ -479,7 +479,7 @@ Verify each anchor is REAL in the bundled tree (locate it; cite line). ANY miss 
   - Two-parent confirm race: two pending requests for ONE student; two raced confirm invocations (the SAME student confirming two different requests' ids, OR a two-request interleave) → EXACTLY ONE committed `students.parent_id` winner; the loser gets `PARENT_LINK_TARGET_ALREADY_LINKED` with FULL rollback (their claim, notification, sibling-expiry all rolled back); final state = ONE confirmed request, ONE linked parent, remaining pendings expired
   - Confirm-during-expiry instant: race `respond` against a request whose `expiresAt` is exactly "now"; deterministic outcome = EXPIRED with row materialized to `expired` (strict-`>` predicate)
   - Forced post-claim failure: inject a repo failure AFTER the claim but BEFORE commit ⇒ TX rollback ⇒ ZERO residual rows across `parent_link_requests`/`students`/`notifications` (the rollback-proof pin)
-- ALL races skip-gated via `isPgliteProvider` (`test/helpers/skip-when-pglite.ts:48-50`) — document the skip decision in the outcome
+- ALL races skip-gated via `isPgliteProvider` (`test/helpers/skip-when-pglite.ts:1-5`) — document the skip decision in the outcome
 - Run: `bun run test/scripts/run-test.ts backend/services/parents/parent-link-request.chaos.test.ts`
 - [ ] 5.2.QL **Quality Loop:** quality loop clean on the chaos file
 - [ ] 5.2.SEC **Security & Tenancy Audit:** every race asserts zero cross-actor leakage (winner takes exactly one row; loser state untouched)
@@ -532,7 +532,7 @@ Verify each anchor is REAL in the bundled tree (locate it; cite line). ANY miss 
 - [ ] Write findings to `outcome/6.2-review-backend-outcome.md`
 
 ### 6.3 [ ] review-frontend wave — pages, components, documents, i18n
-**Scope:** `app/(dashboard)/student/link-requests/**`, `frontend/views/students/link-requests/**`, `frontend/views/parent/handshake/**` (the changed parts), `frontend/graphql/sharedDocuments/parents/**`, `frontend/views/dashboard/nav/navItems.ts`, `shared/locale/**`
+**Scope:** `app/(dashboard)/student/link-requests/**`, `frontend/views/students/link-requests/**`, `frontend/views/parent/handshake/**` (the changed parts), `frontend/graphql/sharedDocuments/parents/**`, `frontend/views/dashboard/navItems.ts`, `shared/locale/**`
 - [ ] Verify MUI v9 discipline: zero direct style props on Typography/Box/Stack/Grid; zero hardcoded colors; `*Outlined` icons only; `focusVisibleRingSx` present; `React.SubmitEvent` discipline on form-bearing dialogs
 - [ ] Verify i18n handles (`useAppTranslation(ParentLink)` etc.) — never strings, never `next-intl`
 - [ ] Verify `useQuery`-only; id-first documents; `TypedDocumentNode` everywhere
