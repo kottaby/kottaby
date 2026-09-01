@@ -169,7 +169,7 @@ Verify each anchor is REAL in the bundled tree (locate it; cite line). ANY miss 
 
 ## Phase 2: Repositories & Backend Services
 
-### 2.1 [ ] Write parent-link-request journey test — TEST-FIRST
+### 2.1 [x] Write parent-link-request journey test — TEST-FIRST
 **REQ:** REQ-076, REQ-090..REQ-096, REQ-046 (teardown order) · specs §2.9 · plan §4.4
 
 - Create `test/workflows/parents/parent-link-request.journey.test.ts` — one file covering the three journeys (A/B/C)
@@ -183,11 +183,11 @@ Verify each anchor is REAL in the bundled tree (locate it; cite line). ANY miss 
 - Assertions include (REQ-090..096): EXACTLY ONE publish per notify-boundary; null-collapse byte-equality (miss ≡ governed); REQ-091 sibling-expiry visibility by BOTH parents; REQ-092 zero-notify on already-linked; REQ-093 constant-shape `PARENT_LINK_REQUEST_NOT_FOUND` for foreign-id and nonexistent-id from BOTH directions; REQ-094 silent expiry + persisted `expired` row; REQ-095 duplicate-pending count=1; REQ-096 zero rows after collapse
 - Chaos race (REQ-042/043 wiring into the journey or a sibling focused file — if you keep the journey file clean, the race proofs land in the chaos tier at 5.2; the journey covers the SEQUENTIAL second-confirm-reject): sequential second-confirm AFTER a committed first-confirm ⇒ `PARENT_LINK_TARGET_ALREADY_LINKED`; sibling pendings of the winner's student ALL `expired`
 - Initial state: RED (no service surface yet) — this is the expected TEST-FIRST posture; it TURNS GREEN at task 2.3/3.x completion
-- [ ] 2.1.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts test/workflows/parents/parent-link-request.journey.test.ts --lifecycle duplicates` (exit 0)
-- [ ] 2.1.TE **Test Engineering:** `bun run test/scripts/run-test.ts test/workflows/parents/parent-link-request.journey.test.ts` — RED against service-surface absence at this stage (correct); every later task that touches the service MUST keep it runnable
-- [ ] 2.1.SEC **Security & Tenancy Audit:** denials exercised through REAL role + governance resolution; zero notification side effects on denials; fingerprint logging free of codes/names/emails
-- [ ] 2.1.SR **Semantic Review:** no monkey-patching; every actor call carries an honest `actorUserId`; per-step assertions exist for BOTH actor visibility and cross-actor invariance
-- [ ] 2.1.IV **Instruction Verification:** `test/workflows/AGENTS.md` (EXISTS — harness rules live) + `docs/testing/workflow-journey-tests.md` + `.agents/instructions/tests.instructions.md`
+- [x] 2.1.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts test/workflows/parents/parent-link-request.journey.test.ts --lifecycle duplicates` (exit 0)
+- [x] 2.1.TE **Test Engineering:** `bun run test/scripts/run-test.ts test/workflows/parents/parent-link-request.journey.test.ts` — RED against service-surface absence at this stage (correct); every later task that touches the service MUST keep it runnable
+- [x] 2.1.SEC **Security & Tenancy Audit:** denials exercised through REAL role + governance resolution; zero notification side effects on denials; fingerprint logging free of codes/names/emails
+- [x] 2.1.SR **Semantic Review:** no monkey-patching; every actor call carries an honest `actorUserId`; per-step assertions exist for BOTH actor visibility and cross-actor invariance
+- [x] 2.1.IV **Instruction Verification:** `test/workflows/AGENTS.md` (EXISTS — harness rules live) + `docs/testing/workflow-journey-tests.md` + `.agents/instructions/tests.instructions.md`
 - _Requirements: REQ-076, REQ-090..REQ-096, REQ-046_
 
 ### 2.2 [ ] Implement `ParentLinkRequestRepository` + additive `StudentRepository` methods + register barrels
