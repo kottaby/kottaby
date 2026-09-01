@@ -1305,23 +1305,37 @@ describe("SessionLifecycleService — transactional flows (runInRollback)", () =
 
   // ── Tier 4: grep-level source pins (financial side-effect isolation) ──
 
-  const SERVICE_FILE = join(import.meta.dir, "session-lifecycle.service.ts");
-  const serviceSource = readFileSync(SERVICE_FILE, "utf8");
+  // The service is split (max-lines refactor) into sibling implementation
+  // modules; the financial-isolation pin therefore scans the service AND
+  // its pinned siblings as ONE implementation unit — the same pattern
+  // `session.repository.test.ts` applies to the split repository. The file
+  // list below is exhaustive: any sibling the unit gains must be
+  // consciously admitted here alongside the import allowlist.
+  const SERVICE_UNIT_FILES = [
+    join(import.meta.dir, "session-lifecycle.service.ts"),
+    join(import.meta.dir, "session-lifecycle.guards.ts"),
+    join(import.meta.dir, "session-lifecycle.governance.ts"),
+    join(import.meta.dir, "session-lifecycle.transitions.ts"),
+    join(import.meta.dir, "session-lifecycle.booking.ts"),
+    join(import.meta.dir, "session-lifecycle.confirmation.ts"),
+  ];
+  const unitSources = SERVICE_UNIT_FILES.map(file => readFileSync(file, "utf8"));
+  const serviceSource = unitSources.join("\n");
   const serviceFromClauses = serviceSource.match(/from "[^"]+"/g) ?? [];
 
-  test("source: the service's ONLY cross-surface channel is the wallet-credit slice — imports are a pinned allowlist (wallet rides the repository barrel, no notification/audit/report service import)", () => {
-    // HONEST PIN: the wallet dependency rides the `@/backend/db/repo` barrel,
-    // so scanning module specifiers for "wallet" alone proves nothing. The
-    // pin therefore does three concrete things:
-    //  1. every `from "…"` specifier must be on the explicit allowlist —
-    //     any NEW import (a direct wallet/notification/audit/report/billing
+  test("source: the unit's ONLY cross-surface channel is the wallet-credit slice — imports are a pinned allowlist (wallet rides the repository barrel, no notification/audit/report service import)", () => {
+    // HONEST PIN (adapted to the sibling-module split — same three locks):
+    //  1. every `from "…"` specifier in the unit must be on the explicit
+    //     allowlist (the `@/backend/services/classes/` entries ARE the pinned
+    //     siblings, aliased per the repo-wide eslint alias rule) — any
+    //     NEW import (a direct wallet/notification/audit/report/billing
     //     service import included) fails until the allowlist consciously
     //     admits it;
-    //  2. the ONE `@/backend/db/` specifier is the repository barrel itself
-    //     (no deep repository bypass), and the barrel's named import list is
-    //     pinned — WalletRepository rides it BY NAME and no other repository
-    //     surface is reachable;
-    //  3. the ONLY `@/backend/services/` specifier is the shared transaction
+    //  2. the ONLY `@/backend/db/` specifier is the repository barrel itself
+    //     (no deep repository bypass), and the UNION of the barrel's named
+    //     import lists across the unit is pinned — WalletRepository rides it
+    //     BY NAME and no other repository surface is reachable;
+    //  3. the ONLY `@/backend/lib/db/` specifier is the shared transaction
     //     helper — no cross-surface service import of any kind.
     const specifiers = serviceFromClauses.map(clause => clause.replace(/^from "/, "").replace(/"$/, ""));
     const allowedSpecifiers: ReadonlySet<string> = new Set([
@@ -1338,37 +1352,59 @@ describe("SessionLifecycleService — transactional flows (runInRollback)", () =
       "@/backend/types",
       "@/shared/constants/session-fees.constants",
       "@/shared/locale/server-graphql",
+      "@/backend/services/classes/session-lifecycle.booking",
+      "@/backend/services/classes/session-lifecycle.confirmation",
+      "@/backend/services/classes/session-lifecycle.governance",
+      "@/backend/services/classes/session-lifecycle.guards",
+      "@/backend/services/classes/session-lifecycle.transitions",
     ]);
     for (const specifier of specifiers) {
       expect(allowedSpecifiers.has(specifier)).toBe(true);
     }
-    // No duplicate import statements of the same module.
-    expect(new Set(specifiers).size).toBe(specifiers.length);
+    // No duplicate import statements of the same module WITHIN any one file
+    // of the unit (siblings legitimately share specifiers).
+    for (const source of unitSources) {
+      const fileSpecifiers = (source.match(/from "[^"]+"/g) ?? []).map(clause =>
+        clause.replace(/^from "/, "").replace(/"$/, "")
+      );
+      expect(new Set(fileSpecifiers).size).toBe(fileSpecifiers.length);
+    }
 
-    // (2) The repository surface is exactly the shared barrel, and its named
-    // members are pinned (WalletRepository is the sanctioned wallet channel).
+    // (2) The repository surface is exactly the shared barrel: no deep
+    // repository import exists anywhere in the unit, and the UNION of the
+    // barrel's named members across the unit is pinned (WalletRepository is
+    // the sanctioned wallet channel; no other repository surface is
+    // reachable).
     const repoSpecifiers = specifiers.filter(specifier => specifier.includes("@/backend/db/"));
-    expect(repoSpecifiers).toEqual(["@/backend/db/repo"]);
-    const barrelImport = /import \{([^}]+)\} from "@\/backend\/db\/repo";/.exec(serviceSource);
-    expect(barrelImport).not.toBeNull();
-    const barrelMembers = (barrelImport?.[1] ?? "")
-      .split(",")
-      .map(member => member.trim())
-      .filter(member => member.length > 0);
-    expect(barrelMembers).toEqual([
-      "SessionRepository",
-      "SessionRequestIdempotencyRepository",
-      "StudentRepository",
-      "TeacherRepository",
-      "UserRepository",
-      "WalletRepository",
-    ]);
+    expect(repoSpecifiers.length).toBeGreaterThan(0);
+    for (const specifier of repoSpecifiers) {
+      expect(specifier).toBe("@/backend/db/repo");
+    }
+    const barrelMemberLists = [...serviceSource.matchAll(/import \{([^}]+)\} from "@\/backend\/db\/repo";/g)].map(
+      match => match[1] ?? ""
+    );
+    const barrelMembers = new Set(
+      barrelMemberLists
+        .flatMap(list => list.split(","))
+        .map(member => member.trim())
+        .filter(member => member.length > 0)
+    );
+    expect(barrelMembers).toEqual(
+      new Set([
+        "SessionRepository",
+        "SessionRequestIdempotencyRepository",
+        "StudentRepository",
+        "TeacherRepository",
+        "UserRepository",
+        "WalletRepository",
+      ])
+    );
 
     // (3) The only cross-surface-shaped import is the shared tx helper
     // (canonical substrate at `@/backend/lib/db/with-transaction` — the
     // merged repository-wide single truth for SAVEPOINT-vs-top-level tx).
     const serviceImports = specifiers.filter(specifier => specifier.includes("@/backend/lib/db/"));
-    expect(serviceImports).toEqual(["@/backend/lib/db/with-transaction"]);
+    expect(new Set(serviceImports)).toEqual(new Set(["@/backend/lib/db/with-transaction"]));
   });
 
   test("source: the specifier allowlist has no dynamic-import escape hatch — zero import( / require( call sites in the service", () => {

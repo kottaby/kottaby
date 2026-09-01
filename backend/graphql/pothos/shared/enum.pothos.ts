@@ -26,14 +26,15 @@
  * After registering a new enum here, run `bun run generate:gqlSchema` and
  * `bun codegen` to refresh the SDL + frontend codegen.
  */
+
+import { AuditActionType } from "@/backend/enum/audit/audit-action-type.enum";
 import { TransactionStatus } from "@/backend/enum/billing/transaction-status.enum";
 import { TransactionType } from "@/backend/enum/billing/transaction-type.enum";
+import { NotificationType } from "@/backend/enum/notifications/notification-type.enum";
 import { DisputeResolution } from "@/backend/enum/scheduling/dispute-resolution.enum";
 import { SessionIntent } from "@/backend/enum/scheduling/session-intent.enum";
 import { SessionStatus } from "@/backend/enum/scheduling/session-status.enum";
 import { SessionType } from "@/backend/enum/scheduling/session-type.enum";
-import { AuditActionType } from "@/backend/enum/audit/audit-action-type.enum";
-import { NotificationType } from "@/backend/enum/notifications/notification-type.enum";
 import { ApplicantStatus } from "@/backend/enum/teachers/applicant-status.enum";
 import { AdminUserGovernanceFilter } from "@/backend/enum/users/admin-user-governance-filter.enum";
 import { AppLocale } from "@/backend/enum/users/app-locale.enum";

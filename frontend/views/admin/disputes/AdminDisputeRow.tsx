@@ -1,10 +1,11 @@
 "use client";
 
-import { ExpandLessOutlined as CollapseIcon, ExpandMoreOutlined as ExpandIcon } from "@mui/icons-material";
-import { Box, Button, IconButton, Stack, Tooltip, Typography } from "@mui/material";
-import { type ReactNode, useState } from "react";
+import { Box, Button, Stack, Tooltip, Typography } from "@mui/material";
+import type { ReactNode } from "react";
 import type { AdminDisputedSessionsQuery_adminDisputedSessions_items } from "@/frontend/graphql/generated/gql/graphql";
 import { formatApplicantDate } from "@/frontend/lib/i18n/format-date";
+import { AdminDisputeRowMetaCell } from "@/frontend/views/admin/disputes/AdminDisputeRowMetaCell";
+import { AdminDisputeRowReason } from "@/frontend/views/admin/disputes/AdminDisputeRowReason";
 import { SESSION_FEE_CURRENCY } from "@/shared/constants";
 import { useAppLocale } from "@/shared/locale";
 import type { SessionsLabels } from "@/shared/locale/types/sessions";
@@ -21,9 +22,9 @@ import type { SessionsLabels } from "@/shared/locale/types/sessions";
  *  - the fee renders VERBATIM (decimal string, never parsed) followed by the
  *    `SESSION_FEE_CURRENCY` label;
  *  - the dispute reason the participant filed renders clamped to TWO lines
- *    with an expand/collapse affordance (`aria-expanded` pinned on the
- *    toggle) — the full text stays in the DOM so the accessibility tree and
- *    the clamp both see it;
+ *    with an expand/collapse affordance — the full text stays in the DOM so
+ *    the accessibility tree and the clamp both see it (the clamped block,
+ *    with its toggle state, lives in {@link AdminDisputeRowReason});
  *  - the creation moment + the dispute moment expand through the shared
  *    locale-aware {@link formatApplicantDate};
  *  - the participant ids render verbatim (admin is trusted — R-111);
@@ -39,9 +40,6 @@ import type { SessionsLabels } from "@/shared/locale/types/sessions";
 
 /** Typographic placeholder for nullable payload values (NOT locale copy). */
 const NO_VALUE_PLACEHOLDER = "—";
-
-/** Line clamp height for the collapsed dispute reason (exactly two lines). */
-const REASON_CLAMP_LINES = 2;
 
 interface AdminDisputeRowProps {
   /** The disputed session payload row (normalized `Session` entity). */
@@ -62,10 +60,6 @@ export function AdminDisputeRow({
   resolveDisabled = false,
 }: Readonly<AdminDisputeRowProps>): ReactNode {
   const locale = useAppLocale();
-  // The dispute reason is REQUIRED on the open-dispute seam, but the wire
-  // type stays nullable (pre-ticket rows carry null) — the clamp block
-  // degrades to the em-dash placeholder so the card never renders blank.
-  const [reasonExpanded, setReasonExpanded] = useState<boolean>(false);
 
   const feeText = session.fee === null ? NO_VALUE_PLACEHOLDER : `${session.fee} ${SESSION_FEE_CURRENCY}`;
   const createdText = formatApplicantDate(session.createdAt, locale);
@@ -73,6 +67,9 @@ export function AdminDisputeRow({
     session.disputedAt === null ? NO_VALUE_PLACEHOLDER : formatApplicantDate(session.disputedAt, locale);
   const intentText = session.intent ?? NO_VALUE_PLACEHOLDER;
   const participantsText = `${session.studentId} · ${session.teacherId}`;
+  // The dispute reason is REQUIRED on the open-dispute seam, but the wire
+  // type stays nullable (pre-ticket rows carry null) — the reason block
+  // degrades to the em-dash placeholder so the card never renders blank.
   const disputeReason = session.disputeReason ?? NO_VALUE_PLACEHOLDER;
 
   return (
@@ -114,62 +111,14 @@ export function AdminDisputeRow({
           </Typography>
         </Stack>
         <Stack sx={{ gap: 1.5, flexDirection: "row", flexWrap: "wrap", alignItems: "baseline" }}>
-          <MetaCell label={t.fee} value={feeText} />
-          <MetaCell label={t.createdAt} value={createdText} />
-          <MetaCell label={t.disputedAtLabel} value={disputedText} />
-          <MetaCell label={t.participantsLabel} value={participantsText} />
+          <AdminDisputeRowMetaCell label={t.fee} value={feeText} />
+          <AdminDisputeRowMetaCell label={t.createdAt} value={createdText} />
+          <AdminDisputeRowMetaCell label={t.disputedAtLabel} value={disputedText} />
+          <AdminDisputeRowMetaCell label={t.participantsLabel} value={participantsText} />
         </Stack>
       </Stack>
 
-      {/*
-       * Dispute reason (R-111) — clamped to two lines while collapsed with
-       * the FULL text expandable through the aria-expanded toggle. The clamp
-       * is CSS-only (`WebkitLineClamp`), so the full string stays in the
-       * accessibility tree either way; min-width:0 keeps the truncation
-       * RTL-safe inside the wrap-friendly flex row.
-       */}
-      <Stack sx={{ gap: 0.5, minWidth: 0 }}>
-        <Stack sx={{ gap: 0.5, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-          <Typography variant="overline" sx={theme => ({ color: theme.palette.text.secondary })}>
-            {t.disputeReasonMeta}
-          </Typography>
-          <IconButton
-            size="small"
-            aria-expanded={reasonExpanded}
-            aria-label={reasonExpanded ? t.disputeReasonCollapse : t.disputeReasonExpand}
-            data-testid={`admin-dispute-reason-toggle-${session.id}`}
-            onClick={() => {
-              setReasonExpanded(prev => !prev);
-            }}
-            sx={theme => ({
-              "&:focus-visible": {
-                outline: `2px solid ${theme.palette.outline}`,
-                outlineOffset: 2,
-              },
-            })}
-          >
-            {reasonExpanded ? <CollapseIcon fontSize="small" /> : <ExpandIcon fontSize="small" />}
-          </IconButton>
-        </Stack>
-        <Typography
-          data-testid={`admin-dispute-reason-${session.id}`}
-          variant="body2"
-          sx={theme => ({
-            color: theme.palette.text.secondary,
-            minWidth: 0,
-            ...(reasonExpanded
-              ? {}
-              : {
-                  display: "-webkit-box",
-                  WebkitBoxOrient: "vertical",
-                  WebkitLineClamp: REASON_CLAMP_LINES,
-                  overflow: "hidden",
-                }),
-          })}
-        >
-          {disputeReason}
-        </Typography>
-      </Stack>
+      <AdminDisputeRowReason sessionId={session.id} reason={disputeReason} t={t} />
 
       {/*
        * Row CTA holds FULL opacity at idle (the hover affordance lives on
@@ -191,24 +140,5 @@ export function AdminDisputeRow({
         </Tooltip>
       </Stack>
     </Box>
-  );
-}
-
-interface MetaCellProps {
-  readonly label: string;
-  readonly value: string;
-}
-
-/** One label/value meta pair (overline label + body value), wrap-friendly. */
-function MetaCell({ label, value }: Readonly<MetaCellProps>): ReactNode {
-  return (
-    <Stack sx={{ gap: 0.25, minWidth: 0 }}>
-      <Typography variant="overline" sx={theme => ({ color: theme.palette.text.secondary })}>
-        {label}
-      </Typography>
-      <Typography variant="body2" sx={{ fontWeight: 600 }}>
-        {value}
-      </Typography>
-    </Stack>
   );
 }

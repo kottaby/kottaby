@@ -62,186 +62,57 @@
  * only — never idempotency keys, payloads, or the other participant's data.
  * No module-level mutable state; no swallowed catches; every mutation flow
  * is one transaction with `tx` propagated to every repository call.
+ *
+ * File layout: the flow internals live in sibling modules extracted
+ * verbatim (behavior-identical max-lines refactor) —
+ * `session-lifecycle.guards.ts` (pure pre-DB guards/normalizers and the
+ * probe-status widenings), `session-lifecycle.governance.ts` (actor/admin
+ * governance re-checks), `session-lifecycle.transitions.ts` (the zero-row
+ * miss classifier and the same-lane refund primitive),
+ * `session-lifecycle.booking.ts` (the booking transaction body) and
+ * `session-lifecycle.confirmation.ts` (the dual-confirmation transaction
+ * body). Every public method below is the same flow in the same order —
+ * each owns its boundary validation ordering, governance re-check, and the
+ * `withTransaction` composition, delegating only the transaction bodies and
+ * shared pre-DB checks to the siblings. The public API (names, signatures,
+ * behavior) is unchanged.
  */
 
-import {
-  SessionRepository,
-  SessionRequestIdempotencyRepository,
-  StudentRepository,
-  TeacherRepository,
-  UserRepository,
-  WalletRepository,
-} from "@/backend/db/repo";
+import { SessionRepository } from "@/backend/db/repo";
 import { DisputeResolution, isDisputeResolution } from "@/backend/enum/scheduling/dispute-resolution.enum";
-import { HeldBalanceLane, isHeldBalanceLane } from "@/backend/enum/scheduling/held-balance-lane.enum";
-import { SessionIntent } from "@/backend/enum/scheduling/session-intent.enum";
 import { SessionStatus } from "@/backend/enum/scheduling/session-status.enum";
-import { SessionType } from "@/backend/enum/scheduling/session-type.enum";
-import { UserRole } from "@/backend/enum/users/user-role.enum";
-import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from "@/backend/lib/errors";
-import { logger } from "@/backend/lib/logger";
 import { withTransaction } from "@/backend/lib/db/with-transaction";
+import { ValidationError } from "@/backend/lib/errors";
+import { logger } from "@/backend/lib/logger";
+import { assertBookingBoundary, bookSessionInTx } from "@/backend/services/classes/session-lifecycle.booking";
+import { confirmCompletionInTx } from "@/backend/services/classes/session-lifecycle.confirmation";
+import {
+  assertActorGovernanceClean,
+  assertAdminGovernanceClean,
+} from "@/backend/services/classes/session-lifecycle.governance";
+import {
+  assertPositiveSafeSessionId,
+  guardStatusFilter,
+  isPositiveSafeSessionId,
+  normalizeAdminListBounds,
+  normalizeOptionalReasonText,
+  normalizePageBounds,
+  normalizeRequiredReasonText,
+  SESSION_DISPUTED_STATUS,
+} from "@/backend/services/classes/session-lifecycle.guards";
+import {
+  refundHeldLaneToProvenance,
+  refundSweptHolds,
+  rejectTransitionMiss,
+} from "@/backend/services/classes/session-lifecycle.transitions";
 import type {
   DBTransaction,
   SessionListFilterInput,
   SessionPageReturnType,
-  SessionRequestIdempotencySelectType,
   SessionReturnType,
-  SessionStudentIntentType,
   SessionSubmitInput,
 } from "@/backend/types";
-import {
-  SESSION_CONFIRMATION_WINDOW_MS,
-  SESSION_FEE_HIFZ,
-  SESSION_FEE_TAJWEED,
-} from "@/shared/constants/session-fees.constants";
 import { getServerTranslations } from "@/shared/locale/server-graphql";
-
-/** The idempotency claim column's maximum key length (varchar(128) backstop). */
-const MAX_IDEMPOTENCY_KEY_LENGTH = 128;
-
-/** A free-text reason/note longer than this is rejected before any DB work. */
-const MAX_REASON_LENGTH = 500;
-
-/** Default page size for the participant session lists. */
-const DEFAULT_PAGE_SIZE = 25;
-
-/** Inclusive upper page-size bound for the participant session lists. */
-const MAX_PAGE_SIZE = 50;
-
-/**
- * The in-progress status widened to a plain string at module scope: the
- * probe row's status is the raw pg-enum string union, so the comparison
- * needs the enum member's string identity without a runtime conversion —
- * the vocabulary still flows from the enum, never from a bare literal.
- */
-const SESSION_STARTED_STATUS: string = SessionStatus.Started;
-
-/**
- * The disputed status widened to a plain string at module scope — the same
- * probe-row vocabulary treatment (the arbitration's pre-write probe and the
- * admin resolution classification compare against this identity).
- */
-const SESSION_DISPUTED_STATUS: string = SessionStatus.Disputed;
-/** String-typed member for probe-projection comparisons (the probe's
- *  `status` is the raw varchar union — see the sibling constants). */
-const SESSION_COMPLETED_STATUS: string = SessionStatus.Completed;
-
-/**
- * The admin role widened to a plain string at module scope: the user row's
- * `role` is the raw pg-enum string union, so the arbitration caller's
- * defense-in-depth role re-assertion compares against the enum member's
- * string identity — the vocabulary still flows from the enum.
- */
-const USER_ADMIN_ROLE: string = UserRole.Admin;
-
-/**
- * Resolves the platform fee constant for a bookable intent. The fee is a
- * decimal string carried verbatim into the insert — never a number, never
- * arithmetic.
- */
-function sessionFeeForIntent(intent: SessionStudentIntentType): string {
-  return intent === SessionIntent.Hifz ? SESSION_FEE_HIFZ : SESSION_FEE_TAJWEED;
-}
-
-/**
- * Resolves the balance lane that funds a bookable intent's hold — the lane
- * the debit ladder falls back to when the trial lane is empty, and the
- * provenance recorded on the session row.
- */
-function intentLaneFor(intent: SessionStudentIntentType): HeldBalanceLane {
-  return intent === SessionIntent.Hifz ? HeldBalanceLane.Hifz : HeldBalanceLane.Tajweed;
-}
-
-/** Positive safe-integer guard for caller-supplied identifiers (no casts). */
-function isPositiveSafeInteger(value: number): boolean {
-  return Number.isSafeInteger(value) && value > 0;
-}
-
-/**
- * The target-session-id shape check for the four non-create paths:
- * a session id is valid ONLY as a positive safe integer — a NaN, fractional,
- * out-of-safe-range, non-positive, or non-number runtime value fails closed.
- * `unknown` is the honest parameter type: the GraphQL boundary parses the
- * `ID` argument shape-only (`Number(args.id)`), so the runtime value here is
- * NOT statically guaranteed to be a well-formed number — it may be the NaN,
- * fractional, or overflow shape that parse yields for a malformed string, or
- * a payload that skipped the boundary parse entirely.
- */
-function isPositiveSafeSessionId(id: unknown): boolean {
-  return typeof id === "number" && isPositiveSafeInteger(id);
-}
-
-/**
- * Pre-DB `VALIDATION` denial for a malformed target session id on the three
- * mutation paths — the exact guard idiom `createSession` applies to its
- * participant ids, shared by all three transitions so the entry points can
- * never drift apart. The throw happens BEFORE any database work (before the
- * governance probe and the guarded UPDATE), so a garbage id can never reach
- * SQL (pg 22P02 → masked 500) and never spends a probe read.
- */
-function assertPositiveSafeSessionId(
-  id: unknown,
-  t: ReturnType<typeof getServerTranslations>["errorsTranslations"]
-): void {
-  if (!isPositiveSafeSessionId(id)) {
-    throw new ValidationError(t.validation);
-  }
-}
-
-/**
- * Normalizes a REQUIRED free-text dispute reason: trims, then rejects
- * whitespace-only and over-limit content with the pre-DB `VALIDATION`
- * denial. The trimmed value is what the guarded UPDATE persists.
- */
-function normalizeRequiredReasonText(
-  value: string,
-  t: ReturnType<typeof getServerTranslations>["errorsTranslations"]
-): string {
-  const trimmed = value.trim();
-  if (trimmed.length === 0 || trimmed.length > MAX_REASON_LENGTH) {
-    throw new ValidationError(t.validation);
-  }
-  return trimmed;
-}
-
-/**
- * Normalizes an OPTIONAL free-text reason/note (the cancel reason and the
- * arbitration note): trims, rejects over-limit content with the pre-DB
- * `VALIDATION` denial, and maps a whitespace-only value to `null` (nothing
- * is persisted for an empty contribution). The trimmed value is what the
- * guarded UPDATE persists.
- */
-function normalizeOptionalReasonText(
-  value: string | null,
-  t: ReturnType<typeof getServerTranslations>["errorsTranslations"]
-): string | null {
-  const trimmed = value === null ? null : value.trim();
-  if (trimmed !== null && trimmed.length > MAX_REASON_LENGTH) {
-    throw new ValidationError(t.validation);
-  }
-  return trimmed !== null && trimmed.length > 0 ? trimmed : null;
-}
-
-/**
- * Detects the PostgreSQL unique-violation (`23505`) behind a thrown error by
- * traversing the cause chain (Drizzle wraps driver errors — the code lives
- * on a cause, never on the top-level wrapper). A cycle-safe `seen` set
- * guards against self-referential chains. The error MESSAGE is never
- * consulted.
- */
-function isClaimKeyUniqueViolation(error: unknown): boolean {
-  let current: unknown = error;
-  const seen = new Set<unknown>();
-  while (current instanceof Error && !seen.has(current)) {
-    seen.add(current);
-    if ("code" in current && current.code === "23505") {
-      return true;
-    }
-    current = (current as { cause?: unknown }).cause;
-  }
-  return false;
-}
 
 export namespace SessionLifecycleService {
   /**
@@ -290,18 +161,7 @@ export namespace SessionLifecycleService {
     const t = getServerTranslations(locale).errorsTranslations;
 
     // Pre-DB boundary validation — fail before any database work.
-    if (!isPositiveSafeInteger(studentId)) {
-      throw new ValidationError(t.validation);
-    }
-    if (!isPositiveSafeInteger(input.teacherId)) {
-      throw new ValidationError(t.validation);
-    }
-    if (idempotencyKey.length === 0 || idempotencyKey.length > MAX_IDEMPOTENCY_KEY_LENGTH) {
-      throw new ValidationError(t.idempotencyKeyRequired);
-    }
-    if (input.intent !== SessionIntent.Hifz && input.intent !== SessionIntent.Tajweed) {
-      throw new ValidationError(t.invalidSessionIntent);
-    }
+    assertBookingBoundary(studentId, input, idempotencyKey, t);
 
     // Governance re-check — the acting student must be governance-clean.
     await assertActorGovernanceClean(studentId, t, outerTx);
@@ -309,92 +169,7 @@ export namespace SessionLifecycleService {
     // One captured instant governs every derivation in this flow.
     const now = new Date();
 
-    return withTransaction(outerTx, async tx => {
-      // The teacher certification lock — the certification value this
-      // booking commits against (a teacherless id never mints certification).
-      const lockedTeacher = await TeacherRepository.lockForCertificationCheck(input.teacherId, tx);
-      if (lockedTeacher === null) {
-        logger.logDomainError("Session booking rejected: teacher target not found", {
-          code: "TEACHER_NOT_FOUND",
-          entity: "session",
-          entityId: input.teacherId,
-        });
-        throw new NotFoundError("TEACHER", t.teacherNotFound);
-      }
-      if (lockedTeacher.isApproved !== true) {
-        logger.logDomainError("Session booking rejected: teacher not certified", {
-          code: "TEACHER_NOT_CERTIFIED",
-          entity: "session",
-          entityId: input.teacherId,
-        });
-        throw new ConflictError("TEACHER_NOT_CERTIFIED", t.teacherNotCertified);
-      }
-
-      // Trial-first debit ladder: the trial lane is always attempted first,
-      // then the intent's own lane. An all-miss booking throws — the
-      // transaction rollback is the only cleanup.
-      let heldLane: HeldBalanceLane;
-      const trialDebited = await StudentRepository.decrementLaneIfAvailable(studentId, HeldBalanceLane.Trial, tx);
-      if (trialDebited) {
-        heldLane = HeldBalanceLane.Trial;
-      } else {
-        const intentLane = intentLaneFor(input.intent);
-        const intentDebited = await StudentRepository.decrementLaneIfAvailable(studentId, intentLane, tx);
-        if (!intentDebited) {
-          logger.logDomainError("Session booking rejected: insufficient balance", {
-            code: "INSUFFICIENT_BALANCE",
-            entity: "session",
-            entityId: studentId,
-          });
-          throw new ValidationError("INSUFFICIENT_BALANCE", t.insufficientBalance);
-        }
-        heldLane = intentLane;
-      }
-
-      // The idempotency claim — savepoint-bracketed so a duplicate key
-      // poisons only the savepoint, keeping the transaction readable for the
-      // replay lookup below.
-      let claim: SessionRequestIdempotencySelectType;
-      try {
-        claim = await tx.transaction(claimTx =>
-          SessionRequestIdempotencyRepository.insertClaim({ idempotencyKey, userId: studentId }, claimTx)
-        );
-      } catch (error) {
-        if (!isClaimKeyUniqueViolation(error)) {
-          // Not a duplicate key — surface untouched; the transaction rolls
-          // the whole booking (and the claim) back together.
-          throw error;
-        }
-        // Duplicate key → the idempotent replay branch.
-        return replayBooking(idempotencyKey, studentId, tx, t);
-      }
-
-      // The session insert — every server-controlled column is set here,
-      // field by field (BOPLA: never a spread of caller input). The fee is
-      // the platform constant for the intent, carried verbatim as a decimal
-      // string; the confirmation deadline is the captured instant plus the
-      // platform confirmation window.
-      const createdSession = await SessionRepository.insertSession(
-        {
-          teacherId: input.teacherId,
-          studentId,
-          status: SessionStatus.Scheduled,
-          sessionType: SessionType.StudentSession,
-          intent: input.intent,
-          fee: sessionFeeForIntent(input.intent),
-          feeHeld: true,
-          heldBalanceLane: heldLane,
-          confirmationDeadline: new Date(now.getTime() + SESSION_CONFIRMATION_WINDOW_MS),
-        },
-        tx
-      );
-
-      // Backfill the claim's session pointer in the same transaction — the
-      // claim and the session commit atomically.
-      await SessionRequestIdempotencyRepository.updateClaimSessionId(claim.id, createdSession.id, tx);
-
-      return createdSession;
-    });
+    return withTransaction(outerTx, tx => bookSessionInTx(studentId, input, idempotencyKey, now, tx, t));
   }
 
   /**
@@ -754,66 +529,7 @@ export namespace SessionLifecycleService {
     // Pre-DB id-shape guard — the FIRST check of the flow.
     assertPositiveSafeSessionId(sessionId, t);
 
-    return withTransaction(outerTx, async tx => {
-      // The exactly-once slice: student stamp + hold release in ONE guarded
-      // statement. Zero rows ⇒ classify (idempotent arms vs denials below).
-      const confirmed = await SessionRepository.confirmStudentCompletionOnce(sessionId, callerUserId, tx);
-      if (confirmed !== null) {
-        // A hold-marked row always carries its platform fee (the booking
-        // invariant) — a null here is a data impossibility that
-        // fails closed instead of crediting an unpriced lesson.
-        if (confirmed.fee === null) {
-          logger.error("Dual-confirmation blocked: completed hold-marked session without a fee", {
-            sessionId: confirmed.id,
-          });
-          throw new Error("SessionLifecycleService.confirmSessionCompletion: missing session fee");
-        }
-        // Teacher-earning credit slice — same transaction, composed through the
-        // wallet repository: ensure the wallet, insert the `earning`
-        // ledger row with the fee VERBATIM, increment the wallet.
-        const teacherWallet = await WalletRepository.ensureWalletOnce(confirmed.teacherId, tx);
-        await WalletRepository.creditEarningOnce(
-          {
-            walletId: teacherWallet.id,
-            sessionId: confirmed.id,
-            amount: confirmed.fee,
-            description: `Session #${confirmed.id} earning (dual confirmation)`,
-          },
-          tx
-        );
-        return confirmed;
-      }
-
-      // Zero-row miss — classify. The probe read is classification-only.
-      const probe = await SessionRepository.findTransitionProbe(sessionId, tx);
-      if (probe === null || (probe.studentId !== callerUserId && probe.teacherId !== callerUserId)) {
-        logger.logDomainError("Session confirmation denied: session not found for caller", {
-          code: "SESSION_NOT_FOUND",
-          entity: "session",
-          entityId: sessionId,
-        });
-        throw new NotFoundError("SESSION", t.sessionNotFound);
-      }
-
-      // Participant idempotence arms — the row exists and the caller owns
-      // it. Any already-settled shape returns the CURRENT row untouched:
-      // the student re-confirming, the teacher confirming (their stamp was
-      // written by `completeSessionOnce`), or a hold the admin arbitration
-      // already consumed. A `completed` row is the only idempotent shape.
-      if (probe.status === SESSION_COMPLETED_STATUS) {
-        const current = await SessionRepository.findById(sessionId, tx);
-        if (current !== null) {
-          return current;
-        }
-      }
-
-      logger.logDomainError("Session confirmation denied: session not confirmable in its current state", {
-        code: "SESSION_INVALID_TRANSITION",
-        entity: "session",
-        entityId: sessionId,
-      });
-      throw new ConflictError("SESSION_INVALID_TRANSITION", t.sessionInvalidTransition);
-    });
+    return withTransaction(outerTx, tx => confirmCompletionInTx(callerUserId, sessionId, tx, t));
   }
 
   /**
@@ -842,19 +558,7 @@ export namespace SessionLifecycleService {
     return withTransaction(outerTx, async tx => {
       const now = new Date();
       const expired = await SessionRepository.sweepExpiredScheduledOnce(now, tx);
-      let refunded = 0;
-      for (const row of expired) {
-        if (row.heldBalanceLane === null) {
-          continue;
-        }
-        // Sequential BY DESIGN: every refund composes on the ONE sweep
-        // transaction — interleaving them (Promise.all) would obscure the
-        // fail-closed ordering (an unreadable-lane refusal rolls the whole
-        // sweep back) for zero speedup on a single connection.
-        // oxlint-disable-next-line no-await-in-loop
-        await refundHeldLaneToProvenance(row, "sweepExpiredSessions", tx);
-        refunded += 1;
-      }
+      const refunded = await refundSweptHolds(expired, tx);
       return { cancelled: expired.length, refunded };
     });
   }
@@ -1010,306 +714,19 @@ export namespace SessionLifecycleService {
     offset: number,
     tx?: DBTransaction
   ): Promise<SessionPageReturnType> {
-    const safeLimit = Number.isSafeInteger(limit) && limit >= 1 && limit <= MAX_PAGE_SIZE ? limit : DEFAULT_PAGE_SIZE;
-    const safeOffset = Number.isSafeInteger(offset) && offset >= 0 ? offset : 0;
-    const page = Math.floor(safeOffset / safeLimit) + 1;
+    const bounds = normalizeAdminListBounds(limit, offset);
 
     // A filter explicitly contradicting the pinned disputed scope (any
     // in-vocabulary status other than disputed) matches zero rows by
     // definition — the honest empty page, no database round-trip.
     const guardedStatus = guardStatusFilter(filter).status;
     if (guardedStatus !== null && guardedStatus !== SessionStatus.Disputed) {
-      return { items: [], totalCount: 0, page, pageSize: safeLimit };
+      return { items: [], totalCount: 0, page: bounds.page, pageSize: bounds.safeLimit };
     }
 
-    const items = await SessionRepository.listAdminDisputed(safeLimit, safeOffset, tx);
+    const items = await SessionRepository.listAdminDisputed(bounds.safeLimit, bounds.safeOffset, tx);
     const totalCount = await SessionRepository.countAdminDisputed(tx);
 
-    return { items, totalCount, page, pageSize: safeLimit };
-  }
-
-  // ─── Internals ────────────────────────────────────────────────────────
-
-  /**
-   * Re-asserts the platform governance gate for a caller at the service
-   * boundary (deleted/blocked/suspended accounts are denied; a vanished
-   * caller fails closed). The login/SSR boundary enforces the same gate —
-   * this is the defense-in-depth layer for callers holding still-valid
-   * tokens. The denial is a typed `ForbiddenError` (`extensions.code` =
-   * `FORBIDDEN`, 403 per the error-code taxonomy) — the authorization
-   * class for an authorization denial, never the Conflict class.
-   */
-  async function assertActorGovernanceClean(
-    actorUserId: number,
-    t: ReturnType<typeof getServerTranslations>["errorsTranslations"],
-    tx?: DBTransaction
-  ): Promise<void> {
-    const actor = await UserRepository.findById(actorUserId, tx);
-    if (!actor || actor.isDeleted || actor.isBlocked || actor.suspended) {
-      logger.logDomainError("Session action denied: caller account is governed", {
-        code: "FORBIDDEN",
-        entity: "session",
-        entityId: actorUserId,
-      });
-      throw new ForbiddenError(t.forbidden);
-    }
-  }
-
-  /**
-   * Re-asserts the FULL arbitration authorization for a caller at the
-   * service boundary: the account must be governance-clean AND hold the
-   * admin role. The GraphQL scope gate enforces the same role leg — this
-   * is the defense-in-depth layer for still-valid tokens held by an
-   * account that was demoted or governed after login (the DB row is the
-   * authority, never the token). The denial is the typed `ForbiddenError`
-   * (`extensions.code` = `FORBIDDEN`, 403 per the error-code taxonomy).
-   */
-  async function assertAdminGovernanceClean(
-    actorUserId: number,
-    t: ReturnType<typeof getServerTranslations>["errorsTranslations"],
-    tx?: DBTransaction
-  ): Promise<void> {
-    const actor = await UserRepository.findById(actorUserId, tx);
-    if (!actor || actor.isDeleted || actor.isBlocked || actor.suspended) {
-      logger.logDomainError("Session arbitration denied: caller account is governed", {
-        code: "FORBIDDEN",
-        entity: "session",
-        entityId: actorUserId,
-      });
-      throw new ForbiddenError(t.forbidden);
-    }
-    if (actor.role !== USER_ADMIN_ROLE) {
-      logger.logDomainError("Session arbitration denied: caller is not an admin", {
-        code: "FORBIDDEN",
-        entity: "session",
-        entityId: actorUserId,
-      });
-      throw new ForbiddenError(t.forbidden);
-    }
-  }
-
-  /**
-   * Refunds a cancelled/resolved row's held fee to its recorded provenance
-   * lane — the ONE same-lane primitive shared by the participant cancel
-   * and the arbitration CANCEL outcome, always on the caller's transaction
-   * (the refund and its status flip commit atomically or not at all). A
-   * row with no recorded lane has nothing to refund. The provenance column
-   * is a varchar read back from the row: an unreadable value fails closed
-   * (the refusal rolls the cancellation/resolution back, leaving the hold
-   * and the row consistent).
-   */
-  async function refundHeldLaneToProvenance(
-    resolved: SessionReturnType,
-    context: "cancelSession" | "resolveSessionDispute" | "sweepExpiredSessions",
-    tx: DBTransaction
-  ): Promise<void> {
-    if (resolved.heldBalanceLane === null) {
-      return;
-    }
-    if (!isHeldBalanceLane(resolved.heldBalanceLane)) {
-      logger.error("Session lifecycle blocked: unreadable held-balance lane", {
-        sessionId: resolved.id,
-      });
-      throw new Error(`SessionLifecycleService.${context}: unreadable held-balance lane`);
-    }
-    await StudentRepository.incrementLane(resolved.studentId, resolved.heldBalanceLane, tx);
-  }
-
-  /**
-   * Resolves a duplicate-claim booking into its replay outcome.
-   *
-   * Every same-caller duplicate — a claim with or without its session
-   * pointer, and a vanished claim (fail-closed) — surfaces the
-   * duplicate-replay conflict. THROWING (never returning a row) is what
-   * makes a replay free of charge: this attempt's own partial writes (its
-   * debit-ladder step) roll back with the transaction, so the replay
-   * commits zero new rows and burns no second allowance unit;
-   * the success-equivalent experience is the client-side mapping of this
-   * 409 per the error-handling contract (`duplicateSuccessEquivalent`).
-   * A key spent by a DIFFERENT caller is denied with the oracle-safe
-   * session-not-found error — another user's claim is never surfaced.
-   */
-  async function replayBooking(
-    key: string,
-    actorStudentId: number,
-    tx: DBTransaction,
-    t: ReturnType<typeof getServerTranslations>["errorsTranslations"]
-  ): Promise<never> {
-    const claim = await SessionRequestIdempotencyRepository.findByKey(key, tx);
-    if (claim !== null && claim.userId !== actorStudentId) {
-      logger.logDomainError("Session booking replay denied: key claimed by another caller", {
-        code: "SESSION_NOT_FOUND",
-        entity: "session",
-        entityId: actorStudentId,
-      });
-      throw new NotFoundError("SESSION", t.sessionNotFound);
-    }
-    logger.logDomainError("Session booking replay blocked: key already claimed", {
-      code: "DUPLICATE_REQUEST",
-      entity: "session",
-    });
-    throw new ConflictError("DUPLICATE_REQUEST", t.duplicateRequest);
-  }
-
-  /**
-   * Classifies a zero-row guarded transition by ONE cold probe read, then
-   * throws the typed denial. The probe is classification-only — it never
-   * gates or influences any write.
-   *
-   * Classification (after the probe):
-   *  - unknown id → session-not-found;
-   *  - a caller the row does not belong to → session-not-found (oracle-safe:
-   *    a foreign target is indistinguishable from a nonexistent one) — for
-   *    the participant kinds; the admin arbitration kind is role-gated
-   *    upstream and NOT participant-gated, so any existing row that missed
-   *    is a lifecycle-state conflict;
-   *  - everything else is a lifecycle-state conflict — EXCEPT the completion
-   *    of an owned in-progress row, where the fused certification predicate
-   *    inside the guarded statement is the only remaining miss cause and the
-   *    typed certification conflict is surfaced instead.
-   */
-  async function rejectTransitionMiss(
-    kind: "teacherStart" | "teacherComplete" | "participantCancel" | "participantDispute" | "adminResolve",
-    sessionId: number,
-    actorUserId: number,
-    tx: DBTransaction | undefined,
-    t: ReturnType<typeof getServerTranslations>["errorsTranslations"]
-  ): Promise<never> {
-    const probe = await SessionRepository.findTransitionProbe(sessionId, tx);
-    if (probe === null) {
-      logger.logDomainError("Session transition denied: session not found", {
-        code: "SESSION_NOT_FOUND",
-        entity: "session",
-        entityId: sessionId,
-      });
-      throw new NotFoundError("SESSION", t.sessionNotFound);
-    }
-
-    if (kind === "participantCancel") {
-      if (probe.studentId !== actorUserId && probe.teacherId !== actorUserId) {
-        logger.logDomainError("Session transition denied: caller is not a participant", {
-          code: "SESSION_NOT_FOUND",
-          entity: "session",
-          entityId: sessionId,
-        });
-        throw new NotFoundError("SESSION", t.sessionNotFound);
-      }
-      // The row exists and the caller participates: every remaining miss
-      // cause (a terminal state, or a row mid-transition at the guarded
-      // statement's instant) is lifecycle-state-class.
-      logger.logDomainError("Session transition denied: session not cancellable in its current state", {
-        code: "SESSION_INVALID_TRANSITION",
-        entity: "session",
-        entityId: sessionId,
-      });
-      throw new ConflictError("SESSION_INVALID_TRANSITION", t.sessionInvalidTransition);
-    }
-
-    if (kind === "participantDispute") {
-      if (probe.studentId !== actorUserId && probe.teacherId !== actorUserId) {
-        logger.logDomainError("Session dispute denied: caller is not a participant", {
-          code: "SESSION_NOT_FOUND",
-          entity: "session",
-          entityId: sessionId,
-        });
-        throw new NotFoundError("SESSION", t.sessionNotFound);
-      }
-      // The row exists and the caller participates: every remaining miss
-      // cause (a terminal or already-disputed row, or a row mid-transition
-      // at the guarded statement's instant) is lifecycle-state-class.
-      logger.logDomainError("Session dispute denied: session not disputable in its current state", {
-        code: "SESSION_INVALID_TRANSITION",
-        entity: "session",
-        entityId: sessionId,
-      });
-      throw new ConflictError("SESSION_INVALID_TRANSITION", t.sessionInvalidTransition);
-    }
-
-    if (kind === "adminResolve") {
-      // The arbitration surface is role-gated upstream and NOT
-      // participant-gated: any existing row that failed the guarded
-      // predicate is a lifecycle-state conflict (the admin is trusted to
-      // see state, never participant membership).
-      logger.logDomainError("Session arbitration denied: session not resolvable in its current state", {
-        code: "SESSION_INVALID_TRANSITION",
-        entity: "session",
-        entityId: sessionId,
-      });
-      throw new ConflictError("SESSION_INVALID_TRANSITION", t.sessionInvalidTransition);
-    }
-
-    if (probe.teacherId !== actorUserId) {
-      // Start/complete are teacher-side actions: a student participant (or
-      // any other caller) is foreign — oracle-safe not-found.
-      logger.logDomainError("Session transition denied: caller is not the owning teacher", {
-        code: "SESSION_NOT_FOUND",
-        entity: "session",
-        entityId: sessionId,
-      });
-      throw new NotFoundError("SESSION", t.sessionNotFound);
-    }
-
-    if (kind === "teacherStart") {
-      // The row exists and the caller owns it: every remaining miss cause
-      // (the row no longer pre-start, or mid-transition at the guarded
-      // statement's instant) is lifecycle-state-class.
-      logger.logDomainError("Session transition denied: session not startable in its current state", {
-        code: "SESSION_INVALID_TRANSITION",
-        entity: "session",
-        entityId: sessionId,
-      });
-      throw new ConflictError("SESSION_INVALID_TRANSITION", t.sessionInvalidTransition);
-    }
-
-    // Completion miss for the owning teacher: a row not in-progress is a
-    // state conflict; an owned in-progress row means the fused certification
-    // predicate inside the guarded statement rejected the caller. The probe
-    // row's status is the raw pg-enum string union, so it is compared
-    // against the enum-derived module-scope constant above — the vocabulary
-    // still flows from the enum, never from a bare literal.
-    if (probe.status !== SESSION_STARTED_STATUS) {
-      logger.logDomainError("Session transition denied: session not completable in its current state", {
-        code: "SESSION_INVALID_TRANSITION",
-        entity: "session",
-        entityId: sessionId,
-      });
-      throw new ConflictError("SESSION_INVALID_TRANSITION", t.sessionInvalidTransition);
-    }
-    logger.logDomainError("Session completion denied: teacher certification no longer active", {
-      code: "TEACHER_NOT_CERTIFIED",
-      entity: "session",
-      entityId: sessionId,
-    });
-    throw new ConflictError("TEACHER_NOT_CERTIFIED", t.teacherNotCertified);
-  }
-
-  /**
-   * Normalizes list pagination before any database work: a page below 1
-   * (or a non-integer) falls back to the first page; a page size outside
-   * 1..50 falls back to the default. The normalized values are what the
-   * callers see echoed back — honest windows only.
-   */
-  function normalizePageBounds(page: number, pageSize: number): { page: number; pageSize: number } {
-    const safePage = Number.isSafeInteger(page) && page >= 1 ? page : 1;
-    const safePageSize =
-      Number.isSafeInteger(pageSize) && pageSize >= 1 && pageSize <= MAX_PAGE_SIZE ? pageSize : DEFAULT_PAGE_SIZE;
-    return { page: safePage, pageSize: safePageSize };
-  }
-
-  /**
-   * Guards the lifecycle filter against the closed status vocabulary before
-   * any database work: absent/null members drop out, a lifecycle member
-   * passes through as the bound filter value, and anything else drops out
-   * too (filters never error — the owner predicate still scopes the read).
-   */
-  function guardStatusFilter(filter: SessionListFilterInput): SessionListFilterInput {
-    const status = filter.status;
-    if (status === undefined || status === null) {
-      return { status: null };
-    }
-    if (!Object.values(SessionStatus).includes(status)) {
-      return { status: null };
-    }
-    return { status };
+    return { items, totalCount, page: bounds.page, pageSize: bounds.safeLimit };
   }
 }

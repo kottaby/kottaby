@@ -1,13 +1,14 @@
 "use client";
 
 import { useMutation } from "@apollo/client/react";
-import { WarningOutlined as WarningIcon } from "@mui/icons-material";
-import { Button, Dialog, DialogActions, DialogContent, DialogTitle, Stack, TextField, Typography } from "@mui/material";
+import { Dialog, DialogContent, DialogTitle } from "@mui/material";
 import { type ReactNode, useState } from "react";
 import { openSessionDisputeMutationDocument } from "@/frontend/graphql/sharedDocuments";
-import { extractErrorCode } from "@/frontend/lib/graphql-error-utils";
-import { isNotFoundErrorFamily, normalizeGraphQLErrorCode } from "@/frontend/providers/apollo/error-link.map";
-import { Common, Errors, Sessions, useAppTranslation } from "@/shared/locale";
+import { SessionDialogActionButtons } from "@/frontend/views/student/sessions/SessionDialogActionButtons";
+import { SessionDialogReasonField } from "@/frontend/views/student/sessions/SessionDialogReasonField";
+import { SessionDialogWarningCallout } from "@/frontend/views/student/sessions/SessionDialogWarningCallout";
+import { handleDisputeSessionMutationError } from "@/frontend/views/student/sessions/sessionDialogErrorArms";
+import { Errors, Sessions, useAppTranslation } from "@/shared/locale";
 
 /**
  * SessionDisputeConfirmDialog — the confirm-and-reason seam for opening a
@@ -28,9 +29,9 @@ import { Common, Errors, Sessions, useAppTranslation } from "@/shared/locale";
  * | `FORBIDDEN`                                   | `onFailure(errors.forbidden)` → error snackbar; the dialog stays open for a retry |
  * | masked `INTERNAL_SERVER_ERROR` / anything else| `onFailure(sessions.genericError)` → error snackbar; the dialog stays open for a retry |
  *
- * The code classification runs through `extractErrorCode` +
- * `normalizeGraphQLErrorCode` (the single transport contract); the server
- * `message` is NEVER echoed.
+ * The code classification lives in `sessionDialogErrorArms.ts`
+ * (`handleDisputeSessionMutationError`) — the server `message` is NEVER
+ * echoed.
  *
  * Reason field: REQUIRED (trimmed 1..{@link MAX_DISPUTE_REASON_LENGTH}
  * chars at the UI seam, mirroring the backend contract), live raw-character
@@ -46,9 +47,6 @@ import { Common, Errors, Sessions, useAppTranslation } from "@/shared/locale";
 
 /** UI-seam cap for the required dispute reason (mirrors the backend contract). */
 export const MAX_DISPUTE_REASON_LENGTH = 500;
-
-/** Unmapped lifecycle-reject code (the mapping table defines NO row for it). */
-const SESSION_INVALID_TRANSITION_CODE = "SESSION_INVALID_TRANSITION";
 
 interface SessionDisputeConfirmDialogProps {
   /** Id of the session being disputed. */
@@ -83,7 +81,6 @@ export function SessionDisputeConfirmDialog({
 }: Readonly<SessionDisputeConfirmDialogProps>): ReactNode {
   const t = useAppTranslation(Sessions);
   const te = useAppTranslation(Errors);
-  const tc = useAppTranslation(Common);
 
   const [reason, setReason] = useState("");
   const [reasonInvalid, setReasonInvalid] = useState(false);
@@ -112,26 +109,15 @@ export function SessionDisputeConfirmDialog({
       onDisputed(data.openSessionDispute.id);
     },
     onError: error => {
-      const rawCode = extractErrorCode(error);
-      const code = rawCode === null ? "" : normalizeGraphQLErrorCode(rawCode);
-
-      if (isNotFoundErrorFamily(code)) {
-        onSessionMissing(sessionId);
-        return;
-      }
-      if (code === SESSION_INVALID_TRANSITION_CODE) {
-        onInvalidTransition(sessionId);
-        return;
-      }
-      if (code === "VALIDATION") {
-        onFailure(te.validation);
-        return;
-      }
-      if (code === "FORBIDDEN") {
-        onFailure(te.forbidden);
-        return;
-      }
-      onFailure(t.genericError);
+      handleDisputeSessionMutationError(error, {
+        sessionId,
+        onSessionMissing,
+        onInvalidTransition,
+        onFailure,
+        validationCopy: te.validation,
+        forbiddenCopy: te.forbidden,
+        genericErrorCopy: t.genericError,
+      });
     },
   });
 
@@ -171,57 +157,29 @@ export function SessionDisputeConfirmDialog({
         {t.disputeConfirmTitle}
       </DialogTitle>
       <DialogContent sx={{ display: "grid", gap: 2 }}>
-        <Stack
-          sx={theme => ({
-            gap: 1,
-            flexDirection: "row",
-            alignItems: "flex-start",
-            p: 2,
-            borderRadius: 2,
-            bgcolor: theme.palette.warningContainer,
-            color: theme.palette.onWarningContainer,
-          })}
-        >
-          <WarningIcon fontSize="small" />
-          <Typography variant="body2">{t.disputeConfirmBody}</Typography>
-        </Stack>
-        <TextField
+        <SessionDialogWarningCallout message={t.disputeConfirmBody} />
+        <SessionDialogReasonField
           value={reason}
-          onChange={event => {
-            setReason(event.target.value);
+          onValueChange={value => {
+            setReason(value);
             // Live validation relief — an edit clears a raised flag.
             setReasonInvalid(false);
           }}
           label={t.disputeReasonLabel}
           placeholder={t.disputeReasonPlaceholder}
-          multiline
-          minRows={3}
           required
           error={reasonInvalid}
-          aria-invalid={reasonInvalid}
           helperText={reasonInvalid ? t.disputeReasonRequired : `${reason.length}/${MAX_DISPUTE_REASON_LENGTH}`}
-          slotProps={{
-            htmlInput: { maxLength: MAX_DISPUTE_REASON_LENGTH },
-          }}
-          sx={theme => ({
-            "& .MuiFormHelperText-root": { color: theme.palette.text.secondary },
-          })}
+          maxLength={MAX_DISPUTE_REASON_LENGTH}
         />
       </DialogContent>
-      <DialogActions sx={{ px: 3, pb: 3, gap: 1 }}>
-        <Button onClick={onClose} disabled={loading} sx={{ minHeight: { xs: 44, sm: 40 }, px: 3 }}>
-          {tc.cancel}
-        </Button>
-        <Button
-          type="submit"
-          variant="contained"
-          color="warning"
-          disabled={loading}
-          sx={{ minHeight: { xs: 44, sm: 40 }, px: 3 }}
-        >
-          {t.openDispute}
-        </Button>
-      </DialogActions>
+      <SessionDialogActionButtons
+        loading={loading}
+        onClose={onClose}
+        submitLabel={t.openDispute}
+        submitColor="warning"
+        submitDisabled={loading}
+      />
     </Dialog>
   );
 }

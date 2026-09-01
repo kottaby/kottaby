@@ -199,7 +199,7 @@ describe("sweep-sessions cron route — authenticated sweep", () => {
     // Honest counts ONLY — no row identities, no extra members.
     expect(data.cancelled).toBe(3);
     expect(data.refunded).toBe(2);
-    expect(Object.keys(data).toSorted()).toEqual(["cancelled", "refunded"]);
+    expect(Object.keys(data).toSorted((a, b) => a.localeCompare(b))).toEqual(["cancelled", "refunded"]);
     expect(typeof body.requestId).toBe("string");
     expect(sweepCalls).toHaveLength(1);
   });

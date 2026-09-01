@@ -34,8 +34,8 @@ import { and, eq, isNull, sql } from "drizzle-orm";
 import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import { db, queryDb } from "@/backend/db";
 import { students } from "@/backend/db/schema/students/students";
-import { HeldBalanceLane } from "@/backend/enum/scheduling/held-balance-lane.enum";
 import { users } from "@/backend/db/schema/users/users";
+import { HeldBalanceLane } from "@/backend/enum/scheduling/held-balance-lane.enum";
 import type { DBQueryExecutor, DBTransaction, HandshakeDiscoveryRowType, StudentSelectType } from "@/backend/types";
 
 /**

@@ -1151,8 +1151,16 @@ describe("SessionRepository — transactional paths (runInRollback)", () => {
     });
   });
 
-  const REPO_FILE = join(import.meta.dir, "../../../repo/classes/session.repository.ts");
-  const repoSource = readFileSync(REPO_FILE, "utf8");
+  // The repository implementation is split across the public namespace file
+  // and its sibling helpers module (behavior-identical max-lines refactor):
+  // every source pin below scans BOTH files as one implementation unit, so
+  // the pinned invariants (executor discipline, predicate sharing, SQL
+  // interpolation allowlist) keep covering the whole repository layer.
+  const REPO_FILES = [
+    join(import.meta.dir, "../../../repo/classes/session.repository.ts"),
+    join(import.meta.dir, "../../../repo/classes/session.repository.helpers.ts"),
+  ];
+  const repoSource = REPO_FILES.map(file => readFileSync(file, "utf8")).join("\n");
 
   test("source: lifecycle vocabulary flows only through SessionStatus members (never string literals)", () => {
     expect(/["'](scheduled|started|completed|cancelled|disputed)["']/.test(repoSource)).toBe(false);

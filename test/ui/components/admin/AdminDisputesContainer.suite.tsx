@@ -434,7 +434,7 @@ for (const locale of STUI_LOCALES) {
         expect(within(row).getAllByText(disputedText).length).toBeGreaterThanOrEqual(1);
         // The filed dispute reason renders (placeholder when a legacy row
         // carries null), and the resolve affordance is live on every row.
-        const reasonText = session.disputeReason === null ? EM_DASH : session.disputeReason;
+        const reasonText = session.disputeReason ?? EM_DASH;
         expect(within(row).getAllByText(reasonText).length).toBeGreaterThanOrEqual(1);
         // The resolve affordance is live on every queued row. NOTE: its
         // ACCESSIBLE name is the Tooltip title (MUI Tooltip's default

@@ -38,9 +38,9 @@
  */
 
 import { UserRepository, WalletRepository } from "@/backend/db/repo";
+import { withTransaction } from "@/backend/lib/db/with-transaction";
 import { ConflictError, ForbiddenError, ValidationError } from "@/backend/lib/errors";
 import { logger } from "@/backend/lib/logger";
-import { withTransaction } from "@/backend/lib/db/with-transaction";
 import type { DBTransaction, WalletViewType } from "@/backend/types";
 import { getServerTranslations } from "@/shared/locale/server-graphql";
 

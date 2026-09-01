@@ -40,11 +40,18 @@
  * arbitration is the CALLER's follow-up write on the same transaction
  * (the identical shape `cancelSession` composes), driven by the returned
  * row's recorded lane.
+ *
+ * File layout: the standalone-capable read machinery (shared predicate
+ * builders, the select-column shape, the list/count/probe reads) lives in
+ * the sibling `session.repository.helpers.ts` module (extracted verbatim);
+ * the guarded write transitions stay implemented inline below. Every read
+ * method is a one-to-one delegation wrapper, so the public API (names,
+ * signatures, behavior) is unchanged.
  */
 
-import { and, count, desc, eq, isNotNull, or, type SQL, sql } from "drizzle-orm";
-import { PgDialect } from "drizzle-orm/pg-core";
-import { db, queryDb } from "@/backend/db";
+import { and, eq, isNotNull, or, sql } from "drizzle-orm";
+import { db } from "@/backend/db";
+import * as sessionRepositoryImpl from "@/backend/db/repo/classes/session.repository.helpers";
 import { session } from "@/backend/db/schema/classes/session";
 import { teacher } from "@/backend/db/schema/teachers/teacher";
 import { SessionStatus } from "@/backend/enum/scheduling/session-status.enum";
@@ -55,130 +62,6 @@ import type {
   SessionSelectType,
   SessionTransitionProbeRowType,
 } from "@/backend/types";
-
-/**
- * The participant columns of `session` — both reference the shared
- * `users.id` PK and carry the identical Drizzle column type (an integer FK
- * onto `users.id`), so one representative column type covers either side.
- * Method entry points pass the schema column object itself (`studentId` or
- * `teacherId`), so the owner side is a closed in-code decision, never
- * caller input.
- */
-type SessionOwnerColumn = typeof session.studentId;
-
-/** Column alias list for standalone reads — mirrors `$inferSelect` typing 1:1. */
-const SESSION_SELECT_COLUMNS = `
-  id, teacher_id AS "teacherId", student_id AS "studentId", status,
-  session_type AS "sessionType", intent, fee, fee_held AS "feeHeld",
-  held_balance_lane AS "heldBalanceLane", started_at AS "startedAt",
-  ended_at AS "endedAt", confirmed_by_student_at AS "confirmedByStudentAt",
-  confirmed_by_teacher_at AS "confirmedByTeacherAt",
-  confirmation_deadline AS "confirmationDeadline",
-  cancel_reason AS "cancelReason", dispute_reason AS "disputeReason",
-  disputed_at AS "disputedAt", resolution_note AS "resolutionNote",
-  resolved_at AS "resolvedAt",
-  created_at AS "createdAt", updated_at AS "updatedAt"`;
-
-/** Stateless renderer used to translate the shared predicate into standalone-read SQL. */
-const participantDialect = new PgDialect();
-
-/**
- * ONE module-scope predicate builder shared by every participant read
- * (list + count, transactional + standalone branches): the owner equality
- * plus, only when a status filter is provided, the lifecycle-state
- * equality. `null`/absent filters drop out (they never error). The status
- * vocabulary flows as a bound parameter from the `SessionStatus` enum, so
- * the filtered set the list pages over and the set the count totals are
- * decided by exactly this one function — `totalCount` can never diverge
- * from the list.
- */
-function buildParticipantPredicate(
-  ownerColumn: SessionOwnerColumn,
-  ownerId: number,
-  filter: SessionListFilterInput
-): SQL {
-  const conditions: SQL[] = [eq(ownerColumn, ownerId)];
-  const statusFilter = filter.status ?? undefined;
-  if (statusFilter !== undefined) {
-    conditions.push(eq(session.status, statusFilter));
-  }
-  return sql.join(conditions, sql` and `);
-}
-
-/**
- * Participant list read shared by `listForStudent`/`listForTeacher`. Newest
- * first (`created_at DESC`), with `id DESC` as the deterministic tiebreak
- * for rows created in the same instant; page window via bound LIMIT/OFFSET
- * (an offset past the end yields zero rows — the count stays honest).
- */
-async function listParticipantSessions(
-  ownerColumn: SessionOwnerColumn,
-  ownerId: number,
-  filter: SessionListFilterInput,
-  limit: number,
-  offset: number,
-  tx?: DBTransaction
-): Promise<SessionSelectType[]> {
-  if (tx) {
-    return tx
-      .select()
-      .from(session)
-      .where(buildParticipantPredicate(ownerColumn, ownerId, filter))
-      .orderBy(desc(session.createdAt), desc(session.id))
-      .limit(limit)
-      .offset(offset);
-  }
-  // Standalone read — the shared predicate is rendered to parameterized SQL
-  // (placeholders $1…) and executed via the queryDb pool path.
-  const rendered = participantDialect.sqlToQuery(buildParticipantPredicate(ownerColumn, ownerId, filter));
-  const result = await queryDb<SessionSelectType>(
-    `SELECT ${SESSION_SELECT_COLUMNS}
-     FROM session
-     WHERE ${rendered.sql}
-     ORDER BY created_at DESC, id DESC
-     LIMIT $${rendered.params.length + 1} OFFSET $${rendered.params.length + 2}`,
-    [...rendered.params, limit, offset]
-  );
-  return result.rows;
-}
-
-/**
- * Participant count read shared by `countForStudent`/`countForTeacher` —
- * consumes the SAME predicate builder as the list, so the total always
- * describes the exact filtered set.
- */
-async function countParticipantSessions(
-  ownerColumn: SessionOwnerColumn,
-  ownerId: number,
-  filter: SessionListFilterInput,
-  tx?: DBTransaction
-): Promise<number> {
-  if (tx) {
-    const rows = await tx
-      .select({ value: count() })
-      .from(session)
-      .where(buildParticipantPredicate(ownerColumn, ownerId, filter));
-    return rows[0]?.value ?? 0;
-  }
-  const rendered = participantDialect.sqlToQuery(buildParticipantPredicate(ownerColumn, ownerId, filter));
-  const result = await queryDb<{ value: string }>(`SELECT count(*) AS "value" FROM session WHERE ${rendered.sql}`, [
-    ...rendered.params,
-  ]);
-  return Number(result.rows[0]?.value ?? 0);
-}
-
-/**
- * ONE module-scope predicate builder for the admin arbitration read: the
- * status-first pinned membership on the disputed lifecycle state. The
- * disputed rows are the arbitration work queue — no owner equality exists
- * on this predicate (the admin surface is role-gated upstream, not
- * owner-scoped), and no filter input participates: the caller (service)
- * narrows contradictory filter requests out before this read is reached,
- * so the list and the count always describe one identical set.
- */
-function buildAdminDisputedPredicate(): SQL {
-  return eq(session.status, SessionStatus.Disputed);
-}
 
 export namespace SessionRepository {
   /**
@@ -214,16 +97,7 @@ export namespace SessionRepository {
    *          the read service's decision — this method is the raw PK read.
    */
   export async function findById(id: number, tx?: DBTransaction): Promise<SessionSelectType | null> {
-    if (tx) {
-      const rows = await tx.select().from(session).where(eq(session.id, id)).limit(1);
-      return rows[0] ?? null;
-    }
-    const result = await queryDb<SessionSelectType>(
-      `SELECT ${SESSION_SELECT_COLUMNS}
-       FROM session WHERE id = $1 LIMIT 1`,
-      [id]
-    );
-    return result.rows[0] ?? null;
+    return sessionRepositoryImpl.findById(id, tx);
   }
 
   /**
@@ -453,24 +327,7 @@ export namespace SessionRepository {
     id: number,
     tx?: DBTransaction
   ): Promise<SessionTransitionProbeRowType | null> {
-    const projection = {
-      id: session.id,
-      status: session.status,
-      studentId: session.studentId,
-      teacherId: session.teacherId,
-      startedAt: session.startedAt,
-    };
-    if (tx) {
-      const rows = await tx.select(projection).from(session).where(eq(session.id, id)).limit(1);
-      return rows[0] ?? null;
-    }
-    const result = await queryDb<SessionTransitionProbeRowType>(
-      `SELECT id, status, student_id AS "studentId", teacher_id AS "teacherId",
-              started_at AS "startedAt"
-       FROM session WHERE id = $1 LIMIT 1`,
-      [id]
-    );
-    return result.rows[0] ?? null;
+    return sessionRepositoryImpl.findTransitionProbe(id, tx);
   }
 
   /**
@@ -556,7 +413,7 @@ export namespace SessionRepository {
     offset: number,
     tx?: DBTransaction
   ): Promise<SessionSelectType[]> {
-    return listParticipantSessions(session.studentId, studentId, filter, limit, offset, tx);
+    return sessionRepositoryImpl.listParticipantSessions(session.studentId, studentId, filter, limit, offset, tx);
   }
 
   /**
@@ -571,7 +428,7 @@ export namespace SessionRepository {
     offset: number,
     tx?: DBTransaction
   ): Promise<SessionSelectType[]> {
-    return listParticipantSessions(session.teacherId, teacherId, filter, limit, offset, tx);
+    return sessionRepositoryImpl.listParticipantSessions(session.teacherId, teacherId, filter, limit, offset, tx);
   }
 
   /**
@@ -584,7 +441,7 @@ export namespace SessionRepository {
     filter: SessionListFilterInput,
     tx?: DBTransaction
   ): Promise<number> {
-    return countParticipantSessions(session.studentId, studentId, filter, tx);
+    return sessionRepositoryImpl.countParticipantSessions(session.studentId, studentId, filter, tx);
   }
 
   /**
@@ -596,7 +453,7 @@ export namespace SessionRepository {
     filter: SessionListFilterInput,
     tx?: DBTransaction
   ): Promise<number> {
-    return countParticipantSessions(session.teacherId, teacherId, filter, tx);
+    return sessionRepositoryImpl.countParticipantSessions(session.teacherId, teacherId, filter, tx);
   }
 
   /**
@@ -615,27 +472,7 @@ export namespace SessionRepository {
     offset: number,
     tx?: DBTransaction
   ): Promise<SessionSelectType[]> {
-    if (tx) {
-      return tx
-        .select()
-        .from(session)
-        .where(buildAdminDisputedPredicate())
-        .orderBy(desc(session.createdAt), desc(session.id))
-        .limit(limit)
-        .offset(offset);
-    }
-    // Standalone read — the shared predicate is rendered to parameterized
-    // SQL (placeholders $1…) and executed via the queryDb pool path.
-    const rendered = participantDialect.sqlToQuery(buildAdminDisputedPredicate());
-    const result = await queryDb<SessionSelectType>(
-      `SELECT ${SESSION_SELECT_COLUMNS}
-       FROM session
-       WHERE ${rendered.sql}
-       ORDER BY created_at DESC, id DESC
-       LIMIT $${rendered.params.length + 1} OFFSET $${rendered.params.length + 2}`,
-      [...rendered.params, limit, offset]
-    );
-    return result.rows;
+    return sessionRepositoryImpl.listAdminDisputed(limit, offset, tx);
   }
 
   /**
@@ -644,14 +481,6 @@ export namespace SessionRepository {
    * read.
    */
   export async function countAdminDisputed(tx?: DBTransaction): Promise<number> {
-    if (tx) {
-      const rows = await tx.select({ value: count() }).from(session).where(buildAdminDisputedPredicate());
-      return rows[0]?.value ?? 0;
-    }
-    const rendered = participantDialect.sqlToQuery(buildAdminDisputedPredicate());
-    const result = await queryDb<{ value: string }>(`SELECT count(*) AS "value" FROM session WHERE ${rendered.sql}`, [
-      ...rendered.params,
-    ]);
-    return Number(result.rows[0]?.value ?? 0);
+    return sessionRepositoryImpl.countAdminDisputed(tx);
   }
 }

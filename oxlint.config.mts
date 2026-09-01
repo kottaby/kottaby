@@ -150,12 +150,12 @@ export default defineConfig({
     {
       // Apollo cache `Reference` entities carry the protocol-mandated `__ref`
       // wire property; the underscore prefix is not ours to rename and biome's
-      // unsafe autofix reverts bracket access back to member access.
+      // unsafe autofix reverts bracket access back to member access. This list
+      // tracks the CURRENT modules holding `__ref` member access (the 4.4
+      // refactor moved the cache-eviction arms out of the containers).
       files: [
-        "frontend/views/student/sessions/CancelSessionConfirmDialog.tsx",
-        "frontend/views/student/sessions/StudentSessionsContainer.tsx",
-        "frontend/views/teacher/sessions/TeacherSessionsContainer.tsx",
-        "frontend/views/admin/disputes/ResolveDisputeDialog.tsx",
+        "frontend/views/student/sessions/sessionListCacheEviction.ts",
+        "frontend/views/teacher/sessions/teacherSessionCacheArms.ts",
       ],
       rules: {
         "no-underscore-dangle": "off",

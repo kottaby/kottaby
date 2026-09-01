@@ -83,7 +83,7 @@ export namespace WalletRepository {
       })
       .returning();
     const ledger = ledgerRows[0];
-    if (ledger === undefined) {
+    if (!ledger) {
       throw new Error("WalletRepository.creditEarningOnce: ledger INSERT returned zero rows");
     }
     await executor
@@ -163,7 +163,7 @@ export namespace WalletRepository {
       })
       .returning();
     const ledger = ledgerRows[0];
-    if (ledger === undefined) {
+    if (!ledger) {
       throw new Error("WalletRepository.debitForWithdrawalOnce: ledger INSERT returned zero rows");
     }
     const debited = await executor
