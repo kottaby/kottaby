@@ -21,10 +21,11 @@
  * per-action labels of its own).
  */
 
-import type { AdminAuditLogFiltersInput } from "@/frontend/graphql/generated/gql/graphql";
-// The generated enum is a RUNTIME value here (the `ACTION_VALUES` vocabulary
-// and `actionLabelsOf` keys read its members), not a type-only reference.
-import { AuditActionType } from "@/frontend/graphql/generated/gql/graphql";
+// The generated module carries BOTH the wire `AdminAuditLogFiltersInput` type
+// and the RUNTIME `AuditActionType` enum (the `ACTION_VALUES` vocabulary and
+// `actionLabelsOf` keys read its members) in one import — the enum is a value
+// here, not a type-only reference.
+import { type AdminAuditLogFiltersInput, AuditActionType } from "@/frontend/graphql/generated/gql/graphql";
 import type { AdminUsersLabels } from "@/shared/locale/types/adminUsers";
 
 /**

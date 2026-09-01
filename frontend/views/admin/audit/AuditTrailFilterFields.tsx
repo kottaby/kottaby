@@ -15,8 +15,7 @@ import type { CSSObject } from "@mui/material/styles";
 import type { ReactNode } from "react";
 import { focusVisibleRingSx } from "@/frontend/components/ui/focusRing";
 import type { AuditActionType } from "@/frontend/graphql/generated/gql/graphql";
-import type { FilterDrafts } from "@/frontend/views/admin/audit/audit-trail-filters";
-import { ACTION_VALUES } from "@/frontend/views/admin/audit/audit-trail-filters";
+import { ACTION_VALUES, type FilterDrafts } from "@/frontend/views/admin/audit/audit-trail-filters";
 import type { AdminUsersLabels } from "@/shared/locale/types/adminUsers";
 
 const ACTOR_ID_INPUT_ID = "audit-trail-actor-id";
@@ -98,7 +97,7 @@ export function AuditTrailFilterFields({
           labelId={ACTION_TYPE_LABEL_ID}
           value={drafts.actionType}
           label={labels.actionTypeLabel}
-          onChange={event => onDraftChange({ actionType: (event.target.value || "") as AuditActionType | "" })}
+          onChange={event => onDraftChange({ actionType: event.target.value || "" })}
           disabled={fieldsDisabled}
           sx={{ minHeight: 44 }}
         >

@@ -284,14 +284,14 @@
 
 ## Phase 5: Integration & Differential Testing
 
-- [ ] **5.1 Journey green + full differential suite run**
+- [x] **5.1 Journey green + full differential suite run**
   - Re-run the Task-2.2 journey — MUST now be GREEN: `bun run test/scripts/run-test.ts test/workflows/admin/audit-trail.journey.test.ts` (differential vs the recorded 2.2 red state).
   - Run the complete affected matrix: `backend/db/test/logic/audit/*` (repo + immutability), `backend/services/admin/*` (new service + DEV3-016 regression): `bun run test/scripts/run-test.ts backend/db/test/logic/audit` / `backend/services/admin`; `bun run test/scripts/run-test.ts backend/graphql/test` (surface + wire matrix + SDL parity + handshake allowlist); locale parity; frontend documents/cache/nav; `bun run test/scripts/run-test.ts test/ui/components/admin`.
   - REQ-043 chaos: confirm the forced mid-read failure case surfaces masked `INTERNAL_SERVER_ERROR` with exactly one correlated log (service chaos tier) — cross-check REQ-071 chaos coverage recorded in 2.4.
   - Coverage gate: 100% statement/branch on ALL new service/repository code (REQ-076).
   - _Requirements: REQ-070..077_ (outcome: `outcome/5.1-outcome.md`)
 
-- [ ] **5.2 Zero-drift & frozen-surface gates**
+- [x] **5.2 Zero-drift & frozen-surface gates**
   - `git diff backend/db/schema/**` MUST be EMPTY (REQ-042); the only permitted migration-tree delta is the conditional Task-1.2 SQL file.
   - `backend/lib/gateway/public-operations.ts` diff MUST be EMPTY; `handshake-code-surface.test.ts` allowlist pin green.
   - Re-run baseline counters: `bun tsgo`, `bun run oxlint`, `bun biome:check`, `bun run lint` — each delta vs Phase-0 baseline = +0 (REQ-076).

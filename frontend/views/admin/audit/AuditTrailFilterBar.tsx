@@ -10,8 +10,7 @@
  */
 
 import { Box } from "@mui/material";
-import type { ReactNode } from "react";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import type { AuditActionType } from "@/frontend/graphql/generated/gql/graphql";
 import { AuditTrailFilterFields } from "@/frontend/views/admin/audit/AuditTrailFilterFields";
 import {
