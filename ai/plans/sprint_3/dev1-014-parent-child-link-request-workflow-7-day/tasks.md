@@ -190,7 +190,7 @@ Verify each anchor is REAL in the bundled tree (locate it; cite line). ANY miss 
 - [x] 2.1.IV **Instruction Verification:** `test/workflows/AGENTS.md` (EXISTS — harness rules live) + `docs/testing/workflow-journey-tests.md` + `.agents/instructions/tests.instructions.md`
 - _Requirements: REQ-076, REQ-090..REQ-096, REQ-046_
 
-### 2.2 [ ] Implement `ParentLinkRequestRepository` + additive `StudentRepository` methods + register barrels
+### 2.2 [x] Implement `ParentLinkRequestRepository` + additive `StudentRepository` methods + register barrels
 **REQ:** REQ-010 (delivery read), REQ-032, REQ-033, REQ-037, REQ-040 (tx propagation), REQ-041 (guarded-only), REQ-070 (repo tier) · plan §4.1
 
 - CREATE `backend/db/repo/parents/parent-link-request.repository.ts` with EXACTLY these methods (`tx` LAST, `tx ?? db` executor discipline):
@@ -210,21 +210,21 @@ Verify each anchor is REAL in the bundled tree (locate it; cite line). ANY miss 
   - `findLinkTargetByHandshakeCode(code, tx?): Promise<StudentLinkTargetRowType | null>` — parameterized equality ONLY (zero LIKE/ILIKE); join to `users` for governance columns + `fullName`
   - `linkParentIfUnlinked(studentId, parentId, tx): Promise<StudentSelectType | null>` — ONE guarded `UPDATE students SET parent_id = $2, updated_at = now() WHERE id = $1 AND parent_id IS NULL RETURNING *` — THE only production writer of a non-null `students.parent_id`
 - NO `SELECT FOR UPDATE`, NO advisory locks, NO read-then-write patterns (D2)
-- [ ] 2.2.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts backend/db/repo/parents/parent-link-request.repository.ts --lifecycle duplicates` AND `bun run scripts/health/sub-loop.ts backend/db/repo/parents/index.ts --lifecycle duplicates` AND `bun run scripts/health/sub-loop.ts backend/db/repo/students/student.repository.ts --lifecycle duplicates` (exit 0)
-- [ ] 2.2.TE **Test Engineering (4-Tier via repo suite; REQ-070):**
+- [x] 2.2.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts backend/db/repo/parents/parent-link-request.repository.ts --lifecycle duplicates` AND `bun run scripts/health/sub-loop.ts backend/db/repo/parents/index.ts --lifecycle duplicates` AND `bun run scripts/health/sub-loop.ts backend/db/repo/students/student.repository.ts --lifecycle duplicates` (exit 0)
+- [x] 2.2.TE **Test Engineering (4-Tier via repo suite; REQ-070):**
   - CREATE `backend/db/repo/parents/parent-link-request.repository.test.ts` + ADDITIVE blocks in `backend/db/repo/students/student.repository.test.ts`
   - Tier 1: create/findById/findPendingByPair round-trips; guarded claims ALL zero-row classifier arms (nonexistent id, wrong owner, already-resolved, expired-at-write instant); sibling expiry counts + exclusion of winner; cancel scopes; lists ordering/deterministic tie-break + LIMIT 50; join payloads carry the counterpart name column
   - Tier 2: boundary — claim exactly at `expiresAt` (`expires_at > now` FALSE) returns NULL; strict-`>` parity at ±1ms
   - Tier 3: partial-unique insert conflict assertion shared with the service tier (the service owns the final mapping, repo only asserts the raw DB error surfaces 23505); concurrent inserts skip-gated under pglite via `isPgliteProvider`
   - Tier 4: `runInRollback` everywhere; `tx` propagation proven (every method callable under outer `tx` and with default `db`); `expectRepoError` try/catch — NEVER `rejects.toThrow`; fixtures only via `entity-setup.ts` helpers (verify helper signatures from the bundle FIRST); zero raw SQL construction beyond parameterized equality
   - Run: `bun run test/scripts/run-test.ts backend/db/repo/parents/parent-link-request.repository.test.ts` and the repo suite tier via `bun run test:db`
-- [ ] 2.2.SEC **Security & Tenancy Audit:**
+- [x] 2.2.SEC **Security & Tenancy Audit:**
   - Ownership predicates inlined into UPDATE WHERE-clauses (BOLA at the statement level)
   - BOPLA: insert payload = EXACTLY `{ parentId, studentId, expiresAt }` field-by-field; NO `{ ...input }` anywhere
   - No LIKE/ILIKE in ANY new method (REQ-037)
   - `linkParentIfUnlinked` is the ONLY writer pinned by the upcoming static scan (task 5.3)
-- [ ] 2.2.SR **Semantic Review:** every state transition is a single guarded UPDATE + RETURNING; zero TOCTOU; zero dead code; enum used as VALUE import; no `console.*`
-- [ ] 2.2.IV **Instruction Verification:** `.agents/instructions/backend.instructions.md` + `backend/db/repo/AGENTS.md` (reader path for repo rules)
+- [x] 2.2.SR **Semantic Review:** every state transition is a single guarded UPDATE + RETURNING; zero TOCTOU; zero dead code; enum used as VALUE import; no `console.*`
+- [x] 2.2.IV **Instruction Verification:** `.agents/instructions/backend.instructions.md` + `backend/db/repo/AGENTS.md` (reader path for repo rules)
 - _Requirements: REQ-010, REQ-032, REQ-033, REQ-037, REQ-040, REQ-041, REQ-070_
 
 ### 2.3 [ ] Implement `ParentLinkRequestService` (create/respond/cancel/lists) — engine composition + fail-closed actor re-check
