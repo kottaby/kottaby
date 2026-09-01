@@ -210,7 +210,7 @@
 
 ## Phase 4: Frontend GraphQL Documents, i18n, Cache & UI Views
 
-- [ ] **4.1 Extend `adminUsers` namespace with the `auditTrail` block (NO new namespace — D13)**
+- [x] **4.1 Extend `adminUsers` namespace with the `auditTrail` block (NO new namespace — D13)**
   - UPDATE `shared/locale/types/adminUsers/index.ts`: `AdminUsersLabels` gains the `auditTrail` block exactly per plan §5.6 (page title/subtitle, filter labels + apply/clear, table headers, details show/hide + null placeholders, empty state, error state).
   - UPDATE `shared/locale/en/adminUsers/index.ts` and `shared/locale/ar/adminUsers/index.ts`: both leaf implementations; EVERY `ar` string in Arabic script.
   - REUSE the seven `adminUsers.activity.action*` labels (`shared/locale/types/adminUsers/index.ts:417-451`) for action rendering — mint NO near-duplicates (`shared/AGENTS.md` discipline).
@@ -224,7 +224,7 @@
   - [ ] 4.1.IV **Instruction Verification:** validate against `shared/AGENTS.md` + auto-discovered files.
   - Write `outcome/4.1-outcome.md`.
 
-- [ ] **4.2 Frontend GraphQL documents + Apollo cache policy + contract tests**
+- [x] **4.2 Frontend GraphQL documents + Apollo cache policy + contract tests**
   - CREATE `frontend/graphql/sharedDocuments/admin/audit-trail.documents.ts`: `adminAuditLogsQueryDocument` — named operation `AdminAuditLogs($filters: AdminAuditLogFiltersInput, $page: Int, $pageSize: Int)`, `id` FIRST in the entry selection, `TypedDocumentNode<AdminAuditLogsQuery, AdminAuditLogsQueryVariables>`-typed; `useQuery` only (NO `useLazyQuery`).
   - UPDATE `frontend/graphql/sharedDocuments/admin/index.ts` (+ one export; the top barrel `frontend/graphql/sharedDocuments/index.ts:1` already re-exports `./admin`).
   - UPDATE `frontend/providers/apollo/apolloCache.ts`: `typePolicies` gains `AdminAuditLogPage: { keyFields: false }` (embedded wrapper; `AdminAuditLogEntry` normalizes by `id` — no registration).
@@ -239,7 +239,7 @@
   - [ ] 4.2.IV **Instruction Verification:** validate against `frontend/graphql/AGENTS.md` + auto-discovered files.
   - Write `outcome/4.2-outcome.md`.
 
-- [ ] **4.3 Server-guarded route `app/(dashboard)/audit/page.tsx` (CREATE)**
+- [x] **4.3 Server-guarded route `app/(dashboard)/audit/page.tsx` (CREATE)**
   - CREATE `app/(dashboard)/audit/page.tsx` as a Server Component: `withPageAuth({ roles: [UserRole.Admin], redirectTo: "/audit" })`; locale-aware `generateMetadata` via `getTranslations(locale).adminUsersTranslations.auditTrail…`; render `<AuditTrailView initialFilters={sanitized} />`.
   - Deep-link sanitize step (REQ-068): parse `?entityType=<v>&entityId=<n>` (+ optional `actionType`, `actorId`, `from`, `to`); INVALID values silently DROPPED (never trusted, never error); component state owns subsequent edits.
   - Anonymous → `/login?redirect=/audit`; role mismatch → `roleDashboardPath(ctx.role)` (bare `/dashboard` FORBIDDEN). Zone locale via `getLocaleFromCookie()` (`shared/locale/server-cookies.ts:6-13`). Enum as VALUE import (`UserRole.Admin`).
@@ -251,26 +251,26 @@
   - [ ] 4.3.IV **Instruction Verification:** validate against `app/AGENTS.md` + auto-discovered files.
   - Write `outcome/4.3-outcome.md`.
 
-- [ ] **4.4 Implement `frontend/views/admin/audit/AuditTrailView.tsx` (CREATE — client container + full UI)**
+- [x] **4.4 Implement `frontend/views/admin/audit/AuditTrailView.tsx` (CREATE — client container + full UI)**
   - CREATE `frontend/views/admin/audit/AuditTrailView.tsx` per plan §5.4/§5.5: header; filter bar (actorId/entityId number `TextField`s, `actionType` `Select` fed by codegen enum values × localized `adminUsers.activity.action*` labels, `entityType` free text, native `TextField type="date"` from/to pair — D11 UTC-day boundary construction; Apply + Clear ≥44px touch targets); paginated table from RAW MUI `Table` primitives (D10 — `AppDataGrid` is a prose-only phantom, FORBIDDEN); per-row expandable `details` block rendered VERBATIM (`dir="auto"`); null `entityId`/`details` → namespace em-dash placeholders; skeletons with `aria-busy`; honest empty state; generic error + `common.retry`; `PermissionDeniedFallback` on FORBIDDEN; `RetryableNotice` on `RATE_LIMITED`/`SERVICE_UNAVAILABLE`; `createdAt` via `formatApplicantDate` (`frontend/lib/i18n/format-date.ts:56-59` — reuse, REQ-069); pagination echoing server `page`/`pageSize`/`totalCount`.
   - Discipline: ALL styling via `sx` with `theme.palette.*` tokens ONLY; RTL-safe logical properties (`marginInlineStart/End`, `textAlign: "start"`); `*Outlined` icons; form submit via `React.SubmitEvent`; `useAppTranslation(AdminUsers)` handle-const (NO string, NO `Translation` enum); `logger` from `@/frontend/lib/logger`; NO `console.*`; hooks from `@apollo/client/react`; `useQuery` only.
   - Applicable instructions: `frontend/AGENTS.md`, `.agents/instructions/frontend.instructions.md`. (NOTE: `frontend/views/AGENTS.md` and `frontend/components/ui/AGENTS.md` do NOT exist — do not cite them.)
   - _Requirements: REQ-002, REQ-054, REQ-063, REQ-066, REQ-068, REQ-069_
-  - [ ] 4.4.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts frontend/views/admin/audit/AuditTrailView.tsx --lifecycle duplicates` (exit 0).
-  - [ ] 4.4.TE **Unit / Component Tests (REQ-074):** CREATE `test/ui/components/admin/AuditTrailView.test.tsx` — Happy DOM + Apollo `MockedProvider` + translation-handle preloads (NEVER hardcoded copy): skeleton → loaded table; empty state; FORBIDDEN fallback; retryable notice; filter submit wiring (`React.SubmitEvent` path); `null` `details`/`entityId` rendering; details expand/collapse; deep-link `initialFilters` application incl. invalid-value dropping; RTL (ar) render. Run: `bun run test/scripts/run-test.ts test/ui/components/admin/AuditTrailView.test.tsx`.
-  - [ ] 4.4.BF **Agent-Browser Functional Self-Loop:**
+  - [x] 4.4.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts frontend/views/admin/audit/AuditTrailView.tsx --lifecycle duplicates` (exit 0).
+  - [x] 4.4.TE **Unit / Component Tests (REQ-074):** CREATE `test/ui/components/admin/AuditTrailView.test.tsx` — Happy DOM + Apollo `MockedProvider` + translation-handle preloads (NEVER hardcoded copy): skeleton → loaded table; empty state; FORBIDDEN fallback; retryable notice; filter submit wiring (`React.SubmitEvent` path); `null` `details`/`entityId` rendering; details expand/collapse; deep-link `initialFilters` application incl. invalid-value dropping; RTL (ar) render. Run: `bun run test/scripts/run-test.ts test/ui/components/admin/AuditTrailView.test.tsx`.
+  - [-] 4.4.BF **Agent-Browser Functional Self-Loop:**
     - Login via the sanctioned flow (`test/ui/AGENTS.md` §Agent Browser Login — `bun run scripts/browser-login.ts --inject`), navigate `/audit` as the seeded admin.
     - Execute end-to-end: (1) trail table renders seeded rows; (2) filter `entityType=user` + `entityId` narrows the set (assert the GraphQL request variables); (3) actionType select filters on all seven values; (4) date pair narrows by day boundary; (5) pagination advances without overlap (`totalCount` honest); (6) `details` expansion shows raw JSON; (7) Clear restores unfiltered listing; (8) anonymous session → `/login?redirect=/audit`; student session → role-dashboard redirect.
     - Iterative self-loop: any interaction/validation failure → patch code → re-run until clean.
-  - [ ] 4.4.BS **Agent-Browser Visual & Styling Self-Loop (Screenshot Analysis):**
+  - [-] 4.4.BS **Agent-Browser Visual & Styling Self-Loop (Screenshot Analysis):**
     - Capture screenshots at 1440×900 / 768×1024 / 375×812 × {`en` LTR, `ar` RTL} via the isolated visual-inspection subagent rule (DOM-first assertions, translations via handles only).
     - Inspect for: MUI v9 palette-token compliance (no hardcoded hex/rgb), typography hierarchy, spacing rhythm, table horizontal-scroll track at 768/375, text truncation/overflow in `details` cells, RTL mirroring (logical properties, Select alignment, date-field layout), dark/light contrast, ≥44px targets.
     - Iterative self-loop: identify defect → patch `sx` tokens → re-capture → repeat until visually polished; attach final screenshot set references in the outcome.
-  - [ ] 4.4.SR **Semantic Review:** zero direct style props (sx only); no hardcoded strings/colors; `useAppTranslation` property access; `*Outlined` icons; no `next-intl`; no `console.*`.
-  - [ ] 4.4.IV **Instruction Verification:** validate against `.agents/instructions/frontend.instructions.md` + `frontend/AGENTS.md` (the ONLY frontend instruction file is `.agents/instructions/frontend.instructions.md`).
+  - [x] 4.4.SR **Semantic Review:** zero direct style props (sx only); no hardcoded strings/colors; `useAppTranslation` property access; `*Outlined` icons; no `next-intl`; no `console.*`.
+  - [x] 4.4.IV **Instruction Verification:** validate against `.agents/instructions/frontend.instructions.md` + `frontend/AGENTS.md` (the ONLY frontend instruction file is `.agents/instructions/frontend.instructions.md`).
   - Write `outcome/4.4-outcome.md`.
 
-- [ ] **4.5 Navigation retarget pinning (ZERO nav-model change — D12)**
+- [x] **4.5 Navigation retarget pinning (ZERO nav-model change — D12)**
   - `frontend/views/dashboard/navItems.ts` MUST NOT change — the existing admin item `{ route: "/audit", labelKey: "audit" }` (:133) is retargeted purely by Task 4.3/4.4 shipping the page.
   - UPDATE `frontend/views/dashboard/navItems.test.ts`: pin (a) admin nav CONTAINS `/audit` with `labelKey: "audit"`; (b) student/teacher/parent navs EXCLUDE `/audit`; keep the ownership-matrix test (:46-59) green (`audit` stays owned by `DashboardLabels`).
   - Run: `bun run test/scripts/run-test.ts frontend/views/dashboard/navItems.test.ts`.
