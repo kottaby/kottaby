@@ -11,7 +11,7 @@
  *    (draft state internal; queries fire ONLY on submit);
  *  - `AuditTrailStates` — `aria-busy` skeleton, honest empty state, settled
  *    failure surfaces;
- *  - `AuditTrailResults` + `AuditTrailRow` — the raw-MUI `Table` trail (D10)
+ *  - `AuditTrailResults` + `AuditTrailRow` — the raw-MUI `Table` trail
  *    with per-row verbatim `details` expansion and the pagination footer.
  *
  * Query: stateful `useQuery` over the shared `adminAuditLogsQueryDocument`
@@ -43,14 +43,13 @@ import { Stack, Typography } from "@mui/material";
 import { type ReactNode, useState } from "react";
 import { PermissionDeniedFallback } from "@/frontend/components/ui/PermissionDeniedFallback";
 import type { RetryableNoticeKind } from "@/frontend/components/ui/RetryableNotice";
-import type { AdminAuditLogsQuery_adminAuditLogs_items } from "@/frontend/graphql/generated/gql/graphql";
 import { adminAuditLogsQueryDocument } from "@/frontend/graphql/sharedDocuments";
 import { extractErrorCode } from "@/frontend/lib/graphql-error-utils";
 import { AuditTrailFilterBar } from "@/frontend/views/admin/audit/AuditTrailFilterBar";
 import { AuditTrailResults } from "@/frontend/views/admin/audit/AuditTrailResults";
 import { AuditTrailLoadError, AuditTrailSkeleton } from "@/frontend/views/admin/audit/AuditTrailStates";
 import {
-  type AdminAuditTrailFiltersSubmitInput,
+  type AuditTrailFiltersSeed,
   type AppliedAuditTrailFilters,
   actionLabelsOf,
   appliedFiltersFromSubmitInput,
@@ -59,7 +58,7 @@ import {
 import { AdminUsers, Common, useAppLocale, useAppTranslation } from "@/shared/locale";
 import type { AdminUsersLabels } from "@/shared/locale/types/adminUsers";
 
-export type { AdminAuditTrailFiltersSubmitInput };
+export type { AuditTrailFiltersSeed };
 
 const DEFAULT_PAGE_SIZE = 10;
 
@@ -77,7 +76,7 @@ interface AuditTrailViewProps {
    * AND the applied-filter query variables from it, then owns all later
    * edits. Undefined renders the unfiltered first page.
    */
-  readonly initialFilters?: AdminAuditTrailFiltersSubmitInput;
+  readonly initialFilters?: AuditTrailFiltersSeed;
 }
 
 /**
@@ -219,6 +218,3 @@ export function AuditTrailView({ initialFilters }: Readonly<AuditTrailViewProps>
     </Stack>
   );
 }
-
-/** Unused-guard: keeps the row type import surface explicit for the results slice. */
-export type AuditTrailRowEntry = AdminAuditLogsQuery_adminAuditLogs_items;

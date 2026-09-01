@@ -1,8 +1,8 @@
 "use client";
 
 /**
- * The audit-trail filter field grid (three-column wrap layout per plan
- * §5.5): actor-id / entity-id number fields, free-text entity type, the
+ * The audit-trail filter field grid (three-column wrap layout): actor-id / entity-id
+ * number fields, free-text entity type, the
  * action-type `Select` fed by the generated `AuditActionType` values × the
  * REUSED `adminUsers.activity.action*` labels with an "all actions" empty
  * option, the native date-input from/to pair, and the ≥44px Apply / Clear
@@ -70,7 +70,7 @@ export function AuditTrailFilterFields({
         value={drafts.actorId}
         onChange={event => onDraftChange({ actorId: event.target.value })}
         disabled={fieldsDisabled}
-        slotProps={{ htmlInput: { min: 0, step: 1 } }}
+        slotProps={{ htmlInput: { min: 1, step: 1 } }}
       />
       <TextField
         id={ENTITY_TYPE_INPUT_ID}
@@ -88,7 +88,7 @@ export function AuditTrailFilterFields({
         value={drafts.entityId}
         onChange={event => onDraftChange({ entityId: event.target.value })}
         disabled={fieldsDisabled}
-        slotProps={{ htmlInput: { min: 0, step: 1 } }}
+        slotProps={{ htmlInput: { min: 1, step: 1 } }}
       />
       <FormControl sx={{ minWidth: 150 }}>
         <InputLabel id={ACTION_TYPE_LABEL_ID}>{labels.actionTypeLabel}</InputLabel>

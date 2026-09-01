@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { UserRole } from "@/backend/enum/users/user-role.enum";
 import { AuditActionType } from "@/frontend/graphql/generated/gql/graphql";
 import { withPageAuth } from "@/frontend/lib/auth/withPageAuth";
-import { type AdminAuditTrailFiltersSubmitInput, AuditTrailView } from "@/frontend/views/admin/audit/AuditTrailView";
+import { type AuditTrailFiltersSeed, AuditTrailView } from "@/frontend/views/admin/audit/AuditTrailView";
 import { parseIdInput, parseUtcDayStart } from "@/frontend/views/admin/audit/audit-trail-filters";
 import { getTranslations } from "@/shared/locale/server";
 import { getLocaleFromCookie } from "@/shared/locale/server-cookies";
@@ -86,7 +86,7 @@ function sanitizeActionTypeParam(raw: string | undefined): AuditActionType | und
 function sanitizeDayRange(
   fromRaw: string | undefined,
   toRaw: string | undefined
-): Pick<AdminAuditTrailFiltersSubmitInput, "from" | "to"> {
+): Pick<AuditTrailFiltersSeed, "from" | "to"> {
   const from = fromRaw !== undefined && parseUtcDayStart(fromRaw) !== null ? fromRaw : undefined;
   const to = toRaw !== undefined && parseUtcDayStart(toRaw) !== null ? toRaw : undefined;
   if (from !== undefined && to !== undefined && from > to) return {};
@@ -97,9 +97,9 @@ function sanitizeDayRange(
  * Sanitizes the deep-link filter seed. Returns undefined when no filter
  * value survives, which renders the unfiltered first page.
  */
-function sanitizeInitialFilters(params: AuditTrailPageSearchParams): AdminAuditTrailFiltersSubmitInput | undefined {
+function sanitizeInitialFilters(params: AuditTrailPageSearchParams): AuditTrailFiltersSeed | undefined {
   const range = sanitizeDayRange(firstValueOf(params, "from"), firstValueOf(params, "to"));
-  const initialFilters: AdminAuditTrailFiltersSubmitInput = {
+  const initialFilters: AuditTrailFiltersSeed = {
     actionType: sanitizeActionTypeParam(firstValueOf(params, "actionType")),
     actorId: sanitizeIdParam(firstValueOf(params, "actorId")),
     entityId: sanitizeIdParam(firstValueOf(params, "entityId")),

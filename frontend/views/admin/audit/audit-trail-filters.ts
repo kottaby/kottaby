@@ -4,13 +4,13 @@
  * Owns the boundary between the three filter representations the view
  * juggles:
  *
- *  1. `AdminAuditTrailFiltersSubmitInput` — the deep-link/draft shape the
+ *  1. `AuditTrailFiltersSeed` — the deep-link/draft shape the
  *     server route passes in (already sanitized) and the filter bar submits:
  *     calendar-day `YYYY-MM-DD` strings and optional numeric ids;
  *  2. `FilterDrafts` — the controlled draft inputs of the filter bar;
  *  3. `AppliedAuditTrailFilters` — the applied record the query variables
- *     are built from. Dates are parsed to UTC-day boundaries client-side
- *     (D11): `from` maps to UTC midnight (inclusive) and `to` expands to the
+ *     are built from. Dates are parsed to UTC-day boundaries client-side:
+ *     `from` maps to UTC midnight (inclusive) and `to` expands to the
  *     EXCLUSIVE midnight AFTER the selected calendar day, so an inclusive
  *     calendar-day range rides the wire as a half-open instant interval.
  *     Malformed drafts normalize to "unfiltered" instead of erroring.
@@ -35,7 +35,7 @@ import type { AdminUsersLabels } from "@/shared/locale/types/adminUsers";
  * side). Dates are calendar-day strings (`YYYY-MM-DD`, the native date-input
  * wire format); the view constructs the UTC-day boundaries client-side.
  */
-export interface AdminAuditTrailFiltersSubmitInput {
+export interface AuditTrailFiltersSeed {
   /** Filter on the recorded action type (an exact generated-enum value). */
   readonly actionType?: AuditActionType;
   /** Acting-admin id filter (already a number, or dropped upstream). */
@@ -152,7 +152,7 @@ function sanitizeDateDraft(value: string): string {
 }
 
 /** Seeds the bar's draft state from the sanitized deep-link values. */
-export function draftsFromSubmitInput(initialFilters: AdminAuditTrailFiltersSubmitInput | undefined): FilterDrafts {
+export function draftsFromSubmitInput(initialFilters: AuditTrailFiltersSeed | undefined): FilterDrafts {
   if (initialFilters === undefined) {
     return { actionType: "", actorId: "", entityType: "", entityId: "", from: "", to: "" };
   }
@@ -167,7 +167,7 @@ export function draftsFromSubmitInput(initialFilters: AdminAuditTrailFiltersSubm
 }
 
 export function appliedFiltersFromSubmitInput(
-  initialFilters: AdminAuditTrailFiltersSubmitInput | undefined
+  initialFilters: AuditTrailFiltersSeed | undefined
 ): AppliedAuditTrailFilters {
   if (initialFilters === undefined) return NO_FILTERS;
   return {
@@ -180,14 +180,31 @@ export function appliedFiltersFromSubmitInput(
   };
 }
 
+/** Lowest accepted id-filter value — ids are 1-based positive safe integers. */
+const MIN_ID = 1;
+
+/**
+ * Normalizes the interactive drafts into the applied record. Malformed
+ * drafts normalize to "unfiltered" instead of erroring: a typed `0` id is
+ * treated as cleared (ids are 1-based — the same bound the route's
+ * deep-link sanitizer enforces), an unparseable calendar day narrows to a
+ * one-sided window, and an inverted calendar-day pair (start AFTER end)
+ * clears BOTH bounds — the route's own deep-link posture — because such a
+ * pair could only produce an empty query window the service would reject.
+ */
 export function appliedFiltersFromDrafts(drafts: FilterDrafts): AppliedAuditTrailFilters {
+  const actorId = parseIdInput(drafts.actorId);
+  const entityId = parseIdInput(drafts.entityId);
+  const fromDay = drafts.from === "" ? null : parseUtcDayStart(drafts.from);
+  const toDay = drafts.to === "" ? null : parseUtcDayStart(drafts.to);
+  const inverted = fromDay !== null && toDay !== null && fromDay.getTime() > toDay.getTime();
   return {
     actionType: drafts.actionType === "" ? null : drafts.actionType,
-    actorId: parseIdInput(drafts.actorId),
+    actorId: actorId !== null && actorId >= MIN_ID ? actorId : null,
     entityType: drafts.entityType.trim() || null,
-    entityId: parseIdInput(drafts.entityId),
-    from: drafts.from === "" ? null : parseUtcDayStart(drafts.from),
-    to: drafts.to === "" ? null : parseUtcDayEndExclusive(drafts.to),
+    entityId: entityId !== null && entityId >= MIN_ID ? entityId : null,
+    from: inverted ? null : fromDay,
+    to: inverted || toDay === null ? null : parseUtcDayEndExclusive(drafts.to),
   };
 }
 

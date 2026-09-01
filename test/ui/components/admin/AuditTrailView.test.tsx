@@ -14,8 +14,9 @@
  *   query carries the applied filters; stale rows leave) · null
  *   entityId/details em-dash placeholders · details expand/collapse
  *   verbatim · deep-link initialFilters seeding incl. invalid-value
- *   dropping · UTC day-boundary serialization on the wire · pagination
- *   advance + reset-on-apply · Arabic RTL render.
+ *   dropping · draft normalization (a zero id / inverted range applies
+ *   as cleared, never an error) · UTC day-boundary serialization on the
+ *   wire · pagination advance + reset-on-apply · Arabic RTL render.
  *
  * The UTC boundary pins assert the WIRE variables: a `from` calendar day
  * serializes to its own midnight (`…T00:00:00.000Z`, inclusive) and a `to`
@@ -75,7 +76,7 @@ import {
   AuditActionType,
 } from "@/frontend/graphql/generated/gql/graphql";
 import { adminAuditLogsQueryDocument } from "@/frontend/graphql/sharedDocuments";
-import { type AdminAuditTrailFiltersSubmitInput, AuditTrailView } from "@/frontend/views/admin/audit/AuditTrailView";
+import { type AuditTrailFiltersSeed, AuditTrailView } from "@/frontend/views/admin/audit/AuditTrailView";
 import type { AppLocale } from "@/shared/locale/AppLocale";
 import { arMessages } from "@/shared/locale/ar/messages";
 import { enMessages } from "@/shared/locale/en/messages";
@@ -194,7 +195,7 @@ const tear = Errors.getLabels(getTranslations("ar"));
 
 function renderTrail(
   mocks: ReadonlyArray<MockLink.MockedResponse>,
-  initialFilters?: AdminAuditTrailFiltersSubmitInput
+  initialFilters?: AuditTrailFiltersSeed
 ): RenderResult {
   return renderWithWrapper(
     <MockedProvider mocks={[...mocks]}>
@@ -377,12 +378,71 @@ describe("AuditTrailView (en / LTR)", () => {
     });
   });
 
+  test("a zero actor-id draft applies as cleared — the wire carries no actorId and no error renders", async () => {
+    renderTrail(
+      [
+        trailMock({ filters: wireFilters({ actorId: 9 }), page: 1, pageSize: 10 }, auditPage([ROW_FILTERED], 1)),
+        trailMock(UNFILTERED_PAGE_ONE, auditPage([ROW_A, ROW_B], 2)),
+      ],
+      { actorId: 9 }
+    );
+
+    await waitFor(() => expect(screen.getByText(ROW_FILTERED.actorName)).toBeDefined());
+
+    // Ids are 1-based: typing `0` applies as a CLEARED filter (the same
+    // bound the route's deep-link sanitizer enforces), so the unfiltered
+    // window re-queries — a server-rejected `actorId: 0` never rides the
+    // wire and no error seam renders.
+    fireEvent.change(screen.getByLabelText(t.auditTrail.filters.actorIdLabel), { target: { value: "0" } });
+    fireEvent.click(screen.getByRole("button", { name: t.auditTrail.filters.applyAction }));
+
+    await waitFor(() => {
+      expect(screen.getByText(ROW_A.actorName)).toBeDefined();
+      expect(screen.getByText(ROW_B.actorName)).toBeDefined();
+      expect(screen.queryByText(ROW_FILTERED.actorName)).toBeNull();
+    });
+    expect(screen.queryByText(t.auditTrail.errorState.title)).toBeNull();
+    expect(screen.queryByText(t.auditTrail.errorState.message)).toBeNull();
+  });
+
+  test("an inverted from/to draft clears the pair — the wire carries neither bound and no error renders", async () => {
+    renderTrail(
+      [
+        trailMock(
+          {
+            filters: wireFilters({ entityType: "user", from: "2026-02-03T00:00:00.000Z" }),
+            page: 1,
+            pageSize: 10,
+          },
+          auditPage([ROW_A], 1)
+        ),
+        trailMock({ filters: wireFilters({ entityType: "user" }), page: 1, pageSize: 10 }, auditPage([ROW_B], 1)),
+      ],
+      { entityType: "user", from: "2026-02-03" }
+    );
+
+    await waitFor(() => expect(screen.getByText(ROW_A.actorName)).toBeDefined());
+
+    // Typing an earlier `to` inverts the range: the whole pair clears (the
+    // route's own deep-link posture for inverted ranges) while the surviving
+    // entity-type filter stays — the degenerate window never reaches the
+    // wire and no error seam renders.
+    fireEvent.change(screen.getByLabelText(t.auditTrail.filters.toDateLabel), { target: { value: "2026-02-01" } });
+    fireEvent.click(screen.getByRole("button", { name: t.auditTrail.filters.applyAction }));
+
+    await waitFor(() => {
+      expect(screen.getByText(ROW_B.actorName)).toBeDefined();
+      expect(screen.queryByText(ROW_A.actorName)).toBeNull();
+    });
+    expect(screen.queryByText(t.auditTrail.errorState.title)).toBeNull();
+    expect(screen.queryByText(t.auditTrail.errorState.message)).toBeNull();
+  });
   test("null details and null entityId render the namespace em-dash placeholders", async () => {
     renderTrail([trailMock(UNFILTERED_PAGE_ONE, auditPage([ROW_FILTERED], 1))]);
 
     await waitFor(() => expect(screen.getByText(ROW_FILTERED.actorName)).toBeDefined());
 
-    // §5.6 pins BOTH placeholders to the SAME locale-neutral em-dash glyph,
+    // The namespace pins BOTH placeholders to the SAME locale-neutral em-dash glyph,
     // so the single fixture row's two null cells resolve as exactly two
     // matching text nodes.
     expect(screen.getAllByText(t.auditTrail.table.noEntityIdValue)).toHaveLength(2);

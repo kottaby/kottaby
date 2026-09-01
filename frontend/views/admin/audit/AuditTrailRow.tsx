@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * One trail row of the raw-MUI `Table` (D10): locale-aware `createdAt`
+ * One trail row of the raw-MUI `Table`: locale-aware `createdAt`
  * stamp, actor, the reused `activity.action*` chip, entity columns and the
  * per-row expandable `details` block — rendered VERBATIM inside a
  * `dir="auto"` pre-formatted element (mixed-direction JSON blobs), with the

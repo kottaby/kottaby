@@ -822,14 +822,20 @@ describeGraphqlSuite("audit-trail wire matrix (adminAuditLogs over the live HTTP
 
       // userId smuggled at the ROOT selection args…
       const smuggledRoot = await postDocument("{ adminAuditLogs(userId: 12345) { totalCount } }", admin.accessToken);
-      expectDenialCode(smuggledRoot, "GRAPHQL_VALIDATION_FAILED", "absent");
+      const rootItem = expectDenialCode(smuggledRoot, "GRAPHQL_VALIDATION_FAILED", "absent");
+      // The rejection must NAME the smuggled member: a schema-absent server
+      // (a whole-type "unknown type" answer) dies with this same code, so
+      // the message text is the discriminator that keeps the probe from
+      // false-passing under schema drift.
+      expect(errorMessageOf(rootItem)).toMatch(/userId/);
 
       // …and inside the filters input…
       const smuggledFilter = await postDocument(
         "{ adminAuditLogs(filters: { userId: 12345 }) { totalCount } }",
         admin.accessToken
       );
-      expectDenialCode(smuggledFilter, "GRAPHQL_VALIDATION_FAILED", "absent");
+      const filterItem = expectDenialCode(smuggledFilter, "GRAPHQL_VALIDATION_FAILED", "absent");
+      expect(errorMessageOf(filterItem)).toMatch(/userId/);
 
       // …a forged enum literal for the action filter…
       const forgedEnum = await postDocument(

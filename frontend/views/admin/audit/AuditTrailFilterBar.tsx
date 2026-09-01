@@ -14,7 +14,7 @@ import { type ReactNode, useState } from "react";
 import type { AuditActionType } from "@/frontend/graphql/generated/gql/graphql";
 import { AuditTrailFilterFields } from "@/frontend/views/admin/audit/AuditTrailFilterFields";
 import {
-  type AdminAuditTrailFiltersSubmitInput,
+  type AuditTrailFiltersSeed,
   type AppliedAuditTrailFilters,
   appliedFiltersFromDrafts,
   draftsFromSubmitInput,
@@ -33,7 +33,7 @@ const EMPTY_DRAFTS: FilterDrafts = {
 
 interface AuditTrailFilterBarProps {
   /** Sanitized deep-link seed — pre-fills the drafts on first mount. */
-  readonly initialFilters: AdminAuditTrailFiltersSubmitInput | undefined;
+  readonly initialFilters: AuditTrailFiltersSeed | undefined;
   readonly labels: AdminUsersLabels["auditTrail"]["filters"];
   readonly allActionsOption: string;
   readonly actionLabels: Record<AuditActionType, string>;

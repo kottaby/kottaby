@@ -22,6 +22,20 @@ import type { AdminUsersLabels } from "@/shared/locale/types/adminUsers";
 const TABLE_MIN_WIDTH_PX = 860;
 const PAGE_SIZE_OPTIONS = [10, 25, 50] as const;
 
+/**
+ * ≥44px touch targets for the pagination footer's interactive controls —
+ * the same minimum every hand-authored control of the view pins.
+ */
+const PAGINATION_TOUCH_TARGET_SX = {
+  "& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows": {
+    display: "flex",
+    alignItems: "center",
+    minHeight: 44,
+  },
+  "& .MuiTablePagination-select": { minHeight: 44 },
+  "& .MuiIconButton-root": { minHeight: 44, minWidth: 44 },
+} as const;
+
 interface AuditTrailResultsProps {
   readonly labels: AdminUsersLabels["auditTrail"];
   readonly paginationLabels: AdminUsersLabels["pagination"];
@@ -76,6 +90,7 @@ export function AuditTrailResults(props: Readonly<AuditTrailResultsProps>): Reac
       {props.totalCount > 0 ? (
         <TablePagination
           component="div"
+          sx={PAGINATION_TOUCH_TARGET_SX}
           count={props.totalCount}
           page={props.resolvedPage - 1}
           rowsPerPage={props.resolvedPageSize}
