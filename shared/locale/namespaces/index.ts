@@ -7,6 +7,7 @@ import { Errors } from "@/shared/locale/namespaces/errors";
 import { HandshakeCode } from "@/shared/locale/namespaces/handshakeCode";
 import { Landing } from "@/shared/locale/namespaces/landing";
 import { Notifications } from "@/shared/locale/namespaces/notifications";
+import { ParentLink } from "@/shared/locale/namespaces/parentLink";
 import { Plans } from "@/shared/locale/namespaces/plans";
 import { Recitation } from "@/shared/locale/namespaces/recitation";
 
@@ -20,6 +21,7 @@ export * from "./errors";
 export * from "./handshakeCode";
 export * from "./landing";
 export * from "./notifications";
+export * from "./parentLink";
 export * from "./plans";
 export * from "./recitation";
 export * from "./translation";
@@ -34,6 +36,7 @@ export const namespaces = {
   HandshakeCode,
   Landing,
   Notifications,
+  ParentLink,
   Plans,
   Recitation,
 } as const;

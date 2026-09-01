@@ -78,7 +78,7 @@ Verify each anchor is REAL in the bundled tree (locate it; cite line). ANY miss 
 
 ## Phase 1: Types, Enums & Database Schema
 
-### 1.1 [ ] i18n increments — errors flat keys, notification copy slots, dashboard nav label, NEW `parentLink` namespace (full registration)
+### 1.1 [x] i18n increments — errors flat keys, notification copy slots, dashboard nav label, NEW `parentLink` namespace (full registration)
 **REQ:** REQ-002, REQ-051, REQ-052, REQ-066, REQ-075 · `shared/AGENTS.md` checklist is the registration reference
 
 - **Errors namespace (FLAT, camelCase-mirroring codes — precedent `handshakeCodeInvalid` at `shared/locale/en/errors/index.ts:49`):**
@@ -97,17 +97,17 @@ Verify each anchor is REAL in the bundled tree (locate it; cite line). ANY miss 
   - UPDATE `shared/locale/types/message.ts` (`Translations` interface at `:13-25` gains `parentLinkTranslations: ParentLinkLabels`) + BOTH `shared/locale/en/messages.ts` and `shared/locale/ar/messages.ts` bundles
   - CREATE `shared/locale/parentLink-namespace.parity.test.ts` mirroring `notifications-namespace.parity.test.ts` (key-set identity, non-empty, Arabic-script pins, function-slot parity, registry/bundle pins)
 - **Files must NEVER import `@/backend/**`, `@/frontend/**`, `@/app/**` (layer isolation, hard rule).**
-- [ ] 1.1.QL **Quality Loop:** for EACH of the above paths: `bun run scripts/health/sub-loop.ts <path> --lifecycle duplicates` (exit 0)
-- [ ] 1.1.TE **Test Engineering:**
+- [x] 1.1.QL **Quality Loop:** for EACH of the above paths: `bun run scripts/health/sub-loop.ts <path> --lifecycle duplicates` (exit 0)
+- [x] 1.1.TE **Test Engineering:**
   - Run `bun run test/scripts/run-test.ts shared/locale/notifications-namespace.parity.test.ts` — GREEN with 32 keys + 7 function slots
   - Run `bun run test/scripts/run-test.ts shared/locale/parentLink-namespace.parity.test.ts` — GREEN
   - Run `bun run test/scripts/run-test.ts shared/locale/errors-namespace.parity.test.ts` — unchanged shape, GREEN
   - Run `bun run test/scripts/run-test.ts frontend/views/dashboard/nav/navItems.test.ts` — still green (no route added yet — see task 4.4; this task only adds the LABEL; matrix ownership stays valid)
-- [ ] 1.1.SEC **Security & Tenancy Audit:** no user input reaches these slots unsanitized (copy functions receive already-assembled names only); zero secrets/PII in labels.
-- [ ] 1.1.SR **Semantic Review:** FLAT-key discipline kept; no `Translation` enum invented; no `next-intl` import; all copy slots used by specs §2.5/§5 are present (spec-traceable).
-- [ ] 1.1.IV **Instruction Verification:** validate against `shared/AGENTS.md` checklist + `.agents/instructions/backend.instructions.md` (locale discipline lives in backend instructions).
+- [x] 1.1.SEC **Security & Tenancy Audit:** no user input reaches these slots unsanitized (copy functions receive already-assembled names only); zero secrets/PII in labels.
+- [x] 1.1.SR **Semantic Review:** FLAT-key discipline kept; no `Translation` enum invented; no `next-intl` import; all copy slots used by specs §2.5/§5 are present (spec-traceable).
+- [x] 1.1.IV **Instruction Verification:** validate against `shared/AGENTS.md` checklist + `.agents/instructions/backend.instructions.md` (locale discipline lives in backend instructions).
 
-### 1.2 [ ] NEW table `parent_link_requests` + parents barrel + delivery via `bun run db push` (+ ledger decision on Drizzle expressibility)
+### 1.2 [x] NEW table `parent_link_requests` + parents barrel + delivery via `bun run db push` (+ ledger decision on Drizzle expressibility)
 **REQ:** REQ-010, REQ-045, REQ-046 · plan D4
 
 - CREATE `backend/db/schema/parents/parent-link-requests.ts` EXACTLY per plan §2.2:
@@ -117,17 +117,17 @@ Verify each anchor is REAL in the bundled tree (locate it; cite line). ANY miss 
   - Indexes: `(parent_id)`, `(student_id)`, PARTIAL UNIQUE `(parent_id, student_id) WHERE status='pending'`
 - UPDATE `backend/db/schema/parents/index.ts` — ONE line: `export * from "./parent-link-requests";`
 - Delivery:
-  - FIRST attempt: Drizzle-native partial unique (`unique(...).on(...).where(sql`${t.status} = 'pending'`)`) — verify it compiles
-  - Run `bun run db push` per `docs/DATABASE_MIGRATIONS.md`
+  - FIRST attempt: Drizzle-native partial unique (`unique(...).on(...).where(sql`${t.status} = 'pending'`)`) — verify it compiles *(VERIFIED — the `unique(...)` constraint-builder has NO `.where()` in bundled drizzle-orm 1.0.0-rc.4 and crashes push; RESOLVED NATIVE via `uniqueIndex(...).on(...).where(...)` — zero custom SQL; ledger D4 ✅; `outcome/1.2-schema-outcome.md` §3)*
+  - Run `bun run db push` per `docs/DATABASE_MIGRATIONS.md` *(executed via `DATABASE_URL=… bunx drizzle-kit push --force --config=drizzle.config.ts` to BOTH app_db + app_db_test — package.json's `db:push` is `.env.sqlite`-wired in this sandbox and the injected process-env `DATABASE_URL` overrides `.env`; see `outcome/1.2-schema-outcome.md` §4)*
   - IF the partial-unique `.where()` proves unexpressible in the bundled Drizzle version ⇒ fallback = ONE ADDITIVE custom SQL file under `backend/db/migration/` + new drizzle folder; RECORD the choice + reason in the ledger (D4) and in `outcome/1.2-outcome.md`
 - VERIFY drift gate: `git diff backend/db/schema/**` shows EXACTLY the new table file + the one-line barrel edit — `enums.ts`/`students.ts`/`users.ts` untouched
-- [ ] 1.2.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts backend/db/schema/parents/parent-link-requests.ts --lifecycle duplicates` AND `bun run scripts/health/sub-loop.ts backend/db/schema/parents/index.ts --lifecycle duplicates` (exit 0)
-- [ ] 1.2.TE **Test Engineering:** schema smoke test — assert table + 3 indexes + partial-unique WHERE predicate visible in `db push` dry-run / introspection output; assert table importable from barrel without circular-deps warnings (`bun tsgo` stays at baseline)
-- [ ] 1.2.SEC **Security & Tenancy Audit:** FKs are both RESTRICT (append-and-transition-only history rows); NO cascade semantics were added; the partial unique is the duplicate-pending final arbiter (D4)
-- [ ] 1.2.SR **Semantic Review:** zero enum inventory edits; zero edits to `enums.ts`/`students.ts`/`users.ts`; the table file is ADDITIVE-ONLY
-- [ ] 1.2.IV **Instruction Verification:** validate against `docs/DATABASE_MIGRATIONS.md` + `.agents/instructions/backend.instructions.md`
+- [x] 1.2.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts backend/db/schema/parents/parent-link-requests.ts --lifecycle duplicates` AND `bun run scripts/health/sub-loop.ts backend/db/schema/parents/index.ts --lifecycle duplicates` (exit 0)
+- [x] 1.2.TE **Test Engineering:** schema smoke test — assert table + 3 indexes + partial-unique WHERE predicate visible in `db push` dry-run / introspection output; assert table importable from barrel without circular-deps warnings (`bun tsgo` stays at baseline)
+- [x] 1.2.SEC **Security & Tenancy Audit:** FKs are both RESTRICT (append-and-transition-only history rows); NO cascade semantics were added; the partial unique is the duplicate-pending final arbiter (D4)
+- [x] 1.2.SR **Semantic Review:** zero enum inventory edits; zero edits to `enums.ts`/`students.ts`/`users.ts`; the table file is ADDITIVE-ONLY
+- [x] 1.2.IV **Instruction Verification:** validate against `docs/DATABASE_MIGRATIONS.md` + `.agents/instructions/backend.instructions.md`
 
-### 1.3 [ ] Shared constant + enum guard (additive, zero behavior change elsewhere)
+### 1.3 [x] Shared constant + enum guard (additive, zero behavior change elsewhere)
 **REQ:** REQ-003, REQ-015, REQ-044 · plan §2.4/§2.5
 
 - CREATE `shared/constants/parent-link-request.constants.ts`:
@@ -142,13 +142,13 @@ Verify each anchor is REAL in the bundled tree (locate it; cite line). ANY miss 
     return typeof value === "string" && (Object.values(LinkStatus) as string[]).includes(value);
   }
   ```
-- [ ] 1.3.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts shared/constants/parent-link-request.constants.ts --lifecycle duplicates` AND `bun run scripts/health/sub-loop.ts backend/enum/shared/link-status.enum.ts --lifecycle duplicates` (exit 0)
-- [ ] 1.3.TE **Test Engineering:** compact sibling guard test `backend/enum/shared/link-status.enum.test.ts` mirroring `applicant-status.enum.test.ts` — accepts all four enum members, rejects `"Pending"` case-flipped/whitespace/empty/number/object/null/undefined; boundary fuzz. Run `bun run test/scripts/run-test.ts backend/enum/shared/link-status.enum.test.ts`
-- [ ] 1.3.SEC **Security & Tenancy Audit:** guard is pure — no I/O, no global state; fail-closed by construction
-- [ ] 1.3.SR **Semantic Review:** enum imported as VALUE; shared/constants carries zero backend imports; TTL semantics match strict-`>` predicate design (REQ-015)
-- [ ] 1.3.IV **Instruction Verification:** `.agents/instructions/backend.instructions.md`
+- [x] 1.3.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts shared/constants/parent-link-request.constants.ts --lifecycle duplicates` AND `bun run scripts/health/sub-loop.ts backend/enum/shared/link-status.enum.ts --lifecycle duplicates` (exit 0)
+- [x] 1.3.TE **Test Engineering:** compact sibling guard test `backend/enum/shared/link-status.enum.test.ts` mirroring `applicant-status.enum.test.ts` — accepts all four enum members, rejects `"Pending"` case-flipped/whitespace/empty/number/object/null/undefined; boundary fuzz. Run `bun run test/scripts/run-test.ts backend/enum/shared/link-status.enum.test.ts`
+- [x] 1.3.SEC **Security & Tenancy Audit:** guard is pure — no I/O, no global state; fail-closed by construction
+- [x] 1.3.SR **Semantic Review:** enum imported as VALUE; shared/constants carries zero backend imports; TTL semantics match strict-`>` predicate design (REQ-015)
+- [x] 1.3.IV **Instruction Verification:** `.agents/instructions/backend.instructions.md`
 
-### 1.4 [ ] Canonical types — link-request types + students link-target row + barrels
+### 1.4 [x] Canonical types — link-request types + students link-target row + barrels
 **REQ:** REQ-003 · plan §2.3
 
 - CREATE `backend/types/parents/parent-link-request.types.ts`:
@@ -159,11 +159,11 @@ Verify each anchor is REAL in the bundled tree (locate it; cite line). ANY miss 
 - UPDATE `backend/types/parents/index.ts` — `export * from "./parent-link-request.types";` (prefix shape at `backend/types/parents/index.ts:1`)
 - UPDATE `backend/types/students/student.types.ts` — ADD `StudentLinkTargetRowType { studentId, parentId: number|null, fullName, isDeleted, isBlocked, suspended, suspendedAt, suspendedPeriodDays }` (server-internal — NEVER a GraphQL payload)
 - NO service-layer `.types.ts` files appear anywhere (hard rule)
-- [ ] 1.4.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts backend/types/parents/parent-link-request.types.ts --lifecycle duplicates` AND `bun run scripts/health/sub-loop.ts backend/types/parents/index.ts --lifecycle duplicates` AND `bun run scripts/health/sub-loop.ts backend/types/students/student.types.ts --lifecycle duplicates` (exit 0)
-- [ ] 1.4.TE **Test Engineering:** `bun tsgo` re-run — error count == 0.1 baseline (no new errors)
-- [ ] 1.4.SEC **Security & Tenancy Audit:** types carry ONLY the fields the GraphQL surface promises (BOPLA at the return-type boundary); `StudentLinkTargetRowType` carries governance columns needed for REQ-031-style reads but is never serialized over the wire
-- [ ] 1.4.SR **Semantic Review:** no local resolver types planned; all types centralized; readonly discipline on return types
-- [ ] 1.4.IV **Instruction Verification:** `.agents/instructions/backend.instructions.md`
+- [x] 1.4.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts backend/types/parents/parent-link-request.types.ts --lifecycle duplicates` AND `bun run scripts/health/sub-loop.ts backend/types/parents/index.ts --lifecycle duplicates` AND `bun run scripts/health/sub-loop.ts backend/types/students/student.types.ts --lifecycle duplicates` (exit 0)
+- [x] 1.4.TE **Test Engineering:** `bun tsgo` re-run — error count == 0.1 baseline (no new errors)
+- [x] 1.4.SEC **Security & Tenancy Audit:** types carry ONLY the fields the GraphQL surface promises (BOPLA at the return-type boundary); `StudentLinkTargetRowType` carries governance columns needed for REQ-031-style reads but is never serialized over the wire
+- [x] 1.4.SR **Semantic Review:** no local resolver types planned; all types centralized; readonly discipline on return types
+- [x] 1.4.IV **Instruction Verification:** `.agents/instructions/backend.instructions.md`
 
 ---
 

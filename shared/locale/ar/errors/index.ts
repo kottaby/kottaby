@@ -49,4 +49,9 @@ export const errorsAr: ErrorsLabels = {
   handshakeCodeInvalid: "تبدو رموز الربط بالصيغة KSB-XXXXXXXX وتتكون من 8 أحرف سداسية عشرية.",
   studentHandshakeNotFound: "لم يتم العثور على سجل الطالب.",
   trialAlreadyGranted: "تم منح رصيد الجلسة التجريبية لهذا الطالب مسبقًا.",
+  parentLinkTargetAlreadyLinked: "هذا الطالب مرتبط بالفعل بحساب أحد الوالدين.",
+  parentLinkAlreadyPending: "لديك طلب ربط قيد الانتظار لهذا الطالب بالفعل.",
+  parentLinkRequestExpired: "انتهت صلاحية طلب الربط هذا.",
+  parentLinkRequestAlreadyResolved: "تمت معالجة طلب الربط هذا بالفعل.",
+  parentLinkRequestNotFound: "لم يتم العثور على طلب الربط.",
 };

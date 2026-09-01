@@ -97,6 +97,16 @@ export interface ErrorsLabels {
   readonly studentHandshakeNotFound: string;
   /** "The free trial credit has already been granted for this student." — re-grant attempt on a student whose trial_granted_at marker is non-null. */
   readonly trialAlreadyGranted: string;
+  /** "This student is already linked to a parent account." — link-request deny when the target student already has a linked parent. */
+  readonly parentLinkTargetAlreadyLinked: string;
+  /** "A link request to this student is already pending." — duplicate-pending deny while a previous request is still awaiting a response. */
+  readonly parentLinkAlreadyPending: string;
+  /** "This link request has expired." — respond/cancel deny once the request is past its expiry moment. */
+  readonly parentLinkRequestExpired: string;
+  /** "This link request has already been handled." — transition deny when the request was already confirmed or rejected. */
+  readonly parentLinkRequestAlreadyResolved: string;
+  /** "The link request was not found." — self-scope link-request lookup miss → NotFoundError("PARENT_LINK_REQUEST"). */
+  readonly parentLinkRequestNotFound: string;
 }
 
 export type ErrorMessageKey = {

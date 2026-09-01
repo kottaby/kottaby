@@ -39,4 +39,10 @@ export const notificationsAr: NotificationsLabels = {
   realtimeToast: (typeLabel: string, notificationTitle: string) => `إشعار جديد — ${typeLabel}: ${notificationTitle}`,
   reconnecting: "جارٍ إعادة الاتصال…",
   reconnectedQuietly: "تم استعادة الإشعارات الفورية",
+  eventParentLinkRequestTitle: "طلب ربط جديد",
+  eventParentLinkRequestBody: (parentName: string) => `${parentName} أرسل إليك طلب ربط.`,
+  eventParentLinkAcceptedTitle: "تم تأكيد طلب الربط",
+  eventParentLinkAcceptedBody: (studentName: string) => `أكّد ${studentName} طلب ربطك.`,
+  eventParentLinkRejectedTitle: "تم رفض طلب الربط",
+  eventParentLinkRejectedBody: (studentName: string) => `رفض ${studentName} طلب ربطك.`,
 };

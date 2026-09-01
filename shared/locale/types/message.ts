@@ -7,6 +7,7 @@ import type { ErrorsLabels } from "@/shared/locale/types/errors";
 import type { HandshakeCodeLabels } from "@/shared/locale/types/handshakeCode";
 import type { LandingLabels } from "@/shared/locale/types/landing";
 import type { NotificationsLabels } from "@/shared/locale/types/notifications";
+import type { ParentLinkLabels } from "@/shared/locale/types/parentLink";
 import type { PlansLabels } from "@/shared/locale/types/plans";
 import type { RecitationLabels } from "@/shared/locale/types/recitation";
 
@@ -22,4 +23,5 @@ export interface Translations {
   adminUsersTranslations: AdminUsersLabels;
   notificationsTranslations: NotificationsLabels;
   handshakeCodeTranslations: HandshakeCodeLabels;
+  parentLinkTranslations: ParentLinkLabels;
 }
