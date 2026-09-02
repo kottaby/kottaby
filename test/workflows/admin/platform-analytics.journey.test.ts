@@ -49,22 +49,36 @@
 
 import { afterAll, beforeAll, describe, expect, spyOn, test } from "bun:test";
 import { randomUUID } from "node:crypto";
-import { and, eq, gt, inArray, sql } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
+import { and, eq, gt, inArray, sql } from "drizzle-orm";
 import type { PgTable } from "drizzle-orm/pg-core";
 import { db } from "@/backend/db";
 import { AdminUserRepository } from "@/backend/db/repo";
+import { utcDayStart } from "@/backend/db/repo/admin/platform-analytics.repository";
 import { auditLogs } from "@/backend/db/schema/audit/audit-logs";
-import { notifications } from "@/backend/db/schema/notifications/notifications";
-import { reports } from "@/backend/db/schema/classes/reports";
-import { session } from "@/backend/db/schema/classes/session";
 import { plans } from "@/backend/db/schema/billing/plans";
 import { studentPayments } from "@/backend/db/schema/billing/student-payments";
 import { subscriptions } from "@/backend/db/schema/billing/subscriptions";
 import { teacherTransaction } from "@/backend/db/schema/billing/teacher-transaction";
+import { reports } from "@/backend/db/schema/classes/reports";
+import { session } from "@/backend/db/schema/classes/session";
+import { notifications } from "@/backend/db/schema/notifications/notifications";
 import { evaluations } from "@/backend/db/schema/teachers/evaluations";
 import { teacher } from "@/backend/db/schema/teachers/teacher";
 import { users } from "@/backend/db/schema/users/users";
+import {
+  createTestAdmin,
+  createTestEvaluation,
+  createTestPlan,
+  createTestSession,
+  createTestSessionReport,
+  createTestStudentPayment,
+  createTestSubscription,
+  createTestTeacherRow,
+  createTestTeacherTransaction,
+  createTestUser,
+  createTestWallet,
+} from "@/backend/db/test/entity-setup";
 import {
   PaymentGateway,
   PaymentStatus,
@@ -75,21 +89,7 @@ import {
 import { SessionStatus } from "@/backend/enum/scheduling";
 import { ForbiddenError, UnauthorizedError } from "@/backend/lib/errors";
 import { logger } from "@/backend/lib/logger";
-import {
-  createTestEvaluation,
-  createTestPlan,
-  createTestSession,
-  createTestSessionReport,
-  createTestStudentPayment,
-  createTestSubscription,
-  createTestTeacherRow,
-  createTestTeacherTransaction,
-  createTestUser,
-  createTestAdmin,
-  createTestWallet,
-} from "@/backend/db/test/entity-setup";
 import { PlatformAnalyticsService } from "@/backend/services/admin";
-import { utcDayStart } from "@/backend/db/repo/admin/platform-analytics.repository";
 import type { DBTransaction, PlatformAnalyticsReturnType } from "@/backend/types";
 import { getServerTranslations } from "@/shared/locale/server-graphql";
 import {
@@ -187,10 +187,7 @@ async function oracleRecentlyActive(cutoff: Date): Promise<number> {
 
 /** Oracle: sessions in the UTC window starting at `from` (createdAt >=). */
 async function oracleSessionsSince(from: Date): Promise<number> {
-  const rows = await db
-    .select({ count: sql<number>`count(*)::int` })
-    .from(session)
-    .where(gt(session.createdAt, from));
+  const rows = await db.select({ count: sql<number>`count(*)::int` }).from(session).where(gt(session.createdAt, from));
   return rows[0]?.count ?? 0;
 }
 
@@ -253,10 +250,7 @@ async function oracleEvaluationScores(): Promise<{ sum: bigint; count: bigint }>
 /** Oracle: disputed sessions / pending withdrawals (health family). */
 async function oracleHealth(): Promise<{ disputes: number; withdrawals: number }> {
   const [disputeRows, withdrawalRows] = await Promise.all([
-    db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(session)
-      .where(eq(session.status, SessionStatus.Disputed)),
+    db.select({ count: sql<number>`count(*)::int` }).from(session).where(eq(session.status, SessionStatus.Disputed)),
     db
       .select({ count: sql<number>`count(*)::int` })
       .from(teacherTransaction)
@@ -305,7 +299,9 @@ function numericRound2(sum: bigint, count: bigint): number | null {
  * clears the recorded history. One service call per probe: the captured
  * log count and the error always belong to the SAME invocation.
  */
-async function probeDenial(fn: () => Promise<unknown>): Promise<{ error: Error | null; logs: Array<{ code: string; entity: string; entityId: number; locale: string }> }> {
+async function probeDenial(
+  fn: () => Promise<unknown>
+): Promise<{ error: Error | null; logs: Array<{ code: string; entity: string; entityId: number; locale: string }> }> {
   const spy = spyOn(logger, "logDomainError");
   let error: Error | null = null;
   try {
@@ -318,7 +314,9 @@ async function probeDenial(fn: () => Promise<unknown>): Promise<{ error: Error |
         error = new Error(`non-Error rejection: ${JSON.stringify(caught)}`);
       }
     }
-    const logs = spy.mock.calls.map(call => call[1] as { code: string; entity: string; entityId: number; locale: string });
+    const logs = spy.mock.calls.map(
+      call => call[1] as { code: string; entity: string; entityId: number; locale: string }
+    );
     return { error, logs };
   } finally {
     spy.mockRestore();
@@ -404,7 +402,9 @@ afterAll(async () => {
       sql`SELECT tgname, tgenabled FROM pg_trigger WHERE tgrelid = ${table}::regclass AND NOT tgisinternal`
     );
     await Promise.all(
-      discovered.rows.map(trigger => db.execute(sql`ALTER TABLE ${sql.identifier(table)} DISABLE TRIGGER ${sql.identifier(trigger.tgname)}`))
+      discovered.rows.map(trigger =>
+        db.execute(sql`ALTER TABLE ${sql.identifier(table)} DISABLE TRIGGER ${sql.identifier(trigger.tgname)}`)
+      )
     );
     try {
       return await fn();
@@ -491,7 +491,9 @@ describe("Journey A — cold platform honesty (baseline + 0)", () => {
 
     // Revenue: per-currency paid totals equal the oracle map exactly
     // (currencies never merge — one row per currency).
-    const readTotals = new Map(snapshot.revenue.gatewayRevenueByCurrency.map(row => [row.currency, centsOf(row.totalAmount)]));
+    const readTotals = new Map(
+      snapshot.revenue.gatewayRevenueByCurrency.map(row => [row.currency, centsOf(row.totalAmount)])
+    );
     expect(readTotals).toEqual(paidTotals);
     expect(snapshot.revenue.offlineActivationsCount).toBe(offline);
 
@@ -590,7 +592,13 @@ describe("Journey B — full cast observation (exact deltas)", () => {
       // subscriptions.paymentMethod, status-independent).
       const plan = await createTestPlan(tx, { price: "300.00", currency: "EGP" });
       ownedRows.planIds.push(plan.id);
-      const subscription = await createTestStudentSubscription(tx, studentActor.user.id, plan.id, now, PaymentGateway.OfflineCash);
+      const subscription = await createTestStudentSubscription(
+        tx,
+        studentActor.user.id,
+        plan.id,
+        now,
+        PaymentGateway.OfflineCash
+      );
       ownedRows.subscriptionIds.push(subscription.id);
 
       // Payments: paid EGP today + paid USD today (relative to `now`).
@@ -636,14 +644,22 @@ describe("Journey B — full cast observation (exact deltas)", () => {
         status: SessionStatus.Cancelled,
         createdAt: new Date(now.getTime() - 40 * ONE_DAY_MS),
       });
-      ownedRows.sessionIds.push(completedConfirmed.id, completedUnconfirmed.id, disputed.id, scheduled.id, cancelledBackdated.id);
+      ownedRows.sessionIds.push(
+        completedConfirmed.id,
+        completedUnconfirmed.id,
+        disputed.id,
+        scheduled.id,
+        cancelledBackdated.id
+      );
 
       // Ratings: one report rating on the completed session.
       const report = await createTestSessionReport(tx, completedConfirmed.id, { studentRatingByTeacher: 4 });
       ownedRows.reportIds.push(report.id);
 
       // Evaluations: one score on the student.
-      const evaluation = await createTestEvaluation(tx, studentActor.user.id, teacherOnlineActor.user.id, { score: 90 });
+      const evaluation = await createTestEvaluation(tx, studentActor.user.id, teacherOnlineActor.user.id, {
+        score: 90,
+      });
       ownedRows.evaluationIds.push(evaluation.id);
 
       // Health: a pending withdrawal against the online teacher's wallet.
@@ -680,8 +696,12 @@ describe("Journey B — full cast observation (exact deltas)", () => {
 
     // Revenue: EGP +100.00, USD +50.00; offline activations +1 (the
     // offline-cash subscription); per-currency rows never merge.
-    const beforeTotals = new Map(before.revenue.gatewayRevenueByCurrency.map(row => [row.currency, centsOf(row.totalAmount)]));
-    const afterTotals = new Map(after.revenue.gatewayRevenueByCurrency.map(row => [row.currency, centsOf(row.totalAmount)]));
+    const beforeTotals = new Map(
+      before.revenue.gatewayRevenueByCurrency.map(row => [row.currency, centsOf(row.totalAmount)])
+    );
+    const afterTotals = new Map(
+      after.revenue.gatewayRevenueByCurrency.map(row => [row.currency, centsOf(row.totalAmount)])
+    );
     expect((afterTotals.get("EGP") ?? 0n) - (beforeTotals.get("EGP") ?? 0n)).toBe(centsOf("100.00"));
     expect((afterTotals.get("USD") ?? 0n) - (beforeTotals.get("USD") ?? 0n)).toBe(centsOf("50.00"));
     expect(after.revenue.offlineActivationsCount).toBe(before.revenue.offlineActivationsCount + 1);
@@ -822,7 +842,9 @@ describe("Journey D — denial & purity matrix", () => {
 
   test("non-admin actors (student / certified teacher / parent) are FORBIDDEN before any aggregate read", async () => {
     for (const actor of [bundle.cast.student, bundle.cast.certifiedTeacher, bundle.cast.parent]) {
-      const { error, logs } = await probeDenial(() => PlatformAnalyticsService.getPlatformAnalytics(actor.user.id, LOCALE));
+      const { error, logs } = await probeDenial(() =>
+        PlatformAnalyticsService.getPlatformAnalytics(actor.user.id, LOCALE)
+      );
       expect(error).toBeInstanceOf(ForbiddenError);
       expect(error?.message).toContain(tErrors.forbidden);
       expect(logs).toHaveLength(1);

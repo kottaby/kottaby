@@ -53,14 +53,6 @@ import { describe, expect, test } from "bun:test";
 import { eq, sql } from "drizzle-orm";
 import type { PgTable } from "drizzle-orm/pg-core";
 import {
-  PaymentGateway,
-  PaymentStatus,
-  SubscriptionStatus,
-  TransactionStatus,
-  TransactionType,
-} from "@/backend/enum/billing";
-import { SessionStatus } from "@/backend/enum/scheduling";
-import {
   isoWeekStart,
   PlatformAnalyticsRepository,
   type RevenueStatsRow,
@@ -91,11 +83,15 @@ import {
   createTestWallet,
 } from "@/backend/db/test/entity-setup";
 import { expectRepoError, runInRollback } from "@/backend/db/test/test-utils";
-import type {
-  AdminUserStatsReturnType,
-  DBTransaction,
-  PlatformAnalyticsUsersReturnType,
-} from "@/backend/types";
+import {
+  PaymentGateway,
+  PaymentStatus,
+  SubscriptionStatus,
+  TransactionStatus,
+  TransactionType,
+} from "@/backend/enum/billing";
+import { SessionStatus } from "@/backend/enum/scheduling";
+import type { AdminUserStatsReturnType, DBTransaction, PlatformAnalyticsUsersReturnType } from "@/backend/types";
 
 /** Milliseconds in one day — mirrors the repo's window arithmetic unit. */
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
@@ -513,7 +509,10 @@ describe("PlatformAnalyticsRepository aggregate fixtures (ten methods)", () => {
 
       const afterRows = await PlatformAnalyticsRepository.getRevenueStats(now, tx);
 
-      const baselineOf = (rows: RevenueStatsRow[], currency: string): { total: bigint; last30: bigint; count: number } => {
+      const baselineOf = (
+        rows: RevenueStatsRow[],
+        currency: string
+      ): { total: bigint; last30: bigint; count: number } => {
         const row = rows.find(candidate => candidate.currency === currency);
         return {
           total: centsOf(row?.totalAmount ?? "0"),
@@ -521,12 +520,7 @@ describe("PlatformAnalyticsRepository aggregate fixtures (ten methods)", () => {
           count: row?.paidPaymentsCount ?? 0,
         };
       };
-      const assertCurrency = (
-        currency: string,
-        total: bigint,
-        last30: bigint,
-        count: number
-      ): void => {
+      const assertCurrency = (currency: string, total: bigint, last30: bigint, count: number): void => {
         const row = afterRows.find(candidate => candidate.currency === currency);
         if (!row) {
           throw new Error(`expected a revenue row for ${currency}`);
@@ -1066,10 +1060,7 @@ describe("PlatformAnalyticsRepository window & exclusion semantics", () => {
       expect(withLive.evaluationScoresCount).toBe(beforeRatings.evaluationScoresCount + 1);
       expect(withLive.averageEvaluationScore).toBe(numericRound2(evalBaseline.sum + 85n, evalBaseline.count + 1n));
 
-      await tx
-        .update(evaluations)
-        .set({ isDeleted: true, deletedAt: now })
-        .where(eq(evaluations.id, evaluation.id));
+      await tx.update(evaluations).set({ isDeleted: true, deletedAt: now }).where(eq(evaluations.id, evaluation.id));
       const withDeleted = await PlatformAnalyticsRepository.getRatingStats(tx);
       expect(withDeleted.evaluationScoresCount).toBe(beforeRatings.evaluationScoresCount);
       expect(withDeleted.averageEvaluationScore === null).toBe(evalBaseline.count === 0n);
