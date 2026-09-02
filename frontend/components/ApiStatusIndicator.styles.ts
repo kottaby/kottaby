@@ -97,7 +97,7 @@ export function statusDotSx(kind: ApiStatusKind): SxProps<Theme> {
 }
 
 export const statusLabelSx: SxProps<Theme> = {
-  // 12px floor — sub-12px micro-type was flagged in the qa-r13 audit.
+  // 12px floor — sub-12px micro-type fails contrast/readability checks.
   fontSize: 12,
   fontWeight: 700,
   letterSpacing: "0.14em",

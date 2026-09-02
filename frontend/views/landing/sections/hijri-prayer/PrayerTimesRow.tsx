@@ -35,7 +35,7 @@ export function PrayerTimesRow({ model }: Readonly<{ model: HijriPrayerModel }>)
             <Typography
               sx={{
                 // ≥12px + raised opacity: the 11.5px @ 0.6 variant failed
-                // contrast/readability checks (qa-r13 audit, FS<12 batch).
+                // contrast/readability checks on the dim-label tier.
                 fontSize: 12,
                 fontWeight: isNext ? 800 : 600,
                 color: isNext ? "var(--mui-palette-secondary-light)" : "var(--mui-palette-onPrimary)",

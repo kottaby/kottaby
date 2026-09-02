@@ -12,8 +12,7 @@ import { Landing, useAppTranslation } from "@/shared/locale";
  *
  * Rendered by `app/not-found.tsx` (root not-found boundary). Replaces the
  * default English LTR Next.js error page, which leaked into the Arabic-RTL
- * app whenever a stale or mistyped route was hit (worst-scoring surface in
- * the qa-r13 audit).
+ * app whenever a stale or mistyped route was hit.
  *
  * Design mirrors the dashboard `ComingSoonView` placeholder card (copper
  * icon disc, quiet surface card) topped with the landing brand row, so the

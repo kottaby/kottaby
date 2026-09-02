@@ -8,7 +8,7 @@ import { type ReactNode, useEffect, useRef, useState } from "react";
 /**
  * Reveals a section with a gentle settle motion when it scrolls into view.
  *
- * Resilience contract (qa-r13 fixA): the wrapper must NEVER hide content.
+ * Resilience contract: the wrapper must NEVER hide content.
  * Full-page captures, crawlers, link-preview bots and no-JS visitors never
  * fire IntersectionObserver-based reveals, which previously left ~90% of the
  * landing page as an invisible void. Therefore:
