@@ -215,11 +215,11 @@ Every task in this file is executed under ALL of the following rules, without ex
   - [x] 2.6.OUT Write outcome.
 
 - [x] 2.M [Mid-Point Review Gate]
-  - [ ] Verify: `bun tsgo` and `bun run biome:check` counts == baseline (no new errors introduced by Phases 1–2).
-  - [ ] Verify: journey suite GREEN (A–D), repo suite GREEN, service suite GREEN.
-  - [ ] Verify: `git diff -- backend/db/schema/ backend/db/migration/` EMPTY (REQ-043); `git diff -- backend/db/repo/admin/admin-user.repository.ts` EMPTY (reuse-not-rebuild — the DEV3-016 repo is untouched).
-  - [ ] Verify: `deferred-items.md` has no unlogged ❌/⚠️; log anything discovered so far.
-  - [ ] Semantic self-review of Phases 1–2 against the full checklist.
+  - [x] Verify: `bun tsgo` and `bun run biome:check` counts == baseline (no new errors introduced by Phases 1–2).
+  - [x] Verify: journey suite GREEN (A–D), repo suite GREEN, service suite GREEN.
+  - [x] Verify: `git diff -- backend/db/schema/ backend/db/migration/` EMPTY (REQ-043); `git diff -- backend/db/repo/admin/admin-user.repository.ts` EMPTY (reuse-not-rebuild — the DEV3-016 repo is untouched).
+  - [x] Verify: `deferred-items.md` has no unlogged ❌/⚠️; log anything discovered so far.
+  - [x] Semantic self-review of Phases 1–2 against the full checklist.
   - [x] 2.M.OUT Write `outcome/2M-midpoint-review-outcome.md`.
 
 ---
@@ -426,9 +426,9 @@ Every task in this file is executed under ALL of the following rules, without ex
   - [x] 7.2.OUT Write outcome.
   - _Requirements: REQ-081, REQ-082_
 
-- [ ] 7.3 [Final gate & outcome synthesis]
+- [x] 7.3 [Final gate & outcome synthesis]
   - Re-verify the full gate: baseline counts (`bun tsgo`, `bun run biome:check`, lint) == Phase-0 baseline; ALL suites green (repo/service/graphql/journey/component/documents/cache/nav/locale-parity/schema-inventories); schema-drift diff EMPTY; public-operations frozen six untouched; committed SDL == live SDL; `deferred-items.md` contains ZERO ❌/⚠️ with the four forward-owned entries recorded.
   - Write the synthesis outcome summarizing: shipped surface, decisions honored (D1–D13), journey evidence, review-wave resolutions, forward items.
-  - [ ] 7.3.OUT Write `ai/plans/sprint_3/dev3-022c-platform-analytics-dashboard/outcome/7.3-final-synthesis-outcome.md`.
+  - [x] 7.3.OUT Write `ai/plans/sprint_3/dev3-022c-platform-analytics-dashboard/outcome/7.3-final-synthesis-outcome.md`.
   - _Requirements: REQ-076, REQ-080..REQ-083_
 ```

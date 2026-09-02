@@ -49,7 +49,7 @@
 
 import { afterAll, beforeAll, describe, expect, spyOn, test } from "bun:test";
 import { randomUUID } from "node:crypto";
-import { and, eq, gt, inArray, sql, type SQL } from "drizzle-orm";
+import { and, eq, gt, inArray, type SQL, sql } from "drizzle-orm";
 import type { PgTable } from "drizzle-orm/pg-core";
 import { db } from "@/backend/db";
 import { AdminUserRepository } from "@/backend/db/repo";
