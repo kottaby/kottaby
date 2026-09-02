@@ -18,7 +18,7 @@ import { Common, Errors, ParentLink, useAppLocale, useAppTranslation } from "@/s
 
 /**
  * StudentLinkRequestsContainer — the client heart of
- * `/student/link-requests` (DEV1-014 task 4.2).
+ * `/student/link-requests`.
  *
  * A stateful `useQuery` fetches the caller's OWN incoming parent-link
  * requests (zero-argument — the student id is derived server-side from the
@@ -38,8 +38,8 @@ import { Common, Errors, ParentLink, useAppLocale, useAppTranslation } from "@/s
  * | 5 | zero rows | empty state (`incomingEmptyTitle`/`incomingEmptyBody`) |
  * | 6 | rows settled | per-row cards in the `component="output"` list region (`IncomingBody`) |
  *
- * Row rendering lives in `LinkRequestCard` (computed status chip per
- * REQ-015, `dir="auto"` name, ≥44px CTAs with the in-flight disable); the
+ * Row rendering lives in `LinkRequestCard` (computed status chip,
+ * `dir="auto"` name, ≥44px CTAs with the in-flight disable); the
  * confirm/reject gate in `LinkRequestDecisionDialog` (function-slot copy);
  * the shell states + list branches in `IncomingStates` / `IncomingBody`.
  *
@@ -61,7 +61,7 @@ import { Common, Errors, ParentLink, useAppLocale, useAppTranslation } from "@/s
  */
 
 /**
- * Denial-code → copy resolution is SHARED across the DEV1-014 surfaces
+ * Denial-code → copy resolution is SHARED across the parent-link surfaces
  * (`resolveParentLinkDenialCopy`) — the send affordance and the outgoing
  * section on the parent side map the SAME wire codes to the SAME localized
  * copy (constant-shape denial discipline).
@@ -87,7 +87,7 @@ export function StudentLinkRequestsContainer(): ReactNode {
   const [denialCode, setDenialCode] = useState<string | null>(null);
   // Retry-after-query-error refetch in flight (disables the affordance).
   const [retryPending, setRetryPending] = useState(false);
-  // REQ-015 read purity: ONE `now` captured at mount (lazy initializer — no
+  // Read purity: ONE `now` captured at mount (lazy initializer — no
   // impure calls during render). The expired verdict stays stable for the
   // mount's lifetime; server-side materialization + refetch settle the
   // authoritative states.

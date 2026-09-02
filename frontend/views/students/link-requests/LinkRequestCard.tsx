@@ -14,18 +14,18 @@ import type { ParentLinkLabels } from "@/shared/locale/types/parentLink";
 
 /**
  * LinkRequestCard — one incoming parent-link request on the student
- * `/student/link-requests` surface (DEV1-014 task 4.2): the requesting
+ * `/student/link-requests` surface: the requesting
  * parent's FULL name (`dir="auto"` — the sanctioned disclosure on the
  * student side, Workflow 04 §4.4), the computed status chip
  * (success/warning/error theme-palette roles), the sent + expiry lines, and
  * — ONLY on live-pending rows — the Confirm/Reject affordances (≥44px,
- * focus-visible ring, in-flight disable per REQ-065).
+ * focus-visible ring, in-flight disable).
  *
- * The computed-status machinery (REQ-015 read purity + chip palette) is the
+ * The computed-status machinery (read purity + chip palette) is the
  * SHARED `frontend/lib/parent-link-request-status.ts` module — the same
  * helpers the parent-side `OutgoingLinkRequestCard` consumes, so a given
  * row state can never render two different verdicts or palettes across the
- * two DEV1-014 surfaces.
+ * two surfaces.
  */
 
 /**
@@ -45,7 +45,7 @@ interface LinkRequestCardProps {
   readonly labels: ParentLinkLabels;
   /** Active app locale (drives the locale-aware timestamp stamps). */
   readonly locale: string;
-  /** The mount-captured `now` (REQ-015 computed-expiry parity). */
+  /** The mount-captured `now` (computed-expiry parity). */
   readonly nowMs: number;
   /** A respond mutation is in flight (global in-flight disable). */
   readonly respondInFlight: boolean;

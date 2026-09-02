@@ -1,24 +1,24 @@
 #!/usr/bin/env bun
 /**
- * On-demand ops trigger for the D1 parent-link expiry-reminder PRIMITIVE.
+ * On-demand ops trigger for the parent-link expiry-reminder PRIMITIVE.
  *
  * Sends ONE localized reminder notification to the requesting parent of
  * every live pending link request whose expiry falls inside the reminder
  * window (default: within the next 24h) — the canonical doc's sanctioned
- * manual path while the cron STREAM remains the D1 future ticket
+ * manual path while the cron STREAM is not yet wired
  * (docs/parents/parent-link-request.md §5). The future cron-stream job
  * handler registers the SAME service primitive
  * (`ParentLinkRequestService.sendExpiryReminders`) on a schedule.
  *
- * Semantics (canonical doc §5/D1 reminder slice):
+ * Semantics (canonical doc §5, the expiry-reminder slice):
  *  - Actor-less (system scope) and otherwise silent: no audit rows, no
- *    happy-path logs (REQ-024); the notification inbox row IS the record.
+ *    happy-path logs; the notification inbox row IS the record.
  *  - Dedupe is the claim: `reminder_sent_at` is set in the SAME guarded
  *    statement that selects the rows — a re-run reminds nobody twice.
  *  - Strict-`>` liveness: a row at or past `now` has lapsed and is the
  *    SWEEP's business (run `ops:sweep-link-requests` for those), never the
  *    reminder's.
- *  - Copy: the student's MASKED name (R9) in the parent's persisted locale.
+ *  - Copy: the student's MASKED name in the parent's persisted locale.
  *  - All-or-nothing: markers + inbox rows commit in ONE transaction.
  *
  * Usage:
@@ -33,7 +33,7 @@ import { applyEnvFile } from "@/scripts/dbActions/envFile";
 
 function printHelp(): void {
   console.log(`
-On-demand ops trigger for the parent-link expiry reminder (D1 primitive).
+On-demand ops trigger for the parent-link expiry reminder primitive.
 
 Usage:
   bun run ops:remind-link-requests

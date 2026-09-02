@@ -1,7 +1,7 @@
 /**
  * ParentLinkRequestRepository — data-access layer for the
  * `parent_link_requests` append-and-transition table (parent→student link
- * requests; plan §4.1, REQ-010/032/033/037/040/041).
+ * requests).
  *
  * Every row starts `pending` (schema default) and moves through the
  * `link_status` lifecycle; rows are never deleted in production flows, so
@@ -9,7 +9,7 @@
  * are SINGLE guarded `UPDATE … WHERE <ownership + liveness predicates>
  * RETURNING *` statements — the predicate evaluation and the column
  * mutation occur in the same SQL statement, so there is NO read-then-write
- * window (zero TOCTOU, D2), no `SELECT FOR UPDATE`, and no advisory locks.
+ * window (zero TOCTOU), no `SELECT FOR UPDATE`, and no advisory locks.
  * Ownership predicates (BOLA) are folded INTO the UPDATE WHERE-clause: a
  * foreign or nonexistent id matches zero rows, indistinguishably
  * (precedent: `NotificationRepository.markReadOnce`).
@@ -17,14 +17,14 @@
  * Liveness is the strict `expires_at > <now>` predicate inlined into the
  * claim/withdraw guards; the repository never derives liveness on reads —
  * reads return stored rows faithfully and the service layer owns the
- * render-time expiry mapping (REQ-015) and the raw-23505 → domain-error
+ * render-time expiry mapping and the raw-23505 → domain-error
  * classification (the partial unique index
  * `parent_link_requests_pending_pair_unique` is the final arbiter against
  * duplicate-pending rows; the losing insert surfaces 23505 unchanged).
  *
  * Conventions per `backend/db/repo/AGENTS.md`:
  *  - All methods take `tx` LAST. Writes take a REQUIRED `tx: DBTransaction`
- *    so every transition joins the caller's atomic unit (REQ-040) — a repo
+ *    so every transition joins the caller's atomic unit — a repo
  *    write can never silently escape a transaction. Reads take an OPTIONAL
  *    `tx?: DBQueryExecutor`: Drizzle select on the supplied transaction, or
  *    raw parameterized SQL via `queryDb` (Neon HTTP fast path) when called
@@ -32,7 +32,7 @@
  *  - No business logic, no permission checks, no localized strings, no
  *    `console.*` — the service layer translates raw outcomes (null / count /
  *    thrown 23505) into typed `DomainError`s.
- *  - No LIKE/ILIKE anywhere (REQ-037): every predicate is parameterized
+ *  - No LIKE/ILIKE anywhere: every predicate is parameterized
  *    equality/liveness on indexed columns.
  *  - Joined-row shapes are repo-local exported interfaces mirroring the
  *    `AdminUserDirectoryRow` precedent (`backend/db/repo/admin/`): readonly,
@@ -47,7 +47,7 @@ import { users } from "@/backend/db/schema/users/users";
 import { LinkStatus } from "@/backend/enum/shared/link-status.enum";
 import type { DBQueryExecutor, DBTransaction, ParentLinkRequestSelectType } from "@/backend/types";
 
-/** Hard cap on list reads — mirrors the plan §4.1 `LIMIT 50` contract. */
+/** Hard cap on list reads — the `LIMIT 50` listing contract. */
 const LIST_LIMIT = 50;
 
 /** The raw pgEnum string union mirrored from `ParentLinkRequestSelectType["status"]`. */
@@ -127,7 +127,7 @@ export namespace ParentLinkRequestRepository {
    * `parentId`, `studentId`, `expiresAt` — written field-by-field (no
    * spread of any caller-supplied object). `status`/`createdAt` come from
    * the schema defaults. Requires a transaction so the insert joins the
-   * service's atomic unit (notification row + publish receipt, REQ-040).
+   * service's atomic unit (notification row + publish receipt).
    *
    * The partial unique index `parent_link_requests_pending_pair_unique`
    * rejects a second live `pending` row for the same (parent, student)
@@ -262,7 +262,7 @@ export namespace ParentLinkRequestRepository {
    *
    * ONE guarded statement folding the ownership predicate (`parent_id`),
    * the state predicate and the same strict liveness predicate into the
-   * UPDATE WHERE-clause. Withdrawal FOLDS to `rejected` (REQ-018/D9) — the
+   * UPDATE WHERE-clause. Withdrawal FOLDS to `rejected` (a silent fold) — the
    * flipped row persists forever as request history and the withdrawal is
    * silent (no notification semantics at this layer).
    *
@@ -310,8 +310,8 @@ export namespace ParentLinkRequestRepository {
 
   /**
    * Bulk-materializes the `expired` status on EVERY lapsed live pending row
-   * (the D1 sweep primitive — the unit of work the future cron-stream ticket
-   * registers as its job handler).
+   * (the bulk sweep primitive — the unit of work a future cron-stream
+   * scheduler registers as its job handler).
    *
    * ONE set-based guarded statement: `WHERE status = 'pending' AND
    * expires_at <= now` — the expiry side of the strict-`>` liveness
@@ -321,14 +321,14 @@ export namespace ParentLinkRequestRepository {
    * The `status = 'pending'` conjunct makes re-runs match zero rows —
    * idempotent by predicate, never an error. `responded_at` is intentionally
    * left NULL (expiry is not a participant response), and the sweep performs
-   * ZERO notifications and ZERO audit rows (REQ-018/REQ-024 silence —
+   * ZERO notifications and ZERO audit rows (full silence —
    * expiry has no audience-facing event; the read side already renders the
    * computed `Expired` chip, so materialization changes storage only).
    *
    * Actor-less by design: this is a system maintenance write, not a user
-   * operation — REQ-031's actor re-check governs user-facing mutations; the
-   * future cron-stream ticket owns the trigger identity and its guard.
-   * The write takes a REQUIRED `tx` per the repo convention (REQ-040 — a
+   * operation — the fresh actor re-check governs user-facing mutations; a
+   * future cron-stream job owns the trigger identity and its guard.
+   * The write takes a REQUIRED `tx` per the repo convention (a
    * repo write can never silently escape a transaction); the sweep is one
    * statement, so the transaction IS the atomic unit.
    *

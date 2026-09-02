@@ -19,25 +19,25 @@
  *  - **Root-set freeze** — the Mutation root is EXACTLY the refreshed frozen
  *    baseline and the Query root is EXACTLY the frozen baseline + the
  *    `_health` probe (mirrors the `PRE_3_1_*` inventories in
- *    schema-surface.test.ts). **DEV1-014 task 3.3 performed the documented
- *    reconcile-then-extend (REQ-061):** the stale arrays predated the DEV1-005
+ *    schema-surface.test.ts). **The parent-link extension performed the
+ *    documented reconcile-then-extend (REQ-061):** the stale arrays predated the DEV1-005
  *    plan-catalog CRUD, the DEV1-013 student-handshake queries, AND the
  *    shipped DEV3-016 admin surface — STEP ONE re-anchored them to the live
  *    artifact (+6 mutation fields, +8 query fields); STEP TWO extended the
- *    now-current baselines with the DEV1-014 parent-link surface (+3
- *    mutation fields, +2 query fields). Every anchor change is listed in
- *    `outcome/3.3-outcome.md`; growth is monotonic, nothing was deleted.
- *  - **Parent-link surface (DEV1-014, REQ-061 extend pins)** — the five root
+ *    now-current baselines with the parent-link surface (+3
+ *    mutation fields, +2 query fields). Growth is monotonic, nothing was
+ *    deleted.
+ *  - **Parent-link surface (REQ-061 extend pins)** — the five root
  *    fields carry their EXACT SDL signatures on the artifact (both list
  *    queries NON-paginated `[T!]!` with ZERO arguments;
- *    `requestParentChildLink` the ONLY nullable new mutation — the REQ-012
- *    collapse contract); the `LinkStatus` enum carries EXACTLY the four
+ *    `requestParentChildLink` the ONLY nullable new mutation — the
+ *    null-collapse contract); the `LinkStatus` enum carries EXACTLY the four
  *    canonical members; both objects expose EXACTLY the six canonical
  *    fields with the `DateTime` scalar on ALL six timestamps (zero `String`
  *    leakage); and NO parent-link page/connection wrapper exists — the
  *    lists are plain arrays, the pagination contract is the service's 50-row
  *    cap, never SDL pagination plumbing.
- *  - **DEV1-014↔DEV3-020 merge reconcile:** the global admin audit-trail
+ *  - **Parent-link↔DEV3-020 merge reconcile:** the global admin audit-trail
  *    read surface (`adminAuditLogs` query backed by `AdminAuditLogEntry` /
  *    `AdminAuditLogPage` / `AdminAuditLogFiltersInput`, with the
  *    `AuditActionType` enum REUSED from the shared registry) shipped on
@@ -84,25 +84,25 @@ import {
 
 // ─── Frozen baselines (mirror the refreshed PRE_3_1_* inventories in ─────────
 // ─── schema-surface.test.ts — the single sanctioned growth history). ────────
-// ─── DEV1-014 task 3.3 (REQ-061): reconcile-then-extend, both steps recorded ─
-// ─── in `outcome/3.3-outcome.md`. RECONCILE (STEP 1 — never silent): the      ─
+// ─── REQ-061 reconcile-then-extend: both steps recorded in the extend's     ─
+// ─── outcome notes. RECONCILE (STEP 1 — never silent): the                   ─
 // ─── arrays predated the DEV1-005 plan-catalog CRUD, the DEV1-013 handshake    ─
 // ─── queries, and the shipped DEV3-016 admin surface — re-anchored to the     ─
-// ─── live artifact. EXTEND (STEP 2): the DEV1-014 parent-link surface folded ─
-// ─── in. Growth is monotonic; no stale entry was deleted, only re-anchored.   ─
+// ─── live artifact. EXTEND (STEP 2): the parent-link surface folded in.     ─
+// ─── Growth is monotonic; no stale entry was deleted, only re-anchored.      ─
 
-/** Root mutation fields — auth quartet + notification read-latch pair + users-locale (D2) + plan-catalog CRUD + DEV3-016 admin writes + the DEV1-014 parent-link trio. */
+/** Root mutation fields — auth quartet + notification read-latch pair + users-locale (D2) + plan-catalog CRUD + DEV3-016 admin writes + the parent-link trio. */
 const FROZEN_MUTATION_FIELDS = [
   // DEV3-016 reconcile: the admin user-management writes shipped before 3.1.
   "adminCreateUser",
   "adminSetUserDeleted",
   "adminUpdateUser",
-  // DEV1-014 extend: the three link-request mutations (`requestParentChildLink`
+  // Parent-link extend: the three link-request mutations (`requestParentChildLink`
   // is the ONLY nullable one — pinned in the parent-link describe below).
   "cancelParentLinkRequest",
   // DEV1-005 reconcile: the plan-catalog CRUD shipped before 3.1.
-// ─── The DEV1-014↔DEV3-020 merge re-ran STEP ONE for the global audit-trail  ─
-// ─── surface (+`adminAuditLogs` query folded into FROZEN_QUERY_FIELDS).      ─
+  // ─── The parent-link↔DEV3-020 merge re-ran STEP ONE for the audit-trail     ─
+  // ─── surface (+`adminAuditLogs` query folded into FROZEN_QUERY_FIELDS).      ─
   "createPlan",
   "login",
   "logout",
@@ -117,10 +117,10 @@ const FROZEN_MUTATION_FIELDS = [
   "updatePlan",
 ] as const;
 
-/** Root query fields — the frozen baseline + the sanctioned inbox reads + the probe + plan-catalog + DEV1-013 handshake + DEV3-016 admin reads + the DEV1-014 parent-link lists. */
+/** Root query fields — the frozen baseline + the sanctioned inbox reads + the probe + plan-catalog + DEV1-013 handshake + DEV3-016 admin reads + the parent-link lists. */
 const FROZEN_QUERY_FIELDS = [
   "_health",
-  // DEV1-014↔DEV3-020 merge reconcile: the global audit-trail read shipped on
+  // Parent-link↔DEV3-020 merge reconcile: the global audit-trail read shipped on
   // main while this branch was in flight (mirrors the DEV3-016 precedent).
   "adminAuditLogs",
   // DEV1-005 reconcile: the plan-catalog reads shipped before 3.1.
@@ -135,7 +135,7 @@ const FROZEN_QUERY_FIELDS = [
   "me",
   "myApplicantProfile",
   "myHandshakeCode",
-  // DEV1-014 extend: the two role-gated link-request lists (NON-paginated).
+  // Parent-link extend: the two role-gated link-request lists (NON-paginated).
   "myIncomingParentLinkRequests",
   "myNotifications",
   "myOutgoingParentLinkRequests",
@@ -387,7 +387,7 @@ describe("Notification object — `id` + REQ-069 depth/complexity posture", () =
     );
     expect(hasSubscriptionRoot).toBe(false);
     // Lexical belt-and-braces — WORD-BOUNDARY scoped (DEV3-020 form, which
-    // SUPERSEDES the DEV1-014 task-3.3 narrowing to `type Subscription`:
+    // SUPERSEDES the earlier narrower `type Subscription` containment:
     // a raw substring scan false-positives on infix tokens like
     // `hasActiveSubscription` / `studentHasActiveSubscription` and on
     // lowercase "subscription plan" prose, while the word-boundary scan
@@ -417,7 +417,7 @@ describe("Users-locale surface (D2) — AppLocale enum + User.locale on the arti
   });
 });
 
-describe("Parent-link surface (DEV1-014 extend) — artifact-side pins (REQ-061)", () => {
+describe("Parent-link surface (extend) — artifact-side pins (REQ-061)", () => {
   test("`myOutgoingParentLinkRequests: [OutgoingParentLinkRequest!]!` — NON-paginated, ZERO arguments", () => {
     const surface = fieldSurface("Query", "myOutgoingParentLinkRequests");
     expect(surface.type).toBe("[OutgoingParentLinkRequest!]!");
@@ -430,7 +430,7 @@ describe("Parent-link surface (DEV1-014 extend) — artifact-side pins (REQ-061)
     expect(surface.args).toEqual([]);
   });
 
-  test("`requestParentChildLink(code: String!): OutgoingParentLinkRequest` — the ONLY nullable new mutation (REQ-012 collapse)", () => {
+  test("`requestParentChildLink(code: String!): OutgoingParentLinkRequest` — the ONLY nullable new mutation (null collapse)", () => {
     const surface = fieldSurface("Mutation", "requestParentChildLink");
     expect(surface.type).toBe("OutgoingParentLinkRequest");
     expect(surface.args).toEqual([{ name: "code", type: "String!" }]);

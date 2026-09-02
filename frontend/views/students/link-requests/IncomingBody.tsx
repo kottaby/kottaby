@@ -40,7 +40,7 @@ interface IncomingBodyProps {
   readonly loading: boolean;
   /** Active app locale (drives the locale-aware timestamp stamps). */
   readonly locale: string;
-  /** The mount-captured `now` (REQ-015 computed-expiry parity). */
+  /** The mount-captured `now` (computed-expiry parity). */
   readonly nowMs: number;
   /** A respond mutation is in flight (global in-flight disable). */
   readonly respondInFlight: boolean;
@@ -60,12 +60,12 @@ interface IncomingBodyProps {
 
 /**
  * IncomingBody — the settled + unsettled list surface of the student
- * link-requests container (DEV1-014 task 4.2). Early-return branches
+ * link-requests container. Early-return branches
  * (retryable → generic failure → skeleton → empty → settled list) instead
  * of a nested ternary chain (`sonarjs/no-nested-conditional`), mirroring
  * `NotificationsFeedBody`. The settled region is a `Box component="output"`
  * carrying `aria-busy` while a load/refetch/respond runs (the MUI v9
- * aria-live pattern), holding one `LinkRequestCard` per row in the §5.5
+ * aria-live pattern), holding one `LinkRequestCard` per row in the
  * responsive grid (single column mobile → two columns from `md`).
  */
 export function IncomingBody({

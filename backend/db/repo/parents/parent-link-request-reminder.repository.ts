@@ -1,5 +1,5 @@
 /**
- * Parent-link expiry-reminder repository — the D1 reminder-slice data
+ * Parent-link expiry-reminder repository — the expiry-reminder-slice data
  * access, split from `parent-link-request.repository.ts` to keep both files
  * inside the lint line budgets.
  *
@@ -17,7 +17,7 @@ import { LinkStatus } from "@/backend/enum/shared/link-status.enum";
 import type { DBTransaction } from "@/backend/types";
 
 /**
- * A row claimed by the D1 expiry-reminder primitive: the request columns the
+ * A row claimed by the expiry-reminder primitive: the request columns the
  * notification emission needs (the claimed parent, the student whose masked
  * name composes the copy, and the expiry instant for ops records).
  */
@@ -46,10 +46,10 @@ export namespace ParentLinkRequestReminderRepository {
    * describe them — the caller emits inside the SAME transaction, so a
    * failure anywhere rolls the whole unit (markers + inbox rows) back.
    *
-   * Actor-less by design: system maintenance, not a user operation (REQ-031
-   * carve-out — the same scope as the sweep); the future cron-stream ticket
-   * owns the trigger identity. REQUIRED `tx` per the repo convention
-   * (REQ-040).
+   * Actor-less by design: system maintenance, not a user operation (the
+   * same carve-out as the sweep — system writes carry no user-facing actor
+   * re-check); a future cron-stream job owns the trigger identity. REQUIRED
+   * `tx` per the repo convention.
    *
    * @param now     The single captured claim instant (strict-`>` liveness side).
    * @param horizon The inclusive upper edge of the reminder window.
@@ -84,11 +84,11 @@ export namespace ParentLinkRequestReminderRepository {
   /**
    * Resolves the display names of the STUDENT side of the given link
    * requests (students.id → users.fullName shared-PK join) — the raw input
-   * for the reminder copy's `maskFullName` composition (R9: the parent-bound
+   * for the reminder copy's `maskFullName` composition (the parent-bound
    * pre-decision copy NEVER carries the full name; the service masks it).
    *
    * Read-only helper for the reminder primitive, one query per batch; the
-   * service calls it inside its claim transaction (REQ-040 read arm).
+   * service calls it inside its claim transaction.
    */
   export async function listStudentFullNamesByIds(
     studentIds: readonly number[],

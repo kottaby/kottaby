@@ -1,5 +1,5 @@
 /**
- * Module-private helpers for `ParentLinkRequestService` (plan §4.2).
+ * Module-private helpers for `ParentLinkRequestService`.
  *
  * Extracted from the service file to honor the repo's max-lines budgets
  * (oxlint `max-lines` 300 / `max-lines-per-function` 75 — see
@@ -56,16 +56,16 @@ import { getServerTranslations } from "@/shared/locale/server-graphql";
  */
 export const PARENT_LINK_REQUEST_ENTITY = "PARENT_LINK_REQUEST";
 
-/** Literal `related_entity_type` for every parent-link notification (REQ-050). */
+/** Literal `related_entity_type` for every parent-link notification. */
 export const PARENT_LINK_RELATED_ENTITY_TYPE = "parent_link_request";
 
 /**
  * The three zero-row claim/withdrawal collapse verdicts — classified
- * READ-ONLY inside the transaction unit (REQ-034 oracle: missing ≡ foreign).
+ * READ-ONLY inside the transaction unit (no-oracle collapse: missing ≡ foreign).
  */
 export type UnclaimableDenial = "not-found" | "already-resolved" | "expired";
 
-/** Internal insert outcome for `requestLink`'s transaction unit (REQ-011 steps 3-4). */
+/** Internal insert outcome for `requestLink`'s transaction unit (the pipeline's discovery-through-insert steps). */
 export type PendingInsertOutcome = {
   created: ParentLinkRequestSelectType;
   studentId: number;
@@ -76,12 +76,12 @@ export type PendingInsertOutcome = {
 export type RequestEmitOutcome = { receipt: NotificationDeliveryReceipt; recipientLocale: string };
 
 /**
- * `requestLink`'s transaction unit, first half (plan §4.2 steps up to the
- * insert): target discovery by handshake code, the REQ-012 null-collapse
+ * `requestLink`'s transaction unit, first half (everything up to the
+ * insert): target discovery by handshake code, the null-collapse
  * (missing ≡ governed — byte-identical `null`, zero rows/notifications/
  * publishes), the already-linked and already-pending conflicts, the
  * field-by-field insert wrapped in the 23505 cause-chain traversal (the
- * partial unique index is the duplicate-pending race arbiter, REQ-095).
+ * partial unique index is the duplicate-pending race arbiter).
  *
  * ONE captured `now` governs the discovery liveness check AND the derived
  * `expiresAt` (`now + PARENT_LINK_REQUEST_MS`) — deterministic within the
@@ -98,7 +98,7 @@ export async function insertPendingRequestTx(
 
   const target = await StudentRepository.findLinkTargetByHandshakeCode(normalizedCode, tx);
   if (target === null || isGovernanceExcludedFromDiscovery(target, now)) {
-    // REQ-012 collapse — a missing code and a governed child are the
+    // Null collapse — a missing code and a governed child are the
     // SAME null: zero rows, zero notifications, zero publishes.
     return null;
   }
@@ -138,7 +138,7 @@ export async function insertPendingRequestTx(
     if (isUniqueViolation(error)) {
       // The partial unique index is the final arbiter of the
       // duplicate-pending race — the losing insert maps to the SAME
-      // conflict as the pre-check (REQ-095).
+      // conflict as the pre-check.
       logger.logDomainError("Parent-link request rejected: duplicate pending lost on the unique arbiter", {
         code: "PARENT_LINK_ALREADY_PENDING",
         entity: "parent_link_requests",
@@ -197,7 +197,7 @@ export async function emitRequestNotificationTx(
 }
 
 /**
- * Fresh actor re-check (REQ-031) — ONE gate used by every mutation and read.
+ * Fresh actor re-check — ONE gate used by every mutation and read.
  *
  * Re-resolves the actor with `UserRepository.findById` on the caller's
  * executor (uncommitted rollback-fixture visibility included), then:
@@ -277,13 +277,13 @@ export async function requireActor(
  * Classifies a zero-row claim/withdrawal collapse — READ-ONLY (zero writes).
  *
  * `findById` is the oracle: a missing row and a row owned by someone else are
- * the SAME verdict (REQ-034 — foreign ≡ nonexistent, byte-shaped, never an
+ * the SAME verdict (foreign ≡ nonexistent, byte-shaped, never an
  * id-enumeration oracle); a non-`pending` row is `already-resolved`; a row
  * still `pending` failed ONLY the liveness predicate → `expired`. The stored
  * status passes the fail-closed `toCanonicalLinkStatus` guard BEFORE the
  * comparison (a corrupt value is an internal invariant violation, never a
  * misclassification). The denial itself is raised by `raiseUnclaimableDenial`
- * AFTER the transaction boundary so the REQ-094 expiry fold can survive the
+ * AFTER the transaction boundary so the expiry fold can survive the
  * throw on the own-commit path.
  */
 export async function classifyUnclaimableRequest(
@@ -310,7 +310,7 @@ export async function classifyUnclaimableRequest(
  * Raises the classified denial — ALWAYS throws (the resolved type is
  * `never`); exactly ONE `logDomainError` per denial.
  *
- * On the `expired` arm the REQ-094 fold (`markExpiredIfPending`, idempotent
+ * On the `expired` arm the expiry fold (`markExpiredIfPending`, idempotent
  * by predicate) runs FIRST in a unit that SURVIVES the throw: a fresh
  * committed transaction when this call owns the commit, a savepoint released
  * into the caller's executor otherwise (the caller's commit decides). The
@@ -389,7 +389,7 @@ export function toCanonicalLinkStatus(raw: ParentLinkRequestSelectType["status"]
  * Outgoing render-mapping: the student appears ONLY through the deterministic
  * `maskFullName` mask; a stored `pending` row whose deadline has lapsed
  * (strict `expiresAt <= now`) surfaces `LinkStatus.Expired` WITHOUT writing
- * (read purity, REQ-015); timestamps stay verbatim.
+ * (read purity); timestamps stay verbatim.
  */
 export function mapOutgoing(row: OutgoingParentLinkRequestRow, now: Date): OutgoingParentLinkRequestReturnType {
   const status = toCanonicalLinkStatus(row.status, row.id);

@@ -1,6 +1,6 @@
 /**
  * ParentLinkRequestService — business-logic hub for the parent→child link
- * request workflow (DEV1-014; plan §4.2/§4.3).
+ * request workflow.
  *
  * Five user-facing operations compose the `parent_link_requests`
  * append-and-transition repository with the guarded student link write and
@@ -8,7 +8,7 @@
  * `sweepExpiredRequests` and `sendExpiryReminders`):
  *
  *  - `requestLink` — a parent submits a handshake code; the pipeline is
- *    STRICTLY ordered (REQ-011): normalize+validate the code PRE-DB, fresh
+ *    STRICTLY ordered: normalize+validate the code PRE-DB, fresh
  *    actor re-check, then ONE `withTransaction`: one captured `now`, target
  *    discovery, governance collapse, already-linked / already-pending
  *    conflicts (with the partial-unique 23505 arbiter as the race backstop),
@@ -23,22 +23,22 @@
  *    claim. The parent is notified in the parent's persisted locale, in-tx.
  *  - `cancelLinkRequest` — the requesting parent withdraws a live pending
  *    request; withdrawal FOLDS the row to `rejected` and is SILENT (zero
- *    notifications, zero publishes — REQ-018).
- *  - `sweepExpiredRequests` — the D1 sweep PRIMITIVE (system-scope, actor-less):
+ *    notifications, zero publishes).
+ *  - `sweepExpiredRequests` — the sweep PRIMITIVE (system-scope, actor-less):
  *    ONE guarded bulk statement materializes every lapsed live pending row to
  *    `expired` (strict-`>` boundary side: `expires_at <= now`); idempotent by
- *    predicate; ZERO notifications and ZERO audit rows (REQ-018/REQ-024);
- *    the future cron-stream ticket owns the trigger and registers this as its
- *    job handler. Materialization changes storage only — the read side
- *    already renders the computed `Expired` chip (REQ-015).
+ *    predicate; ZERO notifications and ZERO audit rows (full silence);
+ *    the future cron-stream job owns the trigger and registers this as its
+ *    handler. Materialization changes storage only — the read side
+ *    already renders the computed `Expired` chip.
  *  - `listMyOutgoing` / `listMyIncoming` — self-scoped history reads with a
  *    RELAXED actor re-check (identity + role; governance state must not
  *    hide the actor's own request history from him), render-time expiry
  *    mapping (a stored `pending` row whose `expiresAt <= now` surfaces as
- *    `LinkStatus.Expired` WITHOUT any write — read purity, REQ-015).
+ *    `LinkStatus.Expired` WITHOUT any write — read purity).
  *
  * Disciplines enforced here:
- *  - Defense-in-depth actor re-check (REQ-031) — ONE module-private function
+ *  - Defense-in-depth actor re-check — ONE module-private function
  *    used by every mutation and read: a FRESH `UserRepository.findById` of
  *    the actor id; missing or non-positive id → `UnauthorizedError`; role
  *    mismatch → `ForbiddenError`; governed (deleted/blocked/suspended) →
@@ -46,7 +46,7 @@
  *    Every denial logs exactly ONE bounded `logDomainError` and performs
  *    ZERO writes and ZERO notifications. Mutations enforce the governance
  *    arm; the relaxed reads do not (they are self-scoped on the verified id).
- *  - Constant-shape not-found (REQ-034): a request id that does not resolve
+ *  - Constant-shape not-found: a request id that does not resolve
  *    for the actor is denied exactly like a nonexistent id — foreign ≡
  *    nonexistent, byte-shaped — never an oracle for id enumeration.
  *  - Copy composition: recipient locale is resolved at the EMITTER
@@ -59,7 +59,7 @@
  *    `NotificationEngine.publishReceipts` runs ONLY when this call owned the
  *    commit (outerTx === undefined) — a caller-owned transaction NEVER
  *    publishes (the caller owns the commit boundary).
- *  - Log hygiene (REQ-054): happy paths emit NOTHING; every expected denial
+ *  - Log hygiene: happy paths emit NOTHING; every expected denial
  *    emits exactly ONE `logDomainError` whose context bag is EXACTLY
  *    `{ code, entity: "parent_link_requests" | "students" | "users",
  *    entityId?, locale }` — NEVER a name, an email, or the submitted
@@ -144,13 +144,13 @@ export namespace ParentLinkRequestService {
   /**
    * A parent submits a link request for the student owning `code`.
    *
-   * Ordered pipeline (REQ-011 — each step strictly before the next):
+   * Ordered pipeline — each step strictly before the next:
    *  1. Normalize (trim, uppercase) + validate the code — a malformed input
    *     rejects with a localized `ValidationError` BEFORE any database read;
    *     the submitted string is never logged.
    *  2. Fresh parent re-check (identity + role + governance).
    *  3. ONE `withTransaction(outerTx, …)` with ONE captured `now`:
-   *     discovery → null-collapse (missing ≡ governed, REQ-012) →
+   *     discovery → null-collapse (missing ≡ governed) →
    *     already-linked conflict → already-pending conflict (pre-check + the
    *     partial-unique 23505 arbiter) → field-by-field insert →
    *     recipient-locale copy → in-tx emit.
@@ -234,7 +234,7 @@ export namespace ParentLinkRequestService {
    * zero-row collapse is re-classified via `findById` (nonexistent ≡ foreign
    * → constant `PARENT_LINK_REQUEST_NOT_FOUND`; resolved →
    * `PARENT_LINK_REQUEST_ALREADY_RESOLVED`; pending-but-stale → the expiry is
-   * MATERIALIZED in a unit that SURVIVES the denial (REQ-094 — the row
+   * MATERIALIZED in a unit that SURVIVES the denial (the row
    * persists as `expired`) then `PARENT_LINK_REQUEST_EXPIRED`). The accept branch then
    * writes the link through the guarded `linkParentIfUnlinked` — a zero-row
    * collapse there THROWS and rolls back the ENTIRE transaction (claim
@@ -272,13 +272,13 @@ export namespace ParentLinkRequestService {
       if (claim === null) {
         // Zero-row collapse — classify honestly and READ-ONLY inside the
         // unit; the denial itself is raised AFTER the boundary so the
-        // REQ-094 expiry fold can survive the throw (own-commit path).
+        // expiry fold can survive the throw (own-commit path).
         const denial = await classifyUnclaimableRequest(requestId, studentActorId, "student", tx);
         return { kind: "denied", denial };
       }
 
       if (accept) {
-        // The guarded link write is the FINAL arbiter (D3): a zero-row
+        // The guarded link write is the FINAL arbiter: a zero-row
         // collapse means the student was linked concurrently — the THROW
         // rolls back the whole transaction (claim + expiry + notification).
         const linked = await StudentRepository.linkParentIfUnlinked(studentActorId, claim.parentId, tx);
@@ -291,7 +291,8 @@ export namespace ParentLinkRequestService {
           });
           throw new ConflictError("PARENT_LINK_TARGET_ALREADY_LINKED", t.parentLinkTargetAlreadyLinked);
         }
-        // REQ-091: sibling pendings of the winner's student are terminal.
+        // Sibling pendings of the winner's student are terminal — once a
+        // link exists they can never be claimed.
         await ParentLinkRequestRepository.expireSiblingPendingsForStudent(studentActorId, claim.id, tx);
       }
       // Reject branch: NO students write, NO sibling expiry — rejection
@@ -348,7 +349,7 @@ export namespace ParentLinkRequestService {
    *
    * The withdrawal FOLDS the row to `rejected` (the flipped row persists
    * forever as request history) and is SILENT: zero notifications, zero
-   * publishes, on success AND on every denial arm (REQ-018). Zero-row
+   * publishes, on success AND on every denial arm. Zero-row
    * collapse re-classifies exactly like the respond path (constant not-found
    * shape; already-resolved conflict; pending-but-stale materializes the
    * expiry first).
@@ -370,7 +371,7 @@ export namespace ParentLinkRequestService {
       const cancelled = await ParentLinkRequestRepository.cancelPendingForParent(requestId, parentActorId, now, tx);
       if (cancelled === null) {
         // Zero-row collapse — classify READ-ONLY here; the denial (and the
-        // REQ-094 expiry fold on the expired arm) is raised after the
+        // expiry fold on the expired arm) is raised after the
         // boundary so the fold survives the throw on the own-commit path.
         const denial = await classifyUnclaimableRequest(requestId, parentActorId, "parent", tx);
         return { kind: "denied", denial };
@@ -392,17 +393,17 @@ export namespace ParentLinkRequestService {
   }
 
   /**
-   * D1 sweep primitive — bulk-materializes every lapsed live pending row to
-   * `expired` inside ONE transaction (the unit of work the future
-   * cron-stream ticket registers as its job handler).
+   * Sweep primitive — bulk-materializes every lapsed live pending row to
+   * `expired` inside ONE transaction (the unit of work a future
+   * cron-stream job registers as its handler).
    *
-   * System-scope by design: NO actor re-check (REQ-031 governs user-facing
-   * mutations; the future cron-stream ticket owns the trigger identity and
-   * its guard). ONE captured `now` for the whole unit — the expiry side of
+   * System-scope by design: NO actor re-check (the fresh actor re-check
+   * governs user-facing mutations; a future cron-stream job owns the
+   * trigger identity and its guard). ONE captured `now` for the whole unit — the expiry side of
    * the strict-`>` liveness boundary (`expires_at <= now` is lapsed, the
    * same deterministic instant the respond path pins at chaos tier).
    *
-   * Silence (REQ-018/REQ-024): ZERO notifications, ZERO publishes, ZERO
+   * Silence: ZERO notifications, ZERO publishes, ZERO
    * audit rows, ZERO happy-path logs — expiry has no audience-facing event,
    * and the read side already renders the computed `Expired` chip, so
    * materialization changes storage only (the silent-expiry re-request
@@ -423,14 +424,15 @@ export namespace ParentLinkRequestService {
   }
 
   /**
-   * D1 expiry-reminder primitive — the notification-carrying counterpart of
+   * Expiry-reminder primitive — the notification-carrying counterpart of
    * the sweep: claims every live pending request whose expiry falls inside
    * the reminder window and sends its requesting parent ONE localized
-   * reminder, inside ONE transaction (the second unit of work the future
-   * cron-stream ticket registers as its job handler).
+   * reminder, inside ONE transaction (the second unit of work a future
+   * cron-stream job registers as its handler).
    *
-   * System-scope by design: NO actor re-check (the sweep's exact REQ-031
-   * carve-out; the future cron-stream ticket owns the trigger identity).
+   * System-scope by design: NO actor re-check (the sweep's exact
+   * carve-out — system writes carry no user-facing actor re-check; a future
+   * cron-stream job owns the trigger identity).
    * ONE captured `now` drives BOTH sides of the claim window — strict-`>`
    * liveness (`expires_at > now`: a row at or past now has lapsed and is the
    * SWEEP's business, never the reminder's) and the inclusive horizon
@@ -443,7 +445,7 @@ export namespace ParentLinkRequestService {
    * extra bookkeeping. The emissions join the claim's transaction: a failure
    * anywhere rolls markers AND inbox rows back together (all-or-nothing).
    *
-   * Copy (R9 + engine §3.3): the reminder interpolates the student's
+   * Copy (masked-name rule + engine §3.3): the reminder interpolates the student's
    * MASKED name (`maskFullName`) — a pre-decision parent-bound surface may
    * not carry the full name (the code-holder learns nothing new until the
    * student confirms) — composed in the PARENT's persisted locale
@@ -452,11 +454,11 @@ export namespace ParentLinkRequestService {
    * `relatedEntityId` pointing at the request (inbox deep-link parity with
    * the other lifecycle events).
    *
-   * Silence elsewhere (REQ-024): no audit rows, no happy-path logs, no
+   * Silence elsewhere: no audit rows, no happy-path logs, no
    * student-side notification (the student owns the decision surface and
    * already sees the pending row; the reminder chases the REQUESTER). The
    * ops-facing realtime publish is intentionally NOT wired — the inbox rows
-   * surface on the next load/badge poll; the cron-stream ticket owns the
+   * surface on the next load/badge poll; a future cron-stream job owns the
    * publish choreography for scheduled runs.
    *
    * @param input.horizonHours The reminder window length in hours (default
@@ -543,7 +545,7 @@ export namespace ParentLinkRequestService {
    * self-scoped on the VERIFIED actor id. Relaxed re-check: identity + role
    * only — a governed parent still sees his own history. Render-time expiry:
    * a stored `pending` row with `expiresAt <= now` surfaces
-   * `LinkStatus.Expired` WITHOUT any write (read purity, REQ-015). Reads
+   * `LinkStatus.Expired` WITHOUT any write (read purity). Reads
    * never publish.
    */
   export async function listMyOutgoing(

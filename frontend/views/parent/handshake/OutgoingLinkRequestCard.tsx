@@ -14,12 +14,12 @@ import type { ParentLinkLabels } from "@/shared/locale/types/parentLink";
 
 /**
  * OutgoingLinkRequestCard — one outgoing link request on the parent
- * handshake surface (DEV1-014 task 4.3): the target student's MASKED name
- * (`dir="auto"` — the REQ-020 masked-name contract: the parent side never
- * receives a full student name), the computed status chip (shared REQ-015
+ * handshake surface: the target student's MASKED name
+ * (`dir="auto"` — the masked-name contract: the parent side never
+ * receives a full student name), the computed status chip (shared
  * read-purity machinery), the sent + expiry lines, and — ONLY on
  * live-pending rows — the Cancel affordance (≥44px, focus-visible ring,
- * in-flight disable per REQ-065).
+ * in-flight disable).
  */
 
 /** The cancel payload snapshotted when the user opens the cancel dialog. */
@@ -33,7 +33,7 @@ interface OutgoingLinkRequestCardProps {
   readonly labels: ParentLinkLabels;
   /** Active app locale (drives the locale-aware timestamp stamps). */
   readonly locale: string;
-  /** The mount-captured `now` (REQ-015 computed-expiry parity). */
+  /** The mount-captured `now` (computed-expiry parity). */
   readonly nowMs: number;
   /** A cancel mutation is in flight (global in-flight disable). */
   readonly cancelInFlight: boolean;

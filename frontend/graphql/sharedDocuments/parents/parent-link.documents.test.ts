@@ -1,10 +1,10 @@
 /**
  * Structural lock over the parent-child link request shared GraphQL
- * documents (DEV1-014).
+ * documents.
  *
  * Mirrors the `sharedDocuments/notifications/notification.documents.test.ts`
  * discipline for the parent-link domain: the student link-requests page
- * (4.2) and the parent handshake outgoing-requests section (4.3) rely on
+ * and the parent handshake outgoing-requests section rely on
  * these SHARED `TypedDocumentNode` documents, so drift fails at this pure
  * logic tier instead of surfacing as confusing wire mismatches later:
  *
@@ -12,7 +12,7 @@
  *      operation whose GraphQL operation name matches its
  *      `{entityName}…Document` export convention, on the right channel
  *      (query vs mutation), with the exact sanctioned variable set
- *      (plan §5.4: the five pinned operations, EXACT names).
+ *      (the five pinned operations, EXACT names).
  *   2. Argument wiring — each declared variable is actually threaded into
  *      its root-field argument (no dead variables, no literal arguments
  *      that would bypass the variable contract).
@@ -32,7 +32,7 @@
  *      `TypedDocumentNode`-typed against the generated operation types
  *      (compile-time proof by assignment), the generated `LinkStatus`
  *      enum members are the GraphQL WIRE names, `requestParentChildLink`
- *      is the ONLY nullable payload (REQ-012 null collapse), and the
+ *      is the ONLY nullable payload (the null-collapse contract), and the
  *      top-level barrel re-exports the SAME document instances as the
  *      deep imports (consumer import conventions table).
  *
@@ -133,7 +133,7 @@ function argumentVariableNames(field: FieldNode): string[] {
 }
 
 /**
- * The consumer-side guard for the REQ-012 null collapse: a `null`
+ * The consumer-side guard for the null collapse: a `null`
  * `requestParentChildLink` payload renders the sendUnavailableNotice —
  * exactly this predicate. Module scope (consistent-function-scoping).
  */
@@ -275,7 +275,7 @@ describe("parent-link documents — id-first + canonical row shapes", () => {
     }
   });
 
-  test("respondedAt is selected on every row (the sole nullable timestamp, REQ-012 resolved-state restyling)", () => {
+  test("respondedAt is selected on every row (the sole nullable timestamp, resolved-state restyling)", () => {
     for (const row of PARENT_LINK_DOCUMENT_TABLE) {
       const operation = operationOrThrow(row.document);
       const selection = selectionPath(operation, row.rowSelection.path);
@@ -317,10 +317,10 @@ describe("parent-link documents — codegen binding + barrel parity", () => {
     expect(typedCancel.loc).toBeDefined();
   });
 
-  test("requestParentChildLink is the ONLY nullable payload (REQ-012 null collapse)", () => {
+  test("requestParentChildLink is the ONLY nullable payload (the null collapse)", () => {
     // Compile-time proof by assignment — the `null` literal is assignable to
     // the generated payload type ONLY because the codegen union carries the
-    // null member (unknown code ≡ governed code ≡ non-linkable, REQ-012).
+    // null member (unknown code ≡ governed code ≡ non-linkable).
     // The respond/cancel payload types REJECT null: a `null` assignment there
     // would fail `bun tsgo` — the non-null side of this pin is enforced at
     // the type-check gate (not expressible as a passing runtime assertion).

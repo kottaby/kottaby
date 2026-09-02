@@ -1,6 +1,6 @@
 /**
- * ParentLinkRequestService tests — the five §4.2 operations against the live
- * PostgreSQL instance (DEV1-014, task 2.3.TE).
+ * ParentLinkRequestService tests — the five service operations against the
+ * live PostgreSQL instance.
  *
  * Per `backend/services/AGENTS.md` (service tests live next to the code) and
  * the `student-handshake.service.test.ts` precedent:
@@ -51,9 +51,9 @@
  *    missing id, cross-role); governed-actor denial with a PRE-ISSUED-token
  *    simulation (actor row flipped governed between issue and call) with the
  *    SAME constant denial copy as the role arm (no branch disclosure);
- *    REQ-053 zero-write probes on EVERY denial arm across
+ *    zero-write probes on EVERY denial arm across
  *    `parent_link_requests`/`students`/`notifications`/`audit_logs` (the
- *    REQ-094 expiry fold is the EXPIRED arm's only sanctioned write);
+ *    expiry fold is the EXPIRED arm's only sanctioned write);
  *    log-pressure discipline (exactly ONE bounded `logDomainError` per denial,
  *    NEVER a name/email/handshake code, happy paths emit NOTHING).
  */
@@ -75,14 +75,21 @@ import { users } from "@/backend/db/schema/users/users";
 import { createTestStudent, createTestUser } from "@/backend/db/test/entity-setup";
 import { expectRepoError, runInRollback } from "@/backend/db/test/test-utils";
 import { LinkStatus } from "@/backend/enum/shared/link-status.enum";
-import { ConflictError, DomainError, ForbiddenError, NotFoundError, UnauthorizedError, ValidationError } from "@/backend/lib/errors";
+import {
+  ConflictError,
+  DomainError,
+  ForbiddenError,
+  NotFoundError,
+  UnauthorizedError,
+  ValidationError,
+} from "@/backend/lib/errors";
 import { logger } from "@/backend/lib/logger";
 import {
   NotificationEngine,
   type NotificationEngineCallOptions,
 } from "@/backend/services/notifications/notification-engine.service";
-import { PARENT_LINK_RELATED_ENTITY_TYPE } from "@/backend/services/parents/parent-link-request.helpers";
 import type { NotificationFanoutTransport } from "@/backend/services/notifications/realtime/fanout-transport";
+import { PARENT_LINK_RELATED_ENTITY_TYPE } from "@/backend/services/parents/parent-link-request.helpers";
 import { ParentLinkRequestService } from "@/backend/services/parents/parent-link-request.service";
 import type { DBTransaction, RealtimeNotificationPayload, StudentSelectType, UserSelectType } from "@/backend/types";
 import { isHandshakeCode, normalizeHandshakeCode } from "@/shared/constants/handshake-code.constants";
@@ -489,7 +496,7 @@ describe("ParentLinkRequestService.requestLink", () => {
     // EXACTLY ONE post-commit publish, addressed to the student alone.
     expectSinglePublish(transport, createCast.user.id, created.id);
 
-    // REQ-054: the happy path emits NOTHING to the domain log.
+    // Log hygiene: the happy path emits NOTHING to the domain log.
     expect(logSpy).toHaveBeenCalledTimes(0);
   });
 
@@ -589,7 +596,7 @@ describe("ParentLinkRequestService.requestLink", () => {
     });
   });
 
-  test("Tier 1 — REQ-096 null-collapse: missing code ≡ governed child, byte-equal, zero side effects", async () => {
+  test("Tier 1 — null-collapse: missing code ≡ governed child, byte-equal, zero side effects", async () => {
     await runInRollback(async (tx: DBTransaction) => {
       const c = requireCast();
       const transport = new RecordingFanoutTransport();
@@ -659,7 +666,7 @@ describe("ParentLinkRequestService.requestLink", () => {
     });
   });
 
-  test("Tier 1 — REQ-095 duplicate pending (pre-check): same conflict, inbox stays at ONE, zero publishes", async () => {
+  test("Tier 1 — duplicate pending (pre-check): same conflict, inbox stays at ONE, zero publishes", async () => {
     await runInRollback(async (tx: DBTransaction) => {
       requireCast();
       const transport = new RecordingFanoutTransport();
@@ -816,7 +823,7 @@ describe("ParentLinkRequestService.respondToLinkRequest", () => {
     // EXACTLY ONE publish, to the winner parent alone.
     expectSinglePublish(transport, c.parentA.id, requestA.id);
 
-    // REQ-091 — sibling pendings of the winner's student are terminal, seen
+    // Sibling pendings of the winner's student are terminal, seen
     // by BOTH parents from their own lists.
     expect(await requestRowById(db, requestB.id)).toMatchObject({ status: LinkStatus.Expired });
     const bOutgoing = await ParentLinkRequestService.listMyOutgoing(c.parentB.id, LOCALE_EN);
@@ -949,7 +956,7 @@ describe("ParentLinkRequestService.respondToLinkRequest", () => {
     });
   });
 
-  test("Tier 1 — REQ-034 constant NOT_FOUND from BOTH directions: foreign ≡ nonexistent, byte-equal", async () => {
+  test("Tier 1 — constant NOT_FOUND from BOTH directions: foreign ≡ nonexistent, byte-equal", async () => {
     await runInRollback(async (tx: DBTransaction) => {
       const c = requireCast();
       const transport = new RecordingFanoutTransport();
@@ -1186,7 +1193,7 @@ describe("ParentLinkRequestService.sweepExpiredRequests", () => {
     // The live pending row is untouched.
     expect(await requestRowById(db, sweepCast.liveId)).toMatchObject({ status: LinkStatus.Pending });
 
-    // SILENCE (REQ-018/REQ-024): no publish, no inbox growth for anyone.
+    // SILENCE: no publish, no inbox growth for anyone.
     expect(transport.publishCount).toBe(0);
     expect(await linkInboxRowsFor(db, sweepCast.studentAUserId)).toHaveLength(0);
     expect(await linkInboxRowsFor(db, sweepCast.studentBUserId)).toHaveLength(0);
@@ -1288,7 +1295,7 @@ describe("ParentLinkRequestService.sendExpiryReminders", () => {
     // Committed fixtures (own-commit run sees only committed rows). The
     // parent's PERSISTED locale is EN — proving the copy reads the persisted
     // preference (the fallback is `ar`, so an EN body cannot be the fallback).
-    const cast = await db.transaction(async (tx: DBTransaction) => {
+    const reminderCast = await db.transaction(async (tx: DBTransaction) => {
       const parentUser = await createTestUser(tx, {
         role: "parent",
         locale: LOCALE_EN,
@@ -1324,28 +1331,28 @@ describe("ParentLinkRequestService.sendExpiryReminders", () => {
     expect(reminded).toBe(residue.length + 1);
 
     // The reminder: parent-bound, request-linked, MASKED name, EN copy.
-    const inbox = await linkInboxRowsFor(db, cast.parentUserId);
-    const reminderRows = inbox.filter(row => row.relatedEntityId === cast.inWindowId);
+    const inbox = await linkInboxRowsFor(db, reminderCast.parentUserId);
+    const reminderRows = inbox.filter(row => row.relatedEntityId === reminderCast.inWindowId);
     expect(reminderRows).toHaveLength(1);
     const reminder = reminderRows[0];
     expect(reminder?.title).toBe(enCopy.eventParentLinkExpiringTitle);
-    expect(reminder?.body).toBe(enCopy.eventParentLinkExpiringBody(maskFullName(cast.studentAName)));
+    expect(reminder?.body).toBe(enCopy.eventParentLinkExpiringBody(maskFullName(reminderCast.studentAName)));
     expect(reminder?.relatedEntityType).toBe(PARENT_LINK_RELATED_ENTITY_TYPE);
 
     // The out-of-window pending got NO reminder.
-    expect(inbox.filter(row => row.relatedEntityId === cast.beyondId)).toHaveLength(0);
+    expect(inbox.filter(row => row.relatedEntityId === reminderCast.beyondId)).toHaveLength(0);
     // The student side is SILENT — the reminder chases the requester only.
-    expect(await linkInboxRowsFor(db, cast.studentAUserId)).toHaveLength(0);
-    expect(await linkInboxRowsFor(db, cast.studentBUserId)).toHaveLength(0);
+    expect(await linkInboxRowsFor(db, reminderCast.studentAUserId)).toHaveLength(0);
+    expect(await linkInboxRowsFor(db, reminderCast.studentBUserId)).toHaveLength(0);
 
     // The claim marker is materialized on the reminded row, absent on the
     // out-of-window row (the claim is NOT a lifecycle write).
-    expect((await requestRowById(db, cast.inWindowId))?.reminderSentAt).not.toBeNull();
-    expect((await requestRowById(db, cast.beyondId))?.reminderSentAt).toBeNull();
+    expect((await requestRowById(db, reminderCast.inWindowId))?.reminderSentAt).not.toBeNull();
+    expect((await requestRowById(db, reminderCast.beyondId))?.reminderSentAt).toBeNull();
 
     // In-tx emit discipline: the receipt is never published on this path.
     expect(transport.publishCount).toBe(0);
-    // ZERO audit rows (REQ-024; the probe is pollution-tolerant).
+    // ZERO audit rows (the probe is pollution-tolerant).
     const auditAfter = await db.select({ id: auditLogs.id }).from(auditLogs);
     expect(auditAfter).toHaveLength(auditBefore.length);
 
@@ -1424,8 +1431,15 @@ describe("ParentLinkRequestService.sendExpiryReminders", () => {
   test("Tier 3 — hostile horizon values reject with ValidationError BEFORE any claim (repo spy: zero calls)", async () => {
     const repoSpy = spyOn(ParentLinkRequestReminderRepository, "claimPendingForExpiryReminder");
     try {
-      for (const bad of [0, -1, 0.5, 169, Number.NaN]) {
-        const error = await expectRepoError(() => ParentLinkRequestService.sendExpiryReminders({ horizonHours: bad }));
+      // All five hostile horizons reject pre-DB (schema guard — zero DB
+      // state), so the batch runs in parallel; each error is asserted below.
+      const errors = await Promise.all(
+        [0, -1, 0.5, 169, Number.NaN].map(bad =>
+          expectRepoError(() => ParentLinkRequestService.sendExpiryReminders({ horizonHours: bad }))
+        )
+      );
+      expect(errors).toHaveLength(5);
+      for (const error of errors) {
         expect(error).toBeInstanceOf(ValidationError);
       }
       expect(repoSpy.mock.calls).toHaveLength(0);
@@ -1511,7 +1525,7 @@ describe("ParentLinkRequestService boundary tier (frozen clock)", () => {
           "PARENT_LINK_REQUEST_EXPIRED",
           enErrors.parentLinkRequestExpired
         );
-        // REQ-094: the row persists as `expired` INSIDE the caller's unit,
+        // The row persists as `expired` INSIDE the caller's unit,
         // with respondedAt intentionally left NULL (expiry is not a response).
         expect(await requestRowById(tx, atNow.id)).toMatchObject({ status: LinkStatus.Expired });
 
@@ -1624,7 +1638,7 @@ describe("ParentLinkRequestService boundary tier (frozen clock)", () => {
         const incomingB = await ParentLinkRequestService.listMyIncoming(studentB.id, LOCALE_EN, tx);
         expect(incomingB.find(row => row.id === oneMsAfter.id)?.status).toBe(LinkStatus.Pending);
 
-        // READ PURITY (REQ-015): the render-time mapping wrote NOTHING —
+        // READ PURITY: the render-time mapping wrote NOTHING —
         // both rows are still stored `pending`.
         expect(await requestRowById(tx, exactlyNow.id)).toMatchObject({ status: LinkStatus.Pending });
         expect(await requestRowById(tx, oneMsAfter.id)).toMatchObject({ status: LinkStatus.Pending });
@@ -1907,7 +1921,7 @@ describe("ParentLinkRequestService security tier", () => {
         logSpy.mockRestore();
       }
 
-      // REQ-053 counts pinned: the governed denials wrote ZERO rows across
+      // Zero-write counts pinned: the governed denials wrote ZERO rows across
       // parent_link_requests / students / notifications / audit_logs.
       const ids = [c.parentGov.id, foreignStudentUser.id];
       const [requestRows, studentRows, notificationRows, auditRows] = await Promise.all([
@@ -1927,7 +1941,7 @@ describe("ParentLinkRequestService security tier", () => {
     });
   });
 
-  test("Tier 4 — REQ-053 write-parity probe on EVERY denial arm (incl. audit_logs)", async () => {
+  test("Tier 4 — write-parity probe on EVERY denial arm (incl. audit_logs)", async () => {
     await runInRollback(async (tx: DBTransaction) => {
       const c = requireCast();
       const transport = new RecordingFanoutTransport();
@@ -1989,7 +2003,7 @@ describe("ParentLinkRequestService security tier", () => {
       };
       const before = await scopedCounts();
 
-      // Every denial arm EXCEPT the EXPIRED arm (whose REQ-094 expiry fold is
+      // Every denial arm EXCEPT the EXPIRED arm (whose expiry fold is
       // the one sanctioned write) — zero deltas pinned across all tables.
       await expectRepoError(() =>
         ParentLinkRequestService.requestLink(
@@ -2107,7 +2121,7 @@ describe("ParentLinkRequestService security tier", () => {
     });
   });
 
-  test("Tier 4 — happy paths and silent arms emit NOTHING to the domain log (REQ-054)", async () => {
+  test("Tier 4 — happy paths and silent arms emit NOTHING to the domain log", async () => {
     await runInRollback(async (tx: DBTransaction) => {
       const c = requireCast();
       const transport = new RecordingFanoutTransport();

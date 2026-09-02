@@ -279,7 +279,7 @@ export namespace StudentRepository {
    *
    * Delegates to the shared `readHandshakeCodeJoinRow` reader (also backing
    * `findDiscoveryByHandshakeCode`): single parameterized equality on
-   * `handshake_code` (no LIKE/ILIKE — REQ-037), dual executor branch,
+   * `handshake_code` (no LIKE/ILIKE), dual executor branch,
    * `LIMIT 1`. Mirrors `findDiscoveryByHandshakeCode` with `s.id` added so
    * the write path can address the target row directly. Governance filtering
    * is a service concern — the row is returned faithfully, or `null` on miss.
@@ -303,7 +303,7 @@ export namespace StudentRepository {
    * zero TOCTOU window (no read-then-write, no locks).
    *
    * This is THE only production writer of a non-null `students.parent_id`
-   * (pinned by the static scan in plan task 5.3). Requires a transaction so
+   * (pinned by the static-locks suite). Requires a transaction so
    * the write joins the caller's atomic unit — in the link-request accept
    * path a lost race here (null return → conflict error) rolls back the
    * whole claim transaction, making ghost confirmations impossible.

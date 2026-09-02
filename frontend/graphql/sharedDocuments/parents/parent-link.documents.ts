@@ -11,7 +11,7 @@ import type {
 } from "@/frontend/graphql/generated/gql/graphql";
 
 /**
- * Parent-child link request documents (DEV1-014) — the shared
+ * Parent-child link request documents — the shared
  * `TypedDocumentNode` operations consumed by the student link-requests
  * page (4.2) and the parent handshake outgoing-requests section (4.3).
  *
@@ -40,7 +40,7 @@ import type {
  *
  * Zero-argument: the parent id is derived server-side from the verified
  * context. Each row carries `studentMaskedName` (the masked-name
- * contract, REQ-020) — the student's real name NEVER crosses the wire.
+ * contract) — the student's real name NEVER crosses the wire.
  * The outgoing rows render the computed status chip (expired is
  * computed from `expiresAt`, never a stale write) and the Cancel CTA on
  * live-pending rows.
@@ -86,7 +86,7 @@ export const myIncomingParentLinkRequestsQueryDocument: TypedDocumentNode<MyInco
  *
  * The code is the ONLY variable: the student id is re-resolved
  * server-side from the code (capability-by-code, never across the
- * wire). The payload is the ONLY nullable parent-link mutation — REQ-012
+ * wire). The payload is the ONLY nullable parent-link mutation — the
  * null collapse: a governed/unknown/non-linkable code and a truly
  * nonexistent one are indistinguishable (`null`), so the caller renders
  * the same "unavailable" notice for both. Conflict codes

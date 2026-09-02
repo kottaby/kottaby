@@ -20,15 +20,15 @@
  *    mutation additions — `markNotificationRead` +
  *    `markAllNotificationsRead` — and the sanctioned users-locale additions
  *    (D2 backend vertical) — the `AppLocale` enum + `User.locale` + the
- *    `updateMyLocale` mutation). **DEV1-014 task 3.3 performed the
+ *    `updateMyLocale` mutation). **The parent-link extension performed the
  *    documented reconcile-then-extend (REQ-061):** STEP ONE re-anchored the
  *    stale arrays to the CURRENT live surface (they predated the shipped
  *    DEV3-016 admin surface — 4 admin queries + 3 admin mutations + the
  *    `AdminUserGovernanceFilter`/`AuditActionType` enums + 11 admin types
- *    were folded in; every anchor change is listed in
- *    `outcome/3.3-outcome.md`), then STEP TWO extended the now-current
- *    baselines with the DEV1-014 parent-link surface (the five pinned root
- *    fields + the `LinkStatus` enum). **The DEV1-014↔DEV3-020 merge
+ *    were folded in; every anchor change is listed in the extend's
+ *    outcome notes), then STEP TWO extended the now-current
+ *    baselines with the parent-link surface (the five pinned root
+ *    fields + the `LinkStatus` enum). **The parent-link↔DEV3-020 merge
  *    performed the SAME reconcile for the global admin audit-trail read
  *    surface** (the `adminAuditLogs` query backed by the
  *    `AdminAuditLogEntry` object, the `AdminAuditLogPage` embedded wrapper,
@@ -39,8 +39,8 @@
  *    of EXACTLY `{DateTime, HandshakeCodeLookup, HealthCheck,
  *    IncomingParentLinkRequest, OutgoingParentLinkRequest}` (the probe type
  *    plus the `DateTime` scalar registered in `shared/scalar.pothos.ts`,
- *    the DEV1-013 `HandshakeCodeLookup` object, and the two DEV1-014
- *    parent-link objects pinned by the extend step).
+ *    the DEV1-013 `HandshakeCodeLookup` object, and the two parent-link
+ *    objects pinned by the extend step).
  *  - **Notification surface** — the `NotificationType` enum carries exactly
  *    the 7 canonical values (TS-enum keys as GraphQL names, snake_case
  *    runtime values), the `Notification` object exposes `id` FIRST with
@@ -61,10 +61,10 @@
  *    `User!`, `User.locale` is the nullable `AppLocale` enum, the enum
  *    carries exactly the 2 canonical values, and anonymous in-process
  *    execution rejects with UNAUTHORIZED.
- *  - **Parent-link surface (DEV1-014, REQ-061 extend pins)** — the five
+ *  - **Parent-link surface (REQ-061 extend pins)** — the five
  *    root fields exist with EXACTLY the pinned wire shapes (both list
  *    queries NON-paginated `[T!]!` with ZERO arguments; `requestParentChildLink`
- *    the ONLY nullable new mutation — the REQ-012 collapse contract);
+ *    the ONLY nullable new mutation — the null-collapse contract);
  *    `LinkStatus` carries EXACTLY the four canonical members; both objects
  *    expose EXACTLY the six canonical fields with `id` FIRST on the source
  *    and the `DateTime` scalar on ALL six timestamps (zero `String`
@@ -111,21 +111,21 @@ import { PUBLIC_OPERATION_NAMES, PUBLIC_OPERATIONS } from "@/backend/lib/gateway
 // ─── Frozen baseline inventory (captured @ HEAD 8e5ebb8; refreshed for the ────
 // ─── sanctioned applicant + notifications + users-locale + DEV1-013 handshake ─
 // ─── + DEV1-005 plan-catalog additions) ──────────────────────────────────────
-// ─── DEV1-014 task 3.3 (REQ-061): reconcile-then-extend, both steps recorded ─
-// ─── in `outcome/3.3-outcome.md`. RECONCILE (STEP 1 — never silent): the      ─
+// ─── REQ-061 reconcile-then-extend: both steps recorded in the extend's     ─
+// ─── outcome notes. RECONCILE (STEP 1 — never silent): the                   ─
 // ─── arrays had gone stale against the already-shipped DEV3-016 admin surface ─
 // ─── (+4 admin queries, +3 admin mutations, +2 admin enums, +11 admin types)  ─
-// ─── — re-anchored to the live built schema. EXTEND (STEP 2): the DEV1-014    ─
-// ─── parent-link surface folded in (+5 root fields, +`LinkStatus` enum); the  ─
+// ─── — re-anchored to the live built schema. EXTEND (STEP 2): the parent-   ─
+// ─── link surface folded in (+5 root fields, +`LinkStatus` enum); the        ─
 // ─── two parent-link OBJECTS stay pinned as extend additions in the delta     ─
 // ─── literal below. Growth is monotonic; no stale entry was deleted, only     ─
 // ─── re-anchored.                                                             ─
-// ─── The DEV1-014↔DEV3-020 merge re-ran STEP ONE for the global audit-trail  ─
+// ─── The parent-link↔DEV3-020 merge re-ran STEP ONE for the audit-trail     ─
 // ─── surface (+`adminAuditLogs` query, +3 audit types folded into baseline).  ─
 
 /** Root query field names — the frozen baseline (probe re-registration excluded). */
 const PRE_3_1_QUERY_FIELDS = [
-  // DEV1-014↔DEV3-020 merge reconcile: the global audit-trail read shipped on
+  // Parent-link↔DEV3-020 merge reconcile: the global audit-trail read shipped on
   // main while this branch was in flight (mirrors the DEV3-016 precedent).
   "adminAuditLogs",
   "adminPlans",
@@ -138,7 +138,7 @@ const PRE_3_1_QUERY_FIELDS = [
   "myApplicantProfile",
   "myNotifications",
   "myUnreadNotificationCount",
-  // DEV1-014 extend: the two role-gated link-request lists (NON-paginated).
+  // Parent-link extend: the two role-gated link-request lists (NON-paginated).
   "myIncomingParentLinkRequests",
   "myOutgoingParentLinkRequests",
   "planCatalog",
@@ -150,7 +150,7 @@ const PRE_3_1_MUTATION_FIELDS = [
   "adminCreateUser",
   "adminSetUserDeleted",
   "adminUpdateUser",
-  // DEV1-014 extend: the three link-request mutations (`requestParentChildLink`
+  // Parent-link extend: the three link-request mutations (`requestParentChildLink`
   // is the ONLY nullable one — pinned in the describe below).
   "cancelParentLinkRequest",
   "createPlan",
@@ -166,17 +166,17 @@ const PRE_3_1_MUTATION_FIELDS = [
   "updateMyLocale",
   "updatePlan",
 ] as const;
-/** GraphQL enum type names — the freeze forbids any new Pothos enum beyond the pinned DEV1-014 `LinkStatus` (the governance-filter + audit-action enums sit in the reconciled baseline). */
+/** GraphQL enum type names — the freeze forbids any new Pothos enum beyond the pinned parent-link `LinkStatus` (the governance-filter + audit-action enums sit in the reconciled baseline). */
 const PRE_3_1_ENUMS = [
   // DEV3-016 reconcile: the admin governance/audit enums shipped before 3.1.
-  // DEV1-014↔DEV3-020 merge: `AuditActionType` was already baseline — reused,
+  // Parent-link↔DEV3-020 merge: `AuditActionType` was already baseline — reused,
   // never re-registered.
   "AdminUserGovernanceFilter",
   "ApplicantStatus",
   "AppLocale",
   "AuditActionType",
   "Gender",
-  // DEV1-014 extend: the link-request status enum (members pinned below).
+  // Parent-link extend: the link-request status enum (members pinned below).
   "LinkStatus",
   "NotificationType",
   "RecitationReading",
@@ -187,7 +187,7 @@ const PRE_3_1_ENUMS = [
 const PRE_3_1_TYPE_NAMES = [
   // DEV3-016 reconcile: the eleven admin surface types shipped before 3.1
   // (the type-name inventory includes the admin ENUM names — see PRE_3_1_ENUMS).
-  // DEV1-014↔DEV3-020 merge reconcile: the three audit-trail types shipped on
+  // Parent-link↔DEV3-020 merge reconcile: the three audit-trail types shipped on
   // main while this branch was in flight (same fold-in precedent).
   "AdminAuditLogEntry",
   "AdminAuditLogFiltersInput",
@@ -210,7 +210,7 @@ const PRE_3_1_TYPE_NAMES = [
   "AuditActionType",
   "CreatePlanInput",
   "Gender",
-  // DEV1-014 extend: the link-request status enum joins the named-type set.
+  // Parent-link extend: the link-request status enum joins the named-type set.
   "LinkStatus",
   "LoginPayload",
   "LogoutPayload",
@@ -364,7 +364,7 @@ describe("Surface freeze — pinned additions vs the baseline inventory", () => 
     expect(enumNames).toEqual([...PRE_3_1_ENUMS]);
   });
 
-  test("whole-schema named-type delta is pinned: DateTime scalar + HealthCheck probe + DEV1-013 handshake-code surface + the DEV1-014 parent-link objects (extend step; audit-trail types reconciled into the baseline)", () => {
+  test("whole-schema named-type delta is pinned: DateTime scalar + HealthCheck probe + DEV1-013 handshake-code surface + the parent-link objects (extend step; audit-trail types reconciled into the baseline)", () => {
     const post = new Set(sdlTypeNames());
 
     for (const name of PRE_3_1_TYPE_NAMES) {
@@ -833,7 +833,7 @@ describe("Users-locale surface (D2 backend vertical) — self-scoped locale pref
   });
 });
 
-describe("Parent-link surface (DEV1-014 extend) — five pinned root fields + LinkStatus + canonical objects", () => {
+describe("Parent-link surface (extend) — five pinned root fields + LinkStatus + canonical objects", () => {
   const queryType = graphQLSchema.getQueryType();
   const mutationType = graphQLSchema.getMutationType();
 
@@ -894,7 +894,7 @@ describe("Parent-link surface (DEV1-014 extend) — five pinned root fields + Li
     expect(incoming.args).toHaveLength(0);
   });
 
-  test("`requestParentChildLink(code: String!): OutgoingParentLinkRequest` — the ONLY nullable new mutation (REQ-012 collapse)", () => {
+  test("`requestParentChildLink(code: String!): OutgoingParentLinkRequest` — the ONLY nullable new mutation (null collapse)", () => {
     const field = mutationRootField("requestParentChildLink");
     // NULLABLE on purpose — a valid-format code matching no eligible student
     // answers null through the SAME channel as a governance-excluded child.

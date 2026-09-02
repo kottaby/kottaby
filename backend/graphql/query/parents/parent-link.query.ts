@@ -14,7 +14,7 @@
  *    verified context (`ctx.user.id`). There is no caller-supplied lookup
  *    surface of any kind: BOLA probes that attempt to address a foreign id
  *    die as GraphQL validation failures before a resolver ever runs.
- *  - NON-paginated array (plan §3.2): the service caps the listing at 50
+ *  - NON-paginated array: the service caps the listing at 50
  *    rows, newest first.
  *
  * `myIncomingParentLinkRequests: [IncomingParentLinkRequest!]!`
@@ -35,7 +35,7 @@
  *    requests are a user-to-user handshake, so admins and supervisors fail
  *    the role scope exactly like every other non-entitled role.
  *
- * DomainErrors thrown deeper (the service's REQ-031 actor re-check denials)
+ * DomainErrors thrown deeper (the service's fresh actor re-check denials)
  * propagate uncaught to the masking boundary — NO try/catch here by
  * contract (the boundary finalizer owns masking + the single correlated
  * log line). All imports are top-level STATIC imports (Bun ESM rule —

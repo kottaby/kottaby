@@ -1,6 +1,6 @@
 /**
  * ParentLinkRequestRepository tests — 100% method coverage for the
- * parent→student link-request data-access layer (plan §4.1, REQ-070).
+ * parent→student link-request data-access layer.
  *
  * Per `backend/db/test/AGENTS.md`:
  *  - Every test runs inside `runInRollback` with `tx` passed to EVERY repo
@@ -13,7 +13,7 @@
  *    the `expectRepoError` try/catch helper.
  *  - No `console.*`; zero raw SQL in the tests (the repo owns the SQL).
  *
- * Tier map (tasks.md 2.2.TE — 4-Tier DB test convention):
+ * Tier map (the repo suite's 4-Tier DB test convention):
  *  - Tier 1 (Contract): create/findById/findPendingByPair round-trips; ALL
  *    zero-row classifier arms of the guarded claims (nonexistent id, wrong
  *    owner, already-resolved, expired-at-write-instant); sibling expiry
@@ -224,8 +224,8 @@ afterAll(async () => {
   if (!fixtures) {
     return;
   }
-  // Teardown order (REQ-046 / 1.2 carry-forward): requests BEFORE role
-  // children/users — both request FKs are ON DELETE RESTRICT.
+  // Teardown order (requests BEFORE role children/users — both request
+  // FKs are ON DELETE RESTRICT).
   await db
     .delete(parentLinkRequests)
     .where(inArray(parentLinkRequests.parentId, [fixtures.pending.parentUserId, fixtures.race.parentUserId]));
@@ -799,18 +799,20 @@ describe("ParentLinkRequestRepository.claimPendingForExpiryReminder", () => {
         { parentId: parentB.id, studentId: studentA.studentId, expiresAt: inWindow, status: LinkStatus.Rejected }, // history → untouched (partial unique admits it: only one PENDING per pair)
       ]);
       expect(rows).toHaveLength(5);
+      // Named fixture rows — definedness pinned by the length assertion above.
+      const [inWindowRow, beyondRow, lapsedRow, confirmedRow, rejectedRow] = rows;
 
       const claimed = await ParentLinkRequestReminderRepository.claimPendingForExpiryReminder(now, horizon, tx);
 
       // Exactly our one in-window fixture PLUS any committed in-window residue.
       expect(claimed).toHaveLength(residue.length + 1);
       const claimedIds = new Set(claimed.map(row => row.id));
-      expect(claimedIds.has(rows[0]!.id)).toBe(true);
+      expect(claimedIds.has(inWindowRow.id)).toBe(true);
       for (const residueRow of residue) {
         expect(claimedIds.has(residueRow.id)).toBe(true);
       }
       // The claimed row carries the emission payload (parent/student/expiry).
-      const claimedFixture = claimed.find(row => row.id === rows[0]!.id);
+      const claimedFixture = claimed.find(row => row.id === inWindowRow.id);
       expect(claimedFixture).toMatchObject({
         parentId: parentA.id,
         studentId: studentA.studentId,
@@ -821,18 +823,23 @@ describe("ParentLinkRequestRepository.claimPendingForExpiryReminder", () => {
       const after = await tx
         .select()
         .from(parentLinkRequests)
-        .where(inArray(parentLinkRequests.id, rows.map(row => row.id)));
+        .where(
+          inArray(
+            parentLinkRequests.id,
+            rows.map(row => row.id)
+          )
+        );
       const byId = new Map(after.map(row => [row.id, row]));
-      expect(byId.get(rows[0]!.id)?.reminderSentAt).not.toBeNull();
-      expect(byId.get(rows[1]!.id)?.reminderSentAt).toBeNull(); // out of window
-      expect(byId.get(rows[2]!.id)?.reminderSentAt).toBeNull(); // lapsed
-      expect(byId.get(rows[3]!.id)?.reminderSentAt).toBeNull(); // confirmed
-      expect(byId.get(rows[4]!.id)?.reminderSentAt).toBeNull(); // rejected
+      expect(byId.get(inWindowRow.id)?.reminderSentAt).not.toBeNull();
+      expect(byId.get(beyondRow.id)?.reminderSentAt).toBeNull(); // out of window
+      expect(byId.get(lapsedRow.id)?.reminderSentAt).toBeNull(); // lapsed
+      expect(byId.get(confirmedRow.id)?.reminderSentAt).toBeNull(); // confirmed
+      expect(byId.get(rejectedRow.id)?.reminderSentAt).toBeNull(); // rejected
       // Untouched rows keep their status (the claim is NOT a lifecycle write).
-      expect(byId.get(rows[1]!.id)?.status).toBe(LinkStatus.Pending);
-      expect(byId.get(rows[2]!.id)?.status).toBe(LinkStatus.Pending);
-      expect(byId.get(rows[3]!.id)?.status).toBe(LinkStatus.Confirmed);
-      expect(byId.get(rows[4]!.id)?.status).toBe(LinkStatus.Rejected);
+      expect(byId.get(beyondRow.id)?.status).toBe(LinkStatus.Pending);
+      expect(byId.get(lapsedRow.id)?.status).toBe(LinkStatus.Pending);
+      expect(byId.get(confirmedRow.id)?.status).toBe(LinkStatus.Confirmed);
+      expect(byId.get(rejectedRow.id)?.status).toBe(LinkStatus.Rejected);
     });
   });
 
@@ -847,12 +854,8 @@ describe("ParentLinkRequestRepository.claimPendingForExpiryReminder", () => {
       ]);
       const first = await ParentLinkRequestReminderRepository.claimPendingForExpiryReminder(now, horizon, tx);
       expect(first.length).toBeGreaterThanOrEqual(1);
-      expect(
-        await ParentLinkRequestReminderRepository.claimPendingForExpiryReminder(now, horizon, tx)
-      ).toHaveLength(0);
-      expect(
-        await ParentLinkRequestReminderRepository.claimPendingForExpiryReminder(now, horizon, tx)
-      ).toHaveLength(0);
+      expect(await ParentLinkRequestReminderRepository.claimPendingForExpiryReminder(now, horizon, tx)).toHaveLength(0);
+      expect(await ParentLinkRequestReminderRepository.claimPendingForExpiryReminder(now, horizon, tx)).toHaveLength(0);
     });
   });
 
@@ -867,10 +870,13 @@ describe("ParentLinkRequestRepository.claimPendingForExpiryReminder", () => {
         { parentId: parentA.id, studentId: student.studentId, expiresAt: horizon }, // == horizon → claimed
         { parentId: parentB.id, studentId: student.studentId, expiresAt: now }, // == now → lapsed side
       ]);
+      expect(rows).toHaveLength(2);
+      // Named fixture rows — definedness pinned by the length assertion above.
+      const [atHorizonRow, atNowRow] = rows;
       const claimed = await ParentLinkRequestReminderRepository.claimPendingForExpiryReminder(now, horizon, tx);
       const claimedIds = claimed.map(row => row.id);
-      expect(claimedIds).toContain(rows[0]!.id);
-      expect(claimedIds).not.toContain(rows[1]!.id);
+      expect(claimedIds).toContain(atHorizonRow.id);
+      expect(claimedIds).not.toContain(atNowRow.id);
     });
   });
 });

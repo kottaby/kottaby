@@ -1,9 +1,9 @@
 /**
- * ParentLinkRequestService — chaos & concurrency suite (DEV1-014, task 5.2).
+ * ParentLinkRequestService — chaos & concurrency suite.
  *
  * TRUE cross-connection races over the link-request lifecycle, run against
- * real PostgreSQL ONLY (tasks.md §5.2: "ALL races skip-gated via
- * `isPgliteProvider`"). PGlite is a single-connection WASM Postgres — each
+ * real PostgreSQL ONLY (all races are wholesale skip-gated via
+ * `isPgliteProvider`). PGlite is a single-connection WASM Postgres — each
  * process gets its own in-memory instance and concurrent transactions from
  * one process cannot interleave on separate connections, so every race below
  * is wrapped in the wholesale-skip `describeOnRealPostgres` gate (same
@@ -23,18 +23,18 @@
  * seam through a file-local recording transport — nothing reaches a real
  * channel.
  *
- * Coverage map (tasks.md §5.2 cells + the 5.1 carry-forward):
+ * Coverage map:
  *  - Duplicate-create race: two parallel own-commit `requestLink` calls for
  *    the SAME (parent, student) pair → EXACTLY ONE committed row + exactly
  *    one success; the loser surfaces `PARENT_LINK_ALREADY_PENDING` (the
  *    partial-unique 23505 arbiter traversed and mapped at the service
- *    boundary — the RAW driver error never leaks), REQ-095.
+ *    boundary — the RAW driver error never leaks).
  *  - Concurrent double-respond on ONE pending (two sessions) → exactly one
  *    claim wins; the loser gets the constant
  *    `PARENT_LINK_REQUEST_ALREADY_RESOLVED`; final state is exactly one
  *    terminal row and exactly one parent notification (no ghost states).
  *  - Cross-actor racer: a FOREIGN student's raced respond loses with the
- *    constant `PARENT_LINK_REQUEST_NOT_FOUND` shape (REQ-034) and emits
+ *    constant `PARENT_LINK_REQUEST_NOT_FOUND` shape and emits
  *    nothing.
  *  - Cancel-vs-respond race → deterministic single outcome; the silent
  *    withdrawal arm proves ZERO orphan notifications on either branch
@@ -46,10 +46,9 @@
  *    pendings expired (the loser surfaces a typed conflict or a 40P01
  *    deadlock abort — both mean it committed nothing; see in-test comment).
  *  - Confirm-during-expiry instant: respond at `expiresAt` exactly "now"
- *    deterministically materializes `expired` (strict `>` predicate,
- *    REQ-094) with no link and no notification.
- *  - Expiry race (repository primitives, ±1ms fixtures per the 2.2
- *    outcome): `markExpiredIfPending` vs `respondToPendingForStudent`
+ *    deterministically materializes `expired` (strict `>` predicate)
+ *    with no link and no notification.
+ *  - Expiry race (repository primitives, ±1ms fixtures): `markExpiredIfPending` vs `respondToPendingForStudent`
  *    crossing the 7-day boundary → exactly one of EXPIRED/accepted, never
  *    pending, never both.
  *  - `linkParentIfUnlinked` single-writer: two parents racing to link the
@@ -60,15 +59,15 @@
  *    claim + link but BEFORE commit rolls back the OWN-COMMIT unit — ZERO
  *    residual rows across `parent_link_requests`/`students`/`notifications`
  *    (the rollback-proof pin), and the raw failure propagates unmasked.
- *  - Re-request after silent expiry (6.4-F1 pin — CURRENT contract, no sweep
- *    exists): a pending row whose deadline lapsed with NO materializing
+ *  - Re-request after silent expiry (a CURRENT-contract pin): a pending row
+ *    whose deadline lapsed with NO materializing
  *    touch still answers `PARENT_LINK_ALREADY_PENDING` on re-request (the
  *    liveness-free `findPendingByPair` pre-check + the partial unique, both
  *    status-only), while the SAME row renders `Expired` in the outgoing
  *    list. The UI hides Cancel on BOTH sides for such rows (no
- *    materialization path) until D1's cron sweep owns it.
+ *    materialization path) until a cron-stream sweep owns it.
  *
- * Security invariants carried by every cell (5.2.SEC): the winner takes
+ * Security invariants carried by every cell: the winner takes
  * exactly one row, the loser's state is untouched, notifications are bound
  * to the winner's own request id, and every race denial is a constant-shape
  * domain error (code + translated copy, never a driver message).
@@ -312,7 +311,7 @@ afterAll(async () => {
 /** Wholesale-skip wrapper for every true race — PGlite cannot host cross-connection interleavings. */
 const describeOnRealPostgres = isPgliteProvider() ? describe.skip : describe;
 
-describeOnRealPostgres("ParentLinkRequestService — chaos & concurrency (task 5.2, real PostgreSQL)", () => {
+describeOnRealPostgres("ParentLinkRequestService — chaos & concurrency (real PostgreSQL)", () => {
   test("duplicate-create race: two parallel requestLink calls for the SAME pair — exactly ONE committed row, loser surfaces PARENT_LINK_ALREADY_PENDING (raw 23505 never leaks)", async () => {
     const { parent, student } = await createLinkPair("dup-create");
     const firstTransport = new RecordingFanoutTransport();
@@ -455,7 +454,7 @@ describeOnRealPostgres("ParentLinkRequestService — chaos & concurrency (task 5
         callOptions(foreignTransport)
       ),
     ]);
-    // The owner fulfills; the foreign racer is denied the REQ-034 constant
+    // The owner fulfills; the foreign racer is denied the constant
     // shape (foreign ≡ nonexistent — never an id-enumeration oracle).
     expect(outcomes[0]?.status).toBe("fulfilled");
     expect(outcomes[1]?.status).toBe("rejected");
@@ -641,7 +640,7 @@ describeOnRealPostgres("ParentLinkRequestService — chaos & concurrency (task 5
     expect(denial.code).toBe("PARENT_LINK_REQUEST_EXPIRED");
     expect(denial.message).toBe(enErrors.parentLinkRequestExpired);
 
-    // REQ-094: the expiry is MATERIALIZED (the row survives as expired),
+    // The expiry is MATERIALIZED (the row survives as expired),
     // with no link and no notification on the denial path.
     const row = await requestRowById(db, request.id);
     expect(row?.status).toBe(LinkStatus.Expired);
@@ -843,8 +842,8 @@ describeOnRealPostgres("ParentLinkRequestService — chaos & concurrency (task 5
     // `status='pending'` would 23505 into the SAME mapping regardless. This
     // pins the CURRENT contract honestly: the pair is locked out of
     // re-submission because the UI hides Cancel on BOTH sides for
-    // computed-Expired rows (no materialization path) until D1's cron sweep
-    // owns it — backend behavior stays REQ-014/095-conformant.
+    // computed-Expired rows (no materialization path) until a cron-stream
+    // sweep owns it — backend behavior stays as pinned.
     const reRequestError = await expectRepoError(() =>
       ParentLinkRequestService.requestLink(
         student.handshakeCode,

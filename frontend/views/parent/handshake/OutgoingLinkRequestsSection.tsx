@@ -25,12 +25,12 @@ import { Common, Errors, ParentLink, useAppLocale, useAppTranslation } from "@/s
 
 /**
  * OutgoingLinkRequestsSection — the "requests you've sent" list of the
- * parent handshake surface (DEV1-014 task 4.3).
+ * parent handshake surface.
  *
  * A stateful `useQuery` fetches the caller's OWN outgoing parent-link
  * requests (zero-argument — the parent id is derived server-side from the
  * verified context, identity NEVER crosses the wire; rows carry the MASKED
- * student name per REQ-020), and a `useMutation(cancelParentLinkRequest)`
+ * student name (masked-name contract), and a `useMutation(cancelParentLinkRequest)`
  * drives the silent withdrawal (the backend folds the row to `rejected`
  * with ZERO notifications). No `useLazyQuery` anywhere; the mutation→list
  * refresh is the plain `refetch()` (no cache surgery).
@@ -44,7 +44,7 @@ import { Common, Errors, ParentLink, useAppLocale, useAppTranslation } from "@/s
  * | 3 | rows not settled, any other query error | localized inline `Alert` (`errors.internalServerError`) + retry affordance |
  * | 4 | rows not settled | skeleton region (`component="output"` + `aria-busy`) |
  * | 5 | zero rows | empty state (`outgoingEmptyTitle`/`outgoingEmptyBody`) |
- * | 6 | rows settled | per-row cards in the `component="output"` list region (single column, §5.5) |
+ * | 6 | rows settled | per-row cards in the `component="output"` list region (single column) |
  *
  * Cancel flow: the submitted row's affordance (and the dialog) disable while
  * in flight; on success the dialog closes, the localized success toast fires
@@ -82,7 +82,7 @@ export function OutgoingLinkRequestsSection(): ReactNode {
   const [denialCode, setDenialCode] = useState<string | null>(null);
   // Retry-after-query-error refetch in flight (disables the affordance).
   const [retryPending, setRetryPending] = useState(false);
-  // REQ-015 read purity: ONE `now` captured at mount (lazy initializer — no
+  // Read purity: ONE `now` captured at mount (lazy initializer — no
   // impure calls during render). The expired verdict stays stable for the
   // mount's lifetime; server-side materialization + refetch settle the
   // authoritative states.

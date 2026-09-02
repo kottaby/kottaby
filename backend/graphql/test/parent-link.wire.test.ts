@@ -1,12 +1,12 @@
 /**
  * Consolidated GraphQL wire matrix — the role × operation × validation tier
  * for the five parent-link root fields (`setupTestServerLifecycle` +
- * `testClient`, raw `fetch` where byte-shape matters — REQ-073).
+ * `testClient`, raw `fetch` where byte-shape matters).
  *
- * This is the 5.1 consolidation suite over the REAL wire (HTTP → gateway
+ * This is the consolidated wire-tier suite over the REAL wire (HTTP → gateway
  * pipeline → scope-auth → resolver → ParentLinkRequestService → PostgreSQL
- * → back), crossing the five DEV1-014 operations with every caller class
- * the permission matrix (plan §3.5) recognizes:
+ * → back), crossing the five parent-link operations with every caller class
+ * the permission matrix recognizes:
  *
  *  - `myOutgoingParentLinkRequests` / `myIncomingParentLinkRequests` —
  *    the two zero-arg `[T!]!` lists;
@@ -20,15 +20,15 @@
  *    localized copy, per-op `path`, each op carrying only its own path).
  *    The `data` channel follows the GraphQL spec: `data: null` on the four
  *    non-nullable ops, `data: { requestParentChildLink: null }` on the only
- *    nullable new mutation. Complements (never replaces) the 3.3 in-process
+ *    nullable new mutation. Complements (never replaces) the in-process
  *    pins: the wire tier proves the transport behavior through the live
  *    gateway.
  *  - **Wrong role × 5 ops (15 cells)** — parent↔student cross-probes BOTH
  *    directions plus teacher and admin on every op answer FORBIDDEN
- *    (pre-resolver `role`-scope denial, plan §3.5 — there is deliberately
+ *    (pre-resolver `role`-scope denial — there is deliberately
  *    NO admin override on this user-to-user handshake).
  *  - **Governed caller (pre-issued token)** — the denial is the SERVICE
- *    re-check (REQ-031): scope-auth passes on the still-valid JWT, then
+ *    re-check: scope-auth passes on the still-valid JWT, then
  *    `requireActor`'s governance arm throws ForbiddenError — asserted as
  *    `extensions.code === "FORBIDDEN"`, NOT `UNAUTHORIZED`, with zero rows
  *    written. The READ-path divergence (relaxed re-check keeps a governed
@@ -47,7 +47,7 @@
  *    extra args on all three mutations die as GRAPHQL_VALIDATION_FAILED
  *    before any resolver runs (the request never executes: the `data` key
  *    is absent from the body).
- *  - **Nullable collapse (REQ-012/REQ-034)** — a well-formed code matching
+ *  - **Nullable collapse** — a well-formed code matching
  *    no eligible student and a governed target answer byte-identical
  *    `data.requestParentChildLink === null` bodies with NO `errors` array,
  *    zero rows created (no existence oracle).
@@ -770,7 +770,7 @@ describe("wire matrix — anonymous tier (credential-less caller × 5 ops)", () 
   });
 });
 
-// ─── Matrix: wrong-role tier (403 — plan §3.5, no admin override) ────────────
+// ─── Matrix: wrong-role tier (403 — no admin override) ───────────────────
 
 describe("wire matrix — wrong-role tier (parent↔student cross-probes, teacher, admin)", () => {
   test("the FULL wrong-role matrix — 15 cells answer FORBIDDEN with the constant localized shape", async () => {
@@ -940,9 +940,9 @@ describe("wire matrix — payload-wire equality (wire ≡ service oracle)", () =
   });
 });
 
-// ─── Matrix: nullable collapse (REQ-012 / REQ-034(1)) ────────────────────────
+// ─── Matrix: nullable collapse (null-collapse contract) ─────────────────────
 
-describe("wire matrix — nullable collapse (REQ-012 / REQ-034)", () => {
+describe("wire matrix — nullable collapse (missing ≡ governed ≡ non-linkable)", () => {
   test("code miss and governed target both answer null with byte-identical bodies and zero rows", async () => {
     const parentP = actorByLabel("parentP");
     const studentG = actorByLabel("studentG");
@@ -1049,7 +1049,7 @@ describe("wire matrix — success payload shape (requestParentChildLink non-null
 // ─── Matrix: validation tier (pre-DB requestId parser) ───────────────────────
 
 describe("wire matrix — validation tier (pre-DB requestId parser)", () => {
-  /** The exact fuzz corpus from tasks.md §5.1 + the parser's hardening cases. */
+  /** The exact fuzz corpus of the journey tier + the parser's hardening cases. */
   const FUZZ_IDS: readonly string[] = ["0", "-1", "1.5", "abc", "99999999999999999999", " 12", "12abc", "1e3"];
 
   test("respondToParentLinkRequest fuzz — every hostile id dies as VALIDATION pre-DB (never 403, never a service error)", async () => {
@@ -1150,9 +1150,9 @@ describe("wire matrix — BOPLA smuggle probes (smuggled identity args)", () => 
   });
 });
 
-// ─── Matrix: governed caller tier (service-layer re-check, REQ-031) ──────────
+// ─── Matrix: governed caller tier (service-layer re-check) ─────────────
 
-describe("wire matrix — governed caller tier (service-layer re-check, REQ-031)", () => {
+describe("wire matrix — governed caller tier (service-layer re-check)", () => {
   test("a governed parent with a PRE-ISSUED token is denied at the SERVICE layer — FORBIDDEN, never UNAUTHORIZED, zero writes", async () => {
     const governedP = actorByLabel("governedP");
     await applyGovernanceState(governedP.userId, { suspended: true });
@@ -1172,7 +1172,7 @@ describe("wire matrix — governed caller tier (service-layer re-check, REQ-031)
       expect(errorMessageOf(item)).toBe(tEn.forbidden);
       expect(errorMessageOf(item)).not.toBe(tEn.unauthorized);
 
-      // REQ-031 zero-write property: the denial created nothing.
+      // Zero-write property of the service denial: it created nothing.
       const [after] = await db
         .select({ value: count() })
         .from(parentLinkRequests)

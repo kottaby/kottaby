@@ -1,9 +1,9 @@
 /**
  * Parent-child link request mutations — request / respond / cancel.
  *
- * Contract (plan §3.2/§3.4/§3.5):
+ * Contract:
  *  - `requestParentChildLink(code: String!): OutgoingParentLinkRequest`
- *      NULLABLE payload (REQ-012 collapse contract): a valid-format code
+ *      NULLABLE payload (the null-collapse contract): a valid-format code
  *      matching no eligible student, and a governance-excluded child, BOTH
  *      answer `null` through one indistinguishable channel (never an
  *      error) — the resolver maps the service's `null` through verbatim.
@@ -146,7 +146,7 @@ async function requireVerifiedRequestId(
 // Side-effect: register the `requestParentChildLink` mutation field.
 gqlSchemaBuilder.mutationField("requestParentChildLink", t =>
   t.field({
-    // NULLABLE on purpose (REQ-012): a well-formed code that matches no
+    // NULLABLE on purpose (null collapse): a well-formed code that matches no
     // eligible student — and a governed child — collapse to `null`, never
     // an error (no existence oracle on the discovery path).
     type: OutgoingParentLinkRequestPothosObject,

@@ -2,10 +2,10 @@ import { LinkStatus } from "@/frontend/graphql/generated/gql/graphql";
 import type { ParentLinkLabels } from "@/shared/locale/types/parentLink";
 
 /**
- * Shared computed-status machinery for the DEV1-014 parent-link request
+ * Shared computed-status machinery for the parent-link request
  * cards (student incoming queue + parent outgoing list).
  *
- * REQ-015 read purity: a stored `pending` row whose `expiresAt` moment has
+ * Read purity: a stored `pending` row whose `expiresAt` moment has
  * passed renders the expired chip and loses its CTAs WITHOUT any write —
  * the materialization stays server-side. The strict-`>` liveness here is
  * byte-for-byte parity with the service classifier

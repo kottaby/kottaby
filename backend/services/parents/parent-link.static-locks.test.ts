@@ -1,13 +1,13 @@
 /**
  * Static locks — single-writer, no-LIKE, no-audit, no-console,
- * single-notifications-writer (DEV1-014 tasks.md 5.3).
+ * single-notifications-writer.
  *
  * Pure filesystem tier — ZERO server boot, ZERO DB access (read-only
  * `node:fs` traversal, `handshake-code-immutability-scan` precedent).
  * Every assert is load-bearing for INV-P1 (`linkParentIfUnlinked` is the
- * ONLY non-null `students.parent_id` producer), REQ-037 (zero audit writes
- * off the admin path), REQ-023 (no-LIKE discovery), REQ-021/074 (engine-only
- * notifications) — this suite IS the 5.3.SEC audit.
+ * ONLY non-null `students.parent_id` producer), zero audit writes off the
+ * admin path, no-LIKE discovery, engine-only notifications — this suite IS
+ * the security audit for those invariants.
  *
  * WHAT THIS LOCKS:
  *  (a) `students.parent_id` single-writer: across the backend production
@@ -16,7 +16,7 @@
  *      inside `StudentRepository.linkParentIfUnlinked`
  *      (`backend/db/repo/students/student.repository.ts`), and its ONLY
  *      production caller is `ParentLinkRequestService.respondToLinkRequest`.
- *      Allowed-with-cause (test-janitorial, per tasks.md 5.3.a):
+ *      Allowed-with-cause (test-janitorial):
  *      `backend/db/test/entity-setup.ts` and `backend/db/seeds/**` — both
  *      currently write `parentId: null` or nothing, so the live violation
  *      set is EMPTY with the allowlist merely as future-proofing; any new
@@ -25,13 +25,13 @@
  *      `backend/services/parents/`, `backend/db/repo/parents/parent-link-request.repository.ts`,
  *      `backend/graphql/{query,mutation,pothos}/parents/`, the parent-link
  *      frontend trees and lib helpers (discovery is exact-match on the
- *      handshake code — REQ-023).
- *  (c) zero `auditLogs` writes in the new modules (A.5 = admin actions
- *      only, REQ-037) — no insert shape, no raw insert, no audit-module
+ *      handshake code).
+ *  (c) zero `auditLogs` writes in the new modules (audit writes live on
+ *      the admin path only) — no insert shape, no raw insert, no audit-module
  *      import. Docblock MENTIONS of `audit_logs` are not writes and do not
  *      fire the write-shape scanners.
  *  (d) zero `console.*` calls in all new/modified source files, backend and
- *      frontend — INCLUDING the new DEV1-014 test files (tests use the test
+ *      frontend — INCLUDING the new parent-link test files (tests use the test
  *      runner's `testLogger` facilities per `.agents/instructions/tests.instructions.md`;
  *      never `console.*`). The scanner matches call-form only, so a docblock
  *      mention of `console.*` cannot trip it and, symmetrically, cannot
@@ -50,7 +50,7 @@
  * DETERMINISM: file discovery sorts names with `localeCompare` at read
  * time; repeated traversals yield identical orderings.
  *
- * ROOT PIN (5.3.SR): the repo root is derived RELATIVELY from this suite's
+ * ROOT PIN: the repo root is derived RELATIVELY from this suite's
  * own location (`backend/services/parents/` → three levels up) — never from
  * `process.cwd()` — so the scan paths are environment-insensitive. A corpus
  * guard proves the derivation resolved the real repo root.
@@ -60,7 +60,7 @@
  * positives are visible and cheap, false negatives require intentionally
  * obfuscated code which fails review anyway. Scan targets EXCLUDE
  * `*.test.ts` except where lock (d) deliberately includes the named new
- * DEV1-014 test files (console ban applies to tests too).
+ * parent-link test files (console ban applies to tests too).
  * `backend/drizzle/**` migration snapshots are data, not source, and are
  * outside the scanned trees by design.
  */
@@ -140,13 +140,13 @@ const BACKEND_PROD_TREES: readonly (readonly [string, string])[] = [
   ["backend/lib", "backend/lib"],
 ];
 
-/** Test-janitorial path allowed by tasks.md 5.3.a (entity-setup fixtures). */
+/** Test-janitorial path allowance (entity-setup fixtures). */
 const ENTITY_SETUP: readonly (readonly [string, string])[] = [
   ["backend/db/test/entity-setup.ts", "backend/db/test/entity-setup.ts"],
 ];
 
 /**
- * The new DEV1-014 backend modules — locks (b), (c), (e). Exactly the
+ * The new parent-link backend modules — locks (b), (c), (e). Exactly the
  * created surfaces: parents service tree (production sources only), the
  * parent-link request repository file, and the three GraphQL parents dirs.
  */
@@ -163,12 +163,12 @@ const PARENT_LINK_REQUEST_REPOSITORY_CORPUS: readonly (readonly [string, string]
 ];
 
 /**
- * Frontend new/modified corpus for locks (b)/(d). The tasks.md 5.3.b
- * contract path `frontend/views/parents/` does not exist in this repo; the
- * REAL parent-link view trees shipped by tasks 4.2/4.3 are
+ * Frontend new/modified corpus for locks (b)/(d). The parent-link view trees
+ * shipped on this ticket are
  * `frontend/views/parent/handshake/` and `frontend/views/students/link-requests/`
- * (drift recorded in the 5.3 outcome) and are scanned here alongside the
- * contracted `frontend/graphql/sharedDocuments/parents/` and the new lib
+ * (the generic `frontend/views/parents/` convention does not exist in this
+ * repo) and are scanned here alongside the
+ * `frontend/graphql/sharedDocuments/parents/` tree, the new lib
  * helpers plus the one modified nav file.
  */
 const FRONTEND_NEW_TREES: readonly (readonly [string, string])[] = [
@@ -197,7 +197,7 @@ const BACKEND_NEW_FILES: readonly (readonly [string, string])[] = [
 ];
 
 /**
- * The new DEV1-014 test files — lock (d) bans `console.*` here too (tests
+ * The new parent-link test files — lock (d) bans `console.*` here too (tests
  * use `testLogger`, never `console.*`; a docblock MENTION like the one in
  * `student.repository.test.ts` is not a call and does not fire).
  */
@@ -271,7 +271,7 @@ function isNonNullValueToken(token: string | undefined, caseInsensitive = false)
 
 // ─── Lock (a) — single-writer scanners for students.parent_id ────────────────
 
-/** EXHAUSTIVE allowlist (5.3.SR): the guarded production writer + the test-janitorial paths. */
+/** EXHAUSTIVE allowlist: the guarded production writer + the test-janitorial paths. */
 const PARENT_ID_WRITER_ALLOWLIST: ReadonlySet<string> = new Set([
   "backend/db/repo/students/student.repository.ts", // linkParentIfUnlinked — THE writer (INV-P1)
   "backend/db/test/entity-setup.ts", // test janitorial (currently parentId: null only)
@@ -489,7 +489,7 @@ describe("static locks — corpus guards (the scans have subjects)", () => {
     expect(backendLabels).toContain("backend/db/repo/notifications/notification.repository.ts");
   });
 
-  test("the new DEV1-014 test files exist for the console lock (d)", () => {
+  test("the new parent-link test files exist for the console lock (d)", () => {
     expect(newTestFileSources).toHaveLength(NEW_TEST_FILES.length);
   });
 });
@@ -555,7 +555,7 @@ describe("lock (a) — students.parent_id single-writer (INV-P1)", () => {
 
 // ─── Lock (b) — zero-LIKE on the new modules ─────────────────────────────────
 
-describe("lock (b) — zero LIKE/ilike construction in the new modules (REQ-023)", () => {
+describe("lock (b) — zero LIKE/ilike construction in the new modules", () => {
   test("zero LIKE constructions across the new backend parents modules", () => {
     expect(scanLikeConstructions(newBackendModuleSources)).toEqual([]);
   });
@@ -571,7 +571,7 @@ describe("lock (b) — zero LIKE/ilike construction in the new modules (REQ-023)
 
 // ─── Lock (c) — zero auditLogs writes in the new modules ─────────────────────
 
-describe("lock (c) — zero auditLogs writes in the new modules (REQ-037, A.5 admin-only)", () => {
+describe("lock (c) — zero auditLogs writes in the new modules (admin-path only)", () => {
   test("zero Drizzle auditLogs inserts in the new backend modules", () => {
     expect(scanDrizzleAuditInserts(newBackendModuleSources)).toEqual([]);
   });
@@ -603,7 +603,7 @@ describe("lock (d) — zero console.* calls (frontend + backend + new tests)", (
     expect(scanConsoleCalls(frontendNewSources)).toEqual([]);
   });
 
-  test("zero console calls in the new DEV1-014 test files (testLogger only)", () => {
+  test("zero console calls in the new parent-link test files (testLogger only)", () => {
     expect(scanConsoleCalls(newTestFileSources)).toEqual([]);
   });
 });
