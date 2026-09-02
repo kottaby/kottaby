@@ -190,27 +190,27 @@
 
 ## Phase 4 — Frontend Documents, Page & UI Views
 
-- [ ] 4.1 [Apollo authLink additive context-header merge + frontend mutation document]
+- [x] 4.1 [Apollo authLink additive context-header merge + frontend mutation document]
   - UPDATE `frontend/providers/apollo/utils.ts` — `createAuthLink` ADDITIVELY merges `operation.getContext().headers` into outgoing headers (existing token/preflight/op-name writers unchanged; absent context headers ⇒ byte-identical behavior).
   - CREATE `frontend/graphql/sharedDocuments/notifications/broadcast.documents.ts` — `adminBroadcastNotificationMutationDocument: TypedDocumentNode<AdminBroadcastNotificationMutation, AdminBroadcastNotificationMutationVariables>` (`mutation AdminBroadcastNotification($input: AdminBroadcastNotificationInput!) { adminBroadcastNotification(input: $input) }`).
   - UPDATE `frontend/graphql/sharedDocuments/notifications/index.ts` — barrel export.
   - CREATE/EXTEND the documents test — pin operation name, variables surface (`input` ONLY — zero identity variables), bare `Int!` payload, barrel identity (pattern: `notification.documents.test.ts`).
   - _Requirements: REQ-023 (client key transport), REQ-060, REQ-063, REQ-074_
-  - [ ] 4.1.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts frontend/graphql/sharedDocuments/notifications/broadcast.documents.ts --lifecycle duplicates` (exit 0) + apollo utils.
-  - [ ] 4.1.TE **Unit / Component Tests:** authLink merge tests (headers present → merged; absent → unchanged; fixed keys never clobbered unexpectedly); document pins green via `bun run test/scripts/run-test.ts frontend/graphql`.
-  - [ ] 4.1.SEC **Security & Tenancy Audit:** idempotency key rides headers only (never the input DTO); no token-like material in the document.
-  - [ ] 4.1.SR **Semantic Review:** additive-only change; generated types imported from `frontend/graphql/generated`.
-  - [ ] 4.1.IV **Instruction Verification:** `.agents/instructions/frontend.instructions.md` + `frontend/graphql/AGENTS.md`.
+  - [x] 4.1.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts frontend/graphql/sharedDocuments/notifications/broadcast.documents.ts --lifecycle duplicates` (exit 0) + apollo utils.
+  - [x] 4.1.TE **Unit / Component Tests:** authLink merge tests (headers present → merged; absent → unchanged; fixed keys never clobbered unexpectedly); document pins green via `bun run test/scripts/run-test.ts frontend/graphql`.
+  - [x] 4.1.SEC **Security & Tenancy Audit:** idempotency key rides headers only (never the input DTO); no token-like material in the document.
+  - [x] 4.1.SR **Semantic Review:** additive-only change; generated types imported from `frontend/graphql/generated`.
+  - [x] 4.1.IV **Instruction Verification:** `.agents/instructions/frontend.instructions.md` + `frontend/graphql/AGENTS.md`.
 
-- [ ] 4.2 [Create `/admin/broadcasts` route — Server Component guard]
+- [x] 4.2 [Create `/admin/broadcasts` route — Server Component guard]
   - CREATE `app/(dashboard)/admin/broadcasts/page.tsx` — Server Component with `withPageAuth({ roles: [UserRole.Admin], redirectTo: "/admin/broadcasts" })` rendering the client `BroadcastComposeContainer`; non-admin redirect via `roleDashboardPath(ctx.role)` (NEVER bare `/dashboard`).
   - Applicable instructions: `.agents/instructions/frontend.instructions.md`, `app/AGENTS.md` (verify existence in bundle).
   - _Requirements: REQ-063, REQ-030 (SSR half)_
-  - [ ] 4.2.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts "app/(dashboard)/admin/broadcasts/page.tsx" --lifecycle duplicates` (exit 0)
-  - [ ] 4.2.TE **Unit / Component Tests:** server-guard behavior covered by existing `withPageAuth` suites + role-redirect test additions if the guard pattern requires per-route pins.
-  - [ ] 4.2.SEC **Security & Tenancy Audit:** governed users fail closed at SSR (`getServerUserContext`); anonymous → `/login?redirect=/admin/broadcasts`.
-  - [ ] 4.2.SR **Semantic Review:** server component has zero client hooks; metadata/title via `getTranslations(locale)` single-arg tree if used.
-  - [ ] 4.2.IV **Instruction Verification:** frontend instructions + `frontend/lib/auth` guard conventions.
+  - [x] 4.2.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts "app/(dashboard)/admin/broadcasts/page.tsx" --lifecycle duplicates` (exit 0)
+  - [x] 4.2.TE **Unit / Component Tests:** server-guard behavior covered by existing `withPageAuth` suites + role-redirect test additions if the guard pattern requires per-route pins.
+  - [x] 4.2.SEC **Security & Tenancy Audit:** governed users fail closed at SSR (`getServerUserContext`); anonymous → `/login?redirect=/admin/broadcasts`.
+  - [x] 4.2.SR **Semantic Review:** server component has zero client hooks; metadata/title via `getTranslations(locale)` single-arg tree if used.
+  - [x] 4.2.IV **Instruction Verification:** frontend instructions + `frontend/lib/auth` guard conventions.
 
 - [ ] 4.3 [Create `BroadcastComposeContainer` — compose UI]
   - CREATE `frontend/views/admin/broadcasts/BroadcastComposeContainer.tsx` (`"use client"`): `useAppTranslation(AdminBroadcasts)` + `useAppTranslation(Common)`; title/body fields (`dir="auto"` on user-authored copy); audience-type selector; conditional companion (role select from codegen `UserRole`; country free-text w/ exact-match helper copy; plan select fed by EXISTING `adminPlansQueryDocument` with `skip: audienceType !== Plan`); confirmation dialog; `useMutation(adminBroadcastNotificationMutationDocument)` with `context: { headers: { "x-idempotency-key": composeKeyRef.current } }` — `composeKeyRef = useRef(randomUUID())`, regenerated ONLY after success; VALIDATION errors via `projectMutationFieldErrors` (`frontend/lib/mutationFieldErrors.ts`) — never a bespoke renderer; success `Snackbar` with pluralized `t.successToast(count)`; submit disabled while loading; submit handler typed `React.SubmitEvent`.
@@ -231,15 +231,15 @@
   - [ ] 4.3.SR **Semantic Review:** zero direct style props (sx only); no hardcoded strings/colors; `useAppTranslation` property access with handle consts; `*Outlined` icons; no `FormEvent`; logger from `@/frontend/lib/logger` if logging needed (never `console.*`).
   - [ ] 4.3.IV **Instruction Verification:** `.agents/instructions/frontend.instructions.md` + existing `frontend/graphql/AGENTS.md` (only instruction/AGENTS files verified to exist).
 
-- [ ] 4.4 [Navigation integration — admin nav item]
+- [x] 4.4 [Navigation integration — admin nav item]
   - UPDATE `frontend/views/dashboard/navItems.ts` — ADD EXACTLY ONE admin item `{ route: "/admin/broadcasts", labelKey: "broadcasts", Icon: CampaignOutlined }` after the `audit` entry; all non-admin role arrays remain byte-identical. NO mobile bottom-nav work (none exists; shared Drawer list only).
   - UPDATE `frontend/views/dashboard/navItems.test.ts` — admin list contains `/admin/broadcasts`; every non-admin role lacks it; `broadcasts` label resolves non-empty in both locales from the dashboard bundle.
   - _Requirements: REQ-064_
-  - [ ] 4.4.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts frontend/views/dashboard/navItems.ts --lifecycle duplicates` (exit 0)
-  - [ ] 4.4.TE **Unit / Component Tests:** `bun run test/scripts/run-test.ts frontend/views/dashboard` — extended role-gating + one-owner ownership tests green.
-  - [ ] 4.4.SEC **Security & Tenancy Audit:** non-admin nav arrays provably unchanged (diff-pinned).
-  - [ ] 4.4.SR **Semantic Review:** single ADD, no duplicate/retargeted entries; key lives in dashboard bundle only.
-  - [ ] 4.4.IV **Instruction Verification:** frontend instructions + existing nav test conventions.
+  - [x] 4.4.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts frontend/views/dashboard/navItems.ts --lifecycle duplicates` (exit 0)
+  - [x] 4.4.TE **Unit / Component Tests:** `bun run test/scripts/run-test.ts frontend/views/dashboard` — extended role-gating + one-owner ownership tests green.
+  - [x] 4.4.SEC **Security & Tenancy Audit:** non-admin nav arrays provably unchanged (diff-pinned).
+  - [x] 4.4.SR **Semantic Review:** single ADD, no duplicate/retargeted entries; key lives in dashboard bundle only.
+  - [x] 4.4.IV **Instruction Verification:** frontend instructions + existing nav test conventions.
 
 ---
 
