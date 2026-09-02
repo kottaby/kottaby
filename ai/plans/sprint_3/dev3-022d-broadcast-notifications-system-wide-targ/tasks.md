@@ -177,14 +177,14 @@
   - [x] 3.2.SR **Semantic Review:** delegation-only resolver; no duplicate registration; no dead exports.
   - [x] 3.2.IV **Instruction Verification:** `backend/graphql/AGENTS.md` + REQ-018 registration contract (`docs/graphql/api-gateway-and-routing.md`) satisfied (side-effect barrel, codegen in set, authScopes declared, public allowlist untouched).
 
-- [ ] 3.3 [GraphQL integration matrix over the REAL HTTP stack]
+- [x] 3.3 [GraphQL integration matrix over the REAL HTTP stack]
   - CREATE integration test (pattern: `setupTestServerLifecycle` + `testClient` / raw `fetch`) asserting the REQ-072 matrix: anonymous → `UNAUTHORIZED` pre-resolver; student/teacher/parent → `FORBIDDEN`; admin happy path returns count and DB oracle shows the rows; replay via repeated `X-Idempotency-Key` header → same count, zero new rows; BOPLA probes (unknown input fields, smuggled identity args) → `GRAPHQL_VALIDATION_FAILED` before resolvers; authScopes extension-introspection pin equals the `$all` map (precedent `backend/graphql/test/handshake-code-surface.test.ts:9-27`); zero identity-accepting argument probe (precedent `schema-surface.test.ts:483-500, :522-537`).
   - _Requirements: REQ-072, REQ-075 (resolver half), REQ-030..REQ-033_
-  - [ ] 3.3.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts <new integration test file> --lifecycle duplicates` (exit 0)
-  - [ ] 3.3.TE **Test Engineering:** run via `bun run test/scripts/run-test.ts backend/graphql` full directory green.
-  - [ ] 3.3.SEC **Security & Tenancy Audit:** disclosure check — error payloads carry only documented `extensions.code`s; no user enumeration in any response.
-  - [ ] 3.3.SR **Semantic Review:** tests use the real server (no resolver-level shortcuts); no env leakage between tests.
-  - [ ] 3.3.IV **Instruction Verification:** `.agents/instructions/tests.instructions.md` conventions.
+  - [x] 3.3.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts <new integration test file> --lifecycle duplicates` (exit 0)
+  - [x] 3.3.TE **Test Engineering:** run via `bun run test/scripts/run-test.ts backend/graphql` full directory green.
+  - [x] 3.3.SEC **Security & Tenancy Audit:** disclosure check — error payloads carry only documented `extensions.code`s; no user enumeration in any response.
+  - [x] 3.3.SR **Semantic Review:** tests use the real server (no resolver-level shortcuts); no env leakage between tests.
+  - [x] 3.3.IV **Instruction Verification:** `.agents/instructions/tests.instructions.md` conventions.
 
 ---
 
