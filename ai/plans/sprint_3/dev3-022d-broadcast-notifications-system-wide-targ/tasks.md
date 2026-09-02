@@ -89,7 +89,7 @@
 
 ## Phase 2 — Repositories & Backend Services
 
-- [ ] 2.0 [Journey: `test/workflows/notifications/admin-broadcast.journey.test.ts` — TEST-FIRST]
+- [x] 2.0 [Journey: `test/workflows/notifications/admin-broadcast.journey.test.ts` — TEST-FIRST]
   - Create `test/workflows/notifications/admin-broadcast.journey.test.ts` — one file for the broadcast cross-actor workflow (specs §2.9 steps 1–10 mapped 1:1 to assertions). It will FAIL until task 2.4 lands — that is expected and required.
   - The layer already exists — REUSE it: `test/workflows/AGENTS.md` + `test/workflows/helpers/actor-context.ts` (cast provisioning: `provisionAdminActor`, `provisionCertifiedTeacherActor`, `provisionStudentActor`, `provisionParentActor`) and `SpiedFanoutTransport` in `test/workflows/helpers/spied-transport.ts`; this task only ADDS the governed (`is_deleted=true`) fixture via entity-setup helpers (verify helper name before use) and the new journey test file itself. REAL permission-group/role rows — permission resolution NEVER monkey-patched (per Architectural Invariant 10).
   - Steps as sequential service calls with `actorUserId`: Admin A fires `all` → assert rows for A/T/S/Pa/S2 and ZERO for G + ONE audit row + ONE spied envelope; SAME-key replay → identical count, zero new rows/audit/publish; `role:teacher` → only T; `country:"EG"` → only S; `plan:P` → only active-window subscriber S (expired-P student excluded); validation denials → zero state; T/S/Pa attempts → honest `FORBIDDEN`; anonymous → `UNAUTHORIZED`; governed G present in NO cohort; post-hoc observers read their OWN inbox via `NotificationEngine.listMyNotifications` and see `type=system_broadcast`, verbatim copy, `relatedEntityType/Id=null`, `isRead=false`.
@@ -99,7 +99,7 @@
   - Applicable instructions: `.agents/instructions/tests.instructions.md`, `test/workflows/AGENTS.md` (created by this task).
   - _Requirements: REQ-024, REQ-073, §2.9 (all cross-actor EARS)_
 
-- [ ] 2.1 [Create `BroadcastAudienceRepository` — cohort resolution]
+- [x] 2.1 [Create `BroadcastAudienceRepository` — cohort resolution]
   - CREATE `backend/db/repo/notifications/broadcast-audience.repository.ts` — `BroadcastAudienceRepository.resolveAudienceIds(selector: BroadcastAudienceSelector, tx?: DBQueryExecutor): Promise<number[]>` with the four query shapes from plan §4.4: `all` / `role` (eq) / `country` (exact `eq`, trimmed value — NO LIKE surface, document that `escapeLikeWildcards` is N/A by construction) / `plan` (JOIN subscriptions, DISTINCT, canonical active-window predicate byte-equivalent to `admin-user.repository.ts:337-346`, owner FK `subscriptions.user_id` per B.8/C.2). Governance predicate everywhere: `coalesce(is_deleted,false)=false AND coalesce(is_blocked,false)=false`; suspended INCLUDED (REQ-015). Output deterministic: DISTINCT + `ORDER BY id ASC`.
   - Non-tx branch uses `queryDb` with numbered `$n` params (the `notification.repository.ts` convention); tx branch uses Drizzle builders on the supplied executor. NO `sql.placeholder` arrays, NO `inArray` prepared statements, NO inline `--` comments inside `sql` templates.
   - UPDATE `backend/db/repo/notifications/index.ts` — `export * from "./broadcast-audience.repository";`.
@@ -111,26 +111,26 @@
   - [ ] 2.1.SR **Semantic Review:** canonical types imported from `backend/types/`; no local shapes; no dead branches.
   - [ ] 2.1.IV **Instruction Verification:** repo AGENTS.md conventions (queryDb/tx duality, prepared-statement prohibitions) verified.
 
-- [ ] 2.2 [Extract shared `assertActorAdmin` + refactor `AdminUserManagementService`]
+- [x] 2.2 [Extract shared `assertActorAdmin` + refactor `AdminUserManagementService`] (RE-SCOPED per plan-review F-1: gate already shipped at `backend/services/admin/admin-gate.helpers.ts:59` — verified in place, no fork created; focused gap test added — see `outcome/2.2-outcome.md`)
   - CREATE `backend/services/admin/assert-actor-admin.ts` — move the logic from `backend/services/admin/user-management.service.ts:240-271` VERBATIM (anonymous `actorId = 0` → `UnauthorizedError`; missing/non-admin row → `ForbiddenError`; identical logging shape; pre-transaction; zero writes/audit — JR-C-1).
   - UPDATE `backend/services/admin/user-management.service.ts` — import the shared helper; delete the private copy.
   - UPDATE `backend/services/admin/index.ts` — export the helper.
   - _Requirements: REQ-030 (D8), REQ-002_
-  - [ ] 2.2.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts backend/services/admin/assert-actor-admin.ts --lifecycle duplicates` (exit 0) + user-management.service.ts.
-  - [ ] 2.2.TE **Test Engineering:** run ALL existing user-management suites (the 8 chaos/service tests) via `bun run test/scripts/run-test.ts` — extraction MUST be behavior-identical (zero diffs in expectations). Add a focused unit test for the shared helper if the existing suites don't pin all three branches (anonymous/missing/non-admin).
-  - [ ] 2.2.SEC **Security & Tenancy Audit:** re-check happens against the LIVE `users` row (not a cached claim); denies carry `extensions.code` UNAUTHORIZED/FORBIDDEN only; no oracle about which rows exist beyond admin-gated knowledge.
-  - [ ] 2.2.SR **Semantic Review:** single canonical admin gate (no forked copies remain); imports correct direction.
-  - [ ] 2.2.IV **Instruction Verification:** `.agents/instructions/backend.instructions.md` + `backend/services/AGENTS.md`.
+  - [x] 2.2.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts backend/services/admin/assert-actor-admin.ts --lifecycle duplicates` (exit 0) + user-management.service.ts. (Executed re-scoped: exit 0 on the NEW `admin-gate.helpers.test.ts` + verification run on untouched `admin-gate.helpers.ts`.)
+  - [x] 2.2.TE **Test Engineering:** run ALL existing user-management suites (the 8 chaos/service tests) via `bun run test/scripts/run-test.ts` — extraction MUST be behavior-identical (zero diffs in expectations). Add a focused unit test for the shared helper if the existing suites don't pin all three branches (anonymous/missing/non-admin). (118 pass / 0 fail across service/chaos/audit-trail/denials-journey; missing-actor-row branch was unpinned → `admin-gate.helpers.test.ts` 6/0 added.)
+  - [x] 2.2.SEC **Security & Tenancy Audit:** re-check happens against the LIVE `users` row (not a cached claim); denies carry `extensions.code` UNAUTHORIZED/FORBIDDEN only; no oracle about which rows exist beyond admin-gated knowledge.
+  - [x] 2.2.SR **Semantic Review:** single canonical admin gate (no forked copies remain); imports correct direction.
+  - [x] 2.2.IV **Instruction Verification:** `.agents/instructions/backend.instructions.md` + `backend/services/AGENTS.md`.
 
-- [ ] 2.3 [Create `RedisClaimCache` + `resolveBroadcastClaimCache` factory]
+- [x] 2.3 [Create `RedisClaimCache` + `resolveBroadcastClaimCache` factory]
   - CREATE `backend/services/notifications/redis-claim-cache.ts` — `class RedisClaimCache implements NotificationIdempotencyClaimCache` (`claim` via `SET key "1" NX EX ttl` → OK/null; `store` via `SET key value EX ttl`; `get` via `GET`), plus stateless `resolveBroadcastClaimCache(): NotificationIdempotencyClaimCache | undefined` returning `undefined` when `REDIS_URL` absent (hermetic default → engine's documented fail-open single warn, A.4.2); lazily-constructed module-level shared `ioredis` client (`lazyConnect: true`) when configured.
   - NO engine file is touched.
   - _Requirements: REQ-023 (D6), REQ-034_
-  - [ ] 2.3.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts backend/services/notifications/redis-claim-cache.ts --lifecycle duplicates` (exit 0)
-  - [ ] 2.3.TE **Test Engineering:** unit tests with a mocked redis-like client (mock adapter, never real Redis): Tier 1 claim won/held mapping, store/get round-trip shapes; Tier 2 TTL propagation and key pass-through; Tier 3 client command failure rejects the promise (engine owns fail-open — assert the cache itself throws honestly, never swallows); Tier 4 no raw key logging, no secret echo (`REDIS_URL` never logged), `resolveBroadcastClaimCache` undefined-when-unset + defined-when-set env matrix (env restored in finally).
-  - [ ] 2.3.SEC **Security & Tenancy Audit:** keys are the engine's SHA-256 digests only; no recipient/PII material ever lands in Redis values beyond engine receipts (engine-owned shape).
-  - [ ] 2.3.SR **Semantic Review:** factory stateless; no eager connection at import time; zero `console.*`.
-  - [ ] 2.3.IV **Instruction Verification:** backend instructions + services AGENTS.md (logger from `@/backend/lib/logger`).
+  - [x] 2.3.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts backend/services/notifications/redis-claim-cache.ts --lifecycle duplicates` (exit 0)
+  - [x] 2.3.TE **Test Engineering:** unit tests with a mocked redis-like client (mock adapter, never real Redis): Tier 1 claim won/held mapping, store/get round-trip shapes; Tier 2 TTL propagation and key pass-through; Tier 3 client command failure rejects the promise (engine owns fail-open — assert the cache itself throws honestly, never swallows); Tier 4 no raw key logging, no secret echo (`REDIS_URL` never logged), `resolveBroadcastClaimCache` undefined-when-unset + defined-when-set env matrix (env restored in finally).
+  - [x] 2.3.SEC **Security & Tenancy Audit:** keys are the engine's SHA-256 digests only; no recipient/PII material ever lands in Redis values beyond engine receipts (engine-owned shape).
+  - [x] 2.3.SR **Semantic Review:** factory stateless; no eager connection at import time; zero `console.*`.
+  - [x] 2.3.IV **Instruction Verification:** backend instructions + services AGENTS.md (logger from `@/backend/lib/logger`).
 
 - [ ] 2.4 [Create `AdminBroadcastService.broadcast` — the composition core]
   - CREATE `backend/services/notifications/admin-broadcast.service.ts` — `AdminBroadcastService.broadcast(input: BroadcastNotificationSubmitInput, actorId, locale, idempotencyKey?, options?: { transport?, cache? }, outerTx?): Promise<number>` implementing the strict 7-step flow of plan §4.1: (1) shared `assertActorAdmin` pre-tx; (2) pre-DB validation — `BROADCAST_TITLE_INVALID`, `BROADCAST_AUDIENCE_INVALID` (coherence matrix using the existing `toUserRole(role) !== null` guard, `backend/enum/users/user-role.enum.ts:24`; trimmed ≤100 country; positive-safe-int planId), plan existence via `PlanRepository.existsById` → `NotFoundError("PLAN", tErrors.planCatalog.planNotFound)`; (3) cohort resolution via `BroadcastAudienceRepository` (tx-propagation rule REQ-042); (4) `BROADCAST_AUDIENCE_EMPTY` / `BROADCAST_AUDIENCE_TOO_LARGE` (cap `BROADCAST_MAX_RECIPIENTS = 5000`); (5) ONE `withTransaction` — `NotificationEngine.emitForUsers({..., type: NotificationType.SystemBroadcast, relatedEntityType: null, relatedEntityId: null, idempotencyKey}, locale, tx, options)`; replay detection `idempotencyKey !== undefined && options?.cache !== undefined && receipt.emitClaimKey === undefined` → return count with ZERO audit; fresh → ONE `AuditService.createAuditLog({ actorId, actionType: AuditActionType.Create, entityType: "notification_broadcast", entityId: null, details: capped metadata JSON — NEVER copy text }, tx)`; (6) post-commit fresh-only `publishReceipts([receipt], locale, options)`; (7) return count.
