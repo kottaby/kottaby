@@ -667,6 +667,9 @@ async function snapshotUntouchedCounts(tx: DBTransaction): Promise<Record<string
 describe("Tier 4 — cross-entity purity oracle", () => {
   test("a successful certification moves ONLY the contracted tables; all others are count-stable", async () => {
     await runInRollback(async tx => {
+      // Repeatable read ensures table-wide count snapshots are isolated from
+      // concurrent transactions run by parallel test suites.
+      await tx.execute(sql`SET TRANSACTION ISOLATION LEVEL REPEATABLE READ`);
       const admin = await createTestUser(tx, { role: "admin" });
       const target = await createTestUser(tx, { role: "teacher" });
       // An in-flight application so the finalize stage has real work: the
