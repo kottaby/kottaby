@@ -150,6 +150,8 @@ Window end = `suspendedAt + suspendedPeriodDays × 24h` (86,400,000 ms per day),
 
 ### R5 — Binding forward contract for the link-request flow
 
+> **Status update (DEV1-014):** the link-request flow described here is now SHIPPED — see `docs/parents/parent-link-request.md` for the implemented workflow (the R5 rules below remain intact and are enforced there).
+
 Whoever implements the link-request mutation (Workflow 04 §4.3) is bound by this contract:
 
 1. **Re-resolve the student by re-submitting the handshake code** inside the link flow's own transaction. The code is the capability reference across steps — the only thread connecting discovery to link.
