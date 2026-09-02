@@ -217,7 +217,7 @@
   - MUI v9 discipline: `sx`-only with `theme.palette.*`; `CampaignOutlined`/`SendOutlined` icons; `focusVisibleRingSx` on interactive elements; ≥44px touch targets; logical spacing (`marginInline*`, `ps/pe`); loading Skeletons; `aria-busy` on sending state.
   - Applicable instructions: `.agents/instructions/frontend.instructions.md`. (NOTE: `frontend/views/AGENTS.md` and `frontend/components/ui/AGENTS.md` do NOT exist — do not cite them.)
   - _Requirements: REQ-003, REQ-020, REQ-063, REQ-065, REQ-074_
-  - [ ] 4.3.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts frontend/views/admin/broadcasts/BroadcastComposeContainer.tsx --lifecycle duplicates` (exit 0)
+  - [x] 4.3.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts frontend/views/admin/broadcasts/BroadcastComposeContainer.tsx --lifecycle duplicates` (exit 0)
   - [ ] 4.3.TE **Unit / Component Tests:** Happy DOM + Apollo MockedProvider suite: all four audience branches render correct companion; validation field-error projection from a `VALIDATION` GraphQLError; confirm→submit→pluralized success copy in BOTH locales (en + ar); compose key stable across failed submits and rotated after success; zero hardcoded strings (scan for literals); `React.SubmitEvent` typing.
   - [ ] 4.3.BF **Agent-Browser Functional Self-Loop:**
     • Launch dev server / connect via agent-browser (Playwright); login as seeded admin; navigate `/admin/broadcasts`.
@@ -228,8 +228,8 @@
     • Capture high-resolution screenshots across Viewports (Desktop 1440x900, Tablet 768x1024, Mobile 375x812) × Locales (English LTR, Arabic RTL), states: initial, plan-loading skeleton, validation errors, confirm dialog open, sending (aria-busy), success toast.
     • Visually inspect: `theme.palette.*` compliance (no hardcoded hex/rgb), typography hierarchy, spacing rhythm, truncation/overflow, RTL mirroring, focus rings visible, ≥44px targets, dark/light contrast.
     • Iterative self-loop: screenshot → identify defect → patch `sx` tokens → re-capture → repeat until polished; archive evidence under `outcome/4.3-screenshots/`.
-  - [ ] 4.3.SR **Semantic Review:** zero direct style props (sx only); no hardcoded strings/colors; `useAppTranslation` property access with handle consts; `*Outlined` icons; no `FormEvent`; logger from `@/frontend/lib/logger` if logging needed (never `console.*`).
-  - [ ] 4.3.IV **Instruction Verification:** `.agents/instructions/frontend.instructions.md` + existing `frontend/graphql/AGENTS.md` (only instruction/AGENTS files verified to exist).
+  - [x] 4.3.SR **Semantic Review:** zero direct style props (sx only); no hardcoded strings/colors; `useAppTranslation` property access with handle consts; `*Outlined` icons; no `FormEvent`; logger from `@/frontend/lib/logger` if logging needed (never `console.*`).
+  - [x] 4.3.IV **Instruction Verification:** `.agents/instructions/frontend.instructions.md` + existing `frontend/graphql/AGENTS.md` (only instruction/AGENTS files verified to exist).
 
 - [x] 4.4 [Navigation integration — admin nav item]
   - UPDATE `frontend/views/dashboard/navItems.ts` — ADD EXACTLY ONE admin item `{ route: "/admin/broadcasts", labelKey: "broadcasts", Icon: CampaignOutlined }` after the `audit` entry; all non-admin role arrays remain byte-identical. NO mobile bottom-nav work (none exists; shared Drawer list only).
