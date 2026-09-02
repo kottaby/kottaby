@@ -183,14 +183,20 @@ export function appliedFiltersFromSubmitInput(
 /** Lowest accepted id-filter value — ids are 1-based positive safe integers. */
 const MIN_ID = 1;
 
+/** Highest accepted id-filter value — the GraphQL `Int` wire max (2^31 - 1). */
+const MAX_ID = 2147483647;
+
 /**
  * Normalizes the interactive drafts into the applied record. Malformed
  * drafts normalize to "unfiltered" instead of erroring: a typed `0` id is
  * treated as cleared (ids are 1-based — the same bound the route's
- * deep-link sanitizer enforces), an unparseable calendar day narrows to a
- * one-sided window, and an inverted calendar-day pair (start AFTER end)
- * clears BOTH bounds — the route's own deep-link posture — because such a
- * pair could only produce an empty query window the service would reject.
+ * deep-link sanitizer enforces), an id above the GraphQL `Int` wire max
+ * (2^31 - 1) is cleared the same way — it could never survive wire
+ * coercion, so it drops instead of surfacing an error — an unparseable
+ * calendar day narrows to a one-sided window, and an inverted calendar-day
+ * pair (start AFTER end) clears BOTH bounds — the route's own deep-link
+ * posture — because such a pair could only produce an empty query window
+ * the service would reject.
  */
 export function appliedFiltersFromDrafts(drafts: FilterDrafts): AppliedAuditTrailFilters {
   const actorId = parseIdInput(drafts.actorId);
@@ -200,9 +206,9 @@ export function appliedFiltersFromDrafts(drafts: FilterDrafts): AppliedAuditTrai
   const inverted = fromDay !== null && toDay !== null && fromDay.getTime() > toDay.getTime();
   return {
     actionType: drafts.actionType === "" ? null : drafts.actionType,
-    actorId: actorId !== null && actorId >= MIN_ID ? actorId : null,
+    actorId: actorId !== null && actorId >= MIN_ID && actorId <= MAX_ID ? actorId : null,
     entityType: drafts.entityType.trim() || null,
-    entityId: entityId !== null && entityId >= MIN_ID ? entityId : null,
+    entityId: entityId !== null && entityId >= MIN_ID && entityId <= MAX_ID ? entityId : null,
     from: inverted ? null : fromDay,
     to: inverted || toDay === null ? null : parseUtcDayEndExclusive(drafts.to),
   };

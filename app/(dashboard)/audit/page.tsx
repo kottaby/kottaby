@@ -36,6 +36,9 @@ const ENTITY_TYPE_MAX_LENGTH = 100;
 /** Lowest accepted id filter value — ids are positive safe integers. */
 const MIN_ID = 1;
 
+/** Highest accepted id filter value — the GraphQL `Int` wire max (2^31 - 1). */
+const MAX_ID = 2147483647;
+
 /** Canonical generated action-type vocabulary, as plain strings for the guard. */
 const ACTION_TYPE_VALUES: readonly string[] = Object.values(AuditActionType);
 
@@ -60,11 +63,13 @@ function sanitizeEntityTypeParam(raw: string | undefined): string | undefined {
   return trimmed.length > 0 && trimmed.length <= ENTITY_TYPE_MAX_LENGTH ? trimmed : undefined;
 }
 
-/** Id filters (actor/entity): positive safe integers only. */
+/** Id filters (actor/entity): positive integers within the GraphQL `Int` wire range only. */
 function sanitizeIdParam(raw: string | undefined): number | undefined {
   if (raw === undefined) return undefined;
   const parsed = parseIdInput(raw);
-  return parsed !== null && parsed >= MIN_ID && parsed <= Number.MAX_SAFE_INTEGER ? parsed : undefined;
+  // Above the wire max an id can never survive variable coercion, so it is
+  // dropped here — the same silent-drop posture as any other invalid value.
+  return parsed !== null && parsed >= MIN_ID && parsed <= MAX_ID ? parsed : undefined;
 }
 
 /** Action-type filter: an exact generated enum member, fail-closed. */

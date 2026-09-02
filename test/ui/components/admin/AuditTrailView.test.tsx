@@ -405,6 +405,33 @@ describe("AuditTrailView (en / LTR)", () => {
     expect(screen.queryByText(t.auditTrail.errorState.message)).toBeNull();
   });
 
+  test("an actor-id draft above the wire Int max applies as cleared — the wire carries no actorId and no error renders", async () => {
+    renderTrail(
+      [
+        trailMock({ filters: wireFilters({ actorId: 9 }), page: 1, pageSize: 10 }, auditPage([ROW_FILTERED], 1)),
+        trailMock(UNFILTERED_PAGE_ONE, auditPage([ROW_A, ROW_B], 2)),
+      ],
+      { actorId: 9 }
+    );
+
+    await waitFor(() => expect(screen.getByText(ROW_FILTERED.actorName)).toBeDefined());
+
+    // 3000000000 exceeds the GraphQL Int wire max (2^31 - 1): the draft
+    // applies as CLEARED (the same silent-drop posture as a zero id), so
+    // the unfiltered window re-queries — a wire-rejected actorId never
+    // rides the variables and no error seam renders.
+    fireEvent.change(screen.getByLabelText(t.auditTrail.filters.actorIdLabel), { target: { value: "3000000000" } });
+    fireEvent.click(screen.getByRole("button", { name: t.auditTrail.filters.applyAction }));
+
+    await waitFor(() => {
+      expect(screen.getByText(ROW_A.actorName)).toBeDefined();
+      expect(screen.getByText(ROW_B.actorName)).toBeDefined();
+      expect(screen.queryByText(ROW_FILTERED.actorName)).toBeNull();
+    });
+    expect(screen.queryByText(t.auditTrail.errorState.title)).toBeNull();
+    expect(screen.queryByText(t.auditTrail.errorState.message)).toBeNull();
+  });
+
   test("an inverted from/to draft clears the pair — the wire carries neither bound and no error renders", async () => {
     renderTrail(
       [

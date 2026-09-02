@@ -176,7 +176,7 @@ describe("AuditTrailRepository — single-dimension filters", () => {
         details: null,
         createdAt: T_MID,
       });
-      await insertAuditRow(tx, actor.id, {
+      const createRow = await insertAuditRow(tx, actor.id, {
         actionType: AuditActionType.Create,
         entityType: sharedLabel,
         entityId: 22,
@@ -200,7 +200,7 @@ describe("AuditTrailRepository — single-dimension filters", () => {
         expect(row.actionType).toBe(AuditActionType.Update);
       }
       expect(idsOf(rows)).toContain(updateRow.id);
-      expect(idsOf(rows)).not.toContain(22);
+      expect(idsOf(rows)).not.toContain(createRow.id);
       expect(await AuditTrailRepository.countEntries(filters, tx)).toBeGreaterThanOrEqual(1);
     });
   });
