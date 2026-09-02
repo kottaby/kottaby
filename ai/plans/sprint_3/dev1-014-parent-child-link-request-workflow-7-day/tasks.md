@@ -471,7 +471,7 @@ Verify each anchor is REAL in the bundled tree (locate it; cite line). ANY miss 
 - [x] 5.1.IV **Instruction Verification:** `.agents/instructions/tests.instructions.md` + `docs/graphql/error-handling-contract.md`
 - _Requirements: REQ-073_
 
-### 5.2 [ ] Chaos & concurrency suite (pglite-skip-gated)
+### 5.2 [x] Chaos & concurrency suite (pglite-skip-gated)
 **REQ:** REQ-040..REQ-044, REQ-072 · plan §4.3
 
 - CREATE `backend/services/parents/parent-link-request.chaos.test.ts` (or colocate with the service suite — verify convention):
@@ -481,10 +481,10 @@ Verify each anchor is REAL in the bundled tree (locate it; cite line). ANY miss 
   - Forced post-claim failure: inject a repo failure AFTER the claim but BEFORE commit ⇒ TX rollback ⇒ ZERO residual rows across `parent_link_requests`/`students`/`notifications` (the rollback-proof pin)
 - ALL races skip-gated via `isPgliteProvider` (`test/helpers/skip-when-pglite.ts:1-5`) — document the skip decision in the outcome
 - Run: `bun run test/scripts/run-test.ts backend/services/parents/parent-link-request.chaos.test.ts`
-- [ ] 5.2.QL **Quality Loop:** quality loop clean on the chaos file
-- [ ] 5.2.SEC **Security & Tenancy Audit:** every race asserts zero cross-actor leakage (winner takes exactly one row; loser state untouched)
-- [ ] 5.2.SR **Semantic Review:** assertions count ROWS not just errors; post-race DB state is exhaustively probed (content + counts + no zombies)
-- [ ] 5.2.IV **Instruction Verification:** `.agents/instructions/tests.instructions.md`
+- [x] 5.2.QL **Quality Loop:** quality loop clean on the chaos file
+- [x] 5.2.SEC **Security & Tenancy Audit:** every race asserts zero cross-actor leakage (winner takes exactly one row; loser state untouched)
+- [x] 5.2.SR **Semantic Review:** assertions count ROWS not just errors; post-race DB state is exhaustively probed (content + counts + no zombies)
+- [x] 5.2.IV **Instruction Verification:** `.agents/instructions/tests.instructions.md`
 - _Requirements: REQ-040..REQ-044, REQ-072_
 
 ### 5.3 [ ] Static locks — single-writer, no-LIKE, no-audit, no-console, single-notifications-writer
