@@ -28,6 +28,13 @@ import { users } from "@/backend/db/schema/users/users";
  * default-computed: liveness is decided by strict `expiresAt > now`, and the
  * transition to `expired` is materialized lazily at the first write
  * interaction (guarded UPDATE), so DB defaults would lie about intent.
+ *
+ * `reminderSentAt` is the D1 expiry-reminder marker: NULL until the
+ * system-scope reminder primitive claims the row (set-based guarded UPDATE
+ * with `IS NULL` in the predicate — the claim IS the dedupe, no separate
+ * bookkeeping). It is a write-once system attribute with its own single
+ * writer (the reminder claim, exactly like `students.parent_id` has
+ * `linkParentIfUnlinked`); user-facing flows never read or write it.
  */
 export const parentLinkRequests = pgTable(
   "parent_link_requests",
@@ -43,6 +50,7 @@ export const parentLinkRequests = pgTable(
     createdAt: timestamp("created_at").defaultNow().notNull(),
     expiresAt: timestamp("expires_at").notNull(),
     respondedAt: timestamp("responded_at"),
+    reminderSentAt: timestamp("reminder_sent_at"),
   },
   t => [
     index("parent_link_requests_parent_id_idx").on(t.parentId),

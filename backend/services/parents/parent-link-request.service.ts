@@ -4,8 +4,8 @@
  *
  * Five user-facing operations compose the `parent_link_requests`
  * append-and-transition repository with the guarded student link write and
- * the real-time notification engine (plus ONE actor-less system primitive,
- * `sweepExpiredRequests`):
+ * the real-time notification engine (plus TWO actor-less system primitives,
+ * `sweepExpiredRequests` and `sendExpiryReminders`):
  *
  *  - `requestLink` — a parent submits a handshake code; the pipeline is
  *    STRICTLY ordered (REQ-011): normalize+validate the code PRE-DB, fresh
@@ -77,6 +77,7 @@
 import {
   type IncomingParentLinkRequestRow,
   type OutgoingParentLinkRequestRow,
+  ParentLinkRequestReminderRepository,
   ParentLinkRequestRepository,
   StudentRepository,
   UserRepository,
@@ -114,6 +115,15 @@ import { isHandshakeCode, normalizeHandshakeCode } from "@/shared/constants/hand
 import { maskFullName } from "@/shared/lib/mask-full-name";
 import { defaultLocale } from "@/shared/locale/AppLocale";
 import { getServerTranslations } from "@/shared/locale/server-graphql";
+
+/** Default reminder window: requests expiring within 24h get the reminder. */
+const DEFAULT_EXPIRY_REMINDER_HOURS = 24;
+
+/** Hard cap = one full request lifetime (7d) — the window can never exceed the lifecycle. */
+const MAX_EXPIRY_REMINDER_HOURS = 168;
+
+/** Milliseconds per hour for the horizon arithmetic. */
+const EXPIRY_REMINDER_HOUR_MS = 3_600_000;
 
 /** Internal respond outcome — the claimed success payload, or the classified denial. */
 type RespondOutcome =
@@ -409,6 +419,122 @@ export namespace ParentLinkRequestService {
     return withTransaction(outerTx, async tx => {
       const now = new Date(); // ONE captured now — the whole unit shares it.
       return ParentLinkRequestRepository.markAllExpiredIfPending(now, tx);
+    });
+  }
+
+  /**
+   * D1 expiry-reminder primitive — the notification-carrying counterpart of
+   * the sweep: claims every live pending request whose expiry falls inside
+   * the reminder window and sends its requesting parent ONE localized
+   * reminder, inside ONE transaction (the second unit of work the future
+   * cron-stream ticket registers as its job handler).
+   *
+   * System-scope by design: NO actor re-check (the sweep's exact REQ-031
+   * carve-out; the future cron-stream ticket owns the trigger identity).
+   * ONE captured `now` drives BOTH sides of the claim window — strict-`>`
+   * liveness (`expires_at > now`: a row at or past now has lapsed and is the
+   * SWEEP's business, never the reminder's) and the inclusive horizon
+   * (`expires_at <= now + horizonHours`).
+   *
+   * Dedupe is the claim itself: the repo claim sets `reminder_sent_at` in
+   * the SAME guarded statement that selects the rows (`IS NULL` conjunct +
+   * row locks serialize claimers), so repeated or concurrent triggers can
+   * never double-remind — no idempotency cache, no notification probe, no
+   * extra bookkeeping. The emissions join the claim's transaction: a failure
+   * anywhere rolls markers AND inbox rows back together (all-or-nothing).
+   *
+   * Copy (R9 + engine §3.3): the reminder interpolates the student's
+   * MASKED name (`maskFullName`) — a pre-decision parent-bound surface may
+   * not carry the full name (the code-holder learns nothing new until the
+   * student confirms) — composed in the PARENT's persisted locale
+   * (`defaultLocale` fallback), never the caller's, never hardcoded. The
+   * row reuses the `ParentLinkRequest` notification type with
+   * `relatedEntityId` pointing at the request (inbox deep-link parity with
+   * the other lifecycle events).
+   *
+   * Silence elsewhere (REQ-024): no audit rows, no happy-path logs, no
+   * student-side notification (the student owns the decision surface and
+   * already sees the pending row; the reminder chases the REQUESTER). The
+   * ops-facing realtime publish is intentionally NOT wired — the inbox rows
+   * surface on the next load/badge poll; the cron-stream ticket owns the
+   * publish choreography for scheduled runs.
+   *
+   * @param input.horizonHours The reminder window length in hours (default
+   *   24 — "expiring within a day"; must be a positive integer, hard-capped
+   *   at 168 = one full request lifetime so the window can never exceed the
+   *   7-day lifecycle).
+   * @param input.outerTx Optional caller-owned transaction — a caller-owned
+   *   unit joins it and never owns the commit boundary.
+   * @param input.options Engine call options passed through to every emit.
+   * @returns The number of reminders emitted (= rows claimed; 0 on a
+   *   re-run, outside-window, or already-terminal population).
+   */
+  export async function sendExpiryReminders(input?: {
+    readonly horizonHours?: number;
+    readonly outerTx?: DBTransaction;
+    readonly options?: NotificationEngineCallOptions;
+  }): Promise<number> {
+    const horizonHours = input?.horizonHours ?? DEFAULT_EXPIRY_REMINDER_HOURS;
+    if (!Number.isInteger(horizonHours) || horizonHours <= 0 || horizonHours > MAX_EXPIRY_REMINDER_HOURS) {
+      throw new ValidationError(`horizonHours must be an integer in (0, ${MAX_EXPIRY_REMINDER_HOURS}]`);
+    }
+    return withTransaction(input?.outerTx, async tx => {
+      const now = new Date(); // ONE captured now — liveness side AND marker value.
+      const horizon = new Date(now.getTime() + horizonHours * EXPIRY_REMINDER_HOUR_MS);
+      const claimed = await ParentLinkRequestReminderRepository.claimPendingForExpiryReminder(now, horizon, tx);
+      if (claimed.length === 0) {
+        return 0;
+      }
+      const studentNames = await ParentLinkRequestReminderRepository.listStudentFullNamesByIds(
+        claimed.map(row => row.studentId),
+        tx
+      );
+      const parentLocales = await UserRepository.findLocalesByIds(
+        claimed.map(row => row.parentId),
+        tx
+      );
+      // Sequential in-tx emission via a recursive walker (the sanctioned
+      // no-await-in-loop escape): the emits share ONE transaction connection,
+      // so Promise.all is not an option here — pg cannot interleave parallel
+      // commands on a single client. The walker CONSUMES the claimed list
+      // (shift), which also keeps the index arithmetic out of the picture.
+      const emitClaimed = async (): Promise<number> => {
+        const row = claimed.shift();
+        if (row === undefined) {
+          return 0;
+        }
+        const rawName = studentNames.get(row.studentId);
+        if (typeof rawName !== "string") {
+          // Unreachable while the FKs hold (ON DELETE RESTRICT keeps the
+          // student alive while the request exists) — a missing name means
+          // data drift and MUST abort the unit, not emit a nameless copy.
+          throw new Error(
+            `ParentLinkRequestService.sendExpiryReminders: student ${row.studentId} of request ${row.id} has no user row`
+          );
+        }
+        const locale = parentLocales.get(row.parentId) ?? defaultLocale;
+        const copy = getServerTranslations(locale).notificationsTranslations;
+        const emitted = await NotificationEngine.emitForUser(
+          {
+            userId: row.parentId,
+            type: NotificationType.ParentLinkRequest,
+            title: copy.eventParentLinkExpiringTitle,
+            body: copy.eventParentLinkExpiringBody(maskFullName(rawName)),
+            relatedEntityType: PARENT_LINK_RELATED_ENTITY_TYPE,
+            relatedEntityId: row.id,
+          },
+          locale,
+          tx,
+          input?.options
+        );
+        if (!isDeliveryReceipt(emitted)) {
+          throw new Error(
+            "ParentLinkRequestService.sendExpiryReminders: in-tx emit returned a row instead of the receipt"
+          );
+        }
+        return 1 + (await emitClaimed());
+      };
+      return emitClaimed();
     });
   }
 

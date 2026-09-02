@@ -1,5 +1,6 @@
 "use client";
 
+import { SendOutlined as SendIcon } from "@mui/icons-material";
 import { Alert, Box, Snackbar, Stack, Typography } from "@mui/material";
 import type { ReactNode } from "react";
 import { resolveParentLinkDenialCopy } from "@/frontend/lib/parent-link-denials";
@@ -21,17 +22,35 @@ import type { ParentLinkLabels } from "@/shared/locale/types/parentLink";
 export const CANCEL_TOAST_AUTOHIDE_MS = 6000;
 
 /**
- * Zero-rows branch — a quiet typographic pair (`outgoingEmptyTitle` /
- * `outgoingEmptyBody`); the send affordance on the discovery card is the
- * action surface, so this state intentionally renders no buttons.
+ * Zero-rows branch — the icon-in-tinted-circle composition, brought to FULL
+ * parity with the student side's `IncomingEmptyState` (same 72/36 circle
+ * rhythm, `secondaryContainer` tint, centered spacing): the parent page
+ * should not read as the poorer sibling just because its list is empty.
+ * The send affordance on the discovery card is still the action surface, so
+ * this state intentionally renders no buttons.
  */
 export function OutgoingEmptyState({ labels }: Readonly<{ readonly labels: ParentLinkLabels }>): ReactNode {
   return (
     <Stack
-      spacing={1}
+      spacing={2}
       data-testid="parent-outgoing-empty"
-      sx={{ alignItems: "center", py: { xs: 5, sm: 7 }, px: 2, textAlign: "center" }}
+      sx={{ alignItems: "center", justifyContent: "center", py: { xs: 6, sm: 10 }, px: 2, textAlign: "center" }}
     >
+      <Box
+        aria-hidden
+        sx={theme => ({
+          width: 72,
+          height: 72,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          borderRadius: "50%",
+          bgcolor: theme.palette.secondaryContainer,
+          color: theme.palette.onSecondaryContainer,
+        })}
+      >
+        <SendIcon sx={{ fontSize: 36 }} />
+      </Box>
       <Typography variant="h6" component="p" sx={{ fontWeight: 700 }}>
         {labels.outgoingEmptyTitle}
       </Typography>

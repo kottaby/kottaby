@@ -47,7 +47,7 @@ import { Notifications } from "@/shared/locale/namespaces/notifications";
 
 // ─── Mandated key inventory (the notification-feed surface ground truth) ────
 
-/** Every key the notifications UI namespace must carry (32 slots). */
+/** Every key the notifications UI namespace must carry (34 slots). */
 const MANDATED_KEYS = [
   "title",
   "emptyTitle",
@@ -81,6 +81,8 @@ const MANDATED_KEYS = [
   "eventParentLinkAcceptedBody",
   "eventParentLinkRejectedTitle",
   "eventParentLinkRejectedBody",
+  "eventParentLinkExpiringTitle",
+  "eventParentLinkExpiringBody",
 ] as const;
 
 /**
@@ -102,7 +104,7 @@ const TYPE_LABEL_KEYS = [
   "typeEvaluationResult",
 ] as const;
 
-/** The seven function-valued slots (pluralization + interpolation templates). */
+/** The eight function-valued slots (pluralization + interpolation templates). */
 const FUNCTION_KEYS = [
   "markReadAriaLabel",
   "markAllResult",
@@ -111,6 +113,7 @@ const FUNCTION_KEYS = [
   "eventParentLinkRequestBody",
   "eventParentLinkAcceptedBody",
   "eventParentLinkRejectedBody",
+  "eventParentLinkExpiringBody",
 ] as const;
 
 /** Arabic-script probe — at least one Arabic-block character in the value. */
@@ -306,7 +309,7 @@ describe("registry + bundle wiring", () => {
 });
 
 // ===========================================================================
-describe("function-slot inventory — exactly the seven locale functions, on BOTH maps", () => {
+describe("function-slot inventory — exactly the eight locale functions, on BOTH maps", () => {
   test.each([...FUNCTION_KEYS])("slot `%s` is a function on BOTH maps", key => {
     expect(typeof Reflect.get(notificationsAr, key)).toBe("function");
     expect(typeof Reflect.get(notificationsEn, key)).toBe("function");

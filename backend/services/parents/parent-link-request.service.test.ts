@@ -59,9 +59,14 @@
  */
 
 import { afterAll, beforeAll, describe, expect, setSystemTime, spyOn, test } from "bun:test";
-import { and, eq, inArray, lte, or, sql } from "drizzle-orm";
+import { and, eq, gt, inArray, isNull, lte, or, sql } from "drizzle-orm";
 import { db } from "@/backend/db";
-import { ParentLinkRequestRepository, StudentRepository, UserRepository } from "@/backend/db/repo";
+import {
+  ParentLinkRequestReminderRepository,
+  ParentLinkRequestRepository,
+  StudentRepository,
+  UserRepository,
+} from "@/backend/db/repo";
 import { auditLogs } from "@/backend/db/schema/audit/audit-logs";
 import { notifications } from "@/backend/db/schema/notifications/notifications";
 import { parentLinkRequests } from "@/backend/db/schema/parents/parent-link-requests";
@@ -70,12 +75,13 @@ import { users } from "@/backend/db/schema/users/users";
 import { createTestStudent, createTestUser } from "@/backend/db/test/entity-setup";
 import { expectRepoError, runInRollback } from "@/backend/db/test/test-utils";
 import { LinkStatus } from "@/backend/enum/shared/link-status.enum";
-import { ConflictError, DomainError, ForbiddenError, NotFoundError, UnauthorizedError } from "@/backend/lib/errors";
+import { ConflictError, DomainError, ForbiddenError, NotFoundError, UnauthorizedError, ValidationError } from "@/backend/lib/errors";
 import { logger } from "@/backend/lib/logger";
 import {
   NotificationEngine,
   type NotificationEngineCallOptions,
 } from "@/backend/services/notifications/notification-engine.service";
+import { PARENT_LINK_RELATED_ENTITY_TYPE } from "@/backend/services/parents/parent-link-request.helpers";
 import type { NotificationFanoutTransport } from "@/backend/services/notifications/realtime/fanout-transport";
 import { ParentLinkRequestService } from "@/backend/services/parents/parent-link-request.service";
 import type { DBTransaction, RealtimeNotificationPayload, StudentSelectType, UserSelectType } from "@/backend/types";
@@ -1254,6 +1260,178 @@ describe("ParentLinkRequestService.sweepExpiredRequests", () => {
         setSystemTime(); // restore the real clock for the remaining tiers
       }
     });
+  });
+});
+
+describe("ParentLinkRequestService.sendExpiryReminders", () => {
+  test("Tier 1 — own-commit reminder: ONE masked-name locale-respecting inbox row per in-window pending, marker set, re-run deduped, publish-free, student silent", async () => {
+    const transport = new RecordingFanoutTransport();
+
+    // Delta probe BEFORE fixtures (the claim is window-wide — committed
+    // unmarked in-window pendings from earlier/parallel runs get reminders
+    // too; the probe must not count our own rows, which commit below).
+    const windowStart = new Date();
+    const windowEnd = new Date(windowStart.getTime() + 24 * HOUR_MS);
+    const residue = await db
+      .select({ id: parentLinkRequests.id })
+      .from(parentLinkRequests)
+      .where(
+        and(
+          eq(parentLinkRequests.status, LinkStatus.Pending),
+          gt(parentLinkRequests.expiresAt, windowStart),
+          lte(parentLinkRequests.expiresAt, windowEnd),
+          isNull(parentLinkRequests.reminderSentAt)
+        )
+      );
+    const auditBefore = await db.select({ id: auditLogs.id }).from(auditLogs);
+
+    // Committed fixtures (own-commit run sees only committed rows). The
+    // parent's PERSISTED locale is EN — proving the copy reads the persisted
+    // preference (the fallback is `ar`, so an EN body cannot be the fallback).
+    const cast = await db.transaction(async (tx: DBTransaction) => {
+      const parentUser = await createTestUser(tx, {
+        role: "parent",
+        locale: LOCALE_EN,
+        fullName: `${RUN_PREFIX} Reminder Parent`,
+        email: `${RUN_PREFIX}.reminder-parent@service.test`,
+      });
+      trackedUserIds.push(parentUser.id);
+      const studentA = await createStudentFixture(tx, {}, "reminder-student-a");
+      const studentB = await createStudentFixture(tx, {}, "reminder-student-b");
+      const inWindow = await ParentLinkRequestRepository.create(
+        { parentId: parentUser.id, studentId: studentA.student.id, expiresAt: new Date(Date.now() + HOUR_MS) },
+        tx
+      );
+      const beyond = await ParentLinkRequestRepository.create(
+        { parentId: parentUser.id, studentId: studentB.student.id, expiresAt: new Date(Date.now() + 48 * HOUR_MS) },
+        tx
+      );
+      trackedRequestIds.push(inWindow.id, beyond.id);
+      return {
+        parentUserId: parentUser.id,
+        studentAName: studentA.user.fullName,
+        studentAUserId: studentA.user.id,
+        studentBUserId: studentB.user.id,
+        inWindowId: inWindow.id,
+        beyondId: beyond.id,
+      };
+    });
+
+    const enCopy = getServerTranslations(LOCALE_EN).notificationsTranslations;
+    const reminded = await ParentLinkRequestService.sendExpiryReminders({ options: { transport } });
+
+    // Exactly our one in-window fixture PLUS any committed in-window residue.
+    expect(reminded).toBe(residue.length + 1);
+
+    // The reminder: parent-bound, request-linked, MASKED name, EN copy.
+    const inbox = await linkInboxRowsFor(db, cast.parentUserId);
+    const reminderRows = inbox.filter(row => row.relatedEntityId === cast.inWindowId);
+    expect(reminderRows).toHaveLength(1);
+    const reminder = reminderRows[0];
+    expect(reminder?.title).toBe(enCopy.eventParentLinkExpiringTitle);
+    expect(reminder?.body).toBe(enCopy.eventParentLinkExpiringBody(maskFullName(cast.studentAName)));
+    expect(reminder?.relatedEntityType).toBe(PARENT_LINK_RELATED_ENTITY_TYPE);
+
+    // The out-of-window pending got NO reminder.
+    expect(inbox.filter(row => row.relatedEntityId === cast.beyondId)).toHaveLength(0);
+    // The student side is SILENT — the reminder chases the requester only.
+    expect(await linkInboxRowsFor(db, cast.studentAUserId)).toHaveLength(0);
+    expect(await linkInboxRowsFor(db, cast.studentBUserId)).toHaveLength(0);
+
+    // The claim marker is materialized on the reminded row, absent on the
+    // out-of-window row (the claim is NOT a lifecycle write).
+    expect((await requestRowById(db, cast.inWindowId))?.reminderSentAt).not.toBeNull();
+    expect((await requestRowById(db, cast.beyondId))?.reminderSentAt).toBeNull();
+
+    // In-tx emit discipline: the receipt is never published on this path.
+    expect(transport.publishCount).toBe(0);
+    // ZERO audit rows (REQ-024; the probe is pollution-tolerant).
+    const auditAfter = await db.select({ id: auditLogs.id }).from(auditLogs);
+    expect(auditAfter).toHaveLength(auditBefore.length);
+
+    // Idempotent by claim: an immediate re-run reminds nobody.
+    expect(await ParentLinkRequestService.sendExpiryReminders()).toBe(0);
+  });
+
+  test("Tier 2 — frozen clock: a row expiring EXACTLY at the horizon IS reminded (inclusive edge); EXACTLY at now is NOT (strict-`>` liveness)", async () => {
+    await runInRollback(async (tx: DBTransaction) => {
+      const transport = new RecordingFanoutTransport();
+      const parentUser = await createTestUser(tx, {
+        role: "parent",
+        fullName: `${RUN_PREFIX} Reminder Boundary Parent`,
+        email: `${RUN_PREFIX}.reminder-boundary-parent@service.test`,
+      });
+      const studentAUser = await createTestUser(tx, {
+        fullName: `${RUN_PREFIX} Reminder Boundary A`,
+        email: `${RUN_PREFIX}.reminder-boundary-a@service.test`,
+      });
+      const studentBUser = await createTestUser(tx, {
+        fullName: `${RUN_PREFIX} Reminder Boundary B`,
+        email: `${RUN_PREFIX}.reminder-boundary-b@service.test`,
+      });
+      const studentA = await createTestStudent(tx, studentAUser.id);
+      const studentB = await createTestStudent(tx, studentBUser.id);
+      const frozenNow = new Date(Date.now() + 60_000);
+      const frozenHorizon = new Date(frozenNow.getTime() + 24 * HOUR_MS);
+
+      setSystemTime(frozenNow.getTime());
+      try {
+        // Delta probe under the FROZEN clock (must not count our own rows).
+        const residue = await tx
+          .select({ id: parentLinkRequests.id })
+          .from(parentLinkRequests)
+          .where(
+            and(
+              eq(parentLinkRequests.status, LinkStatus.Pending),
+              gt(parentLinkRequests.expiresAt, frozenNow),
+              lte(parentLinkRequests.expiresAt, frozenHorizon),
+              isNull(parentLinkRequests.reminderSentAt)
+            )
+          );
+        const atHorizon = await ParentLinkRequestRepository.create(
+          { parentId: parentUser.id, studentId: studentA.id, expiresAt: frozenHorizon }, // == horizon → claimed
+          tx
+        );
+        const atNow = await ParentLinkRequestRepository.create(
+          { parentId: parentUser.id, studentId: studentB.id, expiresAt: frozenNow }, // == now → lapsed side
+          tx
+        );
+
+        const reminded = await ParentLinkRequestService.sendExpiryReminders({
+          outerTx: tx,
+          options: { transport },
+        });
+        expect(reminded).toBe(residue.length + 1);
+
+        // The inclusive horizon edge: the at-horizon row was reminded with
+        // the DEFAULT-locale copy (parent locale NULL → `ar` fallback).
+        const arCopy = getServerTranslations(defaultLocale).notificationsTranslations;
+        const inbox = await linkInboxRowsFor(tx, parentUser.id);
+        const reminderRows = inbox.filter(row => row.relatedEntityId === atHorizon.id);
+        expect(reminderRows).toHaveLength(1);
+        expect(reminderRows[0]?.body).toBe(arCopy.eventParentLinkExpiringBody(maskFullName(studentAUser.fullName)));
+        // The at-now row is the SWEEP's business — never a reminder.
+        expect(inbox.filter(row => row.relatedEntityId === atNow.id)).toHaveLength(0);
+        expect((await requestRowById(tx, atHorizon.id))?.reminderSentAt).not.toBeNull();
+        expect((await requestRowById(tx, atNow.id))?.reminderSentAt).toBeNull();
+        expect((await requestRowById(tx, atNow.id))?.status).toBe(LinkStatus.Pending);
+      } finally {
+        setSystemTime(); // restore the real clock for the remaining tiers
+      }
+    });
+  });
+
+  test("Tier 3 — hostile horizon values reject with ValidationError BEFORE any claim (repo spy: zero calls)", async () => {
+    const repoSpy = spyOn(ParentLinkRequestReminderRepository, "claimPendingForExpiryReminder");
+    try {
+      for (const bad of [0, -1, 0.5, 169, Number.NaN]) {
+        const error = await expectRepoError(() => ParentLinkRequestService.sendExpiryReminders({ horizonHours: bad }));
+        expect(error).toBeInstanceOf(ValidationError);
+      }
+      expect(repoSpy.mock.calls).toHaveLength(0);
+    } finally {
+      repoSpy.mockRestore();
+    }
   });
 });
 

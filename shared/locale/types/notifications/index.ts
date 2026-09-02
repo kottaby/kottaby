@@ -114,4 +114,12 @@ export interface NotificationsLabels {
    * student's already-assembled display name.
    */
   readonly eventParentLinkRejectedBody: (studentName: string) => string;
+  /** Notification title — a parent's pending link request is nearing expiry (D1 reminder). */
+  readonly eventParentLinkExpiringTitle: string;
+  /**
+   * Notification body for the expiry reminder — interpolates ONLY the
+   * student's already-MASKED display name (R9: pre-decision parent-bound
+   * copy never carries the full name).
+   */
+  readonly eventParentLinkExpiringBody: (studentName: string) => string;
 }

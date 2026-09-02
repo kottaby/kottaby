@@ -33,9 +33,9 @@
  *    join it (in-tx visibility, post-rollback invisibility).
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { and, eq, inArray, lte } from "drizzle-orm";
+import { and, eq, gt, inArray, lte } from "drizzle-orm";
 import { db } from "@/backend/db";
-import { ParentLinkRequestRepository } from "@/backend/db/repo";
+import { ParentLinkRequestReminderRepository, ParentLinkRequestRepository } from "@/backend/db/repo";
 import { parentLinkRequests } from "@/backend/db/schema/parents/parent-link-requests";
 import { users } from "@/backend/db/schema/users/users";
 import { createTestParent, createTestStudent, createTestUser } from "@/backend/db/test/entity-setup";
@@ -764,6 +764,132 @@ describe("ParentLinkRequestRepository.markAllExpiredIfPending", () => {
       const byId = new Map(after.map(row => [row.id, row]));
       expect(byId.get(rows[0]?.id)?.status).toBe(LinkStatus.Expired);
       expect(byId.get(rows[1]?.id)?.status).toBe(LinkStatus.Pending);
+    });
+  });
+});
+
+describe("ParentLinkRequestRepository.claimPendingForExpiryReminder", () => {
+  test("Tier 1 — claims ONLY in-window unmarked pendings; lapsed/out-of-window/resolved rows untouched; marker set", async () => {
+    await runInRollback(async tx => {
+      const studentA = await setupStudent(tx);
+      const studentB = await setupStudent(tx);
+      const parentA = await setupParent(tx);
+      const parentB = await setupParent(tx);
+      const now = new Date(Date.now() + 60_000); // injected clock — repo fn takes now/horizon
+      const horizon = new Date(now.getTime() + 3_600_000);
+      const inWindow = new Date(now.getTime() + 1_800_000); // expires mid-window → claimed
+      const beyond = new Date(now.getTime() + 7_200_000); // expires past horizon → untouched
+      // Delta probe BEFORE fixtures (the claim is window-wide — committed
+      // in-window residue from earlier runs would be claimed too).
+      const residue = await tx
+        .select({ id: parentLinkRequests.id })
+        .from(parentLinkRequests)
+        .where(
+          and(
+            eq(parentLinkRequests.status, LinkStatus.Pending),
+            gt(parentLinkRequests.expiresAt, now),
+            lte(parentLinkRequests.expiresAt, horizon)
+          )
+        );
+      const rows = await insertRequests(tx, [
+        { parentId: parentA.id, studentId: studentA.studentId, expiresAt: inWindow }, // → claimed
+        { parentId: parentB.id, studentId: studentA.studentId, expiresAt: beyond }, // out of window → untouched
+        { parentId: parentA.id, studentId: studentB.studentId, expiresAt: new Date(now.getTime() - 1_000) }, // lapsed → the sweep's business
+        { parentId: parentB.id, studentId: studentB.studentId, expiresAt: inWindow, status: LinkStatus.Confirmed }, // history → untouched
+        { parentId: parentB.id, studentId: studentA.studentId, expiresAt: inWindow, status: LinkStatus.Rejected }, // history → untouched (partial unique admits it: only one PENDING per pair)
+      ]);
+      expect(rows).toHaveLength(5);
+
+      const claimed = await ParentLinkRequestReminderRepository.claimPendingForExpiryReminder(now, horizon, tx);
+
+      // Exactly our one in-window fixture PLUS any committed in-window residue.
+      expect(claimed).toHaveLength(residue.length + 1);
+      const claimedIds = new Set(claimed.map(row => row.id));
+      expect(claimedIds.has(rows[0]!.id)).toBe(true);
+      for (const residueRow of residue) {
+        expect(claimedIds.has(residueRow.id)).toBe(true);
+      }
+      // The claimed row carries the emission payload (parent/student/expiry).
+      const claimedFixture = claimed.find(row => row.id === rows[0]!.id);
+      expect(claimedFixture).toMatchObject({
+        parentId: parentA.id,
+        studentId: studentA.studentId,
+        expiresAt: inWindow,
+      });
+
+      // The marker is materialized on the claimed row and ONLY on it.
+      const after = await tx
+        .select()
+        .from(parentLinkRequests)
+        .where(inArray(parentLinkRequests.id, rows.map(row => row.id)));
+      const byId = new Map(after.map(row => [row.id, row]));
+      expect(byId.get(rows[0]!.id)?.reminderSentAt).not.toBeNull();
+      expect(byId.get(rows[1]!.id)?.reminderSentAt).toBeNull(); // out of window
+      expect(byId.get(rows[2]!.id)?.reminderSentAt).toBeNull(); // lapsed
+      expect(byId.get(rows[3]!.id)?.reminderSentAt).toBeNull(); // confirmed
+      expect(byId.get(rows[4]!.id)?.reminderSentAt).toBeNull(); // rejected
+      // Untouched rows keep their status (the claim is NOT a lifecycle write).
+      expect(byId.get(rows[1]!.id)?.status).toBe(LinkStatus.Pending);
+      expect(byId.get(rows[2]!.id)?.status).toBe(LinkStatus.Pending);
+      expect(byId.get(rows[3]!.id)?.status).toBe(LinkStatus.Confirmed);
+      expect(byId.get(rows[4]!.id)?.status).toBe(LinkStatus.Rejected);
+    });
+  });
+
+  test("Tier 1 — idempotent by predicate: the re-run claims zero rows", async () => {
+    await runInRollback(async tx => {
+      const student = await setupStudent(tx);
+      const parent = await setupParent(tx);
+      const now = new Date();
+      const horizon = new Date(now.getTime() + 3_600_000);
+      await insertRequests(tx, [
+        { parentId: parent.id, studentId: student.studentId, expiresAt: new Date(now.getTime() + 1_800_000) },
+      ]);
+      const first = await ParentLinkRequestReminderRepository.claimPendingForExpiryReminder(now, horizon, tx);
+      expect(first.length).toBeGreaterThanOrEqual(1);
+      expect(
+        await ParentLinkRequestReminderRepository.claimPendingForExpiryReminder(now, horizon, tx)
+      ).toHaveLength(0);
+      expect(
+        await ParentLinkRequestReminderRepository.claimPendingForExpiryReminder(now, horizon, tx)
+      ).toHaveLength(0);
+    });
+  });
+
+  test("Tier 2 — boundaries: a row expiring EXACTLY at the horizon IS claimed (inclusive upper edge); EXACTLY at now is NOT (strict-`>` liveness)", async () => {
+    await runInRollback(async tx => {
+      const student = await setupStudent(tx);
+      const parentA = await setupParent(tx);
+      const parentB = await setupParent(tx);
+      const now = new Date(Date.now() + 60_000);
+      const horizon = new Date(now.getTime() + 3_600_000);
+      const rows = await insertRequests(tx, [
+        { parentId: parentA.id, studentId: student.studentId, expiresAt: horizon }, // == horizon → claimed
+        { parentId: parentB.id, studentId: student.studentId, expiresAt: now }, // == now → lapsed side
+      ]);
+      const claimed = await ParentLinkRequestReminderRepository.claimPendingForExpiryReminder(now, horizon, tx);
+      const claimedIds = claimed.map(row => row.id);
+      expect(claimedIds).toContain(rows[0]!.id);
+      expect(claimedIds).not.toContain(rows[1]!.id);
+    });
+  });
+});
+
+describe("ParentLinkRequestRepository.listStudentFullNamesByIds", () => {
+  test("Tier 1 — resolves the student-side display names; unknown ids and empty input resolve to nothing", async () => {
+    await runInRollback(async tx => {
+      const studentA = await setupStudent(tx);
+      const studentB = await setupStudent(tx);
+      const names = await ParentLinkRequestReminderRepository.listStudentFullNamesByIds(
+        [studentA.studentId, studentB.studentId],
+        tx
+      );
+      expect(names.get(studentA.studentId)).toBe(studentA.studentFullName);
+      expect(names.get(studentB.studentId)).toBe(studentB.studentFullName);
+      // A nonexistent student id never fabricates a name.
+      expect(names.has(999_999_999)).toBe(false);
+      // Empty input short-circuits to an empty map (no query).
+      expect((await ParentLinkRequestReminderRepository.listStudentFullNamesByIds([], tx)).size).toBe(0);
     });
   });
 });

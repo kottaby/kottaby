@@ -45,4 +45,7 @@ export const notificationsAr: NotificationsLabels = {
   eventParentLinkAcceptedBody: (studentName: string) => `أكّد ${studentName} طلب ربطك.`,
   eventParentLinkRejectedTitle: "تم رفض طلب الربط",
   eventParentLinkRejectedBody: (studentName: string) => `رفض ${studentName} طلب ربطك.`,
+  eventParentLinkExpiringTitle: "تذكير: طلب ربطك على وشك الانتهاء",
+  eventParentLinkExpiringBody: (studentName: string) =>
+    `طلب ربطك بـ ${studentName} سينتهي قريبًا — يمكن للطالب التأكيد أو الرفض قبل انتهاء صلاحيته.`,
 };

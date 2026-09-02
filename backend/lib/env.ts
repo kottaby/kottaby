@@ -28,6 +28,17 @@ const DB_ENV_KEYS = [
 
 /** Force `.env` DB keys to win over stale OS-env placeholders (one-time, idempotent). */
 function applyDbEnvOverride(): void {
+  // ONLY defeat the SANDBOX PLACEHOLDER: an OS env whose DATABASE_URL is
+  // missing or a `file:`/`libsql:` SQLite stub. When a real (non-placeholder)
+  // URL is already pinned — an OS env var, or a sanctioned runner's
+  // `--env-file=.env.test` / db-CLI `--env-file` load — that pin MUST win:
+  // force-overriding it from the dev `.env` silently retargeted test
+  // processes and test-targeted CLI invocations at the DEV database.
+  const currentUrl = process.env.DATABASE_URL;
+  const isPlaceholder = currentUrl === undefined || currentUrl.startsWith("file:") || currentUrl.startsWith("libsql:");
+  if (!isPlaceholder) {
+    return;
+  }
   const result = loadDotenv({ path: ".env", quiet: true });
   if (!result.parsed) {
     return;
