@@ -40,7 +40,7 @@
  *    name column; the raw pgEnum string union is carried as-is and the
  *    service re-applies the canonical `LinkStatus` via `isLinkStatus`.
  */
-import { and, desc, eq, gt, ne } from "drizzle-orm";
+import { and, desc, eq, gt, lte, ne } from "drizzle-orm";
 import { queryDb } from "@/backend/db";
 import { parentLinkRequests } from "@/backend/db/schema/parents/parent-link-requests";
 import { users } from "@/backend/db/schema/users/users";
@@ -306,6 +306,43 @@ export namespace ParentLinkRequestRepository {
       .update(parentLinkRequests)
       .set({ status: LinkStatus.Expired })
       .where(and(eq(parentLinkRequests.id, requestId), eq(parentLinkRequests.status, LinkStatus.Pending)));
+  }
+
+  /**
+   * Bulk-materializes the `expired` status on EVERY lapsed live pending row
+   * (the D1 sweep primitive — the unit of work the future cron-stream ticket
+   * registers as its job handler).
+   *
+   * ONE set-based guarded statement: `WHERE status = 'pending' AND
+   * expires_at <= now` — the expiry side of the strict-`>` liveness
+   * boundary: a row whose `expires_at` equals the sweep instant IS lapsed
+   * (the same deterministic boundary the respond path pins at chaos tier,
+   * `parent-link-request.chaos.test.ts` "confirm-during-expiry instant").
+   * The `status = 'pending'` conjunct makes re-runs match zero rows —
+   * idempotent by predicate, never an error. `responded_at` is intentionally
+   * left NULL (expiry is not a participant response), and the sweep performs
+   * ZERO notifications and ZERO audit rows (REQ-018/REQ-024 silence —
+   * expiry has no audience-facing event; the read side already renders the
+   * computed `Expired` chip, so materialization changes storage only).
+   *
+   * Actor-less by design: this is a system maintenance write, not a user
+   * operation — REQ-031's actor re-check governs user-facing mutations; the
+   * future cron-stream ticket owns the trigger identity and its guard.
+   * The write takes a REQUIRED `tx` per the repo convention (REQ-040 — a
+   * repo write can never silently escape a transaction); the sweep is one
+   * statement, so the transaction IS the atomic unit.
+   *
+   * @param now The single captured sweep instant (strict-`>` boundary side).
+   * @param tx  The caller's transaction (required for every write).
+   * @returns The number of rows materialized to `expired` (0 on a re-run).
+   */
+  export async function markAllExpiredIfPending(now: Date, tx: DBTransaction): Promise<number> {
+    const rows = await tx
+      .update(parentLinkRequests)
+      .set({ status: LinkStatus.Expired })
+      .where(and(eq(parentLinkRequests.status, LinkStatus.Pending), lte(parentLinkRequests.expiresAt, now)))
+      .returning({ id: parentLinkRequests.id });
+    return rows.length;
   }
 
   /**

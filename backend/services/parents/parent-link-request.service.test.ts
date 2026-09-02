@@ -59,7 +59,7 @@
  */
 
 import { afterAll, beforeAll, describe, expect, setSystemTime, spyOn, test } from "bun:test";
-import { eq, inArray, or, sql } from "drizzle-orm";
+import { and, eq, inArray, lte, or, sql } from "drizzle-orm";
 import { db } from "@/backend/db";
 import { ParentLinkRequestRepository, StudentRepository, UserRepository } from "@/backend/db/repo";
 import { auditLogs } from "@/backend/db/schema/audit/audit-logs";
@@ -1119,6 +1119,140 @@ describe("ParentLinkRequestService.cancelLinkRequest", () => {
       expect(await requestRowById(tx, request.id)).toMatchObject({ status: LinkStatus.Rejected });
       expect(await linkInboxRowsFor(tx, student.id)).toHaveLength(0);
       expect(transport.publishCount).toBe(0);
+    });
+  });
+});
+
+// ─── D1 sweep primitive — system-scope, silent, idempotent ──────────────
+
+describe("ParentLinkRequestService.sweepExpiredRequests", () => {
+  test("Tier 1 — own-commit sweep materializes ONLY lapsed pendings and is SILENT (no inbox, no publish, no audit)", async () => {
+    const transport = new RecordingFanoutTransport();
+
+    // Delta probe BEFORE fixtures (the sweep is TABLE-WIDE — pre-existing
+    // lapsed residue committed by earlier runs is swept too; the probe must
+    // not see our own rows, which commit below).
+    const residue = await db
+      .select({ id: parentLinkRequests.id })
+      .from(parentLinkRequests)
+      .where(and(eq(parentLinkRequests.status, LinkStatus.Pending), lte(parentLinkRequests.expiresAt, new Date())));
+    const auditBefore = await db.select({ id: auditLogs.id }).from(auditLogs);
+
+    // Committed fixtures (own-commit sweep runs on its OWN connection — a
+    // rollback-tx fixture would be invisible to it).
+    const sweepCast = await db.transaction(async (tx: DBTransaction) => {
+      const parentUser = await createTestUser(tx, {
+        role: "parent",
+        fullName: `${RUN_PREFIX} Sweep Parent`,
+        email: `${RUN_PREFIX}.sweep-parent@service.test`,
+      });
+      trackedUserIds.push(parentUser.id);
+      const studentA = await createStudentFixture(tx, {}, "sweep-student-a");
+      const studentB = await createStudentFixture(tx, {}, "sweep-student-b");
+      const lapsed = await ParentLinkRequestRepository.create(
+        { parentId: parentUser.id, studentId: studentA.student.id, expiresAt: new Date(Date.now() - HOUR_MS) },
+        tx
+      );
+      const live = await ParentLinkRequestRepository.create(
+        {
+          parentId: parentUser.id,
+          studentId: studentB.student.id,
+          expiresAt: new Date(Date.now() + PARENT_LINK_REQUEST_MS),
+        },
+        tx
+      );
+      trackedRequestIds.push(lapsed.id, live.id);
+      return {
+        parentUserId: parentUser.id,
+        studentAUserId: studentA.user.id,
+        studentBUserId: studentB.user.id,
+        lapsedId: lapsed.id,
+        liveId: live.id,
+      };
+    });
+
+    const swept = await ParentLinkRequestService.sweepExpiredRequests();
+
+    expect(swept).toBe(residue.length + 1); // the residue + exactly our one lapsed fixture
+    expect(await requestRowById(db, sweepCast.lapsedId)).toMatchObject({ status: LinkStatus.Expired });
+    // The swept row keeps respondedAt NULL (expiry is not a participant response).
+    expect((await requestRowById(db, sweepCast.lapsedId))?.respondedAt).toBeNull();
+    // The live pending row is untouched.
+    expect(await requestRowById(db, sweepCast.liveId)).toMatchObject({ status: LinkStatus.Pending });
+
+    // SILENCE (REQ-018/REQ-024): no publish, no inbox growth for anyone.
+    expect(transport.publishCount).toBe(0);
+    expect(await linkInboxRowsFor(db, sweepCast.studentAUserId)).toHaveLength(0);
+    expect(await linkInboxRowsFor(db, sweepCast.studentBUserId)).toHaveLength(0);
+    expect(await linkInboxRowsFor(db, sweepCast.parentUserId)).toHaveLength(0);
+    // ZERO audit rows (the sweep writes none; the probe is pollution-tolerant).
+    const auditAfter = await db.select({ id: auditLogs.id }).from(auditLogs);
+    expect(auditAfter).toHaveLength(auditBefore.length);
+
+    // Idempotent: an immediate re-run matches zero rows.
+    expect(await ParentLinkRequestService.sweepExpiredRequests()).toBe(0);
+  });
+
+  test("Tier 1 — the sweep lifts the silent-expiry re-request lockout: findPendingByPair collapses to null", async () => {
+    await runInRollback(async (tx: DBTransaction) => {
+      const parentUser = await createTestUser(tx, {
+        role: "parent",
+        fullName: `${RUN_PREFIX} Unlock Parent`,
+        email: `${RUN_PREFIX}.unlock-parent@service.test`,
+      });
+      const studentUser = await createTestUser(tx, {
+        fullName: `${RUN_PREFIX} Unlock Student`,
+        email: `${RUN_PREFIX}.unlock-student@service.test`,
+      });
+      const studentRow = await createTestStudent(tx, studentUser.id);
+      await ParentLinkRequestRepository.create(
+        { parentId: parentUser.id, studentId: studentRow.id, expiresAt: new Date(Date.now() - HOUR_MS) },
+        tx
+      );
+
+      // Pre-sweep: the lapsed-but-unmaterialized pending STILL answers the
+      // pair pre-check (the D9b lockout contract, pinned at chaos tier).
+      expect(await ParentLinkRequestRepository.findPendingByPair(parentUser.id, studentRow.id, tx)).not.toBeNull();
+
+      await ParentLinkRequestService.sweepExpiredRequests(tx);
+
+      // Post-sweep: the pair's pending answer collapses — a fresh requestLink
+      // would now succeed (the canonical doc §5 unlock promise).
+      expect(await ParentLinkRequestRepository.findPendingByPair(parentUser.id, studentRow.id, tx)).toBeNull();
+    });
+  });
+
+  test("Tier 2 — frozen clock: a row expiring EXACTLY at the sweep instant IS materialized (strict-`>` expiry side)", async () => {
+    await runInRollback(async (tx: DBTransaction) => {
+      const parentUser = await createTestUser(tx, {
+        role: "parent",
+        fullName: `${RUN_PREFIX} Boundary Parent`,
+        email: `${RUN_PREFIX}.boundary-parent@service.test`,
+      });
+      const studentUser = await createTestUser(tx, {
+        fullName: `${RUN_PREFIX} Boundary Student`,
+        email: `${RUN_PREFIX}.boundary-student@service.test`,
+      });
+      const studentRow = await createTestStudent(tx, studentUser.id);
+      // Delta probe BEFORE the fixture (must not count our own row).
+      const boundary = new Date(Date.now() + 10_000);
+      const residue = await tx
+        .select({ id: parentLinkRequests.id })
+        .from(parentLinkRequests)
+        .where(and(eq(parentLinkRequests.status, LinkStatus.Pending), lte(parentLinkRequests.expiresAt, boundary)));
+      const request = await ParentLinkRequestRepository.create(
+        { parentId: parentUser.id, studentId: studentRow.id, expiresAt: boundary },
+        tx
+      );
+
+      setSystemTime(boundary.getTime());
+      try {
+        const swept = await ParentLinkRequestService.sweepExpiredRequests(tx);
+        expect(swept).toBe(residue.length + 1);
+        expect(await requestRowById(tx, request.id)).toMatchObject({ status: LinkStatus.Expired });
+      } finally {
+        setSystemTime(); // restore the real clock for the remaining tiers
+      }
     });
   });
 });

@@ -2,9 +2,10 @@
  * ParentLinkRequestService — business-logic hub for the parent→child link
  * request workflow (DEV1-014; plan §4.2/§4.3).
  *
- * Five operations compose the `parent_link_requests` append-and-transition
- * repository with the guarded student link write and the real-time
- * notification engine:
+ * Five user-facing operations compose the `parent_link_requests`
+ * append-and-transition repository with the guarded student link write and
+ * the real-time notification engine (plus ONE actor-less system primitive,
+ * `sweepExpiredRequests`):
  *
  *  - `requestLink` — a parent submits a handshake code; the pipeline is
  *    STRICTLY ordered (REQ-011): normalize+validate the code PRE-DB, fresh
@@ -23,6 +24,13 @@
  *  - `cancelLinkRequest` — the requesting parent withdraws a live pending
  *    request; withdrawal FOLDS the row to `rejected` and is SILENT (zero
  *    notifications, zero publishes — REQ-018).
+ *  - `sweepExpiredRequests` — the D1 sweep PRIMITIVE (system-scope, actor-less):
+ *    ONE guarded bulk statement materializes every lapsed live pending row to
+ *    `expired` (strict-`>` boundary side: `expires_at <= now`); idempotent by
+ *    predicate; ZERO notifications and ZERO audit rows (REQ-018/REQ-024);
+ *    the future cron-stream ticket owns the trigger and registers this as its
+ *    job handler. Materialization changes storage only — the read side
+ *    already renders the computed `Expired` chip (REQ-015).
  *  - `listMyOutgoing` / `listMyIncoming` — self-scoped history reads with a
  *    RELAXED actor re-check (identity + role; governance state must not
  *    hide the actor's own request history from him), render-time expiry
@@ -371,6 +379,37 @@ export namespace ParentLinkRequestService {
 
     // Silent withdrawal: NO emit, NO publish — on this and every arm.
     return mapOutgoing(outcome.row, new Date());
+  }
+
+  /**
+   * D1 sweep primitive — bulk-materializes every lapsed live pending row to
+   * `expired` inside ONE transaction (the unit of work the future
+   * cron-stream ticket registers as its job handler).
+   *
+   * System-scope by design: NO actor re-check (REQ-031 governs user-facing
+   * mutations; the future cron-stream ticket owns the trigger identity and
+   * its guard). ONE captured `now` for the whole unit — the expiry side of
+   * the strict-`>` liveness boundary (`expires_at <= now` is lapsed, the
+   * same deterministic instant the respond path pins at chaos tier).
+   *
+   * Silence (REQ-018/REQ-024): ZERO notifications, ZERO publishes, ZERO
+   * audit rows, ZERO happy-path logs — expiry has no audience-facing event,
+   * and the read side already renders the computed `Expired` chip, so
+   * materialization changes storage only (the silent-expiry re-request
+   * lockout documented in the canonical doc §5 is what a sweep run lifts:
+   * after materialization the pair's `findPendingByPair` answer collapses
+   * and a fresh `requestLink` succeeds).
+   *
+   * @param outerTx Optional caller-owned transaction — a caller-owned unit
+   *   joins it and NEVER owns the commit boundary (publish-after-commit
+   *   discipline is moot here: the sweep never publishes on any arm).
+   * @returns The number of rows materialized to `expired` (0 on a re-run).
+   */
+  export async function sweepExpiredRequests(outerTx?: DBTransaction): Promise<number> {
+    return withTransaction(outerTx, async tx => {
+      const now = new Date(); // ONE captured now — the whole unit shares it.
+      return ParentLinkRequestRepository.markAllExpiredIfPending(now, tx);
+    });
   }
 
   /**

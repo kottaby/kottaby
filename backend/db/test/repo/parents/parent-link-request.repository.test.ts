@@ -33,7 +33,7 @@
  *    join it (in-tx visibility, post-rollback invisibility).
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, lte } from "drizzle-orm";
 import { db } from "@/backend/db";
 import { ParentLinkRequestRepository } from "@/backend/db/repo";
 import { parentLinkRequests } from "@/backend/db/schema/parents/parent-link-requests";
@@ -666,6 +666,104 @@ describe("ParentLinkRequestRepository.markExpiredIfPending", () => {
       );
       await ParentLinkRequestRepository.markExpiredIfPending(created.id, tx);
       expect((await ParentLinkRequestRepository.findById(created.id, tx))?.status).toBe(LinkStatus.Confirmed);
+    });
+  });
+});
+
+describe("ParentLinkRequestRepository.markAllExpiredIfPending", () => {
+  test("Tier 1 — bulk-materializes ONLY lapsed pendings; live and resolved rows untouched; respondedAt stays NULL", async () => {
+    await runInRollback(async tx => {
+      const studentA = await setupStudent(tx);
+      const studentB = await setupStudent(tx);
+      const parentA = await setupParent(tx);
+      const parentB = await setupParent(tx);
+      // Delta probe BEFORE fixtures (the sweep is TABLE-WIDE — pre-existing
+      // lapsed residue committed by earlier runs is swept too; the probe must
+      // not see our own rows).
+      const residue = await tx
+        .select({ id: parentLinkRequests.id })
+        .from(parentLinkRequests)
+        .where(and(eq(parentLinkRequests.status, LinkStatus.Pending), lte(parentLinkRequests.expiresAt, new Date())));
+      const past = new Date(Date.now() - PARENT_LINK_REQUEST_MS);
+      const future = new Date(Date.now() + PARENT_LINK_REQUEST_MS);
+      const rows = await insertRequests(tx, [
+        { parentId: parentA.id, studentId: studentA.studentId, expiresAt: past }, // lapsed pending → swept
+        { parentId: parentB.id, studentId: studentA.studentId, expiresAt: past }, // lapsed pending → swept
+        { parentId: parentA.id, studentId: studentB.studentId, expiresAt: future }, // live pending → untouched
+        { parentId: parentB.id, studentId: studentB.studentId, expiresAt: past, status: LinkStatus.Confirmed }, // history → untouched
+        { parentId: parentA.id, studentId: studentA.studentId, expiresAt: past, status: LinkStatus.Rejected }, // history → untouched
+      ]);
+      expect(rows).toHaveLength(5);
+
+      const sweptCount = await ParentLinkRequestRepository.markAllExpiredIfPending(new Date(), tx);
+      expect(sweptCount).toBe(residue.length + 2);
+
+      const after = await tx
+        .select()
+        .from(parentLinkRequests)
+        .where(
+          inArray(
+            parentLinkRequests.id,
+            rows.map(row => row.id)
+          )
+        );
+      const byId = new Map(after.map(row => [row.id, row]));
+      expect(byId.get(rows[0]?.id)?.status).toBe(LinkStatus.Expired);
+      expect(byId.get(rows[1]?.id)?.status).toBe(LinkStatus.Expired);
+      // Both swept rows keep respondedAt NULL (expiry is not a participant response).
+      expect(byId.get(rows[0]?.id)?.respondedAt).toBeNull();
+      expect(byId.get(rows[1]?.id)?.respondedAt).toBeNull();
+      // Live pending and resolved history are untouched.
+      expect(byId.get(rows[2]?.id)?.status).toBe(LinkStatus.Pending);
+      expect(byId.get(rows[3]?.id)?.status).toBe(LinkStatus.Confirmed);
+      expect(byId.get(rows[4]?.id)?.status).toBe(LinkStatus.Rejected);
+    });
+  });
+
+  test("Tier 1 — idempotent by predicate: the re-run matches zero rows and returns 0", async () => {
+    await runInRollback(async tx => {
+      const pair = await setupLinkPair(tx);
+      await insertRequests(tx, [
+        { parentId: pair.parentUserId, studentId: pair.studentId, expiresAt: new Date(Date.now() - 1) },
+      ]);
+      // Delta-based: the first sweep takes the fixture plus any residue; the
+      // re-runs MUST match zero rows — the idempotency contract.
+      const first = await ParentLinkRequestRepository.markAllExpiredIfPending(new Date(), tx);
+      expect(first).toBeGreaterThanOrEqual(1);
+      expect(await ParentLinkRequestRepository.markAllExpiredIfPending(new Date(), tx)).toBe(0);
+      expect(await ParentLinkRequestRepository.markAllExpiredIfPending(new Date(), tx)).toBe(0);
+    });
+  });
+
+  test("Tier 2 — boundary: a row expiring EXACTLY at the sweep instant IS lapsed (strict-`>` expiry side), +1ms is not", async () => {
+    await runInRollback(async tx => {
+      const student = await setupStudent(tx);
+      const parentA = await setupParent(tx);
+      const parentB = await setupParent(tx);
+      const atBoundary = new Date(Date.now() + 5_000);
+      // Delta probe BEFORE fixtures (must not count our own boundary row).
+      const residue = await tx
+        .select({ id: parentLinkRequests.id })
+        .from(parentLinkRequests)
+        .where(and(eq(parentLinkRequests.status, LinkStatus.Pending), lte(parentLinkRequests.expiresAt, atBoundary)));
+      const rows = await insertRequests(tx, [
+        { parentId: parentA.id, studentId: student.studentId, expiresAt: atBoundary }, // expires_at == now → swept
+        { parentId: parentB.id, studentId: student.studentId, expiresAt: new Date(atBoundary.getTime() + 1) }, // +1ms → live
+      ]);
+      const sweptCount = await ParentLinkRequestRepository.markAllExpiredIfPending(atBoundary, tx);
+      expect(sweptCount).toBe(residue.length + 1);
+      const after = await tx
+        .select()
+        .from(parentLinkRequests)
+        .where(
+          inArray(
+            parentLinkRequests.id,
+            rows.map(row => row.id)
+          )
+        );
+      const byId = new Map(after.map(row => [row.id, row]));
+      expect(byId.get(rows[0]?.id)?.status).toBe(LinkStatus.Expired);
+      expect(byId.get(rows[1]?.id)?.status).toBe(LinkStatus.Pending);
     });
   });
 });
