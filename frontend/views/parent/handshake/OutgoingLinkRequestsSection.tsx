@@ -124,15 +124,21 @@ export function OutgoingLinkRequestsSection(): ReactNode {
   const cancelSubmitted = async (submitted: PendingCancellation): Promise<void> => {
     try {
       await cancelRequest({ variables: { requestId: submitted.requestId } });
-      await refetch();
-      setCancelDecision(null);
-      setSuccessToast(t.cancelSuccessToast);
     } catch (mutationError: unknown) {
       setCancelDecision(null);
       setDenialCode(extractErrorCode(mutationError));
+      return;
     } finally {
       setCancellingRequestId(null);
     }
+    // The withdrawal is COMMITTED above — the fold already restyled the row.
+    // The list refresh runs OUTSIDE the mutation try-block (6.3-F2): a
+    // refetch failure folds silently instead of being caught by the denial
+    // handler, where an unmapped code would surface a misleading "internal
+    // server error" alert and suppress the success toast.
+    setCancelDecision(null);
+    setSuccessToast(t.cancelSuccessToast);
+    await refetch().catch(() => undefined);
   };
 
   // The section body branch (flat if/else chain — no nested ternary,

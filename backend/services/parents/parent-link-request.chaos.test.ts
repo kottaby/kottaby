@@ -60,6 +60,13 @@
  *    claim + link but BEFORE commit rolls back the OWN-COMMIT unit — ZERO
  *    residual rows across `parent_link_requests`/`students`/`notifications`
  *    (the rollback-proof pin), and the raw failure propagates unmasked.
+ *  - Re-request after silent expiry (6.4-F1 pin — CURRENT contract, no sweep
+ *    exists): a pending row whose deadline lapsed with NO materializing
+ *    touch still answers `PARENT_LINK_ALREADY_PENDING` on re-request (the
+ *    liveness-free `findPendingByPair` pre-check + the partial unique, both
+ *    status-only), while the SAME row renders `Expired` in the outgoing
+ *    list. The UI hides Cancel on BOTH sides for such rows (no
+ *    materialization path) until D1's cron sweep owns it.
  *
  * Security invariants carried by every cell (5.2.SEC): the winner takes
  * exactly one row, the loser's state is untouched, notifications are bound
@@ -790,5 +797,73 @@ describeOnRealPostgres("ParentLinkRequestService — chaos & concurrency (task 5
     expect(await linkInboxRowsFor(db, parent.id)).toHaveLength(0);
     expect(await linkInboxRowsFor(db, student.id)).toHaveLength(0);
     expect(transport.publishCount).toBe(0);
+  });
+
+  test("re-request after silent expiry: the lapsed-but-unmaterialized pending row still answers PARENT_LINK_ALREADY_PENDING (6.4-F1 pin — CURRENT contract, D1 interplay)", async () => {
+    const { parent, student } = await createLinkPair("silent-expiry");
+    const transport = new RecordingFanoutTransport();
+
+    // Step 1 — the happy path: the original request commits (exactly one
+    // row, one student inbox row, one publish).
+    const created = await ParentLinkRequestService.requestLink(
+      student.handshakeCode,
+      parent.id,
+      LOCALE_EN,
+      undefined,
+      callOptions(transport)
+    );
+    if (!created) {
+      throw new Error("expected the original request to commit");
+    }
+    expect(created.status).toBe(LinkStatus.Pending);
+
+    // Step 2 — the deadline lapses SILENTLY: no respond/cancel/sweep write
+    // ever materializes the row (lazy expiry has no write path of its own —
+    // D1's cron sweep does not exist yet), so the COMMITTED status stays
+    // `pending`. Backdating `expires_at` on the tracked row is the honest
+    // clock-passage simulation: byte-identical to a request whose 7 days
+    // simply ran out (liveness is a read-side classification, strict `>`).
+    await db
+      .update(parentLinkRequests)
+      .set({ expiresAt: new Date(Date.now() - 1) })
+      .where(eq(parentLinkRequests.id, created.id));
+
+    // The read-pure list surface renders that SAME row `Expired` (the
+    // UX-visible half of the contradiction the re-request denial creates).
+    const outgoing = await ParentLinkRequestService.listMyOutgoing(parent.id, LOCALE_EN);
+    const rendered = outgoing.find(row => row.id === created.id);
+    if (!rendered) {
+      throw new Error("expected the lapsed row in the outgoing list");
+    }
+    expect(rendered.status).toBe(LinkStatus.Expired);
+
+    // Step 3 — re-request the same code: the pre-check (`findPendingByPair`
+    // matches status='pending' with NO liveness conjunct) answers the
+    // constant PARENT_LINK_ALREADY_PENDING conflict; the partial unique on
+    // `status='pending'` would 23505 into the SAME mapping regardless. This
+    // pins the CURRENT contract honestly: the pair is locked out of
+    // re-submission because the UI hides Cancel on BOTH sides for
+    // computed-Expired rows (no materialization path) until D1's cron sweep
+    // owns it — backend behavior stays REQ-014/095-conformant.
+    const reRequestError = await expectRepoError(() =>
+      ParentLinkRequestService.requestLink(
+        student.handshakeCode,
+        parent.id,
+        LOCALE_EN,
+        undefined,
+        callOptions(transport)
+      )
+    );
+    expectConflictReason(reRequestError, "PARENT_LINK_ALREADY_PENDING", enErrors.parentLinkAlreadyPending);
+
+    // Row counts + notification hygiene: STILL exactly one committed row,
+    // still `pending` (unmaterialized), and the denial emitted nothing.
+    expect(await pendingCountForStudent(student.id)).toBe(1);
+    const row = await requestRowById(db, created.id);
+    expect(row?.status).toBe(LinkStatus.Pending);
+    expect(row?.respondedAt).toBeNull();
+    expect(await linkInboxRowsFor(db, student.id)).toHaveLength(1);
+    expect(await linkInboxRowsFor(db, parent.id)).toHaveLength(0);
+    expect(transport.publishCount).toBe(1);
   });
 });

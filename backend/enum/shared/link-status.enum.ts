@@ -1,7 +1,8 @@
 /**
  * LinkStatus enum — mirrors the `link_status` pgEnum in
  * `backend/db/schema/enums.ts`. Values are canonical.
- * Currently unused by any table but kept for parity with the schema.
+ * Used by `parent_link_requests.status` (reused frozen pgEnum — zero enum
+ * edits; the value set is append-only).
  */
 export enum LinkStatus {
   Pending = "pending",

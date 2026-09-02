@@ -132,15 +132,21 @@ export function StudentLinkRequestsContainer(): ReactNode {
   const respondToDecision = async (submitted: PendingDecision): Promise<void> => {
     try {
       await respond({ variables: { requestId: submitted.requestId, accept: submitted.accept } });
-      await refetch();
-      setDecision(null);
-      setSuccessToast(submitted.accept ? t.confirmSuccessToast : t.rejectSuccessToast);
     } catch (mutationError: unknown) {
       setDecision(null);
       setDenialCode(extractErrorCode(mutationError));
+      return;
     } finally {
       setPendingRequestId(null);
     }
+    // The transition is COMMITTED above — the mutation write-back already
+    // restyled the row. The list refresh runs OUTSIDE the mutation try-block
+    // (6.3-F2): a refetch failure folds silently instead of being caught by
+    // the denial handler, where an unmapped code would surface a misleading
+    // "internal server error" alert and suppress the success toast.
+    setDecision(null);
+    setSuccessToast(submitted.accept ? t.confirmSuccessToast : t.rejectSuccessToast);
+    await refetch().catch(() => undefined);
   };
 
   return (
