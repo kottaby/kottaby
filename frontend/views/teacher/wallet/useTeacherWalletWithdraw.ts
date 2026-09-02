@@ -18,11 +18,7 @@ import { useCallback, useState } from "react";
 import { requestWithdrawalMutationDocument } from "@/frontend/graphql/sharedDocuments";
 import { extractErrorCode } from "@/frontend/lib/graphql-error-utils";
 import { normalizeGraphQLErrorCode } from "@/frontend/providers/apollo/error-link.map";
-import {
-  type ContainerNotice,
-  isClientValidAmount,
-  WALLET_TYPE_NAME,
-} from "@/frontend/views/teacher/wallet/teacherWalletShared";
+import { type ContainerNotice, isClientValidAmount } from "@/frontend/views/teacher/wallet/teacherWalletShared";
 import { Errors, useAppTranslation, Wallet } from "@/shared/locale";
 
 /** Wiring the withdrawal mutation needs from the container. */
@@ -70,21 +66,14 @@ export function useTeacherWalletWithdraw(wiring: TeacherWalletWithdrawWiring): T
       setInFlight(true);
       void requestWithdrawal({
         variables: { input: { amount: trimmed } },
-        // Cache NORMALIZE — the payload carries `id` first, so Apollo
-        // merges the post-debit balance + refreshed ledger onto
-        // `Wallet:<id>`. The explicit modify is belt-and-braces; NO refetch.
-        update(cache, { data: resultData }) {
-          const updated = resultData?.requestWithdrawal;
-          if (!updated) return;
-          cache.modify({
-            id: cache.identify({ __typename: WALLET_TYPE_NAME, id: updated.id }),
-            fields: {
-              balance: () => updated.balance,
-              totalEarning: () => updated.totalEarning,
-              transactions: () => updated.transactions,
-            },
-          });
-        },
+        // Cache convergence is Apollo-normal, NO refetch and NO manual
+        // cache.modify: the payload selects `id` first on `Wallet`, so the
+        // mutation result deep-merges onto `Wallet:<id>` (balance +
+        // totalEarning + the refreshed ledger) and Apollo normalizes the
+        // returned `TeacherTransaction` rows into references. Writing raw
+        // objects over the normalized `transactions` field here would freeze
+        // embedded copies into the wallet and desynchronize later
+        // `TeacherTransaction:<id>` updates.
         onCompleted: () => {
           setInFlight(false);
           setWithdrawDialogOpen(false);

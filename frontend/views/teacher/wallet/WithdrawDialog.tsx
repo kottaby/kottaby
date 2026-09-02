@@ -78,7 +78,7 @@ export function WithdrawDialog({
           placeholder={t.amountPlaceholder}
           value={amount}
           onChange={event => setAmount(event.target.value)}
-          inputMode="decimal"
+          slotProps={{ htmlInput: { inputMode: "decimal" } }}
           error={trimmed !== "" && !clientValid}
           helperText={trimmed !== "" && !clientValid ? t.invalidAmount : t.availableBalanceHint(balance)}
           disabled={inFlight}

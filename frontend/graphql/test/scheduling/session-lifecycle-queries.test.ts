@@ -24,10 +24,12 @@
  * Data lifecycle (mirrors applicant-profile.test.ts): public-surface rows
  * (registerUser) and direct-DB fixtures use randomized emails and are NOT
  * cleaned up — GraphQL integration suites accumulate committed rows on the
- * test database by convention. Direct-DB session/teacher/admin inserts are
- * safe in this harness because `run-server-tests.ts` loads `.env.test` into
- * the bun-test process; all identities log in via the public `login`
- * mutation so authorization itself exercises the real token path.
+ * test database by convention. Direct-DB session/teacher/admin provisioning
+ * lives in the shared fixture-row helpers (`test/helpers/fixture-rows.ts`,
+ * re-exported via `@/test/helpers`) — the integration test file itself
+ * touches the API surface only (frontend/graphql/test/AGENTS.md); all
+ * identities log in via the public `login` mutation so authorization
+ * itself exercises the real token path.
  *
  * REQ-064 query rows proven here:
  *  - Anonymous → UNAUTHORIZED on all three queries (401, never 403).
@@ -49,22 +51,22 @@ import { randomUUID } from "node:crypto";
 import type { TypedDocumentNode } from "@apollo/client";
 import { parse } from "graphql";
 
-import { db } from "@/backend/db";
-import { session } from "@/backend/db/schema/classes/session";
-import { teacher } from "@/backend/db/schema/teachers/teacher";
-import { admin } from "@/backend/db/schema/users/admin";
-import { users } from "@/backend/db/schema/users/users";
-import { HeldBalanceLane } from "@/backend/enum/scheduling/held-balance-lane.enum";
 import { SessionIntent } from "@/backend/enum/scheduling/session-intent.enum";
 import { SessionStatus } from "@/backend/enum/scheduling/session-status.enum";
 import { SessionType } from "@/backend/enum/scheduling/session-type.enum";
-import { hashPassword } from "@/backend/lib/auth/password";
 import { RegisterPublicRole } from "@/frontend/graphql/generated/gql/graphql";
 import {
   loginMutationDocument,
   registerUserMutationDocument,
 } from "@/frontend/graphql/sharedDocuments/auth/auth.documents";
-import { expectMutationError, setupTestServerLifecycle, testClient } from "@/test/helpers";
+import {
+  expectMutationError,
+  insertAdminUserWithChildRow,
+  insertCertifiedTeacherRow,
+  insertSessionRow,
+  setupTestServerLifecycle,
+  testClient,
+} from "@/test/helpers";
 
 // ─── Wire documents + locally-typed results ──────────────────────────────
 
@@ -254,30 +256,7 @@ async function loginFor(email: string): Promise<string> {
   return accessToken;
 }
 
-/** Direct-DB session-row insert (full column control over lifecycle state). */
-async function insertSessionRow(overrides: {
-  teacherId: number;
-  studentId: number;
-  status: SessionStatus;
-}): Promise<{ id: number }> {
-  const [row] = await db
-    .insert(session)
-    .values({
-      teacherId: overrides.teacherId,
-      studentId: overrides.studentId,
-      status: overrides.status,
-      sessionType: SessionType.StudentSession,
-      intent: SessionIntent.Hifz,
-      fee: "10.00",
-      feeHeld: true,
-      heldBalanceLane: HeldBalanceLane.Hifz,
-    })
-    .returning({ id: session.id });
-  if (!row) throw new Error("session insert returned no rows");
-  return row;
-}
-
-// ─── Shared fixtures (built once per suite) ──────────────────────────────────
+// ─── Shared fixtures (built once per suite) ──────────────────────────────
 
 let studentAuth: AuthContext;
 let secondStudentAuth: AuthContext;
@@ -310,35 +289,21 @@ describe("Session lifecycle queries — REQ-064 query-row matrix", () => {
     applicantAuth = await registerAndLogin(RegisterPublicRole.Teacher);
     // Parent: the role-confusion probe for both lists + sessionById null.
     parentAuth = await registerAndLogin(RegisterPublicRole.Parent);
-    // Certified teacher: role=teacher + `teacher` child row (direct-DB,
-    // isApproved=true — the only shape that hosts real sessions).
+    // Certified teacher: role=teacher + `teacher` child row (fixture-row
+    // helper, isApproved=true — the only shape that hosts real sessions).
     teacherAuth = await registerAndLogin(RegisterPublicRole.Teacher);
-    const [teacherRow] = await db
-      .insert(teacher)
-      .values({ id: teacherAuth.userId, isApproved: true })
-      .returning({ id: teacher.id });
-    if (!teacherRow) throw new Error("teacher child-row insert returned no rows");
+    await insertCertifiedTeacherRow(teacherAuth.userId);
     // Admin: NOT publicly registrable (RegisterPublicRole BFLA exclusion) —
-    // engineered directly in the DB, then logged in over the real login path.
+    // engineered via the fixture-row helper, then logged in over the real
+    // login path.
     const adminEmail = uniqueEmail("session-query-admin");
-    const [adminUser] = await db
-      .insert(users)
-      .values({
-        fullName: "Session Query Admin Probe",
-        email: adminEmail,
-        phone: "+201234567893",
-        passwordHash: await hashPassword(testCredential),
-        role: "admin",
-        isDeleted: false,
-        suspended: false,
-        isBlocked: false,
-        lastActiveAt: new Date(),
-      })
-      .returning();
-    if (!adminUser) throw new Error("admin user insert returned no rows");
-    const [adminRow] = await db.insert(admin).values({ id: adminUser.id }).returning({ id: admin.id });
-    if (!adminRow) throw new Error("admin child-row insert returned no rows");
-    adminAuth = { userId: adminUser.id, accessToken: await loginFor(adminEmail) };
+    const adminUserId = await insertAdminUserWithChildRow({
+      fullName: "Session Query Admin Probe",
+      email: adminEmail,
+      phone: "+201234567893",
+      password: testCredential,
+    });
+    adminAuth = { userId: adminUserId, accessToken: await loginFor(adminEmail) };
 
     // The shared pair's sessions: one per lifecycle state under test.
     scheduledSessionId = (

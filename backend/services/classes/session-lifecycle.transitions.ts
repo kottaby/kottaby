@@ -14,9 +14,13 @@
  *    upstream and NOT participant-gated, so any existing row that missed
  *    is a lifecycle-state conflict;
  *  - everything else is a lifecycle-state conflict — EXCEPT the completion
- *    of an owned in-progress row, where the fused certification predicate
- *    inside the guarded statement is the only remaining miss cause and the
- *    typed certification conflict is surfaced instead.
+ *    of an owned in-progress row: there the fused certification predicate
+ *    inside the guarded statement MAY be the miss cause, but a concurrent
+ *    start committing between the guarded statement and this probe leaves
+ *    the same observable shape, so the typed certification conflict is
+ *    surfaced ONLY after a fresh FOR UPDATE certification re-check on the
+ *    caller's transaction; an owned in-progress row with a verifiably
+ *    certified teacher honestly classifies as the generic state conflict.
  *
  * `refundHeldLaneToProvenance` is the ONE same-lane refund primitive shared
  * by the participant cancel and the arbitration CANCEL outcome, always on
@@ -31,14 +35,18 @@
  * fail-closed ordering (an unreadable-lane refusal rolls the whole sweep
  * back) for zero speedup on a single connection. The sequential walk is a
  * recursive helper (no loop) so the statement order is head-first and
- * identical to the original flow.
+ * identical to the original flow; lane-less rows are pre-filtered
+ * SYNCHRONOUSLY before the walk so the recursion only ever happens ACROSS
+ * awaits (each await yields and unwinds the stack) — a synchronous skip
+ * chain over an unbounded run of null-lane rows would exhaust the call
+ * stack and abort the whole sweep transaction.
  *
  * The public surface stays the `SessionLifecycleService` namespace in
  * `session-lifecycle.service.ts`. Nothing in this module is part of the
  * public API.
  */
 
-import { SessionRepository, StudentRepository } from "@/backend/db/repo";
+import { SessionRepository, StudentRepository, TeacherRepository } from "@/backend/db/repo";
 import { isHeldBalanceLane } from "@/backend/enum/scheduling/held-balance-lane.enum";
 import { ConflictError, NotFoundError } from "@/backend/lib/errors";
 import { logger } from "@/backend/lib/logger";
@@ -92,6 +100,33 @@ function rejectCertificationConflict(
     entityId: sessionId,
   });
   throw new ConflictError("TEACHER_NOT_CERTIFIED", t.teacherNotCertified);
+}
+
+/**
+ * Completion-miss classification for the OWNING teacher (the caller already
+ * passed the participant and start gates): a row not in-progress is a state
+ * conflict; an owned in-progress row is AMBIGUOUS — the fused certification
+ * predicate inside the guarded statement may have rejected the caller, OR a
+ * concurrent start committed between the guarded statement and this probe
+ * (the row was still `scheduled` at statement time). The typed certification
+ * conflict is surfaced ONLY when the teacher's certification verifiably
+ * fails (fresh FOR UPDATE re-check on the caller's transaction); without a
+ * transaction the re-check is impossible, so the honest answer is the
+ * generic state conflict.
+ */
+async function rejectCompletionMiss(
+  sessionId: number,
+  teacherId: number,
+  tx: DBTransaction | undefined,
+  t: ReturnType<typeof getServerTranslations>["errorsTranslations"]
+): Promise<never> {
+  if (tx !== undefined) {
+    const lockedTeacher = await TeacherRepository.lockForCertificationCheck(teacherId, tx);
+    if (lockedTeacher === null || lockedTeacher.isApproved !== true) {
+      return rejectCertificationConflict(sessionId, t);
+    }
+  }
+  return rejectStateConflict("Session transition denied: session not completable in its current state", sessionId, t);
 }
 
 /**
@@ -151,13 +186,12 @@ export async function rejectTransitionMiss(
     // statement's instant) is lifecycle-state-class.
     return rejectStateConflict("Session transition denied: session not startable in its current state", sessionId, t);
   }
-  // Completion miss for the owning teacher: a row not in-progress is a
-  // state conflict; an owned in-progress row means the fused certification
-  // predicate inside the guarded statement rejected the caller.
+  // Completion miss for the owning teacher — the ambiguous
+  // certification-vs-concurrent-start arm (see `rejectCompletionMiss`).
   if (probe.status !== SESSION_STARTED_STATUS) {
     return rejectStateConflict("Session transition denied: session not completable in its current state", sessionId, t);
   }
-  return rejectCertificationConflict(sessionId, t);
+  return rejectCompletionMiss(sessionId, probe.teacherId, tx, t);
 }
 
 /**
@@ -188,10 +222,11 @@ export async function refundHeldLaneToProvenance(
 }
 
 /**
- * Sequential head-first refund walk over the sweeper's cancelled rows —
+ * Sequential head-first refund walk over the sweeper's held rows —
  * the recursive-helper shape of the sweeper's by-design sequential loop
- * (see the module docblock). Rows without a recorded lane have nothing to
- * refund and are skipped; the count of refunded holds is returned.
+ * (see the module docblock). Callers pre-filter lane-less rows (see
+ * `refundSweptHolds`); a null lane reaching this walk still refunds
+ * nothing (the primitive skips it) and contributes zero to the count.
  */
 async function refundHeldRowsSequentially(
   rows: readonly SessionReturnType[],
@@ -202,18 +237,18 @@ async function refundHeldRowsSequentially(
     return 0;
   }
   const row = rows[index];
-  if (row.heldBalanceLane === null) {
-    return refundHeldRowsSequentially(rows, index + 1, tx);
-  }
   await refundHeldLaneToProvenance(row, "sweepExpiredSessions", tx);
   const restRefunded = await refundHeldRowsSequentially(rows, index + 1, tx);
-  return 1 + restRefunded;
+  return (row.heldBalanceLane === null ? 0 : 1) + restRefunded;
 }
 
 /**
  * Refunds every swept row that still carries a hold, sequentially on the
- * caller's sweep transaction, and returns the refunded-hold count.
+ * caller's sweep transaction, and returns the refunded-hold count. The
+ * lane-less rows are pre-filtered synchronously (bounded stack — see the
+ * module docblock) before the recursive walk.
  */
 export async function refundSweptHolds(rows: readonly SessionReturnType[], tx: DBTransaction): Promise<number> {
-  return refundHeldRowsSequentially(rows, 0, tx);
+  const heldRows = rows.filter(row => row.heldBalanceLane !== null);
+  return refundHeldRowsSequentially(heldRows, 0, tx);
 }
