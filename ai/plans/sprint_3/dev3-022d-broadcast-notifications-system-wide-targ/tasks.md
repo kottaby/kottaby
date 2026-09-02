@@ -292,7 +292,7 @@
   - Entries are rules/references ONLY (no duplicated implementation prose).
   - _Requirements: REQ-081_
 
-- [ ] 7.3 [Outcome synthesis & ticket closure]
+- [x] 7.3 [Outcome synthesis & ticket closure]
   - Synthesize `ai/plans/sprint_3/dev3-022d-broadcast-notifications-system-wide-targ/outcome/SUMMARY-outcome.md`: requirements traceability (REQ-001..REQ-082 → evidence), baseline→final gate deltas (all ZERO), journey steps 1–10 mapped to passing assertions, review-wave findings and dispositions, ledger state (D1/D2 owners), screenshots archive index, and the REQ-044/062 diffs proof.
   - Confirm ALL task checkboxes `[x]`; confirm `deferred-items.md` final state.
   - _Requirements: REQ-076, REQ-082_
