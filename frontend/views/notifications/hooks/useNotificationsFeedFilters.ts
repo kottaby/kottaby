@@ -1,3 +1,4 @@
+"use client";
 import { type Dispatch, type SetStateAction, useMemo, useState } from "react";
 import type { MyNotificationsFilterInput, NotificationType } from "@/frontend/graphql/generated/gql/graphql";
 import type { NotificationReadFilter } from "@/frontend/views/notifications/ui";
