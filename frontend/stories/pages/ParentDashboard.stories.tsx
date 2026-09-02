@@ -28,7 +28,7 @@ import { DashboardView } from "@/frontend/views/dashboard/home/DashboardView";
 /** Parent session fixture — a linked parent with two children (Yusuf & Aisha). */
 const PARENT_USER: AuthUser = {
   id: 501,
-  email: "[EMAIL_REDACTED]",
+  email: "mariam.hassan\u0040kottaby.academy",
   fullName: "Mariam Hassan",
   phone: "+971501234567",
   country: "AE",

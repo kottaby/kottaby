@@ -152,6 +152,7 @@ export const adminUsersEn: AdminUsersLabels = {
     lastActiveLabel: "Last Active",
     profileReadonlyNote: "Email and role are managed by system flows and cannot be edited here.",
     governanceNote: "Governance windows are managed in the Governance module.",
+    emptyValue: "—",
     teacherApplication: {
       subtitle: "Application progress and certification details.",
       statsOf: "of",

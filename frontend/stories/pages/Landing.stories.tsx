@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
-import type { ReactNode } from "react";
+import { type ReactNode, useEffect } from "react";
 import { AuthContext, type AuthContextType } from "@/frontend/context/AuthContext";
 import { StoryApolloProvider } from "@/frontend/stories/lib/storyHarness";
 import { LandingPage } from "@/frontend/views/landing";
@@ -23,7 +23,53 @@ import { LandingPage } from "@/frontend/views/landing";
  *    `useApolloClient`/`useMutation`; an empty-mock client satisfies the
  *    hooks without any network shape (the mutation only fires for a signed-in
  *    user, never here).
+ *  - `/api/health` fetch stub — the footer `ApiStatusIndicator` polls the LB
+ *    probe; without a backend, Storybook renders the "offline" pill. The
+ *    harness swaps `globalThis.fetch` for a pass-through that answers the
+ *    probe with the canonical 200 envelope so the chip shows its
+ *    checking → operational transition. The swap runs synchronously during
+ *    render (parent bodies execute before child effects, so the chip never
+ *    observes the un-stubbed fetch) and restores on unmount.
  */
+
+/** Canonical GET /api/health 200 envelope from the LB probe contract. */
+function healthOkResponse(): Response {
+  const body = JSON.stringify({
+    data: { status: "ok", service: "kottaby", version: "0.1.0", timestamp: "2026-08-27T04:21:05.921Z" },
+    requestId: "d45d7fdd-4eee-461d-b9f4-e968efc4c0ac",
+  });
+  return new Response(body, { status: 200, headers: { "content-type": "application/json" } });
+}
+
+/**
+ * Answer `/api/health` probes with the canonical 200 envelope; every other
+ * fetch is delegated to the original implementation. The swap MUST happen
+ * synchronously during the harness render — child effects (the chip's first
+ * poll) fire before any parent effect would. Reflect.set keeps the swap
+ * assertion-free (oxlint no-unsafe-type-assertion).
+ */
+let savedFetch: typeof globalThis.fetch | null = null;
+
+function installHealthProbeStub(): void {
+  if (savedFetch !== null) return;
+  savedFetch = globalThis.fetch;
+  const originalFetch = savedFetch;
+  const stubbedFetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+    let url: string;
+    if (typeof input === "string") url = input;
+    else if (input instanceof URL) url = input.href;
+    else url = input.url;
+    if (url === "/api/health") return await Promise.resolve(healthOkResponse());
+    return await originalFetch(input, init);
+  };
+  Reflect.set(globalThis, "fetch", stubbedFetch);
+}
+
+function restoreHealthProbeStub(): void {
+  if (savedFetch === null) return;
+  Reflect.set(globalThis, "fetch", savedFetch);
+  savedFetch = null;
+}
 
 /** Anonymous-visitor auth context — mirrors the real logged-out landing page. */
 const ANONYMOUS_AUTH: AuthContextType = {
@@ -37,6 +83,8 @@ const ANONYMOUS_AUTH: AuthContextType = {
 
 /** Harness: anonymous AuthContext + empty-mock Apollo client around the page. */
 function LandingHarness(): ReactNode {
+  installHealthProbeStub();
+  useEffect(() => restoreHealthProbeStub, []);
   return (
     <AuthContext.Provider value={ANONYMOUS_AUTH}>
       <StoryApolloProvider mocks={[]}>

@@ -83,7 +83,7 @@ const FEED_ROWS: readonly NotificationItemFixture[] = [
     id: "305",
     type: NotificationType.SessionCompletion,
     title: "Session Completed",
-    body: null,
+    body: "Omar K.'s Tajweed mastery session was completed. Review the session notes and assign follow-up practice.",
     isRead: true,
     createdAt: "2026-08-27T11:00:00.000Z",
   }),

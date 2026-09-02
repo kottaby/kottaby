@@ -66,11 +66,14 @@ function StatusBadge({ active, label, Icon, tone }: Readonly<StatusBadgeProps>):
         icon={<Icon />}
         label={label}
         variant="outlined"
-        disabled
+        aria-disabled="true"
         sx={theme => ({
-          borderColor: theme.palette.outlineVariant,
-          color: theme.palette.text.disabled,
+          borderColor: theme.palette.outline,
+          bgcolor: theme.palette.action.disabledBackground,
+          color: theme.palette.text.secondary,
           fontWeight: 600,
+          cursor: "default",
+          "& .MuiChip-icon": { color: theme.palette.text.secondary },
         })}
       />
     );

@@ -380,4 +380,6 @@ export const landingAr: LandingLabels = {
   prayerIsha: "العشاء",
   prayerNext: "الصلاة القادمة",
   prayerIn: "بعد",
+  // Footer brand wordmark
+  footerBrandName: "أكاديمية كُتَّابي",
 };

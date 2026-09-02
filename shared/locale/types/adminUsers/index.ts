@@ -341,6 +341,8 @@ export interface AdminUsersLabels {
     readonly profileReadonlyNote: string;
     /** Info strip at the bottom of the governance card — windows live in the Governance module. */
     readonly governanceNote: string;
+    /** Placeholder rendered in place of an unset profile value (typographic dash). */
+    readonly emptyValue: string;
     /**
      * Teacher-application progress card on the detail page — application
      * stats, review stepper, and the read-only certification note.

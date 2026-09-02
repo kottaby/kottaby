@@ -88,6 +88,14 @@ export const Default: Story = {
     // story renders exactly one button.
     await userEvent.click(canvas.getByRole("button"));
     await canvas.findByTestId("handshake-discovery-result");
+    // The programmatic click leaves the submit button `Mui-focusVisible`,
+    // which pins an endless TouchRipple pulsate child over the button (a
+    // translucent band across the fill in screenshots). Releasing focus
+    // restores the solid contained fill a mouse user would see.
+    const active = canvasElement.ownerDocument.activeElement;
+    if (active instanceof HTMLElement) {
+      active.blur();
+    }
   },
 };
 

@@ -111,6 +111,11 @@ export function DirectoryToolbar(props: DirectoryToolbarProps): ReactNode {
           label={labels.filters.country}
           value={props.countryFilter}
           onChange={event => props.setCountryFilter(event.target.value)}
+          // Keep the label pinned to the notch at all times so the field
+          // never renders without a visible label (matches the Role/Status
+          // selects, whose labels shrink once a value is shown).
+          slotProps={{ inputLabel: { shrink: true } }}
+          placeholder={labels.filters.country}
           sx={{ minWidth: 150, flex: { xs: "1 1 100%", sm: "0 1 auto" }, "& .MuiInputBase-root": { height: 44 } }}
         />
         <Box sx={{ flex: 1 }} />
@@ -132,7 +137,19 @@ export function DirectoryToolbar(props: DirectoryToolbarProps): ReactNode {
           variant="contained"
           startIcon={<AddIcon />}
           onClick={props.onCreateUser}
-          sx={{ borderRadius: "8px", height: 44, flexShrink: 0, whiteSpace: "nowrap" }}
+          sx={theme => ({
+            borderRadius: "8px",
+            height: 44,
+            flexShrink: 0,
+            whiteSpace: "nowrap",
+            // Pin the fill/ink pair to the theme's `primary.main`/`onPrimary`
+            // tokens so the label stays on a contrast-checked pair in both
+            // light and dark themes instead of relying on the default
+            // `primary.contrastText` resolution.
+            bgcolor: theme.palette.primary.main,
+            color: theme.palette.onPrimary,
+            "&:hover": { bgcolor: theme.palette.primary.dark },
+          })}
         >
           {labels.createDialog.title}
         </Button>

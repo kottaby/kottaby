@@ -373,4 +373,6 @@ export interface LandingLabels {
   readonly prayerIsha: string;
   readonly prayerNext: string;
   readonly prayerIn: string;
+  // Footer brand wordmark
+  readonly footerBrandName: string;
 }

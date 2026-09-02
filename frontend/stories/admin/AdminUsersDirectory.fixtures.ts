@@ -56,7 +56,7 @@ function directoryRow(overrides?: Partial<DirectoryUserFixture>): DirectoryUserF
   };
 }
 
-/** Six rows: admin, 3 teachers (certified / pending review / evaluator), student, parent. */
+/** Ten rows (a full page 1 of 10 so "1–10 of 23" matches the rendered list). */
 export const POPULATED_ROWS: readonly DirectoryUserFixture[] = [
   // Admin — active, full profile.
   directoryRow(),
@@ -132,6 +132,61 @@ export const POPULATED_ROWS: readonly DirectoryUserFixture[] = [
     isBlocked: true,
     parentLinkedChildrenCount: 2,
     lastActiveAt: null,
+  }),
+  // Student — no parent link, no subscription yet.
+  directoryRow({
+    id: 107,
+    fullName: "Salma Idris",
+    email: "[EMAIL_REDACTED]",
+    phone: "+249912345678",
+    role: UserRole.Student,
+    gender: Gender.Female,
+    dateOfBirth: "2012-01-17",
+    country: "Sudan",
+    studentHasParentLink: false,
+    studentHasActiveSubscription: false,
+    lastActiveAt: "2026-08-28T19:20:00.000Z",
+  }),
+  // Teacher — application failed (not certified, evaluation complete).
+  directoryRow({
+    id: 108,
+    fullName: "Tariq Al-Sayyid",
+    email: "[EMAIL_REDACTED]",
+    phone: "+96170123456",
+    role: UserRole.Teacher,
+    gender: Gender.Male,
+    country: "Lebanon",
+    applicantStatus: ApplicantStatus.Failed,
+    teacherIsApproved: false,
+    teacherIsEvaluator: false,
+    lastActiveAt: "2026-07-30T08:10:00.000Z",
+  }),
+  // Parent — active, one linked child, phone on file.
+  directoryRow({
+    id: 109,
+    fullName: "Leila Mansour",
+    email: "[EMAIL_REDACTED]",
+    phone: "+96891234567",
+    role: UserRole.Parent,
+    gender: Gender.Female,
+    country: "Oman",
+    dateOfBirth: "1990-04-02",
+    parentLinkedChildrenCount: 1,
+    lastActiveAt: "2026-09-01T21:05:00.000Z",
+  }),
+  // Teacher — in evaluation (certification in flight).
+  directoryRow({
+    id: 110,
+    fullName: "Khalid Barakat",
+    email: "[EMAIL_REDACTED]",
+    phone: "+21620123456",
+    role: UserRole.Teacher,
+    gender: Gender.Male,
+    country: "Tunisia",
+    applicantStatus: ApplicantStatus.InEvaluation,
+    teacherIsApproved: false,
+    teacherIsEvaluator: false,
+    lastActiveAt: "2026-08-25T11:40:00.000Z",
   }),
 ];
 

@@ -24,7 +24,7 @@ export function teacherUser(): MeUserFixture {
   return {
     __typename: "User",
     id: 10,
-    email: "[EMAIL_REDACTED]",
+    email: "maryam.alqari\u0040kottaby.academy",
     fullName: "Maryam Al-Qari",
     phone: "+966501234567",
     country: "Saudi Arabia",

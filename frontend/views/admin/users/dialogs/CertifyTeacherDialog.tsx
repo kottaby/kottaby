@@ -7,7 +7,8 @@
  *
  * Composition (warning-toned throughout — the action bypasses the normal
  * evaluation pipeline):
- *  - title row with the amber `WarningAmberOutlined` glyph;
+ *  - a plain text-only title row (the warning glyph lives in the banner
+ *    and error alert below — repeating it in the title was redundant);
  *  - an outlined warning banner naming the target user (interpolation copy)
  *    and stating that certification grants teacher access immediately;
  *  - a pre-checked "also grant evaluator privileges" checkbox
@@ -26,7 +27,6 @@
  * `onResolve(null)` is the cancel path — no mutation is fired.
  */
 
-import { WarningAmberOutlined as WarningIcon } from "@mui/icons-material";
 import {
   Alert,
   Button,
@@ -101,10 +101,7 @@ export function CertifyTeacherDialog({ labels, targetUser, loading, onResolve }:
       maxWidth="xs"
       slotProps={{ paper: { sx: { borderRadius: "16px" } } }}
     >
-      <DialogTitle sx={{ display: "flex", alignItems: "center", gap: 1.5, px: 3, pt: 3, pb: 1 }}>
-        <WarningIcon sx={theme => ({ color: theme.palette.warning.main })} />
-        {labels.certifyDialog.title}
-      </DialogTitle>
+      <DialogTitle sx={{ px: 3, pt: 3, pb: 1 }}>{labels.certifyDialog.title}</DialogTitle>
       <DialogContent sx={{ px: 3, pt: 1, pb: 1 }}>
         {errorMessage !== null && (
           <Alert severity="warning" sx={{ mb: 2 }}>

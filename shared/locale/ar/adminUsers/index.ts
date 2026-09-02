@@ -150,6 +150,7 @@ export const adminUsersAr: AdminUsersLabels = {
     lastActiveLabel: "آخر نشاط",
     profileReadonlyNote: "يُدار البريد الإلكتروني والدور عبر تدفقات النظام ولا يمكن تعديلهما من هنا.",
     governanceNote: "تُدار نوافذ الحوكمة من وحدة الحوكمة.",
+    emptyValue: "—",
     teacherApplication: {
       subtitle: "تقدم الطلب وتفاصيل الاعتماد.",
       statsOf: "من",
