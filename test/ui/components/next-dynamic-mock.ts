@@ -1,26 +1,41 @@
 /**
  * `next/dynamic` mock — FOURTH preload of `test:ui:components`.
  *
- * Replaces Next.js code-splitting with SYNCHRONOUS require resolution:
- * any component tree rendered under this preload gets its dynamically
- * imported chunk from the same module registry Bun already warmed, with no
- * Suspense fallback pass and no network/turbopack involvement.
+ * Replaces Next.js code-splitting with MICROtask-lazy resolution: a
+ * dynamically-imported chunk is loaded on FIRST MOUNT of the dynamic
+ * component — exactly `next/dynamic` semantics — with no Suspense fallback
+ * pass and no network/turbopack involvement.
  *
- * Resolution strategy per loader passed to `dynamic(loader)`:
- * 1. SYNC-FIRST — call the loader immediately. Bundlers occasionally express
- *    dynamic targets as plain re-exports (`() => require("./X")`); those
- *    return the module object in one tick and render true content on the very
- *    first paint.
- * 2. ASYNC FALLBACK — standard arrow-`import()` loaders return a Promise.
- *    These are resolved once per loader, cached, and the memoized inner
- *    component re-renders as soon as the microtask settles. Until then the
- *    `options.loading` placeholder (or nothing) renders — mirroring what a
- *    server-rendered dynamic import looks like at hydration time.
+ * Resolution strategy (LAZY — the loader is NEVER invoked at `dynamic()`
+ * call time):
  *
- * Test suites today render no dynamically-imported component; the mock is
- * contract infrastructure required verbatim by the `test:ui:components`
- * script signature (four exact preloads), kept honest rather than stubbed so
- * future dynamic consumers cannot silently vanish under test.
+ * 1. LAZY BY CONTRACT — real `next/dynamic` does not touch the loader until
+ *    the component renders. An earlier revision called the loader eagerly at
+ *    `dynamic()` time to sniff a synchronous re-export; that eager `import()`
+ *    RESOLVED AND CACHED THE REAL MODULE in bun's registry before any
+ *    test-file `mock.module` registration could run (static imports evaluate
+ *    before module body statements), poisoning every later loader
+ *    invocation. Eager invocation is therefore removed — `bun:test`
+ *    `mock.module` stubs registered at test-file top now apply.
+ *
+ * 2. ASYNC RESOLUTION — the loader runs inside a microtask on mount,
+ *    resolved once per loader, cached, and the memoized inner component
+ *    re-renders as soon as it settles. Until then the `options.loading`
+ *    placeholder (or nothing) renders — mirroring a client-side chunk
+ *    hydration window.
+ *
+ * 3. UPDATER-WRAP RULE — the resolved component is stored with
+ *    `setState(() => component)`, NEVER `setState(component)`: React
+ *    interprets a function argument as a FUNCTIONAL UPDATER and would CALL
+ *    the freshly-resolved component with the previous state as its props
+ *    (crashing prop-destructuring charts with "Cannot destructure ... from
+ *    null", or storing the returned element as the "component" —
+ *    "Element type is invalid ... got: <div />").
+ *
+ * The mock is contract infrastructure required verbatim by the
+ * `test:ui:components` script signature (four exact preloads), kept honest
+ * rather than stubbed so dynamic consumers render their true content under
+ * test (or their mock.module stub, when a suite registers one).
  */
 
 import { mock } from "bun:test";
@@ -42,9 +57,18 @@ interface DynamicOptions {
   loadableGenerated?: unknown;
 }
 
-/** React component types are functions or exotic objects (forwardRef/memo). */
+/**
+ * React component types are functions or React exotic objects (forwardRef/
+ * memo — identifiable by the `$$typeof` element-type symbol). A module
+ * namespace object is NEITHER: treating "any non-null object" as a component
+ * made `extractComponent` return ES module records verbatim (the `.default`
+ * branch unreachable), crashing React with "Element type is invalid" the
+ * moment a dynamically-imported chunk committed.
+ */
 function isComponent(value: unknown): value is ComponentType<Record<string, unknown>> {
-  return typeof value === "function" || (typeof value === "object" && value !== null);
+  if (typeof value === "function") return true;
+  if (typeof value === "object" && value !== null && "$$typeof" in value) return true;
+  return false;
 }
 
 interface WithDefault {
@@ -60,11 +84,6 @@ function extractComponent(mod: unknown): ComponentType<Record<string, unknown>> 
   if (isComponent(mod)) return mod;
   if (hasDefaultExport(mod) && isComponent(mod.default)) return mod.default;
   return null;
-}
-
-function isThenable(value: unknown): value is PromiseLike<unknown> {
-  if (typeof value !== "object" || value === null) return false;
-  return "then" in value && typeof value.then === "function";
 }
 
 /** Per-loader cache: one resolution attempt regardless of re-renders. */
@@ -88,7 +107,9 @@ function AsyncDynamic({
       .then(mod => {
         const extracted = alive ? extractComponent(mod) : null;
         if (alive && extracted) resolvedModules.set(loader, extracted);
-        if (alive) setComponent(extracted);
+        // Updater-wrap rule (header note 3): `setComponent(extracted)` would
+        // make React CALL the component as a functional updater.
+        if (alive) setComponent(() => extracted);
         return extracted;
       });
     return () => {
@@ -105,31 +126,11 @@ function AsyncDynamic({
 
 void mock.module("next/dynamic", () => ({
   default: (loader: DynamicLoader, options?: DynamicOptions): ComponentType<Record<string, unknown>> => {
-    // Sync-first path: non-thenable results resolve without touching React state.
-    let syncComponent: ComponentType<Record<string, unknown>> | null = null;
-    try {
-      const mod = loader();
-      if (mod !== null && mod !== undefined && !isThenable(mod)) {
-        syncComponent = extractComponent(mod);
-        if (syncComponent) resolvedModules.set(loader, syncComponent);
-      }
-    } catch {
-      // Loader threw synchronously (e.g. bare `require` of an ESM chunk) —
-      // fall through to the async path which will surface the same failure.
-    }
-
     const loading = options?.loading;
-    if (syncComponent) {
-      const Resolved = syncComponent;
-      const SyncDynamic = (props: Record<string, unknown>): ReactNode => createElement(Resolved, props);
-      SyncDynamic.displayName = "NextDynamicSync";
-      return SyncDynamic;
-    }
-
-    const MemoizedAsyncDynamic = (props: Record<string, unknown>): ReactNode =>
+    const LazyDynamic = (props: Record<string, unknown>): ReactNode =>
       createElement(AsyncDynamic, { ...props, loader, loading });
 
-    MemoizedAsyncDynamic.displayName = "NextDynamicMock";
-    return MemoizedAsyncDynamic;
+    LazyDynamic.displayName = "NextDynamicLazy";
+    return LazyDynamic;
   },
 }));

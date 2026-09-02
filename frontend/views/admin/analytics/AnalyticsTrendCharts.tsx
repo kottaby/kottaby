@@ -17,11 +17,11 @@ type Snapshot = AdminPlatformAnalyticsQuery["adminPlatformAnalytics"];
 import { useAppTranslation } from "@/shared/locale/client/use-app-translation";
 import { Analytics } from "@/shared/locale/namespaces/analytics";
 
-const SessionTrendChart = dynamic(() => import("./SessionTrendChart"), {
+const SessionTrendChart = dynamic(() => import("@/frontend/views/admin/analytics/SessionTrendChart"), {
   ssr: false,
   loading: () => <Skeleton variant="rounded" sx={{ width: "100%", minHeight: 220 }} />,
 });
-const RevenueTrendChart = dynamic(() => import("./RevenueTrendChart"), {
+const RevenueTrendChart = dynamic(() => import("@/frontend/views/admin/analytics/RevenueTrendChart"), {
   ssr: false,
   loading: () => <Skeleton variant="rounded" sx={{ width: "100%", minHeight: 220 }} />,
 });
