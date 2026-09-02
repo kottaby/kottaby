@@ -88,3 +88,50 @@ export async function assertActorAdmin(actorId: number, locale: string, outerTx?
     throw new ForbiddenError(tErrors.forbidden);
   }
 }
+
+/**
+ * Defense-in-depth BFLA + governance gate — verifies the `actorId` resolves
+ * to a real, `admin`-role, NON-governed user before any work. The role gate
+ * reuses `assertActorAdmin` verbatim (single source of gate truth: anonymous
+ * callers receive `UnauthorizedError`; missing or non-admin actors receive
+ * `ForbiddenError`). The governance clause re-reads the actor row only after
+ * the role gate has passed and inspects ONLY the governance columns
+ * (`isDeleted`, `isBlocked`, `suspended`), evaluated in the deterministic
+ * order deleted → blocked → suspended so a multi-flagged actor always
+ * surfaces the same denial. Every denial emits exactly ONE
+ * `logger.logDomainError` and performs ZERO audit rows, ZERO writes, and
+ * ZERO reads past the gate.
+ */
+export async function assertActorAdminActive(actorId: number, locale: string, outerTx?: DBTransaction): Promise<void> {
+  await assertActorAdmin(actorId, locale, outerTx);
+  const tErrors = getServerTranslations(locale).errorsTranslations;
+
+  const actor = await UserRepository.findById(actorId, outerTx);
+  if (actor?.isDeleted) {
+    logger.logDomainError("Admin operation denied: actor account deleted", {
+      code: "FORBIDDEN",
+      entity: "user",
+      entityId: actorId,
+      locale,
+    });
+    throw new ForbiddenError(tErrors.accountDeleted);
+  }
+  if (actor?.isBlocked) {
+    logger.logDomainError("Admin operation denied: actor account blocked", {
+      code: "FORBIDDEN",
+      entity: "user",
+      entityId: actorId,
+      locale,
+    });
+    throw new ForbiddenError(tErrors.accountBlocked);
+  }
+  if (actor?.suspended) {
+    logger.logDomainError("Admin operation denied: actor account suspended", {
+      code: "FORBIDDEN",
+      entity: "user",
+      entityId: actorId,
+      locale,
+    });
+    throw new ForbiddenError(tErrors.accountSuspended);
+  }
+}

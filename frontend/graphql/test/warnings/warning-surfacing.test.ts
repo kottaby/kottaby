@@ -287,9 +287,13 @@ const MUTATION_SURFACE_INVENTORY_QUERY_DOCUMENT: DocumentNode = gql`
  * mutation ships without an explicit decision about warning propagation.
  *
  * Refreshed for the sanctioned additions: notification read-latch pair
- * (DEV3-010) + users-locale (D2) + billing plan-catalog CRUD (upstream #28).
+ * (DEV3-010) + users-locale (D2) + billing plan-catalog CRUD (upstream #28)
+ * + cold-start teacher certification (DEV3-018) — the latter returns the
+ * canonical `AdminUserDetail` payload with every denial riding `errors[]`,
+ * so it is warning-incapable exactly like the DEV3-016 trio.
  */
 const KNOWN_LIVE_MUTATION_FIELDS = [
+  "adminCertifyTeacherColdStart",
   "adminCreateUser",
   "adminSetUserDeleted",
   "adminUpdateUser",

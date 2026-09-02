@@ -85,11 +85,18 @@ import { PUBLIC_OPERATION_NAMES, PUBLIC_OPERATIONS } from "@/backend/lib/gateway
 
 // ─── Frozen baseline inventory (captured @ HEAD 8e5ebb8; refreshed for the ────
 // ─── sanctioned applicant + notifications + users-locale + DEV1-013 handshake ─
-// ─── + DEV1-005 plan-catalog additions) ──────────────────────────────────────
+// ─── + DEV1-005 plan-catalog additions; since re-pinned to the LIVE tree: the ──
+// ─── shipped admin user-management surface (directory queries, stats/activity, ─
+// ─── create/update/soft-delete mutations, governance filter + audit enum) and ──
+// ─── the admin cold-start certification mutation are enrolled as baseline) ─────
 
-/** Root query field names — the frozen baseline (probe re-registration excluded). */
+/** Root query field names — the frozen baseline (probe re-registration excluded), re-pinned to the LIVE inventory (admin directory/stats/detail/activity reads enrolled). */
 const PRE_3_1_QUERY_FIELDS = [
   "adminPlans",
+  "adminUserActivity",
+  "adminUserDetail",
+  "adminUsers",
+  "adminUserStats",
   "me",
   "myApplicantProfile",
   "myNotifications",
@@ -97,8 +104,12 @@ const PRE_3_1_QUERY_FIELDS = [
   "planCatalog",
   "recitationReadings",
 ] as const;
-/** Root mutation field names — the frozen baseline (auth quartet + notification read-latch pair + users-locale + plan-catalog CRUD). */
+/** Root mutation field names — the frozen baseline (auth quartet + notification read-latch pair + users-locale + plan-catalog CRUD), re-pinned to the LIVE inventory (admin user-management trio + admin cold-start certification enrolled). */
 const PRE_3_1_MUTATION_FIELDS = [
+  "adminCertifyTeacherColdStart",
+  "adminCreateUser",
+  "adminSetUserDeleted",
+  "adminUpdateUser",
   "createPlan",
   "login",
   "logout",
@@ -112,8 +123,10 @@ const PRE_3_1_MUTATION_FIELDS = [
 ] as const;
 /** GraphQL enum type names — the freeze forbids any new Pothos enum. */
 const PRE_3_1_ENUMS = [
+  "AdminUserGovernanceFilter",
   "ApplicantStatus",
   "AppLocale",
+  "AuditActionType",
   "Gender",
   "NotificationType",
   "RecitationReading",
@@ -122,9 +135,22 @@ const PRE_3_1_ENUMS = [
 ] as const;
 /** Non-root object/enum/scalar SDL type names in the baseline (introspection `__*` and spec scalars excluded). */
 const PRE_3_1_TYPE_NAMES = [
+  "AdminCreateUserInput",
+  "AdminParentSnapshot",
+  "AdminStudentSnapshot",
+  "AdminTeacherSnapshot",
+  "AdminUpdateUserInput",
+  "AdminUserActivityEntry",
+  "AdminUserDetail",
+  "AdminUserFiltersInput",
+  "AdminUserGovernanceFilter",
+  "AdminUserListItem",
+  "AdminUserPage",
+  "AdminUserStats",
   "AppLocale",
   "ApplicantProfile",
   "ApplicantStatus",
+  "AuditActionType",
   "CreatePlanInput",
   "Gender",
   "LoginPayload",

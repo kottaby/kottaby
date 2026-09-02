@@ -16,11 +16,14 @@
  *    name, and the forbidden tokens must not appear anywhere in the artifact
  *    text. Notification emission is service-internal ONLY — the GraphQL
  *    write surface is exactly the read-latch pair.
- *  - **Root-set freeze** — the Mutation root is EXACTLY the refreshed frozen
- *    7-op baseline (auth quartet + the sanctioned notification read-latch
- *    pair + the sanctioned users-locale mutation) and the Query root is
- *    EXACTLY the frozen baseline + the `_health` probe (mirrors the
- *    `PRE_3_1_*` inventories in schema-surface.test.ts).
+ *  - **Root-set freeze** — the Mutation root is EXACTLY the re-pinned 14-op
+ *    baseline (auth quartet + the sanctioned notification read-latch pair +
+ *    the sanctioned users-locale mutation + the plan-catalog CRUD trio +
+ *    the admin user-management trio + the admin cold-start certification)
+ *    and the Query root is EXACTLY the re-pinned baseline (including the
+ *    shipped plan-catalog reads, the admin directory/stats/detail/activity
+ *    reads, and the handshake-code lookups) + the `_health` probe (mirrors
+ *    the `PRE_3_1_*` inventories in schema-surface.test.ts).
  *  - **Users-locale surface (D2)** — `updateMyLocale(locale: AppLocale!): User!`
  *    is present with its EXACT SDL signature, `User.locale` is the nullable
  *    `AppLocale` enum, and the `AppLocale` enum carries exactly the two
@@ -63,24 +66,39 @@ import {
 // ─── Frozen baselines (mirror the refreshed PRE_3_1_* inventories in ─────────
 // ─── schema-surface.test.ts — the single sanctioned growth history) ──────────
 
-/** Root mutation fields — the auth quartet + the sanctioned notification read-latch pair + the sanctioned users-locale mutation (D2). */
+/** Root mutation fields — re-pinned to the LIVE inventory: the auth quartet + the sanctioned notification read-latch pair + the sanctioned users-locale mutation (D2) + the plan-catalog CRUD trio + the admin user-management trio + the admin cold-start certification. */
 const FROZEN_MUTATION_FIELDS = [
+  "adminCertifyTeacherColdStart",
+  "adminCreateUser",
+  "adminSetUserDeleted",
+  "adminUpdateUser",
+  "createPlan",
   "login",
   "logout",
   "markAllNotificationsRead",
   "markNotificationRead",
   "refreshToken",
   "registerUser",
+  "setPlanActiveStatus",
   "updateMyLocale",
+  "updatePlan",
 ] as const;
 
-/** Root query fields — the frozen baseline + the sanctioned inbox reads + the probe. */
+/** Root query fields — re-pinned to the LIVE inventory: the frozen baseline + the sanctioned inbox reads + the plan-catalog reads + the admin directory/stats/detail/activity reads + the handshake-code lookups + the probe. */
 const FROZEN_QUERY_FIELDS = [
   "_health",
+  "adminPlans",
+  "adminUserActivity",
+  "adminUserDetail",
+  "adminUsers",
+  "adminUserStats",
+  "findStudentByHandshakeCode",
   "me",
   "myApplicantProfile",
+  "myHandshakeCode",
   "myNotifications",
   "myUnreadNotificationCount",
+  "planCatalog",
   "recitationReadings",
 ] as const;
 
@@ -217,7 +235,7 @@ describe("BFLA structural verdict — zero notification CUD surface (REQ-032)", 
     }
   });
 
-  test("Mutation root is EXACTLY the refreshed frozen 7-op baseline — the notification write surface is the read-latch pair only", () => {
+  test("Mutation root is EXACTLY the re-pinned 14-op baseline — the notification write surface is the read-latch pair only", () => {
     const names = fieldSurfaces("Mutation").map(surface => surface.name);
     expect(names.toSorted((a, b) => a.localeCompare(b))).toEqual([...FROZEN_MUTATION_FIELDS]);
   });
@@ -326,7 +344,11 @@ describe("Notification object — `id` + REQ-069 depth/complexity posture", () =
       definition => definition.kind === Kind.OBJECT_TYPE_DEFINITION && definition.name.value === "Subscription"
     );
     expect(hasSubscriptionRoot).toBe(false);
-    expect(sdlText).not.toContain("Subscription");
+    // Lexical belt-and-braces, narrowed to the root-type definition token:
+    // a bare "Subscription" substring check false-positives on legitimately
+    // shipped field names such as `hasActiveSubscription` /
+    // `studentHasActiveSubscription` on the admin snapshot types.
+    expect(sdlText).not.toContain("type Subscription");
   });
 });
 

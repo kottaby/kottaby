@@ -49,4 +49,7 @@ export const errorsEn: ErrorsLabels = {
   handshakeCodeInvalid: "Handshake codes look like KSB-XXXXXXXX (8 hexadecimal characters).",
   studentHandshakeNotFound: "Student record not found.",
   trialAlreadyGranted: "The free trial credit has already been granted for this student.",
+  teacherAlreadyCertified: "This teacher is already certified.",
+  teacherRoleRequired: "This user is not a teacher.",
+  teacherAccountGoverned: "This account has been deleted, blocked, or suspended.",
 };
