@@ -245,12 +245,12 @@
 
 ## Phase 5 — Integration & Differential Testing
 
-- [ ] 5.1 [Full-suite execution + security tier + race assertions]
+- [x] 5.1 [Full-suite execution + security tier + race assertions]
   - Run the complete affected surface via `bun run test/scripts/run-test.ts`: `backend/enum/notifications`, `backend/db/repo/notifications`, `backend/services/notifications`, `backend/services/admin`, `backend/graphql`, `test/workflows`, `frontend/graphql`, `frontend/views`, `shared/locale`.
   - Security tier closure (REQ-075): hostile audience discriminants + hostile copy strings reject-or-store-inert; BFLA probes for all non-admin roles INCLUDING a seeded second admin (no cross-admin audit alteration); replay cannot double-insert/double-publish; concurrent same-key race asserts engine-documented semantics (two SEQUENTIAL same-key submits ⇒ one row-set — the deterministic guarantee; parallel behavior per engine §3.6); corrupt cached receipt ⇒ engine fail-open insert + warn (verified by test, never by trust).
   - Coverage: 100% statement/branch on ALL new backend modules; evidence captured in outcome.
   - _Requirements: REQ-070, REQ-071, REQ-072, REQ-073, REQ-075_
-  - [ ] 5.1.SR **Semantic Review:** every test through `run-test.ts`; no `.rejects.toThrow()`; no `runInRollback` in journey files; no real Redis/transport anywhere in tests.
+  - [x] 5.1.SR **Semantic Review:** every test through `run-test.ts`; no `.rejects.toThrow()`; no `runInRollback` in journey files; no real Redis/transport anywhere in tests.
 
 - [ ] 5.2 [Baseline gates & drift checks (REQ-076, REQ-044)]
   - `tsgo` / `biome:check` / `lint` deltas vs the 0.1 baseline MUST be ZERO.

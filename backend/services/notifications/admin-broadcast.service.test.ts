@@ -42,7 +42,14 @@
  *    (reads the outer tx, writes the ONE shared savepoint) and the engine
  *    batch input is mapped field-by-field (no spread of the submit input);
  *  - verbatim copy storage: unicode / RTL / injection-shaped strings stored
- *    byte-for-byte and inert (title passed through UNtrimmed).
+ *    byte-for-byte and inert (title passed through UNtrimmed);
+ *  - second-admin gate probe: the seeded second admin passes the SAME real
+ *    gate and lands its OWN audit row — audit rows are append-only with
+ *    per-actor attribution, so no cross-admin alteration is possible;
+ *  - concurrent same-key race: two SEQUENTIAL same-key submits yield ONE
+ *    row-set (the deterministic guarantee), while the parallel loser of the
+ *    claim (held, receipt not yet visible) takes the engine's documented
+ *    fail-open ladder — insert + audit + publish with exactly ONE warn.
  */
 
 import { afterEach, describe, expect, spyOn, test } from "bun:test";
@@ -80,6 +87,9 @@ const AUDIT_ENTITY_TYPE = "notification_broadcast";
 
 /** A user id that cannot exist in the test database. */
 const NONEXISTENT_USER_ID = 2_000_000_000;
+
+/** The standard seed's super-admin login (verified present by the seeds). */
+const SEEDED_ADMIN_EMAIL = "admin@app.local";
 
 /** One pre-DB denial probe: the hostile input plus its exact expected contract. */
 interface ValidationProbeCase {
@@ -176,6 +186,39 @@ class ScriptedClaimCache implements NotificationIdempotencyClaimCache {
     if (this.storeThrows) {
       throw new Error("scripted store outage");
     }
+    this.stored.set(key, value);
+  }
+}
+
+/**
+ * Claim cache scripted for the same-key race: the FIRST claimant wins, and a
+ * receipt only becomes storable after the held loser's cache miss has been
+ * observed — the loser therefore reads NO receipt and deterministically takes
+ * the engine's fail-open path (mirrors SET-NX-EX with a real in-flight
+ * emission still holding the key).
+ */
+class RaceWindowClaimCache implements NotificationIdempotencyClaimCache {
+  private claims = 0;
+  private readonly stored = new Map<string, string>();
+  private releaseStore: (() => void) | undefined;
+  private readonly loserMissObserved: Promise<void> = new Promise(resolve => {
+    this.releaseStore = resolve;
+  });
+
+  async claim(_key: string, _ttlSeconds: number): Promise<boolean> {
+    this.claims += 1;
+    return this.claims === 1;
+  }
+
+  async get(key: string): Promise<string | null> {
+    if (this.claims >= 2) {
+      this.releaseStore?.();
+    }
+    return this.stored.get(key) ?? null;
+  }
+
+  async store(key: string, value: string, _ttlSeconds: number): Promise<void> {
+    await this.loserMissObserved;
     this.stored.set(key, value);
   }
 }
@@ -369,7 +412,10 @@ describe("AdminBroadcastService.broadcast — service behavior matrix", () => {
   test("country cohort — exact match on the trimmed country; the trimmed value is what resolves", async () => {
     await runInRollback(async tx => {
       const cast = await provisionCast(tx);
-      await tx.update(users).set({ country: "EG" }).where(eq(users.id, cast.student.id));
+      // A run-unique country sentinel keeps the exact-match cohort disjoint
+      // from any committed rows in the shared database.
+      const country = `QT${randomUUID().replace(/-/g, "").slice(0, 10).toUpperCase()}`;
+      await tx.update(users).set({ country }).where(eq(users.id, cast.student.id));
       const transportSpy = new SpiedFanoutTransport();
       const options = { transport: transportSpy, cache: new ScriptedClaimCache() };
       const logs = recordDomainLogs();
@@ -381,7 +427,7 @@ describe("AdminBroadcastService.broadcast — service behavior matrix", () => {
           {
             title,
             body: null,
-            audience: { type: BroadcastAudienceType.Country, country: "EG" },
+            audience: { type: BroadcastAudienceType.Country, country },
           },
           cast.admin.id,
           options,
@@ -393,7 +439,7 @@ describe("AdminBroadcastService.broadcast — service behavior matrix", () => {
         expect(broadcastCount).toBe(1);
 
         const metadata: unknown = JSON.parse((await broadcastAuditRowsFor(tx, cast.admin.id))[0]?.details ?? "{}");
-        expect(metadata).toEqual({ scope: "country", country: "EG", recipientCount: broadcastCount });
+        expect(metadata).toEqual({ scope: "country", country, recipientCount: broadcastCount });
 
         // The same cohort resolves from a padded country — the service
         // validates and resolves the TRIMMED value.
@@ -403,7 +449,7 @@ describe("AdminBroadcastService.broadcast — service behavior matrix", () => {
           {
             title: paddedTitle,
             body: null,
-            audience: { type: BroadcastAudienceType.Country, country: "  EG  " },
+            audience: { type: BroadcastAudienceType.Country, country: `  ${country}  ` },
           },
           cast.admin.id,
           options,
@@ -803,6 +849,146 @@ describe("AdminBroadcastService.broadcast — service behavior matrix", () => {
       expect(await rowsByTitle(tx, title)).toHaveLength(freshRows.length);
       expect(await broadcastAuditRowsFor(tx, cast.admin.id)).toHaveLength(auditAfterFresh.length);
       expect(transportSpy.publishCount).toBe(1);
+    });
+  });
+
+  test("a seeded second admin may broadcast — audit rows stay append-only and actor-attributed (no cross-admin alteration)", async () => {
+    await runInRollback(async tx => {
+      const cast = await provisionCast(tx);
+      const [seededAdmin] = await tx.select().from(users).where(eq(users.email, SEEDED_ADMIN_EMAIL));
+      if (!seededAdmin) {
+        throw new Error("fixture: the standard seed admin row is missing");
+      }
+      expect(seededAdmin.role).toBe(UserRole.Admin);
+
+      // The shared database may already hold committed broadcast audits for
+      // the seeded admin from other suites — assert on the DELTA this tx adds.
+      const seededAuditBefore = await broadcastAuditRowsFor(tx, seededAdmin.id);
+      const seededAuditBeforeIds = new Set(seededAuditBefore.map(row => row.id));
+
+      const transportSpy = new SpiedFanoutTransport();
+      const options = { transport: transportSpy, cache: new ScriptedClaimCache() };
+
+      // The first admin fires an accepted broadcast — exactly ONE audit row
+      // attributed to them.
+      const firstTitle = `svc_admin1_${randomUUID()}`;
+      const firstCount = await callBroadcast(
+        tx,
+        { title: firstTitle, body: null, audience: { type: BroadcastAudienceType.Role, role: UserRole.Teacher } },
+        cast.admin.id,
+        options,
+        randomUUID()
+      );
+      expect(firstCount).toBe((await rowsByTitle(tx, firstTitle)).length);
+      expect(firstCount).toBeGreaterThanOrEqual(1);
+      const firstAdminAuditBefore = await broadcastAuditRowsFor(tx, cast.admin.id);
+      expect(firstAdminAuditBefore).toHaveLength(1);
+
+      // The seeded second admin passes the SAME real gate (live role read)
+      // and lands its OWN audit row — never a mutation of the first row.
+      const secondTitle = `svc_admin2_${randomUUID()}`;
+      const secondCount = await callBroadcast(
+        tx,
+        { title: secondTitle, body: null, audience: { type: BroadcastAudienceType.Role, role: UserRole.Teacher } },
+        seededAdmin.id,
+        options,
+        randomUUID()
+      );
+      expect(secondCount).toBe((await rowsByTitle(tx, secondTitle)).length);
+      expect(secondCount).toBeGreaterThanOrEqual(1);
+
+      const seededAuditAfter = await broadcastAuditRowsFor(tx, seededAdmin.id);
+      const secondAdminNewRows = seededAuditAfter.filter(row => !seededAuditBeforeIds.has(row.id));
+      expect(secondAdminNewRows).toHaveLength(1);
+      const secondRow = secondAdminNewRows[0];
+      expect(secondRow?.entityId).toBeNull();
+      const secondMetadata: unknown = JSON.parse(secondRow?.details ?? "{}");
+      expect(secondMetadata).toEqual({ scope: "role", role: "teacher", recipientCount: secondCount });
+
+      // Append-only audit: the first admin's row is byte-identical after the
+      // second admin's accepted broadcast — no cross-admin alteration.
+      expect(await broadcastAuditRowsFor(tx, cast.admin.id)).toEqual(firstAdminAuditBefore);
+    });
+  });
+
+  test("concurrent same-key race — sequential same-key submits yield ONE row-set; the parallel claim loser fails OPEN", async () => {
+    await runInRollback(async tx => {
+      const cast = await provisionCast(tx);
+      const transportSpy = new SpiedFanoutTransport();
+      const logs = recordDomainLogs();
+
+      try {
+        // Sequential leg (deterministic guarantee): the same key submitted
+        // twice through a live cache collapses to ONE row-set — the second
+        // submit replays the prior count with zero new rows / audit / publish.
+        const sequentialCache = new ScriptedClaimCache();
+        const seqTitle = `svc_race_seq_${randomUUID()}`;
+        const seqInput: BroadcastNotificationSubmitInput = {
+          title: seqTitle,
+          body: null,
+          audience: { type: BroadcastAudienceType.Role, role: UserRole.Teacher },
+        };
+        const seqKey = randomUUID();
+        const seqFirst = await callBroadcast(
+          tx,
+          seqInput,
+          cast.admin.id,
+          { transport: transportSpy, cache: sequentialCache },
+          seqKey
+        );
+        const seqSecond = await callBroadcast(
+          tx,
+          seqInput,
+          cast.admin.id,
+          { transport: transportSpy, cache: sequentialCache },
+          seqKey
+        );
+        expect(seqSecond).toBe(seqFirst);
+        expect(await rowsByTitle(tx, seqTitle)).toHaveLength(seqFirst);
+        expect(seqFirst).toBeGreaterThanOrEqual(1);
+
+        // Parallel leg: two concurrent submits race ONE key. The scripted
+        // cache makes the in-flight window deterministic — the first claimant
+        // wins; receipts only become storable after the held loser's cache
+        // miss, so the loser reads NO receipt and takes the engine's
+        // documented fail-open ladder (insert + audit + publish + ONE warn).
+        const raceCache = new RaceWindowClaimCache();
+        const raceTitle = `svc_race_par_${randomUUID()}`;
+        const raceInput: BroadcastNotificationSubmitInput = {
+          title: raceTitle,
+          body: null,
+          audience: { type: BroadcastAudienceType.Role, role: UserRole.Teacher },
+        };
+        const raceKey = randomUUID();
+        const raceOutcomes = await Promise.allSettled([
+          callBroadcast(tx, raceInput, cast.admin.id, { transport: transportSpy, cache: raceCache }, raceKey),
+          callBroadcast(tx, raceInput, cast.admin.id, { transport: transportSpy, cache: raceCache }, raceKey),
+        ]);
+        for (const outcome of raceOutcomes) {
+          expect(outcome.status).toBe("fulfilled");
+        }
+        const raceCounts = raceOutcomes.flatMap(outcome => (outcome.status === "fulfilled" ? [outcome.value] : []));
+        // Every accepted emission landed EXACTLY one full cohort — the two
+        // counts match the sequential cohort, and the title holds both
+        // row-sets whole (never a partial or silent write).
+        expect(raceCounts).toHaveLength(2);
+        expect(raceCounts[0]).toBe(seqFirst);
+        expect(raceCounts[1]).toBe(seqFirst);
+        expect(await rowsByTitle(tx, raceTitle)).toHaveLength(2 * seqFirst);
+
+        // The race produced two fresh emissions: two audit rows (one per
+        // accepted emission, both attributed to the calling admin) and two
+        // publish envelopes, on top of the sequential leg's one-of-each.
+        expect(await broadcastAuditRowsFor(tx, cast.admin.id)).toHaveLength(3);
+        expect(transportSpy.publishCount).toBe(3);
+
+        // Exactly ONE degrade warn across the WHOLE test — the parallel
+        // loser's documented fail-open posture; the sequential replay and the
+        // winner log nothing.
+        expect(logs.entries).toEqual([{ code: "NOTIFICATION_IDEMPOTENCY_DEGRADED", entity: "notifications" }]);
+      } finally {
+        logs.spy.mockRestore();
+      }
     });
   });
 

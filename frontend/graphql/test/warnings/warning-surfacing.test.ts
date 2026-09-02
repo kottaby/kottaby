@@ -287,9 +287,15 @@ const MUTATION_SURFACE_INVENTORY_QUERY_DOCUMENT: DocumentNode = gql`
  * mutation ships without an explicit decision about warning propagation.
  *
  * Refreshed for the sanctioned additions: notification read-latch pair
- * (DEV3-010) + users-locale (D2) + billing plan-catalog CRUD (upstream #28).
+ * (DEV3-010) + users-locale (D2) + billing plan-catalog CRUD (upstream #28)
+ * + `adminBroadcastNotification` (the DEV3-022d admin broadcast surface —
+ * returns the persisted-recipient `Int!` count, never a partial-success
+ * wrapper, so it is warning-incapable like the admin user mutations; it is
+ * admin-scoped via its own auth-scopes conjunction and is NOT on the public
+ * allowlist).
  */
 const KNOWN_LIVE_MUTATION_FIELDS = [
+  "adminBroadcastNotification",
   "adminCreateUser",
   "adminSetUserDeleted",
   "adminUpdateUser",

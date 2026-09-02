@@ -4,7 +4,7 @@
  *
  * Cross-actor journey through the REAL service layer against the real test
  * database: Admin A composes broadcasts over every cohort kind (`all`,
- * `role:teacher`, `country:"EG"`, `plan:P`), a same-key replay is absorbed,
+ * `role:teacher`, a run-unique country cohort, `plan:P`), a same-key replay is absorbed,
  * validation/BFLA denials change nothing, a governed (soft-deleted) cast
  * member appears in NO cohort, and every recipient observes the broadcast in
  * HIS OWN self-scoped inbox via `NotificationEngine.listMyNotifications`.
@@ -34,7 +34,7 @@
  *      row (entityId=null, metadata only), ONE spied envelope (full id list)
  *   2. SAME-key replay → identical count, ZERO new rows/audit/publish
  *   3. `role:teacher` → only T gains a row (S/Pa/S2/SX byte-identical)
- *   4. `country:"EG"` → only S gains a row (exact match, no LIKE semantics)
+ *   4. targeted country cohort → only S gains a row (exact match, no LIKE semantics)
  *   5. `plan:P` → only the active-window subscriber S; EXPIRED-P student excluded
  *   6. Validation-family denials (title/coherence/hostile discriminants/
  *      empty cohort/unknown plan) → zero state change
@@ -113,6 +113,13 @@ const ALL_BODY = `${runPrefix}: The platform will be briefly unavailable on Sund
 const TEACHER_TITLE = `${runPrefix}: New timetable tools for teachers`;
 const TEACHER_BODY = `${runPrefix}: Timetable export and bulk-shift tools ship this week.`;
 const EG_TITLE = `${runPrefix}: Egypt cohort announcement`;
+/**
+ * Run-unique country sentinel for the targeted-country cohort: exact `eq`
+ * matching must resolve ONLY the rows sharing this value, so a value no
+ * other suite, fixture, or seed can hold keeps the cohort deterministic in
+ * the shared database (any literal like "EG" collides with committed rows).
+ */
+const COHORT_COUNTRY = `QT${randomUUID().replace(/-/g, "").slice(0, 10).toUpperCase()}`;
 const PLAN_TITLE = `${runPrefix}: إعلان تحديث خطة الاشتراك`;
 const PLAN_BODY = `<script>alert("broadcast")</script> ${runPrefix}: subscription update stored inertly.`;
 
@@ -304,13 +311,13 @@ describe("Journey — Admin broadcast cross-actor workflow (specs §2.9 steps 1�
 
       // Cohort attributes are fixture state, not permissions: explicit
       // field-mapped updates (never a spread), still inside the one setup tx.
-      await tx.update(users).set({ country: "EG" }).where(eq(users.id, studentS.userId));
+      await tx.update(users).set({ country: COHORT_COUNTRY }).where(eq(users.id, studentS.userId));
       await tx.update(users).set({ country: "US" }).where(eq(users.id, studentS2.userId));
       await tx.update(users).set({ country: "US" }).where(eq(users.id, studentExpired.userId));
-      // The governed cast member: soft-deleted AND holding the EG country, so
-      // the `country:"EG"` cohort proves governance exclusion WITHIN a
+      // The governed cast member: soft-deleted AND holding the cohort country,
+      // so the targeted-country cohort proves governance exclusion WITHIN a
       // targeted cohort, not just in the widest `all` cohort (step 9).
-      await tx.update(users).set({ country: "EG", isDeleted: true }).where(eq(users.id, governedG.userId));
+      await tx.update(users).set({ country: COHORT_COUNTRY, isDeleted: true }).where(eq(users.id, governedG.userId));
 
       planP = await createTestPlan(tx);
       tracked.register(plans, planP.id);
@@ -444,7 +451,7 @@ describe("Journey — Admin broadcast cross-actor workflow (specs §2.9 steps 1�
       .from(users)
       .where(eq(users.id, governedG.userId));
     expect(governed[0]?.isDeleted).toBe(true);
-    expect(governed[0]?.country).toBe("EG");
+    expect(governed[0]?.country).toBe(COHORT_COUNTRY);
 
     await expectInboxCounts([
       [adminA, 0],
@@ -599,11 +606,11 @@ describe("Journey — Admin broadcast cross-actor workflow (specs §2.9 steps 1�
     expect(publish.payload.data.title).toBe(TEACHER_TITLE);
   });
 
-  test('step 4 — Admin A fires `country:"EG"`: only S gains a row (exact match; seeded "Egypt" users unaffected)', async () => {
+  test("step 4 — Admin A fires a targeted country cohort: only S gains a row (exact equality; committed foreign-country rows unaffected)", async () => {
     const input: BroadcastNotificationSubmitInput = {
       title: EG_TITLE,
       body: null,
-      audience: { type: BroadcastAudienceType.Country, country: "EG" },
+      audience: { type: BroadcastAudienceType.Country, country: COHORT_COUNTRY },
     };
 
     const count = await AdminBroadcastService.broadcast(input, adminA.userId, adminA.locale, EG_KEY, callOptions);
@@ -611,9 +618,9 @@ describe("Journey — Admin broadcast cross-actor workflow (specs §2.9 steps 1�
 
     const rows = await broadcastRowsByTitle(EG_TITLE);
     expect(count).toBe(rows.length);
-    // The EG cohort is exactly student S: exact `eq` matching means seeded
-    // "Egypt" users and the US students are outside, and the governed EG
-    // cast member is governance-excluded.
+    // The cohort is exactly student S: exact `eq` matching means every
+    // committed row holding any other country (seeded or fixture) is outside,
+    // and the governed same-country cast member is governance-excluded.
     expect(rows.map(row => row.userId)).toEqual([studentS.userId]);
     expect(count).toBe(1);
 
@@ -627,7 +634,7 @@ describe("Journey — Admin broadcast cross-actor workflow (specs §2.9 steps 1�
       [governedG, 0],
     ]);
 
-    await expectOneAuditRow(EG_TITLE, "country", count, { country: "EG" });
+    await expectOneAuditRow(EG_TITLE, "country", count, { country: COHORT_COUNTRY });
 
     expect(transportSpy.publishCount).toBe(3);
     const publish = transportSpy.lastCall;
@@ -859,8 +866,8 @@ describe("Journey — Admin broadcast cross-actor workflow (specs §2.9 steps 1�
   });
 
   test("step 9 — Governed G appears in NO cohort result of ANY broadcast fired above", async () => {
-    // G holds the EG country and a parent role-child row, so the
-    // `country:"EG"` cohort (step 4) proves governance exclusion INSIDE a
+    // G holds the cohort country and a parent role-child row, so the
+    // targeted-country cohort (step 4) proves governance exclusion INSIDE a
     // targeted cohort, while `all` (step 1) proves it for the widest cohort.
     // The plan cohort never resolved G (no subscription) and the role cohort
     // never resolved G (parent role-child). Every envelope is checked.
