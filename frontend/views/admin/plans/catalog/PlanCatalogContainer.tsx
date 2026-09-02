@@ -1,3 +1,5 @@
+"use client";
+
 /**
  * PlanCatalogContainer — Root client container for admin plan catalog management.
  *
