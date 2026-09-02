@@ -383,14 +383,14 @@ Verify each anchor is REAL in the bundled tree (locate it; cite line). ANY miss 
   - Deny-wave: mutation `PARENT_LINK_REQUEST_EXPIRED` → inline Alert with `t.parentLinkRequestExpired` (Errors via `useAppTranslation(Errors)` handle)
   - Anonymous/wrong-role are Server-Component concerns — covered by the wire matrix, not by the component tier
   - Assertions ONLY through translation handles (NEVER hardcoded en/ar strings); `React.SubmitEvent` discipline on form-bearing dialogs
-- [ ] 4.2.BF **Agent-Browser Functional Self-Loop:**
+- [x] 4.2.BF **Agent-Browser Functional Self-Loop:**
   - Setup: `bun run scripts/browser-login.ts --inject` (student session); dev server running
   - Drive `/student/link-requests`; provision a pending request out-of-band via the service (or use a seeded fixture via the journey's cast)
   - Steps: load page → assert list renders in the student's incoming order (newest-first) → open Confirm dialog → submit → assert in-flight disable + success toast (translation-handle key) + row flips to confirmed + refetch
   - Denial path: request with expired `expiresAt` (backdated fixture) → Confirm → assert inline `Alert` with the localized expiry copy (never an English literal)
   - Cross-probe: log in as a parent, hit `/student/link-requests` → expect redirect via `roleDashboardPath("parent")` to `/parent/dashboard` — NEVER `/dashboard`
   - Iterative self-loop: any failure → patch → re-test until clean
-- [ ] 4.2.BS **Agent-Browser Visual & Styling Self-Loop (Screenshot Analysis):**
+- [x] 4.2.BS **Agent-Browser Visual & Styling Self-Loop (Screenshot Analysis):**
   - Capture screenshots at Desktop 1440×900, Tablet 768×1024, Mobile 375×812 for BOTH locales (`en` LTR, `ar` RTL) on: empty state, pending list, post-confirm state, expiry Alert state
   - Screenshot inspection via a short-lived visual-inspection subagent (NEVER `ReadMediaFile` in the orchestrator — `test/ui/AGENTS.md` context-isolation rule)
   - Checks: MUI v9 theme palette only (no hardcoded hex/rgb), typography hierarchy, padding/margin rhythm, no truncation/overflow on the parent name + expiry line, RTL mirroring alignment (logical properties only), Arabic line-height not clipped, ≥44px CTAs, chip color roles from `theme.palette` (success/warning/error — never ad-hoc)
@@ -421,13 +421,13 @@ Verify each anchor is REAL in the bundled tree (locate it; cite line). ANY miss 
   - Conflict codes → inline localized `Alert`s
   - Outgoing list: pending-live row has Cancel CTA; expired-computed renders chip, NO CTA; cancel flow posts mutation + refetch
   - Assertions only via translation handles
-- [ ] 4.3.BF **Agent-Browser Functional Self-Loop:**
+- [x] 4.3.BF **Agent-Browser Functional Self-Loop:**
   - `bun run scripts/browser-login.ts --inject` (parent session); drive the handshake page end-to-end
   - Flow: search with a known-valid code (fixture) → card shows → Send Request → success toast + outgoing list gains pending row → Cancel from the outgoing list → confirm dialog → cancelled-as-rejected chip + refetch
   - Null-collapse path: search a governed student's code → same "not found"/unavailable surface as a truly-nonexistent code (observer-perspective equality asserted DOM-first)
   - Duplicate-pending: attempt Send twice in a row → second submit surfaces `PARENT_LINK_ALREADY_PENDING` (localized) without crashing the form
   - Iterative self-loop until clean
-- [ ] 4.3.BS **Agent-Browser Visual & Styling Self-Loop (Screenshot Analysis):**
+- [x] 4.3.BS **Agent-Browser Visual & Styling Self-Loop (Screenshot Analysis):**
   - Screenshots at 1440/768/375 × `en`/`ar` for the handshake result card + outgoing list in BOTH empty and populated states, expired chip state, cancel dialog
   - Subagent-based visual inspection (per 4.2.BS rules); patch `sx` tokens iteratively to reach palette compliance, RTL alignment, no truncation, ≥44px CTAs
 - [x] 4.3.SR **Semantic Review:** UPDATE-with-verify ledger recorded honestly (prose-only downgrade OR confirmed shape); `sx`-only; `*Outlined` icons; `useAppTranslation(ParentLink)`; `dir="auto"` on names; no `console.*`
