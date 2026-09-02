@@ -177,7 +177,9 @@ describe("no English fallthrough — ar map carries Arabic copy for every string
 
 // ===========================================================================
 describe("pluralization pin — successToast exact branch outputs in BOTH locales", () => {
-  // Arabic plural boundaries: 0 zero-form · 1 singular · 2 dual · 3–10 few-plural · 11+ counted-singular.
+  // Arabic plural boundaries: CLDR classes cycle by the last two digits —
+  // 0→zero-form message · 1 singular · 2 dual · 3–10 counted plural ·
+  // 11–99 tamyiz singular · then the cycle re-enters for 100/101/…/5000.
   test.each([
     [0, "No recipients were reached", "لم يتم إشعار أي مستلم"],
     [1, "Broadcast sent to 1 recipient", "تم إرسال الإعلان إلى مستلم واحد"],
@@ -186,7 +188,11 @@ describe("pluralization pin — successToast exact branch outputs in BOTH locale
     [10, "Broadcast sent to 10 recipients", "تم إرسال الإعلان إلى 10 مستلمين"],
     [11, "Broadcast sent to 11 recipients", "تم إرسال الإعلان إلى 11 مستلماً"],
     [42, "Broadcast sent to 42 recipients", "تم إرسال الإعلان إلى 42 مستلماً"],
-    [5000, "Broadcast sent to 5000 recipients", "تم إرسال الإعلان إلى 5000 مستلماً"],
+    [100, "Broadcast sent to 100 recipients", "تم إرسال الإعلان إلى 100 مستلم"],
+    [101, "Broadcast sent to 101 recipients", "تم إرسال الإعلان إلى 101 مستلم"],
+    [105, "Broadcast sent to 105 recipients", "تم إرسال الإعلان إلى 105 مستلمين"],
+    [142, "Broadcast sent to 142 recipients", "تم إرسال الإعلان إلى 142 مستلماً"],
+    [5000, "Broadcast sent to 5000 recipients", "تم إرسال الإعلان إلى 5000 مستلم"],
   ])("successToast(%d)", (count, expectedEn, expectedAr) => {
     expect(adminBroadcastsEn.successToast(count)).toBe(expectedEn);
     expect(adminBroadcastsAr.successToast(count)).toBe(expectedAr);

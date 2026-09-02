@@ -15,7 +15,11 @@
  *    lifecycle server's hermetic (cache-less) default the DOCUMENTED
  *    fail-open posture applies: the deterministic cohort answers the SAME
  *    count on every accepted emission and each emission lands EXACTLY one
- *    cohort of rows (the cache-backed same-key/zero-new-rows contract is
+ *    cohort of rows. SCOPE NOTE: over the cache-less wire the key is
+ *    behaviorally unobservable, so THIS suite cannot fail on a regression
+ *    that drops header propagation — that seam is pinned at the service
+ *    tier (context-headers consumption in the service behavior matrix) and
+ *    the cache-backed same-key/zero-new-rows contract is
  *    proven at the service tier with a scripted claim cache).
  *  - **BOPLA wire probes** — an unknown field smuggled into
  *    `BroadcastAudienceInput` and an unknown root identity arg both die as

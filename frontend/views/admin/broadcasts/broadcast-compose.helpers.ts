@@ -24,7 +24,7 @@ import type { AdminBroadcastsLabels } from "@/shared/locale/types/adminBroadcast
 import type { AdminUsersLabels } from "@/shared/locale/types/adminUsers";
 
 /** Form-bound field paths the server's VALIDATION projection may address. */
-export type ComposeFieldPath = "title" | "audience";
+type ComposeFieldPath = "title" | "audience";
 
 /** Per-field inline error copy keyed by the compose form's field paths. */
 export type ComposeFieldErrors = Partial<Record<ComposeFieldPath, string>>;
@@ -75,7 +75,7 @@ export function randomUUID(): string {
   return crypto.randomUUID();
 }
 
-export function isComposeFieldPath(field: string): field is ComposeFieldPath {
+function isComposeFieldPath(field: string): field is ComposeFieldPath {
   return field === "title" || field === "audience";
 }
 

@@ -11,7 +11,7 @@
  *    option, confirm/cancel/send affordance, and the pluralized success toast
  *    carrying the server-returned recipient count).
  *
- * Audience rules mirrored by the key set (plan §5.5):
+ * Audience rules mirrored by the key set:
  *  - `audienceAll` — system-wide (`audience.type = all`).
  *  - `audienceRole` + `roleLabel` — role cohort (teacher/student/parent).
  *  - `audienceCountry` + `countryLabel`/`countryPlaceholder`/`countryHelperText`
@@ -19,7 +19,7 @@
  *  - `audiencePlan` + `planLabel`/`planLoading` — active-subscription plan
  *    cohort fed by the existing `adminPlansQueryDocument`.
  *
- * There is deliberately NO recipient-count preview label (REQ-063/DB-6):
+ * There is deliberately NO recipient-count preview label:
  * `previewDisclaimer` pins the oracle-hygiene posture (recipients are resolved
  * at send time) and `successToast(count)` is the ONLY carrier of the recipient
  * count — resolved from the server response AFTER the write. The count is the

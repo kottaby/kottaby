@@ -45,11 +45,11 @@
   - UPDATE `backend/enum/notifications/index.ts` — `export * from "./broadcast-audience-type.enum";`.
   - Applicable instructions: `.agents/instructions/backend.instructions.md`, `backend/enum/AGENTS.md` (verify existence in bundle before citing).
   - _Requirements: REQ-003, REQ-004, REQ-010_
-  - [ ] 1.1.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts backend/enum/notifications/broadcast-audience-type.enum.ts --lifecycle duplicates` (exit 0)
-  - [ ] 1.1.TE **Test Engineering:** CREATE `backend/enum/notifications/broadcast-audience-type.enum.test.ts` mirroring the `notification-type.enum.test.ts` 4-tier pattern: Tier 1 member values; Tier 2 guard accepts every member + rejects `""`, wrong case, `null`, numbers, objects; Tier 3 fuzz hostile strings (prototypes, unicode, payloads with `__proto__`); Tier 4 no accidental string-literal acceptance beyond the four members.
-  - [ ] 1.1.SEC **Security & Tenancy Audit:** guard is fail-closed (unknown → false); no coercion; no leakage of valid values through error paths (enum module throws nothing).
-  - [ ] 1.1.SR **Semantic Review:** enum used as VALUE import downstream; zero dead code; no cross-layer imports.
-  - [ ] 1.1.IV **Instruction Verification:** read backend instructions + enum layer AGENTS.md; confirm conventions met.
+  - [x] 1.1.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts backend/enum/notifications/broadcast-audience-type.enum.ts --lifecycle duplicates` (exit 0)
+  - [x] 1.1.TE **Test Engineering:** CREATE `backend/enum/notifications/broadcast-audience-type.enum.test.ts` mirroring the `notification-type.enum.test.ts` 4-tier pattern: Tier 1 member values; Tier 2 guard accepts every member + rejects `""`, wrong case, `null`, numbers, objects; Tier 3 fuzz hostile strings (prototypes, unicode, payloads with `__proto__`); Tier 4 no accidental string-literal acceptance beyond the four members.
+  - [x] 1.1.SEC **Security & Tenancy Audit:** guard is fail-closed (unknown → false); no coercion; no leakage of valid values through error paths (enum module throws nothing).
+  - [x] 1.1.SR **Semantic Review:** enum used as VALUE import downstream; zero dead code; no cross-layer imports.
+  - [x] 1.1.IV **Instruction Verification:** read backend instructions + enum layer AGENTS.md; confirm conventions met.
 
 - [x] 1.2 [Create canonical broadcast types + widen audit contract]
   - CREATE `backend/types/notifications/broadcast.types.ts` — `BroadcastAudienceSelector` (readonly, closed, type-discriminated companions) and `BroadcastNotificationSubmitInput` exactly per plan §2.2.
@@ -105,11 +105,11 @@
   - UPDATE `backend/db/repo/notifications/index.ts` — `export * from "./broadcast-audience.repository";`.
   - Applicable instructions: `.agents/instructions/backend.instructions.md`, `backend/db/repo/AGENTS.md`.
   - _Requirements: REQ-011, REQ-012, REQ-013, REQ-014, REQ-015, REQ-016, REQ-042, REQ-043_
-  - [ ] 2.1.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts backend/db/repo/notifications/broadcast-audience.repository.ts --lifecycle duplicates` (exit 0)
-  - [ ] 2.1.TE **Test Engineering:** CREATE repo test — `runInRollback` everywhere, `tx` propagation asserted, `expectRepoError` try/catch (never `.rejects.toThrow()`), `entity-setup.ts` helpers only. Tier 1: each of 4 kinds resolves expected ids, ordering `id ASC`; Tier 2: empty-result sets, boundary windows (subscription starting exactly now / ending exactly now per the strict `< end_date` rule), NULL governance columns → eligible; Tier 3: plan cohort user with 2 subscriptions → DISTINCT yields ONE row; country exact-match does NOT match partial/LIKE-shaped strings (`"EG%"`, `"eg "`); Tier 4: hostile selector companions (already-guarded upstream — assert repo assumes validated input and never string-concatenates).
-  - [ ] 2.1.SEC **Security & Tenancy Audit:** all params bound (`$n` / Drizzle); governance exclusion mandatory in every branch; no identity acceptor from callers beyond the validated selector.
-  - [ ] 2.1.SR **Semantic Review:** canonical types imported from `backend/types/`; no local shapes; no dead branches.
-  - [ ] 2.1.IV **Instruction Verification:** repo AGENTS.md conventions (queryDb/tx duality, prepared-statement prohibitions) verified.
+  - [x] 2.1.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts backend/db/repo/notifications/broadcast-audience.repository.ts --lifecycle duplicates` (exit 0)
+  - [x] 2.1.TE **Test Engineering:** CREATE repo test — `runInRollback` everywhere, `tx` propagation asserted, `expectRepoError` try/catch (never `.rejects.toThrow()`), `entity-setup.ts` helpers only. Tier 1: each of 4 kinds resolves expected ids, ordering `id ASC`; Tier 2: empty-result sets, boundary windows (subscription starting exactly now / ending exactly now per the strict `< end_date` rule), NULL governance columns → eligible; Tier 3: plan cohort user with 2 subscriptions → DISTINCT yields ONE row; country exact-match does NOT match partial/LIKE-shaped strings (`"EG%"`, `"eg "`); Tier 4: hostile selector companions (already-guarded upstream — assert repo assumes validated input and never string-concatenates).
+  - [x] 2.1.SEC **Security & Tenancy Audit:** all params bound (`$n` / Drizzle); governance exclusion mandatory in every branch; no identity acceptor from callers beyond the validated selector.
+  - [x] 2.1.SR **Semantic Review:** canonical types imported from `backend/types/`; no local shapes; no dead branches.
+  - [x] 2.1.IV **Instruction Verification:** repo AGENTS.md conventions (queryDb/tx duality, prepared-statement prohibitions) verified.
 
 - [x] 2.2 [Extract shared `assertActorAdmin` + refactor `AdminUserManagementService`] (RE-SCOPED per plan-review F-1: gate already shipped at `backend/services/admin/admin-gate.helpers.ts:59` — verified in place, no fork created; focused gap test added — see `outcome/2.2-outcome.md`)
   - CREATE `backend/services/admin/assert-actor-admin.ts` — move the logic from `backend/services/admin/user-management.service.ts:240-271` VERBATIM (anonymous `actorId = 0` → `UnauthorizedError`; missing/non-admin row → `ForbiddenError`; identical logging shape; pre-transaction; zero writes/audit — JR-C-1).
@@ -212,7 +212,7 @@
   - [x] 4.2.SR **Semantic Review:** server component has zero client hooks; metadata/title via `getTranslations(locale)` single-arg tree if used.
   - [x] 4.2.IV **Instruction Verification:** frontend instructions + `frontend/lib/auth` guard conventions.
 
-- [ ] 4.3 [Create `BroadcastComposeContainer` — compose UI]
+- [x] 4.3 [Create `BroadcastComposeContainer` — compose UI] (DISPOSITION: QL/SR/IV + Tier-1 suite + e2e spec green; TE flow tier and BF/BS browser loops are environment-blocked and Forwarded per ledger DF-1/DF-2 — see outcome/4.3-outcome.md)
   - CREATE `frontend/views/admin/broadcasts/BroadcastComposeContainer.tsx` (`"use client"`): `useAppTranslation(AdminBroadcasts)` + `useAppTranslation(Common)`; title/body fields (`dir="auto"` on user-authored copy); audience-type selector; conditional companion (role select from codegen `UserRole`; country free-text w/ exact-match helper copy; plan select fed by EXISTING `adminPlansQueryDocument` with `skip: audienceType !== Plan`); confirmation dialog; `useMutation(adminBroadcastNotificationMutationDocument)` with `context: { headers: { "x-idempotency-key": composeKeyRef.current } }` — `composeKeyRef = useRef(randomUUID())`, regenerated ONLY after success; VALIDATION errors via `projectMutationFieldErrors` (`frontend/lib/mutationFieldErrors.ts`) — never a bespoke renderer; success `Snackbar` with pluralized `t.successToast(count)`; submit disabled while loading; submit handler typed `React.SubmitEvent`.
   - MUI v9 discipline: `sx`-only with `theme.palette.*`; `CampaignOutlined`/`SendOutlined` icons; `focusVisibleRingSx` on interactive elements; ≥44px touch targets; logical spacing (`marginInline*`, `ps/pe`); loading Skeletons; `aria-busy` on sending state.
   - Applicable instructions: `.agents/instructions/frontend.instructions.md`. (NOTE: `frontend/views/AGENTS.md` and `frontend/components/ui/AGENTS.md` do NOT exist — do not cite them.)
@@ -264,7 +264,7 @@
 
 ## Phase 6 — Post-Implementation Review Waves
 
-- [ ] 6.1 [Parallel review waves + deferred-items sweep]
+- [x] 6.1 [Parallel review waves + deferred-items sweep]
   - Run the four review waves (parallel where the harness allows):
     - **review-types** — canonical-type discipline: all shapes in `backend/types/`, enum value imports, `AuditLogWriteContract` widening scoped exactly to `entityId`, closed selector/interface shapes.
     - **review-backend** — single-writer rule (only engine inserts `notifications`), service/resolver delegation purity, tx propagation, publish-after-commit ordering, replay detector correctness, fail-open posture fully test-locked, log hygiene (REQ-034: no PII, no raw keys, no copy payloads).

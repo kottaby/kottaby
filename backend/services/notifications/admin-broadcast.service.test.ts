@@ -1047,6 +1047,7 @@ describe("AdminBroadcastService.broadcast — service behavior matrix", () => {
           throw new Error("forced insert failure");
         })
       );
+      const rowsBeforeInsert = await totalNotificationRows(tx);
 
       const error = await expectRepoError(() => callBroadcast(tx, input, cast.admin.id, options));
 
@@ -1056,8 +1057,9 @@ describe("AdminBroadcastService.broadcast — service behavior matrix", () => {
       expect(await broadcastAuditRowsFor(tx, cast.admin.id)).toHaveLength(0);
       expect(transportSpy.publishCount).toBe(0);
 
-      // The SAVEPOINT rolled back — the outer transaction is still usable.
-      expect(await totalNotificationRows(tx)).toBeGreaterThanOrEqual(0);
+      // The SAVEPOINT rolled back — the outer transaction is still usable
+      // (row total is byte-identical to the pre-call snapshot).
+      expect(await totalNotificationRows(tx)).toBe(rowsBeforeInsert);
     });
   });
 
