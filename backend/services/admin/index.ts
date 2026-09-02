@@ -7,4 +7,5 @@
  *  - All user-facing error messages resolve through `getServerTranslations`.
  */
 export * from "./audit.service";
+export * from "./platform-analytics.service";
 export * from "./user-management.service";
