@@ -487,7 +487,7 @@ Verify each anchor is REAL in the bundled tree (locate it; cite line). ANY miss 
 - [x] 5.2.IV **Instruction Verification:** `.agents/instructions/tests.instructions.md`
 - _Requirements: REQ-040..REQ-044, REQ-072_
 
-### 5.3 [ ] Static locks — single-writer, no-LIKE, no-audit, no-console, single-notifications-writer
+### 5.3 [x] Static locks — single-writer, no-LIKE, no-audit, no-console, single-notifications-writer
 **REQ:** REQ-021, REQ-037, REQ-074(c/d/e) · plan §4.2
 
 - CREATE `backend/services/parents/parent-link.static-locks.test.ts` (or the bundle-conventional location):
@@ -497,10 +497,10 @@ Verify each anchor is REAL in the bundled tree (locate it; cite line). ANY miss 
   - **(d) zero `console.*` in all new/modified source files** (frontend + backend; tests may use test runner facilities, never `console.*`).
   - **(e) single-writer notifications scan:** the new service may reference `NotificationEngine.emitForUser` but MUST NOT import or call any direct `notifications` insert path.
 - Run: `bun run test/scripts/run-test.ts backend/services/parents/parent-link.static-locks.test.ts`
-- [ ] 5.3.QL **Quality Loop:** quality loop clean on the static-lock file
-- [ ] 5.3.SEC **Security & Tenancy Audit:** this IS the audit — every static assert is load-bearing for INV-P1 + REQ-037 + REQ-023
-- [ ] 5.3.SR **Semantic Review:** allowlists are EXHAUSTIVE (any future writer requires an explicit test edit with a PR note); scan paths are relative-pinned to the repo root to avoid environment sensitivity
-- [ ] 5.3.IV **Instruction Verification:** `.agents/instructions/tests.instructions.md` + Architectural Invariant 7
+- [x] 5.3.QL **Quality Loop:** quality loop clean on the static-lock file
+- [x] 5.3.SEC **Security & Tenancy Audit:** this IS the audit — every static assert is load-bearing for INV-P1 + REQ-037 + REQ-023
+- [x] 5.3.SR **Semantic Review:** allowlists are EXHAUSTIVE (any future writer requires an explicit test edit with a PR note); scan paths are relative-pinned to the repo root to avoid environment sensitivity
+- [x] 5.3.IV **Instruction Verification:** `.agents/instructions/tests.instructions.md` + Architectural Invariant 7
 - _Requirements: REQ-021, REQ-037, REQ-074_
 
 ### 5.4 [ ] Journey re-run + final integration sweep
