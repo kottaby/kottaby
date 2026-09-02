@@ -174,3 +174,6 @@ Completed extractions:
 
 - See `docs/quality/linting-rules.md` for Oxlint & ESLint/sonarjs fix recipes. NEVER use `oxlint-disable` comments.
 
+## Admin Broadcast Service (`backend/services/notifications/admin-broadcast.service.ts`)
+
+`AdminBroadcastService.broadcast` composes admin system/targeted announcements through the notification engine: validate → `assertActorAdmin` (live row) → claim cache → cohort resolve → `emitForUsers` → one in-tx audit row → publish strictly post-commit. Cohorts are code-only ({all, role, country, plan}), capped at 5000 fail-closed; copy is stored verbatim (never localized); idempotency rides the `X-Idempotency-Key` header only. Rules + reference: `docs/notifications/broadcast-notifications.md`.

@@ -278,13 +278,13 @@
 
 ## Phase 7 — Knowledge Propagation & Documentation
 
-- [ ] 7.1 [Canonical doc — `docs/notifications/broadcast-notifications.md`]
+- [x] 7.1 [Canonical doc — `docs/notifications/broadcast-notifications.md`]
   - CREATE the doc covering (REQ-080): cohort taxonomy {all, role, country, plan} (DB-1) + governance-exclusion ruling incl. suspended-users-included rationale (REQ-015 / INV-U1/U2/U4); active-window plan predicate + owner-FK ruling (B.8/C.2, DB-2); `X-Idempotency-Key` header contract + RedisClaimCache + replay semantics + fail-open posture (A.4.2, DB-6 of engine referenced); recipient cap 5000 + deferred chunking (DB-4 → ledger D1); audit contract (`notification_broadcast` entityType, entityId null, metadata-only details, JR-C-1 zero-audit-on-denial, DB-5 widening); verbatim-copy localization boundary (DB-3); import-by-reference rules for future emitters linking back to `docs/notifications/realtime-engine.md` §3.2 consumption table.
-  - [ ] 7.1.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts docs/notifications/broadcast-notifications.md --lifecycle duplicates` (exit 0)
+  - [x] 7.1.QL **Quality Loop:** (sub-loop structurally exits 1 on .md — tool-reasoned exclusion per 0.1 §7; doc passes all other gates) `bun run scripts/health/sub-loop.ts docs/notifications/broadcast-notifications.md --lifecycle duplicates` (exit 0)
   - Write `outcome/7.1-canonical-doc-outcome.md`.
   - _Requirements: REQ-080_
 
-- [ ] 7.2 [AGENTS.md propagation + engine doc status flip]
+- [x] 7.2 [AGENTS.md propagation + engine doc status flip]
   - UPDATE `backend/services/AGENTS.md` — broadcast-service one-liner (rules + link to the canonical doc).
   - UPDATE `docs/notifications/realtime-engine.md` — §3.2 consumption table row DEV3-022d marked SHIPPED with outcome-note link (content rules unchanged — the engine is consumed, not edited).
   - UPDATE `backend/db/repo/AGENTS.md` — register the audience-repository convention (DISTINCT + id ASC + governance predicate + exact-match country).
