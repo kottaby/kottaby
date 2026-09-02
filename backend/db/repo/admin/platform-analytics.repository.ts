@@ -61,6 +61,40 @@ const OFFLINE_PAYMENT_METHODS = [
 ] as const;
 
 /**
+ * Decodes a PostgreSQL `timestamp without time zone` driver payload into
+ * the UTC instant its wall-clock components denote — attached to every
+ * `date_trunc('day', …)` projection below.
+ *
+ * WHY THIS EXISTS: the pg driver delivers naive timestamps as RAW TEXT
+ * ("2026-08-01 00:00:00"), never a JS `Date`, so an undecoded projection
+ * would leak strings into the service's skeleton-merge arithmetic. And
+ * `new Date(text)`'s bare-datetime branch parses as LOCAL wall-clock, which
+ * shifts buckets wherever the server clock drifts from UTC. The decoder
+ * instead extracts the components explicitly and reassembles them through
+ * `Date.UTC` — the exact inverse of the `date_trunc('day', …)` truncation
+ * that produced the text (REQ-024 UTC-only calendar math). A driver that
+ * already hands back a `Date` passes through untouched (identity), so the
+ * projection is correct under either driver behavior.
+ */
+const UTC_TIMESTAMP_DECODER = {
+  mapFromDriverValue(value: unknown): Date {
+    if (value instanceof Date) {
+      return value;
+    }
+    const text = typeof value === "string" ? value : String(value);
+    const match = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,6}))?$/.exec(text);
+    if (!match) {
+      return new Date(text);
+    }
+    const [, year, month, day, hour, minute, second, fraction = ""] = match;
+    const millis = Number(`${fraction}000`.slice(0, 3));
+    return new Date(
+      Date.UTC(Number(year), Number(month) - 1, Number(day), Number(hour), Number(minute), Number(second), millis)
+    );
+  },
+};
+
+/**
  * Midnight-UTC start of `now`'s day (REQ-024 — UTC-only calendar math).
  */
 export function utcDayStart(now: Date): Date {
@@ -226,7 +260,9 @@ export namespace PlatformAnalyticsRepository {
     const cutoff = new Date(now.getTime() - 30 * ONE_DAY_MS);
     const rows = await (tx ?? db)
       .select({
-        bucketStart: sql<Date>`date_trunc('day', ${session.createdAt})`.as("bucket_start"),
+        bucketStart: sql<Date>`date_trunc('day', ${session.createdAt})`
+          .mapWith(UTC_TIMESTAMP_DECODER)
+          .as("bucket_start"),
         sessionCount: sql<number>`count(*)::int`.as("session_count"),
       })
       .from(session)
@@ -275,7 +311,9 @@ export namespace PlatformAnalyticsRepository {
     const cutoff = new Date(now.getTime() - 30 * ONE_DAY_MS);
     const rows = await (tx ?? db)
       .select({
-        bucketStart: sql<Date>`date_trunc('day', ${studentPayments.createdAt})`.as("bucket_start"),
+        bucketStart: sql<Date>`date_trunc('day', ${studentPayments.createdAt})`
+          .mapWith(UTC_TIMESTAMP_DECODER)
+          .as("bucket_start"),
         currency: studentPayments.currency,
         amount: sql<string>`sum(${studentPayments.amount})::text`.as("amount"),
       })
