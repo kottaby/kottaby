@@ -323,12 +323,12 @@
 
 ## Phase 7: Knowledge Propagation & Documentation
 
-- [ ] **7.1 Canonical reference doc `docs/admin/audit-trail.md` (CREATE — REQ-080)**
+- [x] **7.1 Canonical reference doc `docs/admin/audit-trail.md` (CREATE — REQ-080)**
   - Contents (mandatory sections): WHY (FR-10.5 / Workflow 05 §7 / PRODUCTION_READINESS §1.3.1–1.3.5 mapping); read-surface contract (fields, `createdAt DESC, id DESC` order, pagination semantics, filter semantics incl. the `>= from` / `< to` date-boundary rule and client day-boundary convention); two-tier immutability proof (application single-writer scan + DB trigger tier) INCLUDING the honest push-vs-migrate environment caveat (D-TRIGGER-PUSH-GAP / REQ-020 record of which branch was verified); governance-window acknowledgment (REQ-033); history-survives-governance rule (REQ-022/037, INV-U1/U5); details-hygiene consumption note (verbatim pass-through, writer-enforced ≤2000-char names-only contract, REQ-021/035); deep-link contract (`/audit?entityType=…&entityId=…`, REQ-068); anti-pattern list (NEVER add update/delete/edit surface to `audit_logs`; NEVER LIKE-search `details`; NEVER fork a second audit writer; NEVER filter history by governance; NEVER add a second enum registration).
   - _Requirements: REQ-080_ → include doc path confirmation in `outcome/7.1-outcome.md`
-  - [ ] 7.1.QL **Quality Loop:** sub-loop on the doc file (exit 0).
+  - [x] 7.1.QL **Quality Loop:** sub-loop on the doc file (exit 0).
 
-- [ ] **7.2 Layer AGENTS propagation (REQ-081)**
+- [x] **7.2 Layer AGENTS propagation (REQ-081)**
   - `backend/services/AGENTS.md`: one-line rule — audit-trail read service exists; admin-gated via the shared `admin-gate.helpers.ts`; single writer remains `AuditService.createAuditLog`; see `docs/admin/audit-trail.md`.
   - `backend/db/repo/AGENTS.md`: reconcile the Layout's forward-named `audit/` listing — the repo now EXISTS; one-line read-only rule.
   - `backend/graphql/AGENTS.md`: one line ONLY if a real layer convention changed (embedded-wrapper list already updated in Task 4.2 — otherwise reference-only).
