@@ -12,7 +12,6 @@ export function ColorModeToggleButton({
     <Button
       onClick={onToggle}
       sx={{
-        minWidth: "auto",
         p: 1,
         // Icon-only control — keep the 44px touch-target floor.
         minHeight: 44,
