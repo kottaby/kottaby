@@ -288,11 +288,20 @@ const MUTATION_SURFACE_INVENTORY_QUERY_DOCUMENT: DocumentNode = gql`
  *
  * Refreshed for the sanctioned additions: notification read-latch pair
  * (DEV3-010) + users-locale (D2) + billing plan-catalog CRUD (upstream #28).
+ *
+ * Refreshed again when DEV1-014 (parent→child link request workflow) landed
+ * `requestParentChildLink`, `respondToParentLinkRequest` and
+ * `cancelParentLinkRequest` — they resolve to canonical parent-link payloads
+ * (never a partial-success wrapper), so they do not exercise Rules #6/#7.
+ * They still belong on this drift-guard list: the contract stays "every
+ * deployed Mutation root field is enumerated".
  */
 const KNOWN_LIVE_MUTATION_FIELDS = [
   "adminCreateUser",
   "adminSetUserDeleted",
   "adminUpdateUser",
+  // DEV1-014 reconcile: parent→child link request workflow mutations.
+  "cancelParentLinkRequest",
   "createPlan",
   "login",
   "logout",
@@ -300,6 +309,9 @@ const KNOWN_LIVE_MUTATION_FIELDS = [
   "markNotificationRead",
   "refreshToken",
   "registerUser",
+  // DEV1-014 reconcile: parent→child link request workflow mutations.
+  "requestParentChildLink",
+  "respondToParentLinkRequest",
   "setPlanActiveStatus",
   "updateMyLocale",
   "updatePlan",

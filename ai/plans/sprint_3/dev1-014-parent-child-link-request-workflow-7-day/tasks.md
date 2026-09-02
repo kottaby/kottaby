@@ -503,16 +503,16 @@ Verify each anchor is REAL in the bundled tree (locate it; cite line). ANY miss 
 - [x] 5.3.IV **Instruction Verification:** `.agents/instructions/tests.instructions.md` + Architectural Invariant 7
 - _Requirements: REQ-021, REQ-037, REQ-074_
 
-### 5.4 [ ] Journey re-run + final integration sweep
+### 5.4 [x] Journey re-run + final integration sweep
 **REQ:** REQ-076, REQ-090..REQ-096 · end-to-end confidence gate before review waves
 
 - Re-run the full journey: `bun run test/scripts/run-test.ts test/workflows/parents/parent-link-request.journey.test.ts` — GREEN with the complete service surface
 - Re-run the full suites: `bun run test:db`, `bun run test:services`, `bun run test:graphql`, `bun run test:ui:components` — ALL GREEN
 - Re-run `bun tsgo`; count == 0.1 baseline. `bun biome:check`; count == 0.1 baseline. `bun run scripts/lint-service.ts --json --id final`; counts == 0.1 baseline.
 - Write `outcome/5.4-integration-outcome.md` with final counts vs baseline.
-- [ ] 5.4.QL **Quality Loop:** every created/modified file across Phases 2–5 passed its individual `sub-loop` invocation at write time; this task re-confirms a sample
-- [ ] 5.4.SR **Semantic Review:** NO test was weakened during iteration (diff-review vs the 2.1/2.2/2.3 commits); all journey assertions still observer-perspective honest
-- [ ] 5.4.IV **Instruction Verification:** `.agents/instructions/{backend,frontend,tests}.instructions.md`
+- [x] 5.4.QL **Quality Loop:** every created/modified file across Phases 2–5 passed its individual `sub-loop` invocation at write time; this task re-confirms a sample
+- [x] 5.4.SR **Semantic Review:** NO test was weakened during iteration (diff-review vs the 2.1/2.2/2.3 commits); all journey assertions still observer-perspective honest
+- [x] 5.4.IV **Instruction Verification:** `.agents/instructions/{backend,frontend,tests}.instructions.md`
 
 ---
 

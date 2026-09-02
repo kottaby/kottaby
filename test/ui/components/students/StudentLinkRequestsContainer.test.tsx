@@ -290,8 +290,18 @@ for (const locale of ["ar", "en"] as AppLocale[]) {
         traffic,
         [
           incomingListMock([
-            incomingRow({ id: "201", parentFullName: PARENT_NAME_B, status: LinkStatus.Confirmed, respondedAt: RESPONDED_AT_ISO }),
-            incomingRow({ id: "202", parentFullName: PARENT_NAME_C, status: LinkStatus.Rejected, respondedAt: RESPONDED_AT_ISO }),
+            incomingRow({
+              id: "201",
+              parentFullName: PARENT_NAME_B,
+              status: LinkStatus.Confirmed,
+              respondedAt: RESPONDED_AT_ISO,
+            }),
+            incomingRow({
+              id: "202",
+              parentFullName: PARENT_NAME_C,
+              status: LinkStatus.Rejected,
+              respondedAt: RESPONDED_AT_ISO,
+            }),
           ]),
         ],
         locale
@@ -331,11 +341,7 @@ for (const locale of ["ar", "en"] as AppLocale[]) {
 
     test("dialog submit while the respond mutation is in flight → submit disabled, dialog stays open", async () => {
       const traffic = createNetworkTraffic();
-      renderLinkRequests(
-        traffic,
-        [incomingListMock([incomingRow()]), inFlightRespondMock("101", true)],
-        locale
-      );
+      renderLinkRequests(traffic, [incomingListMock([incomingRow()]), inFlightRespondMock("101", true)], locale);
       const user = userEvent.setup();
 
       const dialog = await openConfirmDialog(user, t.confirmAction);
@@ -346,11 +352,15 @@ for (const locale of ["ar", "en"] as AppLocale[]) {
       // does NOT close prematurely.
       await waitFor(() => {
         expect(
-          within(screen.getByTestId("student-link-requests-dialog")).getByRole("button", { name: t.confirmAction }).getAttribute("disabled")
+          within(screen.getByTestId("student-link-requests-dialog"))
+            .getByRole("button", { name: t.confirmAction })
+            .getAttribute("disabled")
         ).not.toBeNull();
       });
       expect(
-        within(screen.getByTestId("student-link-requests-dialog")).getByRole("button", { name: tc.cancel }).getAttribute("disabled")
+        within(screen.getByTestId("student-link-requests-dialog"))
+          .getByRole("button", { name: tc.cancel })
+          .getAttribute("disabled")
       ).not.toBeNull();
       expect(traffic.operationNames).toEqual([QUERY_OPERATION_NAME, MUTATION_OPERATION_NAME]);
     });
@@ -360,11 +370,7 @@ for (const locale of ["ar", "en"] as AppLocale[]) {
       const resolvedRow = incomingRow({ status: LinkStatus.Confirmed, respondedAt: RESPONDED_AT_ISO });
       renderLinkRequests(
         traffic,
-        [
-          incomingListMock([incomingRow()]),
-          respondMock("101", true, resolvedRow),
-          incomingListMock([resolvedRow]),
-        ],
+        [incomingListMock([incomingRow()]), respondMock("101", true, resolvedRow), incomingListMock([resolvedRow])],
         locale
       );
       const user = userEvent.setup();

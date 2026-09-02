@@ -1,15 +1,15 @@
 "use client";
 
-import { SendOutlined as SendIcon } from "@mui/icons-material";
 import { skipToken, useMutation, useQuery } from "@apollo/client/react";
+import { SendOutlined as SendIcon } from "@mui/icons-material";
 import { Alert, Box, Button, Snackbar, Stack, Typography } from "@mui/material";
 import { type ReactNode, useState } from "react";
-import { PermissionDeniedFallback } from "@/frontend/components/ui/PermissionDeniedFallback";
 import { focusVisibleRingSx } from "@/frontend/components/ui/focusRing";
+import { PermissionDeniedFallback } from "@/frontend/components/ui/PermissionDeniedFallback";
 import {
+  findStudentByHandshakeCodeQueryDocument,
   myOutgoingParentLinkRequestsQueryDocument,
   requestParentChildLinkMutationDocument,
-  findStudentByHandshakeCodeQueryDocument,
 } from "@/frontend/graphql/sharedDocuments";
 import { extractErrorCode } from "@/frontend/lib/graphql-error-utils";
 import { resolveParentLinkDenialCopy } from "@/frontend/lib/parent-link-denials";
@@ -334,7 +334,12 @@ function SendRequestAffordance({
           }
         }}
       >
-        <Alert severity="success" variant="outlined" data-testid="parent-link-send-success-toast" sx={{ borderRadius: 2 }}>
+        <Alert
+          severity="success"
+          variant="outlined"
+          data-testid="parent-link-send-success-toast"
+          sx={{ borderRadius: 2 }}
+        >
           {toastCopy}
         </Alert>
       </Snackbar>

@@ -60,14 +60,14 @@ import { MockedProvider } from "@apollo/client/testing/react";
 import { cleanup, type RenderResult, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import {
+  LinkStatus,
+  type MyOutgoingParentLinkRequestsQuery_myOutgoingParentLinkRequests,
+} from "@/frontend/graphql/generated/gql/graphql";
+import {
   findStudentByHandshakeCodeQueryDocument,
   myOutgoingParentLinkRequestsQueryDocument,
   requestParentChildLinkMutationDocument,
 } from "@/frontend/graphql/sharedDocuments";
-import {
-  LinkStatus,
-  type MyOutgoingParentLinkRequestsQuery_myOutgoingParentLinkRequests,
-} from "@/frontend/graphql/generated/gql/graphql";
 import { HandshakeDiscoveryContainer } from "@/frontend/views/parent/handshake";
 import { isHandshakeCode, normalizeHandshakeCode } from "@/shared/constants";
 import { maskFullName } from "@/shared/lib/mask-full-name";
@@ -190,7 +190,10 @@ function outgoingListMock(
 }
 
 /** Successful send mock — resolves with the created outgoing row. */
-function sendRequestMock(code: string, row: MyOutgoingParentLinkRequestsQuery_myOutgoingParentLinkRequests): MockLink.MockedResponse {
+function sendRequestMock(
+  code: string,
+  row: MyOutgoingParentLinkRequestsQuery_myOutgoingParentLinkRequests
+): MockLink.MockedResponse {
   return {
     request: { query: requestParentChildLinkMutationDocument, variables: { code } },
     result: { data: { requestParentChildLink: row } },
@@ -355,7 +358,10 @@ for (const locale of ["ar", "en"] as AppLocale[]) {
       const traffic = createNetworkTraffic();
       renderDiscovery(
         traffic,
-        [outgoingListMock(), lookupResponseMock(FIXTURE_HANDSHAKE_CODE, { maskedName: MASKED_STUDENT_NAME, linkable: true })],
+        [
+          outgoingListMock(),
+          lookupResponseMock(FIXTURE_HANDSHAKE_CODE, { maskedName: MASKED_STUDENT_NAME, linkable: true }),
+        ],
         locale
       );
       const user = userEvent.setup();
@@ -443,7 +449,10 @@ for (const locale of ["ar", "en"] as AppLocale[]) {
       const traffic = createNetworkTraffic();
       renderDiscovery(
         traffic,
-        [outgoingListMock(), lookupResponseMock(FIXTURE_HANDSHAKE_CODE, { maskedName: MASKED_STUDENT_NAME, linkable: false })],
+        [
+          outgoingListMock(),
+          lookupResponseMock(FIXTURE_HANDSHAKE_CODE, { maskedName: MASKED_STUDENT_NAME, linkable: false }),
+        ],
         locale
       );
       const user = userEvent.setup();
@@ -564,7 +573,11 @@ for (const locale of ["ar", "en"] as AppLocale[]) {
       // The section mount read, the failed attempt, and the forced refetch —
       // the latter two carrying the same normalized uppercase variable.
       expect(traffic.operationNames).toEqual([OUTGOING_OPERATION_NAME, FIND_OPERATION_NAME, FIND_OPERATION_NAME]);
-      expect(traffic.capturedVariables).toEqual([{}, { code: FIXTURE_HANDSHAKE_CODE }, { code: FIXTURE_HANDSHAKE_CODE }]);
+      expect(traffic.capturedVariables).toEqual([
+        {},
+        { code: FIXTURE_HANDSHAKE_CODE },
+        { code: FIXTURE_HANDSHAKE_CODE },
+      ]);
     });
 
     test("success then EDIT + resubmit of the SAME code → network-only forces a fresh round-trip with the refreshed result", async () => {
@@ -610,7 +623,11 @@ for (const locale of ["ar", "en"] as AppLocale[]) {
       // resubmit — the latter two carrying the same normalized uppercase
       // variable.
       expect(traffic.operationNames).toEqual([OUTGOING_OPERATION_NAME, FIND_OPERATION_NAME, FIND_OPERATION_NAME]);
-      expect(traffic.capturedVariables).toEqual([{}, { code: FIXTURE_HANDSHAKE_CODE }, { code: FIXTURE_HANDSHAKE_CODE }]);
+      expect(traffic.capturedVariables).toEqual([
+        {},
+        { code: FIXTURE_HANDSHAKE_CODE },
+        { code: FIXTURE_HANDSHAKE_CODE },
+      ]);
     });
 
     // ------------------------------------------------------------------

@@ -47,21 +47,21 @@ import { MockedProvider } from "@apollo/client/testing/react";
 import { cleanup, type RenderResult, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import {
-  cancelParentLinkRequestMutationDocument,
-  myOutgoingParentLinkRequestsQueryDocument,
-} from "@/frontend/graphql/sharedDocuments";
-import {
   LinkStatus,
   type MyOutgoingParentLinkRequestsQuery_myOutgoingParentLinkRequests,
 } from "@/frontend/graphql/generated/gql/graphql";
+import {
+  cancelParentLinkRequestMutationDocument,
+  myOutgoingParentLinkRequestsQueryDocument,
+} from "@/frontend/graphql/sharedDocuments";
 import { formatApplicantDate } from "@/frontend/lib/i18n/format-date";
 import { OutgoingLinkRequestsSection } from "@/frontend/views/parent/handshake/OutgoingLinkRequestsSection";
+import { maskFullName } from "@/shared/lib/mask-full-name";
 import type { AppLocale } from "@/shared/locale/AppLocale";
 import { Common as CommonNs } from "@/shared/locale/namespaces/common";
 import { Errors as ErrorsNs } from "@/shared/locale/namespaces/errors";
 import { ParentLink as ParentLinkNs } from "@/shared/locale/namespaces/parentLink";
 import { getTranslations } from "@/shared/locale/server";
-import { maskFullName } from "@/shared/lib/mask-full-name";
 import { renderWithWrapper } from "@/test/ui/components/TestWrapper";
 
 // ----------------------------------------------------------------------------
@@ -292,8 +292,18 @@ for (const locale of ["ar", "en"] as AppLocale[]) {
         traffic,
         [
           outgoingListMock([
-            outgoingRow({ id: "501", studentMaskedName: MASKED_STUDENT_B, status: LinkStatus.Confirmed, respondedAt: RESPONDED_AT_ISO }),
-            outgoingRow({ id: "502", studentMaskedName: MASKED_STUDENT_C, status: LinkStatus.Rejected, respondedAt: RESPONDED_AT_ISO }),
+            outgoingRow({
+              id: "501",
+              studentMaskedName: MASKED_STUDENT_B,
+              status: LinkStatus.Confirmed,
+              respondedAt: RESPONDED_AT_ISO,
+            }),
+            outgoingRow({
+              id: "502",
+              studentMaskedName: MASKED_STUDENT_C,
+              status: LinkStatus.Rejected,
+              respondedAt: RESPONDED_AT_ISO,
+            }),
           ]),
         ],
         locale
@@ -344,11 +354,15 @@ for (const locale of ["ar", "en"] as AppLocale[]) {
       // does NOT close prematurely.
       await waitFor(() => {
         expect(
-          within(screen.getByTestId("outgoing-cancel-dialog")).getByRole("button", { name: t.cancelAction }).getAttribute("disabled")
+          within(screen.getByTestId("outgoing-cancel-dialog"))
+            .getByRole("button", { name: t.cancelAction })
+            .getAttribute("disabled")
         ).not.toBeNull();
       });
       expect(
-        within(screen.getByTestId("outgoing-cancel-dialog")).getByRole("button", { name: tc.cancel }).getAttribute("disabled")
+        within(screen.getByTestId("outgoing-cancel-dialog"))
+          .getByRole("button", { name: tc.cancel })
+          .getAttribute("disabled")
       ).not.toBeNull();
       expect(traffic.operationNames).toEqual([QUERY_OPERATION_NAME, MUTATION_OPERATION_NAME]);
     });
@@ -358,11 +372,7 @@ for (const locale of ["ar", "en"] as AppLocale[]) {
       const withdrawnRow = outgoingRow({ status: LinkStatus.Rejected, respondedAt: RESPONDED_AT_ISO });
       renderOutgoingSection(
         traffic,
-        [
-          outgoingListMock([outgoingRow()]),
-          cancelMock("401", withdrawnRow),
-          outgoingListMock([withdrawnRow]),
-        ],
+        [outgoingListMock([outgoingRow()]), cancelMock("401", withdrawnRow), outgoingListMock([withdrawnRow])],
         locale
       );
       const user = userEvent.setup();
