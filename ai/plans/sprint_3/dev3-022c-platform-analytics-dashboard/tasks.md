@@ -409,21 +409,21 @@ Every task in this file is executed under ALL of the following rules, without ex
 
 ## Phase 7: Knowledge Propagation & Documentation
 
-- [ ] 7.1 [Canonical doc — CREATE `docs/admin/platform-analytics.md`]
+- [x] 7.1 [Canonical doc — CREATE `docs/admin/platform-analytics.md`]
   - Content per REQ-080 EXACTLY: metric definitions table (EVERY field → exact SQL semantics, incl. which enum members feed each counter); single-snapshot/captured-`now` contract (REQ-011); UTC boundary rulings (day / ISO-week Monday / month / 24h / 30d); money-as-string + currency-containment rules + the honest-empty array behavior; the offline-activation honesty note — state VERBATIM that `gatewayRevenueByCurrency` excludes offline activations (B.9 / INV-PAY5) and that mixing is prohibited (REQ-015); honest-null rating averages; read-purity/no-audit rule; the governed-admin service-tier divergence from `assertActorAdmin` WITH rationale (the documented non-fail-closed GraphQL context window — REQ-032); the statement-level snapshot-consistency ruling and the rejected `REPEATABLE READ` alternative (REQ-041); the "what NOT to do" list (no caching layer, no new error codes, no per-entity drill-downs on this surface, no cross-currency sums, no `id` on value types, no `now()` re-sampling, no `toISOString()`, no LIKE surfaces); pointer to journey suite as the behavioral contract.
   - _Requirements: REQ-015, REQ-024, REQ-032, REQ-041, REQ-080_
-  - [ ] 7.1.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts docs/admin/platform-analytics.md --lifecycle duplicates` (exit 0).
-  - [ ] 7.1.SR **Semantic Review**: every claim anchored against the shipped code (spot-verify three metrics against the repo file); no prose-only phantoms introduced.
-  - [ ] 7.1.OUT Write outcome.
+  - [x] 7.1.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts docs/admin/platform-analytics.md --lifecycle duplicates` (exit 0).
+  - [x] 7.1.SR **Semantic Review**: every claim anchored against the shipped code (spot-verify three metrics against the repo file); no prose-only phantoms introduced.
+  - [x] 7.1.OUT Write outcome.
 
-- [ ] 7.2 [AGENTS.md & adjacent-doc propagation]
+- [x] 7.2 [AGENTS.md & adjacent-doc propagation]
   - UPDATE `backend/services/AGENTS.md` — add the platform-analytics read-model rule (fresh per-request aggregates; never cached; never audited; governed-reader re-check at service tier).
   - UPDATE `frontend/graphql/AGENTS.md` — embedded-type list gains the eleven new type names.
   - UPDATE root `AGENTS.md` Important References — add the `docs/admin/platform-analytics.md` line.
   - `docs/admin/user-management.md` — EITHER leave byte-identical OR add EXACTLY ONE consumer-pointer line stating the analytics service reuses `getStats` (no contract restatement — REQ-081); the choice recorded in the outcome. `docs/notifications/realtime-engine.md` stays untouched. `shared/AGENTS.md` and `docs/specs/state-machine-invariants.md` stay untouched.
-  - [ ] 7.2.QL **Quality Loop**: `sub-loop` on each modified AGENTS.md/doc (exit 0).
-  - [ ] 7.2.SR **Semantic Review**: propagation is additive and truthful; no layer's AGENTS.md contradicts the canonical doc.
-  - [ ] 7.2.OUT Write outcome.
+  - [x] 7.2.QL **Quality Loop**: `sub-loop` on each modified AGENTS.md/doc (exit 0).
+  - [x] 7.2.SR **Semantic Review**: propagation is additive and truthful; no layer's AGENTS.md contradicts the canonical doc.
+  - [x] 7.2.OUT Write outcome.
   - _Requirements: REQ-081, REQ-082_
 
 - [ ] 7.3 [Final gate & outcome synthesis]

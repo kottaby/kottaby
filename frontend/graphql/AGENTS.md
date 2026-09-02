@@ -107,6 +107,14 @@ Current embedded types:
 - `NotificationListPage` (fields: `hasMore`, `items`, `totalCount`) — no `id`;
   notifications-inbox pagination wrapper (dev3-010 Task 3.1). The normalizable
   entities are the `Notification` rows inside `items` (each carries `id`).
+- `PlatformAnalytics`, `PlatformAnalyticsUsers`, `PlatformAnalyticsSessions`,
+  `PlatformAnalyticsRevenue`, `PlatformAnalyticsCurrencyRevenue`,
+  `PlatformAnalyticsSubscriptions`, `PlatformAnalyticsTeachers`,
+  `PlatformAnalyticsRatings`, `PlatformAnalyticsHealth`,
+  `PlatformAnalyticsSessionTrendPoint`, `PlatformAnalyticsRevenueTrendPoint`
+  — no `id` (dev3-022c Task 4.2): the eleven embedded types of the admin
+  platform-analytics snapshot subtree (single-root read model, no normalized
+  entities inside; per-currency rows and trend points are value data).
 
 If you add a new GraphQL type without an `id` field, add it to `typePolicies`
 in `apolloCache.ts` with `keyFields: false` and list it here.

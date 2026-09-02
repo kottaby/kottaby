@@ -101,6 +101,19 @@ Each integration file gets **one** smoke test (single API call) to confirm the a
 - **Worker Runtime**: `cron-worker.runtime.ts` `runDrainLoop()` fetches batches, sets `RUNNING`, writes heartbeats, invokes `JobHandlerRegistry.getHandler()`, and handles success/retry/fail with max-retries exhaustion.
 - **Handler Registry**: `job-handler-registry.ts` maps `CronJobKind` → handler function. The `NOOP` handler is auto-registered. Unregistered kinds fail the run with "No handler registered for jobKind=<X>".
 
+## Platform Analytics Read Model (dev3-022c)
+
+`backend/services/admin/platform-analytics.service.ts` is a READ-ONLY
+aggregation service and defines the read-model rule for analytics-style
+surfaces: aggregates are computed FRESH per request (never cached — the
+snapshot must reflect committed state at the captured `now`), the happy path
+writes NOTHING (no audit rows, no notifications, no domain logs), and the
+actor is RE-VERIFIED at the service tier (`deleted` → `blocked` → `suspended`
+→ FORBIDDEN) even when the GraphQL gate already passed — the documented
+non-fail-closed GraphQL context window makes the service-tier backstop
+load-bearing. See `docs/admin/platform-analytics.md` for the canonical
+metric semantics and the "what NOT to do" list.
+
 ## Quota System Integration
 
 The Quota System (`QuotaService`, `QuotaNotificationService`, `AvailabilityService`) is an append-only ledger-based class credit tracking system. See `docs/billing/quota-system.md` for the complete architecture reference. Key service-level rules:

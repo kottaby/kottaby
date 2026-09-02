@@ -418,6 +418,7 @@ After reading the applicable instruction files and AGENTS.md, subagents check fo
 - `docs/notifications/realtime-engine.md` - Real-time notification engine (WebSocket): persist-first/push-second, single-writer emit contract, sidecar topology, fail-open idempotency deviation
 - `docs/drizzle/prepared-statements.md` - Drizzle Prepared Statements 2.0 pattern reference
 - `docs/drizzle/neon-http-client.md` - Neon HTTP Client & Provider-Agnostic Stateless Queries reference
+- `docs/admin/platform-analytics.md` - Admin platform-analytics dashboard canonical reference (DEV3-022c: metric SQL semantics, single-snapshot/captured-`now` contract, UTC boundary rulings, money-as-string + currency containment, honest nulls/empty states, read-purity rule, governed-admin service-tier divergence, snapshot-consistency ruling, "what NOT to do" list)
 - `docs/graphql/dataloader-batching.md` - Pothos DataLoader batching pattern reference
 - `docs/services/entity-cache-service.md` - Entity Cache Service pattern reference
 - `docs/services/meeting-providers.md` - Meeting provider adapter/factory pattern reference (auto URL generation) *(doc file absent from this tree — pending the meeting-services ticket; see `ai/plans/dev3-002-shared-error-handling-response-contracts/deferred-items.md` BLT-03)*
