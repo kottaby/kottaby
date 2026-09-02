@@ -243,4 +243,34 @@ describe("PlatformAnalyticsContainer", () => {
     expect(body).toContain(t.noRevenueYet);
     expect(body).toContain(t.noRatingsYet);
   });
+
+  test("refreshing keeps the STALE snapshot on screen under the busy chip (REQ-075)", async () => {
+    renderWith([
+      // Request 1 — the initial load resolves with the populated snapshot.
+      {
+        request: { query: adminPlatformAnalyticsQueryDocument },
+        result: { data: { adminPlatformAnalytics: POPULATED_SNAPSHOT } },
+      },
+      // Request 2 — the refetch resolves with the same populated snapshot
+      // after a long delay, so the in-flight `NetworkStatus.refetch` posture
+      // persists for the assertion window (a result-less mock would error
+      // the refetch instead of holding it open).
+      {
+        request: { query: adminPlatformAnalyticsQueryDocument },
+        result: { data: { adminPlatformAnalytics: POPULATED_SNAPSHOT } },
+        delay: 5000,
+      },
+    ]);
+    await waitFor(() => expect(document.body.textContent).toContain(t.usersSection));
+    // Fire the manual refresh — the delayed refetch above stays in flight.
+    getRefreshButton().click();
+    await waitFor(() => expect(document.body.textContent).toContain(t.refreshingLabel));
+    // Stale retention: the previous snapshot's figures stay rendered (never
+    // blanked) while the refetch is in flight.
+    const refreshingBody = document.body.textContent ?? "";
+    expect(refreshingBody).toContain(t.usersSection);
+    expect(refreshingBody).toContain("101");
+    // The refresh control disables itself while a refetch is in flight.
+    expect(getRefreshButton().disabled).toBe(true);
+  });
 });

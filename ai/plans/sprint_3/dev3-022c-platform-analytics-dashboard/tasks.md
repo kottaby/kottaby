@@ -384,26 +384,26 @@ Every task in this file is executed under ALL of the following rules, without ex
 
 ## Phase 6: Post-Implementation Review Waves
 
-- [ ] 6.1 [Review wave — review-types]
+- [x] 6.1 [Review wave — review-types]
   - Independent review of: `backend/types/admin/platform-analytics.types.ts` (intersection discipline, readonly closure, money-as-string, Date-vs-scalar discipline), `shared/locale/types/analytics/index.ts` + `Translations` wiring, dashboard label addition, generated code typing alignment (`TypedDocumentNode` consumption), zero local types anywhere in service/resolver/view layers.
   - _Requirements: REQ-004, REQ-060, REQ-066_
-  - [ ] 6.1.OUT Write outcome; resolve findings or log ❌.
+  - [x] 6.1.OUT Write outcome; resolve findings or log ❌.
 
-- [ ] 6.2 [Review wave — review-backend]
+- [x] 6.2 [Review wave — review-backend]
   - Independent review of: repository (set-oriented reads, param hygiene, `tx` discipline, UTC math, enum value imports, NULL-safe governance/soft-delete predicates), service (denial order, single-`now`, one-transaction composition, silent happy path, zero shared state), Pothos + query (scope conjunction, zero args, no local types, DateTime discipline), baseline reconciliations (D13), all backend/journey test tiers for honest assertions (no over-mocked denial paths).
   - _Requirements: REQ-010..REQ-054, REQ-061, REQ-070..REQ-074_
-  - [ ] 6.2.OUT Write outcome; resolve findings or log ❌.
+  - [x] 6.2.OUT Write outcome; resolve findings or log ❌.
 
-- [ ] 6.3 [Review wave — review-frontend]
+- [x] 6.3 [Review wave — review-frontend]
   - Independent review of: documents + cache + nav registrations (single-entry discipline, ownership-exclusivity), page guard plumbing, container (MUI v9 `sx`-only purity, theme-token-only colors, polling + stale-retention correctness, error/denied/skeleton states, recharts theme purity, i18n handle usage, RTL correctness evidence from 4.4.BS), frontend test tiers (label-keyed assertions).
   - _Requirements: REQ-062..REQ-068, REQ-075_
-  - [ ] 6.3.OUT Write outcome; resolve findings or log ❌.
+  - [x] 6.3.OUT Write outcome; resolve findings or log ❌.
 
-- [ ] 6.4 [Review wave — pentester + deferred-items sweep]
+- [x] 6.4 [Review wave — pentester + deferred-items sweep]
   - Security wave: replay the denial matrix at wire level (anonymous/non-admin/governed/arg-bearing probes); attempt argument smuggling / alias-bombing on the zero-arg query (must stay closed); attempt cross-currency total fabrication via crafted data (structurally impossible — assert); audit log hygiene (denial context bound, no payload leakage); confirm NO unpatched tenancy/BOLA/BOPLA vector exists on this surface; re-verify read purity via a fresh fixture byte-identity check.
   - Deferred-items sweep: confirm `deferred-items.md` contains the four FORWARD-OWNED entries ((D-1) caching variant, (D-2) drill-down/CSV, (D-3) bespoke rate limiter, (D-4) trend covering index) and ZERO ❌/⚠️; any ❌/⚠️ MUST be resolved before Phase 7.
   - _Requirements: REQ-030..REQ-038, REQ-022, REQ-076_
-  - [ ] 6.4.OUT Write outcome.
+  - [x] 6.4.OUT Write outcome.
 
 ---
 

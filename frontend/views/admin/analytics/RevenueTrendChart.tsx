@@ -19,6 +19,7 @@
 import { Typography, useTheme } from "@mui/material";
 import { type ReactElement, useMemo } from "react";
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { formatChartTick } from "@/frontend/lib/i18n/format-date";
 
 /** One (bucket, currency) trend point as delivered by the snapshot. */
 export interface RevenueTrendPoint {
@@ -32,6 +33,8 @@ export interface RevenueTrendChartProps {
   readonly ariaLabel: string;
   readonly dateAxisLabel: string;
   readonly amountAxisLabel: string;
+  /** The app locale for tick formatting (REQ-067) — from `useAppLocale()`. */
+  readonly locale: string;
 }
 
 /** The fixed theme-token palette cycle for per-currency series (O-2 posture). */
@@ -42,20 +45,14 @@ function seriesColor(index: number, tokens: readonly string[]): string {
   return tokens[index % SERIES_TOKEN_COUNT] ?? tokens[0] ?? "";
 }
 
-/** Locale-aware tick formatter (module scope — no closure capture). */
-function tickFormatter(value: unknown): string {
-  const date = value instanceof Date ? value : new Date(String(value));
-  if (Number.isNaN(date.getTime())) {
-    return "";
-  }
-  return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(date);
-}
+/** Locale-aware tick formatting lives in the shared helper (`formatChartTick`). */
 
 export default function RevenueTrendChart({
   points,
   ariaLabel,
   dateAxisLabel,
   amountAxisLabel,
+  locale,
 }: RevenueTrendChartProps): ReactElement {
   const theme = useTheme();
   // Fixed token cycle resolved ONCE per render (no hooks below).
@@ -88,14 +85,14 @@ export default function RevenueTrendChart({
             <CartesianGrid stroke={theme.palette.divider} strokeDasharray="3 3" vertical={false} />
             <XAxis
               dataKey="bucketStart"
-              tickFormatter={tickFormatter}
+              tickFormatter={value => formatChartTick(locale, value)}
               stroke={theme.palette.text.secondary}
               minTickGap={24}
               aria-label={dateAxisLabel}
             />
             <YAxis stroke={theme.palette.text.secondary} width={56} aria-label={amountAxisLabel} />
             <Tooltip
-              labelFormatter={tickFormatter}
+              labelFormatter={value => formatChartTick(locale, value)}
               contentStyle={{
                 backgroundColor: theme.palette.background.paper,
                 border: `1px solid ${theme.palette.divider}`,

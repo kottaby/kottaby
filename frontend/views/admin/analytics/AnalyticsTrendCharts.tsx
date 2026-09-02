@@ -15,6 +15,7 @@ import type { AdminPlatformAnalyticsQuery } from "@/frontend/graphql/generated/g
 type Snapshot = AdminPlatformAnalyticsQuery["adminPlatformAnalytics"];
 
 import { useAppTranslation } from "@/shared/locale/client/use-app-translation";
+import { useAppLocale } from "@/shared/locale/localeContext";
 import { Analytics } from "@/shared/locale/namespaces/analytics";
 
 const SessionTrendChart = dynamic(() => import("@/frontend/views/admin/analytics/SessionTrendChart"), {
@@ -28,6 +29,7 @@ const RevenueTrendChart = dynamic(() => import("@/frontend/views/admin/analytics
 
 export function AnalyticsTrendCharts({ snapshot }: { readonly snapshot: Snapshot }): ReactElement {
   const t = useAppTranslation(Analytics);
+  const locale = useAppLocale();
   return (
     <Box
       sx={{
@@ -56,6 +58,7 @@ export function AnalyticsTrendCharts({ snapshot }: { readonly snapshot: Snapshot
             ariaLabel={t.sessionTrendAriaLabel}
             dateAxisLabel={t.dateAxisLabel}
             seriesLabel={t.sessionsSeriesLabel}
+            locale={locale}
           />
         </CardContent>
       </Card>
@@ -79,6 +82,7 @@ export function AnalyticsTrendCharts({ snapshot }: { readonly snapshot: Snapshot
             ariaLabel={t.revenueTrendAriaLabel}
             dateAxisLabel={t.dateAxisLabel}
             amountAxisLabel={t.amountAxisLabel}
+            locale={locale}
           />
         </CardContent>
       </Card>

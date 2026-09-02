@@ -57,3 +57,31 @@ export function formatApplicantDate(iso: string, locale: string): string {
   const formatter = new Intl.DateTimeFormat(resolveLocaleTag(locale), APPLICANT_DATE_OPTIONS);
   return formatter.format(new Date(iso));
 }
+
+/**
+ * Chart-axis tick formatting for the analytics trend charts (REQ-067):
+ * month-abbreviation + day over UTC components, resolved through the SAME
+ * app-locale fallback rule as `formatApplicantDate` (only exact `"en"`
+ * selects English — any other input renders Arabic), so chart ticks always
+ * land in the language of the surrounding dashboard.
+ *
+ * Module-scope function (lint `consistent-function-scoping`); the per-call
+ * `Intl.DateTimeFormat` construction matches the tick volume (~6 per axis).
+ *
+ * @param locale - app locale ("ar" | "en"; other inputs resolve to "ar").
+ * @param value - tick value as delivered by recharts (ISO string or Date).
+ * @returns The formatted tick label, or "" for unparseable values (recharts
+ *   renders the gap — mirrors the previous chart-local formatters).
+ */
+export function formatChartTick(locale: string, value: unknown): string {
+  const date = value instanceof Date ? value : new Date(String(value));
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+  const formatter = new Intl.DateTimeFormat(resolveLocaleTag(locale), {
+    timeZone: "UTC",
+    month: "short",
+    day: "numeric",
+  });
+  return formatter.format(date);
+}
