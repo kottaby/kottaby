@@ -49,4 +49,6 @@ export const errorsEn: ErrorsLabels = {
   handshakeCodeInvalid: "Handshake codes look like KSB-XXXXXXXX (8 hexadecimal characters).",
   studentHandshakeNotFound: "Student record not found.",
   trialAlreadyGranted: "The free trial credit has already been granted for this student.",
+  sessionNotFound: "The session was not found.",
+  sessionIntentCorrupt: "This session could not be read. Please contact support.",
 };

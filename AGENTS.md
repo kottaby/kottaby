@@ -416,6 +416,7 @@ After reading the applicable instruction files and AGENTS.md, subagents check fo
 - `frontend/THEME_PALETTE.md` - Color tokens and access patterns
 - `docs/IDEMPOTENCY.md` - Idempotency patterns
 - `docs/notifications/realtime-engine.md` - Real-time notification engine (WebSocket): persist-first/push-second, single-writer emit contract, sidecar topology, fail-open idempotency deviation
+- `docs/notifications/session-request-notifications.md` — Session-request notification waves canonical reference (six emitters in `SessionRequestNotificationService`, joined wave-context repository read, recipient-locale copy composition, closed payload, deterministic idempotency keys, caller-tx receipt / publish-after-commit contract)
 - `docs/drizzle/prepared-statements.md` - Drizzle Prepared Statements 2.0 pattern reference
 - `docs/drizzle/neon-http-client.md` - Neon HTTP Client & Provider-Agnostic Stateless Queries reference
 - `docs/graphql/dataloader-batching.md` - Pothos DataLoader batching pattern reference

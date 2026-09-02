@@ -46,7 +46,7 @@ import { Notifications } from "@/shared/locale/namespaces/notifications";
 
 // ─── Mandated key inventory (the notification-feed surface ground truth) ────
 
-/** Every key the notifications UI namespace must carry (26 slots). */
+/** Every key the notifications UI namespace must carry (41 slots). */
 const MANDATED_KEYS = [
   "title",
   "emptyTitle",
@@ -74,6 +74,21 @@ const MANDATED_KEYS = [
   "realtimeToast",
   "reconnecting",
   "reconnectedQuietly",
+  "eventSessionRequestTitle",
+  "eventSessionAcceptedTitle",
+  "eventSessionDeclinedTitle",
+  "eventSessionAutoRejectedTitle",
+  "eventSessionQueuedTitle",
+  "eventSessionAlternativesOfferedTitle",
+  "eventSessionRequestBody",
+  "eventSessionAcceptedBody",
+  "eventSessionDeclinedBody",
+  "eventSessionAutoRejectedBody",
+  "eventSessionQueuedBody",
+  "eventSessionAlternativesOfferedBody",
+  "intentHifz",
+  "intentTajweed",
+  "intentEvaluation",
 ] as const;
 
 /**
@@ -95,8 +110,19 @@ const TYPE_LABEL_KEYS = [
   "typeEvaluationResult",
 ] as const;
 
-/** The four function-valued slots (pluralization + interpolation templates). */
-const FUNCTION_KEYS = ["markReadAriaLabel", "markAllResult", "unreadCount", "realtimeToast"] as const;
+/** The ten function-valued slots (pluralization + interpolation templates). */
+const FUNCTION_KEYS = [
+  "markReadAriaLabel",
+  "markAllResult",
+  "unreadCount",
+  "realtimeToast",
+  "eventSessionRequestBody",
+  "eventSessionAcceptedBody",
+  "eventSessionDeclinedBody",
+  "eventSessionAutoRejectedBody",
+  "eventSessionQueuedBody",
+  "eventSessionAlternativesOfferedBody",
+] as const;
 
 /** Arabic-script probe — at least one Arabic-block character in the value. */
 const ARABIC_SCRIPT = /[\u0600-\u06FF]/;
@@ -108,6 +134,39 @@ function stringSlotOf(localeMap: object, key: string, localeName: string): strin
     throw new Error(`notifications.${localeName}.${key} must be a non-empty localized string`);
   }
   return value;
+}
+
+/**
+ * Sample arguments per function slot, per locale — used by the callable pin
+ * and the Arabic-flavored function-slot sweep (NOT by the exact-string pins).
+ */
+const FUNCTION_SLOT_SAMPLE_ARGS: Record<
+  (typeof FUNCTION_KEYS)[number],
+  { en: readonly unknown[]; ar: readonly unknown[] }
+> = {
+  markReadAriaLabel: { en: ["New session request"], ar: ["طلب جلسة جديد"] },
+  markAllResult: { en: [4], ar: [4] },
+  unreadCount: { en: [4], ar: [4] },
+  realtimeToast: { en: ["Session Request", "New session request"], ar: ["طلب جلسة", "طلب جلسة جديد"] },
+  eventSessionRequestBody: { en: ["Amina", "Hifz"], ar: ["أمينة", "الحفظ"] },
+  eventSessionAcceptedBody: { en: ["Sheikh Omar"], ar: ["الشيخ عمر"] },
+  eventSessionDeclinedBody: { en: ["Sheikh Omar"], ar: ["الشيخ عمر"] },
+  eventSessionAutoRejectedBody: { en: ["Sheikh Omar"], ar: ["الشيخ عمر"] },
+  eventSessionQueuedBody: { en: ["Sheikh Omar"], ar: ["الشيخ عمر"] },
+  eventSessionAlternativesOfferedBody: { en: ["Sheikh Omar"], ar: ["الشيخ عمر"] },
+};
+
+/** Invokes one function slot with sample args — throws if the slot is not callable or returns a non-string. */
+function callFunctionSlot(localeMap: object, key: string, args: readonly unknown[], localeName: string): string {
+  const value: unknown = Reflect.get(localeMap, key);
+  if (typeof value !== "function") {
+    throw new Error(`notifications.${localeName}.${key} must be a function`);
+  }
+  const result: unknown = Reflect.apply(value, undefined, args);
+  if (typeof result !== "string") {
+    throw new Error(`notifications.${localeName}.${key} must return a string`);
+  }
+  return result;
 }
 
 // ===========================================================================
@@ -145,7 +204,7 @@ describe("compile-time parity mirror — ar/en key sets agree", () => {
     expect(Object.hasOwn(notificationsEn, key)).toBe(true);
   });
 
-  test("the mandated inventory is exhaustive (no silent key minting beyond the 26 slots)", () => {
+  test("the mandated inventory is exhaustive (no silent key minting beyond the 41 slots)", () => {
     const mandated = new Set<string>(MANDATED_KEYS);
     for (const key of Object.keys(notificationsAr)) {
       expect(mandated.has(key)).toBe(true);
@@ -177,12 +236,12 @@ describe("no English fallthrough — ar map carries Arabic copy for every string
     }
   });
 
-  test("all four ar FUNCTION slots return Arabic-script output for Arabic-flavored arguments", () => {
-    const arTitle = "طلب جلسة جديد";
-    expect(ARABIC_SCRIPT.test(notificationsAr.markReadAriaLabel(arTitle))).toBe(true);
-    expect(ARABIC_SCRIPT.test(notificationsAr.markAllResult(7))).toBe(true);
-    expect(ARABIC_SCRIPT.test(notificationsAr.unreadCount(7))).toBe(true);
-    expect(ARABIC_SCRIPT.test(notificationsAr.realtimeToast("طلب جلسة", arTitle))).toBe(true);
+  test("all ten ar FUNCTION slots return Arabic-script output for Arabic-flavored arguments", () => {
+    for (const key of FUNCTION_KEYS) {
+      expect(ARABIC_SCRIPT.test(callFunctionSlot(notificationsAr, key, FUNCTION_SLOT_SAMPLE_ARGS[key].ar, "ar"))).toBe(
+        true
+      );
+    }
   });
 });
 
@@ -237,15 +296,12 @@ describe("template pins — function slots expand their arguments", () => {
     expect(notificationsAr.realtimeToast("طلب جلسة", "طلب جلسة جديد")).toBe("إشعار جديد — طلب جلسة: طلب جلسة جديد");
   });
 
-  test("all four function slots are callable with non-empty output in BOTH locales", () => {
-    expect(notificationsEn.markReadAriaLabel("Payment received").length).toBeGreaterThan(0);
-    expect(notificationsEn.markAllResult(4).length).toBeGreaterThan(0);
-    expect(notificationsEn.unreadCount(4).length).toBeGreaterThan(0);
-    expect(notificationsEn.realtimeToast("System Announcement", "Maintenance tonight").length).toBeGreaterThan(0);
-    expect(notificationsAr.markReadAriaLabel("تأكيد الدفع").length).toBeGreaterThan(0);
-    expect(notificationsAr.markAllResult(4).length).toBeGreaterThan(0);
-    expect(notificationsAr.unreadCount(4).length).toBeGreaterThan(0);
-    expect(notificationsAr.realtimeToast("إعلان النظام", "صيانة الليلة").length).toBeGreaterThan(0);
+  test("all ten function slots are callable with non-empty output in BOTH locales", () => {
+    for (const key of FUNCTION_KEYS) {
+      const args = FUNCTION_SLOT_SAMPLE_ARGS[key];
+      expect(callFunctionSlot(notificationsEn, key, args.en, "en").length).toBeGreaterThan(0);
+      expect(callFunctionSlot(notificationsAr, key, args.ar, "ar").length).toBeGreaterThan(0);
+    }
   });
 });
 
@@ -273,7 +329,7 @@ describe("registry + bundle wiring", () => {
 });
 
 // ===========================================================================
-describe("function-slot inventory — exactly the four locale functions, on BOTH maps", () => {
+describe("function-slot inventory — exactly the ten locale functions, on BOTH maps", () => {
   test.each([...FUNCTION_KEYS])("slot `%s` is a function on BOTH maps", key => {
     expect(typeof Reflect.get(notificationsAr, key)).toBe("function");
     expect(typeof Reflect.get(notificationsEn, key)).toBe("function");

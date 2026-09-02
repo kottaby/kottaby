@@ -49,4 +49,6 @@ export const errorsAr: ErrorsLabels = {
   handshakeCodeInvalid: "تبدو رموز الربط بالصيغة KSB-XXXXXXXX وتتكون من 8 أحرف سداسية عشرية.",
   studentHandshakeNotFound: "لم يتم العثور على سجل الطالب.",
   trialAlreadyGranted: "تم منح رصيد الجلسة التجريبية لهذا الطالب مسبقًا.",
+  sessionNotFound: "لم يتم العثور على الجلسة.",
+  sessionIntentCorrupt: "تعذر قراءة هذه الجلسة. يرجى التواصل مع فريق الدعم.",
 };
