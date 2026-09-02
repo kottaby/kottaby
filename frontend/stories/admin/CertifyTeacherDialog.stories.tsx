@@ -6,7 +6,8 @@ import { ApplicantStatus, UserRole } from "@/frontend/graphql/generated/gql/grap
 import { adminCertifyTeacherColdStartMutationDocument } from "@/frontend/graphql/sharedDocuments/admin";
 import { StoryApolloProvider } from "@/frontend/stories/lib/storyHarness";
 import { type AdminUserCertifyTarget, CertifyTeacherDialog } from "@/frontend/views/admin/users/dialogs";
-import { adminUsersEn } from "@/shared/locale/en/adminUsers";
+import { useAppTranslation } from "@/shared/locale/client";
+import { AdminUsers } from "@/shared/locale/namespaces";
 
 /**
  * Storybook surface for `CertifyTeacherDialog` — the admin cold-start
@@ -112,6 +113,7 @@ function CertifyHarnessInner({
 }: Omit<CertifyHarnessProps, "mocks">): ReactNode {
   const [certify] = useMutation(adminCertifyTeacherColdStartMutationDocument);
   const [certifying, setCertifying] = useState(false);
+  const labels = useAppTranslation(AdminUsers);
 
   useEffect(() => {
     if (!autoUncheck && !autoConfirm) return undefined;
@@ -121,17 +123,17 @@ function CertifyHarnessInner({
       if (autoUncheck) dialog.querySelector<HTMLInputElement>('input[type="checkbox"]')?.click();
       if (autoConfirm) {
         const confirm = [...dialog.querySelectorAll("button")].find(
-          button => button.textContent === adminUsersEn.certifyDialog.confirm
+          button => button.textContent === labels.certifyDialog.confirm
         );
         confirm?.click();
       }
     }, 200);
     return () => window.clearTimeout(timer);
-  }, [autoUncheck, autoConfirm]);
+  }, [autoUncheck, autoConfirm, labels]);
 
   return (
     <CertifyTeacherDialog
-      labels={adminUsersEn}
+      labels={labels}
       targetUser={TARGET_USER}
       loading={loading || certifying}
       onResolve={async makeEvaluator => {

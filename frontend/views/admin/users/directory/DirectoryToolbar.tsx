@@ -115,7 +115,6 @@ export function DirectoryToolbar(props: DirectoryToolbarProps): ReactNode {
           // never renders without a visible label (matches the Role/Status
           // selects, whose labels shrink once a value is shown).
           slotProps={{ inputLabel: { shrink: true } }}
-          placeholder={labels.filters.country}
           sx={{ minWidth: 150, flex: { xs: "1 1 100%", sm: "0 1 auto" }, "& .MuiInputBase-root": { height: 44 } }}
         />
         <Box sx={{ flex: 1 }} />

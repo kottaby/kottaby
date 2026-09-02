@@ -27,7 +27,7 @@ export const adminUsersEn: AdminUsersLabels = {
     verified: "Verified",
     certified: "Certified",
     parentLinked: "Parent Linked",
-    childrenLabel: "children",
+    childrenCount: count => (count === 1 ? "1 child" : `${count} children`),
     pendingReview: "Pending Review",
   },
   stats: {

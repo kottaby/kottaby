@@ -5,7 +5,8 @@ import { userEvent, within } from "storybook/test";
 import { findStudentByHandshakeCodeQueryDocument } from "@/frontend/graphql/sharedDocuments";
 import { DashboardStoryFrame, StoryApolloProvider } from "@/frontend/stories/lib/storyHarness";
 import { HandshakeDiscoveryContainer } from "@/frontend/views/parent/handshake";
-import { handshakeCodeEn } from "@/shared/locale/en/handshakeCode";
+import { useAppTranslation } from "@/shared/locale/client";
+import { HandshakeCode } from "@/shared/locale/namespaces";
 
 /**
  * Storybook surface for `app/(dashboard)/parent/handshake/page.tsx` — the
@@ -22,9 +23,8 @@ import { handshakeCodeEn } from "@/shared/locale/en/handshakeCode";
  * Mocks ride the shared `StoryApolloProvider` (real Apollo client on MockLink
  * with the production cache, `keyFields: false` normalization for the
  * embedded `HandshakeCodeLookup` payload). The server-translated page shell
- * labels resolve from the real English leaf bundle — every interactive label
- * resolves client-side through the `HandshakeCode` namespace (locale toggle
- * in the toolbar switches them live).
+ * labels resolve through `useAppTranslation` so the toolbar locale toggle
+ * switches them live, just like the interactive labels.
  */
 
 /** Canonical fixture code — proven valid by `shared/constants` guards. */
@@ -48,13 +48,11 @@ function linkableLookupMock(): MockLink.MockedResponse {
 }
 
 function HandshakeStory({ mocks }: Readonly<{ mocks: MockLink.MockedResponse[] }>): ReactNode {
+  const labels = useAppTranslation(HandshakeCode);
   return (
     <StoryApolloProvider mocks={mocks}>
       <DashboardStoryFrame>
-        <HandshakeDiscoveryContainer
-          pageTitle={handshakeCodeEn.pageTitle}
-          pageDescription={handshakeCodeEn.pageDescription}
-        />
+        <HandshakeDiscoveryContainer pageTitle={labels.pageTitle} pageDescription={labels.pageDescription} />
       </DashboardStoryFrame>
     </StoryApolloProvider>
   );

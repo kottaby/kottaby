@@ -38,6 +38,7 @@ import {
   FormControlLabel,
   Typography,
 } from "@mui/material";
+import type { Theme } from "@mui/material/styles";
 import { type ReactNode, useState } from "react";
 import { extractErrorCode } from "@/frontend/lib/graphql-error-utils";
 import { Errors, useAppTranslation } from "@/shared/locale";
@@ -53,6 +54,21 @@ export interface AdminUserCertifyTarget {
   readonly fullName: string;
   readonly email: string;
 }
+
+/**
+ * Confirm-button styling. The `&:disabled` block pins the muted action
+ * tokens so a terminal denial (TEACHER_ALREADY_CERTIFIED) never keeps the
+ * amber enabled look, even if a future theme override targets contained
+ * warning buttons.
+ */
+const confirmButtonSx = (theme: Theme) => ({
+  minHeight: 44,
+  minWidth: 140,
+  "&:disabled": {
+    backgroundColor: theme.palette.action.disabledBackground,
+    color: theme.palette.action.disabled,
+  },
+});
 
 interface CertifyTeacherDialogProps {
   readonly labels: AdminUsersLabels;
@@ -81,17 +97,25 @@ export function CertifyTeacherDialog({ labels, targetUser, loading, onResolve }:
   // Pre-checked: matches the mutation's `makeEvaluator = true` default.
   const [makeEvaluator, setMakeEvaluator] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [errorCode, setErrorCode] = useState<string | null>(null);
 
   if (!targetUser) return null;
 
   const handleConfirm = async () => {
     setErrorMessage(null);
+    setErrorCode(null);
     try {
       await onResolve(makeEvaluator);
     } catch (err) {
-      setErrorMessage(certifyErrorCopy(extractErrorCode(err), te));
+      const code = extractErrorCode(err);
+      setErrorMessage(certifyErrorCopy(code, te));
+      setErrorCode(code);
     }
   };
+
+  // TEACHER_ALREADY_CERTIFIED is a terminal denial — resubmission can never
+  // succeed, so the Confirm button is disabled while that code is showing.
+  const confirmDisabled = loading || errorCode === "TEACHER_ALREADY_CERTIFIED";
 
   return (
     <Dialog
@@ -167,8 +191,8 @@ export function CertifyTeacherDialog({ labels, targetUser, loading, onResolve }:
           onClick={handleConfirm}
           color="warning"
           variant="contained"
-          disabled={loading}
-          sx={{ minHeight: 44, minWidth: 140 }}
+          disabled={confirmDisabled}
+          sx={confirmButtonSx}
         >
           {labels.certifyDialog.confirm}
         </Button>

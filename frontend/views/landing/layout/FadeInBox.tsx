@@ -1,5 +1,6 @@
 "use client";
 import { Box } from "@mui/material";
+import useMediaQuery from "@mui/material/useMediaQuery";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 
 // ─── Scroll-triggered fade-in hook ───────────────────────────────────
@@ -41,14 +42,16 @@ export function FadeInBox({
   readonly delay?: number;
 }) {
   const { ref, visible } = useFadeInOnScroll();
+  // Honor prefers-reduced-motion: render fully visible with no fade/transition.
+  const reducedMotion = useMediaQuery("(prefers-reduced-motion: reduce)", { noSsr: true });
   return (
     <Box
       ref={ref}
       id={id}
       sx={{
-        opacity: visible ? 1 : 0,
-        transform: visible ? "translateY(0)" : "translateY(20px)",
-        transition: `all 0.6s cubic-bezier(0.16, 1, 0.3, 1) ${delay}ms`,
+        opacity: visible || reducedMotion ? 1 : 0,
+        transform: visible || reducedMotion ? "translateY(0)" : "translateY(20px)",
+        transition: reducedMotion ? "none" : `all 0.6s cubic-bezier(0.16, 1, 0.3, 1) ${delay}ms`,
         // Anchor targets must clear the sticky navbar (65px) plus the 20px
         // fade-in translateY offset that the anchor-scroll geometry can
         // capture mid-transition (otherwise headings land under the bar).

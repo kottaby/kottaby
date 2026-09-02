@@ -1,5 +1,6 @@
 "use client";
 
+import useMediaQuery from "@mui/material/useMediaQuery";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { isDigitChar, isNumericChar } from "@/frontend/views/landing/utils";
 
@@ -20,6 +21,8 @@ function parseStatValue(raw: string): { num: number; suffix: string } {
 
 export function AnimatedCounter({ raw }: { readonly raw: string }): ReactNode {
   const { num, suffix } = parseStatValue(raw);
+  // Honor prefers-reduced-motion: show the final value with no count-up.
+  const reducedMotion = useMediaQuery("(prefers-reduced-motion: reduce)", { noSsr: true });
   const [count, setCount] = useState(0);
   const [started, setStarted] = useState(false);
   const spanRef = useRef<HTMLSpanElement>(null);
@@ -43,7 +46,7 @@ export function AnimatedCounter({ raw }: { readonly raw: string }): ReactNode {
   }, [started]);
 
   useEffect(() => {
-    if (!started) return;
+    if (!started || reducedMotion) return;
     const duration = 2000;
     const startTime = performance.now();
 
@@ -64,11 +67,11 @@ export function AnimatedCounter({ raw }: { readonly raw: string }): ReactNode {
     }
 
     requestAnimationFrame(tick);
-  }, [started, num]);
+  }, [started, num, reducedMotion]);
 
   return (
     <span ref={spanRef}>
-      {count.toLocaleString()}
+      {(reducedMotion ? num : count).toLocaleString()}
       {suffix}
     </span>
   );

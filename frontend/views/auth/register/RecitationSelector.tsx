@@ -56,6 +56,7 @@ export function RecitationSelector({ value, onChange, labels, options, loading }
       sx={{
         display: "grid",
         gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" },
+        alignItems: "stretch",
         gap: 1.5,
         // Scroll cap only once the grid goes 2-column: in the single-column
         // mobile stack the cap clips the last card (page scrolls instead).

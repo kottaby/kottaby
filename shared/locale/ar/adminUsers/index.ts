@@ -27,7 +27,12 @@ export const adminUsersAr: AdminUsersLabels = {
     verified: "موثّق",
     certified: "معتمد",
     parentLinked: "مرتبط بولي أمر",
-    childrenLabel: "أبناء",
+    childrenCount: count => {
+      if (count === 1) return "طفل واحد";
+      if (count === 2) return "طفلان";
+      if (count >= 3 && count <= 10) return `${count} أطفال`;
+      return `${count} طفلاً`;
+    },
     pendingReview: "قيد المراجعة",
   },
   stats: {

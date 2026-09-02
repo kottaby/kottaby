@@ -71,6 +71,40 @@ function restoreHealthProbeStub(): void {
   savedFetch = null;
 }
 
+/**
+ * Story-only determinism: report `prefers-reduced-motion: reduce` so the
+ * landing page's IntersectionObserver reveal (`FadeInBox`) and `AnimatedCounter`
+ * render fully immediately — screenshots never catch sections mid-fade, no
+ * scroll ritual needed. Restored on unmount alongside the fetch stub.
+ */
+let savedMatchMedia: typeof window.matchMedia | null = null;
+
+function stubbedMatchMedia(query: string): MediaQueryList {
+  const list: MediaQueryList = {
+    matches: query === "(prefers-reduced-motion: reduce)",
+    media: query,
+    onchange: null,
+    addListener: () => undefined,
+    removeListener: () => undefined,
+    addEventListener: () => undefined,
+    removeEventListener: () => undefined,
+    dispatchEvent: () => false,
+  };
+  return list;
+}
+
+function installReducedMotionStub(): void {
+  if (savedMatchMedia !== null) return;
+  savedMatchMedia = window.matchMedia.bind(window);
+  Reflect.set(window, "matchMedia", stubbedMatchMedia);
+}
+
+function restoreReducedMotionStub(): void {
+  if (savedMatchMedia === null) return;
+  Reflect.set(window, "matchMedia", savedMatchMedia);
+  savedMatchMedia = null;
+}
+
 /** Anonymous-visitor auth context — mirrors the real logged-out landing page. */
 const ANONYMOUS_AUTH: AuthContextType = {
   user: null,
@@ -84,7 +118,14 @@ const ANONYMOUS_AUTH: AuthContextType = {
 /** Harness: anonymous AuthContext + empty-mock Apollo client around the page. */
 function LandingHarness(): ReactNode {
   installHealthProbeStub();
-  useEffect(() => restoreHealthProbeStub, []);
+  installReducedMotionStub();
+  useEffect(
+    () => () => {
+      restoreHealthProbeStub();
+      restoreReducedMotionStub();
+    },
+    []
+  );
   return (
     <AuthContext.Provider value={ANONYMOUS_AUTH}>
       <StoryApolloProvider mocks={[]}>

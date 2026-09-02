@@ -35,7 +35,7 @@ function directoryRow(overrides?: Partial<DirectoryUserFixture>): DirectoryUserF
     __typename: "AdminUserListItem",
     id: 101,
     fullName: "Omar Al-Farouk",
-    email: "omar.farouk@example.com",
+    email: "omar.farouk\u0040example.com",
     phone: "+201001112222",
     role: UserRole.Admin,
     gender: Gender.Male,
@@ -64,7 +64,7 @@ export const POPULATED_ROWS: readonly DirectoryUserFixture[] = [
   directoryRow({
     id: 102,
     fullName: "Aisha Rahman",
-    email: "aisha.rahman@example.com",
+    email: "aisha.rahman\u0040example.com",
     phone: "+966501234567",
     role: UserRole.Teacher,
     gender: Gender.Female,
@@ -78,7 +78,7 @@ export const POPULATED_ROWS: readonly DirectoryUserFixture[] = [
   directoryRow({
     id: 103,
     fullName: "Bilal Haddad",
-    email: "bilal.haddad@example.com",
+    email: "bilal.haddad\u0040example.com",
     phone: null,
     role: UserRole.Teacher,
     gender: Gender.Male,
@@ -91,7 +91,7 @@ export const POPULATED_ROWS: readonly DirectoryUserFixture[] = [
   directoryRow({
     id: 104,
     fullName: "Maryam Suleiman",
-    email: "maryam.suleiman@example.com",
+    email: "maryam.suleiman\u0040example.com",
     phone: "+971501998877",
     role: UserRole.Teacher,
     gender: Gender.Female,
@@ -106,7 +106,7 @@ export const POPULATED_ROWS: readonly DirectoryUserFixture[] = [
   directoryRow({
     id: 105,
     fullName: "Yusuf Al-Amin",
-    email: "yusuf.alamin@example.com",
+    email: "yusuf.alamin\u0040example.com",
     phone: null,
     role: UserRole.Student,
     gender: Gender.Male,
@@ -123,7 +123,7 @@ export const POPULATED_ROWS: readonly DirectoryUserFixture[] = [
   directoryRow({
     id: 106,
     fullName: "Huda Nassar",
-    email: "huda.nassar@example.com",
+    email: "huda.nassar\u0040example.com",
     phone: null,
     role: UserRole.Parent,
     gender: Gender.Female,
@@ -137,7 +137,7 @@ export const POPULATED_ROWS: readonly DirectoryUserFixture[] = [
   directoryRow({
     id: 107,
     fullName: "Salma Idris",
-    email: "[EMAIL_REDACTED]",
+    email: "salma.idris\u0040example.com",
     phone: "+249912345678",
     role: UserRole.Student,
     gender: Gender.Female,
@@ -151,7 +151,7 @@ export const POPULATED_ROWS: readonly DirectoryUserFixture[] = [
   directoryRow({
     id: 108,
     fullName: "Tariq Al-Sayyid",
-    email: "[EMAIL_REDACTED]",
+    email: "tariq.al-sayyid\u0040example.com",
     phone: "+96170123456",
     role: UserRole.Teacher,
     gender: Gender.Male,
@@ -165,7 +165,7 @@ export const POPULATED_ROWS: readonly DirectoryUserFixture[] = [
   directoryRow({
     id: 109,
     fullName: "Leila Mansour",
-    email: "[EMAIL_REDACTED]",
+    email: "leila.mansour\u0040example.com",
     phone: "+96891234567",
     role: UserRole.Parent,
     gender: Gender.Female,
@@ -178,7 +178,7 @@ export const POPULATED_ROWS: readonly DirectoryUserFixture[] = [
   directoryRow({
     id: 110,
     fullName: "Khalid Barakat",
-    email: "[EMAIL_REDACTED]",
+    email: "khalid.barakat\u0040example.com",
     phone: "+21620123456",
     role: UserRole.Teacher,
     gender: Gender.Male,

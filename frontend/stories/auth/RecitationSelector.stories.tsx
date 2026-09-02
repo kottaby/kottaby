@@ -1,20 +1,29 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
+import type { ReactNode } from "react";
 import { RecitationReading } from "@/frontend/graphql/generated/gql/graphql";
-import { RecitationSelector } from "@/frontend/views/auth/register";
-import { recitationAr } from "@/shared/locale/ar/recitation";
-import { recitationEn } from "@/shared/locale/en/recitation";
+import { RecitationSelector, type RecitationSelectorProps } from "@/frontend/views/auth/register";
+import { useAppTranslation } from "@/shared/locale/client";
+import { Recitation } from "@/shared/locale/namespaces";
+
+/**
+ * Labels resolve through the real locale context — the toolbar's ar/en
+ * toggle switches them live (previously both leaf bundles were hardcoded,
+ * so variants stayed fixed-language regardless of the toolbar).
+ */
+function RecitationSelectorHarness(props: Omit<RecitationSelectorProps, "labels" | "onChange">): ReactNode {
+  const labels = useAppTranslation(Recitation);
+  return <RecitationSelector {...props} labels={labels} onChange={() => {}} />;
+}
 
 const meta = {
   title: "Auth/RecitationSelector",
-  component: RecitationSelector,
+  component: RecitationSelectorHarness,
   parameters: {
     layout: "padded",
   },
   tags: ["autodocs"],
   args: {
     value: "",
-    onChange: () => {},
-    labels: recitationAr,
     options: Object.values(RecitationReading),
     loading: false,
   },
@@ -24,28 +33,16 @@ const meta = {
       options: ["", ...Object.values(RecitationReading)],
     },
   },
-} satisfies Meta<typeof RecitationSelector>;
+} satisfies Meta<typeof RecitationSelectorHarness>;
 
 export default meta;
 type Story = StoryObj<typeof meta>;
 
 const allReadings = Object.values(RecitationReading);
 
-export const DefaultArabic: Story = {
+export const Default: Story = {
   args: {
     value: "",
-    onChange: () => {},
-    labels: recitationAr,
-    options: allReadings,
-    loading: false,
-  },
-};
-
-export const DefaultEnglish: Story = {
-  args: {
-    value: "",
-    onChange: () => {},
-    labels: recitationEn,
     options: allReadings,
     loading: false,
   },
@@ -54,8 +51,6 @@ export const DefaultEnglish: Story = {
 export const WithSelection: Story = {
   args: {
     value: RecitationReading.HafsAnAsim,
-    onChange: () => {},
-    labels: recitationAr,
     options: allReadings,
     loading: false,
   },
@@ -64,8 +59,6 @@ export const WithSelection: Story = {
 export const Loading: Story = {
   args: {
     value: "",
-    onChange: () => {},
-    labels: recitationAr,
     options: [],
     loading: true,
   },

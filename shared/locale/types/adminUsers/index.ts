@@ -117,8 +117,8 @@ export interface AdminUsersLabels {
     readonly certified: string;
     /** Chip shown when the student account is linked to a parent. */
     readonly parentLinked: string;
-    /** Caption unit composed after a linked-children count (`${count} ${childrenLabel}` in the component). */
-    readonly childrenLabel: string;
+    /** Full caption for the linked-children count chip; handles pluralization per locale. */
+    readonly childrenCount: (count: number) => string;
     /** Chip shown when a teacher application is awaiting review. */
     readonly pendingReview: string;
   };

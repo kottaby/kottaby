@@ -61,13 +61,13 @@ export function DirectoryTable(props: DirectoryTableProps): ReactNode {
       <Table sx={{ tableLayout: "fixed" }}>
         <TableHead>
           <TableRow sx={theme => ({ bgcolor: theme.palette.surfaceContainerHigh })}>
-            <DirectoryHeaderCell width="30%">{labels.headers.name}</DirectoryHeaderCell>
+            <DirectoryHeaderCell width="27%">{labels.headers.name}</DirectoryHeaderCell>
             <DirectoryHeaderCell width="13%">{labels.headers.phone}</DirectoryHeaderCell>
             <DirectoryHeaderCell width="10%">{labels.headers.role}</DirectoryHeaderCell>
             <DirectoryHeaderCell width="17%">{labels.headers.statusDetails}</DirectoryHeaderCell>
             <DirectoryHeaderCell width="12%">{labels.headers.governance}</DirectoryHeaderCell>
             <DirectoryHeaderCell width="13%">{labels.headers.lastActive}</DirectoryHeaderCell>
-            <DirectoryHeaderCell width="5%" align="end">
+            <DirectoryHeaderCell width="8%" align="end">
               {labels.headers.actions}
             </DirectoryHeaderCell>
           </TableRow>
@@ -128,10 +128,10 @@ function DirectoryHeaderCell({ children, width, align }: DirectoryHeaderCellProp
         color: theme.palette.text.secondary,
         textAlign: align === "end" ? "end" : "start",
         borderBottom: `1px solid ${theme.palette.border.light}`,
-        // End-aligned cells (the ACTIONS column) get explicit inline-end
-        // breathing room so the letter-spaced label never kisses or clips
-        // the card's right edge.
-        ...(align === "end" && { paddingInlineEnd: 3 }),
+        // End-aligned cells (the ACTIONS column) prevent wrapping so the
+        // letter-spaced label never ellipsizes/clips, and get explicit
+        // inline-end breathing room so it never kisses the card edge.
+        ...(align === "end" && { whiteSpace: "nowrap", paddingInlineEnd: 3 }),
       })}
     >
       {children}
