@@ -134,8 +134,10 @@ export function buildAudienceInput(state: ComposeState): BroadcastAudienceInput 
 /**
  * Server-tier VALIDATION projection: feeds the failure's whitelisted
  * `extensions.fields[]` pairs through the shared mapping into the compose
- * field-error state and reports whether ANY pair was applied (per-field
- * mapping REPLACES the global-form fallback copy).
+ * field-error state and reports whether ANY pair was applied. Per-field
+ * mapping wins only when a fields[] payload is present; broadcast domain
+ * rejections (localized codes without one) fall through to the global
+ * fallback copy.
  */
 export function applyBroadcastFieldErrors(
   mutationError: unknown,

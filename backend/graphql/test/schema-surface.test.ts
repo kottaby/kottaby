@@ -724,6 +724,28 @@ describe("Users-locale surface (D2 backend vertical) — self-scoped locale pref
     expect("superAdmin" in scopes).toBe(false);
   });
 
+  test("BroadcastAudienceType enum carries EXACTLY the 4 canonical values (keys on the wire, lowercase runtime values)", () => {
+    const enumType = graphQLSchema.getType("BroadcastAudienceType");
+
+    if (!(enumType instanceof GraphQLEnumType)) {
+      throw new Error("BroadcastAudienceType must be registered as a GraphQL enum type");
+    }
+
+    const values = enumType.getValues();
+    expect(values).toHaveLength(4);
+    // The built schema is lexicographically sorted (enum-value order carries
+    // no GraphQL semantics), so the pins compare as sorted sets:
+    expect(values.map(value => value.name).toSorted((a, b) => a.localeCompare(b))).toEqual(
+      ["All", "Country", "Plan", "Role"].toSorted((a, b) => a.localeCompare(b))
+    );
+    // Runtime values stay the canonical lowercase strings — byte-identical
+    // to the TS enum single source of truth (wire vocabulary is the KEY set;
+    // a rename would move the wire contract and must fail here).
+    expect(values.map(value => value.value).toSorted((a, b) => a.localeCompare(b))).toEqual(
+      ["all", "country", "plan", "role"].toSorted((a, b) => a.localeCompare(b))
+    );
+  });
+
   test("AppLocale enum carries EXACTLY the 2 canonical values (keys on the wire, lowercase runtime values)", () => {
     const enumType = graphQLSchema.getType("AppLocale");
 

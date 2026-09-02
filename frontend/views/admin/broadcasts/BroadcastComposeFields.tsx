@@ -23,6 +23,9 @@ import {
 import { AUDIENCE_ROW_SX, RADIO_SX } from "@/frontend/views/admin/broadcasts/broadcast-compose-skin";
 import type { AdminBroadcastsLabels } from "@/shared/locale/types/adminBroadcasts";
 
+/** Stable id linking the audience error text to the radio group (WCAG 3.3.1). */
+const AUDIENCE_ERROR_ID = "broadcast-audience-error";
+
 interface BroadcastComposeFieldsProps {
   readonly compose: ComposeState;
   readonly fieldErrors: ComposeFieldErrors;
@@ -56,6 +59,7 @@ export function BroadcastComposeFields(props: BroadcastComposeFieldsProps): Reac
         <FormLabel>{props.labels.audienceLabel}</FormLabel>
         <RadioGroup
           aria-label={props.labels.audienceLabel}
+          aria-describedby={props.fieldErrors.audience !== undefined ? AUDIENCE_ERROR_ID : undefined}
           value={props.compose.audienceType}
           onChange={event => {
             const nextKind = event.target.value;
@@ -75,7 +79,7 @@ export function BroadcastComposeFields(props: BroadcastComposeFieldsProps): Reac
           ))}
         </RadioGroup>
         {props.fieldErrors.audience !== undefined ? (
-          <FormHelperText>{props.fieldErrors.audience}</FormHelperText>
+          <FormHelperText id={AUDIENCE_ERROR_ID}>{props.fieldErrors.audience}</FormHelperText>
         ) : null}
       </FormControl>
     </>

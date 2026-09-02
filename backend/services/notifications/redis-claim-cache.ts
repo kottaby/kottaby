@@ -109,6 +109,12 @@ export function resolveBroadcastClaimCache(): NotificationIdempotencyClaimCache 
     const redis = new Redis(redisUrl, {
       lazyConnect: true,
       maxRetriesPerRequest: 1,
+      // Bounds each claim round-trip and dial attempt so a silently dropping
+      // Redis cannot hold the caller's open transaction on ioredis' default
+      // (unbounded) wait; a timed-out command rejects into the engine's
+      // documented fail-open path.
+      commandTimeout: 2_000,
+      connectTimeout: 2_000,
     });
     // Kept attached so connection failures never become unhandled "error"
     // events; command failures already surface through their promises, where

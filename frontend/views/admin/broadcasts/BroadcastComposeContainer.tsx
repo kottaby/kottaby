@@ -67,6 +67,9 @@ export function BroadcastComposeContainer(): ReactNode {
   const [formError, setFormError] = useState<string | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [successCount, setSuccessCount] = useState<number | null>(null);
+  // Bumped per accepted send so each toast remounts with a FRESH auto-hide
+  // timer (a reused Snackbar inherits the previous toast's remaining time).
+  const [successEpoch, setSuccessEpoch] = useState(0);
   const [broadcastMutation, { loading: sending }] = useMutation(adminBroadcastNotificationMutationDocument);
 
   const plansQuery = useQuery(adminPlansQueryDocument, {
@@ -79,7 +82,16 @@ export function BroadcastComposeContainer(): ReactNode {
   const changeDraft = (patch: Partial<ComposeState>): void => setCompose(current => ({ ...current, ...patch }));
 
   const changeAudienceKind = (kind: BroadcastAudienceType): void => {
-    setCompose({ ...initialComposeState, audienceType: kind });
+    // Switching the audience kind keeps the authored copy (title/body) and
+    // resets only the kind-specific companions — the copy fields render
+    // above the selector, so a full reset would silently destroy them.
+    setCompose(current => ({
+      ...current,
+      audienceType: kind,
+      role: null,
+      country: "",
+      planId: null,
+    }));
     setFieldErrors({});
   };
 
@@ -116,6 +128,7 @@ export function BroadcastComposeContainer(): ReactNode {
         if (typeof deliveredCount === "number") {
           setConfirmOpen(false);
           setSuccessCount(deliveredCount);
+          setSuccessEpoch(epoch => epoch + 1);
           setCompose(initialComposeState);
           // Rotation happens ONLY on success — failed submits keep the same
           // compose-session key so the server-side replay dedupe stays effective.
@@ -126,9 +139,10 @@ export function BroadcastComposeContainer(): ReactNode {
         setFormError(t.errorTitle);
       } catch (mutationError: unknown) {
         setConfirmOpen(false);
-        // Server tier FIRST: project VALIDATION `extensions.fields[]` pairs
-        // through the shared mapping (whitelisted paths only, first-wins);
-        // per-field mapping REPLACES the global-form fallback copy.
+        // Server tier first: per-field mapping applies only when a VALIDATION
+        // error carries a `fields[]` projection (whitelisted paths, first-wins);
+        // broadcast domain rejections — localized codes without a fields
+        // payload — fall through to the global fallback copy.
         if (!applyBroadcastFieldErrors(mutationError, setFieldErrors)) {
           setFormError(t.errorTitle);
         }
@@ -164,6 +178,7 @@ export function BroadcastComposeContainer(): ReactNode {
         onConfirm={handleConfirmSend}
       />
       <BroadcastComposeSuccessSnackbar
+        key={successEpoch}
         count={successCount}
         labels={t}
         closeLabel={tc.close}
