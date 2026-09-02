@@ -63,24 +63,39 @@ import {
 // ─── Frozen baselines (mirror the refreshed PRE_3_1_* inventories in ─────────
 // ─── schema-surface.test.ts — the single sanctioned growth history) ──────────
 
-/** Root mutation fields — the auth quartet + the sanctioned notification read-latch pair + the sanctioned users-locale mutation (D2). */
+/** Root mutation fields — the D13-reconciled live baseline: auth quartet + notification read-latch pair + users-locale + plan-catalog CRUD + the shipped DEV3-016 admin-user mutations. */
 const FROZEN_MUTATION_FIELDS = [
+  "adminCreateUser",
+  "adminSetUserDeleted",
+  "adminUpdateUser",
+  "createPlan",
   "login",
   "logout",
   "markAllNotificationsRead",
   "markNotificationRead",
   "refreshToken",
   "registerUser",
+  "setPlanActiveStatus",
   "updateMyLocale",
+  "updatePlan",
 ] as const;
 
-/** Root query fields — the frozen baseline + the sanctioned inbox reads + the probe. */
+/** Root query fields — the D13-RECONCILED live baseline: the original frozen set + the already-shipped admin-users/plans reads + the DEV3-022c analytics read. */
 const FROZEN_QUERY_FIELDS = [
   "_health",
+  "adminPlans",
+  "adminPlatformAnalytics",
+  "adminUserActivity",
+  "adminUserDetail",
+  "adminUsers",
+  "adminUserStats",
+  "findStudentByHandshakeCode",
   "me",
   "myApplicantProfile",
+  "myHandshakeCode",
   "myNotifications",
   "myUnreadNotificationCount",
+  "planCatalog",
   "recitationReadings",
 ] as const;
 
@@ -217,14 +232,95 @@ describe("BFLA structural verdict — zero notification CUD surface (REQ-032)", 
     }
   });
 
-  test("Mutation root is EXACTLY the refreshed frozen 7-op baseline — the notification write surface is the read-latch pair only", () => {
+  test("Mutation root is EXACTLY the D13-reconciled live baseline — zero unsanctioned mutation growth", () => {
     const names = fieldSurfaces("Mutation").map(surface => surface.name);
     expect(names.toSorted((a, b) => a.localeCompare(b))).toEqual([...FROZEN_MUTATION_FIELDS]);
   });
 
-  test("Query root is EXACTLY the frozen baseline + the `_health` probe (zero unsanctioned growth)", () => {
+  test("Query root is EXACTLY the D13-reconciled live baseline (zero unsanctioned growth)", () => {
     const names = fieldSurfaces("Query").map(surface => surface.name);
     expect(names.toSorted((a, b) => a.localeCompare(b))).toEqual([...FROZEN_QUERY_FIELDS]);
+  });
+});
+
+describe("adminPlatformAnalytics closed surface (DEV3-022c)", () => {
+  test("`adminPlatformAnalytics: PlatformAnalytics!` — ZERO arguments (closed input surface, REQ-034/073)", () => {
+    const surface = fieldSurface("Query", "adminPlatformAnalytics");
+    expect(surface.type).toBe("PlatformAnalytics!");
+    expect(surface.args).toEqual([]);
+  });
+
+  test("the eleven PlatformAnalytics types exist and the subtree exposes NO id field (D10)", () => {
+    const objectTypes = objectTypeNameSet();
+    for (const typeName of [
+      "PlatformAnalytics",
+      "PlatformAnalyticsUsers",
+      "PlatformAnalyticsSessions",
+      "PlatformAnalyticsRevenue",
+      "PlatformAnalyticsCurrencyRevenue",
+      "PlatformAnalyticsSubscriptions",
+      "PlatformAnalyticsTeachers",
+      "PlatformAnalyticsRatings",
+      "PlatformAnalyticsHealth",
+      "PlatformAnalyticsSessionTrendPoint",
+      "PlatformAnalyticsRevenueTrendPoint",
+    ]) {
+      expect(objectTypes.has(typeName)).toBe(true);
+      expect(fieldSurfaces(typeName).some(surface => surface.name === "id")).toBe(false);
+    }
+  });
+
+  test("root sections match the plan §3.1 contract EXACTLY (names + rendered types)", () => {
+    const surfaces = fieldSurfaces("PlatformAnalytics");
+    expect(surfaces.map(surface => surface.name).toSorted((a, b) => a.localeCompare(b))).toEqual([
+      "generatedAt",
+      "health",
+      "ratings",
+      "revenue",
+      "revenueTrendDaily",
+      "sessions",
+      "sessionTrendDaily",
+      "subscriptions",
+      "teachers",
+      "users",
+    ]);
+    expect(fieldSurface("PlatformAnalytics", "generatedAt").type).toBe("DateTime!");
+    expect(fieldSurface("PlatformAnalytics", "sessionTrendDaily").type).toBe("[PlatformAnalyticsSessionTrendPoint!]!");
+    expect(fieldSurface("PlatformAnalytics", "revenueTrendDaily").type).toBe("[PlatformAnalyticsRevenueTrendPoint!]!");
+    expect(fieldSurface("PlatformAnalytics", "users").type).toBe("PlatformAnalyticsUsers!");
+  });
+
+  test("trend points ride the DateTime scalar; revenue money is String! (never Float, REQ-014/D3)", () => {
+    expect(fieldSurface("PlatformAnalyticsSessionTrendPoint", "bucketStart").type).toBe("DateTime!");
+    expect(fieldSurface("PlatformAnalyticsSessionTrendPoint", "sessionCount").type).toBe("Int!");
+    expect(fieldSurface("PlatformAnalyticsRevenueTrendPoint", "bucketStart").type).toBe("DateTime!");
+    expect(fieldSurface("PlatformAnalyticsRevenueTrendPoint", "currency").type).toBe("String!");
+    expect(fieldSurface("PlatformAnalyticsRevenueTrendPoint", "amount").type).toBe("String!");
+    expect(fieldSurface("PlatformAnalyticsCurrencyRevenue", "totalAmount").type).toBe("String!");
+    expect(fieldSurface("PlatformAnalyticsCurrencyRevenue", "last30DaysAmount").type).toBe("String!");
+    // The `.toISOString()` hand-serialization is PROHIBITED (REQ-068).
+    expect(sdlText).not.toContain("generatedAtString");
+  });
+
+  test("rating averages are the ONLY nullable fields in the ratings section (REQ-060 honest-null)", () => {
+    const surfaces = fieldSurfaces("PlatformAnalyticsRatings");
+    expect(surfaces.map(surface => surface.name).toSorted((a, b) => a.localeCompare(b))).toEqual([
+      "averageEvaluationScore",
+      "averageSessionRating",
+      "evaluationScoresCount",
+      "sessionRatingsCount",
+    ]);
+    expect(fieldSurface("PlatformAnalyticsRatings", "averageSessionRating").type).toBe("Float");
+    expect(fieldSurface("PlatformAnalyticsRatings", "averageEvaluationScore").type).toBe("Float");
+    expect(fieldSurface("PlatformAnalyticsRatings", "sessionRatingsCount").type).toBe("Int!");
+    expect(fieldSurface("PlatformAnalyticsRatings", "evaluationScoresCount").type).toBe("Int!");
+  });
+
+  test("no PlatformAnalytics mutation/subscription/input exists — read-only surface (REQ-022)", () => {
+    expect(fieldSurfaces("Mutation").some(surface => surface.name.toLowerCase().includes("platformanalytics"))).toBe(
+      false
+    );
+    expect(sdlText).not.toContain("input PlatformAnalytics");
   });
 });
 
@@ -321,12 +417,16 @@ describe("Notification object — `id` + REQ-069 depth/complexity posture", () =
     expect(surfaces.some(surface => surface.name === "id")).toBe(false);
   });
 
-  test("NO Subscription root exists — realtime delivery is the WebSocket sidecar's contract, never a GraphQL subscription", () => {
+  test("NO Subscription ROOT exists — realtime delivery is the WebSocket sidecar's contract, never a GraphQL subscription", () => {
     const hasSubscriptionRoot = sdlDocument.definitions.some(
       definition => definition.kind === Kind.OBJECT_TYPE_DEFINITION && definition.name.value === "Subscription"
     );
     expect(hasSubscriptionRoot).toBe(false);
-    expect(sdlText).not.toContain("Subscription");
+    // Whole-word root-type lexical check — a blanket substring ban would
+    // false-positive on the legitimate PlatformAnalyticsSubscriptions value
+    // object (DEV3-022c).
+    expect(sdlText).not.toMatch(/^type Subscription\b/m);
+    expect(sdlText).not.toMatch(/^extend type Subscription\b/m);
   });
 });
 

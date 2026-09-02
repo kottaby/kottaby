@@ -87,9 +87,13 @@ import { PUBLIC_OPERATION_NAMES, PUBLIC_OPERATIONS } from "@/backend/lib/gateway
 // ─── sanctioned applicant + notifications + users-locale + DEV1-013 handshake ─
 // ─── + DEV1-005 plan-catalog additions) ──────────────────────────────────────
 
-/** Root query field names — the frozen baseline (probe re-registration excluded). */
+/** Root query field names — the frozen baseline, REFRESHED (D13) with the already-shipped admin-users reads (DEV3-016) — probe re-registration excluded. */
 const PRE_3_1_QUERY_FIELDS = [
   "adminPlans",
+  "adminUserActivity",
+  "adminUserDetail",
+  "adminUsers",
+  "adminUserStats",
   "me",
   "myApplicantProfile",
   "myNotifications",
@@ -97,8 +101,11 @@ const PRE_3_1_QUERY_FIELDS = [
   "planCatalog",
   "recitationReadings",
 ] as const;
-/** Root mutation field names — the frozen baseline (auth quartet + notification read-latch pair + users-locale + plan-catalog CRUD). */
+/** Root mutation field names — the frozen baseline (auth quartet + notification read-latch pair + users-locale + plan-catalog CRUD + the shipped DEV3-016 admin-user mutations — D13 reconciliation). */
 const PRE_3_1_MUTATION_FIELDS = [
+  "adminCreateUser",
+  "adminSetUserDeleted",
+  "adminUpdateUser",
   "createPlan",
   "login",
   "logout",
@@ -112,19 +119,34 @@ const PRE_3_1_MUTATION_FIELDS = [
 ] as const;
 /** GraphQL enum type names — the freeze forbids any new Pothos enum. */
 const PRE_3_1_ENUMS = [
+  "AdminUserGovernanceFilter",
   "ApplicantStatus",
   "AppLocale",
+  "AuditActionType",
   "Gender",
   "NotificationType",
   "RecitationReading",
   "RegisterPublicRole",
   "UserRole",
 ] as const;
-/** Non-root object/enum/scalar SDL type names in the baseline (introspection `__*` and spec scalars excluded). */
+/** Non-root object/enum/scalar SDL type names in the baseline (introspection `__*` and spec scalars excluded) — REFRESHED (D13) with the DEV3-016 admin-users family. */
 const PRE_3_1_TYPE_NAMES = [
+  "AdminCreateUserInput",
+  "AdminParentSnapshot",
+  "AdminStudentSnapshot",
+  "AdminTeacherSnapshot",
+  "AdminUpdateUserInput",
+  "AdminUserActivityEntry",
+  "AdminUserDetail",
+  "AdminUserFiltersInput",
+  "AdminUserGovernanceFilter",
+  "AdminUserListItem",
+  "AdminUserPage",
+  "AdminUserStats",
   "AppLocale",
   "ApplicantProfile",
   "ApplicantStatus",
+  "AuditActionType",
   "CreatePlanInput",
   "Gender",
   "LoginPayload",
@@ -190,11 +212,12 @@ describe("Query._health — retyped probe surface", () => {
       expect(fieldNames).toContain(name);
     }
     // …and the ONLY additions beyond them are the probe plus the
-    // DEV1-013 student-handshake queries (myApplicantProfile already sits in
-    // the refreshed baseline).
+    // DEV1-013 student-handshake queries plus the DEV3-022c analytics read
+    // (myApplicantProfile already sits in the refreshed baseline).
     const additions = fieldNames.filter(name => !(PRE_3_1_QUERY_FIELDS as readonly string[]).includes(name));
     expect(additions.toSorted((a, b) => a.localeCompare(b))).toEqual([
       "_health",
+      "adminPlatformAnalytics",
       "findStudentByHandshakeCode",
       "myHandshakeCode",
     ]);
@@ -257,7 +280,7 @@ describe("HealthCheck object shape — four scalar fields, no id", () => {
 });
 
 describe("Surface freeze — pinned additions vs the baseline inventory", () => {
-  test("mutation set is EXACTLY the refreshed frozen baseline (ZERO new mutations beyond it)", () => {
+  test("mutation set is EXACTLY the D13-reconciled frozen baseline (zero unsanctioned mutations)", () => {
     const mutationFields = graphQLSchema.getMutationType()?.getFields() ?? {};
     const names = Object.keys(mutationFields).toSorted((a, b) => a.localeCompare(b));
 
@@ -274,14 +297,29 @@ describe("Surface freeze — pinned additions vs the baseline inventory", () => 
     expect(enumNames).toEqual([...PRE_3_1_ENUMS]);
   });
 
-  test("whole-schema named-type delta is pinned: DateTime scalar + HealthCheck probe + DEV1-013 handshake-code surface", () => {
+  test("whole-schema named-type delta is pinned: DateTime scalar + HealthCheck probe + DEV1-013 handshake surface + the DEV3-022c analytics family (11 types)", () => {
     const post = new Set(sdlTypeNames());
 
     for (const name of PRE_3_1_TYPE_NAMES) {
       expect(post.has(name)).toBe(true);
     }
     const additions = sdlTypeNames().filter(name => !(PRE_3_1_TYPE_NAMES as readonly string[]).includes(name));
-    expect(additions).toEqual(["DateTime", "HandshakeCodeLookup", "HealthCheck"]);
+    expect(additions).toEqual([
+      "DateTime",
+      "HandshakeCodeLookup",
+      "HealthCheck",
+      "PlatformAnalytics",
+      "PlatformAnalyticsCurrencyRevenue",
+      "PlatformAnalyticsHealth",
+      "PlatformAnalyticsRatings",
+      "PlatformAnalyticsRevenue",
+      "PlatformAnalyticsRevenueTrendPoint",
+      "PlatformAnalyticsSessions",
+      "PlatformAnalyticsSessionTrendPoint",
+      "PlatformAnalyticsSubscriptions",
+      "PlatformAnalyticsTeachers",
+      "PlatformAnalyticsUsers",
+    ]);
   });
 });
 
