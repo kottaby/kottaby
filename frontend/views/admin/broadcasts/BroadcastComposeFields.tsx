@@ -12,15 +12,15 @@
 import { FormControl, FormControlLabel, FormHelperText, FormLabel, Radio, RadioGroup, TextField } from "@mui/material";
 import type { ReactNode } from "react";
 import type { BroadcastAudienceType } from "@/frontend/graphql/generated/gql/graphql";
-import { RADIO_SX, AUDIENCE_ROW_SX } from "@/frontend/views/admin/broadcasts/broadcast-compose-skin";
 import {
-  TITLE_MAX_LENGTH,
   AUDIENCE_KINDS,
   audienceKindLabel,
-  isAudienceKind,
   type ComposeFieldErrors,
   type ComposeState,
+  isAudienceKind,
+  TITLE_MAX_LENGTH,
 } from "@/frontend/views/admin/broadcasts/broadcast-compose.helpers";
+import { AUDIENCE_ROW_SX, RADIO_SX } from "@/frontend/views/admin/broadcasts/broadcast-compose-skin";
 import type { AdminBroadcastsLabels } from "@/shared/locale/types/adminBroadcasts";
 
 interface BroadcastComposeFieldsProps {

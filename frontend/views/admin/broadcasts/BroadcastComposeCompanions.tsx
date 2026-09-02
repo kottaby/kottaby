@@ -12,18 +12,18 @@
 
 import { FormControl, InputLabel, MenuItem, Select, Skeleton, Stack, TextField, Typography } from "@mui/material";
 import type { ReactNode } from "react";
-import { BroadcastAudienceType, type AdminPlansQuery_adminPlans } from "@/frontend/graphql/generated/gql/graphql";
 import { focusVisibleRingSx } from "@/frontend/components/ui/focusRing";
-import { MENU_ITEM_SX } from "@/frontend/views/admin/broadcasts/broadcast-compose-skin";
+import { type AdminPlansQuery_adminPlans, BroadcastAudienceType } from "@/frontend/graphql/generated/gql/graphql";
 import {
   COUNTRY_MAX_LENGTH,
-  PLAN_SELECT_LABEL_ID,
-  ROLE_SELECT_LABEL_ID,
-  ROLE_OPTIONS,
-  isUserRoleValue,
-  roleOptionLabel,
   type ComposeState,
+  isUserRoleValue,
+  PLAN_SELECT_LABEL_ID,
+  ROLE_OPTIONS,
+  ROLE_SELECT_LABEL_ID,
+  roleOptionLabel,
 } from "@/frontend/views/admin/broadcasts/broadcast-compose.helpers";
+import { MENU_ITEM_SX } from "@/frontend/views/admin/broadcasts/broadcast-compose-skin";
 import { useAppTranslation } from "@/shared/locale/client";
 import { AdminUsers } from "@/shared/locale/namespaces/adminUsers";
 import { Common } from "@/shared/locale/namespaces/common";

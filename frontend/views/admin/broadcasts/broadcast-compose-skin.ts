@@ -7,7 +7,6 @@
  * physical margin/padding direction anywhere).
  */
 
-import type { CSSObject } from "@mui/material/styles";
 import { focusVisibleRingSx } from "@/frontend/components/ui/focusRing";
 
 /** Confirm/cancel/dismiss affordances: focus ring + ≥44px touch target. */

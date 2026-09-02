@@ -11,8 +11,8 @@
 
 import { Button, Dialog, DialogActions, DialogContent, DialogTitle, Typography } from "@mui/material";
 import type { ReactNode } from "react";
-import { ACTION_BUTTON_SX } from "@/frontend/views/admin/broadcasts/broadcast-compose-skin";
 import { CONFIRM_DIALOG_TITLE_ID } from "@/frontend/views/admin/broadcasts/broadcast-compose.helpers";
+import { ACTION_BUTTON_SX } from "@/frontend/views/admin/broadcasts/broadcast-compose-skin";
 import type { AdminBroadcastsLabels } from "@/shared/locale/types/adminBroadcasts";
 
 interface BroadcastComposeConfirmDialogProps {

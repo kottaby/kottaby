@@ -18,8 +18,8 @@ import type { ReactNode } from "react";
 import type { AdminPlansQuery_adminPlans, BroadcastAudienceType } from "@/frontend/graphql/generated/gql/graphql";
 import { BroadcastComposeCompanions } from "@/frontend/views/admin/broadcasts/BroadcastComposeCompanions";
 import { BroadcastComposeFields } from "@/frontend/views/admin/broadcasts/BroadcastComposeFields";
-import { ACTION_BUTTON_SX } from "@/frontend/views/admin/broadcasts/broadcast-compose-skin";
 import type { ComposeFieldErrors, ComposeState } from "@/frontend/views/admin/broadcasts/broadcast-compose.helpers";
+import { ACTION_BUTTON_SX } from "@/frontend/views/admin/broadcasts/broadcast-compose-skin";
 import type { AdminBroadcastsLabels } from "@/shared/locale/types/adminBroadcasts";
 
 interface BroadcastComposeFormProps {

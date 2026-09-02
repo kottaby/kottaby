@@ -25,10 +25,10 @@
  * Runs via the server-test runner:
  * `TEST_SERVER_MODE=production bun run test/scripts/run-server-tests.ts --e2e test/ui/e2e/admin-broadcasts.e2e.test.ts`
  */
-import { expect, test } from "bun:test";
+import { afterAll, beforeAll, expect, test } from "bun:test";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
-import { chromium, type Browser, type BrowserContext, type Page, type Request } from "playwright";
+import { type Browser, type BrowserContext, type Cookie, chromium, type Page, type Request } from "playwright";
 
 const PORT = process.env.TEST_SERVER_PORT ?? "3066";
 const BASE = `http://localhost:${PORT}`;
@@ -79,7 +79,7 @@ function trackMutations(page: Page, log: MutationRecord[]): void {
     try {
       variables = JSON.parse(body).variables ?? null;
     } catch {
-      variables = null;
+      // Malformed body carries no readable variables — the record keeps null.
     }
     log.push({
       idempotencyKey: request.headers()["x-idempotency-key"] ?? null,
@@ -97,6 +97,29 @@ function confirmButton(page: Page) {
   return page.getByRole("dialog").locator("button.MuiButton-contained");
 }
 
+/**
+ * Polls an observable probe until it equals the expected value or the timeout
+ * elapses — synchronization on an observable condition, never a fixed wait.
+ */
+function delay(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function pollUntil(probe: () => number, expected: number, deadline: number): Promise<void> {
+  if (probe() === expected) {
+    return;
+  }
+  if (Date.now() > deadline) {
+    throw new Error(`observable condition (${expected}) not met in time`);
+  }
+  await delay(100);
+  await pollUntil(probe, expected, deadline);
+}
+
+async function waitForCount(probe: () => number, expected: number, timeoutMs = 5000): Promise<void> {
+  return pollUntil(probe, expected, Date.now() + timeoutMs);
+}
+
 async function composeAndSend(page: Page, title: string, body: string): Promise<void> {
   await page.locator("form input").first().fill(title);
   await page.locator("form textarea").first().fill(body);
@@ -108,31 +131,46 @@ async function awaitSuccessToast(page: Page): Promise<void> {
   await page.locator(".MuiSnackbar-root .MuiAlert-success").waitFor({ state: "visible", timeout: 20000 });
 }
 
+/** True when a parsed GraphQL response carries a successful `login` payload. */
+function hasLoginData(value: unknown): boolean {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+  const data: unknown = Reflect.get(value, "data");
+  return typeof data === "object" && data !== null && Reflect.get(data, "login") != null;
+}
+
+async function attemptLogin(context: BrowserContext, passwords: readonly string[], index: number): Promise<void> {
+  if (index >= passwords.length) {
+    throw new Error("admin login failed for every documented credential");
+  }
+  const password = passwords[index] ?? "";
+  const response = await context.request.post(`${BASE}/api/graphql`, {
+    data: { query: LOGIN_MUTATION, variables: { email: "admin@app.local", password } },
+  });
+  const payload: unknown = await response.json();
+  if (hasLoginData(payload)) {
+    return;
+  }
+  await attemptLogin(context, passwords, index + 1);
+}
+
 /** Authenticated admin contexts share the login attempt matrix. */
 async function loginAdmin(context: BrowserContext): Promise<void> {
   const passwords = [process.env.ADMIN_PASSWORD, "adminpassword123", "Seed_Pass1!"].filter(
     (value): value is string => typeof value === "string"
   );
-  for (const password of passwords) {
-    const response = await context.request.post(`${BASE}/api/graphql`, {
-      data: { query: LOGIN_MUTATION, variables: { email: "admin@app.local", password } },
-    });
-    const payload = (await response.json()) as { data?: { login?: unknown } };
-    if (payload.data?.login) {
-      return;
-    }
-  }
-  throw new Error("admin login failed for every documented credential");
+  await attemptLogin(context, passwords, 0);
 }
 
 let browser: Browser;
 
-test.beforeAll(async () => {
+beforeAll(async () => {
   browser = await chromium.launch({ headless: true });
   mkdirSync(SHOT_DIR, { recursive: true });
 });
 
-test.afterAll(async () => {
+afterAll(async () => {
   await browser.close();
 });
 
@@ -144,15 +182,15 @@ test("admin broadcast compose surface — full interaction loop (en / LTR)", asy
   await loginAdmin(context);
 
   // ── Initial render ─────────────────────────────────────────────────────
-  await page.goto(`${BASE}/admin/broadcasts`, { wait_until: "domcontentloaded", timeout: 120000 });
+  await page.goto(`${BASE}/admin/broadcasts`, { waitUntil: "domcontentloaded", timeout: 120000 });
   await page.locator("form").first().waitFor({ state: "visible", timeout: 90000 });
   expect(await page.getByRole("radio").count()).toBe(4);
   await page.screenshot({ path: join(SHOT_DIR, "01-en-desktop-1440-initial.png") });
 
   // ── Empty title: inline validation, NO mutation ────────────────────────
   await submitButton(page).click();
-  await page.waitForTimeout(600);
-  expect(mutations.length).toBe(0);
+  await page.locator("form .MuiFormHelperText-root.Mui-error").first().waitFor({ state: "visible", timeout: 10000 });
+  expect(mutations).toHaveLength(0);
   await page.screenshot({ path: join(SHOT_DIR, "02-en-desktop-validation-empty-title.png") });
 
   // ── All-audience happy path ────────────────────────────────────────────
@@ -161,8 +199,8 @@ test("admin broadcast compose surface — full interaction loop (en / LTR)", asy
   await confirmButton(page).click();
   await awaitSuccessToast(page);
   await page.screenshot({ path: join(SHOT_DIR, "04-en-desktop-success-toast.png") });
-  await page.waitForTimeout(400);
-  expect(mutations.length).toBe(1);
+  await waitForCount(() => mutations.length, 1);
+  expect(mutations).toHaveLength(1);
   expect(mutations[0]?.idempotencyKey).not.toBeNull();
   expect(mutations[0]?.variables?.input?.audience?.type).toBe("ALL");
 
@@ -185,8 +223,8 @@ test("admin broadcast compose surface — full interaction loop (en / LTR)", asy
   await confirmButton(page).click();
   await awaitSuccessToast(page);
   await page.screenshot({ path: join(SHOT_DIR, "07-en-desktop-country-success.png") });
-  await page.waitForTimeout(400);
-  expect(mutations.length).toBe(2);
+  await waitForCount(() => mutations.length, 2);
+  expect(mutations).toHaveLength(2);
   expect(mutations[1]?.variables?.input?.audience?.type).toBe("COUNTRY");
   expect(mutations[1]?.idempotencyKey).not.toBe(mutations[0]?.idempotencyKey);
 
@@ -213,7 +251,7 @@ test("admin broadcast compose surface — full interaction loop (en / LTR)", asy
     // is refused at the UI boundary (expected).
   }
   await awaitSuccessToast(page);
-  await page.waitForTimeout(600);
+  await waitForCount(() => mutations.length - beforeDoubleClick, 1);
   expect(mutations.length - beforeDoubleClick).toBe(1);
 
   await context.close();
@@ -221,13 +259,13 @@ test("admin broadcast compose surface — full interaction loop (en / LTR)", asy
 
 test("admin broadcast compose surface — Arabic RTL pass", async () => {
   const context: BrowserContext = await browser.newContext({ viewport: { width: 1440, height: 900 } });
-  await context.add_cookies([{ name: "NEXT_LOCALE", value: "ar", url: BASE }]);
+  await context.addCookies([{ name: "NEXT_LOCALE", value: "ar", url: BASE }]);
   const page = await context.newPage();
   const mutations: MutationRecord[] = [];
   trackMutations(page, mutations);
   await loginAdmin(context);
 
-  await page.goto(`${BASE}/admin/broadcasts`, { wait_until: "domcontentloaded", timeout: 120000 });
+  await page.goto(`${BASE}/admin/broadcasts`, { waitUntil: "domcontentloaded", timeout: 120000 });
   await page.locator("form").first().waitFor({ state: "visible", timeout: 90000 });
   await page.screenshot({ path: join(SHOT_DIR, "10-ar-desktop-1440-initial-rtl.png") });
 
@@ -236,32 +274,39 @@ test("admin broadcast compose surface — Arabic RTL pass", async () => {
   await confirmButton(page).click();
   await awaitSuccessToast(page);
   await page.screenshot({ path: join(SHOT_DIR, "12-ar-desktop-success-toast-rtl.png") });
-  await page.waitForTimeout(400);
-  expect(mutations.length).toBe(1);
+  await waitForCount(() => mutations.length, 1);
+  expect(mutations).toHaveLength(1);
   expect(mutations[0]?.idempotencyKey).not.toBeNull();
 
   await context.close();
 });
 
+/** One responsive pass: initial render + inline validation at a viewport. */
+async function assertResponsiveComposeSurface(
+  cookies: Cookie[],
+  label: string,
+  width: number,
+  height: number
+): Promise<void> {
+  const context: BrowserContext = await browser.newContext({ viewport: { width, height } });
+  await context.addCookies(cookies);
+  const page = await context.newPage();
+  await page.goto(`${BASE}/admin/broadcasts`, { waitUntil: "domcontentloaded", timeout: 120000 });
+  await page.locator("form").first().waitFor({ state: "visible", timeout: 90000 });
+  await page.screenshot({ path: join(SHOT_DIR, `13-en-${label}-initial.png`) });
+  await submitButton(page).click();
+  await page.locator("form .MuiFormHelperText-root.Mui-error").first().waitFor({ state: "visible", timeout: 10000 });
+  await page.screenshot({ path: join(SHOT_DIR, `14-en-${label}-validation.png`) });
+  expect(await page.locator("form .MuiFormHelperText-root.Mui-error").count()).toBeGreaterThan(0);
+  await context.close();
+}
+
 test("admin broadcast compose surface — responsive viewports", async () => {
   const baseContext: BrowserContext = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   await loginAdmin(baseContext);
-  const cookies = await baseContext.cookies();
+  const cookies: Cookie[] = await baseContext.cookies();
   await baseContext.close();
 
-  for (const [label, width, height] of [
-    ["tablet-768", 768, 1024],
-    ["mobile-375", 375, 812],
-  ] as const) {
-    const context: BrowserContext = await browser.newContext({ viewport: { width, height } });
-    await context.addCookies(cookies);
-    const page = await context.newPage();
-    await page.goto(`${BASE}/admin/broadcasts`, { wait_until: "domcontentloaded", timeout: 120000 });
-    await page.locator("form").first().waitFor({ state: "visible", timeout: 90000 });
-    await page.screenshot({ path: join(SHOT_DIR, `13-en-${label}-initial.png`) });
-    await submitButton(page).click();
-    await page.waitForTimeout(600);
-    await page.screenshot({ path: join(SHOT_DIR, `14-en-${label}-validation.png`) });
-    await context.close();
-  }
+  await assertResponsiveComposeSurface(cookies, "tablet-768", 768, 1024);
+  await assertResponsiveComposeSurface(cookies, "mobile-375", 375, 812);
 });

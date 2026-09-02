@@ -252,7 +252,7 @@
   - _Requirements: REQ-070, REQ-071, REQ-072, REQ-073, REQ-075_
   - [x] 5.1.SR **Semantic Review:** every test through `run-test.ts`; no `.rejects.toThrow()`; no `runInRollback` in journey files; no real Redis/transport anywhere in tests.
 
-- [ ] 5.2 [Baseline gates & drift checks (REQ-076, REQ-044)]
+- [x] 5.2 [Baseline gates & drift checks (REQ-076, REQ-044)]
   - `tsgo` / `biome:check` / `lint` deltas vs the 0.1 baseline MUST be ZERO.
   - `git diff -- backend/db/schema/** backend/db/migration/**` MUST be empty; `git diff -- backend/lib/gateway/public-operations.ts` MUST be empty; non-admin blocks of `navItems.ts` byte-identical.
   - Every new/modified file passed `bun run scripts/health/sub-loop.ts <file> --lifecycle duplicates` exit 0 (re-run any stragglers).

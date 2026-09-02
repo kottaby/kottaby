@@ -58,17 +58,14 @@ export const BroadcastAudienceInput = gqlSchemaBuilder.inputType("BroadcastAudie
  * any kind — recipients derive exclusively from the audience selector
  * evaluated server-side.
  */
-export const AdminBroadcastNotificationInput = gqlSchemaBuilder.inputType(
-  "AdminBroadcastNotificationInput",
-  {
-    fields: t => ({
-      // Required announcement title (trim + length ceiling owned by the
-      // service boundary).
-      title: t.string({ required: true }),
-      // Optional body — nullable on the wire; stored verbatim when present.
-      body: t.string({ required: false }),
-      // Required audience selector.
-      audience: t.field({ type: BroadcastAudienceInput, required: true }),
-    }),
-  }
-);
+export const AdminBroadcastNotificationInput = gqlSchemaBuilder.inputType("AdminBroadcastNotificationInput", {
+  fields: t => ({
+    // Required announcement title (trim + length ceiling owned by the
+    // service boundary).
+    title: t.string({ required: true }),
+    // Optional body — nullable on the wire; stored verbatim when present.
+    body: t.string({ required: false }),
+    // Required audience selector.
+    audience: t.field({ type: BroadcastAudienceInput, required: true }),
+  }),
+});

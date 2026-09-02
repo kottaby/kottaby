@@ -18,11 +18,7 @@
  */
 
 import type { Dispatch, SetStateAction } from "react";
-import {
-  type BroadcastAudienceInput,
-  BroadcastAudienceType,
-  UserRole,
-} from "@/frontend/graphql/generated/gql/graphql";
+import { type BroadcastAudienceInput, BroadcastAudienceType, UserRole } from "@/frontend/graphql/generated/gql/graphql";
 import { applyProjectedFieldErrors, projectMutationFieldErrors } from "@/frontend/lib/mutationFieldErrors";
 import type { AdminBroadcastsLabels } from "@/shared/locale/types/adminBroadcasts";
 import type { AdminUsersLabels } from "@/shared/locale/types/adminUsers";

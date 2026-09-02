@@ -60,11 +60,11 @@ await import("@/test/ui/components/next-dynamic-mock");
 const { cleanup, fireEvent, screen, waitFor } = await import("@testing-library/react");
 const { renderWithWrapper } = await import("@/test/ui/components/TestWrapper");
 
+import { afterEach, describe, expect, test } from "bun:test";
 import { ApolloLink } from "@apollo/client";
 import { MockLink } from "@apollo/client/testing";
 import { MockedProvider } from "@apollo/client/testing/react";
 import type { RenderResult } from "@testing-library/react";
-import { afterEach, describe, expect, test } from "bun:test";
 import {
   type AdminPlansQuery,
   type AdminPlansQuery_adminPlans,
@@ -74,9 +74,9 @@ import {
 import { adminPlansQueryDocument } from "@/frontend/graphql/sharedDocuments/billing";
 import { adminBroadcastNotificationMutationDocument } from "@/frontend/graphql/sharedDocuments/notifications/broadcast.documents";
 import { BroadcastComposeContainer } from "@/frontend/views/admin/broadcasts/BroadcastComposeContainer";
+import type { AppLocale } from "@/shared/locale/AppLocale";
 import { arMessages } from "@/shared/locale/ar/messages";
 import { enMessages } from "@/shared/locale/en/messages";
-import type { AppLocale } from "@/shared/locale/AppLocale";
 import { AdminBroadcasts } from "@/shared/locale/namespaces/adminBroadcasts";
 import { AdminUsers } from "@/shared/locale/namespaces/adminUsers";
 import { Common } from "@/shared/locale/namespaces/common";
@@ -95,7 +95,6 @@ AdminBroadcasts.getLabels(arMessages);
 // ─── Locale-driven matchers ─────────────────────────────────────────────────
 
 const t = AdminBroadcasts.getLabels(getTranslations("en"));
-const tc = Common.getLabels(getTranslations("en"));
 const tu = AdminUsers.getLabels(getTranslations("en"));
 const te = Errors.getLabels(getTranslations("en"));
 const tar = AdminBroadcasts.getLabels(getTranslations("ar"));
@@ -132,7 +131,12 @@ function plansQueryData(plans: readonly PlanFixture[]): AdminPlansQuery {
 const COPY = { title: "Maintenance window", body: "Scheduled maintenance runs on Friday evening." } as const;
 
 /** The wire audience selector the component must produce for each branch. */
-const AUDIENCE_ALL: BroadcastAudienceInput = { type: BroadcastAudienceType.All, role: null, country: null, planId: null };
+const AUDIENCE_ALL: BroadcastAudienceInput = {
+  type: BroadcastAudienceType.All,
+  role: null,
+  country: null,
+  planId: null,
+};
 const AUDIENCE_COUNTRY: BroadcastAudienceInput = {
   type: BroadcastAudienceType.Country,
   role: null,
@@ -282,9 +286,11 @@ describe("BroadcastComposeContainer (en / LTR)", () => {
 
   test("empty-title submit shows the inline titleRequired copy and fires NO mutation", async () => {
     let mutationCount = 0;
-    renderCompose([], { onMutationSent: () => {
-      mutationCount += 1;
-    } });
+    renderCompose([], {
+      onMutationSent: () => {
+        mutationCount += 1;
+      },
+    });
 
     fireEvent.click(screen.getByRole("button", { name: t.sendAction }));
 
@@ -344,20 +350,22 @@ describe("BroadcastComposeContainer (en / LTR)", () => {
 
     await sendOnce();
     await sendOnce();
-    expect(sentKeys.length).toBe(2);
+    expect(sentKeys).toHaveLength(2);
     expect(sentKeys[0]).not.toBeNull();
     expect(sentKeys[1]).toBe(sentKeys[0]);
 
     await sendOnce();
-    expect(sentKeys.length).toBe(3);
+    expect(sentKeys).toHaveLength(3);
     expect(sentKeys[2]).not.toBe(sentKeys[0]);
   });
 
   test("double-click protection: the confirm affordance disables while sending so ONE mutation rides", async () => {
     let mutationCount = 0;
-    renderCompose([sendMock(expectedInput(AUDIENCE_ALL), 2, 120)], { onMutationSent: () => {
-      mutationCount += 1;
-    } });
+    renderCompose([sendMock(expectedInput(AUDIENCE_ALL), 2, 120)], {
+      onMutationSent: () => {
+        mutationCount += 1;
+      },
+    });
 
     fireEvent.change(screen.getByLabelText(t.titleLabel), { target: { value: COPY.title } });
     fireEvent.click(screen.getByRole("button", { name: t.sendAction }));
@@ -415,7 +423,7 @@ describe("BroadcastComposeContainer (ar / RTL)", () => {
     fireEvent.click(screen.getByRole("button", { name: tar.confirmAction }));
 
     await waitFor(() => expect(screen.getByText(tar.successToast(1))).toBeDefined());
-    expect(sentKeys.length).toBe(1);
+    expect(sentKeys).toHaveLength(1);
     expect(sentKeys[0]).not.toBeNull();
   });
 });

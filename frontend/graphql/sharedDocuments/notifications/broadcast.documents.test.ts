@@ -35,11 +35,11 @@
 import { describe, expect, test } from "bun:test";
 import type { TypedDocumentNode } from "@apollo/client";
 import {
-  print,
   type DocumentNode,
   type FieldNode,
   type NamedTypeNode,
   type OperationDefinitionNode,
+  print,
   type TypeNode,
 } from "graphql";
 import type {
