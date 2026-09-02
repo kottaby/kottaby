@@ -218,10 +218,10 @@
   - NO change to `namespaces/index.ts` (no new namespace registration).
   - Applicable instructions: `shared/AGENTS.md` (registration checklist); auto-discovered instruction files.
   - _Requirements: REQ-002, REQ-067_
-  - [ ] 4.1.QL **Quality Loop:** sub-loop on each touched locale/type/test file (exit 0).
-  - [ ] 4.1.TE **Test Engineering:** `bun run test/scripts/run-test.ts shared/locale` (parity suites green, new block pinned both locales).
-  - [ ] 4.1.SR **Semantic Review:** zero hardcoded strings destined for UI outside locale leaves; no near-duplicate action labels; flat `ErrorsLabels` discipline untouched (no error keys minted — REQ-051).
-  - [ ] 4.1.IV **Instruction Verification:** validate against `shared/AGENTS.md` + auto-discovered files.
+  - [x] 4.1.QL **Quality Loop:** sub-loop on each touched locale/type/test file (exit 0).
+  - [x] 4.1.TE **Test Engineering:** `bun run test/scripts/run-test.ts shared/locale` (parity suites green, new block pinned both locales).
+  - [x] 4.1.SR **Semantic Review:** zero hardcoded strings destined for UI outside locale leaves; no near-duplicate action labels; flat `ErrorsLabels` discipline untouched (no error keys minted — REQ-051).
+  - [x] 4.1.IV **Instruction Verification:** validate against `shared/AGENTS.md` + auto-discovered files.
   - Write `outcome/4.1-outcome.md`.
 
 - [x] **4.2 Frontend GraphQL documents + Apollo cache policy + contract tests**
@@ -233,10 +233,10 @@
   - UPDATE `frontend/graphql/AGENTS.md`: embedded-type list gains the `AdminAuditLogPage` row.
   - Applicable instructions: `frontend/graphql/AGENTS.md`, `.agents/instructions/frontend.instructions.md`.
   - _Requirements: REQ-063, REQ-074_
-  - [ ] 4.2.QL **Quality Loop:** sub-loop on each new/edited file (exit 0).
-  - [ ] 4.2.TE **Test Engineering:** `bun run test/scripts/run-test.ts frontend/graphql/sharedDocuments/admin/audit-trail.documents.test.ts`; `bun run test/scripts/run-test.ts frontend/providers/apollo/apolloCache.test.ts`.
-  - [ ] 4.2.SR **Semantic Review:** no bespoke error mapping (existing `mapGraphQLErrorByCode` seams only — REQ-054); generated types imported, never hand-written.
-  - [ ] 4.2.IV **Instruction Verification:** validate against `frontend/graphql/AGENTS.md` + auto-discovered files.
+  - [x] 4.2.QL **Quality Loop:** sub-loop on each new/edited file (exit 0).
+  - [x] 4.2.TE **Test Engineering:** `bun run test/scripts/run-test.ts frontend/graphql/sharedDocuments/admin/audit-trail.documents.test.ts`; `bun run test/scripts/run-test.ts frontend/providers/apollo/apolloCache.test.ts`.
+  - [x] 4.2.SR **Semantic Review:** no bespoke error mapping (existing `mapGraphQLErrorByCode` seams only — REQ-054); generated types imported, never hand-written.
+  - [x] 4.2.IV **Instruction Verification:** validate against `frontend/graphql/AGENTS.md` + auto-discovered files.
   - Write `outcome/4.2-outcome.md`.
 
 - [x] **4.3 Server-guarded route `app/(dashboard)/audit/page.tsx` (CREATE)**
@@ -245,10 +245,10 @@
   - Anonymous → `/login?redirect=/audit`; role mismatch → `roleDashboardPath(ctx.role)` (bare `/dashboard` FORBIDDEN). Zone locale via `getLocaleFromCookie()` (`shared/locale/server-cookies.ts:6-13`). Enum as VALUE import (`UserRole.Admin`).
   - Applicable instructions: `app/AGENTS.md`, `frontend/AGENTS.md`, `.agents/instructions/frontend.instructions.md`.
   - _Requirements: REQ-002, REQ-064, REQ-068_
-  - [ ] 4.3.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts app/(dashboard)/audit/page.tsx --lifecycle duplicates` (exit 0).
-  - [ ] 4.3.TE **Test Engineering:** covered by the 4.4 component suite (initialFilters wiring) + 4.5 nav/browser assertions (route reachability); add a server-component render smoke where the project's test harness supports it.
-  - [ ] 4.3.SR **Semantic Review:** server-only imports allowed here; zero `"use client"`; one-argument `getTranslations(locale)` with property access.
-  - [ ] 4.3.IV **Instruction Verification:** validate against `app/AGENTS.md` + auto-discovered files.
+  - [x] 4.3.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts app/(dashboard)/audit/page.tsx --lifecycle duplicates` (exit 0).
+  - [x] 4.3.TE **Test Engineering:** covered by the 4.4 component suite (initialFilters wiring) + 4.5 nav/browser assertions (route reachability); add a server-component render smoke where the project's test harness supports it.
+  - [x] 4.3.SR **Semantic Review:** server-only imports allowed here; zero `"use client"`; one-argument `getTranslations(locale)` with property access.
+  - [x] 4.3.IV **Instruction Verification:** validate against `app/AGENTS.md` + auto-discovered files.
   - Write `outcome/4.3-outcome.md`.
 
 - [x] **4.4 Implement `frontend/views/admin/audit/AuditTrailView.tsx` (CREATE — client container + full UI)**
@@ -275,9 +275,9 @@
   - UPDATE `frontend/views/dashboard/navItems.test.ts`: pin (a) admin nav CONTAINS `/audit` with `labelKey: "audit"`; (b) student/teacher/parent navs EXCLUDE `/audit`; keep the ownership-matrix test (:46-59) green (`audit` stays owned by `DashboardLabels`).
   - Run: `bun run test/scripts/run-test.ts frontend/views/dashboard/navItems.test.ts`.
   - _Requirements: REQ-065_
-  - [ ] 4.5.QL **Quality Loop:** sub-loop on `navItems.test.ts` (exit 0).
-  - [ ] 4.5.SR **Semantic Review:** no duplicate nav item; no label move; no bottom-nav assumptions (mobile = Drawer).
-  - [ ] 4.5.IV **Instruction Verification:** validate against auto-discovered files.
+  - [x] 4.5.QL **Quality Loop:** sub-loop on `navItems.test.ts` (exit 0).
+  - [x] 4.5.SR **Semantic Review:** no duplicate nav item; no label move; no bottom-nav assumptions (mobile = Drawer).
+  - [x] 4.5.IV **Instruction Verification:** validate against auto-discovered files.
   - Write `outcome/4.5-outcome.md`.
 
 ---
@@ -302,19 +302,19 @@
 
 ## Phase 6: Post-Implementation Review Waves (parallel)
 
-- [ ] **6.1 review-types wave**
+- [x] **6.1 review-types wave**
   - Verify: canonical types only in `backend/types/audit/audit-trail.types.ts`; repo-local row types are the documented DEV3-016-style exception; NO service-layer `.types.ts`; NO local types in Pothos files; barrel edits minimal; codegen types consumed, never handwritten.
   - _Requirements: REQ-003, REQ-061_ → `outcome/6.1-review-types-outcome.md`
 
-- [ ] **6.2 review-backend wave**
+- [x] **6.2 review-backend wave**
   - Verify: pipeline order REQ-053; D3 single-snapshot read; gate extraction byte-equivalence (DEV3-016 suites green); immutability triple (REQ-019/020) including which trigger branch executed; closed error set; D6 masked-internal branch; logging hygiene (REQ-035); `tx` propagation and `(tx ?? db)` discipline everywhere.
   - _Requirements: REQ-004, REQ-013..022, REQ-030..053, REQ-070..073_ → `outcome/6.2-review-backend-outcome.md`
 
-- [ ] **6.3 review-frontend wave**
+- [x] **6.3 review-frontend wave**
   - Verify: server guard + `roleDashboardPath` redirects; documents/cache/contract pins; MUI v9 discipline (sx-only, palette tokens, RTL logical props, `*Outlined`); translation-handle usage; reuse-not-fork (`formatApplicantDate`, `activity.action*` labels, error seams); zero-change nav retarget; BF/BS screenshot evidence reviewed.
   - _Requirements: REQ-054, REQ-063..069, REQ-074_ → `outcome/6.3-review-frontend-outcome.md`
 
-- [ ] **6.4 pentester wave + deferred-items ledger check**
+- [x] **6.4 pentester wave + deferred-items ledger check**
   - Attack review: BFLA dual-gate (wire + service), BOPLA smuggle probes, BOLA posture (filters-are-not-authorization, REQ-031), injection surface absence (no LIKE), error-disclosure masking, governance-window honesty (REQ-033 claims no more than documented), immutability attack paths (direct SQL excluded only by DB trigger — environment gap honestly recorded), log-hygiene PII scan.
   - Deferred ledger: `grep -c "❌\|⚠️" ai/plans/sprint_3/dev3-020-immutable-audit-logging-for-all-admin-ac/deferred-items.md` MUST equal `0`; all six pre-registered ✅-reference entries intact; any task-encountered gaps either resolved or appended with owner + status.
   - _Requirements: REQ-030..037, REQ-050..052, REQ-082_ → `outcome/6.4-pentester-outcome.md`
@@ -336,7 +336,7 @@
   - NO edits to `test/workflows/AGENTS.md` unless the journey revealed a real convention gap (record decision).
   - _Requirements: REQ-081_ → `outcome/7.2-outcome.md`
 
-- [ ] **7.3 Final gate & outcome synthesis (REQ-076, REQ-082, REQ-083)**
+- [x] **7.3 Final gate & outcome synthesis (REQ-076, REQ-082, REQ-083)**
   - Final re-verification: tsgo/oxlint/biome/lint = baseline + 0; all suites green through sanctioned runners; `git diff backend/db/schema/**` empty; `grep -c "❌\|⚠️" ai/plans/sprint_3/dev3-020-immutable-audit-logging-for-all-admin-ac/deferred-items.md` = 0.
   - `outcome/plan-review-R1.md` (Phase 1.5 `@plan-review` on specs + plan + tasks) MUST exist with zero violations — verify presence before closing; if implementation ran ahead, halt and complete it now.
   - Write `ai/plans/sprint_3/dev3-020-immutable-audit-logging-for-all-admin-ac/outcome/final-synthesis-outcome.md`: REQ coverage ledger (REQ-001..REQ-083 → task → test anchor), J-AUD-01..05 evidence, trigger-tier branch honestly recorded, baseline-delta table, screenshot evidence references, remaining risk register (should be empty).
