@@ -378,7 +378,13 @@ for (const locale of ["ar", "en"] as AppLocale[]) {
       // Found + linkable surface: title, masked confirmation, can-link copy.
       const resultCard = await screen.findByTestId("handshake-discovery-result");
       expect(screen.getByText(t.foundTitle)).toBeDefined();
-      expect(screen.getByText(MASKED_STUDENT_NAME)).toBeDefined();
+      // Bidi isolation pin (D8 browser-QA note): the masked-name element
+      // carries `dir="auto"` — first-strong resolution (Latin masks → LTR,
+      // Arabic masks → RTL) + neutral isolation from the RTL shell, so the
+      // `D*** S***` asterisks cannot bidi-reorder (the OutgoingLinkRequestCard
+      // precedent). HTML `dir=auto` implies unicode-bidi: isolate.
+      const maskedNameEl = screen.getByText(MASKED_STUDENT_NAME);
+      expect(maskedNameEl.getAttribute("dir")).toBe("auto");
       expect(screen.getByText(t.canLinkDescription)).toBeDefined();
 
       // D1 — no CTA INSIDE the result card. The DEV1-014 send affordance is
@@ -463,7 +469,8 @@ for (const locale of ["ar", "en"] as AppLocale[]) {
       const resultCard = await screen.findByTestId("handshake-discovery-result");
       expect(screen.getByText(t.alreadyLinkedTitle)).toBeDefined();
       expect(screen.getByText(t.alreadyLinkedDescription)).toBeDefined();
-      expect(screen.getByText(MASKED_STUDENT_NAME)).toBeDefined();
+      // Same bidi-isolation pin on the already-linked branch (same card).
+      expect(screen.getByText(MASKED_STUDENT_NAME).getAttribute("dir")).toBe("auto");
       // `linkable`-driven copy: the can-link branch must NOT render.
       expect(screen.queryByText(t.canLinkDescription)).toBeNull();
       // The DEV1-014 send affordance exists ONLY on a linkable result.
@@ -564,7 +571,8 @@ for (const locale of ["ar", "en"] as AppLocale[]) {
 
       // The retry re-queried: the masked card replaces the stale error.
       const resultCard = await screen.findByTestId("handshake-discovery-result");
-      expect(screen.getByText(MASKED_STUDENT_NAME)).toBeDefined();
+      // Same bidi-isolation pin on the retry-recovery branch (same card).
+      expect(screen.getByText(MASKED_STUDENT_NAME).getAttribute("dir")).toBe("auto");
       expect(screen.queryByText(te.internalServerError)).toBeNull();
       // Minimal disclosure holds on the recovered branch too.
       expect(resultCard.textContent?.includes(RAW_STUDENT_NAME)).toBe(false);
