@@ -302,20 +302,20 @@ Every task in this file is executed under ALL of the following rules, without ex
   - [x] 4.2.IV **Instruction Verification**: validate against `frontend/graphql/AGENTS.md` embedded-type policy.
   - [x] 4.2.OUT Write outcome.
 
-- [ ] 4.3 [Server-guarded page — CREATE `app/(dashboard)/admin/analytics/page.tsx`]
+- [x] 4.3 [Server-guarded page — CREATE `app/(dashboard)/admin/analytics/page.tsx`]
   - Files to create:
     - CREATE `app/(dashboard)/admin/analytics/page.tsx` (analytics subdirectory net-new — D12). Server Component wrapped by `withPageAuth({ roles: [UserRole.Admin], redirectTo: "/admin/analytics" })` (signature anchored at `frontend/lib/auth/withPageAuth.ts:34-47`); wrong-role fallback rides `roleDashboardPath(ctx.role)` (`frontend/lib/auth/roleDashboardRoute.ts:52-65` — bare `/dashboard` NEVER a target). `generateMetadata` resolves `getTranslations(locale).analyticsTranslations.metaTitle` / `.metaDescription` with locale from `getLocaleFromCookie()` (`shared/locale/server-cookies.ts:6-13`) — ONE-argument `getTranslations`, property access (REQ-003). Renders `<PlatformAnalyticsContainer />` only (server shell — zero data fetching on the server for this surface; the snapshot comes from the client query per REQ-062 discipline).
   - Applicable instructions: `app/AGENTS.md` (if discovered for this path), `frontend/AGENTS.md`, `.agents/instructions/frontend.instructions.md`.
   - _Requirements: REQ-003, REQ-063_
   - [x] 4.3.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts "app/(dashboard)/admin/analytics/page.tsx" --lifecycle duplicates` (exit 0).
-  - [ ] 4.3.TE **Unit / Component Tests**: route-level guard behavior covered by the agent-browser functional loop (wrong-role redirect, anonymous redirect) + `bun tsgo` metadata typing; if an in-bundle server-component guard test pattern exists, mirror it — otherwise covered at 4.4/4.5 tiers and recorded in the outcome.
-  - [ ] 4.3.BF **Agent-Browser Functional Self-Loop**: as anonymous → `/admin/analytics` redirects to `/login`; as teacher/student/parent → redirected to `roleDashboardPath(role)` (NEVER `/dashboard`); as admin → page renders the container shell. Iterate patches until clean.
-  - [ ] 4.3.BS **Agent-Browser Visual & Styling Self-Loop**: capture Desktop 1440×900 / Tablet 768×1024 / Mobile 375×812 in `en` (LTR) and `ar` (RTL) — verify page shell composition within the dashboard layout, RTL mirroring of the shell, metadata-driven title rendering; patch and re-capture until clean (deep visual pass lives in 4.4.BS).
+  - [x] 4.3.TE **Unit / Component Tests**: route-level guard behavior covered by the agent-browser functional loop (wrong-role redirect, anonymous redirect) + `bun tsgo` metadata typing; if an in-bundle server-component guard test pattern exists, mirror it — otherwise covered at 4.4/4.5 tiers and recorded in the outcome.
+  - [x] 4.3.BF **Agent-Browser Functional Self-Loop**: as anonymous → `/admin/analytics` redirects to `/login`; as teacher/student/parent → redirected to `roleDashboardPath(role)` (NEVER `/dashboard`); as admin → page renders the container shell. Iterate patches until clean.
+  - [x] 4.3.BS **Agent-Browser Visual & Styling Self-Loop**: capture Desktop 1440×900 / Tablet 768×1024 / Mobile 375×812 in `en` (LTR) and `ar` (RTL) — verify page shell composition within the dashboard layout, RTL mirroring of the shell, metadata-driven title rendering; patch and re-capture until clean (deep visual pass lives in 4.4.BS).
   - [x] 4.3.SR **Semantic Review**: no client boundary on the page file; no hardcoded strings (metadata fully i18n); server-only imports on the server path.
   - [x] 4.3.IV **Instruction Verification**: validate against `.agents/instructions/frontend.instructions.md` + discovered AGENTS.md.
-  - [ ] 4.3.OUT Write outcome.
+  - [x] 4.3.OUT Write outcome.
 
-- [ ] 4.4 [Dashboard container — CREATE `frontend/views/admin/analytics/PlatformAnalyticsContainer.tsx`]
+- [x] 4.4 [Dashboard container — CREATE `frontend/views/admin/analytics/PlatformAnalyticsContainer.tsx`]
   - Files to create:
     - CREATE `frontend/views/admin/analytics/PlatformAnalyticsContainer.tsx` (`"use client"`; directory net-new — D12) with any internal sub-components split into the same folder (e.g. `MetricCard`, `SectionCard`, `SessionTrendChart`, `RevenueTrendChart`) — sub-component decomposition choice recorded in the outcome.
     - Data: `useQuery(adminPlatformAnalyticsQueryDocument, { pollInterval: 120_000, notifyOnNetworkStatusChange: true })` — NO `useLazyQuery`; manual Refresh button triggers `refetch()`; in-flight refresh keeps STALE data on screen with a spinner + `refreshingLabel` chip.
@@ -326,20 +326,20 @@ Every task in this file is executed under ALL of the following rules, without ex
   - _Requirements: REQ-053, REQ-062, REQ-064, REQ-067, REQ-075_
   - [x] 4.4.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts` over every created view file (exit 0).
   - [x] 4.4.TE **Unit / Component Tests**: CREATE `test/ui/components/admin/PlatformAnalyticsContainer.test.tsx` (directory net-new) — Happy DOM + Apollo `MockedProvider`: loading → skeleton; populated → every section renders with labels resolved via the component-test translation preload conventions (`test/ui/AGENTS.md` — assertions keyed on LABELS, never hardcoded strings); error → inline alert + retry; `FORBIDDEN` mock → denied notice; refreshing state → stale data retained + busy indicator; honest-null ratings render `—`; empty revenue renders `noRevenueYet`; mocked `recharts` per existing test-config posture. Run: `bun run test/scripts/run-test.ts test/ui/components/admin/PlatformAnalyticsContainer.test.tsx`.
-  - [ ] 4.4.BF **Agent-Browser Functional Self-Loop**:
+  - [x] 4.4.BF **Agent-Browser Functional Self-Loop**:
     • Launch dev server; connect via agent-browser (Playwright); seed/verify admin session against fixture data.
     • Navigate `/admin/analytics`: verify initial skeleton → populated transition; every section shows figures consistent with the DB state; Refresh button issues a new network request and updates `lastUpdated*`; verify polling fires (`pollInterval` observable over a shortened wait or by clock control); verify a payment committed between polls appears after the next refresh/poll (freshness parity with Journey C at the wire rendering tier).
     • Verify error CTA retry behavior (simulated transport failure) and denied notice (governed-admin session fixture).
     • Iterative self-loop: any broken interaction/validation → patch → re-run until clean.
-  - [ ] 4.4.BS **Agent-Browser Visual & Styling Self-Loop (Screenshot Analysis)**:
+  - [x] 4.4.BS **Agent-Browser Visual & Styling Self-Loop (Screenshot Analysis)**:
     • Capture high-resolution screenshots at Desktop 1440×900, Tablet 768×1024, Mobile 375×812 in BOTH `en` (LTR) and `ar` (RTL) — delegate screenshot inspection to a short-lived visual-inspection subagent per `test/ui/AGENTS.md` context-isolation rule (no `ReadMediaFile` in the orchestrator context).
     • Inspect for: MUI v9 theme palette compliance (no hardcoded hex/rgb — check via computed styles), card grid breakpoint behavior (4-col → 2-col → 1-col), typography hierarchy, spacing rhythm, text truncation/overflow (Arabic long labels), RTL mirroring (chart axes, card alignment, icons), chart legibility + non-zero min-height, skeleton shapes matching final layout (no layout shift), 44px touch targets, dark/light contrast if theme modes exist in-app.
     • Iterative self-loop: identify defect → patch `sx` tokens → re-capture → repeat until visually polished in ALL viewport × locale combos.
   - [x] 4.4.SR **Semantic Review**: zero direct style props; zero hardcoded colors/strings; `useAppTranslation(Analytics)` handle usage (never strings/`Translation` enum); no `useLazyQuery`; no `FormEvent`; no `toISOString()` hand-formatting where the i18n date helper exists; no console.* (`@/frontend/lib/logger` only — and never for happy-path render).
   - [x] 4.4.IV **Instruction Verification**: validate against `.agents/instructions/frontend.instructions.md` + `frontend/graphql/AGENTS.md` embedded-type consumption rules.
-  - [ ] 4.4.OUT Write outcome.
+  - [x] 4.4.OUT Write outcome.
 
-- [ ] 4.5 [Frontend integration sweeps — locale/nav/cache/docs graph green sweep]
+- [x] 4.5 [Frontend integration sweeps — locale/nav/cache/docs graph green sweep]
   - Run in one sweep and confirm ALL green: `bun run test/scripts/run-test.ts shared/locale/analytics-namespace.parity.test.ts`, `bun run test/scripts/run-test.ts frontend/views/dashboard/navItems.test.ts`, `bun run test/scripts/run-test.ts frontend/providers/apollo/apolloCache.test.ts`, `bun run test/scripts/run-test.ts frontend/graphql/sharedDocuments/admin/platform-analytics.documents.test.ts`, plus the broader pinned suites the ticket touched (`frontend/providers/apollo` directory suite if it exists).
   - Verify the nav item renders for admin sessions in the sidebar (agent-browser spot check during 4.4.BS is acceptable — record evidence) and is ABSENT for non-admin roles.
   - _Requirements: REQ-062, REQ-065, REQ-066, REQ-075_
@@ -348,7 +348,7 @@ Every task in this file is executed under ALL of the following rules, without ex
   - [x] 4.5.SEC **Security & Tenancy Audit**: nav role-filtration proven (admin-only visibility).
   - [x] 4.5.SR **Semantic Review**: single navigation entry; exactly-one-bundle ownership of the `analytics` dashboard label.
   - [x] 4.5.IV **Instruction Verification**: `.agents/instructions/frontend.instructions.md`.
-  - [ ] 4.5.OUT Write outcome.
+  - [x] 4.5.OUT Write outcome.
 
 ---
 

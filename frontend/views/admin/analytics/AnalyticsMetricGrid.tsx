@@ -118,11 +118,10 @@ function RevenueRows({ snapshot }: { readonly snapshot: Snapshot }): ReactElemen
   return (
     <Box sx={{ marginBlockEnd: 1 }}>
       {rows.map(row => (
-        <MetricRow
-          key={row.currency}
-          label={`${row.currency} · ${t.totalAmountHeader}`}
-          value={`${row.totalAmount} (${row.last30DaysAmount})`}
-        />
+        <Box key={row.currency} sx={{ marginBlockEnd: 1 }}>
+          <MetricRow label={`${row.currency} · ${t.totalAmountHeader}`} value={row.totalAmount} />
+          <MetricRow label={`${row.currency} · ${t.last30DaysAmountHeader}`} value={row.last30DaysAmount} />
+        </Box>
       ))}
       <MetricRow label={t.paidPaymentsCountHeader} value={rows.reduce((sum, row) => sum + row.paidPaymentsCount, 0)} />
     </Box>
