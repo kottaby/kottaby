@@ -140,7 +140,7 @@ export function useAdminUsersDirectory() {
     pageSize,
   };
 
-  const { data, loading, error } = useQuery(adminUsersQueryDocument, {
+  const { data, loading, error, refetch } = useQuery(adminUsersQueryDocument, {
     variables,
     fetchPolicy: "cache-and-network",
   });
@@ -148,8 +148,24 @@ export function useAdminUsersDirectory() {
 
   const items = data?.adminUsers.items ?? [];
   const totalCount = data?.adminUsers.totalCount ?? 0;
+  // The error alert must key on query failure itself, not on
+  // `firstErrorCode`: a plain transport failure (raw `Error` with no
+  // `extensions.code` / no `code`) extracts to `null`, which previously made
+  // the error branch unreachable and let the empty state render instead.
+  const hasError = Boolean(error);
   const firstErrorCode = error ? extractErrorCode(error) : null;
   const hasFilters = roleFilter !== "" || governanceFilter !== "" || countryFilter !== "" || searchDebounced !== "";
 
-  return { ...filters, ...pageAndDialogs, ...mutations, items, totalCount, loading, firstErrorCode, hasFilters };
+  return {
+    ...filters,
+    ...pageAndDialogs,
+    ...mutations,
+    items,
+    totalCount,
+    loading,
+    hasError,
+    firstErrorCode,
+    refetch,
+    hasFilters,
+  };
 }

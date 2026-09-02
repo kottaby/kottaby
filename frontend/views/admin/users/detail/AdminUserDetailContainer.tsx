@@ -96,6 +96,7 @@ export function AdminUserDetailContainer({ labels, userId }: AdminUserDetailCont
         formatRelative={detail.fmtRelative}
         onEdit={detail.openEdit}
         onDelete={detail.openDelete}
+        onCertify={() => detail.setCertifyTarget({ id: user.id, fullName: user.fullName, email: user.email })}
       />
 
       <Box

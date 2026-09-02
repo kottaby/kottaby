@@ -122,6 +122,15 @@ export const adminUsersEn: AdminUsersLabels = {
     confirm: "Reactivate user",
     cancel: "Cancel",
   },
+  certifyDialog: {
+    title: "Certify teacher",
+    warningMessage: name =>
+      `Certifying ${name} bypasses the evaluation pipeline and grants teacher access immediately.`,
+    evaluatorCheckbox: "Also grant evaluator privileges",
+    auditNote: "This action is recorded in the audit log.",
+    confirm: "Certify teacher",
+    cancel: "Cancel",
+  },
   detail: {
     profile: "Profile",
     governance: "Governance",
@@ -204,6 +213,7 @@ export const adminUsersEn: AdminUsersLabels = {
     updated: "User updated.",
     deleted: "User deleted.",
     reactivated: "User reactivated.",
+    certified: "Teacher certified.",
   },
   activity: {
     title: "Recent activity",

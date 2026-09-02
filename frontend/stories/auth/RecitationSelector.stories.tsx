@@ -11,6 +11,13 @@ const meta = {
     layout: "padded",
   },
   tags: ["autodocs"],
+  args: {
+    value: "",
+    onChange: () => {},
+    labels: recitationAr,
+    options: Object.values(RecitationReading),
+    loading: false,
+  },
   argTypes: {
     value: {
       control: "select",

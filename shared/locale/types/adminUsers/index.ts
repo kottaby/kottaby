@@ -276,6 +276,31 @@ export interface AdminUsersLabels {
     readonly cancel: string;
   };
 
+  /**
+   * Certify-teacher (cold-start) confirm dialog copy — the guarded admin
+   * bypass that grants teacher access immediately, skipping the evaluation
+   * pipeline (`adminCertifyTeacherColdStart`).
+   */
+  readonly certifyDialog: {
+    /** Dialog title; the hero action button reuses it. */
+    readonly title: string;
+    /**
+     * Warning banner naming the target user and stating that certification
+     * bypasses the evaluation pipeline and grants teacher access
+     * immediately — interpolation function (typed template; the component
+     * passes the verbatim full name).
+     */
+    readonly warningMessage: (name: string) => string;
+    /** Checkbox label for the optional evaluator grant (pre-checked, default on). */
+    readonly evaluatorCheckbox: string;
+    /** Muted footnote — the certification is recorded in the audit log. */
+    readonly auditNote: string;
+    /** Confirm button label for the certify dialog. */
+    readonly confirm: string;
+    /** Cancel button label for the certify dialog. */
+    readonly cancel: string;
+  };
+
   /** Detail page section headings and navigation affordances. */
   readonly detail: {
     /** Section heading for the profile card (full name, email, phone, etc.). */
@@ -412,6 +437,8 @@ export interface AdminUsersLabels {
     readonly deleted: string;
     /** Snackbar copy rendered after a successful reactivation. */
     readonly reactivated: string;
+    /** Snackbar copy rendered after a successful cold-start teacher certification. */
+    readonly certified: string;
   };
 
   /**

@@ -410,13 +410,62 @@ After reading the applicable instruction files and AGENTS.md, subagents check fo
 
 ## Important References
 
+- `frontend/COMPONENT_PATTERNS.md` - Dashboard UI patterns
+- `frontend/IMPLEMENTATION_LEARNINGS.md` - Error resolutions from past mistakes
+- `frontend/NEW_PAGE_WORKFLOW.md` - Required workflow for new pages
+- `frontend/THEME_PALETTE.md` - Color tokens and access patterns
 - `docs/IDEMPOTENCY.md` - Idempotency patterns
 - `docs/notifications/realtime-engine.md` - Real-time notification engine (WebSocket): persist-first/push-second, single-writer emit contract, sidecar topology, fail-open idempotency deviation
 - `docs/drizzle/prepared-statements.md` - Drizzle Prepared Statements 2.0 pattern reference
 - `docs/drizzle/neon-http-client.md` - Neon HTTP Client & Provider-Agnostic Stateless Queries reference
 - `docs/graphql/dataloader-batching.md` - Pothos DataLoader batching pattern reference
 - `docs/services/entity-cache-service.md` - Entity Cache Service pattern reference
-`escapeLikeWildcards` mandate, guarded soft-delete/reactivate pattern, role-child projection rules, audit-emission contract — writer-side, in-tx, denials write ZERO audit rows — JR-C-1, self-protection rule, 
+- `docs/services/meeting-providers.md` - Meeting provider adapter/factory pattern reference (auto URL generation) *(doc file absent from this tree — pending the meeting-services ticket; see `ai/plans/dev3-002-shared-error-handling-response-contracts/deferred-items.md` BLT-03)*
+- `docs/services/zoom-token-types.md` - Zoom token kinds (SDK JWT, OBF, ZAK, S2S OAuth, per-user OAuth) semantics and constraints
+- `docs/services/whatsapp-cloud-api.md` - WhatsApp Cloud API integration reference (adapter, factory, webhook, dispatch, schema, opt-in, frontend) *(doc file absent from this tree — pending the WhatsApp-integration ticket; see `ai/plans/dev3-002-shared-error-handling-response-contracts/deferred-items.md` BLT-03)*
+- `docs/services/general-user-creation.md` - General user creation pattern (createUserOfType null extension, specialized group filtering, cache eviction)
+- `docs/billing/quota-system.md` - Quota System: append-only ledger, FIFO selection, periodic rollover, on-demand scheduling integration
+- `.github/CODE_REVIEW_CHECKLIST.md` - Code review guidelines
+- `docs/services/cron-service.md` - Cron service pattern reference
+- `docs/frontend/ui-shared-scaffold-pattern.md` - UI Shared Scaffold (*Shared.tsx) pattern for common/desktop/mobile triplication
+- `docs/frontend/duplication-elimination-patterns.md` - Duplication elimination patterns A-G (scaffold extraction, shared utility, dead code deletion, store consolidation, scaffold extension, shared view scaffold, locale type consolidation) — Phase 6 eliminated 96% of duplications (475→18 pairs) with zero jscpd:ignore
+- `docs/frontend/meeting-integrations-ui.md` - Meeting Integrations UI canonical reference (MetricCardGrid, AppDataGrid, OAuth callback, reconnect-all, status badges, clipboard, i18n namespaces, mobile-desktop responsive, Zod schema factory, animations, permission-gated cross-links, lint workarounds, accessibility)
+- `docs/frontend/whatsapp-ui-patterns.md` - WhatsApp UI canonical reference (ViewModel composable hooks, URL-synced tabs, dialog state, per-row loading, i18n label helpers, StatusBadge, animations, accessibility, testing patterns, gotchas)
+- `docs/frontend/quota-ui-patterns.md` - Quota UI canonical reference (tier isolation, RHF 3-generic pattern, cache.updateQuery for paginated lists, StatusBadge categories, MetricCard animations, reduced-motion CSS in sx, Storybook ErrorState naming, component test tier-view mocking, i18n CLDR plurals, 150-line file limit, QuotaFormAccessProvider RBAC)
+- `docs/testing/shared-test-runner.md` - Shared parallel test runner pattern
+- `docs/backend/shared-types-pattern.md` - Cross-layer shared types in shared/types/
+- `docs/backend/meeting-adapter-base.md` - Meeting provider adapter base class pattern reference
+- `docs/backend/billing-repo-factory.md` - Billing repo factory with configurable hooks pattern reference
+- `docs/backend/schema-helpers.md` - Schema column and junction table helpers pattern reference
+- `docs/app/with-page-auth.md` - App router page auth wrapper pattern reference
+- `docs/testing/mock-navigation-helpers.md` - Test mock navigation helpers pattern reference
+- `docs/auth/manager-role-mapping.md` - Manager role mapping architecture & permission group slug convention
+- `docs/i18n/locale-namespace-migration.md` - Locale namespace migration from monolithic to sub-module directories
+- `docs/auth/permission-architecture.md` - Client-side permission architecture (3-tier model, wrapper removal rationale)
+- `docs/auth/supervisor-permissions.md` - Supervisor permission model (teacher/student/parent management, staff exclusion, system group editing, authScope pattern)
+- `docs/i18n/cross-layer-enum-migration.md` - Cross-layer enum delete/codemod pattern (currency/timezone/class-instance-detail workflow)
+- `docs/backend/service-base-pattern.md` - Service base class, shared resolvers, insert payload builders, auth session helpers
+- `docs/backend/types-consolidation.md` - Types consolidation: moving `.types.ts` from service layer to `backend/types/`, split rules, barrel conventions
+- `docs/graphql/pothos-field-factories.md` - Pothos field helpers, input field helpers, and query field factory idioms
+- `docs/architecture/import-export-conventions.md` - Import/export barrel conventions, `export *` rules, collision registry, re-export elimination summary
+- `docs/quality/linting-rules.md` - Oxlint & ESLint/sonarjs lint rule fix recipes and config overrides
+- `docs/quality/ci-pipeline.md` - CI pipeline canonical reference (.github/workflows/ci.yml trigger model, job/stage topology, caching rules, security posture, branch-protection admin setup, local reproduction commands, sabotage evidence)
+- `docs/workflows/plan-doc-reconciliation.md` - Plan-vs-canonical-doc reconciliation workflow (docs-only plan pattern, anchor-on-text, outcome-pointer rule, known-open-issues propagation, phantom-spec-code handling, markdown link-integrity loop)
+- `docs/backend/serverless-cold-start-optimization.md` - Serverless cold-start optimization patterns (permission context, env-config pre-warm, singleton persistence, HTTP batching, client log batching)
+- `docs/backend/login-cold-start-resilience.md` - Login cold-start resilience patterns (fail-open rate limiter, retryTransient on DB reads, frontend retry on SERVICE_UNAVAILABLE, env-config transient short TTL) *(doc file absent from this tree — rule text lives in `backend/graphql/AGENTS.md` §Serverless Cold-Start Optimization; `SERVICE_UNAVAILABLE` transport semantics in `docs/graphql/error-handling-contract.md`; see dev3-002 BLT-03)*
+- `docs/graphql/error-handling-contract.md` — Shared error handling & response contract: REQ-010 code↔HTTP taxonomy + legacy alias normalization, masking/redaction pipeline & correlation bounds, API envelope shapes `{data,requestId}` / `{error:{…}}` with exemptions register, REQ-061 client mapping table, and the per-guarantee test-suite matrix
+- `docs/graphql/domain-error-extensions-code.md` - DomainError → GraphQLError extensions.code propagation pattern
+- `docs/observability/new-relic-integration.md` - New Relic APM integration (Hybrid Agent, GraphQL resolver tracing, zero dev/test overhead)
+- `docs/auth/user-registration.md` — User registration canonical reference (role→child mapping, handshake generation, atomicity pattern, BOPLA/BFLA defenses, 23505→ConflictError translation, JWT auth flow)
+- `docs/auth/qiraah-selection-and-c5.md` — Qira'ah selection and the C.5 invariant (canonical RecitationReading catalog, public recitationReadings query, registration preferredRecitation contract, deferred persistence, security rules)
+- `docs/auth/jwt-authentication-service.md` — JWT authentication service canonical reference (token claims contract, cookie matrix, redirect-loop fix, authScopes, SSR auth, page guards, role-based dashboards, DEV2-002 RBAC consumption guide)
+- `docs/backend/cross-stream-contracts.md` — Cross-stream contract types canonical reference (DEV2-003: 6 contracts, composition-only rule, forbidden-field registry, consumer-ticket wiring, change governance)
+- `docs/graphql/api-gateway-and-routing.md` — API gateway & routing canonical reference (dev3-003: seven-step request pipeline in `app/api/graphql/route.ts`, transport-failure matrix + `MAX_GRAPHQL_BODY_BYTES`, default-deny public-operation allowlist gate, the two sanctioned health probes, ROUTE_INVENTORY registration rule (A4), REQ-018 operation-registration contract)
+- `docs/teachers/applicant-lifecycle.md` — Teacher applicant lifecycle canonical reference (DEV2-004: `applicants` state machine REQ-013, cooldown/attempt contracts REQ-014/015/016, zero-arg `myApplicantProfile` query contract REQ-017, INV-TV1..TV7 + B.6/B.7 anchoring, consumer guidance for DEV2-005..010/DEV3-019)
+- `docs/admin/user-management.md` — Admin user-management canonical reference (DEV3-016: directory/filter/search contract incl. `escapeLikeWildcards` mandate, guarded soft-delete/reactivate pattern, role-child projection rules, audit-emission contract — writer-side, in-tx, denials write ZERO audit rows — JR-C-1, self-protection rule, `USER_NOT_FOUND` oracle ruling — admin-surface-only, MUST NOT be copy-pasted to non-admin surfaces, shared-PK "one user, four role children" model, idempotency ruling, scope-split record for DEV3-017..022b consumer obligations; A.5/A.7/B.6/B.7/INV-U1..U5/INV-TV1 + Workflow 05 anchoring)
+- `docs/parents/handshake-code-discovery.md` — Parent handshake-code discovery canonical reference (code format + generation contract by reference, minimal masked payload with no `id`, governance-exclusion collapse, null-not-error not-found, advisory `linkable` semantics, binding link-request forward contract, brute-force posture)
+- `docs/students/free-trial-provisioning.md` — Free Trial Provisioning canonical reference (one-time trial credit grant for new students, dedicated `balance_trial` lane, grant-once guarded UPDATE, DEV3 booking-eligibility & decrement forward contract)
+- `docs/admin/cold-start-certification.md` — Admin cold-start teacher certification canonical reference (DEV3-018: `adminCertifyTeacherColdStart` mutation, `certifyTeacherColdStart` single-writer contract, guarded `TeacherRepository` insert/elevate writes, admin-gate + audit-emission contract)
 
 
 ## Linting Rules

@@ -122,6 +122,14 @@ export const adminUsersAr: AdminUsersLabels = {
     confirm: "إعادة تفعيل المستخدم",
     cancel: "إلغاء",
   },
+  certifyDialog: {
+    title: "اعتماد المعلم",
+    warningMessage: name => `اعتماد ${name} يتجاوز مسار التقييم ويمنح صلاحية التدريس فورًا.`,
+    evaluatorCheckbox: "منح صلاحيات المقيّم أيضًا",
+    auditNote: "يُسجَّل هذا الإجراء في سجل التدقيق.",
+    confirm: "اعتماد المعلم",
+    cancel: "إلغاء",
+  },
   detail: {
     profile: "الملف الشخصي",
     governance: "الحوكمة",
@@ -203,6 +211,7 @@ export const adminUsersAr: AdminUsersLabels = {
     updated: "تم تحديث المستخدم.",
     deleted: "تم حذف المستخدم.",
     reactivated: "تمت إعادة تفعيل المستخدم.",
+    certified: "تم اعتماد المعلم.",
   },
   activity: {
     title: "النشاط الأخير",
