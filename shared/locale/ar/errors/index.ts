@@ -49,4 +49,8 @@ export const errorsAr: ErrorsLabels = {
   handshakeCodeInvalid: "تبدو رموز الربط بالصيغة KSB-XXXXXXXX وتتكون من 8 أحرف سداسية عشرية.",
   studentHandshakeNotFound: "لم يتم العثور على سجل الطالب.",
   trialAlreadyGranted: "تم منح رصيد الجلسة التجريبية لهذا الطالب مسبقًا.",
+  broadcastTitleInvalid: "يجب أن يتكون عنوان البث من حرف واحد على الأقل وألا يتجاوز 255 حرفاً.",
+  broadcastAudienceInvalid: "جمهور البث غير صالح. اختر نوع جمهور صالحاً وأدخل الحقل المطلوب له فقط.",
+  broadcastAudienceEmpty: "لا يوجد مستلمون مطابقون لجمهور البث المحدد. اختر جمهوراً آخر.",
+  broadcastAudienceTooLarge: "جمهور البث المحدد كبير جداً. قم بتقييد الجمهور وحاول مرة أخرى.",
 };

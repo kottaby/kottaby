@@ -1,3 +1,4 @@
+import { AdminBroadcasts } from "@/shared/locale/namespaces/adminBroadcasts";
 import { AdminUsers } from "@/shared/locale/namespaces/adminUsers";
 import { Applicant } from "@/shared/locale/namespaces/applicant";
 import { Auth } from "@/shared/locale/namespaces/auth";
@@ -10,6 +11,7 @@ import { Notifications } from "@/shared/locale/namespaces/notifications";
 import { Plans } from "@/shared/locale/namespaces/plans";
 import { Recitation } from "@/shared/locale/namespaces/recitation";
 
+export * from "./adminBroadcasts";
 export * from "./adminUsers";
 export * from "./applicant";
 export * from "./auth";
@@ -25,6 +27,7 @@ export * from "./recitation";
 export * from "./translation";
 
 export const namespaces = {
+  AdminBroadcasts,
   AdminUsers,
   Applicant,
   Auth,

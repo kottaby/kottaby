@@ -21,13 +21,13 @@
 
 ## Phase 0 — Pre-Implementation Baseline
 
-- [ ] 0.1 [Record error baseline + initialize deferred-items ledger]
+- [x] 0.1 [Record error baseline + initialize deferred-items ledger]
   - Record baseline counts for: `tsgo`, `biome:check`, `lint-service` (exact numbers + command output snippets) and a `git diff --name-only` snapshot.
   - Create `ai/plans/sprint_3/dev3-022d-broadcast-notifications-system-wide-targ/deferred-items.md` from `.agents/spec-process-guide/templates/deferred-items-template.md`; seed it with plan ledger entries: **D1** chunked mega-broadcast (>5000 cohorts) → future scale ticket; **D2** crash-between-commit-and-`publishReceipts` double-insert residual (engine §3.6 document-locked posture) → engine hardening stream.
   - Write `ai/plans/sprint_3/dev3-022d-broadcast-notifications-system-wide-targ/outcome/0.1-baseline-outcome.md` with counts + snapshot.
   - _Requirements: REQ-001_
 
-- [ ] 0.2 [Prerequisite verification — reuse substrate exists (REQ-002)]
+- [x] 0.2 [Prerequisite verification — reuse substrate exists (REQ-002)]
   - Verify (grep/read, cite `path:line` in the outcome) each of: `NotificationEngine.emitForUsers` (`backend/services/notifications/notification-engine.service.ts:393`), `publishReceipts` (`:475`), `validateEmitBatchInput` (`backend/services/notifications/emit-validation.ts:135`), `buildEmitClaimKey`/`attemptEmitClaim`/`storeEmitReceiptQuietly` (`backend/services/notifications/emit-idempotency.ts:67,84,112`), `NotificationRepository.createManyReturning` (`backend/db/repo/notifications/notification.repository.ts:148`), `AuditService.createAuditLog` (`backend/services/admin/audit.service.ts:82`), `assertActorAdmin` (`backend/services/admin/user-management.service.ts:240-271`), `PlanRepository.existsById` (`backend/db/repo/billing/plan.repository.ts:109`), active-subscription predicate (`backend/db/repo/admin/admin-user.repository.ts:337-346`), `withTransaction`, `SpiedFanoutTransport` (`test/workflows/helpers/spied-transport.ts:49`), `projectMutationFieldErrors` (`frontend/lib/mutationFieldErrors.ts`), `withPageAuth` (`frontend/lib/auth/withPageAuth.ts`), `adminPlansQueryDocument`.
   - IF any artifact is missing → record `❌` in `deferred-items.md` and BLOCK; do NOT re-implement the engine.
   - Confirm the `test/workflows/` layer and its helpers exist (they do: `test/workflows/helpers/actor-context.ts` ships all four actor provisioners; `test/workflows/helpers/spied-transport.ts` ships `SpiedFanoutTransport`) — task 2.0 REUSES them, scaffolds nothing.
@@ -40,7 +40,7 @@
 
 > Gate reminder: `git diff -- backend/db/schema/** backend/db/migration/**` MUST remain empty for the entire ticket.
 
-- [ ] 1.1 [Create `BroadcastAudienceType` TS-only enum + fail-closed guard]
+- [x] 1.1 [Create `BroadcastAudienceType` TS-only enum + fail-closed guard]
   - CREATE `backend/enum/notifications/broadcast-audience-type.enum.ts` — `enum BroadcastAudienceType { All="all", Role="role", Country="country", Plan="plan" }` + `isBroadcastAudienceType(value: unknown)` guard (mirror the `isNotificationType` guard at `backend/enum/notifications/notification-type.enum.ts:21-23`; enum members at :5-13). TS-only; NO `pgEnum` in `backend/db/schema/enums.ts`.
   - UPDATE `backend/enum/notifications/index.ts` — `export * from "./broadcast-audience-type.enum";`.
   - Applicable instructions: `.agents/instructions/backend.instructions.md`, `backend/enum/AGENTS.md` (verify existence in bundle before citing).
@@ -51,39 +51,39 @@
   - [ ] 1.1.SR **Semantic Review:** enum used as VALUE import downstream; zero dead code; no cross-layer imports.
   - [ ] 1.1.IV **Instruction Verification:** read backend instructions + enum layer AGENTS.md; confirm conventions met.
 
-- [ ] 1.2 [Create canonical broadcast types + widen audit contract]
+- [x] 1.2 [Create canonical broadcast types + widen audit contract]
   - CREATE `backend/types/notifications/broadcast.types.ts` — `BroadcastAudienceSelector` (readonly, closed, type-discriminated companions) and `BroadcastNotificationSubmitInput` exactly per plan §2.2.
   - UPDATE `backend/types/notifications/index.ts` — `export * from "./broadcast.types";`.
   - UPDATE `backend/types/contracts/admin-audit.contract.types.ts` — widen `AuditLogWriteContract.entityId` to `AuditLogSelectType["entityId"]` (schema-derived `number | null`; `audit_logs.entity_id` already nullable at `backend/db/schema/audit/audit-logs.ts:39`). Additive widening ONLY (DB-5); no other contract shape change.
   - _Requirements: REQ-004, REQ-021 (DB-5)_
-  - [ ] 1.2.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts backend/types/notifications/broadcast.types.ts --lifecycle duplicates` + same for `admin-audit.contract.types.ts` (exit 0)
-  - [ ] 1.2.TE **Test Engineering:** type-level checks compile under `tsgo`; audit conformance suites that pin `AuditLogWriteContract` still pass — run `bun run test/scripts/run-test.ts` on the existing audit contract/conformance suites and confirm ZERO breaks from the widening.
-  - [ ] 1.2.SEC **Security & Tenancy Audit:** selector is readonly and closed — no extensible/index-signature surface a BOPLA probe could ride.
-  - [ ] 1.2.SR **Semantic Review:** NO runtime code in `.types.ts`; NO service-layer `.types.ts` anywhere; committee of one for shapes (`backend/types/` only).
-  - [ ] 1.2.IV **Instruction Verification:** `.agents/instructions/backend.instructions.md` + `backend/types/AGENTS.md` (if present in bundle).
+  - [x] 1.2.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts backend/types/notifications/broadcast.types.ts --lifecycle duplicates` + same for `admin-audit.contract.types.ts` (exit 0)
+  - [x] 1.2.TE **Test Engineering:** type-level checks compile under `tsgo`; audit conformance suites that pin `AuditLogWriteContract` still pass — run `bun run test/scripts/run-test.ts` on the existing audit contract/conformance suites and confirm ZERO breaks from the widening.
+  - [x] 1.2.SEC **Security & Tenancy Audit:** selector is readonly and closed — no extensible/index-signature surface a BOPLA probe could ride.
+  - [x] 1.2.SR **Semantic Review:** NO runtime code in `.types.ts`; NO service-layer `.types.ts` anywhere; committee of one for shapes (`backend/types/` only).
+  - [x] 1.2.IV **Instruction Verification:** `.agents/instructions/backend.instructions.md` + `backend/types/AGENTS.md` (if present in bundle).
 
-- [ ] 1.3 [Register four new `ErrorsLabels` keys (broadcast domain, flat)]
+- [x] 1.3 [Register four new `ErrorsLabels` keys (broadcast domain, flat)]
   - UPDATE `shared/locale/types/errors/index.ts` — add flat, domain-prefixed keys: `broadcastTitleInvalid`, `broadcastAudienceInvalid`, `broadcastAudienceEmpty`, `broadcastAudienceTooLarge` (added as flat top-level keys — `ErrorsLabels` allows flat keys alongside the sanctioned `planCatalog`/`adminUsers` groups; do NOT add a new nested group).
   - UPDATE `shared/locale/en/errors/index.ts` + `shared/locale/ar/errors/index.ts` — both locales, parity enforced by the existing mirror suite.
   - Follow the registration checklist in `shared/AGENTS.md`.
   - _Requirements: REQ-050, REQ-051_
-  - [ ] 1.3.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts shared/locale/en/errors/index.ts --lifecycle duplicates` (exit 0) + ar + types files.
-  - [ ] 1.3.TE **Test Engineering:** run the existing errors ar/en parity suite via `bun run test/scripts/run-test.ts` — MUST stay green with the four new keys.
-  - [ ] 1.3.SEC **Security & Tenancy Audit:** error copy discloses no recipient data, no counts, no internal identifiers.
-  - [ ] 1.3.SR **Semantic Review:** key naming domain-prefixed and collision-free; no duplicate message bodies.
-  - [ ] 1.3.IV **Instruction Verification:** `shared/AGENTS.md` checklist steps all satisfied for error-key additions.
+  - [x] 1.3.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts shared/locale/en/errors/index.ts --lifecycle duplicates` (exit 0) + ar + types files.
+  - [x] 1.3.TE **Test Engineering:** run the existing errors ar/en parity suite via `bun run test/scripts/run-test.ts` — MUST stay green with the four new keys.
+  - [x] 1.3.SEC **Security & Tenancy Audit:** error copy discloses no recipient data, no counts, no internal identifiers.
+  - [x] 1.3.SR **Semantic Review:** key naming domain-prefixed and collision-free; no duplicate message bodies.
+  - [x] 1.3.IV **Instruction Verification:** `shared/AGENTS.md` checklist steps all satisfied for error-key additions.
 
-- [ ] 1.4 [Create `AdminBroadcasts` i18n namespace + `broadcasts` dashboard label]
+- [x] 1.4 [Create `AdminBroadcasts` i18n namespace + `broadcasts` dashboard label]
   - CREATE `shared/locale/types/adminBroadcasts/index.ts` (`AdminBroadcastsLabels` — full key set per plan §5.5 including plural function `successToast(count: number)`), `shared/locale/en/adminBroadcasts/index.ts`, `shared/locale/ar/adminBroadcasts/index.ts` (Arabic plural branches modeled on `notificationsAr.markAllResult`, `shared/locale/ar/notifications/index.ts:23-29`), `shared/locale/namespaces/adminBroadcasts/adminBroadcasts.namespace.ts` (`defineNamespace<AdminBroadcastsLabels>("adminBroadcasts.adminBroadcasts", t => t.adminBroadcastsTranslations)`).
   - UPDATE `shared/locale/namespaces/index.ts` (registry), `shared/locale/types/message.ts` (`adminBroadcastsTranslations` on `Translations`), BOTH `messages.ts` bundles (en + ar).
   - UPDATE `shared/locale/types/dashboard/index.ts` + `shared/locale/{en,ar}/dashboard/index.ts` — add `broadcasts: string` (dashboard bundle ONLY, so the nav one-owner test keeps passing).
   - CREATE `shared/locale/adminBroadcasts-namespace.parity.test.ts` — key-set mirror, placeholder/pointer parity, plural-function output assertions both locales, Arabic-script presence pins (model on `notifications-namespace.parity.test.ts`).
   - _Requirements: REQ-051, REQ-063, REQ-064, REQ-074_
-  - [ ] 1.4.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts shared/locale/types/adminBroadcasts/index.ts --lifecycle duplicates` (exit 0) + all touched locale files.
-  - [ ] 1.4.TE **Test Engineering:** run `bun run test/scripts/run-test.ts shared/locale` — the new parity test + all existing namespace/error/dashboard parity suites green.
-  - [ ] 1.4.SEC **Security & Tenancy Audit:** no interpolated raw server data in labels beyond the numeric count; placeholders documented.
-  - [ ] 1.4.SR **Semantic Review:** handle passed as CONST (`AdminBroadcasts`), never a string; no `Translation` enum referenced anywhere; interface named `Translations`.
-  - [ ] 1.4.IV **Instruction Verification:** `shared/AGENTS.md` namespace-registration checklist fully satisfied (types + ar + en + Translations + both bundles + registry + parity test).
+  - [x] 1.4.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts shared/locale/types/adminBroadcasts/index.ts --lifecycle duplicates` (exit 0) + all touched locale files.
+  - [x] 1.4.TE **Test Engineering:** run `bun run test/scripts/run-test.ts shared/locale` — the new parity test + all existing namespace/error/dashboard parity suites green.
+  - [x] 1.4.SEC **Security & Tenancy Audit:** no interpolated raw server data in labels beyond the numeric count; placeholders documented.
+  - [x] 1.4.SR **Semantic Review:** handle passed as CONST (`AdminBroadcasts`), never a string; no `Translation` enum referenced anywhere; interface named `Translations`.
+  - [x] 1.4.IV **Instruction Verification:** `shared/AGENTS.md` namespace-registration checklist fully satisfied (types + ar + en + Translations + both bundles + registry + parity test).
 
 ---
 

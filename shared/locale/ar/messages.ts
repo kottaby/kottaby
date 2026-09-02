@@ -1,3 +1,4 @@
+import { adminBroadcastsAr } from "@/shared/locale/ar/adminBroadcasts";
 import { adminUsersAr } from "@/shared/locale/ar/adminUsers";
 import { applicantAr } from "@/shared/locale/ar/applicant";
 import { authAr } from "@/shared/locale/ar/auth";
@@ -21,6 +22,7 @@ export const arMessages: Translations = {
   plansTranslations: plansAr,
   applicantTranslations: applicantAr,
   adminUsersTranslations: adminUsersAr,
+  adminBroadcastsTranslations: adminBroadcastsAr,
   notificationsTranslations: notificationsAr,
   handshakeCodeTranslations: handshakeCodeAr,
 };
