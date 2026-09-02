@@ -450,7 +450,7 @@ Verify each anchor is REAL in the bundled tree (locate it; cite line). ANY miss 
 
 ## Phase 5: Integration & Differential Testing
 
-### 5.1 [ ] GraphQL wire matrix — `setupTestServerLifecycle` (+ raw `fetch` where byte-shape matters)
+### 5.1 [x] GraphQL wire matrix — `setupTestServerLifecycle` (+ raw `fetch` where byte-shape matters)
 **REQ:** REQ-073, REQ-030, REQ-031, REQ-032, REQ-034, REQ-050 · plan §3.4/§3.5
 
 - CREATE `backend/graphql/test/parent-link.wire.test.ts` (or extend the closest sibling wire suite per bundle composition — verify location convention at 0.2)
@@ -465,10 +465,10 @@ Verify each anchor is REAL in the bundled tree (locate it; cite line). ANY miss 
   - Nullable-collapse: code miss and governed-target both produce `data.requestParentChildLink === null` with NO `errors` array entry
   - `id` first in every object selection (introspection-level order pin via printed selections)
 - Run: `bun run test/scripts/run-test.ts backend/graphql/test/parent-link.wire.test.ts` AND `bun run test:graphql`
-- [ ] 5.1.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts backend/graphql/test/parent-link.wire.test.ts --lifecycle duplicates` (exit 0)
-- [ ] 5.1.SEC **Security & Tenancy Audit:** this suite ITSELF is the security gate — every denial invariant verified at the wire; extension-code pins asserted character-for-character
-- [ ] 5.1.SR **Semantic Review:** assertions are byte-equal where material (extension codes, null payloads); error-message bodies compared via locale keys (never hardcoded strings)
-- [ ] 5.1.IV **Instruction Verification:** `.agents/instructions/tests.instructions.md` + `docs/graphql/error-handling-contract.md`
+- [x] 5.1.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts backend/graphql/test/parent-link.wire.test.ts --lifecycle duplicates` (exit 0)
+- [x] 5.1.SEC **Security & Tenancy Audit:** this suite ITSELF is the security gate — every denial invariant verified at the wire; extension-code pins asserted character-for-character
+- [x] 5.1.SR **Semantic Review:** assertions are byte-equal where material (extension codes, null payloads); error-message bodies compared via locale keys (never hardcoded strings)
+- [x] 5.1.IV **Instruction Verification:** `.agents/instructions/tests.instructions.md` + `docs/graphql/error-handling-contract.md`
 - _Requirements: REQ-073_
 
 ### 5.2 [ ] Chaos & concurrency suite (pglite-skip-gated)
