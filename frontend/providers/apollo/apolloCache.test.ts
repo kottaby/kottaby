@@ -173,14 +173,26 @@ describe("createApolloCache — initialised InMemoryCache config exposure", () =
     expect(keyFieldsOf(policies, "HandshakeCodeLookup")).toBe(false);
   });
 
-  test("policy surface is FROZEN to the five documented entries", () => {
+  test("policy surface is FROZEN to the six pre-DEV3-022c entries plus the eleven analytics embedded types", () => {
     const cache = createApolloCache();
     expect(Object.keys(typePoliciesOf(cache)).toSorted((a, b) => a.localeCompare(b))).toEqual([
       "AdminDashboardScheduleResult",
       "AdminNoteInfo",
       "HandshakeCodeLookup",
       "HealthCheck",
+      "NotificationListPage",
       "OnlineMeetingInfo",
+      "PlatformAnalytics",
+      "PlatformAnalyticsCurrencyRevenue",
+      "PlatformAnalyticsHealth",
+      "PlatformAnalyticsRatings",
+      "PlatformAnalyticsRevenue",
+      "PlatformAnalyticsRevenueTrendPoint",
+      "PlatformAnalyticsSessions",
+      "PlatformAnalyticsSessionTrendPoint",
+      "PlatformAnalyticsSubscriptions",
+      "PlatformAnalyticsTeachers",
+      "PlatformAnalyticsUsers",
     ]);
   });
 });

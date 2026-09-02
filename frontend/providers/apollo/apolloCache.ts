@@ -56,6 +56,44 @@ export function createApolloCache(): InMemoryCache {
       OnlineMeetingInfo: {
         keyFields: false,
       },
+      // DEV3-022c — the adminPlatformAnalytics snapshot is a tree of embedded
+      // anonymous value objects (NO `id` anywhere in the subtree, D10): the
+      // whole snapshot caches inline under the single `adminPlatformAnalytics`
+      // query field and is replaced wholesale on every poll/refetch. Nothing
+      // here is normalizable, so nothing can bleed across users.
+      PlatformAnalytics: {
+        keyFields: false,
+      },
+      PlatformAnalyticsUsers: {
+        keyFields: false,
+      },
+      PlatformAnalyticsSessions: {
+        keyFields: false,
+      },
+      PlatformAnalyticsRevenue: {
+        keyFields: false,
+      },
+      PlatformAnalyticsCurrencyRevenue: {
+        keyFields: false,
+      },
+      PlatformAnalyticsSubscriptions: {
+        keyFields: false,
+      },
+      PlatformAnalyticsTeachers: {
+        keyFields: false,
+      },
+      PlatformAnalyticsRatings: {
+        keyFields: false,
+      },
+      PlatformAnalyticsHealth: {
+        keyFields: false,
+      },
+      PlatformAnalyticsSessionTrendPoint: {
+        keyFields: false,
+      },
+      PlatformAnalyticsRevenueTrendPoint: {
+        keyFields: false,
+      },
     },
   });
 }
