@@ -19,11 +19,11 @@
  *  - **Root-set freeze** — the Mutation root is EXACTLY the re-pinned frozen
  *    set (auth quartet + the sanctioned notification read-latch pair + the
  *    sanctioned users-locale mutation + the plan-catalog CRUD trio + the
- *    admin user-management mutation trio) and the Query root is EXACTLY the
- *    re-pinned frozen set (the baseline + the `_health` probe + the inbox
- *    reads + the plan-catalog reads + the admin user-management directory
- *    reads + the `adminAuditLogs` trail read — mirrors the `PRE_3_1_*`
- *    inventories in schema-surface.test.ts).
+ *    admin user-management mutation trio + the admin broadcast mutation) and
+ *    the Query root is EXACTLY the re-pinned frozen set (the baseline + the
+ *    `_health` probe + the inbox reads + the plan-catalog reads + the admin
+ *    user-management directory reads + the `adminAuditLogs` trail read —
+ *    mirrors the `PRE_3_1_*` inventories in schema-surface.test.ts).
  *  - **Users-locale surface (D2)** — `updateMyLocale(locale: AppLocale!): User!`
  *    is present with its EXACT SDL signature, `User.locale` is the nullable
  *    `AppLocale` enum, and the `AppLocale` enum carries exactly the two
@@ -33,6 +33,12 @@
  *    `markAllNotificationsRead` are present with their EXACT SDL signatures
  *    (argument names/types + return types), and `MyNotificationsFilterInput`
  *    carries exactly the four nullable filter fields.
+ *  - **Admin broadcast surface** — `adminBroadcastNotification(input:
+ *    AdminBroadcastNotificationInput!): Int!` is present with its EXACT SDL
+ *    signature, `BroadcastAudienceInput` carries exactly the four closed
+ *    selector fields (discriminated `type` + three nullable companions), and
+ *    `AdminBroadcastNotificationInput` carries exactly the three compose
+ *    fields — zero identity surface of any kind.
  *  - **Apollo normalization** — the `Notification` object carries `id: ID!`
  *    among EXACTLY the eight inbox fields.
  *  - **Depth/complexity posture (REQ-069)** — `Notification` is FLAT: every
@@ -68,8 +74,9 @@ import {
 // ─── surfaces absorbed additively (mirror the PRE_3_1_* inventories in ──────
 // ─── schema-surface.test.ts — the single sanctioned growth history) ──────────
 
-/** Root mutation fields — auth quartet + the notification read-latch pair + the users-locale mutation + plan-catalog CRUD + the admin user-management trio. */
+/** Root mutation fields — auth quartet + the notification read-latch pair + the users-locale mutation + plan-catalog CRUD + the admin user-management trio + the admin broadcast mutation. */
 const FROZEN_MUTATION_FIELDS = [
+  "adminBroadcastNotification",
   "adminCreateUser",
   "adminSetUserDeleted",
   "adminUpdateUser",
@@ -292,6 +299,42 @@ describe("REQ-060 four-ops contract — exact SDL signatures on the artifact", (
     expect(byName.get("isRead")).toBe("Boolean");
     expect(byName.get("limit")).toBe("Int");
     expect(byName.get("offset")).toBe("Int");
+  });
+});
+
+describe("Admin broadcast surface — exact SDL signatures on the artifact", () => {
+  test("`adminBroadcastNotification(input: AdminBroadcastNotificationInput!): Int!`", () => {
+    const surface = fieldSurface("Mutation", "adminBroadcastNotification");
+    expect(surface.type).toBe("Int!");
+    expect(surface.args).toEqual([{ name: "input", type: "AdminBroadcastNotificationInput!" }]);
+  });
+
+  test("`BroadcastAudienceInput` carries EXACTLY the four closed selector fields — zero identity surface", () => {
+    const fields = inputObjectTypeDefinition("BroadcastAudienceInput").fields ?? [];
+    expect(fields.map(field => field.name.value).toSorted((a, b) => a.localeCompare(b))).toEqual([
+      "country",
+      "planId",
+      "role",
+      "type",
+    ]);
+    const byName = new Map(fields.map(field => [field.name.value, renderType(field.type)]));
+    expect(byName.get("type")).toBe("BroadcastAudienceType!");
+    expect(byName.get("role")).toBe("UserRole");
+    expect(byName.get("country")).toBe("String");
+    expect(byName.get("planId")).toBe("Int");
+  });
+
+  test("`AdminBroadcastNotificationInput` carries EXACTLY the three compose fields — zero identity surface", () => {
+    const fields = inputObjectTypeDefinition("AdminBroadcastNotificationInput").fields ?? [];
+    expect(fields.map(field => field.name.value).toSorted((a, b) => a.localeCompare(b))).toEqual([
+      "audience",
+      "body",
+      "title",
+    ]);
+    const byName = new Map(fields.map(field => [field.name.value, renderType(field.type)]));
+    expect(byName.get("title")).toBe("String!");
+    expect(byName.get("body")).toBe("String");
+    expect(byName.get("audience")).toBe("BroadcastAudienceInput!");
   });
 });
 

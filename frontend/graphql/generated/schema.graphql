@@ -25,6 +25,12 @@ type AdminAuditLogPage {
   totalCount: Int!
 }
 
+input AdminBroadcastNotificationInput {
+  audience: BroadcastAudienceInput!
+  body: String
+  title: String!
+}
+
 input AdminCreateUserInput {
   country: String!
   email: String!
@@ -189,6 +195,20 @@ enum AuditActionType {
   Update
 }
 
+input BroadcastAudienceInput {
+  country: String
+  planId: Int
+  role: UserRole
+  type: BroadcastAudienceType!
+}
+
+enum BroadcastAudienceType {
+  All
+  Country
+  Plan
+  Role
+}
+
 """Input fields required to create a new subscription plan."""
 input CreatePlanInput {
   """3-letter uppercase currency code (e.g. 'EGP')."""
@@ -251,6 +271,10 @@ type LogoutPayload {
 }
 
 type Mutation {
+  """
+  Broadcasts an admin-authored announcement to the audience selected server-side and returns the persisted recipient count.
+  """
+  adminBroadcastNotification(input: AdminBroadcastNotificationInput!): Int!
   adminCreateUser(input: AdminCreateUserInput!): AdminUserDetail!
   adminSetUserDeleted(deleted: Boolean!, id: Int!): AdminUserDetail!
   adminUpdateUser(id: Int!, input: AdminUpdateUserInput!): AdminUserDetail!

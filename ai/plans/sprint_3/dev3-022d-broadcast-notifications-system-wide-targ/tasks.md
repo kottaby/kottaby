@@ -163,7 +163,7 @@
   - [x] 3.1.SR **Semantic Review:** enum-object registration form; canonical enums imported as values.
   - [x] 3.1.IV **Instruction Verification:** `backend/graphql/AGENTS.md` registration conventions.
 
-- [ ] 3.2 [Create `adminBroadcastNotification` mutation + codegen + baseline freeze updates]
+- [x] 3.2 [Create `adminBroadcastNotification` mutation + codegen + baseline freeze updates]
   - CREATE `backend/graphql/mutation/notifications/admin-broadcast.mutation.ts` — side-effect module; field `adminBroadcastNotification(input: AdminBroadcastNotificationInput!): Int!` with `authScopes: { $all: { authenticated: true, role: [UserRole.Admin] } }` (the `$all` conjunction is load-bearing — precedent `backend/graphql/mutation/admin/admin-users.mutation.ts:64-69`); resolver: anonymous guard via `ctx.t("errorsTranslations")` → `UnauthorizedError(tErrors.unauthorized)`; delegate EXCLUSIVELY to `AdminBroadcastService.broadcast({ title, body, audience }, ctx.user.id, ctx.locale, ctx.idempotencyKey ?? undefined)`; NO try/catch (boundary-only masking); NO direct engine calls.
   - UPDATE `backend/graphql/mutation/notifications/index.ts` — `import "./admin-broadcast.mutation";`.
   - RUN `bun run generate:gqlSchema && bun codegen` — regenerated `frontend/graphql/generated/schema.graphql` + `graphql.ts` committed IN THE SAME change set.
@@ -171,11 +171,11 @@
   - UPDATE `backend/graphql/test/schema-surface.test.ts` — `PRE_3_1_ENUMS` += `"BroadcastAudienceType"`; `PRE_3_1_TYPE_NAMES` += the three new names; extend the sanctioned additions assertion with the new mutation name ONLY.
   - DO NOT touch `backend/lib/gateway/public-operations.ts` (admin op is never public).
   - _Requirements: REQ-030, REQ-060, REQ-061, REQ-062_
-  - [ ] 3.2.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts backend/graphql/mutation/notifications/admin-broadcast.mutation.ts --lifecycle duplicates` (exit 0)
-  - [ ] 3.2.TE **Test Engineering:** the updated baseline suites assert green via `bun run test/scripts/run-test.ts backend/graphql/test` — nothing beyond the enumerated updates changed.
-  - [ ] 3.2.SEC **Security & Tenancy Audit:** authScopes exactly the `$all` map; resolver accepts zero identity args; only ctx-derived `actorId`/`idempotencyKey` cross the boundary.
-  - [ ] 3.2.SR **Semantic Review:** delegation-only resolver; no duplicate registration; no dead exports.
-  - [ ] 3.2.IV **Instruction Verification:** `backend/graphql/AGENTS.md` + REQ-018 registration contract (`docs/graphql/api-gateway-and-routing.md`) satisfied (side-effect barrel, codegen in set, authScopes declared, public allowlist untouched).
+  - [x] 3.2.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts backend/graphql/mutation/notifications/admin-broadcast.mutation.ts --lifecycle duplicates` (exit 0)
+  - [x] 3.2.TE **Test Engineering:** the updated baseline suites assert green via `bun run test/scripts/run-test.ts backend/graphql/test` — nothing beyond the enumerated updates changed.
+  - [x] 3.2.SEC **Security & Tenancy Audit:** authScopes exactly the `$all` map; resolver accepts zero identity args; only ctx-derived `actorId`/`idempotencyKey` cross the boundary.
+  - [x] 3.2.SR **Semantic Review:** delegation-only resolver; no duplicate registration; no dead exports.
+  - [x] 3.2.IV **Instruction Verification:** `backend/graphql/AGENTS.md` + REQ-018 registration contract (`docs/graphql/api-gateway-and-routing.md`) satisfied (side-effect barrel, codegen in set, authScopes declared, public allowlist untouched).
 
 - [ ] 3.3 [GraphQL integration matrix over the REAL HTTP stack]
   - CREATE integration test (pattern: `setupTestServerLifecycle` + `testClient` / raw `fetch`) asserting the REQ-072 matrix: anonymous → `UNAUTHORIZED` pre-resolver; student/teacher/parent → `FORBIDDEN`; admin happy path returns count and DB oracle shows the rows; replay via repeated `X-Idempotency-Key` header → same count, zero new rows; BOPLA probes (unknown input fields, smuggled identity args) → `GRAPHQL_VALIDATION_FAILED` before resolvers; authScopes extension-introspection pin equals the `$all` map (precedent `backend/graphql/test/handshake-code-surface.test.ts:9-27`); zero identity-accepting argument probe (precedent `schema-surface.test.ts:483-500, :522-537`).

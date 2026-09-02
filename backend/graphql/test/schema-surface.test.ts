@@ -27,7 +27,11 @@
  *    the `AdminAuditLogEntry` object, the `AdminAuditLogPage` embedded
  *    wrapper, and the `AdminAuditLogFiltersInput` input — with the
  *    `AuditActionType` enum REUSED from the shared registry, never
- *    re-registered): ZERO unsanctioned mutations beyond the refreshed
+ *    re-registered — and, absorbed additively, the admin broadcast
+ *    surface — the `adminBroadcastNotification` mutation + the
+ *    `BroadcastAudienceType` enum + the `BroadcastAudienceInput` /
+ *    `AdminBroadcastNotificationInput` inputs): ZERO unsanctioned mutations
+ *    beyond the refreshed
  *    frozen set, and a whole-schema named-type delta of EXACTLY the
  *    explicitly enumerated additions while the query set grows only by the
  *    sanctioned probe re-registration and the absorbed read surfaces.
@@ -102,8 +106,9 @@ const PRE_3_1_QUERY_FIELDS = [
   "planCatalog",
   "recitationReadings",
 ] as const;
-/** Root mutation field names — the frozen baseline (auth quartet + notification read-latch pair + users-locale + plan-catalog CRUD + admin user-management trio). */
+/** Root mutation field names — the frozen baseline (auth quartet + notification read-latch pair + users-locale + plan-catalog CRUD + admin user-management trio + the admin broadcast mutation). */
 const PRE_3_1_MUTATION_FIELDS = [
+  "adminBroadcastNotification",
   "adminCreateUser",
   "adminSetUserDeleted",
   "adminUpdateUser",
@@ -118,23 +123,27 @@ const PRE_3_1_MUTATION_FIELDS = [
   "updateMyLocale",
   "updatePlan",
 ] as const;
-/** GraphQL enum type names — the freeze forbids any new Pothos enum; every enum is named explicitly (the governance-filter + audit-action enums absorbed additively). */
+/** GraphQL enum type names — the freeze forbids any new Pothos enum; every enum is named explicitly (the governance-filter + audit-action + broadcast-audience enums absorbed additively). */
 const PRE_3_1_ENUMS = [
   "AdminUserGovernanceFilter",
   "ApplicantStatus",
   "AppLocale",
   "AuditActionType",
+  "BroadcastAudienceType",
   "Gender",
   "NotificationType",
   "RecitationReading",
   "RegisterPublicRole",
   "UserRole",
 ] as const;
-/** Non-root object/enum/scalar SDL type names in the baseline (introspection `__*` and spec scalars excluded). */
+/** Non-root object/enum/scalar SDL type names in the baseline (introspection `__*` and spec scalars excluded; the admin-broadcast input/enum surfaces absorbed additively). */
 const PRE_3_1_TYPE_NAMES = [
+  "AdminBroadcastNotificationInput",
   "AppLocale",
   "ApplicantProfile",
   "ApplicantStatus",
+  "BroadcastAudienceInput",
+  "BroadcastAudienceType",
   "CreatePlanInput",
   "Gender",
   "LoginPayload",
