@@ -143,7 +143,7 @@
   - [x] 2.4.SR **Semantic Review:** single atomic unit; publish strictly post-commit; no dead code; canonical types only.
   - [x] 2.4.IV **Instruction Verification:** backend + services instruction files; engine import-by-reference rules (service consumes, never edits, the engine).
 
-- [ ] 2.M [Mid-Point Review Gate]
+- [x] 2.M [Mid-Point Review Gate]
   - Self-review the whole backend half against: single-writer rule (grep — only the engine inserts into `notifications`), schema-drift gate (`git diff -- backend/db/schema/**` empty), REQ-042 tx propagation, REQ-050 taxonomy coverage, and journey 2.0 green.
   - Run: `bun run test/scripts/run-test.ts backend/services/notifications` + `bun run test/scripts/run-test.ts backend/db/repo/notifications` + `bun run test/scripts/run-test.ts test/workflows` + `tsgo` delta vs 0.1 baseline (MUST be 0).
   - Write `outcome/2.M-midpoint-review-outcome.md`; resolve or ledger any gap before Phase 3.
