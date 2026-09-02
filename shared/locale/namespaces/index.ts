@@ -1,4 +1,5 @@
 import { AdminUsers } from "@/shared/locale/namespaces/adminUsers";
+import { Analytics } from "@/shared/locale/namespaces/analytics";
 import { Applicant } from "@/shared/locale/namespaces/applicant";
 import { Auth } from "@/shared/locale/namespaces/auth";
 import { Common } from "@/shared/locale/namespaces/common";
@@ -11,6 +12,7 @@ import { Plans } from "@/shared/locale/namespaces/plans";
 import { Recitation } from "@/shared/locale/namespaces/recitation";
 
 export * from "./adminUsers";
+export * from "./analytics";
 export * from "./applicant";
 export * from "./auth";
 export * from "./common";
@@ -26,6 +28,7 @@ export * from "./translation";
 
 export const namespaces = {
   AdminUsers,
+  Analytics,
   Applicant,
   Auth,
   Common,

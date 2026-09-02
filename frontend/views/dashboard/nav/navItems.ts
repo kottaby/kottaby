@@ -4,6 +4,7 @@
 // then app modules (barrel discipline — codegen module imports the types).
 
 import {
+  InsightsOutlined as AnalyticsIcon,
   AssessmentOutlined as AuditIcon,
   FamilyRestroomOutlined as ChildrenIcon,
   DashboardOutlined as DashboardIcon,
@@ -131,6 +132,7 @@ const NAV_ITEMS_BY_ROLE: Record<UserRole, readonly DashboardNavItem[]> = {
     { route: "/students", labelKey: "students", Icon: StudentsIcon },
     { route: "/admin/plans", labelKey: "plans", Icon: PlansIcon },
     { route: "/audit", labelKey: "audit", Icon: AuditIcon },
+    { route: "/admin/analytics", labelKey: "analytics", Icon: AnalyticsIcon },
     { route: "/profile", labelKey: "profile", Icon: ProfileIcon },
   ],
 };
