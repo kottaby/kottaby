@@ -52,6 +52,7 @@ import { and, asc, eq, isNull, or, type SQL, sql } from "drizzle-orm";
 import { queryDb } from "@/backend/db";
 import { subscriptions } from "@/backend/db/schema/billing/subscriptions";
 import { users } from "@/backend/db/schema/users/users";
+import { SubscriptionStatus } from "@/backend/enum/billing/subscription-status.enum";
 import { BroadcastAudienceType } from "@/backend/enum/notifications/broadcast-audience-type.enum";
 import type { BroadcastAudienceSelector, DBQueryExecutor, DBTransaction } from "@/backend/types";
 
@@ -142,7 +143,7 @@ async function resolveViaTransaction(selector: BroadcastAudienceSelector, tx: DB
         .where(
           and(
             eq(subscriptions.planId, selector.planId),
-            eq(subscriptions.status, "active"),
+            eq(subscriptions.status, SubscriptionStatus.Active),
             sql`now() >= coalesce(${subscriptions.startDate}, now())`,
             or(isNull(subscriptions.endDate), sql`now() < ${subscriptions.endDate}`),
             ...governanceConditions()

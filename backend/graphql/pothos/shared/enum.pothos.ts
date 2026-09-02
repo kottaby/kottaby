@@ -18,12 +18,14 @@
  *  - `RecitationReading`, `ApplicantStatus`
  *  - `AdminUserGovernanceFilter` (active|suspended|blocked|deleted — admin directory filter)
  *  - `NotificationType` (the seven notification kinds)
+ *  - `BroadcastAudienceType` (all|role|country|plan — admin broadcast cohort kinds)
  *  - `AppLocale` (the per-user UI/copy preference — "ar" | "en")
  *
  * After registering a new enum here, run `bun run generate:gqlSchema` and
  * `bun codegen` to refresh the SDL + frontend codegen.
  */
 import { AuditActionType } from "@/backend/enum/audit/audit-action-type.enum";
+import { BroadcastAudienceType } from "@/backend/enum/notifications/broadcast-audience-type.enum";
 import { NotificationType } from "@/backend/enum/notifications/notification-type.enum";
 import { ApplicantStatus } from "@/backend/enum/teachers/applicant-status.enum";
 import { AdminUserGovernanceFilter } from "@/backend/enum/users/admin-user-governance-filter.enum";
@@ -126,4 +128,20 @@ export const AuditActionTypePothosEnum = gqlSchemaBuilder.enumType(AuditActionTy
  */
 export const NotificationTypePothosEnum = gqlSchemaBuilder.enumType(NotificationType, {
   name: "NotificationType",
+});
+
+/**
+ * GraphQL `BroadcastAudienceType` enum (wire names `All`/`Role`/`Country`/
+ * `Plan` over the runtime strings "all"/"role"/"country"/"plan").
+ *
+ * Registered ONCE from the canonical TS enum
+ * (`backend/enum/notifications/broadcast-audience-type.enum.ts`). This is the
+ * request-scoped cohort vocabulary an admin broadcast targets — it is never
+ * persisted as a column type (resolved notification rows record the
+ * recipient, not the cohort), so it has no pgEnum counterpart. Unknown
+ * transport values die at the GraphQL input-validation layer before any
+ * resolver runs.
+ */
+export const BroadcastAudienceTypePothosEnum = gqlSchemaBuilder.enumType(BroadcastAudienceType, {
+  name: "BroadcastAudienceType",
 });

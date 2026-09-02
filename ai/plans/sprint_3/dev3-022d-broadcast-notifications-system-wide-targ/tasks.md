@@ -152,16 +152,16 @@
 
 ## Phase 3 — GraphQL Resolvers & API Surface
 
-- [ ] 3.1 [Register enum + input types (Pothos) + barrels]
+- [x] 3.1 [Register enum + input types (Pothos) + barrels]
   - UPDATE `backend/graphql/pothos/shared/enum.pothos.ts` — `export const BroadcastAudienceTypePothosEnum = gqlSchemaBuilder.enumType(BroadcastAudienceType, { name: "BroadcastAudienceType" });` (enum-OBJECT form ONLY — literal `values:[...]` fails gate A2 of `backend/lib/gateway/static-assertions.test.ts`).
   - CREATE `backend/graphql/pothos/notifications/admin-broadcast.pothos.ts` — `BroadcastAudienceInput` (`type` required; `role: UserRolePothosEnum` optional; `country: string` optional; `planId: t.int` optional) and `AdminBroadcastNotificationInput` (`title: String!`, `body: String`, `audience: required`).
   - UPDATE `backend/graphql/pothos/notifications/index.ts` — `export * from "./admin-broadcast.pothos";`.
   - _Requirements: REQ-060, REQ-061_
-  - [ ] 3.1.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts backend/graphql/pothos/notifications/admin-broadcast.pothos.ts --lifecycle duplicates` (exit 0)
-  - [ ] 3.1.TE **Test Engineering:** input-shape assertions land with 3.3's integration suite; here verify schema builds (`bun run generate:gqlSchema`) with no registration errors.
-  - [ ] 3.1.SEC **Security & Tenancy Audit:** closed input (GraphQL validation rejects smuggled fields pre-resolver); ZERO identity args.
-  - [ ] 3.1.SR **Semantic Review:** enum-object registration form; canonical enums imported as values.
-  - [ ] 3.1.IV **Instruction Verification:** `backend/graphql/AGENTS.md` registration conventions.
+  - [x] 3.1.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts backend/graphql/pothos/notifications/admin-broadcast.pothos.ts --lifecycle duplicates` (exit 0)
+  - [x] 3.1.TE **Test Engineering:** input-shape assertions land with 3.3's integration suite; here verify schema builds (`bun run generate:gqlSchema`) with no registration errors.
+  - [x] 3.1.SEC **Security & Tenancy Audit:** closed input (GraphQL validation rejects smuggled fields pre-resolver); ZERO identity args.
+  - [x] 3.1.SR **Semantic Review:** enum-object registration form; canonical enums imported as values.
+  - [x] 3.1.IV **Instruction Verification:** `backend/graphql/AGENTS.md` registration conventions.
 
 - [ ] 3.2 [Create `adminBroadcastNotification` mutation + codegen + baseline freeze updates]
   - CREATE `backend/graphql/mutation/notifications/admin-broadcast.mutation.ts` — side-effect module; field `adminBroadcastNotification(input: AdminBroadcastNotificationInput!): Int!` with `authScopes: { $all: { authenticated: true, role: [UserRole.Admin] } }` (the `$all` conjunction is load-bearing — precedent `backend/graphql/mutation/admin/admin-users.mutation.ts:64-69`); resolver: anonymous guard via `ctx.t("errorsTranslations")` → `UnauthorizedError(tErrors.unauthorized)`; delegate EXCLUSIVELY to `AdminBroadcastService.broadcast({ title, body, audience }, ctx.user.id, ctx.locale, ctx.idempotencyKey ?? undefined)`; NO try/catch (boundary-only masking); NO direct engine calls.
