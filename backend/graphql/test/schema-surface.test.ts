@@ -20,13 +20,17 @@
  *    mutation additions — `markNotificationRead` +
  *    `markAllNotificationsRead` — and the sanctioned users-locale additions
  *    (D2 backend vertical) — the `AppLocale` enum + `User.locale` + the
- *    `updateMyLocale` mutation): ZERO new mutations beyond the refreshed
- *    frozen set, and a whole-schema named-type delta of EXACTLY
- *    `{DateTime, HandshakeCodeLookup, HealthCheck}` (the probe type plus the
- *    `DateTime` scalar registered in `shared/scalar.pothos.ts` plus the
- *    DEV1-013 `HandshakeCodeLookup` object) while the query set grows only
- *    by the sanctioned probe re-registration and the DEV1-013 student-handshake
- *    queries (`findStudentByHandshakeCode`, `myHandshakeCode`).
+ *    `updateMyLocale` mutation — and, absorbed additively, the admin
+ *    user-management surface (directory/stats/detail/activity reads + the
+ *    admin CRUD mutation trio + the governance-filter enum) and the global
+ *    admin audit-trail read surface — the `adminAuditLogs` query backed by
+ *    the `AdminAuditLogEntry` object, the `AdminAuditLogPage` embedded
+ *    wrapper, and the `AdminAuditLogFiltersInput` input — with the
+ *    `AuditActionType` enum REUSED from the shared registry, never
+ *    re-registered): ZERO unsanctioned mutations beyond the refreshed
+ *    frozen set, and a whole-schema named-type delta of EXACTLY the
+ *    explicitly enumerated additions while the query set grows only by the
+ *    sanctioned probe re-registration and the absorbed read surfaces.
  *  - **Notification surface** — the `NotificationType` enum carries exactly
  *    the 7 canonical values (TS-enum keys as GraphQL names, snake_case
  *    runtime values), the `Notification` object exposes `id` FIRST with
@@ -85,7 +89,8 @@ import { PUBLIC_OPERATION_NAMES, PUBLIC_OPERATIONS } from "@/backend/lib/gateway
 
 // ─── Frozen baseline inventory (captured @ HEAD 8e5ebb8; refreshed for the ────
 // ─── sanctioned applicant + notifications + users-locale + DEV1-013 handshake ─
-// ─── + DEV1-005 plan-catalog additions) ──────────────────────────────────────
+// ─── + DEV1-005 plan-catalog additions, with the admin user-management and ────
+// ─── audit-trail surfaces absorbed additively — entries are NEVER dropped) ────
 
 /** Root query field names — the frozen baseline (probe re-registration excluded). */
 const PRE_3_1_QUERY_FIELDS = [
@@ -97,8 +102,11 @@ const PRE_3_1_QUERY_FIELDS = [
   "planCatalog",
   "recitationReadings",
 ] as const;
-/** Root mutation field names — the frozen baseline (auth quartet + notification read-latch pair + users-locale + plan-catalog CRUD). */
+/** Root mutation field names — the frozen baseline (auth quartet + notification read-latch pair + users-locale + plan-catalog CRUD + admin user-management trio). */
 const PRE_3_1_MUTATION_FIELDS = [
+  "adminCreateUser",
+  "adminSetUserDeleted",
+  "adminUpdateUser",
   "createPlan",
   "login",
   "logout",
@@ -110,10 +118,12 @@ const PRE_3_1_MUTATION_FIELDS = [
   "updateMyLocale",
   "updatePlan",
 ] as const;
-/** GraphQL enum type names — the freeze forbids any new Pothos enum. */
+/** GraphQL enum type names — the freeze forbids any new Pothos enum; every enum is named explicitly (the governance-filter + audit-action enums absorbed additively). */
 const PRE_3_1_ENUMS = [
+  "AdminUserGovernanceFilter",
   "ApplicantStatus",
   "AppLocale",
+  "AuditActionType",
   "Gender",
   "NotificationType",
   "RecitationReading",
@@ -189,12 +199,19 @@ describe("Query._health — retyped probe surface", () => {
     for (const name of PRE_3_1_QUERY_FIELDS) {
       expect(fieldNames).toContain(name);
     }
-    // …and the ONLY additions beyond them are the probe plus the
-    // DEV1-013 student-handshake queries (myApplicantProfile already sits in
-    // the refreshed baseline).
+    // …and the ONLY additions beyond them are the explicitly enumerated
+    // sanctioned surfaces: the probe, the DEV1-013 student-handshake
+    // queries, the admin user-management directory reads, and the
+    // `adminAuditLogs` trail read (myApplicantProfile already sits in the
+    // refreshed baseline).
     const additions = fieldNames.filter(name => !(PRE_3_1_QUERY_FIELDS as readonly string[]).includes(name));
     expect(additions.toSorted((a, b) => a.localeCompare(b))).toEqual([
       "_health",
+      "adminAuditLogs",
+      "adminUserActivity",
+      "adminUserDetail",
+      "adminUsers",
+      "adminUserStats",
       "findStudentByHandshakeCode",
       "myHandshakeCode",
     ]);
@@ -274,14 +291,34 @@ describe("Surface freeze — pinned additions vs the baseline inventory", () => 
     expect(enumNames).toEqual([...PRE_3_1_ENUMS]);
   });
 
-  test("whole-schema named-type delta is pinned: DateTime scalar + HealthCheck probe + DEV1-013 handshake-code surface", () => {
+  test("whole-schema named-type delta is pinned: scalar + probe + handshake + admin-directory + audit-trail surfaces", () => {
     const post = new Set(sdlTypeNames());
 
     for (const name of PRE_3_1_TYPE_NAMES) {
       expect(post.has(name)).toBe(true);
     }
     const additions = sdlTypeNames().filter(name => !(PRE_3_1_TYPE_NAMES as readonly string[]).includes(name));
-    expect(additions).toEqual(["DateTime", "HandshakeCodeLookup", "HealthCheck"]);
+    expect(additions).toEqual([
+      "AdminAuditLogEntry",
+      "AdminAuditLogFiltersInput",
+      "AdminAuditLogPage",
+      "AdminCreateUserInput",
+      "AdminParentSnapshot",
+      "AdminStudentSnapshot",
+      "AdminTeacherSnapshot",
+      "AdminUpdateUserInput",
+      "AdminUserActivityEntry",
+      "AdminUserDetail",
+      "AdminUserFiltersInput",
+      "AdminUserGovernanceFilter",
+      "AdminUserListItem",
+      "AdminUserPage",
+      "AdminUserStats",
+      "AuditActionType",
+      "DateTime",
+      "HandshakeCodeLookup",
+      "HealthCheck",
+    ]);
   });
 });
 
