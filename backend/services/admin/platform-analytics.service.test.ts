@@ -352,7 +352,7 @@ describe("PlatformAnalyticsService — Tier 2: snapshot composition", () => {
       try {
         const snapshot = await PlatformAnalyticsService.getPlatformAnalytics(admin.id, LOCALE, tx);
         // One `now` per request, shared by every windowed call.
-        expect(nows.length).toBe(6);
+        expect(nows).toHaveLength(6);
         expect(new Set(nows.map(now => now.getTime())).size).toBe(1);
         for (const now of nows) {
           expect(now).toBe(snapshot.generatedAt);

@@ -1123,7 +1123,7 @@ describe("PlatformAnalyticsRepository contract & purity", () => {
       parentsCount: 0,
       newThisWeekCount: 0,
     };
-    expect(Object.keys(statsSample).length).toBe(ADMIN_USER_STATS_KEYS.length);
+    expect(Object.keys(statsSample)).toHaveLength(ADMIN_USER_STATS_KEYS.length);
     const statsKeyList: string[] = [...ADMIN_USER_STATS_KEYS];
     expect(statsKeyList.sort()).toEqual(Object.keys(statsSample).sort());
 
@@ -1131,7 +1131,7 @@ describe("PlatformAnalyticsRepository contract & purity", () => {
     // counters VERBATIM plus exactly one new presence counter.
     const usersSection: PlatformAnalyticsUsersReturnType = { ...statsSample, recentlyActive24h: 7 };
     expect(Object.keys(usersSection)).toEqual(expect.arrayContaining(statsKeyList));
-    expect(Object.keys(usersSection).length).toBe(ADMIN_USER_STATS_KEYS.length + 1);
+    expect(Object.keys(usersSection)).toHaveLength(ADMIN_USER_STATS_KEYS.length + 1);
     expect(usersSection.recentlyActive24h).toBe(7);
   });
 
