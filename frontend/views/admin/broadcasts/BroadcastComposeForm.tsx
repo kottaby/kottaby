@@ -13,7 +13,7 @@
  * `onSubmit`.
  */
 
-import { Alert, Box, Button, Stack, Typography } from "@mui/material";
+import { Alert, Box, Button, Divider, Stack, Typography } from "@mui/material";
 import type { ReactNode } from "react";
 import type { AdminPlansQuery_adminPlans, BroadcastAudienceType } from "@/frontend/graphql/generated/gql/graphql";
 import { BroadcastComposeCompanions } from "@/frontend/views/admin/broadcasts/BroadcastComposeCompanions";
@@ -55,20 +55,34 @@ export function BroadcastComposeForm(props: BroadcastComposeFormProps): ReactNod
           labels={props.labels}
           onDraftChange={props.onDraftChange}
         />
-        <Typography variant="caption" sx={theme => ({ color: theme.palette.text.secondary })}>
+      </Stack>
+      {props.formError !== null ? (
+        <Alert severity="error" sx={{ marginBlockStart: 2 }}>
+          {props.formError}
+        </Alert>
+      ) : null}
+      {/* Form footer: the no-preview disclaimer and the submit affordance share
+          one anchored row from sm up (disclaimer inline-start, action
+          inline-end); they stack with a full-width touch target on mobile. */}
+      <Divider sx={{ marginBlockStart: 3, marginBlockEnd: 2.5 }} />
+      <Stack
+        direction={{ xs: "column", sm: "row" }}
+        spacing={{ xs: 2, sm: 3 }}
+        sx={{ alignItems: { sm: "center" }, justifyContent: { sm: "space-between" } }}
+      >
+        <Typography variant="caption" sx={theme => ({ color: theme.palette.text.secondary, maxWidth: 460 })}>
           {props.labels.previewDisclaimer}
         </Typography>
+        <Button
+          type="submit"
+          variant="contained"
+          disabled={props.sending || !props.audienceReady}
+          startIcon={props.sendIcon}
+          sx={[ACTION_BUTTON_SX, { width: { xs: "100%", sm: "auto" }, flexShrink: 0, whiteSpace: "nowrap" }]}
+        >
+          {props.sending ? props.labels.sendingAction : props.labels.sendAction}
+        </Button>
       </Stack>
-      {props.formError !== null ? <Alert severity="error">{props.formError}</Alert> : null}
-      <Button
-        type="submit"
-        variant="contained"
-        disabled={props.sending || !props.audienceReady}
-        startIcon={props.sendIcon}
-        sx={ACTION_BUTTON_SX}
-      >
-        {props.sending ? props.labels.sendingAction : props.labels.sendAction}
-      </Button>
     </Box>
   );
 }

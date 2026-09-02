@@ -34,7 +34,7 @@
 
 import { useMutation, useQuery } from "@apollo/client/react";
 import { SendOutlined } from "@mui/icons-material";
-import { Box, CircularProgress } from "@mui/material";
+import { Box, CircularProgress, Paper } from "@mui/material";
 import { type ReactNode, useRef, useState } from "react";
 import { BroadcastAudienceType } from "@/frontend/graphql/generated/gql/graphql";
 import { adminPlansQueryDocument } from "@/frontend/graphql/sharedDocuments/billing";
@@ -153,22 +153,47 @@ export function BroadcastComposeContainer(): ReactNode {
   const sendIcon = sending ? <CircularProgress size={18} color="inherit" /> : <SendOutlined />;
 
   return (
-    <Box sx={{ marginInline: "auto", maxWidth: 720, paddingBlock: 4, paddingInline: 2 }}>
-      <BroadcastComposeHeader labels={t} />
-      <BroadcastComposeForm
-        compose={compose}
-        fieldErrors={fieldErrors}
-        formError={formError}
-        sending={sending}
-        audienceReady={audienceReady}
-        plansLoading={plansQuery.loading}
-        plans={plansQuery.data?.adminPlans ?? []}
-        labels={t}
-        sendIcon={sendIcon}
-        onDraftChange={changeDraft}
-        onAudienceKindChange={changeAudienceKind}
-        onSubmit={handleFormSubmit}
-      />
+    <Box
+      sx={{
+        marginInline: "auto",
+        maxWidth: 760,
+        width: "100%",
+        paddingBlock: { xs: 2, md: 4 },
+        paddingInline: { xs: 2, sm: 3 },
+        display: "flex",
+        flexDirection: "column",
+        // Optical vertical centering on tall desktop canvases; the surplus
+        // collapses naturally on short viewports and mobile (top-aligned).
+        minHeight: { md: "calc(100svh - 170px)" },
+        justifyContent: { md: "center" },
+      }}
+    >
+      <Paper
+        elevation={0}
+        sx={theme => ({
+          border: 1,
+          borderColor: theme.palette.divider,
+          borderRadius: 2,
+          padding: { xs: 2.5, sm: 4 },
+          bgcolor: theme.palette.background.paper,
+        })}
+      >
+        <BroadcastComposeHeader labels={t} />
+        <BroadcastComposeForm
+          compose={compose}
+          fieldErrors={fieldErrors}
+          formError={formError}
+          sending={sending}
+          audienceReady={audienceReady}
+          plansLoading={plansQuery.loading}
+          plans={plansQuery.data?.adminPlans ?? []}
+          labels={t}
+          sendIcon={sendIcon}
+          onDraftChange={changeDraft}
+          onAudienceKindChange={changeAudienceKind}
+          onSubmit={handleFormSubmit}
+        />
+      </Paper>
       <BroadcastComposeConfirmDialog
         open={confirmOpen}
         sending={sending}

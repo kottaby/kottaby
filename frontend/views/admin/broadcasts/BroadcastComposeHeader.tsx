@@ -16,9 +16,30 @@ interface BroadcastComposeHeaderProps {
 
 export function BroadcastComposeHeader(props: BroadcastComposeHeaderProps): ReactNode {
   return (
-    <Stack sx={{ alignItems: "center", flexDirection: "row", gap: 2, marginBlockEnd: 3 }}>
-      <CampaignOutlined sx={theme => ({ color: theme.palette.primary.main, fontSize: 36 })} />
-      <Box>
+    <Stack
+      sx={{
+        alignItems: { xs: "flex-start", sm: "center" },
+        flexDirection: "row",
+        gap: 2,
+        marginBlockEnd: 3,
+      }}
+    >
+      <Box
+        aria-hidden
+        sx={theme => ({
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          width: 56,
+          height: 56,
+          borderRadius: 2,
+          flexShrink: 0,
+          backgroundColor: `color-mix(in srgb, ${theme.palette.primary.main} 14%, transparent)`,
+        })}
+      >
+        <CampaignOutlined sx={theme => ({ color: theme.palette.primary.main, fontSize: 30 })} />
+      </Box>
+      <Box sx={{ minWidth: 0 }}>
         <Typography variant="h4" sx={{ fontWeight: 700 }}>
           {props.labels.pageTitle}
         </Typography>
