@@ -4,6 +4,11 @@
  * Verifies:
  *  - REQ-054, REQ-064 (DEV1-005): Admin navigation contains "/admin/plans"
  *    entry; non-admin roles (Student, Teacher, Parent) do NOT contain it.
+ *  - REQ-065 (zero-change nav retarget): the admin audit entry stays pinned
+ *    exactly where it already points — "/audit" with `labelKey: "audit"`,
+ *    exactly once — and non-admin roles never see it. The `audit` label key
+ *    remains owned by the dashboard bundle (no duplicate nav item, no label
+ *    move): the route becomes reachable purely when its page ships.
  *  - The cross-namespace nav-label discrimination the sidebar depends on:
  *    every nav item's label key is owned by EXACTLY ONE label bundle
  *    (`DashboardLabels` for the shared shell entries, `HandshakeCodeLabels`
@@ -136,6 +141,32 @@ describe("Dashboard Nav Items (REQ-054, REQ-064)", () => {
       const nav = getNavItemsForRole(role);
       const plansItem = nav.find(item => item.route === "/admin/plans" || item.route === "/plans");
       expect(plansItem).toBeUndefined();
+    }
+  );
+});
+
+describe("Admin audit navigation (REQ-065)", () => {
+  test("Admin navigation carries exactly one /audit entry with the audit label key", () => {
+    const adminNav = getNavItemsForRole(UserRole.Admin);
+    const auditItems = adminNav.filter(item => item.route === "/audit");
+    expect(auditItems).toHaveLength(1);
+    expect(auditItems[0]?.labelKey).toBe("audit");
+  });
+
+  test("the audit label key stays owned by the dashboard bundle", () => {
+    // Runtime pin of the ownership-matrix invariant for the audit entry:
+    // `audit` must remain a dashboard-bundle key (never migrate to a feature
+    // bundle — that would flip `resolveNavItemLabel` to the wrong root).
+    expect("audit" in dashboardEn).toBe(true);
+    expect("audit" in handshakeCodeEn).toBe(false);
+  });
+
+  test.each([UserRole.Student, UserRole.Teacher, UserRole.Parent])(
+    "Non-admin role %s does NOT include /audit item",
+    role => {
+      const nav = getNavItemsForRole(role);
+      const auditItem = nav.find(item => item.route === "/audit");
+      expect(auditItem).toBeUndefined();
     }
   );
 });

@@ -28,14 +28,19 @@
  *    were folded in; every anchor change is listed in
  *    `outcome/3.3-outcome.md`), then STEP TWO extended the now-current
  *    baselines with the DEV1-014 parent-link surface (the five pinned root
- *    fields + the `LinkStatus` enum). The only additions beyond the
- *    refreshed baselines are the probe + DEV1-013 handshake queries (query
- *    root) and the whole-schema named-type delta of EXACTLY
- *    `{DateTime, HandshakeCodeLookup, HealthCheck, IncomingParentLinkRequest,
- *    OutgoingParentLinkRequest}` (the probe type plus the `DateTime` scalar
- *    registered in `shared/scalar.pothos.ts`, the DEV1-013
- *    `HandshakeCodeLookup` object, and the two DEV1-014 parent-link objects
- *    pinned by the extend step).
+ *    fields + the `LinkStatus` enum). **The DEV1-014↔DEV3-020 merge
+ *    performed the SAME reconcile for the global admin audit-trail read
+ *    surface** (the `adminAuditLogs` query backed by the
+ *    `AdminAuditLogEntry` object, the `AdminAuditLogPage` embedded wrapper,
+ *    and the `AdminAuditLogFiltersInput` input — the `AuditActionType` enum
+ *    REUSED from the shared registry, never re-registered). The only
+ *    additions beyond the refreshed baselines are the probe + DEV1-013
+ *    handshake queries (query root) and the whole-schema named-type delta
+ *    of EXACTLY `{DateTime, HandshakeCodeLookup, HealthCheck,
+ *    IncomingParentLinkRequest, OutgoingParentLinkRequest}` (the probe type
+ *    plus the `DateTime` scalar registered in `shared/scalar.pothos.ts`,
+ *    the DEV1-013 `HandshakeCodeLookup` object, and the two DEV1-014
+ *    parent-link objects pinned by the extend step).
  *  - **Notification surface** — the `NotificationType` enum carries exactly
  *    the 7 canonical values (TS-enum keys as GraphQL names, snake_case
  *    runtime values), the `Notification` object exposes `id` FIRST with
@@ -115,9 +120,14 @@ import { PUBLIC_OPERATION_NAMES, PUBLIC_OPERATIONS } from "@/backend/lib/gateway
 // ─── two parent-link OBJECTS stay pinned as extend additions in the delta     ─
 // ─── literal below. Growth is monotonic; no stale entry was deleted, only     ─
 // ─── re-anchored.                                                             ─
+// ─── The DEV1-014↔DEV3-020 merge re-ran STEP ONE for the global audit-trail  ─
+// ─── surface (+`adminAuditLogs` query, +3 audit types folded into baseline).  ─
 
 /** Root query field names — the frozen baseline (probe re-registration excluded). */
 const PRE_3_1_QUERY_FIELDS = [
+  // DEV1-014↔DEV3-020 merge reconcile: the global audit-trail read shipped on
+  // main while this branch was in flight (mirrors the DEV3-016 precedent).
+  "adminAuditLogs",
   "adminPlans",
   // DEV3-016 reconcile: the admin user-management reads shipped before 3.1.
   "adminUserActivity",
@@ -134,7 +144,7 @@ const PRE_3_1_QUERY_FIELDS = [
   "planCatalog",
   "recitationReadings",
 ] as const;
-/** Root mutation field names — the frozen baseline (auth quartet + notification read-latch pair + users-locale + plan-catalog CRUD). */
+/** Root mutation field names — the frozen baseline (auth quartet + notification read-latch pair + users-locale + plan-catalog CRUD + admin user-management trio). */
 const PRE_3_1_MUTATION_FIELDS = [
   // DEV3-016 reconcile: the admin user-management writes shipped before 3.1.
   "adminCreateUser",
@@ -156,9 +166,11 @@ const PRE_3_1_MUTATION_FIELDS = [
   "updateMyLocale",
   "updatePlan",
 ] as const;
-/** GraphQL enum type names — the freeze forbids any new Pothos enum beyond the pinned DEV1-014 `LinkStatus`. */
+/** GraphQL enum type names — the freeze forbids any new Pothos enum beyond the pinned DEV1-014 `LinkStatus` (the governance-filter + audit-action enums sit in the reconciled baseline). */
 const PRE_3_1_ENUMS = [
   // DEV3-016 reconcile: the admin governance/audit enums shipped before 3.1.
+  // DEV1-014↔DEV3-020 merge: `AuditActionType` was already baseline — reused,
+  // never re-registered.
   "AdminUserGovernanceFilter",
   "ApplicantStatus",
   "AppLocale",
@@ -175,6 +187,11 @@ const PRE_3_1_ENUMS = [
 const PRE_3_1_TYPE_NAMES = [
   // DEV3-016 reconcile: the eleven admin surface types shipped before 3.1
   // (the type-name inventory includes the admin ENUM names — see PRE_3_1_ENUMS).
+  // DEV1-014↔DEV3-020 merge reconcile: the three audit-trail types shipped on
+  // main while this branch was in flight (same fold-in precedent).
+  "AdminAuditLogEntry",
+  "AdminAuditLogFiltersInput",
+  "AdminAuditLogPage",
   "AdminCreateUserInput",
   "AdminParentSnapshot",
   "AdminStudentSnapshot",
@@ -257,9 +274,14 @@ describe("Query._health — retyped probe surface", () => {
     for (const name of PRE_3_1_QUERY_FIELDS) {
       expect(fieldNames).toContain(name);
     }
+    // …and the ONLY additions beyond them are the explicitly enumerated
+    // sanctioned surfaces: the probe, the DEV1-013 student-handshake
+    // queries, the admin user-management directory reads, and the
+    // `adminAuditLogs` trail read (myApplicantProfile already sits in the
     // …and the ONLY additions beyond them are the probe plus the
-    // DEV1-013 student-handshake queries (myApplicantProfile already sits in
-    // the refreshed baseline).
+    // DEV1-013 student-handshake queries (the admin directory reads and the
+    // `adminAuditLogs` trail read sit in the refreshed baseline — DEV3-016
+    // + DEV3-020 reconciles; myApplicantProfile likewise).
     const additions = fieldNames.filter(name => !(PRE_3_1_QUERY_FIELDS as readonly string[]).includes(name));
     expect(additions.toSorted((a, b) => a.localeCompare(b))).toEqual([
       "_health",
@@ -342,7 +364,7 @@ describe("Surface freeze — pinned additions vs the baseline inventory", () => 
     expect(enumNames).toEqual([...PRE_3_1_ENUMS]);
   });
 
-  test("whole-schema named-type delta is pinned: DateTime scalar + HealthCheck probe + DEV1-013 handshake-code surface + the DEV1-014 parent-link objects (extend step)", () => {
+  test("whole-schema named-type delta is pinned: DateTime scalar + HealthCheck probe + DEV1-013 handshake-code surface + the DEV1-014 parent-link objects (extend step; audit-trail types reconciled into the baseline)", () => {
     const post = new Set(sdlTypeNames());
 
     for (const name of PRE_3_1_TYPE_NAMES) {

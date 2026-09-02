@@ -1,3 +1,30 @@
+type AdminAuditLogEntry {
+  actionType: AuditActionType!
+  actorId: Int!
+  actorName: String!
+  createdAt: DateTime!
+  details: String
+  entityId: Int
+  entityType: String!
+  id: ID!
+}
+
+input AdminAuditLogFiltersInput {
+  actionType: AuditActionType
+  actorId: Int
+  entityId: Int
+  entityType: String
+  from: DateTime
+  to: DateTime
+}
+
+type AdminAuditLogPage {
+  items: [AdminAuditLogEntry!]!
+  page: Int!
+  pageSize: Int!
+  totalCount: Int!
+}
+
 input AdminCreateUserInput {
   country: String!
   email: String!
@@ -395,6 +422,7 @@ type Plan {
 
 type Query {
   _health: HealthCheck!
+  adminAuditLogs(filters: AdminAuditLogFiltersInput, page: Int, pageSize: Int): AdminAuditLogPage!
 
   """Admin-only query to list plans, optionally including inactive plans."""
   adminPlans(

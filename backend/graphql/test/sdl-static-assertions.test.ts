@@ -37,6 +37,12 @@
  *    leakage); and NO parent-link page/connection wrapper exists — the
  *    lists are plain arrays, the pagination contract is the service's 50-row
  *    cap, never SDL pagination plumbing.
+ *  - **DEV1-014↔DEV3-020 merge reconcile:** the global admin audit-trail
+ *    read surface (`adminAuditLogs` query backed by `AdminAuditLogEntry` /
+ *    `AdminAuditLogPage` / `AdminAuditLogFiltersInput`, with the
+ *    `AuditActionType` enum REUSED from the shared registry) shipped on
+ *    main while this branch was in flight and is absorbed additively into
+ *    the frozen baselines — mirroring the DEV3-016 reconcile precedent.
  *  - **Users-locale surface (D2)** — `updateMyLocale(locale: AppLocale!): User!`
  *    is present with its EXACT SDL signature, `User.locale` is the nullable
  *    `AppLocale` enum, and the `AppLocale` enum carries exactly the two
@@ -95,6 +101,8 @@ const FROZEN_MUTATION_FIELDS = [
   // is the ONLY nullable one — pinned in the parent-link describe below).
   "cancelParentLinkRequest",
   // DEV1-005 reconcile: the plan-catalog CRUD shipped before 3.1.
+// ─── The DEV1-014↔DEV3-020 merge re-ran STEP ONE for the global audit-trail  ─
+// ─── surface (+`adminAuditLogs` query folded into FROZEN_QUERY_FIELDS).      ─
   "createPlan",
   "login",
   "logout",
@@ -112,6 +120,9 @@ const FROZEN_MUTATION_FIELDS = [
 /** Root query fields — the frozen baseline + the sanctioned inbox reads + the probe + plan-catalog + DEV1-013 handshake + DEV3-016 admin reads + the DEV1-014 parent-link lists. */
 const FROZEN_QUERY_FIELDS = [
   "_health",
+  // DEV1-014↔DEV3-020 merge reconcile: the global audit-trail read shipped on
+  // main while this branch was in flight (mirrors the DEV3-016 precedent).
+  "adminAuditLogs",
   // DEV1-005 reconcile: the plan-catalog reads shipped before 3.1.
   "adminPlans",
   // DEV3-016 reconcile: the admin user-management reads shipped before 3.1.
@@ -271,7 +282,7 @@ describe("BFLA structural verdict — zero notification CUD surface (REQ-032)", 
     expect(names.toSorted((a, b) => a.localeCompare(b))).toEqual([...FROZEN_MUTATION_FIELDS]);
   });
 
-  test("Query root is EXACTLY the frozen baseline + the `_health` probe (zero unsanctioned growth)", () => {
+  test("Query root is EXACTLY the re-pinned frozen set (zero unsanctioned growth)", () => {
     const names = fieldSurfaces("Query").map(surface => surface.name);
     expect(names.toSorted((a, b) => a.localeCompare(b))).toEqual([...FROZEN_QUERY_FIELDS]);
   });
@@ -375,13 +386,14 @@ describe("Notification object — `id` + REQ-069 depth/complexity posture", () =
       definition => definition.kind === Kind.OBJECT_TYPE_DEFINITION && definition.name.value === "Subscription"
     );
     expect(hasSubscriptionRoot).toBe(false);
-    // REWORDED at DEV1-014 task 3.3 (reconcile step): the original lexical
-    // scan (`sdlText` must not contain the token `Subscription`) went stale
-    // when the DEV3-016 admin surface shipped
-    // `AdminStudentSnapshot.hasActiveSubscription` /
-    // `studentHasActiveSubscription` — the invariant is about the ROOT
-    // operation type, so the scan is narrowed to the type-declaration token.
-    expect(sdlText).not.toContain("type Subscription");
+    // Lexical belt-and-braces — WORD-BOUNDARY scoped (DEV3-020 form, which
+    // SUPERSEDES the DEV1-014 task-3.3 narrowing to `type Subscription`:
+    // a raw substring scan false-positives on infix tokens like
+    // `hasActiveSubscription` / `studentHasActiveSubscription` and on
+    // lowercase "subscription plan" prose, while the word-boundary scan
+    // still catches any real `Subscription` type/root-field spelling — a
+    // strict superset of the narrower `type Subscription` containment).
+    expect(sdlText).not.toMatch(/\bSubscription\b/);
   });
 });
 
