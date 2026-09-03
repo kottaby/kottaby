@@ -113,7 +113,10 @@ export function IncomingBody({
       data-testid="student-link-requests-list"
       aria-label={labels.studentPageTitle}
       aria-busy={loading || respondInFlight}
-      sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(2, 1fr)" }, gap: 2 }}
+      // Single-column list inside the container's capped 880px column: the
+      // old two-column grid left a dead half-row under a lone request card
+      // (visual QA deduction @768/1440) — an inbox list reads cleaner.
+      sx={{ display: "grid", gridTemplateColumns: "1fr", gap: 2 }}
     >
       {rows.map(row => (
         <LinkRequestCard

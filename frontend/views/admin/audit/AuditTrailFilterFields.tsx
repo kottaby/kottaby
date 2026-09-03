@@ -12,8 +12,9 @@
 
 import { Box, Button, FormControl, InputLabel, MenuItem, Select, TextField } from "@mui/material";
 import type { CSSObject } from "@mui/material/styles";
-import type { ReactNode } from "react";
+import { type ReactNode, useMemo } from "react";
 import { focusVisibleRingSx } from "@/frontend/components/ui/focusRing";
+import { shortNumericDateMask } from "@/frontend/lib/i18n/format-date";
 import type { AuditActionType } from "@/frontend/graphql/generated/gql/graphql";
 import { ACTION_VALUES, type FilterDrafts } from "@/frontend/views/admin/audit/audit-trail-filters";
 import type { AdminUsersLabels } from "@/shared/locale/types/adminUsers";
@@ -35,6 +36,81 @@ const GRID_SX = {
 } as const;
 
 const ACTION_BUTTON_SX: CSSObject = { ...focusVisibleRingSx, minHeight: 44 };
+
+/**
+ * Native date field with a LOCALE-aware empty-state mask. Chromium paints its
+ * internal `mm/dd/yyyy` mask from the browser language and ignores the input's
+ * `lang` attribute, so the Arabic UI showed an LTR English mask (QA finding).
+ * While the field is empty the browser mask is hidden (WebKit-only selector,
+ * feature-guarded) and the locale's own short numeric mask — built by
+ * `shortNumericDateMask` — is painted over the field instead. Focus and
+ * non-empty states fall back to the native control untouched.
+ */
+function LocalizedDateField({
+  id,
+  label,
+  value,
+  onChange,
+  disabled,
+  locale,
+}: Readonly<{
+  readonly id: string;
+  readonly label: string;
+  readonly value: string;
+  readonly onChange: (next: string) => void;
+  readonly disabled: boolean;
+  readonly locale: string;
+}>): ReactNode {
+  const mask = useMemo(() => shortNumericDateMask(locale), [locale]);
+  const isEmpty = value === "";
+  return (
+    <TextField
+      id={id}
+      type="date"
+      fullWidth
+      label={label}
+      value={value}
+      onChange={event => onChange(event.target.value)}
+      disabled={disabled}
+      slotProps={{
+        // `lang` still helps browsers that DO honor it for the date mask.
+        htmlInput: { lang: locale, "data-empty": isEmpty ? "true" : "false" },
+        input: {
+          sx: theme => ({
+            // The mask text rides in as a CSS custom property (slot props are
+            // typed, so a data-* carrier attribute is not allowed here).
+            "--date-mask": `"${mask}"`,
+            position: "relative",
+            "&::before": {
+              content: "var(--date-mask)",
+              position: "absolute",
+              insetInlineStart: 14,
+              top: "50%",
+              transform: "translateY(-50%)",
+              pointerEvents: "none",
+              fontSize: "1rem",
+              color: theme.palette.text.disabled,
+              opacity: 0,
+            },
+            // `data-empty` sits on the inner <input> (via htmlInput) — :has
+            // lifts it to the field root that hosts the overlay: empty and
+            // unfocused shows the locale mask, focus/empty+focused hides it.
+            "&:has(input[data-empty='true']):not(:focus-within)::before": {
+              opacity: 1,
+            },
+            // Hiding the browser mask through the INPUT's own color (the
+            // native date mask text inherits it) works across engines;
+            // targeting the WebKit-internal `::-webkit-datetime-edit` pseudo
+            // proved unobservable via CSSOM and is not needed.
+            "&:has(input[data-empty='true']):not(:focus-within) input[data-empty='true']:not(:focus)": {
+              color: "transparent",
+            },
+          }),
+        },
+      }}
+    />
+  );
+}
 
 interface AuditTrailFilterFieldsProps {
   readonly drafts: FilterDrafts;
@@ -109,27 +185,21 @@ export function AuditTrailFilterFields({
           ))}
         </Select>
       </FormControl>
-      <TextField
+      <LocalizedDateField
         id={FROM_DATE_INPUT_ID}
-        type="date"
-        fullWidth
         label={labels.fromDateLabel}
         value={drafts.from}
-        onChange={event => onDraftChange({ from: event.target.value })}
+        onChange={next => onDraftChange({ from: next })}
         disabled={fieldsDisabled}
-        // `lang` localizes the browser's built-in date mask to the active UI
-        // locale instead of always rendering English.
-        slotProps={{ htmlInput: { lang: locale } }}
+        locale={locale}
       />
-      <TextField
+      <LocalizedDateField
         id={TO_DATE_INPUT_ID}
-        type="date"
-        fullWidth
         label={labels.toDateLabel}
         value={drafts.to}
-        onChange={event => onDraftChange({ to: event.target.value })}
+        onChange={next => onDraftChange({ to: next })}
         disabled={fieldsDisabled}
-        slotProps={{ htmlInput: { lang: locale } }}
+        locale={locale}
       />
       <Button
         type="submit"

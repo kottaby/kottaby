@@ -73,6 +73,21 @@ export function NotificationDrawer({ anchorEl, open, onClose }: Readonly<Notific
     []
   );
 
+  // Horizontal anchor side, re-read when the drawer opens: the app sets
+  // document `dir` WITHOUT `theme.direction`, so the mirror is derived from
+  // the live document. In RTL the bell cluster sits on the toolbar's END
+  // (physical left) edge — anchoring the panel's LEFT edges keeps its near
+  // edge flush with the bell; anchoring right-to-right there overflowed the
+  // viewport and the clamp left the panel overshooting the bell by 58px at
+  // desktop widths (visual QA). Narrow viewports clamp flush either way.
+  const anchorToEnd = useMemo(() => {
+    if (!open || typeof document === "undefined") {
+      return true;
+    }
+    return document.documentElement.getAttribute("dir") !== "rtl";
+  }, [open]);
+  const horizontal: "left" | "right" = anchorToEnd ? "right" : "left";
+
   const listQuery = useQuery(myNotificationsQueryDocument, {
     variables: { filter },
     skip: !open,
@@ -96,15 +111,15 @@ export function NotificationDrawer({ anchorEl, open, onClose }: Readonly<Notific
       open={open}
       anchorEl={anchorEl}
       onClose={onClose}
-      // Anchor at the bell's END-side edge (physical right in both document
-      // directions: the toolbar puts the bell cluster on the start edge and
-      // the panel grows inward from the bell). In RTL the panel then extends
-      // past the viewport edge and MUI clamps it flush to the 16px margin —
-      // directly beneath the bell/avatar cluster. The previous RTL branch
-      // anchored the panel's LEFT edge to the bell's left edge, which let a
-      // 400px panel float mid-page at desktop widths.
-      anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
-      transformOrigin={{ vertical: "top", horizontal: "right" }}
+      // Anchor at the bell's cluster-side edge: the panel grows inward from
+      // the bell — END-side (physical right) in LTR, START-side (physical
+      // left) in RTL per `anchorToEnd`. MUI clamps the panel flush to the
+      // viewport margin on narrow screens, directly beneath the bell/avatar
+      // cluster. (The previous fixed right-to-right anchor in RTL let the
+      // clamped 400px panel overshoot the bell's outer edge by 58px at
+      // desktop widths.)
+      anchorOrigin={{ vertical: "bottom", horizontal }}
+      transformOrigin={{ vertical: "top", horizontal }}
       slotProps={{
         paper: {
           sx: theme => ({
@@ -129,7 +144,8 @@ export function NotificationDrawer({ anchorEl, open, onClose }: Readonly<Notific
           variant="text"
           disabled={markAllPending || unreadCount === 0 || markReadPendingIds.length > 0}
           onClick={handleMarkAll}
-          sx={{ ...focusVisibleRingSx, minHeight: 36 }}
+          // 44px tap floor (visual QA flagged the small-size default at 36px).
+          sx={{ ...focusVisibleRingSx, minHeight: 44 }}
         >
           {t.markAllRead}
         </Button>

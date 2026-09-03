@@ -150,7 +150,10 @@ export function StudentLinkRequestsContainer(): ReactNode {
   };
 
   return (
-    <Stack spacing={3} sx={{ width: "100%" }}>
+    // Content column is width-capped and centered: at tablet/desktop the
+    // sparse request inbox previously stretched full-width, reading as dead
+    // space under a single card (visual QA deduction @768/1440).
+    <Stack spacing={3} sx={{ width: "100%", maxWidth: 880, mx: "auto" }}>
       <IncomingHeader labels={t} />
 
       {denialCode !== null ? (

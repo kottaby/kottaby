@@ -47,7 +47,7 @@ export function IncomingSkeletonList(): ReactNode {
       component="output"
       data-testid="student-link-requests-skeleton"
       aria-busy="true"
-      sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(2, 1fr)" }, gap: 2 }}
+      sx={{ display: "grid", gridTemplateColumns: "1fr", gap: 2 }}
     >
       {SKELETON_ROW_KEYS.map(key => (
         <Stack
