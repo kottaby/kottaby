@@ -102,6 +102,9 @@ function PasswordField({
       value={value}
       autoComplete={autoComplete}
       disabled={disabled}
+      // Masked placeholder so the inert (disabled) fields read as real
+      // password inputs instead of unfinished empty boxes.
+      placeholder="••••••••"
       fullWidth
       slotProps={{
         input: {

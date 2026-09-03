@@ -122,7 +122,10 @@ const getSwitchBaseStyles = (theme: Theme, geo: SwitchGeo, main: string, onColor
       opacity: 1,
     },
     "& + .MuiSwitch-track": {
-      opacity: 0.12,
+      // Track opacity stays above the 0.12 MUI default: a barely-there track
+      // read as "extremely faint" in visual QA — visible-but-grey still
+      // communicates inert without disappearing.
+      opacity: 0.32,
       backgroundColor: theme.palette.onSurface,
       borderColor: theme.palette.onSurface,
     },
@@ -130,10 +133,10 @@ const getSwitchBaseStyles = (theme: Theme, geo: SwitchGeo, main: string, onColor
   "&.Mui-disabled": {
     color: theme.palette.onSurface,
     "& .MuiSwitch-thumb": {
-      opacity: 0.38,
+      opacity: 0.55,
     },
     "& + .MuiSwitch-track": {
-      opacity: 0.12,
+      opacity: 0.32,
       backgroundColor: theme.palette.surfaceContainerHighest,
       borderColor: theme.palette.onSurface,
     },
