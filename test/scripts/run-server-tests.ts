@@ -1,5 +1,5 @@
 import { type ChildProcess, spawn as spawnChild } from "node:child_process";
-import { createWriteStream, existsSync, statSync } from "node:fs";
+import { createWriteStream, existsSync, readFileSync, statSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { spawn as bunSpawn, Glob, type Subprocess } from "bun";
@@ -530,6 +530,34 @@ async function setupTestParser(
   await Promise.all([handleTestOutput(testProc.stdout), handleTestOutput(testProc.stderr), testProc.exited]);
 }
 
+/**
+ * Resolves the DB provider for runner-side decisions (warm-server spawn,
+ * test parallelism). `process.env.DB_PROVIDER` is only set when the CALLER's
+ * shell exported it — the canonical env file is passed to the CHILD test
+ * process via `--env-file` (see buildTestArgs) and is invisible to this
+ * process. Fall back to parsing the env file (`TEST_ENV_FILE` or `.env.test`)
+ * before concluding the provider is a networked Postgres; otherwise the
+ * PGlite mitigations (skip server spawn, drop `--parallel=1` to avoid the
+ * Bun 1.3.14 segfault) never activate under `bun run test:graphql`.
+ */
+function resolveDbProvider(): string {
+  const fromProcess = process.env.DB_PROVIDER;
+  if (fromProcess) {
+    return fromProcess.toLowerCase();
+  }
+  const envFile = process.env.TEST_ENV_FILE ?? ".env.test";
+  const providerPattern = /^DB_PROVIDER=(.*)$/m;
+  try {
+    const match = providerPattern.exec(readFileSync(envFile, "utf8"));
+    if (match?.[1]) {
+      return match[1].trim().toLowerCase();
+    }
+  } catch {
+    // Env file missing/unreadable — fall through to the unset default.
+  }
+  return "";
+}
+
 function buildTestArgs(bunBin: string, e2e: boolean, coverage: boolean, bail: boolean, testPaths: string[]): string[] {
   const timeout = e2e ? "300000" : "120000";
   const testEnvFile = process.env.TEST_ENV_FILE ?? ".env.test";
@@ -540,7 +568,7 @@ function buildTestArgs(bunBin: string, e2e: boolean, coverage: boolean, bail: bo
   // `@apollo/client` via the `graphql-interop` preload — a Bun runtime
   // bug, not a code defect. Skipping `--parallel=1` in PGlite mode avoids
   // the crash; the suite is trivially fast in skip-only mode anyway.
-  const isPgliteProvider = (process.env.DB_PROVIDER ?? "").toLowerCase() === "pglite";
+  const isPgliteProvider = resolveDbProvider() === "pglite";
   const parallelArg = isPgliteProvider ? [] : ["--parallel=1"];
   const args = [bunBin, `--env-file=${testEnvFile}`, "test", ...parallelArg, `--timeout=${timeout}`];
   if (e2e) {
@@ -635,7 +663,7 @@ async function main(): Promise<void> {
   // the server spawn entirely in that mode — the test process will still
   // run, every test will skip, and the runner exits clean without a
   // wasted 180 s `pollServerReady` timeout or OOM-killed child.
-  const isPgliteProvider = (process.env.DB_PROVIDER ?? "").toLowerCase() === "pglite";
+  const isPgliteProvider = resolveDbProvider() === "pglite";
   // Type widened to `ChildProcess | null` so the PGlite branch can stay
   // type-honest — the cleanup below already uses optional chaining
   // (`serverProc?.kill`) which is a no-op on `null`. The previous

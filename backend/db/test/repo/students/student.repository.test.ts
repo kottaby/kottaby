@@ -173,7 +173,12 @@ describe("StudentRepository.findDiscoveryByHandshakeCode", () => {
   test("Tier 1 — linked + governed fixture: parentId and governance columns map faithfully", async () => {
     await runInRollback(async tx => {
       const parent = await createTestUser(tx, { role: "parent" });
-      const suspendedAt = new Date();
+      // The PGlite WASM backend round-trips `timestamp` columns at second
+      // precision (same root cause as the NOTE in registration.service.test.ts
+      // "database defaults"). Truncate the fixture stamp to whole seconds so
+      // the faithful-mapping assertion below stays bit-exact (`toEqual`) and
+      // deterministic under both PGlite and real Postgres.
+      const suspendedAt = new Date(Math.floor(Date.now() / 1000) * 1000);
       const user = await createTestUser(tx, {
         isBlocked: true,
         suspended: true,
