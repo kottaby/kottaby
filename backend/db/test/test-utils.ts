@@ -9,10 +9,39 @@
  *    deadlocks. Use `expectRepoError` (try/catch) instead.
  *  - Type transaction parameters as `DBTransaction` — never `any`.
  */
+import { sql } from "drizzle-orm";
 import { db } from "@/backend/db";
 import type { DBTransaction } from "@/backend/types";
 
 export type { DBTransaction } from "@/backend/types";
+
+/**
+ * Optional configuration for {@link runInRollback}.
+ */
+export interface RunInRollbackOptions {
+  /**
+   * PostgreSQL isolation level for the test transaction, applied via a
+   * first-statement `SET TRANSACTION ISOLATION LEVEL` — works identically for
+   * the node-postgres CI pool and the single-process PGlite provider, and is
+   * independent of Drizzle's per-driver transaction-config plumbing.
+   *
+   * `"repeatable read"` freezes the COMMITTED baseline into one transaction
+   * snapshot for the whole test body: rows committed concurrently by other
+   * test files (parallel CI workers share ONE database — e.g. committed-
+   * fixture suites writing through the global executor) become invisible
+   * mid-test, so GLOBAL table-count assertions stay deterministic. Writes
+   * made through the test's own `tx` remain fully visible, so purity and
+   * executor-identity proofs are unaffected.
+   */
+  isolationLevel?: "read committed" | "repeatable read" | "serializable";
+}
+
+/** Closed-set mapping from the option value to the literal SQL fragment (never raw interpolation). */
+const ISOLATION_LEVEL_SQL = {
+  "read committed": sql`READ COMMITTED`,
+  "repeatable read": sql`REPEATABLE READ`,
+  serializable: sql`SERIALIZABLE`,
+} as const;
 
 /**
  * Runs `fn` inside a `db.transaction` that is FORCED to roll back at the end
@@ -31,7 +60,10 @@ export type { DBTransaction } from "@/backend/types";
  *   // ... assertions ...
  * });
  */
-export async function runInRollback<T>(fn: (tx: DBTransaction) => Promise<T>): Promise<T | undefined> {
+export async function runInRollback<T>(
+  fn: (tx: DBTransaction) => Promise<T>,
+  options?: RunInRollbackOptions,
+): Promise<T | undefined> {
   // We deliberately throw after the test body runs to force ROLLBACK. This
   // works because Drizzle's `db.transaction` issues ROLLBACK when the
   // callback throws — even if the test body itself succeeded.
@@ -42,6 +74,11 @@ export async function runInRollback<T>(fn: (tx: DBTransaction) => Promise<T>): P
   const SENTINEL = Symbol("runInRollback.forceRollback");
   try {
     return await db.transaction(async tx => {
+      // `SET TRANSACTION` must be the FIRST statement of the transaction —
+      // issued here, before `fn` runs any query of its own.
+      if (options?.isolationLevel !== undefined) {
+        await tx.execute(sql`SET TRANSACTION ISOLATION LEVEL ${ISOLATION_LEVEL_SQL[options.isolationLevel]}`);
+      }
       await fn(tx);
       // Discard the result — the transaction will roll back, so any
       // returned DB state is invalid. Callers assert inside `fn` instead.

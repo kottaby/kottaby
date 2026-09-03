@@ -439,34 +439,44 @@ describe("PlatformAnalyticsService — Tier 2: snapshot composition", () => {
   });
 
   test("an explicit outerTx scopes the snapshot: tx-local (uncommitted) rows are visible to the composite read", async () => {
-    await runInRollback(async tx => {
-      const admin = await createTestUser(tx, { role: "admin" });
-      // FK-valid teacher + student (shared PKs with users) + an UNCOMMITTED
-      // session row — visible ONLY through `tx`, never through the global
-      // executor. A stubbed read could not prove executor identity, so this
-      // test runs the REAL repo layer over the caller's savepoint tx.
-      await createTestTeacherRow(tx, admin.id);
-      await createTestStudent(tx, admin.id);
-      await createTestSession(tx, admin.id, admin.id, {
-        status: SessionStatus.Scheduled,
-        createdAt: new Date(),
-      });
+    // CI-only flake guard — REPEATABLE READ pins ONE committed-baseline
+    // snapshot for the whole tx. Under CI's parallel workers, committed-
+    // fixture suites write through the global executor on the SAME shared
+    // database; a READ COMMITTED tx would observe those commits between the
+    // service's internal read instant and the tx-side oracle instants and
+    // mismatch the equality assertions. Tx-local rows stay visible to BOTH
+    // sides, so the executor-identity proof is unchanged.
+    await runInRollback(
+      async tx => {
+        const admin = await createTestUser(tx, { role: "admin" });
+        // FK-valid teacher + student (shared PKs with users) + an UNCOMMITTED
+        // session row — visible ONLY through `tx`, never through the global
+        // executor. A stubbed read could not prove executor identity, so this
+        // test runs the REAL repo layer over the caller's savepoint tx.
+        await createTestTeacherRow(tx, admin.id);
+        await createTestStudent(tx, admin.id);
+        await createTestSession(tx, admin.id, admin.id, {
+          status: SessionStatus.Scheduled,
+          createdAt: new Date(),
+        });
 
-      const snapshot = await PlatformAnalyticsService.getPlatformAnalytics(admin.id, LOCALE, tx);
+        const snapshot = await PlatformAnalyticsService.getPlatformAnalytics(admin.id, LOCALE, tx);
 
-      // Direct tx-side oracle of the SAME window the snapshot claims.
-      const dayStart = utcDayStart(snapshot.generatedAt);
-      const txToday = await tx
-        .select({ count: sql<number>`count(*)::int` })
-        .from(session)
-        .where(sql`${session.createdAt} >= ${dayStart}`);
-      expect(snapshot.sessions.today).toBe(txToday[0]?.count ?? 0);
-      expect(snapshot.sessions.today).toBeGreaterThanOrEqual(1);
-      // The users section agrees with a tx-side count too (the uncommitted
-      // admin IS counted — the read ran on the caller's tx).
-      const txUsers = await tx.select({ count: sql<number>`count(*)::int` }).from(users);
-      expect(snapshot.users.totalCount).toBe(txUsers[0]?.count ?? 0);
-    });
+        // Direct tx-side oracle of the SAME window the snapshot claims.
+        const dayStart = utcDayStart(snapshot.generatedAt);
+        const txToday = await tx
+          .select({ count: sql<number>`count(*)::int` })
+          .from(session)
+          .where(sql`${session.createdAt} >= ${dayStart}`);
+        expect(snapshot.sessions.today).toBe(txToday[0]?.count ?? 0);
+        expect(snapshot.sessions.today).toBeGreaterThanOrEqual(1);
+        // The users section agrees with a tx-side count too (the uncommitted
+        // admin IS counted — the read ran on the caller's tx).
+        const txUsers = await tx.select({ count: sql<number>`count(*)::int` }).from(users);
+        expect(snapshot.users.totalCount).toBe(txUsers[0]?.count ?? 0);
+      },
+      { isolationLevel: "repeatable read" }
+    );
   });
 });
 
@@ -620,34 +630,44 @@ describe("PlatformAnalyticsService — Tier 4: pre-DB denials + read purity", ()
   });
 
   test("the happy path is silent (zero domain logs) and leaves every touched table's row count unchanged", async () => {
-    await runInRollback(async tx => {
-      const admin = await createTestUser(tx, { role: "admin" });
-      await createTestTeacherRow(tx, admin.id);
-      await createTestStudent(tx, admin.id);
-      await createTestSession(tx, admin.id, admin.id, { status: SessionStatus.Scheduled });
-      const tables = [users, session, studentPayments, subscriptions, teacher, auditLogs, notifications] as const;
-      const before = await Promise.all(
-        tables.map(async table => {
-          const rows = await tx.select({ count: sql<number>`count(*)::int` }).from(table);
-          return rows[0]?.count ?? 0;
-        })
-      );
-      const logSpy = silenceDomainLog();
-      try {
-        const snapshot = await PlatformAnalyticsService.getPlatformAnalytics(admin.id, LOCALE, tx);
-        expect(snapshot.generatedAt.getTime()).toBeGreaterThan(0);
-        expect(loggedContexts(logSpy)).toHaveLength(0);
-      } finally {
-        logSpy.mockRestore();
-      }
-      const after = await Promise.all(
-        tables.map(async table => {
-          const rows = await tx.select({ count: sql<number>`count(*)::int` }).from(table);
-          return rows[0]?.count ?? 0;
-        })
-      );
-      expect(after).toEqual(before);
-    });
+    // CI-only flake guard — `before`/`after` are GLOBAL counts of shared
+    // tables. Under CI's parallel workers, committed-fixture suites (emit,
+    // handshake, user-management chaos) commit/DELETE rows on the same
+    // database BETWEEN the two count instants, shifting the baseline mid-test
+    // (observed: "Expected 8, Received 7" CI-only). REPEATABLE READ freezes
+    // the committed baseline, so ONLY writes made by THIS tx — exactly what
+    // the read-purity proof must catch — can move the counts.
+    await runInRollback(
+      async tx => {
+        const admin = await createTestUser(tx, { role: "admin" });
+        await createTestTeacherRow(tx, admin.id);
+        await createTestStudent(tx, admin.id);
+        await createTestSession(tx, admin.id, admin.id, { status: SessionStatus.Scheduled });
+        const tables = [users, session, studentPayments, subscriptions, teacher, auditLogs, notifications] as const;
+        const before = await Promise.all(
+          tables.map(async table => {
+            const rows = await tx.select({ count: sql<number>`count(*)::int` }).from(table);
+            return rows[0]?.count ?? 0;
+          })
+        );
+        const logSpy = silenceDomainLog();
+        try {
+          const snapshot = await PlatformAnalyticsService.getPlatformAnalytics(admin.id, LOCALE, tx);
+          expect(snapshot.generatedAt.getTime()).toBeGreaterThan(0);
+          expect(loggedContexts(logSpy)).toHaveLength(0);
+        } finally {
+          logSpy.mockRestore();
+        }
+        const after = await Promise.all(
+          tables.map(async table => {
+            const rows = await tx.select({ count: sql<number>`count(*)::int` }).from(table);
+            return rows[0]?.count ?? 0;
+          })
+        );
+        expect(after).toEqual(before);
+      },
+      { isolationLevel: "repeatable read" }
+    );
   });
 
   test("repo rejections propagate unmasked (no try/catch swallowing inside the service)", async () => {
