@@ -24,9 +24,9 @@
  *      CONFLICT (the `users.email` unique index 23505 fires on the
  *      loser; `withTransaction` rolls the loser's insert back; zero
  *      residual `users` / role-child / audit rows from the loser).
- *  (e) forced-failure create (duplicate email mid-storm) — the
- *      directory row count is unchanged (rollback preserves the
- *      pre-call state).
+ *  (e) forced-failure create (duplicate email mid-storm) — the failed
+ *      call commits nothing (email-scoped count still exactly 1; a
+ *      global users count would race with concurrent test files).
  *  (f) BFLA token probes — anonymous actorId (0) + non-admin actorId
  *      pre-checks fire BEFORE any DB write; the directory count is
  *      unchanged.
@@ -181,12 +181,6 @@ async function countAuditForEntity(actorId: number, actionType: AuditActionType,
     .select({ count: sql<number>`count(*)::int` })
     .from(auditLogs)
     .where(and(eq(auditLogs.actorId, actorId), eq(auditLogs.actionType, actionType), eq(auditLogs.entityId, entityId)));
-  return row?.count ?? 0;
-}
-
-/** Counts `users` rows (directory-count assertion helper). */
-async function countUsers(): Promise<number> {
-  const [row] = await db.select({ count: sql<number>`count(*)::int` }).from(users);
   return row?.count ?? 0;
 }
 
@@ -393,9 +387,9 @@ describe("AdminUserManagementService — chaos & concurrency", () => {
     }
   );
 
-  // ─── (e) Forced-failure create → directory count unchanged ──────────
+  // ─── (e) Forced-failure create → nothing committed ───────────────────
   concurrencyTest(
-    "forced-failure createUser (duplicate email) — directory count unchanged for the failed call",
+    "forced-failure createUser (duplicate email) — failed call commits nothing (email-scoped count unchanged)",
     async () => {
       silenceDomainLog();
       const adminId = fixtures.adminActor.id;
@@ -409,8 +403,6 @@ describe("AdminUserManagementService — chaos & concurrency", () => {
         .where(eq(students.id, seed.id))
         .catch(() => {});
 
-      const countBeforeValue = await countUsers();
-
       // Forced-failure — same email, different fullName (BOPLA
       // defense — the role-child insert uses field-by-field mapping,
       // never mass-assignment, so smuggled fields cannot land).
@@ -422,7 +414,15 @@ describe("AdminUserManagementService — chaos & concurrency", () => {
       expect(error).toBeInstanceOf(ConflictError);
       assertErrorCode(error, "CONFLICT");
 
-      expect(await countUsers()).toBe(countBeforeValue);
+      // The failed call committed nothing — still exactly one `users`
+      // row with the seed email (a leaked row would carry the same
+      // duplicated email; the email-scoped predicate is immune to
+      // concurrent external user churn).
+      const [row] = await db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(users)
+        .where(eq(users.email, seedInput.email));
+      expect(row?.count).toBe(1);
     }
   );
 });
