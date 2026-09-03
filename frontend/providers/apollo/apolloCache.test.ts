@@ -179,7 +179,7 @@ describe("createApolloCache — initialised InMemoryCache config exposure", () =
     expect(keyFieldsOf(policies, "AdminAuditLogPage")).toBe(false);
   });
 
-  test("policy surface is FROZEN to the seven documented entries (DEV3-020 audit-trail absorb merged with DEV1-014)", () => {
+  test("policy surface is FROZEN to the seven documented entries", () => {
     const cache = createApolloCache();
     expect(Object.keys(typePoliciesOf(cache)).toSorted((a, b) => a.localeCompare(b))).toEqual([
       "AdminAuditLogPage",

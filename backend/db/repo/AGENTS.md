@@ -117,3 +117,6 @@ Schema tables sharing identical column configurations (timestamps, slugs, active
 
 - See `docs/quality/linting-rules.md` for Oxlint & ESLint/sonarjs fix recipes. NEVER use `oxlint-disable` comments.
 
+## Broadcast Audience Resolution (`broadcast-audience.repository.ts`)
+
+Cohort resolution for admin broadcasts: both tx and raw-SQL branches must stay semantically identical; exact-match (parameterized `eq`/`$1`) for country — never LIKE; the plan cohort applies `SELECT DISTINCT … ORDER BY id ASC` where the subscriptions join fans out; the governance predicate (deleted/blocked excluded, suspended INCLUDED) is invariant-pinned — do not "fix" it. Reference: `docs/notifications/broadcast-notifications.md` §2.

@@ -20,7 +20,29 @@
  *    mutation additions — `markNotificationRead` +
  *    `markAllNotificationsRead` — and the sanctioned users-locale additions
  *    (D2 backend vertical) — the `AppLocale` enum + `User.locale` + the
- *    `updateMyLocale` mutation). **The parent-link extension performed the
+ *    `updateMyLocale` mutation — and, absorbed additively, the admin
+ *    user-management surface (directory/stats/detail/activity reads + the
+ *    admin CRUD mutation trio + the governance-filter enum) and the global
+ *    admin audit-trail read surface — the `adminAuditLogs` query backed by
+ *    the `AdminAuditLogEntry` object, the `AdminAuditLogPage` embedded
+ *    wrapper, and the `AdminAuditLogFiltersInput` input — with the
+ *    `AuditActionType` enum REUSED from the shared registry, never
+ *    re-registered — and, absorbed additively, the admin broadcast
+ *    surface — the `adminBroadcastNotification` mutation + the
+ *    `BroadcastAudienceType` enum + the `BroadcastAudienceInput` /
+ *    `AdminBroadcastNotificationInput` inputs — and, absorbed additively, the
+ *    DEV3-004/005/012/013 session family — the lifecycle mutation quartet
+ *    (`createSession`, `startSession`, `completeSession`, `cancelSession`),
+ *    the DEV3-005 dispute pair (`openSessionDispute`,
+ *    `resolveSessionDispute`), the DEV3-012 dual-confirmation mutation
+ *    (`confirmSessionCompletion`), the DEV3-013 payout write
+ *    (`requestWithdrawal`), the participant-read trio (`sessionById`,
+ *    `myStudentSessions`, `myTeacherSessions`) + the DEV3-005 admin
+ *    arbitration listing (`adminDisputedSessions`) + the DEV3-013 wallet
+ *    read (`myWallet`), the scheduling/arbitration/ledger enum vocabulary
+ *    (`SessionStatus`, `SessionType`, `SessionIntent`, `DisputeResolution`,
+ *    `TransactionType`, `TransactionStatus`), and the session/wallet
+ *    objects + inputs). **The parent-link extension performed the
  *    documented reconcile-then-extend (REQ-061):** STEP ONE re-anchored the
  *    stale arrays to the CURRENT live surface (they predated the shipped
  *    DEV3-016 admin surface — 4 admin queries + 3 admin mutations + the
@@ -37,10 +59,11 @@
  *    additions beyond the refreshed baselines are the probe + DEV1-013
  *    handshake queries (query root) and the whole-schema named-type delta
  *    of EXACTLY `{DateTime, HandshakeCodeLookup, HealthCheck,
- *    IncomingParentLinkRequest, OutgoingParentLinkRequest}` (the probe type
- *    plus the `DateTime` scalar registered in `shared/scalar.pothos.ts`,
- *    the DEV1-013 `HandshakeCodeLookup` object, and the two parent-link
- *    objects pinned by the extend step).
+ *    IncomingParentLinkRequest, OutgoingParentLinkRequest}` + the
+ *    DEV3-004/005/013 session/arbitration/ledger objects and enums (the
+ *    probe type plus the `DateTime` scalar registered in
+ *    `shared/scalar.pothos.ts`, the DEV1-013 `HandshakeCodeLookup` object,
+ *    and the two parent-link objects pinned by the extend step).
  *  - **Notification surface** — the `NotificationType` enum carries exactly
  *    the 7 canonical values (TS-enum keys as GraphQL names, snake_case
  *    runtime values), the `Notification` object exposes `id` FIRST with
@@ -82,7 +105,12 @@
  *    `frontend/graphql/generated/schema.graphql` is BYTE-IDENTICAL to a
  *    fresh `printSchema(lexicographicSortSchema(graphQLSchema))` emission,
  *    i.e. generated artifacts are in lockstep with the code-first builder
- *    (read-only disk access; the suite writes NOTHING).
+ *    (read-only disk access; the suite writes NOTHING). Belt-and-braces
+ *    pins assert the DEV3-004 session surface is really inside the
+ *    committed artifact (seven root operations + the two object types +
+ *    the two input types) plus the DEV3-005 dispute surface (the three
+ *    new root operations, the arbitration enum, and the five nullable
+ *    `Session` fields).
  *
  * Pure unit tier — NO server boot, NO network, NO DB. Runs via the mandated
  * runner: `bun run test/scripts/run-test.ts backend/graphql/test/schema-surface.test.ts`.
@@ -122,6 +150,9 @@ import { PUBLIC_OPERATION_NAMES, PUBLIC_OPERATIONS } from "@/backend/lib/gateway
 // ─── re-anchored.                                                             ─
 // ─── The parent-link↔DEV3-020 merge re-ran STEP ONE for the audit-trail     ─
 // ─── surface (+`adminAuditLogs` query, +3 audit types folded into baseline).  ─
+// ─── This merge absorbs the DEV3-004/005/012/013 session family and the     ─
+// ─── DEV3-022d admin-broadcast surface the same way: additive only,         ─
+// ─── entries are NEVER dropped.                                               ─
 
 /** Root query field names — the frozen baseline (probe re-registration excluded). */
 const PRE_3_1_QUERY_FIELDS = [
@@ -144,9 +175,11 @@ const PRE_3_1_QUERY_FIELDS = [
   "planCatalog",
   "recitationReadings",
 ] as const;
-/** Root mutation field names — the frozen baseline (auth quartet + notification read-latch pair + users-locale + plan-catalog CRUD + admin user-management trio). */
+/** Root mutation field names — the frozen baseline (auth quartet + notification read-latch pair + users-locale + plan-catalog CRUD + admin user-management trio + the admin broadcast mutation). */
 const PRE_3_1_MUTATION_FIELDS = [
-  // DEV3-016 reconcile: the admin user-management writes shipped before 3.1.
+  // DEV3-016 reconcile: the admin user-management writes shipped before 3.1
+  // (the DEV3-022d admin broadcast mutation absorbed alongside them).
+  "adminBroadcastNotification",
   "adminCreateUser",
   "adminSetUserDeleted",
   "adminUpdateUser",
@@ -166,15 +199,17 @@ const PRE_3_1_MUTATION_FIELDS = [
   "updateMyLocale",
   "updatePlan",
 ] as const;
-/** GraphQL enum type names — the freeze forbids any new Pothos enum beyond the pinned parent-link `LinkStatus` (the governance-filter + audit-action enums sit in the reconciled baseline). */
+/** GraphQL enum type names — the freeze forbids any new Pothos enum beyond the pinned parent-link `LinkStatus` (the governance-filter + audit-action + broadcast-audience enums sit in the reconciled baseline). */
 const PRE_3_1_ENUMS = [
   // DEV3-016 reconcile: the admin governance/audit enums shipped before 3.1.
   // Parent-link↔DEV3-020 merge: `AuditActionType` was already baseline — reused,
-  // never re-registered.
+  // never re-registered. The DEV3-022d `BroadcastAudienceType` enum absorbed
+  // alongside them.
   "AdminUserGovernanceFilter",
   "ApplicantStatus",
   "AppLocale",
   "AuditActionType",
+  "BroadcastAudienceType",
   "Gender",
   // Parent-link extend: the link-request status enum (members pinned below).
   "LinkStatus",
@@ -183,15 +218,51 @@ const PRE_3_1_ENUMS = [
   "RegisterPublicRole",
   "UserRole",
 ] as const;
-/** Non-root object/enum/scalar SDL type names in the baseline (introspection `__*` and spec scalars excluded). */
+/**
+ * DEV3-004 session lifecycle root fields — registered ONCE via the
+ * side-effect barrels (`query|mutation/classes/index.ts` → top-level
+ * barrel → `gqlSchema.ts`); role-gated/authenticated per REQ-032 and
+ * therefore deliberately ABSENT from the public-operation allowlist
+ * (`backend/lib/gateway/public-operations.ts` stays byte-unchanged).
+ */
+const DEV3_004_QUERY_FIELDS = ["myStudentSessions", "myTeacherSessions", "sessionById"] as const;
+/** DEV3-005 admin arbitration listing — the admin-gated disputed queue. */
+const DEV3_005_QUERY_FIELDS = ["adminDisputedSessions"] as const;
+/** DEV3-004 lifecycle mutation quartet (plan §3.1/§3.2 — REQ-060/061). */
+const DEV3_004_MUTATION_FIELDS = ["cancelSession", "completeSession", "createSession", "startSession"] as const;
+/** DEV3-005 dispute mutation pair (R-102/R-104). */
+const DEV3_005_MUTATION_FIELDS = ["openSessionDispute", "resolveSessionDispute"] as const;
+/** DEV3-012 dual-confirmation mutation (R-201/R-202). */
+const DEV3_012_MUTATION_FIELDS = ["confirmSessionCompletion"] as const;
+/** DEV3-013 wallet read — the teacher-only wallet + ledger surface (R-301). */
+const DEV3_013_QUERY_FIELDS = ["myWallet"] as const;
+/** DEV3-013 wallet payout write — the teacher-only withdrawal request (R-302). */
+const DEV3_013_MUTATION_FIELDS = ["requestWithdrawal"] as const;
+/** DEV3-013 billing ledger vocabulary — registered ONCE in `shared/enum.pothos.ts`. */
+const DEV3_013_ENUMS = ["TransactionStatus", "TransactionType"] as const;
+/** DEV3-005 arbitration outcome vocabulary — registered ONCE, no pgEnum backing. */
+const DEV3_005_ENUMS = ["DisputeResolution"] as const;
+/** DEV3-005 nullable `Session` fields — the dispute + reason surface (R-105/R-107). */
+const DEV3_005_SESSION_FIELDS = [
+  "cancelReason",
+  "disputeReason",
+  "disputedAt",
+  "resolutionNote",
+  "resolvedAt",
+] as const;
+/** DEV3-004 scheduling enum trio — registered ONCE in `shared/enum.pothos.ts`. */
+const DEV3_004_ENUMS = ["SessionIntent", "SessionStatus", "SessionType"] as const;
+/** Non-root object/enum/scalar SDL type names in the baseline (introspection `__*` and spec scalars excluded; the admin-broadcast input/enum surfaces absorbed additively). */
 const PRE_3_1_TYPE_NAMES = [
   // DEV3-016 reconcile: the eleven admin surface types shipped before 3.1
   // (the type-name inventory includes the admin ENUM names — see PRE_3_1_ENUMS).
   // Parent-link↔DEV3-020 merge reconcile: the three audit-trail types shipped on
-  // main while this branch was in flight (same fold-in precedent).
+  // main while this branch was in flight (same fold-in precedent). The
+  // DEV3-022d admin-broadcast input/enum surfaces absorbed alongside them.
   "AdminAuditLogEntry",
   "AdminAuditLogFiltersInput",
   "AdminAuditLogPage",
+  "AdminBroadcastNotificationInput",
   "AdminCreateUserInput",
   "AdminParentSnapshot",
   "AdminStudentSnapshot",
@@ -208,6 +279,8 @@ const PRE_3_1_TYPE_NAMES = [
   "ApplicantProfile",
   "ApplicantStatus",
   "AuditActionType",
+  "BroadcastAudienceInput",
+  "BroadcastAudienceType",
   "CreatePlanInput",
   "Gender",
   // Parent-link extend: the link-request status enum joins the named-type set.
@@ -229,6 +302,14 @@ const PRE_3_1_TYPE_NAMES = [
   "User",
   "UserRole",
 ] as const;
+/**
+ * DEV3-004 session surface — objects + inputs that enter the named-type
+ * map when the resolver modules register the root fields (plan §3.1 SDL).
+ * The scheduling enum trio is pinned separately (see `DEV3_004_ENUMS`).
+ */
+const DEV3_004_TYPE_NAMES = ["CreateSessionInput", "Session", "SessionListFilterInput", "SessionPage"] as const;
+/** DEV3-013 billing objects + input (R-301/R-302) — the wallet surface types. */
+const DEV3_013_TYPE_NAMES = ["RequestWithdrawalInput", "TeacherTransaction", "Wallet"] as const;
 
 // ─── Schema walk helpers ─────────────────────────────────────────────────────
 
@@ -267,7 +348,7 @@ describe("Query._health — retyped probe surface", () => {
     throw new Error("Schema must define a root Query type");
   }
 
-  test("root query retains EXACTLY the baseline fields plus the probe", () => {
+  test("root query retains EXACTLY the baseline fields plus the pinned additions", () => {
     expect(queryType).toBeDefined();
     const fieldNames = Object.keys(queryType.getFields());
     // Baseline survivors intact…
@@ -276,18 +357,22 @@ describe("Query._health — retyped probe surface", () => {
     }
     // …and the ONLY additions beyond them are the explicitly enumerated
     // sanctioned surfaces: the probe, the DEV1-013 student-handshake
-    // queries, the admin user-management directory reads, and the
-    // `adminAuditLogs` trail read (myApplicantProfile already sits in the
-    // …and the ONLY additions beyond them are the probe plus the
-    // DEV1-013 student-handshake queries (the admin directory reads and the
-    // `adminAuditLogs` trail read sit in the refreshed baseline — DEV3-016
-    // + DEV3-020 reconciles; myApplicantProfile likewise).
+    // queries, the DEV3-004 participant-read trio, the DEV3-005 admin
+    // arbitration listing, and the DEV3-013 wallet read (the admin
+    // directory reads and the `adminAuditLogs` trail read sit in the
+    // refreshed baseline — DEV3-016 + DEV3-020 reconciles;
+    // myApplicantProfile likewise).
     const additions = fieldNames.filter(name => !(PRE_3_1_QUERY_FIELDS as readonly string[]).includes(name));
-    expect(additions.toSorted((a, b) => a.localeCompare(b))).toEqual([
-      "_health",
-      "findStudentByHandshakeCode",
-      "myHandshakeCode",
-    ]);
+    expect(additions.toSorted((a, b) => a.localeCompare(b))).toEqual(
+      [
+        "_health",
+        "findStudentByHandshakeCode",
+        "myHandshakeCode",
+        ...DEV3_004_QUERY_FIELDS,
+        ...DEV3_005_QUERY_FIELDS,
+        ...DEV3_013_QUERY_FIELDS,
+      ].toSorted((a, b) => a.localeCompare(b))
+    );
   });
 
   test("`_health` is NON-NULLABLE `HealthCheck!` (retyped from the String! placeholder)", () => {
@@ -347,11 +432,27 @@ describe("HealthCheck object shape — four scalar fields, no id", () => {
 });
 
 describe("Surface freeze — pinned additions vs the baseline inventory", () => {
-  test("mutation set is EXACTLY the refreshed frozen baseline (ZERO new mutations beyond it)", () => {
+  test("mutation set grows ONLY by the sanctioned additions (DEV3-004 quartet + DEV3-005 dispute pair + DEV3-012 confirm + DEV3-013 payout)", () => {
     const mutationFields = graphQLSchema.getMutationType()?.getFields() ?? {};
     const names = Object.keys(mutationFields).toSorted((a, b) => a.localeCompare(b));
 
-    expect(names).toEqual([...PRE_3_1_MUTATION_FIELDS]);
+    // Baseline survivors intact…
+    for (const name of PRE_3_1_MUTATION_FIELDS) {
+      expect(names).toContain(name);
+    }
+    // …and the ONLY additions are the DEV3-004 quartet, the DEV3-005
+    // dispute pair, and the DEV3-012 dual-confirmation mutation (all
+    // authScopes-gated — none of them is allowlist material; the
+    // public-operation registry stays byte-unchanged).
+    expect(names).toEqual(
+      [
+        ...PRE_3_1_MUTATION_FIELDS,
+        ...DEV3_004_MUTATION_FIELDS,
+        ...DEV3_005_MUTATION_FIELDS,
+        ...DEV3_012_MUTATION_FIELDS,
+        ...DEV3_013_MUTATION_FIELDS,
+      ].toSorted((a, b) => a.localeCompare(b))
+    );
     expect(names).not.toContain("_health");
   });
 
@@ -361,10 +462,47 @@ describe("Surface freeze — pinned additions vs the baseline inventory", () => 
       .map(type => type.name)
       .toSorted((a, b) => a.localeCompare(b));
 
-    expect(enumNames).toEqual([...PRE_3_1_ENUMS]);
+    expect(enumNames).toEqual(
+      [...PRE_3_1_ENUMS, ...DEV3_004_ENUMS, ...DEV3_005_ENUMS, ...DEV3_013_ENUMS].toSorted((a, b) => a.localeCompare(b))
+    );
   });
 
-  test("whole-schema named-type delta is pinned: DateTime scalar + HealthCheck probe + DEV1-013 handshake-code surface + the parent-link objects (extend step; audit-trail types reconciled into the baseline)", () => {
+  test("DisputeResolution exposes exactly the arbitration vocabulary (Cancel | Complete)", () => {
+    const disputeEnum = graphQLSchema.getType("DisputeResolution");
+
+    if (!(disputeEnum instanceof GraphQLEnumType)) {
+      throw new Error("DisputeResolution must be registered as a GraphQL enum type");
+    }
+    expect(
+      disputeEnum
+        .getValues()
+        .map(value => value.name)
+        .toSorted((a, b) => a.localeCompare(b))
+    ).toEqual(["Cancel", "Complete"]);
+  });
+
+  test("Session exposes EXACTLY the DEV3-004 field set plus the five DEV3-005 nullable dispute fields", () => {
+    const sessionType = graphQLSchema.getType("Session");
+
+    if (!(sessionType instanceof GraphQLObjectType)) {
+      throw new Error("Session must be registered as a GraphQL object type");
+    }
+    const fields = sessionType.getFields();
+    for (const name of DEV3_005_SESSION_FIELDS) {
+      expect(Object.hasOwn(fields, name)).toBe(true);
+    }
+    // All five are nullable (no `!` wrapping) — the dispute/reason data is
+    // optional on every row (rows cancelled/disputed/resolved before this
+    // ticket carry NULL).
+    for (const name of ["cancelReason", "disputeReason", "resolutionNote"]) {
+      expect(fields[name]?.type.toString()).toBe("String");
+    }
+    for (const name of ["disputedAt", "resolvedAt"]) {
+      expect(fields[name]?.type.toString()).toBe("DateTime");
+    }
+  });
+
+  test("whole-schema named-type delta is pinned: refreshed baseline delta (DateTime scalar + HealthCheck probe + DEV1-013 handshake surface) + admin-directory/audit-trail/broadcast absorbed surfaces + DEV3-004 session objects/inputs + scheduling/arbitration/ledger enums + DEV3-013 wallet surface + the parent-link objects (extend step)", () => {
     const post = new Set(sdlTypeNames());
 
     for (const name of PRE_3_1_TYPE_NAMES) {
@@ -373,13 +511,20 @@ describe("Surface freeze — pinned additions vs the baseline inventory", () => 
     // The two parent-link OBJECT types are the extend step's pinned delta —
     // the `LinkStatus` enum itself already joined the baseline above.
     const additions = sdlTypeNames().filter(name => !(PRE_3_1_TYPE_NAMES as readonly string[]).includes(name));
-    expect(additions).toEqual([
-      "DateTime",
-      "HandshakeCodeLookup",
-      "HealthCheck",
-      "IncomingParentLinkRequest",
-      "OutgoingParentLinkRequest",
-    ]);
+    expect(additions).toEqual(
+      [
+        "DateTime",
+        "HandshakeCodeLookup",
+        "HealthCheck",
+        "IncomingParentLinkRequest",
+        "OutgoingParentLinkRequest",
+        ...DEV3_004_TYPE_NAMES,
+        ...DEV3_004_ENUMS,
+        ...DEV3_005_ENUMS,
+        ...DEV3_013_TYPE_NAMES,
+        ...DEV3_013_ENUMS,
+      ].toSorted((a, b) => a.localeCompare(b))
+    );
   });
 });
 
@@ -776,6 +921,28 @@ describe("Users-locale surface (D2 backend vertical) — self-scoped locale pref
     expect("superAdmin" in scopes).toBe(false);
   });
 
+  test("BroadcastAudienceType enum carries EXACTLY the 4 canonical values (keys on the wire, lowercase runtime values)", () => {
+    const enumType = graphQLSchema.getType("BroadcastAudienceType");
+
+    if (!(enumType instanceof GraphQLEnumType)) {
+      throw new Error("BroadcastAudienceType must be registered as a GraphQL enum type");
+    }
+
+    const values = enumType.getValues();
+    expect(values).toHaveLength(4);
+    // The built schema is lexicographically sorted (enum-value order carries
+    // no GraphQL semantics), so the pins compare as sorted sets:
+    expect(values.map(value => value.name).toSorted((a, b) => a.localeCompare(b))).toEqual(
+      ["All", "Country", "Plan", "Role"].toSorted((a, b) => a.localeCompare(b))
+    );
+    // Runtime values stay the canonical lowercase strings — byte-identical
+    // to the TS enum single source of truth (wire vocabulary is the KEY set;
+    // a rename would move the wire contract and must fail here).
+    expect(values.map(value => value.value).toSorted((a, b) => a.localeCompare(b))).toEqual(
+      ["all", "country", "plan", "role"].toSorted((a, b) => a.localeCompare(b))
+    );
+  });
+
   test("AppLocale enum carries EXACTLY the 2 canonical values (keys on the wire, lowercase runtime values)", () => {
     const enumType = graphQLSchema.getType("AppLocale");
 
@@ -1139,5 +1306,46 @@ describe("Codegen sync — committed SDL is byte-identical to the built schema",
     // Belt-and-braces: the synced artifact really contains the retyped probe.
     expect(committedSdl).toContain("_health: HealthCheck!");
     expect(committedSdl).toContain("type HealthCheck {");
+    // …and the DEV3-004 session surface (7 root operations + 2 object
+    // types + 2 input types) is really inside the committed artifact.
+    expect(committedSdl).toContain("sessionById(id: ID!): Session");
+    expect(committedSdl).toContain(
+      "myStudentSessions(filter: SessionListFilterInput, page: Int = 1, pageSize: Int = 25): SessionPage!"
+    );
+    expect(committedSdl).toContain(
+      "myTeacherSessions(filter: SessionListFilterInput, page: Int = 1, pageSize: Int = 25): SessionPage!"
+    );
+    expect(committedSdl).toContain("createSession(input: CreateSessionInput!): Session!");
+    expect(committedSdl).toContain("startSession(id: ID!): Session!");
+    expect(committedSdl).toContain("completeSession(id: ID!): Session!");
+    expect(committedSdl).toContain("cancelSession(id: ID!, reason: String): Session!");
+    expect(committedSdl).toContain("type Session {");
+    expect(committedSdl).toContain("type SessionPage {");
+    expect(committedSdl).toContain("input CreateSessionInput {");
+    expect(committedSdl).toContain("input SessionListFilterInput {");
+    // …and the DEV3-005 dispute surface (3 root operations + the
+    // arbitration enum + the five nullable Session fields) is really
+    // inside the committed artifact.
+    expect(committedSdl).toContain("openSessionDispute(id: ID!, reason: String!): Session!");
+    expect(committedSdl).toContain(
+      "resolveSessionDispute(id: ID!, note: String, resolution: DisputeResolution!): Session!"
+    );
+    expect(committedSdl).toContain(
+      "adminDisputedSessions(filter: SessionListFilterInput, limit: Int = 25, offset: Int = 0): SessionPage!"
+    );
+    expect(committedSdl).toContain("enum DisputeResolution {");
+    for (const field of DEV3_005_SESSION_FIELDS) {
+      expect(committedSdl).toContain(field);
+    }
+    // …and the DEV3-012 dual-confirmation mutation is really inside the
+    // committed artifact.
+    expect(committedSdl).toContain("confirmSessionCompletion(id: ID!): Session!");
+    // …and the DEV3-013 wallet surface (2 root operations + the payout
+    // input + the two ledger enums) is really inside the committed artifact.
+    expect(committedSdl).toContain("myWallet: Wallet!");
+    expect(committedSdl).toContain("requestWithdrawal(input: RequestWithdrawalInput!): Wallet!");
+    expect(committedSdl).toContain("input RequestWithdrawalInput {");
+    expect(committedSdl).toContain("enum TransactionType {");
+    expect(committedSdl).toContain("enum TransactionStatus {");
   });
 });

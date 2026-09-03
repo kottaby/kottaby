@@ -17,6 +17,7 @@
 export * from "./admin";
 export * from "./audit";
 export * from "./billing";
+export * from "./classes";
 export * from "./notifications";
 export * from "./parents";
 export * from "./students";

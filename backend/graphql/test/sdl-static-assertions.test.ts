@@ -16,17 +16,25 @@
  *    name, and the forbidden tokens must not appear anywhere in the artifact
  *    text. Notification emission is service-internal ONLY — the GraphQL
  *    write surface is exactly the read-latch pair.
- *  - **Root-set freeze** — the Mutation root is EXACTLY the refreshed frozen
- *    baseline and the Query root is EXACTLY the frozen baseline + the
- *    `_health` probe (mirrors the `PRE_3_1_*` inventories in
- *    schema-surface.test.ts). **The parent-link extension performed the
- *    documented reconcile-then-extend (REQ-061):** the stale arrays predated the DEV1-005
- *    plan-catalog CRUD, the DEV1-013 student-handshake queries, AND the
- *    shipped DEV3-016 admin surface — STEP ONE re-anchored them to the live
- *    artifact (+6 mutation fields, +8 query fields); STEP TWO extended the
- *    now-current baselines with the parent-link surface (+3
- *    mutation fields, +2 query fields). Growth is monotonic, nothing was
- *    deleted.
+ *  - **Root-set freeze** — the Mutation root is EXACTLY the re-pinned frozen
+ *    set (auth quartet + the sanctioned notification read-latch pair + the
+ *    sanctioned users-locale mutation + the plan-catalog CRUD trio + the
+ *    admin user-management mutation trio + the admin broadcast mutation +
+ *    the parent-link trio) and the Query root is EXACTLY the re-pinned
+ *    frozen set (the baseline + the `_health` probe + the inbox reads + the
+ *    plan-catalog reads + the admin user-management directory reads + the
+ *    `adminAuditLogs` trail read + the parent-link lists — mirrors the
+ *    `PRE_3_1_*` inventories in schema-surface.test.ts). **The parent-link
+ *    extension performed the documented reconcile-then-extend (REQ-061):**
+ *    the stale arrays predated the DEV1-005 plan-catalog CRUD, the DEV1-013
+ *    student-handshake queries, AND the shipped DEV3-016 admin surface —
+ *    STEP ONE re-anchored them to the live artifact (+6 mutation fields, +8
+ *    query fields); STEP TWO extended the now-current baselines with the
+ *    parent-link surface (+3 mutation fields, +2 query fields). Growth is
+ *    monotonic, nothing was deleted. **The parent-link↔DEV3-020 merge
+ *    re-ran STEP ONE for the audit-trail surface**, and this merge absorbs
+ *    the DEV3-004/005/012/013 session family + the DEV3-022d admin-broadcast
+ *    surface additively the same way.
  *  - **Parent-link surface (REQ-061 extend pins)** — the five root
  *    fields carry their EXACT SDL signatures on the artifact (both list
  *    queries NON-paginated `[T!]!` with ZERO arguments;
@@ -37,12 +45,6 @@
  *    leakage); and NO parent-link page/connection wrapper exists — the
  *    lists are plain arrays, the pagination contract is the service's 50-row
  *    cap, never SDL pagination plumbing.
- *  - **Parent-link↔DEV3-020 merge reconcile:** the global admin audit-trail
- *    read surface (`adminAuditLogs` query backed by `AdminAuditLogEntry` /
- *    `AdminAuditLogPage` / `AdminAuditLogFiltersInput`, with the
- *    `AuditActionType` enum REUSED from the shared registry) shipped on
- *    main while this branch was in flight and is absorbed additively into
- *    the frozen baselines — mirroring the DEV3-016 reconcile precedent.
  *  - **Users-locale surface (D2)** — `updateMyLocale(locale: AppLocale!): User!`
  *    is present with its EXACT SDL signature, `User.locale` is the nullable
  *    `AppLocale` enum, and the `AppLocale` enum carries exactly the two
@@ -52,6 +54,12 @@
  *    `markAllNotificationsRead` are present with their EXACT SDL signatures
  *    (argument names/types + return types), and `MyNotificationsFilterInput`
  *    carries exactly the four nullable filter fields.
+ *  - **Admin broadcast surface** — `adminBroadcastNotification(input:
+ *    AdminBroadcastNotificationInput!): Int!` is present with its EXACT SDL
+ *    signature, `BroadcastAudienceInput` carries exactly the four closed
+ *    selector fields (discriminated `type` + three nullable companions), and
+ *    `AdminBroadcastNotificationInput` carries exactly the three compose
+ *    fields — zero identity surface of any kind.
  *  - **Apollo normalization** — the `Notification` object carries `id: ID!`
  *    among EXACTLY the eight inbox fields.
  *  - **Depth/complexity posture (REQ-069)** — `Notification` is FLAT: every
@@ -83,7 +91,10 @@ import {
 } from "graphql";
 
 // ─── Frozen baselines (mirror the refreshed PRE_3_1_* inventories in ─────────
-// ─── schema-surface.test.ts — the single sanctioned growth history). ────────
+// ─── schema-surface.test.ts — the single sanctioned growth history). RE-PINNED ─
+// ─── against the regenerated SDL artifact; the DEV3-004/005/012/013 session ───
+// ─── family, the DEV3-022d admin-broadcast surface and the audit-trail read ───
+// ─── are absorbed additively — entries are NEVER dropped.                     ──
 // ─── REQ-061 reconcile-then-extend: both steps recorded in the extend's     ─
 // ─── outcome notes. RECONCILE (STEP 1 — never silent): the                   ─
 // ─── arrays predated the DEV1-005 plan-catalog CRUD, the DEV1-013 handshake    ─
@@ -91,18 +102,17 @@ import {
 // ─── live artifact. EXTEND (STEP 2): the parent-link surface folded in.     ─
 // ─── Growth is monotonic; no stale entry was deleted, only re-anchored.      ─
 
-/** Root mutation fields — auth quartet + notification read-latch pair + users-locale (D2) + plan-catalog CRUD + DEV3-016 admin writes + the parent-link trio. */
+/** Root mutation fields — auth quartet + notification read-latch pair + users-locale (D2) + plan-catalog CRUD + DEV3-016 admin writes + the admin broadcast mutation + the parent-link trio. */
 const FROZEN_MUTATION_FIELDS = [
-  // DEV3-016 reconcile: the admin user-management writes shipped before 3.1.
+  // DEV3-016 reconcile: the admin user-management writes shipped before 3.1
+  // (the DEV3-022d admin broadcast mutation absorbed alongside them).
+  "adminBroadcastNotification",
   "adminCreateUser",
   "adminSetUserDeleted",
   "adminUpdateUser",
   // Parent-link extend: the three link-request mutations (`requestParentChildLink`
   // is the ONLY nullable one — pinned in the parent-link describe below).
   "cancelParentLinkRequest",
-  // DEV1-005 reconcile: the plan-catalog CRUD shipped before 3.1.
-  // ─── The parent-link↔DEV3-020 merge re-ran STEP ONE for the audit-trail     ─
-  // ─── surface (+`adminAuditLogs` query folded into FROZEN_QUERY_FIELDS).      ─
   "createPlan",
   "login",
   "logout",
@@ -277,7 +287,7 @@ describe("BFLA structural verdict — zero notification CUD surface (REQ-032)", 
     }
   });
 
-  test("Mutation root is EXACTLY the refreshed frozen baseline — the notification write surface is still the read-latch pair only", () => {
+  test("Mutation root is EXACTLY the re-pinned frozen set — the notification write surface is the read-latch pair only", () => {
     const names = fieldSurfaces("Mutation").map(surface => surface.name);
     expect(names.toSorted((a, b) => a.localeCompare(b))).toEqual([...FROZEN_MUTATION_FIELDS]);
   });
@@ -335,6 +345,42 @@ describe("REQ-060 four-ops contract — exact SDL signatures on the artifact", (
   });
 });
 
+describe("Admin broadcast surface — exact SDL signatures on the artifact", () => {
+  test("`adminBroadcastNotification(input: AdminBroadcastNotificationInput!): Int!`", () => {
+    const surface = fieldSurface("Mutation", "adminBroadcastNotification");
+    expect(surface.type).toBe("Int!");
+    expect(surface.args).toEqual([{ name: "input", type: "AdminBroadcastNotificationInput!" }]);
+  });
+
+  test("`BroadcastAudienceInput` carries EXACTLY the four closed selector fields — zero identity surface", () => {
+    const fields = inputObjectTypeDefinition("BroadcastAudienceInput").fields ?? [];
+    expect(fields.map(field => field.name.value).toSorted((a, b) => a.localeCompare(b))).toEqual([
+      "country",
+      "planId",
+      "role",
+      "type",
+    ]);
+    const byName = new Map(fields.map(field => [field.name.value, renderType(field.type)]));
+    expect(byName.get("type")).toBe("BroadcastAudienceType!");
+    expect(byName.get("role")).toBe("UserRole");
+    expect(byName.get("country")).toBe("String");
+    expect(byName.get("planId")).toBe("Int");
+  });
+
+  test("`AdminBroadcastNotificationInput` carries EXACTLY the three compose fields — zero identity surface", () => {
+    const fields = inputObjectTypeDefinition("AdminBroadcastNotificationInput").fields ?? [];
+    expect(fields.map(field => field.name.value).toSorted((a, b) => a.localeCompare(b))).toEqual([
+      "audience",
+      "body",
+      "title",
+    ]);
+    const byName = new Map(fields.map(field => [field.name.value, renderType(field.type)]));
+    expect(byName.get("title")).toBe("String!");
+    expect(byName.get("body")).toBe("String");
+    expect(byName.get("audience")).toBe("BroadcastAudienceInput!");
+  });
+});
+
 describe("Notification object — `id` + REQ-069 depth/complexity posture", () => {
   test("carries `id: ID!` among EXACTLY the eight REQ-060 inbox fields (Apollo normalization)", () => {
     const names = fieldSurfaces("Notification").map(surface => surface.name);
@@ -386,13 +432,13 @@ describe("Notification object — `id` + REQ-069 depth/complexity posture", () =
       definition => definition.kind === Kind.OBJECT_TYPE_DEFINITION && definition.name.value === "Subscription"
     );
     expect(hasSubscriptionRoot).toBe(false);
-    // Lexical belt-and-braces — WORD-BOUNDARY scoped (DEV3-020 form, which
-    // SUPERSEDES the earlier narrower `type Subscription` containment:
-    // a raw substring scan false-positives on infix tokens like
-    // `hasActiveSubscription` / `studentHasActiveSubscription` and on
-    // lowercase "subscription plan" prose, while the word-boundary scan
-    // still catches any real `Subscription` type/root-field spelling — a
-    // strict superset of the narrower `type Subscription` containment).
+    // Lexical belt-and-braces — WORD-BOUNDARY scoped: the artifact
+    // legitimately carries the token as an INFIX inside field names
+    // (`hasActiveSubscription`, `studentHasActiveSubscription`) and in
+    // lowercase "subscription plan" description prose, so a raw substring
+    // scan false-positives. The word-boundary scan still catches any real
+    // `Subscription` type/root-field spelling (preceded/followed by
+    // non-word characters in SDL).
     expect(sdlText).not.toMatch(/\bSubscription\b/);
   });
 });
