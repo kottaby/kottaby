@@ -20,7 +20,7 @@ export function MetricRow({ label, value }: { readonly label: string; readonly v
       sx={{
         justifyContent: "space-between",
         alignItems: "baseline",
-        gapInline: 2,
+        gap: 2,
         paddingBlock: 0.5,
         borderBottom: `1px solid ${theme.palette.divider}`,
         "&:last-of-type": { borderBottom: "none" },
@@ -49,7 +49,7 @@ export function SectionCard({
   return (
     <Card sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
       <CardContent sx={{ p: 3, "&:last-child": { paddingBottom: 3 } }}>
-        <Stack direction="row" sx={{ alignItems: "center", gapInline: 1, marginBlockEnd: 2 }}>
+        <Stack direction="row" sx={{ alignItems: "center", gap: 1, marginBlockEnd: 2 }}>
           <Box sx={theme => ({ display: "inline-flex", color: theme.palette.primary.main })} aria-hidden="true">
             {icon}
           </Box>
@@ -68,11 +68,11 @@ export function SectionCardSkeleton(): ReactElement {
   return (
     <Card sx={{ height: "100%" }}>
       <CardContent sx={{ p: 3, "&:last-child": { paddingBottom: 3 } }}>
-        <Stack direction="row" sx={{ alignItems: "center", gapInline: 1, marginBlockEnd: 2 }}>
+        <Stack direction="row" sx={{ alignItems: "center", gap: 1, marginBlockEnd: 2 }}>
           <Skeleton variant="circular" sx={{ width: 24, height: 24 }} />
           <Skeleton variant="text" sx={{ width: "45%", fontSize: "1.25rem" }} />
         </Stack>
-        <Stack sx={{ gapInline: 2 }}>
+        <Stack sx={{ gap: 2 }}>
           {[0, 1, 2, 3].map(row => (
             <Skeleton key={row} variant="text" sx={{ width: "100%" }} />
           ))}
@@ -95,7 +95,7 @@ export function TrendEmptyPanel({ message }: { readonly message: string }): Reac
       sx={{
         alignItems: "center",
         justifyContent: "center",
-        gapInline: 1,
+        gap: 1,
         minHeight: 220,
         border: `1px dashed ${theme.palette.divider}`,
         borderRadius: 1,

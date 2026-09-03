@@ -43,13 +43,13 @@ export function AnalyticsHeaderBar({
       sx={{
         justifyContent: "space-between",
         alignItems: { xs: "flex-start", sm: "center" },
-        gapBlock: { xs: 1, sm: 0 },
-        gapInline: 2,
+        rowGap: { xs: 1, sm: 0 },
+        gap: 2,
         marginBlockEnd: 3,
       }}
     >
       <Stack>
-        <Stack direction="row" sx={{ alignItems: "center", gapInline: 1 }}>
+        <Stack direction="row" sx={{ alignItems: "center", gap: 1 }}>
           <InsightsOutlined sx={theme => ({ color: theme.palette.primary.main })} aria-hidden="true" />
           <Typography variant="h5" component="h1">
             {t.title}
@@ -59,7 +59,7 @@ export function AnalyticsHeaderBar({
           {t.subtitle}
         </Typography>
       </Stack>
-      <Stack direction="row" sx={{ alignItems: "center", gapInline: 1 }}>
+      <Stack direction="row" sx={{ alignItems: "center", gap: 1 }}>
         {generatedAt !== null ? (
           <Typography variant="caption" sx={({ palette }) => ({ color: palette.text.secondary })}>
             {t.lastUpdatedLabel(

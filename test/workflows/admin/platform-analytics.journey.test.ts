@@ -49,7 +49,7 @@
 
 import { afterAll, beforeAll, describe, expect, spyOn, test } from "bun:test";
 import { randomUUID } from "node:crypto";
-import { and, eq, gt, inArray, type SQL, sql } from "drizzle-orm";
+import { and, eq, gt, gte, inArray, type SQL, sql } from "drizzle-orm";
 import type { PgTable } from "drizzle-orm/pg-core";
 import { db } from "@/backend/db";
 import { AdminUserRepository } from "@/backend/db/repo";
@@ -186,7 +186,7 @@ async function oracleRecentlyActive(cutoff: Date): Promise<number> {
 
 /** Oracle: sessions in the UTC window starting at `from` (createdAt >=). */
 async function oracleSessionsSince(from: Date): Promise<number> {
-  const rows = await db.select({ count: sql<number>`count(*)::int` }).from(session).where(gt(session.createdAt, from));
+  const rows = await db.select({ count: sql<number>`count(*)::int` }).from(session).where(gte(session.createdAt, from));
   return rows[0]?.count ?? 0;
 }
 

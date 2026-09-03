@@ -42,29 +42,27 @@
  *  - super-admin = `users.role='admin'` + `admin` child row; neither query
  *    declares a superAdmin override.
  *
- * Tier 4 spy section:
- *  - Cross-process spying on the live server is impossible without test-only
- *    server code (prohibited), so the pre-resolver proof executes the SAME
- *    built schema the server serves, in-process, with `spyOn` over the
- *    service namespace: denied cells must record ZERO service calls while
- *    allowed control cells record exactly one (instrumentation proof).
+ * Tier 4 pre-resolver scope proof:
+ *  - Lives in `backend/graphql/test/handshake-scope.evaluation.test.ts` — a
+ *    backend schema-layer unit test (in-process schema execution with
+ *    `spyOn` over the service namespace), NOT here: integration tests under
+ *    `frontend/graphql/test/` interact with the application exclusively via
+ *    the GraphQL API (`testClient`).
  */
 
-import { beforeAll, describe, expect, spyOn, test } from "bun:test";
+import { beforeAll, describe, expect, test } from "bun:test";
 import { randomUUID } from "node:crypto";
 import type { CombinedGraphQLErrors, TypedDocumentNode } from "@apollo/client";
 import { eq } from "drizzle-orm";
-import { graphql, parse } from "graphql";
+import { parse } from "graphql";
 
 import { db } from "@/backend/db";
 import { students } from "@/backend/db/schema/students/students";
 import { teacher } from "@/backend/db/schema/teachers/teacher";
 import { createTestAdmin, createTestStudent, createTestUser } from "@/backend/db/test/entity-setup";
 import { UserRole } from "@/backend/enum/users/user-role.enum";
-import { graphQLSchema } from "@/backend/graphql/gqlSchema";
 import { signAccessToken } from "@/backend/lib/auth/jwt";
 import { hashPassword } from "@/backend/lib/auth/password";
-import { StudentHandshakeService } from "@/backend/services/students/student-handshake.service";
 import { RegisterPublicRole } from "@/frontend/graphql/generated/gql/graphql";
 import {
   loginMutationDocument,
@@ -91,10 +89,6 @@ const findStudentByHandshakeCodeDocument: TypedDocumentNode<
 > = parse(
   "query FindStudentByHandshakeCode($code: String!) { findStudentByHandshakeCode(code: $code) { maskedName linkable } }"
 );
-
-/** In-process execution sources for the pre-resolver scope-spy tier. */
-const SELF_READ_SOURCE = "{ myHandshakeCode }";
-const DISCOVERY_SOURCE = "query ($code: String!) { findStudentByHandshakeCode(code: $code) { maskedName linkable } }";
 
 // ─── Locale contract literals (expectation source of truth) ─────────────────
 
@@ -787,166 +781,6 @@ describeGraphqlSuite("handshake code — live-wire integration matrix", () => {
       });
       expectMutationError(discovery.error, "FORBIDDEN");
       expect(discovery.data?.findStudentByHandshakeCode).toBeFalsy();
-    });
-  });
-
-  // ─── Tier 4 — pre-resolver scope evaluation (service spy, in-process) ───────
-
-  describe("handshake code — Tier 4 pre-resolver scope evaluation", () => {
-    interface ScopeContextType {
-      readonly locale: string;
-      readonly role?: UserRole | null;
-      readonly user?: { readonly id: number } | null;
-    }
-
-    interface DeniedCellType {
-      readonly label: string;
-      readonly source: string;
-      readonly context: ScopeContextType;
-      readonly expectedCode: string;
-    }
-
-    test("denied cells never execute the service; allowed control cells do (spy proof)", async () => {
-      // Cross-process spying on the live server is impossible without test-only
-      // server code (prohibited), so the proof executes the SAME built schema
-      // the server serves, in-process: identical scope-auth plugin, identical
-      // resolvers, with spies over the service namespace the resolvers call.
-      const selfReadSpy = spyOn(StudentHandshakeService, "getMyHandshakeCode").mockImplementation(
-        async () => "KSB-00000000"
-      );
-      const discoverySpy = spyOn(StudentHandshakeService, "findStudentByHandshakeCode").mockImplementation(
-        async () => ({
-          maskedName: "M***",
-          linkable: true,
-        })
-      );
-      try {
-        const deniedCells: readonly DeniedCellType[] = [
-          {
-            label: "anonymous on self-read",
-            source: SELF_READ_SOURCE,
-            context: { locale: LOCALE_EN },
-            expectedCode: "UNAUTHORIZED",
-          },
-          {
-            label: "anonymous on discovery",
-            source: DISCOVERY_SOURCE,
-            context: { locale: LOCALE_EN },
-            expectedCode: "UNAUTHORIZED",
-          },
-          {
-            label: "parent on self-read",
-            source: SELF_READ_SOURCE,
-            context: { locale: LOCALE_EN, role: UserRole.Parent, user: { id: 1 } },
-            expectedCode: "FORBIDDEN",
-          },
-          {
-            label: "teacher on self-read",
-            source: SELF_READ_SOURCE,
-            context: { locale: LOCALE_EN, role: UserRole.Teacher, user: { id: 1 } },
-            expectedCode: "FORBIDDEN",
-          },
-          {
-            label: "admin on self-read",
-            source: SELF_READ_SOURCE,
-            context: { locale: LOCALE_EN, role: UserRole.Admin, user: { id: 1 } },
-            expectedCode: "FORBIDDEN",
-          },
-          {
-            label: "non-canonical role claim on self-read",
-            source: SELF_READ_SOURCE,
-            context: { locale: LOCALE_EN, role: null, user: { id: 1 } },
-            expectedCode: "FORBIDDEN",
-          },
-          {
-            label: "student on discovery",
-            source: DISCOVERY_SOURCE,
-            context: { locale: LOCALE_EN, role: UserRole.Student, user: { id: 1 } },
-            expectedCode: "FORBIDDEN",
-          },
-          {
-            label: "teacher on discovery",
-            source: DISCOVERY_SOURCE,
-            context: { locale: LOCALE_EN, role: UserRole.Teacher, user: { id: 1 } },
-            expectedCode: "FORBIDDEN",
-          },
-          {
-            label: "admin on discovery",
-            source: DISCOVERY_SOURCE,
-            context: { locale: LOCALE_EN, role: UserRole.Admin, user: { id: 1 } },
-            expectedCode: "FORBIDDEN",
-          },
-          {
-            label: "non-canonical role claim on discovery",
-            source: DISCOVERY_SOURCE,
-            context: { locale: LOCALE_EN, role: null, user: { id: 1 } },
-            expectedCode: "FORBIDDEN",
-          },
-        ];
-
-        const outcomes = await Promise.all(
-          deniedCells.map(cell =>
-            graphql({
-              schema: graphQLSchema,
-              source: cell.source,
-              variableValues: cell.source === DISCOVERY_SOURCE ? { code: "KSB-00000000" } : undefined,
-              contextValue: cell.context,
-            })
-          )
-        );
-        for (const [index, outcome] of outcomes.entries()) {
-          const cell = deniedCells[index];
-          if (!cell) {
-            throw new Error("denied-cell outcome missing its cell");
-          }
-          expect(outcome.errors).toHaveLength(1);
-          expect(outcome.errors?.[0]?.extensions?.code).toBe(cell.expectedCode);
-        }
-
-        // THE pre-resolver proof: not a single denied cell reached the service.
-        expect(selfReadSpy).toHaveBeenCalledTimes(0);
-        expect(discoverySpy).toHaveBeenCalledTimes(0);
-
-        // Instrumentation control: the allowed cells DO reach the (mocked)
-        // service exactly once each — the zero above is a scope-layer fact, not
-        // a dead spy.
-        const [selfReadHit, discoveryHit] = await Promise.all([
-          graphql({
-            schema: graphQLSchema,
-            source: SELF_READ_SOURCE,
-            contextValue: { locale: LOCALE_EN, role: UserRole.Student, user: { id: 1 } },
-          }),
-          graphql({
-            schema: graphQLSchema,
-            source: DISCOVERY_SOURCE,
-            variableValues: { code: "KSB-00000000" },
-            contextValue: { locale: LOCALE_EN, role: UserRole.Parent, user: { id: 1 } },
-          }),
-        ]);
-        expect(selfReadHit.errors).toBeUndefined();
-        const selfReadData: unknown = selfReadHit.data;
-        if (!isRecord(selfReadData)) {
-          throw new Error("expected control self-read data");
-        }
-        expect(selfReadData.myHandshakeCode).toBe("KSB-00000000");
-
-        expect(discoveryHit.errors).toBeUndefined();
-        const discoveryData: unknown = discoveryHit.data;
-        if (!isRecord(discoveryData)) {
-          throw new Error("expected control discovery data");
-        }
-        const controlPayload: unknown = discoveryData.findStudentByHandshakeCode;
-        if (!isRecord(controlPayload)) {
-          throw new Error("expected control discovery payload");
-        }
-        expect(controlPayload.linkable).toBe(true);
-
-        expect(selfReadSpy).toHaveBeenCalledTimes(1);
-        expect(discoverySpy).toHaveBeenCalledTimes(1);
-      } finally {
-        selfReadSpy.mockRestore();
-        discoverySpy.mockRestore();
-      }
     });
   });
 });

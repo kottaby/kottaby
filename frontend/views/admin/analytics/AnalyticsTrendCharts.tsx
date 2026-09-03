@@ -35,7 +35,7 @@ const RevenueTrendChart = dynamic(() => import("@/frontend/views/admin/analytics
 /** One trend card header: icon + title + granularity caption (the metric-card visual system). */
 function TrendCardHeader({ title, icon }: { readonly title: string; readonly icon: ReactElement }): ReactElement {
   return (
-    <Stack direction="row" sx={{ alignItems: "center", gapInline: 1, marginBlockEnd: 1 }}>
+    <Stack direction="row" sx={{ alignItems: "center", gap: 1, marginBlockEnd: 1 }}>
       <Box sx={theme => ({ display: "inline-flex", color: theme.palette.primary.main })} aria-hidden="true">
         {icon}
       </Box>
