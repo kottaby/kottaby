@@ -68,6 +68,12 @@ import { reports } from "@/backend/db/schema/classes/reports";
 import { session } from "@/backend/db/schema/classes/session";
 import { evaluations } from "@/backend/db/schema/teachers/evaluations";
 import { teacher } from "@/backend/db/schema/teachers/teacher";
+
+/** Ascending string comparator — deterministic across locales (sonarjs no-alphabetical-sort compliant). */
+function ascending(a: string, b: string): number {
+  return a.localeCompare(b);
+}
+
 import { users } from "@/backend/db/schema/users/users";
 import {
   createTestEvaluation,
@@ -571,7 +577,7 @@ describe("PlatformAnalyticsRepository aggregate fixtures (ten methods)", () => {
         expect(row.last30DaysAmount).toMatch(/^\d+(\.\d+)?$/);
       }
       const currencies = afterRows.map(row => row.currency);
-      expect(currencies).toEqual(currencies.toSorted());
+      expect(currencies).toEqual(currencies.toSorted(ascending));
     });
   });
 
@@ -639,7 +645,7 @@ describe("PlatformAnalyticsRepository aggregate fixtures (ten methods)", () => {
         expect(row.amount).toMatch(/^\d+(\.\d+)?$/);
       }
       const orderKeys = afterRows.map(row => `${String(row.bucketStart.getTime()).padStart(15, "0")}|${row.currency}`);
-      expect(orderKeys).toEqual(orderKeys.toSorted());
+      expect(orderKeys).toEqual(orderKeys.toSorted(ascending));
       const jpyToday = afterRows.find(row => row.bucketStart.getTime() === todayBucket && row.currency === "JPY");
       if (!jpyToday) {
         throw new Error("expected the (today, JPY) revenue-trend bucket");
@@ -888,7 +894,7 @@ describe("PlatformAnalyticsRepository aggregate fixtures (ten methods)", () => {
       expect(activeCount).toBeGreaterThanOrEqual(0);
 
       const sessions = await PlatformAnalyticsRepository.getSessionStats(now);
-      expect(Object.keys(sessions).toSorted()).toEqual(
+      expect(Object.keys(sessions).toSorted(ascending)).toEqual(
         [
           "total",
           "today",
@@ -900,7 +906,7 @@ describe("PlatformAnalyticsRepository aggregate fixtures (ten methods)", () => {
           "cancelled",
           "disputed",
           "awaitingConfirmation",
-        ].toSorted()
+        ].toSorted(ascending)
       );
       for (const value of Object.values(sessions)) {
         expect(Number.isInteger(value)).toBe(true);
@@ -917,7 +923,7 @@ describe("PlatformAnalyticsRepository aggregate fixtures (ten methods)", () => {
 
       const revenue = await PlatformAnalyticsRepository.getRevenueStats(now);
       const revenueCurrencies = revenue.map(row => row.currency);
-      expect(revenueCurrencies).toEqual(revenueCurrencies.toSorted());
+      expect(revenueCurrencies).toEqual(revenueCurrencies.toSorted(ascending));
       for (const row of revenue) {
         expect(row.paidPaymentsCount).toBeGreaterThanOrEqual(1);
         expect(row.totalAmount).toMatch(/^\d+(\.\d+)?$/);
@@ -1148,7 +1154,7 @@ describe("PlatformAnalyticsRepository contract & purity", () => {
     };
     expect(Object.keys(statsSample)).toHaveLength(ADMIN_USER_STATS_KEYS.length);
     const statsKeyList: string[] = [...ADMIN_USER_STATS_KEYS];
-    expect(statsKeyList.toSorted()).toEqual(Object.keys(statsSample).toSorted());
+    expect(statsKeyList.toSorted(ascending)).toEqual(Object.keys(statsSample).toSorted(ascending));
 
     // Runtime superset smoke: the analytics users section composes the ten
     // counters VERBATIM plus exactly one new presence counter.
@@ -1168,9 +1174,20 @@ describe("PlatformAnalyticsRepository contract & purity", () => {
       const user = await createTestUser(tx, { lastActiveAt: new Date(now.getTime() - 60_000) });
 
       // The uncommitted INSERT is invisible on the global executor…
+      // Provider nuance: PGlite's pool is a SINGLE shared connection — its
+      // "global executor" multiplexes over the connection that already hosts
+      // this open transaction, so the uncommitted row is structurally
+      // observable there. Separate-connection invisibility is only provided
+      // by a networked Postgres (CI); pin the shared-connection reality so a
+      // future multi-connection PGlite flips this branch loudly.
+      const isPgliteProvider = (process.env.DB_PROVIDER ?? "").toLowerCase() === "pglite";
       const committedAfter = await PlatformAnalyticsRepository.countRecentlyActiveUsers(now);
-      expect(committedAfter).toBe(committedBefore);
-      // …and visible through the explicit tx passthrough.
+      if (isPgliteProvider) {
+        expect(committedAfter).toBe(committedBefore + 1);
+      } else {
+        expect(committedAfter).toBe(committedBefore);
+      }
+      // …and visible through the explicit tx passthrough on every provider.
       const insideTx = await PlatformAnalyticsRepository.countRecentlyActiveUsers(now, tx);
       expect(insideTx).toBe(committedBefore + 1);
       expect(user.id).toBeGreaterThan(0);
@@ -1180,7 +1197,12 @@ describe("PlatformAnalyticsRepository contract & purity", () => {
   test("factory row round-trip: money strings and instants survive the write path byte-exact", async () => {
     await runInRollback(async tx => {
       const now = new Date();
-      const paymentCreatedAt = new Date(now.getTime() - 3_600_000);
+      // PGlite round-trips `timestamp` columns at second precision (same root
+      // cause as the NOTE in registration.service.test.ts / the student
+      // repository governed-fixture fix) — truncate the fixture stamps to
+      // whole seconds so the byte-exact round-trip assertions below stay
+      // deterministic under every provider.
+      const paymentCreatedAt = new Date(Math.floor((now.getTime() - 3_600_000) / 1000) * 1000);
       const studentUser = await createTestUser(tx);
       const student = await createTestStudent(tx, studentUser.id);
 
@@ -1202,7 +1224,7 @@ describe("PlatformAnalyticsRepository contract & purity", () => {
       expect(persistedPayment.createdAt.getTime()).toBe(paymentCreatedAt.getTime());
 
       const cast = await createSessionCast(tx);
-      const sessionCreatedAt = new Date(now.getTime() - 60_000);
+      const sessionCreatedAt = new Date(Math.floor((now.getTime() - 60_000) / 1000) * 1000);
       const created = await createTestSession(tx, cast.teacherId, cast.studentId, {
         status: SessionStatus.Completed,
         createdAt: sessionCreatedAt,

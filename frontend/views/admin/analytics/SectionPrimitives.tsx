@@ -101,7 +101,7 @@ export function TrendEmptyPanel({ message }: { readonly message: string }): Reac
         borderRadius: 1,
       }}
     >
-      <TrendingFlatOutlined sx={theme => ({ color: theme.palette.text.disabled, fontSize: 28 })} aria-hidden="true" />
+      <TrendingFlatOutlined sx={({ palette }) => ({ color: palette.text.disabled, fontSize: 28 })} aria-hidden="true" />
       <Typography variant="body2" sx={({ palette }) => ({ color: palette.text.secondary })}>
         {message}
       </Typography>

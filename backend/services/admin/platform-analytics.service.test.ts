@@ -271,7 +271,9 @@ describe("PlatformAnalyticsService — Tier 1: actor denial matrix", () => {
     await runInRollback(async tx => {
       const actorIds = [0, -1, Number.NaN, 2.5];
       const logSpy = silenceDomainLog();
-      let logs: DomainLogContext[] = [];
+      // Initializer omitted (no-useless-assignment): reassigned from the
+      // spy before any read, and no catch path observes it.
+      let logs: DomainLogContext[];
       try {
         const errors = await Promise.all(
           actorIds.map(actorId =>
@@ -322,7 +324,9 @@ describe("PlatformAnalyticsService — Tier 1: actor denial matrix", () => {
       const parent = await createTestUser(tx, { role: "parent" });
       const actorIds = [student.id, teacherUser.id, parent.id];
       const logSpy = silenceDomainLog();
-      let logs: DomainLogContext[] = [];
+      // Initializer omitted (no-useless-assignment): reassigned from the
+      // spy before any read, and no catch path observes it.
+      let logs: DomainLogContext[];
       try {
         const errors = await Promise.all(
           actorIds.map(actorId =>

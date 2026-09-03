@@ -132,7 +132,9 @@ describe("adminPlatformAnalytics document contract", () => {
     // removed leaf, a duplicated selection, or a leaf moved under the
     // wrong parent all break the exact map match.
     const tree = selectionTree(adminPlatformAnalyticsQueryDocument);
-    expect([...tree.keys()].toSorted()).toEqual([...CLOSED_SELECTION_TREE.keys()].toSorted());
+    expect([...tree.keys()].toSorted((a, b) => a.localeCompare(b))).toEqual(
+      [...CLOSED_SELECTION_TREE.keys()].toSorted((a, b) => a.localeCompare(b))
+    );
     for (const [path, leaves] of CLOSED_SELECTION_TREE) {
       expect(tree.get(path)).toEqual(leaves);
     }
