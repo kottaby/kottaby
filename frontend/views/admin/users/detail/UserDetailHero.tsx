@@ -101,7 +101,7 @@ export function UserDetailHero({
             theme.direction === "rtl" ? "254deg" : "106deg"
           }, transparent 0%, transparent 72%, ${alpha(theme.palette.primary.main, 0.06)} 72%, ${alpha(
             theme.palette.primary.main,
-            0.06,
+            0.06
           )} 100%)`,
         })}
       />

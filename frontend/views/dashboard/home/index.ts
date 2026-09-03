@@ -6,4 +6,3 @@ export * from "./DashboardView";
 // by client components (e.g. `DashboardView`), and re-exporting a
 // server-only module from it would pull `next/headers` and the pg driver
 // into the client bundle. Server pages import it from "./server" instead.
-

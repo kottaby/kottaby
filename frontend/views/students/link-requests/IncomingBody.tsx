@@ -3,7 +3,10 @@
 import { Box } from "@mui/material";
 import type { ReactNode } from "react";
 import { RetryableNotice } from "@/frontend/components/ui/RetryableNotice";
-import { LinkStatus, type MyIncomingParentLinkRequestsQuery_myIncomingParentLinkRequests } from "@/frontend/graphql/generated/gql/graphql";
+import {
+  LinkStatus,
+  type MyIncomingParentLinkRequestsQuery_myIncomingParentLinkRequests,
+} from "@/frontend/graphql/generated/gql/graphql";
 import { displayLinkRequestStatus } from "@/frontend/lib/parent-link-request-status";
 import {
   IncomingEmptyState,

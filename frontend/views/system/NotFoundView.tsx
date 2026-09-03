@@ -3,7 +3,7 @@
 import { SearchOffOutlined } from "@mui/icons-material";
 import { Box, Button, Card, CardContent, Stack, Typography } from "@mui/material";
 import Link from "next/link";
-import { type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { BrandMark } from "@/frontend/views/landing/nav/BrandMark";
 import { Landing, useAppTranslation } from "@/shared/locale";
 
@@ -88,10 +88,7 @@ export function NotFoundView(): ReactNode {
             <Typography variant="h5" component="h1" sx={{ fontWeight: 700, mb: 1 }}>
               {t.notFoundTitle}
             </Typography>
-            <Typography
-              variant="body1"
-              sx={theme => ({ color: theme.palette.text.secondary, lineHeight: 1.7 })}
-            >
+            <Typography variant="body1" sx={theme => ({ color: theme.palette.text.secondary, lineHeight: 1.7 })}>
               {t.notFoundBody}
             </Typography>
 

@@ -138,14 +138,12 @@ export function DashboardAppBar({ onMenuClick, showMenuButton }: Readonly<Dashbo
             minHeight: 44,
           })}
         >
-          <Box
-            component="span"
-            aria-hidden="true"
-            sx={{ display: { xs: "inline-flex", sm: "none" }, flexShrink: 0 }}
-          >
+          <Box component="span" aria-hidden="true" sx={{ display: { xs: "inline-flex", sm: "none" }, flexShrink: 0 }}>
             <BrandMark size={32} />
           </Box>
-          <Box component="span" sx={{ display: { xs: "none", sm: "inline" } }}>{t.title}</Box>
+          <Box component="span" sx={{ display: { xs: "none", sm: "inline" } }}>
+            {t.title}
+          </Box>
         </Typography>
 
         {/* Right-side actions — the stack never shrinks (the wordmark absorbs
