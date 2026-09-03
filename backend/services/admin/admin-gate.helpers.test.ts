@@ -64,11 +64,36 @@ async function provisionAdminActor(tx: DBTransaction): Promise<UserSelectType> {
   return createTestUser(tx, { role: "admin" });
 }
 
-/** Zero-write oracle — `users` + `audit_logs` row counts inside the tx. */
-async function snapshotCounts(tx: DBTransaction): Promise<{ auditRows: number; users: number }> {
-  const [u] = await tx.select({ count: sql<number>`count(*)::int` }).from(users);
-  const [a] = await tx.select({ count: sql<number>`count(*)::int` }).from(auditLogs);
-  return { users: u?.count ?? 0, auditRows: a?.count ?? 0 };
+/**
+ * Zero-write oracle — identity-scoped, NOT table-wide counts.
+ *
+ * Global `count(*)` before/after windows race with parallel runners: the CI
+ * services pool observed `users` 6 → 7 mid-window when another test file
+ * committed a fixture user between the two snapshots (and per AGENTS.md
+ * Rule 9 files also hard-delete committed fixture users in afterAll, so
+ * downward races are equally real). Per the de-flake doctrine established
+ * in ac9b7e4 (registration residual assertions), the oracle is scoped to
+ * the fixture's own identity:
+ *
+ *  - `actorRowSnapshot` — the actor's FULL row, field-by-field: catches any
+ *    UPDATE/DELETE the gate could perform on the actor row it is handed;
+ *  - `actorAuditCount` — audit rows whose `entityId` is the actor's PK: ids
+ *    minted inside this tx's sequence window are invisible to (uncommitted)
+ *    and unreferenceable by parallel files, so the count is exact under
+ *    concurrency (AGENTS.md Rule 2 unique-identity namespace).
+ */
+async function actorRowSnapshot(tx: DBTransaction, id: number): Promise<UserSelectType | null> {
+  const [row] = await tx.select().from(users).where(eq(users.id, id));
+  return row ?? null;
+}
+
+/** Audit rows attributable to one actor identity, inside the tx. */
+async function actorAuditCount(tx: DBTransaction, entityId: number): Promise<number> {
+  const [row] = await tx
+    .select({ count: sql<number>`count(*)::int` })
+    .from(auditLogs)
+    .where(eq(auditLogs.entityId, entityId));
+  return row?.count ?? 0;
 }
 
 type DomainLogSpy = ReturnType<typeof spyOn>;
@@ -125,10 +150,11 @@ describe("assertActorAdmin — shared admin gate (BFLA, pre-DB)", () => {
   test("anonymous actor (id=0) → UnauthorizedError BEFORE any repository read; one bounded log; zero writes", async () => {
     await runInRollback(async tx => {
       // Rows exist — the anonymous denial must still fire pre-DB.
-      await provisionAdminActor(tx);
+      const admin = await provisionAdminActor(tx);
       const logSpy = silenceDomainLog();
       const readSpy = spyActorRead();
-      const before = await snapshotCounts(tx);
+      const rowBefore = await actorRowSnapshot(tx, admin.id);
+      const auditBefore = await actorAuditCount(tx, admin.id);
 
       const error = await expectRepoError(() => assertActorAdmin(ANONYMOUS_ACTOR_ID, LOCALE, tx));
 
@@ -144,7 +170,10 @@ describe("assertActorAdmin — shared admin gate (BFLA, pre-DB)", () => {
       // The anonymous branch fires before the actor lookup.
       expect(readSpy).not.toHaveBeenCalled();
 
-      expect(await snapshotCounts(tx)).toEqual(before);
+      // Zero writes, identity-scoped (global counts race with parallel
+      // committed-fixture churn — AGENTS.md Rule 9).
+      expect(await actorRowSnapshot(tx, admin.id)).toEqual(rowBefore);
+      expect(await actorAuditCount(tx, admin.id)).toBe(auditBefore);
     });
   });
 
@@ -153,7 +182,8 @@ describe("assertActorAdmin — shared admin gate (BFLA, pre-DB)", () => {
       const logSpy = silenceDomainLog();
       const readSpy = spyActorRead();
       const absent = await absentUserId(tx);
-      const before = await snapshotCounts(tx);
+      const rowBefore = await actorRowSnapshot(tx, absent);
+      const auditBefore = await actorAuditCount(tx, absent);
 
       const error = await expectRepoError(() => assertActorAdmin(absent, LOCALE, tx));
 
@@ -172,7 +202,9 @@ describe("assertActorAdmin — shared admin gate (BFLA, pre-DB)", () => {
       expect(readActorId).toBe(absent);
       expect(readTx).toBe(tx);
 
-      expect(await snapshotCounts(tx)).toEqual(before);
+      // Zero writes, identity-scoped (parallel-runner race — Rule 9).
+      expect(await actorRowSnapshot(tx, absent)).toEqual(rowBefore);
+      expect(await actorAuditCount(tx, absent)).toBe(auditBefore);
     });
   });
 
@@ -181,7 +213,8 @@ describe("assertActorAdmin — shared admin gate (BFLA, pre-DB)", () => {
       const nonAdmin = await createTestUser(tx, { role: "student" });
       const logSpy = silenceDomainLog();
       const readSpy = spyActorRead();
-      const before = await snapshotCounts(tx);
+      const rowBefore = await actorRowSnapshot(tx, nonAdmin.id);
+      const auditBefore = await actorAuditCount(tx, nonAdmin.id);
 
       const error = await expectRepoError(() => assertActorAdmin(nonAdmin.id, LOCALE, tx));
 
@@ -196,7 +229,9 @@ describe("assertActorAdmin — shared admin gate (BFLA, pre-DB)", () => {
 
       expect(readSpy).toHaveBeenCalledTimes(1);
 
-      expect(await snapshotCounts(tx)).toEqual(before);
+      // Zero writes, identity-scoped (parallel-runner race — Rule 9).
+      expect(await actorRowSnapshot(tx, nonAdmin.id)).toEqual(rowBefore);
+      expect(await actorAuditCount(tx, nonAdmin.id)).toBe(auditBefore);
     });
   });
 
@@ -204,12 +239,16 @@ describe("assertActorAdmin — shared admin gate (BFLA, pre-DB)", () => {
     await runInRollback(async tx => {
       const admin = await provisionAdminActor(tx);
       const logSpy = silenceDomainLog();
-      const before = await snapshotCounts(tx);
+      const rowBefore = await actorRowSnapshot(tx, admin.id);
+      const auditBefore = await actorAuditCount(tx, admin.id);
 
       await assertActorAdmin(admin.id, LOCALE, tx);
 
       expect(logSpy).not.toHaveBeenCalled();
-      expect(await snapshotCounts(tx)).toEqual(before);
+
+      // Zero writes, identity-scoped (parallel-runner race — Rule 9).
+      expect(await actorRowSnapshot(tx, admin.id)).toEqual(rowBefore);
+      expect(await actorAuditCount(tx, admin.id)).toBe(auditBefore);
     });
   });
 
