@@ -119,7 +119,9 @@ export interface NotificationsLabels {
   /**
    * Notification body for the expiry reminder — interpolates ONLY the
    * student's already-MASKED display name (R9: pre-decision parent-bound
-   * copy never carries the full name).
+   * copy never carries the full name), bidi-isolated by the sender
+   * (`isolateBidi`) before interpolation so the stored body renders
+   * correctly in mixed-direction feeds without a presentation wrapper.
    */
   readonly eventParentLinkExpiringBody: (studentName: string) => string;
 }

@@ -67,7 +67,7 @@ pending ──lapse────▶ expired         (terminal; lazy materializati
 
 ### 3. Single-writer link (INV-P1 proof)
 
-`StudentRepository.linkParentIfUnlinked` (`backend/db/repo/students/student.repository.ts:314`) is the ONLY production writer of a non-null `students.parent_id`. It is a guarded conditional UPDATE — the "still unlinked" precondition is folded into the predicate with `RETURNING`, not read-then-check-then-write — so a zero-row result means "lost the race", and the service THROWS, rolling back the whole confirm transaction (ghost confirmations are impossible; `backend/services/parents/parent-link-request.service.ts:266`).
+`StudentRepository.linkParentIfUnlinked` (`backend/db/repo/students/student.repository.ts:314`) is the ONLY production writer of a non-null `students.parent_id`. (The one recorded exception lives OUTSIDE the handshake flow: Admin direct student onboarding may set `students.parent_id` directly during onboarding — workflow 04's recorded Admin-override decision. No link-request write bypasses `linkParentIfUnlinked`.) It is a guarded conditional UPDATE — the "still unlinked" precondition is folded into the predicate with `RETURNING`, not read-then-check-then-write — so a zero-row result means "lost the race", and the service THROWS, rolling back the whole confirm transaction (ghost confirmations are impossible; `backend/services/parents/parent-link-request.service.ts:266`).
 
 Proof anchors:
 
@@ -146,7 +146,7 @@ Wire-level proof: `backend/graphql/test/parent-link.wire.test.ts` (1267 ln — 4
 
 ## What NOT to Do
 
-- **Do NOT write `students.parent_id` from anywhere except `linkParentIfUnlinked`** — not from resolvers, not from other services, not from future "convenience" paths. The scan lock fails the suite on a second writer.
+- **Do NOT write `students.parent_id` from anywhere except `linkParentIfUnlinked`** — not from resolvers, not from other services, not from future "convenience" paths. (Sole recorded exception: the Admin direct-onboarding override, which lives outside the handshake flow — see §3.) The scan lock fails the suite on a second writer.
 - **Do NOT accept a student id in any parent-facing link mutation.** The code is the capability; an id parameter reintroduces the enumeration oracle discovery closed.
 - **Do NOT materialize expiry on reads.** A "helpful" read-time UPDATE breaks read purity (REQ-015) and turns the list surface into a write surface (governance + audit implications). Materialization belongs to write paths now, the cron sweep later (D1).
 - **Do NOT notify on cancel or on/after expiry.** Silence is contractual (REQ-018, REQ-024). A "courtesy" notification leaks the child's decision timeline to the parent. The ONE sanctioned exception is the pre-expiry reminder (R13) — claim-deduped, requester-only, masked-name; anything beyond that shape needs a ticket.

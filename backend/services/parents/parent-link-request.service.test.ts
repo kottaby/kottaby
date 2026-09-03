@@ -94,6 +94,7 @@ import { ParentLinkRequestService } from "@/backend/services/parents/parent-link
 import type { DBTransaction, RealtimeNotificationPayload, StudentSelectType, UserSelectType } from "@/backend/types";
 import { isHandshakeCode, normalizeHandshakeCode } from "@/shared/constants/handshake-code.constants";
 import { PARENT_LINK_REQUEST_MS } from "@/shared/constants/parent-link-request.constants";
+import { isolateBidi } from "@/shared/lib/isolate-bidi";
 import { maskFullName } from "@/shared/lib/mask-full-name";
 import { defaultLocale } from "@/shared/locale/AppLocale";
 import { getServerTranslations } from "@/shared/locale/server-graphql";
@@ -1336,7 +1337,9 @@ describe("ParentLinkRequestService.sendExpiryReminders", () => {
     expect(reminderRows).toHaveLength(1);
     const reminder = reminderRows[0];
     expect(reminder?.title).toBe(enCopy.eventParentLinkExpiringTitle);
-    expect(reminder?.body).toBe(enCopy.eventParentLinkExpiringBody(maskFullName(reminderCast.studentAName)));
+    expect(reminder?.body).toBe(
+      enCopy.eventParentLinkExpiringBody(isolateBidi(maskFullName(reminderCast.studentAName)))
+    );
     expect(reminder?.relatedEntityType).toBe(PARENT_LINK_RELATED_ENTITY_TYPE);
 
     // The out-of-window pending got NO reminder.
@@ -1416,7 +1419,9 @@ describe("ParentLinkRequestService.sendExpiryReminders", () => {
         const inbox = await linkInboxRowsFor(tx, parentUser.id);
         const reminderRows = inbox.filter(row => row.relatedEntityId === atHorizon.id);
         expect(reminderRows).toHaveLength(1);
-        expect(reminderRows[0]?.body).toBe(arCopy.eventParentLinkExpiringBody(maskFullName(studentAUser.fullName)));
+        expect(reminderRows[0]?.body).toBe(
+          arCopy.eventParentLinkExpiringBody(isolateBidi(maskFullName(studentAUser.fullName)))
+        );
         // The at-now row is the SWEEP's business — never a reminder.
         expect(inbox.filter(row => row.relatedEntityId === atNow.id)).toHaveLength(0);
         expect((await requestRowById(tx, atHorizon.id))?.reminderSentAt).not.toBeNull();

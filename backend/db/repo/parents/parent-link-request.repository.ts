@@ -337,12 +337,15 @@ export namespace ParentLinkRequestRepository {
    * @returns The number of rows materialized to `expired` (0 on a re-run).
    */
   export async function markAllExpiredIfPending(now: Date, tx: DBTransaction): Promise<number> {
-    const rows = await tx
+    // No `.returning()` — only the affected-row count is consumed, and
+    // shipping every expired id to the application would grow memory and
+    // transaction duration with the backlog (same pattern as
+    // `markAllReadForUser` in the notifications repository).
+    const result = await tx
       .update(parentLinkRequests)
       .set({ status: LinkStatus.Expired })
-      .where(and(eq(parentLinkRequests.status, LinkStatus.Pending), lte(parentLinkRequests.expiresAt, now)))
-      .returning({ id: parentLinkRequests.id });
-    return rows.length;
+      .where(and(eq(parentLinkRequests.status, LinkStatus.Pending), lte(parentLinkRequests.expiresAt, now)));
+    return result.rowCount ?? 0;
   }
 
   /**

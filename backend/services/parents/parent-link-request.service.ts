@@ -112,6 +112,7 @@ import type {
   OutgoingParentLinkRequestReturnType,
 } from "@/backend/types";
 import { isHandshakeCode, normalizeHandshakeCode } from "@/shared/constants/handshake-code.constants";
+import { isolateBidi } from "@/shared/lib/isolate-bidi";
 import { maskFullName } from "@/shared/lib/mask-full-name";
 import { defaultLocale } from "@/shared/locale/AppLocale";
 import { getServerTranslations } from "@/shared/locale/server-graphql";
@@ -521,7 +522,7 @@ export namespace ParentLinkRequestService {
             userId: row.parentId,
             type: NotificationType.ParentLinkRequest,
             title: copy.eventParentLinkExpiringTitle,
-            body: copy.eventParentLinkExpiringBody(maskFullName(rawName)),
+            body: copy.eventParentLinkExpiringBody(isolateBidi(maskFullName(rawName))),
             relatedEntityType: PARENT_LINK_RELATED_ENTITY_TYPE,
             relatedEntityId: row.id,
           },

@@ -53,8 +53,34 @@ if (argv.includes("--help") || argv.includes("-h")) {
   process.exit(0);
 }
 
-const envIdx = argv.indexOf("--env");
-const envFile = envIdx !== -1 && argv[envIdx + 1] ? argv[envIdx + 1] : ".env";
+// Strict argument validation: an operator who mistypes the environment
+// option must fail loudly instead of silently sweeping the default
+// database. `--env` REQUIRES a file value; every other non-help argument
+// is rejected outright (no silent defaults for malformed input).
+let envFile = ".env";
+let sawEnv = false;
+for (let i = 0; i < argv.length; i += 1) {
+  const arg = argv[i];
+  if (arg === "--env") {
+    if (sawEnv) {
+      console.error("[ops:sweep] --env was given more than once. Pass --help for usage.");
+      process.exit(1);
+    }
+    const hasNext = i + 1 < argv.length;
+    const value = hasNext ? argv[i + 1] : "";
+    if (!hasNext || value.startsWith("--")) {
+      const got = hasNext ? `"${value}"` : "none";
+      console.error(`[ops:sweep] --env requires a file argument (got ${got}). Pass --help for usage.`);
+      process.exit(1);
+    }
+    envFile = value;
+    sawEnv = true;
+    i += 1;
+    continue;
+  }
+  console.error(`[ops:sweep] unknown argument "${arg}". Pass --help for usage.`);
+  process.exit(1);
+}
 
 // Apply env BEFORE importing backend modules — the DB client is lazy, but
 // env-dependent module singletons must see the right configuration first

@@ -35,7 +35,14 @@ function applyDbEnvOverride(): void {
   // force-overriding it from the dev `.env` silently retargeted test
   // processes and test-targeted CLI invocations at the DEV database.
   const currentUrl = process.env.DATABASE_URL;
-  const isPlaceholder = currentUrl === undefined || currentUrl.startsWith("file:") || currentUrl.startsWith("libsql:");
+  // Trim before classifying: a blank or whitespace-only URL is as unusable
+  // as a missing one and must not pin the process against loading `.env`.
+  const trimmedUrl = currentUrl?.trim();
+  const isPlaceholder =
+    trimmedUrl === undefined ||
+    trimmedUrl.length === 0 ||
+    trimmedUrl.startsWith("file:") ||
+    trimmedUrl.startsWith("libsql:");
   if (!isPlaceholder) {
     return;
   }

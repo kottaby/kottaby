@@ -368,9 +368,19 @@ describe("ParentLinkRequestRepository.findPendingByPair", () => {
         tx
       );
       expect(await ParentLinkRequestRepository.findPendingByPair(parent.id, studentA.studentId, tx)).toBeNull();
-      // Expired → status predicate fails again.
-      await ParentLinkRequestRepository.markExpiredIfPending(created.id, tx);
-      expect(await ParentLinkRequestRepository.findPendingByPair(parent.id, studentA.studentId, tx)).toBeNull();
+      // Expired → status predicate fails. The confirmed row above can no
+      // longer be touched by `markExpiredIfPending` (status = 'pending'
+      // conjunct), so the expired arm gets its OWN pending row — a second
+      // parent of the same student — which is then materialized and probed.
+      const secondParent = await setupParent(tx);
+      const expiring = await createPending(
+        tx,
+        secondParent.id,
+        studentA.studentId,
+        new Date(Date.now() + PARENT_LINK_REQUEST_MS)
+      );
+      await ParentLinkRequestRepository.markExpiredIfPending(expiring.id, tx);
+      expect(await ParentLinkRequestRepository.findPendingByPair(secondParent.id, studentA.studentId, tx)).toBeNull();
     });
   });
 });
