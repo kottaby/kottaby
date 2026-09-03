@@ -13,7 +13,7 @@ import type { ParentLinkLabels } from "@/shared/locale/types/parentLink";
  * budget); they are re-exported here so the `IncomingBody` / container import
  * paths (and the domain barrel) stay unchanged.
  */
-export * from "./IncomingStates.parts";
+export { IncomingEmptyState, IncomingLoadErrorAlert, IncomingSkeletonList } from "./IncomingStates.parts";
 
 /** Success-toast auto-hide cadence (host toast posture, mark-all precedent). */
 const SUCCESS_TOAST_AUTOHIDE_MS = 6000;
