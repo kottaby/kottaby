@@ -28,12 +28,13 @@
  *      call commits nothing (email-scoped count still exactly 1; a
  *      global users count would race with concurrent test files).
  *  (f) BFLA token probes — anonymous actorId (0) + non-admin actorId
- *      pre-checks fire BEFORE any DB write; the directory count is
- *      unchanged.
+ *      pre-checks fire BEFORE any DB write; nothing attributable to the
+ *      denied calls exists afterward (probes on rows this test owns —
+ *      a global directory count would race with concurrent test files).
  *  (g) enum / ID fuzz — non-existent role strings, NaN / negative /
  *      fractional IDs, oversized integers all fail closed at the
  *      service seam (ValidationError / NotFoundError / ForbiddenError
- *      pre-DB); zero writes.
+ *      pre-DB); zero writes (actor-attributable audit probe).
  *
  * HARNESSES:
  *  - Chaos probes (a)–(e): use the GLOBAL `db` (no outer tx) — each
@@ -429,23 +430,21 @@ describe("AdminUserManagementService — chaos & concurrency", () => {
 
 describe("AdminUserManagementService — BFLA token + ID fuzz (pre-DB fail-closed)", () => {
   // ─── (f) BFLA token probes — fail closed pre-DB ─────────────────────
-  test("BFLA — anonymous actor (id=0) on each mutation → UNAUTHORIZED pre-DB; directory count unchanged", async () => {
+  test("BFLA — anonymous actor (id=0) on each mutation → UNAUTHORIZED pre-DB; no attributable writes", async () => {
     await runInRollback(async tx => {
       silenceDomainLog();
-      const beforeValue = await (async () => {
-        const [r] = await tx.select({ count: sql<number>`count(*)::int` }).from(users);
-        return r?.count ?? 0;
-      })();
 
       // createUser
+      const deniedCreateInput = makeCreateInput();
       const createErr = await expectRepoError(() =>
-        AdminUserManagementService.createUser(makeCreateInput(), ANONYMOUS_ACTOR_ID, LOCALE, tx)
+        AdminUserManagementService.createUser(deniedCreateInput, ANONYMOUS_ACTOR_ID, LOCALE, tx)
       );
       expect(createErr).toBeInstanceOf(UnauthorizedError);
 
       // updateUser
+      const anonUpdateName = `Anon Update ${randomUUID().slice(0, 8)}`;
       const updateErr = await expectRepoError(() =>
-        AdminUserManagementService.updateUser(1, { fullName: "Anon Update" }, ANONYMOUS_ACTOR_ID, LOCALE, tx)
+        AdminUserManagementService.updateUser(1, { fullName: anonUpdateName }, ANONYMOUS_ACTOR_ID, LOCALE, tx)
       );
       expect(updateErr).toBeInstanceOf(UnauthorizedError);
 
@@ -455,30 +454,45 @@ describe("AdminUserManagementService — BFLA token + ID fuzz (pre-DB fail-close
       );
       expect(deleteErr).toBeInstanceOf(UnauthorizedError);
 
-      // Directory count unchanged — zero writes for any of the
-      // denials (denial-no-audit + no row inserts).
-      const [countAfter] = await tx.select({ count: sql<number>`count(*)::int` }).from(users);
-      expect(countAfter?.count).toBe(beforeValue);
+      // Zero writes — each denial's would-be effect is probed on rows
+      // this test owns (the denied createUser's unique email; the
+      // per-run update marker; the delete target's deleted flag). A
+      // global directory count is NOT usable here: parallel files
+      // commit + hard-delete fixture users mid-window, so it drifts
+      // under concurrent execution.
+      const [createdRow] = await tx
+        .select({ count: sql<number>`count(*)::int` })
+        .from(users)
+        .where(eq(users.email, deniedCreateInput.email));
+      const [renamedRow] = await tx
+        .select({ count: sql<number>`count(*)::int` })
+        .from(users)
+        .where(and(eq(users.id, 1), eq(users.fullName, anonUpdateName)));
+      const [deletedRow] = await tx
+        .select({ count: sql<number>`count(*)::int` })
+        .from(users)
+        .where(and(eq(users.id, 1), eq(users.isDeleted, true)));
+      expect(createdRow?.count ?? 0).toBe(0);
+      expect(renamedRow?.count ?? 0).toBe(0);
+      expect(deletedRow?.count ?? 0).toBe(0);
     });
   });
 
-  test("BFLA — non-admin actor on each mutation → FORBIDDEN pre-DB; directory count unchanged", async () => {
+  test("BFLA — non-admin actor on each mutation → FORBIDDEN pre-DB; no attributable writes", async () => {
     await runInRollback(async tx => {
       const nonAdmin = await createTestUser(tx, { role: "student" });
       await createTestStudent(tx, nonAdmin.id);
       silenceDomainLog();
-      const beforeValue = await (async () => {
-        const [r] = await tx.select({ count: sql<number>`count(*)::int` }).from(users);
-        return r?.count ?? 0;
-      })();
 
+      const deniedCreateInput = makeCreateInput();
       const createErr = await expectRepoError(() =>
-        AdminUserManagementService.createUser(makeCreateInput(), nonAdmin.id, LOCALE, tx)
+        AdminUserManagementService.createUser(deniedCreateInput, nonAdmin.id, LOCALE, tx)
       );
       expect(createErr).toBeInstanceOf(ForbiddenError);
 
+      const nonAdminUpdateName = `NonAdmin Update ${randomUUID().slice(0, 8)}`;
       const updateErr = await expectRepoError(() =>
-        AdminUserManagementService.updateUser(1, { fullName: "NonAdmin Update" }, nonAdmin.id, LOCALE, tx)
+        AdminUserManagementService.updateUser(1, { fullName: nonAdminUpdateName }, nonAdmin.id, LOCALE, tx)
       );
       expect(updateErr).toBeInstanceOf(ForbiddenError);
 
@@ -487,8 +501,25 @@ describe("AdminUserManagementService — BFLA token + ID fuzz (pre-DB fail-close
       );
       expect(deleteErr).toBeInstanceOf(ForbiddenError);
 
-      const [countAfter] = await tx.select({ count: sql<number>`count(*)::int` }).from(users);
-      expect(countAfter?.count).toBe(beforeValue);
+      // Zero writes — each denial's would-be effect is probed on rows
+      // this test owns (see the anonymous variant above; the global
+      // directory count these probes replace drifts under parallel
+      // files' fixture cleanup).
+      const [createdRow] = await tx
+        .select({ count: sql<number>`count(*)::int` })
+        .from(users)
+        .where(eq(users.email, deniedCreateInput.email));
+      const [renamedRow] = await tx
+        .select({ count: sql<number>`count(*)::int` })
+        .from(users)
+        .where(and(eq(users.id, 1), eq(users.fullName, nonAdminUpdateName)));
+      const [deletedRow] = await tx
+        .select({ count: sql<number>`count(*)::int` })
+        .from(users)
+        .where(and(eq(users.id, 1), eq(users.isDeleted, true)));
+      expect(createdRow?.count ?? 0).toBe(0);
+      expect(renamedRow?.count ?? 0).toBe(0);
+      expect(deletedRow?.count ?? 0).toBe(0);
     });
   });
 
@@ -498,10 +529,6 @@ describe("AdminUserManagementService — BFLA token + ID fuzz (pre-DB fail-close
       const adminActor = await createTestUser(tx, { role: "admin" });
       await createTestAdmin(tx, adminActor.id);
       silenceDomainLog();
-      const beforeValue = await (async () => {
-        const [r] = await tx.select({ count: sql<number>`count(*)::int` }).from(users);
-        return r?.count ?? 0;
-      })();
 
       // Negative id → ValidationError at the seam
       // (`requirePositiveIntId` rejects `<= 0` pre-DB).
@@ -536,9 +563,16 @@ describe("AdminUserManagementService — BFLA token + ID fuzz (pre-DB fail-close
       expect(unknownErr).toBeInstanceOf(NotFoundError);
       assertErrorCode(unknownErr, "USER_NOT_FOUND");
 
-      // Zero writes — directory count unchanged.
-      const [countAfter] = await tx.select({ count: sql<number>`count(*)::int` }).from(users);
-      expect(countAfter?.count).toBe(beforeValue);
+      // Zero writes — the read denials emitted nothing attributable to
+      // this test's actor (getUserDetail is a read-only path, so an
+      // erroneous emission would surface as an audit row). A global
+      // directory count is not usable here: parallel files commit +
+      // hard-delete fixture users mid-window.
+      const [auditRow] = await tx
+        .select({ count: sql<number>`count(*)::int` })
+        .from(auditLogs)
+        .where(eq(auditLogs.actorId, adminActor.id));
+      expect(auditRow?.count ?? 0).toBe(0);
     });
   });
 });
