@@ -216,10 +216,13 @@ test("admin broadcast compose surface — full interaction loop (en / LTR)", asy
 
   // ── Country companion: exact-match free text delivers ──────────────────
   await page.getByRole("radio").nth(2).click();
-  await composeAndSend(page, "Country broadcast", "Egypt cohort announcement.");
-  const countryInput = page.locator("form input").nth(1);
+  // The companion renders AFTER the audience radios in DOM order, so
+  // positional `form input` indexing lands on a radio — address it by its
+  // accessible label, and fill it BEFORE composeAndSend (the send click
+  // opens the confirmation gate over the form).
+  const countryInput = page.getByLabel("Country", { exact: true });
   await countryInput.fill("Egypt");
-  await submitButton(page).click();
+  await composeAndSend(page, "Country broadcast", "Egypt cohort announcement.");
   await confirmButton(page).click();
   await awaitSuccessToast(page);
   await page.screenshot({ path: join(SHOT_DIR, "07-en-desktop-country-success.png") });

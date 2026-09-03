@@ -99,44 +99,58 @@ function governanceConditions(): (SQL | undefined)[] {
  * its uncommitted state. `coalesce(...)`/`now()` window comparisons that the
  * builder API cannot express natively ride the `sql` template with bound
  * column references (never interpolated values).
+ *
+ * `limit` bounds the id projection with SQL LIMIT after the deterministic
+ * `ORDER BY id ASC` — never changing WHICH ids resolve for cohorts within
+ * the bound, only capping how many transfer (undefined = unbounded).
  */
-async function resolveViaTransaction(selector: BroadcastAudienceSelector, tx: DBTransaction): Promise<number[]> {
+async function resolveViaTransaction(
+  selector: BroadcastAudienceSelector,
+  tx: DBTransaction,
+  limit: number | undefined
+): Promise<number[]> {
   switch (selector.type) {
     case BroadcastAudienceType.All: {
-      const rows = await tx
+      const query = tx
         .select({ id: users.id })
         .from(users)
         .where(and(...governanceConditions()))
-        .orderBy(asc(users.id));
+        .orderBy(asc(users.id))
+        .$dynamic();
+      const rows = await (limit === undefined ? query : query.limit(limit));
       return rows.map(row => row.id);
     }
     case BroadcastAudienceType.Role: {
       if (selector.role == null) {
         return [];
       }
-      const rows = await tx
+      const query = tx
         .select({ id: users.id })
         .from(users)
         .where(and(eq(users.role, selector.role), ...governanceConditions()))
-        .orderBy(asc(users.id));
+        .orderBy(asc(users.id))
+        .$dynamic();
+      const rows = await (limit === undefined ? query : query.limit(limit));
       return rows.map(row => row.id);
     }
     case BroadcastAudienceType.Country: {
       if (selector.country == null) {
         return [];
       }
-      const rows = await tx
+      const query = tx
         .select({ id: users.id })
         .from(users)
         .where(and(eq(users.country, selector.country), ...governanceConditions()))
-        .orderBy(asc(users.id));
+        .orderBy(asc(users.id))
+        .$dynamic();
+      const rows = await (limit === undefined ? query : query.limit(limit));
       return rows.map(row => row.id);
     }
     case BroadcastAudienceType.Plan: {
       if (selector.planId == null) {
         return [];
       }
-      const rows = await tx
+      const query = tx
         .selectDistinct({ id: users.id })
         .from(users)
         .innerJoin(subscriptions, eq(subscriptions.userId, users.id))
@@ -149,7 +163,9 @@ async function resolveViaTransaction(selector: BroadcastAudienceSelector, tx: DB
             ...governanceConditions()
           )
         )
-        .orderBy(asc(users.id));
+        .orderBy(asc(users.id))
+        .$dynamic();
+      const rows = await (limit === undefined ? query : query.limit(limit));
       return rows.map(row => row.id);
     }
     default: {
@@ -162,17 +178,35 @@ async function resolveViaTransaction(selector: BroadcastAudienceSelector, tx: DB
 }
 
 /**
+ * SQL LIMIT clause + bind params for the raw-SQL branch (undefined =
+ * unbounded). `nextParamIndex` is the bind index following the shape's own
+ * parameters — LIMIT always binds LAST so the statement text stays stable.
+ */
+function limitClause(limit: number | undefined, nextParamIndex: number): { clause: string; params: number[] } {
+  if (limit === undefined) {
+    return { clause: "", params: [] };
+  }
+  return { clause: ` LIMIT $${nextParamIndex}`, params: [limit] };
+}
+
+/**
  * Non-transactional branch — raw parameterized SQL over the pool (Neon HTTP
  * fast path when eligible). The single-table shapes filter `users` directly;
  * the plan shape joins `subscriptions` and dedupes with `DISTINCT`.
  * `s.status = 'active'` is a fixed state literal, not caller input, matching
  * the canonical active-window predicate verbatim.
+ *
+ * `limit` rides a bound `LIMIT $n` parameter appended after the existing
+ * bindings (undefined = no LIMIT clause) — same semantics as the
+ * transactional branch.
  */
-async function resolveViaQueryDb(selector: BroadcastAudienceSelector): Promise<number[]> {
+async function resolveViaQueryDb(selector: BroadcastAudienceSelector, limit: number | undefined): Promise<number[]> {
   switch (selector.type) {
     case BroadcastAudienceType.All: {
+      const bound = limitClause(limit, 1);
       const result = await queryDb<AudienceIdRow>(
-        `SELECT id FROM users WHERE ${GOVERNANCE_PREDICATE_SQL} ORDER BY id ASC`
+        `SELECT id FROM users WHERE ${GOVERNANCE_PREDICATE_SQL} ORDER BY id ASC${bound.clause}`,
+        bound.params
       );
       return result.rows.map(row => row.id);
     }
@@ -180,9 +214,10 @@ async function resolveViaQueryDb(selector: BroadcastAudienceSelector): Promise<n
       if (selector.role == null) {
         return [];
       }
+      const bound = limitClause(limit, 2);
       const result = await queryDb<AudienceIdRow>(
-        `SELECT id FROM users WHERE ${GOVERNANCE_PREDICATE_SQL} AND role = $1 ORDER BY id ASC`,
-        [selector.role]
+        `SELECT id FROM users WHERE ${GOVERNANCE_PREDICATE_SQL} AND role = $1 ORDER BY id ASC${bound.clause}`,
+        [selector.role, ...bound.params]
       );
       return result.rows.map(row => row.id);
     }
@@ -190,9 +225,10 @@ async function resolveViaQueryDb(selector: BroadcastAudienceSelector): Promise<n
       if (selector.country == null) {
         return [];
       }
+      const bound = limitClause(limit, 2);
       const result = await queryDb<AudienceIdRow>(
-        `SELECT id FROM users WHERE ${GOVERNANCE_PREDICATE_SQL} AND country = $1 ORDER BY id ASC`,
-        [selector.country]
+        `SELECT id FROM users WHERE ${GOVERNANCE_PREDICATE_SQL} AND country = $1 ORDER BY id ASC${bound.clause}`,
+        [selector.country, ...bound.params]
       );
       return result.rows.map(row => row.id);
     }
@@ -200,6 +236,7 @@ async function resolveViaQueryDb(selector: BroadcastAudienceSelector): Promise<n
       if (selector.planId == null) {
         return [];
       }
+      const bound = limitClause(limit, 2);
       const result = await queryDb<AudienceIdRow>(
         `SELECT DISTINCT u.id
            FROM users u
@@ -210,8 +247,8 @@ async function resolveViaQueryDb(selector: BroadcastAudienceSelector): Promise<n
             AND (s.end_date IS NULL OR now() < s.end_date)
             AND coalesce(u.is_deleted, false) = false
             AND coalesce(u.is_blocked, false) = false
-          ORDER BY u.id ASC`,
-        [selector.planId]
+          ORDER BY u.id ASC${bound.clause}`,
+        [selector.planId, ...bound.params]
       );
       return result.rows.map(row => row.id);
     }
@@ -234,16 +271,25 @@ export namespace BroadcastAudienceRepository {
    * @param tx       Optional transaction executor. When a transaction is
    *                 supplied the read runs on it (Drizzle builders); when
    *                 absent the read runs on the pool via `queryDb`.
+   * @param limit    Optional SQL LIMIT applied AFTER the deterministic
+   *                 `ORDER BY id ASC` projection. Bounding never changes
+   *                 WHICH ids resolve for cohorts within the bound — it only
+   *                 caps how many rows transfer, so a caller may pass
+   *                 `cap + 1` to detect over-cap cohorts without
+   *                 materializing the full audience. Undefined = unbounded
+   *                 (the historical behavior; every existing two-arg caller
+   *                 is unaffected).
    * @returns The resolved user ids — de-duplicated, `id ASC` — or `[]` when
    *          the cohort matches nobody (or a required companion is absent).
    */
   export async function resolveAudienceIds(
     selector: BroadcastAudienceSelector,
-    tx?: DBQueryExecutor
+    tx?: DBQueryExecutor,
+    limit?: number
   ): Promise<number[]> {
     if (tx && isDBTransaction(tx)) {
-      return resolveViaTransaction(selector, tx);
+      return resolveViaTransaction(selector, tx, limit);
     }
-    return resolveViaQueryDb(selector);
+    return resolveViaQueryDb(selector, limit);
   }
 }

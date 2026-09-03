@@ -14,7 +14,7 @@
  */
 
 import { Alert, Box, Button, Divider, Stack, Typography } from "@mui/material";
-import type { ReactNode } from "react";
+import type { ReactNode, SubmitEvent } from "react";
 import type { AdminPlansQuery_adminPlans, BroadcastAudienceType } from "@/frontend/graphql/generated/gql/graphql";
 import { BroadcastComposeCompanions } from "@/frontend/views/admin/broadcasts/BroadcastComposeCompanions";
 import { BroadcastComposeFields } from "@/frontend/views/admin/broadcasts/BroadcastComposeFields";
@@ -34,7 +34,7 @@ interface BroadcastComposeFormProps {
   readonly sendIcon: ReactNode;
   readonly onDraftChange: (patch: Partial<ComposeState>) => void;
   readonly onAudienceKindChange: (kind: BroadcastAudienceType) => void;
-  readonly onSubmit: (event: React.SubmitEvent<HTMLFormElement>) => void;
+  readonly onSubmit: (event: SubmitEvent<HTMLFormElement>) => void;
 }
 
 export function BroadcastComposeForm(props: BroadcastComposeFormProps): ReactNode {

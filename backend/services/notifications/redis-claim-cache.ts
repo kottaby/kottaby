@@ -119,12 +119,23 @@ export function resolveBroadcastClaimCache(): NotificationIdempotencyClaimCache 
     // Kept attached so connection failures never become unhandled "error"
     // events; command failures already surface through their promises, where
     // the engine owns the fail-open warn. errorName only — never the URL.
+    // Throttled: ioredis emits "error" on EVERY failed reconnect attempt, so
+    // during an outage only the FIRST failure logs; the flag re-arms on
+    // "ready" so a recovered-then-rebroken client logs its next failure too.
+    let logNextConnectionError = true;
     redis.on("error", (error: Error) => {
+      if (!logNextConnectionError) {
+        return;
+      }
+      logNextConnectionError = false;
       logger.logDomainError("Redis claim cache connection error", {
         code: "NOTIFICATION_CLAIM_REDIS_UNAVAILABLE",
         entity: "notifications",
         errorName: error.name,
       });
+    });
+    redis.on("ready", () => {
+      logNextConnectionError = true;
     });
     sharedClaimCache = new RedisClaimCache(redis);
   }

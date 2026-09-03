@@ -118,8 +118,10 @@ export function AuditTrailFilterFields({
         onChange={event => onDraftChange({ from: event.target.value })}
         disabled={fieldsDisabled}
         // `lang` localizes the browser's built-in date mask to the active UI
-        // locale instead of always rendering English.
-        slotProps={{ htmlInput: { lang: locale } }}
+        // locale instead of always rendering English; `shrink` keeps the
+        // label floating above the native date mask when the draft is empty
+        // (MUI never auto-shrinks for type="date" — the label overlaps it).
+        slotProps={{ htmlInput: { lang: locale }, inputLabel: { shrink: true } }}
       />
       <TextField
         id={TO_DATE_INPUT_ID}
@@ -129,7 +131,7 @@ export function AuditTrailFilterFields({
         value={drafts.to}
         onChange={event => onDraftChange({ to: event.target.value })}
         disabled={fieldsDisabled}
-        slotProps={{ htmlInput: { lang: locale } }}
+        slotProps={{ htmlInput: { lang: locale }, inputLabel: { shrink: true } }}
       />
       <Button
         type="submit"

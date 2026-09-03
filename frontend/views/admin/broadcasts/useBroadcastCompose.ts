@@ -1,4 +1,5 @@
 import { useQuery } from "@apollo/client/react";
+import type { SubmitEvent } from "react";
 import { type AdminPlansQuery_adminPlans, BroadcastAudienceType } from "@/frontend/graphql/generated/gql/graphql";
 import { adminPlansQueryDocument } from "@/frontend/graphql/sharedDocuments/billing";
 import { isAudienceReady } from "@/frontend/views/admin/broadcasts/broadcast-compose.helpers";
@@ -43,7 +44,7 @@ export interface BroadcastComposeController {
   readonly closeLabel: string;
   readonly changeDraft: BroadcastComposeDraft["changeDraft"];
   readonly changeAudienceKind: BroadcastComposeDraft["changeAudienceKind"];
-  readonly handleFormSubmit: (event: React.SubmitEvent<HTMLFormElement>) => void;
+  readonly handleFormSubmit: (event: SubmitEvent<HTMLFormElement>) => void;
   readonly handleConfirmSend: () => void;
   readonly closeConfirmDialog: () => void;
   readonly closeSuccessToast: () => void;
@@ -63,7 +64,7 @@ export function useBroadcastCompose(): BroadcastComposeController {
   const audienceReady = isAudienceReady(draft.compose);
 
   /** Client-side inline validation; the confirmation gate opens when valid. */
-  const handleFormSubmit = (event: React.SubmitEvent<HTMLFormElement>): void => {
+  const handleFormSubmit = (event: SubmitEvent<HTMLFormElement>): void => {
     event.preventDefault();
     const titleError = draft.compose.title.trim() === "" ? t.titleRequired : undefined;
     draft.setFieldErrors(titleError === undefined ? {} : { title: titleError });

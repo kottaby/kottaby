@@ -269,7 +269,11 @@ async function resolveBroadcastRecipients(
       throw new NotFoundError("PLAN", planNotFoundMessage);
     }
   }
-  return BroadcastAudienceRepository.resolveAudienceIds(selector, outerTx);
+  // Bound the read at cap+1: an over-cap cohort is detected by the truncated
+  // length (5001 > BROADCAST_MAX_RECIPIENTS) without transferring the full
+  // audience; cohorts within the cap resolve byte-identically to an
+  // unbounded read (ORDER BY id ASC + LIMIT never changes membership there).
+  return BroadcastAudienceRepository.resolveAudienceIds(selector, outerTx, BROADCAST_MAX_RECIPIENTS + 1);
 }
 
 /**
