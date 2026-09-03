@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery } from "@apollo/client/react";
-import { Alert, Stack } from "@mui/material";
+import { Alert, Box } from "@mui/material";
 import { type ReactNode, useState } from "react";
 import { PermissionDeniedFallback } from "@/frontend/components/ui/PermissionDeniedFallback";
 import {
@@ -152,8 +152,27 @@ export function StudentLinkRequestsContainer(): ReactNode {
   return (
     // Content column is width-capped and centered: at tablet/desktop the
     // sparse request inbox previously stretched full-width, reading as dead
-    // space under a single card (visual QA deduction @768/1440).
-    <Stack spacing={3} sx={{ width: "100%", maxWidth: 880, mx: "auto" }}>
+    // space under a single card (visual QA deduction @768/1440). From `sm`
+    // up the column fills the content area's height and the settled body
+    // centers itself in the space UNDER the page header (`my: auto`) — the
+    // title stays anchored to the app bar like every dashboard page, while
+    // the remaining whitespace splits evenly around the composition instead
+    // of pooling at the bottom. The column is a gap-based flex Box
+    // (not a margin-spacing Stack) so `my: auto` isn't fought by the
+    // child-spacing margins, and `display: none` summary/hint children on
+    // xs generate no boxes (CSS gap ignores them) — the 375 layout stays
+    // pixel-identical to its 10/10 capture.
+    <Box
+      sx={{
+        width: "100%",
+        maxWidth: 880,
+        mx: "auto",
+        display: "flex",
+        flexDirection: "column",
+        gap: 3,
+        minHeight: { sm: "calc(100dvh - 113px)", md: "calc(100dvh - 129px)" }, // AppBar 65 + Container py (sm 2×24 / md 2×32)
+      }}
+    >
       <IncomingHeader labels={t} />
 
       {denialCode !== null ? (
@@ -167,20 +186,22 @@ export function StudentLinkRequestsContainer(): ReactNode {
         </Alert>
       ) : null}
 
-      <IncomingBody
-        rows={rows}
-        queryErrorCode={queryErrorCode}
-        loading={loading}
-        locale={locale}
-        nowMs={nowMs}
-        respondInFlight={inFlight}
-        retryPending={retryPending}
-        labels={t}
-        errorLabels={te}
-        commonLabels={commonT}
-        onRetry={handleRetry}
-        onDecide={setDecision}
-      />
+      <Box sx={{ display: "flex", flexDirection: "column", gap: 3, my: { sm: "auto" } }}>
+        <IncomingBody
+          rows={rows}
+          queryErrorCode={queryErrorCode}
+          loading={loading}
+          locale={locale}
+          nowMs={nowMs}
+          respondInFlight={inFlight}
+          retryPending={retryPending}
+          labels={t}
+          errorLabels={te}
+          commonLabels={commonT}
+          onRetry={handleRetry}
+          onDecide={setDecision}
+        />
+      </Box>
 
       <LinkRequestDecisionDialog
         decision={decision}
@@ -192,6 +213,6 @@ export function StudentLinkRequestsContainer(): ReactNode {
       />
 
       <SuccessToast copy={successToast} onClose={() => setSuccessToast(null)} />
-    </Stack>
+    </Box>
   );
 }

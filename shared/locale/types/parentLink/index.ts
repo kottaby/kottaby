@@ -34,6 +34,16 @@ export interface ParentLinkLabels {
   readonly incomingEmptyTitle: string;
   /** Empty-inbox state body — where new requests will appear. */
   readonly incomingEmptyBody: string;
+  /** Accessible name for the compact per-status count strip above a short list. */
+  readonly listSummaryLabel: string;
+  /**
+   * Summary-strip chip label — interpolates the ALREADY-LOCALIZED status word
+   * (one of the `status*` labels) and its row count; the locale owns the
+   * separator and the digit rendering.
+   */
+  readonly summaryCountChip: (statusLabel: string, count: number) => string;
+  /** Friendly hint under a short request list — where new requests will appear. */
+  readonly incomingHintBody: string;
   /** Per-row label introducing the requesting parent's name. */
   readonly fromLabel: string;
   /** Per-row label introducing the request's creation moment. */

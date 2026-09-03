@@ -49,12 +49,15 @@ import { ParentLink } from "@/shared/locale/namespaces/parentLink";
 
 // ─── Mandated key inventory (the parent-link surface ground truth) ──────────
 
-/** Every key the parentLink UI namespace must carry (30 slots). */
+/** Every key the parentLink UI namespace must carry (33 slots). */
 const MANDATED_KEYS = [
   "studentPageTitle",
   "studentPageSubtitle",
   "incomingEmptyTitle",
   "incomingEmptyBody",
+  "listSummaryLabel",
+  "summaryCountChip",
+  "incomingHintBody",
   "fromLabel",
   "sentAtLabel",
   "expiresLine",
@@ -91,8 +94,8 @@ const MANDATED_KEYS = [
  */
 const STATUS_LABEL_KEYS = ["statusPending", "statusConfirmed", "statusRejected", "statusExpired"] as const;
 
-/** The three function-valued slots (expiry line + confirmation dialog bodies). */
-const FUNCTION_KEYS = ["expiresLine", "confirmDialogBody", "rejectDialogBody"] as const;
+/** The four function-valued slots (summary chip + expiry line + dialog bodies). */
+const FUNCTION_KEYS = ["summaryCountChip", "expiresLine", "confirmDialogBody", "rejectDialogBody"] as const;
 
 /** Arabic-script probe — at least one Arabic-block character in the value. */
 const ARABIC_SCRIPT = /[\u0600-\u06FF]/;
@@ -173,8 +176,9 @@ describe("no English fallthrough — ar map carries Arabic copy for every string
     }
   });
 
-  test("all three ar FUNCTION slots return Arabic-script output for Arabic-flavored arguments", () => {
+  test("all four ar FUNCTION slots return Arabic-script output for Arabic-flavored arguments", () => {
     const arParentName = "ولي الأمر";
+    expect(ARABIC_SCRIPT.test(parentLinkAr.summaryCountChip("قيد الانتظار", 2))).toBe(true);
     expect(ARABIC_SCRIPT.test(parentLinkAr.expiresLine("١٤ سبتمبر ٢٠٢٦"))).toBe(true);
     expect(ARABIC_SCRIPT.test(parentLinkAr.confirmDialogBody(arParentName))).toBe(true);
     expect(ARABIC_SCRIPT.test(parentLinkAr.rejectDialogBody(arParentName))).toBe(true);
@@ -183,6 +187,13 @@ describe("no English fallthrough — ar map carries Arabic copy for every string
 
 // ===========================================================================
 describe("template pins — function slots expand their arguments", () => {
+  test("summaryCountChip embeds the status word and its count in BOTH locales", () => {
+    expect(parentLinkEn.summaryCountChip("Pending", 2)).toBe("Pending · 2");
+    expect(parentLinkEn.summaryCountChip("Confirmed", 0)).toBe("Confirmed · 0");
+    expect(parentLinkAr.summaryCountChip("قيد الانتظار", 2)).toBe("قيد الانتظار · ٢");
+    expect(parentLinkAr.summaryCountChip("تم التأكيد", 0)).toBe("تم التأكيد · ٠");
+  });
+
   test("expiresLine embeds the formatted expiry moment in BOTH locales", () => {
     expect(parentLinkEn.expiresLine("Sep 14, 2026")).toBe("Expires on Sep 14, 2026");
     expect(parentLinkAr.expiresLine("١٤ سبتمبر ٢٠٢٦")).toBe("ينتهي في ١٤ سبتمبر ٢٠٢٦");
@@ -202,7 +213,8 @@ describe("template pins — function slots expand their arguments", () => {
     expect(parentLinkAr.rejectDialogBody("ولي الأمر")).toBe("لن يتم ربط ولي الأمر بحسابك. يمكنه إرسال طلب جديد لاحقاً.");
   });
 
-  test("all three function slots are callable with non-empty output in BOTH locales", () => {
+  test("all four function slots are callable with non-empty output in BOTH locales", () => {
+    expect(parentLinkEn.summaryCountChip("Pending", 2).length).toBeGreaterThan(0);
     expect(parentLinkEn.expiresLine("Sep 14, 2026").length).toBeGreaterThan(0);
     expect(parentLinkEn.confirmDialogBody("Adam").length).toBeGreaterThan(0);
     expect(parentLinkEn.rejectDialogBody("Adam").length).toBeGreaterThan(0);
@@ -213,7 +225,7 @@ describe("template pins — function slots expand their arguments", () => {
 });
 
 // ===========================================================================
-describe("function-slot inventory — exactly the three locale functions, on BOTH maps", () => {
+describe("function-slot inventory — exactly the four locale functions, on BOTH maps", () => {
   test.each([...FUNCTION_KEYS])("slot `%s` is a function on BOTH maps", key => {
     expect(typeof Reflect.get(parentLinkAr, key)).toBe("function");
     expect(typeof Reflect.get(parentLinkEn, key)).toBe("function");
@@ -224,6 +236,11 @@ describe("function-slot inventory — exactly the three locale functions, on BOT
       const isFunction = typeof Reflect.get(parentLinkEn, key) === "function";
       expect(isFunction).toBe((FUNCTION_KEYS as readonly string[]).includes(key));
     }
+  });
+
+  test("the ar summary chip renders Arabic-Indic digits (page-date parity)", () => {
+    expect(parentLinkAr.summaryCountChip("مرفوض", 3)).toContain("٣");
+    expect(parentLinkEn.summaryCountChip("Rejected", 3)).toContain("3");
   });
 });
 
