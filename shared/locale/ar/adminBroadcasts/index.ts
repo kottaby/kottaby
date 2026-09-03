@@ -30,16 +30,11 @@ export const adminBroadcastsAr: AdminBroadcastsLabels = {
     if (count === 0) return "لم يتم إشعار أي مستلم";
     if (count === 1) return "تم إرسال الإعلان إلى مستلم واحد";
     if (count === 2) return "تم إرسال الإعلان إلى مستلمين";
-    // CLDR Arabic classes: 0→zero · 1→one · 2→two (n = 2 EXACTLY) ·
-    // 3–10→few (counted plural) · 11–99→many (tamyiz singular) ·
-    // everything else →other — so 100/102 land on OTHER, while 101
-    // re-enters one and 103–110 re-enter few via the last-two-digit cycle.
+    // CLDR Arabic classes: one/two apply to n = 1/2 EXACTLY; few = 3–10
+    // (counted plural); many = 11–99 (tamyiz singular); everything else —
+    // including 100/101/102 and their ×100 re-entries — is `other`.
     const cycle = count % 100;
-    if (cycle === 1) return `تم إرسال الإعلان إلى ${count} مستلم`;
     if (cycle >= 3 && cycle <= 10) return `تم إرسال الإعلان إلى ${count} مستلمين`;
-    if (cycle >= 11) return `تم إرسال الإعلان إلى ${count} مستلماً`;
-    // cycle 0 or 2 — the CLDR `other` class (100, 102, 200, 202, …):
-    // neither the one form (n % 100 = 1 only) nor the dual (n = 2 only).
     return `تم إرسال الإعلان إلى ${count} مستلماً`;
   },
   errorTitle: "تعذّر إرسال الإعلان",

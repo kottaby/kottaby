@@ -178,9 +178,9 @@ describe("no English fallthrough — ar map carries Arabic copy for every string
 // ===========================================================================
 describe("pluralization pin — successToast exact branch outputs in BOTH locales", () => {
   // Arabic plural boundaries — CLDR classes: 0→zero-form message · 1 singular
-  // · 2 dual (n = 2 EXACTLY) · 3–10 counted plural · 11–99 tamyiz singular ·
-  // other = 100 and n % 100 ∈ {0, 2} (100/102/200/202…), while 101 re-enters
-  // one and 103–110 re-enter few via the last-two-digit cycle.
+  // (n = 1 EXACTLY) · 2 dual (n = 2 EXACTLY) · 3–10 counted plural ·
+  // 11–99 tamyiz singular · other = 100/101/102 and their ×100 re-entries
+  // (one/two never re-enter via the last-two-digit cycle).
   test.each([
     [0, "No recipients were reached", "لم يتم إشعار أي مستلم"],
     [1, "Broadcast sent to 1 recipient", "تم إرسال الإعلان إلى مستلم واحد"],
@@ -190,7 +190,7 @@ describe("pluralization pin — successToast exact branch outputs in BOTH locale
     [11, "Broadcast sent to 11 recipients", "تم إرسال الإعلان إلى 11 مستلماً"],
     [42, "Broadcast sent to 42 recipients", "تم إرسال الإعلان إلى 42 مستلماً"],
     [100, "Broadcast sent to 100 recipients", "تم إرسال الإعلان إلى 100 مستلماً"],
-    [101, "Broadcast sent to 101 recipients", "تم إرسال الإعلان إلى 101 مستلم"],
+    [101, "Broadcast sent to 101 recipients", "تم إرسال الإعلان إلى 101 مستلماً"],
     [102, "Broadcast sent to 102 recipients", "تم إرسال الإعلان إلى 102 مستلماً"],
     [105, "Broadcast sent to 105 recipients", "تم إرسال الإعلان إلى 105 مستلمين"],
     [142, "Broadcast sent to 142 recipients", "تم إرسال الإعلان إلى 142 مستلماً"],
