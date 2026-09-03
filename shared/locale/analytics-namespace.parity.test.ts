@@ -43,7 +43,7 @@ import { namespaces } from "@/shared/locale/namespaces/index";
 
 // ─── Mandated key inventory (the analytics surface ground truth) ────────────
 
-/** Every key the analytics UI namespace must carry (71 slots). */
+/** Every key the analytics UI namespace must carry (73 slots). */
 const MANDATED_KEYS = [
   // Metadata + header
   "metaTitle",
@@ -119,7 +119,9 @@ const MANDATED_KEYS = [
   // Empty states
   "noRevenueYet",
   "noRatingsYet",
+  "trendEmptyLabel",
   // Actions
+  "exportAction",
   "refreshAction",
   "refreshingLabel",
   "lastUpdatedLabel",
@@ -181,7 +183,7 @@ describe("compile-time parity mirror — ar/en key sets agree", () => {
     expect(Object.hasOwn(analyticsEn, key)).toBe(true);
   });
 
-  test("the mandated inventory is exhaustive (no silent key minting beyond the 71 slots)", () => {
+  test("the mandated inventory is exhaustive (no silent key minting beyond the 73 slots)", () => {
     const mandated = new Set<string>(MANDATED_KEYS);
     for (const key of Object.keys(analyticsAr)) {
       expect(mandated.has(key)).toBe(true);

@@ -1,6 +1,6 @@
 import type { AnalyticsLabels } from "@/shared/locale/types/analytics";
 
-/** Arabic leaf map for the `analytics` namespace (71 slots — Arabic script on every leaf). */
+/** Arabic leaf map for the `analytics` namespace (73 slots — Arabic script on every leaf). */
 export const analyticsAr: AnalyticsLabels = {
   metaTitle: "تحليلات المنصة",
   metaDescription:
@@ -76,7 +76,9 @@ export const analyticsAr: AnalyticsLabels = {
 
   noRevenueYet: "لا توجد إيرادات مسجلة عبر البوابة بعد.",
   noRatingsYet: "لا توجد تقييمات مسجلة بعد.",
+  trendEmptyLabel: "لا شيء مسجل خلال آخر 30 يوماً.",
 
+  exportAction: "تصدير CSV",
   refreshAction: "تحديث",
   refreshingLabel: "جارٍ التحديث…",
   lastUpdatedLabel: (at: string) => `آخر تحديث ${at}`,

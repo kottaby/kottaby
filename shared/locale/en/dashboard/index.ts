@@ -2,6 +2,7 @@ import type { DashboardLabels } from "@/shared/locale/types/dashboard";
 
 export const dashboardEn: DashboardLabels = {
   title: "Kottaby Academy",
+  titleShort: "Kottaby",
   dashboard: "Dashboard",
   welcome: (userName: string) => `Welcome, ${userName}`,
   sessions: "Sessions",

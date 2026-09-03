@@ -16,40 +16,36 @@
  */
 
 import { describe, expect, test } from "bun:test";
-import { type DocumentNode, type OperationDefinitionNode, parse, print } from "graphql";
+import { type DocumentNode, type OperationDefinitionNode, parse, print, type SelectionSetNode } from "graphql";
 import * as adminBarrel from "@/frontend/graphql/sharedDocuments/admin";
 import { adminPlatformAnalyticsQueryDocument } from "@/frontend/graphql/sharedDocuments/admin/platform-analytics.documents";
 
 /** Reads the single operation definition (fails via assertion otherwise). */
-function operationOf(document: unknown): OperationDefinitionNode {
-  const node = document as DocumentNode;
-  const operation = node.definitions.find(definition => definition.kind === "OperationDefinition");
+function operationOf(document: DocumentNode): OperationDefinitionNode {
+  const operation = document.definitions.find(definition => definition.kind === "OperationDefinition");
   if (operation?.kind !== "OperationDefinition") {
     expect.unreachable("document must carry exactly one GraphQL operation");
   }
   return operation;
 }
 
-type SelectionSetNode = {
-  selections: ReadonlyArray<{ kind: string; name?: { value: string }; selectionSet?: unknown }>;
-};
-
 /**
  * Walks the operation's selection set into a per-selection-path tree:
  * dotted parent path → SORTED leaf-field names. Branch fields contribute
- * their own child paths; leaf fields land in the parent's sorted set.
+ * their own child paths; leaf fields land in the parent's sorted set. The
+ * graphql AST types narrow through the `kind` discriminant — zero casts.
  */
-function selectionTree(document: unknown): Map<string, string[]> {
+function selectionTree(document: DocumentNode): Map<string, string[]> {
   const tree = new Map<string, string[]>();
   const visit = (selectionSet: SelectionSetNode, path: string): void => {
     const leaves: string[] = [];
     for (const selection of selectionSet.selections) {
-      if (selection.kind !== "Field" || !selection.name) {
+      if (selection.kind !== "Field") {
         continue;
       }
       const childPath = path.length === 0 ? selection.name.value : `${path}.${selection.name.value}`;
       if (selection.selectionSet) {
-        visit(selection.selectionSet as SelectionSetNode, childPath);
+        visit(selection.selectionSet, childPath);
       } else {
         leaves.push(selection.name.value);
       }
@@ -59,7 +55,7 @@ function selectionTree(document: unknown): Map<string, string[]> {
       leaves.toSorted((a, b) => a.localeCompare(b))
     );
   };
-  visit(operationOf(document).selectionSet as SelectionSetNode, "");
+  visit(operationOf(document).selectionSet, "");
   return tree;
 }
 

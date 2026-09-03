@@ -1,6 +1,6 @@
 import type { AnalyticsLabels } from "@/shared/locale/types/analytics";
 
-/** English leaf map for the `analytics` namespace (71 slots). */
+/** English leaf map for the `analytics` namespace (73 slots). */
 export const analyticsEn: AnalyticsLabels = {
   metaTitle: "Platform Analytics",
   metaDescription:
@@ -76,7 +76,9 @@ export const analyticsEn: AnalyticsLabels = {
 
   noRevenueYet: "No gateway revenue recorded yet.",
   noRatingsYet: "No ratings recorded yet.",
+  trendEmptyLabel: "Nothing recorded in the last 30 days.",
 
+  exportAction: "Export CSV",
   refreshAction: "Refresh",
   refreshingLabel: "Refreshing…",
   lastUpdatedLabel: (at: string) => `Last updated at ${at}`,

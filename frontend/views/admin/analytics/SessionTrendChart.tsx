@@ -9,6 +9,10 @@
  * chart-local `Intl` fork. The chart region carries a localized accessible
  * name (review finding F-1). All colors come from the MUI theme tokens; the
  * tooltip renders the numeric value for display only.
+ *
+ * RTL axis mirroring (Fix-D): under the RTL reading direction the X axis is
+ * REVERSED (time flows right → left with the reading order) and the Y axis
+ * moves to the inline-END edge; LTR keeps the default orientation.
  */
 
 import { Typography, useTheme } from "@mui/material";
@@ -41,6 +45,7 @@ export default function SessionTrendChart({
   locale,
 }: SessionTrendChartProps): ReactElement {
   const theme = useTheme();
+  const rtl = theme.direction === "rtl";
 
   return (
     <figure aria-label={ariaLabel} style={{ margin: 0, width: "100%", minHeight: 220 }}>
@@ -51,9 +56,15 @@ export default function SessionTrendChart({
             tickFormatter={value => formatChartTick(locale, value)}
             stroke={theme.palette.text.secondary}
             minTickGap={24}
+            reversed={rtl}
             aria-label={dateAxisLabel}
           />
-          <YAxis allowDecimals={false} stroke={theme.palette.text.secondary} width={40} />
+          <YAxis
+            allowDecimals={false}
+            stroke={theme.palette.text.secondary}
+            width={40}
+            orientation={rtl ? "right" : "left"}
+          />
           <Tooltip
             labelFormatter={value => formatChartTick(locale, value)}
             contentStyle={{

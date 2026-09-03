@@ -167,9 +167,13 @@ export interface AnalyticsLabels {
   readonly noRevenueYet: string;
   /** Empty-ratings placeholder (averages render honest nulls) */
   readonly noRatingsYet: string;
+  /** All-zero 30-day trend window placeholder (honest emptiness, never fabricated data) */
+  readonly trendEmptyLabel: string;
 
   // ── Refresh / status actions ──────────────────────────────────────────
   /** Manual refresh button label */
+  /** Snapshot CSV export button label (client-side serialization of the ALREADY-fetched snapshot) */
+  readonly exportAction: string;
   readonly refreshAction: string;
   /** In-flight refresh caption (stale data stays on screen) */
   readonly refreshingLabel: string;

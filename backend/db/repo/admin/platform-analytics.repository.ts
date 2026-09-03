@@ -37,6 +37,13 @@
  */
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/backend/db";
+import {
+  isoWeekStart,
+  ONE_DAY_MS,
+  trendSkeletonCutoff,
+  utcDayStart,
+  utcMonthStart,
+} from "@/backend/db/repo/admin/platform-analytics-boundaries";
 import { studentPayments } from "@/backend/db/schema/billing/student-payments";
 import { subscriptions } from "@/backend/db/schema/billing/subscriptions";
 import { teacherTransaction } from "@/backend/db/schema/billing/teacher-transaction";
@@ -62,13 +69,6 @@ import type {
   SessionTrendRow,
   TeacherPresenceRow,
 } from "@/backend/types";
-import {
-  isoWeekStart,
-  ONE_DAY_MS,
-  trendSkeletonCutoff,
-  utcDayStart,
-  utcMonthStart,
-} from "@/backend/db/repo/admin/platform-analytics-boundaries";
 
 /** The trailing offline-activation `payment_method` members (B.9/INV-PAY5). */
 const OFFLINE_PAYMENT_METHODS = [

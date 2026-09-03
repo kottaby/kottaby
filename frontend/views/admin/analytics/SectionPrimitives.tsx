@@ -2,11 +2,12 @@
 
 /**
  * Section primitives for the platform-analytics dashboard (DEV3-022c) —
- * the labelled metric row, the section card shell, and the loading skeleton.
- * All styling is `sx`-only with theme tokens; spacing uses logical
- * properties (RTL-safe).
+ * the labelled metric row, the section card shell, the loading skeleton,
+ * and the honest trend-empty panel. All styling is `sx`-only with theme
+ * tokens; spacing uses logical properties (RTL-safe).
  */
 
+import { TrendingFlatOutlined } from "@mui/icons-material";
 import { Box, Card, CardContent, Skeleton, Stack, Typography, useTheme } from "@mui/material";
 import type { ReactElement, ReactNode } from "react";
 
@@ -78,5 +79,32 @@ export function SectionCardSkeleton(): ReactElement {
         </Stack>
       </CardContent>
     </Card>
+  );
+}
+
+/**
+ * Honest empty state for a trend card — an all-zero (or currency-less)
+ * 30-day window renders this centered icon + copy panel INSTEAD of a bare
+ * axis (or a fabricated flat line). Same footprint as the chart so the
+ * card never shifts between loading and empty states.
+ */
+export function TrendEmptyPanel({ message }: { readonly message: string }): ReactElement {
+  const theme = useTheme();
+  return (
+    <Stack
+      sx={{
+        alignItems: "center",
+        justifyContent: "center",
+        gapInline: 1,
+        minHeight: 220,
+        border: `1px dashed ${theme.palette.divider}`,
+        borderRadius: 1,
+      }}
+    >
+      <TrendingFlatOutlined sx={theme => ({ color: theme.palette.text.disabled, fontSize: 28 })} aria-hidden="true" />
+      <Typography variant="body2" sx={({ palette }) => ({ color: palette.text.secondary })}>
+        {message}
+      </Typography>
+    </Stack>
   );
 }

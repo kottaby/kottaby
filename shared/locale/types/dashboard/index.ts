@@ -15,6 +15,8 @@
 export interface DashboardLabels {
   /** App-bar / sidebar brand title (kept here for layout components that don't need Auth). */
   readonly title: string;
+  /** Compact app-bar wordmark for narrow viewports (<sm) — a short brand word, no truncation */
+  readonly titleShort: string;
   /** Sidebar nav: Dashboard link (the home/landing nav item) */
   readonly dashboard: string;
   /** Welcome message shown at the top of the dashboard view (interpolated with the user's name). */

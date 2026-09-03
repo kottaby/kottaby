@@ -10,7 +10,9 @@
  * so the assignment is deterministic per currency byte order.
  *
  * Locale-aware axis ticks (review finding F-2); localized accessible name
- * (F-1). Money tooltip: the raw decimal-string amount is parsed ONLY at the
+ * (F-1). RTL axis mirroring (Fix-D): `reversed` X axis + inline-end Y axis
+ * under the RTL reading direction, LTR defaults otherwise. Money tooltip:
+ * the raw decimal-string amount is parsed ONLY at the
  * presentation boundary to render a readable number — the string itself is
  * the system of record and is never used for math (review finding F-4:
  * honest docstring).
@@ -55,6 +57,7 @@ export default function RevenueTrendChart({
   locale,
 }: RevenueTrendChartProps): ReactElement {
   const theme = useTheme();
+  const rtl = theme.direction === "rtl";
   // Fixed token cycle resolved ONCE per render (no hooks below).
   const seriesTokens = [
     theme.palette.primary.main,
@@ -88,9 +91,15 @@ export default function RevenueTrendChart({
               tickFormatter={value => formatChartTick(locale, value)}
               stroke={theme.palette.text.secondary}
               minTickGap={24}
+              reversed={rtl}
               aria-label={dateAxisLabel}
             />
-            <YAxis stroke={theme.palette.text.secondary} width={56} aria-label={amountAxisLabel} />
+            <YAxis
+              stroke={theme.palette.text.secondary}
+              width={56}
+              orientation={rtl ? "right" : "left"}
+              aria-label={amountAxisLabel}
+            />
             <Tooltip
               labelFormatter={value => formatChartTick(locale, value)}
               contentStyle={{

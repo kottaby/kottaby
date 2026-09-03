@@ -57,6 +57,7 @@ export function PlatformAnalyticsContainer(): ReactElement {
         refreshing={refreshing}
         initialLoading={initialLoading}
         generatedAt={snapshot?.generatedAt ?? null}
+        snapshot={snapshot}
         onRefresh={() => {
           void query.refetch();
         }}

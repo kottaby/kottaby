@@ -81,9 +81,33 @@ function silenceDomainLog(): DomainLogSpy {
   return spyOn(logger, "logDomainError").mockImplementation(() => {});
 }
 
-/** Reads the recorded contexts (second argument of every call). */
+/**
+ * Domain-log context runtime guard — `logDomainError` accepts the broader
+ * `DomainErrorContext`, so each recorded argument is validated (`in`
+ * narrowing) before it is treated as a domain context.
+ */
+function isDomainLogContext(value: unknown): value is DomainLogContext {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "code" in value &&
+    "entity" in value &&
+    "entityId" in value &&
+    "locale" in value
+  );
+}
+
+/** Reads the recorded contexts (second argument of every call) — guard-validated. */
 function loggedContexts(spy: DomainLogSpy): DomainLogContext[] {
-  return (spy.mock.calls as unknown[][]).map(call => call[1] as DomainLogContext);
+  const contexts: DomainLogContext[] = [];
+  for (const call of spy.mock.calls) {
+    const context: unknown = call.at(1);
+    if (!isDomainLogContext(context)) {
+      expect.unreachable("logDomainError must record a domain log context");
+    }
+    contexts.push(context);
+  }
+  return contexts;
 }
 
 /** try/catch capture for service rejections (never `rejects.toThrow()`). */
@@ -166,7 +190,7 @@ function stubRepoLayer(
   };
   const revenueStats = options.revenueStats ?? [];
   const revenueTrend = options.revenueTrend ?? [];
-  const subscriptions = {
+  const subscriptionStats = {
     total: 31,
     active: 32,
     pending: 33,
@@ -221,7 +245,7 @@ function stubRepoLayer(
     }),
     spyOn(PlatformAnalyticsRepository, "getSubscriptionStats").mockImplementation(async (now: Date) => {
       nows.push(now);
-      return subscriptions;
+      return subscriptionStats;
     }),
     spyOn(PlatformAnalyticsRepository, "countOfflineActivations").mockImplementation(
       async () => options.offlineActivations ?? 61
@@ -245,18 +269,30 @@ function stubRepoLayer(
 describe("PlatformAnalyticsService — Tier 1: actor denial matrix", () => {
   test("actorId 0 / non-integer / negative → UnauthorizedError with exactly one bounded domain log", async () => {
     await runInRollback(async tx => {
-      for (const actorId of [0, -1, Number.NaN, 2.5]) {
-        const logSpy = silenceDomainLog();
-        try {
-          const error = await captureError(() => PlatformAnalyticsService.getPlatformAnalytics(actorId, LOCALE, tx));
+      const actorIds = [0, -1, Number.NaN, 2.5];
+      const logSpy = silenceDomainLog();
+      let logs: DomainLogContext[] = [];
+      try {
+        const errors = await Promise.all(
+          actorIds.map(actorId =>
+            captureError(() => PlatformAnalyticsService.getPlatformAnalytics(actorId, LOCALE, tx))
+          )
+        );
+        logs = loggedContexts(logSpy);
+        for (const error of errors) {
           expect(error).toBeInstanceOf(UnauthorizedError);
           expect(error.message).toContain(tErrors.unauthorized);
-          const logs = loggedContexts(logSpy);
-          expect(logs).toHaveLength(1);
-          expect(logs[0]).toEqual({ code: "UNAUTHORIZED", entity: "users", entityId: actorId, locale: LOCALE });
-        } finally {
-          logSpy.mockRestore();
         }
+      } finally {
+        logSpy.mockRestore();
+      }
+      // Exactly one bounded domain log per probe, matched by entityId
+      // (order-independent — concurrent probes share the one spy).
+      expect(logs).toHaveLength(actorIds.length);
+      for (const actorId of actorIds) {
+        const matched = logs.filter(log => Object.is(log.entityId, actorId));
+        expect(matched).toHaveLength(1);
+        expect(matched[0]).toEqual({ code: "UNAUTHORIZED", entity: "users", entityId: actorId, locale: LOCALE });
       }
     });
   });
@@ -284,18 +320,30 @@ describe("PlatformAnalyticsService — Tier 1: actor denial matrix", () => {
       const student = await createTestUser(tx, { role: "student" });
       const teacherUser = await createTestUser(tx, { role: "teacher" });
       const parent = await createTestUser(tx, { role: "parent" });
-      for (const actorId of [student.id, teacherUser.id, parent.id]) {
-        const logSpy = silenceDomainLog();
-        try {
-          const error = await captureError(() => PlatformAnalyticsService.getPlatformAnalytics(actorId, LOCALE, tx));
+      const actorIds = [student.id, teacherUser.id, parent.id];
+      const logSpy = silenceDomainLog();
+      let logs: DomainLogContext[] = [];
+      try {
+        const errors = await Promise.all(
+          actorIds.map(actorId =>
+            captureError(() => PlatformAnalyticsService.getPlatformAnalytics(actorId, LOCALE, tx))
+          )
+        );
+        logs = loggedContexts(logSpy);
+        for (const error of errors) {
           expect(error).toBeInstanceOf(ForbiddenError);
           expect(error.message).toContain(tErrors.forbidden);
-          const logs = loggedContexts(logSpy);
-          expect(logs).toHaveLength(1);
-          expect(logs[0]).toEqual({ code: "FORBIDDEN", entity: "users", entityId: actorId, locale: LOCALE });
-        } finally {
-          logSpy.mockRestore();
         }
+      } finally {
+        logSpy.mockRestore();
+      }
+      // Exactly one bounded domain log per probe, matched by entityId
+      // (order-independent — concurrent probes share the one spy).
+      expect(logs).toHaveLength(actorIds.length);
+      for (const actorId of actorIds) {
+        const matched = logs.filter(log => log.entityId === actorId);
+        expect(matched).toHaveLength(1);
+        expect(matched[0]).toEqual({ code: "FORBIDDEN", entity: "users", entityId: actorId, locale: LOCALE });
       }
     });
   });
@@ -546,13 +594,15 @@ describe("PlatformAnalyticsService — Tier 4: pre-DB denials + read purity", ()
         spyOn(AdminUserRepository, "getStats"),
       ];
       try {
-        for (const actorId of [0, -1, student.id, deleted.id, 987_654_321]) {
-          const logSpy = silenceDomainLog();
-          try {
-            await captureError(() => PlatformAnalyticsService.getPlatformAnalytics(actorId, LOCALE, tx));
-          } finally {
-            logSpy.mockRestore();
-          }
+        const logSpy = silenceDomainLog();
+        try {
+          await Promise.all(
+            [0, -1, student.id, deleted.id, 987_654_321].map(actorId =>
+              captureError(() => PlatformAnalyticsService.getPlatformAnalytics(actorId, LOCALE, tx))
+            )
+          );
+        } finally {
+          logSpy.mockRestore();
         }
         for (const spy of spies) {
           expect(spy.mock.calls).toHaveLength(0);

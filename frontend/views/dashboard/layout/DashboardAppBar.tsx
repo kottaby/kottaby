@@ -5,7 +5,7 @@ import {
   LightModeOutlined as LightModeIcon,
   MenuOutlined as MenuIcon,
 } from "@mui/icons-material";
-import { AppBar, IconButton, Stack, Toolbar, Tooltip, Typography } from "@mui/material";
+import { AppBar, Box, IconButton, Stack, Toolbar, Tooltip, Typography } from "@mui/material";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
@@ -108,13 +108,17 @@ export function DashboardAppBar({ onMenuClick, showMenuButton }: Readonly<Dashbo
           </IconButton>
         ) : null}
 
-        {/* Brand wordmark — link to the caller's role dashboard. `noWrap` +
-            `minWidth: 0` make this the ONE shrinkable toolbar child (it
-            ellipsizes under space pressure) so the fixed-size controls never
-            spill off-canvas. */}
+        {/* Brand wordmark — link to the caller's role dashboard. Under the
+            `sm` breakpoint the COMPACT wordmark (`titleShort` — a short
+            brand word) replaces the full title so 375px viewports never
+            ellipsize the brand; the link keeps the FULL title as its
+            accessible name in both variants (label-in-name). `noWrap` +
+            `minWidth: 0` still make this the ONE shrinkable toolbar child
+            so the fixed-size controls never spill off-canvas. */}
         <Typography
           component={Link}
           href={dashboardHref}
+          aria-label={t.title}
           aria-current={isOnDashboard ? "page" : undefined}
           noWrap
           sx={theme => ({
@@ -131,7 +135,13 @@ export function DashboardAppBar({ onMenuClick, showMenuButton }: Readonly<Dashbo
             minWidth: 0,
           })}
         >
-          {t.title}
+          {/* Compact wordmark <sm, full wordmark ≥sm — one link, two renders. */}
+          <Box component="span" sx={{ display: { xs: "inline", sm: "none" } }}>
+            {t.titleShort}
+          </Box>
+          <Box component="span" sx={{ display: { xs: "none", sm: "inline" } }}>
+            {t.title}
+          </Box>
         </Typography>
 
         {/* Right-side actions — the stack never shrinks (the wordmark absorbs

@@ -170,7 +170,7 @@ function pgErrorField(error: unknown, field: "code" | "constraint"): string | nu
   const seen = new Set<unknown>();
   while (current instanceof Error && !seen.has(current)) {
     seen.add(current);
-    const value = (current as { code?: unknown; constraint?: unknown })[field];
+    const value = Reflect.get(current, field);
     if (typeof value === "string") {
       return value;
     }
@@ -370,9 +370,7 @@ describe("PlatformAnalyticsRepository aggregate fixtures (ten methods)", () => {
         { status: SessionStatus.Cancelled, confirmedByStudentAt: null, createdAt: new Date(monthStart.getTime() - 1) },
         { status: SessionStatus.Scheduled, confirmedByStudentAt: null, createdAt: new Date(trendCutoff.getTime() - 1) },
       ];
-      for (const spec of specs) {
-        await createTestSession(tx, cast.teacherId, cast.studentId, spec);
-      }
+      await Promise.all(specs.map(spec => createTestSession(tx, cast.teacherId, cast.studentId, spec)));
 
       const inToday = specs.filter(spec => spec.createdAt.getTime() >= todayStart.getTime()).length;
       const inWeek = specs.filter(spec => spec.createdAt.getTime() >= weekStart.getTime()).length;
@@ -437,8 +435,10 @@ describe("PlatformAnalyticsRepository aggregate fixtures (ten methods)", () => {
         { createdAt: new Date(cutoff.getTime() - 1), inWindow: false }, // 1ms before the edge → excluded
         { createdAt: oldTrailingEdge, inWindow: false }, // the old trailing-30d edge → EXCLUDED (skeleton-aligned window)
       ];
+      await Promise.all(
+        sessions.map(item => createTestSession(tx, cast.teacherId, cast.studentId, { createdAt: item.createdAt }))
+      );
       for (const item of sessions) {
-        await createTestSession(tx, cast.teacherId, cast.studentId, { createdAt: item.createdAt });
         if (item.inWindow) {
           bump(item.createdAt, 1);
         }
@@ -457,7 +457,7 @@ describe("PlatformAnalyticsRepository aggregate fixtures (ten methods)", () => {
 
       // Buckets are midnight-aligned and non-decreasing (ORDER BY day ASC).
       const bucketTimes = afterRows.map(row => row.bucketStart.getTime());
-      expect(bucketTimes).toEqual([...bucketTimes].sort((a, b) => a - b));
+      expect(bucketTimes).toEqual(bucketTimes.toSorted((a, b) => a - b));
       for (const time of bucketTimes) {
         expect(time).toBe(utcDayStart(new Date(time)).getTime());
       }
@@ -487,14 +487,16 @@ describe("PlatformAnalyticsRepository aggregate fixtures (ten methods)", () => {
         { amount: "999.99", status: PaymentStatus.Pending },
         { amount: "888.88", status: PaymentStatus.Refunded },
       ];
-      for (const seed of jpySeed) {
-        await createTestStudentPayment(tx, student.id, {
-          amount: seed.amount,
-          currency: "JPY",
-          status: seed.status ?? PaymentStatus.Paid,
-          createdAt: seed.createdAt ?? now,
-        });
-      }
+      await Promise.all(
+        jpySeed.map(seed =>
+          createTestStudentPayment(tx, student.id, {
+            amount: seed.amount,
+            currency: "JPY",
+            status: seed.status ?? PaymentStatus.Paid,
+            createdAt: seed.createdAt ?? now,
+          })
+        )
+      );
       // AED: one in-window paid row — a SECOND currency that must stay a
       // separate bucket forever.
       await createTestStudentPayment(tx, student.id, {
@@ -569,7 +571,7 @@ describe("PlatformAnalyticsRepository aggregate fixtures (ten methods)", () => {
         expect(row.last30DaysAmount).toMatch(/^\d+(\.\d+)?$/);
       }
       const currencies = afterRows.map(row => row.currency);
-      expect(currencies).toEqual([...currencies].sort());
+      expect(currencies).toEqual(currencies.toSorted());
     });
   });
 
@@ -596,14 +598,16 @@ describe("PlatformAnalyticsRepository aggregate fixtures (ten methods)", () => {
         { amount: "9.00", currency: "JPY", createdAt: oldTrailingEdge }, // old trailing-30d edge → EXCLUDED
         { amount: "1.00", currency: "JPY", createdAt: now, status: PaymentStatus.Pending }, // never counted
       ];
-      for (const seed of seeds) {
-        await createTestStudentPayment(tx, student.id, {
-          amount: seed.amount,
-          currency: seed.currency,
-          status: seed.status ?? PaymentStatus.Paid,
-          createdAt: seed.createdAt,
-        });
-      }
+      await Promise.all(
+        seeds.map(seed =>
+          createTestStudentPayment(tx, student.id, {
+            amount: seed.amount,
+            currency: seed.currency,
+            status: seed.status ?? PaymentStatus.Paid,
+            createdAt: seed.createdAt,
+          })
+        )
+      );
 
       const afterRows = await PlatformAnalyticsRepository.getRevenueDailyTrend(now, tx);
 
@@ -635,7 +639,7 @@ describe("PlatformAnalyticsRepository aggregate fixtures (ten methods)", () => {
         expect(row.amount).toMatch(/^\d+(\.\d+)?$/);
       }
       const orderKeys = afterRows.map(row => `${String(row.bucketStart.getTime()).padStart(15, "0")}|${row.currency}`);
-      expect(orderKeys).toEqual([...orderKeys].sort());
+      expect(orderKeys).toEqual(orderKeys.toSorted());
       const jpyToday = afterRows.find(row => row.bucketStart.getTime() === todayBucket && row.currency === "JPY");
       if (!jpyToday) {
         throw new Error("expected the (today, JPY) revenue-trend bucket");
@@ -692,13 +696,15 @@ describe("PlatformAnalyticsRepository aggregate fixtures (ten methods)", () => {
         { status: SubscriptionStatus.Cancelled, startDate: null, endDate: null, inWindow: false },
         { status: SubscriptionStatus.Suspended, startDate: null, endDate: null, inWindow: false },
       ];
-      for (const spec of specs) {
-        await createTestSubscription(tx, userId, planId, {
-          status: spec.status,
-          startDate: spec.startDate,
-          endDate: spec.endDate,
-        });
-      }
+      await Promise.all(
+        specs.map(spec =>
+          createTestSubscription(tx, userId, planId, {
+            status: spec.status,
+            startDate: spec.startDate,
+            endDate: spec.endDate,
+          })
+        )
+      );
 
       const countBy = (status: SubscriptionStatus) => specs.filter(spec => spec.status === status).length;
       const after = await PlatformAnalyticsRepository.getSubscriptionStats(now, tx);
@@ -882,7 +888,7 @@ describe("PlatformAnalyticsRepository aggregate fixtures (ten methods)", () => {
       expect(activeCount).toBeGreaterThanOrEqual(0);
 
       const sessions = await PlatformAnalyticsRepository.getSessionStats(now);
-      expect(Object.keys(sessions).sort()).toEqual(
+      expect(Object.keys(sessions).toSorted()).toEqual(
         [
           "total",
           "today",
@@ -894,7 +900,7 @@ describe("PlatformAnalyticsRepository aggregate fixtures (ten methods)", () => {
           "cancelled",
           "disputed",
           "awaitingConfirmation",
-        ].sort()
+        ].toSorted()
       );
       for (const value of Object.values(sessions)) {
         expect(Number.isInteger(value)).toBe(true);
@@ -904,14 +910,14 @@ describe("PlatformAnalyticsRepository aggregate fixtures (ten methods)", () => {
 
       const sessionTrend = await PlatformAnalyticsRepository.getSessionDailyTrend(now);
       const bucketTimes = sessionTrend.map(row => row.bucketStart.getTime());
-      expect(bucketTimes).toEqual([...bucketTimes].sort((a, b) => a - b));
+      expect(bucketTimes).toEqual(bucketTimes.toSorted((a, b) => a - b));
       for (const time of bucketTimes) {
         expect(time).toBe(utcDayStart(new Date(time)).getTime());
       }
 
       const revenue = await PlatformAnalyticsRepository.getRevenueStats(now);
       const revenueCurrencies = revenue.map(row => row.currency);
-      expect(revenueCurrencies).toEqual([...revenueCurrencies].sort());
+      expect(revenueCurrencies).toEqual(revenueCurrencies.toSorted());
       for (const row of revenue) {
         expect(row.paidPaymentsCount).toBeGreaterThanOrEqual(1);
         expect(row.totalAmount).toMatch(/^\d+(\.\d+)?$/);
@@ -1142,7 +1148,7 @@ describe("PlatformAnalyticsRepository contract & purity", () => {
     };
     expect(Object.keys(statsSample)).toHaveLength(ADMIN_USER_STATS_KEYS.length);
     const statsKeyList: string[] = [...ADMIN_USER_STATS_KEYS];
-    expect(statsKeyList.sort()).toEqual(Object.keys(statsSample).sort());
+    expect(statsKeyList.toSorted()).toEqual(Object.keys(statsSample).toSorted());
 
     // Runtime superset smoke: the analytics users section composes the ten
     // counters VERBATIM plus exactly one new presence counter.
@@ -1225,9 +1231,11 @@ describe("PlatformAnalyticsRepository contract & purity", () => {
         teacher,
       ];
       const beforeCounts = new Map<PgTable, number>();
-      for (const table of tables) {
-        beforeCounts.set(table, await countRows(tx, table));
-      }
+      await Promise.all(
+        tables.map(async table => {
+          beforeCounts.set(table, await countRows(tx, table));
+        })
+      );
 
       await PlatformAnalyticsRepository.countRecentlyActiveUsers(now, tx);
       await PlatformAnalyticsRepository.getSessionStats(now, tx);
@@ -1240,9 +1248,14 @@ describe("PlatformAnalyticsRepository contract & purity", () => {
       await PlatformAnalyticsRepository.getRatingStats(tx);
       await PlatformAnalyticsRepository.getHealthIndicators(tx);
 
+      const afterCounts = new Map<PgTable, number>();
+      await Promise.all(
+        tables.map(async table => {
+          afterCounts.set(table, await countRows(tx, table));
+        })
+      );
       for (const table of tables) {
-        const baseline = beforeCounts.get(table) ?? -1; // set above — never -1
-        expect(await countRows(tx, table)).toBe(baseline);
+        expect(afterCounts.get(table)).toBe(beforeCounts.get(table)); // set above — never undefined
       }
     });
   });

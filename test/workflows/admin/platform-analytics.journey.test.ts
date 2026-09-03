@@ -291,6 +291,66 @@ function numericRound2(sum: bigint, count: bigint): number | null {
 
 // ─── Denial + snapshot comparison helpers ───────────────────────────────────
 
+/** The bounded domain-log context shape the denials are pinned against. */
+type DomainLogContext = { code: string; entity: string; entityId: number; locale: string };
+
+/**
+ * Domain-log context runtime guard — `logDomainError` accepts the broader
+ * `DomainErrorContext`, so each recorded argument is validated (`in`
+ * narrowing) before it is treated as a domain context.
+ */
+function isDomainLogContext(value: unknown): value is DomainLogContext {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "code" in value &&
+    "entity" in value &&
+    "entityId" in value &&
+    "locale" in value
+  );
+}
+
+/**
+ * Batched denial probe — runs EVERY fn under ONE shared `logDomainError`
+ * spy (installed once, snapshot before restore), captures each rejection,
+ * and returns the shared log contexts. Order-independent: the callers pin
+ * the TOTAL log count and match by entityId instead of per-probe pairing.
+ */
+async function probeDenialBatch(
+  fns: Array<() => Promise<unknown>>
+): Promise<{ errors: Array<Error | null>; logs: DomainLogContext[] }> {
+  const spy = spyOn(logger, "logDomainError");
+  const errors: Array<Error | null> = [];
+  let logs: DomainLogContext[] = [];
+  try {
+    const caughtList = await Promise.all(
+      fns.map(async fn => {
+        try {
+          await fn();
+          return null;
+        } catch (caught) {
+          if (caught instanceof Error) {
+            return caught;
+          }
+          return new Error(`non-Error rejection: ${JSON.stringify(caught)}`);
+        }
+      })
+    );
+    errors.push(...caughtList);
+    for (const call of spy.mock.calls) {
+      const context: unknown = call.at(1);
+      if (!isDomainLogContext(context)) {
+        expect.unreachable("logDomainError must record a domain log context");
+      }
+      logs.push(context);
+    }
+  } finally {
+    spy.mockRestore();
+  }
+  logs = [...logs];
+  return { errors, logs };
+}
+
 /**
  * Runs `fn` under a `logDomainError` spy, captures BOTH the thrown error
  * (denial probes throw by design) and the logged contexts, and restores
@@ -313,9 +373,14 @@ async function probeDenial(
         error = new Error(`non-Error rejection: ${JSON.stringify(caught)}`);
       }
     }
-    const logs = spy.mock.calls.map(
-      call => call[1] as { code: string; entity: string; entityId: number; locale: string }
-    );
+    const logs: DomainLogContext[] = [];
+    for (const call of spy.mock.calls) {
+      const context: unknown = call.at(1);
+      if (!isDomainLogContext(context)) {
+        expect.unreachable("logDomainError must record a domain log context");
+      }
+      logs.push(context);
+    }
     return { error, logs };
   } finally {
     spy.mockRestore();
@@ -389,36 +454,43 @@ beforeAll(async () => {
   suiteNotificationRows = await countNotificationRows();
 });
 
+/**
+ * Suspends the immutable-table delete triggers for the duration of `fn`,
+ * then restores the EXACT prior firing state (a trigger already disabled
+ * ('D') stays disabled — the DISABLE above was a no-op). Module-scope
+ * helper: it captures nothing from any test body (consistent-function-
+ * scoping) and is reused by the afterAll cleanup only.
+ */
+async function suspendDeletes<T>(table: string, fn: () => Promise<T>): Promise<T> {
+  const discovered = await db.execute<{ tgname: string; tgenabled: string }>(
+    sql`SELECT tgname, tgenabled FROM pg_trigger WHERE tgrelid = ${table}::regclass AND NOT tgisinternal`
+  );
+  await Promise.all(
+    discovered.rows.map(trigger =>
+      db.execute(sql`ALTER TABLE ${sql.identifier(table)} DISABLE TRIGGER ${sql.identifier(trigger.tgname)}`)
+    )
+  );
+  try {
+    return await fn();
+  } finally {
+    await Promise.all(
+      discovered.rows.map(trigger =>
+        trigger.tgenabled === "D"
+          ? db.execute(sql`ALTER TABLE ${sql.identifier(table)} DISABLE TRIGGER ${sql.identifier(trigger.tgname)}`)
+          : db.execute(sql`ALTER TABLE ${sql.identifier(table)} ENABLE TRIGGER ${sql.identifier(trigger.tgname)}`)
+      )
+    );
+  }
+}
+
 afterAll(async () => {
   // 1) Immutable-table deletes (student_payments / teacher_transaction carry
   // BEFORE DELETE immutability triggers — migration 3) run OUTSIDE the
   // transaction under the same trigger-suspension discipline
   // `journeyCleanup` applies to audit_logs: discovered triggers are
   // disabled, the delete runs, every trigger returns to its EXACT prior
-  // firing state. Test-harness cleanup only — production never deletes here.
-  const suspendDeletes = async <T>(table: string, fn: () => Promise<T>): Promise<T> => {
-    const discovered = await db.execute<{ tgname: string; tgenabled: string }>(
-      sql`SELECT tgname, tgenabled FROM pg_trigger WHERE tgrelid = ${table}::regclass AND NOT tgisinternal`
-    );
-    await Promise.all(
-      discovered.rows.map(trigger =>
-        db.execute(sql`ALTER TABLE ${sql.identifier(table)} DISABLE TRIGGER ${sql.identifier(trigger.tgname)}`)
-      )
-    );
-    try {
-      return await fn();
-    } finally {
-      // Restore the EXACT prior firing state — a trigger that was already
-      // disabled ('D') stays disabled (the DISABLE above was a no-op).
-      await Promise.all(
-        discovered.rows.map(trigger =>
-          trigger.tgenabled === "D"
-            ? db.execute(sql`ALTER TABLE ${sql.identifier(table)} DISABLE TRIGGER ${sql.identifier(trigger.tgname)}`)
-            : db.execute(sql`ALTER TABLE ${sql.identifier(table)} ENABLE TRIGGER ${sql.identifier(trigger.tgname)}`)
-        )
-      );
-    }
-  };
+  // firing state. Test-harness cleanup only — production never deletes here
+  // (the suspendDeletes helper is module-scoped — see above).
   if (ownedRows.paymentIds.length > 0) {
     await suspendDeletes("student_payments", () =>
       db.delete(studentPayments).where(inArray(studentPayments.id, ownedRows.paymentIds))
@@ -818,13 +890,19 @@ describe("Journey C — freshness evolution (anti-cache proof)", () => {
 
 describe("Journey D — denial & purity matrix", () => {
   test("anonymous/malformed actor ids are rejected pre-DB with UnauthorizedError and exactly one domain log", async () => {
-    for (const actorId of [ANONYMOUS_ACTOR_ID, -1, Number.NaN, 2.5]) {
-      const { error, logs } = await probeDenial(() => PlatformAnalyticsService.getPlatformAnalytics(actorId, LOCALE));
+    const actorIds = [ANONYMOUS_ACTOR_ID, -1, Number.NaN, 2.5];
+    const { errors, logs } = await probeDenialBatch(
+      actorIds.map(actorId => () => PlatformAnalyticsService.getPlatformAnalytics(actorId, LOCALE))
+    );
+    for (const error of errors) {
       expect(error).toBeInstanceOf(UnauthorizedError);
       expect(error?.message).toContain(tErrors.unauthorized);
-      expect(logs).toHaveLength(1);
-      expect(logs[0]?.entity).toBe("users");
-      expect(logs[0]?.locale).toBe(LOCALE);
+    }
+    // Exactly one bounded domain log per probe (total pinned, order-independent).
+    expect(logs).toHaveLength(actorIds.length);
+    for (const log of logs) {
+      expect(log.entity).toBe("users");
+      expect(log.locale).toBe(LOCALE);
     }
   });
 
@@ -840,15 +918,23 @@ describe("Journey D — denial & purity matrix", () => {
   });
 
   test("non-admin actors (student / certified teacher / parent) are FORBIDDEN before any aggregate read", async () => {
-    for (const actor of [bundle.cast.student, bundle.cast.certifiedTeacher, bundle.cast.parent]) {
-      const { error, logs } = await probeDenial(() =>
-        PlatformAnalyticsService.getPlatformAnalytics(actor.user.id, LOCALE)
-      );
+    const actors = [bundle.cast.student, bundle.cast.certifiedTeacher, bundle.cast.parent];
+    const { errors, logs } = await probeDenialBatch(
+      actors.map(actor => () => PlatformAnalyticsService.getPlatformAnalytics(actor.user.id, LOCALE))
+    );
+    for (const error of errors) {
       expect(error).toBeInstanceOf(ForbiddenError);
       expect(error?.message).toContain(tErrors.forbidden);
-      expect(logs).toHaveLength(1);
-      expect(logs[0]?.entity).toBe("users");
-      expect(logs[0]?.entityId).toBe(actor.user.id);
+    }
+    // Exactly one bounded domain log per probe, matched by entityId
+    // (order-independent — concurrent probes share the one spy).
+    expect(logs).toHaveLength(actors.length);
+    for (const log of logs) {
+      expect(log.entity).toBe("users");
+    }
+    const actorIds = actors.map(actor => actor.user.id);
+    for (const actorId of actorIds) {
+      expect(logs.filter(log => log.entityId === actorId)).toHaveLength(1);
     }
   });
 

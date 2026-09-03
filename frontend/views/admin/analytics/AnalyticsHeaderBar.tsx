@@ -2,14 +2,18 @@
 
 /**
  * Header bar for the platform-analytics dashboard (DEV3-022c): title,
- * subtitle, last-updated stamp, in-flight refresh chip, and the manual
- * Refresh control (≥44px touch target; labels via the `analytics`
- * namespace; logical spacing for RTL).
+ * subtitle, last-updated stamp, in-flight refresh chip, the snapshot CSV
+ * export (client-side serialization of the ALREADY-fetched snapshot —
+ * disabled until a snapshot exists), and the manual Refresh control
+ * (≥44px touch targets; labels via the `analytics` namespace; logical
+ * spacing for RTL).
  */
 
-import { InsightsOutlined, RefreshOutlined } from "@mui/icons-material";
+import { FileDownloadOutlined, InsightsOutlined, RefreshOutlined } from "@mui/icons-material";
 import { Button, Chip, CircularProgress, Stack, Typography } from "@mui/material";
 import type { ReactElement } from "react";
+import { downloadSnapshotCsv } from "@/frontend/lib/analytics/download-snapshot-csv";
+import type { SnapshotCsvSnapshot } from "@/frontend/lib/analytics/export-snapshot-csv";
 import { formatApplicantDate } from "@/frontend/lib/i18n/format-date";
 import { useAppTranslation } from "@/shared/locale/client/use-app-translation";
 import { useAppLocale } from "@/shared/locale/localeContext";
@@ -19,6 +23,8 @@ export interface AnalyticsHeaderBarProps {
   readonly refreshing: boolean;
   readonly initialLoading: boolean;
   readonly generatedAt: string | Date | null;
+  /** The fetched snapshot to export — `null` (and a disabled control) until the first load lands. */
+  readonly snapshot: SnapshotCsvSnapshot | null;
   readonly onRefresh: () => void;
 }
 
@@ -26,6 +32,7 @@ export function AnalyticsHeaderBar({
   refreshing,
   initialLoading,
   generatedAt,
+  snapshot,
   onRefresh,
 }: AnalyticsHeaderBarProps): ReactElement {
   const t = useAppTranslation(Analytics);
@@ -61,6 +68,19 @@ export function AnalyticsHeaderBar({
           </Typography>
         ) : null}
         {refreshing ? <Chip size="small" label={t.refreshingLabel} icon={<CircularProgress size={12} />} /> : null}
+        <Button
+          variant="outlined"
+          startIcon={<FileDownloadOutlined />}
+          onClick={() => {
+            if (snapshot) {
+              downloadSnapshotCsv(snapshot, t);
+            }
+          }}
+          disabled={snapshot === null}
+          sx={{ minHeight: 44 }}
+        >
+          {t.exportAction}
+        </Button>
         <Button
           variant="outlined"
           startIcon={<RefreshOutlined />}

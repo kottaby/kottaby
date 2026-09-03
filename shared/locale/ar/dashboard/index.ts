@@ -2,6 +2,7 @@ import type { DashboardLabels } from "@/shared/locale/types/dashboard";
 
 export const dashboardAr: DashboardLabels = {
   title: "أكاديمية درافت",
+  titleShort: "درافت",
   dashboard: "لوحة التحكم",
   welcome: (userName: string) => `مرحباً، ${userName}`,
   sessions: "الجلسات",
