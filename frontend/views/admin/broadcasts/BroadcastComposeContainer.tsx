@@ -4,7 +4,10 @@
  * BroadcastComposeContainer — root client container for the admin broadcast
  * compose surface (`/admin/broadcasts`).
  *
- * Owns the compose flow end-to-end:
+ * Owns the compose flow end-to-end through the controller hook
+ * `useBroadcastCompose` (state bundle `useBroadcastComposeDraft` + send flow
+ * `useBroadcastComposeSend` beside this file — the 150-line view-file
+ * convention):
  *  - the controlled compose draft (title/body copy + audience selector +
  *    companion values) and the plans query fed by the EXISTING
  *    `adminPlansQueryDocument` (skipped unless the Plan kind is selected);
@@ -32,123 +35,36 @@
  * group, consumed inside `BroadcastComposeCompanions`).
  */
 
-import { useMutation, useQuery } from "@apollo/client/react";
 import { SendOutlined } from "@mui/icons-material";
 import { Box, CircularProgress, Paper } from "@mui/material";
-import { type ReactNode, useRef, useState } from "react";
-import { BroadcastAudienceType } from "@/frontend/graphql/generated/gql/graphql";
-import { adminPlansQueryDocument } from "@/frontend/graphql/sharedDocuments/billing";
-import { adminBroadcastNotificationMutationDocument } from "@/frontend/graphql/sharedDocuments/notifications/broadcast.documents";
+import type { ReactNode } from "react";
 import { BroadcastComposeConfirmDialog } from "@/frontend/views/admin/broadcasts/BroadcastComposeConfirmDialog";
 import { BroadcastComposeForm } from "@/frontend/views/admin/broadcasts/BroadcastComposeForm";
 import { BroadcastComposeHeader } from "@/frontend/views/admin/broadcasts/BroadcastComposeHeader";
 import { BroadcastComposeSuccessSnackbar } from "@/frontend/views/admin/broadcasts/BroadcastComposeSuccessSnackbar";
-import {
-  applyBroadcastFieldErrors,
-  buildAudienceInput,
-  type ComposeFieldErrors,
-  type ComposeState,
-  initialComposeState,
-  isAudienceReady,
-  randomUUID,
-  trimmedOrNullable,
-} from "@/frontend/views/admin/broadcasts/broadcast-compose.helpers";
-import { useAppTranslation } from "@/shared/locale/client";
-import { AdminBroadcasts } from "@/shared/locale/namespaces/adminBroadcasts";
-import { Common } from "@/shared/locale/namespaces/common";
+import { useBroadcastCompose } from "@/frontend/views/admin/broadcasts/useBroadcastCompose";
 
 export function BroadcastComposeContainer(): ReactNode {
-  const t = useAppTranslation(AdminBroadcasts);
-  const tc = useAppTranslation(Common);
-
-  const composeKeyRef = useRef(randomUUID());
-  const [compose, setCompose] = useState<ComposeState>(initialComposeState);
-  const [fieldErrors, setFieldErrors] = useState<ComposeFieldErrors>({});
-  const [formError, setFormError] = useState<string | null>(null);
-  const [confirmOpen, setConfirmOpen] = useState(false);
-  const [successCount, setSuccessCount] = useState<number | null>(null);
-  // Bumped per accepted send so each toast remounts with a FRESH auto-hide
-  // timer (a reused Snackbar inherits the previous toast's remaining time).
-  const [successEpoch, setSuccessEpoch] = useState(0);
-  const [broadcastMutation, { loading: sending }] = useMutation(adminBroadcastNotificationMutationDocument);
-
-  const plansQuery = useQuery(adminPlansQueryDocument, {
-    variables: { includeInactive: false },
-    skip: compose.audienceType !== BroadcastAudienceType.Plan,
-  });
-
-  const audienceReady = isAudienceReady(compose);
-
-  const changeDraft = (patch: Partial<ComposeState>): void => setCompose(current => ({ ...current, ...patch }));
-
-  const changeAudienceKind = (kind: BroadcastAudienceType): void => {
-    // Switching the audience kind keeps the authored copy (title/body) and
-    // resets only the kind-specific companions — the copy fields render
-    // above the selector, so a full reset would silently destroy them.
-    setCompose(current => ({
-      ...current,
-      audienceType: kind,
-      role: null,
-      country: "",
-      planId: null,
-    }));
-    setFieldErrors({});
-  };
-
-  /** Client-side inline validation; the confirmation gate opens when valid. */
-  const handleFormSubmit = (event: React.SubmitEvent<HTMLFormElement>): void => {
-    event.preventDefault();
-    const titleError = compose.title.trim() === "" ? t.titleRequired : undefined;
-    setFieldErrors(titleError === undefined ? {} : { title: titleError });
-    if (sending || !audienceReady || titleError !== undefined) {
-      return;
-    }
-    setConfirmOpen(true);
-  };
-
-  /** Dialog confirmation — the only path that fires the mutation. */
-  const handleConfirmSend = (): void => {
-    if (sending) {
-      return;
-    }
-    void (async () => {
-      setFormError(null);
-      try {
-        const result = await broadcastMutation({
-          variables: {
-            input: {
-              title: compose.title.trim(),
-              body: trimmedOrNullable(compose.body),
-              audience: buildAudienceInput(compose),
-            },
-          },
-          context: { headers: { "x-idempotency-key": composeKeyRef.current } },
-        });
-        const deliveredCount = result.data?.adminBroadcastNotification;
-        if (typeof deliveredCount === "number") {
-          setConfirmOpen(false);
-          setSuccessCount(deliveredCount);
-          setSuccessEpoch(epoch => epoch + 1);
-          setCompose(initialComposeState);
-          // Rotation happens ONLY on success — failed submits keep the same
-          // compose-session key so the server-side replay dedupe stays effective.
-          composeKeyRef.current = randomUUID();
-          return;
-        }
-        setConfirmOpen(false);
-        setFormError(t.errorTitle);
-      } catch (mutationError: unknown) {
-        setConfirmOpen(false);
-        // Server tier first: per-field mapping applies only when a VALIDATION
-        // error carries a `fields[]` projection (whitelisted paths, first-wins);
-        // broadcast domain rejections — localized codes without a fields
-        // payload — fall through to the global fallback copy.
-        if (!applyBroadcastFieldErrors(mutationError, setFieldErrors)) {
-          setFormError(t.errorTitle);
-        }
-      }
-    })();
-  };
+  const {
+    compose,
+    fieldErrors,
+    formError,
+    sending,
+    audienceReady,
+    plansLoading,
+    plans,
+    labels,
+    closeLabel,
+    confirmOpen,
+    successCount,
+    successEpoch,
+    changeDraft,
+    changeAudienceKind,
+    handleFormSubmit,
+    handleConfirmSend,
+    closeConfirmDialog,
+    closeSuccessToast,
+  } = useBroadcastCompose();
 
   const sendIcon = sending ? <CircularProgress size={18} color="inherit" /> : <SendOutlined />;
 
@@ -178,16 +94,16 @@ export function BroadcastComposeContainer(): ReactNode {
           bgcolor: theme.palette.background.paper,
         })}
       >
-        <BroadcastComposeHeader labels={t} />
+        <BroadcastComposeHeader labels={labels} />
         <BroadcastComposeForm
           compose={compose}
           fieldErrors={fieldErrors}
           formError={formError}
           sending={sending}
           audienceReady={audienceReady}
-          plansLoading={plansQuery.loading}
-          plans={plansQuery.data?.adminPlans ?? []}
-          labels={t}
+          plansLoading={plansLoading}
+          plans={plans}
+          labels={labels}
           sendIcon={sendIcon}
           onDraftChange={changeDraft}
           onAudienceKindChange={changeAudienceKind}
@@ -198,16 +114,16 @@ export function BroadcastComposeContainer(): ReactNode {
         open={confirmOpen}
         sending={sending}
         sendIcon={sendIcon}
-        labels={t}
-        onClose={() => setConfirmOpen(false)}
+        labels={labels}
+        onClose={closeConfirmDialog}
         onConfirm={handleConfirmSend}
       />
       <BroadcastComposeSuccessSnackbar
         key={successEpoch}
         count={successCount}
-        labels={t}
-        closeLabel={tc.close}
-        onClose={() => setSuccessCount(null)}
+        labels={labels}
+        closeLabel={closeLabel}
+        onClose={closeSuccessToast}
       />
     </Box>
   );

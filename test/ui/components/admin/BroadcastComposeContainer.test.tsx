@@ -273,14 +273,14 @@ describe("BroadcastComposeContainer (en / LTR)", () => {
     fireEvent.change(screen.getByLabelText(t.titleLabel), { target: { value: COPY.title } });
     fireEvent.change(screen.getByLabelText(t.bodyLabel), { target: { value: COPY.body } });
     fireEvent.click(screen.getByRole("radio", { name: t.audienceCountry }));
-    expect((screen.getByLabelText(t.countryLabel) as HTMLInputElement).value).toBe("");
+    expect(screen.getByLabelText<HTMLInputElement>(t.countryLabel).value).toBe("");
 
     fireEvent.click(screen.getByRole("radio", { name: t.audienceRole }));
 
     // Regression pin: a kind switch resets ONLY the kind-specific companions —
     // the copy fields render above the selector and must survive the switch.
-    expect((screen.getByLabelText(t.titleLabel) as HTMLInputElement).value).toBe(COPY.title);
-    expect((screen.getByLabelText(t.bodyLabel) as HTMLInputElement).value).toBe(COPY.body);
+    expect(screen.getByLabelText<HTMLInputElement>(t.titleLabel).value).toBe(COPY.title);
+    expect(screen.getByLabelText<HTMLInputElement>(t.bodyLabel).value).toBe(COPY.body);
     expect(screen.queryByLabelText(t.countryLabel)).toBeNull();
   });
 

@@ -222,6 +222,23 @@ async function expectJourneyError(fn: () => Promise<unknown>): Promise<Error> {
   return new Error(`[non-Error throw: ${typeof errorCaught}]`);
 }
 
+/**
+ * Assertion + type-guard in one step: narrows `value` to the constructor's
+ * instance type after the bun:test instanceof check (type-guard discipline
+ * per docs/quality/linting-rules.md — no unsafe `as` narrowing).
+ */
+function expectInstanceOf<T extends abstract new (...args: never) => object>(
+  value: unknown,
+  ctor: T
+): asserts value is InstanceType<T> {
+  expect(value).toBeInstanceOf(ctor);
+}
+
+/** JSON-object guard (docs/quality/linting-rules.md — no-unsafe-type-assertion). */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 /** Direct repo-less inbox row count for one recipient. */
 async function inboxRowCount(userId: number): Promise<number> {
   return db.$count(notifications, eq(notifications.userId, userId));
@@ -279,8 +296,8 @@ describe("Journey — Admin broadcast cross-actor workflow (specs §2.9 steps 1�
     const error = await expectJourneyError(() =>
       AdminBroadcastService.broadcast(probeCase.input, adminA.userId, adminA.locale, randomUUID(), callOptions)
     );
-    expect(error).toBeInstanceOf(ValidationError);
-    expect((error as ValidationError).code).toBe(probeCase.expectedCode);
+    expectInstanceOf(error, ValidationError);
+    expect(error.code).toBe(probeCase.expectedCode);
     expect(error.message).toContain(probeCase.expectedMessage);
     await probeValidationCases(cases, index + 1);
   }
@@ -376,12 +393,11 @@ describe("Journey — Admin broadcast cross-actor workflow (specs §2.9 steps 1�
   });
 
   /** Registers every notification row created under `title` for teardown. */
-  function trackBroadcastRows(title: string): Promise<void> {
-    return broadcastRowsByTitle(title).then(rows => {
-      for (const row of rows) {
-        tracked.register(notifications, row.id);
-      }
-    });
+  async function trackBroadcastRows(title: string): Promise<void> {
+    const rows = await broadcastRowsByTitle(title);
+    for (const row of rows) {
+      tracked.register(notifications, row.id);
+    }
   }
 
   /**
@@ -417,10 +433,10 @@ describe("Journey — Admin broadcast cross-actor workflow (specs §2.9 steps 1�
     expect(row.entityId).toBeNull();
     // Metadata only: scope + companions + recipient count, NEVER copy text.
     const parsed: unknown = JSON.parse(row.details ?? "{}");
-    if (typeof parsed !== "object" || parsed === null) {
+    if (!isRecord(parsed)) {
       throw new Error("audit details must be a JSON object");
     }
-    const metadata = parsed as Record<string, unknown>;
+    const metadata = parsed;
     expect(metadata.scope).toBe(scope);
     expect(metadata.recipientCount).toBe(count);
     for (const key of Object.keys(companions)) {
@@ -690,9 +706,9 @@ describe("Journey — Admin broadcast cross-actor workflow (specs §2.9 steps 1�
     const publishCountBefore = transportSpy.publishCount;
 
     // Hostile audience discriminant: a string that is NOT an enum member is
-    // rejected by the fail-closed coherence check (the cast documents the
-    // wire probe — the service must never trust a raw transport string).
-    const hostileType = "role; DROP TABLE users" as BroadcastAudienceType;
+    // rejected by the fail-closed coherence check (the JSON-decoded probe
+    // documents the raw transport wire — the service must never trust it).
+    const hostileType: BroadcastAudienceType = JSON.parse('"role; DROP TABLE users"');
 
     const cases: readonly ValidationProbeCase[] = [
       // Title defects (REQ-020): empty after trim, and over the 255 ceiling.
@@ -770,8 +786,8 @@ describe("Journey — Admin broadcast cross-actor workflow (specs §2.9 steps 1�
         callOptions
       )
     );
-    expect(emptyError).toBeInstanceOf(ValidationError);
-    expect((emptyError as ValidationError).code).toBe("BROADCAST_AUDIENCE_EMPTY");
+    expectInstanceOf(emptyError, ValidationError);
+    expect(emptyError.code).toBe("BROADCAST_AUDIENCE_EMPTY");
     expect(emptyError.message).toContain(EN_ERRORS.broadcastAudienceEmpty);
 
     // Unknown planId on an admin-gated surface → PLAN_NOT_FOUND (REQ-033
@@ -789,8 +805,8 @@ describe("Journey — Admin broadcast cross-actor workflow (specs §2.9 steps 1�
         callOptions
       )
     );
-    expect(planError).toBeInstanceOf(NotFoundError);
-    expect((planError as NotFoundError).code).toBe("PLAN_NOT_FOUND");
+    expectInstanceOf(planError, NotFoundError);
+    expect(planError.code).toBe("PLAN_NOT_FOUND");
     expect(planError.message).toContain(EN_ERRORS.planCatalog.planNotFound);
 
     // Denials append ZERO rows, ZERO audit entries, ZERO publishes (JR-C-1).
@@ -810,15 +826,20 @@ describe("Journey — Admin broadcast cross-actor workflow (specs §2.9 steps 1�
     const auditBefore = (await broadcastAuditRows(adminA.userId)).length;
     const publishCountBefore = transportSpy.publishCount;
 
-    for (const actor of [teacherT, studentS, parentPa]) {
-      // The attempt flows through the REAL authorization path: the service's
-      // admin gate resolves the actor's real `users` row (never monkey-patched)
-      // and denies pre-transaction with the honest FORBIDDEN contract.
-      const error = await expectJourneyError(() =>
-        AdminBroadcastService.broadcast(input, actor.userId, actor.locale, randomUUID(), callOptions)
-      );
-      expect(error).toBeInstanceOf(ForbiddenError);
-      expect((error as ForbiddenError).code).toBe("FORBIDDEN");
+    // The attempt flows through the REAL authorization path: the service's
+    // admin gate resolves the actor's real `users` row (never monkey-patched)
+    // and denies pre-transaction with the honest FORBIDDEN contract. The
+    // denials are write-free, so the three probes run as one parallel wave.
+    const denials = await Promise.all(
+      [teacherT, studentS, parentPa].map(actor =>
+        expectJourneyError(() =>
+          AdminBroadcastService.broadcast(input, actor.userId, actor.locale, randomUUID(), callOptions)
+        )
+      )
+    );
+    for (const error of denials) {
+      expectInstanceOf(error, ForbiddenError);
+      expect(error.code).toBe("FORBIDDEN");
       expect(error.message).toContain(EN_ERRORS.forbidden);
     }
 
@@ -827,8 +848,8 @@ describe("Journey — Admin broadcast cross-actor workflow (specs §2.9 steps 1�
     const missingActorError = await expectJourneyError(() =>
       AdminBroadcastService.broadcast(input, NONEXISTENT_USER_ID, adminA.locale, randomUUID(), callOptions)
     );
-    expect(missingActorError).toBeInstanceOf(ForbiddenError);
-    expect((missingActorError as ForbiddenError).code).toBe("FORBIDDEN");
+    expectInstanceOf(missingActorError, ForbiddenError);
+    expect(missingActorError.code).toBe("FORBIDDEN");
 
     // Zero shared state changed: no rows, no audit, no publish.
     expect(await broadcastRowsByTitle(TEACHER_TITLE)).toHaveLength(rowsBefore.length);
@@ -852,8 +873,8 @@ describe("Journey — Admin broadcast cross-actor workflow (specs §2.9 steps 1�
     const error = await expectJourneyError(() =>
       AdminBroadcastService.broadcast(input, 0, adminA.locale, randomUUID(), callOptions)
     );
-    expect(error).toBeInstanceOf(UnauthorizedError);
-    expect((error as UnauthorizedError).code).toBe("UNAUTHORIZED");
+    expectInstanceOf(error, UnauthorizedError);
+    expect(error.code).toBe("UNAUTHORIZED");
     expect(error.message).toContain(EN_ERRORS.unauthorized);
 
     // Zero writes, zero audit, zero publish on the anonymous denial.
@@ -874,8 +895,10 @@ describe("Journey — Admin broadcast cross-actor workflow (specs §2.9 steps 1�
     for (const publish of transportSpy.calls) {
       expect(publish.userIds).not.toContain(governedG.userId);
     }
-    for (const title of [ALL_TITLE, TEACHER_TITLE, EG_TITLE, PLAN_TITLE]) {
-      const rows = await broadcastRowsByTitle(title);
+    const governedRowSets = await Promise.all(
+      [ALL_TITLE, TEACHER_TITLE, EG_TITLE, PLAN_TITLE].map(title => broadcastRowsByTitle(title))
+    );
+    for (const rows of governedRowSets) {
       expect(rows.some(row => row.userId === governedG.userId)).toBe(false);
     }
     // G's inbox stayed byte-identical (EMPTY) across the whole journey.
@@ -916,7 +939,9 @@ describe("Journey — Admin broadcast cross-actor workflow (specs §2.9 steps 1�
       // Exactly the cohorts this actor belongs to — no cross-cohort leakage.
       expect(page.totalCount).toBe(expectedTitlesForActor.length);
       expect(page.hasMore).toBe(false);
-      expect(page.items.map(item => item.title).toSorted()).toEqual([...expectedTitlesForActor].toSorted());
+      expect(page.items.map(item => item.title).toSorted((a, b) => a.localeCompare(b))).toEqual(
+        [...expectedTitlesForActor].toSorted((a, b) => a.localeCompare(b))
+      );
 
       for (const item of page.items) {
         // The broadcast row contract (REQ-019): the canonical notification

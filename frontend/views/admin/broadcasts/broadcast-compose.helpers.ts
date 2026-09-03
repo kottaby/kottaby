@@ -60,6 +60,10 @@ export const AUDIENCE_KINDS: readonly BroadcastAudienceType[] = [
   BroadcastAudienceType.Plan,
 ];
 
+/** Plain-string membership sets backing the runtime enum guards below. */
+const AUDIENCE_KIND_VALUES: ReadonlySet<string> = new Set<string>(AUDIENCE_KINDS);
+const ROLE_OPTION_VALUES: ReadonlySet<string> = new Set<string>(ROLE_OPTIONS);
+
 /** Title ceiling shared with the server's title-validation bound. */
 export const TITLE_MAX_LENGTH = 255;
 
@@ -80,11 +84,11 @@ function isComposeFieldPath(field: string): field is ComposeFieldPath {
 }
 
 export function isAudienceKind(value: string): value is BroadcastAudienceType {
-  return AUDIENCE_KINDS.some(kind => String(kind) === value);
+  return AUDIENCE_KIND_VALUES.has(value);
 }
 
 export function isUserRoleValue(value: string): value is UserRole {
-  return ROLE_OPTIONS.some(option => String(option) === value);
+  return ROLE_OPTION_VALUES.has(value);
 }
 
 /** Radio-group option label for one audience kind. */
