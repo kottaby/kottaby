@@ -1,0 +1,27 @@
+import { AdminUsers } from "@/shared/locale/namespaces/adminUsers";
+import { Analytics } from "@/shared/locale/namespaces/analytics";
+import { Applicant } from "@/shared/locale/namespaces/applicant";
+import { Auth } from "@/shared/locale/namespaces/auth";
+import { Common } from "@/shared/locale/namespaces/common";
+import { Dashboard } from "@/shared/locale/namespaces/dashboard";
+import { Errors } from "@/shared/locale/namespaces/errors";
+import { HandshakeCode } from "@/shared/locale/namespaces/handshakeCode";
+import { Landing } from "@/shared/locale/namespaces/landing";
+import { Notifications } from "@/shared/locale/namespaces/notifications";
+import { Plans } from "@/shared/locale/namespaces/plans";
+import { Recitation } from "@/shared/locale/namespaces/recitation";
+
+export const namespaces = {
+  AdminUsers,
+  Analytics,
+  Applicant,
+  Auth,
+  Common,
+  Dashboard,
+  Errors,
+  HandshakeCode,
+  Landing,
+  Notifications,
+  Plans,
+  Recitation,
+} as const;

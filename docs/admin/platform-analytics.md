@@ -31,7 +31,7 @@ Exact SQL semantics of every exposed field. "Governance chain" = `coalesce(col, 
 | `deletedCount` | `deletedUsersLabel` | `count(*) filter (where isDeleted = true)` | `repo.AdminUserRepository.getStats` |
 | `adminsCount` / `teachersCount` / `studentsCount` / `parentsCount` | `adminsCountLabel` etc. | `count(*) filter (where role = '<member>')` — role members bound as plain values `admin` / `teacher` / `student` / `parent` | `repo.AdminUserRepository.getStats` |
 | `newThisWeekCount` | `newThisWeekUsersLabel` | `count(*) filter (where createdAt > cutoff)` where cutoff = `Date.now() − 7 days`, computed **inside** the reused DEV3-016 repo (the one read that keeps its own rolling clock — REQ-002 reuse, never edited) | `repo.AdminUserRepository.getStats` |
-| `recentlyActive24h` | `recentlyActive24hLabel` | `count(*)` over `users` where `lastActiveAt > now − 24h` (strict `>`) AND the governance chain | `repo.PlatformAnalyticsRepository.countRecentlyActiveUsers` |
+| `recentlyActive24h` | `recentlyActive24hLabel` | `count(*)` over `users` where `lastActiveAt > now − 24h` AND `lastActiveAt < now` (both bounds strict — the open interval `(now − 24h, now)`; future-dated rows excluded) AND the governance chain | `repo.PlatformAnalyticsRepository.countRecentlyActiveUsers` |
 
 ### 2.2 Sessions (`PlatformAnalyticsSessions`)
 
@@ -79,9 +79,9 @@ One single-row aggregate over the `teacher` role-child table — `repo.PlatformA
 
 | Field | Label | Semantics |
 |---|---|---|
-| `averageSessionRating` | `averageSessionRatingLabel` | `round(avg(studentRatingByTeacher)::numeric, 2)::float8` over `reports` — **`number | null`**: `null` when zero non-null ratings exist (0–5 CHECK band) |
+| `averageSessionRating` | `averageSessionRatingLabel` | `round(avg(studentRatingByTeacher)::numeric, 2)::float8` over `reports` — **`number \| null`**: `null` when zero non-null ratings exist (0–5 CHECK band) |
 | `sessionRatingsCount` | `sessionRatingsCountLabel` | `count(studentRatingByTeacher)` — counts non-null values only |
-| `averageEvaluationScore` | `averageEvaluationScoreLabel` | `round(avg(score)::numeric, 2)::float8` over `evaluations` where `coalesce(isDeleted, false) = false` — **`number | null`** when the family is empty (0–100 CHECK band) |
+| `averageEvaluationScore` | `averageEvaluationScoreLabel` | `round(avg(score)::numeric, 2)::float8` over `evaluations` where `coalesce(isDeleted, false) = false` — **`number \| null`** when the family is empty (0–100 CHECK band) |
 | `evaluationScoresCount` | `evaluationScoresCountLabel` | `count(score)` — non-null values only |
 
 ### 2.7 Operational health (`PlatformAnalyticsHealth`)
@@ -95,12 +95,13 @@ One single-row aggregate over the `teacher` role-child table — `repo.PlatformA
 
 | Field | Semantics | Anchor |
 |---|---|---|
-| `sessionTrendDaily[]` (30 × `{bucketStart: DateTime!, sessionCount: Int!}`) | Sparse daily counts from `repo.PlatformAnalyticsRepository.getSessionDailyTrend` (`createdAt >= now − 30d`, `date_trunc('day', createdAt)`, `GROUP BY` day) merged over the service-built 30-bucket skeleton — a day with no sessions is an honest `0`, never a missing bucket | `repo.getSessionDailyTrend` + `PlatformAnalyticsService.buildDailySkeleton` / `mergeSessionTrend` |
+| `sessionTrendDaily[]` (30 × `{bucketStart: DateTime!, sessionCount: Int!}`) | Sparse daily counts from `repo.PlatformAnalyticsRepository.getSessionDailyTrend` (`createdAt >= trendSkeletonCutoff(now)` = midnight UTC of `now`'s day − 29d, the OLDEST skeleton bucket; `date_trunc('day', createdAt)`, `GROUP BY` day) merged over the service-built 30-bucket skeleton — the cutoff alignment means every selected row maps 1:1 into a bucket (the merge can never drop a row), and a day with no sessions is an honest `0`, never a missing bucket | `repo.getSessionDailyTrend` + `PlatformAnalyticsService.buildDailySkeleton` / `mergeSessionTrend` |
 | `revenueTrendDaily[]` (`{bucketStart: DateTime!, currency: String!, amount: String!}`) | Sparse (day, currency) paid rows from `repo.PlatformAnalyticsRepository.getRevenueDailyTrend` expanded per (day, currency) over the currency set discovered IN the window, `amount: "0"` for absent pairs, ascending byte order per bucket | `repo.getRevenueDailyTrend` + `PlatformAnalyticsService.expandRevenueTrend` |
 
 ## 3. Snapshot contract (single `now`, one transaction)
 
 - `now` is captured **exactly once** per request (`const now = new Date()` inside `composePlatformAnalyticsSnapshot`) and shared by every window predicate AND `generatedAt` (REQ-011). The repositories stay clock-free — the service owns time and binds it in as a parameter (D2/REQ-026).
+- **Scope of the guarantee (Fix-C):** the single-`now` contract covers the ten platform-analytics reads, the trend skeleton, and `generatedAt`. The ONE documented exception is `AdminUserRepository.getStats`'s internal `newThisWeekCutoff` (`Date.now() − 7 days`, §2 first row): the DEV3-016 repository keeps its own rolling clock inside that counter because editing it was plan-prohibitive (REQ-002 reuse-not-rebuild / protected path). The divergence is bounded to the instant a week boundary is crossed — a request that starts milliseconds before/after a Monday boundary may classify `newThisWeekCount` against a cutoff up to those milliseconds apart from the snapshot's `now`. Every OTHER window predicate in the snapshot shares the one captured `now`.
 - All **11 reads** compose in ONE transaction via `withTransaction(outerTx, tx => …)` and a single `Promise.all` over the SAME `tx`: `AdminUserRepository.getStats(tx)` (verbatim REQ-002 reuse) + the ten `PlatformAnalyticsRepository` methods (REQ-040 — mixed `tx`/`db` access is prohibited). Repo methods branch on `tx ?? db`, so the transaction executor flows through unchanged.
 - Trend skeletons (`buildDailySkeleton`) are derived from the same captured `now`, so the counters, the trends, and `generatedAt` describe one coherent instant.
 
@@ -109,9 +110,9 @@ One single-row aggregate over the `teacher` role-child table — `repo.PlatformA
 - **Day** = midnight UTC: `repo.utcDayStart` = `Date.UTC(y, m, d)` of the captured instant.
 - **ISO week** starts Monday 00:00 UTC: `repo.isoWeekStart` = day start minus `(getUTCDay() + 6) % 7` days (Sunday maps back 6 days).
 - **Month** = UTC 1st 00:00: `repo.utcMonthStart` = `Date.UTC(y, m, 1)`.
-- **24h window** = trailing `[now − 24h, now)` comparison (`lastActiveAt > cutoff`, strict `>`).
-- **30-day trend** = `createdAt >= now − 30d` (bound cutoff), bucketed by `date_trunc('day', …)` into 30 consecutive UTC-midnight buckets, the LAST being `now`'s own day — built by the service's `buildDailySkeleton` and zero-filled/expanded there (D6: the repo stays a dumb read).
-- **Decoding:** pg delivers `timestamp without time zone` as raw text; `UTC_TIMESTAMP_DECODER` (attached to both `date_trunc` projections) reassembles the wall-clock components through `Date.UTC` — the exact inverse of the truncation — so buckets are UTC instants regardless of server-clock drift; a driver `Date` passes through untouched.
+- **24h window** = the open interval `(now − 24h, now)` with BOTH bounds strict (`lastActiveAt > cutoff AND lastActiveAt < now`) — future-dated rows are excluded, and a row stamped exactly at either bound never counts.
+- **30-day trend** = `createdAt >= trendSkeletonCutoff(now)` (midnight UTC of `now`'s day − 29 days — the OLDEST skeleton bucket; bound cutoff), bucketed by `date_trunc('day', …)` into 30 consecutive UTC-midnight buckets, the LAST being `now`'s own day — built by the service's `buildDailySkeleton` and zero-filled/expanded there (D6: the repo stays a dumb read). The cutoff is aligned to the skeleton so every selected row maps 1:1 into an output bucket — no partial-oldest-bucket row can be silently dropped. (`getRevenueStats.last30DaysAmount` keeps its trailing-30-day FILTER sum semantics — a scalar, not bucketed.)
+- **Decoding:** pg delivers `timestamp without time zone` as raw text; `UTC_TIMESTAMP_DECODER` (attached to both `date_trunc` projections) normalizes BOTH driver behaviors at the single decoder point — raw text is reassembled through `Date.UTC` (the exact inverse of the truncation), and a driver `Date` payload is re-projected through its LOCAL wall-clock day onto the same UTC-midnight epoch — so buckets are UTC instants regardless of driver behavior or server-clock drift, and the service's skeleton join is a pure epoch identity.
 
 ## 5. Money & currency rules
 
@@ -122,7 +123,7 @@ One single-row aggregate over the `teacher` role-child table — `repo.PlatformA
 
 ## 6. Honest nulls (REQ-018/060)
 
-Rating averages are `number | null` at every layer (repo → types → GraphQL nullable `Float`). An empty rating family renders the `noRatingsYet` / `—` states from the `analytics` namespace — never a fabricated `0.00`. Counts (`sessionRatingsCount`, `evaluationScoresCount`) are always present `Int`s counting non-null values only.
+Rating averages are `number \| null` at every layer (repo → types → GraphQL nullable `Float`). An empty rating family renders the `noRatingsYet` / `—` states from the `analytics` namespace — never a fabricated `0.00`. Counts (`sessionRatingsCount`, `evaluationScoresCount`) are always present `Int`s counting non-null values only.
 
 ## 7. Read purity (REQ-022)
 

@@ -178,3 +178,53 @@ export interface PlatformAnalyticsReturnType {
   readonly sessionTrendDaily: readonly PlatformAnalyticsSessionTrendPointReturnType[];
   readonly revenueTrendDaily: readonly PlatformAnalyticsRevenueTrendPointReturnType[];
 }
+
+// ─── Repository row shapes (sparse read-model inputs) ───────────────────────
+//
+// The six SPARSE row shapes the platform-analytics repository methods
+// return (Fix-C: relocated here so the repo file clears its lint line
+// budget and every analytics type has one canonical home — REQ-004). They
+// are the repo-tier INPUTS the service composes from; the sections above
+// remain the closed wire contract.
+
+/** One 30-day session-trend sparse row (service zero-fills the skeleton). */
+export interface SessionTrendRow {
+  bucketStart: Date;
+  sessionCount: number;
+}
+
+/** One per-currency gateway-revenue bucket over paid payments. */
+export interface RevenueStatsRow {
+  currency: string;
+  totalAmount: string;
+  last30DaysAmount: string;
+  paidPaymentsCount: number;
+}
+
+/** One (day, currency) revenue-trend sparse row. */
+export interface RevenueTrendRow {
+  bucketStart: Date;
+  currency: string;
+  amount: string;
+}
+
+/** Teacher presence counters over the `teacher` role-child table. */
+export interface TeacherPresenceRow {
+  certifiedCount: number;
+  evaluatorCount: number;
+  onlineNowCount: number;
+}
+
+/** The two honest rating families (nullable averages, non-null-only counts). */
+export interface RatingStatsRow {
+  averageSessionRating: number | null;
+  sessionRatingsCount: number;
+  averageEvaluationScore: number | null;
+  evaluationScoresCount: number;
+}
+
+/** Operational health indicators. */
+export interface HealthIndicatorsRow {
+  pendingDisputes: number;
+  pendingWithdrawals: number;
+}

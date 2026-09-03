@@ -38,8 +38,9 @@
  *     every window from RELATIVE offsets (the same fixture set flips under a
  *     shifted `now`, proving no SQL `now()` leaks in); ACTIVE-window expiry
  *     with `status='active'`; governance/soft-delete exclusion-chain flips;
- *     legacy NULL-state rows read as counted/not-deleted; 30-day window
- *     edges on both trends (`>= cutoff` in, `cutoff − 1ms` out);
+ *     legacy NULL-state rows read as counted/not-deleted; trend window
+ *     edges aligned to the 30-bucket skeleton (`>= oldest-bucket cutoff`
+ *     in, `cutoff − 1ms` out, the old trailing-30d edge pinned EXCLUDED);
  *     per-(day,currency) GROUP BY with currencies never merged.
  *  4. Contract & purity — no cross-currency sums; the canonical
  *     `AdminUserStatsReturnType` ten-key runtime key set as the superset
@@ -52,15 +53,14 @@
 import { describe, expect, test } from "bun:test";
 import { eq, sql } from "drizzle-orm";
 import type { PgTable } from "drizzle-orm/pg-core";
+import { PlatformAnalyticsRepository } from "@/backend/db/repo/admin/platform-analytics.repository";
 import {
   isoWeekStart,
-  PlatformAnalyticsRepository,
-  type RevenueStatsRow,
-  type RevenueTrendRow,
-  type SessionTrendRow,
+  ONE_DAY_MS,
+  trendSkeletonCutoff,
   utcDayStart,
   utcMonthStart,
-} from "@/backend/db/repo/admin/platform-analytics.repository";
+} from "@/backend/db/repo/admin/platform-analytics-boundaries";
 import { studentPayments } from "@/backend/db/schema/billing/student-payments";
 import { subscriptions } from "@/backend/db/schema/billing/subscriptions";
 import { teacherTransaction } from "@/backend/db/schema/billing/teacher-transaction";
@@ -91,11 +91,16 @@ import {
   TransactionType,
 } from "@/backend/enum/billing";
 import { SessionStatus } from "@/backend/enum/scheduling";
-import type { AdminUserStatsReturnType, DBTransaction, PlatformAnalyticsUsersReturnType } from "@/backend/types";
+import type {
+  AdminUserStatsReturnType,
+  DBTransaction,
+  PlatformAnalyticsUsersReturnType,
+  RevenueStatsRow,
+  RevenueTrendRow,
+  SessionTrendRow,
+} from "@/backend/types";
 
 /** Milliseconds in one day — mirrors the repo's window arithmetic unit. */
-const ONE_DAY_MS = 24 * 60 * 60 * 1000;
-
 /** PostgreSQL SQLSTATE for `check_violation`. */
 const PG_CHECK_VIOLATION = "23514";
 
@@ -306,7 +311,7 @@ describe("PlatformAnalyticsRepository pure helpers (UTC calendar math)", () => {
 // ─── Layer 2: aggregate fixtures per method ─────────────────────────────────
 
 describe("PlatformAnalyticsRepository aggregate fixtures (ten methods)", () => {
-  test("countRecentlyActiveUsers: 24h boundary is strict `>`, NULL lastActiveAt and governed rows are excluded", async () => {
+  test("countRecentlyActiveUsers: 24h window is the strict open interval (now−24h, now); NULL, future-dated, and governed rows are excluded", async () => {
     await runInRollback(async tx => {
       const now = new Date();
       const cutoff = new Date(now.getTime() - ONE_DAY_MS);
@@ -314,9 +319,11 @@ describe("PlatformAnalyticsRepository aggregate fixtures (ten methods)", () => {
       const before = await PlatformAnalyticsRepository.countRecentlyActiveUsers(now, tx);
 
       await createTestUser(tx, { lastActiveAt: new Date(now.getTime() - 3_600_000) }); // in window
-      await createTestUser(tx, { lastActiveAt: new Date(cutoff.getTime() + 1) }); // 1ms inside the strict edge
+      await createTestUser(tx, { lastActiveAt: new Date(cutoff.getTime() + 1) }); // 1ms inside the strict lower edge
       await createTestUser(tx, { lastActiveAt: cutoff }); // exactly AT the cutoff → excluded (strict >)
       await createTestUser(tx, { lastActiveAt: new Date(cutoff.getTime() - 1) }); // 1ms outside → excluded
+      await createTestUser(tx, { lastActiveAt: new Date(now.getTime() + 1) }); // 1ms AFTER `now` → excluded (strict <)
+      await createTestUser(tx, { lastActiveAt: new Date(now.getTime() + 3_600_000) }); // future-dated → excluded
       await createTestUser(tx, { lastActiveAt: null }); // NULL never matches → excluded
       await createTestUser(tx, { suspended: true, suspendedAt: now }); // governance exclusions…
       await createTestUser(tx, { isBlocked: true, blockedAt: now });
@@ -324,8 +331,9 @@ describe("PlatformAnalyticsRepository aggregate fixtures (ten methods)", () => {
 
       const after = await PlatformAnalyticsRepository.countRecentlyActiveUsers(now, tx);
 
-      // Exactly the two in-window non-governed rows (the strict-`>` edge and
-      // the NULL/governed exclusions contribute zero).
+      // Exactly the two in-window non-governed rows (the strict-`>` edge,
+      // the strict-`<` future exclusions, and the NULL/governed rows
+      // contribute zero).
       expect(after).toBe(before + 2);
     });
   });
@@ -336,7 +344,7 @@ describe("PlatformAnalyticsRepository aggregate fixtures (ten methods)", () => {
       const todayStart = utcDayStart(now);
       const weekStart = isoWeekStart(now);
       const monthStart = utcMonthStart(now);
-      const trendCutoff = new Date(now.getTime() - 30 * ONE_DAY_MS);
+      const trendCutoff = trendSkeletonCutoff(now);
 
       const before = await PlatformAnalyticsRepository.getSessionStats(now, tx);
       const cast = await createSessionCast(tx);
@@ -407,10 +415,11 @@ describe("PlatformAnalyticsRepository aggregate fixtures (ten methods)", () => {
     });
   });
 
-  test("getSessionDailyTrend: sparse per-day buckets at midnight-UTC with 30-day edges (>= cutoff in, cutoff-1ms out)", async () => {
+  test("getSessionDailyTrend: sparse per-day buckets at midnight-UTC aligned to the 30-bucket skeleton (>= oldest-bucket cutoff in, cutoff-1ms out, trailing-30d edge excluded)", async () => {
     await runInRollback(async tx => {
       const now = new Date();
-      const cutoff = new Date(now.getTime() - 30 * ONE_DAY_MS);
+      const cutoff = trendSkeletonCutoff(now);
+      const oldTrailingEdge = new Date(now.getTime() - 30 * ONE_DAY_MS); // the pre-Fix-C trailing-30d edge
 
       const beforeRows = await PlatformAnalyticsRepository.getSessionDailyTrend(now, tx);
       const cast = await createSessionCast(tx);
@@ -424,8 +433,9 @@ describe("PlatformAnalyticsRepository aggregate fixtures (ten methods)", () => {
         { createdAt: now, inWindow: true },
         { createdAt: new Date(now.getTime() - 5 * 60_000), inWindow: true }, // same bucket as `now`
         { createdAt: new Date(utcDayStart(now).getTime() - 3_600_000), inWindow: true }, // previous bucket
-        { createdAt: cutoff, inWindow: true }, // exactly AT the 30-day edge → included (>=)
+        { createdAt: cutoff, inWindow: true }, // exactly AT the oldest-skeleton-bucket edge → included (>=)
         { createdAt: new Date(cutoff.getTime() - 1), inWindow: false }, // 1ms before the edge → excluded
+        { createdAt: oldTrailingEdge, inWindow: false }, // the old trailing-30d edge → EXCLUDED (skeleton-aligned window)
       ];
       for (const item of sessions) {
         await createTestSession(tx, cast.teacherId, cast.studentId, { createdAt: item.createdAt });
@@ -563,10 +573,11 @@ describe("PlatformAnalyticsRepository aggregate fixtures (ten methods)", () => {
     });
   });
 
-  test("getRevenueDailyTrend: sparse (day, currency) buckets — currencies never merge and the 30-day edge is exact", async () => {
+  test("getRevenueDailyTrend: sparse (day, currency) buckets — currencies never merge and the skeleton-aligned edge is exact", async () => {
     await runInRollback(async tx => {
       const now = new Date();
-      const cutoff = new Date(now.getTime() - 30 * ONE_DAY_MS);
+      const cutoff = trendSkeletonCutoff(now);
+      const oldTrailingEdge = new Date(now.getTime() - 30 * ONE_DAY_MS); // the pre-Fix-C trailing-30d edge
       const todayBucket = utcDayStart(now).getTime();
       const yesterdayBucket = utcDayStart(new Date(todayBucket - 3_600_000)).getTime();
       const cutoffBucket = utcDayStart(cutoff).getTime();
@@ -580,8 +591,9 @@ describe("PlatformAnalyticsRepository aggregate fixtures (ten methods)", () => {
         { amount: "23.45", currency: "JPY", createdAt: new Date(now.getTime() - 5 * 60_000) },
         { amount: "55.55", currency: "AED", createdAt: now },
         { amount: "77.00", currency: "JPY", createdAt: new Date(todayBucket - 3_600_000) },
-        { amount: "5.00", currency: "JPY", createdAt: cutoff }, // AT the edge → included
+        { amount: "5.00", currency: "JPY", createdAt: cutoff }, // AT the oldest-bucket edge → included
         { amount: "6.00", currency: "JPY", createdAt: new Date(cutoff.getTime() - 1) }, // 1ms out → excluded
+        { amount: "9.00", currency: "JPY", createdAt: oldTrailingEdge }, // old trailing-30d edge → EXCLUDED
         { amount: "1.00", currency: "JPY", createdAt: now, status: PaymentStatus.Pending }, // never counted
       ];
       for (const seed of seeds) {
@@ -980,8 +992,13 @@ describe("PlatformAnalyticsRepository window & exclusion semantics", () => {
       const afterTrend2 = sessionTrendIndex(await PlatformAnalyticsRepository.getSessionDailyTrend(now2, tx));
       expect((afterTrend2.get(recentBucket) ?? 0) - (beforeTrend2.get(recentBucket) ?? 0)).toBe(0);
 
-      // The presence window moves with `now` too: the cast users (created
-      // with a fresh lastActiveAt ≈ now1) count under now1, not under now2.
+      // The presence window is the open interval (now1 − 24h, now1) and
+      // moves with `now`: two users pinned INSIDE the interval count under
+      // now1; the SAME rows are stale under now2 (past its cutoff), and the
+      // strict `< now` upper bound excludes anything not strictly before
+      // the probe instant (e.g. rows stamped at/after now1).
+      await createTestUser(tx, { lastActiveAt: new Date(now1.getTime() - 60_000) });
+      await createTestUser(tx, { lastActiveAt: new Date(now1.getTime() - 3_600_000) });
       expect(await PlatformAnalyticsRepository.countRecentlyActiveUsers(now1, tx)).toBe(beforeActive1 + 2);
       expect(await PlatformAnalyticsRepository.countRecentlyActiveUsers(now2, tx)).toBe(beforeActive2);
     });

@@ -137,11 +137,11 @@ const FUNCTION_KEYS = ["lastUpdatedLabel"] as const;
 /** Arabic-script probe — at least one Arabic-block character in the value. */
 const ARABIC_SCRIPT = /[\u0600-\u06FF]/;
 
-/** Reads one non-empty-string value slot off a locale map — throws otherwise. */
+/** Reads one non-empty-string value slot off a locale map — asserts otherwise. */
 function stringSlotOf(localeMap: object, key: string, localeName: string): string {
   const value: unknown = Reflect.get(localeMap, key);
   if (typeof value !== "string" || value.length === 0) {
-    throw new Error(`analytics.${localeName}.${key} must be a non-empty localized string`);
+    expect.unreachable(`analytics.${localeName}.${key} must be a non-empty localized string`);
   }
   return value;
 }

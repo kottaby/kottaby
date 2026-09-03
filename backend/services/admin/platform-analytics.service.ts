@@ -76,19 +76,18 @@ const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 const TREND_WINDOW_DAYS = 30;
 
 /**
- * Normalizes a repository trend bucket (a `date_trunc('day', …)` output
- * parsed back from a `timestamp without time zone` column) into the epoch
- * of ITS OWN wall-clock day at UTC midnight.
+ * Normalizes a repository trend bucket into a pure epoch identity — the
+ * bucket is ALREADY the exact UTC-midnight epoch of its stored day.
  *
- * The pg driver parses naive timestamps as LOCAL wall-clock components, so
- * the parsed Date's LOCAL calendar fields carry the stored day identity.
- * Projecting them through `Date.UTC` recovers the exact UTC-midnight epoch
- * the skeleton buckets use — in UTC environments (sandbox, CI, Neon) local
- * and UTC fields coincide, so this is identity there, and it keeps the
- * bucket↔skeleton join correct wherever the server clock drifts from UTC.
+ * (Fix-C finding 2) The repository's `UTC_TIMESTAMP_DECODER` normalizes
+ * BOTH driver behaviors at the single decoder point — a raw-text payload
+ * is reassembled through `Date.UTC`, and a driver `Date` payload is
+ * re-projected through its LOCAL wall-clock day onto the same
+ * UTC-midnight epoch. The join key is therefore the bucket's own epoch,
+ * with no dependence on driver/server-clock symmetry.
  */
 function trendBucketKey(bucketStart: Date): number {
-  return Date.UTC(bucketStart.getFullYear(), bucketStart.getMonth(), bucketStart.getDate());
+  return bucketStart.getTime();
 }
 
 /**

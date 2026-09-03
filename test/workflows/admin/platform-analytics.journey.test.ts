@@ -53,7 +53,7 @@ import { and, eq, gt, inArray, type SQL, sql } from "drizzle-orm";
 import type { PgTable } from "drizzle-orm/pg-core";
 import { db } from "@/backend/db";
 import { AdminUserRepository } from "@/backend/db/repo";
-import { utcDayStart } from "@/backend/db/repo/admin/platform-analytics.repository";
+import { utcDayStart } from "@/backend/db/repo/admin/platform-analytics-boundaries";
 import { auditLogs } from "@/backend/db/schema/audit/audit-logs";
 import { plans } from "@/backend/db/schema/billing/plans";
 import { studentPayments } from "@/backend/db/schema/billing/student-payments";

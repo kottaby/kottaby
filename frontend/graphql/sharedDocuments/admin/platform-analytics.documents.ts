@@ -19,9 +19,15 @@
  *    `PlatformAnalyticsContainer` (120s poll + manual `refetch()` — REQ-062).
  */
 import { gql, type TypedDocumentNode } from "@apollo/client";
-import type { AdminPlatformAnalyticsQuery } from "@/frontend/graphql/generated/gql/graphql";
+import type {
+  AdminPlatformAnalyticsQuery,
+  AdminPlatformAnalyticsQueryVariables,
+} from "@/frontend/graphql/generated/gql/graphql";
 
-export const adminPlatformAnalyticsQueryDocument: TypedDocumentNode<AdminPlatformAnalyticsQuery> = gql`
+export const adminPlatformAnalyticsQueryDocument: TypedDocumentNode<
+  AdminPlatformAnalyticsQuery,
+  AdminPlatformAnalyticsQueryVariables
+> = gql`
   query AdminPlatformAnalytics {
     adminPlatformAnalytics {
       generatedAt

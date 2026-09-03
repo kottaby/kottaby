@@ -26,6 +26,10 @@
  *    SQL logic (a legacy NULL-state row reads as "not set" → counted /
  *    not-deleted), mirroring the `coalesce(col, false) = false` chain of
  *    `AdminUserRepository.getStats`.
+ *  - Row shapes live in the canonical types module
+ *    (`@/backend/types/admin/platform-analytics.types.ts`, type-only
+ *    imports here) and the UTC boundary oracles in
+ *    `./platform-analytics-boundaries` — this file holds queries only.
  *  - No business logic, no permission checks, no localized strings — the
  *    service layer composes the rows into the canonical
  *    `PlatformAnalyticsReturnType` (trend zero-fill lives in the service,
@@ -49,10 +53,23 @@ import {
   TransactionType,
 } from "@/backend/enum/billing";
 import { SessionStatus } from "@/backend/enum/scheduling";
-import type { DBTransaction } from "@/backend/types";
+import type {
+  DBTransaction,
+  HealthIndicatorsRow,
+  RatingStatsRow,
+  RevenueStatsRow,
+  RevenueTrendRow,
+  SessionTrendRow,
+  TeacherPresenceRow,
+} from "@/backend/types";
+import {
+  isoWeekStart,
+  ONE_DAY_MS,
+  trendSkeletonCutoff,
+  utcDayStart,
+  utcMonthStart,
+} from "@/backend/db/repo/admin/platform-analytics-boundaries";
 
-/** Milliseconds in one day — window arithmetic building block. */
-const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 /** The trailing offline-activation `payment_method` members (B.9/INV-PAY5). */
 const OFFLINE_PAYMENT_METHODS = [
   PaymentGateway.OfflineCash,
@@ -62,7 +79,7 @@ const OFFLINE_PAYMENT_METHODS = [
 
 /**
  * Decodes a PostgreSQL `timestamp without time zone` driver payload into
- * the UTC instant its wall-clock components denote — attached to every
+ * the UTC-midnight epoch of its wall-clock day — attached to every
  * `date_trunc('day', …)` projection below.
  *
  * WHY THIS EXISTS: the pg driver delivers naive timestamps as RAW TEXT
@@ -72,19 +89,27 @@ const OFFLINE_PAYMENT_METHODS = [
  * shifts buckets wherever the server clock drifts from UTC. The decoder
  * instead extracts the components explicitly and reassembles them through
  * `Date.UTC` — the exact inverse of the `date_trunc('day', …)` truncation
- * that produced the text (REQ-024 UTC-only calendar math). A driver that
- * already hands back a `Date` passes through untouched (identity), so the
- * projection is correct under either driver behavior.
+ * that produced the text (REQ-024 UTC-only calendar math).
+ *
+ * BOTH driver behaviors normalize at this SINGLE point (Fix-C finding 2):
+ * a driver that already hands back a `Date` (parsed as LOCAL wall-clock
+ * components) is re-projected through its LOCAL calendar fields onto the
+ * same UTC-midnight epoch, instead of passing through untouched. The
+ * projection is therefore total — every output is a UTC-midnight epoch of
+ * the stored day regardless of driver behavior or server clock — and the
+ * service's skeleton join is a pure epoch identity with no fragile
+ * driver-symmetry assumption.
  */
 const UTC_TIMESTAMP_DECODER = {
   mapFromDriverValue(value: unknown): Date {
     if (value instanceof Date) {
-      return value;
+      return new Date(Date.UTC(value.getFullYear(), value.getMonth(), value.getDate()));
     }
     const text = typeof value === "string" ? value : String(value);
     const match = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,6}))?$/.exec(text);
     if (!match) {
-      return new Date(text);
+      const fallback = new Date(text);
+      return new Date(Date.UTC(fallback.getFullYear(), fallback.getMonth(), fallback.getDate()));
     }
     const [, year, month, day, hour, minute, second, fraction = ""] = match;
     const millis = Number(`${fraction}000`.slice(0, 3));
@@ -94,78 +119,15 @@ const UTC_TIMESTAMP_DECODER = {
   },
 };
 
-/**
- * Midnight-UTC start of `now`'s day (REQ-024 — UTC-only calendar math).
- */
-export function utcDayStart(now: Date): Date {
-  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
-}
-
-/**
- * Midnight-UTC start of `now`'s ISO week (Monday — REQ-071 week oracle).
- */
-export function isoWeekStart(now: Date): Date {
-  const dayStart = utcDayStart(now);
-  const daysSinceMonday = (now.getUTCDay() + 6) % 7;
-  return new Date(dayStart.getTime() - daysSinceMonday * ONE_DAY_MS);
-}
-
-/**
- * Midnight-UTC start of `now`'s month (REQ-071 month oracle).
- */
-export function utcMonthStart(now: Date): Date {
-  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-}
-
-/** One 30-day session-trend sparse row (service zero-fills the skeleton). */
-export interface SessionTrendRow {
-  bucketStart: Date;
-  sessionCount: number;
-}
-
-/** One per-currency gateway-revenue bucket over paid payments. */
-export interface RevenueStatsRow {
-  currency: string;
-  totalAmount: string;
-  last30DaysAmount: string;
-  paidPaymentsCount: number;
-}
-
-/** One (day, currency) revenue-trend sparse row. */
-export interface RevenueTrendRow {
-  bucketStart: Date;
-  currency: string;
-  amount: string;
-}
-
-/** Teacher presence counters over the `teacher` role-child table. */
-export interface TeacherPresenceRow {
-  certifiedCount: number;
-  evaluatorCount: number;
-  onlineNowCount: number;
-}
-
-/** The two honest rating families (nullable averages, non-null-only counts). */
-export interface RatingStatsRow {
-  averageSessionRating: number | null;
-  sessionRatingsCount: number;
-  averageEvaluationScore: number | null;
-  evaluationScoresCount: number;
-}
-
-/** Operational health indicators. */
-export interface HealthIndicatorsRow {
-  pendingDisputes: number;
-  pendingWithdrawals: number;
-}
-
 export namespace PlatformAnalyticsRepository {
   /**
    * Counts users whose `lastActiveAt` falls within the trailing 24-hour
-   * window ending at `now` (strict `>` — B.15 presence counter). The
-   * governance exclusion is NULL-safe (`coalesce(col, false) = false`
-   * chain — a legacy NULL-state row reads as active), mirroring the
-   * `AdminUserRepository.getStats` active-count predicate exactly.
+   * open interval `(now − 24h, now)` — BOTH bounds strict (B.15 presence
+   * counter; the strict `< now` upper bound excludes future-dated rows,
+   * Fix-C finding 5). The governance exclusion is NULL-safe
+   * (`coalesce(col, false) = false` chain — a legacy NULL-state row reads
+   * as active), mirroring the `AdminUserRepository.getStats` active-count
+   * predicate exactly.
    */
   export async function countRecentlyActiveUsers(now: Date, tx?: DBTransaction): Promise<number> {
     const cutoff = new Date(now.getTime() - ONE_DAY_MS);
@@ -175,6 +137,7 @@ export namespace PlatformAnalyticsRepository {
       .where(
         and(
           sql`${users.lastActiveAt} > ${cutoff}`,
+          sql`${users.lastActiveAt} < ${now}`,
           sql`coalesce(${users.isDeleted}, false) = false`,
           sql`coalesce(${users.suspended}, false) = false`,
           sql`coalesce(${users.isBlocked}, false) = false`
@@ -250,14 +213,17 @@ export namespace PlatformAnalyticsRepository {
   }
 
   /**
-   * Resolves SPARSE daily session counts over the trailing 30-day window
-   * (`createdAt >= now − 30d`, bound parameter): one row per day that has
-   * at least one session, bucketed at midnight UTC via
-   * `date_trunc('day', created_at)`, ordered by day ascending. The
+   * Resolves SPARSE daily session counts over the 30-bucket trend window
+   * (`createdAt >= trendSkeletonCutoff(now)` — midnight UTC of `now`'s day
+   * minus 29 days, the OLDEST skeleton bucket; bound parameter): one row
+   * per day that has at least one session, bucketed at midnight UTC via
+   * `date_trunc('day', created_at)`, ordered by day ascending. The cutoff
+   * alignment (Fix-C finding 6) guarantees every selected row maps 1:1
+   * into a service skeleton bucket — the merge can never drop a row. The
    * service layer zero-fills the full 30-bucket skeleton (D6).
    */
   export async function getSessionDailyTrend(now: Date, tx?: DBTransaction): Promise<SessionTrendRow[]> {
-    const cutoff = new Date(now.getTime() - 30 * ONE_DAY_MS);
+    const cutoff = trendSkeletonCutoff(now);
     const rows = await (tx ?? db)
       .select({
         bucketStart: sql<Date>`date_trunc('day', ${session.createdAt})`
@@ -301,14 +267,16 @@ export namespace PlatformAnalyticsRepository {
   }
 
   /**
-   * Resolves SPARSE (day, currency) revenue rows over the trailing 30-day
-   * window: paid payments only, grouped by midnight-UTC day + currency,
-   * ordered by day then currency. Money is `sum(amount)::text` — an exact
-   * decimal string per bucket (currencies never merge, REQ-023). The
-   * service expands these over the window's currency set with "0" fills.
+   * Resolves SPARSE (day, currency) revenue rows over the 30-bucket trend
+   * window (`createdAt >= trendSkeletonCutoff(now)` — the oldest skeleton
+   * bucket, Fix-C finding 6): paid payments only, grouped by midnight-UTC
+   * day + currency, ordered by day then currency. Money is
+   * `sum(amount)::text` — an exact decimal string per bucket (currencies
+   * never merge, REQ-023). The service expands these over the window's
+   * currency set with "0" fills.
    */
   export async function getRevenueDailyTrend(now: Date, tx?: DBTransaction): Promise<RevenueTrendRow[]> {
-    const cutoff = new Date(now.getTime() - 30 * ONE_DAY_MS);
+    const cutoff = trendSkeletonCutoff(now);
     const rows = await (tx ?? db)
       .select({
         bucketStart: sql<Date>`date_trunc('day', ${studentPayments.createdAt})`
