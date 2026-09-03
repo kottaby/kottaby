@@ -10,6 +10,8 @@ import { landingAr } from "@/shared/locale/ar/landing";
 import { notificationsAr } from "@/shared/locale/ar/notifications";
 import { plansAr } from "@/shared/locale/ar/plans";
 import { recitationAr } from "@/shared/locale/ar/recitation";
+import { sessionsAr } from "@/shared/locale/ar/sessions";
+import { walletAr } from "@/shared/locale/ar/wallet";
 import type { Translations } from "@/shared/locale/types/message";
 
 export const arMessages: Translations = {
@@ -21,6 +23,8 @@ export const arMessages: Translations = {
   landingTranslations: landingAr,
   plansTranslations: plansAr,
   applicantTranslations: applicantAr,
+  sessionsTranslations: sessionsAr,
+  walletTranslations: walletAr,
   adminUsersTranslations: adminUsersAr,
   adminBroadcastsTranslations: adminBroadcastsAr,
   notificationsTranslations: notificationsAr,

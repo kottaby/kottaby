@@ -41,6 +41,8 @@ export interface DashboardLabels {
   readonly audit: string;
   /** Sidebar nav: Broadcasts link (admin — the broadcast compose surface) */
   readonly broadcasts: string;
+  /** Sidebar nav: Disputes link (admin — session arbitration queue) */
+  readonly disputes: string;
   /** Sidebar nav: Profile link */
   readonly profile: string;
   /** Sidebar nav: Children link (parent) */

@@ -54,4 +54,12 @@ export const errorsEn: ErrorsLabels = {
     "Invalid broadcast audience. Select a valid audience type and provide exactly the field it requires.",
   broadcastAudienceEmpty: "No recipients match the selected broadcast audience. Choose a different audience.",
   broadcastAudienceTooLarge: "The selected broadcast audience is too large. Narrow the audience and try again.",
+  sessionNotFound: "The requested session was not found.",
+  sessionInvalidTransition: "This action is not allowed for the session in its current state.",
+  teacherNotCertified: "The selected teacher is not certified for this action.",
+  teacherNotFound: "The selected teacher was not found.",
+  insufficientBalance: "Your balance is insufficient for this request.",
+  idempotencyKeyRequired: "A request idempotency key is required. Please retry the request.",
+  invalidSessionIntent: "The requested session intent is not valid for this request.",
+  walletInvalidAmount: "Enter a valid withdrawal amount (a positive value with up to 2 decimal places).",
 };

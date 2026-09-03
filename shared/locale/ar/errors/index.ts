@@ -53,4 +53,12 @@ export const errorsAr: ErrorsLabels = {
   broadcastAudienceInvalid: "جمهور البث غير صالح. اختر نوع جمهور صالحاً وأدخل الحقل المطلوب له فقط.",
   broadcastAudienceEmpty: "لا يوجد مستلمون مطابقون لجمهور البث المحدد. اختر جمهوراً آخر.",
   broadcastAudienceTooLarge: "جمهور البث المحدد كبير جداً. قم بتقييد الجمهور وحاول مرة أخرى.",
+  sessionNotFound: "لم يتم العثور على الجلسة المطلوبة.",
+  sessionInvalidTransition: "لا يمكن تنفيذ هذا الإجراء على الجلسة في حالتها الحالية.",
+  teacherNotCertified: "المعلم المحدد غير معتمد حالياً.",
+  teacherNotFound: "لم يتم العثور على المعلم المحدد.",
+  insufficientBalance: "رصيدك غير كافٍ لإتمام هذا الطلب.",
+  idempotencyKeyRequired: "مفتاح منع تكرار الطلب مفقود. يرجى إعادة المحاولة.",
+  invalidSessionIntent: "غرض الجلسة المطلوب غير صالح.",
+  walletInvalidAmount: "أدخل مبلغ سحب صالحاً (قيمة موجبة بخانتين عشريتين كحد أقصى).",
 };

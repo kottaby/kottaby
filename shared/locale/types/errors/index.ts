@@ -105,6 +105,25 @@ export interface ErrorsLabels {
   readonly broadcastAudienceEmpty: string;
   /** Oversized-cohort reject → ValidationError("BROADCAST_AUDIENCE_TOO_LARGE"): resolved cohort exceeds the fail-closed recipient cap. */
   readonly broadcastAudienceTooLarge: string;
+  /** "The requested session was not found." — session lookup or ownership miss on any session surface. */
+  readonly sessionNotFound: string;
+  /** Lifecycle-transition reject — the requested action does not apply to the session's current status. */
+  readonly sessionInvalidTransition: string;
+  /** Certification-gate reject — the targeted teacher account is not yet approved to host sessions. */
+  readonly teacherNotCertified: string;
+  /** "The selected teacher was not found." — teacher lookup miss on booking (dedicated key, not the generic `notFound`). */
+  readonly teacherNotFound: string;
+  /** Balance reject — the caller's lane balances cannot cover the booking fee. */
+  readonly insufficientBalance: string;
+  /** Missing `X-Idempotency-Key` header on an idempotent write surface. */
+  readonly idempotencyKeyRequired: string;
+  /** Pre-DB intent validation reject — the requested intent is not bookable on this surface. */
+  readonly invalidSessionIntent: string;
+  /**
+   * Pre-DB withdrawal-amount reject — the requested payout amount failed
+   * the decimal-string validation matrix (shape or non-positive value).
+   */
+  readonly walletInvalidAmount: string;
 }
 
 export type ErrorMessageKey = {

@@ -467,6 +467,7 @@ After reading the applicable instruction files and AGENTS.md, subagents check fo
 - `docs/admin/audit-trail.md` — Admin audit trail canonical reference (read-only `adminAuditLogs` surface: entry fields + `createdAt DESC, id DESC` order, honest pagination + half-open `>= from` / `< to` UTC-day filter semantics, two-tier immutability proof — application single-writer scan + DB triggers — incl. the push-vs-migrate trigger caveat, governance-window acknowledgment, history-survives-governance rule, verbatim `details` pass-through, deep-link contract, anti-patterns)
 - `docs/parents/handshake-code-discovery.md` — Parent handshake-code discovery canonical reference (code format + generation contract by reference, minimal masked payload with no `id`, governance-exclusion collapse, null-not-error not-found, advisory `linkable` semantics, binding link-request forward contract, brute-force posture)
 - `docs/students/free-trial-provisioning.md` — Free Trial Provisioning canonical reference (one-time trial credit grant for new students, dedicated `balance_trial` lane, grant-once guarded UPDATE, DEV3 booking-eligibility & decrement forward contract)
+- `docs/sessions/session-lifecycle.md` — Session lifecycle canonical reference (DEV3-004: state machine + guarded-transition pattern, four-phase creation invariant, hold-as-debit + same-lane refund, idempotency claim design, sessions-are-sensitive oracle ruling + anti-copy-paste warning, consumer guidance for DEV3-005/006/011/012/013/021 + DEV2-016)
 
 
 ## Linting Rules

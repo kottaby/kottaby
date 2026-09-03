@@ -15,6 +15,7 @@ export const dashboardEn: DashboardLabels = {
   plans: "Plans",
   audit: "Audit",
   broadcasts: "Broadcasts",
+  disputes: "Disputes",
   profile: "Profile",
   children: "Children",
   comingSoon: "Coming soon",
