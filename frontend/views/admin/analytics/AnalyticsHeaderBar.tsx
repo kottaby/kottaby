@@ -6,7 +6,8 @@
  * export (client-side serialization of the ALREADY-fetched snapshot —
  * disabled until a snapshot exists), and the manual Refresh control
  * (≥44px touch targets; labels via the `analytics` namespace; logical
- * spacing for RTL).
+ * spacing for RTL; the action row wraps so timestamp + chip + buttons
+ * never overflow narrow (~375px) viewports).
  */
 
 import { FileDownloadOutlined, InsightsOutlined, RefreshOutlined } from "@mui/icons-material";
@@ -59,7 +60,7 @@ export function AnalyticsHeaderBar({
           {t.subtitle}
         </Typography>
       </Stack>
-      <Stack direction="row" sx={{ alignItems: "center", gap: 1 }}>
+      <Stack direction="row" sx={{ alignItems: "center", gap: 1, flexWrap: "wrap" }}>
         {generatedAt !== null ? (
           <Typography variant="caption" sx={({ palette }) => ({ color: palette.text.secondary })}>
             {t.lastUpdatedLabel(
