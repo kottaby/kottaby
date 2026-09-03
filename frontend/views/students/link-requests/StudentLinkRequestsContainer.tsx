@@ -1,19 +1,16 @@
 "use client";
 
-import { useMutation, useQuery } from "@apollo/client/react";
+import { useQuery } from "@apollo/client/react";
 import { Alert, Box } from "@mui/material";
 import { type ReactNode, useState } from "react";
 import { PermissionDeniedFallback } from "@/frontend/components/ui/PermissionDeniedFallback";
-import {
-  myIncomingParentLinkRequestsQueryDocument,
-  respondToParentLinkRequestMutationDocument,
-} from "@/frontend/graphql/sharedDocuments";
+import { myIncomingParentLinkRequestsQueryDocument } from "@/frontend/graphql/sharedDocuments";
 import { extractErrorCode } from "@/frontend/lib/graphql-error-utils";
 import { resolveParentLinkDenialCopy } from "@/frontend/lib/parent-link-denials";
 import { IncomingBody } from "@/frontend/views/students/link-requests/IncomingBody";
 import { IncomingHeader, SuccessToast } from "@/frontend/views/students/link-requests/IncomingStates";
-import type { PendingDecision } from "@/frontend/views/students/link-requests/LinkRequestCard";
 import { LinkRequestDecisionDialog } from "@/frontend/views/students/link-requests/LinkRequestDecisionDialog";
+import { useLinkRequestDecision } from "@/frontend/views/students/link-requests/useLinkRequestDecision";
 import { Common, Errors, ParentLink, useAppLocale, useAppTranslation } from "@/shared/locale";
 
 /**
@@ -41,7 +38,9 @@ import { Common, Errors, ParentLink, useAppLocale, useAppTranslation } from "@/s
  * Row rendering lives in `LinkRequestCard` (computed status chip,
  * `dir="auto"` name, ≥44px CTAs with the in-flight disable); the
  * confirm/reject gate in `LinkRequestDecisionDialog` (function-slot copy);
- * the shell states + list branches in `IncomingStates` / `IncomingBody`.
+ * the shell states + list branches in `IncomingStates` / `IncomingBody`; the
+ * confirm/reject mutation flow (decision state, in-flight disable, denial
+ * projection, success toast) in `useLinkRequestDecision`.
  *
  * Mutation flow: the submitted row's affordances (and the dialog) disable
  * while in flight; on success the dialog closes, the localized success
@@ -74,17 +73,6 @@ export function StudentLinkRequestsContainer(): ReactNode {
   const locale = useAppLocale();
 
   const { data, error, loading, refetch } = useQuery(myIncomingParentLinkRequestsQueryDocument);
-  const [respond] = useMutation(respondToParentLinkRequestMutationDocument);
-
-  // The row whose respond mutation is in flight (row-level + dialog-level
-  // in-flight disable).
-  const [pendingRequestId, setPendingRequestId] = useState<string | null>(null);
-  // The open confirm/reject decision (null = no dialog).
-  const [decision, setDecision] = useState<PendingDecision | null>(null);
-  // Localized copy of the success toast (null = hidden).
-  const [successToast, setSuccessToast] = useState<string | null>(null);
-  // `extensions.code` of the last mutation denial (null = no inline alert).
-  const [denialCode, setDenialCode] = useState<string | null>(null);
   // Retry-after-query-error refetch in flight (disables the affordance).
   const [retryPending, setRetryPending] = useState(false);
   // Read purity: ONE `now` captured at mount (lazy initializer — no
@@ -92,6 +80,17 @@ export function StudentLinkRequestsContainer(): ReactNode {
   // mount's lifetime; server-side materialization + refetch settle the
   // authoritative states.
   const [nowMs] = useState(() => Date.now());
+
+  const {
+    decision,
+    setDecision,
+    inFlight,
+    denialCode,
+    successToast,
+    handleDecisionSubmit,
+    closeDecision,
+    dismissSuccessToast,
+  } = useLinkRequestDecision(refetch, t);
 
   // Denial class — replaces the whole container, mirroring the
   // denial-surface precedent on the parent handshake discovery container.
@@ -101,7 +100,6 @@ export function StudentLinkRequestsContainer(): ReactNode {
   }
 
   const rows = data?.myIncomingParentLinkRequests;
-  const inFlight = pendingRequestId !== null;
 
   const handleRetry = (): void => {
     setRetryPending(true);
@@ -110,43 +108,6 @@ export function StudentLinkRequestsContainer(): ReactNode {
       .finally(() => {
         setRetryPending(false);
       });
-  };
-
-  /**
-   * The dialog form submit (React 19 `SubmitEvent` discipline — never
-   * `FormEvent`). Delegates to `respondToDecision` so rejections are caught
-   * in ONE place (the admin-dialogs contract: the mutation error projects
-   * into the localized inline Alert, never an unhandled rejection).
-   */
-  const handleDecisionSubmit = (event: React.SubmitEvent<HTMLFormElement>): void => {
-    event.preventDefault();
-    const submitted = decision;
-    if (submitted === null || pendingRequestId !== null) {
-      return;
-    }
-    setPendingRequestId(submitted.requestId);
-    setDenialCode(null);
-    void respondToDecision(submitted);
-  };
-
-  const respondToDecision = async (submitted: PendingDecision): Promise<void> => {
-    try {
-      await respond({ variables: { requestId: submitted.requestId, accept: submitted.accept } });
-    } catch (mutationError: unknown) {
-      setDecision(null);
-      setDenialCode(extractErrorCode(mutationError));
-      return;
-    } finally {
-      setPendingRequestId(null);
-    }
-    // The transition is COMMITTED above — the mutation write-back already
-    // restyled the row. The list refresh runs OUTSIDE the mutation try-block
-    // (6.3-F2): a refetch failure folds silently instead of being caught by
-    // the denial handler, where an unmapped code would surface a misleading
-    // "internal server error" alert and suppress the success toast.
-    setDecision(null);
-    setSuccessToast(submitted.accept ? t.confirmSuccessToast : t.rejectSuccessToast);
-    await refetch().catch(() => undefined);
   };
 
   return (
@@ -209,10 +170,10 @@ export function StudentLinkRequestsContainer(): ReactNode {
         commonLabels={commonT}
         pending={inFlight}
         onSubmit={handleDecisionSubmit}
-        onClose={() => setDecision(null)}
+        onClose={closeDecision}
       />
 
-      <SuccessToast copy={successToast} onClose={() => setSuccessToast(null)} />
+      <SuccessToast copy={successToast} onClose={dismissSuccessToast} />
     </Box>
   );
 }
