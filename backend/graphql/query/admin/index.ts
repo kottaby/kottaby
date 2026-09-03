@@ -9,4 +9,5 @@
  *  - Wired through the top-level query barrel: `query/index.ts` → `gqlSchema.ts`.
  */
 import "./admin-users.query";
+import "./audit-trail.query";
 import "./platform-analytics.query";

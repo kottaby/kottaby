@@ -18,7 +18,7 @@
  *   2. SIBLING REGRESSION PIN — the pre-existing embedded entries
  *      (`AdminNoteInfo`, `OnlineMeetingInfo`) keep their `keyFields: false`
  *      posture and the `AdminDashboardScheduleResult.rows` replace-not-merge
- *      precedent stays exactly as authored (the five-entry policy surface is
+ *      precedent stays exactly as authored (the seven-entry policy surface is
  *      FROZEN; a new embedded type must extend, never shrink, this list per
  *      frontend/graphql/AGENTS.md embedded-type policy).
  *
@@ -173,9 +173,16 @@ describe("createApolloCache — initialised InMemoryCache config exposure", () =
     expect(keyFieldsOf(policies, "HandshakeCodeLookup")).toBe(false);
   });
 
-  test("policy surface is FROZEN to the six pre-DEV3-022c entries plus the eleven analytics embedded types", () => {
+  test("typePolicies.AdminAuditLogPage.keyFields === false", () => {
+    const cache = createApolloCache();
+    const policies = typePoliciesOf(cache);
+    expect(keyFieldsOf(policies, "AdminAuditLogPage")).toBe(false);
+  });
+
+  test("policy surface is FROZEN to the seven documented entries plus the eleven DEV3-022c analytics embedded types", () => {
     const cache = createApolloCache();
     expect(Object.keys(typePoliciesOf(cache)).toSorted((a, b) => a.localeCompare(b))).toEqual([
+      "AdminAuditLogPage",
       "AdminDashboardScheduleResult",
       "AdminNoteInfo",
       "HandshakeCodeLookup",

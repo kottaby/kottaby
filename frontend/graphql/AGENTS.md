@@ -107,6 +107,9 @@ Current embedded types:
 - `NotificationListPage` (fields: `hasMore`, `items`, `totalCount`) — no `id`;
   notifications-inbox pagination wrapper (dev3-010 Task 3.1). The normalizable
   entities are the `Notification` rows inside `items` (each carries `id`).
+- `AdminAuditLogPage` (fields: `items`, `page`, `pageSize`, `totalCount`) — no
+  `id`; admin audit-trail pagination wrapper. The normalizable entities are
+  the `AdminAuditLogEntry` rows inside `items` (each carries `id`).
 - `PlatformAnalytics`, `PlatformAnalyticsUsers`, `PlatformAnalyticsSessions`,
   `PlatformAnalyticsRevenue`, `PlatformAnalyticsCurrencyRevenue`,
   `PlatformAnalyticsSubscriptions`, `PlatformAnalyticsTeachers`,

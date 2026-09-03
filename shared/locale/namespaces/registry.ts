@@ -1,3 +1,10 @@
+/**
+ * Namespace registry — the composed `namespaces` object (one entry per
+ * locale namespace). Split out of the barrel `index.ts` so the barrel stays
+ * a pure relative re-export surface (root AGENTS.md barrel conventions:
+ * no import statements in `index.ts`).
+ */
+import { AdminBroadcasts } from "@/shared/locale/namespaces/adminBroadcasts";
 import { AdminUsers } from "@/shared/locale/namespaces/adminUsers";
 import { Analytics } from "@/shared/locale/namespaces/analytics";
 import { Applicant } from "@/shared/locale/namespaces/applicant";
@@ -10,8 +17,11 @@ import { Landing } from "@/shared/locale/namespaces/landing";
 import { Notifications } from "@/shared/locale/namespaces/notifications";
 import { Plans } from "@/shared/locale/namespaces/plans";
 import { Recitation } from "@/shared/locale/namespaces/recitation";
+import { Sessions } from "@/shared/locale/namespaces/sessions";
+import { Wallet } from "@/shared/locale/namespaces/wallet";
 
 export const namespaces = {
+  AdminBroadcasts,
   AdminUsers,
   Analytics,
   Applicant,
@@ -24,4 +34,6 @@ export const namespaces = {
   Notifications,
   Plans,
   Recitation,
+  Sessions,
+  Wallet,
 } as const;

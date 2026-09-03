@@ -1,3 +1,4 @@
+import { adminBroadcastsEn } from "@/shared/locale/en/adminBroadcasts";
 import { adminUsersEn } from "@/shared/locale/en/adminUsers";
 import { analyticsEn } from "@/shared/locale/en/analytics";
 import { applicantEn } from "@/shared/locale/en/applicant";
@@ -10,6 +11,8 @@ import { landingEn } from "@/shared/locale/en/landing";
 import { notificationsEn } from "@/shared/locale/en/notifications";
 import { plansEn } from "@/shared/locale/en/plans";
 import { recitationEn } from "@/shared/locale/en/recitation";
+import { sessionsEn } from "@/shared/locale/en/sessions";
+import { walletEn } from "@/shared/locale/en/wallet";
 import type { Translations } from "@/shared/locale/types/message";
 
 export const enMessages: Translations = {
@@ -21,8 +24,11 @@ export const enMessages: Translations = {
   landingTranslations: landingEn,
   plansTranslations: plansEn,
   applicantTranslations: applicantEn,
+  sessionsTranslations: sessionsEn,
+  walletTranslations: walletEn,
   adminUsersTranslations: adminUsersEn,
   analyticsTranslations: analyticsEn,
+  adminBroadcastsTranslations: adminBroadcastsEn,
   notificationsTranslations: notificationsEn,
   handshakeCodeTranslations: handshakeCodeEn,
 };
