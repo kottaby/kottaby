@@ -62,7 +62,7 @@ const ISOLATION_LEVEL_SQL = {
  */
 export async function runInRollback<T>(
   fn: (tx: DBTransaction) => Promise<T>,
-  options?: RunInRollbackOptions,
+  options?: RunInRollbackOptions
 ): Promise<T | undefined> {
   // We deliberately throw after the test body runs to force ROLLBACK. This
   // works because Drizzle's `db.transaction` issues ROLLBACK when the
