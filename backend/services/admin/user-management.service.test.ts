@@ -275,11 +275,11 @@ describe("AdminUserManagementService.listDirectory", () => {
   test("happy path — admin lists directory; new student row observable with role-child headline", async () => {
     await runInRollback(async tx => {
       const admin = await provisionAdminActor(tx);
-      const student = await createTestUser(tx, { role: "student" });
+      const student = await createTestUser(tx, { role: "student", fullName: "Unique HappyPath Student" });
       await createTestStudent(tx, student.id);
 
       const page = await AdminUserManagementService.listDirectory(
-        { role: UserRole.Student },
+        { role: UserRole.Student, search: "Unique HappyPath Student" },
         1,
         25,
         LOCALE,
