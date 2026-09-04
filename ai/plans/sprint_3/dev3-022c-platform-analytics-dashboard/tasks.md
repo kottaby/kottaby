@@ -226,21 +226,21 @@ Every task in this file is executed under ALL of the following rules, without ex
 
 ## Phase 3: GraphQL Resolvers & API Surface
 
-- [ ] 3.1 [Implement Pothos objects — CREATE `backend/graphql/pothos/admin/platform-analytics.pothos.ts`]
+- [x] 3.1 [Implement Pothos objects — CREATE `backend/graphql/pothos/admin/platform-analytics.pothos.ts`]
   - Files to create/modify:
     - CREATE `backend/graphql/pothos/admin/platform-analytics.pothos.ts` — one `objectRef<CanonicalType>(…).implement({ fields: t => ({ … }) })` per the ten value objects + root, per plan §3.2: `t.exposeInt` for counters, `t.exposeString` for money (`currency`, `totalAmount`, `last30DaysAmount`, `amount`), `t.expose("generatedAt", { type: "DateTime" })` and `t.expose("bucketStart", { type: "DateTime" })`, `t.exposeFloat("averageSessionRating", { nullable: true })` / `t.exposeFloat("averageEvaluationScore", { nullable: true })`. List fields via `t.loadable`-free plain `t.field({ type: [ObjRef], resolve })` or `t.expose` per existing in-bundle convention (follow the closest existing read-model Pothos object in `backend/graphql/pothos/**`).
     - ALL backing types imported from `@/backend/types` — NO local types (REQ-004); NO `id` exposed anywhere in the subtree (D10); NO `toISOString()` anywhere (REQ-068).
     - UPDATE `backend/graphql/pothos/admin/index.ts` — export the new module (it currently re-exports only `admin-user.pothos`).
   - Applicable instructions: `backend/AGENTS.md`, `frontend/graphql/AGENTS.md` (embedded-type policy reference), `.agents/instructions/backend.instructions.md`.
   - _Requirements: REQ-004, REQ-060, REQ-068_
-  - [ ] 3.1.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts backend/graphql/pothos/admin/platform-analytics.pothos.ts --lifecycle duplicates` (exit 0).
-  - [ ] 3.1.TE **Test Engineering**: covered end-to-end by the wire matrix (Task 3.3) — full-shape assertion proves every exposed field resolves; no standalone Pothos unit test (schema-bound code).
-  - [ ] 3.1.SEC **Security & Tenancy Audit**: no resolve-time data access in any field (all fields project the service-composed snapshot — no N+1, no second reads); nullable floats only on the two rating averages.
-  - [ ] 3.1.SR **Semantic Review**: field names match the SDL contract EXACTLY (plan §3.1); `DateTime` usage confirmed — no String timestamps.
-  - [ ] 3.1.IV **Instruction Verification**: validate against discovered GraphQL-layer instructions.
-  - [ ] 3.1.OUT Write outcome.
+  - [x] 3.1.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts backend/graphql/pothos/admin/platform-analytics.pothos.ts --lifecycle duplicates` (exit 0).
+  - [x] 3.1.TE **Test Engineering**: covered end-to-end by the wire matrix (Task 3.3) — full-shape assertion proves every exposed field resolves; no standalone Pothos unit test (schema-bound code).
+  - [x] 3.1.SEC **Security & Tenancy Audit**: no resolve-time data access in any field (all fields project the service-composed snapshot — no N+1, no second reads); nullable floats only on the two rating averages.
+  - [x] 3.1.SR **Semantic Review**: field names match the SDL contract EXACTLY (plan §3.1); `DateTime` usage confirmed — no String timestamps.
+  - [x] 3.1.IV **Instruction Verification**: validate against discovered GraphQL-layer instructions.
+  - [x] 3.1.OUT Write outcome.
 
-- [ ] 3.2 [Implement admin query + schema regeneration + baseline reconciliation]
+- [x] 3.2 [Implement admin query + schema regeneration + baseline reconciliation]
   - Files to create/modify:
     - CREATE `backend/graphql/query/admin/platform-analytics.query.ts` — `queryField("adminPlatformAnalytics", t => t.field({ type: PlatformAnalyticsPothosObject, authScopes: { $all: { authenticated: true, role: [UserRole.Admin] } }, resolve }))` with the REQUIRED pre-resolver `ctx.user` null check throwing `UnauthorizedError(t.unauthorized)` via `await ctx.t("errorsTranslations")`; resolver body passes ONLY `ctx.user.id` + `ctx.locale` to the service; NO try/catch, NO args, description per plan §3.2 verbatim.
     - UPDATE `backend/graphql/query/admin/index.ts` — append side-effect import.
@@ -251,14 +251,14 @@ Every task in this file is executed under ALL of the following rules, without ex
     - VERIFY NO new `app/api/**` route and NO `ROUTE_INVENTORY` change.
   - Applicable instructions: `backend/AGENTS.md`, `.agents/instructions/backend.instructions.md`, `docs/graphql/error-handling-contract.md`.
   - _Requirements: REQ-010, REQ-030, REQ-033, REQ-034, REQ-050, REQ-061, REQ-068_
-  - [ ] 3.2.QL **Quality Loop**: `sub-loop` on `backend/graphql/query/admin/platform-analytics.query.ts`, both updated test files, and (report-only, never edited) confirm generated artifacts parse (exit 0 where applicable).
-  - [ ] 3.2.TE **Test Engineering**: the updated frozen-inventory tests ARE the coverage — run `bun run test/scripts/run-test.ts backend/graphql/test/sdl-static-assertions.test.ts`, `bun run test/scripts/run-test.ts backend/graphql/test/schema-surface.test.ts`, and `bun run test/scripts/run-test.ts backend/graphql/test/handshake-code-surface.test.ts` (public-operations parity).
-  - [ ] 3.2.SEC **Security & Tenancy Audit**: `$all` conjunction verified load-bearing (the ANY-semantics hazard); zero-argument surface — nothing steerable; allowlist untouched.
-  - [ ] 3.2.SR **Semantic Review**: resolver is the thin hive (no logic, no types, no SQL); codegen artifacts fully committed in the SAME change set as the Pothos code.
-  - [ ] 3.2.IV **Instruction Verification**: validate against discovered GraphQL-layer instructions.
-  - [ ] 3.2.OUT Write outcome.
+  - [x] 3.2.QL **Quality Loop**: `sub-loop` on `backend/graphql/query/admin/platform-analytics.query.ts`, both updated test files, and (report-only, never edited) confirm generated artifacts parse (exit 0 where applicable).
+  - [x] 3.2.TE **Test Engineering**: the updated frozen-inventory tests ARE the coverage — run `bun run test/scripts/run-test.ts backend/graphql/test/sdl-static-assertions.test.ts`, `bun run test/scripts/run-test.ts backend/graphql/test/schema-surface.test.ts`, and `bun run test/scripts/run-test.ts backend/graphql/test/handshake-code-surface.test.ts` (public-operations parity).
+  - [x] 3.2.SEC **Security & Tenancy Audit**: `$all` conjunction verified load-bearing (the ANY-semantics hazard); zero-argument surface — nothing steerable; allowlist untouched.
+  - [x] 3.2.SR **Semantic Review**: resolver is the thin hive (no logic, no types, no SQL); codegen artifacts fully committed in the SAME change set as the Pothos code.
+  - [x] 3.2.IV **Instruction Verification**: validate against discovered GraphQL-layer instructions.
+  - [x] 3.2.OUT Write outcome.
 
-- [ ] 3.3 [GraphQL wire matrix — CREATE `backend/graphql/test/platform-analytics.query.test.ts`]
+- [x] 3.3 [GraphQL wire matrix — CREATE `backend/graphql/test/platform-analytics.query.test.ts`]
   - In-process wire tests per the `backend/graphql/test/handshake-code-surface.test.ts:207-256` pattern; HTTP tier via the `setupTestServerLifecycle` precedent (`backend/graphql/test/notification-mutation.test.ts`) when the port window allows:
     - anonymous → `UNAUTHORIZED` PRE-RESOLVER (resolver spy never invoked).
     - student / teacher / parent → `FORBIDDEN` PRE-RESOLVER.
@@ -266,12 +266,12 @@ Every task in this file is executed under ALL of the following rules, without ex
     - admin happy path → full CLOSED shape: every top-level section key present exactly once, every documented leaf present, NO extra/missing fields, `generatedAt` parses as a DateTime-format string, trend arrays are arrays, rating average keys present-and-nullable.
     - governed admin → service-tier `FORBIDDEN` with bounded error payload (only canonical message + `extensions.code`).
   - _Requirements: REQ-030, REQ-033, REQ-034, REQ-037, REQ-053, REQ-073_
-  - [ ] 3.3.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts backend/graphql/test/platform-analytics.query.test.ts --lifecycle duplicates` (exit 0). Run: `bun run test/scripts/run-test.ts backend/graphql/test/platform-analytics.query.test.ts` (green).
-  - [ ] 3.3.TE **Test Engineering**: 4-tier — deny-before-execute pins (resolver invocation counters), closed-shape structural pin, validation-failure probe, happy-path round trip.
-  - [ ] 3.3.SEC **Security & Tenancy Audit**: error responses disclose only canonical localized copy; no aggregate partial-disclosure on any denial path (REQ-037 all-or-nothing pin).
-  - [ ] 3.3.SR **Semantic Review**: tests construct contexts via the existing in-bundle test-context factory; no schema forks.
-  - [ ] 3.3.IV **Instruction Verification**: validate against `.agents/instructions/tests.instructions.md` + discovered GraphQL test instructions.
-  - [ ] 3.3.OUT Write outcome.
+  - [x] 3.3.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts backend/graphql/test/platform-analytics.query.test.ts --lifecycle duplicates` (exit 0). Run: `bun run test/scripts/run-test.ts backend/graphql/test/platform-analytics.query.test.ts` (green).
+  - [x] 3.3.TE **Test Engineering**: 4-tier — deny-before-execute pins (resolver invocation counters), closed-shape structural pin, validation-failure probe, happy-path round trip.
+  - [x] 3.3.SEC **Security & Tenancy Audit**: error responses disclose only canonical localized copy; no aggregate partial-disclosure on any denial path (REQ-037 all-or-nothing pin).
+  - [x] 3.3.SR **Semantic Review**: tests construct contexts via the existing in-bundle test-context factory; no schema forks.
+  - [x] 3.3.IV **Instruction Verification**: validate against `.agents/instructions/tests.instructions.md` + discovered GraphQL test instructions.
+  - [x] 3.3.OUT Write outcome.
 
 ---
 
