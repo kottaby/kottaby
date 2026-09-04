@@ -125,21 +125,21 @@ Every task in this file is executed under ALL of the following rules, without ex
 
 > MANDATORY test-first ordering: journey tasks 2.1–2.4 are authored and RED before the repository (2.5) and service (2.6) surfaces exist.
 
-- [ ] 2.1 [Write Journey A — Cold platform honesty — TEST-FIRST]
+- [x] 2.1 [Write Journey A — Cold platform honesty — TEST-FIRST]
   - Create `test/workflows/admin/platform-analytics.journey.test.ts` (the file ALL four journeys share; the `test/workflows/admin/` directory already exists (DEV3-016 journey suites) — the harness layer itself is verified present in 0.2, so no harness scaffolding is owed; if verification in 0.2 found the harness absent, this task additionally scaffolds helpers + `test/workflows/AGENTS.md` per Architectural Invariant 10).
   - Provision the admin-only cast via `provisionAdminActor` from `@/test/workflows/helpers` (real permission-group membership — NEVER monkey-patched); commit fixtures in `beforeAll` inside ONE `db.transaction`; capture the PRE-SUITE baseline of every journey-touched counter by direct DB counts (baseline = whatever the shared DB already holds — asserted, never assumed zero).
   - Steps: admin reads via `PlatformAnalyticsService.getPlatformAnalytics(adminId, locale)` — until the service exists, this test is RED by design.
   - Assert: every journey-owned metric == pre-suite baseline + 0; `sessionTrendDaily` fully populated with 30 zero-filled buckets relative to the read's day; `revenueTrendDaily` skeleton-consistent; BOTH rating averages `null` for families with no journey rows (never fabricated 0).
   - Applicable instructions: `test/workflows/AGENTS.md`, `docs/testing/workflow-journey-tests.md`, `.agents/instructions/tests.instructions.md`, `.agents/instructions/backend.instructions.md`.
   - _Requirements: REQ-018, REQ-020, REQ-026, REQ-074 (Journey A EARS)_
-  - [ ] 2.1.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts test/workflows/admin/platform-analytics.journey.test.ts --lifecycle duplicates` (exit 0).
-  - [ ] 2.1.TE **Test Engineering**: Tier 1/2 journey coverage — baseline-delta-equals-zero assertions, trend fullness, honest-null ratings; timestamps RELATIVE to service-captured `now` (no absolute dates).
-  - [ ] 2.1.SEC **Security & Tenancy Audit**: admin actor provisioned with real role rows; no permission stubbing.
-  - [ ] 2.1.SR **Semantic Review**: one `db.transaction` in `beforeAll`; NO `runInRollback`; tracked ids for hard delete.
-  - [ ] 2.1.IV **Instruction Verification**: validate against `test/workflows/AGENTS.md` rules 1–N as printed by sub-loop discovery.
-  - [ ] 2.1.OUT Write outcome (record RED state — expected).
+  - [x] 2.1.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts test/workflows/admin/platform-analytics.journey.test.ts --lifecycle duplicates` (exit 0).
+  - [x] 2.1.TE **Test Engineering**: Tier 1/2 journey coverage — baseline-delta-equals-zero assertions, trend fullness, honest-null ratings; timestamps RELATIVE to service-captured `now` (no absolute dates).
+  - [x] 2.1.SEC **Security & Tenancy Audit**: admin actor provisioned with real role rows; no permission stubbing.
+  - [x] 2.1.SR **Semantic Review**: one `db.transaction` in `beforeAll`; NO `runInRollback`; tracked ids for hard delete.
+  - [x] 2.1.IV **Instruction Verification**: validate against `test/workflows/AGENTS.md` rules 1–N as printed by sub-loop discovery.
+  - [x] 2.1.OUT Write outcome (record RED state — expected).
 
-- [ ] 2.2 [Write Journey B — Full cast observation — TEST-FIRST]
+- [x] 2.2 [Write Journey B — Full cast observation — TEST-FIRST]
   - Append to `test/workflows/admin/platform-analytics.journey.test.ts`: cast via `provisionStudentActor` / `provisionCertifiedTeacherActor` / `provisionParentActor` plus the new fixture factories from Task 1.3, committed in ONE `db.transaction`:
     - student + ACTIVE-window paid subscription; one paid EGP payment today; one paid USD payment today (relative to service-captured `now`).
     - certified teacher `is_online=true`; a SECOND certified teacher offline.
@@ -149,38 +149,38 @@ Every task in this file is executed under ALL of the following rules, without ex
   - THEN denial probes: the SAME student/teacher/parent actors call the service directly → `ForbiddenError` EVERY time (cross-actor visibility: their own state changes buy them nothing).
   - Assert zero side effects at each step (row-count probes).
   - _Requirements: REQ-012..REQ-020, REQ-023, REQ-071, REQ-074 (Journey B EARS)_
-  - [ ] 2.2.QL **Quality Loop**: `sub-loop` on the journey file (exit 0).
-  - [ ] 2.2.TE **Test Engineering**: boundary-sensitive deltas (awaitingConfirmation flip, currency split, online/offline teacher split).
-  - [ ] 2.2.SEC **Security & Tenancy Audit**: denial probes execute REAL role resolution; governed-student fixture proves eligibility exclusion, not reader gating.
-  - [ ] 2.2.SR **Semantic Review**: fixture deltas derived from committed rows only; no hidden fixtures shared across journeys without tracked ids.
-  - [ ] 2.2.IV **Instruction Verification**: per journey-harness rules.
-  - [ ] 2.2.OUT Write outcome (record RED state).
+  - [x] 2.2.QL **Quality Loop**: `sub-loop` on the journey file (exit 0).
+  - [x] 2.2.TE **Test Engineering**: boundary-sensitive deltas (awaitingConfirmation flip, currency split, online/offline teacher split).
+  - [x] 2.2.SEC **Security & Tenancy Audit**: denial probes execute REAL role resolution; governed-student fixture proves eligibility exclusion, not reader gating.
+  - [x] 2.2.SR **Semantic Review**: fixture deltas derived from committed rows only; no hidden fixtures shared across journeys without tracked ids.
+  - [x] 2.2.IV **Instruction Verification**: per journey-harness rules.
+  - [x] 2.2.OUT Write outcome (record RED state).
 
-- [ ] 2.3 [Write Journey C — Freshness evolution (anti-cache proof) — TEST-FIRST]
+- [x] 2.3 [Write Journey C — Freshness evolution (anti-cache proof) — TEST-FIRST]
   - Append to the same journey file: (1) admin reads (t1) and snapshots the response (`generatedAt`, EGP bucket, session counters); (2) system commits ONE additional paid EGP payment today + ONE additional completed session (today) in a committed transaction; (3) admin reads again (t2).
   - Assert: t2 deltas exactly `+1` session, EGP `totalAmount`/`last30DaysAmount` ascend by the exact fixture amount, EGP remains the SAME currency row (row ascends within the bucket — no new currency), `generatedAt(t2) > generatedAt(t1)`, `sessionTrendDaily` last bucket incremented.
   - Assert NO cached answer is possible: t2 MUST differ from t1 (a cached implementation fails this test — that is the point).
   - _Requirements: REQ-021, REQ-045, REQ-074 (Journey C EARS)_
-  - [ ] 2.3.QL **Quality Loop**: `sub-loop` on the journey file (exit 0).
-  - [ ] 2.3.TE **Test Engineering**: freshness oracle with exact-amount arithmetic on decimal strings (string compare after normalization, never float math).
-  - [ ] 2.3.SEC **Security & Tenancy Audit**: both reads still admin-gated; nothing about freshness weakens the actor gate.
-  - [ ] 2.3.SR **Semantic Review**: two independent service invocations — no shared module state could leak between them (asserted, not assumed).
-  - [ ] 2.3.IV **Instruction Verification**: per journey-harness rules.
-  - [ ] 2.3.OUT Write outcome (record RED state).
+  - [x] 2.3.QL **Quality Loop**: `sub-loop` on the journey file (exit 0).
+  - [x] 2.3.TE **Test Engineering**: freshness oracle with exact-amount arithmetic on decimal strings (string compare after normalization, never float math).
+  - [x] 2.3.SEC **Security & Tenancy Audit**: both reads still admin-gated; nothing about freshness weakens the actor gate.
+  - [x] 2.3.SR **Semantic Review**: two independent service invocations — no shared module state could leak between them (asserted, not assumed).
+  - [x] 2.3.IV **Instruction Verification**: per journey-harness rules.
+  - [x] 2.3.OUT Write outcome (record RED state).
 
-- [ ] 2.4 [Write Journey D — Denial & purity matrix — TEST-FIRST]
+- [x] 2.4 [Write Journey D — Denial & purity matrix — TEST-FIRST]
   - Append to the same journey file: (1) anonymous `actorId=0` → expect `UnauthorizedError`; (2) absent-actor id → `UnauthorizedError`; (3) student/teacher/parent direct service calls → `ForbiddenError`; (4) suspended admin (live-token scenario at the service tier) → `ForbiddenError` with the `accountSuspended` message; repeat blocked/deleted admins on the same path; (5) EVERY denial asserts: zero repository aggregate reads executed (denial is pre-DB where applicable), byte-identical tables, ZERO `audit_logs` rows attributable, ZERO notifications.
   - Assert WHOLE-SUITE purity at the end of D: EVERY observed table (`users`, `session`, `student_payments`, `subscriptions`, `teacher`, `evaluations`, `reports`, `teacher_transaction`) is byte-identical after ALL admin reads across A–C to its post-fixture state (reads never mutate); `audit_logs` delta == 0 for the entire suite.
   - Teardown: `afterAll` tracked hard deletes in FK-safe order — journey-created `session` / `student_payments` / `subscriptions` / `reports` / `evaluations` / `wallet` / `teacher_transaction` / `teacher` rows, then actors via `deleteUsersByIds`; `audit_logs` cleanup rides `withAuditDeleteTriggersSuspended` (`test/helpers/db-cleanup.ts:83-140`). NO `runInRollback` anywhere in this file.
   - _Requirements: REQ-022, REQ-031, REQ-032, REQ-042, REQ-050..054, REQ-074 (Journey D EARS)_
-  - [ ] 2.4.QL **Quality Loop**: `sub-loop` on the journey file (exit 0).
-  - [ ] 2.4.TE **Test Engineering**: Tier 3/4 chaos+security posture — denial-matrix oracle, byte-identity snapshots, audit-delta-zero proof.
-  - [ ] 2.4.SEC **Security & Tenancy Audit**: every denial tier covered (anonymous, absent, non-admin, governed ×3); error-oracle discipline — messages are canonical localized copies only.
-  - [ ] 2.4.SR **Semantic Review**: deterministic denial order asserted (deleted → blocked → suspended); no permission monkey-patching anywhere in the file.
-  - [ ] 2.4.IV **Instruction Verification**: per journey-harness rules.
-  - [ ] 2.4.OUT Write outcome (record RED state).
+  - [x] 2.4.QL **Quality Loop**: `sub-loop` on the journey file (exit 0).
+  - [x] 2.4.TE **Test Engineering**: Tier 3/4 chaos+security posture — denial-matrix oracle, byte-identity snapshots, audit-delta-zero proof.
+  - [x] 2.4.SEC **Security & Tenancy Audit**: every denial tier covered (anonymous, absent, non-admin, governed ×3); error-oracle discipline — messages are canonical localized copies only.
+  - [x] 2.4.SR **Semantic Review**: deterministic denial order asserted (deleted → blocked → suspended); no permission monkey-patching anywhere in the file.
+  - [x] 2.4.IV **Instruction Verification**: per journey-harness rules.
+  - [x] 2.4.OUT Write outcome (record RED state).
 
-- [ ] 2.5 [Implement Backend Repository — CREATE `PlatformAnalyticsRepository`]
+- [x] 2.5 [Implement Backend Repository — CREATE `PlatformAnalyticsRepository`]
   - Files to create:
     - CREATE `backend/db/repo/admin/platform-analytics.repository.ts` — namespace `PlatformAnalyticsRepository` with methods per plan §4.1 EXACTLY: `countRecentlyActiveUsers(now, tx?)`, `getSessionStats(now, tx?)`, `getSessionDailyTrend(now, tx?)`, `getRevenueStats(now, tx?)`, `getRevenueDailyTrend(now, tx?)`, `getSubscriptionStats(now, tx?)`, `countOfflineActivations(tx?)`, `getTeacherPresenceStats(tx?)`, `getRatingStats(tx?)`, `getHealthIndicators(tx?)`.
     - Repo-row interfaces declared in-file (sanctioned repo-row-shape allowance); every windowed method takes explicit `now: Date`; every method takes trailing `tx?: DBTransaction` with executor `tx ?? db`.
@@ -189,12 +189,12 @@ Every task in this file is executed under ALL of the following rules, without ex
     - Enum predicates via VALUE imports: `SessionStatus.*`, `SubscriptionStatus.*`, `PaymentStatus.Paid`, `TransactionType`/`TransactionStatus` members, `PaymentGateway.{OfflineCash, BankTransfer, Scholarship}` (`backend/db/schema/enums.ts:9-114` mirrors + `backend/enum/**`).
   - Applicable instructions: `backend/AGENTS.md`, repo-layer AGENTS.md (as discovered), `.agents/instructions/backend.instructions.md`, `docs/drizzle/prepared-statements.md`.
   - _Requirements: REQ-012..REQ-020, REQ-023..REQ-026, REQ-035, REQ-040, REQ-044_
-  - [ ] 2.5.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts backend/db/repo/admin/platform-analytics.repository.ts --lifecycle duplicates` (exit 0).
-  - [ ] 2.5.TE **Test Engineering**: CREATE `backend/db/repo/admin/__tests__/platform-analytics.repository.test.ts` — 4-tier: (Tier 1) 100% statement/branch coverage of all new repo code — every method, BOTH `tx` and non-`tx` executor branches; (Tier 2) boundary matrix per REQ-071 — ISO-Monday week start, first-of-month, 1ms-before-today exclusion in `today`, `awaitingConfirmation` flip on `confirmedByStudentAt`, `activeInWindowNow` excludes expired `end_date` with `status='active'`, multi-currency rows never merge, 24h recent-activity boundary, 30-day window edges on both trends; (Tier 3) empty-table chaos — empty payments → EMPTY array (no phantom row), empty ratings → `null` averages, empty sessions → all-zero counters with full trend skeleton inputs; (Tier 4) security — parameterized-only predicates proven by inspection + the suite's fixtures. ALL tests via `runInRollback`, fixtures via Task-1.3 factories, `tx` passed to every call. Run: `bun run test/scripts/run-test.ts backend/db/repo/admin/__tests__/platform-analytics.repository.test.ts`.
-  - [ ] 2.5.SEC **Security & Tenancy Audit**: equality/aggregate predicates only; no input-controlled SQL anywhere; governance exclusion (`isDeleted`/`suspended`/`isBlocked` NULL-safe false) mirrored in `countRecentlyActiveUsers`; evaluations soft-delete exclusion (`isDeleted=false`, NULL-safe).
-  - [ ] 2.5.SR **Semantic Review**: repo is dumb-read only (zero business assembly — trend zero-fill lives in the service per D6); no cross-layer imports; enum members as value imports; no dead branches.
-  - [ ] 2.5.IV **Instruction Verification**: validate against discovered repo-layer AGENTS.md + `docs/drizzle/prepared-statements.md` posture.
-  - [ ] 2.5.OUT Write outcome.
+  - [x] 2.5.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts backend/db/repo/admin/platform-analytics.repository.ts --lifecycle duplicates` (exit 0).
+  - [x] 2.5.TE **Test Engineering**: CREATE `backend/db/repo/admin/__tests__/platform-analytics.repository.test.ts` — 4-tier: (Tier 1) 100% statement/branch coverage of all new repo code — every method, BOTH `tx` and non-`tx` executor branches; (Tier 2) boundary matrix per REQ-071 — ISO-Monday week start, first-of-month, 1ms-before-today exclusion in `today`, `awaitingConfirmation` flip on `confirmedByStudentAt`, `activeInWindowNow` excludes expired `end_date` with `status='active'`, multi-currency rows never merge, 24h recent-activity boundary, 30-day window edges on both trends; (Tier 3) empty-table chaos — empty payments → EMPTY array (no phantom row), empty ratings → `null` averages, empty sessions → all-zero counters with full trend skeleton inputs; (Tier 4) security — parameterized-only predicates proven by inspection + the suite's fixtures. ALL tests via `runInRollback`, fixtures via Task-1.3 factories, `tx` passed to every call. Run: `bun run test/scripts/run-test.ts backend/db/repo/admin/__tests__/platform-analytics.repository.test.ts`.
+  - [x] 2.5.SEC **Security & Tenancy Audit**: equality/aggregate predicates only; no input-controlled SQL anywhere; governance exclusion (`isDeleted`/`suspended`/`isBlocked` NULL-safe false) mirrored in `countRecentlyActiveUsers`; evaluations soft-delete exclusion (`isDeleted=false`, NULL-safe).
+  - [x] 2.5.SR **Semantic Review**: repo is dumb-read only (zero business assembly — trend zero-fill lives in the service per D6); no cross-layer imports; enum members as value imports; no dead branches.
+  - [x] 2.5.IV **Instruction Verification**: validate against discovered repo-layer AGENTS.md + `docs/drizzle/prepared-statements.md` posture.
+  - [x] 2.5.OUT Write outcome.
 
 - [ ] 2.6 [Implement Backend Service — CREATE `PlatformAnalyticsService`]
   - Files to create/modify:
