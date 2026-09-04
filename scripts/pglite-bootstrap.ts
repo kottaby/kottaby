@@ -48,7 +48,7 @@ async function main() {
         try {
           await pg.exec(stmt);
         } catch (e) {
-          const msg = String(e?.message ?? e);
+          const msg = String((e as Error)?.message ?? e);
           // Tolerate "already exists" errors (re-running migrations)
           if (/already exists|duplicate_|conflicts with/i.test(msg)) {
             // continue
@@ -60,7 +60,7 @@ async function main() {
       applied++;
       console.log(`[pglite-bootstrap] Applied: ${dir}`);
     } catch (e) {
-      console.error(`[pglite-bootstrap] FAILED: ${dir} — ${String(e?.message ?? e).slice(0, 300)}`);
+      console.error(`[pglite-bootstrap] FAILED: ${dir} — ${String((e as Error)?.message ?? e).slice(0, 300)}`);
     }
   }
 
@@ -76,7 +76,7 @@ async function main() {
       await pg.exec(sql);
       console.log(`[pglite-bootstrap] Applied custom: ${file.split("/").pop()}`);
     } catch (e) {
-      const msg = String(e?.message ?? e);
+      const msg = String((e as Error)?.message ?? e);
       if (/already exists|duplicate_/i.test(msg)) {
         // continue
       } else {

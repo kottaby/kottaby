@@ -34,7 +34,6 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
-  Stack,
   TextField,
   Typography,
 } from "@mui/material";
@@ -117,8 +116,17 @@ export function GovernanceActionsSection({ user, onToast }: GovernanceActionsSec
   });
 
   return (
-    <Box>
-      <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: "wrap", rowGap: 1 }}>
+    <Box sx={{ pb: 2 }}>
+      <Box
+        sx={{
+          display: "grid",
+          // 2 columns on mobile+tablet, 4 columns on desktop (≥900px).
+          // Equal-width cells eliminate the "ragged grid" defect where shorter
+          // labels shrink — every button is the same width within its row.
+          gridTemplateColumns: { xs: "1fr 1fr", sm: "1fr 1fr", md: "repeat(4, 1fr)" },
+          gap: 1.5,
+        }}
+      >
         {buttons.map(btn => (
           <Button
             key={btn.kind}
@@ -128,12 +136,22 @@ export function GovernanceActionsSection({ user, onToast }: GovernanceActionsSec
             disabled={btn.disabled}
             onClick={() => api.openDialog(btn.kind)}
             aria-label={btn.label}
-            sx={{ ...focusVisibleRingSx, minHeight: TOUCH, minWidth: TOUCH }}
+            sx={{
+              ...focusVisibleRingSx,
+              // Enforce ≥44px touch target + consistent internal padding.
+              // width:100% so the button fills its grid cell (no ragged edges).
+              minHeight: TOUCH,
+              minWidth: TOUCH,
+              px: 1.5,
+              py: 1.25,
+              width: "100%",
+              justifyContent: "center",
+            }}
           >
             {btn.label}
           </Button>
         ))}
-      </Stack>
+      </Box>
       <Dialog
         open={api.openAction !== null}
         onClose={api.closeDialog}

@@ -19,10 +19,10 @@ import { logger } from "@/backend/lib/logger";
 
 ensureEnvironmentValidated();
 
-const server = new ApolloServer<unknown>({
+const server = new ApolloServer({
   schema: graphQLSchema,
   introspection: true,
-  formatError: (formatted, error) => {
+  formatError: (formatted) => {
     // Pass through; Apollo's default envelope is correct for our wire-tier matrix
     return formatted;
   },

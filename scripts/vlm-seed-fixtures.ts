@@ -88,7 +88,7 @@ async function main() {
     );
     console.log(`[seed-fixtures] applicants row seeded for teacher T`);
   } catch (e) {
-    console.warn(`[seed-fixtures] applicants seed skipped: ${String(e?.message ?? e).slice(0, 150)}`);
+    console.warn(`[seed-fixtures] applicants seed skipped: ${String((e as Error)?.message ?? e).slice(0, 150)}`);
   }
 
   // Seed the students row for student S (required for student-handshake)
@@ -100,7 +100,7 @@ async function main() {
     );
     console.log(`[seed-fixtures] students row seeded for student S`);
   } catch (e) {
-    console.warn(`[seed-fixtures] students seed skipped: ${String(e?.message ?? e).slice(0, 150)}`);
+    console.warn(`[seed-fixtures] students seed skipped: ${String((e as Error)?.message ?? e).slice(0, 150)}`);
   }
 
   console.log("\n[seed-fixtures] SUMMARY — fixture cast for VLM cross-user verification:");
