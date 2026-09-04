@@ -15,6 +15,7 @@ import dynamic from "next/dynamic";
 import type { ReactNode } from "react";
 import type { AdminPlatformAnalyticsQuery_adminPlatformAnalytics } from "@/frontend/graphql/generated/gql/graphql";
 import { TrendChartBodySkeleton } from "@/frontend/views/admin/analytics/PlatformAnalyticsStates";
+import { TRENDS_GRID_SX } from "@/frontend/views/admin/analytics/platform-analytics-display";
 import { TrendChartCard } from "@/frontend/views/admin/analytics/TrendChartCard";
 import type { AnalyticsLabels } from "@/shared/locale/types/analytics";
 
@@ -39,13 +40,7 @@ export function PlatformAnalyticsTrends({
   locale,
 }: Readonly<PlatformAnalyticsTrendsProps>): ReactNode {
   return (
-    <Box
-      sx={{
-        display: "grid",
-        gridTemplateColumns: { xs: "1fr", lg: "1fr 1fr" },
-        gap: { xs: 2, md: 3 },
-      }}
-    >
+    <Box sx={TRENDS_GRID_SX}>
       <TrendChartCard icon={<BarChartOutlined />} title={labels.sessionTrendTitle} caption={labels.dailyLabel}>
         <SessionTrendChart
           data={snapshot.sessionTrendDaily}

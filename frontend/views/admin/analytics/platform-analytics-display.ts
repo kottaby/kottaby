@@ -1,7 +1,7 @@
 /**
  * Pure display plumbing for the platform-analytics surfaces — the shared
- * metric-grid layout token, exact-decimal money rendering, locale-aware
- * count/rating formatting, and the per-currency trend pivot.
+ * metric-grid and trends-row layout tokens, exact-decimal money rendering,
+ * locale-aware count/rating formatting, and the per-currency trend pivot.
  *
  * EVERYTHING here is display-only:
  *  - money leaves arrive as exact decimal STRINGS and are grouped by string
@@ -20,6 +20,13 @@ import type { AdminPlatformAnalyticsQuery_adminPlatformAnalytics_revenueTrendDai
 export const METRIC_GRID_SX = {
   display: "grid",
   gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)", lg: "repeat(4, 1fr)" },
+  gap: { xs: 2, md: 3 },
+} as const;
+
+/** Shared trends-row grid: the two trend charts side-by-side desktop → stacked below `lg`. */
+export const TRENDS_GRID_SX = {
+  display: "grid",
+  gridTemplateColumns: { xs: "1fr", lg: "1fr 1fr" },
   gap: { xs: 2, md: 3 },
 } as const;
 
