@@ -7,3 +7,5 @@
  *  - Wired through the top-level sharedDocuments barrel.
  */
 export * from "./admin-users.documents";
+export * from "./audit-trail.documents";
+export * from "./teacher-certification.documents";

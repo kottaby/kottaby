@@ -20,13 +20,50 @@
  *    mutation additions — `markNotificationRead` +
  *    `markAllNotificationsRead` — and the sanctioned users-locale additions
  *    (D2 backend vertical) — the `AppLocale` enum + `User.locale` + the
- *    `updateMyLocale` mutation): ZERO new mutations beyond the refreshed
- *    frozen set, and a whole-schema named-type delta of EXACTLY
- *    `{DateTime, HandshakeCodeLookup, HealthCheck}` (the probe type plus the
- *    `DateTime` scalar registered in `shared/scalar.pothos.ts` plus the
- *    DEV1-013 `HandshakeCodeLookup` object) while the query set grows only
- *    by the sanctioned probe re-registration and the DEV1-013 student-handshake
- *    queries (`findStudentByHandshakeCode`, `myHandshakeCode`).
+ *    `updateMyLocale` mutation — and, absorbed additively, the admin
+ *    user-management surface (directory/stats/detail/activity reads + the
+ *    admin CRUD mutation trio + the governance-filter enum) and the global
+ *    admin audit-trail read surface — the `adminAuditLogs` query backed by
+ *    the `AdminAuditLogEntry` object, the `AdminAuditLogPage` embedded
+ *    wrapper, and the `AdminAuditLogFiltersInput` input — with the
+ *    `AuditActionType` enum REUSED from the shared registry, never
+ *    re-registered — and, absorbed additively, the admin broadcast
+ *    surface — the `adminBroadcastNotification` mutation + the
+ *    `BroadcastAudienceType` enum + the `BroadcastAudienceInput` /
+ *    `AdminBroadcastNotificationInput` inputs — and, absorbed additively, the
+ *    DEV3-004/005/012/013 session family — the lifecycle mutation quartet
+ *    (`createSession`, `startSession`, `completeSession`, `cancelSession`),
+ *    the DEV3-005 dispute pair (`openSessionDispute`,
+ *    `resolveSessionDispute`), the DEV3-012 dual-confirmation mutation
+ *    (`confirmSessionCompletion`), the DEV3-013 payout write
+ *    (`requestWithdrawal`), the participant-read trio (`sessionById`,
+ *    `myStudentSessions`, `myTeacherSessions`) + the DEV3-005 admin
+ *    arbitration listing (`adminDisputedSessions`) + the DEV3-013 wallet
+ *    read (`myWallet`), the scheduling/arbitration/ledger enum vocabulary
+ *    (`SessionStatus`, `SessionType`, `SessionIntent`, `DisputeResolution`,
+ *    `TransactionType`, `TransactionStatus`), and the session/wallet
+ *    objects + inputs). **The parent-link extension performed the
+ *    documented reconcile-then-extend (REQ-061):** STEP ONE re-anchored the
+ *    stale arrays to the CURRENT live surface (they predated the shipped
+ *    DEV3-016 admin surface — 4 admin queries + 3 admin mutations + the
+ *    `AdminUserGovernanceFilter`/`AuditActionType` enums + 11 admin types
+ *    were folded in; every anchor change is listed in the extend's
+ *    outcome notes), then STEP TWO extended the now-current
+ *    baselines with the parent-link surface (the five pinned root
+ *    fields + the `LinkStatus` enum). **The parent-link↔DEV3-020 merge
+ *    performed the SAME reconcile for the global admin audit-trail read
+ *    surface** (the `adminAuditLogs` query backed by the
+ *    `AdminAuditLogEntry` object, the `AdminAuditLogPage` embedded wrapper,
+ *    and the `AdminAuditLogFiltersInput` input — the `AuditActionType` enum
+ *    REUSED from the shared registry, never re-registered). The only
+ *    additions beyond the refreshed baselines are the probe + DEV1-013
+ *    handshake queries (query root) and the whole-schema named-type delta
+ *    of EXACTLY `{DateTime, HandshakeCodeLookup, HealthCheck,
+ *    IncomingParentLinkRequest, OutgoingParentLinkRequest}` + the
+ *    DEV3-004/005/013 session/arbitration/ledger objects and enums (the
+ *    probe type plus the `DateTime` scalar registered in
+ *    `shared/scalar.pothos.ts`, the DEV1-013 `HandshakeCodeLookup` object,
+ *    and the two parent-link objects pinned by the extend step).
  *  - **Notification surface** — the `NotificationType` enum carries exactly
  *    the 7 canonical values (TS-enum keys as GraphQL names, snake_case
  *    runtime values), the `Notification` object exposes `id` FIRST with
@@ -47,6 +84,16 @@
  *    `User!`, `User.locale` is the nullable `AppLocale` enum, the enum
  *    carries exactly the 2 canonical values, and anonymous in-process
  *    execution rejects with UNAUTHORIZED.
+ *  - **Parent-link surface (REQ-061 extend pins)** — the five
+ *    root fields exist with EXACTLY the pinned wire shapes (both list
+ *    queries NON-paginated `[T!]!` with ZERO arguments; `requestParentChildLink`
+ *    the ONLY nullable new mutation — the null-collapse contract);
+ *    `LinkStatus` carries EXACTLY the four canonical members; both objects
+ *    expose EXACTLY the six canonical fields with `id` FIRST on the source
+ *    and the `DateTime` scalar on ALL six timestamps (zero `String`
+ *    leakage); a surface probe validates the full pinned selections against
+ *    the live schema, and anonymous in-process execution of ALL FIVE fields
+ *    rejects with UNAUTHORIZED (scope-gated, never public).
  *  - **Allowlist agreement** — the scopeless `_health` field is present in
  *    the closed `PUBLIC_OPERATION_NAMES` tuple / `PUBLIC_OPERATIONS` set
  *    1:1 (schema↔allowlist agreement enforced as code).
@@ -58,7 +105,12 @@
  *    `frontend/graphql/generated/schema.graphql` is BYTE-IDENTICAL to a
  *    fresh `printSchema(lexicographicSortSchema(graphQLSchema))` emission,
  *    i.e. generated artifacts are in lockstep with the code-first builder
- *    (read-only disk access; the suite writes NOTHING).
+ *    (read-only disk access; the suite writes NOTHING). Belt-and-braces
+ *    pins assert the DEV3-004 session surface is really inside the
+ *    committed artifact (seven root operations + the two object types +
+ *    the two input types) plus the DEV3-005 dispute surface (the three
+ *    new root operations, the arbitration enum, and the five nullable
+ *    `Session` fields).
  *
  * Pure unit tier — NO server boot, NO network, NO DB. Runs via the mandated
  * runner: `bun run test/scripts/run-test.ts backend/graphql/test/schema-surface.test.ts`.
@@ -80,25 +132,67 @@ import {
   validate,
 } from "graphql";
 import { NotificationType } from "@/backend/enum/notifications/notification-type.enum";
+import { LinkStatus } from "@/backend/enum/shared/link-status.enum";
 import { graphQLSchema } from "@/backend/graphql/gqlSchema";
 import { PUBLIC_OPERATION_NAMES, PUBLIC_OPERATIONS } from "@/backend/lib/gateway";
 
 // ─── Frozen baseline inventory (captured @ HEAD 8e5ebb8; refreshed for the ────
 // ─── sanctioned applicant + notifications + users-locale + DEV1-013 handshake ─
 // ─── + DEV1-005 plan-catalog additions) ──────────────────────────────────────
+// ─── REQ-061 reconcile-then-extend: both steps recorded in the extend's     ─
+// ─── outcome notes. RECONCILE (STEP 1 — never silent): the                   ─
+// ─── arrays had gone stale against the already-shipped DEV3-016 admin surface ─
+// ─── (+4 admin queries, +3 admin mutations, +2 admin enums, +11 admin types)  ─
+// ─── — re-anchored to the live built schema. EXTEND (STEP 2): the parent-   ─
+// ─── link surface folded in (+5 root fields, +`LinkStatus` enum); the        ─
+// ─── two parent-link OBJECTS stay pinned as extend additions in the delta     ─
+// ─── literal below. Growth is monotonic; no stale entry was deleted, only     ─
+// ─── re-anchored.                                                             ─
+// ─── The parent-link↔DEV3-020 merge re-ran STEP ONE for the audit-trail     ─
+// ─── surface (+`adminAuditLogs` query, +3 audit types folded into baseline).  ─
+// ─── This merge absorbs the DEV3-004/005/012/013 session family and the     ─
+// ─── DEV3-022d admin-broadcast surface the same way: additive only,         ─
+// ─── entries are NEVER dropped. The cold-start branch's re-pin to the LIVE  ─
+// ─── tree rides along: the shipped admin user-management surface (directory ─
+// ─── queries, stats/activity, create/update/soft-delete mutations,          ─
+// ─── governance filter + audit enum) and the admin cold-start certification ─
+// ─── mutation are enrolled as baseline.                                     ─
 
-/** Root query field names — the frozen baseline (probe re-registration excluded). */
+/** Root query field names — the frozen baseline (probe re-registration excluded), re-pinned to the LIVE inventory (admin directory/stats/detail/activity reads enrolled). */
 const PRE_3_1_QUERY_FIELDS = [
+  // Parent-link↔DEV3-020 merge reconcile: the global audit-trail read shipped on
+  // main while this branch was in flight (mirrors the DEV3-016 precedent).
+  "adminAuditLogs",
   "adminPlans",
+  // DEV3-016 reconcile: the admin user-management reads shipped before 3.1.
+  "adminUserActivity",
+  "adminUserDetail",
+  "adminUsers",
+  "adminUserStats",
   "me",
   "myApplicantProfile",
   "myNotifications",
   "myUnreadNotificationCount",
+  // Parent-link extend: the two role-gated link-request lists (NON-paginated).
+  "myIncomingParentLinkRequests",
+  "myOutgoingParentLinkRequests",
   "planCatalog",
   "recitationReadings",
 ] as const;
-/** Root mutation field names — the frozen baseline (auth quartet + notification read-latch pair + users-locale + plan-catalog CRUD). */
+/** Root mutation field names — the frozen baseline (auth quartet + notification read-latch pair + users-locale + plan-catalog CRUD), re-pinned to the LIVE inventory (admin user-management trio + admin cold-start certification + the admin broadcast mutation enrolled). */
 const PRE_3_1_MUTATION_FIELDS = [
+  // DEV3-016 reconcile: the admin user-management writes shipped before 3.1
+  // (the DEV3-022d admin broadcast mutation absorbed alongside them).
+  "adminBroadcastNotification",
+  // Cold-start branch (DEV3-018): the admin teacher-certification mutation
+  // shipped on this branch — enrolled as baseline with the DEV3-016 trio.
+  "adminCertifyTeacherColdStart",
+  "adminCreateUser",
+  "adminSetUserDeleted",
+  "adminUpdateUser",
+  // Parent-link extend: the three link-request mutations (`requestParentChildLink`
+  // is the ONLY nullable one — pinned in the describe below).
+  "cancelParentLinkRequest",
   "createPlan",
   "login",
   "logout",
@@ -106,27 +200,98 @@ const PRE_3_1_MUTATION_FIELDS = [
   "markNotificationRead",
   "refreshToken",
   "registerUser",
+  "requestParentChildLink",
+  "respondToParentLinkRequest",
   "setPlanActiveStatus",
   "updateMyLocale",
   "updatePlan",
 ] as const;
-/** GraphQL enum type names — the freeze forbids any new Pothos enum. */
+/** GraphQL enum type names — the freeze forbids any new Pothos enum beyond the pinned parent-link `LinkStatus` (the governance-filter + audit-action + broadcast-audience enums sit in the reconciled baseline). */
 const PRE_3_1_ENUMS = [
+  // DEV3-016 reconcile: the admin governance/audit enums shipped before 3.1.
+  // Parent-link↔DEV3-020 merge: `AuditActionType` was already baseline — reused,
+  // never re-registered. The DEV3-022d `BroadcastAudienceType` enum absorbed
+  // alongside them.
+  "AdminUserGovernanceFilter",
   "ApplicantStatus",
   "AppLocale",
+  "AuditActionType",
+  "BroadcastAudienceType",
   "Gender",
+  // Parent-link extend: the link-request status enum (members pinned below).
+  "LinkStatus",
   "NotificationType",
   "RecitationReading",
   "RegisterPublicRole",
   "UserRole",
 ] as const;
-/** Non-root object/enum/scalar SDL type names in the baseline (introspection `__*` and spec scalars excluded). */
+/**
+ * DEV3-004 session lifecycle root fields — registered ONCE via the
+ * side-effect barrels (`query|mutation/classes/index.ts` → top-level
+ * barrel → `gqlSchema.ts`); role-gated/authenticated per REQ-032 and
+ * therefore deliberately ABSENT from the public-operation allowlist
+ * (`backend/lib/gateway/public-operations.ts` stays byte-unchanged).
+ */
+const DEV3_004_QUERY_FIELDS = ["myStudentSessions", "myTeacherSessions", "sessionById"] as const;
+/** DEV3-005 admin arbitration listing — the admin-gated disputed queue. */
+const DEV3_005_QUERY_FIELDS = ["adminDisputedSessions"] as const;
+/** DEV3-004 lifecycle mutation quartet (plan §3.1/§3.2 — REQ-060/061). */
+const DEV3_004_MUTATION_FIELDS = ["cancelSession", "completeSession", "createSession", "startSession"] as const;
+/** DEV3-005 dispute mutation pair (R-102/R-104). */
+const DEV3_005_MUTATION_FIELDS = ["openSessionDispute", "resolveSessionDispute"] as const;
+/** DEV3-012 dual-confirmation mutation (R-201/R-202). */
+const DEV3_012_MUTATION_FIELDS = ["confirmSessionCompletion"] as const;
+/** DEV3-013 wallet read — the teacher-only wallet + ledger surface (R-301). */
+const DEV3_013_QUERY_FIELDS = ["myWallet"] as const;
+/** DEV3-013 wallet payout write — the teacher-only withdrawal request (R-302). */
+const DEV3_013_MUTATION_FIELDS = ["requestWithdrawal"] as const;
+/** DEV3-013 billing ledger vocabulary — registered ONCE in `shared/enum.pothos.ts`. */
+const DEV3_013_ENUMS = ["TransactionStatus", "TransactionType"] as const;
+/** DEV3-005 arbitration outcome vocabulary — registered ONCE, no pgEnum backing. */
+const DEV3_005_ENUMS = ["DisputeResolution"] as const;
+/** DEV3-005 nullable `Session` fields — the dispute + reason surface (R-105/R-107). */
+const DEV3_005_SESSION_FIELDS = [
+  "cancelReason",
+  "disputeReason",
+  "disputedAt",
+  "resolutionNote",
+  "resolvedAt",
+] as const;
+/** DEV3-004 scheduling enum trio — registered ONCE in `shared/enum.pothos.ts`. */
+const DEV3_004_ENUMS = ["SessionIntent", "SessionStatus", "SessionType"] as const;
+/** Non-root object/enum/scalar SDL type names in the baseline (introspection `__*` and spec scalars excluded; the admin-broadcast input/enum surfaces absorbed additively). */
 const PRE_3_1_TYPE_NAMES = [
+  // DEV3-016 reconcile: the eleven admin surface types shipped before 3.1
+  // (the type-name inventory includes the admin ENUM names — see PRE_3_1_ENUMS).
+  // Parent-link↔DEV3-020 merge reconcile: the three audit-trail types shipped on
+  // main while this branch was in flight (same fold-in precedent). The
+  // DEV3-022d admin-broadcast input/enum surfaces absorbed alongside them.
+  "AdminAuditLogEntry",
+  "AdminAuditLogFiltersInput",
+  "AdminAuditLogPage",
+  "AdminBroadcastNotificationInput",
+  "AdminCreateUserInput",
+  "AdminParentSnapshot",
+  "AdminStudentSnapshot",
+  "AdminTeacherSnapshot",
+  "AdminUpdateUserInput",
+  "AdminUserActivityEntry",
+  "AdminUserDetail",
+  "AdminUserFiltersInput",
+  "AdminUserGovernanceFilter",
+  "AdminUserListItem",
+  "AdminUserPage",
+  "AdminUserStats",
   "AppLocale",
   "ApplicantProfile",
   "ApplicantStatus",
+  "AuditActionType",
+  "BroadcastAudienceInput",
+  "BroadcastAudienceType",
   "CreatePlanInput",
   "Gender",
+  // Parent-link extend: the link-request status enum joins the named-type set.
+  "LinkStatus",
   "LoginPayload",
   "LogoutPayload",
   "Mutation",
@@ -144,6 +309,14 @@ const PRE_3_1_TYPE_NAMES = [
   "User",
   "UserRole",
 ] as const;
+/**
+ * DEV3-004 session surface — objects + inputs that enter the named-type
+ * map when the resolver modules register the root fields (plan §3.1 SDL).
+ * The scheduling enum trio is pinned separately (see `DEV3_004_ENUMS`).
+ */
+const DEV3_004_TYPE_NAMES = ["CreateSessionInput", "Session", "SessionListFilterInput", "SessionPage"] as const;
+/** DEV3-013 billing objects + input (R-301/R-302) — the wallet surface types. */
+const DEV3_013_TYPE_NAMES = ["RequestWithdrawalInput", "TeacherTransaction", "Wallet"] as const;
 
 // ─── Schema walk helpers ─────────────────────────────────────────────────────
 
@@ -182,22 +355,31 @@ describe("Query._health — retyped probe surface", () => {
     throw new Error("Schema must define a root Query type");
   }
 
-  test("root query retains EXACTLY the baseline fields plus the probe", () => {
+  test("root query retains EXACTLY the baseline fields plus the pinned additions", () => {
     expect(queryType).toBeDefined();
     const fieldNames = Object.keys(queryType.getFields());
     // Baseline survivors intact…
     for (const name of PRE_3_1_QUERY_FIELDS) {
       expect(fieldNames).toContain(name);
     }
-    // …and the ONLY additions beyond them are the probe plus the
-    // DEV1-013 student-handshake queries (myApplicantProfile already sits in
-    // the refreshed baseline).
+    // …and the ONLY additions beyond them are the explicitly enumerated
+    // sanctioned surfaces: the probe, the DEV1-013 student-handshake
+    // queries, the DEV3-004 participant-read trio, the DEV3-005 admin
+    // arbitration listing, and the DEV3-013 wallet read (the admin
+    // directory reads and the `adminAuditLogs` trail read sit in the
+    // refreshed baseline — DEV3-016 + DEV3-020 reconciles;
+    // myApplicantProfile likewise).
     const additions = fieldNames.filter(name => !(PRE_3_1_QUERY_FIELDS as readonly string[]).includes(name));
-    expect(additions.toSorted((a, b) => a.localeCompare(b))).toEqual([
-      "_health",
-      "findStudentByHandshakeCode",
-      "myHandshakeCode",
-    ]);
+    expect(additions.toSorted((a, b) => a.localeCompare(b))).toEqual(
+      [
+        "_health",
+        "findStudentByHandshakeCode",
+        "myHandshakeCode",
+        ...DEV3_004_QUERY_FIELDS,
+        ...DEV3_005_QUERY_FIELDS,
+        ...DEV3_013_QUERY_FIELDS,
+      ].toSorted((a, b) => a.localeCompare(b))
+    );
   });
 
   test("`_health` is NON-NULLABLE `HealthCheck!` (retyped from the String! placeholder)", () => {
@@ -257,11 +439,27 @@ describe("HealthCheck object shape — four scalar fields, no id", () => {
 });
 
 describe("Surface freeze — pinned additions vs the baseline inventory", () => {
-  test("mutation set is EXACTLY the refreshed frozen baseline (ZERO new mutations beyond it)", () => {
+  test("mutation set grows ONLY by the sanctioned additions (DEV3-004 quartet + DEV3-005 dispute pair + DEV3-012 confirm + DEV3-013 payout)", () => {
     const mutationFields = graphQLSchema.getMutationType()?.getFields() ?? {};
     const names = Object.keys(mutationFields).toSorted((a, b) => a.localeCompare(b));
 
-    expect(names).toEqual([...PRE_3_1_MUTATION_FIELDS]);
+    // Baseline survivors intact…
+    for (const name of PRE_3_1_MUTATION_FIELDS) {
+      expect(names).toContain(name);
+    }
+    // …and the ONLY additions are the DEV3-004 quartet, the DEV3-005
+    // dispute pair, and the DEV3-012 dual-confirmation mutation (all
+    // authScopes-gated — none of them is allowlist material; the
+    // public-operation registry stays byte-unchanged).
+    expect(names).toEqual(
+      [
+        ...PRE_3_1_MUTATION_FIELDS,
+        ...DEV3_004_MUTATION_FIELDS,
+        ...DEV3_005_MUTATION_FIELDS,
+        ...DEV3_012_MUTATION_FIELDS,
+        ...DEV3_013_MUTATION_FIELDS,
+      ].toSorted((a, b) => a.localeCompare(b))
+    );
     expect(names).not.toContain("_health");
   });
 
@@ -271,17 +469,69 @@ describe("Surface freeze — pinned additions vs the baseline inventory", () => 
       .map(type => type.name)
       .toSorted((a, b) => a.localeCompare(b));
 
-    expect(enumNames).toEqual([...PRE_3_1_ENUMS]);
+    expect(enumNames).toEqual(
+      [...PRE_3_1_ENUMS, ...DEV3_004_ENUMS, ...DEV3_005_ENUMS, ...DEV3_013_ENUMS].toSorted((a, b) => a.localeCompare(b))
+    );
   });
 
-  test("whole-schema named-type delta is pinned: DateTime scalar + HealthCheck probe + DEV1-013 handshake-code surface", () => {
+  test("DisputeResolution exposes exactly the arbitration vocabulary (Cancel | Complete)", () => {
+    const disputeEnum = graphQLSchema.getType("DisputeResolution");
+
+    if (!(disputeEnum instanceof GraphQLEnumType)) {
+      throw new Error("DisputeResolution must be registered as a GraphQL enum type");
+    }
+    expect(
+      disputeEnum
+        .getValues()
+        .map(value => value.name)
+        .toSorted((a, b) => a.localeCompare(b))
+    ).toEqual(["Cancel", "Complete"]);
+  });
+
+  test("Session exposes EXACTLY the DEV3-004 field set plus the five DEV3-005 nullable dispute fields", () => {
+    const sessionType = graphQLSchema.getType("Session");
+
+    if (!(sessionType instanceof GraphQLObjectType)) {
+      throw new Error("Session must be registered as a GraphQL object type");
+    }
+    const fields = sessionType.getFields();
+    for (const name of DEV3_005_SESSION_FIELDS) {
+      expect(Object.hasOwn(fields, name)).toBe(true);
+    }
+    // All five are nullable (no `!` wrapping) — the dispute/reason data is
+    // optional on every row (rows cancelled/disputed/resolved before this
+    // ticket carry NULL).
+    for (const name of ["cancelReason", "disputeReason", "resolutionNote"]) {
+      expect(fields[name]?.type.toString()).toBe("String");
+    }
+    for (const name of ["disputedAt", "resolvedAt"]) {
+      expect(fields[name]?.type.toString()).toBe("DateTime");
+    }
+  });
+
+  test("whole-schema named-type delta is pinned: refreshed baseline delta (DateTime scalar + HealthCheck probe + DEV1-013 handshake surface) + admin-directory/audit-trail/broadcast absorbed surfaces + DEV3-004 session objects/inputs + scheduling/arbitration/ledger enums + DEV3-013 wallet surface + the parent-link objects (extend step)", () => {
     const post = new Set(sdlTypeNames());
 
     for (const name of PRE_3_1_TYPE_NAMES) {
       expect(post.has(name)).toBe(true);
     }
+    // The two parent-link OBJECT types are the extend step's pinned delta —
+    // the `LinkStatus` enum itself already joined the baseline above.
     const additions = sdlTypeNames().filter(name => !(PRE_3_1_TYPE_NAMES as readonly string[]).includes(name));
-    expect(additions).toEqual(["DateTime", "HandshakeCodeLookup", "HealthCheck"]);
+    expect(additions).toEqual(
+      [
+        "DateTime",
+        "HandshakeCodeLookup",
+        "HealthCheck",
+        "IncomingParentLinkRequest",
+        "OutgoingParentLinkRequest",
+        ...DEV3_004_TYPE_NAMES,
+        ...DEV3_004_ENUMS,
+        ...DEV3_005_ENUMS,
+        ...DEV3_013_TYPE_NAMES,
+        ...DEV3_013_ENUMS,
+      ].toSorted((a, b) => a.localeCompare(b))
+    );
   });
 });
 
@@ -678,6 +928,28 @@ describe("Users-locale surface (D2 backend vertical) — self-scoped locale pref
     expect("superAdmin" in scopes).toBe(false);
   });
 
+  test("BroadcastAudienceType enum carries EXACTLY the 4 canonical values (keys on the wire, lowercase runtime values)", () => {
+    const enumType = graphQLSchema.getType("BroadcastAudienceType");
+
+    if (!(enumType instanceof GraphQLEnumType)) {
+      throw new Error("BroadcastAudienceType must be registered as a GraphQL enum type");
+    }
+
+    const values = enumType.getValues();
+    expect(values).toHaveLength(4);
+    // The built schema is lexicographically sorted (enum-value order carries
+    // no GraphQL semantics), so the pins compare as sorted sets:
+    expect(values.map(value => value.name).toSorted((a, b) => a.localeCompare(b))).toEqual(
+      ["All", "Country", "Plan", "Role"].toSorted((a, b) => a.localeCompare(b))
+    );
+    // Runtime values stay the canonical lowercase strings — byte-identical
+    // to the TS enum single source of truth (wire vocabulary is the KEY set;
+    // a rename would move the wire contract and must fail here).
+    expect(values.map(value => value.value).toSorted((a, b) => a.localeCompare(b))).toEqual(
+      ["all", "country", "plan", "role"].toSorted((a, b) => a.localeCompare(b))
+    );
+  });
+
   test("AppLocale enum carries EXACTLY the 2 canonical values (keys on the wire, lowercase runtime values)", () => {
     const enumType = graphQLSchema.getType("AppLocale");
 
@@ -735,6 +1007,268 @@ describe("Users-locale surface (D2 backend vertical) — self-scoped locale pref
   });
 });
 
+describe("Parent-link surface (extend) — five pinned root fields + LinkStatus + canonical objects", () => {
+  const queryType = graphQLSchema.getQueryType();
+  const mutationType = graphQLSchema.getMutationType();
+
+  if (!queryType) {
+    throw new Error("Schema must define a root Query type");
+  }
+  if (!mutationType) {
+    throw new Error("Schema must define a root Mutation type");
+  }
+
+  // Captured ONCE after the narrowing guards — the lookups below never
+  // re-dereference a possibly-null root type.
+  const rootQueries = queryType.getFields();
+  const rootMutations = mutationType.getFields();
+
+  /** Fail-fast root-field lookup (mirrors the notification describes above). */
+  function queryRootField(name: string) {
+    const field = rootQueries[name];
+    if (!field) {
+      throw new Error(`Query must register the \`${name}\` root field`);
+    }
+    return field;
+  }
+
+  function mutationRootField(name: string) {
+    const field = rootMutations[name];
+    if (!field) {
+      throw new Error(`Mutation must register the \`${name}\` root field`);
+    }
+    return field;
+  }
+
+  /** Canonical definition order on the pothos source (drives the id-FIRST pin). */
+  const CANONICAL_OUTGOING_FIELDS = [
+    "id",
+    "status",
+    "studentMaskedName",
+    "createdAt",
+    "expiresAt",
+    "respondedAt",
+  ] as const;
+  const CANONICAL_INCOMING_FIELDS = [
+    "id",
+    "status",
+    "parentFullName",
+    "createdAt",
+    "expiresAt",
+    "respondedAt",
+  ] as const;
+
+  test("BOTH list queries are NON-paginated `[T!]!` arrays with ZERO arguments (no page wrapper, no connection, no identity arg)", () => {
+    const outgoing = queryRootField("myOutgoingParentLinkRequests");
+    expect(outgoing.type.toString()).toBe("[OutgoingParentLinkRequest!]!");
+    expect(outgoing.args).toHaveLength(0);
+
+    const incoming = queryRootField("myIncomingParentLinkRequests");
+    expect(incoming.type.toString()).toBe("[IncomingParentLinkRequest!]!");
+    expect(incoming.args).toHaveLength(0);
+  });
+
+  test("`requestParentChildLink(code: String!): OutgoingParentLinkRequest` — the ONLY nullable new mutation (null collapse)", () => {
+    const field = mutationRootField("requestParentChildLink");
+    // NULLABLE on purpose — a valid-format code matching no eligible student
+    // answers null through the SAME channel as a governance-excluded child.
+    expect(field.type.toString()).toBe("OutgoingParentLinkRequest");
+    const codeArg = field.args[0];
+    if (!codeArg) throw new Error("expected the code argument");
+    expect(codeArg.name).toBe("code");
+    expect(codeArg.type.toString()).toBe("String!");
+    expect(field.args).toHaveLength(1);
+
+    // The only-nullable pin, across ALL THREE new mutations:
+    const newMutationFields = ["cancelParentLinkRequest", "requestParentChildLink", "respondToParentLinkRequest"].map(
+      name => mutationRootField(name)
+    );
+    const nullableNames = newMutationFields
+      .filter(mutationField => !mutationField.type.toString().endsWith("!"))
+      .map(mutationField => mutationField.name);
+    expect(nullableNames).toEqual(["requestParentChildLink"]);
+  });
+
+  test("`respondToParentLinkRequest(requestId: ID!, accept: Boolean!): IncomingParentLinkRequest!`", () => {
+    const field = mutationRootField("respondToParentLinkRequest");
+    expect(field.type.toString()).toBe("IncomingParentLinkRequest!");
+    const argNames = field.args.map(arg => arg.name).toSorted((a, b) => a.localeCompare(b));
+    expect(argNames).toEqual(["accept", "requestId"]);
+    const byName = new Map(field.args.map(arg => [arg.name, arg.type.toString()]));
+    expect(byName.get("requestId")).toBe("ID!");
+    expect(byName.get("accept")).toBe("Boolean!");
+  });
+
+  test("`cancelParentLinkRequest(requestId: ID!): OutgoingParentLinkRequest!`", () => {
+    const field = mutationRootField("cancelParentLinkRequest");
+    expect(field.type.toString()).toBe("OutgoingParentLinkRequest!");
+    const requestIdArg = field.args[0];
+    if (!requestIdArg) throw new Error("expected the requestId argument");
+    expect(requestIdArg.name).toBe("requestId");
+    expect(requestIdArg.type.toString()).toBe("ID!");
+    expect(field.args).toHaveLength(1);
+  });
+
+  test("LinkStatus enum carries EXACTLY the 4 canonical members (keys on the wire, lowercase runtime values)", () => {
+    const enumType = graphQLSchema.getType("LinkStatus");
+
+    if (!(enumType instanceof GraphQLEnumType)) {
+      throw new Error("LinkStatus must be registered as a GraphQL enum type");
+    }
+
+    const values = enumType.getValues();
+    expect(values).toHaveLength(4);
+    // The built schema is lexicographically sorted (enum-value order carries
+    // no GraphQL semantics), so the pins compare as sorted sets:
+    expect(values.map(value => value.name).toSorted((a, b) => a.localeCompare(b))).toEqual(
+      ["Confirmed", "Expired", "Pending", "Rejected"].toSorted((a, b) => a.localeCompare(b))
+    );
+    // Runtime values stay the canonical lowercase strings — byte-identical to
+    // the pgEnum / TS enum single source of truth.
+    expect(values.map(value => value.value).toSorted((a, b) => a.localeCompare(b))).toEqual(
+      ["confirmed", "expired", "pending", "rejected"].toSorted((a, b) => a.localeCompare(b))
+    );
+    // Single-source agreement with the canonical TS enum itself.
+    expect(values.map(value => value.name).toSorted((a, b) => a.localeCompare(b))).toEqual(
+      Object.keys(LinkStatus).toSorted((a, b) => a.localeCompare(b))
+    );
+    expect(values.map(value => value.value).toSorted((a, b) => a.localeCompare(b))).toEqual(
+      Object.values(LinkStatus).toSorted((a, b) => a.localeCompare(b))
+    );
+  });
+
+  test("BOTH objects expose EXACTLY the six canonical fields — DateTime on ALL six timestamps, zero String leakage", () => {
+    for (const [typeName, counterpartyField] of [
+      ["OutgoingParentLinkRequest", "studentMaskedName"],
+      ["IncomingParentLinkRequest", "parentFullName"],
+    ] as const) {
+      const objectType = graphQLSchema.getType(typeName);
+
+      if (!(objectType instanceof GraphQLObjectType)) {
+        throw new Error(`${typeName} must be registered as a GraphQL object type`);
+      }
+
+      const fields = objectType.getFields();
+      expect(Object.keys(fields).toSorted((a, b) => a.localeCompare(b))).toEqual(
+        ["createdAt", "expiresAt", "id", counterpartyField, "respondedAt", "status"].toSorted((a, b) =>
+          a.localeCompare(b)
+        )
+      );
+      const field = (name: string) => {
+        const candidate = fields[name];
+        if (!candidate) {
+          throw new Error(`${typeName} must register the \`${name}\` field`);
+        }
+        return candidate;
+      };
+      expect(field("id").type.toString()).toBe("ID!");
+      expect(field("status").type.toString()).toBe("LinkStatus!");
+      expect(field(counterpartyField).type.toString()).toBe("String!");
+      // NO String leakage — every timestamp rides the registered `DateTime`
+      // scalar; `respondedAt` is the ONLY nullable field on either object.
+      expect(field("createdAt").type.toString()).toBe("DateTime!");
+      expect(field("expiresAt").type.toString()).toBe("DateTime!");
+      expect(field("respondedAt").type.toString()).toBe("DateTime");
+      // BOPLA: raw FKs and internal identity never cross the surface.
+      expect(Object.hasOwn(fields, "studentId")).toBe(false);
+      expect(Object.hasOwn(fields, "parentId")).toBe(false);
+      expect(Object.hasOwn(fields, "userId")).toBe(false);
+    }
+  });
+
+  test("`id` is the FIRST field defined on BOTH canonical object sources (Apollo normalization convention)", () => {
+    // The built schema is lexicographically sorted (field order carries no
+    // GraphQL semantics), so the id-FIRST convention is pinned at the source
+    // level — lexical scan by design, like the Notification precedent above.
+    const source = readFileSync(
+      resolve(process.cwd(), "backend/graphql/pothos/parents/parent-link-request.pothos.ts"),
+      "utf8"
+    );
+    const fieldsMarker = "fields: t => ({";
+    const firstStart = source.indexOf(fieldsMarker);
+    if (firstStart < 0) throw new Error("expected the Outgoing fields block in the parent-link pothos source");
+    const secondStart = source.indexOf(fieldsMarker, firstStart + fieldsMarker.length);
+    if (secondStart < 0) throw new Error("expected the Incoming fields block in the parent-link pothos source");
+    const blocks = [
+      { fields: CANONICAL_OUTGOING_FIELDS, block: source.slice(firstStart, secondStart) },
+      { fields: CANONICAL_INCOMING_FIELDS, block: source.slice(secondStart) },
+    ] as const;
+    for (const { fields, block } of blocks) {
+      const positions = fields.map(name => ({ name, at: block.indexOf(`${name}: `) }));
+      for (const { at } of positions) {
+        expect(at).toBeGreaterThanOrEqual(0);
+      }
+      const idPosition = positions.find(position => position.name === "id")?.at ?? -1;
+      for (const { name, at } of positions) {
+        if (name !== "id") {
+          expect(idPosition).toBeLessThan(at);
+        }
+      }
+    }
+  });
+
+  test("surface probe: the full pinned selections validate against the live schema (zero errors)", () => {
+    const sources = [
+      "{ myOutgoingParentLinkRequests { id status studentMaskedName createdAt expiresAt respondedAt } }",
+      "{ myIncomingParentLinkRequests { id status parentFullName createdAt expiresAt respondedAt } }",
+      'mutation { requestParentChildLink(code: "ABC123") { id status studentMaskedName createdAt expiresAt respondedAt } }',
+      'mutation { respondToParentLinkRequest(requestId: "1", accept: true) { id status parentFullName createdAt expiresAt respondedAt } }',
+      'mutation { cancelParentLinkRequest(requestId: "1") { id status studentMaskedName createdAt expiresAt respondedAt } }',
+    ] as const;
+    for (const source of sources) {
+      expect(validate(graphQLSchema, parse(source))).toEqual([]);
+    }
+  });
+
+  test("anonymous (context-free) in-process execution of ALL FIVE root fields yields UNAUTHORIZED", async () => {
+    // Each op asserted in its OWN document: four of the five fields are
+    // non-null at the root, so a combined document would null-propagate the
+    // first failure over its siblings (one error, remaining fields never
+    // resolved). The nullable `requestParentChildLink` keeps its own document
+    // for uniformity with the sibling suites.
+    const documents = [
+      { source: "{ myOutgoingParentLinkRequests { id } }", path: "myOutgoingParentLinkRequests" },
+      { source: "{ myIncomingParentLinkRequests { id } }", path: "myIncomingParentLinkRequests" },
+      { source: 'mutation { requestParentChildLink(code: "ABC123") { id } }', path: "requestParentChildLink" },
+      {
+        source: 'mutation { respondToParentLinkRequest(requestId: "1", accept: true) { id } }',
+        path: "respondToParentLinkRequest",
+      },
+      { source: 'mutation { cancelParentLinkRequest(requestId: "1") { id } }', path: "cancelParentLinkRequest" },
+    ] as const;
+    const results = await Promise.all(
+      documents.map(async document => graphql({ schema: graphQLSchema, source: document.source, contextValue: {} }))
+    );
+    for (const [index, result] of results.entries()) {
+      const errors = result.errors;
+      if (!errors) throw new Error("expected the anonymous parent-link call to fail");
+      expect(errors).toHaveLength(1);
+      expect(errors[0]?.extensions?.code).toBe("UNAUTHORIZED");
+      expect(errors[0]?.path).toEqual([documents[index]?.path]);
+    }
+  });
+
+  test("smuggled identity args die at validation BEFORE any resolver runs (zero identity-arg surface)", () => {
+    const smuggledListQuery = validate(graphQLSchema, parse("{ myOutgoingParentLinkRequests(studentId: 123) { id } }"));
+    expect(smuggledListQuery).toHaveLength(1);
+    expect(smuggledListQuery[0]?.message).toContain('Unknown argument "studentId"');
+
+    const smuggledCancel = validate(
+      graphQLSchema,
+      parse('mutation { cancelParentLinkRequest(requestId: "1", parentId: 9) { id } }')
+    );
+    expect(smuggledCancel).toHaveLength(1);
+    expect(smuggledCancel[0]?.message).toContain('Unknown argument "parentId"');
+
+    const smuggledRequest = validate(
+      graphQLSchema,
+      parse('mutation { requestParentChildLink(code: "ABC123", studentId: 123) { id } }')
+    );
+    expect(smuggledRequest).toHaveLength(1);
+    expect(smuggledRequest[0]?.message).toContain('Unknown argument "studentId"');
+  });
+});
+
 describe("Public-operation allowlist agreement", () => {
   test("`_health` is a member of the closed allowlist 1:1 with its scopeless schema posture", () => {
     expect(PUBLIC_OPERATION_NAMES).toContain("_health");
@@ -779,5 +1313,46 @@ describe("Codegen sync — committed SDL is byte-identical to the built schema",
     // Belt-and-braces: the synced artifact really contains the retyped probe.
     expect(committedSdl).toContain("_health: HealthCheck!");
     expect(committedSdl).toContain("type HealthCheck {");
+    // …and the DEV3-004 session surface (7 root operations + 2 object
+    // types + 2 input types) is really inside the committed artifact.
+    expect(committedSdl).toContain("sessionById(id: ID!): Session");
+    expect(committedSdl).toContain(
+      "myStudentSessions(filter: SessionListFilterInput, page: Int = 1, pageSize: Int = 25): SessionPage!"
+    );
+    expect(committedSdl).toContain(
+      "myTeacherSessions(filter: SessionListFilterInput, page: Int = 1, pageSize: Int = 25): SessionPage!"
+    );
+    expect(committedSdl).toContain("createSession(input: CreateSessionInput!): Session!");
+    expect(committedSdl).toContain("startSession(id: ID!): Session!");
+    expect(committedSdl).toContain("completeSession(id: ID!): Session!");
+    expect(committedSdl).toContain("cancelSession(id: ID!, reason: String): Session!");
+    expect(committedSdl).toContain("type Session {");
+    expect(committedSdl).toContain("type SessionPage {");
+    expect(committedSdl).toContain("input CreateSessionInput {");
+    expect(committedSdl).toContain("input SessionListFilterInput {");
+    // …and the DEV3-005 dispute surface (3 root operations + the
+    // arbitration enum + the five nullable Session fields) is really
+    // inside the committed artifact.
+    expect(committedSdl).toContain("openSessionDispute(id: ID!, reason: String!): Session!");
+    expect(committedSdl).toContain(
+      "resolveSessionDispute(id: ID!, note: String, resolution: DisputeResolution!): Session!"
+    );
+    expect(committedSdl).toContain(
+      "adminDisputedSessions(filter: SessionListFilterInput, limit: Int = 25, offset: Int = 0): SessionPage!"
+    );
+    expect(committedSdl).toContain("enum DisputeResolution {");
+    for (const field of DEV3_005_SESSION_FIELDS) {
+      expect(committedSdl).toContain(field);
+    }
+    // …and the DEV3-012 dual-confirmation mutation is really inside the
+    // committed artifact.
+    expect(committedSdl).toContain("confirmSessionCompletion(id: ID!): Session!");
+    // …and the DEV3-013 wallet surface (2 root operations + the payout
+    // input + the two ledger enums) is really inside the committed artifact.
+    expect(committedSdl).toContain("myWallet: Wallet!");
+    expect(committedSdl).toContain("requestWithdrawal(input: RequestWithdrawalInput!): Wallet!");
+    expect(committedSdl).toContain("input RequestWithdrawalInput {");
+    expect(committedSdl).toContain("enum TransactionType {");
+    expect(committedSdl).toContain("enum TransactionStatus {");
   });
 });

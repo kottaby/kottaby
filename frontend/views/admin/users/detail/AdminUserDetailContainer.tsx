@@ -82,6 +82,7 @@ export function AdminUserDetailContainer({ labels, userId }: AdminUserDetailCont
           component={MuiLink}
           href="/admin/users"
           startIcon={<BackIcon sx={theme => ({ transform: theme.direction === "rtl" ? "scaleX(-1)" : "none" })} />}
+          sx={{ minHeight: 44 }}
         >
           {labels.detail.backToDirectory}
         </Button>
@@ -96,6 +97,7 @@ export function AdminUserDetailContainer({ labels, userId }: AdminUserDetailCont
         formatRelative={detail.fmtRelative}
         onEdit={detail.openEdit}
         onDelete={detail.openDelete}
+        onCertify={() => detail.setCertifyTarget({ id: user.id, fullName: user.fullName, email: user.email })}
       />
 
       <Box

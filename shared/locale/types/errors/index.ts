@@ -97,8 +97,49 @@ export interface ErrorsLabels {
   readonly studentHandshakeNotFound: string;
   /** "The free trial credit has already been granted for this student." — re-grant attempt on a student whose trial_granted_at marker is non-null. */
   readonly trialAlreadyGranted: string;
-  /** "The session was not found." — session lookup miss → NotFoundError("SESSION"). */
+  /** "This teacher is already certified." — certification attempt on an approved teachers row → ConflictError("TEACHER_ALREADY_CERTIFIED", …). */
+  readonly teacherAlreadyCertified: string;
+  /** "This user is not a teacher." — certification attempt on a non-``teacher`` account → ConflictError("TEACHER_ROLE_REQUIRED", …). */
+  readonly teacherRoleRequired: string;
+  /** "This account has been deleted, blocked, or suspended." — certification attempt on a governed account → ConflictError("TEACHER_ACCOUNT_GOVERNED", …). */
+  readonly teacherAccountGoverned: string;
+  /** "This student is already linked to a parent account." — link-request deny when the target student already has a linked parent. */
+  readonly parentLinkTargetAlreadyLinked: string;
+  /** "A link request to this student is already pending." — duplicate-pending deny while a previous request is still awaiting a response. */
+  readonly parentLinkAlreadyPending: string;
+  /** "This link request has expired." — respond/cancel deny once the request is past its expiry moment. */
+  readonly parentLinkRequestExpired: string;
+  /** "This link request has already been handled." — transition deny when the request was already confirmed or rejected. */
+  readonly parentLinkRequestAlreadyResolved: string;
+  /** "The link request was not found." — self-scope link-request lookup miss → NotFoundError("PARENT_LINK_REQUEST"). */
+  readonly parentLinkRequestNotFound: string;
+  /** "Broadcast title must be between 1 and 255 characters." — compose-copy reject → ValidationError("BROADCAST_TITLE_INVALID"). */
+  readonly broadcastTitleInvalid: string;
+  /** Audience-selector coherence reject → ValidationError("BROADCAST_AUDIENCE_INVALID"): unknown audience kind, missing/extra companion field, or malformed companion value. */
+  readonly broadcastAudienceInvalid: string;
+  /** "No recipients match the selected broadcast audience." — empty-cohort reject → ValidationError("BROADCAST_AUDIENCE_EMPTY"). */
+  readonly broadcastAudienceEmpty: string;
+  /** Oversized-cohort reject → ValidationError("BROADCAST_AUDIENCE_TOO_LARGE"): resolved cohort exceeds the fail-closed recipient cap. */
+  readonly broadcastAudienceTooLarge: string;
+  /** "The requested session was not found." — session lookup or ownership miss on any session surface. */
   readonly sessionNotFound: string;
+  /** Lifecycle-transition reject — the requested action does not apply to the session's current status. */
+  readonly sessionInvalidTransition: string;
+  /** Certification-gate reject — the targeted teacher account is not yet approved to host sessions. */
+  readonly teacherNotCertified: string;
+  /** "The selected teacher was not found." — teacher lookup miss on booking (dedicated key, not the generic `notFound`). */
+  readonly teacherNotFound: string;
+  /** Balance reject — the caller's lane balances cannot cover the booking fee. */
+  readonly insufficientBalance: string;
+  /** Missing `X-Idempotency-Key` header on an idempotent write surface. */
+  readonly idempotencyKeyRequired: string;
+  /** Pre-DB intent validation reject — the requested intent is not bookable on this surface. */
+  readonly invalidSessionIntent: string;
+  /**
+   * Pre-DB withdrawal-amount reject — the requested payout amount failed
+   * the decimal-string validation matrix (shape or non-positive value).
+   */
+  readonly walletInvalidAmount: string;
   /** Fail-closed deny when a stored sessions.intent value is not a known SessionIntent member. */
   readonly sessionIntentCorrupt: string;
 }

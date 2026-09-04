@@ -96,6 +96,9 @@ export function NotificationRow({
         p: { xs: 1.5, sm: 2 },
         borderRadius: 2,
         bgcolor: unread ? theme.palette.action.selected : undefined,
+        // Read rows stay un-tinted; a hairline keeps them card-shaped in dark
+        // mode where an un-tinted row otherwise floats on the page background.
+        border: unread ? undefined : `1px solid ${theme.palette.divider}`,
       })}
     >
       <NotificationRowTypeAvatar icon={TypeIcon} />
@@ -120,6 +123,7 @@ export function NotificationRow({
             variant="subtitle1"
             component="h2"
             noWrap
+            dir="auto"
             sx={theme => ({
               fontWeight: unread ? 700 : 500,
               color: theme.palette.text.primary,
@@ -130,7 +134,11 @@ export function NotificationRow({
           </Typography>
         </Stack>
         {notification.body !== null ? (
-          <Typography variant="body2" sx={theme => ({ color: theme.palette.text.secondary, lineHeight: 1.5 })}>
+          <Typography
+            variant="body2"
+            dir="auto"
+            sx={theme => ({ color: theme.palette.text.secondary, lineHeight: 1.5 })}
+          >
             {notification.body}
           </Typography>
         ) : null}

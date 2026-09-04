@@ -65,8 +65,8 @@ export function RecitationCardContent({
               label={mostPopularLabel}
               size="small"
               sx={{
-                height: 20,
-                fontSize: 10,
+                height: 22,
+                fontSize: 12,
                 fontWeight: 700,
                 letterSpacing: "0.04em",
                 textTransform: "uppercase",
@@ -84,7 +84,6 @@ export function RecitationCardContent({
             variant="caption"
             sx={{
               color: isSelected ? "var(--mui-palette-onPrimaryContainer)" : "var(--mui-palette-text-secondary)",
-              opacity: 0.85,
               lineHeight: 1.3,
             }}
           >

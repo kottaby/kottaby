@@ -39,10 +39,16 @@ export interface DashboardLabels {
   readonly plans: string;
   /** Sidebar nav: Audit link (admin) */
   readonly audit: string;
+  /** Sidebar nav: Broadcasts link (admin — the broadcast compose surface) */
+  readonly broadcasts: string;
+  /** Sidebar nav: Disputes link (admin — session arbitration queue) */
+  readonly disputes: string;
   /** Sidebar nav: Profile link */
   readonly profile: string;
   /** Sidebar nav: Children link (parent) */
   readonly children: string;
+  /** Sidebar nav: Link Requests link (student) */
+  readonly linkRequests: string;
   /** Coming-soon placeholder title for unimplemented routes */
   readonly comingSoon: string;
   /** Coming-soon placeholder body — interpolated with the feature name */
@@ -141,10 +147,24 @@ export interface DashboardLabels {
   readonly gettingStartedTitle: string;
   /** Getting Started section description body */
   readonly gettingStartedBody: string;
-  /** Getting Started tip: explore sessions */
-  readonly gettingStartedTipSessions: string;
-  /** Getting Started tip: view subscriptions */
-  readonly gettingStartedTipSubscriptions: string;
-  /** Getting Started tip: check notifications */
-  readonly gettingStartedTipNotifications: string;
+  /** Getting Started tips — role-aware bullet copy picked by the authenticated user's role */
+  readonly gettingStartedTips: {
+    readonly student: DashboardGettingStartedTips;
+    readonly teacher: DashboardGettingStartedTips;
+    readonly admin: DashboardGettingStartedTips;
+    readonly parent: DashboardGettingStartedTips;
+  };
+}
+
+/**
+ * Getting Started bullet copy for a single dashboard role. The three keys map
+ * to the card's fixed icon slots (sessions, subscriptions, notifications).
+ */
+export interface DashboardGettingStartedTips {
+  /** Bullet next to the sessions icon */
+  readonly sessions: string;
+  /** Bullet next to the subscriptions/plans icon */
+  readonly subscriptions: string;
+  /** Bullet next to the notifications icon */
+  readonly notifications: string;
 }

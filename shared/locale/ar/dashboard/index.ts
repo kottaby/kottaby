@@ -14,8 +14,11 @@ export const dashboardAr: DashboardLabels = {
   students: "الطلاب",
   plans: "الخطط",
   audit: "سجل التدقيق",
+  broadcasts: "الإعلانات",
+  disputes: "النزاعات",
   profile: "الملف الشخصي",
   children: "الأبناء",
+  linkRequests: "طلبات الربط",
   comingSoon: "قريباً",
   comingSoonBody: (feature: string) => `صفحة ${feature} غير متاحة بعد. نعمل على إطلاقها قريباً — يرجى التحقق لاحقاً.`,
   sessionsCompleted: "الجلسات المكتملة",
@@ -65,7 +68,26 @@ export const dashboardAr: DashboardLabels = {
   comingSoonMetaDescription: "هذه الصفحة غير متاحة بعد. يرجى التحقق لاحقاً.",
   gettingStartedTitle: "ابدأ هنا",
   gettingStartedBody: "مرحباً بك! إليك بعض الإجراءات التي يمكنك اتخاذها للبدء مع حسابك.",
-  gettingStartedTipSessions: "تصفح الجلسات المتاحة واحجز تلاوتك الأولى.",
-  gettingStartedTipSubscriptions: "استكشف خطط الاشتراك لمواصلة رحلة التعلم.",
-  gettingStartedTipNotifications: "تحقق من إشعاراتك للحصول على تحديثات وإعلانات مهمة.",
+  gettingStartedTips: {
+    student: {
+      sessions: "تصفح الجلسات المتاحة واحجز تلاوتك الأولى.",
+      subscriptions: "استكشف خطط الاشتراك لمواصلة رحلة التعلم.",
+      notifications: "تحقق من إشعاراتك للحصول على تحديثات وإعلانات مهمة.",
+    },
+    teacher: {
+      sessions: "حدد أوقات توفرك وابدأ بعقد جلسات التلاوة للطلاب.",
+      subscriptions: "راجع أرباحك وإعدادات الدفع من لوحة التحكم الخاصة بك.",
+      notifications: "تحقق من إشعاراتك للحصول على الحجوزات وتغييرات الجدول والإعلانات.",
+    },
+    admin: {
+      sessions: "راجع المعلمين والطلاب ونشاط الجلسات عبر المنصة.",
+      subscriptions: "أدر خطط الاشتراك وتابع التسجيلات في المنصة.",
+      notifications: "تحقق من الإشعارات للموافقات المعلقة والتنبيهات وتحديثات النظام.",
+    },
+    parent: {
+      sessions: "احجز جلسات التلاوة لأطفالك وتابع تقدمهم.",
+      subscriptions: "أدر خطط اشتراك أطفالك من مكان واحد.",
+      notifications: "تحقق من إشعاراتك للحصول على تحديثات جلسات أطفالك.",
+    },
+  },
 };
