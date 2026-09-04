@@ -43,7 +43,7 @@ export const notificationsEn: NotificationsLabels = {
   eventSessionQueuedTitle: "Session request queued",
   eventSessionAlternativesOfferedTitle: "Alternative teachers offered",
   eventSessionRequestBody: (studentName: string, intentLabel: string) =>
-    `${studentName} requested a ${intentLabel} session with you.`,
+    `${studentName} requested a session with you (${intentLabel}).`,
   eventSessionAcceptedBody: (teacherName: string) => `${teacherName} accepted your session request.`,
   eventSessionDeclinedBody: (teacherName: string) => `${teacherName} declined your session request.`,
   eventSessionAutoRejectedBody: (teacherName: string) =>

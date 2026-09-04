@@ -10,7 +10,7 @@ The consumers are the session lifecycle flows: session intake and the accept/dec
 
 ## 2. Pattern
 
-Six emitters, all sharing one signature and one internal choreography. The only caller input is the **session id** — recipients are never parameters. Each emitter:
+Six emitters, all sharing one signature and one internal choreography: `(sessionId, locale, tx?, options?)`. The session id is the only **identity** input — recipients are never parameters. The caller-supplied `locale` localizes only this module's error copy (validation, not-found, corrupt-intent rejections); wave title/body are always composed in the recipient's persisted locale (step 4), never in this caller locale. Each emitter:
 
 1. Validates the id pre-DB (positive safe integer; hostile ids reject with `VALIDATION` without touching the database).
 2. Reads the joined wave context (`SessionRepository.findWaveContextById`) — one query joining `session` to both `users` rows, returning session id, raw stored intent, and each participant's id, full name, and persisted locale.

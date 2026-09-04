@@ -3,9 +3,8 @@
  * teacher request wave → student outcome waves → isolation invariance →
  * denial probes → zero-residue teardown).
  *
- * Authored TEST-FIRST: the emitter surface it exercises is a signature-accurate
- * fail-closed stub, so the suite is expected RED at runtime on its wave
- * assertions until the real choreography lands.
+ * Exercises the shipped `SessionRequestNotificationService` emitters end to end
+ * on the own-commit path (no caller transaction).
  *
  * Journey rules honored (`test/workflows/AGENTS.md`):
  * - fixtures COMMITTED in `beforeAll` inside ONE committing transaction and
