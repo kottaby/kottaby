@@ -14,6 +14,8 @@
  *   fabricated `0.00`) + `noRatingsYet` when both rating families are empty
  *   · empty revenue renders `noRevenueYet` — never a zero-currency row ·
  *   generic load error → inline `Alert` + Retry CTA that recovers ·
+ *   failed-initial-load re-attempt keeps the Alert STABLE (never an
+ *   Alert→Skeleton flip while the re-attempt/poll is in flight) ·
  *   query-context FORBIDDEN → the localized denied notice (raw server
  *   message never rendered, no retry CTA) · manual refresh keeps the STALE
  *   snapshot on screen under the `refreshingLabel` chip while the fresh
@@ -194,11 +196,11 @@ function snapshotMock(data: AdminPlatformAnalyticsQuery, delay?: number): MockLi
     : { request: { query: adminPlatformAnalyticsQueryDocument, variables: {} }, result: { data }, delay };
 }
 
-function codeErrorMock(code: string): MockLink.MockedResponse {
-  return {
-    request: { query: adminPlatformAnalyticsQueryDocument, variables: {} },
-    result: { errors: [{ message: `${code} (masked transport surface)`, extensions: { code } }] },
-  };
+function codeErrorMock(code: string, delay?: number): MockLink.MockedResponse {
+  const result = { errors: [{ message: `${code} (masked transport surface)`, extensions: { code } }] };
+  return delay === undefined
+    ? { request: { query: adminPlatformAnalyticsQueryDocument, variables: {} }, result }
+    : { request: { query: adminPlatformAnalyticsQueryDocument, variables: {} }, result, delay };
 }
 
 function renderAnalytics(mocks: ReadonlyArray<MockLink.MockedResponse>): RenderResult {
@@ -350,6 +352,33 @@ describe("PlatformAnalyticsContainer (en / LTR)", () => {
     await waitFor(() => expect(screen.getByText("1,000")).toBeDefined());
     expect(screen.queryByText(t.loadErrorTitle)).toBeNull();
     expect(screen.getByRole("table", { name: t.revenueSection })).toBeDefined();
+  });
+
+  test("failed initial load keeps the error Alert stable through a re-attempt — never a skeleton flip", async () => {
+    // Two failures: the settle state AND the in-flight re-attempt state are
+    // both rendered from the same posture a background poll produces when no
+    // snapshot exists (loading pulse + settled error, no data to fall back to).
+    renderAnalytics([codeErrorMock("INTERNAL_SERVER_ERROR"), codeErrorMock("INTERNAL_SERVER_ERROR", 80)]);
+
+    await waitFor(() => expect(screen.getByText(t.loadErrorTitle)).toBeDefined());
+
+    fireEvent.click(screen.getByRole("button", { name: t.retryAction }));
+
+    // In-flight: the Alert STAYS on screen (Retry disabled while pending —
+    // the in-flight signal) and NO `status`/output skeleton region appears.
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: t.retryAction }).hasAttribute("disabled")).toBe(true)
+    );
+    expect(screen.getByText(t.loadErrorTitle)).toBeDefined();
+    expect(screen.getByText(t.loadErrorBody)).toBeDefined();
+    expect(screen.queryByRole("status")).toBeNull();
+
+    // Settled failure again — Alert still up, Retry re-enabled, still no skeleton.
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: t.retryAction }).hasAttribute("disabled")).toBe(false)
+    );
+    expect(screen.getByText(t.loadErrorTitle)).toBeDefined();
+    expect(screen.queryByRole("status")).toBeNull();
   });
 
   test("query-context FORBIDDEN renders the localized denied notice — never the raw message", async () => {

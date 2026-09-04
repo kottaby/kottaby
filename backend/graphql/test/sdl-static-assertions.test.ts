@@ -737,7 +737,7 @@ describe("Platform analytics surface (extend) — artifact-side pins", () => {
     // Belt-and-braces: no analytics field resolves through a String-typed
     // instant — the only String leaves are currency codes and decimal money.
     const stringLeaves = PLATFORM_ANALYTICS_TYPE_NAMES.flatMap(typeName => fieldSurfaces(typeName)).filter(
-      surface => surface.type.replace(/!$/, "").replace(/\[|\]/g, "") === "String"
+      surface => surface.type.replace(/!$/, "").replaceAll("[", "").replaceAll("]", "") === "String"
     );
     expect(stringLeaves.map(surface => surface.name).toSorted((a, b) => a.localeCompare(b))).toEqual([
       "amount",
