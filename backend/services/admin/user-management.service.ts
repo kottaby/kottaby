@@ -513,7 +513,7 @@ export namespace AdminUserManagementService {
         periodDays < SUSPENSION_PERIOD_MIN_DAYS ||
         periodDays > SUSPENSION_PERIOD_MAX_DAYS)
     ) {
-      throw new ValidationError(tErrors.adminUsers.suspensionPeriodInvalid, [
+      throw new ValidationError("SUSPENSION_PERIOD_INVALID", tErrors.adminUsers.suspensionPeriodInvalid, undefined, [
         { field: "periodDays", code: "SUSPENSION_PERIOD_INVALID", message: tErrors.adminUsers.suspensionPeriodInvalid },
       ]);
     }
