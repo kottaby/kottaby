@@ -9,4 +9,5 @@
  *  - Wired through the top-level mutation barrel: `mutation/index.ts` → `gqlSchema.ts`.
  */
 import "./admin-governance.mutation";
+import "./admin-teachers.mutation";
 import "./admin-users.mutation";
