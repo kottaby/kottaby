@@ -165,6 +165,9 @@ function stripBlockComments(source: string): string {
  * state as stable across the probe window. The raw (non-transactional)
  * call runs over the pool and must observe exactly what the open
  * rollback transaction observes — nothing has been written inside it yet.
+ * The two branch results are additionally pinned value-identical
+ * (cross-branch parity): any byte divergence between the transactional
+ * and raw executor branches fails the probe outright.
  */
 async function probeBothBranches<T>(
   tx: DBTransaction,
@@ -174,6 +177,7 @@ async function probeBothBranches<T>(
   const raw = await call(undefined);
   const viaTxRecheck = await call(tx);
   expect(viaTxRecheck).toEqual(viaTx);
+  expect(raw).toEqual(viaTx);
   return { viaTx, raw };
 }
 

@@ -196,7 +196,7 @@ Every task in this file is executed under ALL of the following rules, without ex
   - [x] 2.5.IV **Instruction Verification**: validate against discovered repo-layer AGENTS.md + `docs/drizzle/prepared-statements.md` posture.
   - [x] 2.5.OUT Write outcome.
 
-- [ ] 2.6 [Implement Backend Service — CREATE `PlatformAnalyticsService`]
+- [x] 2.6 [Implement Backend Service — CREATE `PlatformAnalyticsService`]
   - Files to create/modify:
     - CREATE `backend/services/admin/platform-analytics.service.ts` — namespace `PlatformAnalyticsService` with `getPlatformAnalytics(actorId: number, locale: string, outerTx?: DBTransaction): Promise<PlatformAnalyticsReturnType>`.
     - Pipeline EXACTLY per plan §4.2: (1) PRE-TX actor re-verification via `UserRepository.findById(actorId)` — `actorId ≤ 0`/non-integer → `UnauthorizedError(t.unauthorized)`; absent row → `UnauthorizedError`; role ≠ `UserRole.Admin` → `ForbiddenError(t.forbidden)`; governance in order deleted → blocked → suspended → `ForbiddenError` with `t.accountDeleted`/`t.accountBlocked`/`t.accountSuspended` (REQ-032 divergence from role-only `assertActorAdmin`; rationale recorded in canonical doc at Task 7.1); EACH denial = exactly ONE `logger.logDomainError` with `{ code, entity: "users", entityId: actorId, locale }` from `@/backend/lib/logger`; deny BEFORE any aggregate read and BEFORE any transaction opens.
@@ -207,20 +207,20 @@ Every task in this file is executed under ALL of the following rules, without ex
     - UPDATE `backend/services/admin/index.ts` — export the new service.
   - Applicable instructions: `backend/AGENTS.md`, `backend/services/AGENTS.md`, `.agents/instructions/backend.instructions.md`.
   - _Requirements: REQ-010, REQ-011, REQ-021, REQ-022, REQ-031, REQ-032, REQ-040, REQ-045, REQ-050..054_
-  - [ ] 2.6.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts backend/services/admin/platform-analytics.service.ts --lifecycle duplicates` (exit 0).
-  - [ ] 2.6.TE **Test Engineering**: CREATE `backend/services/admin/platform-analytics.service.test.ts` — (Tier 1) full branch coverage: actor matrix (`actorId=0` → UnauthorizedError; absent row → UnauthorizedError; student/teacher/parent → ForbiddenError; suspended/blocked/deleted admin → ForbiddenError with matching message, deterministic order); (Tier 2) single-`now` propagation — repo spies pinned on identical `now` bound into every windowed method AND `generatedAt === now`; users composition pinned — spy on `AdminUserRepository.getStats`, assert the ten fields flow through verbatim plus `recentlyActive24h`; (Tier 3) trend-assembly chaos — sparse-full, sparse-empty, multi-currency skeletons; snapshot purity — table row sets byte-identical pre/post composite read; (Tier 4) denial pre-DB proof — repo spies ZERO calls on every denial path; silent happy path — `logDomainError` spy ZERO calls on success, ONE per denial. Run: `bun run test/scripts/run-test.ts backend/services/admin/platform-analytics.service.test.ts`. THEN run the journey suite to GREEN: `bun run test/scripts/run-test.ts test/workflows/admin/platform-analytics.journey.test.ts` (journeys A–D from Tasks 2.1–2.4 flip RED→GREEN here).
-  - [ ] 2.6.SEC **Security & Tenancy Audit**: BFLA defense-in-depth (service re-gates even non-GraphQL callers); governed-reader window closed (D8); denial order per REQ-054; log context bounded (never metric payloads, never SQL text); zero writes on ALL paths.
-  - [ ] 2.6.SR **Semantic Review**: no shared mutable module state (REQ-045 — inspect top-level scope: helpers are pure); one transaction, every repo call receives the same `tx`; no `try/catch` swallowing DomainErrors; enums as value imports.
-  - [ ] 2.6.IV **Instruction Verification**: validate against `backend/services/AGENTS.md` (this file's rules will later gain the analytics read-model line in Phase 7 — verify current content first) + discovered instructions.
-  - [ ] 2.6.OUT Write outcome.
+  - [x] 2.6.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts backend/services/admin/platform-analytics.service.ts --lifecycle duplicates` (exit 0).
+  - [x] 2.6.TE **Test Engineering**: CREATE `backend/services/admin/platform-analytics.service.test.ts` — (Tier 1) full branch coverage: actor matrix (`actorId=0` → UnauthorizedError; absent row → UnauthorizedError; student/teacher/parent → ForbiddenError; suspended/blocked/deleted admin → ForbiddenError with matching message, deterministic order); (Tier 2) single-`now` propagation — repo spies pinned on identical `now` bound into every windowed method AND `generatedAt === now`; users composition pinned — spy on `AdminUserRepository.getStats`, assert the ten fields flow through verbatim plus `recentlyActive24h`; (Tier 3) trend-assembly chaos — sparse-full, sparse-empty, multi-currency skeletons; snapshot purity — table row sets byte-identical pre/post composite read; (Tier 4) denial pre-DB proof — repo spies ZERO calls on every denial path; silent happy path — `logDomainError` spy ZERO calls on success, ONE per denial. Run: `bun run test/scripts/run-test.ts backend/services/admin/platform-analytics.service.test.ts`. THEN run the journey suite to GREEN: `bun run test/scripts/run-test.ts test/workflows/admin/platform-analytics.journey.test.ts` (journeys A–D from Tasks 2.1–2.4 flip RED→GREEN here).
+  - [x] 2.6.SEC **Security & Tenancy Audit**: BFLA defense-in-depth (service re-gates even non-GraphQL callers); governed-reader window closed (D8); denial order per REQ-054; log context bounded (never metric payloads, never SQL text); zero writes on ALL paths.
+  - [x] 2.6.SR **Semantic Review**: no shared mutable module state (REQ-045 — inspect top-level scope: helpers are pure); one transaction, every repo call receives the same `tx`; no `try/catch` swallowing DomainErrors; enums as value imports.
+  - [x] 2.6.IV **Instruction Verification**: validate against `backend/services/AGENTS.md` (this file's rules will later gain the analytics read-model line in Phase 7 — verify current content first) + discovered instructions.
+  - [x] 2.6.OUT Write outcome.
 
-- [ ] 2.M [Mid-Point Review Gate]
+- [x] 2.M [Mid-Point Review Gate]
   - [ ] Verify: `bun tsgo` and `bun run biome:check` counts == baseline (no new errors introduced by Phases 1–2).
   - [ ] Verify: journey suite GREEN (A–D), repo suite GREEN, service suite GREEN.
   - [ ] Verify: `git diff -- backend/db/schema/ backend/db/migration/` EMPTY (REQ-043); `git diff -- backend/db/repo/admin/admin-user.repository.ts` EMPTY (reuse-not-rebuild — the DEV3-016 repo is untouched).
   - [ ] Verify: `deferred-items.md` has no unlogged ❌/⚠️; log anything discovered so far.
   - [ ] Semantic self-review of Phases 1–2 against the full checklist.
-  - [ ] 2.M.OUT Write `outcome/2M-midpoint-review-outcome.md`.
+  - [x] 2.M.OUT Write `outcome/2M-midpoint-review-outcome.md`.
 
 ---
 

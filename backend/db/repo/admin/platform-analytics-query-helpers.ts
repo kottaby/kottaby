@@ -256,11 +256,13 @@ export async function getSessionStatsImpl(now: Date, tx?: DBTransaction): Promis
  * the SPARSE daily session trend — one `{ bucketStart, count }` row per
  * UTC day with at least one session inside the closed 30-day window
  * `[now - 30d, now]`, ordered by day ascending. Days without sessions are
- * absent (the service layer zero-fills the full skeleton). The
- * drizzle-branch day bucket rehydrates timestamp text into a true
- * midnight-UTC `Date` — the same parse the raw branch's pg driver applies
- * to `timestamp without time zone` text (UTC) — keeping the two branches
- * byte-identical in value.
+ * absent (the service layer zero-fills the full skeleton). Both branches
+ * yield a true midnight-UTC `Date` for `bucketStart`: the drizzle branch
+ * rehydrates the returned timestamp text as UTC, while the raw branch
+ * truncates and normalizes server-side (`AT TIME ZONE 'UTC'`), handing
+ * back a `timestamp with time zone` whose instant the pg driver parses
+ * identically under any client TZ — keeping the two branches byte-identical
+ * in value.
  */
 
 export async function getSessionDailyTrendImpl(
@@ -272,9 +274,8 @@ export async function getSessionDailyTrendImpl(
     // The drizzle pg session hands timestamp text through unparsed, so a
     // bare `sql` fragment arrives as a string; this decoder rehydrates the
     // stored UTC wall-clock into the true midnight-UTC `Date` — the same
-    // parse the raw branch's pg driver applies to `timestamp without time
-    // zone` text (UTC), keeping the two branches byte-for-byte identical
-    // in value.
+    // instant the raw branch's `AT TIME ZONE 'UTC'` timestamptz column
+    // parses to, keeping the two branches byte-for-byte identical in value.
     const dayBucket = sql<string>`date_trunc('day', ${session.createdAt})`.mapWith(
       (value: string) => new Date(`${value}+0000`)
     );
@@ -290,12 +291,12 @@ export async function getSessionDailyTrendImpl(
     return rows;
   }
   const result = await queryDb<PlatformAnalyticsSessionTrendRow>(
-    `SELECT date_trunc('day', created_at) AS "bucketStart",
+    `SELECT date_trunc('day', created_at) AT TIME ZONE 'UTC' AS "bucketStart",
             count(*)::int AS "sessionCount"
        FROM session
       WHERE created_at >= $1 AND created_at <= $2
-      GROUP BY date_trunc('day', created_at)
-      ORDER BY date_trunc('day', created_at) ASC`,
+      GROUP BY date_trunc('day', created_at) AT TIME ZONE 'UTC'
+      ORDER BY date_trunc('day', created_at) AT TIME ZONE 'UTC' ASC`,
     [windowStart, now]
   );
   return result.rows;
@@ -356,7 +357,7 @@ export async function getRevenueStatsImpl(
  * inside the closed 30-day window, ordered by day then currency.
  * Currencies stay in separate points — no day ever sums across codes;
  * `amount` is an exact decimal string and `bucketStart` a true
- * midnight-UTC `Date` (same timestamp-text rehydration as the session
+ * midnight-UTC `Date` (same dual-branch UTC normalization as the session
  * trend's day bucket).
  */
 
@@ -367,8 +368,8 @@ export async function getRevenueDailyTrendImpl(
   const windowStart = new Date(now.getTime() - TREND_WINDOW_MS);
   if (tx) {
     // Same timestamp-text rehydration as the session trend's day bucket —
-    // the raw branch's pg driver parses `timestamp without time zone`
-    // text as UTC, so both branches yield the identical instant.
+    // the raw branch normalizes server-side with `AT TIME ZONE 'UTC'`, so
+    // both branches yield the identical midnight-UTC instant.
     const dayBucket = sql<string>`date_trunc('day', ${studentPayments.createdAt})`.mapWith(
       (value: string) => new Date(`${value}+0000`)
     );
@@ -391,13 +392,13 @@ export async function getRevenueDailyTrendImpl(
     return rows;
   }
   const result = await queryDb<PlatformAnalyticsRevenueTrendRow>(
-    `SELECT date_trunc('day', created_at) AS "bucketStart",
+    `SELECT date_trunc('day', created_at) AT TIME ZONE 'UTC' AS "bucketStart",
             currency AS "currency",
             sum(amount)::text AS "amount"
        FROM student_payments
       WHERE status = $3 AND created_at >= $1 AND created_at <= $2
-      GROUP BY date_trunc('day', created_at), currency
-      ORDER BY date_trunc('day', created_at) ASC, currency ASC`,
+      GROUP BY date_trunc('day', created_at) AT TIME ZONE 'UTC', currency
+      ORDER BY date_trunc('day', created_at) AT TIME ZONE 'UTC' ASC, currency ASC`,
     [windowStart, now, PaymentStatus.Paid]
   );
   return result.rows;

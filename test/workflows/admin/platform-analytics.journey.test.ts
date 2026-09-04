@@ -98,9 +98,9 @@ import { TransactionType } from "@/backend/enum/billing/transaction-type.enum";
 import { SessionStatus } from "@/backend/enum/scheduling/session-status.enum";
 import { UserRole } from "@/backend/enum/users/user-role.enum";
 import { ForbiddenError, UnauthorizedError } from "@/backend/lib/errors";
-// TEST-FIRST: the service does not exist yet — the unresolved import below
-// is the sanctioned RED state; Task 2.6 ships the implementation that flips
-// journeys A–D green.
+// The journeys below assert the admin analytics surface over freshly
+// committed fixtures: every read observes the committed aggregates with no
+// cache in between.
 import { PlatformAnalyticsService } from "@/backend/services/admin/platform-analytics.service";
 import type {
   PlatformAnalyticsCurrencyRevenueReturnType,
@@ -449,7 +449,9 @@ async function captureBaseline(): Promise<Baseline> {
     sessionTrendSparse: new Map(sessionTrendRows.map(row => [row.bucketMs, row.sessionCount])),
     revenueRows,
     revenueTrendSparse: new Map(revenueTrendRows.map(row => [`${row.bucketMs}|${row.currency}`, row.amount])),
-    windowCurrencies: [...new Set(revenueTrendRows.map(row => row.currency))].sort(),
+    windowCurrencies: [...new Set(revenueTrendRows.map(row => row.currency))].toSorted((left, right) =>
+      left.localeCompare(right)
+    ),
     offlineActivationsCount: offlineAgg.count,
     subscriptions: subscriptionAgg,
     teachers: teacherAgg,
@@ -507,7 +509,9 @@ function expectedRevenueTrend(
   dayDeltas: ReadonlyMap<string, string>
 ): readonly ExpectedRevenuePoint[] {
   const deltaCurrencies = [...dayDeltas.keys()].map(key => key.split("|")[1] ?? "");
-  const currencies = [...new Set([...baseline.windowCurrencies, ...deltaCurrencies])].sort();
+  const currencies = [...new Set([...baseline.windowCurrencies, ...deltaCurrencies])].toSorted((left, right) =>
+    left.localeCompare(right)
+  );
   const points: ExpectedRevenuePoint[] = [];
   for (let index = 0; index < TREND_BUCKET_COUNT; index += 1) {
     const bucketStartMs = readDayStartMs - (TREND_BUCKET_COUNT - 1 - index) * DAY_MS;
@@ -566,7 +570,7 @@ const OBSERVED_TABLES = [
   "teacher_transaction",
 ] as const;
 type ObservedTable = (typeof OBSERVED_TABLES)[number];
-type TableDigests = Record<ObservedTable, TableDigest>;
+type TableDigests = { [tableName: string]: TableDigest };
 
 /** Content-digests one observed table (to_jsonb row text, md5 over a PK-ordered aggregate). */
 async function tableDigest(tableName: ObservedTable): Promise<TableDigest> {
@@ -585,7 +589,8 @@ async function tableDigest(tableName: ObservedTable): Promise<TableDigest> {
 /** Snapshots content digests of every observed table. */
 async function snapshotObservedTables(): Promise<TableDigests> {
   const entries = await Promise.all(OBSERVED_TABLES.map(async table => [table, await tableDigest(table)] as const));
-  return Object.fromEntries(entries) as TableDigests;
+  const digests: TableDigests = Object.fromEntries(entries);
+  return digests;
 }
 
 /** Byte-identity assertion — every observed table's digest is unchanged. */
@@ -693,7 +698,7 @@ describe("Platform analytics — admin read-model journeys (A–D)", () => {
     // existence probes for every registered actor row.
     await tracked.cleanup();
 
-    // 4. Mandatory zero-residue probes (harness rule 2 / REQ-042): every
+    // 4. Mandatory zero-residue probes: every
     //    tracked id gone, audit and notification tables back at their
     //    suite baselines.
     expect(await countUsersByIds(castUserIds)).toBe(0);
@@ -1171,9 +1176,8 @@ describe("Platform analytics — admin read-model journeys (A–D)", () => {
       expect(anonymousError).toBeInstanceOf(UnauthorizedError);
       expect(anonymousError.message).toContain(tErrors.unauthorized);
 
-      // (2) Absent actor → ForbiddenError (the governance helper maps an
-      //     unresolvable row to FORBIDDEN — the RULING-2 amendment over the
-      //     plan's original UnauthorizedError). The id is PROVABLY absent
+      // (2) Absent actor → ForbiddenError (the admin gate maps an
+      //     unresolvable actor to ForbiddenError). The id is PROVABLY absent
       //     by direct count before the call.
       expect(await db.$count(users, eq(users.id, ABSENT_ACTOR_ID))).toBe(0);
       const absentError = await expectJourneyError(() => readAnalytics(ABSENT_ACTOR_ID));
