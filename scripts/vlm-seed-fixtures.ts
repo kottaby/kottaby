@@ -8,7 +8,7 @@
 import { PGlite } from "@electric-sql/pglite";
 import { hash } from "bcryptjs";
 
-const DB_URL = "file:///home/z/my-project/db/pglite.db";
+const DB_URL = "file:///home/z/my-project/db/pglite";
 
 async function main() {
   const pg = new PGlite(DB_URL);

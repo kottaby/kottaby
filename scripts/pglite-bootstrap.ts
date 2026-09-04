@@ -10,7 +10,7 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 
 const MIGRATIONS_DIR = "/home/z/my-project/backend/drizzle";
-const DB_URL = "file:///home/z/my-project/db/pglite.db";
+const DB_URL = "file:///home/z/my-project/db/pglite";
 
 async function main() {
   console.log("[pglite-bootstrap] Opening PGlite at", DB_URL);
