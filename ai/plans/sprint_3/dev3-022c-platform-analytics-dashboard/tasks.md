@@ -354,7 +354,7 @@ Every task in this file is executed under ALL of the following rules, without ex
 
 ## Phase 5: Integration & Differential Testing
 
-- [ ] 5.1 [Full backend verification sweep]
+- [x] 5.1 [Full backend verification sweep]
   - Run (each via its sanctioned runner):
     - `bun run test/scripts/run-test.ts backend/db/repo/admin/__tests__/platform-analytics.repository.test.ts`
     - `bun run test/scripts/run-test.ts backend/services/admin/platform-analytics.service.test.ts`
@@ -363,15 +363,15 @@ Every task in this file is executed under ALL of the following rules, without ex
     - `bun run test/scripts/run-test.ts test/workflows/admin/platform-analytics.journey.test.ts`
   - Confirm `AdminUserRepository`'s pre-existing DEV3-016 suites are UNTOUCHED and still green (run the admin-user repo/service/graphql suites as differential regression).
   - _Requirements: REQ-070..REQ-076_
-  - [ ] 5.1.OUT Write outcome with green evidence per suite.
+  - [x] 5.1.OUT Write outcome with green evidence per suite.
 
-- [ ] 5.2 [Differential gates — drift, purity, baseline]
+- [x] 5.2 [Differential gates — drift, purity, baseline]
   - `git diff -- backend/db/schema/ backend/db/migration/` EMPTY (final).
   - `git diff -- backend/db/repo/admin/admin-user.repository.ts` EMPTY; `git diff -- backend/services/admin/user-management.service.ts` EMPTY; `git diff -- backend/lib/gateway/public-operations.ts` EMPTY; `git diff -- docs/admin/user-management.md` EMPTY or contains AT MOST the single allowed consumer-pointer line (Task 7.2 decision).
   - `bun tsgo`, `bun run biome:check`, `bun run scripts/lint-service.ts --json --id final` — counts EQUAL the Phase-0 baseline; any delta is resolved or logged ❌.
   - Read-purity re-assertion: journey D's byte-identity + audit-delta-zero results quoted in the outcome.
   - _Requirements: REQ-001, REQ-022, REQ-042, REQ-043, REQ-076_
-  - [ ] 5.2.OUT Write outcome.
+  - [x] 5.2.OUT Write outcome.
 
 - [ ] 5.3 [End-to-end smoke — dev server, full surface]
   - Boot the app; as admin exercise the dashboard against seeded data through the real gateway (Apollo POST → Pothos → service → repos), verifying parity between UI figures and direct DB counts for at least: users total/active, sessions.today, one revenue currency row, `activeInWindowNow`, `onlineNowCount`, `pendingDisputes`, `pendingWithdrawals`.
