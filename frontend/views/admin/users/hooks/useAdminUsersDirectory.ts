@@ -140,14 +140,18 @@ export function useAdminUsersDirectory() {
     pageSize,
   };
 
-  const { data, loading, error, refetch } = useQuery(adminUsersQueryDocument, {
+  const { data, previousData, loading, error, refetch } = useQuery(adminUsersQueryDocument, {
     variables,
     fetchPolicy: "cache-and-network",
   });
   const mutations = useDirectoryMutations(variables);
 
-  const items = data?.adminUsers.items ?? [];
-  const totalCount = data?.adminUsers.totalCount ?? 0;
+  // `errorPolicy: "none"` (the default) drops `data` to undefined when a
+  // refetch fails; `previousData` keeps the last good page visible instead
+  // of flashing the empty state next to the error alert.
+  const pageData = data ?? previousData;
+  const items = pageData?.adminUsers.items ?? [];
+  const totalCount = pageData?.adminUsers.totalCount ?? 0;
   // The error alert must key on query failure itself, not on
   // `firstErrorCode`: a plain transport failure (raw `Error` with no
   // `extensions.code` / no `code`) extracts to `null`, which previously made

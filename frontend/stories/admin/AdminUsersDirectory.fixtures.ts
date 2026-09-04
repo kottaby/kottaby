@@ -196,7 +196,14 @@ export const POPULATED_TOTAL_COUNT = 23;
 /** Reusable MockLink response — mocks are `Infinity`-usage so refetches stay green. */
 export function directoryMock(rows: readonly DirectoryUserFixture[], totalCount: number): MockLink.MockedResponse {
   return {
-    request: { query: adminUsersQueryDocument, variables: DIRECTORY_VARIABLES },
+    request: {
+      query: adminUsersQueryDocument,
+      // A literal `variables` object only answers the first-render values
+      // (`DIRECTORY_VARIABLES`): MockLink matches variables EXACTLY, so
+      // pagination/filter refetches send different variables and fall off
+      // the mock queue. The matcher answers every refetch of this document.
+      variables: () => true,
+    },
     result: {
       data: {
         adminUsers: { __typename: "AdminUserPage", items: [...rows], totalCount, page: 1, pageSize: 10 },

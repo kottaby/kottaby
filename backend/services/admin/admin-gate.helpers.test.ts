@@ -30,7 +30,9 @@
  *  `assertActorAdminActive`:
  *   - Tier 1 (role branches): clean admin → silent pass (zero domain logs);
  *     non-admin → `ForbiddenError` carrying the { code, entity, entityId }
- *     log context; missing actor → `ForbiddenError`.
+ *     log context; missing actor → `ForbiddenError`; actor deleted between
+ *     the role-gate read and the governance re-read → fail-closed
+ *     `ForbiddenError` (never sails through on optional chains).
  *   - Tier 2 (governance ordering): multi-flagged admin fixtures prove the
  *     deterministic deleted → blocked → suspended precedence.
  *   - Tier 4 (BFLA / pre-DB): anonymous denial fires with ZERO
@@ -346,6 +348,29 @@ describe("assertActorAdminActive — Tier 1: role branches", () => {
       const error = await expectRepoError(() => assertActorAdminActive(ghostId, LOCALE, tx));
       expect(error).toBeInstanceOf(ForbiddenError);
       expect(error.message).toContain(tErrors.forbidden);
+    });
+  });
+
+  test("actor deleted between the role-gate read and the governance re-read → fail-closed ForbiddenError, one bounded log", async () => {
+    await runInRollback(async tx => {
+      const admin = await provisionAdminActor(tx);
+      const spy = silenceDomainLog();
+      // First read (inside `assertActorAdmin`) resolves the real admin row;
+      // the governance re-read resolves null — the vanished-row lane must
+      // fail closed rather than sail through on optional chains.
+      const readSpy = trackSpy(
+        spyOn(UserRepository, "findById").mockResolvedValueOnce(admin).mockResolvedValueOnce(null)
+      );
+
+      const error = await expectRepoError(() => assertActorAdminActive(admin.id, LOCALE, tx));
+
+      expect(error).toBeInstanceOf(ForbiddenError);
+      expect(error.message).toContain(tErrors.forbidden);
+      expect(readSpy).toHaveBeenCalledTimes(2);
+      expect(spy).toHaveBeenCalledTimes(1);
+      const [message, ctx] = spy.mock.calls[0];
+      expect(message).toContain("vanished");
+      expect(ctx).toEqual({ code: "FORBIDDEN", entity: "user", entityId: admin.id, locale: LOCALE });
     });
   });
 });

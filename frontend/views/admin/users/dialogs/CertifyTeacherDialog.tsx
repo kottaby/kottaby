@@ -24,7 +24,10 @@
  * the message in an inline warning Alert — the dialog STAYS OPEN. Unknown
  * codes fall back to the generic `internalServerError` copy. Only success
  * lets the caller close the dialog (after awaiting the mutation).
- * `onResolve(null)` is the cancel path — no mutation is fired.
+ * `onResolve(null)` is the cancel path — no mutation is fired. While the
+ * mutation is in flight (`loading`), Escape/backdrop close requests are
+ * ignored so a slow rejection can still surface its inline alert — the
+ * Cancel button is likewise disabled for the same window.
  */
 
 import {
@@ -117,14 +120,12 @@ export function CertifyTeacherDialog({ labels, targetUser, loading, onResolve }:
   // succeed, so the Confirm button is disabled while that code is showing.
   const confirmDisabled = loading || errorCode === "TEACHER_ALREADY_CERTIFIED";
 
+  // Escape/backdrop requests are ignored while the mutation is in flight:
+  // closing would unmount the dialog before a rejection surfaces inline.
+  const handleClose = () => (loading ? undefined : onResolve(null));
+
   return (
-    <Dialog
-      open
-      onClose={() => onResolve(null)}
-      fullWidth
-      maxWidth="xs"
-      slotProps={{ paper: { sx: { borderRadius: "16px" } } }}
-    >
+    <Dialog open onClose={handleClose} fullWidth maxWidth="xs" slotProps={{ paper: { sx: { borderRadius: "16px" } } }}>
       <DialogTitle sx={{ px: 3, pt: 3, pb: 1 }}>{labels.certifyDialog.title}</DialogTitle>
       <DialogContent sx={{ px: 3, pt: 1, pb: 1 }}>
         {errorMessage !== null && (

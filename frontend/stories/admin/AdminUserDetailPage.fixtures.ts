@@ -179,7 +179,7 @@ export const CERTIFY_SUCCESS_MOCK: MockLink.MockedResponse = {
         isDeleted: false,
         suspended: false,
         isBlocked: false,
-        applicant: { __typename: "ApplicantProfile", id: 11, status: ApplicantStatus.Pending },
+        applicant: { __typename: "ApplicantProfile", id: 11, status: ApplicantStatus.Passed },
         teacher: {
           __typename: "AdminTeacherSnapshot",
           isApproved: true,

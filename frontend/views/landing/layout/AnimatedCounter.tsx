@@ -55,7 +55,7 @@ export function AnimatedCounter({ raw }: { readonly raw: string }): ReactNode {
   }, [started]);
 
   useEffect(() => {
-    if (!started || reducedMotion) return;
+    if (!started || reducedMotion) return undefined;
     // 1.2s keeps the count-up snappy while guaranteeing the final value
     // renders quickly (full-page captures, fast scrollers).
     const duration = 1200;
@@ -65,19 +65,27 @@ export function AnimatedCounter({ raw }: { readonly raw: string }): ReactNode {
       return 1 - (1 - x) ** 3;
     }
 
+    // The in-flight frame id, cancelled on restart/unmount (`reducedMotion`
+    // is an effect dependency and can flip mid-animation — without cleanup
+    // the stale loop keeps updating `count` beside the new one).
+    let frameId: number | undefined;
+
     function tick(now: number) {
       const elapsed = now - startTime;
       const progress = Math.min(elapsed / duration, 1);
       const eased = easeOutCubic(progress);
       setCount(Math.floor(eased * num));
       if (progress < 1) {
-        requestAnimationFrame(tick);
+        frameId = requestAnimationFrame(tick);
       } else {
         setCount(num);
       }
     }
 
-    requestAnimationFrame(tick);
+    frameId = requestAnimationFrame(tick);
+    return () => {
+      if (frameId !== undefined) cancelAnimationFrame(frameId);
+    };
   }, [started, num, reducedMotion]);
 
   return (

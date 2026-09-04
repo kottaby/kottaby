@@ -390,5 +390,5 @@ export const landingAr: LandingLabels = {
   notFoundMetaDescription: "الصفحة المطلوبة غير موجودة. عد إلى الصفحة الرئيسية لمواصلة تصفح الأكاديمية.",
 
   // Footer brand wordmark
-  footerBrandName: "أكاديمية كُتَّابي",
+  footerBrandName: "أكاديمية كتّاب",
 };

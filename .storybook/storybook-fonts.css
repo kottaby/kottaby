@@ -15,7 +15,7 @@
  * to the plain Google-hosted family plus the same generic fallback class the
  * theme already appends (sans-serif).
  */
-@import url("https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap");
+@import "https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap";
 
 :root {
   --font-inter: "Inter", "Inter Fallback", sans-serif;

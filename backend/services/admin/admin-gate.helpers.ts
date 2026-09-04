@@ -95,10 +95,12 @@ export async function assertActorAdmin(actorId: number, locale: string, outerTx?
  * reuses `assertActorAdmin` verbatim (single source of gate truth: anonymous
  * callers receive `UnauthorizedError`; missing or non-admin actors receive
  * `ForbiddenError`). The governance clause re-reads the actor row only after
- * the role gate has passed and inspects ONLY the governance columns
- * (`isDeleted`, `isBlocked`, `suspended`), evaluated in the deterministic
- * order deleted → blocked → suspended so a multi-flagged actor always
- * surfaces the same denial. Every denial emits exactly ONE
+ * the role gate has passed and FAILS CLOSED when that re-read comes back
+ * empty (the actor was deleted between the two reads) — a missing re-read
+ * throws `ForbiddenError` before any governance column is inspected. The
+ * governance columns (`isDeleted`, `isBlocked`, `suspended`) are evaluated in
+ * the deterministic order deleted → blocked → suspended so a multi-flagged
+ * actor always surfaces the same denial. Every denial emits exactly ONE
  * `logger.logDomainError` and performs ZERO audit rows, ZERO writes, and
  * ZERO reads past the gate.
  */
@@ -107,7 +109,16 @@ export async function assertActorAdminActive(actorId: number, locale: string, ou
   const tErrors = getServerTranslations(locale).errorsTranslations;
 
   const actor = await UserRepository.findById(actorId, outerTx);
-  if (actor?.isDeleted) {
+  if (!actor) {
+    logger.logDomainError("Admin operation denied: actor row vanished between role gate and governance re-read", {
+      code: "FORBIDDEN",
+      entity: "user",
+      entityId: actorId,
+      locale,
+    });
+    throw new ForbiddenError(tErrors.forbidden);
+  }
+  if (actor.isDeleted) {
     logger.logDomainError("Admin operation denied: actor account deleted", {
       code: "FORBIDDEN",
       entity: "user",
@@ -116,7 +127,7 @@ export async function assertActorAdminActive(actorId: number, locale: string, ou
     });
     throw new ForbiddenError(tErrors.accountDeleted);
   }
-  if (actor?.isBlocked) {
+  if (actor.isBlocked) {
     logger.logDomainError("Admin operation denied: actor account blocked", {
       code: "FORBIDDEN",
       entity: "user",
@@ -125,7 +136,7 @@ export async function assertActorAdminActive(actorId: number, locale: string, ou
     });
     throw new ForbiddenError(tErrors.accountBlocked);
   }
-  if (actor?.suspended) {
+  if (actor.suspended) {
     logger.logDomainError("Admin operation denied: actor account suspended", {
       code: "FORBIDDEN",
       entity: "user",
