@@ -5,9 +5,10 @@
  *
  * Usage: bun run scripts/pglite-bootstrap.ts
  */
-import { PGlite } from "@electric-sql/pglite";
+
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
+import { PGlite } from "@electric-sql/pglite";
 
 const MIGRATIONS_DIR = "/home/z/my-project/backend/drizzle";
 const DB_URL = "file:///home/z/my-project/db/pglite";
@@ -26,7 +27,7 @@ async function main() {
   `);
 
   const entries = readdirSync(MIGRATIONS_DIR)
-    .filter((name) => {
+    .filter(name => {
       const stat = statSync(join(MIGRATIONS_DIR, name));
       return stat.isDirectory();
     })
@@ -41,14 +42,14 @@ async function main() {
       // Split on --> statement-breakpoint to be safe
       const statements = sql
         .split("--> statement-breakpoint")
-        .map((s) => s.trim())
-        .filter((s) => s.length > 0 && !s.startsWith("--"));
+        .map(s => s.trim())
+        .filter(s => s.length > 0 && !s.startsWith("--"));
 
       for (const stmt of statements) {
         try {
           await pg.exec(stmt);
         } catch (e) {
-          const msg = String((e as Error)?.message ?? e);
+          const msg = String((e instanceof Error ? e.message : null) ?? e);
           // Tolerate "already exists" errors (re-running migrations)
           if (/already exists|duplicate_|conflicts with/i.test(msg)) {
             // continue
@@ -60,7 +61,9 @@ async function main() {
       applied++;
       console.log(`[pglite-bootstrap] Applied: ${dir}`);
     } catch (e) {
-      console.error(`[pglite-bootstrap] FAILED: ${dir} — ${String((e as Error)?.message ?? e).slice(0, 300)}`);
+      console.error(
+        `[pglite-bootstrap] FAILED: ${dir} — ${String((e instanceof Error ? e.message : null) ?? e).slice(0, 300)}`
+      );
     }
   }
 
@@ -76,7 +79,7 @@ async function main() {
       await pg.exec(sql);
       console.log(`[pglite-bootstrap] Applied custom: ${file.split("/").pop()}`);
     } catch (e) {
-      const msg = String((e as Error)?.message ?? e);
+      const msg = String((e instanceof Error ? e.message : null) ?? e);
       if (/already exists|duplicate_/i.test(msg)) {
         // continue
       } else {
@@ -89,7 +92,7 @@ async function main() {
   await pg.close();
 }
 
-main().catch((e) => {
+main().catch(e => {
   console.error("[pglite-bootstrap] FATAL:", e);
   process.exit(1);
 });

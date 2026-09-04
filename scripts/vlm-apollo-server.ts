@@ -12,8 +12,8 @@
  */
 import { ApolloServer } from "@apollo/server";
 import { startStandaloneServer } from "@apollo/server/standalone";
-import { graphQLSchema } from "@/backend/graphql/gqlSchema";
 import { createGraphQLContext } from "@/backend/graphql/gqlContextFactory";
+import { graphQLSchema } from "@/backend/graphql/gqlSchema";
 import { ensureEnvironmentValidated } from "@/backend/lib/env";
 import { logger } from "@/backend/lib/logger";
 
@@ -22,7 +22,7 @@ ensureEnvironmentValidated();
 const server = new ApolloServer({
   schema: graphQLSchema,
   introspection: true,
-  formatError: (formatted) => {
+  formatError: formatted => {
     // Pass through; Apollo's default envelope is correct for our wire-tier matrix
     return formatted;
   },
@@ -39,7 +39,9 @@ const { url } = await startStandaloneServer(server, {
     const headers = new Headers();
     for (const [k, v] of Object.entries(req.headers ?? {})) {
       if (typeof v === "string") headers.set(k, v);
-      else if (Array.isArray(v)) v.forEach((vv) => headers.append(k, vv));
+      else if (Array.isArray(v)) {
+        for (const vv of v) headers.append(k, vv);
+      }
     }
     const request = new Request(`http://localhost:${PORT}/graphql`, {
       method: req.method ?? "POST",

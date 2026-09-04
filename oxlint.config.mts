@@ -217,6 +217,15 @@ export default defineConfig({
     "jscpd-output/**",
     "jscpd-all/**",
     "agent-ctx/**",
+    // Sandbox VLM verification scripts (not part of the production codebase).
+    "scripts/vlm-apollo-server.ts",
+    "scripts/vlm-seed-fixtures.ts",
+    "scripts/pglite-bootstrap.ts",
+    "scripts/vlm-capture-round-1.sh",
+    "scripts/vlm-capture-round-2.sh",
+    "scripts/vlm-round-1.sh",
+    "scripts/vlm-verify-auth.sh",
+    "scripts/ts6-eslint-patch.cjs",
     // Transpiled locale artifacts (gitignored, generated at dev time).
     "shared/locale/**/*.js",
   ],

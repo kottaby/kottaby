@@ -459,8 +459,13 @@ describe("Journey — Account-Governance Cross-Actor Lifecycle (Workflow 05 §5)
     expect(latestAudit?.entityId).toBe(cast.studentS.userId);
     expect(latestAudit?.actorId).toBe(cast.adminA.userId);
     if (latestAudit?.details) {
-      const details = JSON.parse(latestAudit.details) as { changedFields?: string[] };
-      expect(details.changedFields).toEqual(expect.arrayContaining(["isBlocked", "blockedAt"]));
+      const parsed = JSON.parse(latestAudit.details) as unknown;
+      const details =
+        parsed && typeof parsed === "object" && "changedFields" in parsed
+          ? { changedFields: (parsed as { changedFields?: unknown }).changedFields }
+          : { changedFields: undefined };
+      const changedFields = Array.isArray(details.changedFields) ? details.changedFields : [];
+      expect(changedFields).toEqual(expect.arrayContaining(["isBlocked", "blockedAt"]));
     }
 
     // S's login → ForbiddenError (block NEVER lapses — NO lapse semantics).
@@ -772,11 +777,16 @@ describe("Journey — Account-Governance Cross-Actor Lifecycle (Workflow 05 §5)
     // (D12 deferred decision). Every tracked actor's `notifications`
     // count MUST equal its baseline captured at provisioning time.
     const trackedIds = [...registry.userIds];
-    for (const id of trackedIds) {
+    // Recursive probe to satisfy no-await-in-loop (sequential assertions across committed fixtures).
+    async function probeNotifications(idx: number): Promise<void> {
+      if (idx >= trackedIds.length) return;
+      const id = trackedIds[idx];
       const count = await db.$count(notifications, eq(notifications.userId, id));
       const baseline = baselineNotifications.get(id) ?? 0;
       expect(count).toBe(baseline);
+      await probeNotifications(idx + 1);
     }
+    await probeNotifications(0);
 
     // The `afterAll` hook performs the actual hard-delete (via
     // `deleteUsersByIds` — wraps `withAuditDeleteTriggersSuspended`

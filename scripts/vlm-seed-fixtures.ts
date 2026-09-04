@@ -77,7 +77,9 @@ async function main() {
     ["vlm-test-governed-g@app.local", governedPasswordHash, "VLM Test Governed Admin G", "admin", now]
   );
   const adminGId = adminG.rows[0].id;
-  console.log(`[seed-fixtures] Governed Admin G id=${adminGId} email=vlm-test-governed-g@app.local password=GovernedPass123! (isBlocked=true)`);
+  console.log(
+    `[seed-fixtures] Governed Admin G id=${adminGId} email=vlm-test-governed-g@app.local password=GovernedPass123! (isBlocked=true)`
+  );
 
   // Seed the applicants row for the teacher (required for handshake helpers)
   try {
@@ -88,7 +90,9 @@ async function main() {
     );
     console.log(`[seed-fixtures] applicants row seeded for teacher T`);
   } catch (e) {
-    console.warn(`[seed-fixtures] applicants seed skipped: ${String((e as Error)?.message ?? e).slice(0, 150)}`);
+    console.warn(
+      `[seed-fixtures] applicants seed skipped: ${String((e instanceof Error ? e.message : null) ?? e).slice(0, 150)}`
+    );
   }
 
   // Seed the students row for student S (required for student-handshake)
@@ -100,20 +104,37 @@ async function main() {
     );
     console.log(`[seed-fixtures] students row seeded for student S`);
   } catch (e) {
-    console.warn(`[seed-fixtures] students seed skipped: ${String((e as Error)?.message ?? e).slice(0, 150)}`);
+    console.warn(
+      `[seed-fixtures] students seed skipped: ${String((e instanceof Error ? e.message : null) ?? e).slice(0, 150)}`
+    );
   }
 
   console.log("\n[seed-fixtures] SUMMARY — fixture cast for VLM cross-user verification:");
-  console.log("  Admin A     (governance actor)            email=vlm-test-admin-a@app.local      pwd=AdminPass123!   id=" + adminAId);
-  console.log("  Admin B     (cross-actor observer)        email=vlm-test-admin-b@app.local      pwd=AdminPass123!   id=" + adminBId);
-  console.log("  Student S   (governance target)           email=vlm-test-student-s@app.local   pwd=StudentPass123! id=" + studentSId);
-  console.log("  Teacher T   (cross-role containment ctrl) email=vlm-test-teacher-t@app.local   pwd=TeacherPass123! id=" + teacherTId);
-  console.log("  Governed G  (blocked — strict guard test) email=vlm-test-governed-g@app.local  pwd=GovernedPass123! id=" + adminGId);
+  console.log(
+    "  Admin A     (governance actor)            email=vlm-test-admin-a@app.local      pwd=AdminPass123!   id=" +
+      adminAId
+  );
+  console.log(
+    "  Admin B     (cross-actor observer)        email=vlm-test-admin-b@app.local      pwd=AdminPass123!   id=" +
+      adminBId
+  );
+  console.log(
+    "  Student S   (governance target)           email=vlm-test-student-s@app.local   pwd=StudentPass123! id=" +
+      studentSId
+  );
+  console.log(
+    "  Teacher T   (cross-role containment ctrl) email=vlm-test-teacher-t@app.local   pwd=TeacherPass123! id=" +
+      teacherTId
+  );
+  console.log(
+    "  Governed G  (blocked — strict guard test) email=vlm-test-governed-g@app.local  pwd=GovernedPass123! id=" +
+      adminGId
+  );
 
   await pg.close();
 }
 
-main().catch((e) => {
+main().catch(e => {
   console.error("[seed-fixtures] FATAL:", e);
   process.exit(1);
 });

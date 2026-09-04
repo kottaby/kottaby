@@ -25,21 +25,11 @@ import {
   LockOpenOutlined as UnblockIcon,
   CheckCircleOutlined as UnsuspendIcon,
 } from "@mui/icons-material";
-import {
-  Alert,
-  Box,
-  Button,
-  CircularProgress,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
-  TextField,
-  Typography,
-} from "@mui/material";
+import { Box, Button } from "@mui/material";
 import type { ReactNode } from "react";
 import { focusVisibleRingSx } from "@/frontend/components/ui/focusRing";
 import type { AdminUserDetailQuery_adminUserDetail } from "@/frontend/graphql/generated/gql/graphql";
+import { GovernanceConfirmDialog } from "@/frontend/views/admin/users/detail/GovernanceConfirmDialog";
 import { useGovernanceActions } from "@/frontend/views/admin/users/hooks/useGovernanceActions";
 import { AdminUsers, useAppTranslation } from "@/shared/locale";
 import type { AdminUsersLabels } from "@/shared/locale/types/adminUsers";
@@ -61,7 +51,6 @@ interface ActionButton {
 }
 
 const TOUCH = 44;
-const SPINNER = 20;
 
 interface GovernanceState {
   readonly deleted: boolean;
@@ -138,8 +127,6 @@ export function GovernanceActionsSection({ user, onToast }: GovernanceActionsSec
             aria-label={btn.label}
             sx={{
               ...focusVisibleRingSx,
-              // Enforce ≥44px touch target + consistent internal padding.
-              // width:100% so the button fills its grid cell (no ragged edges).
               minHeight: TOUCH,
               minWidth: TOUCH,
               px: 1.5,
@@ -152,69 +139,7 @@ export function GovernanceActionsSection({ user, onToast }: GovernanceActionsSec
           </Button>
         ))}
       </Box>
-      <Dialog
-        open={api.openAction !== null}
-        onClose={api.closeDialog}
-        fullWidth
-        maxWidth="sm"
-        slotProps={{ paper: { sx: { borderRadius: "16px", overflow: "hidden" } } }}
-      >
-        <form onSubmit={api.handleSubmit}>
-          <DialogTitle sx={{ fontWeight: 700 }}>{api.meta?.title ?? ""}</DialogTitle>
-          <DialogContent>
-            <Typography sx={{ mb: api.openAction === "suspend" ? 2 : 0 }}>{api.meta?.message ?? ""}</Typography>
-            {api.openAction === "suspend" && (
-              <TextField
-                label={copy.suspendPeriodLabel}
-                helperText={api.daysErr ?? copy.suspendPeriodHelper}
-                value={api.days}
-                onChange={e => api.onDaysChange(e.target.value)}
-                error={api.daysErr !== null}
-                aria-invalid={api.daysErr !== null}
-                fullWidth
-                slotProps={{
-                  htmlInput: { inputMode: "numeric", pattern: "[0-9]*", "aria-label": copy.suspendPeriodLabel },
-                }}
-                sx={{ mt: 1 }}
-              />
-            )}
-            {api.alert && (
-              <Alert severity={api.alert.severity} sx={{ mt: 2, alignItems: "center" }} onClose={api.clearAlert}>
-                {api.alert.message}
-              </Alert>
-            )}
-          </DialogContent>
-          <DialogActions
-            sx={theme => ({
-              px: 3,
-              pb: 2.5,
-              pt: 1,
-              gap: 1.5,
-              justifyContent: "flex-end",
-              alignItems: "center",
-              borderTop: `1px solid ${theme.palette.divider}`,
-            })}
-          >
-            <Button
-              onClick={api.closeDialog}
-              disabled={api.inFlight}
-              sx={{ ...focusVisibleRingSx, minHeight: TOUCH, minWidth: TOUCH }}
-            >
-              {copy.cancel}
-            </Button>
-            <Button
-              type="submit"
-              color={api.meta?.confirmColor ?? "primary"}
-              variant="contained"
-              disabled={api.confirmDisabled}
-              aria-busy={api.inFlight || undefined}
-              sx={{ ...focusVisibleRingSx, minHeight: TOUCH, minWidth: TOUCH }}
-            >
-              {api.inFlight ? <CircularProgress size={SPINNER} sx={{ color: "inherit" }} /> : copy.confirm}
-            </Button>
-          </DialogActions>
-        </form>
-      </Dialog>
+      <GovernanceConfirmDialog copy={copy} api={api} />
     </Box>
   );
 }
