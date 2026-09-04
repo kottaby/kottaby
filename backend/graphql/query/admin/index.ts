@@ -10,3 +10,4 @@
  */
 import "./admin-users.query";
 import "./audit-trail.query";
+import "./platform-analytics.query";

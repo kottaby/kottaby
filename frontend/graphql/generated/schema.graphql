@@ -501,6 +501,97 @@ type Plan {
   updatedAt: String!
 }
 
+type PlatformAnalytics {
+  generatedAt: DateTime!
+  health: PlatformAnalyticsHealth!
+  ratings: PlatformAnalyticsRatings!
+  revenue: PlatformAnalyticsRevenue!
+  revenueTrendDaily: [PlatformAnalyticsRevenueTrendPoint!]!
+  sessionTrendDaily: [PlatformAnalyticsSessionTrendPoint!]!
+  sessions: PlatformAnalyticsSessions!
+  subscriptions: PlatformAnalyticsSubscriptions!
+  teachers: PlatformAnalyticsTeachers!
+  users: PlatformAnalyticsUsers!
+}
+
+type PlatformAnalyticsCurrencyRevenue {
+  currency: String!
+  last30DaysAmount: String!
+  paidPaymentsCount: Int!
+  totalAmount: String!
+}
+
+type PlatformAnalyticsHealth {
+  pendingDisputes: Int!
+  pendingWithdrawals: Int!
+}
+
+type PlatformAnalyticsRatings {
+  averageEvaluationScore: Float
+  averageSessionRating: Float
+  evaluationScoresCount: Int!
+  sessionRatingsCount: Int!
+}
+
+type PlatformAnalyticsRevenue {
+  gatewayRevenueByCurrency: [PlatformAnalyticsCurrencyRevenue!]!
+  offlineActivationsCount: Int!
+}
+
+type PlatformAnalyticsRevenueTrendPoint {
+  amount: String!
+  bucketStart: DateTime!
+  currency: String!
+}
+
+type PlatformAnalyticsSessionTrendPoint {
+  bucketStart: DateTime!
+  sessionCount: Int!
+}
+
+type PlatformAnalyticsSessions {
+  awaitingConfirmation: Int!
+  cancelled: Int!
+  completed: Int!
+  disputed: Int!
+  scheduled: Int!
+  started: Int!
+  thisMonth: Int!
+  thisWeek: Int!
+  today: Int!
+  total: Int!
+}
+
+type PlatformAnalyticsSubscriptions {
+  active: Int!
+  activeInWindowNow: Int!
+  cancelled: Int!
+  expired: Int!
+  pending: Int!
+  suspended: Int!
+  total: Int!
+}
+
+type PlatformAnalyticsTeachers {
+  certifiedCount: Int!
+  evaluatorCount: Int!
+  onlineNowCount: Int!
+}
+
+type PlatformAnalyticsUsers {
+  activeCount: Int!
+  adminsCount: Int!
+  blockedCount: Int!
+  deletedCount: Int!
+  newThisWeekCount: Int!
+  parentsCount: Int!
+  recentlyActive24h: Int!
+  studentsCount: Int!
+  suspendedCount: Int!
+  teachersCount: Int!
+  totalCount: Int!
+}
+
 type Query {
   _health: HealthCheck!
   adminAuditLogs(filters: AdminAuditLogFiltersInput, page: Int, pageSize: Int): AdminAuditLogPage!
@@ -511,6 +602,11 @@ type Query {
     """Whether to include deactivated plans in the returned list."""
     includeInactive: Boolean = true
   ): [Plan!]!
+
+  """
+  Admin-only whole-platform analytics snapshot (users, sessions, revenue by currency, subscriptions, teacher presence, ratings, health indicators, 30-day daily trends). Zero arguments — the read scope is the closed contract. Governed admins are denied at the service tier.
+  """
+  adminPlatformAnalytics: PlatformAnalytics!
   adminUserActivity(id: Int!, limit: Int): [AdminUserActivityEntry!]!
   adminUserDetail(id: Int!): AdminUserDetail!
   adminUserStats: AdminUserStats!
