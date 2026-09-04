@@ -14,10 +14,7 @@
  *    keeps the wire strings verbatim.
  */
 
-import type {
-  AdminPlatformAnalyticsQuery_adminPlatformAnalytics_revenueTrendDaily,
-  AdminPlatformAnalyticsQuery_adminPlatformAnalytics_sessionTrendDaily,
-} from "@/frontend/graphql/generated/gql/graphql";
+import type { AdminPlatformAnalyticsQuery_adminPlatformAnalytics_revenueTrendDaily } from "@/frontend/graphql/generated/gql/graphql";
 
 /** Shared metric-card grid: 4 columns desktop → 2 tablet → 1 mobile. */
 export const METRIC_GRID_SX = {
@@ -108,6 +105,3 @@ export function pivotRevenueTrend(
 
   return { currencies, data: [...byBucket.values()] };
 }
-
-/** Type re-export — the session-trend wire rows flow into the chart unchanged. */
-export type SessionTrendDatum = AdminPlatformAnalyticsQuery_adminPlatformAnalytics_sessionTrendDaily;

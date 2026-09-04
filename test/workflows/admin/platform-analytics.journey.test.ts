@@ -528,6 +528,27 @@ function expectedRevenueTrend(
   return points;
 }
 
+/**
+ * The family mean rounded to exactly 2 decimal places, computed in exact
+ * integer space: the mean is scaled to integer hundredths
+ * (`BigInt(sum) * 100n / BigInt(count)`) and rounded half-away-from-zero —
+ * the same tie-breaking Postgres applies in `round(numeric, 2)` — so a
+ * `.xx5` boundary resolves deterministically instead of landing wherever
+ * float multiplication leaves it. The single float step,
+ * `Number(hundredths) / 100`, is bit-identical to the server's `::float8`
+ * cast of the same 2-dp decimal, so the assertion is plain `toBe` equality.
+ */
+function expectedRoundedMean(sum: number, count: number): number {
+  const scaledHundredths = BigInt(sum) * 100n;
+  const familySize = BigInt(count);
+  const sign = scaledHundredths < 0n ? -1n : 1n;
+  const magnitude = scaledHundredths < 0n ? -scaledHundredths : scaledHundredths;
+  const quotient = magnitude / familySize;
+  const remainder = magnitude % familySize;
+  const roundedMagnitude = remainder * 2n >= familySize ? quotient + 1n : quotient;
+  return Number(sign * roundedMagnitude) / 100;
+}
+
 /** Projects a live session trend onto primitive comparables for exact ordering-sensitive equality. */
 function actualSessionTrend(snapshot: PlatformAnalyticsReturnType): readonly ExpectedSessionPoint[] {
   return snapshot.sessionTrendDaily.map(point => ({
@@ -779,14 +800,14 @@ describe("Platform analytics — admin read-model journeys (A–D)", () => {
       expect(readA.ratings.averageSessionRating === null).toBe(baselineA.sessionRatingsCount === 0);
       expect(readA.ratings.averageEvaluationScore === null).toBe(baselineA.evaluationScoresCount === 0);
       if (baselineA.sessionRatingsCount > 0) {
-        const expectedSessionMean =
-          Math.round((baselineA.sessionRatingSum / baselineA.sessionRatingsCount) * 100) / 100;
-        expect(readA.ratings.averageSessionRating).toBeCloseTo(expectedSessionMean, 2);
+        expect(readA.ratings.averageSessionRating).toBe(
+          expectedRoundedMean(baselineA.sessionRatingSum, baselineA.sessionRatingsCount)
+        );
       }
       if (baselineA.evaluationScoresCount > 0) {
-        const expectedEvaluationMean =
-          Math.round((baselineA.evaluationScoreSum / baselineA.evaluationScoresCount) * 100) / 100;
-        expect(readA.ratings.averageEvaluationScore).toBeCloseTo(expectedEvaluationMean, 2);
+        expect(readA.ratings.averageEvaluationScore).toBe(
+          expectedRoundedMean(baselineA.evaluationScoreSum, baselineA.evaluationScoresCount)
+        );
       }
 
       // Read purity: byte-identical tables, zero audit, zero notifications.
@@ -940,14 +961,18 @@ describe("Platform analytics — admin read-model journeys (A–D)", () => {
 
       // Ratings: the two journey rows join their families; averages are the
       // 2-dp family means (never fabricated, never dropped).
-      const expectedSessionMean =
-        Math.round(((baselineB.sessionRatingSum + 5) / (baselineB.sessionRatingsCount + 1)) * 100) / 100;
-      const expectedEvaluationMean =
-        Math.round(((baselineB.evaluationScoreSum + 85) / (baselineB.evaluationScoresCount + 1)) * 100) / 100;
+      const expectedSessionMean = expectedRoundedMean(
+        baselineB.sessionRatingSum + 5,
+        baselineB.sessionRatingsCount + 1
+      );
+      const expectedEvaluationMean = expectedRoundedMean(
+        baselineB.evaluationScoreSum + 85,
+        baselineB.evaluationScoresCount + 1
+      );
       expect(readB.ratings.sessionRatingsCount).toBe(baselineB.sessionRatingsCount + 1);
-      expect(readB.ratings.averageSessionRating).toBeCloseTo(expectedSessionMean, 2);
+      expect(readB.ratings.averageSessionRating).toBe(expectedSessionMean);
       expect(readB.ratings.evaluationScoresCount).toBe(baselineB.evaluationScoresCount + 1);
-      expect(readB.ratings.averageEvaluationScore).toBeCloseTo(expectedEvaluationMean, 2);
+      expect(readB.ratings.averageEvaluationScore).toBe(expectedEvaluationMean);
 
       // Revenue: TWO separate currency rows, exact paid sums, never merged.
       const dayKey = (currency: string): string => `${readDayStartMs}|${currency}`;
