@@ -161,6 +161,23 @@ async function countAuditForEntity(
   return result[0]?.count ?? 0;
 }
 
+/**
+ * Counts `audit_logs` rows attributable to a single actor id — the zero-write
+ * oracle for the denial probes. Global table totals are NOT stable mid-test
+ * under parallel bun test file execution (sibling suites commit fixture rows
+ * and hard-delete them in `afterAll` mid-window), so write-freedom is asserted
+ * per-actor: an id this test owns (a fresh sequence value minted inside the
+ * rollback tx, or the anonymous sentinel) cannot be perturbed by concurrent
+ * external churn.
+ */
+async function countAuditRowsForActor(tx: DBTransaction, actorId: number): Promise<number> {
+  const result = await tx
+    .select({ count: sql<number>`count(*)::int` })
+    .from(auditLogs)
+    .where(eq(auditLogs.actorId, actorId));
+  return result[0]?.count ?? 0;
+}
+
 describe("AdminUserManagementService — defense-in-depth (BFLA)", () => {
   // ─── Tier 1: anonymous + non-admin denials across all five operations ──
 
@@ -431,16 +448,16 @@ describe("AdminUserManagementService.getStats", () => {
 
   test("anonymous actor (id=0) → getStats → UnauthorizedError; zero audit rows", async () => {
     await runInRollback(async tx => {
-      const admin = await provisionAdminActor(tx);
+      await provisionAdminActor(tx);
       silenceDomainLog();
-      const auditBefore = await countAuditForEntity(tx, admin.id, AuditActionType.Create, admin.id);
 
       const error = await expectRepoError(() => AdminUserManagementService.getStats(LOCALE, ANONYMOUS_ACTOR_ID, tx));
       expect(error).toBeInstanceOf(UnauthorizedError);
       expect(error.message).toContain(tErrors.unauthorized);
 
-      const auditAfter = await countAuditForEntity(tx, admin.id, AuditActionType.Create, admin.id);
-      expect(auditAfter).toBe(auditBefore);
+      // Zero audit rows attributable to the denied call (actor-scoped —
+      // a global audit count races with concurrent files' commits).
+      expect(await countAuditRowsForActor(tx, ANONYMOUS_ACTOR_ID)).toBe(0);
     });
   });
 
@@ -449,14 +466,14 @@ describe("AdminUserManagementService.getStats", () => {
       const nonAdmin = await createTestUser(tx, { role: "student" });
       await createTestStudent(tx, nonAdmin.id);
       silenceDomainLog();
-      const auditBefore = await countAuditForEntity(tx, nonAdmin.id, AuditActionType.Create, nonAdmin.id);
 
       const error = await expectRepoError(() => AdminUserManagementService.getStats(LOCALE, nonAdmin.id, tx));
       expect(error).toBeInstanceOf(ForbiddenError);
       expect(error.message).toContain(tErrors.forbidden);
 
-      const auditAfter = await countAuditForEntity(tx, nonAdmin.id, AuditActionType.Create, nonAdmin.id);
-      expect(auditAfter).toBe(auditBefore);
+      // Zero audit rows attributable to the denied caller (actor-scoped —
+      // a global audit count races with concurrent files' commits).
+      expect(await countAuditRowsForActor(tx, nonAdmin.id)).toBe(0);
     });
   });
 });
@@ -477,12 +494,13 @@ describe("AdminUserManagementService.getUserActivity", () => {
         tx
       );
 
-      const auditBefore = await countAuditForEntity(tx, admin.id, AuditActionType.Create, created.id);
+      const auditBefore = await countAuditRowsForActor(tx, admin.id);
       const entries = await AdminUserManagementService.getUserActivity(created.id, LOCALE, admin.id, null, tx);
 
-      // Reads never audit — the timeline emission is zero.
-      const auditAfter = await countAuditForEntity(tx, admin.id, AuditActionType.Create, created.id);
-      expect(auditAfter).toBe(auditBefore);
+      // Reads never audit — the timeline emission is zero (actor-scoped:
+      // the pre-existing Create/Update rows carry this admin's fixture id,
+      // which no concurrent writer can mint rows for).
+      expect(await countAuditRowsForActor(tx, admin.id)).toBe(auditBefore);
 
       // Exactly the two rows this flow wrote (entity-scoped: rows about OTHER
       // entities never leak into this user's timeline).
@@ -597,7 +615,6 @@ describe("AdminUserManagementService.getUserActivity", () => {
       const target = await createTestUser(tx, { role: "student" });
       await createTestStudent(tx, target.id);
       silenceDomainLog();
-      const auditBefore = await countAuditForEntity(tx, target.id, AuditActionType.Create, target.id);
 
       const error = await expectRepoError(() =>
         AdminUserManagementService.getUserActivity(target.id, LOCALE, ANONYMOUS_ACTOR_ID, null, tx)
@@ -605,8 +622,9 @@ describe("AdminUserManagementService.getUserActivity", () => {
       expect(error).toBeInstanceOf(UnauthorizedError);
       expect(error.message).toContain(tErrors.unauthorized);
 
-      const auditAfter = await countAuditForEntity(tx, target.id, AuditActionType.Create, target.id);
-      expect(auditAfter).toBe(auditBefore);
+      // Zero audit rows attributable to the denied call (actor-scoped —
+      // a global audit count races with concurrent files' commits).
+      expect(await countAuditRowsForActor(tx, ANONYMOUS_ACTOR_ID)).toBe(0);
     });
   });
 
@@ -617,7 +635,6 @@ describe("AdminUserManagementService.getUserActivity", () => {
       const target = await createTestUser(tx, { role: "parent" });
       await createTestParent(tx, target.id);
       silenceDomainLog();
-      const auditBefore = await countAuditForEntity(tx, nonAdmin.id, AuditActionType.Create, nonAdmin.id);
 
       const error = await expectRepoError(() =>
         AdminUserManagementService.getUserActivity(target.id, LOCALE, nonAdmin.id, null, tx)
@@ -625,8 +642,9 @@ describe("AdminUserManagementService.getUserActivity", () => {
       expect(error).toBeInstanceOf(ForbiddenError);
       expect(error.message).toContain(tErrors.forbidden);
 
-      const auditAfter = await countAuditForEntity(tx, nonAdmin.id, AuditActionType.Create, nonAdmin.id);
-      expect(auditAfter).toBe(auditBefore);
+      // Zero audit rows attributable to the denied caller (actor-scoped —
+      // a global audit count races with concurrent files' commits).
+      expect(await countAuditRowsForActor(tx, nonAdmin.id)).toBe(0);
     });
   });
 });

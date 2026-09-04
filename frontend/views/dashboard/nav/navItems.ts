@@ -5,8 +5,10 @@
 
 import {
   AssessmentOutlined as AuditIcon,
+  CampaignOutlined,
   FamilyRestroomOutlined as ChildrenIcon,
   DashboardOutlined as DashboardIcon,
+  GavelOutlined as DisputesIcon,
   HistoryEduOutlined as HomeworkIcon,
   LinkOutlined as LinkChildIcon,
   NotificationsOutlined as NotificationsIcon,
@@ -98,6 +100,8 @@ function isDashboardLabelKey(key: NavLabelKey): key is keyof DashboardLabels {
  *    RETARGET of the former shared `/sessions` catch-all link)
  *  - Admin Users → `/admin/users` (DEV3-016 — the directory page exists)
  *  - Admin Plans → `/admin/plans` (DEV1-005)
+ *  - Admin Broadcasts → `/admin/broadcasts` (DEV3-022d — a pure ADD, not a
+ *    retarget: the compose surface ships at the route)
  */
 const NAV_ITEMS_BY_ROLE: Record<UserRole, readonly DashboardNavItem[]> = {
   [UserRole.Student]: [
@@ -106,6 +110,7 @@ const NAV_ITEMS_BY_ROLE: Record<UserRole, readonly DashboardNavItem[]> = {
     { route: "/student/sessions", labelKey: "sessions", Icon: SessionsIcon },
     { route: "/subscriptions", labelKey: "subscriptions", Icon: SubscriptionsIcon },
     { route: "/homework", labelKey: "homework", Icon: HomeworkIcon },
+    { route: "/student/link-requests", labelKey: "linkRequests", Icon: LinkChildIcon },
     { route: "/profile", labelKey: "profile", Icon: ProfileIcon },
   ],
   [UserRole.Teacher]: [
@@ -131,6 +136,11 @@ const NAV_ITEMS_BY_ROLE: Record<UserRole, readonly DashboardNavItem[]> = {
     { route: "/students", labelKey: "students", Icon: StudentsIcon },
     { route: "/admin/plans", labelKey: "plans", Icon: PlansIcon },
     { route: "/audit", labelKey: "audit", Icon: AuditIcon },
+    { route: "/admin/broadcasts", labelKey: "broadcasts", Icon: CampaignOutlined },
+    // DEV3-005 (R-111) — the session-arbitration queue: a REAL admin page
+    // (`app/(dashboard)/disputes/page.tsx`, `withPageAuth` admin-gated like
+    // the role dashboards) instead of a catch-all coming-soon stub.
+    { route: "/disputes", labelKey: "disputes", Icon: DisputesIcon },
     { route: "/profile", labelKey: "profile", Icon: ProfileIcon },
   ],
 };

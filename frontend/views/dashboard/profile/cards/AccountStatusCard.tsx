@@ -68,7 +68,9 @@ function StatusBadge({ active, label, Icon, tone }: Readonly<StatusBadgeProps>):
         variant="outlined"
         aria-disabled="true"
         sx={theme => ({
-          borderColor: theme.palette.outline,
+          // border.main (not outlineVariant) so the inert badge keeps a
+          // visible outline against the muted disabled background.
+          borderColor: theme.palette.border.main,
           bgcolor: theme.palette.action.disabledBackground,
           color: theme.palette.text.secondary,
           fontWeight: 600,

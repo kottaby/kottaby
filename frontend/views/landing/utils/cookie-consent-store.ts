@@ -1,4 +1,5 @@
 "use client";
+
 import { useSyncExternalStore } from "react";
 
 // ─── Cookie consent (localStorage-backed external store) ────────────

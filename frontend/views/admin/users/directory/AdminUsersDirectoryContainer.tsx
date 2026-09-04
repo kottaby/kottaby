@@ -53,6 +53,8 @@ export function AdminUsersDirectoryContainer({ labels }: AdminUsersDirectoryCont
     void directory.refetch();
   };
   return (
+    // Bottom padding clears the fixed mobile FAB (bottom 88 + 56 height) so
+    // the last stacked card never slides under it when scrolled to the end.
     <Stack spacing={3} sx={{ p: { xs: 2, md: 3 }, pb: { xs: 20, md: 4 } }}>
       <Typography variant="h4" component="h1">
         {labels.title}

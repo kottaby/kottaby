@@ -2,14 +2,28 @@
  * TeacherRepository — data-access layer for the `teacher` role-child table.
  *
  * The `teacher` row shares its PK with `users.id` (FK ON DELETE CASCADE) and
- * carries the certification flags consumed by the teaching surfaces:
+ * exists only for users who passed the verification pipeline; a failed
+ * applicant keeps an `applicants` row and never gets a `teacher` row.
+ * The row carries the certification flags consumed by the teaching surfaces:
  *  - `is_approved` — the teacher is certified to teach.
  *  - `is_evaluator` — the teacher may evaluate teacher applicants.
  *
+ * Booking flows must re-assert `is_approved` against the SAME transaction that
+ * later writes the dependent rows, so the flag cannot flip between the check
+ * and the write. `lockForCertificationCheck` takes that row lock
+ * (`SELECT ... FOR UPDATE`) and holds it for the duration of the caller's
+ * transaction.
+ *
  * Conventions per `backend/db/repo/AGENTS.md`:
- *  - Reads use `queryDb` (raw parameterized SQL) on the non-transactional
+ *  - One `namespace` per repository file; the namespace name is the canonical
+ *    export `{Entity}Repository`.
+ *  - Plain reads use `queryDb` (raw parameterized SQL) on the non-transactional
  *    branch, mirroring `UserRepository.findById` — Neon HTTP fast path when
  *    eligible, Drizzle select inside a supplied transaction.
+ *  - Locking reads belong to the write path: they always run inside a
+ *    caller-supplied transaction (a row lock taken outside a transaction is
+ *    released when the statement ends, which protects nothing) and therefore
+ *    never use prepared statements (`docs/drizzle/prepared-statements.md`).
  *  - Writes are single statements that take a REQUIRED `tx: DBTransaction`
  *    (last param) — they always join the caller's atomic unit of work and
  *    never fall back to the global handle. Insert payloads are built
@@ -19,6 +33,8 @@
  *  - No prepared statements on writes; no `inArray`; raw driver errors
  *    (e.g. a duplicate-PK `23505`) surface untranslated — the service layer
  *    owns error mapping.
+ *  - No business logic, no permission checks, no i18n or logging imports —
+ *    the caller decides what `isApproved = false` or a `null` row means.
  */
 import { and, eq, sql } from "drizzle-orm";
 import { queryDb } from "@/backend/db";
@@ -68,6 +84,40 @@ export namespace TeacherRepository {
       [id]
     );
     return result.rows[0] ?? null;
+  }
+
+  /**
+   * Locks the `teacher` row for the supplied transaction and reads its
+   * certification state (`SELECT id, is_approved FROM teacher WHERE id = $1
+   * FOR UPDATE` via Drizzle `.for("update")`).
+   *
+   * The row lock is held until the caller's transaction commits or rolls
+   * back: any concurrent transaction that locks the same row serializes
+   * behind it, and the certification value read here is the value the
+   * caller's subsequent writes commit against, with no window for the flag
+   * to flip in between.
+   *
+   * `tx` is REQUIRED (not optional): a locking read without a transaction
+   * releases its lock as soon as the statement finishes, which would make
+   * the certification re-assertion meaningless.
+   *
+   * @returns The minimal `{ id, isApproved }` projection, or `null` when no
+   *          `teacher` row exists for the id (e.g. a teacher-applicant's
+   *          `users.id` — holding an applicant row never mints certification).
+   *          `isApproved` mirrors the column's DB-level nullability
+   *          (`boolean | null`); treating `null` as "not certified" is the
+   *          caller's decision.
+   */
+  export async function lockForCertificationCheck(
+    teacherId: number,
+    tx: DBTransaction
+  ): Promise<{ id: number; isApproved: boolean | null } | null> {
+    const rows = await tx
+      .select({ id: teacher.id, isApproved: teacher.isApproved })
+      .from(teacher)
+      .where(eq(teacher.id, teacherId))
+      .for("update");
+    return rows[0] ?? null;
   }
 
   /**

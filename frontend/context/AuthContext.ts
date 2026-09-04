@@ -1,4 +1,5 @@
 "use client";
+
 import { createContext } from "react";
 import type { LoginMutationVariables, MeQuery } from "@/frontend/graphql/generated/gql/graphql";
 

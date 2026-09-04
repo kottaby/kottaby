@@ -39,10 +39,16 @@ export interface DashboardLabels {
   readonly plans: string;
   /** Sidebar nav: Audit link (admin) */
   readonly audit: string;
+  /** Sidebar nav: Broadcasts link (admin — the broadcast compose surface) */
+  readonly broadcasts: string;
+  /** Sidebar nav: Disputes link (admin — session arbitration queue) */
+  readonly disputes: string;
   /** Sidebar nav: Profile link */
   readonly profile: string;
   /** Sidebar nav: Children link (parent) */
   readonly children: string;
+  /** Sidebar nav: Link Requests link (student) */
+  readonly linkRequests: string;
   /** Coming-soon placeholder title for unimplemented routes */
   readonly comingSoon: string;
   /** Coming-soon placeholder body — interpolated with the feature name */
