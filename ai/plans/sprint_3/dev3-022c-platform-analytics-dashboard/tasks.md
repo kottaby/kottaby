@@ -277,30 +277,30 @@ Every task in this file is executed under ALL of the following rules, without ex
 
 ## Phase 4: Frontend GraphQL Documents, Stores & UI Views
 
-- [ ] 4.1 [GraphQL documents — CREATE `frontend/graphql/sharedDocuments/admin/platform-analytics.documents.ts`]
+- [x] 4.1 [GraphQL documents — CREATE `frontend/graphql/sharedDocuments/admin/platform-analytics.documents.ts`]
   - Files to create/modify:
     - CREATE `frontend/graphql/sharedDocuments/admin/platform-analytics.documents.ts` — `adminPlatformAnalyticsQueryDocument: TypedDocumentNode<AdminPlatformAnalyticsQuery>` via `gql`, NAMED operation `AdminPlatformAnalytics`, ZERO variables, FULL selection set EXACTLY per plan §5.4 (every section + every leaf incl. `generatedAt`, `recentlyActive24h`, both trends; NO `id` selections).
     - UPDATE `frontend/graphql/sharedDocuments/admin/index.ts` — `export * from "./platform-analytics.documents";`.
   - Applicable instructions: `frontend/graphql/AGENTS.md`, `frontend/AGENTS.md`, `.agents/instructions/frontend.instructions.md`.
   - _Requirements: REQ-062_
-  - [ ] 4.1.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts frontend/graphql/sharedDocuments/admin/platform-analytics.documents.ts --lifecycle duplicates` (exit 0).
-  - [ ] 4.1.TE **Test Engineering**: CREATE `frontend/graphql/sharedDocuments/admin/platform-analytics.documents.test.ts` (mirrors `notification.documents.test.ts` precedent): named-operation pin, zero-variables pin, full-selection presence of `generatedAt`, barrel-identity re-export pin, `TypedDocumentNode` typing. Run: `bun run test/scripts/run-test.ts frontend/graphql/sharedDocuments/admin/platform-analytics.documents.test.ts`.
-  - [ ] 4.1.SEC **Security & Tenancy Audit**: closed query document — no fragments reaching beyond the contract; zero variables structurally prevent client steering.
-  - [ ] 4.1.SR **Semantic Review**: document selection matches the generated SDL leaf-for-leaf; camelCase field naming consistent with codegen output.
-  - [ ] 4.1.IV **Instruction Verification**: validate against `frontend/graphql/AGENTS.md` + discovered instructions.
-  - [ ] 4.1.OUT Write outcome.
+  - [x] 4.1.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts frontend/graphql/sharedDocuments/admin/platform-analytics.documents.ts --lifecycle duplicates` (exit 0).
+  - [x] 4.1.TE **Test Engineering**: CREATE `frontend/graphql/sharedDocuments/admin/platform-analytics.documents.test.ts` (mirrors `notification.documents.test.ts` precedent): named-operation pin, zero-variables pin, full-selection presence of `generatedAt`, barrel-identity re-export pin, `TypedDocumentNode` typing. Run: `bun run test/scripts/run-test.ts frontend/graphql/sharedDocuments/admin/platform-analytics.documents.test.ts`.
+  - [x] 4.1.SEC **Security & Tenancy Audit**: closed query document — no fragments reaching beyond the contract; zero variables structurally prevent client steering.
+  - [x] 4.1.SR **Semantic Review**: document selection matches the generated SDL leaf-for-leaf; camelCase field naming consistent with codegen output.
+  - [x] 4.1.IV **Instruction Verification**: validate against `frontend/graphql/AGENTS.md` + discovered instructions.
+  - [x] 4.1.OUT Write outcome.
 
-- [ ] 4.2 [Apollo cache registration — UPDATE `frontend/providers/apollo/apolloCache.ts`]
+- [x] 4.2 [Apollo cache registration — UPDATE `frontend/providers/apollo/apolloCache.ts`]
   - Files to modify:
     - UPDATE `frontend/providers/apollo/apolloCache.ts` — register ALL eleven new embedded types with `keyFields: false`: `PlatformAnalytics`, `PlatformAnalyticsUsers`, `PlatformAnalyticsSessions`, `PlatformAnalyticsRevenue`, `PlatformAnalyticsCurrencyRevenue`, `PlatformAnalyticsSubscriptions`, `PlatformAnalyticsTeachers`, `PlatformAnalyticsRatings`, `PlatformAnalyticsHealth`, `PlatformAnalyticsSessionTrendPoint`, `PlatformAnalyticsRevenueTrendPoint` (precedent: `apolloCache.ts` currently registers SIX type policies — the `AdminDashboardScheduleResult` merge policy plus five `keyFields: false` entries `AdminNoteInfo`, `HandshakeCodeLookup`, `HealthCheck`, `NotificationListPage`, `OnlineMeetingInfo`).
     - UPDATE `frontend/providers/apollo/apolloCache.test.ts` — the pinned inventory assertion at `apolloCache.test.ts:176-185` is first RECONCILED to the real six (it currently pins five names while `apolloCache.ts` registers six type policies — the pinned list omits the registered `NotificationListPage`), then gains the eleven new entries (→ seventeen) in the SAME change set.
   - _Requirements: REQ-060, REQ-062_
-  - [ ] 4.2.QL **Quality Loop**: `sub-loop` on both files (exit 0).
-  - [ ] 4.2.TE **Test Engineering**: the updated inventory assertion IS the test — run `bun run test/scripts/run-test.ts frontend/providers/apollo/apolloCache.test.ts` (green).
-  - [ ] 4.2.SEC **Security & Tenancy Audit**: nothing cacheable by id here — embedded-only, so no cross-user cache bleed is possible on this subtree.
-  - [ ] 4.2.SR **Semantic Review**: no new `typePolicies` beyond `keyFields: false`; deterministic ordering of entries.
-  - [ ] 4.2.IV **Instruction Verification**: validate against `frontend/graphql/AGENTS.md` embedded-type policy.
-  - [ ] 4.2.OUT Write outcome.
+  - [x] 4.2.QL **Quality Loop**: `sub-loop` on both files (exit 0).
+  - [x] 4.2.TE **Test Engineering**: the updated inventory assertion IS the test — run `bun run test/scripts/run-test.ts frontend/providers/apollo/apolloCache.test.ts` (green).
+  - [x] 4.2.SEC **Security & Tenancy Audit**: nothing cacheable by id here — embedded-only, so no cross-user cache bleed is possible on this subtree.
+  - [x] 4.2.SR **Semantic Review**: no new `typePolicies` beyond `keyFields: false`; deterministic ordering of entries.
+  - [x] 4.2.IV **Instruction Verification**: validate against `frontend/graphql/AGENTS.md` embedded-type policy.
+  - [x] 4.2.OUT Write outcome.
 
 - [ ] 4.3 [Server-guarded page — CREATE `app/(dashboard)/admin/analytics/page.tsx`]
   - Files to create:
