@@ -339,16 +339,16 @@ Every task in this file is executed under ALL of the following rules, without ex
   - [x] 4.4.IV **Instruction Verification**: validate against `.agents/instructions/frontend.instructions.md` + `frontend/graphql/AGENTS.md` embedded-type consumption rules.
   - [x] 4.4.OUT Write outcome.
 
-- [ ] 4.5 [Frontend integration sweeps — locale/nav/cache/docs graph green sweep]
+- [x] 4.5 [Frontend integration sweeps — locale/nav/cache/docs graph green sweep]
   - Run in one sweep and confirm ALL green: `bun run test/scripts/run-test.ts shared/locale/analytics-namespace.parity.test.ts`, `bun run test/scripts/run-test.ts frontend/views/dashboard/navItems.test.ts`, `bun run test/scripts/run-test.ts frontend/providers/apollo/apolloCache.test.ts`, `bun run test/scripts/run-test.ts frontend/graphql/sharedDocuments/admin/platform-analytics.documents.test.ts`, plus the broader pinned suites the ticket touched (`frontend/providers/apollo` directory suite if it exists).
   - Verify the nav item renders for admin sessions in the sidebar (agent-browser spot check during 4.4.BS is acceptable — record evidence) and is ABSENT for non-admin roles.
   - _Requirements: REQ-062, REQ-065, REQ-066, REQ-075_
-  - [ ] 4.5.QL **Quality Loop**: re-run `sub-loop` on any file patched during the sweep (exit 0).
-  - [ ] 4.5.TE **Test Engineering**: the sweep suites are the coverage.
-  - [ ] 4.5.SEC **Security & Tenancy Audit**: nav role-filtration proven (admin-only visibility).
-  - [ ] 4.5.SR **Semantic Review**: single navigation entry; exactly-one-bundle ownership of the `analytics` dashboard label.
-  - [ ] 4.5.IV **Instruction Verification**: `.agents/instructions/frontend.instructions.md`.
-  - [ ] 4.5.OUT Write outcome.
+  - [x] 4.5.QL **Quality Loop**: re-run `sub-loop` on any file patched during the sweep (exit 0).
+  - [x] 4.5.TE **Test Engineering**: the sweep suites are the coverage.
+  - [x] 4.5.SEC **Security & Tenancy Audit**: nav role-filtration proven (admin-only visibility).
+  - [x] 4.5.SR **Semantic Review**: single navigation entry; exactly-one-bundle ownership of the `analytics` dashboard label.
+  - [x] 4.5.IV **Instruction Verification**: `.agents/instructions/frontend.instructions.md`.
+  - [x] 4.5.OUT Write outcome.
 
 ---
 
