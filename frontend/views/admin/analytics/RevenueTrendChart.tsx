@@ -7,7 +7,11 @@
  * into row-per-bucket data via `pivotRevenueTrend`; series colors cycle
  * through `theme.palette.*` tokens ONLY, and the date-axis ticks format
  * through the existing i18n date helper. Currency codes are wire data
- * (technical identifiers), never translatable copy.
+ * (technical identifiers), never translatable copy. The region's accessible
+ * summary extends the composed `aria-label` with one
+ * `${revenueSeriesLabel}: <currency>` entry per series, resolved through the
+ * `Analytics` translation handle — mirroring the Trends-level aria-label
+ * composition (handle copy + wire currency codes only).
  */
 
 import { Box, Stack, Typography } from "@mui/material";
@@ -21,13 +25,15 @@ import {
   TREND_CHART_BODY_HEIGHT,
   TREND_CHART_MIN_WIDTH,
 } from "@/frontend/views/admin/analytics/platform-analytics-display";
+import { useAppTranslation } from "@/shared/locale";
+import { Analytics } from "@/shared/locale/namespaces/analytics";
 
 interface RevenueTrendChartProps {
   readonly data: ReadonlyArray<AdminPlatformAnalyticsQuery_adminPlatformAnalytics_revenueTrendDaily>;
   readonly locale: string;
   readonly dateAxisLabel: string;
   readonly amountAxisLabel: string;
-  /** Accessible summary for the chart region. */
+  /** Accessible summary for the chart region (gains per-series entries below). */
   readonly ariaLabel: string;
 }
 
@@ -52,15 +58,21 @@ export function RevenueTrendChart({
   ariaLabel,
 }: Readonly<RevenueTrendChartProps>): ReactNode {
   const theme = useTheme();
+  const labels = useAppTranslation(Analytics);
   const formatTick = (value: string): string => formatApplicantDate(value, locale);
   // recharts hands the tooltip label through as a ReactNode — the wire
   // bucketStart is the string case; anything else degrades to an empty label.
   const formatTooltipLabel = (label: ReactNode): ReactNode =>
     typeof label === "string" ? formatApplicantDate(label, locale) : "";
   const { currencies, data: pivoted } = pivotRevenueTrend(data);
+  // Per-series accessible summary — one `${revenueSeriesLabel}: <currency>`
+  // entry per currency series (handle copy + wire currency codes), appended
+  // to the composed region label. Empty data adds nothing.
+  const seriesSummary = currencies.map(currency => `${labels.revenueSeriesLabel}: ${currency}`).join(", ");
+  const accessibleSummary = seriesSummary ? `${ariaLabel} — ${seriesSummary}` : ariaLabel;
 
   return (
-    <Box component="section" aria-label={ariaLabel} sx={{ minWidth: TREND_CHART_MIN_WIDTH }}>
+    <Box component="section" aria-label={accessibleSummary} sx={{ minWidth: TREND_CHART_MIN_WIDTH }}>
       <Stack direction="row" sx={{ justifyContent: "space-between", marginBottom: 1 }}>
         <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
           {amountAxisLabel}

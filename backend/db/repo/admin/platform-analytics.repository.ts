@@ -91,18 +91,16 @@ const RECENT_ACTIVITY_WINDOW_MS = 24 * 60 * 60 * 1000;
  * Row-type re-exports keep the deep import path
  * `@/backend/db/repo/admin/platform-analytics.repository` stable for
  * existing consumers after the row shapes moved to
- * `./platform-analytics-query-helpers`. Type-only forwarding — no runtime
- * surface.
+ * `./platform-analytics-query-helpers`. Only the trio with external
+ * consumers (the two daily-trend rows and the per-currency revenue row —
+ * see the repository logic test) is forwarded; the remaining row types
+ * stay defined in the helpers file and are NOT re-exported here.
+ * Type-only forwarding — no runtime surface.
  */
 export type {
   PlatformAnalyticsCurrencyRevenueRow,
-  PlatformAnalyticsHealthRow,
-  PlatformAnalyticsRatingStatsRow,
   PlatformAnalyticsRevenueTrendRow,
-  PlatformAnalyticsSessionStatsRow,
   PlatformAnalyticsSessionTrendRow,
-  PlatformAnalyticsSubscriptionStatsRow,
-  PlatformAnalyticsTeacherPresenceRow,
 } from "@/backend/db/repo/admin/platform-analytics-query-helpers";
 
 export namespace PlatformAnalyticsRepository {
