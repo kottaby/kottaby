@@ -14,7 +14,12 @@
  *
  * Render state matrix:
  *  - initial load → per-section card-shaped Skeleton grid wrapped in a
- *    `component="output" aria-busy` region;
+ *    `component="output" aria-busy` region — keyed to the one-and-only
+ *    first fetch (`networkStatus === loading`), never re-entered on a
+ *    later poll pulse: a failed initial load keeps its Alert stable
+ *    through every re-attempt instead of flipping Alert→Skeleton while
+ *    the endpoint is down (Apollo drops the settled `error` the moment
+ *    a re-attempt starts, so the posture derives from `networkStatus`);
  *  - populated → the seven metric cards (`PlatformAnalyticsMetricGrid`)
  *    + the two trend charts (`PlatformAnalyticsTrends`, dynamic imports);
  *  - load error → inline `Alert severity="error"` + Retry CTA (stale data
@@ -38,6 +43,7 @@
  * surface: emits nothing to the logger.
  */
 
+import { NetworkStatus } from "@apollo/client";
 import { useQuery } from "@apollo/client/react";
 import { Box, Stack } from "@mui/material";
 import type { ReactNode } from "react";
@@ -69,13 +75,20 @@ export function PlatformAnalyticsContainer(): ReactNode {
   const t = useAppTranslation(Analytics);
   const locale = useAppLocale();
 
-  const { data, loading, error, refetch } = useQuery(adminPlatformAnalyticsQueryDocument, {
+  const { data, loading, error, refetch, networkStatus } = useQuery(adminPlatformAnalyticsQueryDocument, {
     pollInterval: PLATFORM_ANALYTICS_POLL_INTERVAL_MS,
     notifyOnNetworkStatusChange: true,
   });
 
   const snapshot = data?.adminPlatformAnalytics;
-  const initialLoad = snapshot === undefined && loading;
+  // Skeleton ONLY for the one-and-only first fetch: Apollo v4 drops the
+  // settled `error` the moment a poll/refetch re-attempt starts (there is no
+  // snapshot to attach it to), so `loading` alone cannot distinguish the
+  // initial load from a re-attempt — `networkStatus` can (refetch/poll vs
+  // loading). Every snapshotless re-attempt therefore keeps the error Alert
+  // + Retry on screen instead of flipping Alert→Skeleton→Alert while down.
+  const initialLoad = snapshot === undefined && networkStatus === NetworkStatus.loading;
+  const retryingSnapshotless = snapshot === undefined && loading && !initialLoad;
   const refreshing = snapshot !== undefined && loading;
 
   // Query-context denial classification — FORBIDDEN in query context maps to
@@ -99,7 +112,9 @@ export function PlatformAnalyticsContainer(): ReactNode {
   } else {
     body = (
       <Stack spacing={3}>
-        {error ? <PlatformAnalyticsLoadError labels={t} onRetry={handleRefresh} retryPending={loading} /> : null}
+        {error !== undefined || retryingSnapshotless ? (
+          <PlatformAnalyticsLoadError labels={t} onRetry={handleRefresh} retryPending={loading} />
+        ) : null}
         {snapshot !== undefined ? (
           <Box component="output" aria-busy={refreshing || undefined} sx={{ display: "block" }}>
             <Stack spacing={3}>
