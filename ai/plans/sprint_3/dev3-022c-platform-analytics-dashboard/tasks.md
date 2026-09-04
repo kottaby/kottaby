@@ -373,12 +373,12 @@ Every task in this file is executed under ALL of the following rules, without ex
   - _Requirements: REQ-001, REQ-022, REQ-042, REQ-043, REQ-076_
   - [x] 5.2.OUT Write outcome.
 
-- [ ] 5.3 [End-to-end smoke — dev server, full surface]
+- [x] 5.3 [End-to-end smoke — dev server, full surface]
   - Boot the app; as admin exercise the dashboard against seeded data through the real gateway (Apollo POST → Pothos → service → repos), verifying parity between UI figures and direct DB counts for at least: users total/active, sessions.today, one revenue currency row, `activeInWindowNow`, `onlineNowCount`, `pendingDisputes`, `pendingWithdrawals`.
   - Confirm wrong-role HTTP access redirects; confirm `adminPlatformAnalytics` appears in live introspection SDL with zero args; confirm generated-committed SDL equality.
   - _Requirements: REQ-061, REQ-063, REQ-064, REQ-076_
-  - [ ] 5.3.BF **Agent-Browser Functional Self-Loop**: scripted end-to-end pass covering the above assertions; iterate until clean.
-  - [ ] 5.3.OUT Write outcome.
+  - [x] 5.3.BF **Agent-Browser Functional Self-Loop**: scripted end-to-end pass covering the above assertions; iterate until clean.
+  - [x] 5.3.OUT Write outcome.
 
 ---
 
