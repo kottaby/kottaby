@@ -1,5 +1,6 @@
 import { adminBroadcastsEn } from "@/shared/locale/en/adminBroadcasts";
 import { adminUsersEn } from "@/shared/locale/en/adminUsers";
+import { analyticsEn } from "@/shared/locale/en/analytics";
 import { applicantEn } from "@/shared/locale/en/applicant";
 import { authEn } from "@/shared/locale/en/auth";
 import { commonEn } from "@/shared/locale/en/common";
@@ -31,4 +32,5 @@ export const enMessages: Translations = {
   notificationsTranslations: notificationsEn,
   handshakeCodeTranslations: handshakeCodeEn,
   parentLinkTranslations: parentLinkEn,
+  analyticsTranslations: analyticsEn,
 };

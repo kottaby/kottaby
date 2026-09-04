@@ -27,7 +27,7 @@ Every task in this file is executed under ALL of the following rules, without ex
 
 ## Phase 0: Pre-Implementation Baseline
 
-- [ ] 0.1 [Record error baseline & initialize deferred-items ledger]
+- [x] 0.1 [Record error baseline & initialize deferred-items ledger]
   - Run `bun tsgo` and record total error count; run `bun run biome:check` and record diagnostic count; run `bun run scripts/lint-service.ts --json --id baseline` and record counts. Store all three in the outcome file.
   - Verify `git diff -- backend/db/schema/ backend/db/migration/` is EMPTY (baseline schema-drift posture).
   - Create `ai/plans/sprint_3/dev3-022c-platform-analytics-dashboard/deferred-items.md` initialized from `.agents/spec-process-guide/templates/deferred-items-template.md`.
@@ -35,7 +35,7 @@ Every task in this file is executed under ALL of the following rules, without ex
   - _Requirements: REQ-001, REQ-038, REQ-043_
   - [ ] 0.1.OUT Write `ai/plans/sprint_3/dev3-022c-platform-analytics-dashboard/outcome/0-baseline-outcome.md` with the recorded counts and ledger initialization proof.
 
-- [ ] 0.2 [Prerequisite & reuse verification — verify-then-claim sweep]
+- [x] 0.2 [Prerequisite & reuse verification — verify-then-claim sweep]
   - Verify each of the following EXISTS in the bundled tree (cite `path:line` for each in the outcome file); if ANY is missing, log a ❌ deferred item and STOP affected downstream tasks — never inline-patch a foreign layer:
     - `AdminUserRepository.getStats` at `backend/db/repo/admin/admin-user.repository.ts:450-485` and its ACTIVE-window subquery semantics at `backend/db/repo/admin/admin-user.repository.ts:337-346`.
     - `assertActorAdmin` precedent at `backend/services/admin/user-management.service.ts:240-271` and the `withTransaction` import at `backend/services/admin/user-management.service.ts:67`.
@@ -54,7 +54,7 @@ Every task in this file is executed under ALL of the following rules, without ex
   - _Requirements: REQ-002_
   - [ ] 0.2.OUT Write `ai/plans/sprint_3/dev3-022c-platform-analytics-dashboard/outcome/0.2-prerequisites-outcome.md` with the full verified-anchor table.
 
-- [ ] 0.3 [Plan Review Gate — @plan-review (Phase 1.5)]
+- [x] 0.3 [Plan Review Gate — @plan-review (Phase 1.5)]
   - Run `@plan-review` against specs + plan; every finding MUST be resolved or recorded as ❌ in `deferred-items.md` BEFORE any implementation task starts.
   - _Requirements: REQ-083_
   - [ ] 0.3.OUT Write `ai/plans/sprint_3/dev3-022c-platform-analytics-dashboard/outcome/0.3-plan-review-outcome.md`.
@@ -65,41 +65,41 @@ Every task in this file is executed under ALL of the following rules, without ex
 
 > No Drizzle schema work exists in this phase (read-only ticket — REQ-043). Phase 1 covers canonical types, shared i18n namespace, and test fixture factories.
 
-- [ ] 1.1 [Canonical types — CREATE `backend/types/admin/platform-analytics.types.ts`]
+- [x] 1.1 [Canonical types — CREATE `backend/types/admin/platform-analytics.types.ts`]
   - Files to create/modify:
     - CREATE `backend/types/admin/platform-analytics.types.ts` — content EXACTLY per plan §2.2: `PlatformAnalyticsUsersReturnType` as the intersection `AdminUserStatsReturnType & { readonly recentlyActive24h: number }` (never copying the ten existing fields); `PlatformAnalyticsSessionsReturnType` (10 counters); `PlatformAnalyticsCurrencyRevenueReturnType` (money as `string`); `PlatformAnalyticsRevenueReturnType`; `PlatformAnalyticsSubscriptionsReturnType`; `PlatformAnalyticsTeachersReturnType`; `PlatformAnalyticsRatingsReturnType` (nullable averages); `PlatformAnalyticsHealthReturnType`; `PlatformAnalyticsSessionTrendPointReturnType` and `PlatformAnalyticsRevenueTrendPointReturnType` (`bucketStart: Date`); root `PlatformAnalyticsReturnType`. Every member `readonly`.
     - UPDATE `backend/types/admin/index.ts` — add `export * from "./platform-analytics.types";`.
   - Discipline: NO new enums (D7); money/decimals are `string`; `Date` for instants destined for the `DateTime` scalar; NO `.types.ts` anywhere else in this ticket (REQ-004).
   - Applicable instructions: `backend/AGENTS.md`, `.agents/instructions/backend.instructions.md`.
   - _Requirements: REQ-004, REQ-014, REQ-018, REQ-060_
-  - [ ] 1.1.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts backend/types/admin/platform-analytics.types.ts --lifecycle duplicates` (exit 0); same for `backend/types/admin/index.ts`.
-  - [ ] 1.1.TE **Test Engineering**: type-level compile verification via `bun tsgo` (baseline parity); a type-conformance smoke in the repo test file (Task 2.5) asserting the users section spreads `AdminUserStatsReturnType` verbatim (runtime shape check over keys).
-  - [ ] 1.1.SEC **Security & Tenancy Audit**: closed `readonly` shapes only; money strings cannot be numerically coerced anywhere in type space; no `id` field anywhere in any new type (aggregate anonymity by construction, REQ-033).
-  - [ ] 1.1.SR **Semantic Review**: single canonical home for types; zero dead declarations; imports resolve through `@/backend/types` barrel paths after barrel export.
-  - [ ] 1.1.IV **Instruction Verification**: validate against auto-discovered AGENTS.md printed by sub-loop for these files.
-  - [ ] 1.1.OUT Write outcome.
+  - [x] 1.1.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts backend/types/admin/platform-analytics.types.ts --lifecycle duplicates` (exit 0); same for `backend/types/admin/index.ts`.
+  - [x] 1.1.TE **Test Engineering**: type-level compile verification via `bun tsgo` (baseline parity); a type-conformance smoke in the repo test file (Task 2.5) asserting the users section spreads `AdminUserStatsReturnType` verbatim (runtime shape check over keys).
+  - [x] 1.1.SEC **Security & Tenancy Audit**: closed `readonly` shapes only; money strings cannot be numerically coerced anywhere in type space; no `id` field anywhere in any new type (aggregate anonymity by construction, REQ-033).
+  - [x] 1.1.SR **Semantic Review**: single canonical home for types; zero dead declarations; imports resolve through `@/backend/types` barrel paths after barrel export.
+  - [x] 1.1.IV **Instruction Verification**: validate against auto-discovered AGENTS.md printed by sub-loop for these files.
+  - [x] 1.1.OUT Write outcome.
 
-- [ ] 1.2 [Schema-drift guard task — verify-only]
+- [x] 1.2 [Schema-drift guard task — verify-only]
   - Confirm (again, post-Phase-1) `git diff -- backend/db/schema/ backend/db/migration/` is EMPTY.
   - Add to the outcome file the explicit statement: this ticket introduces NO tables, columns, indexes, migrations, or enum mirrors; existing indexes cover all predicate columns; the 30-day trend scans are window-bounded (performance posture documented, not index-tuned — deferred-ledger D-4).
   - _Requirements: REQ-043_
-  - [ ] 1.2.SR **Semantic Review**: no schema file was opened for edit by any task in this ticket.
-  - [ ] 1.2.OUT Write outcome (may be folded into the task-1.1 outcome if executed adjacently — record the choice).
+  - [x] 1.2.SR **Semantic Review**: no schema file was opened for edit by any task in this ticket.
+  - [x] 1.2.OUT Write outcome (may be folded into the task-1.1 outcome if executed adjacently — record the choice).
 
-- [ ] 1.3 [Fixture factories — UPDATE `backend/db/test/entity-setup.ts`]
+- [x] 1.3 [Fixture factories — UPDATE `backend/db/test/entity-setup.ts`]
   - Files to modify:
     - UPDATE `backend/db/test/entity-setup.ts` — append NEW factories ONLY (no edits to existing helpers or their parameter conventions): `createTestSubscription`, `createTestStudentPayment`, `createTestSession`, `createTestSessionReport`, `createTestEvaluation`, `createTestWallet`, `createTestTeacherTransaction`, `createTestTeacherRow`. Follow the established `(tx, …ids, overrides?)` convention (verified in 0.2). Every factory accepts explicit timestamps (journeys need RELATIVE-to-`now` fixtures — REQ-026) and returns the created row ids + key columns.
   - Factories MUST honor real CHECK constraints: `studentRatingByTeacher` within 0–5 (`backend/db/schema/classes/reports.ts:29,36-41`), `score` within 0–100 (`backend/db/schema/teachers/evaluations.ts:32,43`), money as decimal strings, currency codes as strings, enum values via VALUE imports of enum members (never raw strings).
   - Applicable instructions: `backend/AGENTS.md`, `.agents/instructions/backend.instructions.md`, `.agents/instructions/tests.instructions.md`.
   - _Requirements: REQ-026, REQ-070, REQ-074_
-  - [ ] 1.3.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts backend/db/test/entity-setup.ts --lifecycle duplicates` (exit 0).
-  - [ ] 1.3.TE **Test Engineering**: each factory is exercised inside the journey suite (Task 2.x) and repo suite (Task 2.5) — no standalone factory test file; assert factory return shapes satisfy TypeScript and the inserted rows round-trip (spot-checked in repo tests).
-  - [ ] 1.3.SEC **Security & Tenancy Audit**: factories accept explicit actor/owner ids — no implicit role or privilege synthesis; no factory writes audit rows or notifications.
-  - [ ] 1.3.SR **Semantic Review**: ZERO edits to existing helper signatures (DEV3-016-reliant suites must stay green); enum value imports only; no duplicated insert logic between factories.
-  - [ ] 1.3.IV **Instruction Verification**: validate against `.agents/instructions/tests.instructions.md` + discovered AGENTS.md.
-  - [ ] 1.3.OUT Write outcome.
+  - [x] 1.3.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts backend/db/test/entity-setup.ts --lifecycle duplicates` (exit 0).
+  - [x] 1.3.TE **Test Engineering**: each factory is exercised inside the journey suite (Task 2.x) and repo suite (Task 2.5) — no standalone factory test file; assert factory return shapes satisfy TypeScript and the inserted rows round-trip (spot-checked in repo tests).
+  - [x] 1.3.SEC **Security & Tenancy Audit**: factories accept explicit actor/owner ids — no implicit role or privilege synthesis; no factory writes audit rows or notifications.
+  - [x] 1.3.SR **Semantic Review**: ZERO edits to existing helper signatures (DEV3-016-reliant suites must stay green); enum value imports only; no duplicated insert logic between factories.
+  - [x] 1.3.IV **Instruction Verification**: validate against `.agents/instructions/tests.instructions.md` + discovered AGENTS.md.
+  - [x] 1.3.OUT Write outcome.
 
-- [ ] 1.4 [i18n namespace `analytics` — full registration]
+- [x] 1.4 [i18n namespace `analytics` — full registration]
   - Files to create/modify (exact paths):
     - CREATE `shared/locale/types/analytics/index.ts` — `AnalyticsLabels` with the minimum surface from REQ-066/plan §5.5: `metaTitle`, `metaDescription`, `title`, `subtitle`, section titles (`usersSection`, `sessionsSection`, `revenueSection`, `subscriptionsSection`, `teachersSection`, `ratingsSection`, `healthSection`), every metric label (incl. `recentlyActive24hLabel`, `awaitingConfirmationLabel`, `offlineActivationsLabel`, per-currency table headers `currencyHeader`/`totalAmountHeader`/`last30DaysAmountHeader`/`paidPaymentsCountHeader`, `noRevenueYet`, `noRatingsYet`), trend labels (`sessionTrendTitle`, `revenueTrendTitle`, `sessionsSeriesLabel`, `dailyLabel` + axis labels), `refreshAction`, `refreshingLabel`, `lastUpdatedLabel: (at: string) => string` (function leaf per existing precedent), `loadErrorTitle`, `loadErrorBody`, `deniedTitle`, `deniedBody`, `retryAction`.
     - CREATE `shared/locale/en/analytics/index.ts` (`analyticsEn`).
@@ -112,12 +112,12 @@ Every task in this file is executed under ALL of the following rules, without ex
     - UPDATE `frontend/views/dashboard/navItems.ts` — admin block (anchored at lines 126-135) gains exactly ONE entry `{ route: "/admin/analytics", labelKey: "analytics", Icon: InsightsOutlined }` after the `/audit` entry. (Nav registration folded here so the dashboard label lands with its owner — REQ-065. The route target may 404 until Phase 4 — acceptable interim state recorded in the outcome.)
   - Applicable instructions: `shared/AGENTS.md` (namespace checklist — the ONLY registration checklist; `shared/locale/AGENTS.md` does not exist), `.agents/instructions/frontend.instructions.md`.
   - _Requirements: REQ-003, REQ-065, REQ-066_
-  - [ ] 1.4.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts` over every touched `shared/locale/**` file and `frontend/views/dashboard/navItems.ts` (exit 0).
-  - [ ] 1.4.TE **Test Engineering**: CREATE `shared/locale/analytics-namespace.parity.test.ts` modeled on `shared/locale/notifications-namespace.parity.test.ts` (key-set identity en↔ar, non-empty leaves, Arabic-script assertions, registry + bundle resolution on both trees); ensure `frontend/views/dashboard/navItems.test.ts` ownership-exclusivity and resolution assertions stay green (the `analytics` key exists on exactly ONE bundle). Run: `bun run test/scripts/run-test.ts shared/locale/analytics-namespace.parity.test.ts` and `bun run test/scripts/run-test.ts frontend/views/dashboard/navItems.test.ts`.
-  - [ ] 1.4.SEC **Security & Tenancy Audit**: no user-supplied interpolation into message leaves; function leaf composes over a pre-formatted string only.
-  - [ ] 1.4.SR **Semantic Review**: no string-literal i18n access anywhere; no `Translation` enum invented; `useAppTranslation(Analytics)` handle shape confirmed for later client use; nav item added once, no duplicates.
-  - [ ] 1.4.IV **Instruction Verification**: validate against `shared/AGENTS.md` namespace registration checklist + discovered instructions.
-  - [ ] 1.4.OUT Write outcome.
+  - [x] 1.4.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts` over every touched `shared/locale/**` file and `frontend/views/dashboard/navItems.ts` (exit 0).
+  - [x] 1.4.TE **Test Engineering**: CREATE `shared/locale/analytics-namespace.parity.test.ts` modeled on `shared/locale/notifications-namespace.parity.test.ts` (key-set identity en↔ar, non-empty leaves, Arabic-script assertions, registry + bundle resolution on both trees); ensure `frontend/views/dashboard/navItems.test.ts` ownership-exclusivity and resolution assertions stay green (the `analytics` key exists on exactly ONE bundle). Run: `bun run test/scripts/run-test.ts shared/locale/analytics-namespace.parity.test.ts` and `bun run test/scripts/run-test.ts frontend/views/dashboard/navItems.test.ts`.
+  - [x] 1.4.SEC **Security & Tenancy Audit**: no user-supplied interpolation into message leaves; function leaf composes over a pre-formatted string only.
+  - [x] 1.4.SR **Semantic Review**: no string-literal i18n access anywhere; no `Translation` enum invented; `useAppTranslation(Analytics)` handle shape confirmed for later client use; nav item added once, no duplicates.
+  - [x] 1.4.IV **Instruction Verification**: validate against `shared/AGENTS.md` namespace registration checklist + discovered instructions.
+  - [x] 1.4.OUT Write outcome.
 
 ---
 
