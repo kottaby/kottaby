@@ -110,6 +110,27 @@ Current embedded types:
 - `AdminAuditLogPage` (fields: `items`, `page`, `pageSize`, `totalCount`) — no
   `id`; admin audit-trail pagination wrapper. The normalizable entities are
   the `AdminAuditLogEntry` rows inside `items` (each carries `id`).
+- `PlatformAnalytics` (fields: `generatedAt`, `users`, `sessions`, `revenue`,
+  `subscriptions`, `teachers`, `ratings`, `health`, `sessionTrendDaily`,
+  `revenueTrendDaily`) — no `id`; the whole-platform analytics snapshot,
+  cached inline under `Query.adminPlatformAnalytics` and replaced wholesale
+  per refetch; see `docs/admin/platform-analytics.md`.
+- `PlatformAnalyticsUsers` (11 counters incl. `recentlyActive24h`) — no `id`.
+- `PlatformAnalyticsSessions` (10 counters incl. `awaitingConfirmation`) — no `id`.
+- `PlatformAnalyticsRevenue` (fields: `gatewayRevenueByCurrency`,
+  `offlineActivationsCount`) — no `id`.
+- `PlatformAnalyticsCurrencyRevenue` (fields: `currency`, `totalAmount`,
+  `last30DaysAmount`, `paidPaymentsCount`) — no `id`.
+- `PlatformAnalyticsSubscriptions` (7 counters incl. `activeInWindowNow`) — no `id`.
+- `PlatformAnalyticsTeachers` (fields: `certifiedCount`, `evaluatorCount`,
+  `onlineNowCount`) — no `id`.
+- `PlatformAnalyticsRatings` (fields: `averageSessionRating` (nullable),
+  `sessionRatingsCount`, `averageEvaluationScore` (nullable),
+  `evaluationScoresCount`) — no `id`.
+- `PlatformAnalyticsHealth` (fields: `pendingDisputes`, `pendingWithdrawals`) — no `id`.
+- `PlatformAnalyticsSessionTrendPoint` (fields: `bucketStart`, `sessionCount`) — no `id`.
+- `PlatformAnalyticsRevenueTrendPoint` (fields: `bucketStart`, `currency`,
+  `amount`) — no `id`.
 
 If you add a new GraphQL type without an `id` field, add it to `typePolicies`
 in `apolloCache.ts` with `keyFields: false` and list it here.

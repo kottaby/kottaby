@@ -500,8 +500,6 @@ describe("Users-locale surface (D2) — AppLocale enum + User.locale on the arti
     expect(surface.args).toEqual([]);
   });
 });
-<<<<<<< HEAD
-=======
 
 describe("Parent-link surface (extend) — artifact-side pins (REQ-061)", () => {
   test("`myOutgoingParentLinkRequests: [OutgoingParentLinkRequest!]!` — NON-paginated, ZERO arguments", () => {
@@ -748,4 +746,3 @@ describe("Platform analytics surface (extend) — artifact-side pins", () => {
     ]);
   });
 });
->>>>>>> ec75c2c (feat(analytics): phase 3a — pothos objects, admin query & sdl reconciliation)
