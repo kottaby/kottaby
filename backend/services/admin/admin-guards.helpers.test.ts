@@ -70,9 +70,17 @@ function assertErrorCode(error: Error, expectedCode: string): void {
   expect(error.code).toBe(expectedCode);
 }
 
-/** Counts every `audit_logs` row visible inside the supplied transaction. */
-async function countAllAuditRows(tx: DBTransaction): Promise<number> {
-  const result = await tx.select({ count: sql<number>`count(*)::int` }).from(auditLogs);
+/**
+ * Counts `audit_logs` rows for a specific actor entity_id.
+ * Scoped to avoid false positives from parallel test suites that commit
+ * audit rows between the before/after snapshots (READ COMMITTED isolation
+ * means a rollback tx can see committed rows from other connections).
+ */
+async function countAuditRowsForActor(tx: DBTransaction, actorId: number): Promise<number> {
+  const result = await tx
+    .select({ count: sql<number>`count(*)::int` })
+    .from(auditLogs)
+    .where(eq(auditLogs.entityId, actorId));
   return result[0]?.count ?? 0;
 }
 
@@ -156,7 +164,7 @@ describe("assertActiveActorAdmin — Tier 1 (statement / branch coverage)", () =
     await runInRollback(async tx => {
       const admin = await provisionAdminActor(tx);
       const logSpy = silenceDomainLog();
-      const auditBefore = await countAllAuditRows(tx);
+      const auditBefore = await countAuditRowsForActor(tx, admin.id);
       const rowBefore = await tx.select().from(users).where(eq(users.id, admin.id)).limit(1);
 
       // The strict guard's only success path — no throw, no explicit assertion.
@@ -164,7 +172,7 @@ describe("assertActiveActorAdmin — Tier 1 (statement / branch coverage)", () =
 
       // Zero writes (row byte-identical) + zero audit + zero log calls.
       const rowAfter = await tx.select().from(users).where(eq(users.id, admin.id)).limit(1);
-      const auditAfter = await countAllAuditRows(tx);
+      const auditAfter = await countAuditRowsForActor(tx, admin.id);
       expect(rowAfter[0]).toEqual(rowBefore[0]);
       expect(auditAfter).toBe(auditBefore);
       expect(logSpy.mock.calls).toHaveLength(0);
@@ -174,13 +182,13 @@ describe("assertActiveActorAdmin — Tier 1 (statement / branch coverage)", () =
   test("anonymous caller → UnauthorizedError; zero writes / zero audit / one log", async () => {
     await runInRollback(async tx => {
       const logSpy = silenceDomainLog();
-      const auditBefore = await countAllAuditRows(tx);
+      const auditBefore = await countAuditRowsForActor(tx, ANONYMOUS_ACTOR_ID);
 
       const error = await expectRepoError(() => assertActiveActorAdmin(ANONYMOUS_ACTOR_ID, LOCALE, tx));
       expect(error).toBeInstanceOf(UnauthorizedError);
       expect(error.message).toContain(tErrors.unauthorized);
 
-      const auditAfter = await countAllAuditRows(tx);
+      const auditAfter = await countAuditRowsForActor(tx, ANONYMOUS_ACTOR_ID);
       expect(auditAfter).toBe(auditBefore);
       expect(logSpy.mock.calls).toHaveLength(1);
     });
@@ -190,14 +198,14 @@ describe("assertActiveActorAdmin — Tier 1 (statement / branch coverage)", () =
     await runInRollback(async tx => {
       const missingId = await absentUserId(tx);
       const logSpy = silenceDomainLog();
-      const auditBefore = await countAllAuditRows(tx);
+      const auditBefore = await countAuditRowsForActor(tx, missingId);
 
       const error = await expectRepoError(() => assertActiveActorAdmin(missingId, LOCALE, tx));
       expect(error).toBeInstanceOf(ForbiddenError);
       assertErrorCode(error, "FORBIDDEN");
       expect(error.message).toContain(tErrors.forbidden);
 
-      const auditAfter = await countAllAuditRows(tx);
+      const auditAfter = await countAuditRowsForActor(tx, missingId);
       expect(auditAfter).toBe(auditBefore);
       expect(logSpy.mock.calls).toHaveLength(1);
     });
@@ -207,14 +215,14 @@ describe("assertActiveActorAdmin — Tier 1 (statement / branch coverage)", () =
     await runInRollback(async tx => {
       const nonAdmin = await createTestUser(tx, { role: "student" });
       const logSpy = silenceDomainLog();
-      const auditBefore = await countAllAuditRows(tx);
+      const auditBefore = await countAuditRowsForActor(tx, nonAdmin.id);
 
       const error = await expectRepoError(() => assertActiveActorAdmin(nonAdmin.id, LOCALE, tx));
       expect(error).toBeInstanceOf(ForbiddenError);
       assertErrorCode(error, "FORBIDDEN");
       expect(error.message).toContain(tErrors.forbidden);
 
-      const auditAfter = await countAllAuditRows(tx);
+      const auditAfter = await countAuditRowsForActor(tx, nonAdmin.id);
       expect(auditAfter).toBe(auditBefore);
       expect(logSpy.mock.calls).toHaveLength(1);
     });
@@ -227,7 +235,7 @@ describe("assertActiveActorAdmin — Tier 1 (statement / branch coverage)", () =
         deletedAt: new Date(),
       });
       const logSpy = silenceDomainLog();
-      const auditBefore = await countAllAuditRows(tx);
+      const auditBefore = await countAuditRowsForActor(tx, deletedAdmin.id);
       const rowBefore = await tx.select().from(users).where(eq(users.id, deletedAdmin.id)).limit(1);
 
       const error = await expectRepoError(() => assertActiveActorAdmin(deletedAdmin.id, LOCALE, tx));
@@ -236,7 +244,7 @@ describe("assertActiveActorAdmin — Tier 1 (statement / branch coverage)", () =
       expect(error.message).toContain(tErrors.accountDeleted);
 
       const rowAfter = await tx.select().from(users).where(eq(users.id, deletedAdmin.id)).limit(1);
-      const auditAfter = await countAllAuditRows(tx);
+      const auditAfter = await countAuditRowsForActor(tx, deletedAdmin.id);
       expect(rowAfter[0]).toEqual(rowBefore[0]);
       expect(auditAfter).toBe(auditBefore);
       expect(logSpy.mock.calls).toHaveLength(1);
@@ -250,7 +258,7 @@ describe("assertActiveActorAdmin — Tier 1 (statement / branch coverage)", () =
         blockedAt: new Date(),
       });
       const logSpy = silenceDomainLog();
-      const auditBefore = await countAllAuditRows(tx);
+      const auditBefore = await countAuditRowsForActor(tx, blockedAdmin.id);
       const rowBefore = await tx.select().from(users).where(eq(users.id, blockedAdmin.id)).limit(1);
 
       const error = await expectRepoError(() => assertActiveActorAdmin(blockedAdmin.id, LOCALE, tx));
@@ -259,7 +267,7 @@ describe("assertActiveActorAdmin — Tier 1 (statement / branch coverage)", () =
       expect(error.message).toContain(tErrors.accountBlocked);
 
       const rowAfter = await tx.select().from(users).where(eq(users.id, blockedAdmin.id)).limit(1);
-      const auditAfter = await countAllAuditRows(tx);
+      const auditAfter = await countAuditRowsForActor(tx, blockedAdmin.id);
       expect(rowAfter[0]).toEqual(rowBefore[0]);
       expect(auditAfter).toBe(auditBefore);
       expect(logSpy.mock.calls).toHaveLength(1);
@@ -275,7 +283,7 @@ describe("assertActiveActorAdmin — Tier 1 (statement / branch coverage)", () =
         suspendedPeriodDays: 7,
       });
       const logSpy = silenceDomainLog();
-      const auditBefore = await countAllAuditRows(tx);
+      const auditBefore = await countAuditRowsForActor(tx, suspendedAdmin.id);
       const rowBefore = await tx.select().from(users).where(eq(users.id, suspendedAdmin.id)).limit(1);
 
       const error = await expectRepoError(() => assertActiveActorAdmin(suspendedAdmin.id, LOCALE, tx));
@@ -284,7 +292,7 @@ describe("assertActiveActorAdmin — Tier 1 (statement / branch coverage)", () =
       expect(error.message).toContain(tErrors.accountSuspended);
 
       const rowAfter = await tx.select().from(users).where(eq(users.id, suspendedAdmin.id)).limit(1);
-      const auditAfter = await countAllAuditRows(tx);
+      const auditAfter = await countAuditRowsForActor(tx, suspendedAdmin.id);
       expect(rowAfter[0]).toEqual(rowBefore[0]);
       expect(auditAfter).toBe(auditBefore);
       expect(logSpy.mock.calls).toHaveLength(1);
@@ -302,7 +310,7 @@ describe("assertActiveActorAdmin — Tier 1 (statement / branch coverage)", () =
         suspendedPeriodDays: 7,
       });
       const logSpy = silenceDomainLog();
-      const auditBefore = await countAllAuditRows(tx);
+      const auditBefore = await countAuditRowsForActor(tx, lapsedSuspendedAdmin.id);
       const rowBefore = await tx.select().from(users).where(eq(users.id, lapsedSuspendedAdmin.id)).limit(1);
 
       // The strict guard's success path for a lapsed suspension — the actor
@@ -310,7 +318,7 @@ describe("assertActiveActorAdmin — Tier 1 (statement / branch coverage)", () =
       await assertActiveActorAdmin(lapsedSuspendedAdmin.id, LOCALE, tx);
 
       const rowAfter = await tx.select().from(users).where(eq(users.id, lapsedSuspendedAdmin.id)).limit(1);
-      const auditAfter = await countAllAuditRows(tx);
+      const auditAfter = await countAuditRowsForActor(tx, lapsedSuspendedAdmin.id);
       // Row byte-identical — the lapsed suspension columns are NOT cleared
       // (the lapse restores access at the read layer, not the write layer).
       expect(rowAfter[0]).toEqual(rowBefore[0]);
