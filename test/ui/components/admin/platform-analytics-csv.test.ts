@@ -126,7 +126,11 @@ describe("platform-analytics CSV builder", () => {
     const snapshot = snapshotFixture();
     snapshot.revenue.gatewayRevenueByCurrency = [];
     const csv = buildPlatformAnalyticsCsv(snapshot, analyticsEn);
-    expect(csv).not.toContain(`Currency,Lifetime total`);
+    // Forbidden header composed FROM the labels — a hardcoded literal would
+    // rot (and silently stop matching) whenever the English copy changes.
+    expect(csv).not.toContain(
+      `${analyticsEn.currencyHeader},${analyticsEn.totalAmountHeader},${analyticsEn.last30DaysAmountHeader},${analyticsEn.paidPaymentsCountHeader}`
+    );
     // The offline activations metric row is unaffected.
     expect(csv).toContain(`Revenue,Offline activations,4`);
   });

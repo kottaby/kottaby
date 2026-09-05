@@ -16,6 +16,7 @@ import { extractErrorCode } from "@/frontend/lib/graphql-error-utils";
 import { mapGraphQLErrorByCode, normalizeGraphQLErrorCode } from "@/frontend/providers/apollo/error-link.map";
 import { SessionsEmptyState } from "@/frontend/views/student/sessions/SessionsEmptyState";
 import { WalletLedger } from "@/frontend/views/teacher/wallet/WalletLedger";
+import { Errors, useAppTranslation } from "@/shared/locale";
 import type { WalletLabels } from "@/shared/locale/types/wallet";
 
 export interface WalletBodyProps {
@@ -31,6 +32,10 @@ const WALLET_TEACHER_PROFILE_MISSING = "WALLET_TEACHER_PROFILE_MISSING";
 
 /** The swapping body BELOW the chrome — see the module docblock. */
 export function WalletBody({ loading, error, data, locale, t }: Readonly<WalletBodyProps>): ReactNode {
+  // Pending-teacher body copy comes from the `errors` namespace (REQ-055):
+  // the GraphQL `WALLET_TEACHER_PROFILE_MISSING` transport message and the UI
+  // empty-state body are the SAME string, so they can never drift.
+  const te = useAppTranslation(Errors);
   if (loading && data === undefined) {
     return (
       <Stack spacing={1.5} data-testid="wallet-loading-skeleton">
@@ -53,7 +58,7 @@ export function WalletBody({ loading, error, data, locale, t }: Readonly<WalletB
           testId="wallet-pending-teacher"
           icon={AccountBalanceWalletOutlinedIcon}
           title={t.pendingTeacherTitle}
-          body={t.pendingTeacherBody}
+          body={te.walletTeacherProfileMissing}
         />
       );
     }

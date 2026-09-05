@@ -137,7 +137,7 @@ export function CertifyTeacherDialog({ labels, targetUser, loading, onResolve }:
           </Alert>
         )}
         <Alert severity="warning" variant="outlined" sx={{ wordBreak: "break-word" }}>
-          {labels.certifyDialog.warningMessage.replace(CERTIFIED_USER_PLACEHOLDER, targetUser.fullName)}
+          {labels.certifyDialog.warningMessage.replace(CERTIFIED_USER_PLACEHOLDER, () => targetUser.fullName)}
         </Alert>
         <Typography
           variant="caption"

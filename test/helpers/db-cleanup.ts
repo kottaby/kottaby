@@ -215,9 +215,16 @@ function immutableTriggerRestoreClause(state: ImmutableTableTriggerState): Retur
 /**
  * Runs `fn` with every USER (non-internal) trigger on each of `tables`
  * disabled, restoring each trigger's exact prior firing state afterwards
- * (even on failure — the restore lives in `finally`). When none of the
- * listed tables carries user triggers (push-provisioned dev/test
- * databases), `fn` runs directly with zero DDL round-trips.
+ * (even when `fn` rejects). When none of the listed tables carries user
+ * triggers (push-provisioned dev/test databases), `fn` runs directly with
+ * zero DDL round-trips.
+ *
+ * Error semantics: a rejected `fn` always wins — the callback error is
+ * captured before restoration and rethrown verbatim. Restoration DDL runs
+ * via `allSettled` so it can never mask the callback error; if any restore
+ * fails, an `AggregateError` is thrown listing every restore reason (plus
+ * the callback error when one exists), so teardown failures are surfaced,
+ * never logged-and-swallowed.
  */
 export async function withImmutabilityTriggersSuspended<T>(
   tables: readonly string[],
@@ -246,12 +253,31 @@ export async function withImmutabilityTriggersSuspended<T>(
       db.execute(sql`ALTER TABLE ${sql.identifier(trigger.table)} DISABLE TRIGGER ${sql.identifier(trigger.name)}`)
     )
   );
+  let outcome: { ok: true; value: T } | { ok: false; error: unknown };
   try {
-    return await fn();
-  } finally {
-    // Restore each trigger's exact prior firing state — independent DDL
-    // statements, safe in parallel (restore order does not matter since
-    // each trigger is set to its own captured `tgenabled`).
-    await Promise.all(triggers.map(trigger => db.execute(immutableTriggerRestoreClause(trigger))));
+    outcome = { ok: true, value: await fn() };
+  } catch (error) {
+    outcome = { ok: false, error };
   }
+  // Restore each trigger's exact prior firing state — independent DDL
+  // statements, safe in parallel (restore order does not matter since
+  // each trigger is set to its own captured `tgenabled`). `allSettled`
+  // keeps every restore failure observable without discarding the
+  // callback's own error.
+  const restorations = await Promise.allSettled(
+    triggers.map(trigger => db.execute(immutableTriggerRestoreClause(trigger)))
+  );
+  const restoreReasons = restorations
+    .filter((restoration): restoration is PromiseRejectedResult => restoration.status === "rejected")
+    .map(restoration => restoration.reason);
+  if (restoreReasons.length > 0) {
+    throw new AggregateError(
+      outcome.ok ? restoreReasons : [outcome.error, ...restoreReasons],
+      `Failed to restore ${restoreReasons.length} immutability trigger(s) on: ${[...new Set(triggers.map(trigger => trigger.table))].join(", ")}`
+    );
+  }
+  if (!outcome.ok) {
+    throw outcome.error;
+  }
+  return outcome.value;
 }

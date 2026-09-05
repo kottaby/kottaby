@@ -58,6 +58,4 @@ export interface WalletLabels {
   readonly ledgerEmptyBody: string;
   /** Pending-teacher empty state title — no wallet exists before approval. */
   readonly pendingTeacherTitle: string;
-  /** Pending-teacher empty state body — the wallet activates post-approval. */
-  readonly pendingTeacherBody: string;
 }

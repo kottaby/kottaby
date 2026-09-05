@@ -26,5 +26,4 @@ export const walletEn: WalletLabels = {
   ledgerEmptyTitle: "No transactions yet",
   ledgerEmptyBody: "Your session earnings and payout requests will appear here.",
   pendingTeacherTitle: "Wallet pending approval",
-  pendingTeacherBody: "Your wallet activates once your teaching profile is approved.",
 };
