@@ -7,7 +7,8 @@
  * resolved from the `Analytics` namespace handle; fixture counts/money
  * strings/currency codes/dates are technical test data, never UI copy):
  *
- *   busy card-shaped skeleton (`component="output" aria-busy`) → populated
+ *   busy mirrored-geometry skeleton (7 metric cards + 2 chart-shaped
+ *   placeholders, `component="output" aria-busy`) → populated
  *   dashboard (all seven sections, per-currency revenue table with grouped
  *   money strings, offline-activations row, last-updated caption, both
  *   trend charts) · honest-null ratings render an em-dash (never a
@@ -17,7 +18,9 @@
  *   failed-initial-load re-attempt keeps the Alert STABLE (never an
  *   Alert→Skeleton flip while the re-attempt/poll is in flight) ·
  *   query-context FORBIDDEN → the localized denied notice (raw server
- *   message never rendered, no retry CTA) · manual refresh keeps the STALE
+ *   message never rendered, no retry CTA) · a FORBIDDEN re-attempt keeps
+ *   the denied notice LATCHED through the snapshotless re-attempt window
+ *   (never the LoadError/Retry flip) · manual refresh keeps the STALE
  *   snapshot on screen under the `refreshingLabel` chip while the fresh
  *   snapshot is in flight · Arabic RTL render resolves the same handle.
  *
@@ -47,11 +50,13 @@ await import("@/test/ui/components/next-dynamic-mock");
 
 // ─── Post-DOM module wiring (top-level await — LOAD ORDERING CONTRACT) ───────
 
-const { cleanup, fireEvent, screen, waitFor, within } = await import("@testing-library/react");
+const { act, cleanup, fireEvent, screen, waitFor, within } = await import("@testing-library/react");
 const { renderWithWrapper } = await import("@/test/ui/components/TestWrapper");
 
 import { afterEach, describe, expect, test } from "bun:test";
-import type { MockLink } from "@apollo/client/testing";
+import { ApolloClient } from "@apollo/client";
+import { ApolloProvider } from "@apollo/client/react";
+import { MockLink } from "@apollo/client/testing";
 import { MockedProvider } from "@apollo/client/testing/react";
 import type { RenderResult } from "@testing-library/react";
 import type {
@@ -63,6 +68,7 @@ import type {
 } from "@/frontend/graphql/generated/gql/graphql";
 import { adminPlatformAnalyticsQueryDocument } from "@/frontend/graphql/sharedDocuments";
 import { formatApplicantDate } from "@/frontend/lib/i18n/format-date";
+import { createApolloCache } from "@/frontend/providers/apollo/apolloCache";
 import { PlatformAnalyticsContainer } from "@/frontend/views/admin/analytics/PlatformAnalyticsContainer";
 import { NULL_METRIC_PLACEHOLDER } from "@/frontend/views/admin/analytics/platform-analytics-display";
 import { arMessages } from "@/shared/locale/ar/messages";
@@ -221,6 +227,29 @@ function renderAnalyticsRtl(mocks: ReadonlyArray<MockLink.MockedResponse>): Rend
   );
 }
 
+/**
+ * Client-handle render for the denial-latch posture: the FORBIDDEN re-attempt
+ * is driven the way the 120s poll drives it — a client-level refetch of the
+ * active observable (no Retry CTA exists to click during denial). Mirrors the
+ * notification-drawer suite's real-client construction (the badge/feed
+ * precedent): `createApolloCache()` + the production-default `errorPolicy:
+ * "none"`.
+ */
+function renderAnalyticsWithClient(mocks: ReadonlyArray<MockLink.MockedResponse>): ApolloClient {
+  const client = new ApolloClient({
+    link: new MockLink([...mocks]),
+    cache: createApolloCache(),
+    defaultOptions: { query: { errorPolicy: "none" } },
+  });
+  renderWithWrapper(
+    <ApolloProvider client={client}>
+      <PlatformAnalyticsContainer />
+    </ApolloProvider>,
+    { locale: "en" }
+  );
+  return client;
+}
+
 afterEach(cleanup);
 
 // ─── Suite (en / LTR) ───────────────────────────────────────────────────────
@@ -234,6 +263,15 @@ describe("PlatformAnalyticsContainer (en / LTR)", () => {
     expect(busy.getAttribute("aria-busy")).toBe("true");
     expect(screen.queryByText(t.usersTotalLabel)).toBeNull();
     expect(screen.queryByText(t.revenueSection)).toBeNull();
+
+    // The skeleton mirrors the populated grid geometry (7 metric cards + 2
+    // chart slots at shared heights); per-card row counts approximate.
+    // Counted by card node (`.MuiCard-root`): Happy DOM also reports emotion's
+    // injected <style> tags among the grids' element children.
+    const metricSkeleton = within(busy).getByTestId("platform-analytics-metric-skeleton");
+    expect(metricSkeleton.querySelectorAll(".MuiCard-root")).toHaveLength(7);
+    const trendsSkeleton = within(busy).getByTestId("platform-analytics-trends-skeleton");
+    expect(trendsSkeleton.querySelectorAll(".MuiCard-root")).toHaveLength(2);
 
     await waitFor(() => {
       expect(screen.getByText(t.usersTotalLabel)).toBeDefined();
@@ -392,6 +430,53 @@ describe("PlatformAnalyticsContainer (en / LTR)", () => {
     expect(screen.queryByRole("button", { name: t.retryAction })).toBeNull();
     expect(screen.getByRole("button", { name: t.refreshAction }).hasAttribute("disabled")).toBe(true);
     expect(screen.queryByRole("table")).toBeNull();
+  });
+
+  test("a FORBIDDEN re-attempt keeps the denied notice latched — never the LoadError/Retry flip", async () => {
+    // Poll mechanics: the settled FORBIDDEN is followed by a SNAPSHOTLESS
+    // re-attempt that also fails FORBIDDEN (Apollo v4 drops the settled error
+    // the moment the re-attempt starts, so the derived denial flips false
+    // mid-window). The re-attempt is driven through the client handle the way
+    // the 120s poll drives it — no Retry CTA exists to click during denial —
+    // mirroring the failed-initial-load stability test's two-mock shape.
+    const client = renderAnalyticsWithClient([codeErrorMock("FORBIDDEN"), codeErrorMock("FORBIDDEN", 80)]);
+
+    await waitFor(() => expect(screen.getByText(t.deniedTitle)).toBeDefined());
+    expect(screen.queryByRole("button", { name: t.retryAction })).toBeNull();
+
+    // Start the re-attempt; the mocked response settles on an 80ms macrotask,
+    // so the act scope exits with the re-attempt still in flight (settled
+    // error dropped, no snapshot on screen).
+    let reattempt: Promise<unknown> = Promise.resolve();
+    await act(async () => {
+      reattempt = client.reFetchObservableQueries();
+    });
+
+    // Mid-window: the DENIED notice stays — no LoadError, no Retry CTA, no
+    // skeleton flip.
+    expect(screen.getByText(t.deniedTitle)).toBeDefined();
+    expect(screen.queryByText(t.loadErrorTitle)).toBeNull();
+    expect(screen.queryByRole("button", { name: t.retryAction })).toBeNull();
+    expect(screen.queryByRole("status")).toBeNull();
+
+    // Settled second FORBIDDEN: still the denied notice, still no Retry CTA,
+    // refresh still disabled, and the raw message never reached the DOM.
+    await act(async () => {
+      // errorPolicy "none" rejects the refetch promise on a GraphQL error —
+      // the hook still receives the settled FORBIDDEN (asserted below).
+      await reattempt.catch(() => undefined);
+    });
+    expect(screen.getByText(t.deniedTitle)).toBeDefined();
+    expect(screen.queryByText(t.loadErrorTitle)).toBeNull();
+    expect(screen.queryByRole("button", { name: t.retryAction })).toBeNull();
+    expect(screen.getByRole("button", { name: t.refreshAction }).hasAttribute("disabled")).toBe(true);
+    expect(screen.queryByText(/masked transport surface/)).toBeNull();
+    expect(screen.queryByRole("table")).toBeNull();
+
+    // Unmount, then stop the hand-rolled client (MockedProvider's unmount →
+    // stop ordering) so the poll interval never outlives the test.
+    cleanup();
+    client.stop();
   });
 
   test("manual refresh keeps stale data on screen under the refreshing chip, then swaps in the fresh snapshot", async () => {
