@@ -22,7 +22,7 @@ This ledger tracks all work deferred from one task to another to ensure no defer
 ## Status Values
 
 - ✅ **Done** — Item completed and verified
-- ⚠️ **Partial** — Partially completed, needs follow-up work
-- ❌ **Blocked** — Not resolved, plan cannot complete until addressed
+- **Partial** (text token) — Partially completed, needs follow-up work
+- **Blocked** (text token) — Not resolved, plan cannot complete until addressed
 - 🔄 **In Progress** — Currently being worked on
 - 📅 **Forward** — Pre-seeded forward item owned by a later ticket; non-blocking for this plan
