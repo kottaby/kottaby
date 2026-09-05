@@ -88,7 +88,7 @@ export function RevenueTrendChart({
         <Typography
           variant="body2"
           component="p"
-          sx={theme => ({ color: theme.palette.text.secondary, textAlign: "center", padding: 3 })}
+          sx={{ color: theme.palette.text.secondary, textAlign: "center", padding: 3 }}
         >
           {labels.noRevenueYet}
         </Typography>

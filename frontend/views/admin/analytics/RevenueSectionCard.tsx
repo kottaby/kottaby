@@ -67,11 +67,13 @@ export function RevenueSectionCard({ snapshot, labels, locale }: Readonly<Revenu
               {rows.map(row => (
                 <TableRow key={row.currency}>
                   <TableCell sx={cellSx}>{row.currency}</TableCell>
-                  <TableCell sx={{ ...cellSx, ...TABULAR_NUMS_SX }}>{formatMoneyAmount(row.totalAmount)}</TableCell>
-                  <TableCell sx={{ ...cellSx, ...TABULAR_NUMS_SX }}>
+                  <TableCell sx={theme => ({ ...cellSx(theme), ...TABULAR_NUMS_SX })}>
+                    {formatMoneyAmount(row.totalAmount)}
+                  </TableCell>
+                  <TableCell sx={theme => ({ ...cellSx(theme), ...TABULAR_NUMS_SX })}>
                     {formatMoneyAmount(row.last30DaysAmount)}
                   </TableCell>
-                  <TableCell sx={{ ...cellSx, ...TABULAR_NUMS_SX }}>
+                  <TableCell sx={theme => ({ ...cellSx(theme), ...TABULAR_NUMS_SX })}>
                     {formatCount(row.paidPaymentsCount, locale)}
                   </TableCell>
                 </TableRow>

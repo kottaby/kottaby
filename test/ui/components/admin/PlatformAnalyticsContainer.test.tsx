@@ -449,7 +449,9 @@ describe("PlatformAnalyticsContainer (en / LTR)", () => {
     // error dropped, no snapshot on screen).
     let reattempt: Promise<unknown> = Promise.resolve();
     await act(async () => {
-      reattempt = client.reFetchObservableQueries();
+      // v4 replacement for the deprecated reFetchObservableQueries(): re-observe
+      // every active query, the same surface the 120s poll's refresh uses.
+      reattempt = client.refetchQueries({ include: "active" });
     });
 
     // Mid-window: the DENIED notice stays — no LoadError, no Retry CTA, no

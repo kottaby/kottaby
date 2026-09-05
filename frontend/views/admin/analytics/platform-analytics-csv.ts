@@ -65,6 +65,11 @@ function metricRecord(sectionLabel: string, metricLabel: string, value: number |
   return csvRecord([sectionLabel, metricLabel, value === null ? "" : String(value)]);
 }
 
+/** Zero-pads a number to two digits (UTC stamp components of the CSV filename). */
+function pad(input: number): string {
+  return String(input).padStart(2, "0");
+}
+
 /**
  * Builds the full CSV document for the snapshot: the generated-at metadata
  * line, the metrics table (the six numeric sections + the offline
@@ -177,7 +182,6 @@ export function platformAnalyticsCsvFilename(generatedAt: string, now: Date = ne
   const parsed = Date.parse(generatedAt);
   const stampSource = Number.isNaN(parsed) ? now.getTime() : parsed;
   const stamp = new Date(stampSource);
-  const pad = (input: number): string => String(input).padStart(2, "0");
   const year = stamp.getUTCFullYear();
   const month = pad(stamp.getUTCMonth() + 1);
   const day = pad(stamp.getUTCDate());

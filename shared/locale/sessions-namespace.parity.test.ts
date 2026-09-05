@@ -182,6 +182,37 @@ function nonEmptyLabelOf(localeMap: object, key: string, localeName: string): st
 }
 
 /**
+ * Flattens a (possibly nested) locale map to its DOTTED string-leaf paths —
+ * grouped blocks (e.g. `planCatalog.planNotFound`) collapse into single
+ * dotted paths so parity walks never crash on nested objects.
+ */
+function leafPathsOf(node: object, prefix = ""): string[] {
+  return Object.entries(node).flatMap(([key, value]) => {
+    const path = prefix.length === 0 ? key : `${prefix}.${key}`;
+    return typeof value === "object" && value !== null ? leafPathsOf(value, path) : [path];
+  });
+}
+
+/**
+ * Reads one non-empty-string leaf off a locale map at a DOTTED path —
+ * traverses nested blocks segment by segment, throwing on non-block nodes
+ * or non-string leaves.
+ */
+function stringLeafOf(localeMap: object, path: string, localeName: string): string {
+  let node: unknown = localeMap;
+  for (const segment of path.split(".")) {
+    if (node === null || typeof node !== "object") {
+      throw new Error(`errors.${localeName}.${path} traverses a non-block node`);
+    }
+    node = Reflect.get(node, segment);
+  }
+  if (typeof node !== "string" || node.length === 0) {
+    throw new Error(`errors.${localeName}.${path} must be a non-empty localized string`);
+  }
+  return node;
+}
+
+/**
  * Reads one label slot accepting BOTH value shapes: plain-string keys read
  * directly; template-function keys (see {@link FUNCTION_LABEL_KEYS}) resolve
  * by invocation with a sample argument. Throws on anything that does not
@@ -223,28 +254,11 @@ describe("errors registry — the seven session-lifecycle keys in BOTH locales",
 
   test("placeholder-name sets agree across ar/en for EVERY errors key (no locale-local drift)", () => {
     // Grouped blocks (e.g. `planCatalog.planNotFound`) are flattened to their
-    // dotted leaf paths — every STRING leaf on the ar map must agree with the
-    // en map's placeholder set at the SAME path (a flat key loop crashed on
-    // nested blocks: nonEmptyLabelOf saw an object where it demanded a
-    // string).
-    const leafPathsOf = (node: object, prefix = ""): string[] =>
-      Object.entries(node).flatMap(([key, value]) => {
-        const path = prefix.length === 0 ? key : `${prefix}.${key}`;
-        return typeof value === "object" && value !== null ? leafPathsOf(value, path) : [path];
-      });
-    const stringLeafOf = (localeMap: object, path: string, localeName: string): string => {
-      let node: unknown = localeMap;
-      for (const segment of path.split(".")) {
-        if (node === null || typeof node !== "object") {
-          throw new Error(`errors.${localeName}.${path} traverses a non-block node`);
-        }
-        node = Reflect.get(node, segment);
-      }
-      if (typeof node !== "string" || node.length === 0) {
-        throw new Error(`errors.${localeName}.${path} must be a non-empty localized string`);
-      }
-      return node;
-    };
+    // dotted leaf paths ({@link leafPathsOf}) — every STRING leaf on the ar
+    // map must agree with the en map's placeholder set at the SAME path (a
+    // flat key loop crashed on nested blocks: nonEmptyLabelOf saw an object
+    // where it demanded a string). Leaf reads go through
+    // {@link stringLeafOf}, which tolerates the nested blocks.
     for (const path of leafPathsOf(errorsAr)) {
       const arNames = icuPlaceholdersOf(stringLeafOf(errorsAr, path, "ar"));
       const enNames = icuPlaceholdersOf(stringLeafOf(errorsEn, path, "en"));
