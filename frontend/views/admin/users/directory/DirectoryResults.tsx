@@ -68,6 +68,7 @@ export function DirectoryResults({ labels, directory, onCopyEmail }: DirectoryRe
         hasFilters={directory.hasFilters}
         onEdit={directory.setEditTarget}
         onDelete={directory.setDeleteTarget}
+        onCopyEmail={onCopyEmail}
       />
 
       <MobilePaginationCard
