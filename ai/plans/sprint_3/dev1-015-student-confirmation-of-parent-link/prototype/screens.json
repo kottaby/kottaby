@@ -1,0 +1,58 @@
+[
+  {
+    "screenId": "051da12e77304a67833c727f455e2059",
+    "title": "Kottaby Student Dashboard",
+    "file": "dashboard-pending-desktop.png",
+    "deviceType": "DESKTOP",
+    "state": "pending"
+  },
+  {
+    "screenId": "7777a0418ec7496f8b9aaa1ecbe23b76",
+    "title": "Kottaby Student Dashboard Mobile",
+    "file": "dashboard-pending-mobile.png",
+    "deviceType": "MOBILE",
+    "state": "pending"
+  },
+  {
+    "screenId": "99b28fa2f086493eacdf36197b741588",
+    "title": "Parent Link Requests - Desktop",
+    "file": "inbox-pending-desktop.png",
+    "deviceType": "DESKTOP",
+    "state": "pending"
+  },
+  {
+    "screenId": "5095922daa774a33bcb8b6dc6ba0a781",
+    "title": "Parent Link Requests - Mobile",
+    "file": "inbox-pending-mobile.png",
+    "deviceType": "MOBILE",
+    "state": "pending"
+  },
+  {
+    "screenId": "8a9df3d4d1054b53a0ba7510da3ad8ab",
+    "title": "Parent Link Requests - Empty State",
+    "file": "inbox-empty-desktop.png",
+    "deviceType": "DESKTOP",
+    "state": "empty"
+  },
+  {
+    "screenId": "ee042e1358884d439f815360c8106cc0",
+    "title": "Parent Link Requests - Mobile Empty State",
+    "file": "inbox-empty-mobile.png",
+    "deviceType": "MOBILE",
+    "state": "empty"
+  },
+  {
+    "screenId": "4bb75e8791bd4573acc142c91f01ec4b",
+    "title": "Parent Link Requests - Confirmed State",
+    "file": "inbox-resolved-desktop.png",
+    "deviceType": "DESKTOP",
+    "state": "resolved"
+  },
+  {
+    "screenId": "4c16f4ebae9940449247e0123281452e",
+    "title": "Parent Link Requests - Mobile Success State",
+    "file": "inbox-resolved-mobile.png",
+    "deviceType": "MOBILE",
+    "state": "resolved"
+  }
+]

@@ -7,11 +7,12 @@ description: >
   (2) managing Stitch design systems and DESIGN.md specifications,
   (3) orchestrating iterative multi-page website development via the build loop,
   (4) converting Stitch designs to React, Next.js, or HTML components,
-  (5) creating interactive prototypes from an implementation plan (e.g. `.ai/plans/<feature>/`) — see the "Plan-to-Prototype Recipe" below.
+  (5) creating interactive prototypes from an implementation plan (e.g. .ai/plans/FEATURE/) — see the "Plan-to-Prototype Recipe" below,
+  (6) reviewing, QA-ing, or polishing previously generated Stitch screens ("analyze the screens", "check the prototypes", "make them perfect") — see the "Per-Screen Verification Loop" below. Even if the user doesn't name Stitch, use this when the work involves generated UI screenshots that need to be corrected and regenerated.
 license: MIT
 compatibility: Requires Stitch MCP server configured with STITCH_API_KEY and GOOGLE_CLOUD_PROJECT
 metadata:
-  version: "1.0.0"
+  version: "2.0.0"
 allowed-tools: Read Write Edit Glob Grep call_mcp_tool
 ---
 
@@ -67,25 +68,24 @@ When asked to "create a prototype for a plan" (e.g. `.ai/plans/<feature>/specs.m
 1. **Read the plan** (`view`; use `view_range` for large files). Extract:
    - Every distinct **screen/page** the plan describes (lists, forms, detail views, dialogs, per-role views, mobile variants).
    - UI details worth prompting: filters, columns, status badges, autocomplete, auto-fill behavior, per-audience differences.
-2. **Ground the prompt in the actual codebase — never prompt from the plan alone.** Before writing any generation prompt, inspect the real surfaces the screen will live in and mirror them:
-   - **Existing components**: find the components that render the screen's core elements (e.g. list rows, cards, dialogs, nav, app bars) and copy their *structure* into the prompt (element order, what an item looks like, which states tint/bold, which actions exist).
-   - **Theme**: read the project's theme/palette source and give the generator the real color roles (background, primary, secondary, success/warning/error) and typography direction — never invent a palette. If the project forbids hardcoded colors in code, still spell the real hex values out in the prompt: the generator cannot see the theme system.
-   - **Copy**: pull real strings from the project's locale/i18n files (titles, labels, button text) instead of inventing placeholder copy; match the UI language and direction (RTL/LTR) per audience.
-   - **Layout shell**: check whether the product is desktop-dashboard, mobile app, or hybrid, and which chrome exists (sidebar position, top bar contents) — describe that shell explicitly.
-   - If the plan is backend-only, prototype the *observable surfaces* the plan's acceptance criteria reference, grounded in the components that already render those surfaces.
-3. **Auth probe**: call `list_projects` first. A 401 means the token is expired — ask the user to re-authenticate before generating anything.
-4. **Always create a NEW project**: `create_project` with a title like `"Kottaby — <Feature> Prototypes"`. Record the numeric `projectId`. Never reuse an existing plan-prototype project for a different plan — one project per plan keeps screens organized.
-5. **Design system** (optional consistency step): call `list_design_systems` on a previous prototype project (or globally) to find a matching system; pass its `designSystem` ID (`assets/...`) to `generate_screen_from_text` for visual consistency across plan prototypes. Fall back to defaults if none fit.
-6. **Generate one screen per identified page**, sequential calls with a detailed, self-contained prompt per screen (layout, sidebar, fields, states, badges, data examples from the plan, real palette + real copy per step 2). Use `GEMINI_3_1_PRO` for plan prototypes (quality matters more than speed here); drop to `GEMINI_3_FLASH` only for throwaway wireframes. Match `deviceType` to the real product surface (DESKTOP for admin/back-office dashboards, MOBILE only if the product actually has mobile surfaces).
-7. **After each generation, immediately capture** the new screen's `name`/`id`/title from the response (grep the temp output file if needed — see Ground Rules). Do **not** rely on `list_screens` for fresh screens.
-8. **Validate the generated content itself, not just the file**: a generation can "succeed" yet return a useless render (e.g. just a logo/wordmark, a blank hero, wrong layout). Before moving on, check the response metadata for degenerate-output signals — generic titles unrelated to the requested page (e.g. "<Brand> Wordmark"), square 1024×1024 dimensions for a DESKTOP request, or an empty `htmlCode`. Any of these means REGENERATE the screen with a clarified prompt (explicitly demand "a full page screenshot, not a logo/wordmark"); don't download and report it as a successful artifact.
-9. **Save artifacts locally** under `<plan-dir>/prototype/`:
-   - `mkdir -p <plan-dir>/prototype`
-   - Per screen: `curl -sL -o <kebab-case-name>.png "<screenshot.downloadUrl>=s0"` (note the `=s0`).
-   - **Do NOT download HTML by default.** Only fetch `.html` files (`curl -sL -o <kebab-case-name>.html "<htmlCode.downloadUrl>"`) when the user explicitly asks for HTML artifacts/code. PNG screenshots are the default deliverable.
+   - Build a **coverage matrix** before generating: `views × states × form factors`. When the user asks for "all screens", that means every tab/view, every **state** (default, empty, error, in-progress, declined/expired — whatever the plan's journeys touch), and **every form factor the app ships** (typically DESKTOP + MOBILE). Enumerate the full grid explicitly in your report so gaps are visible.
+2. **Auth probe**: call `list_projects` first. A 401 means the token is expired — ask the user to re-authenticate before generating anything.
+3. **Always create a NEW project**: `create_project` with a title like `"Siraj — <Feature> Prototypes"`. Record the numeric `projectId`. Never reuse an existing plan-prototype project for a different plan — one project per plan keeps screens organized.
+4. **Design system** (optional consistency step): call `list_design_systems` on a previous prototype project (or globally) to find a matching system; pass its `designSystem` ID (`assets/...`) to `generate_screen_from_text` for visual consistency across plan prototypes. Fall back to defaults if none fit.
+5. **Generate one screen per identified page**, sequential calls with a detailed, self-contained prompt per screen (layout, sidebar, fields, states, badges, data examples from the plan). Use `GEMINI_3_FLASH` for wireframe-speed, `GEMINI_3_1_PRO` for polish. Match `deviceType` to the view (DESKTOP for admin dashboards, MOBILE for self-service/student views).
+6. **After each generation, immediately capture** the new screen's `name`/`id`/title from the response (grep the temp output file if needed — see Ground Rules), **and append it to a screen manifest** (`screens.json`) in the output directory:
+   ```json
+   [{ "screenId": "<id>", "title": "…", "file": "<name>.png", "deviceType": "DESKTOP", "state": "default|empty|error|…" }]
+   ```
+   This manifest is the ONLY reliable record of screen IDs: `list_screens` is eventually consistent (often returns `{}` for fresh screens) and `get_project` never lists screens. Without it you cannot `edit_screens`/`get_screen` later. Update the manifest after every edit that forks a screen, and whenever a name mapping changes.
+7. **Save artifacts locally** under the task's output directory (e.g. `<plan-dir>/prototype/`):
+   - `mkdir -p <output-dir>`
+   - Name files `<view>-<state>-<form>.png` (e.g. `whatsapp-inbox-declined-mobile.png`) — kebab-case, encoding ALL of view, state, and form factor so "all states of a screen" are distinguishable.
+   - Per screen: `curl -sL -o <name>.png "<screenshot.downloadUrl>=s0"` (note the `=s0`). **Do NOT download `.html` files unless the user explicitly asks for them.**
    - Re-fetch URLs with `get_screen` for any screen not in a fresh `list_screens` result.
-   - Verify: `file *.png` → PNG (a `JPEG` result for a `.png` path is a red flag — inspect dimensions; square 1024×1024 usually means the degenerate case from step 8), sizes >1KB, dimensions match the render (2560×2048 desktop). If HTML was requested, also verify `file *.html` → HTML.
-10. **Report**: list saved files + the Stitch project resource name so the user can iterate via `edit_screens` / `generate_variants`.
+   - **Beware of embedded-asset traps**: generation responses can contain illustration/other asset downloads; the FIRST `"screenshot"` URL may belong to a 1024×1024 JPEG placeholder inside the screen, not the render itself. Always verify: `file *.png` → must be PNG; desktop renders are 2560×2048, mobile 780×1768. If you got a JPEG or odd dimensions, re-extract from the `design.screens[0].screenshot` path or refetch via `get_screen`.
+   - Before committing/serving the artifact dir, delete any scratch files subagents leave behind (`crop-*.png`, partial downloads).
+8. **Report**: list saved files + the Stitch project resource name so the user can iterate via `edit_screens` / `generate_variants`.
 
 ---
 
@@ -114,13 +114,28 @@ When asked to "create a prototype for a plan" (e.g. `.ai/plans/<feature>/specs.m
 
 ### 4. Asset Download & Code Integration
 - Retrieve full metadata with `get_screen`:
-  - Fetch HTML code from `htmlCode.downloadUrl` (requires `curl -L` to follow redirects).
+  - Fetch HTML code from `htmlCode.downloadUrl` (requires `curl -L` to follow redirects) **only when the user explicitly asks for HTML/code output** — otherwise download PNGs only.
   - Fetch the **full-resolution** screenshot by appending `=s0` to `screenshot.downloadUrl`. The bare URL returns a small, blurry thumbnail (~30–80KB); `=s0` returns the original render (~110–430KB, e.g. 2560×2048 desktop). Prefer `=s0` over `=w{width}`.
 - **`download_assets` is unreliable**: it can report success yet write no files at all. Always verify afterwards (`ls` the outputDir + confirm file count). If empty, fall back to downloading each screen's `htmlCode.downloadUrl` and `screenshot.downloadUrl` directly with `curl -sL`, saving with meaningful names.
 - After any download, **validate files**: `file *.html *.png` must show HTML/PNG (not JSON) and sizes must be >1KB. A "successful" download of ~100–500 bytes is usually a JSON error payload, not an asset. `file` also reports PNG dimensions — 512×410 means you accidentally saved a thumbnail even when the byte size looked plausible; desktop originals are 2560×2048 and ~110–430KB.
 - Convert generated markup into clean React/Next.js/Tailwind components matching your project architecture.
 
-### 5. Multi-Page Build Loop
+### 5. Per-Screen Verification Loop (quality gate)
+
+When the user asks to analyze/validate/polish generated screens ("check the screens", "analyze each screen", "make them perfect"), run the loop ONCE PER SCREEN — spawn one subagent per screen in parallel with a strict, self-contained spec of what the screen must contain. Each subagent iterates:
+
+1. **View** the local PNG; compare against the spec element-by-element (tabs active, badges, specific copy, states). Check visual breakage: garbled text, truncation, overlaps, off-topic content.
+2. **Verdict**:
+   - `PASS` → stop; no tool calls needed.
+   - `IMPROVE` → `edit_screens` with a targeted fix list (only what is wrong — don't restate the whole screen), then continue.
+   - `FAILED/off-topic` (screen regressed into unrelated content, e.g. wrong product) → nudging doesn't work; issue a decisive "this content is WRONG, replace everything with <full spec>" edit prompt.
+3. **Detect stale renders**: after an edit, wait ~90s (sleep), then `get_screen`. If the `screenshot.name` file ID is **unchanged**, the DOM ops were applied but the image wasn't re-rendered — issue one more tiny "confirm polish" edit to force the re-render, wait, and refetch. Compare md5 of old vs downloaded PNG to be sure content changed.
+4. **Re-download** with `=s0`, validate (`file` → PNG with correct dimensions), view again, loop (max 3 iterations).
+5. Final reply in a strict format, e.g. `FINAL: verdict=PASS|IMPROVED|FAILED iterations=N` + one-line notes — this keeps 20+ parallel subagents parseable.
+
+Orchestrator duties: after all subagents finish, eyeball any `IMPROVED` verdicts yourself (screenshot staleness can make agents misread the state), resolve `FAILED` ones manually, verify the full file list, and commit.
+
+### 6. Multi-Page Build Loop
 - For multi-page flows, follow the baton protocol in `.stitch/next-prompt.md` and `.stitch/SITE.md` (see [Build Loop Guide](references/build-loop.md)).
 
 ---
@@ -144,8 +159,14 @@ The MCP server's OAuth token / `STITCH_API_KEY` is expired or invalid. Symptoms:
 ### `download_assets` reports success but directory is empty
 Known flaky behavior. Do not trust the success message — always verify with `ls`. Fallback: loop over screens and `curl -sL` each `htmlCode.downloadUrl` and `screenshot.downloadUrl` (get fresh URLs from `get_screen`; URLs are signed and expire).
 
-### Low-quality / blurry screenshots
-The bare `screenshot.downloadUrl` serves a thumbnail. Append `=s0` for the original resolution (desktop screens render at 2560×2048, mobile ~780×2010). If an image looks poor, check the downloaded file size: anything under ~100KB is a thumbnail.
+### `edit_screens` succeeded but the screenshot didn't change
+DOM-operation edits are sometimes applied without re-rendering the screenshot. Symptoms: `get_screen` returns the same `screenshot.name` (file ID) for >90s after the edit, or the downloaded image is byte-identical (same md5). Fix: issue one more small `edit_screens` (a trivial "polish/confirm" prompt) — this forces a re-render and a new screenshot file ID.
+
+### Downloaded PNG is a 1024×1024 JPEG or wrong dimensions
+You grabbed an embedded illustration/asset URL instead of the screen render. The screen render is at `design.screens[0].screenshot.downloadUrl` in the generation response (or via `get_screen`). Verify with `file`: desktop = PNG 2560×2048, mobile = PNG 780×1768.
+
+### A screen shows completely unrelated content
+Generation drift — the screen regressed into a different product/page. Incremental nudges won't fix it; use `edit_screens` with a decisive "the current content is WRONG, replace the ENTIRE content with <full spec>" prompt.
 
 ### Generation tool output is not a single JSON document
 Responses are huge (40–410KB) and the saved `/tmp/…-copilot-tool-output-*.txt` files typically contain **multiple concatenated objects** — e.g. a raw text object then the structured `outputComponents` object — so `json.load` fails on the trailing data. Parse with a loop using `json.JSONDecoder().raw_decode()`. Also note `outputComponents` may appear twice (a compact string copy plus the pretty-printed object); the string copy must be `json.load`ed again before dict access (check `isinstance(component, str)`). Prop shape: `component['design']['screens'][0]` → `name` (`projects/<pid>/screens/<sid>`), `title`, `screenshot.downloadUrl`, `htmlCode.downloadUrl`.
@@ -155,13 +176,15 @@ Responses are huge (40–410KB) and the saved `/tmp/…-copilot-tool-output-*.tx
 ## Ground Rules
 
 - **ALWAYS** check that the Stitch MCP server is active before triggering generation workflows (quick `list_projects` probe; a 401 means re-auth needed — do not proceed).
+- **ALWAYS** maintain a `screens.json` manifest (screenId, title, file, deviceType, state) in the artifact output directory, updated after every generation or edit — it is the only reliable source of screen IDs.
 - **ALWAYS** use numeric/alphanumeric IDs (without `projects/` or `screens/` prefix) for `generate_screen_from_text`, `edit_screens`, `get_screen`, `generate_variants`, and `apply_design_system`.
 - **ALWAYS** pass only `id` and `sourceScreen` in `selectedScreenInstances` for `apply_design_system` (omit coordinates and dimensions).
 - **ALWAYS** record screen IDs and title→ID mapping from generation responses; never rely solely on `list_screens` for recently generated screens.
-- **ALWAYS** ground prototype prompts in the actual codebase before generating: read the real components, theme/palette source, and locale files that the screen will imitate; never invent palettes, layouts, or copy from the plan text alone.
-- **ALWAYS** sanity-check generated screens for degenerate output (logo/wordmark instead of a page, blank hero, wrong device dimensions like square 1024×1024 for DESKTOP) and regenerate with a sharper prompt instead of downloading the failure.
-- **ALWAYS** verify downloaded files exist, have non-trivial size, and are valid PNG (or HTML, if HTML was requested) before declaring success.
-- **ALWAYS** save artifacts with meaningful, kebab-case names derived from the screen title (e.g. `add-payment-form.png`), not raw IDs.
-- **NEVER** download HTML files by default — PNG screenshots are the default artifact. Only download `.html` files when the user explicitly asks for HTML output/code.
+- **ALWAYS** download PNGs by default; download `.html` files ONLY when the user explicitly requests HTML/code output.
+- **ALWAYS** verify downloaded files exist, have non-trivial size, and are valid PNG with the right dimensions (desktop 2560×2048, mobile 780×1768) — a 1024×1024 JPEG or sub-100KB file is the wrong asset or a thumbnail.
+- **ALWAYS** name artifacts `<view>-<state>-<form>.png` (view + state + form factor all encoded) so every state variant is distinguishable.
+- **ALWAYS** enumerate the full `views × states × form factors` matrix before generating when "all screens" is requested, and state it explicitly in your report.
+- **ALWAYS** verify screenshot content actually changed after `edit_screens` (compare `screenshot.name` file ID or md5); re-render if stale.
+- **NEVER** leave subagent scratch files (`crop-*.png`, stray downloads) in the artifact directory — clean before commit.
 - **NEVER** spam `generate_screen_from_text` on timeout; wait and verify with `get_screen`.
 - **NEVER** delete projects without explicit confirmation from the user.

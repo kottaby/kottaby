@@ -1,0 +1,14 @@
+[
+  { "screenId": "d7c4b5f33e424b3aa9fd7b40f10db9a5", "title": "Teacher Dashboard - Submit Session Report", "file": "session-command-drawer-pending-desktop.png", "deviceType": "DESKTOP", "state": "pending" },
+  { "screenId": "2776ca4563cd4202bad32ff2268b60b9", "title": "Teacher Dashboard - Duplicate Report Error", "file": "session-command-drawer-error-desktop.png", "deviceType": "DESKTOP", "state": "error-already-exists" },
+  { "screenId": "924db3f47cf948eb88a1429301811e6b", "title": "Teacher Dashboard - Report Denied (Scheduled Session)", "file": "session-command-drawer-denied-desktop.png", "deviceType": "DESKTOP", "state": "denied-wrong-state" },
+  { "screenId": "7ce2de1bac284265b81dfd6ba3c9984e", "title": "Teacher Dashboard - Report Submitted Success", "file": "report-ready-alert-resolved-desktop.png", "deviceType": "DESKTOP", "state": "resolved" },
+  { "screenId": "d8a77c0eb386472293f1caf3ca172e0a", "title": "Student Dashboard - Session Report Detail", "file": "student-report-view-default-desktop.png", "deviceType": "DESKTOP", "state": "default" },
+  { "screenId": "95c6807bba6b4aef92a2c02c38848362", "title": "Student Notifications - Inbox", "file": "notification-inbox-student-desktop.png", "deviceType": "DESKTOP", "state": "received" },
+  { "screenId": "63e607e7ecf74cc5a6b8bf899cf43d97", "title": "Parent Notifications - Inbox", "file": "notification-inbox-parent-desktop.png", "deviceType": "DESKTOP", "state": "received" },
+  { "screenId": "d42e7e3ca05642beab419f9a82555ccd", "title": "Admin Dispute Resolution - Case DSP-118", "file": "admin-dispute-report-view-desktop.png", "deviceType": "DESKTOP", "state": "default" },
+  { "screenId": "ed6feb40290948eb94c024ccc784b343", "title": "Teacher Dashboard - Submit Session Report (Mobile)", "file": "session-command-drawer-pending-mobile.png", "deviceType": "MOBILE", "state": "pending" },
+  { "screenId": "7821aed5f8a246488dc343c11d567216", "title": "Session Report Submitted Success (Mobile)", "file": "report-ready-alert-resolved-mobile.png", "deviceType": "MOBILE", "state": "resolved" },
+  { "screenId": "ec62b683608a48c19e51b68d61dfd05e", "title": "Student Session Report Detail (Mobile)", "file": "student-report-view-default-mobile.png", "deviceType": "MOBILE", "state": "default" },
+  { "screenId": "8650412d6f0546f8bc5fc05cc9966614", "title": "Student Notifications (Mobile)", "file": "notification-inbox-student-mobile.png", "deviceType": "MOBILE", "state": "received" }
+]

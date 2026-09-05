@@ -41,28 +41,6 @@ DEFAULT_NVIDIA_BASE_URL = "https://integrate.api.nvidia.com/v1"
 DEFAULT_MODEL = "nvidia/moonshotai/kimi-k3"
 
 DEFAULT_INCLUDE_PATTERNS = (
-    "AGENTS.md,"
-    "app/AGENTS.md,"
-    "backend/AGENTS.md,"
-    "backend/db/repo/AGENTS.md,"
-    "backend/db/schema/AGENTS.md,"
-    "backend/db/seeds/AGENTS.md,"
-    "backend/db/test/AGENTS.md,"
-    "backend/db/test/logic/AGENTS.md,"
-    "backend/enum/AGENTS.md,"
-    "backend/graphql/AGENTS.md,"
-    "backend/graphql/pothos/AGENTS.md,"
-    "backend/services/AGENTS.md,"
-    "backend/types/AGENTS.md,"
-    "frontend/AGENTS.md,"
-    "frontend/graphql/AGENTS.md,"
-    "frontend/graphql/sharedDocuments/AGENTS.md,"
-    "frontend/stores/AGENTS.md,"
-    "shared/AGENTS.md,"
-    "shared/locale/AGENTS.md,"
-    "test/integration/AGENTS.md,"
-    "test/ui/AGENTS.md,"
-    "test/workflows/AGENTS.md,"
     "docs/**,"
     ".agents/skills/spec-driven-development/SKILL.md,"
     ".agents/skills/spec-implementation/SKILL.md,"
@@ -92,7 +70,13 @@ DEFAULT_INCLUDE_PATTERNS = (
     "backend/db/test/entity-setup.ts,"
     "backend/services/**,"
     "backend/graphql/**,"
-    "shared/locale/**,"
+    "shared/locale/*.ts,"
+    "shared/locale/client/**,"
+    "shared/locale/server.ts,"
+    "shared/locale/server-graphql.ts,"
+    "shared/locale/server-cookies.ts,"
+    "shared/locale/localeContext.tsx,"
+    "shared/locale/AppLocale.ts,"
     "frontend/lib/**,"
     "frontend/components/**,"
     "frontend/providers/apollo/**,"
@@ -371,6 +355,12 @@ def run_repomix(
         "**/snapshot.json",
         "backend/storage/disk/**",
         "docs/bun/**",
+        "**/AGENTS.md",
+        "shared/locale/ar/**",
+        "shared/locale/en/**",
+        "shared/locale/namespaces/**",
+        "shared/locale/types/**",
+        "shared/locale/*.test.ts",
     ]
 
     cmd = [
@@ -1058,7 +1048,8 @@ def main():
     parser.add_argument("--base-url", default=None, help=f"Custom API base URL (default: {DEFAULT_LOCAL_BASE_URL})")
     parser.add_argument("--api-key", default=None, help="API Key")
     parser.add_argument("--direct-nvidia", action="store_true", help="Connect directly to NVIDIA API")
-    parser.add_argument("--compress", action="store_true", help="Enable repomix compression")
+    parser.add_argument("--compress", action="store_true", default=False, help="Enable repomix compression (default: False)")
+    parser.add_argument("--no-compress", action="store_false", dest="compress", help="Disable repomix compression")
     parser.add_argument("--thinking", default="max", choices=["off", "low", "high", "max"], help="Thinking/reasoning effort level (default: max)")
     parser.add_argument("--output-dir", type=Path, default=None, help="Custom plan directory path under ai/plans/")
     parser.add_argument("--sprint", default=None, help="Sprint identifier (e.g. '0', '1'); nests the plan directory under ai/plans/sprint_<value>/")
