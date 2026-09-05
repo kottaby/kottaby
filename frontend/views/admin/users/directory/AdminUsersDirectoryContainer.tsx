@@ -47,6 +47,11 @@ import { AdminUsers } from "@/shared/locale/namespaces/adminUsers";
 export function AdminUsersDirectoryContainer(): ReactNode {
   const labels = useAppTranslation(AdminUsers);
   const directory = useAdminUsersDirectory();
+  // The copy-email quick action reports success through the shared success
+  // snackbar (identical feedback channel as the create/edit/delete writes).
+  const handleCopyEmail = () => {
+    directory.setSnackbarMessage(labels.quickActions.emailCopied);
+  };
   // Re-fetch the current page after a load failure (transport failure or
   // GraphQL error). The promise is handed to Apollo; rejections re-surface
   // through the same `hasError` state.
@@ -96,7 +101,7 @@ export function AdminUsersDirectoryContainer(): ReactNode {
         </Alert>
       )}
 
-      <DirectoryResults labels={labels} directory={directory} />
+      <DirectoryResults labels={labels} directory={directory} onCopyEmail={handleCopyEmail} />
 
       {/* Mobile-only create affordance — the desktop one lives in the
           toolbar. Fixed above the bottom nav (bottom: 88px), below dialogs.

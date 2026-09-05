@@ -6,14 +6,16 @@
  * Card container (radius 12, `border.light` outline, `shadow.card`); the
  * header row sits on `surfaceContainerHigh` with uppercase 12px/600
  * letter-spaced `text.secondary` cells; body rows are ≥72px tall, separated
- * by `border.light` hairlines, with an `action.hover` row highlight.
+ * by `border.light` hairlines — odd rows carry a faint `action.hover` zebra
+ * tint and pointer hover upgrades the row to `action.selected`.
  *
  * Columns (start → end; they mirror visually under RTL automatically):
- * USER (avatar + name link + ellipsized email), PHONE (bidi-isolated LTR),
- * ROLE (tonal pill), STATUS/DETAILS (per-role headline), GOVERNANCE
- * (dot pill), LAST ACTIVE (localized relative time), ACTIONS (kebab menu).
- * Each body row is rendered by `DirectoryUserRow` (the identity cell lives
- * in `DirectoryUserIdentityCell`).
+ * USER (avatar + name link + ellipsized email + copy-email quick action),
+ * PHONE (bidi-isolated LTR), ROLE (tonal pill), STATUS/DETAILS (per-role
+ * headline), GOVERNANCE (dot pill), LAST ACTIVE (localized relative time),
+ * ACTIONS (kebab menu). Each body row is rendered by `DirectoryUserRow`
+ * (the identity cell lives in `DirectoryUserIdentityCell`); odd body rows
+ * carry a faint zebra tint and hover upgrades to a stronger highlight.
  *
  * Loading renders stable-key skeleton rows; the empty state reuses the
  * existing `labels.emptyState` copy via `DirectoryEmptyState`. The
@@ -39,6 +41,8 @@ interface DirectoryTableProps {
   readonly hasFilters: boolean;
   readonly onEdit: (user: DirectoryUserItem) => void;
   readonly onDelete: (user: DirectoryUserItem) => void;
+  /** Invoked after any row's copy-email action resolves (drives the snackbar). */
+  readonly onCopyEmail?: () => void;
   /** Footer slot rendered inside the card (the `DirectoryPagination` bar). */
   readonly pagination?: ReactNode;
 }
@@ -46,7 +50,7 @@ interface DirectoryTableProps {
 const COLUMN_COUNT = 7;
 
 export function DirectoryTable(props: DirectoryTableProps): ReactNode {
-  const { labels, items, loading, hasFilters, onEdit, onDelete } = props;
+  const { labels, items, loading, hasFilters, onEdit, onDelete, onCopyEmail } = props;
   const locale = useAppLocale();
   return (
     <Card
@@ -92,14 +96,16 @@ export function DirectoryTable(props: DirectoryTableProps): ReactNode {
               </TableCell>
             </TableRow>
           )}
-          {items.map(user => (
+          {items.map((user, index) => (
             <DirectoryUserRow
               key={user.id}
               user={user}
               labels={labels}
               locale={locale}
+              striped={index % 2 === 1}
               onEdit={onEdit}
               onDelete={onDelete}
+              onCopyEmail={onCopyEmail}
             />
           ))}
         </TableBody>

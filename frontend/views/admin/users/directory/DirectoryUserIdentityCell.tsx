@@ -2,7 +2,7 @@
 
 /**
  * DirectoryUserIdentityCell — the desktop table's USER column: avatar +
- * name link + ellipsized email.
+ * name link + ellipsized email + copy-email quick action.
  *
  * Bidi note (Latin names/emails inside an RTL page): the HTML `dir="ltr"`
  * ATTRIBUTE isolates glyph direction and participates in the bidi
@@ -11,11 +11,17 @@
  * clipping the START of the text (leading ellipsis). With the attribute
  * alone, direction stays `ltr` and `text-align: start` shows the head with
  * a trailing ellipsis.
+ *
+ * The copy affordance writes the email to the clipboard and reports
+ * success through `onCopyEmail` (the container owns the shared success
+ * snackbar); clipboard failures are silently dropped so the snackbar never
+ * lies about a copy that did not happen.
  */
 
-import { Box, Link as MuiLink, Stack, TableCell, Typography } from "@mui/material";
+import { ContentCopyOutlined as CopyIcon } from "@mui/icons-material";
+import { Box, IconButton, Link as MuiLink, Stack, TableCell, Tooltip, Typography } from "@mui/material";
 import Link from "next/link";
-import type { ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 import type { DirectoryUserItem } from "@/frontend/views/admin/users/directory";
 import { UserAvatar } from "@/frontend/views/admin/users/ui";
 import type { DirectoryRole } from "@/frontend/views/admin/users/utils";
@@ -25,9 +31,29 @@ interface DirectoryUserIdentityCellProps {
   readonly user: DirectoryUserItem;
   readonly role: DirectoryRole;
   readonly labels: Pick<AdminUsersLabels, "quickActions">;
+  /** Invoked after the email copy resolves successfully (drives the snackbar). */
+  readonly onCopyEmail?: () => void;
 }
 
-export function DirectoryUserIdentityCell({ user, role, labels }: DirectoryUserIdentityCellProps): ReactNode {
+export function DirectoryUserIdentityCell({
+  user,
+  role,
+  labels,
+  onCopyEmail,
+}: DirectoryUserIdentityCellProps): ReactNode {
+  const [emailCopied, setEmailCopied] = useState(false);
+  const handleCopyEmail = () => {
+    void navigator.clipboard
+      .writeText(user.email)
+      .then(() => {
+        setEmailCopied(true);
+        onCopyEmail?.();
+        return undefined;
+      })
+      // A rejected copy (permission/insecure context) stays silent — the
+      // shared snackbar must never announce a copy that did not happen.
+      .catch(() => undefined);
+  };
   return (
     <TableCell sx={{ minWidth: 0 }}>
       <Stack direction="row" spacing={1.5} sx={{ alignItems: "center", minWidth: 0 }}>
@@ -62,24 +88,47 @@ export function DirectoryUserIdentityCell({ user, role, labels }: DirectoryUserI
           >
             {user.fullName}
           </MuiLink>
-          <Typography
-            variant="body2"
-            title={user.email}
-            dir="ltr"
-            sx={theme => ({
-              fontSize: 13,
-              color: theme.palette.text.secondary,
-              unicodeBidi: "isolate",
-              textAlign: "start",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
-              maxWidth: "100%",
-              minWidth: 0,
-            })}
-          >
-            {user.email}
-          </Typography>
+          <Stack direction="row" spacing={0.5} sx={{ alignItems: "center", minWidth: 0 }}>
+            <Typography
+              variant="body2"
+              title={user.email}
+              dir="ltr"
+              sx={theme => ({
+                fontSize: 13,
+                color: theme.palette.text.secondary,
+                unicodeBidi: "isolate",
+                textAlign: "start",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+                flex: 1,
+                minWidth: 0,
+              })}
+            >
+              {user.email}
+            </Typography>
+            <Tooltip
+              title={emailCopied ? labels.quickActions.emailCopied : labels.quickActions.copyEmail}
+              placement="top"
+              enterTouchDelay={0}
+              leaveTouchDelay={1500}
+            >
+              <IconButton
+                size="small"
+                aria-label={`${labels.quickActions.copyEmail}: ${user.email}`}
+                onClick={handleCopyEmail}
+                sx={theme => ({
+                  // ≥44px touch target via transparent padding, matching the
+                  // name-link trick; the icon stays visually 20px.
+                  p: 1.5,
+                  my: -1.5,
+                  color: emailCopied ? theme.palette.success.main : theme.palette.text.secondary,
+                })}
+              >
+                <CopyIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          </Stack>
         </Box>
       </Stack>
     </TableCell>

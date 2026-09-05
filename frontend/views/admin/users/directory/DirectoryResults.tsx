@@ -29,9 +29,11 @@ type DirectoryState = ReturnType<typeof useAdminUsersDirectory>;
 interface DirectoryResultsProps {
   readonly labels: AdminUsersLabels;
   readonly directory: DirectoryState;
+  /** Invoked after any row's copy-email action resolves (drives the snackbar). */
+  readonly onCopyEmail?: () => void;
 }
 
-export function DirectoryResults({ labels, directory }: DirectoryResultsProps): ReactNode {
+export function DirectoryResults({ labels, directory, onCopyEmail }: DirectoryResultsProps): ReactNode {
   // When the query (or a refetch with no cached rows) failed, the error
   // alert in `AdminUsersDirectoryContainer` is the sole surface — rendering
   // the skeleton/empty state and pagination beside it reads as a second,
@@ -46,6 +48,7 @@ export function DirectoryResults({ labels, directory }: DirectoryResultsProps): 
         hasFilters={directory.hasFilters}
         onEdit={directory.setEditTarget}
         onDelete={directory.setDeleteTarget}
+        onCopyEmail={onCopyEmail}
         pagination={
           <DirectoryPagination
             labels={labels}
