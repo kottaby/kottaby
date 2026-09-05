@@ -1,136 +1,145 @@
-# DEV3-021 — Admin Session Governance (View/Filter/Reschedule/Cancel/Reassign/Join) — specs.md
+# Requirements & Specification: DEV3-021 — Admin Session Governance (View/Filter/Reschedule/Cancel/Reassign/Join)
 
-**Plan directory**: `ai/plans/sprint_3/dev3-021-admin-session-governance/`
-**Ticket**: DEV3-021 (docs/planning/TICKETS.md) — Sprint 3, Dev 3, 5 SP, Blocked By DEV3-004.
-**Decision Refs**: FR-10.3, A.5 (audit_logs).
-**Consumes**: DEV3-004 session lifecycle (`docs/sessions/session-lifecycle.md`), DEV3-017 audit trail (`docs/admin/audit-trail.md`), DEV3-018 cold-start certification.
+> **Sprint:** 3 · **Owner Stream:** Dev 3 · **Effort:** 5 SP
+> **Target ticket:** DEV3-021 (docs/planning/TICKETS.md §Sprint 3; decision refs FR-10.3, A.5)
+> **Plan directory (verbatim):** `ai/plans/sprint_3/dev3-021-admin-session-governance`
+> **Blocking dependency:** DEV3-004 session lifecycle — shipped; canonical refs `docs/sessions/session-lifecycle.md`, `docs/specs/state-machine-invariants.md` INV-S1..S8.
 
 ---
 
 ## 1. Executive Summary & Problem Statement
 
-Admins currently have read access to disputed sessions only (`listAdminDisputedSessions`, DEV3-022). There is **no admin surface** to (a) list/filter ALL sessions, (b) reschedule a session, (c) cancel any session with refund of held funds, (d) reassign the teacher, or (e) join a live session as an observer. Every governance action must be audit-logged (A.5) inside the SAME transaction as the state change.
-
-### Personas & Workflows
-
-| Actor | Workflow |
-|---|---|
-| **Admin** (only actor) | Lists/filters sessions; opens a session detail; reschedules it; cancels it (funds released); reassigns a certified teacher; joins a live (`started`) session as observer. |
-| **Student / Teacher** (side-effect receivers) | See updated timing / cancellation refund / new teacher via session feeds; receive notification waves per `docs/notifications/session-request-notifications.md`. |
-
-### Business Value
-Unblocks operational intervention without DB surgery; provides FR-10.3 admin ergonomics with full auditability.
-
-### Non-Goals
-- Payments/payouts settlement (DEV3-005 surface; we only reverse the HOLD lane).
-- Dispute arbitration (DEV3-022) — sessions in `disputed` state are OUT of scope for reschedule/reassign (join-observe allowed).
-- Real-time WebSocket push beyond the existing notification engine (deferred, §Deferred).
-- Meeting URL storage schema change (no `meeting_url` column exists — join returns the SSR-fetchable session detail; live-URL exposure is deferred).
+- **Feature:** An admin-only governance surface over session entities: a filterable/paginated directory of ALL sessions and five admin operations — reschedule, cancel (releasing held funds), reassign teacher, and join a live (status='started') session as an observer — with every action audit-logged atomically in the same transaction (A.5).
+- **Problem from the user perspective:**
+  - **Admin** today can only view disputed sessions (DEV3-022 arbitration surface) — there is NO directory of all sessions, no reschedule/cancel/reassign operator tooling, no live-observation hook.
+  - **Student / Teacher** are affected by admin interventions; they must observe state changes consistently and receive notification waves on cancel/reschedule/reassign.
+  - **Other roles** (student/teacher/parent/supervisor) must be denied byte-identically (BFLA 401/403 split per existing session resolvers).
+- **Business value:** FR-10.3 (Session Governance) is a launch-critical admin capability ("the Admin can view all sessions ... reschedule, cancel, reassign teachers, join live sessions"). Prevents DB surgery for operational support.
+- **Actors involved:** Admin (operator); Student & Teacher (side-effect receivers); Supervisor/Parent (denial probes); system (audit, notification, refund).
+- **Explicit non-goals:**
+  - NO dispute arbitration changes (DEV3-022 owns resolveSessionDispute; disputed sessions are excluded from this ticket's mutation writes per D2).
+  - NO schema changes (session table verified to already have startedAt/endedAt and no meeting/scheduled columns).
+  - NO meeting-URL bridging for admin join (no meetingUrl column exists) — observation is audit + detail access only.
+  - NO real-time WebSocket fan-out for admin dashboards (deferred).
+  - NO financial payouts/withdrawals (separate stream).
 
 ---
 
-## 2. Acceptance Criteria (EARS)
+## 2. Acceptance Criteria (EARS Format)
 
 ### 2.1 Baseline & Foundational Preparation
 
-- **REQ-001** WHEN implementation starts THEN the repo SHALL pass a baseline `bun quality-gate` (or pre-existing failures SHALL be recorded in `deferred-items.md` before any edit).
-- **REQ-002** WHEN any user-facing copy or error message is authored THEN it SHALL use the compile-time i18n system in `shared/locale/` (`getTranslations(locale)` single-arg on server, `useAppTranslation(NamespaceHandle)` on client, `ctx.t("namespace")` in resolvers) and SHALL import enum VALUES from `backend/enum/` barrels, never string literals.
-- **REQ-003** WHEN any type is needed THEN it SHALL be declared in `backend/types/<domain>/` (`AdminSessionListFilterInput`, `AdminSessionPage`, `AdminSessionRescheduleInput`, `AdminSessionReassignInput`, `AdminSessionJoinResult`) and imported by services/resolvers; no local `.types.ts` in service or Pothos layers.
+- **REQ-001 (Error baseline & ledger):** WHEN implementation begins THEN the executor SHALL record baseline counts for `bun tsgo`, `bun run biome:check`, `bun oxlint`, and `bun run scripts/lint-service.ts --json --id baseline`, initialize `deferred-items.md` from `.agents/spec-process-guide/templates/deferred-items-template.md`, and write `outcome/0.1-baseline-outcome.md` — distinguishing pre-existing errors from new ones is MANDATORY for every later quality gate.
+- **REQ-002 (Reuse verify-then-claim):** WHEN domain work begins THEN the executor SHALL verify and REUSE — never reimplement — the following EXISTING artifacts (verified against the tree in Phase 0 with `path:line` anchors): the same-lane refund primitive `refundHeldLaneToProvenance` in `backend/services/classes/session-lifecycle.transitions.ts:207`; the guarded-transition patterns in `session-lifecycle.transitions.ts` and `session-lifecycle.guards.ts`; the admin BFLA gate `assertActorAdmin` in `backend/services/admin/admin-gate.helpers.ts`; the append-only audit writer `AuditService.createAuditLog(input, tx)` in `backend/services/admin/audit.service.ts:82`; the `AuditLogWriteContract` type in `backend/types/contracts/admin-audit.contract.types.ts`; enum values of `AuditActionType` (Override/Create/Update/Delete/Adjust/Suspend/Reactivate) in `backend/enum/audit/audit-action-type.enum.ts`; the `withTransaction` helper precedent; the `authScopes: { $all: { authenticated: true, role: [UserRole.Admin] } }` conjunction in `backend/graphql/mutation/classes/session-lifecycle.mutation.ts` (`resolveSessionDispute`); the `SessionPothosObject` and `SessionPagePothosObject` in `backend/graphql/pothos/classes/session.pothos.ts`; the side-effect registration barrels `backend/graphql/query/classes/index.ts` and `backend/graphql/mutation/classes/index.ts`; the journey harness `test/workflows/AGENTS.md` + helpers barrel; the admin `disputes` page (`app/(dashboard)/disputes/page.tsx`) and its view assembly (`frontend/views/admin/disputes/AdminDisputesChrome.tsx`...); the `SessionListFilterPothosInput` in `backend/graphql/pothos/classes/session-filter-input.pothos.ts`.
+- **REQ-003 (Compile-time i18n & enum imports):** All NEW user-facing copy SHALL flow through the compile-time system: resolvers/services use `ctx.t("errorsTranslations")`-style service access (following `getServerTranslations(locale)` one-arg precedent in `admin-gate.helpers.ts`); server components use `getTranslations(locale)` (one arg); client components use `useAppTranslation(<NamespaceHandle>)` with a `defineNamespace` handle const — string literals, `next-intl`, `getBackendTranslations`, `shared/messages/` are FORBIDDEN. All runtime enums MUST be VALUE imports (e.g. `AuditActionType.Override`), never raw strings.
+- **REQ-004 (Canonical types discipline):** All new types SHALL live under `backend/types/classes/` (new file `admin-session-governance.types.ts`) with `{Input,ReturnType,...}` suffixes; imported via `@/backend/types` barrels. NO `.types.ts` under services/graphql layers; Pothos files import types only.
+### 2.2 Core Feature Logic / Happy Paths
 
-### 2.2 Core Feature Logic (Happy Paths)
-
-- **REQ-010** WHEN an admin calls `adminSessions(filter, page, pageSize)` THEN the system SHALL return ONLY admin-visible rows with `totalCount` and `hasMore`, filtering by `teacherId?`, `studentId?`, `type?`, `status?`, `dateFrom`/`dateTo` (half-open `>= from` / `< to` on `created_at` UTC per audit-trail convention).
-- **REQ-011** WHEN the admin-shape query runs THEN it SHALL be executed in a single Drizzle round-trip (CTE/aggregate…no N+1) and include `id` plus student/teacher display names.
-- **REQ-012** WHEN `adminSession(sessionId)` is called THEN the system SHALL return full session detail or an admin-safe `null` (null-not-error not-found).
-- **REQ-013** WHEN an admin calls `adminRescheduleSession(sessionId, startedAt, endedAt?)` on a `scheduled`/`started` session and `startedAt < endedAt` (when provided) THEN the system SHALL update `started_at`/`ended_at` in ONE guarded transaction AND write an `audit_logs` row (action `Override`) atomically.
-- **REQ-014** WHEN an admin calls `adminCancelSession(sessionId, reason)` on a non-terminal session (`scheduled`, `started`, or `ending`) THEN `session.status` SHALL become `cancelled`, held-side funds SHALL be refunded by calling the EXISTING `refundHeldLaneToProvenance` (same-lane refund, SessionLifecycleService) inside the same transaction, and an audit row SHALL be written.
-- **REQ-015** WHEN the session is already `cancelled`, `completed`, `ended`, `expired`, or `disputed`-settled THEN `adminCancelSession` SHALL throw `SessionStateError` (i18n, `extensions.code="SESSION_INVALID_STATE"`).
-- **REQ-016** WHEN an admin calls `adminReassignTeacher(sessionId, newTeacherId)` THEN the system SHALL load the session FOR UPDATE, assert the new teacher exists AND `is_approved=true stall-dangerous check via TeacherRepository (certified teacher per DEV3-018 ruling), update `session.teacher_id` in the same transaction, and write an audit row recording previous→new teacher ids.
-- **REQ-017** WHEN `adminReassignTeacher` targets a `completed`/`cancelled`/`ended`/`expired` session or an unapproved/missing teacher THEN it SHALL throw `ValidationError`/`SessionStateError` with localized message and make ZERO writes (including ZERO audit rows — JR-C-1 convention).
-- **REQ-018** WHEN an admin calls `adminJoinSession(sessionId)` and `session.status == 'started'` THEN the system SHALL return an `AdminSessionJoinResult { session, joinedAt }`, take NO write on the session row, and write ONE audit row (`Override`, details `{action:"joined_observation"}`) — observe-only.
-- **REQ-019** WHEN `adminJoinSession` targets a non-`started` session THEN it SHALL throw `SessionStateError` and write NO audit row.
-- **REQ-020** WHEN a successfully rescheduled/cancelled/reassigned session has student/teacher recipients THEN the existing notification emitters of `SessionRequestNotificationService` SHALL be invoked with the recipient-locale copied payloads, publishing after commit (persist-first/push-second per `docs/notifications/realtime-engine.md`).
-
+- **REQ-010 (Admin sessions directory query):** WHEN an admin calls `adminSessions(input)` THEN the system SHALL return a page of session rows supporting filters: `teacherUserId`, `studentUserId`, `type` (SessionType enum), `status` (SessionStatus enum), and `dateFrom`/`dateTo` over `createdAt` with half-open semantics (`>= dateFrom`, `< dateTo`, UTC), plus cursor/page pagination field name conventions already used by `listMyStudentSessions`; rows SHALL include `id`, `studentId`, `teacherId`, `type`, `status`, `createdAt`, `startedAt`, `endedAt`, `confirmationDeadline`, `durationMinutes`, `meetingSnapshotFieldsPresent`-free projection (no N+1; joins resolved by select only).
+- **REQ-011 (Directory total count honesty):** WHEN `adminSessions` returns THEN it SHALL include an honest `total` computed by the SAME filtered query (count over filter), and pagination SHALL be accurate across pages (no next-button phantom empties).
+- **REQ-012 (Admin session detail):** WHEN an admin requests the session detail view THEN the system SHALL return the row for ANY id regardless of lifecycle state (view is read-only); nonexistent id SHALL be a nullable result (null-not-error per admin conventions), NOT a thrown NOT_FOUND — preserving distinction between id-probing discovery errors on participant queries and admin browse reads.
+- **REQ-020 (Reschedule):** WHEN an admin submits `adminRescheduleSession({ sessionId, startedAt, endedAt })` and the row is in `scheduled` or `started` state (the two states with mutable timing per INV-S analysis / DEV3-004 doc) THEN the system SHALL: (1) in a single transaction, guard-update the row `WHERE id=? AND (status='scheduled' OR status='started')`; (2) audit the action with `AuditActionType.Override`, payload `{from:{startedAt,endedAt},to:{...},...}`; (3) emit a `session.rescheduled` notification wave to student + teacher (same-lane publish-after-commit). Guard-update returning 0 rows SHALL throw a localized conflict (NO silent no-op).
+- **REQ-021 (Reschedule validation):** WHEN the reschedule payload arrives THEN `startedAt < endedAt` SHALL be enforced, both MUST be ISO-8601/DateTime scalar values, and `startedAt` MUST NOT be in the past by more than a 5-minute grace window; violations SHALL produce localized validation errors BEFORE any read.
+- **REQ-022 (Cancel with hold refund):** WHEN an admin calls `adminCancelSession({ sessionId, reason? })` and the session is in a pre-terminal state THEN the system SHALL, inside ONE transaction: flip status to `cancelled`, call the EXISTING same-lane refund primitive `refundHeldLaneToProvenance` for the recorded hold lane (exactly-once — the primitive's idempotent guard enforces this), tolerate a "no recorded lane" row as a no-refund no-op, write ONE audit row (`AuditActionType.Override`, entityType `session`, entityId sessionId, details JSON `{action:"cancel", reason}` ≤2000 chars), and commit; post-commit publishes a `session.cancelled` notification wave to student+teacher with recipient-locale copy.
+- **REQ-023 (Cancel idempotency):** WHEN the same admin-cancel mutation is retried with the same `X-Idempotency-Key` THEN the second call SHALL be a no-op returning the same idempotent response shape (canonical claim via existing mechanism), and SHALL NOT write duplicate audit rows nor double-refund.
+- **REQ-024 (Teacher reassignment):** WHEN an admin calls `adminReassignTeacher({ sessionId, newTeacherId })` and the session is in `scheduled` state (NOT `started`/`completed`/etc. — live/arbitration sessions are out of scope here) THEN the system SHALL in one transaction: assert the candidate row is a teacher with `is_approved = true` (echoing INV-S5 certification constraint at rescheduled-creation equivalent time), guard-update `teacher_id` only (no other column), audit with old/new teacher ids, and publish a `session.teacherReassigned` notification wave to student + old teacher + new teacher with recipient-locale copy. A candidate failing the certification check SHALL throw a localized FK-VIOLATION-class error and leave the row untouched.
+- **REQ-025 (Teacher reassignment conflict policy):** WHEN a reassignment is attempted for a session already in `disputed` state THEN the surface SHALL refuse with a localized conflict error (dispute ownership belongs to arbitration DEV3-022). (Teacher reassignment on live row and teacher-driven proposal/accept flows are OUT OF SCOPE.)
+- **REQ-026 (Join live session — observation only):** WHEN an admin calls `adminJoinSession({ sessionId })` for a session in `started` state THEN the system SHALL write EXACTLY ONE audit row (`AuditActionType.Override`, details `{action:"join_observe"}`) and return the SAME Session object the participant read path returns (data reuse), enabling the admin UI to render a read-only live view. No new columns are introduced for join semantics; NO meeting provider credential or token column is exposed to the resolver context.
+- **REQ-027 (Join gating):** WHEN `adminJoinSession` is called on a session NOT in `started` state THEN it SHALL throw a localized conflict error and write ZERO audit rows.
+- **REQ-028 (Directory badge "needsAttention"):** WHEN the directory returns rows THEN each row SHALL include a derived boolean computed server-side — `true` iff status is `disputed` OR the row is in `scheduled` state with `confirmationDeadline < now` — used only for badge styling, NOT authorization.
+- **REQ-029 (Admin directory must remain read-only):** WHEN the directory query executes THEN it SHALL NOT mutate session state, audit-logs, or notification tables (no lazy side effects inside queries).
 ### 2.3 Security, Authorization & Tenancy
 
-- **REQ-030** WHEN any `admin*` session operation is invoked THEN the Pothos `authScopes` SHALL require admin (same scope scheme as DEV3-016 admin mutations; service layer SHALL assert `ctx.user.role === ADMIN` as layered defense).
-- **REQ-031** (BFLA) WHEN a non-admin (student/teacher/parent/supervisor) calls any `adminSession*` field THEN the resolver SHALL fail with `FORBIDDEN` and ZERO service work AND ZERO audit rows.
-- **REQ-032** (BOLA/BOPLA) WHEN persisting reschedule/reassign payloads THEN only whitelisted columns (`started_at`, `ended_at`, `teacher_id`) SHALL be touched — explicit Drizzle `.set({...})`; no `...input` spreads.
-- **REQ-033** WHEN errors surface to the client THEN they SHALL be `DomainError` subclasses mapped to `extensions.code` per `docs/graphql/error-handling-contract.md`; stack traces and raw SQL SHALL never leave the server.
-
+- **REQ-030 (BFLA + BOLA-mirror denial semantics):** WHEN any of the five admin mutations or the directory/detail queries are called THEN anonymous callers SHALL receive the localized error of `UnauthorizedError`/`401-unauthorized` (401-anonymous semantics) and authenticated non-admin roles SHALL receive the localized `forbidden` message with 403 — byte-identical to `resolveSessionDispute`'s split semantics. (`authScopes: { $all: { authenticated: true, role: [UserRole.Admin] } }` in Pothos; redundant service-side `assertActorAdmin(ctx.user.id, ctx.locale, tx)` invoked at the top of each service mutation.)
+- **REQ-031 (BOPLA whitelist):** WHEN reschedule/cancel/reassign payloads are applied THEN ONLY the whitelisted columns (timing pair; teacher_id) SHALL be written. Any client-supplied extra field SHALL be ignored — never spread into Drizzle `set()`.
+- **REQ-032 (Error confidentiality):** WHEN errors fire THEN no resolver or service SHALL expose internal SQL, stack traces, hashed secrets, or raw constraint details to the client; all localized text SHALL come from the i18n tree.
+- **REQ-033 (Rate limiting posture):** The new mutations SHALL inherit the platform fail-open/fail-closed rate-limit posture (no bespoke limiter in this ticket — recorded as deferred item D-03).
 ### 2.4 Atomicity, Concurrency & Data Integrity
 
-- **REQ-040** WHEN cancel executes THEN the status guard-UPDATE, `refundHeldLaneToProvenance`, and audit insert SHALL share ONE transaction (`tx` propagated to every repo call); failure of any step SHALL roll back all.
-- **REQ-041** WHEN reschedule or reassign executes THEN the session row SHALL be locked via SessionRepository (SELECT … FOR UPDATE semantics used by existing guarded transitions) BEFORE mutation, preventing TOCTOU races with teacher-driven confirm/start/complete.
-- **REQ-042** WHEN a concurrent participant transition already moved the session out of an admin-actionable state THEN the guarded UPDATE … WHERE status IN (...) SHALL affect 0 rows and the service SHALL throw `SessionStateError` (INV-S guarded-transition pattern).
-- **REQ-043** WHEN funds are released on cancel THEN the refund SHALL use the SAME lane the hold was taken from (hold-as-debit + same-lane refund, per DEV3-004 §refundHeldLaneToProvenance).
-- **REQ-044** WHEN the DB schema needs the new surface THEN NO new columns are required BY THIS TICKET for reschedule (existing `started_at`/`ended_at` reuse decision, see plan §2); `regenerate-sessions-uid-idx` partial index on non-terminal statuses SHALL remain valid because cancel retains a non-null `status` column.
+- **REQ-040 (Transaction boundaries):** WHEN any of the four mutating operations executes THEN the guard UPDATE and ALL dependent writes (refund, audit) SHALL reside inside ONE `withTransaction` block, and every repository call SHALL receive the SAME `tx` — mixing `tx`/`db` paths is PROHIBITED.
+- **REQ-041 (Guarded transitions):** WHEN mutating a session THEN the UPDATE SHALL carry a `WHERE status IN (...)` eligibility clause that makes concurrent same-target writes fail closed: a row taken out of the eligible set between read and write yields 0 affected rows → error.
+- **REQ-042 (No TOCTOU on eligibility):** WHEN the reschedule/reassign validation runs THEN eligibility is re-asserted in the same guard UPDATE (no read-then-write gap); no `SELECT FOR UPDATE` is required on the session row because the state eligibility clause is the atomic gate; the TEACHER candidate read CAN tolerate a read-then-write gap because certification denial is enforced again at the guard-update by the FK assertion on `teachers.is_approved`. Via `createGraphQLContext` absence of automatic denial filter, service-side activity checks SHALL be applied via the existing service-side pattern.
+- **REQ-043 (Append-only audit):** WHEN an audit row is written THEN it SHALL follow the append-only contract: NO update, NO upsert; `details` JSON is metadata only (≤2000 chars, no secrets, no verbatim end-user free text beyond admin-supplied `reason` truncated).
+- **REQ-044 (Refund same-lane rule):** WHEN the cancel path releases funds THEN it SHALL use `refundHeldLaneToProvenance`, which routes funds to the SAME provenance lane as the hold — never crossing lanes (trial/subscription/wallet) — matching the DEV3-004 boxed contract.
 
 ### 2.5 Validation & Localized Error Contracts
 
-- **REQ-050** WHEN any admin mutation receives invalid input THEN `ValidationError` SHALL be thrown BEFORE touching the DB, message via `ctx.t("errors")` / new `sessionGovernance` error keys; `extensions.code` values: `VALIDATION_FAILED`, `SESSION_INVALID_STATE`, `NOT_FOUND`, `FORBIDDEN`.
-- **REQ-051** WHEN audit emission runs THEN the audit write SHALL use `AuditService.createAuditLog(contract, tx)` (EXISTING, `backend/services/admin/audit.service.ts`) with `actionType` drawn ONLY from `AuditActionType` enum (`backend/enum/audit/audit-action-type.enum.ts`), never string literals; `details` JSON SHALL carry `{sessionId, previous, next, reason?}` — metadata-only, no verbatim user PII beyond ids.
-
+- **REQ-050 (DomainError subclasses):** Service SHALL throw `UnauthorizedError`, `ForbiddenError`, `NotFoundError`-equivalent (`SESSION_NOT_FOUND` for directory detail null → `null` result instead per REQ-012), and a validation-class error carrying a `code` extension; mapping to GraphQL SHALL propagate via `extensions.code` exactly per `docs/graphql/error-handling-contract.md`.
+- **REQ-051 (Localized messages):** WHEN any error returns THEN its message SHALL come from the locale tree (`errorsTranslations` via `ctx.t("errorsTranslations")`/service-level `getServerTranslations(ctx.locale)`), ZERO hardcoded English strings.
 ### 2.6 GraphQL & Frontend Contracts
 
-- **REQ-060** WHEN codegen runs (`bun run generate:gqlSchema && bun codegen`) THEN the new fields SHALL be present: `AdminSessionListFilterInput`, `AdminSessionPage { items, totalCount, hasMore }`, `adminSessions`, `adminSession`, `adminRescheduleSession`, `adminCancelSession`, `adminReassignTeacher`, `adminJoinSession`; all timestamps typed `DateTime` (scalar in `shared/scalar.pothos.ts`).
-- **REQ-061** WHEN Apollo documents are authored THEN they SHALL live in `frontend/graphql/sharedDocuments/adminSessions.documents.ts`, include `id` on every object, and use the generated TypedDocumentNode types.
-- **REQ-062** WHEN the admin Sessions page renders THEN route `/[locale]/admin/sessions` SHALL exist under `app/(dashboard)/admin/sessions/` gated by the existing with-page-auth wrapper, and the nav entry in `frontend/views/dashboard/nav/navItems.ts` section `admin` SHALL gain a `sessions` child (with i18n label; no coming-soon stub exists to retarget — verified ground truth).
-- **REQ-063** WHEN data loads on the page THEN the UI SHALL use `useQuery` (no `useLazyQuery`) and show MetricCard/StatusBadge/AppDataGrid states for loading/empty/error per existing admin views.
+- **REQ-060 (SDL & Pothos registration):** New operations SHALL register as side-effect module imports via `backend/graphql/query/classes/index.ts` + `backend/graphql/mutation/classes/index.ts`: queries `adminSessions(filter: AdminSessionListFilterInput!, page: Int, pageSize: Int): SessionPage!` and `adminSession(id: ID!): Session`, mutations `adminRescheduleSession`, `adminCancelSession`, `adminReassignTeacher`, `adminJoinSession`. `authScopes` per REQ-030. Object types reuse `SessionPothosObject`/`SessionPagePothosObject` — NO sibling object types introduced.
+- **REQ-061 (Input object reuse):** The filter input SHALL be a NEW `AdminSessionListFilterInput` Pothos input object in `session-filter-input.pothos.ts` (mirrors `SessionListFilterPothosInput` job-by-job; no extension of the participant input — distinct shape over filter keys, per architecture guidance that filter inputs are point-and-shoot scalars).
+- **REQ-062 (DateTime scalar):** All date-typed fields and input args SHALL use the registered `DateTime` scalar from `backend/graphql/pothos/shared/scalar.pothos.ts`.
+- **REQ-063 (Apollo documents):** Frontend documents SHALL live in `frontend/graphql/sharedDocuments/adminSessions.documents.ts` with `{X}QueryDocument`/`{X}MutationDocument` naming; EVERY object selection SHALL include `id` for cache normalization; hooks via `@apollo/client/react`; documents are NOT co-located with components.
+- **REQ-064 (Frontend quality):** UI SHALL honor MUI v9 (`sx`-only styling), theme palette colors only, `*Outlined` icons, no hardcoded hex, keyboard-focusable dialogs, aria labels on all actions.
 
-### 2.7 Test Coverage Requirements (4-Tier)
+### 2.7 Test Coverage Requirements (4-Tier Framework)
 
-- **REQ-070** WHEN tests are authored THEN Tier-1 branch + Tier-2 boundary + Tier-3 chaos (mid-transition failure, concurrent cancel/reschedule) + Tier-4 security (non-admin 403, BOLA) cases SHALL cover every REQ; repo/service tests SHALL use `runInRollback` and pass `tx` to every repo call; `rejects.toThrow` inside `runInRollback` is FORBIDDEN (try/catch helper).
-- **REQ-071** WHEN cross-actor journeys exist THEN `test/workflows/admin/admin-session-governance.test.ts` SHALL commit fixtures in `beforeAll`, delete in `afterAll`, and call REAL services against a REAL DB (no rollback) per TEST-FIRST mandate.
-- **REQ-072** WHEN UI tests exist THEN component tests (Happy DOM + MockedProvider) SHALL cover filter application, dialog flows (reschedule/cancel/reassign), disabled Join button on non-live rows; one Playwright e2e SHALL cover the admin cancel happy path.
+- **REQ-070 (Tier 1 branch/statement):** Every new function SHALL reach 100% branch coverage; every guard clause and every eligibility matrix cell SHALL have a dedicated test.
+- **REQ-071 (Tier 2 boundary):** Empty filter combos; `pageSize` bounds (1, 50); `dateFrom == dateTo` zero-width window; target ids that don't exist; candidate teachers not `is_approved`.
+- **REQ-072 (Tier 3 chaos):** Concurrent cancel + confirm of the SAME session (Promise.allSettled — only one survives); retry-doubles of the idempotent cancel; transactions interrupted mid-flight (assert rollback restores pre-state — verified ONLY inside `runInRollback` with `tx` injected).
+- **REQ-073 (Tier 4 security):** Non-admin role tokens against ALL seven new operations (expect 403 each, zero writes).
+- **REQ-074 (Journey tests):** Cross-actor journeys SHALL be REAL-DB per `test/workflows/AGENTS.md`: fixtures committed in `beforeAll`, deleted in `afterAll` — NO `runInRollback` at the journey level; inside DB tests, repo/service unit tests DO use `runInRollback` and pass `tx`.
+- **REQ-075 (No `.rejects.toThrow()` inside `runInRollback`):** Error assertions use the existing try/catch error-inspection helper.
 
 ### 2.8 Documentation & Knowledge Gates
+- **REQ-080 (Canonical doc):** A new canonical doc SHALL be created under `docs/admin/` (`admin-session-governance.md`) covering: the state-eligibility matrix; single-transaction discipline; audit shape; notification waves; join semantics; join-read-vs-observe decision; i18n & roles; rate-limit posture; pointer to DEV3-022 arbitration boundary; testing posture; deferred items.
+- **REQ-081 (Nav registration):** The admin nav block in `frontend/views/dashboard/nav/navItems.ts` gains EXACTLY ONE entry `{ route: "/admin/session-governance", labelKey: "sessionGovernance", Icon: <appropriate MUI icon> }` placed adjacent to `/audit`.
+### 2.9 Cross-Actor Workflow Scenarios (Journeys)
 
-- **REQ-080** WHEN the ticket completes THEN `docs/admin/session-governance.md` shall be authored as the canonical reference (filters contract, transition matrix, audit shapes), `docs/sessions/session-lifecycle.md` §consumer-guidance SHALL gain a DEV3-021 anchor, and root `AGENTS.md` Important References list SHALL gain the doc.
+**Actor Table:**
 
-### 2.9 Cross-Actor Workflow Scenario (Admin ↔ System)
+| Actor | Role | Allowed on this surface | Explicitly denied |
+|---|---|---|---|
+| Admin | admin | directory, detail, reschedule, cancel, reassign, join | none on this surface |
+| Student | student | NONE | all 7 operations (403) |
+| Teacher | teacher | NONE | all 7 operations (403) |
+| Parent | parent | NONE | all 7 operations (403) |
+| Supervisor | supervisor | NONE | all 7 operations (403) |
 
-| Actor | Permissions | Restrictions |
-|---|---|---|
-| Admin | All 6 operations | Must be `ACTIVE` (assertUserActive); disputed sessions excluded from reschedule/reassign/cancel (join allowed in `started` only) |
-| Student | Receives notifications/refund effects | Cannot invoke admin surface (403) |
-| Teacher | Receives reassignment effects | Same |
+**Journey W-1: Admin discovery, filter, and cancel with refund propagation**
 
---- Workflow: Admin cancels a `started` session
-1. Admin (UI) → `adminCancelSession(id)` → service guard-checks state (`started`) → reads holds (lane).
-2. System → guard-UPDATE `status='cancelled'` in `tx`; refund via `refundHeldLaneToProvenance(tx)`; audit row written in `tx`.
-3. EARS: **WHEN** the transaction commits **THEN** the Student's balances SHALL show refunded funds **AND** Student/Teacher SHALL receive a `sessionCancelled` notification event persisted first.
+1. `admin → adminSessions filter status='scheduled'` → directory returns matching rows (with `needsAttention` badge flags where applicable).
+2. `admin → adminSession(id)` → read returns the row (no side effects).
+3. `admin → adminCancelSession({sessionId, reason:"..."})` on a `scheduled` row with a recorded hold lane → single tx: status flips `cancelled`, same-lane refund posts, audit row written; post-commit: student + teacher notifications.
+4. `student → mySessions` → sees `cancelled` and receives the recipient-locale notification.
+5. `admin → adminSessions filter status='cancelled'` → same row appears under the new filter.
 
---- Workflow: Admin reassigns teacher on `scheduled` session
-1. Admin → `adminReassignTeacher` → lock FOR UPDATE → validate certified teacher → set `teacher_id` → audit.
-2. **WHEN** commit succeeds **THEN** old & new teachers SHALL receive notification events; the session row SHALL show the new teacher; student visible feed unchanged except teacher label.
+**Journey W-2: Reassign with certification gate (observer-perspective EARS)**
 
---- Workflow: Admin joins `started` session
-1. Admin → `adminJoinSession` → assert `status='started'` → NO row mutation → audit row `joined_observation` → returns `{session, joinedAt}` (server time).
-2. **WHEN** the mutation returns **THEN** the front-end SHALL display the session detail (view-only) with an indicator the observation was logged.
+- WHEN admin reassigns session S from teacher T1 to certified teacher T2 THEN the session row SHALL have `teacherId = T2.id` AND student SHALL observe the new teacher via `myStudentSessions` AND BOTH teachers SHALL receive localized notifications.
+- IF candidate teacher lacks `is_approved=true` THEN the mutation SHALL fail localized AND the row SHALL be byte-identical to its pre-call state.
+
+**Journey W-3: Join as observer**
+
+- WHEN admin calls join on a `started` session THEN EXACTLY ONE audit row exists with `{action:"join_observe"}` and the returned session is byte-equivalent to participant read.
+- WHEN admin calls join on a non-`started` session THEN zero audit rows and a localized conflict error.
 
 ---
 
-## 3. Decisions & Invariants Alignment
+## 3. System Decisions & State-Machine Invariants Alignment
 
-- **A.5** audit_logs table consumed via `AuditService` — no new audit table.
-- **INV-S1..S8** (session lifecycle): new transitions `admin_cancel` and `admin_reassign` follow the SAME guarded-UPDATE pattern (`UPDATE … WHERE id=? AND status IN (...)`); no new terminal states introduced; INV-S game of statuses preserved (existing `sessionStatus` enum unchanged, values `scheduled|started|ending|completed|cancelled|ended|expired|disputed`).
-- **Inv — refund-same-lane** (DEV3-004 §4): cancel route MUST call `SessionLifecycleService.refundHeldLaneToProvenance`, never new ledger writes invented here.
-- **Workflow 05** (`docs/workflows/05-admin-governance-override.md`) anchors the UX; FR-10.3 satisfied by REQ-010..020.
-- **JR-C-1**: failed/denied calls write ZERO audit rows.
+- **A.5 (`audit_logs`)** — full conformance: every mutation writes exactly one row via `AuditService.createAuditLog`; reads produce zero rows.
+- **INV-S1..S5** — respected: no new states introduced; `cancelled` remains terminal (INV-S2); reassignment honors INV-S5 (certified-teacher invariant) at mutation time; status changes are strictly per the eligibility matrix in plan §3.
+- **INV-S6..S8** — no impact (live-session presence, completed-only reports, homework) — no behavior change on those axes.
+- **Workflow 05 (`docs/workflows/05-admin-governance-override.md`)** — this ticket implements the session-arbitration complement to the disputes surface; both roads stay independent: arbitration only sees disputed rows, governance directory sees every row.
+- **`docs/sessions/session-lifecycle.md`** — the four-phase creation invariant is untouched; this ticket is a consumer surface over the lifecycle writes.
+- **`docs/graphql/error-handling-contract.md`** — `DomainError` → `extensions.code` mapping follows the registry verbatim; no new code values without registry entry.
+
+---
 
 ## 4. Cross-Layer Traceability Matrix
 
-| REQ | Invariant | Repo | Service | Resolver | UI | Tests |
-|---|---|---|---|---|---|---|
-| REQ-010/011 | A.5(n/a), INV-S | `SessionRepository.listAdminAll/filter` | `SessionLifecycleService.listAdminAllSessions` | `admin-session.query.ts` | `useAdminSessions` | repo-101, svc-101, gql-101, ui-101 |
-| REQ-012 | BOLA | same | same | same | detail drawer | gql-102 |
-| REQ-013 | INV-S guard | guard UPDATE | `adminReschedule` | mutation | dialog | svc-201, wf-201 |
-| REQ-014/015 | INV-S + refund-same-lane | guard UPDATE + refund | `adminCancel` | mutation | dialog | svc-202, chaos-301, wf-202 |
-| REQ-016/017 | BOLA/BOPLA | guard UPDATE teachers | `adminReassign` | mutation | dialog | svc-203, sec-401 |
-| REQ-018/019 | … | none (write=audit only) | `adminJoin` | mutation | Join button | svc-204, gql-103 |
-| REQ-030/031 | BFLA | — | role assert | authScopes | page gate | sec-402 |
-| REQ-040-044 | A.5 atomicity | tx envelope | tx envelope | errors | — | chaos-302 |
-| REQ-050/051 | error contract | — | DomainError | extensions.code | error banner | svc-205 |
-| REQ-060-063 | — | — | — | SDL/docs | page + nav | ui-102, e2e-401 |
-| REQ-070-080 | — | — | — | — | — | all + doc gate |
+| REQ | Invariant/Decision | Services | Resolvers | UI | Tests |
+|---|---|---|---|---|---|
+| REQ-001 | plan hygiene | — | — | — | outcome/0.1 |
+| REQ-002..004 | D-01 reuse, barrelling | services/classes/admin-session-governance | — | — | tsgo |
+| REQ-010..012 | FR-10.3 view/filter | SessionAdminGovernanceService.list/detail | adminSessions/adminSession | Directory+Drawer | Tier1..4 |
+| REQ-020..027 | state guards, A.5 | reschedule/cancel/reassign/join svc fns | 4 mutations | dialogs, join action | Tier1..4 |
+| REQ-030..033 | BFLA/BOPLA/error confidentiality | assertActorAdmin, whitelist mapping | authScopes | — | Tier4 |
+| REQ-040..044 | atomicity, INV-S2 | withTransaction + refunds | — | — | Tx + chaos |
+| REQ-050..051 | graphql error contract | error class mapping | extensions.code | error UI | tests |
+| REQ-060..064 | D-02 Pothos, D-04 frontend | — | query/mutation registration | Apollo docs | codegen, tsgo |
+| REQ-070..075 | 4-tier tests | — | — | — | test suite |
+| REQ-080,081 | knowledge gates | — | — | nav | doc + nav |

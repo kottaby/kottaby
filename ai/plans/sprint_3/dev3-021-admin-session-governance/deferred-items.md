@@ -1,11 +1,16 @@
-# DEV3-021 — Deferred Items Ledger
+# Deferred Items — DEV3-021 Admin Session Governance
 
-**Plan directory**: `ai/plans/sprint_3/dev3-021-admin-session-governance/`
+> Working ledger. Updated during implementation; reviewed at final gate.
 
-| ID | Item | Reason deferred | Deferred to |
-|---|---|---|---|
-| D-01 | Live meeting URL exposure on `adminJoinSession` (e.g. a real `joinUrl`) | No `meeting_url` column exists in the session schema (ground truth); adding meeting-provider URL bridging is the meeting-providers ticket (BLT-03 pending) | Meeting providers ticket |
-| D-02 | Real-time admin dashboard WebSocket push of governance events | Notification engine covers user-facing waves; admin live-band refresh uses Apollo `refetchQueries` only | Post-sprint UX ticket |
-| D-03 | Addition of dedicated `AUDIT_ACTION` enum values (`session_reschedule`, `session_cancel`, …) beyond `Override/Delete` | Enum extension is cross-cutting; `details.action` metadata carries semantics | DevOps/Dev X enum cleanup ticket |
-| D-04 | Reassign on `disputed` sessions | Ownership of disputed-state writes belongs to DEV3-022 arbitration surface | DEV3-022 |
-| D-05 | Baseline quality-gate failures existing before implementation (if any) | Recorded during task 0.1 | Current tickets owning those files |
+## ❌ Blocking debt (MUST be zero before completion)
+- _(none at plan time)_
+
+## ⚠️ Risks & watch items
+- The residency of the canonical `DateTime` scalar registration: verify registry vs each new Pothos file's imports during 4.x tasks.
+- No idempotency-claim decorator position verified for mutations at plan time — reuse the same mechanism the participant mutations use (chained inside `withTransaction` or outer claim wrapper; record finding in 4.3 outcome).
+
+## Forward-owned items (tracked elsewhere)
+- **D-03** Bespoke rate-limit for admin mutations — platform-wide hardening stream (not this ticket).
+- **D-04** Real-time admin dashboards over governance surfaces — DEV3 analytics family.
+- **D-05** Meeting-bridge integration for admin `join` (full join access vs observation) — depends on meeting services ticket (BLT-03).
+- **D-01, D-02** reclassified: reused-enumeration & audit-shape decisions now live IN-PLAN (see plan §0/D-07); NOT deferred.
