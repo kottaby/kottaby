@@ -254,12 +254,20 @@ describe("errors registry — the seven session-lifecycle keys in BOTH locales",
 
   test("placeholder-name sets agree across ar/en for EVERY errors key (no locale-local drift)", () => {
     // Grouped blocks (e.g. `planCatalog.planNotFound`) are flattened to their
-    // dotted leaf paths ({@link leafPathsOf}) — every STRING leaf on the ar
-    // map must agree with the en map's placeholder set at the SAME path (a
-    // flat key loop crashed on nested blocks: nonEmptyLabelOf saw an object
-    // where it demanded a string). Leaf reads go through
-    // {@link stringLeafOf}, which tolerates the nested blocks.
-    for (const path of leafPathsOf(errorsAr)) {
+    // dotted leaf paths ({@link leafPathsOf}) — every STRING leaf must agree
+    // with the other map's placeholder set at the SAME path (a flat key loop
+    // crashed on nested blocks: nonEmptyLabelOf saw an object where it
+    // demanded a string). Leaf reads go through {@link stringLeafOf}, which
+    // tolerates the nested blocks. The loop walks the UNION of both
+    // leaf-path sets: an en-only leaf would otherwise bypass placeholder
+    // comparison entirely (an ar-only leaf already failed via the missing
+    // en read). The explicit not.toThrow presence probes turn a
+    // one-side-only path into a readable parity failure before the
+    // placeholder comparison runs.
+    const unionPaths = [...new Set([...leafPathsOf(errorsAr), ...leafPathsOf(errorsEn)])];
+    for (const path of unionPaths) {
+      expect(() => stringLeafOf(errorsAr, path, "ar")).not.toThrow();
+      expect(() => stringLeafOf(errorsEn, path, "en")).not.toThrow();
       const arNames = icuPlaceholdersOf(stringLeafOf(errorsAr, path, "ar"));
       const enNames = icuPlaceholdersOf(stringLeafOf(errorsEn, path, "en"));
       expect(enNames).toEqual(arNames);

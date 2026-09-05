@@ -186,7 +186,7 @@ export function PlatformAnalyticsContainer(): ReactNode {
         refreshDisabled={initialLoad || denied}
         onRefresh={handleRefresh}
         onExportCsv={handleExportCsv}
-        exportDisabled={snapshot === undefined}
+        exportDisabled={snapshot === undefined || denied}
       />
       {body}
     </Stack>

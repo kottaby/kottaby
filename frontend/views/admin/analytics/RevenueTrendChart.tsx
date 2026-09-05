@@ -1,9 +1,12 @@
 "use client";
 
 /**
- * RevenueTrendChart — the daily revenue chart, one stacked series per
- * currency (the plot body of the revenue-trend card, loaded through
- * `next/dynamic` from the container). The wire's per-currency rows pivot
+ * RevenueTrendChart — the daily revenue chart, one GROUPED series per
+ * currency (currencies are never stacked: summing distinct currencies into
+ * one bar is meaningless — each currency keeps its own bar per day, side by
+ * side, exactly as the wire keeps currency rows separate). The plot body of
+ * the revenue-trend card is loaded through
+ * `next/dynamic` from the container. The wire's per-currency rows pivot
  * into row-per-bucket data via `pivotRevenueTrend`; series colors cycle
  * through `theme.palette.*` tokens ONLY, and the date-axis ticks format
  * through the existing i18n date helper. Currency codes are wire data
@@ -145,9 +148,12 @@ export function RevenueTrendChart({
               key={currency}
               dataKey={currency}
               name={currency}
-              stackId="revenue"
+              // No stackId: currencies are incomparable units, so bars render
+              // GROUPED (side by side per bucket) — never summed into one
+              // stacked column. Every grouped bar is its own column top, so
+              // all series carry the rounded top corners.
               fill={seriesColor(theme, index)}
-              radius={index === currencies.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]}
+              radius={[4, 4, 0, 0]}
             />
           ))}
         </BarChart>

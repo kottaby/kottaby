@@ -157,6 +157,15 @@ export function getPool(): AnyPool {
     ssl: requiresSsl ? { rejectUnauthorized: false } : undefined,
     idleTimeoutMillis: 30_000,
     connectionTimeoutMillis: 10_000,
+    // Every pooled session pins UTC via the startup packet: the naive
+    // `timestamp without time zone` columns (session.created_at,
+    // student_payments.created_at, …) store the SESSION wall clock through
+    // `defaultNow()`, and the platform-analytics trend readers decode that
+    // wall clock as UTC (`AT TIME ZONE 'UTC'` / strict-ISO `…Z` rehydration).
+    // A non-UTC session would shift every written wall clock — and with it
+    // every trend day bucket. PGlite pins the same setting in its init
+    // (`pglite-pool.ts`), so both providers guarantee identical buckets.
+    options: "-c timezone=UTC",
   });
   // `realPool: Pool` — `Pool` is already a member of the `AnyPool` union, so
   // no `as AnyPool` cast is needed (the previous `realPool as AnyPool` was

@@ -43,6 +43,14 @@ export function DirectoryUserIdentityCell({
 }: DirectoryUserIdentityCellProps): ReactNode {
   const [emailCopied, setEmailCopied] = useState(false);
   const handleCopyEmail = () => {
+    // Insecure contexts (plain http) expose NO Clipboard API at all — the
+    // property dereference would throw synchronously, before the rejection
+    // handler below could ever run. Bail silently (same posture as a
+    // rejected write): the snackbar never announces a copy that did not
+    // happen.
+    if (!("clipboard" in navigator)) {
+      return;
+    }
     void navigator.clipboard
       .writeText(user.email)
       .then(() => {
