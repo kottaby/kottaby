@@ -45,8 +45,8 @@ Every governance mutation follows this exact pipeline (mirrors the `setDeletedOn
 6. **Zero-row classifier** — when the guarded UPDATE returns `null`, `AdminUserRepository.findGovernanceState(id, tx)` probes the 5-column governance state to disambiguate:
    - `null` (row missing) → `NotFoundError("USER", "USER_NOT_FOUND")`
    - `isDeleted === true` → `ConflictError("USER_ALREADY_DELETED")`
-   - axis already-ON (`target=true`, `axis=true`) → `ConflictError("USER_ALREADY_SUSPENDED"` / `USER_ALREADY_BLOCKED`)`
-   - axis not-ON (`target=false`, `axis=false`) → `ConflictError("USER_NOT_SUSPENDED"` / `USER_NOT_BLOCKED")`
+   - axis already-ON (`target=true`, `axis=true`) → `ConflictError("USER_ALREADY_SUSPENDED" / "USER_ALREADY_BLOCKED")`
+   - axis not-ON (`target=false`, `axis=false`) → `ConflictError("USER_NOT_SUSPENDED" / "USER_NOT_BLOCKED")`
 7. **ONE in-tx audit row** — via the existing `buildAuditContract` + `AuditService.createAuditLog(input, tx)`. ZERO PII in `details` (field names + metadata only — never contact-PII, never credentials, never `passwordHash`).
 8. **Post-write composition** — `getUserDetail(id, locale, actorId, tx)` re-composes the `AdminUserDetail` response for the GraphQL field return. Apollo merges via the id-first `AdminUserDetailFields` fragment — the detail page re-renders WITHOUT a refetch.
 
@@ -118,7 +118,7 @@ Window end = `suspendedAt + suspendedPeriodDays × 24h` (86,400,000 ms per day),
 - **Handshake:** `backend/services/students/student-handshake.helpers.ts` (refactored to consume `isSuspensionActive` — behavior-preserving)
 - **Guard:** `backend/services/admin/admin-guards.helpers.ts` (NEW; `assertActorAdmin` relaxed + `assertActiveActorAdmin` strict variant)
 - **GraphQL:** `backend/graphql/mutation/admin/admin-governance.mutation.ts` (NEW; thin resolvers with `authScopes.$all`)
-- **Locale:** `shared/locale/types/errors/index.ts` + `en/errors` + `ar/errors` (7 new keys: `userAlreadySuspended` etc.); `shared/locale/types/adminUsers/index.ts` + `en/adminUsers` + `ar/adminUsers` (`governanceActions` group: 20 slots)
+- **Locale:** `shared/locale/types/errors/labels.ts` + `en/errors` + `ar/errors` (7 new keys: `userAlreadySuspended` etc.); `shared/locale/types/adminUsers/index.ts` + `en/adminUsers` + `ar/adminUsers` (`governanceActions` group: 20 slots)
 - **Frontend:** `frontend/graphql/sharedDocuments/admin/admin-users.documents.ts` (2 new mutation documents, fragment reuse); `frontend/views/admin/users/detail/GovernanceActionsSection.tsx` (NEW; 4 state-gated actions + Suspend dialog + conflict Alert)
 - **Tests:** journey (`test/workflows/admin/account-governance.journey.test.ts`), service (`user-governance.service.test.ts` + `user-governance.chaos.test.ts`), repo (`admin-user-governance.repository.test.ts`), wire-tier (`admin-governance.matrix.test.ts`), schema-surface (`schema-surface.test.ts` + `sdl-static-assertions.test.ts` reconciled + extended), lock (`inv-u4-grep-lock.test.ts`)
 

@@ -102,11 +102,14 @@ import {
  * the dev3-017 admin-governance pair.
  */
 const FROZEN_MUTATION_FIELDS = [
+  "adminBroadcastNotification",
+  "adminCertifyTeacherColdStart",
   "adminCreateUser",
   "adminSetUserBlocked",
   "adminSetUserDeleted",
   "adminSetUserSuspended",
   "adminUpdateUser",
+  "cancelParentLinkRequest",
   "cancelSession",
   "completeSession",
   "confirmSessionCompletion",
@@ -119,8 +122,10 @@ const FROZEN_MUTATION_FIELDS = [
   "openSessionDispute",
   "refreshToken",
   "registerUser",
+  "requestParentChildLink",
   "requestWithdrawal",
   "resolveSessionDispute",
+  "respondToParentLinkRequest",
   "setPlanActiveStatus",
   "startSession",
   "updateMyLocale",
@@ -143,6 +148,7 @@ const FROZEN_MUTATION_FIELDS = [
  */
 const FROZEN_QUERY_FIELDS = [
   "_health",
+  "adminAuditLogs",
   "adminDisputedSessions",
   "adminPlans",
   "adminUserActivity",
@@ -153,7 +159,9 @@ const FROZEN_QUERY_FIELDS = [
   "me",
   "myApplicantProfile",
   "myHandshakeCode",
+  "myIncomingParentLinkRequests",
   "myNotifications",
+  "myOutgoingParentLinkRequests",
   "myStudentSessions",
   "myTeacherSessions",
   "myUnreadNotificationCount",
@@ -464,7 +472,7 @@ describe("Notification object — `id` + REQ-069 depth/complexity posture", () =
     expect(hasSubscriptionRoot).toBe(false);
     // Belt-and-braces: no `type Subscription {` block header appears in the
     // artifact text either (the AST check above is the source of truth; this
-    // is the lexical mirror of the same contract — pinned to the precise
+    // is the lexical mirror of the same contract — scoped to the precise
     // `type Subscription` token sequence so legitimate substrings like
     // `hasActiveSubscription` do not trigger a false positive).
     expect(sdlText).not.toMatch(/\btype\s+Subscription\b/);

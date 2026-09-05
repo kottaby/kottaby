@@ -277,7 +277,6 @@ export interface AdminUsersLabels {
   };
 
   /**
-<<<<<<< HEAD
    * Certify-teacher (cold-start) confirm dialog copy — the guarded admin
    * bypass that grants teacher access immediately, skipping the evaluation
    * pipeline (`adminCertifyTeacherColdStart`).

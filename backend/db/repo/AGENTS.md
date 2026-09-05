@@ -14,6 +14,7 @@ backend/db/repo/
 ├── shared/              cross-cutting infra: cache, ratelimit, session, signedUrl, soft-delete, system-settings
 ├── audit/               audit-trail (read-only over audit_logs)
 ├── auth/                impersonation (auth-related)
+├── admin/               admin-user
 ├── users/               user
 ├── permissions/         permission-management
 ├── billing/             billing

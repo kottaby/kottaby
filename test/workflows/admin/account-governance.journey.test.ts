@@ -458,7 +458,12 @@ describe("Journey — Account-Governance Cross-Actor Lifecycle (Workflow 05 §5)
     expect(latestAudit?.entityType).toBe("user");
     expect(latestAudit?.entityId).toBe(cast.studentS.userId);
     expect(latestAudit?.actorId).toBe(cast.adminA.userId);
-    if (latestAudit?.details) {
+    expect(latestAudit).not.toBeNull();
+    expect(latestAudit?.details).not.toBeNull();
+    if (!latestAudit?.details) {
+      throw new Error("Expected block audit details to be present");
+    }
+    {
       const parsed = JSON.parse(latestAudit.details) as unknown;
       const details =
         parsed && typeof parsed === "object" && "changedFields" in parsed

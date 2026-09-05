@@ -1299,13 +1299,10 @@ describe("D11 — AuthService.login auth-consumption proofs (committed fixtures)
     expect(error.message).toContain(tAuth.accountBlocked);
   });
 
-  // CARRY-FORWARD: This test is RED until task 3.2 lands
-  // (`AuthService.assertUserActive` consuming `isSuspensionActive`).
-  // The current `assertUserActive` checks the raw `user.suspended` boolean
-  // flag — a lapsed-suspension user is currently DENIED login. Task 3.2
-  // will upgrade `assertUserActive` to consume the window predicate so a
-  // lapsed-suspension user can log in (window honesty — REQ-019).
-  test("ALLOWS lapsed suspension with columns BYTE-IDENTICAL before/after (REQ-019) — RED until task 3.2", async () => {
+  // Task 3.2 landed: `AuthService.assertUserActive` now consumes
+  // `isSuspensionActive`, so a lapsed-suspension user can log in
+  // (window honesty — REQ-019). This test verifies that behavior.
+  test("ALLOWS lapsed suspension with columns BYTE-IDENTICAL before/after (REQ-019)", async () => {
     const fixtures = authFixtures;
     if (!fixtures) throw new Error("D11 fixtures not provisioned");
 

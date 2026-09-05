@@ -286,10 +286,10 @@ export type AdminUserUpdateDbPatch = Partial<
  * mutation path goes through the dedicated guarded repository transitions
  * rather than mutating a probe instance in place.
  */
-export interface GovernanceProbeRowType {
+export type GovernanceProbeRowType = {
   readonly isDeleted: boolean | null;
   readonly suspended: boolean | null;
   readonly suspendedAt: Date | null;
   readonly suspendedPeriodDays: number | null;
   readonly isBlocked: boolean | null;
-}
+};
