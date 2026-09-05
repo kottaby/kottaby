@@ -55,7 +55,10 @@
  *    rating averages stay `null` when a family has no rated rows even
  *    though unrated/soft-deleted rows exist; empty session table → all
  *    zero counters and a sparse-EMPTY trend (zero-fill is the composing
- *    service's duty, never the reader's).
+ *    service's duty, never the reader's), window-aware on committed
+ *    residue: sparse-EMPTY exactly when no committed row falls inside the
+ *    reader's 30-day trend window, bucket-exact against a direct SQL
+ *    grouping over the same window otherwise.
  *  - Tier 4 (security): static source scans — zero `--` inside any SQL
  *    text; zero prepared statements / `sql.placeholder`; the global `db`
  *    handle never imported (the non-tx executor is `queryDb` only); zero
@@ -74,7 +77,7 @@
 import { describe, expect, test } from "bun:test";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { and, eq, isNotNull, isNull, or, sql } from "drizzle-orm";
+import { and, eq, gte, isNotNull, isNull, lte, or, sql } from "drizzle-orm";
 import { AdminUserRepository } from "@/backend/db/repo";
 import {
   type PlatformAnalyticsCurrencyRevenueRow,
@@ -129,6 +132,16 @@ const MS = 1;
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
 const DAY = 24 * HOUR;
+
+/**
+ * Trailing window of the daily trends, in milliseconds — the identical
+ * epoch offset the repository's private `TREND_WINDOW_MS`
+ * (`platform-analytics-query-helpers.ts`, not exported) cuts its closed
+ * `[now − 30d, now]` trend window with. Inlined because the constant is
+ * not exported; any divergence here would desynchronize the committed
+ * in-window oracle from the reader it pins.
+ */
+const TREND_WINDOW_MS = 30 * DAY;
 
 /** Instant `ms` relative to the fixed snapshot instant. */
 function at(msFromNow: number): Date {
@@ -881,7 +894,51 @@ describe("PlatformAnalyticsRepository — Tier 3: empty-state honesty", () => {
         expect(trend).toEqual([]);
       } else {
         expect(stats.total).toBe(committedSessions[0]?.n ?? 0);
-        expect(trend.length).toBeGreaterThan(0);
+
+        // Window-aware trend honesty: committed rows are only guaranteed to
+        // stay disjoint from the suite's FROZEN windows — residue may
+        // legally sit OUTSIDE the reader's closed 30-day trend window
+        // `[now − 30d, now]`. The sparse trend is EMPTY exactly when no
+        // committed row falls inside that window; otherwise every bucket is
+        // pinned against an equivalent direct SQL grouping over the SAME
+        // window (the reader's window start is the pure epoch offset
+        // `now − 30d` — the helpers' private TREND_WINDOW_MS, mirrored by
+        // this module's constant — not a calendar boundary, so the
+        // identical math rides the same offset here).
+        const trendWindowStart = new Date(NOW.getTime() - TREND_WINDOW_MS);
+        const committedInWindow = await tx
+          .select({ n: sql<number>`count(*)::int` })
+          .from(session)
+          .where(and(gte(session.createdAt, trendWindowStart), lte(session.createdAt, NOW)));
+        if ((committedInWindow[0]?.n ?? 0) === 0) {
+          // Committed rows exist but none inside the trend window: the
+          // reader must stay sparse-EMPTY — never fabricate a bucket.
+          expect(trend).toEqual([]);
+        } else {
+          expect(trend.length).toBeGreaterThan(0);
+          // Bucket-exact oracle over the same window: group the committed
+          // rows by their daily bucket and pin the reader's sparse rows
+          // one-to-one (same days, same order, same counts). The naive
+          // `created_at` wall clock names UTC days (the reader's raw branch
+          // re-reads the identical `date_trunc` expression `AT TIME ZONE
+          // 'UTC'`), so rehydrating each day text through `utcMidnight`
+          // yields exactly the decoded midnight-UTC bucket instants.
+          const committedBuckets = await tx
+            .select({
+              day: sql<string>`to_char(date_trunc('day', ${session.createdAt}), 'YYYY-MM-DD')`.as("day"),
+              sessionCount: sql<number>`count(*)::int`.as("session_count"),
+            })
+            .from(session)
+            .where(and(gte(session.createdAt, trendWindowStart), lte(session.createdAt, NOW)))
+            .groupBy(sql`date_trunc('day', ${session.createdAt})`)
+            .orderBy(sql`date_trunc('day', ${session.createdAt})`);
+          expect(trend).toEqual(
+            committedBuckets.map(bucket => ({
+              bucketStart: utcMidnight(bucket.day),
+              sessionCount: bucket.sessionCount,
+            }))
+          );
+        }
       }
     });
   });
