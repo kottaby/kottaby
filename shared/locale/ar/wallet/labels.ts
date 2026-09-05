@@ -24,4 +24,6 @@ export const walletAr: WalletLabels = {
   createdAt: "التاريخ",
   ledgerEmptyTitle: "لا توجد عمليات بعد",
   ledgerEmptyBody: "ستظهر هنا أرباح جلساتك وطلبات السحب.",
+  pendingTeacherTitle: "المحفظة بانتظار الاعتماد",
+  pendingTeacherBody: "ستُفعَّل محفظتك بعد اعتماد ملفك التعليمي.",
 };
