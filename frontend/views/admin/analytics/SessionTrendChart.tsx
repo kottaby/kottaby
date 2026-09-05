@@ -48,7 +48,8 @@ export function SessionTrendChart({
     typeof label === "string" ? formatApplicantDate(label, locale) : "";
 
   return (
-    <Box component="section" aria-label={ariaLabel} sx={{ minWidth: TREND_CHART_MIN_WIDTH }}>
+    // Plot body pins dir="ltr" — recharts SVG axis geometry is direction-neutral, so captions must sit adjacent to the axes they describe.
+    <Box component="section" aria-label={ariaLabel} dir="ltr" sx={{ minWidth: TREND_CHART_MIN_WIDTH }}>
       <Stack direction="row" sx={{ justifyContent: "space-between", marginBottom: 1 }}>
         <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
           {countAxisLabel}

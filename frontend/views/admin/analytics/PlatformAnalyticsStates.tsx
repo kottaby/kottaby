@@ -2,14 +2,13 @@
 
 /**
  * Platform-analytics state surfaces: the `aria-busy` initial-load skeleton
- * (mirrors the populated geometry EXACTLY — the metric grid's 7 card
- * skeletons + the trends row's 2 chart-shaped placeholders whose bodies sit
- * at the shared `TREND_CHART_BODY_HEIGHT`, so nothing shifts when data
- * lands), the load-failure `Alert` with its retry CTA, and the
- * query-context FORBIDDEN denied notice (the governed-admin edge the page
- * guard cannot see — the server guard passed, the read model denied). Every
- * string comes from the `Analytics` labels; the raw server `message` is
- * NEVER rendered.
+ * (mirrors the populated grid geometry — 7 metric cards + 2 chart slots at
+ * the shared `METRIC_GRID_SX`/`TRENDS_GRID_SX`/`TREND_CHART_BODY_HEIGHT`
+ * constants; per-card row counts approximate), the load-failure `Alert`
+ * with its retry CTA, and the query-context FORBIDDEN denied notice (the
+ * governed-admin edge the page guard cannot see — the server guard passed,
+ * the read model denied). Every string comes from the `Analytics` labels;
+ * the raw server `message` is NEVER rendered.
  *
  * MUI v9 discipline: `sx`-only styling, `theme.palette.*` tokens only,
  * `*Outlined` icons, ≥44px touch target on the retry CTA.
@@ -27,7 +26,10 @@ import {
 } from "@/frontend/views/admin/analytics/platform-analytics-display";
 import type { AnalyticsLabels } from "@/shared/locale/types/analytics";
 
-/** Skeleton rows per metric card — title line + three value lines. */
+/**
+ * Skeleton rows per metric card — title line + three value lines. A fixed
+ * approximation: populated metric cards carry 2–11 content rows.
+ */
 const SKELETON_ROWS_PER_CARD = 4;
 
 /** Skeleton metric cards — one per populated metric section (seven). */
@@ -82,12 +84,13 @@ function TrendChartCardSkeleton(): ReactNode {
 }
 
 /**
- * Initial-load skeleton mirroring the populated geometry EXACTLY: the seven
- * metric-card skeletons in the shared `METRIC_GRID_SX` plus the trends row
- * (the shared `TRENDS_GRID_SX`) with two chart-shaped placeholders whose
- * bodies sit at the shared `TREND_CHART_BODY_HEIGHT` — all card-shaped,
- * wrapped in the `component="output" aria-busy` output region. No shift
- * when data lands.
+ * Initial-load skeleton mirroring the populated grid geometry (7 metric
+ * cards + 2 chart slots at shared heights); per-card row counts approximate
+ * the populated cards' variable rows. The seven metric-card skeletons sit
+ * in the shared `METRIC_GRID_SX`, the trends row in the shared
+ * `TRENDS_GRID_SX`, the chart-slot bodies at the shared
+ * `TREND_CHART_BODY_HEIGHT` — all card-shaped, wrapped in the
+ * `component="output" aria-busy` output region.
  */
 export function PlatformAnalyticsSkeleton(): ReactNode {
   return (

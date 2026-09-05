@@ -115,6 +115,16 @@ const OFFLINE_ACTIVATION_GATEWAYS: readonly PaymentGateway[] = [
   PaymentGateway.Scholarship,
 ];
 
+/**
+ * Bind-position skeleton of the offline-activation IN list — one `$n`
+ * marker per `OFFLINE_ACTIVATION_GATEWAYS` member, derived from the
+ * constant's indices so the raw branch's placeholder count always matches
+ * the bound member array exactly as the transactional branch's `inArray`
+ * derives its list from the same array. Position markers only — never a
+ * data value (the members themselves ride the parameter array).
+ */
+const OFFLINE_GATEWAY_PLACEHOLDERS = OFFLINE_ACTIVATION_GATEWAYS.map((_gateway, index) => `$${index + 1}`).join(", ");
+
 /** Midnight-UTC instant of the day containing `now` (UTC-only calendar math). */
 function utcDayStart(now: Date): Date {
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
@@ -162,8 +172,11 @@ const localWallClockIso = (value: Date): string =>
  * `+ "+0000"` rehydration for every input it accepted, but an unparseable
  * value now throws a domain error instead of silently yielding an Invalid
  * Date whose `NaN` epoch would collapse the trend into all-zero buckets.
+ *
+ * Exported for the decoder contract tests (pure function — no I/O); the
+ * repository's two trend readers delegate their day buckets to it.
  */
-function decodeTrendDayBucket(value: unknown): Date {
+export function decodeTrendDayBucket(value: unknown): Date {
   const raw = value instanceof Date ? localWallClockIso(value) : String(value).replace(" ", "T");
   const instant = new Date(`${raw}Z`);
   if (Number.isNaN(instant.getTime())) {
@@ -446,7 +459,10 @@ export async function getRevenueDailyTrendImpl(
  * the honesty counter for subscriptions activated OUTSIDE the payments
  * ledger (offline cash, bank transfer, scholarship) — deliberately
  * separate from the revenue readers; mixing offline activations into
- * monetary totals is prohibited by the surface contract.
+ * monetary totals is prohibited by the surface contract. The raw branch's
+ * IN list is the `OFFLINE_GATEWAY_PLACEHOLDERS` skeleton derived from the
+ * shared gateway constant, so its `$n` bind positions always match the
+ * bound member array (identical to the `inArray` transactional branch).
  */
 export async function countOfflineActivationsImpl(tx?: DBTransaction): Promise<number> {
   if (tx) {
@@ -459,7 +475,7 @@ export async function countOfflineActivationsImpl(tx?: DBTransaction): Promise<n
   const result = await queryDb<{ offlineCount: number }>(
     `SELECT count(*)::int AS "offlineCount"
        FROM subscriptions
-      WHERE payment_method IN ($1, $2, $3)`,
+      WHERE payment_method IN (${OFFLINE_GATEWAY_PLACEHOLDERS})`,
     OFFLINE_ACTIVATION_GATEWAYS
   );
   return result.rows[0]?.offlineCount ?? 0;

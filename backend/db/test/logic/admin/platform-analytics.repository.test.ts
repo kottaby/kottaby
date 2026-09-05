@@ -59,10 +59,16 @@
  *  - Tier 4 (security): static source scans — zero `--` inside any SQL
  *    text; zero prepared statements / `sql.placeholder`; the global `db`
  *    handle never imported (the non-tx executor is `queryDb` only); zero
- *    value interpolation inside raw SQL text (bound `$n` params only);
- *    enum predicates via VALUE imports; exactly ten `if (tx)` dual
- *    branches with every non-tx branch routed through `queryDb`; every
- *    public method ends with the optional trailing `tx?: DBTransaction`.
+ *    value interpolation inside raw SQL text (bound `$n` params only — the
+ *    offline-activation IN-list bind-position skeleton derived from the
+ *    offline-gateway constant is the one structural exception: markers
+ *    only, never values); enum predicates via VALUE imports; exactly ten
+ *    `if (tx)` dual branches with every non-tx branch routed through
+ *    `queryDb`; every public method ends with the optional trailing
+ *    `tx?: DBTransaction`.
+ *  - Decoder contract: `decodeTrendDayBucket` rehydrates a naive timestamp
+ *    string into the exact midnight-UTC instant its wall clock names and
+ *    throws (never an Invalid Date) on unparseable input.
  */
 
 import { describe, expect, test } from "bun:test";
@@ -76,6 +82,7 @@ import {
   type PlatformAnalyticsRevenueTrendRow,
   type PlatformAnalyticsSessionTrendRow,
 } from "@/backend/db/repo/admin/platform-analytics.repository";
+import { decodeTrendDayBucket } from "@/backend/db/repo/admin/platform-analytics-query-helpers";
 import { studentPayments } from "@/backend/db/schema/billing/student-payments";
 import { reports } from "@/backend/db/schema/classes/reports";
 import { session } from "@/backend/db/schema/classes/session";
@@ -920,11 +927,18 @@ describe("PlatformAnalyticsRepository — Tier 4: security / parameterization st
     expect(rawSqlTexts).toHaveLength(12);
     for (const text of rawSqlTexts) {
       // Values bind as `$n` parameters — never interpolated into the text.
-      // A text with zero `$n` binds must be a predicate-free constant
-      // aggregate (nothing dynamic to bind); any WHERE clause binds.
-      expect(/[$]\{/.test(text)).toBe(false);
+      // The ONE structural exception is the offline-activation IN-list
+      // skeleton: `${OFFLINE_GATEWAY_PLACEHOLDERS}` injects only the `$n`
+      // bind positions derived from the OFFLINE_ACTIVATION_GATEWAYS constant
+      // length — bind markers, never a data value. It is substituted back to
+      // a canonical `$n` marker so the usual rules still hold; any OTHER
+      // interpolation (a smuggled value) still fails the scan. A text with
+      // zero `$n` binds must be a predicate-free constant aggregate
+      // (nothing dynamic to bind); any WHERE clause binds.
+      const scanned = text.replace(/\$\{\s*OFFLINE_GATEWAY_PLACEHOLDERS\s*\}/g, () => "$1");
+      expect(/[$]\{/.test(scanned)).toBe(false);
       expect(text.trimStart().startsWith("SELECT")).toBe(true);
-      expect(/[$]\d+/.test(text) || !/\bWHERE\b/.test(text)).toBe(true);
+      expect(/[$]\d+/.test(scanned) || !/\bWHERE\b/.test(scanned)).toBe(true);
     }
   });
 
@@ -997,5 +1011,19 @@ describe("PlatformAnalyticsRepository — users-section substrate type conforman
       expect(typeof recentlyActive).toBe("number");
       expect(Number.isInteger(recentlyActive)).toBe(true);
     });
+  });
+});
+
+describe("PlatformAnalyticsRepository — trend day-bucket decoder contract", () => {
+  test("decodeTrendDayBucket rehydrates a naive timestamp string into the exact midnight-UTC instant its wall clock names", () => {
+    // The pass-through driver shape (raw `date_trunc` text) rehydrates to the
+    // same midnight-UTC instant the wired providers' client-local parse
+    // legacy-matched — asserted as exact instant equality.
+    const decoded = decodeTrendDayBucket("2026-01-07 00:00:00");
+    expect(decoded.getTime()).toBe(new Date("2026-01-07T00:00:00Z").getTime());
+  });
+
+  test("decodeTrendDayBucket throws a domain error on an unparseable bucket value — never a silent Invalid Date", () => {
+    expect(() => decodeTrendDayBucket("not-a-date")).toThrow("trend day-bucket decoder: unparseable");
   });
 });
