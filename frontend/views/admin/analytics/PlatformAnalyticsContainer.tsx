@@ -27,7 +27,10 @@
  *  - query-context FORBIDDEN → the localized denied notice IN-container
  *    (the governed-admin edge the page guard cannot see), classified
  *    through the SINGLE `mapGraphQLErrorByCode` table over
- *    `extractErrorCode` — the raw server `message` is NEVER rendered.
+ *    `extractErrorCode` — the raw server `message` is NEVER rendered;
+ *    the denial is LATCHED while no snapshot exists, so every snapshotless
+ *    re-attempt keeps the notice on screen (never the generic Retry CTA,
+ *    which the mapping table marks non-retryable for permission denials).
  *
  * Decomposition (same folder): `PlatformAnalyticsChrome` (heading +
  * toolbar), `MetricCard` (card shell + rows), `PlatformAnalyticsSections`
@@ -46,7 +49,7 @@
 import { NetworkStatus } from "@apollo/client";
 import { useQuery } from "@apollo/client/react";
 import { Box, Stack } from "@mui/material";
-import type { ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 import { adminPlatformAnalyticsQueryDocument } from "@/frontend/graphql/sharedDocuments";
 import { extractErrorCode } from "@/frontend/lib/graphql-error-utils";
 import { mapGraphQLErrorByCode } from "@/frontend/providers/apollo/error-link.map";
@@ -95,9 +98,24 @@ export function PlatformAnalyticsContainer(): ReactNode {
   // the `permission-fallback` kind; every other code (incl. UNAUTHORIZED,
   // whose auth-recovery UX the errorLink owns) falls to the generic error.
   const errorCode = error ? extractErrorCode(error) : null;
-  const denied =
+  const deniedNow =
     errorCode !== null &&
     mapGraphQLErrorByCode(errorCode, { contextKind: "query", hasForm: false })?.kind === "permission-fallback";
+
+  // Sticky denial memory — the snapshotless re-attempt posture above applies
+  // to denials too: Apollo drops the settled FORBIDDEN the moment a poll
+  // re-attempt starts, so `deniedNow` flips false mid-window and the generic
+  // branch would flash the LoadError Retry CTA (non-retryable for permission
+  // denials). The settled permission classification is LATCHED (React's
+  // guarded render-phase state adjustment): once set, `denied` stays true
+  // while `snapshot === undefined`; it resets when a snapshot arrives or the
+  // query is re-created (a fresh mount starts with fresh hook state).
+  // Non-permission errors keep the generic Alert-stable posture untouched.
+  const [denialLatched, setDenialLatched] = useState(false);
+  const denied = deniedNow || (denialLatched && snapshot === undefined);
+  if (denied !== denialLatched) {
+    setDenialLatched(denied);
+  }
 
   const handleRefresh = (): void => {
     void refetch();

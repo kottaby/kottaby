@@ -49,7 +49,7 @@ function MetricCardSkeleton({ cardIndex }: Readonly<{ cardIndex: number }>): Rea
   const key = `platform-analytics-metric-skeleton-${cardIndex}`;
   return (
     <Card sx={SKELETON_CARD_SX}>
-      <Stack spacing={2} sx={{ padding: 2.5 }}>
+      <Stack spacing={2} sx={{ padding: { xs: 2, md: 2.5 } }}>
         <Skeleton variant="rounded" height={28} width="55%" />
         {Array.from({ length: SKELETON_ROWS_PER_CARD }, (_unused, rowIndex) => rowIndex + 1).map(rowIndex => (
           <Skeleton key={`${key}-row-${rowIndex}`} variant="rounded" height={20} />

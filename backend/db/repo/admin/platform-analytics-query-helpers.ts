@@ -182,7 +182,6 @@ export function mapSubscriptionStatsRow(
  * still NULL). Both executor branches coalesce through
  * `mapSessionStatsRow` (identical shape and defaults on either branch).
  */
-
 export async function getSessionStatsImpl(now: Date, tx?: DBTransaction): Promise<PlatformAnalyticsSessionStatsRow> {
   const todayStart = utcDayStart(now);
   const weekStart = isoWeekStart(now);
@@ -264,7 +263,6 @@ export async function getSessionStatsImpl(now: Date, tx?: DBTransaction): Promis
  * identically under any client TZ — keeping the two branches byte-identical
  * in value.
  */
-
 export async function getSessionDailyTrendImpl(
   now: Date,
   tx?: DBTransaction
@@ -313,7 +311,6 @@ export async function getSessionDailyTrendImpl(
  * row and are structurally absent here (counted separately by
  * `countOfflineActivationsImpl`) — the two figures must never be merged.
  */
-
 export async function getRevenueStatsImpl(
   now: Date,
   tx?: DBTransaction
@@ -360,7 +357,6 @@ export async function getRevenueStatsImpl(
  * midnight-UTC `Date` (same dual-branch UTC normalization as the session
  * trend's day bucket).
  */
-
 export async function getRevenueDailyTrendImpl(
   now: Date,
   tx?: DBTransaction
@@ -411,7 +407,6 @@ export async function getRevenueDailyTrendImpl(
  * separate from the revenue readers; mixing offline activations into
  * monetary totals is prohibited by the surface contract.
  */
-
 export async function countOfflineActivationsImpl(tx?: DBTransaction): Promise<number> {
   if (tx) {
     const rows = await tx
