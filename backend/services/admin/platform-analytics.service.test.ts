@@ -24,6 +24,18 @@
  *    buckets, revenue expands day-major and currency-ascending over the
  *    window's currency set with exact `"0"` fills, and an all-time-only
  *    currency never fabricates trend points.
+ *  - Tier 3 (snapshot purity, runner-hermetic): the write-free proof is
+ *    DYNAMIC + STATIC, never whole-table. The canonical `test:services`
+ *    runner executes up to 8 service files against ONE shared DB, so a
+ *    sibling commit landing between two whole-table md5 probes would flip
+ *    the digest. Instead: per-row content digests + tracked-row counts are
+ *    scoped to the SUITE'S OWN fixture rows (ids collected at insert time,
+ *    living inside the rollback tx no sibling can see), and a static
+ *    source scan pins zero insert/update/delete calls across the service
+ *    + repository implementation (scans code, not DB state). Whole-table
+ *    byte-identity is proven at the journey tier
+ *    (test/workflows/admin/platform-analytics.journey.test.ts), whose
+ *    sanctioned runners are single-file/serialized.
  *  - Tier 4 (denial pre-DB proof & silence): aggregate repo spies receive
  *    ZERO calls on every denial path; the happy path logs NOTHING and every
  *    denial logs exactly ONE domain error (the gate owns the log line).
@@ -39,12 +51,26 @@
  */
 
 import { afterAll, afterEach, describe, expect, spyOn, test } from "bun:test";
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { eq, sql } from "drizzle-orm";
 import { db } from "@/backend/db";
 import { AdminUserRepository, UserRepository } from "@/backend/db/repo";
 import { PlatformAnalyticsRepository } from "@/backend/db/repo/admin/platform-analytics.repository";
 import { users } from "@/backend/db/schema/users/users";
-import { createTestUser } from "@/backend/db/test/entity-setup";
+import {
+  createTestEvaluation,
+  createTestPlan,
+  createTestSession,
+  createTestSessionReport,
+  createTestStudent,
+  createTestStudentPayment,
+  createTestSubscription,
+  createTestTeacherRow,
+  createTestTeacherTransaction,
+  createTestUser,
+  createTestWallet,
+} from "@/backend/db/test/entity-setup";
 import { expectRepoError, runInRollback } from "@/backend/db/test/test-utils";
 import { ForbiddenError, UnauthorizedError } from "@/backend/lib/errors";
 import { logger } from "@/backend/lib/logger";
@@ -89,6 +115,41 @@ async function absentUserId(tx: DBTransaction): Promise<number> {
 async function expectUserAbsent(tx: DBTransaction, id: number): Promise<void> {
   const [row] = await tx.select({ count: sql<number>`count(*)::int` }).from(users).where(eq(users.id, id));
   expect(row?.count ?? 0).toBe(0);
+}
+
+/**
+ * Absolute paths of the read-path sources the static zero-write scan must
+ * cover: the service plus the repository's FULL implementation surface (the
+ * repo is split for file-size budget; the zero-write property is
+ * per-implementation, so both repository files are scanned).
+ */
+const READ_PATH_SOURCE_PATHS = [
+  join(process.cwd(), "backend", "services", "admin", "platform-analytics.service.ts"),
+  join(process.cwd(), "backend", "db", "repo", "admin", "platform-analytics.repository.ts"),
+  join(process.cwd(), "backend", "db", "repo", "admin", "platform-analytics-query-helpers.ts"),
+] as const;
+
+/** The write shapes the observer read path must never contain. */
+const WRITE_CALL_PATTERNS: ReadonlyArray<readonly [label: string, pattern: RegExp]> = [
+  ["drizzle .insert(", /\.insert\(/],
+  ["drizzle .update(", /\.update\(/],
+  ["drizzle .delete(", /\.delete\(/],
+  ["raw SQL INSERT INTO", /\binsert\s+into\b/i],
+  ["raw SQL DELETE FROM", /\bdelete\s+from\b/i],
+  ["raw SQL UPDATE ... SET", /\bupdate\s+\w+\s+set\b/i],
+];
+
+/** Reads one read-path source for the static zero-write scan. */
+function readSourceForWriteScan(sourcePath: string): string {
+  if (!existsSync(sourcePath)) {
+    throw new Error(`Read-path source not found at ${sourcePath}`);
+  }
+  return readFileSync(sourcePath, "utf8");
+}
+
+/** Strips block comments so the scan never trips over documentation mentions. */
+function stripBlockComments(source: string): string {
+  return source.replace(/\/\*[\s\S]*?\*\//g, "");
 }
 
 /** Domain log spy family share this stubbed signature. */
@@ -631,34 +692,118 @@ describe("PlatformAnalyticsService.getPlatformAnalytics", () => {
     });
   });
 
-  describe("Tier 3 — snapshot purity", () => {
-    test("the composite read leaves every observed table byte-identical (content digests)", async () => {
+  /**
+   * Snapshot purity — proven RUNNER-HERMETICALLY. The canonical
+   * `test:services` runner executes up to 8 service files in parallel
+   * against ONE shared database, so digesting WHOLE shared tables before
+   * and after the composite read races any sibling file that commits to a
+   * digested table between the two probes. Purity is therefore proven in
+   * two hermetic halves:
+   *  1. STATIC (global): the service + repository implementation source
+   *     contains zero insert/update/delete calls — a scan of code, not DB
+   *     state, so it is hermetic under every runner.
+   *  2. DYNAMIC (scoped): per-row content digests + tracked-row counts
+   *     over the SUITE'S OWN fixture rows only (ids collected at insert
+   *     time). Those rows live inside this rollback transaction — a
+   *     sibling worker can neither see nor touch them, so no sibling
+   *     commit can flip the comparison.
+   * Whole-table byte-identity across a read window remains the journey
+   * tier's proof (test/workflows/admin/platform-analytics.journey.test.ts,
+   * executed via single-file/serialized sanctioned runners).
+   */
+  describe("Tier 3 — snapshot purity (suite-owned rows + static zero-write scan)", () => {
+    test("the composite read is write-free: zero write calls in service+repo source, every suite-owned tracked row byte-identical, tracked row set unchanged", async () => {
+      // Static half first — scans code, not DB state, so it is hermetic
+      // under every runner and fails fast without opening a transaction.
+      for (const sourcePath of READ_PATH_SOURCE_PATHS) {
+        const source = stripBlockComments(readSourceForWriteScan(sourcePath));
+        const offenders = WRITE_CALL_PATTERNS.filter(([, pattern]) => pattern.test(source)).map(
+          ([label]) => `${sourcePath}: ${label}`
+        );
+        expect(offenders).toEqual([]);
+      }
+
       await runInRollback(async tx => {
+        // Fixture rows spanning the composite read's full aggregate surface
+        // (users, teacher, session, subscriptions, student_payments,
+        // evaluations, reports, teacher_transaction) plus the FK-support
+        // rows the fixture chain requires (students, plans, wallet) — every
+        // id collected at insert time.
         const admin = await createTestUser(tx, { role: "admin" });
-        const observedTables = [
-          "users",
-          "session",
-          "student_payments",
-          "subscriptions",
-          "teacher",
-          "evaluations",
-          "reports",
-          "teacher_transaction",
-        ] as const;
-        const digestTable = async (table: string): Promise<string> => {
-          const result = await tx.execute<{ digest: string }>(
-            sql`select coalesce(md5(string_agg(row_text, '|' order by id)), '')::text as digest
-                  from (select id, to_jsonb(observed)::text as row_text from ${sql.identifier(table)} observed) as digest_source`
+        const teacherUser = await createTestUser(tx, { role: "teacher" });
+        const studentUser = await createTestUser(tx, { role: "student" });
+        const teacherRow = await createTestTeacherRow(tx, teacherUser.id);
+        const student = await createTestStudent(tx, studentUser.id);
+        const plan = await createTestPlan(tx);
+        const subscription = await createTestSubscription(tx, studentUser.id, plan.id);
+        const payment = await createTestStudentPayment(tx, student.id, subscription.id);
+        const sessionRow = await createTestSession(tx, teacherRow.id, student.id);
+        const report = await createTestSessionReport(tx, sessionRow.id);
+        const evaluation = await createTestEvaluation(tx, studentUser.id, teacherUser.id, sessionRow.id);
+        const walletRow = await createTestWallet(tx, teacherRow.id);
+        const ledgerRow = await createTestTeacherTransaction(tx, walletRow.id, sessionRow.id);
+
+        const trackedRows: ReadonlyArray<{ readonly table: string; readonly ids: readonly number[] }> = [
+          { table: "users", ids: [admin.id, teacherUser.id, studentUser.id] },
+          { table: "teacher", ids: [teacherRow.id] },
+          { table: "students", ids: [student.id] },
+          { table: "plans", ids: [plan.id] },
+          { table: "subscriptions", ids: [subscription.id] },
+          { table: "student_payments", ids: [payment.id] },
+          { table: "session", ids: [sessionRow.id] },
+          { table: "reports", ids: [report.id] },
+          { table: "evaluations", ids: [evaluation.id] },
+          { table: "wallet", ids: [walletRow.id] },
+          { table: "teacher_transaction", ids: [ledgerRow.id] },
+        ];
+
+        type TrackedRowSnapshot = { digests: Map<number, string>; rowCount: number };
+
+        // Per-row content digest + tracked-id row count — both scoped to
+        // the tracked ids (bound `$n` params; the table name is a
+        // code-literal identifier, never data input).
+        const snapshotTrackedRows = async (table: string, ids: readonly number[]): Promise<TrackedRowSnapshot> => {
+          const idBinds = sql.join(
+            ids.map(id => sql`${id}`),
+            sql`, `
           );
-          return result.rows[0]?.digest ?? "";
+          const digestResult = await tx.execute<{ id: number; digest: string }>(
+            sql`select observed.id, md5(to_jsonb(observed)::text) as digest
+                  from ${sql.identifier(table)} observed
+                 where observed.id in (${idBinds})`
+          );
+          const countResult = await tx.execute<{ present: number }>(
+            sql`select count(*)::int as present from ${sql.identifier(table)} where id in (${idBinds})`
+          );
+          const digestEntries = digestResult.rows.map((row): [number, string] => [row.id, row.digest]);
+          return { digests: new Map(digestEntries), rowCount: countResult.rows[0]?.present ?? 0 };
         };
 
-        const before = new Map(await Promise.all(observedTables.map(async t => [t, await digestTable(t)] as const)));
-        await PlatformAnalyticsService.getPlatformAnalytics(admin.id, LOCALE, tx);
-        const after = new Map(await Promise.all(observedTables.map(async t => [t, await digestTable(t)] as const)));
+        const snapshotAllTrackedRows = async (): Promise<Map<string, TrackedRowSnapshot>> => {
+          const entries = await Promise.all(
+            trackedRows.map(async ({ table, ids }) => [table, await snapshotTrackedRows(table, ids)] as const)
+          );
+          return new Map(entries);
+        };
 
-        for (const table of observedTables) {
-          expect(after.get(table)).toBe(before.get(table));
+        const before = await snapshotAllTrackedRows();
+        await PlatformAnalyticsService.getPlatformAnalytics(admin.id, LOCALE, tx);
+        const after = await snapshotAllTrackedRows();
+
+        for (const { table, ids } of trackedRows) {
+          const beforeSnapshot = before.get(table);
+          const afterSnapshot = after.get(table);
+          if (!beforeSnapshot || !afterSnapshot) {
+            throw new Error(`expected tracked-row snapshots for "${table}"`);
+          }
+          // (a) Content purity: every suite-owned row's digest is identical
+          //     pre/post composite read.
+          expect(afterSnapshot.digests).toEqual(beforeSnapshot.digests);
+          // (b) Membership purity: no tracked row added or removed — the
+          //     tracked-id row count equals the fixture count both times.
+          expect(afterSnapshot.digests.size).toBe(ids.length);
+          expect(afterSnapshot.rowCount).toBe(ids.length);
+          expect(afterSnapshot.rowCount).toBe(beforeSnapshot.rowCount);
         }
       });
     });
