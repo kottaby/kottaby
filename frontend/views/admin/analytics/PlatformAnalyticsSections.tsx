@@ -167,7 +167,14 @@ export function PlatformAnalyticsMetricGrid({
 
       <RatingsMetricCard ratings={snapshot.ratings} labels={labels} locale={locale} />
 
-      <MetricCard icon={<MonitorHeartOutlined />} title={labels.healthSection}>
+      <MetricCard
+        icon={<MonitorHeartOutlined />}
+        title={labels.healthSection}
+        // The 7th of 7 cards on the 4-column grid would strand an empty cell
+        // at the row end — spanning the last card across the two remaining
+        // lanes fills the final row at BOTH `sm` (2-col) and `lg` (4-col).
+        sx={{ gridColumn: { sm: "span 2", lg: "span 2" } }}
+      >
         {healthRows.map(([label, value]) => (
           <MetricRow key={label} label={label} value={value} locale={locale} />
         ))}

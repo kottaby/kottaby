@@ -19,7 +19,7 @@ import { type Theme, useTheme } from "@mui/material/styles";
 import type { ReactNode } from "react";
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import type { AdminPlatformAnalyticsQuery_adminPlatformAnalytics_revenueTrendDaily } from "@/frontend/graphql/generated/gql/graphql";
-import { formatApplicantDate } from "@/frontend/lib/i18n/format-date";
+import { formatApplicantDate, formatDayMonth } from "@/frontend/lib/i18n/format-date";
 import {
   pivotRevenueTrend,
   TREND_CHART_BODY_HEIGHT,
@@ -59,12 +59,42 @@ export function RevenueTrendChart({
 }: Readonly<RevenueTrendChartProps>): ReactNode {
   const theme = useTheme();
   const labels = useAppTranslation(Analytics);
-  const formatTick = (value: string): string => formatApplicantDate(value, locale);
+  // Axis ticks use the SHORT day/month mask — a full timestamp overcrowds
+  // the 30-bucket axis and bidi-reorders into mashed glyphs under RTL (QA).
+  const formatTick = (value: string): string => formatDayMonth(value, locale);
   // recharts hands the tooltip label through as a ReactNode — the wire
   // bucketStart is the string case; anything else degrades to an empty label.
   const formatTooltipLabel = (label: ReactNode): ReactNode =>
     typeof label === "string" ? formatApplicantDate(label, locale) : "";
   const { currencies, data: pivoted } = pivotRevenueTrend(data);
+  // Empty-window honest state: with zero revenue buckets the bare BarChart
+  // renders NO axes at all (recharts has no domain to scale) — a blank box
+  // that reads as a broken image next to the fully-axed sessions chart.
+  // The centered caption keeps the card's height and visual weight instead.
+  if (pivoted.length === 0) {
+    return (
+      <Box
+        component="section"
+        aria-label={ariaLabel}
+        dir="ltr"
+        sx={{
+          minWidth: TREND_CHART_MIN_WIDTH,
+          height: TREND_CHART_BODY_HEIGHT,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <Typography
+          variant="body2"
+          component="p"
+          sx={theme => ({ color: theme.palette.text.secondary, textAlign: "center", padding: 3 })}
+        >
+          {labels.noRevenueYet}
+        </Typography>
+      </Box>
+    );
+  }
   // Per-series accessible summary — one `${revenueSeriesLabel}: <currency>`
   // entry per currency series (handle copy + wire currency codes), appended
   // to the composed region label. Empty data adds nothing.

@@ -15,7 +15,7 @@ import { useTheme } from "@mui/material/styles";
 import type { ReactNode } from "react";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import type { AdminPlatformAnalyticsQuery_adminPlatformAnalytics_sessionTrendDaily } from "@/frontend/graphql/generated/gql/graphql";
-import { formatApplicantDate } from "@/frontend/lib/i18n/format-date";
+import { formatApplicantDate, formatDayMonth } from "@/frontend/lib/i18n/format-date";
 import {
   TREND_CHART_BODY_HEIGHT,
   TREND_CHART_MIN_WIDTH,
@@ -41,7 +41,9 @@ export function SessionTrendChart({
   ariaLabel,
 }: Readonly<SessionTrendChartProps>): ReactNode {
   const theme = useTheme();
-  const formatTick = (value: string): string => formatApplicantDate(value, locale);
+  // Axis ticks use the SHORT day/month mask — a full timestamp overcrowds
+  // the 30-bucket axis and bidi-reorders into mashed glyphs under RTL (QA).
+  const formatTick = (value: string): string => formatDayMonth(value, locale);
   // recharts hands the tooltip label through as a ReactNode — the wire
   // bucketStart is the string case; anything else degrades to an empty label.
   const formatTooltipLabel = (label: ReactNode): ReactNode =>
