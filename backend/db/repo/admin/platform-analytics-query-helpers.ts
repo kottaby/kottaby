@@ -5,11 +5,12 @@
  *
  * Contains the eight repo-row interfaces returned by the
  * `PlatformAnalyticsRepository` projections, the trailing-window and
- * offline-activation constants, the UTC-only calendar boundary helpers,
- * the two shared single-row zero-coalescing mappers, and the executor
- * implementations for the session-stats, session-trend, revenue-stats,
- * revenue-trend, and offline-activation readers. Extracted for file-size
- * budget; behavior is byte-identical to the pre-extraction definitions.
+ * offline-activation constants, the UTC-only calendar boundary helpers, the
+ * shared trend day-bucket decoder (`decodeTrendDayBucket`), the two shared
+ * single-row zero-coalescing mappers, and the executor implementations for
+ * the session-stats, session-trend, revenue-stats, revenue-trend, and
+ * offline-activation readers. Extracted for file-size budget; behavior is
+ * byte-identical to the pre-extraction definitions.
  */
 import { and, asc, eq, gte, inArray, lte, sql } from "drizzle-orm";
 import { queryDb } from "@/backend/db";
@@ -128,6 +129,47 @@ function isoWeekStart(now: Date): Date {
 /** 00:00 UTC of the first day of `now`'s month (UTC-only calendar math). */
 function utcMonthStart(now: Date): Date {
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+}
+
+/** Zero-pads a calendar component to two digits (trend decoder helper). */
+const pad2 = (part: number): string => String(part).padStart(2, "0");
+
+/**
+ * Naive timestamp text of `value`'s LOCAL wall clock — the digits the pg
+ * driver consumed when it parsed the naive `date_trunc` text client-locally,
+ * i.e. exactly what the legacy `Date.toString() + "+0000"` lenient parse
+ * re-read.
+ */
+const localWallClockIso = (value: Date): string =>
+  `${value.getFullYear()}-${pad2(value.getMonth() + 1)}-${pad2(value.getDate())}T${pad2(value.getHours())}:${pad2(value.getMinutes())}:${pad2(value.getSeconds())}`;
+
+/**
+ * Shared trend day-bucket decoder — normalizes a `date_trunc('day', ...)`
+ * result into the exact midnight-UTC instant its stored wall-clock names.
+ *
+ * Input contract (driver-dependent, NOT always a string): on the wired
+ * providers (node-postgres via Drizzle, and the PGlite shim) the pg type
+ * parser already converts `date_trunc` output into a `Date` before the
+ * mapper sees it — and for a `timestamp without time zone` source column it
+ * parses the naive text against the CLIENT-LOCAL timezone. Other drivers may
+ * hand the raw timestamp text through unparsed (e.g. `"2026-01-07
+ * 00:00:00"`). Both shapes therefore arrive here.
+ *
+ * Normalization: the wall-clock digits the bucket names are recovered
+ * explicitly (a `Date`'s local calendar fields; a string with the date/time
+ * space separator made strict) and the instant is rebuilt by STRICT ISO
+ * parsing (`...Z`) — outputs are identical to the legacy lenient composite
+ * `+ "+0000"` rehydration for every input it accepted, but an unparseable
+ * value now throws a domain error instead of silently yielding an Invalid
+ * Date whose `NaN` epoch would collapse the trend into all-zero buckets.
+ */
+function decodeTrendDayBucket(value: unknown): Date {
+  const raw = value instanceof Date ? localWallClockIso(value) : String(value).replace(" ", "T");
+  const instant = new Date(`${raw}Z`);
+  if (Number.isNaN(instant.getTime())) {
+    throw new Error(`trend day-bucket decoder: unparseable ${JSON.stringify(String(value))}`);
+  }
+  return instant;
 }
 
 /**
@@ -257,11 +299,13 @@ export async function getSessionStatsImpl(now: Date, tx?: DBTransaction): Promis
  * `[now - 30d, now]`, ordered by day ascending. Days without sessions are
  * absent (the service layer zero-fills the full skeleton). Both branches
  * yield a true midnight-UTC `Date` for `bucketStart`: the drizzle branch
- * rehydrates the returned timestamp text as UTC, while the raw branch
- * truncates and normalizes server-side (`AT TIME ZONE 'UTC'`), handing
- * back a `timestamp with time zone` whose instant the pg driver parses
- * identically under any client TZ — keeping the two branches byte-identical
- * in value.
+ * decodes the driver-delivered value through `decodeTrendDayBucket` (an
+ * already-parsed `Date` on the wired pg providers — naive text parsed
+ * client-locally — or raw text on pass-through drivers), while the raw
+ * branch truncates and normalizes server-side (`AT TIME ZONE 'UTC'`),
+ * handing back a `timestamp with time zone` whose instant the pg driver
+ * parses identically under any client TZ — keeping the two branches
+ * byte-identical in value.
  */
 export async function getSessionDailyTrendImpl(
   now: Date,
@@ -269,14 +313,13 @@ export async function getSessionDailyTrendImpl(
 ): Promise<PlatformAnalyticsSessionTrendRow[]> {
   const windowStart = new Date(now.getTime() - TREND_WINDOW_MS);
   if (tx) {
-    // The drizzle pg session hands timestamp text through unparsed, so a
-    // bare `sql` fragment arrives as a string; this decoder rehydrates the
-    // stored UTC wall-clock into the true midnight-UTC `Date` — the same
-    // instant the raw branch's `AT TIME ZONE 'UTC'` timestamptz column
-    // parses to, keeping the two branches byte-for-byte identical in value.
-    const dayBucket = sql<string>`date_trunc('day', ${session.createdAt})`.mapWith(
-      (value: string) => new Date(`${value}+0000`)
-    );
+    // The wired pg driver already parses `date_trunc` output into a `Date`
+    // (naive text read client-locally); pass-through drivers may deliver raw
+    // text. `decodeTrendDayBucket` normalizes either shape into the true
+    // midnight-UTC `Date` — the same instant the raw branch's
+    // `AT TIME ZONE 'UTC'` timestamptz column parses to, keeping the two
+    // branches byte-for-byte identical in value.
+    const dayBucket = sql<string | Date>`date_trunc('day', ${session.createdAt})`.mapWith(decodeTrendDayBucket);
     const rows = await tx
       .select({
         bucketStart: dayBucket.as("bucket_start"),
@@ -354,8 +397,8 @@ export async function getRevenueStatsImpl(
  * inside the closed 30-day window, ordered by day then currency.
  * Currencies stay in separate points — no day ever sums across codes;
  * `amount` is an exact decimal string and `bucketStart` a true
- * midnight-UTC `Date` (same dual-branch UTC normalization as the session
- * trend's day bucket).
+ * midnight-UTC `Date` (same dual-branch UTC normalization, via the shared
+ * `decodeTrendDayBucket`, as the session trend's day bucket).
  */
 export async function getRevenueDailyTrendImpl(
   now: Date,
@@ -363,12 +406,10 @@ export async function getRevenueDailyTrendImpl(
 ): Promise<PlatformAnalyticsRevenueTrendRow[]> {
   const windowStart = new Date(now.getTime() - TREND_WINDOW_MS);
   if (tx) {
-    // Same timestamp-text rehydration as the session trend's day bucket —
+    // Same driver-shape normalization as the session trend's day bucket —
     // the raw branch normalizes server-side with `AT TIME ZONE 'UTC'`, so
     // both branches yield the identical midnight-UTC instant.
-    const dayBucket = sql<string>`date_trunc('day', ${studentPayments.createdAt})`.mapWith(
-      (value: string) => new Date(`${value}+0000`)
-    );
+    const dayBucket = sql<string | Date>`date_trunc('day', ${studentPayments.createdAt})`.mapWith(decodeTrendDayBucket);
     const rows = await tx
       .select({
         bucketStart: dayBucket.as("bucket_start"),
