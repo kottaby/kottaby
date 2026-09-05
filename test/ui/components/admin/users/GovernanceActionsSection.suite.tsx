@@ -442,11 +442,13 @@ for (const locale of LOCALES) {
       // prop has already flipped to false. Under Happy-DOM, MUI Dialog's
       // Fade exit transition may leave the Portal briefly mounted, so the
       // unmount check uses an extended waitFor window (transition drain).
+      // The drain depends on wall-clock timers that lag hard on loaded
+      // machines — give it 10s (observed 3s flake under CI-grade load).
       await waitFor(
         () => {
           expect(screen.queryByRole("dialog")).toBeNull();
         },
-        { timeout: 3000 }
+        { timeout: 10_000 }
       );
     });
 
