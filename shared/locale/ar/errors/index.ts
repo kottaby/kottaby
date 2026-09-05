@@ -76,5 +76,6 @@ export const errorsAr: ErrorsLabels = {
   idempotencyKeyRequired: "مفتاح منع تكرار الطلب مفقود. يرجى إعادة المحاولة.",
   invalidSessionIntent: "غرض الجلسة المطلوب غير صالح.",
   walletInvalidAmount: "أدخل مبلغ سحب صالحاً (قيمة موجبة بخانتين عشريتين كحد أقصى).",
+  walletTeacherProfileMissing: "ستُفعَّل محفظتك بعد اعتماد ملفك التعليمي.",
   sessionIntentCorrupt: "تعذر قراءة هذه الجلسة. يرجى التواصل مع فريق الدعم.",
 };

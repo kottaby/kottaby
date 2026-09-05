@@ -8,3 +8,4 @@
  */
 export * from "./admin-user.pothos";
 export * from "./audit-trail.pothos";
+export * from "./platform-analytics.pothos";

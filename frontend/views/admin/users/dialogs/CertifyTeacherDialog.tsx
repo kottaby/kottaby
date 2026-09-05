@@ -58,6 +58,9 @@ export interface AdminUserCertifyTarget {
   readonly email: string;
 }
 
+/** ICU token of `certifyDialog.warningMessage` (one per locale, parity-pinned). */
+const CERTIFIED_USER_PLACEHOLDER = "{name}";
+
 /**
  * Confirm-button styling. The `&:disabled` block pins the muted action
  * tokens so a terminal denial (TEACHER_ALREADY_CERTIFIED) never keeps the
@@ -134,7 +137,7 @@ export function CertifyTeacherDialog({ labels, targetUser, loading, onResolve }:
           </Alert>
         )}
         <Alert severity="warning" variant="outlined" sx={{ wordBreak: "break-word" }}>
-          {labels.certifyDialog.warningMessage(targetUser.fullName)}
+          {labels.certifyDialog.warningMessage.replace(CERTIFIED_USER_PLACEHOLDER, targetUser.fullName)}
         </Alert>
         <Typography
           variant="caption"

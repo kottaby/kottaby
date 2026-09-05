@@ -133,11 +133,12 @@ const FROZEN_MUTATION_FIELDS = [
 ] as const;
 
 /**
- * Root query fields — the refreshed 19-op baseline: the prior frozen
- * baseline + the `_health` probe + the reconciled dev3-016 admin-user
- * query quartet + the dev3-004 participant-read trio + the dev3-005
- * admin arbitration listing + the dev3-013 wallet read + the dev1-013
- * handshake pair. Sorted alphabetically (mirrors the live
+ * Root query fields — the refreshed 19-op baseline + the whole-platform
+ * analytics snapshot: the prior frozen baseline + the `_health` probe +
+ * the reconciled dev3-016 admin-user query quartet + the dev3-004
+ * participant-read trio + the dev3-005 admin arbitration listing + the
+ * dev3-013 wallet read + the dev1-013 handshake pair. Sorted
+ * alphabetically (mirrors the live
  * `printSchema(lexicographicSortSchema(graphQLSchema))` Query root
  * inventory verbatim, with locale-aware case handling:
  * `adminUsers` precedes `adminUserStats` because the locale comparator
@@ -151,6 +152,7 @@ const FROZEN_QUERY_FIELDS = [
   "adminAuditLogs",
   "adminDisputedSessions",
   "adminPlans",
+  "adminPlatformAnalytics",
   "adminUserActivity",
   "adminUserDetail",
   "adminUsers",
@@ -496,5 +498,251 @@ describe("Users-locale surface (D2) — AppLocale enum + User.locale on the arti
     const surface = fieldSurface("User", "locale");
     expect(surface.type).toBe("AppLocale");
     expect(surface.args).toEqual([]);
+  });
+});
+
+describe("Parent-link surface (extend) — artifact-side pins (REQ-061)", () => {
+  test("`myOutgoingParentLinkRequests: [OutgoingParentLinkRequest!]!` — NON-paginated, ZERO arguments", () => {
+    const surface = fieldSurface("Query", "myOutgoingParentLinkRequests");
+    expect(surface.type).toBe("[OutgoingParentLinkRequest!]!");
+    expect(surface.args).toEqual([]);
+  });
+
+  test("`myIncomingParentLinkRequests: [IncomingParentLinkRequest!]!` — NON-paginated, ZERO arguments", () => {
+    const surface = fieldSurface("Query", "myIncomingParentLinkRequests");
+    expect(surface.type).toBe("[IncomingParentLinkRequest!]!");
+    expect(surface.args).toEqual([]);
+  });
+
+  test("`requestParentChildLink(code: String!): OutgoingParentLinkRequest` — the ONLY nullable new mutation (null collapse)", () => {
+    const surface = fieldSurface("Mutation", "requestParentChildLink");
+    expect(surface.type).toBe("OutgoingParentLinkRequest");
+    expect(surface.args).toEqual([{ name: "code", type: "String!" }]);
+
+    // The only-nullable pin, across ALL THREE new mutations on the artifact:
+    const newMutationSurfaces = ["cancelParentLinkRequest", "requestParentChildLink", "respondToParentLinkRequest"].map(
+      name => fieldSurface("Mutation", name)
+    );
+    const nullableNames = newMutationSurfaces
+      .filter(mutationSurface => !mutationSurface.type.endsWith("!"))
+      .map(mutationSurface => mutationSurface.name);
+    expect(nullableNames).toEqual(["requestParentChildLink"]);
+  });
+
+  test("`respondToParentLinkRequest(requestId: ID!, accept: Boolean!): IncomingParentLinkRequest!`", () => {
+    const surface = fieldSurface("Mutation", "respondToParentLinkRequest");
+    expect(surface.type).toBe("IncomingParentLinkRequest!");
+    // The deterministic emission sorts arguments alphabetically.
+    expect(surface.args).toEqual([
+      { name: "accept", type: "Boolean!" },
+      { name: "requestId", type: "ID!" },
+    ]);
+  });
+
+  test("`cancelParentLinkRequest(requestId: ID!): OutgoingParentLinkRequest!`", () => {
+    const surface = fieldSurface("Mutation", "cancelParentLinkRequest");
+    expect(surface.type).toBe("OutgoingParentLinkRequest!");
+    expect(surface.args).toEqual([{ name: "requestId", type: "ID!" }]);
+  });
+
+  test("LinkStatus enum carries EXACTLY the four canonical members on the artifact", () => {
+    const linkStatusEnum = sdlDocument.definitions.find(
+      (definition): definition is EnumTypeDefinitionNode =>
+        definition.kind === Kind.ENUM_TYPE_DEFINITION && definition.name.value === "LinkStatus"
+    );
+    if (!linkStatusEnum) {
+      throw new Error("Generated SDL must define the `LinkStatus` enum type");
+    }
+    const values = (linkStatusEnum.values ?? []).map(value => value.name.value).toSorted((a, b) => a.localeCompare(b));
+    expect(values).toEqual(["Confirmed", "Expired", "Pending", "Rejected"]);
+  });
+
+  test("BOTH objects expose EXACTLY the six canonical fields — DateTime on ALL six timestamps, zero String leakage", () => {
+    for (const [typeName, counterpartyField] of [
+      ["OutgoingParentLinkRequest", "studentMaskedName"],
+      ["IncomingParentLinkRequest", "parentFullName"],
+    ] as const) {
+      const surfaces = fieldSurfaces(typeName);
+      expect(surfaces.map(surface => surface.name).toSorted((a, b) => a.localeCompare(b))).toEqual(
+        ["createdAt", "expiresAt", "id", counterpartyField, "respondedAt", "status"].toSorted((a, b) =>
+          a.localeCompare(b)
+        )
+      );
+      const byName = new Map(surfaces.map(surface => [surface.name, surface]));
+      expect(byName.get("id")?.type).toBe("ID!");
+      expect(byName.get("status")?.type).toBe("LinkStatus!");
+      expect(byName.get(counterpartyField)?.type).toBe("String!");
+      // NO String leakage — every timestamp rides the registered `DateTime`
+      // scalar; `respondedAt` is the ONLY nullable field on either object.
+      expect(byName.get("createdAt")?.type).toBe("DateTime!");
+      expect(byName.get("expiresAt")?.type).toBe("DateTime!");
+      expect(byName.get("respondedAt")?.type).toBe("DateTime");
+    }
+  });
+
+  test("the parent-link family stays FLAT — the ONLY ParentLinkRequest-named SDL types are the two objects (no page/connection wrapper)", () => {
+    const parentLinkTypeDeclarations =
+      sdlText.match(/^(?:type|enum|input|scalar|interface|union) \w*ParentLinkRequest\w*/gm) ?? [];
+    expect(
+      parentLinkTypeDeclarations.map(declaration => declaration.split(" ")[1]).toSorted((a, b) => a.localeCompare(b))
+    ).toEqual(["IncomingParentLinkRequest", "OutgoingParentLinkRequest"]);
+    // Belt-and-braces: neither wrapper spelling exists anywhere in the artifact.
+    expect(sdlText).not.toContain("ParentLinkRequestListPage");
+    expect(sdlText).not.toContain("ParentLinkRequestConnection");
+  });
+});
+
+describe("Platform analytics surface (extend) — artifact-side pins", () => {
+  /** The eleven embedded value objects of the analytics read surface. */
+  const PLATFORM_ANALYTICS_TYPE_NAMES = [
+    "PlatformAnalytics",
+    "PlatformAnalyticsCurrencyRevenue",
+    "PlatformAnalyticsHealth",
+    "PlatformAnalyticsRatings",
+    "PlatformAnalyticsRevenue",
+    "PlatformAnalyticsRevenueTrendPoint",
+    "PlatformAnalyticsSessionTrendPoint",
+    "PlatformAnalyticsSessions",
+    "PlatformAnalyticsSubscriptions",
+    "PlatformAnalyticsTeachers",
+    "PlatformAnalyticsUsers",
+  ] as const;
+
+  /** Exact field-name → SDL-type contract per analytics object (every member non-null unless stated). */
+  const PLATFORM_ANALYTICS_FIELD_CONTRACTS: Readonly<Record<string, Readonly<Record<string, string>>>> = {
+    PlatformAnalytics: {
+      generatedAt: "DateTime!",
+      users: "PlatformAnalyticsUsers!",
+      sessions: "PlatformAnalyticsSessions!",
+      revenue: "PlatformAnalyticsRevenue!",
+      subscriptions: "PlatformAnalyticsSubscriptions!",
+      teachers: "PlatformAnalyticsTeachers!",
+      ratings: "PlatformAnalyticsRatings!",
+      health: "PlatformAnalyticsHealth!",
+      sessionTrendDaily: "[PlatformAnalyticsSessionTrendPoint!]!",
+      revenueTrendDaily: "[PlatformAnalyticsRevenueTrendPoint!]!",
+    },
+    PlatformAnalyticsUsers: {
+      totalCount: "Int!",
+      activeCount: "Int!",
+      suspendedCount: "Int!",
+      blockedCount: "Int!",
+      deletedCount: "Int!",
+      adminsCount: "Int!",
+      teachersCount: "Int!",
+      studentsCount: "Int!",
+      parentsCount: "Int!",
+      newThisWeekCount: "Int!",
+      recentlyActive24h: "Int!",
+    },
+    PlatformAnalyticsSessions: {
+      total: "Int!",
+      today: "Int!",
+      thisWeek: "Int!",
+      thisMonth: "Int!",
+      scheduled: "Int!",
+      started: "Int!",
+      completed: "Int!",
+      cancelled: "Int!",
+      disputed: "Int!",
+      awaitingConfirmation: "Int!",
+    },
+    PlatformAnalyticsRevenue: {
+      gatewayRevenueByCurrency: "[PlatformAnalyticsCurrencyRevenue!]!",
+      offlineActivationsCount: "Int!",
+    },
+    PlatformAnalyticsCurrencyRevenue: {
+      currency: "String!",
+      totalAmount: "String!",
+      last30DaysAmount: "String!",
+      paidPaymentsCount: "Int!",
+    },
+    PlatformAnalyticsSubscriptions: {
+      total: "Int!",
+      active: "Int!",
+      pending: "Int!",
+      expired: "Int!",
+      cancelled: "Int!",
+      suspended: "Int!",
+      activeInWindowNow: "Int!",
+    },
+    PlatformAnalyticsTeachers: {
+      certifiedCount: "Int!",
+      evaluatorCount: "Int!",
+      onlineNowCount: "Int!",
+    },
+    PlatformAnalyticsRatings: {
+      // The two honest-absence averages — the ONLY nullable fields on the
+      // whole analytics surface.
+      averageSessionRating: "Float",
+      sessionRatingsCount: "Int!",
+      averageEvaluationScore: "Float",
+      evaluationScoresCount: "Int!",
+    },
+    PlatformAnalyticsHealth: {
+      pendingDisputes: "Int!",
+      pendingWithdrawals: "Int!",
+    },
+    PlatformAnalyticsSessionTrendPoint: {
+      bucketStart: "DateTime!",
+      sessionCount: "Int!",
+    },
+    PlatformAnalyticsRevenueTrendPoint: {
+      bucketStart: "DateTime!",
+      currency: "String!",
+      amount: "String!",
+    },
+  };
+
+  test("`adminPlatformAnalytics: PlatformAnalytics!` — NON-NULLABLE, ZERO arguments (the closed read scope)", () => {
+    const surface = fieldSurface("Query", "adminPlatformAnalytics");
+    expect(surface.type).toBe("PlatformAnalytics!");
+    expect(surface.args).toEqual([]);
+  });
+
+  test("all eleven embedded objects exist and expose EXACTLY the contracted field surface (names + SDL types, nothing extra)", () => {
+    for (const typeName of PLATFORM_ANALYTICS_TYPE_NAMES) {
+      const surfaces = fieldSurfaces(typeName);
+      const contract = PLATFORM_ANALYTICS_FIELD_CONTRACTS[typeName];
+      if (!contract) {
+        throw new Error(`missing the field contract for \`${typeName}\``);
+      }
+      expect(surfaces.map(surface => surface.name).toSorted((a, b) => a.localeCompare(b))).toEqual(
+        Object.keys(contract).toSorted((a, b) => a.localeCompare(b))
+      );
+      const byName = new Map(surfaces.map(surface => [surface.name, surface]));
+      for (const [fieldName, sdlType] of Object.entries(contract)) {
+        expect(byName.get(fieldName)?.type).toBe(sdlType);
+      }
+    }
+  });
+
+  test("NO analytics object carries an `id` field — aggregate anonymity (embedded value objects)", () => {
+    for (const typeName of PLATFORM_ANALYTICS_TYPE_NAMES) {
+      const surfaces = fieldSurfaces(typeName);
+      expect(surfaces.some(surface => surface.name === "id")).toBe(false);
+    }
+  });
+
+  test("every instant rides the DateTime scalar — generatedAt + both bucketStarts, zero String timestamps", () => {
+    const byName = new Map([
+      ...fieldSurfaces("PlatformAnalytics").map(surface => [surface.name, surface] as const),
+      ...fieldSurfaces("PlatformAnalyticsSessionTrendPoint").map(surface => [surface.name, surface] as const),
+      ...fieldSurfaces("PlatformAnalyticsRevenueTrendPoint").map(surface => [surface.name, surface] as const),
+    ]);
+    expect(byName.get("generatedAt")?.type).toBe("DateTime!");
+    expect(byName.get("bucketStart")?.type).toBe("DateTime!");
+    // Belt-and-braces: no analytics field resolves through a String-typed
+    // instant — the only String leaves are currency codes and decimal money.
+    const stringLeaves = PLATFORM_ANALYTICS_TYPE_NAMES.flatMap(typeName => fieldSurfaces(typeName)).filter(
+      surface => surface.type.replace(/!$/, "").replaceAll("[", "").replaceAll("]", "") === "String"
+    );
+    expect(stringLeaves.map(surface => surface.name).toSorted((a, b) => a.localeCompare(b))).toEqual([
+      "amount",
+      "currency",
+      "currency",
+      "last30DaysAmount",
+      "totalAmount",
+    ]);
   });
 });

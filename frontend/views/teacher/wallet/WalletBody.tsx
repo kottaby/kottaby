@@ -26,6 +26,9 @@ export interface WalletBodyProps {
   readonly t: WalletLabels;
 }
 
+/** Typed code the wallet service throws for a pre-approval teacher (no profile row → no wallet). */
+const WALLET_TEACHER_PROFILE_MISSING = "WALLET_TEACHER_PROFILE_MISSING";
+
 /** The swapping body BELOW the chrome — see the module docblock. */
 export function WalletBody({ loading, error, data, locale, t }: Readonly<WalletBodyProps>): ReactNode {
   if (loading && data === undefined) {
@@ -40,6 +43,20 @@ export function WalletBody({ loading, error, data, locale, t }: Readonly<WalletB
   if (error !== undefined) {
     const rawCode = extractErrorCode(error);
     const code = rawCode === null ? "" : normalizeGraphQLErrorCode(rawCode);
+    // Pending-teacher honest state FIRST — the typed deny is not a permission
+    // failure to punish, it is a lifecycle stage: the wallet page renders a
+    // calm "activates once approved" empty state instead of the red
+    // permission fallback (QA finding: the generic denial read as a bug).
+    if (code === WALLET_TEACHER_PROFILE_MISSING) {
+      return (
+        <SessionsEmptyState
+          testId="wallet-pending-teacher"
+          icon={AccountBalanceWalletOutlinedIcon}
+          title={t.pendingTeacherTitle}
+          body={t.pendingTeacherBody}
+        />
+      );
+    }
     const action = mapGraphQLErrorByCode(code, { contextKind: "query", hasForm: false });
     if (action?.kind === "permission-fallback" || action?.kind === "auth-recovery") {
       return <PermissionDeniedFallback />;

@@ -1,5 +1,6 @@
 export * from "./adminBroadcasts";
 export * from "./adminUsers";
+export * from "./analytics";
 export * from "./applicant";
 export * from "./auth";
 export * from "./common";

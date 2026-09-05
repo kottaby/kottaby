@@ -1,9 +1,10 @@
 /**
- * HealthCheck + HandshakeCodeLookup Apollo cache-policy suite.
+ * Apollo cache embedded-type policy suite.
  * Embedded-type normalization opt-out (`keyFields: false`) for the
- * scalar-only `_health` probe object and the masked parent-discovery lookup
+ * scalar-only `_health` probe object, the masked parent-discovery lookup
  * payload (`HandshakeCodeLookup` — `maskedName` + `linkable` only, no `id`
- * by design).
+ * by design) and the `PlatformAnalytics` admin analytics-dashboard
+ * aggregate family (scalar-only snapshot sections, no `id` anywhere).
  *
  * WHAT THIS LOCKS
  *   1. CONFIG EXPOSURE (the task-def gate): an `InMemoryCache` built by
@@ -17,10 +18,12 @@
  *      `HandshakeCodeLookup:*` entity) with loss-free rewrites.
  *   2. SIBLING REGRESSION PIN — the pre-existing embedded entries
  *      (`AdminNoteInfo`, `OnlineMeetingInfo`) keep their `keyFields: false`
- *      posture and the `AdminDashboardScheduleResult.rows` replace-not-merge
- *      precedent stays exactly as authored (the seven-entry policy surface is
- *      FROZEN; a new embedded type must extend, never shrink, this list per
- *      frontend/graphql/AGENTS.md embedded-type policy).
+ *      posture, the eleven `PlatformAnalytics*` dashboard entries join at
+ *      `keyFields: false`, and the `AdminDashboardScheduleResult.rows`
+ *      replace-not-merge precedent stays exactly as authored (the
+ *      eighteen-entry policy surface is FROZEN; a new embedded type must
+ *      extend, never shrink, this list per frontend/graphql/AGENTS.md
+ *      embedded-type policy).
  *
  * NARROWING DISCIPLINE
  *   Policies internals are reached through guarded `Reflect.get` walks that
@@ -154,6 +157,26 @@ const SECOND_LOOKUP_VALUE = () => ({
   linkable: false,
 });
 
+// ---------------------------------------------------------------------------
+// The eleven embedded value types of the admin analytics-dashboard aggregate:
+// scalar-only snapshot sections and trend rows of one root read model, with
+// no `id` anywhere — read back embedded under the root query field, never
+// normalized into standalone entities.
+
+const PLATFORM_ANALYTICS_EMBEDDED_TYPES = [
+  "PlatformAnalytics",
+  "PlatformAnalyticsUsers",
+  "PlatformAnalyticsSessions",
+  "PlatformAnalyticsRevenue",
+  "PlatformAnalyticsCurrencyRevenue",
+  "PlatformAnalyticsSubscriptions",
+  "PlatformAnalyticsTeachers",
+  "PlatformAnalyticsRatings",
+  "PlatformAnalyticsHealth",
+  "PlatformAnalyticsSessionTrendPoint",
+  "PlatformAnalyticsRevenueTrendPoint",
+] as const;
+
 // ===========================================================================
 describe("createApolloCache — initialised InMemoryCache config exposure", () => {
   test("returns a genuine initialised InMemoryCache instance", () => {
@@ -179,7 +202,15 @@ describe("createApolloCache — initialised InMemoryCache config exposure", () =
     expect(keyFieldsOf(policies, "AdminAuditLogPage")).toBe(false);
   });
 
-  test("policy surface is FROZEN to the seven documented entries", () => {
+  test("all eleven PlatformAnalytics embedded types keep keyFields:false", () => {
+    const cache = createApolloCache();
+    const policies = typePoliciesOf(cache);
+    for (const typeName of PLATFORM_ANALYTICS_EMBEDDED_TYPES) {
+      expect(keyFieldsOf(policies, typeName)).toBe(false);
+    }
+  });
+
+  test("policy surface is FROZEN to the eighteen documented entries", () => {
     const cache = createApolloCache();
     expect(Object.keys(typePoliciesOf(cache)).toSorted((a, b) => a.localeCompare(b))).toEqual([
       "AdminAuditLogPage",
@@ -189,6 +220,17 @@ describe("createApolloCache — initialised InMemoryCache config exposure", () =
       "HealthCheck",
       "NotificationListPage",
       "OnlineMeetingInfo",
+      "PlatformAnalytics",
+      "PlatformAnalyticsCurrencyRevenue",
+      "PlatformAnalyticsHealth",
+      "PlatformAnalyticsRatings",
+      "PlatformAnalyticsRevenue",
+      "PlatformAnalyticsRevenueTrendPoint",
+      "PlatformAnalyticsSessions",
+      "PlatformAnalyticsSessionTrendPoint",
+      "PlatformAnalyticsSubscriptions",
+      "PlatformAnalyticsTeachers",
+      "PlatformAnalyticsUsers",
     ]);
   });
 });

@@ -8,7 +8,8 @@ import { InMemoryCache } from "@apollo/client";
  * Without `merge: false`, Apollo warns that cache data may be lost.
  *
  * `OnlineMeetingInfo`, `AdminNoteInfo`, `HealthCheck`, `NotificationListPage`,
- * `HandshakeCodeLookup` and `AdminAuditLogPage` are embedded value types with
+ * `HandshakeCodeLookup`, `AdminAuditLogPage` and the eleven `PlatformAnalytics`
+ * dashboard aggregate types are embedded value types with
  * no `id` field (see `frontend/graphql/generated/schema.graphql`).
  * Marking them `keyFields: false` opts them out of normalization so Apollo
  * does not emit "Cache data may be lost" warnings when these types are written
@@ -26,6 +27,12 @@ import { InMemoryCache } from "@apollo/client";
  * shape discipline as `NotificationListPage`): the normalizable entities are
  * the `AdminAuditLogEntry` rows inside `items` (each carries `id`), so the
  * wrapper itself never needs an identity.
+ *
+ * The `PlatformAnalytics*` family is the admin analytics-dashboard read
+ * model: one root `adminPlatformAnalytics` query field whose section and
+ * trend-row objects are scalar-only snapshots (no `id` anywhere in the
+ * aggregate), read back embedded under the root field and replaced
+ * wholesale on every refetch.
  */
 export function createApolloCache(): InMemoryCache {
   return new InMemoryCache({
@@ -65,6 +72,46 @@ export function createApolloCache(): InMemoryCache {
         keyFields: false,
       },
       OnlineMeetingInfo: {
+        keyFields: false,
+      },
+      // Admin analytics-dashboard snapshot family — scalar-only sections of
+      // the single `adminPlatformAnalytics` read model with no `id` anywhere
+      // in the aggregate (see `frontend/graphql/generated/schema.graphql`),
+      // cached inline under the root query field and replaced wholesale on
+      // every refetch. Entries are listed in the read model's own shape
+      // order (root, then sections, then trend points) — a fixed, repeatable
+      // order; new embedded families append after the last documented entry.
+      PlatformAnalytics: {
+        keyFields: false,
+      },
+      PlatformAnalyticsUsers: {
+        keyFields: false,
+      },
+      PlatformAnalyticsSessions: {
+        keyFields: false,
+      },
+      PlatformAnalyticsRevenue: {
+        keyFields: false,
+      },
+      PlatformAnalyticsCurrencyRevenue: {
+        keyFields: false,
+      },
+      PlatformAnalyticsSubscriptions: {
+        keyFields: false,
+      },
+      PlatformAnalyticsTeachers: {
+        keyFields: false,
+      },
+      PlatformAnalyticsRatings: {
+        keyFields: false,
+      },
+      PlatformAnalyticsHealth: {
+        keyFields: false,
+      },
+      PlatformAnalyticsSessionTrendPoint: {
+        keyFields: false,
+      },
+      PlatformAnalyticsRevenueTrendPoint: {
         keyFields: false,
       },
     },

@@ -4,7 +4,7 @@
  * MobileUserCard — one per-user card of the mobile directory list (radius
  * 12, `border.light` outline, 16px padding):
  *  - header as a 3-track grid (`auto minmax(0,1fr) auto`): 44px role-tinted
- *    avatar, the name/email/role-pill block (`MobileUserIdentity`,
+ *    avatar, the name/email/copy-email/role-pill block (`MobileUserIdentity`,
  *    truncating with the shared bidi ellipsis recipe), and a trailing
  *    column stacking the relative time caption above the kebab actions menu
  *    (the same menu the desktop table renders) — stacking keeps the
@@ -43,9 +43,18 @@ interface MobileUserCardProps {
   readonly locale: "ar" | "en";
   readonly onEdit: (user: DirectoryUserItem) => void;
   readonly onDelete: (user: DirectoryUserItem) => void;
+  /** Invoked after the email copy resolves successfully (drives the snackbar). */
+  readonly onCopyEmail?: () => void;
 }
 
-export function MobileUserCard({ labels, user, locale, onEdit, onDelete }: MobileUserCardProps): ReactNode {
+export function MobileUserCard({
+  labels,
+  user,
+  locale,
+  onEdit,
+  onDelete,
+  onCopyEmail,
+}: MobileUserCardProps): ReactNode {
   const role = asDirectoryRole(user.role);
   const deleted = user.isDeleted;
   return (
@@ -70,7 +79,7 @@ export function MobileUserCard({ labels, user, locale, onEdit, onDelete }: Mobil
       */}
       <Box sx={{ display: "grid", gridTemplateColumns: "auto minmax(0, 1fr) auto", alignItems: "center", gap: 1 }}>
         <UserAvatar fullName={user.fullName} role={role} size={44} />
-        <MobileUserIdentity user={user} role={role} labels={labels} deleted={deleted} />
+        <MobileUserIdentity user={user} role={role} labels={labels} deleted={deleted} onCopyEmail={onCopyEmail} />
         <Box sx={{ display: "flex", flexDirection: "column", alignItems: "flex-end", flexShrink: 0 }}>
           <Typography variant="caption" sx={theme => ({ color: theme.palette.text.secondary })}>
             {formatDirectoryRelativeTime(user.lastActiveAt, locale)}

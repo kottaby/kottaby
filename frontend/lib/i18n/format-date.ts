@@ -80,3 +80,31 @@ export function shortNumericDateMask(locale: string): string {
     .join("/")
     .replace(/[\u200e\u200f\u202a-\u202e]/g, "");
 }
+
+/**
+ * Formats an ISO-8601 instant as a SHORT day/month axis tick (`27/08` en,
+ * `٢٧/٠٨` ar — UTC components, locale digits). Built for chart axis ticks:
+ * a full `formatApplicantDate` stamp ("27/08/2026, 13:00") overcrowds a
+ * 30-bucket axis AND its date+time segments get bidi-reordered into mashed
+ * glyphs inside RTL documents (QA finding). The result is wrapped in
+ * explicit LTR-isolate marks (LRI…PDI) — even the pure numeric day/month
+ * run got its separator visually detached under an RTL document (recharts
+ * SVG `<text>` inherits the document's bidi context), and the isolate pins
+ * the glyph order in both directions. Tooltip labels keep the full
+ * `formatApplicantDate` stamp.
+ */
+export function formatDayMonth(iso: string, locale: string): string {
+  const formatter = new Intl.DateTimeFormat(resolveLocaleTag(locale), {
+    timeZone: "UTC",
+    day: "2-digit",
+    month: "2-digit",
+  });
+  // The `ar` formatter injects invisible bidi controls (an RLM before the
+  // separator: "27\u200f/08") that visually detach the slash under an RTL
+  // document — strip them, then wrap the bare numeric run in an explicit
+  // LTR isolate (LRI…PDI) so the day/month glyph order is pinned in both
+  // document directions.
+  const formatted = formatter.format(new Date(iso)).replace(/[\u200e\u200f\u202a-\u202e]/g, "");
+  // \u2066 = LRI (left-to-right isolate), \u2069 = PDI (pop directional isolate).
+  return `\u2066${formatted}\u2069`;
+}

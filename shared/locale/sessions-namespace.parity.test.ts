@@ -182,6 +182,37 @@ function nonEmptyLabelOf(localeMap: object, key: string, localeName: string): st
 }
 
 /**
+ * Flattens a (possibly nested) locale map to its DOTTED string-leaf paths —
+ * grouped blocks (e.g. `planCatalog.planNotFound`) collapse into single
+ * dotted paths so parity walks never crash on nested objects.
+ */
+function leafPathsOf(node: object, prefix = ""): string[] {
+  return Object.entries(node).flatMap(([key, value]) => {
+    const path = prefix.length === 0 ? key : `${prefix}.${key}`;
+    return typeof value === "object" && value !== null ? leafPathsOf(value, path) : [path];
+  });
+}
+
+/**
+ * Reads one non-empty-string leaf off a locale map at a DOTTED path —
+ * traverses nested blocks segment by segment, throwing on non-block nodes
+ * or non-string leaves.
+ */
+function stringLeafOf(localeMap: object, path: string, localeName: string): string {
+  let node: unknown = localeMap;
+  for (const segment of path.split(".")) {
+    if (node === null || typeof node !== "object") {
+      throw new Error(`errors.${localeName}.${path} traverses a non-block node`);
+    }
+    node = Reflect.get(node, segment);
+  }
+  if (typeof node !== "string" || node.length === 0) {
+    throw new Error(`errors.${localeName}.${path} must be a non-empty localized string`);
+  }
+  return node;
+}
+
+/**
  * Reads one label slot accepting BOTH value shapes: plain-string keys read
  * directly; template-function keys (see {@link FUNCTION_LABEL_KEYS}) resolve
  * by invocation with a sample argument. Throws on anything that does not
@@ -222,9 +253,23 @@ describe("errors registry — the seven session-lifecycle keys in BOTH locales",
   });
 
   test("placeholder-name sets agree across ar/en for EVERY errors key (no locale-local drift)", () => {
-    for (const key of Object.keys(errorsAr)) {
-      const arNames = icuPlaceholdersOf(nonEmptyLabelOf(errorsAr, key, "ar"));
-      const enNames = icuPlaceholdersOf(nonEmptyLabelOf(errorsEn, key, "en"));
+    // Grouped blocks (e.g. `planCatalog.planNotFound`) are flattened to their
+    // dotted leaf paths ({@link leafPathsOf}) — every STRING leaf must agree
+    // with the other map's placeholder set at the SAME path (a flat key loop
+    // crashed on nested blocks: nonEmptyLabelOf saw an object where it
+    // demanded a string). Leaf reads go through {@link stringLeafOf}, which
+    // tolerates the nested blocks. The loop walks the UNION of both
+    // leaf-path sets: an en-only leaf would otherwise bypass placeholder
+    // comparison entirely (an ar-only leaf already failed via the missing
+    // en read). The explicit not.toThrow presence probes turn a
+    // one-side-only path into a readable parity failure before the
+    // placeholder comparison runs.
+    const unionPaths = [...new Set([...leafPathsOf(errorsAr), ...leafPathsOf(errorsEn)])];
+    for (const path of unionPaths) {
+      expect(() => stringLeafOf(errorsAr, path, "ar")).not.toThrow();
+      expect(() => stringLeafOf(errorsEn, path, "en")).not.toThrow();
+      const arNames = icuPlaceholdersOf(stringLeafOf(errorsAr, path, "ar"));
+      const enNames = icuPlaceholdersOf(stringLeafOf(errorsEn, path, "en"));
       expect(enNames).toEqual(arNames);
     }
   });
