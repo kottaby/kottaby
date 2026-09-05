@@ -9,17 +9,14 @@ import {
 } from "@/frontend/stories/admin/AdminUsersDirectory.fixtures";
 import { DashboardStoryFrame, StoryApolloProvider } from "@/frontend/stories/lib/storyHarness";
 import { AdminUsersDirectoryContainer } from "@/frontend/views/admin/users/directory";
-import { useAppTranslation } from "@/shared/locale/client";
-import { AdminUsers } from "@/shared/locale/namespaces";
 
 /**
  * Storybook surface for the `/admin/users` directory page
  * (`AdminUsersDirectoryContainer` + `useAdminUsersDirectory`).
  *
- * The real page (`app/(dashboard)/admin/users/page.tsx`) passes the
- * `AdminUsers` locale leaf from the server; the story resolves the same
- * bundle through `useAppTranslation` so the toolbar locale toggle switches
- * labels live. Data rides a real `ApolloClient` over
+ * The container resolves the `AdminUsers` locale bundle itself via
+ * `useAppTranslation` (label-free mount, matching the real page), so the
+ * toolbar locale toggle switches labels live. Data rides a real `ApolloClient` over
  * `MockLink` (production cache) via `StoryApolloProvider`; mocks match any
  * `adminUsers` variables (`VariableMatcher` — the exact first-render
  * variables are pinned in `DIRECTORY_VARIABLES` for reference) and are
@@ -28,11 +25,10 @@ import { AdminUsers } from "@/shared/locale/namespaces";
  */
 
 function DirectoryHarness({ mocks }: Readonly<{ mocks: readonly MockLink.MockedResponse[] }>): ReactNode {
-  const labels = useAppTranslation(AdminUsers);
   return (
     <StoryApolloProvider mocks={mocks}>
       <DashboardStoryFrame>
-        <AdminUsersDirectoryContainer labels={labels} />
+        <AdminUsersDirectoryContainer />
       </DashboardStoryFrame>
     </StoryApolloProvider>
   );
