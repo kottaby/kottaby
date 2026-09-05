@@ -33,7 +33,7 @@ Every task in this file is executed under ALL of the following rules, without ex
   - Create `ai/plans/sprint_3/dev3-022c-platform-analytics-dashboard/deferred-items.md` initialized from `.agents/spec-process-guide/templates/deferred-items-template.md`.
   - Pre-register the four known FORWARD-OWNED ledger entries (plan §7 item 4): (D-1) server-side metric caching variant → future performance ticket; (D-2) drill-down/detail pages + CSV export → future UX ticket; (D-3) bespoke analytics rate limiter → rate-limiting hardening stream (REQ-038); (D-4) trend covering index → deferred until production telemetry demands it. Entered as forward references, NOT as ❌/⚠️ debt.
   - _Requirements: REQ-001, REQ-038, REQ-043_
-  - [ ] 0.1.OUT Write `ai/plans/sprint_3/dev3-022c-platform-analytics-dashboard/outcome/0-baseline-outcome.md` with the recorded counts and ledger initialization proof.
+  - [x] 0.1.OUT Write `ai/plans/sprint_3/dev3-022c-platform-analytics-dashboard/outcome/0-baseline-outcome.md` with the recorded counts and ledger initialization proof.
 
 - [x] 0.2 [Prerequisite & reuse verification — verify-then-claim sweep]
   - Verify each of the following EXISTS in the bundled tree (cite `path:line` for each in the outcome file); if ANY is missing, log a ❌ deferred item and STOP affected downstream tasks — never inline-patch a foreign layer:
@@ -52,12 +52,12 @@ Every task in this file is executed under ALL of the following rules, without ex
     - CONFIRM the ABSENCE of `frontend/views/admin/analytics/**` and `test/ui/components/admin/**` (net-new CREATEs — plan D12); `frontend/views/admin/`, `app/(dashboard)/admin/`, and `test/workflows/admin/` EXIST (the latter already holds the DEV3-016 journey suites).
   - Verify instructive file inventory for citation discipline: the ONLY instruction files are `.agents/instructions/{frontend,backend,tests}.instructions.md`; layer AGENTS.md files (`backend/AGENTS.md`, `frontend/AGENTS.md`, `frontend/graphql/AGENTS.md`, `shared/AGENTS.md`, `backend/services/AGENTS.md`, `test/workflows/AGENTS.md`, `test/ui/AGENTS.md`, `app/AGENTS.md` per bundle presence) — cite ONLY files confirmed present.
   - _Requirements: REQ-002_
-  - [ ] 0.2.OUT Write `ai/plans/sprint_3/dev3-022c-platform-analytics-dashboard/outcome/0.2-prerequisites-outcome.md` with the full verified-anchor table.
+  - [x] 0.2.OUT Write `ai/plans/sprint_3/dev3-022c-platform-analytics-dashboard/outcome/0.2-prerequisites-outcome.md` with the full verified-anchor table.
 
 - [x] 0.3 [Plan Review Gate — @plan-review (Phase 1.5)]
   - Run `@plan-review` against specs + plan; every finding MUST be resolved or recorded as ❌ in `deferred-items.md` BEFORE any implementation task starts.
   - _Requirements: REQ-083_
-  - [ ] 0.3.OUT Write `ai/plans/sprint_3/dev3-022c-platform-analytics-dashboard/outcome/0.3-plan-review-outcome.md`.
+  - [x] 0.3.OUT Write `ai/plans/sprint_3/dev3-022c-platform-analytics-dashboard/outcome/0.3-plan-review-outcome.md`.
 
 ---
 
@@ -215,11 +215,11 @@ Every task in this file is executed under ALL of the following rules, without ex
   - [x] 2.6.OUT Write outcome.
 
 - [x] 2.M [Mid-Point Review Gate]
-  - [ ] Verify: `bun tsgo` and `bun run biome:check` counts == baseline (no new errors introduced by Phases 1–2).
-  - [ ] Verify: journey suite GREEN (A–D), repo suite GREEN, service suite GREEN.
-  - [ ] Verify: `git diff -- backend/db/schema/ backend/db/migration/` EMPTY (REQ-043); `git diff -- backend/db/repo/admin/admin-user.repository.ts` EMPTY (reuse-not-rebuild — the DEV3-016 repo is untouched).
-  - [ ] Verify: `deferred-items.md` has no unlogged ❌/⚠️; log anything discovered so far.
-  - [ ] Semantic self-review of Phases 1–2 against the full checklist.
+  - [x] Verify: `bun tsgo` and `bun run biome:check` counts == baseline (no new errors introduced by Phases 1–2).
+  - [x] Verify: journey suite GREEN (A–D), repo suite GREEN, service suite GREEN.
+  - [x] Verify: `git diff -- backend/db/schema/ backend/db/migration/` EMPTY (REQ-043); `git diff -- backend/db/repo/admin/admin-user.repository.ts` EMPTY (reuse-not-rebuild — the DEV3-016 repo is untouched).
+  - [x] Verify: `deferred-items.md` has no unlogged ❌/⚠️; log anything discovered so far.
+  - [x] Semantic self-review of Phases 1–2 against the full checklist.
   - [x] 2.M.OUT Write `outcome/2M-midpoint-review-outcome.md`.
 
 ---
