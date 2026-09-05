@@ -13,6 +13,7 @@
 
 import { Box, Card, Chip, Stack, Typography } from "@mui/material";
 import type { ReactNode } from "react";
+import { cardHoverSx } from "@/frontend/views/admin/analytics/platform-analytics-display";
 
 interface TrendChartCardProps {
   readonly icon: ReactNode;
@@ -29,6 +30,7 @@ export function TrendChartCard({ icon, title, caption, children }: Readonly<Tren
         borderRadius: "12px",
         border: `1px solid ${theme.palette.border.light}`,
         boxShadow: theme.palette.shadow.card,
+        ...cardHoverSx(theme),
       })}
     >
       <Stack spacing={2} sx={{ padding: { xs: 2, md: 2.5 } }}>

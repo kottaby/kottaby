@@ -85,7 +85,15 @@ export function SessionTrendChart({
             }}
             labelFormatter={formatTooltipLabel}
           />
-          <Bar dataKey="sessionCount" name={seriesLabel} fill={theme.palette.primary.main} radius={[4, 4, 0, 0]} />
+          <Bar
+            dataKey="sessionCount"
+            name={seriesLabel}
+            fill={theme.palette.primary.main}
+            radius={[4, 4, 0, 0]}
+            // Pointer feedback: the hovered day's bar deepens (theme token,
+            // same hue family) so the tooltip target is unmistakable.
+            activeBar={{ fill: theme.palette.primary.dark }}
+          />
         </BarChart>
       </ResponsiveContainer>
     </Box>

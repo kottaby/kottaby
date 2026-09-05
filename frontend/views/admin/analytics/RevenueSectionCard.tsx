@@ -21,7 +21,11 @@ import type { CSSObject, Theme } from "@mui/material/styles";
 import type { ReactNode } from "react";
 import type { AdminPlatformAnalyticsQuery_adminPlatformAnalytics_revenue } from "@/frontend/graphql/generated/gql/graphql";
 import { MetricCard, MetricRow } from "@/frontend/views/admin/analytics/MetricCard";
-import { formatCount, formatMoneyAmount } from "@/frontend/views/admin/analytics/platform-analytics-display";
+import {
+  formatCount,
+  formatMoneyAmount,
+  TABULAR_NUMS_SX,
+} from "@/frontend/views/admin/analytics/platform-analytics-display";
 import type { AnalyticsLabels } from "@/shared/locale/types/analytics";
 
 interface RevenueSectionCardProps {
@@ -63,9 +67,13 @@ export function RevenueSectionCard({ snapshot, labels, locale }: Readonly<Revenu
               {rows.map(row => (
                 <TableRow key={row.currency}>
                   <TableCell sx={cellSx}>{row.currency}</TableCell>
-                  <TableCell sx={cellSx}>{formatMoneyAmount(row.totalAmount)}</TableCell>
-                  <TableCell sx={cellSx}>{formatMoneyAmount(row.last30DaysAmount)}</TableCell>
-                  <TableCell sx={cellSx}>{formatCount(row.paidPaymentsCount, locale)}</TableCell>
+                  <TableCell sx={{ ...cellSx, ...TABULAR_NUMS_SX }}>{formatMoneyAmount(row.totalAmount)}</TableCell>
+                  <TableCell sx={{ ...cellSx, ...TABULAR_NUMS_SX }}>
+                    {formatMoneyAmount(row.last30DaysAmount)}
+                  </TableCell>
+                  <TableCell sx={{ ...cellSx, ...TABULAR_NUMS_SX }}>
+                    {formatCount(row.paidPaymentsCount, locale)}
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>

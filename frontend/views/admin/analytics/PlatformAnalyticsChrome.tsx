@@ -12,7 +12,7 @@
  * `*Outlined` icons, RTL-safe logical composition.
  */
 
-import { InsightsOutlined, RefreshOutlined } from "@mui/icons-material";
+import { FileDownloadOutlined, InsightsOutlined, RefreshOutlined } from "@mui/icons-material";
 import { Box, Button, Chip, CircularProgress, Stack, Typography } from "@mui/material";
 import type { ReactNode } from "react";
 import { focusVisibleRingSx } from "@/frontend/components/ui/focusRing";
@@ -62,9 +62,13 @@ interface PlatformAnalyticsToolbarProps {
   readonly refreshing: boolean;
   readonly refreshDisabled: boolean;
   readonly onRefresh: () => void;
+  /** Downloads the on-screen snapshot as a CSV file (no second fetch). */
+  readonly onExportCsv: () => void;
+  /** `true` while no snapshot exists — the export always reflects real data. */
+  readonly exportDisabled: boolean;
 }
 
-/** Toolbar row: staleness caption + in-flight refresh chip + Refresh CTA. */
+/** Toolbar row: staleness caption + in-flight refresh chip + Refresh + Export CTAs. */
 export function PlatformAnalyticsToolbar({
   labels,
   locale,
@@ -72,6 +76,8 @@ export function PlatformAnalyticsToolbar({
   refreshing,
   refreshDisabled,
   onRefresh,
+  onExportCsv,
+  exportDisabled,
 }: Readonly<PlatformAnalyticsToolbarProps>): ReactNode {
   return (
     <Stack
@@ -99,6 +105,16 @@ export function PlatformAnalyticsToolbar({
             })}
           />
         ) : null}
+        <Button
+          variant="outlined"
+          startIcon={<FileDownloadOutlined />}
+          onClick={onExportCsv}
+          disabled={exportDisabled}
+          aria-label={labels.exportCsvAction}
+          sx={{ ...focusVisibleRingSx, minHeight: 44 }}
+        >
+          {labels.exportCsvAction}
+        </Button>
         <Button
           variant="outlined"
           startIcon={<RefreshOutlined />}

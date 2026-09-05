@@ -9,7 +9,8 @@
  *  - `PlatformAnalyticsContainer` (`useAppTranslation(Analytics)` for the
  *    page title/subtitle, the seven section titles, every metric label, the
  *    per-currency table headers, the trend chart titles/series/axis labels,
- *    refresh + last-updated captions, and the error/denied/empty copy).
+ *    refresh + last-updated captions, the CSV export affordance + CSV column
+ *    headers, and the error/denied/empty copy).
  *
  * Metric-label keys map 1:1 onto the platform-analytics read-model counters
  * (users, sessions, revenue, subscriptions, teachers, ratings, health) —
@@ -158,6 +159,16 @@ export interface AnalyticsLabels {
   // ─── Refresh + staleness ───────────────────────────────────────────────────
   /** Manual refresh action label. */
   readonly refreshAction: string;
+  /** Toolbar export action label — downloads the snapshot as a CSV file. */
+  readonly exportCsvAction: string;
+  /** CSV metadata header — the snapshot's coherence-stamp column label. */
+  readonly csvGeneratedAtHeader: string;
+  /** CSV metrics-table column header — the section title column. */
+  readonly csvSectionHeader: string;
+  /** CSV metrics-table column header — the metric label column. */
+  readonly csvMetricHeader: string;
+  /** CSV metrics-table column header — the raw value column. */
+  readonly csvValueHeader: string;
   /** In-flight refresh indicator label (stale data stays on screen). */
   readonly refreshingLabel: string;
   /**

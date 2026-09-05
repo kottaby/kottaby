@@ -14,7 +14,7 @@
 
 import { Box, Card, Stack, Typography } from "@mui/material";
 import type { ReactNode } from "react";
-import { formatCount } from "@/frontend/views/admin/analytics/platform-analytics-display";
+import { cardHoverSx, formatCount, TABULAR_NUMS_SX } from "@/frontend/views/admin/analytics/platform-analytics-display";
 
 interface MetricCardProps {
   readonly icon: ReactNode;
@@ -22,7 +22,11 @@ interface MetricCardProps {
   readonly children: ReactNode;
 }
 
-/** Card shell — glyph + section title over the section body. */
+/**
+ * Card shell — glyph + section title over the section body. Hover lifts the
+ * card 2px with a border/shadow upgrade (`cardHoverSx`) — the grid reads as
+ * a set of interactive surfaces without any layout shift.
+ */
 export function MetricCard({ icon, title, children }: Readonly<MetricCardProps>): ReactNode {
   return (
     <Card
@@ -31,6 +35,7 @@ export function MetricCard({ icon, title, children }: Readonly<MetricCardProps>)
         border: `1px solid ${theme.palette.border.light}`,
         boxShadow: theme.palette.shadow.card,
         height: "100%",
+        ...cardHoverSx(theme),
       })}
     >
       <Stack spacing={2} sx={{ padding: { xs: 2, md: 2.5 }, height: "100%" }}>
@@ -75,7 +80,7 @@ export function MetricRow({ label, value, locale }: Readonly<MetricRowProps>): R
       <Typography variant="body2" component="p" sx={theme => ({ color: theme.palette.text.secondary })}>
         {label}
       </Typography>
-      <Typography variant="body2" component="p" sx={{ fontWeight: 600 }}>
+      <Typography variant="body2" component="p" sx={{ fontWeight: 600, ...TABULAR_NUMS_SX }}>
         {display}
       </Typography>
     </Stack>

@@ -45,7 +45,7 @@ import { namespaces } from "@/shared/locale/namespaces/index";
 
 // ─── Mandated key inventory (the platform-analytics surface ground truth) ───
 
-/** Every key the platform-analytics UI namespace must carry (71 slots). */
+/** Every key the platform-analytics UI namespace must carry (76 slots). */
 const MANDATED_KEYS = [
   // Metadata + page heading
   "metaTitle",
@@ -120,8 +120,13 @@ const MANDATED_KEYS = [
   "trendDateAxisLabel",
   "trendCountAxisLabel",
   "trendAmountAxisLabel",
-  // Refresh + staleness
+  // Refresh + staleness + export
   "refreshAction",
+  "exportCsvAction",
+  "csvGeneratedAtHeader",
+  "csvSectionHeader",
+  "csvMetricHeader",
+  "csvValueHeader",
   "refreshingLabel",
   "lastUpdatedLabel",
   // Error / denied / retry states

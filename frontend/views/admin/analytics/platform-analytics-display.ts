@@ -14,6 +14,7 @@
  *    keeps the wire strings verbatim.
  */
 
+import type { CSSObject, Theme } from "@mui/material/styles";
 import type { AdminPlatformAnalyticsQuery_adminPlatformAnalytics_revenueTrendDaily } from "@/frontend/graphql/generated/gql/graphql";
 
 /** Shared metric-card grid: 4 columns desktop → 2 tablet → 1 mobile. */
@@ -32,6 +33,30 @@ export const TRENDS_GRID_SX = {
 
 /** Honest placeholder for a NULL metric — an em-dash, never a fabricated `0`. */
 export const NULL_METRIC_PLACEHOLDER = "—";
+
+/**
+ * Shared card hover-lift feedback (metric cards + trend cards): a 2px
+ * upward lift with a border/shadow upgrade over the theme's short easing —
+ * the pointer gets a clear "this surface is alive" response while the
+ * layout stays put (transform never triggers reflow). Tokens only; the
+ * caller spreads this into its existing `sx` theme callback.
+ */
+export function cardHoverSx(theme: Theme): CSSObject {
+  return {
+    transition: theme.transitions.create(["transform", "box-shadow", "border-color"], {
+      duration: theme.transitions.duration.short,
+      easing: theme.transitions.easing.easeOut,
+    }),
+    "&:hover": {
+      transform: "translateY(-2px)",
+      borderColor: theme.palette.border.main,
+      boxShadow: theme.palette.shadow.cardHover,
+    },
+  };
+}
+
+/** Tabular figures for metric values — digit columns stay aligned across rows/refreshes. */
+export const TABULAR_NUMS_SX = { fontVariantNumeric: "tabular-nums" } as const;
 
 /** Fixed body height of the trend plot areas (skeletons match it — no layout shift). */
 export const TREND_CHART_BODY_HEIGHT = 300;

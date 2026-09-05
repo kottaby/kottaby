@@ -64,6 +64,10 @@ import {
   PlatformAnalyticsSkeleton,
 } from "@/frontend/views/admin/analytics/PlatformAnalyticsStates";
 import { PlatformAnalyticsTrends } from "@/frontend/views/admin/analytics/PlatformAnalyticsTrends";
+import {
+  buildPlatformAnalyticsCsv,
+  platformAnalyticsCsvFilename,
+} from "@/frontend/views/admin/analytics/platform-analytics-csv";
 import { useAppLocale, useAppTranslation } from "@/shared/locale";
 import { Analytics } from "@/shared/locale/namespaces/analytics";
 
@@ -121,6 +125,32 @@ export function PlatformAnalyticsContainer(): ReactNode {
     void refetch();
   };
 
+  /**
+   * CSV export — serializes the SNAPSHOT ALREADY ON SCREEN (no second
+   * fetch): the coherence stamp travels with the data, so the file is a
+   * faithful image of the dashboard at its `generatedAt`. Guarded no-op
+   * without a snapshot — the download affordance never fabricates data.
+   * The object URL is revoked on the next tick (the synchronous click has
+   * already consumed it by then).
+   */
+  const handleExportCsv = (): void => {
+    if (snapshot === undefined) {
+      return;
+    }
+    const csv = buildPlatformAnalyticsCsv(snapshot, t);
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = platformAnalyticsCsvFilename(snapshot.generatedAt);
+    document.body.append(anchor);
+    anchor.click();
+    anchor.remove();
+    setTimeout(() => {
+      URL.revokeObjectURL(url);
+    }, 0);
+  };
+
   // Skeleton, denial, or settled content — statements, not a nested ternary.
   let body: ReactNode;
   if (denied) {
@@ -155,6 +185,8 @@ export function PlatformAnalyticsContainer(): ReactNode {
         refreshing={refreshing}
         refreshDisabled={initialLoad || denied}
         onRefresh={handleRefresh}
+        onExportCsv={handleExportCsv}
+        exportDisabled={snapshot === undefined}
       />
       {body}
     </Stack>
