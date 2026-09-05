@@ -222,9 +222,32 @@ describe("errors registry — the seven session-lifecycle keys in BOTH locales",
   });
 
   test("placeholder-name sets agree across ar/en for EVERY errors key (no locale-local drift)", () => {
-    for (const key of Object.keys(errorsAr)) {
-      const arNames = icuPlaceholdersOf(nonEmptyLabelOf(errorsAr, key, "ar"));
-      const enNames = icuPlaceholdersOf(nonEmptyLabelOf(errorsEn, key, "en"));
+    // Grouped blocks (e.g. `planCatalog.planNotFound`) are flattened to their
+    // dotted leaf paths — every STRING leaf on the ar map must agree with the
+    // en map's placeholder set at the SAME path (a flat key loop crashed on
+    // nested blocks: nonEmptyLabelOf saw an object where it demanded a
+    // string).
+    const leafPathsOf = (node: object, prefix = ""): string[] =>
+      Object.entries(node).flatMap(([key, value]) => {
+        const path = prefix.length === 0 ? key : `${prefix}.${key}`;
+        return typeof value === "object" && value !== null ? leafPathsOf(value, path) : [path];
+      });
+    const stringLeafOf = (localeMap: object, path: string, localeName: string): string => {
+      let node: unknown = localeMap;
+      for (const segment of path.split(".")) {
+        if (node === null || typeof node !== "object") {
+          throw new Error(`errors.${localeName}.${path} traverses a non-block node`);
+        }
+        node = Reflect.get(node, segment);
+      }
+      if (typeof node !== "string" || node.length === 0) {
+        throw new Error(`errors.${localeName}.${path} must be a non-empty localized string`);
+      }
+      return node;
+    };
+    for (const path of leafPathsOf(errorsAr)) {
+      const arNames = icuPlaceholdersOf(stringLeafOf(errorsAr, path, "ar"));
+      const enNames = icuPlaceholdersOf(stringLeafOf(errorsEn, path, "en"));
       expect(enNames).toEqual(arNames);
     }
   });
