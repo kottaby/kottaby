@@ -3,7 +3,7 @@ import { homedir } from "node:os";
 import { join, relative, sep } from "node:path";
 import { loadTestEnvFile, withProcessLock } from "@/scripts/lib";
 
-const BUN_BIN = join(homedir(), ".bun", "bin", "bun");
+const BUN_BIN = existsSync(join(homedir(), ".bun", "bin", "bun")) ? join(homedir(), ".bun", "bin", "bun") : process.execPath;
 const PROJECT_ROOT = process.cwd();
 const LOGS_DIR = join(PROJECT_ROOT, "logs");
 const FEEDBACK_DIR = join(PROJECT_ROOT, "test", "scripts", "feedback");
