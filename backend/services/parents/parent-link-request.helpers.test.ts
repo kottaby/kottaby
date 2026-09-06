@@ -31,7 +31,6 @@ import {
 import type {
   NotificationDeliveryReceipt,
   NotificationReturnType,
-  ParentLinkRequestSelectType,
 } from "@/backend/types";
 import { maskFullName } from "@/shared/lib/mask-full-name";
 
@@ -60,7 +59,7 @@ describe("parent-link-request.helpers — pure functions", () => {
 
     test("logs domain error and throws Error when status is corrupt/invalid", () => {
       const logSpy = silenceDomainLog();
-      const corruptRawStatus = "invalid_corrupt_status" as ParentLinkRequestSelectType["status"];
+      const corruptRawStatus = "invalid_corrupt_status";
       const requestId = 404;
 
       expect(() => toCanonicalLinkStatus(corruptRawStatus, requestId)).toThrow(
@@ -176,7 +175,7 @@ describe("parent-link-request.helpers — pure functions", () => {
         id: 4,
         parentId: 10,
         studentId: 20,
-        status: "corrupt_val" as ParentLinkRequestSelectType["status"],
+        status: "corrupt_val",
         studentFullName: "Test Student",
         createdAt: now,
         expiresAt: now,
@@ -257,7 +256,7 @@ describe("parent-link-request.helpers — pure functions", () => {
         id: 13,
         parentId: 10,
         studentId: 20,
-        status: "corrupt_val" as ParentLinkRequestSelectType["status"],
+        status: "corrupt_val",
         parentFullName: "Test Parent",
         createdAt: now,
         expiresAt: now,
@@ -276,10 +275,12 @@ describe("parent-link-request.helpers — database-backed helpers", () => {
       await runInRollback(async tx => {
         const invalidIds = [0, -5, 1.5, Number.NaN, Number.POSITIVE_INFINITY];
 
-        for (const invalidId of invalidIds) {
-          const err = await expectRepoError(() => requireActor(invalidId, UserRole.Parent, LOCALE, tx, false));
-          expect(err).toBeInstanceOf(UnauthorizedError);
-        }
+        await Promise.all(
+          invalidIds.map(async invalidId => {
+            const err = await expectRepoError(() => requireActor(invalidId, UserRole.Parent, LOCALE, tx, false));
+            expect(err).toBeInstanceOf(UnauthorizedError);
+          })
+        );
       });
     });
 
@@ -331,17 +332,23 @@ describe("parent-link-request.helpers — database-backed helpers", () => {
         });
         await createTestParent(tx, suspendedUser.id);
 
+        const governedUsers = [deletedUser, blockedUser, suspendedUser];
+
         // When enforceGovernance = true: all three are rejected with ForbiddenError
-        for (const user of [deletedUser, blockedUser, suspendedUser]) {
-          const err = await expectRepoError(() => requireActor(user.id, UserRole.Parent, LOCALE, tx, true));
-          expect(err).toBeInstanceOf(ForbiddenError);
-        }
+        await Promise.all(
+          governedUsers.map(async user => {
+            const err = await expectRepoError(() => requireActor(user.id, UserRole.Parent, LOCALE, tx, true));
+            expect(err).toBeInstanceOf(ForbiddenError);
+          })
+        );
 
         // When enforceGovernance = false: read paths allow access for governed users
-        for (const user of [deletedUser, blockedUser, suspendedUser]) {
-          const fetched = await requireActor(user.id, UserRole.Parent, LOCALE, tx, false);
-          expect(fetched.id).toBe(user.id);
-        }
+        await Promise.all(
+          governedUsers.map(async user => {
+            const fetched = await requireActor(user.id, UserRole.Parent, LOCALE, tx, false);
+            expect(fetched.id).toBe(user.id);
+          })
+        );
       });
     });
   });
@@ -443,7 +450,9 @@ describe("parent-link-request.helpers — database-backed helpers", () => {
       await runInRollback(async tx => {
         const err = await expectRepoError(() => raiseUnclaimableDenial(101, "already-resolved", LOCALE, tx));
         expect(err).toBeInstanceOf(ConflictError);
-        expect((err as ConflictError).code).toBe("PARENT_LINK_REQUEST_ALREADY_RESOLVED");
+        if (err instanceof ConflictError) {
+          expect(err.code).toBe("PARENT_LINK_REQUEST_ALREADY_RESOLVED");
+        }
       });
     });
 
@@ -466,7 +475,9 @@ describe("parent-link-request.helpers — database-backed helpers", () => {
 
         const err = await expectRepoError(() => raiseUnclaimableDenial(request.id, "expired", LOCALE, tx));
         expect(err).toBeInstanceOf(ConflictError);
-        expect((err as ConflictError).code).toBe("PARENT_LINK_REQUEST_EXPIRED");
+        if (err instanceof ConflictError) {
+          expect(err.code).toBe("PARENT_LINK_REQUEST_EXPIRED");
+        }
 
         // Verify request was marked expired in DB
         const updated = await ParentLinkRequestRepository.findById(request.id, tx);

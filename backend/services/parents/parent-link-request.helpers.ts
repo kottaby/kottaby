@@ -372,7 +372,7 @@ export function isDeliveryReceipt(
  * for raw-SQL read paths). A corrupt stored value is an internal invariant
  * violation — it NEVER carries the row's unvalidated status to the wire.
  */
-export function toCanonicalLinkStatus(raw: ParentLinkRequestSelectType["status"], requestId: number): LinkStatus {
+export function toCanonicalLinkStatus(raw: string, requestId: number): LinkStatus {
   if (isLinkStatus(raw)) {
     return raw;
   }
