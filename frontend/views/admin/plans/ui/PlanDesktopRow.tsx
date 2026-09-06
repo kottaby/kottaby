@@ -14,6 +14,7 @@ import {
   EditOutlined as EditIcon,
 } from "@mui/icons-material";
 import { IconButton, Stack, TableCell, TableRow, Tooltip } from "@mui/material";
+import { focusVisibleRingSx } from "@/frontend/components/ui/focusRing";
 import type { AdminPlansQuery } from "@/frontend/graphql/generated/gql/graphql";
 import { formatPlanDate } from "@/frontend/views/admin/plans/catalog/planCatalogFormatting";
 import { PlanStatusChip } from "@/frontend/views/admin/plans/ui/PlanStatusChip";
@@ -71,7 +72,7 @@ export function PlanDesktopRow({
                 onClick={() => onEdit(plan)}
                 disabled={isActionPending}
                 aria-label={`${t.editPlanButton} ${plan.title}`}
-                sx={{ width: 44, height: 44 }}
+                sx={{ ...focusVisibleRingSx, width: 44, height: 44 }}
               >
                 <EditIcon fontSize="small" />
               </IconButton>
@@ -87,6 +88,7 @@ export function PlanDesktopRow({
                   plan.isActive ? `${t.deactivatePlanButton} ${plan.title}` : `${t.activatePlanButton} ${plan.title}`
                 }
                 sx={theme => ({
+                  ...focusVisibleRingSx,
                   width: 44,
                   height: 44,
                   color: plan.isActive ? theme.palette.error.main : theme.palette.primary.main,
