@@ -19,7 +19,7 @@
 ## Phase 1 — Mechanical Categories
 
 - [ ] T1.1 Duplicate exports: same symbol exported twice (named+default or aliases) — pick canonical export by consumer usage, update consumers, delete duplicate
-- [ ] T1.2 Dependencies: verify unused packages via grep of configs/workflows/bin usage before removal; add unlisted-but-imported packages with lockfile-resolved versions; sync lockfile with one install at the end
+- [x] T1.2 Dependencies: verify unused packages via grep of configs/workflows/bin usage before removal; add unlisted-but-imported packages with lockfile-resolved versions; sync lockfile with one install at the end
 - [x] T1.3 Config hints in knip output: resolve each (remove dead entry globs, fix no-match patterns); do NOT blanket-remove curated ignores without proving they suppress nothing
 
 ## Phase 2 — Unused Files

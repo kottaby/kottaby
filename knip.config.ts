@@ -53,10 +53,52 @@ const config: KnipConfig = {
     "shared/constants/iana-timezone.enum.ts",
   ],
 
-  // Tooling-only / lifecycle dependencies not statically imported from any source file.
-  // These are spell-check dicts and duplicate scanner.
-  // Conservative starter set — re-run knip after entry changes to verify remaining deps.
-  ignoreDependencies: ["lint-staged", "jscpd", "@cspell/dict-ar", "@cspell/eslint-plugin"],
+  // Dependencies that are genuinely used but invisible to knip's import graph.
+  // Each entry has a functional reference (config string, bin invocation, file-path
+  // access, or docs-mandated runtime) — grep-verified before registration.
+  ignoreDependencies: [
+    // jscpd: bin invoked through the `check:duplicates` script wrapper (knip cannot
+    // see binaries nested inside run-locked-cmd.ts arguments).
+    "jscpd",
+    // @cspell/dict-ar: dictionary loaded by cspell.config.yaml
+    // (`@cspell/dict-ar/cspell-ext.json`) — config-string reference, never imported.
+    "@cspell/dict-ar",
+    // lint-staged / @cspell/eslint-plugin: no live reference found (husky pre-commit
+    // hook is empty; the eslint import is commented out). Retained pending a
+    // removal decision in a later cleanup wave.
+    "lint-staged",
+    "@cspell/eslint-plugin",
+
+    // newrelic: string in next.config.ts `serverExternalPackages` + the newrelic.cjs
+    // agent config + NEW_RELIC_* env surface (agent is require()d by the runtime,
+    // not imported by app code).
+    "newrelic",
+
+    // @vercel/analytics + @vercel/speed-insights: imported by
+    // frontend/providers/VercelObservability.tsx, which is unreachable from knip
+    // entries. Revisit if that provider file is ever deleted.
+    "@vercel/analytics",
+    "@vercel/speed-insights",
+
+    // @pothos/plugin-dataloader + dataloader: canonical batching pattern mandated
+    // by docs/graphql/dataloader-batching.md + backend AGENTS.md ("t.loadable() for
+    // any per-parent field") — no static registration yet by design.
+    "@pothos/plugin-dataloader",
+    "dataloader",
+
+    // @typescript/native-preview: provides the `tsgo` bin (node_modules/.bin/tsgo)
+    // used by CI, the quality gate, and scripts/health/*.
+    "@typescript/native-preview",
+
+    // @typescript/typescript6: required by literal path in scripts/ts6-eslint-patch.cjs
+    // (swaps eslint's typescript for the TS6 shim) + next.config.ts useTypeScriptCli.
+    "@typescript/typescript6",
+    // cldr-*: raw JSON files read via node_modules/... file paths by the IANA
+    // timezone generator (scripts/iana-timezone-generator/paths.ts).
+    "cldr-core",
+    "cldr-dates-full",
+    "cldr-localenames-full",
+  ],
 };
 
 export default config;
