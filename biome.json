@@ -45,16 +45,6 @@
   },
   "overrides": [
     {
-      "includes": ["app/**/error.tsx"],
-      "linter": {
-        "rules": {
-          "suspicious": {
-            "noShadowRestrictedNames": "off"
-          }
-        }
-      }
-    },
-    {
       "includes": ["frontend/lib/theme-detection.ts"],
       "linter": {
         "rules": {

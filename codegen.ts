@@ -1,10 +1,9 @@
 import type { CodegenConfig } from "@graphql-codegen/cli";
 
 const JSON_SCALAR_TYPE = "unknown"; // Or "JsonValue" if you define it elsewhere
-// Inline shape mirrors `LocalizedString = Partial<Record<AppLocale, string>>` from
-// `@/shared/types/localized-string` (AppLocale is "ar" | "en" today). Kept inline
-// so the generated file is self-contained; canonical type is re-exported from
-// `@/frontend/types/localized-string.types` for component consumers.
+// Inline shape (kept inline so the generated file is self-contained). The
+// locale union mirrors `AppLocale` ("ar" | "en" today) from
+// `@/shared/locale/AppLocale`.
 const LOCALIZED_STRING_TYPE = "Partial<Record<'ar' | 'en', string>>";
 
 const sharedGqlConfig: CodegenConfig["config"] = {

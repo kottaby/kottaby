@@ -1,4 +1,3 @@
-// import cspellESLintPluginRecommended from "@cspell/eslint-plugin/recommended"; disabled for performance
 import eslint from "@eslint/js";
 import graphqlPlugin from "@graphql-eslint/eslint-plugin";
 import { defineConfig, globalIgnores } from "eslint/config";
@@ -235,7 +234,6 @@ const eslintConfig = defineConfig([
   {
     files: [
       "frontend/utils/logger.ts",
-      "scripts/oxlint-categorize.ts",
       "scripts/**/*.ts",
       "backend/db/scripts/**/*.ts",
       "backend/db/test/**/*.ts",

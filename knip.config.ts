@@ -92,12 +92,6 @@ const config: KnipConfig = {
     // @cspell/dict-ar: dictionary loaded by cspell.config.yaml
     // (`@cspell/dict-ar/cspell-ext.json`) — config-string reference, never imported.
     "@cspell/dict-ar",
-    // lint-staged / @cspell/eslint-plugin: no live reference found (husky pre-commit
-    // hook is empty; the eslint import is commented out). Retained pending a
-    // removal decision in a later cleanup wave.
-    "lint-staged",
-    "@cspell/eslint-plugin",
-
     // newrelic: string in next.config.ts `serverExternalPackages` + the newrelic.cjs
     // agent config + NEW_RELIC_* env surface (agent is require()d by the runtime,
     // not imported by app code).

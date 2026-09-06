@@ -44,8 +44,6 @@ bun run test:db                # Database repository tests (parallel via test/sc
 bun run test:db:sequential     # Database tests (sequential, for debugging)
 bun run test:integration       # Provider integration smokes (parallel via test/scripts/run-integration-tests-parallel.ts)
 bun run test:integration:sequential  # Integration tests (sequential, for debugging)
-bun run test:live-comm         # Communication provider integration subset
-bun run test:live-fx           # FX provider integration subset
 bun run test:services          # Backend services tests (parallel via test/scripts/run-services-tests-parallel.ts)
 bun run test:services:sequential # Backend services tests (sequential, for debugging)
 bun run test:graphql           # GraphQL integration tests (dev server via test/scripts/run-server-tests.ts)
@@ -119,20 +117,13 @@ This is NOT standard Next.js. APIs and conventions differ from training data. **
 
 ### Path Aliases
 - The `@/*` path alias maps to the project root (`./`), configured in `tsconfig.json` under `compilerOptions.paths`
-- All imports use this pattern: `import { logger } from "@/backend/lib"` (never relative paths)
+- All imports use this pattern: `import { logger } from "@/backend/lib/logger"` (never relative paths)
 - Examples: `@/backend/services/` → `./backend/services/`, `@/frontend/views/` → `./frontend/views/`
 
-### Barrel Files (`index.ts`) Conventions
-- **Shortest import path**: Always import from the highest available barrel (e.g. `@/backend/services`, not `@/backend/services/communication/channels/whatsapp/cloud-api`). If a barrel doesn't exist at the needed level, create one.
-- **Nested barrels**: Every nested subdirectory that has exportable modules MUST have its own `index.ts`. Parent barrels re-export from nested barrels (`export * from "./subdir"`), never from nested files directly (`export * from "./subdir/file"` is prohibited).
-- **Prefer `export *`**: Use `export * from "./module"` exclusively. Avoid named re-exports (`export { A, B } from "./module"`) unless two source files export the same symbol name (collision) — in that case, rename the function in the source file so `export *` works, rather than aliasing in the barrel.
-- **`./` not `@/` in barrels**: `index.ts` files MUST use relative `./` paths, not `@/` path aliases. Example: `export * from "./requests"`, not `export * from "@/backend/services/.../requests"`.
-- **No `../` in barrels**: `index.ts` files MUST NOT use `../` or `./../` — only `./` paths to files/subdirs in the same directory or one level down.
-- **Max one `/` per path**: Each `export * from` path in an `index.ts` MUST NOT contain more than one `/`. Example: `export * from "./requests"` (one `/`) is allowed; `export * from "./requests/get-phone-number.request"` (two `/`) is prohibited — use `export * from "./requests"` and let the `requests/index.ts` barrel handle the rest.
-- **No imports in barrels**: `index.ts` files contain ONLY `export *` (or collision-disambiguation `export { }`) statements — never `import` statements. The only exception is GraphQL mutation/query layers where imports register types in the GraphQL schema (not re-exported).
-- **Unique export names**: When multiple files in the same directory export functions with the same generic name (e.g. `buildRequest`, `parseResponse`), rename them to unique descriptive names in the source files (e.g. `buildGetPhoneNumberRequest`, `parseGetPhoneNumberResponse`) so the barrel can use `export *` without aliasing.
-- **Collision registry**: When `export *` causes a naming collision (TS2308 or ESLint `import-x/export`), keep `export { }` for the colliding symbol and document the exception in `ai/plans/reexport-elimination/outcome/collisions-registry.md`. See `docs/architecture/import-export-conventions.md` for full rules.
-- **`export type { }` stays**: `export type { X } from "./file"` is NOT converted to `export *` — type-only re-exports are intentional and keep type semantics explicit.
+### Import & Barrel Conventions
+- **Deep imports are the default**: import directly from the module file (`import { logger } from "@/backend/lib/logger"`, `import { isValidEmail } from "@/shared/lib/email"`). Never create a barrel just to shorten an import path — `shared/AGENTS.md` ("prefer deep imports over barrel files") is the layer-level rule.
+- **Barrels only where genuinely consumed**: an `index.ts` barrel may exist only while multiple consumers import it — knip flags unused barrels and dead barrels are deleted (the `clean-unused` wave removed 15 that existed only for the old mandate). Live examples: `@/backend/types`, `@/backend/db/repo`, `@/shared/locale`, `@/shared/constants`, `@/backend/services`, plus the GraphQL side-effect barrels (`@/backend/graphql/pothos`, `@/backend/graphql/{query,mutation}` — knip entries in `knip.config.ts`, loaded via `import "@/..."` to register schema types).
+- **Barrel mechanics** (for barrels that legitimately exist): `export * from "./module"` is the default; named re-exports only to disambiguate a real collision (TS2308 / ESLint `import-x/export`) — keep `export { }` for the colliding symbol only. `index.ts` files use relative `./` paths (never `@/` aliases, never `../`) and contain only re-export statements — `import` statements are prohibited except in GraphQL mutation/query layers where side-effect imports register types in the schema. Type-only re-exports (`export type { X } from "./file"`) stay explicit.
 - **No re-export shims**: Files that only re-export from another directory (`export { X } from "@/other/dir/file"`) are prohibited. Consumers must import directly from the original source. Delete shim files and update consumers.
 
 ### Shared Layer
@@ -426,14 +417,12 @@ After reading the applicable instruction files and AGENTS.md, subagents check fo
 - `docs/services/general-user-creation.md` - General user creation pattern (createUserOfType null extension, specialized group filtering, cache eviction)
 - `docs/billing/quota-system.md` - Quota System: append-only ledger, FIFO selection, periodic rollover, on-demand scheduling integration
 - `.github/CODE_REVIEW_CHECKLIST.md` - Code review guidelines
-- `docs/services/cron-service.md` - Cron service pattern reference
 - `docs/frontend/ui-shared-scaffold-pattern.md` - UI Shared Scaffold (*Shared.tsx) pattern for common/desktop/mobile triplication
 - `docs/frontend/duplication-elimination-patterns.md` - Duplication elimination patterns A-G (scaffold extraction, shared utility, dead code deletion, store consolidation, scaffold extension, shared view scaffold, locale type consolidation) — Phase 6 eliminated 96% of duplications (475→18 pairs) with zero jscpd:ignore
 - `docs/frontend/meeting-integrations-ui.md` - Meeting Integrations UI canonical reference (MetricCardGrid, AppDataGrid, OAuth callback, reconnect-all, status badges, clipboard, i18n namespaces, mobile-desktop responsive, Zod schema factory, animations, permission-gated cross-links, lint workarounds, accessibility)
 - `docs/frontend/whatsapp-ui-patterns.md` - WhatsApp UI canonical reference (ViewModel composable hooks, URL-synced tabs, dialog state, per-row loading, i18n label helpers, StatusBadge, animations, accessibility, testing patterns, gotchas)
 - `docs/frontend/quota-ui-patterns.md` - Quota UI canonical reference (tier isolation, RHF 3-generic pattern, cache.updateQuery for paginated lists, StatusBadge categories, MetricCard animations, reduced-motion CSS in sx, Storybook ErrorState naming, component test tier-view mocking, i18n CLDR plurals, 150-line file limit, QuotaFormAccessProvider RBAC)
 - `docs/testing/shared-test-runner.md` - Shared parallel test runner pattern
-- `docs/backend/shared-types-pattern.md` - Cross-layer shared types in shared/types/
 - `docs/backend/meeting-adapter-base.md` - Meeting provider adapter base class pattern reference
 - `docs/backend/billing-repo-factory.md` - Billing repo factory with configurable hooks pattern reference
 - `docs/backend/schema-helpers.md` - Schema column and junction table helpers pattern reference
@@ -445,9 +434,6 @@ After reading the applicable instruction files and AGENTS.md, subagents check fo
 - `docs/auth/supervisor-permissions.md` - Supervisor permission model (teacher/student/parent management, staff exclusion, system group editing, authScope pattern)
 - `docs/i18n/cross-layer-enum-migration.md` - Cross-layer enum delete/codemod pattern (currency/timezone/class-instance-detail workflow)
 - `docs/backend/service-base-pattern.md` - Service base class, shared resolvers, insert payload builders, auth session helpers
-- `docs/backend/types-consolidation.md` - Types consolidation: moving `.types.ts` from service layer to `backend/types/`, split rules, barrel conventions
-- `docs/graphql/pothos-field-factories.md` - Pothos field helpers, input field helpers, and query field factory idioms
-- `docs/architecture/import-export-conventions.md` - Import/export barrel conventions, `export *` rules, collision registry, re-export elimination summary
 - `docs/quality/linting-rules.md` - Oxlint & ESLint/sonarjs lint rule fix recipes and config overrides
 - `docs/quality/ci-pipeline.md` - CI pipeline canonical reference (.github/workflows/ci.yml trigger model, job/stage topology, caching rules, security posture, branch-protection admin setup, local reproduction commands, sabotage evidence)
 - `docs/workflows/plan-doc-reconciliation.md` - Plan-vs-canonical-doc reconciliation workflow (docs-only plan pattern, anchor-on-text, outcome-pointer rule, known-open-issues propagation, phantom-spec-code handling, markdown link-integrity loop)

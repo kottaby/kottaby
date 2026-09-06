@@ -39,7 +39,7 @@
 
 ## Phase 5 — Lint/Quality Convergence
 
-- [ ] T5.1 If global type/lint check explodes with module-resolution errors for tests/stories: fix root cause via tsconfig include (enumerate root config files explicitly, never blind `*.ts` glob); never restrict linter configs as workaround; report OOM rather than shrinking scope
+- [x] T5.1 If global type/lint check explodes with module-resolution errors for tests/stories: fix root cause via tsconfig include (enumerate root config files explicitly, never blind `*.ts` glob); never restrict linter configs as workaround; report OOM rather than shrinking scope
 
 ## Phase 6 — Final Verification
 
