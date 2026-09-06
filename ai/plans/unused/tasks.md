@@ -34,8 +34,8 @@
 
 ## Phase 4 — Cross-Cutting Fixes
 
-- [ ] T4.1 Delete orphaned shell files and same-dir `export *` barrel lines after export removal
-- [ ] T4.2 Re-run `check:unused` and fix second-order findings (newly-unused callers) until it exits 0
+- [x] T4.1 Delete orphaned shell files and same-dir `export *` barrel lines after export removal
+- [x] T4.2 Re-run `check:unused` and fix second-order findings (newly-unused callers) until it exits 0
 
 ## Phase 5 — Lint/Quality Convergence
 
