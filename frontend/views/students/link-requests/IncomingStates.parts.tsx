@@ -1,10 +1,9 @@
 "use client";
 
 import { LinkOutlined } from "@mui/icons-material";
-import { Alert, Box, Button, Skeleton, Stack } from "@mui/material";
+import { Alert, Box, Button, Skeleton, Stack, Typography } from "@mui/material";
 import type { ReactNode } from "react";
 import { focusVisibleRingSx } from "@/frontend/components/ui/focusRing";
-import { IconCircleEmptyState } from "@/frontend/components/ui/IconCircleEmptyState";
 import type { ErrorsLabels } from "@/shared/locale/types/errors";
 import type { ParentLinkLabels } from "@/shared/locale/types/parentLink";
 
@@ -94,18 +93,38 @@ export function IncomingLoadErrorAlert({
 }
 
 /**
- * IncomingEmptyState — the zero-rows branch: delegates to the shared
- * `IconCircleEmptyState` (centered, generously-spaced composition: link
- * icon in a tinted circle + `incomingEmptyTitle` / `incomingEmptyBody`).
- * No action buttons render here.
+ * IncomingEmptyState — the zero-rows branch: a centered, generously-spaced
+ * composition (link icon in a tinted circle + `incomingEmptyTitle` /
+ * `incomingEmptyBody`). No action buttons render here.
  */
 export function IncomingEmptyState({ labels }: Readonly<{ readonly labels: ParentLinkLabels }>): ReactNode {
   return (
-    <IconCircleEmptyState
-      testId="student-link-requests-empty"
-      icon={<LinkOutlined sx={{ fontSize: 36 }} />}
-      title={labels.incomingEmptyTitle}
-      body={labels.incomingEmptyBody}
-    />
+    <Stack
+      spacing={2}
+      data-testid="student-link-requests-empty"
+      sx={{ alignItems: "center", justifyContent: "center", py: { xs: 6, sm: 10 }, px: 2, textAlign: "center" }}
+    >
+      <Box
+        aria-hidden
+        sx={theme => ({
+          width: 72,
+          height: 72,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          borderRadius: "50%",
+          bgcolor: theme.palette.secondaryContainer,
+          color: theme.palette.onSecondaryContainer,
+        })}
+      >
+        <LinkOutlined sx={{ fontSize: 36 }} />
+      </Box>
+      <Typography variant="h6" component="p" sx={{ fontWeight: 700 }}>
+        {labels.incomingEmptyTitle}
+      </Typography>
+      <Typography variant="body2" sx={theme => ({ color: theme.palette.text.secondary, maxWidth: 420 })}>
+        {labels.incomingEmptyBody}
+      </Typography>
+    </Stack>
   );
 }

@@ -13,8 +13,7 @@
  */
 
 import { useCallback, useState } from "react";
-import { useSessionDisputeOutcomeArms } from "@/frontend/views/student/sessions/useSessionDisputeOutcomeArms";
-import type { ContainerNotice } from "@/frontend/views/teacher/sessions/teacherSessionSlots";
+import { type ContainerNotice, dropRowAlert } from "@/frontend/views/teacher/sessions/teacherSessionSlots";
 import { Errors, Sessions, useAppTranslation } from "@/shared/locale";
 
 export interface TeacherDisputeDialogArms {
@@ -61,21 +60,54 @@ export function useTeacherDisputeDialogArms(wiring: DisputeArmsWiring): TeacherD
     });
   }, [releaseDispute]);
 
-  // The four outcome arms delegate to the role-neutral hook (all snackbars;
-  // the row stays in the list; the session-missing arm deliberately performs
-  // NO eviction — see the dispute dialog's docblock).
-  const outcomeArms = useSessionDisputeOutcomeArms({
-    sessionsCopy: t,
-    errorsCopy: te,
-    closeDisputeDialog,
-    setRowAlerts,
-    setNotice,
-  });
+  const handleDisputed = useCallback(
+    (sessionId: string): void => {
+      setRowAlerts(prev => dropRowAlert(prev, sessionId));
+      setNotice({ message: t.disputeOpenedNotice, severity: "success" });
+      closeDisputeDialog();
+    },
+    [t, closeDisputeDialog, setRowAlerts, setNotice]
+  );
+
+  const handleDisputeSessionMissing = useCallback(
+    (sessionId: string): void => {
+      // Deliberately NO eviction arm (see the dispute dialog's docblock) —
+      // the honest surface is the error notice; the row stays in the list.
+      setRowAlerts(prev => dropRowAlert(prev, sessionId));
+      setNotice({ message: te.sessionNotFound, severity: "error" });
+      closeDisputeDialog();
+    },
+    [te, closeDisputeDialog, setRowAlerts, setNotice]
+  );
+
+  // No sessionId parameter: the invalid-transition arm never addresses the
+  // row (no inline alert — the dispute vocabulary is snackbar-mapped), and a
+  // parameterless callback stays assignable to the dialog's
+  // `(sessionId: string) => void` prop type.
+  const handleDisputeInvalidTransition = useCallback((): void => {
+    setNotice({ message: te.sessionInvalidTransition, severity: "error" });
+    closeDisputeDialog();
+  }, [te, closeDisputeDialog, setNotice]);
+
+  /**
+   * Failure arm (VALIDATION / FORBIDDEN / masked) — the dispute dialog
+   * STAYS OPEN for a retry (its own documented contract), so the dispute
+   * slot stays claimed and the snackbar carries the resolved copy.
+   */
+  const handleDisputeFailure = useCallback(
+    (message: string): void => {
+      setNotice({ message, severity: "error" });
+    },
+    [setNotice]
+  );
 
   return {
     disputeDialogSessionId,
     openDisputeDialog,
     closeDisputeDialog,
-    ...outcomeArms,
+    handleDisputed,
+    handleDisputeSessionMissing,
+    handleDisputeInvalidTransition,
+    handleDisputeFailure,
   };
 }

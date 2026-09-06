@@ -1,14 +1,19 @@
 "use client";
 
+import { Alert, Snackbar } from "@mui/material";
 import type { ReactNode } from "react";
-import { SessionNoticeSnackbar } from "@/frontend/components/ui/sessionList";
 import type { ContainerNotice } from "@/frontend/views/admin/disputes/useAdminDisputesNotice";
 
 /**
- * AdminDisputesNoticeSnackbar — the arbitration-queue slot of the shared
- * `SessionNoticeSnackbar`, fed by {@link useAdminDisputesNotice}'s
- * `ContainerNotice` (ONE transient success / info / error notice).
+ * AdminDisputesNoticeSnackbar — the container-level snackbar slot fed by
+ * {@link useAdminDisputesNotice}: ONE transient notice (success / info /
+ * error) auto-hiding at the sessions-parity duration, anchored bottom-center
+ * (MUI Snackbar anchoring is direction-agnostic — RTL-safe by construction).
+ * Extracted verbatim from `AdminDisputesContainer`; behavior is unchanged.
  */
+
+/** Snackbar autohide — parity with the sessions containers' snackbar slot. */
+const SNACKBAR_AUTOHIDE_MS = 6000;
 
 interface AdminDisputesNoticeSnackbarProps {
   readonly notice: ContainerNotice | null;
@@ -20,5 +25,18 @@ export function AdminDisputesNoticeSnackbar({
   notice,
   onDismiss,
 }: Readonly<AdminDisputesNoticeSnackbarProps>): ReactNode {
-  return <SessionNoticeSnackbar notice={notice} onDismiss={onDismiss} />;
+  return (
+    <Snackbar
+      open={notice !== null}
+      autoHideDuration={SNACKBAR_AUTOHIDE_MS}
+      onClose={onDismiss}
+      anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+    >
+      {notice === null ? undefined : (
+        <Alert onClose={onDismiss} severity={notice.severity} variant="filled">
+          {notice.message}
+        </Alert>
+      )}
+    </Snackbar>
+  );
 }

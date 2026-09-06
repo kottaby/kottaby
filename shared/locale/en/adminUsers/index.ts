@@ -27,14 +27,7 @@ export const adminUsersEn: AdminUsersLabels = {
     verified: "Verified",
     certified: "Certified",
     parentLinked: "Parent Linked",
-    childrenCount: {
-      zero: "{count} children",
-      one: "{count} child",
-      two: "{count} children",
-      few: "{count} children",
-      many: "{count} children",
-      other: "{count} children",
-    },
+    childrenCount: count => (count === 1 ? "1 child" : `${count} children`),
     pendingReview: "Pending Review",
   },
   stats: {
@@ -131,7 +124,8 @@ export const adminUsersEn: AdminUsersLabels = {
   },
   certifyDialog: {
     title: "Certify teacher",
-    warningMessage: "Certifying {name} bypasses the evaluation pipeline and grants teacher access immediately.",
+    warningMessage: name =>
+      `Certifying ${name} bypasses the evaluation pipeline and grants teacher access immediately.`,
     evaluatorCheckbox: "Also grant evaluator privileges",
     auditNote: "This action is recorded in the audit log.",
     confirm: "Certify teacher",

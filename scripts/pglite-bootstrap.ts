@@ -31,7 +31,7 @@ async function main() {
       const stat = statSync(join(MIGRATIONS_DIR, name));
       return stat.isDirectory();
     })
-    .sort((a, b) => a.localeCompare(b));
+    .sort();
 
   let applied = 0;
   for (const dir of entries) {

@@ -1,10 +1,10 @@
 "use client";
 
-import { Button, Stack, Tooltip, Typography } from "@mui/material";
+import { Box, Button, Stack, Tooltip, Typography } from "@mui/material";
 import type { ReactNode } from "react";
-import { SessionMetaCell, SessionRowCardShell } from "@/frontend/components/ui/sessionList";
 import type { AdminDisputedSessionsQuery_adminDisputedSessions_items } from "@/frontend/graphql/generated/gql/graphql";
 import { formatApplicantDate } from "@/frontend/lib/i18n/format-date";
+import { AdminDisputeRowMetaCell } from "@/frontend/views/admin/disputes/AdminDisputeRowMetaCell";
 import { AdminDisputeRowReason } from "@/frontend/views/admin/disputes/AdminDisputeRowReason";
 import { SESSION_FEE_CURRENCY } from "@/shared/constants";
 import { useAppLocale } from "@/shared/locale";
@@ -73,7 +73,26 @@ export function AdminDisputeRow({
   const disputeReason = session.disputeReason ?? NO_VALUE_PLACEHOLDER;
 
   return (
-    <SessionRowCardShell testId={`admin-dispute-row-${session.id}`}>
+    <Box
+      data-testid={`admin-dispute-row-${session.id}`}
+      sx={theme => ({
+        display: "grid",
+        gap: 1.5,
+        p: { xs: 2.5, sm: 3 },
+        borderRadius: 3,
+        border: "1px solid",
+        borderColor: theme.palette.outlineVariant,
+        bgcolor: theme.palette.surfaceContainerLow,
+        boxShadow: theme.palette.shadow.card,
+        // Same idle→hover emphasis recipe as the participant SessionRow:
+        // elevation + outline emphasis ease in together.
+        transition: theme.transitions.create(["box-shadow", "transform", "border-color"]),
+        "&:hover": {
+          boxShadow: theme.shadows[4],
+          borderColor: theme.palette.outline,
+        },
+      })}
+    >
       <Stack
         sx={{
           gap: 1.5,
@@ -92,10 +111,10 @@ export function AdminDisputeRow({
           </Typography>
         </Stack>
         <Stack sx={{ gap: 1.5, flexDirection: "row", flexWrap: "wrap", alignItems: "baseline" }}>
-          <SessionMetaCell label={t.fee} value={feeText} />
-          <SessionMetaCell label={t.createdAt} value={createdText} />
-          <SessionMetaCell label={t.disputedAtLabel} value={disputedText} />
-          <SessionMetaCell label={t.participantsLabel} value={participantsText} />
+          <AdminDisputeRowMetaCell label={t.fee} value={feeText} />
+          <AdminDisputeRowMetaCell label={t.createdAt} value={createdText} />
+          <AdminDisputeRowMetaCell label={t.disputedAtLabel} value={disputedText} />
+          <AdminDisputeRowMetaCell label={t.participantsLabel} value={participantsText} />
         </Stack>
       </Stack>
 
@@ -120,6 +139,6 @@ export function AdminDisputeRow({
           </Button>
         </Tooltip>
       </Stack>
-    </SessionRowCardShell>
+    </Box>
   );
 }

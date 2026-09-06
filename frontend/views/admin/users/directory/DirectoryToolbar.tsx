@@ -25,13 +25,9 @@
  */
 
 import { AddOutlined as AddIcon } from "@mui/icons-material";
-import { Box, Button, Card, TextField } from "@mui/material";
+import { Box, Button, Card, FormControl, InputLabel, MenuItem, Select, TextField } from "@mui/material";
 import type { ReactNode } from "react";
-import {
-  DirectoryFilterSelect,
-  DirectoryRoleFilter,
-  DirectorySearchField,
-} from "@/frontend/views/admin/users/directory";
+import { DirectoryRoleFilter, DirectorySearchField } from "@/frontend/views/admin/users/directory";
 import type { DirectoryGovernance, DirectoryRole } from "@/frontend/views/admin/users/utils";
 import type { AdminUsersLabels } from "@/shared/locale/types/adminUsers";
 
@@ -60,29 +56,38 @@ interface DirectoryGovernanceFilterProps {
   readonly setGovernanceFilter: (value: DirectoryGovernance | "") => void;
 }
 
-function asGovernanceFilterValue(value: string): DirectoryGovernance | "" {
-  if (value === "Active" || value === "Suspended" || value === "Blocked" || value === "Deleted") {
-    return value;
-  }
-  return "";
-}
-
 function DirectoryGovernanceFilter(props: DirectoryGovernanceFilterProps): ReactNode {
   const { labels } = props;
   return (
-    <DirectoryFilterSelect
-      id={props.id}
-      label={labels.filters.governance}
-      value={props.governanceFilter}
-      onChange={value => props.setGovernanceFilter(asGovernanceFilterValue(value))}
-      emptyOptionLabel={labels.genderOptions.unspecified}
-      options={[
-        { value: "Active", label: labels.statusBadges.active },
-        { value: "Suspended", label: labels.statusBadges.suspended },
-        { value: "Blocked", label: labels.statusBadges.blocked },
-        { value: "Deleted", label: labels.statusBadges.deleted },
-      ]}
-    />
+    <FormControl sx={{ minWidth: 150, flex: { xs: "1 1 100%", sm: "0 1 auto" } }}>
+      <InputLabel htmlFor={props.id}>{labels.filters.governance}</InputLabel>
+      <Select
+        id={props.id}
+        value={props.governanceFilter}
+        label={labels.filters.governance}
+        onChange={event => props.setGovernanceFilter(event.target.value || "")}
+        sx={{
+          height: 44,
+          // Vertically center the visible value inside the fixed 44px
+          // control: the default block padding makes the inner select box
+          // taller than the outlined root.
+          "&& .MuiSelect-select": {
+            minHeight: 44,
+            boxSizing: "border-box",
+            paddingBlock: 0,
+            display: "flex",
+            alignItems: "center",
+          },
+          "& .MuiSelect-nativeInput": { height: "100%" },
+        }}
+      >
+        <MenuItem value="">{labels.genderOptions.unspecified}</MenuItem>
+        <MenuItem value="Active">{labels.statusBadges.active}</MenuItem>
+        <MenuItem value="Suspended">{labels.statusBadges.suspended}</MenuItem>
+        <MenuItem value="Blocked">{labels.statusBadges.blocked}</MenuItem>
+        <MenuItem value="Deleted">{labels.statusBadges.deleted}</MenuItem>
+      </Select>
+    </FormControl>
   );
 }
 

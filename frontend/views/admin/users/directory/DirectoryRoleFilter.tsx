@@ -6,9 +6,9 @@
  * "any role").
  */
 
+import { FormControl, InputLabel, MenuItem, Select } from "@mui/material";
 import type { ReactNode } from "react";
-import { DirectoryFilterSelect } from "@/frontend/views/admin/users/directory";
-import { asDirectoryRole, type DirectoryRole } from "@/frontend/views/admin/users/utils";
+import type { DirectoryRole } from "@/frontend/views/admin/users/utils";
 import type { AdminUsersLabels } from "@/shared/locale/types/adminUsers";
 
 interface DirectoryRoleFilterProps {
@@ -18,25 +18,36 @@ interface DirectoryRoleFilterProps {
   readonly labels: Pick<AdminUsersLabels, "filters" | "roleLabels" | "genderOptions">;
 }
 
-function asRoleFilterValue(value: string): DirectoryRole | "" {
-  if (value === "") return "";
-  return asDirectoryRole(value);
-}
-
 export function DirectoryRoleFilter({ id, roleFilter, setRoleFilter, labels }: DirectoryRoleFilterProps): ReactNode {
   return (
-    <DirectoryFilterSelect
-      id={id}
-      label={labels.filters.role}
-      value={roleFilter}
-      onChange={value => setRoleFilter(asRoleFilterValue(value))}
-      emptyOptionLabel={labels.genderOptions.unspecified}
-      options={[
-        { value: "Admin", label: labels.roleLabels.admin },
-        { value: "Teacher", label: labels.roleLabels.teacher },
-        { value: "Student", label: labels.roleLabels.student },
-        { value: "Parent", label: labels.roleLabels.parent },
-      ]}
-    />
+    <FormControl sx={{ minWidth: 150, flex: { xs: "1 1 100%", sm: "0 1 auto" } }}>
+      <InputLabel htmlFor={id}>{labels.filters.role}</InputLabel>
+      <Select
+        id={id}
+        value={roleFilter}
+        label={labels.filters.role}
+        onChange={event => setRoleFilter(event.target.value || "")}
+        sx={{
+          height: 44,
+          // Vertically center the visible value inside the fixed 44px
+          // control: the default block padding makes the inner select box
+          // taller than the outlined root.
+          "&& .MuiSelect-select": {
+            minHeight: 44,
+            boxSizing: "border-box",
+            paddingBlock: 0,
+            display: "flex",
+            alignItems: "center",
+          },
+          "& .MuiSelect-nativeInput": { height: "100%" },
+        }}
+      >
+        <MenuItem value="">{labels.genderOptions.unspecified}</MenuItem>
+        <MenuItem value="Admin">{labels.roleLabels.admin}</MenuItem>
+        <MenuItem value="Teacher">{labels.roleLabels.teacher}</MenuItem>
+        <MenuItem value="Student">{labels.roleLabels.student}</MenuItem>
+        <MenuItem value="Parent">{labels.roleLabels.parent}</MenuItem>
+      </Select>
+    </FormControl>
   );
 }

@@ -1,9 +1,8 @@
 "use client";
 
 import { HourglassTopOutlined as PendingConfirmIcon } from "@mui/icons-material";
-import { Chip, Stack } from "@mui/material";
+import { Chip, Stack, Typography } from "@mui/material";
 import type { ReactNode } from "react";
-import { SessionMetaCell } from "@/frontend/components/ui/sessionList";
 import type { MyStudentSessionsQuery_myStudentSessions_items } from "@/frontend/graphql/generated/gql/graphql";
 import { formatApplicantDate } from "@/frontend/lib/i18n/format-date";
 import {
@@ -52,18 +51,33 @@ export function SessionRowMeta({
         alignItems: "baseline",
       }}
     >
-      <SessionMetaCell label={t.fee} value={feeText} />
-      <SessionMetaCell label={t.deadline} value={deadlineText} />
-      <SessionMetaCell label={t.createdAt} value={createdText} />
-      {teacherConfirmedText !== null ? (
-        <SessionMetaCell label={t.teacherConfirmedAt} value={teacherConfirmedText} />
-      ) : null}
-      {studentConfirmedText !== null ? (
-        <SessionMetaCell label={t.studentConfirmedAt} value={studentConfirmedText} />
-      ) : null}
+      <MetaCell label={t.fee} value={feeText} />
+      <MetaCell label={t.deadline} value={deadlineText} />
+      <MetaCell label={t.createdAt} value={createdText} />
+      {teacherConfirmedText !== null ? <MetaCell label={t.teacherConfirmedAt} value={teacherConfirmedText} /> : null}
+      {studentConfirmedText !== null ? <MetaCell label={t.studentConfirmedAt} value={studentConfirmedText} /> : null}
       {isConfirmPending ? (
         <AwaitingConfirmationPill sessionId={session.id} label={t.awaitingStudentConfirmation} />
       ) : null}
+    </Stack>
+  );
+}
+
+interface MetaCellProps {
+  readonly label: string;
+  readonly value: string;
+}
+
+/** One label/value meta pair (overline label + body value), wrap-friendly. */
+function MetaCell({ label, value }: Readonly<MetaCellProps>): ReactNode {
+  return (
+    <Stack sx={{ gap: 0.25, minWidth: 0 }}>
+      <Typography variant="overline" sx={theme => ({ color: theme.palette.text.secondary })}>
+        {label}
+      </Typography>
+      <Typography variant="body2" sx={{ fontWeight: 600 }}>
+        {value}
+      </Typography>
     </Stack>
   );
 }

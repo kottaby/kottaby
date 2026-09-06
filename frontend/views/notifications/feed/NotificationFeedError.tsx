@@ -1,8 +1,10 @@
 "use client";
 
-import { Stack, Typography } from "@mui/material";
+import { RefreshOutlined } from "@mui/icons-material";
+import { Alert, AlertTitle, Button, Stack, Typography } from "@mui/material";
 import type { ReactNode } from "react";
-import { ErrorRetryAlert } from "@/frontend/components/ui/ErrorRetryAlert";
+// audit-R4: shared keyboard-focus ring (v9 ButtonBase ships none).
+import { focusVisibleRingSx } from "@/frontend/components/ui/focusRing";
 import { PermissionDeniedFallback } from "@/frontend/components/ui/PermissionDeniedFallback";
 import { RetryableNotice } from "@/frontend/components/ui/RetryableNotice";
 import type { CommonLabels } from "@/shared/locale/types/common";
@@ -31,9 +33,9 @@ interface NotificationFeedErrorProps {
  *    (auth-denial class; never bare `null`).
  *  - `RATE_LIMITED` / `SERVICE_UNAVAILABLE` → shared `RetryableNotice`
  *    (the canonical retryable seam).
- *  - anything else (masked 500s, network faults) → the shared
- *    `ErrorRetryAlert` generic notice (`loadErrorTitle` / `loadErrorBody`);
- *    the page around it stays interactive.
+ *  - anything else (masked 500s, network faults) → localized inline notice
+ *    (`loadErrorTitle` / `loadErrorBody`) with a retry button; the page
+ *    around it stays interactive.
  */
 export function NotificationFeedError({
   labels,
@@ -55,15 +57,27 @@ export function NotificationFeedError({
     );
   }
   return (
-    <ErrorRetryAlert
-      title={labels.loadErrorTitle}
-      retryLabel={commonLabels.retry}
-      retryPending={retryPending}
-      onRetry={onRetry}
+    <Alert
+      severity="error"
+      variant="outlined"
+      sx={{ borderRadius: 2 }}
+      action={
+        <Button
+          color="error"
+          size="small"
+          disabled={retryPending}
+          onClick={onRetry}
+          startIcon={<RefreshOutlined />}
+          sx={{ ...focusVisibleRingSx, flexShrink: 0, minHeight: { xs: 44 } }}
+        >
+          {commonLabels.retry}
+        </Button>
+      }
     >
+      <AlertTitle sx={{ fontWeight: 700 }}>{labels.loadErrorTitle}</AlertTitle>
       <Stack spacing={1} sx={{ alignItems: "flex-start", marginTop: 1 }}>
         <Typography variant="body2">{labels.loadErrorBody}</Typography>
       </Stack>
-    </ErrorRetryAlert>
+    </Alert>
   );
 }

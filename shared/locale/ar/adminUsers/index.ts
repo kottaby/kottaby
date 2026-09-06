@@ -27,13 +27,11 @@ export const adminUsersAr: AdminUsersLabels = {
     verified: "موثّق",
     certified: "معتمد",
     parentLinked: "مرتبط بولي أمر",
-    childrenCount: {
-      zero: "{count} أطفال",
-      one: "طفل واحد",
-      two: "طفلان",
-      few: "{count} أطفال",
-      many: "{count} طفلاً",
-      other: "{count} طفل",
+    childrenCount: count => {
+      if (count === 1) return "طفل واحد";
+      if (count === 2) return "طفلان";
+      if (count >= 3 && count <= 10) return `${count} أطفال`;
+      return `${count} طفلاً`;
     },
     pendingReview: "قيد المراجعة",
   },
@@ -131,7 +129,7 @@ export const adminUsersAr: AdminUsersLabels = {
   },
   certifyDialog: {
     title: "اعتماد المعلم",
-    warningMessage: "اعتماد {name} يتجاوز مسار التقييم ويمنح صلاحية التدريس فورًا.",
+    warningMessage: name => `اعتماد ${name} يتجاوز مسار التقييم ويمنح صلاحية التدريس فورًا.`,
     evaluatorCheckbox: "منح صلاحيات المقيّم أيضًا",
     auditNote: "يُسجَّل هذا الإجراء في سجل التدقيق.",
     confirm: "اعتماد المعلم",

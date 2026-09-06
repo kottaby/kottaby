@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
-import { generateComingSoonMetadata } from "@/app/(dashboard)/shared";
 import { ComingSoonView } from "@/frontend/views/dashboard";
+import { getTranslations } from "@/shared/locale/server";
+import { getLocaleFromCookie } from "@/shared/locale/server-cookies";
 
 /**
  * `/parent/children` — role-scoped alias of the `/children` "coming soon"
@@ -14,7 +15,12 @@ import { ComingSoonView } from "@/frontend/views/dashboard";
  * `/children`.
  */
 export async function generateMetadata(): Promise<Metadata> {
-  return generateComingSoonMetadata();
+  const locale = await getLocaleFromCookie();
+  const t = getTranslations(locale).dashboardTranslations;
+  return {
+    title: t.comingSoonMetaTitle,
+    description: t.comingSoonMetaDescription,
+  };
 }
 
 export default function ParentChildrenComingSoonPage() {

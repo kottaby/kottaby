@@ -1,10 +1,9 @@
 "use client";
 
 import { GavelOutlined as EmptyIcon } from "@mui/icons-material";
-import { Alert, Stack } from "@mui/material";
+import { Alert, Box, Skeleton, Stack } from "@mui/material";
 import type { ReactNode } from "react";
 import { PermissionDeniedFallback } from "@/frontend/components/ui/PermissionDeniedFallback";
-import { SessionListLoadingSkeleton } from "@/frontend/components/ui/sessionList";
 import type {
   AdminDisputedSessionsQuery,
   AdminDisputedSessionsQuery_adminDisputedSessions_items,
@@ -25,7 +24,7 @@ import type { SessionsLabels } from "@/shared/locale/types/sessions";
  *
  * | # | Condition | Body |
  * |---|-----------|------|
- * | 1 | query in flight (no settled payload yet) | the shared sessions loading skeleton (`aria-busy`), pinned to the `admin-disputes-loading` testId |
+ * | 1 | query in flight (no settled payload yet) | skeleton list rows mirroring the sessions loading skeleton (`aria-busy`) |
  * | 2 | query error, mapping-table denial family (`permission-fallback` / `auth-recovery`) | shared `PermissionDeniedFallback` (non-admin callers fail the admin role leg into FORBIDDEN — R-106) |
  * | 3 | any other query error (masked 500 …) | inline `Alert` with `sessions.genericError` |
  * | 4 | zero items | empty state via the shared `SessionsEmptyState` (gavel icon-circle, `adminDisputesEmpty*` copy — single pinned status, NO filtered variant) |
@@ -35,6 +34,18 @@ import type { SessionsLabels } from "@/shared/locale/types/sessions";
  * table (`frontend/providers/apollo/error-link.map.ts`) — never the server
  * `message`.
  */
+
+/** Skeleton row count — approximates list density without claiming data. */
+const LOADING_ROW_COUNT = 3;
+
+/**
+ * Stable skeleton keys — module-scope so the loading rows never key off the
+ * render-time array index (`noArrayIndexKey`).
+ */
+const LOADING_ROW_KEYS: readonly string[] = Array.from(
+  { length: LOADING_ROW_COUNT },
+  (_, index) => `skeleton-${index}`
+);
 
 interface AdminDisputesBodyProps {
   readonly loading: boolean;
@@ -65,7 +76,7 @@ export function AdminDisputesBody({
     // Branch 1 — first fetch for the active page: skeleton rows announce
     // busy semantics. A cache-hit page change keeps the settled list
     // mounted (no skeleton flash on pager round-trips).
-    return <SessionListLoadingSkeleton testId="admin-disputes-loading" />;
+    return <AdminDisputesLoadingSkeleton />;
   }
   // Branches 2–3 — settled failures: denial family vs generic surfaced copy.
   if (error) {
@@ -84,7 +95,7 @@ export function AdminDisputesBody({
   // Apollo settles queries with data-or-error; this narrow guard keeps the
   // compiler informed without unsafe assertions.
   if (!data) {
-    return <SessionListLoadingSkeleton testId="admin-disputes-loading" />;
+    return <AdminDisputesLoadingSkeleton />;
   }
   const sessions: readonly AdminDisputedSessionsQuery_adminDisputedSessions_items[] = data.adminDisputedSessions.items;
   if (sessions.length === 0) {
@@ -130,6 +141,36 @@ function AdminDisputesErrorNotice({ message }: Readonly<AdminDisputesErrorNotice
       <Alert severity="error" variant="outlined">
         {message}
       </Alert>
+    </Stack>
+  );
+}
+
+/**
+ * Loading skeleton — bordered row shells mirroring the sessions containers'
+ * loading skeleton's line rhythm (title text + rounded pill + body panel).
+ */
+function AdminDisputesLoadingSkeleton(): ReactNode {
+  return (
+    <Stack aria-busy="true" data-testid="admin-disputes-loading" sx={{ gap: 2 }}>
+      {LOADING_ROW_KEYS.map(key => (
+        <Box
+          key={key}
+          sx={theme => ({
+            display: "grid",
+            gap: 1.5,
+            p: { xs: 2.5, sm: 3 },
+            borderRadius: 3,
+            border: "1px solid",
+            borderColor: theme.palette.outlineVariant,
+            bgcolor: theme.palette.surfaceContainerLow,
+            boxShadow: theme.palette.shadow.card,
+          })}
+        >
+          <Skeleton variant="text" sx={{ fontSize: "1.5rem", maxWidth: 260 }} />
+          <Skeleton variant="rounded" sx={{ height: 24, width: 150, borderRadius: 999 }} />
+          <Skeleton variant="rectangular" sx={{ height: 40, borderRadius: 2 }} />
+        </Box>
+      ))}
     </Stack>
   );
 }

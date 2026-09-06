@@ -56,6 +56,4 @@ export interface WalletLabels {
   readonly ledgerEmptyTitle: string;
   /** Empty-ledger body. */
   readonly ledgerEmptyBody: string;
-  /** Pending-teacher empty state title — no wallet exists before approval. */
-  readonly pendingTeacherTitle: string;
 }

@@ -88,9 +88,8 @@
  */
 
 import { useQuery } from "@apollo/client/react";
-import { Stack, Typography } from "@mui/material";
+import { Alert, Snackbar, Stack, Typography } from "@mui/material";
 import { type ReactNode, useCallback, useState } from "react";
-import { NoticeSnackbar } from "@/frontend/components/ui/NoticeSnackbar";
 import type { SessionStatus } from "@/frontend/graphql/generated/gql/graphql";
 import { myTeacherSessionsQueryDocument } from "@/frontend/graphql/sharedDocuments";
 import { CancelSessionConfirmDialog } from "@/frontend/views/student/sessions/CancelSessionConfirmDialog";
@@ -210,7 +209,18 @@ export function TeacherSessionsContainer(): ReactNode {
           onFailure={disputeArms.handleDisputeFailure}
         />
       ) : null}
-      <NoticeSnackbar notice={notice} autoHideDuration={SNACKBAR_AUTOHIDE_MS} onClose={dismissNotice} />
+      <Snackbar
+        open={notice !== null}
+        autoHideDuration={SNACKBAR_AUTOHIDE_MS}
+        onClose={dismissNotice}
+        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+      >
+        {notice === null ? undefined : (
+          <Alert onClose={dismissNotice} severity={notice.severity} variant="filled">
+            {notice.message}
+          </Alert>
+        )}
+      </Snackbar>
     </Stack>
   );
 }

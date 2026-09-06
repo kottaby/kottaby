@@ -41,9 +41,8 @@
 import { useQuery } from "@apollo/client/react";
 import AccountBalanceWalletOutlinedIcon from "@mui/icons-material/AccountBalanceWalletOutlined";
 import SavingsOutlinedIcon from "@mui/icons-material/SavingsOutlined";
-import { Button, Stack } from "@mui/material";
+import { Alert, Button, Snackbar, Stack } from "@mui/material";
 import { type ReactNode, useCallback, useState } from "react";
-import { NoticeSnackbar } from "@/frontend/components/ui/NoticeSnackbar";
 import { myWalletQueryDocument } from "@/frontend/graphql/sharedDocuments";
 import { type ContainerNotice, SNACKBAR_AUTOHIDE_MS } from "@/frontend/views/teacher/wallet/teacherWalletShared";
 import { useTeacherWalletWithdraw } from "@/frontend/views/teacher/wallet/useTeacherWalletWithdraw";
@@ -126,7 +125,18 @@ export function TeacherWalletContainer(): ReactNode {
       ) : null}
 
       {/* ── Snackbar chrome ────────────────────────────────────────────── */}
-      <NoticeSnackbar notice={notice} autoHideDuration={SNACKBAR_AUTOHIDE_MS} onClose={dismissNotice} />
+      <Snackbar
+        open={notice !== null}
+        autoHideDuration={SNACKBAR_AUTOHIDE_MS}
+        onClose={dismissNotice}
+        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+      >
+        {notice === null ? undefined : (
+          <Alert onClose={dismissNotice} severity={notice.severity} variant="filled">
+            {notice.message}
+          </Alert>
+        )}
+      </Snackbar>
     </Stack>
   );
 }

@@ -63,7 +63,7 @@
 import { afterAll, beforeAll, describe, expect, spyOn, test } from "bun:test";
 import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/backend/db";
 import { auditLogs } from "@/backend/db/schema/audit/audit-logs";
 import { students } from "@/backend/db/schema/students/students";
@@ -180,12 +180,9 @@ async function countAuditForEntity(
   return result[0]?.count ?? 0;
 }
 
-/** Counts `audit_logs` rows attributed to any of the supplied actor ids. */
-async function countAuditRowsForActors(tx: DBTransaction, actorIds: readonly number[]): Promise<number> {
-  const result = await tx
-    .select({ count: sql<number>`count(*)::int` })
-    .from(auditLogs)
-    .where(inArray(auditLogs.actorId, actorIds));
+/** Counts every `audit_logs` row visible inside the supplied transaction. */
+async function countAllAuditRows(tx: DBTransaction): Promise<number> {
+  const result = await tx.select({ count: sql<number>`count(*)::int` }).from(auditLogs);
   return result[0]?.count ?? 0;
 }
 
@@ -721,7 +718,7 @@ describe("AdminUserManagementService.setUserSuspended / setUserBlocked — Tier 
       await createTestStudent(tx, student.id);
       silenceDomainLog();
 
-      const auditBefore = await countAuditRowsForActors(tx, [admin.id]);
+      const auditBefore = await countAllAuditRows(tx);
       const sentinel = new Error("forced repo failure — setSuspendedOnce");
       // Spy on the repo method directly — `spyOn` requires the live
       // object reference, so we resolve the module first.
@@ -735,15 +732,15 @@ describe("AdminUserManagementService.setUserSuspended / setUserBlocked — Tier 
         );
         expect(error).toBe(sentinel);
 
-        // ZERO residual rows — the users row is unchanged, the actor's audit
-        // count is unchanged (the throw aborted the audit insert; even though
+        // ZERO residual rows — the users row is unchanged, the audit count
+        // is unchanged (the throw aborted the audit insert; even though
         // withTransaction rolls back the SAVEPOINT, the row was never
         // written because the throw happened BEFORE the audit insert).
         const afterRow = await readUserRow(tx, student.id);
         expect(afterRow?.suspended).toBe(false);
         expect(afterRow?.suspendedAt).toBeNull();
         expect(afterRow?.suspendedPeriodDays).toBeNull();
-        const auditAfter = await countAuditRowsForActors(tx, [admin.id]);
+        const auditAfter = await countAllAuditRows(tx);
         expect(auditAfter).toBe(auditBefore);
       } finally {
         methodSpy.mockRestore();
@@ -758,7 +755,7 @@ describe("AdminUserManagementService.setUserSuspended / setUserBlocked — Tier 
       await createTestStudent(tx, student.id);
       silenceDomainLog();
 
-      const auditBefore = await countAuditRowsForActors(tx, [admin.id]);
+      const auditBefore = await countAllAuditRows(tx);
       const rowBefore = await readUserRow(tx, student.id);
       expect(rowBefore?.isBlocked).toBe(false);
 
@@ -778,10 +775,10 @@ describe("AdminUserManagementService.setUserSuspended / setUserBlocked — Tier 
         expect(error).toBe(sentinel);
 
         // ZERO residual rows — the user row is byte-identical to the
-        // pre-call snapshot; the actor's audit count is unchanged.
+        // pre-call snapshot; the audit count is unchanged.
         const rowAfter = await readUserRow(tx, student.id);
         expect(rowAfter).toEqual(rowBefore);
-        const auditAfter = await countAuditRowsForActors(tx, [admin.id]);
+        const auditAfter = await countAllAuditRows(tx);
         expect(auditAfter).toBe(auditBefore);
       } finally {
         auditSpy.mockRestore();
@@ -907,16 +904,8 @@ describe("AdminUserManagementService.setUserSuspended / setUserBlocked — Tier 
       const deletedAdmin = await provisionAdminActor(tx, { isDeleted: true, deletedAt: new Date() });
       const target = await createTestUser(tx, { role: "student" });
       await createTestStudent(tx, target.id);
-      const nonAdmin = await createTestUser(tx, { role: "student" });
-      await createTestStudent(tx, nonAdmin.id);
 
-      // Actor-scoped counting (never a GLOBAL audit_logs count): parallel
-      // suites share this database, and committed-fixture files legitimately
-      // write audit rows concurrently — a global before/after count races and
-      // flakes (PR #56 CI). JR-C-1 is preserved: a denial that wrongly wrote
-      // an audit row would attribute it to the DENIED actor.
-      const denialActors = [ANONYMOUS_ACTOR_ID, deletedAdmin.id, nonAdmin.id];
-      const auditBefore = await countAuditRowsForActors(tx, denialActors);
+      const auditBefore = await countAllAuditRows(tx);
       const targetRowBefore = await readUserRow(tx, target.id);
       silenceDomainLog();
 
@@ -928,6 +917,8 @@ describe("AdminUserManagementService.setUserSuspended / setUserBlocked — Tier 
       await expectRepoError(() =>
         AdminUserManagementService.setUserBlocked(target.id, true, ANONYMOUS_ACTOR_ID, LOCALE, tx)
       ).catch(() => {});
+      const nonAdmin = await createTestUser(tx, { role: "student" });
+      await createTestStudent(tx, nonAdmin.id);
       await expectRepoError(() =>
         AdminUserManagementService.setUserSuspended(target.id, true, 7, nonAdmin.id, LOCALE, tx)
       ).catch(() => {});
@@ -946,7 +937,7 @@ describe("AdminUserManagementService.setUserSuspended / setUserBlocked — Tier 
       expect(targetRowAfter).toEqual(targetRowBefore);
 
       // ZERO audit rows (no new audit_logs rows from any denial).
-      const auditAfter = await countAuditRowsForActors(tx, denialActors);
+      const auditAfter = await countAllAuditRows(tx);
       expect(auditAfter).toBe(auditBefore);
 
       // ZERO notifications — governance mutations never write notifications

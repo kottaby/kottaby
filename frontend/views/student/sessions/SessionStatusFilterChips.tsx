@@ -1,8 +1,7 @@
 "use client";
 
-import { ToggleButton, ToggleButtonGroup } from "@mui/material";
+import { Box, ToggleButton, ToggleButtonGroup } from "@mui/material";
 import type { ReactNode } from "react";
-import { SessionStickyBar } from "@/frontend/components/ui/sessionList";
 import { SessionStatus } from "@/frontend/graphql/generated/gql/graphql";
 import { Sessions, useAppTranslation } from "@/shared/locale";
 import type { SessionsLabels } from "@/shared/locale/types/sessions";
@@ -104,16 +103,32 @@ function tokenForFilterValue(value: SessionStatus | null): string {
 /**
  * Single-select chip row for the sessions status filter.
  *
- * The row docks into the shared sticky bar (`SessionStickyBar`) pinned just
- * under the dashboard AppBar, so the filter stays reachable while the list
- * scrolls (static styling only — no scroll-conditional border/shadow).
+ * The row docks into a STICKY bar: the dashboard AppBar is sticky at `top: 0`
+ * with `minHeight` 56/64 (xs→sm), so the bar pins right under it and the
+ * filter stays reachable while the list scrolls (`zIndex.appBar - 1` keeps
+ * it beneath the bar). A static hairline bottom edge echoes the AppBar's
+ * border without any scroll listener (the scroll-conditional border/shadow
+ * variant was declined — static styling only).
  */
 export function SessionStatusFilterChips({ value, onChange }: Readonly<SessionStatusFilterChipsProps>): ReactNode {
   const t = useAppTranslation(Sessions);
   const activeToken = tokenForFilterValue(value);
 
   return (
-    <SessionStickyBar>
+    <Box
+      sx={theme => ({
+        position: "sticky",
+        top: { xs: 56, sm: 64 },
+        zIndex: theme.zIndex.appBar - 1,
+        bgcolor: theme.palette.surfaceContainer,
+        backdropFilter: "blur(8px)",
+        borderRadius: 2,
+        py: 1,
+        px: { xs: 0.5, sm: 1 },
+        borderBottom: "1px solid",
+        borderBottomColor: theme.palette.outlineVariant,
+      })}
+    >
       <ToggleButtonGroup
         exclusive
         value={activeToken}
@@ -167,6 +182,6 @@ export function SessionStatusFilterChips({ value, onChange }: Readonly<SessionSt
           );
         })}
       </ToggleButtonGroup>
-    </SessionStickyBar>
+    </Box>
   );
 }

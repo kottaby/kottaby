@@ -33,12 +33,10 @@ interface MobileUserCardListProps {
   readonly hasFilters: boolean;
   readonly onEdit: (user: DirectoryUserItem) => void;
   readonly onDelete: (user: DirectoryUserItem) => void;
-  /** Invoked after any card's copy-email action resolves (drives the snackbar). */
-  readonly onCopyEmail?: () => void;
 }
 
 export function MobileUserCardList(props: MobileUserCardListProps): ReactNode {
-  const { labels, items, loading, hasFilters, onEdit, onDelete, onCopyEmail } = props;
+  const { labels, items, loading, hasFilters, onEdit, onDelete } = props;
   const locale = useAppLocale();
   return (
     <Stack
@@ -71,15 +69,7 @@ export function MobileUserCardList(props: MobileUserCardListProps): ReactNode {
         </Card>
       )}
       {items.map(user => (
-        <MobileUserCard
-          key={user.id}
-          labels={labels}
-          user={user}
-          locale={locale}
-          onEdit={onEdit}
-          onDelete={onDelete}
-          onCopyEmail={onCopyEmail}
-        />
+        <MobileUserCard key={user.id} labels={labels} user={user} locale={locale} onEdit={onEdit} onDelete={onDelete} />
       ))}
     </Stack>
   );

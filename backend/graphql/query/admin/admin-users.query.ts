@@ -27,6 +27,7 @@
  *  - Wired through side-effect barrels:
  *    `query/admin/index.ts` → `query/index.ts` → `gqlSchema.ts`.
  */
+import { UserRole } from "@/backend/enum/users/user-role.enum";
 import {
   AdminUserActivityEntryPothosObject,
   AdminUserDetailPothosObject,
@@ -35,7 +36,7 @@ import {
   AdminUserStatsPothosObject,
 } from "@/backend/graphql/pothos/admin";
 import { gqlSchemaBuilder } from "@/backend/graphql/pothos/builder";
-import { adminOnlyAuthScopes, requirePositiveIntId } from "@/backend/graphql/shared";
+import { requirePositiveIntId } from "@/backend/graphql/shared";
 import { UnauthorizedError, ValidationError } from "@/backend/lib/errors";
 import { AdminUserManagementService } from "@/backend/services";
 
@@ -70,7 +71,12 @@ gqlSchemaBuilder.queryField("adminUsers", t =>
       page: t.arg({ type: "Int", required: false }),
       pageSize: t.arg({ type: "Int", required: false }),
     },
-    authScopes: adminOnlyAuthScopes,
+    authScopes: {
+      $all: {
+        authenticated: true,
+        role: [UserRole.Admin],
+      },
+    },
     resolve: async (_root, args, ctx) => {
       if (!ctx.user) {
         throw new UnauthorizedError("Authentication required.");
@@ -96,7 +102,12 @@ gqlSchemaBuilder.queryField("adminUsers", t =>
 gqlSchemaBuilder.queryField("adminUserStats", t =>
   t.field({
     type: AdminUserStatsPothosObject,
-    authScopes: adminOnlyAuthScopes,
+    authScopes: {
+      $all: {
+        authenticated: true,
+        role: [UserRole.Admin],
+      },
+    },
     resolve: async (_root, _args, ctx) => {
       if (!ctx.user) {
         throw new UnauthorizedError("Authentication required.");
@@ -113,7 +124,12 @@ gqlSchemaBuilder.queryField("adminUserDetail", t =>
     args: {
       id: t.arg({ type: "Int", required: true }),
     },
-    authScopes: adminOnlyAuthScopes,
+    authScopes: {
+      $all: {
+        authenticated: true,
+        role: [UserRole.Admin],
+      },
+    },
     resolve: async (_root, args, ctx) => {
       if (!ctx.user) {
         throw new UnauthorizedError("Authentication required.");
@@ -134,7 +150,12 @@ gqlSchemaBuilder.queryField("adminUserActivity", t =>
       id: t.arg({ type: "Int", required: true }),
       limit: t.arg({ type: "Int", required: false }),
     },
-    authScopes: adminOnlyAuthScopes,
+    authScopes: {
+      $all: {
+        authenticated: true,
+        role: [UserRole.Admin],
+      },
+    },
     resolve: async (_root, args, ctx) => {
       if (!ctx.user) {
         throw new UnauthorizedError("Authentication required.");

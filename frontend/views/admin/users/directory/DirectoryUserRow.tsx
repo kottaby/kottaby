@@ -2,16 +2,13 @@
 
 /**
  * DirectoryUserRow — one body row of the desktop `DirectoryTable`:
- * identity (avatar/name/email + copy-email quick action), phone, role pill,
- * status/details headline, governance pill, relative "last active", and the
- * kebab actions menu.
+ * identity (avatar/name/email), phone, role pill, status/details headline,
+ * governance pill, relative "last active", and the kebab actions menu.
  *
  * The row enforces the 72px body-row height on the CELLS (a row's own
  * height is a minimum; `py: 1.5` alone measured short once line-heights
  * settled). `verticalAlign: middle` keeps single-line cells centered within
- * the 72px band. Even rows carry a faint zebra tint (`action.hover`); hover
- * upgrades the whole row to `action.selected` so the pointer position stays
- * visually distinct from the static stripe rhythm.
+ * the 72px band.
  */
 
 import { Box, TableCell, TableRow, Typography } from "@mui/material";
@@ -32,29 +29,16 @@ interface DirectoryUserRowProps {
   readonly user: DirectoryUserItem;
   readonly labels: RowCellLabels;
   readonly locale: "ar" | "en";
-  /** `true` paints the faint zebra tint on this row (odd body-row index). */
-  readonly striped?: boolean;
   readonly onEdit: (user: DirectoryUserItem) => void;
   readonly onDelete: (user: DirectoryUserItem) => void;
-  /** Invoked after the identity cell's copy-email action resolves. */
-  readonly onCopyEmail?: () => void;
 }
 
-export function DirectoryUserRow({
-  user,
-  labels,
-  locale,
-  striped,
-  onEdit,
-  onDelete,
-  onCopyEmail,
-}: DirectoryUserRowProps): ReactNode {
+export function DirectoryUserRow({ user, labels, locale, onEdit, onDelete }: DirectoryUserRowProps): ReactNode {
   const role = asDirectoryRole(user.role);
   return (
     <TableRow
       sx={theme => ({
         height: 72,
-        bgcolor: striped ? theme.palette.action.hover : "transparent",
         "& td": {
           height: 72,
           py: 1.5,
@@ -62,10 +46,10 @@ export function DirectoryUserRow({
           borderBottom: `1px solid ${theme.palette.border.light}`,
         },
         "&:last-child td": { borderBottom: 0 },
-        "&:hover": { bgcolor: theme.palette.action.selected },
+        "&:hover": { bgcolor: theme.palette.action.hover },
       })}
     >
-      <DirectoryUserIdentityCell user={user} role={role} labels={labels} onCopyEmail={onCopyEmail} />
+      <DirectoryUserIdentityCell user={user} role={role} labels={labels} />
       <TableCell sx={{ minWidth: 0 }}>
         {user.phone ? (
           // Phone numbers are LTR by nature; a CSS-only `direction`

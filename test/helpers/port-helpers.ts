@@ -4,7 +4,7 @@ export const TEST_SERVER_PORT = 3099;
 export const PROTECTED_APP_PORTS = [3000, 4000] as const;
 
 export function getTestServerPortCandidates(): number[] {
-  return [TEST_SERVER_PORT, 3066];
+  return [TEST_SERVER_PORT];
 }
 
 /**

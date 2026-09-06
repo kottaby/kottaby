@@ -3,5 +3,4 @@
  * both the query and mutation layers). Not side-effect wiring — consumers
  * import the helpers directly from `@/backend/graphql/shared`.
  */
-export * from "./admin-prelude";
 export * from "./resolver-guards";

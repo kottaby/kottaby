@@ -10,7 +10,6 @@ import {
   DashboardOutlined as DashboardIcon,
   GavelOutlined as DisputesIcon,
   HistoryEduOutlined as HomeworkIcon,
-  InsightsOutlined,
   LinkOutlined as LinkChildIcon,
   NotificationsOutlined as NotificationsIcon,
   VerifiedOutlined as PlansIcon,
@@ -138,8 +137,6 @@ const NAV_ITEMS_BY_ROLE: Record<UserRole, readonly DashboardNavItem[]> = {
     { route: "/admin/plans", labelKey: "plans", Icon: PlansIcon },
     { route: "/audit", labelKey: "audit", Icon: AuditIcon },
     { route: "/admin/broadcasts", labelKey: "broadcasts", Icon: CampaignOutlined },
-    // Targets the admin-guarded analytics page at `app/(dashboard)/admin/analytics/page.tsx`.
-    { route: "/admin/analytics", labelKey: "analytics", Icon: InsightsOutlined },
     // DEV3-005 (R-111) — the session-arbitration queue: a REAL admin page
     // (`app/(dashboard)/disputes/page.tsx`, `withPageAuth` admin-gated like
     // the role dashboards) instead of a catch-all coming-soon stub.
