@@ -12,8 +12,6 @@ import {
 } from "@/frontend/stories/admin/AdminUserDetailPage.fixtures";
 import { DashboardStoryFrame, StoryApolloProvider } from "@/frontend/stories/lib/storyHarness";
 import { AdminUserDetailContainer } from "@/frontend/views/admin/users/detail";
-import { useAppTranslation } from "@/shared/locale/client";
-import { AdminUsers } from "@/shared/locale/namespaces";
 
 /**
  * Storybook surface for the admin user DETAIL page rendered by
@@ -32,11 +30,10 @@ import { AdminUsers } from "@/shared/locale/namespaces";
 
 /** Wraps the container in the shared mocked-Apollo harness. */
 function DetailHarness({ mocks }: Readonly<{ mocks: readonly MockLink.MockedResponse[] }>): ReactNode {
-  const labels = useAppTranslation(AdminUsers);
   return (
     <StoryApolloProvider mocks={mocks}>
       <DashboardStoryFrame>
-        <AdminUserDetailContainer labels={labels} userId={DETAIL_USER_ID} />
+        <AdminUserDetailContainer userId={DETAIL_USER_ID} />
       </DashboardStoryFrame>
     </StoryApolloProvider>
   );

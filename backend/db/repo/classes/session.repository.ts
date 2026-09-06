@@ -44,12 +44,14 @@
  * File layout: the standalone-capable read machinery (shared predicate
  * builders, the select-column shape, the list/count/probe reads) lives in
  * the sibling `session.repository.helpers.ts` module (extracted verbatim);
- * the guarded write transitions stay implemented inline below. Every read
+ * the guarded write transitions stay in this file, their shared
+ * participant live-state predicate factored into the module-level
+ * `buildLiveParticipantTransitionPredicate` builder. Every read
  * method is a one-to-one delegation wrapper, so the public API (names,
  * signatures, behavior) is unchanged.
  */
 
-import { and, eq, isNotNull, or, sql } from "drizzle-orm";
+import { and, eq, isNotNull, or, type SQL, sql } from "drizzle-orm";
 import { db } from "@/backend/db";
 import * as sessionRepositoryImpl from "@/backend/db/repo/classes/session.repository.helpers";
 import { session } from "@/backend/db/schema/classes/session";
@@ -63,6 +65,23 @@ import type {
   SessionTransitionProbeRowType,
   SessionWaveContextRow,
 } from "@/backend/types";
+
+/**
+ * ONE module-scope predicate builder shared by the participant-initiated
+ * live-state guarded transitions (`cancelSessionOnce` and
+ * `openDisputeOnce`): row identity, the caller being the session's student
+ * OR its teacher, and the lifecycle state still live (pre-start or
+ * in-progress — terminal rows are structurally unreachable). The predicate
+ * rides inside each method's single guarded UPDATE, so predicate evaluation
+ * happens under PostgreSQL's row lock with zero check-then-write window.
+ */
+function buildLiveParticipantTransitionPredicate(id: number, participantId: number): SQL | undefined {
+  return and(
+    eq(session.id, id),
+    or(eq(session.studentId, participantId), eq(session.teacherId, participantId)),
+    or(eq(session.status, SessionStatus.Scheduled), eq(session.status, SessionStatus.Started))
+  );
+}
 
 export namespace SessionRepository {
   /**
@@ -211,13 +230,7 @@ export namespace SessionRepository {
     const rows = await executor
       .update(session)
       .set({ status: SessionStatus.Cancelled, feeHeld: false, cancelReason, updatedAt: now })
-      .where(
-        and(
-          eq(session.id, id),
-          or(eq(session.studentId, participantId), eq(session.teacherId, participantId)),
-          or(eq(session.status, SessionStatus.Scheduled), eq(session.status, SessionStatus.Started))
-        )
-      )
+      .where(buildLiveParticipantTransitionPredicate(id, participantId))
       .returning();
     return rows[0] ?? null;
   }
@@ -248,13 +261,7 @@ export namespace SessionRepository {
     const rows = await executor
       .update(session)
       .set({ status: SessionStatus.Disputed, disputeReason, disputedAt: now, updatedAt: now })
-      .where(
-        and(
-          eq(session.id, id),
-          or(eq(session.studentId, participantId), eq(session.teacherId, participantId)),
-          or(eq(session.status, SessionStatus.Scheduled), eq(session.status, SessionStatus.Started))
-        )
-      )
+      .where(buildLiveParticipantTransitionPredicate(id, participantId))
       .returning();
     return rows[0] ?? null;
   }

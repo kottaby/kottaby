@@ -38,10 +38,9 @@
  *  - Wired through side-effect barrels:
  *    `query/admin/index.ts` → `query/index.ts` → `gqlSchema.ts`.
  */
-import { UserRole } from "@/backend/enum/users/user-role.enum";
 import { AdminAuditLogFiltersInput, AdminAuditLogPagePothosObject } from "@/backend/graphql/pothos/admin";
 import { gqlSchemaBuilder } from "@/backend/graphql/pothos/builder";
-import { UnauthorizedError } from "@/backend/lib/errors";
+import { adminOnlyAuthScopes, requireAdminUser } from "@/backend/graphql/shared";
 import { AuditTrailService } from "@/backend/services";
 
 // Side-effect: register the `adminAuditLogs` global trail query field.
@@ -53,20 +52,13 @@ gqlSchemaBuilder.queryField("adminAuditLogs", t =>
       page: t.arg({ type: "Int", required: false }),
       pageSize: t.arg({ type: "Int", required: false }),
     },
-    authScopes: {
-      $all: {
-        authenticated: true,
-        role: [UserRole.Admin],
-      },
-    },
+    authScopes: adminOnlyAuthScopes,
     resolve: async (_root, args, ctx) => {
       // The `$all` scope conjunction guarantees an admin context at
-      // resolution time; this branch exists purely for TypeScript narrowing
-      // (see file docs).
-      if (!ctx.user) {
-        const tErrors = await ctx.t("errorsTranslations");
-        throw new UnauthorizedError(tErrors.unauthorized);
-      }
+      // resolution time; `requireAdminUser` is the TS-narrowing belt whose
+      // translated throw matches the `authenticated` scope's own throw (see
+      // file docs + backend/graphql/shared/admin-prelude.ts).
+      const user = await requireAdminUser(ctx);
       // Closed-input whitelist copy — exactly the six service-recognized
       // filter members, never a spread of the wire input.
       return AuditTrailService.listAuditTrail(
@@ -81,7 +73,7 @@ gqlSchemaBuilder.queryField("adminAuditLogs", t =>
         args.page ?? null,
         args.pageSize ?? null,
         ctx.locale,
-        ctx.user.id
+        user.id
       );
     },
   })

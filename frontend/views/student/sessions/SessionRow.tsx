@@ -1,7 +1,8 @@
 "use client";
 
-import { Alert, Box, Stack } from "@mui/material";
+import { Alert, Stack } from "@mui/material";
 import type { ReactNode } from "react";
+import { SessionRowCardShell } from "@/frontend/components/ui/sessionList";
 import type { MyStudentSessionsQuery_myStudentSessions_items } from "@/frontend/graphql/generated/gql/graphql";
 import { SessionRowActions } from "@/frontend/views/student/sessions/SessionRowActions";
 import { SessionRowCancelReason } from "@/frontend/views/student/sessions/SessionRowCancelReason";
@@ -61,8 +62,8 @@ import { Sessions, useAppLocale, useAppTranslation } from "@/shared/locale";
  * exactly-once pending shape (`Completed` ∧ stamp unset ∧ `feeHeld`) — the
  * teacher surface's explanation of WHY the wallet credit has not fired.
  *
- * Hover polish: the card shell carries the idle→hover emphasis (elevation
- * + outline transition); the action buttons keep full opacity at idle so
+ * Hover polish: the card shell (the shared `SessionRowCardShell`) carries
+ * the idle→hover emphasis (elevation + outline transition); the action buttons keep full opacity at idle so
  * no affordance is ever hover-gated.
  *
  * Composition (this file): the card shell + alert + the footer band; the
@@ -124,27 +125,7 @@ export function SessionRow({
   const intentText = session.intent ?? NO_VALUE_PLACEHOLDER;
 
   return (
-    <Box
-      data-testid={`session-row-${session.id}`}
-      sx={theme => ({
-        display: "grid",
-        gap: 1.5,
-        p: { xs: 2.5, sm: 3 },
-        borderRadius: 3,
-        border: "1px solid",
-        borderColor: theme.palette.outlineVariant,
-        bgcolor: theme.palette.surfaceContainerLow,
-        boxShadow: theme.palette.shadow.card,
-        // Hover lift — elevation + outline emphasis ease in together. The
-        // emphasis step goes from the rest `outlineVariant` line to the
-        // stronger `outline` token (the palette's accent outline).
-        transition: theme.transitions.create(["box-shadow", "transform", "border-color"]),
-        "&:hover": {
-          boxShadow: theme.shadows[4],
-          borderColor: theme.palette.outline,
-        },
-      })}
-    >
+    <SessionRowCardShell testId={`session-row-${session.id}`}>
       <SessionRowHeader status={session.status} statusLabel={statusLabel} intentText={intentText} />
 
       {alertMessage !== undefined && alertMessage !== null && alertMessage !== "" ? (
@@ -176,6 +157,6 @@ export function SessionRow({
           onCancelIntent={onCancelIntent}
         />
       </Stack>
-    </Box>
+    </SessionRowCardShell>
   );
 }
