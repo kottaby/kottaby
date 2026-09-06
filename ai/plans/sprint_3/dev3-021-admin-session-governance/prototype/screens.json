@@ -1,1 +1,13 @@
-[{"screenId":"8ef8f1bbe7e047f4bb49e73affdf3c70","title":"Session Governance Dashboard","file":"directory-default-desktop.png","deviceType":"DESKTOP","state":"default"}]
+[
+ {"screenId":"8ef8f1bbe7e047f4bb49e73affdf3c70","title":"Session Governance Dashboard","file":"directory-default-desktop.png","deviceType":"DESKTOP","state":"default"},
+ {"screenId":"4cf650ee86b842109c7c94d8a32c2b66","title":"Session Governance — Empty","file":"directory-empty-desktop.png","deviceType":"DESKTOP","state":"empty"},
+ {"screenId":"a58ae6d2e92d441b87be7b328d3d861b","title":"Session Governance — Error","file":"directory-error-desktop.png","deviceType":"DESKTOP","state":"error"},
+ {"screenId":"f27cffe787ec4aaeaf50eb3c8d36c7f4","title":"Session Detail Drawer","file":"detail-drawer-desktop.png","deviceType":"DESKTOP","state":"detail"},
+ {"screenId":"39877dffec9442a29aa63c4f06ba4808","title":"Reschedule Dialog","file":"reschedule-dialog-desktop.png","deviceType":"DESKTOP","state":"dialog-reschedule"},
+ {"screenId":"763cd39381c644fba9308b170740386d","title":"Cancel Dialog","file":"cancel-dialog-desktop.png","deviceType":"DESKTOP","state":"dialog-cancel"},
+ {"screenId":"27bb8213e0264b2fa65a4f6f3c02875b","title":"Reassign Teacher Dialog","file":"reassign-dialog-desktop.png","deviceType":"DESKTOP","state":"dialog-reassign"},
+ {"screenId":"175a22529e9e4c4186c9bec17dd4078b","title":"Join Live — Observation","file":"join-observers-desktop.png","deviceType":"DESKTOP","state":"join-observation"},
+ {"screenId":"faf79b5c752a465c91b86162a3ae1b90","title":"Session Governance — Mobile","file":"directory-default-mobile.png","deviceType":"MOBILE","state":"default"},
+ {"screenId":"444577f1e5214b20944a3f557f82810d","title":"Reschedule Bottom Sheet — Mobile","file":"reschedule-dialog-mobile.png","deviceType":"MOBILE","state":"dialog-reschedule"},
+ {"screenId":"bd55103c8303402f9762d55c37760cab","title":"Cancel Bottom Sheet — Mobile","file":"cancel-dialog-mobile.png","deviceType":"MOBILE","state":"dialog-cancel"}
+]

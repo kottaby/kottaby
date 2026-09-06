@@ -59,6 +59,27 @@
       "file": "recitation-record-teacher-view-mobile.png",
       "deviceType": "MOBILE",
       "state": "recitation-record-teacher-view-mobile"
+    },
+    {
+      "screenId": "1dd4fabb9c144faa951706c804d34b72",
+      "title": "Session \u2014 Recitation Record (Empty State)",
+      "file": "recitation-record-empty-teacher-desktop.png",
+      "deviceType": "DESKTOP",
+      "state": "recitation-record-empty-teacher-desktop"
+    },
+    {
+      "screenId": "74dd0cc5651a4089bd837b13a266252a",
+      "title": "My Session \u2014 No Recitation Recorded",
+      "file": "recitation-record-empty-student-mobile.png",
+      "deviceType": "MOBILE",
+      "state": "recitation-record-empty-student-mobile"
+    },
+    {
+      "screenId": "c0b5494a21424458b0a2c435f8338e2c",
+      "title": "My Session \u2014 Recitation Record (Student View)",
+      "file": "recitation-record-student-view-mobile.png",
+      "deviceType": "MOBILE",
+      "state": "recitation-record-student-view-mobile"
     }
   ]
 }
