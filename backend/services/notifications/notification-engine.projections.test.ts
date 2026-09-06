@@ -66,21 +66,22 @@ describe("toNotificationInsert", () => {
   test("enforces BOPLA safety by ignoring unwhitelisted properties on input objects", () => {
     const userId = 99;
     const now = new Date();
-    const hostilePayload = {
+    const hostilePayload: NotificationEmitCopy = {
       type: NotificationType.PaymentConfirmation,
       title: "Payment Received",
       body: "Thank you for your payment.",
       relatedEntityType: "invoice",
       relatedEntityId: 555,
+    };
+    Object.assign(hostilePayload, {
       // Unwhitelisted properties that must be ignored / excluded
       isRead: true, // Should remain false
       id: 9999,
       adminNotes: "Internal note",
-      __proto__: { injected: true },
       extraColumn: "Malicious input",
-    };
+    });
 
-    const insert = toNotificationInsert(userId, hostilePayload as unknown as NotificationEmitCopy, now);
+    const insert = toNotificationInsert(userId, hostilePayload, now);
 
     expect(insert.isRead).toBe(false);
     expect(Object.keys(insert)).toEqual([
@@ -155,7 +156,7 @@ describe("toRealtimePayload", () => {
 
   test("enforces BOPLA safety by excluding database-internal columns from the realtime payload", () => {
     const createdAt = new Date();
-    const rowWithExtraDbFields = {
+    const rowWithExtraDbFields: NotificationReturnType = {
       id: 789,
       userId: 55, // Should not leak to realtime payload data
       type: NotificationType.PaymentConfirmation,
@@ -165,13 +166,15 @@ describe("toRealtimePayload", () => {
       relatedEntityType: "payment",
       relatedEntityId: 999,
       createdAt,
+    };
+    Object.assign(rowWithExtraDbFields, {
       // Extra DB fields or metadata
       updatedAt: new Date(),
       deletedAt: null,
       tenantId: "tenant_abc",
-    };
+    });
 
-    const payload = toRealtimePayload(rowWithExtraDbFields as unknown as NotificationReturnType);
+    const payload = toRealtimePayload(rowWithExtraDbFields);
 
     expect(payload.v).toBe(1);
     expect(payload.kind).toBe("notification");
