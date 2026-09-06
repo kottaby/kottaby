@@ -12,13 +12,32 @@ import { ApplicantStatus } from "@/frontend/graphql/generated/gql/graphql";
 import type { DirectoryUserItem } from "@/frontend/views/admin/users/directory";
 import { TonalChip } from "@/frontend/views/admin/users/ui";
 import { asDirectoryRole } from "@/frontend/views/admin/users/utils";
+import { useAppLocale } from "@/shared/locale/localeContext";
 import type { AdminUsersLabels } from "@/shared/locale/types/adminUsers";
 
-/**
- * THE em-dash fallback for an unset cell value. Kept as a constant so the
- * details cell and the relative-time cell share one glyph source.
- */
+/** THE em-dash fallback for an unset cell value. Kept as a constant so the
+ * details cell and the relative-time cell share one glyph source. */
 const EM_DASH = "—";
+
+/** ICU token of the plural-band `childrenCount` templates. */
+const CHILDREN_COUNT_TOKEN = "{count}";
+
+/**
+ * Expands the plural-band linked-children chip: `Intl.PluralRules` of the
+ * active locale resolves the band (ar carries the full
+ * zero/one/two/few/many/other set; en resolves one/other) and the band's
+ * `{count}` template renders the verbatim count. Replaces the former
+ * function leaf that broke the locale parity suites and crossed the RSC
+ * boundary as an unserializable prop.
+ */
+function childrenCountLabel(
+  bands: AdminUsersLabels["directoryChips"]["childrenCount"],
+  count: number,
+  locale: string
+): string {
+  const category = new Intl.PluralRules(locale === "en" ? "en" : "ar").select(count);
+  return bands[category].replace(CHILDREN_COUNT_TOKEN, String(count));
+}
 
 interface DirectoryStatusDetailsProps {
   readonly user: DirectoryUserItem;
@@ -37,6 +56,7 @@ interface DirectoryStatusDetailsProps {
  *  - anything else: the em-dash fallback.
  */
 export function DirectoryStatusDetails({ user, labels }: DirectoryStatusDetailsProps): ReactNode {
+  const locale = useAppLocale();
   const role = asDirectoryRole(user.role);
   if (role === "Admin") {
     return (
@@ -62,7 +82,12 @@ export function DirectoryStatusDetails({ user, labels }: DirectoryStatusDetailsP
   }
   const linkedChildren = user.parentLinkedChildrenCount ?? 0;
   if (linkedChildren > 0) {
-    return <TonalChip tone="neutral" label={labels.directoryChips.childrenCount(linkedChildren)} />;
+    return (
+      <TonalChip
+        tone="neutral"
+        label={childrenCountLabel(labels.directoryChips.childrenCount, linkedChildren, locale)}
+      />
+    );
   }
   return <EmDash />;
 }

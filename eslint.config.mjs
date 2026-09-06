@@ -77,6 +77,12 @@ const eslintConfig = defineConfig([
     "*storybook.log",
     // Sandbox-provided skills directory (gitignored, not part of the project).
     "skills/**",
+    // Sandbox VLM verification scripts (tsconfig-excluded, not part of the
+    // production codebase) — the typed-lint project service can't place
+    // them in any project, so lint must skip them entirely.
+    "scripts/vlm-apollo-server.ts",
+    "scripts/vlm-seed-fixtures.ts",
+    "scripts/pglite-bootstrap.ts",
   ]),
   eslint.configs.recommended,
   sonarjsConfigs.recommended,
