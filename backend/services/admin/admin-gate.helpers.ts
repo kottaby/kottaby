@@ -11,7 +11,7 @@ import { AuditActionType } from "@/backend/enum/audit/audit-action-type.enum";
 import { toUserRole, UserRole } from "@/backend/enum/users/user-role.enum";
 import { ForbiddenError, UnauthorizedError } from "@/backend/lib/errors";
 import { logger } from "@/backend/lib/logger";
-import type { DBTransaction } from "@/backend/types";
+import type { DBTransaction, UserSelectType } from "@/backend/types";
 import { getServerTranslations } from "@/shared/locale/server-graphql";
 
 /** Sentinel `actorId` value expressing an anonymous caller. */
@@ -44,19 +44,28 @@ export function toAuditActionType(raw: string): AuditActionType | null {
 }
 
 /**
- * Defense-in-depth BFLA gate — verifies the `actorId` resolves to a real
- * `admin`-role user before any work. Anonymous callers (`actorId = 0`)
- * receive `UnauthorizedError`; authenticated non-admins (or unresolvable
- * actors) receive `ForbiddenError`. Both denials emit ZERO audit rows
- * and perform ZERO writes — the actor check happens BEFORE any
- * transaction opens.
+ * Shared admin-actor prelude — the anonymous / missing-row / non-admin
+ * ladder behind BOTH the relaxed {@linkcode assertActorAdmin} gate and the
+ * strict `assertActiveActorAdmin` governance guard (in
+ * `admin-guards.helpers.ts`). Returns the live actor row so strict
+ * consumers can layer governance checks onto the SAME fetch (single-read
+ * invariant). Anonymous callers (`actorId = 0`) receive
+ * `UnauthorizedError`; missing rows and non-admin roles receive
+ * `ForbiddenError`. Every denial emits exactly ONE bounded
+ * `logger.logDomainError` call with the canonical
+ * `{ code, entity: "user", entityId }` context and performs ZERO audit
+ * rows / ZERO writes — the check runs BEFORE any transaction opens.
  *
  * The actor row is fetched via `UserRepository.findById`; only the `role`
- * field is accessed. The `passwordHash` column is structurally present on
+ * field is read here. The `passwordHash` column is structurally present on
  * the fetched row (per `UserSelectType`) but is NEVER read, logged, or
- * returned here — the canonical never-touch-this-field discipline.
+ * returned anywhere — the canonical never-touch-this-field discipline.
  */
-export async function assertActorAdmin(actorId: number, locale: string, outerTx?: DBTransaction): Promise<void> {
+export async function resolveAdminActorRow(
+  actorId: number,
+  locale: string,
+  outerTx?: DBTransaction
+): Promise<UserSelectType> {
   const tErrors = getServerTranslations(locale).errorsTranslations;
 
   if (actorId === ANONYMOUS_ACTOR_ID) {
@@ -87,6 +96,23 @@ export async function assertActorAdmin(actorId: number, locale: string, outerTx?
     });
     throw new ForbiddenError(tErrors.forbidden);
   }
+
+  return actor;
+}
+
+/**
+ * Defense-in-depth BFLA gate — verifies the `actorId` resolves to a real
+ * `admin`-role user before any work. Anonymous callers (`actorId = 0`)
+ * receive `UnauthorizedError`; authenticated non-admins (or unresolvable
+ * actors) receive `ForbiddenError`. Both denials emit ZERO audit rows
+ * and perform ZERO writes — the actor check happens BEFORE any
+ * transaction opens.
+ *
+ * Implemented by delegating to {@linkcode resolveAdminActorRow} (the shared
+ * prelude) and discarding the returned row.
+ */
+export async function assertActorAdmin(actorId: number, locale: string, outerTx?: DBTransaction): Promise<void> {
+  await resolveAdminActorRow(actorId, locale, outerTx);
 }
 
 /**

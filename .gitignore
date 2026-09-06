@@ -105,9 +105,11 @@ skills-lock.json
 .z-ai-config*
 sandbox.*.sh
 ai/.archive/
+verify-shots/qa/
 
 # Locale JS transpiled artifacts
 shared/locale/**/*.js
 
 # Python cache
 __pycache__/
+

@@ -30,15 +30,6 @@
  * `bun run test/scripts/run-test.ts test/ui/components/admin/BroadcastComposeContainer.test.tsx`
  */
 
-// NOTE (runtime defect, precisely scoped): the seven mutation-flow tests in
-// this file (confirm → send → toast paths) stall under this sandbox's bun
-// 1.3.14 + Happy-DOM combination — the mutation promise resolves but React
-// never re-renders, and in some sequences the test runner aborts natively.
-// Static-gate tests (render, audience companions, client-side validation)
-// are unaffected and green. The identical interaction loop is covered
-// end-to-end by `test/ui/e2e/admin-broadcasts.e2e.test.ts` over a REAL
-// Chromium; run the flow tier on a jsdom/playwright-backed CI.
-
 // ─── Harness preloads (inline replication of the `test:ui:components` stack) ─
 //
 // `bun run test/scripts/run-test.ts <file>` spawns
@@ -329,7 +320,8 @@ describe("BroadcastComposeContainer (en / LTR)", () => {
     fireEvent.click(screen.getByRole("button", { name: t.confirmAction }));
 
     await waitFor(() => expect(screen.getByText(t.successToast(3))).toBeDefined());
-    expect(screen.queryByRole("dialog")).toBeNull();
+    // The dialog unmounts on the MUI exit-transition clock — poll it.
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull(), { timeout: 3000 });
     // The trimmed title was consumed by the send — the form reset cleared it.
     expect(screen.queryByDisplayValue(COPY.title)).toBeNull();
   });
@@ -338,11 +330,12 @@ describe("BroadcastComposeContainer (en / LTR)", () => {
     renderCompose([validationMock(expectedInput(AUDIENCE_ALL))]);
 
     fireEvent.change(screen.getByLabelText(t.titleLabel), { target: { value: COPY.title } });
+    fireEvent.change(screen.getByLabelText(t.bodyLabel), { target: { value: COPY.body } });
     fireEvent.click(screen.getByRole("button", { name: t.sendAction }));
     fireEvent.click(screen.getByRole("button", { name: t.confirmAction }));
 
     await waitFor(() => expect(screen.getByText(te.broadcastTitleInvalid)).toBeDefined());
-    expect(screen.queryByRole("dialog")).toBeNull();
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull(), { timeout: 3000 });
     expect(screen.queryByText(t.errorTitle)).toBeNull();
     // The composed title survives a failed send for correction.
     expect(screen.getByDisplayValue(COPY.title)).toBeDefined();
@@ -358,11 +351,12 @@ describe("BroadcastComposeContainer (en / LTR)", () => {
     });
 
     fireEvent.change(screen.getByLabelText(t.titleLabel), { target: { value: COPY.title } });
+    fireEvent.change(screen.getByLabelText(t.bodyLabel), { target: { value: COPY.body } });
 
     const sendOnce = async (): Promise<void> => {
       fireEvent.click(screen.getByRole("button", { name: t.sendAction }));
       fireEvent.click(screen.getByRole("button", { name: t.confirmAction }));
-      await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+      await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull(), { timeout: 3000 });
     };
 
     await sendOnce();
@@ -385,6 +379,7 @@ describe("BroadcastComposeContainer (en / LTR)", () => {
     });
 
     fireEvent.change(screen.getByLabelText(t.titleLabel), { target: { value: COPY.title } });
+    fireEvent.change(screen.getByLabelText(t.bodyLabel), { target: { value: COPY.body } });
     fireEvent.click(screen.getByRole("button", { name: t.sendAction }));
     const confirmButton = screen.getByRole("button", { name: t.confirmAction });
     fireEvent.click(confirmButton);
@@ -402,6 +397,7 @@ describe("BroadcastComposeContainer (en / LTR)", () => {
     renderCompose([sendMock(expectedInput(AUDIENCE_ALL), 0)]);
 
     fireEvent.change(screen.getByLabelText(t.titleLabel), { target: { value: COPY.title } });
+    fireEvent.change(screen.getByLabelText(t.bodyLabel), { target: { value: COPY.body } });
     fireEvent.click(screen.getByRole("button", { name: t.sendAction }));
     fireEvent.click(screen.getByRole("button", { name: t.confirmAction }));
 
@@ -416,6 +412,7 @@ describe("BroadcastComposeContainer (ar / RTL)", () => {
     renderCompose([sendMock(expectedInput(AUDIENCE_ALL), 3)], { locale: "ar" });
 
     fireEvent.change(screen.getByLabelText(tar.titleLabel), { target: { value: COPY.title } });
+    fireEvent.change(screen.getByLabelText(tar.bodyLabel), { target: { value: COPY.body } });
     fireEvent.click(screen.getByRole("button", { name: tar.sendAction }));
     expect(screen.getByRole("dialog", { name: tar.confirmTitle })).toBeDefined();
     fireEvent.click(screen.getByRole("button", { name: tar.confirmAction }));
@@ -436,6 +433,7 @@ describe("BroadcastComposeContainer (ar / RTL)", () => {
     fireEvent.click(screen.getByRole("radio", { name: tar.audienceCountry }));
     fireEvent.change(screen.getByLabelText(tar.countryLabel), { target: { value: AUDIENCE_COUNTRY.country ?? "" } });
     fireEvent.change(screen.getByLabelText(tar.titleLabel), { target: { value: COPY.title } });
+    fireEvent.change(screen.getByLabelText(tar.bodyLabel), { target: { value: COPY.body } });
     fireEvent.click(screen.getByRole("button", { name: tar.sendAction }));
     fireEvent.click(screen.getByRole("button", { name: tar.confirmAction }));
 

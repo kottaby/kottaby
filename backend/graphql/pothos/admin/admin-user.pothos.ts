@@ -36,6 +36,7 @@ import {
   UserRolePothosEnum,
 } from "@/backend/graphql/pothos/shared/enum.pothos";
 import {
+  adminUserStatsFields,
   nullableUserGenderField,
   userRegistrationInputFields,
   userRoleField,
@@ -130,18 +131,7 @@ export const AdminUserPagePothosObject = gqlSchemaBuilder
 export const AdminUserStatsPothosObject = gqlSchemaBuilder
   .objectRef<AdminUserStatsReturnType>("AdminUserStats")
   .implement({
-    fields: t => ({
-      totalCount: t.exposeInt("totalCount"),
-      activeCount: t.exposeInt("activeCount"),
-      suspendedCount: t.exposeInt("suspendedCount"),
-      blockedCount: t.exposeInt("blockedCount"),
-      deletedCount: t.exposeInt("deletedCount"),
-      adminsCount: t.exposeInt("adminsCount"),
-      teachersCount: t.exposeInt("teachersCount"),
-      studentsCount: t.exposeInt("studentsCount"),
-      parentsCount: t.exposeInt("parentsCount"),
-      newThisWeekCount: t.exposeInt("newThisWeekCount"),
-    }),
+    fields: t => ({ ...adminUserStatsFields(t) }),
   });
 
 /**
