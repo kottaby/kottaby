@@ -542,6 +542,7 @@ for (const locale of componentSuiteLocales) {
       // 1. Row dispute CTA → the dispute dialog opens (the row holds its
       //    `dispute` in-flight slot while the modal owns the mutation).
       const dialog = await clickRowActionAndAwaitDialog(DISPUTE_SESSION_ID, t.openDispute);
+      expect(dialog).toBeDefined();
       // 2. Empty submit — the UI-seam REQUIRED gate blocks the wire call
       //    (shell + counter + aria-invalid assertions in the shared gate).
       expectDisputeDialogGate(dialog, t, tc);
@@ -565,6 +566,7 @@ for (const locale of componentSuiteLocales) {
       renderSessions([listPageMock([sessionFixture({ id: DISPUTE_SESSION_ID })]), disputeSuccessMock()], locale);
 
       const dialog = await clickRowActionAndAwaitDialog(DISPUTE_SESSION_ID, t.openDispute);
+      expect(dialog).toBeDefined();
 
       // Type the (padded) reason — the live counter counts RAW characters —
       // then submit through the dialog's form (React.SubmitEvent path).
@@ -592,6 +594,7 @@ for (const locale of componentSuiteLocales) {
       );
 
       const dialog = await clickRowActionAndAwaitDialog(DISPUTE_SESSION_ID, t.openDispute);
+      expect(dialog).toBeDefined();
       submitDialogWithTypedReason(dialog, DISPUTE_REASON_TYPED);
 
       // Error snackbar (the dispute vocabulary is snackbar-mapped, NOT the

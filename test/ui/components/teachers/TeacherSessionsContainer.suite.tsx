@@ -1030,6 +1030,7 @@ for (const locale of componentSuiteLocales) {
       // 1. Row dispute CTA → the dispute dialog opens (click events DO work
       //    in the portal — only TYPED input is the D8 dead-end).
       const dialog = await clickRowActionAndAwaitDialog(ROW_SCHEDULED_A, t.openDispute);
+      expect(dialog).toBeDefined();
       // 2. Empty submit — the UI-seam REQUIRED gate blocks the wire call
       //    (shell + counter + aria-invalid assertions in the shared gate).
       expectDisputeDialogGate(dialog, t, tc);
@@ -1059,6 +1060,7 @@ for (const locale of componentSuiteLocales) {
       );
 
       const dialog = await clickRowActionAndAwaitDialog(ROW_SCHEDULED_A, t.openDispute);
+      expect(dialog).toBeDefined();
 
       // Type the (padded) reason — the live counter counts RAW characters —
       // then submit through the dialog's form (React.SubmitEvent path).
@@ -1089,6 +1091,7 @@ for (const locale of componentSuiteLocales) {
       );
 
       const dialog = await clickRowActionAndAwaitDialog(ROW_SCHEDULED_A, t.openDispute);
+      expect(dialog).toBeDefined();
       submitDialogWithTypedReason(dialog, DISPUTE_REASON_TYPED);
 
       // Error snackbar (the dispute vocabulary is snackbar-mapped, NOT the
