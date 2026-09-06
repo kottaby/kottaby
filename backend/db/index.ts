@@ -107,7 +107,7 @@ function assertPoolLike(value: unknown): asserts value is Pool {
 let poolSingleton: AnyPool | null = null;
 
 /** Returns the singleton pool (pg.Pool or PGlite shim). Constructs on first call. */
-export function getPool(): AnyPool {
+function getPool(): AnyPool {
   if (poolSingleton) {
     return poolSingleton;
   }

@@ -46,6 +46,7 @@
     "oxlint": "bun run scripts/lib/run-locked-cmd.ts oxlint oxlint --deny-warnings --ignore-path .gitignore",
     "check:duplicates": "bun run scripts/lib/run-locked-cmd.ts check:duplicates jscpd -t 0",
     "check:deps": "bun run scripts/lib/run-locked-cmd.ts check:deps depcruise --config .dependency-cruiser.js app backend frontend shared",
+    "check:unused": "bun node_modules/knip/bin/knip-bun.js",
     "quality-gate": "bun run scripts/quality-gate.ts",
     "quality-gate:fresh": "bun run scripts/quality-gate.ts --fresh",
     "storybook": "NODE_OPTIONS='--no-deprecation' storybook dev -p 6006",
