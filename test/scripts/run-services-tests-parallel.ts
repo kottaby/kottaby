@@ -12,4 +12,12 @@ await runParallelTests({
   maxWorkers: isSqlite ? 1 : 8,
   label: "backend service",
   timeoutMs: 60_000,
+  // The ALL-cohort broadcast fans one notifications row out per governed user
+  // read from the SHARED test database. Parallel chaos/own-commit files keep
+  // committed fixture users alive for their whole file and hard-delete them in
+  // afterAll cleanup — when such a delete commits between the cohort read and
+  // the batch insert, the FK check fails with 23503 (proved deterministically;
+  // see PR #56 CI). Running this file alone after the pool drains closes the
+  // race without touching the production read→write contract.
+  sequentialTailPatterns: ["notifications/admin-broadcast.service.test.ts"],
 });

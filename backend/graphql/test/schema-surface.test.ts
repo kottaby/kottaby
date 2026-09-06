@@ -262,6 +262,22 @@ const DEV3_016_ADMIN_TYPE_NAMES = [
   "AdminUserPage",
   "AdminUserStats",
 ] as const;
+/** Whole-platform analytics read — ONE admin root query (zero arguments, `$all`-gated; no anonymous surface, the allowlist stays byte-unchanged). */
+const DEV3_022C_QUERY_FIELDS = ["adminPlatformAnalytics"] as const;
+/** Analytics embedded value objects — root snapshot + ten sections/trend points; NO `id` anywhere, NO new enum, NO input, NO mutation. */
+const DEV3_022C_TYPE_NAMES = [
+  "PlatformAnalytics",
+  "PlatformAnalyticsCurrencyRevenue",
+  "PlatformAnalyticsHealth",
+  "PlatformAnalyticsRatings",
+  "PlatformAnalyticsRevenue",
+  "PlatformAnalyticsRevenueTrendPoint",
+  "PlatformAnalyticsSessionTrendPoint",
+  "PlatformAnalyticsSessions",
+  "PlatformAnalyticsSubscriptions",
+  "PlatformAnalyticsTeachers",
+  "PlatformAnalyticsUsers",
+] as const;
 
 // ─── Schema walk helpers ─────────────────────────────────────────────────────
 
@@ -325,13 +341,13 @@ describe("Query._health — retyped probe surface", () => {
     for (const name of PRE_3_1_QUERY_FIELDS) {
       expect(fieldNames).toContain(name);
     }
-    // …and the ONLY additions beyond them are the probe, the DEV1-013
-    // student-handshake queries, the DEV3-004 participant-read trio, the
-    // DEV3-005 admin arbitration listing, the DEV3-013 wallet read, and
-    // the RECONCILED DEV3-016 admin-user-management query quartet (the
-    // dev3-016 surface was shipped but never pinned — re-anchored here
-    // as a documented one-time reconciliation ahead of pinning the
-    // dev3-017 admin-governance mutation pair).
+    // …and the ONLY additions beyond them are the explicitly enumerated
+    // sanctioned surfaces: the probe, the DEV1-013 student-handshake
+    // queries, the DEV3-004 participant-read trio, the DEV3-005 admin
+    // arbitration listing, the DEV3-013 wallet read, the RECONCILED
+    // DEV3-016 admin-user-management query quartet (shipped but never
+    // pinned — re-anchored ahead of the dev3-017 admin-governance
+    // mutation pair), and the whole-platform analytics snapshot.
     const additions = fieldNames.filter(name => !(PRE_3_1_QUERY_FIELDS as readonly string[]).includes(name));
     expect(additions.toSorted((a, b) => a.localeCompare(b))).toEqual(
       [
@@ -342,6 +358,7 @@ describe("Query._health — retyped probe surface", () => {
         ...DEV3_005_QUERY_FIELDS,
         ...DEV3_013_QUERY_FIELDS,
         ...DEV3_016_ADMIN_USER_QUERY_FIELDS,
+        ...DEV3_022C_QUERY_FIELDS,
       ].toSorted((a, b) => a.localeCompare(b))
     );
   });
@@ -509,7 +526,7 @@ describe("Surface freeze — pinned additions vs the baseline inventory", () => 
     }
   });
 
-  test("whole-schema named-type delta is pinned: refreshed baseline delta (DateTime scalar + HealthCheck probe + DEV1-013 handshake surface) + DEV3-004 session objects/inputs + scheduling/arbitration/ledger enums + DEV3-013 wallet surface + DEV3-016 admin-user-management surface", () => {
+  test("whole-schema named-type delta is pinned: refreshed baseline delta (DateTime scalar + HealthCheck probe + DEV1-013 handshake surface) + DEV3-004 session objects/inputs + scheduling/arbitration/ledger enums + DEV3-013 wallet surface + DEV3-016 admin-user-management surface + the parent-link objects (extend step) + the eleven analytics value objects (no new enum)", () => {
     const post = new Set(sdlTypeNames());
 
     for (const name of PRE_3_1_TYPE_NAMES) {
@@ -528,6 +545,7 @@ describe("Surface freeze — pinned additions vs the baseline inventory", () => 
         ...DEV3_013_ENUMS,
         ...DEV3_016_ADMIN_TYPE_NAMES,
         ...DEV3_016_ADMIN_ENUMS,
+        ...DEV3_022C_TYPE_NAMES,
       ].toSorted((a, b) => a.localeCompare(b))
     );
   });

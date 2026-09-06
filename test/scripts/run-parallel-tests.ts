@@ -17,6 +17,15 @@ export interface RunParallelTestsConfig {
   maxWorkers: number;
   label: string;
   timeoutMs?: number;
+  /**
+   * File substrings whose matches are held OUT of the parallel worker pool
+   * and run one-by-one AFTER the pool drains. Use for tests that read the
+   * whole shared table set (e.g. an all-cohort fan-out) and would otherwise
+   * race with parallel files whose committed fixtures are created and
+   * hard-deleted while this file's read→write window is open. An explicit
+   * CLI filter targeting such a file keeps it in the parallel pool.
+   */
+  sequentialTailPatterns?: string[];
 }
 
 export interface TestRunResult {
@@ -350,6 +359,28 @@ async function processQueue(
   return processQueue(workerId, queue, timeoutMs, coverage, bail, state, activeProcs);
 }
 
+type FileLane = "parallel" | "tail" | "skip";
+
+/** Routes one glob hit into the parallel pool, the sequential tail, or out. */
+function classifyDiscoveredFile(
+  file: string,
+  cwd: string,
+  filterPaths: readonly string[],
+  tailPatterns: readonly string[] | undefined
+): { lane: FileLane; fullPath: string } {
+  const fullPath = `${cwd}/${file}`;
+  const matchesAny = (patterns: readonly string[] | undefined): boolean =>
+    patterns?.some(p => fullPath.includes(p) || file.includes(p)) ?? false;
+  const explicitlyFiltered = filterPaths.length > 0 && matchesAny(filterPaths);
+  if (matchesAny(tailPatterns) && !explicitlyFiltered) {
+    return { lane: "tail", fullPath };
+  }
+  if (filterPaths.length === 0 || explicitlyFiltered) {
+    return { lane: "parallel", fullPath };
+  }
+  return { lane: "skip", fullPath };
+}
+
 export async function runParallelTests(config: RunParallelTestsConfig): Promise<TestRunResult> {
   const { pattern, cwd, maxWorkers, label, timeoutMs: defaultTimeout = DEFAULT_TIMEOUT_MS } = config;
   const { bail, coverage, timeoutMs: cliTimeout, filterPaths } = parseCliArgs(process.argv.slice(2));
@@ -358,21 +389,20 @@ export async function runParallelTests(config: RunParallelTestsConfig): Promise<
   return withProcessLock(`test-suite: ${label}`, async () => {
     const glob = new Glob(pattern);
     const discoveredFiles: string[] = [];
+    const tailFiles: string[] = [];
 
     for await (const file of glob.scan({ cwd })) {
-      const fullPath = `${cwd}/${file}`;
-      if (filterPaths.length > 0) {
-        const matches = filterPaths.some(p => fullPath.includes(p) || file.includes(p));
-        if (matches) {
-          discoveredFiles.push(fullPath);
-        }
-      } else {
-        discoveredFiles.push(fullPath);
+      const classification = classifyDiscoveredFile(file, cwd, filterPaths, config.sequentialTailPatterns);
+      if (classification.lane === "tail") {
+        tailFiles.push(classification.fullPath);
+      } else if (classification.lane === "parallel") {
+        discoveredFiles.push(classification.fullPath);
       }
     }
 
     discoveredFiles.sort((a, b) => a.localeCompare(b));
-    const totalFiles = discoveredFiles.length;
+    tailFiles.sort((a, b) => a.localeCompare(b));
+    const totalFiles = discoveredFiles.length + tailFiles.length;
 
     if (totalFiles === 0) {
       globalThis.console.log(`\x1b[33mNo test files found matching pattern "${pattern}" in "${cwd}"\x1b[0m`);
@@ -440,6 +470,21 @@ export async function runParallelTests(config: RunParallelTestsConfig): Promise<
     }
 
     await Promise.all(workers);
+
+    // Sequential tail: hazard-sensitive files run alone, after the parallel
+    // pool drains — nothing else touches the shared DB while they run.
+    if (!state.isAborted) {
+      await tailFiles.reduce<Promise<void>>(
+        (chain, tailFile) =>
+          chain.then(async () => {
+            if (!(state.isAborted && bail)) {
+              await runSingleTestFile(0, tailFile, timeoutMs, coverage, bail, state, [], activeProcs);
+            }
+            return undefined;
+          }),
+        Promise.resolve()
+      );
+    }
 
     clearInterval(ticker);
     cleanup();
