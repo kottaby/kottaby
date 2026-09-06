@@ -31,12 +31,11 @@
  *   a ghost page).
  *
  * Translation discipline: assertions reference ONLY the PRELOADED label
- * objects resolved through `Sessions.getLabels(getTranslations(locale))`,
- * `Errors.getLabels(...)` and `Common.getLabels(...)` — ZERO hardcoded
- * Arabic/English copy lives here. The one exception class is fixture DATA
- * (ids, enum values, an ASCII dispute reason) plus the created/disputed
- * timestamps, which are recomputed with a local `Intl.DateTimeFormat` clone
- * of `formatApplicantDate`'s documented option set.
+ * objects resolved through the scaffold's `sessionSuiteLabels` (Sessions /
+ * Errors / Common namespaces) — ZERO hardcoded Arabic/English copy lives
+ * here. The one exception class is fixture DATA (ids, enum values, an ASCII
+ * dispute reason) plus the created/disputed timestamps, which are recomputed
+ * with the scaffold's `expectedStamp` oracle.
  *
  * Preload parity: the `test:ui:components` preload chain (test-env →
  * happydom → translation-preload → next-dynamic-mock) is owned by the
@@ -59,16 +58,7 @@
 
 import { afterEach, describe, expect, test } from "bun:test";
 import type { MockLink } from "@apollo/client/testing";
-import { MockedProvider } from "@apollo/client/testing/react";
-import {
-  cleanup,
-  fireEvent,
-  getQueriesForElement,
-  type RenderResult,
-  type Screen,
-  waitFor,
-  within,
-} from "@testing-library/react";
+import { cleanup, fireEvent, type RenderResult, waitFor, within } from "@testing-library/react";
 import {
   type AdminDisputedSessionsQuery_adminDisputedSessions_items,
   DisputeResolution,
@@ -84,11 +74,15 @@ import { AdminDisputesContainer } from "@/frontend/views/admin/disputes/AdminDis
 import { MAX_RESOLVE_NOTE_LENGTH } from "@/frontend/views/admin/disputes/ResolveDisputeDialog";
 import { SESSION_FEE_CURRENCY } from "@/shared/constants";
 import type { AppLocale } from "@/shared/locale/AppLocale";
-import { Common as CommonNs } from "@/shared/locale/namespaces/common";
-import { Errors as ErrorsNs } from "@/shared/locale/namespaces/errors";
-import { Sessions as SessionsNs } from "@/shared/locale/namespaces/sessions";
-import { getTranslations } from "@/shared/locale/server";
-import { renderWithWrapper } from "@/test/ui/components/TestWrapper";
+import type { SessionsLabels } from "@/shared/locale/types/sessions";
+import {
+  componentSuiteLocales,
+  expectedStamp,
+  liveScreen,
+  renderWithMocks,
+  sessionSuiteLabels,
+  snackbarSeverityClass,
+} from "@/test/ui/components/helpers";
 
 // ---------------------------------------------------------------------------
 // Fixtures (DATA — never locale copy)
@@ -263,47 +257,12 @@ function resolveMock(
 // ---------------------------------------------------------------------------
 // Render + expectation helpers
 
-/**
- * Lazily-bound `screen` replacement.
- *
- * WHY not `import { screen } from "@testing-library/react"`: RTL binds its
- * `screen` singleton ONCE, at the moment `@testing-library/dom/screen.js` is
- * first evaluated (`typeof document === "undefined" ? throwing-stub :
- * getQueriesForElement(document.body)`). Binding through
- * `getQueriesForElement(document.body)` on EVERY property access resolves
- * against the live DOM under BOTH runners (this file's bootstrap AND the
- * official `test:ui:components` CLI preloads) regardless of import order.
- */
-const screen: Screen = new Proxy(Object.create(null), {
-  get: (_target, property, receiver) => Reflect.get(getQueriesForElement(document.body), property, receiver),
-});
+/** Alias for the scaffold's lazily-bound live-DOM screen (see its module docs). */
+const screen = liveScreen;
 
 /** Renders the container under TestWrapper (LocaleProvider → emotion → theme). */
 function renderDisputes(mocks: ReadonlyArray<MockLink.MockedResponse>, locale: AppLocale): RenderResult {
-  const mocksCopy = [...mocks];
-  return renderWithWrapper(
-    <MockedProvider mocks={mocksCopy}>
-      <AdminDisputesContainer />
-    </MockedProvider>,
-    { locale }
-  );
-}
-
-/**
- * Recomputes the created/disputed stamp independently of the implementation
- * (byte-consistent clone of `formatApplicantDate`'s documented option set).
- */
-function expectedStamp(iso: string, locale: AppLocale): string {
-  const formatter = new Intl.DateTimeFormat(locale === "en" ? "en" : "ar", {
-    timeZone: "UTC",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
-  return formatter.format(new Date(iso));
+  return renderWithMocks(<AdminDisputesContainer />, mocks, locale);
 }
 
 /** Opens the arbitration dialog for one queue row and waits for the portal. */
@@ -322,28 +281,42 @@ async function openResolveDialog(rowId: string): Promise<HTMLElement> {
 }
 
 /**
- * Resolves the MUI severity class of the snackbar Alert currently showing
- * `text` (`MuiAlert-colorSuccess` / `colorError` / `colorInfo` families).
+ * Drives the resolve→Cancel SUCCESS arm the two arbitration branches share:
+ * opens the dialog, picks the Cancel resolution, submits via a CLICK on the
+ * type="submit" button (the form's real submitter path — NOT
+ * `fireEvent.submit(dialog)`: under Happy DOM, dispatching `submit` while
+ * the handler's success flow writes the cache, closes the dialog and
+ * unmounts the form mid-dispatch sends the runner into an unbounded
+ * allocation loop (OOM kill); the error arms (9/10) and the empty-gate
+ * probe (branch 7) never unmount the form, so their `fireEvent.submit` is
+ * safe), then pins the dialog close + success snackbar.
  */
-function snackbarSeverityClass(text: string): string {
-  return screen.getByText(text).closest(".MuiAlert-root")?.className ?? "";
+async function resolveCancelAndExpectSuccess(
+  rowId: string,
+  t: Pick<SessionsLabels, "resolutionCancelLabel" | "disputeResolvedNotice">
+): Promise<void> {
+  const dialog = await openResolveDialog(rowId);
+  fireEvent.click(within(dialog).getByRole("radio", { name: t.resolutionCancelLabel }));
+  fireEvent.click(within(dialog).getByTestId("resolve-dispute-submit"));
+
+  // Dialog closes + success snackbar with the arbitration vocabulary.
+  await waitFor(() => {
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+  await waitFor(() => {
+    expect(screen.getByText(t.disputeResolvedNotice)).toBeDefined();
+  });
+  expect(snackbarSeverityClass(t.disputeResolvedNotice)).toContain("MuiAlert-colorSuccess");
 }
 
 afterEach(cleanup);
 
 // One block per locale keeps RTL/LTR both exercised over the FULL branch
-// matrix while every case stays independently readable.
-//
-// STUI_LOCALE split-run guard: when set ("ar" | "en"), one bun invocation
-// executes ONLY that locale's block (the sanctioned OOM relief used by the
-// student/teacher suites). Unset (default) runs BOTH locales.
-const STUI_LOCALES: ReadonlyArray<AppLocale> = process.env.STUI_LOCALE
-  ? (["ar", "en"] as AppLocale[]).filter(candidate => candidate === process.env.STUI_LOCALE)
-  : (["ar", "en"] as AppLocale[]);
-for (const locale of STUI_LOCALES) {
-  const t = SessionsNs.getLabels(getTranslations(locale));
-  const te = ErrorsNs.getLabels(getTranslations(locale));
-  const tc = CommonNs.getLabels(getTranslations(locale));
+// matrix while every case stays independently readable. STUI_LOCALE
+// split-run guard: `componentSuiteLocales` carries the shared ar/en
+// filtering (unset runs BOTH locales).
+for (const locale of componentSuiteLocales) {
+  const { t, te, tc } = sessionSuiteLabels(locale);
 
   describe(`AdminDisputesContainer (${locale === "ar" ? "RTL/arabic" : "LTR/english"})`, () => {
     test("branch 1 — query in flight renders the busy skeleton under the always-on chrome", () => {
@@ -575,25 +548,7 @@ for (const locale of STUI_LOCALES) {
       await waitFor(() => {
         expect(screen.getByTestId(`admin-dispute-row-${FIRST_POPULATED_ID}`)).toBeDefined();
       });
-      const dialog = await openResolveDialog(QUEUE_ROW_ID);
-      fireEvent.click(within(dialog).getByRole("radio", { name: t.resolutionCancelLabel }));
-      // Success arms submit via a CLICK on the type="submit" button (the
-      // form's real submitter path) — NOT `fireEvent.submit(dialog)`: under
-      // Happy DOM, dispatching `submit` while the handler's success flow
-      // writes the cache, closes the dialog and unmounts the form mid-
-      // dispatch sends the runner into an unbounded allocation loop (OOM
-      // kill); the error arms (9/10) and the empty-gate probe (branch 7)
-      // never unmount the form, so their `fireEvent.submit` is safe.
-      fireEvent.click(within(dialog).getByTestId("resolve-dispute-submit"));
-
-      // Dialog closes + success snackbar with the arbitration vocabulary.
-      await waitFor(() => {
-        expect(screen.queryByRole("dialog")).toBeNull();
-      });
-      await waitFor(() => {
-        expect(screen.getByText(t.disputeResolvedNotice)).toBeDefined();
-      });
-      expect(snackbarSeverityClass(t.disputeResolvedNotice)).toContain("MuiAlert-colorSuccess");
+      await resolveCancelAndExpectSuccess(QUEUE_ROW_ID, t);
 
       // The resolved row leaves the queue via the dialog's cache filter
       // (items filtered + honest totalCount decremented — NO refetch).
@@ -697,19 +652,10 @@ for (const locale of STUI_LOCALES) {
       });
       expect(within(screen.getByTestId("admin-disputes-pager")).getByText("2 / 2")).toBeDefined();
 
-      // Resolve the lone trailing row (Cancel, empty note → null).
-      const dialog = await openResolveDialog(TRAILING_ROW_ID);
-      fireEvent.click(within(dialog).getByRole("radio", { name: t.resolutionCancelLabel }));
-      // Success arm → CLICK the submitter (see the branch-8 Happy-DOM note:
-      // fireEvent.submit + success-path unmount loops the runner into OOM).
-      fireEvent.click(within(dialog).getByTestId("resolve-dispute-submit"));
-      await waitFor(() => {
-        expect(screen.queryByRole("dialog")).toBeNull();
-      });
-      await waitFor(() => {
-        expect(screen.getByText(t.disputeResolvedNotice)).toBeDefined();
-      });
-      expect(snackbarSeverityClass(t.disputeResolvedNotice)).toContain("MuiAlert-colorSuccess");
+      // Resolve the lone trailing row (Cancel, empty note → null); the
+      // success arm CLICKs the submitter (see the helper docblock for the
+      // Happy-DOM OOM rationale behind avoiding fireEvent.submit here).
+      await resolveCancelAndExpectSuccess(TRAILING_ROW_ID, t);
 
       // The guard steps BACK to page 1 instead of rendering a ghost page:
       // a page-1 row is visible again, the resolved row is gone, the empty
