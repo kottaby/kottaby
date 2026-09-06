@@ -54,9 +54,13 @@ export function buildRouteError(
     const code = extractErrorCode(err);
     if (code === "FORBIDDEN") return undefined;
     if (code === "VALIDATION") {
-      const periodMsg = extractFieldErrors(err).periodDays;
-      if (periodMsg !== undefined) {
-        setDaysErr(periodMsg);
+      // extractFieldErrors returns Record<string, string> — an absent key
+      // reads as `undefined` at runtime while the index signature types it
+      // plain `string`, so the presence check must be Object.hasOwn (a
+      // `!== undefined` comparison would be statically always-true).
+      const fieldErrors = extractFieldErrors(err);
+      if (Object.hasOwn(fieldErrors, "periodDays")) {
+        setDaysErr(fieldErrors.periodDays);
         return undefined;
       }
     }
