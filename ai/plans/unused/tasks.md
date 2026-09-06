@@ -43,10 +43,10 @@
 
 ## Phase 6 — Final Verification
 
-- [ ] T6.1 `check:unused` exits 0 (remaining config hints documented with reasons)
-- [ ] T6.2 Full type-check clean (tsgo 0 new errors vs baseline)
-- [ ] T6.3 quality-gate script reports DONE
-- [ ] T6.4 Production build passes
+- [x] T6.1 `check:unused` exits 0 (remaining config hints documented with reasons)
+- [x] T6.2 Full type-check clean (tsgo 0 new errors vs baseline)
+- [x] T6.3 quality-gate script reports DONE
+- [x] T6.4 Production build passes
 
 ## Final — Review & Knowledge
 
