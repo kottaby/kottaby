@@ -31,6 +31,7 @@ import {
 import type {
   NotificationDeliveryReceipt,
   NotificationReturnType,
+  ParentLinkRequestSelectType,
 } from "@/backend/types";
 import { maskFullName } from "@/shared/lib/mask-full-name";
 
@@ -59,10 +60,11 @@ describe("parent-link-request.helpers — pure functions", () => {
 
     test("logs domain error and throws Error when status is corrupt/invalid", () => {
       const logSpy = silenceDomainLog();
-      const corruptRawStatus = "invalid_corrupt_status";
+      const corruptState: { status: ParentLinkRequestSelectType["status"] } = { status: LinkStatus.Pending };
+      Object.assign(corruptState, { status: "invalid_corrupt_status" });
       const requestId = 404;
 
-      expect(() => toCanonicalLinkStatus(corruptRawStatus, requestId)).toThrow(
+      expect(() => toCanonicalLinkStatus(corruptState.status, requestId)).toThrow(
         "ParentLinkRequestService: corrupt link_status value on request 404"
       );
 
@@ -175,12 +177,13 @@ describe("parent-link-request.helpers — pure functions", () => {
         id: 4,
         parentId: 10,
         studentId: 20,
-        status: "corrupt_val",
+        status: LinkStatus.Pending,
         studentFullName: "Test Student",
         createdAt: now,
         expiresAt: now,
         respondedAt: null,
       };
+      Object.assign(corruptRow, { status: "corrupt_val" });
 
       expect(() => mapOutgoing(corruptRow, now)).toThrow("ParentLinkRequestService: corrupt link_status");
     });
@@ -256,12 +259,13 @@ describe("parent-link-request.helpers — pure functions", () => {
         id: 13,
         parentId: 10,
         studentId: 20,
-        status: "corrupt_val",
+        status: LinkStatus.Pending,
         parentFullName: "Test Parent",
         createdAt: now,
         expiresAt: now,
         respondedAt: null,
       };
+      Object.assign(corruptRow, { status: "corrupt_val" });
 
       expect(() => mapIncoming(corruptRow, now)).toThrow("ParentLinkRequestService: corrupt link_status");
     });
