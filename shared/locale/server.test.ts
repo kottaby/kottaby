@@ -53,6 +53,8 @@ describe("getTranslations — fallback for invalid/unsupported locale inputs", (
     ["capitalized valid locale", "Ar"],
     ["padded valid locale with spaces", " en "],
     ["tab padded valid locale", "\tar\n"],
+    ["stringified null", String(null)],
+    ["stringified undefined", String(undefined)],
   ] as const;
 
   test.each(UNSUPPORTED_LOCALES)(
@@ -62,16 +64,6 @@ describe("getTranslations — fallback for invalid/unsupported locale inputs", (
       expect(translations).toBe(arMessages);
     }
   );
-
-  test("falls back to defaultLocale when locale is null cast as string", () => {
-    const translations = getTranslations(null as unknown as string);
-    expect(translations).toBe(arMessages);
-  });
-
-  test("falls back to defaultLocale when locale is undefined cast as string", () => {
-    const translations = getTranslations(undefined as unknown as string);
-    expect(translations).toBe(arMessages);
-  });
 });
 
 describe("getDefaultTranslations — default locale contract", () => {
