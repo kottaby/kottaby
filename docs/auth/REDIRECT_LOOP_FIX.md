@@ -208,7 +208,6 @@ Call-site changes (all previously targeted bare `/dashboard`):
 | `frontend/views/dashboard/DashboardSidebar.tsx` | exact-match active highlighting (prefix special-case obsolete) |
 | `frontend/views/dashboard/DashboardAppBar.tsx` | wordmark href → role dashboard |
 | `frontend/views/dashboard/profile/ProfileView.tsx` | "back to dashboard" → role dashboard |
-| `frontend/lib/auth/requireRoleForPage.ts` | role-mismatch fallback → `roleDashboardPath(ctx.role)` |
 | `frontend/lib/auth/withPageAuth.ts` | same |
 | `app/(dashboard)/dashboard/page.tsx` | anonymous branch → bare `/login` (stops producing the poisoned param) |
 

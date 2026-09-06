@@ -31,6 +31,13 @@ const config: KnipConfig = {
     "test/ui/test-env.ts",
     "test/ui/components/happydom-preload.ts",
     "test/ui/components/next-dynamic-mock.ts",
+
+    // Bun test runners invoked by path string only (run-locked-cmd wrapper args
+    // in package.json scripts + the AGENTS.md-documented AI runner) — knip
+    // cannot see nested wrapper commands.
+    "test/scripts/build-test.ts",
+    "test/scripts/run-server-tests.ts",
+    "test/scripts/run-test.ts",
   ],
   project: [
     "app/**/*.{ts,tsx}",
@@ -48,9 +55,11 @@ const config: KnipConfig = {
     // @storybook/react plugin globbing, never by app code
     "frontend/stories/**",
 
-    // Auto-generated exhaustive IANA timezone catalog — consumed via Object.values(),
-    // individual members are never referenced by name (441 enumMember false positives)
-    "shared/constants/iana-timezone.enum.ts",
+    // Auto-generated IANA timezone catalog (ids/labels/territories/enum) — outputs of
+    // `generate:iana-timezones` (scripts/iana-timezone-generator/paths.ts). Consumed via
+    // Object.values() + the codegen IanaTimezone scalar mapping; members are never
+    // referenced by name. Regenerated deterministically — never hand-edit, never delete.
+    "shared/constants/iana-timezone*.ts",
   ],
 
   // Dependencies that are genuinely used but invisible to knip's import graph.
@@ -73,12 +82,6 @@ const config: KnipConfig = {
     // agent config + NEW_RELIC_* env surface (agent is require()d by the runtime,
     // not imported by app code).
     "newrelic",
-
-    // @vercel/analytics + @vercel/speed-insights: imported by
-    // frontend/providers/VercelObservability.tsx, which is unreachable from knip
-    // entries. Revisit if that provider file is ever deleted.
-    "@vercel/analytics",
-    "@vercel/speed-insights",
 
     // @pothos/plugin-dataloader + dataloader: canonical batching pattern mandated
     // by docs/graphql/dataloader-batching.md + backend AGENTS.md ("t.loadable() for

@@ -13,8 +13,8 @@ The `shared/` layer contains code used by **both** frontend and backend: utiliti
 ### Positive Pattern
 
 ```typescript
-// shared/lib/social-links.ts
-import { isSafeUrl } from "@/shared/lib/safe-url";
+// frontend/views/auth/register/registerFormUtils.ts
+import { isValidEmail } from "@/shared/lib/email";
 
 // shared/lib/schedule-instance-dashboard-status.ts
 import { ClassExecutionState, ClassOutcome } from "@/shared/constants/class-instance-detail.enum";
@@ -23,7 +23,7 @@ import { ClassExecutionState, ClassOutcome } from "@/shared/constants/class-inst
 ### Negative Pattern (PROHIBITED)
 
 ```typescript
-import { isSafeUrl } from "@/frontend/lib/safeRedirect";
+import { isSafeRedirect } from "@/frontend/lib/safeRedirect";
 import { ClassOutcome } from "@/backend/enum";
 import type { InvoiceStatus } from "@/frontend/graphql/generated/gql/graphql";
 ```
@@ -38,7 +38,7 @@ import type { InvoiceStatus } from "@/frontend/graphql/generated/gql/graphql";
 
 | Directory | Purpose | Examples |
 |-----------|---------|----------|
-| `shared/lib/` | Pure utilities and domain logic with no layer deps | `safe-url.ts`, `social-links.ts`, `phone/`, `logger/` |
+| `shared/lib/` | Pure utilities and domain logic with no layer deps | `email.ts`, `mask-full-name.ts`, `isolate-bidi.ts`, `locale/`, `timezone/` |
 | `shared/constants/` | Enums and stable domain constants | `class-instance-detail.enum.ts`, `billing-months.ts`, `permission-group.enum.ts` |
 | `shared/types/` | Cross-layer TypeScript types | `billing-view.ts` |
 | `shared/messages/` | i18n message definitions and label types | `en.ts`, `ar/`, `types/` |
@@ -71,7 +71,7 @@ Recitation catalog: `shared/constants/recitation-reading.enum.ts` is the canonic
 When moving logic from `frontend/` or `backend/` into `shared/`:
 
 1. Place the implementation in the appropriate `shared/` subdirectory (`lib/`, `constants/`, `types/`).
-2. Update all consumers to import directly from the `shared/` source (e.g. `import { isSafeUrl } from "@/shared/lib/safe-url"`). Do not re-export from `frontend/` or `backend/` locations — consumers must import from `shared/` directly.
+2. Update all consumers to import directly from the `shared/` source (e.g. `import { isValidEmail } from "@/shared/lib/email"`). Do not re-export from `frontend/` or `backend/` locations — consumers must import from `shared/` directly.
 3. Move or define any required enums/types in `shared/` before updating imports in shared files.
 4. Run tests for affected shared modules and verify ESLint passes on changed `shared/**` files.
 

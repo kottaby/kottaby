@@ -24,8 +24,8 @@
 
 ## Phase 2 — Unused Files
 
-- [ ] T2.1 For every knip-flagged file, prove absence of non-import references before deleting (search path-minus-extension and directory paths for barrels across scripts/CI/configs/ORM/Storybook/string dynamic imports)
-- [ ] T2.2 Delete verified-dead files; register path-invoked survivors as knip entry patterns (entry, not ignore); run type-checker after the batch
+- [x] T2.1 For every knip-flagged file, prove absence of non-import references before deleting (search path-minus-extension and directory paths for barrels across scripts/CI/configs/ORM/Storybook/string dynamic imports)
+- [x] T2.2 Delete verified-dead files; register path-invoked survivors as knip entry patterns (entry, not ignore); run type-checker after the batch
 
 ## Phase 3 — Unused Exports / Types / Members
 
