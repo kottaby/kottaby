@@ -1,7 +1,7 @@
 # Deferred Items Ledger
 
-**Feature:** `dev3-006-session-report-homework-infrastructure`  
-**Plan Directory:** `ai/plans/sprint_1/dev3-006-session-report-homework-infrastructure`  
+**Feature:** `dev3-006-session-report-homework-infrastructure`
+**Plan Directory:** `ai/plans/sprint_1/dev3-006-session-report-homework-infrastructure`
 **Created:** `2026-09-05`
 
 ---

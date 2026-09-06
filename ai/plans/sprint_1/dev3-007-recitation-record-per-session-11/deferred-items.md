@@ -1,7 +1,7 @@
 # Deferred Items Ledger
 
-**Feature:** `dev3-007-recitation-record-per-session-11`  
-**Plan Directory:** `ai/plans/sprint_1/dev3-007-recitation-record-per-session-11`  
+**Feature:** `dev3-007-recitation-record-per-session-11`
+**Plan Directory:** `ai/plans/sprint_1/dev3-007-recitation-record-per-session-11`
 **Created:** `2026-09-05`
 
 ---
