@@ -24,11 +24,7 @@ import { describe, expect, test } from "bun:test";
 import { defaultLocale } from "@/shared/locale/AppLocale";
 import { arMessages } from "@/shared/locale/ar/messages";
 import { enMessages } from "@/shared/locale/en/messages";
-import {
-  getDefaultTranslations,
-  getTranslations,
-  loadAllTranslations,
-} from "@/shared/locale/server";
+import { getDefaultTranslations, getTranslations, loadAllTranslations } from "@/shared/locale/server";
 
 describe("getTranslations — happy path supported locales", () => {
   test("returns arMessages when requested locale is 'ar'", () => {
@@ -57,13 +53,10 @@ describe("getTranslations — fallback for invalid/unsupported locale inputs", (
     ["stringified undefined", String(undefined)],
   ] as const;
 
-  test.each(UNSUPPORTED_LOCALES)(
-    "falls back to defaultLocale (arMessages) for %s: %j",
-    (_label, locale) => {
-      const translations = getTranslations(locale);
-      expect(translations).toBe(arMessages);
-    }
-  );
+  test.each(UNSUPPORTED_LOCALES)("falls back to defaultLocale (arMessages) for %s: %j", (_label, locale) => {
+    const translations = getTranslations(locale);
+    expect(translations).toBe(arMessages);
+  });
 });
 
 describe("getDefaultTranslations — default locale contract", () => {
@@ -135,9 +128,7 @@ describe("catalog integrity and localized namespace divergence", () => {
     const arCatalog = getTranslations("ar");
     const enCatalog = getTranslations("en");
 
-    expect(arCatalog.errorsTranslations.badRequest).not.toBe(
-      enCatalog.errorsTranslations.badRequest
-    );
+    expect(arCatalog.errorsTranslations.badRequest).not.toBe(enCatalog.errorsTranslations.badRequest);
     expect(typeof arCatalog.errorsTranslations.badRequest).toBe("string");
     expect(typeof enCatalog.errorsTranslations.badRequest).toBe("string");
   });
