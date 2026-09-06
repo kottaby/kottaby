@@ -17,7 +17,9 @@ async function main() {
   const now = new Date();
 
   // Check existing
-  const existing = await pg.query("SELECT COUNT(*)::int as n FROM users WHERE email LIKE $1", ["vlm-test-%"]);
+  const existing = await pg.query<{ n: number }>("SELECT COUNT(*)::int as n FROM users WHERE email LIKE $1", [
+    "vlm-test-%",
+  ]);
   if (existing.rows[0].n > 0) {
     console.log(`[seed-fixtures] ${existing.rows[0].n} vlm-test users already exist; aborting to prevent dupes`);
     await pg.close();
@@ -30,7 +32,7 @@ async function main() {
   const governedPasswordHash = await hash("GovernedPass123!", 12);
 
   // 1. Admin A (the actor who will perform governance mutations)
-  const adminA = await pg.query(
+  const adminA = await pg.query<{ id: number }>(
     `INSERT INTO users (email, password_hash, full_name, role, is_deleted, suspended, is_blocked, locale, created_at, updated_at)
      VALUES ($1, $2, $3, $4, false, false, false, 'en', $5, $5)
      RETURNING id`,
@@ -40,7 +42,7 @@ async function main() {
   console.log(`[seed-fixtures] Admin A id=${adminAId} email=vlm-test-admin-a@app.local password=AdminPass123!`);
 
   // 2. Admin B (cross-actor visibility — observes governance actions by A)
-  const adminB = await pg.query(
+  const adminB = await pg.query<{ id: number }>(
     `INSERT INTO users (email, password_hash, full_name, role, is_deleted, suspended, is_blocked, locale, created_at, updated_at)
      VALUES ($1, $2, $3, $4, false, false, false, 'en', $5, $5)
      RETURNING id`,
@@ -50,7 +52,7 @@ async function main() {
   console.log(`[seed-fixtures] Admin B id=${adminBId} email=vlm-test-admin-b@app.local password=AdminPass123!`);
 
   // 3. Student S (the governance TARGET — gets suspended/blocked/etc.)
-  const studentS = await pg.query(
+  const studentS = await pg.query<{ id: number }>(
     `INSERT INTO users (email, password_hash, full_name, role, is_deleted, suspended, is_blocked, locale, created_at, updated_at)
      VALUES ($1, $2, $3, $4, false, false, false, 'en', $5, $5)
      RETURNING id`,
@@ -60,7 +62,7 @@ async function main() {
   console.log(`[seed-fixtures] Student S id=${studentSId} email=vlm-test-student-s@app.local password=StudentPass123!`);
 
   // 4. Teacher T (cross-role containment control — byte-identical across journey)
-  const teacherT = await pg.query(
+  const teacherT = await pg.query<{ id: number }>(
     `INSERT INTO users (email, password_hash, full_name, role, is_deleted, suspended, is_blocked, locale, created_at, updated_at)
      VALUES ($1, $2, $3, $4, false, false, false, 'en', $5, $5)
      RETURNING id`,
@@ -70,7 +72,7 @@ async function main() {
   console.log(`[seed-fixtures] Teacher T id=${teacherTId} email=vlm-test-teacher-t@app.local password=TeacherPass123!`);
 
   // 5. Governed Admin G (isBlocked=true — proves strict actor guard denies governed actor)
-  const adminG = await pg.query(
+  const adminG = await pg.query<{ id: number }>(
     `INSERT INTO users (email, password_hash, full_name, role, is_deleted, suspended, is_blocked, blocked_at, locale, created_at, updated_at)
      VALUES ($1, $2, $3, $4, false, false, true, $5, 'en', $5, $5)
      RETURNING id`,

@@ -54,9 +54,9 @@ export function buildRouteError(
     const code = extractErrorCode(err);
     if (code === "FORBIDDEN") return undefined;
     if (code === "VALIDATION") {
-      const periodMsg = extractFieldErrors(err).periodDays;
-      if (periodMsg !== undefined) {
-        setDaysErr(periodMsg);
+      const fieldErrors = extractFieldErrors(err);
+      if ("periodDays" in fieldErrors) {
+        setDaysErr(fieldErrors.periodDays);
         return undefined;
       }
     }
