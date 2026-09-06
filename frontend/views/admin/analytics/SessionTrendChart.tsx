@@ -13,13 +13,13 @@
 import { Box, Stack, Typography } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 import type { ReactNode } from "react";
-import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Bar, ResponsiveContainer } from "recharts";
 import type { AdminPlatformAnalyticsQuery_adminPlatformAnalytics_sessionTrendDaily } from "@/frontend/graphql/generated/gql/graphql";
-import { formatApplicantDate, formatDayMonth } from "@/frontend/lib/i18n/format-date";
 import {
   TREND_CHART_BODY_HEIGHT,
   TREND_CHART_MIN_WIDTH,
 } from "@/frontend/views/admin/analytics/platform-analytics-display";
+import { TrendBarChartScaffold } from "@/frontend/views/admin/analytics/TrendBarChartScaffold";
 
 interface SessionTrendChartProps {
   readonly data: ReadonlyArray<AdminPlatformAnalyticsQuery_adminPlatformAnalytics_sessionTrendDaily>;
@@ -41,13 +41,6 @@ export function SessionTrendChart({
   ariaLabel,
 }: Readonly<SessionTrendChartProps>): ReactNode {
   const theme = useTheme();
-  // Axis ticks use the SHORT day/month mask — a full timestamp overcrowds
-  // the 30-bucket axis and bidi-reorders into mashed glyphs under RTL (QA).
-  const formatTick = (value: string): string => formatDayMonth(value, locale);
-  // recharts hands the tooltip label through as a ReactNode — the wire
-  // bucketStart is the string case; anything else degrades to an empty label.
-  const formatTooltipLabel = (label: ReactNode): ReactNode =>
-    typeof label === "string" ? formatApplicantDate(label, locale) : "";
 
   return (
     // Plot body pins dir="ltr" — recharts SVG axis geometry is direction-neutral, so captions must sit adjacent to the axes they describe.
@@ -61,32 +54,7 @@ export function SessionTrendChart({
         </Typography>
       </Stack>
       <ResponsiveContainer width="100%" height={TREND_CHART_BODY_HEIGHT}>
-        <BarChart data={[...data]} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
-          <CartesianGrid stroke={theme.palette.border.light} vertical={false} />
-          <XAxis
-            dataKey="bucketStart"
-            tickFormatter={formatTick}
-            stroke={theme.palette.outline}
-            tick={{ fill: theme.palette.text.secondary, fontSize: 11 }}
-            tickLine={false}
-          />
-          <YAxis
-            allowDecimals={false}
-            stroke={theme.palette.outline}
-            tick={{ fill: theme.palette.text.secondary, fontSize: 11 }}
-            tickLine={false}
-            width={48}
-          />
-          <Tooltip
-            cursor={{ fill: theme.palette.action.hover }}
-            contentStyle={{
-              backgroundColor: theme.palette.background.paper,
-              border: `1px solid ${theme.palette.border.light}`,
-              borderRadius: "8px",
-              color: theme.palette.text.primary,
-            }}
-            labelFormatter={formatTooltipLabel}
-          />
+        <TrendBarChartScaffold data={data} locale={locale} yAxisWidth={48}>
           <Bar
             dataKey="sessionCount"
             name={seriesLabel}
@@ -96,7 +64,7 @@ export function SessionTrendChart({
             // same hue family) so the tooltip target is unmistakable.
             activeBar={{ fill: theme.palette.primary.dark }}
           />
-        </BarChart>
+        </TrendBarChartScaffold>
       </ResponsiveContainer>
     </Box>
   );

@@ -45,7 +45,7 @@ describe("SiteFooter", () => {
     expect(screen.getByRole("contentinfo")).toBeDefined();
     // Brand wordmark column + tagline copy straight from shared/locale/en.
     expect(screen.getByText(labels.footerTagline)).toBeDefined();
-    expect(screen.getByText("Kottaby Academy")).toBeDefined();
+    expect(screen.getByText(labels.footerBrandName)).toBeDefined();
 
     const privacyLink = screen.getByRole("link", { name: labels.footerLegalPrivacy });
     expect(privacyLink.getAttribute("href")).toBe("/register");
@@ -78,9 +78,9 @@ describe("SiteFooter", () => {
     expect(screen.getByText(labels.footerTagline)).toBeDefined();
     expect(screen.getByText(labels.footerCopyright)).toBeDefined();
 
-    // Column headings flip to Arabic while the brand wordmark stays Latin.
+    // Column headings and the brand wordmark flip to Arabic.
     expect(screen.getByText(labels.footerCompany)).toBeDefined();
-    expect(screen.getByText("Kottaby Academy")).toBeDefined();
+    expect(screen.getByText(labels.footerBrandName)).toBeDefined();
 
     // Social rail rides along into RTL with translated accessible names.
     expect(screen.getByRole("link", { name: labels.footerSocialX })).toBeDefined();

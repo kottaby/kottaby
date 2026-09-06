@@ -21,8 +21,8 @@
 import { ContentCopyOutlined as CopyIcon } from "@mui/icons-material";
 import { Box, IconButton, Link as MuiLink, Stack, TableCell, Tooltip, Typography } from "@mui/material";
 import Link from "next/link";
-import { type ReactNode, useState } from "react";
-import type { DirectoryUserItem } from "@/frontend/views/admin/users/directory";
+import type { ReactNode } from "react";
+import { type DirectoryUserItem, useDirectoryCopyEmail } from "@/frontend/views/admin/users/directory";
 import { UserAvatar } from "@/frontend/views/admin/users/ui";
 import type { DirectoryRole } from "@/frontend/views/admin/users/utils";
 import type { AdminUsersLabels } from "@/shared/locale/types/adminUsers";
@@ -41,27 +41,7 @@ export function DirectoryUserIdentityCell({
   labels,
   onCopyEmail,
 }: DirectoryUserIdentityCellProps): ReactNode {
-  const [emailCopied, setEmailCopied] = useState(false);
-  const handleCopyEmail = () => {
-    // Insecure contexts (plain http) expose NO Clipboard API at all — the
-    // property dereference would throw synchronously, before the rejection
-    // handler below could ever run. Bail silently (same posture as a
-    // rejected write): the snackbar never announces a copy that did not
-    // happen.
-    if (!("clipboard" in navigator)) {
-      return;
-    }
-    void navigator.clipboard
-      .writeText(user.email)
-      .then(() => {
-        setEmailCopied(true);
-        onCopyEmail?.();
-        return undefined;
-      })
-      // A rejected copy (permission/insecure context) stays silent — the
-      // shared snackbar must never announce a copy that did not happen.
-      .catch(() => undefined);
-  };
+  const { emailCopied, handleCopyEmail } = useDirectoryCopyEmail(user.email, onCopyEmail);
   return (
     <TableCell sx={{ minWidth: 0 }}>
       <Stack direction="row" spacing={1.5} sx={{ alignItems: "center", minWidth: 0 }}>
