@@ -450,7 +450,11 @@ for (const locale of LOCALES) {
         },
         { timeout: 10_000 }
       );
-    });
+      // Per-test timeout 20s: bun's default 5s per-test cap sits BELOW the
+      // 10s drain window above, so a legitimately slow Fade drain was being
+      // reported as a test timeout. 20s = 10s window + margin for the
+      // dialog-open + mutation round-trip.
+    }, 20_000);
 
     test("success — Unsuspend completes: onToast(unsuspendSuccessToast)", async () => {
       const { onToast } = renderSection(

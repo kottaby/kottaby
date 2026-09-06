@@ -1,6 +1,7 @@
 export * from "./AdminUsersDirectoryContainer";
 export * from "./DirectoryActionsMenu";
 export * from "./DirectoryEmptyState";
+export * from "./DirectoryFilterSelect";
 export * from "./DirectoryPagination";
 export * from "./DirectoryResults";
 export * from "./DirectoryRoleFilter";
@@ -16,3 +17,4 @@ export * from "./MobilePaginationCard";
 export * from "./MobileUserCard";
 export * from "./MobileUserCardList";
 export * from "./MobileUserIdentity";
+export * from "./useDirectoryCopyEmail";

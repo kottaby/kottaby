@@ -35,6 +35,7 @@
  *    snapshot, not a per-row entity).
  */
 import { gqlSchemaBuilder } from "@/backend/graphql/pothos/builder";
+import { adminUserStatsFields } from "@/backend/graphql/pothos/shared/userFieldHelpers";
 import type {
   PlatformAnalyticsCurrencyRevenueReturnType,
   PlatformAnalyticsHealthReturnType,
@@ -57,16 +58,7 @@ export const PlatformAnalyticsUsersPothosObject = gqlSchemaBuilder
   .objectRef<PlatformAnalyticsUsersReturnType>("PlatformAnalyticsUsers")
   .implement({
     fields: t => ({
-      totalCount: t.exposeInt("totalCount"),
-      activeCount: t.exposeInt("activeCount"),
-      suspendedCount: t.exposeInt("suspendedCount"),
-      blockedCount: t.exposeInt("blockedCount"),
-      deletedCount: t.exposeInt("deletedCount"),
-      adminsCount: t.exposeInt("adminsCount"),
-      teachersCount: t.exposeInt("teachersCount"),
-      studentsCount: t.exposeInt("studentsCount"),
-      parentsCount: t.exposeInt("parentsCount"),
-      newThisWeekCount: t.exposeInt("newThisWeekCount"),
+      ...adminUserStatsFields(t),
       recentlyActive24h: t.exposeInt("recentlyActive24h"),
     }),
   });
