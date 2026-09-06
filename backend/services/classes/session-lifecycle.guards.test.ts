@@ -424,10 +424,16 @@ describe("guardStatusFilter", () => {
     });
 
     test("returns { status: null } when status is not a valid SessionStatus member", () => {
-      const invalidFilter: SessionListFilterInput = Object.assign({}, { status: "INVALID_STATUS" });
+      const invalidFilter: SessionListFilterInput = Object.assign(
+        { status: SessionStatus.Scheduled },
+        { status: "INVALID_STATUS" }
+      );
       expect(guardStatusFilter(invalidFilter)).toEqual({ status: null });
 
-      const bogusFilter: SessionListFilterInput = Object.assign({}, { status: "expired" });
+      const bogusFilter: SessionListFilterInput = Object.assign(
+        { status: SessionStatus.Scheduled },
+        { status: "expired" }
+      );
       expect(guardStatusFilter(bogusFilter)).toEqual({ status: null });
     });
   });
@@ -436,7 +442,10 @@ describe("guardStatusFilter", () => {
     test("case-smuggled status strings drop out to null", () => {
       const smuggledInputs = ["SCHEDULED", "scheduled ", " Scheduled", "COMPLETED", "CANCELLED", "DISPUTED"];
       for (const smuggled of smuggledInputs) {
-        const filter: SessionListFilterInput = Object.assign({}, { status: smuggled });
+        const filter: SessionListFilterInput = Object.assign(
+          { status: SessionStatus.Scheduled },
+          { status: smuggled }
+        );
         expect(guardStatusFilter(filter)).toEqual({ status: null });
       }
     });
