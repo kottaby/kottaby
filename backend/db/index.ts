@@ -284,5 +284,3 @@ export async function closePool(): Promise<void> {
     logger.warn("[db] pool closed");
   }
 }
-
-export type { QueryResult, QueryResultRow };

@@ -35,7 +35,7 @@ export function readNonEmptyString(value: unknown): string | null {
 }
 
 /** Result wrapper used so getter failures never escape as exceptions. */
-export type ReadOutcome = { readonly ok: true; readonly value: unknown } | { readonly ok: false };
+type ReadOutcome = { readonly ok: true; readonly value: unknown } | { readonly ok: false };
 
 export function readProperty(source: Record<string, unknown>, key: string): ReadOutcome {
   try {
