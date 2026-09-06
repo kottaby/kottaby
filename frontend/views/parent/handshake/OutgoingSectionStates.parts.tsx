@@ -34,7 +34,7 @@ function isRetryableOutgoingCode(errorCode: string | null): boolean {
 const OUTGOING_SKELETON_KEYS: readonly string[] = ["outgoing-skeleton-1", "outgoing-skeleton-2"];
 
 /** Cold-load branch — full-width rounded placeholders (§5.5 card rhythm). */
-export function OutgoingSkeletonList(): ReactNode {
+function OutgoingSkeletonList(): ReactNode {
   return (
     <Stack component="output" data-testid="parent-outgoing-skeleton" aria-busy="true" spacing={2}>
       {OUTGOING_SKELETON_KEYS.map(key => (

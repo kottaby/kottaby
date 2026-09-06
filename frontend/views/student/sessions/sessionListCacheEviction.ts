@@ -28,7 +28,7 @@ export const CANCEL_ROLE_SESSION_LIST_FIELDS: readonly string[] = ["myStudentSes
  * dangling normalized `Reference` (`__ref`) and decides its survival, so
  * each caller's reference-matching rule stays its own.
  */
-export function filterSessionReferenceOutOfList(
+function filterSessionReferenceOutOfList(
   existing: unknown,
   keepReference: (reference: unknown) => boolean,
   sessionId: string

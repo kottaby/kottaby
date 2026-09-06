@@ -24,5 +24,7 @@
 import { DateTimeResolver } from "graphql-scalars";
 import { gqlSchemaBuilder } from "@/backend/graphql/pothos/builder";
 
-/** ISO-8601 UTC date-time scalar (serializes `Date`; accepts ISO strings pass-through). */
-export const DateTimeScalar = gqlSchemaBuilder.addScalarType("DateTime", DateTimeResolver, {});
+// ISO-8601 UTC date-time scalar (serializes `Date`; accepts ISO strings
+// pass-through) — registered by side effect when this module loads; domain
+// Pothos fields reference it by NAME (`type: "DateTime"`).
+gqlSchemaBuilder.addScalarType("DateTime", DateTimeResolver, {});

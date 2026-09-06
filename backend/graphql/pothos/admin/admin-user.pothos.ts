@@ -59,7 +59,7 @@ import type {
  * string to the `UserRole` TS enum via `toUserRole` (fail-closed on corrupt
  * stored values — surfaces as a resolver error rather than an unsafe cast).
  */
-export const AdminUserListItemPothosObject = gqlSchemaBuilder
+const AdminUserListItemPothosObject = gqlSchemaBuilder
   .objectRef<AdminUserListItemReturnType>("AdminUserListItem")
   .implement({
     fields: t => ({
@@ -166,7 +166,7 @@ export const AdminUserActivityEntryPothosObject = gqlSchemaBuilder
  * when one exists. Teacher-applicants (no `teacher` row yet) yield `null` at
  * the detail composition site.
  */
-export const AdminTeacherSnapshotPothosObject = gqlSchemaBuilder
+const AdminTeacherSnapshotPothosObject = gqlSchemaBuilder
   .objectRef<AdminTeacherSnapshotReturnType>("AdminTeacherSnapshot")
   .implement({
     fields: t => ({
@@ -182,7 +182,7 @@ export const AdminTeacherSnapshotPothosObject = gqlSchemaBuilder
  * Balance fields are pure reads; this surface ships NO mutation that touches
  * them.
  */
-export const AdminStudentSnapshotPothosObject = gqlSchemaBuilder
+const AdminStudentSnapshotPothosObject = gqlSchemaBuilder
   .objectRef<AdminStudentSnapshotReturnType>("AdminStudentSnapshot")
   .implement({
     fields: t => ({
@@ -208,7 +208,7 @@ export const AdminStudentSnapshotPothosObject = gqlSchemaBuilder
  * `AdminParentSnapshot` — read-only projection of the `parents` child row.
  * The headline is the linked-children count.
  */
-export const AdminParentSnapshotPothosObject = gqlSchemaBuilder
+const AdminParentSnapshotPothosObject = gqlSchemaBuilder
   .objectRef<AdminParentSnapshotReturnType>("AdminParentSnapshot")
   .implement({
     fields: t => ({

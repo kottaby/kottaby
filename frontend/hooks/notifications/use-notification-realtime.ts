@@ -44,7 +44,7 @@ import { Notifications, useAppTranslation } from "@/shared/locale";
  */
 
 /** One visible realtime toast (pre-localized message + monotonic id). */
-export interface RealtimeNotificationToast {
+interface RealtimeNotificationToast {
   readonly id: number;
   readonly message: string;
 }

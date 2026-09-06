@@ -197,7 +197,6 @@ describe("Static Forbidden-Pattern Assertions", () => {
       "ActorContextRef", // IS the identity (userId)
       "TeacherMatchingLanguagesInput",
       "GuardTranslationBag",
-      "ContractErrorCode",
       "EscrowReleaseReason",
       "SessionEventNotificationType",
     ]);

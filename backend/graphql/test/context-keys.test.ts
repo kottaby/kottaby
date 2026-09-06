@@ -18,7 +18,7 @@
  *    oversized, comma-collapsed, control-char) and even under a garbage
  *    Bearer credential, the identity tuple (`user`,`safeUser`,`role`,
  *    `isSuperAdmin`) stays byte-equal to the headerless baseline — keys can
- *    NEVER influence identity (see the `GatewayRequestMetadata` contract).
+ *    NEVER influence identity (the non-authorization idempotency contract).
  *
  * Single-capture-site pins: the capture site exists EXACTLY ONCE in
  * gqlContextFactory.ts and ZERO times in the route module.

@@ -32,9 +32,9 @@ interface CodeChipProps {
  * (cssjanus), which FLIPS author `direction: ltr` declarations to `rtl`,
  * silently inverting a CSS-side pin. The `dir` attribute is applied by the
  * user-agent stylesheet and cannot be touched by the flip; `unicode-bidi` is
- * not a directional property and passes through untouched. Same technique as
- * `frontend/providers/theme/LtrScope.tsx` ("the HTML `dir` attribute so
- * physical spacing is not flipped"), scoped to a single element.
+ * not a directional property and passes through untouched. The `dir`
+ * attribute is the only flip-proof LTR pin, scoped here to a single element
+ * so physical spacing is not flipped.
  */
 export function CodeChip({ code }: Readonly<CodeChipProps>): ReactNode {
   return (

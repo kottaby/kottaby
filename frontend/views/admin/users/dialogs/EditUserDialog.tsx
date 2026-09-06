@@ -35,7 +35,7 @@ import type { AdminUsersLabels } from "@/shared/locale/types/adminUsers";
  * projection (`AdminUserDetailFields`) structurally satisfy this interface,
  * so the dialog is reusable from either surface without adapter objects.
  */
-export interface AdminUserEditTarget {
+interface AdminUserEditTarget {
   readonly id: number;
   readonly fullName: string;
   readonly phone: string | null;
@@ -45,7 +45,7 @@ export interface AdminUserEditTarget {
 }
 
 /** Whitelist patch payload the edit dialog hands back to its caller. */
-export interface AdminEditUserPatchInput {
+interface AdminEditUserPatchInput {
   readonly fullName?: string;
   readonly phone?: string;
   readonly country?: string;

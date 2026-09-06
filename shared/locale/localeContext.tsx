@@ -9,7 +9,7 @@ export interface LocaleContextValue {
 
 export const LocaleContext = createContext<LocaleContextValue | null>(null);
 
-export function useLocaleContext(): LocaleContextValue {
+function useLocaleContext(): LocaleContextValue {
   const ctx = useContext(LocaleContext);
   if (!ctx) {
     throw new Error("useLocaleContext must be called inside <LocaleProvider>");

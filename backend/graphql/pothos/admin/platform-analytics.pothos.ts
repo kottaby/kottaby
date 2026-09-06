@@ -54,7 +54,7 @@ import type {
  * `PlatformAnalyticsUsers` — user-population counters: the directory
  * aggregate plus the 24-hour presence headline. Pure counters, no identity.
  */
-export const PlatformAnalyticsUsersPothosObject = gqlSchemaBuilder
+const PlatformAnalyticsUsersPothosObject = gqlSchemaBuilder
   .objectRef<PlatformAnalyticsUsersReturnType>("PlatformAnalyticsUsers")
   .implement({
     fields: t => ({
@@ -69,7 +69,7 @@ export const PlatformAnalyticsUsersPothosObject = gqlSchemaBuilder
  * instant; `awaitingConfirmation` is the lifecycle-derived completed-but-
  * unconfirmed state.
  */
-export const PlatformAnalyticsSessionsPothosObject = gqlSchemaBuilder
+const PlatformAnalyticsSessionsPothosObject = gqlSchemaBuilder
   .objectRef<PlatformAnalyticsSessionsReturnType>("PlatformAnalyticsSessions")
   .implement({
     fields: t => ({
@@ -91,7 +91,7 @@ export const PlatformAnalyticsSessionsPothosObject = gqlSchemaBuilder
  * currency. Amounts are exact decimal strings (never JS numbers) and
  * currencies are never merged — each code carries its own row.
  */
-export const PlatformAnalyticsCurrencyRevenuePothosObject = gqlSchemaBuilder
+const PlatformAnalyticsCurrencyRevenuePothosObject = gqlSchemaBuilder
   .objectRef<PlatformAnalyticsCurrencyRevenueReturnType>("PlatformAnalyticsCurrencyRevenue")
   .implement({
     fields: t => ({
@@ -107,7 +107,7 @@ export const PlatformAnalyticsCurrencyRevenuePothosObject = gqlSchemaBuilder
  * plus the offline-activations honesty counter (offline activations never
  * fold into the monetary totals).
  */
-export const PlatformAnalyticsRevenuePothosObject = gqlSchemaBuilder
+const PlatformAnalyticsRevenuePothosObject = gqlSchemaBuilder
   .objectRef<PlatformAnalyticsRevenueReturnType>("PlatformAnalyticsRevenue")
   .implement({
     fields: t => ({
@@ -125,7 +125,7 @@ export const PlatformAnalyticsRevenuePothosObject = gqlSchemaBuilder
  * `activeInWindowNow` applies the ACTIVE-window predicate at the captured
  * instant.
  */
-export const PlatformAnalyticsSubscriptionsPothosObject = gqlSchemaBuilder
+const PlatformAnalyticsSubscriptionsPothosObject = gqlSchemaBuilder
   .objectRef<PlatformAnalyticsSubscriptionsReturnType>("PlatformAnalyticsSubscriptions")
   .implement({
     fields: t => ({
@@ -144,7 +144,7 @@ export const PlatformAnalyticsSubscriptionsPothosObject = gqlSchemaBuilder
  * `onlineNowCount` is a subset of `certifiedCount` (an uncertified teacher
  * is never "online now").
  */
-export const PlatformAnalyticsTeachersPothosObject = gqlSchemaBuilder
+const PlatformAnalyticsTeachersPothosObject = gqlSchemaBuilder
   .objectRef<PlatformAnalyticsTeachersReturnType>("PlatformAnalyticsTeachers")
   .implement({
     fields: t => ({
@@ -160,7 +160,7 @@ export const PlatformAnalyticsTeachersPothosObject = gqlSchemaBuilder
  * distinct from "rated zero"), and the paired counts expose the sample size
  * behind each average. These are the ONLY nullable fields on the surface.
  */
-export const PlatformAnalyticsRatingsPothosObject = gqlSchemaBuilder
+const PlatformAnalyticsRatingsPothosObject = gqlSchemaBuilder
   .objectRef<PlatformAnalyticsRatingsReturnType>("PlatformAnalyticsRatings")
   .implement({
     fields: t => ({
@@ -176,7 +176,7 @@ export const PlatformAnalyticsRatingsPothosObject = gqlSchemaBuilder
  * the disputed state awaiting resolution and withdrawal transactions still
  * pending payout.
  */
-export const PlatformAnalyticsHealthPothosObject = gqlSchemaBuilder
+const PlatformAnalyticsHealthPothosObject = gqlSchemaBuilder
   .objectRef<PlatformAnalyticsHealthReturnType>("PlatformAnalyticsHealth")
   .implement({
     fields: t => ({
@@ -191,7 +191,7 @@ export const PlatformAnalyticsHealthPothosObject = gqlSchemaBuilder
  * covers, exposed through the `DateTime` scalar; absent days were
  * zero-filled by the service, never fabricated here.
  */
-export const PlatformAnalyticsSessionTrendPointPothosObject = gqlSchemaBuilder
+const PlatformAnalyticsSessionTrendPointPothosObject = gqlSchemaBuilder
   .objectRef<PlatformAnalyticsSessionTrendPointReturnType>("PlatformAnalyticsSessionTrendPoint")
   .implement({
     fields: t => ({
@@ -206,7 +206,7 @@ export const PlatformAnalyticsSessionTrendPointPothosObject = gqlSchemaBuilder
  * currency in that UTC day; currencies stay in separate points, and the
  * series is honestly empty when the window observed no currency.
  */
-export const PlatformAnalyticsRevenueTrendPointPothosObject = gqlSchemaBuilder
+const PlatformAnalyticsRevenueTrendPointPothosObject = gqlSchemaBuilder
   .objectRef<PlatformAnalyticsRevenueTrendPointReturnType>("PlatformAnalyticsRevenueTrendPoint")
   .implement({
     fields: t => ({

@@ -16,7 +16,7 @@ export type AuthUser = NonNullable<MeQuery["me"]>;
  * (`{ email, password }`) so the AuthProvider can pass them straight to
  * `useMutation(loginMutationDocument)`.
  */
-export type AuthCredentials = LoginMutationVariables;
+type AuthCredentials = LoginMutationVariables;
 
 /** Shape of the authentication context published by `AuthProvider`. */
 export type AuthContextType = {

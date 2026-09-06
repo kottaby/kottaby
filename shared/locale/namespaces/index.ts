@@ -15,5 +15,4 @@ export * from "./plans";
 export * from "./recitation";
 export * from "./registry";
 export * from "./sessions";
-export * from "./translation";
 export * from "./wallet";

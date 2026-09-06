@@ -29,7 +29,7 @@ import type { AdminUsersLabels } from "@/shared/locale/types/adminUsers";
  * (bold name line + role pill inside the info callout). Both the directory
  * list item and the detail projection structurally satisfy this interface.
  */
-export interface AdminUserDeleteTarget {
+interface AdminUserDeleteTarget {
   readonly id: number;
   readonly fullName: string;
   readonly role: string;

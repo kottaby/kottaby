@@ -46,7 +46,7 @@ import type { SessionsLabels } from "@/shared/locale/types/sessions";
  * (the SAME eviction semantics the cancel dialog's `SESSION_NOT_FOUND` arm
  * runs over both role lists).
  */
-export function evictSessionFromTeacherLists(cache: ApolloCache, sessionId: string): void {
+function evictSessionFromTeacherLists(cache: ApolloCache, sessionId: string): void {
   evictSessionFromListFields(cache, sessionId, TEACHER_SESSION_LIST_FIELDS);
 }
 

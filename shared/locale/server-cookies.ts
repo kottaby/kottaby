@@ -11,12 +11,3 @@ export async function getLocaleFromCookie(): Promise<AppLocale> {
   }
   return defaultLocale;
 }
-
-export async function setLocaleCookie(locale: AppLocale): Promise<void> {
-  const cookieStore = await cookies();
-  cookieStore.set(LOCALE_COOKIE_NAME, locale, {
-    path: "/",
-    sameSite: "lax",
-    maxAge: 60 * 60 * 24 * 365, // 1 year
-  });
-}

@@ -11,7 +11,6 @@ import {
 import { claimOrPriorReceipt, withTransaction } from "@/backend/services/notifications/notification-engine.helpers";
 import {
   NOTIFICATION_INBOX_DEFAULT_PAGE_LIMIT,
-  NOTIFICATION_INBOX_MAX_PAGE_LIMIT,
   resolveInboxListRequest,
   validateInboxUserId,
   validateOptionalNotificationType,
@@ -30,7 +29,7 @@ import type {
 } from "@/backend/types";
 import { getServerTranslations } from "@/shared/locale/server-graphql";
 
-export { NOTIFICATION_INBOX_DEFAULT_PAGE_LIMIT, NOTIFICATION_INBOX_MAX_PAGE_LIMIT };
+export { NOTIFICATION_INBOX_DEFAULT_PAGE_LIMIT };
 
 export interface NotificationEngineCallOptions {
   readonly transport?: NotificationFanoutTransport;

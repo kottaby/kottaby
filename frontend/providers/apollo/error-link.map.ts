@@ -132,7 +132,7 @@ export interface GraphQLErrorMappingContext {
 }
 
 /** Coarse UI behavior bucket selected by the mapping table. */
-export type GraphQLErrorActionKind =
+type GraphQLErrorActionKind =
   /** UNAUTHORIZED family — deduped token-refresh-then-login (owned by utils.ts). */
   | "auth-recovery"
   /** FORBIDDEN in query context — render PermissionDeniedFallback section. */
@@ -145,7 +145,7 @@ export type GraphQLErrorActionKind =
   | "notice";
 
 /** Inline-notice subtype for {@link GraphQLErrorAction.noticeKind}. */
-export type GraphQLErrorNoticeKind =
+type GraphQLErrorNoticeKind =
   | "not-found"
   | "conflict"
   | "duplicate-request"
@@ -153,7 +153,7 @@ export type GraphQLErrorNoticeKind =
   | "retryable-service-unavailable";
 
 /** MUI-severity-compatible copy tone consumed by the UI surfaces. */
-export type GraphQLErrorActionTone = "error" | "warning" | "info";
+type GraphQLErrorActionTone = "error" | "warning" | "info";
 
 /**
  * The exact action descriptor the errorLink publishes for one failed GraphQL

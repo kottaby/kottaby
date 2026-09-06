@@ -129,5 +129,3 @@ export const logger = {
     writeErr(`[DOMAIN] ${message}${ctxStr}`);
   },
 } as const;
-
-export type Logger = typeof logger;

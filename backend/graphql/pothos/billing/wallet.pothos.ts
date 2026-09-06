@@ -83,7 +83,7 @@ function toTransactionStatus(status: TeacherTransactionSelectType["status"]): Tr
  * ledger row. Producers return `TeacherTransactionSelectType` (the
  * `teacher_transaction` table's derived select row). `id` first.
  */
-export const TeacherTransactionPothosObject = gqlSchemaBuilder
+const TeacherTransactionPothosObject = gqlSchemaBuilder
   .objectRef<TeacherTransactionSelectType>("TeacherTransaction")
   .implement({
     fields: t => ({

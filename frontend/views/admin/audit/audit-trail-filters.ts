@@ -72,7 +72,7 @@ export interface AppliedAuditTrailFilters {
   readonly to: Date | null;
 }
 
-export const NO_FILTERS: AppliedAuditTrailFilters = {
+const NO_FILTERS: AppliedAuditTrailFilters = {
   actionType: null,
   actorId: null,
   entityType: null,
@@ -132,7 +132,7 @@ export function parseUtcDayStart(value: string): Date | null {
  * The exclusive wire boundary for the `to` calendar day: the midnight AFTER
  * the selected day (UTC has no DST, so a 24h offset is exact).
  */
-export function parseUtcDayEndExclusive(value: string): Date | null {
+function parseUtcDayEndExclusive(value: string): Date | null {
   const start = parseUtcDayStart(value);
   return start === null ? null : new Date(start.getTime() + DAY_MS);
 }

@@ -29,7 +29,7 @@ export type SessionEventNotificationType =
  * Eliminates the invalid half-populated state (type set / id null)
  * at the type level.
  */
-export type SessionEventNotificationEntityRef =
+type SessionEventNotificationEntityRef =
   | {
       readonly relatedEntityType: string;
       readonly relatedEntityId: number;

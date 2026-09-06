@@ -15,7 +15,7 @@
 export type InFlightSlotBook<K extends string> = Readonly<Record<string, ReadonlySet<K>>>;
 
 /** Opens a row+kind slot (pure — returns a new record, never mutating). */
-export function addInFlightSlot<K extends string>(
+function addInFlightSlot<K extends string>(
   slots: InFlightSlotBook<K>,
   sessionId: string,
   kind: K
@@ -26,7 +26,7 @@ export function addInFlightSlot<K extends string>(
 }
 
 /** Closes a row+kind slot, dropping the entry once its set drains (pure). */
-export function removeInFlightSlot<K extends string>(
+function removeInFlightSlot<K extends string>(
   slots: InFlightSlotBook<K>,
   sessionId: string,
   kind: K

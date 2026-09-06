@@ -18,7 +18,7 @@
 
 ## Phase 1 — Mechanical Categories
 
-- [ ] T1.1 Duplicate exports: same symbol exported twice (named+default or aliases) — pick canonical export by consumer usage, update consumers, delete duplicate
+- [x] T1.1 Duplicate exports: same symbol exported twice (named+default or aliases) — pick canonical export by consumer usage, update consumers, delete duplicate
 - [x] T1.2 Dependencies: verify unused packages via grep of configs/workflows/bin usage before removal; add unlisted-but-imported packages with lockfile-resolved versions; sync lockfile with one install at the end
 - [x] T1.3 Config hints in knip output: resolve each (remove dead entry globs, fix no-match patterns); do NOT blanket-remove curated ignores without proving they suppress nothing
 
@@ -29,8 +29,8 @@
 
 ## Phase 3 — Unused Exports / Types / Members
 
-- [ ] T3.1 Verify each flagged symbol is genuinely unreferenced (static imports, re-exports, type imports, `X.member` access, destructured dynamic imports); drop `export` keyword for own-file-only use; delete truly-unreferenced declarations + JSDoc
-- [ ] T3.2 Protect known knip blind spots: class/namespace members via destructured dynamic imports, generic factory consumers, `satisfies`/narrowing-only types, DB/GraphQL-schema-backed enums (documented directory-level knip ignore, never deletion)
+- [x] T3.1 Verify each flagged symbol is genuinely unreferenced (static imports, re-exports, type imports, `X.member` access, destructured dynamic imports); drop `export` keyword for own-file-only use; delete truly-unreferenced declarations + JSDoc
+- [x] T3.2 Protect known knip blind spots: class/namespace members via destructured dynamic imports, generic factory consumers, `satisfies`/narrowing-only types, DB/GraphQL-schema-backed enums (documented directory-level knip ignore, never deletion)
 
 ## Phase 4 — Cross-Cutting Fixes
 

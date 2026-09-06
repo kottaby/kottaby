@@ -20,7 +20,7 @@ function resolveDefaultFanoutTransport(): Promise<NotificationFanoutTransport> {
  * Publishes one realtime fan-out, degrading on ANY failure to a single
  * structured `NOTIFICATION_DELIVERY_DEGRADED` log and a resolve.
  */
-export async function publishAfterCommit(
+async function publishAfterCommit(
   userIds: readonly number[],
   payload: RealtimeNotificationPayload,
   locale: string,

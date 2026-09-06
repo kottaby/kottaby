@@ -10,7 +10,7 @@ export interface SurfaceToast {
   readonly action: GraphQLErrorAction;
 }
 
-export const TOAST_AUTOHIDE_MS = 6000;
+const TOAST_AUTOHIDE_MS = 6000;
 
 /** Tone → MUI Alert severity (the mapping table's tones ARE MUI severities). */
 function toneToSeverity(tone: GraphQLErrorAction["tone"]): "error" | "warning" | "info" {
