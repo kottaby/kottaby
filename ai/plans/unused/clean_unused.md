@@ -5,6 +5,7 @@ Run the project's unused-code cleanup and quality gate to full green. Commands: 
 - Read the root AGENTS.md and any directory-level AGENTS.md before touching files in that tree.
 - NEVER commit or mutate git beyond file edits. If something looks over-deleted, restore with `git checkout HEAD -- <file>` (do not stash across waves).
 - Never silence linters: no `knip`/`oxlint`/`biome`/`eslint` rule relaxations, no `*-disable` comments, no ignore-listing to hide bugs. Config entries are LAST RESORT and only for genuinely knip-invisible constructs, each with a one-line justification comment.
+- NEVER run UI or E2E tests — no `test:ui`, `test:ui:components`, `test:ui:e2e`, Storybook, Vitest browser runs, Playwright, or `build:test`. Not for verification, not for spot-checks, not ever. Verification is limited to `check:unused`, `tsgo`, lint, and the quality-gate/quality-loop scripts.
 - No new dependencies without asking. `bun install`/`npm install` only when package.json changed.
 
 ## Phase 0 — Discovery (before deleting anything)
