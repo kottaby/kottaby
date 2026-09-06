@@ -1189,7 +1189,7 @@ describe("AdminBroadcastService.broadcast — service behavior matrix", () => {
 
       const rows = await rowsByTitle(tx, title);
       expect(broadcastCount).toBe(rows.length);
-      expect(rows.length).toBe(1);
+      expect(rows).toHaveLength(1);
       for (const row of rows) {
         expect(row.title).toBe(title);
         expect(row.body).toBe(body);
