@@ -284,7 +284,7 @@ The `refresh_token` is also set as an **httpOnly cookie** by the Next.js route h
 
 ### 7.3 `me` query
 
-`query me` → `AuthService.getMe(ctx)`:
+`query me` → `backend/graphql/query/auth.query.ts` (the resolver returns `ctx.user` directly — no service method):
 - Reads `ctx.user` (populated by `gqlContextFactory` from the `Authorization: Bearer <access_token>` header).
 - Returns the authenticated user shape or `null` if anonymous.
 

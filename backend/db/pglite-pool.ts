@@ -3,9 +3,10 @@
  *
  * Production deploys keep `DB_PROVIDER=postgres` (or `neon`) and use a real
  * `pg.Pool` over TCP. The sandbox/CI environment lacks a PostgreSQL install;
- * `DB_PROVIDER=pglite` activates this shim and keeps the same `db`/`pool`/
- * `queryDb`/`getClient` API the rest of the backend expects — so consumers
- * (Drizzle ORM, repos, services, migrations) stay source-compatible.
+ * `DB_PROVIDER=pglite` activates this shim and keeps the same `db`/
+ * `getDrizzleDbPool`/`queryDb`/`closePool` API the rest of the backend
+ * expects — so consumers (Drizzle ORM, repos, services, migrations) stay
+ * source-compatible.
  *
  * The shim:
  *  - lazily constructs a single `PGlite` instance (PGlite is single-connection;

@@ -132,7 +132,7 @@ page.locator(`button[aria-label="${escapeRegExp(common.notifications)}"]`)
 ## Component Test Conventions
 
 - Preloads: `test/ui/test-env.ts`, `happydom-preload.ts`, `next-dynamic-mock.ts`, **`translation-preload.ts`**
-- Use `TestWrapper` for Apollo mocks — never hit a real server
+- Use `renderWithWrapper` from `@/test/ui/components/TestWrapper` (wrap children in Apollo `MockedProvider` for mocks) — never hit a real server
 - See `frontend/components/ui/AGENTS.md` for component test structure
 
 ## Agent Browser Login (manual/E2E-style verification)
@@ -161,30 +161,30 @@ The project uses a compile-time translation system (`shared/locale/`). Arabic/En
 
 ### Setup
 
-**`translation-preload.ts`** must be in the `--preload` chain for all component tests. It preloads all meeting-related translation namespaces at module level using `readTranslation` + top-level `await` so that `readTranslation` returns synchronously during tests. Without this, Suspense returns empty bodies on the first render.
+**`translation-preload.ts`** must be in the `--preload` chain for all component tests. It eagerly resolves the translation namespaces exercised by current suites for BOTH locales (`<Namespace>.getLabels(...)` over the full `en`/`ar` catalogs) so missing-key drift surfaces at preload time, and it registers the mocked `next/navigation` module that supplies the active test locale.
 
-The preload file maintains an array of `NamespaceHandle` objects and calls `readTranslation(handle, locale)` for each. When you use a new translation namespace in tests, add its handle to the array in `translation-preload.ts`.
+The preload file warms a list of namespace handles via `.getLabels(translations)` for both catalogs. When you use a new translation namespace in tests, add its handle to the warming loop in `translation-preload.ts`.
 
-### Translation Helper — `readTranslation` (Client Path)
+### Translation Helper — `getTranslations(locale)` + `<Namespace>.getLabels(...)`
 
-Tests are **client tests** — they must use the client translation path, not server translations. Use the existing `readTranslation(handle, locale)` function from `@/shared/locale/client/translation-cache-store` — the same function `useAppTranslation` calls internally. **Do NOT use `getServerTranslations` or any server-side translation helper.** **Do NOT create custom per-locale helper functions** (no `getArTranslation`, `getEnTranslation`, etc.).
+Tests resolve labels through the same compile-time catalog `useAppTranslation` reads from: import the namespace handle from `@/shared/locale/namespaces/<namespace>`, then call `<Handle>.getLabels(getTranslations(locale))` with `getTranslations` from `@/shared/locale/server` — pure, in-memory, and synchronous. **Do NOT create custom per-locale helper functions** (no `getArTranslation`, `getEnTranslation`, etc.).
 
 ```typescript
 import type { AppLocale } from "@/shared/locale/AppLocale";
-import { readTranslation } from "@/shared/locale/client/translation-cache-store";
-import { Translation } from "@/shared/locale/namespaces/translation";
-import { TestWrapper } from "@/test/ui/components/TestWrapper";
+import { HandshakeCode as HandshakeCodeNs } from "@/shared/locale/namespaces/handshakeCode";
+import { getTranslations } from "@/shared/locale/server";
+import { renderWithWrapper } from "@/test/ui/components/TestWrapper";
 
 const locale: AppLocale = "ar";
-const labels = readTranslation(Translation.Dashboard.MeetingUrlStatus, locale);
-// now use labels.urlPending, labels.urlReady, etc. in assertions
+const labels = HandshakeCodeNs.getLabels(getTranslations(locale));
+// now use labels.yourCodeTitle, labels.copyCode, etc. in assertions
 ```
 
-`readTranslation` is NOT a React hook — safe to call at module level. It returns labels synchronously after preload, or throws a Promise (Suspense) if the namespace isn't cached yet. The `translation-preload.ts` file pre-warms the cache so this never throws in tests.
+`getLabels` is NOT a React hook — safe to call at module level. `getTranslations(locale)` returns the full catalog synchronously; `translation-preload.ts` pre-warms the namespace handles so missing keys surface at preload time, not mid-assertion.
 
 ### Define `locale` Once Per Test File
 
-Define `locale` as a `const` at the top of the test file. Pass the same `locale` value to both `readTranslation` calls and the `TestWrapper`:
+Define `locale` as a `const` at the top of the test file. Pass the same `locale` value to both your `<Namespace>.getLabels(getTranslations(locale))` calls and `renderWithWrapper`:
 
 ```typescript
 const locale: AppLocale = "ar";
@@ -192,17 +192,10 @@ const locale: AppLocale = "ar";
 
 **Locale should NOT be deterministic** unless the test specifically tests locale-switching behavior. Don't single-source the locale from a central config — a simple `const locale: AppLocale = "ar"` per file is the correct approach.
 
-### `TestWrapper` Must Receive the Same `locale`
+### `renderWithWrapper` Must Receive the Same `locale`
 
-The `TestWrapper` sets up `LocaleProvider` → `TranslationProvider`, which provides the translation context that `useAppTranslation` reads from. It must receive the same `locale` as your `readTranslation` calls:
+`renderWithWrapper` (from `@/test/ui/components/TestWrapper`) renders under the full provider stack — `LocaleProvider` → emotion cache → `ThemeProvider` — providing the locale context that `useAppTranslation` reads from. It accepts `locale` as an option and must receive the same `locale` as your label resolution:
 
-```typescript
-render(<Component />, {
-  wrapper: ({ children }) => <TestWrapper locale={locale}>{children}</TestWrapper>,
-});
-```
-
-Or use `renderWithWrapper` which accepts `locale` as an option:
 ```typescript
 renderWithWrapper(<Component />, { locale });
 ```
@@ -211,25 +204,21 @@ renderWithWrapper(<Component />, { locale });
 
 **Pattern 1 — Component accepts `labels` prop:**
 ```typescript
-const labels = readTranslation(Translation.Dashboard.SettingsMeetingIntegrations, locale);
-render(<Component labels={labels} />, {
-  wrapper: ({ children }) => <TestWrapper locale={locale}>{children}</TestWrapper>,
-});
-expect(screen.getByText(labels.connectedAccounts)).toBeInTheDocument();
+const labels = HandshakeCodeNs.getLabels(getTranslations(locale));
+renderWithWrapper(<Component labels={labels} />, { locale });
+expect(screen.getByText(labels.copyCode)).toBeInTheDocument();
 ```
 
 **Pattern 2 — Component uses `useAppTranslation` internally:**
 ```typescript
-const labels = readTranslation(Translation.Dashboard.MeetingGeneration, locale);
-render(<Component />, {
-  wrapper: ({ children }) => <TestWrapper locale={locale}>{children}</TestWrapper>,
-});
-expect(screen.getByText(labels.generationStatusSuccess)).toBeInTheDocument();
+const labels = HandshakeCodeNs.getLabels(getTranslations(locale));
+renderWithWrapper(<Component />, { locale });
+expect(screen.getByText(labels.codeCopied)).toBeInTheDocument();
 ```
 
 ### What Counts as "Hardcoded" (Prohibited)
 
-- **Arabic/English UI labels** — e.g., `"متصل"`, `"Connected"`, `"تمت المصادقة"` — must come from `readTranslation(handle, locale)`
+- **Arabic/English UI labels** — e.g., `"متصل"`, `"Connected"`, `"تمت المصادقة"` — must come from `<Namespace>.getLabels(getTranslations(locale))`
 - **Button text, badge text, headings, descriptions** — any text rendered by the component
 - **Alert/error messages** — use translated strings from the appropriate namespace
 
@@ -259,16 +248,14 @@ Some components render combined text (e.g., `"{label}: {value}"`) in a single pa
 
 ### Namespace Handle Discovery
 
-The `Translation` constant in `@/shared/locale/namespaces/translation` provides typed access to all namespaces. Common meeting-related handles:
+Namespace handles live in per-namespace modules under `@/shared/locale/namespaces/` — each exports a typed handle (e.g. `HandshakeCode`, `Errors`, `Dashboard`), and `@/shared/locale/namespaces/registry.ts` composes them into the `namespaces` object. Resolve labels with `<Handle>.getLabels(getTranslations(locale))`. Common handles:
 
-| Handle | Keys |
+| Handle (module under `@/shared/locale/namespaces/`) | Keys |
 |--------|------|
-| `Translation.Dashboard.MeetingUrlStatus` | `urlPending`, `urlReady`, `urlFailed`, `urlExpired`, `joinMeeting`, `copyUrl`, `retryUrlGeneration`, `urlNotGenerated`, `setupMeetingConfig` |
-| `Translation.Dashboard.OAuthFlow` | `statusConnected`, `statusNotConnected`, `statusExpiring`, `statusExpired`, `expiresInDays(n)`, `statusAriaLabel` |
-| `Translation.Ui.MeetingConfig` | Nested: `join.*`, `enhancements.*`, `manager.*`, `reauthNeeded.*` |
-| `Translation.Dashboard.SettingsMeetingIntegrations` | Flat + nested: `connectedAccounts`, `provider.*`, `status.*`, `actions.*`, `testPanel.*` |
-| `Translation.Dashboard.MeetingGeneration` | `generationStatusPending`, `generationStatusSuccess`, `generationStatusFailed`, `generationRetry`, `generationShowDetails`, `generationHideDetails` |
-| `Translation.Profile.Notifications` | Nested `connectAccount.*`: `connectButton`, `connectingLabel`, `connectedAs(email)`, `disconnectButton`, `reconnectButton`, etc. |
+| `handshakeCode` → `HandshakeCode` | Student card: `yourCodeTitle`, `yourCodeDescription`, `copyCode`, `codeCopied`, `copyFailed`; parent discovery: `pageTitle`, `inputLabel`, `notFoundTitle`, `foundTitle`, … |
+| `errors` → `Errors` | `forbidden`, `forbiddenRole`, `studentHandshakeNotFound`, `internalServerError`, `sessionNotFound`, … |
+| `dashboard` → `Dashboard` | Sidebar nav (`sessions`, `wallet`, `profile`, …), profile-page, and stat-card strings |
+| `notifications` → `Notifications` | Realtime feed surface: `title`, `emptyTitle`, `filterAll`, `filterUnread`, per-type display labels, toast strings |
 
 ### Apollo Mock Requirement
 

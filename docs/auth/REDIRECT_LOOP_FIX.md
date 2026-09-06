@@ -136,7 +136,6 @@ Auth cookies use `sameSite: "strict"`, which blocks cookies on cross-site naviga
 | `frontend/providers/apollo/AuthProvider.tsx` | Client-side auth state management |
 | `frontend/views/auth/login/index.tsx` | Login container (client redirect logic) |
 | `frontend/lib/safeRedirect.ts` | Safe redirect URL validation |
-| `frontend/hooks/useAuthToken.ts` | Hook for auth token in React state |
 | `app/(dashboard)/layout.tsx` | Dashboard layout (server auth guard) |
 | `app/(auth)/layout.tsx` | Auth layout (server guard for authenticated users) |
 | `app/page.tsx` | Root page (unconditional login redirect) |

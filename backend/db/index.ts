@@ -215,8 +215,8 @@ export const db = drizzle({ client: getPoolForDrizzle() });
 
 /**
  * Runs a raw parameterized SQL query against the pool and returns typed rows.
- * Preferred for read-only introspection dashboards (avoids the full Drizzle
- * schema import graph in lightweight query paths).
+ * Preferred for read-only raw-SQL paths in repositories and scripts — typed
+ * rows without the Drizzle query builder.
  *
  * @example
  * const rows = await queryDb<{ table_name: string }>(
