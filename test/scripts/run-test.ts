@@ -4,13 +4,9 @@ import { join, relative, sep } from "node:path";
 import { withProcessLock } from "@/scripts/lib/process-lock";
 import { loadTestEnvFile } from "@/scripts/lib/test-build-env";
 
-<<<<<<< HEAD
-const BUN_BIN = process.execPath || join(homedir(), ".bun", "bin", "bun");
-=======
 const BUN_BIN = existsSync(join(homedir(), ".bun", "bin", "bun"))
   ? join(homedir(), ".bun", "bin", "bun")
   : process.execPath;
->>>>>>> origin/main
 const PROJECT_ROOT = process.cwd();
 const LOGS_DIR = join(PROJECT_ROOT, "logs");
 const FEEDBACK_DIR = join(PROJECT_ROOT, "test", "scripts", "feedback");

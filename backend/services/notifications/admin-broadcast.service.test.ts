@@ -1165,6 +1165,8 @@ describe("AdminBroadcastService.broadcast — service behavior matrix", () => {
   test("verbatim copy storage — unicode / RTL / injection-shaped copy stored byte-for-byte and inert", async () => {
     await runInRollback(async tx => {
       const cast = await provisionCast(tx);
+      const country = `QT${randomUUID().replace(/-/g, "").slice(0, 10).toUpperCase()}`;
+      await tx.update(users).set({ country }).where(eq(users.id, cast.student.id));
       const transportSpy = new SpiedFanoutTransport();
       const options = { transport: transportSpy, cache: new ScriptedClaimCache() };
       const unique = randomUUID();
@@ -1178,7 +1180,7 @@ describe("AdminBroadcastService.broadcast — service behavior matrix", () => {
         {
           title,
           body,
-          audience: { type: BroadcastAudienceType.Role, role: UserRole.Student },
+          audience: { type: BroadcastAudienceType.Country, country },
         },
         cast.admin.id,
         options,
@@ -1187,7 +1189,7 @@ describe("AdminBroadcastService.broadcast — service behavior matrix", () => {
 
       const rows = await rowsByTitle(tx, title);
       expect(broadcastCount).toBe(rows.length);
-      expect(rows.length).toBeGreaterThanOrEqual(1);
+      expect(rows).toHaveLength(1);
       for (const row of rows) {
         expect(row.title).toBe(title);
         expect(row.body).toBe(body);
