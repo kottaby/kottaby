@@ -3,6 +3,7 @@
 import { Button, Card, Chip, Stack, Typography } from "@mui/material";
 import type { ReactNode } from "react";
 import { focusVisibleRingSx } from "@/frontend/components/ui/focusRing";
+import { LinkRequestTimestampLines } from "@/frontend/components/ui/LinkRequestTimestampLines";
 import type { MyOutgoingParentLinkRequestsQuery_myOutgoingParentLinkRequests } from "@/frontend/graphql/generated/gql/graphql";
 import { formatApplicantDate } from "@/frontend/lib/i18n/format-date";
 import {
@@ -77,12 +78,10 @@ export function OutgoingLinkRequestCard({
           sx={{ flexShrink: 0 }}
         />
       </Stack>
-      <Typography variant="body2" component="p" sx={theme => ({ color: theme.palette.text.secondary })}>
-        {labels.sentAtLabel}: {formatApplicantDate(row.createdAt, locale)}
-      </Typography>
-      <Typography variant="body2" component="p" sx={theme => ({ color: theme.palette.text.secondary })}>
-        {labels.expiresLine(formatApplicantDate(row.expiresAt, locale))}
-      </Typography>
+      <LinkRequestTimestampLines
+        sentText={`${labels.sentAtLabel}: ${formatApplicantDate(row.createdAt, locale)}`}
+        expiresText={labels.expiresLine(formatApplicantDate(row.expiresAt, locale))}
+      />
       {actionable ? (
         <Button
           type="button"

@@ -37,7 +37,7 @@ import { randomBytes } from "node:crypto";
 import { connect } from "node:net";
 import { SignJWT } from "jose";
 import { signAccessToken } from "@/backend/lib/auth/jwt";
-import { getEnv, resetEnvironmentCache } from "@/backend/lib/env";
+import { requireEnv, resetEnvironmentCache } from "@/backend/lib/env";
 import {
   InProcessTransport,
   NOTIFICATIONS_FANOUT_CHANNEL,
@@ -132,7 +132,7 @@ async function mintAccessToken(userId: number): Promise<string> {
 
 /** Derives the same dev-fallback access secret as `backend/lib/auth/jwt`. */
 async function deriveTestAccessSecret(): Promise<Uint8Array> {
-  const base = getEnv("DATABASE_ENCRYPTION_KEY") ?? "dev-only-insecure-fallback-secret";
+  const base = requireEnv("DATABASE_ENCRYPTION_KEY");
   const digest = await globalThis.crypto.subtle.digest("SHA-256", new TextEncoder().encode(`${base}:access`));
   return new Uint8Array(digest);
 }

@@ -148,3 +148,136 @@ export async function countUsersByIds(ids: readonly number[]): Promise<number> {
   // Same as above — `count` is already typed as `number`.
   return result.rows[0]?.count ?? 0;
 }
+
+/**
+ * Generalized immutability-trigger suspension for APPEND-ONLY tables.
+ *
+ * `student_payments` and `teacher_transaction` carry the same append-only
+ * immutability trigger family as `audit_logs` (BEFORE UPDATE/DELETE →
+ * RAISE EXCEPTION, installed by the `3-immutability-triggers` migration),
+ * and both restrict-delete their way into `students`/`wallet` — so a
+ * journey teardown that tracked ledger rows (its own fixture payments and
+ * payouts) cannot delete them through any FK-safe ordering without first
+ * suspending the guards. This helper is the same sanctioned
+ * disable→run→restore dance as {@link withAuditDeleteTriggersSuspended},
+ * generalized by table:
+ *
+ *  - For EACH named table, every USER (non-internal) trigger is discovered
+ *    via `pg_trigger` (resolved with `to_regclass`, so an unknown table
+ *    simply discovers nothing) and its EXACT prior firing state
+ *    (`tgenabled` O/D/R/A) is captured.
+ *  - Every discovered trigger is DISABLEd (across all listed tables)
+ *    before `fn` runs, and restored to its exact prior state in a
+ *    `finally` block — a trigger that was already disabled before the
+ *    suspension stays disabled afterwards. Discovery, disable, and
+ *    restore are independent statements, so each phase runs via
+ *    `Promise.all` (no await-in-loop).
+ *  - When NO listed table carries user triggers (push-provisioned dev/test
+ *    databases), `fn` runs directly with zero DDL round-trips.
+ *  - Executes on the global `db` (no tx parameter) — journey teardown runs
+ *    outside any rollback wrapper per `test/workflows/AGENTS.md` rule 1,
+ *    exactly like the audit helper. This deliberately touches ONLY the
+ *    named tables' non-internal triggers (never `session_replication_role`,
+ *    which would also suspend referential-integrity triggers).
+ *
+ * Test-env scoping: this path ONLY relaxes the append-only guards inside
+ * the test-harness teardown window; production runtime code never imports
+ * this helper.
+ */
+
+/** One `pg_trigger` row's firing state for one suspended table. */
+interface ImmutableTableTriggerState {
+  readonly table: string;
+  readonly name: string;
+  readonly enabled: string;
+}
+
+/**
+ * Maps a captured `tgenabled` state to its restoring DDL builder for one
+ * table (data-driven so each firing mode stays explicit; any other state
+ * falls through to the plain enable, mirroring the audit helper's default).
+ */
+const IMMUTABLE_TRIGGER_RESTORE_DDL: Record<string, (table: string, name: string) => ReturnType<typeof sql>> = {
+  D: (table, name) => sql`ALTER TABLE ${sql.identifier(table)} DISABLE TRIGGER ${sql.identifier(name)}`,
+  R: (table, name) => sql`ALTER TABLE ${sql.identifier(table)} ENABLE REPLICA TRIGGER ${sql.identifier(name)}`,
+  A: (table, name) => sql`ALTER TABLE ${sql.identifier(table)} ENABLE ALWAYS TRIGGER ${sql.identifier(name)}`,
+};
+
+/** Builds the restore statement that returns one trigger to its captured state. */
+function immutableTriggerRestoreClause(state: ImmutableTableTriggerState): ReturnType<typeof sql> {
+  const build = IMMUTABLE_TRIGGER_RESTORE_DDL[state.enabled];
+  if (build) {
+    return build(state.table, state.name);
+  }
+  return sql`ALTER TABLE ${sql.identifier(state.table)} ENABLE TRIGGER ${sql.identifier(state.name)}`;
+}
+
+/**
+ * Runs `fn` with every USER (non-internal) trigger on each of `tables`
+ * disabled, restoring each trigger's exact prior firing state afterwards
+ * (even when `fn` rejects). When none of the listed tables carries user
+ * triggers (push-provisioned dev/test databases), `fn` runs directly with
+ * zero DDL round-trips.
+ *
+ * Error semantics: a rejected `fn` always wins — the callback error is
+ * captured before restoration and rethrown verbatim. Restoration DDL runs
+ * via `allSettled` so it can never mask the callback error; if any restore
+ * fails, an `AggregateError` is thrown listing every restore reason (plus
+ * the callback error when one exists), so teardown failures are surfaced,
+ * never logged-and-swallowed.
+ */
+export async function withImmutabilityTriggersSuspended<T>(
+  tables: readonly string[],
+  fn: () => Promise<T>
+): Promise<T> {
+  const discoveredPerTable = await Promise.all(
+    tables.map(async table => ({
+      table,
+      rows: (
+        await db.execute<{ tgname: string; tgenabled: string }>(
+          sql`SELECT tgname, tgenabled FROM pg_trigger WHERE tgrelid = to_regclass(${table}) AND NOT tgisinternal`
+        )
+      ).rows,
+    }))
+  );
+  const triggers: ImmutableTableTriggerState[] = discoveredPerTable.flatMap(discovered =>
+    discovered.rows.map(row => ({ table: discovered.table, name: row.tgname, enabled: row.tgenabled }))
+  );
+  if (triggers.length === 0) {
+    return fn();
+  }
+  // Disable all discovered triggers in parallel — independent DDL
+  // statements with no ordering requirement between them.
+  await Promise.all(
+    triggers.map(trigger =>
+      db.execute(sql`ALTER TABLE ${sql.identifier(trigger.table)} DISABLE TRIGGER ${sql.identifier(trigger.name)}`)
+    )
+  );
+  let outcome: { ok: true; value: T } | { ok: false; error: unknown };
+  try {
+    outcome = { ok: true, value: await fn() };
+  } catch (error) {
+    outcome = { ok: false, error };
+  }
+  // Restore each trigger's exact prior firing state — independent DDL
+  // statements, safe in parallel (restore order does not matter since
+  // each trigger is set to its own captured `tgenabled`). `allSettled`
+  // keeps every restore failure observable without discarding the
+  // callback's own error.
+  const restorations = await Promise.allSettled(
+    triggers.map(trigger => db.execute(immutableTriggerRestoreClause(trigger)))
+  );
+  const restoreReasons = restorations
+    .filter((restoration): restoration is PromiseRejectedResult => restoration.status === "rejected")
+    .map(restoration => restoration.reason);
+  if (restoreReasons.length > 0) {
+    throw new AggregateError(
+      outcome.ok ? restoreReasons : [outcome.error, ...restoreReasons],
+      `Failed to restore ${restoreReasons.length} immutability trigger(s) on: ${[...new Set(triggers.map(trigger => trigger.table))].join(", ")}`
+    );
+  }
+  if (!outcome.ok) {
+    throw outcome.error;
+  }
+  return outcome.value;
+}

@@ -39,23 +39,28 @@ export function ProfileHeader({ user, roleLabel, t }: Readonly<ProfileHeaderProp
         {avatarLetter}
       </Avatar>
       <Box sx={{ minWidth: 0, flex: 1 }}>
-        <Typography variant="h5" sx={{ fontWeight: 700 }}>
-          {user.fullName}
-        </Typography>
+        <Stack direction="row" spacing={1.5} sx={{ alignItems: "center", flexWrap: "wrap", rowGap: 0.5 }}>
+          <Typography variant="h5" sx={{ fontWeight: 700 }}>
+            {user.fullName}
+          </Typography>
+          {/* The role chip hugs the name it describes — parked at the far row
+              end it read as an orphan on wide screens (QA finding). */}
+          <Chip
+            label={roleLabel}
+            size="small"
+            variant="outlined"
+            sx={theme => ({
+              fontWeight: 600,
+              textTransform: "capitalize",
+              borderColor: theme.palette.primary.main,
+              color: theme.palette.primary.main,
+            })}
+          />
+        </Stack>
         <Typography variant="body2" sx={theme => ({ color: theme.palette.text.secondary })}>
           {user.email}
         </Typography>
       </Box>
-      <Chip
-        label={roleLabel}
-        variant="outlined"
-        sx={theme => ({
-          fontWeight: 600,
-          textTransform: "capitalize",
-          borderColor: theme.palette.primary.main,
-          color: theme.palette.primary.main,
-        })}
-      />
     </Stack>
   );
 }
