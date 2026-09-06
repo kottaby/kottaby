@@ -81,6 +81,9 @@ async function getAccessSecret(): Promise<Uint8Array> {
     return cachedAccessSecret;
   }
   const explicit = getEnv("JWT_ACCESS_SECRET");
+  if (!explicit && getEnvironmentConfig().nodeEnv === "production") {
+    throw new Error('Required environment variable "JWT_ACCESS_SECRET" is not set in production.');
+  }
   cachedAccessSecret = explicit ? encodeSecret(explicit) : await deriveDevSecret("access");
   return cachedAccessSecret;
 }
@@ -97,6 +100,9 @@ async function getRefreshSecret(): Promise<Uint8Array> {
     return cachedRefreshSecret;
   }
   const explicit = getEnv("JWT_REFRESH_SECRET");
+  if (!explicit && getEnvironmentConfig().nodeEnv === "production") {
+    throw new Error('Required environment variable "JWT_REFRESH_SECRET" is not set in production.');
+  }
   cachedRefreshSecret = explicit ? encodeSecret(explicit) : await deriveDevSecret("refresh");
   return cachedRefreshSecret;
 }
