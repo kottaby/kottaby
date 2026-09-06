@@ -113,6 +113,14 @@ async function getPglite(): Promise<PGlite> {
       // Touch a trivial query to ensure WASM is loaded before returning, so
       // downstream `db.select(...)` calls don't race initialization.
       await instance.query("SELECT 1 AS ok");
+      // Pin the (single) session timezone explicitly — the guarantee must be
+      // structural, not incidental to PGlite's default: naive `timestamp
+      // without time zone` columns store the session wall clock through
+      // `defaultNow()`, and the platform-analytics trend readers decode that
+      // wall clock as UTC. Mirrors the `options: "-c timezone=UTC"` startup
+      // pin on the postgres Pool (`backend/db/index.ts`) so both providers
+      // yield identical trend buckets under any host timezone.
+      await instance.query("SET TIME ZONE 'UTC'");
       pgliteSingleton = instance;
       logger.warn(`[PglitePool] PGlite initialized successfully`);
       return instance;

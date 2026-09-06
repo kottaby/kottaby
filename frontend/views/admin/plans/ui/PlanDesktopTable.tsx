@@ -44,14 +44,17 @@ export function PlanDesktopTable({
       <Table aria-label={t.pageTitle}>
         <TableHead>
           <TableRow sx={theme => ({ backgroundColor: theme.palette.action.hover })}>
-            <TableCell sx={{ fontWeight: 600 }}>{t.titleColumn}</TableCell>
-            <TableCell sx={{ fontWeight: 600 }}>{t.sessionCountColumn}</TableCell>
-            <TableCell sx={{ fontWeight: 600 }}>{t.priceColumn}</TableCell>
-            <TableCell sx={{ fontWeight: 600 }}>{t.intervalDaysColumn}</TableCell>
-            <TableCell sx={{ fontWeight: 600 }}>{t.statusColumn}</TableCell>
-            <TableCell sx={{ fontWeight: 600 }}>{t.createdAtColumn}</TableCell>
-            <TableCell sx={{ fontWeight: 600 }}>{t.deactivatedAtColumn}</TableCell>
-            <TableCell align="right" sx={{ fontWeight: 600 }}>
+            {/* `whiteSpace: nowrap` — narrow lanes were wrapping Arabic headers
+                mid-word ("الحال ة"); headers are single short words, they keep
+                one line and the table scrolls instead. */}
+            <TableCell sx={{ fontWeight: 600, whiteSpace: "nowrap" }}>{t.titleColumn}</TableCell>
+            <TableCell sx={{ fontWeight: 600, whiteSpace: "nowrap" }}>{t.sessionCountColumn}</TableCell>
+            <TableCell sx={{ fontWeight: 600, whiteSpace: "nowrap" }}>{t.priceColumn}</TableCell>
+            <TableCell sx={{ fontWeight: 600, whiteSpace: "nowrap" }}>{t.intervalDaysColumn}</TableCell>
+            <TableCell sx={{ fontWeight: 600, whiteSpace: "nowrap" }}>{t.statusColumn}</TableCell>
+            <TableCell sx={{ fontWeight: 600, whiteSpace: "nowrap" }}>{t.createdAtColumn}</TableCell>
+            <TableCell sx={{ fontWeight: 600, whiteSpace: "nowrap" }}>{t.deactivatedAtColumn}</TableCell>
+            <TableCell align="right" sx={{ fontWeight: 600, whiteSpace: "nowrap" }}>
               {t.actionsColumn}
             </TableCell>
           </TableRow>
