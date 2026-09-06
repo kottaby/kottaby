@@ -118,11 +118,18 @@ const LOCALE_COOKIE_RE = new RegExp(`(?:${LOCALE_COOKIE_NAME}|next-locale)=(en|a
  * constructing a full GraphQL context. `createGraphQLContext` calls this SAME
  * function, so both layers agree on the active locale.
  */
-export function extractLocale(request: NextRequest | Request): string {
+export function extractLocale(request: NextRequest | Request, parsedCookies?: Record<string, string>): string {
   // 1. Cookie (client-side routing sets this on locale switch).
-  const cookieHeader = request.headers.get("cookie") ?? "";
-  const match = LOCALE_COOKIE_RE.exec(cookieHeader);
-  if (match?.[1]) return match[1];
+  if (parsedCookies) {
+    const cookieVal = parsedCookies[LOCALE_COOKIE_NAME] ?? parsedCookies["next-locale"];
+    if (cookieVal && SUPPORTED_LOCALES.has(cookieVal)) {
+      return cookieVal;
+    }
+  } else {
+    const cookieHeader = request.headers.get("cookie") ?? "";
+    const match = LOCALE_COOKIE_RE.exec(cookieHeader);
+    if (match?.[1]) return match[1];
+  }
 
   // 2. Accept-Language header.
   const acceptLang = request.headers.get("accept-language") ?? "";
@@ -138,12 +145,17 @@ export function extractLocale(request: NextRequest | Request): string {
  * request), then falls back to the `access_token` httpOnly cookie (SSR
  * path — `setAuthCookies` writes it on login/refresh so
  * `getServerUserContext()` can verify without a client-supplied identity).
- * Returns `null` if no token is present.
+ * Returns `null` if no token is present. Reuses pre-parsed cookies when available.
  */
-function extractAccessToken(request: NextRequest | Request): string | null {
+function extractAccessToken(request: NextRequest | Request, parsedCookies?: Record<string, string>): string | null {
   // 1. Authorization header (preferred — production client path).
   const authHeader = request.headers.get("authorization") ?? "";
-  if (authHeader.toLowerCase().startsWith("bearer ")) {
+  if (authHeader.startsWith("Bearer ") || authHeader.startsWith("bearer ")) {
+    const token = authHeader.slice(7).trim();
+    if (token.length > 0) {
+      return token;
+    }
+  } else if (authHeader.toLowerCase().startsWith("bearer ")) {
     const token = authHeader.slice(7).trim();
     if (token.length > 0) {
       return token;
@@ -152,8 +164,7 @@ function extractAccessToken(request: NextRequest | Request): string | null {
 
   // 2. access_token httpOnly cookie (SSR / dev convenience — set by
   // `setAuthCookies` on login + refreshToken).
-  const cookieHeader = request.headers.get("cookie") ?? "";
-  const cookies = parseCookies(cookieHeader);
+  const cookies = parsedCookies ?? parseCookies(request.headers.get("cookie") ?? "");
   return cookies[AUTH_COOKIE_NAMES.accessToken] ?? null;
 }
 
@@ -165,7 +176,11 @@ function extractAccessToken(request: NextRequest | Request): string | null {
  * @returns A `Context` object with locale + i18n accessor + auth state wired up.
  */
 export async function createGraphQLContext(request: NextRequest | Request): Promise<Context> {
-  const locale = extractLocale(request);
+  // Parse cookies ONCE per request for context, locale lookup, and auth resolution.
+  const cookieHeader = request.headers.get("cookie") ?? "";
+  const cookies = parseCookies(cookieHeader);
+
+  const locale = extractLocale(request, cookies);
 
   // Resolve the per-request correlation id EXACTLY ONCE (this is THE single
   // request-id resolution point in the GraphQL path; the helper honors a
@@ -184,10 +199,6 @@ export async function createGraphQLContext(request: NextRequest | Request): Prom
   // pre-resolved namespace for resolver-local error messages.
   const translations = getServerTranslations(locale);
 
-  // Parse cookies into a plain object for resolver-side mutation.
-  const cookieHeader = request.headers.get("cookie") ?? "";
-  const cookies = parseCookies(cookieHeader);
-
   // Per-request Set-Cookie accumulator — login/refreshToken resolvers push
   // serialized cookie strings into it; the route handler reads them after
   // Apollo processes the request and merges them onto the response.
@@ -199,7 +210,7 @@ export async function createGraphQLContext(request: NextRequest | Request): Prom
   // fall through to "anonymous" (ctx.user = null) rather than 500-ing.
   let user: RegistrationReturnType | null = null;
   let role: UserRole | null = null;
-  const accessToken = extractAccessToken(request);
+  const accessToken = extractAccessToken(request, cookies);
   if (accessToken) {
     const payload = await verifyAccessToken(accessToken);
     if (payload) {
