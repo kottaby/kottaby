@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
+import { generateComingSoonMetadata } from "@/app/(dashboard)/shared";
 import { ComingSoonView } from "@/frontend/views/dashboard";
-import { getTranslations } from "@/shared/locale/server";
-import { getLocaleFromCookie } from "@/shared/locale/server-cookies";
 
 /**
  * Catch-all page for single-segment dashboard routes that don't have a
@@ -21,12 +20,7 @@ import { getLocaleFromCookie } from "@/shared/locale/server-cookies";
  * multi-segment pages and never reach this catch-all.
  */
 export async function generateMetadata(): Promise<Metadata> {
-  const locale = await getLocaleFromCookie();
-  const t = getTranslations(locale).dashboardTranslations;
-  return {
-    title: t.comingSoonMetaTitle,
-    description: t.comingSoonMetaDescription,
-  };
+  return generateComingSoonMetadata();
 }
 
 export default async function ComingSoonPage({ params }: { readonly params: Promise<{ readonly feature: string }> }) {

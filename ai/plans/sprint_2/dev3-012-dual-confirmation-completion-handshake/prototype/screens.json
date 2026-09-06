@@ -1,0 +1,66 @@
+[
+ {
+  "slug_key": "student-sessions-list-confirm-prompt|DESKTOP",
+  "screenId": "ea466f3ee9b24be5bc796c3df4a73fd5",
+  "title": "Student Sessions List \u2014 Confirm CTA",
+  "file": "student-sessions-list-confirm-prompt-desktop.png",
+  "deviceType": "DESKTOP",
+  "state": "confirm-prompt"
+ },
+ {
+  "slug_key": "student-sessions-list-confirm-prompt|MOBILE",
+  "screenId": "dec4df8ecd584a12955e318dc63bcb70",
+  "title": "Student Sessions List \u2014 Confirm CTA (Mobile)",
+  "file": "student-sessions-list-confirm-prompt-mobile.png",
+  "deviceType": "MOBILE",
+  "state": "confirm-prompt"
+ },
+ {
+  "slug_key": "notification-inbox-confirm-prompt|DESKTOP",
+  "screenId": "a7df2caf62534ac2a7c87665a2c62049",
+  "title": "Student Notification Inbox \u2014 Confirm Prompt",
+  "file": "notification-inbox-confirm-prompt-desktop.png",
+  "deviceType": "DESKTOP",
+  "state": "confirm-prompt"
+ },
+ {
+  "slug_key": "notification-inbox-confirm-prompt|MOBILE",
+  "screenId": "da8b92b6664d4222859f94dc4cee29bf",
+  "title": "Student Notification Inbox \u2014 Confirm Prompt (Mobile)",
+  "file": "notification-inbox-confirm-prompt-mobile.png",
+  "deviceType": "MOBILE",
+  "state": "confirm-prompt"
+ },
+ {
+  "slug_key": "notification-inbox-auto-cancelled|DESKTOP",
+  "screenId": "1895031a748e4ca2a0d4b6db9f3c56a4",
+  "title": "Student Notification Inbox \u2014 Auto-Cancelled",
+  "file": "notification-inbox-auto-cancelled-desktop.png",
+  "deviceType": "DESKTOP",
+  "state": "auto-cancelled"
+ },
+ {
+  "slug_key": "notification-inbox-auto-cancelled|MOBILE",
+  "screenId": "12531fee759b4cecba684af84486df7f",
+  "title": "Student Notification Inbox \u2014 Auto-Cancelled (Mobile)",
+  "file": "notification-inbox-auto-cancelled-mobile.png",
+  "deviceType": "MOBILE",
+  "state": "auto-cancelled"
+ },
+ {
+  "slug_key": "student-sessions-list-auto-cancelled|DESKTOP",
+  "screenId": "1467112fd70544b994e38b6fa4ce0cee",
+  "title": "Student Sessions List \u2014 Auto-Cancelled Row",
+  "file": "student-sessions-list-auto-cancelled-desktop.png",
+  "deviceType": "DESKTOP",
+  "state": "auto-cancelled"
+ },
+ {
+  "slug_key": "student-sessions-list-auto-cancelled|MOBILE",
+  "screenId": "2a177628f744476cad6ea8649ff5b6a9",
+  "title": "Student Sessions List \u2014 Auto-Cancelled Row (Mobile)",
+  "file": "student-sessions-list-auto-cancelled-mobile.png",
+  "deviceType": "MOBILE",
+  "state": "auto-cancelled"
+ }
+]
