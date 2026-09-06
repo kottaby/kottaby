@@ -1,4 +1,4 @@
-export type SeedProfile = "minimal" | "standard";
+type SeedProfile = "minimal" | "standard";
 
 export interface SeedConfig {
   profile: SeedProfile;

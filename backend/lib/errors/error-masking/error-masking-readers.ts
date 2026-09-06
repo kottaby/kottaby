@@ -12,7 +12,7 @@ export const OPAQUE_RENDER_BUDGET = 512;
 // ─── Public transport shapes ─────────────────────────────────────────────────
 
 /** A single response-path segment as carried by formatted GraphQL errors. */
-export type GraphQLPathSegment = string | number;
+type GraphQLPathSegment = string | number;
 
 /** Response path of field-level resolver errors (preserved verbatim). */
 export type GraphQLResponsePath = readonly GraphQLPathSegment[];

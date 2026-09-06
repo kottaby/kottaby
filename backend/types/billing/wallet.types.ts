@@ -2,7 +2,6 @@ import type { teacherTransaction } from "@/backend/db/schema/billing/teacher-tra
 import type { wallet } from "@/backend/db/schema/billing/wallet";
 
 export type WalletSelectType = typeof wallet.$inferSelect;
-export type WalletInsertType = typeof wallet.$inferInsert;
 
 /**
  * DEV3-013 (R-301) — the canonical wallet READ shape: the wallet row plus

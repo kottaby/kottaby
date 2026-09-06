@@ -138,7 +138,7 @@ function toTransportErrorView(source: unknown): Record<string, unknown> {
 }
 
 /** Null/empty/oversized operation names collapse to `undefined` (omitted log metadata). */
-export const OPERATION_NAME_MAX_LENGTH = 128;
+const OPERATION_NAME_MAX_LENGTH = 128;
 
 /**
  * Echoable operation name reader (pentest hardening): the client-supplied

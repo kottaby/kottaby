@@ -64,7 +64,7 @@ import type { DBTransaction } from "@/backend/types";
  * 4. `users` — deleted last; any still-attached cascade children
  *    (e.g. notifications) disappear with their owner.
  */
-export const JOURNEY_TRACKED_TABLE_DELETE_ORDER = [
+const JOURNEY_TRACKED_TABLE_DELETE_ORDER = [
   "session_request_idempotency",
   "session",
   "students",
@@ -76,7 +76,7 @@ export const JOURNEY_TRACKED_TABLE_DELETE_ORDER = [
 ] as const;
 
 /** A table whose row ids a journey suite may register for hard-delete cleanup. */
-export type JourneyTrackedTable = (typeof JOURNEY_TRACKED_TABLE_DELETE_ORDER)[number];
+type JourneyTrackedTable = (typeof JOURNEY_TRACKED_TABLE_DELETE_ORDER)[number];
 
 /**
  * Per-table hard-delete closures — a `Record` over the finite tracked-table

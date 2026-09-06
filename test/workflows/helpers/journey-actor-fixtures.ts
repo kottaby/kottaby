@@ -68,7 +68,7 @@ export const ANONYMOUS_ACTOR_ID = 0;
  * Captured at cast-provisioning time inside the committing `beforeAll`
  * transaction. Compared against a fresh read after each journey step.
  */
-export interface JourneyFixtureSnapshot<T> {
+interface JourneyFixtureSnapshot<T> {
   readonly row: T;
 }
 
@@ -76,7 +76,7 @@ export interface JourneyFixtureSnapshot<T> {
  * Per-actor bundle: the user row + the role-child row captured at
  * provisioning time, plus a snapshot for byte-identity assertions.
  */
-export interface JourneyActorFixture<TChild = unknown> {
+interface JourneyActorFixture<TChild = unknown> {
   readonly user: UserSelectType;
   readonly child: TChild;
   readonly userSnapshot: JourneyFixtureSnapshot<UserSelectType>;

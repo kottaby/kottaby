@@ -11,17 +11,15 @@
  * predicate conjunction at query-construction time.
  *
  * Fail-closed semantics (two-channel split):
- *  - `isAdminUserGovernanceFilter` rejects arbitrary strings (and any
- *    non-string input) without `as` casts; unknown stored values fall back
- *    (the filter is dropped) at the service layer rather than erroring —
- *    callers receive the unfiltered directory in that case. The loose read
- *    path treats an unrecognized value as "no filter supplied".
  *  - When a transport-tampered value reaches a GraphQL input field typed as
  *    this enum, the malformed input fails VALIDATION before any DB read: the
- *    Pothos enum-coercion layer rejects unknown members at parse time. This
- *    split — service-layer drop-on-unknown for the loose read path vs.
- *    parse-time rejection for the strict input path — is intentional and
- *    preserves the directory listing as a forgiving read surface while the
+ *    Pothos enum-coercion layer rejects unknown members at parse time.
+ *  - The loose read path (stored / non-schema filter sources) treats an
+ *    unrecognized value as "no filter supplied" — the service drops the
+ *    filter and returns the unfiltered directory rather than erroring.
+ *    This split — drop-on-unknown for the loose read path vs. parse-time
+ *    rejection for the strict input path — is intentional and preserves
+ *    the directory listing as a forgiving read surface while the
  *    mutation/input channel remains strict.
  */
 export enum AdminUserGovernanceFilter {
@@ -29,21 +27,4 @@ export enum AdminUserGovernanceFilter {
   Suspended = "suspended",
   Blocked = "blocked",
   Deleted = "deleted",
-}
-
-/**
- * Fail-closed type guard for `AdminUserGovernanceFilter`.
- *
- * Returns `true` only for exact enum member strings; rejects unknown
- * strings, non-string values, case variants, and whitespace without
- * throwing. Membership check uses `Object.values(...)` so the guard stays
- * in sync with the enum's runtime value set (no parallel hard-coded literal
- * list that could drift from the enum).
- *
- * Downstream consumers MUST use this guard before narrowing a runtime
- * string to the enum — never an `as` cast. The service layer treats a
- * `false` result as "drop the filter and return the unfiltered directory".
- */
-export function isAdminUserGovernanceFilter(value: unknown): value is AdminUserGovernanceFilter {
-  return typeof value === "string" && (Object.values(AdminUserGovernanceFilter) as string[]).includes(value);
 }

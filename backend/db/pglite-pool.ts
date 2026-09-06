@@ -54,7 +54,7 @@ export interface PgQueryConfig {
   types?: unknown;
 }
 
-/** Mirror of `pg`'s `PoolClient` (what `getClient()` returns). */
+/** Mirror of `pg`'s `PoolClient`. */
 export interface PoolClientLike<T extends Row = Row> {
   query(textOrConfig: string | PgQueryConfig, params?: ReadonlyArray<unknown>): Promise<QueryResultLike<T>>;
   release(): void;

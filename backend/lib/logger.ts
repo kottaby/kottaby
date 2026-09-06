@@ -99,5 +99,3 @@ export const logger = {
     }
   },
 } as const;
-
-export type Logger = typeof logger;

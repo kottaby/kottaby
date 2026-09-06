@@ -4,10 +4,10 @@
  * Two providers are supported:
  *
  * - `postgres` (default, production) — creates a `pg.Pool` from `DATABASE_URL`.
- *   Exposes `pool`, `db` (Drizzle ORM), `queryDb`, `getClient`, `closePool`.
+ *   Exposes `pool`, `db` (Drizzle ORM), `queryDb`, `closePool`.
  * - `pglite` (local-dev / sandbox / CI) — wraps `@electric-sql/pglite` (real
  *   PostgreSQL in-process via WASM, persisted to `PGLITE_DATA_DIR`). Same
- *   public API (Drizzle ORM, queryDb, getClient, closePool). Used when a real
+ *   public API (Drizzle ORM, queryDb, closePool). Used when a real
  *   PostgreSQL install is not available.
  *
  * Connection is lazy: the pool/PGlite instance is constructed on first access
@@ -18,7 +18,7 @@
  *      used in production; the PGlite path replaces it for sandbox dev.
  */
 import { drizzle } from "drizzle-orm/node-postgres";
-import { Pool, type PoolClient, type QueryResult, type QueryResultRow } from "pg";
+import { Pool, type QueryResult, type QueryResultRow } from "pg";
 import {
   closePglite,
   getPglitePool,
@@ -266,62 +266,6 @@ export async function queryDb<T extends QueryResultRow = QueryResultRow>(
 }
 
 /**
- * Checks out a `PoolClient` for multi-statement transactions. Always pair with
- * `client.release()` in a `finally` block.
- *
- * @example
- * const client = await getClient();
- * try {
- *   await client.query("BEGIN");
- *   // ... multiple queries on `client` ...
- *   await client.query("COMMIT");
- * } catch (err) {
- *   await client.query("ROLLBACK");
- *   throw err;
- * } finally {
- *   client.release();
- * }
- */
-export async function getClient(): Promise<PoolClient> {
-  const pool = getPool();
-  // Type-guard narrowing: when `postgres`, `pool.connect()` returns
-  // `Promise<pg.PoolClient>` directly (matches the return type, no cast).
-  // When `pglite`, `pool.connect()` returns `Promise<PoolClientLike>` which
-  // is structurally compatible with `pg.PoolClient` for the methods repos
-  // actually call (`query`, `release`); narrow via the `assertPoolClientLike`
-  // helper which does real runtime validation.
-  if (isPgPool(pool)) {
-    return pool.connect();
-  }
-  // PGlite shim — coerce the returned `PoolClientLike` to `pg.PoolClient`.
-  // The shim implements `query()` and `release()` (the only methods repos
-  // call on a PoolClient). `assertPoolClientLike` performs runtime
-  // validation so we don't blindly trust the type assertion.
-  const shimClient = await pool.connect();
-  assertPoolClientLike(shimClient);
-  return shimClient;
-}
-
-/**
- * Runtime-validated assertion that a value is `pg.PoolClient`-shaped (has
- * `query` and `release` methods). Same escape-hatch pattern as
- * `assertPoolLike` — the PGlite shim's `PoolClientLike` is NOT structurally
- * `pg.PoolClient` (missing `_queryQueue`, `_ending`, etc. internals), but
- * repos only invoke `.query()` and `.release()`.
- */
-function assertPoolClientLike(value: unknown): asserts value is PoolClient {
-  if (typeof value !== "object" || value === null) {
-    throw new Error("[db] pool client must be an object");
-  }
-  if (!("query" in value) || typeof value.query !== "function") {
-    throw new Error("[db] pool client must have a query() method");
-  }
-  if (!("release" in value) || typeof value.release !== "function") {
-    throw new Error("[db] pool client must have a release() method");
-  }
-}
-
-/**
  * Gracefully closes the singleton pool. Intended for CLI shutdown / tests only.
  * Calling this then accessing `db` / `queryDb` again re-creates a new pool.
  */
@@ -341,4 +285,4 @@ export async function closePool(): Promise<void> {
   }
 }
 
-export type { PoolClient, QueryResult, QueryResultRow };
+export type { QueryResult, QueryResultRow };

@@ -40,7 +40,7 @@ export { isValidEmail };
  * constraint with comfortable headroom). Pure — no I/O, no module-level
  * mutable state.
  */
-export function generateHandshakeCode(): string {
+function generateHandshakeCode(): string {
   const hex = randomUUID().replace(/-/g, "").toUpperCase();
   return `KSB-${hex.slice(0, 8)}`;
 }

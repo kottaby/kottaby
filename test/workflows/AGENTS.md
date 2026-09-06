@@ -104,15 +104,15 @@ The helpers directory exists and is the ONLY shared-scaffolding home for this la
 (rule 10). Import it via `@/test/workflows/helpers` (rule 8); its `index.ts` is a pure
 `export *` barrel.
 
-### `journey-fixtures.ts` — tracked-ID registry + FK-order-aware cleanup
+### `journey-fixture-registry.ts` — tracked-ID registry + FK-order-aware cleanup
 
 - `createJourneyFixtureRegistry()` → `{ track, trackAll, ids, trackedCount, cleanup }`.
   Create ONE registry per suite. Every fixture row AND every row the services create
   during the journey (sessions, idempotency claims, …) must be registered via
   `track(<table>, id)` — the registry is the hard-delete worklist for `afterAll`.
-- Trackable tables are exactly `JOURNEY_TRACKED_TABLE_DELETE_ORDER`
-  (`session_request_idempotency`, `session`, `students`, `teacher`, `applicants`,
-  `parents`, `admin`, `users`). `cleanup()` hard-deletes all tracked ids inside ONE
+- Trackable tables are exactly `session_request_idempotency`, `session`,
+  `students`, `teacher`, `applicants`, `parents`, `admin`, `users`.
+  `cleanup()` hard-deletes all tracked ids inside ONE
   committed transaction in that FK-safe order (children first, `users` last), then
   clears the registry. Repeated `cleanup()` calls are no-ops — safe under retries.
 - Do NOT track `audit_logs` or `teacher_transaction`: both are trigger-immutable
@@ -126,19 +126,22 @@ The helpers directory exists and is the ONLY shared-scaffolding home for this la
   a second green run proves zero residual state (per-run `jrn_<domain>_<8hex>`
   prefixes + unique emails make collisions impossible; `cleanup` must leave nothing).
 
-### `session-cast.ts` — cast builders over `entity-setup.ts`
+### `session-cast.ts` — the session journey cast over `entity-setup.ts`
 
-- Builders take `(tx, registry, …)` — call them inside the committing
-  `db.transaction(...)` of `beforeAll`; they register every row they create.
-- Student builders: `buildStudentWithTrial` (trial units, default 1),
-  `buildStudentWithPaidLane(lane, units)` (`hifz`/`tajweed`, zero trial),
-  `buildStudentWithBoth` (trial + paid — trial-first ordering proof),
-  `buildZeroBalanceStudent`, `buildSecondStudent` (flexible profile).
-- Teacher builders: `buildCertifiedTeacher` / `buildSecondCertifiedTeacher` (real
-  `teacher` row with `isApproved = true`), `buildTeacherApplicant` (real `applicants`
-  row, deliberately NO `teacher` row — INV-TV1 by construction, never simulated).
-- Other roles: `buildParent`, `buildAdmin`.
-- Composite: `buildSessionJourneyCast(tx, registry, { prefix, primaryStudent?, secondStudent? })`
-  returns the canonical cross-actor cast; `journeyPrefix(domain)` derives the rule-3
-  prefix. All builders return the real entity rows — permission resolution in the
-  journey flows through these committed rows only (rule 4: never monkey-patch).
+- `buildSessionJourneyCast(tx, registry, { prefix, primaryStudent?, secondStudent? })`
+  builds the canonical cross-actor cast inside the committing
+  `db.transaction(...)` of `beforeAll` and registers every row it creates:
+  a funded primary student, a zero-balance second student (the
+  cross-participant-probe actor), a certified teacher plus a second
+  certified teacher (real `teacher` rows with `isApproved = true` — the
+  non-participant teacher observer), a teacher applicant (real `applicants`
+  row, deliberately NO `teacher` row — INV-TV1 by construction, never
+  simulated), a parent, and an admin.
+- `primaryStudent` / `secondStudent` take a lane profile
+  (`{ trial?, hifz?, tajweed?, reviews? }` — units per lane, 0/omitted =
+  lane empty) funding that student's balance lanes; defaults: primary =
+  1 trial + 1 hifz unit (the funded booker), second = all lanes empty
+  (the zero-balance booking denial leg).
+- `journeyPrefix(domain)` derives the rule-3 prefix.
+- All rows are real entity rows — permission resolution in the journey
+  flows through these committed rows only (rule 4: never monkey-patch).

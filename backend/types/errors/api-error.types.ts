@@ -1,8 +1,8 @@
 /**
- * Canonical API error-contract types — transport-runtime contracts shared by
- * the GraphQL boundary (`GraphQLErrorExtensionsType`) and the non-GraphQL
+ * Canonical API error-contract types — transport-runtime contracts shared
+ * by the GraphQL boundary (`ErrorCode` taxonomy) and the non-GraphQL
  * `app/api` route layer (`ApiErrorEnvelopeReturnType` /
- * `ApiSuccessEnvelopeReturnType`).
+ * `ApiFieldErrorType`).
  *
  * Layer rules:
  *  - Types ONLY. No runtime values, no GraphQL/Pothos object shapes —
@@ -88,36 +88,4 @@ export interface ApiErrorEnvelopeReturnType {
     /** Present only when a ValidationError carries field entries. */
     readonly fields?: readonly ApiFieldErrorType[];
   };
-}
-
-/**
- * Success envelope shape for `app/api` routes (non-GraphQL).
- *
- * Mirrors {@link ApiErrorEnvelopeReturnType}'s correlation guarantees:
- * every response carries the request id, success or failure.
- */
-export interface ApiSuccessEnvelopeReturnType<TData> {
-  /** Whitelisted payload data produced by the route handler. */
-  readonly data: TData;
-  /** Correlation id bound to the originating request logs. */
-  readonly requestId: string;
-}
-
-/**
- * GraphQL-facing `extensions` shape emitted by the error-boundary
- * post-processor for every operation error.
- *
- * `code` mirrors the envelope rule: `ErrorCode` category or a custom
- * SCREAMING_SNAKE_CASE domain code. `requestId` is typed optional for
- * structural compatibility with Apollo's extension merging, but the
- * decided producer behavior is to ALWAYS include it (correlation-safe);
- * `fields` appears only for field-carrying ValidationErrors.
- */
-export interface GraphQLErrorExtensionsType {
-  /** `ErrorCode` category or custom SCREAMING_SNAKE_CASE domain code. */
-  readonly code: string;
-  /** Correlation id — producers always set it; optional for merging safety. */
-  readonly requestId?: string;
-  /** Present only when a ValidationError carries field entries. */
-  readonly fields?: readonly ApiFieldErrorType[];
 }

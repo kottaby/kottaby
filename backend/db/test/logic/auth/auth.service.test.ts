@@ -23,8 +23,7 @@
  *    with the localized `invalidLocale` ValidationError — in BOTH request
  *    locales (en + ar copy).
  *  - Tier 3: a caller whose user row no longer exists rejects with the
- *    localized `unauthorized` UnauthorizedError (no existence oracle —
- *    mirrors `getMe`'s contract).
+ *    localized `unauthorized` UnauthorizedError (no existence oracle).
  *  - Tier 4 (security): the returned payload NEVER carries `passwordHash`.
  */
 import { describe, expect, test } from "bun:test";

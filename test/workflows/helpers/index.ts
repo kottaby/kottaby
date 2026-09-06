@@ -10,9 +10,7 @@
  *    `RegistrationService` on a domain-scoped prefix (#34 lineage).
  *  - `journey-actor-fixtures` — actor-cast provisioner with snapshot
  *    capture for fixture-immutability assertions (admin lifecycle/denials
- *    journeys). Its per-actor bundle type is `JourneyActorFixture` (renamed
- *    from `JourneyActor`) so the barrel stays collision-free against
- *    `actor-context`'s plain `JourneyActor`.
+ *    journeys).
  *  - `journey-cleanup` — tracked-id hard-delete teardown in FK-safe order.
  *  - `spied-transport` — in-process fan-out transport spy.
  *  - `tracked-fixtures` — registry of committed fixture rows with
