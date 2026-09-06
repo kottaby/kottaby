@@ -421,5 +421,13 @@ export function ensureEnvironmentValidated(): EnvironmentConfig {
     throw new Error("DATABASE_ENCRYPTION_KEY is required in production (AES-256-GCM column-level encryption).");
   }
 
+  if (!getEnv("JWT_ACCESS_SECRET") && config.nodeEnv === "production") {
+    throw new Error("JWT_ACCESS_SECRET is required in production environment.");
+  }
+
+  if (!getEnv("JWT_REFRESH_SECRET") && config.nodeEnv === "production") {
+    throw new Error("JWT_REFRESH_SECRET is required in production environment.");
+  }
+
   return config;
 }
