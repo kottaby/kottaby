@@ -31,6 +31,7 @@ import {
   normalizeRequiredReasonText,
   sessionFeeForIntent,
 } from "@/backend/services/classes/session-lifecycle.guards";
+import type { SessionListFilterInput } from "@/backend/types";
 import { SESSION_FEE_HIFZ, SESSION_FEE_TAJWEED } from "@/shared/constants/session-fees.constants";
 import { getServerTranslations } from "@/shared/locale/server-graphql";
 
@@ -100,7 +101,9 @@ describe("session-lifecycle.guards — ID shape guards (isPositiveSafeInteger, i
       assertPositiveSafeSessionId(-1, tErrors);
     } catch (err) {
       expect(err).toBeInstanceOf(ValidationError);
-      expect((err as ValidationError).message).toBe(tErrors.validation);
+      if (err instanceof ValidationError) {
+        expect(err.message).toBe(tErrors.validation);
+      }
     }
   });
 });
@@ -140,26 +143,22 @@ describe("session-lifecycle.guards — Reason normalizers (normalizeRequiredReas
 describe("session-lifecycle.guards — Claim key unique violation detector (isClaimKeyUniqueViolation)", () => {
   test("Tier 1 & 3: detects code 23505 at root or nested cause chain, handles non-errors and circular references safely", () => {
     // Top-level driver error with code 23505
-    const topError = new Error("Unique constraint violation");
-    (topError as unknown as { code: string }).code = "23505";
+    const topError = Object.assign(new Error("Unique constraint violation"), { code: "23505" });
     expect(isClaimKeyUniqueViolation(topError)).toBe(true);
 
     // Drizzle-wrapped error with cause
-    const causeError = new Error("pg error");
-    (causeError as unknown as { code: string }).code = "23505";
+    const causeError = Object.assign(new Error("pg error"), { code: "23505" });
     const wrapperError = new Error("Drizzle query failed", { cause: causeError });
     expect(isClaimKeyUniqueViolation(wrapperError)).toBe(true);
 
     // Deeply nested error chain (3 levels)
-    const deepCause = new Error("deep error");
-    (deepCause as unknown as { code: string }).code = "23505";
+    const deepCause = Object.assign(new Error("deep error"), { code: "23505" });
     const midCause = new Error("mid error", { cause: deepCause });
     const outerError = new Error("outer error", { cause: midCause });
     expect(isClaimKeyUniqueViolation(outerError)).toBe(true);
 
     // Error without 23505 code
-    const otherError = new Error("Some other error");
-    (otherError as unknown as { code: string }).code = "23502";
+    const otherError = Object.assign(new Error("Some other error"), { code: "23502" });
     expect(isClaimKeyUniqueViolation(otherError)).toBe(false);
 
     // Non-error values
@@ -171,7 +170,7 @@ describe("session-lifecycle.guards — Claim key unique violation detector (isCl
     // Circular cause error (cycle safety)
     const errA = new Error("A");
     const errB = new Error("B", { cause: errA });
-    (errA as unknown as { cause: Error }).cause = errB; // Circular
+    Object.assign(errA, { cause: errB }); // Circular
     expect(isClaimKeyUniqueViolation(errA)).toBe(false);
   });
 });
@@ -224,7 +223,8 @@ describe("session-lifecycle.guards — Filter normalizer (guardStatusFilter)", (
     expect(guardStatusFilter({})).toEqual({ status: null });
 
     // Invalid status value (not in SessionStatus enum)
-    expect(guardStatusFilter({ status: "INVALID_STATUS" as unknown as SessionStatus })).toEqual({ status: null });
+    const invalidFilter: SessionListFilterInput = JSON.parse('{"status": "INVALID_STATUS"}');
+    expect(guardStatusFilter(invalidFilter)).toEqual({ status: null });
   });
 });
 
