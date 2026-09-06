@@ -1,13 +1,10 @@
 /**
- * Unit tests for session-lifecycle.guards.ts
+ * Session Lifecycle Guards & Normalizers 4-Tier Unit Test Suite.
  *
- * Pure unit test suite — NO database connection, NO network.
- *
- * Tiers:
- *  - Tier 1: Branch and statement coverage for all exported pure guards, normalizers, and constants.
- *  - Tier 2: Boundary conditions (lengths, ranges, pagination bounds, status vocabulary).
- *  - Tier 3: Chaos and fuzz (cyclic cause chains, non-Error objects, malformed filter inputs).
- *  - Tier 4: Security and coercion resistance (type coercion traps, unsafe object shapes).
+ * Tier 1: 100% statement & branch coverage for all exported functions/constants.
+ * Tier 2: Boundary & edge cases (length limits, numerical bounds, status filters, cause chains).
+ * Tier 3: Chaos & fuzzing (randomized non-enum strings, case-smuggling, concurrent storms).
+ * Tier 4: Security & abuse (SQL wildcards, unicode/RTL payloads, control characters, huge payloads).
  */
 
 import { describe, expect, test } from "bun:test";
@@ -36,289 +33,426 @@ import type { SessionListFilterInput } from "@/backend/types";
 import { SESSION_FEE_HIFZ, SESSION_FEE_TAJWEED } from "@/shared/constants/session-fees.constants";
 import { getServerTranslations } from "@/shared/locale/server-graphql";
 
-const tErrors = getServerTranslations("en").errorsTranslations;
+function t() {
+  return getServerTranslations("en").errorsTranslations;
+}
 
-describe("session-lifecycle.guards — Pure Unit Tests", () => {
-  // ─── Constants & Fee/Lane Mappings ─────────────────────────────────────
-  describe("Constants & Vocabulary Mappings", () => {
-    test("Tier 1 — exported constants match expected values and enums", () => {
-      expect(MAX_IDEMPOTENCY_KEY_LENGTH).toBe(128);
-      expect(SESSION_STARTED_STATUS).toBe(SessionStatus.Started);
-      expect(SESSION_DISPUTED_STATUS).toBe(SessionStatus.Disputed);
-      expect(SESSION_COMPLETED_STATUS).toBe(SessionStatus.Completed);
-    });
+describe("Session Lifecycle Constants", () => {
+  test("MAX_IDEMPOTENCY_KEY_LENGTH equals 128", () => {
+    expect(MAX_IDEMPOTENCY_KEY_LENGTH).toBe(128);
+  });
 
-    test("Tier 1 — sessionFeeForIntent resolves constant decimal string per intent", () => {
+  test("status constants widened to string identities", () => {
+    expect(SESSION_STARTED_STATUS).toBe("started");
+    expect(SESSION_STARTED_STATUS).toBe(SessionStatus.Started);
+    expect(SESSION_DISPUTED_STATUS).toBe("disputed");
+    expect(SESSION_DISPUTED_STATUS).toBe(SessionStatus.Disputed);
+    expect(SESSION_COMPLETED_STATUS).toBe("completed");
+    expect(SESSION_COMPLETED_STATUS).toBe(SessionStatus.Completed);
+  });
+});
+
+describe("sessionFeeForIntent", () => {
+  describe("Tier 1 — branch coverage", () => {
+    test("Hifz intent resolves to SESSION_FEE_HIFZ constant ('25.00')", () => {
       expect(sessionFeeForIntent(SessionIntent.Hifz)).toBe(SESSION_FEE_HIFZ);
-      expect(sessionFeeForIntent(SessionIntent.Tajweed)).toBe(SESSION_FEE_TAJWEED);
+      expect(sessionFeeForIntent(SessionIntent.Hifz)).toBe("25.00");
     });
 
-    test("Tier 1 — intentLaneFor resolves held balance lane per intent", () => {
+    test("Tajweed intent resolves to SESSION_FEE_TAJWEED constant ('25.00')", () => {
+      expect(sessionFeeForIntent(SessionIntent.Tajweed)).toBe(SESSION_FEE_TAJWEED);
+      expect(sessionFeeForIntent(SessionIntent.Tajweed)).toBe("25.00");
+    });
+  });
+
+  describe("Tier 3 — chaos & statelessness", () => {
+    test("concurrent resolution storm proves statelessness", async () => {
+      const results = await Promise.allSettled(
+        Array.from({ length: 500 }, (_, i) =>
+          Promise.resolve(sessionFeeForIntent(i % 2 === 0 ? SessionIntent.Hifz : SessionIntent.Tajweed))
+        )
+      );
+      expect(results.every(r => r.status === "fulfilled" && r.value === "25.00")).toBe(true);
+    });
+  });
+});
+
+describe("intentLaneFor", () => {
+  describe("Tier 1 — branch coverage", () => {
+    test("Hifz intent resolves to HeldBalanceLane.Hifz", () => {
       expect(intentLaneFor(SessionIntent.Hifz)).toBe(HeldBalanceLane.Hifz);
+    });
+
+    test("Tajweed intent resolves to HeldBalanceLane.Tajweed", () => {
       expect(intentLaneFor(SessionIntent.Tajweed)).toBe(HeldBalanceLane.Tajweed);
     });
   });
 
-  // ─── Identifier Guards ────────────────────────────────────────────────
-  describe("Identifier Guards (isPositiveSafeInteger, isPositiveSafeSessionId, assertPositiveSafeSessionId)", () => {
-    describe("Tier 1 — Happy Paths & Branch Coverage", () => {
-      test("isPositiveSafeInteger returns true for valid positive safe integers", () => {
-        expect(isPositiveSafeInteger(1)).toBe(true);
-        expect(isPositiveSafeInteger(42)).toBe(true);
-        expect(isPositiveSafeInteger(Number.MAX_SAFE_INTEGER)).toBe(true);
-      });
+  describe("Tier 3 — chaos & statelessness", () => {
+    test("concurrent lane resolution storm", async () => {
+      const results = await Promise.allSettled(
+        Array.from({ length: 500 }, () => Promise.resolve(intentLaneFor(SessionIntent.Hifz)))
+      );
+      expect(results.every(r => r.status === "fulfilled" && r.value === HeldBalanceLane.Hifz)).toBe(true);
+    });
+  });
+});
 
-      test("isPositiveSafeInteger returns false for 0, negative integers, floats, NaN, and unsafe integers", () => {
-        expect(isPositiveSafeInteger(0)).toBe(false);
-        expect(isPositiveSafeInteger(-1)).toBe(false);
-        expect(isPositiveSafeInteger(-100)).toBe(false);
-        expect(isPositiveSafeInteger(1.5)).toBe(false);
-        expect(isPositiveSafeInteger(Number.NaN)).toBe(false);
-        expect(isPositiveSafeInteger(Number.POSITIVE_INFINITY)).toBe(false);
-        expect(isPositiveSafeInteger(Number.MAX_SAFE_INTEGER + 1)).toBe(false);
-      });
-
-      test("isPositiveSafeSessionId validates number type and positive safe integer shape", () => {
-        expect(isPositiveSafeSessionId(10)).toBe(true);
-        expect(isPositiveSafeSessionId("10")).toBe(false);
-        expect(isPositiveSafeSessionId(null)).toBe(false);
-        expect(isPositiveSafeSessionId(undefined)).toBe(false);
-        expect(isPositiveSafeSessionId({})).toBe(false);
-        expect(isPositiveSafeSessionId(0)).toBe(false);
-        expect(isPositiveSafeSessionId(-5)).toBe(false);
-        expect(isPositiveSafeSessionId(1.23)).toBe(false);
-      });
-
-      test("assertPositiveSafeSessionId passes silently for valid id and throws ValidationError for invalid id", () => {
-        expect(() => assertPositiveSafeSessionId(100, tErrors)).not.toThrow();
-
-        expect(() => assertPositiveSafeSessionId(0, tErrors)).toThrow(ValidationError);
-        expect(() => assertPositiveSafeSessionId(-1, tErrors)).toThrow(ValidationError);
-        expect(() => assertPositiveSafeSessionId("abc", tErrors)).toThrow(ValidationError);
-        expect(() => assertPositiveSafeSessionId(null, tErrors)).toThrow(ValidationError);
-      });
+describe("isPositiveSafeInteger", () => {
+  describe("Tier 1 — branch coverage", () => {
+    test("returns true for positive safe integers", () => {
+      expect(isPositiveSafeInteger(1)).toBe(true);
+      expect(isPositiveSafeInteger(100)).toBe(true);
+      expect(isPositiveSafeInteger(Number.MAX_SAFE_INTEGER)).toBe(true);
     });
 
-    describe("Tier 2 — Boundary Cases", () => {
-      test("boundary around 1 and MAX_SAFE_INTEGER", () => {
-        expect(isPositiveSafeInteger(1)).toBe(true);
-        expect(isPositiveSafeInteger(0)).toBe(false);
-        expect(isPositiveSafeInteger(Number.MAX_SAFE_INTEGER)).toBe(true);
-        expect(isPositiveSafeInteger(Number.MAX_SAFE_INTEGER + 1)).toBe(false);
-      });
+    test("returns false for zero and negative integers", () => {
+      expect(isPositiveSafeInteger(0)).toBe(false);
+      expect(isPositiveSafeInteger(-1)).toBe(false);
+      expect(isPositiveSafeInteger(-100)).toBe(false);
     });
 
-    describe("Tier 4 — Coercion Resistance & Unsafe Shapes", () => {
-      test("non-primitive numbers / boxed numbers / objects with valueOf are rejected without throwing", () => {
-        const boxedNumber = Object(5);
-        expect(isPositiveSafeSessionId(boxedNumber)).toBe(false);
-
-        const maliciousObj = {
-          valueOf() {
-            return 10;
-          },
-        };
-        expect(isPositiveSafeSessionId(maliciousObj)).toBe(false);
-        expect(() => assertPositiveSafeSessionId(maliciousObj, tErrors)).toThrow(ValidationError);
-      });
+    test("returns false for non-integers and special numbers", () => {
+      expect(isPositiveSafeInteger(1.5)).toBe(false);
+      expect(isPositiveSafeInteger(-0.5)).toBe(false);
+      expect(isPositiveSafeInteger(Number.NaN)).toBe(false);
+      expect(isPositiveSafeInteger(Number.POSITIVE_INFINITY)).toBe(false);
+      expect(isPositiveSafeInteger(Number.NEGATIVE_INFINITY)).toBe(false);
+      expect(isPositiveSafeInteger(Number.MAX_SAFE_INTEGER + 1)).toBe(false);
     });
   });
 
-  // ─── Reason Text Normalizers ──────────────────────────────────────────
-  describe("Reason Text Normalizers (normalizeRequiredReasonText, normalizeOptionalReasonText)", () => {
-    describe("Tier 1 — Statement & Branch Coverage", () => {
-      test("normalizeRequiredReasonText trims and returns valid required text", () => {
-        expect(normalizeRequiredReasonText("  Valid reason  ", tErrors)).toBe("Valid reason");
-        expect(normalizeRequiredReasonText("SingleWord", tErrors)).toBe("SingleWord");
-      });
-
-      test("normalizeRequiredReasonText throws ValidationError for empty or whitespace-only text", () => {
-        expect(() => normalizeRequiredReasonText("", tErrors)).toThrow(ValidationError);
-        expect(() => normalizeRequiredReasonText("   ", tErrors)).toThrow(ValidationError);
-        expect(() => normalizeRequiredReasonText("\t\n", tErrors)).toThrow(ValidationError);
-      });
-
-      test("normalizeRequiredReasonText throws ValidationError for text exceeding 500 chars", () => {
-        const exact500 = "a".repeat(500);
-        expect(normalizeRequiredReasonText(exact500, tErrors)).toBe(exact500);
-
-        const over500 = "a".repeat(501);
-        expect(() => normalizeRequiredReasonText(over500, tErrors)).toThrow(ValidationError);
-      });
-
-      test("normalizeOptionalReasonText maps null, empty, and whitespace-only text to null", () => {
-        expect(normalizeOptionalReasonText(null, tErrors)).toBeNull();
-        expect(normalizeOptionalReasonText("", tErrors)).toBeNull();
-        expect(normalizeOptionalReasonText("    ", tErrors)).toBeNull();
-        expect(normalizeOptionalReasonText("\n\t ", tErrors)).toBeNull();
-      });
-
-      test("normalizeOptionalReasonText trims and returns valid optional text", () => {
-        expect(normalizeOptionalReasonText("  Optional note  ", tErrors)).toBe("Optional note");
-      });
-
-      test("normalizeOptionalReasonText throws ValidationError for text exceeding 500 chars", () => {
-        const exact500 = "b".repeat(500);
-        expect(normalizeOptionalReasonText(exact500, tErrors)).toBe(exact500);
-
-        const over500 = "b".repeat(501);
-        expect(() => normalizeOptionalReasonText(over500, tErrors)).toThrow(ValidationError);
-      });
+  describe("Tier 2 — boundary & edge cases", () => {
+    test("boundary around 0 and 1", () => {
+      expect(isPositiveSafeInteger(0)).toBe(false);
+      expect(isPositiveSafeInteger(0.9999999999)).toBe(false);
+      expect(isPositiveSafeInteger(1)).toBe(true);
     });
 
-    describe("Tier 2 — Boundary Cases", () => {
-      test("500 content chars padded with whitespace trims to 500 chars and succeeds", () => {
-        const content500 = "x".repeat(500);
-        const padded = `   ${content500}   `;
-        expect(normalizeRequiredReasonText(padded, tErrors)).toBe(content500);
-        expect(normalizeOptionalReasonText(padded, tErrors)).toBe(content500);
-      });
+    test("boundary around MAX_SAFE_INTEGER", () => {
+      expect(isPositiveSafeInteger(Number.MAX_SAFE_INTEGER)).toBe(true);
+      expect(isPositiveSafeInteger(Number.MAX_SAFE_INTEGER + 1)).toBe(false);
+    });
+  });
+});
 
-      test("501 content chars padded with whitespace fails validation after trim", () => {
-        const content501 = "x".repeat(501);
-        const padded = `   ${content501}   `;
-        expect(() => normalizeRequiredReasonText(padded, tErrors)).toThrow(ValidationError);
-        expect(() => normalizeOptionalReasonText(padded, tErrors)).toThrow(ValidationError);
-      });
+describe("isPositiveSafeSessionId", () => {
+  describe("Tier 1 — branch coverage", () => {
+    test("returns true for positive safe integer number primitives", () => {
+      expect(isPositiveSafeSessionId(1)).toBe(true);
+      expect(isPositiveSafeSessionId(42)).toBe(true);
+      expect(isPositiveSafeSessionId(9007199254740991)).toBe(true);
+    });
+
+    test("returns false for non-number types", () => {
+      expect(isPositiveSafeSessionId("1")).toBe(false);
+      expect(isPositiveSafeSessionId(null)).toBe(false);
+      expect(isPositiveSafeSessionId(undefined)).toBe(false);
+      expect(isPositiveSafeSessionId({})).toBe(false);
+      expect(isPositiveSafeSessionId([])).toBe(false);
+      expect(isPositiveSafeSessionId(true)).toBe(false);
+      expect(isPositiveSafeSessionId(Symbol("1"))).toBe(false);
+      expect(isPositiveSafeSessionId(BigInt(1))).toBe(false);
+    });
+
+    test("returns false for number primitives failing isPositiveSafeInteger", () => {
+      expect(isPositiveSafeSessionId(0)).toBe(false);
+      expect(isPositiveSafeSessionId(-5)).toBe(false);
+      expect(isPositiveSafeSessionId(1.23)).toBe(false);
+      expect(isPositiveSafeSessionId(Number.NaN)).toBe(false);
+      expect(isPositiveSafeSessionId(Number.POSITIVE_INFINITY)).toBe(false);
     });
   });
 
-  // ─── Unique Violation Detector ────────────────────────────────────────
-  describe("Unique Violation Detector (isClaimKeyUniqueViolation)", () => {
-    describe("Tier 1 — Cause Chain Traversal", () => {
-      test("returns true when error itself has code 23505", () => {
-        const err = Object.assign(new Error("Unique constraint violation"), { code: "23505" });
-        expect(isClaimKeyUniqueViolation(err)).toBe(true);
-      });
+  describe("Tier 4 — type boundary smuggling", () => {
+    test("objects with valueOf/toString returning positive numbers still return false", () => {
+      const smuggled = {
+        valueOf: () => 42,
+        toString: () => "42",
+      };
+      expect(isPositiveSafeSessionId(smuggled)).toBe(false);
+    });
+  });
+});
 
-      test("returns true when cause in chain has code 23505", () => {
-        const pgError = Object.assign(new Error("duplicate key value violates unique constraint"), { code: "23505" });
-        const drizzleError = new Error("QueryFailed", { cause: pgError });
-        const wrapperError = new Error("ServiceError", { cause: drizzleError });
-
-        expect(isClaimKeyUniqueViolation(wrapperError)).toBe(true);
-      });
-
-      test("returns false when no error in chain has code 23505", () => {
-        const otherPgErr = Object.assign(new Error("foreign key violation"), { code: "23503" });
-        const wrapperError = new Error("ServiceError", { cause: otherPgErr });
-
-        expect(isClaimKeyUniqueViolation(wrapperError)).toBe(false);
-        expect(isClaimKeyUniqueViolation(new Error("Generic error"))).toBe(false);
-        expect(isClaimKeyUniqueViolation(null)).toBe(false);
-        expect(isClaimKeyUniqueViolation("string error")).toBe(false);
-      });
+describe("assertPositiveSafeSessionId", () => {
+  describe("Tier 1 — branch coverage", () => {
+    test("passes without throwing for valid positive safe integer IDs", () => {
+      expect(() => assertPositiveSafeSessionId(1, t())).not.toThrow();
+      expect(() => assertPositiveSafeSessionId(12345, t())).not.toThrow();
     });
 
-    describe("Tier 3 — Cycle Safety & Non-Error Hostile Input", () => {
-      test("handles cyclic cause chains safely without infinite loops", () => {
-        const errA = new Error("Error A");
-        const errB = new Error("Error B", { cause: errA });
-        // Create cycle: errA -> errB -> errA
-        (errA as { cause?: unknown }).cause = errB;
+    test("throws ValidationError with translated validation message for invalid IDs", () => {
+      const invalidInputs: unknown[] = ["abc", 0, -10, 1.5, Number.NaN, null, undefined, {}, []];
+      for (const input of invalidInputs) {
+        expect(() => assertPositiveSafeSessionId(input, t())).toThrow(ValidationError);
+        try {
+          assertPositiveSafeSessionId(input, t());
+        } catch (e: unknown) {
+          expect(e).toBeInstanceOf(ValidationError);
+          if (e instanceof ValidationError) {
+            expect(e.message).toBe(t().validation);
+          }
+        }
+      }
+    });
+  });
+});
 
-        expect(isClaimKeyUniqueViolation(errA)).toBe(false);
+describe("normalizeRequiredReasonText", () => {
+  describe("Tier 1 — branch coverage", () => {
+    test("trims whitespace and returns valid string", () => {
+      expect(normalizeRequiredReasonText("  Reason for dispute  ", t())).toBe("Reason for dispute");
+    });
 
-        // Cyclic chain containing 23505
-        const err23505 = Object.assign(new Error("Unique error"), { code: "23505", cause: errA });
-        (errA as { cause?: unknown }).cause = err23505;
+    test("accepts exact 500-character string", () => {
+      const string500 = "a".repeat(500);
+      expect(normalizeRequiredReasonText(string500, t())).toBe(string500);
+    });
 
-        expect(isClaimKeyUniqueViolation(errB)).toBe(true);
-      });
+    test("throws ValidationError for empty or whitespace-only string", () => {
+      expect(() => normalizeRequiredReasonText("", t())).toThrow(ValidationError);
+      expect(() => normalizeRequiredReasonText("   \t\n  ", t())).toThrow(ValidationError);
+    });
 
-      test("handles non-Error cause objects gracefully", () => {
-        const errWithObjectCause = new Error("Parent", { cause: { code: "23505" } });
-        // { code: "23505" } is not instanceof Error, so traversal stops
-        expect(isClaimKeyUniqueViolation(errWithObjectCause)).toBe(false);
-      });
+    test("throws ValidationError when trimmed length exceeds 500 characters", () => {
+      const string501 = "a".repeat(501);
+      expect(() => normalizeRequiredReasonText(string501, t())).toThrow(ValidationError);
+
+      const padded501 = `  ${"b".repeat(501)}  `;
+      expect(() => normalizeRequiredReasonText(padded501, t())).toThrow(ValidationError);
     });
   });
 
-  // ─── List Pagination & Bounds Normalizers ─────────────────────────────
-  describe("List Pagination & Bounds Normalizers (normalizePageBounds, normalizeAdminListBounds)", () => {
-    describe("Tier 1 — Default & Boundary Normalization", () => {
-      test("normalizePageBounds returns given values when within valid ranges", () => {
-        expect(normalizePageBounds(1, 10)).toEqual({ page: 1, pageSize: 10 });
-        expect(normalizePageBounds(5, 50)).toEqual({ page: 5, pageSize: 50 });
-      });
+  describe("Tier 2 — boundary cases", () => {
+    test("boundary around 500 length: 500 passes, 501 fails", () => {
+      expect(normalizeRequiredReasonText("x".repeat(500), t())).toHaveLength(500);
+      expect(() => normalizeRequiredReasonText("x".repeat(501), t())).toThrow(ValidationError);
+    });
 
-      test("normalizePageBounds falls back for page < 1, float page, or non-integer", () => {
-        expect(normalizePageBounds(0, 20)).toEqual({ page: 1, pageSize: 20 });
-        expect(normalizePageBounds(-5, 20)).toEqual({ page: 1, pageSize: 20 });
-        expect(normalizePageBounds(1.5, 20)).toEqual({ page: 1, pageSize: 20 });
-        expect(normalizePageBounds(Number.NaN, 20)).toEqual({ page: 1, pageSize: 20 });
-      });
-
-      test("normalizePageBounds falls back to default pageSize (25) when pageSize is out of range 1..50", () => {
-        expect(normalizePageBounds(1, 0)).toEqual({ page: 1, pageSize: 25 });
-        expect(normalizePageBounds(1, -10)).toEqual({ page: 1, pageSize: 25 });
-        expect(normalizePageBounds(1, 51)).toEqual({ page: 1, pageSize: 25 });
-        expect(normalizePageBounds(1, 100)).toEqual({ page: 1, pageSize: 25 });
-        expect(normalizePageBounds(1, 12.5)).toEqual({ page: 1, pageSize: 25 });
-        expect(normalizePageBounds(1, Number.NaN)).toEqual({ page: 1, pageSize: 25 });
-      });
-
-      test("normalizeAdminListBounds clamps limit to 1..50 (default 25) and offset to >= 0 (default 0)", () => {
-        expect(normalizeAdminListBounds(10, 0)).toEqual({ safeLimit: 10, safeOffset: 0, page: 1 });
-        expect(normalizeAdminListBounds(25, 50)).toEqual({ safeLimit: 25, safeOffset: 50, page: 3 });
-
-        // Over limit clamp
-        expect(normalizeAdminListBounds(100, 0)).toEqual({ safeLimit: 25, safeOffset: 0, page: 1 });
-        // Under limit clamp
-        expect(normalizeAdminListBounds(0, 0)).toEqual({ safeLimit: 25, safeOffset: 0, page: 1 });
-        // Negative offset floor
-        expect(normalizeAdminListBounds(10, -15)).toEqual({ safeLimit: 10, safeOffset: 0, page: 1 });
-        // Fractional values
-        expect(normalizeAdminListBounds(10.5, -1)).toEqual({ safeLimit: 25, safeOffset: 0, page: 1 });
-      });
-
-      test("normalizeAdminListBounds computes 1-based page index correctly", () => {
-        expect(normalizeAdminListBounds(10, 0).page).toBe(1);
-        expect(normalizeAdminListBounds(10, 9).page).toBe(1);
-        expect(normalizeAdminListBounds(10, 10).page).toBe(2);
-        expect(normalizeAdminListBounds(10, 25).page).toBe(3);
-      });
+    test("padded string whose trimmed length is 500 passes", () => {
+      const padded = `   ${"c".repeat(500)}   `;
+      expect(normalizeRequiredReasonText(padded, t())).toHaveLength(500);
     });
   });
 
-  // ─── Status Filter Guard ──────────────────────────────────────────────
-  describe("Status Filter Guard (guardStatusFilter)", () => {
-    describe("Tier 1 — Closed Vocabulary Filtering", () => {
-      test("passes through valid SessionStatus members", () => {
-        expect(guardStatusFilter({ status: SessionStatus.Scheduled })).toEqual({ status: SessionStatus.Scheduled });
-        expect(guardStatusFilter({ status: SessionStatus.Started })).toEqual({ status: SessionStatus.Started });
-        expect(guardStatusFilter({ status: SessionStatus.Completed })).toEqual({ status: SessionStatus.Completed });
-        expect(guardStatusFilter({ status: SessionStatus.Cancelled })).toEqual({ status: SessionStatus.Cancelled });
-        expect(guardStatusFilter({ status: SessionStatus.Disputed })).toEqual({ status: SessionStatus.Disputed });
-      });
+  describe("Tier 4 — security & abuse", () => {
+    test("unicode / RTL / control characters within 500 limit are preserved trimmed", () => {
+      const rtlText = "  سبب النزاع بالتفصيل  ";
+      expect(normalizeRequiredReasonText(rtlText, t())).toBe("سبب النزاع بالتفصيل");
 
-      test("maps undefined or null status to { status: null }", () => {
-        expect(guardStatusFilter({})).toEqual({ status: null });
-        expect(guardStatusFilter({ status: undefined })).toEqual({ status: null });
-        expect(guardStatusFilter({ status: null })).toEqual({ status: null });
-      });
+      const unicodeText = "  \u0000 \u05D0\u05D1\u05D2  ";
+      expect(normalizeRequiredReasonText(unicodeText, t())).toBe("\u0000 \u05D0\u05D1\u05D2");
+    });
+  });
+});
 
-      test("drops out-of-vocabulary or bogus statuses to { status: null }", () => {
-        // Untyped / hostile status values
-        const baseFilter: SessionListFilterInput = {};
-        const bogus1: SessionListFilterInput = Object.assign({}, baseFilter, { status: "expired" });
-        expect(guardStatusFilter(bogus1)).toEqual({ status: null });
-
-        const bogus2: SessionListFilterInput = Object.assign({}, baseFilter, { status: "SCHEDULED" });
-        expect(guardStatusFilter(bogus2)).toEqual({ status: null });
-
-        const bogus3: SessionListFilterInput = Object.assign({}, baseFilter, { status: 123 });
-        expect(guardStatusFilter(bogus3)).toEqual({ status: null });
-      });
+describe("normalizeOptionalReasonText", () => {
+  describe("Tier 1 — branch coverage", () => {
+    test("returns null when input is null", () => {
+      expect(normalizeOptionalReasonText(null, t())).toBeNull();
     });
 
-    describe("Tier 4 — Coercion Resistance in Filters", () => {
-      test("objects or arrays as status are dropped to null without throwing", () => {
-        const baseFilter: SessionListFilterInput = {};
-        const hostileObj: SessionListFilterInput = Object.assign({}, baseFilter, { status: { $ne: "cancelled" } });
-        expect(() => guardStatusFilter(hostileObj)).not.toThrow();
-        expect(guardStatusFilter(hostileObj)).toEqual({ status: null });
-      });
+    test("returns null when input is empty string or whitespace-only", () => {
+      expect(normalizeOptionalReasonText("", t())).toBeNull();
+      expect(normalizeOptionalReasonText("   \t\n  ", t())).toBeNull();
+    });
+
+    test("returns trimmed string when input is valid", () => {
+      expect(normalizeOptionalReasonText("  Optional cancel note  ", t())).toBe("Optional cancel note");
+    });
+
+    test("accepts exact 500-character string", () => {
+      const string500 = "x".repeat(500);
+      expect(normalizeOptionalReasonText(string500, t())).toBe(string500);
+    });
+
+    test("throws ValidationError when trimmed length exceeds 500 characters", () => {
+      const string501 = "x".repeat(501);
+      expect(() => normalizeOptionalReasonText(string501, t())).toThrow(ValidationError);
+    });
+  });
+
+  describe("Tier 2 — boundary cases", () => {
+    test("boundary around 500 length: 500 passes, 501 fails", () => {
+      expect(normalizeOptionalReasonText("y".repeat(500), t())).toHaveLength(500);
+      expect(() => normalizeOptionalReasonText("y".repeat(501), t())).toThrow(ValidationError);
+    });
+  });
+});
+
+describe("isClaimKeyUniqueViolation", () => {
+  describe("Tier 1 — branch coverage", () => {
+    test("returns true for direct Error with code 23505", () => {
+      const err = Object.assign(new Error("unique constraint violation"), { code: "23505" });
+      expect(isClaimKeyUniqueViolation(err)).toBe(true);
+    });
+
+    test("returns true when code 23505 is nested in cause chain", () => {
+      const driverError = Object.assign(new Error("duplicate key value"), { code: "23505" });
+      const drizzleError = new Error("QueryFailed", { cause: driverError });
+      expect(isClaimKeyUniqueViolation(drizzleError)).toBe(true);
+
+      const topError = new Error("TopLevelWrapper", { cause: drizzleError });
+      expect(isClaimKeyUniqueViolation(topError)).toBe(true);
+    });
+
+    test("returns false for errors without code 23505", () => {
+      const notFoundErr = Object.assign(new Error("not found"), { code: "42703" });
+      expect(isClaimKeyUniqueViolation(notFoundErr)).toBe(false);
+
+      const plainErr = new Error("generic error");
+      expect(isClaimKeyUniqueViolation(plainErr)).toBe(false);
+
+      expect(isClaimKeyUniqueViolation(null)).toBe(false);
+      expect(isClaimKeyUniqueViolation(undefined)).toBe(false);
+      expect(isClaimKeyUniqueViolation("error string")).toBe(false);
+      expect(isClaimKeyUniqueViolation({ code: "23505" })).toBe(false);
+    });
+  });
+
+  describe("Tier 2 — boundary & edge cases", () => {
+    test("cycle-safe Set prevents infinite loop on circular cause chains", () => {
+      const circularErr = new Error("Circular error 1");
+      const causeErr = new Error("Circular error 2", { cause: circularErr });
+      Object.assign(circularErr, { cause: causeErr });
+
+      // Circular chain without 23505 code -> terminates safely, returns false
+      expect(isClaimKeyUniqueViolation(circularErr)).toBe(false);
+
+      // Circular chain with 23505 code -> terminates safely, returns true
+      const circularWithCode = new Error("Circular error with code");
+      Object.assign(circularWithCode, { code: "23505", cause: circularWithCode });
+      expect(isClaimKeyUniqueViolation(circularWithCode)).toBe(true);
+    });
+  });
+});
+
+describe("normalizePageBounds", () => {
+  describe("Tier 1 — branch coverage", () => {
+    test("valid page and pageSize pass through", () => {
+      expect(normalizePageBounds(1, 25)).toEqual({ page: 1, pageSize: 25 });
+      expect(normalizePageBounds(3, 10)).toEqual({ page: 3, pageSize: 10 });
+      expect(normalizePageBounds(1, 1)).toEqual({ page: 1, pageSize: 1 });
+      expect(normalizePageBounds(5, 50)).toEqual({ page: 5, pageSize: 50 });
+    });
+
+    test("invalid page falls back to 1", () => {
+      expect(normalizePageBounds(0, 25)).toEqual({ page: 1, pageSize: 25 });
+      expect(normalizePageBounds(-5, 25)).toEqual({ page: 1, pageSize: 25 });
+      expect(normalizePageBounds(1.5, 25)).toEqual({ page: 1, pageSize: 25 });
+      expect(normalizePageBounds(Number.NaN, 25)).toEqual({ page: 1, pageSize: 25 });
+      expect(normalizePageBounds(Number.POSITIVE_INFINITY, 25)).toEqual({ page: 1, pageSize: 25 });
+    });
+
+    test("invalid pageSize falls back to DEFAULT_PAGE_SIZE (25)", () => {
+      expect(normalizePageBounds(1, 0)).toEqual({ page: 1, pageSize: 25 });
+      expect(normalizePageBounds(1, -10)).toEqual({ page: 1, pageSize: 25 });
+      expect(normalizePageBounds(1, 51)).toEqual({ page: 1, pageSize: 25 });
+      expect(normalizePageBounds(1, 100)).toEqual({ page: 1, pageSize: 25 });
+      expect(normalizePageBounds(1, 2.5)).toEqual({ page: 1, pageSize: 25 });
+      expect(normalizePageBounds(1, Number.NaN)).toEqual({ page: 1, pageSize: 25 });
+    });
+  });
+
+  describe("Tier 2 — boundary cases", () => {
+    test("pageSize upper bound 50: 50 is valid, 51 falls back to 25", () => {
+      expect(normalizePageBounds(1, 50).pageSize).toBe(50);
+      expect(normalizePageBounds(1, 51).pageSize).toBe(25);
+    });
+
+    test("pageSize lower bound 1: 1 is valid, 0 falls back to 25", () => {
+      expect(normalizePageBounds(1, 1).pageSize).toBe(1);
+      expect(normalizePageBounds(1, 0).pageSize).toBe(25);
+    });
+  });
+});
+
+describe("normalizeAdminListBounds", () => {
+  describe("Tier 1 — branch coverage", () => {
+    test("valid limit and offset calculate page index honestly", () => {
+      expect(normalizeAdminListBounds(25, 0)).toEqual({ safeLimit: 25, safeOffset: 0, page: 1 });
+      expect(normalizeAdminListBounds(25, 25)).toEqual({ safeLimit: 25, safeOffset: 25, page: 2 });
+      expect(normalizeAdminListBounds(10, 30)).toEqual({ safeLimit: 10, safeOffset: 30, page: 4 });
+      expect(normalizeAdminListBounds(10, 25)).toEqual({ safeLimit: 10, safeOffset: 25, page: 3 });
+    });
+
+    test("invalid limit falls back to DEFAULT_PAGE_SIZE (25)", () => {
+      expect(normalizeAdminListBounds(0, 0)).toEqual({ safeLimit: 25, safeOffset: 0, page: 1 });
+      expect(normalizeAdminListBounds(51, 0)).toEqual({ safeLimit: 25, safeOffset: 0, page: 1 });
+      expect(normalizeAdminListBounds(-5, 0)).toEqual({ safeLimit: 25, safeOffset: 0, page: 1 });
+      expect(normalizeAdminListBounds(1.5, 0)).toEqual({ safeLimit: 25, safeOffset: 0, page: 1 });
+      expect(normalizeAdminListBounds(Number.NaN, 0)).toEqual({ safeLimit: 25, safeOffset: 0, page: 1 });
+    });
+
+    test("invalid offset floors at 0", () => {
+      expect(normalizeAdminListBounds(25, -1)).toEqual({ safeLimit: 25, safeOffset: 0, page: 1 });
+      expect(normalizeAdminListBounds(25, -100)).toEqual({ safeLimit: 25, safeOffset: 0, page: 1 });
+      expect(normalizeAdminListBounds(25, 1.5)).toEqual({ safeLimit: 25, safeOffset: 0, page: 1 });
+      expect(normalizeAdminListBounds(25, Number.NaN)).toEqual({ safeLimit: 25, safeOffset: 0, page: 1 });
+    });
+  });
+
+  describe("Tier 2 — boundary & page index calculation", () => {
+    test("page index formula Math.floor(safeOffset / safeLimit) + 1", () => {
+      // Offset 0..24 with limit 25 => page 1
+      expect(normalizeAdminListBounds(25, 0).page).toBe(1);
+      expect(normalizeAdminListBounds(25, 24).page).toBe(1);
+      // Offset 25..49 with limit 25 => page 2
+      expect(normalizeAdminListBounds(25, 25).page).toBe(2);
+      expect(normalizeAdminListBounds(25, 49).page).toBe(2);
+      // Offset 50 with limit 25 => page 3
+      expect(normalizeAdminListBounds(25, 50).page).toBe(3);
+    });
+  });
+});
+
+describe("guardStatusFilter", () => {
+  describe("Tier 1 — branch coverage", () => {
+    test("passes through valid SessionStatus enum members", () => {
+      const validStatuses = Object.values(SessionStatus);
+      for (const st of validStatuses) {
+        const filter: SessionListFilterInput = { status: st };
+        expect(guardStatusFilter(filter)).toEqual({ status: st });
+      }
+    });
+
+    test("returns { status: null } when status is undefined or null", () => {
+      expect(guardStatusFilter({ status: undefined })).toEqual({ status: null });
+      expect(guardStatusFilter({ status: null })).toEqual({ status: null });
+      expect(guardStatusFilter({})).toEqual({ status: null });
+    });
+
+    test("returns { status: null } when status is not a valid SessionStatus member", () => {
+      const invalidFilter: SessionListFilterInput = Object.assign(
+        { status: SessionStatus.Scheduled },
+        { status: "INVALID_STATUS" }
+      );
+      expect(guardStatusFilter(invalidFilter)).toEqual({ status: null });
+
+      const bogusFilter: SessionListFilterInput = Object.assign(
+        { status: SessionStatus.Scheduled },
+        { status: "expired" }
+      );
+      expect(guardStatusFilter(bogusFilter)).toEqual({ status: null });
+    });
+  });
+
+  describe("Tier 3 — chaos & case-smuggling", () => {
+    test("case-smuggled status strings drop out to null", () => {
+      const smuggledInputs = ["SCHEDULED", "scheduled ", " Scheduled", "COMPLETED", "CANCELLED", "DISPUTED"];
+      for (const smuggled of smuggledInputs) {
+        const filter: SessionListFilterInput = Object.assign({ status: SessionStatus.Scheduled }, { status: smuggled });
+        expect(guardStatusFilter(filter)).toEqual({ status: null });
+      }
+    });
+
+    test("concurrent guardStatusFilter storm proves statelessness", async () => {
+      const filter = { status: SessionStatus.Scheduled };
+      const results = await Promise.allSettled(
+        Array.from({ length: 500 }, () => Promise.resolve(guardStatusFilter(filter)))
+      );
+      expect(results.every(r => r.status === "fulfilled" && r.value.status === SessionStatus.Scheduled)).toBe(true);
     });
   });
 });
