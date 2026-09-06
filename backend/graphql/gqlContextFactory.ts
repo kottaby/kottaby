@@ -150,12 +150,7 @@ export function extractLocale(request: NextRequest | Request, parsedCookies?: Re
 function extractAccessToken(request: NextRequest | Request, parsedCookies?: Record<string, string>): string | null {
   // 1. Authorization header (preferred — production client path).
   const authHeader = request.headers.get("authorization") ?? "";
-  if (authHeader.startsWith("Bearer ") || authHeader.startsWith("bearer ")) {
-    const token = authHeader.slice(7).trim();
-    if (token.length > 0) {
-      return token;
-    }
-  } else if (authHeader.toLowerCase().startsWith("bearer ")) {
+  if (authHeader.length >= 7 && authHeader.slice(0, 7).toLowerCase() === "bearer ") {
     const token = authHeader.slice(7).trim();
     if (token.length > 0) {
       return token;
