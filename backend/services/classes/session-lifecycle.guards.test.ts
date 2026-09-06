@@ -300,20 +300,20 @@ describe("session-lifecycle.guards — Pure Unit Tests", () => {
 
       test("drops out-of-vocabulary or bogus statuses to { status: null }", () => {
         // Untyped / hostile status values
-        const bogus1: SessionListFilterInput = Object.assign({}, { status: "expired" });
+        const bogus1 = { status: "expired" } as unknown as SessionListFilterInput;
         expect(guardStatusFilter(bogus1)).toEqual({ status: null });
 
-        const bogus2: SessionListFilterInput = Object.assign({}, { status: "SCHEDULED" });
+        const bogus2 = { status: "SCHEDULED" } as unknown as SessionListFilterInput;
         expect(guardStatusFilter(bogus2)).toEqual({ status: null });
 
-        const bogus3: SessionListFilterInput = Object.assign({}, { status: 123 as unknown as SessionStatus });
+        const bogus3 = { status: 123 } as unknown as SessionListFilterInput;
         expect(guardStatusFilter(bogus3)).toEqual({ status: null });
       });
     });
 
     describe("Tier 4 — Coercion Resistance in Filters", () => {
       test("objects or arrays as status are dropped to null without throwing", () => {
-        const hostileObj: SessionListFilterInput = Object.assign({}, { status: { $ne: "cancelled" } });
+        const hostileObj = { status: { $ne: "cancelled" } } as unknown as SessionListFilterInput;
         expect(() => guardStatusFilter(hostileObj)).not.toThrow();
         expect(guardStatusFilter(hostileObj)).toEqual({ status: null });
       });
