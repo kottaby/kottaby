@@ -102,7 +102,12 @@ describe("toNotificationInsert", () => {
   describe("Tier 3 — BOPLA & field isolation", () => {
     test("ignores smuggled / extra properties on the copy object (strict whitelist mapping)", () => {
       const now = new Date();
-      const smuggledCopy = {
+      const smuggledCopy: NotificationEmitCopy & {
+        id: number;
+        isRead: boolean;
+        createdAt: Date;
+        smuggledColumn: string;
+      } = {
         type: NotificationType.ParentLinkRequest,
         title: "Parent Link Request",
         body: "A parent wants to link",
@@ -115,7 +120,7 @@ describe("toNotificationInsert", () => {
         smuggledColumn: "HACKED",
       };
 
-      const result = toNotificationInsert(10, smuggledCopy as unknown as NotificationEmitCopy, now);
+      const result = toNotificationInsert(10, smuggledCopy, now);
 
       expect(result).toEqual({
         userId: 10,
@@ -211,7 +216,7 @@ describe("toRealtimePayload", () => {
       const payload = toRealtimePayload(row);
 
       expect(Object.hasOwn(payload.data, "userId")).toBe(false);
-      expect((payload.data as unknown as Record<string, unknown>).userId).toBeUndefined();
+      expect("userId" in payload.data).toBe(false);
     });
 
     test("MUST NOT include isRead in realtime payload (isRead is managed via inbox sync)", () => {
@@ -230,11 +235,11 @@ describe("toRealtimePayload", () => {
       const payload = toRealtimePayload(row);
 
       expect(Object.hasOwn(payload.data, "isRead")).toBe(false);
-      expect((payload.data as unknown as Record<string, unknown>).isRead).toBeUndefined();
+      expect("isRead" in payload.data).toBe(false);
     });
 
     test("ignores extra smuggled properties on row object when constructing payload", () => {
-      const rowWithSmuggled = {
+      const rowWithSmuggled: NotificationReturnType & { secretToken: string; internalNotes: string } = {
         id: 700,
         userId: 99,
         type: NotificationType.PaymentConfirmation,
@@ -248,11 +253,11 @@ describe("toRealtimePayload", () => {
         internalNotes: "Do not expose",
       };
 
-      const payload = toRealtimePayload(rowWithSmuggled as unknown as NotificationReturnType);
+      const payload = toRealtimePayload(rowWithSmuggled);
 
       expect(Object.hasOwn(payload.data, "secretToken")).toBe(false);
       expect(Object.hasOwn(payload.data, "internalNotes")).toBe(false);
-      expect((payload.data as unknown as Record<string, unknown>).secretToken).toBeUndefined();
+      expect("secretToken" in payload.data).toBe(false);
     });
   });
 });
