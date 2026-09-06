@@ -117,8 +117,23 @@ export interface AdminUsersLabels {
     readonly certified: string;
     /** Chip shown when the student account is linked to a parent. */
     readonly parentLinked: string;
-    /** Full caption for the linked-children count chip; handles pluralization per locale. */
-    readonly childrenCount: (count: number) => string;
+    /**
+     * Linked-children count chip — plural-band ICU blocks selected through
+     * `Intl.PluralRules` of the active locale (Arabic carries the full
+     * zero/one/two/few/many/other band set; en resolves one/other at runtime
+     * and keeps the remaining bands as plain `{count} children` for key
+     * parity). Each band is a `{count}` template. A pure-data block — never
+     * a function leaf (functions broke the parity suites AND crossed the
+     * RSC boundary as unserializable props).
+     */
+    readonly childrenCount: {
+      readonly zero: string;
+      readonly one: string;
+      readonly two: string;
+      readonly few: string;
+      readonly many: string;
+      readonly other: string;
+    };
     /** Chip shown when a teacher application is awaiting review. */
     readonly pendingReview: string;
   };
@@ -287,10 +302,11 @@ export interface AdminUsersLabels {
     /**
      * Warning banner naming the target user and stating that certification
      * bypasses the evaluation pipeline and grants teacher access
-     * immediately — interpolation function (typed template; the component
-     * passes the verbatim full name).
+     * immediately — ICU template with exactly one `{name}` placeholder
+     * (parity tests pin the token; the component expands it with the
+     * verbatim full name).
      */
-    readonly warningMessage: (name: string) => string;
+    readonly warningMessage: string;
     /** Checkbox label for the optional evaluator grant (pre-checked, default on). */
     readonly evaluatorCheckbox: string;
     /** Muted footnote — the certification is recorded in the audit log. */

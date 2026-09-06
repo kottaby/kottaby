@@ -21,11 +21,10 @@
  * Denials from EITHER variant emit ZERO audit rows and perform ZERO writes —
  * the actor check happens BEFORE any transaction opens (JR-C-1 invariant).
  */
-import { UserRepository } from "@/backend/db/repo";
-import { toUserRole, UserRole } from "@/backend/enum/users/user-role.enum";
 import { isSuspensionActive } from "@/backend/lib/auth/suspension-window";
-import { ForbiddenError, UnauthorizedError } from "@/backend/lib/errors";
+import { ForbiddenError } from "@/backend/lib/errors";
 import { logger } from "@/backend/lib/logger";
+import { resolveAdminActorRow } from "@/backend/services/admin/admin-gate.helpers";
 import type { DBTransaction } from "@/backend/types";
 import { getServerTranslations } from "@/shared/locale/server-graphql";
 
@@ -34,9 +33,6 @@ import { getServerTranslations } from "@/shared/locale/server-graphql";
 // implementation continues to live in `admin-gate.helpers.ts`; this
 // forwarding export is the canonical import surface for callers.
 export { assertActorAdmin } from "./admin-gate.helpers";
-
-/** Sentinel `actorId` value expressing an anonymous caller. */
-const ANONYMOUS_ACTOR_ID = 0;
 
 /**
  * Strict active-admin-actor assertion.
@@ -53,12 +49,11 @@ const ANONYMOUS_ACTOR_ID = 0;
  * semantics (`endsAt > now`) restore access at the exact lapse instant
  * without any write (window honesty — REQ-019).
  *
- * The actor row is fetched ONCE via `UserRepository.findById`; the same row
- * carries the role field (relaxed check) and the five governance columns
- * (strict checks) — no second query. The BFLA pre-checks (anonymous /
- * missing-row / non-admin) inline the relaxed gate's logic to preserve the
- * single-fetch invariant; the canonical relaxed implementation lives on in
- * `admin-gate.helpers.ts` for every DEV3-016 caller.
+ * The actor row is fetched ONCE via {@linkcode resolveAdminActorRow} (the
+ * shared prelude in `admin-gate.helpers.ts` — the single source of the
+ * anonymous / missing-row / non-admin ladder); the same row carries the
+ * role field (checked by the prelude) and the five governance columns
+ * (checked here) — no second query.
  *
  * Each denial emits ONE
  * `logger.logDomainError(message, { code, entity: "user", entityId })` and
@@ -72,34 +67,7 @@ const ANONYMOUS_ACTOR_ID = 0;
 export async function assertActiveActorAdmin(actorId: number, locale: string, outerTx?: DBTransaction): Promise<void> {
   const tErrors = getServerTranslations(locale).errorsTranslations;
 
-  if (actorId === ANONYMOUS_ACTOR_ID) {
-    logger.logDomainError("Admin operation denied: anonymous caller", {
-      code: "UNAUTHORIZED",
-      entity: "user",
-      entityId: actorId,
-    });
-    throw new UnauthorizedError(tErrors.unauthorized);
-  }
-
-  const actor = await UserRepository.findById(actorId, outerTx);
-  if (actor === null) {
-    logger.logDomainError("Admin operation denied: actor row missing", {
-      code: "FORBIDDEN",
-      entity: "user",
-      entityId: actorId,
-    });
-    throw new ForbiddenError(tErrors.forbidden);
-  }
-
-  const role = toUserRole(actor.role);
-  if (role !== UserRole.Admin) {
-    logger.logDomainError("Admin operation denied: actor is not admin", {
-      code: "FORBIDDEN",
-      entity: "user",
-      entityId: actorId,
-    });
-    throw new ForbiddenError(tErrors.forbidden);
-  }
+  const actor = await resolveAdminActorRow(actorId, locale, outerTx);
 
   // Deterministic-order governance denials — deleted before blocked before
   // actively-suspended. A LAPSED suspension falls through to the implicit

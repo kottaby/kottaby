@@ -1,7 +1,8 @@
 "use client";
 
-import { Box, Stack, Typography } from "@mui/material";
+import { Stack, Typography } from "@mui/material";
 import type { ReactNode } from "react";
+import { SessionStickyBar } from "@/frontend/components/ui/sessionList";
 
 /**
  * AdminDisputesChrome — the ALWAYS-ON chrome of the admin arbitration queue
@@ -25,20 +26,7 @@ export function AdminDisputesChrome({ title, countLine }: Readonly<AdminDisputes
       <Typography variant="h5" component="h1" sx={{ fontWeight: 700 }}>
         {title}
       </Typography>
-      <Box
-        sx={theme => ({
-          position: "sticky",
-          top: { xs: 56, sm: 64 },
-          zIndex: theme.zIndex.appBar - 1,
-          bgcolor: theme.palette.surfaceContainer,
-          backdropFilter: "blur(8px)",
-          borderRadius: 2,
-          py: 1,
-          px: { xs: 0.5, sm: 1 },
-          borderBottom: "1px solid",
-          borderBottomColor: theme.palette.outlineVariant,
-        })}
-      >
+      <SessionStickyBar>
         <Typography
           variant="body2"
           data-testid="admin-disputes-count"
@@ -46,7 +34,7 @@ export function AdminDisputesChrome({ title, countLine }: Readonly<AdminDisputes
         >
           {countLine}
         </Typography>
-      </Box>
+      </SessionStickyBar>
     </Stack>
   );
 }
