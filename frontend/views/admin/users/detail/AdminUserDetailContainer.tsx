@@ -29,6 +29,13 @@
  *
  * A `USER_NOT_FOUND` response (stale link) renders a localized not-found
  * section with a back-to-directory CTA.
+ *
+ * All chrome copy comes from the `AdminUsers` locale namespace, resolved
+ * client-side via `useAppTranslation(AdminUsers)` — the namespace carries
+ * interpolation closures (e.g. the certification dialog's interpolated
+ * warning) that must never cross the server→client props boundary, so the
+ * server page mounts this container label-free (only the numeric user id
+ * arrives as a prop).
  */
 
 import { ArrowBackOutlined as BackIcon, FamilyRestroomOutlined as ParentIcon } from "@mui/icons-material";
@@ -51,14 +58,15 @@ import { GovernanceActionsSection } from "@/frontend/views/admin/users/detail/Go
 import { AdminUserSuccessSnackbar } from "@/frontend/views/admin/users/dialogs";
 import { useAdminUserDetail } from "@/frontend/views/admin/users/hooks";
 import { asDirectoryRole, directoryGovernanceOf } from "@/frontend/views/admin/users/utils";
-import type { AdminUsersLabels } from "@/shared/locale/types/adminUsers";
+import { useAppTranslation } from "@/shared/locale/client";
+import { AdminUsers } from "@/shared/locale/namespaces/adminUsers";
 
 interface AdminUserDetailContainerProps {
-  readonly labels: AdminUsersLabels;
   readonly userId: number;
 }
 
-export function AdminUserDetailContainer({ labels, userId }: AdminUserDetailContainerProps) {
+export function AdminUserDetailContainer({ userId }: AdminUserDetailContainerProps) {
+  const labels = useAppTranslation(AdminUsers);
   const detail = useAdminUserDetail(userId);
 
   if (detail.loading && !detail.data) {

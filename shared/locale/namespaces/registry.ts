@@ -6,6 +6,7 @@
  */
 import { AdminBroadcasts } from "@/shared/locale/namespaces/adminBroadcasts";
 import { AdminUsers } from "@/shared/locale/namespaces/adminUsers";
+import { Analytics } from "@/shared/locale/namespaces/analytics";
 import { Applicant } from "@/shared/locale/namespaces/applicant";
 import { Auth } from "@/shared/locale/namespaces/auth";
 import { Common } from "@/shared/locale/namespaces/common";
@@ -23,6 +24,7 @@ import { Wallet } from "@/shared/locale/namespaces/wallet";
 export const namespaces = {
   AdminBroadcasts,
   AdminUsers,
+  Analytics,
   Applicant,
   Auth,
   Common,

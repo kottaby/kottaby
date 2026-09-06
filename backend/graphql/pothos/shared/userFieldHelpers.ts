@@ -13,6 +13,10 @@
  *    (`fullName/email/phone/password/gender/country/role`) shared by
  *    `RegisterUserInput` and `AdminCreateUserInput`; `admin` stays
  *    structurally excluded via `RegisterPublicRolePothosEnum` (BFLA).
+ *  - `adminUserStatsFields` — the ten user-population counter projections
+ *    (`totalCount`…`newThisWeekCount`) shared verbatim by `AdminUserStats`
+ *    and `PlatformAnalyticsUsers` (both backed by shapes rooted in the
+ *    canonical `AdminUserStatsReturnType`).
  *
  * Both enum resolvers are fail-closed: an unexpected stored value throws at
  * resolve time instead of leaking through as an unsafe cast.
@@ -30,6 +34,7 @@ import {
   RegisterPublicRolePothosEnum,
   UserRolePothosEnum,
 } from "@/backend/graphql/pothos/shared/enum.pothos";
+import type { AdminUserStatsReturnType, PlatformAnalyticsUsersReturnType } from "@/backend/types";
 
 /**
  * The `SchemaTypes` of the canonical `gqlSchemaBuilder` — derived from the
@@ -98,5 +103,30 @@ export function userRegistrationInputFields(t: InputFieldBuilder<GqlSchemaTypes,
     gender: t.field({ type: GenderPothosEnum, required: false }),
     country: t.string({ required: true }),
     role: t.field({ type: RegisterPublicRolePothosEnum, required: true }),
+  };
+}
+
+/**
+ * The ten user-population counter projections shared verbatim by
+ * `AdminUserStats` (admin directory overview strip) and
+ * `PlatformAnalyticsUsers` (platform analytics users section). The builder
+ * is typed over the union of both canonical shapes (PlatformAnalyticsUsers
+ * extends AdminUserStats verbatim, per `backend/types/admin/`), so both
+ * call sites pass their own field builders without a generic indirection.
+ */
+export function adminUserStatsFields(
+  t: ObjectFieldBuilder<GqlSchemaTypes, AdminUserStatsReturnType | PlatformAnalyticsUsersReturnType>
+) {
+  return {
+    totalCount: t.exposeInt("totalCount"),
+    activeCount: t.exposeInt("activeCount"),
+    suspendedCount: t.exposeInt("suspendedCount"),
+    blockedCount: t.exposeInt("blockedCount"),
+    deletedCount: t.exposeInt("deletedCount"),
+    adminsCount: t.exposeInt("adminsCount"),
+    teachersCount: t.exposeInt("teachersCount"),
+    studentsCount: t.exposeInt("studentsCount"),
+    parentsCount: t.exposeInt("parentsCount"),
+    newThisWeekCount: t.exposeInt("newThisWeekCount"),
   };
 }

@@ -1,20 +1,19 @@
 "use client";
 
-import { EventOutlined as EmptyIcon, FilterListOutlined as FilteredIcon } from "@mui/icons-material";
-import { Alert, Stack } from "@mui/material";
+import { EventOutlined as EmptyIcon } from "@mui/icons-material";
 import type { ReactNode } from "react";
-import { PermissionDeniedFallback } from "@/frontend/components/ui/PermissionDeniedFallback";
 import type {
   MyStudentSessionsQuery,
   MyStudentSessionsQuery_myStudentSessions_items,
   SessionStatus,
 } from "@/frontend/graphql/generated/gql/graphql";
-import { extractErrorCode } from "@/frontend/lib/graphql-error-utils";
-import { mapGraphQLErrorByCode, normalizeGraphQLErrorCode } from "@/frontend/providers/apollo/error-link.map";
-import { SessionRow } from "@/frontend/views/student/sessions/SessionRow";
-import { SessionsEmptyState } from "@/frontend/views/student/sessions/SessionsEmptyState";
 import { SessionsLoadingSkeleton } from "@/frontend/views/student/sessions/SessionsLoadingSkeleton";
-import { type InFlightSlots, isInFlight } from "@/frontend/views/student/sessions/studentSessionInFlightSlots";
+import {
+  SessionQueryErrorBody,
+  SessionsEmptyBranch,
+  SessionsRowList,
+} from "@/frontend/views/student/sessions/sessionBodyBranches";
+import type { InFlightSlots } from "@/frontend/views/student/sessions/studentSessionInFlightSlots";
 import { studentActionsForSession } from "@/frontend/views/student/sessions/useStudentSessionConfirm";
 import type { SessionsLabels } from "@/shared/locale/types/sessions";
 
@@ -33,21 +32,6 @@ interface StudentSessionsBodyProps {
   /** Confirm-CTA intent — the container owns the mutation. */
   readonly onConfirm: (sessionId: string) => void;
   readonly t: SessionsLabels;
-}
-
-interface SessionsErrorNoticeProps {
-  readonly message: string;
-}
-
-/** Settled query failure without a denial-family code — generic inline alert. */
-function SessionsErrorNotice({ message }: Readonly<SessionsErrorNoticeProps>): ReactNode {
-  return (
-    <Stack data-testid="student-sessions-error" sx={{ py: { xs: 4, sm: 6 } }}>
-      <Alert severity="error" variant="outlined">
-        {message}
-      </Alert>
-    </Stack>
-  );
 }
 
 /**
@@ -78,16 +62,9 @@ export function StudentSessionsBody({
   }
   // Branches 2–3 — settled failures: denial family vs generic surfaced copy.
   if (error) {
-    const rawCode = extractErrorCode(error);
-    const code = rawCode === null ? "" : normalizeGraphQLErrorCode(rawCode);
-    const action = mapGraphQLErrorByCode(code, { contextKind: "query", hasForm: false });
-    // Denial family — FORBIDDEN maps to the shared section fallback;
-    // UNAUTHORIZED (auth-recovery) surfaces identically after the error
-    // link's refresh-retry path has given up (ApplicantStatusCard precedent).
-    if (action?.kind === "permission-fallback" || action?.kind === "auth-recovery") {
-      return <PermissionDeniedFallback />;
-    }
-    return <SessionsErrorNotice message={t.genericError} />;
+    return (
+      <SessionQueryErrorBody error={error} errorTestId="student-sessions-error" genericErrorMessage={t.genericError} />
+    );
   }
   // Apollo settles queries with data-or-error; this narrow guard keeps the
   // compiler informed without unsafe assertions.
@@ -96,38 +73,31 @@ export function StudentSessionsBody({
   }
   const sessions: readonly MyStudentSessionsQuery_myStudentSessions_items[] = data.myStudentSessions.items;
   if (sessions.length === 0) {
-    // Branches 4a/4b — an empty page: the DISTINCT filtered-empty copy
-    // (with the filter-list icon) only when a status chip is active; the
-    // generic empty state stays reserved for the unfiltered "all" view.
-    const isFiltered = statusFilter !== null;
+    // Branches 4a/4b — an empty page: the DISTINCT filtered-empty copy only
+    // when a status chip is active; the generic empty state stays reserved
+    // for the unfiltered "all" view.
     return (
-      <SessionsEmptyState
+      <SessionsEmptyBranch
+        statusFilter={statusFilter}
         testId="student-sessions-empty"
-        icon={isFiltered ? FilteredIcon : EmptyIcon}
-        title={isFiltered ? t.filteredEmptyTitle : t.studentEmptyTitle}
-        body={isFiltered ? t.filteredEmptyBody : t.studentEmptyBody}
+        emptyIcon={EmptyIcon}
+        emptyTitle={t.studentEmptyTitle}
+        emptyBody={t.studentEmptyBody}
+        filteredTitle={t.filteredEmptyTitle}
+        filteredBody={t.filteredEmptyBody}
       />
     );
   }
   // Branch 5 — rows (each row's confirm CTA disabled iff ITS OWN row+kind
   // slot is open; the affordance matrix resolves per payload shape).
   return (
-    <Stack sx={{ gap: 2 }}>
-      {sessions.map(session => (
-        <SessionRow
-          key={session.id}
-          session={session}
-          alertMessage={rowAlerts[session.id] ?? null}
-          onCancelIntent={onCancelIntent}
-          onDisputeIntent={onDisputeIntent}
-          disputeDisabled={isInFlight(disputeInFlightSlots, session.id, "dispute")}
-          actions={studentActionsForSession(session, {
-            t,
-            inFlightSlots,
-            onConfirm,
-          })}
-        />
-      ))}
-    </Stack>
+    <SessionsRowList
+      sessions={sessions}
+      rowAlerts={rowAlerts}
+      onCancelIntent={onCancelIntent}
+      onDisputeIntent={onDisputeIntent}
+      disputeInFlightSlots={disputeInFlightSlots}
+      actionsFor={session => studentActionsForSession(session, { t, inFlightSlots, onConfirm })}
+    />
   );
 }

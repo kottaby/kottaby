@@ -37,9 +37,9 @@
  * the flow inside a SAVEPOINT per `withTransaction`.
  */
 
-import { UserRepository, WalletRepository } from "@/backend/db/repo";
+import { TeacherRepository, UserRepository, WalletRepository } from "@/backend/db/repo";
 import { withTransaction } from "@/backend/lib/db/with-transaction";
-import { ConflictError, ForbiddenError, ValidationError } from "@/backend/lib/errors";
+import { ConflictError, DomainError, ForbiddenError, ValidationError } from "@/backend/lib/errors";
 import { logger } from "@/backend/lib/logger";
 import type { DBTransaction, WalletViewType } from "@/backend/types";
 import { getServerTranslations } from "@/shared/locale/server-graphql";
@@ -119,6 +119,34 @@ export namespace WalletService {
   }
 
   /**
+   * Asserts the caller actually HAS a teacher profile row before any wallet
+   * ensure/read — the `wallet.teacher_id` FK targets the teacher table, so a
+   * caller whose teaching application is still pending (no profile row yet)
+   * would otherwise hit a raw FK failure masked as a generic "something went
+   * wrong". The typed localized deny keeps the pending-teacher wallet page
+   * honest ("activates once your teaching profile is approved") instead of
+   * crashing into an opaque error banner + toast.
+   */
+  async function assertTeacherProfileExists(
+    callerUserId: number,
+    t: ErrorsTranslations,
+    tx?: DBTransaction
+  ): Promise<void> {
+    const teacherProfile = await TeacherRepository.findById(callerUserId, tx);
+    if (!teacherProfile) {
+      logger.logDomainError("Wallet denied: caller has no teacher profile row (application pending)", {
+        code: "WALLET_TEACHER_PROFILE_MISSING",
+        entity: "wallet",
+        entityId: callerUserId,
+      });
+      // A TYPED code (not the generic FORBIDDEN) — the client's wallet body
+      // intercepts WALLET_TEACHER_PROFILE_MISSING and renders the honest
+      // "activates once approved" empty state instead of a permission denial.
+      throw new DomainError("WALLET_TEACHER_PROFILE_MISSING", t.walletTeacherProfileMissing);
+    }
+  }
+
+  /**
    * R-301 — the caller's own wallet: the ensured row plus the newest-first
    * ledger page (50-row cap). Zero lookup arguments — the wallet address
    * is derived EXCLUSIVELY from the verified context user id (the teacher
@@ -147,6 +175,8 @@ export namespace WalletService {
     return withTransaction(outerTx, async tx => {
       // Governance re-check — the acting teacher must be governance-clean.
       await assertActorGovernanceClean(callerUserId, t, tx);
+      // The wallet FK targets the teacher table — no profile row, no wallet.
+      await assertTeacherProfileExists(callerUserId, t, tx);
       return assembleWalletView(callerUserId, tx);
     });
   }
@@ -194,6 +224,8 @@ export namespace WalletService {
     return withTransaction(outerTx, async tx => {
       // Governance re-check — the acting teacher must be governance-clean.
       await assertActorGovernanceClean(callerUserId, t, tx);
+      // The wallet FK targets the teacher table — no profile row, no wallet.
+      await assertTeacherProfileExists(callerUserId, t, tx);
 
       // The wallet row must exist before the ledger insert (FK). The
       // ensure is idempotent (ON CONFLICT DO NOTHING).
