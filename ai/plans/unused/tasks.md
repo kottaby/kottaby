@@ -52,4 +52,4 @@
 
 - [x] T7.1 Post-implementation review iterations (independent fresh subagents) until 0 new findings in 2 consecutive rounds
 - [x] T7.2 Deferred-items enforcement: `grep -c "❌\|⚠️" deferred-items.md` == 0
-- [ ] T7.3 Knowledge propagation outcome file + final report (per-category counts, files deleted/modified, restorations, final gate status)
+- [x] T7.3 Knowledge propagation outcome file + final report (per-category counts, files deleted/modified, restorations, final gate status)

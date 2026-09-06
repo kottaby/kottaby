@@ -61,6 +61,9 @@ bun run test/scripts/run-test.ts --last --focus "<pattern>" <path>  # Filtered v
 bun quality-gate               # Automated quality verification (tsgo → oxlint → biome → lint → duplicates)
 bun quality-gate:fresh         # Reset state and run fresh
 
+# Unused-code analysis (knip — MUST run under Bun; see docs/quality/unused-code-cleanup.md)
+bun run check:unused           # Unused files/exports/deps scan; exit 0 = clean (informational extension hints OK)
+
 # Database
 bun run db                      # Database actions via scripts/dbActions/ (generate, push, migrate, seed, studio — reset & cleanGenerate disabled by repo policy)
 ```
@@ -422,6 +425,7 @@ After reading the applicable instruction files and AGENTS.md, subagents check fo
 - `docs/frontend/meeting-integrations-ui.md` - Meeting Integrations UI canonical reference (MetricCardGrid, AppDataGrid, OAuth callback, reconnect-all, status badges, clipboard, i18n namespaces, mobile-desktop responsive, Zod schema factory, animations, permission-gated cross-links, lint workarounds, accessibility)
 - `docs/frontend/whatsapp-ui-patterns.md` - WhatsApp UI canonical reference (ViewModel composable hooks, URL-synced tabs, dialog state, per-row loading, i18n label helpers, StatusBadge, animations, accessibility, testing patterns, gotchas)
 - `docs/frontend/quota-ui-patterns.md` - Quota UI canonical reference (tier isolation, RHF 3-generic pattern, cache.updateQuery for paginated lists, StatusBadge categories, MetricCard animations, reduced-motion CSS in sx, Storybook ErrorState naming, component test tier-view mocking, i18n CLDR plurals, 150-line file limit, QuotaFormAccessProvider RBAC)
+- `docs/quality/unused-code-cleanup.md` - Knip/check:unused usage, deletion-safety protocol, knip blind-spot catalog, quality-gate memory-constrained host playbook
 - `docs/testing/shared-test-runner.md` - Shared parallel test runner pattern
 - `docs/backend/meeting-adapter-base.md` - Meeting provider adapter base class pattern reference
 - `docs/backend/billing-repo-factory.md` - Billing repo factory with configurable hooks pattern reference
