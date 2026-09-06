@@ -4,20 +4,19 @@ import { Stack, Typography } from "@mui/material";
 import type { ReactNode } from "react";
 
 /**
- * AdminDisputeRowMetaCell — one label/value meta pair inside the admin
- * dispute row's header strip: an overline label over a semibold body value,
- * wrap-friendly (`minWidth: 0` keeps truncation RTL-safe inside the
- * flex-wrap row). Extracted verbatim from `AdminDisputeRow` for the
- * `max-lines-per-function` budget; behavior is unchanged.
+ * SessionMetaCell — one label/value meta pair inside a session row's header
+ * or meta strip: an overline label over a semibold body value, wrap-friendly
+ * (`minWidth: 0` keeps truncation RTL-safe inside the flex-wrap row). Shared
+ * by the participant sessions rows and the admin arbitration queue rows.
  */
 
-interface AdminDisputeRowMetaCellProps {
+interface SessionMetaCellProps {
   readonly label: string;
   readonly value: string;
 }
 
 /** One label/value meta pair (overline label + body value), wrap-friendly. */
-export function AdminDisputeRowMetaCell({ label, value }: Readonly<AdminDisputeRowMetaCellProps>): ReactNode {
+export function SessionMetaCell({ label, value }: Readonly<SessionMetaCellProps>): ReactNode {
   return (
     <Stack sx={{ gap: 0.25, minWidth: 0 }}>
       <Typography variant="overline" sx={theme => ({ color: theme.palette.text.secondary })}>

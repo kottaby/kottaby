@@ -20,14 +20,14 @@
 import { Box, Stack, Typography } from "@mui/material";
 import { type Theme, useTheme } from "@mui/material/styles";
 import type { ReactNode } from "react";
-import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Bar, Legend, ResponsiveContainer } from "recharts";
 import type { AdminPlatformAnalyticsQuery_adminPlatformAnalytics_revenueTrendDaily } from "@/frontend/graphql/generated/gql/graphql";
-import { formatApplicantDate, formatDayMonth } from "@/frontend/lib/i18n/format-date";
 import {
   pivotRevenueTrend,
   TREND_CHART_BODY_HEIGHT,
   TREND_CHART_MIN_WIDTH,
 } from "@/frontend/views/admin/analytics/platform-analytics-display";
+import { TrendBarChartScaffold } from "@/frontend/views/admin/analytics/TrendBarChartScaffold";
 import { useAppTranslation } from "@/shared/locale";
 import { Analytics } from "@/shared/locale/namespaces/analytics";
 
@@ -62,13 +62,6 @@ export function RevenueTrendChart({
 }: Readonly<RevenueTrendChartProps>): ReactNode {
   const theme = useTheme();
   const labels = useAppTranslation(Analytics);
-  // Axis ticks use the SHORT day/month mask — a full timestamp overcrowds
-  // the 30-bucket axis and bidi-reorders into mashed glyphs under RTL (QA).
-  const formatTick = (value: string): string => formatDayMonth(value, locale);
-  // recharts hands the tooltip label through as a ReactNode — the wire
-  // bucketStart is the string case; anything else degrades to an empty label.
-  const formatTooltipLabel = (label: ReactNode): ReactNode =>
-    typeof label === "string" ? formatApplicantDate(label, locale) : "";
   const { currencies, data: pivoted } = pivotRevenueTrend(data);
   // Empty-window honest state: with zero revenue buckets the bare BarChart
   // renders NO axes at all (recharts has no domain to scale) — a blank box
@@ -116,32 +109,7 @@ export function RevenueTrendChart({
         </Typography>
       </Stack>
       <ResponsiveContainer width="100%" height={TREND_CHART_BODY_HEIGHT}>
-        <BarChart data={[...pivoted]} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
-          <CartesianGrid stroke={theme.palette.border.light} vertical={false} />
-          <XAxis
-            dataKey="bucketStart"
-            tickFormatter={formatTick}
-            stroke={theme.palette.outline}
-            tick={{ fill: theme.palette.text.secondary, fontSize: 11 }}
-            tickLine={false}
-          />
-          <YAxis
-            allowDecimals={false}
-            stroke={theme.palette.outline}
-            tick={{ fill: theme.palette.text.secondary, fontSize: 11 }}
-            tickLine={false}
-            width={56}
-          />
-          <Tooltip
-            cursor={{ fill: theme.palette.action.hover }}
-            contentStyle={{
-              backgroundColor: theme.palette.background.paper,
-              border: `1px solid ${theme.palette.border.light}`,
-              borderRadius: "8px",
-              color: theme.palette.text.primary,
-            }}
-            labelFormatter={formatTooltipLabel}
-          />
+        <TrendBarChartScaffold data={pivoted} locale={locale} yAxisWidth={56}>
           <Legend wrapperStyle={{ color: theme.palette.text.secondary }} />
           {currencies.map((currency, index) => (
             <Bar
@@ -156,7 +124,7 @@ export function RevenueTrendChart({
               radius={[4, 4, 0, 0]}
             />
           ))}
-        </BarChart>
+        </TrendBarChartScaffold>
       </ResponsiveContainer>
     </Box>
   );

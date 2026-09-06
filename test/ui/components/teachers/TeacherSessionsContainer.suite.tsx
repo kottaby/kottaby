@@ -30,13 +30,12 @@
  *   test.skip comments; compensated by 4.3.BF).
  *
  * Translation discipline: assertions reference ONLY the PRELOADED label
- * objects resolved through `Sessions.getLabels(getTranslations(locale))`,
- * `Errors.getLabels(...)` and `Common.getLabels(...)` — ZERO hardcoded
- * Arabic/English copy lives here. The one exception class is fixture DATA
- * (ids, enum-valued intents, timestamps) plus the deadline/created stamps,
- * which are recomputed with a local `Intl.DateTimeFormat` clone of the
- * documented option set (byte-consistency technique used by the service-
- * layer suite).
+ * objects resolved through the scaffold's `sessionSuiteLabels` (Sessions /
+ * Errors / Common namespaces) — ZERO hardcoded Arabic/English copy lives
+ * here. The one exception class is fixture DATA (ids, enum-valued intents,
+ * timestamps) plus the deadline/created stamps, which are recomputed with
+ * the scaffold's `expectedStamp` oracle (byte-consistency technique used by
+ * the service-layer suite).
  *
  * Preload parity: the `test:ui:components` preload chain (test-env →
  * happydom → translation-preload → next-dynamic-mock) is owned by the
@@ -56,21 +55,11 @@
 
 import { afterEach, describe, expect, test } from "bun:test";
 import type { MockLink } from "@apollo/client/testing";
-import { MockedProvider } from "@apollo/client/testing/react";
-import {
-  cleanup,
-  fireEvent,
-  getQueriesForElement,
-  type RenderResult,
-  type Screen,
-  waitFor,
-  within,
-} from "@testing-library/react";
+import { cleanup, fireEvent, type RenderResult, waitFor, within } from "@testing-library/react";
 import {
   type MyTeacherSessionsQuery_myTeacherSessions_items,
   SessionIntent,
   SessionStatus,
-  SessionType,
 } from "@/frontend/graphql/generated/gql/graphql";
 import {
   cancelSessionMutationDocument,
@@ -84,12 +73,31 @@ import { MAX_DISPUTE_REASON_LENGTH } from "@/frontend/views/student/sessions/Ses
 import { TeacherSessionsContainer } from "@/frontend/views/teacher/sessions/TeacherSessionsContainer";
 import { SESSION_FEE_CURRENCY } from "@/shared/constants";
 import type { AppLocale } from "@/shared/locale/AppLocale";
-import { Common as CommonNs } from "@/shared/locale/namespaces/common";
-import { Errors as ErrorsNs } from "@/shared/locale/namespaces/errors";
-import { Sessions as SessionsNs } from "@/shared/locale/namespaces/sessions";
-import { getTranslations } from "@/shared/locale/server";
 import type { SessionsLabels } from "@/shared/locale/types/sessions";
-import { renderWithWrapper } from "@/test/ui/components/TestWrapper";
+import {
+  ALL_SESSIONS_LIST_VARIABLES,
+  buildSessionWireRow,
+  clickRowActionAndAwaitDialog,
+  componentSuiteLocales,
+  dismissDialogViaCancel,
+  expectCancelDialogShell,
+  expectDialogClosedAndNotice,
+  expectDialogClosedAndSnackbar,
+  expectDisputeDialogGate,
+  expectDisputedChipFlip,
+  expectDisputeRejectionConvergence,
+  expectedStamp,
+  expectScheduledRowWithLiveDisputeCta,
+  expectSessionRowMeta,
+  expectStatusFilterToolbar,
+  filteredSessionsListVariables,
+  liveScreen,
+  renderWithMocks,
+  sessionSuiteLabels,
+  snackbarSeverityClass,
+  submitDialogWithTypedReason,
+  waitForSessionRow,
+} from "@/test/ui/components/helpers";
 
 // ---------------------------------------------------------------------------
 // Fixtures (DATA — never locale copy)
@@ -143,51 +151,9 @@ const DISPUTE_REASON_TYPED = "  Teacher never joined the call  ";
 /** The trimmed value the dispute dialog sends on the wire (reason REQUIRED). */
 const DISPUTE_REASON_SENT = DISPUTE_REASON_TYPED.trim();
 
-/** SessionRow's typographic no-value placeholder (NOT locale copy). */
-const EM_DASH = "—";
-
-/** Exact variables the container sends for the unfiltered stateful query. */
-const ALL_FILTER_VARIABLES = { filter: null, page: null, pageSize: null };
-
-/**
- * Exact variables the container sends once a status chip is active — the
- * filtered-empty branch clicks a chip and the query re-keys to THESE.
- */
-function filteredFilterVariables(status: SessionStatus): {
-  filter: { status: SessionStatus };
-  page: null;
-  pageSize: null;
-} {
-  return { filter: { status }, page: null, pageSize: null };
-}
-
-/** Deterministic payload builder mirroring the closed 14-field wire shape. */
+/** Deterministic payload builder over the shared closed-session wire shape. */
 function sessionFixture(overrides?: Partial<MyTeacherSessionsQuery_myTeacherSessions_items>): SessionFixture {
-  return {
-    __typename: "Session",
-    id: ROW_SCHEDULED_A,
-    status: SessionStatus.Scheduled,
-    intent: SessionIntent.Hifz,
-    sessionType: SessionType.StudentSession,
-    fee: "150.50",
-    feeHeld: true,
-    studentId: "401",
-    teacherId: "802",
-    startedAt: null,
-    endedAt: null,
-    confirmationDeadline: DEADLINE_ISO,
-    confirmedByStudentAt: null,
-    confirmedByTeacherAt: null,
-    createdAt: CREATED_ISO,
-    updatedAt: CREATED_ISO,
-    // DEV3-005 dispute/cancel-audit columns — nullable, defaulted off.
-    cancelReason: null,
-    disputeReason: null,
-    disputedAt: null,
-    resolutionNote: null,
-    resolvedAt: null,
-    ...overrides,
-  };
+  return buildSessionWireRow({ id: ROW_SCHEDULED_A, createdIso: CREATED_ISO, deadlineIso: DEADLINE_ISO }, overrides);
 }
 
 /** The Scheduled row exercised by the start/cancel flows (fee pinned by the copy branch). */
@@ -279,7 +245,7 @@ type StatusChipLabelKey = keyof Pick<
 /** Single-operation Apollo mock answering the shared document with a page. */
 function teacherListPageMock(items: ReadonlyArray<SessionFixture>): MockLink.MockedResponse {
   return {
-    request: { query: myTeacherSessionsQueryDocument, variables: ALL_FILTER_VARIABLES },
+    request: { query: myTeacherSessionsQueryDocument, variables: ALL_SESSIONS_LIST_VARIABLES },
     result: {
       data: {
         myTeacherSessions: {
@@ -296,7 +262,7 @@ function teacherListPageMock(items: ReadonlyArray<SessionFixture>): MockLink.Moc
 /** Single-operation mock answering the stateful query for an ACTIVE filter. */
 function teacherFilteredPageMock(status: SessionStatus, items: ReadonlyArray<SessionFixture>): MockLink.MockedResponse {
   return {
-    request: { query: myTeacherSessionsQueryDocument, variables: filteredFilterVariables(status) },
+    request: { query: myTeacherSessionsQueryDocument, variables: filteredSessionsListVariables(status) },
     result: {
       data: {
         myTeacherSessions: {
@@ -317,7 +283,7 @@ function teacherFilteredPageMock(status: SessionStatus, items: ReadonlyArray<Ses
  */
 function pendingListMock(): MockLink.MockedResponse {
   return {
-    request: { query: myTeacherSessionsQueryDocument, variables: ALL_FILTER_VARIABLES },
+    request: { query: myTeacherSessionsQueryDocument, variables: ALL_SESSIONS_LIST_VARIABLES },
     delay: Infinity,
   };
 }
@@ -330,7 +296,7 @@ function pendingListMock(): MockLink.MockedResponse {
  */
 function deniedQueryError(code: string): MockLink.MockedResponse {
   return {
-    request: { query: myTeacherSessionsQueryDocument, variables: ALL_FILTER_VARIABLES },
+    request: { query: myTeacherSessionsQueryDocument, variables: ALL_SESSIONS_LIST_VARIABLES },
     result: {
       errors: [{ message: `${code} (masked transport surface)`, extensions: { code } }],
     },
@@ -440,60 +406,18 @@ const DISPUTED_PAYLOAD = sessionFixture({
 // ---------------------------------------------------------------------------
 // Render + expectation helpers
 
-/**
- * Lazily-bound `screen` replacement (student-suite pattern): bound through
- * `getQueriesForElement(document.body)` on EVERY property access so it
- * resolves against the live DOM under BOTH runners regardless of import
- * order (RTL binds its singleton `screen` at module-eval time).
- */
-const screen: Screen = new Proxy(Object.create(null), {
-  get: (_target, property, receiver) => Reflect.get(getQueriesForElement(document.body), property, receiver),
-});
+/** Alias for the scaffold's lazily-bound live-DOM screen (see its module docs). */
+const screen = liveScreen;
 
 /** Renders the container under TestWrapper (LocaleProvider → emotion → theme). */
 function renderTeacherSessions(mocks: ReadonlyArray<MockLink.MockedResponse>, locale: AppLocale): RenderResult {
-  const mocksCopy = [...mocks];
-  return renderWithWrapper(
-    <MockedProvider mocks={mocksCopy}>
-      <TeacherSessionsContainer />
-    </MockedProvider>,
-    { locale }
-  );
-}
-
-/**
- * Recomputes the deadline/created stamp independently of the implementation
- * (byte-consistent clone of `formatApplicantDate`'s documented option set).
- */
-function expectedStamp(iso: string, locale: AppLocale): string {
-  const formatter = new Intl.DateTimeFormat(locale === "en" ? "en" : "ar", {
-    timeZone: "UTC",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
-  return formatter.format(new Date(iso));
+  return renderWithMocks(<TeacherSessionsContainer />, mocks, locale);
 }
 
 /** Clicks a row's cancel affordance and resolves once the dialog is open. */
 async function openCancelDialog(row: HTMLElement, cancelLabel: string): Promise<HTMLElement> {
   fireEvent.click(within(row).getByRole("button", { name: cancelLabel }));
   return await waitFor(() => screen.getByRole("dialog"));
-}
-
-/**
- * Waits for a settled session row and resolves it (the wait-then-fetch
- * prologue every populated branch shares — extracted so the branch bodies
- * carry ONLY their unique assertions).
- */
-async function waitForSessionRow(sessionId: string): Promise<HTMLElement> {
-  await waitFor(() => {
-    expect(screen.getByTestId(`session-row-${sessionId}`)).toBeDefined();
-  });
-  return screen.getByTestId(`session-row-${sessionId}`);
 }
 
 /**
@@ -545,30 +469,15 @@ async function expectRowEvictedToEmptyState(sessionId: string, notFoundCopy: str
   expect(snackbarSeverityClass(notFoundCopy)).toContain("MuiAlert-colorError");
 }
 
-/**
- * Resolves the MUI severity class of the snackbar Alert currently showing
- * `text` (`MuiAlert-colorSuccess` / `colorError` / `colorInfo` families).
- */
-function snackbarSeverityClass(text: string): string {
-  return screen.getByText(text).closest(".MuiAlert-root")?.className ?? "";
-}
-
 afterEach(cleanup);
 
 // One block per locale keeps RTL/LTR both exercised over the FULL branch
-// matrix while every case stays independently readable.
-//
-// STUI_LOCALE split-run guard: when set ("ar" | "en"), one bun invocation
-// executes ONLY that locale's block — the sanctioned OOM relief carried
-// over from the student suite. Unset (default) runs BOTH locales exactly
-// as before, so no runner changes its behavior.
-const STUI_LOCALES: ReadonlyArray<AppLocale> = process.env.STUI_LOCALE
-  ? (["ar", "en"] as AppLocale[]).filter(candidate => candidate === process.env.STUI_LOCALE)
-  : (["ar", "en"] as AppLocale[]);
-for (const locale of STUI_LOCALES) {
-  const t = SessionsNs.getLabels(getTranslations(locale));
-  const te = ErrorsNs.getLabels(getTranslations(locale));
-  const tc = CommonNs.getLabels(getTranslations(locale));
+// matrix while every case stays independently readable. STUI_LOCALE
+// split-run guard: `componentSuiteLocales` carries the shared ar/en
+// filtering — the sanctioned OOM relief carried over from the student
+// suite (unset runs BOTH locales, so no runner changes its behavior).
+for (const locale of componentSuiteLocales) {
+  const { t, te, tc } = sessionSuiteLabels(locale);
 
   /** Per-kind CTA labels resolved through the preloaded Sessions labels. */
   const BUTTON_LABEL_BY_ACTION: Record<ActionKind, string> = {
@@ -690,21 +599,7 @@ for (const locale of STUI_LOCALES) {
         const row = screen.getByTestId(`session-row-${session.id}`);
         // Status chip label resolves through the per-status vocabulary key.
         expect(within(row).getByText(t[labelKey])).toBeDefined();
-        // Fee renders VERBATIM (never parsed) followed by the currency label.
-        const feeText = session.fee === null ? EM_DASH : `${session.fee} ${SESSION_FEE_CURRENCY}`;
-        expect(within(row).getAllByText(feeText).length).toBeGreaterThanOrEqual(1);
-        expect(within(row).getByText(t.fee)).toBeDefined();
-        // Deadline + created expand through the locale date formatter.
-        const deadlineText =
-          session.confirmationDeadline === null ? EM_DASH : expectedStamp(session.confirmationDeadline, locale);
-        expect(within(row).getAllByText(deadlineText).length).toBeGreaterThanOrEqual(1);
-        expect(within(row).getAllByText(expectedStamp(session.createdAt, locale)).length).toBeGreaterThanOrEqual(1);
-        expect(within(row).getByText(t.deadline)).toBeDefined();
-        expect(within(row).getByText(t.createdAt)).toBeDefined();
-        // Booking intent renders verbatim from the payload (server-owned value).
-        const intentText = session.intent ?? EM_DASH;
-        expect(within(row).getAllByText(intentText).length).toBeGreaterThanOrEqual(1);
-        expect(within(row).getByText(t.intent)).toBeDefined();
+        expectSessionRowMeta(row, session, t, locale);
 
         // ACTION-VISIBILITY MATRIX (module-scope helper — see its docblock).
         expectRowActions(row, session);
@@ -714,13 +609,7 @@ for (const locale of STUI_LOCALES) {
       // status chip is offered — INCLUDING Disputed (DEV3-005 made the
       // disputed state reachable on participant surfaces, so its filter
       // chip is offered like any other lifecycle status).
-      const allToken = screen.getByRole("button", { name: t.statusFilterAll });
-      expect(allToken.getAttribute("aria-pressed")).toBe("true");
-      expect(screen.getByRole("button", { name: t.statusScheduled })).toBeDefined();
-      expect(screen.getByRole("button", { name: t.statusStarted })).toBeDefined();
-      expect(screen.getByRole("button", { name: t.statusCompleted })).toBeDefined();
-      expect(screen.getByRole("button", { name: t.statusCancelled })).toBeDefined();
-      expect(screen.getByRole("button", { name: t.statusDisputed })).toBeDefined();
+      expectStatusFilterToolbar(t);
     });
 
     test("branch 6 — in-flight: the START CTA disables on ITS row only (cancel + siblings stay live)", async () => {
@@ -858,23 +747,16 @@ for (const locale of STUI_LOCALES) {
       // 1. Row cancel CTA → the shared dialog opens.
       const row = await waitForSessionRow(ROW_SCHEDULED_A);
       const dialog = await openCancelDialog(row, t.cancelSession);
-      expect(within(dialog).getByText(t.cancelConfirmTitle)).toBeDefined();
-      expect(within(dialog).getByText(t.cancelConfirmBody)).toBeDefined();
-      // Two actions: the Common-namespace dismiss + the type="submit" CTA
-      // that walks the React.SubmitEvent path (its OUTCOME branches are the
-      // deferred D8/D9-class branches below — the mutation arms that
-      // broadcast cache surgery into the active useQuery observer while the
-      // MUI dialog portal is mounted are runner-tier fatal; branch 12 pins
-      // the LIVE error-path submit instead).
-      expect(within(dialog).getByRole("button", { name: tc.cancel })).toBeDefined();
-      const submitButton = within(dialog).getByRole("button", { name: t.cancelSession });
-      expect(submitButton.getAttribute("type")).toBe("submit");
+      // Shell copy + the type="submit" CTA that walks the React.SubmitEvent
+      // path (its OUTCOME branches are the deferred D8/D9-class branches
+      // below — the mutation arms that broadcast cache surgery into the
+      // active useQuery observer while the MUI dialog portal is mounted are
+      // runner-tier fatal; branch 12 pins the LIVE error-path submit
+      // instead).
+      expectCancelDialogShell(dialog, t, tc);
 
       // 2. Dismiss — the dialog closes without firing the mutation.
-      fireEvent.click(within(dialog).getByRole("button", { name: tc.cancel }));
-      await waitFor(() => {
-        expect(screen.queryByRole("dialog")).toBeNull();
-      });
+      await dismissDialogViaCancel(dialog, tc);
       // The row is untouched — still scheduled with every affordance live.
       const settledRow = screen.getByTestId(`session-row-${ROW_SCHEDULED_A}`);
       expect(within(settledRow).getByText(t.statusScheduled)).toBeDefined();
@@ -928,20 +810,11 @@ for (const locale of STUI_LOCALES) {
       const dialog = await openCancelDialog(row, t.cancelSession);
       expect(within(dialog).getByText(t.cancelConfirmTitle)).toBeDefined();
 
-      // Type the (padded) reason — the live counter counts RAW characters.
-      const reasonInput = within(dialog).getByRole("textbox");
-      fireEvent.change(reasonInput, { target: { value: REASON_TYPED } });
-      expect(within(dialog).getByText(`${REASON_TYPED.length}/${MAX_CANCEL_REASON_LENGTH}`)).toBeDefined();
+      // Type the (padded) reason — the live counter counts RAW characters —
+      // then submit through the dialog's form (React.SubmitEvent path).
+      submitDialogWithTypedReason(dialog, REASON_TYPED, MAX_CANCEL_REASON_LENGTH);
 
-      // Submit through the dialog's form element (React.SubmitEvent path).
-      fireEvent.submit(dialog);
-
-      await waitFor(() => {
-        expect(screen.queryByRole("dialog")).toBeNull();
-      });
-      await waitFor(() => {
-        expect(screen.getByText(t.sessionCancelledNotice)).toBeDefined();
-      });
+      await expectDialogClosedAndNotice(t.sessionCancelledNotice);
       await waitFor(() => {
         expect(within(screen.getByTestId(`session-row-${ROW_SCHEDULED_A}`)).getByText(t.statusCancelled)).toBeDefined();
       });
@@ -995,13 +868,7 @@ for (const locale of STUI_LOCALES) {
       );
 
       // Dialog closes + success snackbar with the teacher cancelled copy.
-      await waitFor(() => {
-        expect(screen.queryByRole("dialog")).toBeNull();
-      });
-      await waitFor(() => {
-        expect(screen.getByText(t.sessionCancelledNotice)).toBeDefined();
-      });
-      expect(snackbarSeverityClass(t.sessionCancelledNotice)).toContain("MuiAlert-colorSuccess");
+      await expectDialogClosedAndSnackbar(t.sessionCancelledNotice, "MuiAlert-colorSuccess");
 
       // Row converges via the normalized cache — chip flips to cancelled
       // and EVERY affordance leaves with the terminal lifecycle.
@@ -1162,37 +1029,16 @@ for (const locale of STUI_LOCALES) {
 
       // 1. Row dispute CTA → the dispute dialog opens (click events DO work
       //    in the portal — only TYPED input is the D8 dead-end).
-      const row = await waitForSessionRow(ROW_SCHEDULED_A);
-      fireEvent.click(within(row).getByRole("button", { name: t.openDispute }));
-      const dialog = await waitFor(() => screen.getByRole("dialog"));
-      expect(within(dialog).getByText(t.disputeConfirmTitle)).toBeDefined();
-      expect(within(dialog).getByText(t.disputeConfirmBody)).toBeDefined();
-      expect(within(dialog).getByRole("button", { name: tc.cancel })).toBeDefined();
-      const submitButton = within(dialog).getByRole("button", { name: t.openDispute });
-      expect(submitButton.getAttribute("type")).toBe("submit");
-      // The counter renders the INITIAL raw-character count.
-      expect(within(dialog).getByText(`0/${MAX_DISPUTE_REASON_LENGTH}`)).toBeDefined();
-
-      // 2. Empty submit — the UI-seam REQUIRED gate blocks the wire call:
-      //    aria-invalid raises, the localized error helper swaps in for the
-      //    counter, and the dialog STAYS OPEN.
-      fireEvent.submit(dialog);
-      const reasonInput = within(dialog).getByRole("textbox");
-      expect(reasonInput.getAttribute("aria-invalid")).toBe("true");
-      expect(within(dialog).getByText(t.disputeReasonRequired)).toBeDefined();
-      expect(screen.getByRole("dialog")).toBeDefined();
+      const dialog = await clickRowActionAndAwaitDialog(ROW_SCHEDULED_A, t.openDispute);
+      // 2. Empty submit — the UI-seam REQUIRED gate blocks the wire call
+      //    (shell + counter + aria-invalid assertions in the shared gate).
+      expectDisputeDialogGate(dialog, t, tc);
 
       // 3. Dismissing closes without a mutation (the row's dispute slot
-      //    releases with the dialog).
-      fireEvent.click(within(dialog).getByRole("button", { name: tc.cancel }));
-      await waitFor(() => {
-        expect(screen.queryByRole("dialog")).toBeNull();
-      });
-      // The row is untouched — still scheduled with every affordance live
-      // (the dispute slot released with the dialog).
-      const settledRow = screen.getByTestId(`session-row-${ROW_SCHEDULED_A}`);
-      expect(within(settledRow).getByText(t.statusScheduled)).toBeDefined();
-      expect(within(settledRow).getByRole("button", { name: t.openDispute }).getAttribute("disabled")).toBeNull();
+      //    releases with the dialog); the row stays untouched — scheduled
+      //    with every affordance live.
+      await dismissDialogViaCancel(dialog, tc);
+      expectScheduledRowWithLiveDisputeCta(ROW_SCHEDULED_A, t);
     });
 
     // D8-class (deferred-items.md D8 family) — SKIPped: the dispute reason
@@ -1212,40 +1058,20 @@ for (const locale of STUI_LOCALES) {
         locale
       );
 
-      const row = await waitForSessionRow(ROW_SCHEDULED_A);
-      fireEvent.click(within(row).getByRole("button", { name: t.openDispute }));
-      const dialog = await waitFor(() => screen.getByRole("dialog"));
+      const dialog = await clickRowActionAndAwaitDialog(ROW_SCHEDULED_A, t.openDispute);
 
-      // Type the (padded) reason — the live counter counts RAW characters.
-      const reasonInput = within(dialog).getByRole("textbox");
-      fireEvent.change(reasonInput, { target: { value: DISPUTE_REASON_TYPED } });
-      expect(within(dialog).getByText(`${DISPUTE_REASON_TYPED.length}/${MAX_DISPUTE_REASON_LENGTH}`)).toBeDefined();
-
-      // Submit through the dialog's form element (React.SubmitEvent path).
-      fireEvent.submit(dialog);
+      // Type the (padded) reason — the live counter counts RAW characters —
+      // then submit through the dialog's form (React.SubmitEvent path).
+      submitDialogWithTypedReason(dialog, DISPUTE_REASON_TYPED, MAX_DISPUTE_REASON_LENGTH);
 
       // Dialog closes + success snackbar with the dispute-opened copy.
-      await waitFor(() => {
-        expect(screen.queryByRole("dialog")).toBeNull();
-      });
-      await waitFor(() => {
-        expect(screen.getByText(t.disputeOpenedNotice)).toBeDefined();
-      });
-      expect(snackbarSeverityClass(t.disputeOpenedNotice)).toContain("MuiAlert-colorSuccess");
+      await expectDialogClosedAndSnackbar(t.disputeOpenedNotice, "MuiAlert-colorSuccess");
 
       // Row converges via the normalized cache — chip flips to DISPUTED
       // (same id, no refetch); the Cancel CTA stays VISIBLE but DISABLED
       // (the state machine forbids cancelling a disputed session) and the
       // dispute affordance leaves with the lifecycle.
-      await waitFor(() => {
-        expect(within(screen.getByTestId(`session-row-${ROW_SCHEDULED_A}`)).getByText(t.statusDisputed)).toBeDefined();
-      });
-      const settledRow = screen.getByTestId(`session-row-${ROW_SCHEDULED_A}`);
-      expect(within(settledRow).queryByText(t.statusScheduled)).toBeNull();
-      expect(within(settledRow).queryByRole("button", { name: t.openDispute })).toBeNull();
-      expect(
-        within(settledRow).getByTestId(`session-action-${ROW_SCHEDULED_A}-cancel-disabled`).getAttribute("disabled")
-      ).not.toBeNull();
+      await expectDisputedChipFlip(ROW_SCHEDULED_A, t);
     });
 
     // D8-class (deferred-items.md D8 family) — SKIPped for the same typed-
@@ -1262,24 +1088,12 @@ for (const locale of STUI_LOCALES) {
         locale
       );
 
-      const row = await waitForSessionRow(ROW_SCHEDULED_A);
-      fireEvent.click(within(row).getByRole("button", { name: t.openDispute }));
-      const dialog = await waitFor(() => screen.getByRole("dialog"));
-
-      const reasonInput = within(dialog).getByRole("textbox");
-      fireEvent.change(reasonInput, { target: { value: DISPUTE_REASON_TYPED } });
-      fireEvent.submit(dialog);
+      const dialog = await clickRowActionAndAwaitDialog(ROW_SCHEDULED_A, t.openDispute);
+      submitDialogWithTypedReason(dialog, DISPUTE_REASON_TYPED);
 
       // Error snackbar (the dispute vocabulary is snackbar-mapped, NOT the
       // cancel flow's row-scoped inline alert); the row stays scheduled.
-      await waitFor(() => {
-        expect(screen.getByText(te.sessionInvalidTransition)).toBeDefined();
-      });
-      expect(snackbarSeverityClass(te.sessionInvalidTransition)).toContain("MuiAlert-colorError");
-      expect(screen.queryByRole("dialog")).toBeNull();
-      const settledRow = screen.getByTestId(`session-row-${ROW_SCHEDULED_A}`);
-      expect(within(settledRow).getByText(t.statusScheduled)).toBeDefined();
-      expect(within(settledRow).getByRole("button", { name: t.openDispute }).getAttribute("disabled")).toBeNull();
+      await expectDisputeRejectionConvergence(ROW_SCHEDULED_A, te.sessionInvalidTransition, t);
     });
 
     // DEV3-012 — the teacher surface's confirm-state display (the row is
