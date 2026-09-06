@@ -88,7 +88,7 @@ function AsyncDynamic({
       .then(mod => {
         const extracted = alive ? extractComponent(mod) : null;
         if (alive && extracted) resolvedModules.set(loader, extracted);
-        if (alive) setComponent(extracted);
+        if (alive) setComponent(() => extracted);
         return extracted;
       });
     return () => {

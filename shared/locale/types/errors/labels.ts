@@ -154,6 +154,12 @@ export interface ErrorsLabels {
    * the decimal-string validation matrix (shape or non-positive value).
    */
   readonly walletInvalidAmount: string;
+  /**
+   * Wallet unavailable — the caller has no teacher profile row yet (their
+   * teaching application is still pending), so no wallet exists to read
+   * or debit. The honest typed deny instead of a raw FK failure.
+   */
+  readonly walletTeacherProfileMissing: string;
   /** Fail-closed deny when a stored sessions.intent value is not a known SessionIntent member. */
   readonly sessionIntentCorrupt: string;
 }

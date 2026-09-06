@@ -23,6 +23,10 @@ import {
 } from "@/frontend/providers/apollo/error-link.map";
 import type { SessionRowAction } from "@/frontend/views/student/sessions/SessionRow";
 import {
+  evictSessionFromListFields,
+  TEACHER_SESSION_LIST_FIELDS,
+} from "@/frontend/views/student/sessions/sessionListCacheEviction";
+import {
   type ContainerNotice,
   dropRowAlert,
   type InFlightSlots,
@@ -37,44 +41,13 @@ import type { SessionsLabels } from "@/shared/locale/types/sessions";
 /**
  * Removes the missing session from the cached `myTeacherSessions` lists
  * (filter the reference out of every stored variant), evicts the entity and
- * garbage-collects — the list converges WITHOUT any refetch. Pattern copy of
- * the student dialog's not-found arm, retargeted at the teacher list field
- * (the 4.2 carry-forward sanctions pattern-copying container-level wiring
- * while the row/chips/dialog components are imported).
+ * garbage-collects — the list converges WITHOUT any refetch. Delegates to
+ * the role-neutral arm in the student folder's `sessionListCacheEviction`
+ * (the SAME eviction semantics the cancel dialog's `SESSION_NOT_FOUND` arm
+ * runs over both role lists).
  */
 export function evictSessionFromTeacherLists(cache: ApolloCache, sessionId: string): void {
-  const removedEntityId = cache.identify({ __typename: SESSION_TYPE_NAME, id: sessionId });
-  cache.modify({
-    id: "ROOT_QUERY",
-    fields: {
-      // Applies to EVERY stored variant of the field (args-serialized
-      // storeFieldNames match their bare field name in `modify`).
-      myTeacherSessions(existing: unknown) {
-        if (typeof existing !== "object" || existing === null || !("items" in existing)) return existing;
-        const items = existing.items;
-        if (!Array.isArray(items)) return existing;
-        return {
-          ...existing,
-          items: items.filter(item => {
-            if (typeof item !== "object" || item === null) return true;
-            // Normalized storage: dangling `Reference` entries carry `__ref`
-            // (bracket access — the Apollo wire property is underscore-prefixed).
-            if ("__ref" in item) {
-              const reference: unknown = item.__ref;
-              return typeof reference === "string" ? reference !== removedEntityId : true;
-            }
-            // Non-normalized storage (defensive): raw payloads carry `id`.
-            if ("id" in item) return item.id !== sessionId;
-            return true;
-          }),
-        };
-      },
-    },
-  });
-  if (removedEntityId !== undefined) {
-    cache.evict({ id: removedEntityId });
-  }
-  cache.gc();
+  evictSessionFromListFields(cache, sessionId, TEACHER_SESSION_LIST_FIELDS);
 }
 
 /** Wiring every lifecycle-mutation `onError` arm needs from the container. */
