@@ -7,11 +7,16 @@
  */
 
 import { describe, expect, spyOn, test } from "bun:test";
-import { ParentLinkRequestRepository } from "@/backend/db/repo";
+import {
+  type IncomingParentLinkRequestRow,
+  type OutgoingParentLinkRequestRow,
+  ParentLinkRequestRepository,
+} from "@/backend/db/repo";
 import { createTestParent, createTestStudent, createTestUser } from "@/backend/db/test/entity-setup";
 import { expectRepoError, runInRollback } from "@/backend/db/test/test-utils";
 import { NotificationType } from "@/backend/enum/notifications/notification-type.enum";
 import { LinkStatus } from "@/backend/enum/shared/link-status.enum";
+import { UserRole } from "@/backend/enum/users/user-role.enum";
 import { ConflictError, ForbiddenError, NotFoundError, UnauthorizedError } from "@/backend/lib/errors";
 import { logger } from "@/backend/lib/logger";
 import {
@@ -24,10 +29,8 @@ import {
   toCanonicalLinkStatus,
 } from "@/backend/services/parents/parent-link-request.helpers";
 import type {
-  IncomingParentLinkRequestRow,
   NotificationDeliveryReceipt,
   NotificationReturnType,
-  OutgoingParentLinkRequestRow,
   ParentLinkRequestSelectType,
 } from "@/backend/types";
 import { maskFullName } from "@/shared/lib/mask-full-name";
@@ -80,8 +83,8 @@ describe("parent-link-request.helpers — pure functions", () => {
   describe("isDeliveryReceipt", () => {
     test("returns true for a NotificationDeliveryReceipt object", () => {
       const receipt: NotificationDeliveryReceipt = {
+        notifications: [],
         recipientUserIds: [10, 20],
-        deliveryIds: [100, 101],
       };
       expect(isDeliveryReceipt(receipt)).toBe(true);
     });
@@ -96,9 +99,7 @@ describe("parent-link-request.helpers — pure functions", () => {
         relatedEntityType: "parent_link_request",
         relatedEntityId: 101,
         isRead: false,
-        readAt: null,
         createdAt: new Date(),
-        updatedAt: new Date(),
       };
       expect(isDeliveryReceipt(notificationRow)).toBe(false);
     });
@@ -109,6 +110,8 @@ describe("parent-link-request.helpers — pure functions", () => {
       const now = new Date("2026-03-15T12:00:00Z");
       const row: OutgoingParentLinkRequestRow = {
         id: 1,
+        parentId: 10,
+        studentId: 20,
         status: LinkStatus.Pending,
         studentFullName: "Aisha Mohamed",
         createdAt: new Date("2026-03-10T12:00:00Z"),
@@ -132,6 +135,8 @@ describe("parent-link-request.helpers — pure functions", () => {
       const now = new Date("2026-03-18T12:00:00Z");
       const row: OutgoingParentLinkRequestRow = {
         id: 2,
+        parentId: 10,
+        studentId: 20,
         status: LinkStatus.Pending,
         studentFullName: "Tariq Ali",
         createdAt: new Date("2026-03-10T12:00:00Z"),
@@ -149,6 +154,8 @@ describe("parent-link-request.helpers — pure functions", () => {
       const now = new Date("2026-03-20T12:00:00Z");
       const row: OutgoingParentLinkRequestRow = {
         id: 3,
+        parentId: 10,
+        studentId: 20,
         status: LinkStatus.Confirmed,
         studentFullName: "Omar Hassan",
         createdAt: new Date("2026-03-10T12:00:00Z"),
@@ -165,8 +172,10 @@ describe("parent-link-request.helpers — pure functions", () => {
     test("throws Error when row status is corrupt", () => {
       silenceDomainLog();
       const now = new Date();
-      const corruptRow = {
+      const corruptRow: OutgoingParentLinkRequestRow = {
         id: 4,
+        parentId: 10,
+        studentId: 20,
         status: "corrupt_val" as ParentLinkRequestSelectType["status"],
         studentFullName: "Test Student",
         createdAt: now,
@@ -183,6 +192,8 @@ describe("parent-link-request.helpers — pure functions", () => {
       const now = new Date("2026-03-15T12:00:00Z");
       const row: IncomingParentLinkRequestRow = {
         id: 10,
+        parentId: 10,
+        studentId: 20,
         status: LinkStatus.Pending,
         parentFullName: "Ibrahim Khalil",
         createdAt: new Date("2026-03-10T12:00:00Z"),
@@ -206,6 +217,8 @@ describe("parent-link-request.helpers — pure functions", () => {
       const now = new Date("2026-03-18T12:00:00Z");
       const row: IncomingParentLinkRequestRow = {
         id: 11,
+        parentId: 10,
+        studentId: 20,
         status: LinkStatus.Pending,
         parentFullName: "Fatima Zahra",
         createdAt: new Date("2026-03-10T12:00:00Z"),
@@ -223,6 +236,8 @@ describe("parent-link-request.helpers — pure functions", () => {
       const now = new Date("2026-03-20T12:00:00Z");
       const row: IncomingParentLinkRequestRow = {
         id: 12,
+        parentId: 10,
+        studentId: 20,
         status: LinkStatus.Rejected,
         parentFullName: "Sami Yusuf",
         createdAt: new Date("2026-03-10T12:00:00Z"),
@@ -238,8 +253,10 @@ describe("parent-link-request.helpers — pure functions", () => {
     test("throws Error when row status is corrupt", () => {
       silenceDomainLog();
       const now = new Date();
-      const corruptRow = {
+      const corruptRow: IncomingParentLinkRequestRow = {
         id: 13,
+        parentId: 10,
+        studentId: 20,
         status: "corrupt_val" as ParentLinkRequestSelectType["status"],
         parentFullName: "Test Parent",
         createdAt: now,
@@ -260,7 +277,7 @@ describe("parent-link-request.helpers — database-backed helpers", () => {
         const invalidIds = [0, -5, 1.5, Number.NaN, Number.POSITIVE_INFINITY];
 
         for (const invalidId of invalidIds) {
-          const err = await expectRepoError(() => requireActor(invalidId, "parent", LOCALE, tx, false));
+          const err = await expectRepoError(() => requireActor(invalidId, UserRole.Parent, LOCALE, tx, false));
           expect(err).toBeInstanceOf(UnauthorizedError);
         }
       });
@@ -269,7 +286,7 @@ describe("parent-link-request.helpers — database-backed helpers", () => {
     test("rejects non-existent actorId with UnauthorizedError", async () => {
       silenceDomainLog();
       await runInRollback(async tx => {
-        const err = await expectRepoError(() => requireActor(999999999, "parent", LOCALE, tx, false));
+        const err = await expectRepoError(() => requireActor(999999999, UserRole.Parent, LOCALE, tx, false));
         expect(err).toBeInstanceOf(UnauthorizedError);
       });
     });
@@ -280,7 +297,7 @@ describe("parent-link-request.helpers — database-backed helpers", () => {
         const studentUser = await createTestUser(tx, { role: "student" });
         await createTestStudent(tx, studentUser.id);
 
-        const err = await expectRepoError(() => requireActor(studentUser.id, "parent", LOCALE, tx, false));
+        const err = await expectRepoError(() => requireActor(studentUser.id, UserRole.Parent, LOCALE, tx, false));
         expect(err).toBeInstanceOf(ForbiddenError);
       });
     });
@@ -291,7 +308,7 @@ describe("parent-link-request.helpers — database-backed helpers", () => {
         const parentUser = await createTestUser(tx, { role: "parent" });
         await createTestParent(tx, parentUser.id);
 
-        const fetched = await requireActor(parentUser.id, "parent", LOCALE, tx, true);
+        const fetched = await requireActor(parentUser.id, UserRole.Parent, LOCALE, tx, true);
         expect(fetched.id).toBe(parentUser.id);
         expect(fetched.role).toBe("parent");
       });
@@ -316,13 +333,13 @@ describe("parent-link-request.helpers — database-backed helpers", () => {
 
         // When enforceGovernance = true: all three are rejected with ForbiddenError
         for (const user of [deletedUser, blockedUser, suspendedUser]) {
-          const err = await expectRepoError(() => requireActor(user.id, "parent", LOCALE, tx, true));
+          const err = await expectRepoError(() => requireActor(user.id, UserRole.Parent, LOCALE, tx, true));
           expect(err).toBeInstanceOf(ForbiddenError);
         }
 
         // When enforceGovernance = false: read paths allow access for governed users
         for (const user of [deletedUser, blockedUser, suspendedUser]) {
-          const fetched = await requireActor(user.id, "parent", LOCALE, tx, false);
+          const fetched = await requireActor(user.id, UserRole.Parent, LOCALE, tx, false);
           expect(fetched.id).toBe(user.id);
         }
       });
