@@ -1,0 +1,62 @@
+import type { AdminStudentsLabels } from "@/shared/locale/types/adminStudents";
+
+export const adminStudentsEn: AdminStudentsLabels = {
+  title: "Students",
+  subtitle: "Read-only directory of every student account on the platform.",
+  headers: {
+    name: "Name",
+    balances: "Balances",
+    parent: "Parent",
+    languages: "Languages",
+    trial: "Trial",
+    joined: "Joined",
+  },
+  balances: {
+    hifz: "Hifz",
+    reviews: "Reviews",
+    tajweed: "Tajweed",
+    trial: "Trial",
+  },
+  parentLabels: {
+    withParent: "With parent",
+    noParent: "Independent",
+  },
+  filters: {
+    search: "Search",
+    searchPlaceholder: "Search by name or email",
+    hasParent: "Parent link",
+    language: "Language",
+    apply: "Apply",
+    clear: "Clear filters",
+    refresh: "Refresh",
+  },
+  filterOptions: {
+    all: "All",
+  },
+  trialBadge: "Trial granted",
+  emptyState: {
+    title: "No students yet",
+    message: "Student accounts will appear here once they register on the platform.",
+    filteredTitle: "No students match your filters",
+    filteredMessage: "Adjust the filters above or clear them to see every student.",
+  },
+  errorState: {
+    title: "Could not load students",
+    message: "Something went wrong while fetching the student directory. Try again.",
+    retry: "Retry",
+  },
+  loading: "Loading students",
+  quickActions: {
+    copyEmail: "Copy email address",
+    emailCopied: "Email address copied to clipboard.",
+  },
+  pagination: {
+    page: "Page",
+    showingPrefix: "Showing",
+    of: "of",
+    total: "Total",
+    next: "Next page",
+    previous: "Previous page",
+    pageSize: "Rows per page",
+  },
+};
