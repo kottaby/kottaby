@@ -56,6 +56,7 @@ import { teacher } from "@/backend/db/schema/teachers/teacher";
 import { users } from "@/backend/db/schema/users/users";
 import { AuditActionType } from "@/backend/enum/audit/audit-action-type.enum";
 import { NotificationType } from "@/backend/enum/notifications/notification-type.enum";
+import { DisputeResolution } from "@/backend/enum/scheduling/dispute-resolution.enum";
 import { HeldBalanceLane } from "@/backend/enum/scheduling/held-balance-lane.enum";
 import { SessionIntent } from "@/backend/enum/scheduling/session-intent.enum";
 import { SessionStatus } from "@/backend/enum/scheduling/session-status.enum";
@@ -114,6 +115,12 @@ let unapprovedTeacherUserId = 0;
 /** W-1's session — scheduled with a recorded TRIAL hold lane. */
 let w1Session: SessionReturnType;
 
+/** W-2's session — scheduled on the SAME provenance lane; T1 → T2 target. */
+let w2Session: SessionReturnType;
+
+/** W-3's session — booked scheduled, started by its teacher inside W-3. */
+let w3Session: SessionReturnType;
+
 /**
  * The attention-badge fixture — a scheduled row whose confirmation
  * deadline has lapsed, so the derived badge flag must be TRUE next to
@@ -131,6 +138,44 @@ const bookingKeys: string[] = [];
 /** Localized error copy for denial assertions (translated strings). */
 function notificationTexts(locale: string): ReturnType<typeof getServerTranslations>["notificationsTranslations"] {
   return getServerTranslations(locale).notificationsTranslations;
+}
+
+/** Localized error copy for the denial probes (translated strings, en). */
+const T_ERRORS = getServerTranslations(LOCALE).errorsTranslations;
+
+/**
+ * Try/catch rejection helper (journey-layer pattern —
+ * `expect(...).rejects.toThrow()` is prohibited). Returns the caught
+ * `DomainError`; fails the test when the call resolves successfully or
+ * throws a non-`DomainError`.
+ */
+async function expectJourneyError(fn: () => Promise<unknown>): Promise<DomainError> {
+  let caught: unknown = null;
+  try {
+    await fn();
+  } catch (error) {
+    caught = error;
+  }
+  if (caught === null) {
+    throw new Error("expectJourneyError: expected the call to throw, but it resolved successfully");
+  }
+  if (caught instanceof DomainError) {
+    return caught;
+  }
+  const message = caught instanceof Error ? caught.message : JSON.stringify(caught);
+  throw new Error(`expectJourneyError: caught non-DomainError: ${message}`);
+}
+
+/**
+ * Byte-identity oracle for the W-4 denial matrix: the denial must carry
+ * the SAME error class, the SAME `extensions.code`, and the SAME
+ * localized message as the reference denial captured from the shared
+ * admin gate (the specs' 7th operation, `resolveSessionDispute`).
+ */
+function expectDenialByteIdentical(denial: DomainError, reference: DomainError): void {
+  expect(denial.constructor).toBe(reference.constructor);
+  expect(denial.code).toBe(reference.code);
+  expect(denial.message).toBe(reference.message);
 }
 
 /**
@@ -323,14 +368,48 @@ beforeAll(async () => {
   registry.track("session", w1Session.id);
   await trackIdempotencyClaim(w1Key, "the W-1 hold");
 
-  // 3. The badge fixture — scheduled with a LAPSED confirmation deadline
+  // 3. W-2's held row — booked through the REAL booking flow on the same
+  //    provenance lane (the reassignment journey's scheduled target).
+  const w2Key = `${JOURNEY_PREFIX}-w2-hold`;
+  bookingKeys.push(w2Key);
+  w2Session = await SessionLifecycleService.createSession(
+    cast.primaryStudent.userId,
+    { teacherId: cast.teacher.userId, intent: SessionIntent.Hifz },
+    w2Key,
+    LOCALE
+  );
+  registry.track("session", w2Session.id);
+  fixtureSessionIds.push(w2Session.id);
+  await trackIdempotencyClaim(w2Key, "the W-2 hold");
+
+  // 4. W-3's held row — booked scheduled on the same lane; its owning
+  //    teacher starts it inside the journey (the join happy target).
+  const w3Key = `${JOURNEY_PREFIX}-w3-hold`;
+  bookingKeys.push(w3Key);
+  w3Session = await SessionLifecycleService.createSession(
+    cast.primaryStudent.userId,
+    { teacherId: cast.teacher.userId, intent: SessionIntent.Hifz },
+    w3Key,
+    LOCALE
+  );
+  registry.track("session", w3Session.id);
+  fixtureSessionIds.push(w3Session.id);
+  await trackIdempotencyClaim(w3Key, "the W-3 hold");
+
+  // 5. The badge fixture — scheduled with a LAPSED confirmation deadline
   //    (the derived attention flag must fire for it, and only for it).
+  //    It stays scheduled for the whole run and is the W-3 join-denial
+  //    and W-4 denial-matrix target (denials write nothing).
   const badgeRow = await db.transaction(async tx =>
     insertSessionRow(tx, { confirmationDeadline: new Date(Date.now() - 60_000) })
   );
   badgeSessionId = badgeRow.id;
   fixtureSessionIds.push(badgeSessionId);
   registry.track("session", badgeSessionId);
+
+  // W-1's row joins the audit-sweep + residue id list too (its cancel
+  // audit row is swept by actor; the entity sweep is belt-and-braces).
+  fixtureSessionIds.push(w1Session.id);
 });
 
 afterAll(async () => {
