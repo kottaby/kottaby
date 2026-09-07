@@ -72,7 +72,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { CombinedGraphQLErrors, gql } from "@apollo/client";
 import type { DocumentNode } from "graphql";
 import { print } from "graphql";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { POST } from "@/app/api/graphql/route";
 import { NextRequest } from "next/server";
 import { closePool, db } from "@/backend/db";
@@ -80,6 +80,10 @@ import { auditLogs } from "@/backend/db/schema/audit/audit-logs";
 import { students } from "@/backend/db/schema/students/students";
 import { signAccessToken } from "@/backend/lib/auth/jwt";
 import { expectMutationError, TEST_PORT } from "@/test/helpers";
+// Deep import (same rationale as the journey cleanup helper — the
+// `test/helpers` barrel pulls the Apollo test client into backend-only
+// graphs; this suite needs the audit-trigger suspension wrapper directly).
+import { withAuditDeleteTriggersSuspended } from "@/test/helpers/db-cleanup";
 import {
   buildSessionJourneyCast,
   createSessionFixtureRegistry,
@@ -123,6 +127,17 @@ let sessionRescheduleId = "";
 let sessionCancelId = "";
 let sessionReassignId = "";
 let sessionJoinId = "";
+
+/**
+ * The ids of the sessions this suite mutated — each mutation appends ONE
+ * immutable `audit_logs` row (actor = the cast admin, entity = the session),
+ * and those rows RESTRICT-delete the cast `users` during teardown.
+ */
+function mutationSessionIds(): number[] {
+  return [sessionRescheduleId, sessionCancelId, sessionReassignId, sessionJoinId]
+    .filter(id => id !== "")
+    .map(id => Number(id));
+}
 
 // ─── Documents ───────────────────────────────────────────────────────────────
 
@@ -432,6 +447,18 @@ beforeAll(async () => {
 }, 240_000);
 
 afterAll(async () => {
+  // The governance mutations INTENTIONALLY append immutable audit rows
+  // (actor = the cast admin, entity = the mutated session). The fixture
+  // registry's tracked vocabulary deliberately EXCLUDES `audit_logs` (its
+  // contract serves audit-free journeys — see the registry docblock), so
+  // this suite removes its own rows explicitly under the trigger-suspension
+  // wrapper (the audit-trail suite's teardown precedent) BEFORE the
+  // FK-ordered cast delete below.
+  await withAuditDeleteTriggersSuspended(async () => {
+    await db
+      .delete(auditLogs)
+      .where(and(eq(auditLogs.entityType, "session"), inArray(auditLogs.entityId, mutationSessionIds())));
+  });
   await registry.cleanup();
   // Release the single-connection PGlite data dir cleanly — an abrupt exit
   // leaves `postmaster.pid` behind, which bricks every subsequent PGlite
