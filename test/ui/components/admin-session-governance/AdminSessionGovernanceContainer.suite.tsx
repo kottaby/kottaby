@@ -554,8 +554,14 @@ for (const locale of componentSuiteLocales) {
 
       // Pick Disputed in the status select — a plain click never opens the
       // MUI listbox under Happy DOM; mouseDown does (broadcast compose
-      // precedent).
-      fireEvent.mouseDown(screen.getByTestId("admin-session-governance-filter-status"));
+      // precedent). The open handler lives on the INNER `role="combobox"`
+      // SelectInput display div, while `data-testid` on `<Select>` lands on
+      // the OUTER MuiInputBase-root wrapper (MUI v9 forwards extra props to
+      // the input component) — a mouseDown there bubbles UP past the child
+      // handler, so the open MUST target the combobox itself, resolved by
+      // its InputLabel-driven accessible name (the type select is the only
+      // other combobox on the surface).
+      fireEvent.mouseDown(screen.getByRole("combobox", { name: t.filterStatusLabel }));
       // The FIRST listbox open of the run pays the cold-start module warm-up
       // (observed >1s under ar on constrained runners) — an explicit budget
       // keeps the arm deterministic without loosening its assertion.
