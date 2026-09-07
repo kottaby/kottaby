@@ -15,7 +15,7 @@
  *      notification-type display labels, mark-read/mark-all affordances,
  *      badge aria, pluralized counts, realtime toast, quiet reconnect copy,
  *      session-request lifecycle + intent labels, parent-link lifecycle event
- *      copy) exists on BOTH maps — a key
+ *      copy, session-report-ready event copy) exists on BOTH maps — a key
  *      deleted from both maps simultaneously still fails this suite.
  *   3. NO ENGLISH FALLTHROUGH — every ar STRING slot contains Arabic script
  *      (an accidentally English value in the ar map fails the sweep).
@@ -24,9 +24,9 @@
  *      3–10 few / 11+ counted) and the English boundaries (0 / 1 / many)
  *      in BOTH locales.
  *   5. TEMPLATE PINS — `markReadAriaLabel`, `realtimeToast`, the six
- *      session-request event bodies, and the four parent-link event-body
- *      functions expand their arguments into the returned message in BOTH
- *      locales.
+ *      session-request event bodies, the four parent-link event-body
+ *      functions, and the two session-report-ready event-body functions
+ *      expand their arguments into the returned message in BOTH locales.
  *   6. REGISTRY WIRING — the `Notifications` handle is registered in
  *      `shared/locale/namespaces/index.ts` with the conventional
  *      `<ns>.<ns>` id and its getter resolves the composed bundle slice.
@@ -49,7 +49,7 @@ import { Notifications } from "@/shared/locale/namespaces/notifications";
 
 // ─── Mandated key inventory (the notification-feed surface ground truth) ────
 
-/** Every key the notifications UI namespace must carry (49 slots). */
+/** Every key the notifications UI namespace must carry (52 slots). */
 const MANDATED_KEYS = [
   "title",
   "emptyTitle",
@@ -100,6 +100,9 @@ const MANDATED_KEYS = [
   "eventParentLinkRejectedBody",
   "eventParentLinkExpiringTitle",
   "eventParentLinkExpiringBody",
+  "eventSessionReportReadyTitle",
+  "eventSessionReportReadyBody",
+  "eventSessionReportReadyParentBody",
 ] as const;
 
 /**
@@ -121,7 +124,7 @@ const TYPE_LABEL_KEYS = [
   "typeEvaluationResult",
 ] as const;
 
-/** The fourteen function-valued slots (pluralization + interpolation templates). */
+/** The sixteen function-valued slots (pluralization + interpolation templates). */
 const FUNCTION_KEYS = [
   "markReadAriaLabel",
   "markAllResult",
@@ -137,6 +140,8 @@ const FUNCTION_KEYS = [
   "eventParentLinkAcceptedBody",
   "eventParentLinkRejectedBody",
   "eventParentLinkExpiringBody",
+  "eventSessionReportReadyBody",
+  "eventSessionReportReadyParentBody",
 ] as const;
 
 /** Arabic-script probe — at least one Arabic-block character in the value. */
@@ -173,6 +178,8 @@ const FUNCTION_SLOT_SAMPLE_ARGS: Record<
   eventParentLinkAcceptedBody: { en: ["Yusuf"], ar: ["الطالب"] },
   eventParentLinkRejectedBody: { en: ["Yusuf"], ar: ["الطالب"] },
   eventParentLinkExpiringBody: { en: ["Yusuf"], ar: ["الطالب"] },
+  eventSessionReportReadyBody: { en: ["Sheikh Omar"], ar: ["الشيخ عمر"] },
+  eventSessionReportReadyParentBody: { en: ["Yusuf", "Sheikh Omar"], ar: ["يوسف", "الشيخ عمر"] },
 };
 
 /** Invokes one function slot with sample args — throws if the slot is not callable or returns a non-string. */
@@ -223,7 +230,7 @@ describe("compile-time parity mirror — ar/en key sets agree", () => {
     expect(Object.hasOwn(notificationsEn, key)).toBe(true);
   });
 
-  test("the mandated inventory is exhaustive (no silent key minting beyond the 49 slots)", () => {
+  test("the mandated inventory is exhaustive (no silent key minting beyond the 52 slots)", () => {
     const mandated = new Set<string>(MANDATED_KEYS);
     for (const key of Object.keys(notificationsAr)) {
       expect(mandated.has(key)).toBe(true);
@@ -324,6 +331,38 @@ describe("template pins — function slots expand their arguments", () => {
     expect(notificationsAr.eventParentLinkRejectedBody("الطالب")).toContain("الطالب");
   });
 
+  test("session-report-ready bodies embed ONLY the counterparty names in BOTH locales", () => {
+    expect(notificationsEn.eventSessionReportReadyBody("Sheikh Omar")).toContain("Sheikh Omar");
+    expect(notificationsAr.eventSessionReportReadyBody("الشيخ عمر")).toContain("الشيخ عمر");
+    const parentEn = notificationsEn.eventSessionReportReadyParentBody("Yusuf", "Sheikh Omar");
+    expect(parentEn).toContain("Yusuf");
+    expect(parentEn).toContain("Sheikh Omar");
+    const parentAr = notificationsAr.eventSessionReportReadyParentBody("يوسف", "الشيخ عمر");
+    expect(parentAr).toContain("يوسف");
+    expect(parentAr).toContain("الشيخ عمر");
+  });
+
+  test("session-report-ready copy carries no grade/note/id placeholder surface", () => {
+    // Privacy hygiene: the only interpolation surface the two body slots
+    // expose is the counterparty full names — the compile-time signatures
+    // pin the arity (1 name / 2 names); this pin keeps the rendered output
+    // free of the forbidden content classes in BOTH locales.
+    const renderedEn = [
+      notificationsEn.eventSessionReportReadyTitle,
+      notificationsEn.eventSessionReportReadyBody("Sheikh Omar"),
+      notificationsEn.eventSessionReportReadyParentBody("Yusuf", "Sheikh Omar"),
+    ];
+    const renderedAr = [
+      notificationsAr.eventSessionReportReadyTitle,
+      notificationsAr.eventSessionReportReadyBody("الشيخ عمر"),
+      notificationsAr.eventSessionReportReadyParentBody("يوسف", "الشيخ عمر"),
+    ];
+    for (const copy of [...renderedEn, ...renderedAr]) {
+      expect(/\b(grade|graded|score|notes?|rating)\b/i.test(copy)).toBe(false);
+      expect(/\b\d+\b/.test(copy)).toBe(false);
+    }
+  });
+
   test("every function slot is callable with non-empty output in BOTH locales", () => {
     for (const key of FUNCTION_KEYS) {
       const args = FUNCTION_SLOT_SAMPLE_ARGS[key];
@@ -357,7 +396,7 @@ describe("registry + bundle wiring", () => {
 });
 
 // ===========================================================================
-describe("function-slot inventory — exactly the fourteen locale functions, on BOTH maps", () => {
+describe("function-slot inventory — exactly the sixteen locale functions, on BOTH maps", () => {
   test.each([...FUNCTION_KEYS])("slot `%s` is a function on BOTH maps", key => {
     expect(typeof Reflect.get(notificationsAr, key)).toBe("function");
     expect(typeof Reflect.get(notificationsEn, key)).toBe("function");

@@ -78,4 +78,14 @@ export const errorsAr: ErrorsLabels = {
   walletInvalidAmount: "أدخل مبلغ سحب صالحاً (قيمة موجبة بخانتين عشريتين كحد أقصى).",
   walletTeacherProfileMissing: "ستُفعَّل محفظتك بعد اعتماد ملفك التعليمي.",
   sessionIntentCorrupt: "تعذر قراءة هذه الجلسة. يرجى التواصل مع فريق الدعم.",
+  sessionReportAlreadyExists: "تم تقديم تقرير لهذه الجلسة بالفعل.",
+  homeworkAlreadyGraded: "تم تصحيح هذا الواجب بالفعل.",
+  sessionReportNotesRequired: "ملاحظات تقرير الجلسة مطلوبة ولا يمكن تركها فارغة.",
+  sessionReportNotesTooLong: "يجب ألا تتجاوز ملاحظات تقرير الجلسة 2000 حرف.",
+  sessionRatingRange: "يجب أن يكون تقييم الجلسة رقماً صحيحاً بين 0 و5.",
+  homeworkGradeRange: "يجب أن تكون درجات الواجب أرقاماً صحيحة بين 0 و100.",
+  homeworkAyahRangeInvalid:
+    "يجب أن تكون أرقام الآيات في الواجب أرقاماً صحيحة موجبة وألا يكون رقم الآية الأولى أكبر من رقم الآية الأخيرة.",
+  homeworkSurahJuzInvalid: "اختر سورة أو جزءاً صالحاً للواجب.",
+  homeworkAssignmentBlocksRequired: "يجب تحديد جزء الحفظ أو جزء المراجعة على الأقل في الواجب.",
 };

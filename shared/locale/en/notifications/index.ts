@@ -63,4 +63,8 @@ export const notificationsEn: NotificationsLabels = {
   eventParentLinkExpiringTitle: "Reminder: your link request is expiring soon",
   eventParentLinkExpiringBody: (studentName: string) =>
     `Your link request for ${studentName} is about to expire — the student can still confirm or decline before it lapses.`,
+  eventSessionReportReadyTitle: "Session report ready",
+  eventSessionReportReadyBody: (teacherName: string) => `${teacherName} submitted a report for your session.`,
+  eventSessionReportReadyParentBody: (studentName: string, teacherName: string) =>
+    `${teacherName} submitted a session report for ${studentName}.`,
 };

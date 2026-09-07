@@ -157,4 +157,21 @@ export interface NotificationsLabels {
    * correctly in mixed-direction feeds without a presentation wrapper.
    */
   readonly eventParentLinkExpiringBody: (studentName: string) => string;
+  // ─── Session-report-ready event copy ───────────────────────────────────────
+  /** Notification title — the session's report was submitted and is ready to view. */
+  readonly eventSessionReportReadyTitle: string;
+  /**
+   * Student body — the session's teacher submitted the report; interpolates
+   * ONLY the teacher's already-assembled full name. The copy MUST stay free
+   * of grades, note content, and identifiers (the body is a link invite,
+   * not a content mirror), and names are bidi-isolated by the sender before
+   * interpolation so mixed-direction feeds render correctly.
+   */
+  readonly eventSessionReportReadyBody: (teacherName: string) => string;
+  /**
+   * Parent body — interpolates ONLY the student's and the teacher's
+   * already-assembled full names; same privacy constraint as the student
+   * body: no grades, no note content, no identifiers.
+   */
+  readonly eventSessionReportReadyParentBody: (studentName: string, teacherName: string) => string;
 }
