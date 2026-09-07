@@ -18,6 +18,7 @@ export const adminTeachersAr: AdminTeachersLabels = {
     attempts: "المحاولات",
     lastAttempt: "آخر محاولة",
     cooldown: "فترة التهدئة",
+    actions: "الإجراءات",
   },
   statusPills: {
     approved: "معتمد",

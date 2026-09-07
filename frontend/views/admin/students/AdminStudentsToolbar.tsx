@@ -4,9 +4,9 @@
  * AdminStudentsToolbar — the student directory's filter + refresh surface.
  *
  * White card (radius 12, `border.light` outline, `shadow.card`), 24px
- * padding. Contents laid out as a single flex row (wrapping allowed below
- * `md` so mobile keeps the full filter surface — this directory has no
- * mobile chip alternative):
+ * padding. Contents laid out as a wrapping flex row (wraps at ALL
+ * breakpoints so narrow content widths stack instead of overflowing the
+ * card — this directory has no mobile chip alternative):
  *  1. search field (magnifier leading adornment, ~400px max width),
  *  2. parent-link select (all / with parent / independent),
  *  3. language field (exact-match filter — the draft commits on Enter or
@@ -99,9 +99,7 @@ export function AdminStudentsToolbar({
         display: "flex",
       })}
     >
-      <Box
-        sx={{ display: "flex", width: "100%", flexWrap: { xs: "wrap", md: "nowrap" }, gap: 2, alignItems: "center" }}
-      >
+      <Box sx={{ display: "flex", width: "100%", flexWrap: "wrap", gap: 2, alignItems: "center" }}>
         <StudentSearchField
           id={SEARCH_ID}
           labels={labels}
@@ -175,7 +173,7 @@ interface ExportCsvButtonProps {
 function ExportCsvButton({ labels, onExportCsv, exportDisabled }: ExportCsvButtonProps): ReactNode {
   return (
     <Tooltip title={exportDisabled ? labels.export.exportCsvEmpty : labels.export.exportCsv} placement="top">
-      <Box component="span" sx={{ display: "inline-flex" }}>
+      <Box component="span" sx={{ display: "inline-flex", flexShrink: 0 }}>
         <Button
           variant="text"
           startIcon={<DownloadIcon />}
@@ -216,8 +214,7 @@ function StudentSearchField({ id, labels, value, onChange }: StudentSearchFieldP
         },
       }}
       sx={{
-        flex: { xs: "1 1 100%", md: "0 1 auto" },
-        width: { xs: "100%", md: 400 },
+        flex: { xs: "1 1 100%", sm: "1 1 300px" },
         maxWidth: 400,
         "& .MuiInputBase-root": { height: 44 },
       }}

@@ -18,6 +18,7 @@ export const adminTeachersEn: AdminTeachersLabels = {
     attempts: "Attempts",
     lastAttempt: "Last attempt",
     cooldown: "Cooldown",
+    actions: "Actions",
   },
   statusPills: {
     approved: "Approved",

@@ -20,4 +20,5 @@ export * from "./AdminTeachersResults";
 export * from "./AdminTeachersSurface";
 export * from "./AdminTeachersTable";
 export * from "./AdminTeachersToolbar";
+export * from "./ApplicantStatusQuickFilters";
 export * from "./teachers-directory-csv";

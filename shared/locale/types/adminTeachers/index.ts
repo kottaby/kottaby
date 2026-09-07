@@ -76,6 +76,8 @@ export interface AdminTeachersLabels {
     readonly lastAttempt: string;
     /** Cooldown-expiry timestamp column (honest em-dash when null). */
     readonly cooldown: string;
+    /** Actions column header (the view-profile affordance). */
+    readonly actions: string;
   };
 
   /**

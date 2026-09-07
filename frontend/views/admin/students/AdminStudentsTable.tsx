@@ -63,12 +63,12 @@ export function AdminStudentsTable(props: AdminStudentsTableProps): ReactNode {
       <Table sx={{ tableLayout: "fixed" }}>
         <TableHead>
           <TableRow sx={theme => ({ bgcolor: theme.palette.surfaceContainerHigh })}>
-            <AdminStudentsHeaderCell width="22%">{labels.headers.name}</AdminStudentsHeaderCell>
-            <AdminStudentsHeaderCell width="22%">{labels.headers.balances}</AdminStudentsHeaderCell>
-            <AdminStudentsHeaderCell width="20%">{labels.headers.parent}</AdminStudentsHeaderCell>
-            <AdminStudentsHeaderCell width="13%">{labels.headers.languages}</AdminStudentsHeaderCell>
-            <AdminStudentsHeaderCell width="12%">{labels.headers.trial}</AdminStudentsHeaderCell>
-            <AdminStudentsHeaderCell width="11%">{labels.headers.joined}</AdminStudentsHeaderCell>
+            <AdminStudentsHeaderCell width="26%">{labels.headers.name}</AdminStudentsHeaderCell>
+            <AdminStudentsHeaderCell width="20%">{labels.headers.balances}</AdminStudentsHeaderCell>
+            <AdminStudentsHeaderCell width="16%">{labels.headers.parent}</AdminStudentsHeaderCell>
+            <AdminStudentsHeaderCell width="11%">{labels.headers.languages}</AdminStudentsHeaderCell>
+            <AdminStudentsHeaderCell width="15%">{labels.headers.trial}</AdminStudentsHeaderCell>
+            <AdminStudentsHeaderCell width="12%">{labels.headers.joined}</AdminStudentsHeaderCell>
           </TableRow>
         </TableHead>
         <TableBody aria-label={loading && items.length === 0 ? labels.loading : undefined}>

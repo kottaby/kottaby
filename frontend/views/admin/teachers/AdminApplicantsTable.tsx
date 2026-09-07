@@ -15,8 +15,10 @@
  * action), STATUS (lifecycle chip + governance pills), ATTEMPTS (verbatim
  * count), LAST ATTEMPT (localized timestamp or em-dash), COOLDOWN (chip
  * while active, expiry timestamp, or em-dash), JOINED (localized
- * timestamp), ACTIONS (view-profile navigation). Each body row is rendered
- * by `AdminApplicantRow`.
+ * timestamp), ACTIONS (view-profile navigation — short `applicantHeaders
+ * .actions` header; the long view-profile wording lives on the row
+ * affordance's tooltip/aria). Each body row is rendered by
+ * `AdminApplicantRow`.
  *
  * Loading renders stable-key skeleton rows (the rowgroup announces the
  * localized loading label); the empty state reuses the
@@ -63,13 +65,13 @@ export function AdminApplicantsTable(props: AdminApplicantsTableProps): ReactNod
       <Table sx={{ tableLayout: "fixed" }}>
         <TableHead>
           <TableRow sx={theme => ({ bgcolor: theme.palette.surfaceContainerHigh })}>
-            <AdminApplicantsHeaderCell width="27%">{labels.headers.name}</AdminApplicantsHeaderCell>
-            <AdminApplicantsHeaderCell width="17%">{labels.headers.status}</AdminApplicantsHeaderCell>
+            <AdminApplicantsHeaderCell width="26%">{labels.headers.name}</AdminApplicantsHeaderCell>
+            <AdminApplicantsHeaderCell width="16%">{labels.headers.status}</AdminApplicantsHeaderCell>
             <AdminApplicantsHeaderCell width="8%">{labels.applicantHeaders.attempts}</AdminApplicantsHeaderCell>
-            <AdminApplicantsHeaderCell width="14%">{labels.applicantHeaders.lastAttempt}</AdminApplicantsHeaderCell>
-            <AdminApplicantsHeaderCell width="14%">{labels.applicantHeaders.cooldown}</AdminApplicantsHeaderCell>
+            <AdminApplicantsHeaderCell width="13%">{labels.applicantHeaders.lastAttempt}</AdminApplicantsHeaderCell>
+            <AdminApplicantsHeaderCell width="13%">{labels.applicantHeaders.cooldown}</AdminApplicantsHeaderCell>
             <AdminApplicantsHeaderCell width="13%">{labels.headers.joined}</AdminApplicantsHeaderCell>
-            <AdminApplicantsHeaderCell width="7%">{labels.quickActions.viewProfile}</AdminApplicantsHeaderCell>
+            <AdminApplicantsHeaderCell width="11%">{labels.applicantHeaders.actions}</AdminApplicantsHeaderCell>
           </TableRow>
         </TableHead>
         <TableBody aria-label={loading && items.length === 0 ? labels.applicantsLoading : undefined}>

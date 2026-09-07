@@ -4,13 +4,17 @@
  * AdminApplicantsToolbar — the applicant queue's filter + refresh surface.
  *
  * White card (radius 12, `border.light` outline, `shadow.card`), 24px
- * padding. Contents laid out as a single flex row (wrapping allowed below
- * `md` so mobile keeps the full filter surface):
- *  1. search field (magnifier leading adornment, ~400px max width),
- *  2. status select (all / pending / in-evaluation / failed / passed),
- *  3. flex spacer, then a "clear filters" text button (rendered only while
- *     at least one filter is set) and a refresh text button re-fetching the
- *     current page.
+ * padding. Contents laid out as a COLUMN of two rows:
+ *  1. the controls row — a wrapping flex row (wraps at ALL breakpoints so
+ *     narrow content widths stack instead of overflowing the card):
+ *     a. search field (magnifier leading adornment, ~400px max width),
+ *     b. status select (all / pending / in-evaluation / failed / passed),
+ *     c. flex spacer, then a "clear filters" text button (rendered only
+ *        while at least one filter is set) and a refresh text button
+ *        re-fetching the current page,
+ *  2. the `ApplicantStatusQuickFilters` chip strip — five count-bearing
+ *     quick-filter chips composing with the SAME status-filter state the
+ *     select drives.
  *
  * NO export action exists here — the CSV export belongs to the certified-
  * teacher directory tab (the queue's rows are applicants, not teachers, so
@@ -26,6 +30,7 @@
 import { RefreshOutlined as RefreshIcon, SearchOutlined as SearchIcon } from "@mui/icons-material";
 import { Box, Button, Card, TextField } from "@mui/material";
 import type { ReactNode } from "react";
+import { ApplicantStatusQuickFilters } from "@/frontend/views/admin/teachers/ApplicantStatusQuickFilters";
 import {
   ADMIN_APPLICANT_STATUSES,
   type ApplicantStatusFilter,
@@ -40,7 +45,7 @@ type ToolbarLabels = Pick<AdminTeachersLabels, "filters" | "filterOptions" | "he
 /** Queue state slice consumed by the toolbar (from `useAdminTeacherApplicants`). */
 type ToolbarApplicants = Pick<
   ReturnType<typeof useAdminTeacherApplicants>,
-  "statusFilter" | "setStatusFilter" | "searchInput" | "setSearchInput" | "refetch"
+  "statusFilter" | "setStatusFilter" | "searchInput" | "setSearchInput" | "refetch" | "statusCounts"
 >;
 
 interface AdminApplicantsToolbarProps {
@@ -74,51 +79,57 @@ export function AdminApplicantsToolbar({
         display: "flex",
       })}
     >
-      <Box
-        sx={{ display: "flex", width: "100%", flexWrap: { xs: "wrap", md: "nowrap" }, gap: 2, alignItems: "center" }}
-      >
-        <ApplicantSearchField
-          id={SEARCH_ID}
-          labels={labels}
-          value={applicants.searchInput}
-          onChange={applicants.setSearchInput}
-        />
-        <DirectoryFilterSelect
-          id={STATUS_ID}
-          label={labels.headers.status}
-          value={applicants.statusFilter}
-          onChange={value => applicants.setStatusFilter(asApplicantStatusFilter(value))}
-          emptyOptionLabel={labels.filterOptions.all}
-          options={ADMIN_APPLICANT_STATUSES.map(status => ({
-            value: status,
-            label: applicantStatusLabelOf(status, labels),
-          }))}
-        />
-        <Box sx={{ flex: 1 }} />
-        {hasFilters && (
+      <Box sx={{ display: "flex", flexDirection: "column", width: "100%", gap: 2 }}>
+        <Box sx={{ display: "flex", width: "100%", flexWrap: "wrap", gap: 2, alignItems: "center" }}>
+          <ApplicantSearchField
+            id={SEARCH_ID}
+            labels={labels}
+            value={applicants.searchInput}
+            onChange={applicants.setSearchInput}
+          />
+          <DirectoryFilterSelect
+            id={STATUS_ID}
+            label={labels.headers.status}
+            value={applicants.statusFilter}
+            onChange={value => applicants.setStatusFilter(asApplicantStatusFilter(value))}
+            emptyOptionLabel={labels.filterOptions.all}
+            options={ADMIN_APPLICANT_STATUSES.map(status => ({
+              value: status,
+              label: applicantStatusLabelOf(status, labels),
+            }))}
+          />
+          <Box sx={{ flex: 1 }} />
+          {hasFilters && (
+            <Button
+              variant="text"
+              onClick={() => {
+                applicants.setStatusFilter("");
+                applicants.setSearchInput("");
+              }}
+              sx={theme => ({ minHeight: 44, flexShrink: 0, color: theme.palette.text.secondary })}
+            >
+              {labels.filters.clear}
+            </Button>
+          )}
           <Button
             variant="text"
+            startIcon={<RefreshIcon />}
             onClick={() => {
-              applicants.setStatusFilter("");
-              applicants.setSearchInput("");
+              void applicants.refetch();
             }}
+            disabled={loading}
+            aria-label={labels.filters.refresh}
             sx={theme => ({ minHeight: 44, flexShrink: 0, color: theme.palette.text.secondary })}
           >
-            {labels.filters.clear}
+            {labels.filters.refresh}
           </Button>
-        )}
-        <Button
-          variant="text"
-          startIcon={<RefreshIcon />}
-          onClick={() => {
-            void applicants.refetch();
-          }}
-          disabled={loading}
-          aria-label={labels.filters.refresh}
-          sx={theme => ({ minHeight: 44, flexShrink: 0, color: theme.palette.text.secondary })}
-        >
-          {labels.filters.refresh}
-        </Button>
+        </Box>
+        <ApplicantStatusQuickFilters
+          labels={labels}
+          statusFilter={applicants.statusFilter}
+          setStatusFilter={applicants.setStatusFilter}
+          statusCounts={applicants.statusCounts}
+        />
       </Box>
     </Card>
   );
@@ -163,8 +174,7 @@ function ApplicantSearchField({ id, labels, value, onChange }: ApplicantSearchFi
         },
       }}
       sx={{
-        flex: { xs: "1 1 100%", md: "0 1 auto" },
-        width: { xs: "100%", md: 400 },
+        flex: { xs: "1 1 100%", sm: "1 1 300px" },
         maxWidth: 400,
         "& .MuiInputBase-root": { height: 44 },
       }}

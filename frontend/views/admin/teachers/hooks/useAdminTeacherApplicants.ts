@@ -85,6 +85,11 @@ export function useAdminTeacherApplicants() {
   const pageData = data ?? previousData;
   const items = pageData?.adminTeacherApplicants.items ?? [];
   const total = pageData?.adminTeacherApplicants.total ?? 0;
+  // Search-aware per-status aggregate for the quick-filter chips — always
+  // describes the whole pipeline matching the current search term,
+  // independent of the active status filter. `null` while unresolved (the
+  // chips render count-less rather than guessing zeros).
+  const statusCounts = pageData?.adminTeacherApplicants.statusCounts ?? null;
 
   // The error alert must key on query failure itself, not on
   // `firstErrorCode`: a plain transport failure (raw `Error` with no
@@ -108,6 +113,7 @@ export function useAdminTeacherApplicants() {
     setSnackbarMessage,
     items,
     total,
+    statusCounts,
     loading,
     hasError,
     firstErrorCode,
