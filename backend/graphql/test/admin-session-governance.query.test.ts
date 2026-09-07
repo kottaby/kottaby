@@ -95,8 +95,10 @@ const KEY_BOOK_PLAIN = `${PREFIX}-book-plain`;
 const KEY_BOOK_DISPUTED = `${PREFIX}-book-disputed`;
 const KEY_BOOK_LAPSED = `${PREFIX}-book-lapsed`;
 
-/** Large unused id — the pre-resolver denial/absence target. */
+/** Large unused id — the pre-resolver denial/absence target (ID args). */
 const UNKNOWN_SESSION_ID = "999999999";
+/** Numeric twin of the unknown id — the Int-typed filter probe value. */
+const UNKNOWN_USER_ID = 999999999;
 
 /** The fixture registry — every created session id is hard-deleted in afterAll. */
 const registry = createSessionFixtureRegistry();
@@ -392,7 +394,7 @@ async function totalAuditAcrossFixtures(): Promise<number> {
 async function directoryForFixtures(extraFilter: Record<string, unknown> = {}): Promise<Record<string, unknown>> {
   const result = await wireGraphQL(ADMIN_SESSIONS_DOC, {
     token: adminToken,
-    variables: { filter: { studentUserId: String(cast.primaryStudent.userId), ...extraFilter } },
+    variables: { filter: { studentUserId: cast.primaryStudent.userId, ...extraFilter } },
   });
   return payloadOf(result, "adminSessions");
 }
@@ -546,7 +548,7 @@ describe("adminSessions — directory happy path (admin)", () => {
     // Teacher participant id — all three fixtures sit with the cast teacher.
     const teacherPage = await wireGraphQL(ADMIN_SESSIONS_DOC, {
       token: adminToken,
-      variables: { filter: { teacherUserId: String(cast.teacher.userId) } },
+      variables: { filter: { teacherUserId: cast.teacher.userId } },
     });
     const teacherPayload = payloadOf(teacherPage, "adminSessions");
     expect(teacherPayload.totalCount).toBe(3);
@@ -560,7 +562,7 @@ describe("adminSessions — directory happy path (admin)", () => {
     // An unknown participant id filters to the honest empty page.
     const unknownTeacherPage = await wireGraphQL(ADMIN_SESSIONS_DOC, {
       token: adminToken,
-      variables: { filter: { teacherUserId: UNKNOWN_SESSION_ID } },
+      variables: { filter: { teacherUserId: UNKNOWN_USER_ID } },
     });
     const unknownTeacherPayload = payloadOf(unknownTeacherPage, "adminSessions");
     expect(unknownTeacherPayload.totalCount).toBe(0);
@@ -579,7 +581,7 @@ describe("adminSessions — pagination window", () => {
   test("pageSize 1 returns the newest row next to the UNBOUNDED honest total", async () => {
     const result = await wireGraphQL(ADMIN_SESSIONS_DOC, {
       token: adminToken,
-      variables: { filter: { studentUserId: String(cast.primaryStudent.userId) }, page: 1, pageSize: 1 },
+      variables: { filter: { studentUserId: cast.primaryStudent.userId }, page: 1, pageSize: 1 },
     });
     const page = payloadOf(result, "adminSessions");
     expect(page.page).toBe(1);
@@ -594,7 +596,7 @@ describe("adminSessions — pagination window", () => {
   test("pageSize 50 is honored verbatim (the upper bound)", async () => {
     const result = await wireGraphQL(ADMIN_SESSIONS_DOC, {
       token: adminToken,
-      variables: { filter: { studentUserId: String(cast.primaryStudent.userId) }, pageSize: 50 },
+      variables: { filter: { studentUserId: cast.primaryStudent.userId }, pageSize: 50 },
     });
     const page = payloadOf(result, "adminSessions");
     expect(page.page).toBe(1);
@@ -606,7 +608,7 @@ describe("adminSessions — pagination window", () => {
   test("a page past the window yields the honest remainder (no phantom empties)", async () => {
     const result = await wireGraphQL(ADMIN_SESSIONS_DOC, {
       token: adminToken,
-      variables: { filter: { studentUserId: String(cast.primaryStudent.userId) }, page: 2, pageSize: 2 },
+      variables: { filter: { studentUserId: cast.primaryStudent.userId }, page: 2, pageSize: 2 },
     });
     const page = payloadOf(result, "adminSessions");
     expect(page.page).toBe(2);
@@ -618,7 +620,7 @@ describe("adminSessions — pagination window", () => {
   test("an explicit null page/pageSize restores the declared SDL defaults", async () => {
     const result = await wireGraphQL(ADMIN_SESSIONS_DOC, {
       token: adminToken,
-      variables: { filter: { studentUserId: String(cast.primaryStudent.userId) }, page: null, pageSize: null },
+      variables: { filter: { studentUserId: cast.primaryStudent.userId }, page: null, pageSize: null },
     });
     const page = payloadOf(result, "adminSessions");
     expect(page.page).toBe(1);
