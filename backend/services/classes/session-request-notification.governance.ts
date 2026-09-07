@@ -97,7 +97,7 @@ function composeGovernanceWaveCopy(
  * broken-contract situation mid-mutation and fails closed — the wave is
  * all-or-nothing with the mutation that caused it.
  */
-async function resolveGovernanceParticipant(
+export async function resolveGovernanceParticipant(
   userId: number,
   locale: string,
   tx: DBTransaction | undefined
