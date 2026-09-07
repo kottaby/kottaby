@@ -82,6 +82,7 @@ nohup.out
 # Local Storage & Database Runtime Artifacts (not backend/db or backend/storage)
 /storage/
 /db/
+/backups/
 db/app.sqlite
 db/pglite/
 db/pglite-test/

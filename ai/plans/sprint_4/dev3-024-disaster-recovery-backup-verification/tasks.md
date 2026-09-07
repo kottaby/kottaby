@@ -96,12 +96,12 @@ Sequence: QL → TE → SEC → SR → IV → `[x]`.
 
 ## Phase 4 — Repo Wiring
 
-- [ ] 4.1 **`package.json` scripts**: add `"ops:db-backup"` and `"ops:db-restore-verify"` adjacent to existing `ops:*` entries (verified 0.2: lines 63–64 — insert immediately after the `ops:remind-link-requests` line, not at literal 66–67), exact binary invocations matching runbook.
-  - [ ] 4.1.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts package.json --lifecycle duplicates` → 0 (or schema-valid JSON if sub-loop no-ops on JSON — record behavior in outcome).
-  - [ ] 4.1.TE **Test**: inside `scripts/ops/backup-database.test.ts` (or a tiny `scripts/ops/scripts-registration.test.ts`), parse `package.json` and assert both keys exist and point at existing files; assert `.gitignore` contains `/backups/`.
-  - [ ] 4.1.SEC: no secrets introduced into manifest file. · [ ] 4.1.SR: alphabetical/group placement consistent with surrounding block. · [ ] 4.1.IV: root AGENTS.md conventions.
+- [x] 4.1 **`package.json` scripts**: add `"ops:db-backup"` and `"ops:db-restore-verify"` adjacent to existing `ops:*` entries (verified 0.2: lines 63–64 — insert immediately after the `ops:remind-link-requests` line, not at literal 66–67), exact binary invocations matching runbook.
+  - [x] 4.1.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts package.json --lifecycle duplicates` → 0 (or schema-valid JSON if sub-loop no-ops on JSON — record behavior in outcome).
+  - [x] 4.1.TE **Test**: inside `scripts/ops/backup-database.test.ts` (or a tiny `scripts/ops/scripts-registration.test.ts`), parse `package.json` and assert both keys exist and point at existing files; assert `.gitignore` contains `/backups/`.
+  - [x] 4.1.SEC: no secrets introduced into manifest file. · [x] 4.1.SR: alphabetical/group placement consistent with surrounding block. · [x] 4.1.IV: root AGENTS.md conventions.
   - _Requirements: REQ-029, REQ-014, REQ-033._
-- [ ] 4.2 **`.gitignore`**: add `/backups/` if absent (verified 0.2); QL + covered-by-4.1.TE assertion + SR.
+- [x] 4.2 **`.gitignore`**: add `/backups/` if absent (verified 0.2); QL + covered-by-4.1.TE assertion + SR.
   - _Requirements: REQ-014, REQ-033._
 
 ## Phase 5 — Integration Test & Drill (drill chain; journey ruling N/A — see closing note)
