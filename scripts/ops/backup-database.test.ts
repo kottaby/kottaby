@@ -704,7 +704,7 @@ describe("credential redaction for backup flows", () => {
 });
 
 describe("buildChildEnv and stderrTail", () => {
-  it("forwards only the libpq allowlist and never the parent env", () => {
+  it("forwards only the libpq allowlist — never the parent env or service/database indirection", () => {
     const env = buildChildEnv({
       PATH: "/usr/bin:/bin",
       HOME: "/home/op",
@@ -714,6 +714,7 @@ describe("buildChildEnv and stderrTail", () => {
       PGSSLMODE: "require",
       PGSSLROOTCERT: "/ca.pem",
       PGCONNECT_TIMEOUT: "10",
+      PGDATABASE: "ambient_db",
       PGSERVICE: "svc",
       PGSERVICEFILE: "/pgsvc",
       PGAPPNAME: "ops-backup",
@@ -730,11 +731,14 @@ describe("buildChildEnv and stderrTail", () => {
       PGSSLMODE: "require",
       PGSSLROOTCERT: "/ca.pem",
       PGCONNECT_TIMEOUT: "10",
-      PGSERVICE: "svc",
-      PGSERVICEFILE: "/pgsvc",
       PGAPPNAME: "ops-backup",
     });
     expect("DATABASE_URL" in buildChildEnv({ DATABASE_URL: FIXTURE_DSN })).toBe(false);
+    // Endpoint-deciding parity with the restore family: the connection is
+    // decided by the DSN argv value alone, never the ambient environment.
+    expect("PGDATABASE" in env).toBe(false);
+    expect("PGSERVICE" in env).toBe(false);
+    expect("PGSERVICEFILE" in env).toBe(false);
     expect(buildChildEnv({ PATH: "/bin", PGPASSWORD: undefined })).toEqual({ PATH: "/bin" });
   });
 

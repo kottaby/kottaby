@@ -1285,6 +1285,30 @@ describe("restore-verify tool family (4-tier)", () => {
         targetDsn: "host=127.0.0.1 user=postgres",
         reason: "target database is unspecified",
       },
+      {
+        name: "a URI whose path and query dbname= name DIFFERENT databases (libpq URI families disagree on precedence)",
+        env: localEnvFixture(),
+        targetDsn: "postgresql://postgres@127.0.0.1:5432/scratch_restore?dbname=other_db",
+        reason: "target database ambiguity between path and query",
+      },
+      {
+        name: "an EMPTY query dbname= over a named path database (the override names nothing)",
+        env: localEnvFixture(),
+        targetDsn: "postgresql://postgres@127.0.0.1:5432/scratch_restore?dbname=",
+        reason: "target database ambiguity between path and query",
+      },
+      {
+        name: "an EMPTY query dbname= over an empty path (still under-specified)",
+        env: localEnvFixture(),
+        targetDsn: "postgresql://postgres@127.0.0.1:5432/?dbname=",
+        reason: "target database is unspecified",
+      },
+      {
+        name: "a malformed percent-escape in the path database compared against a query dbname",
+        env: localEnvFixture(),
+        targetDsn: "postgresql://postgres@127.0.0.1:5432/scratch_%ZZrestore?dbname=scratch_restore",
+        reason: "malformed percent-escape",
+      },
     ];
 
     for (const refusalCase of refusalCases) {
@@ -1597,6 +1621,49 @@ describe("restore-verify tool family (4-tier)", () => {
       expect(run.exitCode).toBe(0);
       expect(run.stdout).toContain("VERDICT: PASS");
       expect(run.requests.find(request => request.cmd === "pg_restore")?.args).toContain(benignTarget);
+    });
+
+    test("guard honors a query dbname= over an EMPTY path as the explicit target database (report records it)", async () => {
+      const caseRoot = newCaseRoot();
+      makeSchemaFixture(caseRoot);
+      const fixture = makeBackupRun(caseRoot);
+      // libpq applies query parameters ON TOP of the parsed URI, so a
+      // `?dbname=` on a database-less path IS the explicit target database —
+      // refusing it as "unspecified" would false-positive on this
+      // libpq-legal drill form. The report must record the EFFECTIVE
+      // database (the query value), never the empty path component.
+      const queryDbTarget = "postgresql://postgres@127.0.0.1:5432/?dbname=scratch_restore";
+      const run = await runPipeline(caseRoot, {
+        from: fixture.runDir,
+        targetDsn: queryDbTarget,
+        script: healthyScript(),
+      });
+      expect(run.thrown).toBeNull();
+      expect(run.exitCode).toBe(0);
+      expect(run.stdout).toContain("VERDICT: PASS");
+      expect(run.stdout).toContain('target database "scratch_restore"');
+      expect(run.report?.target.database).toBe("scratch_restore");
+      expect(run.requests.find(request => request.cmd === "pg_restore")?.args).toContain(queryDbTarget);
+    });
+
+    test("guard allows a URI whose path and query dbname= AGREE (equal values; original string spawned)", async () => {
+      const caseRoot = newCaseRoot();
+      makeSchemaFixture(caseRoot);
+      const fixture = makeBackupRun(caseRoot);
+      // Equal path/query database values are unambiguous — the ambiguity
+      // refusal fires only on a DISAGREEMENT — and the effective database is
+      // recorded.
+      const agreeingTarget = "postgresql://postgres@127.0.0.1:5432/scratch_restore?dbname=scratch_restore";
+      const run = await runPipeline(caseRoot, {
+        from: fixture.runDir,
+        targetDsn: agreeingTarget,
+        script: healthyScript(),
+      });
+      expect(run.thrown).toBeNull();
+      expect(run.exitCode).toBe(0);
+      expect(run.stdout).toContain("VERDICT: PASS");
+      expect(run.report?.target.database).toBe("scratch_restore");
+      expect(run.requests.find(request => request.cmd === "pg_restore")?.args).toContain(agreeingTarget);
     });
 
     // ── Raw authority-span gate: libpq scans the URI authority to the FIRST
@@ -2071,16 +2138,43 @@ describe("buildRestoreChildEnv (restore child env allowlist)", () => {
     });
   });
 
-  test("an ambient PGDATABASE cannot leak through the per-request passthrough either", () => {
-    const env = buildRestoreChildEnv({ PGDATABASE: "ambient_pgdatabase" }, { PGPASSWORD: "child-password" });
+  test("the per-request passthrough is allowlist-filtered: PGDATABASE/PGSERVICE never pass even via request.env", () => {
+    const env = buildRestoreChildEnv(
+      { PATH: "/usr/bin:/bin" },
+      {
+        PGDATABASE: "ambient_pgdatabase",
+        PGHOST: "ambient-host.example",
+        PGPORT: "6543",
+        PGUSER: "ambient_user",
+        PGSERVICE: "ambient_service",
+        PGSERVICEFILE: "/ambient/pgservice.conf",
+        PGHOSTADDR: "192.0.2.10",
+        PGPASSWORD: "child-password",
+      }
+    );
+    // The allowlist WINS over the per-request passthrough: the allowlisted
+    // credential key passes, every endpoint-deciding key is dropped.
     expect(env.PGPASSWORD).toBe("child-password");
-    expect(Object.hasOwn(env, "PGDATABASE")).toBe(false);
+    for (const key of ENDPOINT_KEYS) {
+      expect(Object.hasOwn(env, key)).toBe(false);
+    }
   });
 });
 
 describe("redactTargetDatabaseName (conninfo libpq semantics)", () => {
   test("URL form reports the path database", () => {
     expect(redactTargetDatabaseName("postgresql://u:p@h:5432/appdb")).toBe("appdb");
+  });
+
+  test("URL form reports the query dbname= as the EFFECTIVE database (override channel)", () => {
+    expect(redactTargetDatabaseName("postgresql://u:p@h:5432/pathdb?dbname=querydb")).toBe("querydb");
+    expect(redactTargetDatabaseName("postgresql://u:p@h:5432/?dbname=querydb")).toBe("querydb");
+    expect(redactTargetDatabaseName("postgresql://u:p@h:5432/same?dbname=same")).toBe("same");
+  });
+
+  test("URL form ignores an absent or empty query dbname= and reports the path database", () => {
+    expect(redactTargetDatabaseName("postgresql://u:p@h:5432/pathdb?sslmode=require")).toBe("pathdb");
+    expect(redactTargetDatabaseName("postgresql://u:p@h:5432/pathdb?dbname=")).toBe("pathdb");
   });
 
   test("conninfo form reports the LAST dbname= (libpq last-wins)", () => {

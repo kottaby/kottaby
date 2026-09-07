@@ -97,8 +97,10 @@ const RESTORE_CHILD_ENV_KEYS = [
 ] as const;
 
 /**
- * Explicit child environment: an allowlist from `source`, merged with
- * `extra` (the per-request passthrough). Never hands the full parent
+ * Explicit child environment: an allowlist from `source`, with `extra` (the
+ * per-request passthrough) FILTERED THROUGH THE SAME ALLOWLIST — a request
+ * cannot smuggle an endpoint-deciding variable (PGDATABASE, PGSERVICE, …)
+ * into a restore child; the allowlist wins. Never hands the full parent
  * environment — and with it unrelated secrets — to a child process.
  */
 export function buildRestoreChildEnv(
@@ -112,10 +114,12 @@ export function buildRestoreChildEnv(
       env[key] = value;
     }
   }
+  const allowlist: readonly string[] = RESTORE_CHILD_ENV_KEYS;
   for (const [key, value] of Object.entries(extra)) {
-    if (value !== undefined) {
-      env[key] = value;
+    if (value === undefined || !allowlist.includes(key)) {
+      continue;
     }
+    env[key] = value;
   }
   return env;
 }
@@ -181,16 +185,51 @@ export function makePsqlRunner(spawn: SpawnRunner, dsn: string): PsqlRunner {
 // ---------------------------------------------------------------------------
 
 /**
+ * Last-occurrence, percent-decoded value of one query parameter in a RAW
+ * URI query string (libpq semantics: `+` stays literal, last occurrence
+ * wins). A malformed percent-escape yields undefined — the restore guard
+ * refuses such targets outright, so there is no meaningful value to report.
+ */
+function lastUriQueryValue(rawSearch: string, name: string): string | undefined {
+  let value: string | undefined;
+  for (const pair of rawSearch.replace(/^\?/, "").split("&")) {
+    if (pair.length === 0) {
+      continue;
+    }
+    const equals = pair.indexOf("=");
+    if (equals < 0) {
+      continue;
+    }
+    try {
+      if (decodeURIComponent(pair.slice(0, equals)).toLowerCase() === name) {
+        value = decodeURIComponent(pair.slice(equals + 1));
+      }
+    } catch {
+      return undefined;
+    }
+  }
+  return value;
+}
+
+/**
  * Redacted target identifier for reports: the database name ONLY — host,
- * user, and password never leave the process. Conninfo-form targets follow
- * libpq semantics: the LAST `dbname=` occurrence wins, one layer of
- * surrounding single/double quotes is stripped (inner spaces are part of
- * the name libpq connects to), and libpq `''` escapes inside single-quoted
- * values are folded (`dbname='my''db'` reports `my'db`).
+ * user, and password never leave the process. URI-form targets report the
+ * EFFECTIVE database: a query `dbname=` parameter is libpq's override
+ * channel (it names the database the connection actually uses — the restore
+ * guard refuses a path/query disagreement before any run), so it wins over
+ * the path component. Conninfo-form targets follow libpq semantics: the
+ * LAST `dbname=` occurrence wins, one layer of surrounding single/double
+ * quotes is stripped (inner spaces are part of the name libpq connects to),
+ * and libpq `''` escapes inside single-quoted values are folded
+ * (`dbname='my''db'` reports `my'db`).
  */
 export function redactTargetDatabaseName(dsn: string): string {
   try {
     const parsed = new URL(dsn);
+    const queryDatabase = lastUriQueryValue(parsed.search, "dbname");
+    if (queryDatabase !== undefined && queryDatabase.length > 0) {
+      return queryDatabase;
+    }
     const database = decodeURIComponent(parsed.pathname.replace(/^\//, ""));
     if (database.length > 0) {
       return database;

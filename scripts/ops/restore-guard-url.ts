@@ -25,7 +25,10 @@
  *     run through the same pipeline. Raw control characters and `#` in the
  *     query (and in the raw host substring) refuse before any URL parsing —
  *     the WHATWG parser strips what libpq keeps, so the assessed URL must be
- *     the URL libpq sees.
+ *     the URL libpq sees. The query's `dbname` parameter is extracted with
+ *     the same semantics — the database-override channel the guard's
+ *     database-component rule consumes (libpq applies it on top of the URI
+ *     path database).
  *
  *  3. The RAW AUTHORITY-SPAN gate: on a PATHED URI libpq scans the authority
  *     to the FIRST `/` of the raw string and splits userinfo at the LAST `@`
@@ -175,7 +178,7 @@ function decodeUriQueryComponent(component: string): DecodedHost {
 
 /** Result of extracting the libpq host channels from a URI query string. */
 type UriQueryChannels =
-  | { kind: "ok"; host: string | undefined; hostaddr: string | undefined; service: boolean }
+  | { kind: "ok"; host: string | undefined; hostaddr: string | undefined; dbname: string | undefined; service: boolean }
   | { kind: "refuse"; reason: string };
 
 /**
@@ -189,11 +192,14 @@ type UriQueryChannels =
  * is never wrong), and a valueless `?host` counts as libpq's empty value.
  * A `service` key is tracked separately: it names a libpq service whose
  * service file — not this target string — would decide the endpoint:
- * indirection the guard cannot assess.
+ * indirection the guard cannot assess. A `dbname` key is extracted the same
+ * way — the database libpq applies ON TOP of the URI path database — for the
+ * caller's database-component rule.
  */
 function extractUriQueryChannels(rawQuery: string): UriQueryChannels {
   let host: string | undefined;
   let hostaddr: string | undefined;
+  let dbname: string | undefined;
   let service = false;
   for (const pair of rawQuery.split("&")) {
     if (pair.length === 0) {
@@ -213,11 +219,13 @@ function extractUriQueryChannels(rawQuery: string): UriQueryChannels {
       host = decodedValue.decoded;
     } else if (key === "hostaddr") {
       hostaddr = decodedValue.decoded;
+    } else if (key === "dbname") {
+      dbname = decodedValue.decoded;
     } else if (key === "service") {
       service = true;
     }
   }
-  return { kind: "ok", host, hostaddr, service };
+  return { kind: "ok", host, hostaddr, dbname, service };
 }
 
 /**
@@ -379,16 +387,22 @@ export function assessRawUriAuthority(trimmedTarget: string): RawAuthorityAssess
 
 /**
  * Parses the RAW query string of a URI-form target into one assess URL per
- * query host channel. Parsing happens on the raw string — NOT on WHATWG's
- * `url.search`, which already stripped raw control characters libpq keeps —
- * and anything the two parsers must disagree on refuses before assessment.
+ * query host channel, plus the extracted `dbname` parameter (the
+ * database-override channel the caller's database-component rule consumes).
+ * Parsing happens on the raw string — NOT on WHATWG's `url.search`, which
+ * already stripped raw control characters libpq keeps — and anything the two
+ * parsers must disagree on refuses before assessment.
  */
-export function uriQueryChannelAssessUrls(
-  trimmedTarget: string
-): { kind: "ok"; urls: string[] } | { kind: "refuse"; reason: string } {
+export function uriQueryChannelAssessUrls(trimmedTarget: string):
+  | {
+      kind: "ok";
+      urls: string[];
+      dbname: string | undefined;
+    }
+  | { kind: "refuse"; reason: string } {
   const queryStart = trimmedTarget.indexOf("?");
   if (queryStart < 0) {
-    return { kind: "ok", urls: [] };
+    return { kind: "ok", urls: [], dbname: undefined };
   }
   const rawQuery = trimmedTarget.slice(queryStart + 1);
   if (/[\t\n\r]/.test(rawQuery)) {
@@ -435,5 +449,45 @@ export function uriQueryChannelAssessUrls(
     }
     urls.push(assessed.url);
   }
-  return { kind: "ok", urls };
+  return { kind: "ok", urls, dbname: channels.dbname };
+}
+
+/**
+ * Assesses the URI DATABASE COMPONENT against the query `dbname=` override
+ * channel. libpq applies query parameters ON TOP of the parsed URI, so a
+ * query `dbname=` IS the database the connection uses:
+ *
+ *   - no query `dbname=` → the path rule stands (an empty/absent path
+ *     database is under-specified — the ambient environment would complete
+ *     it);
+ *   - query `dbname=` AND a path database → both must AGREE: the libpq URI
+ *     families disagree on which component wins, so a disagreement is an
+ *     ambiguity no assessment can resolve (`ambiguous: true`, fail closed).
+ *     The comparison happens on DECODED values (libpq percent-decodes the
+ *     path database before use); a malformed escape refuses the run;
+ *   - query `dbname=` over an empty/absent path → the query value IS the
+ *     explicit target database (`unspecified: false`) — unless the value is
+ *     EMPTY, which names nothing and stays under-specified.
+ */
+export function assessUriDatabaseComponent(
+  parsedTarget: URL,
+  queryDbname: string | undefined
+): { kind: "ok"; unspecified: boolean; ambiguous: boolean } | { kind: "refuse"; reason: string } {
+  const pathDatabase = parsedTarget.pathname.replace(/^\//, "");
+  if (queryDbname === undefined) {
+    return { kind: "ok", unspecified: pathDatabase.length === 0, ambiguous: false };
+  }
+  if (pathDatabase.length > 0) {
+    let decodedPathDatabase: string;
+    try {
+      decodedPathDatabase = decodeURIComponent(pathDatabase);
+    } catch {
+      return {
+        kind: "refuse",
+        reason: "target URL path database carries a malformed percent-escape — cannot assess target safety",
+      };
+    }
+    return { kind: "ok", unspecified: false, ambiguous: decodedPathDatabase !== queryDbname };
+  }
+  return { kind: "ok", unspecified: queryDbname.length === 0, ambiguous: false };
 }

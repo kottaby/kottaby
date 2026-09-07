@@ -47,7 +47,12 @@
  *     database is empty or absent, and a conninfo with no `dbname=` keyword,
  *     refuse the run — with an under-specified DSN libpq completes the
  *     endpoint from the ambient environment (PGDATABASE), so pg_restore
- *     would silently land in an operator-unintended database;
+ *     would silently land in an operator-unintended database. A URI query
+ *     `?dbname=` parameter IS the explicit database (libpq applies query
+ *     parameters on top of the parsed URI): it is honored when the path is
+ *     empty, and when the path AND query both name a database they must
+ *     AGREE — the libpq URI families disagree on which component wins, so a
+ *     disagreement refuses the run as target-database ambiguity;
  *   - the RAW AUTHORITY SPAN of a URI-form target (after `//`, up to the
  *     first `/` of the raw string — or, on a pathless URI, up to the first
  *     `?`, which is there the query delimiter both libpq and WHATWG agree
@@ -99,6 +104,7 @@ import { assessDestructiveDbCommandSafety, formatDestructiveDbBlockMessage } fro
 import { RestoreUsageError } from "@/scripts/ops/restore-cli";
 import {
   assessRawUriAuthority,
+  assessUriDatabaseComponent,
   CONNINFO_HOST_PATTERN,
   isLoopbackHostaddr,
   libpqEffectiveAssessUrl,
@@ -136,6 +142,12 @@ const UNSPECIFIED_DATABASE_REFUSAL =
   "target database is unspecified — the connection string names no database, so ambient libpq environment " +
   "(PGDATABASE) would decide the restore target — the operator must name the target database explicitly — " +
   "cannot assess target safety";
+
+/** Refusal for a URI whose path database and query `dbname=` disagree. */
+const AMBIGUOUS_DATABASE_REFUSAL =
+  "target database ambiguity between path and query — the URI path and the query dbname= parameter name " +
+  "different databases (the libpq URI families disagree on which one wins) — the operator must name the " +
+  "target database in one place only — cannot assess target safety";
 
 /**
  * Splits a keyword/value conninfo string into unquoted tokens (libpq rules:
@@ -349,8 +361,11 @@ export function conninfoAssessUrls(target: string): ConninfoAssessUrls | null {
  * the host libpq would actually connect to — and its query string adds one
  * channel per `?host=`/`?hostaddr=` parameter (libpq applies query
  * parameters on top of the authority), each assessed through the same
- * pipeline; a raw control character in the raw host substring or query
- * (WHATWG strips what libpq keeps) refuses before parsing.
+ * pipeline; the query's `dbname=` parameter feeds the database-component
+ * rule (a path/query dbname disagreement refuses fail-closed — a query-only
+ * `dbname=` is the explicit, recorded target database); a raw control
+ * character in the raw host substring or query (WHATWG strips what libpq
+ * keeps) refuses before parsing.
  *
  * The guard reads `DATABASE_URL` from the process environment for its
  * host-pattern analysis. Rather than duplicating the guard's managed-host and
@@ -364,6 +379,7 @@ export function conninfoAssessUrls(target: string): ConninfoAssessUrls | null {
 export function assessRestoreTargetSafety(targetDsn: string): RestoreGuardAssessment {
   let assessUrls: string[];
   let uriDatabaseUnspecified = false;
+  let uriDatabaseAmbiguous = false;
   if (parsesAsPostgresUrl(targetDsn)) {
     const trimmed = targetDsn.trim();
     // RAW AUTHORITY-SPAN gate FIRST: on a pathed URI libpq scans the
@@ -407,13 +423,21 @@ export function assessRestoreTargetSafety(targetDsn: string): RestoreGuardAssess
       return { blocked: true, reasons: [effective.reason] };
     }
     assessUrls = [effective.url, ...queryChannels.urls];
-    // DB-component flag — evaluated AFTER the channel/host guard loop below,
+    // DB-component flags — evaluated AFTER the channel/host guard loop below,
     // so a smuggled query host keeps its precise refusal reason. A URI with
-    // an empty or absent path database is under-specified: libpq would
-    // complete the endpoint from the ambient environment (PGDATABASE) and
-    // pg_restore would land in an operator-unintended database. The operator
-    // must name the target database.
-    uriDatabaseUnspecified = parsedTarget.pathname.replace(/^\//, "").length === 0;
+    // an empty or absent path database is under-specified (libpq would
+    // complete the endpoint from the ambient environment) UNLESS the query
+    // carries an explicit `dbname=` value — libpq applies query parameters
+    // ON TOP of the parsed URI, so a query dbname IS the target database.
+    // When the path AND the query both name a database they must AGREE: the
+    // libpq URI families disagree on which component wins, so a disagreement
+    // is an ambiguity no assessment can resolve (fail closed).
+    const databaseComponent = assessUriDatabaseComponent(parsedTarget, queryChannels.dbname);
+    if (databaseComponent.kind === "refuse") {
+      return { blocked: true, reasons: [databaseComponent.reason] };
+    }
+    uriDatabaseUnspecified = databaseComponent.unspecified;
+    uriDatabaseAmbiguous = databaseComponent.ambiguous;
   } else {
     const extraction = conninfoAssessUrls(targetDsn);
     if (extraction === null) {
@@ -430,6 +454,9 @@ export function assessRestoreTargetSafety(targetDsn: string): RestoreGuardAssess
     if (assessment.blocked) {
       return assessment;
     }
+  }
+  if (uriDatabaseAmbiguous) {
+    return { blocked: true, reasons: [AMBIGUOUS_DATABASE_REFUSAL] };
   }
   if (uriDatabaseUnspecified) {
     return { blocked: true, reasons: [UNSPECIFIED_DATABASE_REFUSAL] };

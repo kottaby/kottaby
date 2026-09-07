@@ -131,9 +131,11 @@ Required:
                              REQUIRED — there is no default — and it must NAME
                              the target database (a DSN without a database
                              component is refused: ambient PGDATABASE would
-                             complete the endpoint). Must be a scratch/staging
-                             database; the restore DROPS and recreates public
-                             objects (--clean --if-exists).
+                             complete the endpoint). A URI query ?dbname=
+                             parameter names the target database (a path/query
+                             dbname disagreement is refused). Must be a
+                             scratch/staging database; the restore DROPS and
+                             recreates public objects (--clean --if-exists).
   --yes-i-understand         Explicit non-interactive confirmation of the
                              destructive restore; refused without it.
 

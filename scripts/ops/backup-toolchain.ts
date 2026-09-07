@@ -35,7 +35,13 @@ export interface SpawnResult {
  */
 export type SpawnRunner = (argv: readonly string[], opts: { env: Record<string, string> }) => Promise<SpawnResult>;
 
-/** Process environment keys passed through to pg_dump/psql children. */
+/**
+ * Process environment keys passed through to pg_dump/psql children. The
+ * endpoint-deciding libpq variables (PGDATABASE, PGSERVICE, PGSERVICEFILE,
+ * PGHOST, …) are deliberately NOT forwarded — parity with the restore
+ * family: the connection is decided by the DSN argv value alone, never by
+ * the ambient environment.
+ */
 const CHILD_ENV_KEYS = [
   "PATH",
   "HOME",
@@ -45,8 +51,6 @@ const CHILD_ENV_KEYS = [
   "PGSSLMODE",
   "PGSSLROOTCERT",
   "PGCONNECT_TIMEOUT",
-  "PGSERVICE",
-  "PGSERVICEFILE",
   "PGAPPNAME",
 ] as const;
 
