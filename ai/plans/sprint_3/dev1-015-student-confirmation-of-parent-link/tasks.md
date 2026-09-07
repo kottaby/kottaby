@@ -265,7 +265,7 @@
   - [x] 4.4.IV **Instruction Verification:** `.agents/instructions/frontend.instructions.md` + `frontend/views/dashboard` layer AGENTS.md if present per 0.2.
   - Outcome: `4.4-outcome.md`.
 
-- [ ] 4.5 Pin the decision page's existing behavior (regression, no redesign)
+- [x] 4.5 Pin the decision page's existing behavior (regression, no redesign)
   - Run the existing suites for `frontend/views/students/link-requests/**` (located per 0.2) and `parent-link.documents.test.ts`-adjacent component suites — all green, unmodified.
   - If any suite references behavior 4.1–4.4 changed (it should not), reconcile via the shared route constant, never by editing the DEV1-014 view logic.
   - _Requirements: REQ-010, REQ-014, REQ-016, REQ-060_
