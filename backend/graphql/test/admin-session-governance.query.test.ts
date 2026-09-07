@@ -66,10 +66,10 @@
 
 import { afterAll, beforeAll, describe, expect, setSystemTime, test } from "bun:test";
 import { CombinedGraphQLErrors, gql } from "@apollo/client";
-import { type DocumentNode, print } from "graphql";
 import { and, eq, inArray, sql } from "drizzle-orm";
-import { POST } from "@/app/api/graphql/route";
+import { type DocumentNode, print } from "graphql";
 import { NextRequest } from "next/server";
+import { POST } from "@/app/api/graphql/route";
 import { closePool, db } from "@/backend/db";
 import { auditLogs } from "@/backend/db/schema/audit/audit-logs";
 import { session as sessionTable } from "@/backend/db/schema/classes/session";
@@ -124,9 +124,7 @@ let sessionLapsedId = "";
 
 /** Every session id this suite created (the read-only + teardown probes). */
 function fixtureSessionIds(): number[] {
-  return [sessionPlainScheduledId, sessionDisputedId, sessionLapsedId]
-    .filter(id => id !== "")
-    .map(id => Number(id));
+  return [sessionPlainScheduledId, sessionDisputedId, sessionLapsedId].filter(id => id !== "").map(id => Number(id));
 }
 
 // ─── Documents ───────────────────────────────────────────────────────────────
@@ -369,7 +367,10 @@ async function countAuditForSession(sessionId: number): Promise<number> {
 
 /** Counts every `audit_logs` row written BY one actor (the read-only probe). */
 async function countAuditByActor(actorId: number): Promise<number> {
-  const result = await db.select({ count: sql<number>`count(*)::int` }).from(auditLogs).where(eq(auditLogs.actorId, actorId));
+  const result = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(auditLogs)
+    .where(eq(auditLogs.actorId, actorId));
   return result[0]?.count ?? 0;
 }
 
@@ -483,7 +484,9 @@ describe("adminSessions — directory happy path (admin)", () => {
     const ids = items.map(rowIdOf);
     // Newest first — the last booking sits at the head of the list.
     expect(ids[0]).toBe(sessionLapsedId);
-    expect(ids.toSorted()).toEqual([sessionPlainScheduledId, sessionDisputedId, sessionLapsedId].toSorted());
+    expect(ids.toSorted((a, b) => a.localeCompare(b))).toEqual(
+      [sessionPlainScheduledId, sessionDisputedId, sessionLapsedId].toSorted((a, b) => a.localeCompare(b))
+    );
     // The canonical projection: every row carries the lifecycle vocabulary
     // and the derived badge member on the wire.
     for (const row of items) {
