@@ -6,7 +6,6 @@ import { Stack } from "@mui/material";
 import { type ReactNode, useCallback, useMemo, useRef, useState } from "react";
 import type {
   AdminSessionListFilterInput,
-  AdminSessionsQuery,
   AdminSessionsQuery_adminSessions_items,
 } from "@/frontend/graphql/generated/gql/graphql";
 import {
@@ -136,6 +135,16 @@ const EMPTY_FILTER_DRAFT: DirectoryFilterDraft = {
   dateTo: null,
 };
 
+/** Wire-shaped unfiltered state — every member explicitly null (input members are required-nullable). */
+const EMPTY_APPLIED_FILTER: AdminSessionListFilterInput = {
+  teacherUserId: null,
+  studentUserId: null,
+  type: null,
+  status: null,
+  dateFrom: null,
+  dateTo: null,
+};
+
 /** Whole-number id tokens only — the wire member is `Int`, never a string. */
 const WHOLE_NUMBER_PATTERN = /^\d+$/;
 
@@ -192,7 +201,7 @@ export function AdminSessionGovernanceContainer(): ReactNode {
   // ---- filter state (draft → applied) -------------------------------------
   const [filterDraft, setFilterDraft] = useState<DirectoryFilterDraft>(EMPTY_FILTER_DRAFT);
   const [filterInvalidId, setFilterInvalidId] = useState(false);
-  const [appliedFilter, setAppliedFilter] = useState<AdminSessionListFilterInput>({});
+  const [appliedFilter, setAppliedFilter] = useState<AdminSessionListFilterInput>(EMPTY_APPLIED_FILTER);
   const [page, setPage] = useState(1);
 
   // ---- surface state -------------------------------------------------------
@@ -213,6 +222,10 @@ export function AdminSessionGovernanceContainer(): ReactNode {
   const rows = data?.adminSessions.items ?? [];
   const totalCount = data?.adminSessions.totalCount ?? 0;
   const totalPages = Math.max(1, Math.ceil(totalCount / ADMIN_SESSIONS_PAGE_SIZE));
+
+  // A filter is "active" when any committed member is set — the body swaps
+  // the empty-state copy ("no results match the filters" vs "no sessions").
+  const filtersActive = Object.values(appliedFilter).some(value => value !== null);
 
   // Status summary — counts over the LOADED page only (honest, real data).
   const statusCounts = useMemo<StatusSummaryCounts>(() => {
@@ -270,7 +283,7 @@ export function AdminSessionGovernanceContainer(): ReactNode {
   const resetFilters = useCallback((): void => {
     setFilterDraft(EMPTY_FILTER_DRAFT);
     setFilterInvalidId(false);
-    setAppliedFilter({});
+    setAppliedFilter(EMPTY_APPLIED_FILTER);
     setPage(1);
   }, []);
 
@@ -427,6 +440,7 @@ export function AdminSessionGovernanceContainer(): ReactNode {
         data={data}
         page={page}
         totalPages={totalPages}
+        filtersActive={filtersActive}
         onRetry={() => {
           void refetch();
         }}
@@ -484,6 +498,7 @@ export function AdminSessionGovernanceContainer(): ReactNode {
         detail={detailData?.adminSession ?? null}
         loading={detailLoading}
         error={detailError}
+        tSessions={tSessions}
         onClose={closeDrawer}
         onRetry={() => {
           void refetchDetail();
