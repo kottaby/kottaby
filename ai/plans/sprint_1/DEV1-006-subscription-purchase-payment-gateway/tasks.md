@@ -133,10 +133,10 @@
 
 ## Phase 6: Activation Service & Webhook
 
-- [ ] 7.1 `SubscriptionActivationService`
+- [x] 7.1 `SubscriptionActivationService`
   - CREATE `backend/services/billing/subscription-activation.service.ts` (+barrel). `processWebhookEvent`: locate subscription by reference (unknown → `{ processed: false }`, warn-log only); verify amount/currency vs stored payment (mismatch → quarantine, `logger.error`, `{ processed: false }`); confirmed → `withTransaction`: `activatePendingOnce` (zero-row → replay path `{ processed: true, replayed: true }`), `markPaidOnce`, `creditLaneBalance`, `emitForUser` (`NotificationType.PaymentConfirmation`, purchaser locale, tx) then `publishReceipts` post-commit; failed → `markFailedOnce`, subscription untouched.
   - Late `confirmed` after `failed` → reject & log (payment guard excludes `failed`).
-  - [ ] 7.1.QL · [ ] 7.1.TE — 4-tier incl. duplicate-confirmed single-credit proof, out-of-order delivery, quarantines, notification row content + receipt publish · [ ] 7.1.SEC · [ ] 7.1.SR · [ ] 7.1.IV
+  - [x] 7.1.QL · [x] 7.1.TE — 4-tier incl. duplicate-confirmed single-credit proof, out-of-order delivery, quarantines, notification row content + receipt publish · [x] 7.1.SEC · [x] 7.1.SR · [x] 7.1.IV
   - _Requirements: REQ-004, REQ-022, REQ-023, REQ-024, REQ-025, REQ-026, REQ-028, REQ-030, REQ-031, REQ-032, REQ-044, REQ-052, REQ-053, REQ-071_
 
 - [ ] 8.1 Webhook route `app/api/payments/webhook/route.ts`

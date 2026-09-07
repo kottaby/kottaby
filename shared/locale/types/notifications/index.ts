@@ -157,4 +157,12 @@ export interface NotificationsLabels {
    * correctly in mixed-direction feeds without a presentation wrapper.
    */
   readonly eventParentLinkExpiringBody: (studentName: string) => string;
+  // ─── Payment-confirmation event copy ───────────────────────────────────────
+  /** Notification title — the student's plan payment was confirmed. */
+  readonly eventPaymentConfirmedTitle: string;
+  /**
+   * Notification body for a confirmed payment — interpolates ONLY the
+   * purchased plan's catalog title (the copy the student bought).
+   */
+  readonly eventPaymentConfirmedBody: (planTitle: string) => string;
 }
