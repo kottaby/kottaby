@@ -1,7 +1,8 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, relative, sep } from "node:path";
-import { loadTestEnvFile, withProcessLock } from "@/scripts/lib";
+import { withProcessLock } from "@/scripts/lib/process-lock";
+import { loadTestEnvFile } from "@/scripts/lib/test-build-env";
 
 const BUN_BIN = existsSync(join(homedir(), ".bun", "bin", "bun"))
   ? join(homedir(), ".bun", "bin", "bun")
@@ -161,7 +162,7 @@ async function runTest(testPath: string): Promise<number> {
     // would otherwise silently point single-file runs at the DEV database).
     env: {
       ...process.env,
-      DATABASE_URL: loadTestEnvFile().DATABASE_URL,
+      ...loadTestEnvFile(),
       FORCE_COLOR: "0",
       NODE_ENV: "test",
       KOTTABY_TEST_RUNNER_OK: "1",
