@@ -10,8 +10,8 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { PGlite } from "@electric-sql/pglite";
 
-const MIGRATIONS_DIR = "/home/z/my-project/backend/drizzle";
-const DB_URL = "file:///home/z/my-project/db/pglite";
+const MIGRATIONS_DIR = join(process.cwd(), "backend/drizzle");
+const DB_URL = "file://" + join(process.cwd(), "db/pglite");
 
 async function main() {
   console.log("[pglite-bootstrap] Opening PGlite at", DB_URL);
@@ -31,7 +31,7 @@ async function main() {
       const stat = statSync(join(MIGRATIONS_DIR, name));
       return stat.isDirectory();
     })
-    .sort();
+    .sort((a, b) => a.localeCompare(b));
 
   let applied = 0;
   for (const dir of entries) {
@@ -69,9 +69,9 @@ async function main() {
 
   // Also apply custom immutability triggers + functions if present
   const customFiles = [
-    "/home/z/my-project/backend/db/migration/1-extensions.sql",
-    "/home/z/my-project/backend/db/migration/2-functions.sql",
-    "/home/z/my-project/backend/db/migration/3-immutability-triggers.sql",
+    join(process.cwd(), "backend/db/migration/1-extensions.sql"),
+    join(process.cwd(), "backend/db/migration/2-functions.sql"),
+    join(process.cwd(), "backend/db/migration/3-immutability-triggers.sql"),
   ];
   for (const file of customFiles) {
     try {

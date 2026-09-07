@@ -26,8 +26,11 @@
  * remain in the codebase for other surfaces but this page no longer queries
  * them.
  *
- * All chrome copy comes from the `AdminUsers` locale namespace (passed from
- * the server as `labels`). MUI v9 `sx`-only discipline; colors via
+ * All chrome copy comes from the `AdminUsers` locale namespace, resolved
+ * client-side via `useAppTranslation(AdminUsers)` — the namespace carries
+ * interpolation closures (e.g. pluralized chips, dialog warnings) that must
+ * never cross the server→client props boundary, so the server page mounts
+ * this container label-free. MUI v9 `sx`-only discipline; colors via
  * `theme.palette.*` callbacks; `*Outlined` icons; ≥44px touch targets;
  * responsive (desktop table ≥md, stacked cards below).
  */
@@ -38,14 +41,17 @@ import type { ReactNode } from "react";
 import { AdminUserSuccessSnackbar, DirectoryMutationDialogs } from "@/frontend/views/admin/users/dialogs";
 import { DirectoryResults, DirectoryToolbar, FilterChipsRow } from "@/frontend/views/admin/users/directory";
 import { useAdminUsersDirectory } from "@/frontend/views/admin/users/hooks";
-import type { AdminUsersLabels } from "@/shared/locale/types/adminUsers";
+import { useAppTranslation } from "@/shared/locale/client";
+import { AdminUsers } from "@/shared/locale/namespaces/adminUsers";
 
-interface AdminUsersDirectoryContainerProps {
-  readonly labels: AdminUsersLabels;
-}
-
-export function AdminUsersDirectoryContainer({ labels }: AdminUsersDirectoryContainerProps): ReactNode {
+export function AdminUsersDirectoryContainer(): ReactNode {
+  const labels = useAppTranslation(AdminUsers);
   const directory = useAdminUsersDirectory();
+  // The copy-email quick action reports success through the shared success
+  // snackbar (identical feedback channel as the create/edit/delete writes).
+  const handleCopyEmail = () => {
+    directory.setSnackbarMessage(labels.quickActions.emailCopied);
+  };
   // Re-fetch the current page after a load failure (transport failure or
   // GraphQL error). The promise is handed to Apollo; rejections re-surface
   // through the same `hasError` state.
@@ -95,7 +101,7 @@ export function AdminUsersDirectoryContainer({ labels }: AdminUsersDirectoryCont
         </Alert>
       )}
 
-      <DirectoryResults labels={labels} directory={directory} />
+      <DirectoryResults labels={labels} directory={directory} onCopyEmail={handleCopyEmail} />
 
       {/* Mobile-only create affordance — the desktop one lives in the
           toolbar. Fixed above the bottom nav (bottom: 88px), below dialogs.

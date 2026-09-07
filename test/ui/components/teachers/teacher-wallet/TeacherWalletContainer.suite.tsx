@@ -42,21 +42,13 @@
  * objects resolved through `Wallet.getLabels(getTranslations(locale))`,
  * `Errors.getLabels(...)` and `Common.getLabels(...)` — ZERO hardcoded
  * Arabic/English copy. The one exception class is fixture DATA (ids,
- * enum-valued amounts, timestamps) recomputed with a local
- * `Intl.DateTimeFormat` clone of the documented option set.
+ * enum-valued amounts, timestamps) stamped via the shared scaffold's
+ * `expectedStamp` oracle (`@/test/ui/components/helpers`).
  */
 
 import { afterEach, describe, expect, test } from "bun:test";
 import type { MockLink } from "@apollo/client/testing";
-import { MockedProvider } from "@apollo/client/testing/react";
-import {
-  cleanup,
-  fireEvent,
-  getQueriesForElement,
-  type RenderResult,
-  type Screen,
-  waitFor,
-} from "@testing-library/react";
+import { cleanup, fireEvent, type RenderResult, waitFor } from "@testing-library/react";
 import {
   type MyWalletQuery_myWallet_transactions,
   TransactionStatus,
@@ -69,7 +61,13 @@ import { Common as CommonNs } from "@/shared/locale/namespaces/common";
 import { Errors as ErrorsNs } from "@/shared/locale/namespaces/errors";
 import { Wallet as WalletNs } from "@/shared/locale/namespaces/wallet";
 import { getTranslations } from "@/shared/locale/server";
-import { renderWithWrapper } from "@/test/ui/components/TestWrapper";
+import {
+  componentSuiteLocales,
+  expectedStamp,
+  liveScreen,
+  renderWithMocks,
+  snackbarSeverityClass,
+} from "@/test/ui/components/helpers";
 
 // ---------------------------------------------------------------------------
 // Fixtures (DATA — never locale copy)
@@ -232,50 +230,12 @@ function withdrawalSuccessMock(amount: string, payload: ReturnType<typeof wallet
 // ---------------------------------------------------------------------------
 // Render + expectation helpers
 
-/**
- * Lazily-bound `screen` replacement (sibling-suite pattern): bound through
- * `getQueriesForElement(document.body)` on EVERY property access so it
- * resolves against the live DOM under BOTH runners regardless of import
- * order.
- */
-const screen: Screen = new Proxy(Object.create(null), {
-  get: (_target, property, receiver) => Reflect.get(getQueriesForElement(document.body), property, receiver),
-});
+/** Alias for the scaffold's lazily-bound live-DOM screen (see its module docs). */
+const screen = liveScreen;
 
 /** Renders the container under TestWrapper (LocaleProvider → emotion → theme). */
 function renderWallet(mocks: ReadonlyArray<MockLink.MockedResponse>, locale: AppLocale): RenderResult {
-  const mocksCopy = [...mocks];
-  return renderWithWrapper(
-    <MockedProvider mocks={mocksCopy}>
-      <TeacherWalletContainer />
-    </MockedProvider>,
-    { locale }
-  );
-}
-
-/**
- * Recomputes the ledger stamp independently of the implementation
- * (byte-consistent clone of `formatApplicantDate`'s documented option set).
- */
-function expectedStamp(iso: string, locale: AppLocale): string {
-  const formatter = new Intl.DateTimeFormat(locale === "en" ? "en" : "ar", {
-    timeZone: "UTC",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
-  return formatter.format(new Date(iso));
-}
-
-/**
- * Resolves the MUI severity class of the snackbar Alert currently showing
- * `text` (`MuiAlert-colorSuccess` / `colorError` families).
- */
-function snackbarSeverityClass(text: string): string {
-  return screen.getByText(text).closest(".MuiAlert-root")?.className ?? "";
+  return renderWithMocks(<TeacherWalletContainer />, mocks, locale);
 }
 
 /**
@@ -289,19 +249,30 @@ function typeAmountAndSubmit(rawAmount: string): void {
   fireEvent.keyDown(field, { key: "Enter" });
 }
 
+/**
+ * Renders the wallet page with `mocks`, waits for the balance card to
+ * settle and opens the withdrawal dialog — the shared prologue of the
+ * dialog branches.
+ */
+async function renderWalletAndOpenWithdrawDialog(
+  mocks: ReadonlyArray<MockLink.MockedResponse>,
+  locale: AppLocale
+): Promise<void> {
+  renderWallet(mocks, locale);
+  await waitFor(() => {
+    expect(screen.getByTestId("wallet-balance-card-value").textContent).toBe(BALANCE);
+  });
+  fireEvent.click(screen.getByTestId("wallet-request-withdrawal"));
+  await waitFor(() => {
+    expect(screen.getByTestId("wallet-withdraw-dialog")).toBeDefined();
+  });
+}
+
 afterEach(cleanup);
 
-// One block per locale keeps RTL/LTR both exercised over the FULL branch
-// matrix while every case stays independently readable.
-//
-// STUI_LOCALE split-run guard: when set ("ar" | "en"), one bun invocation
-// executes ONLY that locale's block — the sanctioned OOM relief carried
-// over from the sibling suites. Unset (default) runs BOTH locales exactly
-// as before, so no runner changes its behavior.
-const STUI_LOCALES: ReadonlyArray<AppLocale> = process.env.STUI_LOCALE
-  ? (["ar", "en"] as AppLocale[]).filter(candidate => candidate === process.env.STUI_LOCALE)
-  : (["ar", "en"] as AppLocale[]);
-for (const locale of STUI_LOCALES) {
+// STUI_LOCALE split-run guard: `componentSuiteLocales` carries the shared
+// ar/en filtering the sibling suites use (unset runs BOTH locales).
+for (const locale of componentSuiteLocales) {
   const t = WalletNs.getLabels(getTranslations(locale));
   const te = ErrorsNs.getLabels(getTranslations(locale));
   const tc = CommonNs.getLabels(getTranslations(locale));
@@ -399,15 +370,7 @@ for (const locale of STUI_LOCALES) {
     });
 
     test("branch 6 — withdrawal dialog: opens with the live balance hint, submit gated while empty, dismisses cleanly", async () => {
-      renderWallet([walletQueryMock(walletFixture())], locale);
-
-      await waitFor(() => {
-        expect(screen.getByTestId("wallet-balance-card-value").textContent).toBe(BALANCE);
-      });
-      fireEvent.click(screen.getByTestId("wallet-request-withdrawal"));
-      await waitFor(() => {
-        expect(screen.getByTestId("wallet-withdraw-dialog")).toBeDefined();
-      });
+      await renderWalletAndOpenWithdrawDialog([walletQueryMock(walletFixture())], locale);
 
       // The dialog carries the debit-on-request explainer + the live hint.
       expect(screen.getByText(t.withdrawDialogTitle)).toBeDefined();
@@ -425,15 +388,7 @@ for (const locale of STUI_LOCALES) {
     });
 
     test("branch 7 — empty/invalid submit: the client gate blocks pre-wire (helper error, dialog stays open)", async () => {
-      renderWallet([walletQueryMock(walletFixture())], locale);
-
-      await waitFor(() => {
-        expect(screen.getByTestId("wallet-balance-card-value").textContent).toBe(BALANCE);
-      });
-      fireEvent.click(screen.getByTestId("wallet-request-withdrawal"));
-      await waitFor(() => {
-        expect(screen.getByTestId("wallet-withdraw-dialog")).toBeDefined();
-      });
+      await renderWalletAndOpenWithdrawDialog([walletQueryMock(walletFixture())], locale);
 
       // The empty state shows the HINT (not the error) and the submit CTA
       // is gated; pressing Enter with an empty field no-ops — the dialog
@@ -458,18 +413,10 @@ for (const locale of STUI_LOCALES) {
     // the REAL-BROWSER 4.1 loop (typing + submit + snackbar + cache
     // convergence + DB ledger row, all verified live).
     test.skip("branch 8 — typed-amount family arm: malformed gate → WALLET_INSUFFICIENT_FUNDS denial (dialog open, balance unchanged)", async () => {
-      renderWallet(
+      await renderWalletAndOpenWithdrawDialog(
         [walletQueryMock(walletFixture()), withdrawalErrorMock(AMOUNT_SENT, "WALLET_INSUFFICIENT_FUNDS")],
         locale
       );
-
-      await waitFor(() => {
-        expect(screen.getByTestId("wallet-balance-card-value").textContent).toBe(BALANCE);
-      });
-      fireEvent.click(screen.getByTestId("wallet-request-withdrawal"));
-      await waitFor(() => {
-        expect(screen.getByTestId("wallet-withdraw-dialog")).toBeDefined();
-      });
 
       // A malformed typed value (3 decimals) flips the helper to the
       // invalid-amount mirror and keeps the CTA gated — no wire call.
@@ -501,15 +448,10 @@ for (const locale of STUI_LOCALES) {
     // Body INTACT behind one `.skip(` flip; compensated by the REAL-BROWSER
     // 4.1 loop.
     test.skip("branch 9 — withdrawal SUCCESS: dialog closes, success snackbar, balance + ledger converge via cache normalization", async () => {
-      renderWallet([walletQueryMock(walletFixture()), withdrawalSuccessMock(AMOUNT_SENT, UPDATED_WALLET)], locale);
-
-      await waitFor(() => {
-        expect(screen.getByTestId("wallet-balance-card-value").textContent).toBe(BALANCE);
-      });
-      fireEvent.click(screen.getByTestId("wallet-request-withdrawal"));
-      await waitFor(() => {
-        expect(screen.getByTestId("wallet-withdraw-dialog")).toBeDefined();
-      });
+      await renderWalletAndOpenWithdrawDialog(
+        [walletQueryMock(walletFixture()), withdrawalSuccessMock(AMOUNT_SENT, UPDATED_WALLET)],
+        locale
+      );
 
       typeAmountAndSubmit(AMOUNT_TYPED);
 

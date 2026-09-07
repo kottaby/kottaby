@@ -8,4 +8,5 @@
  */
 export * from "./admin-users.documents";
 export * from "./audit-trail.documents";
+export * from "./platform-analytics.documents";
 export * from "./teacher-certification.documents";

@@ -27,7 +27,7 @@
  */
 import { randomUUID } from "node:crypto";
 import { jwtVerify, SignJWT } from "jose";
-import { getEnv, getEnvironmentConfig } from "@/backend/lib/env";
+import { getEnv, getEnvironmentConfig, requireEnv } from "@/backend/lib/env";
 
 /** Access-token lifetime (15 minutes). Short — limits the blast radius of a stolen token. */
 const ACCESS_TOKEN_TTL_SECONDS = 15 * 60;
@@ -62,7 +62,7 @@ function encodeSecret(value: string): Uint8Array {
  * MUST NOT rely on this fallback.
  */
 async function deriveDevSecret(domain: "access" | "refresh"): Promise<Uint8Array> {
-  const base = getEnv("DATABASE_ENCRYPTION_KEY") ?? "dev-only-insecure-fallback-secret";
+  const base = requireEnv("DATABASE_ENCRYPTION_KEY");
   const material = `${base}:${domain}`;
   // Use the Web Crypto subtle digest (available in Node 18+ via globalThis.crypto).
   const digest = await globalThis.crypto.subtle.digest("SHA-256", new TextEncoder().encode(material));
@@ -81,6 +81,9 @@ async function getAccessSecret(): Promise<Uint8Array> {
     return cachedAccessSecret;
   }
   const explicit = getEnv("JWT_ACCESS_SECRET");
+  if (!explicit && getEnvironmentConfig().nodeEnv === "production") {
+    throw new Error('Required environment variable "JWT_ACCESS_SECRET" is not set in production.');
+  }
   cachedAccessSecret = explicit ? encodeSecret(explicit) : await deriveDevSecret("access");
   return cachedAccessSecret;
 }
@@ -97,6 +100,9 @@ async function getRefreshSecret(): Promise<Uint8Array> {
     return cachedRefreshSecret;
   }
   const explicit = getEnv("JWT_REFRESH_SECRET");
+  if (!explicit && getEnvironmentConfig().nodeEnv === "production") {
+    throw new Error('Required environment variable "JWT_REFRESH_SECRET" is not set in production.');
+  }
   cachedRefreshSecret = explicit ? encodeSecret(explicit) : await deriveDevSecret("refresh");
   return cachedRefreshSecret;
 }
@@ -250,4 +256,13 @@ export function isUsingDevFallbackSecret(): boolean {
     return false;
   }
   return !getEnv("JWT_ACCESS_SECRET") || !getEnv("JWT_REFRESH_SECRET");
+}
+
+/**
+ * Invalidates the cached JWT signing secrets so subsequent calls re-read
+ * secrets from the environment.
+ */
+export function resetJwtSecretCache(): void {
+  cachedAccessSecret = null;
+  cachedRefreshSecret = null;
 }

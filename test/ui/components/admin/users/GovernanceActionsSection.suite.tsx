@@ -442,13 +442,19 @@ for (const locale of LOCALES) {
       // prop has already flipped to false. Under Happy-DOM, MUI Dialog's
       // Fade exit transition may leave the Portal briefly mounted, so the
       // unmount check uses an extended waitFor window (transition drain).
+      // The drain depends on wall-clock timers that lag hard on loaded
+      // machines — give it 10s (observed 3s flake under CI-grade load).
       await waitFor(
         () => {
           expect(screen.queryByRole("dialog")).toBeNull();
         },
-        { timeout: 3000 }
+        { timeout: 10_000 }
       );
-    });
+      // Per-test timeout 20s: bun's default 5s per-test cap sits BELOW the
+      // 10s drain window above, so a legitimately slow Fade drain was being
+      // reported as a test timeout. 20s = 10s window + margin for the
+      // dialog-open + mutation round-trip.
+    }, 20_000);
 
     test("success — Unsuspend completes: onToast(unsuspendSuccessToast)", async () => {
       const { onToast } = renderSection(

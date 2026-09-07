@@ -1,0 +1,3 @@
+## 2025-05-18 - Single-Pass Cookie and Header Parsing in GraphQL Context Factory
+**Learning:** In GraphQL request handling, `createGraphQLContext` previously parsed cookies twice per request (once for context object generation and once inside `extractAccessToken`), and executed regex matching over raw cookie headers for locale extraction. Passing pre-parsed cookies and fast-pathing `Bearer ` header strings avoids duplicate parsing and allocations on hot request paths.
+**Action:** When inspecting per-request gateway factories, reuse parsed headers/cookies across sub-extractors and fast-path standard header prefixes.
