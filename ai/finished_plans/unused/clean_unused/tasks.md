@@ -62,6 +62,6 @@
 - [x] T8.4 quality-gate full pass (includes new knip gate); commit + push
 - [x] T8.5 Merge main into branch; resolve conflicts (drizzle migrations = main, regenerate GraphQL); rerun migrations; commit + push
 - [x] T8.6 db generate/migrate/seed + .env.test migrate; test:db / test:services / test:graphql green; commit + push
-- [ ] T8.7 autofix skill run #2; resolve CodeRabbit threads via gh; commit + push
-- [ ] T8.8 Archive plan: delete outcome/ + deferred-items + prototype artifacts; move plan dir to ai/finished_plans/; commit + push
-- [ ] T8.9 Watch CI until PR #73 mergeable; fix failing checks; repeat until green
+- [x] T8.7 autofix skill run #2; resolve CodeRabbit threads via gh; commit + push
+- [x] T8.8 Archive plan: delete outcome/ + deferred-items + prototype artifacts; move plan dir to ai/finished_plans/; commit + push
+- [x] T8.9 Watch CI until PR #73 mergeable; fix failing checks; repeat until green
