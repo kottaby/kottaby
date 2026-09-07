@@ -106,6 +106,12 @@ export interface AdminTeachersLabels {
     readonly filteredTitle: string;
     /** Empty-state body explaining filters narrowed the result set to zero. */
     readonly filteredMessage: string;
+    /**
+     * Call-to-action shown only on the zero-teachers (unfiltered) state —
+     * routes the admin to the users directory, where teacher applicants
+     * mid-review live.
+     */
+    readonly cta: string;
   };
 
   /** Error-state copy rendered when the directory query fails. */

@@ -38,6 +38,7 @@ export const adminTeachersAr: AdminTeachersLabels = {
     message: "ستظهر هنا حسابات المعلمين بمجرد تسجيلهم على المنصة.",
     filteredTitle: "لا يوجد معلمون مطابقون للمرشحات",
     filteredMessage: "عدّل المرشحات أعلاه أو امسحها لعرض كل المعلمين.",
+    cta: "مراجعة حسابات المستخدمين",
   },
   errorState: {
     title: "تعذّر تحميل المعلمين",

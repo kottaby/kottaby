@@ -38,6 +38,7 @@ export const adminTeachersEn: AdminTeachersLabels = {
     message: "Teacher accounts will appear here once they register on the platform.",
     filteredTitle: "No teachers match your filters",
     filteredMessage: "Adjust the filters above or clear them to see every teacher.",
+    cta: "Review user accounts",
   },
   errorState: {
     title: "Could not load teachers",
