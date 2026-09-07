@@ -137,7 +137,7 @@
 
 ### Phase 2.M — Mid-Point Review Gate
 
-- [ ] 2.M Mid-point review gate (BLOCKS Phase 3+)
+- [x] 2.M Mid-point review gate (BLOCKS Phase 3+)
   - Re-run: `bun run test/scripts/run-test.ts backend/services/parents` and `bun run test/scripts/run-test.ts test/workflows` — all green.
   - `bun x tsgo --noEmit` error count ≤ 0.1 baseline (any NEW error = fix now or ledger with justification).
   - Confirm zero production-code edits in `backend/services/**` and `backend/db/repo/**` so far (`git diff --stat`); any diff → ledger + explicit approval trail in outcome.
