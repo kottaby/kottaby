@@ -17,6 +17,7 @@ export const dashboardAr: DashboardLabels = {
   analytics: "التحليلات",
   broadcasts: "الإعلانات",
   disputes: "النزاعات",
+  sessionGovernance: "حوكمة الجلسات",
   profile: "الملف الشخصي",
   children: "الأبناء",
   linkRequests: "طلبات الربط",
