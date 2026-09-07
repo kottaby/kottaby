@@ -57,7 +57,7 @@
   - subtasks as above; register in `backend/graphql/query/classes/index.ts` barrel
 - [x] 4.3 **CREATE** `backend/graphql/mutation/classes/admin-session-governance.mutation.ts` — 4 mutations (REQ-020..027, REQ-030, REQ-060); register barrel
   - subtasks as above; Tier-3 idempotency retries; Tier-4 401/403 byte-identical
-- [ ] 4.4 **Codegen** — `bun run generate:gqlSchema && bun codegen` (REQ-060); verify generated TS types include new ops
+- [x] 4.4 **Codegen** — `bun run generate:gqlSchema && bun codegen` (REQ-060); verify generated TS types include new ops
 
 ---
 
