@@ -1,6 +1,8 @@
 /**
- * PurchaseSubscriptionPayloadPothosObject + PaymentCheckoutPothosObject —
- * the wrapper surface of the purchase mutation.
+ * PurchaseSubscriptionInput + PurchaseSubscriptionPayloadPothosObject +
+ * PaymentCheckoutPothosObject — the wire surface of the purchase mutation
+ * (input, payload wrapper, and checkout descriptor on one leaf, mirroring
+ * the plan-catalog object+inputs convention).
  *
  * Wrapper Exception Policy (`backend/graphql/AGENTS.md`): the purchase
  * response is a composition, not an entity — `PurchaseSubscriptionPayload`
@@ -8,7 +10,14 @@
  * `PaymentCheckout` by `PaymentCheckoutSession`, both imported from
  * `@/backend/types` (zero local type definitions). Neither wrapper carries
  * an `id`: they are embedded value objects, and Apollo cache normalization
- * converges on the nested `Subscription`/`StudentPayment` identities.
+ * converges on the nested `StudentSubscription`/`StudentPayment` identities.
+ *
+ * `PurchaseSubscriptionInput` is the client whitelist (BOPLA): the plan
+ * selector is the ONLY client-owned purchase field. The wire shape is a
+ * GraphQL `ID`; the strict numeric coercion happens at the resolver
+ * boundary and every financial column is derived server-side from the plan
+ * row — a payload structurally cannot carry the purchaser identity, the
+ * amount, or the currency.
  *
  * `PaymentCheckout` is the provider-agnostic checkout descriptor: the
  * gateway that owns the session, the provider-issued reference to correlate
@@ -74,3 +83,18 @@ export const PurchaseSubscriptionPayloadPothosObject = gqlSchemaBuilder
       }),
     }),
   });
+
+/**
+ * The `PurchaseSubscriptionInput` whitelist — string-named `inputType` per
+ * the AGENTS input pattern (never `inputRef<BackendType>`). Exactly one
+ * field: the plan selector.
+ */
+export const PurchaseSubscriptionInput = gqlSchemaBuilder.inputType("PurchaseSubscriptionInput", {
+  description: "Whitelist for a purchase attempt — the plan selector is the only client-owned field.",
+  fields: t => ({
+    planId: t.id({
+      required: true,
+      description: "ID of the subscription plan to purchase.",
+    }),
+  }),
+});

@@ -152,9 +152,9 @@
   - [x] 9.1.QL · [x] 9.1.TE — SDL snapshot: emitted schema contains the new fields/types · [x] 9.1.SEC · [x] 9.1.SR · [x] 9.1.IV
   - _Requirements: REQ-002, REQ-005, REQ-060, REQ-061_
 
-- [ ] 9.2 Mutations + query resolvers
+- [x] 9.2 Mutations + query resolvers
   - CREATE `backend/graphql/mutation/subscription-purchase.mutation.ts` (`purchaseSubscription`, `$all` conjunction, `PlanCatalogService.coercePlanId`, key from `ctx.idempotencyKey`) and `backend/graphql/query/subscription.query.ts` (`mySubscriptions`); register via the existing side-effect index wiring.
-  - [ ] 9.2.QL · [ ] 9.2.TE — covered by 9.3 suites · [ ] 9.2.SEC · [ ] 9.2.SR · [ ] 9.2.IV
+  - [x] 9.2.QL · [ ] 9.2.TE — covered by 9.3 suites · [x] 9.2.SEC · [x] 9.2.SR · [x] 9.2.IV
   - _Requirements: REQ-010, REQ-041, REQ-050, REQ-063_
 
 - [ ] 9.3 GraphQL contract tests

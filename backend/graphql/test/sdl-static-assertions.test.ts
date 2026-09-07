@@ -90,13 +90,13 @@ import {
 // ─── .test.ts — the single sanctioned growth history) ────────────────────────
 
 /**
- * Root mutation fields — the refreshed 23-op baseline: the prior auth
+ * Root mutation fields — the refreshed 24-op baseline: the prior auth
  * quartet + notification read-latch pair + users-locale surface, the
  * reconciled dev3-016 admin-user-management trio (3 mutations) + the
  * dev3-004 session quartet + dev3-005 dispute pair + dev3-012 confirm
- * + dev3-013 payout, and the sanctioned dev3-017 admin-governance pair.
- * Sorted alphabetically (mirrors the live
- * `printSchema(lexicographicSortSchema(graphQLSchema))` Mutation root
+ * + dev3-013 payout, the sanctioned dev3-017 admin-governance pair, and
+ * the dev1-006 student purchase write. Sorted alphabetically (mirrors the
+ * live `printSchema(lexicographicSortSchema(graphQLSchema))` Mutation root
  * inventory verbatim). Re-anchored to the live schema as a documented
  * one-time reconciliation (NOT a silent baseline flip) ahead of pinning
  * the dev3-017 admin-governance pair.
@@ -120,6 +120,7 @@ const FROZEN_MUTATION_FIELDS = [
   "markAllNotificationsRead",
   "markNotificationRead",
   "openSessionDispute",
+  "purchaseSubscription",
   "refreshToken",
   "registerUser",
   "requestParentChildLink",
@@ -133,11 +134,12 @@ const FROZEN_MUTATION_FIELDS = [
 ] as const;
 
 /**
- * Root query fields — the refreshed 19-op baseline + the whole-platform
+ * Root query fields — the refreshed 20-op baseline + the whole-platform
  * analytics snapshot: the prior frozen baseline + the `_health` probe +
  * the reconciled dev3-016 admin-user query quartet + the dev3-004
  * participant-read trio + the dev3-005 admin arbitration listing + the
- * dev3-013 wallet read + the dev1-013 handshake pair. Sorted
+ * dev3-013 wallet read + the dev1-013 handshake pair + the dev1-006
+ * caller-scoped subscription read. Sorted
  * alphabetically (mirrors the live
  * `printSchema(lexicographicSortSchema(graphQLSchema))` Query root
  * inventory verbatim, with locale-aware case handling:
@@ -165,6 +167,7 @@ const FROZEN_QUERY_FIELDS = [
   "myNotifications",
   "myOutgoingParentLinkRequests",
   "myStudentSessions",
+  "mySubscriptions",
   "myTeacherSessions",
   "myUnreadNotificationCount",
   "myWallet",
@@ -306,12 +309,12 @@ describe("BFLA structural verdict — zero notification CUD surface (REQ-032)", 
     }
   });
 
-  test("Mutation root is EXACTLY the refreshed frozen 23-op baseline — the reconciled dev3-016 admin-user trio + dev3-004 quartet + dev3-005 dispute pair + dev3-012 confirm + dev3-013 payout + the sanctioned dev3-017 admin-governance pair on top of the auth quartet + notification read-latch pair + users-locale surface", () => {
+  test("Mutation root is EXACTLY the refreshed frozen 24-op baseline — the reconciled dev3-016 admin-user trio + dev3-004 quartet + dev3-005 dispute pair + dev3-012 confirm + dev3-013 payout + the sanctioned dev3-017 admin-governance pair + the dev1-006 purchase write on top of the auth quartet + notification read-latch pair + users-locale surface", () => {
     const names = fieldSurfaces("Mutation").map(surface => surface.name);
     expect(names.toSorted((a, b) => a.localeCompare(b))).toEqual([...FROZEN_MUTATION_FIELDS]);
   });
 
-  test("Query root is EXACTLY the refreshed frozen 19-op baseline (zero unsanctioned growth)", () => {
+  test("Query root is EXACTLY the refreshed frozen 20-op baseline (zero unsanctioned growth)", () => {
     const names = fieldSurfaces("Query").map(surface => surface.name);
     expect(names.toSorted((a, b) => a.localeCompare(b))).toEqual([...FROZEN_QUERY_FIELDS]);
   });

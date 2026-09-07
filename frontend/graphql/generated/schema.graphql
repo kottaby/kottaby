@@ -374,6 +374,11 @@ type Mutation {
   openSessionDispute(id: ID!, reason: String!): Session!
 
   """
+  Purchase a subscription plan for the caller: opens the gateway checkout session and commits the pending subscription + payment pair atomically (a failed purchase never burns its idempotency key). Replaying the same X-Idempotency-Key surfaces DUPLICATE_REQUEST. Returns the pending pair plus the checkout descriptor. Student-only.
+  """
+  purchaseSubscription(input: PurchaseSubscriptionInput!): PurchaseSubscriptionPayload!
+
+  """
   Rotate the JWT pair from a valid refresh token. Returns fresh access + refresh tokens. The new access_token + refresh_token + session_id are also set as httpOnly cookies (rotation invalidates the prior pair).
   """
   refreshToken(refreshToken: String!): RefreshTokenPayload!
@@ -638,6 +643,14 @@ type PlatformAnalyticsUsers {
 }
 
 """
+Whitelist for a purchase attempt — the plan selector is the only client-owned field.
+"""
+input PurchaseSubscriptionInput {
+  """ID of the subscription plan to purchase."""
+  planId: ID!
+}
+
+"""
 Result of a successful purchase attempt — the pending pair and its checkout session.
 """
 type PurchaseSubscriptionPayload {
@@ -694,6 +707,11 @@ type Query {
   """
   myOutgoingParentLinkRequests: [OutgoingParentLinkRequest!]!
   myStudentSessions(filter: SessionListFilterInput, page: Int = 1, pageSize: Int = 25): SessionPage!
+
+  """
+  The caller's own subscriptions across every lifecycle status, newest first. Student-only.
+  """
+  mySubscriptions: [StudentSubscription!]!
   myTeacherSessions(filter: SessionListFilterInput, page: Int = 1, pageSize: Int = 25): SessionPage!
 
   """

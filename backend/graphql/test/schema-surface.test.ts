@@ -282,15 +282,23 @@ const DEV3_022C_TYPE_NAMES = [
  * DEV1-006 subscription purchase settlement vocabulary — registered ONCE in
  * `shared/enum.pothos.ts` from the canonical `backend/enum/billing/*` enum
  * objects. `PaymentGateway` carries the full nine-member channel set (incl.
- * the mock-provider member); the schema registers NO root fields for this
- * surface yet — the object/enum types land ahead of their resolvers.
+ * the mock-provider member); the surface's root fields are the student
+ * purchase write and the caller-scoped subscription read below.
  */
 const DEV1_006_ENUMS = ["PaymentGateway", "PaymentStatus", "SubscriptionCreditLane", "SubscriptionStatus"] as const;
 /**
+ * DEV1-006 purchase surface root fields — the student-only purchase write
+ * and the caller-scoped subscription list (zero arguments; the read scope
+ * IS the verified context identity). Auth-gated on both (`$all`
+ * conjunction); none is allowlist material.
+ */
+const DEV1_006_QUERY_FIELDS = ["mySubscriptions"] as const;
+const DEV1_006_MUTATION_FIELDS = ["purchaseSubscription"] as const;
+/**
  * DEV1-006 purchase surface named types — the canonical student
- * subscription and payment objects plus the purchase wrapper pair
- * (payload + checkout descriptor). No inputs, no root operations at this
- * stage. The entity object is named `StudentSubscription` on the wire:
+ * subscription and payment objects, the purchase wrapper pair
+ * (payload + checkout descriptor), and the purchase input whitelist. The
+ * entity object is named `StudentSubscription` on the wire:
  * `Subscription` is reserved by GraphQL default-root naming (a bare object
  * with that name is auto-adopted as the schema's subscription root, which
  * the realtime sidecar contract forbids — see the dedicated root check
@@ -298,6 +306,7 @@ const DEV1_006_ENUMS = ["PaymentGateway", "PaymentStatus", "SubscriptionCreditLa
  */
 const DEV1_006_TYPE_NAMES = [
   "PaymentCheckout",
+  "PurchaseSubscriptionInput",
   "PurchaseSubscriptionPayload",
   "StudentPayment",
   "StudentSubscription",
@@ -412,6 +421,7 @@ describe("Query._health — retyped probe surface", () => {
         ...DEV3_013_QUERY_FIELDS,
         ...DEV3_016_ADMIN_USER_QUERY_FIELDS,
         ...DEV3_022C_QUERY_FIELDS,
+        ...DEV1_006_QUERY_FIELDS,
         ...RECONCILED_ADMIN_AUDIT_QUERY_FIELDS,
         ...RECONCILED_PARENT_LINK_QUERY_FIELDS,
       ].toSorted((a, b) => a.localeCompare(b))
@@ -475,7 +485,7 @@ describe("HealthCheck object shape — four scalar fields, no id", () => {
 });
 
 describe("Surface freeze — pinned additions vs the baseline inventory", () => {
-  test("mutation set grows ONLY by the sanctioned additions (DEV3-004 quartet + DEV3-005 dispute pair + DEV3-012 confirm + DEV3-013 payout + DEV3-016 admin-user trio + DEV3-017 admin-governance pair)", () => {
+  test("mutation set grows ONLY by the sanctioned additions (DEV3-004 quartet + DEV3-005 dispute pair + DEV3-012 confirm + DEV3-013 payout + DEV3-016 admin-user trio + DEV3-017 admin-governance pair + DEV1-006 purchase write)", () => {
     const mutationFields = graphQLSchema.getMutationType()?.getFields() ?? {};
     const names = Object.keys(mutationFields).toSorted((a, b) => a.localeCompare(b));
 
@@ -500,6 +510,7 @@ describe("Surface freeze — pinned additions vs the baseline inventory", () => 
         ...DEV3_013_MUTATION_FIELDS,
         ...DEV3_016_ADMIN_USER_MUTATION_FIELDS,
         ...DEV3_017_ADMIN_GOVERNANCE_MUTATION_FIELDS,
+        ...DEV1_006_MUTATION_FIELDS,
         ...RECONCILED_ADMIN_BROADCAST_MUTATION_FIELDS,
         ...RECONCILED_PARENT_LINK_MUTATION_FIELDS,
         ...RECONCILED_TEACHER_COLD_START_MUTATION_FIELDS,
@@ -601,7 +612,7 @@ describe("Surface freeze — pinned additions vs the baseline inventory", () => 
     }
   });
 
-  test("whole-schema named-type delta is pinned: refreshed baseline delta (DateTime scalar + HealthCheck probe + DEV1-013 handshake surface) + DEV3-004 session objects/inputs + scheduling/arbitration/ledger enums + DEV3-013 wallet surface + DEV3-016 admin-user-management surface + the parent-link objects (extend step) + the eleven analytics value objects (no new enum) + the DEV1-006 subscription purchase objects/enums (objects land ahead of their resolvers)", () => {
+  test("whole-schema named-type delta is pinned: refreshed baseline delta (DateTime scalar + HealthCheck probe + DEV1-013 handshake surface) + DEV3-004 session objects/inputs + scheduling/arbitration/ledger enums + DEV3-013 wallet surface + DEV3-016 admin-user-management surface + the parent-link objects (extend step) + the eleven analytics value objects (no new enum) + the DEV1-006 subscription purchase surface (objects, input, root operations)", () => {
     const post = new Set(sdlTypeNames());
 
     for (const name of PRE_3_1_TYPE_NAMES) {
