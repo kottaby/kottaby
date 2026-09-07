@@ -423,3 +423,37 @@ export async function reassignTeacherInTx(
   );
   return { session: updated, receipts };
 }
+
+/**
+ * The join transaction body (extracted verbatim): the eligibility
+ * re-assertion inside the transaction — the audit write is guarded by this
+ * re-check (assertion strictly first, same transaction, so a denied join
+ * writes zero audit rows) — followed by the EXACTLY-ONE audit row that
+ * makes the observation auditable. The caller owns the pre-write
+ * validation read; this body changes NO session column.
+ */
+export async function joinObservationInTx(
+  actorId: number,
+  sessionId: number,
+  tx: DBTransaction,
+  t: GovernanceErrorsTranslations
+): Promise<SessionReturnType> {
+  // The eligibility re-assertion inside the transaction — the audit
+  // write is guarded by this re-check (assertion strictly first, same
+  // transaction, so a denied join writes zero audit rows).
+  const row = await SessionRepository.getAnyByIdForAdmin(sessionId, tx);
+  if (row === null) {
+    return rejectSessionNotFound("Admin session join denied: session not found", sessionId, t);
+  }
+  if (row.status !== SESSION_STARTED_STATUS) {
+    return rejectStateConflict("Admin session join denied: session not joinable in its current state", sessionId, t);
+  }
+
+  await AuditService.createAuditLog(
+    buildGovernanceAuditContract(actorId, sessionId, {
+      action: "join_observe",
+    }),
+    tx
+  );
+  return row;
+}
