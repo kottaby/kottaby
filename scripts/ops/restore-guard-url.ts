@@ -26,6 +26,15 @@
  *     query (and in the raw host substring) refuse before any URL parsing —
  *     the WHATWG parser strips what libpq keeps, so the assessed URL must be
  *     the URL libpq sees.
+ *
+ *  3. The RAW AUTHORITY-SPAN gate: libpq scans the authority to the FIRST
+ *     `/` of the raw string and splits userinfo at the LAST `@` inside that
+ *     span, while the WHATWG parser ends the authority at the first `?`/`#`
+ *     — `postgresql://postgres:?@prod.example.com/db` parses with host
+ *     `postgres` under WHATWG but libpq connects to `prod.example.com`. A
+ *     raw `?`/`#`/control character in that span, or a userinfo that
+ *     percent-decodes into an `@`/`/`, is unassessable and refuses the run
+ *     before any URL parsing (fail closed).
  */
 
 import { POSTGRES_PROTOCOLS } from "@/scripts/ops/_shared";
@@ -135,7 +144,7 @@ const LOOPBACK_IPV4_PATTERN = /^127(?:\.\d{1,3}){3}$/;
  * the socket endpoint a remote numeric address that no host marker can
  * reason about — such a channel is unassessable and the run refuses.
  */
-function isLoopbackHostaddr(value: string): boolean {
+export function isLoopbackHostaddr(value: string): boolean {
   const bare = value.startsWith("[") && value.endsWith("]") ? value.slice(1, -1) : value;
   return LOOPBACK_IPV4_PATTERN.test(bare) || bare === "::1";
 }
@@ -163,7 +172,7 @@ function decodeUriQueryComponent(component: string): DecodedHost {
 
 /** Result of extracting the libpq host channels from a URI query string. */
 type UriQueryChannels =
-  | { kind: "ok"; host: string | undefined; hostaddr: string | undefined }
+  | { kind: "ok"; host: string | undefined; hostaddr: string | undefined; service: boolean }
   | { kind: "refuse"; reason: string };
 
 /**
@@ -175,10 +184,14 @@ type UriQueryChannels =
  * semantics; names match case-insensitively (fail closed: whether libpq ends
  * up rejecting the odd casing as an unknown option or applying it, refusing
  * is never wrong), and a valueless `?host` counts as libpq's empty value.
+ * A `service` key is tracked separately: it names a libpq service whose
+ * service file (forwarded to the restore children via PGSERVICEFILE)
+ * decides the endpoint — indirection the guard cannot assess.
  */
 function extractUriQueryChannels(rawQuery: string): UriQueryChannels {
   let host: string | undefined;
   let hostaddr: string | undefined;
+  let service = false;
   for (const pair of rawQuery.split("&")) {
     if (pair.length === 0) {
       continue;
@@ -197,9 +210,11 @@ function extractUriQueryChannels(rawQuery: string): UriQueryChannels {
       host = decodedValue.decoded;
     } else if (key === "hostaddr") {
       hostaddr = decodedValue.decoded;
+    } else if (key === "service") {
+      service = true;
     }
   }
-  return { kind: "ok", host, hostaddr };
+  return { kind: "ok", host, hostaddr, service };
 }
 
 /**
@@ -277,6 +292,73 @@ export function rawUriHostSubstring(target: string): string {
   return atSign < 0 ? authority : authority.slice(atSign + 1);
 }
 
+/** True when `span` carries an ASCII control character (C0 range or DEL). */
+function hasControlCharacter(span: string): boolean {
+  for (let index = 0; index < span.length; index += 1) {
+    const code = span.charCodeAt(index);
+    if (code < 0x20 || code === 0x7f) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/** Result of the raw authority-span assessment of a URI-form target. */
+export type RawAuthorityAssessment = { kind: "ok" } | { kind: "refuse"; reason: string };
+
+/**
+ * Assesses the RAW AUTHORITY SPAN of a URI-form target: the substring after
+ * `//` up to the FIRST `/` of the raw string. libpq scans the authority to
+ * that first `/` and splits userinfo at the LAST `@` inside the span, while
+ * the WHATWG parser ends the authority at the first `?`/`#` — so
+ * `postgresql://postgres:?@prod.example.com/db` parses with host `postgres`
+ * under WHATWG but libpq connects to `prod.example.com`. No RFC-legal URL
+ * puts a raw `?`/`#` (or a control character) in the userinfo/authority, so
+ * a span carrying one is UNASSESSABLE and refuses the run before any URL
+ * parsing (fail closed) — the assessed URL must be the URL libpq sees. The
+ * same holds for a userinfo that percent-decodes into an `@` or `/`: libpq
+ * percent-decodes the userinfo before use, so a decoded authority delimiter
+ * makes the DSN's parsing ambiguous across libpq versions.
+ */
+export function assessRawUriAuthority(trimmedTarget: string): RawAuthorityAssessment {
+  const schemeEnd = trimmedTarget.indexOf("://");
+  const authorityStart = schemeEnd < 0 ? 0 : schemeEnd + 3;
+  const slashAt = trimmedTarget.indexOf("/", authorityStart);
+  const authoritySpan =
+    slashAt < 0 ? trimmedTarget.slice(authorityStart) : trimmedTarget.slice(authorityStart, slashAt);
+  if (authoritySpan.includes("?") || authoritySpan.includes("#") || hasControlCharacter(authoritySpan)) {
+    return {
+      kind: "refuse",
+      reason:
+        "target URL raw authority span carries a raw ?/# delimiter or control character — WHATWG and libpq " +
+        "disagree on where the authority ends — unassessable authority — cannot assess target safety",
+    };
+  }
+  const atSign = authoritySpan.lastIndexOf("@");
+  if (atSign < 0 || !authoritySpan.slice(0, atSign).includes("%")) {
+    return { kind: "ok" };
+  }
+  let decodedUserinfo: string;
+  try {
+    decodedUserinfo = decodeURIComponent(authoritySpan.slice(0, atSign));
+  } catch {
+    return {
+      kind: "refuse",
+      reason:
+        "target URL userinfo carries a malformed percent-escape — unassessable authority — cannot assess target safety",
+    };
+  }
+  if (decodedUserinfo.includes("@") || decodedUserinfo.includes("/")) {
+    return {
+      kind: "refuse",
+      reason:
+        "target URL userinfo percent-decodes to a value containing an authority delimiter (@ or /) — " +
+        "unassessable authority — cannot assess target safety",
+    };
+  }
+  return { kind: "ok" };
+}
+
 /**
  * Parses the RAW query string of a URI-form target into one assess URL per
  * query host channel. Parsing happens on the raw string — NOT on WHATWG's
@@ -308,6 +390,19 @@ export function uriQueryChannelAssessUrls(
   const channels = extractUriQueryChannels(rawQuery);
   if (channels.kind === "refuse") {
     return channels;
+  }
+  // Service indirection: the `service` parameter names an entry in the
+  // service file the restore children receive (PGSERVICEFILE is forwarded),
+  // and that file — not this target string — decides the effective
+  // host/port/database. A target whose endpoint is chosen elsewhere cannot
+  // be assessed and refuses the run.
+  if (channels.service) {
+    return {
+      kind: "refuse",
+      reason:
+        "target URL query carries a service= parameter — service indirection is unassessable (the service file " +
+        "decides the connection endpoint) — cannot assess target safety",
+    };
   }
   const urls: string[] = [];
   for (const [label, value] of [

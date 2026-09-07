@@ -31,12 +31,31 @@
  *     host characters) refuses the run, because the downstream guard silently
  *     SKIPS its host analysis on unparseable URLs. Trailing dots are stripped
  *     from conninfo host values too, for the same suffix-marker reason;
+ *   - a conninfo `hostaddr` must name a LOOPBACK address (127.0.0.0/8, ::1):
+ *     hostaddr is the endpoint libpq actually CONNECTS to (host is
+ *     verification-only), so a remote numeric endpoint has no assessable
+ *     host signal and refuses the run — the same rule the URI query
+ *     `hostaddr` channel enforces; a conninfo with `hostaddr` but NO `host`
+ *     is refused outright — a bare-IP target with no assessable host signal
+ *     cannot be reasoned about (URL-form DSNs with IP hosts remain the
+ *     supported drill path);
+ *   - a `service=` parameter — in a URI query or as a conninfo keyword — is
+ *     libpq SERVICE INDIRECTION: the named service file (forwarded to the
+ *     restore children via PGSERVICEFILE) decides the endpoint, so any
+ *     target naming a service is unassessable and refuses the run;
+ *   - the RAW AUTHORITY SPAN of a URI-form target (after `//`, up to the
+ *     first `/` of the raw string) must be clean: libpq scans the authority
+ *     to that first `/` and splits userinfo at the last `@` inside the span,
+ *     while the WHATWG parser ends the authority at the first `?`/`#` —
+ *     `postgresql://postgres:?@prod.example.com/db` parses with host
+ *     `postgres` under WHATWG but libpq connects to `prod.example.com`. A
+ *     raw `?`/`#`/control character in the span, or a userinfo that
+ *     percent-decodes into an `@`/`/` (libpq decodes userinfo before use),
+ *     is unassessable and refuses the run before any URL parsing (fail
+ *     closed: no RFC-legal URL puts raw `?`/`#` in the authority);
  *   - when `hostaddr` is present alongside `host`, BOTH values are assessed
  *     (libpq connects to `hostaddr` while using `host` for verification), so
- *     token order can never hide one of the two host signals; a conninfo
- *     with `hostaddr` but NO `host` is refused outright — a bare-IP target
- *     with no assessable host signal cannot be reasoned about (URL-form DSNs
- *     with IP hosts remain the supported drill path);
+ *     token order can never hide one of the two host signals;
  *   - a `postgresql://`/`postgres://` URL's QUERY STRING is a second host
  *     channel: libpq applies `?host=`/`?hostaddr=` query parameters ON TOP of
  *     the authority (overriding the connection target), so the guard parses
@@ -70,7 +89,9 @@
 import { assessDestructiveDbCommandSafety, formatDestructiveDbBlockMessage } from "@/scripts/lib/destructiveDbGuard";
 import { RestoreUsageError } from "@/scripts/ops/restore-cli";
 import {
+  assessRawUriAuthority,
   CONNINFO_HOST_PATTERN,
+  isLoopbackHostaddr,
   libpqEffectiveAssessUrl,
   parsesAsPostgresUrl,
   rawUriHostSubstring,
@@ -93,6 +114,13 @@ const UNASSESSABLE_REASON =
   "cannot assess target safety";
 
 const CONNINFO_DBNAME_KEY = "dbname";
+/** libpq service indirection keyword — the endpoint is decided by a service file. */
+const SERVICE_CONNINFO_KEY = "service";
+
+/** Refusal for any target that names a libpq service (URI query or conninfo). */
+const SERVICE_INDIRECTION_REFUSAL =
+  "target carries a service= parameter — service indirection is unassessable (the service file decides the " +
+  "connection endpoint) — cannot assess target safety";
 
 /**
  * Splits a keyword/value conninfo string into unquoted tokens (libpq rules:
@@ -144,7 +172,10 @@ function tokenizeConninfo(target: string): string[] | null {
  * The host-signal keywords extracted from a conninfo target. libpq applies
  * repeated keywords LAST-WINS (`host=a host=b` connects to `b`), so the
  * extraction below overwrites on every repeat exactly as libpq does — the
- * assessed host is always the host libpq would actually use.
+ * assessed host is always the host libpq would actually use. A `service=`
+ * keyword is libpq SERVICE INDIRECTION (the named service file — forwarded
+ * to the restore children via PGSERVICEFILE — decides the endpoint), so it
+ * is extracted as a refusal instead of a signal.
  */
 interface ConninfoSignal {
   host: string | undefined;
@@ -152,22 +183,27 @@ interface ConninfoSignal {
   dbname: string | undefined;
 }
 
-function extractConninfoSignal(target: string): ConninfoSignal | null {
+type ConninfoSignalExtraction = { kind: "ok"; signal: ConninfoSignal } | { kind: "service" } | { kind: "none" };
+
+function extractConninfoSignal(target: string): ConninfoSignalExtraction {
   const tokens = tokenizeConninfo(target);
   if (tokens === null || tokens.length === 0) {
-    return null;
+    return { kind: "none" };
   }
 
   const signal: ConninfoSignal = { host: undefined, hostaddr: undefined, dbname: undefined };
   for (const token of tokens) {
     const equals = token.indexOf("=");
     if (equals <= 0) {
-      return null;
+      return { kind: "none" };
     }
     const key = token.slice(0, equals).toLowerCase();
     const value = token.slice(equals + 1);
     if (value.length === 0) {
-      return null;
+      return { kind: "none" };
+    }
+    if (key === SERVICE_CONNINFO_KEY) {
+      return { kind: "service" };
     }
     if (key === "host") {
       signal.host = value;
@@ -178,9 +214,9 @@ function extractConninfoSignal(target: string): ConninfoSignal | null {
     }
   }
   if (signal.host === undefined && signal.hostaddr === undefined) {
-    return null;
+    return { kind: "none" };
   }
-  return signal;
+  return { kind: "ok", signal };
 }
 
 /** Result of extracting the assessable host URL(s) from a conninfo target. */
@@ -192,20 +228,30 @@ export type ConninfoAssessUrls = { kind: "ok"; urls: string[] } | { kind: "refus
  *
  * Returns null when the string is not a conninfo string or carries no
  * assessable host keyword, `{ kind: "refuse" }` when the target cannot be
- * assessed — `hostaddr` without a `host` (a bare-IP target with no host
- * signal), a host value outside the assessable charset, or a value that
- * cannot round-trip through `new URL()` (the downstream guard SKIPS its host
- * analysis on unparseable URLs, so an unparseable synthesis must refuse
- * rather than assess as "no signal") — and `{ kind: "ok" }` with ONE URL PER
- * host value otherwise: `host` and `hostaddr` are independent libpq signals
- * (hostaddr names the address actually connected; host is used for
- * verification), so both are assessed regardless of token order.
+ * assessed — a `service=` keyword (libpq service indirection), `hostaddr`
+ * naming a non-loopback address (hostaddr is the endpoint libpq actually
+ * connects to; a remote numeric endpoint has no host signal), `hostaddr`
+ * without a `host` (a bare-IP target with no host signal), a host value
+ * outside the assessable charset, or a value that cannot round-trip through
+ * `new URL()` (the downstream guard SKIPS its host analysis on unparseable
+ * URLs, so an unparseable synthesis must refuse rather than assess as "no
+ * signal") — and `{ kind: "ok" }` with ONE URL PER host value otherwise:
+ * `host` and `hostaddr` are independent libpq signals (hostaddr names the
+ * address actually connected; host is used for verification), so both are
+ * assessed regardless of token order.
  */
 export function conninfoAssessUrls(target: string): ConninfoAssessUrls | null {
-  const signal = extractConninfoSignal(target);
-  if (signal === null) {
+  const extraction = extractConninfoSignal(target);
+  if (extraction.kind === "none") {
     return null;
   }
+  // libpq service indirection: the service file the restore children receive
+  // (PGSERVICEFILE is forwarded) decides the endpoint, so any target naming a
+  // service is unassessable and refuses (fail closed).
+  if (extraction.kind === "service") {
+    return { kind: "refuse", reason: SERVICE_INDIRECTION_REFUSAL };
+  }
+  const signal = extraction.signal;
 
   // A conninfo with `hostaddr` but no `host` names a bare IP with no
   // assessable host signal — refused outright (fail closed). URL-form DSNs
@@ -220,9 +266,24 @@ export function conninfoAssessUrls(target: string): ConninfoAssessUrls | null {
 
   const suffix = signal.dbname !== undefined ? `/${encodeURIComponent(signal.dbname)}` : "/";
   const urls: string[] = [];
-  for (const rawHostValue of [signal.host, signal.hostaddr]) {
+  for (const [channel, rawHostValue] of [
+    ["host", signal.host],
+    ["hostaddr", signal.hostaddr],
+  ] as const) {
     if (rawHostValue === undefined) {
       continue;
+    }
+    // hostaddr IS the endpoint libpq connects to (host is verification-only
+    // and libpq validates the pair against each other), so a conninfo
+    // hostaddr must name a LOOPBACK address — the same rule the URI query
+    // hostaddr channel enforces. A remote numeric endpoint has no assessable
+    // host signal and refuses the run (fail closed).
+    if (channel === "hostaddr" && !isLoopbackHostaddr(rawHostValue)) {
+      return {
+        kind: "refuse",
+        reason:
+          "target conninfo hostaddr names a non-loopback address — the connection endpoint has no assessable host signal — cannot assess target safety",
+      };
     }
     // Trailing dots are DNS-invisible but suffix-marker-invisible too; strip
     // them so `host=prod.rds.amazonaws.com.` assesses as the managed host.
@@ -280,6 +341,18 @@ export function assessRestoreTargetSafety(targetDsn: string): RestoreGuardAssess
   let assessUrls: string[];
   if (parsesAsPostgresUrl(targetDsn)) {
     const trimmed = targetDsn.trim();
+    // RAW AUTHORITY-SPAN gate FIRST: libpq scans the authority to the first
+    // `/` of the raw string and splits userinfo at the last `@` inside that
+    // span, while the WHATWG parser ends the authority at the first `?`/`#`
+    // — `postgresql://postgres:?@prod.example.com/db` parses with host
+    // `postgres` under WHATWG but libpq connects to `prod.example.com`. A
+    // raw `?`/`#`/control character in the span (or a userinfo that
+    // percent-decodes into an `@`/`/`) makes the authority unassessable and
+    // refuses before any URL parsing (fail closed).
+    const authority = assessRawUriAuthority(trimmed);
+    if (authority.kind === "refuse") {
+      return { blocked: true, reasons: [authority.reason] };
+    }
     // WHATWG strips raw tab/newline from URL hosts but libpq does not: a raw
     // control character in the raw host substring means the host about to be
     // parsed is not the host libpq connects to — refuse before parsing.

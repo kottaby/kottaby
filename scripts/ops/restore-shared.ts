@@ -181,9 +181,10 @@ export function makePsqlRunner(spawn: SpawnRunner, dsn: string): PsqlRunner {
 /**
  * Redacted target identifier for reports: the database name ONLY — host,
  * user, and password never leave the process. Conninfo-form targets follow
- * libpq semantics: the LAST `dbname=` occurrence wins, and one layer of
+ * libpq semantics: the LAST `dbname=` occurrence wins, one layer of
  * surrounding single/double quotes is stripped (inner spaces are part of
- * the name libpq connects to).
+ * the name libpq connects to), and libpq `''` escapes inside single-quoted
+ * values are folded (`dbname='my''db'` reports `my'db`).
  */
 export function redactTargetDatabaseName(dsn: string): string {
   try {
@@ -197,8 +198,9 @@ export function redactTargetDatabaseName(dsn: string): string {
   }
 
   let reported: string | null = null;
-  for (const match of dsn.matchAll(/\bdbname=(?:"([^"]*)"|'([^']*)'|(\S+))/gi)) {
-    reported = match[1] ?? match[2] ?? match[3] ?? "";
+  for (const match of dsn.matchAll(/\bdbname=(?:"([^"]*)"|'((?:[^']|'')*)'|(\S+))/gi)) {
+    const singleQuoted = match[2];
+    reported = singleQuoted !== undefined ? singleQuoted.replace(/''/g, "'") : (match[1] ?? match[3] ?? "");
   }
   if (reported !== null && reported.length > 0) {
     return reported;

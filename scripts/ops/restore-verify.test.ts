@@ -1565,6 +1565,133 @@ describe("restore-verify tool family (4-tier)", () => {
       expect(run.requests.find(request => request.cmd === "pg_restore")?.args).toContain(benignTarget);
     });
 
+    // ── Raw authority-span gate: libpq scans the URI authority to the FIRST
+    // `/` of the raw string and splits userinfo at the LAST `@` inside that
+    // span, while WHATWG ends the authority at the first `?`/`#` — a raw
+    // `?`/`#`/control character in the span (or a userinfo percent-decoding
+    // into an `@`/`/`) makes the two parsers disagree about the host libpq
+    // connects to, so such targets refuse before any URL parsing. ──
+    const authorityRefusalCases: Array<{ name: string; targetDsn: string; reason: string }> = [
+      {
+        name: "a raw ? in the authority span (WHATWG ends the authority at it; libpq scans to the first /)",
+        targetDsn: "postgresql://postgres:?@prod.rds.amazonaws.com/db",
+        reason: "unassessable authority",
+      },
+      {
+        name: "a raw # in the authority span (WHATWG starts a fragment at it; libpq scans to the first /)",
+        targetDsn: "postgresql://postgres#?@prod.rds.amazonaws.com/db",
+        reason: "unassessable authority",
+      },
+      {
+        name: "a raw tab inside the authority span (before the first /)",
+        targetDsn: "postgresql://postgres@\tprod.rds.amazonaws.com/db",
+        reason: "unassessable authority",
+      },
+      {
+        name: "a userinfo percent-decoding to an @ (encoded authority delimiter)",
+        targetDsn: "postgresql://postgres%3F%40prod.rds.amazonaws.com@127.0.0.1:5432/db",
+        reason: "authority delimiter",
+      },
+      {
+        name: "a userinfo percent-decoding to a / (encoded path delimiter)",
+        targetDsn: "postgresql://postgres%2F%40prod.rds.amazonaws.com@127.0.0.1:5432/db",
+        reason: "authority delimiter",
+      },
+      {
+        name: "a userinfo carrying a malformed percent-escape",
+        targetDsn: "postgresql://postgres%ZZ@127.0.0.1:5432/db",
+        reason: "malformed percent-escape",
+      },
+    ];
+
+    for (const authorityRefusalCase of authorityRefusalCases) {
+      test(`guard refuses a URI target carrying ${authorityRefusalCase.name} before any spawn (exit 2)`, async () => {
+        const caseRoot = newCaseRoot();
+        makeSchemaFixture(caseRoot);
+        // `--from` is deliberately unresolvable: the guard must fire first.
+        const run = await runPipeline(caseRoot, {
+          from: join(caseRoot, "never-resolved"),
+          targetDsn: authorityRefusalCase.targetDsn,
+          script: emptyScript(),
+        });
+        expect(run.thrown).toBeNull();
+        expect(run.exitCode).toBe(2);
+        expect(run.stderr).toContain("[guard]");
+        expect(run.stderr).toContain(authorityRefusalCase.reason);
+        expect(run.requests).toHaveLength(0);
+        expect(run.stderr).not.toContain(FIXTURE_PASSWORD);
+      });
+    }
+
+    // ── libpq service indirection: a `service=` parameter (URI query or
+    // conninfo keyword) makes the SERVICE FILE — forwarded to the restore
+    // children via PGSERVICEFILE — decide the endpoint, so a target naming a
+    // service is unassessable and refuses. ──
+    test("guard refuses a URI query service= parameter (service indirection is unassessable)", async () => {
+      const caseRoot = newCaseRoot();
+      makeSchemaFixture(caseRoot);
+      const run = await runPipeline(caseRoot, {
+        from: join(caseRoot, "never-resolved"),
+        targetDsn: "postgresql://postgres@127.0.0.1:5432/scratch_restore?service=prodsvc",
+        script: emptyScript(),
+      });
+      expect(run.thrown).toBeNull();
+      expect(run.exitCode).toBe(2);
+      expect(run.stderr).toContain("[guard]");
+      expect(run.stderr).toContain("service indirection");
+      expect(run.requests).toHaveLength(0);
+    });
+
+    test("guard refuses a conninfo service= keyword (service indirection is unassessable)", async () => {
+      const caseRoot = newCaseRoot();
+      makeSchemaFixture(caseRoot);
+      const run = await runPipeline(caseRoot, {
+        from: join(caseRoot, "never-resolved"),
+        targetDsn: "host=127.0.0.1 service=prodsvc dbname=x",
+        script: emptyScript(),
+      });
+      expect(run.thrown).toBeNull();
+      expect(run.exitCode).toBe(2);
+      expect(run.stderr).toContain("[guard]");
+      expect(run.stderr).toContain("service indirection");
+      expect(run.requests).toHaveLength(0);
+    });
+
+    test("guard refuses a conninfo hostaddr naming a non-loopback endpoint (libpq connects to hostaddr)", async () => {
+      const caseRoot = newCaseRoot();
+      makeSchemaFixture(caseRoot);
+      // `host=127.0.0.99` is a loopback-family decoy; libpq CONNECTS to the
+      // hostaddr — a remote numeric endpoint has no assessable host signal,
+      // mirroring the query-channel hostaddr rule.
+      const run = await runPipeline(caseRoot, {
+        from: join(caseRoot, "never-resolved"),
+        targetDsn: "host=127.0.0.99 hostaddr=198.51.100.9 dbname=x",
+        script: emptyScript(),
+      });
+      expect(run.thrown).toBeNull();
+      expect(run.exitCode).toBe(2);
+      expect(run.stderr).toContain("[guard]");
+      expect(run.stderr).toContain("non-loopback");
+      expect(run.requests).toHaveLength(0);
+    });
+
+    test("guard allows a conninfo whose hostaddr is loopback (drill path; original string spawned)", async () => {
+      const caseRoot = newCaseRoot();
+      makeSchemaFixture(caseRoot);
+      const fixture = makeBackupRun(caseRoot);
+      const loopbackHostaddrTarget = "host=127.0.0.99 hostaddr=127.0.0.1 dbname=scratch_restore";
+      const run = await runPipeline(caseRoot, {
+        from: fixture.runDir,
+        targetDsn: loopbackHostaddrTarget,
+        script: healthyScript(),
+      });
+      expect(run.thrown).toBeNull();
+      expect(run.exitCode).toBe(0);
+      expect(run.stdout).toContain("VERDICT: PASS");
+      expect(run.requests.find(request => request.cmd === "pg_restore")?.args).toContain(loopbackHostaddrTarget);
+      expect(run.requests[0]?.cmd).toBe("pg_restore");
+    });
+
     test("value-oracle absence ladder descends ONLY on SQLSTATE 42P01 and fails closed otherwise", async () => {
       const registry: OracleDefinition[] = [
         {
@@ -1771,6 +1898,11 @@ describe("redactTargetDatabaseName (conninfo libpq semantics)", () => {
   test("conninfo form strips one layer of surrounding quotes (inner spaces kept)", () => {
     expect(redactTargetDatabaseName("dbname='a b'")).toBe("a b");
     expect(redactTargetDatabaseName('dbname="c d"')).toBe("c d");
+  });
+
+  test("conninfo single-quoted form folds libpq '' escapes", () => {
+    expect(redactTargetDatabaseName("dbname='my''db'")).toBe("my'db");
+    expect(redactTargetDatabaseName("host=127.0.0.1 port=5432 dbname='it''s here'")).toBe("it's here");
   });
 
   test("input without an assessable database name reports unknown", () => {
