@@ -1,8 +1,9 @@
+import { Stack } from "@mui/material";
 import type { Metadata } from "next";
 import { UserRole } from "@/backend/enum/users/user-role.enum";
 import { withPageAuth } from "@/frontend/lib/auth/withPageAuth";
 import { DashboardView } from "@/frontend/views/dashboard";
-import { HandshakeCodeCard } from "@/frontend/views/students/dashboard";
+import { HandshakeCodeCard, PendingParentLinkRequestsCard } from "@/frontend/views/students/dashboard";
 import { ApplicantStatusCard } from "@/frontend/views/teachers/dashboard";
 
 /**
@@ -21,10 +22,16 @@ import { ApplicantStatusCard } from "@/frontend/views/teachers/dashboard";
  *       identity server-side, and applicant vs certified presentation comes
  *       entirely from the query payload. No new routes, no
  *       extra guard logic.
- *     - Student → `<HandshakeCodeCard />`. Same additive pattern: the
- *       zero-argument `myHandshakeCode` query answers identity server-side
- *       (no student-id props), and the card mounts inside the EXISTING
- *       student dashboard surface (no new student route).
+ *     - Student → `<HandshakeCodeCard />` + `<PendingParentLinkRequestsCard />`
+ *       composed as siblings inside a Stack (DEV1-015 plan D6). Same additive
+ *       pattern: both cards are zero-prop client components whose zero-argument
+ *       queries (`myHandshakeCode`, `myIncomingParentLinkRequests`) answer
+ *       identity server-side (no student-id props), and they mount inside the
+ *       EXISTING student dashboard surface (no new student route, no
+ *       `DashboardView` contract change). The pending-requests card renders
+ *       `null` when the actionable queue is empty, so the slot degrades to the
+ *       handshake card alone. The hook lives INSIDE each card component —
+ *       composition here is plain JSX, so no conditional-hook surface exists.
  *     - Other roles → nothing (slot empty; their dashboards unchanged).
  *
  * Extracted to eliminate jscpd duplicates across the 4 role dashboard pages
@@ -45,7 +52,12 @@ function resolveStatusSlot(role: UserRole): React.ReactNode {
     case UserRole.Teacher:
       return <ApplicantStatusCard />;
     case UserRole.Student:
-      return <HandshakeCodeCard />;
+      return (
+        <Stack sx={theme => ({ display: "flex", flexDirection: "column", gap: theme.spacing(2) })}>
+          <HandshakeCodeCard />
+          <PendingParentLinkRequestsCard />
+        </Stack>
+      );
     default:
       return undefined;
   }

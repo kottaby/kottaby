@@ -229,20 +229,20 @@
   - [x] 4.2.IV **Instruction Verification:** `.agents/instructions/frontend.instructions.md` + `frontend/views/**` AGENTS.md ONLY if present per 0.2 (`frontend/views/AGENTS.md` is prose-phantom until proven otherwise).
   - Outcome: `4.2-outcome.md`.
 
-- [ ] 4.3 Compose the card into the student dashboard status slot (`RoleDashboardPage`)
+- [x] 4.3 Compose the card into the student dashboard status slot (`RoleDashboardPage`)
   - Edit `frontend/views/dashboard/home/RoleDashboardPage.tsx`: extend the EXISTING `resolveStatusSlot` student branch (which already renders `HandshakeCodeCard` from `@/frontend/views/students/dashboard`) to render `HandshakeCodeCard` + `PendingParentLinkRequestsCard` as siblings inside a `Stack` (plan D6 — no `DashboardView` contract change, no other-role impact).
   - No new props on `DashboardView`; no layout change for other roles.
   - _Requirements: REQ-015, REQ-053_
-  - [ ] 4.3.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts frontend/views/dashboard/home/RoleDashboardPage.tsx --lifecycle duplicates` — exit code 0.
-  - [ ] 4.3.TE **Unit / Component Tests:** Extend the dashboard home component tests (location per 0.2): student role renders both cards in the status slot; parent/teacher/admin slots unchanged (snapshot/role matrix green); component test for slot ordering.
+  - [x] 4.3.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts frontend/views/dashboard/home/RoleDashboardPage.tsx --lifecycle duplicates` — exit code 0.
+  - [x] 4.3.TE **Unit / Component Tests:** Extend the dashboard home component tests (location per 0.2): student role renders both cards in the status slot; parent/teacher/admin slots unchanged (snapshot/role matrix green); component test for slot ordering.
   - [ ] 4.3.BF **Agent-Browser Functional Self-Loop:**
     • Login as student → dashboard renders both cards; navigate away/back → no duplicate fetches (Apollo cache); logout/login as teacher → teacher dashboard renders with zero student cards and zero console errors.
     • Iterative self-loop until clean for both roles.
   - [ ] 4.3.BS **Agent-Browser Visual & Styling Self-Loop (Screenshot Analysis):**
     • Capture the full dashboard at the six viewport/locale cells with BOTH cards present: vertical rhythm between cards, stack spacing matches design tokens, no overflow at 375px, RTL order/alignment correct in ar.
     • Iterate on `sx` spacing tokens until the slot composition is visually seamless; attach screenshots to outcome.
-  - [ ] 4.3.SR **Semantic Review:** Single-role diff surface; `sx` only for the wrapper Stack; no hardcoded colors; no conditional-hook violations (hook lives INSIDE the card component, not in the server/route shell).
-  - [ ] 4.3.IV **Instruction Verification:** `.agents/instructions/frontend.instructions.md` + dashboard-layer AGENTS.md if present per 0.2.
+  - [x] 4.3.SR **Semantic Review:** Single-role diff surface; `sx` only for the wrapper Stack; no hardcoded colors; no conditional-hook violations (hook lives INSIDE the card component, not in the server/route shell).
+  - [x] 4.3.IV **Instruction Verification:** `.agents/instructions/frontend.instructions.md` + dashboard-layer AGENTS.md if present per 0.2.
   - Outcome: `4.3-outcome.md`.
 
 - [ ] 4.4 Nav retargeting (verify-first, retarget-if-needed — plan D5, invariant #12)
