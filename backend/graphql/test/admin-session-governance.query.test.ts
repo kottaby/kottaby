@@ -513,7 +513,15 @@ describe("adminSessions — directory happy path (admin)", () => {
     // NO writes, so the clock jump touches nothing but the comparison.
     setSystemTime(Date.now() + 25 * 60 * 60 * 1000);
     try {
-      const lapsedPage = await directoryForFixtures();
+      // The pre-minted tokens are EXPIRED under the jumped clock (their
+      // `exp` is wall-clock bound) — a fresh token minted inside the jump
+      // carries the jumped-clock lifetime and verifies normally.
+      const jumpedAdminToken = await tokenFor(cast.admin.userId, cast.admin.user.role);
+      const lapsedResult = await wireGraphQL(ADMIN_SESSIONS_DOC, {
+        token: jumpedAdminToken,
+        variables: { filter: { studentUserId: cast.primaryStudent.userId } },
+      });
+      const lapsedPage = payloadOf(lapsedResult, "adminSessions");
       const byId = new Map(itemsOf(lapsedPage).map(row => [rowIdOf(row), row]));
       const lapsed = byId.get(sessionLapsedId);
       const plain = byId.get(sessionPlainScheduledId);
