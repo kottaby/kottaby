@@ -205,11 +205,23 @@ function resolveWaveEnvelope(
         notificationType: NotificationType.SessionCompletion,
         idempotencyKey: `session-completion-autocancel:${sessionId}`,
       };
-    default:
+    case "teacher_request":
+    case "outcome_accepted":
+    case "outcome_declined":
+    case "outcome_auto_rejected":
+    case "outcome_queued":
+    case "outcome_alternatives_offered":
       return {
         notificationType: NotificationType.SessionRequest,
         idempotencyKey: `session:${sessionId}:${waveKind}`,
       };
+    default: {
+      // Exhaustiveness guard — every wave-kind union member is matched
+      // explicitly above, so this branch is unreachable; adding a 9th kind
+      // without an explicit envelope case now FAILS TO COMPILE right here.
+      const exhaustive: never = waveKind;
+      throw new Error(`Unexpected wave kind: ${String(exhaustive)}`);
+    }
   }
 }
 

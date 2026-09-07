@@ -271,8 +271,13 @@ interface WaveCase {
   ) => string;
 }
 
-/** The eight waves, with copy recomposed through the translation slots — never hand-written strings. */
-const WAVE_CASES: readonly WaveCase[] = [
+/**
+ * The eight waves, with copy recomposed through the translation slots — never hand-written strings.
+ *
+ * `satisfies` (instead of an array annotation) keeps every entry's `waveKind` a literal, so the
+ * exhaustiveness pin below turns a 9th union kind without a matrix entry into a compile error.
+ */
+const WAVE_CASES = [
   {
     waveKind: "teacher_request",
     side: "teacher",
@@ -353,10 +358,15 @@ const WAVE_CASES: readonly WaveCase[] = [
     titleOf: labels => labels.eventSessionAutoCancelledTitle,
     bodyOf: (labels, names) => labels.eventSessionAutoCancelledBody(names.teacherName),
   },
-];
+] satisfies readonly WaveCase[];
+
+// Compile-time exhaustiveness pin for WAVE_CASES — a 9th wave kind without a matrix entry makes
+// `MissingWaveCases` non-never, which collapses the `waveCaseByKind` return type below to `never`,
+// so the addition fails to compile on the return statement (no runtime effect: types only).
+type MissingWaveCases = Exclude<SessionRequestWaveKind, (typeof WAVE_CASES)[number]["waveKind"]>;
 
 /** Wave-case lookup — throws when a kind is not registered (test-internal guard). */
-function waveCaseByKind(waveKind: SessionRequestWaveKind): WaveCase {
+function waveCaseByKind(waveKind: SessionRequestWaveKind): [MissingWaveCases] extends [never] ? WaveCase : never {
   const found = WAVE_CASES.find(entry => entry.waveKind === waveKind);
   if (!found) {
     throw new Error(`no wave case registered for ${waveKind}`);

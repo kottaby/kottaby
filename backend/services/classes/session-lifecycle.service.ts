@@ -664,15 +664,23 @@ export namespace SessionLifecycleService {
    * the scheduled-expiry leg deliberately stays notification-free (its
    * semantics are unchanged). The notices are emitted on the sweep's
    * transaction as unpublished receipts and pushed through the notification
-   * engine strictly after the commit boundary, and ONLY when the flow owns
-   * the transaction — a caller-owned transaction NEVER publishes (the
-   * caller owns the commit boundary). The counts-only return shape carries
-   * no receipts, so the cron contract is unchanged: zero row identities
-   * cross the wire.
+   * engine strictly after the commit boundary. The outer-tx contract is
+   * pinned: called WITH an outer transaction, the auto-cancel receipts are
+   * still collected on that transaction, but the counts-only
+   * `{cancelled, refunded}` return exposes no publish channel — a
+   * caller-owned transaction NEVER publishes (the caller owns the commit
+   * boundary and would own any publish after it). Production (the cron
+   * route) calls without `outerTx`, so the flow-owned post-commit publish
+   * path is the only live one. The counts-only return shape carries no
+   * receipts either way, so the cron contract is unchanged: zero row
+   * identities cross the wire.
    *
    * @param outerTx  Optional outer transaction. When provided (test path),
-   *     the flow runs inside a SAVEPOINT on it; production callers omit it
-   *     and the service opens its own transaction.
+   *     the flow runs inside a SAVEPOINT on it — the auto-cancel receipts
+   *     are collected on it but stay unpublished (the counts-only return
+   *     hands nothing back to publish); production callers omit it and the
+   *     service opens its own transaction, making the flow-owned
+   *     post-commit publish the only live one.
    * @returns Honest counts: `cancelled` rows across BOTH legs and how many
    *     of them carried a refunded hold.
    */
