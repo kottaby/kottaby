@@ -9,6 +9,7 @@ import {
   FamilyRestroomOutlined as ChildrenIcon,
   DashboardOutlined as DashboardIcon,
   GavelOutlined as DisputesIcon,
+  EventNoteOutlined as SessionGovernanceIcon,
   HistoryEduOutlined as HomeworkIcon,
   InsightsOutlined,
   LinkOutlined as LinkChildIcon,
@@ -103,6 +104,9 @@ function isDashboardLabelKey(key: NavLabelKey): key is keyof DashboardLabels {
  *  - Admin Plans → `/admin/plans` (DEV1-005)
  *  - Admin Broadcasts → `/admin/broadcasts` (DEV3-022d — a pure ADD, not a
  *    retarget: the compose surface ships at the route)
+ *  - Admin Session Governance → `/admin/session-governance` (DEV3-021 — a
+ *    pure ADD, not a retarget: the admin session directory ships at the
+ *    route)
  */
 const NAV_ITEMS_BY_ROLE: Record<UserRole, readonly DashboardNavItem[]> = {
   [UserRole.Student]: [
@@ -140,6 +144,14 @@ const NAV_ITEMS_BY_ROLE: Record<UserRole, readonly DashboardNavItem[]> = {
     { route: "/admin/broadcasts", labelKey: "broadcasts", Icon: CampaignOutlined },
     // Targets the admin-guarded analytics page at `app/(dashboard)/admin/analytics/page.tsx`.
     { route: "/admin/analytics", labelKey: "analytics", Icon: InsightsOutlined },
+    // Targets the admin-guarded session-governance directory at
+    // `app/(dashboard)/admin/session-governance/page.tsx` — filter, reschedule,
+    // cancel, and teacher reassignment over platform sessions.
+    {
+      route: "/admin/session-governance",
+      labelKey: "sessionGovernance",
+      Icon: SessionGovernanceIcon,
+    },
     // DEV3-005 (R-111) — the session-arbitration queue: a REAL admin page
     // (`app/(dashboard)/disputes/page.tsx`, `withPageAuth` admin-gated like
     // the role dashboards) instead of a catch-all coming-soon stub.
