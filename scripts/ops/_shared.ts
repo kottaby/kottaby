@@ -171,27 +171,62 @@ export function parsePostgresDatabaseUrl(value: string | undefined): URL | null 
 }
 
 /**
- * Whether the RAW path span of a DSN string — the substring from the first
- * `/` after the authority to the first `?` (or the end of the string),
- * exactly the span libpq reads as the path — carries a literal `#`. The
- * WHATWG URL parser ends the path at a `#` (it becomes the fragment) while
- * libpq has no fragment delimiter, so a raw `#` makes the database libpq
- * connects to and the WHATWG path label diverge. The backup bootstrap uses
- * this to refuse such DSNs fail-closed (the mirror of the restore guard's
- * `assessRawUriPath`) instead of letting the manifest mislabel the dump.
- * The label functions above are untouched: refusal upstream (backup
- * bootstrap / restore guard) prevents the divergence they cannot see.
+ * Whether a literal `#` (fragment character) sits in ANY of the three raw
+ * spans of a DSN string where libpq reads THROUGH it while every
+ * WHATWG-derived view ends that span at the `#` — the backup-side mirror
+ * of the restore guard's three raw-# channels in `restore-guard-url.ts`:
+ *
+ *  1. the RAW AUTHORITY SPAN — after `//` up to the first `/` of the raw
+ *     string (with the guard's pathless refinement: on a pathless URI a
+ *     first `?` followed by no later `@` is the query delimiter both
+ *     parsers agree on, so the span ends there). libpq scans the authority
+ *     to that `/` and splits userinfo at the last `@` inside the span,
+ *     while WHATWG ends the authority at the first `?`/`#` —
+ *     `…//ops_owner#k:pw@host/db` dumps as role `ops_owner#k` while the
+ *     WHATWG view parses host `ops_owner`;
+ *  2. the RAW PATH SPAN — from the first `/` to the first `?`. libpq has
+ *     no fragment delimiter and reads the raw path as the LITERAL database
+ *     name (`…/pt9b#k`), while the WHATWG pathname ends at the `#`;
+ *  3. the RAW QUERY STRING — after the first `?`. A raw `#` there is a
+ *     fragment delimiter to WHATWG but a literal parameter-value character
+ *     to libpq (`?dbname=app_db#k` dumps `app_db#k` while the WHATWG query
+ *     value is `app_db`).
+ *
+ * Any of the three makes the database (or role) pg_dump connects as diverge
+ * from every URL-derived label, so the backup bootstrap refuses such DSNs
+ * fail-closed instead of letting the manifest mislabel the dump. A
+ * percent-encoded `%23` is fine: libpq percent-decodes each channel before
+ * use and the label decodes to the same literal value. The label functions
+ * above are untouched: refusal upstream (backup bootstrap / restore guard)
+ * prevents the divergence they cannot see.
  */
-export function rawUriPathHasFragment(trimmedDsn: string): boolean {
+export function rawDsnHasFragment(trimmedDsn: string): boolean {
   const schemeEnd = trimmedDsn.indexOf("://");
   const authorityStart = schemeEnd < 0 ? 0 : schemeEnd + 3;
   const slashAt = trimmedDsn.indexOf("/", authorityStart);
-  if (slashAt < 0) {
-    return false;
-  }
   const questionAt = trimmedDsn.indexOf("?", authorityStart);
-  const rawPath = trimmedDsn.slice(slashAt, questionAt < 0 ? trimmedDsn.length : questionAt);
-  return rawPath.includes("#");
+  // Channel 1 — raw authority span: the restore guard's span math
+  // (`assessRawUriAuthority`) mirrored exactly.
+  let authorityEnd = trimmedDsn.length;
+  if (slashAt >= 0) {
+    authorityEnd = slashAt;
+  } else if (questionAt >= 0 && trimmedDsn.indexOf("@", questionAt) < 0) {
+    authorityEnd = questionAt;
+  }
+  if (trimmedDsn.slice(authorityStart, authorityEnd).includes("#")) {
+    return true;
+  }
+  // Channel 2 — raw path span (`assessRawUriPath` mirror): first `/` to
+  // the first `?`, the span libpq reads as the path.
+  if (slashAt >= 0) {
+    const rawPath = trimmedDsn.slice(slashAt, questionAt < 0 ? trimmedDsn.length : questionAt);
+    if (rawPath.includes("#")) {
+      return true;
+    }
+  }
+  // Channel 3 — raw query string (the restore guard's query-channel
+  // rule): everything after the first `?` to the end of the string.
+  return questionAt >= 0 && trimmedDsn.slice(questionAt + 1).includes("#");
 }
 
 /**

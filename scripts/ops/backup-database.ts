@@ -45,7 +45,7 @@ import { applyEnvFile, isValidDatabaseUrl } from "@/scripts/dbActions/envFile";
 import {
   databaseNameFromDsn,
   parsePostgresDatabaseUrl,
-  rawUriPathHasFragment,
+  rawDsnHasFragment,
   redactDsn,
   resolveEnvFilePath,
   scrubDsnSecrets,
@@ -163,17 +163,20 @@ function bootstrapDsn(envFile: string, deps: BackupRunDeps): { dsn: string; dsnU
     return null;
   }
   // RAW-fragment gate — the backup-side mirror of the restore guard's
-  // `assessRawUriPath` refusal. libpq has no fragment delimiter and reads
-  // THROUGH a raw `#`: it dumps the literal `…/pt9b#k` database, while every
-  // WHATWG-derived view (the `effectiveDatabaseName` path label) ends the
-  // path at the `#` and would record `pt9b` — breaking the _shared contract
-  // that the manifest records the database pg_dump dumps. Refused here in
-  // the bootstrap path as an env/usage-class error, before any out-dir,
+  // three raw-# channels (`assessRawUriAuthority`, `assessRawUriPath`, and
+  // the query-string rule in `restore-guard-url.ts`). libpq has no fragment
+  // delimiter and reads THROUGH a raw `#` in any span: it dumps the literal
+  // `…/pt9b#k` path database, connects as the literal `user#k` authority
+  // role, and folds `?dbname=app_db#k` into the parameter value — while
+  // every WHATWG-derived view (the `effectiveDatabaseName` label among
+  // them) ends that span at the `#`, breaking the _shared contract that the
+  // manifest records the database pg_dump dumps. Refused here in the
+  // bootstrap path as an env/usage-class error, before any out-dir,
   // staging, dump, or manifest side effect; a percent-encoded `%23` is
-  // fine — libpq percent-decodes the path database and the label decodes
-  // to the same literal name, so the manifest matches what was dumped.
-  if (rawUriPathHasFragment(rawDsn.trim())) {
-    deps.emit.error(`[env] source DSN path contains a fragment character — percent-encode it`);
+  // fine — libpq percent-decodes each channel and the label decodes to
+  // the same literal name, so the manifest matches what was dumped.
+  if (rawDsnHasFragment(rawDsn.trim())) {
+    deps.emit.error(`[env] source DSN contains a fragment character — percent-encode it`);
     return null;
   }
   return { dsn: rawDsn, dsnUrl };

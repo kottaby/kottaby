@@ -133,7 +133,7 @@ Registered verbatim in `package.json` as `ops:db-restore-verify` → `bun run sc
 | Flag | Meaning |
 |---|---|
 | `--from <runDir\|artifact>` | Backup run directory (manifest.json + dump beside it) or a direct dump artifact whose manifest sits beside it. |
-| `--target <dsn>` | Restore destination Postgres connection string. **REQUIRED — there is no default — and it must NAME the target database** (a database-less DSN is refused: ambient `PGDATABASE` would complete the endpoint; a query `?dbname=` names the target when the path is empty, and a path/query dbname disagreement is refused). Must be a scratch/staging database: the restore **DROPS and recreates public objects** (`--clean --if-exists`). |
+| `--target <dsn>` | Restore destination Postgres connection string. **REQUIRED — there is no default — and it must NAME the target database** (a database-less DSN is refused: ambient `PGDATABASE` would complete the endpoint; a query `?dbname=` names the target when the path is empty, and a path/query dbname disagreement is refused). Must be a scratch/staging database: the restore **restores the dump's public objects (pg_restore --clean drops objects contained in the dump before recreating them)** (`--clean --if-exists`). |
 | `--yes-i-understand` | Explicit non-interactive confirmation of the destructive restore; refused without it. |
 | `--env <file>` | Env file providing **source-database context** (`DATABASE_URL`) for row-count comparisons. When omitted, `.env` is attempted and its absence is non-fatal (comparisons are skipped). |
 

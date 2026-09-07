@@ -98,6 +98,9 @@ let sqliteEnvFile = "";
 let placeholderEnvFile = "";
 let rawFragmentEnvFile = "";
 let encodedFragmentEnvFile = "";
+let rawFragmentQueryEnvFile = "";
+let rawFragmentAuthorityEnvFile = "";
+let encodedFragmentQueryEnvFile = "";
 const missingEnvFile = (): string => relative(process.cwd(), join(workspace, ".env-backup-missing"));
 const ORIGINAL_DATABASE_URL = process.env.DATABASE_URL;
 
@@ -210,6 +213,22 @@ beforeAll(() => {
   encodedFragmentEnvFile = writeEnvFile(
     ".env-backup-encoded-fragment",
     'DATABASE_URL="postgresql://ops_owner:supersecret-pw@db.internal.example:5432/pt9b%23k"\n'
+  );
+  // The sibling raw-`#` channels (same quoted-env-file rule) and their
+  // percent-encoded query twin: the query value WHATWG truncates but libpq
+  // folds into the dbname value, and the authority span libpq reads as
+  // role/host while WHATWG ends the authority at the `#`.
+  rawFragmentQueryEnvFile = writeEnvFile(
+    ".env-backup-raw-fragment-query",
+    'DATABASE_URL="postgresql://ops_owner:supersecret-pw@db.internal.example:5432/?dbname=app_db#k"\n'
+  );
+  rawFragmentAuthorityEnvFile = writeEnvFile(
+    ".env-backup-raw-fragment-authority",
+    'DATABASE_URL="postgresql://ops_owner#k:supersecret-pw@db.internal.example:5432/app_db"\n'
+  );
+  encodedFragmentQueryEnvFile = writeEnvFile(
+    ".env-backup-encoded-fragment-query",
+    'DATABASE_URL="postgresql://ops_owner:supersecret-pw@db.internal.example:5432/?dbname=app%23db"\n'
   );
 });
 
@@ -1009,6 +1028,31 @@ describe("runBackup — success boundary", () => {
     expectNoCredentials(run.all);
   });
 
+  it("records the decoded literal database for a percent-encoded query dbname= in the manifest", async () => {
+    const outDir = join(workspace, "run-encoded-fragment-query");
+    const run = await runBackupWith(probeAndDumpBehavior(dumpWritesArtifact), {
+      envFile: encodedFragmentQueryEnvFile,
+      outDir,
+    });
+    expect(run.code).toBe(0);
+
+    // libpq percent-decodes the query dbname — `app%23db` IS the literal
+    // `app#db` database — and the WHATWG query value decodes to the same
+    // value, so the manifest records exactly the database pg_dump dumps.
+    const manifest = JSON.parse(readFileSync(join(outDir, STAMP, MANIFEST_FILE_NAME), "utf8")) as unknown;
+    expect(manifestProblems(manifest)).toEqual([]);
+    expect(manifest).toMatchObject({ database: "app#db" });
+    expect(run.logs.some(line => line.includes("backing up app#db@db.internal.example:5432(redacted-user)"))).toBe(
+      true
+    );
+    // The child still receives the ORIGINAL DSN libpq resolves.
+    const dumpCall = run.calls.find(call => call.argv[0] === "pg_dump" && call.argv[1] !== "--version");
+    expect(dumpCall?.argv.at(-1)).toBe(
+      "postgresql://ops_owner:supersecret-pw@db.internal.example:5432/?dbname=app%23db"
+    );
+    expectNoCredentials(run.all);
+  });
+
   it("spawns exactly the probe and dump processes as argv arrays with an allowlisted env", async () => {
     const outDir = join(workspace, "run-spawn-contract");
     const run = await runBackupWith(probeAndDumpBehavior(dumpWritesArtifact), { envFile: goodEnvFile, outDir });
@@ -1172,10 +1216,41 @@ describe("runBackup — failure boundaries", () => {
     // database) while the WHATWG manifest label ends the path at the `#` —
     // the bootstrap refuses the DSN before anything runs (fail closed).
     expect(run.code).toBe(2);
-    expect(run.errors).toContain("[env] source DSN path contains a fragment character — percent-encode it");
+    expect(run.errors).toContain("[env] source DSN contains a fragment character — percent-encode it");
     expect(run.calls).toEqual([]);
     // Refused in the bootstrap path: the out-dir is never created — no
     // staging, no dump artifact, no manifest, no lock file.
+    expect(existsSync(outDir)).toBe(false);
+  });
+
+  it("refuses a raw fragment character in the query dbname= with exit 2 and zero side effects", async () => {
+    const outDir = join(workspace, "run-raw-fragment-query");
+    const run = await runBackupWith(probeAndDumpBehavior(dumpWritesArtifact), {
+      envFile: rawFragmentQueryEnvFile,
+      outDir,
+    });
+    // libpq folds a raw `#` into the query parameter value (it would dump
+    // the literal `app_db#k` database) while the WHATWG query value — the
+    // manifest's override channel — ends at the `#` and records `app_db`.
+    expect(run.code).toBe(2);
+    expect(run.errors).toContain("[env] source DSN contains a fragment character — percent-encode it");
+    expect(run.calls).toEqual([]);
+    expect(existsSync(outDir)).toBe(false);
+  });
+
+  it("refuses a raw fragment character in the authority span with exit 2 and zero side effects", async () => {
+    const outDir = join(workspace, "run-raw-fragment-authority");
+    const run = await runBackupWith(probeAndDumpBehavior(dumpWritesArtifact), {
+      envFile: rawFragmentAuthorityEnvFile,
+      outDir,
+    });
+    // libpq scans the authority to the first `/` and splits userinfo at the
+    // last `@` inside it (role `ops_owner#k` dumping `app_db`), while the
+    // WHATWG parser ends the authority at the `#` — the empty path label
+    // would render the `(default)` marker in the manifest.
+    expect(run.code).toBe(2);
+    expect(run.errors).toContain("[env] source DSN contains a fragment character — percent-encode it");
+    expect(run.calls).toEqual([]);
     expect(existsSync(outDir)).toBe(false);
   });
 

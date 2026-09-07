@@ -5,6 +5,7 @@ import {
   decodeUrlSegment,
   POSTGRES_PROTOCOLS,
   REDACTED_DSN,
+  rawDsnHasFragment,
   redactDsn,
   resolveEnvFilePath,
   scrubDsnSecrets,
@@ -22,6 +23,31 @@ describe("shared URL helpers", () => {
     expect(decodeUrlSegment("%31%32%37")).toBe("127");
     expect(decodeUrlSegment("plain")).toBe("plain");
     expect(decodeUrlSegment("%ZZ")).toBe("%ZZ");
+  });
+});
+
+describe("rawDsnHasFragment", () => {
+  it("refuses a raw # in the authority span (pathed, pathless, and mid-span ?)", () => {
+    expect(rawDsnHasFragment("postgresql://ops_owner#k:pw@host.example:5432/app_db")).toBe(true);
+    expect(rawDsnHasFragment("postgresql://db#x")).toBe(true);
+    expect(rawDsnHasFragment("postgresql://host.example?user=a@b#f")).toBe(true);
+  });
+
+  it("refuses a raw # in the raw path span", () => {
+    expect(rawDsnHasFragment("postgresql://u:p@host.example:5432/pt9b#k")).toBe(true);
+    expect(rawDsnHasFragment("postgresql://u:p@host.example:5432/pt9b#k?x=1")).toBe(true);
+  });
+
+  it("refuses a raw # in the raw query string", () => {
+    expect(rawDsnHasFragment("postgresql://u:p@host.example:5432/?dbname=app_db#k")).toBe(true);
+    expect(rawDsnHasFragment("postgresql://host.example:5432?dbname=app_db#k")).toBe(true);
+  });
+
+  it("allows percent-encoded fragments and benign DSNs", () => {
+    expect(rawDsnHasFragment("postgresql://u:p@host.example:5432/app%23db")).toBe(false);
+    expect(rawDsnHasFragment("postgresql://u:p@host.example:5432/?dbname=app%23db")).toBe(false);
+    expect(rawDsnHasFragment("postgresql://host.example:5432?sslmode=disable")).toBe(false);
+    expect(rawDsnHasFragment("postgresql://u:p@host.example:5432/app_db?sslmode=require")).toBe(false);
   });
 });
 
