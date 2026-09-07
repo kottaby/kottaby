@@ -38,28 +38,28 @@ Ground truth: repo primitives and services EXIST as cited in specs/plan; new cod
 
 ### Task 1: Repository — Post-Completion Timeout Primitive
 
-- [ ] 1. Add `sweepExpiredCompletedOnce(now, tx?)` to `backend/db/repo/classes/session.repository.ts`
+- [x] 1. Add `sweepExpiredCompletedOnce(now, tx?)` to `backend/db/repo/classes/session.repository.ts`
   - ONE guarded batch UPDATE: `status='completed' AND confirmed_by_student_at IS NULL AND confirmed_by_teacher_at < ${cutoff}` where `cutoff = new Date(now - SESSION_CONFIRMATION_WINDOW_MS)`; SET `status=cancelled, fee_held=false, updated_at=now`; RETURNING `*`
   - Shape mirrors `sweepExpiredScheduledOnce` (line 409); query-builder only, no raw-sql comments
-  - [ ] 1.1.QL Quality Loop: `bun run scripts/health/sub-loop.ts backend/db/repo/classes/session.repository.ts --lifecycle duplicates`
-  - [ ] 1.1.TE Test Engineering (Tier 1-4, `runInRollback` + `tx`, `expectRepoError` pattern): cutoff boundary (exactly-at-cutoff NOT swept — strict `<`); zero rows; lane-less rows returned with `heldBalanceLane=null` (nothing refunded downstream); mixed teacher-stamp ages; a student-confirmed row never matched; a `disputed`/`cancelled` row never matched
-  - [ ] 1.1.SEC: participant predicate is system-scope (sweep) — assert no caller-supplied id/shape reaches the WHERE; no wildcard/LIKE anywhere
-  - [ ] 1.1.SR: single guarded statement, status terminal, no probe; txn propagation; enums as value imports
-  - [ ] 1.1.IV: read rule files printed by sub-loop; validate
+  - [x] 1.1.QL Quality Loop: `bun run scripts/health/sub-loop.ts backend/db/repo/classes/session.repository.ts --lifecycle duplicates`
+  - [x] 1.1.TE Test Engineering (Tier 1-4, `runInRollback` + `tx`, `expectRepoError` pattern): cutoff boundary (exactly-at-cutoff NOT swept — strict `<`); zero rows; lane-less rows returned with `heldBalanceLane=null` (nothing refunded downstream); mixed teacher-stamp ages; a student-confirmed row never matched; a `disputed`/`cancelled` row never matched
+  - [x] 1.1.SEC: participant predicate is system-scope (sweep) — assert no caller-supplied id/shape reaches the WHERE; no wildcard/LIKE anywhere
+  - [x] 1.1.SR: single guarded statement, status terminal, no probe; txn propagation; enums as value imports
+  - [x] 1.1.IV: read rule files printed by sub-loop; validate
   - Write `outcome/1-repo-timeout-primitive-outcome.md`; mark `[x]`
   - _Requirements: REQ-3 (AC 1, 3, 4)_
 
 ### Task 2: Notification Wave Emitters
 
-- [ ] 2. Extend `SessionRequestWaveKind` + add two emitters
+- [x] 2. Extend `SessionRequestWaveKind` + add two emitters
   - `backend/types/classes/session-notification.types.ts`: union gains `"completion_prompt" | "completion_auto_cancelled"`
   - `backend/services/classes/session-request-notification.service.ts`: add `notifyStudentOfCompletionPrompt` and `notifyStudentOfCompletionAutoCancelled` riding the existing `emitWave` machinery; idempotency keys `session-completion-prompt:{sessionId}` / `session-completion-autocancel:{sessionId}`; recipient = student; `type: NotificationType.SessionCompletion` (value import); zero authorization; receipt return
   - `shared/locale/types/notifications/index.ts` + `shared/locale/en/notifications/index.ts` + `shared/locale/ar/notifications/index.ts`: `eventSessionCompletionPromptTitle`, `eventSessionCompletionPromptBody(teacherName)`, `eventSessionAutoCancelledTitle`, `eventSessionAutoCancelledBody(teacherName)` — all three files or parity test fails
-  - [ ] 2.QL: sub-loop per file (`session-notification.types.ts`, `session-request-notification.service.ts`, 3 locale files)
-  - [ ] 2.TE: service-local tests — recipient locale selection (ar/student vs en/teacher), idempotency-key derivation, intent label composition, exhaustiveness; parity test `shared/locale/notifications-namespace.parity.test.ts` passes
-  - [ ] 2.SEC: emitters take no caller identity (recipients derived server-side from the joined wave-context read); no `...input` spread
-  - [ ] 2.SR: no new service file; no duplicated wave machinery; no `Translation`-enum misuse (namespace keys are literals in locale type files — system-consistent)
-  - [ ] 2.IV: rule files per sub-loop output
+  - [x] 2.QL: sub-loop per file (`session-notification.types.ts`, `session-request-notification.service.ts`, 3 locale files)
+  - [x] 2.TE: service-local tests — recipient locale selection (ar/student vs en/teacher), idempotency-key derivation, intent label composition, exhaustiveness; parity test `shared/locale/notifications-namespace.parity.test.ts` passes
+  - [x] 2.SEC: emitters take no caller identity (recipients derived server-side from the joined wave-context read); no `...input` spread
+  - [x] 2.SR: no new service file; no duplicated wave machinery; no `Translation`-enum misuse (namespace keys are literals in locale type files — system-consistent)
+  - [x] 2.IV: rule files per sub-loop output
   - Write `outcome/2-notification-waves-outcome.md`; mark `[x]`
   - _Requirements: REQ-5, REQ-0.5_
 
