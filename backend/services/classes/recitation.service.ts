@@ -21,9 +21,10 @@
  *    surfaces as the typed conflict, and the stored record is never
  *    updated or replaced (no such surface exists).
  *  - `getSessionRecitation` is the oracle-safe read: a malformed id, an
- *    unknown session, and a non-participant caller all collapse to the
- *    same `null`, and a participant receives the row when it exists and
- *    `null` when the session is not yet recorded. No read path raises.
+ *    id beyond the int4 session-id ceiling, an unknown session, and a
+ *    non-participant caller all collapse to the same `null`, and a
+ *    participant receives the row when it exists and `null` when the
+ *    session is not yet recorded. No read path raises.
  *
  * Cross-surface purity: the service writes to the `recitation` table
  * ONLY — zero notification, audit, wallet, ledger, or session-row writes
@@ -63,6 +64,14 @@ const RECORD_NAME_MAX_LENGTH = 255;
 
 /** Ceiling of the record's free-form `description` notes. */
 const RECORD_DESCRIPTION_MAX_LENGTH = 2000;
+
+/**
+ * Highest value the session table's int4 primary key can store (2^31 − 1).
+ * A read of any id beyond it collapses to `null` BEFORE the database read:
+ * such an id can never match a row, and a query that carried one would die
+ * as a driver-level out-of-range failure instead of the answer `null`.
+ */
+const SESSION_ID_INT4_CEILING = 2_147_483_647;
 
 /**
  * The two non-recordable lifecycle states widened to plain strings: the
@@ -243,8 +252,10 @@ export namespace RecitationRecordService {
    *
    * Oracle-safe by construction: a malformed session id (anything but a
    * positive safe integer — the NaN/fractional/overflow shapes a
-   * shape-only parse yields for garbage `ID` strings) resolves to `null`
-   * before any database read; an unknown session and a non-participant
+   * shape-only parse yields for garbage `ID` strings) and an id beyond
+   * the int4 session-id ceiling (a positive safe integer the session
+   * table cannot represent) resolve to `null` before any database read;
+   * an unknown session and a non-participant
    * caller (the participant predicate reads the DB row's teacher and
    * student columns — no caller-supplied identity exists beyond the two
    * arguments) collapse to the SAME `null`; a participant receives the
@@ -264,8 +275,11 @@ export namespace RecitationRecordService {
     tx?: DBQueryExecutor
   ): Promise<RecitationReturnType | null> {
     // Oracle-safe malformed-id channel: the SAME `null` as a nonexistent
-    // id, BEFORE any database read. No error is raised.
-    if (!isPositiveSafeSessionId(sessionId)) {
+    // id, BEFORE any database read. No error is raised. The int4 ceiling
+    // is part of the same channel — an id the session column cannot
+    // represent is unmatchable, and SQL would answer a query carrying one
+    // with a driver-level failure, never the answer `null`.
+    if (!isPositiveSafeSessionId(sessionId) || sessionId > SESSION_ID_INT4_CEILING) {
       return null;
     }
 

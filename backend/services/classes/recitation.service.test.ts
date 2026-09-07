@@ -28,8 +28,9 @@
  *    2000/2001; the field projection names every offending field; session-id
  *    fuzz (0, negative, fractional, NaN, beyond the safe-integer ceiling)
  *    denied `VALIDATION` BEFORE any database read on the write path and
- *    collapsed to `null` pre-DB on the read path (repository spies prove no
- *    read fires).
+ *    collapsed to `null` pre-DB on the read path — the int4-overflow ids
+ *    beyond the session column's ceiling included (repository spies prove
+ *    no read fires).
  *  - Tier 3 (chaos): governance fuzz (deleted/blocked/suspended/absent
  *    callers denied pre-transaction — the session lookup is never reached);
  *    status fuzz (scheduled/cancelled denied; started/completed/disputed
@@ -695,6 +696,21 @@ describe("RecitationRecordService — transactional write pipeline (runInRollbac
         [0, -1, 2.5, Number.NaN, Number.MAX_SAFE_INTEGER + 1].map(malformed =>
           readRecord(tx, 1, malformed).then(row => expect(row).toBeNull())
         )
+      );
+      // Pre-DB proof: no session lookup and no recitation lookup fired.
+      expectRepositoryCalls(0, 0, 0);
+      expectZeroLogCalls();
+    });
+  });
+
+  test("boundary — an int4-overflow session id collapses the READ to null before any database read", async () => {
+    await runInRollback(async tx => {
+      // A positive safe integer beyond the session column's int4 ceiling
+      // can never match a row; handed to SQL it would die as a
+      // driver-level out-of-range failure — so it collapses to the same
+      // `null` as every other malformed id.
+      await Promise.all(
+        [2_147_483_648, 4_294_967_296].map(overflow => readRecord(tx, 1, overflow).then(row => expect(row).toBeNull()))
       );
       // Pre-DB proof: no session lookup and no recitation lookup fired.
       expectRepositoryCalls(0, 0, 0);

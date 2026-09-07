@@ -32,9 +32,10 @@
  *    `"12abc"` die pre-DB as VALIDATION on the write (never a masked 500);
  *    the same corpus collapses to the identical `null` on the read.
  *  - **Nullable collapse** — a foreign participant, a parent, a malformed id,
- *    and a nonexistent id all answer byte-identical `null` payloads with NO
- *    error channel (body equality over a pinned correlation id — no
- *    existence oracle on the read either).
+ *    a nonexistent id, and an id beyond the int4 session-id ceiling all
+ *    answer byte-identical `null` payloads with NO error channel (body
+ *    equality over a pinned correlation id — no existence oracle on the
+ *    read either).
  *  - **Happy-path wire ≡ service oracle** — the owner's recorded row
  *    serializes field-by-field exactly as `RecitationRecordService`
  *    reports it (stringified ids, ISO-8601 instants, exact six-key row).
@@ -625,6 +626,18 @@ describe("wire matrix — nullable collapse tier (read, pre-record)", () => {
     const parentBody = await postDocument(RECITATION_QUERY_DOCUMENT, parentToken, { sessionId: startedSessionId });
     const missingBody = await postDocument(RECITATION_QUERY_DOCUMENT, ownerToken, { sessionId: "999999999" });
     for (const body of [foreignBody, parentBody, missingBody]) {
+      expect(body.errors).toBeUndefined();
+      expect(wireReadRowOf(body)).toBeNull();
+    }
+  });
+
+  test("an id beyond the int4 session-id ceiling collapses to the same null (no error channel)", async () => {
+    const bodies = await Promise.all(
+      [OVERFLOW_SESSION_ID, "4294967296"].map(sessionId =>
+        postDocument(RECITATION_QUERY_DOCUMENT, ownerToken, { sessionId })
+      )
+    );
+    for (const body of bodies) {
       expect(body.errors).toBeUndefined();
       expect(wireReadRowOf(body)).toBeNull();
     }
