@@ -36,6 +36,11 @@
 import { describe, expect, test } from "bun:test";
 import { GraphQLInputObjectType, lexicographicSortSchema, printSchema } from "graphql";
 import { gqlSchemaBuilder } from "@/backend/graphql/pothos/builder";
+// Side-effect registrations the fresh emission depends on: the shared
+// `DateTime` scalar lives in the definitions barrel (its registration is
+// NOT bundled with the builder), and the filter-input module registers both
+// input objects.
+import "@/backend/graphql/pothos/shared/scalar.pothos";
 import "@/backend/graphql/pothos/classes/session-filter-input.pothos";
 
 // ─── Fresh deterministic emission (includes both filter inputs) ──────────────
