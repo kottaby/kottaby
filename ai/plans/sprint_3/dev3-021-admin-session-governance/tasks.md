@@ -76,7 +76,7 @@
   - subtasks QL/TE/BF/BS/SR/IV + visual RTL+desktop+mobile matrix screenshots
 - [x] 5.4 **Nav registration** — `frontend/views/dashboard/nav/navItems.ts` admin block addition + `navItems.test.ts` assertion update (REQ-081)
   - subtasks QL/TE/SR/IV
-- [ ] 5.5 **Playwright e2e** — one smoke covering filter → cancel → audit-visible path (`test/ui/e2e/admin-session-governance.spec.ts`); run via existing e2e runner
+- [x] 5.5 **Playwright e2e** — one smoke covering filter → cancel → audit-visible path (`test/ui/e2e/admin-session-governance.spec.ts`); run via existing e2e runner
   - subtasks QL/TE/SR/IV
 
 ---
