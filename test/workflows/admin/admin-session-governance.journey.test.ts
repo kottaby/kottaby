@@ -909,7 +909,7 @@ describe("Journey W-4 — the role-denial matrix: every persisted non-admin role
    * only as a permission-group concept; see the 3.1 outcome ledger row),
    * so this matrix is maximal over the real data.
    */
-  const NON_ADMIN_ACTORS: readonly { readonly role: string; readonly userId: number }[] = [
+  const nonAdminActors = (): readonly { readonly role: string; readonly userId: number }[] => [
     { role: "teacher", userId: cast.teacher.userId },
     { role: "student", userId: cast.primaryStudent.userId },
     { role: "parent", userId: cast.parent.userId },
@@ -931,7 +931,7 @@ describe("Journey W-4 — the role-denial matrix: every persisted non-admin role
   test("step 1 — every persisted non-admin role is denied all six operations, byte-identical to the resolveSessionDispute reference 403", async () => {
     const badgeBefore = await readSessionRow(badgeSessionId);
     const w2Before = await readSessionRow(w2Session.id);
-    const auditBaselines = await Promise.all(NON_ADMIN_ACTORS.map(actor => countAuditsForActor(actor.userId)));
+    const auditBaselines = await Promise.all(nonAdminActors().map(actor => countAuditsForActor(actor.userId)));
     const inboxBaselines = await Promise.all(castInboxUserIds().map(id => countNotificationsForUser(id)));
 
     // The `.map(async ...)` + outer `Promise.all` flattens the entire
@@ -940,7 +940,7 @@ describe("Journey W-4 — the role-denial matrix: every persisted non-admin role
     // check runs before any read past the gate and before any write —
     // so the denials are side-effect-free and safe to evaluate together.
     const matrix = await Promise.all(
-      NON_ADMIN_ACTORS.map(async actor => ({
+      nonAdminActors().map(async actor => ({
         actor,
         reference: await expectJourneyError(() =>
           SessionLifecycleService.resolveSessionDispute(
@@ -980,7 +980,7 @@ describe("Journey W-4 — the role-denial matrix: every persisted non-admin role
     // the cast.
     expect(await readSessionRow(badgeSessionId)).toEqual(badgeBefore);
     expect(await readSessionRow(w2Session.id)).toEqual(w2Before);
-    const auditsAfter = await Promise.all(NON_ADMIN_ACTORS.map(actor => countAuditsForActor(actor.userId)));
+    const auditsAfter = await Promise.all(nonAdminActors().map(actor => countAuditsForActor(actor.userId)));
     expect(auditsAfter).toEqual(auditBaselines);
     expect(auditsAfter.every(count => count === 0)).toBe(true);
     const inboxesAfter = await Promise.all(castInboxUserIds().map(id => countNotificationsForUser(id)));
