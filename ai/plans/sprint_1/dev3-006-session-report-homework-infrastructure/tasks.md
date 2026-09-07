@@ -285,7 +285,7 @@ The ONLY instruction files that exist are `.agents/instructions/frontend.instruc
   - [ ] 2.5.SR **Semantic Review**: guards export exactly what 2.7 consumes (YAGNI); no side effects; enum used via VALUE import.
   - [ ] 2.5.IV **Instruction Verification**: as 2.2.IV.
 
-- [ ] 2.6 [Implement session-report notification seam]
+- [x] 2.6 [Implement session-report notification seam]
   - Create `backend/services/classes/session-report-notification.service.ts`:
     - `notifySessionReportReady(sessionId: number, locale: string, tx: DBTransaction, options?: NotificationEngineCallOptions): Promise<NotificationDeliveryReceipt[]>` per plan §4.2/D6:
       - Reads wave context ONCE via `SessionRepository.findReportWaveContextById(sessionId, tx)`.
