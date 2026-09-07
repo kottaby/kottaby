@@ -26,10 +26,16 @@ export interface ActionableIncomingSummary {
 /**
  * Reduces the incoming link-request rows to the dashboard card summary:
  *
- *  - a row is ACTIONABLE iff its displayed status is `Pending` (computed:
- *    stored `pending` past its expiry shows `Expired` and drops out) AND the
- *    shared strict-`>` liveness predicate (`isLinkRequestActionable`) holds —
- *    the boundary instant `expiresAt === now` is NOT actionable;
+ *  - a row counts ONLY when both gates hold: the display-mapping gate (its
+ *    status renders as `Pending` — a stored `pending` past its expiry shows
+ *    `Expired` and drops out) and the actionability gate (the shared
+ *    strict-`>` liveness predicate `isLinkRequestActionable` holds — the
+ *    boundary instant `expiresAt === now` is NOT actionable). The
+ *    conjunction is deliberate defense-in-depth: `displayLinkRequestStatus`
+ *    currently derives its `Pending` outcome from that same predicate, but
+ *    the two gates are evaluated independently so a future divergence
+ *    between the display mapping and the actionability semantics cannot
+ *    leak a non-actionable row into the dashboard count;
  *  - `latest` is the most recent actionable row by `createdAt` (max, never
  *    array order — the wire's newest-first contract is not trusted here);
  *  - zero actionable rows → `null` (the card unmounts, REQ-015/052).
@@ -46,6 +52,11 @@ export function deriveActionableIncoming(
   let latestCreatedAtMs = Number.NEGATIVE_INFINITY;
   let latestParentFullName: string | null = null;
   for (const row of rows) {
+    // Deliberate defense-in-depth: the display-mapping gate (renders as
+    // `Pending`) and the actionability gate (row still actionable) are
+    // evaluated independently, so a future divergence between the display
+    // mapping and the actionability semantics cannot leak a non-actionable
+    // row into the dashboard count.
     const actionable =
       displayLinkRequestStatus(row.status, row.expiresAt, nowMs) === LinkStatus.Pending &&
       isLinkRequestActionable(row.status, row.expiresAt, nowMs);
