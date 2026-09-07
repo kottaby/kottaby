@@ -500,7 +500,8 @@ describe("SessionAdminGovernanceService — directory reads (runInRollback)", ()
       expect(disputedRow.needsAttention).toBe(true);
       expect(allRows.totalCount).toBe(4);
 
-      // Strictly read-only: no audit rows, no inbox rows (REQ-029 posture).
+      // Strictly read-only: the directory query must not mutate state —
+      // no audit rows, no inbox rows.
       expect(await countAuditsForSession(tx, scheduledA.id)).toBe(0);
       expect(await countAuditsForSession(tx, disputed.id)).toBe(0);
       expect(await countNotificationsFor(tx, [actors.studentUserId, actors.teacherUserId])).toBe(0);
