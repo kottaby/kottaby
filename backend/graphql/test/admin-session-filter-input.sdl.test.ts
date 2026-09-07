@@ -22,11 +22,16 @@
  *    surface is a distinct input object, never an extension of the
  *    participant one).
  *
- * The production schema does not yet carry the admin directory query module
- * that consumes the input — the input module is imported HERE (side-effect
- * registration on the shared builder) and the assertions run against a
- * fresh deterministic `toSchema()` emission, the same tier the session SDL
- * suite uses while its objects await their resolver-module wiring.
+ * The production query module that consumes the input has landed —
+ * `backend/graphql/query/classes/admin-session-governance.query.ts` registers
+ * `adminSessions(filter: AdminSessionListFilterInput!, page, pageSize)` and
+ * consumes the Pothos input at wire level. The input module is still imported
+ * HERE because this suite pins the input contract in ISOLATION: the builder is
+ * a leaf module, so the production registration is not part of this suite's
+ * module graph and the side-effect import remains load-bearing (verified —
+ * removing it leaves the inputs unregistered and fails all six tests). The
+ * assertions run against a fresh deterministic `toSchema()` emission, the
+ * same tier the session SDL suite uses.
  *
  * Pure unit tier — NO server boot, NO network, NO DB. Runs via the mandated
  * runner:
@@ -39,7 +44,8 @@ import { gqlSchemaBuilder } from "@/backend/graphql/pothos/builder";
 // Side-effect registrations the fresh emission depends on: the shared
 // `DateTime` scalar lives in the definitions barrel (its registration is
 // NOT bundled with the builder), and the filter-input module registers both
-// input objects.
+// input objects. Both imports are load-bearing — without them the isolated
+// emission carries neither the scalar nor the two filter inputs.
 import "@/backend/graphql/pothos/shared/scalar.pothos";
 import "@/backend/graphql/pothos/classes/session-filter-input.pothos";
 
