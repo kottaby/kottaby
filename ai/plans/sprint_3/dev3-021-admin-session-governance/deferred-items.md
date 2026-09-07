@@ -8,6 +8,7 @@
 ## ⚠️ Risks & watch items
 - The residency of the canonical `DateTime` scalar registration: verify registry vs each new Pothos file's imports during 4.x tasks.
 - No idempotency-claim decorator position verified for mutations at plan time — reuse the same mechanism the participant mutations use (chained inside `withTransaction` or outer claim wrapper; record finding in 4.3 outcome).
+- Certification re-assert at write time (reassign, task 3.1): a plain FK on `session.teacher_id` asserts row existence only, not `is_approved` — the actual write-time guarantee is the `TeacherRepository.lockForCertificationCheck` FOR UPDATE lock held across check→write in the SAME transaction (booking precedent `booking.ts:202-218`). Compose the certification assert inside the reassign `withTransaction` before `guardReassignTeacher`; see `outcome/2.2-outcome.md` §3/§6. Informational — resolved by following the pinned composition; no implementation debt.
 
 ## Forward-owned items (tracked elsewhere)
 - **D-03** Bespoke rate-limit for admin mutations — platform-wide hardening stream (not this ticket).

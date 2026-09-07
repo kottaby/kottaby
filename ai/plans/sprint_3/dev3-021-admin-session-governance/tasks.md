@@ -32,10 +32,10 @@
 
 ## Phase 2 — Repository
 
-- [ ] 2.1 **CREATE methods on SessionRepository** (`backend/db/repo/classes/session.repository.ts`): `listForAdmin`, `getAnyByIdForAdmin`, `guardReschedule`, `guardCancelPreTerminal`, `guardReassignTeacher` (REQ-010, REQ-012, REQ-020..025, REQ-040/041/042)
-  - [ ] 2.1.QL / 2.1.TE / 2.1.SEC (BOPLA-whitelist audit) / 2.1.SR (no N+1) / 2.1.IV
-  - [ ] 2.1.TE writes `backend/db/test/repo/session-repository.admin.test.ts` — 100% branch over guards; uses `runInRollback`, `tx` everywhere (Tier-1/2/3)
-- [ ] 2.2 **Create helper `assertCertifiedTeacher`** in TeacherRepository surface IF missing (ticket-scoped; else reuse) — outcome records decision (REQ-024)
+- [x] 2.1 **CREATE methods on SessionRepository** (`backend/db/repo/classes/session.repository.ts`): `listForAdmin`, `getAnyByIdForAdmin`, `guardReschedule`, `guardCancelPreTerminal`, `guardReassignTeacher` (REQ-010, REQ-012, REQ-020..025, REQ-040/041/042)
+  - [x] 2.1.QL / 2.1.TE / 2.1.SEC (BOPLA-whitelist audit) / 2.1.SR (no N+1) / 2.1.IV
+  - [x] 2.1.TE writes `backend/db/test/repo/session-repository.admin.test.ts` — 100% branch over guards; uses `runInRollback`, `tx` everywhere (Tier-1/2/3)
+- [x] 2.2 **Create helper `assertCertifiedTeacher`** in TeacherRepository surface IF missing (ticket-scoped; else reuse) — outcome records decision (REQ-024)
 
 ---
 

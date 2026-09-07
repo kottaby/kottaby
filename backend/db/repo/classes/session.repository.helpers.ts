@@ -21,13 +21,15 @@
  *    caller decides what `null` means.
  */
 
-import { count, desc, eq, type SQL, sql } from "drizzle-orm";
+import { count, desc, eq, gte, lt, type SQL, sql } from "drizzle-orm";
 import { alias, PgDialect } from "drizzle-orm/pg-core";
 import { queryDb } from "@/backend/db";
 import { session } from "@/backend/db/schema/classes/session";
 import { users } from "@/backend/db/schema/users/users";
 import { SessionStatus } from "@/backend/enum/scheduling/session-status.enum";
 import type {
+  AdminSessionListFilterInput,
+  AdminSessionRowReturnType,
   DBTransaction,
   SessionListFilterInput,
   SessionSelectType,
@@ -157,6 +159,173 @@ async function countParticipantSessions(
  */
 function buildAdminDisputedPredicate(): SQL {
   return eq(session.status, SessionStatus.Disputed);
+}
+
+/**
+ * Upper bound of the admin directory page size and its fallback — the
+ * participant lists' clamp window (1..50, default 25), applied before any
+ * database work so the read never fabricates a window.
+ */
+const MAX_PAGE_SIZE = 50;
+const DEFAULT_PAGE_SIZE = 25;
+
+/**
+ * The two lifecycle states the admin badge projection distinguishes below,
+ * declared against the schema column's own union type: the vocabulary flows
+ * from the `SessionStatus` members while both comparison operands share one
+ * type (the pgEnum column type is a string union, not the TS enum object).
+ */
+const DISPUTED_STATUS: SessionSelectType["status"] = SessionStatus.Disputed;
+const SCHEDULED_STATUS: SessionSelectType["status"] = SessionStatus.Scheduled;
+
+/**
+ * The admin directory's derived badge flag, computed as a pure projection
+ * over the selected row: `true` for a disputed row, or for a `scheduled`
+ * row whose confirmation deadline has lapsed at `now` (a scheduled row
+ * without a deadline never lapses). The flag is presentation-only — it
+ * never grants, denies, or narrows authorization. Post-query projection
+ * (not a SQL `CASE`) is the deliberate choice: both executor branches
+ * return the identical canonical row shape, so one pure function covers
+ * the transactional and standalone reads alike and the predicate builders
+ * remain the SQL vocabulary's single home.
+ */
+function isNeedsAttention(row: SessionSelectType, now: Date): boolean {
+  const deadlineLapsed = row.confirmationDeadline !== null && row.confirmationDeadline.getTime() < now.getTime();
+  return row.status === DISPUTED_STATUS || (row.status === SCHEDULED_STATUS && deadlineLapsed);
+}
+
+/**
+ * ONE module-scope predicate builder for the admin sessions directory: the
+ * caller-supplied filters conjoined, every member optional. Absent members
+ * drop out (they never error); a present member narrows the set. The
+ * teacher/student filters compare the session's participant columns
+ * directly (both are shared-PK user ids on this schema, so the user-facing
+ * filter ids need no join); the type and status filters carry their closed
+ * enum vocabularies as bound parameters; the creation window is half-open
+ * (`created_at >= dateFrom`, `created_at < dateTo`, UTC instants). A filter
+ * object with no members at all yields `undefined` — the caller renders
+ * the read without a WHERE clause. The list and its count companion share
+ * exactly this one builder, so the paged window and the reported total can
+ * never describe different sets.
+ */
+function buildAdminDirectoryPredicate(filter: AdminSessionListFilterInput): SQL | undefined {
+  const conditions: SQL[] = [];
+  if (filter.teacherUserId !== undefined) {
+    conditions.push(eq(session.teacherId, filter.teacherUserId));
+  }
+  if (filter.studentUserId !== undefined) {
+    conditions.push(eq(session.studentId, filter.studentUserId));
+  }
+  if (filter.type !== undefined) {
+    conditions.push(eq(session.sessionType, filter.type));
+  }
+  if (filter.status !== undefined) {
+    conditions.push(eq(session.status, filter.status));
+  }
+  if (filter.dateFrom !== undefined) {
+    conditions.push(gte(session.createdAt, filter.dateFrom));
+  }
+  if (filter.dateTo !== undefined) {
+    conditions.push(lt(session.createdAt, filter.dateTo));
+  }
+  if (conditions.length === 0) {
+    return undefined;
+  }
+  return sql.join(conditions, sql` and `);
+}
+
+/**
+ * Admin directory list read: newest first (`created_at DESC`) with `id DESC`
+ * as the deterministic same-instant tiebreak, paged with a bound
+ * LIMIT/OFFSET window (an offset past the end yields zero rows — the count
+ * companion stays honest). No owner equality exists on this read — the
+ * admin surface is role-gated upstream, and ownership scoping is the
+ * participant lists' job.
+ */
+async function listAdminDirectory(
+  filter: AdminSessionListFilterInput,
+  limit: number,
+  offset: number,
+  tx?: DBTransaction
+): Promise<SessionSelectType[]> {
+  const predicate = buildAdminDirectoryPredicate(filter);
+  if (tx) {
+    return tx
+      .select()
+      .from(session)
+      .where(predicate)
+      .orderBy(desc(session.createdAt), desc(session.id))
+      .limit(limit)
+      .offset(offset);
+  }
+  // Standalone read — the shared predicate is rendered to parameterized
+  // SQL (placeholders $1…) and executed via the queryDb pool path. An
+  // all-absent filter renders without a WHERE clause.
+  if (predicate === undefined) {
+    const unfiltered = await queryDb<SessionSelectType>(
+      `SELECT ${SESSION_SELECT_COLUMNS}
+       FROM session
+       ORDER BY created_at DESC, id DESC
+       LIMIT $1 OFFSET $2`,
+      [limit, offset]
+    );
+    return unfiltered.rows;
+  }
+  const rendered = participantDialect.sqlToQuery(predicate);
+  const result = await queryDb<SessionSelectType>(
+    `SELECT ${SESSION_SELECT_COLUMNS}
+     FROM session
+     WHERE ${rendered.sql}
+     ORDER BY created_at DESC, id DESC
+     LIMIT $${rendered.params.length + 1} OFFSET $${rendered.params.length + 2}`,
+    [...rendered.params, limit, offset]
+  );
+  return result.rows;
+}
+
+/**
+ * Admin directory count read — consumes the SAME predicate builder as the
+ * list, so the total always describes the exact filtered set the page
+ * windows over.
+ */
+async function countAdminDirectory(filter: AdminSessionListFilterInput, tx?: DBTransaction): Promise<number> {
+  const predicate = buildAdminDirectoryPredicate(filter);
+  if (tx) {
+    const rows = await tx.select({ value: count() }).from(session).where(predicate);
+    return rows[0]?.value ?? 0;
+  }
+  if (predicate === undefined) {
+    const unfiltered = await queryDb<{ value: string }>(`SELECT count(*) AS "value" FROM session`, []);
+    return Number(unfiltered.rows[0]?.value ?? 0);
+  }
+  const rendered = participantDialect.sqlToQuery(predicate);
+  const result = await queryDb<{ value: string }>(`SELECT count(*) AS "value" FROM session WHERE ${rendered.sql}`, [
+    ...rendered.params,
+  ]);
+  return Number(result.rows[0]?.value ?? 0);
+}
+
+/**
+ * The admin directory page read as the caller consumes it: the window
+ * normalizes before any database work exactly like the participant lists
+ * (a page below 1 falls back to the first page, a page size outside 1..50
+ * falls back to the default), the page rows and the honest total come from
+ * the SAME shared predicate builder, and the derived badge flag is
+ * projected per row from one captured clock reading.
+ */
+async function listAdminDirectoryPage(
+  filter: AdminSessionListFilterInput,
+  page: number,
+  pageSize: number,
+  tx?: DBTransaction
+): Promise<{ rows: AdminSessionRowReturnType[]; total: number }> {
+  const safePage = Number.isSafeInteger(page) && page >= 1 ? page : 1;
+  const safePageSize =
+    Number.isSafeInteger(pageSize) && pageSize >= 1 && pageSize <= MAX_PAGE_SIZE ? pageSize : DEFAULT_PAGE_SIZE;
+  const rows = await listAdminDirectory(filter, safePageSize, (safePage - 1) * safePageSize, tx);
+  const total = await countAdminDirectory(filter, tx);
+  const now = new Date();
+  return { rows: rows.map(row => Object.assign({}, row, { needsAttention: isNeedsAttention(row, now) })), total };
 }
 
 /**
@@ -296,11 +465,14 @@ async function findWaveContextById(id: number, tx?: DBTransaction): Promise<Sess
 }
 
 export {
+  countAdminDirectory,
   countAdminDisputed,
   countParticipantSessions,
   findById,
   findTransitionProbe,
   findWaveContextById,
+  listAdminDirectory,
+  listAdminDirectoryPage,
   listAdminDisputed,
   listParticipantSessions,
 };
