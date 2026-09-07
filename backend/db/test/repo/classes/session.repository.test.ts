@@ -185,6 +185,25 @@ async function absentUserId(tx: DBTransaction): Promise<number> {
 }
 
 /**
+ * Inserts a session row whose student user has NO `students` row — an
+ * out-of-band data edge the report wave read must survive (the RESTRICT FK
+ * on `session.student_id` makes the shape unreachable through ordinary
+ * inserts, so the insert rides `session_replication_role = replica` for
+ * THIS transaction only; the rollback harness removes the row afterward).
+ */
+async function insertSessionRowWithoutStudentsRow(
+  tx: DBTransaction,
+  actors: SessionActors
+): Promise<SessionSelectType> {
+  await tx.execute(sql`SET LOCAL session_replication_role = replica`);
+  try {
+    return await insertSessionRow(tx, actors);
+  } finally {
+    await tx.execute(sql`SET LOCAL session_replication_role = DEFAULT`);
+  }
+}
+
+/**
  * Walks the Drizzle `DrizzleQueryError.cause` chain to find whether the
  * original PostgreSQL error carries the given SQLSTATE code — Drizzle wraps
  * driver errors behind its own generic "failed query" message.
@@ -831,6 +850,34 @@ describe("SessionRepository — transactional paths (runInRollback)", () => {
       expect(context).not.toBeNull();
       expect(context?.studentUserId).toBe(actors.studentUserId);
       expect(context?.teacherUserId).toBe(actors.teacherUserId);
+      expect(context?.parentUserId).toBeNull();
+      expect(context?.parentFullName).toBeNull();
+      expect(context?.parentLocale).toBeNull();
+    });
+  });
+
+  test("findReportWaveContextById still returns the wave context when the student user has no students row (data edge)", async () => {
+    await runInRollback(async tx => {
+      const teacherUser = await createTestUser(tx, { role: "teacher" });
+      await createTestTeacherRow(tx, teacherUser.id, true);
+      // Deliberately NO students row for this student user — the students
+      // bridge is LEFT JOINed, so the read must survive the data edge.
+      const studentUser = await createTestUser(tx, { role: "student" });
+      const row = await insertSessionRowWithoutStudentsRow(tx, {
+        teacherUserId: teacherUser.id,
+        studentUserId: studentUser.id,
+      });
+
+      const context = await SessionRepository.findReportWaveContextById(row.id, tx);
+
+      expect(context).not.toBeNull();
+      expect(context?.sessionId).toBe(row.id);
+      expect(context?.studentUserId).toBe(studentUser.id);
+      expect(context?.studentFullName).toBe(studentUser.fullName);
+      expect(context?.teacherUserId).toBe(teacherUser.id);
+      expect(context?.teacherFullName).toBe(teacherUser.fullName);
+      // No students row ⇒ no parent link ⇒ the parent leg stays null
+      // (the notification seam fail-closes on the missing recipient).
       expect(context?.parentUserId).toBeNull();
       expect(context?.parentFullName).toBeNull();
       expect(context?.parentLocale).toBeNull();

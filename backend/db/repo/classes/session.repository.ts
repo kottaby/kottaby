@@ -411,7 +411,9 @@ export namespace SessionRepository {
    * @returns The joined wave-context row, or `null` when no session
    *          carries that id (the participant INNER JOINs make a
    *          participant-missing row structurally impossible, so `null`
-   *          uniformly means session-not-found).
+   *          uniformly means session-not-found; the `students` bridge is
+   *          LEFT JOINed, so a student user without a `students` row still
+   *          yields the context with a `null` parent leg).
    */
   export async function findReportWaveContextById(
     id: number,

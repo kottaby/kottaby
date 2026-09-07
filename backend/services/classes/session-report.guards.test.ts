@@ -3,7 +3,7 @@
  *
  * Tier 1: 100% statement & branch coverage for every exported guard.
  * Tier 2: Boundary & edge cases (notes length 2000/2001, rating 0/5, grade
- *         0/100, ayah span endpoints, safe-integer frontier).
+ *         0/100, ayah span endpoints, ayah storage bound).
  * Tier 3: Seeded deterministic fuzz sweep over ALL guards — the ONLY thrown
  *         class ever is the localized `ValidationError` (`code` "VALIDATION")
  *         whose message is always a member of the closed en copy set.
@@ -149,8 +149,8 @@ const AYAH_POOL = [
   3.5,
   Number.NaN,
   Number.POSITIVE_INFINITY,
-  Number.MAX_SAFE_INTEGER,
-  Number.MAX_SAFE_INTEGER + 1,
+  2_147_483_647,
+  2_147_483_648,
 ];
 
 /** Deliberate NON-members (wrong case, whitespace, near-miss, overflow, unicode). */
@@ -472,10 +472,21 @@ describe("assertHomeWorkBlock", () => {
       }
     });
 
-    test("safe-integer frontier: MAX_SAFE_INTEGER span on both endpoints is accepted", () => {
+    test("ayah storage bound: the largest persistable span is accepted, one above is rejected", () => {
+      const en = t();
+      // 2_147_483_647 is the PostgreSQL integer ceiling of the home_work
+      // ayah columns — the largest value that can ever persist.
       expect(() =>
-        assertHomeWorkBlock(blockWith({ fromAyah: Number.MAX_SAFE_INTEGER, toAyah: Number.MAX_SAFE_INTEGER }), t())
+        assertHomeWorkBlock(blockWith({ fromAyah: 2_147_483_647, toAyah: 2_147_483_647 }), en)
       ).not.toThrow();
+      expectValidationError(
+        () => assertHomeWorkBlock(blockWith({ fromAyah: 2_147_483_647, toAyah: 2_147_483_648 }), en),
+        en.homeworkAyahRangeInvalid
+      );
+      expectValidationError(
+        () => assertHomeWorkBlock(blockWith({ fromAyah: 2_147_483_648, toAyah: 2_147_483_648 }), en),
+        en.homeworkAyahRangeInvalid
+      );
     });
   });
 });

@@ -137,7 +137,10 @@ export namespace HomeWorkRepository {
    * @returns The newest row of any grade state, or `null` when the
    *          student has no homework rows (a true first session).
    */
-  export async function findLatestByStudentId(studentId: number, tx?: DBTransaction): Promise<HomeWorkSelectType | null> {
+  export async function findLatestByStudentId(
+    studentId: number,
+    tx?: DBTransaction
+  ): Promise<HomeWorkSelectType | null> {
     if (tx) {
       const rows = await tx
         .select()

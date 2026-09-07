@@ -25,9 +25,10 @@
  *    integer-only inclusive ranges; the table CHECK constraints stay a
  *    backstop, never the primary error path;
  *  - homework block guard (`assertHomeWorkBlock`) — a cohesive ayah span
- *    (both endpoints positive safe integers, from ≤ to) classified by a
- *    shipped `SurahJuzRef` member via the fail-closed `isSurahJuzRef`
- *    enum guard (never string equality against literals);
+ *    (both endpoints positive safe integers capped at the storage bound,
+ *    from ≤ to) classified by a shipped `SurahJuzRef` member via the
+ *    fail-closed `isSurahJuzRef` enum guard (never string equality against
+ *    literals);
  *  - assignment + grade validators (`validateAssignment` /
  *    `validatePreviousGrades`) — the ≥1-block presence rule and the
  *    previous-grades range rule over the multi-field inputs.
@@ -49,6 +50,14 @@ import type { getServerTranslations } from "@/shared/locale/server-graphql";
 
 /** A free-text report note longer than this is rejected before any DB work. */
 const MAX_TEACHER_NOTES_LENGTH = 2000;
+
+/**
+ * Upper bound for a homework block's ayah endpoint: the `home_work` ayah
+ * columns are PostgreSQL 4-byte integers, so a larger value can never persist
+ * — bounding here routes overflow into the typed `homeworkAyahRangeInvalid`
+ * denial before any database work instead of an unmapped storage error.
+ */
+const MAX_AYAH_VALUE = 2_147_483_647;
 
 /**
  * The localized `errors` namespace slice every guard accepts — the exact
@@ -109,6 +118,10 @@ export function assertRating0To5(rating: number, t: ErrorsTranslations): void {
  * window 0..100 — the same fail-closed integer rule the rating guard
  * applies; both grade fields of the previous-grades input funnel through
  * this single guard.
+ *
+ * Exported as the module's validator vocabulary: consumed by the sibling
+ * composite validator `validatePreviousGrades` and asserted directly by
+ * callers/tests.
  */
 export function assertGrade0To100(grade: number, t: ErrorsTranslations): void {
   if (!Number.isSafeInteger(grade) || grade < 0 || grade > 100) {
@@ -118,16 +131,26 @@ export function assertGrade0To100(grade: number, t: ErrorsTranslations): void {
 
 /**
  * Validates ONE cohesive homework assignment block before any database
- * work: both ayah endpoints must be positive safe integers with
- * `fromAyah ≤ toAyah` (a single dedicated denial key covers the whole
- * ayah-shape family), and the classifying surah/juz reference must be a
- * shipped `SurahJuzRef` member — checked through the fail-closed
- * `isSurahJuzRef` enum guard, never by string equality against literals,
- * so a wire value that only LOOKS like a member (wrong case, whitespace,
- * near-miss) is rejected.
+ * work: both ayah endpoints must be positive safe integers no larger than
+ * the storage bound with `fromAyah ≤ toAyah` (a single dedicated denial
+ * key covers the whole ayah-shape family), and the classifying surah/juz
+ * reference must be a shipped `SurahJuzRef` member — checked through the
+ * fail-closed `isSurahJuzRef` enum guard, never by string equality against
+ * literals, so a wire value that only LOOKS like a member (wrong case,
+ * whitespace, near-miss) is rejected.
+ *
+ * Exported as the module's validator vocabulary: consumed by the sibling
+ * composite validator `validateAssignment` and asserted directly by
+ * callers/tests.
  */
 export function assertHomeWorkBlock(block: HomeWorkBlockInput, t: ErrorsTranslations): void {
-  if (!isPositiveSafeInteger(block.fromAyah) || !isPositiveSafeInteger(block.toAyah) || block.fromAyah > block.toAyah) {
+  if (
+    !isPositiveSafeInteger(block.fromAyah) ||
+    !isPositiveSafeInteger(block.toAyah) ||
+    block.fromAyah > MAX_AYAH_VALUE ||
+    block.toAyah > MAX_AYAH_VALUE ||
+    block.fromAyah > block.toAyah
+  ) {
     throw new ValidationError(t.homeworkAyahRangeInvalid);
   }
   if (!isSurahJuzRef(block.surahJuz)) {
@@ -141,9 +164,12 @@ export function assertHomeWorkBlock(block: HomeWorkBlockInput, t: ErrorsTranslat
  * payload can still deliver `null` (or any non-object) for an optional
  * member. The predicate fails closed — only a real object ever counts as
  * "supplied", so the block guard can never receive a null and a garbage
- * leg can only ever produce the typed `VALIDATION` denial.
+ * leg can only ever produce the typed `VALIDATION` denial. Exported from
+ * this payload-vocabulary module as the SINGLE definition: the sibling
+ * service's insert mapping consumes the identical predicate instead of a
+ * drifted copy.
  */
-function isSuppliedBlock(value: unknown): value is HomeWorkBlockInput {
+export function isSuppliedBlock(value: unknown): value is HomeWorkBlockInput {
   return typeof value === "object" && value !== null;
 }
 

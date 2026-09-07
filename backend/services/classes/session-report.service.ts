@@ -13,7 +13,7 @@
  *      previous-grades window. A garbage payload fails closed BEFORE any
  *      database work and never spends the gate's row lock.
  *   1. Actor governance re-assertion — deleted/blocked/suspended teachers
- *      are denied (`assertActorGovernanceClean`), riding the outer
+ *      are denied (`assertTeacherGovernanceClean`), riding the outer
  *      transaction when the caller supplied one.
  *   2. One `withTransaction` body (extracted verbatim into the sibling
  *      transaction-body functions, the session-lifecycle module layout):
@@ -86,6 +86,7 @@ import {
   assertPositiveSessionId,
   assertRating0To5,
   assertTeacherNotes,
+  isSuppliedBlock,
   validateAssignment,
   validatePreviousGrades,
 } from "@/backend/services/classes/session-report.guards";
@@ -96,7 +97,6 @@ import type {
   DBQueryExecutor,
   DBTransaction,
   HomeWorkAssignInput,
-  HomeWorkBlockInput,
   HomeWorkInsertType,
   HomeWorkReturnType,
   NotificationDeliveryReceipt,
@@ -121,16 +121,6 @@ type ErrorsTranslations = ReturnType<typeof getServerTranslations>["errorsTransl
  * be misclassified).
  */
 const HOME_WORK_SESSION_ID_UNIQUE = "home_work_session_id_unique";
-
-/**
- * Wire honesty for an optional homework block — mirrors the guards'
- * fail-closed "supplied" predicate: only a real object counts as present,
- * so a transport `null` leg (possible even though the canonical input type
- * says `undefined`) can never reach the field-by-field insert mapping.
- */
-function isSuppliedBlock(value: unknown): value is HomeWorkBlockInput {
-  return typeof value === "object" && value !== null;
-}
 
 /**
  * Field-by-field assignment mapping (BOPLA): the Jadid block lands on the
