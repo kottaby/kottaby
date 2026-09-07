@@ -20,7 +20,16 @@
 
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test } from "bun:test";
 import { createHash } from "node:crypto";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import {
+  copyFileSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join, relative, resolve } from "node:path";
 
@@ -565,6 +574,35 @@ describe("restore-verify tool family (4-tier)", () => {
       expect(messageOf(caught)).toContain("env bootstrap failed");
     });
 
+    test("an ABSOLUTE --env path bootstraps (cwd-independent)", async () => {
+      const caseRoot = newCaseRoot();
+      makeSchemaFixture(caseRoot);
+      const fixture = makeBackupRun(caseRoot);
+      const envFile = join(caseRoot, "abs.env.fixture");
+      writeFileSync(envFile, localEnvFixture());
+
+      const args = parseRestoreArgs([
+        "--from",
+        fixture.runDir,
+        "--target",
+        TARGET_DSN,
+        "--yes-i-understand",
+        "--env",
+        envFile,
+      ]);
+      const fake = makeFakeSpawn(healthyScript());
+      const stdoutLines: string[] = [];
+      const exitCode = await runRestoreVerify(args, {
+        spawnRunner: fake.runner,
+        repoRoot: join(caseRoot, "repo"),
+        stdout: line => stdoutLines.push(line),
+        stderr: () => undefined,
+      });
+      expect(exitCode).toBe(0);
+      expect(stdoutLines.join("\n")).toContain("VERDICT: PASS");
+      expect(fake.requests.some(request => request.cmd === "pg_restore")).toBe(true);
+    });
+
     test("missing default .env is non-fatal and skips source row-count comparisons", async () => {
       const caseRoot = newCaseRoot();
       makeSchemaFixture(caseRoot);
@@ -619,6 +657,16 @@ describe("restore-verify tool family (4-tier)", () => {
       expect(() => parseBackupManifest(JSON.stringify({ ...base, artifactBytes: "9" }))).toThrow(/positive integer/);
       expect(() => parseBackupManifest("not-json{")).toThrow(/not valid JSON/);
       expect(() => parseBackupManifest("[1, 2]")).toThrow(/not a JSON object/);
+    });
+
+    test("manifest artifactFile must be a bare file name (traversal is the tamper-fail class)", () => {
+      const base = validManifest();
+      for (const artifactFile of ["../../etc/hostname", "sub/dir/dump.pgc", "dir\\dump.pgc", "..", "dump..pgc"]) {
+        expect(() => parseBackupManifest(JSON.stringify({ ...base, artifactFile }))).toThrow(RestoreArtifactError);
+        expect(() => parseBackupManifest(JSON.stringify({ ...base, artifactFile }))).toThrow(/bare file name/);
+      }
+      // A benign bare name still parses.
+      expect(parseBackupManifest(JSON.stringify(base)).artifactFile).toBe("dump.pgc");
     });
 
     test("verdict aggregation: FAIL on any structural, oracle, or hash failure", () => {
@@ -818,6 +866,26 @@ describe("restore-verify tool family (4-tier)", () => {
       mkdirSync(join(dirArtifactRun, "dump.pgc"));
       writeFileSync(join(dirArtifactRun, "manifest.json"), JSON.stringify(validManifest()));
       expect(() => resolveRunArtifact(dirArtifactRun)).toThrow(/artifact is not a regular file/);
+    });
+
+    test("run-dir resolution refuses a symlinked artifact escaping the --from directory (realpath)", () => {
+      const caseRoot = newCaseRoot();
+      const fixture = makeBackupRun(caseRoot);
+
+      // A tampered run directory whose `dump.pgc` is a symlink pointing at an
+      // artifact OUTSIDE the directory: bare-name validation cannot see it,
+      // so the realpath containment check must refuse it.
+      const evilDir = join(caseRoot, "evil-run");
+      mkdirSync(evilDir);
+      copyFileSync(join(fixture.runDir, "manifest.json"), join(evilDir, "manifest.json"));
+      symlinkSync(fixture.artifactPath, join(evilDir, "dump.pgc"));
+      expect(() => resolveRunArtifact(evilDir)).toThrow(RestoreArtifactError);
+      expect(() => resolveRunArtifact(evilDir)).toThrow(/outside the --from directory/);
+
+      // The honest layout still resolves, and the actual byte size is exposed
+      // for the caller's manifest cross-check.
+      const resolved = resolveRunArtifact(fixture.runDir);
+      expect(resolved.artifactSize).toBe(ARTIFACT_BYTES.length);
     });
 
     test("oracle results distinguish a clean zero from an errored evaluation (-1)", async () => {
@@ -1109,6 +1177,24 @@ describe("restore-verify tool family (4-tier)", () => {
       expect(run.requests).toHaveLength(0);
       expect(run.reportPath).toBeNull();
     });
+
+    test("chaos: manifest artifactBytes disagreeing with the artifact size refuses before any spawn", async () => {
+      const caseRoot = newCaseRoot();
+      makeSchemaFixture(caseRoot);
+      // The recorded sha256 still matches the actual artifact; only the byte
+      // size is wrong (tampered / mispaired manifest) — the size cross-check
+      // refuses it in the tamper-fail class.
+      const wrongBytes = ARTIFACT_BYTES.length + 7;
+      const fixture = makeBackupRun(caseRoot, { artifactBytes: wrongBytes });
+
+      const run = await runPipeline(caseRoot, { from: fixture.runDir, script: healthyScript() });
+      expect(run.thrown).toBeNull();
+      expect(run.exitCode).toBe(1);
+      expect(run.stderr).toContain("[verify] artifact byte size mismatch");
+      expect(run.stderr).toContain(String(wrongBytes));
+      expect(run.requests).toHaveLength(0);
+      expect(run.reportPath).toBeNull();
+    });
   });
 
   describe("tier 4: security", () => {
@@ -1142,6 +1228,30 @@ describe("restore-verify tool family (4-tier)", () => {
         env: localEnvFixture(),
         targetDsn: "host=kottaby-verify.c9x8e2z7.us-east-1.rds.amazonaws.com dbname=kottaby user=dr_user",
         reason: "rds.amazonaws.com",
+      },
+      {
+        name: "percent-encoded RDS host (libpq percent-decodes the URI host)",
+        env: localEnvFixture(),
+        targetDsn: "postgresql://prod.rds.amazonaws.co%6d/db",
+        reason: "rds.amazonaws.com",
+      },
+      {
+        name: "trailing-dot RDS host (URL form)",
+        env: localEnvFixture(),
+        targetDsn: "postgresql://prod.rds.amazonaws.com./db",
+        reason: "rds.amazonaws.com",
+      },
+      {
+        name: "trailing-dot RDS host (conninfo form)",
+        env: localEnvFixture(),
+        targetDsn: "host=prod.rds.amazonaws.com. dbname=x",
+        reason: "rds.amazonaws.com",
+      },
+      {
+        name: "hostaddr-only conninfo (bare-IP target, no host signal)",
+        env: localEnvFixture(),
+        targetDsn: "hostaddr=192.0.2.1 dbname=x",
+        reason: "hostaddr",
       },
     ];
 
@@ -1272,20 +1382,68 @@ describe("restore-verify tool family (4-tier)", () => {
       expect(run.requests).toHaveLength(0);
     });
 
-    test("guard accepts a bare-IPv6 hostaddr (bracketed for the URL round-trip)", async () => {
+    test("guard refuses a percent-encoded host with a malformed escape (unassessable)", async () => {
+      const caseRoot = newCaseRoot();
+      makeSchemaFixture(caseRoot);
+      // decodeURIComponent("co%ZZ") throws — the libpq-effective host cannot
+      // be derived, so the target is unassessable and refuses (fail closed).
+      const run = await runPipeline(caseRoot, {
+        from: join(caseRoot, "never-resolved"),
+        targetDsn: "postgresql://u@prod.rds.amazonaws.co%ZZ/db",
+        script: emptyScript(),
+      });
+      expect(run.thrown).toBeNull();
+      expect(run.exitCode).toBe(2);
+      expect(run.stderr).toContain("[guard]");
+      expect(run.stderr).toContain("malformed percent-escape");
+      expect(run.requests).toHaveLength(0);
+    });
+
+    test("guard decodes an encoded LOCAL host and still allows the drill target (original string spawned)", async () => {
       const caseRoot = newCaseRoot();
       makeSchemaFixture(caseRoot);
       const fixture = makeBackupRun(caseRoot);
-      const ipv6Target = "hostaddr=::1 dbname=x";
+      // %31%32%37.0.0.1 percent-decodes to 127.0.0.1 — a local host. The
+      // encoded form must remain ALLOWED (decoding reveals no managed
+      // marker), and pg_restore must receive the operator's EXACT string.
+      const encodedLocalTarget = "postgresql://postgres@%31%32%37.0.0.1:5432/scratch_restore";
       const run = await runPipeline(caseRoot, {
         from: fixture.runDir,
-        targetDsn: ipv6Target,
+        targetDsn: encodedLocalTarget,
         script: healthyScript(),
       });
       expect(run.thrown).toBeNull();
       expect(run.exitCode).toBe(0);
       expect(run.stdout).toContain("VERDICT: PASS");
-      expect(run.requests.find(request => request.cmd === "pg_restore")?.args).toContain(ipv6Target);
+      expect(run.requests.find(request => request.cmd === "pg_restore")?.args).toContain(encodedLocalTarget);
+    });
+
+    test("URL-form IP targets remain the supported drill path (hostaddr rule is conninfo-only)", async () => {
+      const caseRoot = newCaseRoot();
+      makeSchemaFixture(caseRoot);
+      const fixture = makeBackupRun(caseRoot);
+
+      const ipv4Url = "postgresql://postgres@127.0.0.1:5432/scratch_restore";
+      const ipv4Run = await runPipeline(caseRoot, {
+        from: fixture.runDir,
+        targetDsn: ipv4Url,
+        script: healthyScript(),
+      });
+      expect(ipv4Run.thrown).toBeNull();
+      expect(ipv4Run.exitCode).toBe(0);
+      expect(ipv4Run.stdout).toContain("VERDICT: PASS");
+      expect(ipv4Run.requests.find(request => request.cmd === "pg_restore")?.args).toContain(ipv4Url);
+
+      const ipv6Url = "postgresql://postgres@[::1]:5432/scratch_restore";
+      const ipv6Run = await runPipeline(caseRoot, {
+        from: fixture.runDir,
+        targetDsn: ipv6Url,
+        script: healthyScript(),
+      });
+      expect(ipv6Run.thrown).toBeNull();
+      expect(ipv6Run.exitCode).toBe(0);
+      expect(ipv6Run.stdout).toContain("VERDICT: PASS");
+      expect(ipv6Run.requests.find(request => request.cmd === "pg_restore")?.args).toContain(ipv6Url);
     });
 
     test("value-oracle absence ladder descends ONLY on SQLSTATE 42P01 and fails closed otherwise", async () => {
@@ -1301,7 +1459,7 @@ describe("restore-verify tool family (4-tier)", () => {
         },
       ];
       const calls: string[] = [];
-      const runLadder = async (scripted: Record<string, PsqlOutcome>) =>
+      const runLadder = async (scripted: Record<string, PsqlOutcome | undefined>) =>
         runOracles(
           async sql => {
             calls.push(sql);

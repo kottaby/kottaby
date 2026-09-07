@@ -28,7 +28,7 @@
 import { join, resolve } from "node:path";
 
 import { applyEnvFile, isValidDatabaseUrl } from "@/scripts/dbActions/envFile";
-import { scrubDsnSecrets } from "@/scripts/ops/_shared";
+import { resolveEnvFilePath, scrubDsnSecrets } from "@/scripts/ops/_shared";
 import { sha256File } from "@/scripts/ops/backup-artifacts";
 import {
   parseRestoreArgs,
@@ -41,7 +41,7 @@ import {
   assessRestoreTargetSafety,
   formatRestoreGuardBlockMessage,
 } from "@/scripts/ops/restore-guard";
-import { type OracleResult, runOracles } from "@/scripts/ops/restore-oracles";
+import { ORACLE_ERROR_OFFENDING_COUNT, type OracleResult, runOracles } from "@/scripts/ops/restore-oracles";
 import {
   type BackupManifest,
   type Clock,
@@ -105,10 +105,19 @@ function resolveDeps(deps: RestoreVerifyDeps): ResolvedDeps {
 /** Loads env for source-database context; an explicit file failure is fatal, a missing default is not. */
 function bootstrapEnv(args: RestoreCliArgs, stderr: LineWriter): void {
   if (args.envFile !== null) {
+    // Resolve BEFORE applyEnvFile: applyEnvFile joins its fileName against a
+    // root directory (cwd by default), which would re-root an absolute path
+    // under cwd and silently miss the operator's file.
+    const { fileName, rootDir } = resolveEnvFilePath(args.envFile);
     try {
-      applyEnvFile(args.envFile);
+      applyEnvFile(fileName, rootDir);
     } catch (error) {
-      throw new RestoreUsageError(`env bootstrap failed: ${error instanceof Error ? error.message : String(error)}`);
+      // The env file's contents may be echoed in the failure message — scrub
+      // credential material before it reaches stderr (mirrors the default-
+      // path scrubbing below).
+      throw new RestoreUsageError(
+        `env bootstrap failed: ${scrubDsnSecrets(error instanceof Error ? error.message : String(error))}`
+      );
     }
     return;
   }
@@ -178,7 +187,7 @@ async function verifyRestoredTarget(
   const oracles = await runOracles(targetPsql, { journalHash: manifest.journalHash });
 
   for (const oracle of oracles) {
-    if (oracle.offendingCount === -1) {
+    if (oracle.offendingCount === ORACLE_ERROR_OFFENDING_COUNT) {
       stderr(`[verify:${oracle.id}] oracle errored (could not evaluate): ${oracle.description}`);
     } else if (!oracle.passed) {
       stderr(`[verify:${oracle.id}] ${oracle.offendingCount} offending row(s)/value(s): ${oracle.description}`);
@@ -248,6 +257,15 @@ export async function runRestoreVerify(args: RestoreCliArgs, deps: RestoreVerify
   if (!hashesMatch) {
     stderr(
       `[verify] artifact sha256 mismatch: manifest ${resolved.manifest.sha256} vs recomputed ${artifactSha256} — refusing restore`
+    );
+    return 1;
+  }
+  // Manifest-controlled byte-size cross-check: a manifest that claims a
+  // different artifact length than the file it names is tampered or mispaired
+  // (tamper-fail class — refuses the restore before any spawn).
+  if (resolved.artifactSize !== resolved.manifest.artifactBytes) {
+    stderr(
+      `[verify] artifact byte size mismatch: manifest ${resolved.manifest.artifactBytes} vs actual ${resolved.artifactSize} — refusing restore`
     );
     return 1;
   }

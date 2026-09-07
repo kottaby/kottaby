@@ -10,6 +10,7 @@ import {
   renameSync,
   rmSync,
   statSync,
+  symlinkSync,
   utimesSync,
   writeFileSync,
 } from "node:fs";
@@ -24,6 +25,7 @@ import {
   computeJournalHash,
   createStagingDir,
   isLikelyNonDisposable,
+  isSystemOutDir,
   listLeftoverStagingDirs,
   MANIFEST_FILE_NAME,
   MIGRATIONS_ABSENT_HASH,
@@ -309,11 +311,23 @@ describe("parsePostgresDatabaseUrl", () => {
 });
 
 describe("databaseNameFromDsn", () => {
-  it("uses the path, then the username, then a fixed fallback", () => {
+  it("uses the path, else the fixed (default) fallback — never the username", () => {
     expect(databaseNameFromDsn(new URL("postgresql://u:p@h.example/db"))).toBe("db");
     expect(databaseNameFromDsn(new URL("postgresql://u:p@h.example/my%20db"))).toBe("my db");
-    expect(databaseNameFromDsn(new URL("postgresql://fallback@h.example"))).toBe("fallback");
-    expect(databaseNameFromDsn(new URL("postgresql://h.example"))).toBe("(default)");
+    // The db-less fallback is the fixed marker: the URL username (or any
+    // userinfo) must never leak into the manifest's `database` field.
+    expect(databaseNameFromDsn(new URL("postgresql://fallback@h.example"))).toBe("(default)");
+    expect(databaseNameFromDsn(new URL("postgresql://fallback:p@h.example"))).toBe("(default)");
+    for (const dsn of [
+      "postgresql://leaky@h.example",
+      "postgresql://leaky:pw@h.example",
+      "postgresql://leaky:pw@h.example/",
+      "postgresql://h.example",
+    ]) {
+      const name = databaseNameFromDsn(new URL(dsn));
+      expect(name).toBe("(default)");
+      expect(name).not.toContain("leaky");
+    }
   });
 });
 
@@ -409,6 +423,30 @@ describe("run lock lifecycle", () => {
       liveHolderPids: [],
     });
     expect(acquireRunLock(outDir, FAKE_PID, () => true).ok).toBe(true);
+  });
+
+  it("treats a self-pid lock that vanished mid-scan as absent instead of aborting", () => {
+    const outDir = join(workspace, "lock-vanished");
+    mkdirSync(outDir, { recursive: true });
+    // A broken symlink named `.lock-<selfPid>` makes readdir list the entry
+    // while statSync on it throws ENOENT — the exact vanish-mid-scan window.
+    symlinkSync(join(outDir, "gone-target"), lockFilePath(outDir, FAKE_PID));
+    try {
+      expect(scanRunLocks(outDir, FAKE_PID, () => true)).toEqual({
+        reclaimedPids: [],
+        reclaimedPaths: [],
+        liveHolderPids: [],
+      });
+      // Acquisition must not THROW on the vanishing lock. The broken symlink
+      // still occupies the lock name, so the exclusive create reports its
+      // EEXIST race path (holder unknown) instead of aborting with an error.
+      const acquired = acquireRunLock(outDir, FAKE_PID, () => true);
+      expect(acquired.ok).toBe(false);
+      expect(acquired.ok ? null : acquired.holderPid).toBeNull();
+    } finally {
+      rmSync(lockFilePath(outDir, FAKE_PID), { force: true });
+      rmSync(outDir, { recursive: true, force: true });
+    }
   });
 
   it("reports an EEXIST race holder as unknown, never selfPid", () => {
@@ -609,6 +647,21 @@ describe("hashing and artifact helpers", () => {
     expect(isLikelyNonDisposable(workspace, workspace)).toBe(true);
     expect(isLikelyNonDisposable(join(workspace, "backups"), workspace)).toBe(false);
     expect(isLikelyNonDisposable(join(workspace, "..", "elsewhere"), workspace)).toBe(true);
+  });
+
+  it("classifies system paths for the out-dir refusal", () => {
+    expect(isSystemOutDir("/")).toBe(true);
+    for (const systemDir of ["/etc", "/usr", "/boot", "/proc", "/sys", "/dev", "/var/run"]) {
+      expect(isSystemOutDir(systemDir)).toBe(true);
+      expect(isSystemOutDir(`${systemDir}/kottaby-backups`)).toBe(true);
+    }
+    // Merely-unusual paths are NOT refused (they only draw the warning).
+    // /tmp is deliberately absent from the refusal list; built via join() so
+    // this stays an assertion about the classifier, not a tmpfs write target.
+    expect(isSystemOutDir(join("/", "tmp", "xyz"))).toBe(false);
+    expect(isSystemOutDir("/etcx")).toBe(false);
+    expect(isSystemOutDir("/var/runx")).toBe(false);
+    expect(isSystemOutDir(join(workspace, "backups"))).toBe(false);
   });
 });
 
@@ -908,9 +961,22 @@ describe("runBackup — success boundary", () => {
       const run = await runBackupWith(probeAndDumpBehavior(dumpWritesArtifact), { envFile: goodEnvFile, outDir });
       expect(run.code).toBe(0);
       expect(run.errors.some(line => line.includes("outside the repository"))).toBe(true);
+      expect(run.errors.some(line => line.includes("refusing to write backups into the system path"))).toBe(false);
     } finally {
       rmSync(outDir, { recursive: true, force: true });
     }
+  });
+
+  it("accepts an absolute --env path (cwd-independent bootstrap)", async () => {
+    const absoluteEnvFile = join(workspace, "env-abs", ".env-absolute");
+    mkdirSync(dirname(absoluteEnvFile), { recursive: true });
+    writeFileSync(absoluteEnvFile, `DATABASE_URL=${FIXTURE_DSN}\n`);
+    const run = await runBackupWith(probeAndDumpBehavior(dumpWritesArtifact), {
+      envFile: absoluteEnvFile,
+      outDir: join(workspace, "run-abs-env"),
+    });
+    expect(run.code).toBe(0);
+    expect(run.logs.some(line => line.includes(`backup complete:`))).toBe(true);
   });
 
   it("warns about leftover staging directories from crashed runs", async () => {
@@ -1022,6 +1088,39 @@ describe("runBackup — failure boundaries", () => {
     });
     expect(run.code).toBe(2);
     expect(run.errors.some(line => line.includes("cannot create the output directory"))).toBe(true);
+  });
+
+  it("refuses the filesystem root as out-dir with exit 2 and zero side effects", async () => {
+    const run = await runBackupWith(probeAndDumpBehavior(dumpWritesArtifact), {
+      envFile: goodEnvFile,
+      outDir: "/",
+    });
+    expect(run.code).toBe(2);
+    expect(run.errors.some(line => line.includes("refusing to write backups into the system path /"))).toBe(true);
+    // Zero side effects: nothing spawned, no run/staging/lock files written.
+    expect(run.calls).toHaveLength(0);
+    expect(readdirSync("/").filter(name => name.startsWith(STAGING_DIR_PREFIX) || name.startsWith(".lock-"))).toEqual(
+      []
+    );
+  });
+
+  it("refuses system paths and their descendants as out-dir with exit 2 and zero side effects", async () => {
+    const systemOutDirs = ["/etc/kottaby-s5-probe", "/var/run/kottaby-s5-probe"];
+    const runs = await Promise.all(
+      systemOutDirs.map(systemOutDir =>
+        runBackupWith(probeAndDumpBehavior(dumpWritesArtifact), {
+          envFile: goodEnvFile,
+          outDir: systemOutDir,
+        })
+      )
+    );
+    for (const [index, run] of runs.entries()) {
+      const systemOutDir = systemOutDirs[index];
+      expect(run.code).toBe(2);
+      expect(run.errors.some(line => line.includes("refusing to write backups into the system path"))).toBe(true);
+      expect(run.calls).toHaveLength(0);
+      expect(existsSync(systemOutDir)).toBe(false);
+    }
   });
 
   it("exits 2 when the migration journal cannot be fingerprinted", async () => {

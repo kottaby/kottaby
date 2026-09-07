@@ -34,20 +34,22 @@
  *
  * Exit codes: 0 = backup published (artifact + manifest written);
  * 1 = operational failure (pg_dump error, empty/missing artifact, manifest
- * contract violation, unexpected error); 2 = usage, environment, toolchain,
- * lock-contention, or manifest-write failure.
+ * contract violation, unexpected error); 2 = usage, environment (including
+ * system-path out-dir refusal), toolchain, lock-contention, or
+ * manifest-write failure.
  */
 
 import { mkdirSync, renameSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { applyEnvFile, isValidDatabaseUrl } from "@/scripts/dbActions/envFile";
-import { redactDsn, scrubDsnSecrets } from "@/scripts/ops/_shared";
+import { decodeUrlSegment, redactDsn, resolveEnvFilePath, scrubDsnSecrets } from "@/scripts/ops/_shared";
 import {
   ARTIFACT_FILE_NAME,
   buildBackupManifest,
   computeJournalHash,
   createStagingDir,
   isLikelyNonDisposable,
+  isSystemOutDir,
   listLeftoverStagingDirs,
   manifestProblems,
   nextAvailableRunDirName,
@@ -103,14 +105,6 @@ interface BackupRunContext {
   stamp: string;
 }
 
-function decodeUrlSegment(value: string): string {
-  try {
-    return decodeURIComponent(value);
-  } catch {
-    return value;
-  }
-}
-
 /**
  * Parses a DATABASE_URL that is eligible for backup: a valid postgres URL
  * with a hostname. Reuses the shared env-file validator first (it rejects
@@ -131,13 +125,15 @@ export function parsePostgresDatabaseUrl(value: string | undefined): URL | null 
   }
 }
 
-/** Database name from a parsed DSN, falling back to the username, then "(default)". */
+/**
+ * Database name from a parsed DSN for the manifest's `database` field. The
+ * fallback is the fixed "(default)" marker — NEVER the userinfo: the URL
+ * username is a credential-adjacent value and must not leak into a persisted
+ * manifest (or anywhere else).
+ */
 export function databaseNameFromDsn(url: URL): string {
   const dbName = decodeUrlSegment(url.pathname.replace(/^\//, ""));
-  if (dbName) {
-    return dbName;
-  }
-  return decodeUrlSegment(url.username) || "(default)";
+  return dbName || "(default)";
 }
 
 export function defaultBackupDeps(overrides: Partial<BackupRunDeps> = {}): BackupRunDeps {
@@ -157,10 +153,17 @@ export function defaultBackupDeps(overrides: Partial<BackupRunDeps> = {}): Backu
 
 /** Loads the env file and validates DATABASE_URL; `null` = reported exit-2 problem. */
 function bootstrapDsn(envFile: string, deps: BackupRunDeps): { dsn: string; dsnUrl: URL } | null {
+  // Resolve BEFORE applyEnvFile: applyEnvFile joins its fileName against a
+  // root directory (cwd by default), which would re-root an absolute path
+  // under cwd and silently miss the operator's file.
+  const { fileName, rootDir } = resolveEnvFilePath(envFile);
   try {
-    applyEnvFile(envFile);
+    applyEnvFile(fileName, rootDir);
   } catch (error) {
-    deps.emit.error(`[env] env bootstrap failed: ${errorMessage(error)}`);
+    // The env file's contents may be echoed in the failure message — scrub
+    // credential material before it reaches stderr (mirrors the restore
+    // tool's env-bootstrap scrubbing).
+    deps.emit.error(`[env] env bootstrap failed: ${scrubDsnSecrets(errorMessage(error))}`);
     return null;
   }
 
@@ -181,9 +184,21 @@ function bootstrapDsn(envFile: string, deps: BackupRunDeps): { dsn: string; dsnU
   return { dsn: rawDsn, dsnUrl };
 }
 
-/** Creates the output directory (0700); `null` = reported exit-2 problem. */
+/**
+ * Creates the output directory (0700); `null` = reported exit-2 problem.
+ *
+ * System paths (/, /etc, /usr, /boot, /proc, /sys, /dev, /var/run and their
+ * descendants) are REFUSED before any filesystem side effect; merely-unusual
+ * paths (outside the repo) still succeed with a warning.
+ */
 function prepareOutDir(outDirOption: string | undefined, deps: BackupRunDeps): string | null {
   const outDir = resolve(outDirOption ?? join(deps.repoRoot, "backups"));
+  if (isSystemOutDir(outDir)) {
+    deps.emit.error(
+      `[env] refusing to write backups into the system path ${outDir} — pass a disposable, non-system --out-dir`
+    );
+    return null;
+  }
   try {
     mkdirSync(outDir, { recursive: true, mode: 0o700 });
   } catch (error) {

@@ -187,6 +187,23 @@ export function isLikelyNonDisposable(outDir: string, repoRoot: string): boolean
 }
 
 /**
+ * System directories a backup output must NEVER live in (nor under). Writing
+ * pg_dump artifacts into `/etc`, `/usr`, `/boot`, `/proc`, `/sys`, `/dev`,
+ * `/var/run` (or the filesystem root itself) is never a disposable backup
+ * location, so the backup tool REFUSES these outright; merely-unusual paths
+ * outside this list only draw the non-disposable warning.
+ */
+const SYSTEM_OUT_DIRS = ["/etc", "/usr", "/boot", "/proc", "/sys", "/dev", "/var/run"] as const;
+
+/** True when `outDir` is the filesystem root, a system directory, or inside one. */
+export function isSystemOutDir(outDir: string): boolean {
+  if (outDir === "/") {
+    return true;
+  }
+  return SYSTEM_OUT_DIRS.some(systemDir => outDir === systemDir || outDir.startsWith(`${systemDir}/`));
+}
+
+/**
  * Creates the staging directory `tmp-<pid>-<ts>` (first collision-free
  * name) with a pre-created empty artifact file, so a failed dump always
  * leaves inspectable evidence and pg_dump never invents file permissions.

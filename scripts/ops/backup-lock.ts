@@ -81,7 +81,20 @@ export function scanRunLocks(outDir: string, selfPid: number, isAlive: (pid: num
       continue;
     }
     if (pid === selfPid) {
-      const ageMs = Date.now() - statSync(join(outDir, entry)).mtimeMs;
+      // A lock can vanish between readdir and this stat (concurrent cleanup).
+      // ENOENT means there is nothing left to classify and nothing to
+      // reclaim: treat it as absent instead of letting the stat failure
+      // spuriously abort lock acquisition. Any other stat failure still
+      // fails closed (thrown).
+      let ageMs: number;
+      try {
+        ageMs = Date.now() - statSync(join(outDir, entry)).mtimeMs;
+      } catch (error) {
+        if (errnoCode(error) === "ENOENT") {
+          continue;
+        }
+        throw error;
+      }
       if (ageMs > SELF_LOCK_STALE_MS) {
         scan.reclaimedPids.push(pid);
       } else {

@@ -14,8 +14,8 @@
  * backup family is their single definition owner.
  */
 
-import { readdirSync, readFileSync, statSync } from "node:fs";
-import { join } from "node:path";
+import { readdirSync, readFileSync, realpathSync, statSync } from "node:fs";
+import { join, sep } from "node:path";
 
 import { type BackupManifest, MANIFEST_FILE_NAME, MIGRATIONS_ABSENT_HASH } from "@/scripts/ops/backup-artifacts";
 
@@ -224,6 +224,10 @@ function requireNonEmptyString(record: Map<string, unknown>, field: string): str
  * `sha256`/`journalHash` 64-hex lower-case — the journalHash sentinel
  * {@link MIGRATIONS_ABSENT_HASH} satisfies that shape) — a manifest missing
  * any key fails closed.
+ *
+ * `artifactFile` must additionally be a BARE file name: the manifest is
+ * attacker-movable data, so a value carrying `/`, `\`, or `..` (any path
+ * traversal out of the run directory) is a tamper signal and fails closed.
  */
 export function parseBackupManifest(raw: string): BackupManifest {
   let source: unknown;
@@ -258,6 +262,13 @@ export function parseBackupManifest(raw: string): BackupManifest {
     throw new RestoreArtifactError('manifest field "artifactBytes" must be a positive integer');
   }
 
+  const artifactFile = requireNonEmptyString(record, "artifactFile");
+  if (artifactFile.includes("/") || artifactFile.includes("\\") || artifactFile.includes("..")) {
+    throw new RestoreArtifactError(
+      'manifest field "artifactFile" must be a bare file name (no path separators or "..") — refusing tampered manifest'
+    );
+  }
+
   return {
     tool: "ops:db-backup",
     toolVersion: requireNonEmptyString(record, "toolVersion"),
@@ -266,7 +277,7 @@ export function parseBackupManifest(raw: string): BackupManifest {
     database: requireNonEmptyString(record, "database"),
     startedAtUtc: requireNonEmptyString(record, "startedAtUtc"),
     finishedAtUtc: requireNonEmptyString(record, "finishedAtUtc"),
-    artifactFile: requireNonEmptyString(record, "artifactFile"),
+    artifactFile,
     artifactBytes,
     sha256,
     journalHash,
@@ -283,6 +294,8 @@ export interface ResolvedArtifact {
   manifestPath: string;
   artifactPath: string;
   manifest: BackupManifest;
+  /** Actual byte size of the resolved artifact (cross-checked by the caller). */
+  artifactSize: number;
 }
 
 /**
@@ -292,6 +305,12 @@ export interface ResolvedArtifact {
  * direct dump artifact whose manifest.json sits beside it. Any missing or
  * unreadable piece throws {@link RestoreArtifactError} so the caller refuses
  * the restore before spawning pg_restore.
+ *
+ * The manifest's `artifactFile` is validated as a bare file name at parse
+ * time (no separators, no `..`), and — for the run-directory form — the
+ * resolved artifact is additionally realpath-checked to live INSIDE the
+ * resolved `--from` directory, so a symlinked entry cannot steer the restore
+ * outside the operator-chosen directory.
  */
 export function resolveRunArtifact(fromPath: string): ResolvedArtifact {
   let stats: ReturnType<typeof statSync>;
@@ -301,9 +320,8 @@ export function resolveRunArtifact(fromPath: string): ResolvedArtifact {
     throw new RestoreArtifactError(`--from path does not exist or is unreadable: ${fromPath}`);
   }
 
-  const manifestPath = stats.isDirectory()
-    ? join(fromPath, MANIFEST_FILE_NAME)
-    : join(fromPath, "..", MANIFEST_FILE_NAME);
+  const isRunDir = stats.isDirectory();
+  const manifestPath = isRunDir ? join(fromPath, MANIFEST_FILE_NAME) : join(fromPath, "..", MANIFEST_FILE_NAME);
 
   let rawManifest: string;
   try {
@@ -314,9 +332,10 @@ export function resolveRunArtifact(fromPath: string): ResolvedArtifact {
 
   const manifest = parseBackupManifest(rawManifest);
 
-  const artifactPath = stats.isDirectory() ? join(fromPath, manifest.artifactFile) : fromPath;
+  const artifactPath = isRunDir ? join(fromPath, manifest.artifactFile) : fromPath;
+  let artifactStats: ReturnType<typeof statSync>;
   try {
-    const artifactStats = statSync(artifactPath);
+    artifactStats = statSync(artifactPath);
     if (!artifactStats.isFile()) {
       throw new RestoreArtifactError(`artifact is not a regular file: ${artifactPath}`);
     }
@@ -327,7 +346,33 @@ export function resolveRunArtifact(fromPath: string): ResolvedArtifact {
     throw new RestoreArtifactError(`backup artifact does not exist or is unreadable: ${artifactPath}`);
   }
 
-  return { runDir: stats.isDirectory() ? fromPath : join(fromPath, ".."), manifestPath, artifactPath, manifest };
+  if (isRunDir) {
+    // Realpath containment: the artifact must resolve INSIDE the resolved
+    // run directory. A bare artifactFile name cannot traverse on its own;
+    // this closes the symlink-escape variant.
+    try {
+      const runDirReal = realpathSync(fromPath);
+      const artifactReal = realpathSync(artifactPath);
+      if (artifactReal !== runDirReal && !artifactReal.startsWith(`${runDirReal}${sep}`)) {
+        throw new RestoreArtifactError(
+          `backup artifact resolves outside the --from directory: ${artifactReal} — refusing tampered run`
+        );
+      }
+    } catch (error) {
+      if (error instanceof RestoreArtifactError) {
+        throw error;
+      }
+      throw new RestoreArtifactError(`backup artifact path could not be resolved — refusing tampered run`);
+    }
+  }
+
+  return {
+    runDir: isRunDir ? fromPath : join(fromPath, ".."),
+    manifestPath,
+    artifactPath,
+    manifest,
+    artifactSize: artifactStats.size,
+  };
 }
 
 // ---------------------------------------------------------------------------

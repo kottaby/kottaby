@@ -1,7 +1,42 @@
 import { describe, expect, it } from "bun:test";
-import { REDACTED_DSN, redactDsn, scrubDsnSecrets } from "@/scripts/ops/_shared";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import {
+  decodeUrlSegment,
+  POSTGRES_PROTOCOLS,
+  REDACTED_DSN,
+  redactDsn,
+  resolveEnvFilePath,
+  scrubDsnSecrets,
+} from "@/scripts/ops/_shared";
 
 const FIXTURE_DSN = "postgresql://ops_owner:supersecret-pw@db.internal.example:5432/ops_db?sslmode=require";
+
+describe("shared URL helpers", () => {
+  it("exposes the Postgres protocol set both tools share", () => {
+    expect([...POSTGRES_PROTOCOLS].toSorted((a, b) => a.localeCompare(b))).toEqual(["postgres:", "postgresql:"]);
+  });
+
+  it("decodes a percent-encoded segment and degrades on malformed escapes", () => {
+    expect(decodeUrlSegment("my%20db")).toBe("my db");
+    expect(decodeUrlSegment("%31%32%37")).toBe("127");
+    expect(decodeUrlSegment("plain")).toBe("plain");
+    expect(decodeUrlSegment("%ZZ")).toBe("%ZZ");
+  });
+});
+
+describe("resolveEnvFilePath", () => {
+  it("passes an absolute --env value through as-is", () => {
+    const scratchEnv = join(tmpdir(), "ops", "scratch.env");
+    const resolved = resolveEnvFilePath(scratchEnv);
+    expect(resolved).toEqual({ fileName: "scratch.env", rootDir: join(tmpdir(), "ops") });
+  });
+
+  it("resolves a relative --env value against the process cwd", () => {
+    const resolved = resolveEnvFilePath("nested/dir/.env");
+    expect(resolved).toEqual({ fileName: ".env", rootDir: join(process.cwd(), "nested/dir") });
+  });
+});
 
 describe("redactDsn", () => {
   it("renders the full contract shape: dbName@host(redacted-user)", () => {

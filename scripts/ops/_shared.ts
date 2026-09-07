@@ -1,6 +1,6 @@
 /**
- * Shared credential-redaction helpers for the database ops scripts
- * (backup-database.ts and restore-verify.ts).
+ * Shared helpers for the database ops scripts (backup-database.ts and
+ * restore-verify.ts).
  *
  * Contract: no script output (stdout, stderr, JSON artifacts, error tails)
  * may contain a raw connection string, a username, or a password. DSNs are
@@ -9,19 +9,45 @@
  * is replaced by a fixed marker. Anything that is not a parseable Postgres
  * URL degrades to the fixed `redacted-dsn` placeholder rather than being
  * echoed back.
+ *
+ * The module also owns the two tiny URL/segment utilities both CLIs need
+ * (the Postgres protocol set and percent-segment decoding) and the `--env`
+ * path resolution — one definition each, imported by both tools.
  */
+
+import { basename, dirname, resolve } from "node:path";
 
 /** Placeholder emitted when a value cannot be safely rendered. */
 export const REDACTED_DSN = "redacted-dsn";
 
-const POSTGRES_PROTOCOLS = new Set(["postgresql:", "postgres:"]);
+/** The URL protocols both tools treat as Postgres DSNs. */
+export const POSTGRES_PROTOCOLS = new Set(["postgresql:", "postgres:"]);
 
-function decodeUrlSegment(value: string): string {
+/**
+ * Percent-decodes one URL path/userinfo segment. A malformed escape
+ * (`%ZZ`) degrades to the raw input rather than throwing — callers that
+ * need strict decoding must validate separately.
+ */
+export function decodeUrlSegment(value: string): string {
   try {
     return decodeURIComponent(value);
   } catch {
     return value;
   }
+}
+
+/**
+ * Resolves an operator-supplied `--env` value against the process cwd.
+ *
+ * `applyEnvFile` joins its fileName argument onto a root directory (default
+ * cwd), so an ABSOLUTE `--env` path passed through that join would be
+ * re-rooted under cwd and silently miss the file. The value is resolved
+ * here — absolute values as-is, relative values against cwd — and split
+ * back into (rootDir, fileName) for `applyEnvFile(fileName, rootDir)`.
+ */
+export function resolveEnvFilePath(value: string): { fileName: string; rootDir: string } {
+  const resolved = resolve(process.cwd(), value);
+  return { fileName: basename(resolved), rootDir: dirname(resolved) };
 }
 
 /**
