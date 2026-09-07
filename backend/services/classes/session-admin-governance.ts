@@ -32,7 +32,9 @@
  *    booking flow uses: the claim is inserted savepoint-bracketed inside
  *    the mutation transaction, a duplicate key (PG 23505) resolves the
  *    replay, and a replayed cancel returns the already-cancelled row with
- *    zero new writes — no duplicate audit row, no second refund;
+ *    no duplicate audit row, no second refund, and no wave — the claim's
+ *    session pointer backfills on the replay arm too, so a committed claim
+ *    always names the session it resolved against;
  *  - notification waves persist inside the mutation transaction as
  *    unpublished delivery receipts and are published strictly AFTER the
  *    caller's own commit (publish-after-commit — nothing is ever pushed
@@ -269,8 +271,11 @@ export namespace SessionAdminGovernanceService {
    * resolves the replay branch; any other error surfaces untouched and
    * rolls the whole mutation back, so a failed cancel never burns its
    * key). The replayed cancel returns the already-cancelled row untouched
-   * — zero new writes, no duplicate audit row, no second refund. A key
-   * spent by a DIFFERENT caller is denied with the oracle-safe
+   * — no duplicate audit row, no second refund, no notification wave; the
+   * claim's session pointer backfills in the same transaction (a committed
+   * claim always names the session it replayed against, which is what
+   * keeps a later different-session retry on the mis-point classification).
+   * A key spent by a DIFFERENT caller is denied with the oracle-safe
    * session-not-found error; a key spent on a DIFFERENT session is the
    * state conflict.
    *
