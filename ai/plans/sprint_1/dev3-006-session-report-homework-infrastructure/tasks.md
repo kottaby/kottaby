@@ -57,7 +57,7 @@ The ONLY instruction files that exist are `.agents/instructions/frontend.instruc
 
 ## Phase 0: Pre-Implementation Baseline
 
-- [ ] 0.1 [Record baseline error counts & initialize deferred-items ledger]
+- [x] 0.1 [Record baseline error counts & initialize deferred-items ledger]
   - Run and capture raw outputs + counts into `ai/plans/sprint_1/dev3-006-session-report-homework-infrastructure/outcome/0-baseline-outcome.md`:
     - `bun run tsgo` (or the repo's configured type-check script — verify script name in `package.json` first)
     - `bun run biome:check`
@@ -74,7 +74,7 @@ The ONLY instruction files that exist are `.agents/instructions/frontend.instruc
     - **D5** — Edit/amend/void semantics for submitted reports (compensating-artifact flow; append-only by design here). Owner: future ticket. Status: DEFERRED.
   - _Requirements: REQ-001_
 
-- [ ] 0.2 [Prerequisite verification — ground-truth gate before any claim]
+- [x] 0.2 [Prerequisite verification — ground-truth gate before any claim]
   - Verify the following exist in the bundled/working codebase; record `path:line` anchors for each in `ai/plans/sprint_1/dev3-006-session-report-homework-infrastructure/outcome/0.2-outcome.md`. Any MISS downgrades the dependent task's assumption and MUST be reconciled against `plan.md` before proceeding:
     - `backend/db/schema/classes/reports.ts` and `backend/db/schema/classes/home-work.ts` (table modules exist).
     - `backend/types/classes/report.types.ts` (`ReportSelectType`/`ReportInsertType`) and `backend/types/classes/home-work.types.ts` (`HomeWorkSelectType`/`HomeWorkInsertType`).
