@@ -141,6 +141,16 @@ async function readSessionRow(sessionId: number): Promise<SessionSelectType | nu
 }
 
 /**
+ * An instant at the timestamps' stored second resolution — the precision
+ * cross-source timestamp comparisons agree at (the value a service call
+ * returns reports second resolution even though the stored row keeps the
+ * full precision: the write round-trip drops sub-second digits).
+ */
+function secondPrecisionMs(instant: Date): number {
+  return Math.floor(instant.getTime() / 1000) * 1000;
+}
+
+/**
  * An id that is guaranteed NOT to exist: one million past the current
  * identity high-water mark, so repeated or parallel journey runs (each with
  * their own fresh rows) can never collide with it.
@@ -281,11 +291,12 @@ describe("Journey J2 — session lifecycle hostile & boundary legs", () => {
     expect(funded.heldBalanceLane).toBe(HeldBalanceLane.Hifz);
     expect(funded.fee).toBe(SESSION_FEE_HIFZ);
     // The confirmation deadline derives from ONE captured instant: now + 24h
-    // EXACTLY (bracketed by the call's start/end instants). A null deadline
-    // degrades to -1 and fails both brackets loudly.
+    // EXACTLY (bracketed by the call's start/end instants, compared at the
+    // timestamps' stored second resolution — see secondPrecisionMs). A null
+    // deadline degrades to -1 and fails both brackets loudly.
     const deadlineMs = funded.confirmationDeadline?.getTime() ?? -1;
-    expect(deadlineMs - callEnd.getTime()).toBeLessThanOrEqual(SESSION_CONFIRMATION_WINDOW_MS);
-    expect(deadlineMs - callStart.getTime()).toBeGreaterThanOrEqual(SESSION_CONFIRMATION_WINDOW_MS);
+    expect(deadlineMs - secondPrecisionMs(callEnd)).toBeLessThanOrEqual(SESSION_CONFIRMATION_WINDOW_MS);
+    expect(deadlineMs - secondPrecisionMs(callStart)).toBeGreaterThanOrEqual(SESSION_CONFIRMATION_WINDOW_MS);
 
     // The hold: exactly one unit left the intent lane (the trial lane was empty).
     expect(await readLaneBalances(caller.userId)).toEqual({ trial: 0, hifz: 0, tajweed: 0 });

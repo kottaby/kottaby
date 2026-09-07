@@ -18,11 +18,18 @@
  *  - Negative steps fail through the REAL service denials, asserted by
  *    `DomainError.code` + the exact translated message (try/catch helper —
  *    never `expect(...).rejects.toThrow()`).
- *  - REQ-019 (zero side effects): this surface dispatches nothing and the
- *    journey EXPECTS no dispatch, so every mutating step proves
- *    side-effect absence by ROW-COUNT DELTAS through the helper counters
- *    (notifications, audit logs, wallets, teacher transactions), scoped to
- *    fixture ids so pre-existing shared-DB rows can never satisfy a delta.
+ *  - REQ-019 (zero side effects): booking, start, cancel, and every denial
+ *    dispatch NOTHING, so those mutating steps prove side-effect absence by
+ *    ROW-COUNT DELTAS through the helper counters (notifications, audit
+ *    logs, wallets, teacher transactions), scoped to fixture ids so
+ *    pre-existing shared-DB rows can never satisfy a delta. The completion
+ *    step asserts its ONE sanctioned dispatch — the confirm-prompt
+ *    notification to the student — exactly once, with the publish boundary
+ *    spied so no realtime channel is ever touched.
+ *  - Timestamps stored by the test database keep their full precision, but
+ *    the value a service call RETURNS reports second resolution (the write
+ *    round-trip drops sub-second digits), so every cross-source timestamp
+ *    comparison runs at second precision.
  *  - REQ-J6 (zero residual state): the suite is verified by TWO
  *    consecutive green runs — the second run rebuilds a fresh cast with
  *    fresh ids/keys and observes none of the first run's rows.
@@ -32,8 +39,8 @@
  *   bun run test/scripts/run-test.ts test/workflows
  */
 
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { eq } from "drizzle-orm";
+import { afterAll, beforeAll, describe, expect, spyOn, test } from "bun:test";
+import { eq, inArray, or } from "drizzle-orm";
 import { db } from "@/backend/db";
 import { session } from "@/backend/db/schema/classes/session";
 import { sessionRequestIdempotency } from "@/backend/db/schema/classes/session-request-idempotency";
@@ -45,7 +52,8 @@ import { SessionStatus } from "@/backend/enum/scheduling/session-status.enum";
 import { SessionType } from "@/backend/enum/scheduling/session-type.enum";
 import { ConflictError, DomainError } from "@/backend/lib/errors";
 import { SessionLifecycleService } from "@/backend/services/classes/session-lifecycle.service";
-import type { SessionReturnType, SessionSubmitInput } from "@/backend/types";
+import { NotificationEngine } from "@/backend/services/notifications";
+import type { NotificationDeliveryReceipt, SessionReturnType, SessionSubmitInput } from "@/backend/types";
 import { SESSION_CONFIRMATION_WINDOW_MS, SESSION_FEE_HIFZ } from "@/shared/constants/session-fees.constants";
 import { getServerTranslations } from "@/shared/locale/server-graphql";
 import {
@@ -217,6 +225,33 @@ function expectZeroSideEffectDeltas(before: SideEffectSnapshot, after: SideEffec
   expect(after.teacherTransactionRows).toBe(before.teacherTransactionRows);
 }
 
+/**
+ * Installs a recording no-op over the engine's publish contract: no
+ * realtime channel is ever touched, and each dispatch is recorded together
+ * with the receipts (and their recipient ids) so a step can assert both
+ * THAT a publish happened and WHICH users it targeted. The spy is
+ * installed once in `beforeAll` and restored in `afterAll`.
+ */
+function spyPublication(): { calls: NotificationDeliveryReceipt[][]; stop: () => void } {
+  const calls: NotificationDeliveryReceipt[][] = [];
+  const spy = spyOn(NotificationEngine, "publishReceipts").mockImplementation(async receipts => {
+    calls.push([...receipts]);
+  });
+  return { calls, stop: () => spy.mockRestore() };
+}
+
+let publication: ReturnType<typeof spyPublication> | undefined;
+
+/** Every recipient id the spy has recorded so far, in publish order. */
+function publishedUserIds(): number[] {
+  return (publication?.calls ?? []).flatMap(receipts => receipts.flatMap(receipt => receipt.recipientUserIds));
+}
+
+/** How many publish dispatches the spy has recorded so far. */
+function publicationCallCount(): number {
+  return publication?.calls.length ?? 0;
+}
+
 /** Registers one service-created idempotency claim (by key) for cleanup. */
 async function trackIdempotencyClaim(key: string, label: string): Promise<void> {
   const rows = await db
@@ -231,15 +266,25 @@ async function trackIdempotencyClaim(key: string, label: string): Promise<void> 
 }
 
 /**
+ * An instant at the timestamps' stored second resolution — the precision
+ * cross-source timestamp comparisons agree at (the value a service call
+ * returns reports second resolution even though the stored row keeps the
+ * full precision; see the header note).
+ */
+function secondPrecisionMs(instant: Date): number {
+  return Math.floor(instant.getTime() / 1000) * 1000;
+}
+
+/**
  * Asserts the session's confirmation deadline is the captured creation
  * instant + 24h EXACTLY: the service derives it from one instant captured
  * between the bracketing reads, so `deadline` must lie inside
- * [before + 24h, after + 24h] (REQ-022, B.2).
+ * [before + 24h, after + 24h] at second precision (REQ-022, B.2).
  */
 function expectDeadlineWindow(deadline: Date, before: Date, after: Date): void {
-  const deadlineMs = deadline.getTime();
-  expect(deadlineMs).toBeGreaterThanOrEqual(before.getTime() + SESSION_CONFIRMATION_WINDOW_MS);
-  expect(deadlineMs).toBeLessThanOrEqual(after.getTime() + SESSION_CONFIRMATION_WINDOW_MS);
+  const deadlineMs = secondPrecisionMs(deadline);
+  expect(deadlineMs).toBeGreaterThanOrEqual(secondPrecisionMs(before) + SESSION_CONFIRMATION_WINDOW_MS);
+  expect(deadlineMs).toBeLessThanOrEqual(secondPrecisionMs(after) + SESSION_CONFIRMATION_WINDOW_MS);
 }
 
 /**
@@ -274,9 +319,36 @@ beforeAll(async () => {
       secondStudent: { trial: 1 },
     });
   });
+  // No realtime delivery for the whole suite: every publish is recorded.
+  publication = spyPublication();
 });
 
 afterAll(async () => {
+  publication?.stop();
+
+  // Defensive totality sweep before the FK-ordered hard delete: ANY session
+  // row or claim row referencing the fixture actors is tracked, so a
+  // mid-test failure can never strand restrict-FK children and block the
+  // `users` deletes (the same sessions/claims the success legs tracked).
+  const fixtureUserIds = [cast.primaryStudent.userId, cast.secondStudent.userId];
+  const fixtureTeacherIds = [cast.teacher.userId, cast.secondTeacher.userId];
+  const residualSessions = await db
+    .select({ id: session.id })
+    .from(session)
+    .where(or(inArray(session.studentId, fixtureUserIds), inArray(session.teacherId, fixtureTeacherIds)));
+  registry.trackAll(
+    "session",
+    residualSessions.map(row => row.id)
+  );
+  const residualClaims = await db
+    .select({ id: sessionRequestIdempotency.id })
+    .from(sessionRequestIdempotency)
+    .where(inArray(sessionRequestIdempotency.userId, fixtureUserIds));
+  registry.trackAll(
+    "session_request_idempotency",
+    residualClaims.map(row => row.id)
+  );
+
   // Hard-deletes every tracked fixture AND service-created row (sessions,
   // idempotency claims) inside one committed transaction, FK-safe order.
   await registry.cleanup();
@@ -390,11 +462,11 @@ describe("Journey J1 — Full Happy Lifecycle (cross-actor, real services)", () 
       expect(view.feeHeld).toBe(true);
       expect(view.confirmationDeadline).not.toBeNull();
     }
-    expect(requiredDate(teacherViewA.confirmationDeadline, "T-view deadline A").getTime()).toBe(
-      requiredDate(sessionA.confirmationDeadline, "created deadline A").getTime()
+    expect(secondPrecisionMs(requiredDate(teacherViewA.confirmationDeadline, "T-view deadline A"))).toBe(
+      secondPrecisionMs(requiredDate(sessionA.confirmationDeadline, "created deadline A"))
     );
-    expect(requiredDate(teacherViewB.confirmationDeadline, "T-view deadline B").getTime()).toBe(
-      requiredDate(sessionB.confirmationDeadline, "created deadline B").getTime()
+    expect(secondPrecisionMs(requiredDate(teacherViewB.confirmationDeadline, "T-view deadline B"))).toBe(
+      secondPrecisionMs(requiredDate(sessionB.confirmationDeadline, "created deadline B"))
     );
 
     // Student A (observer) — own session ONLY; B's is invisible to him.
@@ -474,8 +546,8 @@ describe("Journey J1 — Full Happy Lifecycle (cross-actor, real services)", () 
       "Student A reading session A after start"
     );
     expect(studentView.status).toBe(SessionStatus.Started);
-    expect(requiredDate(studentView.startedAt, "student-view startedAt").getTime()).toBe(
-      requiredDate(started.startedAt, "teacher-view startedAt").getTime()
+    expect(secondPrecisionMs(requiredDate(studentView.startedAt, "student-view startedAt"))).toBe(
+      secondPrecisionMs(requiredDate(started.startedAt, "teacher-view startedAt"))
     );
 
     // The start never re-arms the confirmation deadline (REQ-022).
@@ -489,13 +561,14 @@ describe("Journey J1 — Full Happy Lifecycle (cross-actor, real services)", () 
     expectZeroSideEffectDeltas(before, await sideEffectSnapshot(cast));
   });
 
-  test("step 6 — Teacher T completes session A: completed + endedAt + confirmedByTeacherAt + deadline UNCHANGED; ZERO wallet/ledger/notification/audit deltas", async () => {
+  test("step 6 — Teacher T completes session A: completed + endedAt + confirmedByTeacherAt + deadline UNCHANGED; exactly ONE prompt notification to the student, zero wallet/ledger/audit deltas", async () => {
     const before = await sideEffectSnapshot(cast);
+    const publishesBefore = publicationCallCount();
     const rowBefore = requiredSessionRow(
       await SessionLifecycleService.getSessionById(cast.primaryStudent.userId, sessionA.id),
       "Student A reading session A before completion"
     );
-    const deadlineBefore = requiredDate(rowBefore.confirmationDeadline, "pre-completion deadline").getTime();
+    const deadlineBefore = requiredDate(rowBefore.confirmationDeadline, "pre-completion deadline");
 
     const completed = await SessionLifecycleService.completeSession(cast.teacher.userId, sessionA.id, LOCALE);
     expect(completed.id).toBe(sessionA.id);
@@ -507,13 +580,30 @@ describe("Journey J1 — Full Happy Lifecycle (cross-actor, real services)", () 
     );
 
     // The completion never re-writes the confirmation deadline (B.2).
-    expect(requiredDate(completed.confirmationDeadline, "post-completion deadline").getTime()).toBe(deadlineBefore);
+    expect(secondPrecisionMs(requiredDate(completed.confirmationDeadline, "post-completion deadline"))).toBe(
+      secondPrecisionMs(deadlineBefore)
+    );
 
-    // Student confirmation + wallet deliberately absent (D2-owned): the
-    // student-side confirmation stamp stays null and NO wallet/ledger row
-    // appeared for anyone (count-delta proof, REQ-019/REQ-J2).
+    // Student confirmation + wallet deliberately absent: the student-side
+    // confirmation stamp stays null and NO wallet/ledger row appeared for
+    // anyone. The ONE sanctioned dispatch is the completion prompt —
+    // exactly one notification row for the student (row delta), nothing
+    // for any other cast member (count-delta proof).
     expect(completed.confirmedByStudentAt).toBeNull();
-    expectZeroSideEffectDeltas(before, await sideEffectSnapshot(cast));
+    const after = await sideEffectSnapshot(cast);
+    expect(after.notificationsStudentA).toBe(before.notificationsStudentA + 1);
+    expect(after.notificationsStudentB).toBe(before.notificationsStudentB);
+    expect(after.notificationsTeacher).toBe(before.notificationsTeacher);
+    expect(after.auditStudentA).toBe(before.auditStudentA);
+    expect(after.auditStudentB).toBe(before.auditStudentB);
+    expect(after.auditTeacher).toBe(before.auditTeacher);
+    expect(after.teacherWalletRows).toBe(before.teacherWalletRows);
+    expect(after.teacherTransactionRows).toBe(before.teacherTransactionRows);
+
+    // The prompt's delivery receipt was published exactly once AFTER the
+    // flow's commit, targeting exactly the student — nobody else.
+    expect(publicationCallCount()).toBe(publishesBefore + 1);
+    expect(publishedUserIds().slice(publishesBefore)).toEqual([cast.primaryStudent.userId]);
 
     // The student (observer) sees `completed` — with no balance movement
     // observable on his side either.

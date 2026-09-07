@@ -39,8 +39,10 @@
  *    count COHERENTLY (one shared predicate builder); absent/null filters
  *    drop out and never error.
  *  - Tier 3 (chaos/concurrency): `Promise.allSettled` duplication —
- *    double-start, double-complete, and double-cancel each produce exactly
- *    ONE winner (the loser's guarded predicate matches zero rows against
+ *    double-start, double-complete (the completion stamps and `updated_at`
+ *    are written exactly once; this layer emits no wave traffic), and
+ *    double-cancel each produce exactly ONE
+ *    winner (the loser's guarded predicate matches zero rows against
  *    the winner's effect), and the start-against-cancel race serializes
  *    deterministically (cancel is legal from both pre-states, so both
  *    landed transitions stay consistent with the final row). The fused
@@ -60,11 +62,12 @@
  *    returns the full row with its refund provenance intact; Tier 2 cutoff
  *    boundary (a stamp exactly at the cutoff is never swept — strict `<`),
  *    mixed stamp ages, lane-less rows, and ineligible states (student
- *    confirmed, disputed, cancelled); Tier 3 double-sweep and
- *    sweep-vs-confirm duplication with exactly one financial outcome per
- *    escrow unit; Tier 4 system-scope source pins (no caller-supplied
- *    predicate input, no wildcard/LIKE) plus the pool-fallback executor
- *    branch on committed fixtures.
+ *    confirmed, disputed, cancelled, and the admin-arbitration COMPLETE
+ *    outcome — settled with no teacher stamp to expire); Tier 3
+ *    double-sweep and sweep-vs-confirm duplication with exactly one
+ *    financial outcome per escrow unit; Tier 4 system-scope source pins
+ *    (no caller-supplied predicate input, no wildcard/LIKE) plus the
+ *    pool-fallback executor branch on committed fixtures.
  */
 
 import { afterAll, describe, expect, test } from "bun:test";
@@ -1162,6 +1165,56 @@ describe("SessionRepository — transactional paths (runInRollback)", () => {
     });
   });
 
+  test("an admin-arbitration COMPLETE row is never swept — its settled shape carries no teacher stamp to expire", async () => {
+    await runInRollback(async tx => {
+      const actors = await createSessionActors(tx);
+      const now = secondPrecisionInstant(Date.now());
+      const staleStamp = new Date(now.getTime() - SESSION_CONFIRMATION_WINDOW_MS - 60_000);
+
+      // Control row: a true overdue completion proves the predicate is
+      // active in the same sweep (the exclusion below is never vacuous).
+      const overdue = await insertSessionRow(tx, actors, {
+        status: SessionStatus.Completed,
+        confirmedByTeacherAt: staleStamp,
+      });
+
+      // The arbitration-COMPLETE outcome, built through the real guarded
+      // statements: completed with BOTH confirmation stamps absent (the
+      // resolution never writes a teacher stamp) and the hold already
+      // consumed by the resolution itself.
+      const disputed = await insertSessionRow(tx, actors);
+      await SessionRepository.startSessionOnce(disputed.id, actors.teacherUserId, tx);
+      await SessionRepository.openDisputeOnce(disputed.id, actors.studentUserId, "r", tx);
+      const arbitrated = await SessionRepository.resolveDisputeCompleteOnce(disputed.id, "held per policy", tx);
+      if (arbitrated === null) {
+        throw new Error("expected the arbitration COMPLETE resolution to return the settled row");
+      }
+      expect(arbitrated.status).toBe(SessionStatus.Completed);
+      expect(arbitrated.feeHeld).toBe(false);
+      expect(arbitrated.confirmedByTeacherAt).toBeNull();
+
+      const sweptIds = (await SessionRepository.sweepExpiredCompletedOnce(now, tx)).map(swept => swept.id);
+
+      // The control was swept; the settled arbitration row was not — its
+      // teacher stamp is NULL, and a NULL stamp can never be older than
+      // the cutoff, so the admin's terminal state is unreachable by the
+      // timeout.
+      expect(sweptIds).toContain(overdue.id);
+      expect(sweptIds).not.toContain(disputed.id);
+
+      // The settled row is byte-unchanged by the sweep: still completed,
+      // hold still consumed, no sweep stamps, resolution intact.
+      const finalRow = await readSessionRow(tx, disputed.id);
+      expect(finalRow.status).toBe(SessionStatus.Completed);
+      expect(finalRow.confirmedByTeacherAt).toBeNull();
+      expect(finalRow.confirmedByStudentAt).toBeNull();
+      expect(finalRow.feeHeld).toBe(false);
+      expect(finalRow.resolutionNote).toBe("held per policy");
+      expect(finalRow.endedAt?.getTime()).toBe(arbitrated.endedAt?.getTime());
+      expect(finalRow.updatedAt.getTime()).toBe(arbitrated.updatedAt.getTime());
+    });
+  });
+
   // ─── Tier 3: guarded transitions under duplication ──────────────────
 
   test("double-start under Promise.allSettled produces exactly one winner and a started row", async () => {
@@ -1188,7 +1241,7 @@ describe("SessionRepository — transactional paths (runInRollback)", () => {
     });
   });
 
-  test("double-complete under Promise.allSettled produces exactly one winner; the timestamp is written once", async () => {
+  test("double completeSessionOnce under Promise.allSettled serializes with no wave traffic — one winner, stamps written once", async () => {
     await runInRollback(async tx => {
       const actors = await createSessionActors(tx);
       const row = await insertSessionRow(tx, actors);
@@ -1199,18 +1252,32 @@ describe("SessionRepository — transactional paths (runInRollback)", () => {
         SessionRepository.completeSessionOnce(row.id, actors.teacherUserId, tx),
       ]);
 
+      // Both statements fulfill: the loser's guarded predicate matches
+      // zero rows against the winner's effect — an honest null, never a
+      // throw (this layer emits no notification traffic, so the duplicated
+      // statements serialize cleanly). One winner, one null.
       expect(outcomes.map(outcome => outcome.status)).toEqual(["fulfilled", "fulfilled"]);
       const winners = outcomes.flatMap(outcome =>
         outcome.status === "fulfilled" && outcome.value !== null ? [outcome.value] : []
       );
       expect(winners).toHaveLength(1);
-      expect(winners[0]?.status).toBe(SessionStatus.Completed);
-      expect(winners[0]?.endedAt).not.toBeNull();
-      expect(winners[0]?.confirmedByTeacherAt).not.toBeNull();
+      const winner = winners[0];
+      expect(winner?.status).toBe(SessionStatus.Completed);
+      expect(winner?.endedAt).not.toBeNull();
+      expect(winner?.confirmedByTeacherAt).not.toBeNull();
 
+      // The winner's stamps ARE the row's stamps: one captured instant was
+      // written exactly once and the second statement performed zero
+      // writes (same endedAt / teacher stamp / updatedAt), while the
+      // escrow hold and the student stamp are untouched — completion alone
+      // is payable-but-unpaid.
       const finalRow = await readSessionRow(tx, row.id);
       expect(finalRow.status).toBe(SessionStatus.Completed);
-      expect(finalRow.confirmedByTeacherAt).not.toBeNull();
+      expect(finalRow.endedAt?.getTime()).toBe(winner?.endedAt?.getTime());
+      expect(finalRow.confirmedByTeacherAt?.getTime()).toBe(winner?.confirmedByTeacherAt?.getTime());
+      expect(finalRow.updatedAt.getTime()).toBe(winner?.updatedAt.getTime());
+      expect(finalRow.confirmedByStudentAt).toBeNull();
+      expect(finalRow.feeHeld).toBe(true);
     });
   });
 
