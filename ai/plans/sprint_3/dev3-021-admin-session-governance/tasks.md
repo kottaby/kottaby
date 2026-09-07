@@ -41,10 +41,10 @@
 
 ## Phase 3 — Service
 
-- [ ] 3.1 **CREATE `backend/services/classes/session-admin-governance.ts`** — all six functions, namespace registration onto `SessionLifecycleService.Namespace`-style re-export via `backend/services/classes/index.ts` (REQ-010..REQ-029, REQ-040..044)
-  - [ ] 3.1.QL / 3.1.TE / 3.1.SEC / 3.1.SR / 3.1.IV
-  - [ ] 3.1.TE `backend/services/classes/session-admin-governance.service.test.ts` — 4-tier suite; Tier-3 concurrency via `Promise.allSettled` around concurrent cancel+confirm; Tier-4 non-admin role matrix
-- [ ] 3.2 **Notification wave emitters** — register three new wave ids with `SessionRequestNotificationService` + recipient-locale copy keys (REQ-020, REQ-022, REQ-024)
+- [x] 3.1 **CREATE `backend/services/classes/session-admin-governance.ts`** — all six functions, namespace registration onto `SessionLifecycleService.Namespace`-style re-export via `backend/services/classes/index.ts` (REQ-010..REQ-029, REQ-040..044)
+  - [x] 3.1.QL / 3.1.TE / 3.1.SEC / 3.1.SR / 3.1.IV
+  - [x] 3.1.TE `backend/services/classes/session-admin-governance.service.test.ts` — 4-tier suite; Tier-3 concurrency via `Promise.allSettled` around concurrent cancel+confirm; Tier-4 non-admin role matrix
+- [x] 3.2 **Notification wave emitters** — register three new wave ids with `SessionRequestNotificationService` + recipient-locale copy keys (REQ-020, REQ-022, REQ-024)
   - subtasks QL/TE/SEC/SR/IV as above
 
 ---
