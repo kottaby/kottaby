@@ -1,3 +1,32 @@
+input AdminApplicantFiltersInput {
+  search: String
+  status: String
+}
+
+type AdminApplicantItem {
+  cooldownUntil: DateTime
+  country: String
+  createdAt: DateTime!
+  email: String!
+  id: Int!
+  isBlocked: Boolean!
+  isDeleted: Boolean!
+  lastAttemptAt: DateTime
+  name: String!
+  phone: String
+  status: String!
+  suspended: Boolean!
+  verificationAttempts: Int!
+}
+
+type AdminApplicantPage {
+  items: [AdminApplicantItem!]!
+  page: Int!
+  pageCount: Int!
+  pageSize: Int!
+  total: Int!
+}
+
 type AdminAuditLogEntry {
   actionType: AuditActionType!
   actorId: Int!
@@ -673,6 +702,7 @@ type Query {
   """
   adminPlatformAnalytics: PlatformAnalytics!
   adminStudents(filters: AdminStudentFiltersInput, page: Int, pageSize: Int): AdminStudentPage!
+  adminTeacherApplicants(filters: AdminApplicantFiltersInput, page: Int, pageSize: Int): AdminApplicantPage!
   adminTeachers(filters: AdminTeacherFiltersInput, page: Int, pageSize: Int): AdminTeacherPage!
   adminUserActivity(id: Int!, limit: Int): [AdminUserActivityEntry!]!
   adminUserDetail(id: Int!): AdminUserDetail!
