@@ -21,7 +21,7 @@
 
 ## Phase 0: Pre-Implementation Baseline
 
-### - [ ] 0.1 Baseline error recording & deferred-items ledger
+### - [x] 0.1 Baseline error recording & deferred-items ledger
 - **Artifacts:**
   - `ai/plans/sprint_1/dev3-007-recitation-record-per-session-11/outcome/0-baseline-outcome.md` (CREATE)
   - `ai/plans/sprint_1/dev3-007-recitation-record-per-session-11/deferred-items.md` (CREATE, initialized verbatim from `.agents/spec-process-guide/templates/deferred-items-template.md`)
@@ -33,7 +33,7 @@
 - **Accept:** baseline counts recorded; ledger initialized with D1–D3; no source file touched yet.
 - _Requirements: REQ-001_
 
-### - [ ] 0.2 Prerequisite & anchor verification (verify-then-claim gate)
+### - [x] 0.2 Prerequisite & anchor verification (verify-then-claim gate)
 - **Work — VERIFY each anchor against bundled code and record `path:line` into `outcome/0.2-outcome.md`:**
   - `backend/db/schema/classes/recitation.ts` carries `sessionId` NOT NULL FK `session.id` (`onDelete: "cascade"`), `recitation_session_id_unique`, `name varchar(255)`, `description` text nullable (expected `backend/db/schema/classes/recitation.ts:1-19`).
   - `backend/types/classes/recitation.types.ts` contains ONLY `RecitationSelectType` + `RecitationInsertType`; barrels `backend/types/classes/index.ts`, `backend/types/index.ts` already re-export it (no barrel edit needed).
