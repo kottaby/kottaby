@@ -611,3 +611,385 @@ describe("Journey W-1 — admin discovery, cancel with same-lane refund, cross-a
     expect(detail?.status).toBe(SessionStatus.Cancelled);
   });
 });
+
+describe("Journey W-2 — teacher reassignment through the certification gate", () => {
+  test("step 1 — the admin reassigns T1 → T2: the row swaps, exactly ONE audit row records the swap, and all three participants receive localized waves", async () => {
+    const rowBefore = await readSessionRow(w2Session.id);
+    expect(rowBefore.teacherId).toBe(cast.teacher.userId);
+    expect(rowBefore.status).toBe(SessionStatus.Scheduled);
+    expect(await readAuditsForSession(w2Session.id)).toHaveLength(0);
+    const inboxStudentBefore = await countNotificationsForUser(cast.primaryStudent.userId);
+    const inboxOutgoingBefore = await countNotificationsForUser(cast.teacher.userId);
+    const inboxIncomingBefore = await countNotificationsForUser(cast.secondTeacher.userId);
+
+    const transport = new SpiedFanoutTransport();
+    const reassigned = await SessionAdminGovernanceService.reassignTeacher(
+      cast.admin.userId,
+      { sessionId: w2Session.id, newTeacherUserId: cast.secondTeacher.userId },
+      LOCALE,
+      undefined,
+      emitSpyOptions(transport)
+    );
+
+    // The mutation returns and commits the teacher swap; the row stays
+    // scheduled (reassignment is not a lifecycle transition).
+    expect(reassigned.teacherId).toBe(cast.secondTeacher.userId);
+    expect(reassigned.status).toBe(SessionStatus.Scheduled);
+    expect((await readSessionRow(w2Session.id)).teacherId).toBe(cast.secondTeacher.userId);
+
+    // EXACTLY ONE audit row: Override action, outgoing/incoming metadata.
+    const auditRows = await readAuditsForSession(w2Session.id);
+    expect(auditRows).toHaveLength(1);
+    const auditRow = auditRows[0];
+    if (!auditRow) {
+      throw new Error("journey: expected exactly one audit row for the reassignment");
+    }
+    expect(auditRow.actionType).toBe(AuditActionType.Override);
+    expect(auditRow.actorId).toBe(cast.admin.userId);
+    expect(auditRow.entityType).toBe(SESSION_ENTITY_TYPE);
+    expect(auditRow.entityId).toBe(w2Session.id);
+    const details = parseAuditDetails(auditRow.details);
+    expect(details.action).toBe("reassign");
+    expect(details.from?.teacherId).toBe(cast.teacher.userId);
+    expect(details.to?.teacherId).toBe(cast.secondTeacher.userId);
+
+    // Post-commit waves: one fan-out PER delivery receipt (the engine
+    // publish contract) — student, outgoing teacher, incoming teacher, in
+    // wave order — spied, never delivered.
+    expect(transport.publishCount).toBe(3);
+    expect(transport.publishedUserIds).toEqual([
+      cast.primaryStudent.userId,
+      cast.teacher.userId,
+      cast.secondTeacher.userId,
+    ]);
+
+    // Each recipient inbox row carries the reassignment wave copy composed
+    // in the RECIPIENT own persisted locale (student en, outgoing ar,
+    // incoming en).
+    expect(await countNotificationsForUser(cast.primaryStudent.userId)).toBe(inboxStudentBefore + 1);
+    expect(await countNotificationsForUser(cast.teacher.userId)).toBe(inboxOutgoingBefore + 1);
+    expect(await countNotificationsForUser(cast.secondTeacher.userId)).toBe(inboxIncomingBefore + 1);
+    const studentInbox = await readInboxFor(cast.primaryStudent.userId);
+    const studentWave = studentInbox.find(
+      row =>
+        row.relatedEntityId === w2Session.id &&
+        row.title === notificationTexts("en").eventSessionGovernanceTeacherReassignedTitle
+    );
+    expect(studentWave).toBeDefined();
+    expect(studentWave?.type).toBe(NotificationType.SessionRequest);
+    expect(studentWave?.body).toBe(notificationTexts("en").eventSessionGovernanceTeacherReassignedBody);
+    const outgoingInbox = await readInboxFor(cast.teacher.userId);
+    const outgoingWave = outgoingInbox.find(
+      row =>
+        row.relatedEntityId === w2Session.id &&
+        row.title === notificationTexts("ar").eventSessionGovernanceTeacherReassignedTitle
+    );
+    expect(outgoingWave).toBeDefined();
+    expect(outgoingWave?.body).toBe(notificationTexts("ar").eventSessionGovernanceTeacherReassignedBody);
+    const incomingInbox = await readInboxFor(cast.secondTeacher.userId);
+    const incomingWave = incomingInbox.find(
+      row =>
+        row.relatedEntityId === w2Session.id &&
+        row.title === notificationTexts("en").eventSessionGovernanceTeacherReassignedTitle
+    );
+    expect(incomingWave).toBeDefined();
+    expect(incomingWave?.body).toBe(notificationTexts("en").eventSessionGovernanceTeacherReassignedBody);
+
+    // No accidental fan-out: every non-participant inbox stays empty.
+    expect(await countNotificationsForUser(cast.secondStudent.userId)).toBe(0);
+    expect(await countNotificationsForUser(cast.applicant.userId)).toBe(0);
+    expect(await countNotificationsForUser(cast.parent.userId)).toBe(0);
+  });
+
+  test("step 2 — the student own read shows the NEW teacher; the outgoing teacher read lost the row and the incoming teacher read gained it", async () => {
+    const studentPage = await SessionLifecycleService.listMyStudentSessions(
+      cast.primaryStudent.userId,
+      { status: SessionStatus.Scheduled },
+      1,
+      25
+    );
+    const ownRow = listedItemById(studentPage.items, w2Session.id);
+    expect(ownRow).toBeDefined();
+    expect(ownRow?.teacherId).toBe(cast.secondTeacher.userId);
+
+    const outgoingPage = await SessionLifecycleService.listMyTeacherSessions(
+      cast.teacher.userId,
+      { status: SessionStatus.Scheduled },
+      1,
+      25
+    );
+    expect(listedItemById(outgoingPage.items, w2Session.id)).toBeUndefined();
+
+    const incomingPage = await SessionLifecycleService.listMyTeacherSessions(
+      cast.secondTeacher.userId,
+      { status: SessionStatus.Scheduled },
+      1,
+      25
+    );
+    expect(listedItemById(incomingPage.items, w2Session.id)).toBeDefined();
+  });
+
+  test("step 3 — the certification gate: an unapproved candidate is refused with the localized conflict, the row byte-identical, and zero writes", async () => {
+    const rowBefore = await readSessionRow(w2Session.id);
+    const auditsBefore = await readAuditsForSession(w2Session.id);
+    const inboxStudentBefore = await countNotificationsForUser(cast.primaryStudent.userId);
+    const inboxOutgoingBefore = await countNotificationsForUser(cast.teacher.userId);
+    const inboxIncomingBefore = await countNotificationsForUser(cast.secondTeacher.userId);
+
+    const transport = new SpiedFanoutTransport();
+    const denial = await expectJourneyError(() =>
+      SessionAdminGovernanceService.reassignTeacher(
+        cast.admin.userId,
+        { sessionId: w2Session.id, newTeacherUserId: unapprovedTeacherUserId },
+        LOCALE,
+        undefined,
+        emitSpyOptions(transport)
+      )
+    );
+
+    expect(denial).toBeInstanceOf(ConflictError);
+    expect(denial.code).toBe("TEACHER_NOT_CERTIFIED");
+    expect(denial.message).toBe(T_ERRORS.teacherNotCertified);
+
+    // The row is byte-identical to its pre-call state, and nothing else
+    // moved: no audit row, no wave, no fan-out.
+    expect(await readSessionRow(w2Session.id)).toEqual(rowBefore);
+    expect(await readAuditsForSession(w2Session.id)).toEqual(auditsBefore);
+    expect(await countNotificationsForUser(cast.primaryStudent.userId)).toBe(inboxStudentBefore);
+    expect(await countNotificationsForUser(cast.teacher.userId)).toBe(inboxOutgoingBefore);
+    expect(await countNotificationsForUser(cast.secondTeacher.userId)).toBe(inboxIncomingBefore);
+    expect(transport.publishCount).toBe(0);
+  });
+});
+
+describe("Journey W-3 — join as observer: exactly-once audit on a live row, zero on a scheduled row", () => {
+  test("step 1 — the owning teacher starts the booked session (the live precondition, attributed to the teacher actor)", async () => {
+    expect(w3Session.status).toBe(SessionStatus.Scheduled);
+    const started = await SessionLifecycleService.startSession(cast.teacher.userId, w3Session.id, LOCALE);
+    expect(started.status).toBe(SessionStatus.Started);
+    expect((await readSessionRow(w3Session.id)).status).toBe(SessionStatus.Started);
+
+    // The start transition writes no audit row — the join journey owns
+    // the whole audit delta for this session.
+    expect(await readAuditsForSession(w3Session.id)).toHaveLength(0);
+  });
+
+  test("step 2 — the admin joins the STARTED session: exactly ONE join_observe audit row, the participant-equivalent row, no wave", async () => {
+    const rowBefore = await readSessionRow(w3Session.id);
+    const inboxStudentBefore = await countNotificationsForUser(cast.primaryStudent.userId);
+    const inboxTeacherBefore = await countNotificationsForUser(cast.teacher.userId);
+
+    const joined = await SessionAdminGovernanceService.join(cast.admin.userId, { sessionId: w3Session.id }, LOCALE);
+
+    // EXACTLY ONE audit row — the observation contract.
+    const auditRows = await readAuditsForSession(w3Session.id);
+    expect(auditRows).toHaveLength(1);
+    const auditRow = auditRows[0];
+    if (!auditRow) {
+      throw new Error("journey: expected exactly one audit row for the observation");
+    }
+    expect(auditRow.actionType).toBe(AuditActionType.Override);
+    expect(auditRow.actorId).toBe(cast.admin.userId);
+    expect(auditRow.entityType).toBe(SESSION_ENTITY_TYPE);
+    expect(auditRow.entityId).toBe(w3Session.id);
+    expect(parseAuditDetails(auditRow.details).action).toBe("join_observe");
+
+    // The returned row is the same canonical shape the read paths return
+    // (the admin UI renders the read-only live view from it) and the row
+    // itself carries ZERO column changes — audit-only operation.
+    expect(joined.id).toBe(w3Session.id);
+    expect(joined).toEqual(await SessionAdminGovernanceService.getDetail(cast.admin.userId, w3Session.id, LOCALE));
+    expect(await readSessionRow(w3Session.id)).toEqual(rowBefore);
+
+    // Join-as-observer emits NO wave: both participant inboxes unchanged.
+    expect(await countNotificationsForUser(cast.primaryStudent.userId)).toBe(inboxStudentBefore);
+    expect(await countNotificationsForUser(cast.teacher.userId)).toBe(inboxTeacherBefore);
+  });
+
+  test("step 3 — the admin joins a SCHEDULED session: the localized state conflict, zero audit rows, row byte-identical", async () => {
+    const rowBefore = await readSessionRow(badgeSessionId);
+    expect(rowBefore.status).toBe(SessionStatus.Scheduled);
+
+    const denial = await expectJourneyError(() =>
+      SessionAdminGovernanceService.join(cast.admin.userId, { sessionId: badgeSessionId }, LOCALE)
+    );
+
+    expect(denial).toBeInstanceOf(ConflictError);
+    expect(denial.code).toBe("SESSION_INVALID_TRANSITION");
+    expect(denial.message).toBe(T_ERRORS.sessionInvalidTransition);
+
+    // ZERO audit rows for the denied join; the row is untouched.
+    expect(await readAuditsForSession(badgeSessionId)).toHaveLength(0);
+    expect(await readSessionRow(badgeSessionId)).toEqual(rowBefore);
+  });
+});
+
+describe("Journey W-4 — the role-denial matrix: every persisted non-admin role and the anonymous caller against every governance operation", () => {
+  // Operation-count reconciliation (specs actor table vs the implemented
+  // surface): the specs Tier-4/actor-table wording counts SEVEN operations —
+  // the six admin-governance operations PLUS resolveSessionDispute, the
+  // pre-existing shared admin-gate mutation on the session domain. The
+  // implemented governance surface is the SIX functions below; the seventh
+  // is used HERE as the byte-identity REFERENCE denial (same gate, same
+  // localized copy), not as an extra matrix row.
+  const GOVERNANCE_OPERATIONS: readonly {
+    readonly name: string;
+    readonly call: (actorId: number) => Promise<unknown>;
+  }[] = [
+    {
+      name: "adminSessions",
+      call: actorId => SessionAdminGovernanceService.listAll(actorId, {}, 1, 50, LOCALE),
+    },
+    {
+      name: "adminSession",
+      call: actorId => SessionAdminGovernanceService.getDetail(actorId, badgeSessionId, LOCALE),
+    },
+    {
+      name: "adminRescheduleSession",
+      call: actorId =>
+        SessionAdminGovernanceService.reschedule(
+          actorId,
+          {
+            sessionId: badgeSessionId,
+            startedAt: new Date(Date.now() + 3_600_000),
+            endedAt: new Date(Date.now() + 7_200_000),
+          },
+          LOCALE
+        ),
+    },
+    {
+      name: "adminCancelSession",
+      call: actorId => SessionAdminGovernanceService.cancel(actorId, { sessionId: badgeSessionId }, LOCALE, null),
+    },
+    {
+      name: "adminReassignTeacher",
+      call: actorId =>
+        SessionAdminGovernanceService.reassignTeacher(
+          actorId,
+          { sessionId: badgeSessionId, newTeacherUserId: cast.secondTeacher.userId },
+          LOCALE
+        ),
+    },
+    {
+      name: "adminJoinSession",
+      call: actorId => SessionAdminGovernanceService.join(actorId, { sessionId: badgeSessionId }, LOCALE),
+    },
+  ];
+
+  /**
+   * The persisted non-admin role vocabulary (`users.role` = {admin,
+   * teacher, student, parent}) — three matrix rows. The specs actor table
+   * also lists supervisor, which is NOT a persistable user role (it exists
+   * only as a permission-group concept; see the 3.1 outcome ledger row),
+   * so this matrix is maximal over the real data.
+   */
+  const NON_ADMIN_ACTORS: readonly { readonly role: string; readonly userId: number }[] = [
+    { role: "teacher", userId: cast.teacher.userId },
+    { role: "student", userId: cast.primaryStudent.userId },
+    { role: "parent", userId: cast.parent.userId },
+  ];
+
+  /** Every cast user id (+ the unapproved teacher) — the inbox oracle. */
+  const castInboxUserIds = (): number[] =>
+    [
+      cast.primaryStudent.userId,
+      cast.secondStudent.userId,
+      cast.teacher.userId,
+      cast.secondTeacher.userId,
+      cast.applicant.userId,
+      cast.parent.userId,
+      cast.admin.userId,
+      unapprovedTeacherUserId,
+    ].filter(id => id > 0);
+
+  test("step 1 — every persisted non-admin role is denied all six operations, byte-identical to the resolveSessionDispute reference 403", async () => {
+    const badgeBefore = await readSessionRow(badgeSessionId);
+    const w2Before = await readSessionRow(w2Session.id);
+    const auditBaselines = await Promise.all(NON_ADMIN_ACTORS.map(actor => countAuditsForActor(actor.userId)));
+    const inboxBaselines = await Promise.all(castInboxUserIds().map(id => countNotificationsForUser(id)));
+
+    // The `.map(async ...)` + outer `Promise.all` flattens the entire
+    // 3×6 denial matrix into a single top-level `await` (no `await`
+    // inside `for` loops). Every call here is a gate denial — the BFLA
+    // check runs before any read past the gate and before any write —
+    // so the denials are side-effect-free and safe to evaluate together.
+    const matrix = await Promise.all(
+      NON_ADMIN_ACTORS.map(async actor => ({
+        actor,
+        reference: await expectJourneyError(() =>
+          SessionLifecycleService.resolveSessionDispute(
+            actor.userId,
+            badgeSessionId,
+            DisputeResolution.Cancel,
+            null,
+            LOCALE
+          )
+        ),
+        denials: await Promise.all(
+          GOVERNANCE_OPERATIONS.map(async operation => ({
+            operation: operation.name,
+            error: await expectJourneyError(() => operation.call(actor.userId)),
+          }))
+        ),
+      }))
+    );
+
+    expect(matrix.map(entry => entry.actor.role)).toEqual(["teacher", "student", "parent"]);
+    for (const { reference, denials } of matrix) {
+      // The reference IS the canonical 403: the localized FORBIDDEN copy
+      // through the shared admin gate, with zero writes.
+      expect(reference).toBeInstanceOf(ForbiddenError);
+      expect(reference.code).toBe("FORBIDDEN");
+      expect(reference.message).toBe(T_ERRORS.forbidden);
+
+      expect(denials.map(entry => entry.operation)).toEqual(GOVERNANCE_OPERATIONS.map(operation => operation.name));
+      for (const { error } of denials) {
+        expectDenialByteIdentical(error, reference);
+        expect(error.message).toBe(T_ERRORS.forbidden);
+      }
+    }
+
+    // Zero writes anywhere: both mutation-target rows byte-identical, no
+    // audit rows by ANY denied actor, and no inbox movement anywhere in
+    // the cast.
+    expect(await readSessionRow(badgeSessionId)).toEqual(badgeBefore);
+    expect(await readSessionRow(w2Session.id)).toEqual(w2Before);
+    const auditsAfter = await Promise.all(NON_ADMIN_ACTORS.map(actor => countAuditsForActor(actor.userId)));
+    expect(auditsAfter).toEqual(auditBaselines);
+    expect(auditsAfter.every(count => count === 0)).toBe(true);
+    const inboxesAfter = await Promise.all(castInboxUserIds().map(id => countNotificationsForUser(id)));
+    expect(inboxesAfter).toEqual(inboxBaselines);
+  });
+
+  test("step 2 — the anonymous caller is denied all six operations with the byte-identical 401 and zero writes", async () => {
+    const badgeBefore = await readSessionRow(badgeSessionId);
+    const inboxBaselines = await Promise.all(castInboxUserIds().map(id => countNotificationsForUser(id)));
+
+    // The anonymous reference: actorId 0 on the shared admin-gate ladder
+    // (`assertActorAdmin` ⇒ UnauthorizedError) — the service-level mirror
+    // of the wire tier authenticated-scope 401 that 4.3 pinned
+    // byte-identical to the resolveSessionDispute reference operation.
+    const reference = await expectJourneyError(() => SessionAdminGovernanceService.listAll(0, {}, 1, 50, LOCALE));
+    expect(reference).toBeInstanceOf(UnauthorizedError);
+    expect(reference.code).toBe("UNAUTHORIZED");
+    expect(reference.message).toBe(T_ERRORS.unauthorized);
+
+    // The remaining five operations (adminSessions IS the reference) must
+    // deny byte-identically.
+    const denials = await Promise.all(
+      GOVERNANCE_OPERATIONS.slice(1).map(async operation => ({
+        operation: operation.name,
+        error: await expectJourneyError(() => operation.call(0)),
+      }))
+    );
+    expect(denials.map(entry => entry.operation)).toEqual(GOVERNANCE_OPERATIONS.slice(1).map(operation => operation.name));
+    for (const { error } of denials) {
+      expectDenialByteIdentical(error, reference);
+    }
+
+    // Zero writes: the matrix target row untouched, no inbox movement.
+    expect(await readSessionRow(badgeSessionId)).toEqual(badgeBefore);
+    const inboxesAfter = await Promise.all(castInboxUserIds().map(id => countNotificationsForUser(id)));
+    expect(inboxesAfter).toEqual(inboxBaselines);
+  });
+});
