@@ -645,8 +645,13 @@ beforeAll(async () => {
   // Committed history rows (direct inserts — never the emit surface):
   // one live pending (parentP → studentS), one post-resolution rejected
   // (parentP → studentG) with a respondedAt to pin the nullable timestamp,
-  // and one already-EXPIRED pending (parentP → studentS, expiresAt far in
-  // the past) for the decision-leg expired-claim denial.
+  // and one already-EXPIRED pending (parentP → studentG, expiresAt far in
+  // the past) for the decision-leg expired-claim denial. The expired row
+  // CANNOT ride the parentP → studentS pair: the partial unique index
+  // `parent_link_requests_pending_pair_unique` forbids two status=pending
+  // rows for one (parent, student) pair regardless of expiresAt, so the
+  // expired row shares studentG's pair (whose other row is Rejected —
+  // outside the index's pending-only predicate).
   const now = Date.now();
   const [pendingRow, rejectedRow, expiredRow] = await db
     .insert(parentLinkRequests)
@@ -668,7 +673,7 @@ beforeAll(async () => {
       },
       {
         parentId: parentP,
-        studentId: studentS,
+        studentId: studentG,
         status: LinkStatus.Pending,
         createdAt: new Date(now - 8 * 24 * 60 * 60 * 1000),
         expiresAt: new Date(now - 60 * 60 * 1000),
@@ -1274,11 +1279,13 @@ describe("wire matrix — decision-leg denials (no-oracle id channel + expiry fo
       .select({ value: count() })
       .from(notifications)
       .where(
-        and(eq(notifications.userId, studentS.userId), eq(notifications.relatedEntityType, "parent_link_request"))
+        and(eq(notifications.userId, studentG.userId), eq(notifications.relatedEntityType, "parent_link_request"))
       );
 
     // The expired-claim denial: the row's expiresAt is far in the past.
-    const expiredBody = await postDocument(RESPOND_DOCUMENT, studentS.accessToken, {
+    // (The expired seeded row is parentP → studentG, so its owning student
+    // responds here.)
+    const expiredBody = await postDocument(RESPOND_DOCUMENT, studentG.accessToken, {
       requestId: String(expiredRequestId),
       accept: true,
     });
@@ -1326,7 +1333,7 @@ describe("wire matrix — decision-leg denials (no-oracle id channel + expiry fo
       .select({ value: count() })
       .from(notifications)
       .where(
-        and(eq(notifications.userId, studentS.userId), eq(notifications.relatedEntityType, "parent_link_request"))
+        and(eq(notifications.userId, studentG.userId), eq(notifications.relatedEntityType, "parent_link_request"))
       );
     expect(emitAfter.value).toBe(emitBefore.value);
   });
