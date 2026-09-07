@@ -248,7 +248,7 @@
   - [x] 5.1.IV **Instruction Verification**: backend + tests instruction files re-validated.
   - [x] 5.1.OC **Outcome**: write `outcome/5.1-outcome.md`.
 
-### - [ ] 5.2 [Full integration gate — all suites + diff hygiene]
+### - [x] 5.2 [Full integration gate — all suites + diff hygiene]
 - **Work:**
   - Run ordered: `bun run scripts/health/sub-loop.ts` over every file created/modified in this plan (final re-sweep) → all exit 0.
   - `bun tsgo` and `bun biome:check` deltas vs 0.1 baseline: ZERO new diagnostics.
