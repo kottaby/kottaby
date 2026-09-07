@@ -28,11 +28,7 @@
  * of the public API.
  */
 
-import {
-  SessionRepository,
-  SessionRequestIdempotencyRepository,
-  TeacherRepository,
-} from "@/backend/db/repo";
+import { SessionRepository, SessionRequestIdempotencyRepository, TeacherRepository } from "@/backend/db/repo";
 import { AuditActionType } from "@/backend/enum/audit/audit-action-type.enum";
 import { SessionStatus } from "@/backend/enum/scheduling/session-status.enum";
 import { ConflictError, NotFoundError } from "@/backend/lib/errors";

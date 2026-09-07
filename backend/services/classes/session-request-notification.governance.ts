@@ -110,7 +110,10 @@ export async function resolveGovernanceParticipant(
       entityId: userId,
       locale,
     });
-    throw new DomainError("INTERNAL_SERVER_ERROR", getServerTranslations(locale).errorsTranslations.internalServerError);
+    throw new DomainError(
+      "INTERNAL_SERVER_ERROR",
+      getServerTranslations(locale).errorsTranslations.internalServerError
+    );
   }
   return { userId: row.id, fullName: row.fullName, locale: row.locale };
 }
@@ -206,4 +209,3 @@ export async function emitGovernanceWave(
 ): Promise<NotificationDeliveryReceipt[]> {
   return emitGovernanceReceiptsFrom(planGovernanceWave(wave, waveKind, recipients), 0, tx, options);
 }
-
