@@ -10,3 +10,4 @@
  *    `gqlSchema.ts` imports the top-level barrel exactly once.
  */
 import "./session-lifecycle.query";
+import "./session-report.query";

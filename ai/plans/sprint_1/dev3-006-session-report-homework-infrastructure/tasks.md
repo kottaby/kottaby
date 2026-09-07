@@ -365,7 +365,7 @@ The ONLY instruction files that exist are `.agents/instructions/frontend.instruc
 
 ## Phase 3: GraphQL Resolvers & API Handlers
 
-- [ ] 3.1 [Pothos enum registration + report/homework objects + input types]
+- [x] 3.1 [Pothos enum registration + report/homework objects + input types]
   - Files:
     - `backend/graphql/pothos/shared/enum.pothos.ts` (UPDATE) — register `SurahJuzRef` ONCE via enum-object form (`gqlSchemaBuilder.enumType(SurahJuzRef, { name: "SurahJuzRef" })`); VALUE import; verify no duplicate registration exists.
     - `backend/graphql/pothos/classes/report.pothos.ts` (NEW) — `SessionReportPothosObject`: `id: ID!` FIRST, then `sessionId`, `teacherNotes`, `studentRatingByTeacher`, `createdAt`/`updatedAt` with `type: "DateTime"` (registered scalar — NEVER `toISOString()` into String).
@@ -380,7 +380,7 @@ The ONLY instruction files that exist are `.agents/instructions/frontend.instruc
   - [ ] 3.1.SR **Semantic Review**: `id` first on both objects; DateTime scalar discipline; no resolver-local types; `never`-tail exhaustiveness compiles (TS enforces).
   - [ ] 3.1.IV **Instruction Verification**: as 2.2.IV against the newly edited paths.
 
-- [ ] 3.2 [Mutation resolver: submitSessionReport]
+- [x] 3.2 [Mutation resolver: submitSessionReport]
   - Create `backend/graphql/mutation/classes/session-report.mutation.ts`:
     - `submitSessionReport(id: ID!, input: SubmitSessionReportInput!): SessionReport!`.
     - `authScopes: { $all: { authenticated: true, role: [UserRole.Teacher] } }` — the `$all` conjunction is LOAD-BEARING (BFLA; anonymous → 401 pre-resolver; non-teacher → 403 pre-resolver).
@@ -396,7 +396,7 @@ The ONLY instruction files that exist are `.agents/instructions/frontend.instruc
   - [ ] 3.2.SR **Semantic Review**: resolver is thin (<= ~25 LOC logic); no business rules; no spread; no error swallowing.
   - [ ] 3.2.IV **Instruction Verification**: as 2.2.IV.
 
-- [ ] 3.3 [Query resolvers: sessionReport / sessionHomework]
+- [x] 3.3 [Query resolvers: sessionReport / sessionHomework]
   - Create `backend/graphql/query/classes/session-report.query.ts`:
     - `sessionReport(sessionId: ID!): SessionReport` (nullable); `sessionHomework(sessionId: ID!): SessionHomeWork` (nullable).
     - `authScopes: { authenticated: true }` (401 pre-resolver for anonymous).
@@ -410,7 +410,7 @@ The ONLY instruction files that exist are `.agents/instructions/frontend.instruc
   - [ ] 3.3.SR **Semantic Review**: symmetric pair of resolvers; zero branching logic; no try/catch.
   - [ ] 3.3.IV **Instruction Verification**: as 2.2.IV.
 
-- [ ] 3.4 [Codegen, schema-surface freeze & SDL pins]
+- [x] 3.4 [Codegen, schema-surface freeze & SDL pins]
   - Run `bun run generate:gqlSchema` then `bun codegen`; commit regenerated artifacts.
   - Update `backend/graphql/test/schema-surface.test.ts` baseline inventory: add `SessionReport`, `SessionHomeWork`, `SurahJuzRef` enum, the three input types, `Mutation.submitSessionReport`, `Query.sessionReport`, `Query.sessionHomework` (this baseline freezes the ENTIRE schema — update only by these additions).
   - Extend the session SDL suite (actual file per 0.2, e.g. `backend/graphql/test/session-sdl.test.ts`): static SDL assertions for exact field lists/order (`id` FIRST), nullability (`SessionReport`/`SessionHomeWork` query results nullable; mutation non-null), `DateTime` field types, and the input whitelist member sets.
