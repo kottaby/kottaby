@@ -30,7 +30,7 @@ Ground truth: repo primitives and services EXIST as cited in specs/plan; new cod
 
 ### Task 0: Pre-Implementation Baseline (MANDATORY)
 
-- [ ] 0. Baseline + ledger
+- [x] 0. Baseline + ledger
   - `bun tsgo 2>&1 | grep -c "error TS" > /tmp/baseline-tsgo.txt`; `bun biome:check 2>&1 | grep -c warn > /tmp/baseline-biome.txt`; `bun run scripts/lint-service.ts --json --id baseline > /tmp/baseline-lint.json`
   - `deferred-items.md` exists (created with this plan — verify)
   - Write `outcome/0-baseline-outcome.md`
