@@ -57,10 +57,10 @@
 ## Post-plan operations (user-directed PR hardening)
 
 - [x] T8.1 `check:unused` fails on warnings (`--treat-config-hints-as-errors`/`--treat-tag-hints-as-errors`); resolve remaining `.mdx` config hint; wire into CI quality job + quality-gate BASIC_CHECKS
-- [ ] T8.2 Stop dev server; production build passes
+- [x] T8.2 Stop dev server; production build passes
 - [x] T8.3 autofix skill run #1 on PR #73; apply validated CodeRabbit fixes; commit + push
-- [ ] T8.4 quality-gate full pass (includes new knip gate); commit + push
-- [ ] T8.5 Merge main into branch; resolve conflicts (drizzle migrations = main, regenerate GraphQL); rerun migrations; commit + push
+- [x] T8.4 quality-gate full pass (includes new knip gate); commit + push
+- [x] T8.5 Merge main into branch; resolve conflicts (drizzle migrations = main, regenerate GraphQL); rerun migrations; commit + push
 - [ ] T8.6 db generate/migrate/seed + .env.test migrate; test:db / test:services / test:graphql green; commit + push
 - [ ] T8.7 autofix skill run #2; resolve CodeRabbit threads via gh; commit + push
 - [ ] T8.8 Archive plan: delete outcome/ + deferred-items + prototype artifacts; move plan dir to ai/finished_plans/; commit + push
