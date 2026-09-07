@@ -78,26 +78,26 @@ Ground truth: repo primitives and services EXIST as cited in specs/plan; new cod
 
 ### Task 4: Journey Tests
 
-- [ ] 4. `test/workflows/sessions/session-dual-confirmation.journey.test.ts`
+- [x] 4. `test/workflows/sessions/session-dual-confirmation.journey.test.ts`
   - Journey A (confirm-and-pay): certified teacher + student fixtures → book → start → complete (prompt receipt asserted) → student confirm → stamps + wallet delta == fee exactly → re-confirm zero-delta
   - Journey B (timeout-and-refund): fabricate completed row with 24h+ old teacher stamp → sweep → cancelled + lane +1 to provenance + one auto-cancel receipt → re-sweep zero
   - Race: `Promise.allSettled` concurrent confirm+sweep → exactly one financial outcome
   - No `runInRollback`; committed fixtures; `afterAll` cleanup; notification publish spied
   - Run via `bun run test/scripts/run-test.ts test/workflows/sessions/session-dual-confirmation.journey.test.ts`
-  - [ ] 4.QL: sub-loop on the test file
-  - [ ] 4.IV + [ ] 4.SR (fixtures honest; permissions resolve via real roles)
+  - [x] 4.QL: sub-loop on the test file
+  - [x] 4.IV + [x] 4.SR (fixtures honest; permissions resolve via real roles)
   - Write `outcome/4-journey-tests-outcome.md`; mark `[x]`
   - _Requirements: REQ-6, REQ-2, REQ-3_
 
 ### Task 5: Canonical Doc Update
 
-- [ ] 5. Update `docs/sessions/session-lifecycle.md`
+- [x] 5. Update `docs/sessions/session-lifecycle.md`
   - §2.1 state machine: dual-confirmation + two-leg sweep now implemented; `disputed` producer surface confirmed (pre-completion)
   - §2.2 guarded-transition table: add `sweepExpiredCompletedOnce` row
   - Resolve "DEV3-012/013" pending annotations for the 012 part (013 escrow depth stays)
   - Side-effect table additions: prompt + auto-cancel notification rows
   - Verify root `AGENTS.md` Important References line for this doc remains accurate (no new doc created; description update only if needed)
-  - [ ] 5.QL: sub-loop on the doc
+  - [x] 5.QL: sub-loop on the doc
   - Write `outcome/5-canonical-doc-outcome.md`; mark `[x]`
   - _Requirements: REQ-7_
 
