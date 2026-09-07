@@ -120,17 +120,17 @@ Sequence: QL → TE → SEC → SR → IV → `[x]`.
 
 ## Phase 6 — Canonical Documentation
 
-- [ ] 6.1 **CREATE `docs/ops/disaster-recovery.md`** (mkdir `docs/ops/`): repo docs template — Summary; Why; The Pattern (backup/restore-verify with exact `bun run ops:*` invocations; scheduling guidance cron/systemd + Neon PITR note); RPO=1h / RTO=4h definitions + budget arithmetic from drill; step-timed full-recovery runbook; disaster playbooks (DB-content loss; full-region loss incl. manual env re-entry); drill procedure + evidence checklist; conventions (operator-English stdout exemption, permission model, artifact hygiene); What NOT to Do; Rollout Summary; Related Documents (PRODUCTION_READINESS §7, DATABASE_MIGRATIONS, realtime-engine persist-first note, state-machine-invariants as oracle anchors, this plan's outcome dir).
-  - [ ] 6.1.QL: sub-loop on the md file → 0.
-  - [ ] 6.1.SR: every command in the doc verbatim-matches `package.json`; every deferred claim cites its ledger id; no orphaned references.
-  - [ ] 6.1.SEC: no credentials/real DSNs in the runbook — examples use placeholders only.
-  - [ ] 6.1.IV: root AGENTS docs policy (canonical docs live under `docs/<domain>/`, kebab-case).
+- [x] 6.1 **CREATE `docs/ops/disaster-recovery.md`** (mkdir `docs/ops/`): repo docs template — Summary; Why; The Pattern (backup/restore-verify with exact `bun run ops:*` invocations; scheduling guidance cron/systemd + Neon PITR note); RPO=1h / RTO=4h definitions + budget arithmetic from drill; step-timed full-recovery runbook; disaster playbooks (DB-content loss; full-region loss incl. manual env re-entry); drill procedure + evidence checklist; conventions (operator-English stdout exemption, permission model, artifact hygiene); What NOT to Do; Rollout Summary; Related Documents (PRODUCTION_READINESS §7, DATABASE_MIGRATIONS, realtime-engine persist-first note, state-machine-invariants as oracle anchors, this plan's outcome dir).
+  - [x] 6.1.QL: sub-loop on the md file → 0.
+  - [x] 6.1.SR: every command in the doc verbatim-matches `package.json`; every deferred claim cites its ledger id; no orphaned references.
+  - [x] 6.1.SEC: no credentials/real DSNs in the runbook — examples use placeholders only.
+  - [x] 6.1.IV: root AGENTS docs policy (canonical docs live under `docs/<domain>/`, kebab-case).
   - _Requirements: REQ-020, REQ-021, REQ-022, REQ-023, REQ-028, REQ-052, REQ-070._
-- [ ] 6.2 **Neon PITR appendix evidence**: document console-observed retention/PITR settings in the runbook appendix (D-001 remains 📅 Forward for any console-side hardening beyond documentation); write what was observed, nothing aspirational.
-  - [ ] 6.2.SR: values match screenshot/panel exactly; no fabricated retention numbers.
-  - [ ] 6.2.SEC: any embedded console evidence is redacted — no credentials/tokens; 6.2.TE/QL/IV: N/A (docs-only, covered by 6.1 cycles) — record in outcome.
+- [x] 6.2 **Neon PITR appendix evidence**: document console-observed retention/PITR settings in the runbook appendix (D-001 remains 📅 Forward for any console-side hardening beyond documentation); write what was observed, nothing aspirational.
+  - [x] 6.2.SR: values match screenshot/panel exactly; no fabricated retention numbers.
+  - [x] 6.2.SEC: any embedded console evidence is redacted — no credentials/tokens; 6.2.TE/QL/IV: N/A (docs-only, covered by 6.1 cycles) — record in outcome.
   - _Requirements: REQ-020, REQ-023 (Neon PITR complementary layer); ledger D-001._
-- [ ] 6.3 **Outcome**: `outcome/6.x-runbook-outcome.md` incl. drill-feedback patches applied to the final doc.
+- [x] 6.3 **Outcome**: `outcome/6.x-runbook-outcome.md` incl. drill-feedback patches applied to the final doc.
   - _Requirements: REQ-000.4 (outcome ledger); REQ-070._
 
 ## Phase 7 — Knowledge Propagation (executed only after Phase-8 review is green per skill ordering note: Phase 8 numbered after 7 but executes BEFORE 7's propagation write — keep the task ordering below)
