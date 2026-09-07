@@ -69,6 +69,16 @@ describe("redactDsn", () => {
     expect(redactDsn("postgresql://u:p@host.example/my%20db")).toBe("my db@host.example(redacted-user)");
   });
 
+  it("renders the query dbname= as the effective database (libpq override channel)", () => {
+    expect(redactDsn("postgresql://u:p@h.example:5432/pathdb?dbname=querydb")).toBe(
+      "querydb@h.example:5432(redacted-user)"
+    );
+    expect(redactDsn("postgresql://u:p@h.example/?dbname=querydb")).toBe("querydb@h.example(redacted-user)");
+    // Other keys and an EMPTY dbname= keep the path database.
+    expect(redactDsn("postgresql://u:p@h.example/pathdb?sslmode=require")).toBe("pathdb@h.example(redacted-user)");
+    expect(redactDsn("postgresql://u:p@h.example/pathdb?dbname=")).toBe("pathdb@h.example(redacted-user)");
+  });
+
   it("keeps IPv6 host literals", () => {
     expect(redactDsn("postgresql://u:p@[2001:db8::1]:5432/db")).toBe("db@[2001:db8::1]:5432(redacted-user)");
   });

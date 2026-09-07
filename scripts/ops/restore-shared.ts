@@ -16,7 +16,7 @@
 
 import { readdirSync, readFileSync, realpathSync, statSync } from "node:fs";
 import { join, sep } from "node:path";
-
+import { rawUriPathSubstring } from "@/scripts/ops/_shared";
 import { type BackupManifest, MANIFEST_FILE_NAME, MIGRATIONS_ABSENT_HASH } from "@/scripts/ops/backup-artifacts";
 
 export type { BackupManifest };
@@ -217,7 +217,12 @@ function lastUriQueryValue(rawSearch: string, name: string): string | undefined 
  * EFFECTIVE database: a query `dbname=` parameter is libpq's override
  * channel (it names the database the connection actually uses — the restore
  * guard refuses a path/query disagreement before any run), so it wins over
- * the path component. Conninfo-form targets follow libpq semantics: the
+ * the path component. The path component is derived from the RAW path
+ * substring (libpq's literal view) — the WHATWG pathname would have
+ * normalized `.`/`..` dot-segments away and mislabeled the database libpq
+ * restores into (the guard refuses such paths before any run, and the label
+ * stays literal here so a raw-path report can never diverge from libpq).
+ * Conninfo-form targets follow libpq semantics: the
  * LAST `dbname=` occurrence wins, one layer of surrounding single/double
  * quotes is stripped (inner spaces are part of the name libpq connects to),
  * and libpq `''` escapes inside single-quoted values are folded
@@ -230,7 +235,7 @@ export function redactTargetDatabaseName(dsn: string): string {
     if (queryDatabase !== undefined && queryDatabase.length > 0) {
       return queryDatabase;
     }
-    const database = decodeURIComponent(parsed.pathname.replace(/^\//, ""));
+    const database = decodeURIComponent(rawUriPathSubstring(dsn).replace(/^\//, ""));
     if (database.length > 0) {
       return database;
     }
@@ -241,7 +246,9 @@ export function redactTargetDatabaseName(dsn: string): string {
   let reported: string | null = null;
   for (const match of dsn.matchAll(/\bdbname=(?:"([^"]*)"|'((?:[^']|'')*)'|(\S+))/gi)) {
     const singleQuoted = match[2];
-    reported = singleQuoted !== undefined ? singleQuoted.replace(/''/g, "'") : (match[1] ?? match[3] ?? "");
+    // Runtime `match[2]` is undefined when the single-quote group did not
+    // participate, so the guard is a typeof check, not a `!==` comparison.
+    reported = typeof singleQuoted === "string" ? singleQuoted.replace(/''/g, "'") : (match[1] ?? match[3] ?? "");
   }
   if (reported !== null && reported.length > 0) {
     return reported;

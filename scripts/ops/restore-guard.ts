@@ -101,10 +101,10 @@
  */
 
 import { assessDestructiveDbCommandSafety, formatDestructiveDbBlockMessage } from "@/scripts/lib/destructiveDbGuard";
+import { assessUriDatabaseComponent } from "@/scripts/ops/_shared";
 import { RestoreUsageError } from "@/scripts/ops/restore-cli";
 import {
   assessRawUriAuthority,
-  assessUriDatabaseComponent,
   CONNINFO_HOST_PATTERN,
   isLoopbackHostaddr,
   libpqEffectiveAssessUrl,
@@ -300,7 +300,9 @@ export function conninfoAssessUrls(target: string): ConninfoAssessUrls | null {
     return { kind: "refuse", reason: UNSPECIFIED_DATABASE_REFUSAL };
   }
 
-  const suffix = signal.dbname !== undefined ? `/${encodeURIComponent(signal.dbname)}` : "/";
+  // `dbname` is narrowed to a string by the refusal above; the suffix always
+  // carries it (encodeURIComponent keeps the synthesized URL well-formed).
+  const suffix = `/${encodeURIComponent(signal.dbname)}`;
   const urls: string[] = [];
   for (const [channel, rawHostValue] of [
     ["host", signal.host],
@@ -424,15 +426,19 @@ export function assessRestoreTargetSafety(targetDsn: string): RestoreGuardAssess
     }
     assessUrls = [effective.url, ...queryChannels.urls];
     // DB-component flags — evaluated AFTER the channel/host guard loop below,
-    // so a smuggled query host keeps its precise refusal reason. A URI with
-    // an empty or absent path database is under-specified (libpq would
-    // complete the endpoint from the ambient environment) UNLESS the query
-    // carries an explicit `dbname=` value — libpq applies query parameters
-    // ON TOP of the parsed URI, so a query dbname IS the target database.
-    // When the path AND the query both name a database they must AGREE: the
-    // libpq URI families disagree on which component wins, so a disagreement
-    // is an ambiguity no assessment can resolve (fail closed).
-    const databaseComponent = assessUriDatabaseComponent(parsedTarget, queryChannels.dbname);
+    // so a smuggled query host keeps its precise refusal reason. The path
+    // database is derived from the RAW path substring (libpq's literal view):
+    // WHATWG's pathname normalizes `.`/`..` dot-segments, so a dot-segment
+    // path would rename the restore target behind the assessment — such a
+    // path refuses fail-closed. A URI with an empty or absent path database
+    // is under-specified (libpq would complete the endpoint from the ambient
+    // environment) UNLESS the query carries an explicit `dbname=` value —
+    // libpq applies query parameters ON TOP of the parsed URI, so a query
+    // dbname IS the target database. When the path AND the query both name a
+    // database they must AGREE: the libpq URI families disagree on which
+    // component wins, so a disagreement is an ambiguity no assessment can
+    // resolve (fail closed).
+    const databaseComponent = assessUriDatabaseComponent(trimmed, queryChannels.dbname);
     if (databaseComponent.kind === "refuse") {
       return { blocked: true, reasons: [databaseComponent.reason] };
     }

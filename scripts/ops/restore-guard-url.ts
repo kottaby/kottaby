@@ -27,8 +27,8 @@
  *     the WHATWG parser strips what libpq keeps, so the assessed URL must be
  *     the URL libpq sees. The query's `dbname` parameter is extracted with
  *     the same semantics — the database-override channel the guard's
- *     database-component rule consumes (libpq applies it on top of the URI
- *     path database).
+ *     database-component rule consumes (that rule and the shared URL/segment
+ *     utilities it rests on live in `_shared.ts`).
  *
  *  3. The RAW AUTHORITY-SPAN gate: on a PATHED URI libpq scans the authority
  *     to the FIRST `/` of the raw string and splits userinfo at the LAST `@`
@@ -450,44 +450,4 @@ export function uriQueryChannelAssessUrls(trimmedTarget: string):
     urls.push(assessed.url);
   }
   return { kind: "ok", urls, dbname: channels.dbname };
-}
-
-/**
- * Assesses the URI DATABASE COMPONENT against the query `dbname=` override
- * channel. libpq applies query parameters ON TOP of the parsed URI, so a
- * query `dbname=` IS the database the connection uses:
- *
- *   - no query `dbname=` → the path rule stands (an empty/absent path
- *     database is under-specified — the ambient environment would complete
- *     it);
- *   - query `dbname=` AND a path database → both must AGREE: the libpq URI
- *     families disagree on which component wins, so a disagreement is an
- *     ambiguity no assessment can resolve (`ambiguous: true`, fail closed).
- *     The comparison happens on DECODED values (libpq percent-decodes the
- *     path database before use); a malformed escape refuses the run;
- *   - query `dbname=` over an empty/absent path → the query value IS the
- *     explicit target database (`unspecified: false`) — unless the value is
- *     EMPTY, which names nothing and stays under-specified.
- */
-export function assessUriDatabaseComponent(
-  parsedTarget: URL,
-  queryDbname: string | undefined
-): { kind: "ok"; unspecified: boolean; ambiguous: boolean } | { kind: "refuse"; reason: string } {
-  const pathDatabase = parsedTarget.pathname.replace(/^\//, "");
-  if (queryDbname === undefined) {
-    return { kind: "ok", unspecified: pathDatabase.length === 0, ambiguous: false };
-  }
-  if (pathDatabase.length > 0) {
-    let decodedPathDatabase: string;
-    try {
-      decodedPathDatabase = decodeURIComponent(pathDatabase);
-    } catch {
-      return {
-        kind: "refuse",
-        reason: "target URL path database carries a malformed percent-escape — cannot assess target safety",
-      };
-    }
-    return { kind: "ok", unspecified: false, ambiguous: decodedPathDatabase !== queryDbname };
-  }
-  return { kind: "ok", unspecified: queryDbname.length === 0, ambiguous: false };
 }

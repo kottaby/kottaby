@@ -93,6 +93,7 @@ interface BackupRunScenario {
 
 let workspace = "";
 let goodEnvFile = "";
+let queryDbnameEnvFile = "";
 let sqliteEnvFile = "";
 let placeholderEnvFile = "";
 const missingEnvFile = (): string => relative(process.cwd(), join(workspace, ".env-backup-missing"));
@@ -188,6 +189,10 @@ beforeAll(() => {
   workspace = mkdtempSync(join(process.cwd(), ".tmp-backup-test-"));
   buildJournalTree(join(workspace, "backend", "drizzle"), "CREATE TABLE probe (id integer);\n");
   goodEnvFile = writeEnvFile(".env-backup-good", `DATABASE_URL=${FIXTURE_DSN}\n`);
+  queryDbnameEnvFile = writeEnvFile(
+    ".env-backup-query-dbname",
+    "DATABASE_URL=postgresql://ops_owner:supersecret-pw@db.internal.example:5432/?dbname=app_db\n"
+  );
   sqliteEnvFile = writeEnvFile(".env-backup-sqlite", "DATABASE_URL=file:./dev.db\n");
   placeholderEnvFile = writeEnvFile(
     ".env-backup-placeholder",
@@ -328,6 +333,20 @@ describe("databaseNameFromDsn", () => {
       expect(name).toBe("(default)");
       expect(name).not.toContain("leaky");
     }
+  });
+
+  it("honors a query dbname= over the path database (libpq applies query parameters on top)", () => {
+    expect(databaseNameFromDsn(new URL("postgresql://u:p@h.example/pathdb?dbname=querydb"))).toBe("querydb");
+    expect(databaseNameFromDsn(new URL("postgresql://u:p@h.example/?dbname=querydb"))).toBe("querydb");
+    // Absent, other-key, and EMPTY query dbname= values keep the path db.
+    expect(databaseNameFromDsn(new URL("postgresql://u:p@h.example/pathdb?sslmode=require"))).toBe("pathdb");
+    expect(databaseNameFromDsn(new URL("postgresql://u:p@h.example/pathdb?dbname="))).toBe("pathdb");
+  });
+
+  it("uses the LAST query dbname= occurrence, percent-decoded, with + literal (libpq keyword semantics)", () => {
+    expect(databaseNameFromDsn(new URL("postgresql://u:p@h.example/a?dbname=first&dbname=my%20db"))).toBe("my db");
+    expect(databaseNameFromDsn(new URL("postgresql://u:p@h.example/a?DBNAME=CaseInsensitive"))).toBe("CaseInsensitive");
+    expect(databaseNameFromDsn(new URL("postgresql://u:p@h.example/a?dbname=keep+plus"))).toBe("keep+plus");
   });
 });
 
@@ -930,6 +949,28 @@ describe("runBackup — success boundary", () => {
     expect(run.logs.some(line => line.includes("toolchain ok"))).toBe(true);
     expect(run.logs.some(line => line.includes(`backup complete: ${runDir}`))).toBe(true);
     expect(run.logs.some(line => line.includes(`backing up ${REDACTED_FIXTURE}`))).toBe(true);
+  });
+
+  it("records the query dbname= as the manifest database when the DSN path is empty (libpq override channel)", async () => {
+    const outDir = join(workspace, "run-query-dbname");
+    const run = await runBackupWith(probeAndDumpBehavior(dumpWritesArtifact), {
+      envFile: queryDbnameEnvFile,
+      outDir,
+    });
+    expect(run.code).toBe(0);
+
+    // libpq applies query parameters on top of the URI: with an empty path
+    // the query dbname IS the database pg_dump dumps, so the manifest (and
+    // the redacted log line) must record it — never the "(default)" marker.
+    const manifest = JSON.parse(readFileSync(join(outDir, STAMP, MANIFEST_FILE_NAME), "utf8")) as unknown;
+    expect(manifestProblems(manifest)).toEqual([]);
+    expect(manifest).toMatchObject({ database: "app_db" });
+    expect(run.logs.some(line => line.includes("backing up app_db@db.internal.example:5432(redacted-user)"))).toBe(
+      true
+    );
+    // The child still receives the ORIGINAL DSN libpq resolves.
+    const dumpCall = run.calls.find(call => call.argv[0] === "pg_dump" && call.argv[1] !== "--version");
+    expect(dumpCall?.argv.at(-1)).toBe("postgresql://ops_owner:supersecret-pw@db.internal.example:5432/?dbname=app_db");
   });
 
   it("spawns exactly the probe and dump processes as argv arrays with an allowlisted env", async () => {

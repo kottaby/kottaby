@@ -1309,6 +1309,18 @@ describe("restore-verify tool family (4-tier)", () => {
         targetDsn: "postgresql://postgres@127.0.0.1:5432/scratch_%ZZrestore?dbname=scratch_restore",
         reason: "malformed percent-escape",
       },
+      {
+        name: "a URI whose raw path carries dot-segments (the URL parser would normalize them, libpq restores literally)",
+        env: localEnvFixture(),
+        targetDsn: "postgresql://postgres@127.0.0.1:5432/pt7_a/../pt7_b",
+        reason: "dot-segment path is unassessable",
+      },
+      {
+        name: "a URI whose path percent-decodes into dot-segments (encoded traversal)",
+        env: localEnvFixture(),
+        targetDsn: "postgresql://postgres@127.0.0.1:5432/pt7_a/%2e%2e/pt7_b",
+        reason: "dot-segment path is unassessable",
+      },
     ];
 
     for (const refusalCase of refusalCases) {
@@ -1330,6 +1342,28 @@ describe("restore-verify tool family (4-tier)", () => {
         expect(run.stderr).not.toContain(FIXTURE_PASSWORD);
       });
     }
+
+    test("guard allows a plain multi-segment raw path and the report label equals the literal libpq database", async () => {
+      const caseRoot = newCaseRoot();
+      makeSchemaFixture(caseRoot);
+      const fixture = makeBackupRun(caseRoot);
+      // No dot-segments: libpq treats the raw path LITERALLY as the database
+      // name, so the report label must be that literal name — never a
+      // WHATWG-normalized (or otherwise re-derived) variant of it.
+      const rawPathTarget = `postgresql://restore_user:${FIXTURE_PASSWORD}@127.0.0.1:5432/r7_plain/scratch_restore`;
+      const run = await runPipeline(caseRoot, {
+        from: fixture.runDir,
+        script: healthyScript(),
+        targetDsn: rawPathTarget,
+      });
+      expect(run.thrown).toBeNull();
+      expect(run.exitCode).toBe(0);
+      expect(run.stdout).toContain('target database "r7_plain/scratch_restore"');
+      expect(run.stdout).toContain("VERDICT: PASS");
+      expect(run.report?.target).toEqual({ database: "r7_plain/scratch_restore" });
+      const restoreRequest = run.requests.find(request => request.cmd === "pg_restore");
+      expect(restoreRequest?.args).toContain(rawPathTarget);
+    });
 
     test("guard assesses conninfo-form targets: local accepted, original string spawned", async () => {
       const caseRoot = newCaseRoot();
@@ -2175,6 +2209,14 @@ describe("redactTargetDatabaseName (conninfo libpq semantics)", () => {
   test("URL form ignores an absent or empty query dbname= and reports the path database", () => {
     expect(redactTargetDatabaseName("postgresql://u:p@h:5432/pathdb?sslmode=require")).toBe("pathdb");
     expect(redactTargetDatabaseName("postgresql://u:p@h:5432/pathdb?dbname=")).toBe("pathdb");
+  });
+
+  test("URL form derives the path label from the RAW path (libpq literal view, no dot-segment normalization)", () => {
+    // The WHATWG pathname of this URI is "/pt7_b" — libpq would restore into
+    // the literal "pt7_a/../pt7_b", so the report must say exactly that.
+    expect(redactTargetDatabaseName("postgresql://u:p@h:5432/pt7_a/../pt7_b")).toBe("pt7_a/../pt7_b");
+    expect(redactTargetDatabaseName("postgresql://u:p@h:5432/./scratch_db")).toBe("./scratch_db");
+    expect(redactTargetDatabaseName("postgresql://u:p@h:5432/db%20one")).toBe("db one");
   });
 
   test("conninfo form reports the LAST dbname= (libpq last-wins)", () => {
