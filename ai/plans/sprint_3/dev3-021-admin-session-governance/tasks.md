@@ -51,11 +51,11 @@
 
 ## Phase 4 — GraphQL
 
-- [ ] 4.1 **CREATE** `backend/graphql/pothos/classes/session-filter-input.pothos.ts` addition: `AdminSessionListFilterPothosInput` (REQ-061)
+- [x] 4.1 **CREATE** `backend/graphql/pothos/classes/session-filter-input.pothos.ts` addition: `AdminSessionListFilterPothosInput` (REQ-061)
   - subtasks 4.1.QL / 4.1.TE / 4.1.SEC / 4.1.SR / 4.1.IV
-- [ ] 4.2 **CREATE** `backend/graphql/query/classes/admin-session-governance.query.ts` — `adminSessions`, `adminSession` (REQ-010..012, REQ-030, REQ-060)
+- [x] 4.2 **CREATE** `backend/graphql/query/classes/admin-session-governance.query.ts` — `adminSessions`, `adminSession` (REQ-010..012, REQ-030, REQ-060)
   - subtasks as above; register in `backend/graphql/query/classes/index.ts` barrel
-- [ ] 4.3 **CREATE** `backend/graphql/mutation/classes/admin-session-governance.mutation.ts` — 4 mutations (REQ-020..027, REQ-030, REQ-060); register barrel
+- [x] 4.3 **CREATE** `backend/graphql/mutation/classes/admin-session-governance.mutation.ts` — 4 mutations (REQ-020..027, REQ-030, REQ-060); register barrel
   - subtasks as above; Tier-3 idempotency retries; Tier-4 401/403 byte-identical
 - [ ] 4.4 **Codegen** — `bun run generate:gqlSchema && bun codegen` (REQ-060); verify generated TS types include new ops
 
