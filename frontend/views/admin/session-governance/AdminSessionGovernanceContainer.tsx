@@ -1,13 +1,14 @@
 "use client";
 
 import { useMutation, useQuery } from "@apollo/client/react";
-import { SessionNoticeSnackbar } from "@/frontend/components/ui/sessionList";
 import { Stack } from "@mui/material";
 import { type ReactNode, useCallback, useMemo, useRef, useState } from "react";
+import { SessionNoticeSnackbar } from "@/frontend/components/ui/sessionList";
 import type {
   AdminSessionListFilterInput,
   AdminSessionsQuery_adminSessions_items,
 } from "@/frontend/graphql/generated/gql/graphql";
+import { SessionStatus, type SessionType } from "@/frontend/graphql/generated/gql/graphql";
 import {
   adminSessionCancelMutationDocument,
   adminSessionJoinMutationDocument,
@@ -16,6 +17,8 @@ import {
   adminSessionRescheduleMutationDocument,
   adminSessionsQueryDocument,
 } from "@/frontend/graphql/sharedDocuments";
+import { extractErrorCode } from "@/frontend/lib/graphql-error-utils";
+import { normalizeGraphQLErrorCode } from "@/frontend/providers/apollo/error-link.map";
 import { AdminSessionDetailDrawer } from "@/frontend/views/admin/session-governance/AdminSessionDetailDrawer";
 import { AdminSessionGovernanceChrome } from "@/frontend/views/admin/session-governance/AdminSessionGovernanceChrome";
 import { AdminSessionsBody } from "@/frontend/views/admin/session-governance/AdminSessionsBody";
@@ -23,15 +26,7 @@ import { CancelSessionDialog } from "@/frontend/views/admin/session-governance/C
 import { JoinObservationAction } from "@/frontend/views/admin/session-governance/JoinObservationAction";
 import { ReassignTeacherDialog } from "@/frontend/views/admin/session-governance/ReassignTeacherDialog";
 import { RescheduleSessionDialog } from "@/frontend/views/admin/session-governance/RescheduleSessionDialog";
-import { SessionStatus, SessionType } from "@/frontend/graphql/generated/gql/graphql";
-import { extractErrorCode } from "@/frontend/lib/graphql-error-utils";
-import { normalizeGraphQLErrorCode } from "@/frontend/providers/apollo/error-link.map";
-import {
-  AdminSessionGovernance,
-  Errors,
-  Sessions,
-  useAppTranslation,
-} from "@/shared/locale";
+import { AdminSessionGovernance, Errors, Sessions, useAppTranslation } from "@/shared/locale";
 
 /**
  * AdminSessionGovernanceContainer — the client orchestrator behind
