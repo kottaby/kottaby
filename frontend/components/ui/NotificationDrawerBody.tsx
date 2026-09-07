@@ -93,8 +93,11 @@ interface NotificationDrawerListProps {
 /**
  * The settled rows list. Row anatomy follows the prototype: unread dot +
  * bold title + end-aligned locale-formatted timestamp + 2-line-clamped body.
- * Each row IS a real anchor to `/notifications` (Link), so navigation is
- * native — no router call.
+ * Each row IS a real anchor whose href resolves through
+ * `resolveNotificationRoute(relatedEntityType)` — entity-type-keyed deep
+ * links (parent-link rows land on the student decision route); unknown or
+ * absent entity types fall through to the notifications feed page. Either
+ * way navigation is native — no router call.
  */
 function NotificationDrawerList({ items, onOpenNotification }: Readonly<NotificationDrawerListProps>): ReactNode {
   const t = useAppTranslation(Notifications);
