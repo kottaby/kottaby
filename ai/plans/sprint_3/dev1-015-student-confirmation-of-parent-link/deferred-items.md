@@ -1,7 +1,7 @@
 # Deferred Items Ledger
 
-**Feature:** `dev1-015-student-confirmation-of-parent-link`
-**Plan Directory:** `ai/plans/sprint_3/dev1-015-student-confirmation-of-parent-link`
+**Feature:** `dev1-015-student-confirmation-of-parent-link`  
+**Plan Directory:** `ai/plans/sprint_3/dev1-015-student-confirmation-of-parent-link`  
 **Created:** `2026-09-05`
 
 ---
