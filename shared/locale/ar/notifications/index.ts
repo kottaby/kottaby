@@ -52,6 +52,12 @@ export const notificationsAr: NotificationsLabels = {
   eventSessionQueuedBody: (teacherName: string) => `أُضيف طلب جلستك لدى ${teacherName} إلى قائمة الانتظار.`,
   eventSessionAlternativesOfferedBody: (teacherName: string) =>
     `تعذّر على ${teacherName} قبول طلبك، لذا اقترحنا لك معلمين بدلاء.`,
+  eventSessionCompletionPromptTitle: "أكّد اكتمال جلستك",
+  eventSessionAutoCancelledTitle: "تم إلغاء جلستك تلقائيًا",
+  eventSessionCompletionPromptBody: (teacherName: string) =>
+    `علّم ${teacherName} جلستك كمكتملة — يرجى تأكيد الاكتمال حتى تُحتسب الجلسة.`,
+  eventSessionAutoCancelledBody: (teacherName: string) =>
+    `أُلغيت جلستك مع ${teacherName} تلقائيًا لعدم تأكيد الاكتمال خلال 24 ساعة.`,
   intentHifz: "الحفظ",
   intentTajweed: "التجويد",
   intentEvaluation: "التقييم",
