@@ -6,7 +6,18 @@
  */
 
 import { createHash } from "node:crypto";
-import { chmodSync, type Dirent, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  type Dirent,
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  realpathSync,
+  renameSync,
+  writeFileSync,
+} from "node:fs";
 import { join, sep } from "node:path";
 
 export const ARTIFACT_FILE_NAME = "dump.pgc";
@@ -203,14 +214,64 @@ export function isSystemOutDir(outDir: string): boolean {
   return SYSTEM_OUT_DIRS.some(systemDir => outDir === systemDir || outDir.startsWith(`${systemDir}/`));
 }
 
+/** True when `path` exists in ANY form — including a symlink, even a dangling one. */
+function existsInAnyForm(path: string): boolean {
+  try {
+    lstatSync(path);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Creates the staging directory `tmp-<pid>-<ts>` (first collision-free
  * name) with a pre-created empty artifact file, so a failed dump always
  * leaves inspectable evidence and pg_dump never invents file permissions.
+ *
+ * The collision probe does NOT follow symlinks: an entry that exists in any
+ * form — including a symlink, even a dangling one — takes the name, and the
+ * run falls back to the `-2` suffix rather than creating (or writing)
+ * through a pre-existing link. After the mkdir, the created directory is
+ * resolved to its REAL path and must live inside the resolved `outDir`
+ * before any artifact byte is written (a name swapped for a symlink between
+ * probe and mkdir, or an out-dir reached through links, would otherwise
+ * steer the dump write outside the operator-chosen directory); a violation
+ * preserves the escaped (still empty) directory as `<stamp>_FAILED` and
+ * throws, which the caller maps to the failed-run path (exit 1).
  */
 export function createStagingDir(outDir: string, pid: number, stamp: string): string {
-  const stagingDir = join(outDir, nextAvailableRunDirName(outDir, `${STAGING_DIR_PREFIX}${pid}-${stamp}`));
+  const baseName = `${STAGING_DIR_PREFIX}${pid}-${stamp}`;
+  let candidateName = baseName;
+  let suffix = 2;
+  while (existsInAnyForm(join(outDir, candidateName))) {
+    candidateName = `${baseName}-${suffix}`;
+    suffix += 1;
+  }
+  const stagingDir = join(outDir, candidateName);
   mkdirSync(stagingDir, { recursive: true, mode: 0o700 });
+  const outDirReal = realpathSync(outDir);
+  const stagingReal = realpathSync(stagingDir);
+  if (stagingReal !== outDirReal && !stagingReal.startsWith(`${outDirReal}${sep}`)) {
+    // Containment violation: the dump must never be written through whatever
+    // swapped in under the staging name. Preserve the (empty) directory as
+    // `<stamp>_FAILED` — the same failed-run evidence path as a crashed dump
+    // — and abort before any artifact exists.
+    const failedPath = join(outDir, nextAvailableRunDirName(outDir, `${stamp}_FAILED`));
+    let preserved = false;
+    try {
+      renameSync(stagingReal, failedPath);
+      preserved = true;
+    } catch {
+      // Cross-device or vanished target: keep the escape visible at its real
+      // path in the error message instead.
+    }
+    throw new Error(
+      preserved
+        ? `staging directory resolved outside the output directory — preserved as ${failedPath} for inspection`
+        : `staging directory resolved outside the output directory (${stagingReal}) — refusing to write the dump`
+    );
+  }
   writeFileSync(join(stagingDir, ARTIFACT_FILE_NAME), "", { flag: "wx", mode: 0o600 });
   return stagingDir;
 }

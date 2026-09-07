@@ -1588,6 +1588,11 @@ describe("restore-verify tool family (4-tier)", () => {
         reason: "unassessable authority",
       },
       {
+        name: "a raw ? in a PATHLESS authority followed by an @ (libpq folds it into the userinfo)",
+        targetDsn: "postgresql://postgres:?@127.0.0.1:5432",
+        reason: "unassessable authority",
+      },
+      {
         name: "a userinfo percent-decoding to an @ (encoded authority delimiter)",
         targetDsn: "postgresql://postgres%3F%40prod.rds.amazonaws.com@127.0.0.1:5432/db",
         reason: "authority delimiter",
@@ -1622,6 +1627,46 @@ describe("restore-verify tool family (4-tier)", () => {
         expect(run.stderr).not.toContain(FIXTURE_PASSWORD);
       });
     }
+
+    // ── Pathless-query URIs: with no path segment the first `?` IS the query
+    // delimiter in both libpq and WHATWG (`pg_isready` on
+    // `postgresql://localhost:5432?sslmode=disable` connects to
+    // localhost:5432), so the raw authority-span gate must let them through
+    // to the normal query-channel assessment — refusing them would reject
+    // ordinary, libpq-legal URIs. ──
+    test("guard allows a pathless-query target: sslmode-only query reaches pg_restore verbatim", async () => {
+      const caseRoot = newCaseRoot();
+      makeSchemaFixture(caseRoot);
+      const fixture = makeBackupRun(caseRoot);
+      const pathlessTarget = "postgresql://postgres@127.0.0.1:5432?sslmode=disable";
+      const run = await runPipeline(caseRoot, {
+        from: fixture.runDir,
+        targetDsn: pathlessTarget,
+        script: healthyScript(),
+      });
+      expect(run.thrown).toBeNull();
+      expect(run.exitCode).toBe(0);
+      expect(run.stdout).toContain("VERDICT: PASS");
+      expect(run.requests[0]?.cmd).toBe("pg_restore");
+      expect(run.requests.find(request => request.cmd === "pg_restore")?.args).toContain(pathlessTarget);
+    });
+
+    test("guard refuses a managed host smuggled into a PATHLESS query (query channel still assessed)", async () => {
+      const caseRoot = newCaseRoot();
+      makeSchemaFixture(caseRoot);
+      // `--from` is deliberately unresolvable: the guard must fire first.
+      const run = await runPipeline(caseRoot, {
+        from: join(caseRoot, "never-resolved"),
+        targetDsn: "postgresql://postgres@127.0.0.1:5432?host=prod.rds.amazonaws.com",
+        script: emptyScript(),
+      });
+      expect(run.thrown).toBeNull();
+      expect(run.exitCode).toBe(2);
+      expect(run.stderr).toContain("[guard]");
+      expect(run.stderr).toContain("rds.amazonaws.com");
+      expect(run.requests).toHaveLength(0);
+      expect(run.stderr).not.toContain(FIXTURE_PASSWORD);
+    });
 
     // ── libpq service indirection: a `service=` parameter (URI query or
     // conninfo keyword) makes the SERVICE FILE — forwarded to the restore

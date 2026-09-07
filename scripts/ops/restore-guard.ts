@@ -44,15 +44,19 @@
  *     restore children via PGSERVICEFILE) decides the endpoint, so any
  *     target naming a service is unassessable and refuses the run;
  *   - the RAW AUTHORITY SPAN of a URI-form target (after `//`, up to the
- *     first `/` of the raw string) must be clean: libpq scans the authority
- *     to that first `/` and splits userinfo at the last `@` inside the span,
- *     while the WHATWG parser ends the authority at the first `?`/`#` —
+ *     first `/` of the raw string — or, on a pathless URI, up to the first
+ *     `?`, which is there the query delimiter both libpq and WHATWG agree
+ *     on) must be clean: on a pathed URI libpq scans the authority to that
+ *     first `/` and splits userinfo at the last `@` inside the span, while
+ *     the WHATWG parser ends the authority at the first `?`/`#` —
  *     `postgresql://postgres:?@prod.example.com/db` parses with host
  *     `postgres` under WHATWG but libpq connects to `prod.example.com`. A
  *     raw `?`/`#`/control character in the span, or a userinfo that
  *     percent-decodes into an `@`/`/` (libpq decodes userinfo before use),
  *     is unassessable and refuses the run before any URL parsing (fail
- *     closed: no RFC-legal URL puts raw `?`/`#` in the authority);
+ *     closed: no RFC-legal URL puts raw `?`/`#` in the authority); a
+ *     pathless query (`postgresql://localhost:5432?sslmode=disable`) is the
+ *     one agreed form and flows to the normal query-channel assessment;
  *   - when `hostaddr` is present alongside `host`, BOTH values are assessed
  *     (libpq connects to `hostaddr` while using `host` for verification), so
  *     token order can never hide one of the two host signals;
@@ -341,14 +345,16 @@ export function assessRestoreTargetSafety(targetDsn: string): RestoreGuardAssess
   let assessUrls: string[];
   if (parsesAsPostgresUrl(targetDsn)) {
     const trimmed = targetDsn.trim();
-    // RAW AUTHORITY-SPAN gate FIRST: libpq scans the authority to the first
-    // `/` of the raw string and splits userinfo at the last `@` inside that
-    // span, while the WHATWG parser ends the authority at the first `?`/`#`
-    // — `postgresql://postgres:?@prod.example.com/db` parses with host
-    // `postgres` under WHATWG but libpq connects to `prod.example.com`. A
-    // raw `?`/`#`/control character in the span (or a userinfo that
-    // percent-decodes into an `@`/`/`) makes the authority unassessable and
-    // refuses before any URL parsing (fail closed).
+    // RAW AUTHORITY-SPAN gate FIRST: on a pathed URI libpq scans the
+    // authority to the first `/` of the raw string and splits userinfo at the
+    // last `@` inside that span, while the WHATWG parser ends the authority
+    // at the first `?`/`#` — `postgresql://postgres:?@prod.example.com/db`
+    // parses with host `postgres` under WHATWG but libpq connects to
+    // `prod.example.com`. On a PATHLESS URI the first `?` is the query
+    // delimiter both parsers agree on, so the span ends there and the query
+    // is assessed below. A raw `?`/`#`/control character in the span (or a
+    // userinfo that percent-decodes into an `@`/`/`) makes the authority
+    // unassessable and refuses before any URL parsing (fail closed).
     const authority = assessRawUriAuthority(trimmed);
     if (authority.kind === "refuse") {
       return { blocked: true, reasons: [authority.reason] };

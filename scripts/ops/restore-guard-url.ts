@@ -3,7 +3,7 @@
  * (`restore-guard.ts`).
  *
  * Extracted from the guard to honor the repo's `max-lines` budget
- * (oxlint 300 — see docs/quality/linting-rules.md); behavior is verbatim,
+ * (configured in oxlint.config.mts); behavior is verbatim,
  * moved not copied. Everything here is a pure string/URL function — no env
  * access, no I/O — so the guard stays the only module that seats targets in
  * `DATABASE_URL` and runs the destructive-db assessment.
@@ -27,14 +27,17 @@
  *     the WHATWG parser strips what libpq keeps, so the assessed URL must be
  *     the URL libpq sees.
  *
- *  3. The RAW AUTHORITY-SPAN gate: libpq scans the authority to the FIRST
- *     `/` of the raw string and splits userinfo at the LAST `@` inside that
- *     span, while the WHATWG parser ends the authority at the first `?`/`#`
- *     — `postgresql://postgres:?@prod.example.com/db` parses with host
- *     `postgres` under WHATWG but libpq connects to `prod.example.com`. A
- *     raw `?`/`#`/control character in that span, or a userinfo that
- *     percent-decodes into an `@`/`/`, is unassessable and refuses the run
- *     before any URL parsing (fail closed).
+ *  3. The RAW AUTHORITY-SPAN gate: on a PATHED URI libpq scans the authority
+ *     to the FIRST `/` of the raw string and splits userinfo at the LAST `@`
+ *     inside that span, while the WHATWG parser ends the authority at the
+ *     first `?`/`#` — `postgresql://postgres:?@prod.example.com/db` parses
+ *     with host `postgres` under WHATWG but libpq connects to
+ *     `prod.example.com`. On a PATHLESS URI, though, the first `?` IS the
+ *     query delimiter in both parsers (`postgresql://localhost:5432?sslmode=disable`),
+ *     so the span ends there and the query flows to the normal query-channel
+ *     assessment. A raw `?`/`#`/control character inside the span proper, or
+ *     a userinfo that percent-decodes into an `@`/`/`, is unassessable and
+ *     refuses the run before any URL parsing (fail closed).
  */
 
 import { POSTGRES_PROTOCOLS } from "@/scripts/ops/_shared";
@@ -308,24 +311,39 @@ export type RawAuthorityAssessment = { kind: "ok" } | { kind: "refuse"; reason: 
 
 /**
  * Assesses the RAW AUTHORITY SPAN of a URI-form target: the substring after
- * `//` up to the FIRST `/` of the raw string. libpq scans the authority to
- * that first `/` and splits userinfo at the LAST `@` inside the span, while
- * the WHATWG parser ends the authority at the first `?`/`#` — so
+ * `//` up to the first delimiter both parsers agree on — the FIRST `/` of
+ * the raw string on a pathed URI (libpq scans the authority to that `/` and
+ * splits userinfo at the LAST `@` inside the span, while the WHATWG parser
+ * ends the authority at the first `?`/`#`, so
  * `postgresql://postgres:?@prod.example.com/db` parses with host `postgres`
- * under WHATWG but libpq connects to `prod.example.com`. No RFC-legal URL
- * puts a raw `?`/`#` (or a control character) in the userinfo/authority, so
- * a span carrying one is UNASSESSABLE and refuses the run before any URL
- * parsing (fail closed) — the assessed URL must be the URL libpq sees. The
- * same holds for a userinfo that percent-decodes into an `@` or `/`: libpq
- * percent-decodes the userinfo before use, so a decoded authority delimiter
- * makes the DSN's parsing ambiguous across libpq versions.
+ * under WHATWG but libpq connects to `prod.example.com`), or — on a PATHLESS
+ * URI with no later `@` — the FIRST `?`, which is there the query delimiter
+ * libpq AND WHATWG agree on (`postgresql://localhost:5432?sslmode=disable`);
+ * such a query flows to the normal query-channel assessment. No RFC-legal
+ * URL puts a raw `?`/`#` (or a control character) inside the authority span
+ * itself, so a span carrying one is UNASSESSABLE and refuses the run before
+ * any URL parsing (fail closed) — the assessed URL must be the URL libpq
+ * sees. The same holds for a userinfo that percent-decodes into an `@` or
+ * `/`: libpq percent-decodes the userinfo before use, so a decoded authority
+ * delimiter makes the DSN's parsing ambiguous across libpq versions.
  */
 export function assessRawUriAuthority(trimmedTarget: string): RawAuthorityAssessment {
   const schemeEnd = trimmedTarget.indexOf("://");
   const authorityStart = schemeEnd < 0 ? 0 : schemeEnd + 3;
   const slashAt = trimmedTarget.indexOf("/", authorityStart);
-  const authoritySpan =
-    slashAt < 0 ? trimmedTarget.slice(authorityStart) : trimmedTarget.slice(authorityStart, slashAt);
+  const questionAt = trimmedTarget.indexOf("?", authorityStart);
+  // Span end: the first `/` wins on a pathed URI (any `?`/`#` before it is
+  // mid-span and ambiguous). On a pathless URI a `?` followed by no `@` is
+  // the query delimiter both parsers honor (libpq would otherwise swallow a
+  // later `@` into the userinfo, and only then does the parsers' view of the
+  // authority diverge); anything else spans to the end of the string.
+  let authorityEnd = trimmedTarget.length;
+  if (slashAt >= 0) {
+    authorityEnd = slashAt;
+  } else if (questionAt >= 0 && trimmedTarget.indexOf("@", questionAt) < 0) {
+    authorityEnd = questionAt;
+  }
+  const authoritySpan = trimmedTarget.slice(authorityStart, authorityEnd);
   if (authoritySpan.includes("?") || authoritySpan.includes("#") || hasControlCharacter(authoritySpan)) {
     return {
       kind: "refuse",

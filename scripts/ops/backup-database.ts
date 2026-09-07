@@ -286,7 +286,14 @@ async function publishBackup(ctx: BackupRunContext): Promise<number> {
       );
     }
 
-    stagingDir = createStagingDir(ctx.outDir, ctx.deps.pid, ctx.stamp);
+    try {
+      stagingDir = createStagingDir(ctx.outDir, ctx.deps.pid, ctx.stamp);
+    } catch (stagingError) {
+      // Includes the staging containment refusal (a directory that resolves
+      // outside the out-dir): a controlled failed run, exit 1 — the escaped
+      // directory itself was already preserved as `<stamp>_FAILED`.
+      return fail("backup", `cannot create the staging directory: ${errorMessage(stagingError)}`, 1);
+    }
     const artifactPath = join(stagingDir, ARTIFACT_FILE_NAME);
 
     ctx.deps.emit.log(`running pg_dump (custom format) into ${stagingDir}`);

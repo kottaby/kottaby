@@ -630,6 +630,20 @@ describe("hashing and artifact helpers", () => {
     expect(createStagingDir(outDir, FAKE_PID, STAMP).endsWith(`-${STAMP}-2`)).toBe(true);
   });
 
+  it("skips a pre-existing symlink at the staging name and never writes through it", () => {
+    const outDir = join(workspace, "staging-symlink");
+    mkdirSync(outDir, { recursive: true });
+    const outsideTarget = join(workspace, "staging-symlink-outside");
+    mkdirSync(outsideTarget, { recursive: true });
+    symlinkSync(outsideTarget, join(outDir, `${STAGING_DIR_PREFIX}${FAKE_PID}-${STAMP}`));
+    const stagingDir = createStagingDir(outDir, FAKE_PID, STAMP);
+    expect(stagingDir).toBe(join(outDir, `${STAGING_DIR_PREFIX}${FAKE_PID}-${STAMP}-2`));
+    // The pre-created artifact lives in the real staging directory; nothing
+    // may have been written through the link into the outside target.
+    expect(existsSync(join(stagingDir, ARTIFACT_FILE_NAME))).toBe(true);
+    expect(readdirSync(outsideTarget)).toEqual([]);
+  });
+
   it("writes the manifest at 0600 as parseable JSON with a trailing newline", () => {
     const stagingDir = join(workspace, "manifest-write");
     mkdirSync(stagingDir, { recursive: true });
@@ -989,6 +1003,21 @@ describe("runBackup — success boundary", () => {
         line => line.includes("leftover staging directory") && line.includes(`${STAGING_DIR_PREFIX}999-old`)
       )
     ).toBe(true);
+  });
+
+  it("routes a run around a pre-existing symlink at the staging name (never writes through it)", async () => {
+    const outDir = join(workspace, "run-staging-symlink");
+    mkdirSync(outDir, { recursive: true });
+    const outsideTarget = join(workspace, "run-staging-symlink-outside");
+    mkdirSync(outsideTarget, { recursive: true });
+    symlinkSync(outsideTarget, join(outDir, `${STAGING_DIR_PREFIX}${FAKE_PID}-${STAMP}`));
+    const run = await runBackupWith(probeAndDumpBehavior(dumpWritesArtifact), { envFile: goodEnvFile, outDir });
+    expect(run.code).toBe(0);
+    // The run published normally from the -2 staging directory; the symlink
+    // and its target are untouched.
+    expect(existsSync(join(outDir, STAMP, MANIFEST_FILE_NAME))).toBe(true);
+    expect(existsSync(join(outDir, STAMP, ARTIFACT_FILE_NAME))).toBe(true);
+    expect(readdirSync(outsideTarget)).toEqual([]);
   });
 });
 
