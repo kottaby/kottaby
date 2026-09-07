@@ -67,11 +67,19 @@ export type SpawnRunner = (request: SpawnRequest) => Promise<SpawnOutcome>;
 
 /**
  * Process environment keys forwarded to restore children (psql/pg_restore):
- * PATH/locale plus the libpq connection variables. Mirrors the backup
- * family's `buildChildEnv` semantics. `DATABASE_URL` is deliberately NOT
- * forwarded — connection config travels in the `--dbname` argv value, and
- * the parent's DATABASE_URL names the SOURCE database, which must never leak
- * into a child that might otherwise connect to the wrong database.
+ * PATH/locale plus libpq CREDENTIAL and TRANSPORT variables only.
+ *
+ * The ENDPOINT-DECIDING libpq variables — PGHOST, PGPORT, PGDATABASE, PGUSER,
+ * PGSERVICE, PGSERVICEFILE, PGHOSTADDR — are deliberately NOT forwarded:
+ * with an under-specified `--target` DSN the ambient environment would
+ * complete the connection endpoint and pg_restore would silently land in an
+ * operator-unintended database (live-proven). The restore endpoint is decided
+ * by the guard-assessed `--dbname` argv value ALONE. `DATABASE_URL` is also
+ * deliberately NOT forwarded — connection config travels in the `--dbname`
+ * argv value, and the parent's DATABASE_URL names the SOURCE database, which
+ * must never leak into a child that might otherwise connect to the wrong
+ * database. (PGAPPNAME stays: it only labels the connection in
+ * pg_stat_activity and cannot change the endpoint.)
  */
 const RESTORE_CHILD_ENV_KEYS = [
   "PATH",
@@ -80,17 +88,11 @@ const RESTORE_CHILD_ENV_KEYS = [
   "LANG",
   "LC_ALL",
   "LC_CTYPE",
-  "PGHOST",
-  "PGPORT",
-  "PGDATABASE",
-  "PGUSER",
   "PGPASSWORD",
   "PGPASSFILE",
   "PGSSLMODE",
   "PGSSLROOTCERT",
   "PGCONNECT_TIMEOUT",
-  "PGSERVICE",
-  "PGSERVICEFILE",
   "PGAPPNAME",
 ] as const;
 

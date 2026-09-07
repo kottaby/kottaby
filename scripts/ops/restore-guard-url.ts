@@ -188,8 +188,8 @@ type UriQueryChannels =
  * up rejecting the odd casing as an unknown option or applying it, refusing
  * is never wrong), and a valueless `?host` counts as libpq's empty value.
  * A `service` key is tracked separately: it names a libpq service whose
- * service file (forwarded to the restore children via PGSERVICEFILE)
- * decides the endpoint — indirection the guard cannot assess.
+ * service file — not this target string — would decide the endpoint:
+ * indirection the guard cannot assess.
  */
 function extractUriQueryChannels(rawQuery: string): UriQueryChannels {
   let host: string | undefined;
@@ -409,11 +409,10 @@ export function uriQueryChannelAssessUrls(
   if (channels.kind === "refuse") {
     return channels;
   }
-  // Service indirection: the `service` parameter names an entry in the
-  // service file the restore children receive (PGSERVICEFILE is forwarded),
-  // and that file — not this target string — decides the effective
-  // host/port/database. A target whose endpoint is chosen elsewhere cannot
-  // be assessed and refuses the run.
+  // Service indirection: the `service` parameter names an entry in a
+  // service file, and that file — not this target string — decides the
+  // effective host/port/database. A target whose endpoint is chosen
+  // elsewhere cannot be assessed and refuses the run.
   if (channels.service) {
     return {
       kind: "refuse",

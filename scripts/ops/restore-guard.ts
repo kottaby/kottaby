@@ -40,9 +40,14 @@
  *     cannot be reasoned about (URL-form DSNs with IP hosts remain the
  *     supported drill path);
  *   - a `service=` parameter — in a URI query or as a conninfo keyword — is
- *     libpq SERVICE INDIRECTION: the named service file (forwarded to the
- *     restore children via PGSERVICEFILE) decides the endpoint, so any
- *     target naming a service is unassessable and refuses the run;
+ *     libpq SERVICE INDIRECTION: the named service file would decide the
+ *     endpoint, so any target naming a service is unassessable and refuses
+ *     the run;
+ *   - the target's DATABASE component must be explicit: a URI whose path
+ *     database is empty or absent, and a conninfo with no `dbname=` keyword,
+ *     refuse the run — with an under-specified DSN libpq completes the
+ *     endpoint from the ambient environment (PGDATABASE), so pg_restore
+ *     would silently land in an operator-unintended database;
  *   - the RAW AUTHORITY SPAN of a URI-form target (after `//`, up to the
  *     first `/` of the raw string — or, on a pathless URI, up to the first
  *     `?`, which is there the query delimiter both libpq and WHATWG agree
@@ -126,6 +131,12 @@ const SERVICE_INDIRECTION_REFUSAL =
   "target carries a service= parameter — service indirection is unassessable (the service file decides the " +
   "connection endpoint) — cannot assess target safety";
 
+/** Refusal for any target that does not name its database explicitly. */
+const UNSPECIFIED_DATABASE_REFUSAL =
+  "target database is unspecified — the connection string names no database, so ambient libpq environment " +
+  "(PGDATABASE) would decide the restore target — the operator must name the target database explicitly — " +
+  "cannot assess target safety";
+
 /**
  * Splits a keyword/value conninfo string into unquoted tokens (libpq rules:
  * whitespace-separated, single quotes quote literally with `''` escapes).
@@ -177,9 +188,9 @@ function tokenizeConninfo(target: string): string[] | null {
  * repeated keywords LAST-WINS (`host=a host=b` connects to `b`), so the
  * extraction below overwrites on every repeat exactly as libpq does — the
  * assessed host is always the host libpq would actually use. A `service=`
- * keyword is libpq SERVICE INDIRECTION (the named service file — forwarded
- * to the restore children via PGSERVICEFILE — decides the endpoint), so it
- * is extracted as a refusal instead of a signal.
+ * keyword is libpq SERVICE INDIRECTION (the named service file — not this
+ * target string — would decide the endpoint), so it is extracted as a
+ * refusal instead of a signal.
  */
 interface ConninfoSignal {
   host: string | undefined;
@@ -235,8 +246,9 @@ export type ConninfoAssessUrls = { kind: "ok"; urls: string[] } | { kind: "refus
  * assessed — a `service=` keyword (libpq service indirection), `hostaddr`
  * naming a non-loopback address (hostaddr is the endpoint libpq actually
  * connects to; a remote numeric endpoint has no host signal), `hostaddr`
- * without a `host` (a bare-IP target with no host signal), a host value
- * outside the assessable charset, or a value that cannot round-trip through
+ * without a `host` (a bare-IP target with no host signal), a missing
+ * `dbname=` keyword (the ambient environment would complete the endpoint),
+ * a host value outside the assessable charset, or a value that cannot round-trip through
  * `new URL()` (the downstream guard SKIPS its host analysis on unparseable
  * URLs, so an unparseable synthesis must refuse rather than assess as "no
  * signal") — and `{ kind: "ok" }` with ONE URL PER host value otherwise:
@@ -249,9 +261,9 @@ export function conninfoAssessUrls(target: string): ConninfoAssessUrls | null {
   if (extraction.kind === "none") {
     return null;
   }
-  // libpq service indirection: the service file the restore children receive
-  // (PGSERVICEFILE is forwarded) decides the endpoint, so any target naming a
-  // service is unassessable and refuses (fail closed).
+  // libpq service indirection: the named service file — not this target
+  // string — would decide the endpoint, so any target naming a service is
+  // unassessable and refuses (fail closed).
   if (extraction.kind === "service") {
     return { kind: "refuse", reason: SERVICE_INDIRECTION_REFUSAL };
   }
@@ -266,6 +278,14 @@ export function conninfoAssessUrls(target: string): ConninfoAssessUrls | null {
       reason:
         "target conninfo carries hostaddr without a host keyword — bare-IP targets are unassessable — cannot assess target safety",
     };
+  }
+
+  // The database component must be explicit: without `dbname=` libpq
+  // completes the endpoint from the ambient environment (PGDATABASE) and
+  // pg_restore would land in an operator-unintended database — refuse
+  // (fail closed); the operator must name the target database.
+  if (signal.dbname === undefined) {
+    return { kind: "refuse", reason: UNSPECIFIED_DATABASE_REFUSAL };
   }
 
   const suffix = signal.dbname !== undefined ? `/${encodeURIComponent(signal.dbname)}` : "/";
@@ -343,6 +363,7 @@ export function conninfoAssessUrls(target: string): ConninfoAssessUrls | null {
  */
 export function assessRestoreTargetSafety(targetDsn: string): RestoreGuardAssessment {
   let assessUrls: string[];
+  let uriDatabaseUnspecified = false;
   if (parsesAsPostgresUrl(targetDsn)) {
     const trimmed = targetDsn.trim();
     // RAW AUTHORITY-SPAN gate FIRST: on a pathed URI libpq scans the
@@ -380,11 +401,19 @@ export function assessRestoreTargetSafety(targetDsn: string): RestoreGuardAssess
     // URI form: assess the libpq-effective host (percent-decoded labels,
     // trailing dots stripped), never the raw encoded form — libpq decodes
     // before connecting, so marker analysis must see the decoded host.
-    const effective = libpqEffectiveAssessUrl(new URL(trimmed));
+    const parsedTarget = new URL(trimmed);
+    const effective = libpqEffectiveAssessUrl(parsedTarget);
     if (effective.kind === "refuse") {
       return { blocked: true, reasons: [effective.reason] };
     }
     assessUrls = [effective.url, ...queryChannels.urls];
+    // DB-component flag — evaluated AFTER the channel/host guard loop below,
+    // so a smuggled query host keeps its precise refusal reason. A URI with
+    // an empty or absent path database is under-specified: libpq would
+    // complete the endpoint from the ambient environment (PGDATABASE) and
+    // pg_restore would land in an operator-unintended database. The operator
+    // must name the target database.
+    uriDatabaseUnspecified = parsedTarget.pathname.replace(/^\//, "").length === 0;
   } else {
     const extraction = conninfoAssessUrls(targetDsn);
     if (extraction === null) {
@@ -401,6 +430,9 @@ export function assessRestoreTargetSafety(targetDsn: string): RestoreGuardAssess
     if (assessment.blocked) {
       return assessment;
     }
+  }
+  if (uriDatabaseUnspecified) {
+    return { blocked: true, reasons: [UNSPECIFIED_DATABASE_REFUSAL] };
   }
   return { blocked: false, reasons: [] };
 }

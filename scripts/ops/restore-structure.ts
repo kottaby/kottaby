@@ -7,7 +7,7 @@
  * the aggregated verdict feeds restore-report.json.
  */
 
-import { chmodSync, mkdirSync, writeFileSync } from "node:fs";
+import { chmodSync, closeSync, lstatSync, mkdirSync, openSync, writeSync } from "node:fs";
 import { basename, isAbsolute, join, resolve } from "node:path";
 
 import { scrubDsnSecrets } from "@/scripts/ops/_shared";
@@ -198,10 +198,39 @@ export function writeRestoreReport(
   return reportPath;
 }
 
-/** Default report writer: parent dirs as needed, file forced to 0600. */
+/**
+ * Default report writer: parent dirs as needed, file created EXCLUSIVELY
+ * (`wx` = O_CREAT|O_EXCL) and forced to 0600.
+ *
+ * The report path lives in the run directory the restore owns, so ABSENCE is
+ * the expected state. A pre-existing entry of ANY kind — regular file, hard
+ * link, symlink (dangling or not), or directory — refuses the run: the write
+ * would otherwise follow a pre-placed link and clobber its target outside
+ * the run directory (live-probe failure mode). The lstat gate produces the
+ * precise [verify] error; the `wx` create is the atomic backstop — O_EXCL
+ * never follows a symlink and fails if any entry appears between the check
+ * and the create (TOCTOU-safe).
+ */
 export function defaultReportFileWriter(path: string, contents: string): void {
+  let prePlaced = false;
+  try {
+    lstatSync(path);
+    prePlaced = true;
+  } catch {
+    // absent — the expected state for a fresh restore run
+  }
+  if (prePlaced) {
+    throw new RestoreVerificationError(
+      `restore report path already exists — refusing to overwrite a pre-placed file/link (report clobber guard): ${path}`
+    );
+  }
   mkdirSync(resolve(path, ".."), { recursive: true });
-  writeFileSync(path, contents, { mode: 0o600 });
+  const fd = openSync(path, "wx", 0o600);
+  try {
+    writeSync(fd, contents);
+  } finally {
+    closeSync(fd);
+  }
   chmodSync(path, 0o600);
 }
 

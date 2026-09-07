@@ -128,9 +128,12 @@ Required:
   --from <runDir|artifact>   Backup run directory (manifest.json + dump) or a
                              direct dump artifact whose manifest.json sits beside it.
   --target <dsn>             Restore destination Postgres connection string.
-                             REQUIRED — there is no default. Must be a scratch/
-                             staging database; the restore DROPS and recreates
-                             public objects (--clean --if-exists).
+                             REQUIRED — there is no default — and it must NAME
+                             the target database (a DSN without a database
+                             component is refused: ambient PGDATABASE would
+                             complete the endpoint). Must be a scratch/staging
+                             database; the restore DROPS and recreates public
+                             objects (--clean --if-exists).
   --yes-i-understand         Explicit non-interactive confirmation of the
                              destructive restore; refused without it.
 

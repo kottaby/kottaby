@@ -22,6 +22,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test } fr
 import { createHash } from "node:crypto";
 import {
   copyFileSync,
+  linkSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -50,10 +51,12 @@ import {
 } from "@/scripts/ops/restore-oracles";
 import {
   type BackupManifest,
+  buildRestoreChildEnv,
   type Clock,
   MIGRATIONS_ABSENT_HASH,
   type PsqlOutcome,
   parseBackupManifest,
+  RESTORE_REPORT_FILE,
   RESTORE_TOOL_ID,
   RestoreArtifactError,
   redactTargetDatabaseName,
@@ -139,6 +142,9 @@ function localEnvFixture(nodeEnv = "development", extraLines: string[] = []): st
   ].join("\n");
 }
 
+/** Run-dir collision counter — mirrors the backup family's "-2", "-3" suffixing convention. */
+let backupRunCounter = 0;
+
 function makeBackupRun(
   root: string,
   overrides: Partial<BackupManifest> = {}
@@ -146,7 +152,9 @@ function makeBackupRun(
   runDir: string;
   artifactPath: string;
 } {
-  const runDir = join(root, "backups", "20260214T120000Z");
+  backupRunCounter += 1;
+  const stamp = backupRunCounter === 1 ? "20260214T120000Z" : `20260214T120000Z-${backupRunCounter}`;
+  const runDir = join(root, "backups", stamp);
   mkdirSync(runDir, { recursive: true });
   const artifactPath = join(runDir, "dump.pgc");
   writeFileSync(artifactPath, ARTIFACT_BYTES);
@@ -824,9 +832,12 @@ describe("restore-verify tool family (4-tier)", () => {
       expect(failedRun.stderr).toContain('critical table "users" restored to 0 rows');
       expect(failedRun.stdout).toContain("VERDICT: FAIL");
 
+      // Fresh run dir per pipeline run: the report writer refuses to
+      // overwrite a pre-existing restore-report.json (clobber guard).
+      const passedFixture = makeBackupRun(caseRoot);
       const zeroEverywhere = { users: 0, wallet: 0, audit_logs: 0, app_settings: 0 };
       const passedRun = await runPipeline(caseRoot, {
-        from: fixture.runDir,
+        from: passedFixture.runDir,
         script: {
           ...healthyScript(),
           targetCounts: zeroEverywhere,
@@ -1013,8 +1024,9 @@ describe("restore-verify tool family (4-tier)", () => {
 
       // The inverse is a genuine inconsistency: the journal claims no
       // migrations, yet the restored database carries applied migration rows.
+      const rowsFixture = makeBackupRun(caseRoot, { journalHash: MIGRATIONS_ABSENT_HASH });
       const rowsRun = await runPipeline(caseRoot, {
-        from: emptyJournalFixture.runDir,
+        from: rowsFixture.runDir,
         script: { ...healthyScript(), migrationsHash: JOURNAL_HASH },
       });
       expect(rowsRun.exitCode).toBe(1);
@@ -1135,8 +1147,9 @@ describe("restore-verify tool family (4-tier)", () => {
       expect(garbageRun.reportPath).not.toBeNull();
       expect(garbageRun.stdout).toContain("VERDICT: FAIL");
 
+      const throwFixture = makeBackupRun(caseRoot);
       const throwRun = await runPipeline(caseRoot, {
-        from: fixture.runDir,
+        from: throwFixture.runDir,
         script: { ...healthyScript(), throwOnSqlSubstring: "FROM audit_logs a LEFT JOIN users u" },
       });
       expect(throwRun.thrown).toBeNull();
@@ -1253,6 +1266,24 @@ describe("restore-verify tool family (4-tier)", () => {
         env: localEnvFixture(),
         targetDsn: "hostaddr=192.0.2.1 dbname=x",
         reason: "hostaddr",
+      },
+      {
+        name: "a URL target with an empty path database (ambient PGDATABASE would complete the endpoint)",
+        env: localEnvFixture(),
+        targetDsn: "postgresql://postgres@127.0.0.1/",
+        reason: "target database is unspecified",
+      },
+      {
+        name: "a URL target with no path segment at all",
+        env: localEnvFixture(),
+        targetDsn: "postgresql://postgres@127.0.0.1:5432",
+        reason: "target database is unspecified",
+      },
+      {
+        name: "a conninfo without any dbname= keyword",
+        env: localEnvFixture(),
+        targetDsn: "host=127.0.0.1 user=postgres",
+        reason: "target database is unspecified",
       },
     ];
 
@@ -1435,9 +1466,12 @@ describe("restore-verify tool family (4-tier)", () => {
       expect(ipv4Run.stdout).toContain("VERDICT: PASS");
       expect(ipv4Run.requests.find(request => request.cmd === "pg_restore")?.args).toContain(ipv4Url);
 
+      // Fresh run dir per pipeline run: the report writer refuses to
+      // overwrite a pre-existing restore-report.json (clobber guard).
+      const ipv6Fixture = makeBackupRun(caseRoot);
       const ipv6Url = "postgresql://postgres@[::1]:5432/scratch_restore";
       const ipv6Run = await runPipeline(caseRoot, {
-        from: fixture.runDir,
+        from: ipv6Fixture.runDir,
         targetDsn: ipv6Url,
         script: healthyScript(),
       });
@@ -1632,23 +1666,26 @@ describe("restore-verify tool family (4-tier)", () => {
     // delimiter in both libpq and WHATWG (`pg_isready` on
     // `postgresql://localhost:5432?sslmode=disable` connects to
     // localhost:5432), so the raw authority-span gate must let them through
-    // to the normal query-channel assessment — refusing them would reject
-    // ordinary, libpq-legal URIs. ──
-    test("guard allows a pathless-query target: sslmode-only query reaches pg_restore verbatim", async () => {
+    // to the later channel/DB-component gates — refusing them at the SPAN
+    // gate would misreport ordinary, libpq-legal URIs. ──
+    test("guard passes a pathless-query target through the span gate but refuses its unspecified database (exit 2)", async () => {
       const caseRoot = newCaseRoot();
       makeSchemaFixture(caseRoot);
-      const fixture = makeBackupRun(caseRoot);
-      const pathlessTarget = "postgresql://postgres@127.0.0.1:5432?sslmode=disable";
+      // The pathless form is libpq-legal and PASSES the raw authority-span
+      // gate (the refusal below is the DB-component rule, NOT the span rule),
+      // but it names no database — ambient PGDATABASE would complete the
+      // endpoint — so the DB-component rule refuses before any spawn.
       const run = await runPipeline(caseRoot, {
-        from: fixture.runDir,
-        targetDsn: pathlessTarget,
-        script: healthyScript(),
+        from: join(caseRoot, "never-resolved"),
+        targetDsn: "postgresql://postgres@127.0.0.1:5432?sslmode=disable",
+        script: emptyScript(),
       });
       expect(run.thrown).toBeNull();
-      expect(run.exitCode).toBe(0);
-      expect(run.stdout).toContain("VERDICT: PASS");
-      expect(run.requests[0]?.cmd).toBe("pg_restore");
-      expect(run.requests.find(request => request.cmd === "pg_restore")?.args).toContain(pathlessTarget);
+      expect(run.exitCode).toBe(2);
+      expect(run.stderr).toContain("[guard]");
+      expect(run.stderr).toContain("target database is unspecified");
+      expect(run.stderr).not.toContain("unassessable authority");
+      expect(run.requests).toHaveLength(0);
     });
 
     test("guard refuses a managed host smuggled into a PATHLESS query (query channel still assessed)", async () => {
@@ -1905,8 +1942,9 @@ describe("restore-verify tool family (4-tier)", () => {
       const fixture = makeBackupRun(caseRoot);
 
       const passRun = await runPipeline(caseRoot, { from: fixture.runDir, script: healthyScript() });
+      const failFixture = makeBackupRun(caseRoot);
       const failRun = await runPipeline(caseRoot, {
-        from: fixture.runDir,
+        from: failFixture.runDir,
         script: { ...healthyScript(), oracleOutcomes: { "OR-W1": okCount(5) } },
       });
 
@@ -1927,6 +1965,116 @@ describe("restore-verify tool family (4-tier)", () => {
       expect(combined).not.toContain(TARGET_DSN);
       expect(combined).not.toContain(SOURCE_DSN);
     });
+
+    // ── Report clobber guard: the report path lives in the run directory the
+    // restore owns, so absence is the expected state. ANY pre-placed entry
+    // there — live symlink, dangling symlink, hard link, plain file — refuses
+    // the run (RestoreVerificationError → exit 1 in main()) instead of being
+    // written through, which would clobber the link's target OUTSIDE the run
+    // directory. ──
+    for (const prePlacement of [
+      { kind: "symlink", label: "a pre-placed live symlink" },
+      { kind: "dangling", label: "a pre-placed dangling symlink" },
+      { kind: "hardlink", label: "a pre-placed hard link" },
+      { kind: "file", label: "a pre-placed regular file" },
+    ] as const) {
+      test(`report writer refuses ${prePlacement.label} at the report path and leaves the canary untouched`, async () => {
+        const caseRoot = newCaseRoot();
+        makeSchemaFixture(caseRoot);
+        const fixture = makeBackupRun(caseRoot);
+        const reportPath = join(fixture.runDir, RESTORE_REPORT_FILE);
+        const canaryPath = join(tempRoot, `canary-${caseCounter}-${prePlacement.kind}.txt`);
+        const canaryContent = "CANARY-MUST-NOT-BE-CLOBBERED";
+        writeFileSync(canaryPath, canaryContent);
+        if (prePlacement.kind === "symlink") {
+          symlinkSync(canaryPath, reportPath);
+        } else if (prePlacement.kind === "dangling") {
+          symlinkSync(join(tempRoot, "no-such-clobber-target"), reportPath);
+        } else if (prePlacement.kind === "hardlink") {
+          linkSync(canaryPath, reportPath);
+        } else {
+          writeFileSync(reportPath, "pre-placed-bytes");
+        }
+
+        const run = await runPipeline(caseRoot, { from: fixture.runDir, script: healthyScript() });
+
+        // RestoreVerificationError is the error class main() maps to exit 1
+        // with the [verify] tag on stderr.
+        expect(run.thrown).toBeInstanceOf(RestoreVerificationError);
+        expect(messageOf(run.thrown)).toContain("already exists");
+        expect(messageOf(run.thrown)).toContain("refusing to overwrite");
+        // The restore itself ran; only the report write refused.
+        expect(run.requests.some(request => request.cmd === "pg_restore")).toBe(true);
+        // The linked/placed entry is intact and its target was NOT clobbered.
+        if (prePlacement.kind !== "dangling") {
+          const expected = prePlacement.kind === "file" ? "pre-placed-bytes" : canaryContent;
+          expect(readFileSync(reportPath, "utf8")).toBe(expected);
+        }
+      });
+    }
+  });
+});
+
+describe("buildRestoreChildEnv (restore child env allowlist)", () => {
+  const ENDPOINT_KEYS = [
+    "PGDATABASE",
+    "PGHOST",
+    "PGPORT",
+    "PGUSER",
+    "PGSERVICE",
+    "PGSERVICEFILE",
+    "PGHOSTADDR",
+  ] as const;
+
+  test("endpoint-deciding libpq variables are never forwarded to restore children", () => {
+    const source: Record<string, string> = {
+      PATH: "/usr/local/bin:/usr/bin",
+      HOME: "/root",
+      TMPDIR: "/tmp",
+      LANG: "C.UTF-8",
+      LC_ALL: "C.UTF-8",
+      PGDATABASE: "ambient_pgdatabase",
+      PGHOST: "ambient-host.example",
+      PGPORT: "6543",
+      PGUSER: "ambient_user",
+      PGSERVICE: "ambient_service",
+      PGSERVICEFILE: "/ambient/pgservice.conf",
+      PGHOSTADDR: "192.0.2.10",
+    };
+    const env = buildRestoreChildEnv(source);
+    expect(env.PATH).toBe("/usr/local/bin:/usr/bin");
+    expect(env.HOME).toBe("/root");
+    expect(env.TMPDIR).toBe("/tmp");
+    expect(env.LANG).toBe("C.UTF-8");
+    expect(env.LC_ALL).toBe("C.UTF-8");
+    for (const key of ENDPOINT_KEYS) {
+      expect(Object.hasOwn(env, key)).toBe(false);
+    }
+  });
+
+  test("credential, transport, and app-identity variables are still forwarded", () => {
+    const source: Record<string, string> = {
+      PGPASSWORD: "child-password-not-a-fixture",
+      PGPASSFILE: "/run/restore/.pgpass",
+      PGSSLMODE: "require",
+      PGSSLROOTCERT: "/run/restore/ca.pem",
+      PGCONNECT_TIMEOUT: "5",
+      PGAPPNAME: "ops:db-restore-verify",
+    };
+    expect(buildRestoreChildEnv(source)).toEqual({
+      PGPASSWORD: "child-password-not-a-fixture",
+      PGPASSFILE: "/run/restore/.pgpass",
+      PGSSLMODE: "require",
+      PGSSLROOTCERT: "/run/restore/ca.pem",
+      PGCONNECT_TIMEOUT: "5",
+      PGAPPNAME: "ops:db-restore-verify",
+    });
+  });
+
+  test("an ambient PGDATABASE cannot leak through the per-request passthrough either", () => {
+    const env = buildRestoreChildEnv({ PGDATABASE: "ambient_pgdatabase" }, { PGPASSWORD: "child-password" });
+    expect(env.PGPASSWORD).toBe("child-password");
+    expect(Object.hasOwn(env, "PGDATABASE")).toBe(false);
   });
 });
 
