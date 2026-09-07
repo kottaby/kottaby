@@ -3,8 +3,7 @@
 import { Button, Dialog, DialogActions, DialogContent, DialogTitle, TextField } from "@mui/material";
 import { type ReactNode, useState } from "react";
 import type { AdminSessionsQuery_adminSessions_items } from "@/frontend/graphql/generated/gql/graphql";
-import { Common, Errors, useAppTranslation } from "@/shared/locale";
-import { AdminSessionGovernance } from "@/shared/locale";
+import { AdminSessionGovernance, Common, Errors, useAppTranslation } from "@/shared/locale";
 import { SessionDialogWarningCallout } from "@/frontend/views/student/sessions/SessionDialogWarningCallout";
 
 /**
