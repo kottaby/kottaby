@@ -226,7 +226,7 @@
 
 ## Phase 5: Integration & Differential Testing
 
-### - [ ] 5.1 [Wire GraphQL matrix over the live HTTP stack]
+### - [x] 5.1 [Wire GraphQL matrix over the live HTTP stack]
 - **Files:**
   - `backend/graphql/test/recitation-record.wire.test.ts` (CREATE — live HTTP wire suite per `session-lifecycle-mutations.test.ts` / `parent-link.wire.test.ts` pattern)
 - **Coverage (REQ-072):**
@@ -241,12 +241,12 @@
   - Public-operations allowlist: neither op executes without a session token (byte-compare `public-operations.ts` unchanged).
 - **Instruction files:** `.agents/instructions/backend.instructions.md`, `.agents/instructions/tests.instructions.md`, `backend/graphql/AGENTS.md`.
 - _Requirements: REQ-030, REQ-032, REQ-033, REQ-043, REQ-052, REQ-053, REQ-063, REQ-072_
-  - [ ] 5.1.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts backend/graphql/test/recitation-record.wire.test.ts --lifecycle duplicates` (exit 0)
-  - [ ] 5.1.TE **Test Engineering**: `bun run test/scripts/run-test.ts backend/graphql/test/recitation-record.wire.test.ts` green; repeat-write (replay) wire assertion → `RECITATION_ALREADY_EXISTS` without any idempotency key (REQ-043).
-  - [ ] 5.1.SEC **Security & Tenancy Audit**: oracle-collapse byte-equality assertions are part of the suite (not eyeballed); header/token hygiene (no PII in request logs asserted via spy where feasible).
-  - [ ] 5.1.SR **Semantic Review**: assertions target `extensions.code` fixtures, not message strings; fixture cleanup complete (committed fixtures hard-deleted where the suite's own pattern requires).
-  - [ ] 5.1.IV **Instruction Verification**: backend + tests instruction files re-validated.
-  - [ ] 5.1.OC **Outcome**: write `outcome/5.1-outcome.md`.
+  - [x] 5.1.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts backend/graphql/test/recitation-record.wire.test.ts --lifecycle duplicates` (exit 0)
+  - [x] 5.1.TE **Test Engineering**: `bun run test/scripts/run-test.ts backend/graphql/test/recitation-record.wire.test.ts` green; repeat-write (replay) wire assertion → `RECITATION_ALREADY_EXISTS` without any idempotency key (REQ-043).
+  - [x] 5.1.SEC **Security & Tenancy Audit**: oracle-collapse byte-equality assertions are part of the suite (not eyeballed); header/token hygiene (no PII in request logs asserted via spy where feasible).
+  - [x] 5.1.SR **Semantic Review**: assertions target `extensions.code` fixtures, not message strings; fixture cleanup complete (committed fixtures hard-deleted where the suite's own pattern requires).
+  - [x] 5.1.IV **Instruction Verification**: backend + tests instruction files re-validated.
+  - [x] 5.1.OC **Outcome**: write `outcome/5.1-outcome.md`.
 
 ### - [ ] 5.2 [Full integration gate — all suites + diff hygiene]
 - **Work:**
