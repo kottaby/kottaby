@@ -222,7 +222,13 @@ function lastUriQueryValue(rawSearch: string, name: string): string | undefined 
  * normalized `.`/`..` dot-segments away and mislabeled the database libpq
  * restores into (the guard refuses such paths before any run, and the label
  * stays literal here so a raw-path report can never diverge from libpq).
- * Conninfo-form targets follow libpq semantics: the
+ * The raw substring's one truncation short of libpq is a raw `#`: libpq has
+ * no fragment delimiter and reads THROUGH it (part of the literal database
+ * name) while this label — like every WHATWG-derived view — ends at the
+ * `#`; the restore guard refuses raw-fragment paths upstream before any
+ * run (fail closed), so a report label can never diverge from the database
+ * libpq actually restored into. Conninfo-form targets follow libpq
+ * semantics: the
  * LAST `dbname=` occurrence wins, one layer of surrounding single/double
  * quotes is stripped (inner spaces are part of the name libpq connects to),
  * and libpq `''` escapes inside single-quoted values are folded

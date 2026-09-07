@@ -40,7 +40,10 @@
  *     so the span ends there and the query flows to the normal query-channel
  *     assessment. A raw `?`/`#`/control character inside the span proper, or
  *     a userinfo that percent-decodes into an `@`/`/`, is unassessable and
- *     refuses the run before any URL parsing (fail closed).
+ *     refuses the run before any URL parsing (fail closed). Its PATH mirror
+ *     ({@link assessRawUriPath}) refuses a raw `#` in the raw path span:
+ *     libpq has no fragment delimiter and reads THROUGH it, so the database
+ *     libpq names is not the path any URL-derived view sees.
  */
 
 import { POSTGRES_PROTOCOLS } from "@/scripts/ops/_shared";
@@ -381,6 +384,41 @@ export function assessRawUriAuthority(trimmedTarget: string): RawAuthorityAssess
         "target URL userinfo percent-decodes to a value containing an authority delimiter (@ or /) — " +
         "unassessable authority — cannot assess target safety",
     };
+  }
+  return { kind: "ok" };
+}
+
+/** Refusal for a URI-form target whose raw path carries a fragment character. */
+export const FRAGMENT_PATH_REFUSAL =
+  "target URL path carries a raw fragment character (#) — libpq has no fragment delimiter and reads the raw " +
+  "path as the literal database name while URL parsers end the path at the # — fragment character in path is " +
+  "unassessable — cannot assess target safety";
+
+/**
+ * Assesses the RAW PATH of a URI-form target — the substring from the first
+ * `/` to the first `?` of the raw string, the span libpq reads as the path.
+ * libpq has NO fragment delimiter: it reads THROUGH a raw `#`, so `…/db#x`
+ * restores into the literal database `db#x`, while the WHATWG parser (and
+ * every raw-path/label helper that stops at the first `?`/`#`) ends the path
+ * at the `#` and sees `db`. That divergence cannot be assessed around, so a
+ * raw `#` in the path span is UNASSESSABLE and refuses the run before any
+ * URL parsing (fail closed) — the {@link assessRawUriAuthority} mirror for
+ * the path. A percent-encoded `%23` is fine: libpq percent-decodes the path
+ * database before use, so the decoded name is exactly what every assessor
+ * and label sees. A `#` AFTER the first `?` is a query-string fragment
+ * delimiter and refuses through the query-channel rule instead.
+ */
+export function assessRawUriPath(trimmedTarget: string): RawAuthorityAssessment {
+  const schemeEnd = trimmedTarget.indexOf("://");
+  const authorityStart = schemeEnd < 0 ? 0 : schemeEnd + 3;
+  const slashAt = trimmedTarget.indexOf("/", authorityStart);
+  if (slashAt < 0) {
+    return { kind: "ok" };
+  }
+  const questionAt = trimmedTarget.indexOf("?", authorityStart);
+  const rawPath = trimmedTarget.slice(slashAt, questionAt < 0 ? trimmedTarget.length : questionAt);
+  if (rawPath.includes("#")) {
+    return { kind: "refuse", reason: FRAGMENT_PATH_REFUSAL };
   }
   return { kind: "ok" };
 }

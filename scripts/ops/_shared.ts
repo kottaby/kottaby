@@ -44,12 +44,20 @@ export function decodeUrlSegment(value: string): string {
 /**
  * The RAW path substring of a postgres URI: the characters after the
  * authority span (from the first `/` of the raw string) up to the first
- * `?`/`#`, leading `/` included — the path EXACTLY as libpq reads it. The
- * WHATWG URL parser normalizes `.`/`..` dot-segments in its `pathname`
- * (and recognizes their percent-encoded forms), while libpq treats the raw
- * path as the LITERAL database name, so any component that names the target
- * database must derive it from this raw view, never from `URL#pathname`.
- * A URI whose first `?`/`#` precedes any `/` (pathless) has no raw path.
+ * `?`/`#`, leading `/` included. The `?` end is libpq's own query
+ * delimiter; the `#` end is the WHATWG view — libpq has NO fragment
+ * delimiter and READS THROUGH a raw `#` (it is part of the literal database
+ * name, live-proven: `…/db#x` restores into `db#x`), so on a raw-fragment
+ * path this substring is the TRUNCATED view, not libpq's. The restore guard
+ * refuses raw-fragment paths before any run (fail closed —
+ * `assessRawUriPath` in `restore-guard-url.ts`), so label consumers of this
+ * substring never see a target whose libpq name differs from the truncated
+ * label. The WHATWG URL parser also normalizes `.`/`..` dot-segments in its
+ * `pathname` (and recognizes their percent-encoded forms), while libpq
+ * treats the raw path as the LITERAL database name, so any component that
+ * names the target database must derive it from this raw view, never from
+ * `URL#pathname`. A URI whose first `?`/`#` precedes any `/` (pathless) has
+ * no raw path.
  */
 export function rawUriPathSubstring(target: string): string {
   const schemeEnd = target.indexOf("://");
@@ -177,6 +185,13 @@ export function parsePostgresDatabaseUrl(value: string | undefined): URL | null 
  * does. An empty query value (`?dbname=`) names nothing and falls back to
  * the path. Returned WITHOUT a fallback — callers decide what an empty name
  * renders as.
+ *
+ * The path fallback reads the WHATWG `pathname` (decoded) — the label-side
+ * view, kept deliberately for non-guard uses: libpq reads THROUGH a raw `#`
+ * in the path (part of the literal database name) and normalizes nothing,
+ * so a raw-fragment or dot-segment path would mislabel here; the restore
+ * guard refuses such targets upstream before any run (fail closed), so a
+ * restore label can never diverge from the database libpq restores into.
  */
 function effectiveDatabaseName(url: URL): string {
   let queryDatabase: string | undefined;

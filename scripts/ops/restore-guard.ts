@@ -67,6 +67,16 @@
  *     closed: no RFC-legal URL puts raw `?`/`#` in the authority); a
  *     pathless query (`postgresql://localhost:5432?sslmode=disable`) is the
  *     one agreed form and flows to the normal query-channel assessment;
+ *   - the RAW PATH of a URI-form target (first `/` of the raw string to the
+ *     first `?`) must carry no raw `#`: libpq has no fragment delimiter and
+ *     reads THROUGH it — `…/db#x` would restore into the literal `db#x`
+ *     database while URL parsers (and every label derived from the truncated
+ *     path) end the path at the `#` — so such a target is unassessable and
+ *     refuses the run before any URL parsing (fail closed, the authority-span
+ *     gate's path mirror). Dot-segment paths (`.`/`..`) refuse the same way
+ *     (WHATWG normalizes them, libpq restores literally); percent-encoded
+ *     forms (`%2e`, `%23`) are assessed by their DECODED value — libpq
+ *     percent-decodes the path database before use;
  *   - when `hostaddr` is present alongside `host`, BOTH values are assessed
  *     (libpq connects to `hostaddr` while using `host` for verification), so
  *     token order can never hide one of the two host signals;
@@ -105,6 +115,7 @@ import { assessUriDatabaseComponent } from "@/scripts/ops/_shared";
 import { RestoreUsageError } from "@/scripts/ops/restore-cli";
 import {
   assessRawUriAuthority,
+  assessRawUriPath,
   CONNINFO_HOST_PATTERN,
   isLoopbackHostaddr,
   libpqEffectiveAssessUrl,
@@ -397,6 +408,17 @@ export function assessRestoreTargetSafety(targetDsn: string): RestoreGuardAssess
     const authority = assessRawUriAuthority(trimmed);
     if (authority.kind === "refuse") {
       return { blocked: true, reasons: [authority.reason] };
+    }
+    // RAW PATH gate (the authority gate's path mirror): libpq has no
+    // fragment delimiter and reads THROUGH a raw `#` — it would restore
+    // into the literal `db#x` database — while every WHATWG-derived view
+    // (pathname, and the raw-path substring the database rule below uses)
+    // ends the path at the `#`. A raw `#` in the path span is unassessable
+    // and refuses before any URL parsing (fail closed); a percent-encoded
+    // `%23` is assessed by its decoded value (libpq decodes the path db).
+    const rawPath = assessRawUriPath(trimmed);
+    if (rawPath.kind === "refuse") {
+      return { blocked: true, reasons: [rawPath.reason] };
     }
     // WHATWG strips raw tab/newline from URL hosts but libpq does not: a raw
     // control character in the raw host substring means the host about to be

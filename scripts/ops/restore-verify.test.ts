@@ -1321,6 +1321,18 @@ describe("restore-verify tool family (4-tier)", () => {
         targetDsn: "postgresql://postgres@127.0.0.1:5432/pt7_a/%2e%2e/pt7_b",
         reason: "dot-segment path is unassessable",
       },
+      {
+        name: "a URI whose raw path carries a fragment character (libpq reads through # and restores into the literal db#x)",
+        env: localEnvFixture(),
+        targetDsn: "postgresql://postgres@127.0.0.1:5432/pt8_dst#x",
+        reason: "fragment character in path is unassessable",
+      },
+      {
+        name: "a URI whose raw path is a fragment-introducer over punctuation (libpq names the db #x)",
+        env: localEnvFixture(),
+        targetDsn: "postgresql://postgres@127.0.0.1:5432/&#x",
+        reason: "fragment character in path is unassessable",
+      },
     ];
 
     for (const refusalCase of refusalCases) {
@@ -1363,6 +1375,29 @@ describe("restore-verify tool family (4-tier)", () => {
       expect(run.report?.target).toEqual({ database: "r7_plain/scratch_restore" });
       const restoreRequest = run.requests.find(request => request.cmd === "pg_restore");
       expect(restoreRequest?.args).toContain(rawPathTarget);
+    });
+
+    test("guard allows a percent-encoded fragment (%23) path database and the report label equals the literal libpq database", async () => {
+      const caseRoot = newCaseRoot();
+      makeSchemaFixture(caseRoot);
+      const fixture = makeBackupRun(caseRoot);
+      // libpq percent-decodes the path database: %23 IS a literal `#` in the
+      // name it restores into — and the label decodes the same way, so the
+      // report matches libpq exactly (no raw-fragment divergence; a RAW `#`
+      // is refused upstream, an ENCODED one is assessed by its decoded value).
+      const encodedFragmentTarget = `postgresql://restore_user:${FIXTURE_PASSWORD}@127.0.0.1:5432/pt8x%23y`;
+      const run = await runPipeline(caseRoot, {
+        from: fixture.runDir,
+        script: healthyScript(),
+        targetDsn: encodedFragmentTarget,
+      });
+      expect(run.thrown).toBeNull();
+      expect(run.exitCode).toBe(0);
+      expect(run.stdout).toContain('target database "pt8x#y"');
+      expect(run.stdout).toContain("VERDICT: PASS");
+      expect(run.report?.target).toEqual({ database: "pt8x#y" });
+      const restoreRequest = run.requests.find(request => request.cmd === "pg_restore");
+      expect(restoreRequest?.args).toContain(encodedFragmentTarget);
     });
 
     test("guard assesses conninfo-form targets: local accepted, original string spawned", async () => {
@@ -2217,6 +2252,20 @@ describe("redactTargetDatabaseName (conninfo libpq semantics)", () => {
     expect(redactTargetDatabaseName("postgresql://u:p@h:5432/pt7_a/../pt7_b")).toBe("pt7_a/../pt7_b");
     expect(redactTargetDatabaseName("postgresql://u:p@h:5432/./scratch_db")).toBe("./scratch_db");
     expect(redactTargetDatabaseName("postgresql://u:p@h:5432/db%20one")).toBe("db one");
+  });
+
+  test("URL form labels a percent-encoded fragment as the literal libpq database name", () => {
+    // libpq percent-decodes the path database: %23 IS a literal `#` in the
+    // name it restores into — the label decodes the same way, so report and
+    // libpq agree exactly.
+    expect(redactTargetDatabaseName("postgresql://u:p@h:5432/pt8x%23y")).toBe("pt8x#y");
+  });
+
+  test("URL form keeps the WHATWG truncated label for a raw-fragment path (guard refuses such targets upstream)", () => {
+    // libpq reads THROUGH a raw `#` (database `db#x`) — unassessable, so the
+    // restore guard refuses the target before any run; the label keeps the
+    // WHATWG view for non-guard uses (doc contract in _shared/restore-shared).
+    expect(redactTargetDatabaseName("postgresql://u:p@h:5432/db#x")).toBe("db");
   });
 
   test("conninfo form reports the LAST dbname= (libpq last-wins)", () => {
