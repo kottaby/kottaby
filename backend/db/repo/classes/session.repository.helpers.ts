@@ -465,13 +465,11 @@ async function findWaveContextById(id: number, tx?: DBTransaction): Promise<Sess
 }
 
 export {
-  countAdminDirectory,
   countAdminDisputed,
   countParticipantSessions,
   findById,
   findTransitionProbe,
   findWaveContextById,
-  listAdminDirectory,
   listAdminDirectoryPage,
   listAdminDisputed,
   listParticipantSessions,
