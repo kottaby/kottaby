@@ -9,4 +9,5 @@
  *  - The top-level `backend/graphql/query/index.ts` imports THIS barrel;
  *    `gqlSchema.ts` imports the top-level barrel exactly once.
  */
+import "./recitation.query";
 import "./session-lifecycle.query";

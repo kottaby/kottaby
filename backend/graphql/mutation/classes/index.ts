@@ -10,5 +10,7 @@
  *    `gqlSchema.ts` imports that top-level barrel exactly once.
  *  - `session-lifecycle.mutation.ts` registers `createSession`,
  *    `startSession`, `completeSession`, and `cancelSession`.
+ *  - `recitation.mutation.ts` registers `setSessionRecitation`.
  */
+import "./recitation.mutation";
 import "./session-lifecycle.mutation";
