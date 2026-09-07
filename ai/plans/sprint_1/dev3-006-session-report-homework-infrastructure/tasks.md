@@ -252,7 +252,7 @@ The ONLY instruction files that exist are `.agents/instructions/frontend.instruc
   - [ ] 2.4.SR **Semantic Review**: additions only; no refactor of shipped methods; probe row-type reuse (no duplicate type); no cross-layer imports.
   - [ ] 2.4.IV **Instruction Verification**: as 2.2.IV.
 
-- [ ] 2.M [Mid-Point Review Gate]
+- [x] 2.M [Mid-Point Review Gate]
   - Halt implementation; run a consolidated checkpoint BEFORE writing guards/notification/service surface:
     - All Phase 1 tasks and 2.1–2.4 outcomes present in `ai/plans/sprint_1/dev3-006-session-report-homework-infrastructure/outcome/`; all checkboxes of completed tasks flipped with evidence.
     - Full-suite quick run: `bun run test/scripts/run-test.ts backend/db/repo` green; `bun run test/scripts/run-test.ts test/workflows` shows the journey RED only on missing-service errors (not on harness/fixture bugs — fix harness NOW if red for the wrong reason).
