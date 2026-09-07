@@ -556,7 +556,10 @@ for (const locale of componentSuiteLocales) {
       // MUI listbox under Happy DOM; mouseDown does (broadcast compose
       // precedent).
       fireEvent.mouseDown(screen.getByTestId("admin-session-governance-filter-status"));
-      const option = await waitFor(() => screen.getByRole("option", { name: ts.statusDisputed }));
+      // The FIRST listbox open of the run pays the cold-start module warm-up
+      // (observed >1s under ar on constrained runners) — an explicit budget
+      // keeps the arm deterministic without loosening its assertion.
+      const option = await waitFor(() => screen.getByRole("option", { name: ts.statusDisputed }), { timeout: 4000 });
       fireEvent.click(option);
       fireEvent.click(screen.getByTestId("admin-session-governance-filters-apply"));
 
@@ -932,9 +935,11 @@ for (const locale of componentSuiteLocales) {
       const dialog = await expectDialogOpen();
       fireEvent.click(within(dialog).getByTestId(`cancel-session-submit-${STARTED_ID}`));
 
-      await waitFor(() => {
-        expect(screen.queryByRole("dialog")).toBeNull();
-      });
+      // The dialog EXIT transition churns under Happy DOM — a body-watching
+      // waitFor across it balloons the process (the branch-15 close-path
+      // discipline). Settle first, then pin the removal SYNCHRONOUSLY.
+      await new Promise(resolve => setTimeout(resolve, 500));
+      expect(screen.queryByRole("dialog")).toBeNull();
       await waitFor(() => {
         expect(screen.getByText(t.cancelSuccess)).toBeDefined();
       });
@@ -985,9 +990,10 @@ for (const locale of componentSuiteLocales) {
       fireEvent.change(within(dialog).getByLabelText(muiLabelPattern(t.reassignTeacherIdLabel)), { target: { value: "907" } });
       fireEvent.click(within(dialog).getByTestId(`reassign-teacher-submit-${SCHEDULED_FRESH_ID}`));
 
-      await waitFor(() => {
-        expect(screen.queryByRole("dialog")).toBeNull();
-      });
+      // Branch-16 close-path discipline: the exit transition never settles
+      // under a body-watching waitFor — settle, then assert synchronously.
+      await new Promise(resolve => setTimeout(resolve, 500));
+      expect(screen.queryByRole("dialog")).toBeNull();
       await waitFor(() => {
         expect(screen.getByText(t.reassignSuccess)).toBeDefined();
       });
