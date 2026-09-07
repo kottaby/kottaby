@@ -22,7 +22,7 @@ export function parseBackupArgs(argv: readonly string[]): ParsedBackupArgs {
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
     if (arg !== "--env" && arg !== "--out-dir") {
-      return { kind: "error", message: `unknown argument "${arg ?? ""}"` };
+      return { kind: "error", message: `unknown argument "${arg}"` };
     }
 
     const value = argv[i + 1];

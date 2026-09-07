@@ -6,12 +6,23 @@
  */
 
 import { createHash } from "node:crypto";
-import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { chmodSync, type Dirent, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, sep } from "node:path";
 
 export const ARTIFACT_FILE_NAME = "dump.pgc";
 export const MANIFEST_FILE_NAME = "manifest.json";
 export const STAGING_DIR_PREFIX = "tmp-";
+
+/**
+ * Sentinel journalHash for "no migrations": recorded in the manifest when the
+ * Drizzle folder contains no migration folders, and yielded by the OR-MIG
+ * query when a restored database tracks no applied migrations. Sixty-four
+ * zero nibbles can never be the SHA-256 of non-empty content, so it cannot
+ * collide with a real trailing-migration hash. (The former `"none"` sentinel
+ * violated the manifest's 64-hex contract; this is the ONE sentinel, defined
+ * here and imported by the restore family.)
+ */
+export const MIGRATIONS_ABSENT_HASH = "0".repeat(64);
 
 /** Machine-readable provenance + integrity record for one backup run. */
 export interface BackupManifest {
@@ -105,41 +116,47 @@ export async function sha256File(filePath: string): Promise<string> {
 }
 
 /**
- * Fingerprint of the migration journal: SHA-256 over the depth-first,
- * name-sorted listing of every file under the Drizzle journal directory,
- * where each file contributes a line
- * `<relative-posix-path>:<size-in-bytes>:<sha256-of-content>\n`.
- * Deterministic across directory enumeration order; throws when the
- * directory is missing.
+ * The EXPECTED trailing `__drizzle_migrations.hash` for the Drizzle folder —
+ * derived exactly as drizzle-orm's migrator derives it when applying
+ * migrations (node_modules/drizzle-orm/migrator.cjs, `readMigrationFiles`):
+ *
+ *  1. every direct subdirectory of `drizzleDir` that contains a
+ *     `migration.sql` file is a migration (the installed drizzle-orm does NOT
+ *     read `meta/_journal.json` — it refuses that legacy layout — so a
+ *     whole-journal aggregate was structurally unable to match any stored
+ *     row);
+ *  2. migrations are ordered by folder name (`localeCompare`);
+ *  3. each applied migration's stored `hash` is the SHA-256 of the FULL raw
+ *     content of its `migration.sql`.
+ *
+ * The migrator inserts one row per applied migration, in application order,
+ * into a table with a SERIAL `id`, so the trailing row (`ORDER BY id DESC
+ * LIMIT 1`) carries the hash of the LAST migration folder's `migration.sql`.
+ * This function therefore returns exactly that value.
+ *
+ * A Drizzle folder with no migrations yields {@link MIGRATIONS_ABSENT_HASH}
+ * (drizzle writes no hash rows in that case).
  */
 export function computeJournalHash(drizzleDir: string): string {
-  if (!existsSync(drizzleDir)) {
+  let dirents: Dirent[];
+  try {
+    dirents = readdirSync(drizzleDir, { withFileTypes: true });
+  } catch {
     throw new Error(`migration journal directory not found: ${drizzleDir}`);
   }
 
-  const hasher = createHash("sha256");
-  const walk = (dir: string, prefix: string): void => {
-    const entries = readdirSync(dir, { withFileTypes: true }).toSorted((a, b) => {
-      if (a.name < b.name) return -1;
-      if (a.name > b.name) return 1;
-      return 0;
-    });
-    for (const entry of entries) {
-      const relativePath = prefix ? `${prefix}/${entry.name}` : entry.name;
-      if (entry.isDirectory()) {
-        walk(join(dir, entry.name), relativePath);
-        continue;
-      }
-      if (!entry.isFile()) {
-        continue;
-      }
-      const content = readFileSync(join(dir, entry.name));
-      const fileHash = createHash("sha256").update(content).digest("hex");
-      hasher.update(`${relativePath}:${content.byteLength}:${fileHash}\n`);
+  const migrationFolderNames = dirents
+    .filter(entry => entry.isDirectory())
+    .map(entry => entry.name)
+    .toSorted((a, b) => a.localeCompare(b));
+  for (const name of migrationFolderNames.toReversed()) {
+    const migrationSqlPath = join(drizzleDir, name, "migration.sql");
+    if (!existsSync(migrationSqlPath)) {
+      continue;
     }
-  };
-  walk(drizzleDir, "");
-  return hasher.digest("hex");
+    return createHash("sha256").update(readFileSync(migrationSqlPath)).digest("hex");
+  }
+  return MIGRATIONS_ABSENT_HASH;
 }
 
 /** Staging directories left behind by crashed runs (reported, never deleted). */

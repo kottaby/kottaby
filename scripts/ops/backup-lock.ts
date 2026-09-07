@@ -7,6 +7,10 @@
  * instead of corrupting a concurrent backup. A lock carrying this process's
  * own pid is only reclaimable when it is older than the self-lock grace
  * window (a fresh same-pid lock means a concurrent run inside this process).
+ *
+ * Holder reporting: a refusal NEVER reports this process's own pid as the
+ * "other" holder — either a rescan discovers the actual other holder's pid,
+ * or the holder is reported as unknown (holderPid: null).
  */
 
 import { readdirSync, statSync, unlinkSync, writeFileSync } from "node:fs";
@@ -55,7 +59,7 @@ export interface RunLockScan {
 
 export type RunLockAcquisition =
   | { ok: true; lockPath: string; reclaimedPids: number[]; reclaimedPaths: string[] }
-  | { ok: false; holderPid: number };
+  | { ok: false; holderPid: number | null };
 
 /**
  * Classifies the lock files in the output directory. Stale locks (dead pid)
@@ -110,8 +114,15 @@ export function acquireRunLock(
   isAlive: (pid: number) => boolean = isPidAlive
 ): RunLockAcquisition {
   const scan = scanRunLocks(outDir, selfPid, isAlive);
+  const otherHolderPids = scan.liveHolderPids.filter(pid => pid !== selfPid);
+  if (otherHolderPids.length > 0) {
+    return { ok: false, holderPid: Math.min(...otherHolderPids) };
+  }
   if (scan.liveHolderPids.length > 0) {
-    return { ok: false, holderPid: Math.min(...scan.liveHolderPids) };
+    // A fresh `.lock-<selfPid>`: a concurrent run inside this very process
+    // (or a reused pid's leftover). Refuse, but never report selfPid as the
+    // "other" holder.
+    return { ok: false, holderPid: null };
   }
 
   for (const name of scan.reclaimedPaths) {
@@ -135,7 +146,11 @@ export function acquireRunLock(
   } catch (error) {
     if (errnoCode(error) === "EEXIST") {
       // Cross-process race: someone claimed the lock between scan and create.
-      return { ok: false, holderPid: selfPid };
+      // Re-scan to report the ACTUAL other holder when discoverable; the
+      // holder is never reported as this process's own pid.
+      const rescan = scanRunLocks(outDir, selfPid, isAlive);
+      const otherHolder = rescan.liveHolderPids.find(pid => pid !== selfPid);
+      return { ok: false, holderPid: otherHolder ?? null };
     }
     throw error;
   }

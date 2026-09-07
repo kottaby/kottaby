@@ -1,27 +1,47 @@
 /**
  * Read-only invariant oracle registry for the restore-verify tool.
  *
- * The registry below is PURE DATA: each entry is a static SQL predicate run
- * against the restored scratch target via `psql -Atc` that must hold after a
- * faithful restore. Adding a new oracle is a data append ONLY — the
- * execution loop in {@link runOracles} never changes.
+ * The registry below is PURE DATA: each entry is a static SQL query run
+ * against the restored scratch target via `psql -Atc`. Adding a new oracle
+ * is a data append ONLY — the generic evaluator in {@link runOracles} never
+ * changes.
  *
  * SQL safety: every statement is a static string constant. No user input,
  * connection string, or file content is ever interpolated into oracle SQL;
  * the DSN travels exclusively through psql's argv.
  *
- * Output convention (registry-driven, no per-oracle branching):
- *   - A query returning an INTEGER is a COUNT predicate — the number of
- *     offending rows; the oracle passes iff the count is 0.
- *   - A query returning any other value is a VALUE oracle — the returned
- *     value must equal the expected value supplied in the run context
- *     (used by OR-MIG to compare the trailing migrations hash).
- *   - A failing psql invocation is an ERROR (distinct from "0 offending
- *     rows") and fails the oracle with the {@link ORACLE_ERROR_OFFENDING_COUNT}
- *     sentinel.
+ * Oracle kinds (data-driven — the evaluator branches ONLY on
+ * {@link OracleDefinition.expected}):
+ *   - no `expected` → COUNT oracle: the query returns an INTEGER (the number
+ *     of offending rows) and passes iff it is 0. A non-integer output on a
+ *     count oracle fails closed (ERROR, not "0 offending rows").
+ *   - `expected: { kind: "migrationJournalHash" }` → VALUE oracle: the query
+ *     returns a value that must equal the expected value resolved from the
+ *     run context (used by OR-MIG to compare the trailing migrations hash).
+ *     A value oracle may declare a {@link OracleDefinition.fallbackSql}
+ *     fallback query and a terminal {@link OracleDefinition.absentValue}:
+ *     PostgreSQL plans every statically referenced relation up front, so a
+ *     query touching a conditionally-existing table (e.g. a migrations table
+ *     absent in push-managed databases) cannot be expressed as one static
+ *     statement — psql runs `-Atc` with `ON_ERROR_STOP=1` and `DO $$…$$`/`\if`
+ *     workarounds are unavailable (DO leaks a command tag into stdout, `\if`
+ *     is not processed in `-c` mode). The ladder is therefore: `sql`, then
+ *     `fallbackSql` if `sql` errored with SQLSTATE 42P01 (relation absence),
+ *     then `absentValue` if the fallback errored with 42P01 too. ANY OTHER
+ *     error class (auth, network, permission) is not an absence signal: the
+ *     oracle FAILS CLOSED (errored oracle) instead of descending.
+ *
+ * A failing psql invocation is an ERROR (distinct from a clean pass) and
+ * fails the oracle with the {@link ORACLE_ERROR_OFFENDING_COUNT} sentinel.
  */
 
-import { MIGRATIONS_ABSENT_HASH, type PsqlOutcome, type PsqlRunner } from "@/scripts/ops/restore-shared";
+import { MIGRATIONS_ABSENT_HASH } from "@/scripts/ops/backup-artifacts";
+import type { PsqlOutcome, PsqlRunner } from "@/scripts/ops/restore-shared";
+
+/** Identifies where a value-oracle's expected value comes from in the run context. */
+export interface OracleExpectedValue {
+  kind: "migrationJournalHash";
+}
 
 /** One invariant oracle definition. The array below is the registry. */
 export interface OracleDefinition {
@@ -31,6 +51,26 @@ export interface OracleDefinition {
   invariantAnchor: string;
   /** Static, read-only SQL evaluated with `psql -Atc`. */
   sql: string;
+  /**
+   * Present → VALUE oracle; absent → COUNT oracle. Resolved generically in
+   * the evaluator, so a future value oracle is a data append.
+   */
+  expected?: OracleExpectedValue;
+  /**
+   * VALUE oracles only: static fallback query evaluated when {@link sql}
+   * errors with SQLSTATE 42P01 (relation absence — the ONLY error class that
+   * descends the ladder; auth/network/permission errors fail closed). Primary
+   * and fallback must cover disjoint table layouts — e.g. `drizzle.` vs
+   * `public.` migration tables.
+   */
+  fallbackSql?: string;
+  /**
+   * VALUE oracles only: the value assumed when both {@link sql} and
+   * {@link fallbackSql} error with SQLSTATE 42P01 — the
+   * conditionally-referenced tables exist in no supported layout (e.g. no
+   * migration tracking at all).
+   */
+  absentValue?: string;
 }
 
 /** Result of one executed oracle (persisted in restore-report.json). */
@@ -47,7 +87,12 @@ export const ORACLE_ERROR_OFFENDING_COUNT = -1;
 
 /** Values the value-oracle comparison needs for the whole run. */
 export interface OracleRunContext {
-  /** journalHash recorded by the backup (trailing migrations hash, or "none"). */
+  /**
+   * Expected trailing migration hash recorded by the backup: the SHA-256 of
+   * the terminal journal migration's `migration.sql` (drizzle-orm
+   * derivation), or {@link MIGRATIONS_ABSENT_HASH} for a journal with no
+   * migrations.
+   */
   journalHash: string;
 }
 
@@ -56,7 +101,20 @@ export interface OracleRunContext {
  *
  * Table/column names reflect the live schema (backend/db/schema/): `wallet`,
  * `teacher_transaction`, `session`, `audit_logs`, `session_request_idempotency`,
- * `users`, `__drizzle_migrations` (drizzle migrations table, either schema).
+ * `users`, `__drizzle_migrations` (drizzle migrations table, either schema —
+ * column names pinned to the migrator source: `id`, `hash`).
+ *
+ * OR-MIG hash-domain note: `__drizzle_migrations.hash` stores the SHA-256 of
+ * the LAST applied migration's raw `migration.sql` content (drizzle-orm
+ * `readMigrationFiles`), so the expected value is the manifest's
+ * `journalHash` — derived by the backup from the terminal journal folder,
+ * never a whole-directory aggregate. The drizzle-orm pg migrator pins the
+ * `drizzle` schema (backend/db/scripts/runDrizzleMigrations.ts), so `sql`
+ * reads that table; `fallbackSql` hedges a `public`-schema layout, and
+ * `absentValue` covers a restored database that tracks no migrations at all
+ * (no table, or table without rows — COALESCE in each query): that absence
+ * is faithful for a push-managed source database (drizzle-kit push never
+ * writes migration rows), so it passes; any present-but-divergent hash fails.
  */
 export const ORACLES: OracleDefinition[] = [
   {
@@ -106,20 +164,53 @@ export const ORACLES: OracleDefinition[] = [
   },
   {
     id: "OR-MIG",
-    description: "restored __drizzle_migrations trailing hash matches the backup journal hash",
+    description:
+      "restored __drizzle_migrations trailing hash matches the backup's trailing journal migration hash " +
+      "(no migration tracking in the restored database is also faithful: a push-managed source never writes migration rows)",
     invariantAnchor: "migration-journal",
+    expected: { kind: "migrationJournalHash" },
+    // NOTE: PostgreSQL resolves every statically referenced relation at plan
+    // time, so each query below may touch ONLY a table guaranteed to exist
+    // when it is reached; absence falls down the fallback ladder instead.
     sql: [
       "SELECT COALESCE(",
-      "(CASE",
-      "WHEN to_regclass('drizzle.__drizzle_migrations') IS NOT NULL",
-      "THEN (SELECT hash FROM drizzle.__drizzle_migrations ORDER BY id DESC LIMIT 1)",
-      "WHEN to_regclass('public.__drizzle_migrations') IS NOT NULL",
-      "THEN (SELECT hash FROM public.__drizzle_migrations ORDER BY id DESC LIMIT 1)",
-      "END),",
+      "(SELECT hash FROM drizzle.__drizzle_migrations ORDER BY id DESC LIMIT 1),",
       `'${MIGRATIONS_ABSENT_HASH}')`,
     ].join(" "),
+    fallbackSql: [
+      "SELECT COALESCE(",
+      "(SELECT hash FROM public.__drizzle_migrations ORDER BY id DESC LIMIT 1),",
+      `'${MIGRATIONS_ABSENT_HASH}')`,
+    ].join(" "),
+    absentValue: MIGRATIONS_ABSENT_HASH,
   },
 ];
+
+/**
+ * SQLSTATE 42P01 (undefined_object) — the ONLY psql error class the absence
+ * ladder may descend on. psql runs with `VERBOSITY=verbose` (restore-shared
+ * PSQL_ARGS) so the SQLSTATE is present in stderr; any other stderr (auth,
+ * network, permission) must fail the oracle closed instead of falling through
+ * to a fallback that could pass spuriously.
+ */
+const SQLSTATE_RELATION_ABSENT = "42P01";
+
+function isRelationAbsenceError(stderr: string): boolean {
+  return stderr.includes(SQLSTATE_RELATION_ABSENT);
+}
+
+/**
+ * Runs one oracle query, converting a throwing runner into a failed outcome.
+ * The failed outcome carries UNKNOWN stderr, which can never qualify as
+ * relation absence — a throwing runner therefore always fails closed.
+ */
+async function tryPsql(psql: PsqlRunner, sql: string): Promise<PsqlOutcome> {
+  try {
+    return await psql(sql);
+  } catch {
+    return { ok: false, value: "", stderr: "" };
+  }
+}
 
 const INTEGER_OUTPUT_PATTERN = /^-?\d+$/;
 
@@ -136,9 +227,22 @@ function toResult(oracle: OracleDefinition, passed: boolean, offendingCount: num
 }
 
 /**
+ * Resolves a value-oracle's expected value from the run context. Returns
+ * null for an unknown kind (a registry/evaluator version skew), which the
+ * evaluator turns into an errored oracle rather than a false pass.
+ */
+function resolveExpectedValue(expected: OracleExpectedValue, context: OracleRunContext): string | null {
+  if (expected.kind === "migrationJournalHash") {
+    return context.journalHash;
+  }
+  return null;
+}
+
+/**
  * Executes the registry against the restored target. Registry-driven: the
- * mapping below is identical for every oracle — adding an entry never touches
- * this control flow. Results preserve registry order.
+ * mapping below is identical for every oracle — adding an entry (count or
+ * value oracle) never touches this control flow. Results preserve registry
+ * order.
  */
 export async function runOracles(
   psql: PsqlRunner,
@@ -153,22 +257,63 @@ async function evaluateOracle(
   oracle: OracleDefinition,
   context: OracleRunContext
 ): Promise<OracleResult> {
-  let outcome: PsqlOutcome;
-  try {
-    outcome = await psql(oracle.sql);
-  } catch {
+  const outcome = await tryPsql(psql, oracle.sql);
+
+  // Fail closed on a psql error. The absence fallback ladder (fallbackSql /
+  // absentValue) descends ONLY on relation-absence errors (SQLSTATE 42P01 in
+  // stderr) — the one condition the ladder exists for. Any other error class
+  // (auth, network, permission) fails the oracle closed instead of reaching a
+  // fallback that could turn an unverifiable check into a false pass.
+  const declaresAbsenceLadder = oracle.fallbackSql !== undefined || oracle.absentValue !== undefined;
+  if (!outcome.ok && !(declaresAbsenceLadder && isRelationAbsenceError(outcome.stderr))) {
     return toResult(oracle, false, ORACLE_ERROR_OFFENDING_COUNT);
   }
 
-  if (!outcome.ok) {
-    return toResult(oracle, false, ORACLE_ERROR_OFFENDING_COUNT);
-  }
-
-  const offendingCount = parseIntegerOutput(outcome.value);
-  if (offendingCount !== null) {
+  if (oracle.expected === undefined) {
+    const offendingCount = parseIntegerOutput(outcome.value);
+    if (offendingCount === null) {
+      // A count oracle MUST return an integer; anything else is an
+      // evaluation error, never a clean pass.
+      return toResult(oracle, false, ORACLE_ERROR_OFFENDING_COUNT);
+    }
     return toResult(oracle, offendingCount === 0, offendingCount);
   }
 
-  const passed = outcome.value === context.journalHash;
-  return toResult(oracle, passed, passed ? 0 : 1);
+  const expected = resolveExpectedValue(oracle.expected, context);
+  if (expected === null) {
+    return toResult(oracle, false, ORACLE_ERROR_OFFENDING_COUNT);
+  }
+
+  // Value-oracle fallback ladder (see OracleDefinition.fallbackSql):
+  // `sql` → `fallbackSql` → `absentValue`. Only reached when the primary
+  // query errored with SQLSTATE 42P01 (gated above); a successful query's
+  // value is compared as-is. Each further rung likewise requires 42P01 to
+  // descend — a non-42P01 fallback error fails closed.
+  let value = outcome.value;
+  if (!outcome.ok) {
+    if (oracle.fallbackSql !== undefined) {
+      const fallbackOutcome = await tryPsql(psql, oracle.fallbackSql);
+      if (fallbackOutcome.ok) {
+        value = fallbackOutcome.value;
+      } else if (isRelationAbsenceError(fallbackOutcome.stderr) && oracle.absentValue !== undefined) {
+        value = oracle.absentValue;
+      } else {
+        return toResult(oracle, false, ORACLE_ERROR_OFFENDING_COUNT);
+      }
+    } else if (oracle.absentValue !== undefined) {
+      value = oracle.absentValue;
+    } else {
+      return toResult(oracle, false, ORACLE_ERROR_OFFENDING_COUNT);
+    }
+  }
+
+  if (value === expected) {
+    return toResult(oracle, true, 0);
+  }
+  if (value === MIGRATIONS_ABSENT_HASH) {
+    // Restored database tracks no migrations (no table / no rows): faithful
+    // for a push-managed source — nothing to compare. Documented in OR-MIG.
+    return toResult(oracle, true, 0);
+  }
+  return toResult(oracle, false, 1);
 }

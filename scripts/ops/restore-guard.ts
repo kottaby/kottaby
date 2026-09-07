@@ -6,10 +6,32 @@
  * to pg_restore must pass the repo's destructive-database guard, and the
  * operator must have confirmed the run with `--yes-i-understand`.
  *
+ * Target normalization (this module ONLY — the shared guard lib is never
+ * modified): the destructive-db guard analyzes host signals from a
+ * `postgresql://` URL, but operators may pass PostgreSQL keyword/value
+ * conninfo strings (`host=x.rds.amazonaws.com dbname=y`). Before assessment
+ * the target is normalized:
+ *
+ *   - a `postgresql://`/`postgres://` URL is assessed as-is;
+ *   - a key=value conninfo string has its `host`/`hostaddr`/`dbname`
+ *     keywords extracted with libpq LAST-OCCURRENCE semantics (libpq applies
+ *     repeated keywords in order, so `host=a host=b` connects to `b`) and
+ *     synthesized into `postgresql://<host>/<db>` URL(s) for the guard's
+ *     HOST-SIGNAL analysis only; every synthesized URL is round-tripped
+ *     through `new URL()` — a value that cannot form a valid URL (malformed
+ *     host characters) refuses the run, because the downstream guard silently
+ *     SKIPS its host analysis on unparseable URLs;
+ *   - when `hostaddr` is present alongside `host`, BOTH values are assessed
+ *     (libpq connects to `hostaddr` while using `host` for verification), so
+ *     token order can never hide one of the two host signals;
+ *   - anything else is UNASSESSABLE and refuses the run (fail closed) —
+ *     a target whose safety cannot be reasoned about is never restored to.
+ *
  * TOCTOU note: the target DSN is parsed ONCE on the CLI, held in a single
  * variable, threaded through this assessment, and later passed UNCHANGED to
  * pg_restore — the assessed string and the executed string are the same
- * object; there is no re-parse between gate and spawn.
+ * object; the synthesized URL exists only inside the guard analysis, and
+ * there is no re-parse between gate and spawn.
  */
 
 import { assessDestructiveDbCommandSafety, formatDestructiveDbBlockMessage } from "@/scripts/lib/destructiveDbGuard";
@@ -24,21 +46,218 @@ export interface RestoreGuardAssessment {
 /** Confirmation flag required on every (non-interactive) restore run. */
 export const CONFIRMATION_FLAG = "--yes-i-understand";
 
+const UNASSESSABLE_REASON =
+  "target is not a postgresql:// URL and not an assessable host=<host> [dbname=<db>] conninfo string — " +
+  "cannot assess target safety";
+
+const POSTGRES_PROTOCOLS = new Set(["postgresql:", "postgres:"]);
+
+const CONNINFO_DBNAME_KEY = "dbname";
+const CONNINFO_HOST_PATTERN = /^[A-Za-z0-9._\-[\]:]+$/;
+
+/**
+ * Splits a keyword/value conninfo string into unquoted tokens (libpq rules:
+ * whitespace-separated, single quotes quote literally with `''` escapes).
+ * Returns null for strings that cannot be tokenized (unterminated quote).
+ */
+function tokenizeConninfo(target: string): string[] | null {
+  const tokens: string[] = [];
+  let current = "";
+  let quoted = false;
+  for (let index = 0; index < target.length; index += 1) {
+    const char = target[index];
+    if (quoted) {
+      if (char === "'") {
+        if (target[index + 1] === "'") {
+          current += "'";
+          index += 1;
+        } else {
+          quoted = false;
+        }
+        continue;
+      }
+      current += char;
+      continue;
+    }
+    if (char === "'") {
+      quoted = true;
+      continue;
+    }
+    if (/\s/.test(char ?? " ")) {
+      if (current.length > 0) {
+        tokens.push(current);
+        current = "";
+      }
+      continue;
+    }
+    current += char;
+  }
+  if (quoted) {
+    return null;
+  }
+  if (current.length > 0) {
+    tokens.push(current);
+  }
+  return tokens;
+}
+
+/**
+ * The host-signal keywords extracted from a conninfo target. libpq applies
+ * repeated keywords LAST-WINS (`host=a host=b` connects to `b`), so the
+ * extraction below overwrites on every repeat exactly as libpq does — the
+ * assessed host is always the host libpq would actually use.
+ */
+interface ConninfoSignal {
+  host: string | undefined;
+  hostaddr: string | undefined;
+  dbname: string | undefined;
+}
+
+function extractConninfoSignal(target: string): ConninfoSignal | null {
+  const tokens = tokenizeConninfo(target);
+  if (tokens === null || tokens.length === 0) {
+    return null;
+  }
+
+  const signal: ConninfoSignal = { host: undefined, hostaddr: undefined, dbname: undefined };
+  for (const token of tokens) {
+    const equals = token.indexOf("=");
+    if (equals <= 0) {
+      return null;
+    }
+    const key = token.slice(0, equals).toLowerCase();
+    const value = token.slice(equals + 1);
+    if (value.length === 0) {
+      return null;
+    }
+    if (key === "host") {
+      signal.host = value;
+    } else if (key === "hostaddr") {
+      signal.hostaddr = value;
+    } else if (key === CONNINFO_DBNAME_KEY) {
+      signal.dbname = value;
+    }
+  }
+  if (signal.host === undefined && signal.hostaddr === undefined) {
+    return null;
+  }
+  return signal;
+}
+
+/** Brackets a bare IPv6-ish host token so it survives the URL round-trip. */
+function toUrlHostToken(host: string): string {
+  return host.includes(":") && !host.startsWith("[") ? `[${host}]` : host;
+}
+
+/** Result of extracting the assessable host URL(s) from a conninfo target. */
+export type ConninfoAssessUrls = { kind: "ok"; urls: string[] } | { kind: "refuse"; reason: string };
+
+/**
+ * Extracts the host-signal keywords from a keyword/value conninfo string and
+ * synthesizes the `postgresql://<host>/<dbname>` URL(s) the guard can analyze.
+ *
+ * Returns null when the string is not a conninfo string or carries no
+ * assessable host keyword, `{ kind: "refuse" }` when the target is malformed —
+ * a host value outside the assessable charset, or a value that cannot
+ * round-trip through `new URL()` (the downstream guard SKIPS its host
+ * analysis on unparseable URLs, so an unparseable synthesis must refuse
+ * rather than assess as "no signal") — and `{ kind: "ok" }` with ONE URL PER
+ * host value otherwise: `host` and `hostaddr` are independent libpq signals
+ * (hostaddr names the address actually connected; host is used for
+ * verification), so both are assessed regardless of token order.
+ */
+export function conninfoAssessUrls(target: string): ConninfoAssessUrls | null {
+  const signal = extractConninfoSignal(target);
+  if (signal === null) {
+    return null;
+  }
+
+  const suffix = signal.dbname !== undefined ? `/${encodeURIComponent(signal.dbname)}` : "/";
+  const urls: string[] = [];
+  for (const hostValue of [signal.host, signal.hostaddr]) {
+    if (hostValue === undefined) {
+      continue;
+    }
+    if (!CONNINFO_HOST_PATTERN.test(hostValue)) {
+      return {
+        kind: "refuse",
+        reason:
+          "target conninfo carries a host value outside the assessable host character set — " +
+          "cannot assess target safety",
+      };
+    }
+    const url = `postgresql://${toUrlHostToken(hostValue)}${suffix}`;
+    // Round-trip gate: the downstream guard SKIPS its host analysis when the
+    // seated DATABASE_URL does not parse, so a synthesis that cannot
+    // round-trip through `new URL()` must refuse here instead of assessing
+    // as "no host signal".
+    if (!parsesAsPostgresUrl(url)) {
+      return {
+        kind: "refuse",
+        reason:
+          "target conninfo host value does not form a valid postgresql:// URL (malformed host value) — " +
+          "cannot assess target safety",
+      };
+    }
+    urls.push(url);
+  }
+  return { kind: "ok", urls };
+}
+
+function parsesAsPostgresUrl(target: string): boolean {
+  try {
+    const url = new URL(target.trim());
+    return POSTGRES_PROTOCOLS.has(url.protocol) && url.hostname.length > 0;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Assesses the restore target through the existing destructive-database
- * guard.
+ * guard, normalizing keyword/value conninfo targets first (see module doc).
+ *
+ * A conninfo target synthesizes ONE guard URL PER host-signal value (`host`
+ * and `hostaddr`), and every URL must pass: the first blocking assessment
+ * wins.
  *
  * The guard reads `DATABASE_URL` from the process environment for its
  * host-pattern analysis. Rather than duplicating the guard's managed-host and
- * production-marker pattern sets, the target DSN is temporarily seated in
- * `DATABASE_URL` for the duration of the call (previous value restored in a
- * `finally`), so the guard evaluates THE connection string pg_restore will
- * receive — plus the ambient env signals (NODE_ENV, providers) loaded from
- * the operator's env file.
+ * production-marker pattern sets, each (normalized) URL is temporarily seated
+ * in `DATABASE_URL` for the duration of its call (previous value restored in
+ * a `finally`), so the guard evaluates the host of THE connection string
+ * pg_restore will receive — plus the ambient env signals (NODE_ENV,
+ * providers) loaded from the operator's env file. An unassessable or
+ * ambiguous target refuses the run.
  */
 export function assessRestoreTargetSafety(targetDsn: string): RestoreGuardAssessment {
+  let assessUrls: string[];
+  if (parsesAsPostgresUrl(targetDsn)) {
+    assessUrls = [targetDsn];
+  } else {
+    const extraction = conninfoAssessUrls(targetDsn);
+    if (extraction === null) {
+      return { blocked: true, reasons: [UNASSESSABLE_REASON] };
+    }
+    if (extraction.kind === "refuse") {
+      return { blocked: true, reasons: [extraction.reason] };
+    }
+    assessUrls = extraction.urls;
+  }
+
+  for (const assessAs of assessUrls) {
+    const assessment = assessUrlThroughGuard(assessAs);
+    if (assessment.blocked) {
+      return assessment;
+    }
+  }
+  return { blocked: false, reasons: [] };
+}
+
+/** Runs the shared guard with `assessAs` seated in DATABASE_URL (restored in `finally`). */
+function assessUrlThroughGuard(assessAs: string): RestoreGuardAssessment {
   const previousDatabaseUrl = process.env.DATABASE_URL;
-  process.env.DATABASE_URL = targetDsn;
+  process.env.DATABASE_URL = assessAs;
   try {
     const assessment = assessDestructiveDbCommandSafety();
     return { blocked: assessment.blocked, reasons: assessment.reasons };

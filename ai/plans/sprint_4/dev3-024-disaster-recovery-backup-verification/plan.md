@@ -227,7 +227,7 @@ flowchart LR
 | OR-U1 | A.5 / INV-U* | no `audit_logs` row with null/dangling actor reference |
 | OR-U2 | INV-U4/U5 | soft-deleted users retain their history rows (count sanity vs source when known) |
 | OR-REQ | workflow 02 | every `session_request_idempotency` row references an existing user, and its claimed `session_id` (when set) references an existing `session` row (no dedicated `session_requests` queue table exists — booking-request state is the idempotency-claim table + `session.intent`, per open-decisions A.10) |
-| OR-MIG | REQ-017 | scratch `__drizzle_migrations` last hash == manifest `journalHash` |
+| OR-MIG | REQ-017 | scratch `__drizzle_migrations` trailing hash == manifest `journalHash` — sha256 over the terminal migration's SQL content per the repo's migration folder (drizzle-orm readMigrationFiles semantics) |
 
 ### Component 4: `docs/ops/disaster-recovery.md` (CREATE)
 
@@ -256,7 +256,7 @@ interface BackupManifest {
   artifactFile: string;      // dump.pgc
   artifactBytes: number;
   sha256: string;
-  journalHash: string;       // sha256 over backend/drizzle/ journal listing at backup time
+  journalHash: string;       // sha256 over the terminal migration's SQL content per the repo's migration folder (drizzle-orm readMigrationFiles semantics); corresponds to the trailing __drizzle_migrations.hash
 }
 
 interface OracleResult { id: string; description: string; passed: boolean; offendingCount: number; }

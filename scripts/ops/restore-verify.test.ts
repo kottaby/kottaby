@@ -20,12 +20,13 @@
 
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test } from "bun:test";
 import { createHash } from "node:crypto";
-import { mkdirSync, mkdtempSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, relative, resolve } from "node:path";
 
 import { clearSelectedEnvFileForTests } from "@/scripts/dbActions/envFile";
 import { DESTRUCTIVE_GUARD_ENV_KEYS, restoreProcessEnv, unsetProcessEnvVars } from "@/scripts/lib";
+import { computeJournalHash } from "@/scripts/ops/backup-artifacts";
 import {
   parseRestoreArgs,
   RESTORE_USAGE_TEXT,
@@ -166,6 +167,8 @@ interface FakeDbScript {
   sourceCounts?: Record<string, number>;
   /** Value returned for the migrations-hash oracle (defaults to JOURNAL_HASH). */
   migrationsHash?: string;
+  /** Per-table scripted outcome for structural `SELECT COUNT(*) FROM "<t>"` queries. */
+  countOutcomes?: Record<string, ScriptedProcessResult>;
   /** Per-oracle-id scripted process outcome (default: exit 0, count "0"). */
   oracleOutcomes?: Record<string, ScriptedProcessResult>;
   /** Fail the structural presence query. */
@@ -177,6 +180,9 @@ interface FakeDbScript {
 }
 
 const okCount = (count: number): ScriptedProcessResult => ({ exitCode: 0, stdout: `${count}\n`, stderr: "" });
+
+/** A scripted psql failure carrying the given stderr (e.g. a SQLSTATE-tagged error). */
+const failedOutcome = (stderr: string): PsqlOutcome => ({ ok: false, value: "", stderr });
 
 function makeFakeSpawn(script: FakeDbScript): { runner: SpawnRunner; requests: SpawnRequest[] } {
   const requests: SpawnRequest[] = [];
@@ -209,6 +215,10 @@ function makeFakeSpawn(script: FakeDbScript): { runner: SpawnRunner; requests: S
       const structuralCount = /^SELECT COUNT\(\*\) FROM "([A-Za-z_]\w*)"$/u.exec(sql);
       if (structuralCount !== null) {
         const table = structuralCount[1] ?? "";
+        const scripted = script.countOutcomes?.[table];
+        if (scripted !== undefined && dsn !== SOURCE_DSN) {
+          return scripted;
+        }
         const counts = dsn === SOURCE_DSN ? script.sourceCounts : script.targetCounts;
         return okCount(counts?.[table] ?? 0);
       }
@@ -517,6 +527,10 @@ describe("restore-verify tool family (4-tier)", () => {
       expect(() => parseRestoreArgs(["--target"])).toThrow(/--target requires a value/);
       expect(() => parseRestoreArgs(["--target", ""])).toThrow(/--target requires a value/);
       expect(() => parseRestoreArgs(["--target", "--yes-i-understand"])).toThrow(/--target requires a value/);
+      expect(() => parseRestoreArgs(["--target", "--yes-i-understand"])).toThrow(
+        /got the flag-like value "--yes-i-understand"/
+      );
+      expect(() => parseRestoreArgs(["--target"])).toThrow(/got none/);
       expect(() => parseRestoreArgs(["--from", "a", "--from", "b"])).toThrow(/--from was given more than once/);
       expect(() => parseRestoreArgs(["--target=x", "--target=y"])).toThrow(/--target was given more than once/);
       expect(() => parseRestoreArgs(["--env=a", "--env=b"])).toThrow(/--env was given more than once/);
@@ -811,8 +825,20 @@ describe("restore-verify tool family (4-tier)", () => {
         { id: "T-COUNT-ZERO", description: "count is zero", invariantAnchor: "test", sql: "SELECT 1" },
         { id: "T-PSQL-ERROR", description: "psql errored", invariantAnchor: "test", sql: "SELECT 2" },
         { id: "T-RUNNER-THREW", description: "runner threw", invariantAnchor: "test", sql: "SELECT 3" },
-        { id: "T-VALUE-MATCH", description: "value matches", invariantAnchor: "test", sql: "SELECT 4" },
-        { id: "T-VALUE-DRIFT", description: "value drifts", invariantAnchor: "test", sql: "SELECT 5" },
+        {
+          id: "T-VALUE-MATCH",
+          description: "value matches",
+          invariantAnchor: "test",
+          sql: "SELECT 4",
+          expected: { kind: "migrationJournalHash" },
+        },
+        {
+          id: "T-VALUE-DRIFT",
+          description: "value drifts",
+          invariantAnchor: "test",
+          sql: "SELECT 5",
+          expected: { kind: "migrationJournalHash" },
+        },
       ];
       const results = await runOracles(
         async sql => {
@@ -842,6 +868,111 @@ describe("restore-verify tool family (4-tier)", () => {
       expect(byId.get("T-VALUE-MATCH")?.offendingCount).toBe(0);
       expect(byId.get("T-VALUE-DRIFT")?.passed).toBe(false);
       expect(byId.get("T-VALUE-DRIFT")?.offendingCount).toBe(1);
+    });
+
+    test("OR-MIG compares a fixture-derived trailing migration hash (drizzle derivation, not an echo)", async () => {
+      const caseRoot = newCaseRoot();
+      makeSchemaFixture(caseRoot);
+      // A fixture journal in the drizzle-orm layout: the manifest hash is
+      // derived from the folder exactly as the backup derives it, while the
+      // fake scratch DB returns the hash of the SAME trailing file content
+      // computed independently — the two derivations must agree.
+      const journal = join(caseRoot, "backend", "drizzle");
+      mkdirSync(join(journal, "20260101000000_first"), { recursive: true });
+      const firstSql = "CREATE TABLE journal_probe_a (id integer);\n";
+      writeFileSync(join(journal, "20260101000000_first", "migration.sql"), firstSql);
+      mkdirSync(join(journal, "20260102000000_second"), { recursive: true });
+      const trailingSql = "ALTER TABLE journal_probe_a ADD COLUMN note text;\n";
+      writeFileSync(join(journal, "20260102000000_second", "migration.sql"), trailingSql);
+
+      const manifestHash = computeJournalHash(journal);
+      expect(manifestHash).toBe(createHash("sha256").update(trailingSql).digest("hex"));
+      const fixture = makeBackupRun(caseRoot, { journalHash: manifestHash });
+
+      const trailingHashFromDb = createHash("sha256")
+        .update(readFileSync(join(journal, "20260102000000_second", "migration.sql"), "utf8"))
+        .digest("hex");
+      const passRun = await runPipeline(caseRoot, {
+        from: fixture.runDir,
+        script: { ...healthyScript(), migrationsHash: trailingHashFromDb },
+      });
+      expect(passRun.thrown).toBeNull();
+      expect(passRun.exitCode).toBe(0);
+      expect(passRun.stdout).toContain("oracles 7/7 passed");
+
+      // A restored DB whose trailing hash matches an OLDER journal migration
+      // (content drift) fails OR-MIG and the verdict.
+      const staleHash = createHash("sha256").update(firstSql).digest("hex");
+      const driftFixture = makeBackupRun(caseRoot, { journalHash: manifestHash });
+      const driftRun = await runPipeline(caseRoot, {
+        from: driftFixture.runDir,
+        script: { ...healthyScript(), migrationsHash: staleHash },
+      });
+      expect(driftRun.thrown).toBeNull();
+      expect(driftRun.exitCode).toBe(1);
+      const migOracle = driftRun.report?.oracles.find(oracle => oracle.id === "OR-MIG");
+      expect(migOracle?.passed).toBe(false);
+      expect(migOracle?.offendingCount).toBe(1);
+      expect(driftRun.stderr).toContain("[verify:OR-MIG] 1 offending");
+      expect(driftRun.stdout).toContain("VERDICT: FAIL");
+    });
+
+    test("OR-MIG: absent migration tracking is faithful, and sentinel-vs-rows is a mismatch", async () => {
+      const caseRoot = newCaseRoot();
+      makeSchemaFixture(caseRoot);
+      // Push-managed source: the restored scratch DB tracks no migrations, so
+      // the OR-MIG query yields the sentinel and the oracle passes.
+      const pushFixture = makeBackupRun(caseRoot);
+      const absentRun = await runPipeline(caseRoot, {
+        from: pushFixture.runDir,
+        script: { ...healthyScript(), migrationsHash: MIGRATIONS_ABSENT_HASH },
+      });
+      expect(absentRun.thrown).toBeNull();
+      expect(absentRun.exitCode).toBe(0);
+      const absentOracle = absentRun.report?.oracles.find(oracle => oracle.id === "OR-MIG");
+      expect(absentOracle?.passed).toBe(true);
+      expect(absentOracle?.offendingCount).toBe(0);
+
+      // A backup of a journal with no migrations records the same sentinel,
+      // so empty-journal + no-tracking matches strictly.
+      const emptyJournalFixture = makeBackupRun(caseRoot, { journalHash: MIGRATIONS_ABSENT_HASH });
+      const emptyJournalRun = await runPipeline(caseRoot, {
+        from: emptyJournalFixture.runDir,
+        script: { ...healthyScript(), migrationsHash: MIGRATIONS_ABSENT_HASH },
+      });
+      expect(emptyJournalRun.exitCode).toBe(0);
+
+      // The inverse is a genuine inconsistency: the journal claims no
+      // migrations, yet the restored database carries applied migration rows.
+      const rowsRun = await runPipeline(caseRoot, {
+        from: emptyJournalFixture.runDir,
+        script: { ...healthyScript(), migrationsHash: JOURNAL_HASH },
+      });
+      expect(rowsRun.exitCode).toBe(1);
+      const rowsOracle = rowsRun.report?.oracles.find(oracle => oracle.id === "OR-MIG");
+      expect(rowsOracle?.passed).toBe(false);
+      expect(rowsRun.stdout).toContain("VERDICT: FAIL");
+    });
+
+    test("an unverifiable critical row count fails closed (ok=false, verdict FAIL)", async () => {
+      const caseRoot = newCaseRoot();
+      makeSchemaFixture(caseRoot);
+      const fixture = makeBackupRun(caseRoot);
+      const run = await runPipeline(caseRoot, {
+        from: fixture.runDir,
+        script: {
+          ...healthyScript(),
+          countOutcomes: { users: { exitCode: 1, stdout: "", stderr: "psql: server closed the connection" } },
+        },
+      });
+      expect(run.thrown).toBeNull();
+      expect(run.exitCode).toBe(1);
+      const usersRow = run.report?.structural.find(row => row.table === "users");
+      expect(usersRow?.present).toBe(true);
+      expect(usersRow?.rowCount).toBe(-1);
+      expect(usersRow?.ok).toBe(false);
+      expect(run.stderr).toContain('row count query failed for "users"');
+      expect(run.stdout).toContain("VERDICT: FAIL");
     });
 
     test("errored oracle is recorded as -1 while clean zeros stay 0 (not conflated)", async () => {
@@ -1006,6 +1137,12 @@ describe("restore-verify tool family (4-tier)", () => {
         targetDsn: RDS_TARGET_DSN,
         reason: "rds.amazonaws.com",
       },
+      {
+        name: "conninfo-form RDS host",
+        env: localEnvFixture(),
+        targetDsn: "host=kottaby-verify.c9x8e2z7.us-east-1.rds.amazonaws.com dbname=kottaby user=dr_user",
+        reason: "rds.amazonaws.com",
+      },
     ];
 
     for (const refusalCase of refusalCases) {
@@ -1027,6 +1164,247 @@ describe("restore-verify tool family (4-tier)", () => {
         expect(run.stderr).not.toContain(FIXTURE_PASSWORD);
       });
     }
+
+    test("guard assesses conninfo-form targets: local accepted, original string spawned", async () => {
+      const caseRoot = newCaseRoot();
+      makeSchemaFixture(caseRoot);
+      const fixture = makeBackupRun(caseRoot);
+      const conninfoTarget = "host=127.0.0.1 port=5432 dbname=scratch_restore user=restore_user";
+      const run = await runPipeline(caseRoot, {
+        from: fixture.runDir,
+        targetDsn: conninfoTarget,
+        script: healthyScript(),
+      });
+      expect(run.thrown).toBeNull();
+      expect(run.exitCode).toBe(0);
+      expect(run.stdout).toContain("VERDICT: PASS");
+      expect(run.stdout).toContain('target database "scratch_restore"');
+      // Single-variable threading: pg_restore receives EXACTLY the operator's
+      // conninfo string — the URL synthesis exists only inside the guard.
+      const restoreRequest = run.requests.find(request => request.cmd === "pg_restore");
+      expect(restoreRequest?.args).toContain(conninfoTarget);
+      expect(run.requests[0]?.cmd).toBe("pg_restore");
+    });
+
+    test("guard refuses a duplicate-host conninfo whose libpq-effective host is managed (zero spawns)", async () => {
+      const caseRoot = newCaseRoot();
+      makeSchemaFixture(caseRoot);
+      // libpq applies repeated keywords LAST-WINS, so the effective target of
+      // `host=127.0.0.1 host=prod.rds...` is the RDS host. First-occurrence
+      // extraction (the pre-fix bug) assessed 127.0.0.1 and would have ALLOWED
+      // this restore; last-wins assessment refuses it before any spawn.
+      const run = await runPipeline(caseRoot, {
+        from: join(caseRoot, "never-resolved"),
+        targetDsn: "host=127.0.0.1 host=prod.rds.amazonaws.com dbname=x",
+        script: emptyScript(),
+      });
+      expect(run.thrown).toBeNull();
+      expect(run.exitCode).toBe(2);
+      expect(run.stderr).toContain("[guard]");
+      expect(run.stderr).toContain("rds.amazonaws.com");
+      expect(run.requests).toHaveLength(0);
+    });
+
+    test("guard assesses conninfo targets with libpq last-wins semantics and spawns the original string", async () => {
+      const caseRoot = newCaseRoot();
+      makeSchemaFixture(caseRoot);
+      const fixture = makeBackupRun(caseRoot);
+      // The FIRST host value is a managed RDS host; libpq connects to the
+      // LAST one (127.0.0.1). First-occurrence assessment would refuse, so a
+      // PASS proves the guard assessed the libpq-effective host.
+      const lastWinsTarget = "host=prod.rds.amazonaws.com host=127.0.0.1 dbname=x";
+      const run = await runPipeline(caseRoot, {
+        from: fixture.runDir,
+        targetDsn: lastWinsTarget,
+        script: healthyScript(),
+      });
+      expect(run.thrown).toBeNull();
+      expect(run.exitCode).toBe(0);
+      expect(run.stdout).toContain("VERDICT: PASS");
+      expect(run.stdout).toContain('target database "x"');
+      // Spawn attempted with THAT DSN: pg_restore receives the operator's
+      // conninfo string unchanged.
+      const restoreRequest = run.requests.find(request => request.cmd === "pg_restore");
+      expect(restoreRequest?.args).toContain(lastWinsTarget);
+      expect(run.requests[0]?.cmd).toBe("pg_restore");
+    });
+
+    for (const dualSignalTarget of [
+      "hostaddr=127.0.0.1 host=prod.rds.amazonaws.com dbname=x",
+      "host=prod.rds.amazonaws.com hostaddr=127.0.0.1 dbname=x",
+    ]) {
+      test(`guard assesses BOTH host and hostaddr values regardless of token order (${dualSignalTarget})`, async () => {
+        const caseRoot = newCaseRoot();
+        makeSchemaFixture(caseRoot);
+        // libpq connects to hostaddr and uses host for verification, so a
+        // hostaddr-only or host-only extraction would miss one of the two
+        // host signals depending on token order; BOTH are assessed and the
+        // managed host must refuse.
+        const run = await runPipeline(caseRoot, {
+          from: join(caseRoot, "never-resolved"),
+          targetDsn: dualSignalTarget,
+          script: emptyScript(),
+        });
+        expect(run.thrown).toBeNull();
+        expect(run.exitCode).toBe(2);
+        expect(run.stderr).toContain("[guard]");
+        expect(run.stderr).toContain("rds.amazonaws.com");
+        expect(run.requests).toHaveLength(0);
+      });
+    }
+
+    test("guard refuses a conninfo host that cannot round-trip through new URL (malformed host chars)", async () => {
+      const caseRoot = newCaseRoot();
+      makeSchemaFixture(caseRoot);
+      // `a]b` passes the host charset pattern but cannot form a URL; without
+      // the round-trip gate the guard's own URL parse would fail silently and
+      // SKIP the host analysis (allowing an unassessable target).
+      const run = await runPipeline(caseRoot, {
+        from: join(caseRoot, "never-resolved"),
+        targetDsn: "host=a]b dbname=x",
+        script: emptyScript(),
+      });
+      expect(run.thrown).toBeNull();
+      expect(run.exitCode).toBe(2);
+      expect(run.stderr).toContain("[guard]");
+      expect(run.stderr).toContain("malformed host value");
+      expect(run.stderr).toContain("cannot assess target safety");
+      expect(run.requests).toHaveLength(0);
+    });
+
+    test("guard accepts a bare-IPv6 hostaddr (bracketed for the URL round-trip)", async () => {
+      const caseRoot = newCaseRoot();
+      makeSchemaFixture(caseRoot);
+      const fixture = makeBackupRun(caseRoot);
+      const ipv6Target = "hostaddr=::1 dbname=x";
+      const run = await runPipeline(caseRoot, {
+        from: fixture.runDir,
+        targetDsn: ipv6Target,
+        script: healthyScript(),
+      });
+      expect(run.thrown).toBeNull();
+      expect(run.exitCode).toBe(0);
+      expect(run.stdout).toContain("VERDICT: PASS");
+      expect(run.requests.find(request => request.cmd === "pg_restore")?.args).toContain(ipv6Target);
+    });
+
+    test("value-oracle absence ladder descends ONLY on SQLSTATE 42P01 and fails closed otherwise", async () => {
+      const registry: OracleDefinition[] = [
+        {
+          id: "T-LADDER",
+          description: "ladder gating",
+          invariantAnchor: "test",
+          sql: "SELECT 1",
+          expected: { kind: "migrationJournalHash" },
+          fallbackSql: "SELECT 2",
+          absentValue: MIGRATIONS_ABSENT_HASH,
+        },
+      ];
+      const calls: string[] = [];
+      const runLadder = async (scripted: Record<string, PsqlOutcome>) =>
+        runOracles(
+          async sql => {
+            calls.push(sql);
+            const outcome = scripted[sql];
+            if (outcome === undefined) throw new Error(`unscripted query: ${sql}`);
+            return outcome;
+          },
+          { journalHash: JOURNAL_HASH },
+          registry
+        );
+
+      // 42P01 on the primary rung → the fallback IS consulted → value compared.
+      calls.length = 0;
+      const descended = (
+        await runLadder({
+          "SELECT 1": failedOutcome('ERROR:  42P01: relation "drizzle.__drizzle_migrations" does not exist'),
+          "SELECT 2": { ok: true, value: JOURNAL_HASH, stderr: "" },
+        })
+      )[0];
+      expect(calls).toEqual(["SELECT 1", "SELECT 2"]);
+      expect(descended.passed).toBe(true);
+      expect(descended.offendingCount).toBe(0);
+
+      // 42P01 on BOTH rungs → absentValue assumed (faithful absence).
+      calls.length = 0;
+      const absent = (
+        await runLadder({
+          "SELECT 1": failedOutcome('ERROR:  42P01: relation "drizzle.__drizzle_migrations" does not exist'),
+          "SELECT 2": failedOutcome('ERROR:  42P01: relation "public.__drizzle_migrations" does not exist'),
+        })
+      )[0];
+      expect(calls).toEqual(["SELECT 1", "SELECT 2"]);
+      expect(absent.passed).toBe(true);
+
+      // Auth error on the primary rung → FAILS CLOSED, fallback never reached.
+      calls.length = 0;
+      const authFailed = (
+        await runLadder({
+          "SELECT 1": failedOutcome('psql: error: FATAL: password authentication failed for user "restore_user"'),
+        })
+      )[0];
+      expect(calls).toEqual(["SELECT 1"]);
+      expect(authFailed.passed).toBe(false);
+      expect(authFailed.offendingCount).toBe(ORACLE_ERROR_OFFENDING_COUNT);
+
+      // Non-42P01 on the fallback rung → FAILS CLOSED (no absentValue shortcut).
+      calls.length = 0;
+      const fallbackFailed = (
+        await runLadder({
+          "SELECT 1": failedOutcome('ERROR:  42P01: relation "drizzle.__drizzle_migrations" does not exist'),
+          "SELECT 2": failedOutcome("psql: error: could not connect to server: Connection refused"),
+        })
+      )[0];
+      expect(calls).toEqual(["SELECT 1", "SELECT 2"]);
+      expect(fallbackFailed.passed).toBe(false);
+      expect(fallbackFailed.offendingCount).toBe(ORACLE_ERROR_OFFENDING_COUNT);
+    });
+
+    test("OR-MIG fails closed when the psql error is not relation-absence (auth error)", async () => {
+      const caseRoot = newCaseRoot();
+      makeSchemaFixture(caseRoot);
+      const fixture = makeBackupRun(caseRoot);
+      const script: FakeDbScript = {
+        ...healthyScript(),
+        oracleOutcomes: {
+          "OR-MIG": {
+            exitCode: 1,
+            stdout: "",
+            stderr: 'psql: error: FATAL: password authentication failed for user "restore_user"',
+          },
+        },
+      };
+
+      const run = await runPipeline(caseRoot, { from: fixture.runDir, script });
+      expect(run.thrown).toBeNull();
+      expect(run.exitCode).toBe(1);
+      const migOracle = run.report?.oracles.find(oracle => oracle.id === "OR-MIG");
+      expect(migOracle?.passed).toBe(false);
+      expect(migOracle?.offendingCount).toBe(ORACLE_ERROR_OFFENDING_COUNT);
+      expect(run.stderr).toContain("[verify:OR-MIG] oracle errored");
+      expect(run.stdout).toContain("oracles 6/7 passed");
+      expect(run.stdout).toContain("VERDICT: FAIL");
+      // Fail-closed proof: the ladder never reached the fallback query.
+      const psqlCommands = run.requests
+        .filter(request => request.cmd === "psql")
+        .map(request => request.args[request.args.indexOf("--command") + 1] ?? "");
+      expect(psqlCommands.some(sql => sql.includes("public.__drizzle_migrations"))).toBe(false);
+    });
+
+    test("guard refuses an unassessable (garbage) target with zero spawns", async () => {
+      const caseRoot = newCaseRoot();
+      makeSchemaFixture(caseRoot);
+      const run = await runPipeline(caseRoot, {
+        from: join(caseRoot, "never-resolved"),
+        targetDsn: "not-a-dsn-at-all",
+        script: emptyScript(),
+      });
+      expect(run.thrown).toBeNull();
+      expect(run.exitCode).toBe(2);
+      expect(run.stderr).toContain("[guard]");
+      expect(run.stderr).toContain("cannot assess target safety");
+      expect(run.requests).toHaveLength(0);
+    });
 
     test("CLI guard refusal exits 2 without leaking the connection string", () => {
       const caseRoot = newCaseRoot();
@@ -1065,8 +1443,10 @@ describe("restore-verify tool family (4-tier)", () => {
       expect(run.thrown).toBeNull();
       expect(run.exitCode).toBe(1);
       expect(run.stderr).toContain("[pg_restore]");
-      expect(run.stderr).toContain("restore_user:***@");
+      expect(run.stderr).toContain("(redacted-user)");
       expect(run.stderr).not.toContain(FIXTURE_PASSWORD);
+      expect(run.stderr).not.toContain("postgresql://");
+      expect(run.stderr).not.toContain("restore_user");
       expect(run.reportPath).toBeNull();
     });
 

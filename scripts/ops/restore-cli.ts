@@ -38,8 +38,14 @@ function emptyArgs(): RestoreCliArgs {
 
 function requireValue(flag: string, inlineValue: string | undefined, nextArg: string | undefined): string {
   const value = inlineValue ?? nextArg;
-  if (value === undefined || value === "" || value.startsWith("--")) {
+  // Mirror backup-cli: report the ACTUAL offending value — a flag-like value
+  // ("--target --yes-i-understand") is present but unacceptable, so "got
+  // none" would lie to the operator.
+  if (value === undefined || value === "") {
     throw new RestoreUsageError(`${flag} requires a value argument (got none).`);
+  }
+  if (value.startsWith("--")) {
+    throw new RestoreUsageError(`${flag} requires a value argument (got the flag-like value "${value}").`);
   }
   return value;
 }

@@ -28,6 +28,8 @@
 import { join, resolve } from "node:path";
 
 import { applyEnvFile, isValidDatabaseUrl } from "@/scripts/dbActions/envFile";
+import { scrubDsnSecrets } from "@/scripts/ops/_shared";
+import { sha256File } from "@/scripts/ops/backup-artifacts";
 import {
   parseRestoreArgs,
   RESTORE_USAGE_TEXT,
@@ -52,8 +54,6 @@ import {
   redactTargetDatabaseName,
   resolveRunArtifact,
   type SpawnRunner,
-  scrubDsnSecrets,
-  sha256File,
   systemClock,
 } from "@/scripts/ops/restore-shared";
 import {
@@ -117,7 +117,11 @@ function bootstrapEnv(args: RestoreCliArgs, stderr: LineWriter): void {
     applyEnvFile(".env");
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
-    stderr("[env] proceeding without source-database context (row-count comparisons skipped): " + reason);
+    // The env file's contents may be echoed in the failure message — scrub
+    // credential material before it reaches stderr.
+    stderr(
+      "[env] proceeding without source-database context (row-count comparisons skipped): " + scrubDsnSecrets(reason)
+    );
   }
 }
 
@@ -135,12 +139,12 @@ async function restoreArtifact(
   });
 
   if (outcome.exitCode !== 0) {
-    const tail = scrubDsnSecrets(outcome.stderr).trim().split("\n").slice(-40).join("\n");
+    const tail = scrubDsnSecrets(outcome.stderr, targetDsn).trim().split("\n").slice(-40).join("\n");
     stderr(`[pg_restore] pg_restore failed with exit code ${outcome.exitCode}; stderr tail:\n${tail}`);
     return false;
   }
   if (outcome.stderr.trim().length > 0) {
-    stderr(`[pg_restore] warnings:\n${scrubDsnSecrets(outcome.stderr).trim()}`);
+    stderr(`[pg_restore] warnings:\n${scrubDsnSecrets(outcome.stderr, targetDsn).trim()}`);
   }
   stdout("restore-verify: pg_restore completed");
   return true;
@@ -240,7 +244,8 @@ export async function runRestoreVerify(args: RestoreCliArgs, deps: RestoreVerify
   );
 
   const artifactSha256 = await sha256File(resolved.artifactPath);
-  if (artifactSha256 !== resolved.manifest.sha256) {
+  const hashesMatch = artifactSha256 === resolved.manifest.sha256;
+  if (!hashesMatch) {
     stderr(
       `[verify] artifact sha256 mismatch: manifest ${resolved.manifest.sha256} vs recomputed ${artifactSha256} — refusing restore`
     );
@@ -261,8 +266,9 @@ export async function runRestoreVerify(args: RestoreCliArgs, deps: RestoreVerify
   );
 
   // A hash mismatch refuses the restore before any verification runs, so any
-  // report reaching this aggregation point necessarily has matching hashes.
-  const verdict = evaluateVerdict(structural, oracles, true);
+  // report reaching this aggregation point necessarily has matching hashes;
+  // the REAL comparison result is threaded into the verdict regardless.
+  const verdict = evaluateVerdict(structural, oracles, hashesMatch);
   const finishedAt = clock();
   const report: RestoreReport = {
     tool: RESTORE_TOOL_ID,

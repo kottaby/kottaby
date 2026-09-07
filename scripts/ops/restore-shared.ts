@@ -5,22 +5,27 @@
  * Everything here is deliberately infrastructure-only: spawn/psql seams and
  * the clock are injectable so tests can drive the orchestrator without real
  * processes or wall time; DSN redaction keeps credentials out of stdout and
- * persisted artifacts; manifest parsing fails closed on any missing or
- * malformed field so a tampered backup can never reach pg_restore.
+ * persisted artifacts (imported from `_shared`, ONE definition for both the
+ * backup and restore families); manifest parsing fails closed on any missing
+ * or malformed field so a tampered backup can never reach pg_restore.
+ *
+ * The manifest data contract, its file name, the artifact hasher, and the
+ * migrations-absent sentinel are imported from `backup-artifacts` — the
+ * backup family is their single definition owner.
  */
 
-import { createHash } from "node:crypto";
-import { createReadStream, readdirSync, readFileSync, statSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 
-/** Manifest file name inside a backup run directory. */
-export const MANIFEST_FILE = "manifest.json";
+import { type BackupManifest, MANIFEST_FILE_NAME, MIGRATIONS_ABSENT_HASH } from "@/scripts/ops/backup-artifacts";
+
+export type { BackupManifest };
+export { MIGRATIONS_ABSENT_HASH };
+
 /** Restore report file name written into the run directory (0600). */
 export const RESTORE_REPORT_FILE = "restore-report.json";
 /** Tool identifier persisted in restore-report.json. */
 export const RESTORE_TOOL_ID = "ops:db-restore-verify";
-/** journalHash sentinel recorded when the source database has no migrations table. */
-export const MIGRATIONS_ABSENT_HASH = "none";
 
 // ---------------------------------------------------------------------------
 // Injectable clock
@@ -40,7 +45,7 @@ export const systemClock: Clock = () => new Date();
 export interface SpawnRequest {
   cmd: string;
   args: string[];
-  /** Extra env merged over the parent environment (explicit passthrough). */
+  /** Extra env merged over the allowlisted parent environment (explicit passthrough). */
   env?: Record<string, string | undefined>;
 }
 
@@ -51,16 +56,75 @@ export interface SpawnOutcome {
   stderr: string;
 }
 
-/** Injectable child-process seam (Bun.spawn in production, spy in tests). */
+/**
+ * Injectable child-process seam. Deliberately a request-OBJECT seam (not the
+ * backup family's `(argv, { env })` shape): every restore call site and test
+ * double is built around `SpawnRequest`, and the request carries the merged
+ * env per call. Both families share the same INVARIANTS (argv arrays only,
+ * piped output, allowlisted child env) rather than the same signature.
+ */
 export type SpawnRunner = (request: SpawnRequest) => Promise<SpawnOutcome>;
 
-/** Default spawn implementation: argv-array `Bun.spawn`, piped stdio, explicit env merge. */
+/**
+ * Process environment keys forwarded to restore children (psql/pg_restore):
+ * PATH/locale plus the libpq connection variables. Mirrors the backup
+ * family's `buildChildEnv` semantics. `DATABASE_URL` is deliberately NOT
+ * forwarded — connection config travels in the `--dbname` argv value, and
+ * the parent's DATABASE_URL names the SOURCE database, which must never leak
+ * into a child that might otherwise connect to the wrong database.
+ */
+const RESTORE_CHILD_ENV_KEYS = [
+  "PATH",
+  "HOME",
+  "TMPDIR",
+  "LANG",
+  "LC_ALL",
+  "LC_CTYPE",
+  "PGHOST",
+  "PGPORT",
+  "PGDATABASE",
+  "PGUSER",
+  "PGPASSWORD",
+  "PGPASSFILE",
+  "PGSSLMODE",
+  "PGSSLROOTCERT",
+  "PGCONNECT_TIMEOUT",
+  "PGSERVICE",
+  "PGSERVICEFILE",
+  "PGAPPNAME",
+] as const;
+
+/**
+ * Explicit child environment: an allowlist from `source`, merged with
+ * `extra` (the per-request passthrough). Never hands the full parent
+ * environment — and with it unrelated secrets — to a child process.
+ */
+export function buildRestoreChildEnv(
+  source: Record<string, string | undefined> = process.env,
+  extra: Record<string, string | undefined> = {}
+): Record<string, string> {
+  const env: Record<string, string> = {};
+  for (const key of RESTORE_CHILD_ENV_KEYS) {
+    const value = source[key];
+    if (value !== undefined) {
+      env[key] = value;
+    }
+  }
+  for (const [key, value] of Object.entries(extra)) {
+    if (value !== undefined) {
+      env[key] = value;
+    }
+  }
+  return env;
+}
+
+/** Default spawn implementation: argv-array `Bun.spawn`, piped stdio, allowlisted env. */
 export const defaultSpawnRunner: SpawnRunner = async request => {
   const child = Bun.spawn([request.cmd, ...request.args], {
     stdin: "ignore",
     stdout: "pipe",
     stderr: "pipe",
-    env: { ...process.env, ...request.env },
+    env: buildRestoreChildEnv(process.env, request.env),
   });
 
   const [stdout, stderr, exitCode] = await Promise.all([
@@ -87,8 +151,13 @@ export interface PsqlOutcome {
 /** Injectable read-only psql runner bound to one connection string. */
 export type PsqlRunner = (sql: string) => Promise<PsqlOutcome>;
 
-/** psql argv prefix shared by every read-only query (tuples-only, unaligned, fail on error). */
-const PSQL_ARGS = ["--no-psqlrc", "--tuples-only", "--no-align", "--set=ON_ERROR_STOP=1"];
+/**
+ * psql argv prefix shared by every read-only query (tuples-only, unaligned,
+ * fail on error). `VERBOSITY=verbose` puts the SQLSTATE (e.g. `42P01`) into
+ * stderr — the restore oracle evaluator gates the migrations-absence ladder
+ * on that exact code, so it must be observable on real psql errors.
+ */
+const PSQL_ARGS = ["--no-psqlrc", "--tuples-only", "--no-align", "--set=ON_ERROR_STOP=1", "--set=VERBOSITY=verbose"];
 
 /**
  * Builds a psql runner bound to the given connection string. The DSN is
@@ -108,22 +177,6 @@ export function makePsqlRunner(spawn: SpawnRunner, dsn: string): PsqlRunner {
 // ---------------------------------------------------------------------------
 // Credential redaction
 // ---------------------------------------------------------------------------
-
-const DSN_URL_CREDENTIALS_PATTERN = /([a-z][a-z0-9+.-]{0,20}:\/\/[^:/\s]+:)[^@/\s]+@/gi;
-const URL_QUERY_SECRET_PATTERN = /([?&](?:password|sslpassword|passfile)=)[^&\s]+/gi;
-const PGPASSWORD_ENV_PATTERN = /(PGPASSWORD=)[^\s&"']+/g;
-
-/**
- * Scrubs credentials from arbitrary output before it reaches stdout/stderr.
- * Applied to every error path so a stack or stderr tail can never leak a
- * connection string password.
- */
-export function scrubDsnSecrets(text: string): string {
-  return text
-    .replace(DSN_URL_CREDENTIALS_PATTERN, "$1***@")
-    .replace(URL_QUERY_SECRET_PATTERN, "$1***")
-    .replace(PGPASSWORD_ENV_PATTERN, "$1***");
-}
 
 /**
  * Redacted target identifier for reports: the database name ONLY — host,
@@ -149,38 +202,8 @@ export function redactTargetDatabaseName(dsn: string): string {
 }
 
 // ---------------------------------------------------------------------------
-// Artifact hashing
-// ---------------------------------------------------------------------------
-
-/** Streams the artifact so multi-GB dumps are hashed without buffering. */
-export function sha256File(filePath: string): Promise<string> {
-  return new Promise((resolveHash, rejectHash) => {
-    const hash = createHash("sha256");
-    const stream = createReadStream(filePath);
-    stream.on("data", chunk => hash.update(chunk));
-    stream.on("end", () => resolveHash(hash.digest("hex")));
-    stream.on("error", rejectHash);
-  });
-}
-
-// ---------------------------------------------------------------------------
 // Manifest parsing (fail closed)
 // ---------------------------------------------------------------------------
-
-/** Backup manifest contract (mirrors the backup tool's manifest.json). */
-export interface BackupManifest {
-  tool: string;
-  toolVersion: string;
-  postgresServerVersion: string;
-  pgDumpVersion: string;
-  database: string;
-  startedAtUtc: string;
-  finishedAtUtc: string;
-  artifactFile: string;
-  artifactBytes: number;
-  sha256: string;
-  journalHash: string;
-}
 
 /** Thrown when the backup artifact or its manifest cannot be trusted (exit 1). */
 export class RestoreArtifactError extends Error {}
@@ -198,7 +221,9 @@ function requireNonEmptyString(record: Map<string, unknown>, field: string): str
 /**
  * Parses and validates a manifest JSON document. Every field must be
  * present and well-formed (all fields non-empty, `artifactBytes > 0`,
- * `sha256` 64-hex lower-case) — a manifest missing any key fails closed.
+ * `sha256`/`journalHash` 64-hex lower-case — the journalHash sentinel
+ * {@link MIGRATIONS_ABSENT_HASH} satisfies that shape) — a manifest missing
+ * any key fails closed.
  */
 export function parseBackupManifest(raw: string): BackupManifest {
   let source: unknown;
@@ -224,8 +249,8 @@ export function parseBackupManifest(raw: string): BackupManifest {
   }
 
   const journalHash = requireNonEmptyString(record, "journalHash");
-  if (journalHash !== MIGRATIONS_ABSENT_HASH && !HEX_64_PATTERN.test(journalHash)) {
-    throw new RestoreArtifactError(`manifest field "journalHash" is neither 64-hex nor "${MIGRATIONS_ABSENT_HASH}"`);
+  if (!HEX_64_PATTERN.test(journalHash)) {
+    throw new RestoreArtifactError('manifest field "journalHash" is not lower-case 64-hex');
   }
 
   const artifactBytes = record.get("artifactBytes");
@@ -234,7 +259,7 @@ export function parseBackupManifest(raw: string): BackupManifest {
   }
 
   return {
-    tool,
+    tool: "ops:db-backup",
     toolVersion: requireNonEmptyString(record, "toolVersion"),
     postgresServerVersion: requireNonEmptyString(record, "postgresServerVersion"),
     pgDumpVersion: requireNonEmptyString(record, "pgDumpVersion"),
@@ -276,7 +301,9 @@ export function resolveRunArtifact(fromPath: string): ResolvedArtifact {
     throw new RestoreArtifactError(`--from path does not exist or is unreadable: ${fromPath}`);
   }
 
-  const manifestPath = stats.isDirectory() ? join(fromPath, MANIFEST_FILE) : join(fromPath, "..", MANIFEST_FILE);
+  const manifestPath = stats.isDirectory()
+    ? join(fromPath, MANIFEST_FILE_NAME)
+    : join(fromPath, "..", MANIFEST_FILE_NAME);
 
   let rawManifest: string;
   try {

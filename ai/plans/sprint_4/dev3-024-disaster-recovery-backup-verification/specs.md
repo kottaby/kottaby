@@ -123,7 +123,7 @@ Every capability claimed in this spec was checked against the filesystem BEFORE 
 **User Story:** As the Platform Operator, I want every backup to carry a machine-readable manifest, so that restores are verifiable and an off-site uploader (D-003) can be added later without changing the producer.
 
 #### Acceptance Criteria
-1. WHEN a backup completes THEN the system SHALL write `manifest.json` into the run directory containing: `tool` name, `toolVersion`, `postgresServerVersion`, `pgDumpVersion`, `database` (name only), `startedAtUtc`, `finishedAtUtc`, `artifactFile`, `artifactBytes`, `sha256`, and `journalHash` (SHA-256 over `backend/drizzle/` journal listing).
+1. WHEN a backup completes THEN the system SHALL write `manifest.json` into the run directory containing: `tool` name, `toolVersion`, `postgresServerVersion`, `pgDumpVersion`, `database` (name only), `startedAtUtc`, `finishedAtUtc`, `artifactFile`, `artifactBytes`, `sha256`, and `journalHash` (sha256 over the terminal migration's SQL content per the repo's migration folder — drizzle-orm readMigrationFiles semantics; corresponds to the trailing `__drizzle_migrations.hash`).
 2. WHEN the manifest is written THEN host, user, and password portions of the DSN SHALL be redacted in every field (REQ-030).
 3. IF manifest writing fails THEN the backup run SHALL be reported as failed (exit 2) — an unverifiable backup is not a backup.
 4. WHEN a manifest exists THEN its JSON SHALL round-trip parse in tests (schema-shape assertion).

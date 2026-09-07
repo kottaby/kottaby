@@ -33,9 +33,9 @@
  *   bun run scripts/ops/backup-database.ts [--env <env-file>] [--out-dir <dir>]
  *
  * Exit codes: 0 = backup published (artifact + manifest written);
- * 1 = operational failure (pg_dump error, empty/missing artifact, unexpected
- * error); 2 = usage, environment, toolchain, lock-contention, or
- * manifest-write failure.
+ * 1 = operational failure (pg_dump error, empty/missing artifact, manifest
+ * contract violation, unexpected error); 2 = usage, environment, toolchain,
+ * lock-contention, or manifest-write failure.
  */
 
 import { mkdirSync, renameSync } from "node:fs";
@@ -49,6 +49,7 @@ import {
   createStagingDir,
   isLikelyNonDisposable,
   listLeftoverStagingDirs,
+  manifestProblems,
   nextAvailableRunDirName,
   sha256File,
   utcStamp,
@@ -207,8 +208,9 @@ function acquireBackupLock(outDir: string, deps: BackupRunDeps): boolean {
     return false;
   }
   if (!acquired.ok) {
+    const holder = acquired.holderPid === null ? "unknown holder" : `pid ${acquired.holderPid}`;
     deps.emit.error(
-      `[env] another backup holds the run lock (pid ${acquired.holderPid}) — live locks are never stolen; retry once that run finishes`
+      `[env] another backup holds the run lock (${holder}) — live locks are never stolen; retry once that run finishes`
     );
     return false;
   }
@@ -262,9 +264,7 @@ async function publishBackup(ctx: BackupRunContext): Promise<number> {
       ctx.deps.emit.error(`[env] ${probe.message}`);
       return 2;
     }
-    ctx.deps.emit.log(
-      `[backup] toolchain ok — client: ${probe.pgDumpVersion} / server: ${probe.postgresServerVersion}`
-    );
+    ctx.deps.emit.log(`toolchain ok — client: ${probe.pgDumpVersion} / server: ${probe.postgresServerVersion}`);
 
     for (const leftover of listLeftoverStagingDirs(ctx.outDir)) {
       ctx.deps.emit.error(
@@ -275,7 +275,7 @@ async function publishBackup(ctx: BackupRunContext): Promise<number> {
     stagingDir = createStagingDir(ctx.outDir, ctx.deps.pid, ctx.stamp);
     const artifactPath = join(stagingDir, ARTIFACT_FILE_NAME);
 
-    ctx.deps.emit.log(`[backup] running pg_dump (custom format) into ${stagingDir}`);
+    ctx.deps.emit.log(`running pg_dump (custom format) into ${stagingDir}`);
     const dump = await runPgDump(ctx.deps.spawn, buildChildEnv(), artifactPath, ctx.dsn);
     if (!dump.ok) {
       return fail("pg_dump", dump.message, 1);
@@ -302,6 +302,13 @@ async function publishBackup(ctx: BackupRunContext): Promise<number> {
       sha256,
       journalHash,
     });
+    // The manifest validator runs on the PRODUCTION path, not just in tests:
+    // a manifest that violates its own contract is a failed run.
+    const manifestProblemsFound = manifestProblems(manifest);
+    if (manifestProblemsFound.length > 0) {
+      return fail("backup", `built manifest failed validation: ${manifestProblemsFound.join("; ")}`, 1);
+    }
+
     try {
       writeManifestFile(stagingDir, manifest);
     } catch (writeError) {
@@ -317,7 +324,7 @@ async function publishBackup(ctx: BackupRunContext): Promise<number> {
     stagingDir = null;
 
     ctx.deps.emit.log(
-      `[backup] backup complete: ${runPath} — artifact ${ARTIFACT_FILE_NAME} (${dump.artifactBytes} bytes, sha256 ${sha256})`
+      `backup complete: ${runPath} — artifact ${ARTIFACT_FILE_NAME} (${dump.artifactBytes} bytes, sha256 ${sha256})`
     );
     return 0;
   } catch (error) {
@@ -358,7 +365,7 @@ export async function runBackup(options: RunBackupOptions): Promise<number> {
     stamp: utcStamp(startedAt),
   };
   try {
-    deps.emit.log(`[backup] backing up ${redactDsn(ctx.dsn)} (env: ${options.envFile})`);
+    deps.emit.log(`backing up ${redactDsn(ctx.dsn)} (env: ${options.envFile})`);
     return await publishBackup(ctx);
   } finally {
     releaseRunLock(outDir, deps.pid);

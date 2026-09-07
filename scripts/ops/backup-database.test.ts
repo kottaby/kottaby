@@ -26,6 +26,7 @@ import {
   isLikelyNonDisposable,
   listLeftoverStagingDirs,
   MANIFEST_FILE_NAME,
+  MIGRATIONS_ABSENT_HASH,
   manifestProblems,
   nextAvailableRunDirName,
   STAGING_DIR_PREFIX,
@@ -170,15 +171,20 @@ function validManifestInput(): Omit<BackupManifest, "tool"> {
   };
 }
 
-function buildJournalTree(dir: string, initSql: string, journalJson: string): void {
-  mkdirSync(join(dir, "meta"), { recursive: true });
-  writeFileSync(join(dir, "0000_init.sql"), initSql);
-  writeFileSync(join(dir, "meta", "_journal.json"), journalJson);
+/**
+ * Builds a Drizzle journal folder in the layout the installed drizzle-orm
+ * migrator reads: one `<timestamp>_<name>/migration.sql` per migration (the
+ * migrator derives each stored hash from that file's full content; there is
+ * no `meta/_journal.json` in this layout).
+ */
+function buildJournalTree(dir: string, initSql: string): void {
+  mkdirSync(join(dir, "00000000000000_init"), { recursive: true });
+  writeFileSync(join(dir, "00000000000000_init", "migration.sql"), initSql);
 }
 
 beforeAll(() => {
   workspace = mkdtempSync(join(process.cwd(), ".tmp-backup-test-"));
-  buildJournalTree(join(workspace, "backend", "drizzle"), "CREATE TABLE probe (id integer);\n", '{"entries":[]}\n');
+  buildJournalTree(join(workspace, "backend", "drizzle"), "CREATE TABLE probe (id integer);\n");
   goodEnvFile = writeEnvFile(".env-backup-good", `DATABASE_URL=${FIXTURE_DSN}\n`);
   sqliteEnvFile = writeEnvFile(".env-backup-sqlite", "DATABASE_URL=file:./dev.db\n");
   placeholderEnvFile = writeEnvFile(
@@ -394,7 +400,7 @@ describe("run lock lifecycle", () => {
       reclaimedPaths: [],
       liveHolderPids: [FAKE_PID],
     });
-    expect(acquireRunLock(outDir, FAKE_PID, () => true)).toEqual({ ok: false, holderPid: FAKE_PID });
+    expect(acquireRunLock(outDir, FAKE_PID, () => true)).toEqual({ ok: false, holderPid: null });
     const aged = new Date(Date.now() - 120_000);
     utimesSync(selfLock, aged, aged);
     expect(scanRunLocks(outDir, FAKE_PID, () => true)).toEqual({
@@ -403,6 +409,20 @@ describe("run lock lifecycle", () => {
       liveHolderPids: [],
     });
     expect(acquireRunLock(outDir, FAKE_PID, () => true).ok).toBe(true);
+  });
+
+  it("reports an EEXIST race holder as unknown, never selfPid", () => {
+    const outDir = join(workspace, "lock-eexist-race");
+    mkdirSync(outDir, { recursive: true });
+    // A stale self-pid "lock" that cannot be reclaimed (a directory
+    // masquerading as the lock file) drives the exclusive create into EEXIST;
+    // the reported holder must never be selfPid.
+    mkdirSync(lockFilePath(outDir, FAKE_PID));
+    const aged = new Date(Date.now() - 120_000);
+    utimesSync(lockFilePath(outDir, FAKE_PID), aged, aged);
+    const acquired = acquireRunLock(outDir, FAKE_PID, () => false);
+    expect(acquired.ok).toBe(false);
+    expect(acquired.ok ? null : acquired.holderPid).toBeNull();
   });
 
   it("classifies live vs dead holder pids in a mixed directory", () => {
@@ -505,16 +525,34 @@ describe("hashing and artifact helpers", () => {
     expect(await sha256File(filePath)).toBe(createHash("sha256").update("").digest("hex"));
   });
 
-  it("fingerprints the journal deterministically and reacts to content changes", () => {
+  it("derives the trailing migration hash exactly as drizzle-orm readMigrationFiles does", () => {
     const dirA = join(workspace, "journal-a");
     const dirB = join(workspace, "journal-b");
-    buildJournalTree(dirA, "CREATE TABLE a (id integer);", '{"entries":[]}\n');
-    buildJournalTree(dirB, "CREATE TABLE a (id integer);", '{"entries":[]}\n');
+    buildJournalTree(dirA, "CREATE TABLE a (id integer);");
+    buildJournalTree(dirB, "CREATE TABLE a (id integer);");
     const hashA = computeJournalHash(dirA);
     expect(hashA).toBe(computeJournalHash(dirA));
     expect(hashA).toBe(computeJournalHash(dirB));
-    writeFileSync(join(dirB, "meta", "_journal.json"), '{"entries":[{"tag":"0001"}]}\n');
-    expect(computeJournalHash(dirB)).not.toBe(hashA);
+    // The stored __drizzle_migrations.hash of a migration IS the SHA-256 of
+    // its full migration.sql content — the manifest must carry that value.
+    expect(hashA).toBe(createHash("sha256").update("CREATE TABLE a (id integer);").digest("hex"));
+    // A later journal folder becomes the trailing migration and moves the hash.
+    mkdirSync(join(dirB, "20260102000000_next"), { recursive: true });
+    writeFileSync(join(dirB, "20260102000000_next", "migration.sql"), "ALTER TABLE a ADD COLUMN c text;");
+    const hashB = computeJournalHash(dirB);
+    expect(hashB).not.toBe(hashA);
+    expect(hashB).toBe(createHash("sha256").update("ALTER TABLE a ADD COLUMN c text;").digest("hex"));
+    // A folder without migration.sql is not a migration (readMigrationFiles
+    // skips it), so the trailing hash is unchanged.
+    mkdirSync(join(dirB, "20260103000000_empty"), { recursive: true });
+    expect(computeJournalHash(dirB)).toBe(hashB);
+  });
+
+  it("returns the migrations-absent sentinel for a journal with no migrations", () => {
+    const emptyDir = join(workspace, "journal-empty");
+    mkdirSync(emptyDir, { recursive: true });
+    expect(computeJournalHash(emptyDir)).toBe(MIGRATIONS_ABSENT_HASH);
+    expect(computeJournalHash(emptyDir)).toMatch(/^[0-9a-f]{64}$/);
   });
 
   it("throws when the journal directory is missing", () => {
@@ -961,6 +999,18 @@ describe("runBackup — failure boundaries", () => {
     expect(run.errors.some(line => line.includes("another backup holds the run lock (pid 777)"))).toBe(true);
     expect(existsSync(lockFilePath(outDir, 777))).toBe(true);
     expect(readdirSync(outDir).filter(name => name.startsWith(STAMP))).toEqual([]);
+  });
+
+  it("exits 2 with an unknown-holder message when the holder pid is undiscoverable", async () => {
+    const outDir = join(workspace, "run-lock-unknown-holder");
+    mkdirSync(outDir, { recursive: true });
+    // A fresh self-pid lock (reused pid / in-process concurrency) is refused,
+    // but selfPid is never reported as the "other" holder.
+    writeFileSync(lockFilePath(outDir, FAKE_PID), "self-fresh\n");
+    const run = await runBackupWith(probeAndDumpBehavior(dumpWritesArtifact), { envFile: goodEnvFile, outDir });
+    expect(run.code).toBe(2);
+    expect(run.errors.some(line => line.includes("another backup holds the run lock (unknown holder)"))).toBe(true);
+    expect(run.all).not.toContain(`pid ${FAKE_PID}`);
   });
 
   it("exits 2 when the output directory cannot be created", async () => {

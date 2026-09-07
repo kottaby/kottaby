@@ -10,13 +10,9 @@
 import { chmodSync, mkdirSync, writeFileSync } from "node:fs";
 import { basename, isAbsolute, join, resolve } from "node:path";
 
+import { scrubDsnSecrets } from "@/scripts/ops/_shared";
 import type { OracleResult } from "@/scripts/ops/restore-oracles";
-import {
-  type PsqlRunner,
-  RESTORE_REPORT_FILE,
-  type RESTORE_TOOL_ID,
-  scrubDsnSecrets,
-} from "@/scripts/ops/restore-shared";
+import { type PsqlRunner, RESTORE_REPORT_FILE, type RESTORE_TOOL_ID } from "@/scripts/ops/restore-shared";
 
 /** Tables whose row counts are proven individually after the restore (the financial and governance critical set). */
 export const CRITICAL_TABLES = [
@@ -100,6 +96,16 @@ async function checkTable(
   const targetRows = parseCount(targetCount);
   const rowCount = targetRows ?? -1;
 
+  // FAIL CLOSED: an unverifiable count on a PRESENT critical table must fail
+  // the row (and the verdict) — "could not count" is never "zero problems".
+  // The error detail is recorded on the report's stderr/log channel; the
+  // StructuralCheckRow contract keeps its {table, present, rowCount,
+  // sourceNonEmpty, ok} shape (rowCount: -1 marks the unverifiable count).
+  if (targetRows === null && present) {
+    const detail = scrubDsnSecrets(targetCount.stderr).trim() || "(no stderr captured)";
+    warn(`[verify] row count query failed for "${table}" (count unverifiable): ${detail}`);
+  }
+
   let sourceNonEmpty = false;
   if (sourceCount !== null) {
     const sourceRows = parseCount(sourceCount);
@@ -117,7 +123,7 @@ async function checkTable(
     present,
     rowCount,
     sourceNonEmpty,
-    ok: present && (rowCount > 0 || !sourceNonEmpty),
+    ok: present && rowCount >= 0 && (rowCount > 0 || !sourceNonEmpty),
   };
 }
 
