@@ -449,7 +449,7 @@ The ONLY instruction files that exist are `.agents/instructions/frontend.instruc
 
 ## Phase 5: Integration & Differential Testing
 
-- [ ] 5.1 [GraphQL wire suite — scope matrix, smuggle probes, null-collapse byte identity]
+- [x] 5.1 [GraphQL wire suite — scope matrix, smuggle probes, null-collapse byte identity]
   - Create/extend the wire-suite file (location per GraphQL test conventions recorded in 0.2, e.g. `backend/graphql/test/classes/session-report.wire.test.ts`):
     - **Auth matrix (pre-resolver):** anonymous mutation → 401 envelope; student/parent/admin mutation → 403 envelope; anonymous queries → 401. Each asserts single-error envelope parity (exactly one error, expected `extensions.code`, no data leakage in message).
     - **Closed-input smuggle probes:** submit with extraneous top-level input fields (`id`, `sessionId`, `teacherId`, `createdAt`, grades at assignment level) → `GRAPHQL_VALIDATION_FAILED` pre-resolver; unknown query fields rejected.
@@ -466,7 +466,7 @@ The ONLY instruction files that exist are `.agents/instructions/frontend.instruc
   - [ ] 5.1.SR **Semantic Review**: no mocked services (wire tests hit the real stack with test-DB fixtures); envelope helper reused (no ad-hoc parsing).
   - [ ] 5.1.IV **Instruction Verification**: as 2.2.IV.
 
-- [ ] 5.2 [Differential regression & coverage gate]
+- [x] 5.2 [Differential regression & coverage gate]
   - Run the FULL affected suites and capture results:
     - `bun run test/scripts/run-test.ts backend/db/repo` (all repository suites incl. pre-existing session suite — zero regressions).
     - `bun run test/scripts/run-test.ts backend/services/classes` (all service suites incl. pre-existing lifecycle suite — zero regressions).

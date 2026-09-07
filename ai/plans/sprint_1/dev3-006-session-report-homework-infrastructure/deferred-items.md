@@ -21,6 +21,7 @@ This ledger tracks all work deferred from one task to another to ensure no defer
 | D3 | Teacher report submission/browsing UX (submit form, report views) | specs §Traceability | DEV2-014 | 📅 Forward (DEFERRED) | — | This ticket ships typed GraphQL documents only. |
 | D4 | Aggregating `teacher.average_rating` from `reports.student_rating_by_teacher` | specs §Traceability | DEV2-017 | 📅 Forward (DEFERRED) | — | Owner: DEV2-017 rating aggregation. |
 | D5 | Edit/amend/void semantics for submitted reports (compensating-artifact flow; append-only by design here) | specs §Traceability | future ticket | 📅 Forward (DEFERRED) | — | Submission is append-only truth (D10 of plan.md). |
+| Wire-Suite-CI | GraphQL wire-suite EXECUTION (suite authored + structurally verified; runner skips all GraphQL suites under DB_PROVIDER=pglite by design — runs in CI with real postgres) | 5.1 | CI environment | 📅 Forward (environmental) | orchestrator | Non-blocking: in-sandbox compensating controls listed in outcome/5.1-outcome.md |
 
 ---
 
