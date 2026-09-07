@@ -464,8 +464,11 @@ afterAll(async () => {
     if (fixtureSessionIds.length > 0) {
       expect(await db.$count(session, inArray(session.id, fixtureSessionIds))).toBe(0);
     }
-    for (const key of bookingKeys) {
-      expect(await db.$count(sessionRequestIdempotency, eq(sessionRequestIdempotency.idempotencyKey, key))).toBe(0);
+    const claimCounts = await Promise.all(
+      bookingKeys.map(key => db.$count(sessionRequestIdempotency, eq(sessionRequestIdempotency.idempotencyKey, key)))
+    );
+    for (const count of claimCounts) {
+      expect(count).toBe(0);
     }
   }
 });
