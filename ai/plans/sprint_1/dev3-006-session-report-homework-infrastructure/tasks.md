@@ -167,7 +167,7 @@ The ONLY instruction files that exist are `.agents/instructions/frontend.instruc
 
 > Journey test is TEST-FIRST: task 2.1 is written and committed RED before any service-surface implementation. Repository tasks (2.2–2.4) provide the substrate the journey will call through; the service surface (2.6–2.8) must not begin before 2.1's RED run is recorded.
 
-- [ ] 2.1 [Write session-report/homework journey test — TEST-FIRST]
+- [x] 2.1 [Write session-report/homework journey test — TEST-FIRST]
   - Create `test/workflows/classes/session-report-homework.journey.test.ts` — one file covering the specs §2.9 workflow (steps 1–11 verbatim).
   - If `test/workflows/` scaffolding is missing (per 0.2 verification), this task ALSO scaffolds the layer per Architectural Invariant 10: `test/workflows/AGENTS.md` + `test/workflows/helpers/` cast helpers with REAL permission-group membership rows (never monkey-patched permission resolution) + `SpiedFanoutTransport` for notifications.
   - Provision actor cast (committed fixtures in `beforeAll`, tracked IDs, hard-delete in `afterAll` — `runInRollback` FORBIDDEN):
@@ -193,7 +193,7 @@ The ONLY instruction files that exist are `.agents/instructions/frontend.instruc
   - Instruction files: `.agents/instructions/tests.instructions.md`, `.agents/instructions/backend.instructions.md`; `test/workflows/AGENTS.md` (create per invariant 10 if scaffolding).
   - _Requirements: REQ-062, REQ-013, REQ-018, REQ-030, REQ-040, REQ-041, REQ-044, INV-S7, INV-S8, INV-HW3, INV-HW4, INV-P1, INV-S3_
 
-- [ ] 2.2 [Implement ReportRepository]
+- [x] 2.2 [Implement ReportRepository]
   - Create `backend/db/repo/classes/report.repository.ts`:
     - `insertReport(insert: ReportInsertType, tx?: DBTransaction): Promise<ReportSelectType>` — single `INSERT … RETURNING *`; plain tx-bound call.
     - `findBySessionId(sessionId: number, tx?: DBQueryExecutor): Promise<ReportSelectType | null>` — single parameterized id-equality read; Drizzle Prepared Statements 2.0 (`sql.placeholder(...)`) permitted per `docs/drizzle/prepared-statements.md` for this simple-read shape.
@@ -214,7 +214,7 @@ The ONLY instruction files that exist are `.agents/instructions/frontend.instruc
   - [ ] 2.2.SR **Semantic Review**: atomic single statements; `tx` last-arg convention uniform; zero dead code; naming matches existing repositories in the folder; no console logging.
   - [ ] 2.2.IV **Instruction Verification**: validate against `.agents/instructions/backend.instructions.md` + layer AGENTS.md auto-discovered by `scripts/health/sub-loop.ts` (paste discovery output into outcome).
 
-- [ ] 2.3 [Implement HomeWorkRepository]
+- [x] 2.3 [Implement HomeWorkRepository]
   - Create `backend/db/repo/classes/home-work.repository.ts`:
     - `insertHomeWork(insert: HomeWorkInsertType, tx?: DBTransaction): Promise<HomeWorkSelectType>` — INSERT … RETURNING; grades may be NULL (1.2 relaxation) — assignment-without-grade MUST be storeable (INV-HW3).
     - `findBySessionId(sessionId: number, tx?: DBQueryExecutor): Promise<HomeWorkSelectType | null>`.
@@ -235,7 +235,7 @@ The ONLY instruction files that exist are `.agents/instructions/frontend.instruc
   - [ ] 2.3.SR **Semantic Review**: three-read/one-write API surface minimal; no helper exported that is unneeded by 2.8's service (YAGNI — flag and remove any speculative method); exact plan §4.1 signature conformance.
   - [ ] 2.3.IV **Instruction Verification**: as 2.2.IV.
 
-- [ ] 2.4 [Extend SessionRepository — report-gate lock + wave-context read]
+- [x] 2.4 [Extend SessionRepository] — report-gate lock + wave-context read]
   - UPDATE `backend/db/repo/classes/session.repository.ts` (ADD ONLY — existing methods untouched):
     - `lockForReportGate(sessionId: number, tx: DBTransaction): Promise<SessionTransitionProbeRowType | null>` — `SELECT id, status, teacher_id, student_id FROM session WHERE id = $1 FOR UPDATE` (tx REQUIRED — no optional fallback; the probe row type reuses the EXISTING transition-probe row type, augmented only if its current shape lacks a needed column — record what it actually selects in 0.2 and add a column ONLY if provably missing).
     - `findReportWaveContextById(sessionId: number, tx?: DBTransaction): Promise<SessionReportWaveContextRow | null>` — one joined read: session → users(student) [id, full name, locale] + users(teacher) [id, full name, locale] + `students.parent_id` → LEFT JOIN users(parent) [id, full name, locale]. Column choices must match real schema columns verified in 0.2 (name/locale column existence CONFIRMED — if users lack a locale column, resolve the recipient-locale source from the actual schema and record the deviation decision in the outcome + plan note).
@@ -262,7 +262,7 @@ The ONLY instruction files that exist are `.agents/instructions/frontend.instruc
   - Write `ai/plans/sprint_1/dev3-006-session-report-homework-infrastructure/outcome/2.M-midpoint-gate.md` with a GO/NO-GO verdict; NO-GO blocks 2.5+.
   - _Requirements: REQ-001, REQ-041_
 
-- [ ] 2.5 [Implement session-report guards module (pure validators)]
+- [x] 2.5 [Implement session-report guards module (pure validators)]
   - Create `backend/services/classes/session-report.guards.ts` — pure functions, ZERO DB access, errors thrown as localized `ValidationError`s using `getServerTranslations(locale)` (ONE argument):
     - `assertPositiveSessionId(id: unknown, t): asserts id is number` — positive safe-integer (pattern from the session-lifecycle guards — record the actual existing id-guard helper found in 0.2 and REUSE it if exported; do not duplicate).
     - `assertTeacherNotes(notes: string, t): string` — trim; non-empty-after-trim; ≤ 2000 chars; returns the TRIMMED value (stored verbatim otherwise, REQ-033).

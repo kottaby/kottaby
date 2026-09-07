@@ -25,11 +25,13 @@ import { count, desc, eq, type SQL, sql } from "drizzle-orm";
 import { alias, PgDialect } from "drizzle-orm/pg-core";
 import { queryDb } from "@/backend/db";
 import { session } from "@/backend/db/schema/classes/session";
+import { students } from "@/backend/db/schema/students/students";
 import { users } from "@/backend/db/schema/users/users";
 import { SessionStatus } from "@/backend/enum/scheduling/session-status.enum";
 import type {
   DBTransaction,
   SessionListFilterInput,
+  SessionReportWaveContextRow,
   SessionSelectType,
   SessionTransitionProbeRowType,
   SessionWaveContextRow,
@@ -252,6 +254,9 @@ async function countAdminDisputed(tx?: DBTransaction): Promise<number> {
 const waveStudentUser = alias(users, "wave_student_user");
 const waveTeacherUser = alias(users, "wave_teacher_user");
 
+/** Aliased `users` handle for the report wave's optional parent participant. */
+const reportParentUser = alias(users, "report_parent_user");
+
 /**
  * ONE joined read of the session-request wave context: the session's `id`
  * + raw `intent` (STILL untrusted storage — validating it is the service
@@ -295,10 +300,63 @@ async function findWaveContextById(id: number, tx?: DBTransaction): Promise<Sess
   return result.rows[0] ?? null;
 }
 
+/**
+ * ONE joined read of the report wave context: BOTH participants'
+ * `userId`/`fullName`/`locale` together with the student's LINKED PARENT
+ * (via `students.parent_id`, LEFT JOINed — `parent_id` is a nullable FK
+ * onto `users.id` with ON DELETE SET NULL, so an unlinked student yields a
+ * `null` parent leg: the parent participant can never be fabricated by a
+ * caller). This is
+ * exactly the recipient set the report notification emitters need, and
+ * nothing else. Both participant legs resolve through INNER JOINs
+ * (`student_id`/`teacher_id` are NOT NULL FKs sharing the `users.id` PK),
+ * so a miss on the `session` side yields no row and maps to `null`.
+ */
+async function findReportWaveContextById(id: number, tx?: DBTransaction): Promise<SessionReportWaveContextRow | null> {
+  if (tx) {
+    const rows = await tx
+      .select({
+        sessionId: session.id,
+        studentUserId: waveStudentUser.id,
+        studentFullName: waveStudentUser.fullName,
+        studentLocale: waveStudentUser.locale,
+        teacherUserId: waveTeacherUser.id,
+        teacherFullName: waveTeacherUser.fullName,
+        teacherLocale: waveTeacherUser.locale,
+        parentUserId: reportParentUser.id,
+        parentFullName: reportParentUser.fullName,
+        parentLocale: reportParentUser.locale,
+      })
+      .from(session)
+      .innerJoin(waveStudentUser, eq(waveStudentUser.id, session.studentId))
+      .innerJoin(waveTeacherUser, eq(waveTeacherUser.id, session.teacherId))
+      .innerJoin(students, eq(students.id, session.studentId))
+      .leftJoin(reportParentUser, eq(reportParentUser.id, students.parentId))
+      .where(eq(session.id, id))
+      .limit(1);
+    return rows[0] ?? null;
+  }
+  const result = await queryDb<SessionReportWaveContextRow>(
+    `SELECT s.id AS "sessionId",
+            su.id AS "studentUserId", su.full_name AS "studentFullName", su.locale AS "studentLocale",
+            tu.id AS "teacherUserId", tu.full_name AS "teacherFullName", tu.locale AS "teacherLocale",
+            pu.id AS "parentUserId", pu.full_name AS "parentFullName", pu.locale AS "parentLocale"
+     FROM session s
+     JOIN students st ON st.id = s.student_id
+     JOIN users su ON su.id = s.student_id
+     JOIN users tu ON tu.id = s.teacher_id
+     LEFT JOIN users pu ON pu.id = st.parent_id
+     WHERE s.id = $1 LIMIT 1`,
+    [id]
+  );
+  return result.rows[0] ?? null;
+}
+
 export {
   countAdminDisputed,
   countParticipantSessions,
   findById,
+  findReportWaveContextById,
   findTransitionProbe,
   findWaveContextById,
   listAdminDisputed,

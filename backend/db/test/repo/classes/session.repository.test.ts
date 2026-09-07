@@ -31,6 +31,12 @@
  *    re-armed; cancelled rows keep `startedAt`, never gain `endedAt`, and
  *    keep the provenance lane for the refund; the cancel reason and the
  *    dispute reason/note persist inside their own guarded statements).
+ *    The report-gate additions follow the same rules: `lockForReportGate`
+ *    returns the five-column probe under the row lock (null for unknown
+ *    ids), and `findReportWaveContextById` returns the three-participant
+ *    projection — student, teacher, and the LINKED parent only (a null
+ *    parent leg for an unlinked student, exactly the recipient set the
+ *    report notification seam needs).
  *  - Tier 2 (pagination): newest-first ordering (`created_at DESC`) with
  *    the `id DESC` tiebreak for rows created in the same instant; page 1
  *    exact-size; a mid window; an offset past the end yields empty items
@@ -44,7 +50,12 @@
  *    deterministically (cancel is legal from both pre-states, so both
  *    landed transitions stay consistent with the final row). The fused
  *    certification predicate is proven under duplication: a decertified
- *    teacher's completions produce zero winners and zero writes.
+ *    teacher's completions produce zero winners and zero writes. The
+ *    report-gate lock is exercised sequentially (the rollback harness
+ *    owns one connection, so true cross-connection blocking cannot be
+ *    simulated): re-locking the same row inside the writer's transaction
+ *    is re-entrant, and the second probe re-evaluates its predicate
+ *    against the in-transaction row state.
  *  - Tier 4 (security/tenancy/static): INV-S4 NOT NULL constraint probes
  *    (a party-less session row is rejected by the DB — 23502 naming the
  *    column); source pins — the status filter only ever carries
@@ -746,6 +757,94 @@ describe("SessionRepository — transactional paths (runInRollback)", () => {
     });
   });
 
+  test("lockForReportGate returns exactly the probe projection under the row lock, null for unknown ids", async () => {
+    await runInRollback(async tx => {
+      const actors = await createSessionActors(tx);
+      const row = await insertSessionRow(tx, actors);
+      const missingId = await absentSessionId(tx);
+
+      const locked = await SessionRepository.lockForReportGate(row.id, tx);
+
+      expect(locked).not.toBeNull();
+      expect(Object.keys(locked ?? {}).toSorted((a, b) => a.localeCompare(b))).toEqual([
+        "id",
+        "startedAt",
+        "status",
+        "studentId",
+        "teacherId",
+      ]);
+      expect(locked?.id).toBe(row.id);
+      expect(locked?.status).toBe(SessionStatus.Scheduled);
+      expect(locked?.studentId).toBe(actors.studentUserId);
+      expect(locked?.teacherId).toBe(actors.teacherUserId);
+
+      expect(await SessionRepository.lockForReportGate(missingId, tx)).toBeNull();
+    });
+  });
+
+  test("findReportWaveContextById returns student, teacher, and the LINKED parent (three participants)", async () => {
+    await runInRollback(async tx => {
+      const parentUser = await createTestUser(tx, { role: "parent" });
+      const teacherUser = await createTestUser(tx, { role: "teacher" });
+      await createTestTeacherRow(tx, teacherUser.id, true);
+      const studentUser = await createTestUser(tx, { role: "student" });
+      await createTestStudent(tx, studentUser.id, { parentId: parentUser.id });
+      const row = await insertSessionRow(tx, {
+        teacherUserId: teacherUser.id,
+        studentUserId: studentUser.id,
+      });
+
+      const context = await SessionRepository.findReportWaveContextById(row.id, tx);
+
+      expect(context).not.toBeNull();
+      expect(Object.keys(context ?? {}).toSorted((a, b) => a.localeCompare(b))).toEqual([
+        "parentFullName",
+        "parentLocale",
+        "parentUserId",
+        "sessionId",
+        "studentFullName",
+        "studentLocale",
+        "studentUserId",
+        "teacherFullName",
+        "teacherLocale",
+        "teacherUserId",
+      ]);
+      expect(context?.sessionId).toBe(row.id);
+      expect(context?.studentUserId).toBe(studentUser.id);
+      expect(context?.studentFullName).toBe(studentUser.fullName);
+      expect(context?.teacherUserId).toBe(teacherUser.id);
+      expect(context?.teacherFullName).toBe(teacherUser.fullName);
+      // The linked parent resolves through students.parent_id with the
+      // user's own name — the notification seam's third recipient.
+      expect(context?.parentUserId).toBe(parentUser.id);
+      expect(context?.parentFullName).toBe(parentUser.fullName);
+    });
+  });
+
+  test("findReportWaveContextById yields a null parent leg for an unlinked student (linked-parent-only shape)", async () => {
+    await runInRollback(async tx => {
+      const actors = await createSessionActors(tx);
+      const row = await insertSessionRow(tx, actors);
+
+      const context = await SessionRepository.findReportWaveContextById(row.id, tx);
+
+      expect(context).not.toBeNull();
+      expect(context?.studentUserId).toBe(actors.studentUserId);
+      expect(context?.teacherUserId).toBe(actors.teacherUserId);
+      expect(context?.parentUserId).toBeNull();
+      expect(context?.parentFullName).toBeNull();
+      expect(context?.parentLocale).toBeNull();
+    });
+  });
+
+  test("findReportWaveContextById returns null for an unknown session id", async () => {
+    await runInRollback(async tx => {
+      const missingId = await absentSessionId(tx);
+
+      expect(await SessionRepository.findReportWaveContextById(missingId, tx)).toBeNull();
+    });
+  });
+
   test("listForStudent returns only the student's own rows; listForTeacher mirrors for the teacher", async () => {
     await runInRollback(async tx => {
       const actorsA = await createSessionActors(tx);
@@ -1097,6 +1196,38 @@ describe("SessionRepository — transactional paths (runInRollback)", () => {
     });
   });
 
+  test("the report-gate lock re-entrant probe re-evaluates its predicate against the in-transaction row state", async () => {
+    await runInRollback(async tx => {
+      const actors = await createSessionActors(tx);
+      const row = await insertSessionRow(tx, actors);
+
+      // Harness limitation: `runInRollback` owns ONE connection, so two
+      // transactions contending for the same row lock cannot be created
+      // here (a second connection would see nothing to lock — the row is
+      // uncommitted). The serialized equivalent is asserted instead: the
+      // first gate lock holds the row, the in-transaction transition
+      // lands while the lock is held, and the second lock probe
+      // re-evaluates its predicate against the NEW state — the exact
+      // guarantee a serialized cross-connection contender observes after
+      // blocking on the lock.
+      const first = await SessionRepository.lockForReportGate(row.id, tx);
+      expect(first?.status).toBe(SessionStatus.Scheduled);
+
+      const started = await SessionRepository.startSessionOnce(row.id, actors.teacherUserId, tx);
+      expect(started?.status).toBe(SessionStatus.Started);
+
+      const second = await SessionRepository.lockForReportGate(row.id, tx);
+      expect(second).not.toBeNull();
+      expect(second?.status).toBe(SessionStatus.Started);
+      expect(second?.startedAt).not.toBeNull();
+      // Identity columns are stable across re-evaluation — same row, new
+      // lifecycle basis for the gate decision.
+      expect(second?.id).toBe(row.id);
+      expect(second?.studentId).toBe(actors.studentUserId);
+      expect(second?.teacherId).toBe(actors.teacherUserId);
+    });
+  });
+
   // ─── Tier 4: constraint probes + static pins ────────────────────────
 
   test("INV-S4: a session row without its teacher party is rejected by the NOT NULL constraint (23502)", async () => {
@@ -1268,12 +1399,14 @@ describe("SessionRepository — transactional paths (runInRollback)", () => {
   test("source: executor discipline — reads fall back to queryDb, writes to the pool, tx last on every signature", () => {
     expect(repoSource.includes("const executor = tx ?? db;")).toBe(true);
     expect(repoSource.match(/const executor = tx \?\? db;/g) ?? []).toHaveLength(9);
-    expect(repoSource.match(/queryDb</g) ?? []).toHaveLength(7);
-    // Eighteen exported methods, every one ending in the optional tx (LAST
-    // param); no REQUIRED-tx signature exists in this repository.
-    expect(repoSource.match(/export async function /g) ?? []).toHaveLength(18);
-    expect((repoSource.match(/tx\?: DBTransaction/g) ?? []).length).toBeGreaterThanOrEqual(18);
-    expect(repoSource.includes("tx: DBTransaction")).toBe(false);
+    expect(repoSource.match(/queryDb</g) ?? []).toHaveLength(8);
+    // Twenty exported methods, every one ending in tx (LAST param). Exactly
+    // ONE takes it REQUIRED — the report-gate lock (a FOR UPDATE read taken
+    // outside a transaction releases when the statement ends and protects
+    // nothing); the other nineteen keep the optional tx.
+    expect(repoSource.match(/export async function /g) ?? []).toHaveLength(20);
+    expect((repoSource.match(/tx\?: DBTransaction/g) ?? []).length).toBeGreaterThanOrEqual(19);
+    expect(repoSource.match(/tx: DBTransaction/g) ?? []).toHaveLength(1);
   });
 
   test("source: no i18n, no logger, no console, one namespace", () => {
