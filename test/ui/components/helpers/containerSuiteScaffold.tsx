@@ -91,6 +91,18 @@ export function expectedStamp(iso: string, locale: AppLocale): string {
 }
 
 /**
+ * MUI required-field label matcher — a `required` MUI TextField appends an
+ * aria-hidden asterisk to the visible InputLabel, so an exact-string
+ * `getByLabelText` misses the label association. The returned pattern
+ * matches the label text with an OPTIONAL trailing asterisk (any
+ * whitespace separation) at the standard query-normalizer granularity.
+ */
+export function muiLabelPattern(label: string): RegExp {
+  const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`^${escaped}\\s*\\*?$`);
+}
+
+/**
  * Resolves the MUI severity class of the snackbar Alert currently showing
  * `text` (`MuiAlert-colorSuccess` / `colorError` / `colorInfo` families).
  */
