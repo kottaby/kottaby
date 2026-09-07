@@ -194,7 +194,7 @@
     • Open the notification drawer; click the link-request notification.
     • Assert navigation lands on the student link-requests decision route; assert the pending row is rendered.
     • Iterative self-loop: on any mis-route/no-op, patch the resolution seam and re-test until clean.
-  - [ ] 4.1.BS **Agent-Browser Visual & Styling Self-Loop (Screenshot Analysis):**
+  - [x] 4.1.BS **Agent-Browser Visual & Styling Self-Loop (Screenshot Analysis):**
     • Capture the drawer with the link-request notification at 1440×900 / 768×1024 / 375×812 × en/ar.
     • Inspect: notification row typography/spacing mirrors sibling rows; RTL mirroring correct; no truncation of the entity line; no hardcoded colors.
     • Iterate on `sx` tokens until visually consistent with the drawer baseline.
@@ -221,7 +221,7 @@
     • Click the CTA → assert landing on the student link-requests route; Confirm or Reject from the decision page; return to dashboard → assert the card disappears (post-decision convergence, REQ-016).
     • Seed two parents' pendings → assert count=2 + most-recent requester; force a network error (offline toggle / route abort) → assert localized Alert + working retry.
     • Iterative self-loop: on any interaction/assertion failure, patch code and re-run until clean.
-  - [ ] 4.2.BS **Agent-Browser Visual & Styling Self-Loop (Screenshot Analysis):**
+  - [x] 4.2.BS **Agent-Browser Visual & Styling Self-Loop (Screenshot Analysis):**
     • Capture high-resolution screenshots at Desktop 1440×900, Tablet 768×1024, Mobile 375×812 × English LTR and Arabic RTL (six cells), covering present-1 and present-N states.
     • Visually inspect: MUI v9 theme palette compliance (no hardcoded hex/rgb), typography hierarchy vs `HandshakeCodeCard`, padding/margin rhythm, count-chip wrapping on mobile (wrap above requester line; full-width CTA at 375px), text truncation/overflow of long Arabic names, RTL mirroring (icon/CTA alignment, logical spacing), `dir="auto"` name isolation, dark/light contrast.
     • Iterative self-loop: inspect screenshot → identify UI defect → patch `sx` tokens → re-capture → repeat until visually polished; attach final six-cell screenshot set to the outcome.
@@ -238,7 +238,7 @@
   - [x] 4.3.BF **Agent-Browser Functional Self-Loop:**
     • Login as student → dashboard renders both cards; navigate away/back → no duplicate fetches (Apollo cache); logout/login as teacher → teacher dashboard renders with zero student cards and zero console errors.
     • Iterative self-loop until clean for both roles.
-  - [ ] 4.3.BS **Agent-Browser Visual & Styling Self-Loop (Screenshot Analysis):**
+  - [x] 4.3.BS **Agent-Browser Visual & Styling Self-Loop (Screenshot Analysis):**
     • Capture the full dashboard at the six viewport/locale cells with BOTH cards present: vertical rhythm between cards, stack spacing matches design tokens, no overflow at 375px, RTL order/alignment correct in ar.
     • Iterate on `sx` spacing tokens until the slot composition is visually seamless; attach screenshots to outcome.
   - [x] 4.3.SR **Semantic Review:** Single-role diff surface; `sx` only for the wrapper Stack; no hardcoded colors; no conditional-hook violations (hook lives INSIDE the card component, not in the server/route shell).
@@ -258,7 +258,7 @@
     • Login as student → click the sidebar link-requests entry → lands on the real decision route (not ComingSoon).
     • Login as parent and teacher → navigate directly to the student link-requests URL → observe role-dashboard redirect; anonymous → login redirect.
     • Iterative self-loop until all four cells behave correctly.
-  - [ ] 4.4.BS **Agent-Browser Visual & Styling Self-Loop (Screenshot Analysis):**
+  - [x] 4.4.BS **Agent-Browser Visual & Styling Self-Loop (Screenshot Analysis):**
     • Capture sidebar (desktop drawer expanded + mobile temporary Drawer open) at the six cells; verify the entry label is localized, icon `*Outlined`, active-state highlight on the decision route, RTL drawer mirroring in ar.
     • Iterate styling only if a defect appears; otherwise record parity screenshots.
   - [x] 4.4.SR **Semantic Review:** Route constant single-sourced; no string duplication across nav/card/drawer; nav item diff is minimal (retarget-only).

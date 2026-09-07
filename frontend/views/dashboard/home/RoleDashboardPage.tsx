@@ -53,7 +53,7 @@ function resolveStatusSlot(role: UserRole): React.ReactNode {
       return <ApplicantStatusCard />;
     case UserRole.Student:
       return (
-        <Stack sx={theme => ({ display: "flex", flexDirection: "column", gap: theme.spacing(2) })}>
+        <Stack sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
           <HandshakeCodeCard />
           <PendingParentLinkRequestsCard />
         </Stack>
