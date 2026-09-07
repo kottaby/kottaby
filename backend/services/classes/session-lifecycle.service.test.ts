@@ -60,9 +60,31 @@
  *  - Tier 4 (typed denials + source pins): every denial carries the exact
  *    `DomainError.code` and the localized message; `intent=evaluation`
  *    never reaches the DB (zero writes proof); grep-level pins — the
- *    service source imports NOTHING from the notification/audit/wallet/
- *    transaction-ledger/report surfaces (sole service import is the
- *    `withTransaction` helper) and holds zero `console.*` calls.
+ *    service unit's imports are a pinned allowlist whose ONLY cross-surface
+ *    channels are the wallet-credit slice (repository barrel) and the
+ *    engine-mediated completion waves (the wave-emitter sibling plus the
+ *    notification engine's publish contract; the unit never imports a
+ *    notification repository and never writes a notification row itself)
+ *    and the unit holds zero `console.*` calls.
+ *
+ * Completion-handshake composition (the confirm prompt + the two-leg
+ * sweeper's auto-cancel notices):
+ *  - the confirm prompt fires EXACTLY ONCE per completion, on the
+ *    completion's own transaction, only after the guarded UPDATE matches —
+ *    a denied completion and a replayed (conflicting) completion write zero
+ *    new notification rows;
+ *  - the caller-tx path returns the prompt's delivery receipt UNPUBLISHED
+ *    (the receipt-bearing completion variant) while the plain completion
+ *    surface stays row-shaped; the production (no-tx) path hands the
+ *    receipt to the engine strictly after its own commit — a rolled-back
+ *    flow publishes nothing;
+ *  - the deadline sweeper composes BOTH legs in one transaction and
+ *    refunds the UNION of their rows; every swept completed-leg row's
+ *    student gets exactly one auto-cancel notice, the scheduled-expiry leg
+ *    stays notification-free, and an emitter failure fails closed (the
+ *    whole sweep rolls back, zero receipts published);
+ *  - the sweep's counts stay honest across both legs and idempotent on
+ *    re-run.
  *
  * Chaos block (REQ-043, `Promise.allSettled` on the PRODUCTION tx path):
  *  committed fixtures (hard-deleted in `afterAll`) let each concurrent
@@ -71,7 +93,7 @@
  *  production savepoint/rollback behavior end to end.
  */
 
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { afterAll, beforeAll, describe, expect, spyOn, test } from "bun:test";
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -80,11 +102,13 @@ import { db } from "@/backend/db";
 import { WalletRepository } from "@/backend/db/repo";
 import { session } from "@/backend/db/schema/classes/session";
 import { sessionRequestIdempotency } from "@/backend/db/schema/classes/session-request-idempotency";
+import { notifications } from "@/backend/db/schema/notifications";
 import { students } from "@/backend/db/schema/students/students";
 import { teacher } from "@/backend/db/schema/teachers/teacher";
 import { users } from "@/backend/db/schema/users/users";
 import { createTestStudent, createTestUser } from "@/backend/db/test/entity-setup";
 import { expectRepoError, runInRollback } from "@/backend/db/test/test-utils";
+import { NotificationType } from "@/backend/enum/notifications/notification-type.enum";
 import { DisputeResolution } from "@/backend/enum/scheduling/dispute-resolution.enum";
 import { HeldBalanceLane } from "@/backend/enum/scheduling/held-balance-lane.enum";
 import { SessionIntent } from "@/backend/enum/scheduling/session-intent.enum";
@@ -92,8 +116,11 @@ import { SessionStatus } from "@/backend/enum/scheduling/session-status.enum";
 import { SessionType } from "@/backend/enum/scheduling/session-type.enum";
 import { ConflictError, DomainError, NotFoundError, ValidationError } from "@/backend/lib/errors";
 import { SessionLifecycleService } from "@/backend/services/classes/session-lifecycle.service";
+import { SessionRequestNotificationService } from "@/backend/services/classes/session-request-notification.service";
+import { NotificationEngine } from "@/backend/services/notifications";
 import type {
   DBTransaction,
+  NotificationDeliveryReceipt,
   SessionInsertType,
   SessionListFilterInput,
   SessionReturnType,
@@ -128,6 +155,9 @@ const SESSION_STARTED_STATUS: string = SessionStatus.Started;
 function t() {
   return getServerTranslations("en").errorsTranslations;
 }
+
+/** The notifications-namespace copy in the default (student fixture) locale. */
+const NOTIFS_EN = getServerTranslations("en").notificationsTranslations;
 
 /**
  * Type-guard read of a caught rejection's `extensions.code` — the
@@ -1329,14 +1359,19 @@ describe("SessionLifecycleService — transactional flows (runInRollback)", () =
   const serviceSource = unitSources.join("\n");
   const serviceFromClauses = serviceSource.match(/from "[^"]+"/g) ?? [];
 
-  test("source: the unit's ONLY cross-surface channel is the wallet-credit slice — imports are a pinned allowlist (wallet rides the repository barrel, no notification/audit/report service import)", () => {
-    // HONEST PIN (adapted to the sibling-module split — same three locks):
+  test("source: the unit's cross-surface channels are the wallet-credit slice and the engine-mediated completion waves — imports are a pinned allowlist (no audit/report import, no notification-repository import)", () => {
+    // HONEST PIN (adapted to the sibling-module split — the same three
+    // locks, with the notification channel consciously admitted):
     //  1. every `from "…"` specifier in the unit must be on the explicit
     //     allowlist (the `@/backend/services/classes/` entries ARE the pinned
     //     siblings, aliased per the repo-wide eslint alias rule) — any
-    //     NEW import (a direct wallet/notification/audit/report/billing
-    //     service import included) fails until the allowlist consciously
-    //     admits it;
+    //     NEW import (a direct audit/report/billing service import, a
+    //     notification REPOSITORY import, or any other unaccounted module)
+    //     fails until the allowlist consciously admits it. The wave-emitter
+    //     sibling and the notification ENGINE are the sanctioned notification
+    //     channel: rows are written exclusively by the engine inside the
+    //     owning transaction, and the unit only ever hands receipts to the
+    //     engine's publish contract after that transaction commits;
     //  2. the ONLY `@/backend/db/` specifier is the repository barrel itself
     //     (no deep repository bypass), and the UNION of the barrel's named
     //     import lists across the unit is pinned — WalletRepository rides it
@@ -1363,6 +1398,9 @@ describe("SessionLifecycleService — transactional flows (runInRollback)", () =
       "@/backend/services/classes/session-lifecycle.governance",
       "@/backend/services/classes/session-lifecycle.guards",
       "@/backend/services/classes/session-lifecycle.transitions",
+      "@/backend/services/classes/session-request-notification.service",
+      "@/backend/services/notifications",
+      "@/shared/locale/AppLocale",
     ]);
     for (const specifier of specifiers) {
       expect(allowedSpecifiers.has(specifier)).toBe(true);
@@ -2083,30 +2121,33 @@ describe("SessionLifecycleService — REQ-043 chaos (production tx path, committ
     expect(balances.tajweed).toBe(0);
   });
 
-  test("REQ-043(c): concurrent double-complete → one success, confirmedByTeacherAt written once, loser is a transition conflict", async () => {
-    await setChaosBalances({ trial: 1 });
-    const created = await chaosBook(SessionIntent.Hifz, `chaos-c-${randomUUID()}`);
-    await SessionLifecycleService.startSession(chaosTeacherId, created.id, "en");
+  testOnRealPostgres(
+    "REQ-043(c): concurrent double-complete → one success, confirmedByTeacherAt written once, loser is a transition conflict",
+    async () => {
+      await setChaosBalances({ trial: 1 });
+      const created = await chaosBook(SessionIntent.Hifz, `chaos-c-${randomUUID()}`);
+      await SessionLifecycleService.startSession(chaosTeacherId, created.id, "en");
 
-    const outcomes = await Promise.allSettled([
-      SessionLifecycleService.completeSession(chaosTeacherId, created.id, "en"),
-      SessionLifecycleService.completeSession(chaosTeacherId, created.id, "en"),
-    ]);
+      const outcomes = await Promise.allSettled([
+        SessionLifecycleService.completeSession(chaosTeacherId, created.id, "en"),
+        SessionLifecycleService.completeSession(chaosTeacherId, created.id, "en"),
+      ]);
 
-    const fulfillments = outcomes.flatMap(outcome => (outcome.status === "fulfilled" ? [outcome.value] : []));
-    const rejections = outcomes.flatMap(outcome => (outcome.status === "rejected" ? [outcome.reason] : []));
-    expect(fulfillments).toHaveLength(1);
-    expect(rejections).toHaveLength(1);
-    expect(fulfillments[0]?.status).toBe(SessionStatus.Completed);
-    expect(fulfillments[0]?.confirmedByTeacherAt).not.toBeNull();
-    expect(rejectionCode(rejections[0])).toBe("SESSION_INVALID_TRANSITION");
+      const fulfillments = outcomes.flatMap(outcome => (outcome.status === "fulfilled" ? [outcome.value] : []));
+      const rejections = outcomes.flatMap(outcome => (outcome.status === "rejected" ? [outcome.reason] : []));
+      expect(fulfillments).toHaveLength(1);
+      expect(rejections).toHaveLength(1);
+      expect(fulfillments[0]?.status).toBe(SessionStatus.Completed);
+      expect(fulfillments[0]?.confirmedByTeacherAt).not.toBeNull();
+      expect(rejectionCode(rejections[0])).toBe("SESSION_INVALID_TRANSITION");
 
-    const finalRow = await readChaosSessionRow(created.id);
-    expect(finalRow?.status).toBe(SessionStatus.Completed);
-    expect(finalRow?.endedAt).not.toBeNull();
-    // The confirmation stamp is the ONE write the winner made.
-    expect(finalRow?.confirmedByTeacherAt?.getTime()).toBe(fulfillments[0]?.confirmedByTeacherAt?.getTime());
-  });
+      const finalRow = await readChaosSessionRow(created.id);
+      expect(finalRow?.status).toBe(SessionStatus.Completed);
+      expect(finalRow?.endedAt).not.toBeNull();
+      // The confirmation stamp is the ONE write the winner made.
+      expect(finalRow?.confirmedByTeacherAt?.getTime()).toBe(fulfillments[0]?.confirmedByTeacherAt?.getTime());
+    }
+  );
 
   testOnRealPostgres(
     "REQ-043(d): two concurrent creations with ONE unit → exactly one session + one INSUFFICIENT_BALANCE, lanes never negative",
@@ -2392,5 +2433,442 @@ describe("SessionLifecycleService — DEV3-012 deadline sweeper (runInRollback)"
       expect(swept?.status).toBe(SessionStatus.Cancelled);
       expect(swept?.heldBalanceLane).toBeNull();
     });
+  });
+});
+
+// ─── Completion-handshake composition (confirm prompt + two-leg sweep) ──
+
+/**
+ * Installs a counting no-op over the engine's publish contract so tests can
+ * prove exactly WHICH flows hand receipts to the engine. Callers MUST
+ * restore in a `finally` — the engine namespace is shared module state.
+ */
+function countPublishes(): { receipts: NotificationDeliveryReceipt[][]; stop: () => void } {
+  const recorded: NotificationDeliveryReceipt[][] = [];
+  const spy = spyOn(NotificationEngine, "publishReceipts").mockImplementation(async receipts => {
+    recorded.push([...receipts]);
+  });
+  return { receipts: recorded, stop: () => spy.mockRestore() };
+}
+
+/** Read-back oracle for the notification rows pinned to one session id. */
+async function readWaveRows(tx: DBTransaction, sessionId: number) {
+  return tx.select().from(notifications).where(eq(notifications.relatedEntityId, sessionId));
+}
+
+/** The teacher fixture's display name (composed verbatim into wave copy). */
+async function readTeacherName(tx: DBTransaction, teacherUserId: number): Promise<string> {
+  const [row] = await tx.select({ fullName: users.fullName }).from(users).where(eq(users.id, teacherUserId));
+  if (!row) {
+    throw new Error("readTeacherName: teacher row vanished");
+  }
+  return row.fullName;
+}
+
+describe("SessionLifecycleService — completion prompt wave (runInRollback)", () => {
+  test("the receipt-bearing completion emits the student's confirm prompt ONCE on the caller's transaction and returns the receipt unpublished", async () => {
+    await runInRollback(async tx => {
+      const publish = countPublishes();
+      try {
+        const actors = await createSessionActors(tx);
+        // The student persists an English locale so the recipient-locale
+        // copy below is deterministic — a locale-less user falls back to
+        // the platform default (Arabic), a fallback the wave suite pins.
+        await tx.update(users).set({ locale: "en" }).where(eq(users.id, actors.studentUserId));
+        await setLaneBalances(tx, actors.studentUserId, { trial: 1 });
+        const row = await bookSession(
+          tx,
+          actors.studentUserId,
+          actors.teacherUserId,
+          SessionIntent.Hifz,
+          "key-wave-complete-once"
+        );
+        await SessionLifecycleService.startSession(actors.teacherUserId, row.id, "en", tx);
+        const teacherName = await readTeacherName(tx, actors.teacherUserId);
+
+        const result = await SessionLifecycleService.completeSessionWithReceipt(actors.teacherUserId, row.id, "en", tx);
+
+        // The session half is the familiar guarded transition's answer.
+        expect(result.session.id).toBe(row.id);
+        expect(result.session.status).toBe(SessionStatus.Completed);
+        expect(result.session.confirmedByTeacherAt).not.toBeNull();
+
+        // The receipt: student-addressed (the recipient derives server-side
+        // from the joined wave-context read). The deterministic claim-key
+        // namespace itself is the wave suite's pinned contract — on this
+        // production path the engine runs without an injected claim cache,
+        // so the receipt carries no replay handle.
+        expect(result.receipt.recipientUserIds).toEqual([actors.studentUserId]);
+        expect(result.receipt.notifications).toHaveLength(1);
+
+        // Exactly ONE prompt row, composed in the recipient's locale copy
+        // through the notifications namespace (the request locale only
+        // feeds error copy).
+        const waveRows = await readWaveRows(tx, row.id);
+        expect(waveRows).toHaveLength(1);
+        expect(waveRows[0]?.userId).toBe(actors.studentUserId);
+        expect(waveRows[0]?.type).toBe(NotificationType.SessionCompletion);
+        expect(waveRows[0]?.title).toBe(NOTIFS_EN.eventSessionCompletionPromptTitle);
+        expect(waveRows[0]?.body).toBe(NOTIFS_EN.eventSessionCompletionPromptBody(teacherName));
+
+        // Caller-tx: the flow NEVER publishes — the caller owns the commit.
+        expect(publish.receipts).toHaveLength(0);
+      } finally {
+        publish.stop();
+      }
+    });
+  });
+
+  test("the prompt is denial-free and once-per-session: a denied completion and a replayed completion write zero new notification rows", async () => {
+    await runInRollback(async tx => {
+      const publish = countPublishes();
+      try {
+        const actors = await createSessionActors(tx);
+        await setLaneBalances(tx, actors.studentUserId, { trial: 1 });
+        const row = await bookSession(
+          tx,
+          actors.studentUserId,
+          actors.teacherUserId,
+          SessionIntent.Hifz,
+          "key-wave-deny-replay"
+        );
+
+        // DENIED completion (row still scheduled): the classified conflict
+        // writes zero notification rows — nothing to publish either.
+        const denied = await expectRepoError(() =>
+          SessionLifecycleService.completeSession(actors.teacherUserId, row.id, "en", tx)
+        );
+        expectDomainDenial(denied, "SESSION_INVALID_TRANSITION", t().sessionInvalidTransition);
+        expect(await readWaveRows(tx, row.id)).toHaveLength(0);
+        expect(publish.receipts).toHaveLength(0);
+
+        // FIRST completion: the one and only prompt row.
+        await SessionLifecycleService.startSession(actors.teacherUserId, row.id, "en", tx);
+        const completed = await SessionLifecycleService.completeSession(actors.teacherUserId, row.id, "en", tx);
+        expect(completed.status).toBe(SessionStatus.Completed);
+        expect(await readWaveRows(tx, row.id)).toHaveLength(1);
+
+        // REPLAYED completion: conflict again, still exactly one prompt row.
+        const replay = await expectRepoError(() =>
+          SessionLifecycleService.completeSession(actors.teacherUserId, row.id, "en", tx)
+        );
+        expectDomainDenial(replay, "SESSION_INVALID_TRANSITION", t().sessionInvalidTransition);
+        expect(await readWaveRows(tx, row.id)).toHaveLength(1);
+        expect(publish.receipts).toHaveLength(0);
+      } finally {
+        publish.stop();
+      }
+    });
+  });
+
+  test("a prompt emitter failure fails closed: the completion rolls back, the row stays started, and zero receipts are published", async () => {
+    await runInRollback(async tx => {
+      const publish = countPublishes();
+      const emitSpy = spyOn(SessionRequestNotificationService, "notifyStudentOfCompletionPrompt").mockRejectedValue(
+        new Error("emit channel down")
+      );
+      try {
+        const actors = await createSessionActors(tx);
+        await setLaneBalances(tx, actors.studentUserId, { trial: 1 });
+        const row = await bookSession(
+          tx,
+          actors.studentUserId,
+          actors.teacherUserId,
+          SessionIntent.Hifz,
+          "key-wave-emit-fail"
+        );
+        await SessionLifecycleService.startSession(actors.teacherUserId, row.id, "en", tx);
+
+        await expectRepoError(() =>
+          SessionLifecycleService.completeSessionWithReceipt(actors.teacherUserId, row.id, "en", tx)
+        );
+
+        // The whole flow rolled back: the stamp is unwritten, no prompt row
+        // exists, and nothing was published for the failed attempt.
+        const rolledBack = await readSessionRow(tx, row.id);
+        expect(rolledBack?.status).toBe(SessionStatus.Started);
+        expect(rolledBack?.confirmedByTeacherAt).toBeNull();
+        expect(await readWaveRows(tx, row.id)).toHaveLength(0);
+        expect(publish.receipts).toHaveLength(0);
+      } finally {
+        emitSpy.mockRestore();
+        publish.stop();
+      }
+    });
+  });
+});
+
+describe("SessionLifecycleService — two-leg sweeper composition (runInRollback)", () => {
+  test("the sweeper composes both legs: honest counts, UNION refund walk, auto-cancel notice for completed-leg rows only — the scheduled leg stays notification-free", async () => {
+    await runInRollback(async tx => {
+      const publish = countPublishes();
+      try {
+        const actors = await createSessionActors(tx);
+        // The student persists an English locale so the recipient-locale
+        // copy below is deterministic — a locale-less user falls back to
+        // the platform default (Arabic), a fallback the wave suite pins.
+        await tx.update(users).set({ locale: "en" }).where(eq(users.id, actors.studentUserId));
+        await setLaneBalances(tx, actors.studentUserId, { trial: 1 });
+        const expiredHeld = await bookSession(
+          tx,
+          actors.studentUserId,
+          actors.teacherUserId,
+          SessionIntent.Hifz,
+          "key-wave-sweep-scheduled"
+        );
+        await tx
+          .update(session)
+          .set({ confirmationDeadline: new Date(Date.now() - 1000) })
+          .where(eq(session.id, expiredHeld.id));
+
+        // The completed leg: one overdue unconfirmed row (held, hifz
+        // provenance) and one student-confirmed row the sweep must never
+        // touch.
+        const overdue = await insertSessionRow(tx, actors, {
+          intent: SessionIntent.Hifz,
+          status: SessionStatus.Completed,
+          confirmedByTeacherAt: new Date(Date.now() - SESSION_CONFIRMATION_WINDOW_MS - 60_000),
+          fee: "10.00",
+          feeHeld: true,
+          heldBalanceLane: HeldBalanceLane.Hifz,
+        });
+        const settled = await insertSessionRow(tx, actors, {
+          intent: SessionIntent.Hifz,
+          status: SessionStatus.Completed,
+          confirmedByTeacherAt: new Date(Date.now() - SESSION_CONFIRMATION_WINDOW_MS - 60_000),
+          confirmedByStudentAt: new Date(),
+          fee: "10.00",
+          feeHeld: false,
+        });
+        const teacherName = await readTeacherName(tx, actors.teacherUserId);
+
+        const result = await SessionLifecycleService.sweepExpiredSessions(tx);
+
+        // Honest counts across BOTH legs: the expired scheduled row and the
+        // overdue completed row; both held rows refunded.
+        expect(result.cancelled).toBe(2);
+        expect(result.refunded).toBe(2);
+
+        expect((await readSessionRow(tx, expiredHeld.id))?.status).toBe(SessionStatus.Cancelled);
+        const sweptOverdue = await readSessionRow(tx, overdue.id);
+        expect(sweptOverdue?.status).toBe(SessionStatus.Cancelled);
+        expect(sweptOverdue?.feeHeld).toBe(false);
+        const untouchedSettled = await readSessionRow(tx, settled.id);
+        expect(untouchedSettled?.status).toBe(SessionStatus.Completed);
+        expect(untouchedSettled?.confirmedByStudentAt).not.toBeNull();
+
+        // The UNION refund walk: the trial lane that funded the scheduled
+        // hold AND the hifz lane recorded on the overdue row each move once.
+        const balances = await readLaneBalances(tx, actors.studentUserId);
+        expect(balances.trial).toBe(1);
+        expect(balances.hifz).toBe(1);
+
+        // Exactly one auto-cancel notice — for the completed-leg row only,
+        // in the recipient's locale copy. The scheduled-expiry leg keeps its
+        // notification-free semantics; the settled row is equally silent.
+        const autoCancelRows = await readWaveRows(tx, overdue.id);
+        expect(autoCancelRows).toHaveLength(1);
+        expect(autoCancelRows[0]?.userId).toBe(actors.studentUserId);
+        expect(autoCancelRows[0]?.type).toBe(NotificationType.SessionCompletion);
+        expect(autoCancelRows[0]?.title).toBe(NOTIFS_EN.eventSessionAutoCancelledTitle);
+        expect(autoCancelRows[0]?.body).toBe(NOTIFS_EN.eventSessionAutoCancelledBody(teacherName));
+        expect(await readWaveRows(tx, expiredHeld.id)).toHaveLength(0);
+        expect(await readWaveRows(tx, settled.id)).toHaveLength(0);
+
+        // Caller-tx: the sweeper never publishes.
+        expect(publish.receipts).toHaveLength(0);
+
+        // Idempotent: the second sweep matches zero rows on both legs and
+        // adds no second notice.
+        const second = await SessionLifecycleService.sweepExpiredSessions(tx);
+        expect(second.cancelled).toBe(0);
+        expect(second.refunded).toBe(0);
+        expect(await readWaveRows(tx, overdue.id)).toHaveLength(1);
+      } finally {
+        publish.stop();
+      }
+    });
+  });
+
+  test("a lane-less overdue completed row cancels with its auto-cancel notice and no refund counted", async () => {
+    await runInRollback(async tx => {
+      const publish = countPublishes();
+      try {
+        const actors = await createSessionActors(tx);
+        await setLaneBalances(tx, actors.studentUserId, { trial: 1 });
+        const legacy = await insertSessionRow(tx, actors, {
+          intent: SessionIntent.Hifz,
+          status: SessionStatus.Completed,
+          confirmedByTeacherAt: new Date(Date.now() - SESSION_CONFIRMATION_WINDOW_MS - 60_000),
+          fee: "10.00",
+          feeHeld: false,
+          heldBalanceLane: null,
+        });
+
+        const result = await SessionLifecycleService.sweepExpiredSessions(tx);
+
+        expect(result.cancelled).toBe(1);
+        expect(result.refunded).toBe(0);
+        expect((await readSessionRow(tx, legacy.id))?.status).toBe(SessionStatus.Cancelled);
+
+        // The notice does not depend on a hold: the student is told even
+        // when there was nothing to refund.
+        expect(await readWaveRows(tx, legacy.id)).toHaveLength(1);
+        const balances = await readLaneBalances(tx, actors.studentUserId);
+        expect(balances.trial).toBe(1);
+        expect(publish.receipts).toHaveLength(0);
+      } finally {
+        publish.stop();
+      }
+    });
+  });
+
+  test("an auto-cancel emitter failure fails closed: the whole sweep rolls back — both legs' rows untouched, zero notices, zero publishes", async () => {
+    await runInRollback(async tx => {
+      const publish = countPublishes();
+      const emitSpy = spyOn(
+        SessionRequestNotificationService,
+        "notifyStudentOfCompletionAutoCancelled"
+      ).mockRejectedValue(new Error("emit channel down"));
+      try {
+        const actors = await createSessionActors(tx);
+        await setLaneBalances(tx, actors.studentUserId, { trial: 1 });
+        const expiredHeld = await bookSession(
+          tx,
+          actors.studentUserId,
+          actors.teacherUserId,
+          SessionIntent.Hifz,
+          "key-wave-sweep-fail"
+        );
+        await tx
+          .update(session)
+          .set({ confirmationDeadline: new Date(Date.now() - 1000) })
+          .where(eq(session.id, expiredHeld.id));
+        const overdue = await insertSessionRow(tx, actors, {
+          intent: SessionIntent.Hifz,
+          status: SessionStatus.Completed,
+          confirmedByTeacherAt: new Date(Date.now() - SESSION_CONFIRMATION_WINDOW_MS - 60_000),
+          fee: "10.00",
+          feeHeld: true,
+          heldBalanceLane: HeldBalanceLane.Hifz,
+        });
+
+        await expectRepoError(() => SessionLifecycleService.sweepExpiredSessions(tx));
+
+        // The cancellations, the refunds, and the notices all rolled back
+        // together — nothing published for the failed sweep.
+        expect((await readSessionRow(tx, expiredHeld.id))?.status).toBe(SessionStatus.Scheduled);
+        const rolledBackOverdue = await readSessionRow(tx, overdue.id);
+        expect(rolledBackOverdue?.status).toBe(SessionStatus.Completed);
+        expect(rolledBackOverdue?.feeHeld).toBe(true);
+        const balances = await readLaneBalances(tx, actors.studentUserId);
+        expect(balances.trial).toBe(0);
+        expect(balances.hifz).toBe(0);
+        expect(await readWaveRows(tx, overdue.id)).toHaveLength(0);
+        expect(await readWaveRows(tx, expiredHeld.id)).toHaveLength(0);
+        expect(publish.receipts).toHaveLength(0);
+      } finally {
+        emitSpy.mockRestore();
+        publish.stop();
+      }
+    });
+  });
+});
+
+describe("SessionLifecycleService — completion waves on the production commit path (committed fixtures)", () => {
+  let commitTeacherId = 0;
+  let commitStudentId = 0;
+  let startedRowId = 0;
+  let overdueRowId = 0;
+
+  beforeAll(async () => {
+    await db.transaction(async tx => {
+      const actors = await createSessionActors(tx);
+      commitTeacherId = actors.teacherUserId;
+      commitStudentId = actors.studentUserId;
+      await setLaneBalances(tx, commitStudentId, { trial: 1 });
+      const started = await insertSessionRow(tx, actors, {
+        intent: SessionIntent.Hifz,
+        status: SessionStatus.Started,
+        startedAt: new Date(),
+        fee: "10.00",
+        feeHeld: true,
+        heldBalanceLane: HeldBalanceLane.Trial,
+      });
+      startedRowId = started.id;
+      const overdue = await insertSessionRow(tx, actors, {
+        intent: SessionIntent.Hifz,
+        status: SessionStatus.Completed,
+        confirmedByTeacherAt: new Date(Date.now() - SESSION_CONFIRMATION_WINDOW_MS - 60_000),
+        fee: "10.00",
+        feeHeld: true,
+        heldBalanceLane: HeldBalanceLane.Trial,
+      });
+      overdueRowId = overdue.id;
+    });
+  });
+
+  afterAll(async () => {
+    // FK-safe hard delete: notifications → claims → sessions → users (the
+    // users delete cascades the students/teacher role-child rows; the
+    // notifications delete is explicit because this block committed some).
+    await db.delete(notifications).where(eq(notifications.userId, commitStudentId));
+    await db.delete(sessionRequestIdempotency).where(eq(sessionRequestIdempotency.userId, commitStudentId));
+    await db.delete(session).where(eq(session.studentId, commitStudentId));
+    await db.delete(users).where(eq(users.id, commitStudentId));
+    await db.delete(users).where(eq(users.id, commitTeacherId));
+  });
+
+  test("the production completion publishes the prompt's receipt exactly once, strictly after its own commit", async () => {
+    const publish = countPublishes();
+    try {
+      const result = await SessionLifecycleService.completeSessionWithReceipt(commitTeacherId, startedRowId, "en");
+
+      expect(result.session.status).toBe(SessionStatus.Completed);
+      expect(result.session.confirmedByTeacherAt).not.toBeNull();
+
+      // The flow owns the commit boundary: exactly one post-commit publish
+      // carrying THIS flow's receipt.
+      expect(publish.receipts).toHaveLength(1);
+      expect(publish.receipts[0]).toHaveLength(1);
+      expect(publish.receipts[0]?.[0]).toBe(result.receipt);
+
+      // The prompt row committed with the stamp.
+      const [waveRow] = await db.select().from(notifications).where(eq(notifications.relatedEntityId, startedRowId));
+      expect(waveRow?.userId).toBe(commitStudentId);
+      expect(waveRow?.type).toBe(NotificationType.SessionCompletion);
+    } finally {
+      publish.stop();
+    }
+  });
+
+  test("the production sweep publishes each completed-leg auto-cancel receipt exactly once after its commit", async () => {
+    const publish = countPublishes();
+    try {
+      const result = await SessionLifecycleService.sweepExpiredSessions();
+
+      expect(result.cancelled).toBe(1);
+      expect(result.refunded).toBe(1);
+
+      // One receipt, published post-commit, for the overdue row's student.
+      expect(publish.receipts).toHaveLength(1);
+      expect(publish.receipts[0]).toHaveLength(1);
+      expect(publish.receipts[0]?.[0]?.recipientUserIds).toEqual([commitStudentId]);
+
+      const [waveRow] = await db.select().from(notifications).where(eq(notifications.relatedEntityId, overdueRowId));
+      expect(waveRow?.userId).toBe(commitStudentId);
+      expect(waveRow?.type).toBe(NotificationType.SessionCompletion);
+      expect((await readChaosSessionRow(overdueRowId))?.status).toBe(SessionStatus.Cancelled);
+
+      // The trial lane re-incremented once for the swept hold (the
+      // fixture's own unit plus the returned one).
+      const [balance] = await db
+        .select({ trial: students.balanceTrial })
+        .from(students)
+        .where(eq(students.id, commitStudentId));
+      expect(balance?.trial).toBe(2);
+    } finally {
+      publish.stop();
+    }
   });
 });

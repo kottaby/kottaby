@@ -52,11 +52,17 @@
  * Cancellation is deliberately exempt so a governed participant can still
  * release an in-flight hold later.
  *
- * Cross-surface dependency policy: the module's ONLY cross-surface
- * dependency is the wallet repository, composed into the dual-confirmation
- * flow to credit the teacher's earnings when the student confirms a
- * completed session; it imports nothing from the notification, audit, or
- * report surfaces. All user-facing messages resolve through
+ * Cross-surface dependency policy: the module's cross-surface dependencies
+ * are the wallet repository — composed into the dual-confirmation flow to
+ * credit the teacher's earnings when the student confirms a completed
+ * session — and the notification engine's emit/publish contracts for the
+ * two student-facing completion waves (the confirm prompt once the
+ * teacher's completion stamp lands, and the auto-cancel notice once the
+ * confirmation window lapses). Notification rows are written exclusively by
+ * the engine inside the owning transaction, and their delivery receipts are
+ * published strictly after that transaction commits — never for a
+ * rolled-back flow. The module imports nothing from the audit or report
+ * surfaces. All user-facing messages resolve through
  * `getServerTranslations(locale)`;
  * rejections log via `logger.logDomainError` with `{code, entity, entityId}`
  * only — never idempotency keys, payloads, or the other participant's data.
@@ -105,14 +111,45 @@ import {
   refundSweptHolds,
   rejectTransitionMiss,
 } from "@/backend/services/classes/session-lifecycle.transitions";
+import { SessionRequestNotificationService } from "@/backend/services/classes/session-request-notification.service";
+import { NotificationEngine } from "@/backend/services/notifications";
 import type {
   DBTransaction,
+  NotificationDeliveryReceipt,
   SessionListFilterInput,
   SessionPageReturnType,
   SessionReturnType,
   SessionSubmitInput,
 } from "@/backend/types";
+import { defaultLocale } from "@/shared/locale/AppLocale";
 import { getServerTranslations } from "@/shared/locale/server-graphql";
+
+/**
+ * Sequential head-first collection of the swept rows' auto-cancel
+ * receipts — the recursive-helper shape of the sweeper's by-design
+ * sequential loop (the same shape as the refund walk): each row's notice
+ * is emitted on the sweep transaction before the next row is touched, so
+ * the statement order is head-first and a failure leaves the loop's
+ * partial writes to the transaction's own rollback. Each await yields and
+ * unwinds the stack, so the recursion only happens ACROSS awaits.
+ */
+async function collectAutoCancelReceipts(
+  rows: readonly SessionReturnType[],
+  index: number,
+  tx: DBTransaction
+): Promise<NotificationDeliveryReceipt[]> {
+  const row = rows.at(index);
+  if (row === undefined) {
+    return [];
+  }
+  const receipt = await SessionRequestNotificationService.notifyStudentOfCompletionAutoCancelled(
+    row.id,
+    defaultLocale,
+    tx
+  );
+  const rest = await collectAutoCancelReceipts(rows, index + 1, tx);
+  return [receipt, ...rest];
+}
 
 export namespace SessionLifecycleService {
   /**
@@ -226,15 +263,27 @@ export namespace SessionLifecycleService {
    * predicate — a teacher decertified between booking and completion matches
    * zero rows —
    * and writes the end, confirmation, and audit stamps from one captured
-   * instant. Report or homework side effects are deliberately absent: this
-   * transition touches only the session row. A zero-row match is classified
+   * instant. Report or homework side effects are deliberately absent: the
+   * guarded statement touches only the session row — the student's
+   * confirm-prompt wave (below) is the flow's one notification side effect.
+   * A zero-row match is classified
    * by one cold probe read (unknown/foreign → not-found; wrong state →
    * transition conflict; owned + in-progress → certification conflict).
+   *
+   * Once the guarded UPDATE matches, the student's confirm-prompt
+   * notification is emitted on the same transaction — the prompt commits
+   * with the completion stamp or not at all, and only for a row the
+   * guarded statement actually moved (a denied completion writes zero
+   * notification rows). When the flow owns its transaction, the prompt's
+   * delivery receipt is published through the notification engine strictly
+   * after that commit; a caller-owned transaction leaves publication to the
+   * caller (the receipt is reachable through `completeSessionWithReceipt`).
    *
    * @param teacherUserId  The acting teacher's id (shared PK — the value
    *     stored in the session row's teacher column).
    * @param sessionId  The target session id.
-   * @param locale  Active request locale (for the localized error messages).
+   * @param locale  Active request locale (for the localized error messages;
+   *     the prompt copy itself follows the student's persisted locale).
    * @param tx  Optional transaction — propagated to every read and write so
    *     a caller-owned atomic flow stays atomic.
    */
@@ -244,6 +293,51 @@ export namespace SessionLifecycleService {
     locale: string,
     tx?: DBTransaction
   ): Promise<SessionReturnType> {
+    const result = await completeSessionWithReceipt(teacherUserId, sessionId, locale, tx);
+    return result.session;
+  }
+
+  /**
+   * The receipt-bearing completion flow — `completeSession` plus the
+   * confirm-prompt's delivery receipt, for callers that own the commit
+   * boundary.
+   *
+   * The transition, its guards, and its classification are identical to
+   * `completeSession`. The confirm-prompt wave is emitted on the owning
+   * transaction once the guarded UPDATE matches (never on a denied or
+   * repeated completion), and the return carries the session row alongside
+   * the wave's delivery receipt — the existing `SessionReturnType` surface
+   * of `completeSession` is unchanged; this variant is the non-breaking
+   * channel for the receipt.
+   *
+   * Receipt ownership mirrors the wave contract: when the flow opens its
+   * own transaction, the receipt is published through
+   * `NotificationEngine.publishReceipts` strictly after that commit and is
+   * returned already published; when the caller supplies a transaction, the
+   * receipt is returned UNPUBLISHED and the caller MUST publish it via
+   * `NotificationEngine.publishReceipts` after its own transaction commits
+   * — a rolled-back caller transaction therefore never pushes the prompt.
+   *
+   * @param teacherUserId  The acting teacher's id (shared PK — the value
+   *     stored in the session row's teacher column).
+   * @param sessionId  The target session id.
+   * @param locale  Active request locale (for the localized error messages;
+   *     the prompt copy itself follows the student's persisted locale).
+   * @param tx  Optional transaction — propagated to every read and write so
+   *     a caller-owned atomic flow stays atomic.
+   * @returns The completed session row and the confirm-prompt delivery
+   *     receipt (published on the flow-owned commit path; unpublished on the
+   *     caller-owned path).
+   */
+  export async function completeSessionWithReceipt(
+    teacherUserId: number,
+    sessionId: number,
+    locale: string,
+    tx?: DBTransaction
+  ): Promise<{
+    readonly session: SessionReturnType;
+    readonly receipt: NotificationDeliveryReceipt;
+  }> {
     const t = getServerTranslations(locale).errorsTranslations;
 
     // Pre-DB id-shape guard — BEFORE the governance probe: a
@@ -254,11 +348,28 @@ export namespace SessionLifecycleService {
     // Governance re-check — the acting teacher must be governance-clean.
     await assertActorGovernanceClean(teacherUserId, t, tx);
 
-    const completed = await SessionRepository.completeSessionOnce(sessionId, teacherUserId, tx);
-    if (completed === null) {
-      throw await rejectTransitionMiss("teacherComplete", sessionId, teacherUserId, tx, t);
+    const result = await withTransaction(tx, async txArg => {
+      const completed = await SessionRepository.completeSessionOnce(sessionId, teacherUserId, txArg);
+      if (completed === null) {
+        throw await rejectTransitionMiss("teacherComplete", sessionId, teacherUserId, txArg, t);
+      }
+
+      // The confirm prompt rides the completion's own transaction — it
+      // commits with the stamp or not at all, and its receipt stays
+      // unpublished until the commit boundary below.
+      const receipt = await SessionRequestNotificationService.notifyStudentOfCompletionPrompt(sessionId, locale, txArg);
+
+      return { session: completed, receipt };
+    });
+
+    // Publish strictly AFTER the commit — a denied or rolled-back
+    // completion never pushes its prompt. A caller-owned transaction is
+    // published by the caller after its own commit.
+    if (tx === undefined) {
+      await NotificationEngine.publishReceipts([result.receipt], locale);
     }
-    return completed;
+
+    return result;
   }
 
   /**
@@ -534,33 +645,69 @@ export namespace SessionLifecycleService {
 
   /**
    * The confirmation-deadline sweeper: cancels every still-`scheduled`
-   * session whose confirmation deadline has passed and refunds each held
-   * row's fee to its recorded provenance lane.
+   * session whose confirmation deadline has passed, then cancels every
+   * `completed` session whose student-confirmation window has lapsed
+   * without the student's confirmation, and refunds each held row's fee to
+   * its recorded provenance lane.
    *
-   * ONE captured `now` drives both the deadline comparison and the stamps.
-   * The batch UPDATE (guarded on the scheduled state and the expired
-   * deadline) returns the cancelled rows; each returned row with a
-   * recorded lane is refunded through the ONE shared same-lane primitive
-   * on the same transaction — a NULL lane (rows with no hold)
-   * means nothing to refund. Idempotent: a second sweep matches zero
-   * rows. Zero notification/audit writes (out of contract).
+   * ONE captured `now` drives both legs' comparisons and stamps. Each leg
+   * is ONE guarded batch UPDATE returning the cancelled rows; the refund
+   * walk covers the UNION of both legs' rows on the same transaction —
+   * sequential and fail-closed, so an unreadable lane rolls the whole sweep
+   * back (notifications included). A NULL lane (rows with no hold) means
+   * nothing to refund. The post-completion window is measured from the
+   * recorded teacher stamp at sweep time; the confirmation-deadline column
+   * is never re-armed. Idempotent: a second sweep matches zero rows on both
+   * legs.
+   *
+   * Every swept completed-leg row's student receives the auto-cancel notice;
+   * the scheduled-expiry leg deliberately stays notification-free (its
+   * semantics are unchanged). The notices are emitted on the sweep's
+   * transaction as unpublished receipts and pushed through the notification
+   * engine strictly after the commit boundary, and ONLY when the flow owns
+   * the transaction — a caller-owned transaction NEVER publishes (the
+   * caller owns the commit boundary). The counts-only return shape carries
+   * no receipts, so the cron contract is unchanged: zero row identities
+   * cross the wire.
    *
    * @param outerTx  Optional outer transaction. When provided (test path),
    *     the flow runs inside a SAVEPOINT on it; production callers omit it
    *     and the service opens its own transaction.
-   * @returns Honest counts: `cancelled` rows and how many of them carried
-   *     a refunded hold.
+   * @returns Honest counts: `cancelled` rows across BOTH legs and how many
+   *     of them carried a refunded hold.
    */
   export async function sweepExpiredSessions(outerTx?: DBTransaction): Promise<{
     readonly cancelled: number;
     readonly refunded: number;
   }> {
-    return withTransaction(outerTx, async tx => {
+    const sweep = await withTransaction(outerTx, async tx => {
       const now = new Date();
-      const expired = await SessionRepository.sweepExpiredScheduledOnce(now, tx);
-      const refunded = await refundSweptHolds(expired, tx);
-      return { cancelled: expired.length, refunded };
+      const expiredScheduled = await SessionRepository.sweepExpiredScheduledOnce(now, tx);
+      const expiredCompleted = await SessionRepository.sweepExpiredCompletedOnce(now, tx);
+
+      // The refund walk covers BOTH legs' rows — sequential, fail-closed,
+      // on the one sweep transaction.
+      const refunded = await refundSweptHolds([...expiredScheduled, ...expiredCompleted], tx);
+
+      // The auto-cancel notices ride the same transaction as unpublished
+      // receipts — they commit with the sweep or not at all, and publish
+      // only at the commit boundary below. The walk is sequential by
+      // design (head-first, one row's notice before the next row is
+      // touched).
+      const autoCancelReceipts = await collectAutoCancelReceipts(expiredCompleted, 0, tx);
+
+      return { cancelled: expiredScheduled.length + expiredCompleted.length, refunded, autoCancelReceipts };
     });
+
+    // Publish strictly AFTER the commit — a rolled-back sweep never pushes
+    // a receipt (an idle sweep publishes nothing at all), and a
+    // caller-owned transaction never publishes from here (the caller owns
+    // the commit boundary).
+    if (outerTx === undefined && sweep.autoCancelReceipts.length > 0) {
+      await NotificationEngine.publishReceipts(sweep.autoCancelReceipts, defaultLocale);
+    }
+
+    return { cancelled: sweep.cancelled, refunded: sweep.refunded };
   }
 
   /**
