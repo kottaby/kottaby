@@ -45,6 +45,39 @@ type AdminParentSnapshot {
   linkedChildrenCount: Int!
 }
 
+input AdminStudentFiltersInput {
+  hasParent: Boolean
+  language: String
+  search: String
+}
+
+type AdminStudentItem {
+  anotherLanguage: String
+  balanceHifz: Int!
+  balanceReviews: Int!
+  balanceTajweed: Int!
+  balanceTrial: Int!
+  country: String
+  createdAt: DateTime!
+  email: String!
+  hasParent: Boolean!
+  id: Int!
+  name: String!
+  parentEmail: String
+  parentName: String
+  phone: String
+  primaryLanguage: String
+  trialGrantedAt: DateTime
+}
+
+type AdminStudentPage {
+  items: [AdminStudentItem!]!
+  page: Int!
+  pageCount: Int!
+  pageSize: Int!
+  total: Int!
+}
+
 type AdminStudentSnapshot {
   anotherLanguage: String
   balanceHifz: Int
@@ -57,6 +90,38 @@ type AdminStudentSnapshot {
   parentId: Int
   primaryLanguage: String
   trialGrantedAt: String
+}
+
+input AdminTeacherFiltersInput {
+  approval: Boolean
+  evaluator: Boolean
+  online: Boolean
+  search: String
+}
+
+type AdminTeacherItem {
+  averageRating: Float
+  country: String
+  createdAt: DateTime!
+  email: String!
+  id: Int!
+  isApproved: Boolean!
+  isBlocked: Boolean!
+  isDeleted: Boolean!
+  isEvaluator: Boolean!
+  isOnline: Boolean!
+  name: String!
+  phone: String
+  subjects: [String!]!
+  suspended: Boolean!
+}
+
+type AdminTeacherPage {
+  items: [AdminTeacherItem!]!
+  page: Int!
+  pageCount: Int!
+  pageSize: Int!
+  total: Int!
 }
 
 type AdminTeacherSnapshot {
@@ -607,6 +672,8 @@ type Query {
   Admin-only whole-platform analytics snapshot (users, sessions, revenue by currency, subscriptions, teacher presence, ratings, health indicators, 30-day daily trends). Zero arguments — the read scope is the closed contract. Governed admins are denied at the service tier.
   """
   adminPlatformAnalytics: PlatformAnalytics!
+  adminStudents(filters: AdminStudentFiltersInput, page: Int, pageSize: Int): AdminStudentPage!
+  adminTeachers(filters: AdminTeacherFiltersInput, page: Int, pageSize: Int): AdminTeacherPage!
   adminUserActivity(id: Int!, limit: Int): [AdminUserActivityEntry!]!
   adminUserDetail(id: Int!): AdminUserDetail!
   adminUserStats: AdminUserStats!
