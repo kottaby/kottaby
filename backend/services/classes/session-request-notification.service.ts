@@ -1,7 +1,8 @@
 /**
  * Session-request notification wave emitters — the internal engine-facing
  * library for the six session-request lifecycle waves (one teacher-facing
- * request wave, five student-facing outcome waves).
+ * request wave, five student-facing outcome waves) plus the three admin
+ * session-governance waves (reschedule / cancel / teacher reassignment).
  *
  * Recipient derivation: the ONLY caller input is the session id. Both
  * participants resolve server-side from the persisted session row inside the
@@ -28,7 +29,7 @@
  * platform default locale when the user row carries none), and that same
  * locale is handed to the engine.
  */
-import { SessionRepository } from "@/backend/db/repo";
+import { SessionRepository, UserRepository } from "@/backend/db/repo";
 import { NotificationType } from "@/backend/enum/notifications/notification-type.enum";
 import { SessionIntent } from "@/backend/enum/scheduling/session-intent.enum";
 import { DomainError, NotFoundError, ValidationError } from "@/backend/lib/errors";
@@ -40,6 +41,7 @@ import {
   isSessionIntent,
   type NotificationDeliveryReceipt,
   type NotificationEmitInput,
+  type SessionGovernanceWaveKind,
   type SessionRequestWaveKind,
   type SessionWaveContext,
   type SessionWaveParticipantContext,
@@ -225,6 +227,170 @@ async function emitWave(
   return { notifications: [result], recipientUserIds: [recipient.userId] };
 }
 
+/**
+ * Maps a governance wave kind onto the engine's closed notification-type
+ * vocabulary: the cancel wave rides the dedicated cancellation type (its
+ * feed label matches the event), while the reschedule and reassignment
+ * waves ride the session-request envelope — the same session-domain wave
+ * carrier every participant flow uses.
+ */
+function toGovernanceNotificationType(waveKind: SessionGovernanceWaveKind): NotificationType {
+  return waveKind === "sessionGovernance.cancelled"
+    ? NotificationType.SessionCancellation
+    : NotificationType.SessionRequest;
+}
+
+/**
+ * Composes a governance wave's title/body from the notifications namespace.
+ * The copy is plain and factual — no participant names, no timing values,
+ * no refund promises; the inbox links back to the session where the current
+ * state is rendered. Exhaustive over the governance wave-kind union.
+ */
+function composeGovernanceWaveCopy(
+  waveKind: SessionGovernanceWaveKind,
+  tNotifications: ReturnType<typeof getServerTranslations>["notificationsTranslations"]
+): { readonly title: string; readonly body: string } {
+  switch (waveKind) {
+    case "sessionGovernance.rescheduled":
+      return {
+        title: tNotifications.eventSessionGovernanceRescheduledTitle,
+        body: tNotifications.eventSessionGovernanceRescheduledBody,
+      };
+    case "sessionGovernance.cancelled":
+      return {
+        title: tNotifications.eventSessionGovernanceCancelledTitle,
+        body: tNotifications.eventSessionGovernanceCancelledBody,
+      };
+    case "sessionGovernance.teacherReassigned":
+      return {
+        title: tNotifications.eventSessionGovernanceTeacherReassignedTitle,
+        body: tNotifications.eventSessionGovernanceTeacherReassignedBody,
+      };
+    default: {
+      // Exhaustiveness guard — the wave-kind union makes this unreachable.
+      const exhaustive: never = waveKind;
+      throw new Error(`Unexpected governance wave kind: ${String(exhaustive)}`);
+    }
+  }
+}
+
+/**
+ * Resolves one governance-wave participant that is NOT derivable from the
+ * session row's CURRENT state (the outgoing teacher after a reassignment
+ * swap): reads the user row for the persisted locale. A vanished row is a
+ * broken-contract situation mid-mutation and fails closed — the wave is
+ * all-or-nothing with the mutation that caused it.
+ */
+async function resolveGovernanceParticipant(
+  userId: number,
+  locale: string,
+  tx: DBTransaction | undefined
+): Promise<SessionWaveParticipantContext> {
+  const row = await UserRepository.findById(userId, tx);
+  if (row === null) {
+    logger.logDomainError("Session governance wave denied: recipient user row vanished", {
+      code: "INTERNAL_SERVER_ERROR",
+      entity: "session",
+      entityId: userId,
+      locale,
+    });
+    throw new DomainError("INTERNAL_SERVER_ERROR", getServerTranslations(locale).errorsTranslations.internalServerError);
+  }
+  return { userId: row.id, fullName: row.fullName, locale: row.locale };
+}
+
+/** One recipient's fully-composed, locale-resolved emit — no I/O left but the engine call. */
+interface GovernanceEmitPlan {
+  readonly input: NotificationEmitInput;
+  readonly recipientLocale: string;
+  readonly recipientUserId: number;
+}
+
+/**
+ * Composes every recipient's emit plan synchronously (copy in the
+ * RECIPIENT's persisted locale; the engine's claim recipe folds the
+ * recipient cohort into the hashed claim identity, so one wave-level key
+ * stays per-recipient deterministic).
+ */
+function planGovernanceWave(
+  wave: SessionWaveContext,
+  waveKind: SessionGovernanceWaveKind,
+  recipients: readonly SessionWaveParticipantContext[]
+): GovernanceEmitPlan[] {
+  const type = toGovernanceNotificationType(waveKind);
+  return recipients.map(recipient => {
+    const recipientLocale = recipient.locale ?? defaultLocale;
+    const { title, body } = composeGovernanceWaveCopy(
+      waveKind,
+      getServerTranslations(recipientLocale).notificationsTranslations
+    );
+    return {
+      input: {
+        userId: recipient.userId,
+        type,
+        title,
+        body,
+        relatedEntityType: "session",
+        relatedEntityId: wave.sessionId,
+        idempotencyKey: `session:${wave.sessionId}:${waveKind}`,
+      },
+      recipientLocale,
+      recipientUserId: recipient.userId,
+    } satisfies GovernanceEmitPlan;
+  });
+}
+
+/**
+ * Head-first sequential receipt walk over the composed emit plans (the
+ * recursive-helper shape of the shared refund walk: every engine call
+ * happens ACROSS an await, never inside a loop body). Caller-tx emissions
+ * return the engine's unpublished receipt verbatim; transaction-less
+ * emissions normalize the engine's single-row return into receipt shape.
+ */
+async function emitGovernanceReceiptsFrom(
+  plans: readonly GovernanceEmitPlan[],
+  index: number,
+  tx: DBTransaction | undefined,
+  options: NotificationEngineCallOptions | undefined
+): Promise<NotificationDeliveryReceipt[]> {
+  if (index >= plans.length) {
+    return [];
+  }
+  const plan = plans[index];
+  const rest = await emitGovernanceReceiptsFrom(plans, index + 1, tx, options);
+  if (tx !== undefined) {
+    const result = await NotificationEngine.emitForUser(plan.input, plan.recipientLocale, tx, options);
+    if (!("notifications" in result)) {
+      throw new DomainError(
+        "INTERNAL_SERVER_ERROR",
+        getServerTranslations(plan.recipientLocale).errorsTranslations.internalServerError
+      );
+    }
+    return [result, ...rest];
+  }
+  const result = await NotificationEngine.emitForUser(plan.input, plan.recipientLocale, undefined, options);
+  if ("notifications" in result) {
+    return [result, ...rest];
+  }
+  return [{ notifications: [result], recipientUserIds: [plan.recipientUserId] }, ...rest];
+}
+
+/**
+ * Delivers one governance wave to EVERY recipient and returns the delivery
+ * receipts in recipient order. See the module docblock: the receipts are
+ * UNPUBLISHED on the caller-transaction path — the calling flow publishes
+ * strictly after its own commit via `NotificationEngine.publishReceipts`.
+ */
+async function emitGovernanceWave(
+  wave: SessionWaveContext,
+  waveKind: SessionGovernanceWaveKind,
+  recipients: readonly SessionWaveParticipantContext[],
+  tx: DBTransaction | undefined,
+  options: NotificationEngineCallOptions | undefined
+): Promise<NotificationDeliveryReceipt[]> {
+  return emitGovernanceReceiptsFrom(planGovernanceWave(wave, waveKind, recipients), 0, tx, options);
+}
+
 export namespace SessionRequestNotificationService {
   /** Teacher-facing wave: a student requested a session. */
   export async function notifyTeacherOfSessionRequest(
@@ -284,5 +450,61 @@ export namespace SessionRequestNotificationService {
     options?: NotificationEngineCallOptions
   ): Promise<NotificationDeliveryReceipt> {
     return emitWave(sessionId, "outcome_alternatives_offered", "student", locale, tx, options);
+  }
+
+  /**
+   * Admin-governance wave: the session's timing pair was rescheduled.
+   * Recipients: the student and the (current) teacher, each in their own
+   * persisted locale. The calling flow owns the gate and the publish —
+   * this emitter only persists the receipts.
+   */
+  export async function notifySessionGovernanceRescheduled(
+    sessionId: number,
+    locale: string,
+    tx?: DBTransaction,
+    options?: NotificationEngineCallOptions
+  ): Promise<NotificationDeliveryReceipt[]> {
+    const wave = await resolveWaveContext(sessionId, locale, tx);
+    return emitGovernanceWave(wave, "sessionGovernance.rescheduled", [wave.student, wave.teacher], tx, options);
+  }
+
+  /**
+   * Admin-governance wave: the session was cancelled by an administrator.
+   * Recipients: the student and the (current) teacher, each in their own
+   * persisted locale. The calling flow owns the gate and the publish.
+   */
+  export async function notifySessionGovernanceCancelled(
+    sessionId: number,
+    locale: string,
+    tx?: DBTransaction,
+    options?: NotificationEngineCallOptions
+  ): Promise<NotificationDeliveryReceipt[]> {
+    const wave = await resolveWaveContext(sessionId, locale, tx);
+    return emitGovernanceWave(wave, "sessionGovernance.cancelled", [wave.student, wave.teacher], tx, options);
+  }
+
+  /**
+   * Admin-governance wave: the session's teacher was reassigned. Recipients:
+   * the student, the OUTGOING teacher (resolved by id — the row no longer
+   * references them after the guarded swap), and the incoming teacher, each
+   * in their own persisted locale. The calling flow owns the gate and the
+   * publish.
+   */
+  export async function notifySessionGovernanceTeacherReassigned(
+    sessionId: number,
+    outgoingTeacherUserId: number,
+    locale: string,
+    tx?: DBTransaction,
+    options?: NotificationEngineCallOptions
+  ): Promise<NotificationDeliveryReceipt[]> {
+    const wave = await resolveWaveContext(sessionId, locale, tx);
+    const outgoing = await resolveGovernanceParticipant(outgoingTeacherUserId, locale, tx);
+    return emitGovernanceWave(
+      wave,
+      "sessionGovernance.teacherReassigned",
+      [wave.student, outgoing, wave.teacher],
+      tx,
+      options
+    );
   }
 }

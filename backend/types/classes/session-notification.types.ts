@@ -10,6 +10,19 @@ export type SessionRequestWaveKind =
   | "outcome_queued"
   | "outcome_alternatives_offered";
 
+/**
+ * Closed wave vocabulary — the three admin session-governance waves
+ * (`sessionGovernance.rescheduled`, `sessionGovernance.cancelled`,
+ * `sessionGovernance.teacherReassigned`): one wave per operator
+ * intervention, each fanned out per recipient (student, outgoing teacher,
+ * incoming teacher) with per-recipient-locale copy and a per-recipient
+ * deterministic emit-claim key.
+ */
+export type SessionGovernanceWaveKind =
+  | "sessionGovernance.rescheduled"
+  | "sessionGovernance.cancelled"
+  | "sessionGovernance.teacherReassigned";
+
 /** Raw joined read row (intent is STILL untrusted storage at this layer). */
 export interface SessionWaveContextRow {
   readonly sessionId: number;
