@@ -221,12 +221,12 @@ flowchart LR
 
 | Oracle | Anchor | Predicate intent (read-only) |
 |---|---|---|
-| OR-W1 | INV-W* | no `wallets` row with negative balance |
-| OR-W2 | INV-W* | every `wallet_transactions` row joins an existing wallet |
-| OR-B1 | INV-B* | no session hold referencing a missing balance lane / negative hold |
+| OR-W1 | INV-W* | no `wallet` row with negative balance |
+| OR-W2 | INV-W* | every `teacher_transaction` row joins an existing wallet (`teacher_transaction` is the wallet ledger table; INV-W4/W6/W7) |
+| OR-B1 | INV-B* | no negative `students` balance lane (`balance_hifz`/`balance_tajweed`/`balance_reviews`/`balance_trial`, INV-B1); every `session` row joins an existing student and teacher (INV-S4) |
 | OR-U1 | A.5 / INV-U* | no `audit_logs` row with null/dangling actor reference |
 | OR-U2 | INV-U4/U5 | soft-deleted users retain their history rows (count sanity vs source when known) |
-| OR-REQ | workflow 02 | every `session_requests` row references an existing student |
+| OR-REQ | workflow 02 | every `session_request_idempotency` row references an existing user, and its claimed `session_id` (when set) references an existing `session` row (no dedicated `session_requests` queue table exists — booking-request state is the idempotency-claim table + `session.intent`, per open-decisions A.10) |
 | OR-MIG | REQ-017 | scratch `__drizzle_migrations` last hash == manifest `journalHash` |
 
 ### Component 4: `docs/ops/disaster-recovery.md` (CREATE)
@@ -298,6 +298,7 @@ Error output format: `[<tag>] message` where tag ∈ `env | guard | pg_dump | pg
 | Category | Tag | Behavior | Exit |
 |---|---|---|---|
 | Usage/flags/env | `[env]`/usage text | actionable message | 2 |
+| Lock contention (live PID) | `[env]` | stale-reclaim handles dead PIDs only; a live lock refuses with an actionable message | 2 |
 | Guard refusal | `[guard]` | guard's formatted block message; no spawn | 2 |
 | Tool missing/old | `[env]` | install guidance pointer (runbook section) | 2 |
 | pg_dump/pg_restore failure | `[pg_dump]`/`[pg_restore]` | stderr tail (scrubbed), `_FAILED` marker for backups | 1 |

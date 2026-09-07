@@ -29,11 +29,13 @@
 
 Sequence: QL → TE → SEC → SR → IV → `[x]`.
 
+*Pipeline scoping (documented negation):* doc-only tasks (6.x) and AGENTS.md-propagation edits (7.1) run QL/SR/IV with TE recorded N/A in the task outcome (no executable surface); SEC runs wherever secrets/DSNs could leak into the artifact (6.1.SEC / 6.2.SEC below); process gates (1.1, 8.x) and outcome-writing tasks (2.2, 3.2, 6.3, 7.2) are exempt (no repo code artifact). Test files capture/assert script streams — they do not echo captured output via `console.*` (existing `scripts/dbActions/*.test.ts` precedent).
+
 ## Layer-to-Instructions Mapping (applicable to this plan)
 
 | Files in this plan | Instruction files | AGENTS.md files |
 |---|---|---|
-| `scripts/ops/*.ts` | `.agents/instructions/backend.instructions.md` (closest layer: backend TS) | `/home/ahmed/Projects/kottaby_kottaby/AGENTS.md` |
+| `scripts/ops/*.ts` | `.agents/instructions/backend.instructions.md` (closest layer: backend TS — note the file's `applyTo` glob is `backend/**`; `scripts/` has no layer AGENTS.md) | root `AGENTS.md` (repo root — no layer AGENTS.md exists for `scripts/`) |
 | `scripts/ops/*.test.ts` | `.agents/instructions/tests.instructions.md` (+ backend above) | root AGENTS.md |
 | `package.json`, `.gitignore` | — | root AGENTS.md (barrel/naming rules N/A) |
 | `docs/ops/disaster-recovery.md` | — | root AGENTS.md (docs policy) |
@@ -43,11 +45,11 @@ Sequence: QL → TE → SEC → SR → IV → `[x]`.
 
 ## Phase 0 — Pre-Implementation Baseline (blocking)
 
-- [ ] 0.1 **Record baseline & verify ledger**
+- [x] 0.1 **Record baseline & verify ledger**
   - Run `bun tsgo 2>&1 | grep "error TS" | wc -l`, `bun biome:check`, `bun run scripts/lint-service.ts --json --id baseline-dev3-024`; write `outcome/phase0-baseline.md` with all three counts/artifacts.
   - Confirm `deferred-items.md` exists with D-001..D-003 forward rows.
   - _Requirements: REQ-000 (specs); skill Phase-0._
-- [ ] 0.2 **Toolchain & anchor probe**
+- [x] 0.2 **Toolchain & anchor probe**
   - Verify `pg_dump`, `pg_restore`, `psql` exist on the dev host; record versions; if server > client major, document upgrade path (carried into runbook Task 6.1 prerequisites section).
   - Re-verify anchors: `scripts/lib/destructiveDbGuard.ts` exports (`grep -n "export"`), `scripts/dbActions/envFile.ts` exports `applyEnvFile`, `scripts/dbActions/bootstrapEnv.ts` exists, `package.json` `ops:*` block lines, `.gitignore` state re `/backups/`.
   - Write `outcome/0.2-toolchain-anchors-outcome.md`.
@@ -55,7 +57,7 @@ Sequence: QL → TE → SEC → SR → IV → `[x]`.
 
 ## Phase 1 — Plan Review Gate (blocking)
 
-- [ ] 1.1 **Invoke `@plan-review` skill** on this directory; fix ALL findings; re-run until "passes"; write `outcome/plan-review-R1.md`; commit patched plan files before any implementation.
+- [x] 1.1 **Invoke `@plan-review` skill** on this directory; fix ALL findings; re-run until "passes"; write `outcome/plan-review-R1.md`; commit patched plan files before any implementation.
   - _Skill Phase 1.5; no REQ mapping (process gate)._
 
 ## Phase 2 — Backup Script (CREATE `scripts/ops/backup-database.ts`)
@@ -74,6 +76,7 @@ Sequence: QL → TE → SEC → SR → IV → `[x]`.
   - [ ] 2.1.IV **Instruction Verification**: read sub-loop-printed files (root AGENTS.md, backend instructions) and validate; confirm `console.*` usage is sanctioned for ops scripts (cite `scripts/ops/sweep-expired-link-requests.ts` precedent in outcome).
   - _Requirements: REQ-010, REQ-011, REQ-012, REQ-013, REQ-014, REQ-024, REQ-026, REQ-027, REQ-030, REQ-033, REQ-040, REQ-042, REQ-050, REQ-051._
 - [ ] 2.2 **Outcome**: `outcome/2.1-backup-script-outcome.md` (findings, deviations, carry-overs for restore script — esp. shared redaction utility decision).
+  - _Requirements: REQ-000.4 (outcome ledger); carries the 2.1 redaction-util decision to 3.1._
 
 ## Phase 3 — Restore & Verification Script (CREATE `scripts/ops/restore-verify.ts`)
 
@@ -89,10 +92,11 @@ Sequence: QL → TE → SEC → SR → IV → `[x]`.
   - [ ] 3.1.IV **Instruction Verification**: sub-loop-printed files read & validated.
   - _Requirements: REQ-015, REQ-016, REQ-017, REQ-018, REQ-019, REQ-024, REQ-025, REQ-027, REQ-030, REQ-031, REQ-032, REQ-041, REQ-050, REQ-051, REQ-052._
 - [ ] 3.2 **Outcome**: `outcome/3.1-restore-verify-outcome.md`.
+  - _Requirements: REQ-000.4 (outcome ledger)._
 
 ## Phase 4 — Repo Wiring
 
-- [ ] 4.1 **`package.json` scripts**: add `"ops:db-backup"` and `"ops:db-restore-verify"` adjacent to existing `ops:*` entries (lines ~66-67), exact binary invocations matching runbook.
+- [ ] 4.1 **`package.json` scripts**: add `"ops:db-backup"` and `"ops:db-restore-verify"` adjacent to existing `ops:*` entries (verified 0.2: lines 63–64 — insert immediately after the `ops:remind-link-requests` line, not at literal 66–67), exact binary invocations matching runbook.
   - [ ] 4.1.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts package.json --lifecycle duplicates` → 0 (or schema-valid JSON if sub-loop no-ops on JSON — record behavior in outcome).
   - [ ] 4.1.TE **Test**: inside `scripts/ops/backup-database.test.ts` (or a tiny `scripts/ops/scripts-registration.test.ts`), parse `package.json` and assert both keys exist and point at existing files; assert `.gitignore` contains `/backups/`.
   - [ ] 4.1.SEC: no secrets introduced into manifest file. · [ ] 4.1.SR: alphabetical/group placement consistent with surrounding block. · [ ] 4.1.IV: root AGENTS.md conventions.
@@ -103,7 +107,7 @@ Sequence: QL → TE → SEC → SR → IV → `[x]`.
 ## Phase 5 — Integration Test & Drill (drill chain; journey ruling N/A — see closing note)
 
 - [ ] 5.1 **CREATE `scripts/ops/backup-restore.integration.test.ts`** (TEST-first order within this phase: author against the Phase-2/3 contracts, which are already merged):
-  - `beforeAll`: create scratch DB `kottaby_dr_it_<ts>` (via `psql`/createdb argv), push schema (existing dbActions push path or drizzle-kit push with sqlite-excluded config), seed MINIMAL fixtures covering every REQ-017 critical table and every oracle domain (one wallet, one wallet_transaction, one session+hold shape, audit row, notification row, parent link request, session request).
+  - `beforeAll`: create scratch DB `kottaby_dr_it_<ts>` (via `psql`/createdb argv), push schema (existing dbActions push path or drizzle-kit push with sqlite-excluded config), seed MINIMAL fixtures covering every REQ-017 critical table and every oracle domain (one wallet + one `teacher_transaction` earning row, one `session` row with intent, one `session_request_idempotency` claim, a students-row balance-lane sanity fixture, audit row, notification row, parent link request).
   - Execute REAL `bun run ops:db-backup` against fixture DB → assert artifact+manifest; execute REAL restore-verify against a second scratch DB → assert `VERDICT: PASS` and report parses; tamper the artifact copy (flip bytes) → assert FAIL path and exit 1.
   - `afterAll`: drop both scratch DBs; remove test run dirs. NO `runInRollback` — OS-level tools require real DBs; document the deviation inline (clean, domain-language comment only) and in outcome.
   - [ ] 5.1.QL: `bun run scripts/health/sub-loop.ts scripts/ops/backup-restore.integration.test.ts --lifecycle duplicates` → 0.
@@ -119,11 +123,15 @@ Sequence: QL → TE → SEC → SR → IV → `[x]`.
 - [ ] 6.1 **CREATE `docs/ops/disaster-recovery.md`** (mkdir `docs/ops/`): repo docs template — Summary; Why; The Pattern (backup/restore-verify with exact `bun run ops:*` invocations; scheduling guidance cron/systemd + Neon PITR note); RPO=1h / RTO=4h definitions + budget arithmetic from drill; step-timed full-recovery runbook; disaster playbooks (DB-content loss; full-region loss incl. manual env re-entry); drill procedure + evidence checklist; conventions (operator-English stdout exemption, permission model, artifact hygiene); What NOT to Do; Rollout Summary; Related Documents (PRODUCTION_READINESS §7, DATABASE_MIGRATIONS, realtime-engine persist-first note, state-machine-invariants as oracle anchors, this plan's outcome dir).
   - [ ] 6.1.QL: sub-loop on the md file → 0.
   - [ ] 6.1.SR: every command in the doc verbatim-matches `package.json`; every deferred claim cites its ledger id; no orphaned references.
+  - [ ] 6.1.SEC: no credentials/real DSNs in the runbook — examples use placeholders only.
   - [ ] 6.1.IV: root AGENTS docs policy (canonical docs live under `docs/<domain>/`, kebab-case).
   - _Requirements: REQ-020, REQ-021, REQ-022, REQ-023, REQ-028, REQ-052, REQ-070._
 - [ ] 6.2 **Neon PITR appendix evidence**: document console-observed retention/PITR settings in the runbook appendix (D-001 remains 📅 Forward for any console-side hardening beyond documentation); write what was observed, nothing aspirational.
   - [ ] 6.2.SR: values match screenshot/panel exactly; no fabricated retention numbers.
+  - [ ] 6.2.SEC: any embedded console evidence is redacted — no credentials/tokens; 6.2.TE/QL/IV: N/A (docs-only, covered by 6.1 cycles) — record in outcome.
+  - _Requirements: REQ-020, REQ-023 (Neon PITR complementary layer); ledger D-001._
 - [ ] 6.3 **Outcome**: `outcome/6.x-runbook-outcome.md` incl. drill-feedback patches applied to the final doc.
+  - _Requirements: REQ-000.4 (outcome ledger); REQ-070._
 
 ## Phase 7 — Knowledge Propagation (executed only after Phase-8 review is green per skill ordering note: Phase 8 numbered after 7 but executes BEFORE 7's propagation write — keep the task ordering below)
 
@@ -134,12 +142,15 @@ Sequence: QL → TE → SEC → SR → IV → `[x]`.
   - Write `outcome/7.1-knowledge-propagation-outcome.md`.
   - _Requirements: REQ-028, REQ-070, REQ-071, REQ-072._
 - [ ] 7.2 **Deferred ledger sweep**: D-001..D-003 confirmed 📅 Forward with owners (D-001 operator/DEV3-026, D-002 post-launch CI, D-003 post-launch infra); zero ❌ rows; write `outcome/7.2-ledger-sweep-outcome.md`.
+  - _Requirements: REQ-000.2, REQ-070.3 (ledger clean at plan close)._
 
 ## Phase 8 — Post-Implementation Review Wave (mandatory: plan exceeds 10 subtasked units; executes BEFORE Phase 7 writes)
 
 - [ ] 8.1 **Dispatch review agents** scoped to `git diff --name-only` vs Phase-0 baseline: backend-reviewer (scripts/ops correctness, races, TOCTOU, dead code), pentester/idor (guard bypass attempts, credential-leak probes, arg injection, confinement escape), types-reviewer (manifest/report contracts, no canonical-type pollution). Aggregate; fix-file dispatch with sub-loop per file; repeat until zero feature findings.
   - Write `outcome/post-implementation-review.md`.
+  - _Process gate (skill Phase-8 review wave); no REQ mapping (consumes REQ-000.4 outcome ledger)._
 - [ ] 8.2 **Final gate**: full `bun quality-gate` green against Phase-0 baseline; all checkboxes `[x]`; ledger clean; outcome summary enumerates DEV3-026 handoff artifacts (`docs/ops/disaster-recovery.md`, drill evidence path, sample PASS report path).
+  - _Requirements: REQ-000 (baseline comparison); specs §Definition of Done._
 
 ---
 
