@@ -27,13 +27,14 @@
  *         arbiter surfaces a duplicate submission as a raw `23505`, mapped
  *         here into the localized `SESSION_REPORT_ALREADY_EXISTS` conflict
  *         (the repo never translates; the service decides);
- *      c. the previous-grades write — the student's newest UNGRADED
- *         homework row is graded exactly once through the guarded UPDATE;
- *         a zero-row match (a concurrent grader won the row) is a typed
- *         conflict. A `null` target is a genuine first session — nothing
- *         to grade: the guarded-miss path above already covers the
- *         prior-but-graded history, because a graded row can never match
- *         the ungraded predicate;
+ *      c. the previous-grades write — the student's NEWEST homework row
+ *         (any grade state — the probe carries no grade predicate) is
+ *         graded exactly once through the guarded UPDATE; a zero-row
+ *         match means that newest row is already graded — the plan's D5
+ *         "grade attempt against an already-graded prior row surfaces as
+ *         guarded miss" — and is a typed conflict. A `null` probe means
+ *         the student has NO homework rows at all — a genuine first
+ *         session, nothing to grade: a silent no-op, not an error.
  *      d. the homework assignment INSERT — the Jadid block maps onto the
  *         `current_*` columns and the Madi block onto the `revision_*`
  *         columns (field by field, grades structurally absent: the row is
@@ -79,7 +80,7 @@ import { HomeWorkRepository, ReportRepository, SessionRepository } from "@/backe
 import { withTransaction } from "@/backend/lib/db/with-transaction";
 import { ConflictError, NotFoundError } from "@/backend/lib/errors";
 import { logger } from "@/backend/lib/logger";
-import { assertActorGovernanceClean } from "@/backend/services/classes/session-lifecycle.governance";
+import { assertTeacherGovernanceClean } from "@/backend/services/classes/session-lifecycle.governance";
 import { SESSION_COMPLETED_STATUS } from "@/backend/services/classes/session-lifecycle.guards";
 import {
   assertPositiveSessionId,
@@ -181,13 +182,13 @@ function uniqueViolationOnConstraint(error: unknown, needle: string): boolean {
 
 /**
  * The homework composite of one submission, on the caller's transaction:
- * the previous-session grade write (the student's newest UNGRADED row,
+ * the previous-session grade write (the student's NEWEST homework row,
  * graded exactly once through the guarded UPDATE) followed by the new
  * assignment insert (grades structurally absent — the row is graded later
  * through this same flow). Order is fixed: the grade write targets the
  * PREVIOUS session's row, so it must run before this session's own row
- * exists — otherwise the newest ungraded row could be the one this very
- * submission just inserted.
+ * exists — otherwise the newest row could be the one this very submission
+ * just inserted.
  */
 async function settleHomeWorkComposite(
   studentId: number,
@@ -196,13 +197,18 @@ async function settleHomeWorkComposite(
   t: ErrorsTranslations,
   tx: DBTransaction
 ): Promise<void> {
-  // Previous-grades write — a null target is a genuine first session:
-  // nothing to grade. The guarded-miss path below already covers the
-  // prior-but-graded history, because a graded row can never match the
-  // ungraded predicate — there is no third shape to classify.
+  // Previous-grades write — the probe is the student's NEWEST homework row
+  // whatever its grade state (no grade predicate here): gradeability is
+  // decided by the guarded UPDATE below, never by this read. A `null` probe
+  // is a genuine first session — the student has NO prior homework rows at
+  // all, so there is nothing to grade and the grades are silently absorbed
+  // (D5's no-op arm); a newest row that is ALREADY graded misses the
+  // guarded UPDATE's zero-row predicate and surfaces as the typed
+  // write-once conflict (D5's conflict arm — the plan's "guarded miss"
+  // resolution). There is no third shape to classify.
   if (input.previousGrades) {
-    const target = await HomeWorkRepository.findLatestUngradedByStudentId(studentId, tx);
-    if (target) {
+    const target = await HomeWorkRepository.findLatestByStudentId(studentId, tx);
+    if (target !== null) {
       const graded = await HomeWorkRepository.gradeHomeWorkOnce(
         target.id,
         {
@@ -212,8 +218,9 @@ async function settleHomeWorkComposite(
         tx
       );
       if (graded === null) {
-        // The guarded UPDATE's predicate lost the row-lock race — the row
-        // was graded between the read and the write.
+        // The guarded UPDATE's predicate lost: the newest prior row is
+        // already graded (write-once violated) — a concurrent grader won
+        // the row, or the grades were submitted once before.
         logger.logDomainError("Session report denied: homework already graded", {
           code: "CONFLICT",
           entity: "home_work",
@@ -322,8 +329,9 @@ async function submitReportAndHomeworkInTx(
  *    or overlong notes body, a rating outside 0..5, an incoherent
  *    assignment block, or a grade outside 0..100 with the canonical
  *    `VALIDATION` error BEFORE any database work.
- *  - The acting teacher's governance state is re-asserted (a
- *    deleted/blocked/suspended account is denied with `FORBIDDEN`).
+ *  - The acting teacher's authorization is re-asserted (a
+ *    deleted/blocked/suspended account OR a caller without the teacher
+ *    role is denied with `FORBIDDEN`).
  *  - The gate locks the session row (`FOR UPDATE`) and classifies: an
  *    unknown id and a session owned by another teacher are BOTH the
  *    oracle-safe `SESSION_NOT_FOUND`; a row not in the `completed`
@@ -332,10 +340,11 @@ async function submitReportAndHomeworkInTx(
  *    assignment (the two settle together) — replays as the
  *    `SESSION_REPORT_ALREADY_EXISTS` conflict; the replayed attempt
  *    rolls back with the transaction (zero new rows).
- *  - The previous-grades write grades the student's newest ungraded
- *    homework exactly once; losing the race for that row is a `CONFLICT`
- *    and the submission never grades two rows or overwrites a grade. A
- *    student with no ungraded row is a genuine first session — nothing
+ *  - The previous-grades write grades the student's newest homework row
+ *    exactly once through the guarded UPDATE; the newest row being
+ *    already graded is a `CONFLICT` (grade is write-once) and the
+ *    submission never grades two rows or overwrites a grade. A student
+ *    with no homework rows at all is a genuine first session — nothing
  *    to grade, not an error.
  *
  * @param teacherUserId The acting teacher's id (context-resolved
@@ -377,8 +386,10 @@ export async function submitSessionReport(
     validatePreviousGrades(input.previousGrades, t);
   }
 
-  // 1. Actor governance re-assertion — the DB row is the authority.
-  await assertActorGovernanceClean(teacherUserId, t, outerTx);
+  // 1. Actor authorization re-assertion — governance-clean AND the
+  // teacher role (a student/parent/admin caller is denied with the typed
+  // FORBIDDEN before any session work; the DB row is the authority).
+  await assertTeacherGovernanceClean(teacherUserId, t, outerTx);
 
   // 2. One transaction body — every write composes on the same `tx`.
   const { report, receipts } = await withTransaction(outerTx, tx =>

@@ -355,7 +355,7 @@ The ONLY instruction files that exist are `.agents/instructions/frontend.instruc
   - [ ] 2.8.SR **Semantic Review**: reuse of existing probe (NO new FOR UPDATE on reads); no duplicated predicate logic — single private participant-check helper if shared by both reads; zero dead code.
   - [ ] 2.8.IV **Instruction Verification**: as 2.2.IV.
 
-- [ ] 2.9 [Journey test GREEN gate]
+- [x] 2.9 [Journey test GREEN gate]
   - Run `bun run test/scripts/run-test.ts test/workflows` — the journey written in 2.1 MUST now pass fully (all 11 steps + denial branches + purity oracles).
   - If any journey assertion fails: fix the SERVICE/repo surface (NEVER weaken the journey assertions — the journey encodes specs §2.9; any weakening requires a spec amendment, which is out of authority for this execution).
   - Repeat the full journey run 2 more times for flake/fan-out determinism evidence; paste summaries into `ai/plans/sprint_1/dev3-006-session-report-homework-infrastructure/outcome/2.9-outcome.md`.

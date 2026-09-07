@@ -108,44 +108,42 @@ export namespace HomeWorkRepository {
   }
 
   /**
-   * Finds the student's NEWEST ungraded homework row — the grading target
-   * of a subsequent report submission. The student scope is resolved
-   * through the owning session (`session.student_id`): the statement
-   * selects ungraded `home_work` rows whose session belongs to the
-   * student, expressed as an `EXISTS` semi-join over `session` (with
-   * `session_id` UNIQUE on `home_work`, the semi-join selects exactly the
-   * rows an INNER JOIN would — the same fused shape the session
-   * repository's certification re-assertion uses).
+   * Finds the student's NEWEST homework row — the grading probe of a
+   * subsequent report submission. The student scope is resolved through
+   * the owning session (`session.student_id`): the statement selects
+   * `home_work` rows whose session belongs to the student, expressed as
+   * an `EXISTS` semi-join over `session` (with `session_id` UNIQUE on
+   * `home_work`, the semi-join selects exactly the rows an INNER JOIN
+   * would — the same fused shape the session repository's certification
+   * re-assertion uses).
    *
-   * Ungraded means BOTH grade columns are NULL — a row graded on one
-   * track only is NOT a target. Newest first by the homework's own
-   * creation stamp (`created_at DESC`) with `id DESC` as the deterministic
-   * tiebreak for rows authored in the same instant — the house
-   * newest-first convention of the session participant lists, applied to
-   * the queried table; the choice is pinned here so future readers do not
-   * re-litigate session-stamp vs homework-stamp ordering.
+   * NO grade predicate: the newest row is returned whatever its grade
+   * state, so gradeability is decided by the caller's one-shot guarded
+   * UPDATE (`gradeHomeWorkOnce`), never by this read. A newest row that
+   * is already graded yields the guarded UPDATE's zero-row miss for the
+   * caller to classify as the write-once conflict; a `null` here means
+   * the student has NO homework rows at all — a genuine first session,
+   * nothing to grade. Newest first by the homework's own creation stamp
+   * (`created_at DESC`) with `id DESC` as the deterministic tiebreak for
+   * rows authored in the same instant — the house newest-first convention
+   * of the session participant lists, applied to the queried table; the
+   * choice is pinned here so future readers do not re-litigate
+   * session-stamp vs homework-stamp ordering.
    *
    * Read-only: on the caller's transaction it runs as a Drizzle select;
    * standalone it runs as raw parameterized SQL via `queryDb` (the
    * student id rides a bound parameter).
    *
-   * @returns The newest ungraded row, or `null` when the student has no
-   *          ungraded assignment (a true first session).
+   * @returns The newest row of any grade state, or `null` when the
+   *          student has no homework rows (a true first session).
    */
-  export async function findLatestUngradedByStudentId(
-    studentId: number,
-    tx?: DBTransaction
-  ): Promise<HomeWorkSelectType | null> {
+  export async function findLatestByStudentId(studentId: number, tx?: DBTransaction): Promise<HomeWorkSelectType | null> {
     if (tx) {
       const rows = await tx
         .select()
         .from(homeWork)
         .where(
-          and(
-            isNull(homeWork.currentGrade),
-            isNull(homeWork.revisionGrade),
-            sql`EXISTS (SELECT 1 FROM ${session} WHERE ${eq(session.id, homeWork.sessionId)} AND ${eq(session.studentId, studentId)})`
-          )
+          sql`EXISTS (SELECT 1 FROM ${session} WHERE ${eq(session.id, homeWork.sessionId)} AND ${eq(session.studentId, studentId)})`
         )
         .orderBy(desc(homeWork.createdAt), desc(homeWork.id))
         .limit(1);
@@ -159,8 +157,7 @@ export namespace HomeWorkRepository {
               revision_grade AS "revisionGrade", revision_surah_juz AS "revisionSurahJuz",
               created_at AS "createdAt", updated_at AS "updatedAt"
        FROM home_work
-       WHERE current_grade IS NULL AND revision_grade IS NULL
-         AND EXISTS (SELECT 1 FROM session s WHERE s.id = home_work.session_id AND s.student_id = $1)
+       WHERE EXISTS (SELECT 1 FROM session s WHERE s.id = home_work.session_id AND s.student_id = $1)
        ORDER BY created_at DESC, id DESC
        LIMIT 1`,
       [studentId]

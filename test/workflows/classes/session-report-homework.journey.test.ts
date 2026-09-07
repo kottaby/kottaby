@@ -3,16 +3,6 @@
  * (submit gates → atomic co-creation → participant reads → null collapse →
  * one-shot grading → forced mid-transaction rollback → wallet purity).
  *
- * TEST-FIRST (RED): this suite is committed BEFORE the service surface exists.
- * The static import of the not-yet-existing service module carries a
- * `@ts-expect-error -- service surface lands with the report/homework
- * write/read implementation` directive, so the project-wide tsgo gate stays at
- * 0 errors during the RED phase while the suite fails at runtime ONLY on the
- * missing-module resolution error. FOR THE IMPLEMENTATION TASKS: as soon as
- * the service module lands, that directive becomes UNUSED (tsgo reports
- * TS2578) and MUST be removed in the same change that adds the module — the
- * unused directive is the designed forcing function, never a leftover.
- *
  * Assertion oracle — the cross-actor side-effect matrix (living spec, copied
  * verbatim from the implementation design's "Cross-Actor Journey Design" §4.4;
  * every row below is asserted by the correspondingly numbered step):
@@ -27,8 +17,9 @@
  * | 7 student reads σ | — (read) | — | — | — | row returned | — |
  * | 8 parent reads σ | — (read) | — | — | — | `null` byte-identical to foreign read | — |
  * | 9 owner submits σ₂ with grades | +1 report | +1 assignment σ₂ (NULL grades); σ's row UPDATED grades | +1 student, +1 parent | student×1, parent×1 | — |
- * | 10 owner re-grades σ | 0 | 0 | 0 | 0 | 0 | `CONFLICT` (already graded) |
- * | 11 forced mid-tx failure (homework insert fails after report) | 0 | 0 | 0 | 0 | 0 | masked/internal at wire; journey asserts unit rollback |
+ * | 10a owner submits σ₃ with grades — the NEXT submission grades the student's NEWEST row (σ₂'s assignment): Assigned → Graded | +1 report (σ₃) | 0 new rows (σ₂'s row UPDATED grades in place) | +1 student, +1 parent | student×1, parent×1 | — |
+ * | 10b owner re-grade attempt via σ₄ — the newest row is ALREADY graded | 0 | 0 | 0 | 0 | `CONFLICT` (already graded) |
+ * | 11 forced mid-tx failure on σ₄ (homework insert fails after report) | 0 | 0 | 0 | 0 | 0 | masked/internal at wire; journey asserts unit rollback |
  *
  * Layer contract (`test/workflows/AGENTS.md` + docs/testing/workflow-journey-tests.md):
  * - NO `runInRollback` — fixtures COMMIT in `beforeAll` inside ONE committing
@@ -57,23 +48,10 @@
  *   bun run test/scripts/run-test.ts test/workflows/classes/session-report-homework.journey.test.ts
  *   bun run test/scripts/run-test.ts test/workflows
  */
-/*
- * TEST-FIRST RED suppression scope: the `@/backend/services/classes/
- * session-report.service` import below resolves NOWHERE while task 2.1 is the
- * only landed surface — it is the DESIGNED runtime failure of this suite.
- * This file-scoped eslint disable covers exactly that one specifier (the
- * rule fires on the import line, which also carries the `@ts-expect-error`
- * directive; a next-line eslint comment cannot share that line with it).
- * REMOVE BOTH this disable AND the `@ts-expect-error` above the import in
- * the SAME change that lands the module (task 2.7 — plus the 2.8 read
- * functions): tsgo reports the directive unused (TS2578) the moment the
- * module exists.
- */
-/* eslint-disable import-x/no-unresolved -- TEST-FIRST RED: the session-report service module lands with tasks 2.7/2.8 (removal note above the import). */
 import { afterAll, beforeAll, describe, expect, spyOn, test } from "bun:test";
 import { and, eq, inArray } from "drizzle-orm";
 import type { PgTable } from "drizzle-orm/pg-core";
-import { db } from "@/backend/db";
+import { db, queryDb } from "@/backend/db";
 import { homeWork } from "@/backend/db/schema/classes/home-work";
 import { reports } from "@/backend/db/schema/classes/reports";
 import { session } from "@/backend/db/schema/classes/session";
@@ -98,16 +76,6 @@ import { SurahJuzRef } from "@/backend/enum/shared/surah-juz-ref.enum";
 import { ConflictError, DomainError, ForbiddenError, NotFoundError, ValidationError } from "@/backend/lib/errors";
 import { type DomainErrorContext, logger } from "@/backend/lib/logger";
 import { SessionLifecycleService } from "@/backend/services/classes/session-lifecycle.service";
-// TEST-FIRST RED seam: the service module is DELIBERATELY absent while task
-// 2.1 is the only landed surface — the static import below is the designed
-// runtime failure of this suite (missing-module resolution, nothing else).
-// The file-scoped eslint disable near the top of this file covers that one
-// unresolvable specifier, and the `@ts-expect-error` line directly below
-// keeps tsgo at 0. BOTH suppression directives MUST be removed in the SAME
-// change that lands the module (task 2.7 — plus the 2.8 read-function
-// names): until then tsgo reports the directive as unused the moment the
-// module exists (TS2578).
-// @ts-expect-error -- service surface lands with the report/homework write/read implementation
 import * as SessionReportService from "@/backend/services/classes/session-report.service";
 import type { NotificationEngineCallOptions } from "@/backend/services/notifications";
 import {
@@ -180,6 +148,17 @@ interface DomainLogRecord {
 }
 
 /**
+ * One step-4 sweep entry: a hostile payload plus the SPECIFIC localized
+ * denial copy the guard pipeline throws for it (the pre-DB guards throw
+ * the per-rule key — `sessionRatingRange`, `homeworkAyahRangeInvalid`, … —
+ * never the generic `validation` string, so each case pins its own copy).
+ */
+interface HostileCase {
+  readonly copy: string;
+  readonly input: SessionReportSubmitInput;
+}
+
+/**
  * Installs a recording stub over `logger.logDomainError` so domain rejections
  * stay silent in test output AND become assertable (exactly one bounded log
  * per denial; none on success). Callers MUST `stop()` (use try/finally).
@@ -247,6 +226,44 @@ async function reportRowBySessionId(sessionId: number): Promise<ReportReturnType
 async function homeworkRowBySessionId(sessionId: number): Promise<HomeWorkReturnType | null> {
   const rows = await db.select().from(homeWork).where(eq(homeWork.sessionId, sessionId));
   return rows.at(0) ?? null;
+}
+
+/**
+ * Projects one read-back row onto the comparison form shared by BOTH read
+ * channels: the direct drizzle read truncates milliseconds under the PGlite
+ * shim (the drizzle timestamp mapper stringifies the already-parsed Date,
+ * dropping the fraction) while the service's raw-SQL re-read keeps them, so
+ * the SAME committed row differs between the channels only in sub-second
+ * precision. Both stamps are projected onto the second-truncated ISO form —
+ * the strongest equality the two channels share — and every other field is
+ * carried through verbatim for the full-row `toEqual`.
+ */
+function withSecondTruncatedStamps<Row extends { createdAt: Date; updatedAt: Date }>(
+  row: Row
+): Omit<Row, "createdAt" | "updatedAt"> & { createdAt: string; updatedAt: string } {
+  return {
+    ...row,
+    createdAt: row.createdAt.toISOString().slice(0, 19),
+    updatedAt: row.updatedAt.toISOString().slice(0, 19),
+  };
+}
+
+/**
+ * Full-precision `updated_at` of one session's homework row (queryDb path).
+ *
+ * The direct drizzle read truncates milliseconds under the PGlite shim (the
+ * drizzle timestamp mapper stringifies PGlite's already-parsed Date, dropping
+ * the fraction), so same-second write pairs compare EQUAL through it. Stamp
+ * ADVANCE oracles read the true value here — the same measurement channel the
+ * service's own raw-SQL reads use — and never weaker than the exact
+ * comparison they replace.
+ */
+async function homeWorkUpdatedAtBySessionId(sessionId: number): Promise<Date | null> {
+  const result = await queryDb<{ updatedAt: Date }>(
+    `SELECT updated_at AS "updatedAt" FROM home_work WHERE session_id = $1 LIMIT 1`,
+    [sessionId]
+  );
+  return result.rows[0]?.updatedAt ?? null;
 }
 
 /** All report-wave notification rows one user holds for one session. */
@@ -422,6 +439,7 @@ describe("cross-actor journey: session report + homework (gates → co-creation 
   const KEY_SIGMA_PRIME = `${RUN_PREFIX}-k-sigma-prime`;
   const KEY_SIGMA2 = `${RUN_PREFIX}-k-sigma-2`;
   const KEY_SIGMA3 = `${RUN_PREFIX}-k-sigma-3`;
+  const KEY_SIGMA4 = `${RUN_PREFIX}-k-sigma-4`;
 
   let studentS: UserSelectType;
   let studentSPrime: UserSelectType;
@@ -434,14 +452,15 @@ describe("cross-actor journey: session report + homework (gates → co-creation 
   let sigmaPrime: SessionReturnType;
   let sigma2: SessionReturnType;
   let sigma3: SessionReturnType;
+  let sigma4: SessionReturnType;
 
   beforeAll(async () => {
     // ONE committing transaction: commit-or-nothing fixture provisioning.
     await db.transaction(async tx => {
-      // Session student S — English locale, funded for exactly three bookings
-      // (trial lane first, then the two Hifz units the later sessions burn).
+      // Session student S — English locale, funded for exactly four bookings
+      // (trial lane first, then the three Hifz units the later sessions burn).
       studentS = await createTestUser(tx, { role: "student", locale: "en", fullName: `${RUN_PREFIX} student S` });
-      const studentSRow = await createTestStudent(tx, studentS.id, { balanceTrial: 1, balanceHifz: 2 });
+      const studentSRow = await createTestStudent(tx, studentS.id, { balanceTrial: 1, balanceHifz: 3 });
       tracked.register(users, studentS.id);
       tracked.register(students, studentSRow.id);
 
@@ -516,8 +535,8 @@ describe("cross-actor journey: session report + homework (gates → co-creation 
     expect(sigma.teacherId).toBe(teacherT.id);
     expect(sigma.studentId).toBe(studentS.id);
 
-    // The booking consumed the trial lane first: trial 0, both Hifz units left.
-    expect(await readBookingLanes(studentS.id)).toEqual({ hifz: 2, trial: 0 });
+    // The booking consumed the trial lane first: trial 0, the three Hifz units left.
+    expect(await readBookingLanes(studentS.id)).toEqual({ hifz: 3, trial: 0 });
 
     // Baseline: zero report/homework/notification/wallet side effects anywhere.
     const baseline = await sideEffectSnapshot(
@@ -682,34 +701,52 @@ describe("cross-actor journey: session report + homework (gates → co-creation 
       transportSpy.publishCount
     );
     try {
-      // The eight mandated hostile payloads. The unknown-SurahJuzRef payload is
-      // built with the runtime tamper pattern (no casts): the block is typed
-      // with a real member, then the surahJuz field is overwritten with a
-      // non-member string exactly as the wire would deliver it.
+      // The eight mandated hostile payloads, each pinned to the SPECIFIC
+      // guard-denial copy thrown by the pipeline's fixed validation order
+      // (notes → rating → assignment blocks → previous grades). The
+      // unknown-SurahJuzRef payload is built with the runtime tamper pattern
+      // (no casts): the block is typed with a real member, then the surahJuz
+      // field is overwritten with a non-member string exactly as the wire
+      // would deliver it ("surah_an_nuh" is outside the shipped enum window
+      // surah_al_fatihah..surah_al_maidah + juz_1..30).
       const hostileBlock: HomeWorkBlockInput = { fromAyah: 1, toAyah: 5, surahJuz: SurahJuzRef.SurahAlFatihah };
       Object.assign(hostileBlock, { surahJuz: "surah_an_nuh" });
-      const hostileInputs: SessionReportSubmitInput[] = [
-        baseSubmitInput({ studentRatingByTeacher: 7 }),
-        baseSubmitInput({ teacherNotes: "" }),
-        baseSubmitInput({ teacherNotes: "a".repeat(2001) }),
-        baseSubmitInput({ previousGrades: { currentGrade: 101, revisionGrade: 50 } }),
-        baseSubmitInput({ previousGrades: { currentGrade: -1, revisionGrade: 50 } }),
-        baseSubmitInput({ homework: { jadid: { fromAyah: 7, toAyah: 3, surahJuz: SurahJuzRef.SurahAlFatihah } } }),
-        baseSubmitInput({ homework: { jadid: hostileBlock } }),
-        baseSubmitInput({ homework: { madi: { fromAyah: 1.5, toAyah: 5, surahJuz: SurahJuzRef.Juz1 } } }),
+      const hostileCases: readonly HostileCase[] = [
+        { copy: ERRORS_EN.sessionRatingRange, input: baseSubmitInput({ studentRatingByTeacher: 7 }) },
+        { copy: ERRORS_EN.sessionReportNotesRequired, input: baseSubmitInput({ teacherNotes: "" }) },
+        { copy: ERRORS_EN.sessionReportNotesTooLong, input: baseSubmitInput({ teacherNotes: "a".repeat(2001) }) },
+        {
+          copy: ERRORS_EN.homeworkGradeRange,
+          input: baseSubmitInput({ previousGrades: { currentGrade: 101, revisionGrade: 50 } }),
+        },
+        {
+          copy: ERRORS_EN.homeworkGradeRange,
+          input: baseSubmitInput({ previousGrades: { currentGrade: -1, revisionGrade: 50 } }),
+        },
+        {
+          copy: ERRORS_EN.homeworkAyahRangeInvalid,
+          input: baseSubmitInput({
+            homework: { jadid: { fromAyah: 7, toAyah: 3, surahJuz: SurahJuzRef.SurahAlFatihah } },
+          }),
+        },
+        { copy: ERRORS_EN.homeworkSurahJuzInvalid, input: baseSubmitInput({ homework: { jadid: hostileBlock } }) },
+        {
+          copy: ERRORS_EN.homeworkAyahRangeInvalid,
+          input: baseSubmitInput({ homework: { madi: { fromAyah: 1.5, toAyah: 5, surahJuz: SurahJuzRef.Juz1 } } }),
+        },
       ];
       // Sequential sweep via recursion (the await-in-loop rule forbids a
       // plain for/await — depth bounded by the fixed payload list).
-      const sweepNext = async (remaining: readonly SessionReportSubmitInput[]): Promise<void> => {
-        const hostileInput = remaining[0];
-        if (!hostileInput) {
+      const sweepNext = async (remaining: readonly HostileCase[]): Promise<void> => {
+        const hostileCase = remaining[0];
+        if (!hostileCase) {
           return;
         }
         const validationError = await catchJourneyError(() =>
           SessionReportService.submitSessionReport(
             teacherT.id,
             sigma.id,
-            hostileInput,
+            hostileCase.input,
             LOCALE,
             undefined,
             engineOptions
@@ -718,10 +755,10 @@ describe("cross-actor journey: session report + homework (gates → co-creation 
         if (!(validationError instanceof ValidationError)) {
           throw new Error(`expected ValidationError (got ${validationError.name}: ${validationError.message})`);
         }
-        assertDenialCodeAndCopy(validationError, "VALIDATION", ERRORS_EN.validation);
+        assertDenialCodeAndCopy(validationError, "VALIDATION", hostileCase.copy);
         await sweepNext(remaining.slice(1));
       };
-      await sweepNext(hostileInputs);
+      await sweepNext(hostileCases);
       // Pre-DB validation denials log nothing (the established emitter precedent).
       expect(logs.records).toEqual([]);
     } finally {
@@ -852,8 +889,12 @@ describe("cross-actor journey: session report + homework (gates → co-creation 
     expect(await countNotificationsForUser(studentSPrime.id)).toBe(0);
     expect(await countNotificationsForUser(teacherFt.id)).toBe(0);
     expect(await countNotificationsForUser(adminA.id)).toBe(0);
-    expectNoDeltas(
-      before,
+
+    // The step's own submit is the ONLY delta the snapshot may show:
+    // exactly +1 report, +1 home_work, +1 student wave, +1 parent wave,
+    // +2 publishes — every other field byte-identical to the pre-submit
+    // baseline (the full-object comparison pins all 15 fields at once).
+    expect(
       await sideEffectSnapshot(
         [sigma.id],
         {
@@ -867,7 +908,14 @@ describe("cross-actor journey: session report + homework (gates → co-creation 
         studentS.id,
         transportSpy.publishCount
       )
-    );
+    ).toEqual({
+      ...before,
+      reportRows: before.reportRows + 1,
+      homeworkRows: before.homeworkRows + 1,
+      notificationsS: before.notificationsS + 1,
+      notificationsP: before.notificationsP + 1,
+      publishes: before.publishes + 2,
+    });
   });
 
   test("step 5b — S′ (unlinked parent) leg: INV-P1 gate — student wave ONLY, parent inbox untouched", async () => {
@@ -911,8 +959,11 @@ describe("cross-actor journey: session report + homework (gates → co-creation 
     }
     expect(primeHomeworkRow.currentFromAyah).toBeNull();
     expect(primeHomeworkRow.currentGrade).toBeNull();
-    expect(primeHomeworkRow.revisionFromAyah).toBe(SIGMA2_MADI.fromAyah);
-    expect(primeHomeworkRow.revisionSurahJuz).toBe(SurahJuzRef.Juz3);
+    // The σ′ submit carries PRIME_MADI — the madi→revision_* mapping is
+    // asserted against the payload ACTUALLY sent (not the σ₂ constants).
+    expect(primeHomeworkRow.revisionFromAyah).toBe(PRIME_MADI.fromAyah);
+    expect(primeHomeworkRow.revisionToAyah).toBe(PRIME_MADI.toAyah);
+    expect(primeHomeworkRow.revisionSurahJuz).toBe(PRIME_MADI.surahJuz);
     tracked.register(homeWork, primeHomeworkRow.id);
 
     // INV-P1: the unlinked student's session produces the STUDENT wave only —
@@ -930,9 +981,12 @@ describe("cross-actor journey: session report + homework (gates → co-creation 
     expect(transportSpy.calls.at(-1)?.userIds).toEqual([studentSPrime.id]);
     expect(await countNotificationsForUser(parentP.id)).toBe(before.notificationsP);
 
-    // σ-side counts unchanged; the σ′ rows are outside the σ snapshot scope.
-    expectNoDeltas(
-      before,
+    // The step's own σ′ submit is the ONLY delta the snapshot may show:
+    // the INV-P1 student-only leg — +1 inbox row for S′, +1 publish — with
+    // every other field byte-identical to the pre-step baseline. The σ-side
+    // report/homework counts (scoped to [sigma.id]) stay put because the σ′
+    // rows live outside that scope, and the parent's inbox is untouched.
+    expect(
       await sideEffectSnapshot(
         [sigma.id],
         {
@@ -946,7 +1000,11 @@ describe("cross-actor journey: session report + homework (gates → co-creation 
         studentS.id,
         transportSpy.publishCount
       )
-    );
+    ).toEqual({
+      ...before,
+      notificationsSPrime: before.notificationsSPrime + 1,
+      publishes: before.publishes + 1,
+    });
   });
 
   test("step 6 — owner T re-submits σ: SESSION_REPORT_ALREADY_EXISTS; counts unchanged; no new publishes", async () => {
@@ -1027,12 +1085,24 @@ describe("cross-actor journey: session report + homework (gates → co-creation 
 
     const studentReport = await SessionReportService.getSessionReport(studentS.id, sigma.id, LOCALE);
     const studentHomework = await SessionReportService.getSessionHomework(studentS.id, sigma.id, LOCALE);
-    expect(studentReport).toEqual(reportRow);
-    expect(studentHomework).toEqual(homeworkRow);
+    if (!studentReport || !studentHomework) {
+      throw new Error("journey: expected the σ report and homework reads to return the rows for the student");
+    }
+    // Full-row equality through the stamp-normalizing projection: the
+    // service's raw-SQL read keeps milliseconds while the direct drizzle
+    // read drops them under the PGlite shim — sub-second precision is the
+    // ONLY permitted difference (see withSecondTruncatedStamps).
+    expect(withSecondTruncatedStamps(studentReport)).toEqual(withSecondTruncatedStamps(reportRow));
+    expect(withSecondTruncatedStamps(studentHomework)).toEqual(withSecondTruncatedStamps(homeworkRow));
 
     // The owning teacher is a participant too.
-    expect(await SessionReportService.getSessionReport(teacherT.id, sigma.id, LOCALE)).toEqual(reportRow);
-    expect(await SessionReportService.getSessionHomework(teacherT.id, sigma.id, LOCALE)).toEqual(homeworkRow);
+    const teacherReport = await SessionReportService.getSessionReport(teacherT.id, sigma.id, LOCALE);
+    const teacherHomework = await SessionReportService.getSessionHomework(teacherT.id, sigma.id, LOCALE);
+    if (!teacherReport || !teacherHomework) {
+      throw new Error("journey: expected the σ report and homework reads to return the rows for the owner");
+    }
+    expect(withSecondTruncatedStamps(teacherReport)).toEqual(withSecondTruncatedStamps(reportRow));
+    expect(withSecondTruncatedStamps(teacherHomework)).toEqual(withSecondTruncatedStamps(homeworkRow));
 
     // Reads are pure: zero side-effect deltas.
     expectNoDeltas(
@@ -1120,6 +1190,13 @@ describe("cross-actor journey: session report + homework (gates → co-creation 
     if (!sigmaHomeworkBefore) {
       throw new Error("journey: expected the σ home_work row to exist before the graded submission");
     }
+    // Stamp oracle on the full-precision queryDb path — the direct drizzle
+    // read truncates milliseconds under the PGlite shim, so a same-second
+    // insert/grade pair would compare equal through it.
+    const sigmaHomeworkStampBefore = await homeWorkUpdatedAtBySessionId(sigma.id);
+    if (!sigmaHomeworkStampBefore) {
+      throw new Error("journey: expected the σ home_work row to exist before the graded submission");
+    }
     const before = await sideEffectSnapshot(
       [sigma.id, sigma2.id],
       {
@@ -1153,7 +1230,7 @@ describe("cross-actor journey: session report + homework (gates → co-creation 
     tracked.register(reports, sigma2ReportRow.id);
 
     // σ's homework row: graded EXACTLY once with the submitted values, and
-    // its updatedAt advanced past the assignment instant.
+    // its updatedAt advanced past the assignment instant (true-stamp oracle).
     const sigmaHomeworkAfter = await homeworkRowBySessionId(sigma.id);
     if (!sigmaHomeworkAfter) {
       throw new Error("journey: expected the σ home_work row to survive the graded submission");
@@ -1161,7 +1238,11 @@ describe("cross-actor journey: session report + homework (gates → co-creation 
     expect(sigmaHomeworkAfter.id).toBe(sigmaHomeworkBefore.id);
     expect(sigmaHomeworkAfter.currentGrade).toBe(88);
     expect(sigmaHomeworkAfter.revisionGrade).toBe(74);
-    expect(sigmaHomeworkAfter.updatedAt.getTime()).toBeGreaterThan(sigmaHomeworkBefore.updatedAt.getTime());
+    const sigmaHomeworkStampAfter = await homeWorkUpdatedAtBySessionId(sigma.id);
+    if (!sigmaHomeworkStampAfter) {
+      throw new Error("journey: expected the σ home_work row to survive the graded submission");
+    }
+    expect(sigmaHomeworkStampAfter.getTime()).toBeGreaterThan(sigmaHomeworkStampBefore.getTime());
     tracked.register(homeWork, sigmaHomeworkAfter.id);
 
     // σ₂'s own assignment row: blocks mapped, grades structurally NULL.
@@ -1221,7 +1302,11 @@ describe("cross-actor journey: session report + homework (gates → co-creation 
     expect(after.lanesTrial).toBe(before.lanesTrial);
   });
 
-  test("step 10 — T re-grade attempt via σ₃: typed CONFLICT (homeworkAlreadyGraded); σ grades unchanged", async () => {
+  test("step 10 — T submits σ₃ with grades (σ₂'s assignment graded once); a σ₄ re-grade attempt ⇒ typed CONFLICT (homeworkAlreadyGraded)", async () => {
+    // σ₃: the NEXT completed session. Its submission carries previousGrades
+    // for the student's NEWEST homework row — σ₂'s assignment, still
+    // ungraded — the state machine's Assigned → Graded transition (the D5
+    // newest-any-grade probe: gradeability is the guarded UPDATE's call).
     sigma3 = await provisionCompletedSession(studentS.id, teacherT.id, KEY_SIGMA3);
     tracked.register(session, sigma3.id);
     await registerClaimRow(KEY_SIGMA3, "σ₃ booking", tracked);
@@ -1239,32 +1324,70 @@ describe("cross-actor journey: session report + homework (gates → co-creation 
       transportSpy.publishCount
     );
 
-    const logs = recordDomainLogs();
-    try {
-      // The write-once grade guard: submitting further grades for the same
-      // student after the σ assignment was graded is a typed conflict — the
-      // one-shot UPDATE can never run twice (grade is write-once).
-      const conflictError = await catchJourneyError(() =>
-        SessionReportService.submitSessionReport(
-          teacherT.id,
-          sigma3.id,
-          baseSubmitInput({ previousGrades: { currentGrade: 91, revisionGrade: 80 } }),
-          LOCALE,
-          undefined,
-          engineOptions
-        )
-      );
-      if (!(conflictError instanceof ConflictError)) {
-        throw new Error(`expected ConflictError (got ${conflictError.name}: ${conflictError.message})`);
-      }
-      assertDenialCodeAndCopy(conflictError, "CONFLICT", ERRORS_EN.homeworkAlreadyGraded);
-      expect(logs.records.map(record => record.code)).toEqual(["CONFLICT"]);
-    } finally {
-      logs.stop();
+    const forward = await SessionReportService.submitSessionReport(
+      teacherT.id,
+      sigma3.id,
+      baseSubmitInput({ previousGrades: { currentGrade: 91, revisionGrade: 80 } }),
+      LOCALE,
+      undefined,
+      engineOptions
+    );
+    const sigma3ReportRow = await reportRowBySessionId(sigma3.id);
+    if (!sigma3ReportRow) {
+      throw new Error("journey: expected the σ₃ report row to exist after the forward-grade submit");
     }
+    expect(sigma3ReportRow).toEqual(forward);
+    tracked.register(reports, sigma3ReportRow.id);
 
-    const after = await sideEffectSnapshot(
-      [sigma.id, sigma2.id, sigma3.id],
+    // σ₂'s assignment: graded EXACTLY once with the submitted values — the
+    // newest row was the target and the one-shot UPDATE hit it.
+    const sigma2HomeworkAfter = await homeworkRowBySessionId(sigma2.id);
+    if (!sigma2HomeworkAfter) {
+      throw new Error("journey: expected the σ₂ home_work row to survive the forward-grade submission");
+    }
+    expect(sigma2HomeworkAfter.currentGrade).toBe(91);
+    expect(sigma2HomeworkAfter.revisionGrade).toBe(80);
+    // σ's row: untouched — write-once is PER ROW (σ's grades were spent at
+    // step 9 and no later probe can revisit an older row).
+    const sigmaHomeworkAfter = await homeworkRowBySessionId(sigma.id);
+    if (!sigmaHomeworkAfter) {
+      throw new Error("journey: expected the σ home_work row to survive the forward-grade submission");
+    }
+    expect(sigmaHomeworkAfter.currentGrade).toBe(88);
+    expect(sigmaHomeworkAfter.revisionGrade).toBe(74);
+
+    // σ₃ waves: student + parent each +1 (2 publishes, per-recipient locales).
+    const sigma3StudentWaves = await completionRowsFor(studentS.id, sigma3.id);
+    const sigma3ParentWaves = await completionRowsFor(parentP.id, sigma3.id);
+    expect(sigma3StudentWaves).toHaveLength(1);
+    expect(sigma3ParentWaves).toHaveLength(1);
+    const sigma3StudentWave = sigma3StudentWaves[0];
+    const sigma3ParentWave = sigma3ParentWaves[0];
+    if (!sigma3StudentWave || !sigma3ParentWave) {
+      throw new Error("journey: expected one student wave and one parent wave for σ₃");
+    }
+    expect(sigma3StudentWave.body).toBe(NOTIFS_EN.eventSessionReportReadyBody(teacherT.fullName));
+    expect(sigma3ParentWave.body).toBe(
+      NOTIFS_AR.eventSessionReportReadyParentBody(studentS.fullName, teacherT.fullName)
+    );
+    tracked.register(notifications, sigma3StudentWave.id);
+    tracked.register(notifications, sigma3ParentWave.id);
+    expect(transportSpy.publishCount).toBe(before.publishes + 2);
+    const newPublishes = transportSpy.calls.slice(before.publishes);
+    expect(newPublishes.map(publish => JSON.stringify(publish.userIds)).toSorted((a, b) => a.localeCompare(b))).toEqual(
+      [parentP.id, studentS.id].map(id => JSON.stringify([id])).toSorted((a, b) => a.localeCompare(b))
+    );
+
+    // σ₄: one more completed session for the write-once probe. With σ₂'s row
+    // Graded, the newest-row probe surfaces an ALREADY graded row; the
+    // one-shot guarded UPDATE matches zero rows ⇒ typed CONFLICT (the D5
+    // conflict arm — grade is write-once, never a fallback to older rows,
+    // never a silent no-op).
+    sigma4 = await provisionCompletedSession(studentS.id, teacherT.id, KEY_SIGMA4);
+    tracked.register(session, sigma4.id);
+    await registerClaimRow(KEY_SIGMA4, "σ₄ booking", tracked);
+    const beforeConflict = await sideEffectSnapshot(
+      [sigma.id, sigma2.id, sigma3.id, sigma4.id],
       {
         studentS,
         studentSPrime,
@@ -1276,22 +1399,58 @@ describe("cross-actor journey: session report + homework (gates → co-creation 
       studentS.id,
       transportSpy.publishCount
     );
-    // Zero rows anywhere for the denied attempt (the conflict rolled back its
-    // own unit — σ₃ stays report-less) and σ's graded values are untouched.
-    expect(after.reportRows).toBe(2);
-    expect(after.homeworkRows).toBe(2);
-    const sigmaHomework = await homeworkRowBySessionId(sigma.id);
-    if (!sigmaHomework) {
-      throw new Error("journey: expected the σ home_work row to survive the re-grade denial");
+
+    const logs = recordDomainLogs();
+    let conflictError: Error;
+    try {
+      conflictError = await catchJourneyError(() =>
+        SessionReportService.submitSessionReport(
+          teacherT.id,
+          sigma4.id,
+          baseSubmitInput({ previousGrades: { currentGrade: 60, revisionGrade: 70 } }),
+          LOCALE,
+          undefined,
+          engineOptions
+        )
+      );
+    } finally {
+      logs.stop();
     }
-    expect(sigmaHomework.currentGrade).toBe(88);
-    expect(sigmaHomework.revisionGrade).toBe(74);
-    expectNoDeltas(before, after);
+    if (!(conflictError instanceof ConflictError)) {
+      throw new Error(`expected ConflictError (got ${conflictError.name}: ${conflictError.message})`);
+    }
+    assertDenialCodeAndCopy(conflictError, "CONFLICT", ERRORS_EN.homeworkAlreadyGraded);
+    expect(logs.records.map(record => record.code)).toEqual(["CONFLICT"]);
+
+    // Zero rows anywhere for the denied attempt (σ₄ stays report-less) and
+    // σ₂'s graded values are untouched — the write-once held.
+    const afterConflict = await sideEffectSnapshot(
+      [sigma.id, sigma2.id, sigma3.id, sigma4.id],
+      {
+        studentS,
+        studentSPrime,
+        parentP,
+        teacherT,
+        teacherFt,
+        adminA,
+      },
+      studentS.id,
+      transportSpy.publishCount
+    );
+    expect(afterConflict.reportRows).toBe(3);
+    expect(afterConflict.homeworkRows).toBe(2);
+    expectNoDeltas(beforeConflict, afterConflict);
+    const sigma2HomeworkFinal = await homeworkRowBySessionId(sigma2.id);
+    if (!sigma2HomeworkFinal) {
+      throw new Error("journey: expected the σ₂ home_work row to survive the re-grade denial");
+    }
+    expect(sigma2HomeworkFinal.currentGrade).toBe(91);
+    expect(sigma2HomeworkFinal.revisionGrade).toBe(80);
   });
 
   test("step 11 — forced mid-transaction rollback: homework insert fails AFTER the report insert; full unit rollback", async () => {
     const before = await sideEffectSnapshot(
-      [sigma.id, sigma2.id, sigma3.id],
+      [sigma.id, sigma2.id, sigma3.id, sigma4.id],
       {
         studentS,
         studentSPrime,
@@ -1306,13 +1465,13 @@ describe("cross-actor journey: session report + homework (gates → co-creation 
     const counters = { reportInserts: 0, homeworkInsertAttempts: 0 };
 
     // The fault probe replaces the home_work INSERT with a raw failure inside
-    // the service's own transactional window (σ₃ is completed and still
+    // the service's own transactional window (σ₄ is completed and still
     // report-less, so the report insert legitimately executes first).
     const fault = await catchJourneyError(() =>
       db.transaction(async tx =>
         SessionReportService.submitSessionReport(
           teacherT.id,
-          sigma3.id,
+          sigma4.id,
           baseSubmitInput({ homework: { jadid: JADID_BLOCK, madi: MADI_BLOCK } }),
           LOCALE,
           faultProbeTx(tx, counters),
@@ -1328,9 +1487,9 @@ describe("cross-actor journey: session report + homework (gates → co-creation 
     expect(counters.homeworkInsertAttempts).toBe(1);
 
     // Total unit rollback: zero reports, zero home_work, zero notifications,
-    // zero publishes for this attempt — and σ₃ stays report-less.
+    // zero publishes for this attempt — and σ₄ stays report-less.
     const after = await sideEffectSnapshot(
-      [sigma.id, sigma2.id, sigma3.id],
+      [sigma.id, sigma2.id, sigma3.id, sigma4.id],
       {
         studentS,
         studentSPrime,
@@ -1342,18 +1501,18 @@ describe("cross-actor journey: session report + homework (gates → co-creation 
       studentS.id,
       transportSpy.publishCount
     );
-    expect(after.reportRows).toBe(2);
+    expect(after.reportRows).toBe(3);
     expect(after.homeworkRows).toBe(2);
-    expect(after.notificationsS).toBe(2);
-    expect(after.notificationsP).toBe(2);
+    expect(after.notificationsS).toBe(3);
+    expect(after.notificationsP).toBe(3);
     expect(after.publishes).toBe(before.publishes);
-    expect(await reportRowBySessionId(sigma3.id)).toBeNull();
+    expect(await reportRowBySessionId(sigma4.id)).toBeNull();
     expectNoDeltas(before, after);
   });
 
   test("denial coverage — anonymous-equivalent caller + governed teacher; governance restore proven by the duplicate conflict", async () => {
     const before = await sideEffectSnapshot(
-      [sigma.id, sigma2.id, sigma3.id],
+      [sigma.id, sigma2.id, sigma3.id, sigma4.id],
       {
         studentS,
         studentSPrime,
@@ -1430,7 +1589,7 @@ describe("cross-actor journey: session report + homework (gates → co-creation 
     expectNoDeltas(
       before,
       await sideEffectSnapshot(
-        [sigma.id, sigma2.id, sigma3.id],
+        [sigma.id, sigma2.id, sigma3.id, sigma4.id],
         {
           studentS,
           studentSPrime,
@@ -1456,25 +1615,27 @@ describe("cross-actor journey: session report + homework (gates → co-creation 
     const holdRows = await db
       .select({ feeHeld: session.feeHeld, id: session.id })
       .from(session)
-      .where(inArray(session.id, [sigma.id, sigma2.id, sigma3.id, sigmaPrime.id]));
-    expect(holdRows).toHaveLength(4);
+      .where(inArray(session.id, [sigma.id, sigma2.id, sigma3.id, sigma4.id, sigmaPrime.id]));
+    expect(holdRows).toHaveLength(5);
     for (const holdRow of holdRows) {
       expect(holdRow.feeHeld).toBe(true);
     }
 
-    // All three S bookings consumed their lanes; the report steps moved nothing.
+    // All four S bookings consumed their lanes; the report steps moved nothing.
     expect(await readBookingLanes(studentS.id)).toEqual({ hifz: 0, trial: 0 });
 
-    // Final ledger: 2 σ-arc reports + homework rows; 5 waves; 5 publishes.
-    expect(await countReportRows([sigma.id, sigma2.id, sigma3.id, sigmaPrime.id])).toBe(3);
-    expect(await countHomeWorkRows([sigma.id, sigma2.id, sigma3.id, sigmaPrime.id])).toBe(3);
-    expect(await countNotificationsForUser(studentS.id)).toBe(2);
-    expect(await countNotificationsForUser(parentP.id)).toBe(2);
+    // Final ledger: σ/σ₂/σ₃/σ′ reports (σ₃'s forward-grade submit; the σ₄
+    // re-grade attempt and the step-11 fault probe both rolled back),
+    // homework rows σ/σ₂/σ′; 7 waves; 7 publishes.
+    expect(await countReportRows([sigma.id, sigma2.id, sigma3.id, sigma4.id, sigmaPrime.id])).toBe(4);
+    expect(await countHomeWorkRows([sigma.id, sigma2.id, sigma3.id, sigma4.id, sigmaPrime.id])).toBe(3);
+    expect(await countNotificationsForUser(studentS.id)).toBe(3);
+    expect(await countNotificationsForUser(parentP.id)).toBe(3);
     expect(await countNotificationsForUser(studentSPrime.id)).toBe(1);
     expect(await countNotificationsForUser(teacherT.id)).toBe(0);
     expect(await countNotificationsForUser(teacherFt.id)).toBe(0);
     expect(await countNotificationsForUser(adminA.id)).toBe(0);
-    expect(transportSpy.publishCount).toBe(5);
+    expect(transportSpy.publishCount).toBe(7);
     // Every envelope ever published was addressed to a wave recipient only.
     const addressees = new Set(transportSpy.publishedUserIds);
     expect(addressees.has(teacherT.id)).toBe(false);

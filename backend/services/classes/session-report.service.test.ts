@@ -33,9 +33,10 @@
  *    without a report ⇒ the home_work arbiter's settle-together mapping) —
  *    each denial leaving ZERO rows in `reports`/`home_work`/`notifications`
  *    and exactly ONE bounded domain log; happy paths with and without the
- *    homework block; the first-session grade no-op (previousGrades absent,
- *    present-with-null-target, and prior-but-graded history); the inserted
- *    row returned with exact fields.
+ *    homework block; the first-session grade no-op (previousGrades absent
+ *    and present-with-null-target) and the prior-but-graded history's
+ *    newest-row write-once CONFLICT; the inserted row returned with exact
+ *    fields.
  *  - Tier 2 (boundary): the full payload at ALL validator bounds passing once
  *    (rating 0 and 5, grades 0 and 100, 2000-char notes, fromAyah = toAyah);
  *    jadid-only / madi-only / both assignment blocks.
@@ -801,34 +802,58 @@ describe("Tier 1 — submitSessionReport denials in isolation + happy paths", ()
     });
   });
 
-  test("prior-but-graded history ⇒ guarded-miss no-op; the graded row is left untouched", async () => {
+  test("prior-but-graded history ⇒ the newest row is ALREADY graded ⇒ typed CONFLICT; nothing persists", async () => {
     await runInRollback(async tx => {
       const cast = await provisionReportCast(tx, { linkedParent: true });
-      await createTestHomeWork(tx, cast.sessionRow.id, { currentGrade: 90, revisionGrade: 80 });
+      // An OLDER ungraded row exists (a prior session's assignment) — the
+      // newest-any-grade probe does NOT fall back past the newest row.
+      const priorSession = await createTestSession(tx, cast.teacherUserId, cast.studentUserId, {
+        status: SessionStatus.Completed,
+        startedAt: new Date(),
+        endedAt: new Date(),
+        confirmedByTeacherAt: new Date(),
+      });
+      const olderUngraded = await createTestHomeWork(tx, priorSession.id, { currentFromAyah: 1, currentToAyah: 3 });
+      // The NEWEST row's write-once is already spent (both grades set).
+      const gradedRow = await createTestHomeWork(tx, cast.sessionRow.id, { currentGrade: 90, revisionGrade: 80 });
+      expect(gradedRow.id).toBeGreaterThan(olderUngraded.id);
+
       const { options, transport } = freshEngineOptions();
       const logs = recordDomainLogs();
+      let conflict: DomainError;
       try {
-        // The ungraded predicate can never match the graded row — the grade
-        // leg silently no-ops and the submission still succeeds.
-        await SessionReportService.submitSessionReport(
-          cast.teacherUserId,
-          cast.sessionRow.id,
-          baseSubmitInput({ previousGrades: { currentGrade: 70, revisionGrade: 60 } }),
-          LOCALE,
-          tx,
-          options
+        // The probe surfaces the graded newest row; the guarded UPDATE misses
+        // (zero rows) and the service classifies the null as the typed
+        // write-once conflict — never a silent no-op, never a fallback.
+        const error = await expectRepoError(() =>
+          SessionReportService.submitSessionReport(
+            cast.teacherUserId,
+            cast.sessionRow.id,
+            baseSubmitInput({ previousGrades: { currentGrade: 70, revisionGrade: 60 } }),
+            LOCALE,
+            tx,
+            options
+          )
         );
-
-        const gradedRow = await homeworkRowBySessionId(tx, cast.sessionRow.id);
-        expect(gradedRow?.currentGrade).toBe(90);
-        expect(gradedRow?.revisionGrade).toBe(80);
-        expect(await countReportRowsFor(tx, [cast.sessionRow.id])).toBe(1);
-        expect(await countHomeWorkRowsFor(tx, [cast.sessionRow.id])).toBe(1);
-        expect(logs.records).toEqual([]);
-        expect(transport.publishCount).toBe(2);
+        conflict = requireDomainError(error, ConflictError);
       } finally {
         logs.stop();
       }
+      assertDenial(conflict, "CONFLICT", ERRORS_EN.homeworkAlreadyGraded);
+      expect(logs.records).toEqual([{ code: "CONFLICT", entity: "home_work", entityId: gradedRow.id }]);
+
+      // The denied submission rolled back its own unit: zero report rows,
+      // the graded row untouched, the older ungraded row still ungraded,
+      // zero notification rows, zero publishes.
+      expect(await countReportRowsFor(tx, [cast.sessionRow.id])).toBe(0);
+      const gradedAfter = await homeworkRowBySessionId(tx, cast.sessionRow.id);
+      expect(gradedAfter?.currentGrade).toBe(90);
+      expect(gradedAfter?.revisionGrade).toBe(80);
+      const olderAfter = await homeworkRowBySessionId(tx, priorSession.id);
+      expect(olderAfter?.currentGrade).toBeNull();
+      expect(olderAfter?.revisionGrade).toBeNull();
+      expect(await countNotificationsFor(tx, [cast.studentUserId, cast.parentUserId])).toBe(0);
+      expect(transport.publishCount).toBe(0);
     });
   });
 
@@ -897,7 +922,7 @@ describe("Tier 2 — validator bounds and assignment-block boundaries", () => {
       expect(lowerSubmitted.teacherNotes).toHaveLength(2000);
 
       // The assignment block landed on this session's own row (the grade leg
-      // no-op'd — no prior ungraded row exists in this cast).
+      // no-op'd — no prior homework row exists in this cast at all).
       const lowerHomework = await homeworkRowBySessionId(tx, lowerSession.id);
       expect(lowerHomework?.currentFromAyah).toBe(3);
       expect(lowerHomework?.currentToAyah).toBe(3);
@@ -1493,9 +1518,9 @@ describe("Tier 3 — committed chaos: double-submit storm ×3, forced rollback, 
   test("already-graded re-grade ⇒ typed CONFLICT with the localized homeworkAlreadyGraded copy; nothing persists", async () => {
     const cast = requireCast(committedCast);
     const walletBefore = await committedWalletSnapshot();
-    // The student's newest UNGRADED row is the grade target: the storm-3
-    // winner's assignment (created last — latest createdAt, largest id, which
-    // is exactly the repo's findLatestUngradedByStudentId ordering).
+    // The student's NEWEST row (any grade state) is the grade target: the
+    // storm-3 winner's assignment (created last — latest createdAt, largest
+    // id, which is exactly the repo's findLatestByStudentId ordering).
     const target = await homeworkRowBySessionId(db, cast.stormSessionIds[2]);
     if (!target) {
       throw new Error("expected the storm-3 assignment row to exist as the grade target");

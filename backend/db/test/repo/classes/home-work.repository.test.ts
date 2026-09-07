@@ -1,6 +1,6 @@
 /**
  * HomeWorkRepository tests — the `home_work` table's data-access layer
- * (`insertHomeWork`, `findBySessionId`, `findLatestUngradedByStudentId`,
+ * (`insertHomeWork`, `findBySessionId`, `findLatestByStudentId`,
  * `gradeHomeWorkOnce`) against the live test database.
  *
  * Per `backend/db/test/AGENTS.md`:
@@ -22,9 +22,10 @@
  * Coverage map:
  *  - Tier 1 (branch/stmt): full Jadid+Madi insert; NULL-grades insert (an
  *    assignment without grades is a normal row state); `findBySessionId`
- *    hit and miss (null); `findLatestUngradedByStudentId` returns the
- *    NEWEST ungraded row across multiple sessions and skips graded AND
- *    partially-graded rows; `gradeHomeWorkOnce` happy path returns the
+ *    hit and miss (null); `findLatestByStudentId` returns the NEWEST row
+ *    whatever its grade state (no grade predicate — graded,
+ *    partially-graded and ungraded rows are all eligible probes);
+ *    `gradeHomeWorkOnce` happy path returns the
  *    updated row with both grades and an advanced `updated_at`.
  *  - Tier 2 (boundary): grade values at the exact CHECK bounds 0 and 100
  *    (raw repo tier — the service guards range semantics); ordering
@@ -256,12 +257,12 @@ describe("HomeWorkRepository — transactional paths (runInRollback)", () => {
     });
   });
 
-  test("findLatestUngradedByStudentId returns the NEWEST ungraded row and skips graded and partially-graded rows", async () => {
+  test("findLatestByStudentId returns the NEWEST row whatever its grade state (no grade predicate)", async () => {
     await runInRollback(async tx => {
       const actors = await createSessionActors(tx);
       const gradedSession = await createCompletedSession(tx, actors);
       const partialSession = await createCompletedSession(tx, actors);
-      const targetSession = await createCompletedSession(tx, actors);
+      const newestSession = await createCompletedSession(tx, actors);
 
       const graded = await HomeWorkRepository.insertHomeWork(
         { sessionId: gradedSession.id, currentFromAyah: 1, currentToAyah: 3 },
@@ -274,7 +275,7 @@ describe("HomeWorkRepository — transactional paths (runInRollback)", () => {
       );
       expect(gradedOutcome).not.toBeNull();
 
-      // Partially graded on ONE track only — not a grading target.
+      // Partially graded on ONE track only — still an eligible probe row.
       const partial = await HomeWorkRepository.insertHomeWork(
         { sessionId: partialSession.id, currentFromAyah: 4, currentToAyah: 6 },
         tx
@@ -287,16 +288,27 @@ describe("HomeWorkRepository — transactional paths (runInRollback)", () => {
       expect(partialOutcome).not.toBeNull();
       await tx.update(homeWork).set({ revisionGrade: null }).where(eq(homeWork.id, partial.id));
 
-      const ungraded = await HomeWorkRepository.insertHomeWork(
-        { sessionId: targetSession.id, currentFromAyah: 7, currentToAyah: 9 },
+      // The NEWEST row is fully graded — the read carries NO grade
+      // predicate, so it surfaces the newest row whatever its state and
+      // leaves gradeability to the caller's guarded UPDATE.
+      const newest = await HomeWorkRepository.insertHomeWork(
+        { sessionId: newestSession.id, currentFromAyah: 7, currentToAyah: 9 },
         tx
       );
+      const newestOutcome = await HomeWorkRepository.gradeHomeWorkOnce(
+        newest.id,
+        { currentGrade: 55, revisionGrade: 45 },
+        tx
+      );
+      expect(newestOutcome).not.toBeNull();
 
-      const latest = await HomeWorkRepository.findLatestUngradedByStudentId(actors.studentUserId, tx);
+      const latest = await HomeWorkRepository.findLatestByStudentId(actors.studentUserId, tx);
 
       expect(latest).not.toBeNull();
-      expect(latest?.id).toBe(ungraded.id);
-      expect(latest?.sessionId).toBe(targetSession.id);
+      expect(latest?.id).toBe(newest.id);
+      expect(latest?.sessionId).toBe(newestSession.id);
+      expect(latest?.currentGrade).toBe(55);
+      expect(latest?.revisionGrade).toBe(45);
     });
   });
 
@@ -354,7 +366,7 @@ describe("HomeWorkRepository — transactional paths (runInRollback)", () => {
     });
   });
 
-  test("findLatestUngradedByStudentId is deterministic across out-of-insertion-order seeds (newest stamp first, id tiebreak)", async () => {
+  test("findLatestByStudentId is deterministic across out-of-insertion-order seeds (newest stamp first, id tiebreak)", async () => {
     await runInRollback(async tx => {
       const actors = await createSessionActors(tx);
       const oldSession = await createCompletedSession(tx, actors);
@@ -375,7 +387,7 @@ describe("HomeWorkRepository — transactional paths (runInRollback)", () => {
         .set({ createdAt: new Date(Date.now() - 60_000) })
         .where(eq(homeWork.id, middleRow.id));
 
-      expect((await HomeWorkRepository.findLatestUngradedByStudentId(actors.studentUserId, tx))?.id).toBe(middleRow.id);
+      expect((await HomeWorkRepository.findLatestByStudentId(actors.studentUserId, tx))?.id).toBe(middleRow.id);
 
       // Same-instant rows resolve by the id DESC tiebreak (the greater id
       // is the later-authored row).
@@ -386,7 +398,7 @@ describe("HomeWorkRepository — transactional paths (runInRollback)", () => {
       await tx.update(homeWork).set({ createdAt: shared }).where(eq(homeWork.id, tieRowB.id));
       expect(tieRowB.id).toBeGreaterThan(tieRowA.id);
 
-      const latest = await HomeWorkRepository.findLatestUngradedByStudentId(actors.studentUserId, tx);
+      const latest = await HomeWorkRepository.findLatestByStudentId(actors.studentUserId, tx);
       expect(latest?.id).toBe(tieRowB.id);
     });
   });
@@ -552,9 +564,10 @@ describe("HomeWorkRepository — transactional paths (runInRollback)", () => {
     // stamp DESC with the id DESC tiebreak.
     expect(repoSource.includes("desc(homeWork.createdAt), desc(homeWork.id)")).toBe(true);
     expect(repoSource.includes("ORDER BY created_at DESC, id DESC")).toBe(true);
-    // The ungraded predicate is the fused BOTH-NULL pair, never one-sided.
-    expect(repoSource.match(/isNull\(homeWork\.currentGrade\)/g) ?? []).toHaveLength(2);
-    expect(repoSource.match(/isNull\(homeWork\.revisionGrade\)/g) ?? []).toHaveLength(2);
+    // The fused BOTH-NULL grade predicate (never one-sided) lives ONLY in
+    // the guarded UPDATE — the latest-row read carries NO grade predicate.
+    expect(repoSource.match(/isNull\(homeWork\.currentGrade\)/g) ?? []).toHaveLength(1);
+    expect(repoSource.match(/isNull\(homeWork\.revisionGrade\)/g) ?? []).toHaveLength(1);
   });
 
   test("source: no i18n, no logger, no console, one namespace, no plan-artifact references", () => {
@@ -639,16 +652,17 @@ describe("HomeWorkRepository — standalone executor paths (committed fixtures)"
     expect(miss).toBeNull();
   });
 
-  test("findLatestUngradedByStudentId runs standalone via the queryDb read path", async () => {
+  test("findLatestByStudentId runs standalone via the queryDb read path", async () => {
     // Grade the committed graded row first (pool fallback write) so the
-    // read has a graded row to skip.
+    // read has a graded row AND an ungraded row across sessions — the
+    // newest row (the ungraded one, created last) is the one returned.
     const gradedRow = await HomeWorkRepository.gradeHomeWorkOnce(gradedHomeWorkId, {
       currentGrade: 80,
       revisionGrade: 70,
     });
     expect(gradedRow?.currentGrade).toBe(80);
 
-    const latest = await HomeWorkRepository.findLatestUngradedByStudentId(actors.studentUserId);
+    const latest = await HomeWorkRepository.findLatestByStudentId(actors.studentUserId);
     expect(latest).not.toBeNull();
     expect(latest?.id).toBe(ungradedHomeWorkId);
     expect(latest?.currentGrade).toBeNull();
