@@ -124,11 +124,11 @@ The ONLY instruction files that exist are `.agents/instructions/frontend.instruc
     - `home_work` carries `home_work_session_id_unique`; grade columns nullable; CHECK constraints unchanged.
   - Instruction files: `.agents/instructions/backend.instructions.md`; verify-then-cite `backend/db/repo/AGENTS.md` / schema-layer AGENTS.md only if present in the bundle.
   - _Requirements: REQ-040, REQ-015, INV-HW1, INV-HW3, C.4_
-  - [ ] 1.2.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts backend/db/schema/classes/reports.ts --lifecycle duplicates` and `bun run scripts/health/sub-loop.ts backend/db/schema/classes/home-work.ts --lifecycle duplicates` (exit code 0 for each). Baseline counts from 0.1 must not rise.
-  - [ ] 1.2.TE **Test Engineering**: Tier 1 — static schema-config assertions green; Tier 2 — boundary: confirm push produced exactly the intended DDL (inspect generated/pushed statements; record in outcome); no Tier 3/4 applicable to DDL itself (carried by repo tests).
-  - [ ] 1.2.SEC **Security & Tenancy Audit**: confirm NO column added exposes actor identity redundantly (C.4); confirm constraints do not alter any wallet/escrow-adjacent table (zero-touch list: `session`, `students`, `wallet`, `teacher_transaction`, `notifications`).
-  - [ ] 1.2.SR **Semantic Review**: schema diffs are minimal and verdict-scoped; naming matches house conventions; no leftover commented-out columns; no dead imports after conditional edits.
-  - [ ] 1.2.IV **Instruction Verification**: validate against `.agents/instructions/backend.instructions.md` + any auto-discovered AGENTS.md printed by `scripts/health/sub-loop.ts` for these paths (paste discovery output into outcome).
+  - [x] 1.2.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts backend/db/schema/classes/reports.ts --lifecycle duplicates` and `bun run scripts/health/sub-loop.ts backend/db/schema/classes/home-work.ts --lifecycle duplicates` (exit code 0 for each). Baseline counts from 0.1 must not rise.
+  - [x] 1.2.TE **Test Engineering**: Tier 1 — static schema-config assertions green; Tier 2 — boundary: confirm push produced exactly the intended DDL (inspect generated/pushed statements; record in outcome); no Tier 3/4 applicable to DDL itself (carried by repo tests).
+  - [x] 1.2.SEC **Security & Tenancy Audit**: confirm NO column added exposes actor identity redundantly (C.4); confirm constraints do not alter any wallet/escrow-adjacent table (zero-touch list: `session`, `students`, `wallet`, `teacher_transaction`, `notifications`).
+  - [x] 1.2.SR **Semantic Review**: schema diffs are minimal and verdict-scoped; naming matches house conventions; no leftover commented-out columns; no dead imports after conditional edits.
+  - [x] 1.2.IV **Instruction Verification**: validate against `.agents/instructions/backend.instructions.md` + any auto-discovered AGENTS.md printed by `scripts/health/sub-loop.ts` for these paths (paste discovery output into outcome).
 
 - [x] 1.3 [Enum guard + canonical types extension]
   - Files:
@@ -140,11 +140,11 @@ The ONLY instruction files that exist are `.agents/instructions/frontend.instruc
   - HARD RULES: no service-layer `.types.ts` files; no type definitions inside Pothos resolvers; all additions live in `backend/types/`.
   - Instruction files: `.agents/instructions/backend.instructions.md`; `backend/types/AGENTS.md` (verify existence first).
   - _Requirements: REQ-003, REQ-014, REQ-016_
-  - [ ] 1.3.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts <each edited file> --lifecycle duplicates` (exit 0 each).
-  - [ ] 1.3.TE **Test Engineering**: Tier 1 — compile-guard test (or type-level spec per `backend/types/AGENTS.md` convention): `isSurahJuzRef` returns true for all 35 shipped members and false for `""`, arbitrary strings, numbers, null/undefined; types compile-check the new interfaces against representative literals (assignability smoke in a colocated type test if the layer provides one).
-  - [ ] 1.3.SEC **Security & Tenancy Audit**: enum guard rejects unknown values (BOPLA filter for the input pipeline); types expose no server-derivable fields as writable input members (`id`, `sessionId`, timestamps absent from all `*Input` types).
-  - [ ] 1.3.SR **Semantic Review**: no duplicated type shapes across files; Select→Return alias discipline; barrel exports alphabetically/conventionally ordered per existing file style; no `any`.
-  - [ ] 1.3.IV **Instruction Verification**: match auto-discovered instruction set from `scripts/health/sub-loop.ts` for each edited path.
+  - [x] 1.3.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts <each edited file> --lifecycle duplicates` (exit 0 each).
+  - [x] 1.3.TE **Test Engineering**: Tier 1 — compile-guard test (or type-level spec per `backend/types/AGENTS.md` convention): `isSurahJuzRef` returns true for all 35 shipped members and false for `""`, arbitrary strings, numbers, null/undefined; types compile-check the new interfaces against representative literals (assignability smoke in a colocated type test if the layer provides one).
+  - [x] 1.3.SEC **Security & Tenancy Audit**: enum guard rejects unknown values (BOPLA filter for the input pipeline); types expose no server-derivable fields as writable input members (`id`, `sessionId`, timestamps absent from all `*Input` types).
+  - [x] 1.3.SR **Semantic Review**: no duplicated type shapes across files; Select→Return alias discipline; barrel exports alphabetically/conventionally ordered per existing file style; no `any`.
+  - [x] 1.3.IV **Instruction Verification**: match auto-discovered instruction set from `scripts/health/sub-loop.ts` for each edited path.
 
 - [x] 1.4 [i18n keys — errors namespace + notification copy slots (en/ar parity)]
   - Files (verify exact module paths against the bundled `shared/locale/` before editing; namespace registration checklist lives in `shared/AGENTS.md`):
@@ -155,11 +155,11 @@ The ONLY instruction files that exist are `.agents/instructions/frontend.instruc
   - Contract reminders: services will call `getServerTranslations(locale)` (ONE argument); resolvers use `ctx.t("namespace")`; keys are FLAT (`t.errorsTranslations.sessionReportAlreadyExists`-style access, no nested invented groupings).
   - Instruction files: `.agents/instructions/backend.instructions.md`; `shared/AGENTS.md` (mandatory read — it hosts the namespace registration checklist).
   - _Requirements: REQ-002, REQ-016, REQ-018, REQ-019_
-  - [ ] 1.4.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts <each edited locale file> --lifecycle duplicates` (exit 0 each).
-  - [ ] 1.4.TE **Test Engineering**: Tier 1 — run the namespace parity suites (`bun run test/scripts/run-test.ts <parity-suite-path>`); en/ar key parity mechanical pass; interpolation-parameter arity pinned for each new notification slot (placeholder counts match between locales).
-  - [ ] 1.4.SEC **Security & Tenancy Audit**: notification bodies interpolate ONLY counterparty full names — static review that no grade/note/id placeholder exists in any new copy string (REQ-019); error messages are generic (no existence disclosure deltas between code paths).
-  - [ ] 1.4.SR **Semantic Review**: flat key naming convention honored; no duplicated copy across keys; no hardcoded strings left in any edited module; interfaces compile.
-  - [ ] 1.4.IV **Instruction Verification**: `shared/AGENTS.md` checklist items each ticked and evidence pasted into outcome.
+  - [x] 1.4.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts <each edited locale file> --lifecycle duplicates` (exit 0 each).
+  - [x] 1.4.TE **Test Engineering**: Tier 1 — run the namespace parity suites (`bun run test/scripts/run-test.ts <parity-suite-path>`); en/ar key parity mechanical pass; interpolation-parameter arity pinned for each new notification slot (placeholder counts match between locales).
+  - [x] 1.4.SEC **Security & Tenancy Audit**: notification bodies interpolate ONLY counterparty full names — static review that no grade/note/id placeholder exists in any new copy string (REQ-019); error messages are generic (no existence disclosure deltas between code paths).
+  - [x] 1.4.SR **Semantic Review**: flat key naming convention honored; no duplicated copy across keys; no hardcoded strings left in any edited module; interfaces compile.
+  - [x] 1.4.IV **Instruction Verification**: `shared/AGENTS.md` checklist items each ticked and evidence pasted into outcome.
 
 ---
 
@@ -208,11 +208,11 @@ The ONLY instruction files that exist are `.agents/instructions/frontend.instruc
     - `tx` propagation: pass `tx` explicitly in every call; test that calling with explicit tx inside `runInRollback` rolls back (row absent after block, observable via a fresh executor read).
   - Instruction files: `.agents/instructions/backend.instructions.md`, `.agents/instructions/tests.instructions.md`; `backend/db/repo/AGENTS.md` (verify existence in 0.2).
   - _Requirements: REQ-010, REQ-040, REQ-060_
-  - [ ] 2.2.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts backend/db/repo/classes/report.repository.ts --lifecycle duplicates` and the test file (exit code 0 each).
-  - [ ] 2.2.TE **Test Engineering**: 4-Tier framework executed as itemized above; run `bun run test/scripts/run-test.ts backend/db/repo/classes/__tests__/report.repository.test.ts` green; statement/branch coverage on the new module = 100% (evidence in outcome).
-  - [ ] 2.2.SEC **Security & Tenancy Audit**: no LIKE/ILIKE surface; bound parameters only; no cross-tenant predicate needed (session-scoped reads only — justify in audit notes); no BOPLA shape (insert param is typed `ReportInsertType`, caller maps field-by-field).
-  - [ ] 2.2.SR **Semantic Review**: atomic single statements; `tx` last-arg convention uniform; zero dead code; naming matches existing repositories in the folder; no console logging.
-  - [ ] 2.2.IV **Instruction Verification**: validate against `.agents/instructions/backend.instructions.md` + layer AGENTS.md auto-discovered by `scripts/health/sub-loop.ts` (paste discovery output into outcome).
+  - [x] 2.2.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts backend/db/repo/classes/report.repository.ts --lifecycle duplicates` and the test file (exit code 0 each).
+  - [x] 2.2.TE **Test Engineering**: 4-Tier framework executed as itemized above; run `bun run test/scripts/run-test.ts backend/db/repo/classes/__tests__/report.repository.test.ts` green; statement/branch coverage on the new module = 100% (evidence in outcome).
+  - [x] 2.2.SEC **Security & Tenancy Audit**: no LIKE/ILIKE surface; bound parameters only; no cross-tenant predicate needed (session-scoped reads only — justify in audit notes); no BOPLA shape (insert param is typed `ReportInsertType`, caller maps field-by-field).
+  - [x] 2.2.SR **Semantic Review**: atomic single statements; `tx` last-arg convention uniform; zero dead code; naming matches existing repositories in the folder; no console logging.
+  - [x] 2.2.IV **Instruction Verification**: validate against `.agents/instructions/backend.instructions.md` + layer AGENTS.md auto-discovered by `scripts/health/sub-loop.ts` (paste discovery output into outcome).
 
 - [x] 2.3 [Implement HomeWorkRepository]
   - Create `backend/db/repo/classes/home-work.repository.ts`:
@@ -229,11 +229,11 @@ The ONLY instruction files that exist are `.agents/instructions/frontend.instruc
     - Tier 4 (security): enum-typed SurahJuzRef columns reject out-of-enum raw values at the DB tier (observed via raw executor probe — defense-in-depth evidence; the service's `isSurahJuzRef` guard is the primary gate); metacharacter payloads bound safely.
   - Instruction files: same set as 2.2.
   - _Requirements: REQ-011, REQ-015, REQ-040 (session-unique), REQ-060, INV-HW2, INV-HW3, INV-HW4_
-  - [ ] 2.3.QL **Quality Loop**: sub-loop on repository + test file (exit 0 each).
-  - [ ] 2.3.TE **Test Engineering**: tiers above executed; `bun run test/scripts/run-test.ts backend/db/repo/classes/__tests__/home-work.repository.test.ts` green; 100% statements/branches on the new module.
-  - [ ] 2.3.SEC **Security & Tenancy Audit**: student scoping happens via `session.student_id` join only (no caller-supplied homework id accepted by `findLatestUngradedByStudentId`); guarded UPDATE predicate cannot touch any other row (verify no full-table write possible even under parameter tampering — parameters are typed + bound).
-  - [ ] 2.3.SR **Semantic Review**: three-read/one-write API surface minimal; no helper exported that is unneeded by 2.8's service (YAGNI — flag and remove any speculative method); exact plan §4.1 signature conformance.
-  - [ ] 2.3.IV **Instruction Verification**: as 2.2.IV.
+  - [x] 2.3.QL **Quality Loop**: sub-loop on repository + test file (exit 0 each).
+  - [x] 2.3.TE **Test Engineering**: tiers above executed; `bun run test/scripts/run-test.ts backend/db/repo/classes/__tests__/home-work.repository.test.ts` green; 100% statements/branches on the new module.
+  - [x] 2.3.SEC **Security & Tenancy Audit**: student scoping happens via `session.student_id` join only (no caller-supplied homework id accepted by `findLatestUngradedByStudentId`); guarded UPDATE predicate cannot touch any other row (verify no full-table write possible even under parameter tampering — parameters are typed + bound).
+  - [x] 2.3.SR **Semantic Review**: three-read/one-write API surface minimal; no helper exported that is unneeded by 2.8's service (YAGNI — flag and remove any speculative method); exact plan §4.1 signature conformance.
+  - [x] 2.3.IV **Instruction Verification**: as 2.2.IV.
 
 - [x] 2.4 [Extend SessionRepository] — report-gate lock + wave-context read]
   - UPDATE `backend/db/repo/classes/session.repository.ts` (ADD ONLY — existing methods untouched):
@@ -246,11 +246,11 @@ The ONLY instruction files that exist are `.agents/instructions/frontend.instruc
   - Verify NO existing `FOR UPDATE` on `session` rows today (bundle evidence) to keep 2.4 the sole row-lock writer under this name; record anchor.
   - Instruction files: as 2.2.
   - _Requirements: REQ-012 (gate probe), REQ-018 (wave context), D2/D6 (plan)_
-  - [ ] 2.4.QL **Quality Loop**: sub-loop on modified repo + tests (exit 0).
-  - [ ] 2.4.TE **Test Engineering**: suites above green via `run-test.ts`; no regressions in the existing session repository suite.
-  - [ ] 2.4.SEC **Security & Tenancy Audit**: wave-context read is id-addressed only; reveal set = {student, teacher, linked parent of that student} — nothing broader; lock is read-lock-for-gate (no write to `session` performed by THIS surface).
-  - [ ] 2.4.SR **Semantic Review**: additions only; no refactor of shipped methods; probe row-type reuse (no duplicate type); no cross-layer imports.
-  - [ ] 2.4.IV **Instruction Verification**: as 2.2.IV.
+  - [x] 2.4.QL **Quality Loop**: sub-loop on modified repo + tests (exit 0).
+  - [x] 2.4.TE **Test Engineering**: suites above green via `run-test.ts`; no regressions in the existing session repository suite.
+  - [x] 2.4.SEC **Security & Tenancy Audit**: wave-context read is id-addressed only; reveal set = {student, teacher, linked parent of that student} — nothing broader; lock is read-lock-for-gate (no write to `session` performed by THIS surface).
+  - [x] 2.4.SR **Semantic Review**: additions only; no refactor of shipped methods; probe row-type reuse (no duplicate type); no cross-layer imports.
+  - [x] 2.4.IV **Instruction Verification**: as 2.2.IV.
 
 - [x] 2.M [Mid-Point Review Gate]
   - Halt implementation; run a consolidated checkpoint BEFORE writing guards/notification/service surface:
@@ -279,11 +279,11 @@ The ONLY instruction files that exist are `.agents/instructions/frontend.instruc
     - Tier 4 (security): every rejected payload leaves ZERO observable side effects (guards are pure — assert via absence of injected dependencies); enum-typed values arrive as strings from the wire and are rejected unless member (verify `isSurahJuzRef` integration, not string equality against hardcoded literals in the guard).
   - Instruction files: `.agents/instructions/backend.instructions.md`, `.agents/instructions/tests.instructions.md`; `backend/services/AGENTS.md` (verify in 0.2).
   - _Requirements: REQ-014, REQ-016, REQ-033, REQ-002_
-  - [ ] 2.5.QL **Quality Loop**: sub-loop on guards + test (exit 0).
-  - [ ] 2.5.TE **Test Engineering**: tiers above; `bun run test/scripts/run-test.ts backend/services/classes/__tests__/session-report.guards.test.ts` green; 100% branch coverage.
-  - [ ] 2.5.SEC **Security & Tenancy Audit**: error messages localized and shape-uniform (no input-echo disclosure); no regex/ReDoS-prone patterns in validators (length is bounded by counting, not pattern-matching).
-  - [ ] 2.5.SR **Semantic Review**: guards export exactly what 2.7 consumes (YAGNI); no side effects; enum used via VALUE import.
-  - [ ] 2.5.IV **Instruction Verification**: as 2.2.IV.
+  - [x] 2.5.QL **Quality Loop**: sub-loop on guards + test (exit 0).
+  - [x] 2.5.TE **Test Engineering**: tiers above; `bun run test/scripts/run-test.ts backend/services/classes/__tests__/session-report.guards.test.ts` green; 100% branch coverage.
+  - [x] 2.5.SEC **Security & Tenancy Audit**: error messages localized and shape-uniform (no input-echo disclosure); no regex/ReDoS-prone patterns in validators (length is bounded by counting, not pattern-matching).
+  - [x] 2.5.SR **Semantic Review**: guards export exactly what 2.7 consumes (YAGNI); no side effects; enum used via VALUE import.
+  - [x] 2.5.IV **Instruction Verification**: as 2.2.IV.
 
 - [x] 2.6 [Implement session-report notification seam]
   - Create `backend/services/classes/session-report-notification.service.ts`:
@@ -303,11 +303,11 @@ The ONLY instruction files that exist are `.agents/instructions/frontend.instruc
     - Tier 4: copy contains NO grade/note/session-id content — assert regex absence of digits sequences matching grades/ratings beyond permitted name interpolation (REQ-019 privacy pin).
   - Instruction files: as 2.5.
   - _Requirements: REQ-018, REQ-019, INV-P1, INV-P3_
-  - [ ] 2.6.QL **Quality Loop**: sub-loop on module + test (exit 0).
-  - [ ] 2.6.TE **Test Engineering**: tiers above; green run; 100% branch coverage on the new module.
-  - [ ] 2.6.SEC **Security & Tenancy Audit**: recipients derived ONLY from the session's joined identity rows (never from input); parent emission gated strictly on stored `parent_id`; PII minimization in logs (module logs nothing — confirm).
-  - [ ] 2.6.SR **Semantic Review**: single-read discipline (exactly ONE wave-context query per call); no publishing inside; enum VALUE import for `NotificationType`; no stringly-typed notification type.
-  - [ ] 2.6.IV **Instruction Verification**: as 2.2.IV.
+  - [x] 2.6.QL **Quality Loop**: sub-loop on module + test (exit 0).
+  - [x] 2.6.TE **Test Engineering**: tiers above; green run; 100% branch coverage on the new module.
+  - [x] 2.6.SEC **Security & Tenancy Audit**: recipients derived ONLY from the session's joined identity rows (never from input); parent emission gated strictly on stored `parent_id`; PII minimization in logs (module logs nothing — confirm).
+  - [x] 2.6.SR **Semantic Review**: single-read discipline (exactly ONE wave-context query per call); no publishing inside; enum VALUE import for `NotificationType`; no stringly-typed notification type.
+  - [x] 2.6.IV **Instruction Verification**: as 2.2.IV.
 
 - [x] 2.7 [Implement SessionReportService — write surface]
   - Create `backend/services/classes/session-report.service.ts` with EXACT pipeline order (plan §4.2):
@@ -332,11 +332,11 @@ The ONLY instruction files that exist are `.agents/instructions/frontend.instruc
     - Count-delta oracles (REQ-044): wallet tables/`session.fee_held`/`teacher_transaction`/`students` lane counts UNCHANGED across all tests.
   - Instruction files: `.agents/instructions/backend.instructions.md`, `.agents/instructions/tests.instructions.md`; `backend/services/AGENTS.md`.
   - _Requirements: REQ-012, REQ-013, REQ-015, REQ-016, REQ-030, REQ-032, REQ-034, REQ-040, REQ-041, REQ-042, REQ-043, REQ-044, INV-S7, INV-S8, INV-HW3, INV-HW4, INV-S3_
-  - [ ] 2.7.QL **Quality Loop**: sub-loop on service + test (exit 0).
-  - [ ] 2.7.TE **Test Engineering**: 4-tier suite green via `run-test.ts`; 100% statement/branch on the service module; storm determinism evidence in outcome (repeat run ×3 — DEV3-004 precedent).
-  - [ ] 2.7.SEC **Security & Tenancy Audit**: BOLA (oracle collapse + owner gate + governance re-check), BOPLA (field-by-field only), BFLA (service re-asserts teacher role/ownership even though resolver scopes also guard — defense in depth); verify NO input field can steer `sessionId`/`studentId`/`teacherId`.
-  - [ ] 2.7.SR **Semantic Review**: pipeline order matches plan exactly; tx propagated to ALL repo/engine calls (grep `, tx)` completeness); single-withTransaction; publish strictly post-commit; zero dead branches.
-  - [ ] 2.7.IV **Instruction Verification**: as 2.2.IV.
+  - [x] 2.7.QL **Quality Loop**: sub-loop on service + test (exit 0).
+  - [x] 2.7.TE **Test Engineering**: 4-tier suite green via `run-test.ts`; 100% statement/branch on the service module; storm determinism evidence in outcome (repeat run ×3 — DEV3-004 precedent).
+  - [x] 2.7.SEC **Security & Tenancy Audit**: BOLA (oracle collapse + owner gate + governance re-check), BOPLA (field-by-field only), BFLA (service re-asserts teacher role/ownership even though resolver scopes also guard — defense in depth); verify NO input field can steer `sessionId`/`studentId`/`teacherId`.
+  - [x] 2.7.SR **Semantic Review**: pipeline order matches plan exactly; tx propagated to ALL repo/engine calls (grep `, tx)` completeness); single-withTransaction; publish strictly post-commit; zero dead branches.
+  - [x] 2.7.IV **Instruction Verification**: as 2.2.IV.
 
 - [x] 2.8 [Implement SessionReportService — read surface]
   - In `backend/services/classes/session-report.service.ts` (same module) add:
@@ -349,11 +349,11 @@ The ONLY instruction files that exist are `.agents/instructions/frontend.instruc
     - Tier 4: enumeration probe — iterate foreign ids 1..K vs nonexistent ids; assert indistinguishable results and identical timing-bucket class (timing assertion coarse — document approach).
   - Instruction files: as 2.7.
   - _Requirements: REQ-017, REQ-030, REQ-031 (queries unaffected by role scope), REQ-061_
-  - [ ] 2.8.QL **Quality Loop**: sub-loop on service + test (exit 0).
-  - [ ] 2.8.TE **Test Engineering**: additions green; combined service suite re-run fully green; coverage still 100%.
-  - [ ] 2.8.SEC **Security & Tenancy Audit**: oracle collapse verified field-by-field; no log line leaks existence (read path logs NOTHING — assert logger spy silence per house rule).
-  - [ ] 2.8.SR **Semantic Review**: reuse of existing probe (NO new FOR UPDATE on reads); no duplicated predicate logic — single private participant-check helper if shared by both reads; zero dead code.
-  - [ ] 2.8.IV **Instruction Verification**: as 2.2.IV.
+  - [x] 2.8.QL **Quality Loop**: sub-loop on service + test (exit 0).
+  - [x] 2.8.TE **Test Engineering**: additions green; combined service suite re-run fully green; coverage still 100%.
+  - [x] 2.8.SEC **Security & Tenancy Audit**: oracle collapse verified field-by-field; no log line leaks existence (read path logs NOTHING — assert logger spy silence per house rule).
+  - [x] 2.8.SR **Semantic Review**: reuse of existing probe (NO new FOR UPDATE on reads); no duplicated predicate logic — single private participant-check helper if shared by both reads; zero dead code.
+  - [x] 2.8.IV **Instruction Verification**: as 2.2.IV.
 
 - [x] 2.9 [Journey test GREEN gate]
   - Run `bun run test/scripts/run-test.ts test/workflows` — the journey written in 2.1 MUST now pass fully (all 11 steps + denial branches + purity oracles).
@@ -374,11 +374,11 @@ The ONLY instruction files that exist are `.agents/instructions/frontend.instruc
     - Barrels: verify `backend/graphql/pothos/classes/index.ts` existence/shape (0.2) and wire the new modules per the barrel's existing convention.
   - Instruction files: `.agents/instructions/backend.instructions.md`; `backend/graphql/AGENTS.md` (verify in 0.2).
   - _Requirements: REQ-050, REQ-051, REQ-003_
-  - [ ] 3.1.QL **Quality Loop**: sub-loop on each new/edited file (exit 0).
-  - [ ] 3.1.TE **Test Engineering**: Tier 1 — mapper unit checks (every shipped `SurahJuzRef` member round-trips; unknown DB string hits the `never` tail → typed error); object field-exposure shape check via the SDL assertions in 3.4 (deferred to that task but authored here).
-  - [ ] 3.1.SEC **Security & Tenancy Audit**: object surfaces expose NO column beyond plan §3.1 (no internal/audit fields); input objects contain NO server-derivable field (no `id`, no `sessionId`, no grades at assignment level, no timestamps).
-  - [ ] 3.1.SR **Semantic Review**: `id` first on both objects; DateTime scalar discipline; no resolver-local types; `never`-tail exhaustiveness compiles (TS enforces).
-  - [ ] 3.1.IV **Instruction Verification**: as 2.2.IV against the newly edited paths.
+  - [x] 3.1.QL **Quality Loop**: sub-loop on each new/edited file (exit 0).
+  - [x] 3.1.TE **Test Engineering**: Tier 1 — mapper unit checks (every shipped `SurahJuzRef` member round-trips; unknown DB string hits the `never` tail → typed error); object field-exposure shape check via the SDL assertions in 3.4 (deferred to that task but authored here).
+  - [x] 3.1.SEC **Security & Tenancy Audit**: object surfaces expose NO column beyond plan §3.1 (no internal/audit fields); input objects contain NO server-derivable field (no `id`, no `sessionId`, no grades at assignment level, no timestamps).
+  - [x] 3.1.SR **Semantic Review**: `id` first on both objects; DateTime scalar discipline; no resolver-local types; `never`-tail exhaustiveness compiles (TS enforces).
+  - [x] 3.1.IV **Instruction Verification**: as 2.2.IV against the newly edited paths.
 
 - [x] 3.2 [Mutation resolver: submitSessionReport]
   - Create `backend/graphql/mutation/classes/session-report.mutation.ts`:
@@ -390,11 +390,11 @@ The ONLY instruction files that exist are `.agents/instructions/frontend.instruc
     - i18n: any resolver-local copy via `ctx.t("namespace")` ONLY (expected: none — service owns messages; assert emptiness in SR).
   - Instruction files: `.agents/instructions/backend.instructions.md`; `backend/graphql/AGENTS.md`.
   - _Requirements: REQ-051, REQ-031, REQ-032_
-  - [ ] 3.2.QL **Quality Loop**: sub-loop on resolver (exit 0).
-  - [ ] 3.2.TE **Test Engineering**: wire tests written in 5.1 consume this resolver — HERE add unit-adjacent checks available at this layer (authScopes object shape asserted via the schema-surface metadata if the harness permits; else covered fully in Phase 5 — note the coverage carrier).
-  - [ ] 3.2.SEC **Security & Tenancy Audit**: `$all` conjunction verified in source; identity from `ctx.user.id` ONLY; no input-derived actor/tenant selection; locale from `ctx.locale`.
-  - [ ] 3.2.SR **Semantic Review**: resolver is thin (<= ~25 LOC logic); no business rules; no spread; no error swallowing.
-  - [ ] 3.2.IV **Instruction Verification**: as 2.2.IV.
+  - [x] 3.2.QL **Quality Loop**: sub-loop on resolver (exit 0).
+  - [x] 3.2.TE **Test Engineering**: wire tests written in 5.1 consume this resolver — HERE add unit-adjacent checks available at this layer (authScopes object shape asserted via the schema-surface metadata if the harness permits; else covered fully in Phase 5 — note the coverage carrier).
+  - [x] 3.2.SEC **Security & Tenancy Audit**: `$all` conjunction verified in source; identity from `ctx.user.id` ONLY; no input-derived actor/tenant selection; locale from `ctx.locale`.
+  - [x] 3.2.SR **Semantic Review**: resolver is thin (<= ~25 LOC logic); no business rules; no spread; no error swallowing.
+  - [x] 3.2.IV **Instruction Verification**: as 2.2.IV.
 
 - [x] 3.3 [Query resolvers: sessionReport / sessionHomework]
   - Create `backend/graphql/query/classes/session-report.query.ts`:
@@ -404,11 +404,11 @@ The ONLY instruction files that exist are `.agents/instructions/frontend.instruc
     - Barrel `backend/graphql/query/classes/index.ts` (+1 import line).
   - Instruction files: as 3.2.
   - _Requirements: REQ-052, REQ-017, REQ-030_
-  - [ ] 3.3.QL **Quality Loop**: sub-loop on resolver (exit 0).
-  - [ ] 3.3.TE **Test Engineering**: shape-guard branches covered in Phase 5 wire suite; here assert the resolver file compiles into the schema with nullable return types (SDL check lands in 3.4).
-  - [ ] 3.3.SEC **Security & Tenancy Audit**: no authorization decisions in resolver beyond scope (scoping lives in service); null-collapse not re-shaped here.
-  - [ ] 3.3.SR **Semantic Review**: symmetric pair of resolvers; zero branching logic; no try/catch.
-  - [ ] 3.3.IV **Instruction Verification**: as 2.2.IV.
+  - [x] 3.3.QL **Quality Loop**: sub-loop on resolver (exit 0).
+  - [x] 3.3.TE **Test Engineering**: shape-guard branches covered in Phase 5 wire suite; here assert the resolver file compiles into the schema with nullable return types (SDL check lands in 3.4).
+  - [x] 3.3.SEC **Security & Tenancy Audit**: no authorization decisions in resolver beyond scope (scoping lives in service); null-collapse not re-shaped here.
+  - [x] 3.3.SR **Semantic Review**: symmetric pair of resolvers; zero branching logic; no try/catch.
+  - [x] 3.3.IV **Instruction Verification**: as 2.2.IV.
 
 - [x] 3.4 [Codegen, schema-surface freeze & SDL pins]
   - Run `bun run generate:gqlSchema` then `bun codegen`; commit regenerated artifacts.
@@ -417,11 +417,11 @@ The ONLY instruction files that exist are `.agents/instructions/frontend.instruc
   - Verify `docs/graphql/domain-error-extensions-code.md` remains append-only and the new code `SESSION_REPORT_ALREADY_EXISTS` is recorded there (if the doc is the code registry — update it; if registry lives elsewhere per 0.2, update THAT instead and record).
   - Instruction files: as 3.2.
   - _Requirements: REQ-053, REQ-050, REQ-002_
-  - [ ] 3.4.QL **Quality Loop**: sub-loop on hand-edited test files (exit 0). Generated artifacts excluded from duplicate-lifecycle claims but included in compile pass.
-  - [ ] 3.4.TE **Test Engineering**: run `bun run test/scripts/run-test.ts backend/graphql/test` — surface + SDL suites green; codegen drift must be ZERO (re-run codegen; git diff empty on generated files — paste diff evidence).
-  - [ ] 3.4.SEC **Security & Tenancy Audit**: confirm no unintended schema surface appeared (schema diff review line-by-line vs. the additions list — anything extra = STOP and reconcile).
-  - [ ] 3.4.SR **Semantic Review**: baseline inventory changes are purely additive; SDL pins assert EXACT shapes (no partial assertions where full is possible).
-  - [ ] 3.4.IV **Instruction Verification**: as 2.2.IV.
+  - [x] 3.4.QL **Quality Loop**: sub-loop on hand-edited test files (exit 0). Generated artifacts excluded from duplicate-lifecycle claims but included in compile pass.
+  - [x] 3.4.TE **Test Engineering**: run `bun run test/scripts/run-test.ts backend/graphql/test` — surface + SDL suites green; codegen drift must be ZERO (re-run codegen; git diff empty on generated files — paste diff evidence).
+  - [x] 3.4.SEC **Security & Tenancy Audit**: confirm no unintended schema surface appeared (schema diff review line-by-line vs. the additions list — anything extra = STOP and reconcile).
+  - [x] 3.4.SR **Semantic Review**: baseline inventory changes are purely additive; SDL pins assert EXACT shapes (no partial assertions where full is possible).
+  - [x] 3.4.IV **Instruction Verification**: as 2.2.IV.
 
 ---
 
@@ -439,11 +439,11 @@ The ONLY instruction files that exist are `.agents/instructions/frontend.instruc
   - NO component, page, store, hook, or nav file is touched. If any temptation arises (e.g., "minimal submit button"), STOP and add the impulse to the deferred ledger instead — DEV2-014 owns it (D3).
   - Instruction files: `.agents/instructions/frontend.instructions.md`; `frontend/AGENTS.md`, `frontend/graphql/AGENTS.md` (verify existence in 0.2).
   - _Requirements: REQ-054, REQ-055_
-  - [ ] 4.1.QL **Quality Loop**: sub-loop on documents module + barrels + tests (exit 0).
-  - [ ] 4.1.TE **Document Contract Tests**: AST/selection assertions above; `bun run test/scripts/run-test.ts <documents-test-path>` green; codegen types resolve (compile via the frontend typecheck pass).
-  - [ ] 4.1.SEC **Security Audit (document-level)**: selection sets request NO field not in the server contract (prevents quiet over-fetch); no inline GraphQL string literals bypassing TypedDocumentNode.
-  - [ ] 4.1.SR **Semantic Review**: zero UI code; zero hardcoded strings (documents contain no copy); naming matches sibling documents files; no dead exports.
-  - [ ] 4.1.IV **Instruction Verification**: `.agents/instructions/frontend.instructions.md` + `frontend/graphql/AGENTS.md` items checked; `scripts/health/sub-loop.ts` discovery output pasted for the edited paths.
+  - [x] 4.1.QL **Quality Loop**: sub-loop on documents module + barrels + tests (exit 0).
+  - [x] 4.1.TE **Document Contract Tests**: AST/selection assertions above; `bun run test/scripts/run-test.ts <documents-test-path>` green; codegen types resolve (compile via the frontend typecheck pass).
+  - [x] 4.1.SEC **Security Audit (document-level)**: selection sets request NO field not in the server contract (prevents quiet over-fetch); no inline GraphQL string literals bypassing TypedDocumentNode.
+  - [x] 4.1.SR **Semantic Review**: zero UI code; zero hardcoded strings (documents contain no copy); naming matches sibling documents files; no dead exports.
+  - [x] 4.1.IV **Instruction Verification**: `.agents/instructions/frontend.instructions.md` + `frontend/graphql/AGENTS.md` items checked; `scripts/health/sub-loop.ts` discovery output pasted for the edited paths.
 
 ---
 
@@ -460,11 +460,11 @@ The ONLY instruction files that exist are `.agents/instructions/frontend.instruc
   - All via the house GraphQL test harness (transport-level, recorded in 0.2) — NOT service calls.
   - Instruction files: `.agents/instructions/backend.instructions.md`, `.agents/instructions/tests.instructions.md`.
   - _Requirements: REQ-063, REQ-031, REQ-030, REQ-051, REQ-052_
-  - [ ] 5.1.QL **Quality Loop**: sub-loop on the wire suite (exit 0).
-  - [ ] 5.1.TE **Test Engineering**: `bun run test/scripts/run-test.ts <wire-suite-path>` green; matrix completeness checked against plan §3.4 permission matrix — one row per cell, asserted.
-  - [ ] 5.1.SEC **Security & Tenancy Audit**: this task IS the audit at the transport tier; ensure denial envelopes disclose no existence deltas and no stack traces (masking pass through the boundary finalizer).
-  - [ ] 5.1.SR **Semantic Review**: no mocked services (wire tests hit the real stack with test-DB fixtures); envelope helper reused (no ad-hoc parsing).
-  - [ ] 5.1.IV **Instruction Verification**: as 2.2.IV.
+  - [x] 5.1.QL **Quality Loop**: sub-loop on the wire suite (exit 0).
+  - [x] 5.1.TE **Test Engineering**: `bun run test/scripts/run-test.ts <wire-suite-path>` green; matrix completeness checked against plan §3.4 permission matrix — one row per cell, asserted.
+  - [x] 5.1.SEC **Security & Tenancy Audit**: this task IS the audit at the transport tier; ensure denial envelopes disclose no existence deltas and no stack traces (masking pass through the boundary finalizer).
+  - [x] 5.1.SR **Semantic Review**: no mocked services (wire tests hit the real stack with test-DB fixtures); envelope helper reused (no ad-hoc parsing).
+  - [x] 5.1.IV **Instruction Verification**: as 2.2.IV.
 
 - [x] 5.2 [Differential regression & coverage gate]
   - Run the FULL affected suites and capture results:
