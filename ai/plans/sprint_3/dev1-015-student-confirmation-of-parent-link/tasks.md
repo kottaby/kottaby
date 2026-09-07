@@ -275,7 +275,7 @@
 
 ## Phase 5: Integration & Differential Testing
 
-- [ ] 5.1 Full integration battery & differential verification
+- [x] 5.1 Full integration battery & differential verification
   - Run (each via `bun run test/scripts/run-test.ts <path>`):
     1. `test/workflows` (entire journey layer — new + DEV1-014 journey both green)
     2. `backend/services/parents` (service + chaos + static-locks)
