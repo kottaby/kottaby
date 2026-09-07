@@ -13,10 +13,16 @@ import { students } from "@/backend/db/schema/students/students";
  * non-negative (CHECK). `payment_gateway` records the channel;
  * `status` is the payment lifecycle (pending → paid → failed → refunded).
  *
- * IMMUTABLE: this table is append-only. UPDATE and DELETE are blocked by a
- * trigger (`3-immutability-triggers.sql`); corrections are made via a new
- * compensating payment row, never by editing an existing one. This preserves
- * the audit trail for financial reconciliation.
+ * IMMUTABLE LEDGER: DELETE is blocked entirely by a trigger, so corrections
+ * are made via a new compensating payment row — never by editing or
+ * removing an existing one. UPDATE is permitted for exactly one guarded
+ * exception: the status decision `pending → paid | failed`, and only while
+ * every financial/identity column (`student_id`, `subscription_id`,
+ * `amount`, `currency`, `payment_gateway`, `created_at`) is left
+ * unchanged — the `prevent_student_payments_update()` guard (amended by
+ * `4-student-payments-status-transition.sql`) raises for every other
+ * mutation. Decided payments are therefore terminal, and the audit trail
+ * for financial reconciliation is preserved.
  *
  * Indexes on `student_id` and `subscription_id`.
  */

@@ -27,6 +27,7 @@ import { and, asc, eq } from "drizzle-orm";
 import { db, queryDb } from "@/backend/db";
 import { studentPayments } from "@/backend/db/schema/billing/student-payments";
 import { PaymentStatus } from "@/backend/enum/billing/payment-status.enum";
+import { ConflictError } from "@/backend/lib/errors";
 import type {
   DBQueryExecutor,
   DBTransaction,
@@ -84,6 +85,9 @@ export namespace StudentPaymentRepository {
    * string carried verbatim by the caller.
    *
    * @returns The inserted payment row with server defaults applied.
+   * @throws ConflictError when the INSERT somehow returns no row — the
+   *         ledger's append invariant makes that unreachable, so it can
+   *         only mean a broken driver contract.
    */
   export async function insertPayment(
     insert: StudentPaymentInsertType,
@@ -92,7 +96,7 @@ export namespace StudentPaymentRepository {
     const executor = tx ?? db;
     const [row] = await executor.insert(studentPayments).values(insert).returning();
     if (!row) {
-      throw new Error("StudentPaymentRepository.insertPayment: insert returned no rows");
+      throw new ConflictError("StudentPaymentRepository.insertPayment: insert returned no rows");
     }
     return row;
   }

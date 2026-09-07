@@ -19,6 +19,7 @@ import { and, desc, eq } from "drizzle-orm";
 import { db, queryDb } from "@/backend/db";
 import { subscriptions } from "@/backend/db/schema/billing/subscriptions";
 import { SubscriptionStatus } from "@/backend/enum/billing/subscription-status.enum";
+import { ConflictError } from "@/backend/lib/errors";
 import type { DBQueryExecutor, DBTransaction, SubscriptionInsertType, SubscriptionSelectType } from "@/backend/types";
 
 /**
@@ -53,6 +54,9 @@ export namespace SubscriptionRepository {
    * translates it into the duplicate-reference conflict).
    *
    * @returns The inserted subscription row with server defaults applied.
+   * @throws ConflictError when the INSERT somehow returns no row — the
+   *         append invariant makes that unreachable, so it can only mean a
+   *         broken driver contract.
    */
   export async function insertSubscription(
     insert: SubscriptionInsertType,
@@ -61,7 +65,7 @@ export namespace SubscriptionRepository {
     const executor = tx ?? db;
     const [row] = await executor.insert(subscriptions).values(insert).returning();
     if (!row) {
-      throw new Error("SubscriptionRepository.insertSubscription: insert returned no rows");
+      throw new ConflictError("SubscriptionRepository.insertSubscription: insert returned no rows");
     }
     return row;
   }

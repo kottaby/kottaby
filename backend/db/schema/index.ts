@@ -10,8 +10,8 @@
  *   - Deep imports (`@/backend/db/schema/teachers/teacher`) remain valid for
  *     cases that need a single table without pulling the whole graph.
  *
- * Schema inventory: 22 tables across 8 domain sub-directories +
- * 15 pgEnums in the top-level `enums.ts` registry.
+ * Schema inventory: 25 tables across 8 domain sub-directories +
+ * 17 pgEnums in the top-level `enums.ts` registry.
  */
 
 export * from "./audit";

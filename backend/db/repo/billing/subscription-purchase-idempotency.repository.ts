@@ -33,6 +33,7 @@
 import { eq } from "drizzle-orm";
 import { db, queryDb } from "@/backend/db";
 import { subscriptionPurchaseIdempotency } from "@/backend/db/schema/billing/subscription-purchase-idempotency";
+import { ConflictError } from "@/backend/lib/errors";
 import type {
   DBQueryExecutor,
   DBTransaction,
@@ -74,6 +75,9 @@ export namespace SubscriptionPurchaseIdempotencyRepository {
    *
    * @returns The inserted claim row with all server-generated columns
    *          populated.
+   * @throws ConflictError when the INSERT somehow returns no row — the
+   *         claim insert invariant makes that unreachable, so it can only
+   *         mean a broken driver contract.
    */
   export async function insertClaim(
     insert: SubscriptionPurchaseIdempotencyInsertType,
@@ -82,7 +86,7 @@ export namespace SubscriptionPurchaseIdempotencyRepository {
     const executor = tx ?? db;
     const [row] = await executor.insert(subscriptionPurchaseIdempotency).values(insert).returning();
     if (!row) {
-      throw new Error("SubscriptionPurchaseIdempotencyRepository.insertClaim: insert returned no rows");
+      throw new ConflictError("SubscriptionPurchaseIdempotencyRepository.insertClaim: insert returned no rows");
     }
     return row;
   }
@@ -94,9 +98,10 @@ export namespace SubscriptionPurchaseIdempotencyRepository {
    * only the nullable `subscription_id` pointer, so the claim's
    * duplicate-blocking identity is untouched.
    *
-   * @throws The defensive invariant when zero rows matched — inside the
-   *         purchase flow this is unreachable (the claim was inserted in
-   *         the same transaction) and can only mean a broken contract.
+   * @throws The defensive invariant — a `ConflictError` — when zero rows
+   *         matched: inside the purchase flow this is unreachable (the
+   *         claim was inserted in the same transaction) and can only mean a
+   *         broken contract.
    */
   export async function updateClaimSubscriptionId(
     claimId: number,
@@ -110,7 +115,9 @@ export namespace SubscriptionPurchaseIdempotencyRepository {
       .where(eq(subscriptionPurchaseIdempotency.id, claimId))
       .returning({ id: subscriptionPurchaseIdempotency.id });
     if (!rows[0]) {
-      throw new Error("SubscriptionPurchaseIdempotencyRepository.updateClaimSubscriptionId: update matched no rows");
+      throw new ConflictError(
+        "SubscriptionPurchaseIdempotencyRepository.updateClaimSubscriptionId: update matched no rows"
+      );
     }
   }
 
