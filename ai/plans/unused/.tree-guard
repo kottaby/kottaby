@@ -1,3 +1,0 @@
-# Sandbox branch guard — keeps the working tree pinned to feat/clean-unused
-# by blocking the sandbox auto-checkout to main (locally-modified tracked file
-# absent from main). Content is scratch; never commit the dirty marker.
