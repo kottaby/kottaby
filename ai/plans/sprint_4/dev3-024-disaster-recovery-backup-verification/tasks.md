@@ -106,14 +106,14 @@ Sequence: QL → TE → SEC → SR → IV → `[x]`.
 
 ## Phase 5 — Integration Test & Drill (drill chain; journey ruling N/A — see closing note)
 
-- [ ] 5.1 **CREATE `scripts/ops/backup-restore.integration.test.ts`** (TEST-first order within this phase: author against the Phase-2/3 contracts, which are already merged):
+- [x] 5.1 **CREATE `scripts/ops/backup-restore.integration.test.ts`** (TEST-first order within this phase: author against the Phase-2/3 contracts, which are already merged):
   - `beforeAll`: create scratch DB `kottaby_dr_it_<ts>` (via `psql`/createdb argv), push schema (existing dbActions push path or drizzle-kit push with sqlite-excluded config), seed MINIMAL fixtures covering every REQ-017 critical table and every oracle domain (one wallet + one `teacher_transaction` earning row, one `session` row with intent, one `session_request_idempotency` claim, a students-row balance-lane sanity fixture, audit row, notification row, parent link request).
   - Execute REAL `bun run ops:db-backup` against fixture DB → assert artifact+manifest; execute REAL restore-verify against a second scratch DB → assert `VERDICT: PASS` and report parses; tamper the artifact copy (flip bytes) → assert FAIL path and exit 1.
   - `afterAll`: drop both scratch DBs; remove test run dirs. NO `runInRollback` — OS-level tools require real DBs; document the deviation inline (clean, domain-language comment only) and in outcome.
-  - [ ] 5.1.QL: `bun run scripts/health/sub-loop.ts scripts/ops/backup-restore.integration.test.ts --lifecycle duplicates` → 0.
-  - [ ] 5.1.TE: run via `bun run test/scripts/run-test.ts scripts/ops/backup-restore.integration.test.ts`; confirm `--last` output reviewed; then `--focus` the verdict lines for the outcome.
-  - [ ] 5.1.SEC: assert guard refuses a prod-shaped DSN at integration level too (one probe reusing matrix fixture); assert scratch DB names are quote-safe.
-  - [ ] 5.1.SR / 5.1.IV standard (tests + backend instructions).
+  - [x] 5.1.QL: `bun run scripts/health/sub-loop.ts scripts/ops/backup-restore.integration.test.ts --lifecycle duplicates` → 0.
+  - [x] 5.1.TE: run via `bun run test/scripts/run-test.ts scripts/ops/backup-restore.integration.test.ts`; confirm `--last` output reviewed; then `--focus` the verdict lines for the outcome.
+  - [x] 5.1.SEC: assert guard refuses a prod-shaped DSN at integration level too (one probe reusing matrix fixture); assert scratch DB names are quote-safe.
+  - [x] 5.1.SR / 5.1.IV standard (tests + backend instructions).
   - _Requirements: REQ-060, REQ-061, REQ-062; chain-covers REQ-010..REQ-019._
 - [ ] 5.2 **Cold drill execution** (human/agent-executed against scratch): follow the runbook draft (written in 6.1 but drilled against its draft as soon as 5.1 is green; final polish allowed only AFTER drill feedback) end-to-end as a "never-seen-it" operator; record every friction point; measure total wall-clock; write `outcome/5.2-drill-evidence.md` (durations table, verdict, friction log, runbook patch list).
   - _Requirements: REQ-021, REQ-022._
