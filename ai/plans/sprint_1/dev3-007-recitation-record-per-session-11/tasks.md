@@ -21,7 +21,7 @@
 
 ## Phase 0: Pre-Implementation Baseline
 
-### - [x] 0.1 Baseline error recording & deferred-items ledger
+### - [ ] 0.1 Baseline error recording & deferred-items ledger
 - **Artifacts:**
   - `ai/plans/sprint_1/dev3-007-recitation-record-per-session-11/outcome/0-baseline-outcome.md` (CREATE)
   - `ai/plans/sprint_1/dev3-007-recitation-record-per-session-11/deferred-items.md` (CREATE, initialized verbatim from `.agents/spec-process-guide/templates/deferred-items-template.md`)
@@ -33,7 +33,7 @@
 - **Accept:** baseline counts recorded; ledger initialized with D1–D3; no source file touched yet.
 - _Requirements: REQ-001_
 
-### - [x] 0.2 Prerequisite & anchor verification (verify-then-claim gate)
+### - [ ] 0.2 Prerequisite & anchor verification (verify-then-claim gate)
 - **Work — VERIFY each anchor against bundled code and record `path:line` into `outcome/0.2-outcome.md`:**
   - `backend/db/schema/classes/recitation.ts` carries `sessionId` NOT NULL FK `session.id` (`onDelete: "cascade"`), `recitation_session_id_unique`, `name varchar(255)`, `description` text nullable (expected `backend/db/schema/classes/recitation.ts:1-19`).
   - `backend/types/classes/recitation.types.ts` contains ONLY `RecitationSelectType` + `RecitationInsertType`; barrels `backend/types/classes/index.ts`, `backend/types/index.ts` already re-export it (no barrel edit needed).
@@ -53,7 +53,7 @@
 
 > **Zero schema work (REQ-010):** the Drizzle schema in `backend/db/schema/` is the sole structural ground truth; this ticket makes NO edits there. Phase 1 = type extension + i18n keys only.
 
-### - [x] 1.1 Extend canonical types + static assertions + conformance test
+### - [ ] 1.1 Extend canonical types + static assertions + conformance test
 - **Files:**
   - `backend/types/classes/recitation.types.ts` (UPDATE — additive: `RecitationReturnType = typeof recitation.$inferSelect`; `interface SessionRecitationSubmitInput { readonly name: string; readonly description: string | null; }`)
   - `backend/types/classes/recitation.types.test-d.ts` (CREATE — conformance: `RecitationReturnType ≡ RecitationSelectType`; `SessionRecitationSubmitInput` keys EXACTLY `{name, description}`; `@ts-expect-error` negatives: `sessionId`/`id`/`createdAt` not assignable; `description: undefined` not assignable)
@@ -61,14 +61,14 @@
 - **NO barrel edits** (`backend/types/classes/index.ts` and `backend/types/index.ts` already re-export — VERIFY in task 0.2, assert in the static test).
 - **Instruction files:** `.agents/instructions/backend.instructions.md`, `backend/AGENTS.md` (as present in bundle).
 - _Requirements: REQ-003, REQ-033 (BOPLA whitelist is structural here)_
-  - [x] 1.1.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts backend/types/classes/recitation.types.ts --lifecycle duplicates` AND same for both test files (exit code 0)
-  - [x] 1.1.TE **Test Engineering**: run `bun run test/scripts/run-test.ts backend/types/classes/` — static-assertion + conformance suites green; type errors prove the negatives compile-fail as written (Tier 1 structural coverage).
-  - [x] 1.1.SEC **Security & Tenancy Audit**: BOPLA enforcement is the deliverable — `SessionRecitationSubmitInput` excludes every server-controlled field (id, sessionId, timestamps); negative assignment tests prove exclusion.
-  - [x] 1.1.SR **Semantic Review**: no duplicate type shapes; `RecitationReturnType` is a derivation (`typeof recitation.$inferSelect`), never a hand-declared interface; zero dead exports beyond the four-member shape.
-  - [x] 1.1.IV **Instruction Verification**: re-read `.agents/instructions/backend.instructions.md` and auto-discovered AGENTS.md files for `backend/types/`; confirm compliance.
-  - [x] 1.1.OC **Outcome**: write `outcome/1.1-outcome.md`.
+  - [ ] 1.1.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts backend/types/classes/recitation.types.ts --lifecycle duplicates` AND same for both test files (exit code 0)
+  - [ ] 1.1.TE **Test Engineering**: run `bun run test/scripts/run-test.ts backend/types/classes/` — static-assertion + conformance suites green; type errors prove the negatives compile-fail as written (Tier 1 structural coverage).
+  - [ ] 1.1.SEC **Security & Tenancy Audit**: BOPLA enforcement is the deliverable — `SessionRecitationSubmitInput` excludes every server-controlled field (id, sessionId, timestamps); negative assignment tests prove exclusion.
+  - [ ] 1.1.SR **Semantic Review**: no duplicate type shapes; `RecitationReturnType` is a derivation (`typeof recitation.$inferSelect`), never a hand-declared interface; zero dead exports beyond the four-member shape.
+  - [ ] 1.1.IV **Instruction Verification**: re-read `.agents/instructions/backend.instructions.md` and auto-discovered AGENTS.md files for `backend/types/`; confirm compliance.
+  - [ ] 1.1.OC **Outcome**: write `outcome/1.1-outcome.md`.
 
-### - [x] 1.2 i18n error keys (flat, both locales)
+### - [ ] 1.2 i18n error keys (flat, both locales)
 - **Files:**
   - `shared/locale/en/errors*` (UPDATE — add flat keys `recitationAlreadyExists`, `recitationSessionNotWriteable` to `ErrorsLabels`)
   - `shared/locale/ar/errors*` (UPDATE — Arabic translations of the SAME two keys)
@@ -76,18 +76,18 @@
   - i18n parity test (new or extended per existing locale-parity suite location) asserting both keys exist in BOTH locales with non-empty values
 - **Instruction files:** `shared/AGENTS.md` (registration checklist), `.agents/instructions/backend.instructions.md`.
 - _Requirements: REQ-002, REQ-052_
-  - [x] 1.2.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts` on every touched locale/type file (exit 0)
-  - [x] 1.2.TE **Test Engineering**: locale parity test green via `bun run test/scripts/run-test.ts <locale-parity-test-path>`; assert flat (non-nested) key shape.
-  - [x] 1.2.SEC **Security & Tenancy Audit**: keys carry user-safe generic copy — no server internals or dynamic interpolation holes.
-  - [x] 1.2.SR **Semantic Review**: no `Translation` enum references (none exists); keys are `ErrorsLabels`-flat with domain prefix; no duplicated keys anywhere in the locale trees.
-  - [x] 1.2.IV **Instruction Verification**: validate registration steps against `shared/AGENTS.md` checklist item-by-item.
-  - [x] 1.2.OC **Outcome**: write `outcome/1.2-outcome.md`.
+  - [ ] 1.2.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts` on every touched locale/type file (exit 0)
+  - [ ] 1.2.TE **Test Engineering**: locale parity test green via `bun run test/scripts/run-test.ts <locale-parity-test-path>`; assert flat (non-nested) key shape.
+  - [ ] 1.2.SEC **Security & Tenancy Audit**: keys carry user-safe generic copy — no server internals or dynamic interpolation holes.
+  - [ ] 1.2.SR **Semantic Review**: no `Translation` enum references (none exists); keys are `ErrorsLabels`-flat with domain prefix; no duplicated keys anywhere in the locale trees.
+  - [ ] 1.2.IV **Instruction Verification**: validate registration steps against `shared/AGENTS.md` checklist item-by-item.
+  - [ ] 1.2.OC **Outcome**: write `outcome/1.2-outcome.md`.
 
 ---
 
 ## Phase 2: Repositories & Backend Services
 
-### - [x] 2.1 [Implement `RecitationRepository` — closed two-method namespace]
+### - [ ] 2.1 [Implement `RecitationRepository` — closed two-method namespace]
 - **Files:**
   - `backend/db/repo/classes/recitation.repository.ts` (CREATE — namespace `RecitationRepository` with EXACTLY two exports):
     - `insertOnce(insert: RecitationInsertType, tx?: DBTransaction): Promise<RecitationSelectType>` — unique-violation propagates RAW (no translation here; mirror `TeacherRepository.insertColdStartCertified` at `backend/db/repo/teachers/teacher.repository.ts:40-57`)
@@ -97,19 +97,19 @@
   - `backend/db/repo/classes/index.ts` (UPDATE — barrel re-export ONLY if the sibling barrel convention requires it; confirm against existing barrel in 0.2)
 - **Instruction files:** `.agents/instructions/backend.instructions.md`, `backend/AGENTS.md`, plus `docs/drizzle/prepared-statements.md` rules (parameterized cold path; NO inline `--` comments in `sql` templates).
 - _Requirements: REQ-011, REQ-015, REQ-040, REQ-070_
-  - [x] 2.1.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts backend/db/repo/classes/recitation.repository.ts --lifecycle duplicates` and same for the test file (exit 0)
-  - [x] 2.1.TE **Test Engineering** — 4-Tier suite (all writes inside `runInRollback`; `tx` passed to EVERY call; `expectRepoError`, NEVER `expect(...).rejects.toThrow()`):
+  - [ ] 2.1.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts backend/db/repo/classes/recitation.repository.ts --lifecycle duplicates` and same for the test file (exit 0)
+  - [ ] 2.1.TE **Test Engineering** — 4-Tier suite (all writes inside `runInRollback`; `tx` passed to EVERY call; `expectRepoError`, NEVER `expect(...).rejects.toThrow()`):
     - Tier 1 (branch/statement): insert success + read-back; `findBySessionId` hit; `findBySessionId` miss → `null`.
     - Tier 2 (boundary): both executor branches exercised (tx branch AND cold `queryDb` branch).
     - Tier 3 (chaos): duplicate insert → raw `23505` surfaces to caller; assert `constraintNameOf(err) === "recitation_session_id_unique"`; concurrent double-insert under committed fixtures → exactly ONE winner row.
     - Tier 4 (security/isolation): sibling-session isolation — inserting for session A never leaks via a read for session B.
     - Run: `bun run test/scripts/run-test.ts backend/db/repo/classes/__tests__/recitation.repository.test.ts` — green.
-  - [x] 2.1.SEC **Security & Tenancy Audit**: parameterized equality predicate only (NO LIKE anywhere → wildcard-escaping N/A recorded); no caller-supplied column/table interpolation; identity never input-bound (insert carries exactly the mapped DTO).
-  - [x] 2.1.SR **Semantic Review**: namespace closed at two methods (source-pin asserting `Object.keys(RecitationRepository).sort()` equals `["findBySessionId","insertOnce"]` included in the repo test); tx parameter LAST on both methods; canonical types imported (no local type re-declaration).
-  - [x] 2.1.IV **Instruction Verification**: re-read `.agents/instructions/backend.instructions.md` + auto-discovered AGENTS.md; confirm `docs/drizzle/prepared-statements.md` compliance.
-  - [x] 2.1.OC **Outcome**: write `outcome/2.1-outcome.md`.
+  - [ ] 2.1.SEC **Security & Tenancy Audit**: parameterized equality predicate only (NO LIKE anywhere → wildcard-escaping N/A recorded); no caller-supplied column/table interpolation; identity never input-bound (insert carries exactly the mapped DTO).
+  - [ ] 2.1.SR **Semantic Review**: namespace closed at two methods (source-pin asserting `Object.keys(RecitationRepository).sort()` equals `["findBySessionId","insertOnce"]` included in the repo test); tx parameter LAST on both methods; canonical types imported (no local type re-declaration).
+  - [ ] 2.1.IV **Instruction Verification**: re-read `.agents/instructions/backend.instructions.md` + auto-discovered AGENTS.md; confirm `docs/drizzle/prepared-statements.md` compliance.
+  - [ ] 2.1.OC **Outcome**: write `outcome/2.1-outcome.md`.
 
-### - [x] 2.2 [Write Recitation journey test — TEST-FIRST]
+### - [ ] 2.2 [Write Recitation journey test — TEST-FIRST]
 - **Files:**
   - `test/workflows/sessions/recitation-record.journey.test.ts` (CREATE — one file for the full cross-actor journey)
   - `test/workflows/helpers/` (REUSE — cast helper from the sessions domain; if `test/workflows/` is absent, this task ALSO scaffolds helpers + `test/workflows/AGENTS.md` per Architectural Invariant 10, as decided in task 0.2)
@@ -125,14 +125,14 @@
 - **Rules:** real permission resolution (real role rows — NEVER monkey-patch); committed fixtures in `beforeAll` + tracked hard-delete in `afterAll`; `runInRollback` FORBIDDEN around service calls; notification dispatch spied (assert zero publishes on every step); admin/anon denial paths asserted at scope layer where service-level role gating doesn't apply.
 - **Test-first:** this test is written BEFORE task 2.3 implements the service; it MUST fail/red at authoring time and is run again after 2.3.
 - _Requirements: REQ-073 (+ journey EARS criteria from specs §2.9)_
-  - [x] 2.2.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts test/workflows/sessions/recitation-record.journey.test.ts --lifecycle duplicates` (exit 0)
-  - [x] 2.2.TE **Test Engineering**: after 2.3 lands, `bun run test/scripts/run-test.ts test/workflows` — green (never raw `bun test`).
-  - [x] 2.2.SEC **Security & Tenancy Audit**: denial paths (foreign/collapse/governance) are asserted, not assumed; no identity parameters beyond `sessionId` exist to smuggle.
-  - [x] 2.2.SR **Semantic Review**: fixtures cleaned (no leaked rows); actors attributed per step; sibling-table oracles explicit.
-  - [x] 2.2.IV **Instruction Verification**: `.agents/instructions/tests.instructions.md` + `test/workflows/AGENTS.md` compliance.
-  - [x] 2.2.OC **Outcome**: write `outcome/2.2-outcome.md` (record red-then-green evidence).
+  - [ ] 2.2.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts test/workflows/sessions/recitation-record.journey.test.ts --lifecycle duplicates` (exit 0)
+  - [ ] 2.2.TE **Test Engineering**: after 2.3 lands, `bun run test/scripts/run-test.ts test/workflows` — green (never raw `bun test`).
+  - [ ] 2.2.SEC **Security & Tenancy Audit**: denial paths (foreign/collapse/governance) are asserted, not assumed; no identity parameters beyond `sessionId` exist to smuggle.
+  - [ ] 2.2.SR **Semantic Review**: fixtures cleaned (no leaked rows); actors attributed per step; sibling-table oracles explicit.
+  - [ ] 2.2.IV **Instruction Verification**: `.agents/instructions/tests.instructions.md` + `test/workflows/AGENTS.md` compliance.
+  - [ ] 2.2.OC **Outcome**: write `outcome/2.2-outcome.md` (record red-then-green evidence).
 
-### - [x] 2.3 [Implement `RecitationRecordService` — write pipeline + collapse read]
+### - [ ] 2.3 [Implement `RecitationRecordService` — write pipeline + collapse read]
 - **Files:**
   - `backend/services/classes/recitation.service.ts` (CREATE — namespace `RecitationRecordService`):
     - `setSessionRecitation(teacherUserId, sessionId, input: SessionRecitationSubmitInput, locale, outerTx?: DBTransaction): Promise<RecitationReturnType>` — EXACT pipeline (REQ-012): (1) pre-DB guards: `assertPositiveSafeSessionId` + payload guards (name trimmed non-empty ≤255; description null-or-trimmed ≤2000, empty-after-trim → null) → `ValidationError` with `fields: ApiFieldErrorType[]`; (2) `assertActorGovernanceClean` → `ForbiddenError` pre-tx; (3) ONE `withTransaction(outerTx, …)` unit: `SessionRepository.findById(sessionId, tx)` → miss OR `session.teacherId !== teacherUserId` → `NotFoundError("SESSION", …)` (byte-identical); status `scheduled|cancelled` → `ConflictError("RECITATION_SESSION_NOT_WRITEABLE", …)`; else `RecitationRepository.insertOnce(…, tx)`; catch → `isUniqueViolation` cause-chain → `ConflictError("RECITATION_ALREADY_EXISTS", localized recitationAlreadyExists)`, rethrow everything else untouched.
@@ -142,19 +142,19 @@
   - `backend/services/classes/recitation.service.test.ts` (CREATE — REQ-071 four-tier suite)
 - **Instruction files:** `.agents/instructions/backend.instructions.md`, `backend/AGENTS.md`.
 - _Requirements: REQ-012, REQ-013, REQ-014, REQ-015, REQ-016, REQ-017, REQ-018, REQ-031, REQ-032, REQ-034, REQ-035, REQ-040, REQ-041, REQ-042, REQ-050, REQ-051_
-  - [x] 2.3.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts backend/services/classes/recitation.service.ts --lifecycle duplicates` and same for the test file (exit 0)
-  - [x] 2.3.TE **Test Engineering** — 4-Tier suite:
+  - [ ] 2.3.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts backend/services/classes/recitation.service.ts --lifecycle duplicates` and same for the test file (exit 0)
+  - [ ] 2.3.TE **Test Engineering** — 4-Tier suite:
     - Tier 1: happy write + read; byte-exact `DomainError` class+code matrix: `VALIDATION`, `FORBIDDEN`, `SESSION_NOT_FOUND`, `RECITATION_SESSION_NOT_WRITEABLE`, `RECITATION_ALREADY_EXISTS`.
     - Tier 2 (boundary): name at 0/1/255/256 chars, whitespace-only, unicode/RTL; description null vs empty vs 2000/2001; `fields[]` projection names the offending field; sessionId fuzz (0, negative, fractional, NaN, >MAX_SAFE_INTEGER) → `VALIDATION` pre-DB / read collapses to `null`.
     - Tier 3 (chaos): governance fuzz (deleted/blocked/suspended/absent caller); status fuzz (scheduled/cancelled denied; started/completed/disputed admitted per B.18); concurrent same-session double-write → exactly one winner; `outerTx` composition (join-tx) AND wire-style `undefined` top-level both green; rollback purity — failed pipeline leaves ZERO residual rows.
     - Tier 4 (security): foreign teacher ≡ nonexistent (byte-identical denial); participant predicate from DB row only; write-purity oracles — zero writes to `session`, `students`, `users`, `teacher`, `wallet`, `teacher_transaction`, `notifications`, `audit_logs` (row-count oracles); `logger.logDomainError` spy counts (exactly one bounded call per denial code, zero on happy/collapse paths).
     - Run: `bun run test/scripts/run-test.ts backend/services/classes/recitation.service.test.ts` — green; re-run journey task suite (2.2) — turns green.
-  - [x] 2.3.SEC **Security & Tenancy Audit**: BOLA collapse verified on both surfaces; BOPLA — resolver-independent input never widened here; BFLA governance re-check pre-tx; content-PII never logged; LIKE N/A recorded (parameterized equality only).
-  - [x] 2.3.SR **Semantic Review**: single `withTransaction` unit with SAME `tx` everywhere; cause-chain 23505 traversal only (no message-sniffing); no blanket try/catch; canonical types imported; enum VALUES imported (status comparisons via enum members, never string literals); no service-layer `.types.ts` file created.
-  - [x] 2.3.IV **Instruction Verification**: re-read `.agents/instructions/backend.instructions.md` + auto-discovered AGENTS.md; verify governance-helper and guard-helper reuse (no twin re-implementation).
-  - [x] 2.3.OC **Outcome**: write `outcome/2.3-outcome.md`.
+  - [ ] 2.3.SEC **Security & Tenancy Audit**: BOLA collapse verified on both surfaces; BOPLA — resolver-independent input never widened here; BFLA governance re-check pre-tx; content-PII never logged; LIKE N/A recorded (parameterized equality only).
+  - [ ] 2.3.SR **Semantic Review**: single `withTransaction` unit with SAME `tx` everywhere; cause-chain 23505 traversal only (no message-sniffing); no blanket try/catch; canonical types imported; enum VALUES imported (status comparisons via enum members, never string literals); no service-layer `.types.ts` file created.
+  - [ ] 2.3.IV **Instruction Verification**: re-read `.agents/instructions/backend.instructions.md` + auto-discovered AGENTS.md; verify governance-helper and guard-helper reuse (no twin re-implementation).
+  - [ ] 2.3.OC **Outcome**: write `outcome/2.3-outcome.md`.
 
-### - [ ] 2.M Mid-Point Review Gate
+### - [x] 2.M Mid-Point Review Gate
 - **Gate checks (all must pass before Phase 3):**
   - `bun tsgo` and `bun biome:check` deltas vs 0.1 baseline: ZERO new errors.
   - Repo suite + service suite + journey suite green via the recorded harness.
