@@ -56,7 +56,7 @@ function requireInput(name: string): GraphQLInputObjectType {
 
 describe("AdminSessionListFilterInput SDL contract", () => {
   test("registers exactly once under its SDL name (clean construction)", () => {
-    expect(sdl.match(/input AdminSessionListFilterInput \{/)).toHaveLength(1);
+    expect(sdl.match(/input AdminSessionListFilterInput \{/g)).toHaveLength(1);
   });
 
   test("exposes EXACTLY the six filter fields in the closed whitelist", () => {
@@ -108,7 +108,7 @@ describe("AdminSessionListFilterInput SDL contract", () => {
 
 describe("SessionListFilterInput regression pin", () => {
   test("participant input remains EXACTLY the single status member (no admin extension)", () => {
-    expect(sdl.match(/input SessionListFilterInput \{/)).toHaveLength(1);
+    expect(sdl.match(/input SessionListFilterInput \{/g)).toHaveLength(1);
     const fields = requireInput("SessionListFilterInput").getFields();
     expect(Object.keys(fields)).toEqual(["status"]);
     expect(fields.status?.type.toString()).toBe("SessionStatus");
