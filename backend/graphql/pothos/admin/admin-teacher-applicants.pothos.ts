@@ -6,6 +6,9 @@
  * Every shape is backed by a canonical type from `backend/types/admin/`:
  *  - `AdminApplicantItem` ← `AdminApplicantItemReturnType` (one queue row)
  *  - `AdminApplicantPage` ← `AdminApplicantPageReturnType` (embedded envelope)
+ *  - `AdminApplicantStatusCounts` ← `AdminApplicantStatusCountsReturnType`
+ *    (module-private embedded value object behind the page envelope's
+ *    `statusCounts` field — search-aware, status-filter-independent)
  *  - `AdminApplicantFiltersInput` — closed two-member filter whitelist
  *    whose members map 1:1 onto `AdminApplicantFiltersSubmitInput` (the
  *    resolver copies them field-by-field; nothing else crosses the
@@ -20,7 +23,11 @@
  *    serialization) — no hand-rolled `toISOString()` presentation layer.
  */
 import { gqlSchemaBuilder } from "@/backend/graphql/pothos/builder";
-import type { AdminApplicantItemReturnType, AdminApplicantPageReturnType } from "@/backend/types";
+import type {
+  AdminApplicantItemReturnType,
+  AdminApplicantPageReturnType,
+  AdminApplicantStatusCountsReturnType,
+} from "@/backend/types";
 
 /**
  * `AdminApplicantItem` — one applicant-queue row: the safe `users` columns
@@ -52,11 +59,35 @@ const AdminApplicantItemPothosObject = gqlSchemaBuilder
   });
 
 /**
+ * `AdminApplicantStatusCounts` — per-status counts for the queue's
+ * quick-filter chips. SEARCH-aware but STATUS-filter-INDEPENDENT: the
+ * counts always describe the whole pipeline matching the current search
+ * term (the status filter is NOT applied to the aggregate), so the chips
+ * stay meaningful while a status filter is active. Rows whose stored
+ * `status` falls outside the canonical vocabulary (`pending` |
+ * `in_evaluation` | `failed` | `passed`) are ignored — the varchar column
+ * is enum-less and the counts are honest to the canonical vocabulary only.
+ * Embedded value object behind the page envelope — NO `id` field.
+ */
+const AdminApplicantStatusCountsPothosObject = gqlSchemaBuilder
+  .objectRef<AdminApplicantStatusCountsReturnType>("AdminApplicantStatusCounts")
+  .implement({
+    fields: t => ({
+      pending: t.exposeInt("pending"),
+      inEvaluation: t.exposeInt("inEvaluation"),
+      failed: t.exposeInt("failed"),
+      passed: t.exposeInt("passed"),
+    }),
+  });
+
+/**
  * `AdminApplicantPage` — paginated directory envelope. Echoes `page` +
  * `pageSize` so callers can normalize client-side pagination state;
  * `pageCount` is the ceiling division of `total` over `pageSize`. An
  * out-of-range page yields an empty `items` array with the honest `total`
- * (never clamped, never an error). Embedded wrapper — NO `id` field.
+ * (never clamped, never an error). `statusCounts` carries the search-aware
+ * / status-independent per-status aggregate for the quick-filter chips.
+ * Embedded wrapper — NO `id` field.
  */
 export const AdminApplicantPagePothosObject = gqlSchemaBuilder
   .objectRef<AdminApplicantPageReturnType>("AdminApplicantPage")
@@ -70,6 +101,10 @@ export const AdminApplicantPagePothosObject = gqlSchemaBuilder
       page: t.exposeInt("page"),
       pageSize: t.exposeInt("pageSize"),
       pageCount: t.exposeInt("pageCount"),
+      statusCounts: t.field({
+        type: AdminApplicantStatusCountsPothosObject,
+        resolve: parent => parent.statusCounts,
+      }),
     }),
   });
 

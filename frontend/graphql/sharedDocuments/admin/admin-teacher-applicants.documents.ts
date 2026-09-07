@@ -41,7 +41,9 @@ const ADMIN_APPLICANT_LIST_ITEM_FIELDS = gql`
  * Teacher-applicant queue query — paginated, filterable. The envelope
  * carries the honest `total` + server-computed `pageCount`;
  * `page`/`pageSize` are ALWAYS provided by the queue hook, so the
- * variables are non-null.
+ * variables are non-null. `statusCounts` is the backend's search-aware /
+ * status-filter-independent per-status aggregate (quick-filter chips stay
+ * meaningful while a status filter is active).
  */
 export const adminTeacherApplicantsQueryDocument: TypedDocumentNode<AdminTeacherApplicantsQuery> = gql`
   ${ADMIN_APPLICANT_LIST_ITEM_FIELDS}
@@ -54,6 +56,12 @@ export const adminTeacherApplicantsQueryDocument: TypedDocumentNode<AdminTeacher
       page
       pageSize
       pageCount
+      statusCounts {
+        pending
+        inEvaluation
+        failed
+        passed
+      }
     }
   }
 `;

@@ -25,7 +25,12 @@ import { db, queryDb } from "@/backend/db";
 import { applicants } from "@/backend/db/schema/teachers/applicants";
 import { users } from "@/backend/db/schema/users/users";
 import { ApplicantStatus } from "@/backend/enum";
-import type { ApplicantSelectType, DBQueryExecutor, DBTransaction } from "@/backend/types";
+import type {
+  AdminApplicantStatusCountsReturnType,
+  ApplicantSelectType,
+  DBQueryExecutor,
+  DBTransaction,
+} from "@/backend/types";
 
 /**
  * Type guard — narrows `DBQueryExecutor` to `DBTransaction`.
@@ -290,6 +295,70 @@ export namespace ApplicantRepository {
         .where(where),
     ]);
     return { rows, total: countRows[0]?.count ?? 0 };
+  }
+
+  /**
+   * Aggregates per-status counts over the applicant queue for the quick-
+   * filter chips: one `GROUP BY applicants.status` query INNER JOINed to
+   * `users`, filtered by the SAME filter chain the listing uses but with
+   * `status` deliberately pinned to `null` — the counts are SEARCH-aware
+   * yet STATUS-filter-INDEPENDENT, so the chips keep showing every
+   * pipeline stage's share of the searched queue even while a status
+   * filter narrows the page items (a status-filtered count would collapse
+   * the non-selected chips to zero and make the strip meaningless).
+   *
+   * The varchar `applicants.status` column has NO pgEnum, so the fold
+   * below buckets rows ONLY into the four canonical `ApplicantStatus`
+   * members (defaulting each slot to `0`); rows carrying any other stored
+   * value are IGNORED — the aggregate stays honest to the canonical
+   * vocabulary instead of inventing an "unknown" bucket.
+   *
+   * Executor choice mirrors `listDirectory`: `(tx ?? db)` — a supplied
+   * transaction runs the aggregate on the caller's executor (same
+   * transactional consistency as the page query it is fetched alongside);
+   * absent one, the global handle serves the standalone read.
+   *
+   * @returns The four canonical status counts (`pending` | `inEvaluation`
+   *          | `failed` | `passed`), zero-defaulted per slot.
+   */
+  export async function statusCounts(
+    filters: Pick<NormalizedAdminApplicantFilters, "searchPattern">,
+    tx?: DBTransaction
+  ): Promise<AdminApplicantStatusCountsReturnType> {
+    const rows = await (tx ?? db)
+      .select({ status: applicants.status, count: sql<number>`count(*)::int`.as("count") })
+      .from(applicants)
+      .innerJoin(users, eq(users.id, applicants.id))
+      .where(
+        buildApplicantDirectoryFilterChain({
+          searchPattern: filters.searchPattern ?? null,
+          status: null,
+        })
+      )
+      .groupBy(applicants.status);
+    // Mutable accumulator — structurally assignable to the readonly
+    // `AdminApplicantStatusCountsReturnType` on return (readonly members
+    // cannot be assigned through the return-type view).
+    const counts = {
+      pending: 0,
+      inEvaluation: 0,
+      failed: 0,
+      passed: 0,
+    };
+    for (const row of rows) {
+      if (row.status === ApplicantStatus.Pending) {
+        counts.pending = row.count;
+      } else if (row.status === ApplicantStatus.InEvaluation) {
+        counts.inEvaluation = row.count;
+      } else if (row.status === ApplicantStatus.Failed) {
+        counts.failed = row.count;
+      } else if (row.status === ApplicantStatus.Passed) {
+        counts.passed = row.count;
+      }
+      // Non-canonical stored values fall through — deliberately ignored
+      // (enum-less varchar; see the doc block above).
+    }
+    return counts;
   }
 
   /**

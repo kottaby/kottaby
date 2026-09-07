@@ -190,10 +190,14 @@ describe("admin-teacher-applicant document — id + fragment-reuse shapes", () =
     expect(fragmentSpreads(selection)).toContain("AdminApplicantListItemFields");
   });
 
-  test("the page envelope selects the honest total + server-computed pageCount", () => {
+  test("the page envelope selects the honest total + server-computed pageCount + the statusCounts aggregate", () => {
     const operation = operationOrThrow(adminTeacherApplicantsQueryDocument);
     const page = selectionPath(operation, "adminTeacherApplicants");
-    expect(fieldNames(page)).toEqual(["items", "total", "page", "pageSize", "pageCount"]);
+    expect(fieldNames(page)).toEqual(["items", "total", "page", "pageSize", "pageCount", "statusCounts"]);
+    // The aggregate's sub-selection is pinned to the canonical four slots —
+    // source-order drift or a smuggled extra field fails here.
+    const statusCounts = selectionPath(operation, "adminTeacherApplicants.statusCounts");
+    expect(fieldNames(statusCounts)).toEqual(["pending", "inEvaluation", "failed", "passed"]);
   });
 });
 

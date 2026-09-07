@@ -5,7 +5,10 @@
  * teacher-certification queue).
  *
  * Single operation: `list` — filter normalization + pagination bounds +
- * row→item projection over `ApplicantRepository.listDirectory`.
+ * row→item projection over `ApplicantRepository.listDirectory`, fetched in
+ * parallel with `ApplicantRepository.statusCounts` (the search-aware /
+ * status-independent per-status aggregate that powers the queue's
+ * quick-filter chips).
  *
  * Disciplines enforced here (mirroring `AdminTeacherDirectoryService`):
  *  - Defense-in-depth BFLA: `assertActorAdmin` is the FIRST statement —
@@ -86,6 +89,13 @@ export namespace AdminApplicantDirectoryService {
    * `pageSize = 25`. Out-of-range values reject with `VALIDATION`. An
    * out-of-range page returns `{ items: [], total, … }` honestly — never
    * an error, never clamped.
+   *
+   * The per-status `statusCounts` aggregate runs in the SAME `Promise.all`
+   * as the listing (one round-trip pair on the caller's executor). The
+   * normalized `status` filter is deliberately NOT forwarded to the
+   * counts: they are search-aware but status-filter-independent so the
+   * quick-filter chips keep describing the whole searched pipeline while a
+   * status filter narrows the page items.
    */
   export async function list(
     filters: AdminApplicantFiltersSubmitInput,
@@ -99,16 +109,21 @@ export namespace AdminApplicantDirectoryService {
 
     const { resolvedPage, resolvedPageSize, offset } = resolvePageBounds(page, pageSize, locale);
     const normalized = normalizeFilters(filters, locale);
-    const { rows, total } = await ApplicantRepository.listDirectory(normalized, resolvedPageSize, offset, outerTx);
+    const [directory, statusCounts] = await Promise.all([
+      ApplicantRepository.listDirectory(normalized, resolvedPageSize, offset, outerTx),
+      // normalized.status is deliberately NOT passed — see the doc block.
+      ApplicantRepository.statusCounts({ searchPattern: normalized.searchPattern }, outerTx),
+    ]);
 
-    const items = rows.map(row => mapApplicantDirectoryRow(row));
+    const items = directory.rows.map(row => mapApplicantDirectoryRow(row));
 
     return {
       items,
-      total,
+      total: directory.total,
       page: resolvedPage,
       pageSize: resolvedPageSize,
-      pageCount: Math.ceil(total / resolvedPageSize),
+      pageCount: Math.ceil(directory.total / resolvedPageSize),
+      statusCounts,
     };
   }
 }

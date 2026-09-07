@@ -66,11 +66,35 @@ export interface AdminApplicantItemReturnType {
 }
 
 /**
+ * `AdminApplicantStatusCountsReturnType` — per-status counts for the
+ * applicant-queue quick-filter chips. Counts are SEARCH-aware but
+ * STATUS-filter-INDEPENDENT: they always describe the whole pipeline
+ * matching the current search term (the status filter is deliberately NOT
+ * applied to this aggregate), so the chips stay meaningful while a status
+ * filter is active — the selected chip shows its share of the searched
+ * queue instead of collapsing to the filtered page's total. Rows whose
+ * `status` falls outside the canonical vocabulary (`pending` |
+ * `in_evaluation` | `failed` | `passed`) are IGNORED — the varchar column
+ * is enum-less and the counts are honest to the canonical vocabulary only.
+ */
+export interface AdminApplicantStatusCountsReturnType {
+  readonly pending: number;
+  readonly inEvaluation: number;
+  readonly failed: number;
+  readonly passed: number;
+}
+
+/**
  * `AdminApplicantPageReturnType` — paginated directory result envelope.
  * `pageCount` is the ceiling division of `total` over `pageSize`. An
  * out-of-range page yields an empty `items` array with the honest `total`
  * (never clamped, never an error). `page` and `pageSize` are echoed back so
  * callers can normalize client-side pagination state.
+ *
+ * `statusCounts` carries the search-aware / status-independent per-status
+ * totals described on `AdminApplicantStatusCountsReturnType` — computed in
+ * the same service call as the listing, over the same search pattern but
+ * WITHOUT the status filter.
  */
 export interface AdminApplicantPageReturnType {
   readonly items: AdminApplicantItemReturnType[];
@@ -78,4 +102,5 @@ export interface AdminApplicantPageReturnType {
   readonly page: number;
   readonly pageSize: number;
   readonly pageCount: number;
+  readonly statusCounts: AdminApplicantStatusCountsReturnType;
 }

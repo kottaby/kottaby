@@ -24,7 +24,15 @@ type AdminApplicantPage {
   page: Int!
   pageCount: Int!
   pageSize: Int!
+  statusCounts: AdminApplicantStatusCounts!
   total: Int!
+}
+
+type AdminApplicantStatusCounts {
+  failed: Int!
+  inEvaluation: Int!
+  passed: Int!
+  pending: Int!
 }
 
 type AdminAuditLogEntry {

@@ -15,10 +15,13 @@
  * Coverage map:
  *  - Happy-path list mapping (pipeline headline + attempts/cooldown
  *    timestamps, NULL-row default coalescing, governance null-coalescing,
- *    page-envelope echo).
+ *    page-envelope echo incl. the statusCounts aggregate).
  *  - Filter normalization (search trim, literal `%` escape, 100-char
  *    clamp, status filter, absent-filter fallback to the unfiltered
  *    listing, INVALID status rejection).
+ *  - statusCounts aggregate (returned alongside the listing, search-aware
+ *    but status-filter-INDEPENDENT, zero-defaulted on an empty queue,
+ *    non-canonical status rows ignored).
  *  - `pageCount` ceiling math (3 rows ÷ pageSize 2 → 2; empty → 0).
  *  - Pagination validation errors (page 0 / negative, pageSize 101).
  *  - Defense-in-depth BFLA denials (anonymous → 401, non-admin → 403).
@@ -110,6 +113,12 @@ describe("AdminApplicantDirectoryService.list — happy path + mapping", () => {
       expect(page.pageSize).toBe(25);
       expect(page.total).toBeGreaterThanOrEqual(1);
       expect(page.pageCount).toBeGreaterThanOrEqual(1);
+      // Page-envelope aggregate: the searched pipeline's own stage counts
+      // (search-aware, status-independent) ride alongside the listing.
+      expect(page.statusCounts.inEvaluation).toBeGreaterThanOrEqual(1);
+      expect(page.statusCounts.pending).toBeGreaterThanOrEqual(0);
+      expect(page.statusCounts.failed).toBeGreaterThanOrEqual(0);
+      expect(page.statusCounts.passed).toBeGreaterThanOrEqual(0);
 
       const found = page.items.find(item => item.id === applicant.id);
       expect(found).not.toBeUndefined();
@@ -264,6 +273,75 @@ describe("AdminApplicantDirectoryService.list — filter normalization", () => {
       );
       expect(error).toBeInstanceOf(ValidationError);
       expect(error.message).toBe(tErrors.validation);
+    });
+  });
+});
+
+describe("AdminApplicantDirectoryService.list — statusCounts aggregate", () => {
+  test("counts are returned and independent of a set status filter (search-aware, status-free aggregate)", async () => {
+    await runInRollback(async tx => {
+      const admin = await provisionAdminActor(tx);
+      const prefix = `DirApplicantCounts${randomUUID().slice(0, 8)}`;
+      const pending = await createDirectoryApplicant(tx, { namePrefix: prefix, status: "pending" });
+      await createDirectoryApplicant(tx, { namePrefix: prefix, status: "in_evaluation" });
+      await createDirectoryApplicant(tx, { namePrefix: prefix, status: "failed" });
+      await createDirectoryApplicant(tx, { namePrefix: prefix, status: "passed" });
+
+      const page = await AdminApplicantDirectoryService.list(
+        { search: prefix, status: "pending" },
+        1,
+        100,
+        LOCALE,
+        admin.id,
+        tx
+      );
+
+      // The STATUS filter partitions the page items (listDirectory receives
+      // the status)…
+      expect(page.items).toHaveLength(1);
+      expect(page.items[0]?.id).toBe(pending.id);
+
+      // …but the counts stay SEARCH-only (the aggregate's filter chain is
+      // status-free): every canonical stage of the searched pipeline is
+      // reported — one matching applicant per status.
+      expect(page.statusCounts).toEqual({ pending: 1, inEvaluation: 1, failed: 1, passed: 1 });
+    });
+  });
+
+  test("counts default to zeros on an empty queue (no-match search)", async () => {
+    await runInRollback(async tx => {
+      const admin = await provisionAdminActor(tx);
+
+      const page = await AdminApplicantDirectoryService.list(
+        { search: `no-match-${randomUUID()}` },
+        1,
+        25,
+        LOCALE,
+        admin.id,
+        tx
+      );
+
+      expect(page.items).toEqual([]);
+      expect(page.statusCounts).toEqual({ pending: 0, inEvaluation: 0, failed: 0, passed: 0 });
+    });
+  });
+
+  test("counts ignore non-canonical status rows (enum-less varchar folds to the four canonical slots only)", async () => {
+    await runInRollback(async tx => {
+      const admin = await provisionAdminActor(tx);
+      const prefix = `DirApplicantWeird${randomUUID().slice(0, 8)}`;
+      const weird = await createDirectoryApplicant(tx, { namePrefix: prefix, status: "weird" });
+
+      const page = await AdminApplicantDirectoryService.list({ search: prefix }, 1, 25, LOCALE, admin.id, tx);
+
+      // The row is honestly listed (display read — verbatim status)…
+      expect(page.items).toHaveLength(1);
+      expect(page.items[0]?.id).toBe(weird.id);
+      expect(page.items[0]?.status).toBe("weird");
+
+      // …but it contributes NO count: only canonical vocabulary members are
+      // bucketed, so every slot stays zero instead of minting an unknown.
+      expect(page.statusCounts).toEqual({ pending: 0, inEvaluation: 0, failed: 0, passed: 0 });
     });
   });
 });
