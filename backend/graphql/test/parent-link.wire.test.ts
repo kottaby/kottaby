@@ -47,6 +47,15 @@
  *    extra args on all three mutations die as GRAPHQL_VALIDATION_FAILED
  *    before any resolver runs (the request never executes: the `data` key
  *    is absent from the body).
+ *  - **Input-coercion tier** — a non-ID typed variable (an object where the
+ *    `ID!` variable is required) dies at Apollo's variable coercion with
+ *    BAD_USER_INPUT pre-resolver (the request never executes — the proven
+ *    protocol-preset passthrough class).
+ *  - **Decision-leg denials** — a foreign requestId and a nonexistent one
+ *    answer BYTE-IDENTICAL `PARENT_LINK_REQUEST_NOT_FOUND` bodies (BOLA —
+ *    no existence oracle); an expired pending row folds FIRST and answers
+ *    `PARENT_LINK_REQUEST_EXPIRED` with the SAME envelope key-set as the
+ *    sibling not-found / already-resolved denials (no per-class disclosure).
  *  - **Nullable collapse** — a well-formed code matching
  *    no eligible student and a governed target answer byte-identical
  *    `data.requestParentChildLink === null` bodies with NO `errors` array,
@@ -462,6 +471,28 @@ async function registerActor(label: string, role: "Student" | "Teacher" | "Paren
   return registeredUserIdOf(result);
 }
 
+/**
+ * Registers the fixture cast ONE AT A TIME (sequential reduce — the sanctioned
+ * no-await-in-loop idiom). Registration is the ONLY fixture step whose
+ * server-side transaction carries a nested SAVEPOINT
+ * (`StudentRepository.createForRegistration`), and the sandbox's
+ * single-connection PGlite instance interleaves concurrent transactions onto
+ * ONE session — parallel `registerUser` calls collide on the shared `sp1`
+ * savepoint name and every wire run dies in `beforeAll` with
+ * "Failed query: rollback to savepoint sp1" (the same pglite concurrency
+ * limitation that gates the chaos races behind `describeOnRealPostgres`).
+ * The parallel deny-probes in the cells below stay parallel: scope-auth,
+ * validation, coercion, and smuggled-arg denials never touch the database.
+ */
+async function registerActorCast(
+  specs: readonly (readonly [label: string, role: "Student" | "Teacher" | "Parent"])[]
+): Promise<number[]> {
+  return specs.reduce<Promise<number[]>>(
+    async (ids, [label, role]) => [...(await ids), await registerActor(label, role)],
+    Promise.resolve([])
+  );
+}
+
 /** Logs one actor in over the wire and returns the access token. */
 async function loginActor(email: string, credential: string): Promise<string> {
   const result = await testClient.mutate({
@@ -520,18 +551,20 @@ const studentFixtures: Record<string, StudentFixture> = {};
 let adminUserId = 0;
 let seededRequestId = 0;
 let rejectedRequestId = 0;
+let expiredRequestId = 0;
 let wireCreatedRequestId = 0;
 
 beforeAll(async () => {
   // Real registrations through the public mutation (committed users + the
   // students role-child rows with their canonical handshake codes).
-  const [parentP, studentS, studentG, studentH, teacherT, governedParent] = await Promise.all([
-    registerActor("parentP", "Parent"),
-    registerActor("studentS", "Student"),
-    registerActor("studentG", "Student"),
-    registerActor("studentH", "Student"),
-    registerActor("teacherT", "Teacher"),
-    registerActor("governedP", "Parent"),
+  // SEQUENTIAL via registerActorCast — see the helper's savepoint note.
+  const [parentP, studentS, studentG, studentH, teacherT, governedParent] = await registerActorCast([
+    ["parentP", "Parent"],
+    ["studentS", "Student"],
+    ["studentG", "Student"],
+    ["studentH", "Student"],
+    ["teacherT", "Teacher"],
+    ["governedP", "Parent"],
   ]);
 
   // Real logins — the seeded admin rides its env-fallback credentials.
@@ -610,10 +643,12 @@ beforeAll(async () => {
   }
 
   // Committed history rows (direct inserts — never the emit surface):
-  // one live pending (parentP → studentS) and one post-resolution rejected
-  // (parentP → studentG) with a respondedAt to pin the nullable timestamp.
+  // one live pending (parentP → studentS), one post-resolution rejected
+  // (parentP → studentG) with a respondedAt to pin the nullable timestamp,
+  // and one already-EXPIRED pending (parentP → studentS, expiresAt far in
+  // the past) for the decision-leg expired-claim denial.
   const now = Date.now();
-  const [pendingRow, rejectedRow] = await db
+  const [pendingRow, rejectedRow, expiredRow] = await db
     .insert(parentLinkRequests)
     .values([
       {
@@ -631,17 +666,25 @@ beforeAll(async () => {
         expiresAt: new Date(now - 2 * 60 * 60 * 1000 + 7 * 24 * 60 * 60 * 1000),
         respondedAt: new Date(now - 60 * 60 * 1000),
       },
+      {
+        parentId: parentP,
+        studentId: studentS,
+        status: LinkStatus.Pending,
+        createdAt: new Date(now - 8 * 24 * 60 * 60 * 1000),
+        expiresAt: new Date(now - 60 * 60 * 1000),
+      },
     ])
     .returning();
   seededRequestId = pendingRow.id;
   rejectedRequestId = rejectedRow.id;
+  expiredRequestId = expiredRow.id;
 }, 120_000);
 
 afterAll(async () => {
   // FK-safe order: request rows (RESTRICT FKs) → notifications → role-child
   // rows → users. The seeded admin's USER row is NEVER deleted.
   const fixtureUserIds = actors.map(actor => actor.userId).filter(userId => userId !== adminUserId);
-  const requestIds = [seededRequestId, rejectedRequestId, wireCreatedRequestId].filter(id => id > 0);
+  const requestIds = [seededRequestId, rejectedRequestId, expiredRequestId, wireCreatedRequestId].filter(id => id > 0);
   if (requestIds.length > 0) {
     await db.delete(parentLinkRequests).where(inArray(parentLinkRequests.id, requestIds));
   }
@@ -1105,6 +1148,40 @@ describe("wire matrix — validation tier (pre-DB requestId parser)", () => {
   });
 });
 
+// ─── Matrix: input-coercion tier (non-ID typed variable dies pre-resolver) ───
+
+describe("wire matrix — input-coercion tier (non-ID typed variable)", () => {
+  test("an object where the ID! variable is required dies at Apollo input coercion (BAD_USER_INPUT) pre-resolver", async () => {
+    const studentS = actorByLabel("studentS");
+
+    const [emitBefore] = await db
+      .select({ value: count() })
+      .from(notifications)
+      .where(
+        and(eq(notifications.userId, studentS.userId), eq(notifications.relatedEntityType, "parent_link_request"))
+      );
+
+    // An object is NOT representable as ID — the variable-coercion failure
+    // is one of Apollo's protocol-preset passthrough classes (the proven
+    // admin-teachers idiom): BAD_USER_INPUT, and the request NEVER executes
+    // (the `data` key is absent from the body).
+    const body = await postDocument(RESPOND_DOCUMENT, studentS.accessToken, {
+      requestId: { bypass: true },
+      accept: true,
+    });
+    expectDenialCode(body, "BAD_USER_INPUT", "absent");
+
+    // Zero side effects: the document never ran — no emit, no writes.
+    const [emitAfter] = await db
+      .select({ value: count() })
+      .from(notifications)
+      .where(
+        and(eq(notifications.userId, studentS.userId), eq(notifications.relatedEntityType, "parent_link_request"))
+      );
+    expect(emitAfter.value).toBe(emitBefore.value);
+  });
+});
+
 // ─── Matrix: BOPLA smuggle probes (identity args die pre-resolver) ───────────
 
 describe("wire matrix — BOPLA smuggle probes (smuggled identity args)", () => {
@@ -1147,6 +1224,111 @@ describe("wire matrix — BOPLA smuggle probes (smuggled identity args)", () => 
       // The request never executed — the data key is ABSENT from the body.
       expectDenialCode(body, "GRAPHQL_VALIDATION_FAILED", "absent");
     }
+  });
+});
+
+// ─── Matrix: decision-leg denials (no-oracle id channel + expiry fold) ───────
+
+describe("wire matrix — decision-leg denials (no-oracle id channel + expiry fold)", () => {
+  /** A parser-clean, safely-parsed id that addresses NO row. */
+  const NONEXISTENT_REQUEST_ID = "999999999";
+
+  test("a foreign requestId and a nonexistent one answer BYTE-IDENTICAL NOT_FOUND bodies (BOLA — no existence oracle)", async () => {
+    const studentS = actorByLabel("studentS");
+
+    // A pinned correlation header makes the two denial bodies comparable
+    // BYTE-FOR-BYTE (extensions.requestId is otherwise minted per request —
+    // the same inbound-header idiom as error-contract-matrix).
+    const pinnedCorrelation = { "x-request-id": "plwire-bola-foreign-absent" };
+
+    // Arm 1 — FOREIGN: a REAL row the caller does not own (studentG's
+    // resolved request; the caller here is studentS).
+    const foreignBody = await postDocument(
+      RESPOND_DOCUMENT,
+      studentS.accessToken,
+      { requestId: String(rejectedRequestId), accept: true },
+      pinnedCorrelation
+    );
+    // Arm 2 — ABSENT: the identical shape pointing at NO row at all.
+    const nonexistentBody = await postDocument(
+      RESPOND_DOCUMENT,
+      studentS.accessToken,
+      { requestId: NONEXISTENT_REQUEST_ID, accept: true },
+      pinnedCorrelation
+    );
+
+    const foreignItem = expectDenialCode(foreignBody, "PARENT_LINK_REQUEST_NOT_FOUND");
+    const nonexistentItem = expectDenialCode(nonexistentBody, "PARENT_LINK_REQUEST_NOT_FOUND");
+    // BOLA discipline: foreign ≡ absent — the boundary CANNOT distinguish a
+    // row the caller does not own from a row that does not exist.
+    expect(JSON.stringify(foreignBody)).toBe(JSON.stringify(nonexistentBody));
+    expect(errorMessageOf(foreignItem)).toBe(tEn.parentLinkRequestNotFound);
+    expect(errorMessageOf(nonexistentItem)).toBe(errorMessageOf(foreignItem));
+  });
+
+  test("an expired pending row folds FIRST then answers PARENT_LINK_REQUEST_EXPIRED with the sibling-denial envelope", async () => {
+    const studentS = actorByLabel("studentS");
+    const studentG = actorByLabel("studentG");
+
+    const [emitBefore] = await db
+      .select({ value: count() })
+      .from(notifications)
+      .where(
+        and(eq(notifications.userId, studentS.userId), eq(notifications.relatedEntityType, "parent_link_request"))
+      );
+
+    // The expired-claim denial: the row's expiresAt is far in the past.
+    const expiredBody = await postDocument(RESPOND_DOCUMENT, studentS.accessToken, {
+      requestId: String(expiredRequestId),
+      accept: true,
+    });
+    const expiredItem = expectDenialCode(expiredBody, "PARENT_LINK_REQUEST_EXPIRED");
+    expect(expiredItem.path).toEqual(["respondToParentLinkRequest"]);
+    expect(errorMessageOf(expiredItem)).toBe(tEn.parentLinkRequestExpired);
+
+    // Fold-first: the DENIED claim still folds the row to Expired — the
+    // denial's ONLY sanctioned write (respondedAt stays null; no emit).
+    const [folded] = await db
+      .select()
+      .from(parentLinkRequests)
+      .where(eq(parentLinkRequests.id, expiredRequestId))
+      .limit(1);
+    if (!folded) {
+      throw new Error("expected the expired seeded row to persist");
+    }
+    expect(folded.status).toBe(LinkStatus.Expired);
+    expect(folded.respondedAt).toBeNull();
+
+    // The sibling domain denials on the SAME op through the SAME resolver:
+    // not-found (foreign id) and already-resolved (own rejected row).
+    const notFoundBody = await postDocument(RESPOND_DOCUMENT, studentS.accessToken, {
+      requestId: String(rejectedRequestId),
+      accept: true,
+    });
+    const alreadyResolvedBody = await postDocument(RESPOND_DOCUMENT, studentG.accessToken, {
+      requestId: String(rejectedRequestId),
+      accept: true,
+    });
+    const notFoundItem = expectDenialCode(notFoundBody, "PARENT_LINK_REQUEST_NOT_FOUND");
+    const alreadyResolvedItem = expectDenialCode(alreadyResolvedBody, "PARENT_LINK_REQUEST_ALREADY_RESOLVED");
+    expect(errorMessageOf(notFoundItem)).toBe(tEn.parentLinkRequestNotFound);
+    expect(errorMessageOf(alreadyResolvedItem)).toBe(tEn.parentLinkRequestAlreadyResolved);
+
+    // Envelope key-set parity across ALL THREE denial classes — every class
+    // carries exactly the same extensions key set (no per-class disclosure).
+    const expiredKeys = extensionKeysOf(expiredItem);
+    expect(extensionKeysOf(notFoundItem)).toEqual(expiredKeys);
+    expect(extensionKeysOf(alreadyResolvedItem)).toEqual(expiredKeys);
+
+    // Zero notification side effects across all three probes (the fold is
+    // the expired arm's ONLY write).
+    const [emitAfter] = await db
+      .select({ value: count() })
+      .from(notifications)
+      .where(
+        and(eq(notifications.userId, studentS.userId), eq(notifications.relatedEntityType, "parent_link_request"))
+      );
+    expect(emitAfter.value).toBe(emitBefore.value);
   });
 });
 

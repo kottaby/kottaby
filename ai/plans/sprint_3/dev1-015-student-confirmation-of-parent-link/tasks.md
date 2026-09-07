@@ -150,7 +150,7 @@
 
 > **Scope gate:** ZERO new root fields. `respondToParentLinkRequest` and `myIncomingParentLinkRequests` are verified-and-pinned, not modified. Any Pothos edit forces a same-change update of `backend/graphql/test/schema-surface.test.ts` + a ledger entry.
 
-- [ ] 3.1 Pin the wire surface and add ONLY the genuinely missing decision-leg wire cells
+- [x] 3.1 Pin the wire surface and add ONLY the genuinely missing decision-leg wire cells
   - Verify against bundled code (anchors from 0.2): exact signatures `myIncomingParentLinkRequests: [IncomingParentLinkRequest!]!` and `respondToParentLinkRequest(requestId: ID!, accept: Boolean!): IncomingParentLinkRequest!`; `authScopes: { $all: { authenticated: true, role: [UserRole.Student] } }` on BOTH fields (plain-map ANY-semantics is FORBIDDEN); `id` exposed first; `DateTime` scalar (no `toISOString()` into `String`); closed input shape `{ requestId, accept }`.
   - Extend `backend/graphql/test/parent-link.wire.test.ts` with ONLY missing decision-leg cells (per REQ-063; each cell justified by diffing existing wire matrix):
     - Expired-claim denial over the wire: respond past `expiresAt` → typed expiry-class denial with correct `extensions.code` and identical envelope key-set as sibling denials (no per-class disclosure).
@@ -159,11 +159,11 @@
   - `bun run generate:gqlSchema && bun codegen` → diff MUST show zero unrelated drift; `backend/graphql/test/schema-surface.test.ts` baseline byte-identical.
   - Denial code inventory emitted by these cells MUST be ⊆ the REQ-041 taxonomy frozen in 0.2; any new `extensions.code` → register per `docs/graphql/domain-error-extensions-code.md` + ledger entry (expected: none).
   - _Requirements: REQ-020, REQ-021, REQ-023, REQ-040, REQ-041, REQ-050, REQ-063_
-  - [ ] 3.1.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts backend/graphql/test/parent-link.wire.test.ts --lifecycle duplicates` — exit code 0.
-  - [ ] 3.1.TE **Test Engineering:** Wire cells run via `bun run test/scripts/run-test.ts backend/graphql/test/parent-link.wire.test.ts`; each cell asserts status class, `extensions.code`, envelope key-set parity, and zero side effects (row/notification counts unchanged on denials).
-  - [ ] 3.1.SEC **Security & Tenancy Audit:** BFLA pre-resolver ordering proven (resolver body spy never invoked on 401/403); BOLA foreign-vs-absent byte-identity re-pinned on the wire; BOPLA smuggled-field rejection; no internal error text surfaces at the boundary for any denial class.
-  - [ ] 3.1.SR **Semantic Review:** No local types introduced in resolvers/tests (canonical types only); enum value imports; no `console.*`; no hand-rolled date serialization.
-  - [ ] 3.1.IV **Instruction Verification:** Validate against `.agents/instructions/backend.instructions.md` + `backend/graphql/AGENTS.md` (if present per 0.2) + the invariant #11 scalar/schema-surface rules.
+  - [x] 3.1.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts backend/graphql/test/parent-link.wire.test.ts --lifecycle duplicates` — exit code 0.
+  - [x] 3.1.TE **Test Engineering:** Wire cells run via `bun run test/scripts/run-test.ts backend/graphql/test/parent-link.wire.test.ts`; each cell asserts status class, `extensions.code`, envelope key-set parity, and zero side effects (row/notification counts unchanged on denials).
+  - [x] 3.1.SEC **Security & Tenancy Audit:** BFLA pre-resolver ordering proven (resolver body spy never invoked on 401/403); BOLA foreign-vs-absent byte-identity re-pinned on the wire; BOPLA smuggled-field rejection; no internal error text surfaces at the boundary for any denial class.
+  - [x] 3.1.SR **Semantic Review:** No local types introduced in resolvers/tests (canonical types only); enum value imports; no `console.*`; no hand-rolled date serialization.
+  - [x] 3.1.IV **Instruction Verification:** Validate against `.agents/instructions/backend.instructions.md` + `backend/graphql/AGENTS.md` (if present per 0.2) + the invariant #11 scalar/schema-surface rules.
   - Outcome: `3.1-outcome.md`.
 
 - [ ] 3.2 Verify frontend documents parity (no edits expected)
