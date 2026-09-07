@@ -305,7 +305,10 @@ async function bookSession(accessToken: string, key: string, teacherId: number):
 
 /** Reads one student's hifz lane balance (the refund-proof lane). */
 async function readHifzBalance(studentUserId: number): Promise<number> {
-  const rows = await db.select({ balanceHifz: students.balanceHifz }).from(students).where(eq(students.id, studentUserId));
+  const rows = await db
+    .select({ balanceHifz: students.balanceHifz })
+    .from(students)
+    .where(eq(students.id, studentUserId));
   const balance: unknown = rows[0]?.balanceHifz;
   if (typeof balance !== "number") {
     throw new Error(`no students row found for user ${String(studentUserId)}`);
@@ -427,7 +430,12 @@ describe("admin session-governance mutations — happy paths (admin)", () => {
     const payload = payloadOf(result, "adminCancelSession");
     expect(sessionIdOf(payload, "adminCancelSession")).toBe(sessionCancelId);
     expect(payload.status).toBe("Cancelled");
-    expect(payload.feeHeld).toBe(false);
+    // The admin cancel DELIBERATELY preserves the hold marker on the row
+    // (marker + provenance lane are the refund composition's input record;
+    // the participant cancel is the variant that clears the marker). The
+    // hold RELEASE is proven by the lane balance below — exactly one unit
+    // back to the SAME recorded lane.
+    expect(payload.feeHeld).toBe(true);
     const afterRefund = await readHifzBalance(cast.primaryStudent.userId);
     expect(afterRefund).toBe(beforeRefund + 1);
   });
@@ -451,7 +459,8 @@ describe("Tier 3 — adminCancelSession keyed retry is a no-op with the same res
     const payload = payloadOf(retry, "adminCancelSession");
     expect(sessionIdOf(payload, "adminCancelSession")).toBe(sessionCancelId);
     expect(payload.status).toBe("Cancelled");
-    expect(payload.feeHeld).toBe(false);
+    // Same shape as the first call — the preserved hold marker included.
+    expect(payload.feeHeld).toBe(true);
 
     expect(await readHifzBalance(cast.primaryStudent.userId)).toBe(balanceBeforeRetry);
     expect(await countAuditForSession(Number(sessionCancelId))).toBe(auditBeforeRetry);
@@ -474,7 +483,11 @@ describe("Tier 4 — anonymous callers: UNAUTHORIZED byte-identical to resolveSe
     const anonymousReschedule = await testClient.mutate({
       mutation: RESCHEDULE_DOC,
       variables: {
-        input: { sessionId: UNKNOWN_SESSION_ID, startedAt: futureInstant(3_600_000), endedAt: futureInstant(7_200_000) },
+        input: {
+          sessionId: UNKNOWN_SESSION_ID,
+          startedAt: futureInstant(3_600_000),
+          endedAt: futureInstant(7_200_000),
+        },
       },
     });
     expectDenialIdenticalToReference(anonymousReschedule.error, "UNAUTHORIZED", reference, "adminRescheduleSession");
@@ -526,7 +539,11 @@ describe("Tier 4 — non-admin roles: FORBIDDEN byte-identical to resolveSession
       const deniedReschedule = await client.mutate({
         mutation: RESCHEDULE_DOC,
         variables: {
-          input: { sessionId: UNKNOWN_SESSION_ID, startedAt: futureInstant(3_600_000), endedAt: futureInstant(7_200_000) },
+          input: {
+            sessionId: UNKNOWN_SESSION_ID,
+            startedAt: futureInstant(3_600_000),
+            endedAt: futureInstant(7_200_000),
+          },
         },
       });
       expectDenialIdenticalToReference(deniedReschedule.error, "FORBIDDEN", reference, "adminRescheduleSession");
