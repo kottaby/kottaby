@@ -5,7 +5,6 @@ import {
   Box,
   Chip,
   IconButton,
-  ListItemIcon,
   Menu,
   MenuItem,
   Stack,
@@ -217,8 +216,9 @@ export function AdminSessionRow({
           anchorEl={actionsAnchorEl}
           open={actionsAnchorEl !== null}
           onClose={closeActionsMenu}
-          anchorOrigin={{ vertical: "bottom", horizontal: "end" }}
-          transformOrigin={{ vertical: "top", horizontal: "end" }}
+          // Menu origins stay at MUI's viewport-clamped defaults (matching the
+          // admin users directory kebab) — `end` is not a valid origin value
+          // and physical left/right edges are not direction-safe.
           slotProps={{ list: { "aria-label": t.rowActionsAriaLabel } }}
         >
           <MenuItem
