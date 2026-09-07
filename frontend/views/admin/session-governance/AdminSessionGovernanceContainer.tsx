@@ -403,7 +403,7 @@ export function AdminSessionGovernanceContainer(): ReactNode {
       const classified = classifyMutationFailure(mutationError);
       failNotice(classified.message);
     },
-  ]);
+  });
 
   return (
     <Stack data-testid="admin-session-governance-view" sx={{ gap: 3 }}>
