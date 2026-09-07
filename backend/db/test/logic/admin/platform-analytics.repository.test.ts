@@ -111,6 +111,7 @@ import { TransactionStatus } from "@/backend/enum/billing/transaction-status.enu
 import { TransactionType } from "@/backend/enum/billing/transaction-type.enum";
 import { SessionStatus } from "@/backend/enum/scheduling/session-status.enum";
 import type { AdminUserStatsReturnType, DBTransaction, StudentSelectType, TeacherSelectType } from "@/backend/types";
+import { isPgliteProvider } from "@/test/helpers/skip-when-pglite";
 
 /** Absolute path to the repository source file (read for static-scan tests). */
 const REPO_SOURCE_PATH = join(process.cwd(), "backend", "db", "repo", "admin", "platform-analytics.repository.ts");
@@ -300,7 +301,15 @@ async function committedPaidPaymentCount(tx: DBTransaction): Promise<number> {
   return rows[0]?.n ?? 0;
 }
 
-describe("PlatformAnalyticsRepository — Tier 1: every method × both executor branches", () => {
+// Tier-1 dual-branch isolation needs real PostgreSQL connection isolation:
+// the raw (pool) branch must observe only COMMITTED state while the rollback
+// transaction's fixtures stay uncommitted. PGlite runs both branches on one
+// embedded session, so the raw reads see the tx's rows and the isolation
+// assertions cannot hold. Skip under PGlite — CI exercises this describe
+// fully on real Postgres (same accommodation as describeGraphqlSuite).
+const describeBranchIsolation = isPgliteProvider() ? describe.skip : describe;
+
+describeBranchIsolation("PlatformAnalyticsRepository — Tier 1: every method × both executor branches", () => {
   test("countRecentlyActiveUsers: branch parity on committed state, tx-branch fixture delta, raw-branch isolation", async () => {
     await runInRollback(async tx => {
       const before = await probeBothBranches(tx, executor =>

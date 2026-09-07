@@ -50,7 +50,7 @@
  *    allowed control cells record exactly one (instrumentation proof).
  */
 
-import { beforeAll, describe, expect, spyOn, test } from "bun:test";
+import { beforeAll, expect, spyOn, test } from "bun:test";
 import { randomUUID } from "node:crypto";
 import type { CombinedGraphQLErrors, TypedDocumentNode } from "@apollo/client";
 import { eq } from "drizzle-orm";
@@ -72,7 +72,13 @@ import {
 } from "@/frontend/graphql/sharedDocuments/auth/auth.documents";
 import { maskFullName } from "@/shared/lib/mask-full-name";
 import { getServerTranslations } from "@/shared/locale/server-graphql";
-import { expectMutationError, setupTestServerLifecycle, testClient } from "@/test/helpers";
+import {
+  describeGraphqlSuite,
+  expectMutationError,
+  isPgliteProvider,
+  setupTestServerLifecycle,
+  testClient,
+} from "@/test/helpers";
 
 // ─── Wire documents (locally parsed, explicitly typed) ───────────────────────
 
@@ -256,11 +262,25 @@ function requireCast(): CastType {
 // Memory-constrained sandbox adaptation (applicant-profile precedent): when an
 // external test server is already pinned via GRAPHQL_TEST_PORT, adopt it
 // instead of spawning a second dev server.
-if (process.env.TEST_SERVER_EXTERNAL !== "1") {
+//
+// PGlite: the module-level spawn is ALSO suppressed — the whole file is
+// skipped wholesale under the embedded provider (describeGraphqlSuite + the
+// beforeAll guard below), so booting a dev server would be pure waste.
+if (process.env.TEST_SERVER_EXTERNAL !== "1" && !isPgliteProvider()) {
   setupTestServerLifecycle();
 }
 
 beforeAll(async () => {
+  // Live-server flow fixture — must stay gated in lockstep with the
+  // describeGraphqlSuite suites below: PGlite's single embedded session cannot
+  // share live writes with the test process (see
+  // test/helpers/skip-when-pglite.ts), so provisioning the wire cast would
+  // fail while no (skipped) test ever consumes it. CI runs it fully on real
+  // Postgres.
+  if (isPgliteProvider()) {
+    return;
+  }
+
   // Wire-registered identities — student/parent/teacher are all publicly
   // registrable roles (the teacher lands as the applicant flavour). The local
   // binding is suffixed `Actor` so it never shadows the `teacher` schema table
@@ -467,7 +487,10 @@ const matrixCases: [MatrixIdentityType, MatrixQueryType, MatrixOutcomeType][] = 
   ["superAdmin", "findStudentByHandshakeCode", "FORBIDDEN"],
 ];
 
-describe("handshake code — Tier 1 role matrix", () => {
+// Live-server flow suite — describeGraphqlSuite skips wholesale under PGlite
+// (single embedded session cannot share live writes with the test process;
+// see test/helpers/skip-when-pglite.ts). CI runs it fully on real Postgres.
+describeGraphqlSuite("handshake code — Tier 1 role matrix", () => {
   test.each(matrixCases)("Tier 1 — %s on %s → %s", async (identity, queryName, expectedOutcome) => {
     const c = requireCast();
     const actor = matrixActor(identity);
@@ -507,7 +530,7 @@ describe("handshake code — Tier 1 role matrix", () => {
 
 // ─── Tier 1 — happy-path payload contract ───────────────────────────────────
 
-describe("handshake code — Tier 1 payload contract", () => {
+describeGraphqlSuite("handshake code — Tier 1 payload contract", () => {
   test("discovery payload carries EXACTLY { maskedName, linkable } — forbidden-key scan finds nothing", async () => {
     const c = requireCast();
     const result = await discoverAsParent(c.studentAHandshakeCode);
@@ -569,7 +592,7 @@ describe("handshake code — Tier 1 payload contract", () => {
 
 // ─── Tier 1 — self-identity ─────────────────────────────────────────────────
 
-describe("handshake code — Tier 1 self-identity", () => {
+describeGraphqlSuite("handshake code — Tier 1 self-identity", () => {
   test("a second student NEVER receives the first student's code through myHandshakeCode", async () => {
     const c = requireCast();
     const result = await testClient.query({
@@ -586,7 +609,7 @@ describe("handshake code — Tier 1 self-identity", () => {
 
 // ─── Failure cells — error contract over the wire ──────────────────────────
 
-describe("handshake code — failure cells", () => {
+describeGraphqlSuite("handshake code — failure cells", () => {
   test("malformed code rejects with extensions.code VALIDATION and the localized en message", async () => {
     const result = await discoverAsParent("KSB-NOPE", LOCALE_EN);
     const combined = expectMutationError(result.error, "VALIDATION");
@@ -614,7 +637,7 @@ describe("handshake code — failure cells", () => {
 
 // ─── Tier 2 — boundary ──────────────────────────────────────────────────────
 
-describe("handshake code — Tier 2 boundary", () => {
+describeGraphqlSuite("handshake code — Tier 2 boundary", () => {
   test("an ACTIVE suspension window collapses discovery to null at discovery time", async () => {
     const c = requireCast();
     const result = await discoverAsParent(c.suspendedActiveCode);
@@ -660,7 +683,7 @@ describe("handshake code — Tier 2 boundary", () => {
 
 // ─── Tier 3 — malformed-input fuzz over the wire ────────────────────────────
 
-describe("handshake code — Tier 3 fuzz", () => {
+describeGraphqlSuite("handshake code — Tier 3 fuzz", () => {
   /** Malformed probes — every one stays invalid AFTER trim+uppercase normalization. */
   const wiredFuzzProbes: readonly string[] = [
     "%KSB-ABCD1234",
@@ -682,7 +705,7 @@ describe("handshake code — Tier 3 fuzz", () => {
 
 // ─── Locale propagation ─────────────────────────────────────────────────────
 
-describe("handshake code — locale propagation", () => {
+describeGraphqlSuite("handshake code — locale propagation", () => {
   test("VALIDATION message renders in the requested locale (en + ar, distinct)", async () => {
     // Sanity: the two locale contracts carry distinct copy.
     expect(enErrors.handshakeCodeInvalid).not.toBe(arErrors.handshakeCodeInvalid);
@@ -726,7 +749,7 @@ describe("handshake code — locale propagation", () => {
 
 // ─── Tier 4 — token substitution over the wire ──────────────────────────────
 
-describe("handshake code — Tier 4 token substitution", () => {
+describeGraphqlSuite("handshake code — Tier 4 token substitution", () => {
   test("re-signed token carrying the SIBLING role claim is FORBIDDEN on the student self-read", async () => {
     const c = requireCast();
     // A valid-signature token re-signed for the student's own id but claiming
@@ -783,7 +806,7 @@ describe("handshake code — Tier 4 token substitution", () => {
 
 // ─── Tier 4 — pre-resolver scope evaluation (service spy, in-process) ───────
 
-describe("handshake code — Tier 4 pre-resolver scope evaluation", () => {
+describeGraphqlSuite("handshake code — Tier 4 pre-resolver scope evaluation", () => {
   interface ScopeContextType {
     readonly locale: string;
     readonly role?: UserRole | null;
