@@ -1,14 +1,16 @@
 /**
- * Shared GraphQL documents for the session lifecycle + dispute domain
- * (DEV3-004 + DEV3-005 + DEV3-012) — RE-EXPORT HUB.
+ * Shared GraphQL documents for the session lifecycle + dispute + report
+ * domain (DEV3-004 + DEV3-005 + DEV3-012 + DEV3-006) — RE-EXPORT HUB.
  *
- * Eleven operations over the DEV3-004 SDL surface: three reads
+ * Fourteen operations over the DEV3-004 + DEV3-006 SDL surfaces: three reads
  * (`sessionById`, `myStudentSessions`, `myTeacherSessions`), the
  * lifecycle quartet of mutations (`createSession`, `startSession`,
  * `completeSession`, `cancelSession`), the DEV3-005 dispute trio
  * (`openSessionDispute`, `resolveSessionDispute` mutations + the
- * `adminDisputedSessions` admin read) and the DEV3-012 dual-confirmation
- * mutation (`confirmSessionCompletion`).
+ * `adminDisputedSessions` admin read), the DEV3-012 dual-confirmation
+ * mutation (`confirmSessionCompletion`) and the DEV3-006 report/homework
+ * trio (`submitSessionReport` mutation + the `sessionReport`,
+ * `sessionHomework` reads).
  *
  * The definitions live in thematic siblings (the single-file original
  * exceeded the `max-lines` budget); this hub re-exports ALL of them so the
@@ -28,9 +30,12 @@
  *  - `session-lifecycle.documents.ts`  — `createSession`, `startSession`,
  *    `completeSession`, `cancelSession`, `confirmSessionCompletion`;
  *  - `session-disputes.documents.ts`   — `openSessionDispute`,
- *    `resolveSessionDispute`, `adminDisputedSessions`.
+ *    `resolveSessionDispute`, `adminDisputedSessions`;
+ *  - `session-report.documents.ts`     — `submitSessionReport`,
+ *    `sessionReport`, `sessionHomework` (DEV3-006).
  */
 
 export * from "@/frontend/graphql/sharedDocuments/scheduling/session-disputes.documents";
 export * from "@/frontend/graphql/sharedDocuments/scheduling/session-lifecycle.documents";
 export * from "@/frontend/graphql/sharedDocuments/scheduling/session-reads.documents";
+export * from "@/frontend/graphql/sharedDocuments/scheduling/session-report.documents";

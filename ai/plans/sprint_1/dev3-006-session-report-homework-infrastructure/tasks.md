@@ -429,7 +429,7 @@ The ONLY instruction files that exist are `.agents/instructions/frontend.instruc
 
 > This ticket ships no UI (specs §1 non-goals; plan D11). The mandatory 2×agent-browser loops apply ONLY to view/page tasks and are inapplicable here by scope ruling; their absence is deliberate, recorded to forestall review drift.
 
-- [ ] 4.1 [Typed documents module + barrels + document contract tests]
+- [x] 4.1 [Typed documents module + barrels + document contract tests]
   - Create `frontend/graphql/sharedDocuments/scheduling/session-report.documents.ts`:
     - `submitSessionReportMutationDocument: TypedDocumentNode<…>` selecting on `SessionReport`: `id` FIRST, then full plan §3.1 field list.
     - `sessionReportQueryDocument` and `sessionHomeworkQueryDocument` (nullable roots) with `id` first on every object selection; `createdAt`/`updatedAt` ride DateTime (codegen `string`); enum fields select as codegen `SurahJuzRef` members.
