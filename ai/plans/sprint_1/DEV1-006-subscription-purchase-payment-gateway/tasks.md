@@ -139,10 +139,10 @@
   - [x] 7.1.QL · [x] 7.1.TE — 4-tier incl. duplicate-confirmed single-credit proof, out-of-order delivery, quarantines, notification row content + receipt publish · [x] 7.1.SEC · [x] 7.1.SR · [x] 7.1.IV
   - _Requirements: REQ-004, REQ-022, REQ-023, REQ-024, REQ-025, REQ-026, REQ-028, REQ-030, REQ-031, REQ-032, REQ-044, REQ-052, REQ-053, REQ-071_
 
-- [ ] 8.1 Webhook route `app/api/payments/webhook/route.ts`
+- [x] 8.1 Webhook route `app/api/payments/webhook/route.ts`
   - POST only; disabled → bare 404 (`PAYMENT_WEBHOOK_ENABLED !== "true"`); read body once with 64 KB cap; `verifyWebhookSignature` against `PAYMENT_WEBHOOK_SECRET`; parse via adapter `parseWebhookEvent`; delegate to `SubscriptionActivationService.processWebhookEvent` with envelope `apiSuccessResponse({ processed, replayed? }, { requestId })`; `apiErrorResponse` masked on throw; locale `"en"` envelope (cron-route parity); NO session reads.
   - **ROUTE_INVENTORY registration (MANDATORY, same task):** add `{ path: "/api/payments/webhook", classification: "provider-ack-exempt" }` to `backend/lib/gateway/route-inventory.ts` (static completeness assertion fails otherwise; verify whether the pre-existing cron route entry is present and report as CROSS-FILE finding if the assertion probes it); add the exemptions-register row to `docs/graphql/error-handling-contract.md`.
-  - [ ] 8.1.QL · [ ] 8.1.TE — disabled→404, over-cap body, forged signature, malformed body, happy path with injected fake adapter · [ ] 8.1.SEC — spoofing probes · [ ] 8.1.SR · [ ] 8.1.IV
+  - [x] 8.1.QL · [x] 8.1.TE — disabled→404, over-cap body, forged signature, malformed body, happy path with injected fake adapter · [x] 8.1.SEC — spoofing probes · [x] 8.1.SR · [x] 8.1.IV
   - _Requirements: REQ-002, REQ-004, REQ-020, REQ-021, REQ-022, REQ-043, REQ-044, REQ-045, REQ-072_
 
 ## Phase 7: GraphQL Surface

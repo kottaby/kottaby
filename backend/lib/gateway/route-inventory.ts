@@ -15,18 +15,25 @@
  *                                exemption row in docs/graphql/error-handling-contract.md §envelopes).
  *      `envelope`             → REST-style route already adopting the
  *                                apiSuccessResponse/apiErrorResponse contract.
- *      `provider-ack-exempt`  → future webhook acks (reply-with-provider-contract,
- *                                correlated logs); registered when such a route lands.
+ *      `provider-ack-exempt`  → webhook ack surfaces (provider callbacks);
+ *                                enveloped replies, with the route-documented
+ *                                exemptions registered in
+ *                                docs/graphql/error-handling-contract.md.
  *      `deferred`             → exists on disk but envelope adoption is owned by
  *                                a later change.
  *
- * Current ground truth: EXACTLY THREE routes exist on disk —
+ * Current ground truth: FIVE routes exist on disk —
  * `app/api/graphql/route.ts` (gateway), `app/api/set-locale/route.ts`
- * (envelope) and `app/api/health/route.ts` (envelope from the start — the
+ * (envelope), `app/api/health/route.ts` (envelope from the start — the
  * GET-only LB liveness probe, second sanctioned health surface; no other
- * method is exported so every other verb rides the framework 405).
- * `/api/webhooks|logs|cron/*` are PHANTOM routes (dropped pre-seeds) and MUST
- * NOT be listed until their files physically exist.
+ * method is exported so every other verb rides the framework 405),
+ * `app/api/cron/sweep-sessions/route.ts` (envelope — externally triggered
+ * sweep job with the bearer gate + bare-404 kill switch documented on the
+ * route) and `app/api/payments/webhook/route.ts` (provider-ack-exempt —
+ * gateway callback surface whose disabled kill switch answers a bare 404,
+ * registered in the exemptions inventory).
+ * `/api/webhooks/*` and `/api/logs` remain PHANTOM routes (dropped pre-seeds)
+ * and MUST NOT be listed until their files physically exist.
  */
 
 /** Closed classification vocabulary — never widened without documenting the change. */
@@ -49,4 +56,11 @@ export const ROUTE_INVENTORY: readonly RouteInventoryEntry[] = [
   { path: "/api/set-locale", classification: "envelope" },
   // GET-only LB probe — uses the shared envelope helpers from its first commit.
   { path: "/api/health", classification: "envelope" },
+  // Externally triggered sweep job — bearer-gated REST envelope contract;
+  // the disabled mode answers a bare 404 (documented on the route).
+  { path: "/api/cron/sweep-sessions", classification: "envelope" },
+  // Gateway callback ack — enveloped success/failure replies; the disabled
+  // kill switch answers a bare 404 (exemption row in the error-handling
+  // contract's exemptions inventory).
+  { path: "/api/payments/webhook", classification: "provider-ack-exempt" },
 ] as const;
