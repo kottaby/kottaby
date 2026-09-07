@@ -63,11 +63,11 @@ export function AdminStudentsTable(props: AdminStudentsTableProps): ReactNode {
       <Table sx={{ tableLayout: "fixed" }}>
         <TableHead>
           <TableRow sx={theme => ({ bgcolor: theme.palette.surfaceContainerHigh })}>
-            <AdminStudentsHeaderCell width="26%">{labels.headers.name}</AdminStudentsHeaderCell>
-            <AdminStudentsHeaderCell width="20%">{labels.headers.balances}</AdminStudentsHeaderCell>
-            <AdminStudentsHeaderCell width="16%">{labels.headers.parent}</AdminStudentsHeaderCell>
-            <AdminStudentsHeaderCell width="11%">{labels.headers.languages}</AdminStudentsHeaderCell>
-            <AdminStudentsHeaderCell width="15%">{labels.headers.trial}</AdminStudentsHeaderCell>
+            <AdminStudentsHeaderCell width="29.5%">{labels.headers.name}</AdminStudentsHeaderCell>
+            <AdminStudentsHeaderCell width="19%">{labels.headers.balances}</AdminStudentsHeaderCell>
+            <AdminStudentsHeaderCell width="15%">{labels.headers.parent}</AdminStudentsHeaderCell>
+            <AdminStudentsHeaderCell width="10.5%">{labels.headers.languages}</AdminStudentsHeaderCell>
+            <AdminStudentsHeaderCell width="14%">{labels.headers.trial}</AdminStudentsHeaderCell>
             <AdminStudentsHeaderCell width="12%">{labels.headers.joined}</AdminStudentsHeaderCell>
           </TableRow>
         </TableHead>
