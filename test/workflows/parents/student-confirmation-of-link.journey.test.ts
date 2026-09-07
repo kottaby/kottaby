@@ -1139,7 +1139,25 @@ describe("Journey — student confirmation of the parent link (DEV1-015, steps 1
     createdRequestIds.set(REQUEST.boundary, boundary.id);
 
     expect(boundary.status).toBe(LinkStatus.Pending);
-    expect(boundary.expiresAt.getTime()).toBeLessThanOrEqual(Date.now());
+    // Grounding, DB-clock on BOTH sides (FIX-R2): the injected boundary
+    // instant is compared against a FRESH DATABASE `now()` — the same clock
+    // the strict-`>` claim predicate evaluates against — never the JS host
+    // clock, so app-host vs DB-host skew cannot spuriously fail this cell
+    // (matches the DB-clock determinism intent of the fixture read above).
+    // Epoch-millis read: raw `execute` rows bypass drizzle's column mapping
+    // (timestamptz arrives as text), so the epoch cast keeps the comparison
+    // numeric and engine-independent.
+    const groundingNowMs = await db.transaction(async (tx: DBTransaction) => {
+      const clock = await tx.execute<{ nowMs: string }>(
+        sql`select floor(extract(epoch from now()) * 1000)::bigint as "nowMs"`
+      );
+      const nowMs = Number(clock.rows.at(0)?.nowMs);
+      if (!Number.isFinite(nowMs)) {
+        throw new Error("boundary grounding could not read the database clock");
+      }
+      return nowMs;
+    });
+    expect(boundary.expiresAt.getTime()).toBeLessThanOrEqual(groundingNowMs);
     // The fixture write is SILENT: no notification row for anyone.
     expect(await linkInboxRowsFor(s.studentS.userId)).toHaveLength(sInboxBeforeFixture);
     expectZeroPublishes();
