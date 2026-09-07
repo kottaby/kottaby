@@ -263,6 +263,7 @@ describeGraphqlSuite("Gateway integration matrix", () => {
           price: "10.00",
           currency: "EGP",
           intervalDays: 30,
+          balanceLane: undefined,
         },
       },
       context: { headers: { Authorization: `Bearer ${accessToken}` } },

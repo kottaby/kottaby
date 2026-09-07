@@ -211,6 +211,11 @@ enum BroadcastAudienceType {
 
 """Input fields required to create a new subscription plan."""
 input CreatePlanInput {
+  """
+  Balance lane to assign to the plan. Omitted or null leaves the plan unconfigured — purchases fail closed until a lane is set.
+  """
+  balanceLane: SubscriptionCreditLane
+
   """3-letter uppercase currency code (e.g. 'EGP')."""
   currency: String!
 
@@ -466,8 +471,48 @@ type OutgoingParentLinkRequest {
   studentMaskedName: String!
 }
 
+"""Gateway checkout descriptor for a purchase in flight."""
+type PaymentCheckout {
+  """
+  Hosted checkout URL to redirect the payer to, or null for server-side providers.
+  """
+  checkoutUrl: String
+
+  """Gateway that owns the checkout session."""
+  provider: PaymentGateway!
+
+  """
+  Provider-issued reference correlating webhook deliveries with this purchase.
+  """
+  providerReference: String!
+}
+
+enum PaymentGateway {
+  BankTransfer
+  Fawry
+  Mock
+  OfflineCash
+  Other
+  Paymob
+  Paypal
+  Scholarship
+  Stripe
+}
+
+enum PaymentStatus {
+  Failed
+  Paid
+  Pending
+  Refunded
+}
+
 """A subscription plan in the Kottaby catalog."""
 type Plan {
+  """
+  Student balance lane this plan's sessions are credited to on activation, or null while unconfigured.
+  """
+  balanceLane: SubscriptionCreditLane
+
   """Timestamp when the plan record was created."""
   createdAt: String!
 
@@ -590,6 +635,20 @@ type PlatformAnalyticsUsers {
   suspendedCount: Int!
   teachersCount: Int!
   totalCount: Int!
+}
+
+"""
+Result of a successful purchase attempt — the pending pair and its checkout session.
+"""
+type PurchaseSubscriptionPayload {
+  """The gateway checkout session opened for this purchase."""
+  checkout: PaymentCheckout!
+
+  """The freshly created pending payment record."""
+  payment: StudentPayment!
+
+  """The freshly created pending subscription."""
+  subscription: StudentSubscription!
 }
 
 type Query {
@@ -756,6 +815,88 @@ enum SessionType {
   TeacherEvaluation
 }
 
+"""A recorded payment a student made for a subscription."""
+type StudentPayment {
+  """Exact paid amount as a decimal string (money is never a number)."""
+  amount: String!
+
+  """Timestamp when the payment record was created."""
+  createdAt: String!
+
+  """Three-letter ISO currency code the payment was collected in."""
+  currency: String!
+
+  """Unique payment identifier (Apollo cache normalization key)."""
+  id: ID!
+
+  """Gateway the payment traveled."""
+  paymentGateway: PaymentGateway!
+
+  """
+  Settlement state — pending until the gateway decision marks it paid or failed.
+  """
+  status: PaymentStatus!
+
+  """
+  ID of the subscription the payment was made for, or null if the link was severed.
+  """
+  subscriptionId: Int
+
+  """Timestamp when the payment record was last modified."""
+  updatedAt: String!
+}
+
+"""A student subscription linking a purchaser to a catalog plan."""
+type StudentSubscription {
+  """Timestamp when the subscription record was created."""
+  createdAt: String!
+
+  """Timestamp the subscription period ends, or null while pending."""
+  endDate: String
+
+  """Unique subscription identifier (Apollo cache normalization key)."""
+  id: ID!
+
+  """Gateway the payment traveled, or null when no gateway is involved yet."""
+  paymentMethod: PaymentGateway
+
+  """
+  Gateway-issued payment reference, or null for offline payments without one.
+  """
+  paymentReference: String
+
+  """Timestamp the payment was verified, or null while unverified."""
+  paymentVerifiedAt: String
+
+  """ID of the catalog plan this subscription grants."""
+  planId: Int!
+
+  """Timestamp the subscription period began, or null while pending."""
+  startDate: String
+
+  """
+  Lifecycle state — purchases start pending; activation moves them to active.
+  """
+  status: SubscriptionStatus!
+
+  """Timestamp when the subscription record was last modified."""
+  updatedAt: String!
+}
+
+enum SubscriptionCreditLane {
+  Hifz
+  Reviews
+  Tajweed
+}
+
+enum SubscriptionStatus {
+  Active
+  Cancelled
+  Expired
+  Pending
+  Suspended
+}
+
 type TeacherTransaction {
   amount: String!
   createdAt: DateTime!
@@ -782,6 +923,11 @@ enum TransactionType {
 
 """Mutable fields for updating an existing subscription plan."""
 input UpdatePlanInput {
+  """
+  Updated balance lane. Omitted leaves the stored lane untouched; null clears it (purchases fail closed while unconfigured).
+  """
+  balanceLane: SubscriptionCreditLane
+
   """Updated currency code."""
   currency: String
 

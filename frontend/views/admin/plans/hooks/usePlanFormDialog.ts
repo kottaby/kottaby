@@ -74,6 +74,9 @@ export function usePlanFormDialog({ refetch, onSuccess }: UsePlanFormDialogOptio
               price: input.price,
               currency: input.currency,
               intervalDays: input.intervalDays,
+              // The form has no lane select yet — explicit undefined keeps
+              // the field off the wire, so the stored lane stays untouched.
+              balanceLane: undefined,
             },
           },
         });

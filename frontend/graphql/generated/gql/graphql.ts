@@ -88,6 +88,8 @@ export enum BroadcastAudienceType {
 
 /** Input fields required to create a new subscription plan. */
 export type CreatePlanInput = {
+  /** Balance lane to assign to the plan. Omitted or null leaves the plan unconfigured — purchases fail closed until a lane is set. */
+  balanceLane: SubscriptionCreditLane | null | undefined;
   /** 3-letter uppercase currency code (e.g. 'EGP'). */
   currency: string;
   /** Plan duration in days (integer >= 1). */
@@ -199,6 +201,12 @@ export enum SessionType {
   TeacherEvaluation = 'TeacherEvaluation'
 }
 
+export enum SubscriptionCreditLane {
+  Hifz = 'Hifz',
+  Reviews = 'Reviews',
+  Tajweed = 'Tajweed'
+}
+
 export enum TransactionStatus {
   Completed = 'Completed',
   Failed = 'Failed',
@@ -213,6 +221,8 @@ export enum TransactionType {
 
 /** Mutable fields for updating an existing subscription plan. */
 export type UpdatePlanInput = {
+  /** Updated balance lane. Omitted leaves the stored lane untouched; null clears it (purchases fail closed while unconfigured). */
+  balanceLane: SubscriptionCreditLane | null | undefined;
   /** Updated currency code. */
   currency: string | null | undefined;
   /** Updated duration in days. */

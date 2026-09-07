@@ -126,6 +126,9 @@ export function usePlanForm({ plan, serverFieldErrors, onSubmit }: UsePlanFormOp
       price: form.price.trim(),
       currency: form.currency.trim().toUpperCase(),
       intervalDays: Number(form.intervalDays),
+      // The form has no lane select yet — explicit undefined keeps the field
+      // off the wire, so created plans stay laneless (purchases fail closed).
+      balanceLane: undefined,
     });
   };
 

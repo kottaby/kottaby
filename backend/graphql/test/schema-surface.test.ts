@@ -278,6 +278,59 @@ const DEV3_022C_TYPE_NAMES = [
   "PlatformAnalyticsTeachers",
   "PlatformAnalyticsUsers",
 ] as const;
+/**
+ * DEV1-006 subscription purchase settlement vocabulary — registered ONCE in
+ * `shared/enum.pothos.ts` from the canonical `backend/enum/billing/*` enum
+ * objects. `PaymentGateway` carries the full nine-member channel set (incl.
+ * the mock-provider member); the schema registers NO root fields for this
+ * surface yet — the object/enum types land ahead of their resolvers.
+ */
+const DEV1_006_ENUMS = ["PaymentGateway", "PaymentStatus", "SubscriptionCreditLane", "SubscriptionStatus"] as const;
+/**
+ * DEV1-006 purchase surface named types — the canonical student
+ * subscription and payment objects plus the purchase wrapper pair
+ * (payload + checkout descriptor). No inputs, no root operations at this
+ * stage. The entity object is named `StudentSubscription` on the wire:
+ * `Subscription` is reserved by GraphQL default-root naming (a bare object
+ * with that name is auto-adopted as the schema's subscription root, which
+ * the realtime sidecar contract forbids — see the dedicated root check
+ * below and `sdl-static-assertions.test.ts`).
+ */
+const DEV1_006_TYPE_NAMES = [
+  "PaymentCheckout",
+  "PurchaseSubscriptionPayload",
+  "StudentPayment",
+  "StudentSubscription",
+] as const;
+/**
+ * RECONCILED baseline drift — root fields + named types shipped by prior
+ * tickets (admin audit trail, admin broadcast, teacher cold-start
+ * certification, parent-child link lifecycle) that were never enumerated
+ * in the inventories above. Re-anchored to the live schema as a documented
+ * one-time reconciliation (same idiom as the DEV3-016 reconciliation), so
+ * the freeze gate reflects the entire live surface again.
+ */
+const RECONCILED_ADMIN_AUDIT_QUERY_FIELDS = ["adminAuditLogs"] as const;
+const RECONCILED_PARENT_LINK_QUERY_FIELDS = ["myIncomingParentLinkRequests", "myOutgoingParentLinkRequests"] as const;
+const RECONCILED_PARENT_LINK_MUTATION_FIELDS = [
+  "cancelParentLinkRequest",
+  "requestParentChildLink",
+  "respondToParentLinkRequest",
+] as const;
+const RECONCILED_ADMIN_BROADCAST_MUTATION_FIELDS = ["adminBroadcastNotification"] as const;
+const RECONCILED_TEACHER_COLD_START_MUTATION_FIELDS = ["adminCertifyTeacherColdStart"] as const;
+/** Reconciled enum vocabulary: the admin-broadcast cohort kind + the parent-link lifecycle. */
+const RECONCILED_ENUMS = ["BroadcastAudienceType", "LinkStatus"] as const;
+/** Reconciled named types: audit-trail surface, broadcast compose input, and the parent-link objects. */
+const RECONCILED_TYPE_NAMES = [
+  "AdminAuditLogEntry",
+  "AdminAuditLogFiltersInput",
+  "AdminAuditLogPage",
+  "AdminBroadcastNotificationInput",
+  "BroadcastAudienceInput",
+  "IncomingParentLinkRequest",
+  "OutgoingParentLinkRequest",
+] as const;
 
 // ─── Schema walk helpers ─────────────────────────────────────────────────────
 
@@ -359,6 +412,8 @@ describe("Query._health — retyped probe surface", () => {
         ...DEV3_013_QUERY_FIELDS,
         ...DEV3_016_ADMIN_USER_QUERY_FIELDS,
         ...DEV3_022C_QUERY_FIELDS,
+        ...RECONCILED_ADMIN_AUDIT_QUERY_FIELDS,
+        ...RECONCILED_PARENT_LINK_QUERY_FIELDS,
       ].toSorted((a, b) => a.localeCompare(b))
     );
   });
@@ -445,6 +500,9 @@ describe("Surface freeze — pinned additions vs the baseline inventory", () => 
         ...DEV3_013_MUTATION_FIELDS,
         ...DEV3_016_ADMIN_USER_MUTATION_FIELDS,
         ...DEV3_017_ADMIN_GOVERNANCE_MUTATION_FIELDS,
+        ...RECONCILED_ADMIN_BROADCAST_MUTATION_FIELDS,
+        ...RECONCILED_PARENT_LINK_MUTATION_FIELDS,
+        ...RECONCILED_TEACHER_COLD_START_MUTATION_FIELDS,
       ].toSorted((a, b) => a.localeCompare(b))
     );
     expect(names).not.toContain("_health");
@@ -485,10 +543,27 @@ describe("Surface freeze — pinned additions vs the baseline inventory", () => 
       .toSorted((a, b) => a.localeCompare(b));
 
     expect(enumNames).toEqual(
-      [...PRE_3_1_ENUMS, ...DEV3_004_ENUMS, ...DEV3_005_ENUMS, ...DEV3_013_ENUMS, ...DEV3_016_ADMIN_ENUMS].toSorted(
-        (a, b) => a.localeCompare(b)
-      )
+      [
+        ...PRE_3_1_ENUMS,
+        ...DEV3_004_ENUMS,
+        ...DEV3_005_ENUMS,
+        ...DEV3_013_ENUMS,
+        ...DEV3_016_ADMIN_ENUMS,
+        ...DEV1_006_ENUMS,
+        ...RECONCILED_ENUMS,
+      ].toSorted((a, b) => a.localeCompare(b))
     );
+  });
+
+  test("NO GraphQL subscription root exists — realtime delivery stays on the WebSocket sidecar (`Subscription` names the domain entity, not a root)", () => {
+    // The subscription-purchase surface legitimately names its canonical
+    // entity `Subscription` (a purchased plan period). The realtime
+    // contract concerns the ROOT slot, which is only decidable on the
+    // built schema (with default root naming the artifact text cannot
+    // distinguish a plain object from a root — the artifact tier pins the
+    // schema-definition half in `sdl-static-assertions.test.ts`): the
+    // built schema must expose NO subscription root at all.
+    expect(graphQLSchema.getSubscriptionType() ?? null).toBeNull();
   });
 
   test("DisputeResolution exposes exactly the arbitration vocabulary (Cancel | Complete)", () => {
@@ -526,7 +601,7 @@ describe("Surface freeze — pinned additions vs the baseline inventory", () => 
     }
   });
 
-  test("whole-schema named-type delta is pinned: refreshed baseline delta (DateTime scalar + HealthCheck probe + DEV1-013 handshake surface) + DEV3-004 session objects/inputs + scheduling/arbitration/ledger enums + DEV3-013 wallet surface + DEV3-016 admin-user-management surface + the parent-link objects (extend step) + the eleven analytics value objects (no new enum)", () => {
+  test("whole-schema named-type delta is pinned: refreshed baseline delta (DateTime scalar + HealthCheck probe + DEV1-013 handshake surface) + DEV3-004 session objects/inputs + scheduling/arbitration/ledger enums + DEV3-013 wallet surface + DEV3-016 admin-user-management surface + the parent-link objects (extend step) + the eleven analytics value objects (no new enum) + the DEV1-006 subscription purchase objects/enums (objects land ahead of their resolvers)", () => {
     const post = new Set(sdlTypeNames());
 
     for (const name of PRE_3_1_TYPE_NAMES) {
@@ -546,6 +621,10 @@ describe("Surface freeze — pinned additions vs the baseline inventory", () => 
         ...DEV3_016_ADMIN_TYPE_NAMES,
         ...DEV3_016_ADMIN_ENUMS,
         ...DEV3_022C_TYPE_NAMES,
+        ...DEV1_006_ENUMS,
+        ...DEV1_006_TYPE_NAMES,
+        ...RECONCILED_ENUMS,
+        ...RECONCILED_TYPE_NAMES,
       ].toSorted((a, b) => a.localeCompare(b))
     );
   });

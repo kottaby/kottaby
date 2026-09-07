@@ -460,24 +460,26 @@ describe("Notification object — `id` + REQ-069 depth/complexity posture", () =
   });
 
   test("NO Subscription root exists — realtime delivery is the WebSocket sidecar's contract, never a GraphQL subscription", () => {
-    // AST-tier check: no ObjectTypeDefinition named "Subscription" exists.
-    // (The prior lexical `sdlText.not.toContain("Subscription")` belt-and-
-    // braces was retired as part of the dev3-016 admin-user surface
-    // reconciliation: the dev3-016 `AdminStudentSnapshot.hasActiveSubscription`
-    // and `AdminUserListItem.studentHasActiveSubscription` field names
-    // legitimately contain the substring "Subscription" — the lexical check
-    // became over-broad and would fire false positives. The AST-tier
-    // ObjectTypeDefinition-name check is the canonical contract.)
-    const hasSubscriptionRoot = sdlDocument.definitions.some(
-      definition => definition.kind === Kind.OBJECT_TYPE_DEFINITION && definition.name.value === "Subscription"
+    // History of this pin: the original lexical
+    // `sdlText.not.toContain("Subscription")` was retired as part of the
+    // dev3-016 admin-user surface reconciliation (the
+    // `hasActiveSubscription` field names are legitimate substrings), and
+    // the follow-up "no ObjectTypeDefinition named `Subscription`" AST
+    // check was retired when the subscription-purchase surface landed —
+    // the domain ENTITY (a purchased plan period) legitimately carries
+    // that type name. With default root naming the artifact text cannot
+    // distinguish a plain object from a subscription root, so the
+    // root-level contract is enforced where it is decidable:
+    //  - artifact tier (here): NO schema-definition entry may declare a
+    //    `subscription:` root — the only textually-decidable half.
+    //  - built-schema tier (schema-surface.test.ts): the built schema
+    //    must expose NO subscription root at all.
+    const schemaDefinitionSubscriptionEntries = sdlDocument.definitions.filter(
+      definition =>
+        definition.kind === Kind.SCHEMA_DEFINITION &&
+        definition.operationTypes.some(operation => operation.operation === "subscription")
     );
-    expect(hasSubscriptionRoot).toBe(false);
-    // Belt-and-braces: no `type Subscription {` block header appears in the
-    // artifact text either (the AST check above is the source of truth; this
-    // is the lexical mirror of the same contract — scoped to the precise
-    // `type Subscription` token sequence so legitimate substrings like
-    // `hasActiveSubscription` do not trigger a false positive).
-    expect(sdlText).not.toMatch(/\btype\s+Subscription\b/);
+    expect(schemaDefinitionSubscriptionEntries).toHaveLength(0);
   });
 });
 

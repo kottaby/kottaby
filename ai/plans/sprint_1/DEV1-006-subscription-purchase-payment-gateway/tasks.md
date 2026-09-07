@@ -147,9 +147,9 @@
 
 ## Phase 7: GraphQL Surface
 
-- [ ] 9.1 Pothos objects + enum registration
+- [x] 9.1 Pothos objects + enum registration
   - CREATE `backend/graphql/pothos/billing/subscription.pothos.ts`, `student-payment.pothos.ts`, `purchase-checkout.pothos.ts` (wrapper, exception-policy); register `PaymentGatewayPothosEnum`, `PaymentStatusPothosEnum`, `SubscriptionStatusPothosEnum`, `SubscriptionCreditLanePothosEnum` in `backend/graphql/pothos/shared/enum.pothos.ts` (value-object form); EXTEND `plan.pothos.ts` with `balanceLane` + inputs; `bun run generate:gqlSchema && bun codegen`.
-  - [ ] 9.1.QL · [ ] 9.1.TE — SDL snapshot: emitted schema contains the new fields/types · [ ] 9.1.SEC · [ ] 9.1.SR · [ ] 9.1.IV
+  - [x] 9.1.QL · [x] 9.1.TE — SDL snapshot: emitted schema contains the new fields/types · [x] 9.1.SEC · [x] 9.1.SR · [x] 9.1.IV
   - _Requirements: REQ-002, REQ-005, REQ-060, REQ-061_
 
 - [ ] 9.2 Mutations + query resolvers
