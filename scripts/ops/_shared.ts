@@ -10,12 +10,16 @@
  * URL degrades to the fixed `redacted-dsn` placeholder rather than being
  * echoed back.
  *
- * The module also owns the two tiny URL/segment utilities both CLIs need
- * (the Postgres protocol set and percent-segment decoding) and the `--env`
- * path resolution — one definition each, imported by both tools.
+ * The module also owns the tiny URL/segment utilities the CLIs need (the
+ * Postgres protocol set, percent-segment decoding, the backup-eligible DSN
+ * parse and the manifest-safe database-name extraction) and the `--env`
+ * path resolution — one definition each, imported by both tools. (The
+ * restore guard's URL pipeline lives in `restore-guard-url.ts`, extracted
+ * from `restore-guard.ts` to honor the oxlint `max-lines` budget.)
  */
 
 import { basename, dirname, resolve } from "node:path";
+import { isValidDatabaseUrl } from "@/scripts/dbActions/envFile";
 
 /** Placeholder emitted when a value cannot be safely rendered. */
 export const REDACTED_DSN = "redacted-dsn";
@@ -34,6 +38,37 @@ export function decodeUrlSegment(value: string): string {
   } catch {
     return value;
   }
+}
+
+/**
+ * Parses a DATABASE_URL that is eligible for backup: a valid postgres URL
+ * with a hostname. Reuses the shared env-file validator first (it rejects
+ * placeholders and empty values), then enforces the Postgres-only dialect.
+ */
+export function parsePostgresDatabaseUrl(value: string | undefined): URL | null {
+  if (!isValidDatabaseUrl(value)) {
+    return null;
+  }
+  try {
+    const url = new URL(value.trim());
+    if (url.protocol !== "postgresql:" && url.protocol !== "postgres:") {
+      return null;
+    }
+    return url.hostname ? url : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Database name from a parsed DSN for the manifest's `database` field. The
+ * fallback is the fixed "(default)" marker — NEVER the userinfo: the URL
+ * username is a credential-adjacent value and must not leak into a persisted
+ * manifest (or anywhere else).
+ */
+export function databaseNameFromDsn(url: URL): string {
+  const dbName = decodeUrlSegment(url.pathname.replace(/^\//, ""));
+  return dbName || "(default)";
 }
 
 /**

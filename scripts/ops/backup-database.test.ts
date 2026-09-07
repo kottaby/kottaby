@@ -1123,6 +1123,43 @@ describe("runBackup — failure boundaries", () => {
     }
   });
 
+  it("refuses an out-dir symlinked into a system path after the lexical check passes (exit 2, zero spawns)", async () => {
+    const linkPath = join(workspace, "link-to-etc");
+    symlinkSync("/etc", linkPath);
+    try {
+      // `link-to-etc` is lexically innocent; the prepared out-dir only
+      // resolves to /etc after mkdir — the REAL path must be what refuses.
+      const run = await runBackupWith(probeAndDumpBehavior(dumpWritesArtifact), {
+        envFile: goodEnvFile,
+        outDir: linkPath,
+      });
+      expect(run.code).toBe(2);
+      expect(run.errors.some(line => line.includes("refusing to write backups into the system path /etc"))).toBe(true);
+      expect(run.errors.some(line => line.includes("resolves through a symlink"))).toBe(true);
+      expect(run.calls).toHaveLength(0);
+      expect(existsSync(join("/etc", `${STAMP}_FAILED`))).toBe(false);
+    } finally {
+      rmSync(linkPath, { force: true });
+    }
+  });
+
+  it("accepts an out-dir symlinked to a normal disposable directory (real path is not a system path)", async () => {
+    const realDir = join(workspace, "real-out-dir");
+    mkdirSync(realDir, { recursive: true });
+    const linkPath = join(workspace, "link-to-real-out");
+    symlinkSync(realDir, linkPath);
+    try {
+      const run = await runBackupWith(probeAndDumpBehavior(dumpWritesArtifact), {
+        envFile: goodEnvFile,
+        outDir: linkPath,
+      });
+      expect(run.code).toBe(0);
+      expect(run.errors.some(line => line.includes("refusing to write backups into the system path"))).toBe(false);
+    } finally {
+      rmSync(linkPath, { force: true });
+    }
+  });
+
   it("exits 2 when the migration journal cannot be fingerprinted", async () => {
     const run = await runBackupWith(probeAndDumpBehavior(dumpWritesArtifact), {
       envFile: goodEnvFile,

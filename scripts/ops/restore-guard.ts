@@ -37,6 +37,26 @@
  *     with `hostaddr` but NO `host` is refused outright — a bare-IP target
  *     with no assessable host signal cannot be reasoned about (URL-form DSNs
  *     with IP hosts remain the supported drill path);
+ *   - a `postgresql://`/`postgres://` URL's QUERY STRING is a second host
+ *     channel: libpq applies `?host=`/`?hostaddr=` query parameters ON TOP of
+ *     the authority (overriding the connection target), so the guard parses
+ *     the RAW query string, percent-decodes names and values the way libpq
+ *     does (`+` stays literal, a malformed escape refuses, last occurrence
+ *     wins) and assesses EVERY channel — the authority hostname, the query
+ *     `host`, and the query `hostaddr` — through the SAME pipeline (charset
+ *     gate, trailing-dot strip, percent-decode re-assessment, `new URL()`
+ *     round-trip, managed-marker matching). An EMPTY query `host` (libpq
+ *     would fall back to the default socket), a query `hostaddr` naming a
+ *     non-loopback address (hostaddr is the endpoint libpq actually connects
+ *     to — a remote numeric endpoint has no assessable host signal), or any
+ *     other unassessable channel refuses the run; a query host decoding to a
+ *     plain local hostname/IP keeps drills working;
+ *   - the WHATWG URL parser strips raw tab/newline characters from URLs
+ *     while libpq does not, so a URI-form target whose RAW host substring
+ *     (or raw query string) carries a raw \t/\n/\r — or whose query carries
+ *     a fragment delimiter libpq would fold into a parameter value — refuses
+ *     before any URL parsing (fail closed: the assessed URL must be the URL
+ *     libpq sees);
  *   - anything else is UNASSESSABLE and refuses the run (fail closed) —
  *     a target whose safety cannot be reasoned about is never restored to.
  *
@@ -48,8 +68,16 @@
  */
 
 import { assessDestructiveDbCommandSafety, formatDestructiveDbBlockMessage } from "@/scripts/lib/destructiveDbGuard";
-import { POSTGRES_PROTOCOLS } from "@/scripts/ops/_shared";
 import { RestoreUsageError } from "@/scripts/ops/restore-cli";
+import {
+  CONNINFO_HOST_PATTERN,
+  libpqEffectiveAssessUrl,
+  parsesAsPostgresUrl,
+  rawUriHostSubstring,
+  stripTrailingDots,
+  toUrlHostToken,
+  uriQueryChannelAssessUrls,
+} from "@/scripts/ops/restore-guard-url";
 
 /** Assessment result for the restore target. */
 export interface RestoreGuardAssessment {
@@ -65,7 +93,6 @@ const UNASSESSABLE_REASON =
   "cannot assess target safety";
 
 const CONNINFO_DBNAME_KEY = "dbname";
-const CONNINFO_HOST_PATTERN = /^[A-Za-z0-9._\-[\]:]+$/;
 
 /**
  * Splits a keyword/value conninfo string into unquoted tokens (libpq rules:
@@ -156,86 +183,6 @@ function extractConninfoSignal(target: string): ConninfoSignal | null {
   return signal;
 }
 
-/** Brackets a bare IPv6-ish host token so it survives the URL round-trip. */
-function toUrlHostToken(host: string): string {
-  return host.includes(":") && !host.startsWith("[") ? `[${host}]` : host;
-}
-
-/**
- * Strips ALL trailing dots from a hostname. DNS treats `host.example.` and
- * `host.example` as the same name, but the managed/production marker
- * patterns are suffix-anchored — the dot would hide the marker while libpq
- * still connects to the managed host. Applied to URL hosts and conninfo
- * host values alike, before marker matching.
- */
-function stripTrailingDots(host: string): string {
-  let end = host.length;
-  while (end > 0 && host.charCodeAt(end - 1) === 46) {
-    end -= 1;
-  }
-  return host.slice(0, end);
-}
-
-/** Result of libpq-style percent-decoding of a URI host. */
-type DecodedHost = { kind: "ok"; decoded: string } | { kind: "refuse"; reason: string };
-
-/**
- * Percent-decodes a URI host the way libpq does, label by label. libpq
- * percent-decodes the host of a connection URI before connecting, so an
- * encoded label (`…co%6d`) must be assessed in its DECODED form; the WHATWG
- * URL parser keeps non-special-scheme hosts opaque, which is exactly the gap
- * a marker-dodging DSN exploits. A malformed escape (`%ZZ`) means the host
- * cannot be reasoned about and refuses the run (fail closed).
- */
-function decodePercentEncodedHost(host: string): DecodedHost {
-  if (!host.includes("%")) {
-    return { kind: "ok", decoded: host };
-  }
-  try {
-    const decoded = host
-      .split(".")
-      .map(label => (label.includes("%") ? decodeURIComponent(label) : label))
-      .join(".");
-    return { kind: "ok", decoded };
-  } catch {
-    return {
-      kind: "refuse",
-      reason: "target URL host carries a malformed percent-escape — cannot assess target safety",
-    };
-  }
-}
-
-/**
- * Derives the LIBPQ-EFFECTIVE host of a URI-form target: percent-decode each
- * label carrying an escape, then strip trailing dots. The decoded host must
- * stay within the assessable charset and form a parseable postgres URL —
- * anything else is unassessable and refuses the run, because the downstream
- * guard would otherwise analyze (or skip) a host libpq never connects to.
- */
-function libpqEffectiveAssessUrl(url: URL): { kind: "ok"; url: string } | { kind: "refuse"; reason: string } {
-  const decoded = decodePercentEncodedHost(url.hostname);
-  if (decoded.kind === "refuse") {
-    return decoded;
-  }
-  const effectiveHost = stripTrailingDots(decoded.decoded);
-  if (effectiveHost.length === 0 || !CONNINFO_HOST_PATTERN.test(effectiveHost)) {
-    return {
-      kind: "refuse",
-      reason:
-        "target URL host decodes to a value outside the assessable host character set — cannot assess target safety",
-    };
-  }
-  const assessUrl = `postgresql://${toUrlHostToken(effectiveHost)}/`;
-  if (!parsesAsPostgresUrl(assessUrl)) {
-    return {
-      kind: "refuse",
-      reason:
-        "target URL host does not form a valid postgresql:// URL (malformed host value) — cannot assess target safety",
-    };
-  }
-  return { kind: "ok", url: assessUrl };
-}
-
 /** Result of extracting the assessable host URL(s) from a conninfo target. */
 export type ConninfoAssessUrls = { kind: "ok"; urls: string[] } | { kind: "refuse"; reason: string };
 
@@ -306,15 +253,6 @@ export function conninfoAssessUrls(target: string): ConninfoAssessUrls | null {
   return { kind: "ok", urls };
 }
 
-function parsesAsPostgresUrl(target: string): boolean {
-  try {
-    const url = new URL(target.trim());
-    return POSTGRES_PROTOCOLS.has(url.protocol) && url.hostname.length > 0;
-  } catch {
-    return false;
-  }
-}
-
 /**
  * Assesses the restore target through the existing destructive-database
  * guard, normalizing keyword/value conninfo targets first (see module doc).
@@ -323,7 +261,11 @@ function parsesAsPostgresUrl(target: string): boolean {
  * and `hostaddr`), and every URL must pass: the first blocking assessment
  * wins. A URI-form target is assessed via its libpq-effective host
  * (percent-decoded, trailing dots stripped) so the analyzed host is always
- * the host libpq would actually connect to.
+ * the host libpq would actually connect to — and its query string adds one
+ * channel per `?host=`/`?hostaddr=` parameter (libpq applies query
+ * parameters on top of the authority), each assessed through the same
+ * pipeline; a raw control character in the raw host substring or query
+ * (WHATWG strips what libpq keeps) refuses before parsing.
  *
  * The guard reads `DATABASE_URL` from the process environment for its
  * host-pattern analysis. Rather than duplicating the guard's managed-host and
@@ -337,14 +279,33 @@ function parsesAsPostgresUrl(target: string): boolean {
 export function assessRestoreTargetSafety(targetDsn: string): RestoreGuardAssessment {
   let assessUrls: string[];
   if (parsesAsPostgresUrl(targetDsn)) {
+    const trimmed = targetDsn.trim();
+    // WHATWG strips raw tab/newline from URL hosts but libpq does not: a raw
+    // control character in the raw host substring means the host about to be
+    // parsed is not the host libpq connects to — refuse before parsing.
+    if (/[\t\n\r]/.test(rawUriHostSubstring(trimmed))) {
+      return {
+        blocked: true,
+        reasons: [
+          "target URL raw host carries a control character (tab/newline) that the URL parser strips but libpq does not — cannot assess target safety",
+        ],
+      };
+    }
+    // libpq applies URI query parameters on top of the authority, so the
+    // query's host/hostaddr are additional connection channels; EVERY
+    // channel below is assessed through the same normalization pipeline.
+    const queryChannels = uriQueryChannelAssessUrls(trimmed);
+    if (queryChannels.kind === "refuse") {
+      return { blocked: true, reasons: [queryChannels.reason] };
+    }
     // URI form: assess the libpq-effective host (percent-decoded labels,
     // trailing dots stripped), never the raw encoded form — libpq decodes
     // before connecting, so marker analysis must see the decoded host.
-    const effective = libpqEffectiveAssessUrl(new URL(targetDsn.trim()));
+    const effective = libpqEffectiveAssessUrl(new URL(trimmed));
     if (effective.kind === "refuse") {
       return { blocked: true, reasons: [effective.reason] };
     }
-    assessUrls = [effective.url];
+    assessUrls = [effective.url, ...queryChannels.urls];
   } else {
     const extraction = conninfoAssessUrls(targetDsn);
     if (extraction === null) {

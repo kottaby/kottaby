@@ -180,7 +180,10 @@ export function makePsqlRunner(spawn: SpawnRunner, dsn: string): PsqlRunner {
 
 /**
  * Redacted target identifier for reports: the database name ONLY — host,
- * user, and password never leave the process.
+ * user, and password never leave the process. Conninfo-form targets follow
+ * libpq semantics: the LAST `dbname=` occurrence wins, and one layer of
+ * surrounding single/double quotes is stripped (inner spaces are part of
+ * the name libpq connects to).
  */
 export function redactTargetDatabaseName(dsn: string): string {
   try {
@@ -193,9 +196,12 @@ export function redactTargetDatabaseName(dsn: string): string {
     // Not a URL — fall through to keyword/value conninfo form.
   }
 
-  const keywordMatch = /\bdbname=([^\s]+)/i.exec(dsn);
-  if (keywordMatch?.[1]) {
-    return keywordMatch[1];
+  let reported: string | null = null;
+  for (const match of dsn.matchAll(/\bdbname=(?:"([^"]*)"|'([^']*)'|(\S+))/gi)) {
+    reported = match[1] ?? match[2] ?? match[3] ?? "";
+  }
+  if (reported !== null && reported.length > 0) {
+    return reported;
   }
 
   return "unknown";

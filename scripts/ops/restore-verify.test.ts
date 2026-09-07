@@ -56,6 +56,7 @@ import {
   parseBackupManifest,
   RESTORE_TOOL_ID,
   RestoreArtifactError,
+  redactTargetDatabaseName,
   resolveRunArtifact,
   type SpawnRequest,
   type SpawnRunner,
@@ -1446,6 +1447,124 @@ describe("restore-verify tool family (4-tier)", () => {
       expect(ipv6Run.requests.find(request => request.cmd === "pg_restore")?.args).toContain(ipv6Url);
     });
 
+    // ── URI query-string host channels: libpq applies `?host=`/`?hostaddr=`
+    // on top of the parsed authority (overriding the connection target), so
+    // each query channel is assessed through the same pipeline as the
+    // authority host — an unassessed second channel must never reach
+    // pg_restore. ──
+    const queryRefusalCases: Array<{ name: string; targetDsn: string; reason: string }> = [
+      {
+        name: "a managed RDS host smuggled into the query string (authority is a local decoy)",
+        targetDsn: "postgresql://postgres@127.0.0.1:5432/scratch_restore?host=prod.rds.amazonaws.com",
+        reason: "rds.amazonaws.com",
+      },
+      {
+        name: "a percent-encoded managed host in the query (libpq percent-decodes query values)",
+        targetDsn: "postgresql://postgres@127.0.0.1:5432/scratch_restore?host=%70rod.rds.amazonaws.com",
+        reason: "rds.amazonaws.com",
+      },
+      {
+        name: "a query hostaddr naming a non-loopback endpoint (host is verification-only)",
+        targetDsn: "postgresql://postgres@127.0.0.1:5432/scratch_restore?hostaddr=192.0.2.1&host=127.0.0.1",
+        reason: "non-loopback",
+      },
+      {
+        name: "an empty query host (libpq default-socket fallback is unassessable)",
+        targetDsn: "postgresql://postgres@127.0.0.1:5432/scratch_restore?host=",
+        reason: "query host is empty",
+      },
+      {
+        name: "an empty query hostaddr (channel present but unassessable)",
+        targetDsn: "postgresql://postgres@127.0.0.1:5432/scratch_restore?hostaddr=&host=127.0.0.1",
+        reason: "query hostaddr is empty",
+      },
+      {
+        name: "a malformed percent-escape in the query host (libpq rejects the URI)",
+        targetDsn: "postgresql://postgres@127.0.0.1:5432/scratch_restore?host=%ZZ.rds.amazonaws.com",
+        reason: "malformed percent-escape",
+      },
+      {
+        name: "a raw tab inside the URL host (WHATWG strips it, libpq does not)",
+        targetDsn: "postgresql://postgres@127.0.0.1\t/db",
+        reason: "control character",
+      },
+    ];
+
+    for (const queryRefusalCase of queryRefusalCases) {
+      test(`guard refuses a URI target carrying ${queryRefusalCase.name} before any spawn (exit 2)`, async () => {
+        const caseRoot = newCaseRoot();
+        makeSchemaFixture(caseRoot);
+        // `--from` is deliberately unresolvable: the guard must fire first.
+        const run = await runPipeline(caseRoot, {
+          from: join(caseRoot, "never-resolved"),
+          targetDsn: queryRefusalCase.targetDsn,
+          script: emptyScript(),
+        });
+        expect(run.thrown).toBeNull();
+        expect(run.exitCode).toBe(2);
+        expect(run.stderr).toContain("[guard]");
+        expect(run.stderr).toContain(queryRefusalCase.reason);
+        expect(run.requests).toHaveLength(0);
+        expect(run.stderr).not.toContain(FIXTURE_PASSWORD);
+      });
+    }
+
+    test("guard assesses the QUERY host on an authority decoy: local query host passes, original string spawned", async () => {
+      const caseRoot = newCaseRoot();
+      makeSchemaFixture(caseRoot);
+      const fixture = makeBackupRun(caseRoot);
+      // The authority is a decoy name; libpq connects to the query host. The
+      // guard assesses the query host itself: 127.0.0.1 is local → allowed,
+      // and pg_restore receives the operator's EXACT string.
+      const decoyTarget = "postgresql://postgres@authority-decoy.invalid:5432/scratch_restore?host=127.0.0.1";
+      const run = await runPipeline(caseRoot, {
+        from: fixture.runDir,
+        targetDsn: decoyTarget,
+        script: healthyScript(),
+      });
+      expect(run.thrown).toBeNull();
+      expect(run.exitCode).toBe(0);
+      expect(run.stdout).toContain("VERDICT: PASS");
+      expect(run.requests.find(request => request.cmd === "pg_restore")?.args).toContain(decoyTarget);
+      expect(run.requests[0]?.cmd).toBe("pg_restore");
+    });
+
+    test("guard applies last-occurrence-wins to repeated query host params (original string spawned)", async () => {
+      const caseRoot = newCaseRoot();
+      makeSchemaFixture(caseRoot);
+      const fixture = makeBackupRun(caseRoot);
+      // libpq applies repeated URI query parameters in order, so the
+      // effective query host is the LAST one (127.0.0.1); first-occurrence
+      // extraction would refuse this local drill.
+      const lastWinsQuery =
+        "postgresql://postgres@127.0.0.1:5432/scratch_restore?host=prod.rds.amazonaws.com&host=127.0.0.1";
+      const run = await runPipeline(caseRoot, {
+        from: fixture.runDir,
+        targetDsn: lastWinsQuery,
+        script: healthyScript(),
+      });
+      expect(run.thrown).toBeNull();
+      expect(run.exitCode).toBe(0);
+      expect(run.stdout).toContain("VERDICT: PASS");
+      expect(run.requests.find(request => request.cmd === "pg_restore")?.args).toContain(lastWinsQuery);
+    });
+
+    test("benign query parameters leave assessment untouched (original string spawned)", async () => {
+      const caseRoot = newCaseRoot();
+      makeSchemaFixture(caseRoot);
+      const fixture = makeBackupRun(caseRoot);
+      const benignTarget = "postgresql://postgres@127.0.0.1:5432/scratch_restore?sslmode=require";
+      const run = await runPipeline(caseRoot, {
+        from: fixture.runDir,
+        targetDsn: benignTarget,
+        script: healthyScript(),
+      });
+      expect(run.thrown).toBeNull();
+      expect(run.exitCode).toBe(0);
+      expect(run.stdout).toContain("VERDICT: PASS");
+      expect(run.requests.find(request => request.cmd === "pg_restore")?.args).toContain(benignTarget);
+    });
+
     test("value-oracle absence ladder descends ONLY on SQLSTATE 42P01 and fails closed otherwise", async () => {
       const registry: OracleDefinition[] = [
         {
@@ -1636,5 +1755,25 @@ describe("restore-verify tool family (4-tier)", () => {
       expect(combined).not.toContain(TARGET_DSN);
       expect(combined).not.toContain(SOURCE_DSN);
     });
+  });
+});
+
+describe("redactTargetDatabaseName (conninfo libpq semantics)", () => {
+  test("URL form reports the path database", () => {
+    expect(redactTargetDatabaseName("postgresql://u:p@h:5432/appdb")).toBe("appdb");
+  });
+
+  test("conninfo form reports the LAST dbname= (libpq last-wins)", () => {
+    expect(redactTargetDatabaseName("dbname=a dbname=b")).toBe("b");
+    expect(redactTargetDatabaseName("host=127.0.0.1 port=5432 dbname=first dbname=second")).toBe("second");
+  });
+
+  test("conninfo form strips one layer of surrounding quotes (inner spaces kept)", () => {
+    expect(redactTargetDatabaseName("dbname='a b'")).toBe("a b");
+    expect(redactTargetDatabaseName('dbname="c d"')).toBe("c d");
+  });
+
+  test("input without an assessable database name reports unknown", () => {
+    expect(redactTargetDatabaseName("nonsense")).toBe("unknown");
   });
 });

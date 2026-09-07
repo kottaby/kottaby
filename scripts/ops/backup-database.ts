@@ -39,10 +39,16 @@
  * manifest-write failure.
  */
 
-import { mkdirSync, renameSync } from "node:fs";
+import { mkdirSync, realpathSync, renameSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { applyEnvFile, isValidDatabaseUrl } from "@/scripts/dbActions/envFile";
-import { decodeUrlSegment, redactDsn, resolveEnvFilePath, scrubDsnSecrets } from "@/scripts/ops/_shared";
+import {
+  databaseNameFromDsn,
+  parsePostgresDatabaseUrl,
+  redactDsn,
+  resolveEnvFilePath,
+  scrubDsnSecrets,
+} from "@/scripts/ops/_shared";
 import {
   ARTIFACT_FILE_NAME,
   buildBackupManifest,
@@ -67,6 +73,10 @@ import {
   runPgDump,
   type SpawnRunner,
 } from "@/scripts/ops/backup-toolchain";
+
+// The DSN URL helpers live in `_shared` now (max-lines extraction from this
+// module); the backup tool's public surface keeps re-exporting them.
+export { databaseNameFromDsn, parsePostgresDatabaseUrl } from "@/scripts/ops/_shared";
 
 const BACKUP_TOOL_VERSION = "1.0.0";
 
@@ -103,37 +113,6 @@ interface BackupRunContext {
   dsnUrl: URL;
   startedAt: Date;
   stamp: string;
-}
-
-/**
- * Parses a DATABASE_URL that is eligible for backup: a valid postgres URL
- * with a hostname. Reuses the shared env-file validator first (it rejects
- * placeholders and empty values), then enforces the Postgres-only dialect.
- */
-export function parsePostgresDatabaseUrl(value: string | undefined): URL | null {
-  if (!isValidDatabaseUrl(value)) {
-    return null;
-  }
-  try {
-    const url = new URL(value.trim());
-    if (url.protocol !== "postgresql:" && url.protocol !== "postgres:") {
-      return null;
-    }
-    return url.hostname ? url : null;
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Database name from a parsed DSN for the manifest's `database` field. The
- * fallback is the fixed "(default)" marker — NEVER the userinfo: the URL
- * username is a credential-adjacent value and must not leak into a persisted
- * manifest (or anywhere else).
- */
-export function databaseNameFromDsn(url: URL): string {
-  const dbName = decodeUrlSegment(url.pathname.replace(/^\//, ""));
-  return dbName || "(default)";
 }
 
 export function defaultBackupDeps(overrides: Partial<BackupRunDeps> = {}): BackupRunDeps {
@@ -188,7 +167,10 @@ function bootstrapDsn(envFile: string, deps: BackupRunDeps): { dsn: string; dsnU
  * Creates the output directory (0700); `null` = reported exit-2 problem.
  *
  * System paths (/, /etc, /usr, /boot, /proc, /sys, /dev, /var/run and their
- * descendants) are REFUSED before any filesystem side effect; merely-unusual
+ * descendants) are REFUSED before any filesystem side effect, and the refusal
+ * is re-checked on the RESOLVED REAL path after mkdir: an out-dir that
+ * reaches a system directory through its own or an ancestor symlink escapes
+ * the lexical check, so the real path is what gets refused. Merely-unusual
  * paths (outside the repo) still succeed with a warning.
  */
 function prepareOutDir(outDirOption: string | undefined, deps: BackupRunDeps): string | null {
@@ -205,9 +187,26 @@ function prepareOutDir(outDirOption: string | undefined, deps: BackupRunDeps): s
     deps.emit.error(`[env] cannot create the output directory ${outDir}: ${errorMessage(error)}`);
     return null;
   }
-  if (isLikelyNonDisposable(outDir, deps.repoRoot)) {
+  // Symlink escape hatch: a lexical resolve cannot see links, so resolve the
+  // prepared directory to its REAL path and re-run the system-path check —
+  // an out-dir symlinked into /etc must refuse, not pass on its innocent
+  // lexical name.
+  let realOutDir: string;
+  try {
+    realOutDir = realpathSync(outDir);
+  } catch (error) {
+    deps.emit.error(`[env] cannot resolve the real path of the output directory ${outDir}: ${errorMessage(error)}`);
+    return null;
+  }
+  if (isSystemOutDir(realOutDir)) {
     deps.emit.error(
-      `[env] warning: output directory ${outDir} is outside the repository or a system path — make sure it is locally disposable storage`
+      `[env] refusing to write backups into the system path ${realOutDir} (the out-dir resolves through a symlink) — pass a disposable, non-system --out-dir`
+    );
+    return null;
+  }
+  if (isLikelyNonDisposable(realOutDir, deps.repoRoot)) {
+    deps.emit.error(
+      `[env] warning: output directory ${realOutDir} is outside the repository or a system path — make sure it is locally disposable storage`
     );
   }
   return outDir;
