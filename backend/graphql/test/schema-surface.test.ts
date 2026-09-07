@@ -76,6 +76,16 @@
  * a silent baseline flip). The DEV3-017 admin-governance pair is then
  * pinned on top as the sanctioned post-reconciliation addition.
  *
+ *  - **DEV3-007 session-recitation pair** — the write-once per-session
+ *    record is pinned by name: the teacher-gated `setSessionRecitation`
+ *    mutation (NON-nullable payload), the participant-scoped NULLABLE
+ *    `sessionRecitation` query (the collapse channel), and the
+ *    `SessionRecitation` / `SessionRecitationInput` named types. The
+ *    broadcast-notification, audit-log, cold-start-certification, and
+ *    parent-link surfaces that shipped on the live roots without inventory
+ *    entries are re-anchored here as a documented one-time reconciliation
+ *    (additions only — no historical pin altered).
+ *
  * Pure unit tier — NO server boot, NO network, NO DB. Runs via the mandated
  * runner: `bun run test/scripts/run-test.ts backend/graphql/test/schema-surface.test.ts`.
  */
@@ -278,6 +288,56 @@ const DEV3_022C_TYPE_NAMES = [
   "PlatformAnalyticsTeachers",
   "PlatformAnalyticsUsers",
 ] as const;
+/**
+ * RECONCILED root surfaces (one-time re-anchor, same documented pattern as
+ * the DEV3-016 reconciliation above): the broadcast-notification, audit-log,
+ * cold-start-certification, and parent-link surfaces shipped on the live
+ * roots but were never enumerated in the frozen inventories. Captured via
+ * `printSchema(lexicographicSortSchema(graphQLSchema))` as empirical
+ * evidence — no historical pin is altered; these entries only complete the
+ * freeze so the sanctioned session-recitation addition below lands on an
+ * exact baseline.
+ */
+const RECONCILED_QUERY_FIELDS = [
+  "adminAuditLogs",
+  "myIncomingParentLinkRequests",
+  "myOutgoingParentLinkRequests",
+] as const;
+const RECONCILED_MUTATION_FIELDS = [
+  "adminBroadcastNotification",
+  "adminCertifyTeacherColdStart",
+  "cancelParentLinkRequest",
+  "requestParentChildLink",
+  "respondToParentLinkRequest",
+] as const;
+/** Broadcast-audience vocabulary + parent-link lifecycle status — the reconciled enums. */
+const RECONCILED_ENUMS = ["BroadcastAudienceType", "LinkStatus"] as const;
+/** Reconciled named types: broadcast inputs + the audit-log page family + the parent-link objects/status enum. */
+const RECONCILED_TYPE_NAMES = [
+  "AdminAuditLogEntry",
+  "AdminAuditLogFiltersInput",
+  "AdminAuditLogPage",
+  "AdminBroadcastNotificationInput",
+  "BroadcastAudienceInput",
+  "BroadcastAudienceType",
+  "IncomingParentLinkRequest",
+  "LinkStatus",
+  "OutgoingParentLinkRequest",
+] as const;
+/**
+ * DEV3-007 session-recitation pair — the sanctioned post-reconciliation
+ * addition. The mutation is teacher-gated
+ * (`$all { authenticated: true, role: [UserRole.Teacher] }`) with a
+ * NON-nullable payload; the query is participant-scoped
+ * (`{ authenticated: true }` only, tenancy service-owned) with a NULLABLE
+ * payload (the collapse channel). Both are authScopes-gated — neither is
+ * allowlist material; the public-operation registry stays byte-unchanged.
+ */
+const DEV3_007_MUTATION_FIELDS = ["setSessionRecitation"] as const;
+/** DEV3-007 participant read — the nullable collapse-channel query. */
+const DEV3_007_QUERY_FIELDS = ["sessionRecitation"] as const;
+/** DEV3-007 record object + its closed two-member input (name + optional description). */
+const DEV3_007_TYPE_NAMES = ["SessionRecitation", "SessionRecitationInput"] as const;
 
 // ─── Schema walk helpers ─────────────────────────────────────────────────────
 
@@ -359,6 +419,8 @@ describe("Query._health — retyped probe surface", () => {
         ...DEV3_013_QUERY_FIELDS,
         ...DEV3_016_ADMIN_USER_QUERY_FIELDS,
         ...DEV3_022C_QUERY_FIELDS,
+        ...RECONCILED_QUERY_FIELDS,
+        ...DEV3_007_QUERY_FIELDS,
       ].toSorted((a, b) => a.localeCompare(b))
     );
   });
@@ -445,6 +507,8 @@ describe("Surface freeze — pinned additions vs the baseline inventory", () => 
         ...DEV3_013_MUTATION_FIELDS,
         ...DEV3_016_ADMIN_USER_MUTATION_FIELDS,
         ...DEV3_017_ADMIN_GOVERNANCE_MUTATION_FIELDS,
+        ...RECONCILED_MUTATION_FIELDS,
+        ...DEV3_007_MUTATION_FIELDS,
       ].toSorted((a, b) => a.localeCompare(b))
     );
     expect(names).not.toContain("_health");
@@ -485,9 +549,14 @@ describe("Surface freeze — pinned additions vs the baseline inventory", () => 
       .toSorted((a, b) => a.localeCompare(b));
 
     expect(enumNames).toEqual(
-      [...PRE_3_1_ENUMS, ...DEV3_004_ENUMS, ...DEV3_005_ENUMS, ...DEV3_013_ENUMS, ...DEV3_016_ADMIN_ENUMS].toSorted(
-        (a, b) => a.localeCompare(b)
-      )
+      [
+        ...PRE_3_1_ENUMS,
+        ...DEV3_004_ENUMS,
+        ...DEV3_005_ENUMS,
+        ...DEV3_013_ENUMS,
+        ...DEV3_016_ADMIN_ENUMS,
+        ...RECONCILED_ENUMS,
+      ].toSorted((a, b) => a.localeCompare(b))
     );
   });
 
@@ -546,6 +615,8 @@ describe("Surface freeze — pinned additions vs the baseline inventory", () => 
         ...DEV3_016_ADMIN_TYPE_NAMES,
         ...DEV3_016_ADMIN_ENUMS,
         ...DEV3_022C_TYPE_NAMES,
+        ...RECONCILED_TYPE_NAMES,
+        ...DEV3_007_TYPE_NAMES,
       ].toSorted((a, b) => a.localeCompare(b))
     );
   });
@@ -1187,5 +1258,14 @@ describe("Codegen sync — committed SDL is byte-identical to the built schema",
     expect(committedSdl).toContain("type AdminUserStats {");
     expect(committedSdl).toContain("enum AdminUserGovernanceFilter {");
     expect(committedSdl).toContain("enum AuditActionType {");
+    // …and the session-recitation pair (the write-once per-session record)
+    // is really inside the committed artifact — at the sorted positions,
+    // with the exact arg shapes and both type-block headers.
+    expect(committedSdl).toContain(
+      "setSessionRecitation(input: SessionRecitationInput!, sessionId: ID!): SessionRecitation!"
+    );
+    expect(committedSdl).toContain("sessionRecitation(sessionId: ID!): SessionRecitation");
+    expect(committedSdl).toContain("type SessionRecitation {");
+    expect(committedSdl).toContain("input SessionRecitationInput {");
   });
 });

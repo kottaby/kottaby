@@ -167,7 +167,7 @@
 
 ## Phase 3: GraphQL Resolvers & API Handlers
 
-### - [ ] 3.1 [Pothos object + input + mutation + query resolvers]
+### - [x] 3.1 [Pothos object + input + mutation + query resolvers]
 - **Files:**
   - `backend/graphql/pothos/classes/recitation.pothos.ts` (CREATE — `SessionRecitationInput` input `{name: String!, description: String}` and `SessionRecitationPothosObject` exposing `id` FIRST via `t.exposeID`, `sessionId` via `t.exposeID`, `name`/`description` (nullable) via `t.exposeString`, `createdAt`/`updatedAt` via `t.expose("…", { type: "DateTime" })` — NO `toISOString()` hand-serialization; NO `Int` coercion)
   - `backend/graphql/pothos/classes/index.ts` (UPDATE barrel)
@@ -178,14 +178,14 @@
   - `backend/lib/gateway/public-operations.ts` (VERIFY byte-identical — NEITHER op is public; assert in wire tier)
 - **Instruction files:** `.agents/instructions/backend.instructions.md`, `backend/graphql/AGENTS.md` (as present in bundle).
 - _Requirements: REQ-030, REQ-032, REQ-033, REQ-060, REQ-061, REQ-062, REQ-063_
-  - [ ] 3.1.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts` on each created/updated resolver/pothos file (exit 0)
-  - [ ] 3.1.TE **Test Engineering**: scope-map smoke coverage lands in the Phase-5 wire suite; here assert the modules import and register without error and that `$all` shape is exactly as pinned (unit-level scope-map assertion in the wire test setup).
-  - [ ] 3.1.SEC **Security & Tenancy Audit**: `$all` conjunction load-bearing on the mutation (`$all{authenticated, [Teacher]}` — plain map would be ANY-semantics); query scope authenticated-only with service-owned tenancy; closed input whitelist; identity NEVER input-bound (`ctx.user.id` is the sole identity source); public-operations allowlist untouched.
-  - [ ] 3.1.SR **Semantic Review**: no local types in resolvers (canonical `RecitationReturnType`); `UserRole.Teacher` as VALUE import; `DateTime` scalar usage matches `session.pothos.ts` convention; no error-code literals hardcoded in resolvers (service owns codes).
-  - [ ] 3.1.IV **Instruction Verification**: `.agents/instructions/backend.instructions.md` + `backend/graphql/AGENTS.md` rechecked post-edit.
-  - [ ] 3.1.OC **Outcome**: write `outcome/3.1-outcome.md`.
+  - [x] 3.1.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts` on each created/updated resolver/pothos file (exit 0)
+  - [x] 3.1.TE **Test Engineering**: scope-map smoke coverage lands in the Phase-5 wire suite; here assert the modules import and register without error and that `$all` shape is exactly as pinned (unit-level scope-map assertion in the wire test setup).
+  - [x] 3.1.SEC **Security & Tenancy Audit**: `$all` conjunction load-bearing on the mutation (`$all{authenticated, [Teacher]}` — plain map would be ANY-semantics); query scope authenticated-only with service-owned tenancy; closed input whitelist; identity NEVER input-bound (`ctx.user.id` is the sole identity source); public-operations allowlist untouched.
+  - [x] 3.1.SR **Semantic Review**: no local types in resolvers (canonical `RecitationReturnType`); `UserRole.Teacher` as VALUE import; `DateTime` scalar usage matches `session.pothos.ts` convention; no error-code literals hardcoded in resolvers (service owns codes).
+  - [x] 3.1.IV **Instruction Verification**: `.agents/instructions/backend.instructions.md` + `backend/graphql/AGENTS.md` rechecked post-edit.
+  - [x] 3.1.OC **Outcome**: write `outcome/3.1-outcome.md`.
 
-### - [ ] 3.2 [Codegen sync + frozen-inventory extension]
+### - [x] 3.2 [Codegen sync + frozen-inventory extension]
 - **Work:**
   - Run `bun run generate:gqlSchema && bun run codegen` in the SAME commit as 3.1; confirm committed generated SDL matches the built schema byte-for-byte.
   - `backend/graphql/test/schema-surface.test.ts` (UPDATE — ADDITIVELY extend frozen inventories: fields `setSessionRecitation` / `sessionRecitation`; types `SessionRecitation` / `SessionRecitationInput`; NEVER mutate historical pins)
@@ -193,12 +193,12 @@
   - Assert `DateTime` scalar still registered exactly once; no new scalars introduced.
 - **Instruction files:** `.agents/instructions/backend.instructions.md`, `backend/graphql/AGENTS.md`.
 - _Requirements: REQ-062, REQ-064, REQ-074_
-  - [ ] 3.2.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts` on both updated test files (exit 0)
-  - [ ] 3.2.TE **Test Engineering**: `bun run test/scripts/run-test.ts backend/graphql/test/schema-surface.test.ts` and `…/sdl-static-assertions.test.ts` — green; codegen determinism check (second `generate:gqlSchema` run → zero diff).
-  - [ ] 3.2.SEC **Security & Tenancy Audit**: frozen inventories prove NO public-operations drift and NO update/delete/list recitation fields leaked into the SDL.
-  - [ ] 3.2.SR **Semantic Review**: additions are purely additive (no historical pin rewritten); sorted-order strings verified against the actual printed SDL.
-  - [ ] 3.2.IV **Instruction Verification**: backend instruction file re-read; SDL-freeze protocol honored.
-  - [ ] 3.2.OC **Outcome**: write `outcome/3.2-outcome.md`.
+  - [x] 3.2.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts` on both updated test files (exit 0)
+  - [x] 3.2.TE **Test Engineering**: `bun run test/scripts/run-test.ts backend/graphql/test/schema-surface.test.ts` and `…/sdl-static-assertions.test.ts` — green; codegen determinism check (second `generate:gqlSchema` run → zero diff).
+  - [x] 3.2.SEC **Security & Tenancy Audit**: frozen inventories prove NO public-operations drift and NO update/delete/list recitation fields leaked into the SDL.
+  - [x] 3.2.SR **Semantic Review**: additions are purely additive (no historical pin rewritten); sorted-order strings verified against the actual printed SDL.
+  - [x] 3.2.IV **Instruction Verification**: backend instruction file re-read; SDL-freeze protocol honored.
+  - [x] 3.2.OC **Outcome**: write `outcome/3.2-outcome.md`.
 
 ---
 
