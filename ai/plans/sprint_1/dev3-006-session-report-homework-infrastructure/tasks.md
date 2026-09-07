@@ -102,7 +102,7 @@ The ONLY instruction files that exist are `.agents/instructions/frontend.instruc
 
 ## Phase 1: Types, Enums & Database Schema
 
-- [ ] 1.1 [Schema verification gate R1–R6 — READ-ONLY, before any schema edit]
+- [x] 1.1 [Schema verification gate R1–R6 — READ-ONLY, before any schema edit]
   - Read (do not edit) `backend/db/schema/classes/reports.ts` and `backend/db/schema/classes/home-work.ts` bodies and record, with line anchors, in `ai/plans/sprint_1/dev3-006-session-report-homework-infrastructure/outcome/1.1-outcome.md`:
     - **R1:** `reports.session_id` unique-constraint presence/absence (importers show no `unique`/`uniqueIndex` import — CONFIRM against body).
     - **R2:** nullability of `home_work.current_grade` and `home_work.revision_grade` (`.notNull()` present or absent).
@@ -114,7 +114,7 @@ The ONLY instruction files that exist are `.agents/instructions/frontend.instruc
   - Note: NO file is modified in this task; it is the verify-then-claim hard gate.
   - _Requirements: REQ-040, REQ-015, INV-HW3, C.4, INV-S8/INV-HW1_
 
-- [ ] 1.2 [Schema amendments — push-only, conditional on 1.1 verdicts]
+- [x] 1.2 [Schema amendments — push-only, conditional on 1.1 verdicts]
   - Files (ALL edits conditional on 1.1 verdicts; do not apply a change whose verdict was "no-op"):
     - `backend/db/schema/classes/reports.ts` — if R1 verdict = ADD: add `unique("reports_session_id_unique").on(t.sessionId)` to the table config (update imports accordingly).
     - `backend/db/schema/classes/home-work.ts` — if R2 verdict = relax: make `currentGrade`/`revisionGrade` nullable (remove `.notNull()`); if R3 verdict = ADD: add `unique("home_work_session_id_unique").on(t.sessionId)`.
@@ -130,7 +130,7 @@ The ONLY instruction files that exist are `.agents/instructions/frontend.instruc
   - [ ] 1.2.SR **Semantic Review**: schema diffs are minimal and verdict-scoped; naming matches house conventions; no leftover commented-out columns; no dead imports after conditional edits.
   - [ ] 1.2.IV **Instruction Verification**: validate against `.agents/instructions/backend.instructions.md` + any auto-discovered AGENTS.md printed by `scripts/health/sub-loop.ts` for these paths (paste discovery output into outcome).
 
-- [ ] 1.3 [Enum guard + canonical types extension]
+- [x] 1.3 [Enum guard + canonical types extension]
   - Files:
     - `backend/enum/shared/surah-juz-ref.enum.ts` (UPDATE) — add `isSurahJuzRef(value: unknown): value is SurahJuzRef` using the exact pattern of `isApplicantStatus` in `backend/enum/teachers/applicant-status.enum.ts` (value import of the enum; `Object.values`-based membership check). NO new enum members (D1 ledger row governs expansion).
     - `backend/types/classes/report.types.ts` (EXTEND in place) — add `ReportReturnType`, `HomeWorkGradeFieldsInput`, `HomeWorkBlockInput`, `HomeWorkAssignInput`, `SessionReportSubmitInput` exactly per plan §2.4. `SurahJuzRef` imported as a VALUE-imported type usage (type position OK as `import type`; the enum itself stays a value import at guard/validation sites).
@@ -146,7 +146,7 @@ The ONLY instruction files that exist are `.agents/instructions/frontend.instruc
   - [ ] 1.3.SR **Semantic Review**: no duplicated type shapes across files; Select→Return alias discipline; barrel exports alphabetically/conventionally ordered per existing file style; no `any`.
   - [ ] 1.3.IV **Instruction Verification**: match auto-discovered instruction set from `scripts/health/sub-loop.ts` for each edited path.
 
-- [ ] 1.4 [i18n keys — errors namespace + notification copy slots (en/ar parity)]
+- [x] 1.4 [i18n keys — errors namespace + notification copy slots (en/ar parity)]
   - Files (verify exact module paths against the bundled `shared/locale/` before editing; namespace registration checklist lives in `shared/AGENTS.md`):
     - `errors` namespace (FLAT, domain-prefixed keys) — ADD: `sessionReportAlreadyExists`, `homeworkAlreadyGraded`, plus any validation keys not already covered by existing generic keys (audit first; only add keys that genuinely do not exist: candidates `sessionReportNotesRequired`, `sessionReportNotesTooLong`, `sessionRatingRange`, `homeworkGradeRange`, `homeworkAyahRangeInvalid`, `homeworkSurahJuzInvalid`, `homeworkAssignmentBlocksRequired`). Reuse existing keys verbatim where they already express the denial (do not mint synonyms).
     - `notifications` namespace — ADD copy slots per plan §4.2: `eventSessionReportReadyTitle`, `eventSessionReportReadyBody` (student; interpolates teacher full name only), `eventSessionReportReadyParentBody` (parent; interpolates student + teacher full names only). NO grades/notes/ids in copy (REQ-019 privacy).
