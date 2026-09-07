@@ -309,6 +309,7 @@ async function wireGraphQL(
   document: DocumentNode,
   options: {
     readonly token?: string | null;
+    readonly idempotencyKey?: string | null;
     readonly variables?: Record<string, unknown>;
   } = {}
 ): Promise<WireResult> {
@@ -318,6 +319,7 @@ async function wireGraphQL(
       headers: {
         "content-type": "application/json",
         ...(options.token ? { authorization: `Bearer ${options.token}` } : {}),
+        ...(options.idempotencyKey ? { "x-idempotency-key": options.idempotencyKey } : {}),
       },
       body: JSON.stringify({ query: print(document), variables: options.variables ?? {} }),
     })
@@ -341,6 +343,7 @@ async function tokenFor(userId: number, role: string): Promise<string> {
 async function bookSession(accessToken: string, key: string, teacherId: number): Promise<string> {
   const result = await wireGraphQL(CREATE_SESSION_DOC, {
     token: accessToken,
+    idempotencyKey: key,
     variables: { input: { teacherId, intent: "Hifz" } },
   });
   const payload = payloadOf(result, "createSession");
