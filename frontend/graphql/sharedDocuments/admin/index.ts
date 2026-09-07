@@ -6,6 +6,7 @@
  *  - Consumed by views via `@apollo/client/react` hooks.
  *  - Wired through the top-level sharedDocuments barrel.
  */
+export * from "./admin-session-governance.documents";
 export * from "./admin-users.documents";
 export * from "./audit-trail.documents";
 export * from "./platform-analytics.documents";
