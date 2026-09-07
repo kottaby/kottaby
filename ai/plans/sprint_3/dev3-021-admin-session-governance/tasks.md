@@ -85,14 +85,14 @@
 
 Journeys live in `test/workflows/admin/admin-session-governance.journey.test.ts` and are authored BEFORE the service (test-first); they may initially fail/pending until Phase 3 lands.
 
-- [ ] 6.1 **W-1 cancel-with-refund journey** — fixtures (student+teacher+scheduled-with-hold) committed in `beforeAll`, deleted in `afterAll`; REAL services → REAL DB; asserts post-commit notification queue side-effect and refund landing
-  - [ ] 6.1.QL / 6.1.TE / 6.1.SR / 6.1.IV
-- [ ] 6.2 **W-2 reassign journey** — observer-perspective asserts (student sees new teacher, old/new teachers get waves), certification-denial reflexivity
-  - [ ] 6.2.QL / 6.2.TE / 6.2.SR / 6.2.IV
-- [ ] 6.3 **W-3 join journey** — audit row count delta == 1 for allowed; == 0 for denied state
-  - [ ] 6.3.QL / 6.3.TE / 6.3.SR / 6.3.IV
-- [ ] 6.4 **W-4 role-denial matrix** — 5 roles × 7 operations × (401|403) — byte-identical comparisons
-  - [ ] 6.4.QL / 6.4.TE / 6.4.SEC / 6.4.SR / 6.4.IV
+- [x] 6.1 **W-1 cancel-with-refund journey** — fixtures (student+teacher+scheduled-with-hold) committed in `beforeAll`, deleted in `afterAll`; REAL services → REAL DB; asserts post-commit notification queue side-effect and refund landing
+  - [x] 6.1.QL / 6.1.TE / 6.1.SR / 6.1.IV
+- [x] 6.2 **W-2 reassign journey** — observer-perspective asserts (student sees new teacher, old/new teachers get waves), certification-denial reflexivity
+  - [x] 6.2.QL / 6.2.TE / 6.2.SR / 6.2.IV
+- [x] 6.3 **W-3 join journey** — audit row count delta == 1 for allowed; == 0 for denied state
+  - [x] 6.3.QL / 6.3.TE / 6.3.SR / 6.3.IV
+- [x] 6.4 **W-4 role-denial matrix** — 5 roles × 7 operations × (401|403) — byte-identical comparisons
+  - [x] 6.4.QL / 6.4.TE / 6.4.SEC / 6.4.SR / 6.4.IV
 
 ---
 
