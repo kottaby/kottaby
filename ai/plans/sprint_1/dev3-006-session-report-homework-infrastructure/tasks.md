@@ -309,7 +309,7 @@ The ONLY instruction files that exist are `.agents/instructions/frontend.instruc
   - [ ] 2.6.SR **Semantic Review**: single-read discipline (exactly ONE wave-context query per call); no publishing inside; enum VALUE import for `NotificationType`; no stringly-typed notification type.
   - [ ] 2.6.IV **Instruction Verification**: as 2.2.IV.
 
-- [ ] 2.7 [Implement SessionReportService — write surface]
+- [x] 2.7 [Implement SessionReportService — write surface]
   - Create `backend/services/classes/session-report.service.ts` with EXACT pipeline order (plan §4.2):
     - `submitSessionReport(teacherUserId, sessionId, input: SessionReportSubmitInput, locale, outerTx?, options?): Promise<ReportReturnType>`:
       0. Pre-DB: id shape → notes → rating → assignment block validity → previousGrades validity (all 2.5 guards; zero DB touched on failure).
@@ -338,7 +338,7 @@ The ONLY instruction files that exist are `.agents/instructions/frontend.instruc
   - [ ] 2.7.SR **Semantic Review**: pipeline order matches plan exactly; tx propagated to ALL repo/engine calls (grep `, tx)` completeness); single-withTransaction; publish strictly post-commit; zero dead branches.
   - [ ] 2.7.IV **Instruction Verification**: as 2.2.IV.
 
-- [ ] 2.8 [Implement SessionReportService — read surface]
+- [x] 2.8 [Implement SessionReportService — read surface]
   - In `backend/services/classes/session-report.service.ts` (same module) add:
     - `getSessionReport(callerUserId, sessionId, locale, tx?): Promise<ReportReturnType | null>` — validate id shape pre-DB; participant gate via the EXISTING `SessionRepository.findTransitionProbe` (reuse, no FOR UPDATE on reads): `null` probe → `null`; caller is neither `teacherId` nor `studentId` → `null` (parents/admins/foreigners all collapse, REQ-017/030); participant → `ReportRepository.findBySessionId(sessionId, tx)`.
     - `getSessionHomework(callerUserId, sessionId, locale, tx?): Promise<HomeWorkReturnType | null>` — same gate; then `HomeWorkRepository.findBySessionId`.
