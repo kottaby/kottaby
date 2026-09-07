@@ -41,7 +41,7 @@
 
 ### 0.1 Record Error Baseline & Initialize Deferred-Items Ledger
 
-- [ ] 0.1 Record the pre-implementation error baseline and initialize the ledger
+- [x] 0.1 Record the pre-implementation error baseline and initialize the ledger
   - Run `bun x tsgo --noEmit` (or the repo's typecheck script), `bun run biome:check`, and the lint-service check; record exact error/warning counts per tool in `ai/plans/sprint_3/dev1-015-student-confirmation-of-parent-link/outcome/0.1-outcome.md`.
   - Create `ai/plans/sprint_3/dev1-015-student-confirmation-of-parent-link/deferred-items.md` from `.agents/spec-process-guide/templates/deferred-items-template.md` (empty body, headers intact).
   - Verify the `outcome/` directory exists; create it if not.
@@ -49,7 +49,7 @@
 
 ### 0.2 Verification-First Substrate Inventory (MANDATORY GATE)
 
-- [ ] 0.2 Verify the complete DEV1-014 substrate against bundled code and produce the Reuse/Create classification table
+- [x] 0.2 Verify the complete DEV1-014 substrate against bundled code and produce the Reuse/Create classification table
   - Verify by locating (path + exported symbol) — NOT by docs prose:
     1. `ParentLinkRequestService.respondToLinkRequest` and `listMyIncoming` in `backend/services/parents/parent-link-request.service.ts`
     2. `classifyUnclaimableRequest`, `raiseUnclaimableDenial`, `requireActor` in `backend/services/parents/parent-link-request.helpers.ts` — record the EXACT typed-denial vocabulary (codes + error classes + constructor shapes) found; this freezes REQ-041
