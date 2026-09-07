@@ -5,7 +5,7 @@ import {
   decodeUrlSegment,
   POSTGRES_PROTOCOLS,
   REDACTED_DSN,
-  rawDsnHasFragment,
+  rawDsnHasAmbiguousAuthority,
   redactDsn,
   resolveEnvFilePath,
   scrubDsnSecrets,
@@ -26,28 +26,40 @@ describe("shared URL helpers", () => {
   });
 });
 
-describe("rawDsnHasFragment", () => {
+describe("rawDsnHasAmbiguousAuthority", () => {
   it("refuses a raw # in the authority span (pathed, pathless, and mid-span ?)", () => {
-    expect(rawDsnHasFragment("postgresql://ops_owner#k:pw@host.example:5432/app_db")).toBe(true);
-    expect(rawDsnHasFragment("postgresql://db#x")).toBe(true);
-    expect(rawDsnHasFragment("postgresql://host.example?user=a@b#f")).toBe(true);
+    expect(rawDsnHasAmbiguousAuthority("postgresql://ops_owner#k:pw@host.example:5432/app_db")).toBe(true);
+    expect(rawDsnHasAmbiguousAuthority("postgresql://db#x")).toBe(true);
+    expect(rawDsnHasAmbiguousAuthority("postgresql://host.example?user=a@b#f")).toBe(true);
+  });
+
+  it("refuses a raw ? inside the authority span — WHATWG ends it, libpq scans on", () => {
+    // Live-proven R11 shape: WHATWG parses host `postgres` (empty path →
+    // the `(default)` label) while libpq scans the authority to the `/`
+    // and dumps the named database as role `postgres?k`.
+    expect(rawDsnHasAmbiguousAuthority("postgresql://postgres?k@127.0.0.1:5432/app_db")).toBe(true);
+    // Pathless with a later `@`: the span never ends at the `?` for libpq
+    // (it would swallow the `@` into the userinfo), so the ambiguity stands.
+    expect(rawDsnHasAmbiguousAuthority("postgresql://host.example?user=a@b")).toBe(true);
   });
 
   it("refuses a raw # in the raw path span", () => {
-    expect(rawDsnHasFragment("postgresql://u:p@host.example:5432/pt9b#k")).toBe(true);
-    expect(rawDsnHasFragment("postgresql://u:p@host.example:5432/pt9b#k?x=1")).toBe(true);
+    expect(rawDsnHasAmbiguousAuthority("postgresql://u:p@host.example:5432/pt9b#k")).toBe(true);
+    expect(rawDsnHasAmbiguousAuthority("postgresql://u:p@host.example:5432/pt9b#k?x=1")).toBe(true);
   });
 
   it("refuses a raw # in the raw query string", () => {
-    expect(rawDsnHasFragment("postgresql://u:p@host.example:5432/?dbname=app_db#k")).toBe(true);
-    expect(rawDsnHasFragment("postgresql://host.example:5432?dbname=app_db#k")).toBe(true);
+    expect(rawDsnHasAmbiguousAuthority("postgresql://u:p@host.example:5432/?dbname=app_db#k")).toBe(true);
+    expect(rawDsnHasAmbiguousAuthority("postgresql://host.example:5432?dbname=app_db#k")).toBe(true);
   });
 
-  it("allows percent-encoded fragments and benign DSNs", () => {
-    expect(rawDsnHasFragment("postgresql://u:p@host.example:5432/app%23db")).toBe(false);
-    expect(rawDsnHasFragment("postgresql://u:p@host.example:5432/?dbname=app%23db")).toBe(false);
-    expect(rawDsnHasFragment("postgresql://host.example:5432?sslmode=disable")).toBe(false);
-    expect(rawDsnHasFragment("postgresql://u:p@host.example:5432/app_db?sslmode=require")).toBe(false);
+  it("allows percent-encoded fragments, pathless queries, and benign DSNs", () => {
+    expect(rawDsnHasAmbiguousAuthority("postgresql://u:p@host.example:5432/app%23db")).toBe(false);
+    expect(rawDsnHasAmbiguousAuthority("postgresql://u:p@host.example:5432/?dbname=app%23db")).toBe(false);
+    // Pathless with no later `@`: the `?` is the query delimiter both
+    // parsers agree on (the guard's pathless refinement) — not ambiguous.
+    expect(rawDsnHasAmbiguousAuthority("postgresql://host.example:5432?sslmode=disable")).toBe(false);
+    expect(rawDsnHasAmbiguousAuthority("postgresql://u:p@host.example:5432/app_db?sslmode=require")).toBe(false);
   });
 });
 

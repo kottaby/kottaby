@@ -101,6 +101,8 @@ let encodedFragmentEnvFile = "";
 let rawFragmentQueryEnvFile = "";
 let rawFragmentAuthorityEnvFile = "";
 let encodedFragmentQueryEnvFile = "";
+let rawQuestionAuthorityEnvFile = "";
+let dblessEnvFile = "";
 const missingEnvFile = (): string => relative(process.cwd(), join(workspace, ".env-backup-missing"));
 const ORIGINAL_DATABASE_URL = process.env.DATABASE_URL;
 
@@ -229,6 +231,17 @@ beforeAll(() => {
   encodedFragmentQueryEnvFile = writeEnvFile(
     ".env-backup-encoded-fragment-query",
     'DATABASE_URL="postgresql://ops_owner:supersecret-pw@db.internal.example:5432/?dbname=app%23db"\n'
+  );
+  // The R11 live-proven authority-`?` shape (WHATWG ends the authority at
+  // the `?`, libpq scans to the `/`) and the db-less DSN the unnamed-source
+  // gate refuses.
+  rawQuestionAuthorityEnvFile = writeEnvFile(
+    ".env-backup-raw-question-authority",
+    "DATABASE_URL=postgresql://ops_owner?k:supersecret-pw@db.internal.example:5432/app_db\n"
+  );
+  dblessEnvFile = writeEnvFile(
+    ".env-backup-dbless",
+    "DATABASE_URL=postgresql://ops_owner:supersecret-pw@db.internal.example:5432\n"
   );
 });
 
@@ -1216,7 +1229,9 @@ describe("runBackup — failure boundaries", () => {
     // database) while the WHATWG manifest label ends the path at the `#` —
     // the bootstrap refuses the DSN before anything runs (fail closed).
     expect(run.code).toBe(2);
-    expect(run.errors).toContain("[env] source DSN contains a fragment character — percent-encode it");
+    expect(run.errors).toContain(
+      "[env] source DSN has an unassessable authority or fragment character — percent-encode special characters"
+    );
     expect(run.calls).toEqual([]);
     // Refused in the bootstrap path: the out-dir is never created — no
     // staging, no dump artifact, no manifest, no lock file.
@@ -1233,7 +1248,9 @@ describe("runBackup — failure boundaries", () => {
     // the literal `app_db#k` database) while the WHATWG query value — the
     // manifest's override channel — ends at the `#` and records `app_db`.
     expect(run.code).toBe(2);
-    expect(run.errors).toContain("[env] source DSN contains a fragment character — percent-encode it");
+    expect(run.errors).toContain(
+      "[env] source DSN has an unassessable authority or fragment character — percent-encode special characters"
+    );
     expect(run.calls).toEqual([]);
     expect(existsSync(outDir)).toBe(false);
   });
@@ -1249,7 +1266,44 @@ describe("runBackup — failure boundaries", () => {
     // WHATWG parser ends the authority at the `#` — the empty path label
     // would render the `(default)` marker in the manifest.
     expect(run.code).toBe(2);
-    expect(run.errors).toContain("[env] source DSN contains a fragment character — percent-encode it");
+    expect(run.errors).toContain(
+      "[env] source DSN has an unassessable authority or fragment character — percent-encode special characters"
+    );
+    expect(run.calls).toEqual([]);
+    expect(existsSync(outDir)).toBe(false);
+  });
+
+  it("refuses a raw ? in the authority span with exit 2 and zero side effects", async () => {
+    const outDir = join(workspace, "run-raw-question-authority");
+    const run = await runBackupWith(probeAndDumpBehavior(dumpWritesArtifact), {
+      envFile: rawQuestionAuthorityEnvFile,
+      outDir,
+    });
+    // The live-proven R11 shape: WHATWG ends the authority at the `?`
+    // (host `ops_owner`, empty path — the `(default)` manifest label)
+    // while libpq scans the authority to the `/` and dumps the named
+    // database as role `ops_owner?k` — unassessable, refused fail-closed.
+    expect(run.code).toBe(2);
+    expect(run.errors).toContain(
+      "[env] source DSN has an unassessable authority or fragment character — percent-encode special characters"
+    );
+    expect(run.calls).toEqual([]);
+    expect(existsSync(outDir)).toBe(false);
+  });
+
+  it("refuses a db-less source DSN with exit 2 and zero side effects", async () => {
+    const outDir = join(workspace, "run-dbless-source");
+    const run = await runBackupWith(probeAndDumpBehavior(dumpWritesArtifact), {
+      envFile: dblessEnvFile,
+      outDir,
+    });
+    // No path database and no `?dbname=` query: the ambient libpq
+    // environment (PGDATABASE) would complete the endpoint, so the dump's
+    // provenance is unverifiable and the manifest would carry the
+    // `(default)` marker — the backup-side mirror of the restore-side
+    // unnamed-target rule.
+    expect(run.code).toBe(2);
+    expect(run.errors).toContain("[env] source database name is unspecified — name the database explicitly");
     expect(run.calls).toEqual([]);
     expect(existsSync(outDir)).toBe(false);
   });

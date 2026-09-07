@@ -171,19 +171,22 @@ export function parsePostgresDatabaseUrl(value: string | undefined): URL | null 
 }
 
 /**
- * Whether a literal `#` (fragment character) sits in ANY of the three raw
- * spans of a DSN string where libpq reads THROUGH it while every
- * WHATWG-derived view ends that span at the `#` — the backup-side mirror
- * of the restore guard's three raw-# channels in `restore-guard-url.ts`:
+ * Whether ANY of the three raw spans of a DSN string is unassessable — a
+ * delimiter libpq reads one way while every WHATWG-derived view reads it
+ * another — the backup-side mirror of the restore guard's raw-authority
+ * and raw-# channels in `restore-guard-url.ts`:
  *
  *  1. the RAW AUTHORITY SPAN — after `//` up to the first `/` of the raw
  *     string (with the guard's pathless refinement: on a pathless URI a
  *     first `?` followed by no later `@` is the query delimiter both
- *     parsers agree on, so the span ends there). libpq scans the authority
- *     to that `/` and splits userinfo at the last `@` inside the span,
- *     while WHATWG ends the authority at the first `?`/`#` —
- *     `…//ops_owner#k:pw@host/db` dumps as role `ops_owner#k` while the
- *     WHATWG view parses host `ops_owner`;
+ *     parsers agree on, so the span ends there). A raw `?` OR `#` inside
+ *     the span is UNASSESSABLE: libpq scans the authority to that `/` and
+ *     splits userinfo at the last `@` inside it, while WHATWG ends the
+ *     authority at the first `?`/`#` — `…//postgres?k@host:5432/db` dumps
+ *     as role `postgres?k` at `host:5432` while the WHATWG view parses
+ *     host `postgres` (live-proven R11 shape: manifest `(default)` while
+ *     dumping a named database); `…//ops_owner#k:pw@host/db` dumps as
+ *     role `ops_owner#k` while the WHATWG view parses host `ops_owner`;
  *  2. the RAW PATH SPAN — from the first `/` to the first `?`. libpq has
  *     no fragment delimiter and reads the raw path as the LITERAL database
  *     name (`…/pt9b#k`), while the WHATWG pathname ends at the `#`;
@@ -200,7 +203,7 @@ export function parsePostgresDatabaseUrl(value: string | undefined): URL | null 
  * above are untouched: refusal upstream (backup bootstrap / restore guard)
  * prevents the divergence they cannot see.
  */
-export function rawDsnHasFragment(trimmedDsn: string): boolean {
+export function rawDsnHasAmbiguousAuthority(trimmedDsn: string): boolean {
   const schemeEnd = trimmedDsn.indexOf("://");
   const authorityStart = schemeEnd < 0 ? 0 : schemeEnd + 3;
   const slashAt = trimmedDsn.indexOf("/", authorityStart);
@@ -213,7 +216,8 @@ export function rawDsnHasFragment(trimmedDsn: string): boolean {
   } else if (questionAt >= 0 && trimmedDsn.indexOf("@", questionAt) < 0) {
     authorityEnd = questionAt;
   }
-  if (trimmedDsn.slice(authorityStart, authorityEnd).includes("#")) {
+  const authoritySpan = trimmedDsn.slice(authorityStart, authorityEnd);
+  if (authoritySpan.includes("?") || authoritySpan.includes("#")) {
     return true;
   }
   // Channel 2 — raw path span (`assessRawUriPath` mirror): first `/` to
@@ -251,8 +255,10 @@ export function rawDsnHasFragment(trimmedDsn: string): boolean {
  * so a raw-fragment or dot-segment path would mislabel here; the restore
  * guard refuses such targets upstream before any run (fail closed), so a
  * restore label can never diverge from the database libpq restores into.
+ * The backup bootstrap treats an EMPTY effective name as an unspecified
+ * source database and refuses it (the unnamed-source gate).
  */
-function effectiveDatabaseName(url: URL): string {
+export function effectiveDatabaseName(url: URL): string {
   let queryDatabase: string | undefined;
   for (const pair of url.search.replace(/^\?/, "").split("&")) {
     if (pair.length === 0) {
