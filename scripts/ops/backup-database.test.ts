@@ -1,0 +1,1134 @@
+import { afterAll, beforeAll, describe, expect, it } from "bun:test";
+import { createHash } from "node:crypto";
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  statSync,
+  utimesSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join, relative } from "node:path";
+import { DEFAULT_ENV_FILE } from "@/scripts/dbActions/envFile";
+import { redactDsn, scrubDsnSecrets } from "@/scripts/ops/_shared";
+import {
+  ARTIFACT_FILE_NAME,
+  type BackupManifest,
+  buildBackupManifest,
+  computeJournalHash,
+  createStagingDir,
+  isLikelyNonDisposable,
+  listLeftoverStagingDirs,
+  MANIFEST_FILE_NAME,
+  manifestProblems,
+  nextAvailableRunDirName,
+  STAGING_DIR_PREFIX,
+  sha256File,
+  utcStamp,
+  writeManifestFile,
+} from "@/scripts/ops/backup-artifacts";
+import { buildUsageText, parseBackupArgs } from "@/scripts/ops/backup-cli";
+import { databaseNameFromDsn, parsePostgresDatabaseUrl, runBackup } from "@/scripts/ops/backup-database";
+import { acquireRunLock, isPidAlive, lockFilePath, releaseRunLock, scanRunLocks } from "@/scripts/ops/backup-lock";
+import {
+  buildChildEnv,
+  probeToolchain,
+  runPgDump,
+  type SpawnResult,
+  type SpawnRunner,
+  stderrTail,
+} from "@/scripts/ops/backup-toolchain";
+
+/**
+ * Unit tests for the database backup script. No real database and no real
+ * pg_dump: external processes are driven through the injected SpawnRunner
+ * seam, the clock/pid/liveness collaborators are faked, and all filesystem
+ * side effects are confined to a per-run temporary workspace inside the
+ * current working directory (env-file paths must resolve relative to it).
+ */
+
+const FIXTURE_DSN = "postgresql://ops_owner:supersecret-pw@db.internal.example:5432/ops_db?sslmode=require";
+const FIXTURE_PASSWORD = "supersecret-pw";
+const FIXTURE_USER = "ops_owner";
+const REDACTED_FIXTURE = "ops_db@db.internal.example:5432(redacted-user)";
+const FIXED_NOW = new Date("2024-03-05T06:17:08.000Z");
+const STAMP = "20240305T061708Z";
+const FAKE_PID = 424242;
+const PG_DUMP_VERSION = "pg_dump (PostgreSQL) 16.4";
+const SERVER_VERSION_OUT = "16.4\n";
+const DUMP_CONTENT = "kottaby-pgdump-fixture-".repeat(40);
+
+interface SpawnCall {
+  argv: string[];
+  env: Record<string, string>;
+}
+
+type SpawnBehavior = (argv: readonly string[]) => SpawnResult | Promise<SpawnResult>;
+
+interface RunOutcome {
+  code: number;
+  logs: string[];
+  errors: string[];
+  calls: SpawnCall[];
+  all: string;
+}
+
+interface BackupRunScenario {
+  envFile: string;
+  outDir: string;
+  repoRoot?: string;
+  now?: () => Date;
+  isAlive?: (pid: number) => boolean;
+  pid?: number;
+}
+
+let workspace = "";
+let goodEnvFile = "";
+let sqliteEnvFile = "";
+let placeholderEnvFile = "";
+const missingEnvFile = (): string => relative(process.cwd(), join(workspace, ".env-backup-missing"));
+const ORIGINAL_DATABASE_URL = process.env.DATABASE_URL;
+
+function writeEnvFile(name: string, body: string): string {
+  const absolutePath = join(workspace, name);
+  writeFileSync(absolutePath, body);
+  return relative(process.cwd(), absolutePath);
+}
+
+function fakeSpawn(behavior: SpawnBehavior, calls: SpawnCall[]): SpawnRunner {
+  return async (argv, opts) => {
+    calls.push({ argv: [...argv], env: { ...opts.env } });
+    return await behavior(argv);
+  };
+}
+
+/** Probe responses for pg_dump --version / psql, then the caller's dump behavior. */
+function probeAndDumpBehavior(dump: (artifactPath: string) => SpawnResult | Promise<SpawnResult>): SpawnBehavior {
+  return argv => {
+    if (argv[0] === "pg_dump" && argv[1] === "--version") {
+      return { exitCode: 0, stdout: PG_DUMP_VERSION, stderr: "" };
+    }
+    if (argv[0] === "psql") {
+      return { exitCode: 0, stdout: SERVER_VERSION_OUT, stderr: "" };
+    }
+    return dump(argv[4]);
+  };
+}
+
+function dumpWritesArtifact(artifactPath: string): SpawnResult {
+  writeFileSync(artifactPath, DUMP_CONTENT);
+  return { exitCode: 0, stdout: "", stderr: "" };
+}
+
+async function runBackupWith(behavior: SpawnBehavior, scenario: BackupRunScenario): Promise<RunOutcome> {
+  const logs: string[] = [];
+  const errors: string[] = [];
+  const calls: SpawnCall[] = [];
+  const code = await runBackup({
+    envFile: scenario.envFile,
+    outDir: scenario.outDir,
+    deps: {
+      spawn: fakeSpawn(behavior, calls),
+      now: scenario.now ?? (() => FIXED_NOW),
+      pid: scenario.pid ?? FAKE_PID,
+      repoRoot: scenario.repoRoot ?? workspace,
+      emit: { log: line => logs.push(line), error: line => errors.push(line) },
+      isAlive: scenario.isAlive ?? (() => false),
+    },
+  });
+  return { code, logs, errors, calls, all: [...logs, ...errors].join("\n") };
+}
+
+function lockFileNames(outDir: string): string[] {
+  return readdirSync(outDir).filter(name => name.startsWith(".lock-"));
+}
+
+function expectNoCredentials(text: string): void {
+  expect(text).not.toContain(FIXTURE_PASSWORD);
+  expect(text).not.toContain(FIXTURE_USER);
+  expect(text).not.toContain("postgresql://");
+}
+
+function validManifestInput(): Omit<BackupManifest, "tool"> {
+  return {
+    toolVersion: "1.0.0",
+    postgresServerVersion: "16.4",
+    pgDumpVersion: PG_DUMP_VERSION,
+    database: "ops_db",
+    startedAtUtc: "2024-03-05T06:17:08.000Z",
+    finishedAtUtc: "2024-03-05T06:27:08.000Z",
+    artifactFile: ARTIFACT_FILE_NAME,
+    artifactBytes: 1024,
+    sha256: "a".repeat(64),
+    journalHash: "b".repeat(64),
+  };
+}
+
+function buildJournalTree(dir: string, initSql: string, journalJson: string): void {
+  mkdirSync(join(dir, "meta"), { recursive: true });
+  writeFileSync(join(dir, "0000_init.sql"), initSql);
+  writeFileSync(join(dir, "meta", "_journal.json"), journalJson);
+}
+
+beforeAll(() => {
+  workspace = mkdtempSync(join(process.cwd(), ".tmp-backup-test-"));
+  buildJournalTree(join(workspace, "backend", "drizzle"), "CREATE TABLE probe (id integer);\n", '{"entries":[]}\n');
+  goodEnvFile = writeEnvFile(".env-backup-good", `DATABASE_URL=${FIXTURE_DSN}\n`);
+  sqliteEnvFile = writeEnvFile(".env-backup-sqlite", "DATABASE_URL=file:./dev.db\n");
+  placeholderEnvFile = writeEnvFile(
+    ".env-backup-placeholder",
+    "DATABASE_URL=postgresql://<user>:<password>@localhost/kottaby\n"
+  );
+});
+
+afterAll(() => {
+  rmSync(workspace, { recursive: true, force: true });
+  if (ORIGINAL_DATABASE_URL === undefined) {
+    delete process.env.DATABASE_URL;
+  } else {
+    process.env.DATABASE_URL = ORIGINAL_DATABASE_URL;
+  }
+});
+
+describe("parseBackupArgs", () => {
+  it("defaults to the standard env file and no out-dir on empty argv", () => {
+    expect(parseBackupArgs([])).toEqual({ kind: "ok", envFile: DEFAULT_ENV_FILE });
+  });
+
+  it("parses --env and --out-dir in any order", () => {
+    expect(parseBackupArgs(["--env", "a.env", "--out-dir", "dumps"])).toEqual({
+      kind: "ok",
+      envFile: "a.env",
+      outDir: "dumps",
+    });
+    expect(parseBackupArgs(["--out-dir", "dumps", "--env", "a.env"])).toEqual({
+      kind: "ok",
+      envFile: "a.env",
+      outDir: "dumps",
+    });
+    expect(parseBackupArgs(["--out-dir", "dumps"])).toEqual({
+      kind: "ok",
+      envFile: DEFAULT_ENV_FILE,
+      outDir: "dumps",
+    });
+  });
+
+  it("treats --help and -h as help requests even among other flags", () => {
+    expect(parseBackupArgs(["--help"])).toEqual({ kind: "help" });
+    expect(parseBackupArgs(["-h"])).toEqual({ kind: "help" });
+    expect(parseBackupArgs(["--env", "a.env", "--help"])).toEqual({ kind: "help" });
+  });
+
+  it("rejects unknown flags with a usage-class error", () => {
+    expect(parseBackupArgs(["--bogus"])).toEqual({ kind: "error", message: 'unknown argument "--bogus"' });
+    expect(parseBackupArgs(["--env", "a.env", "stray"])).toEqual({
+      kind: "error",
+      message: 'unknown argument "stray"',
+    });
+  });
+
+  it("rejects missing, flag-like, and empty values", () => {
+    expect(parseBackupArgs(["--env"])).toEqual({
+      kind: "error",
+      message: "--env requires a value argument (got none)",
+    });
+    expect(parseBackupArgs(["--out-dir"])).toEqual({
+      kind: "error",
+      message: "--out-dir requires a value argument (got none)",
+    });
+    expect(parseBackupArgs(["--env", "--out-dir"])).toEqual({
+      kind: "error",
+      message: '--env requires a value argument (got "--out-dir")',
+    });
+    expect(parseBackupArgs(["--env", ""])).toEqual({
+      kind: "error",
+      message: '--env requires a value argument (got "")',
+    });
+  });
+
+  it("rejects repeated flags", () => {
+    expect(parseBackupArgs(["--env", "a.env", "--env", "b.env"])).toEqual({
+      kind: "error",
+      message: "--env was given more than once",
+    });
+    expect(parseBackupArgs(["--out-dir", "/a", "--out-dir", "/b"])).toEqual({
+      kind: "error",
+      message: "--out-dir was given more than once",
+    });
+  });
+
+  it("documents the flags and the exit-code contract in the usage text", () => {
+    const usage = buildUsageText();
+    expect(usage).toContain("--env");
+    expect(usage).toContain("--out-dir");
+    expect(usage).toContain("--help");
+    expect(usage).toContain("0  backup published");
+    expect(usage).toContain("1  operational failure");
+    expect(usage).toContain("2  usage, environment, toolchain, lock-contention");
+  });
+});
+
+describe("parsePostgresDatabaseUrl", () => {
+  it("accepts postgres DSNs with a hostname", () => {
+    const parsed = parsePostgresDatabaseUrl(FIXTURE_DSN);
+    expect(parsed?.protocol).toBe("postgresql:");
+    expect(parsed?.hostname).toBe("db.internal.example");
+    expect(parsed?.port).toBe("5432");
+    expect(parsed?.username).toBe("ops_owner");
+    expect(parsed?.password).toBe(FIXTURE_PASSWORD);
+    expect(parsePostgresDatabaseUrl("postgres://u:p@h.example/db")).not.toBeNull();
+    expect(parsePostgresDatabaseUrl("  postgresql://h.example/db  ")?.hostname).toBe("h.example");
+  });
+
+  it("rejects empty, placeholder, non-Postgres, hostless, and SQLite values", () => {
+    for (const bad of [
+      undefined,
+      "",
+      "   ",
+      "postgresql://<user>:<password>@localhost/kottaby",
+      "mysql://u:p@h.example/db",
+      "file:./dev.db",
+      "postgresql:///db",
+      "totally-not-a-url",
+    ]) {
+      expect(parsePostgresDatabaseUrl(bad)).toBeNull();
+    }
+  });
+});
+
+describe("databaseNameFromDsn", () => {
+  it("uses the path, then the username, then a fixed fallback", () => {
+    expect(databaseNameFromDsn(new URL("postgresql://u:p@h.example/db"))).toBe("db");
+    expect(databaseNameFromDsn(new URL("postgresql://u:p@h.example/my%20db"))).toBe("my db");
+    expect(databaseNameFromDsn(new URL("postgresql://fallback@h.example"))).toBe("fallback");
+    expect(databaseNameFromDsn(new URL("postgresql://h.example"))).toBe("(default)");
+  });
+});
+
+describe("utcStamp", () => {
+  it("formats UTC calendar fields with zero padding", () => {
+    expect(utcStamp(FIXED_NOW)).toBe(STAMP);
+    expect(utcStamp(new Date(Date.UTC(2024, 0, 1, 0, 0, 0)))).toBe("20240101T000000Z");
+    expect(utcStamp(new Date("2024-11-09T09:05:03.000Z"))).toBe("20241109T090503Z");
+  });
+
+  it("handles year, leap-day, and offset boundaries", () => {
+    expect(utcStamp(new Date("1999-12-31T23:59:59.000Z"))).toBe("19991231T235959Z");
+    expect(utcStamp(new Date("2024-02-29T23:59:59.000Z"))).toBe("20240229T235959Z");
+    expect(utcStamp(new Date("2024-03-05T06:17:08+05:30"))).toBe("20240305T004708Z");
+  });
+});
+
+describe("run lock lifecycle", () => {
+  it("acquires a fresh lock, writes an ISO stamp at 0600, and releases it", () => {
+    const outDir = join(workspace, "lock-empty");
+    mkdirSync(outDir, { recursive: true });
+    expect(scanRunLocks(outDir, FAKE_PID, () => true)).toEqual({
+      reclaimedPids: [],
+      reclaimedPaths: [],
+      liveHolderPids: [],
+    });
+    const acquired = acquireRunLock(outDir, FAKE_PID, () => true);
+    expect(acquired).toEqual({
+      ok: true,
+      lockPath: lockFilePath(outDir, FAKE_PID),
+      reclaimedPids: [],
+      reclaimedPaths: [],
+    });
+    const raw = readFileSync(lockFilePath(outDir, FAKE_PID), "utf8").trim();
+    expect(new Date(raw).toISOString()).toBe(raw);
+    expect(statSync(lockFilePath(outDir, FAKE_PID)).mode & 0o777).toBe(0o600);
+    releaseRunLock(outDir, FAKE_PID);
+    expect(existsSync(lockFilePath(outDir, FAKE_PID))).toBe(false);
+  });
+
+  it("refuses a live lock and never steals it", () => {
+    const outDir = join(workspace, "lock-live");
+    mkdirSync(outDir, { recursive: true });
+    writeFileSync(lockFilePath(outDir, 777), "held\n");
+    expect(acquireRunLock(outDir, FAKE_PID, pid => pid === 777)).toEqual({ ok: false, holderPid: 777 });
+    expect(existsSync(lockFilePath(outDir, 777))).toBe(true);
+  });
+
+  it("reclaims a stale lock from a dead pid", () => {
+    const outDir = join(workspace, "lock-stale");
+    mkdirSync(outDir, { recursive: true });
+    writeFileSync(lockFilePath(outDir, 999), "dead\n");
+    const acquired = acquireRunLock(outDir, FAKE_PID, () => false);
+    expect(acquired.ok).toBe(true);
+    expect(acquired.ok ? acquired.reclaimedPids : []).toEqual([999]);
+    expect(existsSync(lockFilePath(outDir, 999))).toBe(false);
+    expect(existsSync(lockFilePath(outDir, FAKE_PID))).toBe(true);
+  });
+
+  it("reclaims malformed lock file names", () => {
+    const outDir = join(workspace, "lock-malformed");
+    mkdirSync(outDir, { recursive: true });
+    const malformed = [".lock-", ".lock-0", ".lock-007", ".lock-abc"];
+    for (const name of malformed) {
+      writeFileSync(join(outDir, name), "junk\n");
+    }
+    const acquired = acquireRunLock(outDir, FAKE_PID, () => true);
+    expect(acquired.ok).toBe(true);
+    expect(acquired.ok ? acquired.reclaimedPaths.toSorted((a, b) => a.localeCompare(b)) : []).toEqual(
+      malformed.toSorted((a, b) => a.localeCompare(b))
+    );
+    for (const name of malformed) {
+      expect(existsSync(join(outDir, name))).toBe(false);
+    }
+  });
+
+  it("treats a fresh self-pid lock as live and an aged one as stale", () => {
+    const outDir = join(workspace, "lock-self");
+    mkdirSync(outDir, { recursive: true });
+    const selfLock = lockFilePath(outDir, FAKE_PID);
+    writeFileSync(selfLock, "self\n");
+    expect(scanRunLocks(outDir, FAKE_PID, () => true)).toEqual({
+      reclaimedPids: [],
+      reclaimedPaths: [],
+      liveHolderPids: [FAKE_PID],
+    });
+    expect(acquireRunLock(outDir, FAKE_PID, () => true)).toEqual({ ok: false, holderPid: FAKE_PID });
+    const aged = new Date(Date.now() - 120_000);
+    utimesSync(selfLock, aged, aged);
+    expect(scanRunLocks(outDir, FAKE_PID, () => true)).toEqual({
+      reclaimedPids: [FAKE_PID],
+      reclaimedPaths: [],
+      liveHolderPids: [],
+    });
+    expect(acquireRunLock(outDir, FAKE_PID, () => true).ok).toBe(true);
+  });
+
+  it("classifies live vs dead holder pids in a mixed directory", () => {
+    const outDir = join(workspace, "lock-mixed");
+    mkdirSync(outDir, { recursive: true });
+    writeFileSync(lockFilePath(outDir, 111), "live\n");
+    writeFileSync(lockFilePath(outDir, 222), "dead\n");
+    expect(scanRunLocks(outDir, FAKE_PID, pid => pid === 111)).toEqual({
+      reclaimedPids: [222],
+      reclaimedPaths: [],
+      liveHolderPids: [111],
+    });
+  });
+
+  it("reports pid liveness fail-closed and tolerates releasing a missing lock", () => {
+    expect(isPidAlive(process.pid)).toBe(true);
+    expect(isPidAlive(-1)).toBe(false);
+    expect(isPidAlive(Number.NaN)).toBe(false);
+    expect(isPidAlive(999_999_999)).toBe(false);
+    expect(() => releaseRunLock(join(workspace, "never-created"), FAKE_PID)).not.toThrow();
+  });
+});
+
+describe("backup manifest contract", () => {
+  it("builds a manifest stamped with the backup tool identity", () => {
+    expect(buildBackupManifest(validManifestInput())).toEqual({ tool: "ops:db-backup", ...validManifestInput() });
+    expect(manifestProblems(buildBackupManifest(validManifestInput()))).toEqual([]);
+  });
+
+  it("rejects non-object manifests", () => {
+    expect(manifestProblems(null)).toEqual(["manifest is not an object"]);
+    expect(manifestProblems(42)).toEqual(["manifest is not an object"]);
+    expect(manifestProblems("nope")).toEqual(["manifest is not an object"]);
+    expect(manifestProblems([])).toContain("field tool must be a non-empty string");
+  });
+
+  it("requires every string field to be a non-empty string", () => {
+    const stringFields = [
+      "toolVersion",
+      "postgresServerVersion",
+      "pgDumpVersion",
+      "database",
+      "startedAtUtc",
+      "finishedAtUtc",
+      "artifactFile",
+      "sha256",
+      "journalHash",
+    ] as const;
+    for (const field of stringFields) {
+      for (const bad of [undefined, "", 42, null]) {
+        const problems = manifestProblems({ ...validManifestInput(), [field]: bad });
+        expect(problems).toContain(`field ${field} must be a non-empty string`);
+      }
+    }
+  });
+
+  it("pins the tool discriminator value", () => {
+    expect(manifestProblems({ ...validManifestInput(), tool: "ops:db-restore" })).toContain(
+      'field tool must be "ops:db-backup"'
+    );
+    const missingTool = manifestProblems({ ...validManifestInput(), tool: undefined });
+    expect(missingTool).toContain("field tool must be a non-empty string");
+    expect(missingTool).not.toContain('field tool must be "ops:db-backup"');
+  });
+
+  it("requires a positive integer artifactBytes", () => {
+    for (const bad of [0, -1, 1.5, "1024", null, undefined, Number.NaN]) {
+      expect(manifestProblems({ ...validManifestInput(), artifactBytes: bad })).toContain(
+        "field artifactBytes must be a positive integer"
+      );
+    }
+  });
+
+  it("requires 64 lowercase hex hashes and parseable timestamps", () => {
+    for (const field of ["sha256", "journalHash"] as const) {
+      for (const bad of ["A".repeat(64), "a".repeat(63), "g".repeat(64)]) {
+        expect(manifestProblems({ ...validManifestInput(), [field]: bad })).toContain(
+          `field ${field} must be 64 lowercase hex characters`
+        );
+      }
+    }
+    expect(manifestProblems({ ...validManifestInput(), startedAtUtc: "not-a-date" })).toContain(
+      "field startedAtUtc must be a parseable timestamp"
+    );
+    expect(manifestProblems({ ...validManifestInput(), finishedAtUtc: "absolutely-not-a-timestamp" })).toContain(
+      "field finishedAtUtc must be a parseable timestamp"
+    );
+    expect(manifestProblems({ ...validManifestInput(), startedAtUtc: "2024-03-05T06:17:08Z" })).not.toContain(
+      "field startedAtUtc must be a parseable timestamp"
+    );
+  });
+});
+
+describe("hashing and artifact helpers", () => {
+  it("hashes file contents identically to node crypto", async () => {
+    const filePath = join(workspace, "sha-fixture.bin");
+    writeFileSync(filePath, DUMP_CONTENT);
+    expect(await sha256File(filePath)).toBe(createHash("sha256").update(DUMP_CONTENT).digest("hex"));
+    writeFileSync(filePath, "");
+    expect(await sha256File(filePath)).toBe(createHash("sha256").update("").digest("hex"));
+  });
+
+  it("fingerprints the journal deterministically and reacts to content changes", () => {
+    const dirA = join(workspace, "journal-a");
+    const dirB = join(workspace, "journal-b");
+    buildJournalTree(dirA, "CREATE TABLE a (id integer);", '{"entries":[]}\n');
+    buildJournalTree(dirB, "CREATE TABLE a (id integer);", '{"entries":[]}\n');
+    const hashA = computeJournalHash(dirA);
+    expect(hashA).toBe(computeJournalHash(dirA));
+    expect(hashA).toBe(computeJournalHash(dirB));
+    writeFileSync(join(dirB, "meta", "_journal.json"), '{"entries":[{"tag":"0001"}]}\n');
+    expect(computeJournalHash(dirB)).not.toBe(hashA);
+  });
+
+  it("throws when the journal directory is missing", () => {
+    expect(() => computeJournalHash(join(workspace, "journal-missing"))).toThrow(
+      "migration journal directory not found"
+    );
+  });
+
+  it("suffixes run-directory collisions deterministically", () => {
+    const outDir = join(workspace, "suffixes");
+    mkdirSync(outDir, { recursive: true });
+    expect(nextAvailableRunDirName(outDir, "run")).toBe("run");
+    mkdirSync(join(outDir, "run"));
+    expect(nextAvailableRunDirName(outDir, "run")).toBe("run-2");
+    mkdirSync(join(outDir, "run-2"));
+    expect(nextAvailableRunDirName(outDir, "run")).toBe("run-3");
+  });
+
+  it("lists leftover staging directories in sorted order", () => {
+    const outDir = join(workspace, "leftovers");
+    mkdirSync(join(outDir, `${STAGING_DIR_PREFIX}2-a`), { recursive: true });
+    mkdirSync(join(outDir, `${STAGING_DIR_PREFIX}1-b`), { recursive: true });
+    mkdirSync(join(outDir, "20240101T000000Z_FAILED"), { recursive: true });
+    mkdirSync(join(outDir, "unrelated"), { recursive: true });
+    expect(listLeftoverStagingDirs(outDir)).toEqual([`${STAGING_DIR_PREFIX}1-b`, `${STAGING_DIR_PREFIX}2-a`]);
+  });
+
+  it("creates a 0700 staging directory with a pre-created empty 0600 artifact", () => {
+    const outDir = join(workspace, "staging");
+    mkdirSync(outDir, { recursive: true });
+    const stagingDir = createStagingDir(outDir, FAKE_PID, STAMP);
+    expect(stagingDir).toBe(join(outDir, `${STAGING_DIR_PREFIX}${FAKE_PID}-${STAMP}`));
+    expect(statSync(stagingDir).mode & 0o777).toBe(0o700);
+    const artifactPath = join(stagingDir, ARTIFACT_FILE_NAME);
+    expect(statSync(artifactPath).size).toBe(0);
+    expect(statSync(artifactPath).mode & 0o777).toBe(0o600);
+    expect(createStagingDir(outDir, FAKE_PID, STAMP).endsWith(`-${STAMP}-2`)).toBe(true);
+  });
+
+  it("writes the manifest at 0600 as parseable JSON with a trailing newline", () => {
+    const stagingDir = join(workspace, "manifest-write");
+    mkdirSync(stagingDir, { recursive: true });
+    const manifest = buildBackupManifest(validManifestInput());
+    const manifestPath = writeManifestFile(stagingDir, manifest);
+    expect(manifestPath).toBe(join(stagingDir, MANIFEST_FILE_NAME));
+    expect(statSync(manifestPath).mode & 0o777).toBe(0o600);
+    const raw = readFileSync(manifestPath, "utf8");
+    expect(raw.endsWith("\n")).toBe(true);
+    expect(JSON.parse(raw)).toEqual(manifest);
+    expect(manifestProblems(JSON.parse(raw))).toEqual([]);
+  });
+
+  it("flags output directories outside the repo or at the repo root", () => {
+    expect(isLikelyNonDisposable(workspace, workspace)).toBe(true);
+    expect(isLikelyNonDisposable(join(workspace, "backups"), workspace)).toBe(false);
+    expect(isLikelyNonDisposable(join(workspace, "..", "elsewhere"), workspace)).toBe(true);
+  });
+});
+
+describe("credential redaction for backup flows", () => {
+  it("renders the fixture DSN in the operator-facing summary shape", () => {
+    expect(redactDsn(FIXTURE_DSN)).toBe(REDACTED_FIXTURE);
+    expect(redactDsn("")).toBe("redacted-dsn");
+    expect(redactDsn("   ")).toBe("redacted-dsn");
+  });
+
+  it("scrubs a credential-bearing pg_dump failure tail", () => {
+    const tail = `pg_dump: error: connection to server failed: ${FIXTURE_DSN}\nFATAL: password authentication failed for user "${FIXTURE_USER}"`;
+    const scrubbed = scrubDsnSecrets(tail, FIXTURE_DSN);
+    expect(scrubbed).toContain(REDACTED_FIXTURE);
+    expect(scrubbed).toContain("***");
+    expect(scrubbed).not.toContain(FIXTURE_PASSWORD);
+    expect(scrubbed).not.toContain(FIXTURE_USER);
+    expect(scrubbed).not.toContain("postgresql://");
+  });
+
+  it("sweeps foreign-DSN userinfo from tool output even without a known DSN", () => {
+    expect(scrubDsnSecrets("echo: postgresql://stranger:hunter2@elsewhere.example/db")).toBe(
+      "echo: postgresql://***:***@elsewhere.example/db"
+    );
+  });
+});
+
+describe("buildChildEnv and stderrTail", () => {
+  it("forwards only the libpq allowlist and never the parent env", () => {
+    const env = buildChildEnv({
+      PATH: "/usr/bin:/bin",
+      HOME: "/home/op",
+      LANG: "C.UTF-8",
+      PGPASSWORD: "pw",
+      PGPASSFILE: "/pgpass",
+      PGSSLMODE: "require",
+      PGSSLROOTCERT: "/ca.pem",
+      PGCONNECT_TIMEOUT: "10",
+      PGSERVICE: "svc",
+      PGSERVICEFILE: "/pgsvc",
+      PGAPPNAME: "ops-backup",
+      DATABASE_URL: FIXTURE_DSN,
+      AWS_SECRET_ACCESS_KEY: "nope",
+      SHELL: "/bin/sh",
+    });
+    expect(env).toEqual({
+      PATH: "/usr/bin:/bin",
+      HOME: "/home/op",
+      LANG: "C.UTF-8",
+      PGPASSWORD: "pw",
+      PGPASSFILE: "/pgpass",
+      PGSSLMODE: "require",
+      PGSSLROOTCERT: "/ca.pem",
+      PGCONNECT_TIMEOUT: "10",
+      PGSERVICE: "svc",
+      PGSERVICEFILE: "/pgsvc",
+      PGAPPNAME: "ops-backup",
+    });
+    expect("DATABASE_URL" in buildChildEnv({ DATABASE_URL: FIXTURE_DSN })).toBe(false);
+    expect(buildChildEnv({ PATH: "/bin", PGPASSWORD: undefined })).toEqual({ PATH: "/bin" });
+  });
+
+  it("keeps the last non-empty lines and reports when nothing was captured", () => {
+    expect(stderrTail("a\nb\n\nc  \n")).toBe("a\nb\nc");
+    expect(stderrTail("l1\nl2\nl3", 2)).toBe("l2\nl3");
+    expect(stderrTail("a\nb", 2)).toBe("a\nb");
+    expect(stderrTail("")).toBe("(no stderr captured)");
+    expect(stderrTail("\n\n   \n")).toBe("(no stderr captured)");
+  });
+});
+
+/** Version-probe behavior: fixed pg_dump version output, then a fixed psql outcome. */
+function versionBehavior(dumpVersion: string, serverOut: string | Error): SpawnBehavior {
+  return argv => {
+    if (argv[0] === "pg_dump" && argv[1] === "--version") {
+      return { exitCode: 0, stdout: dumpVersion, stderr: "" };
+    }
+    if (typeof serverOut === "string") {
+      return { exitCode: 0, stdout: serverOut, stderr: "" };
+    }
+    throw serverOut;
+  };
+}
+
+describe("probeToolchain", () => {
+  async function probeWith(behavior: SpawnBehavior) {
+    return probeToolchain(fakeSpawn(behavior, []), FIXTURE_DSN, { PATH: "/usr/bin" });
+  }
+
+  it("passes when the client major is not older than the server major", async () => {
+    expect(await probeWith(probeAndDumpBehavior(() => ({ exitCode: 0, stdout: "", stderr: "" })))).toEqual({
+      ok: true,
+      pgDumpVersion: PG_DUMP_VERSION,
+      postgresServerVersion: "16.4",
+    });
+  });
+
+  it("fails closed when pg_dump cannot be spawned", async () => {
+    const probe = await probeWith(() => {
+      throw new Error("spawn pg_dump ENOENT");
+    });
+    expect(probe.ok).toBe(false);
+    expect(probe.ok ? "" : probe.message).toContain("pg_dump was not found on PATH.");
+  });
+
+  it("fails when pg_dump or psql exit non-zero and scrubs psql stderr", async () => {
+    const dumpFailure = await probeWith(argv =>
+      argv[0] === "pg_dump"
+        ? { exitCode: 3, stdout: "", stderr: "boom" }
+        : { exitCode: 0, stdout: SERVER_VERSION_OUT, stderr: "" }
+    );
+    expect(dumpFailure.ok ? "" : dumpFailure.message).toContain(
+      "pg_dump is not usable (pg_dump --version exited with code 3)."
+    );
+
+    const serverFailure = await probeWith(probeAndDumpBehavior(() => ({ exitCode: 0, stdout: "", stderr: "" })));
+    expect(serverFailure.ok).toBe(true);
+
+    const psqlFailure = await probeWith(argv =>
+      argv[0] === "psql"
+        ? { exitCode: 1, stdout: "", stderr: `connection failed: ${FIXTURE_DSN} password ${FIXTURE_PASSWORD}` }
+        : { exitCode: 0, stdout: PG_DUMP_VERSION, stderr: "" }
+    );
+    const psqlMessage = psqlFailure.ok ? "" : psqlFailure.message;
+    expect(psqlMessage).toContain("could not query the server version (psql exited with code 1)");
+    expect(psqlMessage).toContain(REDACTED_FIXTURE);
+    expect(psqlMessage).not.toContain(FIXTURE_PASSWORD);
+  });
+
+  it("fails on missing output, unparseable versions, and an older client major", async () => {
+    const noDumpVersion = await probeWith(versionBehavior("", SERVER_VERSION_OUT));
+    expect(noDumpVersion.ok ? "" : noDumpVersion.message).toContain("pg_dump --version produced no output.");
+
+    const garbageClient = await probeWith(versionBehavior("??", SERVER_VERSION_OUT));
+    expect(garbageClient.ok ? "" : garbageClient.message).toContain('could not parse the pg_dump version from "??"');
+
+    const missingPsql = await probeWith(versionBehavior(PG_DUMP_VERSION, new Error("spawn psql ENOENT")));
+    expect(missingPsql.ok ? "" : missingPsql.message).toContain("psql was not found on PATH.");
+
+    const garbageServer = await probeWith(versionBehavior(PG_DUMP_VERSION, "??\n"));
+    expect(garbageServer.ok ? "" : garbageServer.message).toContain('could not parse the server version from "??"');
+
+    const oldClient = await probeWith(versionBehavior("pg_dump (PostgreSQL) 14.11\n", SERVER_VERSION_OUT));
+    expect(oldClient.ok ? "" : oldClient.message).toContain("pg_dump major 14 is older than the server major 16");
+  });
+
+  it("points operators at the recovery runbook in every failure message", async () => {
+    const probe = await probeWith(() => {
+      throw new Error("spawn pg_dump ENOENT");
+    });
+    expect(probe.ok ? "" : probe.message).toContain("docs/ops/disaster-recovery.md");
+  });
+});
+
+describe("runPgDump", () => {
+  const dumpDir = join(workspace, "dump-tests");
+  const artifactPath = join(dumpDir, ARTIFACT_FILE_NAME);
+
+  it("succeeds for a non-empty artifact and enforces 0600", async () => {
+    mkdirSync(dumpDir, { recursive: true });
+    writeFileSync(artifactPath, DUMP_CONTENT);
+    chmodSync(artifactPath, 0o644);
+    const runner = fakeSpawn(() => ({ exitCode: 0, stdout: "", stderr: "" }), []);
+    const result = await runPgDump(runner, { PATH: "/bin" }, artifactPath, FIXTURE_DSN);
+    expect(result).toEqual({ ok: true, artifactBytes: Buffer.byteLength(DUMP_CONTENT) });
+    expect(statSync(artifactPath).mode & 0o777).toBe(0o600);
+  });
+
+  it("fails for a zero-byte artifact even when pg_dump exits 0", async () => {
+    writeFileSync(artifactPath, "");
+    const runner = fakeSpawn(() => ({ exitCode: 0, stdout: "", stderr: "" }), []);
+    const result = await runPgDump(runner, { PATH: "/bin" }, artifactPath, FIXTURE_DSN);
+    expect(result.ok).toBe(false);
+    expect(result.ok ? "" : result.message).toContain("the artifact is 0 bytes");
+  });
+
+  it("fails when the artifact file is missing", async () => {
+    const result = await runPgDump(
+      fakeSpawn(() => ({ exitCode: 0, stdout: "", stderr: "" }), []),
+      { PATH: "/bin" },
+      join(dumpDir, "gone.pgc"),
+      FIXTURE_DSN
+    );
+    expect(result.ok).toBe(false);
+    expect(result.ok ? "" : result.message).toContain("the artifact file is missing");
+  });
+
+  it("reports non-zero exits with a credential-scrubbed stderr tail", async () => {
+    const stderr = `pg_dump: error: connection failed\nretry hint: ${FIXTURE_DSN}\npassword ${FIXTURE_PASSWORD} rejected`;
+    const result = await runPgDump(
+      fakeSpawn(() => ({ exitCode: 2, stdout: "", stderr }), []),
+      { PATH: "/bin" },
+      artifactPath,
+      FIXTURE_DSN
+    );
+    expect(result.ok).toBe(false);
+    const message = result.ok ? "" : result.message;
+    expect(message).toContain("pg_dump exited with code 2");
+    expect(message).toContain(REDACTED_FIXTURE);
+    expect(message).not.toContain(FIXTURE_PASSWORD);
+  });
+
+  it("reports spawn failures without leaking the DSN", async () => {
+    const result = await runPgDump(
+      fakeSpawn(() => {
+        throw new Error("spawn pg_dump ENOENT");
+      }, []),
+      { PATH: "/bin" },
+      artifactPath,
+      FIXTURE_DSN
+    );
+    expect(result.ok).toBe(false);
+    expect(result.ok ? "" : result.message).toContain("could not run pg_dump");
+  });
+});
+
+describe("runBackup — success boundary", () => {
+  it("publishes the run directory with a verifiable manifest and releases the lock", async () => {
+    const outDir = join(workspace, "run-success");
+    const run = await runBackupWith(probeAndDumpBehavior(dumpWritesArtifact), { envFile: goodEnvFile, outDir });
+    expect(run.code).toBe(0);
+
+    const runDir = join(outDir, STAMP);
+    expect(existsSync(runDir)).toBe(true);
+    const artifactPath = join(runDir, ARTIFACT_FILE_NAME);
+    const manifestPath = join(runDir, MANIFEST_FILE_NAME);
+    expect(statSync(artifactPath).size).toBe(Buffer.byteLength(DUMP_CONTENT));
+    expect(statSync(artifactPath).mode & 0o777).toBe(0o600);
+    expect(statSync(manifestPath).mode & 0o777).toBe(0o600);
+    expect(statSync(runDir).mode & 0o777).toBe(0o700);
+
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as unknown;
+    expect(manifestProblems(manifest)).toEqual([]);
+    expect(manifest).toEqual({
+      tool: "ops:db-backup",
+      toolVersion: "1.0.0",
+      postgresServerVersion: "16.4",
+      pgDumpVersion: PG_DUMP_VERSION,
+      database: "ops_db",
+      startedAtUtc: FIXED_NOW.toISOString(),
+      finishedAtUtc: FIXED_NOW.toISOString(),
+      artifactFile: ARTIFACT_FILE_NAME,
+      artifactBytes: Buffer.byteLength(DUMP_CONTENT),
+      sha256: createHash("sha256").update(DUMP_CONTENT).digest("hex"),
+      journalHash: computeJournalHash(join(workspace, "backend", "drizzle")),
+    });
+    expect(lockFileNames(outDir)).toEqual([]);
+    expect(run.logs.some(line => line.includes("toolchain ok"))).toBe(true);
+    expect(run.logs.some(line => line.includes(`backup complete: ${runDir}`))).toBe(true);
+    expect(run.logs.some(line => line.includes(`backing up ${REDACTED_FIXTURE}`))).toBe(true);
+  });
+
+  it("spawns exactly the probe and dump processes as argv arrays with an allowlisted env", async () => {
+    const outDir = join(workspace, "run-spawn-contract");
+    const run = await runBackupWith(probeAndDumpBehavior(dumpWritesArtifact), { envFile: goodEnvFile, outDir });
+    expect(run.code).toBe(0);
+    expect(run.calls).toHaveLength(3);
+    expect(run.calls[0]?.argv).toEqual(["pg_dump", "--version"]);
+    expect(run.calls[1]?.argv.at(-1)).toBe(FIXTURE_DSN);
+    expect(run.calls[1]?.argv).toContain("--no-password");
+    expect(run.calls[2]?.argv[0]).toBe("pg_dump");
+    expect(run.calls[2]?.argv).toContain("--format=custom");
+    expect(run.calls[2]?.argv).toContain("--no-password");
+    expect(run.calls[2]?.argv.at(-1)).toBe(FIXTURE_DSN);
+    for (const call of run.calls) {
+      expect(Array.isArray(call.argv)).toBe(true);
+      for (const arg of call.argv) {
+        expect(typeof arg).toBe("string");
+        expect(arg).not.toContain(" && ");
+      }
+      expect(typeof call.env).toBe("object");
+      expect("DATABASE_URL" in call.env).toBe(false);
+      expect(Object.keys(call.env)).toContain("PATH");
+      for (const value of Object.values(call.env)) {
+        expect(value).not.toContain(FIXTURE_PASSWORD);
+      }
+    }
+  });
+
+  it("suffixes same-second publish collisions deterministically", async () => {
+    const outDir = join(workspace, "run-collision");
+    mkdirSync(join(outDir, STAMP), { recursive: true });
+    const first = await runBackupWith(probeAndDumpBehavior(dumpWritesArtifact), { envFile: goodEnvFile, outDir });
+    expect(first.code).toBe(0);
+    expect(existsSync(join(outDir, `${STAMP}-2`))).toBe(true);
+    const second = await runBackupWith(probeAndDumpBehavior(dumpWritesArtifact), { envFile: goodEnvFile, outDir });
+    expect(second.code).toBe(0);
+    expect(existsSync(join(outDir, `${STAMP}-3`))).toBe(true);
+    expect(manifestProblems(JSON.parse(readFileSync(join(outDir, `${STAMP}-3`, MANIFEST_FILE_NAME), "utf8")))).toEqual(
+      []
+    );
+  });
+
+  it("warns about a non-disposable out-dir yet still succeeds", async () => {
+    const outDir = mkdtempSync(join(tmpdir(), "kottaby-backup-outside-"));
+    try {
+      const run = await runBackupWith(probeAndDumpBehavior(dumpWritesArtifact), { envFile: goodEnvFile, outDir });
+      expect(run.code).toBe(0);
+      expect(run.errors.some(line => line.includes("outside the repository"))).toBe(true);
+    } finally {
+      rmSync(outDir, { recursive: true, force: true });
+    }
+  });
+
+  it("warns about leftover staging directories from crashed runs", async () => {
+    const outDir = join(workspace, "run-leftover");
+    mkdirSync(join(outDir, `${STAGING_DIR_PREFIX}999-old`), { recursive: true });
+    const run = await runBackupWith(probeAndDumpBehavior(dumpWritesArtifact), { envFile: goodEnvFile, outDir });
+    expect(run.code).toBe(0);
+    expect(
+      run.errors.some(
+        line => line.includes("leftover staging directory") && line.includes(`${STAGING_DIR_PREFIX}999-old`)
+      )
+    ).toBe(true);
+  });
+});
+
+describe("runBackup — failure boundaries", () => {
+  it("fails a zero-byte artifact with exit 1 and retains a _FAILED staging directory", async () => {
+    const outDir = join(workspace, "run-zero-byte");
+    const run = await runBackupWith(
+      probeAndDumpBehavior(() => ({ exitCode: 0, stdout: "", stderr: "" })),
+      { envFile: goodEnvFile, outDir }
+    );
+    expect(run.code).toBe(1);
+    expect(run.errors.some(line => line.startsWith("[pg_dump]") && line.includes("0 bytes"))).toBe(true);
+    const failedDir = join(outDir, `${STAMP}_FAILED`);
+    expect(existsSync(failedDir)).toBe(true);
+    expect(statSync(join(failedDir, ARTIFACT_FILE_NAME)).size).toBe(0);
+    expect(existsSync(join(failedDir, MANIFEST_FILE_NAME))).toBe(false);
+    expect(existsSync(join(outDir, STAMP))).toBe(false);
+    expect(lockFileNames(outDir)).toEqual([]);
+    expectNoCredentials(run.all);
+  });
+
+  it("exits 2 when the env file is missing", async () => {
+    const run = await runBackupWith(probeAndDumpBehavior(dumpWritesArtifact), {
+      envFile: missingEnvFile(),
+      outDir: join(workspace, "run-no-env"),
+    });
+    expect(run.code).toBe(2);
+    expect(run.errors.some(line => line.startsWith("[env]") && line.includes("env bootstrap failed"))).toBe(true);
+  });
+
+  it("exits 2 when the env file carries a placeholder DATABASE_URL", async () => {
+    const run = await runBackupWith(probeAndDumpBehavior(dumpWritesArtifact), {
+      envFile: placeholderEnvFile,
+      outDir: join(workspace, "run-placeholder"),
+    });
+    expect(run.code).toBe(2);
+    expect(
+      run.errors.some(line => line.startsWith("[env]") && line.includes("does not contain a valid DATABASE_URL"))
+    ).toBe(true);
+  });
+
+  it("exits 2 when no DATABASE_URL survives env bootstrap", async () => {
+    const sqliteOnlyEnvFile = writeEnvFile(".env-backup-no-dsn", "DB_PROVIDER=sqlite\nDB_FILE_NAME=file:./dev.db\n");
+    delete process.env.DATABASE_URL;
+    const run = await runBackupWith(probeAndDumpBehavior(dumpWritesArtifact), {
+      envFile: sqliteOnlyEnvFile,
+      outDir: join(workspace, "run-no-dsn"),
+    });
+    expect(run.code).toBe(2);
+    expect(run.errors.some(line => line.includes("DATABASE_URL is missing or invalid after loading"))).toBe(true);
+  });
+
+  it("exits 2 for a SQLite target with the dialect guidance", async () => {
+    const run = await runBackupWith(probeAndDumpBehavior(dumpWritesArtifact), {
+      envFile: sqliteEnvFile,
+      outDir: join(workspace, "run-sqlite"),
+    });
+    expect(run.code).toBe(2);
+    expect(
+      run.errors.some(line => line.includes("must be a postgresql:// connection string") && line.includes("SQLite"))
+    ).toBe(true);
+  });
+
+  it("exits 2 when a live lock is held and never steals it", async () => {
+    const outDir = join(workspace, "run-lock-refused");
+    mkdirSync(outDir, { recursive: true });
+    writeFileSync(lockFilePath(outDir, 777), "held\n");
+    const run = await runBackupWith(probeAndDumpBehavior(dumpWritesArtifact), {
+      envFile: goodEnvFile,
+      outDir,
+      isAlive: pid => pid === 777,
+    });
+    expect(run.code).toBe(2);
+    expect(run.errors.some(line => line.includes("another backup holds the run lock (pid 777)"))).toBe(true);
+    expect(existsSync(lockFilePath(outDir, 777))).toBe(true);
+    expect(readdirSync(outDir).filter(name => name.startsWith(STAMP))).toEqual([]);
+  });
+
+  it("exits 2 when the output directory cannot be created", async () => {
+    const blocker = join(workspace, "blocker-file");
+    writeFileSync(blocker, "in the way\n");
+    const run = await runBackupWith(probeAndDumpBehavior(dumpWritesArtifact), {
+      envFile: goodEnvFile,
+      outDir: join(blocker, "backups"),
+    });
+    expect(run.code).toBe(2);
+    expect(run.errors.some(line => line.includes("cannot create the output directory"))).toBe(true);
+  });
+
+  it("exits 2 when the migration journal cannot be fingerprinted", async () => {
+    const run = await runBackupWith(probeAndDumpBehavior(dumpWritesArtifact), {
+      envFile: goodEnvFile,
+      outDir: join(workspace, "run-no-journal"),
+      repoRoot: join(workspace, "root-without-journal"),
+    });
+    expect(run.code).toBe(2);
+    expect(run.errors.some(line => line.includes("cannot fingerprint the migration journal"))).toBe(true);
+    expect(existsSync(join(workspace, "run-no-journal", `${STAMP}_FAILED`))).toBe(true);
+    expect(lockFileNames(join(workspace, "run-no-journal"))).toEqual([]);
+  });
+
+  it("exits 2 when pg_dump is missing from the toolchain", async () => {
+    const run = await runBackupWith(
+      () => {
+        throw new Error("spawn pg_dump ENOENT");
+      },
+      { envFile: goodEnvFile, outDir: join(workspace, "run-no-toolchain") }
+    );
+    expect(run.code).toBe(2);
+    expect(run.errors.some(line => line.includes("pg_dump was not found on PATH."))).toBe(true);
+    expect(run.calls).toHaveLength(1);
+  });
+
+  it("exits 1 with an unexpected-failure report when the clock breaks mid-run", async () => {
+    const outDir = join(workspace, "run-clock-chaos");
+    let ticks = 0;
+    const run = await runBackupWith(probeAndDumpBehavior(dumpWritesArtifact), {
+      envFile: goodEnvFile,
+      outDir,
+      now: () => {
+        ticks += 1;
+        if (ticks === 2) {
+          throw new Error("clock exploded");
+        }
+        return FIXED_NOW;
+      },
+    });
+    expect(run.code).toBe(1);
+    expect(
+      run.errors.some(line => line.startsWith("[backup] unexpected failure") && line.includes("clock exploded"))
+    ).toBe(true);
+    expect(existsSync(join(outDir, `${STAMP}_FAILED`))).toBe(true);
+    expect(lockFileNames(outDir)).toEqual([]);
+  });
+});
+
+describe("runBackup — chaos", () => {
+  it("retains a _FAILED directory and scrubs stderr when pg_dump dies with 137", async () => {
+    const outDir = join(workspace, "run-crash-137");
+    const garbageLines = Array.from(
+      { length: 35 },
+      (_, index) => `pg_dump: garbage line ${String(index + 1).padStart(2, "0")}`
+    );
+    garbageLines[29] = `pg_dump: error: connection to server failed: ${FIXTURE_DSN}`;
+    garbageLines[30] = `FATAL: password authentication failed for user "${FIXTURE_USER}"`;
+    garbageLines[31] = `hint: the password ${FIXTURE_PASSWORD} was rejected`;
+    const run = await runBackupWith(
+      probeAndDumpBehavior(() => ({ exitCode: 137, stdout: "", stderr: garbageLines.join("\n") })),
+      {
+        envFile: goodEnvFile,
+        outDir,
+      }
+    );
+    expect(run.code).toBe(1);
+    expect(run.errors.some(line => line.startsWith("[pg_dump]") && line.includes("exited with code 137"))).toBe(true);
+    expect(run.all).toContain(REDACTED_FIXTURE);
+    expect(run.all).toContain("garbage line 35");
+    expect(run.all).not.toContain("garbage line 15");
+    expectNoCredentials(run.all);
+    const failedDir = join(outDir, `${STAMP}_FAILED`);
+    expect(existsSync(failedDir)).toBe(true);
+    expect(existsSync(join(failedDir, MANIFEST_FILE_NAME))).toBe(false);
+    expect(lockFileNames(outDir)).toEqual([]);
+  });
+
+  it("lets exactly one concurrent invocation win and refuses the rest via the lock", async () => {
+    const outDir = join(workspace, "run-concurrent");
+    const settled = await Promise.allSettled(
+      Array.from({ length: 4 }, () =>
+        runBackupWith(probeAndDumpBehavior(dumpWritesArtifact), { envFile: goodEnvFile, outDir })
+      )
+    );
+    for (const result of settled) {
+      expect(result.status).toBe("fulfilled");
+    }
+    const codes = settled
+      .map(result => (result.status === "fulfilled" ? result.value.code : -1))
+      .toSorted((a, b) => a - b);
+    expect(codes).toEqual([0, 2, 2, 2]);
+    const losers = settled.flatMap(result =>
+      result.status === "fulfilled" && result.value.code === 2 ? [result.value] : []
+    );
+    expect(losers).toHaveLength(3);
+    for (const loser of losers) {
+      expect(loser.all).toContain("another backup holds the run lock");
+      expectNoCredentials(loser.all);
+    }
+    expect(readdirSync(outDir).filter(name => name.startsWith(STAMP))).toEqual([STAMP]);
+    expect(lockFileNames(outDir)).toEqual([]);
+  });
+
+  it("fails in a controlled way when the out-dir is replaced by a file mid-run", async () => {
+    const outDir = join(workspace, "run-vaporized");
+    const salvagedStaging = join(workspace, "salvaged-staging");
+    const behavior: SpawnBehavior = argv => {
+      if (argv[0] === "pg_dump" && argv[1] === "--version") {
+        return { exitCode: 0, stdout: PG_DUMP_VERSION, stderr: "" };
+      }
+      if (argv[0] === "psql") {
+        return { exitCode: 0, stdout: SERVER_VERSION_OUT, stderr: "" };
+      }
+      writeFileSync(argv[4], DUMP_CONTENT);
+      renameSync(dirname(argv[4]), salvagedStaging);
+      rmSync(outDir, { recursive: true, force: true });
+      writeFileSync(outDir, "not a directory anymore\n");
+      return { exitCode: 0, stdout: "", stderr: "" };
+    };
+    const run = await runBackupWith(behavior, { envFile: goodEnvFile, outDir });
+    expect(run.code).toBe(1);
+    expect(run.errors.some(line => line.startsWith("[backup]"))).toBe(true);
+    expectNoCredentials(run.all);
+  });
+});
+
+describe("runBackup — security", () => {
+  it("leaks no credentials anywhere on the success path", async () => {
+    const outDir = join(workspace, "sec-success");
+    const run = await runBackupWith(probeAndDumpBehavior(dumpWritesArtifact), { envFile: goodEnvFile, outDir });
+    expect(run.code).toBe(0);
+    expectNoCredentials(run.all);
+    const manifestRaw = readFileSync(join(outDir, STAMP, MANIFEST_FILE_NAME), "utf8");
+    expect(manifestRaw).not.toContain(FIXTURE_PASSWORD);
+    expect(manifestRaw).not.toContain(FIXTURE_USER);
+    expect(manifestRaw).not.toContain(FIXTURE_DSN);
+    expect(statSync(join(outDir, STAMP, ARTIFACT_FILE_NAME)).mode & 0o777).toBe(0o600);
+    expect(statSync(join(outDir, STAMP, MANIFEST_FILE_NAME)).mode & 0o777).toBe(0o600);
+    expect(lockFileNames(outDir)).toEqual([]);
+  });
+
+  it("leaks no credentials on the failure path and releases the _FAILED run lock", async () => {
+    const outDir = join(workspace, "sec-failure");
+    const stderr = `pg_dump: last words: ${FIXTURE_DSN}\npg_dump: password was ${FIXTURE_PASSWORD}\npg_dump: role ${FIXTURE_USER} denied`;
+    const run = await runBackupWith(
+      probeAndDumpBehavior(() => ({ exitCode: 1, stdout: "", stderr })),
+      {
+        envFile: goodEnvFile,
+        outDir,
+      }
+    );
+    expect(run.code).toBe(1);
+    expectNoCredentials(run.all);
+    expect(run.all).toContain(REDACTED_FIXTURE);
+    expect(run.all).toContain("***");
+    expect(existsSync(join(outDir, `${STAMP}_FAILED`))).toBe(true);
+    expect(lockFileNames(outDir)).toEqual([]);
+  });
+});

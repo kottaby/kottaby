@@ -62,7 +62,7 @@ Sequence: QL → TE → SEC → SR → IV → `[x]`.
 
 ## Phase 2 — Backup Script (CREATE `scripts/ops/backup-database.ts`)
 
-- [ ] 2.1 **Implement `backup-database.ts`** per plan §Component-1: arg parser (`--env`, `--out-dir`, `--help`), env bootstrap reuse, toolchain probe, lockfile with stale-PID reclamation, `pg_dump -Fc` into `tmp-<pid>-<ts>/`, sha256 + journal hash, `manifest.json` (0600), atomic rename to `backups/<UTC>/`, redacted stdout summary, `_FAILED` marker on failure, exit codes 0/1/2.
+- [x] 2.1 **Implement `backup-database.ts`** per plan §Component-1: arg parser (`--env`, `--out-dir`, `--help`), env bootstrap reuse, toolchain probe, lockfile with stale-PID reclamation, `pg_dump -Fc` into `tmp-<pid>-<ts>/`, sha256 + journal hash, `manifest.json` (0600), atomic rename to `backups/<UTC>/`, redacted stdout summary, `_FAILED` marker on failure, exit codes 0/1/2.
   - Scope note: single file + (only if justified) `scripts/ops/_shared.ts` for redaction used by both scripts — if created, it gets its own QL/TE cycle before 3.1 consumes it.
   - [ ] 2.1.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts scripts/ops/backup-database.ts --lifecycle duplicates` → exit 0.
   - [ ] 2.1.TE **Test Engineering** — create `scripts/ops/backup-database.test.ts` (colocated; G-07 precedent):
@@ -75,7 +75,7 @@ Sequence: QL → TE → SEC → SR → IV → `[x]`.
   - [ ] 2.1.SR **Semantic Review**: atomic rename happens exactly once; `_FAILED` path releases lock; zero dead branches; no plan-artifact references in comments/JSDoc; no modules imported beyond need; enums (none introduced) — record "no enums" explicitly.
   - [ ] 2.1.IV **Instruction Verification**: read sub-loop-printed files (root AGENTS.md, backend instructions) and validate; confirm `console.*` usage is sanctioned for ops scripts (cite `scripts/ops/sweep-expired-link-requests.ts` precedent in outcome).
   - _Requirements: REQ-010, REQ-011, REQ-012, REQ-013, REQ-014, REQ-024, REQ-026, REQ-027, REQ-030, REQ-033, REQ-040, REQ-042, REQ-050, REQ-051._
-- [ ] 2.2 **Outcome**: `outcome/2.1-backup-script-outcome.md` (findings, deviations, carry-overs for restore script — esp. shared redaction utility decision).
+- [x] 2.2 **Outcome**: `outcome/2.1-backup-script-outcome.md` (findings, deviations, carry-overs for restore script — esp. shared redaction utility decision).
   - _Requirements: REQ-000.4 (outcome ledger); carries the 2.1 redaction-util decision to 3.1._
 
 ## Phase 3 — Restore & Verification Script (CREATE `scripts/ops/restore-verify.ts`)
