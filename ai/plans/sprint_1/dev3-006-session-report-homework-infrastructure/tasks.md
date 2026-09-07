@@ -506,11 +506,11 @@ The ONLY instruction files that exist are `.agents/instructions/frontend.instruc
 
 ## Phase 7: Knowledge Propagation & Documentation
 
-- [ ] 7.1 [Canonical doc: docs/sessions/session-report-homework.md]
+- [x] 7.1 [Canonical doc: docs/sessions/session-report-homework.md]
   - Write the canonical reference in house doc style (Why → Pattern → Rules → What NOT to Do → Rollout Summary → Related Documents) covering: gate invariants (INV-S7 write gate; governance re-check), report+homework co-creation contract (INV-S8), first-vs-subsequent grading ruling (INV-HW3/HW4 + D5 split), one-shot grade guard, one-report-per-session unique arbiter + `SESSION_REPORT_ALREADY_EXISTS`, oracle-collapse reads (D9), notification choreography (REQ-018/019, recipient-locale, publish-after-commit, idempotency key `session:{id}:report`), append-only posture (D10), pure-wallet discipline (INV-S3), and the consumer table (DEV2-014 submit UX, DEV2-015 Surah/Juz UI, DEV1-016/017 parent portal, DEV2-017 rating aggregation, DEV3-012/013 dual-confirmation/escrow, DEV2-019 admin tracking) with "what each may rely on" rows.
   - _Requirements: REQ-070_
 
-- [ ] 7.2 [Session-lifecycle doc amendment + AGENTS.md propagation]
+- [x] 7.2 [Session-lifecycle doc amendment + AGENTS.md propagation]
   - `docs/sessions/session-lifecycle.md` (UPDATE) — §10 consumer table: amend the INV-S7/S8 enforcement note — this surface LANDED in DEV3-006 (remove the "DEV3-005-owned/forward" phrasing; cite `docs/sessions/session-report-homework.md`); amend the report row to "implementation shipped" with the plan-directory citation.
   - AGENTS.md updates (each a minimal, surgical addition; verify file existence before editing):
     - `backend/db/repo/AGENTS.md` — classes repositories: report/home-work repos + `lockForReportGate`/`findReportWaveContextById` additions; one-report/one-homework-per-session constraint names.
@@ -521,7 +521,7 @@ The ONLY instruction files that exist are `.agents/instructions/frontend.instruc
     - Root `AGENTS.md` — Important References one-line pointer to `docs/sessions/session-report-homework.md`.
   - _Requirements: REQ-071, REQ-072_
 
-- [ ] 7.3 [Final outcome synthesis & closure]
+- [x] 7.3 [Final outcome synthesis & closure]
   - Write `ai/plans/sprint_1/dev3-006-session-report-homework-infrastructure/outcome/final-outcome.md`:
     - Executive summary vs specs: every REQ-0xx mapped to {task id → outcome file → verification evidence} in a traceability table (use specs §4 matrix as the skeleton; fill implementation columns).
     - Phase 6 findings resolution record (each finding: fixed-in-task / deferred-with-ledger-row).

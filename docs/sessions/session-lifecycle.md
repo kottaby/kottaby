@@ -63,8 +63,8 @@ A zero-row match is ambiguous (unknown id vs non-owner vs wrong state vs decerti
 | **INV-S4** (both parties NOT NULL) | Schema NOT NULL FKs + creation always writes both from server-side identity/lock. |
 | **INV-S5** (certified at creation) | `SELECT … FOR UPDATE` on the `teacher` row inside the creation tx (§4) — and re-asserted fused into the complete UPDATE (§2.2). |
 | **INV-S6** (in-session `is_online=false`) | **DEV3-005-owned** (with DEV2-011/012) — deferred here (D5; see §8). |
-| **INV-S7** (report only on `completed`) | **DEV3-005-owned** — no report surface exists in this slice. |
-| **INV-S8** (homework gated on report) | **DEV3-005-owned** — same. |
+| **INV-S7** (report only on `completed`) | **Shipped** — `docs/sessions/session-report-homework.md` (write gate + governance re-check + one-report arbiter). |
+| **INV-S8** (homework gated on report) | **Shipped** — same doc (atomic report+homework co-creation). |
 | **INV-B1/B4/B8** | Trial-first guarded ladder; lanes never negative (CHECK + guarded `> 0` predicate); zero-balance block at booking (§5). |
 | **INV-W3/W4** | No wallet/transaction writes — consistent by construction. |
 | **INV-U2/U5** | Governance denial verified at the login/SSR boundary (the GraphQL context is NOT fail-closed) **plus** a service-layer re-check on `createSession`/`startSession`/`completeSession` — `cancelSession` is deliberately EXEMPT (a governed student may still release an in-flight hold; REQ-023 no-punishment clause). Historical rows are never mutated by governance flips. |
@@ -137,8 +137,8 @@ Each of these was found or proven during DEV3-004's review waves; all are load-b
 
 | Ticket | What it must (and must not) do with this slice |
 |---|---|
-| **DEV3-005** (INV-S6/S7/S8 enforcement, status history, dispute surface) | **Extend** the guarded primitives in `SessionRepository` — never duplicate or fork them. Owns: in-session `is_online=false` lock (with DEV2-011/012), report/homework gating, the `disputed` transition (B.18), and persisting the cancel `reason` this slice validates-then-discards. |
-| **DEV3-006** (reports) | INV-S7 gating is DEV3-005's; reports hang off `session_id` (C.4 removed the redundant teacher FK). One recitation per session (C.5) — write it via DEV3-007's surface, never from the lifecycle. |
+| **DEV3-005** (INV-S6 enforcement, status history, dispute surface) | **Extend** the guarded primitives in `SessionRepository` — never duplicate or fork them. Owns: in-session `is_online=false` lock (with DEV2-011/012), the `disputed` transition (B.18), and persisting the cancel `reason` this slice validates-then-discards. (INV-S7/S8 enforcement has since shipped — `docs/sessions/session-report-homework.md`.) |
+| **DEV3-006** (reports) | **Implementation shipped** — `docs/sessions/session-report-homework.md` (plan of record `ai/plans/sprint_1/dev3-006-session-report-homework-infrastructure/`). Reports hang off `session_id` (C.4 removed the redundant teacher FK). One recitation per session (C.5) — write it via DEV3-007's surface, never from the lifecycle. |
 | **DEV3-011** (notifications) | Wire notifications at the document seams WITHOUT making this ticket's flows depend on the notification engine. Zero `notifications` rows are written here (D1) — keep it that way until your ticket owns the emitters. |
 | **DEV3-012** (dual confirmation + 24h auto-cancel sweeper) | Student confirm flips `fee_held=false` and credits the wallet (same tx discipline as §4). The timeout sweeper **reuses this slice's same-lane refund primitive** (read `held_balance_lane` from the row, `incrementLane` the same lane, once). The deadline is never re-armed anywhere — B.2. |
 | **DEV3-013** (wallet credit / finalize) | Consume `fee_held` + `held_balance_lane` EXACTLY as defined (§4). Plan-linked pricing replaces the interim constant fees (`SESSION_FEE_*` in `shared/constants/session-fees.constants.ts` = `"25.00"` decimal strings, EGP) — a recorded forward contract; until then do not add per-plan fee inputs to the wire. |
