@@ -14,3 +14,22 @@
 - **D-04** Real-time admin dashboards over governance surfaces — DEV3 analytics family.
 - **D-05** Meeting-bridge integration for admin `join` (full join access vs observation) — depends on meeting services ticket (BLT-03).
 - **D-01, D-02** reclassified: reused-enumeration & audit-shape decisions now live IN-PLAN (see plan §0/D-07); NOT deferred.
+
+---
+
+## Ledger Table (template alignment — appended by Task 0.2; prose above remains canonical, nothing removed)
+
+> Mirrors the entries above into the `.agents/spec-process-guide/templates/deferred-items-template.md` table structure. This plan's genuinely-deferred work is registered here when discovered mid-task; the in-plan and forward-owned rows below are bookkeeping anchors, NOT open debt.
+
+| ID | Deferred Item | Source Task | Target Task | Status | Verified By | Notes |
+|---|---|---|---|---|---|---|
+| D-01 | Reuse-first enumeration (assertActorAdmin, AuditService.createAuditLog, refundHeldLaneToProvenance, withTransaction, session Pothos objects, barrels) | plan intake (REQ-002) | 0.3 verify-then-claim sweep | 🔄 In Plan | — | Reclassified IN-PLAN (plan §1 D-01/D-07) — owned by Task 0.3 anchors, NOT deferred |
+| D-02 | Pothos registration & audit-shape decisions (one service module, side-effect barrel imports) | plan intake (REQ-060/061) | 3.1 / 4.2 / 4.3 | 🔄 In Plan | — | Reclassified IN-PLAN (plan §1 D-02) — NOT deferred |
+| D-03 | Bespoke rate-limit for admin mutations | specs REQ-033 / plan §6 | forward stream (platform hardening) | ⏭ Forward-owned | — | Intentionally out of ticket scope; never blocks this plan's gate |
+| D-04 | Real-time admin dashboards over governance surfaces | plan intake (specs §1 non-goals) | forward stream (DEV3 analytics family) | ⏭ Forward-owned | — | WebSocket fan-out explicitly non-goal |
+| D-05 | Meeting-bridge integration for admin `join` (full join vs observation) | specs §1 non-goals | forward stream (BLT-03 dependency) | ⏭ Forward-owned | — | No meetingUrl column exists; observation-only per REQ-026 |
+
+### Status conventions (template alignment for this ledger)
+- Template statuses ❌ Blocked / ⚠️ Partial / 🔄 In Progress / ✅ Done apply to items genuinely deferred BETWEEN tasks of this plan (registered in ❌ Blocking debt or added to this table mid-implementation); the completion gate requires ❌/⚠️ item count == 0.
+- `🔄 In Plan` (D-01, D-02) — owned by an in-plan task; resolves when that task completes; excluded from the ❌/⚠️ blocking count.
+- `⏭ Forward-owned` (D-03, D-04, D-05) — intentionally out of ticket scope, tracked by a future stream/ticket; excluded from this plan's completion enforcement.

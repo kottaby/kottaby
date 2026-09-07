@@ -9,10 +9,10 @@
 
 ## Phase 0 — Pre-Implementation Baseline
 
-- [ ] 0.1 Record baseline counts (tsgo/biome/lint/duplicates) in `outcome/0.1-baseline-outcome.md`
-- [ ] 0.2 Initialize `deferred-items.md` from template + register known forward-owed items (D-01..D-05)
-- [ ] 0.3 Verify-then-claim sweep with `path:line` anchors for every reuse target listed in REQ-002 (write table in `outcome/0.2-prerequisites.md`); MISSING ⇒ ❌-defer + stop affected tasks — never patch foreign layers
-- [ ] 0.4 Plan-review gate — run `.agents/skills/plan-review` logic over specs+plan; findings resolved → re-run until clean; record `outcome/0.3-plan-review-outcome.md`
+- [x] 0.1 Record baseline counts (tsgo/biome/lint/duplicates) in `outcome/0.1-baseline-outcome.md`
+- [x] 0.2 Initialize `deferred-items.md` from template + register known forward-owed items (D-01..D-05)
+- [x] 0.3 Verify-then-claim sweep with `path:line` anchors for every reuse target listed in REQ-002 (write table in `outcome/0.2-prerequisites.md`); MISSING ⇒ ❌-defer + stop affected tasks — never patch foreign layers
+- [x] 0.4 Plan-review gate — run `.agents/skills/plan-review` logic over specs+plan; findings resolved → re-run until clean; record `outcome/0.3-plan-review-outcome.md`
 
 ---
 
