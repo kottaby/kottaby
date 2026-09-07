@@ -262,7 +262,7 @@
 
 ## Phase 6: Post-Implementation Review Waves
 
-### - [ ] 6.1 [Parallel review waves + deferred-items check]
+### - [x] 6.1 [Parallel review waves + deferred-items check]
 - **Wave 1 — review-types:** `backend/types/classes/recitation.types.ts` derivation discipline, closed input interface, `.test-d.ts` negatives all invalid-assignment-proof; no service-layer `.types.ts` materialized anywhere.
 - **Wave 2 — review-backend:** repo namespace closure; service pipeline ORDER (guards→governance→tx(resolve→ownership→status→insert)); 23505 cause-chain translation only; single-`withTransaction` tx propagation; zero Notification/Audit imports; collapse-read predicate from DB row; log-hygiene bounded context; governance re-check placement pre-tx.
 - **Wave 3 — review-frontend (documents-scope only):** documents are consumable typed artifacts; barrels correct; NO view/page/nav diff exists; apolloCache untouched; contract tests enforce variable surface.
