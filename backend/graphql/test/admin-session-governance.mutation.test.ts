@@ -43,7 +43,7 @@
  */
 
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { ApolloClient, CombinedGraphQLErrors, gql, HttpLink, InMemoryCache } from "@apollo/client";
+import { ApolloClient, gql, HttpLink, InMemoryCache } from "@apollo/client";
 import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/backend/db";
 import { auditLogs } from "@/backend/db/schema/audit/audit-logs";
@@ -83,7 +83,6 @@ let cast: SessionJourneyCast;
 let admin: ApolloClient;
 let studentA: ApolloClient;
 let teacherT: ApolloClient;
-let teacher2: ApolloClient;
 let applicant: ApolloClient;
 let parent: ApolloClient;
 let adminReplay: ApolloClient; // fixed KEY_CANCEL_REPLAY (cancel + its retry)
@@ -219,7 +218,7 @@ function instantOf(value: unknown, label: string): number {
 /** First finalized error item off a denial result, code-asserted. */
 function firstWireItem(error: unknown, expectedCode: string): Record<string, unknown> {
   const container = expectMutationError(error, expectedCode);
-  const candidate: unknown = recordOf(container, "expected a CombinedGraphQLErrors container").errors[0];
+  const candidate: unknown = container.errors[0];
   return recordOf(candidate, "expected record-shaped finalized error item");
 }
 
@@ -343,11 +342,10 @@ beforeAll(async () => {
   });
 
   // Real access tokens for every actor (same signer the auth layer uses).
-  const [tokenAdmin, tokenStudentA, tokenTeacherT, tokenTeacher2, tokenApplicant, tokenParent] = await Promise.all([
+  const [tokenAdmin, tokenStudentA, tokenTeacherT, tokenApplicant, tokenParent] = await Promise.all([
     tokenFor(cast.admin.userId, cast.admin.user.role),
     tokenFor(cast.primaryStudent.userId, cast.primaryStudent.user.role),
     tokenFor(cast.teacher.userId, cast.teacher.user.role),
-    tokenFor(cast.secondTeacher.userId, cast.secondTeacher.user.role),
     tokenFor(cast.applicant.userId, cast.applicant.user.role),
     tokenFor(cast.parent.userId, cast.parent.user.role),
   ]);
@@ -355,7 +353,6 @@ beforeAll(async () => {
   admin = clientFor(tokenAdmin);
   studentA = clientFor(tokenStudentA);
   teacherT = clientFor(tokenTeacherT);
-  teacher2 = clientFor(tokenTeacher2);
   applicant = clientFor(tokenApplicant);
   parent = clientFor(tokenParent);
   adminReplay = clientFor(tokenAdmin, KEY_CANCEL_REPLAY);
@@ -512,7 +509,7 @@ describe("Tier 4 — anonymous callers: UNAUTHORIZED byte-identical to resolveSe
 // ─── Section 4 — Tier 4: 403 byte-identical per non-admin role ──────────────
 
 describe("Tier 4 — non-admin roles: FORBIDDEN byte-identical to resolveSessionDispute", () => {
-  test.each(NON_ADMIN_ROLES)(
+  test.each([...NON_ADMIN_ROLES])(
     "%s caller gets the SAME localized FORBIDDEN denial on every admin mutation as the reference op",
     async role => {
       const client = roleClients.get(role);
