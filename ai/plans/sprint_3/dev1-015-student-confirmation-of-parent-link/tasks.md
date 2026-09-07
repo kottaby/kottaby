@@ -76,18 +76,18 @@
 
 > **Scope gate (invariant #3-style):** This ticket adds NO columns, NO tables, NO enums, NO migrations. `bun run db push` is a no-op confirmation only; `git diff -- backend/db/schema/** backend/db/migration/**` MUST be empty at Phase 6. Phase 1 covers ONLY the canonical-type verification and the compile-time i18n label additions required by the new dashboard card.
 
-- [ ] 1.1 Pin canonical types (zero additions) and extend the `parentLink` i18n namespace for dashboard-card copy
+- [x] 1.1 Pin canonical types (zero additions) and extend the `parentLink` i18n namespace for dashboard-card copy
   - Confirm (no edits expected): `ParentLinkRequestSelectType`, `IncomingParentLinkRequestReturnType`, `OutgoingParentLinkRequestReturnType` in `backend/types/parents/parent-link-request.types.ts`; `DBTransaction` / `DBQueryExecutor` from `@/backend/types`. Any type gap discovered is a STOP + ledger entry (never a local type).
   - Extend the existing `parentLink` namespace (DO NOT create a new namespace): add dashboard-card keys under the namespace's type surface (`shared/locale/types/parentLink*` per the shape recorded in 0.2) — title, count/plural-safe label(s), "latest requester" line, CTA label, loading/error/retry copy — in BOTH `en` and `ar` sources.
   - Follow the namespace registration checklist in `shared/AGENTS.md` exactly (types → en → ar → export wiring). The namespace handle const (e.g. `ParentLink`) MUST already exist; only label members are added.
   - Run the locale parity suite (en/ar key parity `tsc` + tests) until green.
   - Enum discipline: all enum usages in this ticket (`LinkStatus`, `UserRole`, `NotificationType`) are VALUE imports with enum members — no string literals anywhere.
   - _Requirements: REQ-003, REQ-004, REQ-042, REQ-015 (copy contract)_
-  - [ ] 1.1.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts <each edited locale file> --lifecycle duplicates` — exit code 0 for every edited file.
-  - [ ] 1.1.TE **Test Engineering:** Locale parity suite green (en/ar bijective keys); a key-access compile check proves every new label resolves through the `Translations` tree (no orphan keys). Tier 1/2: parity of added keys only; Tier 3/4: N/A (pure data).
-  - [ ] 1.1.SEC **Security & Tenancy Audit:** No user data embedded in labels; placeholders use ICU args (no template concatenation of names beside localized chrome without `isolateBidi`); no disclosure-bearing copy (card shows parent FULL name — sanctioned; verify copy phrases never leak student identifiers to parents).
-  - [ ] 1.1.SR **Semantic Review:** No duplicate keys anywhere in the tree; flat `ErrorsLabels`-style conventions respected; no `next-intl` imports; zero dead keys.
-  - [ ] 1.1.IV **Instruction Verification:** Validate against `shared/AGENTS.md` namespace checklist (only instruction corpus applicable here; the ONLY instruction files in repo are `.agents/instructions/{frontend,backend,tests}.instructions.md`).
+  - [x] 1.1.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts <each edited locale file> --lifecycle duplicates` — exit code 0 for every edited file.
+  - [x] 1.1.TE **Test Engineering:** Locale parity suite green (en/ar bijective keys); a key-access compile check proves every new label resolves through the `Translations` tree (no orphan keys). Tier 1/2: parity of added keys only; Tier 3/4: N/A (pure data).
+  - [x] 1.1.SEC **Security & Tenancy Audit:** No user data embedded in labels; placeholders use ICU args (no template concatenation of names beside localized chrome without `isolateBidi`); no disclosure-bearing copy (card shows parent FULL name — sanctioned; verify copy phrases never leak student identifiers to parents).
+  - [x] 1.1.SR **Semantic Review:** No duplicate keys anywhere in the tree; flat `ErrorsLabels`-style conventions respected; no `next-intl` imports; zero dead keys.
+  - [x] 1.1.IV **Instruction Verification:** Validate against `shared/AGENTS.md` namespace checklist (only instruction corpus applicable here; the ONLY instruction files in repo are `.agents/instructions/{frontend,backend,tests}.instructions.md`).
   - Outcome: `1.1-outcome.md`.
 
 ---

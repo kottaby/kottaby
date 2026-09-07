@@ -23,6 +23,18 @@ export const parentLinkAr: ParentLinkLabels = {
   rejectDialogBody: (parentName: string) => `لن يتم ربط ${parentName} بحسابك. يمكنه إرسال طلب جديد لاحقاً.`,
   confirmSuccessToast: "تم تأكيد طلب الربط.",
   rejectSuccessToast: "تم رفض طلب الربط.",
+  dashboardCardTitle: "طلبات ربط قيد الانتظار",
+  dashboardCardCount: (count: number) => {
+    if (count === 0) return "لا توجد طلبات ربط قيد الانتظار";
+    if (count === 1) return "طلب ربط واحد قيد الانتظار";
+    if (count === 2) return "طلبا ربط قيد الانتظار";
+    if (count <= 10) return `${count.toLocaleString("ar")} طلبات ربط قيد الانتظار`;
+    return `${count.toLocaleString("ar")} طلب ربط قيد الانتظار`;
+  },
+  dashboardCardLatestRequester: (parentName: string) => `أحدث طلب من ${parentName}`,
+  dashboardCardCta: "مراجعة الطلبات",
+  dashboardCardLoading: "جارٍ تحميل طلبات الربط…",
+  dashboardCardLoadError: "تعذر تحميل طلبات الربط الآن. يرجى المحاولة مرة أخرى.",
   cancelAction: "إلغاء الطلب",
   cancelDialogTitle: "إلغاء طلب الربط هذا؟",
   cancelDialogBody: "سيتم سحب هذا الطلب ولن يراه الطالب بعد الآن.",

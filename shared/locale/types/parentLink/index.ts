@@ -10,6 +10,11 @@
  *     affordance on a linkable discovery result, the outgoing request list
  *     with computed status chips and masked student names, and the cancel
  *     dialog on live pending rows.
+ *  3. Student dashboard discoverability card — the compact pending-request
+ *     card on the student dashboard home (count, most recent requester, one
+ *     CTA to the link-requests route). It names the requesting PARENT only
+ *     (the sanctioned incoming disclosure); student identifiers never enter
+ *     this copy.
  *
  * Copy functions receive ALREADY-ASSEMBLED display names only (full name on
  * the student side, masked name on the parent side) — never raw user input,
@@ -74,6 +79,29 @@ export interface ParentLinkLabels {
   readonly confirmSuccessToast: string;
   /** Transient success toast after rejecting a request. */
   readonly rejectSuccessToast: string;
+  // ─── Student dashboard discoverability card ─────────────────────────────
+  /** Heading of the dashboard pending-link-requests discoverability card. */
+  readonly dashboardCardTitle: string;
+  /**
+   * Count chip on the dashboard card — plural-safe; receives the actionable
+   * (pending AND unexpired) request count.
+   */
+  readonly dashboardCardCount: (count: number) => string;
+  /**
+   * "Latest requester" line — interpolates the MOST RECENT actionable
+   * requester's FULL display name (already `isolateBidi`-assembled by the
+   * component; the card's sanctioned identity disclosure per REQ-015).
+   */
+  readonly dashboardCardLatestRequester: (parentName: string) => string;
+  /** Single CTA label deep-linking to the student link-requests route. */
+  readonly dashboardCardCta: string;
+  /** Loading copy for the card's `aria-busy` skeleton frame. */
+  readonly dashboardCardLoading: string;
+  /**
+   * Inline-alert body when the card's list query fails (the retry affordance
+   * reuses `CommonLabels.retry` — no separate key).
+   */
+  readonly dashboardCardLoadError: string;
   // ─── Parent outgoing list + send flow ─────────────────────────────────────
   /** Row action — cancel the parent's own pending outgoing request. */
   readonly cancelAction: string;
