@@ -70,11 +70,10 @@
 
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { CombinedGraphQLErrors, gql } from "@apollo/client";
-import type { DocumentNode } from "graphql";
-import { print } from "graphql";
 import { and, eq, inArray, sql } from "drizzle-orm";
-import { POST } from "@/app/api/graphql/route";
+import { type DocumentNode, print } from "graphql";
 import { NextRequest } from "next/server";
+import { POST } from "@/app/api/graphql/route";
 import { closePool, db } from "@/backend/db";
 import { auditLogs } from "@/backend/db/schema/audit/audit-logs";
 import { students } from "@/backend/db/schema/students/students";
