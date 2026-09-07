@@ -26,10 +26,12 @@ interface AdminTeachersMobileCardListProps {
   readonly hasFilters: boolean;
   /** Invoked after any card's copy-email action resolves (drives the snackbar). */
   readonly onCopyEmail?: () => void;
+  /** Opens the detail drawer for a card (the directory owns the drawer). */
+  readonly onViewDetails?: (teacher: TeacherDirectoryItem) => void;
 }
 
 export function AdminTeachersMobileCardList(props: AdminTeachersMobileCardListProps): ReactNode {
-  const { labels, items, loading, hasFilters, onCopyEmail } = props;
+  const { labels, items, loading, hasFilters, onCopyEmail, onViewDetails } = props;
   const locale = useAppLocale();
   return (
     <Stack
@@ -72,6 +74,7 @@ export function AdminTeachersMobileCardList(props: AdminTeachersMobileCardListPr
           teacher={teacher}
           locale={locale}
           onCopyEmail={onCopyEmail}
+          onViewDetails={onViewDetails}
         />
       ))}
     </Stack>

@@ -6,7 +6,9 @@
  *  - header as a 3-track grid (`auto minmax(0,1fr) auto`): 44px role-tinted
  *    avatar, the name/email/copy-email block (truncating with the shared
  *    bidi ellipsis recipe), and a trailing column stacking the joined
- *    timestamp caption (this directory is read-only — no kebab menu),
+ *    timestamp caption above the explicit view-details quick action
+ *    (read-only directory — no kebab menu; the card click and the quick
+ *    action both open the detail drawer),
  *  - hairline divider;
  *  - strict two-column body rows (label at inline-start in `text.secondary`,
  *    value flexing to the inline-end edge, 500 weight): Status (approval
@@ -15,7 +17,7 @@
  * Soft-deleted teachers render dimmed (name/email drop to the disabled ink).
  */
 
-import { ContentCopyOutlined as CopyIcon } from "@mui/icons-material";
+import { ContentCopyOutlined as CopyIcon, VisibilityOutlined as ViewIcon } from "@mui/icons-material";
 import { Box, Card, Divider, IconButton, Stack, Tooltip, Typography } from "@mui/material";
 import type { ReactNode } from "react";
 import { formatApplicantDate } from "@/frontend/lib/i18n/format-date";
@@ -40,6 +42,8 @@ interface AdminTeacherMobileCardProps {
   readonly locale: "ar" | "en";
   /** Invoked after the email copy resolves successfully (drives the snackbar). */
   readonly onCopyEmail?: () => void;
+  /** Opens the detail drawer for this card (the directory owns the drawer). */
+  readonly onViewDetails?: (teacher: TeacherDirectoryItem) => void;
 }
 
 export function AdminTeacherMobileCard({
@@ -47,25 +51,30 @@ export function AdminTeacherMobileCard({
   teacher,
   locale,
   onCopyEmail,
+  onViewDetails,
 }: AdminTeacherMobileCardProps): ReactNode {
   const deleted = teacher.isDeleted;
   const joinedCaption = formatApplicantDate(teacher.createdAt, locale);
+  const openDetails = onViewDetails === undefined ? undefined : () => onViewDetails(teacher);
   return (
     <Card
+      onClick={openDetails}
       sx={theme => ({
         borderRadius: "12px",
         border: `1px solid ${theme.palette.border.light}`,
         boxShadow: theme.palette.shadow.card,
         p: 2,
+        ...(openDetails !== undefined && { cursor: "pointer" }),
       })}
     >
       {/*
         Header as a 3-track grid — [avatar 44px] [name/email block (flexible,
-        minmax(0,1fr) so it can shrink and ellipsize)] [joined caption]. The
-        middle block reserves every free pixel for the text; the trailing
-        column stacks vertically so the name/email block keeps ≥ ~180px at a
-        390px viewport. This surface is read-only, so there is no kebab
-        column — the joined caption fills the trailing track.
+        minmax(0,1fr) so it can shrink and ellipsize)] [joined caption +
+        view-details quick action]. The middle block reserves every free
+        pixel for the text; the trailing column stacks vertically so the
+        name/email block keeps ≥ ~180px at a 390px viewport. This surface is
+        read-only, so there is no kebab column — the joined caption and the
+        view-details quick action fill the trailing track.
       */}
       <Box sx={{ display: "grid", gridTemplateColumns: "auto minmax(0, 1fr) auto", alignItems: "center", gap: 1 }}>
         <UserAvatar fullName={teacher.name} role={TEACHER_AVATAR_ROLE} size={44} />
@@ -80,6 +89,24 @@ export function AdminTeacherMobileCard({
           >
             {joinedCaption}
           </Typography>
+          {openDetails !== undefined && (
+            <Tooltip title={labels.drawer.viewDetails} placement="top">
+              <IconButton
+                size="small"
+                aria-label={labels.drawer.viewDetails}
+                onClick={openDetails}
+                sx={theme => ({
+                  // ≥44px touch target via transparent padding; the icon
+                  // stays visually 20px.
+                  p: 1.5,
+                  my: -0.75,
+                  color: theme.palette.text.secondary,
+                })}
+              >
+                <ViewIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          )}
         </Box>
       </Box>
       <Divider sx={{ my: 1.5 }} />
@@ -180,7 +207,11 @@ function CopyIconButton({ email, copied, labels, onCopy }: CopyIconButtonProps):
       <IconButton
         size="small"
         aria-label={`${labels.quickActions.copyEmail}: ${email}`}
-        onClick={onCopy}
+        onClick={event => {
+          // Copy only — the click must not also open the detail drawer.
+          event.stopPropagation();
+          onCopy();
+        }}
         sx={theme => ({
           p: 1.5,
           my: -1.5,

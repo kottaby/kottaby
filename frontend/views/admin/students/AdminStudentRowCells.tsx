@@ -24,7 +24,7 @@
  * the student has no parent link.
  */
 
-import { ContentCopyOutlined as CopyIcon } from "@mui/icons-material";
+import { ContentCopyOutlined as CopyIcon, VisibilityOutlined as ViewIcon } from "@mui/icons-material";
 import { Box, IconButton, TableCell, Tooltip, Typography } from "@mui/material";
 import type { ReactNode } from "react";
 import type { AdminStudentsQuery } from "@/frontend/graphql/generated/gql/graphql";
@@ -43,17 +43,26 @@ export type StudentDirectoryItem = AdminStudentsQuery["adminStudents"]["items"][
 
 interface StudentIdentityCellProps {
   readonly student: StudentDirectoryItem;
-  readonly labels: Pick<AdminStudentsLabels, "quickActions">;
+  readonly labels: Pick<AdminStudentsLabels, "quickActions" | "drawer">;
   /** Invoked after the email copy resolves successfully (drives the snackbar). */
   readonly onCopyEmail?: () => void;
+  /** Opens the detail drawer (the explicit per-row view-details affordance). */
+  readonly onViewDetails?: () => void;
 }
 
 /**
  * Desktop identity cell — role-tinted initials avatar (the Student lane)
- * + name + ellipsized email + copy-email quick action. Read-only surface:
- * the name is NOT a link (there is no student detail route).
+ * + name + ellipsized email + copy-email quick action, with a trailing
+ * explicit view-details quick action (the row's keyboard/touch affordance
+ * — the row itself is click-only convenience). Read-only surface: the name
+ * is NOT a link (there is no student detail route).
  */
-export function StudentIdentityCell({ student, labels, onCopyEmail }: StudentIdentityCellProps): ReactNode {
+export function StudentIdentityCell({
+  student,
+  labels,
+  onCopyEmail,
+  onViewDetails,
+}: StudentIdentityCellProps): ReactNode {
   const { emailCopied, handleCopyEmail } = useDirectoryCopyEmail(student.email, onCopyEmail);
   return (
     <TableCell sx={{ minWidth: 0 }}>
@@ -100,8 +109,41 @@ export function StudentIdentityCell({ student, labels, onCopyEmail }: StudentIde
             <CopyEmailCell email={student.email} copied={emailCopied} labels={labels} onCopy={handleCopyEmail} />
           </Box>
         </Box>
+        {onViewDetails !== undefined && <ViewDetailsButton labels={labels} onViewDetails={onViewDetails} />}
       </Box>
     </TableCell>
+  );
+}
+
+interface ViewDetailsButtonProps {
+  readonly labels: Pick<AdminStudentsLabels, "drawer">;
+  readonly onViewDetails: () => void;
+}
+
+/**
+ * The explicit view-details quick action — the row's keyboard/touch
+ * affordance for opening the detail drawer (row click stays pointer-only
+ * convenience; this button is the real focusable control).
+ */
+export function ViewDetailsButton({ labels, onViewDetails }: ViewDetailsButtonProps): ReactNode {
+  return (
+    <Tooltip title={labels.drawer.viewDetails} placement="top">
+      <IconButton
+        size="small"
+        aria-label={labels.drawer.viewDetails}
+        onClick={onViewDetails}
+        sx={theme => ({
+          // ≥44px touch target via transparent padding; the icon stays
+          // visually 20px.
+          p: 1.5,
+          my: -1.5,
+          flexShrink: 0,
+          color: theme.palette.text.secondary,
+        })}
+      >
+        <ViewIcon fontSize="small" />
+      </IconButton>
+    </Tooltip>
   );
 }
 
@@ -119,7 +161,11 @@ function CopyEmailCell({ email, copied, labels, onCopy }: CopyEmailCellProps): R
       <IconButton
         size="small"
         aria-label={`${labels.quickActions.copyEmail}: ${email}`}
-        onClick={onCopy}
+        onClick={event => {
+          // Copy only — the click must not also open the detail drawer.
+          event.stopPropagation();
+          onCopy();
+        }}
         sx={theme => ({
           // ≥44px touch target via transparent padding, matching the
           // users-directory identity cell; the icon stays visually 20px.

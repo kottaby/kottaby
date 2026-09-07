@@ -25,6 +25,7 @@
 
 import {
   CheckOutlined as ApplyIcon,
+  FileDownloadOutlined as DownloadIcon,
   RefreshOutlined as RefreshIcon,
   SearchOutlined as SearchIcon,
 } from "@mui/icons-material";
@@ -35,7 +36,7 @@ import type { useAdminStudentsDirectory } from "@/frontend/views/admin/students/
 import { DirectoryFilterSelect } from "@/frontend/views/admin/users/directory";
 import type { AdminStudentsLabels } from "@/shared/locale/types/adminStudents";
 
-type ToolbarLabels = Pick<AdminStudentsLabels, "filters" | "filterOptions" | "parentLabels">;
+type ToolbarLabels = Pick<AdminStudentsLabels, "filters" | "filterOptions" | "parentLabels" | "export">;
 
 /** Directory state slice consumed by the toolbar (from `useAdminStudentsDirectory`). */
 type ToolbarDirectory = Pick<
@@ -59,6 +60,10 @@ interface AdminStudentsToolbarProps {
   readonly loading: boolean;
   /** `true` when at least one filter is set (renders the clear action). */
   readonly hasFilters: boolean;
+  /** Downloads the current page as a localized CSV file (no second fetch). */
+  readonly onExportCsv: () => void;
+  /** `true` while loading or the current page has no rows — nothing to export. */
+  readonly exportDisabled: boolean;
 }
 
 /** Runtime narrowing of the select's string value back to the parent-link union. */
@@ -69,7 +74,14 @@ function asHasParentFilter(value: string): StudentHasParentFilter | "" {
   return "";
 }
 
-export function AdminStudentsToolbar({ labels, directory, loading, hasFilters }: AdminStudentsToolbarProps): ReactNode {
+export function AdminStudentsToolbar({
+  labels,
+  directory,
+  loading,
+  hasFilters,
+  onExportCsv,
+  exportDisabled,
+}: AdminStudentsToolbarProps): ReactNode {
   // Stable element ids — wire `InputLabel htmlFor` ↔ control `id` so screen
   // readers announce the label when focus lands on the control (axe-core
   // `aria-input-field-name` rule). Prefixed with the component name to avoid
@@ -129,6 +141,7 @@ export function AdminStudentsToolbar({ labels, directory, loading, hasFilters }:
             {labels.filters.clear}
           </Button>
         )}
+        <ExportCsvButton labels={labels} onExportCsv={onExportCsv} exportDisabled={exportDisabled} />
         <Button
           variant="text"
           startIcon={<RefreshIcon />}
@@ -143,6 +156,38 @@ export function AdminStudentsToolbar({ labels, directory, loading, hasFilters }:
         </Button>
       </Box>
     </Card>
+  );
+}
+
+interface ExportCsvButtonProps {
+  readonly labels: ToolbarLabels;
+  readonly onExportCsv: () => void;
+  readonly exportDisabled: boolean;
+}
+
+/**
+ * The export action — same text-button recipe as the refresh action next to
+ * it (variant/size/44px floor/`text.secondary` ink). The tooltip switches
+ * to the honest "nothing to export" copy while disabled; a `<span>` wrapper
+ * keeps the tooltip reachable on a disabled button (disabled elements emit
+ * no pointer events).
+ */
+function ExportCsvButton({ labels, onExportCsv, exportDisabled }: ExportCsvButtonProps): ReactNode {
+  return (
+    <Tooltip title={exportDisabled ? labels.export.exportCsvEmpty : labels.export.exportCsv} placement="top">
+      <Box component="span" sx={{ display: "inline-flex" }}>
+        <Button
+          variant="text"
+          startIcon={<DownloadIcon />}
+          onClick={onExportCsv}
+          disabled={exportDisabled}
+          aria-label={labels.export.exportCsv}
+          sx={theme => ({ minHeight: 44, flexShrink: 0, color: theme.palette.text.secondary })}
+        >
+          {labels.export.exportCsv}
+        </Button>
+      </Box>
+    </Tooltip>
   );
 }
 

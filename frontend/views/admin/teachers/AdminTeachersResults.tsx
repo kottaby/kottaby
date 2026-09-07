@@ -16,6 +16,7 @@
  */
 
 import type { ReactNode } from "react";
+import type { TeacherDirectoryItem } from "@/frontend/views/admin/teachers/AdminTeacherRowCells";
 import { AdminTeachersMobileCardList } from "@/frontend/views/admin/teachers/AdminTeachersMobileCardList";
 import { AdminTeachersMobilePaginationCard } from "@/frontend/views/admin/teachers/AdminTeachersMobilePaginationCard";
 import { AdminTeachersTable } from "@/frontend/views/admin/teachers/AdminTeachersTable";
@@ -30,9 +31,16 @@ interface AdminTeachersResultsProps {
   readonly directory: DirectoryState;
   /** Invoked after any row's copy-email action resolves (drives the snackbar). */
   readonly onCopyEmail?: () => void;
+  /** Opens the detail drawer for a row/card (the directory owns the drawer). */
+  readonly onViewDetails?: (teacher: TeacherDirectoryItem) => void;
 }
 
-export function AdminTeachersResults({ labels, directory, onCopyEmail }: AdminTeachersResultsProps): ReactNode {
+export function AdminTeachersResults({
+  labels,
+  directory,
+  onCopyEmail,
+  onViewDetails,
+}: AdminTeachersResultsProps): ReactNode {
   // When the query (or a refetch with no cached rows) failed, the error
   // alert in `AdminTeachersDirectoryContainer` is the sole surface — rendering
   // the skeleton/empty state and pagination beside it reads as a second,
@@ -46,6 +54,7 @@ export function AdminTeachersResults({ labels, directory, onCopyEmail }: AdminTe
         loading={directory.loading}
         hasFilters={directory.hasFilters}
         onCopyEmail={onCopyEmail}
+        onViewDetails={onViewDetails}
         pagination={
           <DirectoryPagination
             labels={labels}
@@ -64,6 +73,7 @@ export function AdminTeachersResults({ labels, directory, onCopyEmail }: AdminTe
         loading={directory.loading}
         hasFilters={directory.hasFilters}
         onCopyEmail={onCopyEmail}
+        onViewDetails={onViewDetails}
       />
 
       <AdminTeachersMobilePaginationCard

@@ -39,6 +39,8 @@ interface AdminStudentsTableProps {
   readonly hasFilters: boolean;
   /** Invoked after any row's copy-email action resolves (drives the snackbar). */
   readonly onCopyEmail?: () => void;
+  /** Opens the detail drawer for a row (the directory owns the drawer). */
+  readonly onViewDetails?: (student: StudentDirectoryItem) => void;
   /** Footer slot rendered inside the card (the shared `DirectoryPagination` bar). */
   readonly pagination?: ReactNode;
 }
@@ -46,7 +48,7 @@ interface AdminStudentsTableProps {
 const COLUMN_COUNT = 6;
 
 export function AdminStudentsTable(props: AdminStudentsTableProps): ReactNode {
-  const { labels, items, loading, hasFilters, onCopyEmail } = props;
+  const { labels, items, loading, hasFilters, onCopyEmail, onViewDetails } = props;
   const locale = useAppLocale();
   return (
     <Card
@@ -97,6 +99,7 @@ export function AdminStudentsTable(props: AdminStudentsTableProps): ReactNode {
               locale={locale}
               striped={index % 2 === 1}
               onCopyEmail={onCopyEmail}
+              onViewDetails={onViewDetails}
             />
           ))}
         </TableBody>

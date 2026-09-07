@@ -50,6 +50,25 @@ export const adminTeachersAr: AdminTeachersLabels = {
     copyEmail: "نسخ البريد الإلكتروني",
     emailCopied: "تم نسخ البريد الإلكتروني.",
   },
+  export: {
+    exportCsv: "تصدير CSV",
+    exportCsvEmpty: "لا يوجد ما يمكن تصديره بعد",
+  },
+  fields: {
+    id: "المعرّف",
+    email: "البريد الإلكتروني",
+    phone: "رقم الهاتف",
+    country: "الدولة",
+  },
+  drawer: {
+    detailsTitle: "تفاصيل المعلم",
+    close: "إغلاق",
+    viewDetails: "عرض التفاصيل",
+    sectionIdentity: "الهوية",
+    sectionStatus: "الحالة",
+    sectionAcademic: "الجانب الأكاديمي",
+    sectionRecord: "السجل",
+  },
   pagination: {
     page: "صفحة",
     showingPrefix: "عرض",

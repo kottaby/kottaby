@@ -50,6 +50,25 @@ export const adminTeachersEn: AdminTeachersLabels = {
     copyEmail: "Copy email address",
     emailCopied: "Email address copied to clipboard.",
   },
+  export: {
+    exportCsv: "Export CSV",
+    exportCsvEmpty: "Nothing to export yet",
+  },
+  fields: {
+    id: "ID",
+    email: "Email",
+    phone: "Phone",
+    country: "Country",
+  },
+  drawer: {
+    detailsTitle: "Teacher details",
+    close: "Close",
+    viewDetails: "View details",
+    sectionIdentity: "Identity",
+    sectionStatus: "Status",
+    sectionAcademic: "Academic",
+    sectionRecord: "Record",
+  },
   pagination: {
     page: "Page",
     showingPrefix: "Showing",

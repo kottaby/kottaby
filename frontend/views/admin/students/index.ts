@@ -1,3 +1,4 @@
+export * from "./AdminStudentDetailDrawer";
 export * from "./AdminStudentMobileCard";
 export * from "./AdminStudentRow";
 export * from "./AdminStudentRowCells";
@@ -8,3 +9,4 @@ export * from "./AdminStudentsMobilePaginationCard";
 export * from "./AdminStudentsResults";
 export * from "./AdminStudentsTable";
 export * from "./AdminStudentsToolbar";
+export * from "./students-directory-csv";

@@ -28,6 +28,9 @@ export interface AdminTeachersLabels {
   /** Directory page subtitle line under the heading. */
   readonly subtitle: string;
 
+  // NOTE: the `export`/`fields`/`drawer` blocks below extend the directory
+  // with the CSV export affordance and the per-row detail drawer.
+
   /**
    * Table column headers shown in the teacher directory table. The
    * evaluator column header REUSES `statusPills.evaluator` (single
@@ -140,6 +143,56 @@ export interface AdminTeachersLabels {
     readonly copyEmail: string;
     /** Snackbar shown after the email is copied to the clipboard. */
     readonly emailCopied: string;
+  };
+
+  /**
+   * Export affordance — serializes the CURRENT page (the rows on screen)
+   * to a UTF-8 CSV download; no second fetch ever happens.
+   */
+  readonly export: {
+    /** Button label + accessible name for the export action. */
+    readonly exportCsv: string;
+    /** Tooltip shown on the DISABLED export (the current page has no rows). */
+    readonly exportCsvEmpty: string;
+  };
+
+  /**
+   * Field captions for concepts the directory chrome never needed before
+   * the CSV export / detail drawer (contact + record identity). Concepts
+   * that already have a header key (name, rating, subjects, joined, and
+   * every status pill) REUSE those keys — no near-duplicates.
+   */
+  readonly fields: {
+    /** Record identifier caption (CSV column + drawer record section). */
+    readonly id: string;
+    /** Email address caption. */
+    readonly email: string;
+    /** Phone number caption. */
+    readonly phone: string;
+    /** Country caption. */
+    readonly country: string;
+  };
+
+  /**
+   * Detail-drawer chrome — opened by clicking a row/card or through the
+   * per-row view-details quick action. The drawer renders only fields the
+   * directory item already carries (presentational; no extra queries).
+   */
+  readonly drawer: {
+    /** Drawer window title. */
+    readonly detailsTitle: string;
+    /** Accessible name of the drawer close button. */
+    readonly close: string;
+    /** Accessible name of the per-row view-details quick action. */
+    readonly viewDetails: string;
+    /** Identity section header (avatar + contact rows). */
+    readonly sectionIdentity: string;
+    /** Account-status section header (pills row). */
+    readonly sectionStatus: string;
+    /** Academic section header (rating + subjects). */
+    readonly sectionAcademic: string;
+    /** Record section header (identifier). */
+    readonly sectionRecord: string;
   };
 
   /**
