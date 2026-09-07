@@ -96,7 +96,7 @@
 
 > **Scope gate:** NO backend logic delta is planned. Every symbol in this phase is REUSE. New code in this phase is **tests only** (journey + missing regression cells). If verification forces ANY service/repo edit, it is a deviation → ledger entry + explicit justification.
 
-- [ ] 2.1 **Write the "Student Confirmation of Parent Link" journey test — TEST-FIRST**
+- [x] 2.1 **Write the "Student Confirmation of Parent Link" journey test — TEST-FIRST**
   - Create `test/workflows/parents/student-confirmation-of-link.journey.test.ts` — one file for the cross-actor confirmation/rejection workflow (specs §2.9 steps 1–9, J-REQ-01..05).
   - `test/workflows/` already exists (verified in 0.2) — provisioning/cast helpers, `SpiedFanoutTransport`, and `test/workflows/AGENTS.md` are REUSED, not rescaffolded. If 0.2 found any helper missing, scaffold JUST that helper per Architectural Invariant 10 and ledger the gap.
   - Provision the actor cast via the parents-domain cast helper in `test/workflows/helpers/` with REAL permission-group membership rows (NEVER monkey-patch permission resolution): UUID-prefixed fixtures — ≥2 parents, ≥1 unlinked student, 1 already-linked student, 1 governed (suspended) student.
