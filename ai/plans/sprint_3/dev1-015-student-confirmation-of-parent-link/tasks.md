@@ -202,7 +202,7 @@
   - [x] 4.1.IV **Instruction Verification:** `.agents/instructions/frontend.instructions.md` + `frontend/components/ui` layer AGENTS.md ONLY if present per 0.2 (`frontend/components/ui/AGENTS.md` does not exist in known prose — verify, never cite blindly).
   - Outcome: `4.1-outcome.md`.
 
-- [ ] 4.2 Implement the NEW `PendingParentLinkRequestsCard` dashboard discoverability card
+- [x] 4.2 Implement the NEW `PendingParentLinkRequestsCard` dashboard discoverability card
   - Create:
     - `frontend/views/students/dashboard/PendingParentLinkRequestsCard.tsx` (client component)
     - `frontend/views/students/dashboard/pending-parent-link-requests.ts` (pure helpers: `deriveActionableIncoming(rows, nowMs)` → `{ count, latestParentFullName } | null`)
@@ -213,8 +213,8 @@
   - i18n: `useAppTranslation(ParentLink)` handle + property access only (labels from 1.1); names rendered with `dir="auto"` + `isolateBidi` where abutting chrome (`shared/lib/isolate-bidi.ts`).
   - MUI v9 discipline: `sx` only (no direct style props), `theme.palette.*` only (no hex/rgb), `*Outlined` icon (e.g. `PendingActionsOutlined`), logical properties only (no physical left/right; RTL via the emotion-cache stylis-plugin-rtl pipeline).
   - _Requirements: REQ-015, REQ-016, REQ-051, REQ-052, REQ-003, REQ-042_
-  - [ ] 4.2.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts frontend/views/students/dashboard/PendingParentLinkRequestsCard.tsx --lifecycle duplicates` and the pure-helper file — exit code 0 each.
-  - [ ] 4.2.TE **Unit / Component Tests:** New suite `test/ui/components/students/PendingParentLinkRequestsCard.test.tsx` — Happy DOM + Apollo `MockedProvider`. REQ-064 matrix: loading (skeleton, `aria-busy`) / absent (zero actionable → renders nothing) / present-1 (count=1, requester FULL name, CTA href = shared route constant) / present-N (count=N, MOST RECENT requester) / error (localized Alert + retry invokes refetch) / post-decision disappearance (cache write-back → actionable 0 → unmounts) / expired-row exclusion (row with `expiresAt <= now` not counted) — in BOTH en and ar; pure-helper unit tests for the derivation edges (boundary instant, ordering, empty).
+  - [x] 4.2.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts frontend/views/students/dashboard/PendingParentLinkRequestsCard.tsx --lifecycle duplicates` and the pure-helper file — exit code 0 each.
+  - [x] 4.2.TE **Unit / Component Tests:** New suite `test/ui/components/students/PendingParentLinkRequestsCard.test.tsx` — Happy DOM + Apollo `MockedProvider`. REQ-064 matrix: loading (skeleton, `aria-busy`) / absent (zero actionable → renders nothing) / present-1 (count=1, requester FULL name, CTA href = shared route constant) / present-N (count=N, MOST RECENT requester) / error (localized Alert + retry invokes refetch) / post-decision disappearance (cache write-back → actionable 0 → unmounts) / expired-row exclusion (row with `expiresAt <= now` not counted) — in BOTH en and ar; pure-helper unit tests for the derivation edges (boundary instant, ordering, empty).
   - [ ] 4.2.BF **Agent-Browser Functional Self-Loop:**
     • Launch dev server / connect via agent-browser (Playwright); login as a student with ONE pending incoming request.
     • Navigate to `/student/dashboard`; assert the card renders with correct count, requester name, and CTA.
@@ -225,8 +225,8 @@
     • Capture high-resolution screenshots at Desktop 1440×900, Tablet 768×1024, Mobile 375×812 × English LTR and Arabic RTL (six cells), covering present-1 and present-N states.
     • Visually inspect: MUI v9 theme palette compliance (no hardcoded hex/rgb), typography hierarchy vs `HandshakeCodeCard`, padding/margin rhythm, count-chip wrapping on mobile (wrap above requester line; full-width CTA at 375px), text truncation/overflow of long Arabic names, RTL mirroring (icon/CTA alignment, logical spacing), `dir="auto"` name isolation, dark/light contrast.
     • Iterative self-loop: inspect screenshot → identify UI defect → patch `sx` tokens → re-capture → repeat until visually polished; attach final six-cell screenshot set to the outcome.
-  - [ ] 4.2.SR **Semantic Review:** Zero direct style props (sx only); zero hardcoded colors/strings; `useAppTranslation(ParentLink)` property access; `*Outlined` icons; no Apollo-dispatch spaghetti (single `useQuery`, no bespoke invalidation bus); helper file is pure (no React imports).
-  - [ ] 4.2.IV **Instruction Verification:** `.agents/instructions/frontend.instructions.md` + `frontend/views/**` AGENTS.md ONLY if present per 0.2 (`frontend/views/AGENTS.md` is prose-phantom until proven otherwise).
+  - [x] 4.2.SR **Semantic Review:** Zero direct style props (sx only); zero hardcoded colors/strings; `useAppTranslation(ParentLink)` property access; `*Outlined` icons; no Apollo-dispatch spaghetti (single `useQuery`, no bespoke invalidation bus); helper file is pure (no React imports).
+  - [x] 4.2.IV **Instruction Verification:** `.agents/instructions/frontend.instructions.md` + `frontend/views/**` AGENTS.md ONLY if present per 0.2 (`frontend/views/AGENTS.md` is prose-phantom until proven otherwise).
   - Outcome: `4.2-outcome.md`.
 
 - [ ] 4.3 Compose the card into the student dashboard status slot (`RoleDashboardPage`)
