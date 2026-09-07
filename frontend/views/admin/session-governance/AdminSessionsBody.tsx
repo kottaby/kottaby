@@ -1,17 +1,19 @@
 "use client";
 
-import { NavigateBeforeOutlined, NavigateNextOutlined } from "@mui/icons-material";
-import { GavelOutlined as EmptyIcon } from "@mui/icons-material";
+import { GavelOutlined as EmptyIcon, NavigateBeforeOutlined, NavigateNextOutlined } from "@mui/icons-material";
 import { IconButton, Stack, Typography } from "@mui/material";
 import type { ReactNode } from "react";
 import { ErrorRetryAlert } from "@/frontend/components/ui/ErrorRetryAlert";
 import { PermissionDeniedFallback } from "@/frontend/components/ui/PermissionDeniedFallback";
 import { SessionListLoadingSkeleton } from "@/frontend/components/ui/sessionList";
-import type { AdminSessionsQuery, AdminSessionsQuery_adminSessions_items } from "@/frontend/graphql/generated/gql/graphql";
+import type {
+  AdminSessionsQuery,
+  AdminSessionsQuery_adminSessions_items,
+} from "@/frontend/graphql/generated/gql/graphql";
 import { extractErrorCode } from "@/frontend/lib/graphql-error-utils";
 import { mapGraphQLErrorByCode, normalizeGraphQLErrorCode } from "@/frontend/providers/apollo/error-link.map";
-import { AdminSessionRow } from "@/frontend/views/admin/session-governance/AdminSessionRow";
 import type { GovernanceDialogKind } from "@/frontend/views/admin/session-governance/AdminSessionRow";
+import { AdminSessionRow } from "@/frontend/views/admin/session-governance/AdminSessionRow";
 import { SessionsEmptyState } from "@/frontend/views/student/sessions/SessionsEmptyState";
 import type { AdminSessionGovernanceLabels } from "@/shared/locale/types/adminSessionGovernance";
 import type { SessionsLabels } from "@/shared/locale/types/sessions";
@@ -50,10 +52,7 @@ interface AdminSessionsBodyProps {
   /** Open the read-only detail drawer for one session. */
   readonly onOpenDetails: (sessionId: string) => void;
   /** Open one governance dialog (container owns the dialog state). */
-  readonly onDialogIntent: (
-    kind: GovernanceDialogKind,
-    session: AdminSessionsQuery_adminSessions_items
-  ) => void;
+  readonly onDialogIntent: (kind: GovernanceDialogKind, session: AdminSessionsQuery_adminSessions_items) => void;
   /** Localized governance-namespace labels. */
   readonly t: AdminSessionGovernanceLabels;
   /** Shared sessions-namespace labels (status chips + pager aria). */
@@ -153,7 +152,12 @@ interface AdminSessionsPagerProps {
 }
 
 /** Prev / `page / totalPages` / next pager row (edge-clamped buttons). */
-function AdminSessionsPager({ page, totalPages, onPageChange, tSessions }: Readonly<AdminSessionsPagerProps>): ReactNode {
+function AdminSessionsPager({
+  page,
+  totalPages,
+  onPageChange,
+  tSessions,
+}: Readonly<AdminSessionsPagerProps>): ReactNode {
   return (
     <Stack
       data-testid="admin-session-governance-pager"
