@@ -1,0 +1,1102 @@
+/**
+ * Colocated bun:test suite for the restore-verify tool family.
+ *
+ * 4-Tier unit strategy — NO real database, NO pg_restore/psql binaries:
+ * every child-process interaction is driven through the implementation's
+ * injectable SpawnRunner seam and the DSN never leaves the process.
+ *
+ *   Tier 1 — arg branches incl. every refusal, manifest load/validate,
+ *            verdict aggregation, report contract shape.
+ *   Tier 2 — boundaries: zero-row critical tables, missing run-dir fields,
+ *            oracle exactly-0 vs errored (-1) distinction.
+ *   Tier 3 — chaos: truncated dump, randomized missing manifest keys,
+ *            oracle SQL error injection, artifact-hash nibble flip.
+ *   Tier 4 — security: guard refusal matrix with spawn-spy, CLI exit codes,
+ *            credential-leak greps over success + failure streams, report 0600.
+ *
+ * FIXTURE_PASSWORD below is the canary credential: no test may observe it in
+ * any captured stdout/stderr stream or persisted report body.
+ */
+
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test } from "bun:test";
+import { createHash } from "node:crypto";
+import { mkdirSync, mkdtempSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, relative, resolve } from "node:path";
+
+import { clearSelectedEnvFileForTests } from "@/scripts/dbActions/envFile";
+import { DESTRUCTIVE_GUARD_ENV_KEYS, restoreProcessEnv, unsetProcessEnvVars } from "@/scripts/lib";
+import {
+  parseRestoreArgs,
+  RESTORE_USAGE_TEXT,
+  type RestoreCliArgs,
+  RestoreUsageError,
+} from "@/scripts/ops/restore-cli";
+import {
+  ORACLE_ERROR_OFFENDING_COUNT,
+  ORACLES,
+  type OracleDefinition,
+  runOracles,
+} from "@/scripts/ops/restore-oracles";
+import {
+  type BackupManifest,
+  type Clock,
+  MIGRATIONS_ABSENT_HASH,
+  type PsqlOutcome,
+  parseBackupManifest,
+  RESTORE_TOOL_ID,
+  RestoreArtifactError,
+  resolveRunArtifact,
+  type SpawnRequest,
+  type SpawnRunner,
+} from "@/scripts/ops/restore-shared";
+import {
+  defaultReportFileWriter,
+  evaluateVerdict,
+  type RestoreReport,
+  RestoreVerificationError,
+  type StructuralCheckRow,
+} from "@/scripts/ops/restore-structure";
+import { type RestoreVerifyDeps, runRestoreVerify } from "@/scripts/ops/restore-verify";
+
+// ─── Fixture constants ──────────────────────────────────────────────────────
+
+const FIXTURE_PASSWORD = "supersecret-pw";
+const SOURCE_PASSWORD = "source-pw-never-print";
+const TARGET_DSN = `postgresql://restore_user:${FIXTURE_PASSWORD}@127.0.0.1:5432/scratch_restore`;
+const NEON_TARGET_DSN = `postgresql://dr_user:${FIXTURE_PASSWORD}@ep-frosty-block-a1b2c3.us-east-2.aws.neon.tech/neondb?sslmode=require`;
+const RDS_TARGET_DSN = `postgresql://dr_user:${FIXTURE_PASSWORD}@kottaby-verify.c9x8e2z7.us-east-1.rds.amazonaws.com/kottaby`;
+const SOURCE_DSN = `postgresql://source_user:${SOURCE_PASSWORD}@127.0.0.1:5432/kottaby_source`;
+const JOURNAL_HASH = "abcdef0123456789".repeat(4);
+const ARTIFACT_BYTES = Buffer.from("PGDMP\tKOTTABY FAKE CUSTOM DUMP FIXTURE\n");
+const ARTIFACT_SHA256 = createHash("sha256").update(ARTIFACT_BYTES).digest("hex");
+const DERIVED_TABLES = ["app_settings", "audit_logs", "users", "wallet"];
+const REPORT_FIELD_NAMES = [
+  "artifactFile",
+  "artifactSha256",
+  "durationMs",
+  "oracles",
+  "startedAtUtc",
+  "structural",
+  "target",
+  "tool",
+  "verdict",
+].toSorted((a, b) => a.localeCompare(b));
+const CLOCK_BASE_MS = 1_770_000_000_000;
+const CLI_SCRIPT_PATH = resolve(import.meta.dir, "restore-verify.ts");
+
+const SCHEMA_SOURCE = [
+  'import { pgTable, text } from "drizzle-orm/pg-core";',
+  "",
+  'export const users = pgTable("users", { id: text("id") });',
+  'export const wallet = pgTable("wallet", { id: text("id") });',
+  'export const auditLogs = pgTable("audit_logs", { id: text("id") });',
+  'export const appSettings = pgTable("app_settings", { id: text("id") });',
+  "",
+].join("\n");
+
+const ORACLE_SQL_TO_ID = new Map(ORACLES.map(oracle => [oracle.sql, oracle.id]));
+
+// ─── Reusable fixture builders ──────────────────────────────────────────────
+
+function validManifest(overrides: Partial<BackupManifest> = {}): BackupManifest {
+  return {
+    tool: "ops:db-backup",
+    toolVersion: "1.0.0-test",
+    postgresServerVersion: "16.4",
+    pgDumpVersion: "16.4",
+    database: "kottaby_source",
+    startedAtUtc: "2026-02-14T12:00:00.000Z",
+    finishedAtUtc: "2026-02-14T12:00:42.000Z",
+    artifactFile: "dump.pgc",
+    artifactBytes: ARTIFACT_BYTES.length,
+    sha256: ARTIFACT_SHA256,
+    journalHash: JOURNAL_HASH,
+    ...overrides,
+  };
+}
+
+function localEnvFixture(nodeEnv = "development", extraLines: string[] = []): string {
+  return [
+    `DATABASE_URL=${SOURCE_DSN}`,
+    "DB_PROVIDER=postgres",
+    "STORAGE_PROVIDER=local",
+    "REDIS_PROVIDER=local",
+    `NODE_ENV=${nodeEnv}`,
+    ...extraLines,
+    "",
+  ].join("\n");
+}
+
+function makeBackupRun(
+  root: string,
+  overrides: Partial<BackupManifest> = {}
+): {
+  runDir: string;
+  artifactPath: string;
+} {
+  const runDir = join(root, "backups", "20260214T120000Z");
+  mkdirSync(runDir, { recursive: true });
+  const artifactPath = join(runDir, "dump.pgc");
+  writeFileSync(artifactPath, ARTIFACT_BYTES);
+  writeFileSync(join(runDir, "manifest.json"), JSON.stringify(validManifest(overrides), null, 2));
+  return { runDir, artifactPath };
+}
+
+function makeSchemaFixture(root: string): void {
+  const schemaDir = join(root, "repo", "backend", "db", "schema");
+  mkdirSync(schemaDir, { recursive: true });
+  writeFileSync(join(schemaDir, "tables.ts"), SCHEMA_SOURCE);
+}
+
+// ─── Fake SpawnRunner (the implementation's DI seam) ────────────────────────
+
+interface ScriptedProcessResult {
+  exitCode: number;
+  stdout: string;
+  stderr: string;
+}
+
+interface FakeDbScript {
+  /** Table names returned for the structural presence query. */
+  tables: string[];
+  /** Restored (target) row counts per table for `SELECT COUNT(*) FROM "<t>"`. */
+  targetCounts: Record<string, number>;
+  /** Source row counts per table; present keys enable the source psql runner. */
+  sourceCounts?: Record<string, number>;
+  /** Value returned for the migrations-hash oracle (defaults to JOURNAL_HASH). */
+  migrationsHash?: string;
+  /** Per-oracle-id scripted process outcome (default: exit 0, count "0"). */
+  oracleOutcomes?: Record<string, ScriptedProcessResult>;
+  /** Fail the structural presence query. */
+  failPresenceQuery?: boolean;
+  /** Make the fake runner REJECT when the psql SQL contains this substring. */
+  throwOnSqlSubstring?: string;
+  /** Scripted pg_restore outcome (default: exit 0). */
+  pgRestore?: ScriptedProcessResult;
+}
+
+const okCount = (count: number): ScriptedProcessResult => ({ exitCode: 0, stdout: `${count}\n`, stderr: "" });
+
+function makeFakeSpawn(script: FakeDbScript): { runner: SpawnRunner; requests: SpawnRequest[] } {
+  const requests: SpawnRequest[] = [];
+  const runner: SpawnRunner = async request => {
+    requests.push({ cmd: request.cmd, args: [...request.args] });
+    if (request.cmd === "pg_restore") {
+      return script.pgRestore ?? { exitCode: 0, stdout: "", stderr: "" };
+    }
+    if (request.cmd === "psql") {
+      const dsn = request.args[request.args.indexOf("--dbname") + 1] ?? "";
+      const sql = request.args[request.args.indexOf("--command") + 1] ?? "";
+      if (script.throwOnSqlSubstring !== undefined && sql.includes(script.throwOnSqlSubstring)) {
+        throw new Error("fake psql chaos failure");
+      }
+      const oracleId = ORACLE_SQL_TO_ID.get(sql);
+      if (oracleId !== undefined) {
+        const scripted = script.oracleOutcomes?.[oracleId];
+        if (scripted !== undefined) return scripted;
+        if (oracleId === "OR-MIG") {
+          return { exitCode: 0, stdout: `${script.migrationsHash ?? JOURNAL_HASH}\n`, stderr: "" };
+        }
+        return okCount(0);
+      }
+      if (sql.startsWith("SELECT tablename FROM pg_tables")) {
+        if (script.failPresenceQuery === true) {
+          return { exitCode: 1, stdout: "", stderr: "chaos: catalog unavailable" };
+        }
+        return { exitCode: 0, stdout: `${script.tables.join("\n")}\n`, stderr: "" };
+      }
+      const structuralCount = /^SELECT COUNT\(\*\) FROM "([A-Za-z_]\w*)"$/u.exec(sql);
+      if (structuralCount !== null) {
+        const table = structuralCount[1] ?? "";
+        const counts = dsn === SOURCE_DSN ? script.sourceCounts : script.targetCounts;
+        return okCount(counts?.[table] ?? 0);
+      }
+      return { exitCode: 1, stdout: "", stderr: "fake psql: unscripted query" };
+    }
+    throw new Error(`unexpected spawn request: ${request.cmd}`);
+  };
+  return { runner, requests };
+}
+
+function emptyScript(): FakeDbScript {
+  return { tables: [], targetCounts: {} };
+}
+
+function healthyScript(): FakeDbScript {
+  return {
+    tables: DERIVED_TABLES,
+    targetCounts: { users: 12, wallet: 7, audit_logs: 3, app_settings: 5 },
+    sourceCounts: { users: 12, wallet: 7, audit_logs: 3, app_settings: 5 },
+  };
+}
+
+function psqlTargetDsn(request: SpawnRequest): string | null {
+  if (request.cmd !== "psql") return null;
+  const index = request.args.indexOf("--dbname");
+  return index >= 0 ? (request.args[index + 1] ?? null) : null;
+}
+
+// ─── Pipeline runner (DI orchestrator invocation) ───────────────────────────
+
+interface PipelineRun {
+  exitCode: number | null;
+  thrown: unknown;
+  stdout: string;
+  stderr: string;
+  reportPath: string | null;
+  reportBody: string | null;
+  report: RestoreReport | null;
+  requests: SpawnRequest[];
+}
+
+interface PipelineOptions {
+  from: string;
+  script: FakeDbScript;
+  /** null → omit `--target` entirely (exercises the no-default refusal). */
+  targetDsn?: string | null;
+  /** undefined → default local env fixture; null → omit `--env` entirely. */
+  envFixture?: string | null;
+  confirmed?: boolean;
+  repoRoot?: string;
+  clock?: Clock;
+}
+
+/** Oxlint-safe message extraction for caught unknowns (type-guard based). */
+function messageOf(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function isRestoreReport(value: unknown): value is RestoreReport {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "tool" in value &&
+    "artifactFile" in value &&
+    "artifactSha256" in value &&
+    "target" in value &&
+    "startedAtUtc" in value &&
+    "durationMs" in value &&
+    "structural" in value &&
+    "oracles" in value &&
+    "verdict" in value
+  );
+}
+
+function structuralRow(overrides: Partial<StructuralCheckRow> = {}): StructuralCheckRow {
+  return { table: "users", present: true, rowCount: 3, sourceNonEmpty: true, ok: true, ...overrides };
+}
+
+/** Returns the rejection of `invocation` as a value (no expect().rejects). */
+async function catchError(invocation: Promise<number>): Promise<unknown> {
+  try {
+    return await invocation;
+  } catch (error) {
+    return error;
+  }
+}
+
+/** `--env` is resolved relative to the process cwd by the env bootstrap. */
+function envArgFor(envFilePath: string): string {
+  return relative(process.cwd(), envFilePath);
+}
+
+async function runPipeline(root: string, options: PipelineOptions): Promise<PipelineRun> {
+  let envFilePath: string | null = null;
+  if (options.envFixture !== null) {
+    envFilePath = join(root, ".env.fixture");
+    writeFileSync(envFilePath, options.envFixture ?? localEnvFixture());
+  }
+
+  const fake = makeFakeSpawn(options.script);
+  const stdoutLines: string[] = [];
+  const stderrLines: string[] = [];
+  let reportPath: string | null = null;
+  let reportBody: string | null = null;
+  const captureReportFile = (path: string, contents: string): void => {
+    reportPath = path;
+    reportBody = contents;
+    defaultReportFileWriter(path, contents);
+  };
+
+  const argv: string[] = ["--from", options.from];
+  if (options.targetDsn !== null) argv.push("--target", options.targetDsn ?? TARGET_DSN);
+  if (options.confirmed !== false) argv.push("--yes-i-understand");
+  if (envFilePath !== null) argv.push("--env", envArgFor(envFilePath));
+  const args: RestoreCliArgs = parseRestoreArgs(argv);
+
+  const deps: RestoreVerifyDeps = {
+    spawnRunner: fake.runner,
+    repoRoot: options.repoRoot ?? join(root, "repo"),
+    ...(options.clock === undefined ? {} : { clock: options.clock }),
+    stdout: line => stdoutLines.push(line),
+    stderr: line => stderrLines.push(line),
+    writeReportFile: captureReportFile,
+  };
+
+  let exitCode: number | null = null;
+  let thrown: unknown = null;
+  try {
+    exitCode = await runRestoreVerify(args, deps);
+  } catch (error) {
+    thrown = error;
+  }
+
+  const parsed: unknown = reportBody !== null ? JSON.parse(reportBody) : null;
+  const report = isRestoreReport(parsed) ? parsed : null;
+  return {
+    exitCode,
+    thrown,
+    stdout: stdoutLines.join("\n"),
+    stderr: stderrLines.join("\n"),
+    reportPath,
+    reportBody,
+    report,
+    requests: fake.requests,
+  };
+}
+
+function runCliSubprocess(argv: string[]): { exitCode: number; stdout: string; stderr: string } {
+  const proc = Bun.spawnSync([process.execPath, CLI_SCRIPT_PATH, ...argv], {
+    stdin: "ignore",
+    stdout: "pipe",
+    stderr: "pipe",
+  });
+  return {
+    exitCode: proc.exitCode ?? -1,
+    stdout: proc.stdout.toString(),
+    stderr: proc.stderr.toString(),
+  };
+}
+
+function assertArgvArrayRequests(requests: SpawnRequest[]): void {
+  expect(requests.length).toBeGreaterThan(0);
+  for (const request of requests) {
+    expect(["pg_restore", "psql"]).toContain(request.cmd);
+    expect(Array.isArray(request.args)).toBe(true);
+    for (const arg of request.args) expect(typeof arg).toBe("string");
+  }
+}
+
+// ─── Suite ──────────────────────────────────────────────────────────────────
+
+describe("restore-verify tool family (4-tier)", () => {
+  let tempRoot = "";
+  let caseCounter = 0;
+  let envSnapshot: Record<string, string | undefined> = {};
+
+  const newCaseRoot = (): string => {
+    caseCounter += 1;
+    const root = join(tempRoot, `case-${String(caseCounter).padStart(3, "0")}`);
+    mkdirSync(root, { recursive: true });
+    return root;
+  };
+
+  const restoreEnvironment = (): void => {
+    for (const key of Object.keys(process.env)) {
+      if (!Object.hasOwn(envSnapshot, key)) delete process.env[key];
+    }
+    restoreProcessEnv(envSnapshot);
+    clearSelectedEnvFileForTests();
+  };
+
+  beforeAll(() => {
+    tempRoot = mkdtempSync(join(tmpdir(), "kottaby-restore-verify-"));
+  });
+
+  afterAll(() => {
+    restoreEnvironment();
+    rmSync(tempRoot, { recursive: true, force: true });
+  });
+
+  beforeEach(() => {
+    envSnapshot = { ...process.env };
+    unsetProcessEnvVars(DESTRUCTIVE_GUARD_ENV_KEYS);
+  });
+
+  afterEach(() => {
+    restoreEnvironment();
+  });
+
+  describe("tier 1: argument contract, manifest validation, verdict, report shape", () => {
+    test("parseRestoreArgs accepts documented flags in both value forms", () => {
+      const spaced = parseRestoreArgs(["--from", "run-dir", "--target", "postgresql://u:p@h/db", "--yes-i-understand"]);
+      expect(spaced).toEqual({
+        showHelp: false,
+        envFile: null,
+        from: "run-dir",
+        targetDsn: "postgresql://u:p@h/db",
+        confirmed: true,
+      });
+
+      const fixtureEnvPath = join(import.meta.dir, "fixtures", "restore-env.file");
+      const inline = parseRestoreArgs(["--from=run-dir", `--env=${fixtureEnvPath}`, "-h"]);
+      expect(inline.from).toBe("run-dir");
+      expect(inline.envFile).toBe(fixtureEnvPath);
+      expect(inline.showHelp).toBe(true);
+      expect(inline.confirmed).toBe(false);
+    });
+
+    test("usage refusals exit 2 through the real CLI (no default target, no default source)", () => {
+      const caseRoot = newCaseRoot();
+      const missingTarget = runCliSubprocess(["--from", join(caseRoot, "run"), "--yes-i-understand"]);
+      expect(missingTarget.exitCode).toBe(2);
+      expect(missingTarget.stderr).toContain("--target is REQUIRED");
+      expect(missingTarget.stderr).toContain("no default");
+
+      const missingFrom = runCliSubprocess(["--target", TARGET_DSN, "--yes-i-understand"]);
+      expect(missingFrom.exitCode).toBe(2);
+      expect(missingFrom.stderr).toContain("--from is REQUIRED");
+
+      const unknownFlag = runCliSubprocess([
+        "--from",
+        "run",
+        "--target",
+        TARGET_DSN,
+        "--yes-i-understand",
+        "--restore-anyway",
+      ]);
+      expect(unknownFlag.exitCode).toBe(2);
+      expect(unknownFlag.stderr).toContain('unknown argument "--restore-anyway"');
+
+      const envFile = join(caseRoot, ".env.fixture");
+      writeFileSync(envFile, localEnvFixture());
+      const unconfirmed = runCliSubprocess([
+        "--from",
+        join(caseRoot, "run"),
+        "--target",
+        TARGET_DSN,
+        "--env",
+        envArgFor(envFile),
+      ]);
+      expect(unconfirmed.exitCode).toBe(2);
+      expect(unconfirmed.stderr).toContain("--yes-i-understand");
+      expect(unconfirmed.stderr).toContain("refusing to restore without explicit confirmation");
+    });
+
+    test("--help exits 0 and prints the usage text", () => {
+      const run = runCliSubprocess(["--help"]);
+      expect(run.exitCode).toBe(0);
+      expect(run.stdout).toContain("Usage:");
+      expect(run.stdout).toContain(RESTORE_USAGE_TEXT);
+    });
+
+    test("orchestrator refuses missing target/from with typed usage errors", async () => {
+      const caseRoot = newCaseRoot();
+      makeSchemaFixture(caseRoot);
+      const fixture = makeBackupRun(caseRoot);
+
+      const missingTarget = await runPipeline(caseRoot, {
+        from: fixture.runDir,
+        script: emptyScript(),
+        targetDsn: null,
+      });
+      expect(missingTarget.thrown).toBeInstanceOf(RestoreUsageError);
+      expect(messageOf(missingTarget.thrown)).toContain("--target is REQUIRED");
+      expect(messageOf(missingTarget.thrown)).toContain("no default");
+      expect(missingTarget.requests).toHaveLength(0);
+
+      const emptyParse = parseRestoreArgs([]);
+      expect(emptyParse.targetDsn).toBeNull();
+      expect(emptyParse.from).toBeNull();
+
+      const missingFrom = parseRestoreArgs(["--target", TARGET_DSN, "--yes-i-understand"]);
+      const caught = await catchError(
+        runRestoreVerify(missingFrom, {
+          spawnRunner: makeFakeSpawn(emptyScript()).runner,
+          repoRoot: join(caseRoot, "repo"),
+          stdout: () => undefined,
+          stderr: () => undefined,
+        })
+      );
+      expect(caught).toBeInstanceOf(RestoreUsageError);
+      expect(messageOf(caught)).toContain("--from is REQUIRED");
+    });
+
+    test("value-flag edge cases: missing, empty, flag-like values, and duplicates", () => {
+      expect(() => parseRestoreArgs(["--target"])).toThrow(/--target requires a value/);
+      expect(() => parseRestoreArgs(["--target", ""])).toThrow(/--target requires a value/);
+      expect(() => parseRestoreArgs(["--target", "--yes-i-understand"])).toThrow(/--target requires a value/);
+      expect(() => parseRestoreArgs(["--from", "a", "--from", "b"])).toThrow(/--from was given more than once/);
+      expect(() => parseRestoreArgs(["--target=x", "--target=y"])).toThrow(/--target was given more than once/);
+      expect(() => parseRestoreArgs(["--env=a", "--env=b"])).toThrow(/--env was given more than once/);
+      expect(() => parseRestoreArgs(["--yes-i-understand", "--yes-i-understand"])).toThrow(
+        /--yes-i-understand was given more than once/
+      );
+    });
+
+    test("explicit --env bootstrap failure is fatal (exit-2-class usage error)", async () => {
+      const caseRoot = newCaseRoot();
+      makeSchemaFixture(caseRoot);
+      const fixture = makeBackupRun(caseRoot);
+      const args = parseRestoreArgs([
+        "--from",
+        fixture.runDir,
+        "--target",
+        TARGET_DSN,
+        "--yes-i-understand",
+        "--env",
+        envArgFor(join(caseRoot, ".env.does-not-exist")),
+      ]);
+
+      const caught = await catchError(
+        runRestoreVerify(args, {
+          spawnRunner: makeFakeSpawn(emptyScript()).runner,
+          repoRoot: join(caseRoot, "repo"),
+          stdout: () => undefined,
+          stderr: () => undefined,
+        })
+      );
+      expect(caught).toBeInstanceOf(RestoreUsageError);
+      expect(messageOf(caught)).toContain("env bootstrap failed");
+    });
+
+    test("missing default .env is non-fatal and skips source row-count comparisons", async () => {
+      const caseRoot = newCaseRoot();
+      makeSchemaFixture(caseRoot);
+      const fixture = makeBackupRun(caseRoot);
+      const originalCwd = process.cwd();
+      process.chdir(caseRoot);
+      try {
+        const run = await runPipeline(caseRoot, { from: fixture.runDir, script: healthyScript(), envFixture: null });
+        expect(run.thrown).toBeNull();
+        expect(run.exitCode).toBe(0);
+        expect(run.stderr).toContain("[env] proceeding without source-database context");
+        for (const request of run.requests) {
+          const dsn = psqlTargetDsn(request);
+          expect(dsn === null || dsn === TARGET_DSN).toBe(true);
+        }
+        for (const row of run.report?.structural ?? []) expect(row.sourceNonEmpty).toBe(false);
+      } finally {
+        process.chdir(originalCwd);
+      }
+    });
+
+    test("manifest validation accepts a well-formed manifest and the migrations-absent sentinel", () => {
+      const parsed = parseBackupManifest(JSON.stringify(validManifest()));
+      expect(parsed).toEqual(validManifest());
+
+      const absent = parseBackupManifest(JSON.stringify(validManifest({ journalHash: MIGRATIONS_ABSENT_HASH })));
+      expect(absent.journalHash).toBe(MIGRATIONS_ABSENT_HASH);
+    });
+
+    test("manifest validation fails closed on each missing field", () => {
+      const base = validManifest();
+      for (const field of Object.keys(base)) {
+        const clone: Record<string, unknown> = { ...base };
+        delete clone[field];
+        expect(() => parseBackupManifest(JSON.stringify(clone))).toThrow(RestoreArtifactError);
+        expect(() => parseBackupManifest(JSON.stringify(clone))).toThrow(new RegExp(`"${field}"`));
+      }
+    });
+
+    test("manifest validation rejects malformed values", () => {
+      const base = validManifest();
+      expect(() => parseBackupManifest(JSON.stringify({ ...base, tool: "ops:db-restore-verify" }))).toThrow(
+        /not a database backup manifest/
+      );
+      expect(() => parseBackupManifest(JSON.stringify({ ...base, sha256: ARTIFACT_SHA256.toUpperCase() }))).toThrow(
+        /64-hex/
+      );
+      expect(() => parseBackupManifest(JSON.stringify({ ...base, sha256: "abc123" }))).toThrow(/64-hex/);
+      expect(() => parseBackupManifest(JSON.stringify({ ...base, journalHash: "not-a-hash" }))).toThrow(/journalHash/);
+      expect(() => parseBackupManifest(JSON.stringify({ ...base, artifactBytes: 0 }))).toThrow(/positive integer/);
+      expect(() => parseBackupManifest(JSON.stringify({ ...base, artifactBytes: 1.5 }))).toThrow(/positive integer/);
+      expect(() => parseBackupManifest(JSON.stringify({ ...base, artifactBytes: "9" }))).toThrow(/positive integer/);
+      expect(() => parseBackupManifest("not-json{")).toThrow(/not valid JSON/);
+      expect(() => parseBackupManifest("[1, 2]")).toThrow(/not a JSON object/);
+    });
+
+    test("verdict aggregation: FAIL on any structural, oracle, or hash failure", () => {
+      const goodOracle = { passed: true };
+
+      expect(evaluateVerdict([structuralRow()], [goodOracle], true)).toBe("PASS");
+      expect(evaluateVerdict([], [], true)).toBe("PASS");
+      expect(evaluateVerdict([structuralRow({ ok: false })], [goodOracle], true)).toBe("FAIL");
+      expect(evaluateVerdict([structuralRow({ present: false, ok: false })], [], true)).toBe("FAIL");
+      expect(evaluateVerdict([structuralRow()], [{ passed: false }], true)).toBe("FAIL");
+      expect(evaluateVerdict([structuralRow()], [goodOracle], false)).toBe("FAIL");
+    });
+
+    test("structural failure (missing critical table) fails the verdict", async () => {
+      const caseRoot = newCaseRoot();
+      makeSchemaFixture(caseRoot);
+      const fixture = makeBackupRun(caseRoot);
+      const script: FakeDbScript = { ...healthyScript(), tables: ["app_settings", "users", "wallet"] };
+
+      const run = await runPipeline(caseRoot, { from: fixture.runDir, script });
+      expect(run.thrown).toBeNull();
+      expect(run.exitCode).toBe(1);
+      expect(run.report?.verdict).toBe("FAIL");
+      expect(run.stdout).toContain("VERDICT: FAIL");
+      expect(run.stderr).toContain('missing table "audit_logs"');
+      const auditRow = run.report?.structural.find(candidate => candidate.table === "audit_logs");
+      expect(auditRow?.present).toBe(false);
+      expect(auditRow?.ok).toBe(false);
+    });
+
+    test("oracle failure (5 offending rows) fails the verdict with tagged stderr", async () => {
+      const caseRoot = newCaseRoot();
+      makeSchemaFixture(caseRoot);
+      const fixture = makeBackupRun(caseRoot);
+      const script: FakeDbScript = { ...healthyScript(), oracleOutcomes: { "OR-W1": okCount(5) } };
+
+      const run = await runPipeline(caseRoot, { from: fixture.runDir, script });
+      expect(run.thrown).toBeNull();
+      expect(run.exitCode).toBe(1);
+      const walletOracle = run.report?.oracles.find(oracle => oracle.id === "OR-W1");
+      expect(walletOracle?.passed).toBe(false);
+      expect(walletOracle?.offendingCount).toBe(5);
+      expect(run.stderr).toContain("[verify:OR-W1] 5 offending row(s)");
+      expect(run.stdout).toContain("oracles 6/7 passed");
+      expect(run.stdout).toContain("VERDICT: FAIL");
+    });
+
+    test("hash mismatch refuses restore before verification: no spawn, no report", async () => {
+      const caseRoot = newCaseRoot();
+      makeSchemaFixture(caseRoot);
+      const fixture = makeBackupRun(caseRoot, { sha256: "0".repeat(64) });
+
+      const run = await runPipeline(caseRoot, { from: fixture.runDir, script: healthyScript() });
+      expect(run.thrown).toBeNull();
+      expect(run.exitCode).toBe(1);
+      expect(run.stderr).toContain("[verify] artifact sha256 mismatch");
+      expect(run.stderr).toContain("refusing restore");
+      expect(run.requests).toHaveLength(0);
+      expect(run.reportPath).toBeNull();
+      expect(run.stdout).not.toContain("VERDICT:");
+    });
+
+    test("PASS run: exact report contract, redaction, argv contract, durationMs, mode 0600", async () => {
+      const caseRoot = newCaseRoot();
+      makeSchemaFixture(caseRoot);
+      const fixture = makeBackupRun(caseRoot);
+      let ticks = 0;
+      const clock: Clock = () => {
+        ticks += 1;
+        return new Date(CLOCK_BASE_MS + (ticks - 1) * 5_000);
+      };
+
+      const run = await runPipeline(caseRoot, { from: fixture.runDir, script: healthyScript(), clock });
+      expect(run.thrown).toBeNull();
+      expect(run.exitCode).toBe(0);
+      expect(ticks).toBe(2);
+      expect(run.stdout).toContain("VERDICT: PASS");
+      expect(run.stdout).not.toContain("VERDICT: FAIL");
+      expect(run.stdout).toContain('target database "scratch_restore"');
+      expect(run.stdout).toContain('backed-up database: "kottaby_source"');
+      expect(run.stdout).toContain("restore-verify: artifact sha256 verified");
+      expect(run.stdout).toContain("structural checks 4/4 ok");
+      expect(run.stdout).toContain("audit_logs=3");
+      expect(run.stdout).toContain("users=12");
+      expect(run.stdout).toContain("oracles 7/7 passed");
+
+      const report = run.report;
+      expect(report).not.toBeNull();
+      expect(Object.keys(report ?? {}).toSorted((a, b) => a.localeCompare(b))).toEqual(REPORT_FIELD_NAMES);
+      expect(report?.tool).toBe(RESTORE_TOOL_ID);
+      expect(report?.artifactFile).toBe("dump.pgc");
+      expect(report?.artifactSha256).toBe(ARTIFACT_SHA256);
+      expect(report?.target).toEqual({ database: "scratch_restore" });
+      expect(report?.verdict).toBe("PASS");
+      expect(typeof report?.durationMs).toBe("number");
+      expect(report?.durationMs).toBe(5_000);
+      const startedAtUtc = report?.startedAtUtc ?? "";
+      expect(new Date(startedAtUtc).toISOString()).toBe(startedAtUtc);
+
+      expect(report?.structural.map(row => row.table)).toEqual(DERIVED_TABLES);
+      const appSettings = report?.structural.find(row => row.table === "app_settings");
+      expect(appSettings?.rowCount).toBe(-1);
+      expect(appSettings?.sourceNonEmpty).toBe(false);
+      expect(appSettings?.ok).toBe(true);
+      const users = report?.structural.find(row => row.table === "users");
+      expect(users?.rowCount).toBe(12);
+      expect(users?.sourceNonEmpty).toBe(true);
+      expect(users?.ok).toBe(true);
+      expect(report?.oracles.map(oracle => oracle.id)).toEqual(ORACLES.map(oracle => oracle.id));
+      for (const oracle of report?.oracles ?? []) {
+        expect(oracle.passed).toBe(true);
+        expect(oracle.offendingCount).toBe(0);
+      }
+
+      expect(run.reportPath).toBe(join(fixture.runDir, "restore-report.json"));
+      expect(statSync(run.reportPath ?? "").mode & 0o777).toBe(0o600);
+
+      expect(run.reportBody).not.toContain("127.0.0.1");
+      expect(run.reportBody).not.toContain("restore_user");
+      expect(run.reportBody).not.toContain(FIXTURE_PASSWORD);
+
+      assertArgvArrayRequests(run.requests);
+      const restoreRequest = run.requests.find(request => request.cmd === "pg_restore");
+      expect(restoreRequest?.args).toEqual([
+        "--clean",
+        "--if-exists",
+        "--no-owner",
+        "--no-privileges",
+        "--dbname",
+        TARGET_DSN,
+        fixture.artifactPath,
+      ]);
+    });
+  });
+
+  describe("tier 2: boundaries", () => {
+    test("zero-row critical table fails only when the source held data", async () => {
+      const caseRoot = newCaseRoot();
+      makeSchemaFixture(caseRoot);
+      const fixture = makeBackupRun(caseRoot);
+
+      const emptySource = { users: 0, wallet: 7, audit_logs: 3, app_settings: 5 };
+      const failedRun = await runPipeline(caseRoot, {
+        from: fixture.runDir,
+        script: { ...healthyScript(), targetCounts: emptySource },
+      });
+      expect(failedRun.thrown).toBeNull();
+      expect(failedRun.exitCode).toBe(1);
+      const usersRow = failedRun.report?.structural.find(row => row.table === "users");
+      expect(usersRow?.present).toBe(true);
+      expect(usersRow?.rowCount).toBe(0);
+      expect(usersRow?.sourceNonEmpty).toBe(true);
+      expect(usersRow?.ok).toBe(false);
+      expect(failedRun.stderr).toContain('critical table "users" restored to 0 rows');
+      expect(failedRun.stdout).toContain("VERDICT: FAIL");
+
+      const zeroEverywhere = { users: 0, wallet: 0, audit_logs: 0, app_settings: 0 };
+      const passedRun = await runPipeline(caseRoot, {
+        from: fixture.runDir,
+        script: {
+          ...healthyScript(),
+          targetCounts: zeroEverywhere,
+          sourceCounts: zeroEverywhere,
+        },
+      });
+      expect(passedRun.thrown).toBeNull();
+      expect(passedRun.exitCode).toBe(0);
+      const passedUsersRow = passedRun.report?.structural.find(row => row.table === "users");
+      expect(passedUsersRow?.rowCount).toBe(0);
+      expect(passedUsersRow?.sourceNonEmpty).toBe(false);
+      expect(passedUsersRow?.ok).toBe(true);
+      expect(passedRun.stdout).toContain("VERDICT: PASS");
+    });
+
+    test("run-dir resolution refuses missing manifest, missing dump, and non-file artifacts", () => {
+      const caseRoot = newCaseRoot();
+
+      expect(() => resolveRunArtifact(join(caseRoot, "absent"))).toThrow(RestoreArtifactError);
+      expect(() => resolveRunArtifact(join(caseRoot, "absent"))).toThrow(/does not exist or is unreadable/);
+
+      const bareDir = join(caseRoot, "bare-run");
+      mkdirSync(bareDir);
+      writeFileSync(join(bareDir, "dump.pgc"), ARTIFACT_BYTES);
+      expect(() => resolveRunArtifact(bareDir)).toThrow(/manifest not found/);
+
+      const lonelyArtifact = join(caseRoot, "lonely.pgc");
+      writeFileSync(lonelyArtifact, ARTIFACT_BYTES);
+      expect(() => resolveRunArtifact(lonelyArtifact)).toThrow(/manifest not found/);
+
+      const noDumpDir = join(caseRoot, "no-dump-run");
+      mkdirSync(noDumpDir);
+      writeFileSync(join(noDumpDir, "manifest.json"), JSON.stringify(validManifest({ artifactFile: "missing.pgc" })));
+      expect(() => resolveRunArtifact(noDumpDir)).toThrow(/artifact does not exist or is unreadable/);
+
+      const dirArtifactRun = join(caseRoot, "dir-artifact-run");
+      mkdirSync(dirArtifactRun);
+      mkdirSync(join(dirArtifactRun, "dump.pgc"));
+      writeFileSync(join(dirArtifactRun, "manifest.json"), JSON.stringify(validManifest()));
+      expect(() => resolveRunArtifact(dirArtifactRun)).toThrow(/artifact is not a regular file/);
+    });
+
+    test("oracle results distinguish a clean zero from an errored evaluation (-1)", async () => {
+      const registry: OracleDefinition[] = [
+        { id: "T-COUNT-ZERO", description: "count is zero", invariantAnchor: "test", sql: "SELECT 1" },
+        { id: "T-PSQL-ERROR", description: "psql errored", invariantAnchor: "test", sql: "SELECT 2" },
+        { id: "T-RUNNER-THREW", description: "runner threw", invariantAnchor: "test", sql: "SELECT 3" },
+        { id: "T-VALUE-MATCH", description: "value matches", invariantAnchor: "test", sql: "SELECT 4" },
+        { id: "T-VALUE-DRIFT", description: "value drifts", invariantAnchor: "test", sql: "SELECT 5" },
+      ];
+      const results = await runOracles(
+        async sql => {
+          if (sql === "SELECT 3") throw new Error("chaos: runner exploded");
+          const outcome: PsqlOutcome = { ok: true, value: "0", stderr: "" };
+          if (sql === "SELECT 2") return { ok: false, value: "", stderr: "psql: server closed the connection" };
+          if (sql === "SELECT 4") return { ok: true, value: JOURNAL_HASH, stderr: "" };
+          if (sql === "SELECT 5") return { ok: true, value: JOURNAL_HASH.slice(0, 16), stderr: "" };
+          return outcome;
+        },
+        { journalHash: JOURNAL_HASH },
+        registry
+      );
+
+      const byId = new Map(results.map(result => [result.id, result]));
+      expect(byId.get("T-COUNT-ZERO")).toEqual({
+        id: "T-COUNT-ZERO",
+        description: "count is zero",
+        passed: true,
+        offendingCount: 0,
+      });
+      expect(byId.get("T-PSQL-ERROR")?.passed).toBe(false);
+      expect(byId.get("T-PSQL-ERROR")?.offendingCount).toBe(ORACLE_ERROR_OFFENDING_COUNT);
+      expect(byId.get("T-RUNNER-THREW")?.passed).toBe(false);
+      expect(byId.get("T-RUNNER-THREW")?.offendingCount).toBe(ORACLE_ERROR_OFFENDING_COUNT);
+      expect(byId.get("T-VALUE-MATCH")?.passed).toBe(true);
+      expect(byId.get("T-VALUE-MATCH")?.offendingCount).toBe(0);
+      expect(byId.get("T-VALUE-DRIFT")?.passed).toBe(false);
+      expect(byId.get("T-VALUE-DRIFT")?.offendingCount).toBe(1);
+    });
+
+    test("errored oracle is recorded as -1 while clean zeros stay 0 (not conflated)", async () => {
+      const caseRoot = newCaseRoot();
+      makeSchemaFixture(caseRoot);
+      const fixture = makeBackupRun(caseRoot);
+      const script: FakeDbScript = {
+        ...healthyScript(),
+        oracleOutcomes: { "OR-B1": { exitCode: 1, stdout: "", stderr: "psql: FATAL: terminating connection" } },
+      };
+
+      const run = await runPipeline(caseRoot, { from: fixture.runDir, script });
+      expect(run.thrown).toBeNull();
+      expect(run.exitCode).toBe(1);
+      const holdsOracle = run.report?.oracles.find(oracle => oracle.id === "OR-B1");
+      expect(holdsOracle?.passed).toBe(false);
+      expect(holdsOracle?.offendingCount).toBe(-1);
+      const walletOracle = run.report?.oracles.find(oracle => oracle.id === "OR-W1");
+      expect(walletOracle?.passed).toBe(true);
+      expect(walletOracle?.offendingCount).toBe(0);
+      expect(run.stderr).toContain("[verify:OR-B1] oracle errored");
+      expect(run.stdout).toContain("VERDICT: FAIL");
+    });
+  });
+
+  describe("tier 3: chaos", () => {
+    test("chaos: truncated dump file trips the sha256 mismatch path", async () => {
+      const caseRoot = newCaseRoot();
+      makeSchemaFixture(caseRoot);
+      const fixture = makeBackupRun(caseRoot);
+      writeFileSync(fixture.artifactPath, ARTIFACT_BYTES.subarray(0, 9));
+
+      const run = await runPipeline(caseRoot, { from: fixture.runDir, script: healthyScript() });
+      expect(run.thrown).toBeNull();
+      expect(run.exitCode).toBe(1);
+      expect(run.stderr).toContain("[verify] artifact sha256 mismatch");
+      expect(run.requests).toHaveLength(0);
+      expect(run.reportPath).toBeNull();
+    });
+
+    test("chaos: manifests missing randomized key subsets always fail closed", () => {
+      const caseRoot = newCaseRoot();
+      const runDir = join(caseRoot, "randomized-run");
+      mkdirSync(runDir);
+      writeFileSync(join(runDir, "dump.pgc"), ARTIFACT_BYTES);
+      const manifestPath = join(runDir, "manifest.json");
+
+      const base = validManifest();
+      const keys = Object.keys(base);
+      const hitCounts = new Map(keys.map(key => [key, 0]));
+      let seed = 0x5f3759df;
+      const nextRandom = (bound: number): number => {
+        seed = (seed * 1103515245 + 12345) % 2147483648;
+        return seed % bound;
+      };
+
+      for (let trial = 0; trial < 40; trial++) {
+        const clone: Record<string, unknown> = { ...base };
+        const drops = 1 + nextRandom(keys.length);
+        for (let dropped = 0; dropped < drops; dropped++) {
+          const key = keys.at(nextRandom(keys.length));
+          if (key !== undefined) {
+            delete clone[key];
+            hitCounts.set(key, (hitCounts.get(key) ?? 0) + 1);
+          }
+        }
+        writeFileSync(manifestPath, JSON.stringify(clone));
+        expect(() => resolveRunArtifact(runDir)).toThrow(RestoreArtifactError);
+      }
+
+      for (const hits of hitCounts.values()) expect(hits).toBeGreaterThan(0);
+    });
+
+    test("chaos: oracle SQL error injection fails the verdict without crashing", async () => {
+      const caseRoot = newCaseRoot();
+      makeSchemaFixture(caseRoot);
+      const fixture = makeBackupRun(caseRoot);
+
+      const garbageRun = await runPipeline(caseRoot, {
+        from: fixture.runDir,
+        script: {
+          ...healthyScript(),
+          oracleOutcomes: { "OR-U2": { exitCode: 1, stdout: "PSQL-CHAOS-GARBAGE", stderr: "psql: syntax chaos" } },
+        },
+      });
+      expect(garbageRun.thrown).toBeNull();
+      expect(garbageRun.exitCode).toBe(1);
+      const historyOracle = garbageRun.report?.oracles.find(oracle => oracle.id === "OR-U2");
+      expect(historyOracle?.passed).toBe(false);
+      expect(historyOracle?.offendingCount).toBe(-1);
+      expect(garbageRun.reportPath).not.toBeNull();
+      expect(garbageRun.stdout).toContain("VERDICT: FAIL");
+
+      const throwRun = await runPipeline(caseRoot, {
+        from: fixture.runDir,
+        script: { ...healthyScript(), throwOnSqlSubstring: "FROM audit_logs a LEFT JOIN users u" },
+      });
+      expect(throwRun.thrown).toBeNull();
+      expect(throwRun.exitCode).toBe(1);
+      const actorOracle = throwRun.report?.oracles.find(oracle => oracle.id === "OR-U1");
+      expect(actorOracle?.passed).toBe(false);
+      expect(actorOracle?.offendingCount).toBe(-1);
+      expect(throwRun.stdout).toContain("VERDICT: FAIL");
+    });
+
+    test("chaos: unreadable restored catalog surfaces a typed verification error", async () => {
+      const caseRoot = newCaseRoot();
+      makeSchemaFixture(caseRoot);
+      const fixture = makeBackupRun(caseRoot);
+
+      const run = await runPipeline(caseRoot, {
+        from: fixture.runDir,
+        script: { ...healthyScript(), failPresenceQuery: true },
+      });
+      expect(run.thrown).toBeInstanceOf(RestoreVerificationError);
+      expect(messageOf(run.thrown)).toContain("could not list restored tables");
+      expect(run.requests[0]?.cmd).toBe("pg_restore");
+      expect(run.reportPath).toBeNull();
+    });
+
+    test("chaos: flipping one manifest-hash nibble exits 1 with zero restore spawns", async () => {
+      const caseRoot = newCaseRoot();
+      makeSchemaFixture(caseRoot);
+      const tampered = ARTIFACT_SHA256.startsWith("a")
+        ? `b${ARTIFACT_SHA256.slice(1)}`
+        : `a${ARTIFACT_SHA256.slice(1)}`;
+      const fixture = makeBackupRun(caseRoot, { sha256: tampered });
+
+      const run = await runPipeline(caseRoot, { from: fixture.runDir, script: healthyScript() });
+      expect(run.thrown).toBeNull();
+      expect(run.exitCode).toBe(1);
+      expect(run.stderr).toContain("[verify] artifact sha256 mismatch");
+      expect(run.stderr).toContain(ARTIFACT_SHA256);
+      expect(run.requests).toHaveLength(0);
+      expect(run.reportPath).toBeNull();
+    });
+  });
+
+  describe("tier 4: security", () => {
+    const refusalCases: Array<{ name: string; env: string; targetDsn: string; reason: string }> = [
+      {
+        name: "NODE_ENV=production env shape",
+        env: localEnvFixture("production"),
+        targetDsn: TARGET_DSN,
+        reason: 'NODE_ENV is "production"',
+      },
+      {
+        name: "managed neon.tech host",
+        env: localEnvFixture(),
+        targetDsn: NEON_TARGET_DSN,
+        reason: "neon.tech",
+      },
+      {
+        name: "Upstash marker in env",
+        env: localEnvFixture("development", ["UPSTASH_REDIS_REST_URL=https://alive-mammal-12345.upstash.io"]),
+        targetDsn: TARGET_DSN,
+        reason: "UPSTASH_REDIS_REST_URL is set",
+      },
+      {
+        name: "RDS host",
+        env: localEnvFixture(),
+        targetDsn: RDS_TARGET_DSN,
+        reason: "rds.amazonaws.com",
+      },
+    ];
+
+    for (const refusalCase of refusalCases) {
+      test(`guard refuses ${refusalCase.name} before any spawn (exit 2)`, async () => {
+        const caseRoot = newCaseRoot();
+        makeSchemaFixture(caseRoot);
+        // `--from` is deliberately unresolvable: the guard must fire first.
+        const run = await runPipeline(caseRoot, {
+          from: join(caseRoot, "never-resolved"),
+          targetDsn: refusalCase.targetDsn,
+          script: emptyScript(),
+          envFixture: refusalCase.env,
+        });
+        expect(run.thrown).toBeNull();
+        expect(run.exitCode).toBe(2);
+        expect(run.stderr).toContain("[guard]");
+        expect(run.stderr).toContain(refusalCase.reason);
+        expect(run.requests).toHaveLength(0);
+        expect(run.stderr).not.toContain(FIXTURE_PASSWORD);
+      });
+    }
+
+    test("CLI guard refusal exits 2 without leaking the connection string", () => {
+      const caseRoot = newCaseRoot();
+      const envFile = join(caseRoot, ".env.fixture");
+      writeFileSync(envFile, localEnvFixture());
+
+      const run = runCliSubprocess([
+        "--from",
+        join(caseRoot, "run"),
+        "--target",
+        NEON_TARGET_DSN,
+        "--yes-i-understand",
+        "--env",
+        envArgFor(envFile),
+      ]);
+      expect(run.exitCode).toBe(2);
+      expect(run.stderr).toContain("[guard]");
+      expect(run.stderr).toContain("neon.tech");
+      expect(run.stderr).not.toContain(FIXTURE_PASSWORD);
+    });
+
+    test("pg_restore failure exits 1 and scrubs the connection string from stderr", async () => {
+      const caseRoot = newCaseRoot();
+      makeSchemaFixture(caseRoot);
+      const fixture = makeBackupRun(caseRoot);
+      const script: FakeDbScript = {
+        ...healthyScript(),
+        pgRestore: {
+          exitCode: 1,
+          stdout: "",
+          stderr: `pg_restore: error: could not connect to postgresql://restore_user:${FIXTURE_PASSWORD}@127.0.0.1:5432/scratch_restore`,
+        },
+      };
+
+      const run = await runPipeline(caseRoot, { from: fixture.runDir, script });
+      expect(run.thrown).toBeNull();
+      expect(run.exitCode).toBe(1);
+      expect(run.stderr).toContain("[pg_restore]");
+      expect(run.stderr).toContain("restore_user:***@");
+      expect(run.stderr).not.toContain(FIXTURE_PASSWORD);
+      expect(run.reportPath).toBeNull();
+    });
+
+    test("fixture credentials never appear in any captured stream (success + failure)", async () => {
+      const caseRoot = newCaseRoot();
+      makeSchemaFixture(caseRoot);
+      const fixture = makeBackupRun(caseRoot);
+
+      const passRun = await runPipeline(caseRoot, { from: fixture.runDir, script: healthyScript() });
+      const failRun = await runPipeline(caseRoot, {
+        from: fixture.runDir,
+        script: { ...healthyScript(), oracleOutcomes: { "OR-W1": okCount(5) } },
+      });
+
+      const combined = [
+        passRun.stdout,
+        passRun.stderr,
+        passRun.reportBody,
+        failRun.stdout,
+        failRun.stderr,
+        failRun.reportBody,
+      ]
+        .filter((stream): stream is string => stream !== null)
+        .join("\n");
+      expect(combined).toContain("VERDICT: PASS");
+      expect(combined).toContain("VERDICT: FAIL");
+      expect(combined).not.toContain(FIXTURE_PASSWORD);
+      expect(combined).not.toContain(SOURCE_PASSWORD);
+      expect(combined).not.toContain(TARGET_DSN);
+      expect(combined).not.toContain(SOURCE_DSN);
+    });
+  });
+});

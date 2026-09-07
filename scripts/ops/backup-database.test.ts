@@ -726,23 +726,23 @@ describe("probeToolchain", () => {
 });
 
 describe("runPgDump", () => {
-  const dumpDir = join(workspace, "dump-tests");
-  const artifactPath = join(dumpDir, ARTIFACT_FILE_NAME);
+  const dumpDir = () => join(workspace, "dump-tests");
+  const artifactPath = () => join(dumpDir(), ARTIFACT_FILE_NAME);
 
   it("succeeds for a non-empty artifact and enforces 0600", async () => {
-    mkdirSync(dumpDir, { recursive: true });
-    writeFileSync(artifactPath, DUMP_CONTENT);
-    chmodSync(artifactPath, 0o644);
+    mkdirSync(dumpDir(), { recursive: true });
+    writeFileSync(artifactPath(), DUMP_CONTENT);
+    chmodSync(artifactPath(), 0o644);
     const runner = fakeSpawn(() => ({ exitCode: 0, stdout: "", stderr: "" }), []);
-    const result = await runPgDump(runner, { PATH: "/bin" }, artifactPath, FIXTURE_DSN);
+    const result = await runPgDump(runner, { PATH: "/bin" }, artifactPath(), FIXTURE_DSN);
     expect(result).toEqual({ ok: true, artifactBytes: Buffer.byteLength(DUMP_CONTENT) });
-    expect(statSync(artifactPath).mode & 0o777).toBe(0o600);
+    expect(statSync(artifactPath()).mode & 0o777).toBe(0o600);
   });
 
   it("fails for a zero-byte artifact even when pg_dump exits 0", async () => {
-    writeFileSync(artifactPath, "");
+    writeFileSync(artifactPath(), "");
     const runner = fakeSpawn(() => ({ exitCode: 0, stdout: "", stderr: "" }), []);
-    const result = await runPgDump(runner, { PATH: "/bin" }, artifactPath, FIXTURE_DSN);
+    const result = await runPgDump(runner, { PATH: "/bin" }, artifactPath(), FIXTURE_DSN);
     expect(result.ok).toBe(false);
     expect(result.ok ? "" : result.message).toContain("the artifact is 0 bytes");
   });
@@ -751,7 +751,7 @@ describe("runPgDump", () => {
     const result = await runPgDump(
       fakeSpawn(() => ({ exitCode: 0, stdout: "", stderr: "" }), []),
       { PATH: "/bin" },
-      join(dumpDir, "gone.pgc"),
+      join(dumpDir(), "gone.pgc"),
       FIXTURE_DSN
     );
     expect(result.ok).toBe(false);
@@ -763,7 +763,7 @@ describe("runPgDump", () => {
     const result = await runPgDump(
       fakeSpawn(() => ({ exitCode: 2, stdout: "", stderr }), []),
       { PATH: "/bin" },
-      artifactPath,
+      artifactPath(),
       FIXTURE_DSN
     );
     expect(result.ok).toBe(false);
@@ -779,7 +779,7 @@ describe("runPgDump", () => {
         throw new Error("spawn pg_dump ENOENT");
       }, []),
       { PATH: "/bin" },
-      artifactPath,
+      artifactPath(),
       FIXTURE_DSN
     );
     expect(result.ok).toBe(false);

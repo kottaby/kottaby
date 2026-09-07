@@ -80,7 +80,7 @@ Sequence: QL → TE → SEC → SR → IV → `[x]`.
 
 ## Phase 3 — Restore & Verification Script (CREATE `scripts/ops/restore-verify.ts`)
 
-- [ ] 3.1 **Implement `restore-verify.ts`** per plan §Component-2/3: arg parse with REQUIRED `--target` (no default), `--from` run-dir-or-artifact resolution, `--yes-i-understand` non-TTY gate; guard assessment on the target DSN (single-variable threading); artifact SHA-256 re-check vs manifest; `pg_restore --clean --if-exists --no-owner --no-privileges`; structural checks (table presence derived from `backend/db/schema/` exports; REQ-017 critical table row counts; `__drizzle_migrations` hash check); `const ORACLES` registry (OR-W1, OR-W2, OR-B1, OR-U1, OR-U2, OR-REQ, OR-MIG) executed as read-only `psql` predicates; `restore-report.json` writer; `VERDICT: PASS|FAIL` summary with absolute report path.
+- [x] 3.1 **Implement `restore-verify.ts`** per plan §Component-2/3: arg parse with REQUIRED `--target` (no default), `--from` run-dir-or-artifact resolution, `--yes-i-understand` non-TTY gate; guard assessment on the target DSN (single-variable threading); artifact SHA-256 re-check vs manifest; `pg_restore --clean --if-exists --no-owner --no-privileges`; structural checks (table presence derived from `backend/db/schema/` exports; REQ-017 critical table row counts; `__drizzle_migrations` hash check); `const ORACLES` registry (OR-W1, OR-W2, OR-B1, OR-U1, OR-U2, OR-REQ, OR-MIG) executed as read-only `psql` predicates; `restore-report.json` writer; `VERDICT: PASS|FAIL` summary with absolute report path.
   - [ ] 3.1.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts scripts/ops/restore-verify.ts --lifecycle duplicates` → exit 0.
   - [ ] 3.1.TE **Test Engineering** — create `scripts/ops/restore-verify.test.ts`:
     - Tier 1: arg branches incl. every refusal; manifest load/validate; verdict aggregation (any structural fail → FAIL; any oracle fail → FAIL; hash mismatch → FAIL); report writer shape.
@@ -91,7 +91,7 @@ Sequence: QL → TE → SEC → SR → IV → `[x]`.
   - [ ] 3.1.SR **Semantic Review**: registry is pure data (adding oracle = data append); TOCTOU single-DSN threading verified by reading the code top to bottom; no dead branches; comment hygiene (no plan refs).
   - [ ] 3.1.IV **Instruction Verification**: sub-loop-printed files read & validated.
   - _Requirements: REQ-015, REQ-016, REQ-017, REQ-018, REQ-019, REQ-024, REQ-025, REQ-027, REQ-030, REQ-031, REQ-032, REQ-041, REQ-050, REQ-051, REQ-052._
-- [ ] 3.2 **Outcome**: `outcome/3.1-restore-verify-outcome.md`.
+- [x] 3.2 **Outcome**: `outcome/3.1-restore-verify-outcome.md`.
   - _Requirements: REQ-000.4 (outcome ledger)._
 
 ## Phase 4 — Repo Wiring
