@@ -28,7 +28,7 @@
 
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
-import { type Context, createGraphQLContext } from "@/backend/graphql/gqlContextFactory";
+import { type Context, createGraphQLContext, extractLocale } from "@/backend/graphql/gqlContextFactory";
 
 /** Full structural RFC-4122 v4 pin — mirrors request-id.test.ts. */
 const UUID_V4_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
@@ -67,6 +67,22 @@ function identitySnapshot(context: Context): IdentitySnapshot {
 const KEY_PROBES = ["idem-key-alpha", "idem-key-beta", "interior space key", "idem-collide"] as const;
 
 // ─── Tier 1 — presence/absence ───────────────────────────────────────────────
+
+describe("extractLocale fast-path cookie extraction", () => {
+  test("extracts locale correctly via parsedCookies and request headers fallback", () => {
+    const reqWithCookie = requestWithHeaders({ cookie: "NEXT_LOCALE=ar; session=123" });
+    expect(extractLocale(reqWithCookie)).toBe("ar");
+
+    const reqWithParsedCookies = requestWithHeaders({ cookie: "NEXT_LOCALE=ar" });
+    expect(extractLocale(reqWithParsedCookies, { NEXT_LOCALE: "ar" })).toBe("ar");
+
+    const reqWithLegacyCookie = requestWithHeaders({ cookie: "next-locale=en" });
+    expect(extractLocale(reqWithLegacyCookie, { "next-locale": "en" })).toBe("en");
+
+    const reqDefault = requestWithHeaders({});
+    expect(extractLocale(reqDefault, {})).toBe("en");
+  });
+});
 
 describe("ctx.idempotencyKey — Tier 1 presence semantics", () => {
   test("present header crosses onto the context VERBATIM alongside its sibling id", async () => {

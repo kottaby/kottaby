@@ -143,6 +143,33 @@ describe("Security Vulnerability Fix — No Hardcoded Fallback Secret", () => {
     const verifiedRefresh = await verifyRefreshToken(refreshToken);
     expect(verifiedRefresh).toEqual({ userId: 99, sessionId });
   });
+
+  test("throws Error in production when explicit JWT secrets are missing", async () => {
+    (process.env as Record<string, string | undefined>).NODE_ENV = "production";
+    process.env.DATABASE_ENCRYPTION_KEY = "cafef00dcafe1234cafef00dcafe1234cafef00dcafe1234cafef00dcafe1234";
+    delete process.env.JWT_ACCESS_SECRET;
+    delete process.env.JWT_REFRESH_SECRET;
+    resetJwtSecretCache();
+    resetEnvironmentCache();
+
+    let accessErr: Error | null = null;
+    try {
+      await signAccessToken({ userId: 1, role: "student" });
+    } catch (err) {
+      accessErr = err instanceof Error ? err : new Error(String(err));
+    }
+    expect(accessErr?.message).toContain('Required environment variable "JWT_ACCESS_SECRET" is not set in production.');
+
+    let refreshErr: Error | null = null;
+    try {
+      await signRefreshToken({ userId: 1, sessionId: "session-1" });
+    } catch (err) {
+      refreshErr = err instanceof Error ? err : new Error(String(err));
+    }
+    expect(refreshErr?.message).toContain(
+      'Required environment variable "JWT_REFRESH_SECRET" is not set in production.'
+    );
+  });
 });
 
 describe("JWT Helper Utilities", () => {
