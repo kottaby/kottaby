@@ -10,15 +10,17 @@
  *   public API (Drizzle ORM, queryDb, closePool). Used when a real
  *   PostgreSQL install is not available.
  *
- * Connection is lazy: the pool/PGlite instance is constructed on first access
- * (first `db.select()` or `queryDb` call), not at module-eval time, so
- * importing this module in a non-DB context does not open a connection.
+ * Connection is lazy: the exported `db` wraps a delegating pool that resolves
+ * (and constructs) the real singleton on first use (first `db.select()` or
+ * `queryDb` call) — importing this module performs no I/O and never reads
+ * `DATABASE_URL`, so importing it in a non-DB context neither opens a
+ * connection nor throws.
  *
  * @see docs/SQLITE_LOCAL_DEV.md for the legacy `sqlite` (libsql) dialect — not
  *      used in production; the PGlite path replaces it for sandbox dev.
  */
 import { drizzle } from "drizzle-orm/node-postgres";
-import { Pool, type QueryResult, type QueryResultRow } from "pg";
+import { type CustomTypesConfig, Pool, type QueryResult, type QueryResultRow } from "pg";
 import {
   closePglite,
   getPglitePool,
@@ -177,31 +179,141 @@ function getPool(): AnyPool {
 export const getDrizzleDbPool = getPool;
 
 /**
- * Returns the singleton pool typed as `pg.Pool` for Drizzle's
- * `node-postgres` session typing. Drizzle's `NodePgClient = pg.Pool |
- * PoolClient | Client` — `PglitePoolLike` is NOT structurally a `pg.Pool`
- * (it omits the EventEmitter surface, `totalCount`/`idleCount`, etc.), so a
- * real `value is Pool` type guard cannot narrow the union. The
- * `assertPoolLike` runtime check above validates the structural shape
- * (object + query/connect/end methods) BEFORE we hand the value to Drizzle.
- *
- * Drizzle's `NodePgSession` only invokes `client.query(text, params)` and
- * `client.connect()`, both of which the PGlite shim implements. The runtime
- * is verified safe by the DB / services / journey test suites (147 tests /
- * ~900 expect() calls GREEN) on both `postgres` and `pglite` providers.
+ * Normalizes a pg `QueryResult` into the shared row shape used by both pool
+ * backends: `fields` reduced to the two properties repos consume (`name`,
+ * `dataTypeID`) and `rowCount` coalesced (pg reports `number | null`).
  */
-function getPoolForDrizzle(): Pool {
-  const pool = getPool();
-  // REAL runtime validation (object + query/connect/end methods) — this is
-  // the documented escape hatch for `no-unsafe-type-assertion`: a type-guard
-  // / assertion function narrows the union without an `as` cast. After the
-  // call, `pool` is typed as `Pool`.
-  assertPoolLike(pool);
-  return pool;
+function toQueryResultLike<T extends Row>(result: QueryResult<T>): QueryResultLike<T> {
+  return {
+    rows: result.rows,
+    fields: result.fields.map(f => ({ name: f.name, dataTypeID: f.dataTypeID })),
+    rowCount: result.rowCount ?? 0,
+    command: result.command,
+    oid: result.oid,
+  };
+}
+
+/** Config shape pg accepts at runtime for `query(config)`; locally typed because the installed pg `QueryConfig` type omits `rowMode`. */
+interface PgForwardConfig {
+  name?: string;
+  text: string;
+  values?: unknown[];
+  rowMode?: string;
+  types?: CustomTypesConfig;
+}
+
+/** Runtime-validated narrowing of drizzle's opaque `types` payload (same assertion-idiom as {@link assertPoolLike}). */
+function assertCustomTypesConfig(value: unknown): asserts value is CustomTypesConfig {
+  if (
+    typeof value !== "object" ||
+    value === null ||
+    !("getTypeParser" in value) ||
+    typeof value.getTypeParser !== "function"
+  ) {
+    throw new Error("[db] invalid pg type-parser config");
+  }
 }
 
 /**
- * The Drizzle ORM client bound to the pool. Use for typed queries:
+ * Forwards one normalized call to a pg-shaped runner (`Pool` or
+ * `PoolClient`), preserving drizzle's per-query `name` / `rowMode` / `types`
+ * config so the driver's custom type parsers keep working.
+ */
+async function pgForward<T extends Row = Row>(
+  runner: Pick<Pool, "query">,
+  textOrConfig: string | PgQueryConfig,
+  params?: ReadonlyArray<unknown>
+): Promise<QueryResultLike<T>> {
+  const values = params ?? (typeof textOrConfig === "string" ? undefined : textOrConfig.values);
+  const mutableValues = values ? [...values] : undefined;
+  if (typeof textOrConfig === "string") {
+    return toQueryResultLike(await runner.query<T>(textOrConfig, mutableValues));
+  }
+  const config: PgForwardConfig = { text: textOrConfig.text ?? "", values: mutableValues };
+  if (textOrConfig.name !== undefined) {
+    config.name = textOrConfig.name;
+  }
+  if (textOrConfig.rowMode !== undefined) {
+    config.rowMode = textOrConfig.rowMode;
+  }
+  if (textOrConfig.types !== undefined) {
+    assertCustomTypesConfig(textOrConfig.types);
+    config.types = textOrConfig.types;
+  }
+  return toQueryResultLike(await runner.query<T>(config));
+}
+
+/** Lazy query hop — resolves the singleton on first use, never at import. */
+async function lazyQuery<T extends Row = Row>(
+  textOrConfig: string | PgQueryConfig,
+  params?: ReadonlyArray<unknown>
+): Promise<QueryResultLike<T>> {
+  const pool = getPool();
+  if (isPglitePool(pool)) {
+    return pool.query<T>(textOrConfig, params);
+  }
+  return pgForward<T>(pool, textOrConfig, params);
+}
+
+/** Lazy connect hop — binds the caller to one dedicated backend client. */
+async function lazyConnect(): Promise<PoolClientLike> {
+  const pool = getPool();
+  if (isPglitePool(pool)) {
+    return pool.connect();
+  }
+  const client = await pool.connect();
+  return {
+    query: <T extends Row = Row>(textOrConfig: string | PgQueryConfig, params?: ReadonlyArray<unknown>) =>
+      pgForward<T>(client, textOrConfig, params),
+    release: () => {
+      client.release();
+    },
+  };
+}
+
+/** Lazy end hop — delegates shutdown to the resolved singleton. */
+async function lazyEnd(): Promise<void> {
+  await getPool().end();
+}
+
+/**
+ * Single-client-mode adapter for the PGlite provider: drizzle treats a
+ * non-Pool client as one shared connection (embedded semantics), exactly
+ * matching the pre-existing PGlite behavior.
+ */
+const lazyPgliteClientAdapter: PglitePoolLike = {
+  query: lazyQuery,
+  connect: lazyConnect,
+  end: lazyEnd,
+  on(): PglitePoolLike {
+    return lazyPgliteClientAdapter;
+  },
+};
+
+/**
+ * Pool-mode adapter for the postgres provider: the class name contains
+ * "Pool" so drizzle's node-postgres driver detects a pool and calls
+ * `connect()` per transaction (dedicated connection + `release()`),
+ * matching the semantics of a real `pg.Pool` while doing zero work at
+ * import time.
+ */
+class LazyDrizzlePool {
+  query = lazyQuery;
+  connect = lazyConnect;
+  end = lazyEnd;
+  on(_event: string, _listener: (...args: unknown[]) => void): this {
+    return this;
+  }
+}
+
+assertPoolLike(lazyPgliteClientAdapter);
+const lazyDrizzlePool = new LazyDrizzlePool();
+assertPoolLike(lazyDrizzlePool);
+
+/**
+ * The Drizzle ORM client. Constructed at module scope around the lazily
+ * delegating pool above — the real pool is resolved on the first query, not
+ * at import time. Use for typed queries:
  * `db.select().from(users).where(eq(users.id, id))`.
  *
  * NOTE (drizzle-orm 1.0.0-rc.4): `DrizzlePgConfig` explicitly omits `schema` —
@@ -211,7 +323,9 @@ function getPoolForDrizzle(): Pool {
  * (`db.query.users.findMany()`) will require schema passed at the call site
  * when those land in a later ticket.
  */
-export const db = drizzle({ client: getPoolForDrizzle() });
+export const db = isPgliteProvider()
+  ? drizzle({ client: lazyPgliteClientAdapter })
+  : drizzle({ client: lazyDrizzlePool });
 
 /**
  * Runs a raw parameterized SQL query against the pool and returns typed rows.
