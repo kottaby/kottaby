@@ -29,10 +29,12 @@
  *    wallet read (`myWallet`); the enum set grows ONLY by the DEV3-004
  *    scheduling trio (`SessionStatus`, `SessionType`, `SessionIntent`),
  *    the DEV3-005 arbitration vocabulary (`DisputeResolution`) and the
- *    DEV3-013 ledger pair (`TransactionType`, `TransactionStatus`); and the
+ *    DEV3-013 ledger pair (`TransactionType`, `TransactionStatus`); the
  *    whole-schema named-type delta is exactly the session objects/inputs +
  *    arbitration + ledger enums + wallet surface on top of the refreshed
- *    baseline delta.
+ *    baseline delta; and the 4.4 codegen reconcile pins the DEV3-021 admin
+ *    session-governance surface (2 queries + 4 mutations + 5 inputs, NO new
+ *    object/enum) on top of the refreshed delta.
  *  - **DEV3-017 admin-governance surface pins** — the two new
  *    admin-governance mutations carry the EXACT arg shapes
  *    (`adminSetUserBlocked(blocked: Boolean!, id: Int!): AdminUserDetail!` /
@@ -75,6 +77,22 @@
  * empirical evidence and documented here as a one-time reconciliation (not
  * a silent baseline flip). The DEV3-017 admin-governance pair is then
  * pinned on top as the sanctioned post-reconciliation addition.
+ *
+ * Reconciliation note (DEV3-021, 4.4 codegen reconcile): the DEV3-021
+ * admin session-governance surface (queries `adminSession`/`adminSessions`,
+ * mutations `adminRescheduleSession`/`adminCancelSession`/
+ * `adminReassignTeacher`/`adminJoinSession`, inputs
+ * `AdminSessionRescheduleInput`/`AdminSessionCancelInput`/
+ * `AdminSessionReassignInput`/`AdminSessionJoinInput`/
+ * `AdminSessionListFilterInput`, plus the widened `Session.needsAttention:
+ * Boolean!` badge field) is pinned on top as the sanctioned ticket
+ * addition. The same reconcile re-anchors three merged-but-never-pinned
+ * surfaces (PR #49 parent-link workflow, PR #51 cold-start certification,
+ * PR #53 broadcast + audit trail) via the `MERGED_PR*` constants below —
+ * captured from the LIVE built schema as empirical evidence, a documented
+ * one-time reconciliation (not a silent baseline flip). The codegen-sync
+ * pin (byte-identical committed SDL) was restored by the 4.4
+ * `bun run generate:gqlSchema` regeneration.
  *
  * Pure unit tier — NO server boot, NO network, NO DB. Runs via the mandated
  * runner: `bun run test/scripts/run-test.ts backend/graphql/test/schema-surface.test.ts`.
@@ -279,6 +297,64 @@ const DEV3_022C_TYPE_NAMES = [
   "PlatformAnalyticsUsers",
 ] as const;
 
+/**
+ * DEV3-021 admin session-governance root fields — the sanctioned addition
+ * pinned by the 4.4 codegen reconcile. Two admin-only queries (directory +
+ * any-state detail) and four admin-only mutations (reschedule / cancel /
+ * reassign / join), each carrying the
+ * `authScopes: { $all: { authenticated: true, role: [UserRole.Admin] } }`
+ * conjunction.
+ */
+const DEV3_021_QUERY_FIELDS = ["adminSession", "adminSessions"] as const;
+const DEV3_021_MUTATION_FIELDS = [
+  "adminCancelSession",
+  "adminJoinSession",
+  "adminReassignTeacher",
+  "adminRescheduleSession",
+] as const;
+/**
+ * DEV3-021 named-type surface — the four mutation inputs + the directory
+ * filter input. NO new object/enum: the canonical `Session`/`SessionPage`
+ * objects are reused (`Session` widened with `needsAttention: Boolean!`).
+ */
+const DEV3_021_TYPE_NAMES = [
+  "AdminSessionCancelInput",
+  "AdminSessionJoinInput",
+  "AdminSessionListFilterInput",
+  "AdminSessionReassignInput",
+  "AdminSessionRescheduleInput",
+] as const;
+
+/**
+ * Merged-PR reconciliation (DEV3-021 4.4) — surfaces that shipped via
+ * already-merged PRs but were never enumerated in these inventory arrays
+ * (the same drift shape the DEV3-017 note documents for DEV3-016).
+ * Re-anchored to the LIVE built schema from
+ * `printSchema(lexicographicSortSchema(graphQLSchema))` emissions as
+ * empirical evidence — a documented one-time reconciliation, NOT a silent
+ * baseline flip:
+ *   - PR #49 parent-link workflow (`288997b`) — 2 self-scoped queries,
+ *     3 mutations, the `LinkStatus` enum, 2 request object types;
+ *   - PR #51 cold-start certification (`1723cfc`) — 1 admin mutation
+ *     (reuses existing object types — no new named types);
+ *   - PR #53 broadcast + audit trail (`674ce2e`) — 1 admin mutation,
+ *     1 admin query, the `BroadcastAudienceType` enum, 2 broadcast
+ *     input types, 3 audit-log types.
+ */
+const MERGED_PR49_PARENT_LINK_QUERY_FIELDS = ["myIncomingParentLinkRequests", "myOutgoingParentLinkRequests"] as const;
+const MERGED_PR49_PARENT_LINK_MUTATION_FIELDS = [
+  "cancelParentLinkRequest",
+  "requestParentChildLink",
+  "respondToParentLinkRequest",
+] as const;
+const MERGED_PR49_PARENT_LINK_TYPE_NAMES = ["IncomingParentLinkRequest", "OutgoingParentLinkRequest"] as const;
+const MERGED_PR51_COLD_START_MUTATION_FIELDS = ["adminCertifyTeacherColdStart"] as const;
+const MERGED_PR53_BROADCAST_MUTATION_FIELDS = ["adminBroadcastNotification"] as const;
+const MERGED_PR53_AUDIT_QUERY_FIELDS = ["adminAuditLogs"] as const;
+const MERGED_PR53_AUDIT_TYPE_NAMES = ["AdminAuditLogEntry", "AdminAuditLogFiltersInput", "AdminAuditLogPage"] as const;
+const MERGED_PR53_BROADCAST_TYPE_NAMES = ["AdminBroadcastNotificationInput", "BroadcastAudienceInput"] as const;
+const MERGED_PR_ENUMS = ["BroadcastAudienceType", "LinkStatus"] as const;
+
 // ─── Schema walk helpers ─────────────────────────────────────────────────────
 
 /** All named SDL type names, introspection builtins + spec scalars excluded, sorted deterministically. */
@@ -347,7 +423,10 @@ describe("Query._health — retyped probe surface", () => {
     // arbitration listing, the DEV3-013 wallet read, the RECONCILED
     // DEV3-016 admin-user-management query quartet (shipped but never
     // pinned — re-anchored ahead of the dev3-017 admin-governance
-    // mutation pair), and the whole-platform analytics snapshot.
+    // mutation pair), the whole-platform analytics snapshot, the DEV3-021
+    // admin session-governance pair (4.4 reconcile), and the merged-PR
+    // query surfaces re-anchored by the same reconcile (parent-link pair
+    // + broadcast/audit admin read).
     const additions = fieldNames.filter(name => !(PRE_3_1_QUERY_FIELDS as readonly string[]).includes(name));
     expect(additions.toSorted((a, b) => a.localeCompare(b))).toEqual(
       [
@@ -358,7 +437,10 @@ describe("Query._health — retyped probe surface", () => {
         ...DEV3_005_QUERY_FIELDS,
         ...DEV3_013_QUERY_FIELDS,
         ...DEV3_016_ADMIN_USER_QUERY_FIELDS,
+        ...DEV3_021_QUERY_FIELDS,
         ...DEV3_022C_QUERY_FIELDS,
+        ...MERGED_PR49_PARENT_LINK_QUERY_FIELDS,
+        ...MERGED_PR53_AUDIT_QUERY_FIELDS,
       ].toSorted((a, b) => a.localeCompare(b))
     );
   });
@@ -420,7 +502,7 @@ describe("HealthCheck object shape — four scalar fields, no id", () => {
 });
 
 describe("Surface freeze — pinned additions vs the baseline inventory", () => {
-  test("mutation set grows ONLY by the sanctioned additions (DEV3-004 quartet + DEV3-005 dispute pair + DEV3-012 confirm + DEV3-013 payout + DEV3-016 admin-user trio + DEV3-017 admin-governance pair)", () => {
+  test("mutation set grows ONLY by the sanctioned additions (DEV3-004 quartet + DEV3-005 dispute pair + DEV3-012 confirm + DEV3-013 payout + DEV3-016 admin-user trio + DEV3-017 admin-governance pair + DEV3-021 session-governance quartet + merged-PR re-anchors)", () => {
     const mutationFields = graphQLSchema.getMutationType()?.getFields() ?? {};
     const names = Object.keys(mutationFields).toSorted((a, b) => a.localeCompare(b));
 
@@ -432,10 +514,11 @@ describe("Surface freeze — pinned additions vs the baseline inventory", () => 
     // dispute pair, the DEV3-012 dual-confirmation mutation, the DEV3-013
     // payout write, the RECONCILED DEV3-016 admin-user-management trio
     // (shipped but never pinned — re-anchored here as a documented
-    // one-time reconciliation), and the DEV3-017 admin-governance pair
-    // (the sanctioned post-reconciliation addition). All authScopes-gated
-    // — none is allowlist material; the public-operation registry stays
-    // byte-unchanged.
+    // one-time reconciliation), the DEV3-017 admin-governance pair, the
+    // DEV3-021 session-governance quartet (4.4 reconcile), and the
+    // merged-PR mutations re-anchored by the same reconcile. All
+    // authScopes-gated — none is allowlist material; the public-operation
+    // registry stays byte-unchanged.
     expect(names).toEqual(
       [
         ...PRE_3_1_MUTATION_FIELDS,
@@ -445,37 +528,52 @@ describe("Surface freeze — pinned additions vs the baseline inventory", () => 
         ...DEV3_013_MUTATION_FIELDS,
         ...DEV3_016_ADMIN_USER_MUTATION_FIELDS,
         ...DEV3_017_ADMIN_GOVERNANCE_MUTATION_FIELDS,
+        ...DEV3_021_MUTATION_FIELDS,
+        ...MERGED_PR49_PARENT_LINK_MUTATION_FIELDS,
+        ...MERGED_PR51_COLD_START_MUTATION_FIELDS,
+        ...MERGED_PR53_BROADCAST_MUTATION_FIELDS,
       ].toSorted((a, b) => a.localeCompare(b))
     );
     expect(names).not.toContain("_health");
   });
 
-  test("admin-user mutations sit at their SORTED positions in the Mutation root inventory", () => {
-    // The five admin-user mutations must appear in this exact lexicographic
-    // order in the sorted Mutation root inventory:
-    //   adminCreateUser < adminSetUserBlocked < adminSetUserDeleted <
-    //   adminSetUserSuspended < adminUpdateUser
-    // — verifying the dev3-017 admin-governance pair slots BETWEEN
-    // adminCreateUser / adminSetUserDeleted (the prior dev3-016 surface)
-    // and adminUpdateUser (the prior dev3-016 surface), exactly as the
-    // sorted live schema emits them.
+  test("admin mutations sit at their SORTED positions as ONE contiguous block in the Mutation root inventory", () => {
+    // The eleven admin-root mutations must appear in this exact
+    // lexicographic order as ONE contiguous slice in the sorted Mutation
+    // root inventory:
+    //   adminBroadcastNotification < adminCancelSession <
+    //   adminCertifyTeacherColdStart < adminCreateUser <
+    //   adminJoinSession < adminReassignTeacher <
+    //   adminRescheduleSession < adminSetUserBlocked <
+    //   adminSetUserDeleted < adminSetUserSuspended < adminUpdateUser
+    // — the DEV3-021 session-governance quartet (4.4 reconcile)
+    // interleaves the prior five-field admin-USER block between
+    // adminCreateUser and adminSetUserBlocked, so the contiguity pin is
+    // re-anchored to the whole admin block, exactly as the sorted live
+    // schema emits them.
     const names = Object.keys(graphQLSchema.getMutationType()?.getFields() ?? {}).toSorted((a, b) =>
       a.localeCompare(b)
     );
-    const adminUserMutationNames = [
+    const adminMutationNames = [
+      "adminBroadcastNotification",
+      "adminCancelSession",
+      "adminCertifyTeacherColdStart",
       "adminCreateUser",
+      "adminJoinSession",
+      "adminReassignTeacher",
+      "adminRescheduleSession",
       "adminSetUserBlocked",
       "adminSetUserDeleted",
       "adminSetUserSuspended",
       "adminUpdateUser",
     ];
-    // Contiguous slice: the five admin-user mutations MUST be adjacent in
+    // Contiguous slice: the eleven admin mutations MUST be adjacent in
     // the sorted Mutation root inventory (no non-admin field interleaves
     // between them).
-    const firstIndex = names.indexOf(adminUserMutationNames[0] ?? "");
+    const firstIndex = names.indexOf(adminMutationNames[0] ?? "");
     expect(firstIndex).toBeGreaterThanOrEqual(0);
-    const slice = names.slice(firstIndex, firstIndex + adminUserMutationNames.length);
-    expect(slice).toEqual(adminUserMutationNames);
+    const slice = names.slice(firstIndex, firstIndex + adminMutationNames.length);
+    expect(slice).toEqual(adminMutationNames);
   });
 
   test("enum set is pinned (every new enum named explicitly)", () => {
@@ -484,10 +582,19 @@ describe("Surface freeze — pinned additions vs the baseline inventory", () => 
       .map(type => type.name)
       .toSorted((a, b) => a.localeCompare(b));
 
+    // DEV3-021 adds NO new enum (the governance surface reuses the
+    // registered SessionStatus/SessionType vocabularies);
+    // BroadcastAudienceType + LinkStatus arrive from the merged PRs #53
+    // and #49 respectively (4.4 re-anchor).
     expect(enumNames).toEqual(
-      [...PRE_3_1_ENUMS, ...DEV3_004_ENUMS, ...DEV3_005_ENUMS, ...DEV3_013_ENUMS, ...DEV3_016_ADMIN_ENUMS].toSorted(
-        (a, b) => a.localeCompare(b)
-      )
+      [
+        ...PRE_3_1_ENUMS,
+        ...DEV3_004_ENUMS,
+        ...DEV3_005_ENUMS,
+        ...DEV3_013_ENUMS,
+        ...DEV3_016_ADMIN_ENUMS,
+        ...MERGED_PR_ENUMS,
+      ].toSorted((a, b) => a.localeCompare(b))
     );
   });
 
@@ -526,7 +633,7 @@ describe("Surface freeze — pinned additions vs the baseline inventory", () => 
     }
   });
 
-  test("whole-schema named-type delta is pinned: refreshed baseline delta (DateTime scalar + HealthCheck probe + DEV1-013 handshake surface) + DEV3-004 session objects/inputs + scheduling/arbitration/ledger enums + DEV3-013 wallet surface + DEV3-016 admin-user-management surface + the parent-link objects (extend step) + the eleven analytics value objects (no new enum)", () => {
+  test("whole-schema named-type delta is pinned: refreshed baseline delta (DateTime scalar + HealthCheck probe + DEV1-013 handshake surface) + DEV3-004 session objects/inputs + scheduling/arbitration/ledger enums + DEV3-013 wallet surface + DEV3-016 admin-user-management surface + the parent-link objects (extend step) + the eleven analytics value objects + the DEV3-021 governance inputs + the merged-PR re-anchors (no new enum beyond the merged re-anchors)", () => {
     const post = new Set(sdlTypeNames());
 
     for (const name of PRE_3_1_TYPE_NAMES) {
@@ -545,7 +652,12 @@ describe("Surface freeze — pinned additions vs the baseline inventory", () => 
         ...DEV3_013_ENUMS,
         ...DEV3_016_ADMIN_TYPE_NAMES,
         ...DEV3_016_ADMIN_ENUMS,
+        ...DEV3_021_TYPE_NAMES,
         ...DEV3_022C_TYPE_NAMES,
+        ...MERGED_PR_ENUMS,
+        ...MERGED_PR49_PARENT_LINK_TYPE_NAMES,
+        ...MERGED_PR53_AUDIT_TYPE_NAMES,
+        ...MERGED_PR53_BROADCAST_TYPE_NAMES,
       ].toSorted((a, b) => a.localeCompare(b))
     );
   });
