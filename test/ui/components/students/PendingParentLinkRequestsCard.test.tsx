@@ -44,13 +44,13 @@ import { MockedProvider } from "@apollo/client/testing/react";
 import { cleanup, type RenderResult, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useEffect } from "react";
-import { STUDENT_LINK_REQUESTS_ROUTE } from "@/frontend/components/ui/useNotificationDrawerActions";
 import {
   LinkStatus,
   type MyIncomingParentLinkRequestsQuery,
   type MyIncomingParentLinkRequestsQuery_myIncomingParentLinkRequests,
 } from "@/frontend/graphql/generated/gql/graphql";
 import { myIncomingParentLinkRequestsQueryDocument } from "@/frontend/graphql/sharedDocuments";
+import { STUDENT_LINK_REQUESTS_ROUTE } from "@/frontend/lib/notification-route-resolution";
 import { PendingParentLinkRequestsCard } from "@/frontend/views/students/dashboard/PendingParentLinkRequestsCard";
 import { deriveActionableIncoming } from "@/frontend/views/students/dashboard/pending-parent-link-requests";
 import { isolateBidi } from "@/shared/lib/isolate-bidi";

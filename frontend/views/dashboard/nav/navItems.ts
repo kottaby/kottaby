@@ -24,8 +24,8 @@ import {
   SupervisedUserCircleOutlined as UsersIcon,
   PaymentsOutlined as WalletIcon,
 } from "@mui/icons-material";
-import { STUDENT_LINK_REQUESTS_ROUTE } from "@/frontend/components/ui/useNotificationDrawerActions";
 import { UserRole } from "@/frontend/graphql/generated/gql/graphql";
+import { STUDENT_LINK_REQUESTS_ROUTE } from "@/frontend/lib/notification-route-resolution";
 import { dashboardEn } from "@/shared/locale/en/dashboard";
 import type { DashboardLabels } from "@/shared/locale/types/dashboard";
 import type { HandshakeCodeLabels } from "@/shared/locale/types/handshakeCode";

@@ -33,8 +33,8 @@
  */
 
 import { describe, expect, test } from "bun:test";
-import { STUDENT_LINK_REQUESTS_ROUTE } from "@/frontend/components/ui/useNotificationDrawerActions";
 import { UserRole } from "@/frontend/graphql/generated/gql/graphql";
+import { STUDENT_LINK_REQUESTS_ROUTE } from "@/frontend/lib/notification-route-resolution";
 import { type DashboardNavItem, getNavItemsForRole, resolveNavItemLabel } from "@/frontend/views/dashboard/nav";
 import type { AppLocale } from "@/shared/locale/AppLocale";
 import { dashboardEn } from "@/shared/locale/en/dashboard";

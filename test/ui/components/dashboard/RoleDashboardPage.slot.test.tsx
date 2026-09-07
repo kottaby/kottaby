@@ -39,7 +39,6 @@ import { MockedProvider } from "@apollo/client/testing/react";
 import { cleanup, type RenderResult, screen, within } from "@testing-library/react";
 import type { ReactElement } from "react";
 import { UserRole as BackendUserRole } from "@/backend/enum/users/user-role.enum";
-import { STUDENT_LINK_REQUESTS_ROUTE } from "@/frontend/components/ui/useNotificationDrawerActions";
 import { AuthContext, type AuthContextType } from "@/frontend/context/AuthContext";
 import {
   ApplicantStatus,
@@ -53,6 +52,7 @@ import {
   myHandshakeCodeQueryDocument,
   myIncomingParentLinkRequestsQueryDocument,
 } from "@/frontend/graphql/sharedDocuments";
+import { STUDENT_LINK_REQUESTS_ROUTE } from "@/frontend/lib/notification-route-resolution";
 import type { AppLocale } from "@/shared/locale/AppLocale";
 import { Applicant as ApplicantNs } from "@/shared/locale/namespaces/applicant";
 import { Dashboard as DashboardNs } from "@/shared/locale/namespaces/dashboard";

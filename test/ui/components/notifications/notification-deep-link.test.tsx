@@ -3,7 +3,7 @@
  *
  * Happy DOM + Apollo `MockLink` tier (`test/ui/components`) asserting the
  * drawer's row-anchor route-resolution seam (`resolveNotificationRoute` in
- * `useNotificationDrawerActions.ts`):
+ * the `frontend/lib/notification-route-resolution.ts` leaf):
  *
  *   a `parent_link_request` row anchors EXACTLY to the shared
  *   `STUDENT_LINK_REQUESTS_ROUTE` decision route (the anchor href IS the
@@ -33,10 +33,6 @@ import { cleanup, fireEvent, type RenderResult, screen, waitFor } from "@testing
 import { NotificationType as BackendNotificationType } from "@/backend/enum/notifications/notification-type.enum";
 import { NotificationDrawer } from "@/frontend/components/ui/NotificationDrawer";
 import {
-  resolveNotificationRoute,
-  STUDENT_LINK_REQUESTS_ROUTE,
-} from "@/frontend/components/ui/useNotificationDrawerActions";
-import {
   type MyNotificationsFilterInput,
   type MyNotificationsQuery,
   type MyNotificationsQuery_myNotifications,
@@ -47,6 +43,7 @@ import {
   myNotificationsQueryDocument,
   myUnreadNotificationCountQueryDocument,
 } from "@/frontend/graphql/sharedDocuments";
+import { resolveNotificationRoute, STUDENT_LINK_REQUESTS_ROUTE } from "@/frontend/lib/notification-route-resolution";
 import { createApolloCache } from "@/frontend/providers/apollo/apolloCache";
 import type { AppLocale } from "@/shared/locale/AppLocale";
 import { renderWithWrapper } from "@/test/ui/components/TestWrapper";

@@ -5,9 +5,9 @@ import { PendingActionsOutlined as PendingActionsIcon, RefreshOutlined as Refres
 import { Alert, Button, Chip, Skeleton, Stack, Typography } from "@mui/material";
 import { type ReactNode, useState } from "react";
 import { focusVisibleRingSx } from "@/frontend/components/ui/focusRing";
-import { STUDENT_LINK_REQUESTS_ROUTE } from "@/frontend/components/ui/useNotificationDrawerActions";
 import { myIncomingParentLinkRequestsQueryDocument } from "@/frontend/graphql/sharedDocuments";
 import { extractErrorCode } from "@/frontend/lib/graphql-error-utils";
+import { STUDENT_LINK_REQUESTS_ROUTE } from "@/frontend/lib/notification-route-resolution";
 import { resolveParentLinkDenialCopyOrNull } from "@/frontend/lib/parent-link-denials";
 import { CardShell } from "@/frontend/views/students/dashboard/CardShell";
 import { deriveActionableIncoming } from "@/frontend/views/students/dashboard/pending-parent-link-requests";

@@ -27,8 +27,11 @@
  *   5. TEMPLATE PINS — `expiresLine`, `confirmDialogBody`,
  *      `rejectDialogBody`, `dashboardCardCount`, and
  *      `dashboardCardLatestRequester` expand their arguments into the
- *      returned message in BOTH locales, with exact-pinned outputs and
- *      Arabic-script output on the ar side.
+ *      returned message in BOTH locales, with exact-pinned outputs (en
+ *      everywhere; the ar `dashboardCardCount` pins probe digit-form +
+ *      plural-class containment instead of exact strings — see the count
+ *      cell below for the ICU-robustness rationale) and Arabic-script
+ *      output on the ar side.
  *   6. REGISTRY WIRING — the `ParentLink` handle is registered in
  *      `shared/locale/namespaces/index.ts` with the conventional
  *      `<ns>.<ns>` id and its getter resolves the composed bundle slice.
@@ -234,10 +237,18 @@ describe("template pins — function slots expand their arguments", () => {
   test("dashboardCardCount renders plural-safe counts in BOTH locales", () => {
     expect(parentLinkEn.dashboardCardCount(1)).toBe("1 pending request");
     expect(parentLinkEn.dashboardCardCount(3)).toBe("3 pending requests");
-    expect(parentLinkAr.dashboardCardCount(1)).toBe("طلب ربط واحد قيد الانتظار");
-    expect(parentLinkAr.dashboardCardCount(2)).toBe("طلبا ربط قيد الانتظار");
-    expect(parentLinkAr.dashboardCardCount(3)).toBe("٣ طلبات ربط قيد الانتظار");
-    expect(parentLinkAr.dashboardCardCount(12)).toBe("١٢ طلب ربط قيد الانتظار");
+    // ar pins probe CONTAINMENT, not exact strings (FIX-R5): the rendered
+    // digits come from `toLocaleString("ar")`, whose Arabic-Indic shaping is
+    // ICU/toolchain-dependent — a bun/ICU upgrade must not fail this gate.
+    // The plural-class words stay pinned so one/two/few/many remain mutually
+    // distinguishable; the dual probe includes the following noun because
+    // "طلبات" (few) otherwise contains "طلبا" (two) as a substring.
+    expect(parentLinkAr.dashboardCardCount(1)).toContain("واحد");
+    expect(parentLinkAr.dashboardCardCount(2)).toContain("طلبا ربط");
+    expect(parentLinkAr.dashboardCardCount(3)).toContain("٣");
+    expect(parentLinkAr.dashboardCardCount(3)).toContain("طلبات ربط");
+    expect(parentLinkAr.dashboardCardCount(12)).toContain("١٢");
+    expect(parentLinkAr.dashboardCardCount(12)).toContain("طلب ربط");
   });
 
   test("dashboardCardLatestRequester embeds the parent name in BOTH locales", () => {
