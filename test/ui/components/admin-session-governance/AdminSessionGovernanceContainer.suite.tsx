@@ -941,11 +941,16 @@ for (const locale of componentSuiteLocales) {
       const dialog = await expectDialogOpen();
       fireEvent.click(within(dialog).getByTestId(`cancel-session-submit-${STARTED_ID}`));
 
-      // The dialog EXIT transition churns under Happy DOM — a body-watching
-      // waitFor across it balloons the process (the branch-15 close-path
-      // discipline). Settle first, then pin the removal SYNCHRONOUSLY.
-      await new Promise(resolve => setTimeout(resolve, 500));
-      expect(screen.queryByRole("dialog")).toBeNull();
+      // Branch-9/10 removal discipline: a bounded `waitFor` over `queryByRole`
+      // pins the dialog's unmount deterministically — the MUI exit transition
+      // resolves under Happy DOM, so no bare sleep is needed. Fail-safe
+      // direction preserved: a still-mounted dialog fails the wait.
+      await waitFor(
+        () => {
+          expect(screen.queryByRole("dialog")).toBeNull();
+        },
+        { timeout: 1500 }
+      );
       await waitFor(() => {
         expect(screen.getByText(t.cancelSuccess)).toBeDefined();
       });
@@ -996,10 +1001,15 @@ for (const locale of componentSuiteLocales) {
       fireEvent.change(within(dialog).getByLabelText(muiLabelPattern(t.reassignTeacherIdLabel)), { target: { value: "907" } });
       fireEvent.click(within(dialog).getByTestId(`reassign-teacher-submit-${SCHEDULED_FRESH_ID}`));
 
-      // Branch-16 close-path discipline: the exit transition never settles
-      // under a body-watching waitFor — settle, then assert synchronously.
-      await new Promise(resolve => setTimeout(resolve, 500));
-      expect(screen.queryByRole("dialog")).toBeNull();
+      // Branch-16 removal discipline: bounded `waitFor` + `queryByRole` (the
+      // same convention as branches 9/10) — the dialog unmounts once the exit
+      // transition resolves; a still-mounted dialog fails the wait.
+      await waitFor(
+        () => {
+          expect(screen.queryByRole("dialog")).toBeNull();
+        },
+        { timeout: 1500 }
+      );
       await waitFor(() => {
         expect(screen.getByText(t.reassignSuccess)).toBeDefined();
       });
