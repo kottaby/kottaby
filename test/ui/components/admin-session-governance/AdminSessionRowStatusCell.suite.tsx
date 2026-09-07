@@ -33,7 +33,6 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { cleanup } from "@testing-library/react";
 import { SessionStatus } from "@/frontend/graphql/generated/gql/graphql";
 import { AdminSessionRowStatusCell } from "@/frontend/views/admin/session-governance/AdminSessionRowStatusCell";
-import type { AppLocale } from "@/shared/locale/AppLocale";
 import { arMessages } from "@/shared/locale/ar/messages";
 import { enMessages } from "@/shared/locale/en/messages";
 import { Sessions as SessionsNs } from "@/shared/locale/namespaces/sessions";
@@ -48,7 +47,10 @@ for (const translations of [enMessages, arMessages]) {
 }
 
 /** Every reachable lifecycle status with its single-sourced chip label. */
-const STATUS_MATRIX: ReadonlyArray<{ readonly status: SessionStatus; readonly labelKey: keyof SessionsLabels }> = [
+const STATUS_MATRIX: ReadonlyArray<{
+  readonly status: SessionStatus;
+  readonly labelKey: Extract<keyof SessionsLabels, `status${string}`>;
+}> = [
   { status: SessionStatus.Scheduled, labelKey: "statusScheduled" },
   { status: SessionStatus.Started, labelKey: "statusStarted" },
   { status: SessionStatus.Completed, labelKey: "statusCompleted" },
