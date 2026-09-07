@@ -73,7 +73,7 @@
 
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { randomUUID } from "node:crypto";
-import { and, eq, inArray, like, or } from "drizzle-orm";
+import { and, eq, inArray, like, or, sql } from "drizzle-orm";
 import { db } from "@/backend/db";
 import { ParentLinkRequestRepository } from "@/backend/db/repo";
 import { notifications } from "@/backend/db/schema/notifications/notifications";
@@ -1111,12 +1111,22 @@ describe("Journey — student confirmation of the parent link (DEV1-015, steps 1
     // is honest fixture control (the DEV1-014 journey-C pattern).
     const sInboxBeforeFixture = (await linkInboxRowsFor(s.studentS.userId)).length;
     const boundary = await db.transaction(async (tx: DBTransaction): Promise<ParentLinkRequestRow> => {
+      // DB-CLOCK read — the injected boundary instant is the DATABASE's own
+      // `now()` (the clock the strict-`>` claim predicate evaluates against),
+      // so the boundary is deterministic regardless of app-host vs DB-host
+      // clock drift (FIX-A hardening of the journey-C pattern; the JS-clock
+      // injection relied on the two hosts never drifting apart).
+      const clock = await tx.execute<{ now: Date }>(sql`select now() as now`);
+      const dbNow = clock.rows.at(0)?.now;
+      if (dbNow === undefined) {
+        throw new Error("boundary fixture could not read the database clock");
+      }
       const inserted = await tx
         .insert(parentLinkRequests)
         .values({
           parentId: s.parentA.userId,
           studentId: s.studentS.userId,
-          expiresAt: new Date(),
+          expiresAt: dbNow,
         })
         .returning();
       const row = inserted.at(0);

@@ -23,6 +23,8 @@ This ledger tracks all work deferred from one task to another to ensure no defer
 
 ---
 
+| DI-6.4-01 | Decision notifications (emitted to the PARENT on confirm/reject) deep-link via the generic `parent_link_request` type→route map to `/student/link-requests`, a student-only route; a parent clicking their decision notification bounces off the withPageAuth guard to their dashboard (safe redirect, no IDOR — relatedEntityId never interpolated). Recipient-aware routing (or a split notification type) exceeds the plan's frozen minimal-seam invariant (D5: type-keyed map only). | 6.4 | follow-up UX ticket (post-DEV1-015) | 📅 Forward | 6.4-outcome.md §finding 1 | Auth intact; guard redirects correctly; pure UX improvement owned outside this plan's scope gate. |
+
 ## Status Values
 
 - ✅ **Done** — Item completed and verified

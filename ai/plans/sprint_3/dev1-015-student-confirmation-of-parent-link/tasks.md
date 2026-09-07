@@ -297,25 +297,25 @@
 
 > Launch the four review waves in parallel; each produces a findings file under `ai/plans/sprint_3/dev1-015-student-confirmation-of-parent-link/outcome/`. All Critical/High findings must be resolved (or ledgered with explicit rationale) before Phase 7.
 
-- [ ] 6.1 Wave: review-types
+- [x] 6.1 Wave: review-types
   - Zero local types in resolvers/components; all imports from `backend/types/**` / `@/backend/types`; `TypedDocumentNode` usage; i18n types complete (no missing key members); enum value imports only.
   - Verify `IncomingParentLinkRequestReturnType` is the card's sole row contract (no re-declared view types).
   - Findings → `6.1-outcome.md` (review-types section).
 
-- [ ] 6.2 Wave: review-backend
+- [x] 6.2 Wave: review-backend
   - Confirm zero production-code diff in `backend/services/**` / `backend/db/repo/**` / `backend/graphql/mutation|query|pothos/**` (git diff evidence).
   - Re-audit journey + added test cells for: honest permission resolution (no monkey-patching), `runInRollback` absence in journey files, committed-fixture discipline + complete `afterAll` teardown (FK-safe order), spied (never real) fanout/email/SMS, PGLite skip guard on true races.
   - Re-assert: guarded-claim SQL unchanged; no `SELECT FOR UPDATE`/advisory locks added; log hygiene (no names/codes) in any added logging (expected: none); `console.*` absence.
   - Findings → `6.2-outcome.md` (review-backend section).
 
-- [ ] 6.3 Wave: review-frontend
+- [x] 6.3 Wave: review-frontend
   - MUI v9 discipline across all new/edited files: `sx` only, `theme.palette.*` only, `*Outlined` icons, ≥44px targets, logical properties, `dir="auto"`/`isolateBidi` on names.
   - i18n: `useAppTranslation(ParentLink)` handle-form; zero hardcoded user-facing strings; both locales rendered in tests.
   - Apollo: single list document shared by card + decision page; id-first selection; no new queries; no bespoke invalidation.
   - Browser evidence review: 4.1/4.2/4.3/4.4 BF+BS artifacts complete (functional flows green; six-cell screenshot sets attached).
   - Findings → `6.3-outcome.md` (review-frontend section).
 
-- [ ] 6.4 Wave: pentester (security)
+- [x] 6.4 Wave: pentester (security)
   - Threat-model pass over the ticket delta: BFLA pre-resolver conjunction (`$all`) intact on both fields; BOLA foreign≡absent byte-identity on wire + service; BOPLA closed input `{ requestId, accept }` + no `{ ...input }` spreads; governance `requireActor` pre-tx ordering (context boundary is NOT fail-closed — service re-check is the defense); no existence oracle in any new UI copy; notification deep-link cannot be abused for IDOR (route is generic, authorization enforced server-side).
   - Attempt abuse cases: expired-id respond, double respond, smuggled fields due-schema validation, governed-student respond — all match frozen denial vocabulary with zero side effects.
   - Findings → `6.4-outcome.md` (pentester section).

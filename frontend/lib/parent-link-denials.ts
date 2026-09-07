@@ -28,14 +28,25 @@ const DENIAL_LABEL_ACCESSORS: Readonly<Record<string, (te: ErrorsLabels) => stri
 
 /** Localized inline-Alert copy for a parent-link denial (never a raw code). */
 export function resolveParentLinkDenialCopy(code: string | null, te: ErrorsLabels): string {
+  return resolveParentLinkDenialCopyOrNull(code, te) ?? te.internalServerError;
+}
+
+/**
+ * Mapped-copy-or-null variant for surfaces that carry their OWN generic
+ * failure line: returns `null` when the code chain is absent OR the code
+ * misses the table, so the caller can fold onto its localized fallback
+ * (the dashboard card's `dashboardCardLoadError`) instead of the shared
+ * `internalServerError`. Mapped codes resolve identically to
+ * `resolveParentLinkDenialCopy`.
+ */
+export function resolveParentLinkDenialCopyOrNull(code: string | null, te: ErrorsLabels): string | null {
   if (code === null) {
-    return te.internalServerError;
+    return null;
   }
   // Membership guard (not an `=== undefined` comparison — a `Record` index
-  // read is statically non-optional): a raw wire code CAN miss the table,
-  // and the miss folds onto the generic copy like any other unmapped code.
+  // read is statically non-optional): a raw wire code CAN miss the table.
   if (!(code in DENIAL_LABEL_ACCESSORS)) {
-    return te.internalServerError;
+    return null;
   }
   return DENIAL_LABEL_ACCESSORS[code](te);
 }

@@ -24,8 +24,10 @@ export const parentLinkAr: ParentLinkLabels = {
   confirmSuccessToast: "تم تأكيد طلب الربط.",
   rejectSuccessToast: "تم رفض طلب الربط.",
   dashboardCardTitle: "طلبات ربط قيد الانتظار",
+  // Plural classes mirror the card's render contract (branch 4 is N ≥ 1 —
+  // the card renders null at zero, so there is deliberately NO 0 branch,
+  // matching the en map's structure): 1 / 2 / 3–10 / 11+.
   dashboardCardCount: (count: number) => {
-    if (count === 0) return "لا توجد طلبات ربط قيد الانتظار";
     if (count === 1) return "طلب ربط واحد قيد الانتظار";
     if (count === 2) return "طلبا ربط قيد الانتظار";
     if (count <= 10) return `${count.toLocaleString("ar")} طلبات ربط قيد الانتظار`;

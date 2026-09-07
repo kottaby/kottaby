@@ -8,7 +8,7 @@ import { focusVisibleRingSx } from "@/frontend/components/ui/focusRing";
 import { STUDENT_LINK_REQUESTS_ROUTE } from "@/frontend/components/ui/useNotificationDrawerActions";
 import { myIncomingParentLinkRequestsQueryDocument } from "@/frontend/graphql/sharedDocuments";
 import { extractErrorCode } from "@/frontend/lib/graphql-error-utils";
-import { resolveParentLinkDenialCopy } from "@/frontend/lib/parent-link-denials";
+import { resolveParentLinkDenialCopyOrNull } from "@/frontend/lib/parent-link-denials";
 import { CardShell } from "@/frontend/views/students/dashboard/CardShell";
 import { deriveActionableIncoming } from "@/frontend/views/students/dashboard/pending-parent-link-requests";
 import { isolateBidi } from "@/shared/lib/isolate-bidi";
@@ -41,8 +41,8 @@ const retryButtonSx = { ...focusVisibleRingSx, minHeight: 44 } as const;
  *
  * | # | Condition | Surface |
  * |---|-----------|---------|
- * | 1 | query in flight | Skeleton card (`aria-busy`) mirroring the settled geometry (zero layout-shift target) |
- * | 2 | any query error | ONE localized inline `Alert` (codes mapped via `resolveParentLinkDenialCopy` — raw server messages NEVER reach the DOM) + retry via `refetch` |
+ * | 1 | query in flight | Skeleton card (`aria-busy` + `role="status"` labelled `dashboardCardLoading`) mirroring the settled geometry (zero layout-shift target) |
+ * | 2 | any query error | ONE localized inline `Alert` (mapped denial codes via `resolveParentLinkDenialCopyOrNull`; UNMAPPED/internal classes fold onto `dashboardCardLoadError` — raw server messages NEVER reach the DOM) + retry via `refetch` |
  * | 3 | zero actionable rows | `null` — the card renders NOTHING (no empty-state chrome on the dashboard) |
  * | 4 | N ≥ 1 actionable | title + count chip + MOST RECENT requester line (bidi-isolated) + review CTA to the shared decision route |
  *
@@ -54,7 +54,8 @@ const retryButtonSx = { ...focusVisibleRingSx, minHeight: 44 } as const;
  * logical properties only (RTL via the emotion-cache stylis-plugin-rtl
  * pipeline), and every user-facing string resolved through compile-time i18n
  * handles (`useAppTranslation(ParentLink)` property access — NEVER `t('key')`;
- * retry copy from the `Common` handle; failure copy from the `Errors` handle).
+ * retry copy from the `Common` handle; mapped failure copy from the `Errors`
+ * handle; unmapped failure copy from `dashboardCardLoadError`.
  */
 export function PendingParentLinkRequestsCard(): ReactNode {
   const t = useAppTranslation(ParentLink);
@@ -73,7 +74,7 @@ export function PendingParentLinkRequestsCard(): ReactNode {
   // Branch 1 — in flight: skeleton placeholder announces busy semantics.
   if (loading) {
     return (
-      <CardShell testId="pending-parent-link-requests-card-loading" busy>
+      <CardShell testId="pending-parent-link-requests-card-loading" busy busyLabel={t.dashboardCardLoading}>
         <Skeleton variant="text" sx={{ fontSize: "1.75rem", maxWidth: 260 }} />
         <Skeleton variant="rounded" sx={{ height: 28, width: 220, borderRadius: 1 }} />
         <Skeleton variant="rectangular" sx={{ height: 44, width: 180, borderRadius: 2 }} />
@@ -82,14 +83,15 @@ export function PendingParentLinkRequestsCard(): ReactNode {
   }
 
   // Branch 2 — settled failure: ONE localized inline Alert + retry refetch.
-  // Every wire code (mapped or unmapped) folds onto the `errors`-namespace
-  // copy — raw server messages never reach the DOM for masked classes.
+  // Mapped denial codes keep their `errors`-namespace copy; every UNMAPPED
+  // code (or absent code chain) folds onto the card's own generic failure
+  // line — raw server messages never reach the DOM for masked classes.
   if (error) {
     return (
       <CardShell testId="pending-parent-link-requests-card-error">
         <Stack spacing={2}>
           <Alert severity="error" variant="outlined">
-            {resolveParentLinkDenialCopy(extractErrorCode(error), te)}
+            {resolveParentLinkDenialCopyOrNull(extractErrorCode(error), te) ?? t.dashboardCardLoadError}
           </Alert>
           <Button variant="outlined" startIcon={<RefreshIcon />} onClick={handleRetry} sx={retryButtonSx}>
             {tc.retry}

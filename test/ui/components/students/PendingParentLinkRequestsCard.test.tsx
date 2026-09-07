@@ -5,15 +5,18 @@
  * REQ-064 dashboard-card matrix gets ONE render case per outcome, driven
  * across BOTH locales:
  *
- *   cold load → skeleton card with `aria-busy` · zero actionable → renders
- *   NOTHING (container is empty, REQ-015/052) · present-1 → title +
+ *   cold load → skeleton card with `aria-busy` + labelled `role="status"`
+ *   (localized loading copy as the accessible name) · zero actionable →
+ *   renders NOTHING (container is empty, REQ-015/052) · present-1 → title +
  *   count-1 chip + FULL requester name + CTA anchored to the shared
  *   `STUDENT_LINK_REQUESTS_ROUTE` (constant wiring + frozen-value pin) ·
  *   present-N → count-N chip + MOST RECENT requester (max `createdAt`,
- *   no per-request list) · query error → ONE localized inline Alert
- *   (masked code folds onto the generic copy — raw wire message NEVER in
- *   the DOM) + retry invoking a real refetch · post-decision
- *   disappearance → normalized cache write-back flips the row to
+ *   no per-request list) · query error with an UNMAPPED code → ONE
+ *   localized inline Alert folding onto the card's OWN generic failure
+ *   copy (`dashboardCardLoadError` — raw wire message NEVER in the DOM)
+ *   + retry invoking a real refetch · query error with a MAPPED denial
+ *   code → the `errors`-namespace copy keeps flowing (no fallback fold) ·
+ *   post-decision disappearance → normalized cache write-back flips the
  *   Confirmed → actionable 0 → the card unmounts (REQ-016 convergence) ·
  *   expired-row exclusion → a stored-pending row past `expiresAt` is NOT
  *   counted even when it is the newest by `createdAt`.
@@ -178,6 +181,10 @@ function renderCard(
     <MockedProvider link={ApolloLink.from([recordingLink, mockLink])}>
       {/* SINGLE fragment child — MockedProvider + array children renders an
           empty tree in this environment (verified via render bisect). */}
+      {/* biome-ignore lint/complexity/noUselessFragments: the wrapper is
+          load-bearing — collapsing it to sibling children turns the JSX
+          children into an ARRAY, which MockedProvider renders as an empty
+          tree in this environment (see comment above; 21-cell baseline). */}
       <>
         <ApolloClientProbe />
         <PendingParentLinkRequestsCard />
@@ -209,6 +216,9 @@ for (const locale of ["ar", "en"] as AppLocale[]) {
 
       const skeleton = screen.getByTestId("pending-parent-link-requests-card-loading");
       expect(skeleton.getAttribute("aria-busy")).toBe("true");
+      // The busy frame is a LABELLED `role="status"` live region — the
+      // localized loading copy is its accessible name (REQ-015 loading copy).
+      expect(screen.getByRole("status", { name: t.dashboardCardLoading })).toBe(skeleton);
       // No settled surface may leak into the skeleton branch.
       expect(screen.queryByTestId("pending-parent-link-requests-card")).toBeNull();
       expect(screen.queryByTestId("pending-parent-link-requests-card-error")).toBeNull();
@@ -311,16 +321,19 @@ for (const locale of ["ar", "en"] as AppLocale[]) {
       expect(traffic.operationNames).toEqual([QUERY_OPERATION_NAME]);
     });
 
-    test("query error → ONE localized Alert (masked code folds to generic copy) + retry refetches", async () => {
+    test("query error, UNMAPPED code → ONE localized Alert (folds to card fallback copy) + retry refetches", async () => {
       const traffic = createNetworkTraffic();
       renderCard(traffic, [listFailureMock("RATE_LIMITED"), incomingListMock([incomingRow()])], locale);
       const user = userEvent.setup();
 
       await screen.findByTestId("pending-parent-link-requests-card-error");
-      // Exactly ONE alert; the masked-class code maps to the localized generic
-      // copy — the raw wire message NEVER reaches the DOM.
+      // Exactly ONE alert; the masked-class code misses the denial table →
+      // the Alert folds onto the card's OWN generic failure line (the
+      // `dashboardCardLoadError` copy) — raw wire message and the shared
+      // generic `errors` copy NEVER reach the DOM here.
       expect(screen.getAllByRole("alert")).toHaveLength(1);
-      expect(screen.getByText(te.internalServerError)).toBeDefined();
+      expect(screen.getByText(t.dashboardCardLoadError)).toBeDefined();
+      expect(screen.queryByText(te.internalServerError)).toBeNull();
       expect(screen.queryByText("RATE_LIMITED (masked transport surface)")).toBeNull();
 
       // Retry drives a REAL refetch; the queued success mock settles the card.
@@ -328,6 +341,20 @@ for (const locale of ["ar", "en"] as AppLocale[]) {
       await screen.findByTestId("pending-parent-link-requests-card");
       expect(screen.getByText(t.dashboardCardCount(1))).toBeDefined();
       expect(traffic.operationNames).toEqual([QUERY_OPERATION_NAME, QUERY_OPERATION_NAME]);
+    });
+
+    test("query error, MAPPED denial code → keeps the errors-namespace copy (no fallback fold)", async () => {
+      const traffic = createNetworkTraffic();
+      renderCard(traffic, [listFailureMock("PARENT_LINK_REQUEST_NOT_FOUND")], locale);
+
+      await screen.findByTestId("pending-parent-link-requests-card-error");
+      // Mapped codes resolve through the denial table exactly as before —
+      // the card-local fallback is reserved for the UNMAPPED classes.
+      expect(screen.getAllByRole("alert")).toHaveLength(1);
+      expect(screen.getByText(te.parentLinkRequestNotFound)).toBeDefined();
+      expect(screen.queryByText(t.dashboardCardLoadError)).toBeNull();
+      expect(screen.queryByText("PARENT_LINK_REQUEST_NOT_FOUND (masked transport surface)")).toBeNull();
+      expect(traffic.operationNames).toEqual([QUERY_OPERATION_NAME]);
     });
 
     test("post-decision disappearance → cache write-back flips the row to Confirmed → card unmounts", async () => {
