@@ -19,6 +19,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { join, sep } from "node:path";
+import { errorMessage } from "@/scripts/ops/backup-toolchain";
 
 export const ARTIFACT_FILE_NAME = "dump.pgc";
 export const MANIFEST_FILE_NAME = "manifest.json";
@@ -274,6 +275,30 @@ export function createStagingDir(outDir: string, pid: number, stamp: string): st
   }
   writeFileSync(join(stagingDir, ARTIFACT_FILE_NAME), "", { flag: "wx", mode: 0o600 });
   return stagingDir;
+}
+
+/**
+ * Preserves a failed run's staging directory as `<stamp>_FAILED` — the
+ * failed-run evidence path the backup tool's header contract promises
+ * ("never silently deleted"). Best-effort by design: the run is already
+ * failing, so a rename error is reported, never thrown.
+ */
+export function preserveFailedStaging(
+  outDir: string,
+  stamp: string,
+  error: (line: string) => void,
+  stagingDir: string | null
+): void {
+  if (stagingDir === null) {
+    return;
+  }
+  try {
+    const failedPath = join(outDir, nextAvailableRunDirName(outDir, `${stamp}_FAILED`));
+    renameSync(stagingDir, failedPath);
+    error(`[backup] failed-run artifacts kept in ${failedPath}`);
+  } catch (renameError) {
+    error(`[backup] could not preserve the failed staging directory: ${errorMessage(renameError)}`);
+  }
 }
 
 /** Writes the manifest with 0600 permissions and returns its path. */

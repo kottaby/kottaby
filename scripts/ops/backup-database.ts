@@ -45,6 +45,7 @@ import { applyEnvFile, isValidDatabaseUrl } from "@/scripts/dbActions/envFile";
 import {
   databaseNameFromDsn,
   parsePostgresDatabaseUrl,
+  rawUriPathHasFragment,
   redactDsn,
   resolveEnvFilePath,
   scrubDsnSecrets,
@@ -59,6 +60,7 @@ import {
   listLeftoverStagingDirs,
   manifestProblems,
   nextAvailableRunDirName,
+  preserveFailedStaging,
   sha256File,
   utcStamp,
   writeManifestFile,
@@ -160,6 +162,20 @@ function bootstrapDsn(envFile: string, deps: BackupRunDeps): { dsn: string; dsnU
     );
     return null;
   }
+  // RAW-fragment gate — the backup-side mirror of the restore guard's
+  // `assessRawUriPath` refusal. libpq has no fragment delimiter and reads
+  // THROUGH a raw `#`: it dumps the literal `…/pt9b#k` database, while every
+  // WHATWG-derived view (the `effectiveDatabaseName` path label) ends the
+  // path at the `#` and would record `pt9b` — breaking the _shared contract
+  // that the manifest records the database pg_dump dumps. Refused here in
+  // the bootstrap path as an env/usage-class error, before any out-dir,
+  // staging, dump, or manifest side effect; a percent-encoded `%23` is
+  // fine — libpq percent-decodes the path database and the label decodes
+  // to the same literal name, so the manifest matches what was dumped.
+  if (rawUriPathHasFragment(rawDsn.trim())) {
+    deps.emit.error(`[env] source DSN path contains a fragment character — percent-encode it`);
+    return null;
+  }
   return { dsn: rawDsn, dsnUrl };
 }
 
@@ -237,19 +253,6 @@ function acquireBackupLock(outDir: string, deps: BackupRunDeps): boolean {
   return true;
 }
 
-function preserveFailedStaging(outDir: string, stamp: string, deps: BackupRunDeps, stagingDir: string | null): void {
-  if (stagingDir === null) {
-    return;
-  }
-  try {
-    const failedPath = join(outDir, nextAvailableRunDirName(outDir, `${stamp}_FAILED`));
-    renameSync(stagingDir, failedPath);
-    deps.emit.error(`[backup] failed-run artifacts kept in ${failedPath}`);
-  } catch (renameError) {
-    deps.emit.error(`[backup] could not preserve the failed staging directory: ${errorMessage(renameError)}`);
-  }
-}
-
 function failRun(
   ctx: BackupRunContext,
   stagingDir: string | null,
@@ -258,7 +261,7 @@ function failRun(
   exitCode: 1 | 2
 ): number {
   ctx.deps.emit.error(`[${tag}] ${message}`);
-  preserveFailedStaging(ctx.outDir, ctx.stamp, ctx.deps, stagingDir);
+  preserveFailedStaging(ctx.outDir, ctx.stamp, ctx.deps.emit.error, stagingDir);
   return exitCode;
 }
 
@@ -349,7 +352,7 @@ async function publishBackup(ctx: BackupRunContext): Promise<number> {
     );
     return 0;
   } catch (error) {
-    preserveFailedStaging(ctx.outDir, ctx.stamp, ctx.deps, stagingDir);
+    preserveFailedStaging(ctx.outDir, ctx.stamp, ctx.deps.emit.error, stagingDir);
     const detail = error instanceof Error ? (error.stack ?? error.message) : String(error);
     ctx.deps.emit.error(`[backup] unexpected failure: ${scrubDsnSecrets(detail, ctx.dsn)}`);
     return 1;

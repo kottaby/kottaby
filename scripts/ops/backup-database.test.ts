@@ -96,6 +96,8 @@ let goodEnvFile = "";
 let queryDbnameEnvFile = "";
 let sqliteEnvFile = "";
 let placeholderEnvFile = "";
+let rawFragmentEnvFile = "";
+let encodedFragmentEnvFile = "";
 const missingEnvFile = (): string => relative(process.cwd(), join(workspace, ".env-backup-missing"));
 const ORIGINAL_DATABASE_URL = process.env.DATABASE_URL;
 
@@ -197,6 +199,17 @@ beforeAll(() => {
   placeholderEnvFile = writeEnvFile(
     ".env-backup-placeholder",
     "DATABASE_URL=postgresql://<user>:<password>@localhost/kottaby\n"
+  );
+  // A raw `#` in the DSN path (quoted so dotenv keeps the literal character —
+  // unquoted it would start an env-file comment) and its percent-encoded
+  // twin: the refusal/decoded-label pair for the raw-fragment gate.
+  rawFragmentEnvFile = writeEnvFile(
+    ".env-backup-raw-fragment",
+    'DATABASE_URL="postgresql://ops_owner:supersecret-pw@db.internal.example:5432/pt9b#k"\n'
+  );
+  encodedFragmentEnvFile = writeEnvFile(
+    ".env-backup-encoded-fragment",
+    'DATABASE_URL="postgresql://ops_owner:supersecret-pw@db.internal.example:5432/pt9b%23k"\n'
   );
 });
 
@@ -973,6 +986,29 @@ describe("runBackup — success boundary", () => {
     expect(dumpCall?.argv.at(-1)).toBe("postgresql://ops_owner:supersecret-pw@db.internal.example:5432/?dbname=app_db");
   });
 
+  it("records the decoded literal database for a percent-encoded fragment path in the manifest", async () => {
+    const outDir = join(workspace, "run-encoded-fragment");
+    const run = await runBackupWith(probeAndDumpBehavior(dumpWritesArtifact), {
+      envFile: encodedFragmentEnvFile,
+      outDir,
+    });
+    expect(run.code).toBe(0);
+
+    // libpq percent-decodes the path database — `pt9b%23k` IS the literal
+    // `pt9b#k` database — and the WHATWG label decodes to the same value,
+    // so the manifest records exactly the database pg_dump dumps.
+    const manifest = JSON.parse(readFileSync(join(outDir, STAMP, MANIFEST_FILE_NAME), "utf8")) as unknown;
+    expect(manifestProblems(manifest)).toEqual([]);
+    expect(manifest).toMatchObject({ database: "pt9b#k" });
+    expect(run.logs.some(line => line.includes("backing up pt9b#k@db.internal.example:5432(redacted-user)"))).toBe(
+      true
+    );
+    // The child still receives the ORIGINAL DSN libpq resolves.
+    const dumpCall = run.calls.find(call => call.argv[0] === "pg_dump" && call.argv[1] !== "--version");
+    expect(dumpCall?.argv.at(-1)).toBe("postgresql://ops_owner:supersecret-pw@db.internal.example:5432/pt9b%23k");
+    expectNoCredentials(run.all);
+  });
+
   it("spawns exactly the probe and dump processes as argv arrays with an allowlisted env", async () => {
     const outDir = join(workspace, "run-spawn-contract");
     const run = await runBackupWith(probeAndDumpBehavior(dumpWritesArtifact), { envFile: goodEnvFile, outDir });
@@ -1124,6 +1160,23 @@ describe("runBackup — failure boundaries", () => {
     expect(
       run.errors.some(line => line.includes("must be a postgresql:// connection string") && line.includes("SQLite"))
     ).toBe(true);
+  });
+
+  it("refuses a raw fragment character in the source DSN path with exit 2 and zero side effects", async () => {
+    const outDir = join(workspace, "run-raw-fragment");
+    const run = await runBackupWith(probeAndDumpBehavior(dumpWritesArtifact), {
+      envFile: rawFragmentEnvFile,
+      outDir,
+    });
+    // libpq reads THROUGH a raw `#` (it would dump the literal `pt9b#k`
+    // database) while the WHATWG manifest label ends the path at the `#` —
+    // the bootstrap refuses the DSN before anything runs (fail closed).
+    expect(run.code).toBe(2);
+    expect(run.errors).toContain("[env] source DSN path contains a fragment character — percent-encode it");
+    expect(run.calls).toEqual([]);
+    // Refused in the bootstrap path: the out-dir is never created — no
+    // staging, no dump artifact, no manifest, no lock file.
+    expect(existsSync(outDir)).toBe(false);
   });
 
   it("exits 2 when a live lock is held and never steals it", async () => {

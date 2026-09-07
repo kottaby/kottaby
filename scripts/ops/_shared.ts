@@ -171,6 +171,30 @@ export function parsePostgresDatabaseUrl(value: string | undefined): URL | null 
 }
 
 /**
+ * Whether the RAW path span of a DSN string — the substring from the first
+ * `/` after the authority to the first `?` (or the end of the string),
+ * exactly the span libpq reads as the path — carries a literal `#`. The
+ * WHATWG URL parser ends the path at a `#` (it becomes the fragment) while
+ * libpq has no fragment delimiter, so a raw `#` makes the database libpq
+ * connects to and the WHATWG path label diverge. The backup bootstrap uses
+ * this to refuse such DSNs fail-closed (the mirror of the restore guard's
+ * `assessRawUriPath`) instead of letting the manifest mislabel the dump.
+ * The label functions above are untouched: refusal upstream (backup
+ * bootstrap / restore guard) prevents the divergence they cannot see.
+ */
+export function rawUriPathHasFragment(trimmedDsn: string): boolean {
+  const schemeEnd = trimmedDsn.indexOf("://");
+  const authorityStart = schemeEnd < 0 ? 0 : schemeEnd + 3;
+  const slashAt = trimmedDsn.indexOf("/", authorityStart);
+  if (slashAt < 0) {
+    return false;
+  }
+  const questionAt = trimmedDsn.indexOf("?", authorityStart);
+  const rawPath = trimmedDsn.slice(slashAt, questionAt < 0 ? trimmedDsn.length : questionAt);
+  return rawPath.includes("#");
+}
+
+/**
  * Effective database name of a parsed Postgres DSN: the query `dbname=`
  * parameter when it carries a non-empty value, else the URI path database.
  *
