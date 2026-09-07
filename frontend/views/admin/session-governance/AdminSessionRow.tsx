@@ -1,20 +1,11 @@
 "use client";
 
 import { MoreVertOutlined, WarningOutlined } from "@mui/icons-material";
-import {
-  Box,
-  Chip,
-  IconButton,
-  Menu,
-  MenuItem,
-  Stack,
-  Tooltip,
-  Typography,
-} from "@mui/material";
+import { Box, Chip, IconButton, Menu, MenuItem, Stack, Tooltip, Typography } from "@mui/material";
 import { type ReactNode, useState } from "react";
+import { SessionMetaCell, SessionRowCardShell } from "@/frontend/components/ui/sessionList";
 import type { AdminSessionsQuery_adminSessions_items } from "@/frontend/graphql/generated/gql/graphql";
 import { SessionStatus } from "@/frontend/graphql/generated/gql/graphql";
-import { SessionMetaCell, SessionRowCardShell } from "@/frontend/components/ui/sessionList";
 import { formatApplicantDate } from "@/frontend/lib/i18n/format-date";
 import { AdminSessionRowStatusCell } from "@/frontend/views/admin/session-governance/AdminSessionRowStatusCell";
 import { SESSION_FEE_CURRENCY } from "@/shared/constants";
@@ -229,7 +220,11 @@ export function AdminSessionRow({
           >
             {t.actionViewDetails}
           </MenuItem>
-          <Tooltip title={timingMutable ? "" : t.rescheduleDisabledHint} placement="top" disableHoverListener={timingMutable}>
+          <Tooltip
+            title={timingMutable ? "" : t.rescheduleDisabledHint}
+            placement="top"
+            disableHoverListener={timingMutable}
+          >
             <Box sx={{ display: "block" }}>
               <MenuItem
                 disabled={!timingMutable}
@@ -242,7 +237,11 @@ export function AdminSessionRow({
               </MenuItem>
             </Box>
           </Tooltip>
-          <Tooltip title={timingMutable ? "" : t.cancelDisabledHint} placement="top" disableHoverListener={timingMutable}>
+          <Tooltip
+            title={timingMutable ? "" : t.cancelDisabledHint}
+            placement="top"
+            disableHoverListener={timingMutable}
+          >
             <Box sx={{ display: "block" }}>
               <MenuItem
                 disabled={!timingMutable}
