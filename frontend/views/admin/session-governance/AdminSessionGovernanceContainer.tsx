@@ -353,7 +353,7 @@ export function AdminSessionGovernanceContainer(): ReactNode {
     [te, t]
   );
 
-  // ---- mutations (ALL Apollo writes live here, per task 5.2.1) -------------
+  // ---- mutations (ALL Apollo writes live in the container) -----------------
   const cancelKeyRef = useRef<string>(crypto.randomUUID());
 
   const [commitReschedule, rescheduleMutation] = useMutation(adminSessionRescheduleMutationDocument, {
