@@ -166,15 +166,15 @@
   - [x] 3.1.IV **Instruction Verification:** Validate against `.agents/instructions/backend.instructions.md` + `backend/graphql/AGENTS.md` (if present per 0.2) + the invariant #11 scalar/schema-surface rules.
   - Outcome: `3.1-outcome.md`.
 
-- [ ] 3.2 Verify frontend documents parity (no edits expected)
+- [x] 3.2 Verify frontend documents parity (no edits expected)
   - Confirm `myIncomingParentLinkRequestsQueryDocument` / `respondToParentLinkRequestMutationDocument` remain `TypedDocumentNode`s with `id` selected first; the card consumes the SAME list document (no new document).
   - Run `bun run test/scripts/run-test.ts frontend/graphql/sharedDocuments/parents/parent-link.documents.test.ts` and `documents.contract.test.ts` — green, unchanged.
   - _Requirements: REQ-050, REQ-051_
-  - [ ] 3.2.QL **Quality Loop:** sub-loop on any touched document file (expected: none) — record no-op if untouched.
-  - [ ] 3.2.TE **Test Engineering:** Contract suites green; codegen types for the documents resolve with zero drift.
-  - [ ] 3.2.SEC **Security & Tenancy Audit:** No over-selected fields in the incoming list document beyond the sanctioned incoming disclosure contract (`parentFullName` is sanctioned; nothing student-private leaks parent-side).
-  - [ ] 3.2.SR **Semantic Review:** Single normalized-cache truth (one list document consumed by dashboard card + decision page); no duplicate query definitions anywhere.
-  - [ ] 3.2.IV **Instruction Verification:** `.agents/instructions/frontend.instructions.md` + `frontend/graphql/AGENTS.md`.
+  - [x] 3.2.QL **Quality Loop:** sub-loop on any touched document file (expected: none) — record no-op if untouched.
+  - [x] 3.2.TE **Test Engineering:** Contract suites green; codegen types for the documents resolve with zero drift.
+  - [x] 3.2.SEC **Security & Tenancy Audit:** No over-selected fields in the incoming list document beyond the sanctioned incoming disclosure contract (`parentFullName` is sanctioned; nothing student-private leaks parent-side).
+  - [x] 3.2.SR **Semantic Review:** Single normalized-cache truth (one list document consumed by dashboard card + decision page); no duplicate query definitions anywhere.
+  - [x] 3.2.IV **Instruction Verification:** `.agents/instructions/frontend.instructions.md` + `frontend/graphql/AGENTS.md`.
   - Outcome: `3.2-outcome.md`.
 
 ---
