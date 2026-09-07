@@ -272,6 +272,26 @@ function listedItemById<T extends { readonly id: number }>(items: readonly T[], 
   return items.find(item => item.id === id);
 }
 
+/** Floors a timestamp to whole seconds (the whole-second column convention). */
+function secondAlignedInstant(value: Date): Date {
+  return new Date(Math.floor(value.getTime() / 1000) * 1000);
+}
+
+/**
+ * Projects a session row onto its comparable shape: every Date field is
+ * floored to whole seconds, so rows read through different executors (a
+ * guarded UPDATE `.returning()` vs the queryDb read path) compare equal —
+ * the stored column values are identical; only driver timestamp precision
+ * differs.
+ */
+function comparableSessionRow(row: object): Record<string, string | number | boolean | null> {
+  const projection: Record<string, string | number | boolean | null> = {};
+  for (const [key, value] of Object.entries(row)) {
+    projection[key] = value instanceof Date ? secondAlignedInstant(value).toISOString() : (value ?? null);
+  }
+  return projection;
+}
+
 /**
  * The audit-details payload shape a governance mutation serializes:
  * `{action, reason?}` for the cancel, `{action, from:{teacherId},
@@ -796,9 +816,15 @@ describe("Journey W-3 — join as observer: exactly-once audit on a live row, ze
 
     // The returned row is the same canonical shape the read paths return
     // (the admin UI renders the read-only live view from it) and the row
-    // itself carries ZERO column changes — audit-only operation.
+    // itself carries ZERO column changes — audit-only operation. Rows read
+    // through different executors are compared second-aligned (see the
+    // projection helper).
     expect(joined.id).toBe(w3Session.id);
-    expect(joined).toEqual(await SessionAdminGovernanceService.getDetail(cast.admin.userId, w3Session.id, LOCALE));
+    const detail = await SessionAdminGovernanceService.getDetail(cast.admin.userId, w3Session.id, LOCALE);
+    expect(detail).not.toBeNull();
+    if (detail) {
+      expect(comparableSessionRow(joined)).toEqual(comparableSessionRow(detail));
+    }
     expect(await readSessionRow(w3Session.id)).toEqual(rowBefore);
 
     // Join-as-observer emits NO wave: both participant inboxes unchanged.
