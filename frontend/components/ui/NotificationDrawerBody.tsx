@@ -5,6 +5,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 // audit-R4: shared keyboard-focus ring (v9 ButtonBase ships none).
 import { focusVisibleRingSx } from "@/frontend/components/ui/focusRing";
+import { resolveNotificationRoute } from "@/frontend/components/ui/useNotificationDrawerActions";
 import type { MyNotificationsQuery_myNotifications_items } from "@/frontend/graphql/generated/gql/graphql";
 import { formatApplicantDate } from "@/frontend/lib/i18n/format-date";
 import { Common, Notifications, useAppLocale, useAppTranslation } from "@/shared/locale";
@@ -104,7 +105,7 @@ function NotificationDrawerList({ items, onOpenNotification }: Readonly<Notifica
         <ListItemButton
           key={item.id}
           component={Link}
-          href="/notifications"
+          href={resolveNotificationRoute(item.relatedEntityType)}
           divider={index < items.length - 1}
           onClick={() => onOpenNotification(item)}
           sx={{ ...focusVisibleRingSx, alignItems: "flex-start", gap: 1.5, px: 2, py: 1.5 }}

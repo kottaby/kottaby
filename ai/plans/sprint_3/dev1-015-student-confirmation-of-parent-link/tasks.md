@@ -181,14 +181,14 @@
 
 ## Phase 4: Frontend Views, Dashboard Card & Navigation
 
-- [ ] 4.1 Verify/close the notification-drawer deep-link for `parent_link_request` (REQ-011)
+- [x] 4.1 Verify/close the notification-drawer deep-link for `parent_link_request` (REQ-011)
   - Input: 0.2 finding for `frontend/components/ui/NotificationDrawerBody.tsx` / `useNotificationDrawerActions.ts` (`handleOpenNotification`).
   - **If the `relatedEntityType === "parent_link_request"` branch already routes to the student decision route:** PIN it with a component/contract test only — no code edit.
   - **If not:** add the minimal mapping inside the drawer's EXISTING route-resolution seam (Record/switch keyed by `relatedEntityType`), exporting ONE shared route constant (e.g. `STUDENT_LINK_REQUESTS_ROUTE`) that task 4.2's CTA and task 4.4's nav entry BOTH consume — three consumers, one constant, zero drift.
   - Add a component test: a `parent_link_request` notification click resolves exactly to the student decision route (both locales; no router errors for unknown entity types — those fall through unchanged).
   - _Requirements: REQ-011, REQ-053_
-  - [ ] 4.1.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts <edited drawer/action file> --lifecycle duplicates` — exit code 0.
-  - [ ] 4.1.TE **Unit / Component Tests:** Happy DOM tests: notification click → route resolution; unknown entity → unchanged behavior; both locales; no `runInRollback` (UI test).
+  - [x] 4.1.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts <edited drawer/action file> --lifecycle duplicates` — exit code 0.
+  - [x] 4.1.TE **Unit / Component Tests:** Happy DOM tests: notification click → route resolution; unknown entity → unchanged behavior; both locales; no `runInRollback` (UI test).
   - [ ] 4.1.BF **Agent-Browser Functional Self-Loop:**
     • Launch dev server; login as a student with a seeded `parent_link_request` notification.
     • Open the notification drawer; click the link-request notification.
@@ -198,8 +198,8 @@
     • Capture the drawer with the link-request notification at 1440×900 / 768×1024 / 375×812 × en/ar.
     • Inspect: notification row typography/spacing mirrors sibling rows; RTL mirroring correct; no truncation of the entity line; no hardcoded colors.
     • Iterate on `sx` tokens until visually consistent with the drawer baseline.
-  - [ ] 4.1.SR **Semantic Review:** Resolution seam edit is minimal and switch-shaped (no re-architecting the drawer); `sx` only; no hardcoded strings/colors; route constant has exactly ONE definition site.
-  - [ ] 4.1.IV **Instruction Verification:** `.agents/instructions/frontend.instructions.md` + `frontend/components/ui` layer AGENTS.md ONLY if present per 0.2 (`frontend/components/ui/AGENTS.md` does not exist in known prose — verify, never cite blindly).
+  - [x] 4.1.SR **Semantic Review:** Resolution seam edit is minimal and switch-shaped (no re-architecting the drawer); `sx` only; no hardcoded strings/colors; route constant has exactly ONE definition site.
+  - [x] 4.1.IV **Instruction Verification:** `.agents/instructions/frontend.instructions.md` + `frontend/components/ui` layer AGENTS.md ONLY if present per 0.2 (`frontend/components/ui/AGENTS.md` does not exist in known prose — verify, never cite blindly).
   - Outcome: `4.1-outcome.md`.
 
 - [ ] 4.2 Implement the NEW `PendingParentLinkRequestsCard` dashboard discoverability card
