@@ -485,19 +485,19 @@ The ONLY instruction files that exist are `.agents/instructions/frontend.instruc
 
 > Waves run as independent review passes. Each appends findings to `ai/plans/sprint_1/dev3-006-session-report-homework-infrastructure/outcome/6-review-waves.md`. Critical findings BLOCK completion until fixed; nits are fixed in-wave or deferred via a NEW ledger row.
 
-- [ ] 6.1 [Review wave: types & schema]
+- [x] 6.1 [Review wave: types & schema]
   - Reviewer pass over: Phase 1 diffs (schema verdicts honored exactly; constraints named as planned; nullability final state), `backend/types/` additions (canonical discipline; no service `.types.ts`; barrels), enum guard pattern-conformance to `isApplicantStatus`, DateTime/enum typing at the Pothos layer.
   - Confirm C.4: no `teacher_id` anywhere in `reports` schema/types/Surface (grep evidence pasted).
-- [ ] 6.2 [Review wave: backend services, repos & concurrency]
+- [x] 6.2 [Review wave: backend services, repos & concurrency]
   - Deep review of: pipeline order vs plan §4.2 (step-for-step), `tx` propagation completeness (every call inside the unit), FOR UPDATE gate scope, 23505 cause-chain scoping (constraint-name precision), grade-once guard correctness, D5 first-session semantics, publish-after-commit ordering, denial logging budget (exactly one logDomainError per denial), REQ-044 purity (grep for accidental wallet/fee writes).
   - Re-examine concurrency tests' real-world fidelity; verify storm determinism evidence.
-- [ ] 6.3 [Review wave: frontend (documents scope)]
+- [x] 6.3 [Review wave: frontend (documents scope)]
   - Documents module conformance (selection rules, typing, barrels); confirm genuinely ZERO view/page/nav diffs in the changeset (changeset listing pasted); apolloCache no-op decision re-verified.
   - Explicitly record: `.BF`/`.BS` agent-browser loops not applicable (no UI surface) — pointer to specs §1 non-goals to preempt reviewer escalation.
-- [ ] 6.4 [Pentester wave]
+- [x] 6.4 [Pentester wave]
   - Threat sweep against REQ-030/031/032/033/034 and plan §6: oracle-collapse byte identity (re-run evidence), `$all` scope presence, governance re-check presence (with the ctx-not-fail-closed rationale), BOPLA field-by-field mapping proof (diff `SubmitSessionReportInput` members vs `ReportInsertType` write set), LIKE/injection N/A justification, notification privacy (names-only bodies), audit-log absence intentional (A.5 alignment recorded), rate-limit stub posture acknowledged.
   - Attempt at least one adversarial smuggle beyond the wire suite (e.g., nested extra keys inside `homework` block) and record result.
-- [ ] 6.5 [Deferred-items reconciliation]
+- [x] 6.5 [Deferred-items reconciliation]
   - Re-read `ai/plans/sprint_1/dev3-006-session-report-homework-infrastructure/deferred-items.md`: every row D1–D5 still valid (not accidentally implemented, not claimable as done); any NEW deferral introduced across Phases 1–5 is recorded with owner/status; any item RESOLVED in-flight is marked with the resolving task id.
   - If the ledger drifted from specs' pre-seeds, reconcile and note authority source.
   - _Requirements: REQ-001, REQ-002_
