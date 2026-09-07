@@ -44,7 +44,7 @@ import { useAdminUserFormFeedback } from "@/frontend/views/admin/users/hooks";
 import type { AdminUsersLabels } from "@/shared/locale/types/adminUsers";
 
 /** Whitelist create payload the dialog hands back to its caller. */
-export interface CreateUserDialogInput {
+interface CreateUserDialogInput {
   readonly fullName: string;
   readonly email: string;
   readonly phone: string;

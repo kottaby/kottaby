@@ -4,7 +4,7 @@ import { isPositiveSafeInt } from "@/backend/services/notifications/emit-validat
 import type { NotificationListFilterInput } from "@/backend/types";
 
 export const NOTIFICATION_INBOX_DEFAULT_PAGE_LIMIT = 20;
-export const NOTIFICATION_INBOX_MAX_PAGE_LIMIT = 50;
+const NOTIFICATION_INBOX_MAX_PAGE_LIMIT = 50;
 
 type InboxWindowView = { readonly limit?: unknown; readonly offset?: unknown };
 

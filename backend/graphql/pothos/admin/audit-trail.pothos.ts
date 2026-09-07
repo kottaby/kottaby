@@ -30,7 +30,7 @@ import type { AdminAuditLogEntryReturnType, AdminAuditLogPageReturnType } from "
  * `actorName` is the actor's CURRENT display name (documented live
  * projection, not a snapshot).
  */
-export const AdminAuditLogEntryPothosObject = gqlSchemaBuilder
+const AdminAuditLogEntryPothosObject = gqlSchemaBuilder
   .objectRef<AdminAuditLogEntryReturnType>("AdminAuditLogEntry")
   .implement({
     fields: t => ({

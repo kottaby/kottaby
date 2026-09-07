@@ -1,31 +1,10 @@
 import type { PaletteColor, PaletteColorOptions, TypeBackground } from "@mui/material/styles";
 import type { Property } from "csstype";
 
-export type TonalPalette = {
-  0: string;
-  5: string;
-  10: string;
-  15: string;
-  20: string;
-  25: string;
-  30: string;
-  35: string;
-  40: string;
-  50: string;
-  60: string;
-  70: string;
-  80: string;
-  90: string;
-  95: string;
-  98: string;
-  99: string;
-  100: string;
-};
-
 /**
  * M3 Siblings (excluding the base color)
  */
-export type M3ColorSiblings<T extends string> = {
+type M3ColorSiblings<T extends string> = {
   [K in `on${Capitalize<T>}`]: string;
 } & {
   [K in `${T}Container`]: string;
@@ -36,7 +15,7 @@ export type M3ColorSiblings<T extends string> = {
 /**
  * Optional M3 Siblings for PaletteOptions
  */
-export type M3ColorSiblingsOptions<T extends string> = {
+type M3ColorSiblingsOptions<T extends string> = {
   [K in `on${Capitalize<T>}`]?: string;
 } & {
   [K in `${T}Container`]?: string;
@@ -47,21 +26,21 @@ export type M3ColorSiblingsOptions<T extends string> = {
 /**
  * Generates Material 3 Color Family properties for a given name.
  */
-export type ColorFamily<T extends string> = {
+type ColorFamily<T extends string> = {
   [K in T]: string;
 } & M3ColorSiblings<T>;
 
 /**
  * Optional version of ColorFamily for PaletteOptions
  */
-export type ColorFamilyOptions<T extends string> = {
+type ColorFamilyOptions<T extends string> = {
   [K in T]?: string;
 } & M3ColorSiblingsOptions<T>;
 
 /**
  * Material 3 Base Scheme properties (Surface, Outline, etc.)
  */
-export interface M3BaseScheme {
+interface M3BaseScheme {
   background: string;
   onBackground: string;
   surface: string;
@@ -83,7 +62,7 @@ export interface M3BaseScheme {
   surfaceContainerHighest: string;
 }
 
-export type M3BaseSchemeOptions = Partial<Omit<M3BaseScheme, "background">> & {
+type M3BaseSchemeOptions = Partial<Omit<M3BaseScheme, "background">> & {
   background?: Partial<TypeBackground>;
 };
 

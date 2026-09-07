@@ -104,7 +104,7 @@ const FIXTURE_ADMIN_CREDENTIAL_STUB = "govJourneyStubHash0123456789AB";
  * Governed Admin G). Carries the `users` row snapshot for
  * fixture-immutability assertions.
  */
-export interface GovernanceAdminActor {
+interface GovernanceAdminActor {
   readonly userId: number;
   readonly userSnapshot: UserSelectType;
 }
@@ -115,7 +115,7 @@ export interface GovernanceAdminActor {
  * can submit it through `AuthService.login`) plus the `users` row
  * snapshot.
  */
-export interface GovernanceRegisteredActor {
+interface GovernanceRegisteredActor {
   readonly userId: number;
   readonly email: string;
   readonly credential: string;
@@ -128,7 +128,7 @@ export interface GovernanceRegisteredActor {
  * target; REQ-015 byte-identical proof reads the `applicants` row
  * after every journey step).
  */
-export interface GovernanceTeacherActor extends GovernanceRegisteredActor {
+interface GovernanceTeacherActor extends GovernanceRegisteredActor {
   readonly applicantSnapshot: ApplicantSelectType;
 }
 

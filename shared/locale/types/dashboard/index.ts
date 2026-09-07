@@ -162,7 +162,7 @@ export interface DashboardLabels {
  * Getting Started bullet copy for a single dashboard role. The three keys map
  * to the card's fixed icon slots (sessions, subscriptions, notifications).
  */
-export interface DashboardGettingStartedTips {
+interface DashboardGettingStartedTips {
   /** Bullet next to the sessions icon */
   readonly sessions: string;
   /** Bullet next to the subscriptions/plans icon */

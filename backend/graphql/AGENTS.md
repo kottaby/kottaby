@@ -108,7 +108,7 @@ export const {Entity}PothosObject = {Entity}Ref.implement({
 
 - **Canonical reference**: `docs/services/whatsapp-cloud-api.md` — comprehensive WhatsApp integration patterns. *(doc file absent from this tree — pending the WhatsApp-integration ticket; see `ai/plans/dev3-002-shared-error-handling-response-contracts/deferred-items.md` BLT-03)*
 - **Object types**: `WhatsappAccountPothosObject`, `WhatsappTemplateSnapshotPothosObject` (BL3), `WhatsappSyncFromMetaResultPothosObject` (wrapper). All expose `id` for Apollo cache normalization.
-- **Input type pattern**: Use `inputType(string-named)` instead of `inputRef<BackendType>` to avoid LocalizedString null incompatibility.
+- **Input type pattern**: Use `inputType(string-named)` instead of `inputRef<BackendType>` — `inputRef` couples the input's nullability to the backend type's exact shape, and drift between the two surfaces as null-incompatibility errors.
 - **Credential mutations**: `setWhatsappAccessToken`, `setWhatsappTwoStepPin` — all credential/config mutations call `resetWhatsappChannel()` (S4) for token rotation without restart.
 - **Delete behavior**: `deleteWhatsappAccount` deactivates (`isActive = false`), does not hard-delete.
 - **Side-effect barrels**: `import "./whatsapp-account.mutation";` registers resolvers via side-effect imports.

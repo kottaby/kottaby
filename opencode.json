@@ -1,6 +1,5 @@
 {
   "$schema": "https://opencodeai/config.json",
-  "instructions": [".github/copilot-instructions.md", ".github/instructions/**/*.instructions.md"],
   "mcp": {
     "mui-mcp": {
       "type": "local",

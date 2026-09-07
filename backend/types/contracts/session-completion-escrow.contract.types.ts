@@ -56,7 +56,7 @@ export interface WalletCreditContract {
 }
 
 /** Release-reason literal union localized ONLY in this file. */
-export type EscrowReleaseReason = "CancellationConfirmed" | "ConfirmationTimeout";
+type EscrowReleaseReason = "CancellationConfirmed" | "ConfirmationTimeout";
 
 /**
  * Cancellation/auto-timeout release. Cannot carry money —

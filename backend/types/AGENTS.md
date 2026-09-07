@@ -53,7 +53,6 @@ When multiple entity types share identical fields/methods (e.g., meeting config 
 Completed extractions:
 - `backend/types/meeting/meeting-config-base.types.ts` — shared shape for class-meeting-config and meeting-config types
 - `backend/types/communication/communication.types.ts` — `BaseEntity`, `BaseRepo<T>`, `DBTx`, `ResolutionResult` for complaint/suggestion types
-- `shared/types/pagination.types.ts` — `PaginationInput` consolidated from 3 duplicate definitions
 
 ## Types Location Rules (CRITICAL)
 

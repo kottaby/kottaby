@@ -97,13 +97,13 @@ export interface ParentActorType {
  * Side-effect rows attributable to tracked actors. The handshake discovery
  * flows are pure reads: both counters must stay 0 across every journey step.
  */
-export interface JourneySideEffectCountsType {
+interface JourneySideEffectCountsType {
   readonly notifications: number;
   readonly auditLogs: number;
 }
 
 /** Row residue for tracked ids after teardown — every field must be 0. */
-export interface JourneyResidueCountsType extends JourneySideEffectCountsType {
+interface JourneyResidueCountsType extends JourneySideEffectCountsType {
   readonly users: number;
   readonly students: number;
   readonly parents: number;

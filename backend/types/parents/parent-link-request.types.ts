@@ -8,7 +8,6 @@ import type { parentLinkRequests } from "@/backend/db/schema/parents/parent-link
 import type { LinkStatus } from "@/backend/enum/shared/link-status.enum";
 
 export type ParentLinkRequestSelectType = typeof parentLinkRequests.$inferSelect;
-export type ParentLinkRequestInsertType = typeof parentLinkRequests.$inferInsert;
 
 /**
  * OutgoingParentLinkRequestReturnType — the complete wire shape for a link

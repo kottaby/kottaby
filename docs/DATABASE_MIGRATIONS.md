@@ -94,7 +94,7 @@ Added a comment noting that indexes come from the schema migration and cannot us
 
 ### 2. Remove redundant enum migration
 
-Deleted `backend/db/migration/5-add_test_custom_alt_permission.sql`. The value `test.custom_alt` is already defined in `shared/lib/enum.ts` and emitted by the schema migration’s `app_permission` enum.
+Deleted `backend/db/migration/5-add_test_custom_alt_permission.sql`. The value `test.custom_alt` was already emitted by the schema migration's `app_permission` enum (the `shared/lib/enum.ts` catalog that also carried it has since been removed with the rest of that permission surface).
 
 ### 3. Regenerate and verify
 

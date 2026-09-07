@@ -5,7 +5,7 @@
  *
  * Keys are lowercase camelCase of the SCREAMING_SNAKE_CASE codes.
  */
-export interface PlanCatalogErrorsLabels {
+interface PlanCatalogErrorsLabels {
   readonly planNotFound: string;
   readonly planAlreadyInactive: string;
   readonly planAlreadyActive: string;

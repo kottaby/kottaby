@@ -1,5 +1,5 @@
 /**
- * AuthService — domain service for login + me + refreshToken.
+ * AuthService — domain service for login + refreshToken.
  *
  * Sister module to `RegistrationService` (which handles the public
  * `registerUser` flow). This service owns the JWT-issuing auth path:
@@ -10,9 +10,6 @@
  *    `AuthSession` (`user` + tokens). The mutation resolver extracts
  *    `accessToken` + `refreshToken` for the payload and pushes
  *    `refreshToken` + `sessionId` into the per-request cookie accumulator.
- *  - `getMe(userId, locale)` — fetches the user by id for the `me` query.
- *    Throws `UnauthorizedError` if the user doesn't exist (e.g. deleted
- *    between the access-token issuance and the `me` call).
  *  - `refreshToken(refreshToken, locale)` — verifies the refresh token,
  *    rotates the pair (issues a NEW refresh token + session id), returns the
  *    fresh `RefreshResult`.
@@ -211,23 +208,6 @@ export namespace AuthService {
   }
 
   /**
-   * Resolves the authenticated user from a JWT `userId`. Used by the `me`
-   * query and by the GraphQL context factory.
-   *
-   * @throws UnauthorizedError  user doesn't exist (e.g. deleted between
-   *     access-token issuance and the `me` call).
-   */
-  export async function getMe(userId: number, locale: string): Promise<RegistrationReturnType> {
-    const t = getServerTranslations(locale).authTranslations;
-
-    const user = await UserRepository.findById(userId);
-    if (!user) {
-      throw new UnauthorizedError(t.invalidCredentials);
-    }
-    return stripPasswordHash(user);
-  }
-
-  /**
    * Refresh-token rotation entry point — verifies the supplied refresh
    * token, issues a NEW access + refresh token pair + new session id.
    *
@@ -296,8 +276,8 @@ export namespace AuthService {
    * @throws ValidationError   `locale` is not a supported locale (localized
    *     `invalidLocale` message).
    * @throws UnauthorizedError the caller's user row no longer exists
-   *     (deleted between access-token issuance and this call — same contract
-   *     as `getMe`; the message never discloses existence).
+   *     (deleted between access-token issuance and this call; the message
+   *     never discloses existence).
    */
   export async function updateMyLocale(
     userId: number,
@@ -315,8 +295,7 @@ export namespace AuthService {
     const updated = await withTransaction(outerTx, tx => UserRepository.updateLocale(userId, locale, tx));
     if (!updated) {
       // Zero rows matched — the verified caller vanished between the context
-      // build and the write. Mirror `getMe`: unauthenticated, no existence
-      // oracle.
+      // build and the write. Unauthenticated, no existence oracle.
       throw new UnauthorizedError(t.unauthorized);
     }
     return stripPasswordHash(updated);

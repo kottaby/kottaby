@@ -27,7 +27,7 @@ export const isValidEmailShape = isValidEmail;
 /**
  * Field paths the server may address in `extensions.fields[]` pairs.
  */
-export const REGISTER_FIELD_PATHS = [
+const REGISTER_FIELD_PATHS = [
   "fullName",
   "email",
   "phone",

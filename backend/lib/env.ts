@@ -308,15 +308,6 @@ export function requireEnv(key: string): string {
   return value;
 }
 
-/**
- * Resolves an env-config value by key (alias for {@link getEnv}).
- *
- * Used by config modules that enumerate keys dynamically.
- */
-export function resolveEnvConfig(key: string): string | undefined {
-  return getEnv(key);
-}
-
 // ─── Realtime notification (WebSocket sidecar + fan-out) typed getters ──────
 // Every getter reads through getEnvironmentConfig(), so all of these keys are
 // covered by resetEnvironmentCache(): after a reset the next call re-reads

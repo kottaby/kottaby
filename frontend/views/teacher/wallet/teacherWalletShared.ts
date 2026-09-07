@@ -7,15 +7,12 @@
 /** Snackbar autohide — parity with the sessions containers. */
 export const SNACKBAR_AUTOHIDE_MS = 4000;
 
-/** The Apollo `__typename` of the normalized wallet entity. */
-export const WALLET_TYPE_NAME = "Wallet";
-
 /**
  * UX-only mirror of the server's withdrawal-amount grammar (R-303):
  * 1-7 integer digits, an optional 1-2 digit fraction. The server matrix
  * stays the authority — this only gates the submit button + inline hint.
  */
-export const WITHDRAWAL_AMOUNT_PATTERN = /^\d{1,7}(\.\d{1,2})?$/;
+const WITHDRAWAL_AMOUNT_PATTERN = /^\d{1,7}(\.\d{1,2})?$/;
 
 /** One transient container-level notice rendered in the MUI Snackbar slot. */
 export interface ContainerNotice {

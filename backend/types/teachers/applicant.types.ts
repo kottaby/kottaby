@@ -8,7 +8,6 @@ import type { applicants } from "@/backend/db/schema/teachers/applicants";
 import type { ApplicantStatus } from "@/backend/enum/teachers/applicant-status.enum";
 
 export type ApplicantSelectType = typeof applicants.$inferSelect;
-export type ApplicantInsertType = typeof applicants.$inferInsert;
 
 /**
  * ApplicantProfileReturnType — canonical profile return shape for the

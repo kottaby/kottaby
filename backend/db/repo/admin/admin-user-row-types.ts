@@ -20,13 +20,13 @@ import type { UserSelectType } from "@/backend/types";
  * maps this raw string to the canonical `UserRole` enum via `toUserRole`
  * at projection time.
  */
-export type RawUserRole = UserSelectType["role"];
+type RawUserRole = UserSelectType["role"];
 
 /**
  * The raw pgEnum string union mirrored from `UserSelectType["gender"]`.
  * Same nominal-vs-structural rationale as `RawUserRole`.
  */
-export type RawGender = UserSelectType["gender"];
+type RawGender = UserSelectType["gender"];
 
 /**
  * `NormalizedAdminUserFilters` — repo-internal filter shape.

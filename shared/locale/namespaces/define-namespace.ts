@@ -11,7 +11,3 @@ export function defineNamespace<TLabels>(
 ): NamespaceHandle<TLabels> {
   return { id, getLabels };
 }
-
-export function getNamespaceId<TLabels>(handle: NamespaceHandle<TLabels>): string {
-  return handle.id;
-}

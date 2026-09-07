@@ -46,7 +46,7 @@
  *    echo is honest (out-of-range page ⇒ empty `items` + true count).
  */
 
-import { beforeAll, describe, expect, test } from "bun:test";
+import { beforeAll, expect, test } from "bun:test";
 import { randomUUID } from "node:crypto";
 import type { TypedDocumentNode } from "@apollo/client";
 import { parse } from "graphql";
@@ -60,6 +60,7 @@ import {
   registerUserMutationDocument,
 } from "@/frontend/graphql/sharedDocuments/auth/auth.documents";
 import {
+  describeGraphqlSuite,
   expectMutationError,
   insertAdminUserWithChildRow,
   insertCertifiedTeacherRow,
@@ -271,7 +272,10 @@ let completedSessionId: number;
 /** A session owned by the SECOND student — foreign to the primary student. */
 let foreignSessionId: number;
 
-describe("Session lifecycle queries — REQ-064 query-row matrix", () => {
+// Live-server flow suite — describeGraphqlSuite skips wholesale under PGlite
+// (single embedded session cannot share live writes with the test process;
+// see test/helpers/skip-when-pglite.ts). CI runs it fully on real Postgres.
+describeGraphqlSuite("Session lifecycle queries — REQ-064 query-row matrix", () => {
   // Memory-constrained sandbox adaptation: setting TEST_SERVER_EXTERNAL=1 +
   // GRAPHQL_TEST_PORT=<already-running server> runs the suite against that
   // warm server instead of spawning a second `next dev` (same rationale as

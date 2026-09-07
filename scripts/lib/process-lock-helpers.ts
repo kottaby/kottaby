@@ -185,11 +185,6 @@ export function isPidRunning(pid: number): boolean {
 }
 
 /**
- * Backward compatibility alias for isPidRunning
- */
-export const isPidAlive = isPidRunning;
-
-/**
  * Ensure lock directories exist for a given namespace.
  */
 export function ensureLockDirs(ns: string): void {

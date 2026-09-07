@@ -2,7 +2,6 @@ import type { students } from "@/backend/db/schema/students/students";
 import type { UserSelectType } from "@/backend/types/users/user.types";
 
 export type StudentSelectType = typeof students.$inferSelect;
-export type StudentInsertType = typeof students.$inferInsert;
 
 /**
  * The ONLY payload a parent-facing handshake-code lookup may return.

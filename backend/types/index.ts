@@ -13,11 +13,13 @@
  *     (top-level db.types.ts, re-exported below; migrated from
  *     `@/backend/db/db.types`).
  *
- * Canonical Select/Insert type inventory: 22 entity type pairs
- * across 8 entity domain sub-directories — users, students, parents,
- * teachers, billing, classes, notifications, audit — plus the non-entity
- * transport-contract sub-directories `errors` (error envelopes)
- * and `gateway` (health-check / gateway-context contracts).
+ * Canonical entity row types live in the domain sub-directories —
+ * users, students, parents, teachers, billing, classes, notifications,
+ * audit — each deriving its shape from `backend/db/schema/<domain>/` via
+ * `$inferSelect` (plus `$inferInsert` where a write path consumes it),
+ * alongside the non-entity transport-contract sub-directories `errors`
+ * (error envelopes) and `gateway` (health-check / gateway-context
+ * contracts).
  */
 
 export * from "./admin";

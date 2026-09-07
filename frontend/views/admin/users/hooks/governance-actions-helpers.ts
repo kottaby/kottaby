@@ -28,7 +28,7 @@ export function isValidPeriodDays(raw: string): boolean {
 }
 
 /** Conflict code → inline Alert severity (REQ-065 matrix). */
-export function alertSeverity(code: string | null): "info" | "warning" {
+function alertSeverity(code: string | null): "info" | "warning" {
   return code === "USER_ALREADY_DELETED" ? "warning" : "info";
 }
 

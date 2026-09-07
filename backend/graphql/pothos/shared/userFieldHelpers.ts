@@ -48,7 +48,7 @@ type GqlSchemaTypes = typeof gqlSchemaBuilder extends PothosSchemaTypes.SchemaBu
  * enum via `toUserRole`. Fail-closed: a corrupt stored value surfaces as a
  * resolver error rather than an unsafe cast.
  */
-export function resolveUserRole(parent: { readonly role: string }): UserRole {
+function resolveUserRole(parent: { readonly role: string }): UserRole {
   const role = toUserRole(parent.role);
   if (role === null) {
     throw new Error(`Unexpected user role: ${parent.role}`);
@@ -62,7 +62,7 @@ export function resolveUserRole(parent: { readonly role: string }): UserRole {
  * Fail-closed: a corrupt stored value surfaces as a resolver error rather
  * than an unsafe cast.
  */
-export function resolveNullableUserGender(parent: { readonly gender: string | null }): Gender | null {
+function resolveNullableUserGender(parent: { readonly gender: string | null }): Gender | null {
   if (!parent.gender) return null;
   const gender = toGender(parent.gender);
   if (gender === null) {

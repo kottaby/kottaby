@@ -8,7 +8,7 @@
  * null, role: null }` for anonymous / invalid-token callers.
  *
  * This function does NOT redirect — the caller decides whether to redirect
- * (e.g. `withPageAuth`, `requireRoleForPage`, or a Server Component layout).
+ * (e.g. `withPageAuth` or a Server Component layout).
  *
  * `react.cache()` deduplicates calls within a single request — Server
  * Components that call `getServerUserContext()` directly, plus the layout,

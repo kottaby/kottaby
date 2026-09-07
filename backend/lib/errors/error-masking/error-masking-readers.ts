@@ -12,7 +12,7 @@ export const OPAQUE_RENDER_BUDGET = 512;
 // ─── Public transport shapes ─────────────────────────────────────────────────
 
 /** A single response-path segment as carried by formatted GraphQL errors. */
-export type GraphQLPathSegment = string | number;
+type GraphQLPathSegment = string | number;
 
 /** Response path of field-level resolver errors (preserved verbatim). */
 export type GraphQLResponsePath = readonly GraphQLPathSegment[];
@@ -35,7 +35,7 @@ export function readNonEmptyString(value: unknown): string | null {
 }
 
 /** Result wrapper used so getter failures never escape as exceptions. */
-export type ReadOutcome = { readonly ok: true; readonly value: unknown } | { readonly ok: false };
+type ReadOutcome = { readonly ok: true; readonly value: unknown } | { readonly ok: false };
 
 export function readProperty(source: Record<string, unknown>, key: string): ReadOutcome {
   try {
@@ -101,7 +101,7 @@ export function capRenderedText(raw: string, budget: number): string {
  * in `JSON.stringify` output nor in `{...spread}` copies-only-enumerable —
  * the client can neither observe nor trigger it.
  */
-export const RAW_ERROR_HOP: unique symbol = Symbol.for("dev3-002.graphqlBoundary.rawError");
+const RAW_ERROR_HOP: unique symbol = Symbol.for("dev3-002.graphqlBoundary.rawError");
 
 /**
  * Attaches the raw throwable to a formatted wire item without affecting its

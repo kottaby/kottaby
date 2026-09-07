@@ -1,5 +1,5 @@
 /**
- * Gateway request-context + transport-guard contract types.
+ * Gateway transport-guard contract types.
  *
  * Layer rules:
  *  - Types ONLY. Zero runtime exports (statically enforced by the gateway
@@ -9,31 +9,6 @@
  *  - Every property is `readonly` across all shapes here.
  *  - No cross-layer imports (`shared/`, `frontend/`, `app/`) — pure types.
  */
-
-/**
- * Documentary contract for the two gateway correlation headers captured
- * around the GraphQL pipeline.
- *
- * This is a DOCUMENTARY type only — no runtime construction site exists or
- * may be introduced for it; the live context is assembled in-place inside
- * `gqlContextFactory` (extend-in-place rule).
- *
- * SECURITY / BOLA note: both values originate from inbound request
- * headers that are NON-AUTHORIZATION by contract — they can never grant,
- * influence, or substitute identity. Identity is derived EXCLUSIVELY by
- * the auth cookie factory path; a client-supplied
- * `X-Request-Id` / `X-Idempotency-Key` is correlation metadata only and
- * must never be trusted as an authentication signal by any layer.
- */
-export interface GatewayRequestMetadata {
-  /** Correlation id honored from `X-Request-Id`, else server-generated UUID. */
-  readonly requestId: string;
-  /**
-   * Propagation-only idempotency echo from `X-Idempotency-Key`
-   * (`null` when the header is absent — never empty-string-coalesced).
-   */
-  readonly idempotencyKey: string | null;
-}
 
 /**
  * Exhaustive transport-level rejection taxonomy for the GraphQL route's

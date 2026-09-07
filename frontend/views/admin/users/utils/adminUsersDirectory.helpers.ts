@@ -93,16 +93,6 @@ export function governanceLabel(
   return badges.deleted;
 }
 
-/** True when any directory filter slot is set (toolbar/chips clear affordance). */
-export function hasDirectoryFilters(
-  role: DirectoryRole | "",
-  governance: DirectoryGovernance | "",
-  country: string,
-  search: string
-): boolean {
-  return role !== "" || governance !== "" || country !== "" || search !== "";
-}
-
 /**
  * Cascading magnitude table for relative-time bucketing, largest unit last.
  * Each entry stops promotion once the absolute duration (in the running

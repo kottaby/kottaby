@@ -110,6 +110,10 @@ jobs:
         id: duplicates
         run: bun run check:duplicates
 
+      - name: Unused code check (knip)
+        id: check_unused
+        run: bun run check:unused
+
       - name: Verify clean working directory
         run: |
           git diff --exit-code --name-only || {

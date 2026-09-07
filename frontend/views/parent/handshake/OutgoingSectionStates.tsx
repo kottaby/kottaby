@@ -20,7 +20,7 @@ import type { ParentLinkLabels } from "@/shared/locale/types/parentLink";
  */
 
 /** Success-toast auto-hide cadence for the cancel confirmation. */
-export const CANCEL_TOAST_AUTOHIDE_MS = 6000;
+const CANCEL_TOAST_AUTOHIDE_MS = 6000;
 
 /**
  * Zero-rows branch — delegates to the shared `IconCircleEmptyState` so the

@@ -96,7 +96,7 @@ flowchart LR
 - **UI** — MUI v9 (Material 3), Tailwind CSS 4, Framer Motion, Storybook
 - **Data** — Drizzle ORM, PostgreSQL (Neon), SQLite for local dev
 - **API** — Pothos GraphQL, Apollo Client v4, DataLoader batching
-- **Auth & Jobs** — JWT sessions, RBAC, BullMQ / pg-boss, cron workers
+- **Auth & Jobs** — JWT sessions, RBAC, secret-gated cron endpoints
 - **Integrations** — Zoom, Google Meet, WhatsApp, Twilio, Stripe-style billing, email providers
 
 ## 🚀 Getting Started

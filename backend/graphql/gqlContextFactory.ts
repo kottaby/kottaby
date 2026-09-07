@@ -60,10 +60,10 @@ export interface Context {
    * obligations stop at propagation: duplicate-blocking/expiry semantics
    * belong to the mutation's service transaction (`docs/IDEMPOTENCY.md`).
    *
-   * NON-AUTHORIZATION by contract (see `GatewayRequestMetadata`):
-   * a client-supplied key can never grant, influence, or substitute identity —
-   * identity stays exclusively factory-derived. Captured at exactly ONE site
-   * (this factory — no parallel helper).
+   * NON-AUTHORIZATION by contract: a client-supplied key can never grant,
+   * influence, or substitute identity — identity stays exclusively
+   * factory-derived. Captured at exactly ONE site (this factory —
+   * no parallel helper).
    *
    * Optional in the TYPE only so pre-existing `Context`-shaped fixtures stay
    * compile-clean; `createGraphQLContext` ALWAYS materializes the field at

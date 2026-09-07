@@ -46,7 +46,6 @@ import {
   createTestStudent,
   createTestUser,
 } from "@/backend/db/test/entity-setup";
-import { HeldBalanceLane } from "@/backend/enum/scheduling/held-balance-lane.enum";
 import type {
   AdminSelectType,
   ApplicantSelectType,
@@ -64,29 +63,22 @@ import type { SessionFixtureRegistry } from "@/test/workflows/helpers/journey-fi
  * escrow lane vocabulary (trial|hifz|tajweed); it is profiled only so a
  * fixture can mirror any students row.
  */
-export interface StudentLaneProfile {
+interface StudentLaneProfile {
   readonly trial?: number;
   readonly hifz?: number;
   readonly tajweed?: number;
   readonly reviews?: number;
 }
 
-/**
- * A paid (non-trial) booking lane. `trial` is deliberately excluded — a
- * "paid lane" fixture always carries zero trial units so the debit ladder
- * cannot take the trial branch.
- */
-export type PaidSessionLane = Exclude<HeldBalanceLane, HeldBalanceLane.Trial>;
-
 /** A student actor: real `users` row (role=student) + real `students` row. */
-export interface StudentCastMember {
+interface StudentCastMember {
   readonly user: UserSelectType;
   readonly student: StudentSelectType;
   readonly userId: number;
 }
 
 /** A teacher actor: real `users` row (role=teacher) + real `teacher` row. */
-export interface TeacherCastMember {
+interface TeacherCastMember {
   readonly user: UserSelectType;
   readonly teacher: TeacherSelectType;
   readonly userId: number;
@@ -97,21 +89,21 @@ export interface TeacherCastMember {
  * `applicants` row and NO `teacher` row (booking impossibility by
  * construction).
  */
-export interface ApplicantCastMember {
+interface ApplicantCastMember {
   readonly user: UserSelectType;
   readonly applicant: ApplicantSelectType;
   readonly userId: number;
 }
 
 /** A parent actor: real `users` row (role=parent) + real `parents` row. */
-export interface ParentCastMember {
+interface ParentCastMember {
   readonly user: UserSelectType;
   readonly parent: ParentSelectType;
   readonly userId: number;
 }
 
 /** An admin actor: real `users` row (role=admin) + real `admin` row. */
-export interface AdminCastMember {
+interface AdminCastMember {
   readonly user: UserSelectType;
   readonly admin: AdminSelectType;
   readonly userId: number;
@@ -210,83 +202,10 @@ async function buildTeacherCastMember(
 }
 
 /**
- * Student holding exactly `units` trial unit(s) and empty paid lanes — the
- * free-trial booker (the debit ladder resolves on the trial lane: trial
- * units are consumed before any paid lane).
- */
-export async function buildStudentWithTrial(
-  tx: DBTransaction,
-  registry: SessionFixtureRegistry,
-  units = 1,
-  label?: string
-): Promise<StudentCastMember> {
-  return buildStudentCastMember(tx, registry, { trial: units }, label);
-}
-
-/**
- * Student holding exactly `units` unit(s) of ONE paid lane (`hifz` or
- * `tajweed`) and zero trial units — proves the debit ladder skips the empty
- * trial lane and binds the paid lane.
- */
-export async function buildStudentWithPaidLane(
-  tx: DBTransaction,
-  registry: SessionFixtureRegistry,
-  lane: PaidSessionLane,
-  units = 1,
-  label?: string
-): Promise<StudentCastMember> {
-  const profile: StudentLaneProfile = lane === HeldBalanceLane.Hifz ? { hifz: units } : { tajweed: units };
-  return buildStudentCastMember(tx, registry, profile, label);
-}
-
-/**
- * Student holding trial AND paid units simultaneously — proves trial-first
- * ordering across repeated bookings (the trial lane is consumed before any
- * paid lane).
- */
-export async function buildStudentWithBoth(
-  tx: DBTransaction,
-  registry: SessionFixtureRegistry,
-  options: { trial?: number; paidLane?: PaidSessionLane; paidUnits?: number } = {},
-  label?: string
-): Promise<StudentCastMember> {
-  const trialUnits = options.trial ?? 1;
-  const paidUnits = options.paidUnits ?? 1;
-  const profile: StudentLaneProfile =
-    (options.paidLane ?? HeldBalanceLane.Hifz) === HeldBalanceLane.Hifz
-      ? { trial: trialUnits, hifz: paidUnits }
-      : { trial: trialUnits, tajweed: paidUnits };
-  return buildStudentCastMember(tx, registry, profile, label);
-}
-
-/** Student with every lane empty — the zero-balance booking denial leg. */
-export async function buildZeroBalanceStudent(
-  tx: DBTransaction,
-  registry: SessionFixtureRegistry,
-  label?: string
-): Promise<StudentCastMember> {
-  return buildStudentCastMember(tx, registry, {}, label);
-}
-
-/**
- * The SECOND student of a cast — a real non-primary student used for
- * cross-participant probes (cancel/read another participant's session and
- * observe nothing). Defaults to zero balance; pass a profile to fund it.
- */
-export async function buildSecondStudent(
-  tx: DBTransaction,
-  registry: SessionFixtureRegistry,
-  profile: StudentLaneProfile = {},
-  label?: string
-): Promise<StudentCastMember> {
-  return buildStudentCastMember(tx, registry, profile, label);
-}
-
-/**
  * Certified teacher: real teacher-role user + `teacher` row with
  * `isApproved = true` — the only teacher shape that can host a session.
  */
-export async function buildCertifiedTeacher(
+async function buildCertifiedTeacher(
   tx: DBTransaction,
   registry: SessionFixtureRegistry,
   label?: string
@@ -298,7 +217,7 @@ export async function buildCertifiedTeacher(
  * Second certified teacher of a cast — the non-participant teacher observer
  * for the oracle-safety legs (must see NOTHING of others' sessions).
  */
-export async function buildSecondCertifiedTeacher(
+async function buildSecondCertifiedTeacher(
   tx: DBTransaction,
   registry: SessionFixtureRegistry,
   label?: string
@@ -311,7 +230,7 @@ export async function buildSecondCertifiedTeacher(
  * `teacher` row — booking impossibility by construction (nothing here mints
  * certification; this user simply has no teachable id).
  */
-export async function buildTeacherApplicant(
+async function buildTeacherApplicant(
   tx: DBTransaction,
   registry: SessionFixtureRegistry,
   label?: string
@@ -324,7 +243,7 @@ export async function buildTeacherApplicant(
 }
 
 /** Parent actor: real parent-role user + real `parents` row. */
-export async function buildParent(
+async function buildParent(
   tx: DBTransaction,
   registry: SessionFixtureRegistry,
   label?: string
@@ -337,7 +256,7 @@ export async function buildParent(
 }
 
 /** Admin actor: real admin-role user + real `admin` row (NO bypass is implied). */
-export async function buildAdmin(
+async function buildAdmin(
   tx: DBTransaction,
   registry: SessionFixtureRegistry,
   label?: string

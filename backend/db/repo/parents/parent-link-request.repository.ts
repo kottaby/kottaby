@@ -51,7 +51,7 @@ import type { DBQueryExecutor, DBTransaction, ParentLinkRequestSelectType } from
 const LIST_LIMIT = 50;
 
 /** The raw pgEnum string union mirrored from `ParentLinkRequestSelectType["status"]`. */
-export type RawLinkStatus = ParentLinkRequestSelectType["status"];
+type RawLinkStatus = ParentLinkRequestSelectType["status"];
 
 /**
  * Raw joined row for the requesting parent's view (outgoing list +

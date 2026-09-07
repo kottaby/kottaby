@@ -9,7 +9,7 @@ const CONNECTIVITY_CHECK_URL = "/api/graphql";
 const CONNECTIVITY_CHECK_TIMEOUT = 5000;
 export const MIN_CHECK_INTERVAL = 2000;
 
-export const getReconnectionDelay = (attempt: number): number | null => {
+const getReconnectionDelay = (attempt: number): number | null => {
   if (attempt === 0) return 2000;
   if (attempt === 1) return 5000;
   const delay = 5000 + (attempt - 1) * 5000;

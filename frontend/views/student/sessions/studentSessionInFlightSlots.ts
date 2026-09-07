@@ -18,7 +18,7 @@ import { createSessionSlotBook, type InFlightSlotBook } from "@/frontend/views/s
  * extended with the dispute kind); `confirm` marks the row whose
  * confirm mutation is in flight (container-owned, no dialog).
  */
-export type RowActionKind = "cancel" | "dispute" | "confirm";
+type RowActionKind = "cancel" | "dispute" | "confirm";
 
 /** The immutable in-flight slot book state shape. */
 export type InFlightSlots = InFlightSlotBook<RowActionKind>;

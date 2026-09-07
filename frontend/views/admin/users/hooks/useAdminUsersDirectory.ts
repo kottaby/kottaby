@@ -37,7 +37,7 @@ import {
 
 type Role = DirectoryRole;
 type Governance = DirectoryGovernance;
-export type DirectoryUserListItem = DirectoryUserItem;
+type DirectoryUserListItem = DirectoryUserItem;
 
 const DEFAULT_PAGE_SIZE = 10;
 

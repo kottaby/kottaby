@@ -56,7 +56,7 @@ type CollidingNavLabelKeys = keyof DashboardLabels & keyof HandshakeCodeLabels;
  * A nav label key owned by EXACTLY ONE label namespace — the discriminator
  * `isDashboardLabelKey` stays total and unambiguous over this union.
  */
-export type NavLabelKey = Exclude<keyof DashboardLabels | keyof HandshakeCodeLabels, CollidingNavLabelKeys>;
+type NavLabelKey = Exclude<keyof DashboardLabels | keyof HandshakeCodeLabels, CollidingNavLabelKeys>;
 
 /**
  * Type guard: is this nav label key owned by the `dashboard` namespace?

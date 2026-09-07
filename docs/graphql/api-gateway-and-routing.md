@@ -127,7 +127,7 @@ Exactly TWO client-supplied headers propagate into context, both metadata-only; 
 - **`x-request-id`** — never taken as-is into trust: bounded inbound values (≤128 chars, control-char-free) honored verbatim, hostile values dropped WHOLESALE and a fresh UUIDv4 minted (`resolveRequestId`). Correlation-only; feeding it into any authorization decision is prohibited.
 - **`x-idempotency-key`** — captured raw at the single site (`gqlContextFactory.ts:164`–`:170`): `null` when absent (never empty-string-coalesced, never trimmed/sanitized here). PROPAGATION-ONLY: duplicate-blocking/expiry semantics belong to the owning mutation's service transaction ([`docs/IDEMPOTENCY.md`](../IDEMPOTENCY.md)); a client key can never grant, influence, or substitute identity.
 - **Bearer garbage immunity:** `Authorization: Bearer <anything-unverifiable>` fails `verifyAccessToken` → `ctx.user` stays `null` (anonymous), tampered `role` claims normalize-or-drop via `toUserRole` → anonymous — the request never 500s on bad credentials, and downstream scope evaluation sees an honest anonymous caller.
-- Context assembly is whitelist-only (fixed fields; no spreads of request objects anywhere). The documentary carrier for these rules is `GatewayRequestMetadata` + `TransportErrorKind`/`TransportGuardResult` in `backend/types/gateway/gateway-context.types.ts` (runtime-free layer, A5-gated).
+- Context assembly is whitelist-only (fixed fields; no spreads of request objects anywhere). The documentary carrier for these rules is `TransportErrorKind`/`TransportGuardResult` in `backend/types/gateway/gateway-context.types.ts` (runtime-free layer, A5-gated).
 
 ### 7. Method, CORS & introspection policies
 

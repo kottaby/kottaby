@@ -43,14 +43,15 @@ export namespace RecitationCatalogService {
    * Returns the validated `RecitationReading` on success.
    * Throws `ValidationError` with a localized message on failure.
    *
-   * Used by the registration service to validate `preferredRecitation` before
-   * any DB work. Safe against: unknown values, malformed casing,
+   * Private validation primitive — `validateOptionalReading` (the
+   * registration-input entry point) delegates here for its non-null branch.
+   * Safe against: unknown values, malformed casing,
    * non-string payloads, SQL/LIKE wildcard text, and extra object fields.
    *
    * @param value  Unknown input to validate (typically from GraphQL input).
    * @param locale Active request locale (for the localized error message).
    */
-  export function validateReading(value: unknown, locale: string): RecitationReading {
+  function validateReading(value: unknown, locale: string): RecitationReading {
     if (isRecitationReading(value)) {
       return value;
     }

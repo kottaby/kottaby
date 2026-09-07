@@ -3,9 +3,10 @@
  *
  * Production deploys keep `DB_PROVIDER=postgres` (or `neon`) and use a real
  * `pg.Pool` over TCP. The sandbox/CI environment lacks a PostgreSQL install;
- * `DB_PROVIDER=pglite` activates this shim and keeps the same `db`/`pool`/
- * `queryDb`/`getClient` API the rest of the backend expects — so consumers
- * (Drizzle ORM, repos, services, migrations) stay source-compatible.
+ * `DB_PROVIDER=pglite` activates this shim and keeps the same `db`/
+ * `getDrizzleDbPool`/`queryDb`/`closePool` API the rest of the backend
+ * expects — so consumers (Drizzle ORM, repos, services, migrations) stay
+ * source-compatible.
  *
  * The shim:
  *  - lazily constructs a single `PGlite` instance (PGlite is single-connection;
@@ -21,7 +22,7 @@
  * actually indexes with trigram GIN, so the extension is just declared and
  * unused — `runMigrations` skips `1-extensions.sql` for pglite).
  *
- * @see backend/db/index.ts — activates this when `DB_PROVIDER=pglite`.
+ * @see backend/db/client.ts — activates this when `DB_PROVIDER=pglite`.
  * @see https://pglite.dev/docs/api — PGlite API reference.
  */
 import { PGlite } from "@electric-sql/pglite";
@@ -54,7 +55,7 @@ export interface PgQueryConfig {
   types?: unknown;
 }
 
-/** Mirror of `pg`'s `PoolClient` (what `getClient()` returns). */
+/** Mirror of `pg`'s `PoolClient`. */
 export interface PoolClientLike<T extends Row = Row> {
   query(textOrConfig: string | PgQueryConfig, params?: ReadonlyArray<unknown>): Promise<QueryResultLike<T>>;
   release(): void;
@@ -118,7 +119,7 @@ async function getPglite(): Promise<PGlite> {
       // without time zone` columns store the session wall clock through
       // `defaultNow()`, and the platform-analytics trend readers decode that
       // wall clock as UTC. Mirrors the `options: "-c timezone=UTC"` startup
-      // pin on the postgres Pool (`backend/db/index.ts`) so both providers
+      // pin on the postgres Pool (`backend/db/client.ts`) so both providers
       // yield identical trend buckets under any host timezone.
       await instance.query("SET TIME ZONE 'UTC'");
       pgliteSingleton = instance;

@@ -32,8 +32,9 @@
  *    PLAIN objects — no `Error` identity, no `originalError`. To keep the
  *    single response-time classifier possible, the route's `formatError` hook
  *    attaches the RAW thrown value to each formatted item under the exported
- *    {@link attachRawErrorHop} key ({@link RAW_ERROR_HOP} — NON-enumerable,
- *    therefore invisible to JSON serialization AND wire validation). Probes
+ *    {@link attachRawErrorHop} key (the module-private `RAW_ERROR_HOP` symbol —
+ *    NON-enumerable, therefore invisible to JSON serialization AND wire
+ *    validation). Probes
  *    inspect the wire item, that envelope hop, and one structural unwrap of
  *    each (bounded — never a chain walk).
  *  - PROTOCOL-PRESET PASS-THROUGH: failures generated BEFORE

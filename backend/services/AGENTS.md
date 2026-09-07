@@ -2,7 +2,7 @@
 
 - **Registration: see `docs/auth/user-registration.md` for the role→child mapping, handshake generation, and atomicity pattern.**
 - **Handshake-code discovery: `StudentHandshakeService` (`backend/services/students/student-handshake.service.ts`) answers a parent code lookup with ONLY the minimal masked payload — `{ maskedName, linkable }`, never an id or any other field; see `docs/parents/handshake-code-discovery.md` for the full contract.**
-- **Auth service: see `docs/auth/jwt-authentication-service.md` for the JWT auth contract (token claims, cookie matrix, redirect-loop fix, governance gate, `AuthService.login`/`refreshToken`/`getMe`, `assertUserActive`, DEV2-002 RBAC consumption guide).**
+- **Auth service: see `docs/auth/jwt-authentication-service.md` for the JWT auth contract (token claims, cookie matrix, redirect-loop fix, governance gate, `AuthService.login`/`refreshToken`, `assertUserActive`, DEV2-002 RBAC consumption guide).**
 - **Plan catalog service: see `docs/billing/plan-catalog.md` for plan catalog operations, forward-only price edits, and guarded state-transition semantics.**
 - **Teacher applicant lifecycle: applicant lifecycle logic lives in `ApplicantLifecycleService` (`backend/services/teachers/`) — the cooldown/attempt contracts (`assertCanPurchaseVerification`, `recordReapplication`, strict-`>` `applicants.cooldown_until` reads, REQ-014/015/016) are owned there; see `docs/teachers/applicant-lifecycle.md`.**
 - **Admin user-management: identity-and-governance CRUD (directory / detail / create / patch / soft-delete / reactivate) lives in `AdminUserManagementService` (`backend/services/admin/`) — see `docs/admin/user-management.md` for the directory/filter/search contract (incl. the `escapeLikeWildcards` mandate), the guarded soft-delete pattern, the role-child projection rules, the `USER_NOT_FOUND` oracle ruling (admin-surface-only — MUST NOT be copy-pasted to non-admin surfaces), and the audit-emission rule (writer-side; in-tx via `AuditService.createAuditLog(contract, tx)`; denials write ZERO audit rows — JR-C-1).**
@@ -19,7 +19,7 @@
 - **SSR Usage**: Services can be used directly by Next.js Server Components (SSR) or Server Actions, so they must not rely on GraphQL-specific contexts unless passed explicitly.
 - **i18n / Localized Error Messages**: All user-facing error messages, alerts, and feedback generated in services must use the compile-time TypeScript translation system via `getServerTranslations(locale, "<namespace>")` from `@/shared/locale/server-graphql` (optionally accepts a `locale?: string` parameter). Hardcoded strings for exceptions or responses are forbidden. The legacy `getBackendTranslations` helper from `@/backend/lib/intl` is deprecated and must not be used.
 - **Type Definition Pattern**: Services should import and use types from `backend/types/` (e.g., `{Entity}ReturnType`, `{Entity}SubmitInput`, `DBTransaction`) rather than creating ad-hoc type definitions or directly referencing schema types. These types should be imported from `@/backend/types` and used for function parameters, return types, and data transformations.
-- **Service-layer `.types.ts` files are prohibited.** All types live in `backend/types/`. Provider-specific types (e.g., `FixerLatestResponse`, `ZoomTokenResponse`) are in `backend/types/<domain>/`. If a service file contains both types and runtime code, split: types → `backend/types/`, runtime → stays in the service layer with a non-`.types` filename (e.g., `.helpers.ts`, `.constants.ts`).
+- **Service-layer `.types.ts` files are prohibited.** All types live in `backend/types/`. Domain-specific types (e.g., `NotificationEmitInput`, `NotificationDeliveryReceipt`) are in `backend/types/<domain>/`. If a service file contains both types and runtime code, split: types → `backend/types/`, runtime → stays in the service layer with a non-`.types` filename (e.g., `.helpers.ts`, `.constants.ts`).
 - **Batch Service Methods for DataLoader**: Services that are called from GraphQL field resolvers MUST expose batch versions of single-entity lookup methods to support Pothos DataLoader batching. Batch methods accept `userIds: string[]` (or `ids: string[]`) and return `Map<string, T | null>`. Naming convention: `resolve{Entity}IdsForUsers` or `get{Entity}Contexts`. See `docs/graphql/dataloader-batching.md` for the complete pattern reference.
 
 ## Seed services (`backend/services/seed/`)
@@ -36,27 +36,20 @@ Service tests live next to the code they cover (`*.test.ts` or `test/` subdirect
 
 Service tests **must never** make real network calls to third-party providers. Always mock outbound integrations before exercising the service under test:
 
-- **Notifications:** `spyOn(CommunicationService, "dispatchMulti")`, `spyOn(..., "dispatch")`, and/or `spyOn` / `mock.module` on `dispatchWithPreferences` from `@/backend/services/notification/notification-dispatch.helpers`
-- **Email / SMS / push:** mock channel facades (`emailChannel`, `smsChannel`, `pushChannel`) or the adapters — never let tests reach Resend, Twilio, or FCM
-- **FX:** mock provider adapters or the ingestion service — never call Fixer / OpenExchangeRates live
-- **Redis / cache providers:** mock `cacheService` or `ICacheService` — never hit Upstash / Redis Cloud in service tests
-- **Permissions fan-out:** mock `PermissionsService.getUserIdsWithPermission` when the code dispatches notifications to reviewer lists
+- **Notifications:** mock the persistence seam (`spyOn(NotificationRepository, "createManyReturning")`) and the realtime fan-out transport — never write real `notifications` rows from service tests
+- **Redis / realtime fan-out:** mock the transport (`RedisPubSubTransport` / `IoredisFanoutClient`) or the fan-out factory seam — never hit Upstash / Redis Cloud / a local Redis in service tests
 
 If a test needs to confirm a live provider is wired, add a **single smoke** under `test/integration/` and run `bun run test:integration` — not here.
 
 ### Provider integration tests belong in `test/integration/`
 
-**Do NOT add `*.integration.test.ts` or live provider smokes under `backend/services/`** (including channel adapters, FX providers, or any subdirectory). Examples:
+**Do NOT add `*.integration.test.ts` or live provider smokes under `backend/services/`** (including the realtime fan-out transport or any other external seam). Example:
 
-- Resend / Twilio / FCM live adapter smokes → `test/integration/communication/`
-- Fixer / OpenExchangeRates live FX fetches → `test/integration/fx/`
-- Upstash / Redis Cloud → `test/integration/redis/` (when added)
+- Upstash / Redis Cloud live transport round-trips → `test/integration/redis/`
 
 Run integration smokes with:
 
 - `bun run test:integration` — all provider smokes (parallel runner)
-- `bun run test:live-comm` — communication channels only
-- `bun run test:live-fx` — FX providers only
 
 Each integration file gets **one** smoke test (single API call) to confirm the adapter reaches the live provider — not full service or app behaviour.
 
@@ -95,15 +88,6 @@ Each integration file gets **one** smoke test (single API call) to confirm the a
 - **Fail-Open Contract**: All cache reads and invalidation calls MUST wrap provider errors in `try/catch` and fall through gracefully to the underlying data source / database without crashing caller requests.
 - **Permission Checking**: Keep permission gating (e.g. `assertDirectoryAccess`, `hasPermission`) OUTSIDE `cachedRead` — authorization checks must execute before cache lookups so unauthorized users never receive cached payloads or execute cache queries.
 - **Tag Invalidation**: Use named helpers (`invalidateParentWrite`, `invalidateTeacherWrite`, `invalidateClassLifecycle`, `invalidateRoleChange`) in mutation write paths.
-
-## Cron Service (`backend/services/cron/`)
-
-- **Pluggable Queue Backends**: Queue adapters are loaded lazily via `await import(...)` in `queue-adapter.factory.ts`. The active backend is resolved from `CRON_QUEUE_BACKEND` env config (default `PG_BOSS`). See `docs/services/cron-service.md` for the complete pattern reference.
-- **Hybrid Trigger Model**: Vercel ticker (`/api/cron/ticker`) dispatches due schedules + runs drain loop; manual trigger via GraphQL `cronRunTrigger` mutation or `/api/cron/execute` route.
-- **Idempotent Dispatch**: `CronService.dispatchDueSchedules()` claims schedules atomically by advancing `nextRunAt` before enqueueing. Handlers MUST be idempotent.
-- **Concurrency Policy**: `CronConcurrencyPolicy` enum (`ALLOW`, `REPLACE`, `SKIP`) controls behavior when a previous run is still in-flight.
-- **Worker Runtime**: `cron-worker.runtime.ts` `runDrainLoop()` fetches batches, sets `RUNNING`, writes heartbeats, invokes `JobHandlerRegistry.getHandler()`, and handles success/retry/fail with max-retries exhaustion.
-- **Handler Registry**: `job-handler-registry.ts` maps `CronJobKind` → handler function. The `NOOP` handler is auto-registered. Unregistered kinds fail the run with "No handler registered for jobKind=<X>".
 
 ## Quota System Integration
 

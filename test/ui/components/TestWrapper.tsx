@@ -41,7 +41,7 @@ interface TestWrapperProps {
   readonly children: ReactNode;
 }
 
-export function TestWrapper({ locale, children }: Readonly<TestWrapperProps>): ReactNode {
+function TestWrapper({ locale, children }: Readonly<TestWrapperProps>): ReactNode {
   const direction: "rtl" | "ltr" = locale === "ar" ? "rtl" : "ltr";
   const cache = useMemo(() => (direction === "rtl" ? cacheRtl : cacheLtr), [direction]);
   const theme = useMemo(() => createAppTheme("dark", direction, locale), [direction, locale]);

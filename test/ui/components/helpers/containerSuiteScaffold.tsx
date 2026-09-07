@@ -99,7 +99,7 @@ export function snackbarSeverityClass(text: string): string {
 }
 
 /** Waits for the snackbar carrying `text`, then pins its MUI severity class. */
-export async function expectSnackbar(text: string, severityClass: string): Promise<void> {
+async function expectSnackbar(text: string, severityClass: string): Promise<void> {
   await waitFor(() => {
     expect(liveScreen.getByText(text)).toBeDefined();
   });
@@ -154,7 +154,7 @@ export function sessionSuiteLabels(locale: AppLocale): SessionSuiteLabels {
 // Session wire fixtures
 
 /** Typographic no-value placeholder the session/dispute rows render (NOT locale copy). */
-export const EM_DASH_PLACEHOLDER = "—";
+const EM_DASH_PLACEHOLDER = "—";
 
 /** Exact variables the list containers send for the unfiltered stateful query. */
 export const ALL_SESSIONS_LIST_VARIABLES = { filter: null, page: null, pageSize: null };

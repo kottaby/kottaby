@@ -21,7 +21,7 @@ import type { DBTransaction } from "@/backend/types";
  * notification emission needs (the claimed parent, the student whose masked
  * name composes the copy, and the expiry instant for ops records).
  */
-export interface ExpiryReminderClaimRow {
+interface ExpiryReminderClaimRow {
   readonly id: number;
   readonly parentId: number;
   readonly studentId: number;

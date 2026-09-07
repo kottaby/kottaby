@@ -40,7 +40,7 @@ Server (Next.js)
   └── Server Components (app/(dashboard)/*/page.tsx)
         ↓ getServerUserContext() (cached via react.cache)
         ↓ reads access_token cookie → verifyAccessToken → fetch user → governance fail-closed
-        ↓ withPageAuth({ roles: [...] }) / requireRoleForPage([...])
+        ↓ withPageAuth({ roles: [...] })
         ↓ allow / redirect to /login (anonymous) / redirect to /dashboard (role mismatch)
 ```
 
@@ -153,9 +153,9 @@ authScopes: ctx => ({
 7. `toUserRole(payload.role)` — validate the JWT `role` claim against the canonical `UserRole` enum. Invalid → anonymous.
 8. Return `{ userId, user: stripPasswordHash(fetched), role }`.
 
-**Caller decides redirect semantics:** `withPageAuth` / `requireRoleForPage` / the dashboard layout call `getServerUserContext()` and decide whether to redirect based on the return shape. The function itself NEVER redirects.
+**Caller decides redirect semantics:** `withPageAuth` / the dashboard layout call `getServerUserContext()` and decide whether to redirect based on the return shape. The function itself NEVER redirects.
 
-### 2.7 Page guards (`withPageAuth`, `requireRoleForPage`)
+### 2.7 Page guards (`withPageAuth`)
 
 **`withPageAuth(options?: WithPageAuthOptions): Promise<WithPageAuthResult>`**
 
@@ -168,11 +168,7 @@ Behavior:
 - Role mismatch (`options.roles && !options.roles.includes(ctx.role)`) → `redirect("/dashboard")`.
 - Match → returns `{ userId, user, role }`.
 
-**`requireRoleForPage(roles: readonly UserRole[], redirectTo?: string): Promise<RequireRoleForPageResult>`**
-
-Sister helper to `withPageAuth`, focused on role checking. Same redirect semantics, same locale-safe handling. Differs only in ergonomics — `requireRoleForPage` makes the role requirement the primary parameter (matching the `requirePermissionForPage(userId, [perms], ...)` pattern from `app/AGENTS.md`).
-
-**Serverless cold-start rule:** both consume `getServerUserContext()` (cached via `react.cache()`) — single verify + DB-fetch per request, shared across all Server Components + layouts. No extra DB reads for role checks.
+**Serverless cold-start rule:** `withPageAuth` consumes `getServerUserContext()` (cached via `react.cache()`) — single verify + DB-fetch per request, shared across all Server Components + layouts. No extra DB reads for role checks.
 
 ### 2.8 Role-based dashboards
 
@@ -223,11 +219,10 @@ The `me` query carries `authScopes: { authenticated: true }`. Anonymous callers 
 
 ### 3.4 SSR
 
-- **`getServerUserContext` is the canonical SSR auth entry point.** Server Components + layouts + `withPageAuth` / `requireRoleForPage` all call it.
+- **`getServerUserContext` is the canonical SSR auth entry point.** Server Components + layouts + `withPageAuth` all call it.
 - **`react.cache()` deduplicates calls within a single request.** Do NOT bypass the cache.
 - **Governance fail-closed at SSR:** `if (fetched.isDeleted || fetched.isBlocked || fetched.suspended) return null` — the SSR boundary treats governed accounts as anonymous.
-- **`withPageAuth` / `requireRoleForPage` are the server-side security boundary.** Container-level client wrappers (`<RequirePermission>`) are UX-only — bypassable. Do NOT introduce container-level full-page client gates as a substitute for server guards.
-- **`requireRoleForPage` consumes `UserPermissionContext.role` without extra DB reads** (serverless cold-start rule).
+- **`withPageAuth` is the server-side security boundary.** Container-level client wrappers (`<RequirePermission>`) are UX-only — bypassable. Do NOT introduce container-level full-page client gates as a substitute for server guards.
 
 ### 3.5 Login flow
 
@@ -265,7 +260,7 @@ The `me` query carries `authScopes: { authenticated: true }`. Anonymous callers 
 - **Do NOT create parallel auth helpers.** Extend the existing substrate in place (`backend/lib/auth/*`, `backend/services/auth/auth.service.ts`, `backend/graphql/gqlContextFactory.ts`, `backend/graphql/mutation/auth.mutation.ts`, `backend/graphql/query/auth.query.ts`, `frontend/providers/apollo/AuthProvider.tsx`, `frontend/lib/auth/*`).
 - **Do NOT create parallel authorization helpers.** `gqlSchemaBuilder.ts`'s `buildAuthScopes` initializer is the single authorization decision point.
 - **Do NOT weaken the `superAdmin` gate.** `{ superAdmin: true }` is an independent axis; the `role` scope does NOT bypass it.
-- **Do NOT introduce container-level full-page client gates as a substitute for server guards.** `<RequirePermission>` is UX-only — bypassable. `withPageAuth` / `requireRoleForPage` are the server-side security boundary.
+- **Do NOT introduce container-level full-page client gates as a substitute for server guards.** `<RequirePermission>` is UX-only — bypassable. `withPageAuth` is the server-side security boundary.
 - **Do NOT log plaintext tokens or passwords.** Use `redactEmail(email)` for log redaction. `passwordHash` structurally omitted from `RegistrationReturnType`.
 - **Do NOT distinguish "email doesn't exist" from "wrong password" in error messages.** Both produce the identical `UnauthorizedError(t.invalidCredentials)` (oracle equality).
 - **Do NOT patch the `users` schema inline.** Governance fields are owned by the user-schema layer. Any schema gap must be escalated, not patched in place.
@@ -385,15 +380,14 @@ The session-creation service consumes this helper to enforce the active-suspensi
 
 ### 5.4 SSR parity
 
-`requireRoleForPage` is shipped alongside `requirePermissionForPage` / `withPageAuth`:
+`requirePermissionForPage` / `withPageAuth` provide SSR-page authorization:
 
 | Helper | Signature | Use case |
 |---|---|---|
 | `requirePermissionForPage(userId, perms, locale, context)` | (existing — substrate) | Permission-gated SSR pages |
 | `withPageAuth({ roles?, redirectTo? })` | (JWT auth service) | Optional role-whitelist SSR pages |
-| `requireRoleForPage(roles, redirectTo?)` | (JWT auth service) | Role-required SSR pages (sister to `requirePermissionForPage`) |
 
-All three use the same redirect semantics: anonymous → `/login?redirect=...`; role/permission mismatch → `/dashboard` (canonical fallback).
+Both use the same redirect semantics: anonymous → `/login?redirect=...`; role/permission mismatch → `/dashboard` (canonical fallback).
 
 ### 5.5 Endpoint coverage rule
 
@@ -445,10 +439,10 @@ When implementing teacher surfaces:
 - Governance gate (deleted/blocked/suspended denied with localized `FORBIDDEN`).
 - scope-auth plugin loaded with five `AuthScopes`.
 - SSR auth (`getServerUserContext` cached via `react.cache()`).
-- Page guards (`withPageAuth`, `requireRoleForPage`).
+- Page guards (`withPageAuth`).
 - Role-based dashboards (`/student/dashboard`, `/teacher/dashboard`, `/parent/dashboard`, `/admin/dashboard`).
 - `role` authScope contract (OR semantics, AND-composition with `permission`/`superAdmin`/`notImpersonating`, superAdmin composition preserved).
-- SSR parity contract (`requireRoleForPage` next to `requirePermissionForPage` / `withPageAuth`).
+- SSR parity contract (`requirePermissionForPage` / `withPageAuth`).
 - Endpoint role-coverage rule.
 - Role↔certification boundary.
 - No `grantRole*`/`assignRole*`/`elevate*` mutation exists (schema introspection confirms).

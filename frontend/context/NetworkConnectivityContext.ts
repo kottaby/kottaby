@@ -7,8 +7,6 @@
  * `useApolloConnectivity` hook). Consumed by:
  *  - `useNetworkConnectivity()` — the full context value (for the errorLink
  *    + connectivity UI)
- *  - `useAuthToken()` — convenience selector extracting only the auth-token
- *    slice (`authToken`, `updateAuthToken`, `clearAuthData`)
  *
  * `AppApolloProvider` is the SOLE provider of this context — it owns the
  * Apollo client and the connectivity state machine, so it's the natural

@@ -12,10 +12,6 @@ const config: KnipConfig = {
     "app/**/page.tsx",
     "app/**/layout.tsx",
     "app/**/route.ts",
-    "app/**/loading.tsx",
-    "app/**/error.tsx",
-    "app/**/template.tsx",
-    "app/**/actions.ts",
     "scripts/**/*.ts",
 
     // Backend DB seed & migration runners — invoked via `bun run` / `drizzle-kit`,
@@ -33,67 +29,96 @@ const config: KnipConfig = {
     // Bun --preload test roots — loaded via `bun test --preload <file>` CLI flag,
     // never statically imported (package.json scripts: test:ui:components, test:ui:e2e, etc.)
     "test/ui/test-env.ts",
-    "test/ui/e2e-preload.ts",
     "test/ui/components/happydom-preload.ts",
     "test/ui/components/next-dynamic-mock.ts",
-    "test/integration/preload/live-comm-preload.ts",
-    "test/integration/preload/live-fx-preload.ts",
+
+    // Bun test runners invoked by path string only (run-locked-cmd wrapper args
+    // in package.json scripts + the AGENTS.md-documented AI runner) — knip
+    // cannot see nested wrapper commands.
+    "test/scripts/build-test.ts",
+    "test/scripts/run-server-tests.ts",
+    "test/scripts/run-test.ts",
   ],
   project: [
     "app/**/*.{ts,tsx}",
     "backend/**/*.{ts,tsx}",
-    "frontend/**/*.{ts,tsx}",
+    // `mdx` covers the Storybook addon-docs compiler registered by the knip Storybook
+    // plugin — project patterns must include the compiled extension so imports in
+    // future .mdx files are followed (keeps --treat-config-hints-as-errors clean).
+    "frontend/**/*.{ts,tsx,mdx}",
     "shared/**/*.{ts,tsx}",
     "scripts/**/*.{ts,tsx}",
     "test/**/*.{ts,tsx}",
   ],
   ignore: [
-    "**/.*/**",
     "!.storybook/**",
-    "storage/**",
     "**/generated/**",
-    "**/*.d.ts",
 
     // Storybook story aggregation — re-exports *.stories.tsx, accessed only by
     // @storybook/react plugin globbing, never by app code
     "frontend/stories/**",
 
-    // Auto-generated exhaustive IANA timezone catalog — consumed via Object.values(),
-    // individual members are never referenced by name (441 enumMember false positives)
-    "shared/constants/iana-timezone.enum.ts",
-    // Hand-curated ISO-3166 country catalog — members represent valid input options
-    // for regional app, removing "unused" members risks dropping valid selections (246 false positives)
-    "backend/enum/shared/country.enum.ts",
-    // Hand-maintained RBAC permission enum — consumed dynamically via Object.values()
-    // and filterKnownAppPermissions() which explicitly handles legacy permission removal (81 false positives)
-    "backend/enum/permissions/permission.enum.ts",
+    // Auto-generated IANA timezone catalog (ids/labels/territories/enum) — outputs of
+    // `generate:iana-timezones` (scripts/iana-timezone-generator/paths.ts). Consumed via
+    // Object.values() + the codegen IanaTimezone scalar mapping; members are never
+    // referenced by name. Regenerated deterministically — never hand-edit, never delete.
+    "shared/constants/iana-timezone*.ts",
 
-    // Barrel re-export false positives — consumers import from source files directly,
-    // so barrel re-exports appear unused to knip but the symbols themselves are live
-
-    // i18n compile-time namespace barrel — only DashboardBillingQuota is statically consumed;
-    // the other 105 handles are mirror entries of translation.ts (registers namespaces via side-effect)
-    "shared/locale/namespaces/index.ts",
-    // Meeting type barrel — re-exports ~30 types from 3 sub-type files; 28 flagged
-    // entries are unused re-export fanout, not dead code
-    "backend/types/meeting/index.ts",
-    // WhatsApp Cloud API barrel — author-documented public-API surface for Meta Cloud API v1;
-    // flagged members are awaiting integration-test consumers
-    "backend/services/communication/channels/whatsapp/cloud-api/index.ts",
-
-    // Curated catalog helper surfaces — partially-consumed public API surfaces that mirror
-    // other catalog patterns (currency.ts); removing "unused" entries risks dropping valid options
-    "frontend/lib/payment-method.ts",
+    // DB/GraphQL-schema-backed enums — member/export usage is invisible to knip's
+    // import graph (values live as pgEnum string literals in the schema + migrations,
+    // or the whole enum is registered with Pothos). Grep-verified per file:
+    //   - payment-status: "refunded" is part of the live `payment_status`
+    //     pgEnum (backend/db/schema/enums.ts + drizzle migration 20260904084151)
+    //     — the TS enum must stay value-complete to mirror the DB type.
+    //   - register-public-role: whole enum registered as the GraphQL
+    //     `RegisterPublicRole` type (backend/graphql/pothos/shared/enum.pothos.ts)
+    //     — all three members are schema-exposed.
+    //   - surah-juz-ref: mirrors the live `surah_juz_ref` pgEnum backing
+    //     home_work.current/revision_surah_juz columns; Pothos registration is
+    //     pending future schema work.
+    //   - recitation-reading: documented backend re-export shim of the canonical
+    //     shared enum (docs/auth/qiraah-selection-and-c5.md) — an intentional
+    //     @/backend/enum import-path alias, not a second value list.
+    "backend/enum/billing/payment-status.enum.ts",
+    "backend/enum/users/register-public-role.enum.ts",
+    "backend/enum/shared/surah-juz-ref.enum.ts",
+    "backend/enum/shared/recitation-reading.enum.ts",
   ],
 
-  // External CLI tool spawned at runtime via child_process.spawn — not an npm binary
-  // knip can resolve.
-  ignoreBinaries: ["copilot"],
+  // Dependencies that are genuinely used but invisible to knip's import graph.
+  // Each entry has a functional reference (config string, bin invocation, file-path
+  // access, or docs-mandated runtime) — grep-verified before registration.
+  ignoreDependencies: [
+    // jscpd: bin invoked through the `check:duplicates` script wrapper (knip cannot
+    // see binaries nested inside run-locked-cmd.ts arguments).
+    "jscpd",
+    // @cspell/dict-ar: dictionary loaded by cspell.config.yaml
+    // (`@cspell/dict-ar/cspell-ext.json`) — config-string reference, never imported.
+    "@cspell/dict-ar",
+    // newrelic: string in next.config.ts `serverExternalPackages` + the newrelic.cjs
+    // agent config + NEW_RELIC_* env surface (agent is require()d by the runtime,
+    // not imported by app code).
+    "newrelic",
 
-  // Tooling-only / lifecycle dependencies not statically imported from any source file.
-  // These are spell-check dicts and duplicate scanner.
-  // Conservative starter set — re-run knip after entry changes to verify remaining deps.
-  ignoreDependencies: ["lint-staged", "jscpd", "@cspell/dict-ar", "@cspell/eslint-plugin"],
+    // @pothos/plugin-dataloader + dataloader: canonical batching pattern mandated
+    // by docs/graphql/dataloader-batching.md + backend AGENTS.md ("t.loadable() for
+    // any per-parent field") — no static registration yet by design.
+    "@pothos/plugin-dataloader",
+    "dataloader",
+
+    // @typescript/native-preview: provides the `tsgo` bin (node_modules/.bin/tsgo)
+    // used by CI, the quality gate, and scripts/health/*.
+    "@typescript/native-preview",
+
+    // @typescript/typescript6: required by literal path in scripts/ts6-eslint-patch.cjs
+    // (swaps eslint's typescript for the TS6 shim) + next.config.ts useTypeScriptCli.
+    "@typescript/typescript6",
+    // cldr-*: raw JSON files read via node_modules/... file paths by the IANA
+    // timezone generator (scripts/iana-timezone-generator/paths.ts).
+    "cldr-core",
+    "cldr-dates-full",
+    "cldr-localenames-full",
+  ],
 };
 
 export default config;

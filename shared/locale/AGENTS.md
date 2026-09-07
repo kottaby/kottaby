@@ -7,7 +7,7 @@ The application uses a direct compile-time TypeScript translation system under `
 | Surface | Used by | Files |
 |---|---|---|
 | **Server Components & API** | `getTranslations(locale)` / `getServerTranslations(locale)` | `ar/messages.ts`, `en/messages.ts`, `server.ts`, `server-graphql.ts` |
-| **Client Components** | `useAppTranslation(handle)` / `useTranslation(handle, locale)` | `shared/locale/client/use-app-translation.ts`, `shared/locale/client/use-translation.ts` |
+| **Client Components** | `useAppTranslation(handle)` | `shared/locale/client/use-app-translation.ts` |
 
 ## Path alias discipline
 

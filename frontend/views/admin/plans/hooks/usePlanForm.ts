@@ -24,7 +24,7 @@ export interface PlanFormState {
   readonly intervalDays: string;
 }
 
-export type PlanFormErrors = {
+type PlanFormErrors = {
   -readonly [K in keyof PlanFormState]?: string;
 };
 

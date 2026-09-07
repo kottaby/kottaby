@@ -111,7 +111,7 @@ export function normalizeDateOnly(value: Date | string | null | undefined): stri
 /**
  * Safely truncates a string to a maximum length without ever throwing.
  */
-export function truncateSafely(value: string, maxLength: number): string {
+function truncateSafely(value: string, maxLength: number): string {
   try {
     if (typeof value !== "string") return "";
     if (value.length <= maxLength) return value;

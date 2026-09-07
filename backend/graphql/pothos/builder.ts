@@ -12,9 +12,9 @@
  *    each scope key to a decision based on the GraphQL `Context` (populated
  *    by `createGraphQLContext` from the verified access token).
  *
- * Other installed plugins (errors, dataloader, drizzle, directives,
- * simple-objects, tracing, add-graphql) are intentionally NOT loaded here —
- * they are added where the features that need them live.
+ * `@pothos/plugin-dataloader` is also installed (kept for the documented
+ * batching pattern — see `docs/graphql/dataloader-batching.md`), but it is
+ * intentionally NOT loaded in this builder.
  *
  * The `Context` slot is bound to the runtime context produced by
  * `createGraphQLContext` (imported type-only to avoid a runtime cycle).

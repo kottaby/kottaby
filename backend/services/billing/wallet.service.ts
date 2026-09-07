@@ -48,7 +48,7 @@ import { getServerTranslations } from "@/shared/locale/server-graphql";
  * The v1 ledger surface cap (R-301): the newest 50 rows, newest first.
  * Full pagination is a recorded forward item (F10).
  */
-export const WALLET_LEDGER_PAGE_LIMIT = 50;
+const WALLET_LEDGER_PAGE_LIMIT = 50;
 
 /**
  * The withdrawal amount shape (R-303): 1-7 integer digits, an optional

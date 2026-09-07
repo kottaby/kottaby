@@ -80,7 +80,7 @@ function dropStaleInboxWindows(cache: ApolloCache, activeFilter: MyNotifications
  * window (spared by the stale-window drop so the caller's own list restyles
  * in place without a refetch).
  */
-export interface MarkNotificationReadInput {
+interface MarkNotificationReadInput {
   readonly id: string;
   readonly wasUnread: boolean;
   readonly activeFilter: MyNotificationsFilterInput;

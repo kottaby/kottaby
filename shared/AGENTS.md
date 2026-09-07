@@ -13,8 +13,8 @@ The `shared/` layer contains code used by **both** frontend and backend: utiliti
 ### Positive Pattern
 
 ```typescript
-// shared/lib/social-links.ts
-import { isSafeUrl } from "@/shared/lib/safe-url";
+// frontend/views/auth/register/registerFormUtils.ts
+import { isValidEmail } from "@/shared/lib/email";
 
 // shared/lib/schedule-instance-dashboard-status.ts
 import { ClassExecutionState, ClassOutcome } from "@/shared/constants/class-instance-detail.enum";
@@ -23,7 +23,7 @@ import { ClassExecutionState, ClassOutcome } from "@/shared/constants/class-inst
 ### Negative Pattern (PROHIBITED)
 
 ```typescript
-import { isSafeUrl } from "@/frontend/lib/safeRedirect";
+import { isSafeRedirect } from "@/frontend/lib/safeRedirect";
 import { ClassOutcome } from "@/backend/enum";
 import type { InvoiceStatus } from "@/frontend/graphql/generated/gql/graphql";
 ```
@@ -38,11 +38,9 @@ import type { InvoiceStatus } from "@/frontend/graphql/generated/gql/graphql";
 
 | Directory | Purpose | Examples |
 |-----------|---------|----------|
-| `shared/lib/` | Pure utilities and domain logic with no layer deps | `safe-url.ts`, `social-links.ts`, `phone/`, `logger/` |
-| `shared/constants/` | Enums and stable domain constants | `class-instance-detail.enum.ts`, `billing-months.ts`, `permission-group.enum.ts` |
-| `shared/types/` | Cross-layer TypeScript types | `billing-view.ts` |
-| `shared/messages/` | i18n message definitions and label types | `en.ts`, `ar/`, `types/` |
-| `shared/utils/` | General helpers | `date-utils.ts`, `storage.utils.ts` |
+| `shared/lib/` | Pure utilities and domain logic with no layer deps | `email.ts`, `mask-full-name.ts`, `isolate-bidi.ts`, `locale/`, `timezone/` |
+| `shared/constants/` | Enums and stable domain constants | `recitation-reading.enum.ts`, `iana-timezone.enum.ts`, `free-trial.constants.ts` |
+| `shared/locale/` | Compile-time i18n system (types, `ar/`, `en/`) | see the Translation System section below |
 
 ## Shared Enums
 
@@ -70,16 +68,16 @@ Recitation catalog: `shared/constants/recitation-reading.enum.ts` is the canonic
 
 When moving logic from `frontend/` or `backend/` into `shared/`:
 
-1. Place the implementation in the appropriate `shared/` subdirectory (`lib/`, `constants/`, `types/`).
-2. Update all consumers to import directly from the `shared/` source (e.g. `import { isSafeUrl } from "@/shared/lib/safe-url"`). Do not re-export from `frontend/` or `backend/` locations — consumers must import from `shared/` directly.
+1. Place the implementation in the appropriate `shared/` subdirectory (`lib/`, `constants/`).
+2. Update all consumers to import directly from the `shared/` source (e.g. `import { isValidEmail } from "@/shared/lib/email"`). Do not re-export from `frontend/` or `backend/` locations — consumers must import from `shared/` directly.
 3. Move or define any required enums/types in `shared/` before updating imports in shared files.
 4. Run tests for affected shared modules and verify ESLint passes on changed `shared/**` files.
 
 ## i18n Message Types
 
-- Message label types in `shared/messages/types/` must not reference frontend view types or GraphQL codegen types.
-- Define canonical status/key unions in `shared/types/` or `shared/constants/` and use those in message type definitions.
-- Example: `BillingMonthId` lives in `@/shared/constants/billing-months`; `AdminInvoiceStatus` in `@/shared/types/billing-view`.
+- Message label types in `shared/locale/types/` must not reference frontend view types or GraphQL codegen types.
+- Define canonical status/key unions in `shared/constants/` and use those in message type definitions.
+- Example: `isHandshakeCode` and `HANDSHAKE_CODE_PREFIX` live in `@/shared/constants/handshake-code.constants`.
 
 ## Translation System (Compile-Time i18n)
 
@@ -267,11 +265,11 @@ The `errors` namespace (types/en/ar triple under `shared/locale/{types,en,ar}/er
 
 ## Cross-Layer Shared Types Pattern
 
-When a type definition is used by both backend and frontend, it MUST live in `shared/types/` to avoid duplication. See `docs/backend/shared-types-pattern.md` for the complete pattern.
+Canonical entity types live in `backend/types/` (see `backend/AGENTS.md`); frontend consumers import them type-only when needed (e.g. `RegistrationReturnType` in `frontend/lib/auth/withPageAuth.ts`).
 
 Key rules:
-- Cross-layer types go in `shared/types/<domain>.types.ts`
 - Both backend and frontend import from the same canonical file
+- Values (enums, constants) needed by both layers live in `shared/constants/`
 - `shared/` layer MUST NOT import from `backend/` or `frontend/`
 
 ## Locale Namespace Migration

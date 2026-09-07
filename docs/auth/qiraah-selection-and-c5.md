@@ -290,15 +290,24 @@ The registration service uses **explicit field mapping** when constructing the D
 
 ### 5.3 Enum Safety
 
-`RecitationCatalogService.validateReading(value, locale)` accepts `unknown` and uses the `isRecitationReading` type guard:
+Enum validation is an **internal concern of the catalog service**: the raw `validateReading` primitive is not exported — it lives inside the `RecitationCatalogService` namespace and is reachable only through the public `validateOptionalReading` wrapper (the registration input entry). The primitive accepts `unknown` and uses the `isRecitationReading` type guard:
 
 ```typescript
-export function validateReading(value: unknown, locale: string): RecitationReading {
+function validateReading(value: unknown, locale: string): RecitationReading {
   if (isRecitationReading(value)) {
     return value;
   }
   const t = getServerTranslations(locale).recitationTranslations;
   throw new ValidationError(t.invalidRecitation);
+}
+
+// Public entry point: null/undefined → "no selection" (null);
+// any non-null value is validated by the private primitive above.
+export function validateOptionalReading(value: unknown, locale: string): RecitationReading | null {
+  if (value === null || value === undefined) {
+    return null;
+  }
+  return validateReading(value, locale);
 }
 ```
 
@@ -512,7 +521,7 @@ Durable user-level Qira'ah persistence is **blocked** on a pending schema-gap de
 The following changes will be needed:
 1. Add the column/table to the Drizzle schema (`backend/db/schema/`) and create a migration.
 2. Update `AuthService.stripPasswordHash` and `gqlContextFactory.ts` to populate `preferredRecitation` from the new persistence target instead of `null`.
-3. Implement a `setMyPreferredRecitation` mutation. It MUST source identifiers from `ctx.user.id` (BOLA/IDOR defense), MUST validate via `RecitationCatalogService.validateReading`, and MUST be `authScope`-gated (authenticated users only).
+3. Implement a `setMyPreferredRecitation` mutation. It MUST source identifiers from `ctx.user.id` (BOLA/IDOR defense), MUST validate via `RecitationCatalogService.validateOptionalReading` (the public entry — the raw `validateReading` primitive is internal to the service), and MUST be `authScope`-gated (authenticated users only).
 4. Optionally, update the `me` query to surface the persisted preference (currently always `null` on the me path).
 
 ### Why the contract ships without persistence
@@ -530,7 +539,7 @@ The registration contract ships only the vocabulary + validation contract + cata
 ### What the registration contract provides to session-lifecycle work
 
 - The canonical `RecitationReading` enum (10 Qira'at) — consume via `@/shared/constants/recitation-reading.enum` (backend) or `@/frontend/graphql/generated/gql/graphql` (frontend).
-- `RecitationCatalogService.validateReading(value, locale)` — pure validation, throws `ValidationError` on bad input. Use before inserting a `recitation` row.
+- `RecitationCatalogService.validateOptionalReading(value, locale)` — the public validation entry (pure, throws `ValidationError` on bad input; the raw `validateReading` primitive is internal to the catalog service). Use before inserting a `recitation` row.
 - `isRecitationReading(value)` type guard — boolean check without throwing.
 - `RecitationReadingPothosEnum` — already registered in `backend/graphql/pothos/shared/enum.pothos.ts`. Use as a field type on session-recitation mutations/inputs.
 - The public `recitationReadings` query — already exists. Do NOT add a competing catalog query.

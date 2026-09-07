@@ -65,8 +65,8 @@ export namespace UserRepository {
   /**
    * Finds a user by primary key.
    *
-   * Used by the auth flow (`AuthService.getMe`, `gqlContextFactory`) to
-   * resolve the authenticated user from the JWT `sub` claim. Mirrors the
+   * Used by the auth flow (`gqlContextFactory`, `AuthService.refreshToken`)
+   * to resolve the authenticated user from the JWT `sub` claim. Mirrors the
    * `findByEmail` shape — read-only, supports an optional transaction
    * executor for in-tx reads.
    *
