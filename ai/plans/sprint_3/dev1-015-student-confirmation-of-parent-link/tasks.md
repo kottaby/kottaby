@@ -329,12 +329,12 @@
 
 ## Phase 7: Knowledge Propagation & Documentation
 
-- [ ] 7.1 Amend the canonical parent-link doc (no fork)
+- [x] 7.1 Amend the canonical parent-link doc (no fork)
   - Edit `docs/parents/parent-link-request.md`: add a **DEV1-015 closure section** recording: the dashboard discoverability card (files, data path, render states), the notification deep-link pin/close result, nav retargeting outcome (or no-op proof), the new journey file + added wire/service cells, and the verified INV-P1 closure statement.
   - Do NOT fork a parallel canonical doc; do NOT edit/renumber `docs/specs/state-machine-invariants.md` or `docs/specs/open-decisions-and-gaps.md` (bind by reference — B.14, INV-P1, A.2/A.4/B.12 — only).
   - _Requirements: REQ-070_
 
-- [ ] 7.2 Layer knowledge propagation (minimal, conditional)
+- [x] 7.2 Layer knowledge propagation (minimal, conditional)
   - Add a layer AGENTS.md line ONLY if a genuinely NEW permanent rule emerged (expected: none — single-writer/expiry/notification rules already documented). Candidates to evaluate: "one shared route constant for all parent-link deep-links" (nav/card/drawer) — if deemed durable, add ONE line to the closest existing layer AGENTS.md verified present in 0.2; otherwise skip and record why.
   - Root AGENTS.md Important References: no additions expected (parents docs already recorded) — verify rather than assume.
   - _Requirements: REQ-071_
