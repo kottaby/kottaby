@@ -1,4 +1,5 @@
 import type { AdminBroadcastsLabels } from "@/shared/locale/types/adminBroadcasts";
+import type { AdminSessionGovernanceLabels } from "@/shared/locale/types/adminSessionGovernance";
 import type { AdminUsersLabels } from "@/shared/locale/types/adminUsers";
 import type { AnalyticsLabels } from "@/shared/locale/types/analytics";
 import type { ApplicantLabels } from "@/shared/locale/types/applicant";
@@ -28,6 +29,7 @@ export interface Translations {
   walletTranslations: WalletLabels;
   adminUsersTranslations: AdminUsersLabels;
   adminBroadcastsTranslations: AdminBroadcastsLabels;
+  adminSessionGovernanceTranslations: AdminSessionGovernanceLabels;
   notificationsTranslations: NotificationsLabels;
   handshakeCodeTranslations: HandshakeCodeLabels;
   parentLinkTranslations: ParentLinkLabels;
