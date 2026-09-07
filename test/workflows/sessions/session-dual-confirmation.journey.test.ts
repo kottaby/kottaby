@@ -85,6 +85,7 @@ import {
   createSessionFixtureRegistry,
   journeyPrefix,
   type SessionJourneyCast,
+  secondPrecisionMs,
 } from "@/test/workflows/helpers";
 
 /**
@@ -166,21 +167,13 @@ function requiredWalletRow(value: WalletSelectType | null, label: string): Walle
 }
 
 /**
- * Second-precision instant — the resolution `session` timestamps survive a
- * write/read round-trip at (sub-second digits do not). The fabricated
- * expired-completion stamps are built through this so the stored value and
- * every later read-back of it agree exactly.
- */
-function secondPrecisionInstant(ms: number): Date {
-  return new Date(Math.floor(ms / 1000) * 1000);
-}
-
-/**
  * A teacher stamp one hour past the confirmation window — unambiguously
- * expired at the stored resolution, at any capture instant.
+ * expired at the stored resolution, at any capture instant. Built through
+ * the shared `secondPrecisionMs` floor so the written value and every
+ * later read-back of it agree exactly.
  */
 function expiredTeacherStamp(): Date {
-  return secondPrecisionInstant(Date.now() - SESSION_CONFIRMATION_WINDOW_MS - 60 * 60_000);
+  return new Date(secondPrecisionMs(Date.now() - SESSION_CONFIRMATION_WINDOW_MS - 60 * 60_000));
 }
 
 /** Reads the session row straight off the table (read-back oracle). */

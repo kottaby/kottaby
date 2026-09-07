@@ -64,6 +64,7 @@ import {
   createSessionFixtureRegistry,
   journeyPrefix,
   type SessionJourneyCast,
+  secondPrecisionMs,
 } from "@/test/workflows/helpers";
 
 /** The errors-namespace translations for the default journey locale. */
@@ -138,16 +139,6 @@ async function countClaimsForUser(userId: number): Promise<number> {
 async function readSessionRow(sessionId: number): Promise<SessionSelectType | null> {
   const [row] = await db.select().from(session).where(eq(session.id, sessionId));
   return row ?? null;
-}
-
-/**
- * An instant at the timestamps' stored second resolution — the precision
- * cross-source timestamp comparisons agree at (the value a service call
- * returns reports second resolution even though the stored row keeps the
- * full precision: the write round-trip drops sub-second digits).
- */
-function secondPrecisionMs(instant: Date): number {
-  return Math.floor(instant.getTime() / 1000) * 1000;
 }
 
 /**

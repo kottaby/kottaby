@@ -65,6 +65,7 @@ import {
   createSessionFixtureRegistry,
   journeyPrefix,
   type SessionJourneyCast,
+  secondPrecisionMs,
 } from "@/test/workflows/helpers";
 
 /**
@@ -263,16 +264,6 @@ async function trackIdempotencyClaim(key: string, label: string): Promise<void> 
     throw new Error(`journey: idempotency claim for ${label} not found (fixture tracking failure)`);
   }
   registry.track("session_request_idempotency", claim.id);
-}
-
-/**
- * An instant at the timestamps' stored second resolution — the precision
- * cross-source timestamp comparisons agree at (the value a service call
- * returns reports second resolution even though the stored row keeps the
- * full precision; see the header note).
- */
-function secondPrecisionMs(instant: Date): number {
-  return Math.floor(instant.getTime() / 1000) * 1000;
 }
 
 /**
