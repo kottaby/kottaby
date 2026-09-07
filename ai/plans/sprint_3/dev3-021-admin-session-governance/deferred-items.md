@@ -28,6 +28,7 @@
 | D-03 | Bespoke rate-limit for admin mutations | specs REQ-033 / plan §6 | forward stream (platform hardening) | ⏭ Forward-owned | — | Intentionally out of ticket scope; never blocks this plan's gate |
 | D-04 | Real-time admin dashboards over governance surfaces | plan intake (specs §1 non-goals) | forward stream (DEV3 analytics family) | ⏭ Forward-owned | — | WebSocket fan-out explicitly non-goal |
 | D-05 | Meeting-bridge integration for admin `join` (full join vs observation) | specs §1 non-goals | forward stream (BLT-03 dependency) | ⏭ Forward-owned | — | No meetingUrl column exists; observation-only per REQ-026 |
+| D-06 | Zod-input-schema precedent absent: plan §2's "`zodToResult`-style per existing precedent" has zero `from "zod"` imports anywhere in the tree (`zod@^4.5.4` declared in package.json, unused) — Task 1.1 establishes the first usage or falls back to the pure-guard + `ValidationError(t.<key>)` pattern (`session-lifecycle.guards.ts`), with localized copy from the `errors` tree | 1.2 (discovery) | 1.1 (schemas; + 1.3 code registration) | 🔄 In Plan | 1.2 outcome §7 | Schema-side messages must not embed literal English — reschedule rejects surface `t.sessionRescheduleWindowInvalid` / `t.sessionRescheduleStartInPast` |
 
 ### Status conventions (template alignment for this ledger)
 - Template statuses ❌ Blocked / ⚠️ Partial / 🔄 In Progress / ✅ Done apply to items genuinely deferred BETWEEN tasks of this plan (registered in ❌ Blocking debt or added to this table mid-implementation); the completion gate requires ❌/⚠️ item count == 0.

@@ -18,15 +18,15 @@
 
 ## Phase 1 — Types & i18n Substrate
 
-- [ ] 1.1 **CREATE `backend/types/classes/admin-session-governance.types.ts`** — inputs + `AdminSessionRowReturnType`; export from `backend/types/classes/index.ts` (REQ-004, REQ-010..REQ-029)
-  - [ ] 1.1.QL sub-loop duplicates → 0
-  - [ ] 1.1.TE Type-shape unit test: file-level compile assertions + zod schema round-trips (`backend/types/classes/admin-session-governance.types.test.ts`)
-  - [ ] 1.1.SEC Confirm fields are UI-safe (no secrets)
-  - [ ] 1.1.SR No other `.types.ts` introduced; canonical-only
-  - [ ] 1.1.IV `.agents/instructions/backend.instructions.md`
-- [ ] 1.2 **Zod input schemas + errors extension** — extend `shared/locale/{types,en,ar}/errors` with `session` namespace entries consumed by services (REQ-002, REQ-050, REQ-051)
-  - [ ] 1.2.QL / 1.2.TE (parity test routes through existing en↔ar key-parity harness) / 1.2.SEC / 1.2.SR / 1.2.IV
-- [ ] 1.3 **Codes registration** — append `SESSION_INVALID_TRANSITION` usages to centralized code list if needed by error contract util (verify `docs/graphql/error-handling-contract.md` first — record in 1.3.OUT whether the code already exists)
+- [x] 1.1 **CREATE `backend/types/classes/admin-session-governance.types.ts`** — inputs + `AdminSessionRowReturnType`; export from `backend/types/classes/index.ts` (REQ-004, REQ-010..REQ-029)
+  - [x] 1.1.QL sub-loop duplicates → 0
+  - [x] 1.1.TE Type-shape unit test: file-level compile assertions + zod schema round-trips (`backend/types/classes/admin-session-governance.types.test.ts`)
+  - [x] 1.1.SEC Confirm fields are UI-safe (no secrets)
+  - [x] 1.1.SR No other `.types.ts` introduced; canonical-only
+  - [x] 1.1.IV `.agents/instructions/backend.instructions.md`
+- [x] 1.2 **Zod input schemas + errors extension** — extend `shared/locale/{types,en,ar}/errors` with `session` namespace entries consumed by services (REQ-002, REQ-050, REQ-051)
+  - [x] 1.2.QL / 1.2.TE (parity test routes through existing en↔ar key-parity harness) / 1.2.SEC / 1.2.SR / 1.2.IV
+- [x] 1.3 **Codes registration** — append `SESSION_INVALID_TRANSITION` usages to centralized code list if needed by error contract util (verify `docs/graphql/error-handling-contract.md` first — record in 1.3.OUT whether the code already exists)
 
 ---
 
