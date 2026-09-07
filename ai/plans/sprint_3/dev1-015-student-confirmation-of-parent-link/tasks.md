@@ -320,7 +320,7 @@
   - Attempt abuse cases: expired-id respond, double respond, smuggled fields due-schema validation, governed-student respond — all match frozen denial vocabulary with zero side effects.
   - Findings → `6.4-outcome.md` (pentester section).
 
-- [ ] 6.5 Deferred-items ledger gate (FINAL)
+- [x] 6.5 Deferred-items ledger gate (FINAL)
   - Re-read `ai/plans/sprint_3/dev1-015-student-confirmation-of-parent-link/deferred-items.md` in full.
   - Every entry is either ✅ resolved (with evidence link) or explicitly deferred with owner/rationale; ZERO ❌/⚠️ items may remain.
   - Record the ledger verdict in `6.5-outcome.md`; a non-clean ledger BLOCKS Phase 7 closure.
@@ -339,7 +339,7 @@
   - Root AGENTS.md Important References: no additions expected (parents docs already recorded) — verify rather than assume.
   - _Requirements: REQ-071_
 
-- [ ] 7.3 Outcome synthesis & ticket closure
+- [x] 7.3 Outcome synthesis & ticket closure
   - Write `ai/plans/sprint_3/dev1-015-student-confirmation-of-parent-link/outcome/FINAL-outcome.md` synthesizing: substrate verification results (0.2), every task outcome link, the full test matrix with counts, browser-evidence index (six-cell screenshot sets), security review disposition, ledger verdict, and the explicit acceptance-criteria trace (each Gherkin Given/When/Then → the task + test that proves it, incl. J-REQ-01..05).
   - Confirm every checkbox in this file is `[x]`, every referenced outcome file exists, and the final gate metrics: tsgo/biome/lint ≤ baseline; codegen drift 0; schema diff empty; all suites green; ledger clean.
   - _Requirements: REQ-001, REQ-060, REQ-070, REQ-071_
