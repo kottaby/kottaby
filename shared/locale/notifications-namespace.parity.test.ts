@@ -49,7 +49,7 @@ import { Notifications } from "@/shared/locale/namespaces/notifications";
 
 // ─── Mandated key inventory (the notification-feed surface ground truth) ────
 
-/** Every key the notifications UI namespace must carry (49 slots). */
+/** Every key the notifications UI namespace must carry (55 slots). */
 const MANDATED_KEYS = [
   "title",
   "emptyTitle",
@@ -100,6 +100,12 @@ const MANDATED_KEYS = [
   "eventParentLinkRejectedBody",
   "eventParentLinkExpiringTitle",
   "eventParentLinkExpiringBody",
+  "eventSessionGovernanceRescheduledTitle",
+  "eventSessionGovernanceRescheduledBody",
+  "eventSessionGovernanceCancelledTitle",
+  "eventSessionGovernanceCancelledBody",
+  "eventSessionGovernanceTeacherReassignedTitle",
+  "eventSessionGovernanceTeacherReassignedBody",
 ] as const;
 
 /**
@@ -223,7 +229,7 @@ describe("compile-time parity mirror — ar/en key sets agree", () => {
     expect(Object.hasOwn(notificationsEn, key)).toBe(true);
   });
 
-  test("the mandated inventory is exhaustive (no silent key minting beyond the 49 slots)", () => {
+  test("the mandated inventory is exhaustive (no silent key minting beyond the 55 slots)", () => {
     const mandated = new Set<string>(MANDATED_KEYS);
     for (const key of Object.keys(notificationsAr)) {
       expect(mandated.has(key)).toBe(true);
