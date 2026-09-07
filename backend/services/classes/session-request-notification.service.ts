@@ -41,7 +41,10 @@ import { NotificationType } from "@/backend/enum/notifications/notification-type
 import { SessionIntent } from "@/backend/enum/scheduling/session-intent.enum";
 import { DomainError, NotFoundError, ValidationError } from "@/backend/lib/errors";
 import { logger } from "@/backend/lib/logger";
-import { emitGovernanceWave } from "@/backend/services/classes/session-request-notification.governance";
+import {
+  emitGovernanceWave,
+  resolveGovernanceParticipant,
+} from "@/backend/services/classes/session-request-notification.governance";
 import { NotificationEngine, type NotificationEngineCallOptions } from "@/backend/services/notifications";
 import { isPositiveSafeInt } from "@/backend/services/notifications/emit-validation";
 import {
