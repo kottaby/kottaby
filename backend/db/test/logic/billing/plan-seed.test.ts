@@ -1,9 +1,10 @@
 /**
- * Plan Catalog Seeder Tests — DEV1-005 Task 3.5.TE
+ * Plan Catalog Seeder Tests
  *
  * Verifies:
- *  - REQ-019, REQ-021: Demo catalog seeding produces expected plans.
+ *  - Demo catalog seeding produces the expected plans.
  *  - Verification plan has `sessionCount = 5`.
+ *  - Every demo plan carries its declared balance lane.
  *  - Idempotency: Multiple seed passes produce no duplicate rows.
  *  - Deactivated demo plan is correctly marked inactive.
  */
@@ -41,6 +42,7 @@ describe("Plan Catalog Seeding", () => {
       for (const demoPlan of INITIAL_DEMO_PLANS) {
         const found = allPlans.find(p => p.title === demoPlan.title);
         expect(found).toBeDefined();
+        expect(found?.balanceLane).toBe(demoPlan.balanceLane);
       }
     });
   });

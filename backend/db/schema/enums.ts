@@ -1,7 +1,7 @@
 import { pgEnum } from "drizzle-orm/pg-core";
 
 /**
- * pgEnum registry — single source of truth for all 16 PostgreSQL enums.
+ * pgEnum registry — single source of truth for all 17 PostgreSQL enums.
  * Values + order are canonical and mirrored in the matching
  * TypeScript enums under `backend/enum/`.
  */
@@ -41,6 +41,7 @@ export const paymentGateway = pgEnum("payment_gateway", [
   "bank_transfer",
   "scholarship",
   "other",
+  "mock",
 ]);
 
 export const subscriptionStatus = pgEnum("subscription_status", [
@@ -50,6 +51,18 @@ export const subscriptionStatus = pgEnum("subscription_status", [
   "cancelled",
   "suspended",
 ]);
+
+/**
+ * Balance lane a subscription plan credits on activation (`plans.balance_lane`).
+ *
+ * Each plan designates exactly one student balance lane its full
+ * `session_count` is credited to when the subscription activates:
+ * `hifz` and `tajweed` are the two memorization lesson lanes, `reviews`
+ * is the revision-session lane. Nullable at the column level so catalog
+ * rows created before a lane was chosen stay valid; purchasing a plan
+ * whose lane is still unset fails closed instead of guessing.
+ */
+export const subscriptionCreditLane = pgEnum("subscription_credit_lane", ["hifz", "tajweed", "reviews"]);
 
 export const linkStatus = pgEnum("link_status", ["pending", "confirmed", "rejected", "expired"]);
 

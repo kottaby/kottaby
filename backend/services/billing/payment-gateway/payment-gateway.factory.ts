@@ -1,0 +1,74 @@
+/**
+ * Payment gateway factory — the provider-agnostic seam that resolves the
+ * active `PaymentGatewayPort` adapter from configuration.
+ *
+ * Consumers (purchase service, webhook route) call `getPaymentGateway()`
+ * and never construct adapters directly, so swapping the built-in mock for
+ * a real gateway is a configuration change with zero domain-code impact.
+ *
+ * Resolution semantics:
+ *  - The adapter is a lazy singleton keyed on the registered
+ *    `PAYMENT_GATEWAY_PROVIDER` env key (read through the typed env getter —
+ *    never raw `process.env`); missing/empty values resolve to the built-in
+ *    `mock` provider.
+ *  - A configured provider without an adapter implementation fails CLOSED
+ *    with a localized typed error — the purchase flow never silently falls
+ *    back to a different provider than the deployment asked for.
+ *  - `resetPaymentGateway()` drops the resolved adapter AND invalidates the
+ *    shared env snapshot, so provider/secret/enabled changes are observable
+ *    on the next resolution without a process restart.
+ */
+
+import { PaymentGateway } from "@/backend/enum/billing/payment-gateway.enum";
+import { getPaymentGatewayProvider, resetEnvironmentCache } from "@/backend/lib/env";
+import { ValidationError } from "@/backend/lib/errors";
+import { MockPaymentGatewayAdapter } from "@/backend/services/billing/payment-gateway/mock-payment-gateway.adapter";
+import type { PaymentGatewayPort } from "@/backend/types";
+import { getServerTranslations } from "@/shared/locale/server-graphql";
+
+/** The resolved adapter singleton (bounded to exactly one instance; reset-able). */
+let gateway: PaymentGatewayPort | null = null;
+
+/**
+ * Adapter registry keyed by the canonical gateway provider value. Adding a
+ * real gateway later is one registry row plus its adapter module — the
+ * purchase flow and webhook route stay untouched.
+ */
+const GATEWAY_ADAPTERS: Readonly<Record<string, () => PaymentGatewayPort>> = {
+  [PaymentGateway.Mock]: () => new MockPaymentGatewayAdapter(),
+};
+
+/**
+ * Returns the active payment gateway adapter, constructing it on first use
+ * and reusing the resolved instance afterwards.
+ *
+ * @param locale Optional request locale for the fail-closed configuration
+ *   error message; defaults to the deployment default.
+ * @throws ValidationError (`PAYMENT_GATEWAY_UNSUPPORTED`) when the configured
+ *   provider has no adapter implementation — fail-closed, never a fallback.
+ */
+export function getPaymentGateway(locale?: string): PaymentGatewayPort {
+  if (gateway) {
+    return gateway;
+  }
+
+  const createAdapter = GATEWAY_ADAPTERS[getPaymentGatewayProvider()];
+  if (!createAdapter) {
+    const tErrors = getServerTranslations(locale ?? "en").errorsTranslations;
+    throw new ValidationError("PAYMENT_GATEWAY_UNSUPPORTED", tErrors.validation);
+  }
+
+  gateway = createAdapter();
+  return gateway;
+}
+
+/**
+ * Invalidates the resolved gateway and every env key the gateway subsystem
+ * resolved through the shared snapshot (provider, webhook secret, webhook
+ * enabled flag). The next `getPaymentGateway()` re-reads configuration from
+ * scratch, so env swaps and test fixtures take effect immediately.
+ */
+export function resetPaymentGateway(): void {
+  gateway = null;
+  resetEnvironmentCache();
+}

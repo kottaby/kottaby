@@ -1,4 +1,5 @@
 import type { plans } from "@/backend/db/schema/billing/plans";
+import type { SubscriptionCreditLane } from "@/backend/enum/billing/subscription-credit-lane.enum";
 
 export type PlanSelectType = typeof plans.$inferSelect;
 export type PlanInsertType = typeof plans.$inferInsert;
@@ -10,6 +11,12 @@ export interface PlanSubmitInput {
   readonly price: string;
   readonly currency: string;
   readonly intervalDays: number;
+  /**
+   * Student balance lane the plan's sessions are credited to on activation.
+   * Optional so catalog rows may stay laneless; a NULL lane never falls back
+   * to a guessed lane — purchase flows fail closed until a lane is set.
+   */
+  readonly balanceLane?: SubscriptionCreditLane | null;
 }
 
 export type PlanUpdateInput = Partial<PlanSubmitInput>;

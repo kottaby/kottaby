@@ -7,12 +7,44 @@
  * Tier 4: Security (direct CHECK constraint violation handling via expectRepoError).
  */
 
-import { describe, expect, test } from "bun:test";
+import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { eq } from "drizzle-orm";
+import { db } from "@/backend/db";
 import { PlanRepository } from "@/backend/db/repo/billing/plan.repository";
+import { plans } from "@/backend/db/schema/billing/plans";
 import { createTestPlan } from "@/backend/db/test/entity-setup";
 import { constraintNameOf, expectRepoError, runInRollback } from "@/backend/db/test/test-utils";
 
 describe("PlanRepository", () => {
+  // ─── Tier 2: Committed fixture for the default-executor (no-tx) path ──────
+
+  // `queryDb` reads run outside the rollback transaction, so the no-tx
+  // branch of `findActiveById` needs COMMITTED rows to be honest on every
+  // provider (a real pool would never see uncommitted `runInRollback`
+  // fixtures). Committed once here, hard-deleted with proof in `afterAll`.
+  let committedActivePlanId = 0;
+  let committedDeactivatedPlanId = 0;
+
+  beforeAll(async () => {
+    await db.transaction(async tx => {
+      const active = await createTestPlan(tx, { title: "Committed Active Plan" });
+      const deactivated = await createTestPlan(tx, {
+        title: "Committed Deactivated Plan",
+        isActive: false,
+        deactivatedAt: new Date(),
+      });
+      committedActivePlanId = active.id;
+      committedDeactivatedPlanId = deactivated.id;
+    });
+  });
+
+  afterAll(async () => {
+    await db.delete(plans).where(eq(plans.id, committedActivePlanId));
+    await db.delete(plans).where(eq(plans.id, committedDeactivatedPlanId));
+    // Teardown proof: the default-executor read sees nothing after the delete.
+    expect(await PlanRepository.findActiveById(committedActivePlanId)).toBeNull();
+  });
+
   // ─── Tier 1: Happy Path Operations ──────────────────────────────────────────
 
   test("insertPlan creates a plan and returns all fields with defaults", async () => {
@@ -105,6 +137,21 @@ describe("PlanRepository", () => {
     });
   });
 
+  test("findActiveById returns the active plan row inside the transaction", async () => {
+    await runInRollback(async tx => {
+      const plan = await createTestPlan(tx, { title: "Purchasable Plan" });
+
+      const found = await PlanRepository.findActiveById(plan.id, tx);
+      expect(found).not.toBeNull();
+      if (found) {
+        expect(found.id).toBe(plan.id);
+        expect(found.title).toBe("Purchasable Plan");
+        expect(found.isActive).toBe(true);
+        expect(found.deactivatedAt).toBeNull();
+      }
+    });
+  });
+
   // ─── Tier 2: Boundary Conditions ──────────────────────────────────────────
 
   test("updatePlanFields on nonexistent ID returns null", async () => {
@@ -122,6 +169,40 @@ describe("PlanRepository", () => {
       const exists = await PlanRepository.existsById(99999999, tx);
       expect(exists).toBe(false);
     });
+  });
+
+  test("findActiveById returns null for a deactivated plan and an unknown id (active-only predicate)", async () => {
+    await runInRollback(async tx => {
+      const deactivated = await createTestPlan(tx, {
+        title: "Withdrawn Plan",
+        isActive: false,
+        deactivatedAt: new Date(),
+      });
+
+      // A deactivated plan is indistinguishable from a missing one through
+      // this read — both collapse to null, so a purchase can never bind to
+      // a withdrawn catalog row.
+      expect(await PlanRepository.findActiveById(deactivated.id, tx)).toBeNull();
+      expect(await PlanRepository.findActiveById(99999999, tx)).toBeNull();
+
+      // The row itself still exists for admin reads — only the active
+      // predicate hid it.
+      expect((await PlanRepository.findById(deactivated.id, tx))?.isActive).toBe(false);
+    });
+  });
+
+  test("findActiveById resolves committed rows on the default executor (no tx)", async () => {
+    // The no-tx branch runs raw SQL via queryDb against committed data.
+    const found = await PlanRepository.findActiveById(committedActivePlanId);
+    expect(found).not.toBeNull();
+    if (found) {
+      expect(found.id).toBe(committedActivePlanId);
+      expect(found.title).toBe("Committed Active Plan");
+      expect(found.isActive).toBe(true);
+    }
+
+    // The committed deactivated plan is invisible through the same read.
+    expect(await PlanRepository.findActiveById(committedDeactivatedPlanId)).toBeNull();
   });
 
   test("listActive excludes deactivated plans and orders by createdAt ASC", async () => {

@@ -1,8 +1,10 @@
 /**
  * StudentRepository tests — `findHandshakeCodeByStudentId`,
  * `findDiscoveryByHandshakeCode` (handshake-code self-read + parent
- * discovery lookup) PLUS the parent-link additive pair
- * `findLinkTargetByHandshakeCode` / `linkParentIfUnlinked` (tasks.md 2.2).
+ * discovery lookup), the parent-link additive pair
+ * `findLinkTargetByHandshakeCode` / `linkParentIfUnlinked`, and the
+ * subscription activation credit `creditLaneBalance` (frozen three-lane
+ * credit map incl. reviews).
  *
  * Per `backend/db/test/AGENTS.md`:
  *  - In-tx tests run inside `runInRollback` with `tx` passed to every repo
@@ -18,24 +20,29 @@
  *    entity-setup fixtures; the discovery/link-target JOINs return EXACTLY
  *    the picked columns (Object.keys assertion — no extra columns);
  *    `linkParentIfUnlinked` wins once (guarded UPDATE … RETURNING) and a
- *    second call collapses to `null`.
+ *    second call collapses to `null`; `creditLaneBalance` moves EXACTLY the
+ *    resolved lane by +N (relative accumulation) on all three lanes.
  *  - Tier 2 (Executors): tx-provided and default-executor (no-tx) paths both
- *    work; the committed fixture proves the default (queryDb) branch.
+ *    work; the committed fixture proves the default (queryDb) branch — for
+ *    reads AND for the credit write.
  *  - Tier 3 (Hostile/miss): nonexistent ids/codes return `null`; unicode and
  *    garbage codes pass through the parameterized path harmlessly — the repo
  *    owns no validation (that is the service layer's contract);
- *    `linkParentIfUnlinked` on a nonexistent student also collapses to `null`.
+ *    `linkParentIfUnlinked` on a nonexistent student also collapses to `null`;
+ *    crediting a NULL lane column keeps it NULL (no-coalesce convention).
  *  - Tier 4 (Rollback): fixtures written inside `runInRollback` are invisible
  *    after the forced rollback, on both read methods; a link written inside
- *    the tx unlinks again after the forced rollback.
+ *    the tx unlinks again after the forced rollback; the `balance_* >= 0`
+ *    CHECK floor fires on the credited lane (savepoint-bracketed probe).
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { db } from "@/backend/db";
 import { StudentRepository } from "@/backend/db/repo";
 import { users } from "@/backend/db/schema/users/users";
 import { createTestParent, createTestStudent, createTestUser } from "@/backend/db/test/entity-setup";
-import { runInRollback } from "@/backend/db/test/test-utils";
+import { constraintNameOf, expectRepoError, runInRollback } from "@/backend/db/test/test-utils";
+import { SubscriptionCreditLane } from "@/backend/enum/billing/subscription-credit-lane.enum";
 import type { HandshakeDiscoveryRowType, StudentLinkTargetRowType } from "@/backend/types";
 
 /** The exact key set a discovery row may carry — nothing more, nothing less. */
@@ -336,6 +343,126 @@ describe("StudentRepository.linkParentIfUnlinked (parent-link additive write)", 
     await runInRollback(async tx => {
       const parentUser = await createTestUser(tx, { role: "parent" });
       expect(await StudentRepository.linkParentIfUnlinked(NONEXISTENT_STUDENT_ID, parentUser.id, tx)).toBeNull();
+    });
+  });
+});
+
+describe("StudentRepository.creditLaneBalance (subscription activation crediting)", () => {
+  test("Tier 1 — credits the hifz lane by +N and leaves the other lanes untouched", async () => {
+    await runInRollback(async tx => {
+      const user = await createTestUser(tx);
+      const student = await createTestStudent(tx, user.id);
+
+      const credited = await StudentRepository.creditLaneBalance(student.id, SubscriptionCreditLane.Hifz, 4, tx);
+      expect(credited).not.toBeNull();
+      if (credited) {
+        expect(credited.id).toBe(student.id);
+        expect(credited.balanceHifz).toBe(4);
+        // Only the resolved lane moved — the sibling lanes are untouched.
+        expect(credited.balanceTajweed).toBe(0);
+        expect(credited.balanceReviews).toBe(0);
+        expect(credited.updatedAt).toBeInstanceOf(Date);
+      }
+
+      // A second credit accumulates RELATIVE to the stored balance — the
+      // statement is `balance_x + amount`, never an absolute set.
+      const accumulated = await StudentRepository.creditLaneBalance(student.id, SubscriptionCreditLane.Hifz, 1, tx);
+      expect(accumulated?.balanceHifz).toBe(5);
+
+      // The mutation is persisted on the row, not just echoed by RETURNING.
+      expect((await StudentRepository.findById(student.id, tx))?.balanceHifz).toBe(5);
+    });
+  });
+
+  test("Tier 1 — credits the tajweed lane and leaves the other lanes untouched", async () => {
+    await runInRollback(async tx => {
+      const user = await createTestUser(tx);
+      const student = await createTestStudent(tx, user.id);
+
+      const credited = await StudentRepository.creditLaneBalance(student.id, SubscriptionCreditLane.Tajweed, 3, tx);
+      expect(credited?.balanceTajweed).toBe(3);
+      expect(credited?.balanceHifz).toBe(0);
+      expect(credited?.balanceReviews).toBe(0);
+    });
+  });
+
+  test("Tier 1 — credits the reviews lane (a lane the held-fee vocabulary never touches)", async () => {
+    await runInRollback(async tx => {
+      const user = await createTestUser(tx);
+      const student = await createTestStudent(tx, user.id);
+
+      const credited = await StudentRepository.creditLaneBalance(student.id, SubscriptionCreditLane.Reviews, 2, tx);
+      expect(credited?.balanceReviews).toBe(2);
+      expect(credited?.balanceHifz).toBe(0);
+      expect(credited?.balanceTajweed).toBe(0);
+    });
+  });
+
+  test("Tier 2 — default-executor (no tx) path credits the committed fixture", async () => {
+    const fixture = requireCommittedFixture();
+    // Standalone write against the global handle — committed for real, so
+    // the amount is chosen to assert cleanly against the fixture's zeroed
+    // lanes; the row itself is hard-deleted in the suite's afterAll.
+    const credited = await StudentRepository.creditLaneBalance(fixture.userId, SubscriptionCreditLane.Hifz, 7);
+    expect(credited).not.toBeNull();
+    if (credited) {
+      expect(credited.id).toBe(fixture.userId);
+      expect(credited.balanceHifz).toBe(7);
+      expect(credited.balanceTajweed).toBe(0);
+      expect(credited.balanceReviews).toBe(0);
+    }
+  });
+
+  test("Tier 3 — nonexistent student returns null on both executor paths", async () => {
+    await runInRollback(async tx => {
+      expect(
+        await StudentRepository.creditLaneBalance(NONEXISTENT_STUDENT_ID, SubscriptionCreditLane.Hifz, 5, tx)
+      ).toBeNull();
+    });
+    expect(
+      await StudentRepository.creditLaneBalance(NONEXISTENT_STUDENT_ID, SubscriptionCreditLane.Hifz, 5)
+    ).toBeNull();
+  });
+
+  test("Tier 4 — the balance CHECK floor stays intact on the credited lane", async () => {
+    await runInRollback(async tx => {
+      const user = await createTestUser(tx);
+      const student = await createTestStudent(tx, user.id, { balanceHifz: 2 });
+
+      // A CHECK violation aborts the surrounding transaction, so the probe
+      // runs inside its own savepoint and is rescued afterwards.
+      await tx.execute(sql`savepoint credit_floor_probe`);
+      const checkError = await expectRepoError(() =>
+        StudentRepository.creditLaneBalance(student.id, SubscriptionCreditLane.Hifz, -5, tx)
+      );
+      await tx.execute(sql`rollback to savepoint credit_floor_probe`);
+
+      // The DB-layer floor fired with the exact constraint — the repo's
+      // unguarded increment leans on it as the backstop.
+      expect(constraintNameOf(checkError)).toBe("students_balance_hifz_check");
+
+      // Post-rollback the row is intact and the transaction still usable.
+      expect((await StudentRepository.findById(student.id, tx))?.balanceHifz).toBe(2);
+    });
+  });
+
+  test("Tier 3 — crediting a NULL lane column keeps it NULL (inherited no-coalesce convention)", async () => {
+    await runInRollback(async tx => {
+      // Registration zeroes every lane, so a NULL lane only exists on
+      // legacy/degenerate rows. `incrementLane` (the sibling refund
+      // primitive) does not coalesce either — NULL arithmetic propagates
+      // and the `>= 0` CHECK evaluates unknown on NULL, so this credit is
+      // a no-op on the NULL lane rather than a silent seed from zero.
+      const user = await createTestUser(tx);
+      const student = await createTestStudent(tx, user.id, { balanceReviews: null });
+
+      const credited = await StudentRepository.creditLaneBalance(student.id, SubscriptionCreditLane.Reviews, 5, tx);
+      expect(credited).not.toBeNull();
+      expect(credited?.balanceReviews).toBeNull();
+      // The sibling lanes still move normally on the same row.
+      expect(credited?.balanceHifz).toBe(0);
+
+      expect((await StudentRepository.findById(student.id, tx))?.balanceReviews).toBeNull();
     });
   });
 });

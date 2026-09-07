@@ -1,5 +1,5 @@
 {
-  "manifestHash": "324015e4e3db6cca874c804ba7d8d204b63aad61b5d7f0a2437dcf89a50ef459",
+  "manifestHash": "baa730ac454aca9adaa730a789a009b2152fe78c86967ca2fe3907e2e49cf8a4",
   "manifest": [
     {
       "file": "2-functions.sql",
@@ -8,7 +8,15 @@
     {
       "file": "3-immutability-triggers.sql",
       "sha256": "692a81c6e4aebaa05bf681840a1d5d9c1a628bd5ef11900673cccc524daf42a5"
+    },
+    {
+      "file": "4-student-payments-status-transition.sql",
+      "sha256": "655b50809d74c08aa7c0d9cb8a599f775122ec6b47f32ceceab69b0926f8bafe"
     }
   ],
-  "appliedFolders": ["20260904084151_custom_2-functions", "20260904084152_custom_3-immutability-triggers"]
+  "appliedFolders": [
+    "20260904084151_custom_2-functions",
+    "20260904084152_custom_3-immutability-triggers",
+    "20260907182426_custom_4-student-payments-status-transition"
+  ]
 }

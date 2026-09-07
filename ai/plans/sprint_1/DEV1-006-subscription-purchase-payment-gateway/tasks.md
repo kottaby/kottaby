@@ -27,7 +27,7 @@
 
 ## Phase 0: Pre-Implementation Baseline (MANDATORY)
 
-- [ ] 0.1 Record baseline & initialize ledger
+- [x] 0.1 Record baseline & initialize ledger
   - Run `bun tsgo 2>&1 | grep "error TS" | wc -l`, `bun biome:check`, `bun run scripts/lint-service.ts --json --id baseline`; store counts.
   - Confirm `deferred-items.md` exists (authored at planning time, empty ledger).
   - Write `outcome/0.1-outcome.md` with counts + environment notes.
@@ -41,74 +41,74 @@
 
 ## Phase 2: Schema, Enums & Types (Foundation)
 
-- [ ] 2.1 Schema deltas + regeneration
+- [x] 2.1 Schema deltas + regeneration
   - EXTEND `backend/db/schema/enums.ts` (`subscriptionCreditLane`, `paymentGateway` + `"mock"`).
   - EXTEND `backend/db/schema/billing/plans.ts` (`balanceLane`, nullable).
   - CREATE `backend/db/schema/billing/subscription-purchase-idempotency.ts` + barrel re-export in `backend/db/schema/billing/index.ts`.
   - EXTEND `backend/db/schema/billing/subscriptions.ts` (partial unique index on `payment_reference`).
   - Apply via `bun run db` (push for schema; generate migration set); verify drift-free.
-  - [ ] 2.1.QL / 2.1.TE / 2.1.SEC / 2.1.SR / 2.1.IV (standard pipeline; TE = schema-shape compile + push verification)
+  - [x] 2.1.QL / 2.1.TE / 2.1.SEC / 2.1.SR / 2.1.IV (standard pipeline; TE = schema-shape compile + push verification)
   - _Requirements: REQ-003, REQ-005, REQ-030, REQ-033, REQ-034_
 
-- [ ] 2.2 Trigger amendment migration (INV-PAY2 reconciliation)
+- [x] 2.2 Trigger amendment migration (INV-PAY2 reconciliation)
   - CREATE `backend/db/migration/4-student-payments-status-transition.sql` and `…-sqlite.sql` mirroring the 3-immutability pairing; `CREATE OR REPLACE FUNCTION prevent_student_payments_update()` enforcing: allow iff `OLD.status='pending' AND NEW.status IN ('paid','failed')` AND `student_id, subscription_id, amount, currency, payment_gateway, created_at` all unchanged; else RAISE.
   - NO inline `--` comments inside `sql` templates rule N/A here (raw .sql files; keep statements migration-safe, idempotent `CREATE OR REPLACE`, no `CONCURRENTLY`).
-  - [ ] 2.2.QL / 2.2.TE / 2.2.SEC / 2.2.SR / 2.2.IV (TE here = wire the DB trigger test harness task 4.2 — the allowed/blocked matrix)
+  - [x] 2.2.QL / 2.2.TE / 2.2.SEC / 2.2.SR / 2.2.IV (TE here = wire the DB trigger test harness task 4.2 — the allowed/blocked matrix; PGlite probe verified full matrix, outcome/2.2-outcome.md)
   - _Requirements: REQ-027, REQ-030, REQ-031, REQ-052_
 
-- [ ] 2.3 Seed lane backfill
+- [x] 2.3 Seed lane backfill
   - EXTEND `backend/db/seeds/billing/seed-plans.ts` each plan entry with its lane (Hifz-family → `Hifz`, Tajweed → `Tajweed`, review-style plans → `Reviews`); verify seeds re-run idempotently.
-  - [ ] 2.3.QL / 2.3.TE / 2.3.SEC / 2.3.SR / 2.3.IV
+  - [x] 2.3.QL / 2.3.TE / 2.3.SEC / 2.3.SR / 2.3.IV (QL = sub-loop duplicates EXIT 0; TE = paired plan-seed.test.ts 1 pass/0 fail + live seed runs ×2 with backfill-path probe; outcome/2.3-outcome.md)
   - _Requirements: REQ-034, REQ-062_
 
-- [ ] 3.1 Billing types (new + extensions)
+- [x] 3.1 Billing types (new + extensions)
   - EXTEND `backend/types/billing/subscription.types.ts` (`SubscriptionReturnType`, `PurchaseSubscriptionInput`, `PurchaseSubscriptionReturnType`), `backend/types/billing/student-payment.types.ts` (`StudentPaymentReturnType`).
   - CREATE `backend/types/billing/subscription-purchase-idempotency.types.ts`.
   - CREATE `backend/types/billing/payment-gateway.types.ts` (`PaymentGatewayPort`, `PaymentCheckoutInput`, `PaymentCheckoutSession`, `PaymentWebhookEvent`).
   - Barrels only via `export *` (`backend/types/billing/index.ts`); NO service-layer type files anywhere.
-  - [ ] 3.1.QL / 3.1.TE / 3.1.SEC / 3.1.SR / 3.1.IV
+  - [x] 3.1.QL / 3.1.TE / 3.1.SEC / 3.1.SR / 3.1.IV (TE here = type-level compile verification: whole-repo tsgo green + probe-verified enum re-typing assignability semantics; outcome/3.1-outcome.md)
   - _Requirements: REQ-003, REQ-005, REQ-042, REQ-060_
 
-- [ ] 3.2 Enum layer
+- [x] 3.2 Enum layer
   - CREATE `backend/enum/billing/subscription-credit-lane.enum.ts` + barrel; EXTEND `backend/enum/billing/payment-gateway.enum.ts` (`Mock = "mock"`).
   - Value imports only in runtime use (REQ-005).
-  - [ ] 3.2.QL / 3.2.TE / 3.2.SEC / 3.2.SR / 3.2.IV
+  - [x] 3.2.QL / 3.2.TE / 3.2.SEC / 3.2.SR / 3.2.IV
   - _Requirements: REQ-005, REQ-034, REQ-061_
 
 ## Phase 3: Repositories (interleaved 100%-coverage tests)
 
-- [ ] 4.1 `SubscriptionRepository` (CREATE `backend/db/repo/billing/subscription.repository.ts` + barrel)
+- [x] 4.1 `SubscriptionRepository` (CREATE `backend/db/repo/billing/subscription.repository.ts` + barrel)
   - Methods per plan §4.1 (`insertSubscription`, `findById`, `findByPaymentReference`, `activatePendingOnce`, `listByUserId`); non-tx reads via `queryDb(tx)`; guarded update never SELECT-then-UPDATE.
-  - [ ] 4.1.QL · [ ] 4.1.TE — `backend/db/test/logic/billing/subscription.repository.test.ts` (runInRollback, tx everywhere, zero-row guarded path proven; 100% coverage per `backend/db/test/AGENTS.md` rule 14) · [ ] 4.1.SEC · [ ] 4.1.SR · [ ] 4.1.IV
+  - [x] 4.1.QL · [x] 4.1.TE — `backend/db/test/logic/billing/subscription.repository.test.ts` (runInRollback, tx everywhere, zero-row guarded path proven; 100% coverage per `backend/db/test/AGENTS.md` rule 14) · [x] 4.1.SEC · [x] 4.1.SR · [x] 4.1.IV
   - _Requirements: REQ-002, REQ-004, REQ-030, REQ-031, REQ-070_
 
-- [ ] 4.2 `StudentPaymentRepository` (CREATE `backend/db/repo/billing/student-payment.repository.ts` + barrel)
+- [x] 4.2 `StudentPaymentRepository` (CREATE `backend/db/repo/billing/student-payment.repository.ts` + barrel)
   - `insertPayment`, `findBySubscriptionId`, `markPaidOnce`, `markFailedOnce` (guarded `status='pending'` predicate; relies on amended trigger).
-  - [ ] 4.2.QL · [ ] 4.2.TE — `backend/db/test/logic/billing/student-payment.repository.test.ts` INCLUDING the trigger matrix: `pending→paid` ✅, `pending→failed` ✅, `paid→anything` ❌, amount tamper ❌, DELETE ❌ (single violated expectation = trigger raised, verified via try/catch — never `rejects` in rollback)  · [ ] 4.2.SEC · [ ] 4.2.SR · [ ] 4.2.IV
+  - [x] 4.2.QL · [x] 4.2.TE — `backend/db/test/logic/billing/student-payment.repository.test.ts` INCLUDING the trigger matrix: `pending→paid` ✅, `pending→failed` ✅, `paid→anything` ❌, amount tamper ❌, DELETE ❌ (single violated expectation = trigger raised, verified via try/catch — never `rejects` in rollback)  · [x] 4.2.SEC · [x] 4.2.SR · [x] 4.2.IV
   - _Requirements: REQ-004, REQ-027, REQ-030, REQ-031, REQ-052, REQ-070_
 
-- [ ] 4.3 `SubscriptionPurchaseIdempotencyRepository` (CREATE `…/subscription-purchase-idempotency.repository.ts` + barrel)
+- [x] 4.3 `SubscriptionPurchaseIdempotencyRepository` (CREATE `…/subscription-purchase-idempotency.repository.ts` + barrel)
   - `insertClaim` / `findByKey` / `updateClaimSubscriptionId` mirroring `SessionRequestIdempotencyRepository` (`insertClaim` lets 23505 escape).
-  - [ ] 4.3.QL · [ ] 4.3.TE — `backend/db/test/logic/billing/subscription-purchase-idempotency.repository.test.ts` (claim insert, duplicate-23505, update link, read)  · [ ] 4.3.SEC · [ ] 4.3.SR · [ ] 4.3.IV
+  - [x] 4.3.QL · [x] 4.3.TE — `backend/db/test/logic/billing/subscription-purchase-idempotency.repository.test.ts` (claim insert, duplicate-23505, update link, read)  · [x] 4.3.SEC · [x] 4.3.SR · [x] 4.3.IV
   - _Requirements: REQ-004, REQ-014, REQ-030, REQ-070_
 
-- [ ] 4.4 Repo extensions: `PlanRepository.findActiveById` + `StudentRepository.creditLaneBalance`
+- [x] 4.4 Repo extensions: `PlanRepository.findActiveById` + `StudentRepository.creditLaneBalance`
   - EXTEND `backend/db/repo/billing/plan.repository.ts` (active-only read predicate — DEV1-005 REQ-044 fulfillment); EXTEND `backend/db/repo/students/student.repository.ts` with `creditLaneBalance` (frozen `CREDIT_LANE_BALANCE_COLUMNS` map: Hifz→`balanceHifz`, Tajweed→`balanceTajweed`, Reviews→`balanceReviews`; do NOT touch `LANE_BALANCE_COLUMNS`).
-  - [ ] 4.4.QL · [ ] 4.4.TE — extend existing suites (`backend/db/test/logic/billing/plan-catalog.repository.test.ts` for the plan predicate; the students test suite for the credit method; lane credit proves +N mutation + CHECK floor intact + unchanged-other-lanes) · [ ] 4.4.SEC · [ ] 4.4.SR · [ ] 4.4.IV
+  - [x] 4.4.QL · [x] 4.4.TE — extend existing suites (`backend/db/test/logic/billing/plan-catalog.repository.test.ts` for the plan predicate; the students test suite for the credit method; lane credit proves +N mutation + CHECK floor intact + unchanged-other-lanes) · [x] 4.4.SEC · [x] 4.4.SR · [x] 4.4.IV
   - _Requirements: REQ-004, REQ-011, REQ-032, REQ-070_
 
 ## Phase 4: Payment Gateway Port (mock provider)
 
-- [ ] 5.1 Port runtime + factory + env keys
+- [x] 5.1 Port runtime + factory + env keys
   - CREATE `backend/services/billing/payment-gateway/payment-gateway.factory.ts` (lazy singleton keyed on `resolveEnvConfig("PAYMENT_GATEWAY_PROVIDER")`, default `"mock"`, `resetPaymentGateway()` clearing ALL resolved keys) + `mock-payment-gateway.adapter.ts` (deterministic `mock_<uuid>` references, `checkoutUrl: null`, `parseWebhookEvent(rawBody)`).
   - Register `PAYMENT_GATEWAY_PROVIDER`, `PAYMENT_WEBHOOK_SECRET`, `PAYMENT_WEBHOOK_ENABLED` in the env registry (`backend/lib/env.ts`).
   - Adapter throws NOTHING on checkout in mock mode; unknown provider key → fail-closed localized `DomainError`.
-  - [ ] 5.1.QL · [ ] 5.1.TE — provider swap, unknown provider, env defaulting, adapter determinism, `resetPaymentGateway` completeness · [ ] 5.1.SEC · [ ] 5.1.SR · [ ] 5.1.IV
+  - [x] 5.1.QL · [x] 5.1.TE — provider swap, unknown provider, env defaulting, adapter determinism, `resetPaymentGateway` completeness · [x] 5.1.SEC · [x] 5.1.SR · [x] 5.1.IV
   - _Requirements: REQ-002, REQ-004, REQ-016, REQ-034, REQ-045_
 
-- [ ] 5.2 Signature verification helper
+- [x] 5.2 Signature verification helper
   - CREATE `backend/services/billing/payment-gateway/webhook-signature.helpers.ts`: `verifyWebhookSignature(rawBody, signatureHeader, secret): boolean` — HMAC-SHA256 hex compare through the digest/timingSafeEqual idiom (copy `bearerSecretMatches` at `app/api/cron/sweep-sessions/route.ts:66-73` shape). Empty/missing signature/missing secret ⇒ false (fail-closed, never throw).
-  - [ ] 5.2.QL · [ ] 5.2.TE — boundary (empty body, 64_000-byte body, wrong-length signature, binary-safe body) + fuzz wrong secrets · [ ] 5.2.SEC — forged signature probe · [ ] 5.2.SR · [ ] 5.2.IV
+  - [x] 5.2.QL · [x] 5.2.TE — boundary (empty body, 64_000-byte body, wrong-length signature, binary-safe body) + fuzz wrong secrets · [x] 5.2.SEC — forged signature probe · [x] 5.2.SR · [x] 5.2.IV
   - _Requirements: REQ-002, REQ-004, REQ-021, REQ-043, REQ-044, REQ-072_
 
 ## Phase 5: Purchase Service

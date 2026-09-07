@@ -42,6 +42,22 @@ function isPgErrorWithCode(error: unknown, code: string): boolean {
   return false;
 }
 
+/**
+ * Maps PostgreSQL violations from plan writes onto their canonical domain
+ * errors: uniqueness conflicts become `ConflictError`, check-constraint
+ * failures become `ValidationError`. Any other failure is returned untouched
+ * so the caller rethrows it verbatim.
+ */
+function toPlanWriteDomainError(error: unknown, tErrors: ErrorsLabels): unknown {
+  if (isPgErrorWithCode(error, "23505")) {
+    return new ConflictError(tErrors.conflict, { cause: error });
+  }
+  if (isPgErrorWithCode(error, "23514")) {
+    return new ValidationError("VALIDATION", tErrors.validation, { cause: error });
+  }
+  return error;
+}
+
 function validateTitleField(
   title: string | undefined,
   tErrors: ErrorsLabels
@@ -197,6 +213,7 @@ function validateAndExtractPlanPatch(patch: PlanUpdateInput, tErrors: ErrorsLabe
     ...(priceResult.value !== undefined && { price: priceResult.value }),
     ...(currencyResult.value !== undefined && { currency: currencyResult.value }),
     ...(intervalResult.value !== undefined && { intervalDays: intervalResult.value }),
+    ...(patch.balanceLane !== undefined && { balanceLane: patch.balanceLane }),
   };
 
   return { updatePatch, fields };
@@ -240,6 +257,7 @@ export namespace PlanCatalogService {
       price: input.price.trim(),
       currency: input.currency.trim().toUpperCase(),
       intervalDays: input.intervalDays,
+      balanceLane: input.balanceLane ?? null,
     };
 
     try {
@@ -248,13 +266,7 @@ export namespace PlanCatalogService {
       logger.info("Plan created successfully", { planId: created.id });
       return created;
     } catch (error: unknown) {
-      if (isPgErrorWithCode(error, "23505")) {
-        throw new ConflictError(tErrors.conflict, { cause: error });
-      }
-      if (isPgErrorWithCode(error, "23514")) {
-        throw new ValidationError("VALIDATION", tErrors.validation, { cause: error });
-      }
-      throw error;
+      throw toPlanWriteDomainError(error, tErrors);
     }
   }
 
@@ -298,13 +310,7 @@ export namespace PlanCatalogService {
       logger.info("Plan updated successfully", { planId: id });
       return updated;
     } catch (error: unknown) {
-      if (isPgErrorWithCode(error, "23505")) {
-        throw new ConflictError(tErrors.conflict, { cause: error });
-      }
-      if (isPgErrorWithCode(error, "23514")) {
-        throw new ValidationError("VALIDATION", tErrors.validation, { cause: error });
-      }
-      throw error;
+      throw toPlanWriteDomainError(error, tErrors);
     }
   }
 
