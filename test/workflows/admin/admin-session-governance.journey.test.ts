@@ -47,13 +47,13 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/backend/db";
 import { auditLogs } from "@/backend/db/schema/audit/audit-logs";
-import { createTestUser } from "@/backend/db/test/entity-setup";
 import { session } from "@/backend/db/schema/classes/session";
 import { sessionRequestIdempotency } from "@/backend/db/schema/classes/session-request-idempotency";
 import { notifications } from "@/backend/db/schema/notifications";
 import { students } from "@/backend/db/schema/students/students";
 import { teacher } from "@/backend/db/schema/teachers/teacher";
 import { users } from "@/backend/db/schema/users/users";
+import { createTestUser } from "@/backend/db/test/entity-setup";
 import { AuditActionType } from "@/backend/enum/audit/audit-action-type.enum";
 import { NotificationType } from "@/backend/enum/notifications/notification-type.enum";
 import { DisputeResolution } from "@/backend/enum/scheduling/dispute-resolution.enum";
@@ -81,8 +81,8 @@ import {
   countNotificationsForUser,
   createSessionFixtureRegistry,
   journeyPrefix,
-  SpiedFanoutTransport,
   type SessionJourneyCast,
+  SpiedFanoutTransport,
 } from "@/test/workflows/helpers";
 
 /**
@@ -358,8 +358,14 @@ beforeAll(async () => {
       primaryStudent: { trial: 3 },
     });
 
-    const unapprovedUser = await createTestUser(tx, { role: "teacher", fullName: `${JOURNEY_PREFIX} unapproved teacher` });
-    const [unapprovedTeacher] = await tx.insert(teacher).values({ id: unapprovedUser.id, isApproved: false }).returning();
+    const unapprovedUser = await createTestUser(tx, {
+      role: "teacher",
+      fullName: `${JOURNEY_PREFIX} unapproved teacher`,
+    });
+    const [unapprovedTeacher] = await tx
+      .insert(teacher)
+      .values({ id: unapprovedUser.id, isApproved: false })
+      .returning();
     if (!unapprovedTeacher) {
       throw new Error("journey: unapproved teacher row insert returned no rows");
     }
@@ -1011,7 +1017,9 @@ describe("Journey W-4 — the role-denial matrix: every persisted non-admin role
         error: await expectJourneyError(() => operation.call(0)),
       }))
     );
-    expect(denials.map(entry => entry.operation)).toEqual(GOVERNANCE_OPERATIONS.slice(1).map(operation => operation.name));
+    expect(denials.map(entry => entry.operation)).toEqual(
+      GOVERNANCE_OPERATIONS.slice(1).map(operation => operation.name)
+    );
     for (const { error } of denials) {
       expectDenialByteIdentical(error, reference);
     }
