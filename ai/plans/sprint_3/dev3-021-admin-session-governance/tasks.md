@@ -9,33 +9,33 @@
 
 ## Phase 0 — Pre-Implementation Baseline
 
-- [ ] 0.1 Record baseline counts (tsgo/biome/lint/duplicates) in `outcome/0.1-baseline-outcome.md`
-- [ ] 0.2 Initialize `deferred-items.md` from template + register known forward-owed items (D-01..D-05)
-- [ ] 0.3 Verify-then-claim sweep with `path:line` anchors for every reuse target listed in REQ-002 (write table in `outcome/0.2-prerequisites.md`); MISSING ⇒ ❌-defer + stop affected tasks — never patch foreign layers
-- [ ] 0.4 Plan-review gate — run `.agents/skills/plan-review` logic over specs+plan; findings resolved → re-run until clean; record `outcome/0.3-plan-review-outcome.md`
+- [x] 0.1 Record baseline counts (tsgo/biome/lint/duplicates) in `outcome/0.1-baseline-outcome.md`
+- [x] 0.2 Initialize `deferred-items.md` from template + register known forward-owed items (D-01..D-05)
+- [x] 0.3 Verify-then-claim sweep with `path:line` anchors for every reuse target listed in REQ-002 (write table in `outcome/0.2-prerequisites.md`); MISSING ⇒ ❌-defer + stop affected tasks — never patch foreign layers
+- [x] 0.4 Plan-review gate — run `.agents/skills/plan-review` logic over specs+plan; findings resolved → re-run until clean; record `outcome/0.3-plan-review-outcome.md`
 
 ---
 
 ## Phase 1 — Types & i18n Substrate
 
-- [ ] 1.1 **CREATE `backend/types/classes/admin-session-governance.types.ts`** — inputs + `AdminSessionRowReturnType`; export from `backend/types/classes/index.ts` (REQ-004, REQ-010..REQ-029)
-  - [ ] 1.1.QL sub-loop duplicates → 0
-  - [ ] 1.1.TE Type-shape unit test: file-level compile assertions + zod schema round-trips (`backend/types/classes/admin-session-governance.types.test.ts`)
-  - [ ] 1.1.SEC Confirm fields are UI-safe (no secrets)
-  - [ ] 1.1.SR No other `.types.ts` introduced; canonical-only
-  - [ ] 1.1.IV `.agents/instructions/backend.instructions.md`
-- [ ] 1.2 **Zod input schemas + errors extension** — extend `shared/locale/{types,en,ar}/errors` with `session` namespace entries consumed by services (REQ-002, REQ-050, REQ-051)
-  - [ ] 1.2.QL / 1.2.TE (parity test routes through existing en↔ar key-parity harness) / 1.2.SEC / 1.2.SR / 1.2.IV
-- [ ] 1.3 **Codes registration** — append `SESSION_INVALID_TRANSITION` usages to centralized code list if needed by error contract util (verify `docs/graphql/error-handling-contract.md` first — record in 1.3.OUT whether the code already exists)
+- [x] 1.1 **CREATE `backend/types/classes/admin-session-governance.types.ts`** — inputs + `AdminSessionRowReturnType`; export from `backend/types/classes/index.ts` (REQ-004, REQ-010..REQ-029)
+  - [x] 1.1.QL sub-loop duplicates → 0
+  - [x] 1.1.TE Type-shape unit test: file-level compile assertions + zod schema round-trips (`backend/types/classes/admin-session-governance.types.test.ts`)
+  - [x] 1.1.SEC Confirm fields are UI-safe (no secrets)
+  - [x] 1.1.SR No other `.types.ts` introduced; canonical-only
+  - [x] 1.1.IV `.agents/instructions/backend.instructions.md`
+- [x] 1.2 **Zod input schemas + errors extension** — extend `shared/locale/{types,en,ar}/errors` with `session` namespace entries consumed by services (REQ-002, REQ-050, REQ-051)
+  - [x] 1.2.QL / 1.2.TE (parity test routes through existing en↔ar key-parity harness) / 1.2.SEC / 1.2.SR / 1.2.IV
+- [x] 1.3 **Codes registration** — append `SESSION_INVALID_TRANSITION` usages to centralized code list if needed by error contract util (verify `docs/graphql/error-handling-contract.md` first — record in 1.3.OUT whether the code already exists)
 
 ---
 
 ## Phase 2 — Repository
 
-- [ ] 2.1 **CREATE methods on SessionRepository** (`backend/db/repo/classes/session.repository.ts`): `listForAdmin`, `getAnyByIdForAdmin`, `guardReschedule`, `guardCancelPreTerminal`, `guardReassignTeacher` (REQ-010, REQ-012, REQ-020..025, REQ-040/041/042)
-  - [ ] 2.1.QL / 2.1.TE / 2.1.SEC (BOPLA-whitelist audit) / 2.1.SR (no N+1) / 2.1.IV
-  - [ ] 2.1.TE writes `backend/db/test/repo/session-repository.admin.test.ts` — 100% branch over guards; uses `runInRollback`, `tx` everywhere (Tier-1/2/3)
-- [ ] 2.2 **Create helper `assertCertifiedTeacher`** in TeacherRepository surface IF missing (ticket-scoped; else reuse) — outcome records decision (REQ-024)
+- [x] 2.1 **CREATE methods on SessionRepository** (`backend/db/repo/classes/session.repository.ts`): `listForAdmin`, `getAnyByIdForAdmin`, `guardReschedule`, `guardCancelPreTerminal`, `guardReassignTeacher` (REQ-010, REQ-012, REQ-020..025, REQ-040/041/042)
+  - [x] 2.1.QL / 2.1.TE / 2.1.SEC (BOPLA-whitelist audit) / 2.1.SR (no N+1) / 2.1.IV
+  - [x] 2.1.TE writes `backend/db/test/repo/session-repository.admin.test.ts` — 100% branch over guards; uses `runInRollback`, `tx` everywhere (Tier-1/2/3)
+- [x] 2.2 **Create helper `assertCertifiedTeacher`** in TeacherRepository surface IF missing (ticket-scoped; else reuse) — outcome records decision (REQ-024)
 
 ---
 
@@ -51,13 +51,13 @@
 
 ## Phase 4 — GraphQL
 
-- [ ] 4.1 **CREATE** `backend/graphql/pothos/classes/session-filter-input.pothos.ts` addition: `AdminSessionListFilterPothosInput` (REQ-061)
+- [x] 4.1 **CREATE** `backend/graphql/pothos/classes/session-filter-input.pothos.ts` addition: `AdminSessionListFilterPothosInput` (REQ-061)
   - subtasks 4.1.QL / 4.1.TE / 4.1.SEC / 4.1.SR / 4.1.IV
-- [ ] 4.2 **CREATE** `backend/graphql/query/classes/admin-session-governance.query.ts` — `adminSessions`, `adminSession` (REQ-010..012, REQ-030, REQ-060)
+- [x] 4.2 **CREATE** `backend/graphql/query/classes/admin-session-governance.query.ts` — `adminSessions`, `adminSession` (REQ-010..012, REQ-030, REQ-060)
   - subtasks as above; register in `backend/graphql/query/classes/index.ts` barrel
-- [ ] 4.3 **CREATE** `backend/graphql/mutation/classes/admin-session-governance.mutation.ts` — 4 mutations (REQ-020..027, REQ-030, REQ-060); register barrel
+- [x] 4.3 **CREATE** `backend/graphql/mutation/classes/admin-session-governance.mutation.ts` — 4 mutations (REQ-020..027, REQ-030, REQ-060); register barrel
   - subtasks as above; Tier-3 idempotency retries; Tier-4 401/403 byte-identical
-- [ ] 4.4 **Codegen** — `bun run generate:gqlSchema && bun codegen` (REQ-060); verify generated TS types include new ops
+- [x] 4.4 **Codegen** — `bun run generate:gqlSchema && bun codegen` (REQ-060); verify generated TS types include new ops
 
 ---
 

@@ -1,3 +1,4 @@
+export * from "./admin-session-governance.types";
 export * from "./report.types";
 export * from "./session.types";
 export * from "./session-notification.types";

@@ -192,6 +192,30 @@ export const SessionPothosObject = gqlSchemaBuilder.objectRef<SessionReturnType>
     disputedAt: t.expose("disputedAt", { type: "DateTime", nullable: true }),
     resolutionNote: t.exposeString("resolutionNote", { nullable: true }),
     resolvedAt: t.expose("resolvedAt", { type: "DateTime", nullable: true }),
+    // Server-derived admin attention badge — computed by the admin
+    // directory read per row (a disputed row, or a scheduled row whose
+    // confirmation deadline has lapsed) and carried on that read's row
+    // projection. Producers that return plain session rows (the
+    // participant reads and every mutation) never populate the projection,
+    // so the field resolves to `false` there; a viewer who can see a row
+    // can already derive the same boolean from the exposed
+    // `status`/`confirmationDeadline` fields, so nothing new is disclosed.
+    // Non-nullable `Boolean!` mirroring the `feeHeld` governance-boolean
+    // precedent (absent projection member → false); the badge is
+    // presentation-only styling input and never an authorization signal —
+    // this module surfaces the value, it never recomputes it.
+    needsAttention: t.boolean({
+      resolve: parent => {
+        // The admin directory's row projection is the ONLY producer that
+        // carries the badge member; the structural probe keeps every other
+        // producer cast-free and absent→false.
+        if (!("needsAttention" in parent)) {
+          return false;
+        }
+        const badge: unknown = parent.needsAttention;
+        return typeof badge === "boolean" ? badge : false;
+      },
+    }),
     // Row timestamps — NOT NULL columns, non-nullable `DateTime!`.
     createdAt: t.expose("createdAt", { type: "DateTime" }),
     updatedAt: t.expose("updatedAt", { type: "DateTime" }),

@@ -39,206 +39,56 @@
  *    for a rolled-back emit; on the caller-transaction test path the
  *    publish step is skipped because the caller owns the commit).
  *
+ * File layout: the flow internals live in a sibling module extracted
+ * verbatim (behavior-identical max-lines refactor) —
+ * `session-admin-governance.helpers.ts` holds the shared denial
+ * classifiers, the audit contract composer, the cancel-reason normalizer,
+ * the idempotent-cancel replay machinery, and the three mutation
+ * transaction bodies. Every public method below is the same flow in the
+ * same order — each owns its boundary validation ordering, the BFLA gate,
+ * and the `withTransaction` composition, delegating only the transaction
+ * bodies and shared pre-DB checks to the sibling. The public API (names,
+ * signatures, behavior) is unchanged.
+ *
  * No module-level mutable state; no swallowed catches; no hardcoded
  * strings.
  */
 
-import {
-  SessionRepository,
-  SessionRequestIdempotencyRepository,
-  TeacherRepository,
-} from "@/backend/db/repo";
-import { AuditActionType } from "@/backend/enum/audit/audit-action-type.enum";
-import { SessionStatus } from "@/backend/enum/scheduling/session-status.enum";
+import { SessionRepository } from "@/backend/db/repo";
 import { withTransaction } from "@/backend/lib/db/with-transaction";
-import { ConflictError, NotFoundError, ValidationError } from "@/backend/lib/errors";
+import { ValidationError } from "@/backend/lib/errors";
 import { logger } from "@/backend/lib/logger";
 import { assertActorAdmin } from "@/backend/services/admin/admin-gate.helpers";
-import { AuditService } from "@/backend/services/admin/audit.service";
-import { SessionRequestNotificationService } from "@/backend/services/classes/session-request-notification.service";
 import {
-  isClaimKeyUniqueViolation,
-  MAX_IDEMPOTENCY_KEY_LENGTH,
-  normalizePageBounds,
-} from "@/backend/services/classes/session-lifecycle.guards";
-import { refundHeldLaneToProvenance } from "@/backend/services/classes/session-lifecycle.transitions";
+  cancelSessionInTx,
+  joinObservationInTx,
+  normalizeAdminCancelReason,
+  RESCHEDULE_START_PAST_GRACE_MS,
+  reassignTeacherInTx,
+  rejectSessionNotFound,
+  rejectStateConflict,
+  rescheduleSessionInTx,
+  SESSION_STARTED_STATUS,
+} from "@/backend/services/classes/session-admin-governance.helpers";
+import { MAX_IDEMPOTENCY_KEY_LENGTH, normalizePageBounds } from "@/backend/services/classes/session-lifecycle.guards";
 import { NotificationEngine, type NotificationEngineCallOptions } from "@/backend/services/notifications";
-import type {
-  AdminSessionCancelInput,
-  AdminSessionDetail,
-  AdminSessionJoinInput,
-  AdminSessionListFilterInput,
-  AdminSessionReassignInput,
-  AdminSessionRescheduleInput,
-  AdminSessionRowReturnType,
-  AuditLogWriteContract,
-  DBTransaction,
-  SessionRequestIdempotencySelectType,
-  SessionReturnType,
-} from "@/backend/types";
 import {
+  type AdminSessionCancelInput,
   AdminSessionCancelInputSchema,
+  type AdminSessionDetail,
+  type AdminSessionJoinInput,
   AdminSessionJoinInputSchema,
+  type AdminSessionListFilterInput,
   AdminSessionListFilterInputSchema,
+  type AdminSessionReassignInput,
   AdminSessionReassignInputSchema,
+  type AdminSessionRescheduleInput,
   AdminSessionRescheduleInputSchema,
+  type AdminSessionRowReturnType,
+  type DBTransaction,
+  type SessionReturnType,
 } from "@/backend/types";
 import { getServerTranslations } from "@/shared/locale/server-graphql";
-
-/** The errors-namespace slice, typed once for this module's denial classifiers. */
-type ErrorsTranslations = ReturnType<typeof getServerTranslations>["errorsTranslations"];
-
-/** The audit row's entity label for this surface (the short lowercase entity label). */
-const SESSION_ENTITY_TYPE = "session";
-
-/**
- * How far into the past a replacement start instant may still sit: a start
- * older than one grace window before the captured instant is rejected
- * before any database work. The constant is a public validation rule — it
- * lives here, never in the error copy.
- */
-const RESCHEDULE_START_PAST_GRACE_MS = 5 * 60 * 1000;
-
-/**
- * The lifecycle statuses, widened to plain strings: the probe row's and the
- * browse read's `status` is the raw pg-enum string union, so the replay and
- * eligibility comparisons need the enum members' string identity without a
- * runtime conversion — the vocabulary still flows from the enum, never from
- * a bare literal (mirrors the lifecycle guards' widenings).
- */
-const SESSION_STARTED_STATUS: string = SessionStatus.Started;
-const SESSION_CANCELLED_STATUS: string = SessionStatus.Cancelled;
-
-/**
- * Oracle-safe not-found denial: the unknown-id arm of a zero-row guarded
- * mutation (the admin surface is role-gated upstream, never
- * participant-gated, so there is no foreign-caller arm to fold in here).
- */
-function rejectSessionNotFound(denial: string, sessionId: number, t: ErrorsTranslations): never {
-  logger.logDomainError(denial, {
-    code: "SESSION_NOT_FOUND",
-    entity: "session",
-    entityId: sessionId,
-  });
-  throw new NotFoundError("SESSION", t.sessionNotFound);
-}
-
-/** Lifecycle-state conflict denial: the row exists but missed the guarded predicate. */
-function rejectStateConflict(denial: string, sessionId: number, t: ErrorsTranslations): never {
-  logger.logDomainError(denial, {
-    code: "SESSION_INVALID_TRANSITION",
-    entity: "session",
-    entityId: sessionId,
-  });
-  throw new ConflictError("SESSION_INVALID_TRANSITION", t.sessionInvalidTransition);
-}
-
-/**
- * Classifies a zero-row guarded miss on this surface by ONE cold probe
- * read: an unknown id is the localized not-found denial, every other miss
- * cause (a terminal row, a disputed row owned by the arbitration surface,
- * or a row mid-transition at the guarded statement's instant) is the
- * localized state conflict.
- */
-async function rejectAdminTransitionMiss(
-  denial: string,
-  sessionId: number,
-  tx: DBTransaction,
-  t: ErrorsTranslations
-): Promise<never> {
-  const probe = await SessionRepository.findTransitionProbe(sessionId, tx);
-  if (probe === null) {
-    return rejectSessionNotFound(denial, sessionId, t);
-  }
-  return rejectStateConflict(denial, sessionId, t);
-}
-
-/**
- * Composes the append-only audit contract for one governance mutation: the
- * actor is the verified admin id (never an input), the action is the
- * override vocabulary, and `details` carries field NAMES + timing/teacher
- * metadata + the admin-supplied cancel reason (length-capped upstream) —
- * never credentials, never participant contact data. The audit writer
- * defensively truncates the serialized payload to the column ceiling.
- */
-function buildGovernanceAuditContract(
-  actorId: number,
-  entityId: number,
-  details: Record<string, unknown>
-): AuditLogWriteContract {
-  return {
-    actorId,
-    actionType: AuditActionType.Override,
-    entityType: SESSION_ENTITY_TYPE,
-    entityId,
-    details: JSON.stringify(details),
-  };
-}
-
-/**
- * Normalizes the optional admin cancel reason: trimmed, a whitespace-only
- * value collapses to no reason at all, and the length ceiling is already
- * enforced at the boundary schema (a longer payload never reaches this
- * module). The trimmed value is the only form persisted into audit
- * metadata.
- */
-function normalizeAdminCancelReason(reason: string | null | undefined): string | null {
-  const trimmed = reason === null || reason === undefined ? null : reason.trim();
-  return trimmed !== null && trimmed.length > 0 ? trimmed : null;
-}
-
-/**
- * Resolves the idempotent replay of an admin cancel, or classifies the
- * conflict. A claim spent by a DIFFERENT caller is denied with the
- * oracle-safe session-not-found error — another caller's claim is never
- * surfaced. A claim spent on a DIFFERENT session is the state conflict.
- * The idempotent replay shape: the row is already cancelled AND the
- * caller's claim exists → the CURRENT row is returned untouched (zero new
- * writes — no duplicate audit row, no second refund). A vanished claim is
- * fail-closed (no claim, no replay arm). Anything else is the conflict.
- */
-async function replayAdminCancelOrConflict(
-  actorId: number,
-  sessionId: number,
-  idempotencyKey: string,
-  tx: DBTransaction,
-  t: ErrorsTranslations
-): Promise<SessionReturnType> {
-  const claim = await SessionRequestIdempotencyRepository.findByKey(idempotencyKey, tx);
-  if (claim !== null && claim.userId !== actorId) {
-    return rejectSessionNotFound("Admin session cancel replay denied: key claimed by another caller", sessionId, t);
-  }
-  if (claim !== null && claim.sessionId !== null && claim.sessionId !== sessionId) {
-    return rejectStateConflict("Admin session cancel replay denied: key spent on a different session", sessionId, t);
-  }
-  return resolveCancelledReplayOrConflict(sessionId, claim !== null, tx, t);
-}
-
-/**
- * The cancel's zero-row miss classification: a row that is ALREADY
- * cancelled while the caller's claim exists is the honest idempotent
- * replay (the requested state is already achieved — the current row is
- * returned with zero new writes); an unknown id is the not-found denial;
- * every other miss cause is the state conflict.
- */
-async function resolveCancelledReplayOrConflict(
-  sessionId: number,
-  claimExists: boolean,
-  tx: DBTransaction,
-  t: ErrorsTranslations
-): Promise<SessionReturnType> {
-  const probe = await SessionRepository.findTransitionProbe(sessionId, tx);
-  if (probe === null) {
-    return rejectSessionNotFound("Admin session cancel denied: session not found", sessionId, t);
-  }
-  if (probe.status === SESSION_CANCELLED_STATUS && claimExists) {
-    const current = await SessionRepository.getAnyByIdForAdmin(sessionId, tx);
-    if (current !== null) {
-      return current;
-    }
-  }
-  return rejectStateConflict("Admin session cancel denied: session not cancellable in its current state", sessionId, t);
-}
 
 export namespace SessionAdminGovernanceService {
   /**
@@ -340,13 +190,14 @@ export namespace SessionAdminGovernanceService {
    * denial), and the replacement start may not sit further than one grace
    * window into the past relative to the captured instant.
    *
-   * Inside ONE transaction: the pre-write row read captures the timing
-   * the audit metadata reports as the "from" values (and classifies an
-   * unknown id), the guarded UPDATE re-asserts the state eligibility
-   * atomically (a zero-row miss is classified by the cold probe), the
-   * single audit row is appended on the same transaction, and the
-   * reschedule wave persists as unpublished delivery receipts for both
-   * participants — published strictly after this call's own commit.
+   * Inside ONE transaction (the extracted `rescheduleSessionInTx` body):
+   * the pre-write row read captures the timing the audit metadata reports
+   * as the "from" values (and classifies an unknown id), the guarded
+   * UPDATE re-asserts the state eligibility atomically (a zero-row miss is
+   * classified by the cold probe), the single audit row is appended on the
+   * same transaction, and the reschedule wave persists as unpublished
+   * delivery receipts for both participants — published strictly after
+   * this call's own commit.
    *
    * @param actorId  The acting admin's id.
    * @param input  The target session id and the replacement timing pair.
@@ -396,48 +247,9 @@ export namespace SessionAdminGovernanceService {
       throw new ValidationError("SESSION_RESCHEDULE_START_IN_PAST", t.sessionRescheduleStartInPast);
     }
 
-    const outcome = await withTransaction(outerTx, async tx => {
-      // The pre-write read is classification + audit-metadata only — it
-      // never gates the write (the guarded UPDATE's eligibility clause is
-      // the atomic gate). It captures the timing pair the audit row
-      // reports as the "from" values.
-      const current = await SessionRepository.getAnyByIdForAdmin(parsed.data.sessionId, tx);
-      if (current === null) {
-        return rejectSessionNotFound("Admin reschedule denied: session not found", parsed.data.sessionId, t);
-      }
-
-      const updated = await SessionRepository.guardReschedule(
-        parsed.data.sessionId,
-        parsed.data.startedAt,
-        parsed.data.endedAt,
-        tx
-      );
-      if (updated === null) {
-        return rejectAdminTransitionMiss(
-          "Admin reschedule denied: session not reschedulable in its current state",
-          parsed.data.sessionId,
-          tx,
-          t
-        );
-      }
-
-      await AuditService.createAuditLog(
-        buildGovernanceAuditContract(actorId, parsed.data.sessionId, {
-          action: "reschedule",
-          from: { startedAt: current.startedAt, endedAt: current.endedAt },
-          to: { startedAt: parsed.data.startedAt, endedAt: parsed.data.endedAt },
-        }),
-        tx
-      );
-
-      const receipts = await SessionRequestNotificationService.notifySessionGovernanceRescheduled(
-        parsed.data.sessionId,
-        locale,
-        tx,
-        options
-      );
-      return { session: updated, receipts };
-    });
+    const outcome = await withTransaction(outerTx, tx =>
+      rescheduleSessionInTx(actorId, parsed.data, locale, tx, t, options)
+    );
 
     // Publish AFTER commit — and only when THIS call owns the commit (on
     // the caller-transaction path the caller publishes).
@@ -462,18 +274,18 @@ export namespace SessionAdminGovernanceService {
    * session-not-found error; a key spent on a DIFFERENT session is the
    * state conflict.
    *
-   * Inside ONE transaction: the guarded cancel UPDATE re-asserts the
-   * eligibility atomically (a row taken out of the eligible set —
-   * including a disputed row, which belongs to the arbitration surface —
-   * yields the zero-row miss whose classification may resolve the
-   * idempotent replay when the row is already cancelled and the caller's
-   * claim exists), the released hold is refunded through the ONE shared
-   * same-lane primitive on the returned row (a row with no recorded lane
-   * refunds nothing), exactly ONE audit row is appended (the admin reason
-   * trimmed inside its metadata), the claim's session pointer is
-   * backfilled, and the cancellation wave persists as unpublished
-   * delivery receipts for both participants — published strictly after
-   * this call's own commit.
+   * Inside ONE transaction (the extracted `cancelSessionInTx` body): the
+   * guarded cancel UPDATE re-asserts the eligibility atomically (a row
+   * taken out of the eligible set — including a disputed row, which
+   * belongs to the arbitration surface — yields the zero-row miss whose
+   * classification may resolve the idempotent replay when the row is
+   * already cancelled and the caller's claim exists), the released hold is
+   * refunded through the ONE shared same-lane primitive on the returned
+   * row (a row with no recorded lane refunds nothing), exactly ONE audit
+   * row is appended (the admin reason trimmed inside its metadata), the
+   * claim's session pointer is backfilled, and the cancellation wave
+   * persists as unpublished delivery receipts for both participants —
+   * published strictly after this call's own commit.
    *
    * @param actorId  The acting admin's id.
    * @param input  The target session id plus the optional free-text
@@ -512,63 +324,9 @@ export namespace SessionAdminGovernanceService {
       }
     }
 
-    const outcome = await withTransaction(outerTx, async tx => {
-      let claim: SessionRequestIdempotencySelectType | null = null;
-      if (idempotencyKey !== null && idempotencyKey !== undefined) {
-        // The idempotency claim — savepoint-bracketed so a duplicate key
-        // poisons only the savepoint, keeping the transaction readable
-        // for the replay lookup below.
-        try {
-          claim = await tx.transaction(claimTx =>
-            SessionRequestIdempotencyRepository.insertClaim({ idempotencyKey, userId: actorId }, claimTx)
-          );
-        } catch (error) {
-          if (!isClaimKeyUniqueViolation(error)) {
-            // Not a duplicate key — surface untouched; the transaction
-            // rolls the whole cancel (and the claim) back together.
-            throw error;
-          }
-          // Duplicate key → the idempotent replay branch.
-          return { session: await replayAdminCancelOrConflict(actorId, parsed.data.sessionId, idempotencyKey, tx, t), receipts: [] };
-        }
-      }
-
-      const cancelled = await SessionRepository.guardCancelPreTerminal(parsed.data.sessionId, tx);
-      if (cancelled === null) {
-        return {
-          session: await resolveCancelledReplayOrConflict(parsed.data.sessionId, claim !== null, tx, t),
-          receipts: [],
-        };
-      }
-
-      // Release the hold to the lane that funded it — same transaction,
-      // same lane, through the ONE shared same-lane refund primitive (a
-      // row with no recorded lane refunds nothing; an unreadable lane
-      // fails closed and rolls the mutation back).
-      await refundHeldLaneToProvenance(cancelled, "adminCancelSession", tx);
-
-      await AuditService.createAuditLog(
-        buildGovernanceAuditContract(actorId, parsed.data.sessionId, {
-          action: "cancel",
-          reason: cancelReason,
-        }),
-        tx
-      );
-
-      // Backfill the claim's session pointer in the same transaction —
-      // the claim and the cancel commit atomically.
-      if (claim !== null) {
-        await SessionRequestIdempotencyRepository.updateClaimSessionId(claim.id, parsed.data.sessionId, tx);
-      }
-
-      const receipts = await SessionRequestNotificationService.notifySessionGovernanceCancelled(
-        parsed.data.sessionId,
-        locale,
-        tx,
-        options
-      );
-      return { session: cancelled, receipts };
-    });
+    const outcome = await withTransaction(outerTx, tx =>
+      cancelSessionInTx(actorId, parsed.data, cancelReason, idempotencyKey ?? null, locale, tx, t, options)
+    );
 
     if (outerTx === undefined) {
       await NotificationEngine.publishReceipts(outcome.receipts, locale, options);
@@ -586,7 +344,9 @@ export namespace SessionAdminGovernanceService {
    * sees is the value the reassignment commits against — no flip window.
    * A candidate that is not a teacher at all is the localized not-found
    * denial; a teacher row without an active approval flag is the
-   * localized certification conflict. Inside ONE transaction the
+   * localized certification conflict.
+   *
+   * Inside ONE transaction (the extracted `reassignTeacherInTx` body) the
    * pre-write row read captures the outgoing teacher id for the audit
    * metadata (and classifies an unknown session id), the certification
    * lock runs, the guarded UPDATE re-asserts the scheduled-only
@@ -594,8 +354,8 @@ export namespace SessionAdminGovernanceService {
    * an open dispute belongs to the arbitration surface), the single audit
    * row records the outgoing/incoming teacher ids, and the reassignment
    * wave persists as unpublished delivery receipts for the student, the
-   * outgoing teacher, and the incoming teacher — published strictly
-   * after this call's own commit.
+   * outgoing teacher, and the incoming teacher — published strictly after
+   * this call's own commit.
    *
    * @param actorId  The acting admin's id.
    * @param input  The target session id and the candidate teacher's user
@@ -620,67 +380,9 @@ export namespace SessionAdminGovernanceService {
       throw new ValidationError(t.validation);
     }
 
-    const outcome = await withTransaction(outerTx, async tx => {
-      // The pre-write read captures the outgoing teacher id for the audit
-      // metadata; the guarded UPDATE below remains the atomic state gate.
-      const current = await SessionRepository.getAnyByIdForAdmin(parsed.data.sessionId, tx);
-      if (current === null) {
-        return rejectSessionNotFound("Admin teacher reassignment denied: session not found", parsed.data.sessionId, t);
-      }
-
-      // The candidate certification lock — the certification value this
-      // reassignment commits against (a teacherless id never mints
-      // certification).
-      const lockedTeacher = await TeacherRepository.lockForCertificationCheck(parsed.data.newTeacherUserId, tx);
-      if (lockedTeacher === null) {
-        logger.logDomainError("Admin teacher reassignment rejected: teacher target not found", {
-          code: "TEACHER_NOT_FOUND",
-          entity: "session",
-          entityId: parsed.data.newTeacherUserId,
-        });
-        throw new NotFoundError("TEACHER", t.teacherNotFound);
-      }
-      if (lockedTeacher.isApproved !== true) {
-        logger.logDomainError("Admin teacher reassignment rejected: teacher not certified", {
-          code: "TEACHER_NOT_CERTIFIED",
-          entity: "session",
-          entityId: parsed.data.newTeacherUserId,
-        });
-        throw new ConflictError("TEACHER_NOT_CERTIFIED", t.teacherNotCertified);
-      }
-
-      const updated = await SessionRepository.guardReassignTeacher(
-        parsed.data.sessionId,
-        parsed.data.newTeacherUserId,
-        tx
-      );
-      if (updated === null) {
-        return rejectAdminTransitionMiss(
-          "Admin teacher reassignment denied: session not reassignable in its current state",
-          parsed.data.sessionId,
-          tx,
-          t
-        );
-      }
-
-      await AuditService.createAuditLog(
-        buildGovernanceAuditContract(actorId, parsed.data.sessionId, {
-          action: "reassign",
-          from: { teacherId: current.teacherId },
-          to: { teacherId: parsed.data.newTeacherUserId },
-        }),
-        tx
-      );
-
-      const receipts = await SessionRequestNotificationService.notifySessionGovernanceTeacherReassigned(
-        parsed.data.sessionId,
-        current.teacherId,
-        locale,
-        tx,
-        options
-      );
-      return { session: updated, receipts };
-    });
+    const outcome = await withTransaction(outerTx, tx =>
+      reassignTeacherInTx(actorId, parsed.data, locale, tx, t, options)
+    );
 
     if (outerTx === undefined) {
       await NotificationEngine.publishReceipts(outcome.receipts, locale, options);
@@ -736,29 +438,6 @@ export namespace SessionAdminGovernanceService {
       );
     }
 
-    return withTransaction(outerTx, async tx => {
-      // The eligibility re-assertion inside the transaction — the audit
-      // write is guarded by this re-check (assertion strictly first, same
-      // transaction, so a denied join writes zero audit rows).
-      const row = await SessionRepository.getAnyByIdForAdmin(parsed.data.sessionId, tx);
-      if (row === null) {
-        return rejectSessionNotFound("Admin session join denied: session not found", parsed.data.sessionId, t);
-      }
-      if (row.status !== SESSION_STARTED_STATUS) {
-        return rejectStateConflict(
-          "Admin session join denied: session not joinable in its current state",
-          parsed.data.sessionId,
-          t
-        );
-      }
-
-      await AuditService.createAuditLog(
-        buildGovernanceAuditContract(actorId, parsed.data.sessionId, {
-          action: "join_observe",
-        }),
-        tx
-      );
-      return row;
-    });
+    return withTransaction(outerTx, tx => joinObservationInTx(actorId, parsed.data.sessionId, tx, t));
   }
 }

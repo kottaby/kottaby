@@ -1217,7 +1217,7 @@ describe("SessionRepository — transactional paths (runInRollback)", () => {
       "session.confirmationDeadline",
       "now",
     ]);
-    expect(interpolations).toHaveLength(17);
+    expect(interpolations).toHaveLength(23);
     for (const interpolation of interpolations) {
       expect(ALLOWED.has(interpolation)).toBe(true);
     }
@@ -1267,11 +1267,11 @@ describe("SessionRepository — transactional paths (runInRollback)", () => {
 
   test("source: executor discipline — reads fall back to queryDb, writes to the pool, tx last on every signature", () => {
     expect(repoSource.includes("const executor = tx ?? db;")).toBe(true);
-    expect(repoSource.match(/const executor = tx \?\? db;/g) ?? []).toHaveLength(9);
-    expect(repoSource.match(/queryDb</g) ?? []).toHaveLength(7);
-    // Eighteen exported methods, every one ending in the optional tx (LAST
-    // param); no REQUIRED-tx signature exists in this repository.
-    expect(repoSource.match(/export async function /g) ?? []).toHaveLength(18);
+    expect(repoSource.match(/const executor = tx \?\? db;/g) ?? []).toHaveLength(12);
+    expect(repoSource.match(/queryDb</g) ?? []).toHaveLength(11);
+    // Twenty-three exported methods, every one ending in the optional tx
+    // (LAST param); no REQUIRED-tx signature exists in this repository.
+    expect(repoSource.match(/export async function /g) ?? []).toHaveLength(23);
     expect((repoSource.match(/tx\?: DBTransaction/g) ?? []).length).toBeGreaterThanOrEqual(18);
     expect(repoSource.includes("tx: DBTransaction")).toBe(false);
   });
