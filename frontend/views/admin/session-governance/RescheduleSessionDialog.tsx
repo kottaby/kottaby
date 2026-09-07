@@ -3,8 +3,8 @@
 import { Button, Dialog, DialogActions, DialogContent, DialogTitle, TextField } from "@mui/material";
 import { type ReactNode, useState } from "react";
 import type { AdminSessionsQuery_adminSessions_items } from "@/frontend/graphql/generated/gql/graphql";
-import { AdminSessionGovernance, Common, Errors, useAppTranslation } from "@/shared/locale";
 import { SessionDialogWarningCallout } from "@/frontend/views/student/sessions/SessionDialogWarningCallout";
+import { AdminSessionGovernance, Common, Errors, useAppTranslation } from "@/shared/locale";
 
 /**
  * RescheduleSessionDialog — the admin reschedule seam for one governance
@@ -101,9 +101,7 @@ export function RescheduleSessionDialog({
   const tc = useAppTranslation(Common);
   const te = useAppTranslation(Errors);
 
-  const [startedAtToken, setStartedAtToken] = useState<string>(() =>
-    isoToDatetimeLocalToken(session.startedAt)
-  );
+  const [startedAtToken, setStartedAtToken] = useState<string>(() => isoToDatetimeLocalToken(session.startedAt));
   const [endedAtToken, setEndedAtToken] = useState<string>(() => isoToDatetimeLocalToken(session.endedAt));
   const [validationMessage, setValidationMessage] = useState<string | null>(null);
 
