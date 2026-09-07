@@ -113,13 +113,13 @@
 
 ## Phase 5: Purchase Service
 
-- [ ] 6.1 `SubscriptionPurchaseService.purchase`
+- [x] 6.1 `SubscriptionPurchaseService.purchase`
   - CREATE `backend/services/billing/subscription-purchase.service.ts` (+ `backend/services/billing/index.ts` barrel). Flow: governance-clean assert → require idempotency key (localized `ValidationError`) → `PlanRepository.findActiveById` → lane NULL → `PLAN_LANE_UNCONFIGURED` → adapter `createCheckout` (outside tx) → `withTransaction`: claim insert (23505 → same-caller `DUPLICATE_REQUEST` / foreign oracle-safe `NotFoundError("PAYMENT", …)`), `insertSubscription` (pending, `paymentReference = session.providerReference`, `paymentMethod = provider gateway enum`), `insertPayment` (amount/currency verbatim from plan; default `pending`), junction insert, `updateClaimSubscriptionId`.
   - i18n: `getServerTranslations(locale).errorsTranslations` property access; new `subscriptionPurchase` error group keys (types + en + ar).
   - [ ] 6.1.QL · [ ] 6.1.TE — 4-tier: happy path, inactive/missing plan, NULL lane, missing key, replay/foreign-key, renewal allowed, BOPLA field rejection, concurrent double-submit chaos · [ ] 6.1.SEC — BOLA/BOPLA/BFLA probes · [ ] 6.1.SR · [ ] 6.1.IV
   - _Requirements: REQ-002, REQ-003, REQ-004, REQ-010, REQ-011, REQ-012, REQ-013, REQ-014, REQ-015, REQ-016, REQ-017, REQ-030, REQ-031, REQ-040, REQ-042, REQ-050, REQ-051, REQ-052, REQ-053, REQ-071_
 
-- [ ] 6.2 `SubscriptionPurchaseService.listOwn`
+- [x] 6.2 `SubscriptionPurchaseService.listOwn`
   - Owner-scoped list (`listByUserId`), `createdAt DESC`, locale tolerated param; NO id-addressed read added anywhere.
   - [ ] 6.2.QL · [ ] 6.2.TE — ownership isolation: caller A never sees caller B rows; empty state · [ ] 6.2.SEC · [ ] 6.2.SR · [ ] 6.2.IV
   - _Requirements: REQ-004, REQ-041, REQ-063, REQ-071_

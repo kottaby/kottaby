@@ -31,6 +31,13 @@ export const errorsAr: ErrorsLabels = {
     planIntervalDaysInvalid: "يجب أن تكون مدة الصلاحية رقماً صحيحاً موجباً بالأيام.",
     planPatchEmpty: "يجب تقديم حقل واحد على الأقل لتحديث الخطة.",
   },
+  subscriptionPurchase: {
+    planNotPurchasable: "خطة الاشتراك هذه غير متاحة للشراء.",
+    planLaneUnconfigured: "لا يمكن شراء هذه الخطة بعد لأن قناة الرصيد المخصصة لها غير مهيأة.",
+    idempotencyKeyRequired: "مفتاح منع تكرار الطلب مفقود. يرجى إعادة المحاولة.",
+    paymentReferenceConflict: "هذه الدفعة مرتبطة بالفعل باشتراك آخر. يرجى بدء دفعة جديدة.",
+    paymentAmountMismatch: "لم يتطابق مبلغ الدفعة مع سعر الخطة، لذلك لم تُطبَّق الدفعة.",
+  },
   applicantNotFound: "لم يتم العثور على طلب التقديم كمعلم قرآن.",
   applicantCooldownActive: "يمكنك إعادة التقديم للتحقق كمعلم قرآن بعد {cooldownUntil}.",
   applicantStatusCorrupt: "تعذر قراءة حالة طلبك. يرجى التواصل مع فريق الدعم.",

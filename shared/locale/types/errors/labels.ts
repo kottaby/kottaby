@@ -18,6 +18,27 @@ interface PlanCatalogErrorsLabels {
   readonly planPatchEmpty: string;
 }
 
+/**
+ * Subscription-purchase domain failures surfaced to students through the
+ * `errors` namespace. Each leaf is a self-contained sentence (no key echo)
+ * consumed via property access on the localized bundle:
+ * `errorsTranslations.subscriptionPurchase.<key>`. Plan identifiers and
+ * gateway references MUST NOT appear in these strings — only generic,
+ * user-facing copy.
+ */
+interface SubscriptionPurchaseErrorsLabels {
+  /** Purchase reject: the plan id does not resolve to an ACTIVE plan row → NotFoundError("PLAN"). */
+  readonly planNotPurchasable: string;
+  /** Fail-closed purchase reject: the plan's balance lane was never configured → ValidationError("PLAN_LANE_UNCONFIGURED"). */
+  readonly planLaneUnconfigured: string;
+  /** Missing `X-Idempotency-Key` header on the purchase mutation → ValidationError (VALIDATION). */
+  readonly idempotencyKeyRequired: string;
+  /** The gateway payment reference already identifies another subscription → ConflictError (CONFLICT). */
+  readonly paymentReferenceConflict: string;
+  /** Settlement quarantine: the provider's claimed amount/currency did not match the stored payment (no write applied). */
+  readonly paymentAmountMismatch: string;
+}
+
 export interface ErrorsLabels {
   readonly unauthorized: string;
   readonly forbidden: string;
@@ -44,6 +65,8 @@ export interface ErrorsLabels {
   /** "You do not have permission to access this page." — role-mismatch deny. */
   readonly forbiddenRole: string;
   readonly planCatalog: PlanCatalogErrorsLabels;
+  /** Subscription-purchase domain failures (plan gating, lane gating, idempotency, reference conflicts, settlement mismatch). */
+  readonly subscriptionPurchase: SubscriptionPurchaseErrorsLabels;
   /** "Teacher application not found." — self-applicants lookup miss → NotFoundError("APPLICANT"). */
   readonly applicantNotFound: string;
   /**
