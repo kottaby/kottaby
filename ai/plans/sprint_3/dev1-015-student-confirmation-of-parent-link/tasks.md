@@ -189,7 +189,7 @@
   - _Requirements: REQ-011, REQ-053_
   - [x] 4.1.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts <edited drawer/action file> --lifecycle duplicates` — exit code 0.
   - [x] 4.1.TE **Unit / Component Tests:** Happy DOM tests: notification click → route resolution; unknown entity → unchanged behavior; both locales; no `runInRollback` (UI test).
-  - [ ] 4.1.BF **Agent-Browser Functional Self-Loop:**
+  - [x] 4.1.BF **Agent-Browser Functional Self-Loop:**
     • Launch dev server; login as a student with a seeded `parent_link_request` notification.
     • Open the notification drawer; click the link-request notification.
     • Assert navigation lands on the student link-requests decision route; assert the pending row is rendered.
@@ -215,7 +215,7 @@
   - _Requirements: REQ-015, REQ-016, REQ-051, REQ-052, REQ-003, REQ-042_
   - [x] 4.2.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts frontend/views/students/dashboard/PendingParentLinkRequestsCard.tsx --lifecycle duplicates` and the pure-helper file — exit code 0 each.
   - [x] 4.2.TE **Unit / Component Tests:** New suite `test/ui/components/students/PendingParentLinkRequestsCard.test.tsx` — Happy DOM + Apollo `MockedProvider`. REQ-064 matrix: loading (skeleton, `aria-busy`) / absent (zero actionable → renders nothing) / present-1 (count=1, requester FULL name, CTA href = shared route constant) / present-N (count=N, MOST RECENT requester) / error (localized Alert + retry invokes refetch) / post-decision disappearance (cache write-back → actionable 0 → unmounts) / expired-row exclusion (row with `expiresAt <= now` not counted) — in BOTH en and ar; pure-helper unit tests for the derivation edges (boundary instant, ordering, empty).
-  - [ ] 4.2.BF **Agent-Browser Functional Self-Loop:**
+  - [x] 4.2.BF **Agent-Browser Functional Self-Loop:**
     • Launch dev server / connect via agent-browser (Playwright); login as a student with ONE pending incoming request.
     • Navigate to `/student/dashboard`; assert the card renders with correct count, requester name, and CTA.
     • Click the CTA → assert landing on the student link-requests route; Confirm or Reject from the decision page; return to dashboard → assert the card disappears (post-decision convergence, REQ-016).
@@ -235,7 +235,7 @@
   - _Requirements: REQ-015, REQ-053_
   - [x] 4.3.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts frontend/views/dashboard/home/RoleDashboardPage.tsx --lifecycle duplicates` — exit code 0.
   - [x] 4.3.TE **Unit / Component Tests:** Extend the dashboard home component tests (location per 0.2): student role renders both cards in the status slot; parent/teacher/admin slots unchanged (snapshot/role matrix green); component test for slot ordering.
-  - [ ] 4.3.BF **Agent-Browser Functional Self-Loop:**
+  - [x] 4.3.BF **Agent-Browser Functional Self-Loop:**
     • Login as student → dashboard renders both cards; navigate away/back → no duplicate fetches (Apollo cache); logout/login as teacher → teacher dashboard renders with zero student cards and zero console errors.
     • Iterative self-loop until clean for both roles.
   - [ ] 4.3.BS **Agent-Browser Visual & Styling Self-Loop (Screenshot Analysis):**
@@ -254,7 +254,7 @@
   - _Requirements: REQ-053_
   - [x] 4.4.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts frontend/views/dashboard/nav/navItems.ts --lifecycle duplicates` (and its test) — exit code 0.
   - [x] 4.4.TE **Unit / Component Tests:** `frontend/views/dashboard/nav/navItems.test.ts` — student nav contains exactly ONE link-requests entry targeting the shared route constant; other roles' items untouched; page-guard test: non-student hitting the route redirects to `roleDashboardPath(role)`; anonymous → login redirect.
-  - [ ] 4.4.BF **Agent-Browser Functional Self-Loop:**
+  - [x] 4.4.BF **Agent-Browser Functional Self-Loop:**
     • Login as student → click the sidebar link-requests entry → lands on the real decision route (not ComingSoon).
     • Login as parent and teacher → navigate directly to the student link-requests URL → observe role-dashboard redirect; anonymous → login redirect.
     • Iterative self-loop until all four cells behave correctly.
