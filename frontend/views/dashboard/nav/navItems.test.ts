@@ -12,6 +12,11 @@
  *  - REQ-064 (DEV3-022d): the admin broadcasts entry — exactly ONE
  *    `/admin/broadcasts` item with `labelKey: "broadcasts"`, positioned
  *    directly after the audit entry, dashboard-bundle owned, admin-only.
+ *  - REQ-053 (DEV1-015): the student link-requests entry — exactly ONE
+ *    student item whose `route` IS the shared `STUDENT_LINK_REQUESTS_ROUTE`
+ *    constant (nav / dashboard-card CTA / notification deep-link never
+ *    drift), `linkRequests` dashboard-bundle owned and resolved in BOTH
+ *    locales, and no non-student role leaks the entry.
  *  - The cross-namespace nav-label discrimination the sidebar depends on:
  *    every nav item's label key is owned by EXACTLY ONE label bundle
  *    (`DashboardLabels` for the shared shell entries, `HandshakeCodeLabels`
@@ -28,6 +33,7 @@
  */
 
 import { describe, expect, test } from "bun:test";
+import { STUDENT_LINK_REQUESTS_ROUTE } from "@/frontend/components/ui/useNotificationDrawerActions";
 import { UserRole } from "@/frontend/graphql/generated/gql/graphql";
 import { type DashboardNavItem, getNavItemsForRole, resolveNavItemLabel } from "@/frontend/views/dashboard/nav";
 import type { AppLocale } from "@/shared/locale/AppLocale";
@@ -210,6 +216,49 @@ describe("Admin broadcasts navigation (REQ-064, DEV3-022d)", () => {
       const nav = getNavItemsForRole(role);
       const broadcastItem = nav.find(item => item.route === "/admin/broadcasts");
       expect(broadcastItem).toBeUndefined();
+    }
+  );
+});
+
+describe("Student link-requests navigation (REQ-053, DEV1-015)", () => {
+  test("student nav carries exactly ONE link-requests entry targeting the shared route constant", () => {
+    const studentNav = getNavItemsForRole(UserRole.Student);
+    const linkItems = studentNav.filter(item => item.route === STUDENT_LINK_REQUESTS_ROUTE);
+    expect(linkItems).toHaveLength(1);
+    expect(linkItems[0]?.labelKey).toBe("linkRequests");
+    // Frozen-value pin (belt-and-braces, mirroring the 4.1/4.2 suites): the
+    // shared constant must never drift off the real student decision route
+    // (a retarget onto the `[feature]` catch-all ComingSoon page breaks
+    // this first).
+    expect(STUDENT_LINK_REQUESTS_ROUTE).toBe("/student/link-requests");
+  });
+
+  test("the linkRequests label key stays owned by the dashboard bundle", () => {
+    // Runtime pin of the ownership-matrix invariant for the link-requests
+    // entry: `linkRequests` must remain a dashboard-bundle key so
+    // `resolveNavItemLabel` resolves it from the owning bundle in both
+    // locales.
+    expect("linkRequests" in dashboardEn).toBe(true);
+    expect("linkRequests" in handshakeCodeEn).toBe(false);
+  });
+
+  test("the linkRequests label resolves non-empty in BOTH locales through the real runtime path", () => {
+    for (const locale of ["ar", "en"] as AppLocale[]) {
+      const dashboardLabels = DashboardNs.getLabels(getTranslations(locale));
+      const handshakeCodeLabels = HandshakeCodeNs.getLabels(getTranslations(locale));
+      const item = navItemFor(UserRole.Student, STUDENT_LINK_REQUESTS_ROUTE);
+      const label = resolveNavItemLabel(item, dashboardLabels, handshakeCodeLabels);
+      expect(label.length).toBeGreaterThan(0);
+      expect(label).toBe(dashboardLabels.linkRequests);
+    }
+  });
+
+  test.each([UserRole.Teacher, UserRole.Parent, UserRole.Admin])(
+    "Non-student role %s does NOT include the student link-requests item",
+    role => {
+      const nav = getNavItemsForRole(role);
+      const linkItem = nav.find(item => item.route === STUDENT_LINK_REQUESTS_ROUTE);
+      expect(linkItem).toBeUndefined();
     }
   );
 });

@@ -24,6 +24,7 @@ import {
   SupervisedUserCircleOutlined as UsersIcon,
   PaymentsOutlined as WalletIcon,
 } from "@mui/icons-material";
+import { STUDENT_LINK_REQUESTS_ROUTE } from "@/frontend/components/ui/useNotificationDrawerActions";
 import { UserRole } from "@/frontend/graphql/generated/gql/graphql";
 import { dashboardEn } from "@/shared/locale/en/dashboard";
 import type { DashboardLabels } from "@/shared/locale/types/dashboard";
@@ -103,6 +104,9 @@ function isDashboardLabelKey(key: NavLabelKey): key is keyof DashboardLabels {
  *  - Admin Plans → `/admin/plans` (DEV1-005)
  *  - Admin Broadcasts → `/admin/broadcasts` (DEV3-022d — a pure ADD, not a
  *    retarget: the compose surface ships at the route)
+ *  - Student Link Requests → the real decision route via the shared
+ *    `STUDENT_LINK_REQUESTS_ROUTE` constant (DEV1-015 — the nav, the
+ *    dashboard-card CTA, and the notification deep-link never drift).
  */
 const NAV_ITEMS_BY_ROLE: Record<UserRole, readonly DashboardNavItem[]> = {
   [UserRole.Student]: [
@@ -111,7 +115,7 @@ const NAV_ITEMS_BY_ROLE: Record<UserRole, readonly DashboardNavItem[]> = {
     { route: "/student/sessions", labelKey: "sessions", Icon: SessionsIcon },
     { route: "/subscriptions", labelKey: "subscriptions", Icon: SubscriptionsIcon },
     { route: "/homework", labelKey: "homework", Icon: HomeworkIcon },
-    { route: "/student/link-requests", labelKey: "linkRequests", Icon: LinkChildIcon },
+    { route: STUDENT_LINK_REQUESTS_ROUTE, labelKey: "linkRequests", Icon: LinkChildIcon },
     { route: "/profile", labelKey: "profile", Icon: ProfileIcon },
   ],
   [UserRole.Teacher]: [

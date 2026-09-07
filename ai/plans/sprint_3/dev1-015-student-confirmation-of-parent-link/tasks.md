@@ -245,15 +245,15 @@
   - [x] 4.3.IV **Instruction Verification:** `.agents/instructions/frontend.instructions.md` + dashboard-layer AGENTS.md if present per 0.2.
   - Outcome: `4.3-outcome.md`.
 
-- [ ] 4.4 Nav retargeting (verify-first, retarget-if-needed — plan D5, invariant #12)
+- [x] 4.4 Nav retargeting (verify-first, retarget-if-needed — plan D5, invariant #12)
   - Per 0.2's finding on `frontend/views/dashboard/nav/navItems.ts` student section:
     - **If the link-requests entry targets the `[feature]` catch-all ComingSoon page:** RETARGET its `route` to the shared `STUDENT_LINK_REQUESTS_ROUTE` constant; update `navItems.test.ts` expectations.
     - **If it already targets the real route:** NO code change; record byte-identity proof; pin/refresh the nav test expectation only if absent.
   - No duplicate entries; no new nav items; NO mobile bottom-nav work (mobile nav = temporary MUI `Drawer`; out of scope).
   - Wrong-role page access MUST redirect via `roleDashboardPath(ctx.role)` — verify the decision-route page guard (`withPageAuth`) conforms; bare `/dashboard` redirect targets are FORBIDDEN.
   - _Requirements: REQ-053_
-  - [ ] 4.4.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts frontend/views/dashboard/nav/navItems.ts --lifecycle duplicates` (and its test) — exit code 0.
-  - [ ] 4.4.TE **Unit / Component Tests:** `frontend/views/dashboard/nav/navItems.test.ts` — student nav contains exactly ONE link-requests entry targeting the shared route constant; other roles' items untouched; page-guard test: non-student hitting the route redirects to `roleDashboardPath(role)`; anonymous → login redirect.
+  - [x] 4.4.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts frontend/views/dashboard/nav/navItems.ts --lifecycle duplicates` (and its test) — exit code 0.
+  - [x] 4.4.TE **Unit / Component Tests:** `frontend/views/dashboard/nav/navItems.test.ts` — student nav contains exactly ONE link-requests entry targeting the shared route constant; other roles' items untouched; page-guard test: non-student hitting the route redirects to `roleDashboardPath(role)`; anonymous → login redirect.
   - [ ] 4.4.BF **Agent-Browser Functional Self-Loop:**
     • Login as student → click the sidebar link-requests entry → lands on the real decision route (not ComingSoon).
     • Login as parent and teacher → navigate directly to the student link-requests URL → observe role-dashboard redirect; anonymous → login redirect.
@@ -261,8 +261,8 @@
   - [ ] 4.4.BS **Agent-Browser Visual & Styling Self-Loop (Screenshot Analysis):**
     • Capture sidebar (desktop drawer expanded + mobile temporary Drawer open) at the six cells; verify the entry label is localized, icon `*Outlined`, active-state highlight on the decision route, RTL drawer mirroring in ar.
     • Iterate styling only if a defect appears; otherwise record parity screenshots.
-  - [ ] 4.4.SR **Semantic Review:** Route constant single-sourced; no string duplication across nav/card/drawer; nav item diff is minimal (retarget-only).
-  - [ ] 4.4.IV **Instruction Verification:** `.agents/instructions/frontend.instructions.md` + `frontend/views/dashboard` layer AGENTS.md if present per 0.2.
+  - [x] 4.4.SR **Semantic Review:** Route constant single-sourced; no string duplication across nav/card/drawer; nav item diff is minimal (retarget-only).
+  - [x] 4.4.IV **Instruction Verification:** `.agents/instructions/frontend.instructions.md` + `frontend/views/dashboard` layer AGENTS.md if present per 0.2.
   - Outcome: `4.4-outcome.md`.
 
 - [ ] 4.5 Pin the decision page's existing behavior (regression, no redesign)
