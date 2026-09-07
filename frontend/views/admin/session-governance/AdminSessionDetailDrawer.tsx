@@ -1,17 +1,8 @@
 "use client";
 
 import { CloseOutlined } from "@mui/icons-material";
-import { useMediaQuery, useTheme } from "@mui/material";
-import {
-  Box,
-  Dialog,
-  Drawer,
-  IconButton,
-  Skeleton,
-  Stack,
-  Typography,
-} from "@mui/material";
-import { type ReactNode } from "react";
+import { Box, Dialog, Drawer, IconButton, Skeleton, Stack, Typography, useMediaQuery, useTheme } from "@mui/material";
+import type { ReactNode } from "react";
 import { ErrorRetryAlert } from "@/frontend/components/ui/ErrorRetryAlert";
 import { SessionMetaCell } from "@/frontend/components/ui/sessionList";
 import type { AdminSessionQuery_adminSession } from "@/frontend/graphql/generated/gql/graphql";
@@ -178,7 +169,9 @@ function DrawerHeader({ titleId, onClose, status, statusVisible, tSessions }: Re
       <Typography id={titleId} variant="h6" component="h2" sx={{ fontWeight: 700 }}>
         {t.detailTitle}
       </Typography>
-      <Box sx={{ marginInlineStart: "auto" }}>{statusVisible ? <AdminSessionRowStatusCell status={status} t={tSessions} /> : null}</Box>
+      <Box sx={{ marginInlineStart: "auto" }}>
+        {statusVisible ? <AdminSessionRowStatusCell status={status} t={tSessions} /> : null}
+      </Box>
       <IconButton
         aria-label={t.detailCloseAriaLabel}
         data-testid="admin-session-detail-close"
@@ -252,8 +245,7 @@ function DetailBody({
 
   const feeText = detail.fee === null ? NO_VALUE_PLACEHOLDER : `${detail.fee} ${SESSION_FEE_CURRENCY}`;
   const createdText = formatApplicantDate(detail.createdAt, locale);
-  const startedText =
-    detail.startedAt === null ? NO_VALUE_PLACEHOLDER : formatApplicantDate(detail.startedAt, locale);
+  const startedText = detail.startedAt === null ? NO_VALUE_PLACEHOLDER : formatApplicantDate(detail.startedAt, locale);
   const endedText = detail.endedAt === null ? NO_VALUE_PLACEHOLDER : formatApplicantDate(detail.endedAt, locale);
   const deadlineText =
     detail.confirmationDeadline === null
@@ -287,10 +279,7 @@ function DetailBody({
         <SessionMetaCell label={tSessions.intent} value={detail.intent ?? NO_VALUE_PLACEHOLDER} />
         <SessionMetaCell label={t.rowTypeLabel} value={detail.sessionType} />
         <SessionMetaCell label={tSessions.fee} value={feeText} />
-        <SessionMetaCell
-          label={tSessions.participantsLabel}
-          value={`${detail.studentId} · ${detail.teacherId}`}
-        />
+        <SessionMetaCell label={tSessions.participantsLabel} value={`${detail.studentId} · ${detail.teacherId}`} />
         <SessionMetaCell label={tSessions.createdAt} value={createdText} />
         <SessionMetaCell label={t.detailStartLabel} value={startedText} />
         <SessionMetaCell label={t.detailEndLabel} value={endedText} />
@@ -303,15 +292,11 @@ function DetailBody({
         {detail.disputeReason !== null ? (
           <SessionMetaCell label={t.detailDisputeReasonLabel} value={detail.disputeReason} />
         ) : null}
-        {detail.disputedAt !== null ? (
-          <SessionMetaCell label={tSessions.disputedAtLabel} value={disputedText} />
-        ) : null}
+        {detail.disputedAt !== null ? <SessionMetaCell label={tSessions.disputedAtLabel} value={disputedText} /> : null}
         {detail.resolutionNote !== null ? (
           <SessionMetaCell label={t.detailResolutionLabel} value={detail.resolutionNote} />
         ) : null}
-        {detail.resolvedAt !== null ? (
-          <SessionMetaCell label={t.detailResolvedAtLabel} value={resolvedAtText} />
-        ) : null}
+        {detail.resolvedAt !== null ? <SessionMetaCell label={t.detailResolvedAtLabel} value={resolvedAtText} /> : null}
       </Stack>
     </Box>
   );
