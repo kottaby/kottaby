@@ -49,6 +49,7 @@ export const adminStudentsEn: AdminStudentsLabels = {
   quickActions: {
     copyEmail: "Copy email address",
     emailCopied: "Email address copied to clipboard.",
+    viewProfile: "View full profile",
   },
   export: {
     exportCsv: "Export CSV",

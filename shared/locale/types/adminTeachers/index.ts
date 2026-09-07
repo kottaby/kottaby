@@ -1,13 +1,15 @@
 /**
- * `adminTeachers` namespace labels — the read-only admin teacher directory
- * (`/teachers`): page chrome, table headers, status pills, filter bar,
- * pagination, and empty/error/loading states.
+ * `adminTeachers` namespace labels — the admin teachers surface
+ * (`/teachers`): a two-tab page (the read-only certified-teacher directory
+ * plus the applicant queue) with page chrome, table headers, status pills,
+ * filter bar, pagination, and empty/error/loading states.
  *
  * Used by:
  *  - `app/(dashboard)/teachers/page.tsx` (`generateMetadata`) for the page
  *    title.
- *  - Frontend `AdminTeachersDirectoryContainer` (`useAppTranslation(AdminTeachers)`)
- *    for every visible string on the directory surface.
+ *  - Frontend `AdminTeachersSurface` (`useAppTranslation(AdminTeachers)`)
+ *    for every visible string on the two-tab surface (directory + applicant
+ *    queue).
  *
  * Scope: chrome copy only — admin-authored DATA (teacher names, email
  * addresses, subject names, dates) is rendered verbatim and is NEVER
@@ -28,6 +30,18 @@ export interface AdminTeachersLabels {
   /** Directory page subtitle line under the heading. */
   readonly subtitle: string;
 
+  /**
+   * The two-tab surface switcher — the certified-teacher directory (the
+   * original /teachers view) and the applicant queue (new registrations
+   * awaiting certification).
+   */
+  readonly tabs: {
+    /** Label of the certified-teachers tab. */
+    readonly teachersTab: string;
+    /** Label of the applicant-queue tab. */
+    readonly applicantsTab: string;
+  };
+
   // NOTE: the `export`/`fields`/`drawer` blocks below extend the directory
   // with the CSV export affordance and the per-row detail drawer.
 
@@ -47,6 +61,21 @@ export interface AdminTeachersLabels {
     readonly subjects: string;
     /** Member-since column (localized timestamp). */
     readonly joined: string;
+  };
+
+  /**
+   * Applicant-queue column headers for the concepts the directory table
+   * never needed (verification attempts + cooldown). The identity, status,
+   * and joined columns REUSE the `headers` keys (single vocabulary — no
+   * near-duplicates).
+   */
+  readonly applicantHeaders: {
+    /** Verification-attempts count column. */
+    readonly attempts: string;
+    /** Last verification-attempt timestamp column (honest em-dash when null). */
+    readonly lastAttempt: string;
+    /** Cooldown-expiry timestamp column (honest em-dash when null). */
+    readonly cooldown: string;
   };
 
   /**
@@ -99,6 +128,25 @@ export interface AdminTeachersLabels {
     readonly nonEvaluator: string;
   };
 
+  /**
+   * Applicant lifecycle status labels for the queue chips — the wire value
+   * is a plain lowercase string (`pending` | `in_evaluation` | `failed` |
+   * `passed`); unknown values render verbatim (honest fallback, never a
+   * guessed label).
+   */
+  readonly applicantStatus: {
+    /** Applicant registered, certification not started. */
+    readonly pending: string;
+    /** Applicant is mid evaluation. */
+    readonly inEvaluation: string;
+    /** Applicant failed the evaluation. */
+    readonly failed: string;
+    /** Applicant passed the evaluation. */
+    readonly passed: string;
+    /** Cooldown chip — another verification attempt is temporarily locked. */
+    readonly coolingDown: string;
+  };
+
   /** Empty-state copy rendered inside the table body when no rows match. */
   readonly emptyState: {
     /** Empty-state heading line — shown when no teachers exist at all. */
@@ -115,6 +163,18 @@ export interface AdminTeachersLabels {
      * mid-review live.
      */
     readonly cta: string;
+  };
+
+  /** Empty-state copy rendered inside the applicants table body when no rows match. */
+  readonly applicantsEmptyState: {
+    /** Empty-state heading line — shown when no applicants exist at all. */
+    readonly title: string;
+    /** Empty-state body line explaining why no rows are visible (zero applicants). */
+    readonly message: string;
+    /** Empty-state heading line — shown when filters returned zero matches. */
+    readonly filteredTitle: string;
+    /** Empty-state body explaining filters narrowed the result set to zero. */
+    readonly filteredMessage: string;
   };
 
   /** Error-state copy rendered when the directory query fails. */
@@ -134,15 +194,24 @@ export interface AdminTeachersLabels {
   readonly loading: string;
 
   /**
-   * Clipboard affordance shared by the directory rows (copy-email quick
-   * action + feedback). This directory is read-only — there is no
-   * view-profile link.
+   * Accessible label announced for the applicant-queue loading skeleton
+   * region (same recipe as the directory `loading` label).
+   */
+  readonly applicantsLoading: string;
+
+  /**
+   * Clipboard + navigation affordances shared by the directory rows and the
+   * detail drawers (copy-email quick action + feedback; the full-profile
+   * link routes to the admin user-detail page where certification and
+   * governance actions live).
    */
   readonly quickActions: {
     /** Tooltip for the copy-email icon button. */
     readonly copyEmail: string;
     /** Snackbar shown after the email is copied to the clipboard. */
     readonly emailCopied: string;
+    /** Full-profile link — routes to the admin user-detail page. */
+    readonly viewProfile: string;
   };
 
   /**

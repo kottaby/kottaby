@@ -49,6 +49,7 @@ export const adminStudentsAr: AdminStudentsLabels = {
   quickActions: {
     copyEmail: "نسخ البريد الإلكتروني",
     emailCopied: "تم نسخ البريد الإلكتروني.",
+    viewProfile: "عرض الملف الكامل",
   },
   export: {
     exportCsv: "تصدير CSV",

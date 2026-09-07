@@ -3,12 +3,21 @@ import type { AdminTeachersLabels } from "@/shared/locale/types/adminTeachers";
 export const adminTeachersEn: AdminTeachersLabels = {
   title: "Teachers",
   subtitle: "Read-only directory of every teacher account on the platform.",
+  tabs: {
+    teachersTab: "Teachers",
+    applicantsTab: "Applicants",
+  },
   headers: {
     name: "Name",
     status: "Status",
     rating: "Rating",
     subjects: "Subjects",
     joined: "Joined",
+  },
+  applicantHeaders: {
+    attempts: "Attempts",
+    lastAttempt: "Last attempt",
+    cooldown: "Cooldown",
   },
   statusPills: {
     approved: "Approved",
@@ -19,6 +28,13 @@ export const adminTeachersEn: AdminTeachersLabels = {
     online: "Online",
     offline: "Offline",
     evaluator: "Evaluator",
+  },
+  applicantStatus: {
+    pending: "Pending",
+    inEvaluation: "In evaluation",
+    failed: "Failed",
+    passed: "Passed",
+    coolingDown: "Cooling down",
   },
   filters: {
     search: "Search",
@@ -40,15 +56,23 @@ export const adminTeachersEn: AdminTeachersLabels = {
     filteredMessage: "Adjust the filters above or clear them to see every teacher.",
     cta: "Review user accounts",
   },
+  applicantsEmptyState: {
+    title: "No applicants yet",
+    message: "Teacher applicants will appear here once they register on the platform.",
+    filteredTitle: "No applicants match your filters",
+    filteredMessage: "Adjust the filters above or clear them to see every applicant.",
+  },
   errorState: {
     title: "Could not load teachers",
     message: "Something went wrong while fetching the teacher directory. Try again.",
     retry: "Retry",
   },
   loading: "Loading teachers",
+  applicantsLoading: "Loading applicants",
   quickActions: {
     copyEmail: "Copy email address",
     emailCopied: "Email address copied to clipboard.",
+    viewProfile: "View full profile",
   },
   export: {
     exportCsv: "Export CSV",

@@ -42,7 +42,7 @@ export function AdminTeachersResults({
   onViewDetails,
 }: AdminTeachersResultsProps): ReactNode {
   // When the query (or a refetch with no cached rows) failed, the error
-  // alert in `AdminTeachersDirectoryContainer` is the sole surface — rendering
+  // alert in `AdminTeachersDirectoryPanel` is the sole surface — rendering
   // the skeleton/empty state and pagination beside it reads as a second,
   // contradictory failure message.
   if (directory.hasError && directory.items.length === 0) return null;

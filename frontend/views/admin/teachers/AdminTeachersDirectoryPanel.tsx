@@ -1,31 +1,37 @@
 "use client";
 
 /**
- * AdminTeachersDirectoryContainer — the admin teacher directory client
- * surface (read-only, presentation only).
+ * AdminTeachersDirectoryPanel — the certified-teacher directory tab panel
+ * of the /teachers two-tab surface (read-only, presentation only).
  *
  * State and query wiring lives in `useAdminTeachersDirectory`; the filter/
  * refresh/export toolbar lives in `AdminTeachersToolbar`; the results
  * section (desktop table + mobile card list + paginations) lives in
- * `AdminTeachersResults`; the copy-email snackbar closes the loop.
+ * `AdminTeachersResults`; the copy-email snackbar closes the loop. The
+ * page header and the tab strip live one level up in
+ * `AdminTeachersSurface` (shared chrome across both tabs).
  *
  * The surface stays READ-ONLY by design — no create/edit/delete dialogs and
  * no mutations exist here. Two affordances round it out: the per-row
  * detail drawer (opened by clicking a row/card or through the explicit
- * view-details quick action — the container owns the single drawer
+ * view-details quick action — the panel owns the single drawer
  * instance and keeps the selected item mounted through the exit
  * transition) and the current-page CSV export (pure client-side
- * serialization of the rows on screen — no second fetch).
+ * serialization of the rows on screen — no second fetch). The export
+ * action belongs to THIS tab only — the applicant queue tab has no CSV
+ * contract.
  *
- * All chrome copy comes from the `AdminTeachers` locale namespace, resolved
- * client-side via `useAppTranslation(AdminTeachers)` — the page mounts this
- * container label-free so no labels cross the server→client props boundary.
- * MUI v9 `sx`-only discipline; colors via `theme.palette.*` callbacks;
- * `*Outlined` icons; ≥44px touch targets; responsive (desktop table ≥md,
- * stacked cards below).
+ * The container performs no role logic (the `adminTeachers` admin identity
+ * is server-bound per BOPLA hygiene, and the backend query fails any
+ * non-admin into the canonical FORBIDDEN).
+ *
+ * All copy comes from the `AdminTeachers` locale namespace, resolved
+ * client-side via `useAppTranslation(AdminTeachers)`. MUI v9 `sx`-only
+ * discipline; colors via `theme.palette.*` callbacks; `*Outlined` icons;
+ * ≥44px touch targets; responsive (desktop table ≥md, stacked cards below).
  */
 
-import { Alert, Box, Button, Snackbar, Stack, Typography } from "@mui/material";
+import { Alert, Button, Snackbar, Stack } from "@mui/material";
 import type { ReactNode } from "react";
 import { useState } from "react";
 import { AdminTeacherDetailDrawer } from "@/frontend/views/admin/teachers/AdminTeacherDetailDrawer";
@@ -41,7 +47,7 @@ import { useAppLocale } from "@/shared/locale";
 import { useAppTranslation } from "@/shared/locale/client";
 import { AdminTeachers } from "@/shared/locale/namespaces/adminTeachers";
 
-export function AdminTeachersDirectoryContainer(): ReactNode {
+export function AdminTeachersDirectoryPanel(): ReactNode {
   const labels = useAppTranslation(AdminTeachers);
   const locale = useAppLocale();
   const directory = useAdminTeachersDirectory();
@@ -55,7 +61,7 @@ export function AdminTeachersDirectoryContainer(): ReactNode {
     setDrawerOpen(true);
   };
   // The copy-email quick action reports success through the shared success
-  // snackbar (identical feedback channel as the users directory).
+  // snackbar (identical feedback channel as the applicants panel).
   const handleCopyEmail = () => {
     directory.setSnackbarMessage(labels.quickActions.emailCopied);
   };
@@ -82,16 +88,7 @@ export function AdminTeachersDirectoryContainer(): ReactNode {
     void directory.refetch();
   };
   return (
-    <Stack spacing={3} sx={{ p: { xs: 2, md: 3 } }}>
-      <Box>
-        <Typography variant="h4" component="h1">
-          {labels.title}
-        </Typography>
-        <Typography variant="body1" sx={theme => ({ color: theme.palette.text.secondary })}>
-          {labels.subtitle}
-        </Typography>
-      </Box>
-
+    <Stack spacing={3}>
       <AdminTeachersToolbar
         labels={labels}
         directory={directory}

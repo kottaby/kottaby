@@ -2,7 +2,8 @@
 
 /**
  * useAdminTeachersDirectory — state and query wiring for
- * `AdminTeachersDirectoryContainer` (the admin teacher directory surface).
+ * `AdminTeachersDirectoryPanel` (the certified-teacher directory tab of the
+ * /teachers two-tab surface).
  *
  * Owns:
  *  - the filter/search/pagination draft state (search debounced at 300ms;

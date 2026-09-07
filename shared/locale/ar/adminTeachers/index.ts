@@ -3,12 +3,21 @@ import type { AdminTeachersLabels } from "@/shared/locale/types/adminTeachers";
 export const adminTeachersAr: AdminTeachersLabels = {
   title: "المعلمون",
   subtitle: "دليل للعرض فقط لجميع حسابات المعلمين على المنصة.",
+  tabs: {
+    teachersTab: "المعلمون",
+    applicantsTab: "طلبات الانضمام",
+  },
   headers: {
     name: "الاسم",
     status: "الحالة",
     rating: "التقييم",
     subjects: "المواد",
     joined: "تاريخ الانضمام",
+  },
+  applicantHeaders: {
+    attempts: "المحاولات",
+    lastAttempt: "آخر محاولة",
+    cooldown: "فترة التهدئة",
   },
   statusPills: {
     approved: "معتمد",
@@ -19,6 +28,13 @@ export const adminTeachersAr: AdminTeachersLabels = {
     online: "متصل",
     offline: "غير متصل",
     evaluator: "مقيّم",
+  },
+  applicantStatus: {
+    pending: "قيد الانتظار",
+    inEvaluation: "قيد التقييم",
+    failed: "فاشل",
+    passed: "ناجح",
+    coolingDown: "في فترة تهدئة",
   },
   filters: {
     search: "بحث",
@@ -40,15 +56,23 @@ export const adminTeachersAr: AdminTeachersLabels = {
     filteredMessage: "عدّل المرشحات أعلاه أو امسحها لعرض كل المعلمين.",
     cta: "مراجعة حسابات المستخدمين",
   },
+  applicantsEmptyState: {
+    title: "لا توجد طلبات انضمام بعد",
+    message: "ستظهر هنا طلبات المعلمين الجدد بمجرد تسجيلهم على المنصة.",
+    filteredTitle: "لا توجد طلبات مطابقة للمرشحات",
+    filteredMessage: "عدّل المرشحات أعلاه أو امسحها لعرض كل الطلبات.",
+  },
   errorState: {
     title: "تعذّر تحميل المعلمين",
     message: "حدث خطأ أثناء جلب دليل المعلمين. حاول مرة أخرى.",
     retry: "إعادة المحاولة",
   },
   loading: "جارٍ تحميل المعلمين",
+  applicantsLoading: "جارٍ تحميل طلبات الانضمام",
   quickActions: {
     copyEmail: "نسخ البريد الإلكتروني",
     emailCopied: "تم نسخ البريد الإلكتروني.",
+    viewProfile: "عرض الملف الكامل",
   },
   export: {
     exportCsv: "تصدير CSV",

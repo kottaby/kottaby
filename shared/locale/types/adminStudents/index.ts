@@ -128,15 +128,18 @@ export interface AdminStudentsLabels {
   readonly loading: string;
 
   /**
-   * Clipboard affordance shared by the directory rows (copy-email quick
-   * action + feedback). This directory is read-only — there is no
-   * view-profile link.
+   * Clipboard + navigation affordances shared by the directory rows and the
+   * detail drawer (copy-email quick action + feedback; the full-profile
+   * link routes to the admin user-detail page where governance actions
+   * live).
    */
   readonly quickActions: {
     /** Tooltip for the copy-email icon button. */
     readonly copyEmail: string;
     /** Snackbar shown after the email is copied to the clipboard. */
     readonly emailCopied: string;
+    /** Full-profile link — routes to the admin user-detail page. */
+    readonly viewProfile: string;
   };
 
   /**
