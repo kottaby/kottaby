@@ -78,4 +78,6 @@ export const errorsAr: ErrorsLabels = {
   walletInvalidAmount: "أدخل مبلغ سحب صالحاً (قيمة موجبة بخانتين عشريتين كحد أقصى).",
   walletTeacherProfileMissing: "ستُفعَّل محفظتك بعد اعتماد ملفك التعليمي.",
   sessionIntentCorrupt: "تعذر قراءة هذه الجلسة. يرجى التواصل مع فريق الدعم.",
+  recitationAlreadyExists: "يوجد سجل تلاوة لهذه الجلسة بالفعل.",
+  recitationSessionNotWriteable: "لا يمكن إضافة سجل تلاوة لهذه الجلسة في حالتها الحالية.",
 };

@@ -53,7 +53,7 @@
 
 > **Zero schema work (REQ-010):** the Drizzle schema in `backend/db/schema/` is the sole structural ground truth; this ticket makes NO edits there. Phase 1 = type extension + i18n keys only.
 
-### - [ ] 1.1 Extend canonical types + static assertions + conformance test
+### - [x] 1.1 Extend canonical types + static assertions + conformance test
 - **Files:**
   - `backend/types/classes/recitation.types.ts` (UPDATE — additive: `RecitationReturnType = typeof recitation.$inferSelect`; `interface SessionRecitationSubmitInput { readonly name: string; readonly description: string | null; }`)
   - `backend/types/classes/recitation.types.test-d.ts` (CREATE — conformance: `RecitationReturnType ≡ RecitationSelectType`; `SessionRecitationSubmitInput` keys EXACTLY `{name, description}`; `@ts-expect-error` negatives: `sessionId`/`id`/`createdAt` not assignable; `description: undefined` not assignable)
@@ -61,14 +61,14 @@
 - **NO barrel edits** (`backend/types/classes/index.ts` and `backend/types/index.ts` already re-export — VERIFY in task 0.2, assert in the static test).
 - **Instruction files:** `.agents/instructions/backend.instructions.md`, `backend/AGENTS.md` (as present in bundle).
 - _Requirements: REQ-003, REQ-033 (BOPLA whitelist is structural here)_
-  - [ ] 1.1.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts backend/types/classes/recitation.types.ts --lifecycle duplicates` AND same for both test files (exit code 0)
-  - [ ] 1.1.TE **Test Engineering**: run `bun run test/scripts/run-test.ts backend/types/classes/` — static-assertion + conformance suites green; type errors prove the negatives compile-fail as written (Tier 1 structural coverage).
-  - [ ] 1.1.SEC **Security & Tenancy Audit**: BOPLA enforcement is the deliverable — `SessionRecitationSubmitInput` excludes every server-controlled field (id, sessionId, timestamps); negative assignment tests prove exclusion.
-  - [ ] 1.1.SR **Semantic Review**: no duplicate type shapes; `RecitationReturnType` is a derivation (`typeof recitation.$inferSelect`), never a hand-declared interface; zero dead exports beyond the four-member shape.
-  - [ ] 1.1.IV **Instruction Verification**: re-read `.agents/instructions/backend.instructions.md` and auto-discovered AGENTS.md files for `backend/types/`; confirm compliance.
-  - [ ] 1.1.OC **Outcome**: write `outcome/1.1-outcome.md`.
+  - [x] 1.1.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts backend/types/classes/recitation.types.ts --lifecycle duplicates` AND same for both test files (exit code 0)
+  - [x] 1.1.TE **Test Engineering**: run `bun run test/scripts/run-test.ts backend/types/classes/` — static-assertion + conformance suites green; type errors prove the negatives compile-fail as written (Tier 1 structural coverage).
+  - [x] 1.1.SEC **Security & Tenancy Audit**: BOPLA enforcement is the deliverable — `SessionRecitationSubmitInput` excludes every server-controlled field (id, sessionId, timestamps); negative assignment tests prove exclusion.
+  - [x] 1.1.SR **Semantic Review**: no duplicate type shapes; `RecitationReturnType` is a derivation (`typeof recitation.$inferSelect`), never a hand-declared interface; zero dead exports beyond the four-member shape.
+  - [x] 1.1.IV **Instruction Verification**: re-read `.agents/instructions/backend.instructions.md` and auto-discovered AGENTS.md files for `backend/types/`; confirm compliance.
+  - [x] 1.1.OC **Outcome**: write `outcome/1.1-outcome.md`.
 
-### - [ ] 1.2 i18n error keys (flat, both locales)
+### - [x] 1.2 i18n error keys (flat, both locales)
 - **Files:**
   - `shared/locale/en/errors*` (UPDATE — add flat keys `recitationAlreadyExists`, `recitationSessionNotWriteable` to `ErrorsLabels`)
   - `shared/locale/ar/errors*` (UPDATE — Arabic translations of the SAME two keys)
@@ -76,12 +76,12 @@
   - i18n parity test (new or extended per existing locale-parity suite location) asserting both keys exist in BOTH locales with non-empty values
 - **Instruction files:** `shared/AGENTS.md` (registration checklist), `.agents/instructions/backend.instructions.md`.
 - _Requirements: REQ-002, REQ-052_
-  - [ ] 1.2.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts` on every touched locale/type file (exit 0)
-  - [ ] 1.2.TE **Test Engineering**: locale parity test green via `bun run test/scripts/run-test.ts <locale-parity-test-path>`; assert flat (non-nested) key shape.
-  - [ ] 1.2.SEC **Security & Tenancy Audit**: keys carry user-safe generic copy — no server internals or dynamic interpolation holes.
-  - [ ] 1.2.SR **Semantic Review**: no `Translation` enum references (none exists); keys are `ErrorsLabels`-flat with domain prefix; no duplicated keys anywhere in the locale trees.
-  - [ ] 1.2.IV **Instruction Verification**: validate registration steps against `shared/AGENTS.md` checklist item-by-item.
-  - [ ] 1.2.OC **Outcome**: write `outcome/1.2-outcome.md`.
+  - [x] 1.2.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts` on every touched locale/type file (exit 0)
+  - [x] 1.2.TE **Test Engineering**: locale parity test green via `bun run test/scripts/run-test.ts <locale-parity-test-path>`; assert flat (non-nested) key shape.
+  - [x] 1.2.SEC **Security & Tenancy Audit**: keys carry user-safe generic copy — no server internals or dynamic interpolation holes.
+  - [x] 1.2.SR **Semantic Review**: no `Translation` enum references (none exists); keys are `ErrorsLabels`-flat with domain prefix; no duplicated keys anywhere in the locale trees.
+  - [x] 1.2.IV **Instruction Verification**: validate registration steps against `shared/AGENTS.md` checklist item-by-item.
+  - [x] 1.2.OC **Outcome**: write `outcome/1.2-outcome.md`.
 
 ---
 
