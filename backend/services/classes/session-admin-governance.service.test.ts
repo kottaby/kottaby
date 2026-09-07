@@ -1334,9 +1334,11 @@ describe("SessionAdminGovernanceService — chaos (production tx path, committed
     expect(await countAuditsForSession(db, started.id)).toBe(1);
     expect(await countNotificationsFor(db, [chaosStudentId, chaosTeacherId])).toBe(2);
 
-    // Publish-after-commit: ONE fan-out covering both recipients — spied,
-    // never delivered.
-    expect(transport.publishCount).toBe(1);
+    // Publish-after-commit: one fan-out PER delivery receipt (the engine's
+    // per-receipt publish contract — each recipient is one receipt) —
+    // spied, never delivered. Two receipts → two fan-outs covering the
+    // same two recipients, in wave order (student first, then teacher).
+    expect(transport.publishCount).toBe(2);
     expect(transport.publishedUserIds).toEqual([chaosStudentId, chaosTeacherId]);
 
     // A keyless re-cancel of the already-cancelled row is fail-closed.
