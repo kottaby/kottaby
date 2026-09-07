@@ -63,32 +63,30 @@ import {
   cancelSessionInTx,
   joinObservationInTx,
   normalizeAdminCancelReason,
+  RESCHEDULE_START_PAST_GRACE_MS,
   reassignTeacherInTx,
   rejectSessionNotFound,
   rejectStateConflict,
-  RESCHEDULE_START_PAST_GRACE_MS,
   rescheduleSessionInTx,
   SESSION_STARTED_STATUS,
 } from "@/backend/services/classes/session-admin-governance.helpers";
 import { MAX_IDEMPOTENCY_KEY_LENGTH, normalizePageBounds } from "@/backend/services/classes/session-lifecycle.guards";
 import { NotificationEngine, type NotificationEngineCallOptions } from "@/backend/services/notifications";
-import type {
-  AdminSessionCancelInput,
-  AdminSessionDetail,
-  AdminSessionJoinInput,
-  AdminSessionListFilterInput,
-  AdminSessionReassignInput,
-  AdminSessionRescheduleInput,
-  AdminSessionRowReturnType,
-  DBTransaction,
-  SessionReturnType,
-} from "@/backend/types";
 import {
+  type AdminSessionCancelInput,
   AdminSessionCancelInputSchema,
+  type AdminSessionDetail,
+  type AdminSessionJoinInput,
   AdminSessionJoinInputSchema,
+  type AdminSessionListFilterInput,
   AdminSessionListFilterInputSchema,
+  type AdminSessionReassignInput,
   AdminSessionReassignInputSchema,
+  type AdminSessionRescheduleInput,
   AdminSessionRescheduleInputSchema,
+  type AdminSessionRowReturnType,
+  type DBTransaction,
+  type SessionReturnType,
 } from "@/backend/types";
 import { getServerTranslations } from "@/shared/locale/server-graphql";
 
