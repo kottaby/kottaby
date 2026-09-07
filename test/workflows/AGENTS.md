@@ -106,7 +106,7 @@ The helpers directory exists and is the ONLY shared-scaffolding home for this la
 
 ### `journey-fixture-registry.ts` — tracked-ID registry + FK-order-aware cleanup
 
-- `createJourneyFixtureRegistry()` → `{ track, trackAll, ids, trackedCount, cleanup }`.
+- `createSessionFixtureRegistry()` → `{ track, trackAll, ids, trackedCount, cleanup }`.
   Create ONE registry per suite. Every fixture row AND every row the services create
   during the journey (sessions, idempotency claims, …) must be registered via
   `track(<table>, id)` — the registry is the hard-delete worklist for `afterAll`.

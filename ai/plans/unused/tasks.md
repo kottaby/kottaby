@@ -58,7 +58,7 @@
 
 - [x] T8.1 `check:unused` fails on warnings (`--treat-config-hints-as-errors`/`--treat-tag-hints-as-errors`); resolve remaining `.mdx` config hint; wire into CI quality job + quality-gate BASIC_CHECKS
 - [ ] T8.2 Stop dev server; production build passes
-- [ ] T8.3 autofix skill run #1 on PR #73; apply validated CodeRabbit fixes; commit + push
+- [x] T8.3 autofix skill run #1 on PR #73; apply validated CodeRabbit fixes; commit + push
 - [ ] T8.4 quality-gate full pass (includes new knip gate); commit + push
 - [ ] T8.5 Merge main into branch; resolve conflicts (drizzle migrations = main, regenerate GraphQL); rerun migrations; commit + push
 - [ ] T8.6 db generate/migrate/seed + .env.test migrate; test:db / test:services / test:graphql green; commit + push
