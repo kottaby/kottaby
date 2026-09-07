@@ -62,8 +62,8 @@
 
 import { UserRole } from "@/backend/enum/users/user-role.enum";
 import { gqlSchemaBuilder } from "@/backend/graphql/pothos/builder";
-import { AdminSessionListFilterPothosInput } from "@/backend/graphql/pothos/classes/session-filter-input.pothos";
 import { SessionPagePothosObject, SessionPothosObject } from "@/backend/graphql/pothos/classes/session.pothos";
+import { AdminSessionListFilterPothosInput } from "@/backend/graphql/pothos/classes/session-filter-input.pothos";
 import { UnauthorizedError } from "@/backend/lib/errors";
 import { SessionAdminGovernanceService } from "@/backend/services";
 import type { AdminSessionListFilterInput } from "@/backend/types";
