@@ -65,14 +65,14 @@ Ground truth: repo primitives and services EXIST as cited in specs/plan; new cod
 
 ### Task 3: Service Composition — Prompt on Complete + Two-Leg Sweep
 
-- [ ] 3. Extend `SessionLifecycleService`
+- [x] 3. Extend `SessionLifecycleService`
   - `completeSession` (`session-lifecycle.service.ts:241`): on non-null guarded success, emit completion-prompt receipt (same tx); publish post-commit on the own-tx path; with `outerTx`, receipts propagate to the caller (document return-shape handling — receipt carried alongside the session result without breaking `SessionReturnType` surface)
   - `sweepExpiredSessions` (`session-lifecycle.service.ts:554`): add the completed leg after the scheduled leg in the SAME transaction; `refundSweptHolds` covers UNION of both legs' rows; post-commit, per completed-leg row emit auto-cancel receipts and publish
-  - [ ] 3.QL: sub-loop `session-lifecycle.service.ts`
-  - [ ] 3.TE: prompt fires exactly once per completion (not on idempotent repeats); sweep returns honest counts across both legs; fail-closed rollback leaves zero notification receipts published; locale wiring through `getServerTranslations` unchanged
-  - [ ] 3.SEC: emit never called with client-supplied recipient; sweep is system-scope only
-  - [ ] 3.SR: no wallet write added to sweep path (refund only); zero notification writes during request path failures
-  - [ ] 3.IV
+  - [x] 3.QL: sub-loop `session-lifecycle.service.ts`
+  - [x] 3.TE: prompt fires exactly once per completion (not on idempotent repeats); sweep returns honest counts across both legs; fail-closed rollback leaves zero notification receipts published; locale wiring through `getServerTranslations` unchanged
+  - [x] 3.SEC: emit never called with client-supplied recipient; sweep is system-scope only
+  - [x] 3.SR: no wallet write added to sweep path (refund only); zero notification writes during request path failures
+  - [x] 3.IV
   - Write `outcome/3-service-composition-outcome.md`; mark `[x]`
   - _Requirements: REQ-3 (AC 1,2,4,5), REQ-5 (AC 1,2,3), REQ-1_
 
