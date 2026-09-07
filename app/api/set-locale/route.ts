@@ -106,15 +106,35 @@ function withLocaleCookie<T extends Response>(response: T, locale: AppLocale): T
   return response;
 }
 
+function hasControlOrBackslashChar(raw: string): boolean {
+  for (let i = 0; i < raw.length; i++) {
+    const code = raw.charCodeAt(i);
+    if (code === 92 || code <= 31 || (code >= 127 && code <= 159)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 /** Only allow same-origin relative paths (block open redirects). */
 function safeRedirectPath(raw: string | null, fallback = "/"): string {
-  // Backslash anywhere → foreign-origin escape when WHATWG URL parsing folds
-  // "\" into "/" ("/\\evil.com" ≡ "//evil.com" ⇒ protocol-relative). Fail
-  // closed; legitimate relative paths never contain a raw backslash.
-  if (!raw?.startsWith("/") || raw.startsWith("//") || raw.includes("://") || raw.includes("\\")) {
+  if (!raw || typeof raw !== "string") {
     return fallback;
   }
-  return raw;
+  // Backslash or ASCII control characters (tab, newline, CR, etc.) anywhere → fail closed.
+  if (!raw.startsWith("/") || hasControlOrBackslashChar(raw)) {
+    return fallback;
+  }
+  try {
+    const dummyBase = "http://localhost:3000";
+    const parsed = new URL(raw, dummyBase);
+    if (parsed.origin !== dummyBase || !parsed.pathname.startsWith("/")) {
+      return fallback;
+    }
+    return parsed.pathname + parsed.search + parsed.hash;
+  } catch {
+    return fallback;
+  }
 }
 
 function isAllowedOrigin(request: NextRequest): boolean {
