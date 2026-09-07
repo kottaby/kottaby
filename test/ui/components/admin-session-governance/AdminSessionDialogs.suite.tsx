@@ -84,7 +84,6 @@ import {
   type ReschedulePair,
   RescheduleSessionDialog,
 } from "@/frontend/views/admin/session-governance/RescheduleSessionDialog";
-import type { AppLocale } from "@/shared/locale/AppLocale";
 import { arMessages } from "@/shared/locale/ar/messages";
 import { enMessages } from "@/shared/locale/en/messages";
 import { AdminSessionGovernance as AdminSessionGovernanceNs } from "@/shared/locale/namespaces/adminSessionGovernance";
