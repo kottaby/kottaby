@@ -63,18 +63,18 @@
 
 ## Phase 5 — Frontend & Navigation
 
-- [ ] 5.1 **CREATE** `frontend/graphql/sharedDocuments/adminSessions.documents.ts` (REQ-063) — subtasks QL/TE/SEC/SR/IV
-- [ ] 5.2 **CREATE view component tree** (`frontend/views/admin/session-governance/*`) per plan §5 (REQ-064)
-  - [ ] 5.2.1 Container/Chrome
+- [x] 5.1 **CREATE** `frontend/graphql/sharedDocuments/adminSessions.documents.ts` (REQ-063) — subtasks QL/TE/SEC/SR/IV
+- [x] 5.2 **CREATE view component tree** (`frontend/views/admin/session-governance/*`) per plan §5 (REQ-064)
+  - [x] 5.2.1 Container/Chrome
     - subtasks QL/TE/BF/BS/SR/IV
-  - [ ] 5.2.2 Body + Row + StatusCell
+  - [x] 5.2.2 Body + Row + StatusCell
     - subtasks QL/TE/BF/BS/SR/IV
-  - [ ] 5.2.3 Drawer + 3 dialogs + Join action
+  - [x] 5.2.3 Drawer + 3 dialogs + Join action
     - subtasks QL/TE/BF/BS/SR/IV
-  - [ ] 5.2.4 **Component tests** (Happy DOM + MockedProvider in `test/ui/components/admin-session-governance/*`) covering: directory render, badge matrix, all dialog open/confirm/submit paths, 403 error tenant denial display
-- [ ] 5.3 **CREATE route page** `app/(dashboard)/admin/session-governance/page.tsx` with `withPageAuth` admin-gate (REQ-064)
+  - [x] 5.2.4 **Component tests** (Happy DOM + MockedProvider in `test/ui/components/admin-session-governance/*`) covering: directory render, badge matrix, all dialog open/confirm/submit paths, 403 error tenant denial display
+- [x] 5.3 **CREATE route page** `app/(dashboard)/admin/session-governance/page.tsx` with `withPageAuth` admin-gate (REQ-064)
   - subtasks QL/TE/BF/BS/SR/IV + visual RTL+desktop+mobile matrix screenshots
-- [ ] 5.4 **Nav registration** — `frontend/views/dashboard/nav/navItems.ts` admin block addition + `navItems.test.ts` assertion update (REQ-081)
+- [x] 5.4 **Nav registration** — `frontend/views/dashboard/nav/navItems.ts` admin block addition + `navItems.test.ts` assertion update (REQ-081)
   - subtasks QL/TE/SR/IV
 - [ ] 5.5 **Playwright e2e** — one smoke covering filter → cancel → audit-visible path (`test/ui/e2e/admin-session-governance.spec.ts`); run via existing e2e runner
   - subtasks QL/TE/SR/IV
