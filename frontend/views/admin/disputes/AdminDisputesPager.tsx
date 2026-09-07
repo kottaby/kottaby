@@ -1,8 +1,9 @@
 "use client";
 
 import { NavigateBeforeOutlined, NavigateNextOutlined } from "@mui/icons-material";
-import { IconButton, Stack, Typography } from "@mui/material";
+import { IconButton, Stack, Tooltip, Typography } from "@mui/material";
 import type { ReactNode } from "react";
+import { focusVisibleRingSx } from "@/frontend/components/ui/focusRing";
 import type { SessionsLabels } from "@/shared/locale/types/sessions";
 
 /**
@@ -42,40 +43,42 @@ export function AdminDisputesPager({
         py: 1,
       }}
     >
-      <IconButton
-        aria-label={t.pagerPreviousLabel}
-        data-testid="admin-disputes-pager-prev"
-        disabled={page <= 1}
-        onClick={() => onPageChange(page - 1)}
-        sx={theme => ({
-          "&:focus-visible": {
-            outline: `2px solid ${theme.palette.outline}`,
-            outlineOffset: 2,
-          },
-        })}
-      >
-        <NavigateBeforeOutlined />
-      </IconButton>
+      <Tooltip title={t.pagerPreviousLabel}>
+        <span>
+          <IconButton
+            aria-label={t.pagerPreviousLabel}
+            data-testid="admin-disputes-pager-prev"
+            disabled={page <= 1}
+            onClick={() => onPageChange(page - 1)}
+            sx={{
+              ...focusVisibleRingSx,
+            }}
+          >
+            <NavigateBeforeOutlined />
+          </IconButton>
+        </span>
+      </Tooltip>
       <Typography
         variant="body2"
         sx={theme => ({ color: theme.palette.text.secondary, minWidth: 64, textAlign: "center" })}
       >
         {page} / {totalPages}
       </Typography>
-      <IconButton
-        aria-label={t.pagerNextLabel}
-        data-testid="admin-disputes-pager-next"
-        disabled={page >= totalPages}
-        onClick={() => onPageChange(page + 1)}
-        sx={theme => ({
-          "&:focus-visible": {
-            outline: `2px solid ${theme.palette.outline}`,
-            outlineOffset: 2,
-          },
-        })}
-      >
-        <NavigateNextOutlined />
-      </IconButton>
+      <Tooltip title={t.pagerNextLabel}>
+        <span>
+          <IconButton
+            aria-label={t.pagerNextLabel}
+            data-testid="admin-disputes-pager-next"
+            disabled={page >= totalPages}
+            onClick={() => onPageChange(page + 1)}
+            sx={{
+              ...focusVisibleRingSx,
+            }}
+          >
+            <NavigateNextOutlined />
+          </IconButton>
+        </span>
+      </Tooltip>
     </Stack>
   );
 }
