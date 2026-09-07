@@ -5,8 +5,6 @@ import { useMediaQuery, useTheme } from "@mui/material";
 import {
   Box,
   Dialog,
-  DialogContent,
-  DialogTitle,
   Drawer,
   IconButton,
   Skeleton,
