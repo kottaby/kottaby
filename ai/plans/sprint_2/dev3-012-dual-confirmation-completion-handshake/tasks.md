@@ -103,7 +103,7 @@ Ground truth: repo primitives and services EXIST as cited in specs/plan; new cod
 
 ### Task 6: Final Quality Gate + Knowledge Propagation
 
-- [ ] 6. Full verification + propagation
+- [x] 6. Full verification + propagation
   - `bun quality-gate` green; deferred-items.md zero ❌/⚠️
   - Knowledge propagation: doc updates landed in Task 5; layer AGENTS.md one-line updates ONLY if a new permanent rule emerged (notification waves for lifecycle timeouts — candidate: `backend/services/AGENTS.md` session bullet already exists; add session-completion wave note if warranted, 1 line max, no code)
   - Write `outcome/6-final-gate-outcome.md`; mark `[x]`
