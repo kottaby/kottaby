@@ -552,8 +552,10 @@ for (const locale of componentSuiteLocales) {
       const genericEmpty = await waitFor(() => screen.getByTestId("admin-session-governance-empty"));
       expect(within(genericEmpty).getByText(t.emptyTitle)).toBeDefined();
 
-      // Pick Disputed in the status select (click-driven: trigger → option).
-      fireEvent.click(screen.getByTestId("admin-session-governance-filter-status"));
+      // Pick Disputed in the status select — a plain click never opens the
+      // MUI listbox under Happy DOM; mouseDown does (broadcast compose
+      // precedent).
+      fireEvent.mouseDown(screen.getByTestId("admin-session-governance-filter-status"));
       const option = await waitFor(() => screen.getByRole("option", { name: ts.statusDisputed }));
       fireEvent.click(option);
       fireEvent.click(screen.getByTestId("admin-session-governance-filters-apply"));
@@ -910,9 +912,13 @@ for (const locale of componentSuiteLocales) {
       expect(screen.queryByTestId("admin-session-detail-error")).toBeNull();
 
       fireEvent.click(screen.getByTestId("admin-session-detail-close"));
-      await waitFor(() => {
-        expect(screen.queryByTestId("admin-session-detail-missing")).toBeNull();
-      });
+      // Close-path assertions stay SYNCHRONOUS: the MUI exit transition
+      // never settles under Happy DOM, so a removal `waitFor` turns into an
+      // unbounded mutation-churn loop (observed RSS balloon → process kill).
+      // The operator-observable outcome is pinned instead: no error surface,
+      // and the directory row the operator returns to stays mounted.
+      expect(screen.queryByTestId("admin-session-detail-error")).toBeNull();
+      expect(screen.getByTestId(`admin-session-row-${STARTED_ID}`)).toBeDefined();
     });
 
     test("branch 16 — cancel submit SUCCESS: dialog closes, success snackbar, row chip flips via cache merge", async () => {
