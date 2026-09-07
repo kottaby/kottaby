@@ -206,7 +206,7 @@
 
 > **Scope note:** REQ-065 ships typed documents ONLY. There is no page, component, nav, or rendered surface — therefore the UI `.BF`/`.BS` agent-browser loops do not apply and are explicitly not generated; the justification is recorded here and in the outcome file.
 
-### - [ ] 4.1 [Shared documents + barrels + contract test]
+### - [x] 4.1 [Shared documents + barrels + contract test]
 - **Files:**
   - `frontend/graphql/sharedDocuments/scheduling/recitation.documents.ts` (CREATE — `sessionRecitationQueryDocument` + `setSessionRecitationMutationDocument` as `TypedDocumentNode`s; `id` selected FIRST in payload selections; NO declared unused documents)
   - `frontend/graphql/sharedDocuments/scheduling/index.ts` (UPDATE barrel)
@@ -215,12 +215,12 @@
   - `frontend/providers/apollo/apolloCache.ts` — **MUST NOT be touched** (frozen surface; assert untouched in PR diff and pin in contract test if a policy test exists at `frontend/providers/apollo/apolloCache.test.ts:95-106`)
 - **Instruction files:** `.agents/instructions/frontend.instructions.md`, `frontend/graphql/AGENTS.md`.
 - _Requirements: REQ-065, REQ-033 (zero identity variables = wire-level BOPLA hygiene), REQ-043 (dispatcher untouched — no new error-map row)_
-  - [ ] 4.1.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts` on each created/updated documents file and the contract test (exit 0)
-  - [ ] 4.1.TE **Test Engineering**: `bun run test/scripts/run-test.ts frontend/graphql/sharedDocuments/` — contract suite green (naming, `TypedDocumentNode` typing against codegen output, id-first selection, exact variable surface).
-  - [ ] 4.1.SEC **Security & Tenancy Audit**: documents carry NO identity variables (caller identity is never wire-visible); no selection of fields absent from `SessionRecitation`; apolloCache policy surface untouched.
-  - [ ] 4.1.SR **Semantic Review**: no duplicate operation names; no unused document exports; barrels in canonical order; NO view/page/component code created anywhere.
-  - [ ] 4.1.IV **Instruction Verification**: `.agents/instructions/frontend.instructions.md` + `frontend/graphql/AGENTS.md` re-read post-edit.
-  - [ ] 4.1.OC **Outcome**: write `outcome/4.1-outcome.md` (record the explicit N/A ruling for `.BF`/`.BS` loops with REQ-065/non-goal-3 citation).
+  - [x] 4.1.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts` on each created/updated documents file and the contract test (exit 0)
+  - [x] 4.1.TE **Test Engineering**: `bun run test/scripts/run-test.ts frontend/graphql/sharedDocuments/` — contract suite green (naming, `TypedDocumentNode` typing against codegen output, id-first selection, exact variable surface).
+  - [x] 4.1.SEC **Security & Tenancy Audit**: documents carry NO identity variables (caller identity is never wire-visible); no selection of fields absent from `SessionRecitation`; apolloCache policy surface untouched.
+  - [x] 4.1.SR **Semantic Review**: no duplicate operation names; no unused document exports; barrels in canonical order; NO view/page/component code created anywhere.
+  - [x] 4.1.IV **Instruction Verification**: `.agents/instructions/frontend.instructions.md` + `frontend/graphql/AGENTS.md` re-read post-edit.
+  - [x] 4.1.OC **Outcome**: write `outcome/4.1-outcome.md` (record the explicit N/A ruling for `.BF`/`.BS` loops with REQ-065/non-goal-3 citation).
 
 ---
 
