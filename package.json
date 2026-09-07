@@ -67,7 +67,7 @@
     "codegen": "graphql-codegen --config codegen.ts",
     "validate:mermaid": "bun run scripts/validation/validate-mermaid.ts",
     "db:push": "bun --no-env-file run scripts/dbActions/cli-entry.ts --env-file=.env.sqlite push",
-    "check:unused": "bun node_modules/knip/bin/knip-bun.js"
+    "check:unused": "bun node_modules/knip/bin/knip-bun.js --treat-config-hints-as-errors --treat-tag-hints-as-errors"
   },
   "dependencies": {
     "@apollo/client": "^4.2.12",

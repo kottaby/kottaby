@@ -42,7 +42,10 @@ const config: KnipConfig = {
   project: [
     "app/**/*.{ts,tsx}",
     "backend/**/*.{ts,tsx}",
-    "frontend/**/*.{ts,tsx}",
+    // `mdx` covers the Storybook addon-docs compiler registered by the knip Storybook
+    // plugin — project patterns must include the compiled extension so imports in
+    // future .mdx files are followed (keeps --treat-config-hints-as-errors clean).
+    "frontend/**/*.{ts,tsx,mdx}",
     "shared/**/*.{ts,tsx}",
     "scripts/**/*.{ts,tsx}",
     "test/**/*.{ts,tsx}",

@@ -110,6 +110,8 @@ async function performStage(stage: QualityStage): Promise<boolean> {
       if (!oxlint.success) return false;
       const biome = await runCommand("bun", ["biome:check"]);
       if (!biome.success) return false;
+      const unused = await runCommand("bun", ["check:unused"]);
+      if (!unused.success) return false;
       const lint = await runCommand("bun", ["lint:type-aware"]);
       return lint.success;
     }
