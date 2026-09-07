@@ -29,7 +29,10 @@
  *    denials; the cancel paths (recorded lane refunded exactly once, no
  *    recorded lane refunds nothing, disputed refused, already-cancelled
  *    fail-closed, idempotent retry-doubles, replay denials for a foreign
- *    claim and a mis-pointed claim, key-shape guards); the reassignment
+ *    claim and a mis-pointed claim, the replay-arm claim-pointer invariant
+ *    (a key spent on an already-cancelled session points at it — the same
+ *    key on a DIFFERENT cancelled session is the mis-point conflict while
+ *    the same session still replays), key-shape guards); the reassignment
  *    arms (certified candidate swaps the teacher, unapproved / DB-null
  *    candidate refuses byte-identically, missing candidate is the not-found
  *    denial, non-scheduled rows are transition conflicts); the join gate
@@ -500,8 +503,7 @@ describe("SessionAdminGovernanceService — directory reads (runInRollback)", ()
       expect(disputedRow.needsAttention).toBe(true);
       expect(allRows.totalCount).toBe(4);
 
-      // Strictly read-only: the directory query must not mutate state —
-      // no audit rows, no inbox rows.
+      // Strictly read-only: no audit rows, no inbox rows (REQ-029 posture).
       expect(await countAuditsForSession(tx, scheduledA.id)).toBe(0);
       expect(await countAuditsForSession(tx, disputed.id)).toBe(0);
       expect(await countNotificationsFor(tx, [actors.studentUserId, actors.teacherUserId])).toBe(0);
@@ -972,6 +974,55 @@ describe("SessionAdminGovernanceService — cancel (runInRollback)", () => {
       const caught = await expectRepoError(() => cancelVia(tx, adminId, { sessionId: cancelledB.id }, mispointedKey));
       expectDomainDenial(caught, "SESSION_INVALID_TRANSITION", ERRORS_EN.sessionInvalidTransition);
       expect(await countAuditsForSession(tx, cancelledB.id)).toBe(0);
+    });
+  });
+
+  test("a replay-arm claim points at the session it replayed against: the same key on a DIFFERENT cancelled session is the mis-point conflict, the same session still replays", async () => {
+    await runInRollback(async tx => {
+      const actors = await createSessionActors(tx);
+      const { adminId } = await createTestAdmin(tx);
+      // Both rows are ALREADY cancelled before the admin arrives — A's
+      // cancel was done by a participant, so the keyed cancel below can
+      // only resolve through the replay arm (the guarded UPDATE can never
+      // match a cancelled row and backfill the pointer on the success
+      // path).
+      const cancelledA = await insertSessionRow(tx, actors, { status: SessionStatus.Cancelled });
+      const cancelledB = await insertSessionRow(tx, actors, { status: SessionStatus.Cancelled });
+      const key = `gov-cancel-${randomUUID()}`;
+
+      // First use: the keyed cancel against A resolves as the idempotent
+      // replay — the current row comes back, untouched.
+      const replayed = await cancelVia(tx, adminId, { sessionId: cancelledA.id, reason: "late" }, key);
+      expect(replayed.id).toBe(cancelledA.id);
+      expect(replayed.status).toBe(SessionStatus.Cancelled);
+
+      // The invariant that closes the mis-point bypass: the committed
+      // claim names the session it replayed against — never a null
+      // pointer.
+      const claims = await readClaimsForUser(tx, adminId);
+      expect(claims).toHaveLength(1);
+      const claim = claims[0];
+      if (!claim) {
+        throw new Error("expected the idempotency claim row to exist");
+      }
+      expect(claim.idempotencyKey).toBe(key);
+      expect(claim.sessionId).toBe(cancelledA.id);
+
+      // The same key against a DIFFERENT cancelled session is the
+      // mis-point state conflict — zero writes against B.
+      const caught = await expectRepoError(() =>
+        cancelVia(tx, adminId, { sessionId: cancelledB.id, reason: "late" }, key)
+      );
+      expectDomainDenial(caught, "SESSION_INVALID_TRANSITION", ERRORS_EN.sessionInvalidTransition);
+      expect(await countAuditsForSession(tx, cancelledB.id)).toBe(0);
+      expect(await countNotificationsFor(tx, [actors.studentUserId, actors.teacherUserId])).toBe(0);
+
+      // The same key against A STILL resolves as the honest replay — the
+      // replay is write-free (no duplicate audit row, no wave).
+      const again = await cancelVia(tx, adminId, { sessionId: cancelledA.id, reason: "late" }, key);
+      expect(again.id).toBe(cancelledA.id);
+      expect(await countAuditsForSession(tx, cancelledA.id)).toBe(0);
+      expect(await countNotificationsFor(tx, [actors.studentUserId, actors.teacherUserId])).toBe(0);
     });
   });
 
