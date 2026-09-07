@@ -186,12 +186,16 @@ Supporting invariants:
 
 **Prerequisite — toolchain lockstep rule:** the `pg_dump`/`pg_restore` client major version must be **≥ the server major version**. The backup tool probes this and fails closed with `[env]`; when the server is upgraded, upgrade the clients in lockstep — do not schedule backups with a stale client major.
 
+**Prerequisite — connection context:** the provisioning and inspection commands in step 1 (`createdb`, `dropdb`, `psql`) use the ambient libpq connection environment — they take no DSN of their own. Run them with the connection context set explicitly (for example `export PGHOST=127.0.0.1`, plus credentials if the cluster requires them), or pass `-h`/`-U` per invocation; a bare shell without it fails on the local Unix socket.
+
 Execute in order; fill the timing table during every drill and real recovery:
 
 1. **Provision a scratch/staging database.** Fresh Postgres instance with known credentials. It must NOT be prod-shaped (the guard would refuse it) and must be disposable — the restore drops and recreates public objects in it.
+   Concrete example: `createdb kottaby_drill_<UTC-stamp>` (unique, obviously-disposable name), then confirm it is empty: `psql -d kottaby_drill_<UTC-stamp> -tAc "select count(*) from pg_tables where schemaname='public'"` must print `0`.
 2. **Take a backup — if no recent verified run exists.** If a current run directory with a validating `manifest.json` already exists (e.g. the last hourly run), reuse it; otherwise run `bun run ops:db-backup [--env <file>] [--out-dir <dir>]` against the source. Note the run directory path.
 3. **Restore & verify.** Run `bun run ops:db-restore-verify -- --from <runDir|artifact> --target <dsn> --yes-i-understand [--env <file>]` with the run directory from step 2 and the scratch DSN from step 1. Wait for the final `VERDICT` line.
 4. **Review `VERDICT` + report.** `VERDICT: PASS` required; open `restore-report.json` in the run directory and confirm the structural row counts, the 7/7 oracle results, and the hash correspondence. A `VERDICT: FAIL` (or any `[verify:*]` / `[guard]` line you cannot explain) stops the runbook — investigate before proceeding.
+   The report's key fields: `verdict`; `structural[]` (per-table `present` / `rowCount` / `sourceNonEmpty` / `ok` — non-critical tables report `rowCount: -1`, meaning "not counted"; only the critical set carries real counts); `oracles[]` (`id` / `passed`); and `durationMs` (restore+verify runtime).
 5. **Sign-off.** Record: run directory, manifest SHA-256, verdict, total wall-clock, and the completed timing table into the drill evidence store. For drills, file evidence to the plan outcome directory (see Related Documents).
 
 **Timing table (fill during the drill — leave no blanks in filed evidence):**

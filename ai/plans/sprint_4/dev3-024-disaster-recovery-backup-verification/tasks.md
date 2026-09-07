@@ -115,7 +115,7 @@ Sequence: QL → TE → SEC → SR → IV → `[x]`.
   - [x] 5.1.SEC: assert guard refuses a prod-shaped DSN at integration level too (one probe reusing matrix fixture); assert scratch DB names are quote-safe.
   - [x] 5.1.SR / 5.1.IV standard (tests + backend instructions).
   - _Requirements: REQ-060, REQ-061, REQ-062; chain-covers REQ-010..REQ-019._
-- [ ] 5.2 **Cold drill execution** (human/agent-executed against scratch): follow the runbook draft (written in 6.1 but drilled against its draft as soon as 5.1 is green; final polish allowed only AFTER drill feedback) end-to-end as a "never-seen-it" operator; record every friction point; measure total wall-clock; write `outcome/5.2-drill-evidence.md` (durations table, verdict, friction log, runbook patch list).
+- [x] 5.2 **Cold drill execution** (human/agent-executed against scratch): follow the runbook draft (written in 6.1 but drilled against its draft as soon as 5.1 is green; final polish allowed only AFTER drill feedback) end-to-end as a "never-seen-it" operator; record every friction point; measure total wall-clock; write `outcome/5.2-drill-evidence.md` (durations table, verdict, friction log, runbook patch list).
   - _Requirements: REQ-021, REQ-022._
 
 ## Phase 6 — Canonical Documentation
