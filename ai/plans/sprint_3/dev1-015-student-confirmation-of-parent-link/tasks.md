@@ -118,7 +118,7 @@
   - Verify: `bun run test/scripts/run-test.ts test/workflows` green (never raw `bun test` — it skips `--env-file=.env.test`).
   - _Requirements: REQ-062 (J-REQ-01..J-REQ-05), REQ-012, REQ-013, REQ-014, REQ-017, REQ-020, REQ-021, REQ-022, REQ-030–035, REQ-065_
 
-- [ ] 2.2 Audit existing service/repo suites against acceptance criteria; add ONLY genuinely missing regression cells
+- [x] 2.2 Audit existing service/repo suites against acceptance criteria; add ONLY genuinely missing regression cells
   - Diff `backend/services/parents/parent-link-request.service.test.ts` and `parent-link-request.chaos.test.ts` coverage against specs §2 acceptance criteria and produce the cell-by-cell coverage table in the outcome.
   - Add ONLY missing cells (expected candidates; each must be justified by the diff audit — no duplicates of DEV1-014 cells):
     - Publish-after-commit spy assertion: a forced mid-transaction failure yields ZERO `publishReceipts` calls and ZERO notification rows (REQ-034), if not already pinned.
@@ -128,11 +128,11 @@
   - All service/repo assertions use `runInRollback` + explicit `tx` propagation + `expectRepoError`-style try/catch (NEVER `expect().rejects.toThrow()` inside a rollback tx).
   - Do NOT modify `respondToLinkRequest`, `listMyIncoming`, helpers, or repositories — REUSE verbatim (plan D1). Any discovered need to edit = STOP + ledger.
   - _Requirements: REQ-060, REQ-061, REQ-024, REQ-025, REQ-022, REQ-031, REQ-033, REQ-034, REQ-035_
-  - [ ] 2.2.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts backend/services/parents/parent-link-request.service.test.ts --lifecycle duplicates` (and the chaos file if touched) — exit code 0.
-  - [ ] 2.2.TE **Test Engineering:** 4-Tier check on added cells — Tier 1 branch/stmt coverage of the exercised service branches; Tier 2 boundary (expiry instant, zero-row classification); Tier 3 chaos (rollback fanout-zero, double-respond); Tier 4 security (gated/governed denial ordering). `runInRollback` + `tx` propagation verified by inspection; notification engine mocked via the established adapter seam.
-  - [ ] 2.2.SEC **Security & Tenancy Audit:** New assertions prove: BOLA identity derives from `actorUserId` only; BOPLA field-by-field writes (verify no new `{ ...input }` spread introduced anywhere); BFLA service-side role check present; constant-denial no-oracle shape.
-  - [ ] 2.2.SR **Semantic Review:** Atomicity (single `withTransaction` unit asserted), env-config (no hardcoded URLs/secrets), zero dead test code, no cross-layer imports in tests (tests import services + `@/backend/enum/*` value enums), enums as value imports.
-  - [ ] 2.2.IV **Instruction Verification:** Validate against `.agents/instructions/backend.instructions.md` + `.agents/instructions/tests.instructions.md` + `backend/services/parents/AGENTS.md` (if present per 0.2) + `backend/db/repo/parents/AGENTS.md` (if present per 0.2).
+  - [x] 2.2.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts backend/services/parents/parent-link-request.service.test.ts --lifecycle duplicates` (and the chaos file if touched) — exit code 0.
+  - [x] 2.2.TE **Test Engineering:** 4-Tier check on added cells — Tier 1 branch/stmt coverage of the exercised service branches; Tier 2 boundary (expiry instant, zero-row classification); Tier 3 chaos (rollback fanout-zero, double-respond); Tier 4 security (gated/governed denial ordering). `runInRollback` + `tx` propagation verified by inspection; notification engine mocked via the established adapter seam.
+  - [x] 2.2.SEC **Security & Tenancy Audit:** New assertions prove: BOLA identity derives from `actorUserId` only; BOPLA field-by-field writes (verify no new `{ ...input }` spread introduced anywhere); BFLA service-side role check present; constant-denial no-oracle shape.
+  - [x] 2.2.SR **Semantic Review:** Atomicity (single `withTransaction` unit asserted), env-config (no hardcoded URLs/secrets), zero dead test code, no cross-layer imports in tests (tests import services + `@/backend/enum/*` value enums), enums as value imports.
+  - [x] 2.2.IV **Instruction Verification:** Validate against `.agents/instructions/backend.instructions.md` + `.agents/instructions/tests.instructions.md` + `backend/services/parents/AGENTS.md` (if present per 0.2) + `backend/db/repo/parents/AGENTS.md` (if present per 0.2).
   - Outcome: `2.2-outcome.md`.
 
 ### Phase 2.M — Mid-Point Review Gate
