@@ -114,13 +114,16 @@ gqlSchemaBuilder.queryField("adminSessions", t =>
       // the canonical TS vocabulary and `Date` instances; pagination is
       // NOT part of the filter — the page/pageSize args above travel as
       // their own service arguments.
+      // An EXPLICIT `null` member normalizes to `undefined` — the same
+      // drop-out discipline as the participant filter (absent members fall
+      // out of the repository predicate; filters never error).
       const filter: AdminSessionListFilterInput = {
-        teacherUserId: args.filter.teacherUserId,
-        studentUserId: args.filter.studentUserId,
-        type: args.filter.type,
-        status: args.filter.status,
-        dateFrom: args.filter.dateFrom,
-        dateTo: args.filter.dateTo,
+        teacherUserId: args.filter.teacherUserId ?? undefined,
+        studentUserId: args.filter.studentUserId ?? undefined,
+        type: args.filter.type ?? undefined,
+        status: args.filter.status ?? undefined,
+        dateFrom: args.filter.dateFrom ?? undefined,
+        dateTo: args.filter.dateTo ?? undefined,
       };
       return SessionAdminGovernanceService.listAll(
         ctx.user.id,
