@@ -143,6 +143,27 @@ describe("rawDsnQueryHasEndpointOverride", () => {
     expect(rawDsnQueryHasEndpointOverride("postgresql://u:p@db.example:5432/app_db?port")).toBe(true);
   });
 
+  it("refuses the service key — decoded, case-insensitive, valueless counts", () => {
+    // libpq resolves `?service=` through the connection-service file
+    // (~/.pg_service.conf / PGSERVICEFILE), whose host/port decide the
+    // endpoint nothing in the URL view sees — live-proven:
+    // `postgresql://postgres@127.0.0.1/db?service=x` with a redirected
+    // service file made psql connect on port 5999.
+    expect(rawDsnQueryHasEndpointOverride("postgresql://u:p@db.example:5432/app_db?service=x")).toBe(true);
+    expect(rawDsnQueryHasEndpointOverride("postgresql://u:p@db.example:5432/app_db?SERVICE=x")).toBe(true);
+    expect(rawDsnQueryHasEndpointOverride("postgresql://u:p@db.example:5432/app_db?%73ervice=x")).toBe(true);
+    // A valueless key counts as present — both `?service` and `?service=`.
+    expect(rawDsnQueryHasEndpointOverride("postgresql://u:p@db.example:5432/app_db?service")).toBe(true);
+    expect(rawDsnQueryHasEndpointOverride("postgresql://u:p@db.example:5432/app_db?service=")).toBe(true);
+    // Mixed with benign parameters the service key still refuses.
+    expect(rawDsnQueryHasEndpointOverride("postgresql://u:p@db.example:5432/app_db?sslmode=disable&service=x")).toBe(
+      true
+    );
+    // Benign parameters stay allowed — the key is matched EXACTLY.
+    expect(rawDsnQueryHasEndpointOverride("postgresql://u:p@db.example:5432/app_db?sslmode=disable")).toBe(false);
+    expect(rawDsnQueryHasEndpointOverride("postgresql://u:p@db.example:5432/app_db?servername=hint")).toBe(false);
+  });
+
   it("allows plain query parameters and benign DSNs unchanged", () => {
     expect(rawDsnQueryHasEndpointOverride("postgresql://u:p@db.example:5432/app_db?dbname=&sslmode=disable")).toBe(
       false

@@ -110,6 +110,7 @@ let encodedDotSegmentPathEnvFile = "";
 let emptyQueryDbnameEnvFile = "";
 let hostOverrideEnvFile = "";
 let hostaddrOverrideEnvFile = "";
+let serviceOverrideEnvFile = "";
 let commaAuthorityEnvFile = "";
 let encodedCommaAuthorityEnvFile = "";
 let commaQueryHostEnvFile = "";
@@ -297,6 +298,13 @@ beforeAll(() => {
   hostaddrOverrideEnvFile = writeEnvFile(
     ".env-backup-hostaddr-override",
     "DATABASE_URL=postgresql://ops_owner:supersecret-pw@db.internal.example:5432/app_db?hostaddr=8.8.8.8\n"
+  );
+  // The service-indirection shape: libpq resolves `?service=` through the
+  // connection-service file (~/.pg_service.conf / PGSERVICEFILE), whose
+  // host/port decide the endpoint nothing in the URL view sees.
+  serviceOverrideEnvFile = writeEnvFile(
+    ".env-backup-service-override",
+    "DATABASE_URL=postgresql://ops_owner:supersecret-pw@db.internal.example:5432/app_db?service=appdb\n"
   );
   // The R16 multi-host shapes: libpq accepts comma-separated host LISTS in
   // the authority and in query host=/hostaddr= values and percent-decodes
@@ -1511,6 +1519,25 @@ describe("runBackup — failure boundaries", () => {
     expect(existsSync(outDir)).toBe(false);
   });
 
+  it("refuses a ?service= source-DSN query override with exit 2 and zero side effects", async () => {
+    const outDir = join(workspace, "run-service-override-query");
+    const run = await runBackupWith(probeAndDumpBehavior(dumpWritesArtifact), {
+      envFile: serviceOverrideEnvFile,
+      outDir,
+    });
+    // libpq resolves `?service=` through the connection-service file
+    // (~/.pg_service.conf / PGSERVICEFILE) — a redirected service file made
+    // `…@127.0.0.1/db?service=x` connect on port 5999 — so the query
+    // channel can name an endpoint no URL-derived label sees. Its own
+    // message: the remediation is the endpoint in the DSN authority.
+    expect(run.code).toBe(2);
+    expect(run.errors).toContain(
+      "[env] source DSN service indirection is not supported — name the endpoint in the DSN authority"
+    );
+    expect(run.calls).toEqual([]);
+    expect(existsSync(outDir)).toBe(false);
+  });
+
   it("refuses a comma-separated authority host list with exit 2 and zero side effects", async () => {
     const outDir = join(workspace, "run-comma-authority");
     const run = await runBackupWith(probeAndDumpBehavior(dumpWritesArtifact), {
@@ -1587,7 +1614,8 @@ describe("runBackup — failure boundaries", () => {
       outDir,
     });
     expect(run.code).toBe(0);
-    // Only the three endpoint keys refuse: `sslmode`/`application_name`
+    // Only the endpoint keys (`host`/`hostaddr`/`port`/`service`) refuse:
+    // `sslmode`/`application_name`
     // reshape neither the endpoint nor the database, so the run succeeds
     // and the manifest names the path database.
     const manifest = JSON.parse(readFileSync(join(outDir, STAMP, MANIFEST_FILE_NAME), "utf8")) as unknown;

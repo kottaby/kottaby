@@ -207,9 +207,15 @@ export function parsePostgresDatabaseUrl(value: string | undefined): URL | null 
  * label, so the backup bootstrap refuses such DSNs fail-closed instead of
  * letting the manifest mislabel the dump. A percent-encoded escape is fine:
  * libpq percent-decodes each channel before use and the label decodes to
- * the same literal value (`%23`, `%09`). The label functions above are
- * untouched: refusal upstream (backup bootstrap / restore guard) prevents
- * the divergence they cannot see.
+ * the same literal value (`%23`, `%09`). One parity exception is accepted
+ * deliberately: a percent-encoded `%40`/`%2F` in the USERINFO decodes INTO
+ * a raw-looking `@` or `/` — a userinfo sub-channel intentionally NOT
+ * mirrored here, because the raw last-`@` userinfo split is identical on
+ * both parsers (each splits the RAW span before decoding, so a decoded
+ * delimiter re-splits neither view) and the decoded role is never rendered
+ * (the label marks any userinfo as `(redacted-user)`). The label functions
+ * above are untouched: refusal upstream (backup bootstrap / restore guard)
+ * prevents the divergence they cannot see.
  */
 /** True when `span` carries an ASCII control character (C0 range or DEL) — the restore guard's rule. */
 function hasControlCharacter(span: string): boolean {
@@ -349,8 +355,15 @@ export function rawDsnHasMultiHostEndpoints(trimmedDsn: string): boolean {
 }
 
 /**
+ * The endpoint-deciding RAW query keys: the three direct overrides plus the
+ * `service` key (connection-service-file indirection — see
+ * {@link rawDsnQueryHasEndpointOverride}).
+ */
+const RAW_DSN_ENDPOINT_OVERRIDE_QUERY_KEYS = ["host", "hostaddr", "port", "service"] as const;
+
+/**
  * Whether the RAW query string of a DSN string carries an endpoint-override
- * parameter — a `host`, `hostaddr`, or `port` key (case-insensitive,
+ * parameter — a `host`, `hostaddr`, `port`, or `service` key (case-insensitive,
  * percent-decoded key match; a valueless key counts as present) — the
  * backup-side completion of the restore guard's query-channel rule (restore
  * targets have assessed `?host=`/`?hostaddr=` through the guard pipeline
@@ -361,31 +374,58 @@ export function rawDsnHasMultiHostEndpoints(trimmedDsn: string): boolean {
  * authority label among them — renders the DSN authority (live-proven: a
  * `?host=…&port=…` source backed up with the authority label naming a dead
  * endpoint, and `?hostaddr=8.8.8.8` would ship the dump off-box entirely).
- * The authority is the only supported endpoint channel, so the backup
- * bootstrap refuses such DSNs fail-closed. Plain query parameters (`dbname`,
- * `sslmode`, `application_name`, …) are untouched: only the three endpoint
- * keys refuse, matched EXACTLY (a `localhost` key is not a `host` key).
- * Keys are compared after percent-decoding (libpq decodes parameter names
- * before matching; a malformed escape degrades to the raw text and simply
- * does not match) and case-folding (libpq keyword matching is
- * case-insensitive), so `?HOST=` and `?%68ost=` refuse like `?host=`.
+ * `service` is the same indirection one step removed: libpq resolves the
+ * value through the connection-service file (`~/.pg_service.conf` /
+ * `PGSERVICEFILE`), whose `host=`/`port=` decide the endpoint nothing in
+ * the URL view sees (live-proven: `…@127.0.0.1/db?service=x` with a
+ * redirected service file made psql connect on port 5999). The authority
+ * is the only supported endpoint channel, so the backup bootstrap refuses
+ * such DSNs fail-closed — {@link backupSourceDsnRefusal} renders the
+ * `service` shape with its own "service indirection" message (via
+ * {@link rawDsnQueryHasServiceIndirection}) and the other three keys with
+ * the endpoint-override one. Plain query parameters (`dbname`, `sslmode`,
+ * `application_name`, …) are untouched: only the four endpoint keys refuse,
+ * matched EXACTLY (a `localhost` key is not a `host` key). Keys are
+ * compared after percent-decoding (libpq decodes parameter names before
+ * matching; a malformed escape degrades to the raw text and simply does
+ * not match) and case-folding (libpq keyword matching is case-insensitive),
+ * so `?HOST=` and `?%68ost=` refuse like `?host=`.
  */
 export function rawDsnQueryHasEndpointOverride(trimmedDsn: string): boolean {
+  return rawDsnQueryHasKey(trimmedDsn, RAW_DSN_ENDPOINT_OVERRIDE_QUERY_KEYS);
+}
+
+/**
+ * Whether the RAW query string of a DSN string carries a `service` key —
+ * the same decoded, case-insensitive, valueless-counts match as
+ * {@link rawDsnQueryHasEndpointOverride}, sliced out so
+ * {@link backupSourceDsnRefusal} can render the service-file shape with its
+ * own refusal message: the remediation is naming the endpoint in the DSN
+ * authority, not the host/port keys the generic override message names.
+ */
+function rawDsnQueryHasServiceIndirection(trimmedDsn: string): boolean {
+  return rawDsnQueryHasKey(trimmedDsn, ["service"]);
+}
+
+/**
+ * The raw-query key scan shared by the endpoint-override and service gates.
+ * The whole raw tail after the first `?` is libpq's query view (a raw `#`
+ * inside it is a separate refusal in `rawDsnHasAmbiguousAuthority`). One
+ * linear pass, split on `&`, first `=` separates a decoded, case-folded
+ * KEY from its value — the value is never endpoint-deciding here.
+ */
+function rawDsnQueryHasKey(trimmedDsn: string, keys: readonly string[]): boolean {
   const questionAt = trimmedDsn.indexOf("?");
   if (questionAt < 0) {
     return false;
   }
-  // The whole raw tail after the first `?` is libpq's query view (a raw `#`
-  // inside it is a separate refusal in `rawDsnHasAmbiguousAuthority`). One
-  // linear pass, split on `&`, first `=` separates a decoded, case-folded
-  // KEY from its value — the value is never endpoint-deciding here.
   for (const pair of trimmedDsn.slice(questionAt + 1).split("&")) {
     if (pair.length === 0) {
       continue;
     }
     const equals = pair.indexOf("=");
     const key = decodeUrlSegment(equals < 0 ? pair : pair.slice(0, equals)).toLowerCase();
-    if (key === "host" || key === "hostaddr" || key === "port") {
+    if (keys.includes(key)) {
       return true;
     }
   }
@@ -522,9 +562,15 @@ export function databaseNameFromDsn(url: URL): string {
  *     authority view among them) renders the DSN authority — live-proven:
  *     a `?host=…&port=…` source backed up with the authority label naming
  *     a dead endpoint, and `?hostaddr=8.8.8.8` would ship the dump
- *     off-box entirely. The authority is the only supported endpoint
- *     channel; plain query parameters (`dbname`, `sslmode`,
- *     `application_name`, …) are untouched.
+ *     off-box entirely. The `service` key is the same indirection one
+ *     step removed — libpq resolves it through the connection-service file
+ *     (`~/.pg_service.conf` / `PGSERVICEFILE`), whose entries decide the
+ *     endpoint nothing in the URL view sees (live-proven:
+ *     `…@127.0.0.1/db?service=x` with a redirected service file made psql
+ *     connect on port 5999) — and gets its own "service indirection"
+ *     message. The authority is the only supported endpoint channel; plain
+ *     query parameters (`dbname`, `sslmode`, `application_name`, …) are
+ *     untouched.
  *  5. Unnamed-database gate — the backup-side mirror of the restore
  *     guard's target-naming rule (R5: a target whose database is
  *     under-specified refuses). A db-less source DSN (no path database, no
@@ -546,7 +592,12 @@ export function backupSourceDsnRefusal(trimmedDsn: string, dsnUrl: URL): string 
     return "source DSN multi-host endpoints are not supported — name a single host in the authority";
   }
   if (rawDsnQueryHasEndpointOverride(trimmedDsn)) {
-    return "source DSN endpoint override in query string is not supported — put host/port in the DSN authority";
+    // The service key is endpoint indirection through the connection-service
+    // file, so it gets its own remediation message before the generic
+    // host/port one (a query carrying both keys reports the service shape).
+    return rawDsnQueryHasServiceIndirection(trimmedDsn)
+      ? "source DSN service indirection is not supported — name the endpoint in the DSN authority"
+      : "source DSN endpoint override in query string is not supported — put host/port in the DSN authority";
   }
   if (effectiveDatabaseName(dsnUrl).length === 0) {
     return "source database name is unspecified — name the database explicitly";
