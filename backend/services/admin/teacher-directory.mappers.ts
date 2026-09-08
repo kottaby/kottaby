@@ -14,7 +14,7 @@ import type { AdminTeacherItemReturnType } from "@/backend/types";
  * root, non-string members) is filtered out — a corrupt payload degrades
  * to an empty list instead of failing the directory read.
  */
-export function parseSubjectsJson(raw: string | null): string[] {
+function parseSubjectsJson(raw: string | null): string[] {
   if (!raw) {
     return [];
   }
@@ -35,7 +35,7 @@ export function parseSubjectsJson(raw: string | null): string[] {
  * (unrated teacher) passes through, and an unparseable payload degrades to
  * `null` rather than `NaN`.
  */
-export function parseAverageRating(raw: string | null): number | null {
+function parseAverageRating(raw: string | null): number | null {
   if (raw === null) {
     return null;
   }

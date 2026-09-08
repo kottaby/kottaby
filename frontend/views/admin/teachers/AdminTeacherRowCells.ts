@@ -36,7 +36,6 @@ export {
 export {
   type TeacherDirectoryItem,
   TeacherIdentityCell,
-  ViewDetailsButton,
 } from "@/frontend/views/admin/teachers/AdminTeacherIdentityCell";
 export {
   TeacherApprovalPill,

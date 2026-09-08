@@ -129,6 +129,6 @@ interface ViewDetailsButtonProps {
  * affordance for opening the detail drawer (row click stays pointer-only
  * convenience; this button is the real focusable control).
  */
-export function ViewDetailsButton({ labels, onViewDetails }: ViewDetailsButtonProps): ReactNode {
+function ViewDetailsButton({ labels, onViewDetails }: ViewDetailsButtonProps): ReactNode {
   return <DirectoryViewDetailsButton viewDetailsLabel={labels.drawer.viewDetails} onViewDetails={onViewDetails} />;
 }

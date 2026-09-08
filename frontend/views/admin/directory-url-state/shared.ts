@@ -17,7 +17,7 @@ export interface ReadableSearchParams {
 }
 
 /** Whitelisted page sizes — mirrors `DirectoryPagination`'s options. */
-export type DirectoryPageSize = 10 | 25 | 50 | 100;
+type DirectoryPageSize = 10 | 25 | 50 | 100;
 
 const PAGE_SIZE_OPTIONS: readonly DirectoryPageSize[] = [10, 25, 50, 100];
 

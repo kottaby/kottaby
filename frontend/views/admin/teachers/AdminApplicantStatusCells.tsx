@@ -39,7 +39,7 @@ interface ApplicantStatusChipProps {
 }
 
 /** Lifecycle headline chip — tone-mapped with an honest neutral fallback. */
-export function ApplicantStatusChip({ applicant, labels }: ApplicantStatusChipProps): ReactNode {
+function ApplicantStatusChip({ applicant, labels }: ApplicantStatusChipProps): ReactNode {
   return (
     <TonalChip
       tone={applicantStatusTone(applicant.status)}
@@ -58,7 +58,7 @@ interface ApplicantGovernancePillsProps {
  * its flag is set (priority semantics stay on the backend; the pills are a
  * faithful set rendering). Renders nothing when no governance flag is set.
  */
-export function ApplicantGovernancePills({ applicant, labels }: ApplicantGovernancePillsProps): ReactNode {
+function ApplicantGovernancePills({ applicant, labels }: ApplicantGovernancePillsProps): ReactNode {
   return (
     <>
       {applicant.isDeleted && <TonalChip tone="error" label={labels.statusPills.deleted} />}

@@ -15,7 +15,7 @@ import { Stack, Typography } from "@mui/material";
 import type { ReactNode } from "react";
 
 /** The two-variant copy shape every directory `emptyState` label block carries. */
-export interface DirectoryEmptyStateCopy {
+interface DirectoryEmptyStateCopy {
   /** Zero-rows heading — shown when the directory is empty with no filters. */
   readonly title: string;
   /** Zero-rows body. */

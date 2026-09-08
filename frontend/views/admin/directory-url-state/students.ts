@@ -21,7 +21,7 @@ const STUDENT_PARENT_WIRE: Readonly<Record<string, "WithParent" | "Independent">
   independent: "Independent",
 };
 
-export interface StudentsDirectoryUrlState extends BaseDirectoryUrlState {
+interface StudentsDirectoryUrlState extends BaseDirectoryUrlState {
   readonly parent: "WithParent" | "Independent" | "";
   readonly lang: string;
 }

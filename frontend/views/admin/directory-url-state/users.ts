@@ -32,7 +32,7 @@ const USERS_GOVERNANCE_WIRE: Readonly<Record<string, "Active" | "Suspended" | "B
   deleted: "Deleted",
 };
 
-export interface UsersDirectoryUrlState extends BaseDirectoryUrlState {
+interface UsersDirectoryUrlState extends BaseDirectoryUrlState {
   readonly role: "Admin" | "Teacher" | "Student" | "Parent" | "";
   readonly governance: "Active" | "Suspended" | "Blocked" | "Deleted" | "";
   readonly country: string;

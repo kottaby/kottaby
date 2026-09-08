@@ -37,8 +37,4 @@ export {
   ApplicantIdentityCell,
   ViewProfileButton,
 } from "@/frontend/views/admin/teachers/AdminApplicantIdentityCell";
-export {
-  ApplicantGovernancePills,
-  ApplicantStatusChip,
-  ApplicantStatusStack,
-} from "@/frontend/views/admin/teachers/AdminApplicantStatusCells";
+export { ApplicantStatusStack } from "@/frontend/views/admin/teachers/AdminApplicantStatusCells";
