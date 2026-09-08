@@ -825,7 +825,11 @@ describe("SessionAdminGovernanceService — cancel (runInRollback)", () => {
       );
 
       expect(cancelled.status).toBe(SessionStatus.Cancelled);
-      expect(cancelled.feeHeld).toBe(true);
+      // The admin cancel lands the SAME terminal shape as the participant
+      // writer: the hold marker is cleared inside the guarded statement —
+      // no fee_held=true terminal row survives — while the provenance lane
+      // survives (the same-lane refund below reads it from the row).
+      expect(cancelled.feeHeld).toBe(false);
 
       // The hold refunds to the SAME recorded lane — exactly one unit.
       const balances = await readLaneBalances(tx, actors.studentUserId);

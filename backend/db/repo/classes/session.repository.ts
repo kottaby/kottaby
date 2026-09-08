@@ -614,11 +614,13 @@ export namespace SessionRepository {
    * eligible — an open dispute belongs to the arbitration surface, which
    * is the only writer allowed to exit a disputed row into a terminal
    * state — and a cancelled row is unreachable (terminal), so a replayed
-   * cancel matches zero rows and can never re-cancel. Writes ONLY the
-   * cancelled status plus the audit stamp from one captured instant; the
-   * escrow columns are deliberately untouched — releasing the hold and
-   * refunding the recorded lane is the caller's same-transaction
-   * follow-up composition, driven by the returned row.
+   * cancel matches zero rows and can never re-cancel. Writes the cancelled
+   * status, the CLEARED hold marker, and the audit stamp from one captured
+   * instant — the participant cancel's exact terminal shape
+   * (`cancelSessionOnce`), so a committed admin cancellation can never
+   * leave a `fee_held = true` terminal row behind. The provenance lane is
+   * deliberately untouched: the RETURNING row still carries the recorded
+   * lane the caller's same-transaction same-lane refund composes against.
    *
    * @returns The updated row, or `null` when zero rows matched (unknown id
    *          or a row no longer eligible — the caller classifies via the
@@ -632,7 +634,7 @@ export namespace SessionRepository {
     const executor = tx ?? db;
     const rows = await executor
       .update(session)
-      .set({ status: SessionStatus.Cancelled, updatedAt: now })
+      .set({ status: SessionStatus.Cancelled, feeHeld: false, updatedAt: now })
       .where(buildAdminLiveStatePredicate(sessionId))
       .returning();
     return rows[0] ?? null;

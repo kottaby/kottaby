@@ -608,7 +608,7 @@ describe("SessionRepository — admin governance surface (runInRollback)", () =>
     });
   });
 
-  test("guardCancelPreTerminal cancels scheduled and started rows leaving the hold columns untouched", async () => {
+  test("guardCancelPreTerminal cancels scheduled and started rows clearing the hold marker and leaving the provenance lane for the caller's refund", async () => {
     await runInRollback(async tx => {
       const actors = await createSessionActors(tx);
       const scheduledRow = await insertSessionRow(tx, actors);
@@ -618,10 +618,13 @@ describe("SessionRepository — admin governance surface (runInRollback)", () =>
       const cancelledScheduled = await SessionRepository.guardCancelPreTerminal(scheduledRow.id, tx);
       expect(cancelledScheduled).not.toBeNull();
       expect(cancelledScheduled?.status).toBe(SessionStatus.Cancelled);
-      // The hold marker and the provenance lane are the CALLER's refund
-      // composition input — this guard deliberately does not touch them
-      // (the participant cancel, by contrast, clears the hold marker).
-      expect(cancelledScheduled?.feeHeld).toBe(true);
+      // The terminal shape mirrors the participant cancel exactly: the hold
+      // marker is cleared INSIDE the guarded statement (a committed admin
+      // cancellation can never leave a fee_held=true terminal row behind)
+      // while the provenance lane stays untouched — the RETURNING row still
+      // carries the recorded lane the caller's same-transaction refund
+      // composes against.
+      expect(cancelledScheduled?.feeHeld).toBe(false);
       expect(cancelledScheduled?.heldBalanceLane).toBe(HeldBalanceLane.Hifz);
       expect(cancelledScheduled?.endedAt).toBeNull();
       expect(cancelledScheduled?.updatedAt.getTime()).toBeGreaterThanOrEqual(scheduledRow.updatedAt.getTime());
@@ -631,7 +634,7 @@ describe("SessionRepository — admin governance surface (runInRollback)", () =>
       expect(cancelledStarted?.status).toBe(SessionStatus.Cancelled);
       expect(cancelledStarted?.startedAt).not.toBeNull();
       expect(cancelledStarted?.endedAt).toBeNull();
-      expect(cancelledStarted?.feeHeld).toBe(true);
+      expect(cancelledStarted?.feeHeld).toBe(false);
     });
   });
 
@@ -756,11 +759,11 @@ describe("SessionRepository — admin governance surface (runInRollback)", () =>
       );
       expect(winners).toHaveLength(1);
       expect(winners[0]?.status).toBe(SessionStatus.Cancelled);
-      expect(winners[0]?.feeHeld).toBe(true);
+      expect(winners[0]?.feeHeld).toBe(false);
 
       const finalRow = await readSessionRow(tx, row.id);
       expect(finalRow.status).toBe(SessionStatus.Cancelled);
-      expect(finalRow.feeHeld).toBe(true);
+      expect(finalRow.feeHeld).toBe(false);
     });
   });
 
@@ -813,7 +816,7 @@ describe("SessionRepository — admin governance surface (runInRollback)", () =>
       const finalRow = await readSessionRow(tx, row.id);
       expect(finalRow.status).toBe(SessionStatus.Cancelled);
       expect(finalRow.teacherId).toBe(actors.teacherUserId);
-      expect(finalRow.feeHeld).toBe(true);
+      expect(finalRow.feeHeld).toBe(false);
     });
   });
 
@@ -837,10 +840,11 @@ describe("SessionRepository — admin governance surface (runInRollback)", () =>
       expect(finalRow.status).toBe(SessionStatus.Cancelled);
       expect(finalRow.startedAt).not.toBeNull();
       expect(finalRow.endedAt).toBeNull();
-      // The hold marker survives both landed writes — releasing it and
-      // refunding the recorded lane is the caller's same-transaction
-      // composition, driven by the returned row.
-      expect(finalRow.feeHeld).toBe(true);
+      // The hold marker is cleared by whichever write landed the cancel —
+      // the terminal shape is identical for both pre-states — while the
+      // provenance lane survives: the recorded lane the caller's
+      // same-transaction refund composes against.
+      expect(finalRow.feeHeld).toBe(false);
       expect(finalRow.heldBalanceLane).toBe(HeldBalanceLane.Hifz);
     });
   });
@@ -863,7 +867,7 @@ describe("SessionRepository — admin governance surface (runInRollback)", () =>
     // The SET clauses are field-by-field whitelists — no caller object is
     // ever spread into an update.
     expect(repoSource.includes(".set({ startedAt, endedAt, updatedAt: now })")).toBe(true);
-    expect(repoSource.includes(".set({ status: SessionStatus.Cancelled, updatedAt: now })")).toBe(true);
+    expect(repoSource.includes(".set({ status: SessionStatus.Cancelled, feeHeld: false, updatedAt: now })")).toBe(true);
     expect(repoSource.includes(".set({ teacherId: newTeacherId, updatedAt: now })")).toBe(true);
     expect(repoSource.includes("...input")).toBe(false);
     expect(repoSource.includes("...filter")).toBe(false);
@@ -1016,8 +1020,9 @@ describe("SessionRepository — admin standalone executor paths (committed fixtu
     const cancelled = await SessionRepository.guardCancelPreTerminal(cancelTargetId);
     expect(cancelled).not.toBeNull();
     expect(cancelled?.status).toBe(SessionStatus.Cancelled);
-    // The hold marker stays for the caller's refund composition.
-    expect(cancelled?.feeHeld).toBe(true);
+    // The participant-cancel terminal shape on the pool branch too: the
+    // marker is cleared, the lane stays for the caller's refund composition.
+    expect(cancelled?.feeHeld).toBe(false);
 
     const reassigned = await SessionRepository.guardReassignTeacher(reassignTargetId, actorsB.teacherUserId);
     expect(reassigned).not.toBeNull();
