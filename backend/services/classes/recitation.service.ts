@@ -126,12 +126,39 @@ function normalizeSubmission(
   return { name, description, fieldErrors };
 }
 
+/**
+ * Collapses an id beyond the session table's int4 ceiling to the canonical
+ * session-not-found denial BEFORE any database read: such an id can never
+ * match a row, and SQL would answer a write carrying one with a
+ * driver-level out-of-range failure instead of the uniform denial.
+ * Byte-identical to the foreign/nonexistent denial (existence is never an
+ * oracle) — the SAME bounded denial log and the SAME localized message.
+ */
+function assertSessionIdWithinInt4Ceiling(
+  sessionId: number,
+  t: ReturnType<typeof getServerTranslations>["errorsTranslations"],
+  locale: string
+): void {
+  if (sessionId <= SESSION_ID_INT4_CEILING) {
+    return;
+  }
+  logger.logDomainError("Recitation record denied: session not found for the owning teacher", {
+    code: "SESSION_NOT_FOUND",
+    entity: "session",
+    entityId: sessionId,
+    locale,
+  });
+  throw new NotFoundError("SESSION", t.sessionNotFound);
+}
+
 export namespace RecitationRecordService {
   /**
    * Records the recitation of a session exactly once, as its owning teacher.
    *
-   * The target session id is guarded as a positive safe integer and the
-   * submission payload is normalized (the name trimmed and kept non-empty
+   * The target session id is guarded as a positive safe integer — an id
+   * beyond the session table's int4 ceiling collapses to the byte-identical
+   * session-not-found denial before any database read — and the submission
+   * payload is normalized (the name trimmed and kept non-empty
    * within the column ceiling; the notes trimmed, emptied to `null`, and
    * capped) BEFORE any database work — a malformed shape is the canonical
    * `VALIDATION` denial whose field projection names every offending field,
@@ -182,6 +209,7 @@ export namespace RecitationRecordService {
       });
     }
     assertPositiveSafeSessionId(sessionId, t);
+    assertSessionIdWithinInt4Ceiling(sessionId, t, locale);
 
     // Payload guard: every offending field is projected into the error
     // payload by NAME — never the submitted content.

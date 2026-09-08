@@ -49,13 +49,15 @@
  *  - **Locale negotiation** — denial copy is localized via the request
  *    locale: one en + one ar assertion per denial class, expected copy
  *    resolved through the locale keys (never hardcoded strings).
- *  - **Boundary masking** — a well-formed id that the service's shape guard
- *    deliberately admits but the integer column cannot represent forces a
- *    driver-level failure through the FULL stack: the response is the masked
- *    localized INTERNAL_SERVER_ERROR with the correlated request id, no
- *    stacktrace, no driver wording, no submitted payload content, and zero
- *    persisted rows (the benign forcing trigger mirrors the finalizer
- *    suite's masked tier; nothing is monkey-patched).
+ *  - **Int4-ceiling write collapse** — a well-formed id the service's shape
+ *    guard deliberately admits but the integer column cannot represent
+ *    collapses BEFORE any database read to the byte-identical typed
+ *    session-not-found denial: localized (en + ar), correlated via the
+ *    request id, no stacktrace, no driver wording, no submitted payload
+ *    content, and zero persisted rows (the benign forcing trigger needs no
+ *    monkey-patching; the driver-level failure the pre-fix stack answered
+ *    with a masked INTERNAL_SERVER_ERROR is no longer reachable on this
+ *    surface).
  *  - **Credential hygiene** — response bodies never echo bearer-token
  *    material; every error item carries a correlated requestId and NEVER a
  *    stacktrace.
@@ -809,25 +811,25 @@ describe("wire matrix — locale negotiation (denial copy via the request locale
   });
 });
 
-// ─── Matrix: boundary masking (masked internal failure over the full stack) ──
+// ─── Matrix: int4-ceiling write collapse (typed denial over the full stack) ──
 
-describe("wire matrix — boundary masking (masked localized internal failure, correlated, zero leak)", () => {
-  test("a driver-level failure escapes as the masked localized INTERNAL_SERVER_ERROR with the correlation id", async () => {
-    const correlationId = "wire-recitation-mask-en";
-    // The forcing trigger is benign and needs no monkey-patching: the id is a
-    // positive safe integer the service's shape guard deliberately admits,
-    // but the integer column cannot represent it — the driver fails INSIDE
-    // the write transaction, the non-domain error escapes the service
-    // untouched (only unique-violations map to typed conflicts), and the
-    // boundary finalizer masks it.
+describe("wire matrix — int4-ceiling write collapse (typed localized denial, correlated, zero leak)", () => {
+  test("an id beyond the int4 ceiling collapses to the typed session-not-found denial with the correlation id", async () => {
+    const correlationId = "wire-recitation-ceiling-en";
+    // The forcing trigger is benign and needs no monkey-patching: the id is
+    // a positive safe integer the service's shape guard deliberately admits,
+    // but the integer column cannot represent it — the write path collapses
+    // it BEFORE the database read to the same typed session-not-found denial
+    // as a foreign or nonexistent session (no driver-level failure is
+    // reachable on this surface anymore).
     const body = await postDocument(
       RECITATION_MUTATION_DOCUMENT,
       ownerToken,
       recordVariablesFor(OVERFLOW_SESSION_ID, RECORD_NAME, null),
       { "x-request-id": correlationId, "accept-language": "en" }
     );
-    const item = expectDenialCode(body, "INTERNAL_SERVER_ERROR");
-    expect(errorMessageOf(item)).toBe(tEn.internalServerError);
+    const item = expectDenialCode(body, "SESSION_NOT_FOUND");
+    expect(errorMessageOf(item)).toBe(tEn.sessionNotFound);
     expect(requestIdOf(item)).toBe(correlationId);
     const serialized = JSON.stringify(item);
     expect(serialized).not.toContain("stacktrace");
@@ -835,20 +837,20 @@ describe("wire matrix — boundary masking (masked localized internal failure, c
     expect(serialized).not.toContain(RECORD_NAME);
   });
 
-  test("arabic locale masks through its own copy with its own correlation id", async () => {
-    const correlationId = "wire-recitation-mask-ar";
+  test("arabic locale collapses through its own copy with its own correlation id", async () => {
+    const correlationId = "wire-recitation-ceiling-ar";
     const body = await postDocument(
       RECITATION_MUTATION_DOCUMENT,
       ownerToken,
       recordVariablesFor(OVERFLOW_SESSION_ID, RECORD_NAME, null),
       { "x-request-id": correlationId, "accept-language": "ar" }
     );
-    const item = expectDenialCode(body, "INTERNAL_SERVER_ERROR");
-    expect(errorMessageOf(item)).toBe(tAr.internalServerError);
+    const item = expectDenialCode(body, "SESSION_NOT_FOUND");
+    expect(errorMessageOf(item)).toBe(tAr.sessionNotFound);
     expect(requestIdOf(item)).toBe(correlationId);
   });
 
-  test("the masked failure wrote nothing and disturbed nothing (rollback purity over the wire)", async () => {
+  test("the collapsed denial wrote nothing and disturbed nothing (rollback purity over the wire)", async () => {
     const [after] = await db
       .select()
       .from(recitation)

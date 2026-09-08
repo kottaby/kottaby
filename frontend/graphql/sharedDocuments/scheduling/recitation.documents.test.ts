@@ -250,11 +250,13 @@ describe("recitation documents — codegen binding + barrel parity", () => {
   test("sessionRecitation is the ONLY nullable payload (the null collapse)", () => {
     // Compile-time proof by assignment — the `null` literal is assignable to
     // the generated payload type ONLY because the codegen union carries the
-    // null member (no record ≡ foreign session ≡ nonexistent session).
+    // null member (no record ≡ foreign session ≡ nonexistent session). The
+    // declaration carries NO explicit `| null` widening: a schema flip to
+    // non-null would fail `bun tsgo` right here.
     // The mutation payload type REJECTS null: a `null` assignment there
     // would fail `bun tsgo` — the non-null side of this pin is enforced at
     // the type-check gate (not expressible as a passing runtime assertion).
-    const readPayload: SessionRecitationQuery["sessionRecitation"] | null = null;
+    const readPayload: SessionRecitationQuery["sessionRecitation"] = null;
     expect(sessionRecitationQueryDocument.loc).toBeDefined();
     expect(isCollapsedPayload(readPayload)).toBe(true);
   });

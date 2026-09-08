@@ -543,6 +543,28 @@ describe("RecitationRecordService — transactional write pipeline (runInRollbac
     });
   });
 
+  test("denial matrix — SESSION_NOT_FOUND: an id beyond the int4 ceiling collapses before any database read", async () => {
+    await runInRollback(async tx => {
+      const actors = await createRecitationActors(tx);
+      const started = await insertSessionRow(tx, actors, { status: SessionStatus.Started });
+
+      // 2^31 is a positive safe integer the session table's int4 primary
+      // key can never store — SQL would answer it with a driver-level
+      // out-of-range failure, so the write path collapses it to the
+      // byte-identical session-not-found denial BEFORE the database read.
+      const ceilingError = await expectRepoError(() =>
+        writeRecord(tx, actors.teacherUserId, 2_147_483_648, { name: "beyond int4", description: null })
+      );
+      expect(ceilingError).toBeInstanceOf(NotFoundError);
+      expectDomainDenial(ceilingError, "SESSION_NOT_FOUND", t().sessionNotFound);
+
+      // Pre-DB proof: no session lookup, no insert — and zero residual rows.
+      expectRepositoryCalls(0, 0, 0);
+      expect(await countRecitationRows(tx, started.id)).toBe(0);
+      expectSingleBoundedDenialLog("SESSION_NOT_FOUND", 2_147_483_648);
+    });
+  });
+
   test("denial matrix — RECITATION_SESSION_NOT_WRITEABLE: a scheduled session cannot receive a record", async () => {
     await runInRollback(async tx => {
       const actors = await createRecitationActors(tx);

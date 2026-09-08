@@ -23,9 +23,10 @@
  *    the read takes no caller-supplied identity surface beyond the target
  *    `sessionId` (BOLA — the participant predicate reads the session row).
  *  - `ID` arrives as a string on the wire; the service boundary is numeric.
- *    The conversion is a pure scalar coercion — every shape decision is the
- *    SERVICE's: the positive-safe-integer id guard answers a malformed id
- *    with `null` pre-DB.
+ *    Only a positive decimal-integer string coerces (a lazy parse like
+ *    "1e0" would silently resolve a different session); every shape
+ *    decision is the SERVICE's: the positive-safe-integer id guard answers
+ *    a malformed id with `null` pre-DB.
  *  - NO try/catch, NO error mapping — the service's read contract never
  *    throws on any no-result shape, and a successful read never raises
  *    localized errors. Top-level static imports only.
@@ -65,16 +66,19 @@ gqlSchemaBuilder.queryField("sessionRecitation", t =>
       // resolution time (anonymous callers never get past the scope step).
       // This branch exists purely for TypeScript narrowing — the repo-wide
       // no-non-null-assertion rule forbids dereferencing the nullable
-      // context directly; the thrown message mirrors builder.ts's own
-      // `authenticated` scope verbatim and is unreachable in practice.
+      // context directly; it is unreachable in practice, and its denial
+      // copy follows the resolver localization contract (AGENTS.md).
       if (!ctx.user) {
-        throw new UnauthorizedError("Authentication required.");
+        throw new UnauthorizedError((await ctx.t("errorsTranslations")).unauthorized);
       }
       // `ID` arrives as a string on the wire; the service boundary is
-      // numeric. The conversion is a pure scalar coercion — every shape
-      // decision is the SERVICE's (the malformed-id channel collapses to
-      // `null` pre-DB; existence and participation resolve from the rows).
-      return RecitationRecordService.getSessionRecitation(ctx.user.id, Number(args.sessionId));
+      // numeric. Only a positive decimal-integer string coerces — a lazy
+      // parse ("1e0", "0x1") would silently resolve a different session,
+      // so any non-decimal id arrives at the service as NaN and rides the
+      // malformed-id channel (the identical `null`, pre-DB). Existence and
+      // participation resolve from the rows.
+      const sessionId = /^[1-9]\d*$/.test(String(args.sessionId)) ? Number(args.sessionId) : Number.NaN;
+      return RecitationRecordService.getSessionRecitation(ctx.user.id, sessionId);
     },
   })
 );

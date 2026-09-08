@@ -32,9 +32,12 @@
  *    never the raw input object — no spread). Every server-controlled
  *    value (row id, owning session, timestamps) is resolved server-side.
  *  - `ID` arrives as a string on the wire; the service boundary is numeric.
- *    The conversion is a pure scalar coercion — every shape decision (the
- *    positive-safe-integer id guard, ownership, writeability, write-once
- *    arbiter) is the SERVICE's; no error code is named here.
+ *    Only a positive decimal-integer string coerces — a lazy parse ("1e0",
+ *    "0x1") would silently misroute the write, so a non-decimal id arrives
+ *    at the service as NaN and dies in its pre-DB shape guard. Every shape
+ *    decision beyond that wire syntax (the positive-safe-integer id guard,
+ *    ownership, writeability, write-once arbiter) is the SERVICE's; no
+ *    error code is named here.
  *  - The request locale propagates so the service owns all localized
  *    denial copy. The optional outer-transaction seam stays omitted: the
  *    top-level wire flow runs on the service's own transaction.
@@ -86,19 +89,25 @@ gqlSchemaBuilder.mutationField("setSessionRecitation", t =>
       // row at resolution time (anonymous callers never get past the scope
       // step). This branch exists purely for TypeScript narrowing — the
       // repo-wide no-non-null-assertion rule forbids dereferencing the
-      // nullable context directly; the thrown message mirrors builder.ts's
-      // own `authenticated` scope verbatim and is unreachable in practice.
+      // nullable context directly; it is unreachable in practice, and its
+      // denial copy follows the resolver localization contract (AGENTS.md).
       if (!ctx.user) {
-        throw new UnauthorizedError("Authentication required.");
+        throw new UnauthorizedError((await ctx.t("errorsTranslations")).unauthorized);
       }
       // BOPLA field-by-field mapping — NEVER `{ ...args.input }`. The
       // absent optional note normalizes to an explicit `null` to satisfy
       // the service's submission whitelist. The optional outer-transaction
       // seam stays OMITTED: the top-level wire flow runs on the service's
       // own transaction (that parameter is for transactional callers).
+      // `ID` arrives as a string on the wire; the service boundary is
+      // numeric. Only a positive decimal-integer string coerces — a lazy
+      // parse ("1e0", "0x1", " 1") silently misroutes the write to a
+      // different session, so any non-decimal id arrives at the service as
+      // NaN and dies in its pre-DB VALIDATION shape guard.
+      const sessionId = /^[1-9]\d*$/.test(String(args.sessionId)) ? Number(args.sessionId) : Number.NaN;
       return RecitationRecordService.setSessionRecitation(
         ctx.user.id,
-        Number(args.sessionId),
+        sessionId,
         {
           name: args.input.name,
           description: args.input.description ?? null,
