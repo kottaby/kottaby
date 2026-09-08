@@ -8,6 +8,9 @@
  *    at import time.
  *  - Wired through the top-level query barrel: `query/index.ts` → `gqlSchema.ts`.
  */
+import "./admin-students.query";
+import "./admin-teacher-applicants.query";
+import "./admin-teachers.query";
 import "./admin-users.query";
 import "./audit-trail.query";
 import "./platform-analytics.query";
