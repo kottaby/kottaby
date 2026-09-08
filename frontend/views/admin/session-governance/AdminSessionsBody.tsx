@@ -31,7 +31,7 @@ import type { SessionsLabels } from "@/shared/locale/types/sessions";
  * | 2 | query error, mapping-table denial family (`permission-fallback` / `auth-recovery`) | shared `PermissionDeniedFallback` (non-admin callers fail the admin role leg into FORBIDDEN) |
  * | 3 | any other query error (masked 500 …) | `ErrorRetryAlert` with the governance error copy + retry |
  * | 4 | zero items | shared icon-circle empty state — generic copy when no filter is applied, filtered copy when the directory was narrowed (the operator learns WHY the page is bare) |
- * | 5 | rows present | `AdminSessionRow` list + inline pager (only when the honest total spans more than one page) |
+ * | 5 | rows present | `AdminSessionRow` list + inline pager (only when the honest total spans more than one page); while a round-trip is in flight over the settled payload (`busy`) the list announces `aria-busy` and BOTH pager chevrons disable — a double-click can never fire a duplicate page re-key |
  *
  * Query-context errors classify through the SINGLE `mapGraphQLErrorByCode`
  * table (`frontend/providers/apollo/error-link.map.ts`) — never the server
@@ -40,6 +40,12 @@ import type { SessionsLabels } from "@/shared/locale/types/sessions";
 
 interface AdminSessionsBodyProps {
   readonly loading: boolean;
+  /**
+   * True while a directory round-trip is in flight over the SETTLED payload
+   * (page transition / refetch) — the list announces `aria-busy` and the
+   * pager buttons disable; the first fetch (no settled payload) is branch 1.
+   */
+  readonly busy: boolean;
   readonly error: unknown;
   readonly data: AdminSessionsQuery | undefined;
   readonly page: number;
@@ -62,6 +68,7 @@ interface AdminSessionsBodyProps {
 /** The swapping body — skeleton / denial fallback / error / empty / rows + pager. */
 export function AdminSessionsBody({
   loading,
+  busy,
   error,
   data,
   page,
@@ -118,9 +125,11 @@ export function AdminSessionsBody({
     );
   }
   // Branch 5 — rows + pager (the pager renders ONLY when the honest total
-  // spans more than one page).
+  // spans more than one page). Mid-flight round-trips announce `aria-busy`
+  // on the list container and disable the pager chevrons (double-click
+  // cannot re-key the same page twice).
   return (
-    <Stack sx={{ gap: 2 }}>
+    <Stack sx={{ gap: 2 }} aria-busy={busy || undefined}>
       {sessions.map(session => (
         <AdminSessionRow
           key={session.id}
@@ -132,7 +141,13 @@ export function AdminSessionsBody({
         />
       ))}
       {totalPages > 1 ? (
-        <AdminSessionsPager page={page} totalPages={totalPages} onPageChange={onPageChange} tSessions={tSessions} />
+        <AdminSessionsPager
+          page={page}
+          totalPages={totalPages}
+          busy={busy}
+          onPageChange={onPageChange}
+          tSessions={tSessions}
+        />
       ) : null}
     </Stack>
   );
@@ -143,6 +158,8 @@ interface AdminSessionsPagerProps {
   readonly page: number;
   /** Honest page count (never below 1). */
   readonly totalPages: number;
+  /** Round-trip in flight over the settled payload — both chevrons disable. */
+  readonly busy: boolean;
   /** Page-change intent — the container clamps before committing. */
   readonly onPageChange: (nextPage: number) => void;
   /** Shared sessions-namespace labels (pager aria vocabulary). */
@@ -153,11 +170,13 @@ interface AdminSessionsPagerProps {
  * Prev / `page / totalPages` / next pager row (edge-clamped buttons). The
  * chevrons are direction-flipped under RTL (`scaleX(-1)`) — a logical
  * "previous/next" affordance, mirroring the admin user-detail back-link
- * convention.
+ * convention. A mid-flight round-trip (`busy`) disables BOTH chevrons so a
+ * second click can never fire a duplicate page re-key.
  */
 function AdminSessionsPager({
   page,
   totalPages,
+  busy,
   onPageChange,
   tSessions,
 }: Readonly<AdminSessionsPagerProps>): ReactNode {
@@ -175,7 +194,7 @@ function AdminSessionsPager({
       <IconButton
         aria-label={tSessions.pagerPreviousLabel}
         data-testid="admin-session-governance-pager-prev"
-        disabled={page <= 1}
+        disabled={busy || page <= 1}
         onClick={() => onPageChange(page - 1)}
         sx={theme => ({
           "&:focus-visible": {
@@ -195,7 +214,7 @@ function AdminSessionsPager({
       <IconButton
         aria-label={tSessions.pagerNextLabel}
         data-testid="admin-session-governance-pager-next"
-        disabled={page >= totalPages}
+        disabled={busy || page >= totalPages}
         onClick={() => onPageChange(page + 1)}
         sx={theme => ({
           "&:focus-visible": {

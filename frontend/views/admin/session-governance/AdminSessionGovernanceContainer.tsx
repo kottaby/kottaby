@@ -1,5 +1,6 @@
 "use client";
 
+import { NetworkStatus } from "@apollo/client";
 import { useMutation, useQuery } from "@apollo/client/react";
 import { Stack } from "@mui/material";
 import { type ReactNode, useCallback, useMemo, useRef, useState } from "react";
@@ -182,13 +183,24 @@ export function AdminSessionGovernanceContainer(): ReactNode {
   }, []);
 
   // ---- directory read ------------------------------------------------------
-  const { data, loading, error, refetch } = useQuery(adminSessionsQueryDocument, {
+  // `notifyOnNetworkStatusChange` keeps the mid-flight page transition
+  // observable: the pager busy affordance (aria-busy + disabled chevrons)
+  // derives from `networkStatus`, mirroring the platform-analytics
+  // container's refresh posture.
+  const { data, loading, error, refetch, networkStatus } = useQuery(adminSessionsQueryDocument, {
     variables: { filter: appliedFilter, page, pageSize: ADMIN_SESSIONS_PAGE_SIZE },
+    notifyOnNetworkStatusChange: true,
   });
 
   const rows = data?.adminSessions.items ?? [];
   const totalCount = data?.adminSessions.totalCount ?? 0;
   const totalPages = Math.max(1, Math.ceil(totalCount / ADMIN_SESSIONS_PAGE_SIZE));
+
+  // Pager busy affordance: a round-trip in flight OVER a settled payload
+  // (page transition / refetch) — the body announces aria-busy and keeps
+  // the pager chevrons disabled until the next page settles. The very
+  // first fetch (no settled payload) swaps to the skeleton instead.
+  const listBusy = data !== undefined && networkStatus !== NetworkStatus.ready;
 
   // A filter is "active" when any committed member is set — the body swaps
   // the empty-state copy ("no results match the filters" vs "no sessions").
@@ -432,6 +444,7 @@ export function AdminSessionGovernanceContainer(): ReactNode {
       />
       <AdminSessionsBody
         loading={loading}
+        busy={listBusy}
         error={error}
         data={data}
         page={page}

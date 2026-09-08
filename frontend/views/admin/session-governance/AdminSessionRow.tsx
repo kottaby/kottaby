@@ -142,7 +142,7 @@ export function AdminSessionRow({
           </Typography>
           <Stack sx={{ flexDirection: "row", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
             <Typography variant="h6" component="h3" sx={{ fontWeight: 700 }}>
-              {t[SESSION_TYPE_LABEL_KEY[session.sessionType]]}
+              {t[SESSION_TYPE_LABEL_KEY[session.sessionType] ?? "typeStudentSession"]}
             </Typography>
             {session.needsAttention ? (
               <Tooltip title={t.needsAttentionLabel} placement="top">

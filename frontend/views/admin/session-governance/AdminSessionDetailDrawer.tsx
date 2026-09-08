@@ -279,6 +279,15 @@ function DetailBody({
   const resolvedAtText =
     detail.resolvedAt === null ? NO_VALUE_PLACEHOLDER : formatApplicantDate(detail.resolvedAt, locale);
 
+  // Defensive label lookups — an untabled wire token renders the neutral
+  // type label / the row's typographic placeholder (mirrors the status
+  // chip's defensive-corrupt arm), never an undefined render.
+  const typeText = t[SESSION_TYPE_LABEL_KEY[detail.sessionType] ?? "typeStudentSession"];
+  const intentText =
+    detail.intent === null
+      ? NO_VALUE_PLACEHOLDER
+      : (t[SESSION_INTENT_LABEL_KEY[detail.intent]] ?? NO_VALUE_PLACEHOLDER);
+
   return (
     <Box sx={{ p: 2, overflowY: "auto" }}>
       {joinVisible ? joinBanner : null}
@@ -291,11 +300,8 @@ function DetailBody({
         }}
       >
         <SessionMetaCell label={t.detailSessionIdLabel} value={detail.id} />
-        <SessionMetaCell
-          label={t.detailIntentLabel}
-          value={detail.intent === null ? NO_VALUE_PLACEHOLDER : t[SESSION_INTENT_LABEL_KEY[detail.intent]]}
-        />
-        <SessionMetaCell label={t.rowTypeLabel} value={t[SESSION_TYPE_LABEL_KEY[detail.sessionType]]} />
+        <SessionMetaCell label={t.detailIntentLabel} value={intentText} />
+        <SessionMetaCell label={t.rowTypeLabel} value={typeText} />
         <SessionMetaCell label={tSessions.fee} value={feeText} />
         <SessionMetaCell label={tSessions.participantsLabel} value={`${detail.studentId} · ${detail.teacherId}`} />
         <SessionMetaCell label={tSessions.createdAt} value={createdText} />

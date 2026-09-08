@@ -8,7 +8,10 @@ import { SessionIntent, SessionType } from "@/frontend/graphql/generated/gql/gra
  * `Record<string, …>` lookups (the `sessionRowPresentation` convention —
  * oxlint `no-unsafe-enum-comparison` bans direct enum comparisons), so raw
  * wire tokens NEVER reach the rendered copy: both namespaces carry the
- * human labels (`typeStudentSession` … / `intentHifz` …).
+ * human labels (`typeStudentSession` … / `intentHifz` …). The consuming
+ * lookups pin a neutral fallback (the status chip's defensive-corrupt arm
+ * shape): an untabled wire token renders the generic type label or the
+ * nullable-value placeholder, never an undefined render.
  */
 
 /** Governance-namespace type option label keys (the filter select's vocabulary). */
