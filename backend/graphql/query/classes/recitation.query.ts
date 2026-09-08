@@ -40,7 +40,7 @@
 
 import { gqlSchemaBuilder } from "@/backend/graphql/pothos/builder";
 import { SessionRecitationPothosObject } from "@/backend/graphql/pothos/classes/recitation.pothos";
-import { UnauthorizedError } from "@/backend/lib/errors";
+import { coerceDecimalSessionId, requireVerifiedUser } from "@/backend/graphql/shared";
 import { RecitationRecordService } from "@/backend/services";
 
 // Side-effect: register the `sessionRecitation` query field.
@@ -62,23 +62,13 @@ gqlSchemaBuilder.queryField("sessionRecitation", t =>
       sessionId: t.arg.id({ required: true }),
     },
     resolve: async (_root, args, ctx) => {
-      // The `authenticated` scope guarantees a verified user row at
-      // resolution time (anonymous callers never get past the scope step).
-      // This branch exists purely for TypeScript narrowing — the repo-wide
-      // no-non-null-assertion rule forbids dereferencing the nullable
-      // context directly; it is unreachable in practice, and its denial
-      // copy follows the resolver localization contract (AGENTS.md).
-      if (!ctx.user) {
-        throw new UnauthorizedError((await ctx.t("errorsTranslations")).unauthorized);
-      }
-      // `ID` arrives as a string on the wire; the service boundary is
-      // numeric. Only a positive decimal-integer string coerces — a lazy
-      // parse ("1e0", "0x1") would silently resolve a different session,
-      // so any non-decimal id arrives at the service as NaN and rides the
-      // malformed-id channel (the identical `null`, pre-DB). Existence and
-      // participation resolve from the rows.
-      const sessionId = /^[1-9]\d*$/.test(String(args.sessionId)) ? Number(args.sessionId) : Number.NaN;
-      return RecitationRecordService.getSessionRecitation(ctx.user.id, sessionId);
+      const user = await requireVerifiedUser(ctx);
+      // The shared coercion guard admits only a positive decimal-integer
+      // wire id — a lazy parse ("1e0", "0x1") would silently resolve a
+      // different session, so a non-decimal id arrives at the service as
+      // NaN and rides the malformed-id channel (the identical `null`,
+      // pre-DB). Existence and participation resolve from the rows.
+      return RecitationRecordService.getSessionRecitation(user.id, coerceDecimalSessionId(args.sessionId));
     },
   })
 );

@@ -59,7 +59,7 @@ import {
   SessionRecitationInput,
   SessionRecitationPothosObject,
 } from "@/backend/graphql/pothos/classes/recitation.pothos";
-import { UnauthorizedError } from "@/backend/lib/errors";
+import { coerceDecimalSessionId, requireVerifiedUser } from "@/backend/graphql/shared";
 import { RecitationRecordService } from "@/backend/services";
 import type { SessionRecitationSubmitInput } from "@/backend/types";
 
@@ -85,29 +85,19 @@ gqlSchemaBuilder.mutationField("setSessionRecitation", t =>
       input: t.arg({ type: SessionRecitationInput, required: true }),
     },
     resolve: async (_root, args, ctx) => {
-      // The `$all { authenticated: true }` scope guarantees a verified user
-      // row at resolution time (anonymous callers never get past the scope
-      // step). This branch exists purely for TypeScript narrowing — the
-      // repo-wide no-non-null-assertion rule forbids dereferencing the
-      // nullable context directly; it is unreachable in practice, and its
-      // denial copy follows the resolver localization contract (AGENTS.md).
-      if (!ctx.user) {
-        throw new UnauthorizedError((await ctx.t("errorsTranslations")).unauthorized);
-      }
+      const user = await requireVerifiedUser(ctx);
       // BOPLA field-by-field mapping — NEVER `{ ...args.input }`. The
       // absent optional note normalizes to an explicit `null` to satisfy
       // the service's submission whitelist. The optional outer-transaction
       // seam stays OMITTED: the top-level wire flow runs on the service's
       // own transaction (that parameter is for transactional callers).
-      // `ID` arrives as a string on the wire; the service boundary is
-      // numeric. Only a positive decimal-integer string coerces — a lazy
-      // parse ("1e0", "0x1", " 1") silently misroutes the write to a
-      // different session, so any non-decimal id arrives at the service as
-      // NaN and dies in its pre-DB VALIDATION shape guard.
-      const sessionId = /^[1-9]\d*$/.test(String(args.sessionId)) ? Number(args.sessionId) : Number.NaN;
+      // The shared coercion guard admits only a positive decimal-integer
+      // wire id — a lazy parse ("1e0", "0x1") would silently misroute the
+      // write, so a non-decimal id arrives at the service as NaN and dies
+      // in its pre-DB VALIDATION shape guard.
       return RecitationRecordService.setSessionRecitation(
-        ctx.user.id,
-        sessionId,
+        user.id,
+        coerceDecimalSessionId(args.sessionId),
         {
           name: args.input.name,
           description: args.input.description ?? null,
