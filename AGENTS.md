@@ -428,6 +428,7 @@ After reading the applicable instruction files and AGENTS.md, subagents check fo
 - `docs/quality/unused-code-cleanup.md` - Knip/check:unused usage, deletion-safety protocol, knip blind-spot catalog, quality-gate memory-constrained host playbook
 - `docs/testing/shared-test-runner.md` - Shared parallel test runner pattern
 - `docs/backend/meeting-adapter-base.md` - Meeting provider adapter base class pattern reference
+- `docs/admin/admin-session-governance.md` - Admin session governance canonical reference (state-eligibility matrix, single-transaction mutation discipline, audit shape + serialized-details envelope, notification waves + claim keys, join-observation semantics, arbitration boundary)
 - `docs/backend/billing-repo-factory.md` - Billing repo factory with configurable hooks pattern reference
 - `docs/backend/schema-helpers.md` - Schema column and junction table helpers pattern reference
 - `docs/app/with-page-auth.md` - App router page auth wrapper pattern reference
