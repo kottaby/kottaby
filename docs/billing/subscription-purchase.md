@@ -56,8 +56,10 @@ sequenceDiagram
    re-validation runs INSIDE the purchase transaction so a concurrent deactivation serializes behind
    the row lock. Deactivation never voids an already-paid activation.
 6. **Fail-closed lane:** a plan row with a NULL `balance_lane` cannot be purchased
-   (`PLAN_LANE_UNCONFIGURED`), and a NULL lane at activation rolls the whole settlement unit back —
-   the lane is never guessed (INV-B2/INV-B5 require a lane to credit).
+   (`PLAN_LANE_UNCONFIGURED`), and a NULL lane at activation QUARANTINES the delivery — nothing
+   mutated, one correlated error log, acked `200 { processed: false }` (the lane-clear is
+   reachable — an admin can clear a lane after the purchase commits; the lane is never guessed;
+   INV-B2/INV-B5 require a lane to credit).
 
 ---
 
@@ -273,8 +275,10 @@ route). Fail-closed stages:
 3. **`confirmed` path — one transaction, fixed order:**
    path-selection read of the payment status (selection ONLY — the guarded updates re-verify every
    predicate server-side, so a stale read can never override a concurrent decision) → plan read
-   IN-TX + NULL-lane fail-closed guard (the whole unit rolls back; the gateway retry re-classifies
-   once the lane is configured) → `activatePendingOnce` (zero rows ⇒ `{ processed: true, replayed:
+   IN-TX + NULL-lane QUARANTINE guard (a lane-clear is REACHABLE — an admin can clear a plan's lane
+   after the purchase commits — so a NULL lane acks `{ processed: false }`, mutates nothing, and
+   logs one correlated error; operator follow-up owns the settled charge until the lane is
+   re-configured) → `activatePendingOnce` (zero rows ⇒ `{ processed: true, replayed:
    true }` — no credit, no second notification) → `markPaidOnce` → `creditLaneBalance(studentId,
    plan.balanceLane, plan.sessionCount, tx)` → confirmation notification row persisted in-tx →
    receipts published strictly AFTER the unit resolves (publish failure degrades to one structured
@@ -290,7 +294,8 @@ route). Fail-closed stages:
   `balance_tajweed`, Reviews → `balance_reviews`) — exactly one column moves, sibling lanes untouched,
   CHECK floors still enforced.
 - Crediting a NULL lane column is a no-op (inherited convention — no `COALESCE`); the service's
-  fail-closed lane guard ensures this case never carries financial weight.
+  NULL-lane quarantine ensures this case never carries financial weight (the delivery acks
+  `{ processed: false }` before any credit runs).
 - The activation emits are deliberately keyless: the `activatePendingOnce` zero-row arbiter already
   guarantees the credit and the notification run exactly once per subscription.
 

@@ -14,9 +14,9 @@
  *    independent transactions (committed fixtures — see below).
  *  - Entities are created ONLY via `entity-setup.ts` helpers — never seed
  *    data; nothing escapes the transaction.
- *  - NO `expect(...).rejects.toThrow()` — every denial goes through
- *    `expectRepoError` (try/catch); typed denials are asserted through the
- *    `DomainError.code` contract plus the exact translated message.
+ *  - NO `expect(...).rejects.toThrow()` — every denial and quarantine is
+ *    asserted through its returned outcome plus the correlated log spy,
+ *    never through a pinned throw.
  *  - The notification persistence seam and the realtime publish are SPIED
  *    (never real `notifications` rows, never a live transport): the
  *    insert spy captures the exact composed row content; the publish spy
@@ -31,7 +31,8 @@
  *    credit, no notification); duplicate confirmed → replay ack with no
  *    double credit/notification; late confirmed after failed → rejected &
  *    logged (replay-incompatible); NULL balance lane at activation → the
- *    fail-closed lane denial that rolls the whole unit back.
+ *    quarantine (`{ processed: false }`, zero mutation, one correlated
+ *    error log) — the lane-clear is REACHABLE after a purchase commits.
  *  - Tier 2 (boundary): currency mismatch quarantines; the exact balance
  *    delta equals the plan's `sessionCount` (other lanes untouched).
  *  - Tier 3 (chaos): out-of-order delivery — a stale `failed` after a won
@@ -62,13 +63,12 @@ import {
   createTestSubscription,
   createTestUser,
 } from "@/backend/db/test/entity-setup";
-import { expectRepoError, runInRollback } from "@/backend/db/test/test-utils";
+import { runInRollback } from "@/backend/db/test/test-utils";
 import { PaymentGateway } from "@/backend/enum/billing/payment-gateway.enum";
 import { PaymentStatus } from "@/backend/enum/billing/payment-status.enum";
 import { SubscriptionCreditLane } from "@/backend/enum/billing/subscription-credit-lane.enum";
 import { SubscriptionStatus } from "@/backend/enum/billing/subscription-status.enum";
 import { NotificationType } from "@/backend/enum/notifications/notification-type.enum";
-import { DomainError, ValidationError } from "@/backend/lib/errors";
 import { logger } from "@/backend/lib/logger";
 import { SubscriptionActivationService } from "@/backend/services/billing/subscription-activation.service";
 import { NotificationEngine } from "@/backend/services/notifications";
@@ -88,8 +88,7 @@ import { isPgliteProvider } from "@/test/helpers/skip-when-pglite";
 /** Concurrent-transaction cases run ONLY on a real multi-connection PostgreSQL. */
 const testOnRealPostgres = isPgliteProvider() ? test.skip : test;
 
-/** The en translations bundles the assertions compose against. */
-const EN_ERRORS = getServerTranslations("en").errorsTranslations;
+/** The en notifications bundle the assertions compose against. */
 const EN_NOTIFICATIONS = getServerTranslations("en").notificationsTranslations;
 
 /** Stand-in primary keys for the stubbed notification rows. */
@@ -400,26 +399,33 @@ describe("SubscriptionActivationService — confirmed path (Tier 1: branches)", 
     });
   });
 
-  test("NULL balance lane at activation fails the unit closed — the rollback leaves the pair pending", async () => {
+  test("NULL balance lane at activation quarantines — processed:false, zero mutation, error logged with correlation ids", async () => {
     await runInRollback(async tx => {
-      const { student, subscription, payment } = await provisionPendingPair(tx, { balanceLane: null });
+      const { student, plan, subscription, payment } = await provisionPendingPair(tx, { balanceLane: null });
       const { insertSpy, publishSpy } = spyNotificationSeams();
+      const errorSpy = trackSpy(spyOn(logger, "error"));
 
-      const error = await expectRepoError(() =>
-        SubscriptionActivationService.processWebhookEvent(
-          confirmedEvent(subscription.paymentReference ?? "", payment.amount),
-          "en",
-          tx
-        )
+      // The lane-clear is REACHABLE (an admin can clear the lane after the
+      // purchase commits), so the delivery QUARANTINES instead of throwing:
+      // the honest `{ processed: false }` ack — never a 4xx error the
+      // gateway would classify as a permanent transport failure.
+      const outcome = await SubscriptionActivationService.processWebhookEvent(
+        confirmedEvent(subscription.paymentReference ?? "", payment.amount),
+        "en",
+        tx
       );
 
-      expect(error).toBeInstanceOf(ValidationError);
-      expect(error).toBeInstanceOf(DomainError);
-      expect(error.message).toBe(EN_ERRORS.subscriptionPurchase.planLaneUnconfigured);
+      expect(outcome).toEqual({ processed: false });
+      expect(errorSpy).toHaveBeenCalledTimes(1);
+      expect(errorSpy.mock.calls[0]?.[1]).toMatchObject({
+        reference: subscription.paymentReference,
+        subscriptionId: subscription.id,
+        planId: plan.id,
+      });
 
-      // The rolled-back unit left NO trace: pending pair, zero credit, no
-      // notification — the gateway's retry re-classifies after ops fixes the
-      // lane.
+      // The quarantined unit left NO trace: pending pair, zero credit, no
+      // notification — the settled charge stays pending for operator
+      // follow-up until the lane is re-configured.
       const subRows = await tx.select().from(subscriptions).where(eq(subscriptions.id, subscription.id)).limit(1);
       expect(subRows[0]?.status).toBe(SubscriptionStatus.Pending);
       const payRows = await tx.select().from(studentPayments).where(eq(studentPayments.id, payment.id)).limit(1);

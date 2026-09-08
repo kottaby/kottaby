@@ -216,16 +216,21 @@ async function replayPurchaseOrThrow(
 ): Promise<never> {
   const claim = await SubscriptionPurchaseIdempotencyRepository.findByKey(idempotencyKey, tx);
   if (claim !== null && claim.userId !== callerStudentId) {
+    // Entity vocabulary: the id attributed here is a USERS id (the caller
+    // whose key was probed), so the tag is "users" — never a subscription
+    // tag under a user id.
     logger.logDomainError("Subscription purchase replay denied: key claimed by another caller", {
       code: "PAYMENT_NOT_FOUND",
-      entity: "subscription",
+      entity: "users",
       entityId: callerStudentId,
     });
     throw new NotFoundError("PAYMENT", t.notFound);
   }
+  // No id is attributable yet (the replayed claim has produced no
+  // subscription row for THIS attempt), so the tag carries the surface only.
   logger.logDomainError("Subscription purchase replay blocked: key already claimed", {
     code: "DUPLICATE_REQUEST",
-    entity: "subscription",
+    entity: "subscriptions",
   });
   throw new ConflictError("DUPLICATE_REQUEST", t.duplicateRequest);
 }
@@ -321,9 +326,12 @@ async function insertPendingSubscription(
     if (!isPgUniqueViolation(error)) {
       throw error;
     }
+    // Entity vocabulary: the only attributable id here is the PLAN row the
+    // checkout was priced from — the colliding subscription row never
+    // existed (its insert failed), so a plans id rides the "plans" tag.
     logger.logDomainError("Subscription purchase rejected: payment reference already claimed", {
       code: "CONFLICT",
-      entity: "subscriptions",
+      entity: "plans",
       entityId: planId,
     });
     throw new ConflictError(t.subscriptionPurchase.paymentReferenceConflict, {
@@ -498,9 +506,11 @@ export namespace SubscriptionPurchaseService {
     await assertActorGovernanceClean(studentUserId, t, outerTx);
 
     if (!isCarryableIdempotencyKey(idempotencyKey)) {
+      // Entity vocabulary: the attributed id is the caller's USERS id — a
+      // user id rides the "users" tag, never a subscription tag.
       logger.logDomainError("Subscription purchase rejected: idempotency key required", {
         code: "VALIDATION",
-        entity: "subscription",
+        entity: "users",
         entityId: studentUserId,
       });
       throw new ValidationError(t.subscriptionPurchase.idempotencyKeyRequired);

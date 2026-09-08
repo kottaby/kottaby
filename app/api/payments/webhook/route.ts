@@ -23,7 +23,11 @@
  *    absent/undeclared length is read INCREMENTALLY through the request
  *    stream under a running byte budget that aborts the moment the cap is
  *    crossed — a chunked over-cap delivery can never force a full-body
- *    buffer.
+ *    buffer. Every incremental read ALSO runs under a per-read deadline
+ *    (`BODY_READ_DEADLINE_MS`, default 30s): a delivery that stalls between
+ *    chunks has its reader cancelled and answers the same masked
+ *    unreadable-body envelope — a slow-drip POST cannot hold the connection
+ *    for the platform's full request budget.
  *  - **Signature gate** — the `x-payment-signature` header must equal the
  *    lowercase-hex HMAC-SHA256 of the raw body under
  *    `PAYMENT_WEBHOOK_SECRET`, compared by the constant-time digest idiom
@@ -65,6 +69,19 @@ const ENDPOINT_GONE_STATUS = 404;
 /** Hard ceiling for a callback payload, in UTF-8 bytes (not characters). */
 const MAX_PAYMENT_WEBHOOK_BODY_BYTES = 64_000;
 
+/**
+ * Per-read deadline for the incremental body reader, in milliseconds: a
+ * delivery that stalls longer than this between chunks has its reader
+ * cancelled and answers the masked unreadable-body envelope — a slow-drip
+ * POST can never hold the connection open for the platform's full request
+ * budget. Default 30s.
+ *
+ * Exported as a single-field holder (the canonical test seam): the route
+ * suite shortens `current` to exercise the stall path in milliseconds and
+ * restores the production default afterwards; no production path writes it.
+ */
+export const BODY_READ_DEADLINE_MS = { current: 30_000 };
+
 /** Header the gateway signs its deliveries with. */
 const SIGNATURE_HEADER = "x-payment-signature";
 
@@ -100,9 +117,45 @@ function webhookBodyUnreadableError(): DomainError {
 }
 
 /**
- * Reads the request body INCREMENTALLY under the byte cap — the DoS-safe
- * counterpart of a plain `request.text()`, which would buffer the whole
- * delivery before any size check could run. Raw chunks accumulate as
+ * One `reader.read()` under the per-read deadline: the read races a timer
+ * sized from `BODY_READ_DEADLINE_MS.current`, so a stalled delivery (bytes
+ * simply stop arriving) rejects after the deadline instead of hanging on
+ * the stream until the platform reaps the request. The reader is cancelled
+ * only AFTER the race settled with the rejection — cancelling earlier would
+ * resolve the very read being raced (`done: true`) and could let the read
+ * leg win with a partial body. From there the deadline rejection propagates
+ * to the route's masked unreadable-body envelope (the same F-abort path a
+ * mid-stream transport failure rides), with the stalled connection
+ * released. `Promise.race` subscribes to both legs immediately, so whichever
+ * leg loses is a handled rejection: a deadline firing after an already-won
+ * read is inert. A genuine stream rejection is cancelled too (harmless,
+ * best-effort) — the connection is released on every failure path.
+ */
+
+/** The stream reader's own read-result type — inferred, never re-declared. */
+type BodyChunkRead = Awaited<ReturnType<ReadableStreamDefaultReader<Uint8Array>["read"]>>;
+
+async function readChunkWithDeadline(reader: ReadableStreamDefaultReader<Uint8Array>): Promise<BodyChunkRead> {
+  const deadline = new Promise<never>((_, reject) => {
+    AbortSignal.timeout(BODY_READ_DEADLINE_MS.current).addEventListener(
+      "abort",
+      () => reject(new Error("payment webhook body read stalled past the per-read deadline")),
+      { once: true }
+    );
+  });
+  try {
+    return await Promise.race([reader.read(), deadline]);
+  } catch (error) {
+    await reader.cancel().catch(() => undefined);
+    throw error;
+  }
+}
+
+/**
+ * Reads the request body INCREMENTALLY under the byte cap AND the per-read
+ * deadline — the DoS-safe counterpart of a plain `request.text()`, which
+ * would buffer the whole delivery before any size check could run and hang
+ * indefinitely on a delivery that never finishes. Raw chunks accumulate as
  * `Uint8Array`s while a running byte budget aborts the moment the cap is
  * crossed; the abort answer is `null` (indistinguishable to the caller from
  * any other oversize rejection). The aborting read also releases the
@@ -117,7 +170,9 @@ function webhookBodyUnreadableError(): DomainError {
  *
  * The read is a sequential pull on a stateful stream reader (each chunk
  * arrives only after the previous read resolves), so it is expressed as the
- * sanctioned recursive helper — one `await` per read step, no loop.
+ * sanctioned recursive helper — one `await` per read step, no loop. Every
+ * pull runs through {@link readChunkWithDeadline}: a slow-drip delivery
+ * cannot hold the connection past the per-read deadline.
  *
  * @returns The decoded body, or `null` when the byte budget was exceeded.
  */
@@ -129,7 +184,7 @@ async function readBoundedBody(request: NextRequest): Promise<string | null> {
   const reader = bodyStream.getReader();
 
   async function readChunk(chunks: Uint8Array[], totalBytes: number): Promise<string | null> {
-    const { done, value } = await reader.read();
+    const { done, value } = await readChunkWithDeadline(reader);
     if (done) {
       // The single join + decode releases any multibyte sequence a chunk
       // boundary split.

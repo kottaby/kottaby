@@ -10,9 +10,12 @@
  *    another caller's subscriptions are unreachable by construction.
  *  - NON-NULL list of NON-NULL entities, every lifecycle status included,
  *    newest first (`created_at DESC` — the service's own ordering).
- *  - DomainErrors thrown deeper (governance FORBIDDEN, identifier
- *    VALIDATION) propagate uncaught to the masking boundary (no try/catch
- *    here by contract).
+ *  - DomainErrors thrown deeper propagate uncaught to the masking boundary
+ *    (no try/catch here by contract). The read itself raises exactly one:
+ *    the service-side identifier VALIDATION denial. There is NO governance
+ *    FORBIDDEN channel on reads — `listOwn` is the owner-scoped read (the
+ *    owner predicate IS the read scope) and re-asserts no governance state;
+ *    governance denials are a write-surface concern.
  *
  * authScopes: the explicit `$all { authenticated, role: [Student] }`
  * conjunction (the 401/403 split documented in this repo's billing queries

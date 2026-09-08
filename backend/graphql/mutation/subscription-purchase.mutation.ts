@@ -19,7 +19,7 @@
  *    and never consultable by any authorization decision.
  *  - DomainErrors (governance FORBIDDEN, missing-key VALIDATION, replay
  *    DUPLICATE_REQUEST conflict, the oracle-safe payment-not-found for a
- *    foreign key, plan/lan denials) propagate uncaught to the masking
+ *    foreign key, plan/lane denials) propagate uncaught to the masking
  *    boundary — no try/catch here.
  *
  * authScopes: the explicit `$all { authenticated, role: [Student] }`

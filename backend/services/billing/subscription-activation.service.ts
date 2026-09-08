@@ -23,8 +23,10 @@
  *      delivery is REJECTED and logged (a decided payment is terminal — no
  *      silent upgrade); `paid` → idempotent replay; `pending` → the
  *      activation sequence: the plan row is re-read in-transaction (a NULL
- *      balance lane fails the whole unit closed), `activatePendingOnce`
- *      flips the subscription (zero rows ⇒ replay: NO credit, NO second
+ *      balance lane QUARANTINES the delivery — an admin can clear a plan's
+ *      lane after the purchase commits — nothing mutated, one correlated
+ *      error log, `{ processed: false }`), `activatePendingOnce` flips the
+ *      subscription (zero rows ⇒ replay: NO credit, NO second
  *      notification), `markPaidOnce` decides the payment, the full
  *      `sessionCount` is credited to the plan's lane, and the
  *      `payment_confirmation` notification is persisted in the SAME
@@ -55,7 +57,7 @@ import { PaymentStatus } from "@/backend/enum/billing/payment-status.enum";
 import { SubscriptionCreditLane } from "@/backend/enum/billing/subscription-credit-lane.enum";
 import { NotificationType } from "@/backend/enum/notifications/notification-type.enum";
 import { withTransaction } from "@/backend/lib/db/with-transaction";
-import { ConflictError, ValidationError } from "@/backend/lib/errors";
+import { ConflictError } from "@/backend/lib/errors";
 import { logger } from "@/backend/lib/logger";
 import { NotificationEngine } from "@/backend/services/notifications";
 import type {
@@ -68,9 +70,6 @@ import type {
   SubscriptionSelectType,
 } from "@/backend/types";
 import { getServerTranslations } from "@/shared/locale/server-graphql";
-
-/** The localized errors bundle shape consumed by this file. */
-type ErrorsTranslations = ReturnType<typeof getServerTranslations>["errorsTranslations"];
 
 /** Milliseconds per day — the activation window arithmetic (`intervalDays`). */
 const MS_PER_DAY = 86_400_000;
@@ -98,14 +97,21 @@ function abortActivation(detail: string, context: Record<string, unknown>): neve
  * and the credit (`balanceLane`, `sessionCount`). The FK restrict guarantees
  * the row exists — a vanished row fails the unit closed — and a catalog
  * deactivation after a settled payment does not void the activation. A NULL
- * lane fails the whole unit closed: a lane is never guessed from plan copy.
+ * lane is the REACHABLE quarantine (an admin can clear a plan's balance lane
+ * after the purchase commits): one correlated `logger.error`, nothing
+ * mutated, and a `null` return tells the caller to end the unit with
+ * `{ processed: false }` — the sibling quarantine posture (the gateway
+ * stops retrying; operator follow-up owns the settled charge). A lane is
+ * never guessed from plan copy.
+ *
+ * @returns The lane-configured plan row, or `null` when the plan's balance
+ *     lane is unconfigured and the delivery must quarantine.
  */
 async function readActivationPlan(
   subscription: SubscriptionSelectType,
   reference: string,
-  tx: DBTransaction,
-  t: ErrorsTranslations
-): Promise<PlanSelectType & { balanceLane: Exclude<PlanSelectType["balanceLane"], null> }> {
+  tx: DBTransaction
+): Promise<(PlanSelectType & { balanceLane: Exclude<PlanSelectType["balanceLane"], null> }) | null> {
   const plan = await PlanRepository.findById(subscription.planId, tx);
   if (plan === null) {
     abortActivation("plan row vanished mid-activation", {
@@ -115,12 +121,12 @@ async function readActivationPlan(
     });
   }
   if (plan.balanceLane === null) {
-    logger.logDomainError("Subscription activation rejected: plan balance lane is not configured", {
-      code: "PLAN_LANE_UNCONFIGURED",
-      entity: "plans",
-      entityId: plan.id,
+    logger.error("Payment webhook quarantined: plan balance lane is not configured — nothing mutated", {
+      reference,
+      subscriptionId: subscription.id,
+      planId: subscription.planId,
     });
-    throw new ValidationError("PLAN_LANE_UNCONFIGURED", t.subscriptionPurchase.planLaneUnconfigured);
+    return null;
   }
   // The spread re-asserts the narrowed lane on the returned row shape.
   return { ...plan, balanceLane: plan.balanceLane };
@@ -214,17 +220,19 @@ async function emitConfirmationNotification(
 
 /**
  * The confirmed-delivery path — one transaction, fixed write order
- * (path-selection read → plan read + lane guard → guarded activation →
+ * (path-selection read → plan read + lane quarantine → guarded activation →
  * guarded payment decision → lane credit → in-tx notification persist).
  * Any failure rolls the whole unit back: the subscription stays pending and
- * the gateway's retry re-classifies against the settled state.
+ * the gateway's retry re-classifies against the settled state. The
+ * unconfigured-lane quarantine is the one mutation-free early exit: no
+ * write precedes the plan read, so the unit ends with
+ * `{ processed: false }` and nothing committed.
  */
 async function confirmPayment(
   subscription: SubscriptionSelectType,
   payment: StudentPaymentSelectType,
   reference: string,
   locale: string,
-  t: ErrorsTranslations,
   outerTx?: DBTransaction
 ): Promise<{ processed: boolean; replayed?: boolean }> {
   const composed: ConfirmedTxOutcome = await withTransaction(outerTx, async tx => {
@@ -260,13 +268,25 @@ async function confirmPayment(
     }
 
     // The plan row feeds BOTH the activation window and the credit — the
-    // dedicated read-and-guard helper fail-closes on every unreachable state.
-    const plan = await readActivationPlan(subscription, reference, tx, t);
+    // dedicated read-and-guard helper fails closed on the unreachable
+    // states and quarantines (`null`) on the reachable unconfigured lane.
+    const plan = await readActivationPlan(subscription, reference, tx);
+    if (plan === null) {
+      // The unconfigured-lane quarantine: zero writes have run in this unit
+      // (the two reads above are its only statements), so returning here
+      // commits nothing — the transaction ends mutation-free (the sibling
+      // quarantine posture) and the gateway receives the honest
+      // `{ processed: false }` ack while operator follow-up owns the
+      // settled charge until the lane is re-configured.
+      return { processed: false };
+    }
 
     // The atomic pending → active transition — the guarded UPDATE is the
-    // arbiter. Zero rows ⇒ a concurrent (or earlier) delivery already
-    // activated this subscription: replay ack with NO credit and NO second
-    // notification.
+    // arbiter. Zero rows ⇒ an already-activated replay under today's writer
+    // set (the activation predicate is this status's only writer so far):
+    // NO credit, NO second notification. When a non-activation status
+    // writer (suspension/cancellation/expiry) lands, revisit this branch to
+    // distinguish replay from terminal-state suppression.
     const now = new Date();
     const activated = await SubscriptionRepository.activatePendingOnce(
       subscription.id,
@@ -349,10 +369,22 @@ export namespace SubscriptionActivationService {
   /**
    * Processes one ALREADY-VERIFIED payment webhook event and classifies the
    * delivery. Never throws for gateway-outcome content: unknown references,
-   * settlement quarantines, and replay-incompatible deliveries answer
-   * `{ processed: false }` with zero mutations; only infrastructural
-   * invariant breaches (unreachable through the write guards) surface as
-   * errors and roll the activation unit back.
+   * settlement quarantines, replay-incompatible deliveries, and an
+   * unconfigured plan balance lane answer `{ processed: false }` with zero
+   * mutations.
+   *
+   * The NULL-lane path is REACHABLE — unlike the vanished-row breaches, no
+   * write guard prevents an admin from clearing a plan's balance lane after
+   * the purchase has committed — so it does NOT throw: it rides the same
+   * quarantine channel as the settlement mismatches. The quarantine
+   * channel: nothing is mutated (no write precedes the plan read, so the
+   * transaction unit ends empty), ONE `logger.error` carries the
+   * correlation ids (reference, subscriptionId, planId — never financial
+   * values), and the honest `{ processed: false }` ack lets the gateway
+   * stop retrying while operator follow-up owns the settled charge until
+   * the lane is re-configured. Only true infrastructural invariant breaches
+   * (rows the FK restrict makes unremovable) surface as errors and roll the
+   * activation unit back.
    *
    * Return contract:
    *  - `{ processed: true }` — the delivery was applied: confirmed ⇒ the
@@ -361,8 +393,9 @@ export namespace SubscriptionActivationService {
    *  - `{ processed: true, replayed: true }` — the delivery was ALREADY
    *    applied by an earlier delivery: zero new rows, zero double credit.
    *  - `{ processed: false }` — the delivery was NOT applied and mutated
-   *    nothing: unknown reference, settlement quarantine, or a `confirmed`
-   *    arriving after the payment failed (replay-incompatible).
+   *    nothing: unknown reference, settlement quarantine, an unconfigured
+   *    plan balance lane at activation time, or a `confirmed` arriving
+   *    after the payment failed (replay-incompatible).
    *
    * @param event  The verified gateway event (the transport already checked
    *     signature, size, and envelope — the service trusts the payload shape).
@@ -376,8 +409,6 @@ export namespace SubscriptionActivationService {
     locale: string,
     outerTx?: DBTransaction
   ): Promise<{ processed: boolean; replayed?: boolean }> {
-    const t = getServerTranslations(locale).errorsTranslations;
-
     // Stage 1 — reference correlation: the gateway reference is the only
     // lookup key; an unknown one mutates nothing. (Production: a bare
     // pool read. Test path: the caller's transaction.)
@@ -417,7 +448,7 @@ export namespace SubscriptionActivationService {
     }
 
     if (event.outcome === "confirmed") {
-      return confirmPayment(subscription, payment, event.reference, locale, t, outerTx);
+      return confirmPayment(subscription, payment, event.reference, locale, outerTx);
     }
     return failPayment(subscription.id, outerTx);
   }

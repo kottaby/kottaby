@@ -31,7 +31,9 @@
  *    verifies end-to-end); a request stream that ERRORS mid-read (the
  *    gateway aborting the connection) is masked to the same 400-family
  *    envelope with exactly one correlated log line — never an uncaught
- *    route error;
+ *    route error; a stream that STALLS past the per-read deadline
+ *    (injected short — production default 30s) has its reader CANCELLED
+ *    and rides the SAME masked unreadable-body envelope;
  *  - ENVELOPE contract: happy path `{ data: { processed: true }, requestId }`
  *    with the parsed event + "en" locale handed to the service exactly once;
  *    replay deliveries append `replayed: true`; unknown-reference/quarantine
@@ -94,7 +96,7 @@ void mock.module("@/backend/services/billing/subscription-activation.service", (
 // The route import MUST trail its mock.module registration (bun evaluates
 // the module registry in import order; the eslint import-order exemption is
 // documented inline where the lint config expects it).
-import { POST } from "@/app/api/payments/webhook/route";
+import { BODY_READ_DEADLINE_MS, POST } from "@/app/api/payments/webhook/route";
 import { resetEnvironmentCache } from "@/backend/lib/env";
 import { ValidationError } from "@/backend/lib/errors";
 import { logger } from "@/backend/lib/logger";
@@ -363,7 +365,11 @@ describe("payments webhook route — bounded body", () => {
   test("cap + 1 byte → masked 400 that never echoes the payload", async () => {
     enableSurface();
     const overCapBody = paddedEventBody(MAX_BODY_BYTES + 1);
-    const response = await POST(webhookRequest(overCapBody));
+    // The requestId is PINNED: the bare-"bb" payload probe below must never
+    // collide with a RANDOM generated requestId hex (an unpinned uuid can
+    // legitimately contain "bb" without any payload echo — a flaky false
+    // failure, not a leak).
+    const response = await POST(webhookRequest(overCapBody, { "x-request-id": "corr-over-cap" }));
     expect(response.status).toBe(400);
     const body = await readJson(response);
     const error = memberRecord(body, "error");
@@ -373,7 +379,7 @@ describe("payments webhook route — bounded body", () => {
     const wireJson = JSON.stringify(body) ?? "";
     expect(wireJson).not.toContain("bb");
     expect(wireJson).not.toContain(overCapBody.slice(0, 32));
-    expect(typeof error.requestId).toBe("string");
+    expect(error.requestId).toBe("corr-over-cap");
     expect(processCalls).toHaveLength(0);
   });
 
@@ -505,6 +511,68 @@ describe("payments webhook route — bounded body", () => {
     expect(JSON.stringify(logBag)).not.toContain("simulated mid-stream abort");
     expect(processCalls).toHaveLength(0);
     errorSpy.mockRestore();
+  });
+
+  test("a body stream that STALLS past the per-read deadline → reader cancelled + the same masked envelope", async () => {
+    enableSurface();
+    // The slow-drip shape: one chunk, then the stream NEVER closes and
+    // NEVER errors — without the deadline each incremental read would hang
+    // until the platform reaps the request (~300s). The deadline holder's
+    // `current` is shortened for the test and restored in the finally
+    // (production keeps the 30s default).
+    const productionDeadline = BODY_READ_DEADLINE_MS.current;
+    BODY_READ_DEADLINE_MS.current = 25;
+    let cancelCalls = 0;
+    const stalledStream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode(CONFIRMED_EVENT_BODY.slice(0, 10)));
+      },
+      cancel() {
+        cancelCalls += 1;
+      },
+    });
+    const errorSpy = spyOn(logger, "error");
+    try {
+      const startedAt = Date.now();
+      const response = await POST(new NextRequest(BASE_URL, { method: "POST", headers: {}, body: stalledStream }));
+      const elapsedMs = Date.now() - startedAt;
+
+      // The SAME masked unreadable-body envelope the mid-read abort rides —
+      // a deadline stall is never an uncaught route error and never a 500.
+      expect(response.status).toBe(400);
+      const body = await readJson(response);
+      const error = memberRecord(body, "error");
+      expect(error.code).toBe("PAYMENT_WEBHOOK_BODY_UNREADABLE");
+      // Zero payload echo.
+      const wireJson = JSON.stringify(body) ?? "";
+      expect(wireJson).not.toContain(CONFIRMED_EVENT_BODY.slice(0, 10));
+      expect(wireJson).not.toContain("mock_ref_route_1");
+
+      // The injected deadline — not the 30s default — bounded the read.
+      expect(elapsedMs).toBeLessThan(5_000);
+
+      // Exactly ONE correlated log line carrying a requestId — and none of
+      // the payload material.
+      expect(errorSpy).toHaveBeenCalledTimes(1);
+      const firstCall: unknown = errorSpy.mock.calls[0];
+      if (!Array.isArray(firstCall)) {
+        throw new Error("logger.error call was not captured");
+      }
+      const logBag: unknown = firstCall[1];
+      if (!isPlainJsonObject(logBag)) {
+        throw new Error("logger.error context bag was not a JSON object");
+      }
+      expect(typeof memberString(logBag, "requestId")).toBe("string");
+      expect(JSON.stringify(logBag)).not.toContain("mock_ref_route_1");
+
+      // The reader was CANCELLED — the stalled delivery released its
+      // connection instead of holding it.
+      expect(cancelCalls).toBe(1);
+      expect(processCalls).toHaveLength(0);
+    } finally {
+      errorSpy.mockRestore();
+      BODY_READ_DEADLINE_MS.current = productionDeadline;
+    }
   });
 });
 

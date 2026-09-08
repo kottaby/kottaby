@@ -123,8 +123,11 @@ export function usePlanForm({ plan, serverFieldErrors, onSubmit }: UsePlanFormOp
     }
 
     // A lane is mandatory on create and on edit (a stored lane is pre-filled;
-    // only legacy laneless rows start empty and force a pick).
-    if (BALANCE_LANE_BY_VALUE[form.balanceLane] === undefined) {
+    // only legacy laneless rows start empty and force a pick). Own-property
+    // guard — inherited `Object.prototype` names must fail the validation
+    // exactly like any other unknown raw value (house idiom per the gateway
+    // adapter registry's `Object.hasOwn` lookup).
+    if (!Object.hasOwn(BALANCE_LANE_BY_VALUE, form.balanceLane)) {
       errors.balanceLane = t.validationBalanceLaneMessage;
     }
 
@@ -146,9 +149,13 @@ export function usePlanForm({ plan, serverFieldErrors, onSubmit }: UsePlanFormOp
       price: form.price.trim(),
       currency: form.currency.trim().toUpperCase(),
       intervalDays: Number(form.intervalDays),
-      // The select guarantees a vocabulary member by the time submit runs;
-      // the dialog layer decides whether a lane change rides the wire.
-      balanceLane: BALANCE_LANE_BY_VALUE[form.balanceLane],
+      // The select guarantees a vocabulary member by the time submit runs —
+      // validate()'s own-property guard above; the same guard here keeps the
+      // submit conversion prototype-chain-safe. The dialog layer decides
+      // whether a lane change rides the wire.
+      balanceLane: Object.hasOwn(BALANCE_LANE_BY_VALUE, form.balanceLane)
+        ? BALANCE_LANE_BY_VALUE[form.balanceLane]
+        : undefined,
     });
   };
 
