@@ -76,6 +76,27 @@ const ROW_HEAD_BAND_SX: SxProps<Theme> = {
   flexWrap: "wrap",
 };
 
+/** Meta strip — cells wrap; the kebab trails at the inline edge on the same line. */
+const ROW_META_STRIP_SX: SxProps<Theme> = {
+  gap: 1.5,
+  flexDirection: "row",
+  flexWrap: "wrap",
+  alignItems: "center",
+};
+
+/** Kebab button rides the meta strip's inline edge (wraps below on narrow cards). */
+const ROW_KEBAB_SX: SxProps<Theme> = theme => ({
+  minHeight: { xs: 44, sm: 40 },
+  minWidth: { xs: 44, sm: 40 },
+  marginInlineStart: "auto",
+  alignSelf: "center",
+  color: theme.palette.text.secondary,
+  "&:focus-visible": {
+    outline: `2px solid ${theme.palette.outline}`,
+    outlineOffset: 2,
+  },
+});
+
 /** Rounded whole minutes between two ISO instants, or null when derivable data is missing. */
 function durationMinutesBetween(startedAt: string | null, endedAt: string | null): number | null {
   if (startedAt === null || endedAt === null) return null;
@@ -185,14 +206,7 @@ export function AdminSessionRow({
     <SessionRowCardShell testId={`admin-session-row-${session.id}`}>
       <RowHeadBand session={session} t={t} tSessions={tSessions} />
 
-      <Stack
-        sx={{
-          gap: 1.5,
-          flexDirection: "row",
-          flexWrap: "wrap",
-          alignItems: "baseline",
-        }}
-      >
+      <Stack sx={ROW_META_STRIP_SX}>
         <SessionMetaCell label={tSessions.fee} value={feeText} />
         <SessionMetaCell label={tSessions.createdAt} value={createdText} />
         <SessionMetaCell label={t.rowStartLabel} value={startedText} />
@@ -203,9 +217,6 @@ export function AdminSessionRow({
           value={durationMinutes === null ? NO_VALUE_PLACEHOLDER : t.durationMinutesValue(durationMinutes)}
         />
         <SessionMetaCell label={tSessions.participantsLabel} value={participantsText} />
-      </Stack>
-
-      <Stack sx={{ flexDirection: "row", justifyContent: "flex-end" }}>
         <Tooltip title={t.rowActionsAriaLabel} placement="top">
           <IconButton
             aria-label={t.rowActionsAriaLabel}
@@ -215,14 +226,7 @@ export function AdminSessionRow({
             onClick={event => {
               setActionsAnchorEl(event.currentTarget);
             }}
-            sx={theme => ({
-              minHeight: { xs: 44, sm: 40 },
-              minWidth: { xs: 44, sm: 40 },
-              "&:focus-visible": {
-                outline: `2px solid ${theme.palette.outline}`,
-                outlineOffset: 2,
-              },
-            })}
+            sx={ROW_KEBAB_SX}
           >
             <MoreVertOutlined />
           </IconButton>

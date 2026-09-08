@@ -151,7 +151,13 @@ export function RescheduleSessionDialog({
         helperText={validationMessage ?? undefined}
         aria-invalid={validationMessage !== null}
         data-testid="reschedule-session-start"
-        slotProps={{ htmlInput: { autoComplete: "off" } }}
+        slotProps={{
+          htmlInput: { autoComplete: "off" },
+          // Native datetime-local inputs ALWAYS paint their segment text —
+          // the un-shrunk label would sit on top of it (plus Chrome's picker
+          // indicator). Keep the label pinned to the notch instead.
+          inputLabel: { shrink: true },
+        }}
       />
       <TextField
         label={t.rescheduleEndLabel}
@@ -163,7 +169,10 @@ export function RescheduleSessionDialog({
         }}
         required
         data-testid="reschedule-session-end"
-        slotProps={{ htmlInput: { autoComplete: "off" } }}
+        slotProps={{
+          htmlInput: { autoComplete: "off" },
+          inputLabel: { shrink: true },
+        }}
       />
     </GovernanceFormDialog>
   );

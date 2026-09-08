@@ -51,6 +51,11 @@ export function AdminSessionRowStatusCell({ status, t }: Readonly<AdminSessionRo
         fontWeight: 600,
         bgcolor: toneColors.bg(theme.palette),
         color: toneColors.fg(theme.palette),
+        // Same separation rationale as the chrome's summary cards: the
+        // dark-mode container pairs (esp. primaryContainer) sit close to the
+        // row card's surface, so the chip gets a quiet 1px outline.
+        border: "1px solid",
+        borderColor: theme.palette.outlineVariant,
         "& .MuiChip-icon": {
           color: toneColors.fg(theme.palette),
         },

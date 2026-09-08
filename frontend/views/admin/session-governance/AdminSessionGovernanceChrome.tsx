@@ -272,7 +272,12 @@ export function AdminSessionGovernanceChrome({
           value={filterDraft.dateFrom ?? ""}
           onChange={event => onFilterDraftChange({ dateFrom: event.target.value === "" ? null : event.target.value })}
           data-testid="admin-session-governance-filter-date-from"
-          slotProps={{ htmlInput: { autoComplete: "off" } }}
+          slotProps={{
+            htmlInput: { autoComplete: "off" },
+            // Native date inputs always paint their segments — an un-shrunk
+            // label would overlap them (and Chrome's picker indicator).
+            inputLabel: { shrink: true },
+          }}
         />
         <TextField
           label={t.filterDateToLabel}
@@ -280,7 +285,10 @@ export function AdminSessionGovernanceChrome({
           value={filterDraft.dateTo ?? ""}
           onChange={event => onFilterDraftChange({ dateTo: event.target.value === "" ? null : event.target.value })}
           data-testid="admin-session-governance-filter-date-to"
-          slotProps={{ htmlInput: { autoComplete: "off" } }}
+          slotProps={{
+            htmlInput: { autoComplete: "off" },
+            inputLabel: { shrink: true },
+          }}
         />
 
         <Stack
@@ -296,7 +304,20 @@ export function AdminSessionGovernanceChrome({
             variant="outlined"
             onClick={onResetFilters}
             data-testid="admin-session-governance-filters-reset"
-            sx={{ minHeight: { xs: 44, sm: 40 }, px: 3 }}
+            sx={theme => ({
+              minHeight: { xs: 44, sm: 40 },
+              px: 3,
+              // MUI's default outlined treatment (primary.main text + 50%-alpha
+              // border) sinks into the dark filter card (~3.4:1) — quiet must
+              // stay legible, so the reset rides the near-white text + solid
+              // outline pair instead.
+              color: theme.palette.text.primary,
+              borderColor: theme.palette.outline,
+              "&:hover": {
+                borderColor: theme.palette.primary.main,
+                backgroundColor: "transparent",
+              },
+            })}
           >
             {t.filterReset}
           </Button>
@@ -332,6 +353,11 @@ function SummaryCard({ count, label, tone }: Readonly<SummaryCardProps>): ReactN
         alignItems: "flex-start",
         bgcolor: toneColors.bg(theme.palette),
         color: toneColors.fg(theme.palette),
+        // Dark-mode M3 containers (esp. primaryContainer) sit close to the
+        // strip's surface — the 1px outline separates card from card without
+        // changing the tone vocabulary.
+        border: "1px solid",
+        borderColor: theme.palette.outlineVariant,
       })}
     >
       <Typography variant="h6" component="p" sx={{ fontWeight: 700 }}>
