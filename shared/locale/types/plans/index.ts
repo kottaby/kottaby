@@ -35,6 +35,10 @@ export interface PlansLabels {
   readonly priceFieldLabel: string;
   readonly currencyFieldLabel: string;
   readonly intervalDaysFieldLabel: string;
+  readonly balanceLaneFieldLabel: string;
+  readonly balanceLaneHifz: string;
+  readonly balanceLaneTajweed: string;
+  readonly balanceLaneReviews: string;
   readonly cancelButton: string;
   readonly saveButton: string;
   readonly savingButton: string;
@@ -47,7 +51,7 @@ export interface PlansLabels {
   readonly updateSuccessToast: string;
   readonly statusChangeSuccessToast: string;
   readonly navPlans: string;
-  /** REQ-062 localized page metadata. */
+  /** Localized page metadata for the admin catalog route. */
   readonly metaTitle: string;
   readonly metaDescription: string;
   /** Short interval unit label for dense mobile layouts (e.g. "30 يوم" / "30 days"). */
@@ -68,4 +72,6 @@ export interface PlansLabels {
   readonly validationCurrencyMessage: string;
   /** Client-side validation: interval days must be a positive integer. */
   readonly validationIntervalDaysMessage: string;
+  /** Client-side validation: a balance-credit lane must be selected before submit. */
+  readonly validationBalanceLaneMessage: string;
 }

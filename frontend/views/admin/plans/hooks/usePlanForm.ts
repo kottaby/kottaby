@@ -2,7 +2,7 @@
  * usePlanForm — Form state, client-side validation, and submit wiring for the
  * plan create/edit dialog.
  *
- * Extracted from PlanFormDialog (Task 4.4).
+ * Extracted from PlanFormDialog.
  *  - Client & server validation with field-level error messages
  *  - React 19 synthetic form submit handling
  */
@@ -10,7 +10,11 @@
 "use client";
 
 import { useState } from "react";
-import type { AdminPlansQuery, CreatePlanInput } from "@/frontend/graphql/generated/gql/graphql";
+import {
+  type AdminPlansQuery,
+  type CreatePlanInput,
+  SubscriptionCreditLane,
+} from "@/frontend/graphql/generated/gql/graphql";
 import { useAppTranslation } from "@/shared/locale/client";
 import { Plans } from "@/shared/locale/namespaces/plans";
 
@@ -22,7 +26,20 @@ export interface PlanFormState {
   readonly price: string;
   readonly currency: string;
   readonly intervalDays: string;
+  /** Selected balance-credit lane as a raw string; empty until a lane is picked. */
+  readonly balanceLane: string;
 }
+
+/**
+ * Chosen form value → wire enum. A lookup table (not a string comparison)
+ * keeps the enum mapping in one place and yields `undefined` for the
+ * unselected state and any value outside the lane vocabulary.
+ */
+const BALANCE_LANE_BY_VALUE: Record<string, SubscriptionCreditLane | undefined> = {
+  [SubscriptionCreditLane.Hifz]: SubscriptionCreditLane.Hifz,
+  [SubscriptionCreditLane.Tajweed]: SubscriptionCreditLane.Tajweed,
+  [SubscriptionCreditLane.Reviews]: SubscriptionCreditLane.Reviews,
+};
 
 type PlanFormErrors = {
   -readonly [K in keyof PlanFormState]?: string;
@@ -42,6 +59,7 @@ function buildInitialPlanForm(plan: PlanItem | null): PlanFormState {
       price: plan.price,
       currency: plan.currency,
       intervalDays: String(plan.intervalDays),
+      balanceLane: plan.balanceLane ?? "",
     };
   }
   return {
@@ -50,6 +68,7 @@ function buildInitialPlanForm(plan: PlanItem | null): PlanFormState {
     price: "250.00",
     currency: "EGP",
     intervalDays: "30",
+    balanceLane: "",
   };
 }
 
@@ -108,6 +127,12 @@ export function usePlanForm({ plan, serverFieldErrors, onSubmit }: UsePlanFormOp
       errors.intervalDays = t.validationIntervalDaysMessage;
     }
 
+    // A lane is mandatory on create and on edit (a stored lane is pre-filled;
+    // only legacy laneless rows start empty and force a pick).
+    if (BALANCE_LANE_BY_VALUE[form.balanceLane] === undefined) {
+      errors.balanceLane = t.validationBalanceLaneMessage;
+    }
+
     setClientErrors(errors);
     return Object.keys(errors).length === 0;
   };
@@ -126,9 +151,9 @@ export function usePlanForm({ plan, serverFieldErrors, onSubmit }: UsePlanFormOp
       price: form.price.trim(),
       currency: form.currency.trim().toUpperCase(),
       intervalDays: Number(form.intervalDays),
-      // The form has no lane select yet — explicit undefined keeps the field
-      // off the wire, so created plans stay laneless (purchases fail closed).
-      balanceLane: undefined,
+      // The select guarantees a vocabulary member by the time submit runs;
+      // the dialog layer decides whether a lane change rides the wire.
+      balanceLane: BALANCE_LANE_BY_VALUE[form.balanceLane],
     });
   };
 

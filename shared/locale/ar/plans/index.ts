@@ -28,6 +28,10 @@ export const plansAr: PlansLabels = {
   priceFieldLabel: "السعر",
   currencyFieldLabel: "العملة",
   intervalDaysFieldLabel: "فترة الصلاحية (بالأيام)",
+  balanceLaneFieldLabel: "مسار الرصيد",
+  balanceLaneHifz: "حفظ",
+  balanceLaneTajweed: "تجويد",
+  balanceLaneReviews: "مراجعة",
   cancelButton: "إلغاء",
   saveButton: "حفظ",
   savingButton: "جاري الحفظ...",
@@ -51,4 +55,5 @@ export const plansAr: PlansLabels = {
   validationPriceMessage: "يجب أن يكون السعر رقمًا عشريًا غير سالب صالحًا بحد أقصى منزلتين عشريتين (مثال: 250.00).",
   validationCurrencyMessage: "يجب أن تكون العملة رمزًا من 3 أحرف (مثل EGP، USD).",
   validationIntervalDaysMessage: "يجب أن تكون مدة الصلاحية بالأيام عددًا صحيحًا موجبًا.",
+  validationBalanceLaneMessage: "يجب اختيار مسار الرصيد.",
 };

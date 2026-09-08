@@ -9,7 +9,7 @@ import { adminPlansQueryDocument } from "@/frontend/graphql/sharedDocuments";
 
 type PlanRowFixture = AdminPlansQuery_adminPlans & { readonly __typename: "Plan" };
 
-/** Deterministic fixture row (all eight selected fields + `__typename`). */
+/** Deterministic fixture row (all nine selected fields + `__typename`). */
 function planRow(overrides: Partial<PlanRowFixture> & { id: string; title: string }): PlanRowFixture {
   return {
     __typename: "Plan",
@@ -21,6 +21,7 @@ function planRow(overrides: Partial<PlanRowFixture> & { id: string; title: strin
     deactivatedAt: null,
     createdAt: "2026-06-01T10:00:00.000Z",
     updatedAt: "2026-08-15T10:00:00.000Z",
+    balanceLane: null,
     ...overrides,
   };
 }

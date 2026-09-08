@@ -14,6 +14,7 @@ import { PlanRepository } from "@/backend/db/repo/billing/plan.repository";
 import { plans } from "@/backend/db/schema/billing/plans";
 import { createTestPlan } from "@/backend/db/test/entity-setup";
 import { constraintNameOf, expectRepoError, runInRollback } from "@/backend/db/test/test-utils";
+import { SubscriptionCreditLane } from "@/backend/enum/billing/subscription-credit-lane.enum";
 
 describe("PlanRepository", () => {
   // ─── Tier 2: Committed fixture for the default-executor (no-tx) path ──────
@@ -233,6 +234,58 @@ describe("PlanRepository", () => {
 
       expect(allIds).toContain(p1.id);
       expect(allIds).toContain(p2.id);
+    });
+  });
+
+  test("insertPlan persists every balance lane member and the read path returns it", async () => {
+    await runInRollback(async tx => {
+      const lanes = [SubscriptionCreditLane.Hifz, SubscriptionCreditLane.Tajweed, SubscriptionCreditLane.Reviews];
+      const created = await Promise.all(
+        lanes.map(lane =>
+          PlanRepository.insertPlan(
+            {
+              title: `Lane Write Plan ${lane}`,
+              sessionCount: 10,
+              price: "150.00",
+              currency: "EGP",
+              intervalDays: 30,
+              balanceLane: lane,
+            },
+            tx
+          )
+        )
+      );
+      // The read projection must carry the stored lane back out.
+      const rereads = await Promise.all(created.map(row => PlanRepository.findById(row.id, tx)));
+      for (const [index, lane] of lanes.entries()) {
+        expect(created[index]?.balanceLane).toBe(lane);
+        expect(rereads[index]?.balanceLane).toBe(lane);
+      }
+    });
+  });
+
+  test("updatePlanFields writes and clears the lane through a lane-only patch", async () => {
+    await runInRollback(async tx => {
+      const created = await createTestPlan(tx, {
+        title: "Lane Patch Plan",
+        balanceLane: SubscriptionCreditLane.Hifz,
+      });
+
+      const retargeted = await PlanRepository.updatePlanFields(
+        created.id,
+        { balanceLane: SubscriptionCreditLane.Tajweed },
+        tx
+      );
+      expect(retargeted?.balanceLane).toBe(SubscriptionCreditLane.Tajweed);
+
+      // An explicit null writes NULL (the laneless/fail-closed state).
+      const cleared = await PlanRepository.updatePlanFields(created.id, { balanceLane: null }, tx);
+      expect(cleared?.balanceLane).toBeNull();
+
+      // A patch without the lane key leaves the cleared lane untouched.
+      const untouched = await PlanRepository.updatePlanFields(created.id, { price: "155.00" }, tx);
+      expect(untouched?.balanceLane).toBeNull();
+      expect(untouched?.price).toBe("155.00");
     });
   });
 

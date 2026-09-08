@@ -2,17 +2,19 @@
  * PlanCatalogService 4-Tier Unit Test Suite.
  *
  * Tier 1: Statement & branch coverage for all service methods and domain error classes.
- * Tier 2: Boundary conditions & exhaustive REQ-073 validation matrix.
+ * Tier 2: Boundary conditions & the exhaustive field-validation matrix.
  * Tier 3: Chaos & concurrency (concurrent deactivations, round-trip state transitions).
  * Tier 4: Security (BOPLA field smuggling prevention, cause-chain translation, i18n ar/en).
  */
 
 import { describe, expect, test } from "bun:test";
+import { PlanRepository } from "@/backend/db/repo/billing/plan.repository";
 import { createTestPlan } from "@/backend/db/test/entity-setup";
 import { runInRollback } from "@/backend/db/test/test-utils";
+import { SubscriptionCreditLane } from "@/backend/enum/billing/subscription-credit-lane.enum";
 import { DomainError, NotFoundError, ValidationError } from "@/backend/lib/errors";
 import { PlanCatalogService } from "@/backend/services/billing/plan-catalog.service";
-import type { PlanSubmitInput } from "@/backend/types";
+import type { PlanSubmitInput, PlanUpdateInput } from "@/backend/types";
 
 describe("PlanCatalogService", () => {
   // ─── Tier 1: Statement & Branch Coverage ────────────────────────────────────
@@ -359,6 +361,131 @@ describe("PlanCatalogService", () => {
     });
   });
 
+  // ─── Balance lane validation (valid member | null | undefined only) ───────
+
+  test("createPlan persists each balance lane member (roundtrip)", async () => {
+    await runInRollback(async tx => {
+      const lanes = [SubscriptionCreditLane.Hifz, SubscriptionCreditLane.Tajweed, SubscriptionCreditLane.Reviews];
+      const created = await Promise.all(
+        lanes.map(lane =>
+          PlanCatalogService.createPlan(
+            {
+              title: `Lane Plan ${lane}`,
+              sessionCount: 5,
+              price: "100.00",
+              currency: "EGP",
+              intervalDays: 30,
+              balanceLane: lane,
+            },
+            "en",
+            tx
+          )
+        )
+      );
+      for (const [index, lane] of lanes.entries()) {
+        expect(created[index]?.balanceLane).toBe(lane);
+      }
+    });
+  });
+
+  test("updatePlan re-targets the stored lane (Hifz → Tajweed)", async () => {
+    await runInRollback(async tx => {
+      const created = await createTestPlan(tx, {
+        title: "Lane Switch Plan",
+        balanceLane: SubscriptionCreditLane.Hifz,
+      });
+
+      const updated = await PlanCatalogService.updatePlan(
+        created.id,
+        { balanceLane: SubscriptionCreditLane.Tajweed },
+        "en",
+        tx
+      );
+      expect(updated.balanceLane).toBe(SubscriptionCreditLane.Tajweed);
+    });
+  });
+
+  test("createPlan without a lane leaves balanceLane null and the purchase read stays fail-closed", async () => {
+    await runInRollback(async tx => {
+      const created = await PlanCatalogService.createPlan(
+        { title: "Laneless Plan", sessionCount: 5, price: "100.00", currency: "EGP", intervalDays: 30 },
+        "en",
+        tx
+      );
+      expect(created.balanceLane).toBeNull();
+
+      // The purchase-time re-validation read surfaces the row with a null
+      // lane — the shape the purchase flow maps onto PLAN_LANE_UNCONFIGURED
+      // instead of crediting a guessed lane.
+      const active = await PlanRepository.findActiveById(created.id, tx);
+      expect(active).not.toBeNull();
+      expect(active?.balanceLane).toBeNull();
+    });
+  });
+
+  test("updatePlan with an explicit null lane clears the stored lane", async () => {
+    await runInRollback(async tx => {
+      const created = await createTestPlan(tx, {
+        title: "Lane Clear Plan",
+        balanceLane: SubscriptionCreditLane.Reviews,
+      });
+
+      const cleared = await PlanCatalogService.updatePlan(created.id, { balanceLane: null }, "en", tx);
+      expect(cleared.balanceLane).toBeNull();
+    });
+  });
+
+  test("createPlan rejects an unknown lane member with a field error", async () => {
+    await runInRollback(async tx => {
+      // A non-GraphQL caller crossing the service boundary can carry a value
+      // the static input type cannot express. defineProperty attaches the
+      // unknown member beyond the type system, so the runtime rejection is
+      // proven honestly instead of being blocked by the compiler.
+      const forgedInput = {
+        title: "Forged Lane Plan",
+        sessionCount: 5,
+        price: "100.00",
+        currency: "EGP",
+        intervalDays: 30,
+      };
+      Object.defineProperty(forgedInput, "balanceLane", { value: "undecided", enumerable: true });
+
+      let thrown: unknown;
+      try {
+        await PlanCatalogService.createPlan(forgedInput, "en", tx);
+      } catch (err: unknown) {
+        thrown = err;
+      }
+      expect(thrown).toBeInstanceOf(ValidationError);
+      if (thrown instanceof ValidationError) {
+        expect(thrown.code).toBe("VALIDATION");
+        const fieldError = thrown.fields?.find(f => f.field === "balanceLane");
+        expect(fieldError?.code).toBe("PLAN_BALANCE_LANE_INVALID");
+        expect(fieldError?.message).toBe("Invalid input.");
+      }
+    });
+  });
+
+  test("updatePlan rejects an unknown lane member and leaves the stored lane untouched", async () => {
+    await runInRollback(async tx => {
+      const created = await createTestPlan(tx, {
+        title: "Forged Patch Plan",
+        balanceLane: SubscriptionCreditLane.Hifz,
+      });
+      const forgedPatch: PlanUpdateInput = {};
+      Object.defineProperty(forgedPatch, "balanceLane", { value: "chess", enumerable: true });
+
+      let thrown: unknown;
+      try {
+        await PlanCatalogService.updatePlan(created.id, forgedPatch, "en", tx);
+      } catch (err: unknown) {
+        thrown = err;
+      }
+      expect(thrown).toBeInstanceOf(ValidationError);
+      expect((await PlanRepository.findById(created.id, tx))?.balanceLane).toBe(SubscriptionCreditLane.Hifz);
+    });
+  });
+
   // ─── Tier 3: Chaos & Concurrency ──────────────────────────────────────────
 
   test("concurrent deactivation calls: exactly one succeeds and one receives PLAN_ALREADY_INACTIVE", async () => {
@@ -425,6 +552,31 @@ describe("PlanCatalogService", () => {
       if (thrown instanceof ValidationError) {
         expect(thrown.message).toBe("إدخال غير صحيح.");
         expect(thrown.fields?.[0]?.message).toBe("عنوان الخطة مطلوب.");
+      }
+    });
+  });
+
+  test("Arabic locale localizes the unknown-lane rejection", async () => {
+    await runInRollback(async tx => {
+      const forgedInput = {
+        title: "Lane i18n Plan",
+        sessionCount: 5,
+        price: "100.00",
+        currency: "EGP",
+        intervalDays: 30,
+      };
+      Object.defineProperty(forgedInput, "balanceLane", { value: "undecided", enumerable: true });
+
+      let thrown: unknown;
+      try {
+        await PlanCatalogService.createPlan(forgedInput, "ar", tx);
+      } catch (err: unknown) {
+        thrown = err;
+      }
+      expect(thrown).toBeInstanceOf(ValidationError);
+      if (thrown instanceof ValidationError) {
+        expect(thrown.message).toBe("إدخال غير صحيح.");
+        expect(thrown.fields?.[0]?.message).toBe("إدخال غير صحيح.");
       }
     });
   });

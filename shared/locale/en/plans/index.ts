@@ -28,6 +28,10 @@ export const plansEn: PlansLabels = {
   priceFieldLabel: "Price",
   currencyFieldLabel: "Currency",
   intervalDaysFieldLabel: "Validity Period (Days)",
+  balanceLaneFieldLabel: "Balance Lane",
+  balanceLaneHifz: "Hifz (Memorization)",
+  balanceLaneTajweed: "Tajweed (Recitation)",
+  balanceLaneReviews: "Reviews (Assessment)",
   cancelButton: "Cancel",
   saveButton: "Save",
   savingButton: "Saving...",
@@ -53,4 +57,5 @@ export const plansEn: PlansLabels = {
   validationPriceMessage: "Price must be a valid non-negative decimal with up to 2 fraction digits (e.g. 250.00).",
   validationCurrencyMessage: "Currency must be a 3-letter code (e.g. EGP, USD).",
   validationIntervalDaysMessage: "Interval days must be a positive integer.",
+  validationBalanceLaneMessage: "Balance lane is required.",
 };

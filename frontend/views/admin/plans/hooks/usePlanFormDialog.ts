@@ -3,7 +3,7 @@
 /**
  * usePlanFormDialog — Create/edit dialog orchestration for the admin plan catalog.
  *
- * Extracted from PlanCatalogContainer (Task 4.3).
+ * Extracted from PlanCatalogContainer.
  *  - Dialog visibility & edit-target selection
  *  - Create/update Apollo mutations with cache normalization
  *  - Global form error surface (server-specified failures)
@@ -74,9 +74,12 @@ export function usePlanFormDialog({ refetch, onSuccess }: UsePlanFormDialogOptio
               price: input.price,
               currency: input.currency,
               intervalDays: input.intervalDays,
-              // The form has no lane select yet — explicit undefined keeps
-              // the field off the wire, so the stored lane stays untouched.
-              balanceLane: undefined,
+              // Only a lane the admin actually changed rides the update;
+              // undefined leaves the stored lane untouched on the wire.
+              balanceLane:
+                input.balanceLane !== undefined && input.balanceLane !== selectedPlanForEdit.balanceLane
+                  ? input.balanceLane
+                  : undefined,
             },
           },
         });

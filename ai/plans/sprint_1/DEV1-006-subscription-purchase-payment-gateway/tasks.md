@@ -164,15 +164,15 @@
 
 ## Phase 8: Catalog Lane Propagation + Admin Form Delta
 
-- [ ] 10.1 Catalog service lane support
+- [x] 10.1 Catalog service lane support
   - EXTEND `backend/types/billing/plan.types.ts` (`PlanSubmitInput`/`PlanUpdateInput` + `balanceLane?: SubscriptionCreditLane | null`), `PlanCatalogService` create/update validation + `PlanRepository` write mapping.
-  - [ ] 10.1.QL · [ ] 10.1.TE — lane roundtrip, invalid member rejected, NULL tolerated (purchase remains fail-closed) · [ ] 10.1.SEC · [ ] 10.1.SR · [ ] 10.1.IV
-  - _Requirements: REQ-004, REQ-050, REQ-051, REQ-062, REQ-071_
+  - [x] 10.1.QL · [x] 10.1.TE — lane roundtrip, invalid member rejected, NULL tolerated (purchase remains fail-closed) · [x] 10.1.SEC · [x] 10.1.SR · [x] 10.1.IV
+  - _Requirements: REQ-004, REQ-050, REQ-051, REQ-062, REQ-071 (outcome/10.1-outcome.md)_
 
-- [ ] 10.2 Admin form lane select (UI delta only)
+- [x] 10.2 Admin form lane select (UI delta only)
   - EXTEND `frontend/views/admin/plans/` form + dialogs with a required-on-create lane select; extend `plans` namespace (types + en + ar + parity suite) with lane labels; MUI v9 / React 19 / theme discipline per frontend AGENTS.md; regen already done in 9.1 (codegen consumed directly).
-  - [ ] 10.2.QL · [ ] 10.2.TE — component test: select renders options, create payload carries lane, existing catalog suites stay green (REQ-075) · [ ] 10.2.SEC · [ ] 10.2.SR · [ ] 10.2.IV
-  - _Requirements: REQ-003, REQ-004, REQ-062, REQ-064, REQ-065, REQ-075_
+  - [x] 10.2.QL · [x] 10.2.TE — component test: select renders options, create payload carries lane, existing catalog suites stay green (REQ-075) · [x] 10.2.SEC · [x] 10.2.SR · [x] 10.2.IV
+  - _Requirements: REQ-003, REQ-004, REQ-062, REQ-064, REQ-065, REQ-075 (outcome/10.2-outcome.md; PRE-EXISTING BroadcastCompose SIGABRT flagged there)_
 
 ## Phase 9: Cross-Actor Journey Tests
 
