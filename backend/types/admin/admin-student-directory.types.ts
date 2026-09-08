@@ -66,6 +66,21 @@ export interface AdminStudentItemReturnType {
 }
 
 /**
+ * `AdminStudentExportEnvelopeReturnType` — export-all envelope for the
+ * student directory. `rows` carries the first `EXPORT_MAX_ROWS` (1000)
+ * filtered rows in the listing's default ordering (newest account first);
+ * `total` is the FULL filtered row count (the number the listing query
+ * would report across all pages); `truncated` is the honest cap flag —
+ * `true` exactly when `total > rows.length`, so callers can warn that the
+ * payload is a bounded window rather than the whole directory.
+ */
+export interface AdminStudentExportEnvelopeReturnType {
+  readonly rows: readonly AdminStudentItemReturnType[];
+  readonly total: number;
+  readonly truncated: boolean;
+}
+
+/**
  * `AdminStudentPageReturnType` — paginated directory result envelope.
  * `pageCount` is the ceiling division of `total` over `pageSize`. An
  * out-of-range page yields an empty `items` array with the honest `total`

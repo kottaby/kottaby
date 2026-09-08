@@ -3,8 +3,15 @@
  * admin directory surface (paginated listing of `teacher` role-child rows
  * joined to their `users` accounts).
  *
- * Single operation: `list` — filter normalization + pagination bounds +
- * row→item projection over `TeacherRepository.listDirectory`.
+ * Operations:
+ *  - `list` — filter normalization + pagination bounds + row→item
+ *    projection over `TeacherRepository.listDirectory`.
+ *  - `exportAll` — the same filter normalization + row→item projection,
+ *    bounded to the first `EXPORT_MAX_ROWS` (1000) filtered rows in the
+ *    listing's default ordering (NO pagination arguments): the envelope
+ *    reports the FULL filtered `total` alongside `truncated` (`total >
+ *    rows.length`) so callers can warn that the payload is a bounded
+ *    window rather than the whole directory.
  *
  * Disciplines enforced here (mirroring `AdminUserManagementService`):
  *  - Defense-in-depth BFLA: `assertActorAdmin` is the FIRST statement —
@@ -35,9 +42,15 @@ import { TeacherRepository } from "@/backend/db/repo";
 import type { NormalizedAdminTeacherFilters } from "@/backend/db/repo/teachers/teacher.repository";
 import { escapeLikeWildcards } from "@/backend/lib/db/escape-like-wildcards";
 import { assertActorAdmin } from "@/backend/services/admin/admin-guards.helpers";
+import { buildExportEnvelope, EXPORT_MAX_ROWS } from "@/backend/services/admin/directory-export.helpers";
 import { mapTeacherDirectoryRow } from "@/backend/services/admin/teacher-directory.mappers";
 import { resolvePageBounds } from "@/backend/services/admin/user-management.helpers";
-import type { AdminTeacherFiltersSubmitInput, AdminTeacherPageReturnType, DBTransaction } from "@/backend/types";
+import type {
+  AdminTeacherExportEnvelopeReturnType,
+  AdminTeacherFiltersSubmitInput,
+  AdminTeacherPageReturnType,
+  DBTransaction,
+} from "@/backend/types";
 
 /** Upper bound on the free-text search term length — longer input clamps. */
 const MAX_SEARCH_LENGTH = 100;
@@ -96,5 +109,35 @@ export namespace AdminTeacherDirectoryService {
       pageSize: resolvedPageSize,
       pageCount: Math.ceil(total / resolvedPageSize),
     };
+  }
+
+  /**
+   * Exports the teacher directory by filter — the first `EXPORT_MAX_ROWS`
+   * (1000) filtered rows in the listing's default ordering (newest account
+   * first), with NO pagination arguments.
+   *
+   * Reuses `TeacherRepository.listDirectory` verbatim (`limit =
+   * EXPORT_MAX_ROWS`, `offset = 0`): the repo's `{ rows, total }` pair
+   * supplies the envelope for free — `total` is the FULL filtered row
+   * count (the count the listing would report across all pages) and
+   * `truncated` is the honest cap flag. Filter normalization is the SAME
+   * code path as `list` (search trim + 100-char clamp + LIKE-escape +
+   * `%…%`-wrap), so an export can never see a row the listing cannot.
+   */
+  export async function exportAll(
+    filters: AdminTeacherFiltersSubmitInput,
+    locale: string,
+    actorId: number,
+    outerTx?: DBTransaction
+  ): Promise<AdminTeacherExportEnvelopeReturnType> {
+    await assertActorAdmin(actorId, locale, outerTx);
+
+    const normalized = normalizeFilters(filters);
+    const { rows, total } = await TeacherRepository.listDirectory(normalized, EXPORT_MAX_ROWS, 0, outerTx);
+
+    return buildExportEnvelope(
+      rows.map(row => mapTeacherDirectoryRow(row)),
+      total
+    );
   }
 }

@@ -24,7 +24,14 @@
  *    non-canonical status rows ignored).
  *  - `pageCount` ceiling math (3 rows ÷ pageSize 2 → 2; empty → 0).
  *  - Pagination validation errors (page 0 / negative, pageSize 101).
- *  - Defense-in-depth BFLA denials (anonymous → 401, non-admin → 403).
+ *  - `exportAll` envelope (rows + honest full filtered total + truncated
+ *    flag, status filter composition respected, INVALID status rejection
+ *    via the shared vocabulary gate, honest empty envelope) — the
+ *    truncated-TRUE honesty path is pinned against the pure
+ *    `buildExportEnvelope` helper in `directory-export.helpers.test.ts`
+ *    (seeding >1000 rows is impractical here).
+ *  - Defense-in-depth BFLA denials (anonymous → 401, non-admin → 403) on
+ *    BOTH operations.
  */
 
 import { describe, expect, spyOn, test } from "bun:test";
@@ -433,6 +440,111 @@ describe("AdminApplicantDirectoryService.list — pagination", () => {
       const admin = await provisionAdminActor(tx);
       const page = await AdminApplicantDirectoryService.list({}, 1, undefined, LOCALE, admin.id, tx);
       expect(page.pageSize).toBe(25);
+    });
+  });
+});
+
+describe("AdminApplicantDirectoryService.exportAll — export-all envelope", () => {
+  test("admin exports the filtered queue; rows + honest full total + truncated=false", async () => {
+    await runInRollback(async tx => {
+      const admin = await provisionAdminActor(tx);
+      const pending = await createDirectoryApplicant(tx, { namePrefix: "DirApplicantExport", status: "pending" });
+      const passed = await createDirectoryApplicant(tx, {
+        namePrefix: "DirApplicantExport",
+        status: "passed",
+        verificationAttempts: 2,
+      });
+
+      const envelope = await AdminApplicantDirectoryService.exportAll(
+        { search: "DirApplicantExport" },
+        LOCALE,
+        admin.id,
+        tx
+      );
+
+      // The export envelope reports the FULL filtered count — exactly the
+      // count the listing query would report across all pages.
+      expect(envelope.total).toBe(2);
+      expect(envelope.truncated).toBe(false);
+      expect(envelope.rows).toHaveLength(2);
+      expect(envelope.rows.map(row => row.id).toSorted((a, b) => a - b)).toEqual(
+        [pending.id, passed.id].toSorted((a, b) => a - b)
+      );
+      const found = envelope.rows.find(row => row.id === passed.id);
+      expect(found?.name).toContain("DirApplicantExport");
+      expect(found?.email).toBe(passed.email);
+      expect(found?.status).toBe("passed");
+      expect(found?.verificationAttempts).toBe(2);
+    });
+  });
+
+  test("filter composition is respected (status filter partitions the export)", async () => {
+    await runInRollback(async tx => {
+      const admin = await provisionAdminActor(tx);
+      const failed = await createDirectoryApplicant(tx, { namePrefix: "DirApplicantExportFilter", status: "failed" });
+      await createDirectoryApplicant(tx, { namePrefix: "DirApplicantExportFilter", status: "pending" });
+
+      const envelope = await AdminApplicantDirectoryService.exportAll(
+        { search: "DirApplicantExportFilter", status: "failed" },
+        LOCALE,
+        admin.id,
+        tx
+      );
+      expect(envelope.total).toBe(1);
+      expect(envelope.rows).toHaveLength(1);
+      expect(envelope.rows[0]?.id).toBe(failed.id);
+      expect(envelope.rows[0]?.status).toBe("failed");
+      expect(envelope.truncated).toBe(false);
+    });
+  });
+
+  test("INVALID status → ValidationError(VALIDATION) BEFORE any DB read (shared vocabulary gate)", async () => {
+    await runInRollback(async tx => {
+      const admin = await provisionAdminActor(tx);
+      silenceDomainLog();
+      const error = await expectRepoError(() =>
+        AdminApplicantDirectoryService.exportAll({ status: "retired" }, LOCALE, admin.id, tx)
+      );
+      expect(error).toBeInstanceOf(ValidationError);
+      expect(error.message).toBe(tErrors.validation);
+    });
+  });
+
+  test("no-match search → honest empty envelope (rows [], total 0, truncated false)", async () => {
+    await runInRollback(async tx => {
+      const admin = await provisionAdminActor(tx);
+      const envelope = await AdminApplicantDirectoryService.exportAll(
+        { search: `no-match-${randomUUID()}` },
+        LOCALE,
+        admin.id,
+        tx
+      );
+      expect(envelope.rows).toEqual([]);
+      expect(envelope.total).toBe(0);
+      expect(envelope.truncated).toBe(false);
+    });
+  });
+});
+
+describe("AdminApplicantDirectoryService.exportAll — defense-in-depth (BFLA)", () => {
+  test("anonymous actor (id=0) → UnauthorizedError; zero writes", async () => {
+    await runInRollback(async tx => {
+      silenceDomainLog();
+      const error = await expectRepoError(() =>
+        AdminApplicantDirectoryService.exportAll({}, LOCALE, ANONYMOUS_ACTOR_ID, tx)
+      );
+      expect(error).toBeInstanceOf(UnauthorizedError);
+      expect(error.message).toContain(tErrors.unauthorized);
+    });
+  });
+
+  test("non-admin actor → ForbiddenError; zero writes", async () => {
+    await runInRollback(async tx => {
+      const nonAdmin = await createTestUser(tx, { role: "student" });
+      silenceDomainLog();
+      const error = await expectRepoError(() => AdminApplicantDirectoryService.exportAll({}, LOCALE, nonAdmin.id, tx));
+      expect(error).toBeInstanceOf(ForbiddenError);
+      expect(error.message).toContain(tErrors.forbidden);
     });
   });
 });

@@ -1,9 +1,12 @@
 /**
  * Admin teacher-directory query — `adminTeachers`, the paginated listing
- * over certified `teacher` rows joined to their `users` accounts.
+ * over certified `teacher` rows joined to their `users` accounts, plus the
+ * `adminTeachersExport` export-all sibling (same filters, NO pagination —
+ * the first 1000 filtered rows with an honest `truncated` cap flag).
  *
- * Contract:
+ * Contracts:
  *  - `adminTeachers(filters: AdminTeacherFiltersInput, page: Int, pageSize: Int): AdminTeacherPage!`
+ *  - `adminTeachersExport(filters: AdminTeacherFiltersInput): AdminTeacherExportEnvelope!`
  *
  * authScopes (`$all` conjunction, MANDATORY):
  *  - `authScopes: { $all: { authenticated: true, role: [UserRole.Admin] } }`
@@ -15,11 +18,13 @@
  *
  * Resolver discipline (thin resolvers):
  *  - Pagination args → the positive-safe-integer guard (no `as number`).
+ *    The export sibling takes NO pagination arguments (the 1000-row bound
+ *    lives in the service, not in caller-supplied args).
  *  - Filter args are copied FIELD-BY-FIELD into the service's closed
  *    submit-input whitelist — NO `{ ...input }` spread. The input type is
  *    the schema's BOPLA boundary: smuggled fields die at GraphQL validation
  *    before a resolver runs, and only the four whitelisted members cross.
- *  - Delegates to `AdminTeacherDirectoryService.list` with
+ *  - Delegates to `AdminTeacherDirectoryService.list` / `.exportAll` with
  *    `(…, ctx.locale, ctx.user.id)`; reads emit NO audit rows.
  *  - Resolvers throw NOTHING directly; service `DomainError` subclasses
  *    propagate with `extensions.code` and boundary masking.
@@ -30,7 +35,11 @@
  *  - Wired through side-effect barrels:
  *    `query/admin/index.ts` → `query/index.ts` → `gqlSchema.ts`.
  */
-import { AdminTeacherFiltersInput, AdminTeacherPagePothosObject } from "@/backend/graphql/pothos/admin";
+import {
+  AdminTeacherExportEnvelopePothosObject,
+  AdminTeacherFiltersInput,
+  AdminTeacherPagePothosObject,
+} from "@/backend/graphql/pothos/admin";
 import { gqlSchemaBuilder } from "@/backend/graphql/pothos/builder";
 import { adminOnlyAuthScopes } from "@/backend/graphql/shared";
 import { UnauthorizedError, ValidationError } from "@/backend/lib/errors";
@@ -82,6 +91,32 @@ gqlSchemaBuilder.queryField("adminTeachers", t =>
         },
         page,
         pageSize,
+        ctx.locale,
+        ctx.user.id
+      );
+    },
+  })
+);
+
+// Side-effect: register the `adminTeachersExport` export-all query field.
+gqlSchemaBuilder.queryField("adminTeachersExport", t =>
+  t.field({
+    type: AdminTeacherExportEnvelopePothosObject,
+    args: {
+      filters: t.arg({ type: AdminTeacherFiltersInput, required: false }),
+    },
+    authScopes: adminOnlyAuthScopes,
+    resolve: async (_root, args, ctx) => {
+      if (!ctx.user) {
+        throw new UnauthorizedError("Authentication required.");
+      }
+      return AdminTeacherDirectoryService.exportAll(
+        {
+          search: args.filters?.search ?? null,
+          approval: args.filters?.approval ?? null,
+          online: args.filters?.online ?? null,
+          evaluator: args.filters?.evaluator ?? null,
+        },
         ctx.locale,
         ctx.user.id
       );

@@ -20,7 +20,13 @@
  *  - `pageCount` ceiling math (3 rows ÷ pageSize 2 → 2; empty → 0).
  *  - Subjects JSON parse fallback (corrupt payload degrades to empty list).
  *  - Pagination validation errors (page 0 / negative, pageSize 101).
- *  - Defense-in-depth BFLA denials (anonymous → 401, non-admin → 403).
+ *  - `exportAll` envelope (rows + honest full filtered total + truncated
+ *    flag, filter composition respected, honest empty envelope) — the
+ *    truncated-TRUE honesty path is pinned against the pure
+ *    `buildExportEnvelope` helper in `directory-export.helpers.test.ts`
+ *    (seeding >1000 rows is impractical here).
+ *  - Defense-in-depth BFLA denials (anonymous → 401, non-admin → 403) on
+ *    BOTH operations.
  */
 
 import { describe, expect, spyOn, test } from "bun:test";
@@ -320,6 +326,93 @@ describe("AdminTeacherDirectoryService.list — pagination", () => {
       const admin = await provisionAdminActor(tx);
       const page = await AdminTeacherDirectoryService.list({}, 1, undefined, LOCALE, admin.id, tx);
       expect(page.pageSize).toBe(25);
+    });
+  });
+});
+
+describe("AdminTeacherDirectoryService.exportAll — export-all envelope", () => {
+  test("admin exports the filtered directory; rows + honest full total + truncated=false", async () => {
+    await runInRollback(async tx => {
+      const admin = await provisionAdminActor(tx);
+      const approved = await createDirectoryTeacher(tx, { namePrefix: "DirTeacherExport", isApproved: true });
+      const pending = await createDirectoryTeacher(tx, { namePrefix: "DirTeacherExport", isApproved: false });
+
+      const envelope = await AdminTeacherDirectoryService.exportAll(
+        { search: "DirTeacherExport" },
+        LOCALE,
+        admin.id,
+        tx
+      );
+
+      // The export envelope reports the FULL filtered count — exactly the
+      // count the listing query would report across all pages.
+      expect(envelope.total).toBe(2);
+      expect(envelope.truncated).toBe(false);
+      expect(envelope.rows).toHaveLength(2);
+      expect(envelope.rows.map(row => row.id).toSorted((a, b) => a - b)).toEqual(
+        [approved.id, pending.id].toSorted((a, b) => a - b)
+      );
+      const found = envelope.rows.find(row => row.id === approved.id);
+      expect(found?.name).toContain("DirTeacherExport");
+      expect(found?.email).toBe(approved.email);
+      expect(found?.isApproved).toBe(true);
+    });
+  });
+
+  test("filter composition is respected (approval filter partitions the export)", async () => {
+    await runInRollback(async tx => {
+      const admin = await provisionAdminActor(tx);
+      const approved = await createDirectoryTeacher(tx, { namePrefix: "DirTeacherExportFilter", isApproved: true });
+      await createDirectoryTeacher(tx, { namePrefix: "DirTeacherExportFilter", isApproved: false });
+
+      const envelope = await AdminTeacherDirectoryService.exportAll(
+        { search: "DirTeacherExportFilter", approval: true },
+        LOCALE,
+        admin.id,
+        tx
+      );
+      expect(envelope.total).toBe(1);
+      expect(envelope.rows).toHaveLength(1);
+      expect(envelope.rows[0]?.id).toBe(approved.id);
+      expect(envelope.truncated).toBe(false);
+    });
+  });
+
+  test("no-match search → honest empty envelope (rows [], total 0, truncated false)", async () => {
+    await runInRollback(async tx => {
+      const admin = await provisionAdminActor(tx);
+      const envelope = await AdminTeacherDirectoryService.exportAll(
+        { search: `no-match-${randomUUID()}` },
+        LOCALE,
+        admin.id,
+        tx
+      );
+      expect(envelope.rows).toEqual([]);
+      expect(envelope.total).toBe(0);
+      expect(envelope.truncated).toBe(false);
+    });
+  });
+});
+
+describe("AdminTeacherDirectoryService.exportAll — defense-in-depth (BFLA)", () => {
+  test("anonymous actor (id=0) → UnauthorizedError; zero writes", async () => {
+    await runInRollback(async tx => {
+      silenceDomainLog();
+      const error = await expectRepoError(() =>
+        AdminTeacherDirectoryService.exportAll({}, LOCALE, ANONYMOUS_ACTOR_ID, tx)
+      );
+      expect(error).toBeInstanceOf(UnauthorizedError);
+      expect(error.message).toContain(tErrors.unauthorized);
+    });
+  });
+
+  test("non-admin actor → ForbiddenError; zero writes", async () => {
+    await runInRollback(async tx => {
+      const nonAdmin = await createTestUser(tx, { role: "student" });
+      silenceDomainLog();
+      const error = await expectRepoError(() => AdminTeacherDirectoryService.exportAll({}, LOCALE, nonAdmin.id, tx));
+      expect(error).toBeInstanceOf(ForbiddenError);
+      expect(error.message).toContain(tErrors.forbidden);
     });
   });
 });

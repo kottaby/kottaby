@@ -289,6 +289,18 @@ const DEV3_022C_TYPE_NAMES = [
  */
 const R4R_ADMIN_DIRECTORY_QUERY_FIELDS = ["adminStudents", "adminTeacherApplicants", "adminTeachers"] as const;
 /**
+ * R5 admin directory export trio — RECONCILED baseline drift (the
+ * export-all read surfaces behind the admin directories' EXPORT CSV
+ * affordance: the three listing queries' filter arguments with NO
+ * pagination, first-1000-row bounded payloads with the honest `truncated`
+ * cap flag). Re-anchored in the 77adb9f reconciliation convention.
+ */
+const R5_ADMIN_EXPORT_QUERY_FIELDS = [
+  "adminStudentsExport",
+  "adminTeacherApplicantsExport",
+  "adminTeachersExport",
+] as const;
+/**
  * Parent-link read pair — RECONCILED baseline drift (the REQ-061 extend
  * step shipped the incoming/outgoing request listings but the Query-root
  * additions pin was never refreshed). Re-anchored as a documented
@@ -362,6 +374,17 @@ const R4R_ADMIN_DIRECTORY_TYPE_NAMES = [
   "AdminTeacherItem",
   "AdminTeacherPage",
 ] as const;
+/**
+ * R5 admin directory export envelope objects — RECONCILED baseline drift
+ * (the three export-all envelopes; each reuses its directory's EXISTING
+ * item object for `rows`, so the ONLY new named types are the envelopes
+ * themselves).
+ */
+const R5_ADMIN_EXPORT_TYPE_NAMES = [
+  "AdminApplicantExportEnvelope",
+  "AdminStudentExportEnvelope",
+  "AdminTeacherExportEnvelope",
+] as const;
 
 // ─── Schema walk helpers ─────────────────────────────────────────────────────
 
@@ -434,7 +457,8 @@ describe("Query._health — retyped probe surface", () => {
     // mutation pair), the whole-platform analytics snapshot, and the
     // RECONCILED admin audit listing + parent-link read pair + R1–R3
     // admin directory trio (shipped but never pinned — re-anchored
-    // alongside the R4 statusCounts aggregate).
+    // alongside the R4 statusCounts aggregate) + the R5 admin directory
+    // export trio (the sanctioned export-all read surface).
     const additions = fieldNames.filter(name => !(PRE_3_1_QUERY_FIELDS as readonly string[]).includes(name));
     expect(additions.toSorted((a, b) => a.localeCompare(b))).toEqual(
       [
@@ -447,6 +471,7 @@ describe("Query._health — retyped probe surface", () => {
         ...DEV3_016_ADMIN_USER_QUERY_FIELDS,
         ...DEV3_022C_QUERY_FIELDS,
         ...R4R_ADMIN_DIRECTORY_QUERY_FIELDS,
+        ...R5_ADMIN_EXPORT_QUERY_FIELDS,
         ...RECONCILED_PARENT_LINK_QUERY_FIELDS,
         ...RECONCILED_ADMIN_AUDIT_QUERY_FIELDS,
       ].toSorted((a, b) => a.localeCompare(b))
@@ -625,7 +650,7 @@ describe("Surface freeze — pinned additions vs the baseline inventory", () => 
     }
   });
 
-  test("whole-schema named-type delta is pinned: refreshed baseline delta (DateTime scalar + HealthCheck probe + DEV1-013 handshake surface) + DEV3-004 session objects/inputs + scheduling/arbitration/ledger enums + DEV3-013 wallet surface + DEV3-016 admin-user-management surface + the parent-link objects (extend step) + the eleven analytics value objects (no new enum) + the reconciled audit/broadcast/directory surfaces", () => {
+  test("whole-schema named-type delta is pinned: refreshed baseline delta (DateTime scalar + HealthCheck probe + DEV1-013 handshake surface) + DEV3-004 session objects/inputs + scheduling/arbitration/ledger enums + DEV3-013 wallet surface + DEV3-016 admin-user-management surface + the parent-link objects (extend step) + the eleven analytics value objects (no new enum) + the reconciled audit/broadcast/directory surfaces + the R5 export envelopes", () => {
     const post = new Set(sdlTypeNames());
 
     for (const name of PRE_3_1_TYPE_NAMES) {
@@ -649,6 +674,7 @@ describe("Surface freeze — pinned additions vs the baseline inventory", () => 
         ...RECONCILED_ADMIN_AUDIT_TYPE_NAMES,
         ...RECONCILED_ADMIN_BROADCAST_TYPE_NAMES,
         ...R4R_ADMIN_DIRECTORY_TYPE_NAMES,
+        ...R5_ADMIN_EXPORT_TYPE_NAMES,
       ].toSorted((a, b) => a.localeCompare(b))
     );
   });

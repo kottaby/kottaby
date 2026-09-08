@@ -85,6 +85,21 @@ export interface AdminApplicantStatusCountsReturnType {
 }
 
 /**
+ * `AdminApplicantExportEnvelopeReturnType` — export-all envelope for the
+ * applicant queue. `rows` carries the first `EXPORT_MAX_ROWS` (1000)
+ * filtered rows in the listing's default ordering (newest account first);
+ * `total` is the FULL filtered row count (the number the listing query
+ * would report across all pages); `truncated` is the honest cap flag —
+ * `true` exactly when `total > rows.length`, so callers can warn that the
+ * payload is a bounded window rather than the whole queue.
+ */
+export interface AdminApplicantExportEnvelopeReturnType {
+  readonly rows: readonly AdminApplicantItemReturnType[];
+  readonly total: number;
+  readonly truncated: boolean;
+}
+
+/**
  * `AdminApplicantPageReturnType` — paginated directory result envelope.
  * `pageCount` is the ceiling division of `total` over `pageSize`. An
  * out-of-range page yields an empty `items` array with the honest `total`

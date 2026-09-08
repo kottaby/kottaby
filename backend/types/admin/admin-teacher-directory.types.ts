@@ -62,6 +62,21 @@ export interface AdminTeacherItemReturnType {
 }
 
 /**
+ * `AdminTeacherExportEnvelopeReturnType` — export-all envelope for the
+ * teacher directory. `rows` carries the first `EXPORT_MAX_ROWS` (1000)
+ * filtered rows in the listing's default ordering (newest account first);
+ * `total` is the FULL filtered row count (the number the listing query
+ * would report across all pages); `truncated` is the honest cap flag —
+ * `true` exactly when `total > rows.length`, so callers can warn that the
+ * payload is a bounded window rather than the whole directory.
+ */
+export interface AdminTeacherExportEnvelopeReturnType {
+  readonly rows: readonly AdminTeacherItemReturnType[];
+  readonly total: number;
+  readonly truncated: boolean;
+}
+
+/**
  * `AdminTeacherPageReturnType` — paginated directory result envelope.
  * `pageCount` is the ceiling division of `total` over `pageSize`. An
  * out-of-range page yields an empty `items` array with the honest `total`

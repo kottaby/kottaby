@@ -4,8 +4,15 @@
  * joined to their `users` accounts, with the linked parent's display
  * identity resolved via a left join).
  *
- * Single operation: `list` — filter normalization + pagination bounds +
- * row→item projection over `StudentRepository.listDirectory`.
+ * Operations:
+ *  - `list` — filter normalization + pagination bounds + row→item
+ *    projection over `StudentRepository.listDirectory`.
+ *  - `exportAll` — the same filter normalization + row→item projection,
+ *    bounded to the first `EXPORT_MAX_ROWS` (1000) filtered rows in the
+ *    listing's default ordering (NO pagination arguments): the envelope
+ *    reports the FULL filtered `total` alongside `truncated` (`total >
+ *    rows.length`) so callers can warn that the payload is a bounded
+ *    window rather than the whole directory.
  *
  * Disciplines enforced here (mirroring `AdminUserManagementService`):
  *  - Defense-in-depth BFLA: `assertActorAdmin` is the FIRST statement —
@@ -36,9 +43,15 @@ import { StudentRepository } from "@/backend/db/repo";
 import type { NormalizedAdminStudentFilters } from "@/backend/db/repo/students/student.repository";
 import { escapeLikeWildcards } from "@/backend/lib/db/escape-like-wildcards";
 import { assertActorAdmin } from "@/backend/services/admin/admin-guards.helpers";
+import { buildExportEnvelope, EXPORT_MAX_ROWS } from "@/backend/services/admin/directory-export.helpers";
 import { mapStudentDirectoryRow } from "@/backend/services/admin/student-directory.mappers";
 import { resolvePageBounds } from "@/backend/services/admin/user-management.helpers";
-import type { AdminStudentFiltersSubmitInput, AdminStudentPageReturnType, DBTransaction } from "@/backend/types";
+import type {
+  AdminStudentExportEnvelopeReturnType,
+  AdminStudentFiltersSubmitInput,
+  AdminStudentPageReturnType,
+  DBTransaction,
+} from "@/backend/types";
 
 /** Upper bound on the free-text search term length — longer input clamps. */
 const MAX_SEARCH_LENGTH = 100;
@@ -98,5 +111,35 @@ export namespace AdminStudentDirectoryService {
       pageSize: resolvedPageSize,
       pageCount: Math.ceil(total / resolvedPageSize),
     };
+  }
+
+  /**
+   * Exports the student directory by filter — the first `EXPORT_MAX_ROWS`
+   * (1000) filtered rows in the listing's default ordering (newest account
+   * first), with NO pagination arguments.
+   *
+   * Reuses `StudentRepository.listDirectory` verbatim (`limit =
+   * EXPORT_MAX_ROWS`, `offset = 0`): the repo's `{ rows, total }` pair
+   * supplies the envelope for free — `total` is the FULL filtered row
+   * count (the count the listing would report across all pages) and
+   * `truncated` is the honest cap flag. Filter normalization is the SAME
+   * code path as `list` (search trim + 100-char clamp + LIKE-escape +
+   * `%…%`-wrap), so an export can never see a row the listing cannot.
+   */
+  export async function exportAll(
+    filters: AdminStudentFiltersSubmitInput,
+    locale: string,
+    actorId: number,
+    outerTx?: DBTransaction
+  ): Promise<AdminStudentExportEnvelopeReturnType> {
+    await assertActorAdmin(actorId, locale, outerTx);
+
+    const normalized = normalizeFilters(filters);
+    const { rows, total } = await StudentRepository.listDirectory(normalized, EXPORT_MAX_ROWS, 0, outerTx);
+
+    return buildExportEnvelope(
+      rows.map(row => mapStudentDirectoryRow(row)),
+      total
+    );
   }
 }

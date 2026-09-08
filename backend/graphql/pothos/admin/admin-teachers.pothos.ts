@@ -5,6 +5,9 @@
  * Every shape is backed by a canonical type from `backend/types/admin/`:
  *  - `AdminTeacherItem` ← `AdminTeacherItemReturnType` (one directory row)
  *  - `AdminTeacherPage` ← `AdminTeacherPageReturnType` (embedded envelope)
+ *  - `AdminTeacherExportEnvelope` ← `AdminTeacherExportEnvelopeReturnType`
+ *    (export-all envelope behind `adminTeachersExport` — reuses
+ *    `AdminTeacherItem` for its rows, NO new row type)
  *  - `AdminTeacherFiltersInput` — closed four-member filter whitelist whose
  *    members map 1:1 onto `AdminTeacherFiltersSubmitInput` (the resolver
  *    copies them field-by-field; nothing else crosses the boundary).
@@ -18,7 +21,11 @@
  *    serialization) — no hand-rolled `toISOString()` presentation layer.
  */
 import { gqlSchemaBuilder } from "@/backend/graphql/pothos/builder";
-import type { AdminTeacherItemReturnType, AdminTeacherPageReturnType } from "@/backend/types";
+import type {
+  AdminTeacherExportEnvelopeReturnType,
+  AdminTeacherItemReturnType,
+  AdminTeacherPageReturnType,
+} from "@/backend/types";
 
 /**
  * `AdminTeacherItem` — one directory row: the safe `users` columns plus the
@@ -72,6 +79,29 @@ export const AdminTeacherPagePothosObject = gqlSchemaBuilder
       page: t.exposeInt("page"),
       pageSize: t.exposeInt("pageSize"),
       pageCount: t.exposeInt("pageCount"),
+    }),
+  });
+
+/**
+ * `AdminTeacherExportEnvelope` — export-all envelope behind
+ * `adminTeachersExport`. `rows` reuses the `AdminTeacherItem` row shape
+ * (the exact objects the listing query returns per item — no new row
+ * type), bounded to the first 1000 filtered rows in the listing's default
+ * ordering; `total` is the FULL filtered row count (the count the listing
+ * would report across all pages); `truncated` is the honest cap flag
+ * (`true` exactly when `total > rows.length`). NO pagination arguments
+ * feed this envelope. Embedded wrapper — NO `id` field.
+ */
+export const AdminTeacherExportEnvelopePothosObject = gqlSchemaBuilder
+  .objectRef<AdminTeacherExportEnvelopeReturnType>("AdminTeacherExportEnvelope")
+  .implement({
+    fields: t => ({
+      rows: t.field({
+        type: [AdminTeacherItemPothosObject],
+        resolve: parent => [...parent.rows],
+      }),
+      total: t.exposeInt("total"),
+      truncated: t.exposeBoolean("truncated"),
     }),
   });
 

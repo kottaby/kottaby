@@ -4,11 +4,14 @@
  * `applicants` pipeline rows joined to their `users` accounts — the
  * teacher-certification queue).
  *
- * Single operation: `list` — filter normalization + pagination bounds +
- * row→item projection over `ApplicantRepository.listDirectory`, fetched in
- * parallel with `ApplicantRepository.statusCounts` (the search-aware /
- * status-independent per-status aggregate that powers the queue's
- * quick-filter chips).
+ * Single listing operation: `list` — filter normalization + pagination
+ * bounds + row→item projection over `ApplicantRepository.listDirectory`,
+ * fetched in parallel with `ApplicantRepository.statusCounts` (the
+ * search-aware / status-independent per-status aggregate that powers the
+ * queue's quick-filter chips). The `exportAll` operation reuses the same
+ * filter normalization + row→item projection, bounded to the first
+ * `EXPORT_MAX_ROWS` (1000) filtered rows (NO pagination arguments) with
+ * the honest `truncated` cap flag.
  *
  * Disciplines enforced here (mirroring `AdminTeacherDirectoryService`):
  *  - Defense-in-depth BFLA: `assertActorAdmin` is the FIRST statement —
@@ -47,9 +50,15 @@ import { isApplicantStatus } from "@/backend/enum/teachers/applicant-status.enum
 import { escapeLikeWildcards } from "@/backend/lib/db/escape-like-wildcards";
 import { ValidationError } from "@/backend/lib/errors";
 import { assertActorAdmin } from "@/backend/services/admin/admin-guards.helpers";
+import { buildExportEnvelope, EXPORT_MAX_ROWS } from "@/backend/services/admin/directory-export.helpers";
 import { mapApplicantDirectoryRow } from "@/backend/services/admin/teacher-applicant-directory.mappers";
 import { resolvePageBounds } from "@/backend/services/admin/user-management.helpers";
-import type { AdminApplicantFiltersSubmitInput, AdminApplicantPageReturnType, DBTransaction } from "@/backend/types";
+import type {
+  AdminApplicantExportEnvelopeReturnType,
+  AdminApplicantFiltersSubmitInput,
+  AdminApplicantPageReturnType,
+  DBTransaction,
+} from "@/backend/types";
 import { getServerTranslations } from "@/shared/locale/server-graphql";
 
 /** Upper bound on the free-text search term length — longer input clamps. */
@@ -125,5 +134,38 @@ export namespace AdminApplicantDirectoryService {
       pageCount: Math.ceil(directory.total / resolvedPageSize),
       statusCounts,
     };
+  }
+
+  /**
+   * Exports the applicant queue by filter — the first `EXPORT_MAX_ROWS`
+   * (1000) filtered rows in the listing's default ordering (newest account
+   * first), with NO pagination arguments.
+   *
+   * Reuses `ApplicantRepository.listDirectory` verbatim (`limit =
+   * EXPORT_MAX_ROWS`, `offset = 0`): the repo's `{ rows, total }` pair
+   * supplies the envelope for free — `total` is the FULL filtered row
+   * count (the count the listing would report across all pages) and
+   * `truncated` is the honest cap flag. Filter normalization is the SAME
+   * code path as `list` — including the status-vocabulary gate (invalid
+   * `status` values reject with a localized `VALIDATION` error BEFORE any
+   * DB read) — so an export can never see a row the listing cannot. The
+   * `statusCounts` aggregate is a page-envelope affordance and is NOT part
+   * of the export payload.
+   */
+  export async function exportAll(
+    filters: AdminApplicantFiltersSubmitInput,
+    locale: string,
+    actorId: number,
+    outerTx?: DBTransaction
+  ): Promise<AdminApplicantExportEnvelopeReturnType> {
+    await assertActorAdmin(actorId, locale, outerTx);
+
+    const normalized = normalizeFilters(filters, locale);
+    const { rows, total } = await ApplicantRepository.listDirectory(normalized, EXPORT_MAX_ROWS, 0, outerTx);
+
+    return buildExportEnvelope(
+      rows.map(row => mapApplicantDirectoryRow(row)),
+      total
+    );
   }
 }

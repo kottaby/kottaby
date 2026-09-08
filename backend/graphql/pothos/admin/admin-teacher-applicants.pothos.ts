@@ -9,6 +9,9 @@
  *  - `AdminApplicantStatusCounts` ← `AdminApplicantStatusCountsReturnType`
  *    (module-private embedded value object behind the page envelope's
  *    `statusCounts` field — search-aware, status-filter-independent)
+ *  - `AdminApplicantExportEnvelope` ← `AdminApplicantExportEnvelopeReturnType`
+ *    (export-all envelope behind `adminTeacherApplicantsExport` — reuses
+ *    `AdminApplicantItem` for its rows, NO new row type)
  *  - `AdminApplicantFiltersInput` — closed two-member filter whitelist
  *    whose members map 1:1 onto `AdminApplicantFiltersSubmitInput` (the
  *    resolver copies them field-by-field; nothing else crosses the
@@ -24,6 +27,7 @@
  */
 import { gqlSchemaBuilder } from "@/backend/graphql/pothos/builder";
 import type {
+  AdminApplicantExportEnvelopeReturnType,
   AdminApplicantItemReturnType,
   AdminApplicantPageReturnType,
   AdminApplicantStatusCountsReturnType,
@@ -105,6 +109,31 @@ export const AdminApplicantPagePothosObject = gqlSchemaBuilder
         type: AdminApplicantStatusCountsPothosObject,
         resolve: parent => parent.statusCounts,
       }),
+    }),
+  });
+
+/**
+ * `AdminApplicantExportEnvelope` — export-all envelope behind
+ * `adminTeacherApplicantsExport`. `rows` reuses the `AdminApplicantItem`
+ * row shape (the exact objects the listing query returns per item — no
+ * new row type), bounded to the first 1000 filtered rows in the listing's
+ * default ordering; `total` is the FULL filtered row count (the count the
+ * listing would report across all pages); `truncated` is the honest cap
+ * flag (`true` exactly when `total > rows.length`). NO pagination
+ * arguments feed this envelope; the `statusCounts` aggregate is a
+ * page-envelope affordance and is NOT part of the export payload.
+ * Embedded wrapper — NO `id` field.
+ */
+export const AdminApplicantExportEnvelopePothosObject = gqlSchemaBuilder
+  .objectRef<AdminApplicantExportEnvelopeReturnType>("AdminApplicantExportEnvelope")
+  .implement({
+    fields: t => ({
+      rows: t.field({
+        type: [AdminApplicantItemPothosObject],
+        resolve: parent => [...parent.rows],
+      }),
+      total: t.exposeInt("total"),
+      truncated: t.exposeBoolean("truncated"),
     }),
   });
 

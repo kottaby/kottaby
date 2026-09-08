@@ -1,10 +1,13 @@
 /**
  * Admin student-directory query — `adminStudents`, the paginated listing
  * over `students` rows joined to their `users` accounts (with the linked
- * parent's display identity resolved via a left join).
+ * parent's display identity resolved via a left join), plus the
+ * `adminStudentsExport` export-all sibling (same filters, NO pagination —
+ * the first 1000 filtered rows with an honest `truncated` cap flag).
  *
- * Contract:
+ * Contracts:
  *  - `adminStudents(filters: AdminStudentFiltersInput, page: Int, pageSize: Int): AdminStudentPage!`
+ *  - `adminStudentsExport(filters: AdminStudentFiltersInput): AdminStudentExportEnvelope!`
  *
  * authScopes (`$all` conjunction, MANDATORY):
  *  - `authScopes: { $all: { authenticated: true, role: [UserRole.Admin] } }`
@@ -16,11 +19,13 @@
  *
  * Resolver discipline (thin resolvers):
  *  - Pagination args → the positive-safe-integer guard (no `as number`).
+ *    The export sibling takes NO pagination arguments (the 1000-row bound
+ *    lives in the service, not in caller-supplied args).
  *  - Filter args are copied FIELD-BY-FIELD into the service's closed
  *    submit-input whitelist — NO `{ ...input }` spread. The input type is
  *    the schema's BOPLA boundary: smuggled fields die at GraphQL validation
  *    before a resolver runs, and only the three whitelisted members cross.
- *  - Delegates to `AdminStudentDirectoryService.list` with
+ *  - Delegates to `AdminStudentDirectoryService.list` / `.exportAll` with
  *    `(…, ctx.locale, ctx.user.id)`; reads emit NO audit rows.
  *  - Resolvers throw NOTHING directly; service `DomainError` subclasses
  *    propagate with `extensions.code` and boundary masking.
@@ -31,7 +36,11 @@
  *  - Wired through side-effect barrels:
  *    `query/admin/index.ts` → `query/index.ts` → `gqlSchema.ts`.
  */
-import { AdminStudentFiltersInput, AdminStudentPagePothosObject } from "@/backend/graphql/pothos/admin";
+import {
+  AdminStudentExportEnvelopePothosObject,
+  AdminStudentFiltersInput,
+  AdminStudentPagePothosObject,
+} from "@/backend/graphql/pothos/admin";
 import { gqlSchemaBuilder } from "@/backend/graphql/pothos/builder";
 import { adminOnlyAuthScopes } from "@/backend/graphql/shared";
 import { UnauthorizedError, ValidationError } from "@/backend/lib/errors";
@@ -82,6 +91,31 @@ gqlSchemaBuilder.queryField("adminStudents", t =>
         },
         page,
         pageSize,
+        ctx.locale,
+        ctx.user.id
+      );
+    },
+  })
+);
+
+// Side-effect: register the `adminStudentsExport` export-all query field.
+gqlSchemaBuilder.queryField("adminStudentsExport", t =>
+  t.field({
+    type: AdminStudentExportEnvelopePothosObject,
+    args: {
+      filters: t.arg({ type: AdminStudentFiltersInput, required: false }),
+    },
+    authScopes: adminOnlyAuthScopes,
+    resolve: async (_root, args, ctx) => {
+      if (!ctx.user) {
+        throw new UnauthorizedError("Authentication required.");
+      }
+      return AdminStudentDirectoryService.exportAll(
+        {
+          search: args.filters?.search ?? null,
+          hasParent: args.filters?.hasParent ?? null,
+          language: args.filters?.language ?? null,
+        },
         ctx.locale,
         ctx.user.id
       );

@@ -1,10 +1,14 @@
 /**
  * Admin teacher-applicant-directory query — `adminTeacherApplicants`, the
- * paginated listing over `applicants` pipeline rows joined to their
- * `users` accounts (the teacher-certification queue).
+ * paginated listing over `applicants` pipeline rows joined to their `users`
+ * accounts (the teacher-certification queue), plus the
+ * `adminTeacherApplicantsExport` export-all sibling (same filters, NO
+ * pagination — the first 1000 filtered rows with an honest `truncated` cap
+ * flag).
  *
- * Contract:
+ * Contracts:
  *  - `adminTeacherApplicants(filters: AdminApplicantFiltersInput, page: Int, pageSize: Int): AdminApplicantPage!`
+ *  - `adminTeacherApplicantsExport(filters: AdminApplicantFiltersInput): AdminApplicantExportEnvelope!`
  *
  * authScopes (`$all` conjunction, MANDATORY):
  *  - `authScopes: { $all: { authenticated: true, role: [UserRole.Admin] } }`
@@ -16,14 +20,17 @@
  *
  * Resolver discipline (thin resolvers):
  *  - Pagination args → the positive-safe-integer guard (no `as number`).
+ *    The export sibling takes NO pagination arguments (the 1000-row bound
+ *    lives in the service, not in caller-supplied args).
  *  - Filter args are copied FIELD-BY-FIELD into the service's closed
  *    submit-input whitelist — NO `{ ...input }` spread. The input type is
  *    the schema's BOPLA boundary: smuggled fields die at GraphQL validation
  *    before a resolver runs, and only the two whitelisted members cross.
- *  - Delegates to `AdminApplicantDirectoryService.list` with
- *    `(…, ctx.locale, ctx.user.id)`; reads emit NO audit rows. The
+ *  - Delegates to `AdminApplicantDirectoryService.list` / `.exportAll`
+ *    with `(…, ctx.locale, ctx.user.id)`; reads emit NO audit rows. The
  *    service layer owns the status-vocabulary gate (invalid `status`
- *    values reject with a localized `VALIDATION` DomainError).
+ *    values reject with a localized `VALIDATION` DomainError) on BOTH
+ *    operations.
  *  - Resolvers throw NOTHING directly; service `DomainError` subclasses
  *    propagate with `extensions.code` and boundary masking.
  *
@@ -33,7 +40,11 @@
  *  - Wired through side-effect barrels:
  *    `query/admin/index.ts` → `query/index.ts` → `gqlSchema.ts`.
  */
-import { AdminApplicantFiltersInput, AdminApplicantPagePothosObject } from "@/backend/graphql/pothos/admin";
+import {
+  AdminApplicantExportEnvelopePothosObject,
+  AdminApplicantFiltersInput,
+  AdminApplicantPagePothosObject,
+} from "@/backend/graphql/pothos/admin";
 import { gqlSchemaBuilder } from "@/backend/graphql/pothos/builder";
 import { adminOnlyAuthScopes } from "@/backend/graphql/shared";
 import { UnauthorizedError, ValidationError } from "@/backend/lib/errors";
@@ -83,6 +94,30 @@ gqlSchemaBuilder.queryField("adminTeacherApplicants", t =>
         },
         page,
         pageSize,
+        ctx.locale,
+        ctx.user.id
+      );
+    },
+  })
+);
+
+// Side-effect: register the `adminTeacherApplicantsExport` export-all query field.
+gqlSchemaBuilder.queryField("adminTeacherApplicantsExport", t =>
+  t.field({
+    type: AdminApplicantExportEnvelopePothosObject,
+    args: {
+      filters: t.arg({ type: AdminApplicantFiltersInput, required: false }),
+    },
+    authScopes: adminOnlyAuthScopes,
+    resolve: async (_root, args, ctx) => {
+      if (!ctx.user) {
+        throw new UnauthorizedError("Authentication required.");
+      }
+      return AdminApplicantDirectoryService.exportAll(
+        {
+          search: args.filters?.search ?? null,
+          status: args.filters?.status ?? null,
+        },
         ctx.locale,
         ctx.user.id
       );

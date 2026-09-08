@@ -20,7 +20,13 @@
  *    secondary language, absent-filter fallback).
  *  - `pageCount` ceiling math (3 rows ÷ pageSize 2 → 2; empty → 0).
  *  - Pagination validation errors (page 0 / negative, pageSize 101).
- *  - Defense-in-depth BFLA denials (anonymous → 401, non-admin → 403).
+ *  - `exportAll` envelope (rows + honest full filtered total + truncated
+ *    flag, filter composition respected, honest empty envelope) — the
+ *    truncated-TRUE honesty path is pinned against the pure
+ *    `buildExportEnvelope` helper in `directory-export.helpers.test.ts`
+ *    (seeding >1000 rows is impractical here).
+ *  - Defense-in-depth BFLA denials (anonymous → 401, non-admin → 403) on
+ *    BOTH operations.
  */
 
 import { describe, expect, spyOn, test } from "bun:test";
@@ -316,6 +322,106 @@ describe("AdminStudentDirectoryService.list — pagination", () => {
       const admin = await provisionAdminActor(tx);
       const page = await AdminStudentDirectoryService.list({}, 1, undefined, LOCALE, admin.id, tx);
       expect(page.pageSize).toBe(25);
+    });
+  });
+});
+
+describe("AdminStudentDirectoryService.exportAll — export-all envelope", () => {
+  test("admin exports the filtered directory; rows + honest full total + truncated=false", async () => {
+    await runInRollback(async tx => {
+      const admin = await provisionAdminActor(tx);
+      const parentUser = await createTestUser(tx, { role: "parent" });
+      await createTestParent(tx, parentUser.id);
+      const linked = await createDirectoryStudent(tx, {
+        namePrefix: "DirStudentExport",
+        parentId: parentUser.id,
+        primaryLanguage: "Arabic",
+      });
+      const unlinked = await createDirectoryStudent(tx, { namePrefix: "DirStudentExport" });
+
+      const envelope = await AdminStudentDirectoryService.exportAll(
+        { search: "DirStudentExport" },
+        LOCALE,
+        admin.id,
+        tx
+      );
+
+      // The export envelope reports the FULL filtered count — exactly the
+      // count the listing query would report across all pages.
+      expect(envelope.total).toBe(2);
+      expect(envelope.truncated).toBe(false);
+      expect(envelope.rows).toHaveLength(2);
+      expect(envelope.rows.map(row => row.id).toSorted((a, b) => a - b)).toEqual(
+        [linked.id, unlinked.id].toSorted((a, b) => a - b)
+      );
+      const found = envelope.rows.find(row => row.id === linked.id);
+      expect(found?.name).toContain("DirStudentExport");
+      expect(found?.email).toBe(linked.email);
+      expect(found?.primaryLanguage).toBe("Arabic");
+      expect(found?.hasParent).toBe(true);
+      expect(found?.parentEmail).toBe(parentUser.email);
+    });
+  });
+
+  test("filter composition is respected (hasParent filter partitions the export)", async () => {
+    await runInRollback(async tx => {
+      const admin = await provisionAdminActor(tx);
+      const parentUser = await createTestUser(tx, { role: "parent" });
+      await createTestParent(tx, parentUser.id);
+      const linked = await createDirectoryStudent(tx, {
+        namePrefix: "DirStudentExportFilter",
+        parentId: parentUser.id,
+      });
+      await createDirectoryStudent(tx, { namePrefix: "DirStudentExportFilter" });
+
+      const envelope = await AdminStudentDirectoryService.exportAll(
+        { search: "DirStudentExportFilter", hasParent: true },
+        LOCALE,
+        admin.id,
+        tx
+      );
+      expect(envelope.total).toBe(1);
+      expect(envelope.rows).toHaveLength(1);
+      expect(envelope.rows[0]?.id).toBe(linked.id);
+      expect(envelope.truncated).toBe(false);
+    });
+  });
+
+  test("no-match search → honest empty envelope (rows [], total 0, truncated false)", async () => {
+    await runInRollback(async tx => {
+      const admin = await provisionAdminActor(tx);
+      const envelope = await AdminStudentDirectoryService.exportAll(
+        { search: `no-match-${randomUUID()}` },
+        LOCALE,
+        admin.id,
+        tx
+      );
+      expect(envelope.rows).toEqual([]);
+      expect(envelope.total).toBe(0);
+      expect(envelope.truncated).toBe(false);
+    });
+  });
+});
+
+describe("AdminStudentDirectoryService.exportAll — defense-in-depth (BFLA)", () => {
+  test("anonymous actor (id=0) → UnauthorizedError; zero writes", async () => {
+    await runInRollback(async tx => {
+      silenceDomainLog();
+      const error = await expectRepoError(() =>
+        AdminStudentDirectoryService.exportAll({}, LOCALE, ANONYMOUS_ACTOR_ID, tx)
+      );
+      expect(error).toBeInstanceOf(UnauthorizedError);
+      expect(error.message).toContain(tErrors.unauthorized);
+    });
+  });
+
+  test("non-admin actor → ForbiddenError; zero writes", async () => {
+    await runInRollback(async tx => {
+      const nonAdmin = await createTestUser(tx, { role: "student" });
+      silenceDomainLog();
+      const error = await expectRepoError(() => AdminStudentDirectoryService.exportAll({}, LOCALE, nonAdmin.id, tx));
+      expect(error).toBeInstanceOf(ForbiddenError);
+      expect(error.message).toContain(tErrors.forbidden);
     });
   });
 });

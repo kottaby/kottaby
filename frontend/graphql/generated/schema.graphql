@@ -1,3 +1,9 @@
+type AdminApplicantExportEnvelope {
+  rows: [AdminApplicantItem!]!
+  total: Int!
+  truncated: Boolean!
+}
+
 input AdminApplicantFiltersInput {
   search: String
   status: String
@@ -82,6 +88,12 @@ type AdminParentSnapshot {
   linkedChildrenCount: Int!
 }
 
+type AdminStudentExportEnvelope {
+  rows: [AdminStudentItem!]!
+  total: Int!
+  truncated: Boolean!
+}
+
 input AdminStudentFiltersInput {
   hasParent: Boolean
   language: String
@@ -127,6 +139,12 @@ type AdminStudentSnapshot {
   parentId: Int
   primaryLanguage: String
   trialGrantedAt: String
+}
+
+type AdminTeacherExportEnvelope {
+  rows: [AdminTeacherItem!]!
+  total: Int!
+  truncated: Boolean!
 }
 
 input AdminTeacherFiltersInput {
@@ -710,8 +728,11 @@ type Query {
   """
   adminPlatformAnalytics: PlatformAnalytics!
   adminStudents(filters: AdminStudentFiltersInput, page: Int, pageSize: Int): AdminStudentPage!
+  adminStudentsExport(filters: AdminStudentFiltersInput): AdminStudentExportEnvelope!
   adminTeacherApplicants(filters: AdminApplicantFiltersInput, page: Int, pageSize: Int): AdminApplicantPage!
+  adminTeacherApplicantsExport(filters: AdminApplicantFiltersInput): AdminApplicantExportEnvelope!
   adminTeachers(filters: AdminTeacherFiltersInput, page: Int, pageSize: Int): AdminTeacherPage!
+  adminTeachersExport(filters: AdminTeacherFiltersInput): AdminTeacherExportEnvelope!
   adminUserActivity(id: Int!, limit: Int): [AdminUserActivityEntry!]!
   adminUserDetail(id: Int!): AdminUserDetail!
   adminUserStats: AdminUserStats!
