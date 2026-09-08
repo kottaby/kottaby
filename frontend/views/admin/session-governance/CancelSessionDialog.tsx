@@ -1,8 +1,11 @@
 "use client";
 
-import { Button, Dialog, DialogActions, DialogContent, DialogTitle } from "@mui/material";
 import { type ReactNode, useState } from "react";
 import type { AdminSessionsQuery_adminSessions_items } from "@/frontend/graphql/generated/gql/graphql";
+import {
+  GovernanceDialogActions,
+  GovernanceFormDialog,
+} from "@/frontend/views/admin/session-governance/dialogFormAtoms";
 import { SessionDialogReasonField } from "@/frontend/views/student/sessions/SessionDialogReasonField";
 import { SessionDialogWarningCallout } from "@/frontend/views/student/sessions/SessionDialogWarningCallout";
 import { AdminSessionGovernance, Common, useAppTranslation } from "@/shared/locale";
@@ -12,7 +15,8 @@ import { AdminSessionGovernance, Common, useAppTranslation } from "@/shared/loca
  * (`/admin/session-governance`, DEV3-021). Structural sibling of
  * the participant cancel + arbitration dialogs: portal/dialog/form
  * discipline, `React.SubmitEvent`, dismissal gated while the mutation is in
- * flight.
+ * flight (the shared {@link GovernanceFormDialog} /
+ * {@link GovernanceDialogActions} atoms carry that shell).
  *
  * Reason field — OPTIONAL (the cancel contract's `reason?`), ≤330 chars at the UI seam
  * (the backend boundary cap — length cap + control-character rejection compose
@@ -69,52 +73,36 @@ export function CancelSessionDialog({
     onSubmit(trimmed.length === 0 ? null : trimmed);
   };
 
-  const handleDialogClose = (): void => {
-    if (!loading) {
-      onClose();
-    }
-  };
-
   return (
-    <Dialog
+    <GovernanceFormDialog
       open={open}
-      onClose={handleDialogClose}
-      fullWidth
-      maxWidth="sm"
-      slotProps={{ paper: { component: "form", onSubmit: handleSubmit } }}
-      aria-labelledby="cancel-session-dialog-title"
-    >
-      <DialogTitle id="cancel-session-dialog-title" sx={theme => ({ color: theme.palette.onSurface })}>
-        {t.cancelTitle}
-      </DialogTitle>
-      <DialogContent sx={{ display: "grid", gap: 2 }}>
-        <SessionDialogWarningCallout message={t.cancelBody} />
-        <SessionDialogReasonField
-          value={reason}
-          onValueChange={setReason}
-          label={t.cancelReasonLabel}
-          placeholder={t.cancelReasonPlaceholder}
-          required={false}
-          error={false}
-          helperText={`${reason.length}/${MAX_CANCEL_REASON_LENGTH}`}
-          maxLength={MAX_CANCEL_REASON_LENGTH}
+      onClose={onClose}
+      loading={loading}
+      onSubmit={handleSubmit}
+      titleId="cancel-session-dialog-title"
+      title={t.cancelTitle}
+      actions={
+        <GovernanceDialogActions
+          onClose={onClose}
+          loading={loading}
+          cancelLabel={tc.cancel}
+          submitLabel={t.cancelSubmit}
+          submitTestId={`cancel-session-submit-${session.id}`}
+          submitColor="error"
         />
-      </DialogContent>
-      <DialogActions sx={{ px: 3, pb: 3, gap: 1 }}>
-        <Button onClick={onClose} disabled={loading} sx={{ minHeight: { xs: 44, sm: 40 }, px: 3 }}>
-          {tc.cancel}
-        </Button>
-        <Button
-          type="submit"
-          variant="contained"
-          color="error"
-          disabled={loading}
-          data-testid={`cancel-session-submit-${session.id}`}
-          sx={{ minHeight: { xs: 44, sm: 40 }, px: 3 }}
-        >
-          {t.cancelSubmit}
-        </Button>
-      </DialogActions>
-    </Dialog>
+      }
+    >
+      <SessionDialogWarningCallout message={t.cancelBody} />
+      <SessionDialogReasonField
+        value={reason}
+        onValueChange={setReason}
+        label={t.cancelReasonLabel}
+        placeholder={t.cancelReasonPlaceholder}
+        required={false}
+        error={false}
+        helperText={`${reason.length}/${MAX_CANCEL_REASON_LENGTH}`}
+        maxLength={MAX_CANCEL_REASON_LENGTH}
+      />
+    </GovernanceFormDialog>
   );
 }

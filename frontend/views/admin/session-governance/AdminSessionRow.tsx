@@ -2,10 +2,10 @@
 
 import { MoreVertOutlined, WarningOutlined } from "@mui/icons-material";
 import { Box, Chip, IconButton, Menu, MenuItem, Stack, Tooltip, Typography } from "@mui/material";
+import type { SxProps, Theme } from "@mui/material/styles";
 import { type ReactNode, useState } from "react";
 import { SessionMetaCell, SessionRowCardShell } from "@/frontend/components/ui/sessionList";
-import type { AdminSessionsQuery_adminSessions_items } from "@/frontend/graphql/generated/gql/graphql";
-import { SessionStatus } from "@/frontend/graphql/generated/gql/graphql";
+import { type AdminSessionsQuery_adminSessions_items, SessionStatus } from "@/frontend/graphql/generated/gql/graphql";
 import { formatApplicantDate } from "@/frontend/lib/i18n/format-date";
 import { AdminSessionRowStatusCell } from "@/frontend/views/admin/session-governance/AdminSessionRowStatusCell";
 import { SESSION_TYPE_LABEL_KEY } from "@/frontend/views/admin/session-governance/sessionTypePresentation";
@@ -67,6 +67,15 @@ const JOIN_ELIGIBLE_STATUSES: Record<string, true> = {
 /** Typographic placeholder for nullable payload values (NOT locale copy). */
 const NO_VALUE_PLACEHOLDER = "—";
 
+/** Card head-band layout — the type-title block inline-start, the lifecycle chip inline-end. */
+const ROW_HEAD_BAND_SX: SxProps<Theme> = {
+  gap: 1.5,
+  flexDirection: { xs: "column", sm: "row" },
+  alignItems: { xs: "flex-start", sm: "center" },
+  justifyContent: "space-between",
+  flexWrap: "wrap",
+};
+
 /** Rounded whole minutes between two ISO instants, or null when derivable data is missing. */
 function durationMinutesBetween(startedAt: string | null, endedAt: string | null): number | null {
   if (startedAt === null || endedAt === null) return null;
@@ -74,6 +83,53 @@ function durationMinutesBetween(startedAt: string | null, endedAt: string | null
   const endedMs = new Date(endedAt).getTime();
   if (Number.isNaN(startedMs) || Number.isNaN(endedMs) || endedMs <= startedMs) return null;
   return Math.round((endedMs - startedMs) / 60000);
+}
+
+interface RowHeadBandProps {
+  readonly session: AdminSessionsQuery_adminSessions_items;
+  readonly t: AdminSessionGovernanceLabels;
+  readonly tSessions: SessionsLabels;
+}
+
+/**
+ * The card's head band — the overline type label + type title (with the
+ * needs-attention warning chip beside it when raised) inline-start, and the
+ * lifecycle status chip inline-end. The arbitration-queue row mirrors this
+ * band's presentation through the shared band-layout token rather than a
+ * copied literal.
+ */
+function RowHeadBand({ session, t, tSessions }: Readonly<RowHeadBandProps>): ReactNode {
+  return (
+    <Stack sx={ROW_HEAD_BAND_SX}>
+      <Stack sx={{ gap: 0.5, minWidth: 0 }}>
+        <Typography variant="overline" sx={theme => ({ color: theme.palette.text.secondary })}>
+          {t.rowTypeLabel}
+        </Typography>
+        <Stack sx={{ flexDirection: "row", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
+          <Typography variant="h6" component="h3" sx={{ fontWeight: 700 }}>
+            {t[SESSION_TYPE_LABEL_KEY[session.sessionType] ?? "typeStudentSession"]}
+          </Typography>
+          {session.needsAttention ? (
+            <Tooltip title={t.needsAttentionLabel} placement="top">
+              <Chip
+                icon={<WarningOutlined fontSize="small" />}
+                label={t.needsAttentionLabel}
+                size="small"
+                data-testid={`admin-session-needs-attention-${session.id}`}
+                sx={theme => ({
+                  fontWeight: 600,
+                  bgcolor: theme.palette.warningContainer,
+                  color: theme.palette.onWarningContainer,
+                  "& .MuiChip-icon": { color: theme.palette.onWarningContainer },
+                })}
+              />
+            </Tooltip>
+          ) : null}
+        </Stack>
+      </Stack>
+      <AdminSessionRowStatusCell status={session.status} t={tSessions} />
+    </Stack>
+  );
 }
 
 interface AdminSessionRowProps {
@@ -127,43 +183,7 @@ export function AdminSessionRow({
 
   return (
     <SessionRowCardShell testId={`admin-session-row-${session.id}`}>
-      <Stack
-        sx={{
-          gap: 1.5,
-          flexDirection: { xs: "column", sm: "row" },
-          alignItems: { xs: "flex-start", sm: "center" },
-          justifyContent: "space-between",
-          flexWrap: "wrap",
-        }}
-      >
-        <Stack sx={{ gap: 0.5, minWidth: 0 }}>
-          <Typography variant="overline" sx={theme => ({ color: theme.palette.text.secondary })}>
-            {t.rowTypeLabel}
-          </Typography>
-          <Stack sx={{ flexDirection: "row", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
-            <Typography variant="h6" component="h3" sx={{ fontWeight: 700 }}>
-              {t[SESSION_TYPE_LABEL_KEY[session.sessionType] ?? "typeStudentSession"]}
-            </Typography>
-            {session.needsAttention ? (
-              <Tooltip title={t.needsAttentionLabel} placement="top">
-                <Chip
-                  icon={<WarningOutlined fontSize="small" />}
-                  label={t.needsAttentionLabel}
-                  size="small"
-                  data-testid={`admin-session-needs-attention-${session.id}`}
-                  sx={theme => ({
-                    fontWeight: 600,
-                    bgcolor: theme.palette.warningContainer,
-                    color: theme.palette.onWarningContainer,
-                    "& .MuiChip-icon": { color: theme.palette.onWarningContainer },
-                  })}
-                />
-              </Tooltip>
-            ) : null}
-          </Stack>
-        </Stack>
-        <AdminSessionRowStatusCell status={session.status} t={tSessions} />
-      </Stack>
+      <RowHeadBand session={session} t={t} tSessions={tSessions} />
 
       <Stack
         sx={{

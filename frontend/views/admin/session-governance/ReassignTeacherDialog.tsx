@@ -1,8 +1,12 @@
 "use client";
 
-import { Button, Dialog, DialogActions, DialogContent, DialogTitle, TextField } from "@mui/material";
+import { TextField } from "@mui/material";
 import { type ReactNode, useState } from "react";
 import type { AdminSessionsQuery_adminSessions_items } from "@/frontend/graphql/generated/gql/graphql";
+import {
+  GovernanceDialogActions,
+  GovernanceFormDialog,
+} from "@/frontend/views/admin/session-governance/dialogFormAtoms";
 import { SessionDialogWarningCallout } from "@/frontend/views/student/sessions/SessionDialogWarningCallout";
 import { AdminSessionGovernance, Common, useAppTranslation } from "@/shared/locale";
 
@@ -11,7 +15,8 @@ import { AdminSessionGovernance, Common, useAppTranslation } from "@/shared/loca
  * governance session (`/admin/session-governance`, DEV3-021). Structural
  * sibling of the arbitration dialog:
  * portal/dialog/form discipline, `React.SubmitEvent`, dismissal gated
- * while the mutation is in flight.
+ * while the mutation is in flight (the shared {@link GovernanceFormDialog}
+ * / {@link GovernanceDialogActions} atoms carry that shell).
  *
  * Teacher picker — a PLAIN user-id input field (BOPLA-minimal): the
  * codebase ships NO admin teacher-directory query document
@@ -39,7 +44,7 @@ import { AdminSessionGovernance, Common, useAppTranslation } from "@/shared/loca
  * digits cannot exceed the JS safe-integer ceiling (10^15 − 1 < 2^53 − 1),
  * so `Number(token)` never silently rounds a larger id.
  */
-export const WHOLE_NUMBER_PATTERN = /^[0-9]{1,15}$/;
+export const WHOLE_NUMBER_PATTERN = /^\d{1,15}$/;
 
 interface ReassignTeacherDialogProps {
   /** The session being reassigned (drives the testids). */
@@ -82,57 +87,41 @@ export function ReassignTeacherDialog({
     onSubmit(Number(trimmed));
   };
 
-  const handleDialogClose = (): void => {
-    if (!loading) {
-      onClose();
-    }
-  };
-
   return (
-    <Dialog
+    <GovernanceFormDialog
       open={open}
-      onClose={handleDialogClose}
-      fullWidth
-      maxWidth="sm"
-      slotProps={{ paper: { component: "form", onSubmit: handleSubmit } }}
-      aria-labelledby="reassign-teacher-dialog-title"
-    >
-      <DialogTitle id="reassign-teacher-dialog-title" sx={theme => ({ color: theme.palette.onSurface })}>
-        {t.reassignTitle}
-      </DialogTitle>
-      <DialogContent sx={{ display: "grid", gap: 2 }}>
-        <SessionDialogWarningCallout message={t.reassignBody} />
-        <TextField
-          label={t.reassignTeacherIdLabel}
-          placeholder={t.reassignTeacherIdPlaceholder}
-          value={teacherIdToken}
-          onChange={event => {
-            setTeacherIdToken(event.target.value);
-            setInvalidId(false);
-          }}
-          required
-          error={invalidId}
-          helperText={invalidId ? t.filterInvalidId : undefined}
-          aria-invalid={invalidId}
-          data-testid="reassign-teacher-id"
-          slotProps={{ htmlInput: { inputMode: "numeric", autoComplete: "off" } }}
+      onClose={onClose}
+      loading={loading}
+      onSubmit={handleSubmit}
+      titleId="reassign-teacher-dialog-title"
+      title={t.reassignTitle}
+      actions={
+        <GovernanceDialogActions
+          onClose={onClose}
+          loading={loading}
+          cancelLabel={tc.cancel}
+          submitLabel={t.reassignSubmit}
+          submitTestId={`reassign-teacher-submit-${session.id}`}
+          submitDisabled={teacherIdToken.trim() === ""}
         />
-      </DialogContent>
-      <DialogActions sx={{ px: 3, pb: 3, gap: 1 }}>
-        <Button onClick={onClose} disabled={loading} sx={{ minHeight: { xs: 44, sm: 40 }, px: 3 }}>
-          {tc.cancel}
-        </Button>
-        <Button
-          type="submit"
-          variant="contained"
-          color="primary"
-          disabled={loading || teacherIdToken.trim() === ""}
-          data-testid={`reassign-teacher-submit-${session.id}`}
-          sx={{ minHeight: { xs: 44, sm: 40 }, px: 3 }}
-        >
-          {t.reassignSubmit}
-        </Button>
-      </DialogActions>
-    </Dialog>
+      }
+    >
+      <SessionDialogWarningCallout message={t.reassignBody} />
+      <TextField
+        label={t.reassignTeacherIdLabel}
+        placeholder={t.reassignTeacherIdPlaceholder}
+        value={teacherIdToken}
+        onChange={event => {
+          setTeacherIdToken(event.target.value);
+          setInvalidId(false);
+        }}
+        required
+        error={invalidId}
+        helperText={invalidId ? t.filterInvalidId : undefined}
+        aria-invalid={invalidId}
+        data-testid="reassign-teacher-id"
+        slotProps={{ htmlInput: { inputMode: "numeric", autoComplete: "off" } }}
+      />
+    </GovernanceFormDialog>
   );
 }

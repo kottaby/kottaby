@@ -5,8 +5,7 @@ import { Box, Dialog, Drawer, IconButton, Skeleton, Stack, Typography, useMediaQ
 import type { ReactNode } from "react";
 import { ErrorRetryAlert } from "@/frontend/components/ui/ErrorRetryAlert";
 import { SessionMetaCell } from "@/frontend/components/ui/sessionList";
-import type { AdminSessionQuery_adminSession } from "@/frontend/graphql/generated/gql/graphql";
-import { SessionStatus } from "@/frontend/graphql/generated/gql/graphql";
+import { type AdminSessionQuery_adminSession, SessionStatus } from "@/frontend/graphql/generated/gql/graphql";
 import { formatApplicantDate } from "@/frontend/lib/i18n/format-date";
 import { AdminSessionRowStatusCell } from "@/frontend/views/admin/session-governance/AdminSessionRowStatusCell";
 import {
@@ -15,6 +14,8 @@ import {
 } from "@/frontend/views/admin/session-governance/sessionTypePresentation";
 import { SESSION_FEE_CURRENCY } from "@/shared/constants";
 import { AdminSessionGovernance, useAppLocale, useAppTranslation } from "@/shared/locale";
+import type { AppLocale } from "@/shared/locale/AppLocale";
+import type { AdminSessionGovernanceLabels } from "@/shared/locale/types/adminSessionGovernance";
 import type { SessionsLabels } from "@/shared/locale/types/sessions";
 
 /**
@@ -225,7 +226,6 @@ function DetailBody({
   tSessions,
 }: Readonly<DetailBodyProps>): ReactNode {
   const t = useAppTranslation(AdminSessionGovernance);
-  const locale = useAppLocale();
 
   if (loading && detail === null && error === undefined) {
     return (
@@ -258,26 +258,42 @@ function DetailBody({
     );
   }
 
+  return (
+    <Box sx={{ p: 2, overflowY: "auto" }}>
+      {joinVisible ? joinBanner : null}
+      <DetailMetaGrid detail={detail} t={t} tSessions={tSessions} />
+    </Box>
+  );
+}
+
+interface DetailMetaGridProps {
+  readonly detail: AdminSessionQuery_adminSession;
+  readonly t: AdminSessionGovernanceLabels;
+  readonly tSessions: SessionsLabels;
+}
+
+/** Nullable lifecycle stamp — the placeholder when absent, else the locale form. */
+function nullableStamp(iso: string | null, locale: AppLocale): string {
+  return iso === null ? NO_VALUE_PLACEHOLDER : formatApplicantDate(iso, locale);
+}
+
+/**
+ * The settled session's two-column meta grid (the identity/timing/lifecycle
+ * vocabulary). Nullable lifecycle stamps render as cells ONLY when present
+ * (a scheduled row shows no resolution/cancel/dispute block).
+ */
+function DetailMetaGrid({ detail, t, tSessions }: Readonly<DetailMetaGridProps>): ReactNode {
+  const locale = useAppLocale();
+
   const feeText = detail.fee === null ? NO_VALUE_PLACEHOLDER : `${detail.fee} ${SESSION_FEE_CURRENCY}`;
   const createdText = formatApplicantDate(detail.createdAt, locale);
-  const startedText = detail.startedAt === null ? NO_VALUE_PLACEHOLDER : formatApplicantDate(detail.startedAt, locale);
-  const endedText = detail.endedAt === null ? NO_VALUE_PLACEHOLDER : formatApplicantDate(detail.endedAt, locale);
-  const deadlineText =
-    detail.confirmationDeadline === null
-      ? NO_VALUE_PLACEHOLDER
-      : formatApplicantDate(detail.confirmationDeadline, locale);
-  const studentConfirmedText =
-    detail.confirmedByStudentAt === null
-      ? NO_VALUE_PLACEHOLDER
-      : formatApplicantDate(detail.confirmedByStudentAt, locale);
-  const teacherConfirmedText =
-    detail.confirmedByTeacherAt === null
-      ? NO_VALUE_PLACEHOLDER
-      : formatApplicantDate(detail.confirmedByTeacherAt, locale);
-  const disputedText =
-    detail.disputedAt === null ? NO_VALUE_PLACEHOLDER : formatApplicantDate(detail.disputedAt, locale);
-  const resolvedAtText =
-    detail.resolvedAt === null ? NO_VALUE_PLACEHOLDER : formatApplicantDate(detail.resolvedAt, locale);
+  const startedText = nullableStamp(detail.startedAt, locale);
+  const endedText = nullableStamp(detail.endedAt, locale);
+  const deadlineText = nullableStamp(detail.confirmationDeadline, locale);
+  const studentConfirmedText = nullableStamp(detail.confirmedByStudentAt, locale);
+  const teacherConfirmedText = nullableStamp(detail.confirmedByTeacherAt, locale);
+  const disputedText = nullableStamp(detail.disputedAt, locale);
+  const resolvedAtText = nullableStamp(detail.resolvedAt, locale);
 
   // Defensive label lookups — an untabled wire token renders the neutral
   // type label / the row's typographic placeholder (mirrors the status
@@ -289,39 +305,36 @@ function DetailBody({
       : (t[SESSION_INTENT_LABEL_KEY[detail.intent]] ?? NO_VALUE_PLACEHOLDER);
 
   return (
-    <Box sx={{ p: 2, overflowY: "auto" }}>
-      {joinVisible ? joinBanner : null}
-      <Stack
-        data-testid="admin-session-detail-body"
-        sx={{
-          display: "grid",
-          gap: 2,
-          gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)" },
-        }}
-      >
-        <SessionMetaCell label={t.detailSessionIdLabel} value={detail.id} />
-        <SessionMetaCell label={t.detailIntentLabel} value={intentText} />
-        <SessionMetaCell label={t.rowTypeLabel} value={typeText} />
-        <SessionMetaCell label={tSessions.fee} value={feeText} />
-        <SessionMetaCell label={tSessions.participantsLabel} value={`${detail.studentId} · ${detail.teacherId}`} />
-        <SessionMetaCell label={tSessions.createdAt} value={createdText} />
-        <SessionMetaCell label={t.detailStartLabel} value={startedText} />
-        <SessionMetaCell label={t.detailEndLabel} value={endedText} />
-        <SessionMetaCell label={t.detailDeadlineLabel} value={deadlineText} />
-        <SessionMetaCell label={t.detailConfirmedByStudentLabel} value={studentConfirmedText} />
-        <SessionMetaCell label={t.detailConfirmedByTeacherLabel} value={teacherConfirmedText} />
-        {detail.cancelReason !== null ? (
-          <SessionMetaCell label={t.detailCancelReasonLabel} value={detail.cancelReason} />
-        ) : null}
-        {detail.disputeReason !== null ? (
-          <SessionMetaCell label={t.detailDisputeReasonLabel} value={detail.disputeReason} />
-        ) : null}
-        {detail.disputedAt !== null ? <SessionMetaCell label={tSessions.disputedAtLabel} value={disputedText} /> : null}
-        {detail.resolutionNote !== null ? (
-          <SessionMetaCell label={t.detailResolutionLabel} value={detail.resolutionNote} />
-        ) : null}
-        {detail.resolvedAt !== null ? <SessionMetaCell label={t.detailResolvedAtLabel} value={resolvedAtText} /> : null}
-      </Stack>
-    </Box>
+    <Stack
+      data-testid="admin-session-detail-body"
+      sx={{
+        display: "grid",
+        gap: 2,
+        gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)" },
+      }}
+    >
+      <SessionMetaCell label={t.detailSessionIdLabel} value={detail.id} />
+      <SessionMetaCell label={t.detailIntentLabel} value={intentText} />
+      <SessionMetaCell label={t.rowTypeLabel} value={typeText} />
+      <SessionMetaCell label={tSessions.fee} value={feeText} />
+      <SessionMetaCell label={tSessions.participantsLabel} value={`${detail.studentId} · ${detail.teacherId}`} />
+      <SessionMetaCell label={tSessions.createdAt} value={createdText} />
+      <SessionMetaCell label={t.detailStartLabel} value={startedText} />
+      <SessionMetaCell label={t.detailEndLabel} value={endedText} />
+      <SessionMetaCell label={t.detailDeadlineLabel} value={deadlineText} />
+      <SessionMetaCell label={t.detailConfirmedByStudentLabel} value={studentConfirmedText} />
+      <SessionMetaCell label={t.detailConfirmedByTeacherLabel} value={teacherConfirmedText} />
+      {detail.cancelReason !== null ? (
+        <SessionMetaCell label={t.detailCancelReasonLabel} value={detail.cancelReason} />
+      ) : null}
+      {detail.disputeReason !== null ? (
+        <SessionMetaCell label={t.detailDisputeReasonLabel} value={detail.disputeReason} />
+      ) : null}
+      {detail.disputedAt !== null ? <SessionMetaCell label={tSessions.disputedAtLabel} value={disputedText} /> : null}
+      {detail.resolutionNote !== null ? (
+        <SessionMetaCell label={t.detailResolutionLabel} value={detail.resolutionNote} />
+      ) : null}
+      {detail.resolvedAt !== null ? <SessionMetaCell label={t.detailResolvedAtLabel} value={resolvedAtText} /> : null}
+    </Stack>
   );
 }

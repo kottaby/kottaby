@@ -1,8 +1,13 @@
 "use client";
 
-import { Button, Dialog, DialogActions, DialogContent, DialogTitle, TextField } from "@mui/material";
+import { TextField } from "@mui/material";
 import { type ReactNode, useState } from "react";
 import type { AdminSessionsQuery_adminSessions_items } from "@/frontend/graphql/generated/gql/graphql";
+import {
+  GovernanceDialogActions,
+  GovernanceFormDialog,
+} from "@/frontend/views/admin/session-governance/dialogFormAtoms";
+import { isoToDatetimeLocalToken } from "@/frontend/views/admin/session-governance/sessionTypePresentation";
 import { SessionDialogWarningCallout } from "@/frontend/views/student/sessions/SessionDialogWarningCallout";
 import { AdminSessionGovernance, Common, Errors, useAppTranslation } from "@/shared/locale";
 
@@ -10,13 +15,18 @@ import { AdminSessionGovernance, Common, Errors, useAppTranslation } from "@/sha
  * RescheduleSessionDialog — the admin reschedule seam for one governance
  * session (`/admin/session-governance`, DEV3-021). Structural
  * sibling of the arbitration dialog: portal/dialog/form discipline,
- * `React.SubmitEvent`, dismissal gated while the mutation is in flight.
+ * `React.SubmitEvent`, dismissal gated while the mutation is in flight
+ * (the shared {@link GovernanceFormDialog} / {@link GovernanceDialogActions}
+ * atoms carry that shell).
  *
  * Date inputs — native `datetime-local` TextFields (NO `@mui/x-date-pickers`
  * dependency exists in the tree, and the `AppDatePicker`/`AppTimePicker`
  * components referenced by `COMPONENT_PATTERNS.md` do not exist — plain
  * date fields are the established zero-dependency seam). Tokens convert to
- * ISO-8601 UTC instants at the submit seam (`DateTime` scalar wire shape).
+ * ISO-8601 UTC instants at the submit seam (`DateTime` scalar wire shape);
+ * the prefill converter (`isoToDatetimeLocalToken`) lives beside the
+ * surface's shared presentation tables (`sessionTypePresentation`), keeping
+ * this file's exports component-only.
  *
  * Client validation mirrors the service rules: the pair must be
  * ordered (`startedAt < endedAt`) and the start may not sit further than
@@ -32,17 +42,6 @@ import { AdminSessionGovernance, Common, Errors, useAppTranslation } from "@/sha
 
 /** Reschedule grace mirror — the replacement start may sit ≤5 min in the past. */
 const RESCHEDULE_PAST_GRACE_MS = 5 * 60 * 1000;
-
-/** ISO wire instant → local `datetime-local` token (prefill). */
-export function isoToDatetimeLocalToken(iso: string | null): string {
-  if (iso === null) return "";
-  const instant = new Date(iso);
-  if (Number.isNaN(instant.getTime())) return "";
-  const pad = (value: number): string => String(value).padStart(2, "0");
-  return `${instant.getFullYear()}-${pad(instant.getMonth() + 1)}-${pad(instant.getDate())}T${pad(
-    instant.getHours()
-  )}:${pad(instant.getMinutes())}`;
-}
 
 /**
  * Client mirror of the reschedule validation envelope (service rules): the
@@ -119,69 +118,53 @@ export function RescheduleSessionDialog({
     onSubmit({ startedAt: startedAtIso, endedAt: endedAtIso });
   };
 
-  const handleDialogClose = (): void => {
-    if (!loading) {
-      onClose();
-    }
-  };
-
   return (
-    <Dialog
+    <GovernanceFormDialog
       open={open}
-      onClose={handleDialogClose}
-      fullWidth
-      maxWidth="sm"
-      slotProps={{ paper: { component: "form", onSubmit: handleSubmit } }}
-      aria-labelledby="reschedule-session-dialog-title"
+      onClose={onClose}
+      loading={loading}
+      onSubmit={handleSubmit}
+      titleId="reschedule-session-dialog-title"
+      title={t.rescheduleTitle}
+      actions={
+        <GovernanceDialogActions
+          onClose={onClose}
+          loading={loading}
+          cancelLabel={tc.cancel}
+          submitLabel={t.rescheduleSubmit}
+          submitTestId="reschedule-session-submit"
+          submitDisabled={startedAtToken === "" || endedAtToken === ""}
+        />
+      }
     >
-      <DialogTitle id="reschedule-session-dialog-title" sx={theme => ({ color: theme.palette.onSurface })}>
-        {t.rescheduleTitle}
-      </DialogTitle>
-      <DialogContent sx={{ display: "grid", gap: 2 }}>
-        <SessionDialogWarningCallout message={t.rescheduleBody} />
-        <TextField
-          label={t.rescheduleStartLabel}
-          type="datetime-local"
-          value={startedAtToken}
-          onChange={event => {
-            setStartedAtToken(event.target.value);
-            setValidationMessage(null);
-          }}
-          required
-          error={validationMessage !== null}
-          helperText={validationMessage ?? undefined}
-          aria-invalid={validationMessage !== null}
-          data-testid="reschedule-session-start"
-          slotProps={{ htmlInput: { autoComplete: "off" } }}
-        />
-        <TextField
-          label={t.rescheduleEndLabel}
-          type="datetime-local"
-          value={endedAtToken}
-          onChange={event => {
-            setEndedAtToken(event.target.value);
-            setValidationMessage(null);
-          }}
-          required
-          data-testid="reschedule-session-end"
-          slotProps={{ htmlInput: { autoComplete: "off" } }}
-        />
-      </DialogContent>
-      <DialogActions sx={{ px: 3, pb: 3, gap: 1 }}>
-        <Button onClick={onClose} disabled={loading} sx={{ minHeight: { xs: 44, sm: 40 }, px: 3 }}>
-          {tc.cancel}
-        </Button>
-        <Button
-          type="submit"
-          variant="contained"
-          color="primary"
-          disabled={loading || startedAtToken === "" || endedAtToken === ""}
-          data-testid="reschedule-session-submit"
-          sx={{ minHeight: { xs: 44, sm: 40 }, px: 3 }}
-        >
-          {t.rescheduleSubmit}
-        </Button>
-      </DialogActions>
-    </Dialog>
+      <SessionDialogWarningCallout message={t.rescheduleBody} />
+      <TextField
+        label={t.rescheduleStartLabel}
+        type="datetime-local"
+        value={startedAtToken}
+        onChange={event => {
+          setStartedAtToken(event.target.value);
+          setValidationMessage(null);
+        }}
+        required
+        error={validationMessage !== null}
+        helperText={validationMessage ?? undefined}
+        aria-invalid={validationMessage !== null}
+        data-testid="reschedule-session-start"
+        slotProps={{ htmlInput: { autoComplete: "off" } }}
+      />
+      <TextField
+        label={t.rescheduleEndLabel}
+        type="datetime-local"
+        value={endedAtToken}
+        onChange={event => {
+          setEndedAtToken(event.target.value);
+          setValidationMessage(null);
+        }}
+        required
+        data-testid="reschedule-session-end"
+        slotProps={{ htmlInput: { autoComplete: "off" } }}
+      />
+    </GovernanceFormDialog>
   );
 }

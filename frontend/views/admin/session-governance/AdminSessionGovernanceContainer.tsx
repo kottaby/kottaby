@@ -5,11 +5,12 @@ import { useMutation, useQuery } from "@apollo/client/react";
 import { Stack } from "@mui/material";
 import { type ReactNode, useCallback, useMemo, useRef, useState } from "react";
 import { SessionNoticeSnackbar } from "@/frontend/components/ui/sessionList";
-import type {
-  AdminSessionListFilterInput,
-  AdminSessionsQuery_adminSessions_items,
+import {
+  type AdminSessionListFilterInput,
+  type AdminSessionsQuery_adminSessions_items,
+  SessionStatus,
+  type SessionType,
 } from "@/frontend/graphql/generated/gql/graphql";
-import { SessionStatus, type SessionType } from "@/frontend/graphql/generated/gql/graphql";
 import {
   adminSessionCancelMutationDocument,
   adminSessionJoinMutationDocument,
@@ -76,10 +77,13 @@ import { AdminSessionGovernance, Errors, Sessions, useAppTranslation } from "@/s
  * `normalizeGraphQLErrorCode` — the server `message` is NEVER echoed.
  *
  * Cancel idempotency — each logical cancel attempt mints ONE
- * `crypto.randomUUID()` key when the dialog opens and sends it via the
- * Apollo context header `x-idempotency-key` (the broadcasts compose-send
- * precedent); the key rotates only on SUCCESS so a retried submit stays on
- * the same claim (server replay dedupe).
+ * `crypto.randomUUID()` key when the dialog opens (the openDialog event
+ * handler — the only ref write) and the submit handler threads it at call
+ * time via the Apollo context header `x-idempotency-key` (the broadcasts
+ * compose-send precedent); a retried submit stays on the SAME claim (server
+ * replay dedupe) and a settled attempt can never leak its claim onward —
+ * success closes the dialog while every open mints fresh, so no effect- or
+ * hook-config-based rotation exists.
  *
  * Page-level authorization is owned by the server admin route guard —
  * this container performs no role logic. MUI v9 discipline: `sx`-only styling, theme-palette colors,
@@ -192,7 +196,10 @@ export function AdminSessionGovernanceContainer(): ReactNode {
     notifyOnNetworkStatusChange: true,
   });
 
-  const rows = data?.adminSessions.items ?? [];
+  // The loaded page's rows, `undefined` until the directory settles — the
+  // fallback to the empty list stays INSIDE the memo (a `?? []` dependency
+  // initializer re-arms the memo every render).
+  const rows = data?.adminSessions.items;
   const totalCount = data?.adminSessions.totalCount ?? 0;
   const totalPages = Math.max(1, Math.ceil(totalCount / ADMIN_SESSIONS_PAGE_SIZE));
 
@@ -221,8 +228,9 @@ export function AdminSessionGovernanceContainer(): ReactNode {
 
   // Status summary — counts over the LOADED page only (honest, real data).
   const statusCounts = useMemo<StatusSummaryCounts>(() => {
+    const effectiveRows = rows ?? [];
     const counts = new Map<SessionStatus, number>();
-    for (const row of rows) {
+    for (const row of effectiveRows) {
       counts.set(row.status, (counts.get(row.status) ?? 0) + 1);
     }
     return {
@@ -231,7 +239,7 @@ export function AdminSessionGovernanceContainer(): ReactNode {
       completed: counts.get(SessionStatus.Completed) ?? 0,
       cancelled: counts.get(SessionStatus.Cancelled) ?? 0,
       disputed: counts.get(SessionStatus.Disputed) ?? 0,
-      needsAttention: rows.filter(row => row.needsAttention).length,
+      needsAttention: effectiveRows.filter(row => row.needsAttention).length,
     };
   }, [rows]);
 
@@ -296,8 +304,12 @@ export function AdminSessionGovernanceContainer(): ReactNode {
     (kind: GovernanceDialogState["kind"], session: AdminSessionsQuery_adminSessions_items): void => {
       setDialog({ kind, session });
       if (kind === "cancel") {
-        // One idempotency key per LOGICAL cancel attempt — minted at open,
-        // rotated only on success (see the docblock).
+        // One idempotency key per LOGICAL cancel attempt — minted HERE, in
+        // the event handler that opens the attempt (event-handler ref write;
+        // the submit handler only reads it at call time — see the docblock):
+        // a retried submit rides the SAME claim (server replay dedupe) and
+        // a settled attempt can never leak its claim onward, because success
+        // closes the dialog while every open mints fresh.
         cancelKeyRef.current = crypto.randomUUID();
       }
     },
@@ -382,9 +394,6 @@ export function AdminSessionGovernanceContainer(): ReactNode {
   const [commitCancel, cancelMutation] = useMutation(adminSessionCancelMutationDocument, {
     onCompleted: () => {
       successCloseDialog(t.cancelSuccess);
-      // Rotation happens ONLY on success — a failed/retried submit keeps the
-      // same claim so the server replay dedupe stays effective.
-      cancelKeyRef.current = crypto.randomUUID();
     },
     onError: mutationError => {
       const classified = classifyMutationFailure(mutationError);
@@ -481,6 +490,9 @@ export function AdminSessionGovernanceContainer(): ReactNode {
           onClose={closeDialog}
           loading={cancelMutation.loading}
           onSubmit={reason => {
+            // The attempt's claim is read at CALL time inside this event
+            // handler and threaded directly into the mutation context —
+            // the header the authLink merges into the outgoing request.
             void commitCancel({
               variables: { input: { sessionId: dialog.session.id, reason } },
               context: { headers: { "x-idempotency-key": cancelKeyRef.current } },

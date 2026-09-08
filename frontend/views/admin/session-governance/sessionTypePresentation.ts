@@ -1,8 +1,9 @@
 import { SessionIntent, SessionType } from "@/frontend/graphql/generated/gql/graphql";
 
 /**
- * Shared label-key tables for the admin session-governance surface's
- * wire-enum meta cells (`AdminSessionRow` + `AdminSessionDetailDrawer`).
+ * Shared non-component presentation helpers for the admin session-governance
+ * surface (`AdminSessionRow` + `AdminSessionDetailDrawer` + the governance
+ * dialogs).
  *
  * Every table is keyed by the server enum member STRINGS through
  * `Record<string, …>` lookups (the `sessionRowPresentation` convention —
@@ -33,3 +34,20 @@ export const SESSION_INTENT_LABEL_KEY: Record<string, SessionIntentLabelKey> = {
   [SessionIntent.Tajweed]: "intentTajweed",
   [SessionIntent.Evaluation]: "intentEvaluation",
 };
+
+/**
+ * ISO wire instant → local `datetime-local` token (the reschedule dialog's
+ * prefill converter). An absent or unparseable instant yields the empty
+ * token (the native date input's cleared state). Lives beside the wire-enum
+ * tables as the surface's shared non-component presentation module — the
+ * component file keeps only component exports (react-refresh discipline).
+ */
+export function isoToDatetimeLocalToken(iso: string | null): string {
+  if (iso === null) return "";
+  const instant = new Date(iso);
+  if (Number.isNaN(instant.getTime())) return "";
+  const pad = (value: number): string => String(value).padStart(2, "0");
+  return `${instant.getFullYear()}-${pad(instant.getMonth() + 1)}-${pad(instant.getDate())}T${pad(
+    instant.getHours()
+  )}:${pad(instant.getMinutes())}`;
+}

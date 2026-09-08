@@ -12,8 +12,7 @@ import type {
 } from "@/frontend/graphql/generated/gql/graphql";
 import { extractErrorCode } from "@/frontend/lib/graphql-error-utils";
 import { mapGraphQLErrorByCode, normalizeGraphQLErrorCode } from "@/frontend/providers/apollo/error-link.map";
-import type { GovernanceDialogKind } from "@/frontend/views/admin/session-governance/AdminSessionRow";
-import { AdminSessionRow } from "@/frontend/views/admin/session-governance/AdminSessionRow";
+import { AdminSessionRow, type GovernanceDialogKind } from "@/frontend/views/admin/session-governance/AdminSessionRow";
 import { SessionsEmptyState } from "@/frontend/views/student/sessions/SessionsEmptyState";
 import type { AdminSessionGovernanceLabels } from "@/shared/locale/types/adminSessionGovernance";
 import type { SessionsLabels } from "@/shared/locale/types/sessions";
