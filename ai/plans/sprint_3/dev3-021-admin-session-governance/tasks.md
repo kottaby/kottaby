@@ -98,10 +98,10 @@ Journeys live in `test/workflows/admin/admin-session-governance.journey.test.ts`
 
 ## Phase 7 — Knowledge Propagation
 
-- [ ] 7.1 **CREATE `docs/admin/admin-session-governance.md`** (canonical ref covering REQ-080 topics) — subtasks QL/SR/IV
-- [ ] 7.2 **AGENTS.md updates** — root AGENTS.md Important References + `backend/services/AGENTS.md` + `frontend/views/AGENTS.md` (1-2 line rule each) referencing the doc
+- [x] 7.1 **CREATE `docs/admin/admin-session-governance.md`** (canonical ref covering REQ-080 topics) — subtasks QL/SR/IV
+- [x] 7.2 **AGENTS.md updates** — root AGENTS.md Important References + `backend/services/AGENTS.md` + `frontend/views/AGENTS.md` (1-2 line rule each) referencing the doc
   - subtasks QL/SR/IV
-- [ ] 7.3 **Regression sweep** — full quality-gate baseline comparison; write `outcome/final-review-outcome.md`; mark all tasks `[x]`
+- [x] 7.3 **Regression sweep** — full quality-gate baseline comparison; write `outcome/final-review-outcome.md`; mark all tasks `[x]`
 
 ---
 
