@@ -9,7 +9,10 @@ import type { AdminSessionQuery_adminSession } from "@/frontend/graphql/generate
 import { SessionStatus } from "@/frontend/graphql/generated/gql/graphql";
 import { formatApplicantDate } from "@/frontend/lib/i18n/format-date";
 import { AdminSessionRowStatusCell } from "@/frontend/views/admin/session-governance/AdminSessionRowStatusCell";
-import { SESSION_INTENT_LABEL_KEY, SESSION_TYPE_LABEL_KEY } from "@/frontend/views/admin/session-governance/sessionTypePresentation";
+import {
+  SESSION_INTENT_LABEL_KEY,
+  SESSION_TYPE_LABEL_KEY,
+} from "@/frontend/views/admin/session-governance/sessionTypePresentation";
 import { SESSION_FEE_CURRENCY } from "@/shared/constants";
 import { AdminSessionGovernance, useAppLocale, useAppTranslation } from "@/shared/locale";
 import type { SessionsLabels } from "@/shared/locale/types/sessions";

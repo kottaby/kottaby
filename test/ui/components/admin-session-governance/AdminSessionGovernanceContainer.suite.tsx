@@ -71,21 +71,20 @@ import {
   adminSessionRescheduleMutationDocument,
   adminSessionsQueryDocument,
 } from "@/frontend/graphql/sharedDocuments";
+import { AdminSessionGovernanceContainer } from "@/frontend/views/admin/session-governance/AdminSessionGovernanceContainer";
 import { MAX_CANCEL_REASON_LENGTH } from "@/frontend/views/admin/session-governance/CancelSessionDialog";
 import { isoToDatetimeLocalToken } from "@/frontend/views/admin/session-governance/RescheduleSessionDialog";
 import { SESSION_TYPE_LABEL_KEY } from "@/frontend/views/admin/session-governance/sessionTypePresentation";
-import { AdminSessionGovernanceContainer } from "@/frontend/views/admin/session-governance/AdminSessionGovernanceContainer";
 import { SESSION_FEE_CURRENCY } from "@/shared/constants";
 import type { AppLocale } from "@/shared/locale/AppLocale";
+import { arMessages } from "@/shared/locale/ar/messages";
+import { enMessages } from "@/shared/locale/en/messages";
 import { AdminSessionGovernance as AdminSessionGovernanceNs } from "@/shared/locale/namespaces/adminSessionGovernance";
 import { Common as CommonNs } from "@/shared/locale/namespaces/common";
 import { Errors as ErrorsNs } from "@/shared/locale/namespaces/errors";
 import { Sessions as SessionsNs } from "@/shared/locale/namespaces/sessions";
 import { getTranslations } from "@/shared/locale/server";
 import type { AdminSessionGovernanceLabels } from "@/shared/locale/types/adminSessionGovernance";
-import { arMessages } from "@/shared/locale/ar/messages";
-import { enMessages } from "@/shared/locale/en/messages";
-import { renderWithWrapper } from "@/test/ui/components/TestWrapper";
 import {
   componentSuiteLocales,
   expectedStamp,
@@ -95,6 +94,7 @@ import {
   sessionSuiteLabels,
   snackbarSeverityClass,
 } from "@/test/ui/components/helpers";
+import { renderWithWrapper } from "@/test/ui/components/TestWrapper";
 
 // ---------------------------------------------------------------------------
 // Eager namespace warming (missing-key drift surfaces at LOAD, not in an arm)
@@ -347,11 +347,7 @@ function cancelMock(sessionId: string, reason: string | null, outcome: MutationO
   };
 }
 
-function reassignMock(
-  sessionId: string,
-  newTeacherUserId: number,
-  outcome: MutationOutcome
-): MockLink.MockedResponse {
+function reassignMock(sessionId: string, newTeacherUserId: number, outcome: MutationOutcome): MockLink.MockedResponse {
   return {
     request: {
       query: adminSessionReassignMutationDocument,
@@ -440,7 +436,13 @@ function kebabItem(menu: HTMLElement, sessionId: string, action: KebabAction): H
 /** Asserts the kebab gating matrix for ONE row's open menu. */
 async function expectEligibility(
   sessionId: string,
-  expected: { readonly details: boolean; readonly reschedule: boolean; readonly cancel: boolean; readonly reassign: boolean; readonly join: boolean }
+  expected: {
+    readonly details: boolean;
+    readonly reschedule: boolean;
+    readonly cancel: boolean;
+    readonly reassign: boolean;
+    readonly join: boolean;
+  }
 ): Promise<void> {
   const menu = await openRowMenu(sessionId);
   for (const [action, enabled] of Object.entries(expected) as ReadonlyArray<[KebabAction, boolean]>) {
@@ -693,11 +695,36 @@ for (const locale of componentSuiteLocales) {
         readonly row: RowFixture;
         readonly expected: { details: boolean; reschedule: boolean; cancel: boolean; reassign: boolean; join: boolean };
       }> = [
-        { row: rowFixture({ id: SCHEDULED_FRESH_ID }), expected: { details: true, reschedule: true, cancel: true, reassign: true, join: false } },
-        { row: rowFixture({ id: STARTED_ID, status: SessionStatus.Started, startedAt: PAST_START_ISO, endedAt: null }), expected: { details: true, reschedule: true, cancel: true, reassign: false, join: true } },
-        { row: rowFixture({ id: COMPLETED_ID, status: SessionStatus.Completed, startedAt: PAST_START_ISO, endedAt: PAST_END_ISO }), expected: { details: true, reschedule: false, cancel: false, reassign: false, join: false } },
-        { row: rowFixture({ id: CANCELLED_ID, status: SessionStatus.Cancelled, startedAt: null, endedAt: null }), expected: { details: true, reschedule: false, cancel: false, reassign: false, join: false } },
-        { row: rowFixture({ id: DISPUTED_ID, status: SessionStatus.Disputed, startedAt: PAST_START_ISO, endedAt: null }), expected: { details: true, reschedule: false, cancel: false, reassign: false, join: false } },
+        {
+          row: rowFixture({ id: SCHEDULED_FRESH_ID }),
+          expected: { details: true, reschedule: true, cancel: true, reassign: true, join: false },
+        },
+        {
+          row: rowFixture({ id: STARTED_ID, status: SessionStatus.Started, startedAt: PAST_START_ISO, endedAt: null }),
+          expected: { details: true, reschedule: true, cancel: true, reassign: false, join: true },
+        },
+        {
+          row: rowFixture({
+            id: COMPLETED_ID,
+            status: SessionStatus.Completed,
+            startedAt: PAST_START_ISO,
+            endedAt: PAST_END_ISO,
+          }),
+          expected: { details: true, reschedule: false, cancel: false, reassign: false, join: false },
+        },
+        {
+          row: rowFixture({ id: CANCELLED_ID, status: SessionStatus.Cancelled, startedAt: null, endedAt: null }),
+          expected: { details: true, reschedule: false, cancel: false, reassign: false, join: false },
+        },
+        {
+          row: rowFixture({
+            id: DISPUTED_ID,
+            status: SessionStatus.Disputed,
+            startedAt: PAST_START_ISO,
+            endedAt: null,
+          }),
+          expected: { details: true, reschedule: false, cancel: false, reassign: false, join: false },
+        },
       ];
       for (const scenario of cases) {
         renderGovernance([directoryMock(1, [scenario.row], 1)], locale);
@@ -710,7 +737,24 @@ for (const locale of componentSuiteLocales) {
       // NO reschedule mock is chained: a leaked wire call from the gated
       // submit would surface as an unmatched MockLink operation and fail
       // the branch (no error snackbar may appear either).
-      renderGovernance([directoryMock(1, [rowFixture({ id: SCHEDULED_LAPSED_ID, startedAt: PAST_START_ISO, endedAt: PAST_END_ISO, confirmationDeadline: LAPSED_DEADLINE_ISO, needsAttention: true })], 1)], locale);
+      renderGovernance(
+        [
+          directoryMock(
+            1,
+            [
+              rowFixture({
+                id: SCHEDULED_LAPSED_ID,
+                startedAt: PAST_START_ISO,
+                endedAt: PAST_END_ISO,
+                confirmationDeadline: LAPSED_DEADLINE_ISO,
+                needsAttention: true,
+              }),
+            ],
+            1
+          ),
+        ],
+        locale
+      );
 
       const menu = await openRowMenu(SCHEDULED_LAPSED_ID);
       fireEvent.click(kebabItem(menu, SCHEDULED_LAPSED_ID, "reschedule"));
@@ -745,12 +789,10 @@ for (const locale of componentSuiteLocales) {
       renderGovernance(
         [
           directoryMock(1, [rowFixture({ id: SCHEDULED_FRESH_ID })], 1),
-          rescheduleMock(
-            SCHEDULED_FRESH_ID,
-            expectedSubmitIso(FUTURE_START_ISO),
-            expectedSubmitIso(FUTURE_END_ISO),
-            { kind: "error", code: "SESSION_INVALID_TRANSITION" }
-          ),
+          rescheduleMock(SCHEDULED_FRESH_ID, expectedSubmitIso(FUTURE_START_ISO), expectedSubmitIso(FUTURE_END_ISO), {
+            kind: "error",
+            code: "SESSION_INVALID_TRANSITION",
+          }),
         ],
         locale
       );
@@ -775,10 +817,7 @@ for (const locale of componentSuiteLocales) {
 
     test("branch 11 — cancel dialog: optional-reason seam, empty submit sends reason:null, 403 snackbar keeps it open", async () => {
       renderGovernance(
-        [
-          directoryMock(1, [STARTED_DETAIL], 1),
-          cancelMock(STARTED_ID, null, { kind: "error", code: "FORBIDDEN" }),
-        ],
+        [directoryMock(1, [STARTED_DETAIL], 1), cancelMock(STARTED_ID, null, { kind: "error", code: "FORBIDDEN" })],
         locale
       );
 
@@ -862,7 +901,9 @@ for (const locale of componentSuiteLocales) {
       expect(within(dialog).getByText(t.reassignBody)).toBeDefined();
       expect(within(dialog).getByText(t.reassignTeacherIdLabel)).toBeDefined();
       const idInput = within(dialog).getByLabelText(muiLabelPattern(t.reassignTeacherIdLabel));
-      expect(within(dialog).getByTestId(`reassign-teacher-submit-${SCHEDULED_FRESH_ID}`).getAttribute("disabled")).not.toBeNull();
+      expect(
+        within(dialog).getByTestId(`reassign-teacher-submit-${SCHEDULED_FRESH_ID}`).getAttribute("disabled")
+      ).not.toBeNull();
 
       fireEvent.change(idInput, { target: { value: "907" } });
       const submit = within(dialog).getByTestId(`reassign-teacher-submit-${SCHEDULED_FRESH_ID}`);
@@ -934,7 +975,10 @@ for (const locale of componentSuiteLocales) {
 
     test("branch 16 — cancel submit SUCCESS: dialog closes, success snackbar, row chip flips via cache merge", async () => {
       renderGovernance(
-        [directoryMock(1, [STARTED_DETAIL], 1), cancelMock(STARTED_ID, null, { kind: "success", payload: cancelledPayload(STARTED_ID) })],
+        [
+          directoryMock(1, [STARTED_DETAIL], 1),
+          cancelMock(STARTED_ID, null, { kind: "success", payload: cancelledPayload(STARTED_ID) }),
+        ],
         locale
       );
 
@@ -957,7 +1001,9 @@ for (const locale of componentSuiteLocales) {
       expect(snackbarSeverityClass(t.cancelSuccess)).toContain("MuiAlert-colorSuccess");
       // The normalized payload converged the row by id — no refetch.
       await waitFor(() => {
-        expect(within(screen.getByTestId(`admin-session-row-${STARTED_ID}`)).getByText(ts.statusCancelled)).toBeDefined();
+        expect(
+          within(screen.getByTestId(`admin-session-row-${STARTED_ID}`)).getByText(ts.statusCancelled)
+        ).toBeDefined();
       });
       expect(within(screen.getByTestId(`admin-session-row-${STARTED_ID}`)).queryByText(ts.statusStarted)).toBeNull();
       // The exit transition has resolved by the outcome signals above —
@@ -967,7 +1013,11 @@ for (const locale of componentSuiteLocales) {
 
     test("branch 17 — join confirm SUCCESS: banner unmounts while the drawer stays open", async () => {
       renderGovernance(
-        [directoryMock(1, [STARTED_DETAIL], 1), detailMock(STARTED_DETAIL), joinMock(STARTED_ID, { kind: "success", payload: STARTED_DETAIL })],
+        [
+          directoryMock(1, [STARTED_DETAIL], 1),
+          detailMock(STARTED_DETAIL),
+          joinMock(STARTED_ID, { kind: "success", payload: STARTED_DETAIL }),
+        ],
         locale
       );
 
@@ -993,7 +1043,10 @@ for (const locale of componentSuiteLocales) {
       renderGovernance(
         [
           directoryMock(1, [rowFixture({ id: SCHEDULED_FRESH_ID })], 1),
-          reassignMock(SCHEDULED_FRESH_ID, 907, { kind: "success", payload: rowFixture({ id: SCHEDULED_FRESH_ID, teacherId: "907" }) }),
+          reassignMock(SCHEDULED_FRESH_ID, 907, {
+            kind: "success",
+            payload: rowFixture({ id: SCHEDULED_FRESH_ID, teacherId: "907" }),
+          }),
         ],
         locale
       );
@@ -1001,7 +1054,9 @@ for (const locale of componentSuiteLocales) {
       const menu = await openRowMenu(SCHEDULED_FRESH_ID);
       fireEvent.click(kebabItem(menu, SCHEDULED_FRESH_ID, "reassign"));
       const dialog = await expectDialogOpen();
-      fireEvent.change(within(dialog).getByLabelText(muiLabelPattern(t.reassignTeacherIdLabel)), { target: { value: "907" } });
+      fireEvent.change(within(dialog).getByLabelText(muiLabelPattern(t.reassignTeacherIdLabel)), {
+        target: { value: "907" },
+      });
       fireEvent.click(within(dialog).getByTestId(`reassign-teacher-submit-${SCHEDULED_FRESH_ID}`));
 
       // Branch-16 close-path discipline (positive-signal waits + synchronous
@@ -1014,7 +1069,9 @@ for (const locale of componentSuiteLocales) {
       });
       expect(snackbarSeverityClass(t.reassignSuccess)).toContain("MuiAlert-colorSuccess");
       await waitFor(() => {
-        expect(within(screen.getByTestId(`admin-session-row-${SCHEDULED_FRESH_ID}`)).getByText("401 · 907")).toBeDefined();
+        expect(
+          within(screen.getByTestId(`admin-session-row-${SCHEDULED_FRESH_ID}`)).getByText("401 · 907")
+        ).toBeDefined();
       });
       // The exit transition has resolved by the outcome signals above —
       // pin the dialog's departure synchronously.
@@ -1022,4 +1079,3 @@ for (const locale of componentSuiteLocales) {
     });
   });
 }
-

@@ -24,7 +24,10 @@ import { AdminSessionGovernanceChrome } from "@/frontend/views/admin/session-gov
 import { AdminSessionsBody } from "@/frontend/views/admin/session-governance/AdminSessionsBody";
 import { CancelSessionDialog } from "@/frontend/views/admin/session-governance/CancelSessionDialog";
 import { JoinObservationAction } from "@/frontend/views/admin/session-governance/JoinObservationAction";
-import { ReassignTeacherDialog, WHOLE_NUMBER_PATTERN } from "@/frontend/views/admin/session-governance/ReassignTeacherDialog";
+import {
+  ReassignTeacherDialog,
+  WHOLE_NUMBER_PATTERN,
+} from "@/frontend/views/admin/session-governance/ReassignTeacherDialog";
 import { RescheduleSessionDialog } from "@/frontend/views/admin/session-governance/RescheduleSessionDialog";
 import { AdminSessionGovernance, Errors, Sessions, useAppTranslation } from "@/shared/locale";
 
