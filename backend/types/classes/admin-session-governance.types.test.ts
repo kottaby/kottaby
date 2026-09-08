@@ -352,7 +352,7 @@ describe("Admin Session Governance Types — zod boundary round-trips", () => {
       // even that envelope fits the 2000-char audit-details column.
       const worstCaseSerialized = JSON.stringify({ action: "cancel", reason: "\\".repeat(330) });
       expect(worstCaseSerialized.length).toBeLessThanOrEqual(2000);
-      expect(worstCaseSerialized.length).toBe(31 + 660);
+      expect(worstCaseSerialized).toHaveLength(31 + 660);
     });
 
     test("rejects a reason beyond the 330-character boundary", () => {

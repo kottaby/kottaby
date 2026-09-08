@@ -246,9 +246,7 @@ export namespace SessionAdminGovernanceService {
     // issue at path ["sessionId"] — is a generic shape issue.
     const parsed = AdminSessionRescheduleInputSchema.safeParse(input);
     if (!parsed.success) {
-      const orderingViolated = parsed.error.issues.some(
-        issue => issue.path.length === 0 && issue.code === "custom"
-      );
+      const orderingViolated = parsed.error.issues.some(issue => issue.path.length === 0 && issue.code === "custom");
       if (orderingViolated) {
         logger.logDomainError("Admin reschedule denied: replacement timing pair is not ordered", {
           code: "SESSION_RESCHEDULE_WINDOW_INVALID",

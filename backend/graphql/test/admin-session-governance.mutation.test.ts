@@ -77,6 +77,14 @@ import { and, eq, inArray } from "drizzle-orm";
 import { closePool, db } from "@/backend/db";
 import { auditLogs } from "@/backend/db/schema/audit/audit-logs";
 import { students } from "@/backend/db/schema/students/students";
+import {
+  countAuditForSession,
+  expectDenialIdenticalToReference,
+  fingerprintOf,
+  firstWireItem,
+  payloadOf,
+  wireGraphQL,
+} from "@/backend/graphql/test/helpers/admin-session-governance.wire";
 import { signAccessToken } from "@/backend/lib/auth/jwt";
 // Deep import (same rationale as the journey cleanup helper — the
 // `test/helpers` barrel pulls the Apollo test client into backend-only
@@ -88,14 +96,6 @@ import {
   journeyPrefix,
   type SessionJourneyCast,
 } from "@/test/workflows/helpers";
-import {
-  countAuditForSession,
-  expectDenialIdenticalToReference,
-  fingerprintOf,
-  firstWireItem,
-  payloadOf,
-  wireGraphQL,
-} from "./helpers/admin-session-governance.wire";
 
 // ─── Harness state ───────────────────────────────────────────────────────────
 
@@ -461,21 +461,25 @@ describe("Tier 4 — anonymous callers: UNAUTHORIZED byte-identical to resolveSe
         },
       },
     });
+    expect(anonymousReschedule.error).toBeDefined();
     expectDenialIdenticalToReference(anonymousReschedule.error, "UNAUTHORIZED", reference, "adminRescheduleSession");
 
     const anonymousCancel = await wireGraphQL(CANCEL_DOC, {
       variables: { input: { sessionId: UNKNOWN_SESSION_ID } },
     });
+    expect(anonymousCancel.error).toBeDefined();
     expectDenialIdenticalToReference(anonymousCancel.error, "UNAUTHORIZED", reference, "adminCancelSession");
 
     const anonymousReassign = await wireGraphQL(REASSIGN_DOC, {
       variables: { input: { sessionId: UNKNOWN_SESSION_ID, newTeacherUserId: "1" } },
     });
+    expect(anonymousReassign.error).toBeDefined();
     expectDenialIdenticalToReference(anonymousReassign.error, "UNAUTHORIZED", reference, "adminReassignTeacher");
 
     const anonymousJoin = await wireGraphQL(JOIN_DOC, {
       variables: { input: { sessionId: UNKNOWN_SESSION_ID } },
     });
+    expect(anonymousJoin.error).toBeDefined();
     expectDenialIdenticalToReference(anonymousJoin.error, "UNAUTHORIZED", reference, "adminJoinSession");
   });
 

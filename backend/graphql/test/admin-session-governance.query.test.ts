@@ -73,6 +73,15 @@ import { and, eq, inArray, sql } from "drizzle-orm";
 import { closePool, db } from "@/backend/db";
 import { auditLogs } from "@/backend/db/schema/audit/audit-logs";
 import { session as sessionTable } from "@/backend/db/schema/classes/session";
+import {
+  countAuditForSession,
+  expectDenialIdenticalToReference,
+  fingerprintOf,
+  firstWireItem,
+  isRecord,
+  payloadOf,
+  wireGraphQL,
+} from "@/backend/graphql/test/helpers/admin-session-governance.wire";
 import { signAccessToken } from "@/backend/lib/auth/jwt";
 // Deep import (same rationale as the journey cleanup helper — the
 // `test/helpers` barrel pulls the Apollo test client into backend-only
@@ -84,15 +93,6 @@ import {
   journeyPrefix,
   type SessionJourneyCast,
 } from "@/test/workflows/helpers";
-import {
-  countAuditForSession,
-  expectDenialIdenticalToReference,
-  fingerprintOf,
-  firstWireItem,
-  isRecord,
-  payloadOf,
-  wireGraphQL,
-} from "./helpers/admin-session-governance.wire";
 
 // ─── Harness state ───────────────────────────────────────────────────────────
 
@@ -600,11 +600,13 @@ describe("Tier 4 — anonymous callers: UNAUTHORIZED byte-identical to adminDisp
     const anonymousDirectory = await wireGraphQL(ADMIN_SESSIONS_DOC, {
       variables: { filter: {} },
     });
+    expect(anonymousDirectory.error).toBeDefined();
     expectDenialIdenticalToReference(anonymousDirectory.error, "UNAUTHORIZED", reference, "adminSessions");
 
     const anonymousDetail = await wireGraphQL(ADMIN_SESSION_DOC, {
       variables: { id: UNKNOWN_SESSION_ID },
     });
+    expect(anonymousDetail.error).toBeDefined();
     expectDenialIdenticalToReference(anonymousDetail.error, "UNAUTHORIZED", reference, "adminSession");
   });
 

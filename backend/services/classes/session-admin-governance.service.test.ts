@@ -90,8 +90,10 @@ import { SessionAdminGovernanceService } from "@/backend/services/classes/sessio
 import { joinObservationInTx } from "@/backend/services/classes/session-admin-governance.helpers";
 import { SessionLifecycleService } from "@/backend/services/classes/session-lifecycle.service";
 import type { NotificationEngineCallOptions } from "@/backend/services/notifications";
-import type { NotificationIdempotencyClaimCache } from "@/backend/services/notifications/emit-idempotency";
-import { buildEmitClaimKey } from "@/backend/services/notifications/emit-idempotency";
+import {
+  buildEmitClaimKey,
+  type NotificationIdempotencyClaimCache,
+} from "@/backend/services/notifications/emit-idempotency";
 import type {
   AdminSessionCancelInput,
   AdminSessionJoinInput,
@@ -728,7 +730,7 @@ describe("SessionAdminGovernanceService — reschedule (runInRollback)", () => {
         setSystemTime();
       }
       const firstDiscriminator = first.updatedAt?.toISOString() ?? "";
-      expect([...cache.claimedKeys].toSorted()).toEqual(
+      expect([...cache.claimedKeys].toSorted((a, b) => a.localeCompare(b))).toEqual(
         [
           buildEmitClaimKey(
             [actors.studentUserId],
@@ -740,7 +742,7 @@ describe("SessionAdminGovernanceService — reschedule (runInRollback)", () => {
             NotificationType.SessionRequest,
             `session:${row.id}:sessionGovernance.rescheduled:${firstDiscriminator}`
           ),
-        ].toSorted()
+        ].toSorted((a, b) => a.localeCompare(b))
       );
 
       cache.reset();
@@ -762,7 +764,7 @@ describe("SessionAdminGovernanceService — reschedule (runInRollback)", () => {
       // new instant and claimed fresh keys — no cross-occurrence dedupe.
       const secondDiscriminator = second.updatedAt?.toISOString() ?? "";
       expect(secondDiscriminator).not.toBe(firstDiscriminator);
-      expect([...cache.claimedKeys].toSorted()).toEqual(
+      expect([...cache.claimedKeys].toSorted((a, b) => a.localeCompare(b))).toEqual(
         [
           buildEmitClaimKey(
             [actors.studentUserId],
@@ -774,7 +776,7 @@ describe("SessionAdminGovernanceService — reschedule (runInRollback)", () => {
             NotificationType.SessionRequest,
             `session:${row.id}:sessionGovernance.rescheduled:${secondDiscriminator}`
           ),
-        ].toSorted()
+        ].toSorted((a, b) => a.localeCompare(b))
       );
 
       // The second occurrence fanned out afresh: all four inbox rows exist.
@@ -1020,11 +1022,11 @@ describe("SessionAdminGovernanceService — cancel (runInRollback)", () => {
         throw new Error("expected the in-memory claim cache to be installed");
       }
       const cancelKey = `session:${row.id}:sessionGovernance.cancelled`;
-      expect([...waveCache.claimedKeys].toSorted()).toEqual(
+      expect([...waveCache.claimedKeys].toSorted((a, b) => a.localeCompare(b))).toEqual(
         [
           buildEmitClaimKey([actors.studentUserId], NotificationType.SessionCancellation, cancelKey),
           buildEmitClaimKey([actors.teacherUserId], NotificationType.SessionCancellation, cancelKey),
-        ].toSorted()
+        ].toSorted((a, b) => a.localeCompare(b))
       );
 
       // Publish-after-commit is the CALLER's job on the tx path — the
@@ -1544,7 +1546,7 @@ describe("SessionAdminGovernanceService — boundaries", () => {
       // The escape-heaviest schema-legal payload: every character doubles
       // under JSON.stringify — and the serialized envelope still fits.
       const escapeReason = "\\".repeat(MAX_CANCEL_REASON_LENGTH);
-      expect(escapeReason.length).toBe(MAX_CANCEL_REASON_LENGTH);
+      expect(escapeReason).toHaveLength(MAX_CANCEL_REASON_LENGTH);
       const serialized = JSON.stringify({ action: "cancel", reason: escapeReason });
       expect(serialized.length).toBeLessThanOrEqual(2000);
 
