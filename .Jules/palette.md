@@ -1,0 +1,3 @@
+## 2026-09-08 - Tooltip Accessibility on Disabled MUI Buttons
+**Learning:** In Material-UI, setting `disabled` on a `<Button>` or `<IconButton>` sets `pointer-events: none`, blocking mouse hover and keyboard focus events from reaching parent elements like `<Tooltip>`. Placing responsive display rules directly on the button when wrapped in an un-styled wrapper can also cause layout artifacts across breakpoints.
+**Action:** Always wrap conditionally disabled buttons in a `<Box component="span">` bridge inside `<Tooltip>` and place responsive layout/display properties (`display: { xs: "none", sm: "inline-flex" }`) on the wrapper `Box` so tooltips trigger reliably on hover and focus in all button states.
