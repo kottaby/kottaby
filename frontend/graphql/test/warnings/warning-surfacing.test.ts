@@ -307,6 +307,11 @@ const MUTATION_SURFACE_INVENTORY_QUERY_DOCUMENT: DocumentNode = gql`
  * (never a partial-success wrapper), so they do not exercise Rules #6/#7.
  * They still belong on this drift-guard list: the contract stays "every
  * deployed Mutation root field is enumerated".
+ *
+ * Refreshed when DEV3-006 (session report & homework infrastructure) landed
+ * `submitSessionReport` — it resolves to the canonical `SessionReport` payload
+ * (denials ride `errors[]`, never a partial-success wrapper), so it is
+ * warning-incapable like the DEV1-014 trio.
  */
 const KNOWN_LIVE_MUTATION_FIELDS = [
   "adminBroadcastNotification",
@@ -335,6 +340,7 @@ const KNOWN_LIVE_MUTATION_FIELDS = [
   "respondToParentLinkRequest",
   "setPlanActiveStatus",
   "startSession",
+  "submitSessionReport",
   "updateMyLocale",
   "updatePlan",
 ];
