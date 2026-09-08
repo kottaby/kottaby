@@ -149,7 +149,12 @@ interface AdminSessionsPagerProps {
   readonly tSessions: SessionsLabels;
 }
 
-/** Prev / `page / totalPages` / next pager row (edge-clamped buttons). */
+/**
+ * Prev / `page / totalPages` / next pager row (edge-clamped buttons). The
+ * chevrons are direction-flipped under RTL (`scaleX(-1)`) — a logical
+ * "previous/next" affordance, mirroring the admin user-detail back-link
+ * convention.
+ */
 function AdminSessionsPager({
   page,
   totalPages,
@@ -179,7 +184,9 @@ function AdminSessionsPager({
           },
         })}
       >
-        <NavigateBeforeOutlined />
+        <NavigateBeforeOutlined
+          sx={theme => ({ transform: theme.direction === "rtl" ? "scaleX(-1)" : "none" })}
+        />
       </IconButton>
       <Typography
         variant="body2"
@@ -199,7 +206,9 @@ function AdminSessionsPager({
           },
         })}
       >
-        <NavigateNextOutlined />
+        <NavigateNextOutlined
+          sx={theme => ({ transform: theme.direction === "rtl" ? "scaleX(-1)" : "none" })}
+        />
       </IconButton>
     </Stack>
   );
