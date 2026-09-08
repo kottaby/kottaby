@@ -103,6 +103,7 @@ async function resolveWaveContext(
     intent: row.intent,
     student: { userId: row.studentUserId, fullName: row.studentFullName, locale: row.studentLocale },
     teacher: { userId: row.teacherUserId, fullName: row.teacherFullName, locale: row.teacherLocale },
+    sessionUpdatedAt: row.sessionUpdatedAt,
   };
 }
 

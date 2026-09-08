@@ -15,6 +15,16 @@
  * once internally; this module wraps the freshly inserted rows into the
  * receipt shape.
  *
+ * Emit-claim key format (the raw key feeds the engine's hashed claim
+ * identity, which additionally folds the recipient cohort): the one-shot
+ * cancel wave claims `session:<sessionId>:<waveKind>`; the two RECURRING
+ * kinds — rescheduled and teacherReassigned — fold the emit-time row
+ * occurrence, `session:<sessionId>:<waveKind>:<updatedAt ISO>`, where the
+ * stamp is the guarded mutation's own write (read back on the caller's
+ * transaction at wave time). A second reschedule / re-reassignment of the
+ * same session therefore claims a FRESH key inside the claim TTL instead
+ * of deduping against the prior occurrence's still-live claim.
+ *
  * Localization: the engine stores copy verbatim and NEVER translates, so
  * the per-recipient locale composition is THIS module's obligation: title
  * and body are composed in the RECIPIENT's persisted locale (falling back
@@ -126,6 +136,35 @@ interface GovernanceEmitPlan {
 }
 
 /**
+ * Builds one governance wave's emit-claim key (format contract in the
+ * module docblock). The one-shot cancel wave claims the bare wave key; the
+ * two RECURRING kinds fold the emit-time row occurrence (the session
+ * row's `updatedAt` ISO — stamped by the guarded mutation that caused the
+ * wave) so each mutation claims separately. A recurring wave on a row
+ * with no audit stamp is a broken-contract situation mid-mutation and
+ * fails closed — the wave is all-or-nothing with the mutation that caused
+ * it.
+ */
+function governanceWaveClaimKey(wave: SessionWaveContext, waveKind: SessionGovernanceWaveKind): string {
+  if (waveKind === "sessionGovernance.cancelled") {
+    return `session:${wave.sessionId}:${waveKind}`;
+  }
+  const occurrence = wave.sessionUpdatedAt;
+  if (occurrence === null) {
+    logger.logDomainError("Session governance wave denied: session row carries no occurrence stamp", {
+      code: "INTERNAL_SERVER_ERROR",
+      entity: "session",
+      entityId: wave.sessionId,
+    });
+    throw new DomainError(
+      "INTERNAL_SERVER_ERROR",
+      getServerTranslations(defaultLocale).errorsTranslations.internalServerError
+    );
+  }
+  return `session:${wave.sessionId}:${waveKind}:${occurrence.toISOString()}`;
+}
+
+/**
  * Composes every recipient's emit plan synchronously (copy in the
  * RECIPIENT's persisted locale; the engine's claim recipe folds the
  * recipient cohort into the hashed claim identity, so one wave-level key
@@ -137,6 +176,7 @@ function planGovernanceWave(
   recipients: readonly SessionWaveParticipantContext[]
 ): GovernanceEmitPlan[] {
   const type = toGovernanceNotificationType(waveKind);
+  const idempotencyKey = governanceWaveClaimKey(wave, waveKind);
   return recipients.map(recipient => {
     const recipientLocale = recipient.locale ?? defaultLocale;
     const { title, body } = composeGovernanceWaveCopy(
@@ -151,7 +191,7 @@ function planGovernanceWave(
         body,
         relatedEntityType: "session",
         relatedEntityId: wave.sessionId,
-        idempotencyKey: `session:${wave.sessionId}:${waveKind}`,
+        idempotencyKey,
       },
       recipientLocale,
       recipientUserId: recipient.userId,

@@ -445,7 +445,9 @@ const waveTeacherUser = alias(users, "wave_teacher_user");
 /**
  * ONE joined read of the session-request wave context: the session's `id`
  * + raw `intent` (STILL untrusted storage — validating it is the service
- * layer's job) together with BOTH participants' `userId`/`fullName`/
+ * layer's job), the row's `updated_at` audit stamp (the occurrence
+ * discriminator the recurring governance waves fold into their emit-claim
+ * keys), together with BOTH participants' `userId`/`fullName`/
  * `locale` — exactly the fields the session-request notification emitters
  * need, and nothing else. Both participants resolve through INNER JOINs:
  * `student_id`/`teacher_id` are NOT NULL FKs sharing the `users.id` PK, so
@@ -464,6 +466,7 @@ async function findWaveContextById(id: number, tx?: DBTransaction): Promise<Sess
         teacherUserId: waveTeacherUser.id,
         teacherFullName: waveTeacherUser.fullName,
         teacherLocale: waveTeacherUser.locale,
+        sessionUpdatedAt: session.updatedAt,
       })
       .from(session)
       .innerJoin(waveStudentUser, eq(waveStudentUser.id, session.studentId))
@@ -475,7 +478,8 @@ async function findWaveContextById(id: number, tx?: DBTransaction): Promise<Sess
   const result = await queryDb<SessionWaveContextRow>(
     `SELECT s.id AS "sessionId", s.intent AS "intent",
             su.id AS "studentUserId", su.full_name AS "studentFullName", su.locale AS "studentLocale",
-            tu.id AS "teacherUserId", tu.full_name AS "teacherFullName", tu.locale AS "teacherLocale"
+            tu.id AS "teacherUserId", tu.full_name AS "teacherFullName", tu.locale AS "teacherLocale",
+            s.updated_at AS "sessionUpdatedAt"
      FROM session s
      JOIN users su ON su.id = s.student_id
      JOIN users tu ON tu.id = s.teacher_id

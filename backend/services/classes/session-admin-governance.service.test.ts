@@ -83,11 +83,13 @@ import { HeldBalanceLane } from "@/backend/enum/scheduling/held-balance-lane.enu
 import { SessionIntent } from "@/backend/enum/scheduling/session-intent.enum";
 import { SessionStatus } from "@/backend/enum/scheduling/session-status.enum";
 import { SessionType } from "@/backend/enum/scheduling/session-type.enum";
+import { NotificationType } from "@/backend/enum/notifications/notification-type.enum";
 import { ConflictError, DomainError, NotFoundError } from "@/backend/lib/errors";
 import { SessionAdminGovernanceService } from "@/backend/services/classes/session-admin-governance";
 import { joinObservationInTx } from "@/backend/services/classes/session-admin-governance.helpers";
 import { SessionLifecycleService } from "@/backend/services/classes/session-lifecycle.service";
 import type { NotificationEngineCallOptions } from "@/backend/services/notifications";
+import { buildEmitClaimKey } from "@/backend/services/notifications/emit-idempotency";
 import type { NotificationIdempotencyClaimCache } from "@/backend/services/notifications/emit-idempotency";
 import type {
   AdminSessionCancelInput,
@@ -216,12 +218,21 @@ interface AdminActor {
 class MapBackedClaimCache implements NotificationIdempotencyClaimCache {
   private readonly entries = new Map<string, string>();
 
+  /** Every raw (hashed) claim key the engine attempted, in attempt order. */
+  readonly claimedKeys: string[] = [];
+
   async claim(key: string, _ttlSeconds: number): Promise<boolean> {
+    this.claimedKeys.push(key);
     if (this.entries.has(key)) {
       return false;
     }
     this.entries.set(key, "");
     return true;
+  }
+
+  /** Clears the recorded claim attempts (between two wave occurrences). */
+  reset(): void {
+    this.claimedKeys.length = 0;
   }
 
   async store(key: string, value: string, _ttlSeconds: number): Promise<void> {
@@ -673,6 +684,93 @@ describe("SessionAdminGovernanceService — reschedule (runInRollback)", () => {
     });
   });
 
+  test("recurring-wave claim keys fold the emit-time row occurrence: a second reschedule claims FRESH keys, never the first wave's", async () => {
+    await runInRollback(async tx => {
+      const studentUser = await createTestUser(tx, { role: "student", locale: "en" });
+      await createTestStudent(tx, studentUser.id);
+      const teacherUser = await createTestUser(tx, { role: "teacher", locale: "ar" });
+      await createTestTeacherRow(tx, teacherUser.id, true);
+      const actors = { teacherUserId: teacherUser.id, studentUserId: studentUser.id };
+      const { adminId } = await createTestAdmin(tx);
+      const row = await insertSessionRow(tx, actors, {});
+      const options = governanceOptions();
+      const cache = options.cache;
+      if (!(cache instanceof MapBackedClaimCache)) {
+        throw new Error("expected the in-memory claim cache to be installed");
+      }
+
+      // The two occurrences are frozen one second apart so the emit-time row
+      // stamps are provably distinct even where timestamps truncate to whole
+      // seconds (the pglite sandbox).
+      const firstOccurrence = alignedInstant();
+      setSystemTime(firstOccurrence.getTime());
+      let first: SessionReturnType;
+      try {
+        first = await SessionAdminGovernanceService.reschedule(
+          adminId,
+          { sessionId: row.id, startedAt: alignedInstant(60 * 60_000), endedAt: alignedInstant(2 * 60 * 60_000) },
+          LOCALE,
+          tx,
+          options
+        );
+      } finally {
+        setSystemTime();
+      }
+      const firstDiscriminator = first.updatedAt?.toISOString() ?? "";
+      expect([...cache.claimedKeys].toSorted()).toEqual(
+        [
+          buildEmitClaimKey(
+            [actors.studentUserId],
+            NotificationType.SessionRequest,
+            `session:${row.id}:sessionGovernance.rescheduled:${firstDiscriminator}`
+          ),
+          buildEmitClaimKey(
+            [actors.teacherUserId],
+            NotificationType.SessionRequest,
+            `session:${row.id}:sessionGovernance.rescheduled:${firstDiscriminator}`
+          ),
+        ].toSorted()
+      );
+
+      cache.reset();
+      setSystemTime(firstOccurrence.getTime() + 1_100);
+      let second: SessionReturnType;
+      try {
+        second = await SessionAdminGovernanceService.reschedule(
+          adminId,
+          { sessionId: row.id, startedAt: alignedInstant(3 * 60 * 60_000), endedAt: alignedInstant(4 * 60 * 60_000) },
+          LOCALE,
+          tx,
+          options
+        );
+      } finally {
+        setSystemTime();
+      }
+
+      // The discriminator is PER MUTATION: the second occurrence stamped a
+      // new instant and claimed fresh keys — no cross-occurrence dedupe.
+      const secondDiscriminator = second.updatedAt?.toISOString() ?? "";
+      expect(secondDiscriminator).not.toBe(firstDiscriminator);
+      expect([...cache.claimedKeys].toSorted()).toEqual(
+        [
+          buildEmitClaimKey(
+            [actors.studentUserId],
+            NotificationType.SessionRequest,
+            `session:${row.id}:sessionGovernance.rescheduled:${secondDiscriminator}`
+          ),
+          buildEmitClaimKey(
+            [actors.teacherUserId],
+            NotificationType.SessionRequest,
+            `session:${row.id}:sessionGovernance.rescheduled:${secondDiscriminator}`
+          ),
+        ].toSorted()
+      );
+
+      // The second occurrence fanned out afresh: all four inbox rows exist.
+      expect(await countNotificationsFor(tx, [actors.studentUserId, actors.teacherUserId])).toBe(4);
+    });
+  });
+
   test("completed / disputed / cancelled rows: zero-row guard miss → localized conflict with ZERO writes", async () => {
     await runInRollback(async tx => {
       const actors = await createSessionActors(tx);
@@ -856,6 +954,20 @@ describe("SessionAdminGovernanceService — cancel (runInRollback)", () => {
       expect(studentInbox[0]?.title).toBe(NOTIFS_EN.eventSessionGovernanceCancelledTitle);
       const teacherInbox = await readInboxFor(tx, actors.teacherUserId);
       expect(teacherInbox[0]?.title).toBe(NOTIFS_AR.eventSessionGovernanceCancelledTitle);
+
+      // The cancel wave is ONE-SHOT: it claims the bare session:key shape
+      // (no occurrence discriminator) — one claim per recipient cohort.
+      const waveCache = options.cache;
+      if (!(waveCache instanceof MapBackedClaimCache)) {
+        throw new Error("expected the in-memory claim cache to be installed");
+      }
+      const cancelKey = `session:${row.id}:sessionGovernance.cancelled`;
+      expect([...waveCache.claimedKeys].toSorted()).toEqual(
+        [
+          buildEmitClaimKey([actors.studentUserId], NotificationType.SessionCancellation, cancelKey),
+          buildEmitClaimKey([actors.teacherUserId], NotificationType.SessionCancellation, cancelKey),
+        ].toSorted()
+      );
 
       // Publish-after-commit is the CALLER's job on the tx path — the
       // transport must record zero fan-outs inside the rollback.

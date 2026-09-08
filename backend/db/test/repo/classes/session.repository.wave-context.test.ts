@@ -19,8 +19,10 @@
  * Coverage map:
  *  - Tier 1 (transactional branch): findById hit (full row, defaults intact)
  *    and miss; findWaveContextById joined shape with BOTH participants'
- *    fullName/locale present, a locale-NULL participant (fallback mapping),
- *    and a miss; all reads return `null` on absence, never throw.
+ *    fullName/locale present (plus the row's audit stamp — the recurring
+ *    governance waves' claim-key discriminator), a locale-NULL participant
+ *    (fallback mapping), and a miss; all reads return `null` on absence,
+ *    never throw.
  *  - Tier 2 (purity): zero writes on the read paths — scoped session/user
  *    row counts are unchanged around the read calls.
  *  - Tier 3 (non-transactional branch): both reads against the committed
@@ -169,11 +171,14 @@ describe("SessionRepository.findById — transactional branch", () => {
 });
 
 describe("SessionRepository.findWaveContextById — transactional branch", () => {
-  test("returns the joined row with BOTH participants' userId/fullName/locale", async () => {
+  test("returns the joined row with BOTH participants' userId/fullName/locale and the row's audit stamp", async () => {
     await runInRollback(async tx => {
       const fixture = await provisionWaveFixture(tx, "ar", "en");
+      // Second-aligned stamp: the `timestamp` columns store whole seconds.
+      const stampedUpdatedAt = new Date(Math.floor(Date.now() / 1000) * 1000);
       const created = await insertTestSession(tx, fixture.teacherUserId, fixture.studentUserId, {
         intent: SessionIntent.Tajweed,
+        updatedAt: stampedUpdatedAt,
       });
 
       const row = await SessionRepository.findWaveContextById(created.id, tx);
@@ -187,6 +192,9 @@ describe("SessionRepository.findWaveContextById — transactional branch", () =>
       expect(row?.teacherUserId).toBe(fixture.teacherUserId);
       expect(row?.teacherFullName).toBe(fixture.teacherFullName);
       expect(row?.teacherLocale).toBe("en");
+      // The audit stamp rides the joined read — the RECURRING governance
+      // waves' emit-claim occurrence discriminator.
+      expect(row?.sessionUpdatedAt?.getTime()).toBe(stampedUpdatedAt.getTime());
     });
   });
 
@@ -255,6 +263,7 @@ describe("SessionRepository — read purity", () => {
 
 interface CommittedWaveFixture extends WaveFixture {
   readonly sessionId: number;
+  readonly updatedAt: Date;
 }
 
 let committedFixture: CommittedWaveFixture | null = null;
@@ -270,10 +279,13 @@ function requireCommittedFixture(fixture: CommittedWaveFixture | null): Committe
 beforeAll(async () => {
   committedFixture = await db.transaction(async tx => {
     const fixture = await provisionWaveFixture(tx, "ar", "en", TeacherRequestPreference.OfferAlternatives);
+    // Second-aligned stamp: the `timestamp` columns store whole seconds.
+    const updatedAt = new Date(Math.floor(Date.now() / 1000) * 1000);
     const created = await insertTestSession(tx, fixture.teacherUserId, fixture.studentUserId, {
       intent: SessionIntent.Hifz,
+      updatedAt,
     });
-    return { ...fixture, sessionId: created.id };
+    return { ...fixture, sessionId: created.id, updatedAt };
   });
 });
 
@@ -327,6 +339,9 @@ describe("SessionRepository — non-transactional branch (committed fixture)", (
     expect(row?.teacherUserId).toBe(fixture.teacherUserId);
     expect(row?.teacherFullName).toBe(fixture.teacherFullName);
     expect(row?.teacherLocale).toBe("en");
+    // The raw-SQL fast path carries the audit stamp too (the recurring
+    // governance waves' claim-key discriminator).
+    expect(row?.sessionUpdatedAt?.getTime()).toBe(fixture.updatedAt.getTime());
   });
 
   test("findWaveContextById returns null for a guaranteed-absent id without a tx", async () => {
