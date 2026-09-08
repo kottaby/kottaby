@@ -13,7 +13,10 @@
  *    `mock` provider.
  *  - A configured provider without an adapter implementation fails CLOSED
  *    with a localized typed error — the purchase flow never silently falls
- *    back to a different provider than the deployment asked for.
+ *    back to a different provider than the deployment asked for. Lookups are
+ *    own-property guarded, so inherited `Object.prototype` members
+ *    (`constructor`, `toString`, …) fail closed too instead of resolving to
+ *    a stray inherited value.
  *  - `resetPaymentGateway()` drops the resolved adapter AND invalidates the
  *    shared env snapshot, so provider/secret/enabled changes are observable
  *    on the next resolution without a process restart.
@@ -33,6 +36,11 @@ let gateway: PaymentGatewayPort | null = null;
  * Adapter registry keyed by the canonical gateway provider value. Adding a
  * real gateway later is one registry row plus its adapter module — the
  * purchase flow and webhook route stay untouched.
+ *
+ * Lookups MUST stay own-property guarded (`Object.hasOwn` in
+ * {@link getPaymentGateway}): as a plain object, inherited `Object.prototype`
+ * members (`constructor`, `toString`, …) otherwise resolve truthy and would
+ * be cached as the gateway instead of failing closed.
  */
 const GATEWAY_ADAPTERS: Readonly<Record<string, () => PaymentGatewayPort>> = {
   [PaymentGateway.Mock]: () => new MockPaymentGatewayAdapter(),
@@ -52,7 +60,11 @@ export function getPaymentGateway(locale?: string): PaymentGatewayPort {
     return gateway;
   }
 
-  const createAdapter = GATEWAY_ADAPTERS[getPaymentGatewayProvider()];
+  const provider = getPaymentGatewayProvider();
+  // Own-property guard — inherited `Object.prototype` names (`constructor`,
+  // `toString`, …) must fail CLOSED exactly like any other unknown provider
+  // (same discipline as the error-code taxonomy's normalization table).
+  const createAdapter = Object.hasOwn(GATEWAY_ADAPTERS, provider) ? GATEWAY_ADAPTERS[provider] : undefined;
   if (!createAdapter) {
     const tErrors = getServerTranslations(locale ?? "en").errorsTranslations;
     throw new ValidationError("PAYMENT_GATEWAY_UNSUPPORTED", tErrors.validation);

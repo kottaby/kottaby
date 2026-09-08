@@ -11,6 +11,8 @@
  *  - Fail-closed configuration: an unknown provider raises the typed
  *    `PAYMENT_GATEWAY_UNSUPPORTED` validation error with the localized
  *    message of the requested locale — never a silent fallback provider.
+ *    Inherited `Object.prototype` names (`constructor`, `toString`, …) are
+ *    pinned to the same typed rejection (no unguarded registry lookup).
  *  - Reset completeness: `resetPaymentGateway()` drops the resolved adapter
  *    AND the shared env snapshot, so an env change is observable on the
  *    next resolution; before a reset the singleton keeps serving (documented
@@ -137,6 +139,25 @@ describe("getPaymentGateway provider resolution", () => {
     expect(caught).toBeInstanceOf(DomainError);
     const rejection = domainRejection(caught);
     expect(rejection?.message).toBe(getServerTranslations("ar").errorsTranslations.validation);
+  });
+
+  test("inherited Object.prototype provider names fail closed — never resolve a registry member", () => {
+    // The registry is a plain object literal, so prototype members like
+    // `constructor`/`toString` would resolve truthy on an unguarded lookup
+    // and get cached as the "gateway" (live-probed). The own-property guard
+    // must send them down the typed unsupported-provider path instead.
+    for (const provider of ["constructor", "toString"]) {
+      process.env.PAYMENT_GATEWAY_PROVIDER = provider;
+      resetPaymentGateway();
+
+      const caught = catchSync(() => getPaymentGateway());
+      expect(caught).toBeInstanceOf(DomainError);
+      expect(caught).toBeInstanceOf(ValidationError);
+      const rejection = domainRejection(caught);
+      expect(rejection).not.toBeNull();
+      expect(rejection?.code).toBe("PAYMENT_GATEWAY_UNSUPPORTED");
+      expect(rejection?.message).toBe(getServerTranslations("en").errorsTranslations.validation);
+    }
   });
 });
 

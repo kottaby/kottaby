@@ -10,8 +10,6 @@
  *  - Success toast hand-off via `onSuccess`
  */
 
-"use client";
-
 import { useMutation } from "@apollo/client/react";
 import { useState } from "react";
 import type { AdminPlansQuery, CreatePlanInput } from "@/frontend/graphql/generated/gql/graphql";
