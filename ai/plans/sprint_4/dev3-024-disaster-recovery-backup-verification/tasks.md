@@ -64,16 +64,16 @@ Sequence: QL → TE → SEC → SR → IV → `[x]`.
 
 - [x] 2.1 **Implement `backup-database.ts`** per plan §Component-1: arg parser (`--env`, `--out-dir`, `--help`), env bootstrap reuse, toolchain probe, lockfile with stale-PID reclamation, `pg_dump -Fc` into `tmp-<pid>-<ts>/`, sha256 + journal hash, `manifest.json` (0600), atomic rename to `backups/<UTC>/`, redacted stdout summary, `_FAILED` marker on failure, exit codes 0/1/2.
   - Scope note: single file + (only if justified) `scripts/ops/_shared.ts` for redaction used by both scripts — if created, it gets its own QL/TE cycle before 3.1 consumes it.
-  - [ ] 2.1.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts scripts/ops/backup-database.ts --lifecycle duplicates` → exit 0.
-  - [ ] 2.1.TE **Test Engineering** — create `scripts/ops/backup-database.test.ts` (colocated; G-07 precedent):
+  - [x] 2.1.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts scripts/ops/backup-database.ts --lifecycle duplicates` → exit 0.
+  - [x] 2.1.TE **Test Engineering** — create `scripts/ops/backup-database.test.ts` (colocated; G-07 precedent):
     - Tier 1: arg parsing branches (all flags, unknown flags, missing values); env bootstrap behaviors; manifest builder field-by-field; lock acquire/release/stale-reclaim; redaction helper matrix.
     - Tier 2: empty dump (0 bytes → failure), timestamp collision suffixing, out-dir at filesystem edge paths, TZ boundaries in UTC stamp.
     - Tier 3: chaos — `pg_dump` mock exits 137/segfault-ish codes, random garbage stderr, concurrent invocations via `Promise.allSettled` (one winner, one lock refusal), out-dir replaced by a file mid-run.
     - Tier 4: security — capture ALL stdout/stderr on success AND failure; assert the DSN password substring never appears; assert manifest contains no userinfo; assert spawn receives argv array (no shell string) via injected spawn spy.
     - Runner: plain `bun test` acceptable for pure-unit file (no DB); if any DB touch sneaks in, switch to `bun run test/scripts/run-test.ts` and log it in outcome.
-  - [ ] 2.1.SEC **Security & Tenancy Audit**: injection-free spawn; 0600 perms; confinement to out dir; no env dumping on error paths; lockfile can't be used to squat on a directory name (stale detection).
-  - [ ] 2.1.SR **Semantic Review**: atomic rename happens exactly once; `_FAILED` path releases lock; zero dead branches; no plan-artifact references in comments/JSDoc; no modules imported beyond need; enums (none introduced) — record "no enums" explicitly.
-  - [ ] 2.1.IV **Instruction Verification**: read sub-loop-printed files (root AGENTS.md, backend instructions) and validate; confirm `console.*` usage is sanctioned for ops scripts (cite `scripts/ops/sweep-expired-link-requests.ts` precedent in outcome).
+  - [x] 2.1.SEC **Security & Tenancy Audit**: injection-free spawn; 0600 perms; confinement to out dir; no env dumping on error paths; lockfile can't be used to squat on a directory name (stale detection).
+  - [x] 2.1.SR **Semantic Review**: atomic rename happens exactly once; `_FAILED` path releases lock; zero dead branches; no plan-artifact references in comments/JSDoc; no modules imported beyond need; enums (none introduced) — record "no enums" explicitly.
+  - [x] 2.1.IV **Instruction Verification**: read sub-loop-printed files (root AGENTS.md, backend instructions) and validate; confirm `console.*` usage is sanctioned for ops scripts (cite `scripts/ops/sweep-expired-link-requests.ts` precedent in outcome).
   - _Requirements: REQ-010, REQ-011, REQ-012, REQ-013, REQ-014, REQ-024, REQ-026, REQ-027, REQ-030, REQ-033, REQ-040, REQ-042, REQ-050, REQ-051._
 - [x] 2.2 **Outcome**: `outcome/2.1-backup-script-outcome.md` (findings, deviations, carry-overs for restore script — esp. shared redaction utility decision).
   - _Requirements: REQ-000.4 (outcome ledger); carries the 2.1 redaction-util decision to 3.1._
@@ -81,15 +81,15 @@ Sequence: QL → TE → SEC → SR → IV → `[x]`.
 ## Phase 3 — Restore & Verification Script (CREATE `scripts/ops/restore-verify.ts`)
 
 - [x] 3.1 **Implement `restore-verify.ts`** per plan §Component-2/3: arg parse with REQUIRED `--target` (no default), `--from` run-dir-or-artifact resolution, `--yes-i-understand` non-TTY gate; guard assessment on the target DSN (single-variable threading); artifact SHA-256 re-check vs manifest; `pg_restore --clean --if-exists --no-owner --no-privileges`; structural checks (table presence derived from `backend/db/schema/` exports; REQ-017 critical table row counts; `__drizzle_migrations` hash check); `const ORACLES` registry (OR-W1, OR-W2, OR-B1, OR-U1, OR-U2, OR-REQ, OR-MIG) executed as read-only `psql` predicates; `restore-report.json` writer; `VERDICT: PASS|FAIL` summary with absolute report path.
-  - [ ] 3.1.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts scripts/ops/restore-verify.ts --lifecycle duplicates` → exit 0.
-  - [ ] 3.1.TE **Test Engineering** — create `scripts/ops/restore-verify.test.ts`:
+  - [x] 3.1.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts scripts/ops/restore-verify.ts --lifecycle duplicates` → exit 0.
+  - [x] 3.1.TE **Test Engineering** — create `scripts/ops/restore-verify.test.ts`:
     - Tier 1: arg branches incl. every refusal; manifest load/validate; verdict aggregation (any structural fail → FAIL; any oracle fail → FAIL; hash mismatch → FAIL); report writer shape.
     - Tier 2: zero-row critical table verdict boundary; missing run-dir fields; oracle returning exactly-0 vs -1 (error) distinction.
     - Tier 3: chaos — truncated dump file, manifest with randomized missing keys, oracle SQL error injection, artifact hash flip one nibble.
     - Tier 4: security — guard refusal matrix (NODE_ENV=production env shape; `*.neon.tech` host; Upstash marker; RDS host) with spawn-spy asserting NO pg_restore spawn on refusal; `--target` omission exit 2; output greps for password.
-  - [ ] 3.1.SEC **Security & Tenancy Audit**: guard executes before ANY restore spawn; argv-array spawns; report perms 0600; oracle SQL is static consts (no interpolation); scratch-target assumption documented in header.
-  - [ ] 3.1.SR **Semantic Review**: registry is pure data (adding oracle = data append); TOCTOU single-DSN threading verified by reading the code top to bottom; no dead branches; comment hygiene (no plan refs).
-  - [ ] 3.1.IV **Instruction Verification**: sub-loop-printed files read & validated.
+  - [x] 3.1.SEC **Security & Tenancy Audit**: guard executes before ANY restore spawn; argv-array spawns; report perms 0600; oracle SQL is static consts (no interpolation); scratch-target assumption documented in header.
+  - [x] 3.1.SR **Semantic Review**: registry is pure data (adding oracle = data append); TOCTOU single-DSN threading verified by reading the code top to bottom; no dead branches; comment hygiene (no plan refs).
+  - [x] 3.1.IV **Instruction Verification**: sub-loop-printed files read & validated.
   - _Requirements: REQ-015, REQ-016, REQ-017, REQ-018, REQ-019, REQ-024, REQ-025, REQ-027, REQ-030, REQ-031, REQ-032, REQ-041, REQ-050, REQ-051, REQ-052._
 - [x] 3.2 **Outcome**: `outcome/3.1-restore-verify-outcome.md`.
   - _Requirements: REQ-000.4 (outcome ledger)._
@@ -149,7 +149,7 @@ Sequence: QL → TE → SEC → SR → IV → `[x]`.
 - [x] 8.1 **Dispatch review agents** scoped to `git diff --name-only` vs Phase-0 baseline: backend-reviewer (scripts/ops correctness, races, TOCTOU, dead code), pentester/idor (guard bypass attempts, credential-leak probes, arg injection, confinement escape), types-reviewer (manifest/report contracts, no canonical-type pollution). Aggregate; fix-file dispatch with sub-loop per file; repeat until zero feature findings.
   - Write `outcome/post-implementation-review.md`.
   - _Process gate (skill Phase-8 review wave); no REQ mapping (consumes REQ-000.4 outcome ledger)._
-- [ ] 8.2 **Final gate**: full `bun quality-gate` green against Phase-0 baseline; all checkboxes `[x]`; ledger clean; outcome summary enumerates DEV3-026 handoff artifacts (`docs/ops/disaster-recovery.md`, drill evidence path, sample PASS report path).
+- [x] 8.2 **Final gate**: full `bun quality-gate` green against Phase-0 baseline; all checkboxes `[x]`; ledger clean; outcome summary enumerates DEV3-026 handoff artifacts (`docs/ops/disaster-recovery.md`, drill evidence path, sample PASS report path).
   - _Requirements: REQ-000 (baseline comparison); specs §Definition of Done._
 
 ---
