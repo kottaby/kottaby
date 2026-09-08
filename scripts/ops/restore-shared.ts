@@ -265,31 +265,49 @@ export function redactTargetDatabaseName(dsn: string): string {
   let reported: string | null = null;
   // The quoted-value spans tolerate a backslash-escaped quote (`\'` / `\"`)
   // the way libpq scans them — such a quote does NOT end the value — and the
-  // alternations are disjoint on their first character, so the scan stays
-  // linear (no backtracking blow-up on hostile input). The unquoted span is
-  // linear the same way: a backslash enters it only through the two-character
-  // escape alternative (`\` + any non-newline character, whitespace
-  // included — the escaped-whitespace extension rule), plain characters
-  // exclude backslash and whitespace, so a bare trailing backslash matches
-  // neither alternative (libpq's scan drops it) and every backslash inside
-  // the span is the head of an escape pair.
-  for (const match of dsn.matchAll(/\bdbname=(?:"((?:\\.|[^"\\])*)"|'((?:\\.|[^'\\]|'')*)'|((?:\\.|[^\s\\])+))/gi)) {
-    const singleQuoted = match[2];
-    // Runtime `match[2]` is undefined when the single-quote group did not
-    // participate, so the guard is a typeof check, not a `!==` comparison.
+  // alternatives are disjoint on their first character, so each span scan
+  // stays linear (no backtracking blow-up on hostile input). The unquoted
+  // span is linear the same way: a backslash enters it only through the
+  // two-character escape alternative (`\` + any non-newline character,
+  // whitespace included — the escaped-whitespace extension rule), plain
+  // characters exclude backslash and whitespace, so a bare trailing
+  // backslash matches neither alternative (libpq's scan drops it) and every
+  // backslash inside the span is the head of an escape pair. The two scans
+  // are merged into libpq's single leftmost, non-overlapping keyword walk:
+  // candidates are consumed in offset order, a candidate starting inside the
+  // previously consumed span is dropped, and at a shared offset the quoted
+  // form wins — a quote also starts an unquoted span, so every quoted match
+  // has an unquoted twin at the same offset, and the stable sort keeps the
+  // quoted candidate first.
+  const dbnameMatches = [
+    ...dsn.matchAll(/\bdbname=(?:"(?<double>(?:\\.|[^"\\])*)"|'(?<single>(?:\\.|[^'\\]|'')*)')/gi),
+    ...dsn.matchAll(/\bdbname=(?<unquoted>(?:\\.|[^\s\\])+)/gi),
+  ].toSorted((a, b) => (a.index ?? 0) - (b.index ?? 0));
+  let scannedTo = 0;
+  for (const match of dbnameMatches) {
+    const start = match.index ?? 0;
+    if (start < scannedTo) {
+      continue;
+    }
+    scannedTo = start + match[0].length;
+    const singleQuoted = match.groups?.single;
+    // Runtime group values are undefined when the group did not participate,
+    // so the guard is a typeof check, not a `!==` comparison.
     if (typeof singleQuoted === "string") {
       // libpq folds `''` → `'` first, then every `\<char>` → `<char>`
       // (order-insensitive on every input the span scan can produce).
       reported = singleQuoted.replace(/''/g, "'").replace(/\\(.)/g, "$1");
     } else {
-      const doubleQuoted = match[1];
+      const doubleQuoted = match.groups?.double;
       // Double-quoted folds backslash escapes only. The unquoted span folds
       // them too — every backslash inside it is the head of the escape pair
       // libpq's scan consumed, escaped whitespace included, so the fold is
       // the exact inverse of the span rule and a bare trailing backslash
       // cannot occur inside the span.
       reported =
-        doubleQuoted === undefined ? (match[3] ?? "").replace(/\\(.)/g, "$1") : doubleQuoted.replace(/\\(.)/g, "$1");
+        typeof doubleQuoted === "string"
+          ? doubleQuoted.replace(/\\(.)/g, "$1")
+          : (match.groups?.unquoted ?? "").replace(/\\(.)/g, "$1");
     }
   }
   if (reported !== null && reported.length > 0) {
