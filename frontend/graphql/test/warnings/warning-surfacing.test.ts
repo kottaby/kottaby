@@ -307,6 +307,11 @@ const MUTATION_SURFACE_INVENTORY_QUERY_DOCUMENT: DocumentNode = gql`
  * (never a partial-success wrapper), so they do not exercise Rules #6/#7.
  * They still belong on this drift-guard list: the contract stays "every
  * deployed Mutation root field is enumerated".
+ *
+ * Refreshed for DEV3-007 (recitation record per session): `setSessionRecitation`
+ * resolves to the canonical `SessionRecitation` payload with every denial
+ * (`RECITATION_ALREADY_EXISTS`, `SESSION_NOT_FOUND`) riding `errors[]`, so it
+ * is warning-incapable like the session-family mutations enumerated above.
  */
 const KNOWN_LIVE_MUTATION_FIELDS = [
   "adminBroadcastNotification",
@@ -334,6 +339,7 @@ const KNOWN_LIVE_MUTATION_FIELDS = [
   "resolveSessionDispute",
   "respondToParentLinkRequest",
   "setPlanActiveStatus",
+  "setSessionRecitation",
   "startSession",
   "updateMyLocale",
   "updatePlan",
