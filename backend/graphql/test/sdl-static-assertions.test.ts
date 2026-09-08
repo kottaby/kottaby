@@ -95,7 +95,7 @@ import {
  * reconciled dev3-016 admin-user-management trio (3 mutations) + the
  * dev3-004 session quartet + dev3-005 dispute pair + dev3-012 confirm
  * + dev3-013 payout, the sanctioned dev3-017 admin-governance pair, and
- * the dev1-006 student purchase write. Sorted alphabetically (mirrors the
+ * the subscription purchase write. Sorted alphabetically (mirrors the
  * live `printSchema(lexicographicSortSchema(graphQLSchema))` Mutation root
  * inventory verbatim). Re-anchored to the live schema as a documented
  * one-time reconciliation (NOT a silent baseline flip) ahead of pinning
@@ -138,8 +138,8 @@ const FROZEN_MUTATION_FIELDS = [
  * analytics snapshot: the prior frozen baseline + the `_health` probe +
  * the reconciled dev3-016 admin-user query quartet + the dev3-004
  * participant-read trio + the dev3-005 admin arbitration listing + the
- * dev3-013 wallet read + the dev1-013 handshake pair + the dev1-006
- * caller-scoped subscription read. Sorted
+ * dev3-013 wallet read + the dev1-013 handshake pair + the subscription
+ * purchase caller-scoped read. Sorted
  * alphabetically (mirrors the live
  * `printSchema(lexicographicSortSchema(graphQLSchema))` Query root
  * inventory verbatim, with locale-aware case handling:
@@ -309,7 +309,7 @@ describe("BFLA structural verdict — zero notification CUD surface (REQ-032)", 
     }
   });
 
-  test("Mutation root is EXACTLY the refreshed frozen 24-op baseline — the reconciled dev3-016 admin-user trio + dev3-004 quartet + dev3-005 dispute pair + dev3-012 confirm + dev3-013 payout + the sanctioned dev3-017 admin-governance pair + the dev1-006 purchase write on top of the auth quartet + notification read-latch pair + users-locale surface", () => {
+  test("Mutation root is EXACTLY the refreshed frozen 24-op baseline — the reconciled dev3-016 admin-user trio + dev3-004 quartet + dev3-005 dispute pair + dev3-012 confirm + dev3-013 payout + the sanctioned dev3-017 admin-governance pair + the subscription purchase write on top of the auth quartet + notification read-latch pair + users-locale surface", () => {
     const names = fieldSurfaces("Mutation").map(surface => surface.name);
     expect(names.toSorted((a, b) => a.localeCompare(b))).toEqual([...FROZEN_MUTATION_FIELDS]);
   });

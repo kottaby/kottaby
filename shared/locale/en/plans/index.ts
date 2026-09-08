@@ -56,6 +56,6 @@ export const plansEn: PlansLabels = {
   validationSessionCountMessage: "Session count must be a positive integer.",
   validationPriceMessage: "Price must be a valid non-negative decimal with up to 2 fraction digits (e.g. 250.00).",
   validationCurrencyMessage: "Currency must be a 3-letter code (e.g. EGP, USD).",
-  validationIntervalDaysMessage: "Interval days must be a positive integer.",
+  validationIntervalDaysMessage: "Interval days must be a whole number between 1 and 3650.",
   validationBalanceLaneMessage: "Balance lane is required.",
 };

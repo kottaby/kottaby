@@ -17,6 +17,15 @@ import { Plans } from "@/shared/locale/namespaces/plans";
 
 type PlanItem = AdminPlansQuery["adminPlans"][number];
 
+/**
+ * Upper bound on a plan's billing interval (ten years) — mirrors the
+ * server-side catalog ceiling (`MAX_INTERVAL_DAYS` in
+ * `backend/services/billing/plan-catalog.helpers.ts`) so an out-of-range
+ * value is rejected client-side with the field's own validation message
+ * instead of round-tripping into a generic server validation error.
+ */
+const MAX_INTERVAL_DAYS = 3650;
+
 export interface PlanFormState {
   readonly title: string;
   readonly sessionCount: string;
@@ -109,7 +118,7 @@ export function usePlanForm({ plan, serverFieldErrors, onSubmit }: UsePlanFormOp
     }
 
     const intervalDaysNum = Number(form.intervalDays);
-    if (!Number.isInteger(intervalDaysNum) || intervalDaysNum <= 0) {
+    if (!Number.isInteger(intervalDaysNum) || intervalDaysNum <= 0 || intervalDaysNum > MAX_INTERVAL_DAYS) {
       errors.intervalDays = t.validationIntervalDaysMessage;
     }
 

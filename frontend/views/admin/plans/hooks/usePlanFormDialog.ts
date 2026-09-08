@@ -14,10 +14,31 @@ import { useMutation } from "@apollo/client/react";
 import { useState } from "react";
 import type { AdminPlansQuery, CreatePlanInput } from "@/frontend/graphql/generated/gql/graphql";
 import { createPlanMutationDocument, updatePlanMutationDocument } from "@/frontend/graphql/sharedDocuments/billing";
+import { logger } from "@/frontend/lib/logger";
 import { useAppTranslation } from "@/shared/locale/client";
 import { Plans } from "@/shared/locale/namespaces/plans";
 
 type PlanItem = AdminPlansQuery["adminPlans"][number];
+
+/**
+ * Post-create view refresh — the mutation has already committed, so the
+ * refetch is NEVER a gate on the create's success. A refetch rejection is
+ * logged and swallowed: surfacing it as a form error after the success toast
+ * (with the dialog still open) would contradict the committed state and
+ * invite a duplicate submission. The flow proceeds to toast + close,
+ * mirroring the edit path where the mutation alone decides the dialog's fate.
+ */
+async function refetchAfterCreate(refetch: () => Promise<unknown>): Promise<void> {
+  try {
+    await refetch();
+  } catch (refetchError: unknown) {
+    logger.error(
+      { caller: "usePlanFormDialog.handleFormSubmit" },
+      "[PlanCatalog] Post-create refetch failed — the plan IS created; closing with the success toast.",
+      refetchError
+    );
+  }
+}
 
 export interface UsePlanFormDialogOptions {
   readonly refetch: () => Promise<unknown>;
@@ -86,8 +107,10 @@ export function usePlanFormDialog({ refetch, onSuccess }: UsePlanFormDialogOptio
         await createPlan({
           variables: { input },
         });
+        // View refresh only — a rejection is logged inside and never
+        // masquerades as a failed create (the duplicate-submission hazard).
+        await refetchAfterCreate(refetch);
         onSuccess(t.createSuccessToast);
-        await refetch();
       }
       setFormOpen(false);
     } catch (err: unknown) {

@@ -54,6 +54,6 @@ export const plansAr: PlansLabels = {
   validationSessionCountMessage: "يجب أن يكون عدد الجلسات عددًا صحيحًا موجبًا.",
   validationPriceMessage: "يجب أن يكون السعر رقمًا عشريًا غير سالب صالحًا بحد أقصى منزلتين عشريتين (مثال: 250.00).",
   validationCurrencyMessage: "يجب أن تكون العملة رمزًا من 3 أحرف (مثل EGP، USD).",
-  validationIntervalDaysMessage: "يجب أن تكون مدة الصلاحية بالأيام عددًا صحيحًا موجبًا.",
+  validationIntervalDaysMessage: "يجب أن تكون مدة الصلاحية بالأيام عددًا صحيحًا بين 1 و3650.",
   validationBalanceLaneMessage: "يجب اختيار مسار الرصيد.",
 };

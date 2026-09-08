@@ -144,17 +144,28 @@ const LANE_TAJWEED: string = SubscriptionCreditLane.Tajweed;
 
 /**
  * Maps the plan row's stored balance-lane value onto the strongly-typed enum
- * the credit primitive requires — total over the closed pg-enum vocabulary
- * (the reviews member closes the union), never a cast.
+ * the credit primitive requires — FAIL-CLOSED over the closed pg-enum
+ * vocabulary: every writable member is mapped explicitly (never a cast), and
+ * an unknown stored value is an internal invariant breach (vocabulary drift
+ * between the DB enum and this code) that aborts the activation unit closed
+ * — the tx rolls back, nothing is credited — instead of silently crediting a
+ * DIFFERENT lane than the plan designated (loud over silent-wrong; the same
+ * discipline as the sibling mappers). Unreachable through the pgEnum.
  */
-function subscriptionCreditLaneOf(lane: PlanSelectType["balanceLane"] & string): SubscriptionCreditLane {
+function subscriptionCreditLaneOf(
+  lane: PlanSelectType["balanceLane"] & string,
+  correlation: { readonly reference: string; readonly subscriptionId: number; readonly planId: number }
+): SubscriptionCreditLane {
   if (lane === LANE_HIFZ) {
     return SubscriptionCreditLane.Hifz;
   }
   if (lane === LANE_TAJWEED) {
     return SubscriptionCreditLane.Tajweed;
   }
-  return SubscriptionCreditLane.Reviews;
+  return abortActivation("stored plan balance lane is not a member of the closed credit-lane vocabulary", {
+    ...correlation,
+    storedLane: lane,
+  });
 }
 
 /**
@@ -289,7 +300,9 @@ async function confirmPayment(
     // vanished (unreachable through the FK restrict) — fail closed.
     const credited = await StudentRepository.creditLaneBalance(
       subscription.userId,
-      subscriptionCreditLaneOf(plan.balanceLane),
+      // Fail-closed lane resolution — an unknown stored lane aborts the
+      // unit closed instead of crediting a lane the plan never designated.
+      subscriptionCreditLaneOf(plan.balanceLane, { reference, subscriptionId: subscription.id, planId: plan.id }),
       plan.sessionCount,
       tx
     );

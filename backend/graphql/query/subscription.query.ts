@@ -54,7 +54,9 @@ gqlSchemaBuilder.queryField("mySubscriptions", t =>
       }
       // Zero arguments: the read scope IS the verified context identity —
       // the owner predicate lives service-side on the caller's own rows.
-      return SubscriptionPurchaseService.listOwn(ctx.user.id);
+      // Locale propagates per backend/graphql/AGENTS.md (the context field
+      // is always materialized — defaulted from cookie/header).
+      return SubscriptionPurchaseService.listOwn(ctx.user.id, ctx.locale);
     },
   })
 );
