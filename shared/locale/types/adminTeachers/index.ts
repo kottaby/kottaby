@@ -222,6 +222,11 @@ export interface AdminTeachersLabels {
     readonly emailCopied: string;
     /** Full-profile link — routes to the admin user-detail page. */
     readonly viewProfile: string;
+    /** Toolbar action — copies the CURRENT shareable view URL (filters,
+     * search, tab and page mirrored in the query string). */
+    readonly copyLink: string;
+    /** Snackbar shown after the view URL is copied to the clipboard. */
+    readonly linkCopied: string;
   };
 
   /**

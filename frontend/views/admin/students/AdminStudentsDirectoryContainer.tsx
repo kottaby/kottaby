@@ -127,6 +127,9 @@ export function AdminStudentsDirectoryContainer(): ReactNode {
         }}
         exportLoading={directory.exportLoading}
         exportDisabled={directory.exportLoading || directory.loading || directory.total === 0}
+        onCopyLink={() => {
+          directory.showSnackbar(labels.quickActions.linkCopied);
+        }}
       />
 
       {directory.hasError && (

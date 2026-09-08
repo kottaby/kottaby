@@ -102,6 +102,9 @@ export function AdminApplicantsPanel({ labels, applicants }: AdminApplicantsPane
         onExportCsv={() => {
           void handleExportCsv();
         }}
+        onCopyLink={() => {
+          applicants.showSnackbar(labels.quickActions.linkCopied);
+        }}
         exportLoading={applicants.exportLoading}
         exportDisabled={applicants.exportLoading || applicants.loading || applicants.total === 0}
       />

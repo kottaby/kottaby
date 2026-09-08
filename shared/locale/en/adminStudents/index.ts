@@ -50,6 +50,8 @@ export const adminStudentsEn: AdminStudentsLabels = {
     copyEmail: "Copy email address",
     emailCopied: "Email address copied to clipboard.",
     viewProfile: "View full profile",
+    copyLink: "Copy link",
+    linkCopied: "View link copied to clipboard.",
   },
   export: {
     exportCsv: "Export CSV",

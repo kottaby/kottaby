@@ -12,6 +12,12 @@
  *    keystrokes never fire wasted queries), each setter resetting the page
  *    to the first page so a new result set is never opened on a stale page
  *    index,
+ *  - the SHAREABLE-URL mirror of the APPLIED state: the query string seeds
+ *    the initial state on mount (fail-closed parse — a stale or hand-edited
+ *    link degrades to the defaults) and is written back through
+ *    `router.replace` whenever the applied state settles, so a filtered
+ *    view can be copied, bookmarked, or reloaded (directory-url-state.ts
+ *    owns the pure contract),
  *  - the read-only `adminStudents` query (cache-and-network so refetches
  *    keep the current rows visible while the fresh page streams in),
  *  - the server-side EXPORT-ALL flow (`exportAll` — the dedicated export
@@ -27,7 +33,8 @@
  */
 
 import { useApolloClient, useQuery } from "@apollo/client/react";
-import { useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
 import type {
   AdminStudentFiltersInput,
   AdminStudentsExportQuery,
@@ -36,24 +43,37 @@ import type {
 } from "@/frontend/graphql/generated/gql/graphql";
 import { adminStudentsExportQueryDocument, adminStudentsQueryDocument } from "@/frontend/graphql/sharedDocuments/admin";
 import { extractErrorCode } from "@/frontend/lib/graphql-error-utils";
+import { parseStudentsUrlState, serializeStudentsUrlState } from "@/frontend/views/admin/directory-url-state";
 import {
   hasParentFilterToBoolean,
   type StudentHasParentFilter,
 } from "@/frontend/views/admin/students/adminStudentsDirectory.helpers";
 import type { DirectorySnackbar, DirectorySnackbarSeverity } from "@/frontend/views/admin/users/directory";
 
-const DEFAULT_PAGE_SIZE = 10;
-
 export function useAdminStudentsDirectory() {
-  const [hasParentFilter, setHasParentFilterState] = useState<StudentHasParentFilter | "">("");
-  const [searchInput, setSearchInputState] = useState("");
-  const [searchDebounced, setSearchDebounced] = useState("");
+  // ── Shareable-URL seeding (mount-once) ────────────────────────────────
+  // The URL is the initial-state SOURCE for a shared/bookmarked link:
+  // `?q=ali&parent=with&lang=Quran&page=2&size=25` opens the surface with
+  // that exact view (the applied search seeds BOTH the draft and the
+  // debounced value so the FIRST query is already filtered — no unfiltered
+  // first fetch). Parsing is fail-closed (directory-url-state.ts); every
+  // omitted key falls back to the same default the bare path renders. The
+  // params object is read ONCE here — later URL changes do not re-seed
+  // (the surface owns state; the URL is its mirror, not its driver).
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+  const urlSeed = parseStudentsUrlState(searchParams);
+
+  const [hasParentFilter, setHasParentFilterState] = useState<StudentHasParentFilter | "">(urlSeed.parent);
+  const [searchInput, setSearchInputState] = useState(urlSeed.q);
+  const [searchDebounced, setSearchDebounced] = useState(urlSeed.q);
   // The language filter is an exact-match backend predicate, so the draft is
   // held locally and committed on Enter / Apply — never per keystroke.
-  const [languageDraft, setLanguageDraft] = useState("");
-  const [languageFilter, setLanguageFilterState] = useState("");
-  const [page, setPage] = useState(0);
-  const [pageSize, setPageSizeState] = useState(DEFAULT_PAGE_SIZE);
+  const [languageDraft, setLanguageDraft] = useState(urlSeed.lang);
+  const [languageFilter, setLanguageFilterState] = useState(urlSeed.lang);
+  const [page, setPage] = useState(urlSeed.page);
+  const [pageSize, setPageSizeState] = useState<number>(urlSeed.pageSize);
   const [exportLoading, setExportLoading] = useState(false);
   const [snackbar, setSnackbar] = useState<DirectorySnackbar | null>(null);
   const client = useApolloClient();
@@ -64,6 +84,31 @@ export function useAdminStudentsDirectory() {
   if (searchInput !== searchDebounced) {
     setTimeout(() => setSearchDebounced(searchInput), 300);
   }
+
+  // ── Shareable-URL write-back (the URL mirrors the APPLIED state) ──────
+  // The APPLIED (post-debounce) state — never the raw draft — serializes
+  // into the query string through `router.replace` (no history entry per
+  // keystroke; back/forward navigate BETWEEN surfaces, not between filter
+  // states). Defaults are OMITTED (a clean surface shares as the bare
+  // path), the write is skipped when the URL already matches (no replace
+  // churn on unrelated re-renders), and `{ scroll: false }` keeps the
+  // viewport anchored while typing or paging.
+  const appliedQuery = serializeStudentsUrlState({
+    q: searchDebounced,
+    parent: hasParentFilter,
+    lang: languageFilter,
+    page,
+    pageSize,
+  });
+  useEffect(() => {
+    if (searchParams.toString() !== appliedQuery) {
+      router.replace(appliedQuery === "" ? pathname : `${pathname}?${appliedQuery}`, { scroll: false });
+    }
+    // `searchParams.toString` stays a dependency (biome's preferred shape —
+    // a fresh function reference per params object): after the replace the
+    // guard re-reads the NEW url, sees it already mirrors the applied state,
+    // and skips — one extra effect pass, zero replace churn.
+  }, [appliedQuery, router, pathname, searchParams.toString]);
 
   // Every filter setter resets to the first page — a new result set starts
   // at page 1, never on a stale (possibly out-of-range) page index.

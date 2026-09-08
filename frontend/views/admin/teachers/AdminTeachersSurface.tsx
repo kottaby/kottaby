@@ -34,11 +34,13 @@
  */
 
 import { Box, Card, Stack, Tab, Tabs, Typography } from "@mui/material";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type { ReactNode } from "react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { parseTeachersUrlTab, serializeTeachersSurfaceUrlState } from "@/frontend/views/admin/directory-url-state";
 import { AdminApplicantsPanel } from "@/frontend/views/admin/teachers/AdminApplicantsPanel";
 import { AdminTeachersDirectoryPanel } from "@/frontend/views/admin/teachers/AdminTeachersDirectoryPanel";
-import { useAdminTeacherApplicants } from "@/frontend/views/admin/teachers/hooks";
+import { useAdminTeacherApplicants, useAdminTeachersDirectory } from "@/frontend/views/admin/teachers/hooks";
 import { useAppTranslation } from "@/shared/locale/client";
 import { AdminTeachers } from "@/shared/locale/namespaces/adminTeachers";
 
@@ -47,10 +49,52 @@ type TeachersTab = "teachers" | "applicants";
 
 export function AdminTeachersSurface(): ReactNode {
   const labels = useAppTranslation(AdminTeachers);
+  // ── Shareable-URL wiring (the surface owns the write side) ───────────
+  // Both hooks seed their initial state from the query string (each gated
+  // on its own tab — directory-url-state.ts); this effect mirrors the
+  // ACTIVE tab's view back into the URL through `router.replace` (no
+  // history churn, `{ scroll: false }`), so a filtered tab view copies,
+  // bookmarks, and reloads faithfully. Defaults are omitted — a pristine
+  // surface shares as the bare path (and `tab=applicants` alone still
+  // names the queue even when its view is default).
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
   // Lifted queue state — the badge reads the honest total; the applicants
   // panel receives the same slice as a prop (single query, no duplication).
   const applicants = useAdminTeacherApplicants();
-  const [activeTab, setActiveTab] = useState<TeachersTab>("teachers");
+  // The directory hook is lifted for the SAME reason (single composed URL
+  // write) — the panel consumes it as a prop, mirroring the applicants
+  // panel's presentational contract.
+  const directory = useAdminTeachersDirectory();
+  const [activeTab, setActiveTab] = useState<TeachersTab>(() => parseTeachersUrlTab(searchParams));
+
+  const urlQuery = serializeTeachersSurfaceUrlState({
+    tab: activeTab,
+    directory: {
+      q: directory.searchDebounced,
+      approval: directory.approvalFilter,
+      online: directory.onlineFilter,
+      evaluator: directory.evaluatorFilter,
+      page: directory.page,
+      pageSize: directory.pageSize,
+    },
+    applicants: {
+      q: applicants.searchDebounced,
+      status: applicants.statusFilter,
+      page: applicants.page,
+      pageSize: applicants.pageSize,
+    },
+  });
+  useEffect(() => {
+    if (searchParams.toString() !== urlQuery) {
+      router.replace(urlQuery === "" ? pathname : `${pathname}?${urlQuery}`, { scroll: false });
+    }
+    // `searchParams.toString` stays a dependency (biome's preferred shape —
+    // a fresh function reference per params object): after the replace the
+    // guard re-reads the NEW url, sees it already mirrors the active view,
+    // and skips — one extra effect pass, zero replace churn.
+  }, [urlQuery, router, pathname, searchParams.toString]);
 
   // The count badge is an INACTIVE-tab affordance: while the admin reads
   // the queue the pagination footer already shows the total, so the badge
@@ -123,6 +167,7 @@ export function AdminTeachersSurface(): ReactNode {
           can gate its join-requests CTA on the SAME source the badge uses.
         */}
         <AdminTeachersDirectoryPanel
+          directory={directory}
           hasApplicants={applicants.total > 0}
           onReviewApplicants={() => {
             setActiveTab("applicants");

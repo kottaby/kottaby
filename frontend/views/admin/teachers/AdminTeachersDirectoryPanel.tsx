@@ -44,7 +44,7 @@ import { AdminTeacherDetailDrawer } from "@/frontend/views/admin/teachers/AdminT
 import type { TeacherDirectoryItem } from "@/frontend/views/admin/teachers/AdminTeacherRowCells";
 import { AdminTeachersResults } from "@/frontend/views/admin/teachers/AdminTeachersResults";
 import { AdminTeachersToolbar } from "@/frontend/views/admin/teachers/AdminTeachersToolbar";
-import { useAdminTeachersDirectory } from "@/frontend/views/admin/teachers/hooks";
+import type { useAdminTeachersDirectory } from "@/frontend/views/admin/teachers/hooks";
 import {
   buildTeachersDirectoryCsv,
   teachersDirectoryCsvFilename,
@@ -56,7 +56,14 @@ import { AdminTeachers } from "@/shared/locale/namespaces/adminTeachers";
 /** ICU token of `export.exportedRows` (one per locale, parity-pinned). */
 const EXPORTED_ROWS_PLACEHOLDER = "{count}";
 
+/** Directory state slice — wired in the SURFACE (lifted like the applicants
+ * queue) so the shareable-URL write effect can compose the active tab's
+ * view from one place. */
+type DirectoryState = ReturnType<typeof useAdminTeachersDirectory>;
+
 interface AdminTeachersDirectoryPanelProps {
+  /** The lifted directory state (query/filters/snackbar/export wiring). */
+  readonly directory: DirectoryState;
   /** Whether the applicant queue holds ≥1 row (gates the join-requests CTA). */
   readonly hasApplicants: boolean;
   /** Flips the /teachers surface to the applicants tab (surface-owned state). */
@@ -64,12 +71,12 @@ interface AdminTeachersDirectoryPanelProps {
 }
 
 export function AdminTeachersDirectoryPanel({
+  directory,
   hasApplicants,
   onReviewApplicants,
 }: AdminTeachersDirectoryPanelProps): ReactNode {
   const labels = useAppTranslation(AdminTeachers);
   const locale = useAppLocale();
-  const directory = useAdminTeachersDirectory();
   // Single detail-drawer instance per directory — `selectedTeacher` stays
   // mounted through the drawer's exit transition (only `drawerOpen` flips
   // on close), so the panel never slides out empty.
@@ -133,6 +140,9 @@ export function AdminTeachersDirectoryPanel({
         directory={directory}
         loading={directory.loading}
         hasFilters={directory.hasFilters}
+        onCopyLink={() => {
+          directory.showSnackbar(labels.quickActions.linkCopied);
+        }}
         onExportCsv={() => {
           void handleExportCsv();
         }}

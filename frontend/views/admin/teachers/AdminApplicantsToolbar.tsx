@@ -28,11 +28,13 @@
 
 import {
   FileDownloadOutlined as DownloadIcon,
+  LinkOutlined as LinkIcon,
   RefreshOutlined as RefreshIcon,
   SearchOutlined as SearchIcon,
 } from "@mui/icons-material";
 import { Box, Button, Card, TextField, Tooltip } from "@mui/material";
 import type { ReactNode } from "react";
+import { useDirectoryCopyLink } from "@/frontend/views/admin/directory-copy-link";
 import { ApplicantStatusQuickFilters } from "@/frontend/views/admin/teachers/ApplicantStatusQuickFilters";
 import {
   ADMIN_APPLICANT_STATUSES,
@@ -43,7 +45,10 @@ import type { useAdminTeacherApplicants } from "@/frontend/views/admin/teachers/
 import { DirectoryFilterSelect } from "@/frontend/views/admin/users/directory";
 import type { AdminTeachersLabels } from "@/shared/locale/types/adminTeachers";
 
-type ToolbarLabels = Pick<AdminTeachersLabels, "filters" | "filterOptions" | "headers" | "applicantStatus" | "export">;
+type ToolbarLabels = Pick<
+  AdminTeachersLabels,
+  "filters" | "filterOptions" | "headers" | "applicantStatus" | "export" | "quickActions"
+>;
 
 /** Queue state slice consumed by the toolbar (from `useAdminTeacherApplicants`). */
 type ToolbarApplicants = Pick<
@@ -64,6 +69,8 @@ interface AdminApplicantsToolbarProps {
   readonly exportLoading: boolean;
   /** `true` while loading or the filtered total is zero — nothing to export. */
   readonly exportDisabled: boolean;
+  /** Invoked after the view URL copies successfully (drives the snackbar). */
+  readonly onCopyLink?: () => void;
 }
 
 export function AdminApplicantsToolbar({
@@ -74,6 +81,7 @@ export function AdminApplicantsToolbar({
   onExportCsv,
   exportLoading,
   exportDisabled,
+  onCopyLink,
 }: AdminApplicantsToolbarProps): ReactNode {
   // Stable element ids — wire `InputLabel htmlFor` ↔ control `id` so screen
   // readers announce the label when focus lands on the control (axe-core
@@ -123,6 +131,7 @@ export function AdminApplicantsToolbar({
               {labels.filters.clear}
             </Button>
           )}
+          <CopyLinkButton labels={labels} onCopyLink={onCopyLink} />
           <ExportCsvButton
             labels={labels}
             onExportCsv={onExportCsv}
@@ -172,6 +181,43 @@ interface ExportCsvButtonProps {
   readonly onExportCsv: () => void;
   readonly exportLoading: boolean;
   readonly exportDisabled: boolean;
+}
+
+interface CopyLinkButtonProps {
+  readonly labels: ToolbarLabels;
+  /** Invoked after the view URL copies successfully (drives the snackbar). */
+  readonly onCopyLink?: () => void;
+}
+
+/**
+ * The shareable-view action — copies the CURRENT URL (the surface's
+ * URL-mirror effect keeps the query string in sync with the active tab's
+ * applied filters, so what the admin pastes is exactly what they see).
+ * Same text-button recipe as the export/refresh actions next to it; the
+ * icon tints to the success color while the copy has resolved, and
+ * failures stay silent (the snackbar never lies about a copy that did not
+ * happen).
+ */
+function CopyLinkButton({ labels, onCopyLink }: CopyLinkButtonProps): ReactNode {
+  const { linkCopied, handleCopyLink } = useDirectoryCopyLink(onCopyLink);
+  return (
+    <Tooltip title={labels.quickActions.copyLink} placement="top">
+      <Button
+        variant="text"
+        startIcon={
+          <LinkIcon
+            fontSize="small"
+            sx={theme => ({ color: linkCopied ? theme.palette.success.main : theme.palette.text.secondary })}
+          />
+        }
+        onClick={handleCopyLink}
+        aria-label={labels.quickActions.copyLink}
+        sx={theme => ({ minHeight: 44, flexShrink: 0, color: theme.palette.text.secondary })}
+      >
+        {labels.quickActions.copyLink}
+      </Button>
+    </Tooltip>
+  );
 }
 
 /**

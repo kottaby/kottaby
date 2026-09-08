@@ -50,6 +50,8 @@ export const adminStudentsAr: AdminStudentsLabels = {
     copyEmail: "نسخ البريد الإلكتروني",
     emailCopied: "تم نسخ البريد الإلكتروني.",
     viewProfile: "عرض الملف الكامل",
+    copyLink: "نسخ الرابط",
+    linkCopied: "تم نسخ رابط العرض.",
   },
   export: {
     exportCsv: "تصدير CSV",

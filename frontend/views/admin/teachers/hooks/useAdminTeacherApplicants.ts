@@ -27,6 +27,7 @@
  */
 
 import { useApolloClient, useQuery } from "@apollo/client/react";
+import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 import type {
   AdminApplicantFiltersInput,
@@ -39,17 +40,25 @@ import {
   adminTeacherApplicantsQueryDocument,
 } from "@/frontend/graphql/sharedDocuments/admin";
 import { extractErrorCode } from "@/frontend/lib/graphql-error-utils";
+import { parseApplicantsUrlState, parseTeachersUrlTab } from "@/frontend/views/admin/directory-url-state";
 import type { ApplicantStatusFilter } from "@/frontend/views/admin/teachers/adminApplicants.helpers";
 import type { DirectorySnackbar, DirectorySnackbarSeverity } from "@/frontend/views/admin/users/directory";
 
-const DEFAULT_PAGE_SIZE = 10;
-
 export function useAdminTeacherApplicants() {
-  const [statusFilter, setStatusFilterState] = useState<ApplicantStatusFilter | "">("");
-  const [searchInput, setSearchInputState] = useState("");
-  const [searchDebounced, setSearchDebounced] = useState("");
-  const [page, setPage] = useState(0);
-  const [pageSize, setPageSizeState] = useState(DEFAULT_PAGE_SIZE);
+  // ── Shareable-URL seeding (mount-once, ACTIVE-TAB-GATED) ────────────
+  // Mirror of the directory hook's contract: seeds from the URL ONLY when
+  // the link's `tab` key names THIS tab — a shared `?tab=applicants&q=demo`
+  // opens the queue pre-filtered, and the hidden directory stays pristine.
+  // The surface owns the write side.
+  const searchParams = useSearchParams();
+  const urlSeed =
+    parseTeachersUrlTab(searchParams) === "applicants" ? parseApplicantsUrlState(searchParams) : undefined;
+
+  const [statusFilter, setStatusFilterState] = useState<ApplicantStatusFilter | "">(urlSeed?.status ?? "");
+  const [searchInput, setSearchInputState] = useState(urlSeed?.q ?? "");
+  const [searchDebounced, setSearchDebounced] = useState(urlSeed?.q ?? "");
+  const [page, setPage] = useState(urlSeed?.page ?? 0);
+  const [pageSize, setPageSizeState] = useState<number>(urlSeed?.pageSize ?? 10);
   const [exportLoading, setExportLoading] = useState(false);
   const [snackbar, setSnackbar] = useState<DirectorySnackbar | null>(null);
   const client = useApolloClient();

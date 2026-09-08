@@ -26,6 +26,7 @@
  */
 
 import { useApolloClient, useQuery } from "@apollo/client/react";
+import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 import type {
   AdminTeacherFiltersInput,
@@ -35,6 +36,7 @@ import type {
 } from "@/frontend/graphql/generated/gql/graphql";
 import { adminTeachersExportQueryDocument, adminTeachersQueryDocument } from "@/frontend/graphql/sharedDocuments/admin";
 import { extractErrorCode } from "@/frontend/lib/graphql-error-utils";
+import { parseTeachersDirectoryUrlState, parseTeachersUrlTab } from "@/frontend/views/admin/directory-url-state";
 import {
   approvalFilterToBoolean,
   evaluatorFilterToBoolean,
@@ -45,16 +47,24 @@ import {
 } from "@/frontend/views/admin/teachers/adminTeachersDirectory.helpers";
 import type { DirectorySnackbar, DirectorySnackbarSeverity } from "@/frontend/views/admin/users/directory";
 
-const DEFAULT_PAGE_SIZE = 10;
-
 export function useAdminTeachersDirectory() {
-  const [approvalFilter, setApprovalFilterState] = useState<TeacherApprovalFilter | "">("");
-  const [onlineFilter, setOnlineFilterState] = useState<TeacherOnlineFilter | "">("");
-  const [evaluatorFilter, setEvaluatorFilterState] = useState<TeacherEvaluatorFilter | "">("");
-  const [searchInput, setSearchInputState] = useState("");
-  const [searchDebounced, setSearchDebounced] = useState("");
-  const [page, setPage] = useState(0);
-  const [pageSize, setPageSizeState] = useState(DEFAULT_PAGE_SIZE);
+  // ── Shareable-URL seeding (mount-once, ACTIVE-TAB-GATED) ────────────
+  // The surface's write effect mirrors ONLY the active tab's view into the
+  // URL, so this hook seeds from the URL ONLY when the URL's `tab` key
+  // names THIS tab (default) — a link to `?tab=applicants&q=demo` must not
+  // plant `demo` in the hidden directory's search box. The surface owns
+  // the write side; this hook only consumes the shared link on mount.
+  const searchParams = useSearchParams();
+  const activeTabAtMount = parseTeachersUrlTab(searchParams);
+  const urlSeed = activeTabAtMount === "teachers" ? parseTeachersDirectoryUrlState(searchParams) : undefined;
+
+  const [approvalFilter, setApprovalFilterState] = useState<TeacherApprovalFilter | "">(urlSeed?.approval ?? "");
+  const [onlineFilter, setOnlineFilterState] = useState<TeacherOnlineFilter | "">(urlSeed?.online ?? "");
+  const [evaluatorFilter, setEvaluatorFilterState] = useState<TeacherEvaluatorFilter | "">(urlSeed?.evaluator ?? "");
+  const [searchInput, setSearchInputState] = useState(urlSeed?.q ?? "");
+  const [searchDebounced, setSearchDebounced] = useState(urlSeed?.q ?? "");
+  const [page, setPage] = useState(urlSeed?.page ?? 0);
+  const [pageSize, setPageSizeState] = useState<number>(urlSeed?.pageSize ?? 10);
   const [exportLoading, setExportLoading] = useState(false);
   const [snackbar, setSnackbar] = useState<DirectorySnackbar | null>(null);
   const client = useApolloClient();
