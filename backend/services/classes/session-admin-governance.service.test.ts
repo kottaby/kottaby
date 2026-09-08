@@ -79,18 +79,18 @@ import { users } from "@/backend/db/schema/users/users";
 import { createTestStudent, createTestUser } from "@/backend/db/test/entity-setup";
 import { expectRepoError, runInRollback } from "@/backend/db/test/test-utils";
 import { AuditActionType } from "@/backend/enum/audit/audit-action-type.enum";
+import { NotificationType } from "@/backend/enum/notifications/notification-type.enum";
 import { HeldBalanceLane } from "@/backend/enum/scheduling/held-balance-lane.enum";
 import { SessionIntent } from "@/backend/enum/scheduling/session-intent.enum";
 import { SessionStatus } from "@/backend/enum/scheduling/session-status.enum";
 import { SessionType } from "@/backend/enum/scheduling/session-type.enum";
-import { NotificationType } from "@/backend/enum/notifications/notification-type.enum";
 import { ConflictError, DomainError, NotFoundError } from "@/backend/lib/errors";
 import { SessionAdminGovernanceService } from "@/backend/services/classes/session-admin-governance";
 import { joinObservationInTx } from "@/backend/services/classes/session-admin-governance.helpers";
 import { SessionLifecycleService } from "@/backend/services/classes/session-lifecycle.service";
 import type { NotificationEngineCallOptions } from "@/backend/services/notifications";
-import { buildEmitClaimKey } from "@/backend/services/notifications/emit-idempotency";
 import type { NotificationIdempotencyClaimCache } from "@/backend/services/notifications/emit-idempotency";
+import { buildEmitClaimKey } from "@/backend/services/notifications/emit-idempotency";
 import type {
   AdminSessionCancelInput,
   AdminSessionJoinInput,
@@ -1298,6 +1298,28 @@ describe("SessionAdminGovernanceService — reassignTeacher (runInRollback)", ()
           expect(await countAuditsForSession(tx, row.id)).toBe(0);
         })
       );
+    });
+  });
+
+  test("a same-teacher reassignment: the guard's different-teacher fold denies it as the transition conflict with zero writes and zero waves", async () => {
+    await runInRollback(async tx => {
+      const actors = await createSessionActors(tx);
+      const { adminId } = await createTestAdmin(tx);
+      const row = await insertSessionRow(tx, actors, {});
+
+      const caught = await expectRepoError(() =>
+        reassignVia(tx, adminId, { sessionId: row.id, newTeacherUserId: actors.teacherUserId })
+      );
+      expectDomainDenial(caught, "SESSION_INVALID_TRANSITION", ERRORS_EN.sessionInvalidTransition);
+      expect(caught).toBeInstanceOf(ConflictError);
+
+      // The zero-row guard miss is a pure denial: the row is byte-identical
+      // to its pre-call state, with no audit row and no notification wave
+      // (the certification pre-assertion passed — the guard is the denial).
+      const stored = await readSessionRow(tx, row.id);
+      expect(stored).toEqual(row);
+      expect(await countAuditsForSession(tx, row.id)).toBe(0);
+      expect(await countNotificationsFor(tx, [actors.studentUserId, actors.teacherUserId])).toBe(0);
     });
   });
 });

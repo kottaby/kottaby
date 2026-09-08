@@ -51,7 +51,7 @@
  * signatures, behavior) is unchanged.
  */
 
-import { and, eq, isNotNull, or, type SQL, sql } from "drizzle-orm";
+import { and, eq, isNotNull, ne, or, type SQL, sql } from "drizzle-orm";
 import { db } from "@/backend/db";
 import * as sessionRepositoryImpl from "@/backend/db/repo/classes/session.repository.helpers";
 import { session } from "@/backend/db/schema/classes/session";
@@ -642,18 +642,23 @@ export namespace SessionRepository {
 
   /**
    * Admin teacher-reassignment guard: a single guarded UPDATE whose
-   * predicate requires row identity and the row still being `scheduled` —
-   * the only state in which the owning teacher may be swapped (an
-   * in-progress or finished meeting has its teacher fixed, and a disputed
-   * row belongs to arbitration). Writes ONLY the replacement teacher id
-   * plus the audit stamp from one captured instant — the candidate's
-   * certification is the CALLER's pre-write assertion (the fused
-   * certification re-assertion shape of `completeSessionOnce` is the
-   * lifecycle's own pattern for writes that cannot tolerate the gap).
+   * predicate requires row identity, the row still being `scheduled`, and
+   * the row's owning teacher being DIFFERENT from the candidate — the only
+   * state in which the owning teacher may be swapped (an in-progress or
+   * finished meeting has its teacher fixed, and a disputed row belongs to
+   * arbitration). The different-teacher fold is fail-closed: a same-teacher
+   * call (a no-op swap) matches zero rows like any other ineligible state —
+   * the eligibility-fold pattern — so the caller's transition probe
+   * classifies it as the state conflict with zero writes, never as a
+   * silent success. Writes ONLY the replacement teacher id plus the audit
+   * stamp from one captured instant — the candidate's certification is the
+   * CALLER's pre-write assertion (the fused certification re-assertion
+   * shape of `completeSessionOnce` is the lifecycle's own pattern for
+   * writes that cannot tolerate the gap).
    *
-   * @returns The updated row, or `null` when zero rows matched (unknown id
-   *          or a row no longer `scheduled` — the caller classifies via
-   *          the transition probe).
+   * @returns The updated row, or `null` when zero rows matched (unknown id,
+   *          a row no longer `scheduled`, or a same-teacher candidate —
+   *          the caller classifies via the transition probe).
    */
   export async function guardReassignTeacher(
     sessionId: number,
@@ -665,7 +670,9 @@ export namespace SessionRepository {
     const rows = await executor
       .update(session)
       .set({ teacherId: newTeacherId, updatedAt: now })
-      .where(and(eq(session.id, sessionId), eq(session.status, SessionStatus.Scheduled)))
+      .where(
+        and(eq(session.id, sessionId), eq(session.status, SessionStatus.Scheduled), ne(session.teacherId, newTeacherId))
+      )
       .returning();
     return rows[0] ?? null;
   }

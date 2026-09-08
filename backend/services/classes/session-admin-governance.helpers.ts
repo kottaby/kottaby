@@ -369,7 +369,9 @@ export async function cancelSessionInTx(
  * (and classifies an unknown session id), the candidate certification lock
  * is held across check → write in the SAME transaction (the `SELECT … FOR
  * UPDATE` read whose certification value the reassignment commits against),
- * the guarded UPDATE re-asserts the scheduled-only eligibility atomically,
+ * the guarded UPDATE re-asserts the scheduled-only, different-teacher
+ * eligibility atomically (a same-teacher call is a zero-row miss the cold
+ * probe classifies as the transition conflict — zero writes),
  * the single audit row records the outgoing/incoming teacher ids, and the
  * reassignment wave persists as unpublished delivery receipts for the
  * student, the outgoing teacher, and the incoming teacher. The caller owns

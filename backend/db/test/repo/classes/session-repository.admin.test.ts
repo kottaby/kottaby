@@ -719,6 +719,28 @@ describe("SessionRepository — admin governance surface (runInRollback)", () =>
     });
   });
 
+  test("guardReassignTeacher refuses a same-teacher swap without writing (the different-teacher fold)", async () => {
+    await runInRollback(async tx => {
+      const actors = await createSessionActors(tx);
+      const row = await insertSessionRow(tx, actors);
+
+      // The owning teacher IS the candidate: the no-op swap is denied
+      // fail-closed at the guard — zero rows match and nothing is written,
+      // the same eligibility-fold miss shape as a wrong-state row, so the
+      // caller's transition probe classifies it as the state conflict.
+      const sameTeacherMiss = await SessionRepository.guardReassignTeacher(row.id, actors.teacherUserId, tx);
+      expect(sameTeacherMiss).toBeNull();
+      expect(await readSessionRow(tx, row.id)).toEqual(row);
+
+      // The fold composes with the state clause: a DIFFERENT candidate
+      // still swaps the same scheduled row.
+      const candidates = await createSessionActors(tx);
+      const swapped = await SessionRepository.guardReassignTeacher(row.id, candidates.teacherUserId, tx);
+      expect(swapped?.teacherId).toBe(candidates.teacherUserId);
+      expect(swapped?.status).toBe(SessionStatus.Scheduled);
+    });
+  });
+
   // ─── Tier 4: the reassignment target is FK-bound ────────────────────
 
   test("an unknown reassignment target surfaces the untranslated FK violation; the row survives via its savepoint", async () => {
@@ -871,11 +893,13 @@ describe("SessionRepository — admin governance surface (runInRollback)", () =>
     expect(repoSource.includes(".set({ teacherId: newTeacherId, updatedAt: now })")).toBe(true);
     expect(repoSource.includes("...input")).toBe(false);
     expect(repoSource.includes("...filter")).toBe(false);
-    // The reassignment's scheduled-only eligibility rides the same
-    // composed-SQL shape as every other guarded transition.
-    expect(repoSource.includes("and(eq(session.id, sessionId), eq(session.status, SessionStatus.Scheduled))")).toBe(
-      true
-    );
+    // The reassignment's scheduled-only, different-teacher eligibility
+    // rides the same composed-SQL shape as every other guarded transition.
+    expect(
+      /and\(\s*eq\(session\.id, sessionId\),\s*eq\(session\.status, SessionStatus\.Scheduled\),\s*ne\(session\.teacherId, newTeacherId\)\s*\)/.test(
+        repoSource
+      )
+    ).toBe(true);
     expect(repoSource.includes("inArray")).toBe(false);
   });
 
