@@ -6,7 +6,7 @@ import type { ReactNode } from "react";
 import { ErrorRetryAlert } from "@/frontend/components/ui/ErrorRetryAlert";
 import { SessionMetaCell } from "@/frontend/components/ui/sessionList";
 import type { AdminSessionQuery_adminSession } from "@/frontend/graphql/generated/gql/graphql";
-import { SessionIntent, SessionStatus, SessionType } from "@/frontend/graphql/generated/gql/graphql";
+import { SessionStatus } from "@/frontend/graphql/generated/gql/graphql";
 import { formatApplicantDate } from "@/frontend/lib/i18n/format-date";
 import { AdminSessionRowStatusCell } from "@/frontend/views/admin/session-governance/AdminSessionRowStatusCell";
 import { SESSION_INTENT_LABEL_KEY, SESSION_TYPE_LABEL_KEY } from "@/frontend/views/admin/session-governance/sessionTypePresentation";
