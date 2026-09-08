@@ -1,3 +1,4 @@
+import { isolateBidiRun as iso, LRM } from "@/shared/locale/bidi";
 import type { NotificationsLabels } from "@/shared/locale/types/notifications";
 
 export const notificationsEn: NotificationsLabels = {
@@ -43,28 +44,30 @@ export const notificationsEn: NotificationsLabels = {
   eventSessionQueuedTitle: "Session request queued",
   eventSessionAlternativesOfferedTitle: "Alternative teachers offered",
   eventSessionRequestBody: (studentName: string, intentLabel: string) =>
-    `${studentName} requested a session with you (${intentLabel}).`,
-  eventSessionAcceptedBody: (teacherName: string) => `${teacherName} accepted your session request.`,
-  eventSessionDeclinedBody: (teacherName: string) => `${teacherName} declined your session request.`,
+    `${LRM}${iso(studentName)} requested a session with you (${intentLabel}).`,
+  eventSessionAcceptedBody: (teacherName: string) => `${LRM}${iso(teacherName)} accepted your session request.`,
+  eventSessionDeclinedBody: (teacherName: string) => `${LRM}${iso(teacherName)} declined your session request.`,
   eventSessionAutoRejectedBody: (teacherName: string) =>
-    `Your session request to ${teacherName} was automatically declined.`,
-  eventSessionQueuedBody: (teacherName: string) => `Your session request to ${teacherName} was added to the queue.`,
+    `Your session request to ${iso(teacherName)} was automatically declined.`,
+  eventSessionQueuedBody: (teacherName: string) =>
+    `Your session request to ${iso(teacherName)} was added to the queue.`,
   eventSessionAlternativesOfferedBody: (teacherName: string) =>
-    `${teacherName} can't take your request, so we offered you alternative teachers.`,
+    `${LRM}${iso(teacherName)} can't take your request, so we offered you alternative teachers.`,
   intentHifz: "Hifz",
   intentTajweed: "Tajweed",
   intentEvaluation: "Evaluation",
   eventParentLinkRequestTitle: "New link request",
-  eventParentLinkRequestBody: (parentName: string) => `${parentName} sent you a link request.`,
+  eventParentLinkRequestBody: (parentName: string) => `${LRM}${iso(parentName)} sent you a link request.`,
   eventParentLinkAcceptedTitle: "Link request confirmed",
-  eventParentLinkAcceptedBody: (studentName: string) => `${studentName} confirmed your link request.`,
+  eventParentLinkAcceptedBody: (studentName: string) => `${LRM}${iso(studentName)} confirmed your link request.`,
   eventParentLinkRejectedTitle: "Link request rejected",
-  eventParentLinkRejectedBody: (studentName: string) => `${studentName} declined your link request.`,
+  eventParentLinkRejectedBody: (studentName: string) => `${LRM}${iso(studentName)} declined your link request.`,
   eventParentLinkExpiringTitle: "Reminder: your link request is expiring soon",
   eventParentLinkExpiringBody: (studentName: string) =>
-    `Your link request for ${studentName} is about to expire — the student can still confirm or decline before it lapses.`,
+    `Your link request for ${iso(studentName)} is about to expire — the student can still confirm or decline before it lapses.`,
   eventSessionReportReadyTitle: "Session report ready",
-  eventSessionReportReadyBody: (teacherName: string) => `${teacherName} submitted a report for your session.`,
+  eventSessionReportReadyBody: (teacherName: string) =>
+    `${LRM}${iso(teacherName)} submitted a report for your session.`,
   eventSessionReportReadyParentBody: (studentName: string, teacherName: string) =>
-    `${teacherName} submitted a session report for ${studentName}.`,
+    `${LRM}${iso(teacherName)} submitted a session report for ${iso(studentName)}.`,
 };
