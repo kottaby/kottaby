@@ -941,16 +941,14 @@ for (const locale of componentSuiteLocales) {
       const dialog = await expectDialogOpen();
       fireEvent.click(within(dialog).getByTestId(`cancel-session-submit-${STARTED_ID}`));
 
-      // Branch-9/10 removal discipline: a bounded `waitFor` over `queryByRole`
-      // pins the dialog's unmount deterministically — the MUI exit transition
-      // resolves under Happy DOM, so no bare sleep is needed. Fail-safe
-      // direction preserved: a still-mounted dialog fails the wait.
-      await waitFor(
-        () => {
-          expect(screen.queryByRole("dialog")).toBeNull();
-        },
-        { timeout: 1500 }
-      );
+      // Positive-signal waits + synchronous removal pin (the sibling-container
+      // convention — cf. StudentSessionsContainer branch 8): the success
+      // snackbar and the cache-merged row chip are the deterministic outcome
+      // signals; the dialog's removal is pinned synchronously AFTER them. A
+      // removal `waitFor` across the MUI exit transition churns unbounded
+      // under Happy DOM (observed RSS balloon → process kill), so no observer
+      // polls the exit — the fail-safe direction is preserved: a still-mounted
+      // dialog fails the sync assert.
       await waitFor(() => {
         expect(screen.getByText(t.cancelSuccess)).toBeDefined();
       });
@@ -960,6 +958,9 @@ for (const locale of componentSuiteLocales) {
         expect(within(screen.getByTestId(`admin-session-row-${STARTED_ID}`)).getByText(ts.statusCancelled)).toBeDefined();
       });
       expect(within(screen.getByTestId(`admin-session-row-${STARTED_ID}`)).queryByText(ts.statusStarted)).toBeNull();
+      // The exit transition has resolved by the outcome signals above —
+      // pin the dialog's departure synchronously.
+      expect(screen.queryByRole("dialog")).toBeNull();
     });
 
     test("branch 17 — join confirm SUCCESS: banner unmounts while the drawer stays open", async () => {
@@ -1001,15 +1002,11 @@ for (const locale of componentSuiteLocales) {
       fireEvent.change(within(dialog).getByLabelText(muiLabelPattern(t.reassignTeacherIdLabel)), { target: { value: "907" } });
       fireEvent.click(within(dialog).getByTestId(`reassign-teacher-submit-${SCHEDULED_FRESH_ID}`));
 
-      // Branch-16 removal discipline: bounded `waitFor` + `queryByRole` (the
-      // same convention as branches 9/10) — the dialog unmounts once the exit
-      // transition resolves; a still-mounted dialog fails the wait.
-      await waitFor(
-        () => {
-          expect(screen.queryByRole("dialog")).toBeNull();
-        },
-        { timeout: 1500 }
-      );
+      // Branch-16 close-path discipline (positive-signal waits + synchronous
+      // removal pin): the success snackbar and the converged row are the
+      // deterministic outcome signals — no observer polls the MUI exit
+      // transition (unbounded churn under Happy DOM); a still-mounted dialog
+      // fails the sync removal assert.
       await waitFor(() => {
         expect(screen.getByText(t.reassignSuccess)).toBeDefined();
       });
@@ -1017,6 +1014,10 @@ for (const locale of componentSuiteLocales) {
       await waitFor(() => {
         expect(within(screen.getByTestId(`admin-session-row-${SCHEDULED_FRESH_ID}`)).getByText("401 · 907")).toBeDefined();
       });
+      // The exit transition has resolved by the outcome signals above —
+      // pin the dialog's departure synchronously.
+      expect(screen.queryByRole("dialog")).toBeNull();
     });
   });
 }
+

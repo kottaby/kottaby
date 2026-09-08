@@ -18,8 +18,7 @@
  * closed and rolls the mutation back), and the idempotency claim — when
  * the caller supplied a key — is inserted savepoint-bracketed BEFORE any
  * session write, with its session pointer backfilled before the body
- * returns — the replay arm backfills it too, so a spent claim always
- * names the session it resolved against.
+ * returns.
  *
  * The public surface stays the `SessionAdminGovernanceService` namespace
  * in `session-admin-governance.ts` (the namespace method owns the boundary
@@ -163,10 +162,9 @@ export function normalizeAdminCancelReason(reason: string | null | undefined): s
  * oracle-safe session-not-found error — another caller's claim is never
  * surfaced. A claim spent on a DIFFERENT session is the state conflict.
  * The idempotent replay shape: the row is already cancelled AND the
- * caller's claim exists → the CURRENT row is returned untouched (no
- * duplicate audit row, no second refund — the replay's only write is the
- * claim's session pointer, below). A vanished claim is fail-closed (no
- * claim, no replay arm). Anything else is the conflict.
+ * caller's claim exists → the CURRENT row is returned untouched (zero new
+ * writes — no duplicate audit row, no second refund). A vanished claim is
+ * fail-closed (no claim, no replay arm). Anything else is the conflict.
  */
 async function replayAdminCancelOrConflict(
   actorId: number,
@@ -182,29 +180,19 @@ async function replayAdminCancelOrConflict(
   if (claim !== null && claim.sessionId !== null && claim.sessionId !== sessionId) {
     return rejectStateConflict("Admin session cancel replay denied: key spent on a different session", sessionId, t);
   }
-  return resolveCancelledReplayOrConflict(sessionId, claim, tx, t);
+  return resolveCancelledReplayOrConflict(sessionId, claim !== null, tx, t);
 }
 
 /**
  * The cancel's zero-row miss classification: a row that is ALREADY
  * cancelled while the caller's claim exists is the honest idempotent
  * replay (the requested state is already achieved — the current row is
- * returned with no duplicate audit row, no second refund, no wave);
- * an unknown id is the not-found denial; every other miss cause is the
- * state conflict.
- *
- * The replay arm commits the claim's session pointer: a claim that spent
- * itself on an already-cancelled row (the guarded UPDATE can never match
- * one) leaves this transaction pointing at the session it replayed
- * against — the same backfill discipline as the success path, so the
- * committed claim can never carry a null pointer. That is what makes the
- * mis-point classification airtight: a later retry with the same key
- * against a DIFFERENT session resolves the pointer mismatch instead of
- * replaying against an unrelated cancelled row.
+ * returned with zero new writes); an unknown id is the not-found denial;
+ * every other miss cause is the state conflict.
  */
 async function resolveCancelledReplayOrConflict(
   sessionId: number,
-  claim: SessionRequestIdempotencySelectType | null,
+  claimExists: boolean,
   tx: DBTransaction,
   t: GovernanceErrorsTranslations
 ): Promise<SessionReturnType> {
@@ -212,10 +200,7 @@ async function resolveCancelledReplayOrConflict(
   if (probe === null) {
     return rejectSessionNotFound("Admin session cancel denied: session not found", sessionId, t);
   }
-  if (probe.status === SESSION_CANCELLED_STATUS && claim !== null) {
-    if (claim.sessionId === null) {
-      await SessionRequestIdempotencyRepository.updateClaimSessionId(claim.id, sessionId, tx);
-    }
+  if (probe.status === SESSION_CANCELLED_STATUS && claimExists) {
     const current = await SessionRepository.getAnyByIdForAdmin(sessionId, tx);
     if (current !== null) {
       return current;
@@ -286,11 +271,10 @@ export async function rescheduleSessionInTx(
  * cancel never burns its key), the guarded cancel UPDATE re-asserts the
  * eligibility atomically, the released hold is refunded through the ONE
  * shared same-lane primitive, exactly ONE audit row is appended, the
- * claim's session pointer is backfilled (the replay arm backfills it too —
- * a committed claim always names the session it resolved against), and the
- * cancellation wave persists as unpublished delivery receipts for both
- * participants. The caller owns the gate, the key-length guard, the
- * boundary validation, the transaction composition, and the publish.
+ * claim's session pointer is backfilled, and the cancellation wave
+ * persists as unpublished delivery receipts for both participants. The
+ * caller owns the gate, the key-length guard, the boundary validation, the
+ * transaction composition, and the publish.
  */
 export async function cancelSessionInTx(
   actorId: number,
@@ -328,7 +312,7 @@ export async function cancelSessionInTx(
   const cancelled = await SessionRepository.guardCancelPreTerminal(input.sessionId, tx);
   if (cancelled === null) {
     return {
-      session: await resolveCancelledReplayOrConflict(input.sessionId, claim, tx, t),
+      session: await resolveCancelledReplayOrConflict(input.sessionId, claim !== null, tx, t),
       receipts: [],
     };
   }
