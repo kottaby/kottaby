@@ -8,7 +8,7 @@ import { AdminSessionGovernance, Common, Errors, useAppTranslation } from "@/sha
 
 /**
  * RescheduleSessionDialog — the admin reschedule seam for one governance
- * session (`/admin/session-governance`, DEV3-021 / REQ-020/021). Structural
+ * session (`/admin/session-governance`, DEV3-021). Structural
  * sibling of the arbitration dialog: portal/dialog/form discipline,
  * `React.SubmitEvent`, dismissal gated while the mutation is in flight.
  *
@@ -18,7 +18,7 @@ import { AdminSessionGovernance, Common, Errors, useAppTranslation } from "@/sha
  * date fields are the established zero-dependency seam). Tokens convert to
  * ISO-8601 UTC instants at the submit seam (`DateTime` scalar wire shape).
  *
- * Client validation mirrors the service rules (REQ-021): the pair must be
+ * Client validation mirrors the service rules: the pair must be
  * ordered (`startedAt < endedAt`) and the start may not sit further than
  * the 5-minute grace window in the past — the SAME envelope the backend
  * enforces (`RESCHEDULE_START_PAST_GRACE_MS`), surfacing the localized

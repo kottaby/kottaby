@@ -677,7 +677,7 @@ for (const locale of componentSuiteLocales) {
       const reasonInput = within(dialog).getByRole("textbox");
       expect(reasonInput.getAttribute("maxlength")).toBe(String(MAX_CANCEL_REASON_LENGTH));
       expect(within(dialog).getByText(`0/${MAX_CANCEL_REASON_LENGTH}`)).not.toBeNull();
-      // REQ-022: the reason is OPTIONAL — the confirm affordance stays live.
+      // The reason is OPTIONAL — the confirm affordance stays live.
       expect(within(dialog).getByTestId(`cancel-session-submit-${CANCEL_ID}`).getAttribute("disabled")).toBeNull();
     });
 

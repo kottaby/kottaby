@@ -8,7 +8,7 @@ import { AdminSessionGovernance, useAppTranslation } from "@/shared/locale";
 /**
  * JoinObservationAction — the single-click confirm banner for joining a
  * LIVE (`started`) governance session as a read-only observer
- * (`/admin/session-governance`, DEV3-021 / REQ-026/027). Rendered inside
+ * (`/admin/session-governance`, DEV3-021). Rendered inside
  * the detail drawer for `started` rows (the observation surface IS the
  * read-only detail view — no meeting bridge exists on this ticket).
  *

@@ -12,7 +12,7 @@
  *  - REQ-064 (DEV3-022d): the admin broadcasts entry — exactly ONE
  *    `/admin/broadcasts` item with `labelKey: "broadcasts"`, positioned
  *    directly after the audit entry, dashboard-bundle owned, admin-only.
- *  - REQ-081 (DEV3-021): the admin session-governance entry — exactly ONE
+ *  - DEV3-021: the admin session-governance entry — exactly ONE
  *    `/admin/session-governance` item with `labelKey: "sessionGovernance"`
  *    and the `EventNoteOutlined` icon, inside the audit→disputes envelope of
  *    the admin block (directly before the disputes entry),
@@ -180,7 +180,7 @@ describe("Admin audit navigation (REQ-065)", () => {
   );
 });
 
-describe("Admin session-governance navigation (REQ-081)", () => {
+describe("Admin session-governance navigation", () => {
   test("Admin navigation carries exactly one /admin/session-governance entry with the sessionGovernance label key and the EventNoteOutlined icon", () => {
     const adminNav = getNavItemsForRole(UserRole.Admin);
     const governanceItems = adminNav.filter(item => item.route === "/admin/session-governance");

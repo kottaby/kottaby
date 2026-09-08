@@ -22,7 +22,7 @@ import type { SessionsLabels } from "@/shared/locale/types/sessions";
  *
  *  - the lifecycle StatusBadge renders through
  *    {@link AdminSessionRowStatusCell} (shared status vocabulary);
- *  - the `needsAttention` server-derived badge (REQ-028 — a disputed row or
+ *  - the `needsAttention` server-derived badge (a disputed row or
  *    a scheduled row whose confirmation deadline lapsed) renders as a
  *    warning-palette chip when true; it is presentation ONLY, never an
  *    authorization signal;
@@ -59,7 +59,7 @@ const REASSIGN_ELIGIBLE_STATUSES: Record<string, true> = {
   [SessionStatus.Scheduled]: true,
 };
 
-/** Join eligibility — `started` only (REQ-026/027). */
+/** Join eligibility — `started` only. */
 const JOIN_ELIGIBLE_STATUSES: Record<string, true> = {
   [SessionStatus.Started]: true,
 };

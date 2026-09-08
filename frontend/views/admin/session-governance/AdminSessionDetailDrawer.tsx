@@ -29,7 +29,7 @@ import type { SessionsLabels } from "@/shared/locale/types/sessions";
  * | full-screen `Dialog` | `sm` … `md` (tablet ~768-class) | fullScreen dialog |
  * | bottom `Drawer` | below `sm` (mobile 375-class) | temporary bottom sheet-style drawer |
  *
- * The detail is a READ-ONLY browse view (REQ-012: any id, null-not-error):
+ * The detail is a READ-ONLY browse view (any id, null-not-error):
  *  - `adminSession === null` renders the "absent row" body (data, not an
  *    error surface — the browse read answers id-probes with data);
  *  - the `needsAttention` badge is directory-only per the wire contract
@@ -44,7 +44,7 @@ import type { SessionsLabels } from "@/shared/locale/types/sessions";
  * icons only, RTL-safe logical composition (no physical sides).
  */
 
-/** Join-banner eligibility — `started` only (REQ-026/027, Record lookup). */
+/** Join-banner eligibility — `started` only (Record lookup). */
 const JOIN_OBSERVABLE_STATUSES: Record<string, true> = {
   [SessionStatus.Started]: true,
 };
@@ -248,7 +248,7 @@ function DetailBody({
   }
   if (detail === null) {
     // The browse read answers an unknown id with DATA (`adminSession: null`)
-    // — an absence body, not an error surface (REQ-012 null-not-error).
+    // — an absence body, not an error surface (the null-not-error contract).
     return (
       <Stack data-testid="admin-session-detail-missing" sx={{ gap: 1.5, py: 8, px: 3, textAlign: "center" }}>
         <Typography variant="body1" sx={theme => ({ color: theme.palette.text.secondary })}>

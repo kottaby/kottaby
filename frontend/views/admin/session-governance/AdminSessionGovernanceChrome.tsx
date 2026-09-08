@@ -25,7 +25,8 @@ import type { SessionsLabels } from "@/shared/locale/types/sessions";
  * Summary strip — per-status counts derive from the LOADED directory page
  * (real data only; the container passes the honest server `totalCount` for
  * the sticky bar and nothing is extrapolated across pages). The
- * needs-attention card uses the warning tone (REQ-028 badge family).
+ * needs-attention card uses the warning tone (the same badge family as the
+ * row chip).
  *
  * Filter bar — teacher/student user-id inputs (whole numbers only; the wire
  * members are `Int`), the session-type and session-status selects (token

@@ -74,7 +74,7 @@ import { AdminSessionGovernance, Errors, Sessions, useAppTranslation } from "@/s
  * `crypto.randomUUID()` key when the dialog opens and sends it via the
  * Apollo context header `x-idempotency-key` (the broadcasts compose-send
  * precedent); the key rotates only on SUCCESS so a retried submit stays on
- * the same claim (REQ-023 replay dedupe).
+ * the same claim (server replay dedupe).
  *
  * Page-level authorization is owned by the server admin route guard —
  * this container performs no role logic. MUI v9 discipline: `sx`-only styling, theme-palette colors,
@@ -350,7 +350,7 @@ export function AdminSessionGovernanceContainer(): ReactNode {
     onCompleted: () => {
       successCloseDialog(t.cancelSuccess);
       // Rotation happens ONLY on success — a failed/retried submit keeps the
-      // same claim so the server replay dedupe stays effective (REQ-023).
+      // same claim so the server replay dedupe stays effective.
       cancelKeyRef.current = crypto.randomUUID();
     },
     onError: mutationError => {

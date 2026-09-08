@@ -9,12 +9,12 @@ import { AdminSessionGovernance, Common, useAppTranslation } from "@/shared/loca
 
 /**
  * CancelSessionDialog — the admin cancel seam for one governance session
- * (`/admin/session-governance`, DEV3-021 / REQ-022). Structural sibling of
+ * (`/admin/session-governance`, DEV3-021). Structural sibling of
  * the participant cancel + arbitration dialogs: portal/dialog/form
  * discipline, `React.SubmitEvent`, dismissal gated while the mutation is in
  * flight.
  *
- * Reason field — OPTIONAL (REQ-022: `reason?`), ≤2000 chars at the UI seam
+ * Reason field — OPTIONAL (the cancel contract's `reason?`), ≤2000 chars at the UI seam
  * (mirrors the audit `details` contract), hard `maxLength` clamp at the
  * input seam plus a live raw-character counter helper line. The reason
  * rides the mutation input verbatim-trimmed; empty resolves to `null`.

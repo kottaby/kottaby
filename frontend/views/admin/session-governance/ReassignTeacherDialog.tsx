@@ -8,8 +8,8 @@ import { AdminSessionGovernance, Common, useAppTranslation } from "@/shared/loca
 
 /**
  * ReassignTeacherDialog — the admin teacher-reassignment seam for one
- * governance session (`/admin/session-governance`, DEV3-021 /
- * REQ-024/025). Structural sibling of the arbitration dialog:
+ * governance session (`/admin/session-governance`, DEV3-021). Structural
+ * sibling of the arbitration dialog:
  * portal/dialog/form discipline, `React.SubmitEvent`, dismissal gated
  * while the mutation is in flight.
  *
