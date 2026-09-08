@@ -878,6 +878,36 @@ describe("SessionAdminGovernanceService — reschedule (runInRollback)", () => {
     });
   });
 
+  test("caller-tx path: the reschedule wave persists inside the tx but NOTHING publishes inside the caller's transaction", async () => {
+    await runInRollback(async tx => {
+      const actors = await createSessionActors(tx);
+      const { adminId } = await createTestAdmin(tx);
+      const row = await insertSessionRow(tx, actors, {});
+      const options = governanceOptions();
+
+      await SessionAdminGovernanceService.reschedule(
+        adminId,
+        { sessionId: row.id, startedAt: alignedInstant(60 * 60_000), endedAt: alignedInstant(2 * 60 * 60_000) },
+        LOCALE,
+        tx,
+        options
+      );
+
+      // The wave persists as inbox rows INSIDE the tx (the receipts are
+      // unpublished) — one per participant.
+      expect(await countNotificationsFor(tx, [actors.studentUserId, actors.teacherUserId])).toBe(2);
+
+      // Publish-after-commit is the CALLER's job on the tx path — the
+      // transport must record zero fan-outs inside the rollback (the same
+      // boundary the cancel tier pins).
+      const transport = options.transport;
+      if (!(transport instanceof SpiedFanoutTransport)) {
+        throw new Error("expected the spied transport to be installed");
+      }
+      expect(transport.publishCount).toBe(0);
+    });
+  });
+
   test("unknown session id: the zero-row miss classifies as the localized not-found denial", async () => {
     await runInRollback(async tx => {
       const actors = await createSessionActors(tx);
@@ -979,6 +1009,32 @@ describe("SessionAdminGovernanceService — cancel (runInRollback)", () => {
 
       // No key → no claim row for the admin.
       expect(await readClaimsForUser(tx, adminId)).toHaveLength(0);
+    });
+  });
+
+  test("a whitespace-only reason collapses to NO reason: ONE audit row whose metadata records a null reason, not an empty string", async () => {
+    await runInRollback(async tx => {
+      const actors = await createSessionActors(tx);
+      const { adminId } = await createTestAdmin(tx);
+      const row = await insertSessionRow(tx, actors, {});
+
+      const cancelled = await cancelVia(tx, adminId, { sessionId: row.id, reason: "   " });
+
+      expect(cancelled.status).toBe(SessionStatus.Cancelled);
+      const auditRows = await readAuditsForSession(tx, row.id);
+      expect(auditRows).toHaveLength(1);
+      const auditRow = auditRows[0];
+      if (!auditRow) {
+        throw new Error("expected exactly one audit row for the whitespace-only-reason cancel");
+      }
+      expect(auditRow.actionType).toBe(AuditActionType.Override);
+      expect(auditRow.actorId).toBe(adminId);
+      const details = parseAuditDetails(auditRow.details);
+      expect(details.action).toBe("cancel");
+      // The normalizer's whitespace-only arm: the trimmed value collapses
+      // to no reason at all — the metadata carries `reason: null` (the
+      // other arm of the trim behavior pinned by the test above).
+      expect(details.reason).toBeNull();
     });
   });
 
@@ -1580,6 +1636,29 @@ describe("SessionAdminGovernanceService — chaos (production tx path, committed
     return created;
   }
 
+  /** Commits one SCHEDULED session for the chaos cast (production-path precondition). */
+  async function commitScheduledChaosSession(): Promise<SessionSelectType> {
+    const row = await db.transaction(async tx =>
+      tx
+        .insert(session)
+        .values({
+          teacherId: chaosTeacherId,
+          studentId: chaosStudentId,
+          status: SessionStatus.Scheduled,
+          sessionType: SessionType.StudentSession,
+          intent: SessionIntent.Hifz,
+          fee: "10.00",
+        })
+        .returning()
+    );
+    const created = row[0];
+    if (!created) {
+      throw new Error("commitScheduledChaosSession: insert returned no rows");
+    }
+    chaosSessionIds.push(created.id);
+    return created;
+  }
+
   /** Independent read-back oracle for the chaos block (db-scoped). */
   async function readChaosSessionRow(sessionId: number): Promise<SessionSelectType | null> {
     return readSessionRow(db, sessionId);
@@ -1632,6 +1711,39 @@ describe("SessionAdminGovernanceService — chaos (production tx path, committed
     const replay = await expectRepoError(() => chaosCancel(started.id));
     expectDomainDenial(replay, "SESSION_INVALID_TRANSITION", ERRORS_EN.sessionInvalidTransition);
     expect(await countAuditsForSession(db, started.id)).toBe(1);
+  });
+
+  test("own-commit production path: the reschedule commits durably, appends ONE audit row, and publishes the wave exactly once after commit", async () => {
+    const scheduled = await commitScheduledChaosSession();
+    const inboxBefore = await countNotificationsFor(db, [chaosStudentId, chaosTeacherId]);
+    const newStart = alignedInstant(60 * 60_000);
+    const newEnd = alignedInstant(2 * 60 * 60_000);
+    const transport = new SpiedFanoutTransport();
+
+    const rescheduled = await SessionAdminGovernanceService.reschedule(
+      chaosAdminId,
+      { sessionId: scheduled.id, startedAt: newStart, endedAt: newEnd },
+      LOCALE,
+      undefined,
+      { transport, cache: new MapBackedClaimCache() }
+    );
+
+    expect(rescheduled.status).toBe(SessionStatus.Scheduled);
+    expect(rescheduled.startedAt?.getTime()).toBe(newStart.getTime());
+    const finalRow = await readChaosSessionRow(scheduled.id);
+    expect(finalRow?.startedAt?.getTime()).toBe(newStart.getTime());
+
+    // Durable exactly-once writes on the committed path: ONE audit row
+    // and one persisted inbox row per participant.
+    expect(await countAuditsForSession(db, scheduled.id)).toBe(1);
+    expect(await countNotificationsFor(db, [chaosStudentId, chaosTeacherId])).toBe(inboxBefore + 2);
+
+    // Publish-after-commit: one fan-out PER delivery receipt (the engine's
+    // per-receipt publish contract) — spied, never delivered. Two receipts
+    // → two fan-outs covering the same two participants, in wave order
+    // (student first, then teacher).
+    expect(transport.publishCount).toBe(2);
+    expect(transport.publishedUserIds).toEqual([chaosStudentId, chaosTeacherId]);
   });
 
   testOnRealPostgres(
