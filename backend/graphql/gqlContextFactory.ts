@@ -25,7 +25,7 @@ import type { NextRequest } from "next/server";
 import { UserRepository } from "@/backend/db/repo";
 import { toUserRole, UserRole } from "@/backend/enum/users/user-role.enum";
 import { resolveRequestId } from "@/backend/lib/api";
-import { AUTH_COOKIE_NAMES, type AuthCookieOut, createAuthCookieOut, parseCookies } from "@/backend/lib/auth/cookies";
+import { AUTH_COOKIE_NAMES, type AuthCookieOut, createAuthCookieOut, extractCookieValue, parseCookies } from "@/backend/lib/auth/cookies";
 import { verifyAccessToken } from "@/backend/lib/auth/jwt";
 import type { RegistrationReturnType } from "@/backend/types";
 import { LOCALE_COOKIE_NAME } from "@/shared/locale/server-cookies";
@@ -159,8 +159,10 @@ function extractAccessToken(request: NextRequest | Request, parsedCookies?: Reco
 
   // 2. access_token httpOnly cookie (SSR / dev convenience — set by
   // `setAuthCookies` on login + refreshToken).
-  const cookies = parsedCookies ?? parseCookies(request.headers.get("cookie") ?? "");
-  return cookies[AUTH_COOKIE_NAMES.accessToken] ?? null;
+  if (parsedCookies) {
+    return parsedCookies[AUTH_COOKIE_NAMES.accessToken] ?? null;
+  }
+  return extractCookieValue(request.headers.get("cookie"), AUTH_COOKIE_NAMES.accessToken);
 }
 
 /**

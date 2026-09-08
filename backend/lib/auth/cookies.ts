@@ -50,6 +50,58 @@ export function createAuthCookieOut(): AuthCookieOut {
 }
 
 /**
+ * Fast-path single-cookie extraction directly from a `Cookie` header string
+ * without allocating an entire `Record<string, string>` object or splitting
+ * unrelated cookie pairs.
+ *
+ * Performance improvement: Avoids string array splits and dictionary allocations
+ * when only a specific cookie (e.g., access_token) is needed on hot request paths.
+ */
+export function extractCookieValue(cookieHeader: string | null | undefined, name: string): string | null {
+  if (!cookieHeader || !name) {
+    return null;
+  }
+  let pos = 0;
+  const headerLen = cookieHeader.length;
+  const nameLen = name.length;
+
+  while (pos < headerLen) {
+    // Skip leading spaces or semicolons
+    while (pos < headerLen && (cookieHeader.charCodeAt(pos) === 32 || cookieHeader.charCodeAt(pos) === 59)) {
+      pos++;
+    }
+    if (pos >= headerLen) {
+      break;
+    }
+    // Check if key matches name
+    if (
+      cookieHeader.startsWith(name, pos) &&
+      pos + nameLen < headerLen &&
+      cookieHeader.charCodeAt(pos + nameLen) === 61 // '='
+    ) {
+      const valStart = pos + nameLen + 1;
+      let valEnd = cookieHeader.indexOf(";", valStart);
+      if (valEnd === -1) {
+        valEnd = headerLen;
+      }
+      const rawValue = cookieHeader.slice(valStart, valEnd).trim();
+      try {
+        return decodeURIComponent(rawValue);
+      } catch {
+        return rawValue;
+      }
+    }
+    // Advance to next semicolon
+    const nextSemi = cookieHeader.indexOf(";", pos);
+    if (nextSemi === -1) {
+      break;
+    }
+    pos = nextSemi + 1;
+  }
+  return null;
+}
+
+/**
  * Parses a `Cookie` request header into a plain `Record<string, string>`.
  *
  * Returns an empty object for an empty/missing header. Cookie values are
@@ -61,24 +113,35 @@ export function parseCookies(cookieHeader: string | null | undefined): Record<st
   if (!cookieHeader) {
     return out;
   }
-  for (const pair of cookieHeader.split(";")) {
-    const idx = pair.indexOf("=");
-    if (idx <= 0) {
-      // Malformed pair (no `=`) — skip silently. Browsers never produce these,
-      // but defensive parsing keeps the context factory resilient.
-      continue;
+  let pos = 0;
+  const headerLen = cookieHeader.length;
+
+  while (pos < headerLen) {
+    while (pos < headerLen && (cookieHeader.charCodeAt(pos) === 32 || cookieHeader.charCodeAt(pos) === 59)) {
+      pos++;
     }
-    const key = pair.slice(0, idx).trim();
-    const rawValue = pair.slice(idx + 1).trim();
-    if (!key) {
-      continue;
+    if (pos >= headerLen) {
+      break;
     }
-    try {
-      out[key] = decodeURIComponent(rawValue);
-    } catch {
-      // Invalid URI-encoded value (rare; treat as literal).
-      out[key] = rawValue;
+    const nextSemi = cookieHeader.indexOf(";", pos);
+    const pairEnd = nextSemi === -1 ? headerLen : nextSemi;
+    const eqIdx = cookieHeader.indexOf("=", pos);
+
+    if (eqIdx > pos && eqIdx < pairEnd) {
+      const key = cookieHeader.slice(pos, eqIdx).trim();
+      if (key) {
+        const rawValue = cookieHeader.slice(eqIdx + 1, pairEnd).trim();
+        try {
+          out[key] = decodeURIComponent(rawValue);
+        } catch {
+          out[key] = rawValue;
+        }
+      }
     }
+    if (nextSemi === -1) {
+      break;
+    }
+    pos = nextSemi + 1;
   }
   return out;
 }
