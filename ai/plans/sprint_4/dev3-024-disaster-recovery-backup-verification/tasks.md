@@ -146,7 +146,7 @@ Sequence: QL → TE → SEC → SR → IV → `[x]`.
 
 ## Phase 8 — Post-Implementation Review Wave (mandatory: plan exceeds 10 subtasked units; executes BEFORE Phase 7 writes)
 
-- [ ] 8.1 **Dispatch review agents** scoped to `git diff --name-only` vs Phase-0 baseline: backend-reviewer (scripts/ops correctness, races, TOCTOU, dead code), pentester/idor (guard bypass attempts, credential-leak probes, arg injection, confinement escape), types-reviewer (manifest/report contracts, no canonical-type pollution). Aggregate; fix-file dispatch with sub-loop per file; repeat until zero feature findings.
+- [x] 8.1 **Dispatch review agents** scoped to `git diff --name-only` vs Phase-0 baseline: backend-reviewer (scripts/ops correctness, races, TOCTOU, dead code), pentester/idor (guard bypass attempts, credential-leak probes, arg injection, confinement escape), types-reviewer (manifest/report contracts, no canonical-type pollution). Aggregate; fix-file dispatch with sub-loop per file; repeat until zero feature findings.
   - Write `outcome/post-implementation-review.md`.
   - _Process gate (skill Phase-8 review wave); no REQ mapping (consumes REQ-000.4 outcome ledger)._
 - [ ] 8.2 **Final gate**: full `bun quality-gate` green against Phase-0 baseline; all checkboxes `[x]`; ledger clean; outcome summary enumerates DEV3-026 handoff artifacts (`docs/ops/disaster-recovery.md`, drill evidence path, sample PASS report path).
