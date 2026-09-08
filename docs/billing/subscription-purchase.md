@@ -275,10 +275,13 @@ route). Fail-closed stages:
 3. **`confirmed` path — one transaction, fixed order:**
    path-selection read of the payment status (selection ONLY — the guarded updates re-verify every
    predicate server-side, so a stale read can never override a concurrent decision) → plan read
-   IN-TX + NULL-lane QUARANTINE guard (a lane-clear is REACHABLE — an admin can clear a plan's lane
-   after the purchase commits — so a NULL lane acks `{ processed: false }`, mutates nothing, and
-   logs one correlated error; operator follow-up owns the settled charge until the lane is
-   re-configured) → `activatePendingOnce` (zero rows ⇒ `{ processed: true, replayed:
+   IN-TX + QUARANTINE guards (a lane-clear is REACHABLE — an admin can clear a plan's lane after
+   the purchase commits — so a NULL lane acks `{ processed: false }`, mutates nothing, and logs one
+   correlated error; operator follow-up owns the settled charge until the lane is re-configured.
+   The same read quarantines a legacy/non-app row whose `intervalDays` exceeds the activation-window
+   ceiling of 3650 — the DB check enforces only `> 0`, and an out-of-range row would overflow the
+   `endDate` arithmetic into an Invalid Date: a non-domain 500 and a gateway retry storm) →
+   `activatePendingOnce` (zero rows ⇒ `{ processed: true, replayed:
    true }` — no credit, no second notification) → `markPaidOnce` → `creditLaneBalance(studentId,
    plan.balanceLane, plan.sessionCount, tx)` → confirmation notification row persisted in-tx →
    receipts published strictly AFTER the unit resolves (publish failure degrades to one structured

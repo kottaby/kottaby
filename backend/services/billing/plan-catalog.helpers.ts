@@ -22,8 +22,13 @@ const CURRENCY_REGEX = /^[A-Z]{3}$/;
  * arithmetic multiplies this field into Date milliseconds, so an unbounded
  * value would poison every confirmed delivery that reads the plan — the
  * catalog rejects anything beyond the ceiling before it can be persisted.
+ *
+ * Shared with the activation service (same billing layer): the ceiling is
+ * re-guarded at the activation boundary because legacy/non-catalog rows can
+ * carry values past it (the DB check only enforces `> 0`) — see
+ * `subscription-activation.service.ts`.
  */
-const MAX_INTERVAL_DAYS = 3650;
+export const MAX_INTERVAL_DAYS = 3650;
 
 /** Runtime membership probe over the lane vocabulary (mirrors the `subscription_credit_lane` pgEnum). */
 const SUBSCRIPTION_CREDIT_LANE_VALUES: readonly string[] = Object.values(SubscriptionCreditLane);

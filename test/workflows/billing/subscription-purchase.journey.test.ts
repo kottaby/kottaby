@@ -39,6 +39,12 @@
  *      events). The service-level truth proven here: a delivery carrying an
  *      uncorrelatable reference mutates NOTHING and logs one bounded
  *      unknown-reference entry.
+ *  11. Student A purchases the SEEDED Reviews-lane plan ("New Teacher
+ *      Verification & Evaluation Plan" — the demo-catalog member seeded
+ *      ACTIVE on the reviews lane) and the emitter confirms it →
+ *      `balance_reviews` credited exactly the seeded plan's `sessionCount`
+ *      (hifz/tajweed byte-identical): the seeded, documented lane routes
+ *      like any other plan end-to-end.
  *
  * Journey rules honored (`test/workflows/AGENTS.md`):
  * - fixtures COMMITTED in `beforeAll` inside ONE committing transaction;
@@ -139,6 +145,17 @@ const publishSpy = spyOn(NotificationEngine, "publishReceipts").mockImplementati
 const KEY_PURCHASE = `${PREFIX}-key-purchase`;
 const KEY_SECOND = `${PREFIX}-key-second`;
 const KEY_PARENT = `${PREFIX}-key-parent`;
+const KEY_REVIEWS = `${PREFIX}-key-reviews`;
+
+/**
+ * The SEEDED Reviews-lane demo plan (step 11's purchase target). Seeded by
+ * the plan-catalog seeder (CI runs `bun run db seed` before the service
+ * suites; the canonical spec lives in `backend/db/seeds/billing/seed-plans.ts`)
+ * — read-only here, never mutated, never tracked: it is environment catalog
+ * state, not a journey fixture. Read in `beforeAll` and fail-fast loudly if
+ * the environment lacks it.
+ */
+const REVIEWS_PLAN_TITLE = "New Teacher Verification & Evaluation Plan";
 
 /** Ledger rows created by the service during the journey (teardown worklist). */
 const ledgerPaymentIds: number[] = [];
@@ -149,6 +166,7 @@ let studentB: JourneyActorRow;
 let parentActor: { readonly userId: number };
 let parentUser: UserSelectType;
 let planRow: PlanSelectType;
+let reviewsPlanRow: PlanSelectType;
 
 /** A journey cast member: the actor-context bundle plus its user row. */
 interface JourneyActorRow {
@@ -360,6 +378,19 @@ beforeAll(async () => {
       balanceLane: SubscriptionCreditLane.Hifz,
     });
     tracked.register(plans, planRow.id);
+
+    // The seeded Reviews-lane plan (step 11's purchase target): a read-only
+    // catalog lookup — the row is environment seed state, never registered
+    // for cleanup (we never mutate it). A missing row is a loud environment
+    // failure, not a silent skip.
+    const reviewsRows = await tx.select().from(plans).where(eq(plans.title, REVIEWS_PLAN_TITLE)).limit(1);
+    const reviewsRow = reviewsRows[0];
+    if (!reviewsRow) {
+      throw new Error(
+        `journey fixture: the seeded Reviews-lane plan "${REVIEWS_PLAN_TITLE}" is missing from the test catalog — run the plan-catalog seeder`
+      );
+    }
+    reviewsPlanRow = reviewsRow;
   });
 });
 
@@ -724,5 +755,84 @@ describe("cross-actor journey: subscription purchase → gateway settlement", ()
     expect(await readBalances(studentA.userId)).toEqual(balancesBefore);
     expect(await inboxCount(studentA.userId)).toBe(1);
     expect(publishSpy.mock.calls).toHaveLength(1);
+  });
+
+  test("step 11 — Student A: purchase on the seeded Reviews-lane plan + confirmed event → balance_reviews credited exactly", async () => {
+    // The seeded-catalog premise: the verification plan is ACTIVE and rides
+    // the reviews lane (the same lane the demo seeder declares).
+    expect(reviewsPlanRow.isActive).toBe(true);
+    expect(reviewsPlanRow.balanceLane).toBe(SubscriptionCreditLane.Reviews);
+
+    const balancesBefore = await readBalances(studentA.userId);
+    const countsBefore = await pendingSetCounts(studentA.userId);
+
+    const result = await SubscriptionPurchaseService.purchase(
+      studentA.userId,
+      { planId: reviewsPlanRow.id },
+      KEY_REVIEWS,
+      "en"
+    );
+    expect(result.subscription.status).toBe(SubscriptionStatus.Pending);
+    expect(result.payment.amount).toBe(reviewsPlanRow.price);
+    expect(result.payment.currency).toBe(reviewsPlanRow.currency);
+    tracked.register(subscriptions, result.subscription.id);
+    tracked.register(studentPayments, result.payment.id);
+    ledgerSubscriptionIds.push(result.subscription.id);
+    ledgerPaymentIds.push(result.payment.id);
+    const claimRows = await db
+      .select()
+      .from(subscriptionPurchaseIdempotency)
+      .where(eq(subscriptionPurchaseIdempotency.idempotencyKey, KEY_REVIEWS));
+    expect(claimRows).toHaveLength(1);
+    if (claimRows[0]) {
+      tracked.register(subscriptionPurchaseIdempotency, claimRows[0].id);
+    }
+
+    const event: PaymentWebhookEvent = {
+      reference: result.checkout.providerReference,
+      outcome: "confirmed",
+      amount: result.payment.amount,
+      currency: result.payment.currency,
+    };
+    const outcome = await SubscriptionActivationService.processWebhookEvent(event, "en");
+    expect(outcome).toEqual({ processed: true });
+
+    // The reviews lane credited exactly the seeded plan's sessionCount; the
+    // hifz/tajweed lanes are byte-identical — the documented lane routes
+    // like any other plan.
+    const balancesAfter = await readBalances(studentA.userId);
+    expect((balancesAfter.reviews ?? 0) - (balancesBefore.reviews ?? 0)).toBe(reviewsPlanRow.sessionCount);
+    expect(balancesAfter.hifz).toBe(balancesBefore.hifz);
+    expect(balancesAfter.tajweed).toBe(balancesBefore.tajweed);
+
+    // The third subscription activated; the payment decided paid.
+    const active = await subscriptionRow(result.subscription.id);
+    expect(active.status).toBe(SubscriptionStatus.Active);
+    expect((await paymentRow(result.payment.id)).status).toBe(PaymentStatus.Paid);
+
+    // The committed pending set grew by exactly the third pair.
+    const countsAfter = await pendingSetCounts(studentA.userId);
+    expect(countsAfter).toEqual({
+      subs: countsBefore.subs + 1,
+      payments: countsBefore.payments + 1,
+      junction: countsBefore.junction + 1,
+      claims: countsBefore.claims + 1,
+    });
+
+    // ONE more persisted notification (student A's inbox now holds two) and
+    // ONE more post-commit publish — the confirmation fan-out targets the
+    // purchaser only, exactly like step 3's.
+    expect(await inboxCount(studentA.userId)).toBe(2);
+    const reviewsNotifs = await db
+      .select()
+      .from(notifications)
+      .where(eq(notifications.relatedEntityId, result.subscription.id));
+    expect(reviewsNotifs).toHaveLength(1);
+    if (reviewsNotifs[0]) {
+      tracked.register(notifications, reviewsNotifs[0].id);
+      expect(reviewsNotifs[0].type).toBe(NotificationType.PaymentConfirmation);
+      expect(reviewsNotifs[0].userId).toBe(studentA.userId);
+    }
+    expect(publishSpy.mock.calls).toHaveLength(2);
   });
 });

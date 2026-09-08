@@ -34,7 +34,13 @@
  *    quarantine (`{ processed: false }`, zero mutation, one correlated
  *    error log) — the lane-clear is REACHABLE after a purchase commits.
  *  - Tier 2 (boundary): currency mismatch quarantines; the exact balance
- *    delta equals the plan's `sessionCount` (other lanes untouched).
+ *    delta equals the plan's `sessionCount` (other lanes untouched); the
+ *    REVIEWS-lane activation credits `balance_reviews` by `sessionCount`
+ *    (hifz/tajweed byte-identical — every pgEnum member is routable); a
+ *    legacy plan row written past the interval-days activation ceiling
+ *    (direct-DB `interval_days` = 1e8, which would overflow the Date window
+ *    arithmetic into a non-domain error) QUARANTINES — `{ processed: false }`,
+ *    zero writes, one correlated error log.
  *  - Tier 3 (chaos): out-of-order delivery — a stale `failed` after a won
  *    confirmation replays without downgrading anything; true-concurrent
  *    double-webhook through `Promise.allSettled` proving ONE credit + one
@@ -492,6 +498,94 @@ describe("SubscriptionActivationService — settlement quarantine + exact credit
       expect(after.balanceHifz).toBe(7);
       expect(after.balanceTajweed).toBe(0);
       expect(after.balanceReviews).toBe(0);
+    });
+  });
+
+  test("reviews-lane activation: confirmed event credits balance_reviews by sessionCount — hifz/tajweed untouched", async () => {
+    await runInRollback(async tx => {
+      // The reviews lane is a legitimate, seeded, documented lane (the
+      // "New Teacher Verification & Evaluation Plan" demo catalog member) —
+      // the activation credit must route it like any other plan.
+      const { student, plan, subscription, payment } = await provisionPendingPair(tx, {
+        balanceLane: SubscriptionCreditLane.Reviews,
+        sessionCount: 5,
+      });
+      const { insertSpy, publishSpy } = spyNotificationSeams();
+
+      const before = await readBalances(tx, student.id);
+      expect(before.balanceReviews).toBe(0);
+
+      const outcome = await SubscriptionActivationService.processWebhookEvent(
+        confirmedEvent(subscription.paymentReference ?? "", payment.amount),
+        "en",
+        tx
+      );
+      expect(outcome).toEqual({ processed: true });
+
+      // The reviews lane credited exactly the plan's sessionCount; the
+      // sibling lanes are byte-identical.
+      const after = await readBalances(tx, student.id);
+      expect(after.balanceReviews).toBe((before.balanceReviews ?? 0) + plan.sessionCount);
+      expect(after.balanceReviews).toBe(5);
+      expect(after.balanceHifz).toBe(before.balanceHifz);
+      expect(after.balanceTajweed).toBe(before.balanceTajweed);
+
+      // The rest of the committed unit is lane-agnostic: active window,
+      // decided payment, one notification, one post-commit publish.
+      const subRows = await tx.select().from(subscriptions).where(eq(subscriptions.id, subscription.id)).limit(1);
+      expect(subRows[0]?.status).toBe(SubscriptionStatus.Active);
+      const payRows = await tx.select().from(studentPayments).where(eq(studentPayments.id, payment.id)).limit(1);
+      expect(payRows[0]?.status).toBe(PaymentStatus.Paid);
+      expect(insertSpy).toHaveBeenCalledTimes(1);
+      expect(publishSpy).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  test("legacy plan row past the interval-days activation ceiling quarantines — processed:false, zero writes, error logged", async () => {
+    await runInRollback(async tx => {
+      // Direct-DB legacy row: the catalog ceiling (MAX_INTERVAL_DAYS) guards
+      // WRITES only — the DB check enforces just `> 0` — so an out-of-range
+      // row (1e8 days) is insertable and would overflow the Date window
+      // arithmetic into an Invalid Date (a non-domain error → a 500 retry
+      // storm). The activation boundary re-guards BEFORE the arithmetic and
+      // QUARANTINES instead (the sibling NULL-lane posture).
+      const { student, plan, subscription, payment } = await provisionPendingPair(tx, {
+        intervalDays: 100_000_000,
+      });
+      const { insertSpy, publishSpy } = spyNotificationSeams();
+      const errorSpy = trackSpy(spyOn(logger, "error"));
+
+      const outcome = await SubscriptionActivationService.processWebhookEvent(
+        confirmedEvent(subscription.paymentReference ?? "", payment.amount),
+        "en",
+        tx
+      );
+
+      expect(outcome).toEqual({ processed: false });
+      expect(errorSpy).toHaveBeenCalledTimes(1);
+      const [message, context] = errorSpy.mock.calls[0] ?? [];
+      expect(message).toContain("quarantined");
+      expect(context).toMatchObject({
+        reference: subscription.paymentReference,
+        subscriptionId: subscription.id,
+        planId: plan.id,
+        intervalDays: plan.intervalDays,
+      });
+
+      // The quarantined unit left NO trace: pending pair, zero credit on
+      // every lane, no notification — the honest ack stops the retry storm.
+      const subRows = await tx.select().from(subscriptions).where(eq(subscriptions.id, subscription.id)).limit(1);
+      expect(subRows[0]?.status).toBe(SubscriptionStatus.Pending);
+      expect(subRows[0]?.startDate).toBeNull();
+      expect(subRows[0]?.endDate).toBeNull();
+      const payRows = await tx.select().from(studentPayments).where(eq(studentPayments.id, payment.id)).limit(1);
+      expect(payRows[0]?.status).toBe(PaymentStatus.Pending);
+      const balances = await readBalances(tx, student.id);
+      expect(balances.balanceHifz).toBe(0);
+      expect(balances.balanceTajweed).toBe(0);
+      expect(balances.balanceReviews).toBe(0);
+      expect(insertSpy).not.toHaveBeenCalled();
+      expect(publishSpy).not.toHaveBeenCalled();
     });
   });
 });

@@ -33,6 +33,9 @@
  *      transaction. The realtime fan-out publishes strictly AFTER the
  *      transaction commits — a publish failure never rolls back the
  *      committed activation (the persisted inbox row remains authoritative);
+ *      a legacy plan row past the interval-days activation ceiling
+ *      (`MAX_INTERVAL_DAYS`) quarantines identically to the NULL lane —
+ *      the Date window arithmetic must never run on an out-of-range value.
  *   4. `failed` — a single guarded decision write on the payment row only;
  *      the subscription stays `pending` (operator follow-up owns it), no
  *      credit, no notification. Zero rows ⇒ the payment was already decided
@@ -59,6 +62,7 @@ import { NotificationType } from "@/backend/enum/notifications/notification-type
 import { withTransaction } from "@/backend/lib/db/with-transaction";
 import { ConflictError } from "@/backend/lib/errors";
 import { logger } from "@/backend/lib/logger";
+import { MAX_INTERVAL_DAYS } from "@/backend/services/billing/plan-catalog.helpers";
 import { NotificationEngine } from "@/backend/services/notifications";
 import type {
   DBTransaction,
@@ -96,16 +100,23 @@ function abortActivation(detail: string, context: Record<string, unknown>): neve
  * Reads the plan row that feeds BOTH the activation window (`intervalDays`)
  * and the credit (`balanceLane`, `sessionCount`). The FK restrict guarantees
  * the row exists — a vanished row fails the unit closed — and a catalog
- * deactivation after a settled payment does not void the activation. A NULL
- * lane is the REACHABLE quarantine (an admin can clear a plan's balance lane
- * after the purchase commits): one correlated `logger.error`, nothing
- * mutated, and a `null` return tells the caller to end the unit with
- * `{ processed: false }` — the sibling quarantine posture (the gateway
- * stops retrying; operator follow-up owns the settled charge). A lane is
- * never guessed from plan copy.
+ * deactivation after a settled payment does not void the activation. Two
+ * REACHABLE row states QUARANTINE the delivery with the identical posture —
+ * one correlated `logger.error`, nothing mutated, and a `null` return that
+ * tells the caller to end the unit with `{ processed: false }` (the gateway
+ * stops retrying; operator follow-up owns the settled charge):
  *
- * @returns The lane-configured plan row, or `null` when the plan's balance
- *     lane is unconfigured and the delivery must quarantine.
+ *  - a NULL balance lane (an admin can clear a plan's lane after the
+ *    purchase commits — a lane is never guessed from plan copy);
+ *  - an `intervalDays` past the activation-window ceiling
+ *    (`MAX_INTERVAL_DAYS` — catalog writes are capped there, but the DB
+ *    check only enforces `> 0`, so a legacy/non-app row maintained past the
+ *    ceiling is insertable and would overflow the Date window arithmetic
+ *    into an Invalid Date: a non-domain error and a 500 retry storm).
+ *
+ * @returns The lane-configured, in-range plan row, or `null` when the plan's
+ *     balance lane is unconfigured or its interval exceeds the ceiling and
+ *     the delivery must quarantine.
  */
 async function readActivationPlan(
   subscription: SubscriptionSelectType,
@@ -128,6 +139,21 @@ async function readActivationPlan(
     });
     return null;
   }
+  // The interval-days ceiling re-guard — BEFORE the caller's Date window
+  // arithmetic (see the docblock for why a legacy row can sit past the
+  // catalog ceiling). Same quarantine posture as the NULL lane above.
+  if (plan.intervalDays > MAX_INTERVAL_DAYS) {
+    logger.error(
+      "Payment webhook quarantined: plan interval days exceeds the activation-window ceiling — nothing mutated",
+      {
+        reference,
+        subscriptionId: subscription.id,
+        planId: subscription.planId,
+        intervalDays: plan.intervalDays,
+      }
+    );
+    return null;
+  }
   // The spread re-asserts the narrowed lane on the returned row shape.
   return { ...plan, balanceLane: plan.balanceLane };
 }
@@ -147,31 +173,37 @@ const PAYMENT_FAILED: string = PaymentStatus.Failed;
  */
 const LANE_HIFZ: string = SubscriptionCreditLane.Hifz;
 const LANE_TAJWEED: string = SubscriptionCreditLane.Tajweed;
+const LANE_REVIEWS: string = SubscriptionCreditLane.Reviews;
 
 /**
  * Maps the plan row's stored balance-lane value onto the strongly-typed enum
  * the credit primitive requires — FAIL-CLOSED over the closed pg-enum
- * vocabulary: every writable member is mapped explicitly (never a cast), and
- * an unknown stored value is an internal invariant breach (vocabulary drift
- * between the DB enum and this code) that aborts the activation unit closed
- * — the tx rolls back, nothing is credited — instead of silently crediting a
- * DIFFERENT lane than the plan designated (loud over silent-wrong; the same
- * discipline as the sibling mappers). Unreachable through the pgEnum.
+ * vocabulary. The mapper maps every writable member explicitly (hifz,
+ * tajweed, reviews — never a cast), and the default is an unreachable
+ * invariant breach (vocabulary drift between the DB enum and this code)
+ * that aborts the activation unit closed — the tx rolls back, nothing is
+ * credited — instead of silently crediting a DIFFERENT lane than the plan
+ * designated (loud over silent-wrong; the same exhaustive discipline as
+ * `plan.pothos.ts`'s lane mapper). Unreachable through the pgEnum.
  */
 function subscriptionCreditLaneOf(
   lane: PlanSelectType["balanceLane"] & string,
   correlation: { readonly reference: string; readonly subscriptionId: number; readonly planId: number }
 ): SubscriptionCreditLane {
-  if (lane === LANE_HIFZ) {
-    return SubscriptionCreditLane.Hifz;
+  switch (lane) {
+    case LANE_HIFZ:
+      return SubscriptionCreditLane.Hifz;
+    case LANE_TAJWEED:
+      return SubscriptionCreditLane.Tajweed;
+    case LANE_REVIEWS:
+      return SubscriptionCreditLane.Reviews;
+    default:
+      // Unreachable through the pgEnum — fail the unit closed.
+      return abortActivation("stored plan balance lane is not a member of the closed credit-lane vocabulary", {
+        ...correlation,
+        storedLane: lane,
+      });
   }
-  if (lane === LANE_TAJWEED) {
-    return SubscriptionCreditLane.Tajweed;
-  }
-  return abortActivation("stored plan balance lane is not a member of the closed credit-lane vocabulary", {
-    ...correlation,
-    storedLane: lane,
-  });
 }
 
 /**
@@ -269,15 +301,16 @@ async function confirmPayment(
 
     // The plan row feeds BOTH the activation window and the credit — the
     // dedicated read-and-guard helper fails closed on the unreachable
-    // states and quarantines (`null`) on the reachable unconfigured lane.
+    // states and quarantines (`null`) on the reachable ones: an unconfigured
+    // lane, or a legacy row past the interval-days activation ceiling.
     const plan = await readActivationPlan(subscription, reference, tx);
     if (plan === null) {
-      // The unconfigured-lane quarantine: zero writes have run in this unit
-      // (the two reads above are its only statements), so returning here
-      // commits nothing — the transaction ends mutation-free (the sibling
-      // quarantine posture) and the gateway receives the honest
-      // `{ processed: false }` ack while operator follow-up owns the
-      // settled charge until the lane is re-configured.
+      // The quarantine: zero writes have run in this unit (the two reads
+      // above are its only statements), so returning here commits nothing —
+      // the transaction ends mutation-free (the sibling quarantine posture)
+      // and the gateway receives the honest `{ processed: false }` ack while
+      // operator follow-up owns the settled charge until the plan row is
+      // repaired (lane re-configured / interval corrected).
       return { processed: false };
     }
 
@@ -292,7 +325,9 @@ async function confirmPayment(
       subscription.id,
       {
         startDate: now,
-        // Catalog validation caps intervalDays at 3650 days (ten years) — this window arithmetic can never overflow.
+        // The read helper's MAX_INTERVAL_DAYS guard keeps this window
+        // arithmetic inside Date's valid range (catalog writes are capped
+        // at the same ceiling); out-of-range legacy rows never reach it.
         endDate: new Date(now.getTime() + plan.intervalDays * MS_PER_DAY),
         paymentVerifiedAt: now,
       },
@@ -369,9 +404,9 @@ export namespace SubscriptionActivationService {
   /**
    * Processes one ALREADY-VERIFIED payment webhook event and classifies the
    * delivery. Never throws for gateway-outcome content: unknown references,
-   * settlement quarantines, replay-incompatible deliveries, and an
-   * unconfigured plan balance lane answer `{ processed: false }` with zero
-   * mutations.
+   * settlement quarantines, replay-incompatible deliveries, an unconfigured
+   * plan balance lane, or a legacy plan row past the interval-days activation
+   * ceiling answer `{ processed: false }` with zero mutations.
    *
    * The NULL-lane path is REACHABLE — unlike the vanished-row breaches, no
    * write guard prevents an admin from clearing a plan's balance lane after
@@ -394,8 +429,9 @@ export namespace SubscriptionActivationService {
    *    applied by an earlier delivery: zero new rows, zero double credit.
    *  - `{ processed: false }` — the delivery was NOT applied and mutated
    *    nothing: unknown reference, settlement quarantine, an unconfigured
-   *    plan balance lane at activation time, or a `confirmed` arriving
-   *    after the payment failed (replay-incompatible).
+   *    plan balance lane at activation time, a legacy plan row whose
+   *    `intervalDays` exceeds the activation-window ceiling, or a
+   *    `confirmed` arriving after the payment failed (replay-incompatible).
    *
    * @param event  The verified gateway event (the transport already checked
    *     signature, size, and envelope — the service trusts the payload shape).
