@@ -2301,10 +2301,21 @@ describe("redactTargetDatabaseName (conninfo libpq semantics)", () => {
     expect(redactTargetDatabaseName('dbname="a\\"b"')).toBe('a"b');
   });
 
-  test("conninfo unquoted values keep their characters literal", () => {
-    // libpq processes no escapes in an unquoted value: the backslash IS
-    // part of the name libpq connects to.
-    expect(redactTargetDatabaseName("dbname=a\\b")).toBe("a\\b");
+  test("conninfo unquoted values fold libpq backslash escapes (live-proven R14)", () => {
+    // Live-proven R14 shapes: libpq folds `\<char>` → `<char>` in an
+    // UNQUOTED value too (`dbname=r14\db` connects as `r14db`), a
+    // backslash-whitespace escape both folds to that whitespace and EXTENDS
+    // the value across it (`dbname=r14\ db` connects as `r14 db`), and a
+    // backslash at end-of-input has nothing to escape and is dropped
+    // (`dbname=r14\` connects as `r14`). The label follows the same scan
+    // rules, so it can never diverge from the database libpq restores into.
+    expect(redactTargetDatabaseName("dbname=r14\\db")).toBe("r14db");
+    expect(redactTargetDatabaseName("dbname=r14\\\\db")).toBe("r14\\db");
+    expect(redactTargetDatabaseName("dbname=r14\\ db")).toBe("r14 db");
+    expect(redactTargetDatabaseName("dbname=r14\\")).toBe("r14");
+    // The escaped-whitespace extension keeps the libpq scan going into what
+    // follows: everything up to the next UNESCAPED whitespace is the value.
+    expect(redactTargetDatabaseName("host=127.0.0.1 port=5432 dbname=r14\\ db")).toBe("r14 db");
   });
 
   test("input without an assessable database name reports unknown", () => {

@@ -294,6 +294,50 @@ export function rawDsnPathHasDotSegments(trimmedDsn: string): boolean {
 }
 
 /**
+ * Whether the RAW query string of a DSN string carries an endpoint-override
+ * parameter — a `host`, `hostaddr`, or `port` key (case-insensitive,
+ * percent-decoded key match; a valueless key counts as present) — the
+ * backup-side completion of the restore guard's query-channel rule (restore
+ * targets have assessed `?host=`/`?hostaddr=` through the guard pipeline
+ * since R2; the backup source DSN had no equivalent gate). libpq applies URI
+ * query parameters ON TOP of the parsed authority, so a query `?host=`/
+ * `?port=` names the endpoint pg_dump actually connects to while every
+ * URL-derived view — the redacted provenance line and the manifest's
+ * authority label among them — renders the DSN authority (live-proven: a
+ * `?host=…&port=…` source backed up with the authority label naming a dead
+ * endpoint, and `?hostaddr=8.8.8.8` would ship the dump off-box entirely).
+ * The authority is the only supported endpoint channel, so the backup
+ * bootstrap refuses such DSNs fail-closed. Plain query parameters (`dbname`,
+ * `sslmode`, `application_name`, …) are untouched: only the three endpoint
+ * keys refuse, matched EXACTLY (a `localhost` key is not a `host` key).
+ * Keys are compared after percent-decoding (libpq decodes parameter names
+ * before matching; a malformed escape degrades to the raw text and simply
+ * does not match) and case-folding (libpq keyword matching is
+ * case-insensitive), so `?HOST=` and `?%68ost=` refuse like `?host=`.
+ */
+export function rawDsnQueryHasEndpointOverride(trimmedDsn: string): boolean {
+  const questionAt = trimmedDsn.indexOf("?");
+  if (questionAt < 0) {
+    return false;
+  }
+  // The whole raw tail after the first `?` is libpq's query view (a raw `#`
+  // inside it is a separate refusal in `rawDsnHasAmbiguousAuthority`). One
+  // linear pass, split on `&`, first `=` separates a decoded, case-folded
+  // KEY from its value — the value is never endpoint-deciding here.
+  for (const pair of trimmedDsn.slice(questionAt + 1).split("&")) {
+    if (pair.length === 0) {
+      continue;
+    }
+    const equals = pair.indexOf("=");
+    const key = decodeUrlSegment(equals < 0 ? pair : pair.slice(0, equals)).toLowerCase();
+    if (key === "host" || key === "hostaddr" || key === "port") {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
  * Effective database name of a parsed Postgres DSN: the query `dbname=`
  * parameter when it carries a value, else the URI path database.
  *
@@ -362,6 +406,83 @@ export function effectiveDatabaseName(url: URL): string {
  */
 export function databaseNameFromDsn(url: URL): string {
   return effectiveDatabaseName(url) || "(default)";
+}
+
+/**
+ * The source-DSN refusal (the exit-2 `[env]` message) for a BACKUP source
+ * DSN — `null` when the DSN is assessable and backup-eligible. One
+ * dispatcher for the four fail-closed gates the backup bootstrap applies,
+ * in assessment order, before any out-dir, staging, dump, or manifest side
+ * effect (the bootstrap prints the message; this function owns the rules):
+ *
+ *  1. RAW unassessable-authority/fragment/control gate — the backup-side
+ *     mirror of the restore guard's raw-authority, raw-#, and control
+ *     character channels (`assessRawUriAuthority`, `assessRawUriPath`, and
+ *     the query-string rule in `restore-guard-url.ts`). libpq has no
+ *     fragment delimiter and reads THROUGH a raw `#` in any span, and
+ *     WHATWG and libpq DISAGREE on where the authority ends when a raw `?`
+ *     sits inside it: libpq dumps the literal `…/pt9b#k` path database,
+ *     connects as the literal `user#k` authority role, and folds
+ *     `?dbname=app_db#k` into the parameter value, while every
+ *     WHATWG-derived view (the `effectiveDatabaseName` label among them)
+ *     ends that span at the `?`/`#` — breaking the _shared contract that
+ *     the manifest records the database pg_dump dumps (live-proven R11
+ *     shape: `postgres?k@host:5432/db` → manifest `(default)` while
+ *     dumping a named database). A raw control character diverges the same
+ *     way: WHATWG strips tab/newline/CR outright and percent-encodes the
+ *     other C0 controls, while libpq keeps the literal bytes (live-proven
+ *     R12 shape: a database literally named `r12ptab<TAB>k` in the path —
+ *     the manifest labeled `r12ptabk` while the dump contains the tab). A
+ *     percent-encoded escape (`%23`, `%09`) is fine — libpq percent-decodes
+ *     each channel and the label decodes to the same literal name, so the
+ *     manifest matches what was dumped.
+ *  2. Dot-segment path gate — the backup-side mirror of the restore
+ *     guard's dot-segment refusal ({@link assessUriDatabaseComponent}): the
+ *     WHATWG parser normalizes `.`/`..` path segments away (raw or
+ *     percent-encoded) while libpq treats the raw path as the LITERAL
+ *     database name (live-proven: `…/a/../db` dumps the literal `a/../db`
+ *     database while the manifest's WHATWG-derived label records `db`) —
+ *     the manifest would rename the source. One message covers both the
+ *     raw and the percent-encoded shape: percent-encoding a dot-segment is
+ *     normalized away exactly like the literal one, so the remediation is
+ *     the literal database name, not an escape.
+ *  3. Endpoint-override query gate ({@link rawDsnQueryHasEndpointOverride})
+ *     — the backup-side completion of the restore guard's query channels
+ *     (restore targets have assessed `?host=`/`?hostaddr=` since R2; the
+ *     backup source DSN had no equivalent gate). libpq applies URI query
+ *     parameters ON TOP of the parsed authority, so `?host=`/`?hostaddr=`/
+ *     `?port=` name the endpoint pg_dump actually connects to while every
+ *     URL-derived label (the redacted provenance line, the manifest's
+ *     authority view among them) renders the DSN authority — live-proven:
+ *     a `?host=…&port=…` source backed up with the authority label naming
+ *     a dead endpoint, and `?hostaddr=8.8.8.8` would ship the dump
+ *     off-box entirely. The authority is the only supported endpoint
+ *     channel; plain query parameters (`dbname`, `sslmode`,
+ *     `application_name`, …) are untouched.
+ *  4. Unnamed-database gate — the backup-side mirror of the restore
+ *     guard's target-naming rule (R5: a target whose database is
+ *     under-specified refuses). A db-less source DSN (no path database, no
+ *     `?dbname=` query) AND an explicitly EMPTY `?dbname=` value are the
+ *     same under-specified endpoint: libpq completes an empty dbname from
+ *     the USER name (never from the path; live-proven: the dump header
+ *     said `dbname: postgres` while a path-fallback label said the path
+ *     database), so the dump's provenance is unverifiable and the manifest
+ *     would mislabel it with the `(default)` marker.
+ */
+export function backupSourceDsnRefusal(trimmedDsn: string, dsnUrl: URL): string | null {
+  if (rawDsnHasAmbiguousAuthority(trimmedDsn)) {
+    return "source DSN contains an unassessable character sequence — percent-encode special characters";
+  }
+  if (rawDsnPathHasDotSegments(trimmedDsn)) {
+    return "source DSN path contains dot-segments — use the literal database name";
+  }
+  if (rawDsnQueryHasEndpointOverride(trimmedDsn)) {
+    return "source DSN endpoint override in query string is not supported — put host/port in the DSN authority";
+  }
+  if (effectiveDatabaseName(dsnUrl).length === 0) {
+    return "source database name is unspecified — name the database explicitly";
+  }
+  return null;
 }
 
 /**

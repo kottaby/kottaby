@@ -7,6 +7,7 @@ import {
   REDACTED_DSN,
   rawDsnHasAmbiguousAuthority,
   rawDsnPathHasDotSegments,
+  rawDsnQueryHasEndpointOverride,
   redactDsn,
   resolveEnvFilePath,
   scrubDsnSecrets,
@@ -113,6 +114,46 @@ describe("rawDsnPathHasDotSegments", () => {
     expect(rawDsnPathHasDotSegments("postgresql://u:p@host.example:5432/app_db?sslmode=require")).toBe(false);
     expect(rawDsnPathHasDotSegments("postgresql://host.example:5432?sslmode=disable")).toBe(false);
     expect(rawDsnPathHasDotSegments("postgresql://u:p@host.example:5432")).toBe(false);
+  });
+});
+
+describe("rawDsnQueryHasEndpointOverride", () => {
+  it("refuses the host/hostaddr/port endpoint-override keys in the raw query", () => {
+    // Live-proven R14 shape: libpq applies query parameters ON TOP of the
+    // authority, so `?host=`/`?port=` can point the dump at an endpoint the
+    // authority label never names.
+    expect(rawDsnQueryHasEndpointOverride("postgresql://u:p@db.example:5432/app_db?host=127.0.0.1")).toBe(true);
+    expect(rawDsnQueryHasEndpointOverride("postgresql://u:p@db.example:5432/app_db?hostaddr=8.8.8.8")).toBe(true);
+    expect(rawDsnQueryHasEndpointOverride("postgresql://u:p@db.example:5432/app_db?port=5433")).toBe(true);
+    expect(rawDsnQueryHasEndpointOverride("postgresql://u:p@db.example:5432/app_db?host=127.0.0.1&port=5432")).toBe(
+      true
+    );
+    // Mixed with benign parameters — the endpoint key still refuses.
+    expect(rawDsnQueryHasEndpointOverride("postgresql://u:p@db.example:5432/app_db?dbname=app_db&port=5433")).toBe(
+      true
+    );
+  });
+
+  it("matches endpoint keys case-insensitively, percent-decoded, and valueless", () => {
+    expect(rawDsnQueryHasEndpointOverride("postgresql://u:p@db.example:5432/app_db?HOST=127.0.0.1")).toBe(true);
+    expect(rawDsnQueryHasEndpointOverride("postgresql://u:p@db.example:5432/app_db?HostAddr=8.8.8.8")).toBe(true);
+    expect(rawDsnQueryHasEndpointOverride("postgresql://u:p@db.example:5432/app_db?%68ost=x")).toBe(true);
+    expect(rawDsnQueryHasEndpointOverride("postgresql://u:p@db.example:5432/app_db?host")).toBe(true);
+    expect(rawDsnQueryHasEndpointOverride("postgresql://u:p@db.example:5432/app_db?port")).toBe(true);
+  });
+
+  it("allows plain query parameters and benign DSNs unchanged", () => {
+    expect(rawDsnQueryHasEndpointOverride("postgresql://u:p@db.example:5432/app_db?dbname=&sslmode=disable")).toBe(
+      false
+    );
+    expect(
+      rawDsnQueryHasEndpointOverride("postgresql://u:p@db.example:5432/app_db?sslmode=disable&application_name=x")
+    ).toBe(false);
+    expect(rawDsnQueryHasEndpointOverride("postgresql://u:p@db.example:5432/app_db?dbname=other")).toBe(false);
+    // An exact-key match only: `localhost` is not a `host` key.
+    expect(rawDsnQueryHasEndpointOverride("postgresql://u:p@db.example:5432/app_db?localhost=hint")).toBe(false);
+    expect(rawDsnQueryHasEndpointOverride("postgresql://u:p@db.example:5432/app_db")).toBe(false);
+    expect(rawDsnQueryHasEndpointOverride("postgresql://u:p@db.example:5432/app_db?sslmode=require")).toBe(false);
   });
 });
 

@@ -236,8 +236,16 @@ function lastUriQueryValue(rawSearch: string, name: string): string | undefined 
  * `ab`, `dbname='a\\b'` reports `a\b`, and the backslash-quote form
  * `dbname='a\'b'` keeps the quote in the scanned span and reports `a'b`);
  * double-quoted values fold `\<char>` → `<char>` only (`dbname="a\b"`
- * reports `ab`, `dbname="a\"b"` reports `a"b`). Unquoted values keep
- * their characters literal — libpq processes no escapes there.
+ * reports `ab`, `dbname="a\"b"` reports `a"b`). Unquoted values fold
+ * `\<char>` → `<char>` as well — libpq's unquoted scan consumes the
+ * backslash together with the character it escapes (live-proven:
+ * `dbname=r14\db` connects as `r14db`), and an escaped WHITESPACE both
+ * folds to that whitespace and extends the value across it instead of
+ * ending it (live-proven: `dbname=r14\ db` connects as `r14 db`), so the
+ * span keeps scanning into what follows up to the next UNESCAPED
+ * whitespace. A backslash at end-of-input has nothing to escape and
+ * libpq's scan drops it (`dbname=r14\` connects as `r14`), so the
+ * captured span never ends in a bare backslash.
  */
 export function redactTargetDatabaseName(dsn: string): string {
   try {
@@ -258,8 +266,14 @@ export function redactTargetDatabaseName(dsn: string): string {
   // The quoted-value spans tolerate a backslash-escaped quote (`\'` / `\"`)
   // the way libpq scans them — such a quote does NOT end the value — and the
   // alternations are disjoint on their first character, so the scan stays
-  // linear (no backtracking blow-up on hostile input).
-  for (const match of dsn.matchAll(/\bdbname=(?:"((?:\\.|[^"\\])*)"|'((?:\\.|[^'\\]|'')*)'|(\S+))/gi)) {
+  // linear (no backtracking blow-up on hostile input). The unquoted span is
+  // linear the same way: a backslash enters it only through the two-character
+  // escape alternative (`\` + any non-newline character, whitespace
+  // included — the escaped-whitespace extension rule), plain characters
+  // exclude backslash and whitespace, so a bare trailing backslash matches
+  // neither alternative (libpq's scan drops it) and every backslash inside
+  // the span is the head of an escape pair.
+  for (const match of dsn.matchAll(/\bdbname=(?:"((?:\\.|[^"\\])*)"|'((?:\\.|[^'\\]|'')*)'|((?:\\.|[^\s\\])+))/gi)) {
     const singleQuoted = match[2];
     // Runtime `match[2]` is undefined when the single-quote group did not
     // participate, so the guard is a typeof check, not a `!==` comparison.
@@ -269,9 +283,13 @@ export function redactTargetDatabaseName(dsn: string): string {
       reported = singleQuoted.replace(/''/g, "'").replace(/\\(.)/g, "$1");
     } else {
       const doubleQuoted = match[1];
-      // Double-quoted folds backslash escapes only; unquoted values keep
-      // every character literal (libpq processes no escapes there).
-      reported = doubleQuoted === undefined ? (match[3] ?? "") : doubleQuoted.replace(/\\(.)/g, "$1");
+      // Double-quoted folds backslash escapes only. The unquoted span folds
+      // them too — every backslash inside it is the head of the escape pair
+      // libpq's scan consumed, escaped whitespace included, so the fold is
+      // the exact inverse of the span rule and a bare trailing backslash
+      // cannot occur inside the span.
+      reported =
+        doubleQuoted === undefined ? (match[3] ?? "").replace(/\\(.)/g, "$1") : doubleQuoted.replace(/\\(.)/g, "$1");
     }
   }
   if (reported !== null && reported.length > 0) {

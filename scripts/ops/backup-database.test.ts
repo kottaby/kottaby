@@ -108,6 +108,9 @@ let rawControlPathEnvFile = "";
 let dotSegmentPathEnvFile = "";
 let encodedDotSegmentPathEnvFile = "";
 let emptyQueryDbnameEnvFile = "";
+let hostOverrideEnvFile = "";
+let hostaddrOverrideEnvFile = "";
+let benignQueryParamsEnvFile = "";
 const missingEnvFile = (): string => relative(process.cwd(), join(workspace, ".env-backup-missing"));
 const ORIGINAL_DATABASE_URL = process.env.DATABASE_URL;
 
@@ -277,6 +280,23 @@ beforeAll(() => {
   emptyQueryDbnameEnvFile = writeEnvFile(
     ".env-backup-empty-query-dbname",
     "DATABASE_URL=postgresql://ops_owner:supersecret-pw@db.internal.example:5432/pathdb?dbname=\n"
+  );
+  // The R14 endpoint-override query shapes: libpq applies `?host=` /
+  // `?hostaddr=` / `?port=` ON TOP of the authority, so the redacted
+  // authority label can name a different endpoint than the one pg_dump
+  // actually connects to (`?hostaddr=8.8.8.8` would ship the dump
+  // off-box). The benign twin carries only plain parameters.
+  hostOverrideEnvFile = writeEnvFile(
+    ".env-backup-host-override",
+    "DATABASE_URL=postgresql://ops_owner:supersecret-pw@db.internal.example:5432/app_db?host=127.0.0.1&port=5432\n"
+  );
+  hostaddrOverrideEnvFile = writeEnvFile(
+    ".env-backup-hostaddr-override",
+    "DATABASE_URL=postgresql://ops_owner:supersecret-pw@db.internal.example:5432/app_db?hostaddr=8.8.8.8\n"
+  );
+  benignQueryParamsEnvFile = writeEnvFile(
+    ".env-backup-benign-query-params",
+    "DATABASE_URL=postgresql://ops_owner:supersecret-pw@db.internal.example:5432/app_db?sslmode=disable&application_name=dr-drill\n"
   );
 });
 
@@ -1427,6 +1447,61 @@ describe("runBackup — failure boundaries", () => {
     expect(run.errors).toContain("[env] source database name is unspecified — name the database explicitly");
     expect(run.calls).toEqual([]);
     expect(existsSync(outDir)).toBe(false);
+  });
+
+  it("refuses a ?host=/?port= source-DSN query override with exit 2 and zero side effects", async () => {
+    const outDir = join(workspace, "run-host-override-query");
+    const run = await runBackupWith(probeAndDumpBehavior(dumpWritesArtifact), {
+      envFile: hostOverrideEnvFile,
+      outDir,
+    });
+    // Live-proven R14 shape: libpq applies `?host=`/`?port=` ON TOP of the
+    // authority, so a backup proceeded while the redacted label named the
+    // (dead) authority endpoint — the query channel is not an assessable
+    // endpoint source; the DSN authority names the endpoint.
+    expect(run.code).toBe(2);
+    expect(run.errors).toContain(
+      "[env] source DSN endpoint override in query string is not supported — put host/port in the DSN authority"
+    );
+    expect(run.calls).toEqual([]);
+    expect(existsSync(outDir)).toBe(false);
+  });
+
+  it("refuses a ?hostaddr= source-DSN query override with exit 2 and zero side effects", async () => {
+    const outDir = join(workspace, "run-hostaddr-override-query");
+    const run = await runBackupWith(probeAndDumpBehavior(dumpWritesArtifact), {
+      envFile: hostaddrOverrideEnvFile,
+      outDir,
+    });
+    // hostaddr is the address libpq CONNECTS to directly — a numeric remote
+    // endpoint would ship the dump off-box while every label keeps
+    // rendering the authority host.
+    expect(run.code).toBe(2);
+    expect(run.errors).toContain(
+      "[env] source DSN endpoint override in query string is not supported — put host/port in the DSN authority"
+    );
+    expect(run.calls).toEqual([]);
+    expect(existsSync(outDir)).toBe(false);
+  });
+
+  it("allows plain query parameters and dumps the authority-named database", async () => {
+    const outDir = join(workspace, "run-benign-query-params");
+    const run = await runBackupWith(probeAndDumpBehavior(dumpWritesArtifact), {
+      envFile: benignQueryParamsEnvFile,
+      outDir,
+    });
+    expect(run.code).toBe(0);
+    // Only the three endpoint keys refuse: `sslmode`/`application_name`
+    // reshape neither the endpoint nor the database, so the run succeeds
+    // and the manifest names the path database.
+    const manifest = JSON.parse(readFileSync(join(outDir, STAMP, MANIFEST_FILE_NAME), "utf8")) as unknown;
+    expect(manifestProblems(manifest)).toEqual([]);
+    expect(manifest).toMatchObject({ database: "app_db" });
+    // The child still receives the ORIGINAL DSN libpq resolves.
+    const dumpCall = run.calls.find(call => call.argv[0] === "pg_dump" && call.argv[1] !== "--version");
+    expect(dumpCall?.argv.at(-1)).toBe(
+      "postgresql://ops_owner:supersecret-pw@db.internal.example:5432/app_db?sslmode=disable&application_name=dr-drill"
+    );
   });
 
   it("exits 2 when a live lock is held and never steals it", async () => {
