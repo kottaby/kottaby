@@ -234,6 +234,61 @@
 
 ---
 
+## E. Resolved During Implementation — Subscription Purchase & Payment Gateway
+
+> Post-implementation rulings recorded when the subscription purchase flow (provider-agnostic
+> gateway port, pending pair, webhook settlement, lane crediting) shipped. Each addendum names its
+> plan-decision anchor; none reopens the 33-decision catalog or the summary counts above.
+
+### E.1: Plan → Balance-Lane Encoding — `plans.balance_lane`, Fail-Closed Purchase on NULL (Decision D4)
+> **✅ RESOLVED**
+>
+> **Decision:** Nothing in the tree encoded which balance lane a plan credits, and title-parsing
+> heuristics are forbidden. Every plan row carries its lane explicitly in a new nullable
+> `plans.balance_lane` column (`subscription_credit_lane` pgEnum: `hifz` / `tajweed` / `reviews`).
+> A plan with a NULL lane CANNOT be purchased (`PLAN_LANE_UNCONFIGURED`, fail-closed at purchase
+> AND again at activation — the lane is never guessed), and catalog validation rejects any value
+> outside the enum before any DB write.
+>
+> **Schema impact:** `plans.balance_lane` (nullable, no default — backward-compatible with existing
+> rows); new `subscription_credit_lane` pgEnum + `SubscriptionCreditLane` TS mirror; admin
+> create/update paths validate and persist the lane (explicit `null` clears it; an absent field
+> leaves it untouched); the demo-catalog seeder backfills lanes on every seed pass.
+>
+> **Reference:** Canonical contract in `docs/billing/subscription-purchase.md` §1 (fail-closed lane
+> invariant) and §7 (activation crediting); lane validation end-to-end in the plan-catalog service.
+
+### E.2: `mock` Gateway Member in the `payment_gateway` Enum (Decision D5)
+> **✅ RESOLVED**
+>
+> **Decision:** The mock provider's payments must be ledger-attributable, so `mock` is a first-class
+> `payment_gateway` member (pgEnum + TS enum + GraphQL wire enum) rather than overloading `other`.
+> Mock payments persist `payment_gateway = mock` — audit honesty (INV-PAY4): mapping mock to `other`
+> would erase provider attribution in auditor queries.
+>
+> **Schema impact:** `payment_gateway` extended with `mock` (ALTER TYPE ADD VALUE); no exhaustive
+> switch/map consumers existed, so the addition required zero code updates.
+>
+> **Reference:** `docs/billing/subscription-purchase.md` §2 (port + mock adapter, audit-honesty
+> rule).
+
+### E.3: No Student Purchase UI — the Mutation Is the Contract (Decision D8)
+> **✅ RESOLVED**
+>
+> **Decision:** This increment ships NO student purchase UI. The `purchaseSubscription` mutation
+> (student-only) and the `mySubscriptions` query ARE the purchase contract; the checkout funnel UX
+> belongs to the Sprint-2 real-gateway work, and a placeholder checkout page would be throwaway
+> work with a false UX signal. The only UI delta is the admin plan form's balance-lane select.
+>
+> **Spec impact:** `purchaseSubscription` denies every non-student role with `403 FORBIDDEN`
+> (including admin — admin subscription surfaces are a separate downstream concern); the mock
+> provider's `checkoutUrl` is null, so no redirect flow exists to design UI against.
+>
+> **Reference:** `docs/billing/subscription-purchase.md` §8 (GraphQL surface) and §10 (consumer
+> guidance).
+
+---
+
 ## Summary
 
 | Category | Count | Status |

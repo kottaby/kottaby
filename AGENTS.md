@@ -459,6 +459,7 @@ After reading the applicable instruction files and AGENTS.md, subagents check fo
 - `docs/parents/handshake-code-discovery.md` — Parent handshake-code discovery canonical reference (code format + generation contract by reference, minimal masked payload with no `id`, governance-exclusion collapse, null-not-error not-found, advisory `linkable` semantics, binding link-request forward contract, brute-force posture)
 - `docs/students/free-trial-provisioning.md` — Free Trial Provisioning canonical reference (one-time trial credit grant for new students, dedicated `balance_trial` lane, grant-once guarded UPDATE, DEV3 booking-eligibility & decrement forward contract)
 - `docs/sessions/session-lifecycle.md` — Session lifecycle canonical reference (DEV3-004: state machine + guarded-transition pattern, four-phase creation invariant, hold-as-debit + same-lane refund, idempotency claim design, sessions-are-sensitive oracle ruling + anti-copy-paste warning, consumer guidance for DEV3-005/006/011/012/013/021 + DEV2-016)
+- `docs/billing/subscription-purchase.md` — Subscription purchase & payment gateway canonical reference (provider-agnostic gateway port + mock adapter, purchase contract with idempotency claims + pending pair, webhook security contract (kill switch, HMAC, quarantine), guarded activation + balance-lane crediting, INV-PAY2 trigger amendment, consumer guidance for DEV1-007/008/009 + DEV2-005)
 
 
 ## Linting Rules

@@ -124,6 +124,14 @@ stateDiagram-v2
 | Cancelled | Admin cancelled | `subscriptions.status = 'cancelled'` ✅ RESOLVED (A.9) |
 | Pending | Created but not yet active | `subscriptions.start_date > now` |
 
+> **Pending-state reconciliation (A.9 enum vs date-window reading):** for A.9-compliant writers —
+> anything that writes the `subscription_status` column (the purchase flow) — `pending` means
+> **pending-until-paid**: the row was created by a purchase and awaits settlement, with NULL
+> `start_date`/`end_date`; the guarded activation stamps the window and flips the row to `active`
+> exactly once. The legacy date-window reading (`start_date > now`) describes date-derived phase,
+> not the enum state, and never overrides the enum for status writers. Status mutations are guarded
+> single-statement transitions only (zero rows = replay/no-op).
+
 ### 4.2 Session Balance Invariants
 | ID | Invariant |
 |---|---|
@@ -229,6 +237,12 @@ The handshake-code discovery surface (parent search by code, preceding this life
 
 ## 8. Payment Lifecycle
 
+> **Implementation reference (subscription purchase & payment gateway):** the purchase contract
+> (pending pair + idempotency claim), the webhook security contract, guarded activation + lane
+> credit, the idempotency tables, and the INV-PAY2 trigger amendment are implemented and canonically
+> documented in [`docs/billing/subscription-purchase.md`](../billing/subscription-purchase.md).
+> INV-PAY6 (exactly-once activation) and INV-PAY7 (mismatch quarantine) are owned there.
+
 ### 8.1 States
 | State | Enum Value | Description |
 |---|---|---|
@@ -241,10 +255,12 @@ The handshake-code discovery surface (parent search by code, preceding this life
 | ID | Invariant |
 |---|---|
 | INV-PAY1 | `student_payments.amount` must be >= 0 (check constraint). |
-| INV-PAY2 | Payment records are immutable. Corrections via adjustment transactions only. |
+| INV-PAY2 | Payment records are immutable. Corrections via adjustment transactions only. **✅ AMENDED (guarded status transition — the single permitted exception):** an UPDATE is allowed iff `OLD.status = 'pending' AND NEW.status IN ('paid','failed')` AND every financial/identity column (`student_id`, `subscription_id`, `amount`, `currency`, `payment_gateway`, `created_at`) is unchanged (null-safe compare) — enforced by the amended `prevent_student_payments_update()` DB guard; every other UPDATE (incl. `pending → pending`, lifecycle skips, column tamper, re-deciding a decided payment) raises, and the DELETE guard is untouched. Decided payments are terminal; the only conforming writers are the repository's guarded decision writers. |
 | INV-PAY3 | A subscription is activated (and session balance credited) only upon `paid` status. |
 | INV-PAY4 | `student_payments` records a `payment_gateway` (stripe, paypal, paymob, fawry, other). |
 | INV-PAY5 | Admin direct onboarding with offline payment (cash/transfer/scholarship) bypasses `student_payments`. **✅ RESOLVED (B.9):** Audit trail maintained via `subscriptions.payment_method`, `subscriptions.payment_reference`, and `subscriptions.payment_verified_at` fields. |
+| INV-PAY6 | Exactly one `pending → paid` activation ever executes per subscription. The guarded single-statement UPDATE (`WHERE id = ? AND status = 'pending'`) is the atomicity arbiter — no event bookkeeping table is needed. A replayed/replayed-out-of-order delivery matches zero rows, is acked as a replay (no credit, no second notification, decided rows byte-identical), and a late `confirmed` after `failed` is rejected-and-logged (never a silent upgrade). |
+| INV-PAY7 | A verified callback whose `amount` or `currency` disagrees with the stored ledger row (or whose ledger row is missing) is QUARANTINED: zero mutation anywhere, one bounded log carrying correlation ids only (never raw payloads or financial values), and a `200 { processed: false }` acknowledgment — settlement integrity beats liveness (a 4xx would trigger endless gateway retries). |
 
 ---
 

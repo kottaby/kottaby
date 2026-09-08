@@ -189,7 +189,7 @@
   - [x] 12.1.IV (instructions re-verified against every touched file)
   - _Requirements: REQ-001, REQ-002_
 
-- [ ] 13.1 Knowledge propagation
+- [x] 13.1 Knowledge propagation
   - CREATE `docs/billing/subscription-purchase.md` (canonical: port + mock provider, purchase contract, webhook security, guarded activation + credit, idempotency, trigger amendment, consumer guidance for DEV1-007/008/009 + DEV2-005).
   - Add addenda: `docs/specs/state-machine-invariants.md` (INV-PAY2 addendum, new INV-PAY6/INV-PAY7, §4.1 reconciliation), `docs/specs/open-decisions-and-gaps.md` (lane encoding D4, `mock` member D5, no-UI D8).
   - ≤2-line AGENTS cross-refs + root `AGENTS.md` Important References line; `sub-loop.ts` per modified doc/AGENTS file.
