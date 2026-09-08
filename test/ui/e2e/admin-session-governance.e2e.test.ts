@@ -4,15 +4,20 @@
  * REAL Chromium through Playwright.
  *
  * ONE smoke covering the full governance journey in a real browser runtime:
- * fixture (certified demo teacher + booked trial-lane session via the public
- * GraphQL API, mirroring the REAL-DB journey posture — no backdoor writes) →
+ * fixture (certified demo teacher + a FRESHLY BOOKED trial-lane session via
+ * the public GraphQL API, mirroring the REAL-DB journey posture — no
+ * backdoor writes; HERMETIC: the fixture row is created in `beforeAll` and
+ * hard-deleted in `afterAll` with an id-scoped FK-safe teardown, so no
+ * leftover or seeded directory row is ever consumed or left behind) →
  * admin login → directory load (loading skeleton clears) → status filter
- * APPLY (`scheduled` keeps the row; honest total echo) → reset → kebab menu →
- * cancel on the eligible (scheduled) row → confirm dialog with a reason →
- * success snackbar → row status chip flips to `cancelled` in place →
- * server-truth re-filter (`cancelled` keeps the row) → the /audit trail
- * reflects the action (deep-linked to the session entity: `override` action
- * row with the reason readable in the expandable details).
+ * APPLY (`scheduled` keeps the fixture row — a PRESENCE assert, never an
+ * exact count, because the shared test directory may hold other runs'
+ * rows) → reset → kebab menu → cancel on the eligible (scheduled) row →
+ * confirm dialog with a reason → success snackbar → row status chip flips
+ * to `cancelled` in place → server-truth re-filter (`cancelled` keeps the
+ * fixture row) → the /audit trail reflects the action (deep-linked to the
+ * session entity: `override` action row with the reason readable in the
+ * expandable details).
  *
  * All user-facing text asserted through the translation system
  * (`getDefaultTranslations()` — the app default locale); no hardcoded UI
@@ -23,8 +28,15 @@
  */
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import { randomUUID } from "node:crypto";
-import { type Browser, type BrowserContext, chromium, type Locator, type Page } from "playwright";
+import { and, eq } from "drizzle-orm";
+import { type Browser, type BrowserContext, chromium, type Page } from "playwright";
+import { db } from "@/backend/db";
+import { auditLogs } from "@/backend/db/schema/audit/audit-logs";
+import { session } from "@/backend/db/schema/classes/session";
+import { sessionRequestIdempotency } from "@/backend/db/schema/classes/session-request-idempotency";
+import { notifications } from "@/backend/db/schema/notifications/notifications";
 import { getDefaultTranslations } from "@/shared/locale/server";
+import { withAuditDeleteTriggersSuspended } from "@/test/helpers/db-cleanup";
 
 const PORT = process.env.TEST_SERVER_PORT ?? "3066";
 const BASE = `http://localhost:${PORT}`;
@@ -72,16 +84,8 @@ const CREATE_SESSION_MUTATION = /* GraphQL */ `
   }
 `;
 
-const SCHEDULED_DIRECTORY_QUERY = /* GraphQL */ `
-  query AdminSessionsScheduled {
-    adminSessions(filter: { status: "scheduled" }, page: 1, pageSize: 1) {
-      items {
-        id
-        status
-      }
-    }
-  }
-`;
+/** The audit row's entity label for this surface (the service's constant). */
+const SESSION_ENTITY_TYPE = "session";
 
 interface GqlPayload {
   data?: Record<string, unknown> | null;
@@ -144,35 +148,28 @@ async function loginCookie(email: string, password: string): Promise<string> {
 }
 
 /**
- * Returns a CANCEL-ELIGIBLE (scheduled) session id: an existing directory row
- * when a previous run left one behind, otherwise a freshly booked trial-lane
- * session (certified demo teacher + seeded demo student, public API only).
+ * Books a FRESH cancel-eligible (scheduled) trial-lane session through the
+ * public API (certified demo teacher + seeded demo student). HERMETIC: the
+ * suite never reuses a leftover directory row — every run books its own
+ * session under a per-run idempotency key, and `afterAll` hard-deletes it.
  */
-async function resolveFixtureSessionId(adminCookie: string): Promise<number> {
-  const existing = await gqlFetch(adminCookie, SCHEDULED_DIRECTORY_QUERY, {});
-  const page = existing.data?.adminSessions as { items?: Array<{ id: unknown }> } | undefined;
-  const reusable = page?.items?.[0]?.id;
-  if (typeof reusable === "number" && Number.isSafeInteger(reusable)) {
-    return reusable;
-  }
-
-  const studentCookie = await loginCookie(STUDENT_EMAIL, SEED_PASSWORD);
+async function createFixtureSession(studentCookie: string): Promise<number> {
   const booked = await gqlFetch(
     studentCookie,
     CREATE_SESSION_MUTATION,
     { input: { intent: "hifz", teacherId: DEMO_TEACHER_USER_ID } },
     { "x-idempotency-key": randomUUID() }
   );
-  const session = booked.data?.createSession as { id?: unknown; status?: unknown } | undefined;
+  const created = booked.data?.createSession as { id?: unknown; status?: unknown } | undefined;
   const bookingError = booked.errors?.[0];
-  if (typeof session?.id !== "number" || session.status !== "scheduled") {
+  if (typeof created?.id !== "number" || created.status !== "scheduled") {
     const detail = bookingError?.message ?? "unknown booking error";
     throw new Error(
-      `no scheduled session available and the trial booking failed (${detail}) — ` +
+      `the trial-lane fixture booking failed (${detail}) — ` +
         "reseed the test database (bun run backend/db/scripts/migrate.ts && bun run backend/db/scripts/drizzleSeed.ts) and retry"
     );
   }
-  return session.id;
+  return created.id;
 }
 
 /** Certified-teacher bootstrap for the booking leg (idempotent on re-runs). */
@@ -195,21 +192,6 @@ async function loginAdmin(context: BrowserContext): Promise<void> {
   }
 }
 
-/** Polls a locator's text until it equals the expected value (auto-wait). */
-async function awaitText(locator: Locator, expected: string, timeoutMs = 30000): Promise<void> {
-  const deadline = Date.now() + timeoutMs;
-  for (;;) {
-    const current = await locator.textContent();
-    if (current === expected) {
-      return;
-    }
-    if (Date.now() > deadline) {
-      throw new Error(`text condition not met in time: expected "${expected}", saw "${current}"`);
-    }
-    await new Promise(resolve => setTimeout(resolve, 150));
-  }
-}
-
 /** Opens the status combobox and applies one status option (MUI v9 select). */
 async function applyStatusFilter(page: Page, statusLabel: string): Promise<void> {
   await page.getByRole("combobox", { name: tGov.filterStatusLabel }).click();
@@ -224,11 +206,13 @@ beforeAll(async () => {
   browser = await chromium.launch({ headless: true });
 
   // Fixture leg over the public API — certify the demo teacher (idempotent),
-  // resolve a scheduled session, and warm the two page routes under the
-  // admin session so the smoke's navigation budget stays assertion-only.
+  // book a FRESH trial-lane session for the seeded demo student, and warm
+  // the two page routes under the admin session so the smoke's navigation
+  // budget stays assertion-only.
   const adminCookie = await loginCookie(ADMIN_EMAIL, SEED_PASSWORD);
   await certifyDemoTeacher(adminCookie);
-  sessionId = await resolveFixtureSessionId(adminCookie);
+  const studentCookie = await loginCookie(STUDENT_EMAIL, SEED_PASSWORD);
+  sessionId = await createFixtureSession(studentCookie);
   expect(sessionId).toBeGreaterThan(0);
 
   for (const route of [`/admin/session-governance`, `/audit?entityType=session&entityId=${sessionId}`]) {
@@ -239,6 +223,27 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await browser.close();
+
+  // Hermetic teardown — id-scoped FK-safe hard-delete of the fixture the
+  // API leg created (the seeded demo actors are NEVER touched): the
+  // cancel's append-only audit row first, under the suspended-trigger
+  // helper; then the session-scoped wave rows and the spent booking claim;
+  // then the session row itself (its restrict-FK targets are seeded rows
+  // that stay).
+  if (sessionId > 0) {
+    await withAuditDeleteTriggersSuspended(async () => {
+      await db
+        .delete(auditLogs)
+        .where(and(eq(auditLogs.entityType, SESSION_ENTITY_TYPE), eq(auditLogs.entityId, sessionId)));
+    });
+    await db
+      .delete(notifications)
+      .where(
+        and(eq(notifications.relatedEntityType, SESSION_ENTITY_TYPE), eq(notifications.relatedEntityId, sessionId))
+      );
+    await db.delete(sessionRequestIdempotency).where(eq(sessionRequestIdempotency.sessionId, sessionId));
+    await db.delete(session).where(eq(session.id, sessionId));
+  }
 });
 
 test("admin session governance — filter → cancel → audit trail smoke", async () => {
@@ -256,9 +261,10 @@ test("admin session governance — filter → cancel → audit trail smoke", asy
   await row.waitFor({ state: "visible", timeout: 60000 });
   await row.getByText(tSessions.statusScheduled, { exact: true }).waitFor({ state: "visible", timeout: 30000 });
 
-  // ── Status filter APPLY: `scheduled` keeps the row, honest total is 1 ──
+  // ── Status filter APPLY: the fixture row appears in the filtered ──────
+  // ── `scheduled` directory (presence — the shared test directory may   ──
+  // ── legitimately hold other runs' rows, so never an exact count)      ──
   await applyStatusFilter(page, tSessions.statusScheduled);
-  await awaitText(page.getByTestId("admin-session-governance-count"), tGov.countLine(1));
   await row.waitFor({ state: "visible", timeout: 60000 });
 
   // ── Reset: the unfiltered directory shows the row again ────────────────
@@ -284,9 +290,8 @@ test("admin session governance — filter → cancel → audit trail smoke", asy
   await dialog.waitFor({ state: "hidden", timeout: 30000 });
   await row.getByText(tSessions.statusCancelled, { exact: true }).waitFor({ state: "visible", timeout: 30000 });
 
-  // ── Server-truth re-filter: `cancelled` keeps the row (honest total 1) ──
+  // ── Server-truth re-filter: the fixture row appears under `cancelled` ──
   await applyStatusFilter(page, tSessions.statusCancelled);
-  await awaitText(page.getByTestId("admin-session-governance-count"), tGov.countLine(1));
   await row.waitFor({ state: "visible", timeout: 60000 });
   await row.getByText(tSessions.statusCancelled, { exact: true }).waitFor({ state: "visible", timeout: 30000 });
 
