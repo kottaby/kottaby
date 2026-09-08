@@ -135,13 +135,13 @@ Sequence: QL → TE → SEC → SR → IV → `[x]`.
 
 ## Phase 7 — Knowledge Propagation (executed only after Phase-8 review is green per skill ordering note: Phase 8 numbered after 7 but executes BEFORE 7's propagation write — keep the task ordering below)
 
-- [ ] 7.1 **Knowledge propagation**
+- [x] 7.1 **Knowledge propagation**
   - Root `AGENTS.md` Important References: add ONE line — `docs/ops/disaster-recovery.md` — DR runbook (RPO 1h / RTO 4h), backup/restore-verify ops scripts, invariant-oracle verification.
   - IF implementation surfaced a durable rule (e.g., "operator scripts that target a database with mutating tools MUST guard-assess the target DSN"), add it as a 1–2 line rule in the appropriate AGENTS.md/instructions file per content policy (rules+references only).
   - QL each modified file; SR vs content policy (no code/prose dumps); IV.
   - Write `outcome/7.1-knowledge-propagation-outcome.md`.
   - _Requirements: REQ-028, REQ-070, REQ-071, REQ-072._
-- [ ] 7.2 **Deferred ledger sweep**: D-001..D-003 confirmed 📅 Forward with owners (D-001 operator/DEV3-026, D-002 post-launch CI, D-003 post-launch infra); zero ❌ rows; write `outcome/7.2-ledger-sweep-outcome.md`.
+- [x] 7.2 **Deferred ledger sweep**: D-001..D-003 confirmed 📅 Forward with owners (D-001 operator/DEV3-026, D-002 post-launch CI, D-003 post-launch infra); zero ❌ rows; write `outcome/7.2-ledger-sweep-outcome.md`.
   - _Requirements: REQ-000.2, REQ-070.3 (ledger clean at plan close)._
 
 ## Phase 8 — Post-Implementation Review Wave (mandatory: plan exceeds 10 subtasked units; executes BEFORE Phase 7 writes)
