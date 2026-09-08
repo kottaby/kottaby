@@ -49,6 +49,14 @@ export function createAuthCookieOut(): AuthCookieOut {
   return [];
 }
 
+function safeDecode(val: string): string {
+  try {
+    return decodeURIComponent(val);
+  } catch {
+    return val;
+  }
+}
+
 /**
  * Fast-path single-cookie extraction directly from a `Cookie` header string
  * without allocating an entire `Record<string, string>` object or splitting
@@ -58,45 +66,14 @@ export function createAuthCookieOut(): AuthCookieOut {
  * when only a specific cookie (e.g., access_token) is needed on hot request paths.
  */
 export function extractCookieValue(cookieHeader: string | null | undefined, name: string): string | null {
-  if (!cookieHeader || !name) {
-    return null;
-  }
-  let pos = 0;
-  const headerLen = cookieHeader.length;
-  const nameLen = name.length;
+  if (!cookieHeader || !name) return null;
 
-  while (pos < headerLen) {
-    // Skip leading spaces or semicolons
-    while (pos < headerLen && (cookieHeader.charCodeAt(pos) === 32 || cookieHeader.charCodeAt(pos) === 59)) {
-      pos++;
+  for (const pair of cookieHeader.split(";")) {
+    const eqIdx = pair.indexOf("=");
+    if (eqIdx <= 0) continue;
+    if (pair.slice(0, eqIdx).trim() === name) {
+      return safeDecode(pair.slice(eqIdx + 1).trim());
     }
-    if (pos >= headerLen) {
-      break;
-    }
-    // Check if key matches name
-    if (
-      cookieHeader.startsWith(name, pos) &&
-      pos + nameLen < headerLen &&
-      cookieHeader.charCodeAt(pos + nameLen) === 61 // '='
-    ) {
-      const valStart = pos + nameLen + 1;
-      let valEnd = cookieHeader.indexOf(";", valStart);
-      if (valEnd === -1) {
-        valEnd = headerLen;
-      }
-      const rawValue = cookieHeader.slice(valStart, valEnd).trim();
-      try {
-        return decodeURIComponent(rawValue);
-      } catch {
-        return rawValue;
-      }
-    }
-    // Advance to next semicolon
-    const nextSemi = cookieHeader.indexOf(";", pos);
-    if (nextSemi === -1) {
-      break;
-    }
-    pos = nextSemi + 1;
   }
   return null;
 }
@@ -110,38 +87,15 @@ export function extractCookieValue(cookieHeader: string | null | undefined, name
  */
 export function parseCookies(cookieHeader: string | null | undefined): Record<string, string> {
   const out: Record<string, string> = {};
-  if (!cookieHeader) {
-    return out;
-  }
-  let pos = 0;
-  const headerLen = cookieHeader.length;
+  if (!cookieHeader) return out;
 
-  while (pos < headerLen) {
-    while (pos < headerLen && (cookieHeader.charCodeAt(pos) === 32 || cookieHeader.charCodeAt(pos) === 59)) {
-      pos++;
+  for (const pair of cookieHeader.split(";")) {
+    const eqIdx = pair.indexOf("=");
+    if (eqIdx <= 0) continue;
+    const key = pair.slice(0, eqIdx).trim();
+    if (key) {
+      out[key] = safeDecode(pair.slice(eqIdx + 1).trim());
     }
-    if (pos >= headerLen) {
-      break;
-    }
-    const nextSemi = cookieHeader.indexOf(";", pos);
-    const pairEnd = nextSemi === -1 ? headerLen : nextSemi;
-    const eqIdx = cookieHeader.indexOf("=", pos);
-
-    if (eqIdx > pos && eqIdx < pairEnd) {
-      const key = cookieHeader.slice(pos, eqIdx).trim();
-      if (key) {
-        const rawValue = cookieHeader.slice(eqIdx + 1, pairEnd).trim();
-        try {
-          out[key] = decodeURIComponent(rawValue);
-        } catch {
-          out[key] = rawValue;
-        }
-      }
-    }
-    if (nextSemi === -1) {
-      break;
-    }
-    pos = nextSemi + 1;
   }
   return out;
 }
