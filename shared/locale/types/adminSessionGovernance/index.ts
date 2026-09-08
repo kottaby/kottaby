@@ -125,8 +125,6 @@ export interface AdminSessionGovernanceLabels {
   readonly actionCancel: string;
   /** Kebab action — reassign teacher. */
   readonly actionReassign: string;
-  /** Kebab action — join as observer. */
-  readonly actionJoin: string;
   /** Kebab action — open the live session's drawer view (the observe confirm lives inside). */
   readonly actionViewAndObserve: string;
   /** Disabled-action hint — reschedule needs scheduled|started. */

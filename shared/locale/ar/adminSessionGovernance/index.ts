@@ -50,7 +50,6 @@ export const adminSessionGovernanceAr: AdminSessionGovernanceLabels = {
   actionReschedule: "إعادة جدولة",
   actionCancel: "إلغاء الجلسة",
   actionReassign: "إسناد معلّم آخر",
-  actionJoin: "الانضمام كمراقب",
   actionViewAndObserve: "عرض ومراقبة",
   rescheduleDisabledHint: "لا يمكن إعادة جدولة إلا الجلسات المجدولة أو الجارية.",
   cancelDisabledHint: "لا يمكن إلغاء إلا الجلسات المجدولة أو الجارية.",

@@ -48,7 +48,6 @@ export const adminSessionGovernanceEn: AdminSessionGovernanceLabels = {
   actionReschedule: "Reschedule",
   actionCancel: "Cancel session",
   actionReassign: "Reassign teacher",
-  actionJoin: "Join as observer",
   actionViewAndObserve: "View & observe",
   rescheduleDisabledHint: "Only scheduled or started sessions can be rescheduled.",
   cancelDisabledHint: "Only scheduled or started sessions can be cancelled.",
