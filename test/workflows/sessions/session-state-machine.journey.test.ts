@@ -1,5 +1,5 @@
 /**
- * Journey — Session State Machine (DEV3-005 verification slice).
+ * Journey — Session State Machine (enforcement verification slice).
  *
  * Three cross-actor arcs through the REAL `SessionLifecycleService` on the
  * production transaction path (no outer tx), with every step attributed to
@@ -34,9 +34,10 @@
  *  - Negative steps fail through the REAL service denials, asserted by
  *    `DomainError.code` + the exact translated message (try/catch helper —
  *    never `expect(...).rejects.toThrow()`).
- *  - REQ-J6 (zero residual state): the suite is verified by TWO
- *    consecutive green runs — the second run rebuilds a fresh cast with
- *    fresh ids/keys and observes none of the first run's rows.
+ *  - Twice-green requirement (zero residual state): the suite is run TWO
+ *    consecutive times to surface cross-test state leakage — the second
+ *    run rebuilds a fresh cast with fresh ids/keys and observes none of
+ *    the first run's rows.
  *
  * Run:
  *   bun run test/scripts/run-test.ts test/workflows/sessions/session-state-machine.journey.test.ts

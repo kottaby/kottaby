@@ -273,7 +273,16 @@ export namespace SessionLifecycleService {
         // teacher) — fail closed rather than lock a phantom row.
         throw new Error("SessionLifecycleService.startSession: teacher row vanished inside the start transaction");
       }
-      await TeacherRepository.setOnline(started.teacherId, false, tx);
+      // Fail closed symmetrically with the release direction: a zero-row
+      // lock write rolls the whole flow back instead of committing a
+      // started session with no lock applied.
+      const locked = await TeacherRepository.setOnline(started.teacherId, false, tx);
+      if (locked === null) {
+        logger.error("Session lifecycle blocked: in-session lock write matched zero teacher rows", {
+          teacherId: started.teacherId,
+        });
+        throw new Error("SessionLifecycleService.startSession: in-session lock write matched zero teacher rows");
+      }
       return started;
     });
   }

@@ -17,10 +17,12 @@
  *
  * The matrix is a PURE module-level constant (no DB, no logging, O(1)
  * lookup, no per-call allocation) and is the single source of truth for
- * legal transitions: the shipped guarded writers keep their inline
- * pre-state predicates (zero risk to shipped write paths — plan Decision
- * 1), while the matrix drives the journey-level regression sweep that
- * pins every edge (`session-state-machine.journey.test.ts`).
+ * legal transitions: it is a consulted lookup — the enforcement suite's
+ * truth-table tests (`session-lifecycle.enforcement.test.ts`) ask it what
+ * is legal, pinning matrix↔guarded-writer consistency — rather than an
+ * embedded switch re-declared inside every guarded writer (the writers
+ * keep their own inline pre-state predicates, so shipped write paths are
+ * untouched), which keeps every transition rule in one auditable place.
  *
  * The gates are the shared enforcement points:
  *  - `assertSessionCompletedForReport` (INV-S7) — reports may only be

@@ -330,13 +330,16 @@ export namespace TeacherRepository {
    * INV-S6 in-session lock primitive (see
    * `docs/specs/state-machine-invariants.md` §1).
    *
-   * The write is deliberately UNCONDITIONAL beyond row identity: going
-   * offline is always allowed (the lock), and the restore direction is
-   * policy-free HERE — the flip-side gating (never resurrect a teacher
-   * who was already offline before the lock, never unlock a manually
-   * toggled row) is the SERVICE layer's composition duty via the
-   * `priorOnline` capture (the availability-toggle seam documented in
-   * `docs/sessions/session-lifecycle.md` §Concurrency). Certification
+   * The write is deliberately UNCONDITIONAL beyond row identity: this
+   * method IS the guarded required-tx `UPDATE … RETURNING` primitive and
+   * nothing more — the SERVICE layer composes WHEN the flag is driven to
+   * `false` (a session start, the lock) or back to `true` (a `started`
+   * exit, the release). Restoration on exit is currently UNCONDITIONAL:
+   * a prior-online capture exists at the start flow (the teacher row read
+   * inside the start transaction), but until the future availability-
+   * toggle work owns the never-resurrect gating, a release restores
+   * availability without consulting it — the known seam documented in
+   * `docs/sessions/session-lifecycle.md` §Concurrency. Certification
    * plays no part: an uncertified teacher may still go offline.
    *
    * The service layer is the ONLY intended caller: this write composes

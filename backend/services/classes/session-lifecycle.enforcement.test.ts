@@ -1,8 +1,8 @@
 /**
- * `session-lifecycle.enforcement` tests — the DEV3-005 enforcement module
- * (transition matrix + INV-S7/INV-S8 gates + the DEV2-011 seam gate)
- * against the live test database on REAL repositories, inside
- * `runInRollback`.
+ * `session-lifecycle.enforcement` tests — the session state-machine
+ * enforcement module (transition matrix + INV-S7/INV-S8 gates + the
+ * availability-toggle seam gate) against the live test database on REAL
+ * repositories, inside `runInRollback`.
  *
  * Per `backend/db/test/AGENTS.md` (the DB-backed service-test rules the
  * sibling suites apply):
@@ -151,8 +151,10 @@ async function insertReportRow(tx: DBTransaction, sessionId: number): Promise<vo
 
 /** An integer id that cannot exist as a `session` row during this transaction. */
 async function absentSessionId(tx: DBTransaction): Promise<number> {
-  const [maxRow] = await tx.select({ maxId: session.id }).from(session).orderBy(session.id).limit(1);
-  return (maxRow?.maxId ?? 0) + 1_000_000;
+  // The ordered probe reads the table's LOWEST id (ASC, limit 1); the fixed
+  // seven-digit margin above it keeps the returned id absent for this tx.
+  const [minRow] = await tx.select({ minId: session.id }).from(session).orderBy(session.id).limit(1);
+  return (minRow?.minId ?? 0) + 1_000_000;
 }
 
 // ─── Tier 1 — the matrix truth table + gate pass paths ──────────────────
