@@ -1,3 +1,46 @@
+type AdminApplicantExportEnvelope {
+  rows: [AdminApplicantItem!]!
+  total: Int!
+  truncated: Boolean!
+}
+
+input AdminApplicantFiltersInput {
+  search: String
+  status: String
+}
+
+type AdminApplicantItem {
+  cooldownUntil: DateTime
+  country: String
+  createdAt: DateTime!
+  email: String!
+  id: Int!
+  isBlocked: Boolean!
+  isDeleted: Boolean!
+  lastAttemptAt: DateTime
+  name: String!
+  phone: String
+  status: String!
+  suspended: Boolean!
+  verificationAttempts: Int!
+}
+
+type AdminApplicantPage {
+  items: [AdminApplicantItem!]!
+  page: Int!
+  pageCount: Int!
+  pageSize: Int!
+  statusCounts: AdminApplicantStatusCounts!
+  total: Int!
+}
+
+type AdminApplicantStatusCounts {
+  failed: Int!
+  inEvaluation: Int!
+  passed: Int!
+  pending: Int!
+}
+
 type AdminAuditLogEntry {
   actionType: AuditActionType!
   actorId: Int!
@@ -74,6 +117,45 @@ input AdminSessionRescheduleInput {
   startedAt: DateTime!
 }
 
+type AdminStudentExportEnvelope {
+  rows: [AdminStudentItem!]!
+  total: Int!
+  truncated: Boolean!
+}
+
+input AdminStudentFiltersInput {
+  hasParent: Boolean
+  language: String
+  search: String
+}
+
+type AdminStudentItem {
+  anotherLanguage: String
+  balanceHifz: Int!
+  balanceReviews: Int!
+  balanceTajweed: Int!
+  balanceTrial: Int!
+  country: String
+  createdAt: DateTime!
+  email: String!
+  hasParent: Boolean!
+  id: Int!
+  name: String!
+  parentEmail: String
+  parentName: String
+  phone: String
+  primaryLanguage: String
+  trialGrantedAt: DateTime
+}
+
+type AdminStudentPage {
+  items: [AdminStudentItem!]!
+  page: Int!
+  pageCount: Int!
+  pageSize: Int!
+  total: Int!
+}
+
 type AdminStudentSnapshot {
   anotherLanguage: String
   balanceHifz: Int
@@ -86,6 +168,44 @@ type AdminStudentSnapshot {
   parentId: Int
   primaryLanguage: String
   trialGrantedAt: String
+}
+
+type AdminTeacherExportEnvelope {
+  rows: [AdminTeacherItem!]!
+  total: Int!
+  truncated: Boolean!
+}
+
+input AdminTeacherFiltersInput {
+  approval: Boolean
+  evaluator: Boolean
+  online: Boolean
+  search: String
+}
+
+type AdminTeacherItem {
+  averageRating: Float
+  country: String
+  createdAt: DateTime!
+  email: String!
+  id: Int!
+  isApproved: Boolean!
+  isBlocked: Boolean!
+  isDeleted: Boolean!
+  isEvaluator: Boolean!
+  isOnline: Boolean!
+  name: String!
+  phone: String
+  subjects: [String!]!
+  suspended: Boolean!
+}
+
+type AdminTeacherPage {
+  items: [AdminTeacherItem!]!
+  page: Int!
+  pageCount: Int!
+  pageSize: Int!
+  total: Int!
 }
 
 type AdminTeacherSnapshot {
@@ -666,6 +786,12 @@ type Query {
   List every session for the admin governance directory (admin-only): all rows regardless of state or ownership, newest first, paged with an honest total. Rows carry the server-derived needsAttention badge — presentation only, never an authorization signal.
   """
   adminSessions(filter: AdminSessionListFilterInput!, page: Int = 1, pageSize: Int = 25): SessionPage!
+  adminStudents(filters: AdminStudentFiltersInput, page: Int, pageSize: Int): AdminStudentPage!
+  adminStudentsExport(filters: AdminStudentFiltersInput): AdminStudentExportEnvelope!
+  adminTeacherApplicants(filters: AdminApplicantFiltersInput, page: Int, pageSize: Int): AdminApplicantPage!
+  adminTeacherApplicantsExport(filters: AdminApplicantFiltersInput): AdminApplicantExportEnvelope!
+  adminTeachers(filters: AdminTeacherFiltersInput, page: Int, pageSize: Int): AdminTeacherPage!
+  adminTeachersExport(filters: AdminTeacherFiltersInput): AdminTeacherExportEnvelope!
   adminUserActivity(id: Int!, limit: Int): [AdminUserActivityEntry!]!
   adminUserDetail(id: Int!): AdminUserDetail!
   adminUserStats: AdminUserStats!

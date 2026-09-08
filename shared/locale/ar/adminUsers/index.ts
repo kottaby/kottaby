@@ -50,6 +50,8 @@ export const adminUsersAr: AdminUsersLabels = {
     viewProfile: "عرض تفاصيل المستخدم",
     copyEmail: "نسخ البريد الإلكتروني",
     emailCopied: "تم نسخ البريد الإلكتروني.",
+    copyLink: "نسخ الرابط",
+    linkCopied: "تم نسخ رابط العرض.",
   },
   roleLabels: {
     admin: "مسؤول",

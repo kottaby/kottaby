@@ -51,6 +51,12 @@ export const notificationsEn: NotificationsLabels = {
   eventSessionQueuedBody: (teacherName: string) => `Your session request to ${teacherName} was added to the queue.`,
   eventSessionAlternativesOfferedBody: (teacherName: string) =>
     `${teacherName} can't take your request, so we offered you alternative teachers.`,
+  eventSessionCompletionPromptTitle: "Confirm your completed session",
+  eventSessionAutoCancelledTitle: "Session auto-cancelled",
+  eventSessionCompletionPromptBody: (teacherName: string) =>
+    `${teacherName} marked your session as complete — please confirm it so the session can be settled.`,
+  eventSessionAutoCancelledBody: (teacherName: string) =>
+    `Your session with ${teacherName} was auto-cancelled because it wasn't confirmed within 24 hours.`,
   intentHifz: "Hifz",
   intentTajweed: "Tajweed",
   intentEvaluation: "Evaluation",

@@ -101,6 +101,10 @@ export interface AdminUsersLabels {
     readonly copyEmail: string;
     /** Snackbar shown after the email is copied to the clipboard. */
     readonly emailCopied: string;
+    /** Toolbar action that copies the shareable URL of the current filtered view. */
+    readonly copyLink: string;
+    /** Snackbar shown after the view link is copied to the clipboard. */
+    readonly linkCopied: string;
   };
 
   /**

@@ -1,14 +1,21 @@
 import type { SessionIntent } from "@/backend/enum/scheduling/session-intent.enum";
 import type { AppLocale } from "@/shared/locale/AppLocale";
 
-/** Closed wave vocabulary — the six lifecycle notifications of a session request. */
+/**
+ * Closed wave vocabulary — the eight lifecycle notifications of a session:
+ * the six request-intake waves plus the two completion-handshake waves (the
+ * confirm-prompt after the teacher's completion stamp and the auto-cancel
+ * notice once the confirmation window lapses).
+ */
 export type SessionRequestWaveKind =
   | "teacher_request"
   | "outcome_accepted"
   | "outcome_declined"
   | "outcome_auto_rejected"
   | "outcome_queued"
-  | "outcome_alternatives_offered";
+  | "outcome_alternatives_offered"
+  | "completion_prompt"
+  | "completion_auto_cancelled";
 
 /**
  * Closed wave vocabulary — the three admin session-governance waves

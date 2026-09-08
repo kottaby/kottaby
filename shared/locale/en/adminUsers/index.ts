@@ -50,6 +50,8 @@ export const adminUsersEn: AdminUsersLabels = {
     viewProfile: "View user details",
     copyEmail: "Copy email address",
     emailCopied: "Email address copied to clipboard.",
+    copyLink: "Copy link",
+    linkCopied: "View link copied to clipboard.",
   },
   roleLabels: {
     admin: "Admin",

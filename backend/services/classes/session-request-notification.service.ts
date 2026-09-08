@@ -1,8 +1,11 @@
 /**
- * Session-request notification wave emitters — the internal engine-facing
- * library for the six session-request lifecycle waves (one teacher-facing
- * request wave, five student-facing outcome waves) plus the three admin
- * session-governance waves (reschedule / cancel / teacher reassignment).
+ * Session notification wave emitters — the internal engine-facing library for
+ * the session notification waves: the six request-intake waves (one
+ * teacher-facing request wave, five student-facing outcome waves), the two
+ * student-facing completion-handshake waves (the confirm-prompt after the
+ * teacher's completion stamp and the auto-cancel notice once the confirmation
+ * window lapses), and the three admin session-governance waves
+ * (reschedule / cancel / teacher reassignment).
  *
  * Recipient derivation: the ONLY caller input is the session id. Both
  * participants resolve server-side from the persisted session row inside the
@@ -173,8 +176,62 @@ function composeWaveCopy(
         title: tNotifications.eventSessionAlternativesOfferedTitle,
         body: tNotifications.eventSessionAlternativesOfferedBody(counterparty.fullName),
       };
+    case "completion_prompt":
+      return {
+        title: tNotifications.eventSessionCompletionPromptTitle,
+        body: tNotifications.eventSessionCompletionPromptBody(counterparty.fullName),
+      };
+    case "completion_auto_cancelled":
+      return {
+        title: tNotifications.eventSessionAutoCancelledTitle,
+        body: tNotifications.eventSessionAutoCancelledBody(counterparty.fullName),
+      };
     default: {
       // Exhaustiveness guard — the wave-kind union makes this unreachable.
+      const exhaustive: never = waveKind;
+      throw new Error(`Unexpected wave kind: ${String(exhaustive)}`);
+    }
+  }
+}
+
+/**
+ * Per-wave engine envelope: the notification-type discriminant and the
+ * deterministic idempotency key the emission is claimed under. The six
+ * request-intake waves share the `session_request` type and the
+ * `session:{id}:{kind}` key shape; the two completion-handshake waves ride
+ * the `session_completion` type under their own key namespaces, so a
+ * completion emission can never collide with — or replay-substitute for — a
+ * request emission on the same session row.
+ */
+function resolveWaveEnvelope(
+  sessionId: number,
+  waveKind: SessionRequestWaveKind
+): { readonly notificationType: NotificationType; readonly idempotencyKey: string } {
+  switch (waveKind) {
+    case "completion_prompt":
+      return {
+        notificationType: NotificationType.SessionCompletion,
+        idempotencyKey: `session-completion-prompt:${sessionId}`,
+      };
+    case "completion_auto_cancelled":
+      return {
+        notificationType: NotificationType.SessionCompletion,
+        idempotencyKey: `session-completion-autocancel:${sessionId}`,
+      };
+    case "teacher_request":
+    case "outcome_accepted":
+    case "outcome_declined":
+    case "outcome_auto_rejected":
+    case "outcome_queued":
+    case "outcome_alternatives_offered":
+      return {
+        notificationType: NotificationType.SessionRequest,
+        idempotencyKey: `session:${sessionId}:${waveKind}`,
+      };
+    default: {
+      // Exhaustiveness guard — every wave-kind union member is matched
+      // explicitly above, so this branch is unreachable; adding a 9th kind
+      // without an explicit envelope case now FAILS TO COMPILE right here.
       const exhaustive: never = waveKind;
       throw new Error(`Unexpected wave kind: ${String(exhaustive)}`);
     }
@@ -210,14 +267,16 @@ async function emitWave(
     getServerTranslations(recipientLocale).notificationsTranslations
   );
 
+  const envelope = resolveWaveEnvelope(sessionId, waveKind);
+
   const input: NotificationEmitInput = {
     userId: recipient.userId,
-    type: NotificationType.SessionRequest,
+    type: envelope.notificationType,
     title,
     body,
     relatedEntityType: "session",
     relatedEntityId: sessionId,
-    idempotencyKey: `session:${sessionId}:${waveKind}`,
+    idempotencyKey: envelope.idempotencyKey,
   };
 
   if (tx !== undefined) {
@@ -297,6 +356,32 @@ export namespace SessionRequestNotificationService {
     options?: NotificationEngineCallOptions
   ): Promise<NotificationDeliveryReceipt> {
     return emitWave(sessionId, "outcome_alternatives_offered", "student", locale, tx, options);
+  }
+
+  /**
+   * Student-facing wave: the teacher marked the session complete and the
+   * student's completion confirmation is now awaited.
+   */
+  export async function notifyStudentOfCompletionPrompt(
+    sessionId: number,
+    locale: string,
+    tx?: DBTransaction,
+    options?: NotificationEngineCallOptions
+  ): Promise<NotificationDeliveryReceipt> {
+    return emitWave(sessionId, "completion_prompt", "student", locale, tx, options);
+  }
+
+  /**
+   * Student-facing wave: the session was auto-cancelled after the completion
+   * confirmation window lapsed without the student's confirmation.
+   */
+  export async function notifyStudentOfCompletionAutoCancelled(
+    sessionId: number,
+    locale: string,
+    tx?: DBTransaction,
+    options?: NotificationEngineCallOptions
+  ): Promise<NotificationDeliveryReceipt> {
+    return emitWave(sessionId, "completion_auto_cancelled", "student", locale, tx, options);
   }
 
   /**

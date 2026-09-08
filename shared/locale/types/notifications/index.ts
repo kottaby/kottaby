@@ -125,6 +125,21 @@ export interface NotificationsLabels {
   readonly intentTajweed: string;
   /** Intent display label — evaluation session. */
   readonly intentEvaluation: string;
+  // ─── Session completion-handshake event copy ───────────────────────────────
+  /** Student title — the teacher marked the session complete; the student's confirmation is awaited. */
+  readonly eventSessionCompletionPromptTitle: string;
+  /**
+   * Student body for the completion prompt — interpolates ONLY the
+   * teacher's already-assembled display name.
+   */
+  readonly eventSessionCompletionPromptBody: (teacherName: string) => string;
+  /** Student title — the session was auto-cancelled once the confirmation window lapsed. */
+  readonly eventSessionAutoCancelledTitle: string;
+  /**
+   * Student body for the auto-cancel notice — interpolates ONLY the
+   * teacher's already-assembled display name.
+   */
+  readonly eventSessionAutoCancelledBody: (teacherName: string) => string;
   // ─── Parent-link lifecycle event copy ─────────────────────────────────────
   /** Notification title — a parent sent the student a link request. */
   readonly eventParentLinkRequestTitle: string;

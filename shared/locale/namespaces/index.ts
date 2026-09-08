@@ -1,5 +1,7 @@
 export * from "./adminBroadcasts";
 export * from "./adminSessionGovernance";
+export * from "./adminStudents";
+export * from "./adminTeachers";
 export * from "./adminUsers";
 export * from "./analytics";
 export * from "./applicant";
