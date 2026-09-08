@@ -202,9 +202,13 @@ function planGovernanceWave(
 /**
  * Head-first sequential receipt walk over the composed emit plans (the
  * recursive-helper shape of the shared refund walk: every engine call
- * happens ACROSS an await, never inside a loop body). Caller-tx emissions
- * return the engine's unpublished receipt verbatim; transaction-less
- * emissions normalize the engine's single-row return into receipt shape.
+ * happens ACROSS an await, never inside a loop body). Head-first means the
+ * CURRENT recipient's engine call resolves BEFORE the recursive rest walk
+ * begins — plans[0] emits first, plans[last] last — while the returned
+ * array still lists the receipts in recipient order (`[current, ...rest]`).
+ * Caller-tx emissions return the engine's unpublished receipt verbatim;
+ * transaction-less emissions normalize the engine's single-row return into
+ * receipt shape.
  */
 async function emitGovernanceReceiptsFrom(
   plans: readonly GovernanceEmitPlan[],
@@ -216,8 +220,8 @@ async function emitGovernanceReceiptsFrom(
     return [];
   }
   const plan = plans[index];
-  const rest = await emitGovernanceReceiptsFrom(plans, index + 1, tx, options);
   if (tx !== undefined) {
+    // Emit the CURRENT plan first, then walk the rest (head-first).
     const result = await NotificationEngine.emitForUser(plan.input, plan.recipientLocale, tx, options);
     if (!("notifications" in result)) {
       throw new DomainError(
@@ -225,9 +229,11 @@ async function emitGovernanceReceiptsFrom(
         getServerTranslations(plan.recipientLocale).errorsTranslations.internalServerError
       );
     }
+    const rest = await emitGovernanceReceiptsFrom(plans, index + 1, tx, options);
     return [result, ...rest];
   }
   const result = await NotificationEngine.emitForUser(plan.input, plan.recipientLocale, undefined, options);
+  const rest = await emitGovernanceReceiptsFrom(plans, index + 1, tx, options);
   if ("notifications" in result) {
     return [result, ...rest];
   }

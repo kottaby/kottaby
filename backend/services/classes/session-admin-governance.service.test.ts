@@ -831,6 +831,23 @@ describe("SessionAdminGovernanceService — reschedule (runInRollback)", () => {
     });
   });
 
+  test("a session id beyond the safe-integer pin: the generic VALIDATION denial, never the window-invalid copy (the id refine's own custom issue is path-rooted, not root-pathed)", async () => {
+    await runInRollback(async tx => {
+      const { adminId } = await createTestAdmin(tx);
+      const beyondPin = Number.MAX_SAFE_INTEGER + 1; // 2^53 — an exact integer the id refine must reject
+
+      const caught = await expectRepoError(() =>
+        rescheduleVia(tx, adminId, {
+          sessionId: beyondPin,
+          startedAt: alignedInstant(60 * 60_000),
+          endedAt: alignedInstant(2 * 60 * 60_000),
+        })
+      );
+      expectDomainDenial(caught, "VALIDATION", ERRORS_EN.validation);
+      expect(await countAuditsForActor(tx, adminId)).toBe(0);
+    });
+  });
+
   test("a replacement start further than the grace window into the past: the start-in-past denial fires before any read and writes nothing", async () => {
     await runInRollback(async tx => {
       const actors = await createSessionActors(tx);

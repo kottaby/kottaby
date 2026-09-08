@@ -28,9 +28,10 @@
  *    is classified by ONE cold probe read that never feeds a write
  *    (unknown id → localized not-found; anything else → the localized
  *    state conflict);
- *  - exactly ONE audit row is appended per committed mutation, inside the
- *    same transaction, through the composition-only audit writer; denial
- *    paths append ZERO audit rows;
+ *  - each committed mutation appends exactly one audit row (the join via
+ *    its atomic eligibility-fold INSERT; the rest via the composition-only
+ *    audit writer), inside the same transaction; denial paths append ZERO
+ *    audit rows;
  *  - the cancel's hold release composes the ONE shared same-lane refund
  *    primitive verbatim (a row with no recorded lane refunds nothing;
  *    an unreadable lane fails closed and rolls the mutation back);
@@ -237,12 +238,17 @@ export namespace SessionAdminGovernanceService {
     // of every method (the same gate the reference arbitration op enforces).
     await assertAdminGovernanceClean(actorId, t, outerTx);
 
-    // Boundary validation BEFORE any read. The schema carries exactly one
-    // refinement — the ordered timing pair — so a refinement rejection is
-    // the window-invalid denial and every other issue is a shape issue.
+    // Boundary validation BEFORE any read. The schema's only ROOT-pathed
+    // refinement is the ordered timing pair — the object-level `.refine`
+    // reports code "custom" at path [] (zod issue shape verified at
+    // runtime), so a root-pathed custom issue is exactly the window-invalid
+    // denial; every other issue — including the id refine's own "custom"
+    // issue at path ["sessionId"] — is a generic shape issue.
     const parsed = AdminSessionRescheduleInputSchema.safeParse(input);
     if (!parsed.success) {
-      const orderingViolated = parsed.error.issues.some(issue => issue.code === "custom");
+      const orderingViolated = parsed.error.issues.some(
+        issue => issue.path.length === 0 && issue.code === "custom"
+      );
       if (orderingViolated) {
         logger.logDomainError("Admin reschedule denied: replacement timing pair is not ordered", {
           code: "SESSION_RESCHEDULE_WINDOW_INVALID",
