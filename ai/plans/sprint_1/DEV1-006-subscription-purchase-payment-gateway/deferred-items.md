@@ -23,8 +23,8 @@ This ledger tracks all work deferred from one task to another to ensure no defer
 ## Status Values
 
 - ✅ **Done** — Item completed and verified (with reference to outcome file or commit)
-- ⚠️ **Partial** — Partially completed, needs follow-up work
-- ❌ **Blocked** — Not resolved, plan cannot complete until addressed
+- **Partial** — Partially completed, needs follow-up work
+- **Blocked** — Not resolved, plan cannot complete until addressed
 - 🔄 **In Progress** — Currently being worked on
 
 ---
@@ -54,8 +54,17 @@ These belong to downstream tickets and are recorded here so their consumers see 
 The **final quality gate task (12.1)** verifies:
 
 ```bash
-grep -c "❌\|⚠️" ai/plans/sprint_1/DEV1-006-subscription-purchase-payment-gateway/deferred-items.md
+grep -cE "Blocked|Partial" ai/plans/sprint_1/DEV1-006-subscription-purchase-payment-gateway/deferred-items.md  # count only LEDGER STATUS rows
 # Expected: 0
 ```
 
-**Exit criteria:** Plan cannot be marked complete if any ❌ or ⚠️ status remains.
+**Exit criteria:** Plan cannot be marked complete if any Blocked or Partial status row remains.
+
+---
+
+## Pre-Existing Issues Discovered During Implementation (attribution-proven, NOT introduced by this plan)
+
+| ID | Item | Source Task | Target Task | Status | Verified By | Notes |
+|---|---|---|---|---|---|---|
+| PRE-1 | `plan-catalog.roles.test.ts`: 4 pre-existing failures — anonymous legs receive FORBIDDEN instead of UNAUTHORIZED on the 4 admin catalog surfaces (`role:[Admin]` authScopes lack the `authenticated` conjunction) | Discovered in 10.1 | Post-plan maintenance | 📋 Pre-existing | 10.1 outcome (stash-roundtrip attribution proof) | Predates DEV1-006 (DEV1-005 shipped the scopes); logged so review waves filter it |
+| PRE-2 | `BroadcastComposeContainer.test.tsx` hard-aborts (SIGABRT/134) at its test 7 — byte-identical HEAD version crashes identically; only working-tree delta is an inert generated fixture key | Discovered in 10.2 | Post-plan maintenance | 📋 Pre-existing | 10.2 outcome (HEAD byte-identical crash proof) | Full `test:ui:components` aborts mid-run because of it; component suites verified via sanctioned scoped runs |
