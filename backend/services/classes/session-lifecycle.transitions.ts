@@ -29,6 +29,11 @@
  * row: an unreadable value fails closed (the refusal rolls the
  * cancellation/resolution back, leaving the hold and the row consistent).
  *
+ * `releaseTeacherInSessionLock` is the release twin of that primitive: the
+ * INV-S6 lock lifted inside the SAME transaction as the transition that
+ * exits the in-progress state (complete/cancel-from-started/arbitration),
+ * keyed on the transitioned row's teacher id.
+ *
  * `refundSweptHolds` drives the confirmation-deadline sweeper's refunds
  * SEQUENTIALLY BY DESIGN through the same primitive: every refund composes
  * on the ONE sweep transaction — interleaving them would obscure the
@@ -219,6 +224,26 @@ export async function refundHeldLaneToProvenance(
     throw new Error(`SessionLifecycleService.${context}: unreadable held-balance lane`);
   }
   await StudentRepository.incrementLane(resolved.studentId, resolved.heldBalanceLane, tx);
+}
+
+/**
+ * Lifts the INV-S6 in-session teacher lock — the release twin of the
+ * same-lane refund primitive: a post-transition, same-transaction
+ * follow-up write that the cancel/arbitration/complete flows compose so
+ * the lock never outlives its session. The write is keyed on the teacher
+ * id the TRANSITIONED row carries (never caller input); a zero-row match
+ * is the fail-closed hard stop (the flow rolls back — the session stays
+ * in its pre-transition state and the lock question stays open for the
+ * retry), never a silent skip.
+ */
+export async function releaseTeacherInSessionLock(teacherId: number, tx: DBTransaction): Promise<void> {
+  const released = await TeacherRepository.setOnline(teacherId, true, tx);
+  if (released === null) {
+    logger.error("Session lifecycle blocked: in-session lock release matched zero teacher rows", {
+      teacherId,
+    });
+    throw new Error("SessionLifecycleService: in-session lock release matched zero teacher rows");
+  }
 }
 
 /**

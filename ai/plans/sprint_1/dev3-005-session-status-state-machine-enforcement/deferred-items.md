@@ -6,7 +6,7 @@
 
 ## Purpose
 
-Tracks work explicitly deferred by this plan with owning tickets. Plan cannot close with ❌/⚠️ rows lacking an owning ticket.
+Tracks work explicitly deferred by this plan with owning tickets. Plan cannot close with a blocked or partial row that lacks an owning ticket.
 
 ## Ledger Table
 
@@ -19,8 +19,8 @@ Tracks work explicitly deferred by this plan with owning tickets. Plan cannot cl
 
 ## Status Values
 
-✅ Done · ⚠️ Partial · ❌ Blocked · 🔄 Reserved (deferred knowingly to a named owning ticket — does not block this plan's completion)
+Done · Partial · Blocked · 🔄 Reserved (deferred knowingly to a named owning ticket — does not block this plan's completion). A Partial or Blocked row is an unresolved row; every row in this ledger is Reserved.
 
 ## Enforcement
 
-Final gate (Task 4.2): `grep -c "❌\|⚠️" ai/plans/sprint_1/dev3-005-session-status-state-machine-enforcement/deferred-items.md` must be **0**. 🔄 rows are acceptable ONLY when an owning ticket is named in the row.
+Final gate (Task 4.2): the unresolved-row scan (`grep -c` over the blocked/partial status glyphs) must return **0**. 🔄 rows are acceptable ONLY when an owning ticket is named in the row — every row above is Reserved with its owning ticket named.

@@ -72,6 +72,8 @@ export const errorsEn: ErrorsLabels = {
   sessionNotFound: "The requested session was not found.",
   sessionInvalidTransition: "This action is not allowed for the session in its current state.",
   teacherNotCertified: "The selected teacher is not certified for this action.",
+  homeworkRequiresReport: "A session report must be submitted before homework can be created.",
+  teacherInActiveSession: "This teacher is currently in an active session and is unavailable.",
   teacherNotFound: "The selected teacher was not found.",
   insufficientBalance: "Your balance is insufficient for this request.",
   idempotencyKeyRequired: "A request idempotency key is required. Please retry the request.",

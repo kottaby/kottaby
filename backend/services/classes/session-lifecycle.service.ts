@@ -84,7 +84,7 @@
  * behavior) is unchanged.
  */
 
-import { SessionRepository } from "@/backend/db/repo";
+import { SessionRepository, TeacherRepository } from "@/backend/db/repo";
 import { DisputeResolution, isDisputeResolution } from "@/backend/enum/scheduling/dispute-resolution.enum";
 import { SessionStatus } from "@/backend/enum/scheduling/session-status.enum";
 import { withTransaction } from "@/backend/lib/db/with-transaction";
@@ -110,6 +110,7 @@ import {
   refundHeldLaneToProvenance,
   refundSweptHolds,
   rejectTransitionMiss,
+  releaseTeacherInSessionLock,
 } from "@/backend/services/classes/session-lifecycle.transitions";
 import { SessionRequestNotificationService } from "@/backend/services/classes/session-request-notification.service";
 import { NotificationEngine } from "@/backend/services/notifications";
@@ -210,14 +211,24 @@ export namespace SessionLifecycleService {
   }
 
   /**
-   * Starts a scheduled session exactly once, as its owning teacher.
+   * Starts a scheduled session exactly once, as its owning teacher, and
+   * applies the INV-S6 in-session lock in the SAME transaction.
    *
    * The target session id is guarded as a positive safe integer BEFORE any
    * database work (the boundary parses `ID` shape-only, so a
    * malformed id is the canonical `VALIDATION` denial, never a SQL
    * round-trip). The teacher's governance state is re-asserted next. The
    * guarded transition writes the start and audit stamps from one captured
-   * instant and never touches the confirmation deadline. A zero-row match
+   * instant and never touches the confirmation deadline. The lock write
+   * (`teacher.is_online = false`) composes onto the SAME transaction —
+   * keyed on the teacher id the TRANSITIONED row carries (never caller
+   * input) — so a rollback of either write aborts both: a started session
+   * with an unlocked teacher is structurally impossible. The same-transaction
+   * teacher read doubles as the prior-online capture — the
+   * release-semantics seam recorded in the deferred ledger (D2): with no
+   * availability-toggle surface yet, a deliberate mid-session offline
+   * state cannot exist, so the release direction stays a plain restore.
+   * A zero-row match
    * is classified by one cold probe read: an unknown id and a non-owning
    * caller both surface the oracle-safe session-not-found error, and any
    * other miss cause is a lifecycle-state conflict.
@@ -226,14 +237,16 @@ export namespace SessionLifecycleService {
    *     stored in the session row's teacher column).
    * @param sessionId  The target session id.
    * @param locale  Active request locale (for the localized error messages).
-   * @param tx  Optional transaction — propagated to every read and write so
-   *     a caller-owned atomic flow stays atomic.
+   * @param outerTx  Optional transaction — propagated to every read and
+   *     write so a caller-owned atomic flow stays atomic (a SAVEPOINT on
+   *     it); production callers omit it and the flow opens its own
+   *     transaction, making the transition + lock one committed unit.
    */
   export async function startSession(
     teacherUserId: number,
     sessionId: number,
     locale: string,
-    tx?: DBTransaction
+    outerTx?: DBTransaction
   ): Promise<SessionReturnType> {
     const t = getServerTranslations(locale).errorsTranslations;
 
@@ -243,17 +256,31 @@ export namespace SessionLifecycleService {
     assertPositiveSafeSessionId(sessionId, t);
 
     // Governance re-check — the acting teacher must be governance-clean.
-    await assertActorGovernanceClean(teacherUserId, t, tx);
+    await assertActorGovernanceClean(teacherUserId, t, outerTx);
 
-    const started = await SessionRepository.startSessionOnce(sessionId, teacherUserId, tx);
-    if (started === null) {
-      throw await rejectTransitionMiss("teacherStart", sessionId, teacherUserId, tx, t);
-    }
-    return started;
+    return withTransaction(outerTx, async tx => {
+      const started = await SessionRepository.startSessionOnce(sessionId, teacherUserId, tx);
+      if (started === null) {
+        throw await rejectTransitionMiss("teacherStart", sessionId, teacherUserId, tx, t);
+      }
+
+      // INV-S6 lock — the teacher-row read inside the SAME transaction is
+      // the prior-online capture (the D2 seam note above); the write keys
+      // off the transitioned row's teacher id, never the caller input.
+      const priorTeacher = await TeacherRepository.findById(started.teacherId, tx);
+      if (priorTeacher === null) {
+        // Unreachable while the FK holds (the session row references its
+        // teacher) — fail closed rather than lock a phantom row.
+        throw new Error("SessionLifecycleService.startSession: teacher row vanished inside the start transaction");
+      }
+      await TeacherRepository.setOnline(started.teacherId, false, tx);
+      return started;
+    });
   }
 
   /**
-   * Completes a started session exactly once, as its owning teacher.
+   * Completes a started session exactly once, as its owning teacher, and
+   * lifts the INV-S6 in-session lock in the SAME transaction.
    *
    * The target session id is guarded as a positive safe integer BEFORE any
    * database work (the boundary parses `ID` shape-only, so a
@@ -264,11 +291,15 @@ export namespace SessionLifecycleService {
    * zero rows —
    * and writes the end, confirmation, and audit stamps from one captured
    * instant. Report or homework side effects are deliberately absent: the
-   * guarded statement touches only the session row — the student's
-   * confirm-prompt wave (below) is the flow's one notification side effect.
-   * A zero-row match is classified
-   * by one cold probe read (unknown/foreign → not-found; wrong state →
-   * transition conflict; owned + in-progress → certification conflict).
+   * guarded statement touches only the session row (plus the INV-S6 lock
+   * release) — the student's confirm-prompt wave (below) is the flow's one
+   * notification side effect. The guarded predicate guarantees the row
+   * exited `started`, so the in-session lock its start applied is lifted
+   * by the shared release primitive on the SAME transaction — a completed
+   * session with a still-locked teacher is structurally impossible. A
+   * zero-row match is classified by one cold probe read (unknown/foreign →
+   * not-found; wrong state → transition conflict; owned + in-progress →
+   * certification conflict).
    *
    * Once the guarded UPDATE matches, the student's confirm-prompt
    * notification is emitted on the same transaction — the prompt commits
@@ -282,18 +313,16 @@ export namespace SessionLifecycleService {
    * @param teacherUserId  The acting teacher's id (shared PK — the value
    *     stored in the session row's teacher column).
    * @param sessionId  The target session id.
-   * @param locale  Active request locale (for the localized error messages;
-   *     the prompt copy itself follows the student's persisted locale).
-   * @param tx  Optional transaction — propagated to every read and write so
-   *     a caller-owned atomic flow stays atomic.
+   * @param outerTx  Optional transaction — propagated to every read and
+   *     write so a caller-owned atomic flow stays atomic.
    */
   export async function completeSession(
     teacherUserId: number,
     sessionId: number,
     locale: string,
-    tx?: DBTransaction
+    outerTx?: DBTransaction
   ): Promise<SessionReturnType> {
-    const result = await completeSessionWithReceipt(teacherUserId, sessionId, locale, tx);
+    const result = await completeSessionWithReceipt(teacherUserId, sessionId, locale, outerTx);
     return result.session;
   }
 
@@ -323,8 +352,11 @@ export namespace SessionLifecycleService {
    * @param sessionId  The target session id.
    * @param locale  Active request locale (for the localized error messages;
    *     the prompt copy itself follows the student's persisted locale).
-   * @param tx  Optional transaction — propagated to every read and write so
-   *     a caller-owned atomic flow stays atomic.
+   * @param outerTx  Optional transaction — propagated to every read and
+   *     write so a caller-owned atomic flow stays atomic (a SAVEPOINT on
+   *     it); production callers omit it and the flow opens its own
+   *     transaction, making the transition, release, and prompt one
+   *     committed unit.
    * @returns The completed session row and the confirm-prompt delivery
    *     receipt (published on the flow-owned commit path; unpublished on the
    *     caller-owned path).
@@ -333,7 +365,7 @@ export namespace SessionLifecycleService {
     teacherUserId: number,
     sessionId: number,
     locale: string,
-    tx?: DBTransaction
+    outerTx?: DBTransaction
   ): Promise<{
     readonly session: SessionReturnType;
     readonly receipt: NotificationDeliveryReceipt;
@@ -346,18 +378,22 @@ export namespace SessionLifecycleService {
     assertPositiveSafeSessionId(sessionId, t);
 
     // Governance re-check — the acting teacher must be governance-clean.
-    await assertActorGovernanceClean(teacherUserId, t, tx);
+    await assertActorGovernanceClean(teacherUserId, t, outerTx);
 
-    const result = await withTransaction(tx, async txArg => {
-      const completed = await SessionRepository.completeSessionOnce(sessionId, teacherUserId, txArg);
+    const result = await withTransaction(outerTx, async tx => {
+      const completed = await SessionRepository.completeSessionOnce(sessionId, teacherUserId, tx);
       if (completed === null) {
-        throw await rejectTransitionMiss("teacherComplete", sessionId, teacherUserId, txArg, t);
+        throw await rejectTransitionMiss("teacherComplete", sessionId, teacherUserId, tx, t);
       }
+
+      // INV-S6 release — the predicate guaranteed the `started` pre-state,
+      // so this flow's start lock is lifted on the SAME transaction.
+      await releaseTeacherInSessionLock(completed.teacherId, tx);
 
       // The confirm prompt rides the completion's own transaction — it
       // commits with the stamp or not at all, and its receipt stays
       // unpublished until the commit boundary below.
-      const receipt = await SessionRequestNotificationService.notifyStudentOfCompletionPrompt(sessionId, locale, txArg);
+      const receipt = await SessionRequestNotificationService.notifyStudentOfCompletionPrompt(sessionId, locale, tx);
 
       return { session: completed, receipt };
     });
@@ -365,7 +401,7 @@ export namespace SessionLifecycleService {
     // Publish strictly AFTER the commit — a denied or rolled-back
     // completion never pushes its prompt. A caller-owned transaction is
     // published by the caller after its own commit.
-    if (tx === undefined) {
+    if (outerTx === undefined) {
       await NotificationEngine.publishReceipts([result.receipt], locale);
     }
 
@@ -391,7 +427,11 @@ export namespace SessionLifecycleService {
    * increment — the lane that paid is refunded exactly once); a terminal or
    * foreign target is classified by one cold probe read (unknown/
    * non-participant → not-found; anything else → transition conflict), so a
-   * double cancel can never double-refund.
+   * double cancel can never double-refund. The INV-S6 in-session lock is
+   * lifted on the SAME transaction ONLY when the row had actually started
+   * — `started_at` is written by the start transition and never cleared, so
+   * it classifies the pre-state (a pre-start cancel releases nothing,
+   * because no lock was ever applied).
    *
    * @param callerUserId  The acting participant's id (the session's student
    *     or its teacher).
@@ -430,6 +470,12 @@ export namespace SessionLifecycleService {
       // Refund the lane that funded the hold — same transaction, same lane,
       // through the ONE shared same-lane refund primitive.
       await refundHeldLaneToProvenance(cancelled, "cancelSession", tx);
+
+      // INV-S6 release — ONLY a row that had started ever held the lock
+      // (`started_at` classifies the pre-state; see the docblock).
+      if (cancelled.startedAt !== null) {
+        await releaseTeacherInSessionLock(cancelled.teacherId, tx);
+      }
 
       return cancelled;
     });
@@ -515,6 +561,11 @@ export namespace SessionLifecycleService {
    *    missed → transition conflict — the admin surface distinguishes
    *    state, never participants).
    *
+   * Both outcomes lift the INV-S6 in-session lock on the SAME transaction
+   * when the row had actually started (`started_at` classifies the
+   * pre-state) — the arbitration exit is a `started`-session exit for
+   * lock purposes, identical to the participant flows.
+   *
    * @param adminId  The acting admin's id (context-resolved server-side by
    *     the caller; shared PK with the users table).
    * @param sessionId  The target session id.
@@ -584,6 +635,15 @@ export namespace SessionLifecycleService {
       // refund and the status flip commit atomically.
       if (resolution === DisputeResolution.Cancel) {
         await refundHeldLaneToProvenance(resolved, "resolveSessionDispute", tx);
+      }
+
+      // INV-S6 release — ONLY a dispute opened from `started` held the
+      // lock: `started_at` classifies the pre-state (a never-started
+      // session's arbitration releases nothing). The COMPLETE outcome's
+      // guarded predicate already required a written start stamp, so its
+      // release is unconditional here.
+      if (resolved.startedAt !== null) {
+        await releaseTeacherInSessionLock(resolved.teacherId, tx);
       }
 
       return resolved;
