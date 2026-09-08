@@ -5,7 +5,7 @@ import json, os, sys, urllib.request
 TOKEN = os.environ["GITHUB_TOKEN"]  # never hardcode — GitHub push protection blocks token-bearing commits
 REPO = "kottaby/kottaby"
 ISSUE = 75
-COMMENT_FILE = "/home/z/my-project/scripts/issue-75-close-comment.md"
+COMMENT_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "issue-75-close-comment.md")
 BASE = f"https://api.github.com/repos/{REPO}/issues/{ISSUE}"
 
 
