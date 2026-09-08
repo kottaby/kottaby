@@ -47,6 +47,7 @@ import {
   effectiveDatabaseName,
   parsePostgresDatabaseUrl,
   rawDsnHasAmbiguousAuthority,
+  rawDsnPathHasDotSegments,
   redactDsn,
   resolveEnvFilePath,
   scrubDsnSecrets,
@@ -187,6 +188,21 @@ function bootstrapDsn(envFile: string, deps: BackupRunDeps): { dsn: string; dsnU
   // name, so the manifest matches what was dumped.
   if (rawDsnHasAmbiguousAuthority(rawDsn.trim())) {
     deps.emit.error(`[env] source DSN contains an unassessable character sequence — percent-encode special characters`);
+    return null;
+  }
+  // Dot-segment path gate — the backup-side mirror of the restore guard's
+  // hasDotSegments refusal (`assessUriDatabaseComponent` in `_shared`). The
+  // WHATWG parser normalizes `.`/`..` path segments away (raw or
+  // percent-encoded) while libpq treats the raw path as the LITERAL
+  // database name (live-proven: `…/a/../db` dumps the literal `a/../db`
+  // database while the manifest's WHATWG-derived label records `db`) — the
+  // manifest would rename the source, so the bootstrap refuses the DSN
+  // before any out-dir, staging, dump, or manifest side effect. One message
+  // covers both the raw and the percent-encoded shape: percent-encoding a
+  // dot-segment is normalized away exactly like the literal one, so the
+  // remediation is the literal database name, not an escape.
+  if (rawDsnPathHasDotSegments(rawDsn.trim())) {
+    deps.emit.error(`[env] source DSN path contains dot-segments — use the literal database name`);
     return null;
   }
   // Unnamed-database gate — the backup-side mirror of the restore guard's

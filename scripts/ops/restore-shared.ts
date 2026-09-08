@@ -228,11 +228,16 @@ function lastUriQueryValue(rawSearch: string, name: string): string | undefined 
  * `#`; the restore guard refuses raw-fragment paths upstream before any
  * run (fail closed), so a report label can never diverge from the database
  * libpq actually restored into. Conninfo-form targets follow libpq
- * semantics: the
- * LAST `dbname=` occurrence wins, one layer of surrounding single/double
- * quotes is stripped (inner spaces are part of the name libpq connects to),
- * and libpq `''` escapes inside single-quoted values are folded
- * (`dbname='my''db'` reports `my'db`).
+ * semantics: the LAST `dbname=` occurrence wins, one layer of surrounding
+ * single/double quotes is stripped (inner spaces are part of the name libpq
+ * connects to), and libpq's escape folding inside QUOTED values is applied
+ * so the label is the libpq-effective name: single-quoted values fold `''`
+ * → `'` first and then every `\<char>` → `<char>` (`dbname='a\b'` reports
+ * `ab`, `dbname='a\\b'` reports `a\b`, and the backslash-quote form
+ * `dbname='a\'b'` keeps the quote in the scanned span and reports `a'b`);
+ * double-quoted values fold `\<char>` → `<char>` only (`dbname="a\b"`
+ * reports `ab`, `dbname="a\"b"` reports `a"b`). Unquoted values keep
+ * their characters literal — libpq processes no escapes there.
  */
 export function redactTargetDatabaseName(dsn: string): string {
   try {
@@ -250,11 +255,24 @@ export function redactTargetDatabaseName(dsn: string): string {
   }
 
   let reported: string | null = null;
-  for (const match of dsn.matchAll(/\bdbname=(?:"([^"]*)"|'((?:[^']|'')*)'|(\S+))/gi)) {
+  // The quoted-value spans tolerate a backslash-escaped quote (`\'` / `\"`)
+  // the way libpq scans them — such a quote does NOT end the value — and the
+  // alternations are disjoint on their first character, so the scan stays
+  // linear (no backtracking blow-up on hostile input).
+  for (const match of dsn.matchAll(/\bdbname=(?:"((?:\\.|[^"\\])*)"|'((?:\\.|[^'\\]|'')*)'|(\S+))/gi)) {
     const singleQuoted = match[2];
     // Runtime `match[2]` is undefined when the single-quote group did not
     // participate, so the guard is a typeof check, not a `!==` comparison.
-    reported = typeof singleQuoted === "string" ? singleQuoted.replace(/''/g, "'") : (match[1] ?? match[3] ?? "");
+    if (typeof singleQuoted === "string") {
+      // libpq folds `''` → `'` first, then every `\<char>` → `<char>`
+      // (order-insensitive on every input the span scan can produce).
+      reported = singleQuoted.replace(/''/g, "'").replace(/\\(.)/g, "$1");
+    } else {
+      const doubleQuoted = match[1];
+      // Double-quoted folds backslash escapes only; unquoted values keep
+      // every character literal (libpq processes no escapes there).
+      reported = doubleQuoted === undefined ? (match[3] ?? "") : doubleQuoted.replace(/\\(.)/g, "$1");
+    }
   }
   if (reported !== null && reported.length > 0) {
     return reported;

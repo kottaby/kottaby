@@ -105,6 +105,8 @@ let rawQuestionAuthorityEnvFile = "";
 let dblessEnvFile = "";
 let rawControlAuthorityEnvFile = "";
 let rawControlPathEnvFile = "";
+let dotSegmentPathEnvFile = "";
+let encodedDotSegmentPathEnvFile = "";
 let emptyQueryDbnameEnvFile = "";
 const missingEnvFile = (): string => relative(process.cwd(), join(workspace, ".env-backup-missing"));
 const ORIGINAL_DATABASE_URL = process.env.DATABASE_URL;
@@ -257,6 +259,17 @@ beforeAll(() => {
   rawControlPathEnvFile = writeEnvFile(
     ".env-backup-raw-control-path",
     'DATABASE_URL="postgresql://ops_owner:supersecret-pw@db.internal.example:5432/r12ptab\tk"\n'
+  );
+  // The R13 dot-segment shapes: libpq dumps the literal `a/../db` database
+  // while the WHATWG pathname records the normalized `db` — and the
+  // percent-encoded twin WHATWG normalizes exactly the same way.
+  dotSegmentPathEnvFile = writeEnvFile(
+    ".env-backup-dot-segment-path",
+    "DATABASE_URL=postgresql://ops_owner:supersecret-pw@db.internal.example:5432/a/../app_db\n"
+  );
+  encodedDotSegmentPathEnvFile = writeEnvFile(
+    ".env-backup-encoded-dot-segment-path",
+    "DATABASE_URL=postgresql://ops_owner:supersecret-pw@db.internal.example:5432/a/%2e%2e/app_db\n"
   );
   // The explicitly empty `?dbname=` query value: libpq completes an empty
   // dbname from the USER name (never the path db), so the name is
@@ -1350,6 +1363,35 @@ describe("runBackup — failure boundaries", () => {
     expect(run.errors).toContain(
       "[env] source DSN contains an unassessable character sequence — percent-encode special characters"
     );
+    expect(run.calls).toEqual([]);
+    expect(existsSync(outDir)).toBe(false);
+  });
+
+  it("refuses a dot-segment source DSN path with exit 2 and zero side effects", async () => {
+    const outDir = join(workspace, "run-dot-segment-path");
+    const run = await runBackupWith(probeAndDumpBehavior(dumpWritesArtifact), {
+      envFile: dotSegmentPathEnvFile,
+      outDir,
+    });
+    // Live-proven R13 shape: libpq dumps the literal `a/../app_db` database
+    // while the WHATWG pathname — the manifest label's source — records the
+    // normalized `app_db`: the manifest would rename the dumped database.
+    expect(run.code).toBe(2);
+    expect(run.errors).toContain("[env] source DSN path contains dot-segments — use the literal database name");
+    expect(run.calls).toEqual([]);
+    expect(existsSync(outDir)).toBe(false);
+  });
+
+  it("refuses a percent-encoded dot-segment source DSN path with exit 2 and zero side effects", async () => {
+    const outDir = join(workspace, "run-encoded-dot-segment-path");
+    const run = await runBackupWith(probeAndDumpBehavior(dumpWritesArtifact), {
+      envFile: encodedDotSegmentPathEnvFile,
+      outDir,
+    });
+    // %2e is normalized by WHATWG exactly like a literal dot, so the
+    // decoded span is refused with the same single message.
+    expect(run.code).toBe(2);
+    expect(run.errors).toContain("[env] source DSN path contains dot-segments — use the literal database name");
     expect(run.calls).toEqual([]);
     expect(existsSync(outDir)).toBe(false);
   });

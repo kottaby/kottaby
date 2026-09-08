@@ -6,6 +6,7 @@ import {
   POSTGRES_PROTOCOLS,
   REDACTED_DSN,
   rawDsnHasAmbiguousAuthority,
+  rawDsnPathHasDotSegments,
   redactDsn,
   resolveEnvFilePath,
   scrubDsnSecrets,
@@ -83,6 +84,35 @@ describe("rawDsnHasAmbiguousAuthority", () => {
     // parsers agree on (the guard's pathless refinement) — not ambiguous.
     expect(rawDsnHasAmbiguousAuthority("postgresql://host.example:5432?sslmode=disable")).toBe(false);
     expect(rawDsnHasAmbiguousAuthority("postgresql://u:p@host.example:5432/app_db?sslmode=require")).toBe(false);
+  });
+});
+
+describe("rawDsnPathHasDotSegments", () => {
+  it("refuses a raw dot-segment in the raw path span", () => {
+    // Live-proven R13 shape: libpq dumps the literal `a/../db` database
+    // while the WHATWG pathname records the normalized `db`.
+    expect(rawDsnPathHasDotSegments("postgresql://postgres@127.0.0.1:5432/a/../db")).toBe(true);
+    expect(rawDsnPathHasDotSegments("postgresql://u:p@host.example:5432/../db")).toBe(true);
+    expect(rawDsnPathHasDotSegments("postgresql://u:p@host.example:5432/./db")).toBe(true);
+    expect(rawDsnPathHasDotSegments("postgresql://u:p@host.example:5432/db/../..//x")).toBe(true);
+  });
+
+  it("refuses a percent-encoded dot-segment by its decoded value", () => {
+    // WHATWG normalizes %2e exactly like a literal dot — the decoded span
+    // is gated the same way as the raw one.
+    expect(rawDsnPathHasDotSegments("postgresql://u:p@host.example:5432/a/%2e%2e/db")).toBe(true);
+    expect(rawDsnPathHasDotSegments("postgresql://u:p@host.example:5432/%2e/db")).toBe(true);
+  });
+
+  it("leaves benign paths, partial-dot names, pathless, and query-only DSNs unchanged", () => {
+    expect(rawDsnPathHasDotSegments("postgresql://u:p@host.example:5432/app_db")).toBe(false);
+    // A dot INSIDE a segment is not a dot-SEGMENT: WHATWG normalizes none
+    // of these, so the raw path is the label libpq agrees with.
+    expect(rawDsnPathHasDotSegments("postgresql://u:p@host.example:5432/..db")).toBe(false);
+    expect(rawDsnPathHasDotSegments("postgresql://u:p@host.example:5432/a../db")).toBe(false);
+    expect(rawDsnPathHasDotSegments("postgresql://u:p@host.example:5432/app_db?sslmode=require")).toBe(false);
+    expect(rawDsnPathHasDotSegments("postgresql://host.example:5432?sslmode=disable")).toBe(false);
+    expect(rawDsnPathHasDotSegments("postgresql://u:p@host.example:5432")).toBe(false);
   });
 });
 

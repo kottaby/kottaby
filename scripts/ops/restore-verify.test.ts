@@ -2283,6 +2283,30 @@ describe("redactTargetDatabaseName (conninfo libpq semantics)", () => {
     expect(redactTargetDatabaseName("host=127.0.0.1 port=5432 dbname='it''s here'")).toBe("it's here");
   });
 
+  test("conninfo quoted forms fold libpq backslash escapes to the effective name", () => {
+    // Live-proven R13 shapes: libpq folds every `\<char>` inside a quoted
+    // value to `<char>` (so `a\b` connects as `ab`), while the label used
+    // to keep the backslashes literal.
+    expect(redactTargetDatabaseName("dbname='a\\b'")).toBe("ab");
+    expect(redactTargetDatabaseName("dbname='a\\\\b'")).toBe("a\\b");
+    expect(redactTargetDatabaseName('dbname="a\\b"')).toBe("ab");
+    expect(redactTargetDatabaseName("host=127.0.0.1 port=5432 dbname='a\\b'")).toBe("ab");
+  });
+
+  test("conninfo quoted spans keep a backslash-escaped quote inside the value", () => {
+    // libpq's documented `\'` form: the escaped quote does NOT end the
+    // value, so the span scan carries it and the fold reports `a'b`
+    // (double-quoted `\"` behaves the same way).
+    expect(redactTargetDatabaseName("dbname='a\\'b'")).toBe("a'b");
+    expect(redactTargetDatabaseName('dbname="a\\"b"')).toBe('a"b');
+  });
+
+  test("conninfo unquoted values keep their characters literal", () => {
+    // libpq processes no escapes in an unquoted value: the backslash IS
+    // part of the name libpq connects to.
+    expect(redactTargetDatabaseName("dbname=a\\b")).toBe("a\\b");
+  });
+
   test("input without an assessable database name reports unknown", () => {
     expect(redactTargetDatabaseName("nonsense")).toBe("unknown");
   });

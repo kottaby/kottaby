@@ -262,6 +262,38 @@ export function rawDsnHasAmbiguousAuthority(trimmedDsn: string): boolean {
 }
 
 /**
+ * Whether the RAW path span of a DSN string carries a dot-segment — a whole
+ * `.` or `..` path segment, raw OR percent-decoded — the backup-side mirror
+ * of the restore guard's dot-segment rule (`hasDotSegments` inside
+ * {@link assessUriDatabaseComponent}). The span is libpq's path view: from
+ * the first `/` after the authority to the first `?` (a raw `#` stays INSIDE
+ * the span — libpq has no fragment delimiter — and is separately refused by
+ * {@link rawDsnHasAmbiguousAuthority}). The WHATWG parser normalizes
+ * dot-segments away in its `pathname` (recognizing their percent-encoded
+ * forms too) while libpq treats the raw path as the LITERAL database name
+ * (live-proven: `…/a/../db` dumps the literal `a/../db` database while the
+ * WHATWG pathname records `db`), so the decoded span is gated exactly like
+ * the raw one and a dot-segment path is unassessable either way.
+ */
+export function rawDsnPathHasDotSegments(trimmedDsn: string): boolean {
+  const schemeEnd = trimmedDsn.indexOf("://");
+  const authorityStart = schemeEnd < 0 ? 0 : schemeEnd + 3;
+  const slashAt = trimmedDsn.indexOf("/", authorityStart);
+  if (slashAt < 0) {
+    return false;
+  }
+  const questionAt = trimmedDsn.indexOf("?", authorityStart);
+  const rawPathDatabase = trimmedDsn.slice(slashAt, questionAt < 0 ? trimmedDsn.length : questionAt).replace(/^\//, "");
+  if (hasDotSegments(rawPathDatabase)) {
+    return true;
+  }
+  // A percent-encoded dot-segment (%2e) is normalized by WHATWG exactly like
+  // a literal one, so the decoded view is gated the same way (a malformed
+  // escape degrades to the raw span — nothing new to normalize there).
+  return hasDotSegments(decodeUrlSegment(rawPathDatabase));
+}
+
+/**
  * Effective database name of a parsed Postgres DSN: the query `dbname=`
  * parameter when it carries a value, else the URI path database.
  *
