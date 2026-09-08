@@ -23,7 +23,10 @@
  *      settlement is guaranteed to quarantine), the actor's governance
  *      state is re-asserted (a suspension during checkout fails the
  *      purchase), a NULL balance lane fails the purchase closed (a
- *      lane is never guessed from plan copy), the idempotency claim is
+ *      lane is never guessed from plan copy), an `intervalDays` past the
+ *      catalog ceiling fails the purchase closed (committing it would
+ *      pair a settled charge with a subscription whose activation is
+ *      guaranteed to quarantine), the idempotency claim is
  *      inserted savepoint-bracketed (a duplicate key poisons only the
  *      savepoint and keeps the transaction readable for the replay
  *      lookup), and the pending subscription + pending payment +
@@ -67,6 +70,7 @@ import { withTransaction } from "@/backend/lib/db/with-transaction";
 import { ConflictError, isPgUniqueViolation, NotFoundError, ValidationError } from "@/backend/lib/errors";
 import { logger } from "@/backend/lib/logger";
 import { getPaymentGateway } from "@/backend/services/billing/payment-gateway/payment-gateway.factory";
+import { MAX_INTERVAL_DAYS } from "@/backend/services/billing/plan-catalog.helpers";
 import { assertActorGovernanceClean } from "@/backend/services/classes/session-lifecycle.governance";
 import type {
   DBQueryExecutor,
@@ -238,12 +242,19 @@ async function replayPurchaseOrThrow(
 /**
  * The authoritative re-validation inside the purchase transaction: the
  * pre-checkout plan read only fed the gateway input — THIS read decides
- * the purchase. The lane check fails closed: a plan whose balance lane was
- * never configured is not purchasable, and a lane is never guessed from
- * plan copy.
+ * the purchase. Two fail-closed gates guard it:
  *
- * @returns The active, lane-configured plan row the purchase commits
- *     against.
+ *  - the LANE gate: a plan whose balance lane was never configured is not
+ *    purchasable, and a lane is never guessed from plan copy;
+ *  - the INTERVAL-CEILING gate: a plan whose `intervalDays` exceeds
+ *    `MAX_INTERVAL_DAYS` is not purchasable. The DB check only enforces
+ *    `> 0`, so an over-ceiling row is insertable outside the catalog's
+ *    validated writes — committing it would pair the settled charge with a
+ *    subscription whose activation is guaranteed to quarantine (the
+ *    activation boundary refuses the Date window arithmetic on it).
+ *
+ * @returns The active, lane-configured, in-range plan row the purchase
+ *     commits against.
  */
 async function assertPurchasablePlan(
   planId: number,
@@ -266,6 +277,18 @@ async function assertPurchasablePlan(
       entityId: activePlan.id,
     });
     throw new ValidationError("PLAN_LANE_UNCONFIGURED", t.subscriptionPurchase.planLaneUnconfigured);
+  }
+  // The interval-days ceiling gate — the same in-transaction fail-closed
+  // posture as the lane gate above (an over-ceiling plan is purchasable
+  // copy until this read, and its activation would quarantine on arrival).
+  if (activePlan.intervalDays > MAX_INTERVAL_DAYS) {
+    logger.logDomainError("Subscription purchase rejected: plan interval days exceeds the catalog ceiling", {
+      code: "PLAN_INTERVAL_DAYS_OUT_OF_RANGE",
+      entity: "plans",
+      entityId: activePlan.id,
+    });
+    const planIdError = [{ field: "planId", code: "PLAN_INTERVAL_DAYS_OUT_OF_RANGE", message: t.validation }];
+    throw new ValidationError("PLAN_INTERVAL_DAYS_OUT_OF_RANGE", t.validation, undefined, planIdError);
   }
   return activePlan;
 }

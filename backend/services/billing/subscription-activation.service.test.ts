@@ -76,6 +76,7 @@ import { SubscriptionCreditLane } from "@/backend/enum/billing/subscription-cred
 import { SubscriptionStatus } from "@/backend/enum/billing/subscription-status.enum";
 import { NotificationType } from "@/backend/enum/notifications/notification-type.enum";
 import { logger } from "@/backend/lib/logger";
+import { MAX_SESSION_COUNT } from "@/backend/services/billing/plan-catalog.helpers";
 import { SubscriptionActivationService } from "@/backend/services/billing/subscription-activation.service";
 import { NotificationEngine } from "@/backend/services/notifications";
 import type {
@@ -96,6 +97,9 @@ const testOnRealPostgres = isPgliteProvider() ? test.skip : test;
 
 /** The en notifications bundle the assertions compose against. */
 const EN_NOTIFICATIONS = getServerTranslations("en").notificationsTranslations;
+
+/** The ar notifications bundle (the platform default locale's copy). */
+const AR_NOTIFICATIONS = getServerTranslations("ar").notificationsTranslations;
 
 /** Stand-in primary keys for the stubbed notification rows. */
 let notificationRowSeq = 900_000;
@@ -132,9 +136,10 @@ interface ActivationFixture {
 
 async function provisionPendingPair(
   tx: DBTransaction,
-  planOverrides: Partial<PlanSelectType> = {}
+  planOverrides: Partial<PlanSelectType> = {},
+  userOverrides: Partial<UserSelectType> = {}
 ): Promise<ActivationFixture> {
-  const user = await createTestUser(tx);
+  const user = await createTestUser(tx, userOverrides);
   const student = await createTestStudent(tx, user.id);
   const plan = await createTestPlan(tx, {
     balanceLane: SubscriptionCreditLane.Hifz,
@@ -220,7 +225,10 @@ function stampedDateOf(value: Date | null | undefined, column: string): Date {
 describe("SubscriptionActivationService — confirmed path (Tier 1: branches)", () => {
   test("happy path: activation commits, lane credited, notification composed + published after commit", async () => {
     await runInRollback(async tx => {
-      const { student, plan, subscription, payment } = await provisionPendingPair(tx);
+      // The recipient carries an explicit stored locale ("en") — the copy
+      // assertions below compose against the EN bundle (the recipient's
+      // persisted preference owns the copy, never the caller locale).
+      const { student, plan, subscription, payment } = await provisionPendingPair(tx, {}, { locale: "en" });
       const { insertSpy, publishSpy } = spyNotificationSeams();
       const silenceSpy = trackSpy(spyOn(logger, "logDomainError"));
 
@@ -277,6 +285,40 @@ describe("SubscriptionActivationService — confirmed path (Tier 1: branches)", 
       expect(receipt?.notifications).toHaveLength(1);
       expect(receipt?.notifications[0]?.type).toBe(NotificationType.PaymentConfirmation);
       expect(receipt?.notifications[0]?.userId).toBe(student.id);
+    });
+  });
+
+  test("notification copy is composed in the RECIPIENT's persisted locale — not the deployment default", async () => {
+    await runInRollback(async tx => {
+      // The webhook is server-to-server: the caller-supplied locale is the
+      // deployment default ("ar"), and the recipient carries an explicit
+      // NON-default stored locale ("en"). The persisted copy must come from
+      // the user row's stored preference — never the deployment default.
+      const { plan, subscription, payment } = await provisionPendingPair(tx, {}, { locale: "en" });
+      const { insertSpy, publishSpy } = spyNotificationSeams();
+
+      // Guard the premise: the two locales' copy genuinely differs, so a
+      // deployment-default composition cannot satisfy the recipient assertion.
+      expect(EN_NOTIFICATIONS.eventPaymentConfirmedTitle).not.toBe(AR_NOTIFICATIONS.eventPaymentConfirmedTitle);
+
+      const outcome = await SubscriptionActivationService.processWebhookEvent(
+        confirmedEvent(subscription.paymentReference ?? "", payment.amount),
+        "ar",
+        tx
+      );
+      expect(outcome).toEqual({ processed: true });
+
+      // The persisted copy is the RECIPIENT's ("en") — composed from the
+      // user row's stored locale read in the same transaction.
+      expect(insertSpy).toHaveBeenCalledTimes(1);
+      const emitted = insertSpy.mock.calls[0]?.[0];
+      expect(emitted.title).toBe(EN_NOTIFICATIONS.eventPaymentConfirmedTitle);
+      expect(emitted.body).toBe(EN_NOTIFICATIONS.eventPaymentConfirmedBody(plan.title));
+
+      // The post-commit publish stays attributed to the caller locale
+      // (log attribution only — the payload is the persisted row's copy).
+      const [, publishLocale] = publishSpy.mock.calls[0] ?? [];
+      expect(publishLocale).toBe("ar");
     });
   });
 
@@ -570,6 +612,54 @@ describe("SubscriptionActivationService — settlement quarantine + exact credit
         subscriptionId: subscription.id,
         planId: plan.id,
         intervalDays: plan.intervalDays,
+      });
+
+      // The quarantined unit left NO trace: pending pair, zero credit on
+      // every lane, no notification — the honest ack stops the retry storm.
+      const subRows = await tx.select().from(subscriptions).where(eq(subscriptions.id, subscription.id)).limit(1);
+      expect(subRows[0]?.status).toBe(SubscriptionStatus.Pending);
+      expect(subRows[0]?.startDate).toBeNull();
+      expect(subRows[0]?.endDate).toBeNull();
+      const payRows = await tx.select().from(studentPayments).where(eq(studentPayments.id, payment.id)).limit(1);
+      expect(payRows[0]?.status).toBe(PaymentStatus.Pending);
+      const balances = await readBalances(tx, student.id);
+      expect(balances.balanceHifz).toBe(0);
+      expect(balances.balanceTajweed).toBe(0);
+      expect(balances.balanceReviews).toBe(0);
+      expect(insertSpy).not.toHaveBeenCalled();
+      expect(publishSpy).not.toHaveBeenCalled();
+    });
+  });
+
+  test("legacy plan row past the session-count credit ceiling quarantines — processed:false, zero writes, error logged", async () => {
+    await runInRollback(async tx => {
+      // Direct-DB legacy row: the catalog credit ceiling (MAX_SESSION_COUNT)
+      // guards WRITES only — the DB check enforces just `> 0` — so an
+      // over-ceiling row is insertable and would credit an amount the lane's
+      // int4 balance cannot safely absorb at the credit step. The activation
+      // boundary re-guards BEFORE any write and QUARANTINES instead (the
+      // sibling NULL-lane / interval-ceiling posture).
+      const { student, plan, subscription, payment } = await provisionPendingPair(tx, {
+        sessionCount: MAX_SESSION_COUNT + 1,
+      });
+      const { insertSpy, publishSpy } = spyNotificationSeams();
+      const errorSpy = trackSpy(spyOn(logger, "error"));
+
+      const outcome = await SubscriptionActivationService.processWebhookEvent(
+        confirmedEvent(subscription.paymentReference ?? "", payment.amount),
+        "en",
+        tx
+      );
+
+      expect(outcome).toEqual({ processed: false });
+      expect(errorSpy).toHaveBeenCalledTimes(1);
+      const [message, context] = errorSpy.mock.calls[0] ?? [];
+      expect(message).toContain("quarantined");
+      expect(context).toMatchObject({
+        reference: subscription.paymentReference,
+        subscriptionId: subscription.id,
+        planId: plan.id,
+        sessionCount: plan.sessionCount,
       });
 
       // The quarantined unit left NO trace: pending pair, zero credit on

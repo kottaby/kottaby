@@ -7,9 +7,14 @@ import { students } from "@/backend/db/schema/students/students";
 /**
  * Student payments table (`student_payments`).
  *
- * Records every payment a student makes. `subscription_id` is nullable and
- * set to NULL on subscription deletion (`set null`) — the payment history
- * survives even if the linked subscription is removed. `amount` must be
+ * Records every payment a student makes. `subscription_id` is the ledger
+ * row's FROZEN identity: once a payment points at a subscription, no UPDATE
+ * may re-point it — deleting a subscription that still has ledger rows
+ * raises the immutable-ledger guard (the FK's `set null` action would have
+ * to UPDATE those rows, and the BEFORE UPDATE guard rejects every
+ * `subscription_id` change). The nullable column + `set null` FK action are
+ * therefore schema metadata only, unreachable for ledger rows; the payment
+ * history never loses its subscription pointer. `amount` must be
  * non-negative (CHECK). `payment_gateway` records the channel;
  * `status` is the payment lifecycle (pending → paid → failed → refunded).
  *

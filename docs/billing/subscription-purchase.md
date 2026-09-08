@@ -150,7 +150,10 @@ purchase(studentUserId: number, input: PurchaseSubscriptionSubmitInput, idempote
    re-comparison against the values the checkout was created with (mismatch → `422 VALIDATION`
    with the `PLAN_PRICE_CHANGED` field code on `planId`, thrown before any row write) →
    actor-governance re-assertion (a suspension during checkout rolls the pair back) → NULL-lane
-   fail-closed guard → idempotency claim insert → `subscriptions` insert (`status = pending` DB
+   fail-closed guard → interval-days ceiling gate (a plan past the `MAX_INTERVAL_DAYS` catalog
+   ceiling is not purchasable — the DB check enforces only `> 0`, and committing it would pair a
+   settled charge with an activation guaranteed to quarantine) → idempotency claim insert →
+   `subscriptions` insert (`status = pending` DB
    default, `paymentMethod = checkout.provider`, `paymentReference = checkout.providerReference`) →
    `student_payments` insert (amount/currency **verbatim** from the plan row — no derivation, no
    client values) → `student_subscriptions` junction insert → claim backfill with the winning
@@ -280,10 +283,14 @@ route). Fail-closed stages:
    correlated error; operator follow-up owns the settled charge until the lane is re-configured.
    The same read quarantines a legacy/non-app row whose `intervalDays` exceeds the activation-window
    ceiling of 3650 — the DB check enforces only `> 0`, and an out-of-range row would overflow the
-   `endDate` arithmetic into an Invalid Date: a non-domain 500 and a gateway retry storm) →
+   `endDate` arithmetic into an Invalid Date: a non-domain 500 and a gateway retry storm — and one
+   whose `sessionCount` exceeds the `MAX_SESSION_COUNT` credit ceiling of 1,000,000 (an
+   over-ceiling credit would overflow the lane's int4 balance at the credit step)) →
    `activatePendingOnce` (zero rows ⇒ `{ processed: true, replayed:
    true }` — no credit, no second notification) → `markPaidOnce` → `creditLaneBalance(studentId,
-   plan.balanceLane, plan.sessionCount, tx)` → confirmation notification row persisted in-tx →
+   plan.balanceLane, plan.sessionCount, tx)` → confirmation notification row persisted in-tx
+   (copy composed in the RECIPIENT's persisted locale — the users row's `locale`, falling back to
+   the platform default when unset; the webhook has no session locale) →
    receipts published strictly AFTER the unit resolves (publish failure degrades to one structured
    log — it never rolls back settlement).
 4. **`failed` path:** one guarded decision write; the subscription stays `pending` (no credit, no

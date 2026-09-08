@@ -30,6 +30,20 @@ const CURRENCY_REGEX = /^[A-Z]{3}$/;
  */
 export const MAX_INTERVAL_DAYS = 3650;
 
+/**
+ * Upper bound on a plan's session count (one million). The activation credit
+ * adds the full `sessionCount` onto the lane's integer balance column, so an
+ * unbounded value would overflow int4 at the credit step (a raw driver
+ * failure mid-activation, after the subscription and payment writes) — the
+ * catalog rejects anything beyond the ceiling before it can be persisted.
+ *
+ * Shared with the activation service (same billing layer): like
+ * `MAX_INTERVAL_DAYS`, the ceiling is re-guarded at the activation boundary
+ * because legacy/non-catalog rows can carry values past it (the DB check
+ * only enforces `> 0`) — see `subscription-activation.service.ts`.
+ */
+export const MAX_SESSION_COUNT = 1_000_000;
+
 /** Runtime membership probe over the lane vocabulary (mirrors the `subscription_credit_lane` pgEnum). */
 const SUBSCRIPTION_CREDIT_LANE_VALUES: readonly string[] = Object.values(SubscriptionCreditLane);
 
@@ -110,6 +124,19 @@ function validateSessionCountField(
         field: "sessionCount",
         code: "PLAN_SESSION_COUNT_INVALID",
         message: tErrors.planCatalog.planSessionCountInvalid,
+      },
+    };
+  }
+  // The credit ceiling — same shape as the intervalDays ceiling below: the
+  // activation credit adds this value onto the lane's int4 balance, so an
+  // over-ceiling plan must never be persisted (generic validation label —
+  // the machine code carries the diagnosis).
+  if (count > MAX_SESSION_COUNT) {
+    return {
+      error: {
+        field: "sessionCount",
+        code: "PLAN_SESSION_COUNT_OUT_OF_RANGE",
+        message: tErrors.validation,
       },
     };
   }

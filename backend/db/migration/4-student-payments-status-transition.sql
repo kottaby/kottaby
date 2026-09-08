@@ -47,8 +47,10 @@ CREATE OR REPLACE FUNCTION prevent_student_payments_update()
 RETURNS trigger AS $$
 BEGIN
     -- IS NOT DISTINCT FROM is the NULL-safe equality: subscription_id is
-    -- nullable (set null on subscription deletion), so a plain `=` would
-    -- silently allow NULL swaps in either direction.
+    -- the ledger row's FROZEN identity — deleting a subscription that still
+    -- has ledger rows raises THIS guard (the FK's set-null action would have
+    -- to UPDATE those rows and is therefore unreachable for ledger rows),
+    -- and a plain `=` would silently allow NULL swaps in either direction.
     IF OLD.status = 'pending'
        AND NEW.status IN ('paid', 'failed')
        AND NEW.student_id IS NOT DISTINCT FROM OLD.student_id

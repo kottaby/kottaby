@@ -411,6 +411,70 @@ describe("PlanCatalogService", () => {
     });
   });
 
+  // ─── sessionCount upper bound (the activation credit adds this field) ───────
+
+  test("createPlan and updatePlan reject sessionCount past the credit ceiling (1_000_001 → out of range)", async () => {
+    await runInRollback(async tx => {
+      // Create: one session past the one-million credit ceiling is rejected
+      // before persistence (the activation credit adds sessionCount onto the
+      // lane's int4 balance — an over-ceiling plan would overflow it).
+      let errCreate: unknown;
+      try {
+        await PlanCatalogService.createPlan(
+          {
+            title: "Overflow Session Plan",
+            sessionCount: 1_000_001,
+            price: "100.00",
+            currency: "EGP",
+            intervalDays: 30,
+          },
+          "en",
+          tx
+        );
+      } catch (err: unknown) {
+        errCreate = err;
+      }
+      expect(errCreate).toBeInstanceOf(ValidationError);
+      if (errCreate instanceof ValidationError) {
+        const fieldError = errCreate.fields?.find(f => f.field === "sessionCount");
+        expect(fieldError?.code).toBe("PLAN_SESSION_COUNT_OUT_OF_RANGE");
+        expect(fieldError?.message).toBe("Invalid input.");
+      }
+
+      // Update: the same ceiling guards the patch path on an existing plan.
+      const existing = await createTestPlan(tx, { title: "Session Patch Plan" });
+      let errUpdate: unknown;
+      try {
+        await PlanCatalogService.updatePlan(existing.id, { sessionCount: 1_000_001 }, "en", tx);
+      } catch (err: unknown) {
+        errUpdate = err;
+      }
+      expect(errUpdate).toBeInstanceOf(ValidationError);
+      if (errUpdate instanceof ValidationError) {
+        const fieldError = errUpdate.fields?.find(f => f.field === "sessionCount");
+        expect(fieldError?.code).toBe("PLAN_SESSION_COUNT_OUT_OF_RANGE");
+      }
+      expect((await PlanRepository.findById(existing.id, tx))?.sessionCount).toBe(8);
+    });
+  });
+
+  test("sessionCount at the credit ceiling (1_000_000) is accepted on the boundary", async () => {
+    await runInRollback(async tx => {
+      const created = await PlanCatalogService.createPlan(
+        {
+          title: "Million Session Plan",
+          sessionCount: 1_000_000,
+          price: "100.00",
+          currency: "EGP",
+          intervalDays: 30,
+        },
+        "en",
+        tx
+      );
+      expect(created.sessionCount).toBe(1_000_000);
+    });
+  });
+
   // ─── Balance lane validation (valid member | null | undefined only) ───────
 
   test("createPlan persists each balance lane member (roundtrip)", async () => {

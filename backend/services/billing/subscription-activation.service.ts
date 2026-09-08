@@ -30,20 +30,30 @@
  *      notification), `markPaidOnce` decides the payment, the full
  *      `sessionCount` is credited to the plan's lane, and the
  *      `payment_confirmation` notification is persisted in the SAME
- *      transaction. The realtime fan-out publishes strictly AFTER the
+ *      transaction — its copy composed in the RECIPIENT's persisted locale
+ *      (the users row's `locale`, falling back to `defaultLocale` when the
+ *      user never chose one — the session-request-notification convention).
+ *      The realtime fan-out publishes strictly AFTER the
  *      transaction commits — a publish failure never rolls back the
  *      committed activation (the persisted inbox row remains authoritative);
  *      a legacy plan row past the interval-days activation ceiling
- *      (`MAX_INTERVAL_DAYS`) quarantines identically to the NULL lane —
- *      the Date window arithmetic must never run on an out-of-range value.
+ *      (`MAX_INTERVAL_DAYS`) or past the session-count credit ceiling
+ *      (`MAX_SESSION_COUNT`) quarantines identically to the NULL lane —
+ *      the Date window arithmetic must never run on an out-of-range value,
+ *      and an over-ceiling credit would overflow the lane's int4 balance.
  *   4. `failed` — a single guarded decision write on the payment row only;
  *      the subscription stays `pending` (operator follow-up owns it), no
  *      credit, no notification. Zero rows ⇒ the payment was already decided
  *      — an idempotent replay ack.
  *
- * Notification copy is composed in the caller-supplied locale (the webhook
- * is server-to-server: no session, no per-recipient locale resolution).
- * The emit is deliberately keyless — the dedupe obligation is owned by the
+ * Notification copy is composed in the RECIPIENT's persisted locale, not
+ * the caller-supplied one: the webhook is server-to-server (no session, no
+ * per-request locale), so the per-recipient resolution is this flow's own
+ * obligation — the in-transaction users read supplies the recipient's
+ * stored `locale`, falling back to `defaultLocale` when the user row
+ * carries none (the session-request-notification convention). The
+ * caller-supplied locale remains the log/error attribution locale. The
+ * emit is deliberately keyless — the dedupe obligation is owned by the
  * activation itself: the guarded `activatePendingOnce` zero-row arbiter
  * guarantees the emit (and the credit) run exactly once per subscription.
  *
@@ -55,14 +65,20 @@
  * the pool.
  */
 
-import { PlanRepository, StudentPaymentRepository, StudentRepository, SubscriptionRepository } from "@/backend/db/repo";
+import {
+  PlanRepository,
+  StudentPaymentRepository,
+  StudentRepository,
+  SubscriptionRepository,
+  UserRepository,
+} from "@/backend/db/repo";
 import { PaymentStatus } from "@/backend/enum/billing/payment-status.enum";
 import { SubscriptionCreditLane } from "@/backend/enum/billing/subscription-credit-lane.enum";
 import { NotificationType } from "@/backend/enum/notifications/notification-type.enum";
 import { withTransaction } from "@/backend/lib/db/with-transaction";
 import { ConflictError } from "@/backend/lib/errors";
 import { logger } from "@/backend/lib/logger";
-import { MAX_INTERVAL_DAYS } from "@/backend/services/billing/plan-catalog.helpers";
+import { MAX_INTERVAL_DAYS, MAX_SESSION_COUNT } from "@/backend/services/billing/plan-catalog.helpers";
 import { NotificationEngine } from "@/backend/services/notifications";
 import type {
   DBTransaction,
@@ -73,6 +89,7 @@ import type {
   StudentPaymentSelectType,
   SubscriptionSelectType,
 } from "@/backend/types";
+import { defaultLocale } from "@/shared/locale/AppLocale";
 import { getServerTranslations } from "@/shared/locale/server-graphql";
 
 /** Milliseconds per day — the activation window arithmetic (`intervalDays`). */
@@ -112,10 +129,15 @@ function abortActivation(detail: string, context: Record<string, unknown>): neve
  *    (`MAX_INTERVAL_DAYS` — catalog writes are capped there, but the DB
  *    check only enforces `> 0`, so a legacy/non-app row maintained past the
  *    ceiling is insertable and would overflow the Date window arithmetic
- *    into an Invalid Date: a non-domain error and a 500 retry storm).
+ *    into an Invalid Date: a non-domain error and a 500 retry storm);
+ *  - a `sessionCount` past the credit ceiling (`MAX_SESSION_COUNT` — the
+ *    catalog caps its writes at the same constant, but the DB check only
+ *    enforces `> 0`, so an over-ceiling row would credit an amount the
+ *    lane's int4 balance column cannot safely absorb at this step).
  *
  * @returns The lane-configured, in-range plan row, or `null` when the plan's
- *     balance lane is unconfigured or its interval exceeds the ceiling and
+ *     balance lane is unconfigured, its interval exceeds the activation
+ *     window ceiling, or its session count exceeds the credit ceiling — and
  *     the delivery must quarantine.
  */
 async function readActivationPlan(
@@ -152,6 +174,19 @@ async function readActivationPlan(
         intervalDays: plan.intervalDays,
       }
     );
+    return null;
+  }
+  // The session-count ceiling re-guard — the credit step multiplies nothing
+  // but still adds the full sessionCount onto the lane's int4 balance, so an
+  // over-ceiling legacy row (the DB check only enforces `> 0`) must be
+  // refused BEFORE any write. Same quarantine posture as the siblings above.
+  if (plan.sessionCount > MAX_SESSION_COUNT) {
+    logger.error("Payment webhook quarantined: plan session count exceeds the credit ceiling — nothing mutated", {
+      reference,
+      subscriptionId: subscription.id,
+      planId: subscription.planId,
+      sessionCount: plan.sessionCount,
+    });
     return null;
   }
   // The spread re-asserts the narrowed lane on the returned row shape.
@@ -219,8 +254,10 @@ type ConfirmedTxOutcome =
 /**
  * Emits the payment-confirmation notification INSIDE the caller's
  * transaction (persist-first) and returns the unpublished receipt. Keyless
- * by design — the activation guard is the dedupe. The engine's caller-tx
- * contract always returns the receipt; a bare row would be an engine breach.
+ * by design — the activation guard is the dedupe. `locale` is the
+ * RECIPIENT's resolved locale (the caller reads the users row in the same
+ * transaction); the engine's caller-tx contract always returns the receipt;
+ * a bare row would be an engine breach.
  */
 async function emitConfirmationNotification(
   subscription: SubscriptionSelectType,
@@ -370,8 +407,12 @@ async function confirmPayment(
       });
     }
 
-    // Persist-first notification — the row commits with the activation.
-    return { receipt: await emitConfirmationNotification(subscription, plan.title, locale, tx) };
+    // Persist-first notification — the row commits with the activation. The
+    // copy is composed in the RECIPIENT's persisted locale (the webhook has
+    // no session locale, so the per-recipient resolution is this flow's own
+    // obligation — the session-request convention: stored locale or default).
+    const recipientLocale = (await UserRepository.findById(subscription.userId, tx))?.locale ?? defaultLocale;
+    return { receipt: await emitConfirmationNotification(subscription, plan.title, recipientLocale, tx) };
   });
 
   if ("receipt" in composed) {
@@ -430,13 +471,15 @@ export namespace SubscriptionActivationService {
    *  - `{ processed: false }` — the delivery was NOT applied and mutated
    *    nothing: unknown reference, settlement quarantine, an unconfigured
    *    plan balance lane at activation time, a legacy plan row whose
-   *    `intervalDays` exceeds the activation-window ceiling, or a
-   *    `confirmed` arriving after the payment failed (replay-incompatible).
+   *    `intervalDays` exceeds the activation-window ceiling or whose
+   *    `sessionCount` exceeds the credit ceiling, or a `confirmed`
+   *    arriving after the payment failed (replay-incompatible).
    *
    * @param event  The verified gateway event (the transport already checked
    *     signature, size, and envelope — the service trusts the payload shape).
-   * @param locale  Active locale for the localized notification copy and
-   *     error messages.
+   * @param locale  Active locale for the error-message attribution and the
+   *     post-commit publish; the notification COPY is composed in the
+   *     recipient's persisted locale (resolved in-transaction).
    * @param outerTx  Optional caller-owned transaction (test path): the flow
    *     runs as a SAVEPOINT on it. Production callers omit it.
    */
