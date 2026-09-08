@@ -10,7 +10,7 @@
  */
 
 import { SubscriptionCreditLane } from "@/backend/enum/billing/subscription-credit-lane.enum";
-import { ConflictError, ValidationError } from "@/backend/lib/errors";
+import { ConflictError, isPgUniqueViolation, ValidationError } from "@/backend/lib/errors";
 import type { ApiFieldErrorType, PlanSubmitInput, PlanUpdateInput } from "@/backend/types";
 import type { ErrorsLabels } from "@/shared/locale/types/errors";
 
@@ -21,31 +21,39 @@ const CURRENCY_REGEX = /^[A-Z]{3}$/;
 const SUBSCRIPTION_CREDIT_LANE_VALUES: readonly string[] = Object.values(SubscriptionCreditLane);
 
 /**
- * Type guard for checking PostgreSQL error codes across the cause chain.
+ * The check-constraint (23514) leg of the plan-write translation — walks the
+ * thrown value's `Error.cause` chain (Drizzle wraps the driver error, so the
+ * code lives on a cause) with a cycle-safe visited set (a self-referential
+ * chain must terminate, not spin). The UNIQUE-violation (23505) leg is NOT
+ * reimplemented here — it delegates to the shared, cycle-safe
+ * `isPgUniqueViolation` from `@/backend/lib/errors` so every service-layer
+ * `23505` translation walks the identical code path.
  */
-function isPgErrorWithCode(error: unknown, code: string): boolean {
-  if (typeof error === "object" && error !== null) {
-    if ("code" in error && error.code === code) {
+function isPgCheckViolation(error: unknown): boolean {
+  let current: unknown = error;
+  const seen = new Set<unknown>();
+  while (current instanceof Error && !seen.has(current)) {
+    seen.add(current);
+    if ("code" in current && current.code === "23514") {
       return true;
     }
-    if ("cause" in error) {
-      return isPgErrorWithCode(error.cause, code);
-    }
+    current = (current as { cause?: unknown }).cause;
   }
   return false;
 }
 
 /**
  * Maps PostgreSQL violations from plan writes onto their canonical domain
- * errors: uniqueness conflicts become `ConflictError`, check-constraint
- * failures become `ValidationError`. Any other failure is returned untouched
- * so the caller rethrows it verbatim.
+ * errors: uniqueness conflicts (the shared `23505` walker) become
+ * `ConflictError`, check-constraint failures (the local `23514` walker)
+ * become `ValidationError`. Any other failure is returned untouched so the
+ * caller rethrows it verbatim.
  */
 export function toPlanWriteDomainError(error: unknown, tErrors: ErrorsLabels): unknown {
-  if (isPgErrorWithCode(error, "23505")) {
+  if (isPgUniqueViolation(error)) {
     return new ConflictError(tErrors.conflict, { cause: error });
   }
-  if (isPgErrorWithCode(error, "23514")) {
+  if (isPgCheckViolation(error)) {
     return new ValidationError("VALIDATION", tErrors.validation, { cause: error });
   }
   return error;

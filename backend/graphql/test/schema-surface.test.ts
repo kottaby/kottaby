@@ -21,18 +21,29 @@
  *    (`createSession`, `startSession`, `completeSession`, `cancelSession`),
  *    the DEV3-005 dispute pair (`openSessionDispute`, `resolveSessionDispute`),
  *    the DEV3-012 dual-confirmation mutation (`confirmSessionCompletion`),
- *    the DEV3-013 payout write (`requestWithdrawal`), and the DEV3-017
- *    admin-governance pair (`adminSetUserBlocked`, `adminSetUserSuspended`);
+ *    the DEV3-013 payout write (`requestWithdrawal`), the DEV3-017
+ *    admin-governance pair (`adminSetUserBlocked`, `adminSetUserSuspended`),
+ *    and the subscription-purchase write (`purchaseSubscription`);
  *    the query set grows ONLY by the DEV3-004 participant-read trio
  *    (`sessionById`, `myStudentSessions`, `myTeacherSessions`), the DEV3-005
- *    admin arbitration listing (`adminDisputedSessions`) and the DEV3-013
- *    wallet read (`myWallet`); the enum set grows ONLY by the DEV3-004
+ *    admin arbitration listing (`adminDisputedSessions`), the DEV3-013
+ *    wallet read (`myWallet`), and the subscription-purchase owner listing
+ *    (`mySubscriptions`); the enum set grows ONLY by the DEV3-004
  *    scheduling trio (`SessionStatus`, `SessionType`, `SessionIntent`),
- *    the DEV3-005 arbitration vocabulary (`DisputeResolution`) and the
- *    DEV3-013 ledger pair (`TransactionType`, `TransactionStatus`); and the
- *    whole-schema named-type delta is exactly the session objects/inputs +
- *    arbitration + ledger enums + wallet surface on top of the refreshed
- *    baseline delta.
+ *    the DEV3-005 arbitration vocabulary (`DisputeResolution`), the
+ *    DEV3-013 ledger pair (`TransactionType`, `TransactionStatus`), and the
+ *    subscription-purchase settlement quartet (`PaymentGateway`,
+ *    `PaymentStatus`, `SubscriptionCreditLane`, `SubscriptionStatus`); and
+ *    the whole-schema named-type delta is exactly the session
+ *    objects/inputs + arbitration + ledger enums + wallet surface + the
+ *    subscription-purchase five (`PaymentCheckout`,
+ *    `PurchaseSubscriptionInput`, `PurchaseSubscriptionPayload`,
+ *    `StudentPayment`, `StudentSubscription`) on top of the refreshed
+ *    baseline delta. The `RECONCILED_*` inventories re-anchor the surfaces
+ *    prior rounds shipped without enumeration (admin audit trail, admin
+ *    broadcast, teacher cold-start certification, parent-link lifecycle)
+ *    to the live schema — the same documented one-time reconciliation idiom
+ *    as DEV3-016.
  *  - **DEV3-017 admin-governance surface pins** — the two new
  *    admin-governance mutations carry the EXACT arg shapes
  *    (`adminSetUserBlocked(blocked: Boolean!, id: Int!): AdminUserDetail!` /
@@ -571,14 +582,17 @@ describe("Surface freeze — pinned additions vs the baseline inventory", () => 
     );
   });
 
-  test("NO GraphQL subscription root exists — realtime delivery stays on the WebSocket sidecar (`Subscription` names the domain entity, not a root)", () => {
-    // The subscription-purchase surface legitimately names its canonical
-    // entity `Subscription` (a purchased plan period). The realtime
-    // contract concerns the ROOT slot, which is only decidable on the
-    // built schema (with default root naming the artifact text cannot
-    // distinguish a plain object from a root — the artifact tier pins the
-    // schema-definition half in `sdl-static-assertions.test.ts`): the
-    // built schema must expose NO subscription root at all.
+  test("NO GraphQL subscription root exists — realtime delivery stays on the WebSocket sidecar (`Subscription` is reserved; the entity ships as `StudentSubscription`)", () => {
+    // The subscription-purchase entity is named `StudentSubscription` on the
+    // wire: `Subscription` is reserved by GraphQL default-root naming (a
+    // bare object with that name would be auto-adopted as the schema's
+    // subscription root, which the realtime sidecar contract forbids — see
+    // the surface pins above and `sdl-static-assertions.test.ts`). The
+    // ROOT slot is only decidable on the built schema (with default root
+    // naming the artifact text cannot distinguish a plain object from a
+    // root — the artifact tier pins the schema-definition half in
+    // `sdl-static-assertions.test.ts`): the built schema must expose NO
+    // subscription root at all.
     expect(graphQLSchema.getSubscriptionType() ?? null).toBeNull();
   });
 

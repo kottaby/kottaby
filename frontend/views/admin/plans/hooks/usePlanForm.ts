@@ -10,11 +10,8 @@
 "use client";
 
 import { useState } from "react";
-import {
-  type AdminPlansQuery,
-  type CreatePlanInput,
-  SubscriptionCreditLane,
-} from "@/frontend/graphql/generated/gql/graphql";
+import type { AdminPlansQuery, CreatePlanInput } from "@/frontend/graphql/generated/gql/graphql";
+import { BALANCE_LANE_BY_VALUE } from "@/frontend/views/admin/plans/balanceLaneVocabulary";
 import { useAppTranslation } from "@/shared/locale/client";
 import { Plans } from "@/shared/locale/namespaces/plans";
 
@@ -29,17 +26,6 @@ export interface PlanFormState {
   /** Selected balance-credit lane as a raw string; empty until a lane is picked. */
   readonly balanceLane: string;
 }
-
-/**
- * Chosen form value → wire enum. A lookup table (not a string comparison)
- * keeps the enum mapping in one place and yields `undefined` for the
- * unselected state and any value outside the lane vocabulary.
- */
-const BALANCE_LANE_BY_VALUE: Record<string, SubscriptionCreditLane | undefined> = {
-  [SubscriptionCreditLane.Hifz]: SubscriptionCreditLane.Hifz,
-  [SubscriptionCreditLane.Tajweed]: SubscriptionCreditLane.Tajweed,
-  [SubscriptionCreditLane.Reviews]: SubscriptionCreditLane.Reviews,
-};
 
 type PlanFormErrors = {
   -readonly [K in keyof PlanFormState]?: string;

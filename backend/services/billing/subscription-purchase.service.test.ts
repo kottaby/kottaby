@@ -570,7 +570,12 @@ describe("SubscriptionPurchaseService — purchase (chaos: production tx path, c
   testOnRealPostgres(
     "concurrent double-submit on independent production transactions: one success, one conflict, ONE pair",
     async () => {
-      const attempts = await Promise.allSettled([chaosPurchase(purchaseKey()), chaosPurchase(purchaseKey())]);
+      // The SAME idempotency key rides BOTH concurrent attempts — the
+      // invariant under test is same-key double-submit: the claim-race
+      // loser must surface the duplicate-replay conflict, never mint a
+      // second pair under a fresh key.
+      const sharedKey = purchaseKey();
+      const attempts = await Promise.allSettled([chaosPurchase(sharedKey), chaosPurchase(sharedKey)]);
 
       const fulfilled = attempts.filter(entry => entry.status === "fulfilled");
       const rejected = attempts.filter(entry => entry.status === "rejected");

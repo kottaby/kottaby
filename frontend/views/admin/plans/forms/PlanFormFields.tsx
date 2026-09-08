@@ -11,16 +11,15 @@
 
 import { MenuItem, Stack, TextField } from "@mui/material";
 import { SubscriptionCreditLane } from "@/frontend/graphql/generated/gql/graphql";
+import { BALANCE_LANE_OPTIONS } from "@/frontend/views/admin/plans/balanceLaneVocabulary";
 import type { PlanFormState } from "@/frontend/views/admin/plans/hooks/usePlanForm";
 import { useAppTranslation } from "@/shared/locale/client";
 import { Plans } from "@/shared/locale/namespaces/plans";
 
-/** Lane options in catalog order (memorization → recitation rules → review). */
-const BALANCE_LANE_OPTIONS: readonly SubscriptionCreditLane[] = [
-  SubscriptionCreditLane.Hifz,
-  SubscriptionCreditLane.Tajweed,
-  SubscriptionCreditLane.Reviews,
-];
+/**
+ * Lane select options come from the shared balance-lane vocabulary module
+ * (the ONE member tuple the form's value→enum lookup also derives from).
+ */
 
 export interface PlanFormFieldsProps {
   readonly form: PlanFormState;

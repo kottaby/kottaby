@@ -469,10 +469,13 @@ describe("Notification object — `id` + REQ-069 depth/complexity posture", () =
     // `hasActiveSubscription` field names are legitimate substrings), and
     // the follow-up "no ObjectTypeDefinition named `Subscription`" AST
     // check was retired when the subscription-purchase surface landed —
-    // the domain ENTITY (a purchased plan period) legitimately carries
-    // that type name. With default root naming the artifact text cannot
-    // distinguish a plain object from a subscription root, so the
-    // root-level contract is enforced where it is decidable:
+    // not because the domain entity carries that name (it ships as
+    // `StudentSubscription` on the wire precisely BECAUSE `Subscription`
+    // is reserved), but because with default root naming the artifact
+    // text cannot distinguish a plain object named `Subscription` from
+    // the subscription root it would be auto-adopted as — the ban is
+    // undecidable on that tier, so the root-level contract is enforced
+    // where it is decidable:
     //  - artifact tier (here): NO schema-definition entry may declare a
     //    `subscription:` root — the only textually-decidable half.
     //  - built-schema tier (schema-surface.test.ts): the built schema

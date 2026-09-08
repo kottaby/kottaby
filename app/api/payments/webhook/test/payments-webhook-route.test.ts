@@ -28,7 +28,10 @@
  *    incrementally under the byte budget (over-cap → masked 400, service
  *    never invoked; a multi-chunk delivery — multibyte characters split
  *    across chunk boundaries included — decodes byte-faithfully and
- *    verifies end-to-end);
+ *    verifies end-to-end); a request stream that ERRORS mid-read (the
+ *    gateway aborting the connection) is masked to the same 400-family
+ *    envelope with exactly one correlated log line — never an uncaught
+ *    route error;
  *  - ENVELOPE contract: happy path `{ data: { processed: true }, requestId }`
  *    with the parsed event + "en" locale handed to the service exactly once;
  *    replay deliveries append `replayed: true`; unknown-reference/quarantine
@@ -459,6 +462,49 @@ describe("payments webhook route — bounded body", () => {
       throw new Error("service event was not a JSON object");
     }
     expect(memberString(deliveredEvent, "reference")).toBe("λé-ref-1");
+  });
+
+  test("a request stream that ERRORS mid-read answers the masked 400-family envelope (never an uncaught route error)", async () => {
+    enableSurface();
+    // The delivery stream itself rejects after a first chunk — the reader's
+    // mid-stream abort path (the gateway dropped the connection). The route
+    // must MASK it: a 400-family envelope with zero payload/transport echo
+    // and exactly ONE correlated log line — not a framework 500 with a raw
+    // stack. Unsigned on purpose: the bounded read precedes the gate.
+    const partialPrefix = CONFIRMED_EVENT_BODY.slice(0, 12);
+    const brokenStream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode(partialPrefix));
+        controller.error(new Error("simulated mid-stream abort (peer gone)"));
+      },
+    });
+    const errorSpy = spyOn(logger, "error");
+    const response = await POST(new NextRequest(BASE_URL, { method: "POST", headers: {}, body: brokenStream }));
+    expect(response.status).toBe(400);
+    const body = await readJson(response);
+    const error = memberRecord(body, "error");
+    expect(error.code).toBe("PAYMENT_WEBHOOK_BODY_UNREADABLE");
+    // Zero echo: neither the partial payload nor the transport error's
+    // message may reach the wire.
+    const wireJson = JSON.stringify(body) ?? "";
+    expect(wireJson).not.toContain(partialPrefix);
+    expect(wireJson).not.toContain("simulated mid-stream abort");
+
+    // Exactly ONE correlated log line carrying a requestId — and none of the
+    // transport error material.
+    expect(errorSpy).toHaveBeenCalledTimes(1);
+    const firstCall: unknown = errorSpy.mock.calls[0];
+    if (!Array.isArray(firstCall)) {
+      throw new Error("logger.error call was not captured");
+    }
+    const logBag: unknown = firstCall[1];
+    if (!isPlainJsonObject(logBag)) {
+      throw new Error("logger.error context bag was not a JSON object");
+    }
+    expect(typeof memberString(logBag, "requestId")).toBe("string");
+    expect(JSON.stringify(logBag)).not.toContain("simulated mid-stream abort");
+    expect(processCalls).toHaveLength(0);
+    errorSpy.mockRestore();
   });
 });
 

@@ -35,9 +35,10 @@
  *    replays ack 200 like first deliveries (gateways retry on non-2xx), and
  *    verified-but-unknown references / quarantined mismatches ack
  *    `{ processed: false }` 200 — settlement integrity beats liveness.
- *    Parse rejections and oversize bodies are masked 400-family envelopes;
- *    anything thrown is masked through the shared error machinery with one
- *    correlated log line. The locale is the deployment default ("en") — the
+ *    Parse rejections, oversize bodies, and a request stream that rejects
+ *    mid-read are masked 400-family envelopes; anything thrown is masked
+ *    through the shared error machinery with one correlated log line. The
+ *    locale is the deployment default ("en") — the
  *    caller is the gateway, not a localized user.
  *
  * NO session context participates: authorization is the signature alone,
@@ -49,6 +50,7 @@ import type { NextRequest } from "next/server";
 import { apiErrorResponse, apiSuccessResponse, resolveRequestId } from "@/backend/lib/api";
 import { getPaymentWebhookSecret, isPaymentWebhookEnabled } from "@/backend/lib/env";
 import { DomainError, ValidationError } from "@/backend/lib/errors";
+import { logger } from "@/backend/lib/logger";
 import { getPaymentGateway, verifyWebhookSignature } from "@/backend/services/billing/payment-gateway";
 import { SubscriptionActivationService } from "@/backend/services/billing/subscription-activation.service";
 
@@ -87,18 +89,34 @@ function webhookBodyTooLargeError(): DomainError {
 }
 
 /**
+ * Body-read failure — the delivery stream itself rejected mid-read (e.g. the
+ * gateway aborted the connection while the body was still streaming).
+ * Masked 400-class envelope: the code names the transport failure, the
+ * message stays generic, and neither the payload nor the underlying error
+ * ever reaches the wire.
+ */
+function webhookBodyUnreadableError(): DomainError {
+  return new ValidationError("PAYMENT_WEBHOOK_BODY_UNREADABLE", "Webhook payload rejected.");
+}
+
+/**
  * Reads the request body INCREMENTALLY under the byte cap — the DoS-safe
  * counterpart of a plain `request.text()`, which would buffer the whole
- * delivery before any size check could run. Chunks accumulate through the
- * request stream while a running byte budget aborts the moment the cap is
+ * delivery before any size check could run. Raw chunks accumulate as
+ * `Uint8Array`s while a running byte budget aborts the moment the cap is
  * crossed; the abort answer is `null` (indistinguishable to the caller from
- * any other oversize rejection). Decoding is the same UTF-8 treatment
- * `request.text()` applies (streamed incremental decode with a trailing
- * flush), so the returned string is byte-faithful input for the signature
- * gate and the provider parser. A null stream is an empty body.
+ * any other oversize rejection). The aborting read also releases the
+ * underlying stream (`reader.cancel()`, best-effort — a cancel rejection,
+ * typically the peer already gone, must never mask the oversize denial).
+ * The accumulated chunks are joined and UTF-8 decoded ONCE, after the last
+ * chunk: no per-chunk string concatenation (an adversarial 1-byte-chunk
+ * delivery cannot wedge O(n²) string growth into the reader), and the single
+ * decode over the reassembled bytes is exactly the byte-faithful treatment
+ * a buffered read applies (multibyte sequences straddling chunk boundaries
+ * decode whole). A null stream is an empty body.
  *
  * The read is a sequential pull on a stateful stream reader (each chunk
- * depends on the previous read's decode state), so it is expressed as the
+ * arrives only after the previous read resolves), so it is expressed as the
  * sanctioned recursive helper — one `await` per read step, no loop.
  *
  * @returns The decoded body, or `null` when the byte budget was exceeded.
@@ -109,22 +127,37 @@ async function readBoundedBody(request: NextRequest): Promise<string | null> {
     return "";
   }
   const reader = bodyStream.getReader();
-  const decoder = new TextDecoder();
 
-  async function readChunk(buffered: string, totalBytes: number): Promise<string | null> {
+  async function readChunk(chunks: Uint8Array[], totalBytes: number): Promise<string | null> {
     const { done, value } = await reader.read();
     if (done) {
-      // The trailing flush releases any buffered multi-byte sequence.
-      return buffered + decoder.decode();
+      // The single join + decode releases any multibyte sequence a chunk
+      // boundary split.
+      return new TextDecoder().decode(joinChunks(chunks, totalBytes));
     }
     const newTotalBytes = totalBytes + value.byteLength;
     if (newTotalBytes > MAX_PAYMENT_WEBHOOK_BODY_BYTES) {
+      // Over cap: release the stream so the rejected delivery cannot keep
+      // feeding a connection nobody will read. Cancel is best-effort.
+      await reader.cancel().catch(() => undefined);
       return null;
     }
-    return readChunk(buffered + decoder.decode(value, { stream: true }), newTotalBytes);
+    chunks.push(value);
+    return readChunk(chunks, newTotalBytes);
   }
 
-  return readChunk("", 0);
+  return readChunk([], 0);
+}
+
+/** Joins the accumulated raw chunks into ONE buffer — no per-chunk strings. */
+function joinChunks(chunks: Uint8Array[], totalBytes: number): Uint8Array {
+  const body = new Uint8Array(totalBytes);
+  let offset = 0;
+  for (const chunk of chunks) {
+    body.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return body;
 }
 
 export async function POST(request: NextRequest): Promise<Response> {
@@ -146,7 +179,25 @@ export async function POST(request: NextRequest): Promise<Response> {
     return apiErrorResponse(webhookBodyTooLargeError(), { requestId, locale: ENVELOPE_LOCALE });
   }
 
-  const rawBody = await readBoundedBody(request);
+  // The bounded read runs under its own mask: a mid-stream transport
+  // failure (the gateway aborting the connection) rejects the stream read —
+  // an expected 400-family rejection, never an uncaught route error. The
+  // exact transport breach goes to ONE correlated log line; the envelope
+  // carries only the masked denial, never the payload or the raw error.
+  let rawBody: string | null;
+  try {
+    rawBody = await readBoundedBody(request);
+  } catch {
+    // The raw transport error is deliberately unread — a mid-stream abort's
+    // message is untrusted peer/transport material; the correlated log line
+    // below carries only the fixed diagnostic + requestId.
+    logger.error("Payment webhook body read failed: request stream rejected mid-delivery", {
+      code: "PAYMENT_WEBHOOK_BODY_UNREADABLE",
+      entity: "payment_webhook",
+      requestId,
+    });
+    return apiErrorResponse(webhookBodyUnreadableError(), { requestId, locale: ENVELOPE_LOCALE });
+  }
   if (rawBody === null) {
     return apiErrorResponse(webhookBodyTooLargeError(), { requestId, locale: ENVELOPE_LOCALE });
   }

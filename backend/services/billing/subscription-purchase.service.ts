@@ -85,6 +85,15 @@ import { getServerTranslations } from "@/shared/locale/server-graphql";
 /** The idempotency claim column's maximum key length (varchar(128) backstop). */
 const MAX_IDEMPOTENCY_KEY_LENGTH = 128;
 
+/**
+ * The client-safe conflict copy for an internal row-mapping breach — the
+ * activation service's `abortActivation` discipline mirrored: the exact
+ * breach belongs to the adjacent correlated log line, never to the thrown
+ * message, because a `listOwn` mapping conflict surfaces through
+ * `mySubscriptions` to the owning student (the wire copy must stay generic).
+ */
+const PAYMENT_PROCESSING_CONFLICT_MESSAGE = "Payment could not be processed.";
+
 /** The localized errors bundle shape consumed by every flow in this file. */
 type ErrorsTranslations = ReturnType<typeof getServerTranslations>["errorsTranslations"];
 
@@ -115,11 +124,16 @@ const STATUS_ACTIVE: string = SubscriptionStatus.Active;
 const STATUS_PENDING: string = SubscriptionStatus.Pending;
 const STATUS_EXPIRED: string = SubscriptionStatus.Expired;
 const STATUS_CANCELLED: string = SubscriptionStatus.Cancelled;
+const STATUS_SUSPENDED: string = SubscriptionStatus.Suspended;
 
 /**
  * Maps a stored subscription status onto the strongly-typed enum — the
- * ReturnType's enum contract is explicit, never a cast. Total over the
- * closed pg-enum vocabulary (the suspended member closes the union).
+ * ReturnType's enum contract is explicit, never a cast. FAIL-CLOSED over
+ * the closed pg-enum vocabulary: every writable member is mapped explicitly
+ * (suspended included), and an unknown stored value is an internal
+ * invariant breach that throws the client-safe conflict copy instead of
+ * silently degrading to a WRONG state (loud over silent-wrong — the same
+ * discipline as `paymentGatewayOf` below; unreachable through the pgEnum).
  */
 function subscriptionStatusOf(status: SubscriptionSelectType["status"]): SubscriptionStatus {
   if (status === STATUS_ACTIVE) {
@@ -134,24 +148,38 @@ function subscriptionStatusOf(status: SubscriptionSelectType["status"]): Subscri
   if (status === STATUS_CANCELLED) {
     return SubscriptionStatus.Cancelled;
   }
-  return SubscriptionStatus.Suspended;
+  if (status === STATUS_SUSPENDED) {
+    return SubscriptionStatus.Suspended;
+  }
+  logger.error(
+    "Subscription purchase row mapping aborted: stored subscription status is not a member of the closed status vocabulary",
+    {
+      storedStatus: status,
+    }
+  );
+  throw new ConflictError(PAYMENT_PROCESSING_CONFLICT_MESSAGE);
 }
 
 /**
  * Maps a stored payment-gateway value onto the strongly-typed enum — an
- * identity projection total over the closed pg-enum vocabulary (the mock
- * member closes the union), resolved as the documented widening-cast lookup.
- * FAIL-CLOSED: a stored value outside the vocabulary is an internal
- * invariant breach (the DB enum constrains every writable value) and
- * surfaces as a conflict instead of silently degrading to a different
- * gateway than the ledger recorded.
+ * identity projection over the closed pg-enum vocabulary, resolved as the
+ * documented widening-cast lookup. FAIL-CLOSED: a stored value outside the
+ * vocabulary is an internal invariant breach (the DB enum constrains every
+ * writable value); it aborts with ONE correlated diagnostic log plus the
+ * client-safe conflict copy (the activation service's `abortActivation`
+ * discipline — see `PAYMENT_PROCESSING_CONFLICT_MESSAGE`) instead of
+ * silently degrading to a different gateway than the ledger recorded.
  */
 function paymentGatewayOf(gateway: SubscriptionSelectType["paymentMethod"] & string): PaymentGateway {
   const member = Object.values(PaymentGateway).find(value => (value as string) === gateway);
   if (member === undefined) {
-    throw new ConflictError(
-      "SubscriptionPurchaseService: stored payment gateway is not a member of the closed gateway vocabulary"
+    logger.error(
+      "Subscription purchase row mapping aborted: stored payment gateway is not a member of the closed gateway vocabulary",
+      {
+        storedGateway: gateway,
+      }
     );
+    throw new ConflictError(PAYMENT_PROCESSING_CONFLICT_MESSAGE);
   }
   return member;
 }
