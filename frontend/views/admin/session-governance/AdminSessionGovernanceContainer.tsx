@@ -182,6 +182,19 @@ export function AdminSessionGovernanceContainer(): ReactNode {
   // the empty-state copy ("no results match the filters" vs "no sessions").
   const filtersActive = Object.values(appliedFilter).some(value => value !== null);
 
+  // Pager commits clamp against the honest total BEFORE re-keying the
+  // query: below 1 resolves to 1, an empty directory resolves to the
+  // single page, and anything past the last page clamps back into range
+  // (a filtered shrink under a stale pager must not send an off-window
+  // page the backend would reject).
+  const changePage = useCallback(
+    (nextPage: number): void => {
+      const lastPage = Math.max(1, Math.ceil(totalCount / ADMIN_SESSIONS_PAGE_SIZE));
+      setPage(Math.min(Math.max(nextPage, 1), lastPage));
+    },
+    [totalCount]
+  );
+
   // Status summary — counts over the LOADED page only (honest, real data).
   const statusCounts = useMemo<StatusSummaryCounts>(() => {
     const counts = new Map<SessionStatus, number>();
@@ -399,7 +412,7 @@ export function AdminSessionGovernanceContainer(): ReactNode {
         onRetry={() => {
           void refetch();
         }}
-        onPageChange={setPage}
+        onPageChange={changePage}
         onOpenDetails={openDrawer}
         onDialogIntent={openDialog}
         t={t}

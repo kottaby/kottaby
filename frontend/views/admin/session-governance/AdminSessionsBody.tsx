@@ -94,9 +94,7 @@ export function AdminSessionsBody({
     return (
       <Stack data-testid="admin-session-governance-error" sx={{ py: { xs: 4, sm: 6 } }}>
         <ErrorRetryAlert title={t.errorTitle} retryLabel={t.retryLabel} retryPending={false} onRetry={onRetry}>
-          <Typography variant="body2" sx={theme => ({ color: theme.palette.text.secondary })}>
-            {t.errorTitle}
-          </Typography>
+          {null}
         </ErrorRetryAlert>
       </Stack>
     );

@@ -5,6 +5,10 @@ import { Box, Button, FormControl, InputLabel, MenuItem, Select, Stack, TextFiel
 import { type ReactNode, useId } from "react";
 import { SessionStickyBar } from "@/frontend/components/ui/sessionList";
 import { SessionStatus, SessionType } from "@/frontend/graphql/generated/gql/graphql";
+import type {
+  DirectoryFilterDraft,
+  StatusSummaryCounts,
+} from "@/frontend/views/admin/session-governance/AdminSessionGovernanceContainer";
 import { STATUS_LABEL_KEY, TONE_COLORS } from "@/frontend/views/student/sessions/sessionRowPresentation";
 import { AdminSessionGovernance, useAppTranslation } from "@/shared/locale";
 import type { AdminSessionGovernanceLabels } from "@/shared/locale/types/adminSessionGovernance";
@@ -38,27 +42,6 @@ import type { SessionsLabels } from "@/shared/locale/types/sessions";
  * RTL-safe logical composition (grid + logical alignment, no physical
  * margins).
  */
-
-/** Per-status summary over the LOADED directory page (real data only). */
-export interface StatusSummaryCounts {
-  readonly scheduled: number;
-  readonly started: number;
-  readonly completed: number;
-  readonly cancelled: number;
-  readonly disputed: number;
-  readonly needsAttention: number;
-}
-
-/** Raw filter-bar draft — participant ids stay STRINGS until APPLY validates. */
-export interface DirectoryFilterDraft {
-  readonly teacherUserId: string;
-  readonly studentUserId: string;
-  readonly type: SessionType | null;
-  readonly status: SessionStatus | null;
-  /** `yyyy-MM-dd` tokens from the native date inputs (null = unset). */
-  readonly dateFrom: string | null;
-  readonly dateTo: string | null;
-}
 
 /** Token that clears a select filter (renders the "all" copy). */
 const ALL_TOKEN = "all";

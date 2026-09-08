@@ -514,8 +514,8 @@ for (const locale of componentSuiteLocales) {
       await waitFor(() => {
         expect(screen.getByTestId("admin-session-governance-error")).toBeDefined();
       });
-      // The title renders twice (AlertTitle + body line) — never the server message.
-      expect(screen.getAllByText(t.errorTitle).length).toBeGreaterThanOrEqual(2);
+      // The title renders in the AlertTitle only — never the server message.
+      expect(screen.getAllByText(t.errorTitle).length).toBeGreaterThanOrEqual(1);
       expect(screen.getByRole("button", { name: t.retryLabel })).toBeDefined();
       // The permission fallback must NOT appear for non-deny codes.
       expect(screen.queryByText(te.forbiddenRole)).toBeNull();
