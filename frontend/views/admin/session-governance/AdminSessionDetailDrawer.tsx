@@ -292,7 +292,7 @@ function DetailBody({
       >
         <SessionMetaCell label={t.detailSessionIdLabel} value={detail.id} />
         <SessionMetaCell
-          label={tSessions.intent}
+          label={t.detailIntentLabel}
           value={detail.intent === null ? NO_VALUE_PLACEHOLDER : t[SESSION_INTENT_LABEL_KEY[detail.intent]]}
         />
         <SessionMetaCell label={t.rowTypeLabel} value={t[SESSION_TYPE_LABEL_KEY[detail.sessionType]]} />
