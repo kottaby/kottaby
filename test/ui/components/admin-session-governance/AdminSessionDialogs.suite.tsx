@@ -49,24 +49,19 @@
  *
  * Translation discipline: assertions reference ONLY the PRELOADED label
  * objects (`AdminSessionGovernance` / `Sessions` / `Errors` / `Common`
- * namespaces, warmed eagerly below) — zero hardcoded Arabic/English copy.
- * The exception class is fixture DATA (ids, ISO instants, an ASCII reason)
- * with the reschedule instants recomputed through the dialog's own token
- * converter.
+ * namespaces, warmed at load via the shared scaffold) — zero hardcoded
+ * Arabic/English copy. The exception class is fixture DATA (ids, ISO
+ * instants, an ASCII reason) with the reschedule instants recomputed through
+ * the dialog's own token converter.
  */
 
 import { afterEach, describe, expect, test } from "bun:test";
 import { useMutation } from "@apollo/client/react";
-import { MockLink } from "@apollo/client/testing";
+import type { MockLink } from "@apollo/client/testing";
 import { MockedProvider } from "@apollo/client/testing/react";
 import { cleanup, fireEvent, waitFor, within } from "@testing-library/react";
 import { type ReactNode, useState } from "react";
-import {
-  type AdminSessionsQuery_adminSessions_items,
-  SessionIntent,
-  SessionStatus,
-  SessionType,
-} from "@/frontend/graphql/generated/gql/graphql";
+import { SessionStatus } from "@/frontend/graphql/generated/gql/graphql";
 import {
   adminSessionCancelMutationDocument,
   adminSessionJoinMutationDocument,
@@ -80,50 +75,42 @@ import {
 import { JoinObservationAction } from "@/frontend/views/admin/session-governance/JoinObservationAction";
 import { ReassignTeacherDialog } from "@/frontend/views/admin/session-governance/ReassignTeacherDialog";
 import {
-  isoToDatetimeLocalToken,
   type ReschedulePair,
   RescheduleSessionDialog,
 } from "@/frontend/views/admin/session-governance/RescheduleSessionDialog";
-import { arMessages } from "@/shared/locale/ar/messages";
-import { enMessages } from "@/shared/locale/en/messages";
+import { isoToDatetimeLocalToken } from "@/frontend/views/admin/session-governance/sessionTypePresentation";
 import { AdminSessionGovernance as AdminSessionGovernanceNs } from "@/shared/locale/namespaces/adminSessionGovernance";
-import { Common as CommonNs } from "@/shared/locale/namespaces/common";
-import { Errors as ErrorsNs } from "@/shared/locale/namespaces/errors";
-import { Sessions as SessionsNs } from "@/shared/locale/namespaces/sessions";
 import { getTranslations } from "@/shared/locale/server";
 import type { AdminSessionGovernanceLabels } from "@/shared/locale/types/adminSessionGovernance";
+import {
+  type AdminSessionRowFixture,
+  buildAdminSessionRowFixture,
+  componentSuiteLocales,
+  FUTURE_END_ISO,
+  FUTURE_START_ISO,
+  liveScreen,
+  muiLabelPattern,
+  PAST_START_ISO,
+  sessionSuiteLabels,
+  warmSessionSuiteNamespaces,
+} from "@/test/ui/components/helpers";
 import { renderWithWrapper } from "@/test/ui/components/TestWrapper";
-import { componentSuiteLocales, liveScreen, muiLabelPattern, sessionSuiteLabels } from "@/test/ui/components/helpers";
 
 // ---------------------------------------------------------------------------
 // Eager namespace warming (missing-key drift surfaces at LOAD, not in an arm)
 
-for (const translations of [enMessages, arMessages]) {
-  AdminSessionGovernanceNs.getLabels(translations);
-  SessionsNs.getLabels(translations);
-  ErrorsNs.getLabels(translations);
-  CommonNs.getLabels(translations);
-}
+warmSessionSuiteNamespaces();
 
 // ---------------------------------------------------------------------------
 // Fixtures (DATA — never locale copy)
 
-/**
- * All-fields fixture row. `__typename` mirrors what Apollo Server puts on
- * the wire (the dialogs only read it; the harness mutations write it).
- */
-interface RowFixture extends AdminSessionsQuery_adminSessions_items {
-  readonly __typename: "Session";
-}
+type RowFixture = AdminSessionRowFixture;
 
-/** Deterministic fixture moments (prefill + validation arms). */
-const CREATED_ISO = "2099-01-05T08:00:00.000Z";
-const FUTURE_START_ISO = "2099-01-10T09:00:00.000Z";
-const FUTURE_END_ISO = "2099-01-10T10:30:00.000Z";
+/** Deterministic payload builder — the shared 21-field governance wire shape. */
+const rowFixture = buildAdminSessionRowFixture;
+
 /** An end BEFORE the start — the unordered-window validation arm. */
 const EARLIER_END_ISO = "2099-01-10T08:00:00.000Z";
-/** Far beyond the 5-minute reschedule grace window. */
-const PAST_START_ISO = "2024-11-01T09:00:00.000Z";
 
 const RESCHEDULE_ID = "7401";
 const CANCEL_ID = "7402";
@@ -133,35 +120,6 @@ const JOIN_ID = "7404";
 /** Fixture DATA reason (never locale copy) — padded to pin the trim seam. */
 const CANCEL_REASON_RAW = "  Duplicate booking.  ";
 const CANCEL_REASON_TRIMMED = "Duplicate booking.";
-
-/** Deterministic payload builder mirroring the closed 21-field wire shape. */
-function rowFixture(overrides?: Partial<AdminSessionsQuery_adminSessions_items>): RowFixture {
-  return {
-    __typename: "Session",
-    id: RESCHEDULE_ID,
-    status: SessionStatus.Scheduled,
-    intent: SessionIntent.Hifz,
-    sessionType: SessionType.StudentSession,
-    fee: "150.50",
-    feeHeld: true,
-    studentId: "401",
-    teacherId: "802",
-    startedAt: FUTURE_START_ISO,
-    endedAt: FUTURE_END_ISO,
-    confirmationDeadline: "2099-01-09T09:00:00.000Z",
-    confirmedByStudentAt: null,
-    confirmedByTeacherAt: null,
-    createdAt: CREATED_ISO,
-    updatedAt: CREATED_ISO,
-    cancelReason: null,
-    disputeReason: null,
-    disputedAt: null,
-    resolutionNote: null,
-    resolvedAt: null,
-    needsAttention: false,
-    ...overrides,
-  };
-}
 
 /**
  * The submit instants the dialog's own token converter produces for a
@@ -285,7 +243,9 @@ function RescheduleMutationHarnessInner({
         onClose={() => {}}
         onSubmit={pair => {
           onSubmitSpy(pair);
-          void commit({ variables: { input: { sessionId: session.id, startedAt: pair.startedAt, endedAt: pair.endedAt } } });
+          void commit({
+            variables: { input: { sessionId: session.id, startedAt: pair.startedAt, endedAt: pair.endedAt } },
+          });
         }}
       />
       <div data-testid={`dialog-harness-${phase}`} />
@@ -427,12 +387,7 @@ function JoinMutationHarness({
 }): ReactNode {
   return (
     <MockedProvider mocks={[...mocks]}>
-      <JoinMutationHarnessInner
-        sessionId={sessionId}
-        loading={loading}
-        joined={joined}
-        onJoinSpy={onJoinSpy}
-      />
+      <JoinMutationHarnessInner sessionId={sessionId} loading={loading} joined={joined} onJoinSpy={onJoinSpy} />
     </MockedProvider>
   );
 }
@@ -534,12 +489,10 @@ for (const locale of componentSuiteLocales) {
           loading={false}
           onSubmitSpy={pair => submitted.push(pair)}
           mocks={[
-            rescheduleMock(
-              RESCHEDULE_ID,
-              expectedSubmitIso(FUTURE_START_ISO),
-              expectedSubmitIso(FUTURE_END_ISO),
-              { kind: "success", payload: rowFixture({ id: RESCHEDULE_ID }) }
-            ),
+            rescheduleMock(RESCHEDULE_ID, expectedSubmitIso(FUTURE_START_ISO), expectedSubmitIso(FUTURE_END_ISO), {
+              kind: "success",
+              payload: rowFixture({ id: RESCHEDULE_ID }),
+            }),
           ]}
         />,
         { locale }
@@ -607,7 +560,11 @@ for (const locale of componentSuiteLocales) {
 
     test("empty start token disables the submit affordance", async () => {
       renderWithWrapper(
-        <RescheduleMutationHarness session={rowFixture({ id: RESCHEDULE_ID })} loading={false} onSubmitSpy={() => {}} />,
+        <RescheduleMutationHarness
+          session={rowFixture({ id: RESCHEDULE_ID })}
+          loading={false}
+          onSubmitSpy={() => {}}
+        />,
         { locale }
       );
       const dialog = await expectDialogOpen();
@@ -688,7 +645,12 @@ for (const locale of componentSuiteLocales) {
           session={rowFixture({ id: CANCEL_ID })}
           loading={false}
           onSubmitSpy={reason => submitted.push(reason)}
-          mocks={[cancelMock(CANCEL_ID, null, { kind: "success", payload: rowFixture({ id: CANCEL_ID, status: SessionStatus.Cancelled, feeHeld: false }) })]}
+          mocks={[
+            cancelMock(CANCEL_ID, null, {
+              kind: "success",
+              payload: rowFixture({ id: CANCEL_ID, status: SessionStatus.Cancelled, feeHeld: false }),
+            }),
+          ]}
         />,
         { locale }
       );
@@ -708,7 +670,12 @@ for (const locale of componentSuiteLocales) {
           session={rowFixture({ id: CANCEL_ID })}
           loading={false}
           onSubmitSpy={reason => submitted.push(reason)}
-          mocks={[cancelMock(CANCEL_ID, CANCEL_REASON_TRIMMED, { kind: "success", payload: rowFixture({ id: CANCEL_ID, status: SessionStatus.Cancelled, feeHeld: false }) })]}
+          mocks={[
+            cancelMock(CANCEL_ID, CANCEL_REASON_TRIMMED, {
+              kind: "success",
+              payload: rowFixture({ id: CANCEL_ID, status: SessionStatus.Cancelled, feeHeld: false }),
+            }),
+          ]}
         />,
         { locale }
       );
@@ -738,6 +705,42 @@ for (const locale of componentSuiteLocales) {
     });
   });
 
+  /**
+   * The reassign confirm arms' shared prologue: render the harness, open the
+   * dialog, type the RAW token and fire the submit affordance. When
+   * `waitForEnabled` is set, the token gate's disabled→enabled transition is
+   * awaited before the click (the arm that pins the gate release); the padded
+   * arm clicks directly on the flushed state update, as authored.
+   */
+  async function renderReassignAndSubmitToken(
+    rawToken: string,
+    submitted: number[],
+    mocks: ReadonlyArray<MockLink.MockedResponse>,
+    waitForEnabled: boolean
+  ): Promise<void> {
+    renderWithWrapper(
+      <ReassignMutationHarness
+        session={rowFixture({ id: REASSIGN_ID })}
+        loading={false}
+        onSubmitSpy={id => submitted.push(id)}
+        mocks={mocks}
+      />,
+      { locale }
+    );
+    const dialog = await expectDialogOpen();
+
+    fireEvent.change(within(dialog).getByLabelText(muiLabelPattern(t.reassignTeacherIdLabel)), {
+      target: { value: rawToken },
+    });
+    const submit = within(dialog).getByTestId(`reassign-teacher-submit-${REASSIGN_ID}`);
+    if (waitForEnabled) {
+      await waitFor(() => {
+        expect(submit.getAttribute("disabled")).toBeNull();
+      });
+    }
+    fireEvent.click(submit);
+  }
+
   describe(`AdminSessionDialogs — reassign (${locale === "ar" ? "RTL/arabic" : "LTR/english"})`, () => {
     test("open path — shell, plain whole-number id input, submit DISABLED until a token exists", async () => {
       renderWithWrapper(
@@ -750,30 +753,24 @@ for (const locale of componentSuiteLocales) {
       expect(within(dialog).getByText(t.reassignBody)).not.toBeNull();
       const idInput = within(dialog).getByLabelText(muiLabelPattern(t.reassignTeacherIdLabel));
       expect(idInput).not.toBeNull();
-      expect(within(dialog).getByTestId(`reassign-teacher-submit-${REASSIGN_ID}`).getAttribute("disabled")).not.toBeNull();
+      expect(
+        within(dialog).getByTestId(`reassign-teacher-submit-${REASSIGN_ID}`).getAttribute("disabled")
+      ).not.toBeNull();
     });
 
     test("confirm path — numeric token → parsed Int on the callback AND AdminSessionReassign matched", async () => {
       const submitted: number[] = [];
-      renderWithWrapper(
-        <ReassignMutationHarness
-          session={rowFixture({ id: REASSIGN_ID })}
-          loading={false}
-          onSubmitSpy={id => submitted.push(id)}
-          mocks={[reassignMock(REASSIGN_ID, 907, { kind: "success", payload: rowFixture({ id: REASSIGN_ID, teacherId: "907" }) })]}
-        />,
-        { locale }
+      await renderReassignAndSubmitToken(
+        "907",
+        submitted,
+        [
+          reassignMock(REASSIGN_ID, 907, {
+            kind: "success",
+            payload: rowFixture({ id: REASSIGN_ID, teacherId: "907" }),
+          }),
+        ],
+        true
       );
-      const dialog = await expectDialogOpen();
-
-      fireEvent.change(within(dialog).getByLabelText(muiLabelPattern(t.reassignTeacherIdLabel)), {
-        target: { value: "907" },
-      });
-      const submit = within(dialog).getByTestId(`reassign-teacher-submit-${REASSIGN_ID}`);
-      await waitFor(() => {
-        expect(submit.getAttribute("disabled")).toBeNull();
-      });
-      fireEvent.click(submit);
 
       await expectHarnessMutationOk();
       expect(submitted).toHaveLength(1);
@@ -782,21 +779,17 @@ for (const locale of componentSuiteLocales) {
 
     test("padded numeric token trims to the same Int", async () => {
       const submitted: number[] = [];
-      renderWithWrapper(
-        <ReassignMutationHarness
-          session={rowFixture({ id: REASSIGN_ID })}
-          loading={false}
-          onSubmitSpy={id => submitted.push(id)}
-          mocks={[reassignMock(REASSIGN_ID, 907, { kind: "success", payload: rowFixture({ id: REASSIGN_ID, teacherId: "907" }) })]}
-        />,
-        { locale }
+      await renderReassignAndSubmitToken(
+        "  907  ",
+        submitted,
+        [
+          reassignMock(REASSIGN_ID, 907, {
+            kind: "success",
+            payload: rowFixture({ id: REASSIGN_ID, teacherId: "907" }),
+          }),
+        ],
+        false
       );
-      const dialog = await expectDialogOpen();
-
-      fireEvent.change(within(dialog).getByLabelText(muiLabelPattern(t.reassignTeacherIdLabel)), {
-        target: { value: "  907  " },
-      });
-      fireEvent.click(within(dialog).getByTestId(`reassign-teacher-submit-${REASSIGN_ID}`));
 
       await expectHarnessMutationOk();
       expect(submitted).toEqual([907]);
@@ -834,7 +827,9 @@ for (const locale of componentSuiteLocales) {
       );
       const dialog = await expectDialogOpen();
 
-      expect(within(dialog).getByTestId(`reassign-teacher-submit-${REASSIGN_ID}`).getAttribute("disabled")).not.toBeNull();
+      expect(
+        within(dialog).getByTestId(`reassign-teacher-submit-${REASSIGN_ID}`).getAttribute("disabled")
+      ).not.toBeNull();
       expect(within(dialog).getByRole("button", { name: tc.cancel }).getAttribute("disabled")).not.toBeNull();
     });
   });
@@ -850,7 +845,9 @@ for (const locale of componentSuiteLocales) {
           onJoinSpy={() => {
             joins.push(1);
           }}
-          mocks={[joinMock(JOIN_ID, { kind: "success", payload: rowFixture({ id: JOIN_ID, status: SessionStatus.Started }) })]}
+          mocks={[
+            joinMock(JOIN_ID, { kind: "success", payload: rowFixture({ id: JOIN_ID, status: SessionStatus.Started }) }),
+          ]}
         />,
         { locale }
       );
@@ -866,18 +863,16 @@ for (const locale of componentSuiteLocales) {
     });
 
     test("loading disables the confirm affordance", () => {
-      renderWithWrapper(
-        <JoinMutationHarness sessionId={JOIN_ID} loading joined={false} onJoinSpy={() => {}} />,
-        { locale }
-      );
+      renderWithWrapper(<JoinMutationHarness sessionId={JOIN_ID} loading joined={false} onJoinSpy={() => {}} />, {
+        locale,
+      });
       expect(liveScreen.getByTestId(`join-observation-confirm-${JOIN_ID}`).getAttribute("disabled")).not.toBeNull();
     });
 
     test("joined unmounts the banner entirely — observation continues", () => {
-      renderWithWrapper(
-        <JoinMutationHarness sessionId={JOIN_ID} loading={false} joined onJoinSpy={() => {}} />,
-        { locale }
-      );
+      renderWithWrapper(<JoinMutationHarness sessionId={JOIN_ID} loading={false} joined onJoinSpy={() => {}} />, {
+        locale,
+      });
       expect(liveScreen.queryByTestId(`join-observation-banner-${JOIN_ID}`)).toBeNull();
       expect(liveScreen.queryByTestId(`join-observation-confirm-${JOIN_ID}`)).toBeNull();
     });

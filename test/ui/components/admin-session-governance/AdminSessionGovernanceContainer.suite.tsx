@@ -56,78 +56,61 @@ import { ApolloLink } from "@apollo/client";
 import { MockLink } from "@apollo/client/testing";
 import { MockedProvider } from "@apollo/client/testing/react";
 import { cleanup, fireEvent, type RenderResult, waitFor, within } from "@testing-library/react";
+import { type AdminSessionListFilterInput, SessionStatus } from "@/frontend/graphql/generated/gql/graphql";
 import {
-  type AdminSessionListFilterInput,
-  type AdminSessionsQuery_adminSessions_items,
-  SessionIntent,
-  SessionStatus,
-  SessionType,
-} from "@/frontend/graphql/generated/gql/graphql";
-import {
-  adminSessionCancelMutationDocument,
   adminSessionJoinMutationDocument,
   adminSessionQueryDocument,
-  adminSessionReassignMutationDocument,
   adminSessionRescheduleMutationDocument,
   adminSessionsQueryDocument,
 } from "@/frontend/graphql/sharedDocuments";
 import { AdminSessionGovernanceContainer } from "@/frontend/views/admin/session-governance/AdminSessionGovernanceContainer";
 import { MAX_CANCEL_REASON_LENGTH } from "@/frontend/views/admin/session-governance/CancelSessionDialog";
-import { isoToDatetimeLocalToken } from "@/frontend/views/admin/session-governance/RescheduleSessionDialog";
-import { SESSION_TYPE_LABEL_KEY } from "@/frontend/views/admin/session-governance/sessionTypePresentation";
+import {
+  isoToDatetimeLocalToken,
+  SESSION_TYPE_LABEL_KEY,
+} from "@/frontend/views/admin/session-governance/sessionTypePresentation";
 import { SESSION_FEE_CURRENCY } from "@/shared/constants";
 import type { AppLocale } from "@/shared/locale/AppLocale";
-import { arMessages } from "@/shared/locale/ar/messages";
-import { enMessages } from "@/shared/locale/en/messages";
 import { AdminSessionGovernance as AdminSessionGovernanceNs } from "@/shared/locale/namespaces/adminSessionGovernance";
-import { Common as CommonNs } from "@/shared/locale/namespaces/common";
-import { Errors as ErrorsNs } from "@/shared/locale/namespaces/errors";
-import { Sessions as SessionsNs } from "@/shared/locale/namespaces/sessions";
 import { getTranslations } from "@/shared/locale/server";
 import type { AdminSessionGovernanceLabels } from "@/shared/locale/types/adminSessionGovernance";
 import {
+  type AdminSessionMutationOutcome,
+  type AdminSessionRowFixture,
+  adminMutationMockResult,
+  adminSessionCancelMock,
+  adminSessionReassignMock,
+  buildAdminSessionRowFixture,
+  CREATED_ISO,
   componentSuiteLocales,
   expectedStamp,
+  FUTURE_END_ISO,
+  FUTURE_START_ISO,
   liveScreen,
   muiLabelPattern,
+  PAST_END_ISO,
+  PAST_START_ISO,
   renderWithMocks,
   sessionSuiteLabels,
   snackbarSeverityClass,
+  warmSessionSuiteNamespaces,
 } from "@/test/ui/components/helpers";
 import { renderWithWrapper } from "@/test/ui/components/TestWrapper";
 
 // ---------------------------------------------------------------------------
 // Eager namespace warming (missing-key drift surfaces at LOAD, not in an arm)
 
-for (const translations of [enMessages, arMessages]) {
-  AdminSessionGovernanceNs.getLabels(translations);
-  SessionsNs.getLabels(translations);
-  ErrorsNs.getLabels(translations);
-  CommonNs.getLabels(translations);
-}
+warmSessionSuiteNamespaces();
 
 // ---------------------------------------------------------------------------
 // Fixtures (DATA — never locale copy)
 
-/**
- * All-fields fixture row. `__typename` mirrors what Apollo Server puts on
- * the wire; it is what makes the `Session:<id>` entity normalizable so the
- * mutation payloads converge the directory rows by id WITHOUT refetch.
- */
-interface RowFixture extends AdminSessionsQuery_adminSessions_items {
-  readonly __typename: "Session";
-}
+type RowFixture = AdminSessionRowFixture;
 
-/** Creation moment shared by every fixture row (deterministic formatting). */
-const CREATED_ISO = "2099-01-05T08:00:00.000Z";
-
-/** Valid future timing pair (reschedule prefill — outside the past-grace window). */
-const FUTURE_START_ISO = "2099-01-10T09:00:00.000Z";
-const FUTURE_END_ISO = "2099-01-10T10:30:00.000Z";
+/** Deterministic payload builder — the shared 21-field governance wire shape. */
+const rowFixture = buildAdminSessionRowFixture;
 
 /** Lapsed/past lifecycle moments (needs-attention producer + past-start gate). */
-const PAST_START_ISO = "2024-11-01T09:00:00.000Z";
-const PAST_END_ISO = "2024-11-01T10:00:00.000Z";
 const LAPSED_DEADLINE_ISO = "2024-11-01T12:00:00.000Z";
 const RESOLVED_ISO = "2024-11-02T15:00:00.000Z";
 
@@ -153,35 +136,6 @@ const EM_DASH = "—";
  * re-states it).
  */
 const PAGE_SIZE = 25;
-
-/** Deterministic payload builder mirroring the closed 21-field wire shape. */
-function rowFixture(overrides?: Partial<AdminSessionsQuery_adminSessions_items>): RowFixture {
-  return {
-    __typename: "Session",
-    id: SCHEDULED_FRESH_ID,
-    status: SessionStatus.Scheduled,
-    intent: SessionIntent.Hifz,
-    sessionType: SessionType.StudentSession,
-    fee: "150.50",
-    feeHeld: true,
-    studentId: "401",
-    teacherId: "802",
-    startedAt: FUTURE_START_ISO,
-    endedAt: FUTURE_END_ISO,
-    confirmationDeadline: "2099-01-09T09:00:00.000Z",
-    confirmedByStudentAt: null,
-    confirmedByTeacherAt: null,
-    createdAt: CREATED_ISO,
-    updatedAt: CREATED_ISO,
-    cancelReason: null,
-    disputeReason: null,
-    disputedAt: null,
-    resolutionNote: null,
-    resolvedAt: null,
-    needsAttention: false,
-    ...overrides,
-  };
-}
 
 /** One badge-matrix page: every lifecycle status + both attention arms. */
 const PAGE_ROWS: readonly RowFixture[] = [
@@ -312,55 +266,25 @@ function detailMock(payload: RowFixture | null): MockLink.MockedResponse {
   };
 }
 
-type MutationOutcome =
-  | { readonly kind: "success"; readonly payload: RowFixture }
-  | { readonly kind: "error"; readonly code: string };
-
-function outcomeResult(wireField: string, outcome: MutationOutcome): MockLink.MockedResponse["result"] {
-  if (outcome.kind === "success") {
-    return { data: { [wireField]: outcome.payload } };
-  }
-  return {
-    errors: [{ message: `${outcome.code} (masked transport surface)`, extensions: { code: outcome.code } }],
-  };
-}
-
 function rescheduleMock(
   sessionId: string,
   startedAtIso: string,
   endedAtIso: string,
-  outcome: MutationOutcome
+  outcome: AdminSessionMutationOutcome
 ): MockLink.MockedResponse {
   return {
     request: {
       query: adminSessionRescheduleMutationDocument,
       variables: { input: { sessionId, startedAt: startedAtIso, endedAt: endedAtIso } },
     },
-    result: outcomeResult("adminRescheduleSession", outcome),
+    result: adminMutationMockResult("adminRescheduleSession", outcome),
   };
 }
 
-function cancelMock(sessionId: string, reason: string | null, outcome: MutationOutcome): MockLink.MockedResponse {
-  return {
-    request: { query: adminSessionCancelMutationDocument, variables: { input: { sessionId, reason } } },
-    result: outcomeResult("adminCancelSession", outcome),
-  };
-}
-
-function reassignMock(sessionId: string, newTeacherUserId: number, outcome: MutationOutcome): MockLink.MockedResponse {
-  return {
-    request: {
-      query: adminSessionReassignMutationDocument,
-      variables: { input: { sessionId, newTeacherUserId } },
-    },
-    result: outcomeResult("adminReassignTeacher", outcome),
-  };
-}
-
-function joinMock(sessionId: string, outcome: MutationOutcome): MockLink.MockedResponse {
+function joinMock(sessionId: string, outcome: AdminSessionMutationOutcome): MockLink.MockedResponse {
   return {
     request: { query: adminSessionJoinMutationDocument, variables: { input: { sessionId } } },
-    result: outcomeResult("adminJoinSession", outcome),
+    result: adminMutationMockResult("adminJoinSession", outcome),
   };
 }
 
@@ -817,7 +741,10 @@ for (const locale of componentSuiteLocales) {
 
     test("branch 11 — cancel dialog: optional-reason seam, empty submit sends reason:null, 403 snackbar keeps it open", async () => {
       renderGovernance(
-        [directoryMock(1, [STARTED_DETAIL], 1), cancelMock(STARTED_ID, null, { kind: "error", code: "FORBIDDEN" })],
+        [
+          directoryMock(1, [STARTED_DETAIL], 1),
+          adminSessionCancelMock(STARTED_ID, null, { kind: "error", code: "FORBIDDEN" }),
+        ],
         locale
       );
 
@@ -854,8 +781,8 @@ for (const locale of componentSuiteLocales) {
       renderGovernanceWithCapture(
         [
           directoryMock(1, [STARTED_DETAIL], 1),
-          cancelMock(STARTED_ID, null, { kind: "error", code: "FORBIDDEN" }),
-          cancelMock(STARTED_ID, null, { kind: "error", code: "FORBIDDEN" }),
+          adminSessionCancelMock(STARTED_ID, null, { kind: "error", code: "FORBIDDEN" }),
+          adminSessionCancelMock(STARTED_ID, null, { kind: "error", code: "FORBIDDEN" }),
         ],
         locale,
         onOperationSent
@@ -888,7 +815,7 @@ for (const locale of componentSuiteLocales) {
       renderGovernance(
         [
           directoryMock(1, [rowFixture({ id: SCHEDULED_FRESH_ID })], 1),
-          reassignMock(SCHEDULED_FRESH_ID, 907, { kind: "error", code: "TEACHER_NOT_CERTIFIED" }),
+          adminSessionReassignMock(SCHEDULED_FRESH_ID, 907, { kind: "error", code: "TEACHER_NOT_CERTIFIED" }),
         ],
         locale
       );
@@ -977,7 +904,7 @@ for (const locale of componentSuiteLocales) {
       renderGovernance(
         [
           directoryMock(1, [STARTED_DETAIL], 1),
-          cancelMock(STARTED_ID, null, { kind: "success", payload: cancelledPayload(STARTED_ID) }),
+          adminSessionCancelMock(STARTED_ID, null, { kind: "success", payload: cancelledPayload(STARTED_ID) }),
         ],
         locale
       );
@@ -1043,7 +970,7 @@ for (const locale of componentSuiteLocales) {
       renderGovernance(
         [
           directoryMock(1, [rowFixture({ id: SCHEDULED_FRESH_ID })], 1),
-          reassignMock(SCHEDULED_FRESH_ID, 907, {
+          adminSessionReassignMock(SCHEDULED_FRESH_ID, 907, {
             kind: "success",
             payload: rowFixture({ id: SCHEDULED_FRESH_ID, teacherId: "907" }),
           }),

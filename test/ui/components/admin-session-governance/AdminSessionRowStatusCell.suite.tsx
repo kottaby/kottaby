@@ -38,8 +38,8 @@ import { enMessages } from "@/shared/locale/en/messages";
 import { Sessions as SessionsNs } from "@/shared/locale/namespaces/sessions";
 import { getTranslations } from "@/shared/locale/server";
 import type { SessionsLabels } from "@/shared/locale/types/sessions";
-import { renderWithWrapper } from "@/test/ui/components/TestWrapper";
 import { componentSuiteLocales } from "@/test/ui/components/helpers";
+import { renderWithWrapper } from "@/test/ui/components/TestWrapper";
 
 // Eager warming — missing-key drift surfaces at LOAD, not inside an arm.
 for (const translations of [enMessages, arMessages]) {

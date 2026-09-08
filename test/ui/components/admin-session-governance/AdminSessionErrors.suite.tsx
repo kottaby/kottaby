@@ -47,63 +47,47 @@
  */
 
 import { afterEach, describe, expect, test } from "bun:test";
-import { MockLink } from "@apollo/client/testing";
+import type { MockLink } from "@apollo/client/testing";
 import { cleanup, fireEvent, waitFor, within } from "@testing-library/react";
-import {
-  type AdminSessionListFilterInput,
-  type AdminSessionsQuery_adminSessions_items,
-  SessionIntent,
-  SessionStatus,
-  SessionType,
-} from "@/frontend/graphql/generated/gql/graphql";
-import {
-  adminSessionCancelMutationDocument,
-  adminSessionReassignMutationDocument,
-  adminSessionRescheduleMutationDocument,
-  adminSessionsQueryDocument,
-} from "@/frontend/graphql/sharedDocuments";
-import { AdminSessionRow, type GovernanceDialogKind } from "@/frontend/views/admin/session-governance/AdminSessionRow";
+import { type AdminSessionListFilterInput, SessionStatus } from "@/frontend/graphql/generated/gql/graphql";
+import { adminSessionRescheduleMutationDocument, adminSessionsQueryDocument } from "@/frontend/graphql/sharedDocuments";
 import { AdminSessionGovernanceContainer } from "@/frontend/views/admin/session-governance/AdminSessionGovernanceContainer";
+import { AdminSessionRow, type GovernanceDialogKind } from "@/frontend/views/admin/session-governance/AdminSessionRow";
 import type { AppLocale } from "@/shared/locale/AppLocale";
-import { arMessages } from "@/shared/locale/ar/messages";
-import { enMessages } from "@/shared/locale/en/messages";
 import { AdminSessionGovernance as AdminSessionGovernanceNs } from "@/shared/locale/namespaces/adminSessionGovernance";
-import { Common as CommonNs } from "@/shared/locale/namespaces/common";
-import { Errors as ErrorsNs } from "@/shared/locale/namespaces/errors";
-import { Sessions as SessionsNs } from "@/shared/locale/namespaces/sessions";
 import { getTranslations } from "@/shared/locale/server";
 import type { AdminSessionGovernanceLabels } from "@/shared/locale/types/adminSessionGovernance";
-import { renderWithWrapper } from "@/test/ui/components/TestWrapper";
 import {
+  type AdminSessionMutationOutcome,
+  type AdminSessionRowFixture,
+  adminMutationMockResult,
+  adminSessionCancelMock,
+  adminSessionReassignMock,
+  buildAdminSessionRowFixture,
   componentSuiteLocales,
+  FUTURE_END_ISO,
+  FUTURE_START_ISO,
   liveScreen,
   muiLabelPattern,
+  PAST_END_ISO,
+  PAST_START_ISO,
   renderWithMocks,
   sessionSuiteLabels,
   snackbarSeverityClass,
+  warmSessionSuiteNamespaces,
 } from "@/test/ui/components/helpers";
+import { renderWithWrapper } from "@/test/ui/components/TestWrapper";
 
 // Eager namespace warming (missing-key drift surfaces at LOAD, not in an arm).
-for (const translations of [enMessages, arMessages]) {
-  AdminSessionGovernanceNs.getLabels(translations);
-  SessionsNs.getLabels(translations);
-  ErrorsNs.getLabels(translations);
-  CommonNs.getLabels(translations);
-}
+warmSessionSuiteNamespaces();
 
 // ---------------------------------------------------------------------------
 // Fixtures (DATA — never locale copy)
 
-/** All-fields fixture row (`__typename` keeps the entity normalizable). */
-interface RowFixture extends AdminSessionsQuery_adminSessions_items {
-  readonly __typename: "Session";
-}
+type RowFixture = AdminSessionRowFixture;
 
-const CREATED_ISO = "2099-01-05T08:00:00.000Z";
-const FUTURE_START_ISO = "2099-01-10T09:00:00.000Z";
-const FUTURE_END_ISO = "2099-01-10T10:30:00.000Z";
-const PAST_START_ISO = "2024-11-01T09:00:00.000Z";
-const PAST_END_ISO = "2024-11-01T10:00:00.000Z";
+/** Deterministic payload builder — the shared 21-field governance wire shape. */
+const rowFixture = buildAdminSessionRowFixture;
 
 const SCHEDULED_ID = "7411";
 const STARTED_ID = "7412";
@@ -119,35 +103,6 @@ function expectedSubmitIso(fixtureIso: string): string {
     instant.getHours()
   )}:${pad(instant.getMinutes())}`;
   return new Date(token).toISOString();
-}
-
-/** Deterministic payload builder mirroring the closed 21-field wire shape. */
-function rowFixture(overrides?: Partial<AdminSessionsQuery_adminSessions_items>): RowFixture {
-  return {
-    __typename: "Session",
-    id: SCHEDULED_ID,
-    status: SessionStatus.Scheduled,
-    intent: SessionIntent.Hifz,
-    sessionType: SessionType.StudentSession,
-    fee: "150.50",
-    feeHeld: true,
-    studentId: "401",
-    teacherId: "802",
-    startedAt: FUTURE_START_ISO,
-    endedAt: FUTURE_END_ISO,
-    confirmationDeadline: "2099-01-09T09:00:00.000Z",
-    confirmedByStudentAt: null,
-    confirmedByTeacherAt: null,
-    createdAt: CREATED_ISO,
-    updatedAt: CREATED_ISO,
-    cancelReason: null,
-    disputeReason: null,
-    disputedAt: null,
-    resolutionNote: null,
-    resolvedAt: null,
-    needsAttention: false,
-    ...overrides,
-  };
 }
 
 // ---------------------------------------------------------------------------
@@ -246,55 +201,68 @@ function directoryMock(page: number, items: readonly RowFixture[]): MockLink.Moc
   };
 }
 
-type MutationOutcome =
-  | { readonly kind: "success"; readonly payload: RowFixture }
-  | { readonly kind: "error"; readonly code: string };
-
-function outcomeResult(wireField: string, outcome: MutationOutcome): MockLink.MockedResponse["result"] {
-  if (outcome.kind === "success") {
-    return { data: { [wireField]: outcome.payload } };
-  }
-  // The failure is authored as a raw `result.errors[]` entry exactly where
-  // the transport boundary puts `extensions.code`; Apollo's MockedProvider
-  // wraps it into a genuine `CombinedGraphQLErrors` — the same extraction
-  // path the production error-link uses.
-  return {
-    errors: [{ message: `${outcome.code} (masked transport surface)`, extensions: { code: outcome.code } }],
-  };
-}
-
-function rescheduleMock(sessionId: string, outcome: MutationOutcome): MockLink.MockedResponse {
+function rescheduleMock(sessionId: string, outcome: AdminSessionMutationOutcome): MockLink.MockedResponse {
   return {
     request: {
       query: adminSessionRescheduleMutationDocument,
       variables: {
-        input: { sessionId, startedAt: expectedSubmitIso(FUTURE_START_ISO), endedAt: expectedSubmitIso(FUTURE_END_ISO) },
+        input: {
+          sessionId,
+          startedAt: expectedSubmitIso(FUTURE_START_ISO),
+          endedAt: expectedSubmitIso(FUTURE_END_ISO),
+        },
       },
     },
-    result: outcomeResult("adminRescheduleSession", outcome),
+    result: adminMutationMockResult("adminRescheduleSession", outcome),
   };
 }
 
-function cancelMock(sessionId: string, reason: string | null, outcome: MutationOutcome): MockLink.MockedResponse {
-  return {
-    request: { query: adminSessionCancelMutationDocument, variables: { input: { sessionId, reason } } },
-    result: outcomeResult("adminCancelSession", outcome),
-  };
-}
-
-function reassignMock(sessionId: string, newTeacherUserId: number, outcome: MutationOutcome): MockLink.MockedResponse {
-  return {
-    request: { query: adminSessionReassignMutationDocument, variables: { input: { sessionId, newTeacherUserId } } },
-    result: outcomeResult("adminReassignTeacher", outcome),
-  };
-}
-
-async function openRowMenuInContainer(sessionId: string): Promise<HTMLElement> {
+/** Waits for the error snackbar carrying `text` and pins its MUI error severity. */
+async function expectErrorSnackbar(text: string): Promise<void> {
   await waitFor(() => {
-    expect(liveScreen.getByTestId(`admin-session-row-${sessionId}`)).toBeDefined();
+    expect(liveScreen.getByText(text)).toBeDefined();
   });
-  fireEvent.click(liveScreen.getByTestId(`admin-session-actions-${sessionId}`));
-  return await waitFor(() => liveScreen.getByRole("menu"));
+  expect(snackbarSeverityClass(text)).toContain("MuiAlert-colorError");
+}
+
+/**
+ * Opens one row's kebab → governance dialog and fires the prefilled-pair
+ * submit affordance (the reschedule/cancel confirm arms — no typed fields).
+ */
+async function openDialogAndSubmitPrefilled(
+  sessionId: string,
+  action: "reschedule" | "cancel",
+  submitTestId: string
+): Promise<void> {
+  const menu = await openRowMenu(sessionId);
+  fireEvent.click(kebabItem(menu, sessionId, action));
+  await waitFor(() => {
+    expect(liveScreen.getByRole("dialog")).toBeDefined();
+  });
+  fireEvent.click(within(liveScreen.getByRole("dialog")).getByTestId(submitTestId));
+}
+
+/**
+ * Opens the reassign dialog from the kebab, types the whole-number token and
+ * submits once the token gate releases the affordance (the reassign confirm
+ * arms).
+ */
+async function openReassignDialogAndSubmitTeacher(
+  sessionId: string,
+  teacherIdToken: string,
+  t: Pick<AdminSessionGovernanceLabels, "reassignTeacherIdLabel">
+): Promise<void> {
+  const menu = await openRowMenu(sessionId);
+  fireEvent.click(kebabItem(menu, sessionId, "reassign"));
+  const dialog = await waitFor(() => liveScreen.getByRole("dialog"));
+  fireEvent.change(within(dialog).getByLabelText(muiLabelPattern(t.reassignTeacherIdLabel)), {
+    target: { value: teacherIdToken },
+  });
+  const submit = within(dialog).getByTestId(`reassign-teacher-submit-${sessionId}`);
+  await waitFor(() => {
+    expect(submit.getAttribute("disabled")).toBeNull();
+  });
+  fireEvent.click(submit);
 }
 
 afterEach(cleanup);
@@ -334,7 +302,13 @@ for (const locale of componentSuiteLocales) {
 
     test("started row — reschedule/cancel/join live, reassign disabled with its hint, cancel intent fires", async () => {
       const { intents } = renderRow(
-        rowFixture({ id: STARTED_ID, status: SessionStatus.Started, startedAt: PAST_START_ISO, endedAt: null, confirmationDeadline: null }),
+        rowFixture({
+          id: STARTED_ID,
+          status: SessionStatus.Started,
+          startedAt: PAST_START_ISO,
+          endedAt: null,
+          confirmationDeadline: null,
+        }),
         locale,
         t,
         ts
@@ -396,7 +370,14 @@ for (const locale of componentSuiteLocales) {
 
     test("cancelled row — all four governance actions disabled with their hints", async () => {
       const { intents } = renderRow(
-        rowFixture({ id: CANCELLED_ID, status: SessionStatus.Cancelled, startedAt: null, endedAt: null, confirmationDeadline: null, feeHeld: false }),
+        rowFixture({
+          id: CANCELLED_ID,
+          status: SessionStatus.Cancelled,
+          startedAt: null,
+          endedAt: null,
+          confirmationDeadline: null,
+          feeHeld: false,
+        }),
         locale,
         t,
         ts
@@ -415,7 +396,13 @@ for (const locale of componentSuiteLocales) {
 
     test("disputed row — all four governance actions disabled with their hints", async () => {
       const { intents } = renderRow(
-        rowFixture({ id: DISPUTED_ID, status: SessionStatus.Disputed, startedAt: PAST_START_ISO, endedAt: null, confirmationDeadline: null }),
+        rowFixture({
+          id: DISPUTED_ID,
+          status: SessionStatus.Disputed,
+          startedAt: PAST_START_ISO,
+          endedAt: null,
+          confirmationDeadline: null,
+        }),
         locale,
         t,
         ts
@@ -437,21 +424,15 @@ for (const locale of componentSuiteLocales) {
     test("reschedule FORBIDDEN — localized tenant-denial snackbar, dialog STAYS open for a corrected submit", async () => {
       renderWithMocks(
         <AdminSessionGovernanceContainer />,
-        [directoryMock(1, [rowFixture({ id: SCHEDULED_ID })]), rescheduleMock(SCHEDULED_ID, { kind: "error", code: "FORBIDDEN" })],
+        [
+          directoryMock(1, [rowFixture({ id: SCHEDULED_ID })]),
+          rescheduleMock(SCHEDULED_ID, { kind: "error", code: "FORBIDDEN" }),
+        ],
         locale
       );
 
-      const menu = await openRowMenuInContainer(SCHEDULED_ID);
-      fireEvent.click(kebabItem(menu, SCHEDULED_ID, "reschedule"));
-      await waitFor(() => {
-        expect(liveScreen.getByRole("dialog")).toBeDefined();
-      });
-      fireEvent.click(within(liveScreen.getByRole("dialog")).getByTestId("reschedule-session-submit"));
-
-      await waitFor(() => {
-        expect(liveScreen.getByText(te.forbidden)).toBeDefined();
-      });
-      expect(snackbarSeverityClass(te.forbidden)).toContain("MuiAlert-colorError");
+      await openDialogAndSubmitPrefilled(SCHEDULED_ID, "reschedule", "reschedule-session-submit");
+      await expectErrorSnackbar(te.forbidden);
       // Retryable family: the dialog premise stays valid.
       expect(liveScreen.getByRole("dialog")).not.toBeNull();
       expect(liveScreen.getByTestId(`admin-session-row-${SCHEDULED_ID}`)).not.toBeNull();
@@ -460,26 +441,15 @@ for (const locale of componentSuiteLocales) {
     test("reassign FORBIDDEN — localized tenant-denial snackbar, dialog STAYS open", async () => {
       renderWithMocks(
         <AdminSessionGovernanceContainer />,
-        [directoryMock(1, [rowFixture({ id: SCHEDULED_ID })]), reassignMock(SCHEDULED_ID, 907, { kind: "error", code: "FORBIDDEN" })],
+        [
+          directoryMock(1, [rowFixture({ id: SCHEDULED_ID })]),
+          adminSessionReassignMock(SCHEDULED_ID, 907, { kind: "error", code: "FORBIDDEN" }),
+        ],
         locale
       );
 
-      const menu = await openRowMenuInContainer(SCHEDULED_ID);
-      fireEvent.click(kebabItem(menu, SCHEDULED_ID, "reassign"));
-      const dialog = await waitFor(() => liveScreen.getByRole("dialog"));
-      fireEvent.change(within(dialog).getByLabelText(muiLabelPattern(t.reassignTeacherIdLabel)), {
-        target: { value: "907" },
-      });
-      const submit = within(dialog).getByTestId(`reassign-teacher-submit-${SCHEDULED_ID}`);
-      await waitFor(() => {
-        expect(submit.getAttribute("disabled")).toBeNull();
-      });
-      fireEvent.click(submit);
-
-      await waitFor(() => {
-        expect(liveScreen.getByText(te.forbidden)).toBeDefined();
-      });
-      expect(snackbarSeverityClass(te.forbidden)).toContain("MuiAlert-colorError");
+      await openReassignDialogAndSubmitTeacher(SCHEDULED_ID, "907", t);
+      await expectErrorSnackbar(te.forbidden);
       expect(liveScreen.getByRole("dialog")).not.toBeNull();
     });
 
@@ -488,22 +458,21 @@ for (const locale of componentSuiteLocales) {
         <AdminSessionGovernanceContainer />,
         [
           directoryMock(1, [
-            rowFixture({ id: STARTED_ID, status: SessionStatus.Started, startedAt: PAST_START_ISO, endedAt: null, confirmationDeadline: null }),
+            rowFixture({
+              id: STARTED_ID,
+              status: SessionStatus.Started,
+              startedAt: PAST_START_ISO,
+              endedAt: null,
+              confirmationDeadline: null,
+            }),
           ]),
-          cancelMock(STARTED_ID, null, { kind: "error", code: "VALIDATION" }),
+          adminSessionCancelMock(STARTED_ID, null, { kind: "error", code: "VALIDATION" }),
         ],
         locale
       );
 
-      const menu = await openRowMenuInContainer(STARTED_ID);
-      fireEvent.click(kebabItem(menu, STARTED_ID, "cancel"));
-      const dialog = await waitFor(() => liveScreen.getByRole("dialog"));
-      fireEvent.click(within(dialog).getByTestId(`cancel-session-submit-${STARTED_ID}`));
-
-      await waitFor(() => {
-        expect(liveScreen.getByText(te.validation)).toBeDefined();
-      });
-      expect(snackbarSeverityClass(te.validation)).toContain("MuiAlert-colorError");
+      await openDialogAndSubmitPrefilled(STARTED_ID, "cancel", `cancel-session-submit-${STARTED_ID}`);
+      await expectErrorSnackbar(te.validation);
       expect(liveScreen.getByRole("dialog")).not.toBeNull();
     });
 
@@ -517,17 +486,8 @@ for (const locale of componentSuiteLocales) {
         locale
       );
 
-      const menu = await openRowMenuInContainer(SCHEDULED_ID);
-      fireEvent.click(kebabItem(menu, SCHEDULED_ID, "reschedule"));
-      await waitFor(() => {
-        expect(liveScreen.getByRole("dialog")).toBeDefined();
-      });
-      fireEvent.click(within(liveScreen.getByRole("dialog")).getByTestId("reschedule-session-submit"));
-
-      await waitFor(() => {
-        expect(liveScreen.getByText(te.sessionRescheduleWindowInvalid)).toBeDefined();
-      });
-      expect(snackbarSeverityClass(te.sessionRescheduleWindowInvalid)).toContain("MuiAlert-colorError");
+      await openDialogAndSubmitPrefilled(SCHEDULED_ID, "reschedule", "reschedule-session-submit");
+      await expectErrorSnackbar(te.sessionRescheduleWindowInvalid);
       // Retryable family: the dialog premise stays valid.
       expect(liveScreen.getByRole("dialog")).not.toBeNull();
     });
@@ -542,43 +502,23 @@ for (const locale of componentSuiteLocales) {
         locale
       );
 
-      const menu = await openRowMenuInContainer(SCHEDULED_ID);
-      fireEvent.click(kebabItem(menu, SCHEDULED_ID, "reschedule"));
-      await waitFor(() => {
-        expect(liveScreen.getByRole("dialog")).toBeDefined();
-      });
-      fireEvent.click(within(liveScreen.getByRole("dialog")).getByTestId("reschedule-session-submit"));
-
-      await waitFor(() => {
-        expect(liveScreen.getByText(te.sessionRescheduleStartInPast)).toBeDefined();
-      });
-      expect(snackbarSeverityClass(te.sessionRescheduleStartInPast)).toContain("MuiAlert-colorError");
+      await openDialogAndSubmitPrefilled(SCHEDULED_ID, "reschedule", "reschedule-session-submit");
+      await expectErrorSnackbar(te.sessionRescheduleStartInPast);
       expect(liveScreen.getByRole("dialog")).not.toBeNull();
     });
 
     test("reassign TEACHER_NOT_FOUND — its OWN denial copy surfaces, dialog STAYS open", async () => {
       renderWithMocks(
         <AdminSessionGovernanceContainer />,
-        [directoryMock(1, [rowFixture({ id: SCHEDULED_ID })]), reassignMock(SCHEDULED_ID, 907, { kind: "error", code: "TEACHER_NOT_FOUND" })],
+        [
+          directoryMock(1, [rowFixture({ id: SCHEDULED_ID })]),
+          adminSessionReassignMock(SCHEDULED_ID, 907, { kind: "error", code: "TEACHER_NOT_FOUND" }),
+        ],
         locale
       );
 
-      const menu = await openRowMenuInContainer(SCHEDULED_ID);
-      fireEvent.click(kebabItem(menu, SCHEDULED_ID, "reassign"));
-      const dialog = await waitFor(() => liveScreen.getByRole("dialog"));
-      fireEvent.change(within(dialog).getByLabelText(muiLabelPattern(t.reassignTeacherIdLabel)), {
-        target: { value: "907" },
-      });
-      const submit = within(dialog).getByTestId(`reassign-teacher-submit-${SCHEDULED_ID}`);
-      await waitFor(() => {
-        expect(submit.getAttribute("disabled")).toBeNull();
-      });
-      fireEvent.click(submit);
-
-      await waitFor(() => {
-        expect(liveScreen.getByText(te.teacherNotFound)).toBeDefined();
-      });
-      expect(snackbarSeverityClass(te.teacherNotFound)).toContain("MuiAlert-colorError");
+      await openReassignDialogAndSubmitTeacher(SCHEDULED_ID, "907", t);
+      await expectErrorSnackbar(te.teacherNotFound);
       expect(liveScreen.getByRole("dialog")).not.toBeNull();
     });
 
@@ -586,21 +526,15 @@ for (const locale of componentSuiteLocales) {
       const SERVER_LEAK = "INTERNAL_SERVER_ERROR (masked transport surface)";
       renderWithMocks(
         <AdminSessionGovernanceContainer />,
-        [directoryMock(1, [rowFixture({ id: SCHEDULED_ID })]), rescheduleMock(SCHEDULED_ID, { kind: "error", code: "INTERNAL_SERVER_ERROR" })],
+        [
+          directoryMock(1, [rowFixture({ id: SCHEDULED_ID })]),
+          rescheduleMock(SCHEDULED_ID, { kind: "error", code: "INTERNAL_SERVER_ERROR" }),
+        ],
         locale
       );
 
-      const menu = await openRowMenuInContainer(SCHEDULED_ID);
-      fireEvent.click(kebabItem(menu, SCHEDULED_ID, "reschedule"));
-      await waitFor(() => {
-        expect(liveScreen.getByRole("dialog")).toBeDefined();
-      });
-      fireEvent.click(within(liveScreen.getByRole("dialog")).getByTestId("reschedule-session-submit"));
-
-      await waitFor(() => {
-        expect(liveScreen.getByText(t.errorTitle)).toBeDefined();
-      });
-      expect(snackbarSeverityClass(t.errorTitle)).toContain("MuiAlert-colorError");
+      await openDialogAndSubmitPrefilled(SCHEDULED_ID, "reschedule", "reschedule-session-submit");
+      await expectErrorSnackbar(t.errorTitle);
       expect(liveScreen.queryByText(SERVER_LEAK)).toBeNull();
       expect(liveScreen.queryByText(te.forbidden)).toBeNull();
       expect(liveScreen.getByRole("dialog")).not.toBeNull();
