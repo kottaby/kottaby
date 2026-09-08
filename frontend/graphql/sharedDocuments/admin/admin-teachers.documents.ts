@@ -1,5 +1,6 @@
 /**
- * Admin teacher directory GraphQL documents — read-only directory query.
+ * Admin teacher directory GraphQL documents — the read-only directory
+ * listing plus its server-side export-all counterpart.
  *
  * Per `frontend/graphql/sharedDocuments/AGENTS.md`:
  *  - Documents use `gql` + `TypedDocumentNode` (codegen types only).
@@ -14,7 +15,7 @@
  * argument exists in the document.
  */
 import { gql, type TypedDocumentNode } from "@apollo/client";
-import type { AdminTeachersQuery } from "@/frontend/graphql/generated/gql/graphql";
+import type { AdminTeachersExportQuery, AdminTeachersQuery } from "@/frontend/graphql/generated/gql/graphql";
 
 /** Shared list-item fragment for the teacher directory. */
 const ADMIN_TEACHER_LIST_ITEM_FIELDS = gql`
@@ -52,6 +53,29 @@ export const adminTeachersQueryDocument: TypedDocumentNode<AdminTeachersQuery> =
       page
       pageSize
       pageCount
+    }
+  }
+`;
+
+/**
+ * Teacher directory EXPORT-ALL query — the server-side serialization source
+ * for the CSV download. Accepts the SAME filter argument set as the listing
+ * (NO page/pageSize: the backend caps the dump at its own EXPORT_MAX_ROWS
+ * and reports `truncated` honestly), reusing the EXISTING item fragment so
+ * the CSV rows carry exactly the shape the current-page builder consumes.
+ * `total` is the FULL filtered count (what the listing would report across
+ * all pages); `truncated === true` means the dump was capped and the UI must
+ * warn.
+ */
+export const adminTeachersExportQueryDocument: TypedDocumentNode<AdminTeachersExportQuery> = gql`
+  ${ADMIN_TEACHER_LIST_ITEM_FIELDS}
+  query AdminTeachersExport($filters: AdminTeacherFiltersInput) {
+    adminTeachersExport(filters: $filters) {
+      rows {
+        ...AdminTeacherListItemFields
+      }
+      total
+      truncated
     }
   }
 `;

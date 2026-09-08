@@ -78,6 +78,9 @@ export const adminTeachersAr: AdminTeachersLabels = {
   export: {
     exportCsv: "تصدير CSV",
     exportCsvEmpty: "لا يوجد ما يمكن تصديره بعد",
+    exportedRows: "الصفوف المصدَّرة: {count}.",
+    exportTruncated: "تم تصدير أول 1000 صف فقط (بلغ الحد الأقصى للتصدير).",
+    exportCsvFailed: "تعذّر التصدير. حاول مرة أخرى.",
   },
   fields: {
     id: "المعرّف",

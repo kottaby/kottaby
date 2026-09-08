@@ -7,15 +7,17 @@
  * State and query wiring lives in `useAdminStudentsDirectory`; the filter/
  * refresh/export toolbar lives in `AdminStudentsToolbar`; the results
  * section (desktop table + mobile card list + paginations) lives in
- * `AdminStudentsResults`; the copy-email snackbar closes the loop.
+ * `AdminStudentsResults`; the feedback snackbar closes the loop.
  *
  * The surface stays READ-ONLY by design — no create/edit/delete dialogs and
  * no mutations exist here. Two affordances round it out: the per-row
  * detail drawer (opened by clicking a row/card or through the explicit
  * view-details quick action — the container owns the single drawer
  * instance and keeps the selected item mounted through the exit
- * transition) and the current-page CSV export (pure client-side
- * serialization of the rows on screen — no second fetch).
+ * transition) and the SERVER-SIDE EXPORT-ALL CSV download (the dedicated
+ * export query runs with the current filter state, the backend caps the
+ * dump and reports `truncated`, and the container serializes the rows with
+ * the existing pure CSV builder).
  *
  * All chrome copy comes from the `AdminStudents` locale namespace, resolved
  * client-side via `useAppTranslation(AdminStudents)` — the page mounts this
@@ -41,6 +43,9 @@ import { useAppLocale } from "@/shared/locale";
 import { useAppTranslation } from "@/shared/locale/client";
 import { AdminStudents } from "@/shared/locale/namespaces/adminStudents";
 
+/** ICU token of `export.exportedRows` (one per locale, parity-pinned). */
+const EXPORTED_ROWS_PLACEHOLDER = "{count}";
+
 export function AdminStudentsDirectoryContainer(): ReactNode {
   const labels = useAppTranslation(AdminStudents);
   const locale = useAppLocale();
@@ -54,15 +59,35 @@ export function AdminStudentsDirectoryContainer(): ReactNode {
     setSelectedStudent(student);
     setDrawerOpen(true);
   };
-  // The copy-email quick action reports success through the shared success
+  // The copy-email quick action reports success through the shared
   // snackbar (identical feedback channel as the users directory).
   const handleCopyEmail = () => {
-    directory.setSnackbarMessage(labels.quickActions.emailCopied);
+    directory.showSnackbar(labels.quickActions.emailCopied);
   };
-  // Serialize the CURRENT page (the rows on screen) to a BOM-prefixed CSV
-  // download — the same Blob/anchor/revoke recipe as the analytics export.
-  const handleExportCsv = (): void => {
-    const csv = buildStudentsDirectoryCsv(directory.items, labels);
+  // Server-side EXPORT-ALL: the dedicated export query runs with the
+  // CURRENT filter state (the hook owns the filter-to-variables mapping),
+  // then the returned rows serialize through the EXISTING pure CSV builder
+  // (same item shape as the listing) and download via the same
+  // Blob/anchor/revoke recipe. Feedback through the shared snackbar:
+  // success reports the exported row count; a capped dump reports the
+  // truncation warning instead (it implies completion); a failed query
+  // reports the error lane without any download.
+  const handleExportCsv = async (): Promise<void> => {
+    const envelope = await directory.exportAll();
+    if (envelope === null) {
+      directory.showSnackbar(labels.export.exportCsvFailed, "error");
+      return;
+    }
+    if (envelope.truncated) {
+      // A capped dump still downloads its EXPORT_MAX_ROWS rows — the
+      // warning lane reports the cap instead of the plain success copy.
+      directory.showSnackbar(labels.export.exportTruncated, "warning");
+    } else {
+      directory.showSnackbar(
+        labels.export.exportedRows.replace(EXPORTED_ROWS_PLACEHOLDER, () => String(envelope.rows.length))
+      );
+    }
+    const csv = buildStudentsDirectoryCsv(envelope.rows, labels);
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
@@ -97,8 +122,11 @@ export function AdminStudentsDirectoryContainer(): ReactNode {
         directory={directory}
         loading={directory.loading}
         hasFilters={directory.hasFilters}
-        onExportCsv={handleExportCsv}
-        exportDisabled={directory.loading || directory.items.length === 0}
+        onExportCsv={() => {
+          void handleExportCsv();
+        }}
+        exportLoading={directory.exportLoading}
+        exportDisabled={directory.exportLoading || directory.loading || directory.total === 0}
       />
 
       {directory.hasError && (
@@ -134,13 +162,13 @@ export function AdminStudentsDirectoryContainer(): ReactNode {
       />
 
       <Snackbar
-        open={directory.snackbarMessage !== null}
+        open={directory.snackbar !== null}
         autoHideDuration={4000}
-        onClose={() => directory.setSnackbarMessage(null)}
+        onClose={directory.clearSnackbar}
         anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
       >
-        <Alert severity="success" variant="filled" onClose={() => directory.setSnackbarMessage(null)}>
-          {directory.snackbarMessage}
+        <Alert severity={directory.snackbar?.severity ?? "success"} variant="filled" onClose={directory.clearSnackbar}>
+          {directory.snackbar?.message ?? ""}
         </Alert>
       </Snackbar>
     </Stack>

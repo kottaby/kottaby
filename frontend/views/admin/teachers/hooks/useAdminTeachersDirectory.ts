@@ -13,7 +13,11 @@
  *    page index,
  *  - the read-only `adminTeachers` query (cache-and-network so refetches
  *    keep the current rows visible while the fresh page streams in),
- *  - the copy-email success snackbar shared by the row identity cells.
+ *  - the server-side EXPORT-ALL flow (`exportAll` — the dedicated export
+ *    document executed with the SAME normalized filter state the listing
+ *    uses; the backend caps the dump and reports `truncated` honestly),
+ *  - the feedback snackbar shared by the copy-email quick action and the
+ *    export flow (success / warning / error lanes).
  *
  * This directory is READ-ONLY — no mutations exist on this surface. The
  * hook returns plain state — no JSX. Errors surface through the same
@@ -21,10 +25,15 @@
  * alert with a retry action.
  */
 
-import { useQuery } from "@apollo/client/react";
+import { useApolloClient, useQuery } from "@apollo/client/react";
 import { useState } from "react";
-import type { AdminTeachersQueryVariables } from "@/frontend/graphql/generated/gql/graphql";
-import { adminTeachersQueryDocument } from "@/frontend/graphql/sharedDocuments/admin";
+import type {
+  AdminTeacherFiltersInput,
+  AdminTeachersExportQuery,
+  AdminTeachersExportQueryVariables,
+  AdminTeachersQueryVariables,
+} from "@/frontend/graphql/generated/gql/graphql";
+import { adminTeachersExportQueryDocument, adminTeachersQueryDocument } from "@/frontend/graphql/sharedDocuments/admin";
 import { extractErrorCode } from "@/frontend/lib/graphql-error-utils";
 import {
   approvalFilterToBoolean,
@@ -34,6 +43,7 @@ import {
   type TeacherEvaluatorFilter,
   type TeacherOnlineFilter,
 } from "@/frontend/views/admin/teachers/adminTeachersDirectory.helpers";
+import type { DirectorySnackbar, DirectorySnackbarSeverity } from "@/frontend/views/admin/users/directory";
 
 const DEFAULT_PAGE_SIZE = 10;
 
@@ -45,7 +55,9 @@ export function useAdminTeachersDirectory() {
   const [searchDebounced, setSearchDebounced] = useState("");
   const [page, setPage] = useState(0);
   const [pageSize, setPageSizeState] = useState(DEFAULT_PAGE_SIZE);
-  const [snackbarMessage, setSnackbarMessage] = useState<string | null>(null);
+  const [exportLoading, setExportLoading] = useState(false);
+  const [snackbar, setSnackbar] = useState<DirectorySnackbar | null>(null);
+  const client = useApolloClient();
 
   // Debounce search input (300ms) — the same render-time pattern the users
   // directory hook uses: a timeout is scheduled while the draft differs from
@@ -79,13 +91,17 @@ export function useAdminTeachersDirectory() {
 
   // Narrow the draft unions onto the backend's nullable Boolean filters —
   // an empty draft means "no filter", which is how the absent field is sent.
+  // The SAME normalized shape feeds the listing AND the export-all query —
+  // one filter-to-variables mapping, no drift between screen and file.
+  const filters: AdminTeacherFiltersInput = {
+    search: searchDebounced || null,
+    approval: approvalFilter === "" ? null : approvalFilterToBoolean(approvalFilter),
+    online: onlineFilter === "" ? null : onlineFilterToBoolean(onlineFilter),
+    evaluator: evaluatorFilter === "" ? null : evaluatorFilterToBoolean(evaluatorFilter),
+  };
+
   const variables: AdminTeachersQueryVariables = {
-    filters: {
-      search: searchDebounced || null,
-      approval: approvalFilter === "" ? null : approvalFilterToBoolean(approvalFilter),
-      online: onlineFilter === "" ? null : onlineFilterToBoolean(onlineFilter),
-      evaluator: evaluatorFilter === "" ? null : evaluatorFilterToBoolean(evaluatorFilter),
-    },
+    filters,
     page: page + 1,
     pageSize,
   };
@@ -94,6 +110,30 @@ export function useAdminTeachersDirectory() {
     variables,
     fetchPolicy: "cache-and-network",
   });
+
+  /**
+   * Export-all: executes the DEDICATED export document with the current
+   * filter state (NO page/pageSize — the backend caps the dump at its own
+   * EXPORT_MAX_ROWS and reports `truncated`). `useLazyQuery` is banned in
+   * this repo, so the one-shot query runs through the Apollo client
+   * directly. Resolves `null` on failure — the caller owns the error
+   * feedback through the shared snackbar.
+   */
+  const exportAll = async (): Promise<AdminTeachersExportQuery["adminTeachersExport"] | null> => {
+    setExportLoading(true);
+    try {
+      const result = await client.query({
+        query: adminTeachersExportQueryDocument,
+        variables: { filters } satisfies AdminTeachersExportQueryVariables,
+        fetchPolicy: "network-only",
+      });
+      return result.data?.adminTeachersExport ?? null;
+    } catch {
+      return null;
+    } finally {
+      setExportLoading(false);
+    }
+  };
 
   // `errorPolicy: "none"` (the default) drops `data` to undefined when a
   // refetch fails; `previousData` keeps the last good page visible instead
@@ -110,6 +150,15 @@ export function useAdminTeachersDirectory() {
   const firstErrorCode = error ? extractErrorCode(error) : null;
   const hasFilters = approvalFilter !== "" || onlineFilter !== "" || evaluatorFilter !== "" || searchDebounced !== "";
 
+  // The shared feedback channel — copy-email reports on the success lane;
+  // export feedback may report on the warning (truncated) / error lanes.
+  const showSnackbar = (message: string, severity: DirectorySnackbarSeverity = "success") => {
+    setSnackbar({ message, severity });
+  };
+  const clearSnackbar = () => {
+    setSnackbar(null);
+  };
+
   return {
     approvalFilter,
     setApprovalFilter,
@@ -124,8 +173,11 @@ export function useAdminTeachersDirectory() {
     setPage,
     pageSize,
     setPageSize,
-    snackbarMessage,
-    setSnackbarMessage,
+    exportLoading,
+    exportAll,
+    snackbar,
+    showSnackbar,
+    clearSnackbar,
     items,
     total,
     loading,

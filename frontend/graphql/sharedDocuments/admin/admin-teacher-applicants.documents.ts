@@ -1,6 +1,7 @@
 /**
  * Admin teacher-applicant directory GraphQL documents — the read-only
- * applicant-queue read model behind the /teachers applicants tab.
+ * applicant-queue read model behind the /teachers applicants tab, plus its
+ * server-side export-all counterpart.
  *
  * Per `frontend/graphql/sharedDocuments/AGENTS.md`:
  *  - Documents use `gql` + `TypedDocumentNode` (codegen types only).
@@ -16,7 +17,10 @@
  * server-side, so no caller-identity argument exists in the document.
  */
 import { gql, type TypedDocumentNode } from "@apollo/client";
-import type { AdminTeacherApplicantsQuery } from "@/frontend/graphql/generated/gql/graphql";
+import type {
+  AdminTeacherApplicantsExportQuery,
+  AdminTeacherApplicantsQuery,
+} from "@/frontend/graphql/generated/gql/graphql";
 
 /** Shared list-item fragment for the applicant queue. */
 const ADMIN_APPLICANT_LIST_ITEM_FIELDS = gql`
@@ -62,6 +66,30 @@ export const adminTeacherApplicantsQueryDocument: TypedDocumentNode<AdminTeacher
         failed
         passed
       }
+    }
+  }
+`;
+
+/**
+ * Applicant-queue EXPORT-ALL query — the server-side serialization source
+ * for the queue's CSV download. Accepts the SAME filter argument set as the
+ * listing (NO page/pageSize: the backend caps the dump at its own
+ * EXPORT_MAX_ROWS and reports `truncated` honestly), reusing the EXISTING
+ * item fragment so the CSV rows carry exactly the shape the queue builder
+ * consumes. `total` is the FULL filtered count; `truncated === true` means
+ * the dump was capped and the UI must warn. `statusCounts` is deliberately
+ * NOT part of the export payload (the aggregate feeds the on-screen chips,
+ * not the file).
+ */
+export const adminTeacherApplicantsExportQueryDocument: TypedDocumentNode<AdminTeacherApplicantsExportQuery> = gql`
+  ${ADMIN_APPLICANT_LIST_ITEM_FIELDS}
+  query AdminTeacherApplicantsExport($filters: AdminApplicantFiltersInput) {
+    adminTeacherApplicantsExport(filters: $filters) {
+      rows {
+        ...AdminApplicantListItemFields
+      }
+      total
+      truncated
     }
   }
 `;

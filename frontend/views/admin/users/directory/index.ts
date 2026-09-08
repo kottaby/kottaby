@@ -12,6 +12,7 @@ export * from "./DirectoryTable";
 export * from "./DirectoryToolbar";
 export * from "./DirectoryUserIdentityCell";
 export * from "./DirectoryUserRow";
+export * from "./directory-snackbar";
 export * from "./FilterChipsRow";
 export * from "./MobilePaginationCard";
 export * from "./MobileUserCard";

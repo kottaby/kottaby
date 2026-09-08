@@ -39,9 +39,15 @@ import type {
   FragmentSpreadNode,
   OperationDefinitionNode,
 } from "graphql";
-import type { AdminStudentsQuery } from "@/frontend/graphql/generated/gql/graphql";
-import { adminStudentsQueryDocument as adminStudentsViaBarrel } from "@/frontend/graphql/sharedDocuments";
-import { adminStudentsQueryDocument } from "@/frontend/graphql/sharedDocuments/admin/admin-students.documents";
+import type { AdminStudentsExportQuery, AdminStudentsQuery } from "@/frontend/graphql/generated/gql/graphql";
+import {
+  adminStudentsExportQueryDocument as adminStudentsExportViaBarrel,
+  adminStudentsQueryDocument as adminStudentsViaBarrel,
+} from "@/frontend/graphql/sharedDocuments";
+import {
+  adminStudentsExportQueryDocument,
+  adminStudentsQueryDocument,
+} from "@/frontend/graphql/sharedDocuments/admin/admin-students.documents";
 
 // ---------------------------------------------------------------------------
 // Assertion-free AST helpers
@@ -210,5 +216,59 @@ describe("admin-student document — codegen binding + barrel parity", () => {
     // loses its codegen typing or picks up an inline type literal.
     const typedAdminStudents: TypedDocumentNode<AdminStudentsQuery> = adminStudentsQueryDocument;
     expect(typedAdminStudents.loc).toBeDefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Export-all contract — the server-side CSV source (R5)
+
+describe("admin-student EXPORT document — named operation + pagination-free variables", () => {
+  test("AdminStudentsExport is a single named query whose ONLY variable is filters", () => {
+    const operation = operationOrThrow(adminStudentsExportQueryDocument);
+    expect(operation.name?.value).toBe("AdminStudentsExport");
+    expect(operation.operation).toBe("query");
+    // NO page/pageSize — the export is bounded server-side (EXPORT_MAX_ROWS).
+    expect(variableNames(operation)).toEqual(["filters"]);
+  });
+
+  test("every declared variable is wired into the root-field argument (no dead variables, no literal arguments)", () => {
+    const operation = operationOrThrow(adminStudentsExportQueryDocument);
+    const root = selectionPath(operation, "adminStudentsExport");
+    expect(argumentVariableNames(root)).toEqual(["filters"]);
+  });
+
+  test("variable surface carries zero caller-identity arguments (actor derived server-side)", () => {
+    const operation = operationOrThrow(adminStudentsExportQueryDocument);
+    for (const name of variableNames(operation)) {
+      expect(name.toLowerCase()).not.toContain("actor");
+      expect(name.toLowerCase()).not.toContain("userid");
+    }
+  });
+});
+
+describe("admin-student EXPORT document — fragment reuse + envelope shapes", () => {
+  test("export rows spread the EXISTING AdminStudentListItemFields fragment (same row shape as the listing)", () => {
+    const operation = operationOrThrow(adminStudentsExportQueryDocument);
+    const rows = selectionPath(operation, "adminStudentsExport.rows");
+    expect(fragmentSpreads(rows)).toContain("AdminStudentListItemFields");
+  });
+
+  test("the export envelope selects the honest total + truncated cap flag (no pagination fields)", () => {
+    const operation = operationOrThrow(adminStudentsExportQueryDocument);
+    const envelope = selectionPath(operation, "adminStudentsExport");
+    expect(fieldNames(envelope)).toEqual(["rows", "total", "truncated"]);
+  });
+});
+
+describe("admin-student EXPORT document — codegen binding + barrel parity", () => {
+  test("top-level barrel re-exports the SAME export document instance (cache-key safety)", () => {
+    expect(adminStudentsExportViaBarrel).toBe(adminStudentsExportQueryDocument);
+  });
+
+  test("export document remains TypedDocumentNode-typed against the generated operation type", () => {
+    // Compile-time proof by assignment — tsgo fails if the exported constant
+    // loses its codegen typing or picks up an inline type literal.
+    const typedExport: TypedDocumentNode<AdminStudentsExportQuery> = adminStudentsExportQueryDocument;
+    expect(typedExport.loc).toBeDefined();
   });
 });

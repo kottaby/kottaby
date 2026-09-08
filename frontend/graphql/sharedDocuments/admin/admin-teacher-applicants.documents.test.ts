@@ -39,9 +39,18 @@ import type {
   FragmentSpreadNode,
   OperationDefinitionNode,
 } from "graphql";
-import type { AdminTeacherApplicantsQuery } from "@/frontend/graphql/generated/gql/graphql";
-import { adminTeacherApplicantsQueryDocument as applicantsViaBarrel } from "@/frontend/graphql/sharedDocuments";
-import { adminTeacherApplicantsQueryDocument } from "@/frontend/graphql/sharedDocuments/admin/admin-teacher-applicants.documents";
+import type {
+  AdminTeacherApplicantsExportQuery,
+  AdminTeacherApplicantsQuery,
+} from "@/frontend/graphql/generated/gql/graphql";
+import {
+  adminTeacherApplicantsExportQueryDocument as applicantsExportViaBarrel,
+  adminTeacherApplicantsQueryDocument as applicantsViaBarrel,
+} from "@/frontend/graphql/sharedDocuments";
+import {
+  adminTeacherApplicantsExportQueryDocument,
+  adminTeacherApplicantsQueryDocument,
+} from "@/frontend/graphql/sharedDocuments/admin/admin-teacher-applicants.documents";
 
 // ---------------------------------------------------------------------------
 // Assertion-free AST helpers
@@ -211,5 +220,59 @@ describe("admin-teacher-applicant document — codegen binding + barrel parity",
     // loses its codegen typing or picks up an inline type literal.
     const typedApplicants: TypedDocumentNode<AdminTeacherApplicantsQuery> = adminTeacherApplicantsQueryDocument;
     expect(typedApplicants.loc).toBeDefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Export-all contract — the server-side CSV source (R5)
+
+describe("admin-teacher-applicant EXPORT document — named operation + pagination-free variables", () => {
+  test("AdminTeacherApplicantsExport is a single named query whose ONLY variable is filters", () => {
+    const operation = operationOrThrow(adminTeacherApplicantsExportQueryDocument);
+    expect(operation.name?.value).toBe("AdminTeacherApplicantsExport");
+    expect(operation.operation).toBe("query");
+    // NO page/pageSize — the export is bounded server-side (EXPORT_MAX_ROWS).
+    expect(variableNames(operation)).toEqual(["filters"]);
+  });
+
+  test("every declared variable is wired into the root-field argument (no dead variables, no literal arguments)", () => {
+    const operation = operationOrThrow(adminTeacherApplicantsExportQueryDocument);
+    const root = selectionPath(operation, "adminTeacherApplicantsExport");
+    expect(argumentVariableNames(root)).toEqual(["filters"]);
+  });
+
+  test("variable surface carries zero caller-identity arguments (actor derived server-side)", () => {
+    const operation = operationOrThrow(adminTeacherApplicantsExportQueryDocument);
+    for (const name of variableNames(operation)) {
+      expect(name.toLowerCase()).not.toContain("actor");
+      expect(name.toLowerCase()).not.toContain("userid");
+    }
+  });
+});
+
+describe("admin-teacher-applicant EXPORT document — fragment reuse + envelope shapes", () => {
+  test("export rows spread the EXISTING AdminApplicantListItemFields fragment (same row shape as the queue)", () => {
+    const operation = operationOrThrow(adminTeacherApplicantsExportQueryDocument);
+    const rows = selectionPath(operation, "adminTeacherApplicantsExport.rows");
+    expect(fragmentSpreads(rows)).toContain("AdminApplicantListItemFields");
+  });
+
+  test("the export envelope selects the honest total + truncated cap flag (statusCounts is NOT exported)", () => {
+    const operation = operationOrThrow(adminTeacherApplicantsExportQueryDocument);
+    const envelope = selectionPath(operation, "adminTeacherApplicantsExport");
+    expect(fieldNames(envelope)).toEqual(["rows", "total", "truncated"]);
+  });
+});
+
+describe("admin-teacher-applicant EXPORT document — codegen binding + barrel parity", () => {
+  test("top-level barrel re-exports the SAME export document instance (cache-key safety)", () => {
+    expect(applicantsExportViaBarrel).toBe(adminTeacherApplicantsExportQueryDocument);
+  });
+
+  test("export document remains TypedDocumentNode-typed against the generated operation type", () => {
+    // Compile-time proof by assignment — tsgo fails if the exported constant
+    // loses its codegen typing or picks up an inline type literal.
+    const typedExport: TypedDocumentNode<AdminTeacherApplicantsExportQuery> = adminTeacherApplicantsExportQueryDocument;
+    expect(typedExport.loc).toBeDefined();
   });
 });

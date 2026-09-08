@@ -78,6 +78,9 @@ export const adminTeachersEn: AdminTeachersLabels = {
   export: {
     exportCsv: "Export CSV",
     exportCsvEmpty: "Nothing to export yet",
+    exportedRows: "Exported rows: {count}.",
+    exportTruncated: "The export was capped at the first 1000 rows.",
+    exportCsvFailed: "The export failed. Please try again.",
   },
   fields: {
     id: "ID",

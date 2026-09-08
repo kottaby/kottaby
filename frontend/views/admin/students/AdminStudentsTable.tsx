@@ -62,13 +62,21 @@ export function AdminStudentsTable(props: AdminStudentsTableProps): ReactNode {
     >
       <Table sx={{ tableLayout: "fixed" }}>
         <TableHead>
+          {/*
+            Column widths (R5 rebalance): BALANCES 21% restores the 2×2
+            balance-chip grid in AR once the chips stopped flex-shrinking
+            (see `TonalChip`); TRIAL stays 14% because the EN "Trial granted"
+            chip needs ~128px (96px pill + cell padding) — 13% would re-clip
+            it; the donor is JOINED (11%), whose timestamp already wraps to
+            two lines at 12%.
+          */}
           <TableRow sx={theme => ({ bgcolor: theme.palette.surfaceContainerHigh })}>
             <AdminStudentsHeaderCell width="29.5%">{labels.headers.name}</AdminStudentsHeaderCell>
-            <AdminStudentsHeaderCell width="19%">{labels.headers.balances}</AdminStudentsHeaderCell>
-            <AdminStudentsHeaderCell width="15%">{labels.headers.parent}</AdminStudentsHeaderCell>
+            <AdminStudentsHeaderCell width="21%">{labels.headers.balances}</AdminStudentsHeaderCell>
+            <AdminStudentsHeaderCell width="14%">{labels.headers.parent}</AdminStudentsHeaderCell>
             <AdminStudentsHeaderCell width="10.5%">{labels.headers.languages}</AdminStudentsHeaderCell>
             <AdminStudentsHeaderCell width="14%">{labels.headers.trial}</AdminStudentsHeaderCell>
-            <AdminStudentsHeaderCell width="12%">{labels.headers.joined}</AdminStudentsHeaderCell>
+            <AdminStudentsHeaderCell width="11%">{labels.headers.joined}</AdminStudentsHeaderCell>
           </TableRow>
         </TableHead>
         <TableBody aria-label={loading && items.length === 0 ? labels.loading : undefined}>

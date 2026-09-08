@@ -14,7 +14,11 @@
  *    index,
  *  - the read-only `adminStudents` query (cache-and-network so refetches
  *    keep the current rows visible while the fresh page streams in),
- *  - the copy-email success snackbar shared by the row identity cells.
+ *  - the server-side EXPORT-ALL flow (`exportAll` — the dedicated export
+ *    document executed with the SAME normalized filter state the listing
+ *    uses; the backend caps the dump and reports `truncated` honestly),
+ *  - the feedback snackbar shared by the copy-email quick action and the
+ *    export flow (success / warning / error lanes).
  *
  * This directory is READ-ONLY — no mutations exist on this surface. The
  * hook returns plain state — no JSX. Errors surface through the same
@@ -22,15 +26,21 @@
  * alert with a retry action.
  */
 
-import { useQuery } from "@apollo/client/react";
+import { useApolloClient, useQuery } from "@apollo/client/react";
 import { useState } from "react";
-import type { AdminStudentsQueryVariables } from "@/frontend/graphql/generated/gql/graphql";
-import { adminStudentsQueryDocument } from "@/frontend/graphql/sharedDocuments/admin";
+import type {
+  AdminStudentFiltersInput,
+  AdminStudentsExportQuery,
+  AdminStudentsExportQueryVariables,
+  AdminStudentsQueryVariables,
+} from "@/frontend/graphql/generated/gql/graphql";
+import { adminStudentsExportQueryDocument, adminStudentsQueryDocument } from "@/frontend/graphql/sharedDocuments/admin";
 import { extractErrorCode } from "@/frontend/lib/graphql-error-utils";
 import {
   hasParentFilterToBoolean,
   type StudentHasParentFilter,
 } from "@/frontend/views/admin/students/adminStudentsDirectory.helpers";
+import type { DirectorySnackbar, DirectorySnackbarSeverity } from "@/frontend/views/admin/users/directory";
 
 const DEFAULT_PAGE_SIZE = 10;
 
@@ -44,7 +54,9 @@ export function useAdminStudentsDirectory() {
   const [languageFilter, setLanguageFilterState] = useState("");
   const [page, setPage] = useState(0);
   const [pageSize, setPageSizeState] = useState(DEFAULT_PAGE_SIZE);
-  const [snackbarMessage, setSnackbarMessage] = useState<string | null>(null);
+  const [exportLoading, setExportLoading] = useState(false);
+  const [snackbar, setSnackbar] = useState<DirectorySnackbar | null>(null);
+  const client = useApolloClient();
 
   // Debounce search input (300ms) — the same render-time pattern the users
   // directory hook uses: a timeout is scheduled while the draft differs from
@@ -85,12 +97,16 @@ export function useAdminStudentsDirectory() {
     setPage(0);
   };
 
+  // The SAME normalized shape feeds the listing AND the export-all query —
+  // one filter-to-variables mapping, no drift between screen and file.
+  const filters: AdminStudentFiltersInput = {
+    search: searchDebounced || null,
+    hasParent: hasParentFilter === "" ? null : hasParentFilterToBoolean(hasParentFilter),
+    language: languageFilter || null,
+  };
+
   const variables: AdminStudentsQueryVariables = {
-    filters: {
-      search: searchDebounced || null,
-      hasParent: hasParentFilter === "" ? null : hasParentFilterToBoolean(hasParentFilter),
-      language: languageFilter || null,
-    },
+    filters,
     page: page + 1,
     pageSize,
   };
@@ -99,6 +115,30 @@ export function useAdminStudentsDirectory() {
     variables,
     fetchPolicy: "cache-and-network",
   });
+
+  /**
+   * Export-all: executes the DEDICATED export document with the current
+   * filter state (NO page/pageSize — the backend caps the dump at its own
+   * EXPORT_MAX_ROWS and reports `truncated`). `useLazyQuery` is banned in
+   * this repo, so the one-shot query runs through the Apollo client
+   * directly. Resolves `null` on failure — the caller owns the error
+   * feedback through the shared snackbar.
+   */
+  const exportAll = async (): Promise<AdminStudentsExportQuery["adminStudentsExport"] | null> => {
+    setExportLoading(true);
+    try {
+      const result = await client.query({
+        query: adminStudentsExportQueryDocument,
+        variables: { filters } satisfies AdminStudentsExportQueryVariables,
+        fetchPolicy: "network-only",
+      });
+      return result.data?.adminStudentsExport ?? null;
+    } catch {
+      return null;
+    } finally {
+      setExportLoading(false);
+    }
+  };
 
   // `errorPolicy: "none"` (the default) drops `data` to undefined when a
   // refetch fails; `previousData` keeps the last good page visible instead
@@ -117,6 +157,15 @@ export function useAdminStudentsDirectory() {
   // The language draft differs from the applied value (shows the Apply action).
   const languageDirty = languageDraft.trim() !== languageFilter;
 
+  // The shared feedback channel — copy-email reports on the success lane;
+  // export feedback may report on the warning (truncated) / error lanes.
+  const showSnackbar = (message: string, severity: DirectorySnackbarSeverity = "success") => {
+    setSnackbar({ message, severity });
+  };
+  const clearSnackbar = () => {
+    setSnackbar(null);
+  };
+
   return {
     hasParentFilter,
     setHasParentFilter,
@@ -132,8 +181,11 @@ export function useAdminStudentsDirectory() {
     setPage,
     pageSize,
     setPageSize,
-    snackbarMessage,
-    setSnackbarMessage,
+    exportLoading,
+    exportAll,
+    snackbar,
+    showSnackbar,
+    clearSnackbar,
     items,
     total,
     loading,

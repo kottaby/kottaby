@@ -61,9 +61,11 @@ interface AdminTeachersToolbarProps {
   readonly loading: boolean;
   /** `true` when at least one filter is set (renders the clear action). */
   readonly hasFilters: boolean;
-  /** Downloads the current page as a localized CSV file (no second fetch). */
+  /** Runs the server-side export-all query and downloads the CSV file. */
   readonly onExportCsv: () => void;
-  /** `true` while loading or the current page has no rows — nothing to export. */
+  /** `true` while the export query is in flight (the export button shows a busy state). */
+  readonly exportLoading: boolean;
+  /** `true` while loading or the filtered total is zero — nothing to export. */
   readonly exportDisabled: boolean;
 }
 
@@ -97,6 +99,7 @@ export function AdminTeachersToolbar({
   loading,
   hasFilters,
   onExportCsv,
+  exportLoading,
   exportDisabled,
 }: AdminTeachersToolbarProps): ReactNode {
   // Stable element ids — wire `InputLabel htmlFor` ↔ control `id` so screen
@@ -172,7 +175,12 @@ export function AdminTeachersToolbar({
             {labels.filters.clear}
           </Button>
         )}
-        <ExportCsvButton labels={labels} onExportCsv={onExportCsv} exportDisabled={exportDisabled} />
+        <ExportCsvButton
+          labels={labels}
+          onExportCsv={onExportCsv}
+          exportLoading={exportLoading}
+          exportDisabled={exportDisabled}
+        />
         <Button
           variant="text"
           startIcon={<RefreshIcon />}
@@ -193,17 +201,19 @@ export function AdminTeachersToolbar({
 interface ExportCsvButtonProps {
   readonly labels: ToolbarLabels;
   readonly onExportCsv: () => void;
+  readonly exportLoading: boolean;
   readonly exportDisabled: boolean;
 }
 
 /**
  * The export action — same text-button recipe as the refresh action next to
- * it (variant/size/44px floor/`text.secondary` ink). The tooltip switches
- * to the honest "nothing to export" copy while disabled; a `<span>` wrapper
- * keeps the tooltip reachable on a disabled button (disabled elements emit
- * no pointer events).
+ * it (variant/size/44px floor/`text.secondary` ink). While the export-all
+ * query is in flight the button shows MUI's leading spinner busy state.
+ * The tooltip switches to the honest "nothing to export" copy while
+ * disabled; a `<span>` wrapper keeps the tooltip reachable on a disabled
+ * button (disabled elements emit no pointer events).
  */
-function ExportCsvButton({ labels, onExportCsv, exportDisabled }: ExportCsvButtonProps): ReactNode {
+function ExportCsvButton({ labels, onExportCsv, exportLoading, exportDisabled }: ExportCsvButtonProps): ReactNode {
   return (
     <Tooltip title={exportDisabled ? labels.export.exportCsvEmpty : labels.export.exportCsv} placement="top">
       <Box component="span" sx={{ display: "inline-flex", flexShrink: 0 }}>
@@ -211,6 +221,7 @@ function ExportCsvButton({ labels, onExportCsv, exportDisabled }: ExportCsvButto
           variant="text"
           startIcon={<DownloadIcon />}
           onClick={onExportCsv}
+          loading={exportLoading}
           disabled={exportDisabled}
           aria-label={labels.export.exportCsv}
           sx={theme => ({ minHeight: 44, flexShrink: 0, color: theme.palette.text.secondary })}

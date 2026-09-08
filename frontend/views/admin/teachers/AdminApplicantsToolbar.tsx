@@ -1,7 +1,8 @@
 "use client";
 
 /**
- * AdminApplicantsToolbar — the applicant queue's filter + refresh surface.
+ * AdminApplicantsToolbar — the applicant queue's filter + refresh + export
+ * surface.
  *
  * White card (radius 12, `border.light` outline, `shadow.card`), 24px
  * padding. Contents laid out as a COLUMN of two rows:
@@ -10,15 +11,13 @@
  *     a. search field (magnifier leading adornment, ~400px max width),
  *     b. status select (all / pending / in-evaluation / failed / passed),
  *     c. flex spacer, then a "clear filters" text button (rendered only
- *        while at least one filter is set) and a refresh text button
+ *        while at least one filter is set), the EXPORT CSV text button
+ *        (server-side export-all — the same recipe as the directory tab's
+ *        export, sharing its labels), and a refresh text button
  *        re-fetching the current page,
  *  2. the `ApplicantStatusQuickFilters` chip strip — five count-bearing
  *     quick-filter chips composing with the SAME status-filter state the
  *     select drives.
- *
- * NO export action exists here — the CSV export belongs to the certified-
- * teacher directory tab (the queue's rows are applicants, not teachers, so
- * the directory's CSV contract does not apply).
  *
  * The select chrome is the SHARED `DirectoryFilterSelect` imported from the
  * users directory (identical 44px outlined control); the reported string is
@@ -27,8 +26,12 @@
  * resolve through theme-callback sx.
  */
 
-import { RefreshOutlined as RefreshIcon, SearchOutlined as SearchIcon } from "@mui/icons-material";
-import { Box, Button, Card, TextField } from "@mui/material";
+import {
+  FileDownloadOutlined as DownloadIcon,
+  RefreshOutlined as RefreshIcon,
+  SearchOutlined as SearchIcon,
+} from "@mui/icons-material";
+import { Box, Button, Card, TextField, Tooltip } from "@mui/material";
 import type { ReactNode } from "react";
 import { ApplicantStatusQuickFilters } from "@/frontend/views/admin/teachers/ApplicantStatusQuickFilters";
 import {
@@ -40,7 +43,7 @@ import type { useAdminTeacherApplicants } from "@/frontend/views/admin/teachers/
 import { DirectoryFilterSelect } from "@/frontend/views/admin/users/directory";
 import type { AdminTeachersLabels } from "@/shared/locale/types/adminTeachers";
 
-type ToolbarLabels = Pick<AdminTeachersLabels, "filters" | "filterOptions" | "headers" | "applicantStatus">;
+type ToolbarLabels = Pick<AdminTeachersLabels, "filters" | "filterOptions" | "headers" | "applicantStatus" | "export">;
 
 /** Queue state slice consumed by the toolbar (from `useAdminTeacherApplicants`). */
 type ToolbarApplicants = Pick<
@@ -55,6 +58,12 @@ interface AdminApplicantsToolbarProps {
   readonly loading: boolean;
   /** `true` when at least one filter is set (renders the clear action). */
   readonly hasFilters: boolean;
+  /** Runs the server-side export-all query and downloads the CSV file. */
+  readonly onExportCsv: () => void;
+  /** `true` while the export query is in flight (the export button shows a busy state). */
+  readonly exportLoading: boolean;
+  /** `true` while loading or the filtered total is zero — nothing to export. */
+  readonly exportDisabled: boolean;
 }
 
 export function AdminApplicantsToolbar({
@@ -62,6 +71,9 @@ export function AdminApplicantsToolbar({
   applicants,
   loading,
   hasFilters,
+  onExportCsv,
+  exportLoading,
+  exportDisabled,
 }: AdminApplicantsToolbarProps): ReactNode {
   // Stable element ids — wire `InputLabel htmlFor` ↔ control `id` so screen
   // readers announce the label when focus lands on the control (axe-core
@@ -111,6 +123,12 @@ export function AdminApplicantsToolbar({
               {labels.filters.clear}
             </Button>
           )}
+          <ExportCsvButton
+            labels={labels}
+            onExportCsv={onExportCsv}
+            exportLoading={exportLoading}
+            exportDisabled={exportDisabled}
+          />
           <Button
             variant="text"
             startIcon={<RefreshIcon />}
@@ -147,6 +165,40 @@ function applicantStatusLabelOf(status: ApplicantStatusFilter, labels: ToolbarLa
     case "passed":
       return labels.applicantStatus.passed;
   }
+}
+
+interface ExportCsvButtonProps {
+  readonly labels: ToolbarLabels;
+  readonly onExportCsv: () => void;
+  readonly exportLoading: boolean;
+  readonly exportDisabled: boolean;
+}
+
+/**
+ * The queue's export action — the same text-button recipe as the directory
+ * tabs' export (Tooltip + span wrapper with `flexShrink: 0`, 44px floor,
+ * `text.secondary` ink; MUI's leading spinner while the export-all query
+ * is in flight). The tooltip switches to the honest "nothing to export"
+ * copy while disabled.
+ */
+function ExportCsvButton({ labels, onExportCsv, exportLoading, exportDisabled }: ExportCsvButtonProps): ReactNode {
+  return (
+    <Tooltip title={exportDisabled ? labels.export.exportCsvEmpty : labels.export.exportCsv} placement="top">
+      <Box component="span" sx={{ display: "inline-flex", flexShrink: 0 }}>
+        <Button
+          variant="text"
+          startIcon={<DownloadIcon />}
+          onClick={onExportCsv}
+          loading={exportLoading}
+          disabled={exportDisabled}
+          aria-label={labels.export.exportCsv}
+          sx={theme => ({ minHeight: 44, flexShrink: 0, color: theme.palette.text.secondary })}
+        >
+          {labels.export.exportCsv}
+        </Button>
+      </Box>
+    </Tooltip>
+  );
 }
 
 interface ApplicantSearchFieldProps {

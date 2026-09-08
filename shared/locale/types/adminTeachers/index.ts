@@ -217,14 +217,32 @@ export interface AdminTeachersLabels {
   };
 
   /**
-   * Export affordance — serializes the CURRENT page (the rows on screen)
-   * to a UTF-8 CSV download; no second fetch ever happens.
+   * Export affordance — runs the server-side EXPORT-ALL query with the
+   * current filter state (the backend caps the dump at its own EXPORT_MAX_ROWS
+   * and reports `truncated`) and serializes the returned rows to a UTF-8
+   * CSV download. The SAME labels serve both the directory tab and the
+   * applicant-queue tab (single export vocabulary for the /teachers
+   * surface).
    */
   readonly export: {
     /** Button label + accessible name for the export action. */
     readonly exportCsv: string;
-    /** Tooltip shown on the DISABLED export (the current page has no rows). */
+    /** Tooltip shown on the DISABLED export (nothing to export yet). */
     readonly exportCsvEmpty: string;
+    /**
+     * Success snackbar — the exported row count. ICU template with exactly
+     * one `{count}` placeholder, expanded by the consumer (placeholder-name
+     * parity is pinned by the namespace parity suite).
+     */
+    readonly exportedRows: string;
+    /**
+     * Warning snackbar shown when the backend reported `truncated` — the
+     * dump was capped at its first EXPORT_MAX_ROWS (1000) rows; the file
+     * still downloads.
+     */
+    readonly exportTruncated: string;
+    /** Error snackbar shown when the export query fails (no download). */
+    readonly exportCsvFailed: string;
   };
 
   /**
