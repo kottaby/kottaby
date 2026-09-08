@@ -16,8 +16,8 @@
  * instance and keeps the selected item mounted through the exit
  * transition) and the SERVER-SIDE EXPORT-ALL CSV download (the dedicated
  * export query runs with the current filter state, the backend caps the
- * dump and reports `truncated`, and the container serializes the rows with
- * the existing pure CSV builder).
+ * dump and reports `truncated`, and the export flow serializes the rows
+ * with the existing pure CSV builder — `studentsCsvExport.ts`).
  *
  * All chrome copy comes from the `AdminStudents` locale namespace, resolved
  * client-side via `useAppTranslation(AdminStudents)` — the page mounts this
@@ -34,16 +34,10 @@ import type { StudentDirectoryItem } from "@/frontend/views/admin/students/Admin
 import { AdminStudentsResults } from "@/frontend/views/admin/students/AdminStudentsResults";
 import { AdminStudentsToolbar } from "@/frontend/views/admin/students/AdminStudentsToolbar";
 import { useAdminStudentsDirectory } from "@/frontend/views/admin/students/hooks";
-import {
-  buildStudentsDirectoryCsv,
-  studentsDirectoryCsvFilename,
-} from "@/frontend/views/admin/students/students-directory-csv";
+import { runStudentsCsvExport } from "@/frontend/views/admin/students/studentsCsvExport";
 import { useAppLocale } from "@/shared/locale";
 import { useAppTranslation } from "@/shared/locale/client";
 import { AdminStudents } from "@/shared/locale/namespaces/adminStudents";
-
-/** ICU token of `export.exportedRows` (one per locale, parity-pinned). */
-const EXPORTED_ROWS_PLACEHOLDER = "{count}";
 
 export function AdminStudentsDirectoryContainer(): ReactNode {
   const labels = useAppTranslation(AdminStudents);
@@ -63,42 +57,11 @@ export function AdminStudentsDirectoryContainer(): ReactNode {
   const handleCopyEmail = () => {
     directory.showSnackbar(labels.quickActions.emailCopied);
   };
-  // Server-side EXPORT-ALL: the dedicated export query runs with the
-  // CURRENT filter state (the hook owns the filter-to-variables mapping),
-  // then the returned rows serialize through the EXISTING pure CSV builder
-  // (same item shape as the listing) and download via the same
-  // Blob/anchor/revoke recipe. Feedback through the shared snackbar:
-  // success reports the exported row count; a capped dump reports the
-  // truncation warning instead (it implies completion); a failed query
-  // reports the error lane without any download.
-  const handleExportCsv = async (): Promise<void> => {
-    const envelope = await directory.exportAll();
-    if (envelope === null) {
-      directory.showSnackbar(labels.export.exportCsvFailed, "error");
-      return;
-    }
-    if (envelope.truncated) {
-      // A capped dump still downloads its EXPORT_MAX_ROWS rows — the
-      // warning lane reports the cap instead of the plain success copy.
-      directory.showSnackbar(labels.export.exportTruncated, "warning");
-    } else {
-      directory.showSnackbar(
-        labels.export.exportedRows.replace(EXPORTED_ROWS_PLACEHOLDER, () => String(envelope.rows.length))
-      );
-    }
-    const csv = buildStudentsDirectoryCsv(envelope.rows, labels);
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = studentsDirectoryCsvFilename();
-    document.body.append(anchor);
-    anchor.click();
-    anchor.remove();
-    setTimeout(() => {
-      URL.revokeObjectURL(url);
-    }, 0);
-  };
+  // Server-side EXPORT-ALL (the flow lives in `studentsCsvExport.ts`): the
+  // dedicated export query runs with the CURRENT filter state, then the
+  // rows serialize through the EXISTING pure CSV builder and download —
+  // feedback through the shared snackbar.
+  const handleExportCsv = (): Promise<void> => runStudentsCsvExport(directory, labels);
   // Re-fetch the current page after a load failure (transport failure or
   // GraphQL error). The promise is handed to Apollo; rejections re-surface
   // through the same `hasError` state.

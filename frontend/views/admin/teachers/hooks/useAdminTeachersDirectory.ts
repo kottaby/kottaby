@@ -6,23 +6,26 @@
  * /teachers two-tab surface).
  *
  * Owns:
- *  - the filter/search/pagination draft state (search debounced at 300ms;
- *    the approval/online/evaluator selects map their string-literal unions
- *    onto the backend's nullable Boolean filters), each setter resetting the
- *    page to the first page so a new result set is never opened on a stale
- *    page index,
+ *  - the filter/search/pagination draft state (composed from
+ *    `useTeacherDirectoryFilters`; search debounced at 300ms; the
+ *    approval/online/evaluator selects map their string-literal unions onto
+ *    the backend's nullable Boolean filters),
  *  - the read-only `adminTeachers` query (cache-and-network so refetches
  *    keep the current rows visible while the fresh page streams in),
  *  - the server-side EXPORT-ALL flow (`exportAll` — the dedicated export
  *    document executed with the SAME normalized filter state the listing
  *    uses; the backend caps the dump and reports `truncated` honestly),
  *  - the feedback snackbar shared by the copy-email quick action and the
- *    export flow (success / warning / error lanes).
+ *    export flow (success / warning / error lanes — `useDirectorySnackbar`).
  *
  * This directory is READ-ONLY — no mutations exist on this surface. The
  * hook returns plain state — no JSX. Errors surface through the same
  * `hasError` / `firstErrorCode` pair the users directory renders as an
  * alert with a retry action.
+ *
+ * Layout: the draft-state and snackbar blocks are composed hooks in this
+ * `hooks/` folder; this entry owns the seeding, query, export flow, and the
+ * public return shape.
  */
 
 import { useApolloClient, useQuery } from "@apollo/client/react";
@@ -41,11 +44,9 @@ import {
   approvalFilterToBoolean,
   evaluatorFilterToBoolean,
   onlineFilterToBoolean,
-  type TeacherApprovalFilter,
-  type TeacherEvaluatorFilter,
-  type TeacherOnlineFilter,
 } from "@/frontend/views/admin/teachers/adminTeachersDirectory.helpers";
-import type { DirectorySnackbar, DirectorySnackbarSeverity } from "@/frontend/views/admin/users/directory";
+import { useDirectorySnackbar } from "@/frontend/views/admin/teachers/hooks/useDirectorySnackbar";
+import { useTeacherDirectoryFilters } from "@/frontend/views/admin/teachers/hooks/useTeacherDirectoryFilters";
 
 export function useAdminTeachersDirectory() {
   // ── Shareable-URL seeding (mount-once, ACTIVE-TAB-GATED) ────────────
@@ -58,62 +59,26 @@ export function useAdminTeachersDirectory() {
   const activeTabAtMount = parseTeachersUrlTab(searchParams);
   const urlSeed = activeTabAtMount === "teachers" ? parseTeachersDirectoryUrlState(searchParams) : undefined;
 
-  const [approvalFilter, setApprovalFilterState] = useState<TeacherApprovalFilter | "">(urlSeed?.approval ?? "");
-  const [onlineFilter, setOnlineFilterState] = useState<TeacherOnlineFilter | "">(urlSeed?.online ?? "");
-  const [evaluatorFilter, setEvaluatorFilterState] = useState<TeacherEvaluatorFilter | "">(urlSeed?.evaluator ?? "");
-  const [searchInput, setSearchInputState] = useState(urlSeed?.q ?? "");
-  const [searchDebounced, setSearchDebounced] = useState(urlSeed?.q ?? "");
-  const [page, setPage] = useState(urlSeed?.page ?? 0);
-  const [pageSize, setPageSizeState] = useState<number>(urlSeed?.pageSize ?? 10);
+  const draft = useTeacherDirectoryFilters(urlSeed);
+  const { snackbar, showSnackbar, clearSnackbar } = useDirectorySnackbar();
   const [exportLoading, setExportLoading] = useState(false);
-  const [snackbar, setSnackbar] = useState<DirectorySnackbar | null>(null);
   const client = useApolloClient();
-
-  // Debounce search input (300ms) — the same render-time pattern the users
-  // directory hook uses: a timeout is scheduled while the draft differs from
-  // the applied value, and the applied value settles once typing pauses.
-  if (searchInput !== searchDebounced) {
-    setTimeout(() => setSearchDebounced(searchInput), 300);
-  }
-
-  // Every filter setter resets to the first page — a new result set starts
-  // at page 1, never on a stale (possibly out-of-range) page index.
-  const setApprovalFilter = (value: TeacherApprovalFilter | "") => {
-    setApprovalFilterState(value);
-    setPage(0);
-  };
-  const setOnlineFilter = (value: TeacherOnlineFilter | "") => {
-    setOnlineFilterState(value);
-    setPage(0);
-  };
-  const setEvaluatorFilter = (value: TeacherEvaluatorFilter | "") => {
-    setEvaluatorFilterState(value);
-    setPage(0);
-  };
-  const setSearchInput = (value: string) => {
-    setSearchInputState(value);
-    setPage(0);
-  };
-  const setPageSize = (value: number) => {
-    setPageSizeState(value);
-    setPage(0);
-  };
 
   // Narrow the draft unions onto the backend's nullable Boolean filters —
   // an empty draft means "no filter", which is how the absent field is sent.
   // The SAME normalized shape feeds the listing AND the export-all query —
   // one filter-to-variables mapping, no drift between screen and file.
   const filters: AdminTeacherFiltersInput = {
-    search: searchDebounced || null,
-    approval: approvalFilter === "" ? null : approvalFilterToBoolean(approvalFilter),
-    online: onlineFilter === "" ? null : onlineFilterToBoolean(onlineFilter),
-    evaluator: evaluatorFilter === "" ? null : evaluatorFilterToBoolean(evaluatorFilter),
+    search: draft.searchDebounced || null,
+    approval: draft.approvalFilter === "" ? null : approvalFilterToBoolean(draft.approvalFilter),
+    online: draft.onlineFilter === "" ? null : onlineFilterToBoolean(draft.onlineFilter),
+    evaluator: draft.evaluatorFilter === "" ? null : evaluatorFilterToBoolean(draft.evaluatorFilter),
   };
 
   const variables: AdminTeachersQueryVariables = {
     filters,
-    page: page + 1,
-    pageSize,
+    page: draft.page + 1,
+    pageSize: draft.pageSize,
   };
 
   const { data, previousData, loading, error, refetch } = useQuery(adminTeachersQueryDocument, {
@@ -158,31 +123,14 @@ export function useAdminTeachersDirectory() {
   // error branch unreachable and let the empty state render instead.
   const hasError = Boolean(error);
   const firstErrorCode = error ? extractErrorCode(error) : null;
-  const hasFilters = approvalFilter !== "" || onlineFilter !== "" || evaluatorFilter !== "" || searchDebounced !== "";
-
-  // The shared feedback channel — copy-email reports on the success lane;
-  // export feedback may report on the warning (truncated) / error lanes.
-  const showSnackbar = (message: string, severity: DirectorySnackbarSeverity = "success") => {
-    setSnackbar({ message, severity });
-  };
-  const clearSnackbar = () => {
-    setSnackbar(null);
-  };
+  const hasFilters =
+    draft.approvalFilter !== "" ||
+    draft.onlineFilter !== "" ||
+    draft.evaluatorFilter !== "" ||
+    draft.searchDebounced !== "";
 
   return {
-    approvalFilter,
-    setApprovalFilter,
-    onlineFilter,
-    setOnlineFilter,
-    evaluatorFilter,
-    setEvaluatorFilter,
-    searchInput,
-    setSearchInput,
-    searchDebounced,
-    page,
-    setPage,
-    pageSize,
-    setPageSize,
+    ...draft,
     exportLoading,
     exportAll,
     snackbar,

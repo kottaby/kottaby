@@ -97,6 +97,18 @@ function previousContentElement(element: Element): Element | null {
   return node;
 }
 
+/**
+ * Instanceof-narrowed `Element | null` → `HTMLElement` — the runtime-checked
+ * replacement for the old bare `as HTMLElement` casts on structural-walk
+ * results (a broken walk fails the test through the thrown error).
+ */
+function asHTMLElement(element: Element | null): HTMLElement {
+  if (!(element instanceof HTMLElement)) {
+    throw new TypeError("expected an HTMLElement — the structural walk broke");
+  }
+  return element;
+}
+
 interface RenderOptions {
   readonly locale: AppLocale;
   readonly onCopyEmail?: () => void;
@@ -137,11 +149,11 @@ describe("MobileUserCard — full-width email row + role pill", () => {
       // Identity block shape: email → email row → identity root → card. The
       // identity root is a DIRECT child of the card (full-card-width) and its
       // previous content sibling is the header grid.
-      const emailRow = email.parentElement as HTMLElement;
-      const identityRoot = emailRow.parentElement as HTMLElement;
-      const card = identityRoot.parentElement as HTMLElement;
+      const emailRow = asHTMLElement(email.parentElement);
+      const identityRoot = asHTMLElement(emailRow.parentElement);
+      const card = asHTMLElement(identityRoot.parentElement);
       expect(card.classList.contains("MuiCard-root")).toBe(true);
-      const headerGrid = previousContentElement(identityRoot) as HTMLElement;
+      const headerGrid = asHTMLElement(previousContentElement(identityRoot));
       expect(headerGrid).not.toBeNull();
       // The header grid does NOT contain the email anymore — it owns the
       // avatar + the single-line NAME PROFILE LINK (the card renders one

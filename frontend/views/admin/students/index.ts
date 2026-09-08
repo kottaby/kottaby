@@ -1,5 +1,7 @@
 export * from "./AdminStudentDetailDrawer";
+export * from "./AdminStudentIdentityCell";
 export * from "./AdminStudentMobileCard";
+export * from "./AdminStudentParentContent";
 export * from "./AdminStudentRow";
 export * from "./AdminStudentRowCells";
 export * from "./AdminStudentsDirectoryContainer";

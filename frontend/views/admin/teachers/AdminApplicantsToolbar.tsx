@@ -21,24 +21,25 @@
  *
  * The select chrome is the SHARED `DirectoryFilterSelect` imported from the
  * users directory (identical 44px outlined control); the reported string is
- * narrowed back to the status filter union by the runtime guard below.
- * Label slices are passed down narrowed — nothing is hardcoded. All colors
- * resolve through theme-callback sx.
+ * narrowed back to the status filter union by the validated lookup helper
+ * in `adminApplicants.helpers`. The action buttons and the search field are
+ * the SHARED `AdminTeachersToolbarControls` (identical recipe in the
+ * directory toolbar). Label slices are passed down narrowed — nothing is
+ * hardcoded. All colors resolve through theme-callback sx.
  */
 
-import {
-  FileDownloadOutlined as DownloadIcon,
-  LinkOutlined as LinkIcon,
-  RefreshOutlined as RefreshIcon,
-  SearchOutlined as SearchIcon,
-} from "@mui/icons-material";
-import { Box, Button, Card, TextField, Tooltip } from "@mui/material";
+import { Box, Button, Card } from "@mui/material";
 import type { ReactNode } from "react";
-import { useDirectoryCopyLink } from "@/frontend/views/admin/directory-copy-link";
+import {
+  ToolbarCopyLinkButton,
+  ToolbarExportCsvButton,
+  ToolbarRefreshButton,
+  ToolbarSearchField,
+} from "@/frontend/views/admin/teachers/AdminTeachersToolbarControls";
 import { ApplicantStatusQuickFilters } from "@/frontend/views/admin/teachers/ApplicantStatusQuickFilters";
 import {
   ADMIN_APPLICANT_STATUSES,
-  type ApplicantStatusFilter,
+  applicantStatusLabel,
   asApplicantStatusFilter,
 } from "@/frontend/views/admin/teachers/adminApplicants.helpers";
 import type { useAdminTeacherApplicants } from "@/frontend/views/admin/teachers/hooks";
@@ -101,7 +102,7 @@ export function AdminApplicantsToolbar({
     >
       <Box sx={{ display: "flex", flexDirection: "column", width: "100%", gap: 2 }}>
         <Box sx={{ display: "flex", width: "100%", flexWrap: "wrap", gap: 2, alignItems: "center" }}>
-          <ApplicantSearchField
+          <ToolbarSearchField
             id={SEARCH_ID}
             labels={labels}
             value={applicants.searchInput}
@@ -115,7 +116,7 @@ export function AdminApplicantsToolbar({
             emptyOptionLabel={labels.filterOptions.all}
             options={ADMIN_APPLICANT_STATUSES.map(status => ({
               value: status,
-              label: applicantStatusLabelOf(status, labels),
+              label: applicantStatusLabel(status, labels.applicantStatus),
             }))}
           />
           <Box sx={{ flex: 1 }} />
@@ -131,25 +132,20 @@ export function AdminApplicantsToolbar({
               {labels.filters.clear}
             </Button>
           )}
-          <CopyLinkButton labels={labels} onCopyLink={onCopyLink} />
-          <ExportCsvButton
+          <ToolbarCopyLinkButton labels={labels} onCopyLink={onCopyLink} />
+          <ToolbarExportCsvButton
             labels={labels}
             onExportCsv={onExportCsv}
             exportLoading={exportLoading}
             exportDisabled={exportDisabled}
           />
-          <Button
-            variant="text"
-            startIcon={<RefreshIcon />}
+          <ToolbarRefreshButton
+            labels={labels}
+            loading={loading}
             onClick={() => {
               void applicants.refetch();
             }}
-            disabled={loading}
-            aria-label={labels.filters.refresh}
-            sx={theme => ({ minHeight: 44, flexShrink: 0, color: theme.palette.text.secondary })}
-          >
-            {labels.filters.refresh}
-          </Button>
+          />
         </Box>
         <ApplicantStatusQuickFilters
           labels={labels}
@@ -159,123 +155,5 @@ export function AdminApplicantsToolbar({
         />
       </Box>
     </Card>
-  );
-}
-
-/** Localized label of one canonical status value (total map — no fallback path). */
-function applicantStatusLabelOf(status: ApplicantStatusFilter, labels: ToolbarLabels): string {
-  switch (status) {
-    case "pending":
-      return labels.applicantStatus.pending;
-    case "in_evaluation":
-      return labels.applicantStatus.inEvaluation;
-    case "failed":
-      return labels.applicantStatus.failed;
-    case "passed":
-      return labels.applicantStatus.passed;
-  }
-}
-
-interface ExportCsvButtonProps {
-  readonly labels: ToolbarLabels;
-  readonly onExportCsv: () => void;
-  readonly exportLoading: boolean;
-  readonly exportDisabled: boolean;
-}
-
-interface CopyLinkButtonProps {
-  readonly labels: ToolbarLabels;
-  /** Invoked after the view URL copies successfully (drives the snackbar). */
-  readonly onCopyLink?: () => void;
-}
-
-/**
- * The shareable-view action — copies the CURRENT URL (the surface's
- * URL-mirror effect keeps the query string in sync with the active tab's
- * applied filters, so what the admin pastes is exactly what they see).
- * Same text-button recipe as the export/refresh actions next to it; the
- * icon tints to the success color while the copy has resolved, and
- * failures stay silent (the snackbar never lies about a copy that did not
- * happen).
- */
-function CopyLinkButton({ labels, onCopyLink }: CopyLinkButtonProps): ReactNode {
-  const { linkCopied, handleCopyLink } = useDirectoryCopyLink(onCopyLink);
-  return (
-    <Tooltip title={labels.quickActions.copyLink} placement="top">
-      <Button
-        variant="text"
-        startIcon={
-          <LinkIcon
-            fontSize="small"
-            sx={theme => ({ color: linkCopied ? theme.palette.success.main : theme.palette.text.secondary })}
-          />
-        }
-        onClick={handleCopyLink}
-        aria-label={labels.quickActions.copyLink}
-        sx={theme => ({ minHeight: 44, flexShrink: 0, color: theme.palette.text.secondary })}
-      >
-        {labels.quickActions.copyLink}
-      </Button>
-    </Tooltip>
-  );
-}
-
-/**
- * The queue's export action — the same text-button recipe as the directory
- * tabs' export (Tooltip + span wrapper with `flexShrink: 0`, 44px floor,
- * `text.secondary` ink; MUI's leading spinner while the export-all query
- * is in flight). The tooltip switches to the honest "nothing to export"
- * copy while disabled.
- */
-function ExportCsvButton({ labels, onExportCsv, exportLoading, exportDisabled }: ExportCsvButtonProps): ReactNode {
-  return (
-    <Tooltip title={exportDisabled ? labels.export.exportCsvEmpty : labels.export.exportCsv} placement="top">
-      <Box component="span" sx={{ display: "inline-flex", flexShrink: 0 }}>
-        <Button
-          variant="text"
-          startIcon={<DownloadIcon />}
-          onClick={onExportCsv}
-          loading={exportLoading}
-          disabled={exportDisabled}
-          aria-label={labels.export.exportCsv}
-          sx={theme => ({ minHeight: 44, flexShrink: 0, color: theme.palette.text.secondary })}
-        >
-          {labels.export.exportCsv}
-        </Button>
-      </Box>
-    </Tooltip>
-  );
-}
-
-interface ApplicantSearchFieldProps {
-  readonly id: string;
-  readonly labels: ToolbarLabels;
-  readonly value: string;
-  readonly onChange: (value: string) => void;
-}
-
-/** The toolbar's search input: magnifier leading adornment, fixed 44px height. */
-function ApplicantSearchField({ id, labels, value, onChange }: ApplicantSearchFieldProps): ReactNode {
-  return (
-    <TextField
-      id={id}
-      hiddenLabel
-      placeholder={labels.filters.searchPlaceholder}
-      value={value}
-      onChange={event => onChange(event.target.value)}
-      slotProps={{
-        htmlInput: { "aria-label": labels.filters.search },
-        input: {
-          startAdornment: (
-            <SearchIcon fontSize="small" sx={theme => ({ marginInlineEnd: 1, color: theme.palette.text.secondary })} />
-          ),
-        },
-      }}
-      sx={{
-        flex: { xs: "1 1 100%", sm: "1 1 300px" },
-        maxWidth: 400,
-        "& .MuiInputBase-root": { height: 44 },
-      }}
-    />
   );
 }

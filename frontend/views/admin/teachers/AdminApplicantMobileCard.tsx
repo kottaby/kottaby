@@ -9,24 +9,18 @@
  *    caption above the explicit view-profile quick action (the queue has no
  *    drawer — the card itself stays inert and only the links navigate);
  *  - FULL-WIDTH email row immediately BELOW the header grid (above the
- *    divider): the email + copy-email quick action live in their own row
- *    spanning the whole card instead of squeezing into the header's middle
- *    track (at 390px that track is ~180px and long addresses wrapped
- *    mid-word — QA-verified). The row is inset with the LOGICAL
- *    `paddingInlineStart: "52px"` (44px avatar + 8px grid gap) so the email
- *    aligns under the name column and the inset flips correctly under RTL;
- *    at ~full card width even seeded addresses fit one line, with
- *    `overflowWrap: "anywhere"` as the pathological-address fallback;
+ *    divider) — the shared `MobileCardEmailRow` (`AdminTeachersMobileCardRows`);
  *  - hairline divider;
  *  - strict two-column body rows (label at inline-start in `text.secondary`,
  *    value flexing to the inline-end edge, 500 weight): Status (lifecycle
- *    chip + governance pills), Attempts, Last attempt, Cooldown.
+ *    chip + governance pills), Attempts, Last attempt, Cooldown — the
+ *    shared `MobileCardDetailRow`.
  *
  * Soft-deleted applicants render dimmed (name/email drop to the disabled
  * ink and the name is struck through).
  */
 
-import { ContentCopyOutlined as CopyIcon, VisibilityOutlined as ProfileIcon } from "@mui/icons-material";
+import { VisibilityOutlined as ProfileIcon } from "@mui/icons-material";
 import { Box, Card, Divider, IconButton, Link as MuiLink, Stack, Tooltip, Typography } from "@mui/material";
 import Link from "next/link";
 import type { ReactNode } from "react";
@@ -38,7 +32,7 @@ import {
   ApplicantLastAttemptText,
   ApplicantStatusStack,
 } from "@/frontend/views/admin/teachers/AdminApplicantRowCells";
-import { useDirectoryCopyEmail } from "@/frontend/views/admin/users/directory";
+import { MobileCardDetailRow, MobileCardEmailRow } from "@/frontend/views/admin/teachers/AdminTeachersMobileCardRows";
 import { UserAvatar } from "@/frontend/views/admin/users/ui";
 import type { AdminTeachersLabels } from "@/shared/locale/types/adminTeachers";
 
@@ -141,155 +135,22 @@ export function AdminApplicantMobileCard({
           </Tooltip>
         </Box>
       </Box>
-      <MobileApplicantEmailRow applicant={applicant} labels={labels} deleted={deleted} onCopyEmail={onCopyEmail} />
+      <MobileCardEmailRow email={applicant.email} labels={labels} deleted={deleted} onCopyEmail={onCopyEmail} />
       <Divider sx={{ my: 1.5 }} />
       <Stack spacing={1}>
-        <MobileDetailRow label={labels.headers.status} dimmed={deleted}>
+        <MobileCardDetailRow label={labels.headers.status} dimmed={deleted}>
           <ApplicantStatusStack applicant={applicant} labels={labels} />
-        </MobileDetailRow>
-        <MobileDetailRow label={labels.applicantHeaders.attempts} dimmed={deleted}>
+        </MobileCardDetailRow>
+        <MobileCardDetailRow label={labels.applicantHeaders.attempts} dimmed={deleted}>
           <ApplicantAttemptsText applicant={applicant} />
-        </MobileDetailRow>
-        <MobileDetailRow label={labels.applicantHeaders.lastAttempt} dimmed={deleted}>
+        </MobileCardDetailRow>
+        <MobileCardDetailRow label={labels.applicantHeaders.lastAttempt} dimmed={deleted}>
           <ApplicantLastAttemptText applicant={applicant} locale={locale} />
-        </MobileDetailRow>
-        <MobileDetailRow label={labels.applicantHeaders.cooldown} dimmed={deleted}>
+        </MobileCardDetailRow>
+        <MobileCardDetailRow label={labels.applicantHeaders.cooldown} dimmed={deleted}>
           <ApplicantCooldownContent applicant={applicant} locale={locale} labels={labels} />
-        </MobileDetailRow>
+        </MobileCardDetailRow>
       </Stack>
     </Card>
-  );
-}
-
-interface MobileApplicantEmailRowProps {
-  readonly applicant: ApplicantDirectoryItem;
-  readonly labels: Pick<AdminTeachersLabels, "quickActions">;
-  readonly deleted: boolean;
-  /** Invoked after the email copy resolves successfully (drives the snackbar). */
-  readonly onCopyEmail?: () => void;
-}
-
-/**
- * The full-card-width email row rendered between the header grid and the
- * divider. Layout rationale (QA fix): the old placement inside the header
- * grid's middle track squeezed addresses into ~180px and wrapped them
- * mid-word — the row now spans the whole card and is inset with the LOGICAL
- * `paddingInlineStart: "52px"` (44px avatar + 8px grid gap) so the email aligns
- * under the name column; the inset flips correctly under RTL. The email
- * WRAPS (no ellipsis) so the full address stays visible, with
- * `overflowWrap: "anywhere"` as the pathological-address fallback. The copy
- * affordance is unchanged (clipboard + success tint + `stopPropagation`,
- * ≥44px touch target via transparent padding, `flexShrink: 0`).
- *
- * Bidi note (Latin emails inside an RTL page): the HTML `dir="ltr"`
- * ATTRIBUTE isolates glyph direction — a CSS `direction` rule MUST NOT be
- * added (stylis-plugin-rtl would flip it and clip the string's head). With
- * the attribute alone plus `unicodeBidi: "isolate"`, `text-align: start`
- * reads correctly in both directions.
- */
-function MobileApplicantEmailRow({ applicant, labels, deleted, onCopyEmail }: MobileApplicantEmailRowProps): ReactNode {
-  const { emailCopied, handleCopyEmail } = useDirectoryCopyEmail(applicant.email, onCopyEmail);
-  return (
-    <Box
-      sx={{
-        display: "flex",
-        alignItems: "center",
-        gap: 0.5,
-        mt: 0.5,
-        minWidth: 0,
-        // 44px avatar + 8px grid gap — the email starts under the name
-        // column; logical property so RTL mirrors the inset. Explicit px
-        // STRING — a bare number would go through MUI's spacing transform
-        // (×8) and inflate the inset to 416px.
-        paddingInlineStart: "52px",
-      }}
-    >
-      <Typography
-        variant="body2"
-        component="div"
-        dir="ltr"
-        sx={theme => ({
-          display: "block",
-          fontSize: 13,
-          unicodeBidi: "isolate",
-          textAlign: "start",
-          // Wrap long addresses instead of ellipsizing them — a truncated
-          // email defeats the card's purpose (the full value at a glance).
-          overflowWrap: "anywhere",
-          flex: 1,
-          minWidth: 0,
-          color: deleted ? theme.palette.text.disabled : theme.palette.text.secondary,
-        })}
-      >
-        {applicant.email}
-      </Typography>
-      <CopyIconButton email={applicant.email} copied={emailCopied} labels={labels} onCopy={handleCopyEmail} />
-    </Box>
-  );
-}
-
-interface CopyIconButtonProps {
-  readonly email: string;
-  readonly copied: boolean;
-  readonly labels: Pick<AdminTeachersLabels, "quickActions">;
-  readonly onCopy: () => void;
-}
-
-/** The copy-email quick action — ≥44px touch target via transparent padding. */
-function CopyIconButton({ email, copied, labels, onCopy }: CopyIconButtonProps): ReactNode {
-  return (
-    <Tooltip title={copied ? labels.quickActions.emailCopied : labels.quickActions.copyEmail} placement="top">
-      <IconButton
-        size="small"
-        aria-label={`${labels.quickActions.copyEmail}: ${email}`}
-        onClick={event => {
-          // Copy only — the click must not also trigger the card.
-          event.stopPropagation();
-          onCopy();
-        }}
-        sx={theme => ({
-          p: 1.5,
-          my: -1.5,
-          flexShrink: 0,
-          color: copied ? theme.palette.success.main : theme.palette.text.secondary,
-        })}
-      >
-        <CopyIcon fontSize="small" />
-      </IconButton>
-    </Tooltip>
-  );
-}
-
-interface MobileDetailRowProps {
-  readonly label: string;
-  readonly dimmed: boolean;
-  readonly children: ReactNode;
-}
-
-/** Strict two-column body row: label pinned to the inline-start edge, value
- *  cell flexes to fill and pins its content to the inline-end edge. */
-function MobileDetailRow({ label, dimmed, children }: MobileDetailRowProps): ReactNode {
-  return (
-    <Box sx={{ display: "flex", alignItems: "center", gap: 2, minWidth: 0 }}>
-      <Typography
-        variant="body2"
-        sx={theme => ({ color: theme.palette.text.secondary, flexShrink: 0, textAlign: "start" })}
-      >
-        {label}
-      </Typography>
-      <Box
-        sx={theme => ({
-          flex: 1,
-          minWidth: 0,
-          display: "flex",
-          justifyContent: "flex-end",
-          textAlign: "end",
-          fontWeight: 500,
-          ...(dimmed && { color: theme.palette.text.disabled }),
-        })}
-      >
-        {children}
-      </Box>
-    </Box>
   );
 }

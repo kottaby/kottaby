@@ -80,8 +80,10 @@ export function ApplicantStatusQuickFilters(props: ApplicantStatusQuickFiltersPr
     })),
   ];
   return (
+    // A plain container div — no `group` role needed: each chip is its own
+    // labeled, toggleable control, so the wrapper adds no AT semantics
+    // (prefer-tag-over-role) and the strip keeps its scroll-row layout.
     <Box
-      role="group"
       aria-label={labels.headers.status}
       sx={{ display: "flex", gap: 1, overflowX: "auto", WebkitOverflowScrolling: "touch", py: 0.5 }}
     >
@@ -129,14 +131,12 @@ function countOf(statusCounts: ApplicantStatusCounts | null, status: ApplicantSt
   if (statusCounts === null) {
     return null;
   }
-  switch (status) {
-    case "pending":
-      return statusCounts.pending;
-    case "in_evaluation":
-      return statusCounts.inEvaluation;
-    case "failed":
-      return statusCounts.failed;
-    case "passed":
-      return statusCounts.passed;
-  }
+  // Total map over the four canonical slots (wire key: `inEvaluation`).
+  const counts: Record<ApplicantStatusFilter, number> = {
+    pending: statusCounts.pending,
+    in_evaluation: statusCounts.inEvaluation,
+    failed: statusCounts.failed,
+    passed: statusCounts.passed,
+  };
+  return counts[status];
 }

@@ -19,20 +19,17 @@
  * The select chrome is the SHARED `DirectoryFilterSelect` imported from the
  * users directory (identical 44px outlined control); the reported string is
  * narrowed back to the local filter union by the runtime guard below.
+ * The two text inputs and the copy/export action buttons live beside this
+ * file (`AdminStudentsToolbarFields.tsx` / `AdminStudentsToolbarActions.tsx`).
  * Label slices are passed down narrowed — nothing is hardcoded. All colors
  * resolve through theme-callback sx.
  */
 
-import {
-  CheckOutlined as ApplyIcon,
-  FileDownloadOutlined as DownloadIcon,
-  LinkOutlined as LinkIcon,
-  RefreshOutlined as RefreshIcon,
-  SearchOutlined as SearchIcon,
-} from "@mui/icons-material";
-import { Box, Button, Card, IconButton, InputAdornment, TextField, Tooltip } from "@mui/material";
-import type { KeyboardEvent, ReactNode } from "react";
-import { useDirectoryCopyLink } from "@/frontend/views/admin/directory-copy-link";
+import { RefreshOutlined as RefreshIcon } from "@mui/icons-material";
+import { Box, Button, Card } from "@mui/material";
+import type { ReactNode } from "react";
+import { CopyLinkButton, ExportCsvButton } from "@/frontend/views/admin/students/AdminStudentsToolbarActions";
+import { StudentLanguageField, StudentSearchField } from "@/frontend/views/admin/students/AdminStudentsToolbarFields";
 import type { StudentHasParentFilter } from "@/frontend/views/admin/students/adminStudentsDirectory.helpers";
 import type { useAdminStudentsDirectory } from "@/frontend/views/admin/students/hooks";
 import { DirectoryFilterSelect } from "@/frontend/views/admin/users/directory";
@@ -171,166 +168,5 @@ export function AdminStudentsToolbar({
         </Button>
       </Box>
     </Card>
-  );
-}
-
-interface ExportCsvButtonProps {
-  readonly labels: ToolbarLabels;
-  readonly onExportCsv: () => void;
-  readonly exportLoading: boolean;
-  readonly exportDisabled: boolean;
-}
-
-interface CopyLinkButtonProps {
-  readonly labels: ToolbarLabels;
-  /** Invoked after the view URL copies successfully (drives the snackbar). */
-  readonly onCopyLink?: () => void;
-}
-
-/**
- * The shareable-view action — copies the CURRENT URL (the URL-mirror effect
- * keeps the query string in sync with the applied filters, so what the
- * admin pastes is exactly what they see). Same text-button recipe as the
- * export/refresh actions next to it; the icon tints to the success color
- * while the copy has resolved (mirroring the copy-email quick action), and
- * failures stay silent (insecure context / rejected write — the snackbar
- * never lies about a copy that did not happen).
- */
-function CopyLinkButton({ labels, onCopyLink }: CopyLinkButtonProps): ReactNode {
-  const { linkCopied, handleCopyLink } = useDirectoryCopyLink(onCopyLink);
-  return (
-    <Tooltip title={labels.quickActions.copyLink} placement="top">
-      <Button
-        variant="text"
-        startIcon={
-          <LinkIcon
-            fontSize="small"
-            sx={theme => ({ color: linkCopied ? theme.palette.success.main : theme.palette.text.secondary })}
-          />
-        }
-        onClick={handleCopyLink}
-        aria-label={labels.quickActions.copyLink}
-        sx={theme => ({ minHeight: 44, flexShrink: 0, color: theme.palette.text.secondary })}
-      >
-        {labels.quickActions.copyLink}
-      </Button>
-    </Tooltip>
-  );
-}
-
-/**
- * The export action — same text-button recipe as the refresh action next to
- * it (variant/size/44px floor/`text.secondary` ink). While the export-all
- * query is in flight the button shows MUI's leading spinner busy state.
- * The tooltip switches to the honest "nothing to export" copy while
- * disabled; a `<span>` wrapper keeps the tooltip reachable on a disabled
- * button (disabled elements emit no pointer events).
- */
-function ExportCsvButton({ labels, onExportCsv, exportLoading, exportDisabled }: ExportCsvButtonProps): ReactNode {
-  return (
-    <Tooltip title={exportDisabled ? labels.export.exportCsvEmpty : labels.export.exportCsv} placement="top">
-      <Box component="span" sx={{ display: "inline-flex", flexShrink: 0 }}>
-        <Button
-          variant="text"
-          startIcon={<DownloadIcon />}
-          onClick={onExportCsv}
-          loading={exportLoading}
-          disabled={exportDisabled}
-          aria-label={labels.export.exportCsv}
-          sx={theme => ({ minHeight: 44, flexShrink: 0, color: theme.palette.text.secondary })}
-        >
-          {labels.export.exportCsv}
-        </Button>
-      </Box>
-    </Tooltip>
-  );
-}
-
-interface StudentSearchFieldProps {
-  readonly id: string;
-  readonly labels: ToolbarLabels;
-  readonly value: string;
-  readonly onChange: (value: string) => void;
-}
-
-/** The toolbar's search input: magnifier leading adornment, fixed 44px height. */
-function StudentSearchField({ id, labels, value, onChange }: StudentSearchFieldProps): ReactNode {
-  return (
-    <TextField
-      id={id}
-      hiddenLabel
-      placeholder={labels.filters.searchPlaceholder}
-      value={value}
-      onChange={event => onChange(event.target.value)}
-      slotProps={{
-        htmlInput: { "aria-label": labels.filters.search },
-        input: {
-          startAdornment: (
-            <SearchIcon fontSize="small" sx={theme => ({ marginInlineEnd: 1, color: theme.palette.text.secondary })} />
-          ),
-        },
-      }}
-      sx={{
-        flex: { xs: "1 1 100%", sm: "1 1 300px" },
-        maxWidth: 400,
-        "& .MuiInputBase-root": { height: 44 },
-      }}
-    />
-  );
-}
-
-interface StudentLanguageFieldProps {
-  readonly id: string;
-  readonly labels: ToolbarLabels;
-  readonly value: string;
-  readonly dirty: boolean;
-  readonly onChange: (value: string) => void;
-  readonly onApply: () => void;
-}
-
-/**
- * The language filter input — an exact-match predicate, so the draft
- * commits on Enter or through the Apply icon button (rendered only while
- * the draft differs from the applied value). The label stays pinned to the
- * notch so the field never renders without a visible label.
- */
-function StudentLanguageField({ id, labels, value, dirty, onChange, onApply }: StudentLanguageFieldProps): ReactNode {
-  const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (event.key === "Enter") {
-      event.preventDefault();
-      onApply();
-    }
-  };
-  return (
-    <TextField
-      id={id}
-      label={labels.filters.language}
-      value={value}
-      onChange={event => onChange(event.target.value)}
-      onKeyDown={handleKeyDown}
-      slotProps={{
-        inputLabel: { shrink: true },
-        htmlInput: { "aria-label": labels.filters.language },
-        input: {
-          ...(dirty && {
-            endAdornment: (
-              <InputAdornment position="end" sx={{ marginInlineStart: 0 }}>
-                <Tooltip title={labels.filters.apply} placement="top">
-                  <IconButton
-                    size="small"
-                    aria-label={labels.filters.apply}
-                    onClick={onApply}
-                    sx={theme => ({ color: theme.palette.text.secondary })}
-                  >
-                    <ApplyIcon fontSize="small" />
-                  </IconButton>
-                </Tooltip>
-              </InputAdornment>
-            ),
-          }),
-        },
-      }}
-      sx={{ minWidth: 150, flex: { xs: "1 1 100%", sm: "0 1 auto" }, "& .MuiInputBase-root": { height: 44 } }}
-    />
   );
 }

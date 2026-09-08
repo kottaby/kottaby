@@ -21,13 +21,13 @@
 
 import { TableCell, TableRow } from "@mui/material";
 import type { ReactNode } from "react";
+import { StudentIdentityCell } from "@/frontend/views/admin/students/AdminStudentIdentityCell";
+import { StudentParentContent } from "@/frontend/views/admin/students/AdminStudentParentContent";
 import {
   StudentBalancesBadges,
   type StudentDirectoryItem,
-  StudentIdentityCell,
   StudentJoinedText,
   StudentLanguageChips,
-  StudentParentContent,
   StudentTrialContent,
 } from "@/frontend/views/admin/students/AdminStudentRowCells";
 import type { AdminStudentsLabels } from "@/shared/locale/types/adminStudents";

@@ -11,6 +11,7 @@ export * from "./DirectorySearchField";
 export * from "./DirectoryStatusDetails";
 export * from "./DirectoryTable";
 export * from "./DirectoryToolbar";
+export * from "./DirectoryToolbarActions";
 export * from "./DirectoryUserIdentityCell";
 export * from "./DirectoryUserRow";
 export * from "./directory-snackbar";

@@ -22,9 +22,42 @@ export type TeacherOnlineFilter = "Online" | "Offline";
 /** Evaluator filter draft union — mapped onto the nullable Boolean filter. */
 export type TeacherEvaluatorFilter = "Evaluator" | "NonEvaluator";
 
+/** Wire values of the approval draft union (runtime narrowing source). */
+const APPROVAL_FILTER_VALUES: readonly TeacherApprovalFilter[] = ["Approved", "Pending"];
+
+/** Wire values of the presence draft union (runtime narrowing source). */
+const ONLINE_FILTER_VALUES: readonly TeacherOnlineFilter[] = ["Online", "Offline"];
+
+/** Wire values of the evaluator draft union (runtime narrowing source). */
+const EVALUATOR_FILTER_VALUES: readonly TeacherEvaluatorFilter[] = ["Evaluator", "NonEvaluator"];
+
 /** `TeacherApprovalFilter` → backend `approval: Boolean` (absent = all). */
 export function approvalFilterToBoolean(filter: TeacherApprovalFilter): boolean {
   return filter === "Approved";
+}
+
+/**
+ * Runtime narrowing of the shared filter select's string value back to the
+ * approval union — a validated lookup, fail-closed to the empty draft.
+ */
+export function asApprovalFilter(value: string): TeacherApprovalFilter | "" {
+  return APPROVAL_FILTER_VALUES.find(approval => approval === value) ?? "";
+}
+
+/**
+ * Runtime narrowing of the shared filter select's string value back to the
+ * presence union — a validated lookup, fail-closed to the empty draft.
+ */
+export function asOnlineFilter(value: string): TeacherOnlineFilter | "" {
+  return ONLINE_FILTER_VALUES.find(online => online === value) ?? "";
+}
+
+/**
+ * Runtime narrowing of the shared filter select's string value back to the
+ * evaluator union — a validated lookup, fail-closed to the empty draft.
+ */
+export function asEvaluatorFilter(value: string): TeacherEvaluatorFilter | "" {
+  return EVALUATOR_FILTER_VALUES.find(evaluator => evaluator === value) ?? "";
 }
 
 /** `TeacherOnlineFilter` → backend `online: Boolean` (absent = all). */

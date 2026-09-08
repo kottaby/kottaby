@@ -21,9 +21,13 @@ export type ApplicantStatusFilter = "pending" | "in_evaluation" | "failed" | "pa
 /** The four canonical applicant-status wire values, in display order. */
 export const ADMIN_APPLICANT_STATUSES = ["pending", "in_evaluation", "failed", "passed"] as const;
 
-/** Runtime narrowing of the select's string value back to the status union. */
+/**
+ * Runtime narrowing of the select's string value back to the status union —
+ * a validated lookup over the canonical wire values (fail-closed to the
+ * empty "no filter" draft; no assertion needed).
+ */
 export function asApplicantStatusFilter(value: string): ApplicantStatusFilter | "" {
-  return (ADMIN_APPLICANT_STATUSES as readonly string[]).includes(value) ? (value as ApplicantStatusFilter) : "";
+  return ADMIN_APPLICANT_STATUSES.find(status => status === value) ?? "";
 }
 
 /**

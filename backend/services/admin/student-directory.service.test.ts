@@ -254,9 +254,14 @@ describe("AdminStudentDirectoryService.list — pagination", () => {
     await runInRollback(async tx => {
       const admin = await provisionAdminActor(tx);
       const prefix = `DirStudentPaged${randomUUID().slice(0, 8)}`;
-      for (let i = 0; i < 3; i++) {
-        await createDirectoryStudent(tx, { namePrefix: prefix });
-      }
+      // Three mutually independent user+student pairs — seeded concurrently.
+      // Each pair's user→role-child FK order stays sequenced inside the
+      // helper; no dependency exists across pairs.
+      await Promise.all([
+        createDirectoryStudent(tx, { namePrefix: prefix }),
+        createDirectoryStudent(tx, { namePrefix: prefix }),
+        createDirectoryStudent(tx, { namePrefix: prefix }),
+      ]);
 
       const twoPer = await AdminStudentDirectoryService.list({ search: prefix }, 1, 2, LOCALE, admin.id, tx);
       expect(twoPer.total).toBe(3);

@@ -89,6 +89,18 @@ function previousContentElement(element: Element): Element | null {
   return node;
 }
 
+/**
+ * Instanceof-narrowed `Element | null` → `HTMLElement` — the runtime-checked
+ * replacement for the old bare `as HTMLElement` casts on structural-walk
+ * results (a broken walk fails the test through the thrown error).
+ */
+function asHTMLElement(element: Element | null): HTMLElement {
+  if (!(element instanceof HTMLElement)) {
+    throw new TypeError("expected an HTMLElement — the structural walk broke");
+  }
+  return element;
+}
+
 interface RenderOptions {
   readonly locale: AppLocale;
   readonly onCopyEmail?: () => void;
@@ -123,10 +135,10 @@ describe("AdminApplicantMobileCard — full-width email row", () => {
 
     // Row shape: email → email row → card. The row is a DIRECT child of the
     // card (full-card-width) and its previous sibling is the header grid.
-    const emailRow = email.parentElement as HTMLElement;
-    const card = emailRow.parentElement as HTMLElement;
+    const emailRow = asHTMLElement(email.parentElement);
+    const card = asHTMLElement(emailRow.parentElement);
     expect(card.classList.contains("MuiCard-root")).toBe(true);
-    const headerGrid = previousContentElement(emailRow) as HTMLElement;
+    const headerGrid = asHTMLElement(previousContentElement(emailRow));
     expect(headerGrid).not.toBeNull();
     // The header grid does NOT contain the email anymore — it owns the
     // avatar + the single-line NAME PROFILE LINK (the card renders two

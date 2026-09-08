@@ -7,13 +7,14 @@
  *
  * The drawer is PRESENTATIONAL: it renders only fields the directory item
  * already carries (no extra queries, no mutations) grouped in section
- * cards — identity (role-tinted avatar + contact rows with the copy-email
- * affordance), balances (four large stat tiles painted from the SAME M3
- * container lanes the row badges use: hifz = primary, reviews = secondary,
- * tajweed = success, trial = warning), parent placement (verbatim parent
- * identity with a mailto affordance, or the localized "independent" chip),
- * languages, free trial, and record (identifier). Every caption comes from
- * the `AdminStudents` namespace; data values render verbatim.
+ * cards — identity, balances, parent placement, languages, free trial, and
+ * record. Every caption comes from the `AdminStudents` namespace; data
+ * values render verbatim.
+ *
+ * Layout: the shared section primitives and the four large sections live
+ * beside this file (`AdminStudentDrawerPrimitives.tsx` /
+ * `AdminStudentDrawer{Identity,Balances,Placement,Record}Section.tsx`);
+ * this module keeps the drawer shell plus the two thin chip sections.
  *
  * RTL/bidi: Latin names/emails/phones are pinned with the HTML `dir="ltr"`
  * ATTRIBUTE + `unicodeBidi: isolate` — a CSS `direction` rule MUST NOT be
@@ -33,29 +34,22 @@
  * `*Outlined` icons.
  */
 
-import {
-  CloseOutlined as CloseIcon,
-  ContentCopyOutlined as CopyIcon,
-  OpenInNewOutlined as OpenProfileIcon,
-} from "@mui/icons-material";
-import { Box, Button, Drawer, IconButton, Stack, Tooltip, Typography } from "@mui/material";
-import Link from "next/link";
+import { CloseOutlined as CloseIcon } from "@mui/icons-material";
+import { Box, Drawer, IconButton, Stack, Tooltip, Typography } from "@mui/material";
 import type { ReactNode } from "react";
 import { focusVisibleRingSx } from "@/frontend/components/ui/focusRing";
-import { formatApplicantDate } from "@/frontend/lib/i18n/format-date";
+import { StudentDrawerBalancesSection } from "@/frontend/views/admin/students/AdminStudentDrawerBalancesSection";
+import { StudentDrawerIdentitySection } from "@/frontend/views/admin/students/AdminStudentDrawerIdentitySection";
+import { StudentDrawerPlacementSection } from "@/frontend/views/admin/students/AdminStudentDrawerPlacementSection";
+import { DrawerSection } from "@/frontend/views/admin/students/AdminStudentDrawerPrimitives";
+import { StudentDrawerRecordSection } from "@/frontend/views/admin/students/AdminStudentDrawerRecordSection";
 import {
   type StudentDirectoryItem,
   StudentLanguageChips,
   StudentTrialContent,
 } from "@/frontend/views/admin/students/AdminStudentRowCells";
-import { useDirectoryCopyEmail } from "@/frontend/views/admin/users/directory";
-import { TonalChip, UserAvatar } from "@/frontend/views/admin/users/ui";
-import { type DirectoryTone, toneColors } from "@/frontend/views/admin/users/utils";
 import type { AppLocale } from "@/shared/locale";
 import type { AdminStudentsLabels } from "@/shared/locale/types/adminStudents";
-
-/** Role lane for the drawer avatar (expression-passed — matches the rows). */
-const STUDENT_AVATAR_ROLE = "Student" as const;
 
 /** Drawer paper width — clamps inside narrow viewports. */
 const DRAWER_WIDTH = 420;
@@ -142,292 +136,6 @@ export function AdminStudentDetailDrawer({
   );
 }
 
-interface DrawerSectionProps {
-  readonly label: string;
-  readonly children: ReactNode;
-}
-
-/** Section card — radius 12, `border.light` outline, uppercase pinned header. */
-function DrawerSection({ label, children }: DrawerSectionProps): ReactNode {
-  return (
-    <Box
-      component="section"
-      aria-label={label}
-      sx={theme => ({
-        borderRadius: "12px",
-        border: `1px solid ${theme.palette.border.light}`,
-        boxShadow: theme.palette.shadow.card,
-        bgcolor: theme.palette.background.paper,
-        p: 2,
-      })}
-    >
-      <Typography
-        variant="overline"
-        component="h3"
-        sx={theme => ({
-          display: "block",
-          color: theme.palette.text.secondary,
-          fontWeight: 700,
-          letterSpacing: "0.06em",
-          marginBottom: 1,
-        })}
-      >
-        {label}
-      </Typography>
-      {children}
-    </Box>
-  );
-}
-
-interface LabelValueRowProps {
-  readonly label: string;
-  /** Latin-contact values (email/phone) are LTR data — pinned via the HTML attribute. */
-  readonly ltr?: boolean;
-  readonly children: ReactNode;
-}
-
-/**
- * Caption/value row (the `ProfileInfoCard` recipe): fixed 40% label column
- * in `text.secondary`, value flexing with 500 weight.
- */
-function LabelValueRow({ label, ltr = false, children }: LabelValueRowProps): ReactNode {
-  return (
-    <Stack direction="row" spacing={2} sx={theme => ({ py: 1, borderTop: `1px solid ${theme.palette.divider}` })}>
-      <Typography
-        variant="body2"
-        sx={theme => ({ color: theme.palette.text.secondary, flexBasis: "40%", flexShrink: 0 })}
-      >
-        {label}
-      </Typography>
-      <Box
-        {...(ltr ? { dir: "ltr" } : {})}
-        sx={theme => ({
-          flex: 1,
-          minWidth: 0,
-          fontWeight: 500,
-          color: theme.palette.text.primary,
-          ...(ltr && { unicodeBidi: "isolate", textAlign: "start" }),
-        })}
-      >
-        {children}
-      </Box>
-    </Stack>
-  );
-}
-
-/** Honest null — the em-dash is a display affordance, not a value. */
-function EmptyValue(): ReactNode {
-  return (
-    <Typography variant="body2" sx={theme => ({ color: theme.palette.text.secondary })}>
-      —
-    </Typography>
-  );
-}
-
-interface StudentDrawerIdentitySectionProps {
-  readonly student: StudentDirectoryItem;
-  readonly labels: AdminStudentsLabels;
-  readonly locale: AppLocale;
-  readonly onCopyEmail?: () => void;
-}
-
-/** Identity hero — role-tinted avatar, name, copy-email affordance, contact rows. */
-function StudentDrawerIdentitySection({
-  student,
-  labels,
-  locale,
-  onCopyEmail,
-}: StudentDrawerIdentitySectionProps): ReactNode {
-  const { emailCopied, handleCopyEmail } = useDirectoryCopyEmail(student.email, onCopyEmail);
-  return (
-    <DrawerSection label={labels.drawer.sectionIdentity}>
-      <Stack direction="row" spacing={2} sx={{ alignItems: "center", mb: 1.5 }}>
-        <UserAvatar fullName={student.name} role={STUDENT_AVATAR_ROLE} size={64} />
-        <Box sx={{ minWidth: 0 }}>
-          <Typography
-            component="div"
-            title={student.name}
-            dir="ltr"
-            sx={{
-              fontSize: 17,
-              fontWeight: 600,
-              unicodeBidi: "isolate",
-              textAlign: "start",
-              overflowWrap: "anywhere",
-            }}
-          >
-            {student.name}
-          </Typography>
-          <Stack direction="row" spacing={0.5} sx={{ alignItems: "center", minWidth: 0 }}>
-            <Typography
-              variant="body2"
-              component="div"
-              title={student.email}
-              dir="ltr"
-              sx={theme => ({
-                color: theme.palette.text.secondary,
-                unicodeBidi: "isolate",
-                textAlign: "start",
-                overflowWrap: "anywhere",
-                minWidth: 0,
-              })}
-            >
-              {student.email}
-            </Typography>
-            <Tooltip
-              title={emailCopied ? labels.quickActions.emailCopied : labels.quickActions.copyEmail}
-              placement="top"
-              enterTouchDelay={0}
-              leaveTouchDelay={1500}
-            >
-              <IconButton
-                size="small"
-                aria-label={`${labels.quickActions.copyEmail}: ${student.email}`}
-                onClick={event => {
-                  // Keep the drawer from reacting to the quick action.
-                  event.stopPropagation();
-                  handleCopyEmail();
-                }}
-                sx={theme => ({
-                  p: 1.5,
-                  my: -1.5,
-                  flexShrink: 0,
-                  color: emailCopied ? theme.palette.success.main : theme.palette.text.secondary,
-                })}
-              >
-                <CopyIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
-          </Stack>
-        </Box>
-      </Stack>
-      <LabelValueRow label={labels.fields.phone} ltr>
-        {student.phone ?? <EmptyValue />}
-      </LabelValueRow>
-      <LabelValueRow label={labels.fields.country}>{student.country ?? <EmptyValue />}</LabelValueRow>
-      <LabelValueRow label={labels.headers.joined}>{formatApplicantDate(student.createdAt, locale)}</LabelValueRow>
-    </DrawerSection>
-  );
-}
-
-interface StudentDrawerBalancesSectionProps {
-  readonly student: StudentDirectoryItem;
-  readonly labels: AdminStudentsLabels;
-}
-
-/**
- * Balances section — four large stat tiles in the backend's canonical lane
- * order, painted from the same M3 container lanes the row badges use:
- * hifz = primary, reviews = secondary, tajweed = success, trial = warning.
- */
-function StudentDrawerBalancesSection({ student, labels }: StudentDrawerBalancesSectionProps): ReactNode {
-  return (
-    <DrawerSection label={labels.drawer.sectionBalances}>
-      <Box sx={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 1 }}>
-        <BalanceTile tone="primary" label={labels.balances.hifz} value={student.balanceHifz} />
-        <BalanceTile tone="secondary" label={labels.balances.reviews} value={student.balanceReviews} />
-        <BalanceTile tone="success" label={labels.balances.tajweed} value={student.balanceTajweed} />
-        <BalanceTile tone="warning" label={labels.balances.trial} value={student.balanceTrial} />
-      </Box>
-    </DrawerSection>
-  );
-}
-
-interface BalanceTileProps {
-  readonly tone: DirectoryTone;
-  readonly label: string;
-  readonly value: number;
-}
-
-/** One balance stat tile — caption over a large count on the tonal lane. */
-function BalanceTile({ tone, label, value }: BalanceTileProps): ReactNode {
-  return (
-    <Box
-      sx={theme => {
-        const colors = toneColors(theme, tone);
-        return {
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          gap: 0.5,
-          px: 1.5,
-          py: 1.5,
-          borderRadius: "12px",
-          bgcolor: colors.bg,
-          color: colors.fg,
-        };
-      }}
-    >
-      <Typography variant="caption" sx={{ fontWeight: 600 }}>
-        {label}
-      </Typography>
-      <Typography variant="h6" component="span" sx={{ fontWeight: 700, lineHeight: 1.2 }}>
-        {value}
-      </Typography>
-    </Box>
-  );
-}
-
-interface StudentDrawerPlacementSectionProps {
-  readonly student: StudentDirectoryItem;
-  readonly labels: AdminStudentsLabels;
-}
-
-/**
- * Placement section — the verbatim parent identity with a mailto affordance
- * when the student is linked, the localized "independent" chip otherwise,
- * or the em-dash fallback for a linked student whose parent identity is
- * missing (defensive — mirrors the row cell).
- */
-function StudentDrawerPlacementSection({ student, labels }: StudentDrawerPlacementSectionProps): ReactNode {
-  let placementContent: ReactNode;
-  if (!student.hasParent) {
-    placementContent = <TonalChip tone="neutral" label={labels.parentLabels.noParent} />;
-  } else if (student.parentName === null && student.parentEmail === null) {
-    placementContent = <EmptyValue />;
-  } else {
-    placementContent = (
-      <>
-        {student.parentName !== null && (
-          <LabelValueRow label={labels.headers.parent}>
-            <Typography
-              component="div"
-              title={student.parentName}
-              sx={theme => ({
-                fontWeight: 500,
-                color: theme.palette.text.primary,
-                overflowWrap: "anywhere",
-              })}
-            >
-              {student.parentName}
-            </Typography>
-          </LabelValueRow>
-        )}
-        {student.parentEmail !== null && (
-          <LabelValueRow label={labels.fields.parentEmail} ltr>
-            <Typography
-              component="a"
-              href={`mailto:${student.parentEmail}`}
-              title={student.parentEmail}
-              sx={theme => ({
-                color: theme.palette.primary.main,
-                fontWeight: 500,
-                textDecoration: "none",
-                overflowWrap: "anywhere",
-                "&:hover": { textDecoration: "underline" },
-              })}
-            >
-              {student.parentEmail}
-            </Typography>
-          </LabelValueRow>
-        )}
-      </>
-    );
-  }
-  return <DrawerSection label={labels.drawer.sectionPlacement}>{placementContent}</DrawerSection>;
-}
-
 interface StudentDrawerLanguagesSectionProps {
   readonly student: StudentDirectoryItem;
   readonly labels: AdminStudentsLabels;
@@ -454,76 +162,5 @@ function StudentDrawerTrialSection({ student, labels, locale }: StudentDrawerTri
     <DrawerSection label={labels.drawer.sectionTrial}>
       <StudentTrialContent student={student} locale={locale} labels={labels} />
     </DrawerSection>
-  );
-}
-
-interface StudentDrawerRecordSectionProps {
-  readonly student: StudentDirectoryItem;
-  readonly labels: AdminStudentsLabels;
-}
-
-/**
- * Record section — the record identifier (wire value, never localized)
- * plus the explicit full-profile link: governance actions live on the admin
- * user-detail page, so the drawer bridges the directory to that surface
- * instead of duplicating them here.
- */
-function StudentDrawerRecordSection({ student, labels }: StudentDrawerRecordSectionProps): ReactNode {
-  return (
-    <DrawerSection label={labels.drawer.sectionRecord}>
-      <Stack spacing={1.5}>
-        <Stack direction="row" spacing={2} sx={{ alignItems: "center" }}>
-          <Typography
-            variant="body2"
-            sx={theme => ({ color: theme.palette.text.secondary, flexBasis: "40%", flexShrink: 0 })}
-          >
-            {labels.fields.id}
-          </Typography>
-          <Typography
-            variant="body2"
-            component="span"
-            dir="ltr"
-            sx={theme => ({ fontWeight: 500, color: theme.palette.text.primary, unicodeBidi: "isolate" })}
-          >
-            {student.id}
-          </Typography>
-        </Stack>
-        <FullProfileLink href={`/admin/users/${student.id}`} label={labels.quickActions.viewProfile} />
-      </Stack>
-    </DrawerSection>
-  );
-}
-
-interface FullProfileLinkProps {
-  readonly href: string;
-  readonly label: string;
-}
-
-/**
- * The "open full profile" action — an outlined navigation button (44px
- * touch floor, same `Button component={Link}` recipe as the empty-state
- * CTA) routed to the admin user-detail page where the governance actions
- * live. Presentational everywhere else: the drawer itself stays read-only.
- */
-function FullProfileLink({ href, label }: FullProfileLinkProps): ReactNode {
-  return (
-    <Button
-      component={Link}
-      href={href}
-      variant="outlined"
-      size="small"
-      startIcon={<OpenProfileIcon />}
-      sx={theme => ({
-        minHeight: 44,
-        borderRadius: 2,
-        textTransform: "none",
-        fontWeight: 600,
-        alignSelf: "flex-start",
-        color: theme.palette.text.primary,
-        borderColor: theme.palette.border.light,
-      })}
-    >
-      {label}
-    </Button>
   );
 }

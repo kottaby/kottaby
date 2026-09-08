@@ -18,8 +18,8 @@
  */
 
 import { useMutation, useQuery } from "@apollo/client/react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { useState } from "react";
 import type { AdminUsersQueryVariables } from "@/frontend/graphql/generated/gql/graphql";
 import {
   adminCreateUserMutationDocument,
@@ -29,7 +29,8 @@ import {
 } from "@/frontend/graphql/sharedDocuments/admin";
 import { extractErrorCode } from "@/frontend/lib/graphql-error-utils";
 import { parseUsersUrlState, serializeUsersUrlState } from "@/frontend/views/admin/directory-url-state";
-import type { DirectoryUserItem } from "@/frontend/views/admin/users/directory";
+import { useDirectoryPageAndDialogs } from "@/frontend/views/admin/users/hooks/useDirectoryPageAndDialogs";
+import { useUsersUrlSync } from "@/frontend/views/admin/users/hooks/useUsersUrlSync";
 import {
   type DirectoryGovernance,
   type DirectoryRole,
@@ -39,7 +40,6 @@ import {
 
 type Role = DirectoryRole;
 type Governance = DirectoryGovernance;
-type DirectoryUserListItem = DirectoryUserItem;
 
 /**
  * Role / governance / country / search filter draft state (search debounced
@@ -70,41 +70,6 @@ function useDirectoryFilters() {
     searchInput,
     setSearchInput,
     searchDebounced,
-  };
-}
-
-/**
- * Pagination draft state + the create/edit/delete dialog targets + success
- * snackbar. The page pair seeds from the URL contract so a shared link
- * lands on the exact paginated position it was copied from (fail-closed
- * parsing clamps junk/out-of-range values back to the defaults).
- */
-function useDirectoryPageAndDialogs(urlPage: number, urlPageSize: number) {
-  const [page, setPage] = useState(urlPage);
-  const [pageSize, setPageSizeState] = useState(urlPageSize);
-  const [createOpen, setCreateOpen] = useState(false);
-  const [editTarget, setEditTarget] = useState<DirectoryUserListItem | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<DirectoryUserListItem | null>(null);
-  const [snackbarMessage, setSnackbarMessage] = useState<string | null>(null);
-
-  const setPageSize = (value: number) => {
-    setPageSizeState(value);
-    setPage(0);
-  };
-
-  return {
-    page,
-    pageSize,
-    setPage,
-    setPageSize,
-    createOpen,
-    setCreateOpen,
-    editTarget,
-    setEditTarget,
-    deleteTarget,
-    setDeleteTarget,
-    snackbarMessage,
-    setSnackbarMessage,
   };
 }
 
@@ -180,15 +145,10 @@ export function useAdminUsersDirectory() {
   const hasFilters = roleFilter !== "" || governanceFilter !== "" || countryFilter !== "" || searchDebounced !== "";
 
   // ── Shareable-URL write-back (the URL mirrors the APPLIED state) ──────
-  // The APPLIED (post-debounce) state — never the raw draft — serializes
-  // into the query string through `router.replace` (no history entry per
-  // keystroke). Defaults are OMITTED (a clean surface shares as the bare
-  // path), the write is skipped when the URL already matches (no replace
-  // churn on unrelated re-renders), and `{ scroll: false }` keeps the
-  // viewport anchored while typing or paging.
-  const searchParams = useSearchParams();
-  const router = useRouter();
-  const pathname = usePathname();
+  // The applied (post-debounce) query string is written back through
+  // `router.replace` by the sibling `useUsersUrlSync` hook — no history
+  // entry per keystroke, `{ scroll: false }`, no replace churn when the
+  // URL already mirrors the applied state.
   const appliedQuery = serializeUsersUrlState({
     q: searchDebounced,
     role: roleFilter,
@@ -197,17 +157,7 @@ export function useAdminUsersDirectory() {
     page,
     pageSize,
   });
-  useEffect(() => {
-    if (searchParams.toString() !== appliedQuery) {
-      router.replace(appliedQuery === "" ? pathname : `${pathname}?${appliedQuery}`, { scroll: false });
-    }
-    // `searchParams` (the object — eslint exhaustive-deps) and
-    // `searchParams.toString` (the member chain — biome's tracked shape, a
-    // fresh function reference per params object) both stay dependencies:
-    // after the replace the guard re-reads the NEW url, sees it already
-    // mirrors the applied state, and skips — one extra effect pass, zero
-    // replace churn.
-  }, [appliedQuery, router, pathname, searchParams, searchParams.toString]);
+  useUsersUrlSync(appliedQuery);
 
   return {
     ...filters,

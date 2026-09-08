@@ -5,13 +5,12 @@
  * certified-teacher directory (the original read-only view) plus the
  * applicant queue (new registrations awaiting certification).
  *
- * The surface owns the page header, the tab strip (MUI `Tabs`, sx-only,
- * RTL-safe — the indicator and label order mirror automatically under the
- * RTL emotion cache), and the two panels. Panels stay MOUNTED while hidden
- * (the `hidden` attribute, the MUI TabPanel recipe) so switching tabs
- * preserves each tab's filter/page state; both tab queries therefore run
- * from mount — the queue's honest `total` doubles as the inactive-tab
- * count badge with no second fetch.
+ * The surface owns the page header, the tab strip (`AdminTeachersTabStrip`)
+ * and the two panels. Panels stay MOUNTED while hidden (the `hidden`
+ * attribute, the MUI TabPanel recipe) so switching tabs preserves each
+ * tab's filter/page state; both tab queries therefore run from mount — the
+ * queue's honest `total` doubles as the inactive-tab count badge with no
+ * second fetch.
  *
  * The queue state is lifted here (`useAdminTeacherApplicants`) so the tab
  * badge can read the total while the panel below receives it as a prop.
@@ -33,18 +32,16 @@
  * ≥44px touch targets.
  */
 
-import { Box, Card, Stack, Tab, Tabs, Typography } from "@mui/material";
+import { Box, Stack, Typography } from "@mui/material";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { type ReactNode, useEffect, useState } from "react";
 import { parseTeachersUrlTab, serializeTeachersSurfaceUrlState } from "@/frontend/views/admin/directory-url-state";
 import { AdminApplicantsPanel } from "@/frontend/views/admin/teachers/AdminApplicantsPanel";
 import { AdminTeachersDirectoryPanel } from "@/frontend/views/admin/teachers/AdminTeachersDirectoryPanel";
+import { AdminTeachersTabStrip, type TeachersTab } from "@/frontend/views/admin/teachers/AdminTeachersTabStrip";
 import { useAdminTeacherApplicants, useAdminTeachersDirectory } from "@/frontend/views/admin/teachers/hooks";
 import { useAppTranslation } from "@/shared/locale/client";
 import { AdminTeachers } from "@/shared/locale/namespaces/adminTeachers";
-
-/** The two tabs of the /teachers surface (values double as MUI `Tab` values). */
-type TeachersTab = "teachers" | "applicants";
 
 export function AdminTeachersSurface(): ReactNode {
   const labels = useAppTranslation(AdminTeachers);
@@ -85,17 +82,15 @@ export function AdminTeachersSurface(): ReactNode {
       pageSize: applicants.pageSize,
     },
   });
+  const currentQuery = searchParams.toString();
   useEffect(() => {
-    if (searchParams.toString() !== urlQuery) {
+    if (currentQuery !== urlQuery) {
       router.replace(urlQuery === "" ? pathname : `${pathname}?${urlQuery}`, { scroll: false });
     }
-    // `searchParams` (the object — eslint exhaustive-deps) and
-    // `searchParams.toString` (the member chain — biome's tracked shape, a
-    // fresh function reference per params object) both stay dependencies:
-    // after the replace the guard re-reads the NEW url, sees it already
-    // mirrors the active view, and skips — one extra effect pass, zero
-    // replace churn.
-  }, [urlQuery, router, pathname, searchParams, searchParams.toString]);
+    // `currentQuery` re-runs the guard whenever the URL changes; after the
+    // replace it already mirrors the active view, so the effect skips —
+    // one extra pass, zero replace churn.
+  }, [urlQuery, router, pathname, currentQuery]);
 
   // The count badge is an INACTIVE-tab affordance: while the admin reads
   // the queue the pagination footer already shows the total, so the badge
@@ -114,42 +109,12 @@ export function AdminTeachersSurface(): ReactNode {
         </Typography>
       </Box>
 
-      <Card
-        sx={theme => ({
-          borderRadius: "12px",
-          border: `1px solid ${theme.palette.border.light}`,
-          boxShadow: theme.palette.shadow.card,
-        })}
-      >
-        <Tabs
-          value={activeTab}
-          onChange={(_, value: TeachersTab) => {
-            setActiveTab(value);
-          }}
-          aria-label={labels.title}
-          sx={theme => ({ paddingInline: 2, borderBottom: `1px solid ${theme.palette.border.light}` })}
-        >
-          <Tab
-            value="teachers"
-            label={labels.tabs.teachersTab}
-            id="teachers-tab-teachers"
-            aria-controls="teachers-panel-teachers"
-            sx={{ minHeight: 48, textTransform: "none", fontWeight: 600, fontSize: 15 }}
-          />
-          <Tab
-            value="applicants"
-            label={
-              <ApplicantsTabLabel
-                label={labels.tabs.applicantsTab}
-                badge={showApplicantsBadge ? applicants.total : null}
-              />
-            }
-            id="teachers-tab-applicants"
-            aria-controls="teachers-panel-applicants"
-            sx={{ minHeight: 48, textTransform: "none", fontWeight: 600, fontSize: 15 }}
-          />
-        </Tabs>
-      </Card>
+      <AdminTeachersTabStrip
+        labels={labels}
+        activeTab={activeTab}
+        applicantsBadge={showApplicantsBadge ? applicants.total : null}
+        onChangeTab={setActiveTab}
+      />
 
       {/*
         Both panels stay MOUNTED while hidden (the `hidden` attribute —
@@ -184,45 +149,6 @@ export function AdminTeachersSurface(): ReactNode {
       >
         <AdminApplicantsPanel labels={labels} applicants={applicants} />
       </Box>
-    </Stack>
-  );
-}
-
-interface ApplicantsTabLabelProps {
-  readonly label: string;
-  /** The queue total when the badge is showing; `null` hides the badge. */
-  readonly badge: number | null;
-}
-
-/**
- * The applicants tab label with the small count chip — a tonal pill on the
- * theme's secondary container lane (the Teacher identity lane) so it reads
- * as metadata, not as a destructive alert.
- */
-function ApplicantsTabLabel({ label, badge }: ApplicantsTabLabelProps): ReactNode {
-  return (
-    <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
-      <Box component="span">{label}</Box>
-      {badge !== null && (
-        <Box
-          component="span"
-          sx={theme => ({
-            display: "inline-flex",
-            alignItems: "center",
-            justifyContent: "center",
-            minWidth: 20,
-            height: 20,
-            paddingInline: 0.75,
-            borderRadius: "999px",
-            bgcolor: theme.palette.secondaryContainer,
-            color: theme.palette.onSecondaryContainer,
-            fontSize: 12,
-            fontWeight: 700,
-          })}
-        >
-          {badge}
-        </Box>
-      )}
     </Stack>
   );
 }

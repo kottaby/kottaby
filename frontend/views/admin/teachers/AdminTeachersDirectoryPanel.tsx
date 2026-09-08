@@ -43,6 +43,7 @@ import { AdminTeacherDetailDrawer } from "@/frontend/views/admin/teachers/AdminT
 import type { TeacherDirectoryItem } from "@/frontend/views/admin/teachers/AdminTeacherRowCells";
 import { AdminTeachersResults } from "@/frontend/views/admin/teachers/AdminTeachersResults";
 import { AdminTeachersToolbar } from "@/frontend/views/admin/teachers/AdminTeachersToolbar";
+import { downloadCsvFile } from "@/frontend/views/admin/teachers/csv-download";
 import type { useAdminTeachersDirectory } from "@/frontend/views/admin/teachers/hooks";
 import {
   buildTeachersDirectoryCsv,
@@ -93,8 +94,9 @@ export function AdminTeachersDirectoryPanel({
   // Server-side EXPORT-ALL: the dedicated export query runs with the
   // CURRENT filter state (the hook owns the filter-to-variables mapping),
   // then the returned rows serialize through the EXISTING pure CSV builder
-  // (same item shape as the listing) and download via the same
-  // Blob/anchor/revoke recipe. Feedback through the shared snackbar:
+  // (same item shape as the listing) and download through the shared
+  // `downloadCsvFile` Blob/anchor/revoke recipe. Feedback through the
+  // shared snackbar:
   // success reports the exported row count; a capped dump reports the
   // truncation warning instead (it implies completion); a failed query
   // reports the error lane without any download.
@@ -114,17 +116,7 @@ export function AdminTeachersDirectoryPanel({
       );
     }
     const csv = buildTeachersDirectoryCsv(envelope.rows, labels);
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = teachersDirectoryCsvFilename();
-    document.body.append(anchor);
-    anchor.click();
-    anchor.remove();
-    setTimeout(() => {
-      URL.revokeObjectURL(url);
-    }, 0);
+    downloadCsvFile(csv, teachersDirectoryCsvFilename());
   };
   // Re-fetch the current page after a load failure (transport failure or
   // GraphQL error). The promise is handed to Apollo; rejections re-surface

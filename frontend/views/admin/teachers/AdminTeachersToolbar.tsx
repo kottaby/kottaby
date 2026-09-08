@@ -17,24 +17,25 @@
  *
  * The select chrome is the SHARED `DirectoryFilterSelect` imported from the
  * users directory (identical 44px outlined control); the reported string is
- * narrowed back to the local filter unions by the runtime guards below.
- * Label slices are passed down narrowed — nothing is hardcoded. All colors
- * resolve through theme-callback sx.
+ * narrowed back to the local filter unions by the validated lookup helpers
+ * in `adminTeachersDirectory.helpers`. The action buttons and the search
+ * field are the SHARED `AdminTeachersToolbarControls` (identical recipe in
+ * the applicants toolbar). Label slices are passed down narrowed — nothing
+ * is hardcoded. All colors resolve through theme-callback sx.
  */
 
-import {
-  FileDownloadOutlined as DownloadIcon,
-  LinkOutlined as LinkIcon,
-  RefreshOutlined as RefreshIcon,
-  SearchOutlined as SearchIcon,
-} from "@mui/icons-material";
-import { Box, Button, Card, TextField, Tooltip } from "@mui/material";
+import { Box, Button, Card } from "@mui/material";
 import type { ReactNode } from "react";
-import { useDirectoryCopyLink } from "@/frontend/views/admin/directory-copy-link";
-import type {
-  TeacherApprovalFilter,
-  TeacherEvaluatorFilter,
-  TeacherOnlineFilter,
+import {
+  ToolbarCopyLinkButton,
+  ToolbarExportCsvButton,
+  ToolbarRefreshButton,
+  ToolbarSearchField,
+} from "@/frontend/views/admin/teachers/AdminTeachersToolbarControls";
+import {
+  asApprovalFilter,
+  asEvaluatorFilter,
+  asOnlineFilter,
 } from "@/frontend/views/admin/teachers/adminTeachersDirectory.helpers";
 import type { useAdminTeachersDirectory } from "@/frontend/views/admin/teachers/hooks";
 import { DirectoryFilterSelect } from "@/frontend/views/admin/users/directory";
@@ -72,29 +73,6 @@ interface AdminTeachersToolbarProps {
   /** Invoked after the view URL copies successfully (drives the snackbar). */
   readonly onCopyLink?: () => void;
 }
-/** Runtime narrowing of the select's string value back to the approval union. */
-function asApprovalFilter(value: string): TeacherApprovalFilter | "" {
-  if (value === "Approved" || value === "Pending") {
-    return value;
-  }
-  return "";
-}
-
-/** Runtime narrowing of the select's string value back to the presence union. */
-function asOnlineFilter(value: string): TeacherOnlineFilter | "" {
-  if (value === "Online" || value === "Offline") {
-    return value;
-  }
-  return "";
-}
-
-/** Runtime narrowing of the select's string value back to the evaluator union. */
-function asEvaluatorFilter(value: string): TeacherEvaluatorFilter | "" {
-  if (value === "Evaluator" || value === "NonEvaluator") {
-    return value;
-  }
-  return "";
-}
 
 export function AdminTeachersToolbar({
   labels,
@@ -125,7 +103,7 @@ export function AdminTeachersToolbar({
       })}
     >
       <Box sx={{ display: "flex", width: "100%", flexWrap: "wrap", gap: 2, alignItems: "center" }}>
-        <TeacherSearchField
+        <ToolbarSearchField
           id={SEARCH_ID}
           labels={labels}
           value={directory.searchInput}
@@ -179,131 +157,21 @@ export function AdminTeachersToolbar({
             {labels.filters.clear}
           </Button>
         )}
-        <CopyLinkButton labels={labels} onCopyLink={onCopyLink} />
-        <ExportCsvButton
+        <ToolbarCopyLinkButton labels={labels} onCopyLink={onCopyLink} />
+        <ToolbarExportCsvButton
           labels={labels}
           onExportCsv={onExportCsv}
           exportLoading={exportLoading}
           exportDisabled={exportDisabled}
         />
-        <Button
-          variant="text"
-          startIcon={<RefreshIcon />}
+        <ToolbarRefreshButton
+          labels={labels}
+          loading={loading}
           onClick={() => {
             void directory.refetch();
           }}
-          disabled={loading}
-          aria-label={labels.filters.refresh}
-          sx={theme => ({ minHeight: 44, flexShrink: 0, color: theme.palette.text.secondary })}
-        >
-          {labels.filters.refresh}
-        </Button>
+        />
       </Box>
     </Card>
-  );
-}
-
-interface ExportCsvButtonProps {
-  readonly labels: ToolbarLabels;
-  readonly onExportCsv: () => void;
-  readonly exportLoading: boolean;
-  readonly exportDisabled: boolean;
-}
-
-interface CopyLinkButtonProps {
-  readonly labels: ToolbarLabels;
-  /** Invoked after the view URL copies successfully (drives the snackbar). */
-  readonly onCopyLink?: () => void;
-}
-
-/**
- * The shareable-view action — copies the CURRENT URL (the surface's
- * URL-mirror effect keeps the query string in sync with the active tab's
- * applied filters, so what the admin pastes is exactly what they see).
- * Same text-button recipe as the export/refresh actions next to it; the
- * icon tints to the success color while the copy has resolved, and
- * failures stay silent (the snackbar never lies about a copy that did not
- * happen).
- */
-function CopyLinkButton({ labels, onCopyLink }: CopyLinkButtonProps): ReactNode {
-  const { linkCopied, handleCopyLink } = useDirectoryCopyLink(onCopyLink);
-  return (
-    <Tooltip title={labels.quickActions.copyLink} placement="top">
-      <Button
-        variant="text"
-        startIcon={
-          <LinkIcon
-            fontSize="small"
-            sx={theme => ({ color: linkCopied ? theme.palette.success.main : theme.palette.text.secondary })}
-          />
-        }
-        onClick={handleCopyLink}
-        aria-label={labels.quickActions.copyLink}
-        sx={theme => ({ minHeight: 44, flexShrink: 0, color: theme.palette.text.secondary })}
-      >
-        {labels.quickActions.copyLink}
-      </Button>
-    </Tooltip>
-  );
-}
-
-/**
- * The export action — same text-button recipe as the refresh action next to
- * it (variant/size/44px floor/`text.secondary` ink). While the export-all
- * query is in flight the button shows MUI's leading spinner busy state.
- * The tooltip switches to the honest "nothing to export" copy while
- * disabled; a `<span>` wrapper keeps the tooltip reachable on a disabled
- * button (disabled elements emit no pointer events).
- */
-function ExportCsvButton({ labels, onExportCsv, exportLoading, exportDisabled }: ExportCsvButtonProps): ReactNode {
-  return (
-    <Tooltip title={exportDisabled ? labels.export.exportCsvEmpty : labels.export.exportCsv} placement="top">
-      <Box component="span" sx={{ display: "inline-flex", flexShrink: 0 }}>
-        <Button
-          variant="text"
-          startIcon={<DownloadIcon />}
-          onClick={onExportCsv}
-          loading={exportLoading}
-          disabled={exportDisabled}
-          aria-label={labels.export.exportCsv}
-          sx={theme => ({ minHeight: 44, flexShrink: 0, color: theme.palette.text.secondary })}
-        >
-          {labels.export.exportCsv}
-        </Button>
-      </Box>
-    </Tooltip>
-  );
-}
-
-interface TeacherSearchFieldProps {
-  readonly id: string;
-  readonly labels: ToolbarLabels;
-  readonly value: string;
-  readonly onChange: (value: string) => void;
-}
-
-/** The toolbar's search input: magnifier leading adornment, fixed 44px height. */
-function TeacherSearchField({ id, labels, value, onChange }: TeacherSearchFieldProps): ReactNode {
-  return (
-    <TextField
-      id={id}
-      hiddenLabel
-      placeholder={labels.filters.searchPlaceholder}
-      value={value}
-      onChange={event => onChange(event.target.value)}
-      slotProps={{
-        htmlInput: { "aria-label": labels.filters.search },
-        input: {
-          startAdornment: (
-            <SearchIcon fontSize="small" sx={theme => ({ marginInlineEnd: 1, color: theme.palette.text.secondary })} />
-          ),
-        },
-      }}
-      sx={{
-        flex: { xs: "1 1 100%", sm: "1 1 300px" },
-        maxWidth: 400,
-        "& .MuiInputBase-root": { height: 44 },
-      }}
-    />
   );
 }
