@@ -21,13 +21,15 @@
  *    pair + users-locale surface, plus the reconciled DEV3-016 admin-user
  *    trio + DEV3-004 session quartet + DEV3-005 dispute pair + DEV3-012
  *    confirm + DEV3-013 payout + the sanctioned DEV3-017 admin-governance
- *    pair) and the Query root is EXACTLY the refreshed 19-op baseline (the
+ *    pair) and the Query root is EXACTLY the refreshed 29-op baseline (the
  *    prior frozen baseline + the `_health` probe + the reconciled
  *    DEV3-016 admin-user query quartet + the DEV3-004 participant-read
  *    trio + the DEV3-005 admin arbitration listing + the DEV3-013 wallet
- *    read + the DEV1-013 handshake pair). Mirrors the `PRE_3_1_*` +
+ *    read + the DEV1-013 handshake pair + the re-anchored R1–R3 admin
+ *    directory trio). Mirrors the `PRE_3_1_*` +
  *    `DEV3_016_ADMIN_*` + `DEV3_017_ADMIN_GOVERNANCE_MUTATION_FIELDS`
- *    inventories in schema-surface.test.ts.
+ *    inventories in schema-surface.test.ts, extended with the R5 admin
+ *    directory export trio.
  *  - **Users-locale surface (D2)** — `updateMyLocale(locale: AppLocale!): User!`
  *    is present with its EXACT SDL signature, `User.locale` is the nullable
  *    `AppLocale` enum, and the `AppLocale` enum carries exactly the two
@@ -144,19 +146,24 @@ const FROZEN_MUTATION_FIELDS = [
 ] as const;
 
 /**
- * Root query fields — the refreshed 19-op baseline + the whole-platform
+ * Root query fields — the refreshed 29-op baseline + the whole-platform
  * analytics snapshot: the prior frozen baseline + the `_health` probe +
  * the reconciled dev3-016 admin-user query quartet + the dev3-004
  * participant-read trio + the dev3-005 admin arbitration listing + the
- * dev3-013 wallet read + the dev1-013 handshake pair. Sorted
- * alphabetically (mirrors the live
- * `printSchema(lexicographicSortSchema(graphQLSchema))` Query root
- * inventory verbatim, with locale-aware case handling:
+ * dev3-013 wallet read + the dev1-013 handshake pair + the R1–R3 admin
+ * directory trio (`adminTeachers` / `adminStudents` /
+ * `adminTeacherApplicants` — shipped across the admin-directory rounds
+ * but never enumerated here; re-anchored to the live schema as a
+ * documented one-time reconciliation, NOT a silent baseline flip) + the
+ * R5 admin directory export trio (`adminTeachersExport` /
+ * `adminStudentsExport` / `adminTeacherApplicantsExport` — the sanctioned
+ * export-all read surface, pinned as the documented one-time
+ * reconciliation in the same convention). Sorted alphabetically (mirrors
+ * the live `printSchema(lexicographicSortSchema(graphQLSchema))` Query
+ * root inventory verbatim, with locale-aware case handling:
  * `adminUsers` precedes `adminUserStats` because the locale comparator
  * treats `s`/`S` as primary-equal and lowercases win on the secondary
- * tie-breaker — verified by the live built schema). Re-anchored to the
- * live schema as a documented one-time reconciliation (NOT a silent
- * baseline flip).
+ * tie-breaker — verified by the live built schema).
  */
 const FROZEN_QUERY_FIELDS = [
   "_health",
@@ -164,6 +171,12 @@ const FROZEN_QUERY_FIELDS = [
   "adminDisputedSessions",
   "adminPlans",
   "adminPlatformAnalytics",
+  "adminStudents",
+  "adminStudentsExport",
+  "adminTeacherApplicants",
+  "adminTeacherApplicantsExport",
+  "adminTeachers",
+  "adminTeachersExport",
   "adminUserActivity",
   "adminUserDetail",
   "adminUsers",
@@ -323,7 +336,7 @@ describe("BFLA structural verdict — zero notification CUD surface (REQ-032)", 
     expect(names.toSorted((a, b) => a.localeCompare(b))).toEqual([...FROZEN_MUTATION_FIELDS]);
   });
 
-  test("Query root is EXACTLY the refreshed frozen 19-op baseline (zero unsanctioned growth)", () => {
+  test("Query root is EXACTLY the refreshed frozen 29-op baseline (zero unsanctioned growth)", () => {
     const names = fieldSurfaces("Query").map(surface => surface.name);
     expect(names.toSorted((a, b) => a.localeCompare(b))).toEqual([...FROZEN_QUERY_FIELDS]);
   });

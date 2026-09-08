@@ -26,6 +26,9 @@ import { mock } from "bun:test";
 import type { AppLocale } from "@/shared/locale/AppLocale";
 import { arMessages } from "@/shared/locale/ar/messages";
 import { enMessages } from "@/shared/locale/en/messages";
+import { AdminStudents } from "@/shared/locale/namespaces/adminStudents";
+import { AdminTeachers } from "@/shared/locale/namespaces/adminTeachers";
+import { AdminUsers } from "@/shared/locale/namespaces/adminUsers";
 import { Applicant } from "@/shared/locale/namespaces/applicant";
 import { Auth } from "@/shared/locale/namespaces/auth";
 import { Common } from "@/shared/locale/namespaces/common";
@@ -96,4 +99,10 @@ for (const translations of [arMessages, enMessages]) {
   // incoming queue + parent outgoing section) surface missing-key drift at
   // preload time.
   ParentLink.getLabels(translations);
+  // Warm the admin-directory handles (users / students / teachers) so the
+  // admin mobile-card + empty-state suites surface missing-key drift at
+  // preload time.
+  AdminUsers.getLabels(translations);
+  AdminStudents.getLabels(translations);
+  AdminTeachers.getLabels(translations);
 }

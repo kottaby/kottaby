@@ -1,15 +1,27 @@
 "use client";
 
 /**
- * DirectorySearchField — the toolbar's search input: magnifier leading
- * adornment, ~400px max width, fixed 44px control height (matches the
- * selects and the Create button).
+ * DirectorySearchField — the admin user directory toolbar's search input:
+ * the shared `DirectoryToolbarSearchField` primitive (magnifier leading
+ * adornment, ~400px max width, fixed 44px control height — matches the
+ * selects and the Create button) with this toolbar's desktop-only row
+ * sizing (the card renders from `md` up and holds one wrapping line, so
+ * the flexible floor is keyed to `md` with an explicit width pair).
  */
 
-import { SearchOutlined as SearchIcon } from "@mui/icons-material";
-import { TextField } from "@mui/material";
+import type { SxProps, Theme } from "@mui/material/styles";
 import type { ReactNode } from "react";
+import { DirectoryToolbarSearchField } from "@/frontend/views/admin/directory-shared/DirectoryToolbarSearchField";
 import type { AdminUsersLabels } from "@/shared/locale/types/adminUsers";
+
+/** Desktop-row sizing of the users toolbar line (the md+ single wrapping row). */
+const directorySearchFieldSx: SxProps<Theme> = {
+  flex: { xs: "1 1 100%", md: "1 1 260px" },
+  width: { xs: "100%", md: 400 },
+  maxWidth: 400,
+  minWidth: 220,
+  "& .MuiInputBase-root": { height: 44 },
+};
 
 interface DirectorySearchFieldProps {
   readonly id: string;
@@ -20,26 +32,13 @@ interface DirectorySearchFieldProps {
 
 export function DirectorySearchField({ id, labels, value, onChange }: DirectorySearchFieldProps): ReactNode {
   return (
-    <TextField
+    <DirectoryToolbarSearchField
       id={id}
-      hiddenLabel
       placeholder={labels.filters.searchPlaceholder}
+      ariaLabel={labels.filters.search}
       value={value}
-      onChange={event => onChange(event.target.value)}
-      slotProps={{
-        htmlInput: { "aria-label": labels.filters.search },
-        input: {
-          startAdornment: (
-            <SearchIcon fontSize="small" sx={theme => ({ marginInlineEnd: 1, color: theme.palette.text.secondary })} />
-          ),
-        },
-      }}
-      sx={{
-        flex: { xs: "1 1 100%", md: "0 1 auto" },
-        width: { xs: "100%", md: 400 },
-        maxWidth: 400,
-        "& .MuiInputBase-root": { height: 44 },
-      }}
+      onChange={onChange}
+      sx={directorySearchFieldSx}
     />
   );
 }
