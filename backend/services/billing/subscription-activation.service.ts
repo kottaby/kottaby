@@ -261,6 +261,7 @@ async function confirmPayment(
       subscription.id,
       {
         startDate: now,
+        // Catalog validation caps intervalDays at 3650 days (ten years) — this window arithmetic can never overflow.
         endDate: new Date(now.getTime() + plan.intervalDays * MS_PER_DAY),
         paymentVerifiedAt: now,
       },

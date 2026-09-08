@@ -361,6 +361,56 @@ describe("PlanCatalogService", () => {
     });
   });
 
+  // ─── intervalDays upper bound (the activation window multiplies this field) ─
+
+  test("createPlan and updatePlan reject intervalDays past the validated ceiling (3651 → out of range)", async () => {
+    await runInRollback(async tx => {
+      // Create: one day past the ten-year ceiling is rejected before persistence.
+      let errCreate: unknown;
+      try {
+        await PlanCatalogService.createPlan(
+          { title: "Overflow Interval Plan", sessionCount: 5, price: "100.00", currency: "EGP", intervalDays: 3651 },
+          "en",
+          tx
+        );
+      } catch (err: unknown) {
+        errCreate = err;
+      }
+      expect(errCreate).toBeInstanceOf(ValidationError);
+      if (errCreate instanceof ValidationError) {
+        const fieldError = errCreate.fields?.find(f => f.field === "intervalDays");
+        expect(fieldError?.code).toBe("PLAN_INTERVAL_DAYS_OUT_OF_RANGE");
+        expect(fieldError?.message).toBe("Invalid input.");
+      }
+
+      // Update: the same ceiling guards the patch path on an existing plan.
+      const existing = await createTestPlan(tx, { title: "Interval Patch Plan" });
+      let errUpdate: unknown;
+      try {
+        await PlanCatalogService.updatePlan(existing.id, { intervalDays: 3651 }, "en", tx);
+      } catch (err: unknown) {
+        errUpdate = err;
+      }
+      expect(errUpdate).toBeInstanceOf(ValidationError);
+      if (errUpdate instanceof ValidationError) {
+        const fieldError = errUpdate.fields?.find(f => f.field === "intervalDays");
+        expect(fieldError?.code).toBe("PLAN_INTERVAL_DAYS_OUT_OF_RANGE");
+      }
+      expect((await PlanRepository.findById(existing.id, tx))?.intervalDays).toBe(30);
+    });
+  });
+
+  test("intervalDays at the validated ceiling (3650) is accepted on the boundary", async () => {
+    await runInRollback(async tx => {
+      const created = await PlanCatalogService.createPlan(
+        { title: "Ten Year Plan", sessionCount: 5, price: "100.00", currency: "EGP", intervalDays: 3650 },
+        "en",
+        tx
+      );
+      expect(created.intervalDays).toBe(3650);
+    });
+  });
+
   // ─── Balance lane validation (valid member | null | undefined only) ───────
 
   test("createPlan persists each balance lane member (roundtrip)", async () => {

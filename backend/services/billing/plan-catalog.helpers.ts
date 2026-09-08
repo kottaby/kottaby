@@ -17,6 +17,14 @@ import type { ErrorsLabels } from "@/shared/locale/types/errors";
 const PRICE_REGEX = /^\d{1,8}(\.\d{1,2})?$/;
 const CURRENCY_REGEX = /^[A-Z]{3}$/;
 
+/**
+ * Upper bound on a plan's billing interval (ten years). The activation window
+ * arithmetic multiplies this field into Date milliseconds, so an unbounded
+ * value would poison every confirmed delivery that reads the plan — the
+ * catalog rejects anything beyond the ceiling before it can be persisted.
+ */
+const MAX_INTERVAL_DAYS = 3650;
+
 /** Runtime membership probe over the lane vocabulary (mirrors the `subscription_credit_lane` pgEnum). */
 const SUBSCRIPTION_CREDIT_LANE_VALUES: readonly string[] = Object.values(SubscriptionCreditLane);
 
@@ -150,6 +158,15 @@ function validateIntervalDaysField(
         field: "intervalDays",
         code: "PLAN_INTERVAL_DAYS_INVALID",
         message: tErrors.planCatalog.planIntervalDaysInvalid,
+      },
+    };
+  }
+  if (days > MAX_INTERVAL_DAYS) {
+    return {
+      error: {
+        field: "intervalDays",
+        code: "PLAN_INTERVAL_DAYS_OUT_OF_RANGE",
+        message: tErrors.validation,
       },
     };
   }
