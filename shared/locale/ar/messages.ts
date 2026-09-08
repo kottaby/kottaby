@@ -1,4 +1,6 @@
 import { adminBroadcastsAr } from "@/shared/locale/ar/adminBroadcasts";
+import { adminStudentsAr } from "@/shared/locale/ar/adminStudents";
+import { adminTeachersAr } from "@/shared/locale/ar/adminTeachers";
 import { adminUsersAr } from "@/shared/locale/ar/adminUsers";
 import { analyticsAr } from "@/shared/locale/ar/analytics";
 import { applicantAr } from "@/shared/locale/ar/applicant";
@@ -28,6 +30,8 @@ export const arMessages: Translations = {
   sessionsTranslations: sessionsAr,
   walletTranslations: walletAr,
   adminUsersTranslations: adminUsersAr,
+  adminTeachersTranslations: adminTeachersAr,
+  adminStudentsTranslations: adminStudentsAr,
   adminBroadcastsTranslations: adminBroadcastsAr,
   notificationsTranslations: notificationsAr,
   handshakeCodeTranslations: handshakeCodeAr,

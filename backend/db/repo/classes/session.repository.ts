@@ -65,6 +65,7 @@ import type {
   SessionTransitionProbeRowType,
   SessionWaveContextRow,
 } from "@/backend/types";
+import { SESSION_CONFIRMATION_WINDOW_MS } from "@/shared/constants/session-fees.constants";
 
 /**
  * ONE module-scope predicate builder shared by the participant-initiated
@@ -419,6 +420,43 @@ export namespace SessionRepository {
       .update(session)
       .set({ status: SessionStatus.Cancelled, feeHeld: false, updatedAt: now })
       .where(and(eq(session.status, SessionStatus.Scheduled), sql`${session.confirmationDeadline} < ${now}`))
+      .returning();
+  }
+
+  /**
+   * Post-completion confirmation sweeper: ONE guarded batch UPDATE
+   * cancelling every `completed` session whose student-confirmation window
+   * has elapsed — the teacher's confirmation stamp is older than the
+   * window while the student stamp is still absent. The window is
+   * evaluated at sweep time from the recorded teacher stamp (pure
+   * predicate arithmetic — the confirmation deadline column is written at
+   * creation and never re-armed by any transition). The statement clears
+   * the hold marker (the caller refunds each returned row's recorded lane
+   * through the shared same-lane primitive); rows WITHOUT a recorded lane
+   * match too — a NULL lane on a returned row means there is nothing to
+   * refund. A student-confirmed row never matches (its escrow was
+   * consumed by earning, not held for refund), and a row in any
+   * non-completed state is structurally unreachable. Idempotent: a second
+   * run matches zero rows.
+   *
+   * @param now  The caller's single captured sweep instant — every row's
+   *     `updated_at` shares it, and the window comparison uses the same
+   *     clock reading.
+   * @returns Every cancelled row (the caller refunds the held ones).
+   */
+  export async function sweepExpiredCompletedOnce(now: Date, tx?: DBTransaction): Promise<SessionSelectType[]> {
+    const cutoff = new Date(now.getTime() - SESSION_CONFIRMATION_WINDOW_MS);
+    const executor = tx ?? db;
+    return executor
+      .update(session)
+      .set({ status: SessionStatus.Cancelled, feeHeld: false, updatedAt: now })
+      .where(
+        and(
+          eq(session.status, SessionStatus.Completed),
+          sql`${session.confirmedByStudentAt} IS NULL`,
+          sql`${session.confirmedByTeacherAt} < ${cutoff}`
+        )
+      )
       .returning();
   }
 

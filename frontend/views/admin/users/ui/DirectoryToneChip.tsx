@@ -4,6 +4,12 @@
  * DirectoryToneChip — the small tonal pill the directory row cells share
  * (role pill, per-role status/details chips). Painted from a M3
  * container/`on<Color>Container` pair via `directoryToneColors`.
+ *
+ * The chip NEVER flex-shrinks: width-capped wrapping flex rows (students
+ * balances cell, mobile-card status rows) would otherwise squeeze the pill
+ * below its content size while the MUI label keeps `overflow: hidden` —
+ * clipping the trailing digit ("الحفظ 0" → "الحفظ"). Shrinking is replaced
+ * by wrapping, so every pill always renders its full label.
  */
 
 import { Chip } from "@mui/material";
@@ -29,6 +35,7 @@ export function TonalChip({ tone, label }: TonalChipProps): ReactNode {
           fontWeight: 600,
           bgcolor: colors.bg,
           color: colors.fg,
+          flexShrink: 0,
         };
       }}
     />

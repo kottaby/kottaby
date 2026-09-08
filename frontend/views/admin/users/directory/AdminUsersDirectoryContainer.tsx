@@ -36,10 +36,16 @@
  */
 
 import { AddOutlined as AddIcon } from "@mui/icons-material";
-import { Alert, Button, Fab, Stack, Typography } from "@mui/material";
+import { Fab, Stack, Typography } from "@mui/material";
 import type { ReactNode } from "react";
+import { DirectoryErrorAlert } from "@/frontend/views/admin/directory-shared/DirectoryErrorAlert";
 import { AdminUserSuccessSnackbar, DirectoryMutationDialogs } from "@/frontend/views/admin/users/dialogs";
-import { DirectoryResults, DirectoryToolbar, FilterChipsRow } from "@/frontend/views/admin/users/directory";
+import {
+  ActiveFiltersRow,
+  DirectoryResults,
+  DirectoryToolbar,
+  FilterChipsRow,
+} from "@/frontend/views/admin/users/directory";
 import { useAdminUsersDirectory } from "@/frontend/views/admin/users/hooks";
 import { useAppTranslation } from "@/shared/locale/client";
 import { AdminUsers } from "@/shared/locale/namespaces/adminUsers";
@@ -49,8 +55,12 @@ export function AdminUsersDirectoryContainer(): ReactNode {
   const directory = useAdminUsersDirectory();
   // The copy-email quick action reports success through the shared success
   // snackbar (identical feedback channel as the create/edit/delete writes).
+  // The copy-LINK action rides the same channel.
   const handleCopyEmail = () => {
     directory.setSnackbarMessage(labels.quickActions.emailCopied);
+  };
+  const handleCopyLink = () => {
+    directory.setSnackbarMessage(labels.quickActions.linkCopied);
   };
   // Re-fetch the current page after a load failure (transport failure or
   // GraphQL error). The promise is handed to Apollo; rejections re-surface
@@ -77,6 +87,7 @@ export function AdminUsersDirectoryContainer(): ReactNode {
         searchInput={directory.searchInput}
         setSearchInput={directory.setSearchInput}
         onCreateUser={() => directory.setCreateOpen(true)}
+        onCopyLink={handleCopyLink}
       />
 
       <FilterChipsRow
@@ -87,18 +98,20 @@ export function AdminUsersDirectoryContainer(): ReactNode {
         setGovernanceFilter={directory.setGovernanceFilter}
       />
 
+      <ActiveFiltersRow
+        labels={labels}
+        roleFilter={directory.roleFilter}
+        governanceFilter={directory.governanceFilter}
+        countryFilter={directory.countryFilter}
+        searchApplied={directory.searchDebounced}
+        setRoleFilter={directory.setRoleFilter}
+        setGovernanceFilter={directory.setGovernanceFilter}
+        setCountryFilter={directory.setCountryFilter}
+        setSearchInput={directory.setSearchInput}
+      />
+
       {directory.hasError && (
-        <Alert
-          severity="error"
-          action={
-            <Button color="inherit" size="small" onClick={retryDirectory}>
-              {labels.errorState.retry}
-            </Button>
-          }
-        >
-          {labels.errorState.title}: {labels.errorState.message}
-          {directory.firstErrorCode === null ? "" : ` (${directory.firstErrorCode})`}
-        </Alert>
+        <DirectoryErrorAlert labels={labels.errorState} onRetry={retryDirectory} errorCode={directory.firstErrorCode} />
       )}
 
       <DirectoryResults labels={labels} directory={directory} onCopyEmail={handleCopyEmail} />
