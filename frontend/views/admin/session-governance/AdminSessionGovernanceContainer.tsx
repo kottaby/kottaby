@@ -67,7 +67,11 @@ import { AdminSessionGovernance, Errors, Sessions, useAppTranslation } from "@/s
  * an error notice (a raced concurrent governance action makes the dialog's
  * premise stale — the merged payload updates the row in place);
  * `VALIDATION` / `FORBIDDEN` / masked failures keep the dialog open for a
- * corrected submit. Codes classify through `extractErrorCode` +
+ * corrected submit. The specific boundary denials
+ * (`TEACHER_NOT_FOUND` / `TEACHER_NOT_CERTIFIED` /
+ * `SESSION_RESCHEDULE_WINDOW_INVALID` / `SESSION_RESCHEDULE_START_IN_PAST`)
+ * surface their OWN errors-namespace copy — never the directory-load
+ * fallback. Codes classify through `extractErrorCode` +
  * `normalizeGraphQLErrorCode` — the server `message` is NEVER echoed.
  *
  * Cancel idempotency — each logical cancel attempt mints ONE
@@ -323,6 +327,18 @@ export function AdminSessionGovernanceContainer(): ReactNode {
       if (code === "TEACHER_NOT_CERTIFIED") {
         return { kind: "retryable", message: te.teacherNotCertified };
       }
+      // Specific boundary denials surface their OWN errors-namespace copy —
+      // never the directory-load fallback — so the operator learns WHICH
+      // rule fired, not merely that something failed.
+      if (code === "TEACHER_NOT_FOUND") {
+        return { kind: "retryable", message: te.teacherNotFound };
+      }
+      if (code === "SESSION_RESCHEDULE_WINDOW_INVALID") {
+        return { kind: "retryable", message: te.sessionRescheduleWindowInvalid };
+      }
+      if (code === "SESSION_RESCHEDULE_START_IN_PAST") {
+        return { kind: "retryable", message: te.sessionRescheduleStartInPast };
+      }
       if (code === "VALIDATION") {
         return { kind: "retryable", message: te.validation };
       }
@@ -383,10 +399,13 @@ export function AdminSessionGovernanceContainer(): ReactNode {
   });
 
   const [commitJoin, joinMutation] = useMutation(adminSessionJoinMutationDocument, {
-    onCompleted: () => {
+    onCompleted: data => {
       // Observation continues — the drawer stays open, the banner leaves.
+      // Keyed off the MUTATION's returned session id (the payload of THIS
+      // call), never the drawer state: the drawer may already render a
+      // DIFFERENT row by the time a slow response settles.
       setNotice({ message: t.joinSuccess, severity: "success" });
-      setJoinedSessionId(drawerSessionId);
+      setJoinedSessionId(data.adminJoinSession.id);
     },
     onError: mutationError => {
       const classified = classifyMutationFailure(mutationError);

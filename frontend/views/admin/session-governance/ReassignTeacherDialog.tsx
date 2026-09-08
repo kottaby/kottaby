@@ -21,7 +21,9 @@ import { AdminSessionGovernance, Common, useAppTranslation } from "@/shared/loca
  * ticket's blast radius. The certification gate (`is_approved`) stays
  * server-owned (INV-S5): an unapproved candidate id is REJECTED by the
  * localized `TEACHER_NOT_CERTIFIED` error, never silently accepted here.
- * The input accepts whole numbers only (the wire member is `Int`).
+ * The input accepts whole numbers only (the wire member is `Int`); the
+ * bounded `WHOLE_NUMBER_PATTERN` digit window client-rejects out-of-range
+ * digit runs BEFORE the wire.
  *
  * The mutation and its error classification live in the container; the
  * dialog stays open on every failure arm for a corrected submit.
@@ -30,8 +32,14 @@ import { AdminSessionGovernance, Common, useAppTranslation } from "@/shared/loca
  * targets, keyboard-focusable dialog (`aria-labelledby` + focusable field).
  */
 
-/** Whole-number id tokens only — the wire member is `Int`, never a string (the container's id filters reuse this table). */
-export const WHOLE_NUMBER_PATTERN = /^\d+$/;
+/**
+ * Whole-number id tokens only — 1..15 digits (the wire member is `Int`,
+ * never a string; the container's id filters reuse this table). The digit
+ * ceiling is the client-rejection gate for out-of-range tokens: fifteen
+ * digits cannot exceed the JS safe-integer ceiling (10^15 − 1 < 2^53 − 1),
+ * so `Number(token)` never silently rounds a larger id.
+ */
+export const WHOLE_NUMBER_PATTERN = /^[0-9]{1,15}$/;
 
 interface ReassignTeacherDialogProps {
   /** The session being reassigned (drives the testids). */

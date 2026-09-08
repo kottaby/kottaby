@@ -7,7 +7,7 @@ export const adminSessionGovernanceEn: AdminSessionGovernanceLabels = {
     if (count === 1) return "1 session";
     return `${count} sessions`;
   },
-  summaryScopeHint: "Counts reflect the loaded page.",
+  summaryScopeHint: "Counts reflect the loaded page only.",
   needsAttentionLabel: "Needs attention",
 
   filterBarLabel: "Directory filters",

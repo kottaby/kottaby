@@ -27,7 +27,11 @@
  *   `extractErrorCode` + `normalizeGraphQLErrorCode` surface the localized
  *   403/tenant-denial copy as an ERROR Snackbar — the reschedule and
  *   reassign FORBIDDEN arms and the cancel VALIDATION arm keep the dialog
- *   OPEN for a corrected submit (the retryable family), while a masked
+ *   OPEN for a corrected submit (the retryable family); the specific
+ *   boundary-denial codes (`TEACHER_NOT_FOUND`,
+ *   `SESSION_RESCHEDULE_WINDOW_INVALID`, `SESSION_RESCHEDULE_START_IN_PAST`)
+ *   surface their OWN errors-namespace copy (R9 fix — never the
+ *   directory-load fallback), while a masked
  *   non-mapped code falls through to the container's own error title
  *   (NEVER the server message, NEVER the denial copy).
  *
@@ -500,6 +504,81 @@ for (const locale of componentSuiteLocales) {
         expect(liveScreen.getByText(te.validation)).toBeDefined();
       });
       expect(snackbarSeverityClass(te.validation)).toContain("MuiAlert-colorError");
+      expect(liveScreen.getByRole("dialog")).not.toBeNull();
+    });
+
+    test("reschedule SESSION_RESCHEDULE_WINDOW_INVALID — its OWN denial copy surfaces, dialog STAYS open", async () => {
+      renderWithMocks(
+        <AdminSessionGovernanceContainer />,
+        [
+          directoryMock(1, [rowFixture({ id: SCHEDULED_ID })]),
+          rescheduleMock(SCHEDULED_ID, { kind: "error", code: "SESSION_RESCHEDULE_WINDOW_INVALID" }),
+        ],
+        locale
+      );
+
+      const menu = await openRowMenuInContainer(SCHEDULED_ID);
+      fireEvent.click(kebabItem(menu, SCHEDULED_ID, "reschedule"));
+      await waitFor(() => {
+        expect(liveScreen.getByRole("dialog")).toBeDefined();
+      });
+      fireEvent.click(within(liveScreen.getByRole("dialog")).getByTestId("reschedule-session-submit"));
+
+      await waitFor(() => {
+        expect(liveScreen.getByText(te.sessionRescheduleWindowInvalid)).toBeDefined();
+      });
+      expect(snackbarSeverityClass(te.sessionRescheduleWindowInvalid)).toContain("MuiAlert-colorError");
+      // Retryable family: the dialog premise stays valid.
+      expect(liveScreen.getByRole("dialog")).not.toBeNull();
+    });
+
+    test("reschedule SESSION_RESCHEDULE_START_IN_PAST — its OWN denial copy surfaces, dialog STAYS open", async () => {
+      renderWithMocks(
+        <AdminSessionGovernanceContainer />,
+        [
+          directoryMock(1, [rowFixture({ id: SCHEDULED_ID })]),
+          rescheduleMock(SCHEDULED_ID, { kind: "error", code: "SESSION_RESCHEDULE_START_IN_PAST" }),
+        ],
+        locale
+      );
+
+      const menu = await openRowMenuInContainer(SCHEDULED_ID);
+      fireEvent.click(kebabItem(menu, SCHEDULED_ID, "reschedule"));
+      await waitFor(() => {
+        expect(liveScreen.getByRole("dialog")).toBeDefined();
+      });
+      fireEvent.click(within(liveScreen.getByRole("dialog")).getByTestId("reschedule-session-submit"));
+
+      await waitFor(() => {
+        expect(liveScreen.getByText(te.sessionRescheduleStartInPast)).toBeDefined();
+      });
+      expect(snackbarSeverityClass(te.sessionRescheduleStartInPast)).toContain("MuiAlert-colorError");
+      expect(liveScreen.getByRole("dialog")).not.toBeNull();
+    });
+
+    test("reassign TEACHER_NOT_FOUND — its OWN denial copy surfaces, dialog STAYS open", async () => {
+      renderWithMocks(
+        <AdminSessionGovernanceContainer />,
+        [directoryMock(1, [rowFixture({ id: SCHEDULED_ID })]), reassignMock(SCHEDULED_ID, 907, { kind: "error", code: "TEACHER_NOT_FOUND" })],
+        locale
+      );
+
+      const menu = await openRowMenuInContainer(SCHEDULED_ID);
+      fireEvent.click(kebabItem(menu, SCHEDULED_ID, "reassign"));
+      const dialog = await waitFor(() => liveScreen.getByRole("dialog"));
+      fireEvent.change(within(dialog).getByLabelText(muiLabelPattern(t.reassignTeacherIdLabel)), {
+        target: { value: "907" },
+      });
+      const submit = within(dialog).getByTestId(`reassign-teacher-submit-${SCHEDULED_ID}`);
+      await waitFor(() => {
+        expect(submit.getAttribute("disabled")).toBeNull();
+      });
+      fireEvent.click(submit);
+
+      await waitFor(() => {
+        expect(liveScreen.getByText(te.teacherNotFound)).toBeDefined();
+      });
+      expect(snackbarSeverityClass(te.teacherNotFound)).toContain("MuiAlert-colorError");
       expect(liveScreen.getByRole("dialog")).not.toBeNull();
     });
 
