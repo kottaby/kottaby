@@ -58,6 +58,7 @@ export const adminSessionGovernanceEn: AdminSessionGovernanceLabels = {
   detailCloseAriaLabel: "Close session details",
   detailMissingBody: "This session does not exist or is no longer available.",
   detailSessionIdLabel: "Session id",
+  detailIntentLabel: "Intent",
   detailStartLabel: "Start time",
   detailEndLabel: "End time",
   detailDeadlineLabel: "Confirmation deadline",

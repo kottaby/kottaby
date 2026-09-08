@@ -44,7 +44,12 @@ export const adminSessionGovernanceAr: AdminSessionGovernanceLabels = {
   rowEndLabel: "وقت الانتهاء",
   rowDeadlineLabel: "الموعد النهائي للتأكيد",
   rowActionsAriaLabel: "إجراءات الجلسة",
-  durationMinutesValue: (minutes: number) => `${minutes} دقيقة`,
+  durationMinutesValue: (minutes: number) => {
+    if (minutes === 1) return "دقيقة واحدة";
+    if (minutes === 2) return "دقيقتان";
+    if (minutes <= 10) return `${minutes} دقائق`;
+    return `${minutes} دقيقة`;
+  },
 
   actionViewDetails: "عرض التفاصيل",
   actionReschedule: "إعادة جدولة",
@@ -60,6 +65,7 @@ export const adminSessionGovernanceAr: AdminSessionGovernanceLabels = {
   detailCloseAriaLabel: "إغلاق تفاصيل الجلسة",
   detailMissingBody: "هذه الجلسة غير موجودة أو لم تعد متاحة.",
   detailSessionIdLabel: "معرّف الجلسة",
+  detailIntentLabel: "الغرض",
   detailStartLabel: "وقت البدء",
   detailEndLabel: "وقت الانتهاء",
   detailDeadlineLabel: "الموعد النهائي للتأكيد",
@@ -67,8 +73,8 @@ export const adminSessionGovernanceAr: AdminSessionGovernanceLabels = {
   detailConfirmedByTeacherLabel: "أكّد المعلّم",
   detailCancelReasonLabel: "سبب الإلغاء",
   detailDisputeReasonLabel: "سبب النزاع",
-  detailResolutionLabel: "ملاحظة الحسم",
-  detailResolvedAtLabel: "تاريخ الحسم",
+  detailResolutionLabel: "ملاحظة تحكيم",
+  detailResolvedAtLabel: "تاريخ التحكيم",
 
   rescheduleTitle: "إعادة جدولة الجلسة",
   rescheduleBody: "حدّد وقت بدء وانتهاء جديدًا. يُطبَّق التغيير فورًا ويُبلَّغ الطرفان.",
@@ -78,7 +84,7 @@ export const adminSessionGovernanceAr: AdminSessionGovernanceLabels = {
   rescheduleSuccess: "أُعيدت جدولة الجلسة.",
 
   cancelTitle: "إلغاء الجلسة",
-  cancelBody: "يُنهي الإلغاء هذه الجلسة، ويُعيد أي أموال محتجزة إلى مسارها الأصلي، ويُبلِّغ الطرفين.",
+  cancelBody: "يُنهي الإلغاء هذه الجلسة، ويُعيد أي رسوم محجوزة إلى حوض الرصيد الأصلي، ويُبلِّغ الطرفين.",
   cancelReasonLabel: "السبب (اختياري)",
   cancelReasonPlaceholder: "لماذا يتم إلغاء هذه الجلسة؟",
   cancelSubmit: "إلغاء الجلسة",

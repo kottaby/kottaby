@@ -144,6 +144,8 @@ export interface AdminSessionGovernanceLabels {
   readonly detailMissingBody: string;
   /** Detail meta — session id. */
   readonly detailSessionIdLabel: string;
+  /** Detail meta — booking intent (distinct from the structural type cell). */
+  readonly detailIntentLabel: string;
   /** Detail meta — start time. */
   readonly detailStartLabel: string;
   /** Detail meta — end time. */
