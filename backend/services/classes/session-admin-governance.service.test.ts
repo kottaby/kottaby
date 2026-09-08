@@ -53,8 +53,10 @@
  *  - Tier 4 (security): the non-admin role matrix (student / teacher /
  *    parent — every non-admin role the `user_role` vocabulary can persist)
  *    against ALL six functions → `FORBIDDEN` each with ZERO writes (no
- *    audit rows, byte-identical session row, empty inboxes), plus the
- *    anonymous caller split (`UNAUTHORIZED`) across all six.
+ *    audit rows, byte-identical session row, empty inboxes); the
+ *    governance-clean admin gate mirroring the reference arbitration op —
+ *    a deleted / blocked / suspended admin (and the anonymous sentinel 0,
+ *    an unresolvable row) fails closed `FORBIDDEN` across all six.
  *
  * Clock discipline: the 5-minute past-grace boundary is proven with
  * `setSystemTime` from `bun:test` (the sanctioned frozen-clock seam) — the
@@ -718,7 +720,11 @@ describe("SessionAdminGovernanceService — reschedule (runInRollback)", () => {
       expectDomainDenial(zeroWidth, "SESSION_RESCHEDULE_WINDOW_INVALID", ERRORS_EN.sessionRescheduleWindowInvalid);
 
       const malformed = await expectRepoError(() =>
-        rescheduleVia(tx, adminId, rescheduleWithForeignStart({ sessionId: missingId, startedAt: base, endedAt: base }, "not-a-date"))
+        rescheduleVia(
+          tx,
+          adminId,
+          rescheduleWithForeignStart({ sessionId: missingId, startedAt: base, endedAt: base }, "not-a-date")
+        )
       );
       expectDomainDenial(malformed, "VALIDATION", ERRORS_EN.validation);
 
@@ -1554,19 +1560,19 @@ describe("SessionAdminGovernanceService — chaos (production tx path, committed
 
 describe("SessionAdminGovernanceService — non-admin role matrix (runInRollback)", () => {
   /**
-   * Drives ALL six functions as one non-admin actor and asserts every call
-   * is denied `FORBIDDEN` with zero writes (sequential recursive walk on
-   * the shared rollback transaction).
+   * The six service calls one denied actor (a non-admin role, or an admin
+   * whose account is governed) makes against one target session — the
+   * payload the sequential denial walker consumes.
    */
-  async function expectSixForbiddenDenials(
+  function sixDeniedCalls(
     tx: DBTransaction,
     actorId: number,
     sessionId: number,
     teacherId: number
-  ): Promise<void> {
+  ): Array<() => Promise<unknown>> {
     const newStart = alignedInstant(60 * 60_000);
     const newEnd = alignedInstant(2 * 60 * 60_000);
-    const calls: Array<() => Promise<unknown>> = [
+    return [
       () => listAllVia(tx, actorId, {}, 1, 25),
       () => getDetailVia(tx, actorId, sessionId),
       () => rescheduleVia(tx, actorId, { sessionId, startedAt: newStart, endedAt: newEnd }),
@@ -1574,7 +1580,23 @@ describe("SessionAdminGovernanceService — non-admin role matrix (runInRollback
       () => reassignVia(tx, actorId, { sessionId, newTeacherUserId: teacherId }),
       () => joinVia(tx, actorId, { sessionId }),
     ];
-    await assertDenialsSequentially(0, calls, error => expectDomainDenial(error, "FORBIDDEN", ERRORS_EN.forbidden));
+  }
+
+  /**
+   * Drives ALL six functions as one denied actor (a non-admin role, or an
+   * admin whose account is governed) and asserts every call is denied
+   * `FORBIDDEN` with zero writes (sequential recursive walk on the shared
+   * rollback transaction).
+   */
+  async function expectSixForbiddenDenials(
+    tx: DBTransaction,
+    actorId: number,
+    sessionId: number,
+    teacherId: number
+  ): Promise<void> {
+    await assertDenialsSequentially(0, sixDeniedCalls(tx, actorId, sessionId, teacherId), error =>
+      expectDomainDenial(error, "FORBIDDEN", ERRORS_EN.forbidden)
+    );
   }
 
   for (const role of ["student", "teacher", "parent"] as const) {
@@ -1596,7 +1618,45 @@ describe("SessionAdminGovernanceService — non-admin role matrix (runInRollback
     });
   }
 
-  test("anonymous caller: the 401 split — all six functions are unauthorized before any read", async () => {
+  test("governed admins (deleted / blocked / suspended) fail closed FORBIDDEN across all six functions with ZERO writes", async () => {
+    await runInRollback(async tx => {
+      const actors = await createSessionActors(tx);
+      const row = await insertSessionRow(tx, actors, {});
+
+      // The DB row is the authority, never a still-valid token: an admin
+      // whose account was deleted, blocked, or suspended after login fails
+      // the governance leg of the gate exactly like the reference
+      // arbitration op's — FORBIDDEN, zero reads past the gate, zero
+      // writes.
+      const deletedAdmin = await createTestUser(tx, { role: "admin", isDeleted: true });
+      const blockedAdmin = await createTestUser(tx, { role: "admin", isBlocked: true });
+      const suspendedAdmin = await createTestUser(tx, { role: "admin", suspended: true });
+      const governedAdmins = [deletedAdmin, blockedAdmin, suspendedAdmin];
+
+      // Each governed admin is denied at the gate on every function — the
+      // eighteen denials run sequentially on the shared rollback
+      // transaction (each is independent and leaves the row untouched).
+      await assertDenialsSequentially(
+        0,
+        governedAdmins.flatMap(governed => sixDeniedCalls(tx, governed.id, row.id, actors.teacherUserId)),
+        error => expectDomainDenial(error, "FORBIDDEN", ERRORS_EN.forbidden)
+      );
+
+      // Zero writes anywhere: byte-identical row, no audit rows for the
+      // session or by any governed actor, empty inboxes, zero claim rows.
+      await Promise.all(
+        governedAdmins.map(async governed => {
+          expect(await readSessionRow(tx, row.id)).toEqual(row);
+          expect(await countAuditsForSession(tx, row.id)).toBe(0);
+          expect(await countAuditsForActor(tx, governed.id)).toBe(0);
+          expect(await countNotificationsFor(tx, [actors.studentUserId, actors.teacherUserId])).toBe(0);
+          expect(await readClaimsForUser(tx, governed.id)).toHaveLength(0);
+        })
+      );
+    });
+  });
+
+  test("anonymous sentinel: an unresolvable actor id fails closed FORBIDDEN across all six functions — the user row is the authority", async () => {
     await runInRollback(async tx => {
       const actors = await createSessionActors(tx);
       const row = await insertSessionRow(tx, actors, {});
@@ -1612,9 +1672,11 @@ describe("SessionAdminGovernanceService — non-admin role matrix (runInRollback
         () => joinVia(tx, anonymousId, { sessionId: row.id }),
       ];
 
-      await assertDenialsSequentially(0, calls, error =>
-        expectDomainDenial(error, "UNAUTHORIZED", ERRORS_EN.unauthorized)
-      );
+      // The gate resolves the actor row and fails closed when it does not
+      // exist — the same fail-closed semantics the reference arbitration
+      // op's gate applies to a missing row (the wire-level anonymous 401 is
+      // the GraphQL scope gate's, ahead of the service).
+      await assertDenialsSequentially(0, calls, error => expectDomainDenial(error, "FORBIDDEN", ERRORS_EN.forbidden));
 
       const stored = await readSessionRow(tx, row.id);
       expect(stored).toEqual(row);

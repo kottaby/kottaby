@@ -30,9 +30,12 @@
  *    empty result, an exact `dateFrom` stamp is included, an exact
  *    `dateTo` stamp is excluded); the page window normalizes exactly
  *    like the participant lists (page < 1 → 1, pageSize outside 1..50 →
- *    25, offset past the end → empty rows next to the honest total);
- *    the `needsAttention` badge flags exactly the disputed rows and the
- *    scheduled rows with a lapsed deadline (presentation only); the
+ *    25, offset past the end → empty rows next to the honest total) and
+ *    deep pagination is ceilinged (a page whose resolved offset would
+ *    start past the scan ceiling answers the empty window next to the
+ *    honest total, without error); the `needsAttention` badge flags
+ *    exactly the disputed rows and the scheduled rows with a lapsed
+ *    deadline (presentation only); the
  *    guarded SET clauses touch ONLY their whitelisted columns (the admin
  *    cancel leaves the hold marker and provenance lane intact for the
  *    caller's refund composition — unlike the participant cancel).
@@ -467,6 +470,30 @@ describe("SessionRepository — admin governance surface (runInRollback)", () =>
     });
   });
 
+  test("deep pagination is ceilinged: a page whose offset would start past the scan ceiling answers the empty window next to the honest total", async () => {
+    await runInRollback(async tx => {
+      const actors = await createSessionActors(tx);
+      await insertSessionRow(tx, actors, {});
+      const baseline = await SessionRepository.listForAdmin({}, 1, 25, tx);
+      expect(baseline.total).toBeGreaterThanOrEqual(1);
+
+      // A page far past any real data resolves to the EMPTY window with
+      // the honest total — and never errors: the resolved offset is
+      // refused before it can reach the sorted scan as a hostile
+      // multi-billion-row OFFSET.
+      const huge = await SessionRepository.listForAdmin({}, 1_000_000_000, 50, tx);
+      expect(huge.rows).toEqual([]);
+      expect(huge.total).toBe(baseline.total);
+
+      // The deepest window the ceiling still admits resolves through the
+      // normal path (empty here only because the table holds a handful of
+      // rows) — the ceiling changes nothing for reachable windows.
+      const atCeilingEdge = await SessionRepository.listForAdmin({}, 201, 50, tx);
+      expect(atCeilingEdge.rows).toEqual([]);
+      expect(atCeilingEdge.total).toBe(baseline.total);
+    });
+  });
+
   test("needsAttention flags exactly the disputed rows and the scheduled rows with a lapsed deadline", async () => {
     await runInRollback(async tx => {
       const actors = await createSessionActors(tx);
@@ -861,6 +888,11 @@ describe("SessionRepository — admin governance surface (runInRollback)", () =>
     // The window normalizes exactly like the participant lists' clamp.
     expect(repoSource.includes("MAX_PAGE_SIZE = 50")).toBe(true);
     expect(repoSource.includes("DEFAULT_PAGE_SIZE = 25")).toBe(true);
+    // Deep pagination is ceilinged: the resolved offset is capped before
+    // any database work (a page past the scan ceiling answers the empty
+    // window — the hostile OFFSET never reaches SQL).
+    expect(repoSource.includes("MAX_DIRECTORY_SCAN_ROWS = 10_000")).toBe(true);
+    expect(repoSource.includes("resolvedOffset > MAX_DIRECTORY_SCAN_ROWS")).toBe(true);
   });
 
   test("source: the badge flag is a pure presentation projection", () => {

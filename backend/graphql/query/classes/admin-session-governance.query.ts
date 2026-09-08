@@ -33,8 +33,9 @@
  *    canonical localized ForbiddenError (FORBIDDEN / 403). A plain
  *    `{ authenticated, role }` map would combine with ANY semantics —
  *    the explicit `$all` conjunction is load-bearing.
- *  - The service re-asserts the admin role from the user row as defense
- *    in depth (`assertActorAdmin` first statement of both methods).
+ *  - The service re-asserts the governance-clean admin role from the user
+ *    row as defense in depth (`assertAdminGovernanceClean` first statement
+ *    of both methods — the same gate `resolveSessionDispute` enforces).
  *
  * READ-ONLY guarantee: neither resolver writes ANYTHING — no session
  * mutation, no audit row, no notification receipt. The directory and the

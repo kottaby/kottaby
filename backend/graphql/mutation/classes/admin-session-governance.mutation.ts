@@ -36,8 +36,9 @@
  *    canonical localized ForbiddenError (FORBIDDEN / 403). A plain
  *    `{ authenticated, role }` map would combine with ANY semantics —
  *    the explicit `$all` conjunction is load-bearing.
- *  - The service re-asserts the admin role from the user row as defense
- *    in depth (`assertActorAdmin` first statement of every method).
+ *  - The service re-asserts the governance-clean admin role from the user
+ *    row as defense in depth (`assertAdminGovernanceClean` first statement
+ *    of every method — the same gate `resolveSessionDispute` enforces).
  *
  * Resolvers are THIN DELEGATION ONLY (`backend/graphql/mutation/AGENTS.md`
  * + `backend/graphql/AGENTS.md`): no business logic, no repository calls,

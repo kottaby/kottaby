@@ -170,6 +170,18 @@ const MAX_PAGE_SIZE = 50;
 const DEFAULT_PAGE_SIZE = 25;
 
 /**
+ * Deep-pagination ceiling for the admin directory read: the window a
+ * resolved page opens can never start past this many rows into the sorted
+ * scan. A page whose resolved offset would reach past the ceiling answers
+ * the EMPTY window next to the honest total — the same "an offset past the
+ * end yields zero rows" contract the window already honors, without ever
+ * handing a hostile page number a multi-billion-row OFFSET over the sorted
+ * scan. An operator who needs to reach deeper narrows the filter instead
+ * of paging past the ceiling.
+ */
+const MAX_DIRECTORY_SCAN_ROWS = 10_000;
+
+/**
  * The two lifecycle states the admin badge projection distinguishes below,
  * declared against the schema column's own union type: the vocabulary flows
  * from the `SessionStatus` members while both comparison operands share one
@@ -309,7 +321,10 @@ async function countAdminDirectory(filter: AdminSessionListFilterInput, tx?: DBT
  * The admin directory page read as the caller consumes it: the window
  * normalizes before any database work exactly like the participant lists
  * (a page below 1 falls back to the first page, a page size outside 1..50
- * falls back to the default), the page rows and the honest total come from
+ * falls back to the default), the resolved offset is additionally capped
+ * by the deep-pagination ceiling (a page past the ceiling answers the
+ * empty window next to the honest total — the hostile offset never
+ * reaches the sorted scan), the page rows and the honest total come from
  * the SAME shared predicate builder, and the derived badge flag is
  * projected per row from one captured clock reading.
  */
@@ -322,7 +337,13 @@ async function listAdminDirectoryPage(
   const safePage = Number.isSafeInteger(page) && page >= 1 ? page : 1;
   const safePageSize =
     Number.isSafeInteger(pageSize) && pageSize >= 1 && pageSize <= MAX_PAGE_SIZE ? pageSize : DEFAULT_PAGE_SIZE;
-  const rows = await listAdminDirectory(filter, safePageSize, (safePage - 1) * safePageSize, tx);
+  const resolvedOffset = (safePage - 1) * safePageSize;
+  if (resolvedOffset > MAX_DIRECTORY_SCAN_ROWS) {
+    // Deep-pagination ceiling: the empty window next to the honest total —
+    // the hostile offset never reaches the sorted scan.
+    return { rows: [], total: await countAdminDirectory(filter, tx) };
+  }
+  const rows = await listAdminDirectory(filter, safePageSize, resolvedOffset, tx);
   const total = await countAdminDirectory(filter, tx);
   const now = new Date();
   return { rows: rows.map(row => Object.assign({}, row, { needsAttention: isNeedsAttention(row, now) })), total };

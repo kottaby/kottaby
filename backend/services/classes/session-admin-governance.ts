@@ -6,10 +6,16 @@
  * same-lane hold release, reassign the teacher, and join a live session as
  * a read-only observer).
  *
- * Every method opens with the defense-in-depth BFLA gate
- * (`assertActorAdmin`) — the GraphQL scope gate is the first wall, this
- * service-side re-assertion is the second; both denials perform ZERO reads
- * past the gate and ZERO writes. Every user-facing message resolves
+ * Every method opens with the defense-in-depth admin gate
+ * (`assertAdminGovernanceClean` — the SAME gate the declared
+ * byte-identical reference operation `resolveSessionDispute` enforces):
+ * the GraphQL scope gate is the first wall, this service-side
+ * re-assertion is the second, and it verifies the governance-clean ADMIN
+ * role from the user row — the DB row is the authority, never a
+ * still-valid token, so an account deleted/blocked/suspended after login
+ * (or an unresolvable actor id) fails closed `FORBIDDEN` before any read
+ * or write. The gate itself performs ZERO reads past it and ZERO writes.
+ * Every user-facing message resolves
  * through `getServerTranslations(locale)`; rejections log via
  * `logger.logDomainError` with `{code, entity, entityId}` only.
  *
@@ -47,7 +53,7 @@
  * classifiers, the audit contract composer, the cancel-reason normalizer,
  * the idempotent-cancel replay machinery, and the three mutation
  * transaction bodies. Every public method below is the same flow in the
- * same order — each owns its boundary validation ordering, the BFLA gate,
+ * same order — each owns its boundary validation ordering, the admin gate,
  * and the `withTransaction` composition, delegating only the transaction
  * bodies and shared pre-DB checks to the sibling. The public API (names,
  * signatures, behavior) is unchanged.
@@ -60,7 +66,6 @@ import { SessionRepository } from "@/backend/db/repo";
 import { withTransaction } from "@/backend/lib/db/with-transaction";
 import { ValidationError } from "@/backend/lib/errors";
 import { logger } from "@/backend/lib/logger";
-import { assertActorAdmin } from "@/backend/services/admin/admin-gate.helpers";
 import {
   cancelSessionInTx,
   joinObservationInTx,
@@ -71,6 +76,7 @@ import {
   rejectStateConflict,
   rescheduleSessionInTx,
 } from "@/backend/services/classes/session-admin-governance.helpers";
+import { assertAdminGovernanceClean } from "@/backend/services/classes/session-lifecycle.governance";
 import {
   MAX_IDEMPOTENCY_KEY_LENGTH,
   normalizePageBounds,
@@ -137,8 +143,9 @@ export namespace SessionAdminGovernanceService {
   }> {
     const t = getServerTranslations(locale).errorsTranslations;
 
-    // The service-side BFLA gate — the FIRST statement of every method.
-    await assertActorAdmin(actorId, locale, tx);
+    // The service-side governance-clean admin gate — the FIRST statement
+    // of every method (the same gate the reference arbitration op enforces).
+    await assertAdminGovernanceClean(actorId, t, tx);
 
     // Shape-validate the filter BEFORE any read; a violation (including an
     // inverted creation window) is the localized validation denial.
@@ -173,7 +180,11 @@ export namespace SessionAdminGovernanceService {
     locale: string,
     tx?: DBTransaction
   ): Promise<AdminSessionDetail> {
-    await assertActorAdmin(actorId, locale, tx);
+    const t = getServerTranslations(locale).errorsTranslations;
+
+    // The service-side governance-clean admin gate — the FIRST statement
+    // of every method (the same gate the reference arbitration op enforces).
+    await assertAdminGovernanceClean(actorId, t, tx);
 
     // Oracle-safe malformed-id channel: anything that is not a positive
     // safe integer resolves to the SAME `null` as a nonexistent id, before
@@ -222,7 +233,9 @@ export namespace SessionAdminGovernanceService {
   ): Promise<SessionReturnType> {
     const t = getServerTranslations(locale).errorsTranslations;
 
-    await assertActorAdmin(actorId, locale, outerTx);
+    // The service-side governance-clean admin gate — the FIRST statement
+    // of every method (the same gate the reference arbitration op enforces).
+    await assertAdminGovernanceClean(actorId, t, outerTx);
 
     // Boundary validation BEFORE any read. The schema carries exactly one
     // refinement — the ordered timing pair — so a refinement rejection is
@@ -315,7 +328,9 @@ export namespace SessionAdminGovernanceService {
   ): Promise<SessionReturnType> {
     const t = getServerTranslations(locale).errorsTranslations;
 
-    await assertActorAdmin(actorId, locale, outerTx);
+    // The service-side governance-clean admin gate — the FIRST statement
+    // of every method (the same gate the reference arbitration op enforces).
+    await assertAdminGovernanceClean(actorId, t, outerTx);
 
     const parsed = AdminSessionCancelInputSchema.safeParse(input);
     if (!parsed.success) {
@@ -381,7 +396,9 @@ export namespace SessionAdminGovernanceService {
   ): Promise<SessionReturnType> {
     const t = getServerTranslations(locale).errorsTranslations;
 
-    await assertActorAdmin(actorId, locale, outerTx);
+    // The service-side governance-clean admin gate — the FIRST statement
+    // of every method (the same gate the reference arbitration op enforces).
+    await assertAdminGovernanceClean(actorId, t, outerTx);
 
     const parsed = AdminSessionReassignInputSchema.safeParse(input);
     if (!parsed.success) {
@@ -425,7 +442,9 @@ export namespace SessionAdminGovernanceService {
   ): Promise<SessionReturnType> {
     const t = getServerTranslations(locale).errorsTranslations;
 
-    await assertActorAdmin(actorId, locale, outerTx);
+    // The service-side governance-clean admin gate — the FIRST statement
+    // of every method (the same gate the reference arbitration op enforces).
+    await assertAdminGovernanceClean(actorId, t, outerTx);
 
     const parsed = AdminSessionJoinInputSchema.safeParse(input);
     if (!parsed.success) {
