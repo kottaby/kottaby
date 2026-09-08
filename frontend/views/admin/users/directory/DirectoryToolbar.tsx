@@ -7,16 +7,18 @@
  * prototype).
  *
  * White card (radius 12, `border.light` outline, `shadow.card`), 24px
- * padding. Contents laid out as a single horizontal flex row (wrapping is
- * allowed only below `md`, so the Create button never drops onto its own
- * row on desktop):
+ * padding. Contents laid out as a horizontal flex row that WRAPS when the
+ * viewport is too tight (only extra-wide `xl` screens hold the single
+ * line — the three action buttons plus four filter controls exceed the
+ * md–lg band once the shareable-view Copy link joined the row):
  *  1. search field (magnifier leading adornment, ~400px max width),
  *  2. role select,
  *  3. status (governance) select,
  *  4. country field,
  *  5. flex spacer, then a "clear filters" text button (rendered only while
- *     at least one filter is set) and the primary **Create User** button
- *     (44px tall, `flexShrink: 0`, never wraps its label).
+ *     at least one filter is set), the shareable-view **Copy link** action,
+ *     and the primary **Create User** button (44px tall, `flexShrink: 0`,
+ *     never wraps its label).
  *
  * Replaces the old `FilterBar` card; the create button moved here from the
  * page title row. Label slices are passed down narrowed — nothing is
@@ -24,9 +26,10 @@
  * inputs hold a uniform 44px height.
  */
 
-import { AddOutlined as AddIcon } from "@mui/icons-material";
-import { Box, Button, Card, TextField } from "@mui/material";
+import { AddOutlined as AddIcon, LinkOutlined as LinkIcon } from "@mui/icons-material";
+import { Box, Button, Card, TextField, Tooltip } from "@mui/material";
 import type { ReactNode } from "react";
+import { useDirectoryCopyLink } from "@/frontend/views/admin/directory-copy-link";
 import {
   DirectoryFilterSelect,
   DirectoryRoleFilter,
@@ -37,7 +40,7 @@ import type { AdminUsersLabels } from "@/shared/locale/types/adminUsers";
 
 type ToolbarLabels = Pick<
   AdminUsersLabels,
-  "filters" | "roleLabels" | "statusBadges" | "genderOptions" | "createDialog"
+  "filters" | "roleLabels" | "statusBadges" | "genderOptions" | "createDialog" | "quickActions"
 >;
 
 interface DirectoryToolbarProps {
@@ -51,6 +54,45 @@ interface DirectoryToolbarProps {
   readonly searchInput: string;
   readonly setSearchInput: (value: string) => void;
   readonly onCreateUser: () => void;
+  /** Reports the successful copy-link through the surface's shared snackbar. */
+  readonly onCopyLink: () => void;
+}
+
+/**
+ * The shareable-view action — copies the CURRENT URL (the directory hook's
+ * URL-mirror effect keeps the query string in sync with the applied
+ * filters, so what the admin pastes is exactly what they see). Same
+ * text-button recipe as the teachers/applicants toolbars' copy-link: 44px
+ * floor, `text.secondary` ink, `LinkIcon` tinting to the success color
+ * while the copy has resolved; failures stay silent (the snackbar never
+ * lies about a copy that did not happen).
+ */
+function CopyLinkButton({
+  labels,
+  onCopyLink,
+}: {
+  readonly labels: ToolbarLabels;
+  readonly onCopyLink: () => void;
+}): ReactNode {
+  const { linkCopied, handleCopyLink } = useDirectoryCopyLink(onCopyLink);
+  return (
+    <Tooltip title={labels.quickActions.copyLink} placement="top">
+      <Button
+        variant="text"
+        startIcon={
+          <LinkIcon
+            fontSize="small"
+            sx={theme => ({ color: linkCopied ? theme.palette.success.main : theme.palette.text.secondary })}
+          />
+        }
+        onClick={handleCopyLink}
+        aria-label={labels.quickActions.copyLink}
+        sx={theme => ({ minHeight: 44, flexShrink: 0, color: theme.palette.text.secondary })}
+      >
+        {labels.quickActions.copyLink}
+      </Button>
+    </Tooltip>
+  );
 }
 
 interface DirectoryGovernanceFilterProps {
@@ -113,7 +155,16 @@ export function DirectoryToolbar(props: DirectoryToolbarProps): ReactNode {
       })}
     >
       <Box
-        sx={{ display: "flex", width: "100%", flexWrap: { xs: "wrap", md: "nowrap" }, gap: 2, alignItems: "center" }}
+        sx={{
+          display: "flex",
+          width: "100%",
+          // The single-line layout only holds from `xl` up — below that the
+          // actions (all `flexShrink: 0`) wrap onto their own row instead of
+          // clipping the Create button off the card edge.
+          flexWrap: { xs: "wrap", xl: "nowrap" },
+          rowGap: 2,
+          alignItems: "center",
+        }}
       >
         <DirectorySearchField
           id={SEARCH_ID}
@@ -144,41 +195,54 @@ export function DirectoryToolbar(props: DirectoryToolbarProps): ReactNode {
           slotProps={{ inputLabel: { shrink: true } }}
           sx={{ minWidth: 150, flex: { xs: "1 1 100%", sm: "0 1 auto" }, "& .MuiInputBase-root": { height: 44 } }}
         />
-        <Box sx={{ flex: 1 }} />
-        {hasFilters && (
-          <Button
-            variant="text"
-            onClick={() => {
-              props.setRoleFilter("");
-              props.setGovernanceFilter("");
-              props.setCountryFilter("");
-              props.setSearchInput("");
-            }}
-            sx={theme => ({ minHeight: 44, flexShrink: 0, color: theme.palette.text.secondary })}
-          >
-            {labels.filters.clear}
-          </Button>
-        )}
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={props.onCreateUser}
-          sx={theme => ({
-            borderRadius: "8px",
-            height: 44,
+        <Box
+          sx={{
+            display: "flex",
+            gap: 2,
+            alignItems: "center",
+            // Auto margin right-aligns the action group on ITS line — both
+            // on the shared single line (xl+) and when the group wraps onto
+            // its own row below the filters (md–lg).
+            marginInlineStart: "auto",
             flexShrink: 0,
-            whiteSpace: "nowrap",
-            // Pin the fill/ink pair to the theme's `primary.main`/`onPrimary`
-            // tokens so the label stays on a contrast-checked pair in both
-            // light and dark themes instead of relying on the default
-            // `primary.contrastText` resolution.
-            bgcolor: theme.palette.primary.main,
-            color: theme.palette.onPrimary,
-            "&:hover": { bgcolor: theme.palette.primary.dark },
-          })}
+          }}
         >
-          {labels.createDialog.title}
-        </Button>
+          {hasFilters && (
+            <Button
+              variant="text"
+              onClick={() => {
+                props.setRoleFilter("");
+                props.setGovernanceFilter("");
+                props.setCountryFilter("");
+                props.setSearchInput("");
+              }}
+              sx={theme => ({ minHeight: 44, flexShrink: 0, color: theme.palette.text.secondary })}
+            >
+              {labels.filters.clear}
+            </Button>
+          )}
+          <CopyLinkButton labels={labels} onCopyLink={props.onCopyLink} />
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={props.onCreateUser}
+            sx={theme => ({
+              borderRadius: "8px",
+              height: 44,
+              flexShrink: 0,
+              whiteSpace: "nowrap",
+              // Pin the fill/ink pair to the theme's `primary.main`/`onPrimary`
+              // tokens so the label stays on a contrast-checked pair in both
+              // light and dark themes instead of relying on the default
+              // `primary.contrastText` resolution.
+              bgcolor: theme.palette.primary.main,
+              color: theme.palette.onPrimary,
+              "&:hover": { bgcolor: theme.palette.primary.dark },
+            })}
+          >
+            {labels.createDialog.title}
+          </Button>
+        </Box>
       </Box>
     </Card>
   );

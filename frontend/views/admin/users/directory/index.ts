@@ -1,3 +1,4 @@
+export * from "./ActiveFiltersRow";
 export * from "./AdminUsersDirectoryContainer";
 export * from "./DirectoryActionsMenu";
 export * from "./DirectoryEmptyState";

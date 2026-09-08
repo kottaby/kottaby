@@ -35,9 +35,10 @@ export function DirectorySearchField({ id, labels, value, onChange }: DirectoryS
         },
       }}
       sx={{
-        flex: { xs: "1 1 100%", md: "0 1 auto" },
+        flex: { xs: "1 1 100%", md: "1 1 260px" },
         width: { xs: "100%", md: 400 },
         maxWidth: 400,
+        minWidth: 220,
         "& .MuiInputBase-root": { height: 44 },
       }}
     />

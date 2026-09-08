@@ -21,11 +21,13 @@ import {
   parseStudentsUrlState,
   parseTeachersDirectoryUrlState,
   parseTeachersUrlTab,
+  parseUsersUrlState,
   type ReadableSearchParams,
   serializeApplicantsUrlState,
   serializeStudentsUrlState,
   serializeTeachersDirectoryUrlState,
   serializeTeachersSurfaceUrlState,
+  serializeUsersUrlState,
 } from "@/frontend/views/admin/directory-url-state";
 
 /** Builds a ReadableSearchParams over a plain record (nulls = absent). */
@@ -253,5 +255,77 @@ describe("tab + surface composition", () => {
         applicants: { q: "ignored", status: "failed", page: 0, pageSize: 10 },
       })
     ).toBe("q=sara&online=online");
+  });
+});
+
+describe("users URL contract", () => {
+  test("empty params parse to the exact unshared defaults", () => {
+    expect(parseUsersUrlState(EMPTY)).toEqual({ q: "", page: 0, pageSize: 10, role: "", governance: "", country: "" });
+  });
+
+  test("full round-trip: serialize → parse reproduces the applied view", () => {
+    const query = serializeUsersUrlState({
+      q: "demo",
+      role: "Teacher",
+      governance: "Suspended",
+      country: "Egypt",
+      page: 2,
+      pageSize: 25,
+    });
+    expect(query).toBe("q=demo&page=3&size=25&role=teacher&governance=suspended&country=Egypt");
+    expect(
+      parseUsersUrlState(
+        params({ q: "demo", role: "teacher", governance: "suspended", country: "Egypt", page: "3", size: "25" })
+      )
+    ).toEqual({
+      q: "demo",
+      page: 2,
+      pageSize: 25,
+      role: "Teacher",
+      governance: "Suspended",
+      country: "Egypt",
+    });
+  });
+
+  test("defaults are OMITTED — an untouched surface shares as the bare path", () => {
+    expect(serializeUsersUrlState({ q: "", role: "", governance: "", country: "", page: 0, pageSize: 10 })).toBe("");
+  });
+
+  test("every role wire value round-trips; unknown roles fail closed", () => {
+    expect(parseUsersUrlState(params({ role: "admin" })).role).toBe("Admin");
+    expect(parseUsersUrlState(params({ role: "teacher" })).role).toBe("Teacher");
+    expect(parseUsersUrlState(params({ role: "student" })).role).toBe("Student");
+    expect(parseUsersUrlState(params({ role: "parent" })).role).toBe("Parent");
+    expect(parseUsersUrlState(params({ role: "superuser" })).role).toBe("");
+    expect(parseUsersUrlState(params({ role: "ADMIN" })).role).toBe("");
+  });
+
+  test("every governance wire value round-trips; unknown values fail closed", () => {
+    expect(parseUsersUrlState(params({ governance: "active" })).governance).toBe("Active");
+    expect(parseUsersUrlState(params({ governance: "suspended" })).governance).toBe("Suspended");
+    expect(parseUsersUrlState(params({ governance: "blocked" })).governance).toBe("Blocked");
+    expect(parseUsersUrlState(params({ governance: "deleted" })).governance).toBe("Deleted");
+    expect(parseUsersUrlState(params({ governance: "pending" })).governance).toBe("");
+  });
+
+  test("country is free text — carried verbatim on parse, TRIMMED on serialize", () => {
+    expect(parseUsersUrlState(params({ country: "  Saudi Arabia  " })).country).toBe("  Saudi Arabia  ");
+    expect(
+      serializeUsersUrlState({ q: "", role: "", governance: "", country: "  Egypt  ", page: 0, pageSize: 10 })
+    ).toBe("country=Egypt");
+    expect(serializeUsersUrlState({ q: "", role: "", governance: "", country: "   ", page: 0, pageSize: 10 })).toBe("");
+  });
+
+  test("junk page/size parse to defaults (fail-closed shared trio)", () => {
+    expect(parseUsersUrlState(params({ page: "0", size: "13" }))).toEqual({
+      q: "",
+      page: 0,
+      pageSize: 10,
+      role: "",
+      governance: "",
+      country: "",
+    });
+    expect(parseUsersUrlState(params({ page: "abc" })).page).toBe(0);
+    expect(parseUsersUrlState(params({ size: "25" })).pageSize).toBe(25);
   });
 });

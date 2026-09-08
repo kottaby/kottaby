@@ -18,7 +18,8 @@
  */
 
 import { useMutation, useQuery } from "@apollo/client/react";
-import { useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
 import type { AdminUsersQueryVariables } from "@/frontend/graphql/generated/gql/graphql";
 import {
   adminCreateUserMutationDocument,
@@ -27,6 +28,7 @@ import {
   adminUsersQueryDocument,
 } from "@/frontend/graphql/sharedDocuments/admin";
 import { extractErrorCode } from "@/frontend/lib/graphql-error-utils";
+import { parseUsersUrlState, serializeUsersUrlState } from "@/frontend/views/admin/directory-url-state";
 import type { DirectoryUserItem } from "@/frontend/views/admin/users/directory";
 import {
   type DirectoryGovernance,
@@ -39,15 +41,19 @@ type Role = DirectoryRole;
 type Governance = DirectoryGovernance;
 type DirectoryUserListItem = DirectoryUserItem;
 
-const DEFAULT_PAGE_SIZE = 10;
-
-/** Role / governance / country / search filter draft state (search debounced at 300ms). */
+/**
+ * Role / governance / country / search filter draft state (search debounced
+ * at 300ms). Every value seeds from the URL contract (`/users` shareable
+ * link); the applied search seeds BOTH the draft and the debounced value so
+ * the FIRST query is already filtered — no unfiltered first fetch.
+ */
 function useDirectoryFilters() {
-  const [roleFilter, setRoleFilter] = useState<Role | "">("");
-  const [governanceFilter, setGovernanceFilter] = useState<Governance | "">("");
-  const [countryFilter, setCountryFilter] = useState("");
-  const [searchInput, setSearchInput] = useState("");
-  const [searchDebounced, setSearchDebounced] = useState("");
+  const urlSeed = parseUsersUrlState(useSearchParams());
+  const [roleFilter, setRoleFilter] = useState<Role | "">(urlSeed.role);
+  const [governanceFilter, setGovernanceFilter] = useState<Governance | "">(urlSeed.governance);
+  const [countryFilter, setCountryFilter] = useState(urlSeed.country);
+  const [searchInput, setSearchInput] = useState(urlSeed.q);
+  const [searchDebounced, setSearchDebounced] = useState(urlSeed.q);
 
   // Debounce search input (300ms).
   if (searchInput !== searchDebounced) {
@@ -67,10 +73,15 @@ function useDirectoryFilters() {
   };
 }
 
-/** Pagination draft state + the create/edit/delete dialog targets + success snackbar. */
-function useDirectoryPageAndDialogs() {
-  const [page, setPage] = useState(0);
-  const [pageSize, setPageSizeState] = useState(DEFAULT_PAGE_SIZE);
+/**
+ * Pagination draft state + the create/edit/delete dialog targets + success
+ * snackbar. The page pair seeds from the URL contract so a shared link
+ * lands on the exact paginated position it was copied from (fail-closed
+ * parsing clamps junk/out-of-range values back to the defaults).
+ */
+function useDirectoryPageAndDialogs(urlPage: number, urlPageSize: number) {
+  const [page, setPage] = useState(urlPage);
+  const [pageSize, setPageSizeState] = useState(urlPageSize);
   const [createOpen, setCreateOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<DirectoryUserListItem | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<DirectoryUserListItem | null>(null);
@@ -122,8 +133,16 @@ function useDirectoryMutations(variables: AdminUsersQueryVariables) {
 export function useAdminUsersDirectory() {
   const filters = useDirectoryFilters();
   const { roleFilter, governanceFilter, countryFilter, searchDebounced } = filters;
-  const pageAndDialogs = useDirectoryPageAndDialogs();
+  // The URL is read ONCE for pagination seeding (same params ref the filters
+  // hook read — `parseUsersUrlState` is pure so re-parsing is free).
+  const urlSeed = parseUsersUrlState(useSearchParams());
+  const pageAndDialogs = useDirectoryPageAndDialogs(urlSeed.page, urlSeed.pageSize);
   const { page, pageSize } = pageAndDialogs;
+
+  // Every filter setter resets to the first page — a new result set starts
+  // at page 1, never on a stale (possibly out-of-range) page index (the
+  // same invariant the students directory hook documents; the raw setters
+  // stay available for the URL-seeded initial state, which must NOT reset).
 
   const variables: AdminUsersQueryVariables = {
     filters: {
@@ -160,8 +179,55 @@ export function useAdminUsersDirectory() {
   const firstErrorCode = error ? extractErrorCode(error) : null;
   const hasFilters = roleFilter !== "" || governanceFilter !== "" || countryFilter !== "" || searchDebounced !== "";
 
+  // ── Shareable-URL write-back (the URL mirrors the APPLIED state) ──────
+  // The APPLIED (post-debounce) state — never the raw draft — serializes
+  // into the query string through `router.replace` (no history entry per
+  // keystroke). Defaults are OMITTED (a clean surface shares as the bare
+  // path), the write is skipped when the URL already matches (no replace
+  // churn on unrelated re-renders), and `{ scroll: false }` keeps the
+  // viewport anchored while typing or paging.
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+  const appliedQuery = serializeUsersUrlState({
+    q: searchDebounced,
+    role: roleFilter,
+    governance: governanceFilter,
+    country: countryFilter,
+    page,
+    pageSize,
+  });
+  useEffect(() => {
+    if (searchParams.toString() !== appliedQuery) {
+      router.replace(appliedQuery === "" ? pathname : `${pathname}?${appliedQuery}`, { scroll: false });
+    }
+    // `searchParams.toString` stays a dependency (biome's preferred shape —
+    // a fresh function reference per params object): after the replace the
+    // guard re-reads the NEW url, sees it already mirrors the applied state,
+    // and skips — one extra effect pass, zero replace churn.
+  }, [appliedQuery, router, pathname, searchParams.toString]);
+
   return {
     ...filters,
+    // Page-resetting filter setters shadow the raw ones (the students
+    // directory's invariant): picking a role/status/country or typing a
+    // search always restarts the result set at page 1.
+    setRoleFilter: (value: Role | "") => {
+      filters.setRoleFilter(value);
+      pageAndDialogs.setPage(0);
+    },
+    setGovernanceFilter: (value: Governance | "") => {
+      filters.setGovernanceFilter(value);
+      pageAndDialogs.setPage(0);
+    },
+    setCountryFilter: (value: string) => {
+      filters.setCountryFilter(value);
+      pageAndDialogs.setPage(0);
+    },
+    setSearchInput: (value: string) => {
+      filters.setSearchInput(value);
+      pageAndDialogs.setPage(0);
+    },
     ...pageAndDialogs,
     ...mutations,
     items,
