@@ -30,8 +30,8 @@ import { AdminSessionGovernance, Common, useAppTranslation } from "@/shared/loca
  * targets, keyboard-focusable dialog (`aria-labelledby` + focusable field).
  */
 
-/** Whole-number id tokens only — the wire member is `Int`, never a string. */
-const WHOLE_NUMBER_PATTERN = /^\d+$/;
+/** Whole-number id tokens only — the wire member is `Int`, never a string (the container's id filters reuse this table). */
+export const WHOLE_NUMBER_PATTERN = /^\d+$/;
 
 interface ReassignTeacherDialogProps {
   /** The session being reassigned (drives the testids). */

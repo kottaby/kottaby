@@ -24,7 +24,7 @@ import { AdminSessionGovernanceChrome } from "@/frontend/views/admin/session-gov
 import { AdminSessionsBody } from "@/frontend/views/admin/session-governance/AdminSessionsBody";
 import { CancelSessionDialog } from "@/frontend/views/admin/session-governance/CancelSessionDialog";
 import { JoinObservationAction } from "@/frontend/views/admin/session-governance/JoinObservationAction";
-import { ReassignTeacherDialog } from "@/frontend/views/admin/session-governance/ReassignTeacherDialog";
+import { ReassignTeacherDialog, WHOLE_NUMBER_PATTERN } from "@/frontend/views/admin/session-governance/ReassignTeacherDialog";
 import { RescheduleSessionDialog } from "@/frontend/views/admin/session-governance/RescheduleSessionDialog";
 import { AdminSessionGovernance, Errors, Sessions, useAppTranslation } from "@/shared/locale";
 
@@ -73,17 +73,13 @@ import { AdminSessionGovernance, Errors, Sessions, useAppTranslation } from "@/s
  * precedent); the key rotates only on SUCCESS so a retried submit stays on
  * the same claim (REQ-023 replay dedupe).
  *
- * Page-level authorization is owned by the server guard (`withPageAuth`
- * with `roles: [UserRole.Admin]`, task 5.3) — this container performs no
- * role logic. MUI v9 discipline: `sx`-only styling, theme-palette colors,
+ * Page-level authorization is owned by the server admin route guard —
+ * this container performs no role logic. MUI v9 discipline: `sx`-only styling, theme-palette colors,
  * `*Outlined` icons only, RTL-safe logical composition.
  */
 
 /** Page size — the backend's own default/clamp midpoint (1..50, default 25). */
 const ADMIN_SESSIONS_PAGE_SIZE = 25;
-
-/** Reschedule grace mirror — the replacement start may sit ≤5 min in the past. */
-const RESCHEDULE_PAST_GRACE_MS = 5 * 60 * 1000;
 
 /** Wire code family — a raced concurrent governance action (row gone / state moved). */
 const SESSION_INVALID_TRANSITION_CODE = "SESSION_INVALID_TRANSITION";
@@ -140,45 +136,9 @@ const EMPTY_APPLIED_FILTER: AdminSessionListFilterInput = {
   dateTo: null,
 };
 
-/** Whole-number id tokens only — the wire member is `Int`, never a string. */
-const WHOLE_NUMBER_PATTERN = /^\d+$/;
-
 /** `yyyy-MM-dd` date token → inclusive-midnight UTC ISO instant. */
 function dateTokenToInclusiveIso(token: string): string {
   return new Date(`${token}T00:00:00.000Z`).toISOString();
-}
-
-/** ISO wire instant → local `datetime-local` token (reschedule prefill). */
-export function isoToDatetimeLocalToken(iso: string | null): string {
-  if (iso === null) return "";
-  const instant = new Date(iso);
-  if (Number.isNaN(instant.getTime())) return "";
-  const pad = (value: number): string => String(value).padStart(2, "0");
-  return `${instant.getFullYear()}-${pad(instant.getMonth() + 1)}-${pad(instant.getDate())}T${pad(
-    instant.getHours()
-  )}:${pad(instant.getMinutes())}`;
-}
-
-/**
- * Client mirror of the reschedule validation envelope (service rules
- * mirrored per REQ-021): the pair must be ordered AND the start may not sit
- * further than the 5-minute grace window in the past. Returns the localized
- * message to surface on the start field, or null when the pair is valid.
- */
-export function validateReschedulePair(
-  startedAtIso: string,
-  endedAtIso: string,
-  tErrors: { readonly sessionRescheduleWindowInvalid: string; readonly sessionRescheduleStartInPast: string }
-): string | null {
-  const startedMs = new Date(startedAtIso).getTime();
-  const endedMs = new Date(endedAtIso).getTime();
-  if (Number.isNaN(startedMs) || Number.isNaN(endedMs) || startedMs >= endedMs) {
-    return tErrors.sessionRescheduleWindowInvalid;
-  }
-  if (startedMs < Date.now() - RESCHEDULE_PAST_GRACE_MS) {
-    return tErrors.sessionRescheduleStartInPast;
-  }
-  return null;
 }
 
 /**
