@@ -448,12 +448,14 @@ export namespace StudentRepository {
    * `SubscriptionCreditLane` enum members; caller strings can never select
    * a column.
    *
-   * NULL-lane convention — inherited from `incrementLane` verbatim: the
-   * statement does NOT coalesce, so crediting a NULL lane column keeps it
-   * NULL (PostgreSQL NULL arithmetic propagates, and the `>= 0` CHECK
-   * evaluates unknown on NULL rather than failing). Registration zeroes
-   * every lane, so a NULL lane can only exist on legacy/degenerate rows and
-   * stays untouched instead of being silently seeded from zero.
+   * NULL-lane convention — a NULL lane credits from ZERO: the SET coalesces
+   * the target column (`COALESCE(balance_x, 0) + amount`), so a
+   * legacy/degenerate NULL lane is seeded with the credited amount instead
+   * of the NULL-arithmetic no-op that would return the row untouched and
+   * commit a paid activation with a still-NULL balance. Columns default to
+   * 0 at registration — NULL is legacy-only — and the `>= 0` CHECK
+   * constraints remain the DB-layer backstop (an increment can only violate
+   * them via a negative amount, which the purchase flow never produces).
    *
    * `updated_at` is stamped explicitly because the raw-SQL statement bypasses
    * the query-builder's `$onUpdate` hook (same as the debit/refund pair).
@@ -472,7 +474,7 @@ export namespace StudentRepository {
     const executor = tx ?? db;
     const result = await executor.execute<StudentSelectType>(sql`
       UPDATE ${students}
-      SET ${sql.identifier(balanceColumn.name)} = ${balanceColumn} + ${amount},
+      SET ${sql.identifier(balanceColumn.name)} = COALESCE(${balanceColumn}, 0) + ${amount},
           ${sql.identifier(students.updatedAt.name)} = now()
       WHERE ${students.id} = ${studentId}
       RETURNING id, balance_hifz AS "balanceHifz", balance_reviews AS "balanceReviews",

@@ -128,9 +128,9 @@ contract.
 ## 3. Purchase Contract (`SubscriptionPurchaseService.purchase`)
 
 ```ts
-purchase(studentUserId: number, input: PurchaseSubscriptionInput, idempotencyKey: string | null,
+purchase(studentUserId: number, input: PurchaseSubscriptionSubmitInput, idempotencyKey: string | null,
          locale: string, outerTx?: DBTransaction): Promise<PurchaseSubscriptionReturnType>
-// PurchaseSubscriptionInput  = { readonly planId: number }  — the ONLY client-supplied field (BOPLA)
+// PurchaseSubscriptionSubmitInput = { readonly planId: number }  — the ONLY client-supplied field (BOPLA)
 // PurchaseSubscriptionReturnType = { subscription, payment, checkout }
 ```
 
@@ -144,7 +144,10 @@ purchase(studentUserId: number, input: PurchaseSubscriptionInput, idempotencyKey
    verbatim `amount`/`currency` from the authoritative plan row. This read is NOT the purchase
    gate — step 3 re-validates inside the transaction.
 3. **One transaction** (SAVEPOINT on a supplied `outerTx` / top-level tx in production):
-   active-state re-validation (`null` → `PLAN_NOT_FOUND`, whole tx rolls back) → NULL-lane
+   active-state re-validation (`null` → `PLAN_NOT_FOUND`, whole tx rolls back) → price/currency
+   re-comparison against the values the checkout was created with (mismatch → `422 VALIDATION`
+   with the `PLAN_PRICE_CHANGED` field code on `planId`, thrown before any row write) →
+   actor-governance re-assertion (a suspension during checkout rolls the pair back) → NULL-lane
    fail-closed guard → idempotency claim insert → `subscriptions` insert (`status = pending` DB
    default, `paymentMethod = checkout.provider`, `paymentReference = checkout.providerReference`) →
    `student_payments` insert (amount/currency **verbatim** from the plan row — no derivation, no

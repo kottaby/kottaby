@@ -76,6 +76,57 @@ type ErrorsTranslations = ReturnType<typeof getServerTranslations>["errorsTransl
 const MS_PER_DAY = 86_400_000;
 
 /**
+ * Client-safe copy for the activation flow's internal-invariant conflicts.
+ * These conflicts are unreachable through the write guards; the DIAGNOSTIC
+ * detail belongs to the adjacent correlated log line — never to the webhook
+ * caller's error envelope, which the gateway (not an operator) reads.
+ */
+const PAYMENT_PROCESSING_CONFLICT_MESSAGE = "Payment could not be processed.";
+
+/**
+ * Fail-closed abort for an unreachable mid-activation state — one bounded
+ * diagnostic log (the exact breach, correlated ids only) plus the client-safe
+ * conflict copy. Throwing from here rolls the whole activation unit back.
+ */
+function abortActivation(detail: string, context: Record<string, unknown>): never {
+  logger.error(`Subscription activation aborted: ${detail} — unit rolled back`, context);
+  throw new ConflictError(PAYMENT_PROCESSING_CONFLICT_MESSAGE);
+}
+
+/**
+ * Reads the plan row that feeds BOTH the activation window (`intervalDays`)
+ * and the credit (`balanceLane`, `sessionCount`). The FK restrict guarantees
+ * the row exists — a vanished row fails the unit closed — and a catalog
+ * deactivation after a settled payment does not void the activation. A NULL
+ * lane fails the whole unit closed: a lane is never guessed from plan copy.
+ */
+async function readActivationPlan(
+  subscription: SubscriptionSelectType,
+  reference: string,
+  tx: DBTransaction,
+  t: ErrorsTranslations
+): Promise<PlanSelectType & { balanceLane: Exclude<PlanSelectType["balanceLane"], null> }> {
+  const plan = await PlanRepository.findById(subscription.planId, tx);
+  if (plan === null) {
+    abortActivation("plan row vanished mid-activation", {
+      reference,
+      subscriptionId: subscription.id,
+      planId: subscription.planId,
+    });
+  }
+  if (plan.balanceLane === null) {
+    logger.logDomainError("Subscription activation rejected: plan balance lane is not configured", {
+      code: "PLAN_LANE_UNCONFIGURED",
+      entity: "plans",
+      entityId: plan.id,
+    });
+    throw new ValidationError("PLAN_LANE_UNCONFIGURED", t.subscriptionPurchase.planLaneUnconfigured);
+  }
+  // The spread re-asserts the narrowed lane on the returned row shape.
+  return { ...plan, balanceLane: plan.balanceLane };
+}
+
+/**
  * The payment-status vocabulary, widened to plain strings: the stored row's
  * `status` is the raw pg-enum string union, so the path-selection comparisons
  * test the enum member's string identity — the vocabulary still flows from
@@ -140,9 +191,12 @@ async function emitConfirmationNotification(
 
   const emitted = await NotificationEngine.emitForUser(emitInput, locale, tx);
   if (!("notifications" in emitted)) {
-    throw new ConflictError(
-      "SubscriptionActivationService: notification engine returned a row where the caller-tx receipt contract requires a receipt"
-    );
+    // Unreachable through the engine's caller-tx contract — log the exact
+    // breach, throw the client-safe copy.
+    abortActivation("notification engine returned a row where the caller-tx receipt contract requires a receipt", {
+      subscriptionId: subscription.id,
+      userId: subscription.userId,
+    });
   }
   return emitted;
 }
@@ -170,7 +224,10 @@ async function confirmPayment(
     if (current === null) {
       // The append-only ledger makes a vanished row unreachable — fail
       // closed rather than act on a broken contract.
-      throw new ConflictError("SubscriptionActivationService: payment ledger row vanished mid-activation");
+      abortActivation("subscription has no payment ledger row mid-activation", {
+        reference,
+        subscriptionId: subscription.id,
+      });
     }
     if (current.status === PAYMENT_FAILED) {
       // Late `confirmed` after `failed` — replay-incompatible, no silent
@@ -191,23 +248,9 @@ async function confirmPayment(
       return { processed: true, replayed: true };
     }
 
-    // The plan row feeds BOTH the activation window (`intervalDays`) and the
-    // credit (`balanceLane`, `sessionCount`). The FK restrict guarantees the
-    // row exists; a catalog deactivation after a settled payment does not
-    // void the activation. A NULL lane fails the whole unit closed — a lane
-    // is never guessed from plan copy.
-    const plan = await PlanRepository.findById(subscription.planId, tx);
-    if (plan === null) {
-      throw new ConflictError("SubscriptionActivationService: plan row vanished mid-activation");
-    }
-    if (plan.balanceLane === null) {
-      logger.logDomainError("Subscription activation rejected: plan balance lane is not configured", {
-        code: "PLAN_LANE_UNCONFIGURED",
-        entity: "plans",
-        entityId: plan.id,
-      });
-      throw new ValidationError("PLAN_LANE_UNCONFIGURED", t.subscriptionPurchase.planLaneUnconfigured);
-    }
+    // The plan row feeds BOTH the activation window and the credit — the
+    // dedicated read-and-guard helper fail-closes on every unreachable state.
+    const plan = await readActivationPlan(subscription, reference, tx, t);
 
     // The atomic pending → active transition — the guarded UPDATE is the
     // arbiter. Zero rows ⇒ a concurrent (or earlier) delivery already
@@ -233,7 +276,11 @@ async function confirmPayment(
     // active without paid) and the retry re-classifies.
     const decided = await StudentPaymentRepository.markPaidOnce(subscription.id, tx);
     if (decided === null) {
-      throw new ConflictError("SubscriptionActivationService: pending payment vanished mid-activation");
+      // Zero rows here means the pair state broke mid-flight — fail closed.
+      abortActivation("pending payment decision wrote zero rows mid-activation", {
+        reference,
+        subscriptionId: subscription.id,
+      });
     }
 
     // The lane credit — the full session count, relative accumulation on the
@@ -246,7 +293,12 @@ async function confirmPayment(
       tx
     );
     if (credited === null) {
-      throw new ConflictError("SubscriptionActivationService: student row vanished mid-activation");
+      // The FK restrict makes a vanished student unreachable — fail closed.
+      abortActivation("student row vanished before the lane credit", {
+        reference,
+        subscriptionId: subscription.id,
+        studentId: subscription.userId,
+      });
     }
 
     // Persist-first notification — the row commits with the activation.

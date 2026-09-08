@@ -42,13 +42,19 @@
  *    key gets the oracle-safe not-found denial (no existence leak — the
  *    message carries no owner identifiers); the server-derived amount is
  *    unaffected by crafted input.
+ *  - In-transaction re-validation (mid-flight): a plan price changed during
+ *    checkout and a caller suspended during checkout are both denied INSIDE
+ *    the transaction — before any row write — with the zero-writes proof
+ *    (the hostile mutation rides the checkout seam: the only await between
+ *    the pre-checkout reads and the transaction body).
  *  - Listing (owner scope): empty state, strict ownership isolation, and
  *    `created_at DESC` ordering with the strongly-typed enum mapping.
  */
 
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { afterAll, beforeAll, describe, expect, spyOn, test } from "bun:test";
 import { eq } from "drizzle-orm";
 import { db } from "@/backend/db";
+import { PlanRepository } from "@/backend/db/repo";
 import { plans } from "@/backend/db/schema/billing/plans";
 import { studentPayments } from "@/backend/db/schema/billing/student-payments";
 import { studentSubscriptions } from "@/backend/db/schema/billing/student-subscriptions";
@@ -67,10 +73,11 @@ import { PaymentGateway } from "@/backend/enum/billing/payment-gateway.enum";
 import { PaymentStatus } from "@/backend/enum/billing/payment-status.enum";
 import { SubscriptionCreditLane } from "@/backend/enum/billing/subscription-credit-lane.enum";
 import { SubscriptionStatus } from "@/backend/enum/billing/subscription-status.enum";
-import { ConflictError, DomainError, NotFoundError } from "@/backend/lib/errors";
+import { ConflictError, DomainError, ForbiddenError, NotFoundError, ValidationError } from "@/backend/lib/errors";
+import { MockPaymentGatewayAdapter } from "@/backend/services/billing/payment-gateway/mock-payment-gateway.adapter";
 import { resetPaymentGateway } from "@/backend/services/billing/payment-gateway/payment-gateway.factory";
 import { SubscriptionPurchaseService } from "@/backend/services/billing/subscription-purchase.service";
-import type { DBTransaction, PurchaseSubscriptionInput, PurchaseSubscriptionReturnType } from "@/backend/types";
+import type { DBTransaction, PurchaseSubscriptionReturnType, PurchaseSubscriptionSubmitInput } from "@/backend/types";
 import { getServerTranslations } from "@/shared/locale/server-graphql";
 import { isPgliteProvider } from "@/test/helpers/skip-when-pglite";
 
@@ -127,6 +134,24 @@ async function countRows(
     .from(subscriptionPurchaseIdempotency)
     .where(eq(subscriptionPurchaseIdempotency.userId, userId));
   return { subs: subs.length, payments: payments.length, claims: claims.length };
+}
+
+/**
+ * The hostile-mutation seam: the ONLY await between the pre-checkout plan
+ * read / governance check and the transaction body is the gateway checkout,
+ * so the spy performs the mutation DURING checkout creation — exactly the
+ * window the in-transaction re-validations own. The original adapter method
+ * is captured BEFORE the spy is installed and invoked from inside the mock
+ * implementation, so the checkout descriptor itself stays byte-identical to
+ * the real adapter's.
+ */
+function interceptCheckoutDuring(mutation: () => Promise<void>) {
+  const prototype = MockPaymentGatewayAdapter.prototype;
+  const realCreateCheckout = prototype.createCheckout;
+  return spyOn(prototype, "createCheckout").mockImplementation(async input => {
+    await mutation();
+    return realCreateCheckout.call(prototype, input);
+  });
 }
 
 describe("SubscriptionPurchaseService — purchase (Tier 1: branches)", () => {
@@ -377,6 +402,77 @@ describe("SubscriptionPurchaseService — purchase (Tier 2: boundaries)", () => 
   });
 });
 
+describe("SubscriptionPurchaseService — purchase (in-transaction re-validation, mid-flight)", () => {
+  test("a plan price changed during checkout → PLAN_PRICE_CHANGED validation denial, zero writes", async () => {
+    await runInRollback(async tx => {
+      const user = await createTestUser(tx);
+      const student = await createTestStudent(tx, user.id);
+      const plan = await createTestPlan(tx, { balanceLane: SubscriptionCreditLane.Hifz });
+
+      // Direct repo update riding the checkout seam: the pre-checkout read
+      // fed the gateway the ORIGINAL price; the fresh in-transaction row now
+      // disagrees — committing would pair the provider's charge with a
+      // different stored amount (a settlement guaranteed to quarantine).
+      const checkoutSpy = interceptCheckoutDuring(async () => {
+        await PlanRepository.updatePlanFields(plan.id, { price: "999.99" }, tx);
+      });
+
+      let err: Error;
+      try {
+        err = await expectRepoError(() =>
+          SubscriptionPurchaseService.purchase(student.id, { planId: plan.id }, purchaseKey(), "en", tx)
+        );
+      } finally {
+        checkoutSpy.mockRestore();
+      }
+
+      // The generic localized validation label, machine-coded for the field
+      // payload — the plan selector is the offending input.
+      expectDomainDenial(err, "VALIDATION", t().validation);
+      if (!(err instanceof ValidationError)) {
+        throw new Error("expected the mid-flight price denial to be a ValidationError");
+      }
+      expect(err.fields).toEqual([{ field: "planId", code: "PLAN_PRICE_CHANGED", message: t().validation }]);
+
+      // Thrown BEFORE any row write: no pair, no junction, no claim.
+      const counts = await countRows(tx, student.id);
+      expect(counts).toEqual({ subs: 0, payments: 0, claims: 0 });
+    });
+  });
+
+  test("a caller suspended during checkout → forbidden denial, zero writes", async () => {
+    await runInRollback(async tx => {
+      const user = await createTestUser(tx);
+      const student = await createTestStudent(tx, user.id);
+      const plan = await createTestPlan(tx, { balanceLane: SubscriptionCreditLane.Tajweed });
+
+      // The pre-checkout governance check saw a CLEAN actor; the suspension
+      // flips the actor's column during checkout (the session-lifecycle
+      // fixture manipulation idiom), so only the in-transaction
+      // re-assertion can catch it.
+      const checkoutSpy = interceptCheckoutDuring(async () => {
+        await tx.update(users).set({ suspended: true }).where(eq(users.id, user.id));
+      });
+
+      let err: Error;
+      try {
+        err = await expectRepoError(() =>
+          SubscriptionPurchaseService.purchase(student.id, { planId: plan.id }, purchaseKey(), "en", tx)
+        );
+      } finally {
+        checkoutSpy.mockRestore();
+      }
+
+      expectDomainDenial(err, "FORBIDDEN", t().forbidden);
+      expect(err).toBeInstanceOf(ForbiddenError);
+
+      // The governed caller wrote nothing: no pair, no junction, no claim.
+      const counts = await countRows(tx, student.id);
+      expect(counts).toEqual({ subs: 0, payments: 0, claims: 0 });
+    });
+  });
+});
+
 describe("SubscriptionPurchaseService — purchase (Tier 3: chaos)", () => {
   test("concurrent double-submit on the SAME key: exactly one success, one conflict, ONE pair", async () => {
     // Serialized-pair invariant proof (safe on the single-connection
@@ -550,7 +646,7 @@ describe("SubscriptionPurchaseService — purchase (Tier 4: abuse)", () => {
         currency: "USD",
         userId: otherStudent.id,
         studentId: otherStudent.id,
-      } satisfies PurchaseSubscriptionInput & Record<string, unknown>;
+      } satisfies PurchaseSubscriptionSubmitInput & Record<string, unknown>;
 
       const result = await SubscriptionPurchaseService.purchase(student.id, forged, purchaseKey(), "en", tx);
 

@@ -25,15 +25,20 @@ export type SubscriptionReturnType = Omit<SubscriptionSelectType, "status" | "pa
 };
 
 /**
- * Purchase input: the client-controlled whitelist ONLY (BOPLA).
+ * Purchase submit input: the client-controlled whitelist ONLY (BOPLA).
  *
  * `planId` is the sole client-supplied field. The purchaser identity is
  * resolved from the authenticated caller's context, and every financial
  * column (amount, currency, gateway, reference) is derived server-side
  * from the freshly-read plan row — a client payload structurally cannot
  * carry, spoof, or influence any of them.
+ *
+ * Named `...SubmitInput` after the `PlanSubmitInput` convention: the
+ * GraphQL wire input of the purchase mutation is a separate Pothos type
+ * (`PurchaseSubscriptionInput` on the checkout leaf) — the two share a
+ * name only on the wire, never a shape.
  */
-export interface PurchaseSubscriptionInput {
+export interface PurchaseSubscriptionSubmitInput {
   readonly planId: number;
 }
 

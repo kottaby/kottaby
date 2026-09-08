@@ -29,7 +29,8 @@
  *    garbage codes pass through the parameterized path harmlessly — the repo
  *    owns no validation (that is the service layer's contract);
  *    `linkParentIfUnlinked` on a nonexistent student also collapses to `null`;
- *    crediting a NULL lane column keeps it NULL (no-coalesce convention).
+ *    crediting a NULL lane column seeds it from zero (COALESCE semantics —
+ *    a NULL lane never silently swallows a credit).
  *  - Tier 4 (Rollback): fixtures written inside `runInRollback` are invisible
  *    after the forced rollback, on both read methods; a link written inside
  *    the tx unlinks again after the forced rollback; the `balance_* >= 0`
@@ -424,7 +425,7 @@ describe("StudentRepository.creditLaneBalance (subscription activation crediting
     ).toBeNull();
   });
 
-  test("Tier 4 — the balance CHECK floor stays intact on the credited lane", async () => {
+  test("Tier 4 — the balance CHECK floor stays intact on the credited lane (numeric and NULL-seeded alike)", async () => {
     await runInRollback(async tx => {
       const user = await createTestUser(tx);
       const student = await createTestStudent(tx, user.id, { balanceHifz: 2 });
@@ -443,26 +444,42 @@ describe("StudentRepository.creditLaneBalance (subscription activation crediting
 
       // Post-rollback the row is intact and the transaction still usable.
       expect((await StudentRepository.findById(student.id, tx))?.balanceHifz).toBe(2);
+
+      // The COALESCE write keeps the same floor on a NULL lane: the coalesced
+      // negative credit computes a REAL negative value (NULL no longer
+      // swallows the arithmetic), and the lane's own CHECK fires.
+      const nullLaneUser = await createTestUser(tx);
+      const nullLaneStudent = await createTestStudent(tx, nullLaneUser.id, { balanceReviews: null });
+      await tx.execute(sql`savepoint credit_floor_null_probe`);
+      const nullLaneError = await expectRepoError(() =>
+        StudentRepository.creditLaneBalance(nullLaneStudent.id, SubscriptionCreditLane.Reviews, -5, tx)
+      );
+      await tx.execute(sql`rollback to savepoint credit_floor_null_probe`);
+      expect(constraintNameOf(nullLaneError)).toBe("students_balance_reviews_check");
+      expect((await StudentRepository.findById(nullLaneStudent.id, tx))?.balanceReviews).toBeNull();
     });
   });
 
-  test("Tier 3 — crediting a NULL lane column keeps it NULL (inherited no-coalesce convention)", async () => {
+  test("Tier 3 — crediting a NULL lane column credits from zero (COALESCE semantics)", async () => {
     await runInRollback(async tx => {
-      // Registration zeroes every lane, so a NULL lane only exists on
-      // legacy/degenerate rows. `incrementLane` (the sibling refund
-      // primitive) does not coalesce either — NULL arithmetic propagates
-      // and the `>= 0` CHECK evaluates unknown on NULL, so this credit is
-      // a no-op on the NULL lane rather than a silent seed from zero.
+      // Columns default to 0 at registration, so a NULL lane only exists on
+      // legacy/degenerate rows. The credit coalesces the target column, so a
+      // NULL lane is seeded from zero — a paid activation can never commit
+      // with a silently untouched (still-NULL) balance — while the sibling
+      // lanes move normally on the same row.
       const user = await createTestUser(tx);
       const student = await createTestStudent(tx, user.id, { balanceReviews: null });
 
       const credited = await StudentRepository.creditLaneBalance(student.id, SubscriptionCreditLane.Reviews, 5, tx);
       expect(credited).not.toBeNull();
-      expect(credited?.balanceReviews).toBeNull();
-      // The sibling lanes still move normally on the same row.
+      // NULL + 5 credits 5 — the NULL lane is seeded from zero, never left NULL.
+      expect(credited?.balanceReviews).toBe(5);
+      // The sibling lanes stay untouched on the same row.
       expect(credited?.balanceHifz).toBe(0);
+      expect(credited?.balanceTajweed).toBe(0);
 
-      expect((await StudentRepository.findById(student.id, tx))?.balanceReviews).toBeNull();
+      // The mutation is persisted on the row, not just echoed by RETURNING.
+      expect((await StudentRepository.findById(student.id, tx))?.balanceReviews).toBe(5);
     });
   });
 });

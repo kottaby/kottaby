@@ -17,7 +17,12 @@
  *   3. ONE transaction that owns the authoritative validation and every
  *      write: the plan is re-validated as active (the pre-checkout read is
  *      only a gateway-input lookup — a plan deactivated mid-checkout fails
- *      the purchase), a NULL balance lane fails the purchase closed (a
+ *      the purchase), the fresh plan row's price/currency are re-compared
+ *      against the values the checkout was created with (a price or
+ *      currency change mid-checkout would otherwise commit a pair whose
+ *      settlement is guaranteed to quarantine), the actor's governance
+ *      state is re-asserted (a suspension during checkout fails the
+ *      purchase), a NULL balance lane fails the purchase closed (a
  *      lane is never guessed from plan copy), the idempotency claim is
  *      inserted savepoint-bracketed (a duplicate key poisons only the
  *      savepoint and keeps the transaction readable for the replay
@@ -68,8 +73,8 @@ import type {
   DBTransaction,
   PaymentCheckoutSession,
   PlanSelectType,
-  PurchaseSubscriptionInput,
   PurchaseSubscriptionReturnType,
+  PurchaseSubscriptionSubmitInput,
   StudentPaymentSelectType,
   SubscriptionPurchaseIdempotencySelectType,
   SubscriptionReturnType,
@@ -133,48 +138,22 @@ function subscriptionStatusOf(status: SubscriptionSelectType["status"]): Subscri
 }
 
 /**
- * The payment-gateway vocabulary, widened to plain strings for the same
- * stored-union comparison treatment.
- */
-const GATEWAY_STRIPE: string = PaymentGateway.Stripe;
-const GATEWAY_PAYPAL: string = PaymentGateway.Paypal;
-const GATEWAY_PAYMOB: string = PaymentGateway.Paymob;
-const GATEWAY_FAWRY: string = PaymentGateway.Fawry;
-const GATEWAY_OFFLINE_CASH: string = PaymentGateway.OfflineCash;
-const GATEWAY_BANK_TRANSFER: string = PaymentGateway.BankTransfer;
-const GATEWAY_SCHOLARSHIP: string = PaymentGateway.Scholarship;
-const GATEWAY_OTHER: string = PaymentGateway.Other;
-
-/**
- * Maps a stored payment-gateway value onto the strongly-typed enum. Total
- * over the closed pg-enum vocabulary (the mock member closes the union).
+ * Maps a stored payment-gateway value onto the strongly-typed enum — an
+ * identity projection total over the closed pg-enum vocabulary (the mock
+ * member closes the union), resolved as the documented widening-cast lookup.
+ * FAIL-CLOSED: a stored value outside the vocabulary is an internal
+ * invariant breach (the DB enum constrains every writable value) and
+ * surfaces as a conflict instead of silently degrading to a different
+ * gateway than the ledger recorded.
  */
 function paymentGatewayOf(gateway: SubscriptionSelectType["paymentMethod"] & string): PaymentGateway {
-  if (gateway === GATEWAY_STRIPE) {
-    return PaymentGateway.Stripe;
+  const member = Object.values(PaymentGateway).find(value => (value as string) === gateway);
+  if (member === undefined) {
+    throw new ConflictError(
+      "SubscriptionPurchaseService: stored payment gateway is not a member of the closed gateway vocabulary"
+    );
   }
-  if (gateway === GATEWAY_PAYPAL) {
-    return PaymentGateway.Paypal;
-  }
-  if (gateway === GATEWAY_PAYMOB) {
-    return PaymentGateway.Paymob;
-  }
-  if (gateway === GATEWAY_FAWRY) {
-    return PaymentGateway.Fawry;
-  }
-  if (gateway === GATEWAY_OFFLINE_CASH) {
-    return PaymentGateway.OfflineCash;
-  }
-  if (gateway === GATEWAY_BANK_TRANSFER) {
-    return PaymentGateway.BankTransfer;
-  }
-  if (gateway === GATEWAY_SCHOLARSHIP) {
-    return PaymentGateway.Scholarship;
-  }
-  if (gateway === GATEWAY_OTHER) {
-    return PaymentGateway.Other;
-  }
-  return PaymentGateway.Mock;
+  return member;
 }
 
 /**
@@ -326,22 +305,70 @@ async function insertPendingSubscription(
 }
 
 /**
+ * Re-compares the FRESH in-transaction plan row against the price/currency
+ * the gateway checkout was created with (both carried verbatim from the
+ * pre-checkout plan read). An admin price or currency change between the
+ * checkout creation and this transaction would otherwise commit a pending
+ * pair whose stored amount disagrees with the amount the provider actually
+ * charged — a settlement guaranteed to quarantine. The mismatch is the
+ * generic localized validation denial (machine code `PLAN_PRICE_CHANGED`,
+ * field `planId`) thrown BEFORE any row write, so the transaction rolls
+ * back with nothing to release.
+ *
+ * The abandoned checkout session needs no compensation inside this flow:
+ * the built-in mock provider is stateless (a checkout is a pure descriptor
+ * mint — no provider-side session exists to void). A stateful provider
+ * integration owns its own abandoned-session compensation out-of-band.
+ */
+function assertPlanUnchangedSinceCheckout(
+  freshPlan: PlanSelectType,
+  checkoutAmount: string,
+  checkoutCurrency: string,
+  t: ErrorsTranslations
+): void {
+  if (freshPlan.price === checkoutAmount && freshPlan.currency === checkoutCurrency) {
+    return;
+  }
+  logger.logDomainError("Subscription purchase rejected: plan price or currency changed during checkout", {
+    code: "PLAN_PRICE_CHANGED",
+    entity: "plans",
+    entityId: freshPlan.id,
+  });
+  throw new ValidationError(t.validation, [{ field: "planId", code: "PLAN_PRICE_CHANGED", message: t.validation }]);
+}
+
+/**
  * The purchase transaction body — the fixed, never reordered write order
- * (active-plan + lane re-validation → savepoint-bracketed idempotency
- * claim → pending subscription insert → pending payment insert → student
- * junction insert → claim backfill). Any failure rolls the whole purchase
- * back, which also releases the claim (a failed purchase never burns its
- * key).
+ * (active-plan + lane re-validation → checkout-value re-comparison →
+ * governance re-assertion → savepoint-bracketed idempotency claim →
+ * pending subscription insert → pending payment insert → student junction
+ * insert → claim backfill). Any failure rolls the whole purchase back,
+ * which also releases the claim (a failed purchase never burns its key).
  */
 async function purchaseInTx(
   studentUserId: number,
   planId: number,
+  checkoutAmount: string,
+  checkoutCurrency: string,
   checkout: PaymentCheckoutSession,
   idempotencyKey: string,
   tx: DBTransaction,
   t: ErrorsTranslations
 ): Promise<PurchaseSubscriptionReturnType> {
   const activePlan = await assertPurchasablePlan(planId, tx, t);
+
+  // The checkout was priced from the PRE-transaction plan read; the pair is
+  // only committable when the fresh row still agrees with it. Thrown before
+  // ANY row write — the rollback discards the checkout session with zero
+  // rows written (see the helper's docblock on session compensation).
+  assertPlanUnchangedSinceCheckout(activePlan, checkoutAmount, checkoutCurrency, t);
+
+  // Governance re-assertion INSIDE the transaction: the pre-checkout check
+  // read the actor before the gateway round-trip, so a caller deleted,
+  // blocked, or suspended during checkout fails the whole purchase here —
+  // the pair rolls back together with the claim.
+  await assertActorGovernanceClean(studentUserId, t, tx);
+
   const claim = await insertClaimOrReplay(studentUserId, idempotencyKey, tx, t);
 
   const createdSubscription = await insertPendingSubscription(studentUserId, activePlan.id, checkout, tx, t);
@@ -392,7 +419,11 @@ export namespace SubscriptionPurchaseService {
    * never holds a transaction open); the plan row feeding the checkout
    * input is read first so the provider receives the verbatim price and
    * currency. Inside one transaction the plan's active state and balance
-   * lane are re-validated (fail-closed), the idempotency claim is
+   * lane are re-validated (fail-closed), the fresh plan row's price and
+   * currency are re-compared against the checkout's captured values (a
+   * mid-checkout price or currency change fails the purchase before any
+   * row write), the actor's governance state is re-asserted (a suspension
+   * during checkout rolls the pair back), the idempotency claim is
    * inserted savepoint-bracketed, and the pending subscription + pending
    * payment + junction rows commit atomically with the claim's
    * subscription backfill.
@@ -423,7 +454,7 @@ export namespace SubscriptionPurchaseService {
    */
   export async function purchase(
     studentUserId: number,
-    input: PurchaseSubscriptionInput,
+    input: PurchaseSubscriptionSubmitInput,
     idempotencyKey: string | null,
     locale: string,
     outerTx?: DBTransaction
@@ -463,7 +494,9 @@ export namespace SubscriptionPurchaseService {
 
     // Gateway checkout BEFORE the transaction — the provider call is a
     // network boundary. The amount/currency pair is the plan row's own,
-    // carried verbatim; the client cannot influence either.
+    // carried verbatim; the client cannot influence either. Both values are
+    // captured here so the in-transaction body can re-compare them against
+    // the fresh plan row before committing anything.
     const gateway = getPaymentGateway(locale);
     const checkout = await gateway.createCheckout({
       studentId: studentUserId,
@@ -472,7 +505,9 @@ export namespace SubscriptionPurchaseService {
       currency: plan.currency,
     });
 
-    return withTransaction(outerTx, tx => purchaseInTx(studentUserId, input.planId, checkout, idempotencyKey, tx, t));
+    return withTransaction(outerTx, tx =>
+      purchaseInTx(studentUserId, input.planId, plan.price, plan.currency, checkout, idempotencyKey, tx, t)
+    );
   }
 
   /**

@@ -13,6 +13,16 @@ import { SubscriptionCreditLanePothosEnum } from "@/backend/graphql/pothos/share
 import type { PlanReturnType } from "@/backend/types";
 
 /**
+ * The lane vocabulary, widened to plain strings: the canonical row's
+ * `balanceLane` is the raw pgEnum string union, so the mapper's cases test
+ * the enum member's string identity — the vocabulary flows from the enum
+ * object, never from a bare literal.
+ */
+const LANE_HIFZ: string = SubscriptionCreditLane.Hifz;
+const LANE_TAJWEED: string = SubscriptionCreditLane.Tajweed;
+const LANE_REVIEWS: string = SubscriptionCreditLane.Reviews;
+
+/**
  * Maps the `balance_lane` pgEnum value carried by the canonical
  * `PlanReturnType` row onto the `SubscriptionCreditLane` TS enum —
  * exhaustive over the lane vocabulary plus `null` (a plan may stay
@@ -22,17 +32,18 @@ import type { PlanReturnType } from "@/backend/types";
  */
 function toSubscriptionCreditLane(lane: PlanReturnType["balanceLane"]): SubscriptionCreditLane | null {
   switch (lane) {
-    case "hifz":
+    case LANE_HIFZ:
       return SubscriptionCreditLane.Hifz;
-    case "tajweed":
+    case LANE_TAJWEED:
       return SubscriptionCreditLane.Tajweed;
-    case "reviews":
+    case LANE_REVIEWS:
       return SubscriptionCreditLane.Reviews;
     case null:
       return null;
   }
-  const exhaustive: never = lane;
-  throw new Error(`Unexpected subscription credit lane: ${String(exhaustive)}`);
+  // Reachable only on a runtime-only drift (a DB enum value ahead of the
+  // TS schema) — fail closed instead of passing an unmapped lane through.
+  throw new Error(`Unexpected subscription credit lane: ${lane}`);
 }
 
 /**

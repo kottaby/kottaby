@@ -16,6 +16,7 @@
 import { and, asc, eq } from "drizzle-orm";
 import { db, queryDb } from "@/backend/db";
 import { plans } from "@/backend/db/schema/billing/plans";
+import { ConflictError } from "@/backend/lib/errors";
 import type { DBQueryExecutor, DBTransaction, PlanInsertType, PlanSelectType, PlanUpdateInput } from "@/backend/types";
 
 /**
@@ -42,13 +43,17 @@ export namespace PlanRepository {
   /**
    * Inserts a new subscription plan record.
    *
+   * @throws ConflictError when the INSERT somehow returns no row — the
+   * defensive invariant shared by the billing repositories (an INSERT…
+   * RETURNING that inserts never yields an empty row list).
+   *
    * @returns The inserted plan row.
    */
   export async function insertPlan(insert: PlanInsertType, tx?: DBTransaction): Promise<PlanSelectType> {
     const executor = tx ?? db;
     const [row] = await executor.insert(plans).values(insert).returning();
     if (!row) {
-      throw new Error("PlanRepository.insertPlan: insert returned no rows");
+      throw new ConflictError("PlanRepository.insertPlan: insert returned no rows");
     }
     return row;
   }

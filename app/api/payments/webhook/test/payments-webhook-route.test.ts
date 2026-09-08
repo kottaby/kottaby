@@ -21,7 +21,14 @@
  *    envelope, service never invoked;
  *  - BODY BOUND: the 64_000-byte cap is byte-exact (a UTF-8 multibyte body
  *    under 64_000 CHARACTERS still exceeds it) — the boundary body is
- *    accepted, cap+1 is a masked 400 that never echoes the payload;
+ *    accepted, cap+1 is a masked 400 that never echoes the payload; a
+ *    declared Content-Length over the cap is rejected UP-FRONT (before the
+ *    signature gate — an unsigned over-cap delivery answers the 400, not
+ *    the 401), and a chunked body with no declared length is read
+ *    incrementally under the byte budget (over-cap → masked 400, service
+ *    never invoked; a multi-chunk delivery — multibyte characters split
+ *    across chunk boundaries included — decodes byte-faithfully and
+ *    verifies end-to-end);
  *  - ENVELOPE contract: happy path `{ data: { processed: true }, requestId }`
  *    with the parsed event + "en" locale handed to the service exactly once;
  *    replay deliveries append `replayed: true`; unknown-reference/quarantine
@@ -160,6 +167,23 @@ function webhookRequestSignedWith(body: string, secret: string): NextRequest {
 
 function webhookRequestWithoutSignature(body: string, headers: Record<string, string> = {}): NextRequest {
   return new NextRequest(BASE_URL, { method: "POST", headers, body });
+}
+
+/**
+ * Builds a streamed delivery: the chunks are enqueued verbatim (byte
+ * boundaries preserved, no declared Content-Length) — the transport shape
+ * the incremental body reader owns.
+ */
+function webhookRequestFromChunks(chunks: Uint8Array[], headers: Record<string, string> = {}): NextRequest {
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      for (const chunk of chunks) {
+        controller.enqueue(chunk);
+      }
+      controller.close();
+    },
+  });
+  return new NextRequest(BASE_URL, { method: "POST", headers, body: stream });
 }
 
 /** Builds a confirmed-event body padded to EXACTLY `totalBytes` ASCII bytes. */
@@ -358,6 +382,83 @@ describe("payments webhook route — bounded body", () => {
     const response = await POST(webhookRequest(multibyteBody));
     expect(response.status).toBe(400);
     expect(processCalls).toHaveLength(0);
+  });
+
+  test("a declared Content-Length over the cap is rejected UP-FRONT (before the signature gate)", async () => {
+    enableSurface();
+    // A tiny body with a lying-large declared length: the up-front header
+    // check rejects without reading a byte. UNSIGNED on purpose — the 400
+    // (not the signature gate's 401) proves the cap fired first.
+    const response = await POST(
+      webhookRequestWithoutSignature(CONFIRMED_EVENT_BODY, { "content-length": String(MAX_BODY_BYTES + 1) })
+    );
+    expect(response.status).toBe(400);
+    const body = await readJson(response);
+    const error = memberRecord(body, "error");
+    expect(error.code).toBe("PAYMENT_WEBHOOK_BODY_TOO_LARGE");
+    // The masked envelope never echoes the payload.
+    const wireJson = JSON.stringify(body) ?? "";
+    expect(wireJson).not.toContain("mock_ref_route_1");
+    expect(processCalls).toHaveLength(0);
+  });
+
+  test("a chunked over-cap body with NO declared length is rejected past the byte budget", async () => {
+    enableSurface();
+    // 7 × 10_000-byte chunks = 70_000 bytes > 64_000, streamed with no
+    // Content-Length: the incremental reader aborts the moment the budget
+    // is crossed — the full delivery is never buffered. UNSIGNED: the
+    // bounded read precedes the signature gate.
+    const chunk = new TextEncoder().encode("b".repeat(10_000));
+    const overCapChunks: Uint8Array[] = Array.from({ length: 7 }, () => chunk);
+    const response = await POST(webhookRequestFromChunks(overCapChunks));
+    expect(response.status).toBe(400);
+    const body = await readJson(response);
+    expect(memberRecord(body, "error").code).toBe("PAYMENT_WEBHOOK_BODY_TOO_LARGE");
+    expect(processCalls).toHaveLength(0);
+  });
+
+  test("a multi-chunk streamed body of EXACTLY the cap bytes is accepted end-to-end", async () => {
+    enableSurface();
+    // The same byte-exact boundary body, streamed in 9_000-byte chunks with
+    // no declared length: the incremental reader reassembles and decodes it
+    // byte-faithfully, so the signature over the decoded string verifies.
+    const boundaryBody = paddedEventBody(MAX_BODY_BYTES);
+    const chunks: Uint8Array[] = [];
+    for (let offset = 0; offset < boundaryBody.length; offset += 9_000) {
+      chunks.push(new TextEncoder().encode(boundaryBody.slice(offset, offset + 9_000)));
+    }
+    const response = await POST(webhookRequestFromChunks(chunks, { [SIGNATURE_HEADER]: sign(boundaryBody) }));
+    expect(response.status).toBe(200);
+    const body = await readJson(response);
+    expect(memberRecord(body, "data")).toEqual({ processed: true });
+    expect(processCalls).toHaveLength(1);
+  });
+
+  test("a multibyte character SPLIT across stream chunks decodes identically to a buffered read (signature verifies)", async () => {
+    enableSurface();
+    // 2-byte λ and é characters straddling 2-byte chunk boundaries: the
+    // streamed incremental decode (with its trailing flush) must produce
+    // exactly the string the sender signed — the same treatment a plain
+    // buffered read applies.
+    const multibyteBody = JSON.stringify({
+      reference: "λé-ref-1",
+      outcome: "confirmed",
+      amount: "120.00",
+      currency: "USD",
+    });
+    const chunks: Uint8Array[] = [];
+    const encoded = new TextEncoder().encode(multibyteBody);
+    for (let offset = 0; offset < encoded.length; offset += 2) {
+      chunks.push(encoded.slice(offset, offset + 2));
+    }
+    const response = await POST(webhookRequestFromChunks(chunks, { [SIGNATURE_HEADER]: sign(multibyteBody) }));
+    expect(response.status).toBe(200);
+    expect(processCalls).toHaveLength(1);
+    const deliveredEvent: unknown = processCalls[0]?.event;
+    if (!isPlainJsonObject(deliveredEvent)) {
+      throw new Error("service event was not a JSON object");
+    }
+    expect(memberString(deliveredEvent, "reference")).toBe("λé-ref-1");
   });
 });
 

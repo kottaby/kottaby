@@ -13,11 +13,17 @@
  *    no requestId. Any structured body would prove THIS path exists and is
  *    special — the existence oracle a disabled deployment must never leak
  *    (a truly unknown path answers no envelope either).
- *  - **Bounded body, read ONCE** — the raw body is consumed exactly once
- *    via `request.text()` (the signature is computed over these bytes, so
- *    no re-serialization may occur) and capped at
+ *  - **Bounded body, read ONCE, bounded TWICE** — the raw body is consumed
+ *    exactly once (the signature is computed over these bytes, so no
+ *    re-serialization may occur) and capped at
  *    `MAX_PAYMENT_WEBHOOK_BODY_BYTES` UTF-8 bytes; oversize is rejected
- *    with a masked 400 envelope that never echoes the payload.
+ *    with a masked 400 envelope that never echoes the payload. The bound
+ *    is enforced in two layers: a `Content-Length` header over the cap is
+ *    rejected up-front (no body byte is ever buffered), and an
+ *    absent/undeclared length is read INCREMENTALLY through the request
+ *    stream under a running byte budget that aborts the moment the cap is
+ *    crossed — a chunked over-cap delivery can never force a full-body
+ *    buffer.
  *  - **Signature gate** — the `x-payment-signature` header must equal the
  *    lowercase-hex HMAC-SHA256 of the raw body under
  *    `PAYMENT_WEBHOOK_SECRET`, compared by the constant-time digest idiom
@@ -63,11 +69,6 @@ const SIGNATURE_HEADER = "x-payment-signature";
 /** Locale-free server-to-server surface: envelopes resolve in the deployment default. */
 const ENVELOPE_LOCALE = "en";
 
-/** UTF-8 byte length of a string (the body cap is bytes, not characters). */
-function utf8ByteLength(body: string): number {
-  return new TextEncoder().encode(body).length;
-}
-
 /**
  * Signature-gate denial — classified to 401 (UNAUTHORIZED family). One
  * shared producer for every deny shape (no secret configured, missing
@@ -85,6 +86,47 @@ function webhookBodyTooLargeError(): DomainError {
   return new ValidationError("PAYMENT_WEBHOOK_BODY_TOO_LARGE", "Webhook payload rejected.");
 }
 
+/**
+ * Reads the request body INCREMENTALLY under the byte cap — the DoS-safe
+ * counterpart of a plain `request.text()`, which would buffer the whole
+ * delivery before any size check could run. Chunks accumulate through the
+ * request stream while a running byte budget aborts the moment the cap is
+ * crossed; the abort answer is `null` (indistinguishable to the caller from
+ * any other oversize rejection). Decoding is the same UTF-8 treatment
+ * `request.text()` applies (streamed incremental decode with a trailing
+ * flush), so the returned string is byte-faithful input for the signature
+ * gate and the provider parser. A null stream is an empty body.
+ *
+ * The read is a sequential pull on a stateful stream reader (each chunk
+ * depends on the previous read's decode state), so it is expressed as the
+ * sanctioned recursive helper — one `await` per read step, no loop.
+ *
+ * @returns The decoded body, or `null` when the byte budget was exceeded.
+ */
+async function readBoundedBody(request: NextRequest): Promise<string | null> {
+  const bodyStream = request.body;
+  if (bodyStream === null) {
+    return "";
+  }
+  const reader = bodyStream.getReader();
+  const decoder = new TextDecoder();
+
+  async function readChunk(buffered: string, totalBytes: number): Promise<string | null> {
+    const { done, value } = await reader.read();
+    if (done) {
+      // The trailing flush releases any buffered multi-byte sequence.
+      return buffered + decoder.decode();
+    }
+    const newTotalBytes = totalBytes + value.byteLength;
+    if (newTotalBytes > MAX_PAYMENT_WEBHOOK_BODY_BYTES) {
+      return null;
+    }
+    return readChunk(buffered + decoder.decode(value, { stream: true }), newTotalBytes);
+  }
+
+  return readChunk("", 0);
+}
+
 export async function POST(request: NextRequest): Promise<Response> {
   const requestId = resolveRequestId(request.headers);
 
@@ -95,9 +137,17 @@ export async function POST(request: NextRequest): Promise<Response> {
   }
 
   // The raw body is read EXACTLY once — signatures are computed over these
-  // bytes — and bounded before any crypto work happens.
-  const rawBody = await request.text();
-  if (utf8ByteLength(rawBody) > MAX_PAYMENT_WEBHOOK_BODY_BYTES) {
+  // bytes — and bounded BEFORE any crypto work happens: a declared
+  // Content-Length over the cap is rejected up-front (no byte buffered),
+  // and every other delivery is read incrementally under the byte budget.
+  const declaredContentLength = request.headers.get("content-length");
+  const declaredLength = declaredContentLength === null ? Number.NaN : Number.parseInt(declaredContentLength, 10);
+  if (Number.isSafeInteger(declaredLength) && declaredLength > MAX_PAYMENT_WEBHOOK_BODY_BYTES) {
+    return apiErrorResponse(webhookBodyTooLargeError(), { requestId, locale: ENVELOPE_LOCALE });
+  }
+
+  const rawBody = await readBoundedBody(request);
+  if (rawBody === null) {
     return apiErrorResponse(webhookBodyTooLargeError(), { requestId, locale: ENVELOPE_LOCALE });
   }
 

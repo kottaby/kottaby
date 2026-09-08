@@ -33,7 +33,7 @@ export const errorsAr: ErrorsLabels = {
   },
   subscriptionPurchase: {
     planNotPurchasable: "خطة الاشتراك هذه غير متاحة للشراء.",
-    planLaneUnconfigured: "لا يمكن شراء هذه الخطة بعد لأن قناة الرصيد المخصصة لها غير مهيأة.",
+    planLaneUnconfigured: "لا يمكن شراء هذه الخطة بعد لأن مسار الرصيد المخصص لها غير مهيأة.",
     idempotencyKeyRequired: "مفتاح منع تكرار الطلب مفقود. يرجى إعادة المحاولة.",
     paymentReferenceConflict: "هذه الدفعة مرتبطة بالفعل باشتراك آخر. يرجى بدء دفعة جديدة.",
     paymentAmountMismatch: "لم يتطابق مبلغ الدفعة مع سعر الخطة، لذلك لم تُطبَّق الدفعة.",
