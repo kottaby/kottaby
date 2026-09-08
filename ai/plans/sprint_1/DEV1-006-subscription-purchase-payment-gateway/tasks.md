@@ -154,12 +154,12 @@
 
 - [x] 9.2 Mutations + query resolvers
   - CREATE `backend/graphql/mutation/subscription-purchase.mutation.ts` (`purchaseSubscription`, `$all` conjunction, `PlanCatalogService.coercePlanId`, key from `ctx.idempotencyKey`) and `backend/graphql/query/subscription.query.ts` (`mySubscriptions`); register via the existing side-effect index wiring.
-  - [x] 9.2.QL · [ ] 9.2.TE — covered by 9.3 suites · [x] 9.2.SEC · [x] 9.2.SR · [x] 9.2.IV
+  - [x] 9.2.QL · [x] 9.2.TE — covered by 9.3 suites (all three green, outcome/9.3-outcome.md) · [x] 9.2.SEC · [x] 9.2.SR · [x] 9.2.IV
   - _Requirements: REQ-010, REQ-041, REQ-050, REQ-063_
 
-- [ ] 9.3 GraphQL contract tests
+- [x] 9.3 GraphQL contract tests
   - CREATE `backend/graphql/test/subscription-purchase.schema.test.ts`, `.roles.test.ts`, `.replay.test.ts`: 401 anonymous / 403 parent+teacher+admin / student happy path / missing-key 422 / replay 409 `DUPLICATE_REQUEST` / foreign-key oracle / `mySubscriptions` isolation; run via `bun run test/scripts/run-test.ts`.
-  - [ ] 9.3.QL · [ ] 9.3.TE (the suites themselves) · [ ] 9.3.SEC · [ ] 9.3.SR · [ ] 9.3.IV
+  - [x] 9.3.QL · [x] 9.3.TE (14/0 + 10/0 + 9/0, idempotent re-run proven; outcome/9.3-outcome.md) · [x] 9.3.SEC (denial + oracle-safety probes inside the suites) · [x] 9.3.SR · [x] 9.3.IV
   - _Requirements: REQ-004, REQ-010, REQ-040, REQ-041, REQ-050, REQ-063, REQ-074_
 
 ## Phase 8: Catalog Lane Propagation + Admin Form Delta
