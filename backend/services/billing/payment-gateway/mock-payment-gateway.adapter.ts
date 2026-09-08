@@ -87,8 +87,15 @@ export class MockPaymentGatewayAdapter implements PaymentGatewayPort {
       throw new ValidationError("PAYMENT_WEBHOOK_MALFORMED", validationMessage);
     }
 
-    const candidate = parsed as Record<string, unknown>;
-    const { reference, outcome, amount, currency } = candidate;
+    // Member presence is asserted by `in`-narrowing (the house unknown-JSON
+    // idiom, cf. `parseStoredEmitReceipt`): the guards narrow the `object`
+    // root to a member-carrying record with NO type assertion. A missing
+    // member is the same malformed-payload rejection as an ill-typed one.
+    if (!("reference" in parsed) || !("outcome" in parsed) || !("amount" in parsed) || !("currency" in parsed)) {
+      throw new ValidationError("PAYMENT_WEBHOOK_MALFORMED", validationMessage);
+    }
+
+    const { reference, outcome, amount, currency } = parsed;
 
     if (!isNonEmptyString(reference) || !isNonEmptyString(amount) || !isNonEmptyString(currency)) {
       throw new ValidationError("PAYMENT_WEBHOOK_MALFORMED", validationMessage);

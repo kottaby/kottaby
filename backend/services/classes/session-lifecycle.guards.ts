@@ -36,7 +36,7 @@
 import { HeldBalanceLane } from "@/backend/enum/scheduling/held-balance-lane.enum";
 import { SessionIntent } from "@/backend/enum/scheduling/session-intent.enum";
 import { SessionStatus } from "@/backend/enum/scheduling/session-status.enum";
-import { ValidationError } from "@/backend/lib/errors";
+import { isPgUniqueViolation, ValidationError } from "@/backend/lib/errors";
 import type { SessionListFilterInput, SessionStudentIntentType } from "@/backend/types";
 import { SESSION_FEE_HIFZ, SESSION_FEE_TAJWEED } from "@/shared/constants/session-fees.constants";
 import type { getServerTranslations } from "@/shared/locale/server-graphql";
@@ -164,23 +164,13 @@ export function normalizeOptionalReasonText(
 }
 
 /**
- * Detects the PostgreSQL unique-violation (`23505`) behind a thrown error by
- * traversing the cause chain (Drizzle wraps driver errors — the code lives
- * on a cause, never on the top-level wrapper). A cycle-safe `seen` set
- * guards against self-referential chains. The error MESSAGE is never
- * consulted.
+ * Detects the PostgreSQL unique-violation (`23505`) behind a thrown error —
+ * the claim-table collision arbiter — by delegating to the shared code-only
+ * cause-chain traversal (`isPgUniqueViolation` in `backend/lib/errors.ts`):
+ * cycle-safe, and the error MESSAGE is never consulted.
  */
 export function isClaimKeyUniqueViolation(error: unknown): boolean {
-  let current: unknown = error;
-  const seen = new Set<unknown>();
-  while (current instanceof Error && !seen.has(current)) {
-    seen.add(current);
-    if ("code" in current && current.code === "23505") {
-      return true;
-    }
-    current = (current as { cause?: unknown }).cause;
-  }
-  return false;
+  return isPgUniqueViolation(error);
 }
 
 /**

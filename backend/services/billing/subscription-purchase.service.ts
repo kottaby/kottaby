@@ -59,7 +59,7 @@ import { PaymentGateway } from "@/backend/enum/billing/payment-gateway.enum";
 import { PaymentStatus } from "@/backend/enum/billing/payment-status.enum";
 import { SubscriptionStatus } from "@/backend/enum/billing/subscription-status.enum";
 import { withTransaction } from "@/backend/lib/db/with-transaction";
-import { ConflictError, NotFoundError, ValidationError } from "@/backend/lib/errors";
+import { ConflictError, isPgUniqueViolation, NotFoundError, ValidationError } from "@/backend/lib/errors";
 import { logger } from "@/backend/lib/logger";
 import { getPaymentGateway } from "@/backend/services/billing/payment-gateway/payment-gateway.factory";
 import { assertActorGovernanceClean } from "@/backend/services/classes/session-lifecycle.governance";
@@ -97,26 +97,6 @@ function isPositiveSafeId(value: number): boolean {
  */
 function isCarryableIdempotencyKey(key: string | null): key is string {
   return key !== null && key.length > 0 && key.length <= MAX_IDEMPOTENCY_KEY_LENGTH;
-}
-
-/**
- * Detects the PostgreSQL unique-violation (`23505`) behind a thrown error
- * by traversing the cause chain (Drizzle wraps driver errors — the code
- * lives on a cause, never on the top-level wrapper). A cycle-safe `seen`
- * set guards against self-referential chains. The error MESSAGE is never
- * consulted.
- */
-function isUniqueViolation(error: unknown): boolean {
-  let current: unknown = error;
-  const seen = new Set<unknown>();
-  while (current instanceof Error && !seen.has(current)) {
-    seen.add(current);
-    if ("code" in current && current.code === "23505") {
-      return true;
-    }
-    current = (current as { cause?: unknown }).cause;
-  }
-  return false;
 }
 
 /**
@@ -297,7 +277,7 @@ async function insertClaimOrReplay(
       SubscriptionPurchaseIdempotencyRepository.insertClaim({ idempotencyKey, userId: studentUserId }, claimTx)
     );
   } catch (error) {
-    if (!isUniqueViolation(error)) {
+    if (!isPgUniqueViolation(error)) {
       throw error;
     }
     return replayPurchaseOrThrow(idempotencyKey, studentUserId, tx, t);
@@ -331,7 +311,7 @@ async function insertPendingSubscription(
       tx
     );
   } catch (error) {
-    if (!isUniqueViolation(error)) {
+    if (!isPgUniqueViolation(error)) {
       throw error;
     }
     logger.logDomainError("Subscription purchase rejected: payment reference already claimed", {

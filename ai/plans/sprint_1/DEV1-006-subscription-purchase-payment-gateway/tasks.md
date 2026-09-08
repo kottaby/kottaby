@@ -116,17 +116,17 @@
 - [x] 6.1 `SubscriptionPurchaseService.purchase`
   - CREATE `backend/services/billing/subscription-purchase.service.ts` (+ `backend/services/billing/index.ts` barrel). Flow: governance-clean assert → require idempotency key (localized `ValidationError`) → `PlanRepository.findActiveById` → lane NULL → `PLAN_LANE_UNCONFIGURED` → adapter `createCheckout` (outside tx) → `withTransaction`: claim insert (23505 → same-caller `DUPLICATE_REQUEST` / foreign oracle-safe `NotFoundError("PAYMENT", …)`), `insertSubscription` (pending, `paymentReference = session.providerReference`, `paymentMethod = provider gateway enum`), `insertPayment` (amount/currency verbatim from plan; default `pending`), junction insert, `updateClaimSubscriptionId`.
   - i18n: `getServerTranslations(locale).errorsTranslations` property access; new `subscriptionPurchase` error group keys (types + en + ar).
-  - [ ] 6.1.QL · [ ] 6.1.TE — 4-tier: happy path, inactive/missing plan, NULL lane, missing key, replay/foreign-key, renewal allowed, BOPLA field rejection, concurrent double-submit chaos · [ ] 6.1.SEC — BOLA/BOPLA/BFLA probes · [ ] 6.1.SR · [ ] 6.1.IV
+  - [x] 6.1.QL · [x] 6.1.TE — 4-tier: happy path, inactive/missing plan, NULL lane, missing key, replay/foreign-key, renewal allowed, BOPLA field rejection, concurrent double-submit chaos · [x] 6.1.SEC — BOLA/BOPLA/BFLA probes · [x] 6.1.SR · [x] 6.1.IV
   - _Requirements: REQ-002, REQ-003, REQ-004, REQ-010, REQ-011, REQ-012, REQ-013, REQ-014, REQ-015, REQ-016, REQ-017, REQ-030, REQ-031, REQ-040, REQ-042, REQ-050, REQ-051, REQ-052, REQ-053, REQ-071_
 
 - [x] 6.2 `SubscriptionPurchaseService.listOwn`
   - Owner-scoped list (`listByUserId`), `createdAt DESC`, locale tolerated param; NO id-addressed read added anywhere.
-  - [ ] 6.2.QL · [ ] 6.2.TE — ownership isolation: caller A never sees caller B rows; empty state · [ ] 6.2.SEC · [ ] 6.2.SR · [ ] 6.2.IV
+  - [x] 6.2.QL · [x] 6.2.TE — ownership isolation: caller A never sees caller B rows; empty state · [x] 6.2.SEC · [x] 6.2.SR · [x] 6.2.IV
   - _Requirements: REQ-004, REQ-041, REQ-063, REQ-071_
 
 ## Phase 2.5: Mid-Point Backend Review Gate (MANDATORY — plan has >15 tasks)
 
-- [ ] 6.5 Backend review checkpoint (after 6.2, before webhook/GraphQL)
+- [x] 6.5 Backend review checkpoint (after 6.2, before webhook/GraphQL)
   - Dispatch backend-scoped review subagents (`review-backend`, `review-types`, `review-config`) over all `backend/` files created/modified in Phases 2–5; aggregate backend-only findings; fix-per-file with `sub-loop.ts`; re-review until zero backend-specific findings.
   - Write `outcome/midpoint-review-R1.md`.
   - _Requirements: REQ-001, REQ-002_
@@ -176,17 +176,17 @@
 
 ## Phase 9: Cross-Actor Journey Tests
 
-- [ ] 11.1 Journey suite (test-first within the task)
+- [x] 11.1 Journey suite (test-first within the task)
   - CREATE `test/workflows/billing/subscription-purchase.journey.test.ts` encoding specs §3 steps 1–10 exactly: purchase → key-replay rejection → confirmed activation (+balance delta + notification published ONLY to purchaser via spied transport) → idempotent gateway replay (no double credit) → failed-event terminality → parent/teacher/admin denial → second-student isolation.
   - Rules: committed fixtures in `beforeAll`, tracked cleanup in `afterAll` via `TrackedFixtures`, unique `jrn_billing_<8hex>` prefix, actor factories (`provisionStudentActor` / `provisionParentActor` / `provisionAdminActor`), NO `runInRollback`, spied fan-out transport.
-  - [ ] 11.1.QL · [ ] 11.1.TE (the journey IS the 4-tier capstone) · [ ] 11.1.SEC (denial probes inside) · [ ] 11.1.SR · [ ] 11.1.IV
+  - [x] 11.1.QL · [x] 11.1.TE (the journey IS the 4-tier capstone) · [x] 11.1.SEC (denial probes inside) · [x] 11.1.SR · [x] 11.1.IV
   - _Requirements: REQ-004, REQ-022, REQ-023, REQ-024, REQ-040, REQ-041, REQ-073_
 
 ## Phase 10: Final Gate & Knowledge Propagation
 
-- [ ] 12.1 Baseline comparison + deferred enforcement
+- [x] 12.1 Baseline comparison + deferred enforcement
   - Re-run baseline trio; confirm zero NEW errors; `grep -c "❌\|⚠️" deferred-items.md` MUST be 0; re-run `bun quality-gate` clean.
-  - [ ] 12.1.IV (instructions re-verified against every touched file)
+  - [x] 12.1.IV (instructions re-verified against every touched file)
   - _Requirements: REQ-001, REQ-002_
 
 - [ ] 13.1 Knowledge propagation

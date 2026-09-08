@@ -67,9 +67,6 @@ const config: KnipConfig = {
     // DB/GraphQL-schema-backed enums — member/export usage is invisible to knip's
     // import graph (values live as pgEnum string literals in the schema + migrations,
     // or the whole enum is registered with Pothos). Grep-verified per file:
-    //   - payment-status: "refunded" is part of the live `payment_status`
-    //     pgEnum (backend/db/schema/enums.ts + drizzle migration 20260904084151)
-    //     — the TS enum must stay value-complete to mirror the DB type.
     //   - register-public-role: whole enum registered as the GraphQL
     //     `RegisterPublicRole` type (backend/graphql/pothos/shared/enum.pothos.ts)
     //     — all three members are schema-exposed.
@@ -79,7 +76,6 @@ const config: KnipConfig = {
     //   - recitation-reading: documented backend re-export shim of the canonical
     //     shared enum (docs/auth/qiraah-selection-and-c5.md) — an intentional
     //     @/backend/enum import-path alias, not a second value list.
-    "backend/enum/billing/payment-status.enum.ts",
     "backend/enum/users/register-public-role.enum.ts",
     "backend/enum/shared/surah-juz-ref.enum.ts",
     "backend/enum/shared/recitation-reading.enum.ts",
