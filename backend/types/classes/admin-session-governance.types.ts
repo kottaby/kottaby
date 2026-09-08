@@ -39,8 +39,17 @@ const MAX_CANCEL_REASON_LENGTH = 2000;
  * positive safe integer. A NaN, fractional, out-of-safe-range, non-positive,
  * or non-number value fails closed before any database work — the same
  * closed vocabulary the session lifecycle's pre-DB id guards enforce.
+ *
+ * The safe-integer ceiling is pinned EXPLICITLY with `Number.isSafeInteger`
+ * instead of relying on the zod version's `.int()` semantics — zod-upgrade
+ * or downgrade insurance: no zod behavior change can silently re-admit an
+ * identifier beyond 2^53 - 1 at this boundary.
  */
-const governanceIdSchema = z.number().int().positive();
+const governanceIdSchema = z
+  .number()
+  .int()
+  .positive()
+  .refine(value => Number.isSafeInteger(value));
 
 /**
  * Filter + window payload for the admin sessions directory. Absent members

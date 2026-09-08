@@ -385,6 +385,24 @@ describe("Admin Session Governance Types — zod boundary round-trips", () => {
     });
   });
 
+  test("rejects identifiers beyond the explicit safe-integer pin (> 2^53 - 1)", () => {
+    // The ceiling is deliberate (zod-downgrade insurance): 2^53 is an exact
+    // integer any `.int()` alone admits, and every id-bearing input schema
+    // must still fail closed on it via the explicit `Number.isSafeInteger`
+    // refine on the shared identifier gate.
+    expectAcceptance(AdminSessionJoinInputSchema.safeParse({ sessionId: Number.MAX_SAFE_INTEGER }));
+    expectRejection(AdminSessionJoinInputSchema.safeParse({ sessionId: Number.MAX_SAFE_INTEGER + 1 }));
+    expectRejection(AdminSessionReassignInputSchema.safeParse({ sessionId: 7, newTeacherUserId: 2 ** 53 }));
+    expectRejection(
+      AdminSessionRescheduleInputSchema.safeParse({
+        sessionId: 2 ** 53,
+        startedAt: SESSION_START,
+        endedAt: SESSION_END,
+      })
+    );
+    expectRejection(AdminSessionCancelInputSchema.safeParse({ sessionId: 2 ** 53 }));
+  });
+
   test("every input schema strips unknown keys before any write path sees them", () => {
     const join = expectAcceptance(
       AdminSessionJoinInputSchema.safeParse({ sessionId: 7, status: "completed", actorRole: "admin" })
