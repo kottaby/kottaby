@@ -17,9 +17,8 @@ import type { SessionsLabels } from "@/shared/locale/types/sessions";
 /**
  * AdminSessionDetailDrawer — the read-only side-panel detail of one
  * governance session (`/admin/session-governance`, DEV3-021). The SAME
- * read-only body renders through THREE responsive hosts (plan §5 — one
- * component tree, MUI responsive breakpoints, no mobile/desktop
- * triplication):
+ * read-only body renders through THREE responsive hosts (one component
+ * tree, MUI responsive breakpoints, no mobile/desktop triplication):
  *
  * | Host | Viewport | Surface |
  * |------|----------|---------|
@@ -119,7 +118,14 @@ export function AdminSessionDetailDrawer({
         onClose={onClose}
         anchor="right"
         slotProps={{
-          paper: { sx: { width: { sm: DRAWER_DESKTOP_WIDTH }, borderTopLeftRadius: 16, borderBottomLeftRadius: 16 } },
+          paper: {
+            // Logical radii — the rounded corners face the page CONTENT on
+            // both sides: the panel hugs the inline-end edge, and MUI flips
+            // the horizontal anchor under RTL while the start-side corners
+            // keep facing the content.
+            sx: { width: { sm: DRAWER_DESKTOP_WIDTH }, borderStartStartRadius: 16, borderEndStartRadius: 16 },
+            "aria-labelledby": titleId,
+          },
         }}
       >
         {header}
@@ -128,9 +134,14 @@ export function AdminSessionDetailDrawer({
     );
   }
   if (isMobile) {
-    // Mobile host — temporary bottom drawer (plan §5: NOT a bottom nav).
+    // Mobile host — temporary bottom drawer (a sheet-style panel, not bottom navigation).
     return (
-      <Drawer open={open} onClose={onClose} anchor="bottom" slotProps={{ paper: { sx: { maxHeight: "92vh" } } }}>
+      <Drawer
+        open={open}
+        onClose={onClose}
+        anchor="bottom"
+        slotProps={{ paper: { sx: { maxHeight: "92vh" }, "aria-labelledby": titleId } }}
+      >
         {header}
         {body}
       </Drawer>
