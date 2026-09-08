@@ -1,5 +1,5 @@
 /**
- * Grace-constant ↔ denial-copy coupling pin (DEV3-021 R8 follow-up).
+ * Grace-constant ↔ denial-copy coupling pin (reschedule denial copy).
  *
  * The service rejects a replacement start further than
  * `RESCHEDULE_START_PAST_GRACE_MS` into the past with the localized

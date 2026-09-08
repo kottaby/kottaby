@@ -14,11 +14,11 @@ import { AdminSessionGovernance, Common, useAppTranslation } from "@/shared/loca
  * discipline, `React.SubmitEvent`, dismissal gated while the mutation is in
  * flight.
  *
- * Reason field — OPTIONAL (the cancel contract's `reason?`), ≤1900 chars at the UI seam
- * (the backend boundary cap — the audit `details` column minus the serialized
- * envelope + JSON-escape headroom, so a UI-legal reason can never overflow
- * the audit slice server-side), hard `maxLength` clamp at the
- * input seam plus a live raw-character counter helper line. The reason
+ * Reason field — OPTIONAL (the cancel contract's `reason?`), ≤330 chars at the UI seam
+ * (the backend boundary cap — length cap + control-character rejection compose
+ * the serialized-envelope contract, so a UI-legal reason can never overflow
+ * or shear the audit `details` slice server-side), hard `maxLength` clamp at
+ * the input seam plus a live raw-character counter helper line. The reason
  * rides the mutation input verbatim-trimmed; empty resolves to `null`.
  *
  * Idempotency — the `x-idempotency-key` context header is owned by the
@@ -32,7 +32,7 @@ import { AdminSessionGovernance, Common, useAppTranslation } from "@/shared/loca
  */
 
 /** UI-seam cap for the optional cancel reason (mirrors the backend boundary constant). */
-export const MAX_CANCEL_REASON_LENGTH = 1900;
+export const MAX_CANCEL_REASON_LENGTH = 330;
 
 interface CancelSessionDialogProps {
   /** The session being cancelled (drives the testids). */

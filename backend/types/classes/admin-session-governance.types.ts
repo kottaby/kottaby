@@ -37,11 +37,35 @@ const MAX_PAGE_SIZE = 50;
  * (`{"action":"cancel","reason":"…"}` — a 31-char envelope), and the
  * audit writer truncates the serialized payload to the 2000-char column
  * ceiling — a truncation that would shear the closing quotes and corrupt
- * the JSON. The cap therefore reserves the envelope's width plus
- * JSON-escape headroom: a boundary-legal reason always serializes WELL
- * inside the audit-details slice (1900 + 31 = 1931 ≤ 2000).
+ * the JSON. A raw length cap alone CANNOT make the serialized envelope
+ * safe (JSON escaping can more than double a string's width), so the
+ * serialized-length contract is enforced here by TWO rules that compose:
+ *
+ *  1. Charset: control characters (Unicode Cc — C0, DEL, C1) are rejected
+ *     by the reason schema's refine (see CANCEL_REASON_CONTROL_CHARACTERS).
+ *     `JSON.stringify` expands a control character into an up-to-6-char
+ *     `\u00XX` escape (a 6× multiplier); rejecting the category leaves
+ *     `"` and `\\` as the only escapable characters, bounding the
+ *     worst-case serialization expansion at 2×.
+ *  2. Length: 330 = the 2000-char ceiling divided by a deliberately
+ *     conservative 6× escape divisor — triple the headroom the actual 2×
+ *     bound requires. The worst schema-legal reason (330 backslashes)
+ *     serializes to 31 + 660 = 691 chars: the envelope ALWAYS fits the
+ *     audit-details slice, with room to spare for future `details`
+ *     members. Downstream trimming (the service normalizer) can only
+ *     shrink the value further.
  */
-const MAX_CANCEL_REASON_LENGTH = 1900;
+const MAX_CANCEL_REASON_LENGTH = 330;
+
+/**
+ * The charset rule that makes the cancel reason's serialized length
+ * predictable: Unicode control characters (category Cc — the C0 range,
+ * DEL, and the C1 range) are rejected outright. They are invisible in
+ * audit metadata and are the ONLY characters `JSON.stringify` may expand
+ * to a 6-char escape, so their rejection is what bounds the escape
+ * multiplier at 2× (see the length-cap docblock above).
+ */
+const CANCEL_REASON_CONTROL_CHARACTERS = /\p{Cc}/u;
 
 /**
  * Shape gate for every caller-supplied identifier on this surface: a
@@ -95,7 +119,8 @@ export interface AdminSessionRescheduleInput {
 /**
  * Cancel payload: the target session plus an optional free-text reason.
  * The reason is audit metadata — bounded below the audit-details width
- * (envelope + escape headroom reserved, see the schema constant), trimmed
+ * (length cap + control-character rejection compose the serialized
+ * envelope contract, see the schema-constant docblocks), trimmed
  * downstream, and persisted as no reason at all when empty.
  */
 export interface AdminSessionCancelInput {
@@ -177,12 +202,18 @@ export const AdminSessionRescheduleInputSchema = z
 
 /**
  * Validation boundary for {@link AdminSessionCancelInput}: the optional
- * reason is length-capped; content normalization (trim, whitespace-only →
- * no reason) stays a service-layer concern.
+ * reason is length-capped AND control-character-free — the two rules that
+ * together guarantee the serialized audit envelope always fits its column
+ * (see the constant docblocks). Content normalization (trim,
+ * whitespace-only → no reason) stays a service-layer concern.
  */
 export const AdminSessionCancelInputSchema = z.object({
   sessionId: governanceIdSchema,
-  reason: z.string().max(MAX_CANCEL_REASON_LENGTH).optional(),
+  reason: z
+    .string()
+    .max(MAX_CANCEL_REASON_LENGTH)
+    .refine(reason => !CANCEL_REASON_CONTROL_CHARACTERS.test(reason))
+    .optional(),
 });
 
 /**

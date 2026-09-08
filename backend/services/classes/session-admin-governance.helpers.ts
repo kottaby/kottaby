@@ -128,9 +128,11 @@ async function rejectAdminTransitionMiss(
  * Composes the append-only audit contract for one governance mutation: the
  * actor is the verified admin id (never an input), the action is the
  * override vocabulary, and `details` carries field NAMES + timing/teacher
- * metadata + the admin-supplied cancel reason (length-capped upstream) —
- * never credentials, never participant contact data. The audit writer
- * defensively truncates the serialized payload to the column ceiling.
+ * metadata + the admin-supplied cancel reason (length-capped AND
+ * control-character-free upstream, so the serialized envelope is
+ * guaranteed to fit the column — the writer's defensive truncation is a
+ * never-in-practice backstop on this path) — never credentials, never
+ * participant contact data.
  */
 function buildGovernanceAuditContract(
   actorId: number,
@@ -148,10 +150,12 @@ function buildGovernanceAuditContract(
 
 /**
  * Normalizes the optional admin cancel reason: trimmed, a whitespace-only
- * value collapses to no reason at all, and the length ceiling is already
- * enforced at the boundary schema (a longer payload never reaches this
- * module). The trimmed value is the only form persisted into audit
- * metadata.
+ * value collapses to no reason at all, and the serialized-length contract
+ * (length cap + control-character rejection) is already enforced at the
+ * boundary schema — a payload that could shear the audit JSON never
+ * reaches this module. Trimming can only shrink the value, so the
+ * trimmed form is the only one persisted into audit metadata and it
+ * always fits.
  */
 export function normalizeAdminCancelReason(reason: string | null | undefined): string | null {
   const trimmed = reason === null || reason === undefined ? null : reason.trim();

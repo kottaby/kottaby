@@ -189,8 +189,8 @@ const WINDOW_START = new Date("2026-03-01T10:00:00.000Z");
 const WINDOW_END = new Date("2026-03-01T12:00:00.000Z");
 const SESSION_START = new Date("2026-03-05T09:00:00.000Z");
 const SESSION_END = new Date("2026-03-05T10:30:00.000Z");
-const REASON_AT_LIMIT = "r".repeat(1900);
-const REASON_OVER_LIMIT = "r".repeat(1901);
+const REASON_AT_LIMIT = "r".repeat(330);
+const REASON_OVER_LIMIT = "r".repeat(331);
 
 describe("Admin Session Governance Types — zod boundary round-trips", () => {
   describe("directory filter", () => {
@@ -342,15 +342,30 @@ describe("Admin Session Governance Types — zod boundary round-trips", () => {
       expect(withReason.reason).toBe("duplicate booking");
     });
 
-    test("accepts a reason at the 1900-character boundary (audit-details envelope headroom)", () => {
+    test("accepts a reason at the 330-character boundary — the serialized audit envelope fits", () => {
       const parsed = expectAcceptance(
         AdminSessionCancelInputSchema.safeParse({ sessionId: 3, reason: REASON_AT_LIMIT })
       );
-      expect(parsed.reason).toHaveLength(1900);
+      expect(parsed.reason).toHaveLength(330);
+      // The serialized-length contract, proven at the worst schema-legal
+      // escape input: 330 backslashes expand 2× under JSON.stringify, and
+      // even that envelope fits the 2000-char audit-details column.
+      const worstCaseSerialized = JSON.stringify({ action: "cancel", reason: "\\".repeat(330) });
+      expect(worstCaseSerialized.length).toBeLessThanOrEqual(2000);
+      expect(worstCaseSerialized.length).toBe(31 + 660);
     });
 
-    test("rejects a reason beyond the 1900-character boundary", () => {
+    test("rejects a reason beyond the 330-character boundary", () => {
       expectRejection(AdminSessionCancelInputSchema.safeParse({ sessionId: 3, reason: REASON_OVER_LIMIT }));
+    });
+
+    test("rejects control characters (the charset rule that bounds the JSON escape multiplier)", () => {
+      expectRejection(AdminSessionCancelInputSchema.safeParse({ sessionId: 3, reason: "bell\u0007ring" }));
+      expectRejection(AdminSessionCancelInputSchema.safeParse({ sessionId: 3, reason: "tab\tstop" }));
+      expectRejection(AdminSessionCancelInputSchema.safeParse({ sessionId: 3, reason: "line\nbreak" }));
+      expectRejection(AdminSessionCancelInputSchema.safeParse({ sessionId: 3, reason: "null\u0000byte" }));
+      expectRejection(AdminSessionCancelInputSchema.safeParse({ sessionId: 3, reason: "del\u007Fchar" }));
+      expectRejection(AdminSessionCancelInputSchema.safeParse({ sessionId: 3, reason: "c1\u009Fchar" }));
     });
 
     test("rejects a malformed or missing session id", () => {

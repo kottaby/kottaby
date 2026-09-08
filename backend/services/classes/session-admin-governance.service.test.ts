@@ -38,8 +38,9 @@
  *    denial, non-scheduled rows are transition conflicts); the join gate
  *    (started observes with exactly one audit row, every other state is a
  *    zero-audit conflict).
- *  - Tier 2 (boundary): cancel reason EXACTLY 1900 chars accepted / 1901
- *    rejected pre-DB; page 1 with pageSize 1 and 50 bounds plus
+ *  - Tier 2 (boundary): cancel reason EXACTLY 330 chars accepted / 331
+ *    rejected pre-DB (and control characters rejected — the serialized
+ *    audit-envelope contract); page 1 with pageSize 1 and 50 bounds plus
  *    out-of-range normalization (page < 1 → 1, pageSize > 50 → 25); the
  *    empty filter object returning every row; the zero-width creation
  *    window (`dateFrom == dateTo`) answering empty with an honest zero
@@ -137,14 +138,17 @@ const NOTIFS_AR = getServerTranslations("ar").notificationsTranslations;
 const RESCHEDULE_GRACE_MS = 5 * 60 * 1000;
 
 /**
- * The cancel-reason ceiling the boundary schema enforces — the audit-details
- * column (2000) minus the serialized `details` envelope (31 chars: the
- * `action` member + JSON punctuation) and JSON-escape headroom, so a
- * boundary-legal reason can never shear the audit JSON at the column
- * ceiling. Mirrors the boundary constant in
+ * The cancel-reason ceiling the boundary schema enforces — one half of the
+ * serialized-length contract that keeps the cancel audit row's `details`
+ * JSON inside the 2000-char column (the 31-char `{"action":"cancel",…}`
+ * envelope rides around it). The other half is the schema's
+ * control-character rejection: with Unicode Cc chars refused, the worst
+ * JSON.stringify escape expansion is 2×, so the worst schema-legal reason
+ * (330 backslashes) serializes to 31 + 660 = 691 chars — always fitting.
+ * Mirrors the boundary constant in
  * `backend/types/classes/admin-session-governance.types.ts`.
  */
-const MAX_CANCEL_REASON_LENGTH = 1900;
+const MAX_CANCEL_REASON_LENGTH = 330;
 
 /** The audit row's entity label for this surface (the service's constant). */
 const SESSION_ENTITY_TYPE = "session";
@@ -1506,7 +1510,7 @@ describe("SessionAdminGovernanceService — join (runInRollback)", () => {
 // ─── Tier 2: boundaries ──────────────────────────────────────────────────
 
 describe("SessionAdminGovernanceService — boundaries", () => {
-  test("cancel reason EXACTLY 1900 chars is accepted; 1901 is rejected pre-DB with zero writes", async () => {
+  test("cancel reason EXACTLY 330 chars is accepted; 331 is rejected pre-DB with zero writes", async () => {
     await runInRollback(async tx => {
       const actors = await createSessionActors(tx);
       const { adminId } = await createTestAdmin(tx);
@@ -1527,6 +1531,47 @@ describe("SessionAdminGovernanceService — boundaries", () => {
       const stored = await readSessionRow(tx, rejectedRow.id);
       expect(stored?.status).toBe(SessionStatus.Scheduled);
       expect(await countAuditsForSession(tx, rejectedRow.id)).toBe(0);
+    });
+  });
+
+  test("the WORST-case escape reason (330 backslashes) commits an audit row whose serialized details fit; control characters are rejected pre-DB", async () => {
+    await runInRollback(async tx => {
+      const actors = await createSessionActors(tx);
+      const { adminId } = await createTestAdmin(tx);
+      const acceptedRow = await insertSessionRow(tx, actors, {});
+      const controlRow = await insertSessionRow(tx, actors, {});
+
+      // The escape-heaviest schema-legal payload: every character doubles
+      // under JSON.stringify — and the serialized envelope still fits.
+      const escapeReason = "\\".repeat(MAX_CANCEL_REASON_LENGTH);
+      expect(escapeReason.length).toBe(MAX_CANCEL_REASON_LENGTH);
+      const serialized = JSON.stringify({ action: "cancel", reason: escapeReason });
+      expect(serialized.length).toBeLessThanOrEqual(2000);
+
+      const cancelled = await cancelVia(tx, adminId, {
+        sessionId: acceptedRow.id,
+        reason: escapeReason,
+      });
+      expect(cancelled.status).toBe(SessionStatus.Cancelled);
+      const auditRows = await readAuditsForSession(tx, acceptedRow.id);
+      expect(auditRows).toHaveLength(1);
+      const auditRow = auditRows[0];
+      if (!auditRow) {
+        throw new Error("expected exactly one audit row for the escape-heavy-reason cancel");
+      }
+      expect(auditRow.details).not.toBeNull();
+      expect(auditRow.details?.length).toBeLessThanOrEqual(2000);
+      expect(parseAuditDetails(auditRow.details)).toEqual({ action: "cancel", reason: escapeReason });
+
+      // Control characters never reach the database: the boundary schema's
+      // charset refine turns them into the generic pre-DB VALIDATION denial.
+      const caught = await expectRepoError(() =>
+        cancelVia(tx, adminId, { sessionId: controlRow.id, reason: "bell\u0007and\u001Fsep" })
+      );
+      expectDomainDenial(caught, "VALIDATION", ERRORS_EN.validation);
+      const untouched = await readSessionRow(tx, controlRow.id);
+      expect(untouched?.status).toBe(SessionStatus.Scheduled);
+      expect(await countAuditsForSession(tx, controlRow.id)).toBe(0);
     });
   });
 
