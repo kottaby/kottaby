@@ -13,38 +13,26 @@
  * record (identifier). Every caption comes from the `AdminTeachers`
  * namespace; data values render verbatim.
  *
- * The Drawer uses the DEFAULT anchor (no `anchor` prop) exactly like
- * `DashboardSidebar` — the codebase runs the RTL emotion cache, which
- * mirrors the paper to the start edge in Arabic automatically;
- * `theme.direction` is never set, so no anchor-side branching is needed.
- *
- * Accessibility: Escape and backdrop click close the drawer (temporary
- * Drawer defaults); the close button and every quick action carry 44px
- * touch targets; one drawer instance exists per directory (owned by the
- * container), so only one detail surface can ever be open at a time.
- *
- * MUI v9 discipline: `sx`-only styling, colors via theme callbacks,
- * `*Outlined` icons.
- *
- * Layout: the section cards and their atoms are split across the
- * `AdminTeacherDetailDrawer/` siblings (DrawerPrimitives + one module per
- * section); this entry owns the drawer shell and the public component.
+ * Layout: the shell, the shared section primitives and the shared
+ * identity/record sections live in `frontend/views/admin/directory-shared/`
+ * (`DirectoryDetailDrawer` / `DirectoryDrawerPrimitives` /
+ * `DirectoryDrawer{Identity,Record}Section`); the status/academic sections
+ * live beside this file in `AdminTeacherDetailDrawer/`; this entry owns the
+ * teacher composition and the public component.
  */
 
-import { CloseOutlined as CloseIcon } from "@mui/icons-material";
-import { Box, Drawer, IconButton, Stack, Tooltip, Typography } from "@mui/material";
 import type { ReactNode } from "react";
-import { focusVisibleRingSx } from "@/frontend/components/ui/focusRing";
+import { DirectoryDetailDrawer } from "@/frontend/views/admin/directory-shared/DirectoryDetailDrawer";
+import { DirectoryDrawerIdentitySection } from "@/frontend/views/admin/directory-shared/DirectoryDrawerIdentitySection";
+import { DirectoryDrawerRecordSection } from "@/frontend/views/admin/directory-shared/DirectoryDrawerRecordSection";
 import { TeacherDrawerAcademicSection } from "@/frontend/views/admin/teachers/AdminTeacherDetailDrawer/DrawerAcademicSection";
-import { TeacherDrawerIdentitySection } from "@/frontend/views/admin/teachers/AdminTeacherDetailDrawer/DrawerIdentitySection";
-import { TeacherDrawerRecordSection } from "@/frontend/views/admin/teachers/AdminTeacherDetailDrawer/DrawerRecordSection";
 import { TeacherDrawerStatusSection } from "@/frontend/views/admin/teachers/AdminTeacherDetailDrawer/DrawerStatusSection";
 import type { TeacherDirectoryItem } from "@/frontend/views/admin/teachers/AdminTeacherRowCells";
 import type { AppLocale } from "@/shared/locale";
 import type { AdminTeachersLabels } from "@/shared/locale/types/adminTeachers";
 
-/** Drawer paper width — clamps inside narrow viewports. */
-const DRAWER_WIDTH = 420;
+/** Role lane for the drawer avatar (expression-passed — matches the rows). */
+const TEACHER_AVATAR_ROLE = "Teacher" as const;
 
 interface AdminTeacherDetailDrawerProps {
   /** Whether the drawer is open (the container keeps the item mounted through the exit transition). */
@@ -71,57 +59,36 @@ export function AdminTeacherDetailDrawer({
     return null;
   }
   return (
-    <Drawer
+    <DirectoryDetailDrawer
       open={open}
       onClose={onClose}
-      // Default anchor (no `anchor` prop) — mirrors `DashboardSidebar`; the
-      // RTL emotion cache mirrors the paper to the start edge in Arabic.
-      sx={{
-        "& .MuiDrawer-paper": {
-          width: DRAWER_WIDTH,
-          maxWidth: "calc(100vw - 24px)",
-          boxSizing: "border-box",
-        },
-      }}
+      title={labels.drawer.detailsTitle}
+      closeLabel={labels.drawer.close}
     >
-      <Stack sx={{ height: "100%" }}>
-        <Stack
-          direction="row"
-          sx={theme => ({
-            alignItems: "center",
-            justifyContent: "space-between",
-            px: 2,
-            py: 0.75,
-            borderBottom: `1px solid ${theme.palette.border.light}`,
-          })}
-        >
-          <Typography variant="subtitle1" component="h2" sx={{ fontWeight: 700 }}>
-            {labels.drawer.detailsTitle}
-          </Typography>
-          <Tooltip title={labels.drawer.close} placement="bottom">
-            <IconButton
-              aria-label={labels.drawer.close}
-              onClick={onClose}
-              sx={theme => ({
-                ...focusVisibleRingSx,
-                minWidth: 44,
-                minHeight: 44,
-                color: theme.palette.text.secondary,
-              })}
-            >
-              <CloseIcon />
-            </IconButton>
-          </Tooltip>
-        </Stack>
-        <Box sx={theme => ({ overflowY: "auto", p: 2, bgcolor: theme.palette.surfaceContainerLowest, flexGrow: 1 })}>
-          <Stack spacing={2} sx={{ alignItems: "stretch" }}>
-            <TeacherDrawerIdentitySection teacher={teacher} labels={labels} locale={locale} onCopyEmail={onCopyEmail} />
-            <TeacherDrawerStatusSection teacher={teacher} labels={labels} />
-            <TeacherDrawerAcademicSection teacher={teacher} labels={labels} locale={locale} />
-            <TeacherDrawerRecordSection teacher={teacher} labels={labels} />
-          </Stack>
-        </Box>
-      </Stack>
-    </Drawer>
+      <DirectoryDrawerIdentitySection
+        sectionLabel={labels.drawer.sectionIdentity}
+        name={teacher.name}
+        email={teacher.email}
+        avatarRole={TEACHER_AVATAR_ROLE}
+        copyEmailLabel={labels.quickActions.copyEmail}
+        emailCopiedLabel={labels.quickActions.emailCopied}
+        phoneLabel={labels.fields.phone}
+        phone={teacher.phone}
+        countryLabel={labels.fields.country}
+        country={teacher.country}
+        joinedLabel={labels.headers.joined}
+        createdAt={teacher.createdAt}
+        locale={locale}
+        onCopyEmail={onCopyEmail}
+      />
+      <TeacherDrawerStatusSection teacher={teacher} labels={labels} />
+      <TeacherDrawerAcademicSection teacher={teacher} labels={labels} locale={locale} />
+      <DirectoryDrawerRecordSection
+        sectionLabel={labels.drawer.sectionRecord}
+        idLabel={labels.fields.id}
+        id={teacher.id}
+        viewProfileLabel={labels.quickActions.viewProfile}
+      />
+    </DirectoryDetailDrawer>
   );
 }

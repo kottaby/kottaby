@@ -1,20 +1,19 @@
 "use client";
 
 /**
- * AdminStudentsTable — the desktop (≥`md`) admin student directory table.
- *
- * Card container (radius 12, `border.light` outline, `shadow.card`); the
- * header row sits on `surfaceContainerHigh` with uppercase 12px/600
- * letter-spaced `text.secondary` cells; body rows are ≥72px tall, separated
- * by `border.light` hairlines — odd rows carry a faint `action.hover` zebra
- * tint and pointer hover upgrades the row to `action.selected`.
+ * AdminStudentsTable — the desktop (≥`md`) admin student directory table,
+ * rendered on the shared `DirectoryTableScaffold` (card chrome, header row
+ * from the columns config below, skeleton/empty orchestration, pagination
+ * slot).
  *
  * Columns (start → end; they mirror visually under RTL automatically):
  * NAME (avatar + name + ellipsized email + copy-email quick action),
  * BALANCES (four compact lane-tinted badges), PARENT (parent identity or
  * the independent chip), LANGUAGES (primary + another chips), TRIAL
  * (granted badge + timestamp, or em-dash), JOINED (localized timestamp).
- * Each body row is rendered by `AdminStudentRow`.
+ * Each body row is rendered by `AdminStudentRow` (≥72px tall, `border.light`
+ * hairlines, odd rows carry a faint `action.hover` zebra tint and pointer
+ * hover upgrades the row to `action.selected`).
  *
  * Loading renders stable-key skeleton rows (the rowgroup announces the
  * localized loading label); the empty state reuses the
@@ -23,8 +22,11 @@
  * (top hairline from `DirectoryPagination`).
  */
 
-import { Card, Skeleton, Table, TableBody, TableCell, TableHead, TableRow } from "@mui/material";
 import type { ReactNode } from "react";
+import {
+  type DirectoryTableHeader,
+  DirectoryTableScaffold,
+} from "@/frontend/views/admin/directory-shared/DirectoryTableScaffold";
 import { AdminStudentRow } from "@/frontend/views/admin/students/AdminStudentRow";
 import type { StudentDirectoryItem } from "@/frontend/views/admin/students/AdminStudentRowCells";
 import { AdminStudentsEmptyState } from "@/frontend/views/admin/students/AdminStudentsEmptyState";
@@ -45,99 +47,44 @@ interface AdminStudentsTableProps {
   readonly pagination?: ReactNode;
 }
 
-const COLUMN_COUNT = 6;
-
 export function AdminStudentsTable(props: AdminStudentsTableProps): ReactNode {
   const { labels, items, loading, hasFilters, onCopyEmail, onViewDetails } = props;
   const locale = useAppLocale();
+  /*
+   * Column widths (R5 rebalance): BALANCES 21% restores the 2×2
+   * balance-chip grid in AR once the chips stopped flex-shrinking
+   * (see `TonalChip`); TRIAL stays 14% because the EN "Trial granted"
+   * chip needs ~128px (96px pill + cell padding) — 13% would re-clip
+   * it; the donor is JOINED (11%), whose timestamp already wraps to
+   * two lines at 12%.
+   */
+  const headers: readonly DirectoryTableHeader[] = [
+    { id: "name", width: "29.5%", label: labels.headers.name },
+    { id: "balances", width: "21%", label: labels.headers.balances },
+    { id: "parent", width: "14%", label: labels.headers.parent },
+    { id: "languages", width: "10.5%", label: labels.headers.languages },
+    { id: "trial", width: "14%", label: labels.headers.trial },
+    { id: "joined", width: "11%", label: labels.headers.joined },
+  ];
   return (
-    <Card
-      sx={theme => ({
-        display: { xs: "none", md: "block" },
-        borderRadius: "12px",
-        border: `1px solid ${theme.palette.border.light}`,
-        boxShadow: theme.palette.shadow.card,
-        overflow: "hidden",
-      })}
-    >
-      <Table sx={{ tableLayout: "fixed" }}>
-        <TableHead>
-          {/*
-            Column widths (R5 rebalance): BALANCES 21% restores the 2×2
-            balance-chip grid in AR once the chips stopped flex-shrinking
-            (see `TonalChip`); TRIAL stays 14% because the EN "Trial granted"
-            chip needs ~128px (96px pill + cell padding) — 13% would re-clip
-            it; the donor is JOINED (11%), whose timestamp already wraps to
-            two lines at 12%.
-          */}
-          <TableRow sx={theme => ({ bgcolor: theme.palette.surfaceContainerHigh })}>
-            <AdminStudentsHeaderCell width="29.5%">{labels.headers.name}</AdminStudentsHeaderCell>
-            <AdminStudentsHeaderCell width="21%">{labels.headers.balances}</AdminStudentsHeaderCell>
-            <AdminStudentsHeaderCell width="14%">{labels.headers.parent}</AdminStudentsHeaderCell>
-            <AdminStudentsHeaderCell width="10.5%">{labels.headers.languages}</AdminStudentsHeaderCell>
-            <AdminStudentsHeaderCell width="14%">{labels.headers.trial}</AdminStudentsHeaderCell>
-            <AdminStudentsHeaderCell width="11%">{labels.headers.joined}</AdminStudentsHeaderCell>
-          </TableRow>
-        </TableHead>
-        <TableBody aria-label={loading && items.length === 0 ? labels.loading : undefined}>
-          {loading &&
-            items.length === 0 &&
-            ADMIN_STUDENTS_SKELETON_KEYS.map(rowKey => (
-              <TableRow key={rowKey}>
-                <TableCell
-                  colSpan={COLUMN_COUNT}
-                  sx={theme => ({ borderBottom: `1px solid ${theme.palette.border.light}` })}
-                >
-                  <Skeleton variant="text" />
-                </TableCell>
-              </TableRow>
-            ))}
-          {!loading && items.length === 0 && (
-            <TableRow>
-              <TableCell colSpan={COLUMN_COUNT} sx={{ borderBottom: 0 }}>
-                <AdminStudentsEmptyState labels={labels} hasFilters={hasFilters} />
-              </TableCell>
-            </TableRow>
-          )}
-          {items.map((student, index) => (
-            <AdminStudentRow
-              key={student.id}
-              student={student}
-              labels={labels}
-              locale={locale}
-              striped={index % 2 === 1}
-              onCopyEmail={onCopyEmail}
-              onViewDetails={onViewDetails}
-            />
-          ))}
-        </TableBody>
-      </Table>
-      {props.pagination}
-    </Card>
-  );
-}
-
-interface AdminStudentsHeaderCellProps {
-  readonly children: ReactNode;
-  readonly width?: string;
-}
-
-/** Header cell — uppercase 12px / 600 / letter-spaced, `text.secondary`. */
-function AdminStudentsHeaderCell({ children, width }: AdminStudentsHeaderCellProps): ReactNode {
-  return (
-    <TableCell
-      sx={theme => ({
-        width,
-        textTransform: "uppercase",
-        fontSize: 12,
-        fontWeight: 600,
-        letterSpacing: "0.06em",
-        color: theme.palette.text.secondary,
-        textAlign: "start",
-        borderBottom: `1px solid ${theme.palette.border.light}`,
-      })}
-    >
-      {children}
-    </TableCell>
+    <DirectoryTableScaffold
+      headers={headers}
+      loading={loading}
+      loadingLabel={labels.loading}
+      skeletonKeys={ADMIN_STUDENTS_SKELETON_KEYS}
+      empty={<AdminStudentsEmptyState labels={labels} hasFilters={hasFilters} />}
+      rows={items.map((student, index) => (
+        <AdminStudentRow
+          key={student.id}
+          student={student}
+          labels={labels}
+          locale={locale}
+          striped={index % 2 === 1}
+          onCopyEmail={onCopyEmail}
+          onViewDetails={onViewDetails}
+        />
+      ))}
+      pagination={props.pagination}
+    />
   );
 }

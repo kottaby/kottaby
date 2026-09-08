@@ -1,55 +1,22 @@
 "use client";
 
 /**
- * AdminStudentsToolbarFields — the student directory toolbar's two text
- * inputs, extracted from `AdminStudentsToolbar` (same visual output):
- *  - `StudentSearchField`: magnifier leading adornment, ~400px max width,
- *  - `StudentLanguageField`: the exact-match language filter — the draft
- *    commits on Enter or through the Apply icon button (rendered only
- *    while the draft differs from the applied value) so intermediate
- *    keystrokes never fire wasted queries.
+ * AdminStudentsToolbarFields — the student directory toolbar's specific text
+ * input, extracted from `AdminStudentsToolbar` (same visual output):
+ * `StudentLanguageField`, the exact-match language filter — the draft
+ * commits on Enter or through the Apply icon button (rendered only while
+ * the draft differs from the applied value) so intermediate keystrokes
+ * never fire wasted queries. The toolbar's search input is the
+ * directory-shared `DirectoryToolbarSearchField`.
  */
 
-import { CheckOutlined as ApplyIcon, SearchOutlined as SearchIcon } from "@mui/icons-material";
+import { CheckOutlined as ApplyIcon } from "@mui/icons-material";
 import { IconButton, InputAdornment, TextField, Tooltip } from "@mui/material";
 import type { KeyboardEvent, ReactNode } from "react";
 import type { AdminStudentsLabels } from "@/shared/locale/types/adminStudents";
 
-/** Label slice consumed by both fields. */
+/** Label slice consumed by the field. */
 type ToolbarFieldLabels = Pick<AdminStudentsLabels, "filters">;
-
-interface StudentSearchFieldProps {
-  readonly id: string;
-  readonly labels: ToolbarFieldLabels;
-  readonly value: string;
-  readonly onChange: (value: string) => void;
-}
-
-/** The toolbar's search input: magnifier leading adornment, fixed 44px height. */
-export function StudentSearchField({ id, labels, value, onChange }: StudentSearchFieldProps): ReactNode {
-  return (
-    <TextField
-      id={id}
-      hiddenLabel
-      placeholder={labels.filters.searchPlaceholder}
-      value={value}
-      onChange={event => onChange(event.target.value)}
-      slotProps={{
-        htmlInput: { "aria-label": labels.filters.search },
-        input: {
-          startAdornment: (
-            <SearchIcon fontSize="small" sx={theme => ({ marginInlineEnd: 1, color: theme.palette.text.secondary })} />
-          ),
-        },
-      }}
-      sx={{
-        flex: { xs: "1 1 100%", sm: "1 1 300px" },
-        maxWidth: 400,
-        "& .MuiInputBase-root": { height: 44 },
-      }}
-    />
-  );
-}
 
 interface StudentLanguageFieldProps {
   readonly id: string;

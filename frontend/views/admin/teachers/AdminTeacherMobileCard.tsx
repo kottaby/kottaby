@@ -2,7 +2,8 @@
 
 /**
  * AdminTeacherMobileCard — one per-teacher card of the mobile directory
- * list (radius 12, `border.light` outline, 16px padding):
+ * list, composed from the shared directory mobile-card primitives
+ * (`DirectoryMobileCard` shell + header atoms + email row + detail rows):
  *  - header as a 3-track grid (`auto minmax(0,1fr) auto`): 44px role-tinted
  *    avatar, the single-line ellipsized NAME (the shared bidi ellipsis
  *    recipe), and a trailing column stacking the joined timestamp caption
@@ -10,20 +11,26 @@
  *    no kebab menu; the card click and the quick action both open the
  *    detail drawer);
  *  - FULL-WIDTH email row immediately BELOW the header grid (above the
- *    divider) — the shared `MobileCardEmailRow` (`AdminTeachersMobileCardRows`);
+ *    divider) — the shared `DirectoryMobileEmailRow`;
  *  - hairline divider;
  *  - strict two-column body rows (label at inline-start in `text.secondary`,
  *    value flexing to the inline-end edge, 500 weight): Status (approval
  *    pill + presence + governance pills), Rating, Subjects, Evaluator — the
- *    shared `MobileCardDetailRow`.
+ *    shared `DirectoryMobileDetailRow`.
  *
  * Soft-deleted teachers render dimmed (name/email drop to the disabled ink).
  */
 
-import { VisibilityOutlined as ViewIcon } from "@mui/icons-material";
-import { Box, Card, Divider, IconButton, Stack, Tooltip, Typography } from "@mui/material";
 import type { ReactNode } from "react";
 import { formatApplicantDate } from "@/frontend/lib/i18n/format-date";
+import { DirectoryMobileCard } from "@/frontend/views/admin/directory-shared/DirectoryMobileCard";
+import {
+  DirectoryMobileCardAction,
+  DirectoryMobileCardCaption,
+  DirectoryMobileCardName,
+} from "@/frontend/views/admin/directory-shared/DirectoryMobileCardHeader";
+import { DirectoryMobileDetailRow } from "@/frontend/views/admin/directory-shared/DirectoryMobileDetailRow";
+import { DirectoryMobileEmailRow } from "@/frontend/views/admin/directory-shared/DirectoryMobileEmailRow";
 import {
   type TeacherDirectoryItem,
   TeacherEvaluatorChip,
@@ -31,8 +38,6 @@ import {
   TeacherStatusStack,
   TeacherSubjectsChips,
 } from "@/frontend/views/admin/teachers/AdminTeacherRowCells";
-import { MobileCardDetailRow, MobileCardEmailRow } from "@/frontend/views/admin/teachers/AdminTeachersMobileCardRows";
-import { UserAvatar } from "@/frontend/views/admin/users/ui";
 import type { AdminTeachersLabels } from "@/shared/locale/types/adminTeachers";
 
 /** Role lane for directory avatars (expression-passed — matches the rows). */
@@ -59,93 +64,48 @@ export function AdminTeacherMobileCard({
   const joinedCaption = formatApplicantDate(teacher.createdAt, locale);
   const openDetails = onViewDetails === undefined ? undefined : () => onViewDetails(teacher);
   return (
-    <Card
+    <DirectoryMobileCard
+      avatarName={teacher.name}
+      avatarRole={TEACHER_AVATAR_ROLE}
       onClick={openDetails}
-      sx={theme => ({
-        borderRadius: "12px",
-        border: `1px solid ${theme.palette.border.light}`,
-        boxShadow: theme.palette.shadow.card,
-        p: 2,
-        ...(openDetails !== undefined && { cursor: "pointer" }),
-      })}
-    >
-      {/*
-        Header as a 3-track grid — [avatar 44px] [NAME (flexible,
-        minmax(0,1fr) so it can shrink and ellipsize)] [joined caption +
-        view-details quick action]. The name ALONE lives in the middle
-        track: the email + copy affordance moved OUT to the full-width row
-        below the grid, so the middle track no longer has to share its ~180px
-        with a wrapping address. This surface is read-only, so there is no
-        kebab column — the joined caption and the view-details quick action
-        fill the trailing track.
-      */}
-      <Box sx={{ display: "grid", gridTemplateColumns: "auto minmax(0, 1fr) auto", alignItems: "center", gap: 1 }}>
-        <UserAvatar fullName={teacher.name} role={TEACHER_AVATAR_ROLE} size={44} />
-        <Typography
-          component="div"
-          title={teacher.name}
-          dir="ltr"
-          sx={theme => ({
-            fontSize: 15,
-            fontWeight: 600,
-            unicodeBidi: "isolate",
-            textAlign: "start",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
-            minWidth: 0,
-            color: deleted ? theme.palette.text.disabled : theme.palette.text.primary,
-            ...(deleted && { textDecoration: "line-through" }),
-          })}
-        >
-          {teacher.name}
-        </Typography>
-        <Box sx={{ display: "flex", flexDirection: "column", alignItems: "flex-end", flexShrink: 0 }}>
-          <Typography
-            variant="caption"
-            sx={theme => ({
-              color: deleted ? theme.palette.text.disabled : theme.palette.text.secondary,
-              textAlign: "end",
-            })}
-          >
-            {joinedCaption}
-          </Typography>
+      name={<DirectoryMobileCardName name={teacher.name} deleted={deleted} />}
+      trailing={
+        <>
+          <DirectoryMobileCardCaption caption={joinedCaption} deleted={deleted} />
           {openDetails !== undefined && (
-            <Tooltip title={labels.drawer.viewDetails} placement="top">
-              <IconButton
-                size="small"
-                aria-label={labels.drawer.viewDetails}
-                onClick={openDetails}
-                sx={theme => ({
-                  // ≥44px touch target via transparent padding; the icon
-                  // stays visually 20px.
-                  p: 1.5,
-                  my: -0.75,
-                  color: theme.palette.text.secondary,
-                })}
-              >
-                <ViewIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
+            <DirectoryMobileCardAction
+              tooltipLabel={labels.drawer.viewDetails}
+              ariaLabel={labels.drawer.viewDetails}
+              onClick={openDetails}
+            />
           )}
-        </Box>
-      </Box>
-      <MobileCardEmailRow email={teacher.email} labels={labels} deleted={deleted} onCopyEmail={onCopyEmail} />
-      <Divider sx={{ my: 1.5 }} />
-      <Stack spacing={1}>
-        <MobileCardDetailRow label={labels.headers.status} dimmed={deleted}>
-          <TeacherStatusStack teacher={teacher} labels={labels} />
-        </MobileCardDetailRow>
-        <MobileCardDetailRow label={labels.headers.rating} dimmed={deleted}>
-          <TeacherRatingText teacher={teacher} locale={locale} />
-        </MobileCardDetailRow>
-        <MobileCardDetailRow label={labels.headers.subjects} dimmed={deleted}>
-          <TeacherSubjectsChips teacher={teacher} />
-        </MobileCardDetailRow>
-        <MobileCardDetailRow label={labels.statusPills.evaluator} dimmed={deleted}>
-          <TeacherEvaluatorChip teacher={teacher} labels={labels} />
-        </MobileCardDetailRow>
-      </Stack>
-    </Card>
+        </>
+      }
+      identity={
+        <DirectoryMobileEmailRow
+          email={teacher.email}
+          deleted={deleted}
+          copyEmailLabel={labels.quickActions.copyEmail}
+          emailCopiedLabel={labels.quickActions.emailCopied}
+          onCopyEmail={onCopyEmail}
+        />
+      }
+      rows={
+        <>
+          <DirectoryMobileDetailRow label={labels.headers.status} dimmed={deleted}>
+            <TeacherStatusStack teacher={teacher} labels={labels} />
+          </DirectoryMobileDetailRow>
+          <DirectoryMobileDetailRow label={labels.headers.rating} dimmed={deleted}>
+            <TeacherRatingText teacher={teacher} locale={locale} />
+          </DirectoryMobileDetailRow>
+          <DirectoryMobileDetailRow label={labels.headers.subjects} dimmed={deleted}>
+            <TeacherSubjectsChips teacher={teacher} />
+          </DirectoryMobileDetailRow>
+          <DirectoryMobileDetailRow label={labels.statusPills.evaluator} dimmed={deleted}>
+            <TeacherEvaluatorChip teacher={teacher} labels={labels} />
+          </DirectoryMobileDetailRow>
+        </>
+      }
+    />
   );
 }

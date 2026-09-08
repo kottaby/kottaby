@@ -6,8 +6,9 @@
  * the mobile-only `FilterChipsRow` of the users directory).
  *
  * A horizontally scrollable row of five chips: "All" plus the four
- * canonical applicant statuses (`ADMIN_APPLICANT_STATUSES` order). The
- * chips map onto the SAME single-select status-filter state the toolbar's
+ * canonical applicant statuses (`ADMIN_APPLICANT_STATUSES` order), rendered
+ * through the shared `DirectoryQuickFilterChips` strip. The chips map onto
+ * the SAME single-select status-filter state the toolbar's
  * Status select drives — they compose with it, never replace it: selection
  * always agrees because the state is shared, and the select remains the
  * full a11y control. "All" clears the filter; each status chip toggles its
@@ -19,17 +20,18 @@
  * not resolved (`null`), labels render WITHOUT counts — honest, never
  * guessed zeros.
  *
- * Styling mirrors `FilterChipsRow` exactly: selected chips render filled
- * `primary`/`onPrimary` at weight 600 with a same-color hover; unselected
- * chips are outlined with the `outlineVariant` border and `text.primary`
- * ink. Every chip is a ≥44px touch target with `flexShrink: 0` so the
- * scroll row never squeezes it. All colors resolve through theme-callback
- * sx; nothing is hardcoded.
+ * The chip styling lives in the shared `DirectoryQuickFilterChips` (filled
+ * `primary`/`onPrimary` selection over the outlined `outlineVariant` rest
+ * state, ≥44px touch targets, unsqueezable chips — identical on every
+ * directory surface).
  */
 
-import { Box, Chip } from "@mui/material";
 import type { ReactNode } from "react";
 import type { AdminTeacherApplicantsQuery } from "@/frontend/graphql/generated/gql/graphql";
+import {
+  type DirectoryQuickChip,
+  DirectoryQuickFilterChips,
+} from "@/frontend/views/admin/directory-shared/DirectoryQuickFilterChips";
 import {
   ADMIN_APPLICANT_STATUSES,
   type ApplicantStatusFilter,
@@ -48,20 +50,13 @@ interface ApplicantStatusQuickFiltersProps {
   readonly statusCounts: ApplicantStatusCounts | null;
 }
 
-interface QuickChip {
-  readonly key: string;
-  readonly label: string;
-  readonly selected: boolean;
-  readonly onSelect: () => void;
-}
-
 export function ApplicantStatusQuickFilters(props: ApplicantStatusQuickFiltersProps): ReactNode {
   const { labels, statusFilter, setStatusFilter, statusCounts } = props;
   const allCount =
     statusCounts === null
       ? null
       : statusCounts.pending + statusCounts.inEvaluation + statusCounts.failed + statusCounts.passed;
-  const chips: readonly QuickChip[] = [
+  const chips: readonly DirectoryQuickChip[] = [
     {
       key: "applicant-chip-all",
       label: composeCountLabel(labels.filterOptions.all, allCount),
@@ -70,7 +65,7 @@ export function ApplicantStatusQuickFilters(props: ApplicantStatusQuickFiltersPr
         setStatusFilter("");
       },
     },
-    ...ADMIN_APPLICANT_STATUSES.map<QuickChip>(status => ({
+    ...ADMIN_APPLICANT_STATUSES.map<DirectoryQuickChip>(status => ({
       key: `applicant-chip-${status}`,
       label: composeCountLabel(applicantStatusLabel(status, labels.applicantStatus), countOf(statusCounts, status)),
       selected: statusFilter === status,
@@ -83,38 +78,7 @@ export function ApplicantStatusQuickFilters(props: ApplicantStatusQuickFiltersPr
     // A plain container div — no `group` role needed: each chip is its own
     // labeled, toggleable control, so the wrapper adds no AT semantics
     // (prefer-tag-over-role) and the strip keeps its scroll-row layout.
-    <Box
-      aria-label={labels.headers.status}
-      sx={{ display: "flex", gap: 1, overflowX: "auto", WebkitOverflowScrolling: "touch", py: 0.5 }}
-    >
-      {chips.map(chip => (
-        <Chip
-          key={chip.key}
-          label={chip.label}
-          clickable
-          onClick={chip.onSelect}
-          variant={chip.selected ? "filled" : "outlined"}
-          aria-pressed={chip.selected}
-          sx={theme =>
-            chip.selected
-              ? {
-                  flexShrink: 0,
-                  minHeight: 44,
-                  fontWeight: 600,
-                  bgcolor: theme.palette.primary.main,
-                  color: theme.palette.onPrimary,
-                  "&:hover": { bgcolor: theme.palette.primary.main },
-                }
-              : {
-                  flexShrink: 0,
-                  minHeight: 44,
-                  borderColor: theme.palette.outlineVariant,
-                  color: theme.palette.text.primary,
-                }
-          }
-        />
-      ))}
-    </Box>
+    <DirectoryQuickFilterChips chips={chips} ariaLabel={labels.headers.status} display="always" />
   );
 }
 

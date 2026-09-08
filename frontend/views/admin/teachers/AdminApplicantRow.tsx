@@ -20,8 +20,9 @@
  * deleted governance pill carries the signal.
  */
 
-import { TableCell, TableRow } from "@mui/material";
+import { TableCell } from "@mui/material";
 import type { ReactNode } from "react";
+import { DirectoryBodyRow } from "@/frontend/views/admin/directory-shared/DirectoryBodyRow";
 import {
   ApplicantAttemptsText,
   ApplicantCooldownContent,
@@ -52,20 +53,7 @@ export function AdminApplicantRow({
   onCopyEmail,
 }: AdminApplicantRowProps): ReactNode {
   return (
-    <TableRow
-      sx={theme => ({
-        height: 72,
-        bgcolor: striped ? theme.palette.action.hover : "transparent",
-        "& td": {
-          height: 72,
-          py: 1.5,
-          verticalAlign: "middle",
-          borderBottom: `1px solid ${theme.palette.border.light}`,
-        },
-        "&:last-child td": { borderBottom: 0 },
-        "&:hover": { bgcolor: theme.palette.action.selected },
-      })}
-    >
+    <DirectoryBodyRow striped={striped}>
       <ApplicantIdentityCell applicant={applicant} labels={labels} onCopyEmail={onCopyEmail} />
       <TableCell sx={{ minWidth: 0 }}>
         <ApplicantStatusStack applicant={applicant} labels={labels} />
@@ -85,6 +73,6 @@ export function AdminApplicantRow({
       <TableCell sx={{ minWidth: 0 }}>
         <ViewProfileButton applicantId={applicant.id} applicantName={applicant.name} labels={labels} />
       </TableCell>
-    </TableRow>
+    </DirectoryBodyRow>
   );
 }

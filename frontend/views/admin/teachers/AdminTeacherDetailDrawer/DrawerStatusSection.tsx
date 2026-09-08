@@ -8,7 +8,7 @@
 
 import { Stack } from "@mui/material";
 import type { ReactNode } from "react";
-import { DrawerSection } from "@/frontend/views/admin/teachers/AdminTeacherDetailDrawer/DrawerPrimitives";
+import { DirectoryDrawerSection } from "@/frontend/views/admin/directory-shared/DirectoryDrawerPrimitives";
 import {
   TeacherApprovalPill,
   type TeacherDirectoryItem,
@@ -26,13 +26,13 @@ interface TeacherDrawerStatusSectionProps {
 /** Status section — the exact pill set the directory rows render. */
 export function TeacherDrawerStatusSection({ teacher, labels }: TeacherDrawerStatusSectionProps): ReactNode {
   return (
-    <DrawerSection label={labels.drawer.sectionStatus}>
+    <DirectoryDrawerSection label={labels.drawer.sectionStatus}>
       <Stack direction="row" sx={{ flexWrap: "wrap", alignItems: "center", rowGap: 1, columnGap: 1.5 }}>
         <TeacherApprovalPill teacher={teacher} labels={labels} />
         <TeacherPresenceLabel teacher={teacher} labels={labels} />
         <TeacherGovernancePills teacher={teacher} labels={labels} />
         <TeacherEvaluatorChip teacher={teacher} labels={labels} />
       </Stack>
-    </DrawerSection>
+    </DirectoryDrawerSection>
   );
 }

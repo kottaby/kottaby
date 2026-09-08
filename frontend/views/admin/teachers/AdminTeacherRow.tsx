@@ -20,8 +20,9 @@
  * deleted governance pill and the dimmed identity carry the signal.
  */
 
-import { TableCell, TableRow } from "@mui/material";
+import { TableCell } from "@mui/material";
 import type { ReactNode } from "react";
+import { DirectoryBodyRow } from "@/frontend/views/admin/directory-shared/DirectoryBodyRow";
 import {
   type TeacherDirectoryItem,
   TeacherEvaluatorChip,
@@ -55,22 +56,7 @@ export function AdminTeacherRow({
 }: AdminTeacherRowProps): ReactNode {
   const openDetails = onViewDetails === undefined ? undefined : () => onViewDetails(teacher);
   return (
-    <TableRow
-      onClick={openDetails}
-      sx={theme => ({
-        height: 72,
-        bgcolor: striped ? theme.palette.action.hover : "transparent",
-        ...(openDetails !== undefined && { cursor: "pointer" }),
-        "& td": {
-          height: 72,
-          py: 1.5,
-          verticalAlign: "middle",
-          borderBottom: `1px solid ${theme.palette.border.light}`,
-        },
-        "&:last-child td": { borderBottom: 0 },
-        "&:hover": { bgcolor: theme.palette.action.selected },
-      })}
-    >
+    <DirectoryBodyRow onClick={openDetails} striped={striped}>
       <TeacherIdentityCell teacher={teacher} labels={labels} onCopyEmail={onCopyEmail} onViewDetails={openDetails} />
       <TableCell sx={{ minWidth: 0 }}>
         <TeacherStatusStack teacher={teacher} labels={labels} />
@@ -87,6 +73,6 @@ export function AdminTeacherRow({
       <TableCell sx={{ minWidth: 0 }}>
         <TeacherJoinedText teacher={teacher} locale={locale} />
       </TableCell>
-    </TableRow>
+    </DirectoryBodyRow>
   );
 }

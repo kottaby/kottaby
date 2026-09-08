@@ -37,8 +37,10 @@
  * surface's tab state in place). The panel is otherwise self-contained.
  */
 
-import { Alert, Button, Snackbar, Stack } from "@mui/material";
+import { Stack } from "@mui/material";
 import { type ReactNode, useState } from "react";
+import { DirectoryErrorAlert } from "@/frontend/views/admin/directory-shared/DirectoryErrorAlert";
+import { DirectoryFeedbackSnackbar } from "@/frontend/views/admin/directory-shared/DirectoryFeedbackSnackbar";
 import { AdminTeacherDetailDrawer } from "@/frontend/views/admin/teachers/AdminTeacherDetailDrawer";
 import type { TeacherDirectoryItem } from "@/frontend/views/admin/teachers/AdminTeacherRowCells";
 import { AdminTeachersResults } from "@/frontend/views/admin/teachers/AdminTeachersResults";
@@ -142,17 +144,7 @@ export function AdminTeachersDirectoryPanel({
       />
 
       {directory.hasError && (
-        <Alert
-          severity="error"
-          action={
-            <Button color="inherit" size="small" onClick={retryDirectory}>
-              {labels.errorState.retry}
-            </Button>
-          }
-        >
-          {labels.errorState.title}: {labels.errorState.message}
-          {directory.firstErrorCode === null ? "" : ` (${directory.firstErrorCode})`}
-        </Alert>
+        <DirectoryErrorAlert labels={labels.errorState} onRetry={retryDirectory} errorCode={directory.firstErrorCode} />
       )}
 
       <AdminTeachersResults
@@ -175,16 +167,7 @@ export function AdminTeachersDirectoryPanel({
         onCopyEmail={handleCopyEmail}
       />
 
-      <Snackbar
-        open={directory.snackbar !== null}
-        autoHideDuration={4000}
-        onClose={directory.clearSnackbar}
-        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
-      >
-        <Alert severity={directory.snackbar?.severity ?? "success"} variant="filled" onClose={directory.clearSnackbar}>
-          {directory.snackbar?.message ?? ""}
-        </Alert>
-      </Snackbar>
+      <DirectoryFeedbackSnackbar snackbar={directory.snackbar} onClose={directory.clearSnackbar} />
     </Stack>
   );
 }

@@ -17,7 +17,13 @@
  *    conjunction explicit.
  *
  * Resolver discipline (thin resolvers):
- *  - Pagination args → the positive-safe-integer guard (no `as number`).
+ *  - The pagination plumbing (optional `page`/`pageSize` args, the
+ *    positive-safe-integer guard — no `as number` —) is shared via
+ *    `query/admin/shared/adminDirectoryPagination.helpers.ts`; the
+ *    `ctx.user` belt reuses `requireAdminUser` from
+ *    `backend/graphql/shared/admin-prelude.ts` (TS narrowing only — the
+ *    translated `UnauthorizedError` matches the `authenticated` scope's
+ *    own throw, so the belt is invisible when the scope did its job).
  *    The export sibling takes NO pagination arguments (the 1000-row bound
  *    lives in the service, not in caller-supplied args).
  *  - Filter args are copied FIELD-BY-FIELD into the service's closed
@@ -41,31 +47,12 @@ import {
   AdminTeacherPagePothosObject,
 } from "@/backend/graphql/pothos/admin";
 import { gqlSchemaBuilder } from "@/backend/graphql/pothos/builder";
-import { adminOnlyAuthScopes } from "@/backend/graphql/shared";
-import { UnauthorizedError, ValidationError } from "@/backend/lib/errors";
+import {
+  adminDirectoryPaginationArgs,
+  resolveAdminDirectoryPageBounds,
+} from "@/backend/graphql/query/admin/shared/adminDirectoryPagination.helpers";
+import { adminOnlyAuthScopes, requireAdminUser } from "@/backend/graphql/shared";
 import { AdminTeacherDirectoryService } from "@/backend/services";
-
-/**
- * Positive-safe-integer guard for pagination arguments. `page` must be ≥ 1;
- * `pageSize` must be in `1..100`. Both default when absent.
- */
-function resolvePagination(
-  page: number | undefined | null,
-  pageSize: number | undefined | null
-): {
-  page: number;
-  pageSize: number;
-} {
-  const resolvedPage = page ?? 1;
-  const resolvedPageSize = pageSize ?? 25;
-  if (!Number.isInteger(resolvedPage) || resolvedPage < 1) {
-    throw new ValidationError("page must be a positive integer");
-  }
-  if (!Number.isInteger(resolvedPageSize) || resolvedPageSize < 1 || resolvedPageSize > 100) {
-    throw new ValidationError("pageSize must be an integer in 1..100");
-  }
-  return { page: resolvedPage, pageSize: resolvedPageSize };
-}
 
 // Side-effect: register the `adminTeachers` directory query field.
 gqlSchemaBuilder.queryField("adminTeachers", t =>
@@ -73,15 +60,12 @@ gqlSchemaBuilder.queryField("adminTeachers", t =>
     type: AdminTeacherPagePothosObject,
     args: {
       filters: t.arg({ type: AdminTeacherFiltersInput, required: false }),
-      page: t.arg({ type: "Int", required: false }),
-      pageSize: t.arg({ type: "Int", required: false }),
+      ...adminDirectoryPaginationArgs(t),
     },
     authScopes: adminOnlyAuthScopes,
     resolve: async (_root, args, ctx) => {
-      if (!ctx.user) {
-        throw new UnauthorizedError("Authentication required.");
-      }
-      const { page, pageSize } = resolvePagination(args.page, args.pageSize);
+      const user = await requireAdminUser(ctx);
+      const { page, pageSize } = resolveAdminDirectoryPageBounds(args.page, args.pageSize);
       return AdminTeacherDirectoryService.list(
         {
           search: args.filters?.search ?? null,
@@ -92,7 +76,7 @@ gqlSchemaBuilder.queryField("adminTeachers", t =>
         page,
         pageSize,
         ctx.locale,
-        ctx.user.id
+        user.id
       );
     },
   })
@@ -107,9 +91,7 @@ gqlSchemaBuilder.queryField("adminTeachersExport", t =>
     },
     authScopes: adminOnlyAuthScopes,
     resolve: async (_root, args, ctx) => {
-      if (!ctx.user) {
-        throw new UnauthorizedError("Authentication required.");
-      }
+      const user = await requireAdminUser(ctx);
       return AdminTeacherDirectoryService.exportAll(
         {
           search: args.filters?.search ?? null,
@@ -118,7 +100,7 @@ gqlSchemaBuilder.queryField("adminTeachersExport", t =>
           evaluator: args.filters?.evaluator ?? null,
         },
         ctx.locale,
-        ctx.user.id
+        user.id
       );
     },
   })

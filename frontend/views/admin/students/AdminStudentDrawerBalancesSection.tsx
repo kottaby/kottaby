@@ -10,7 +10,7 @@
 
 import { Box, Typography } from "@mui/material";
 import type { ReactNode } from "react";
-import { DrawerSection } from "@/frontend/views/admin/students/AdminStudentDrawerPrimitives";
+import { DirectoryDrawerSection } from "@/frontend/views/admin/directory-shared/DirectoryDrawerPrimitives";
 import type { StudentDirectoryItem } from "@/frontend/views/admin/students/AdminStudentRowCells";
 import { type DirectoryTone, toneColors } from "@/frontend/views/admin/users/utils";
 import type { AdminStudentsLabels } from "@/shared/locale/types/adminStudents";
@@ -22,14 +22,14 @@ interface StudentDrawerBalancesSectionProps {
 
 export function StudentDrawerBalancesSection({ student, labels }: StudentDrawerBalancesSectionProps): ReactNode {
   return (
-    <DrawerSection label={labels.drawer.sectionBalances}>
+    <DirectoryDrawerSection label={labels.drawer.sectionBalances}>
       <Box sx={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 1 }}>
         <BalanceTile tone="primary" label={labels.balances.hifz} value={student.balanceHifz} />
         <BalanceTile tone="secondary" label={labels.balances.reviews} value={student.balanceReviews} />
         <BalanceTile tone="success" label={labels.balances.tajweed} value={student.balanceTajweed} />
         <BalanceTile tone="warning" label={labels.balances.trial} value={student.balanceTrial} />
       </Box>
-    </DrawerSection>
+    </DirectoryDrawerSection>
   );
 }
 

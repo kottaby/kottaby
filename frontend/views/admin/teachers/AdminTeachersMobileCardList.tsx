@@ -2,8 +2,9 @@
 
 /**
  * AdminTeachersMobileCardList — the mobile (< md) rendering of the admin
- * teacher directory: a vertical stack of per-teacher cards (16px gap). The
- * stack keeps a 96px `paddingBlockEnd` as a gap before the pagination card.
+ * teacher directory, rendered on the shared `DirectoryMobileCardList` (a
+ * vertical stack of per-teacher cards with a 16px gap and the 96px
+ * `paddingBlockEnd` gap before the pagination card).
  *
  * Loading renders stable-key skeleton cards (announced through the
  * localized loading label); the empty state wraps `AdminTeachersEmptyState`
@@ -11,8 +12,8 @@
  * join-requests CTA can render).
  */
 
-import { Box, Card, Stack } from "@mui/material";
 import type { ReactNode } from "react";
+import { DirectoryMobileCardList } from "@/frontend/views/admin/directory-shared/DirectoryMobileCardList";
 import { AdminTeacherMobileCard } from "@/frontend/views/admin/teachers/AdminTeacherMobileCard";
 import type { TeacherDirectoryItem } from "@/frontend/views/admin/teachers/AdminTeacherRowCells";
 import { AdminTeachersEmptyState } from "@/frontend/views/admin/teachers/AdminTeachersEmptyState";
@@ -36,57 +37,30 @@ interface AdminTeachersMobileCardListProps {
 }
 
 export function AdminTeachersMobileCardList(props: AdminTeachersMobileCardListProps): ReactNode {
-  const { labels, items, loading, hasFilters, onCopyEmail, onViewDetails, hasApplicants, onReviewApplicants } = props;
   const locale = useAppLocale();
   return (
-    <Stack
-      spacing={2}
-      sx={{ display: { xs: "flex", md: "none" }, paddingBlockEnd: 12 /* 96px gap before the pagination card */ }}
-    >
-      {loading && items.length === 0 && (
-        <Box component="output" aria-busy="true" aria-label={labels.loading} sx={{ display: "contents" }}>
-          <Stack spacing={2}>
-            {ADMIN_TEACHERS_SKELETON_KEYS.slice(0, 4).map(rowKey => (
-              <Card
-                key={rowKey}
-                sx={theme => ({
-                  borderRadius: "12px",
-                  border: `1px solid ${theme.palette.border.light}`,
-                  boxShadow: theme.palette.shadow.card,
-                  p: 2,
-                  height: 132,
-                })}
-              />
-            ))}
-          </Stack>
-        </Box>
-      )}
-      {!loading && items.length === 0 && (
-        <Card
-          sx={theme => ({
-            borderRadius: "12px",
-            border: `1px solid ${theme.palette.border.light}`,
-            boxShadow: theme.palette.shadow.card,
-          })}
-        >
-          <AdminTeachersEmptyState
-            labels={labels}
-            hasFilters={hasFilters}
-            hasApplicants={hasApplicants}
-            onReviewApplicants={onReviewApplicants}
-          />
-        </Card>
-      )}
-      {items.map(teacher => (
+    <DirectoryMobileCardList
+      loading={props.loading}
+      loadingLabel={props.labels.loading}
+      skeletonKeys={ADMIN_TEACHERS_SKELETON_KEYS}
+      empty={
+        <AdminTeachersEmptyState
+          labels={props.labels}
+          hasFilters={props.hasFilters}
+          hasApplicants={props.hasApplicants}
+          onReviewApplicants={props.onReviewApplicants}
+        />
+      }
+      cards={props.items.map(teacher => (
         <AdminTeacherMobileCard
           key={teacher.id}
-          labels={labels}
+          labels={props.labels}
           teacher={teacher}
           locale={locale}
-          onCopyEmail={onCopyEmail}
-          onViewDetails={onViewDetails}
+          onCopyEmail={props.onCopyEmail}
+          onViewDetails={props.onViewDetails}
         />
       ))}
-    </Stack>
+    />
   );
 }

@@ -1,26 +1,27 @@
 "use client";
 
 /**
- * AdminStudentDrawerPrimitives — the shared building blocks of the admin
- * student detail drawer's section cards, extracted from
- * `AdminStudentDetailDrawer` (same visual output):
- *  - `DrawerSection`: radius 12 card with `border.light` outline and an
- *    uppercase pinned header,
- *  - `LabelValueRow`: the `ProfileInfoCard` caption/value row recipe,
- *  - `EmptyValue`: the honest null — the em-dash is a display affordance,
- *    not a value.
+ * DirectoryDrawerPrimitives — the shared building blocks of the admin
+ * directory detail drawers' section cards (same visual output on every
+ * surface):
+ *  - `DirectoryDrawerSection`: radius 12 card with `border.light` outline
+ *    and an uppercase pinned header,
+ *  - `DirectoryLabelValueRow`: the `ProfileInfoCard` caption/value row
+ *    recipe,
+ *  - `DirectoryEmptyValue`: the honest null — the em-dash is a display
+ *    affordance, not a value.
  */
 
 import { Box, Stack, Typography } from "@mui/material";
 import type { ReactNode } from "react";
 
-interface DrawerSectionProps {
+interface DirectoryDrawerSectionProps {
   readonly label: string;
   readonly children: ReactNode;
 }
 
 /** Section card — radius 12, `border.light` outline, uppercase pinned header. */
-export function DrawerSection({ label, children }: DrawerSectionProps): ReactNode {
+export function DirectoryDrawerSection({ label, children }: DirectoryDrawerSectionProps): ReactNode {
   return (
     <Box
       component="section"
@@ -51,7 +52,7 @@ export function DrawerSection({ label, children }: DrawerSectionProps): ReactNod
   );
 }
 
-interface LabelValueRowProps {
+interface DirectoryLabelValueRowProps {
   readonly label: string;
   /** Latin-contact values (email/phone) are LTR data — pinned via the HTML attribute. */
   readonly ltr?: boolean;
@@ -62,7 +63,7 @@ interface LabelValueRowProps {
  * Caption/value row (the `ProfileInfoCard` recipe): fixed 40% label column
  * in `text.secondary`, value flexing with 500 weight.
  */
-export function LabelValueRow({ label, ltr = false, children }: LabelValueRowProps): ReactNode {
+export function DirectoryLabelValueRow({ label, ltr = false, children }: DirectoryLabelValueRowProps): ReactNode {
   return (
     <Stack direction="row" spacing={2} sx={theme => ({ py: 1, borderTop: `1px solid ${theme.palette.divider}` })}>
       <Typography
@@ -88,7 +89,7 @@ export function LabelValueRow({ label, ltr = false, children }: LabelValueRowPro
 }
 
 /** Honest null — the em-dash is a display affordance, not a value. */
-export function EmptyValue(): ReactNode {
+export function DirectoryEmptyValue(): ReactNode {
   return (
     <Typography variant="body2" sx={theme => ({ color: theme.palette.text.secondary })}>
       —

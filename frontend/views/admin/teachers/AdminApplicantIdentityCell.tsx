@@ -3,10 +3,10 @@
 /**
  * AdminApplicantIdentityCell — the applicant-queue identity column: the
  * desktop-only `TableCell` (avatar + name PROFILE LINK + email + copy-email
- * quick action — the name link is the `DirectoryUserIdentityCell` recipe
- * verbatim: every applicant is a user, so `/admin/users/{id}` is the
- * governance surface where certification actions live) plus the explicit
- * view-profile quick action (the row's keyboard/touch affordance).
+ * quick action — the name link is the shared `DirectoryNameLink` recipe:
+ * every applicant is a user, so `/admin/users/{id}` is the governance
+ * surface where certification actions live) plus the explicit view-profile
+ * quick action (the row's keyboard/touch affordance).
  *
  * Also exports `ApplicantDirectoryItem` — the applicant-queue list-item row
  * consumed by every cell component of the queue surfaces.
@@ -18,11 +18,13 @@
  * clipping the START of the text.
  */
 
-import { ContentCopyOutlined as CopyIcon, VisibilityOutlined as ProfileIcon } from "@mui/icons-material";
-import { Box, IconButton, Link as MuiLink, Stack, TableCell, Tooltip, Typography } from "@mui/material";
+import { VisibilityOutlined as ProfileIcon } from "@mui/icons-material";
+import { Box, IconButton, Stack, TableCell, Tooltip, Typography } from "@mui/material";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import type { AdminTeacherApplicantsQuery } from "@/frontend/graphql/generated/gql/graphql";
+import { DirectoryCopyEmailButton } from "@/frontend/views/admin/directory-shared/DirectoryCopyEmailButton";
+import { DirectoryNameLink } from "@/frontend/views/admin/directory-shared/DirectoryNameLink";
 import { useDirectoryCopyEmail } from "@/frontend/views/admin/users/directory";
 import { UserAvatar } from "@/frontend/views/admin/users/ui";
 import type { AdminTeachersLabels } from "@/shared/locale/types/adminTeachers";
@@ -54,35 +56,11 @@ export function ApplicantIdentityCell({ applicant, labels, onCopyEmail }: Applic
       <Stack direction="row" spacing={1.5} sx={{ alignItems: "center", minWidth: 0 }}>
         <UserAvatar fullName={applicant.name} role={APPLICANT_AVATAR_ROLE} size={40} />
         <Box sx={{ minWidth: 0 }}>
-          <MuiLink
-            component={Link}
+          <DirectoryNameLink
             href={`/admin/users/${applicant.id}`}
-            underline="hover"
-            aria-label={`${labels.quickActions.viewProfile}: ${applicant.name}`}
-            title={applicant.name}
-            dir="ltr"
-            sx={theme => ({
-              display: "block",
-              maxWidth: "100%",
-              fontSize: 15,
-              fontWeight: 600,
-              color: theme.palette.text.primary,
-              unicodeBidi: "isolate",
-              textAlign: "start",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
-              minWidth: 0,
-              // ≥44px tap target without changing the row's visual density:
-              // transparent block padding grows the clickable box while the
-              // matching negative margins keep the layout height unchanged.
-              minHeight: 44,
-              paddingBlock: "10.5px",
-              marginBlock: "-10.5px",
-            })}
-          >
-            {applicant.name}
-          </MuiLink>
+            name={applicant.name}
+            viewProfileLabel={labels.quickActions.viewProfile}
+          />
           <Stack direction="row" spacing={0.5} sx={{ alignItems: "center", minWidth: 0 }}>
             <Typography
               variant="body2"
@@ -103,32 +81,13 @@ export function ApplicantIdentityCell({ applicant, labels, onCopyEmail }: Applic
             >
               {applicant.email}
             </Typography>
-            <Tooltip
-              title={emailCopied ? labels.quickActions.emailCopied : labels.quickActions.copyEmail}
-              placement="top"
-              enterTouchDelay={0}
-              leaveTouchDelay={1500}
-            >
-              <IconButton
-                size="small"
-                aria-label={`${labels.quickActions.copyEmail}: ${applicant.email}`}
-                onClick={event => {
-                  // Copy only — the click must not also trigger the row.
-                  event.stopPropagation();
-                  handleCopyEmail();
-                }}
-                sx={theme => ({
-                  // ≥44px touch target via transparent padding, matching the
-                  // users-directory identity cell; the icon stays visually
-                  // 20px.
-                  p: 1.5,
-                  my: -1.5,
-                  color: emailCopied ? theme.palette.success.main : theme.palette.text.secondary,
-                })}
-              >
-                <CopyIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
+            <DirectoryCopyEmailButton
+              email={applicant.email}
+              copied={emailCopied}
+              copyLabel={labels.quickActions.copyEmail}
+              copiedLabel={labels.quickActions.emailCopied}
+              onCopy={handleCopyEmail}
+            />
           </Stack>
         </Box>
       </Stack>

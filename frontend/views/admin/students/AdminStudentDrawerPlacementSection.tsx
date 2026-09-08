@@ -11,7 +11,11 @@
 
 import { Typography } from "@mui/material";
 import type { ReactNode } from "react";
-import { DrawerSection, EmptyValue, LabelValueRow } from "@/frontend/views/admin/students/AdminStudentDrawerPrimitives";
+import {
+  DirectoryDrawerSection,
+  DirectoryEmptyValue,
+  DirectoryLabelValueRow,
+} from "@/frontend/views/admin/directory-shared/DirectoryDrawerPrimitives";
 import type { StudentDirectoryItem } from "@/frontend/views/admin/students/AdminStudentRowCells";
 import { TonalChip } from "@/frontend/views/admin/users/ui";
 import type { AdminStudentsLabels } from "@/shared/locale/types/adminStudents";
@@ -26,12 +30,12 @@ export function StudentDrawerPlacementSection({ student, labels }: StudentDrawer
   if (!student.hasParent) {
     placementContent = <TonalChip tone="neutral" label={labels.parentLabels.noParent} />;
   } else if (student.parentName === null && student.parentEmail === null) {
-    placementContent = <EmptyValue />;
+    placementContent = <DirectoryEmptyValue />;
   } else {
     placementContent = (
       <>
         {student.parentName !== null && (
-          <LabelValueRow label={labels.headers.parent}>
+          <DirectoryLabelValueRow label={labels.headers.parent}>
             <Typography
               component="div"
               title={student.parentName}
@@ -43,10 +47,10 @@ export function StudentDrawerPlacementSection({ student, labels }: StudentDrawer
             >
               {student.parentName}
             </Typography>
-          </LabelValueRow>
+          </DirectoryLabelValueRow>
         )}
         {student.parentEmail !== null && (
-          <LabelValueRow label={labels.fields.parentEmail} ltr>
+          <DirectoryLabelValueRow label={labels.fields.parentEmail} ltr>
             <Typography
               component="a"
               href={`mailto:${student.parentEmail}`}
@@ -61,10 +65,10 @@ export function StudentDrawerPlacementSection({ student, labels }: StudentDrawer
             >
               {student.parentEmail}
             </Typography>
-          </LabelValueRow>
+          </DirectoryLabelValueRow>
         )}
       </>
     );
   }
-  return <DrawerSection label={labels.drawer.sectionPlacement}>{placementContent}</DrawerSection>;
+  return <DirectoryDrawerSection label={labels.drawer.sectionPlacement}>{placementContent}</DirectoryDrawerSection>;
 }

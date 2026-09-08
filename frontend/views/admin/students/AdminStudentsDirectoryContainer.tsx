@@ -27,8 +27,11 @@
  * stacked cards below).
  */
 
-import { Alert, Box, Button, Snackbar, Stack, Typography } from "@mui/material";
+import { Stack } from "@mui/material";
 import { type ReactNode, useState } from "react";
+import { DirectoryErrorAlert } from "@/frontend/views/admin/directory-shared/DirectoryErrorAlert";
+import { DirectoryFeedbackSnackbar } from "@/frontend/views/admin/directory-shared/DirectoryFeedbackSnackbar";
+import { DirectoryPageHeader } from "@/frontend/views/admin/directory-shared/DirectoryPageHeader";
 import { AdminStudentDetailDrawer } from "@/frontend/views/admin/students/AdminStudentDetailDrawer";
 import type { StudentDirectoryItem } from "@/frontend/views/admin/students/AdminStudentRowCells";
 import { AdminStudentsResults } from "@/frontend/views/admin/students/AdminStudentsResults";
@@ -70,14 +73,7 @@ export function AdminStudentsDirectoryContainer(): ReactNode {
   };
   return (
     <Stack spacing={3} sx={{ p: { xs: 2, md: 3 } }}>
-      <Box>
-        <Typography variant="h4" component="h1">
-          {labels.title}
-        </Typography>
-        <Typography variant="body1" sx={theme => ({ color: theme.palette.text.secondary })}>
-          {labels.subtitle}
-        </Typography>
-      </Box>
+      <DirectoryPageHeader title={labels.title} subtitle={labels.subtitle} />
 
       <AdminStudentsToolbar
         labels={labels}
@@ -95,17 +91,7 @@ export function AdminStudentsDirectoryContainer(): ReactNode {
       />
 
       {directory.hasError && (
-        <Alert
-          severity="error"
-          action={
-            <Button color="inherit" size="small" onClick={retryDirectory}>
-              {labels.errorState.retry}
-            </Button>
-          }
-        >
-          {labels.errorState.title}: {labels.errorState.message}
-          {directory.firstErrorCode === null ? "" : ` (${directory.firstErrorCode})`}
-        </Alert>
+        <DirectoryErrorAlert labels={labels.errorState} onRetry={retryDirectory} errorCode={directory.firstErrorCode} />
       )}
 
       <AdminStudentsResults
@@ -126,16 +112,7 @@ export function AdminStudentsDirectoryContainer(): ReactNode {
         onCopyEmail={handleCopyEmail}
       />
 
-      <Snackbar
-        open={directory.snackbar !== null}
-        autoHideDuration={4000}
-        onClose={directory.clearSnackbar}
-        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
-      >
-        <Alert severity={directory.snackbar?.severity ?? "success"} variant="filled" onClose={directory.clearSnackbar}>
-          {directory.snackbar?.message ?? ""}
-        </Alert>
-      </Snackbar>
+      <DirectoryFeedbackSnackbar snackbar={directory.snackbar} onClose={directory.clearSnackbar} />
     </Stack>
   );
 }

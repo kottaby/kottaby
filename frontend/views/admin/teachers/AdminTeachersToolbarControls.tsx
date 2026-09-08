@@ -1,24 +1,22 @@
 "use client";
 
 /**
- * AdminTeachersToolbarControls — the text-button + search-field controls
- * shared by the two /teachers toolbars (the certified-teacher directory's
+ * AdminTeachersToolbarControls — the toolbar control adapters shared by the
+ * two /teachers toolbars (the certified-teacher directory's
  * `AdminTeachersToolbar` and the applicant queue's `AdminApplicantsToolbar`):
- * the copy-link action, the export-CSV action, the refresh action, and the
- * search input. All follow the same recipe — text buttons, 44px touch
- * floor, `text.secondary` ink, `flexShrink: 0` so the wrapping control row
- * never squeezes them — with colors resolved through theme-callback sx.
+ * thin label-mapping wrappers over the directory-shared toolbar primitives
+ * (`DirectoryToolbarSearchField`, `DirectoryCopyLinkButton`,
+ * `DirectoryExportCsvButton`, `DirectoryToolbarRefreshButton`), preserving
+ * the `labels`-slice prop contract both toolbars already speak. All follow
+ * the same recipe — text buttons, 44px touch floor, `text.secondary` ink,
+ * `flexShrink: 0` so the wrapping control row never squeezes them.
  */
 
-import {
-  FileDownloadOutlined as DownloadIcon,
-  LinkOutlined as LinkIcon,
-  RefreshOutlined as RefreshIcon,
-  SearchOutlined as SearchIcon,
-} from "@mui/icons-material";
-import { Box, Button, TextField, Tooltip } from "@mui/material";
 import type { ReactNode } from "react";
-import { useDirectoryCopyLink } from "@/frontend/views/admin/directory-copy-link";
+import { DirectoryCopyLinkButton } from "@/frontend/views/admin/directory-shared/DirectoryCopyLinkButton";
+import { DirectoryExportCsvButton } from "@/frontend/views/admin/directory-shared/DirectoryExportCsvButton";
+import { DirectoryToolbarRefreshButton } from "@/frontend/views/admin/directory-shared/DirectoryToolbarRefreshButton";
+import { DirectoryToolbarSearchField } from "@/frontend/views/admin/directory-shared/DirectoryToolbarSearchField";
 import type { AdminTeachersLabels } from "@/shared/locale/types/adminTeachers";
 
 interface ToolbarSearchFieldProps {
@@ -31,25 +29,12 @@ interface ToolbarSearchFieldProps {
 /** The toolbar's search input: magnifier leading adornment, fixed 44px height. */
 export function ToolbarSearchField({ id, labels, value, onChange }: ToolbarSearchFieldProps): ReactNode {
   return (
-    <TextField
+    <DirectoryToolbarSearchField
       id={id}
-      hiddenLabel
       placeholder={labels.filters.searchPlaceholder}
+      ariaLabel={labels.filters.search}
       value={value}
-      onChange={event => onChange(event.target.value)}
-      slotProps={{
-        htmlInput: { "aria-label": labels.filters.search },
-        input: {
-          startAdornment: (
-            <SearchIcon fontSize="small" sx={theme => ({ marginInlineEnd: 1, color: theme.palette.text.secondary })} />
-          ),
-        },
-      }}
-      sx={{
-        flex: { xs: "1 1 100%", sm: "1 1 300px" },
-        maxWidth: 400,
-        "& .MuiInputBase-root": { height: 44 },
-      }}
+      onChange={onChange}
     />
   );
 }
@@ -64,18 +49,7 @@ interface ToolbarRefreshButtonProps {
 
 /** The refresh action — re-fetches the current page (same recipe as its siblings). */
 export function ToolbarRefreshButton({ labels, loading, onClick }: ToolbarRefreshButtonProps): ReactNode {
-  return (
-    <Button
-      variant="text"
-      startIcon={<RefreshIcon />}
-      onClick={onClick}
-      disabled={loading}
-      aria-label={labels.filters.refresh}
-      sx={theme => ({ minHeight: 44, flexShrink: 0, color: theme.palette.text.secondary })}
-    >
-      {labels.filters.refresh}
-    </Button>
-  );
+  return <DirectoryToolbarRefreshButton refreshLabel={labels.filters.refresh} loading={loading} onClick={onClick} />;
 }
 
 interface ToolbarCopyLinkButtonProps {
@@ -86,33 +60,13 @@ interface ToolbarCopyLinkButtonProps {
 
 /**
  * The shareable-view action — copies the CURRENT URL (the surface's
- * URL-mirror effect keeps the query string in sync with the active tab's
- * applied filters, so what the admin pastes is exactly what they see).
- * Same text-button recipe as the export/refresh actions next to it; the
- * icon tints to the success color while the copy has resolved, and
- * failures stay silent (the snackbar never lies about a copy that did not
- * happen).
+ * URL-mirror effect keeps the query string in sync with the applied
+ * filters, so what the admin pastes is exactly what they see). The icon
+ * tints to the success color while the copy has resolved, and failures
+ * stay silent (the snackbar never lies about a copy that did not happen).
  */
 export function ToolbarCopyLinkButton({ labels, onCopyLink }: ToolbarCopyLinkButtonProps): ReactNode {
-  const { linkCopied, handleCopyLink } = useDirectoryCopyLink(onCopyLink);
-  return (
-    <Tooltip title={labels.quickActions.copyLink} placement="top">
-      <Button
-        variant="text"
-        startIcon={
-          <LinkIcon
-            fontSize="small"
-            sx={theme => ({ color: linkCopied ? theme.palette.success.main : theme.palette.text.secondary })}
-          />
-        }
-        onClick={handleCopyLink}
-        aria-label={labels.quickActions.copyLink}
-        sx={theme => ({ minHeight: 44, flexShrink: 0, color: theme.palette.text.secondary })}
-      >
-        {labels.quickActions.copyLink}
-      </Button>
-    </Tooltip>
-  );
+  return <DirectoryCopyLinkButton copyLinkLabel={labels.quickActions.copyLink} onCopyLink={onCopyLink} />;
 }
 
 interface ToolbarExportCsvButtonProps {
@@ -126,11 +80,9 @@ interface ToolbarExportCsvButtonProps {
 
 /**
  * The export action — same text-button recipe as the refresh action next to
- * it (variant/size/44px floor/`text.secondary` ink). While the export-all
- * query is in flight the button shows MUI's leading spinner busy state.
- * The tooltip switches to the honest "nothing to export" copy while
- * disabled; a `<span>` wrapper keeps the tooltip reachable on a disabled
- * button (disabled elements emit no pointer events).
+ * it. While the export-all query is in flight the button shows MUI's
+ * leading spinner busy state; the tooltip switches to the honest "nothing
+ * to export" copy while disabled.
  */
 export function ToolbarExportCsvButton({
   labels,
@@ -139,20 +91,12 @@ export function ToolbarExportCsvButton({
   exportDisabled,
 }: ToolbarExportCsvButtonProps): ReactNode {
   return (
-    <Tooltip title={exportDisabled ? labels.export.exportCsvEmpty : labels.export.exportCsv} placement="top">
-      <Box component="span" sx={{ display: "inline-flex", flexShrink: 0 }}>
-        <Button
-          variant="text"
-          startIcon={<DownloadIcon />}
-          onClick={onExportCsv}
-          loading={exportLoading}
-          disabled={exportDisabled}
-          aria-label={labels.export.exportCsv}
-          sx={theme => ({ minHeight: 44, flexShrink: 0, color: theme.palette.text.secondary })}
-        >
-          {labels.export.exportCsv}
-        </Button>
-      </Box>
-    </Tooltip>
+    <DirectoryExportCsvButton
+      exportLabel={labels.export.exportCsv}
+      exportCsvEmptyLabel={labels.export.exportCsvEmpty}
+      onExportCsv={onExportCsv}
+      exportLoading={exportLoading}
+      exportDisabled={exportDisabled}
+    />
   );
 }

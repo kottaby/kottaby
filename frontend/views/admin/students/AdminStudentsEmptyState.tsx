@@ -3,13 +3,13 @@
 /**
  * AdminStudentsEmptyState — the student directory's empty-state block,
  * rendered inside the desktop table body and (wrapped in a card) on the
- * mobile list. Mirrors `DirectoryEmptyState` (users directory) with a
- * student-specific icon.
+ * mobile list. Delegates to the shared `DirectoryEmptyState` block with
+ * the student icon.
  */
 
 import { PersonOutlineOutlined as PersonIcon } from "@mui/icons-material";
-import { Stack, Typography } from "@mui/material";
 import type { ReactNode } from "react";
+import { DirectoryEmptyState } from "@/frontend/views/admin/directory-shared/DirectoryEmptyState";
 import type { AdminStudentsLabels } from "@/shared/locale/types/adminStudents";
 
 interface AdminStudentsEmptyStateProps {
@@ -19,14 +19,10 @@ interface AdminStudentsEmptyStateProps {
 
 export function AdminStudentsEmptyState({ labels, hasFilters }: AdminStudentsEmptyStateProps): ReactNode {
   return (
-    <Stack spacing={1} sx={{ alignItems: "center", py: 6 }}>
-      <PersonIcon sx={theme => ({ fontSize: 48, color: theme.palette.text.secondary })} />
-      <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
-        {hasFilters ? labels.emptyState.filteredTitle : labels.emptyState.title}
-      </Typography>
-      <Typography sx={theme => ({ color: theme.palette.text.secondary })}>
-        {hasFilters ? labels.emptyState.filteredMessage : labels.emptyState.message}
-      </Typography>
-    </Stack>
+    <DirectoryEmptyState
+      icon={<PersonIcon sx={theme => ({ fontSize: 48, color: theme.palette.text.secondary })} />}
+      hasFilters={hasFilters}
+      labels={labels.emptyState}
+    />
   );
 }

@@ -11,38 +11,30 @@
  * record. Every caption comes from the `AdminStudents` namespace; data
  * values render verbatim.
  *
- * Layout: the shared section primitives and the four large sections live
- * beside this file (`AdminStudentDrawerPrimitives.tsx` /
- * `AdminStudentDrawer{Identity,Balances,Placement,Record}Section.tsx`);
- * this module keeps the drawer shell plus the two thin chip sections.
+ * Layout: the shell, the shared section primitives and the shared
+ * identity/record sections live in `frontend/views/admin/directory-shared/`
+ * (`DirectoryDetailDrawer` / `DirectoryDrawerPrimitives` /
+ * `DirectoryDrawer{Identity,Record}Section`); the two domain sections live
+ * beside this file (`AdminStudentDrawer{Balances,Placement}Section.tsx`);
+ * this module keeps the student composition plus the two thin chip
+ * sections.
  *
  * RTL/bidi: Latin names/emails/phones are pinned with the HTML `dir="ltr"`
  * ATTRIBUTE + `unicodeBidi: isolate` — a CSS `direction` rule MUST NOT be
  * added (stylis-plugin-rtl flips it and clips the string's head), the same
- * recipe the directory rows and the users detail page use. The Drawer uses
- * the DEFAULT anchor (no `anchor` prop) exactly like `DashboardSidebar` —
- * the codebase runs the RTL emotion cache, which mirrors the paper to the
- * start edge in Arabic automatically; `theme.direction` is never set, so
- * no anchor-side branching is needed.
- *
- * Accessibility: Escape and backdrop click close the drawer (temporary
- * Drawer defaults); the close button and every quick action carry 44px
- * touch targets; one drawer instance exists per directory (owned by the
- * container), so only one detail surface can ever be open at a time.
+ * recipe the directory rows and the users detail page use.
  *
  * MUI v9 discipline: `sx`-only styling, colors via theme callbacks,
  * `*Outlined` icons.
  */
 
-import { CloseOutlined as CloseIcon } from "@mui/icons-material";
-import { Box, Drawer, IconButton, Stack, Tooltip, Typography } from "@mui/material";
 import type { ReactNode } from "react";
-import { focusVisibleRingSx } from "@/frontend/components/ui/focusRing";
+import { DirectoryDetailDrawer } from "@/frontend/views/admin/directory-shared/DirectoryDetailDrawer";
+import { DirectoryDrawerIdentitySection } from "@/frontend/views/admin/directory-shared/DirectoryDrawerIdentitySection";
+import { DirectoryDrawerSection } from "@/frontend/views/admin/directory-shared/DirectoryDrawerPrimitives";
+import { DirectoryDrawerRecordSection } from "@/frontend/views/admin/directory-shared/DirectoryDrawerRecordSection";
 import { StudentDrawerBalancesSection } from "@/frontend/views/admin/students/AdminStudentDrawerBalancesSection";
-import { StudentDrawerIdentitySection } from "@/frontend/views/admin/students/AdminStudentDrawerIdentitySection";
 import { StudentDrawerPlacementSection } from "@/frontend/views/admin/students/AdminStudentDrawerPlacementSection";
-import { DrawerSection } from "@/frontend/views/admin/students/AdminStudentDrawerPrimitives";
-import { StudentDrawerRecordSection } from "@/frontend/views/admin/students/AdminStudentDrawerRecordSection";
 import {
   type StudentDirectoryItem,
   StudentLanguageChips,
@@ -51,8 +43,8 @@ import {
 import type { AppLocale } from "@/shared/locale";
 import type { AdminStudentsLabels } from "@/shared/locale/types/adminStudents";
 
-/** Drawer paper width — clamps inside narrow viewports. */
-const DRAWER_WIDTH = 420;
+/** Role lane for the drawer avatar (expression-passed — matches the rows). */
+const STUDENT_AVATAR_ROLE = "Student" as const;
 
 interface AdminStudentDetailDrawerProps {
   /** Whether the drawer is open (the container keeps the item mounted through the exit transition). */
@@ -79,60 +71,39 @@ export function AdminStudentDetailDrawer({
     return null;
   }
   return (
-    <Drawer
+    <DirectoryDetailDrawer
       open={open}
       onClose={onClose}
-      // Default anchor (no `anchor` prop) — mirrors `DashboardSidebar`; the
-      // RTL emotion cache mirrors the paper to the start edge in Arabic.
-      sx={{
-        "& .MuiDrawer-paper": {
-          width: DRAWER_WIDTH,
-          maxWidth: "calc(100vw - 24px)",
-          boxSizing: "border-box",
-        },
-      }}
+      title={labels.drawer.detailsTitle}
+      closeLabel={labels.drawer.close}
     >
-      <Stack sx={{ height: "100%" }}>
-        <Stack
-          direction="row"
-          sx={theme => ({
-            alignItems: "center",
-            justifyContent: "space-between",
-            px: 2,
-            py: 0.75,
-            borderBottom: `1px solid ${theme.palette.border.light}`,
-          })}
-        >
-          <Typography variant="subtitle1" component="h2" sx={{ fontWeight: 700 }}>
-            {labels.drawer.detailsTitle}
-          </Typography>
-          <Tooltip title={labels.drawer.close} placement="bottom">
-            <IconButton
-              aria-label={labels.drawer.close}
-              onClick={onClose}
-              sx={theme => ({
-                ...focusVisibleRingSx,
-                minWidth: 44,
-                minHeight: 44,
-                color: theme.palette.text.secondary,
-              })}
-            >
-              <CloseIcon />
-            </IconButton>
-          </Tooltip>
-        </Stack>
-        <Box sx={theme => ({ overflowY: "auto", p: 2, bgcolor: theme.palette.surfaceContainerLowest, flexGrow: 1 })}>
-          <Stack spacing={2} sx={{ alignItems: "stretch" }}>
-            <StudentDrawerIdentitySection student={student} labels={labels} locale={locale} onCopyEmail={onCopyEmail} />
-            <StudentDrawerBalancesSection student={student} labels={labels} />
-            <StudentDrawerPlacementSection student={student} labels={labels} />
-            <StudentDrawerLanguagesSection student={student} labels={labels} />
-            <StudentDrawerTrialSection student={student} labels={labels} locale={locale} />
-            <StudentDrawerRecordSection student={student} labels={labels} />
-          </Stack>
-        </Box>
-      </Stack>
-    </Drawer>
+      <DirectoryDrawerIdentitySection
+        sectionLabel={labels.drawer.sectionIdentity}
+        name={student.name}
+        email={student.email}
+        avatarRole={STUDENT_AVATAR_ROLE}
+        copyEmailLabel={labels.quickActions.copyEmail}
+        emailCopiedLabel={labels.quickActions.emailCopied}
+        phoneLabel={labels.fields.phone}
+        phone={student.phone}
+        countryLabel={labels.fields.country}
+        country={student.country}
+        joinedLabel={labels.headers.joined}
+        createdAt={student.createdAt}
+        locale={locale}
+        onCopyEmail={onCopyEmail}
+      />
+      <StudentDrawerBalancesSection student={student} labels={labels} />
+      <StudentDrawerPlacementSection student={student} labels={labels} />
+      <StudentDrawerLanguagesSection student={student} labels={labels} />
+      <StudentDrawerTrialSection student={student} labels={labels} locale={locale} />
+      <DirectoryDrawerRecordSection
+        sectionLabel={labels.drawer.sectionRecord}
+        idLabel={labels.fields.id}
+        id={student.id}
+        viewProfileLabel={labels.quickActions.viewProfile}
+      />
+    </DirectoryDetailDrawer>
   );
 }
 
@@ -144,9 +115,9 @@ interface StudentDrawerLanguagesSectionProps {
 /** Languages section — the primary + another chips (em-dash when unset). */
 function StudentDrawerLanguagesSection({ student, labels }: StudentDrawerLanguagesSectionProps): ReactNode {
   return (
-    <DrawerSection label={labels.drawer.sectionLanguages}>
+    <DirectoryDrawerSection label={labels.drawer.sectionLanguages}>
       <StudentLanguageChips student={student} />
-    </DrawerSection>
+    </DirectoryDrawerSection>
   );
 }
 
@@ -159,8 +130,8 @@ interface StudentDrawerTrialSectionProps {
 /** Trial section — the granted chip + timestamp, or the honest em-dash. */
 function StudentDrawerTrialSection({ student, labels, locale }: StudentDrawerTrialSectionProps): ReactNode {
   return (
-    <DrawerSection label={labels.drawer.sectionTrial}>
+    <DirectoryDrawerSection label={labels.drawer.sectionTrial}>
       <StudentTrialContent student={student} locale={locale} labels={labels} />
-    </DrawerSection>
+    </DirectoryDrawerSection>
   );
 }

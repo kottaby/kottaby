@@ -36,8 +36,9 @@
  */
 
 import { AddOutlined as AddIcon } from "@mui/icons-material";
-import { Alert, Button, Fab, Stack, Typography } from "@mui/material";
+import { Fab, Stack, Typography } from "@mui/material";
 import type { ReactNode } from "react";
+import { DirectoryErrorAlert } from "@/frontend/views/admin/directory-shared/DirectoryErrorAlert";
 import { AdminUserSuccessSnackbar, DirectoryMutationDialogs } from "@/frontend/views/admin/users/dialogs";
 import {
   ActiveFiltersRow,
@@ -110,17 +111,7 @@ export function AdminUsersDirectoryContainer(): ReactNode {
       />
 
       {directory.hasError && (
-        <Alert
-          severity="error"
-          action={
-            <Button color="inherit" size="small" onClick={retryDirectory}>
-              {labels.errorState.retry}
-            </Button>
-          }
-        >
-          {labels.errorState.title}: {labels.errorState.message}
-          {directory.firstErrorCode === null ? "" : ` (${directory.firstErrorCode})`}
-        </Alert>
+        <DirectoryErrorAlert labels={labels.errorState} onRetry={retryDirectory} errorCode={directory.firstErrorCode} />
       )}
 
       <DirectoryResults labels={labels} directory={directory} onCopyEmail={handleCopyEmail} />

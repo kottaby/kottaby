@@ -19,8 +19,9 @@
  * clickable.
  */
 
-import { TableCell, TableRow } from "@mui/material";
+import { TableCell } from "@mui/material";
 import type { ReactNode } from "react";
+import { DirectoryBodyRow } from "@/frontend/views/admin/directory-shared/DirectoryBodyRow";
 import { StudentIdentityCell } from "@/frontend/views/admin/students/AdminStudentIdentityCell";
 import { StudentParentContent } from "@/frontend/views/admin/students/AdminStudentParentContent";
 import {
@@ -54,22 +55,7 @@ export function AdminStudentRow({
 }: AdminStudentRowProps): ReactNode {
   const openDetails = onViewDetails === undefined ? undefined : () => onViewDetails(student);
   return (
-    <TableRow
-      onClick={openDetails}
-      sx={theme => ({
-        height: 72,
-        bgcolor: striped ? theme.palette.action.hover : "transparent",
-        ...(openDetails !== undefined && { cursor: "pointer" }),
-        "& td": {
-          height: 72,
-          py: 1.5,
-          verticalAlign: "middle",
-          borderBottom: `1px solid ${theme.palette.border.light}`,
-        },
-        "&:last-child td": { borderBottom: 0 },
-        "&:hover": { bgcolor: theme.palette.action.selected },
-      })}
-    >
+    <DirectoryBodyRow onClick={openDetails} striped={striped}>
       <StudentIdentityCell student={student} labels={labels} onCopyEmail={onCopyEmail} onViewDetails={openDetails} />
       <TableCell sx={{ minWidth: 0 }}>
         <StudentBalancesBadges student={student} labels={labels} />
@@ -86,6 +72,6 @@ export function AdminStudentRow({
       <TableCell sx={{ minWidth: 0 }}>
         <StudentJoinedText student={student} locale={locale} />
       </TableCell>
-    </TableRow>
+    </DirectoryBodyRow>
   );
 }

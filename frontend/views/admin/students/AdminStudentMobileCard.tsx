@@ -2,7 +2,8 @@
 
 /**
  * AdminStudentMobileCard — one per-student card of the mobile directory
- * list (radius 12, `border.light` outline, 16px padding):
+ * list, composed from the shared directory mobile-card primitives
+ * (`DirectoryMobileCard` shell + header atoms + email row + detail rows):
  *  - header as a 3-track grid (`auto minmax(0,1fr) auto`): 44px role-tinted
  *    avatar, the single-line ellipsized NAME (the shared bidi ellipsis
  *    recipe), and a trailing column stacking the joined timestamp caption
@@ -18,16 +19,18 @@
  *  - strict two-column body rows (label at inline-start in `text.secondary`,
  *    value flexing to the inline-end edge, 500 weight): Balances, Parent,
  *    Languages, Trial.
- *
- * The email row and the body-row primitive live beside this file in
- * `AdminStudentMobileCardRows.tsx`.
  */
 
-import { VisibilityOutlined as ViewIcon } from "@mui/icons-material";
-import { Box, Card, Divider, IconButton, Stack, Tooltip, Typography } from "@mui/material";
 import type { ReactNode } from "react";
 import { formatApplicantDate } from "@/frontend/lib/i18n/format-date";
-import { MobileDetailRow, MobileStudentEmailRow } from "@/frontend/views/admin/students/AdminStudentMobileCardRows";
+import { DirectoryMobileCard } from "@/frontend/views/admin/directory-shared/DirectoryMobileCard";
+import {
+  DirectoryMobileCardAction,
+  DirectoryMobileCardCaption,
+  DirectoryMobileCardName,
+} from "@/frontend/views/admin/directory-shared/DirectoryMobileCardHeader";
+import { DirectoryMobileDetailRow } from "@/frontend/views/admin/directory-shared/DirectoryMobileDetailRow";
+import { DirectoryMobileEmailRow } from "@/frontend/views/admin/directory-shared/DirectoryMobileEmailRow";
 import { StudentParentContent } from "@/frontend/views/admin/students/AdminStudentParentContent";
 import {
   StudentBalancesBadges,
@@ -35,7 +38,6 @@ import {
   StudentLanguageChips,
   StudentTrialContent,
 } from "@/frontend/views/admin/students/AdminStudentRowCells";
-import { UserAvatar } from "@/frontend/views/admin/users/ui";
 import type { AdminStudentsLabels } from "@/shared/locale/types/adminStudents";
 
 /** Role lane for directory avatars (expression-passed — a `role` string
@@ -62,86 +64,47 @@ export function AdminStudentMobileCard({
   const joinedCaption = formatApplicantDate(student.createdAt, locale);
   const openDetails = onViewDetails === undefined ? undefined : () => onViewDetails(student);
   return (
-    <Card
+    <DirectoryMobileCard
+      avatarName={student.name}
+      avatarRole={STUDENT_AVATAR_ROLE}
       onClick={openDetails}
-      sx={theme => ({
-        borderRadius: "12px",
-        border: `1px solid ${theme.palette.border.light}`,
-        boxShadow: theme.palette.shadow.card,
-        p: 2,
-        ...(openDetails !== undefined && { cursor: "pointer" }),
-      })}
-    >
-      {/*
-        Header as a 3-track grid — [avatar 44px] [NAME (flexible,
-        minmax(0,1fr) so it can shrink and ellipsize)] [joined caption +
-        view-details quick action]. The name ALONE lives in the middle
-        track: the email + copy affordance moved OUT to the full-width row
-        below the grid, so the middle track no longer has to share its ~180px
-        with a wrapping address. This surface is read-only, so there is no
-        kebab column — the joined caption and the view-details quick action
-        fill the trailing track.
-      */}
-      <Box sx={{ display: "grid", gridTemplateColumns: "auto minmax(0, 1fr) auto", alignItems: "center", gap: 1 }}>
-        <UserAvatar fullName={student.name} role={STUDENT_AVATAR_ROLE} size={44} />
-        <Typography
-          component="div"
-          title={student.name}
-          dir="ltr"
-          sx={theme => ({
-            fontSize: 15,
-            fontWeight: 600,
-            unicodeBidi: "isolate",
-            textAlign: "start",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
-            minWidth: 0,
-            color: theme.palette.text.primary,
-          })}
-        >
-          {student.name}
-        </Typography>
-        <Box sx={{ display: "flex", flexDirection: "column", alignItems: "flex-end", flexShrink: 0 }}>
-          <Typography variant="caption" sx={theme => ({ color: theme.palette.text.secondary, textAlign: "end" })}>
-            {joinedCaption}
-          </Typography>
+      name={<DirectoryMobileCardName name={student.name} />}
+      trailing={
+        <>
+          <DirectoryMobileCardCaption caption={joinedCaption} />
           {openDetails !== undefined && (
-            <Tooltip title={labels.drawer.viewDetails} placement="top">
-              <IconButton
-                size="small"
-                aria-label={labels.drawer.viewDetails}
-                onClick={openDetails}
-                sx={theme => ({
-                  // ≥44px touch target via transparent padding; the icon
-                  // stays visually 20px.
-                  p: 1.5,
-                  my: -0.75,
-                  color: theme.palette.text.secondary,
-                })}
-              >
-                <ViewIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
+            <DirectoryMobileCardAction
+              tooltipLabel={labels.drawer.viewDetails}
+              ariaLabel={labels.drawer.viewDetails}
+              onClick={openDetails}
+            />
           )}
-        </Box>
-      </Box>
-      <MobileStudentEmailRow student={student} labels={labels} onCopyEmail={onCopyEmail} />
-      <Divider sx={{ my: 1.5 }} />
-      <Stack spacing={1}>
-        <MobileDetailRow label={labels.headers.balances}>
-          <StudentBalancesBadges student={student} labels={labels} />
-        </MobileDetailRow>
-        <MobileDetailRow label={labels.headers.parent}>
-          <StudentParentContent student={student} labels={labels} />
-        </MobileDetailRow>
-        <MobileDetailRow label={labels.headers.languages}>
-          <StudentLanguageChips student={student} />
-        </MobileDetailRow>
-        <MobileDetailRow label={labels.headers.trial}>
-          <StudentTrialContent student={student} locale={locale} labels={labels} />
-        </MobileDetailRow>
-      </Stack>
-    </Card>
+        </>
+      }
+      identity={
+        <DirectoryMobileEmailRow
+          email={student.email}
+          copyEmailLabel={labels.quickActions.copyEmail}
+          emailCopiedLabel={labels.quickActions.emailCopied}
+          onCopyEmail={onCopyEmail}
+        />
+      }
+      rows={
+        <>
+          <DirectoryMobileDetailRow label={labels.headers.balances}>
+            <StudentBalancesBadges student={student} labels={labels} />
+          </DirectoryMobileDetailRow>
+          <DirectoryMobileDetailRow label={labels.headers.parent}>
+            <StudentParentContent student={student} labels={labels} />
+          </DirectoryMobileDetailRow>
+          <DirectoryMobileDetailRow label={labels.headers.languages}>
+            <StudentLanguageChips student={student} />
+          </DirectoryMobileDetailRow>
+          <DirectoryMobileDetailRow label={labels.headers.trial}>
+            <StudentTrialContent student={student} locale={locale} labels={labels} />
+          </DirectoryMobileDetailRow>
+        </>
+      }
+    />
   );
 }

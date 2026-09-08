@@ -10,6 +10,10 @@
  * Also exports `TeacherDirectoryItem` — the directory list-item row
  * consumed by every cell component of the directory surfaces.
  *
+ * The copy-email quick action and the view-details quick action are the
+ * shared directory primitives (`DirectoryCopyEmailButton` /
+ * `DirectoryViewDetailsButton`).
+ *
  * Bidi note (Latin names/emails inside an RTL page): the HTML `dir="ltr"`
  * ATTRIBUTE isolates glyph direction and participates in the bidi
  * algorithm. A CSS `direction: "ltr"` rule MUST NOT be added —
@@ -18,10 +22,11 @@
  * `ltr` and `text-align: start` shows the head with a trailing ellipsis.
  */
 
-import { ContentCopyOutlined as CopyIcon, VisibilityOutlined as ViewIcon } from "@mui/icons-material";
-import { Box, IconButton, Stack, TableCell, Tooltip, Typography } from "@mui/material";
+import { Box, Stack, TableCell, Typography } from "@mui/material";
 import type { ReactNode } from "react";
 import type { AdminTeachersQuery } from "@/frontend/graphql/generated/gql/graphql";
+import { DirectoryCopyEmailButton } from "@/frontend/views/admin/directory-shared/DirectoryCopyEmailButton";
+import { DirectoryViewDetailsButton } from "@/frontend/views/admin/directory-shared/DirectoryViewDetailsButton";
 import { useDirectoryCopyEmail } from "@/frontend/views/admin/users/directory";
 import { UserAvatar } from "@/frontend/views/admin/users/ui";
 import type { AdminTeachersLabels } from "@/shared/locale/types/adminTeachers";
@@ -99,32 +104,13 @@ export function TeacherIdentityCell({
             >
               {teacher.email}
             </Typography>
-            <Tooltip
-              title={emailCopied ? labels.quickActions.emailCopied : labels.quickActions.copyEmail}
-              placement="top"
-              enterTouchDelay={0}
-              leaveTouchDelay={1500}
-            >
-              <IconButton
-                size="small"
-                aria-label={`${labels.quickActions.copyEmail}: ${teacher.email}`}
-                onClick={event => {
-                  // Copy only — the click must not also open the detail drawer.
-                  event.stopPropagation();
-                  handleCopyEmail();
-                }}
-                sx={theme => ({
-                  // ≥44px touch target via transparent padding, matching the
-                  // users-directory identity cell; the icon stays visually
-                  // 20px.
-                  p: 1.5,
-                  my: -1.5,
-                  color: emailCopied ? theme.palette.success.main : theme.palette.text.secondary,
-                })}
-              >
-                <CopyIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
+            <DirectoryCopyEmailButton
+              email={teacher.email}
+              copied={emailCopied}
+              copyLabel={labels.quickActions.copyEmail}
+              copiedLabel={labels.quickActions.emailCopied}
+              onCopy={handleCopyEmail}
+            />
           </Stack>
         </Box>
         {onViewDetails !== undefined && <ViewDetailsButton labels={labels} onViewDetails={onViewDetails} />}
@@ -144,23 +130,5 @@ interface ViewDetailsButtonProps {
  * convenience; this button is the real focusable control).
  */
 export function ViewDetailsButton({ labels, onViewDetails }: ViewDetailsButtonProps): ReactNode {
-  return (
-    <Tooltip title={labels.drawer.viewDetails} placement="top">
-      <IconButton
-        size="small"
-        aria-label={labels.drawer.viewDetails}
-        onClick={onViewDetails}
-        sx={theme => ({
-          // ≥44px touch target via transparent padding; the icon stays
-          // visually 20px.
-          p: 1.5,
-          my: -1.5,
-          flexShrink: 0,
-          color: theme.palette.text.secondary,
-        })}
-      >
-        <ViewIcon fontSize="small" />
-      </IconButton>
-    </Tooltip>
-  );
+  return <DirectoryViewDetailsButton viewDetailsLabel={labels.drawer.viewDetails} onViewDetails={onViewDetails} />;
 }

@@ -15,17 +15,20 @@
  *     at least one filter is set) and a refresh text button re-fetching the
  *     current page.
  *
- * The select chrome is the SHARED `DirectoryFilterSelect` imported from the
- * users directory (identical 44px outlined control); the reported string is
- * narrowed back to the local filter unions by the validated lookup helpers
- * in `adminTeachersDirectory.helpers`. The action buttons and the search
- * field are the SHARED `AdminTeachersToolbarControls` (identical recipe in
- * the applicants toolbar). Label slices are passed down narrowed — nothing
- * is hardcoded. All colors resolve through theme-callback sx.
+ * The card chrome is the SHARED `DirectoryToolbarCard`; the select chrome is
+ * the SHARED `DirectoryFilterSelect` imported from the users directory
+ * (identical 44px outlined control); the reported string is narrowed back to
+ * the local filter unions by the validated lookup helpers in
+ * `adminTeachersDirectory.helpers`. The action buttons and the search field
+ * are the SHARED `AdminTeachersToolbarControls` (label-mapping adapters over
+ * the directory-shared toolbar primitives, identical recipe in the
+ * applicants toolbar). Label slices are passed down narrowed — nothing is
+ * hardcoded. All colors resolve through theme-callback sx.
  */
 
-import { Box, Button, Card } from "@mui/material";
+import { Box, Button } from "@mui/material";
 import type { ReactNode } from "react";
+import { DirectoryToolbarCard } from "@/frontend/views/admin/directory-shared/DirectoryToolbarCard";
 import {
   ToolbarCopyLinkButton,
   ToolbarExportCsvButton,
@@ -93,85 +96,75 @@ export function AdminTeachersToolbar({
   const EVALUATOR_ID = "admin-teachers-toolbar-evaluator";
   const SEARCH_ID = "admin-teachers-toolbar-search";
   return (
-    <Card
-      sx={theme => ({
-        borderRadius: "12px",
-        border: `1px solid ${theme.palette.border.light}`,
-        boxShadow: theme.palette.shadow.card,
-        p: 3,
-        display: "flex",
-      })}
-    >
-      <Box sx={{ display: "flex", width: "100%", flexWrap: "wrap", gap: 2, alignItems: "center" }}>
-        <ToolbarSearchField
-          id={SEARCH_ID}
-          labels={labels}
-          value={directory.searchInput}
-          onChange={directory.setSearchInput}
-        />
-        <DirectoryFilterSelect
-          id={APPROVAL_ID}
-          label={labels.filters.approval}
-          value={directory.approvalFilter}
-          onChange={value => directory.setApprovalFilter(asApprovalFilter(value))}
-          emptyOptionLabel={labels.filterOptions.all}
-          options={[
-            { value: "Approved", label: labels.statusPills.approved },
-            { value: "Pending", label: labels.statusPills.pending },
-          ]}
-        />
-        <DirectoryFilterSelect
-          id={ONLINE_ID}
-          label={labels.filters.online}
-          value={directory.onlineFilter}
-          onChange={value => directory.setOnlineFilter(asOnlineFilter(value))}
-          emptyOptionLabel={labels.filterOptions.all}
-          options={[
-            { value: "Online", label: labels.statusPills.online },
-            { value: "Offline", label: labels.statusPills.offline },
-          ]}
-        />
-        <DirectoryFilterSelect
-          id={EVALUATOR_ID}
-          label={labels.filters.evaluator}
-          value={directory.evaluatorFilter}
-          onChange={value => directory.setEvaluatorFilter(asEvaluatorFilter(value))}
-          emptyOptionLabel={labels.filterOptions.all}
-          options={[
-            { value: "Evaluator", label: labels.statusPills.evaluator },
-            { value: "NonEvaluator", label: labels.filterOptions.nonEvaluator },
-          ]}
-        />
-        <Box sx={{ flex: 1 }} />
-        {hasFilters && (
-          <Button
-            variant="text"
-            onClick={() => {
-              directory.setApprovalFilter("");
-              directory.setOnlineFilter("");
-              directory.setEvaluatorFilter("");
-              directory.setSearchInput("");
-            }}
-            sx={theme => ({ minHeight: 44, flexShrink: 0, color: theme.palette.text.secondary })}
-          >
-            {labels.filters.clear}
-          </Button>
-        )}
-        <ToolbarCopyLinkButton labels={labels} onCopyLink={onCopyLink} />
-        <ToolbarExportCsvButton
-          labels={labels}
-          onExportCsv={onExportCsv}
-          exportLoading={exportLoading}
-          exportDisabled={exportDisabled}
-        />
-        <ToolbarRefreshButton
-          labels={labels}
-          loading={loading}
+    <DirectoryToolbarCard>
+      <ToolbarSearchField
+        id={SEARCH_ID}
+        labels={labels}
+        value={directory.searchInput}
+        onChange={directory.setSearchInput}
+      />
+      <DirectoryFilterSelect
+        id={APPROVAL_ID}
+        label={labels.filters.approval}
+        value={directory.approvalFilter}
+        onChange={value => directory.setApprovalFilter(asApprovalFilter(value))}
+        emptyOptionLabel={labels.filterOptions.all}
+        options={[
+          { value: "Approved", label: labels.statusPills.approved },
+          { value: "Pending", label: labels.statusPills.pending },
+        ]}
+      />
+      <DirectoryFilterSelect
+        id={ONLINE_ID}
+        label={labels.filters.online}
+        value={directory.onlineFilter}
+        onChange={value => directory.setOnlineFilter(asOnlineFilter(value))}
+        emptyOptionLabel={labels.filterOptions.all}
+        options={[
+          { value: "Online", label: labels.statusPills.online },
+          { value: "Offline", label: labels.statusPills.offline },
+        ]}
+      />
+      <DirectoryFilterSelect
+        id={EVALUATOR_ID}
+        label={labels.filters.evaluator}
+        value={directory.evaluatorFilter}
+        onChange={value => directory.setEvaluatorFilter(asEvaluatorFilter(value))}
+        emptyOptionLabel={labels.filterOptions.all}
+        options={[
+          { value: "Evaluator", label: labels.statusPills.evaluator },
+          { value: "NonEvaluator", label: labels.filterOptions.nonEvaluator },
+        ]}
+      />
+      <Box sx={{ flex: 1 }} />
+      {hasFilters && (
+        <Button
+          variant="text"
           onClick={() => {
-            void directory.refetch();
+            directory.setApprovalFilter("");
+            directory.setOnlineFilter("");
+            directory.setEvaluatorFilter("");
+            directory.setSearchInput("");
           }}
-        />
-      </Box>
-    </Card>
+          sx={theme => ({ minHeight: 44, flexShrink: 0, color: theme.palette.text.secondary })}
+        >
+          {labels.filters.clear}
+        </Button>
+      )}
+      <ToolbarCopyLinkButton labels={labels} onCopyLink={onCopyLink} />
+      <ToolbarExportCsvButton
+        labels={labels}
+        onExportCsv={onExportCsv}
+        exportLoading={exportLoading}
+        exportDisabled={exportDisabled}
+      />
+      <ToolbarRefreshButton
+        labels={labels}
+        loading={loading}
+        onClick={() => {
+          void directory.refetch();
+        }}
+      />
+    </DirectoryToolbarCard>
   );
 }

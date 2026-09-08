@@ -32,9 +32,10 @@
  * ≥44px touch targets.
  */
 
-import { Box, Stack, Typography } from "@mui/material";
+import { Box, Stack } from "@mui/material";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { type ReactNode, useEffect, useState } from "react";
+import { DirectoryPageHeader } from "@/frontend/views/admin/directory-shared/DirectoryPageHeader";
 import { parseTeachersUrlTab, serializeTeachersSurfaceUrlState } from "@/frontend/views/admin/directory-url-state";
 import { AdminApplicantsPanel } from "@/frontend/views/admin/teachers/AdminApplicantsPanel";
 import { AdminTeachersDirectoryPanel } from "@/frontend/views/admin/teachers/AdminTeachersDirectoryPanel";
@@ -100,14 +101,7 @@ export function AdminTeachersSurface(): ReactNode {
 
   return (
     <Stack spacing={3} sx={{ p: { xs: 2, md: 3 } }}>
-      <Box>
-        <Typography variant="h4" component="h1">
-          {labels.title}
-        </Typography>
-        <Typography variant="body1" sx={theme => ({ color: theme.palette.text.secondary })}>
-          {labels.subtitle}
-        </Typography>
-      </Box>
+      <DirectoryPageHeader title={labels.title} subtitle={labels.subtitle} />
 
       <AdminTeachersTabStrip
         labels={labels}

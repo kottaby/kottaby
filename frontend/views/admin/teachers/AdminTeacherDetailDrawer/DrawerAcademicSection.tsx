@@ -8,7 +8,7 @@
 
 import { Box, Divider, Stack, Typography } from "@mui/material";
 import type { ReactNode } from "react";
-import { DrawerSection } from "@/frontend/views/admin/teachers/AdminTeacherDetailDrawer/DrawerPrimitives";
+import { DirectoryDrawerSection } from "@/frontend/views/admin/directory-shared/DirectoryDrawerPrimitives";
 import { type TeacherDirectoryItem, TeacherRatingText } from "@/frontend/views/admin/teachers/AdminTeacherRowCells";
 import type { AppLocale } from "@/shared/locale";
 import type { AdminTeachersLabels } from "@/shared/locale/types/adminTeachers";
@@ -26,7 +26,7 @@ export function TeacherDrawerAcademicSection({
   locale,
 }: TeacherDrawerAcademicSectionProps): ReactNode {
   return (
-    <DrawerSection label={labels.drawer.sectionAcademic}>
+    <DirectoryDrawerSection label={labels.drawer.sectionAcademic}>
       <Stack direction="row" spacing={2} sx={{ alignItems: "center", mb: teacher.subjects.length > 0 ? 1 : 0 }}>
         <Typography
           variant="body2"
@@ -50,7 +50,7 @@ export function TeacherDrawerAcademicSection({
           </Stack>
         </>
       )}
-    </DrawerSection>
+    </DirectoryDrawerSection>
   );
 }
 

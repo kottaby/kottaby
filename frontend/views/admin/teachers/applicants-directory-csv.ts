@@ -4,12 +4,10 @@
  * the rows arrive from the backend bounded to its EXPORT_MAX_ROWS cap, so
  * the export reflects the WHOLE filtered queue, not the current page.
  *
- * Module posture — EVERYTHING string-building is pure and synchronous:
- *  - `buildApplicantsDirectoryCsv` turns the export rows + the caller's
- *    translation handles into one UTF-8 CSV document (BOM-prefixed so
- *    spreadsheet apps open the Arabic labels correctly);
- *  - `applicantsDirectoryCsvFilename` derives the download filename from
- *    the wall clock (UTC, minute precision).
+ * This module owns the COLUMN layout (localized caption handles) and the
+ * per-row VALUE mapping (locale-neutral wire data); the FORMAT — RFC-4180
+ * escaping, BOM prefix, record structure, filename stamp — lives in the
+ * shared `directory-shared/directory-csv`.
  *
  * Honesty contract (mirrors the sibling directory builders):
  *  - the lifecycle status serializes as the raw lowercase wire string
@@ -25,9 +23,7 @@
  * Content decision — labels are LOCALIZED: column captions come from the
  * same translation handles the queue table renders (headers,
  * applicantHeaders, statusPills, fields — zero new captions minted). All
- * VALUES stay locale-neutral wire data. The only non-label literals are
- * the field separators (`,`) and the newline (`\n`) — the CSV format
- * itself.
+ * VALUES stay locale-neutral wire data.
  *
  * Formula-injection note: every cell value originates from the repo-owned
  * translation files or the trusted queue read model (names, emails, ISO
@@ -37,39 +33,15 @@
  */
 
 import type { AdminTeacherApplicantsExportQuery } from "@/frontend/graphql/generated/gql/graphql";
+import {
+  buildDirectoryCsv,
+  csvBoolCell,
+  directoryCsvFilename,
+} from "@/frontend/views/admin/directory-shared/directory-csv";
 import type { AdminTeachersLabels } from "@/shared/locale/types/adminTeachers";
-
-/** UTF-8 BOM — spreadsheet apps detect the encoding and render Arabic labels. */
-const UTF8_BOM = "\uFEFF";
 
 /** One export row as the export query delivered it (the extracted item type). */
 type ApplicantDirectoryRow = AdminTeacherApplicantsExportQuery["adminTeacherApplicantsExport"]["rows"][number];
-
-/**
- * Escapes one CSV cell: quoting engages only when the field contains the
- * delimiter, a quote, or a newline — inside quotes every `"` doubles.
- */
-function csvCell(value: string): string {
-  if (/[",\n\r]/.test(value)) {
-    return `"${value.replaceAll('"', '""')}"`;
-  }
-  return value;
-}
-
-/** Joins cells with the comma delimiter and terminates the record. */
-function csvRecord(cells: readonly string[]): string {
-  return `${cells.map(csvCell).join(",")}\n`;
-}
-
-/** Wire serialization of a non-nullable Boolean column. */
-function boolCell(value: boolean): string {
-  return value ? "true" : "false";
-}
-
-/** Zero-pads a number to two digits (UTC stamp components of the CSV filename). */
-function pad(input: number): string {
-  return String(input).padStart(2, "0");
-}
 
 /**
  * Builds the full CSV document for the EXPORT-ALL dump: one localized
@@ -81,10 +53,8 @@ export function buildApplicantsDirectoryCsv(
   items: readonly ApplicantDirectoryRow[],
   labels: AdminTeachersLabels
 ): string {
-  const lines: string[] = [];
-
-  lines.push(
-    csvRecord([
+  return buildDirectoryCsv({
+    headers: [
       labels.fields.id,
       labels.headers.name,
       labels.fields.email,
@@ -98,32 +68,25 @@ export function buildApplicantsDirectoryCsv(
       labels.statusPills.suspended,
       labels.statusPills.blocked,
       labels.headers.joined,
-    ])
-  );
-
-  for (const applicant of items) {
-    lines.push(
-      csvRecord([
-        String(applicant.id),
-        applicant.name,
-        applicant.email,
-        // Honest null → empty cell (the em-dash is a display-only affordance).
-        applicant.phone ?? "",
-        applicant.country ?? "",
-        // Raw wire status — never the localized pill.
-        applicant.status,
-        String(applicant.verificationAttempts),
-        applicant.lastAttemptAt ?? "",
-        applicant.cooldownUntil ?? "",
-        boolCell(applicant.isDeleted),
-        boolCell(applicant.suspended),
-        boolCell(applicant.isBlocked),
-        applicant.createdAt,
-      ])
-    );
-  }
-
-  return `${UTF8_BOM}${lines.join("")}`;
+    ],
+    rows: items.map(applicant => [
+      String(applicant.id),
+      applicant.name,
+      applicant.email,
+      // Honest null → empty cell (the em-dash is a display-only affordance).
+      applicant.phone ?? "",
+      applicant.country ?? "",
+      // Raw wire status — never the localized pill.
+      applicant.status,
+      String(applicant.verificationAttempts),
+      applicant.lastAttemptAt ?? "",
+      applicant.cooldownUntil ?? "",
+      csvBoolCell(applicant.isDeleted),
+      csvBoolCell(applicant.suspended),
+      csvBoolCell(applicant.isBlocked),
+      applicant.createdAt,
+    ]),
+  });
 }
 
 /**
@@ -134,10 +97,5 @@ export function buildApplicantsDirectoryCsv(
  * default.
  */
 export function applicantsDirectoryCsvFilename(now: Date = new Date()): string {
-  const year = now.getUTCFullYear();
-  const month = pad(now.getUTCMonth() + 1);
-  const day = pad(now.getUTCDate());
-  const hour = pad(now.getUTCHours());
-  const minute = pad(now.getUTCMinutes());
-  return `applicants-directory-${year}-${month}-${day}-${hour}${minute}.csv`;
+  return directoryCsvFilename("applicants-directory", now);
 }

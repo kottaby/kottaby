@@ -9,11 +9,16 @@
  *    affordance — the row itself is click-only convenience). Read-only
  *    surface: the name is NOT a link (there is no student detail route).
  *  - `ViewDetailsButton`: the explicit view-details quick action.
+ *
+ * The copy-email quick action and the view-details quick action are the
+ * shared directory primitives (`DirectoryCopyEmailButton` /
+ * `DirectoryViewDetailsButton`).
  */
 
-import { ContentCopyOutlined as CopyIcon, VisibilityOutlined as ViewIcon } from "@mui/icons-material";
-import { Box, IconButton, TableCell, Tooltip, Typography } from "@mui/material";
+import { Box, TableCell, Typography } from "@mui/material";
 import type { ReactNode } from "react";
+import { DirectoryCopyEmailButton } from "@/frontend/views/admin/directory-shared/DirectoryCopyEmailButton";
+import { DirectoryViewDetailsButton } from "@/frontend/views/admin/directory-shared/DirectoryViewDetailsButton";
 import type { StudentDirectoryItem } from "@/frontend/views/admin/students/AdminStudentRowCells";
 import { useDirectoryCopyEmail } from "@/frontend/views/admin/users/directory";
 import { UserAvatar } from "@/frontend/views/admin/users/ui";
@@ -81,7 +86,13 @@ export function StudentIdentityCell({
             >
               {student.email}
             </Typography>
-            <CopyEmailCell email={student.email} copied={emailCopied} labels={labels} onCopy={handleCopyEmail} />
+            <DirectoryCopyEmailButton
+              email={student.email}
+              copied={emailCopied}
+              copyLabel={labels.quickActions.copyEmail}
+              copiedLabel={labels.quickActions.emailCopied}
+              onCopy={handleCopyEmail}
+            />
           </Box>
         </Box>
         {onViewDetails !== undefined && <ViewDetailsButton labels={labels} onViewDetails={onViewDetails} />}
@@ -101,56 +112,5 @@ interface ViewDetailsButtonProps {
  * convenience; this button is the real focusable control).
  */
 export function ViewDetailsButton({ labels, onViewDetails }: ViewDetailsButtonProps): ReactNode {
-  return (
-    <Tooltip title={labels.drawer.viewDetails} placement="top">
-      <IconButton
-        size="small"
-        aria-label={labels.drawer.viewDetails}
-        onClick={onViewDetails}
-        sx={theme => ({
-          // ≥44px touch target via transparent padding; the icon stays
-          // visually 20px.
-          p: 1.5,
-          my: -1.5,
-          flexShrink: 0,
-          color: theme.palette.text.secondary,
-        })}
-      >
-        <ViewIcon fontSize="small" />
-      </IconButton>
-    </Tooltip>
-  );
-}
-
-interface CopyEmailCellProps {
-  readonly email: string;
-  readonly copied: boolean;
-  readonly labels: Pick<AdminStudentsLabels, "quickActions">;
-  readonly onCopy: () => void;
-}
-
-/** Copy-email quick action shared by the desktop and mobile identity cells. */
-function CopyEmailCell({ email, copied, labels, onCopy }: CopyEmailCellProps): ReactNode {
-  return (
-    <Tooltip title={copied ? labels.quickActions.emailCopied : labels.quickActions.copyEmail} placement="top">
-      <IconButton
-        size="small"
-        aria-label={`${labels.quickActions.copyEmail}: ${email}`}
-        onClick={event => {
-          // Copy only — the click must not also open the detail drawer.
-          event.stopPropagation();
-          onCopy();
-        }}
-        sx={theme => ({
-          // ≥44px touch target via transparent padding, matching the
-          // users-directory identity cell; the icon stays visually 20px.
-          p: 1.5,
-          my: -1.5,
-          color: copied ? theme.palette.success.main : theme.palette.text.secondary,
-        })}
-      >
-        <CopyIcon fontSize="small" />
-      </IconButton>
-    </Tooltip>
-  );
+  return <DirectoryViewDetailsButton viewDetailsLabel={labels.drawer.viewDetails} onViewDetails={onViewDetails} />;
 }

@@ -20,6 +20,7 @@
  *  - Timestamps ride the shared `DateTime` scalar (ISO-8601 UTC
  *    serialization) — no hand-rolled `toISOString()` presentation layer.
  */
+import { adminDirectoryAccountFields } from "@/backend/graphql/pothos/admin/shared/adminDirectoryFieldHelpers";
 import { gqlSchemaBuilder } from "@/backend/graphql/pothos/builder";
 import type {
   AdminTeacherExportEnvelopeReturnType,
@@ -53,10 +54,7 @@ const AdminTeacherItemPothosObject = gqlSchemaBuilder
         type: ["String"],
         resolve: parent => [...parent.subjects],
       }),
-      isDeleted: t.field({ type: "Boolean", resolve: parent => parent.isDeleted }),
-      suspended: t.field({ type: "Boolean", resolve: parent => parent.suspended }),
-      isBlocked: t.field({ type: "Boolean", resolve: parent => parent.isBlocked }),
-      createdAt: t.expose("createdAt", { type: "DateTime" }),
+      ...adminDirectoryAccountFields(t),
     }),
   });
 

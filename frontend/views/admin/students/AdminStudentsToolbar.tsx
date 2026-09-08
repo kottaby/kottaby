@@ -16,20 +16,25 @@
  *     at least one filter is set) and a refresh text button re-fetching the
  *     current page.
  *
- * The select chrome is the SHARED `DirectoryFilterSelect` imported from the
- * users directory (identical 44px outlined control); the reported string is
- * narrowed back to the local filter union by the runtime guard below.
- * The two text inputs and the copy/export action buttons live beside this
- * file (`AdminStudentsToolbarFields.tsx` / `AdminStudentsToolbarActions.tsx`).
- * Label slices are passed down narrowed — nothing is hardcoded. All colors
- * resolve through theme-callback sx.
+ * The card chrome is the SHARED `DirectoryToolbarCard`; the search input and
+ * the copy-link / export-CSV / refresh actions are the directory-shared
+ * toolbar primitives; the select chrome is the SHARED `DirectoryFilterSelect`
+ * imported from the users directory (identical 44px outlined control); the
+ * reported string is narrowed back to the local filter union by the runtime
+ * guard below. The language input — this toolbar's one specific field —
+ * lives beside this file (`AdminStudentsToolbarFields.tsx`). Label slices
+ * are passed down narrowed — nothing is hardcoded. All colors resolve
+ * through theme-callback sx.
  */
 
-import { RefreshOutlined as RefreshIcon } from "@mui/icons-material";
-import { Box, Button, Card } from "@mui/material";
+import { Box, Button } from "@mui/material";
 import type { ReactNode } from "react";
-import { CopyLinkButton, ExportCsvButton } from "@/frontend/views/admin/students/AdminStudentsToolbarActions";
-import { StudentLanguageField, StudentSearchField } from "@/frontend/views/admin/students/AdminStudentsToolbarFields";
+import { DirectoryCopyLinkButton } from "@/frontend/views/admin/directory-shared/DirectoryCopyLinkButton";
+import { DirectoryExportCsvButton } from "@/frontend/views/admin/directory-shared/DirectoryExportCsvButton";
+import { DirectoryToolbarCard } from "@/frontend/views/admin/directory-shared/DirectoryToolbarCard";
+import { DirectoryToolbarRefreshButton } from "@/frontend/views/admin/directory-shared/DirectoryToolbarRefreshButton";
+import { DirectoryToolbarSearchField } from "@/frontend/views/admin/directory-shared/DirectoryToolbarSearchField";
+import { StudentLanguageField } from "@/frontend/views/admin/students/AdminStudentsToolbarFields";
 import type { StudentHasParentFilter } from "@/frontend/views/admin/students/adminStudentsDirectory.helpers";
 import type { useAdminStudentsDirectory } from "@/frontend/views/admin/students/hooks";
 import { DirectoryFilterSelect } from "@/frontend/views/admin/users/directory";
@@ -98,75 +103,62 @@ export function AdminStudentsToolbar({
   const SEARCH_ID = "admin-students-toolbar-search";
   const LANGUAGE_ID = "admin-students-toolbar-language";
   return (
-    <Card
-      sx={theme => ({
-        borderRadius: "12px",
-        border: `1px solid ${theme.palette.border.light}`,
-        boxShadow: theme.palette.shadow.card,
-        p: 3,
-        display: "flex",
-      })}
-    >
-      <Box sx={{ display: "flex", width: "100%", flexWrap: "wrap", gap: 2, alignItems: "center" }}>
-        <StudentSearchField
-          id={SEARCH_ID}
-          labels={labels}
-          value={directory.searchInput}
-          onChange={directory.setSearchInput}
-        />
-        <DirectoryFilterSelect
-          id={HAS_PARENT_ID}
-          label={labels.filters.hasParent}
-          value={directory.hasParentFilter}
-          onChange={value => directory.setHasParentFilter(asHasParentFilter(value))}
-          emptyOptionLabel={labels.filterOptions.all}
-          options={[
-            { value: "WithParent", label: labels.parentLabels.withParent },
-            { value: "Independent", label: labels.parentLabels.noParent },
-          ]}
-        />
-        <StudentLanguageField
-          id={LANGUAGE_ID}
-          labels={labels}
-          value={directory.languageDraft}
-          dirty={directory.languageDirty}
-          onChange={directory.setLanguageDraft}
-          onApply={directory.applyLanguageFilter}
-        />
-        <Box sx={{ flex: 1 }} />
-        {hasFilters && (
-          <Button
-            variant="text"
-            onClick={() => {
-              directory.setHasParentFilter("");
-              directory.setSearchInput("");
-              directory.clearLanguageFilter();
-            }}
-            sx={theme => ({ minHeight: 44, flexShrink: 0, color: theme.palette.text.secondary })}
-          >
-            {labels.filters.clear}
-          </Button>
-        )}
-        <CopyLinkButton labels={labels} onCopyLink={onCopyLink} />
-        <ExportCsvButton
-          labels={labels}
-          onExportCsv={onExportCsv}
-          exportLoading={exportLoading}
-          exportDisabled={exportDisabled}
-        />
+    <DirectoryToolbarCard>
+      <DirectoryToolbarSearchField
+        id={SEARCH_ID}
+        placeholder={labels.filters.searchPlaceholder}
+        ariaLabel={labels.filters.search}
+        value={directory.searchInput}
+        onChange={directory.setSearchInput}
+      />
+      <DirectoryFilterSelect
+        id={HAS_PARENT_ID}
+        label={labels.filters.hasParent}
+        value={directory.hasParentFilter}
+        onChange={value => directory.setHasParentFilter(asHasParentFilter(value))}
+        emptyOptionLabel={labels.filterOptions.all}
+        options={[
+          { value: "WithParent", label: labels.parentLabels.withParent },
+          { value: "Independent", label: labels.parentLabels.noParent },
+        ]}
+      />
+      <StudentLanguageField
+        id={LANGUAGE_ID}
+        labels={labels}
+        value={directory.languageDraft}
+        dirty={directory.languageDirty}
+        onChange={directory.setLanguageDraft}
+        onApply={directory.applyLanguageFilter}
+      />
+      <Box sx={{ flex: 1 }} />
+      {hasFilters && (
         <Button
           variant="text"
-          startIcon={<RefreshIcon />}
           onClick={() => {
-            void directory.refetch();
+            directory.setHasParentFilter("");
+            directory.setSearchInput("");
+            directory.clearLanguageFilter();
           }}
-          disabled={loading}
-          aria-label={labels.filters.refresh}
           sx={theme => ({ minHeight: 44, flexShrink: 0, color: theme.palette.text.secondary })}
         >
-          {labels.filters.refresh}
+          {labels.filters.clear}
         </Button>
-      </Box>
-    </Card>
+      )}
+      <DirectoryCopyLinkButton copyLinkLabel={labels.quickActions.copyLink} onCopyLink={onCopyLink} />
+      <DirectoryExportCsvButton
+        exportLabel={labels.export.exportCsv}
+        exportCsvEmptyLabel={labels.export.exportCsvEmpty}
+        onExportCsv={onExportCsv}
+        exportLoading={exportLoading}
+        exportDisabled={exportDisabled}
+      />
+      <DirectoryToolbarRefreshButton
+        refreshLabel={labels.filters.refresh}
+        loading={loading}
+        onClick={() => {
+          void directory.refetch();
+        }}
+      />
+    </DirectoryToolbarCard>
   );
 }
