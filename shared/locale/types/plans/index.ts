@@ -64,7 +64,7 @@ export interface PlansLabels {
   readonly statusChangeErrorMessage: string;
   /** Client-side validation: plan title length out of bounds. */
   readonly validationTitleMessage: string;
-  /** Client-side validation: session count must be a positive integer. */
+  /** Client-side validation: session count must be a whole number between 1 and the mirrored server ceiling. */
   readonly validationSessionCountMessage: string;
   /** Client-side validation: price must be a non-negative decimal with ≤2 fraction digits. */
   readonly validationPriceMessage: string;

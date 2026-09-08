@@ -122,7 +122,14 @@ export function usePlanForm({ plan, serverFieldErrors, onSubmit }: UsePlanFormOp
     }
 
     const priceTrimmed = form.price.trim();
-    const priceRegex = /^\d+(\.\d{1,2})?$/;
+    // The 8-digit integer-part cap mirrors the server's PRICE_REGEX
+    // (`backend/services/billing/plan-catalog.helpers.ts`) — the literal is
+    // deliberately DUPLICATED, never imported (same rule as the
+    // MAX_INTERVAL_DAYS / MAX_SESSION_COUNT mirrors above: backend runtime
+    // modules must not ride into the client bundle). The server check
+    // remains the authority — a drift here degrades to the generic server
+    // validation error, never to a persisted over-cap plan.
+    const priceRegex = /^\d{1,8}(\.\d{1,2})?$/;
     // Non-negative per the plan contract (price >= 0.00 — "0.00" is a valid
     // free plan); the server CHECK/service layer remains the authority.
     if (!priceRegex.test(priceTrimmed) || Number.parseFloat(priceTrimmed) < 0) {

@@ -142,6 +142,9 @@ function webhookBodyUnreadableError(): DomainError {
   return new ValidationError("PAYMENT_WEBHOOK_BODY_UNREADABLE", "Webhook payload rejected.");
 }
 
+/** The stream reader's own read-result type — inferred, never re-declared. */
+type BodyChunkRead = Awaited<ReturnType<ReadableStreamDefaultReader<Uint8Array>["read"]>>;
+
 /**
  * One `reader.read()` under the per-read deadline: the read races a timer
  * sized from `BODY_READ_DEADLINE_MS.current`, so a stalled delivery (bytes
@@ -162,10 +165,6 @@ function webhookBodyUnreadableError(): DomainError {
  * stream rejection is cancelled too (harmless, best-effort) — the
  * connection is released on every failure path.
  */
-
-/** The stream reader's own read-result type — inferred, never re-declared. */
-type BodyChunkRead = Awaited<ReturnType<ReadableStreamDefaultReader<Uint8Array>["read"]>>;
-
 async function readChunkWithDeadline(reader: ReadableStreamDefaultReader<Uint8Array>): Promise<BodyChunkRead> {
   const abortController = new AbortController();
   const deadline = new Promise<never>((_, reject) => {

@@ -53,7 +53,7 @@ export const plansEn: PlansLabels = {
   unexpectedErrorMessage: "An unexpected error occurred.",
   statusChangeErrorMessage: "Failed to update status.",
   validationTitleMessage: "Title must be between 3 and 100 characters.",
-  validationSessionCountMessage: "Session count must be a positive integer.",
+  validationSessionCountMessage: "Session count must be a whole number between 1 and 1000000.",
   validationPriceMessage: "Price must be a valid non-negative decimal with up to 2 fraction digits (e.g. 250.00).",
   validationCurrencyMessage: "Currency must be a 3-letter code (e.g. EGP, USD).",
   validationIntervalDaysMessage: "Interval days must be a whole number between 1 and 3650.",

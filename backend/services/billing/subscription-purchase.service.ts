@@ -23,11 +23,11 @@
  *      settlement is guaranteed to quarantine), the actor's governance
  *      state is re-asserted (a suspension during checkout fails the
  *      purchase), a NULL balance lane fails the purchase closed (a
- *      lane is never guessed from plan copy), an `intervalDays` past the
- *      catalog ceiling fails the purchase closed (committing it would
- *      pair a settled charge with a subscription whose activation is
- *      guaranteed to quarantine), the idempotency claim is
- *      inserted savepoint-bracketed (a duplicate key poisons only the
+ *      lane is never guessed from plan copy), an `intervalDays` or
+ *      `sessionCount` past the catalog ceiling fails the purchase closed
+ *      (committing it would pair a settled charge with a subscription
+ *      whose activation is guaranteed to quarantine), the idempotency
+ *      claim is inserted savepoint-bracketed (a duplicate key poisons only the
  *      savepoint and keeps the transaction readable for the replay
  *      lookup), and the pending subscription + pending payment +
  *      student-junction rows commit atomically with the claim's
@@ -70,7 +70,7 @@ import { withTransaction } from "@/backend/lib/db/with-transaction";
 import { ConflictError, isPgUniqueViolation, NotFoundError, ValidationError } from "@/backend/lib/errors";
 import { logger } from "@/backend/lib/logger";
 import { getPaymentGateway } from "@/backend/services/billing/payment-gateway/payment-gateway.factory";
-import { MAX_INTERVAL_DAYS } from "@/backend/services/billing/plan-catalog.helpers";
+import { MAX_INTERVAL_DAYS, MAX_SESSION_COUNT } from "@/backend/services/billing/plan-catalog.helpers";
 import { assertActorGovernanceClean } from "@/backend/services/classes/session-lifecycle.governance";
 import type {
   DBQueryExecutor,
@@ -140,21 +140,11 @@ const STATUS_SUSPENDED: string = SubscriptionStatus.Suspended;
  * discipline as `paymentGatewayOf` below; unreachable through the pgEnum).
  */
 function subscriptionStatusOf(status: SubscriptionSelectType["status"]): SubscriptionStatus {
-  if (status === STATUS_ACTIVE) {
-    return SubscriptionStatus.Active;
-  }
-  if (status === STATUS_PENDING) {
-    return SubscriptionStatus.Pending;
-  }
-  if (status === STATUS_EXPIRED) {
-    return SubscriptionStatus.Expired;
-  }
-  if (status === STATUS_CANCELLED) {
-    return SubscriptionStatus.Cancelled;
-  }
-  if (status === STATUS_SUSPENDED) {
-    return SubscriptionStatus.Suspended;
-  }
+  if (status === STATUS_ACTIVE) return SubscriptionStatus.Active;
+  if (status === STATUS_PENDING) return SubscriptionStatus.Pending;
+  if (status === STATUS_EXPIRED) return SubscriptionStatus.Expired;
+  if (status === STATUS_CANCELLED) return SubscriptionStatus.Cancelled;
+  if (status === STATUS_SUSPENDED) return SubscriptionStatus.Suspended;
   logger.error(
     "Subscription purchase row mapping aborted: stored subscription status is not a member of the closed status vocabulary",
     {
@@ -242,7 +232,7 @@ async function replayPurchaseOrThrow(
 /**
  * The authoritative re-validation inside the purchase transaction: the
  * pre-checkout plan read only fed the gateway input — THIS read decides
- * the purchase. Two fail-closed gates guard it:
+ * the purchase. Three fail-closed gates guard it:
  *
  *  - the LANE gate: a plan whose balance lane was never configured is not
  *    purchasable, and a lane is never guessed from plan copy;
@@ -251,7 +241,12 @@ async function replayPurchaseOrThrow(
  *    `> 0`, so an over-ceiling row is insertable outside the catalog's
  *    validated writes — committing it would pair the settled charge with a
  *    subscription whose activation is guaranteed to quarantine (the
- *    activation boundary refuses the Date window arithmetic on it).
+ *    activation boundary refuses the Date window arithmetic on it);
+ *  - the SESSION-COUNT ceiling gate: a plan whose `sessionCount` exceeds
+ *    `MAX_SESSION_COUNT` is not purchasable, the symmetric posture — the
+ *    DB check only enforces `> 0`, and the activation credit would add the
+ *    full session count onto the lane's int4 balance (overflow → raw
+ *    driver failure → guaranteed activation quarantine).
  *
  * @returns The active, lane-configured, in-range plan row the purchase
  *     commits against.
@@ -289,6 +284,19 @@ async function assertPurchasablePlan(
     });
     const planIdError = [{ field: "planId", code: "PLAN_INTERVAL_DAYS_OUT_OF_RANGE", message: t.validation }];
     throw new ValidationError("PLAN_INTERVAL_DAYS_OUT_OF_RANGE", t.validation, undefined, planIdError);
+  }
+  // The session-count ceiling gate — symmetric with the interval gate
+  // above (the same in-transaction fail-closed posture: an over-ceiling
+  // plan is purchasable copy until this read, and its activation credit
+  // would overflow the lane's int4 balance and quarantine on arrival).
+  if (activePlan.sessionCount > MAX_SESSION_COUNT) {
+    logger.logDomainError("Subscription purchase rejected: plan session count exceeds the catalog ceiling", {
+      code: "PLAN_SESSION_COUNT_OUT_OF_RANGE",
+      entity: "plans",
+      entityId: activePlan.id,
+    });
+    const planIdError = [{ field: "planId", code: "PLAN_SESSION_COUNT_OUT_OF_RANGE", message: t.validation }];
+    throw new ValidationError("PLAN_SESSION_COUNT_OUT_OF_RANGE", t.validation, undefined, planIdError);
   }
   return activePlan;
 }

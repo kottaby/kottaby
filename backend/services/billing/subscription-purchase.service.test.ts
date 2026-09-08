@@ -76,7 +76,7 @@ import { SubscriptionStatus } from "@/backend/enum/billing/subscription-status.e
 import { ConflictError, DomainError, ForbiddenError, NotFoundError, ValidationError } from "@/backend/lib/errors";
 import { MockPaymentGatewayAdapter } from "@/backend/services/billing/payment-gateway/mock-payment-gateway.adapter";
 import { resetPaymentGateway } from "@/backend/services/billing/payment-gateway/payment-gateway.factory";
-import { MAX_INTERVAL_DAYS } from "@/backend/services/billing/plan-catalog.helpers";
+import { MAX_INTERVAL_DAYS, MAX_SESSION_COUNT } from "@/backend/services/billing/plan-catalog.helpers";
 import { SubscriptionPurchaseService } from "@/backend/services/billing/subscription-purchase.service";
 import type { DBTransaction, PurchaseSubscriptionReturnType, PurchaseSubscriptionSubmitInput } from "@/backend/types";
 import { getServerTranslations } from "@/shared/locale/server-graphql";
@@ -285,6 +285,39 @@ describe("SubscriptionPurchaseService — purchase (Tier 1: branches)", () => {
       if (err instanceof ValidationError) {
         const fieldError = err.fields?.find(entry => entry.field === "planId");
         expect(fieldError?.code).toBe("PLAN_INTERVAL_DAYS_OUT_OF_RANGE");
+        expect(fieldError?.message).toBe(t().validation);
+      }
+
+      // The in-transaction gate fired BEFORE any write: no pair, no claim.
+      const counts = await countRows(tx, student.id);
+      expect(counts).toEqual({ subs: 0, payments: 0, claims: 0 });
+    });
+  });
+
+  test("plan sessionCount past the catalog ceiling fails the purchase closed — zero writes", async () => {
+    await runInRollback(async tx => {
+      // Direct-DB fixture (tracked cleanup = the rollback): the symmetric
+      // twin of the interval case above — the catalog's MAX_SESSION_COUNT
+      // ceiling guards WRITES only — the DB check enforces just `> 0` — so
+      // an active, lane-configured, over-ceiling row is insertable outside
+      // the validated catalog path. Committing a purchase against it would
+      // pair the settled charge with a subscription whose activation is
+      // guaranteed to quarantine (the activation credit would overflow the
+      // lane's int4 balance on the out-of-range session count).
+      const user = await createTestUser(tx);
+      const student = await createTestStudent(tx, user.id);
+      const overCeilingPlan = await createTestPlan(tx, {
+        balanceLane: SubscriptionCreditLane.Hifz,
+        sessionCount: MAX_SESSION_COUNT + 1,
+      });
+
+      const err = await expectRepoError(() =>
+        SubscriptionPurchaseService.purchase(student.id, { planId: overCeilingPlan.id }, purchaseKey(), "en", tx)
+      );
+      expectDomainDenial(err, "PLAN_SESSION_COUNT_OUT_OF_RANGE", t().validation);
+      if (err instanceof ValidationError) {
+        const fieldError = err.fields?.find(entry => entry.field === "planId");
+        expect(fieldError?.code).toBe("PLAN_SESSION_COUNT_OUT_OF_RANGE");
         expect(fieldError?.message).toBe(t().validation);
       }
 
