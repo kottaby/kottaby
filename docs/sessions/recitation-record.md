@@ -171,4 +171,4 @@ Recitation writes sit OUTSIDE the mandated idempotency-key set of `docs/IDEMPOTE
 - `docs/admin/cold-start-certification.md` — the "conflict, not keys" precedent the replay ruling mirrors.
 - `docs/workflows/03-session-lifecycle-escrow.md` + `docs/workflows/05-admin-governance-override.md` §8 — "a recitation documents what actually happened" + the permanent-retention law behind write-once.
 - `docs/notifications/realtime-engine.md` — the single-writer engine discipline behind the zero-notification purity.
-- Plan of record: `ai/plans/sprint_1/dev3-007-recitation-record-per-session-11/` (specs, plan, tasks, per-task outcomes, deferred-items ledger).
+- Plan of record: `ai/finished_plans/sprint_1/dev3-007-recitation-record-per-session-11/` (specs, plan, tasks).
