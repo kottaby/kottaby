@@ -29,7 +29,10 @@
  * of the public API.
  */
 
+import { eq, sql } from "drizzle-orm";
 import { SessionRepository, SessionRequestIdempotencyRepository, TeacherRepository } from "@/backend/db/repo";
+import { auditLogs } from "@/backend/db/schema/audit/audit-logs";
+import { session } from "@/backend/db/schema/classes/session";
 import { AuditActionType } from "@/backend/enum/audit/audit-action-type.enum";
 import { SessionStatus } from "@/backend/enum/scheduling/session-status.enum";
 import { ConflictError, NotFoundError } from "@/backend/lib/errors";
@@ -437,12 +440,24 @@ export async function reassignTeacherInTx(
 }
 
 /**
- * The join transaction body (extracted verbatim): the eligibility
- * re-assertion inside the transaction — the audit write is guarded by this
- * re-check (assertion strictly first, same transaction, so a denied join
- * writes zero audit rows) — followed by the EXACTLY-ONE audit row that
- * makes the observation auditable. The caller owns the pre-write
- * validation read; this body changes NO session column.
+ * The join observation's audit details — a FIXED server-side literal (the
+ * join takes no caller-supplied payload), serialized once. Because it is
+ * never caller input, the audit writer's defensive truncation is
+ * structurally inapplicable on this path.
+ */
+const JOIN_OBSERVE_AUDIT_DETAILS = JSON.stringify({ action: "join_observe" });
+
+/**
+ * The join transaction body: the eligibility fold. ONE `INSERT … SELECT`
+ * statement selects the audit row's constant columns FROM the target
+ * session row gated by row identity + the `started` state, so the audit
+ * row materializes only while the session is still joinable IN THE SAME
+ * STATEMENT — the check-then-insert window is zero by construction (the
+ * eligibility clause IS the atomic gate, the guarded-transition family's
+ * shape). A zero-row miss (the row vanished or left the live state between
+ * the caller's pre-write read and this statement) is classified by ONE
+ * cold probe read that never feeds a write. This body changes NO session
+ * column; the post-fold read is response-payload only.
  */
 export async function joinObservationInTx(
   actorId: number,
@@ -450,22 +465,39 @@ export async function joinObservationInTx(
   tx: DBTransaction,
   t: GovernanceErrorsTranslations
 ): Promise<SessionReturnType> {
-  // The eligibility re-assertion inside the transaction — the audit
-  // write is guarded by this re-check (assertion strictly first, same
-  // transaction, so a denied join writes zero audit rows).
+  // The eligibility fold: the audit row is inserted only while the target
+  // row is still `started` in the same statement. `session.id` is the
+  // primary key, so the selection matches at most ONE row — the EXACTLY-ONE
+  // audit-row guarantee rides the same clause. The select list supplies
+  // every column of the insert (the trailing now() is the notNull
+  // created_at stamp, which select mode cannot take from its default).
+  const inserted = await tx
+    .insert(auditLogs)
+    .select(
+      sql`SELECT ${actorId}, ${AuditActionType.Override}, ${SESSION_ENTITY_TYPE}, ${sessionId}, ${JOIN_OBSERVE_AUDIT_DETAILS}, now() WHERE EXISTS (
+        SELECT 1
+        FROM ${session}
+        WHERE ${eq(session.id, sessionId)} AND ${eq(session.status, SessionStatus.Started)}
+      )`
+    )
+    .returning({ id: auditLogs.id });
+  if (inserted.length === 0) {
+    // The zero-row miss is classified by ONE cold probe read that never
+    // feeds a write — the guarded-transition discipline.
+    return rejectAdminTransitionMiss(
+      "Admin session join denied: session not joinable in its current state",
+      sessionId,
+      tx,
+      t
+    );
+  }
+
+  // The join changes NO session column; the row is re-read on the SAME
+  // transaction purely to return the canonical shape the participant read
+  // paths return.
   const row = await SessionRepository.getAnyByIdForAdmin(sessionId, tx);
   if (row === null) {
     return rejectSessionNotFound("Admin session join denied: session not found", sessionId, t);
   }
-  if (row.status !== SESSION_STARTED_STATUS) {
-    return rejectStateConflict("Admin session join denied: session not joinable in its current state", sessionId, t);
-  }
-
-  await AuditService.createAuditLog(
-    buildGovernanceAuditContract(actorId, sessionId, {
-      action: "join_observe",
-    }),
-    tx
-  );
   return row;
 }

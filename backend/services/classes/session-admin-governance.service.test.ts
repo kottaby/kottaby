@@ -85,6 +85,7 @@ import { SessionStatus } from "@/backend/enum/scheduling/session-status.enum";
 import { SessionType } from "@/backend/enum/scheduling/session-type.enum";
 import { ConflictError, DomainError, NotFoundError } from "@/backend/lib/errors";
 import { SessionAdminGovernanceService } from "@/backend/services/classes/session-admin-governance";
+import { joinObservationInTx } from "@/backend/services/classes/session-admin-governance.helpers";
 import { SessionLifecycleService } from "@/backend/services/classes/session-lifecycle.service";
 import type { NotificationEngineCallOptions } from "@/backend/services/notifications";
 import type { NotificationIdempotencyClaimCache } from "@/backend/services/notifications/emit-idempotency";
@@ -1251,6 +1252,39 @@ describe("SessionAdminGovernanceService — join (runInRollback)", () => {
       );
       const stored = await readSessionRow(tx, scheduled.id);
       expect(stored).toEqual(scheduled);
+    });
+  });
+
+  test("the folded gate: the transaction body's single INSERT..SELECT appends the audit row only while the row is still started — a scheduled row misses into the conflict and an unknown id into the not-found, zero audit rows on both arms", async () => {
+    await runInRollback(async tx => {
+      const actors = await createSessionActors(tx);
+      const { adminId } = await createTestAdmin(tx);
+      const scheduled = await insertSessionRow(tx, actors, {});
+      const missingId = await absentSessionId(tx);
+
+      // The race arm the public method's pre-read cannot reach
+      // deterministically: the row LEFT the eligible set (or never
+      // existed) by the time the folded statement runs. The zero-row miss
+      // is classified by the cold probe — conflict vs not-found — with
+      // zero audit rows on both arms.
+      const conflict = await expectRepoError(() => joinObservationInTx(adminId, scheduled.id, tx, ERRORS_EN));
+      expectDomainDenial(conflict, "SESSION_INVALID_TRANSITION", ERRORS_EN.sessionInvalidTransition);
+      const missing = await expectRepoError(() => joinObservationInTx(adminId, missingId, tx, ERRORS_EN));
+      expectDomainDenial(missing, "SESSION_NOT_FOUND", ERRORS_EN.sessionNotFound);
+      expect(await countAuditsForSession(tx, scheduled.id)).toBe(0);
+
+      // The hit arm: one statement, EXACTLY ONE audit row, the canonical
+      // row back, and no session column touched.
+      const started = await insertSessionRow(tx, actors, {
+        status: SessionStatus.Started,
+        startedAt: alignedInstant(-10 * 60_000),
+      });
+      const joined = await joinObservationInTx(adminId, started.id, tx, ERRORS_EN);
+      expect(joined.status).toBe(SessionStatus.Started);
+      expect(await readSessionRow(tx, started.id)).toEqual(started);
+      const auditRows = await readAuditsForSession(tx, started.id);
+      expect(auditRows).toHaveLength(1);
+      expect(JSON.parse(auditRows[0]?.details ?? "{}")).toEqual({ action: "join_observe" });
     });
   });
 });

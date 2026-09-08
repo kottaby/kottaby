@@ -421,11 +421,12 @@ export namespace SessionAdminGovernanceService {
    * The operation is audit-only: it changes NO session column and writes
    * EXACTLY ONE audit row. Eligibility is validated BEFORE any write
    * (a pre-transaction read answers the not-started and unknown-id
-   * denials with zero audit rows), then re-asserted atomically inside the
-   * transaction and the audit write is guarded by that re-check — the
-   * assertion and the audit append share one transaction with the
-   * assertion strictly first, so a denied join can never leave an audit
-   * row behind. The returned row is the same canonical shape the
+   * denials with zero audit rows), then re-asserted ATOMICALLY inside the
+   * transaction: the audit append is a single INSERT..SELECT whose
+   * selection is gated by the row still being `started` in the SAME
+   * statement — the check-then-insert window is zero by construction, so
+   * a denied join can never leave an audit row behind. The returned row
+   * is the same canonical shape the
    * participant read paths return (data reuse — the admin UI renders the
    * read-only live view from it).
    *
