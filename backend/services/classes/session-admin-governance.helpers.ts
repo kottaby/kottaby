@@ -39,6 +39,9 @@ import { ConflictError, NotFoundError } from "@/backend/lib/errors";
 import { logger } from "@/backend/lib/logger";
 import { AuditService } from "@/backend/services/admin/audit.service";
 import { isClaimKeyUniqueViolation } from "@/backend/services/classes/session-lifecycle.guards";
+
+export { SESSION_STARTED_STATUS } from "@/backend/services/classes/session-lifecycle.guards";
+
 import { refundHeldLaneToProvenance } from "@/backend/services/classes/session-lifecycle.transitions";
 import { SessionRequestNotificationService } from "@/backend/services/classes/session-request-notification.service";
 import type { NotificationEngineCallOptions } from "@/backend/services/notifications";
@@ -69,13 +72,12 @@ const SESSION_ENTITY_TYPE = "session";
 export const RESCHEDULE_START_PAST_GRACE_MS = 5 * 60 * 1000;
 
 /**
- * The lifecycle statuses, widened to plain strings: the probe row's and the
- * browse read's `status` is the raw pg-enum string union, so the replay and
- * eligibility comparisons need the enum members' string identity without a
- * runtime conversion — the vocabulary still flows from the enum, never from
- * a bare literal (mirrors the lifecycle guards' widenings).
+ * The cancelled status widened to a plain string: the eligibility comparison
+ * needs the enum member's string identity without a runtime conversion — the
+ * vocabulary still flows from the enum, never from a bare literal (mirrors
+ * the lifecycle guards' widenings). The started widening is OWNED by
+ * `session-lifecycle.guards` and re-exported from this module's top.
  */
-export const SESSION_STARTED_STATUS: string = SessionStatus.Started;
 const SESSION_CANCELLED_STATUS: string = SessionStatus.Cancelled;
 
 /**
