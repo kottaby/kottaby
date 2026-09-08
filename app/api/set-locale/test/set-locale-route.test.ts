@@ -315,6 +315,18 @@ describe("set-locale route envelope adoption", () => {
       await expectHostileRedirectFallsBackToRoot("/\\/evil.example/x");
     });
 
+    test("untrusted X-Forwarded-Host header is ignored to prevent Host Header Injection", async () => {
+      const response = await GET(
+        makeGetRequest("locale=en&redirect=%2Fdashboard", {
+          host: "localhost:3000",
+          "x-forwarded-host": "attacker.com",
+        })
+      );
+      expect(response.status).toBe(307);
+      expect(response.headers.get("location")).toBe("http://localhost:3000/dashboard");
+      expect(response.headers.get("location")).not.toContain("attacker.com");
+    });
+
     test("invalid locale query → 400 BAD_REQUEST envelope with requestId echo", async () => {
       const response = await GET(
         makeGetRequest("locale=zz", { "accept-language": "en", "x-request-id": "corr-get-400" })
