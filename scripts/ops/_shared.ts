@@ -179,37 +179,56 @@ export function parsePostgresDatabaseUrl(value: string | undefined): URL | null 
  *  1. the RAW AUTHORITY SPAN — after `//` up to the first `/` of the raw
  *     string (with the guard's pathless refinement: on a pathless URI a
  *     first `?` followed by no later `@` is the query delimiter both
- *     parsers agree on, so the span ends there). A raw `?` OR `#` inside
- *     the span is UNASSESSABLE: libpq scans the authority to that `/` and
- *     splits userinfo at the last `@` inside it, while WHATWG ends the
- *     authority at the first `?`/`#` — `…//postgres?k@host:5432/db` dumps
- *     as role `postgres?k` at `host:5432` while the WHATWG view parses
- *     host `postgres` (live-proven R11 shape: manifest `(default)` while
- *     dumping a named database); `…//ops_owner#k:pw@host/db` dumps as
- *     role `ops_owner#k` while the WHATWG view parses host `ops_owner`;
+ *     parsers agree on, so the span ends there). A raw `?` OR `#` OR
+ *     control character inside the span is UNASSESSABLE: libpq scans the
+ *     authority to that `/` and splits userinfo at the last `@` inside it,
+ *     while WHATWG ends the authority at the first `?`/`#` —
+ *     `…//postgres?k@host:5432/db` dumps as role `postgres?k` at
+ *     `host:5432` while the WHATWG view parses host `postgres`
+ *     (live-proven R11 shape: manifest `(default)` while dumping a named
+ *     database); `…//ops_owner#k:pw@host/db` dumps as role `ops_owner#k`
+ *     while the WHATWG view parses host `ops_owner`;
  *  2. the RAW PATH SPAN — from the first `/` to the first `?`. libpq has
  *     no fragment delimiter and reads the raw path as the LITERAL database
- *     name (`…/pt9b#k`), while the WHATWG pathname ends at the `#`;
+ *     name (`…/pt9b#k`), while the WHATWG pathname ends at the `#`. A raw
+ *     control character there diverges the same way: WHATWG strips
+ *     tab/newline/CR outright (db `r12ptab<TAB>k` labels `r12ptabk` —
+ *     live-proven R12 shape) and percent-encodes the other C0 controls,
+ *     while libpq dumps the literal bytes;
  *  3. the RAW QUERY STRING — after the first `?`. A raw `#` there is a
  *     fragment delimiter to WHATWG but a literal parameter-value character
  *     to libpq (`?dbname=app_db#k` dumps `app_db#k` while the WHATWG query
- *     value is `app_db`).
+ *     value is `app_db`); a raw tab/newline/CR is stripped by WHATWG and
+ *     kept by libpq — the guard's query-channel rule.
  *
- * Any of the three makes the database (or role) pg_dump connects as diverge
- * from every URL-derived label, so the backup bootstrap refuses such DSNs
- * fail-closed instead of letting the manifest mislabel the dump. A
- * percent-encoded `%23` is fine: libpq percent-decodes each channel before
- * use and the label decodes to the same literal value. The label functions
- * above are untouched: refusal upstream (backup bootstrap / restore guard)
- * prevents the divergence they cannot see.
+ * Control characters follow the guard's authority-span rule (C0 range plus
+ * DEL) in the authority and path spans. Any of the three channels makes the
+ * database (or role) pg_dump connects as diverge from every URL-derived
+ * label, so the backup bootstrap refuses such DSNs fail-closed instead of
+ * letting the manifest mislabel the dump. A percent-encoded escape is fine:
+ * libpq percent-decodes each channel before use and the label decodes to
+ * the same literal value (`%23`, `%09`). The label functions above are
+ * untouched: refusal upstream (backup bootstrap / restore guard) prevents
+ * the divergence they cannot see.
  */
+/** True when `span` carries an ASCII control character (C0 range or DEL) — the restore guard's rule. */
+function hasControlCharacter(span: string): boolean {
+  for (let index = 0; index < span.length; index += 1) {
+    const code = span.charCodeAt(index);
+    if (code < 0x20 || code === 0x7f) {
+      return true;
+    }
+  }
+  return false;
+}
+
 export function rawDsnHasAmbiguousAuthority(trimmedDsn: string): boolean {
   const schemeEnd = trimmedDsn.indexOf("://");
   const authorityStart = schemeEnd < 0 ? 0 : schemeEnd + 3;
   const slashAt = trimmedDsn.indexOf("/", authorityStart);
   const questionAt = trimmedDsn.indexOf("?", authorityStart);
   // Channel 1 — raw authority span: the restore guard's span math
-  // (`assessRawUriAuthority`) mirrored exactly.
+  // (`assessRawUriAuthority`) mirrored exactly, control characters included.
   let authorityEnd = trimmedDsn.length;
   if (slashAt >= 0) {
     authorityEnd = slashAt;
@@ -217,25 +236,34 @@ export function rawDsnHasAmbiguousAuthority(trimmedDsn: string): boolean {
     authorityEnd = questionAt;
   }
   const authoritySpan = trimmedDsn.slice(authorityStart, authorityEnd);
-  if (authoritySpan.includes("?") || authoritySpan.includes("#")) {
+  if (authoritySpan.includes("?") || authoritySpan.includes("#") || hasControlCharacter(authoritySpan)) {
     return true;
   }
   // Channel 2 — raw path span (`assessRawUriPath` mirror): first `/` to
-  // the first `?`, the span libpq reads as the path.
+  // the first `?`, the span libpq reads as the path. Control characters
+  // follow the guard's C0 rule: WHATWG strips tab/newline/CR and
+  // percent-encodes the rest, libpq keeps the literal bytes.
   if (slashAt >= 0) {
     const rawPath = trimmedDsn.slice(slashAt, questionAt < 0 ? trimmedDsn.length : questionAt);
-    if (rawPath.includes("#")) {
+    if (rawPath.includes("#") || hasControlCharacter(rawPath)) {
       return true;
     }
   }
   // Channel 3 — raw query string (the restore guard's query-channel
-  // rule): everything after the first `?` to the end of the string.
-  return questionAt >= 0 && trimmedDsn.slice(questionAt + 1).includes("#");
+  // rule): everything after the first `?` to the end of the string. A raw
+  // tab/newline/CR is exactly what WHATWG strips and libpq keeps.
+  if (questionAt >= 0) {
+    const rawQuery = trimmedDsn.slice(questionAt + 1);
+    if (rawQuery.includes("#") || /[\t\n\r]/.test(rawQuery)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 /**
  * Effective database name of a parsed Postgres DSN: the query `dbname=`
- * parameter when it carries a non-empty value, else the URI path database.
+ * parameter when it carries a value, else the URI path database.
  *
  * libpq applies URI query parameters ON TOP of the parsed URI, so a query
  * `dbname=` names the database the backup family (pg_dump) actually connects
@@ -245,9 +273,12 @@ export function rawDsnHasAmbiguousAuthority(trimmedDsn: string): boolean {
  * query is scanned with libpq keyword semantics — LAST occurrence wins,
  * names matched case-insensitively, values percent-decoded — deliberately
  * NOT via `URLSearchParams`, which would decode `+` as a space libpq never
- * does. An empty query value (`?dbname=`) names nothing and falls back to
- * the path. Returned WITHOUT a fallback — callers decide what an empty name
- * renders as.
+ * does. An explicitly EMPTY query value (`?dbname=`) names nothing: libpq
+ * completes an empty dbname from the USER name (never from the path), so
+ * the path fallback does not apply and the empty string is returned — the
+ * under-specified shape the backup bootstrap refuses (the unnamed-source
+ * gate); a valueless `?dbname` counts as the same empty value. Returned
+ * WITHOUT a fallback — callers decide what an empty name renders as.
  *
  * The path fallback reads the WHATWG `pathname` (decoded) — the label-side
  * view, kept deliberately for non-guard uses: libpq reads THROUGH a raw `#`
@@ -266,13 +297,21 @@ export function effectiveDatabaseName(url: URL): string {
     }
     const equals = pair.indexOf("=");
     if (equals < 0) {
+      // A valueless `?dbname` counts as libpq's empty value (the restore
+      // guard's convention) — it names nothing rather than the path db.
+      if (decodeUrlSegment(pair).toLowerCase() === "dbname") {
+        queryDatabase = "";
+      }
       continue;
     }
     if (decodeUrlSegment(pair.slice(0, equals)).toLowerCase() === "dbname") {
       queryDatabase = decodeUrlSegment(pair.slice(equals + 1));
     }
   }
-  if (queryDatabase !== undefined && queryDatabase.length > 0) {
+  // An explicitly present (valueless or empty) query dbname= NEVER falls
+  // back to the path: libpq completes an empty dbname from the USER name,
+  // so the path db would mislabel the dump.
+  if (queryDatabase !== undefined) {
     return queryDatabase;
   }
   return decodeUrlSegment(url.pathname.replace(/^\//, ""));
@@ -281,10 +320,13 @@ export function effectiveDatabaseName(url: URL): string {
 /**
  * Database name from a parsed DSN for the manifest's `database` field: the
  * effective database ({@link effectiveDatabaseName}) — the query `dbname=`
- * parameter when present, else the path database — so the manifest names the
- * database pg_dump actually dumps. The fallback is the fixed "(default)"
- * marker — NEVER the userinfo: the URL username is a credential-adjacent
- * value and must not leak into a persisted manifest (or anywhere else).
+ * parameter when it carries a value, else the path database — so the
+ * manifest names the database pg_dump actually dumps. An explicitly empty
+ * `dbname=` names nothing (libpq completes it from the USER name; the
+ * backup bootstrap refuses it) and renders the fixed "(default)" marker —
+ * which is NEVER the userinfo either: the URL username is a
+ * credential-adjacent value and must not leak into a persisted manifest (or
+ * anywhere else).
  */
 export function databaseNameFromDsn(url: URL): string {
   return effectiveDatabaseName(url) || "(default)";
@@ -313,7 +355,8 @@ export function resolveEnvFilePath(value: string): { fileName: string; rootDir: 
  * - The rendered database name is the EFFECTIVE database
  *   ({@link effectiveDatabaseName}): a query `dbname=` parameter is libpq's
  *   override channel and wins over the path component, matching what the
- *   backup family actually connects to.
+ *   backup family actually connects to (an explicitly empty `dbname=`
+ *   names nothing and renders host-only — the bootstrap refuses it).
  * - A DSN without a database name renders as `host(...)`.
  * - Empty, malformed, or non-Postgres values render as `redacted-dsn`.
  */

@@ -53,9 +53,32 @@ describe("rawDsnHasAmbiguousAuthority", () => {
     expect(rawDsnHasAmbiguousAuthority("postgresql://host.example:5432?dbname=app_db#k")).toBe(true);
   });
 
+  it("refuses a raw control character in the authority span or the raw path span", () => {
+    // WHATWG strips tab/newline/CR outright and percent-encodes the other
+    // C0 controls, while libpq keeps the literal bytes — a raw control in
+    // either span is unassessable (the guard's C0-plus-DEL rule).
+    expect(rawDsnHasAmbiguousAuthority("postgresql://ops\towner:pw@host.example:5432/app_db")).toBe(true);
+    expect(rawDsnHasAmbiguousAuthority("postgresql://ops_owner:pw@ho\u0001st.example:5432/app_db")).toBe(true);
+    expect(rawDsnHasAmbiguousAuthority("postgresql://u:p@host.example:5432/app\rdb")).toBe(true);
+    // Live-proven R12 shape: the database is literally named
+    // `r12ptab<TAB>k`; WHATWG strips the tab (label `r12ptabk`) while libpq
+    // dumps the tab byte.
+    expect(rawDsnHasAmbiguousAuthority("postgresql://u:p@host.example:5432/r12ptab\tk")).toBe(true);
+    expect(rawDsnHasAmbiguousAuthority("postgresql://u:p@host.example:5432/app\u007fdb")).toBe(true);
+  });
+
+  it("refuses a raw tab/newline/CR in the raw query string (WHATWG strips, libpq keeps)", () => {
+    expect(rawDsnHasAmbiguousAuthority("postgresql://u:p@host.example:5432/app_db?dbname=app\tk")).toBe(true);
+    expect(rawDsnHasAmbiguousAuthority("postgresql://u:p@host.example:5432/app_db?x=a\nb")).toBe(true);
+  });
+
   it("allows percent-encoded fragments, pathless queries, and benign DSNs", () => {
     expect(rawDsnHasAmbiguousAuthority("postgresql://u:p@host.example:5432/app%23db")).toBe(false);
     expect(rawDsnHasAmbiguousAuthority("postgresql://u:p@host.example:5432/?dbname=app%23db")).toBe(false);
+    // A percent-encoded tab decodes to the same literal on every channel —
+    // never ambiguous.
+    expect(rawDsnHasAmbiguousAuthority("postgresql://u:p@host.example:5432/r12ptab%09k")).toBe(false);
+    expect(rawDsnHasAmbiguousAuthority("postgresql://u:p@host.example:5432/?dbname=app%09db")).toBe(false);
     // Pathless with no later `@`: the `?` is the query delimiter both
     // parsers agree on (the guard's pathless refinement) — not ambiguous.
     expect(rawDsnHasAmbiguousAuthority("postgresql://host.example:5432?sslmode=disable")).toBe(false);
@@ -112,9 +135,11 @@ describe("redactDsn", () => {
       "querydb@h.example:5432(redacted-user)"
     );
     expect(redactDsn("postgresql://u:p@h.example/?dbname=querydb")).toBe("querydb@h.example(redacted-user)");
-    // Other keys and an EMPTY dbname= keep the path database.
+    // Other keys keep the path database; an explicitly EMPTY dbname= names
+    // nothing — libpq completes an empty dbname from the USER name, never
+    // the path — so the host-only render replaces the path db.
     expect(redactDsn("postgresql://u:p@h.example/pathdb?sslmode=require")).toBe("pathdb@h.example(redacted-user)");
-    expect(redactDsn("postgresql://u:p@h.example/pathdb?dbname=")).toBe("pathdb@h.example(redacted-user)");
+    expect(redactDsn("postgresql://u:p@h.example/pathdb?dbname=")).toBe("h.example(redacted-user)");
   });
 
   it("keeps IPv6 host literals", () => {

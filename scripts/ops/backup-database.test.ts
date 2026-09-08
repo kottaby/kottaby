@@ -103,6 +103,9 @@ let rawFragmentAuthorityEnvFile = "";
 let encodedFragmentQueryEnvFile = "";
 let rawQuestionAuthorityEnvFile = "";
 let dblessEnvFile = "";
+let rawControlAuthorityEnvFile = "";
+let rawControlPathEnvFile = "";
+let emptyQueryDbnameEnvFile = "";
 const missingEnvFile = (): string => relative(process.cwd(), join(workspace, ".env-backup-missing"));
 const ORIGINAL_DATABASE_URL = process.env.DATABASE_URL;
 
@@ -242,6 +245,25 @@ beforeAll(() => {
   dblessEnvFile = writeEnvFile(
     ".env-backup-dbless",
     "DATABASE_URL=postgresql://ops_owner:supersecret-pw@db.internal.example:5432\n"
+  );
+  // The R12 control-character shapes (quoted so dotenv keeps the literal
+  // bytes): a tab inside the raw authority span, and the live-proven path
+  // shape — a database literally named `r12ptab<TAB>k` (WHATWG strips the
+  // tab and would label `r12ptabk` while the dump contains the tab byte).
+  rawControlAuthorityEnvFile = writeEnvFile(
+    ".env-backup-raw-control-authority",
+    'DATABASE_URL="postgresql://ops\towner:supersecret-pw@db.internal.example:5432/app_db"\n'
+  );
+  rawControlPathEnvFile = writeEnvFile(
+    ".env-backup-raw-control-path",
+    'DATABASE_URL="postgresql://ops_owner:supersecret-pw@db.internal.example:5432/r12ptab\tk"\n'
+  );
+  // The explicitly empty `?dbname=` query value: libpq completes an empty
+  // dbname from the USER name (never the path db), so the name is
+  // under-specified — the same refusal class as the db-less DSN.
+  emptyQueryDbnameEnvFile = writeEnvFile(
+    ".env-backup-empty-query-dbname",
+    "DATABASE_URL=postgresql://ops_owner:supersecret-pw@db.internal.example:5432/pathdb?dbname=\n"
   );
 });
 
@@ -383,9 +405,15 @@ describe("databaseNameFromDsn", () => {
   it("honors a query dbname= over the path database (libpq applies query parameters on top)", () => {
     expect(databaseNameFromDsn(new URL("postgresql://u:p@h.example/pathdb?dbname=querydb"))).toBe("querydb");
     expect(databaseNameFromDsn(new URL("postgresql://u:p@h.example/?dbname=querydb"))).toBe("querydb");
-    // Absent, other-key, and EMPTY query dbname= values keep the path db.
+    // Absent and other-key query values keep the path db. An explicitly
+    // EMPTY dbname= names NOTHING: libpq completes an empty dbname from the
+    // USER name (never the path), so the label degrades to the `(default)`
+    // marker and the bootstrap refuses the under-specified DSN. A
+    // percent-encoded tab decodes to its literal byte.
     expect(databaseNameFromDsn(new URL("postgresql://u:p@h.example/pathdb?sslmode=require"))).toBe("pathdb");
-    expect(databaseNameFromDsn(new URL("postgresql://u:p@h.example/pathdb?dbname="))).toBe("pathdb");
+    expect(databaseNameFromDsn(new URL("postgresql://u:p@h.example/pathdb?dbname="))).toBe("(default)");
+    expect(databaseNameFromDsn(new URL("postgresql://u:p@h.example/pathdb?dbname"))).toBe("(default)");
+    expect(databaseNameFromDsn(new URL("postgresql://u:p@h.example/r12ptab%09k"))).toBe("r12ptab\tk");
   });
 
   it("uses the LAST query dbname= occurrence, percent-decoded, with + literal (libpq keyword semantics)", () => {
@@ -1230,7 +1258,7 @@ describe("runBackup — failure boundaries", () => {
     // the bootstrap refuses the DSN before anything runs (fail closed).
     expect(run.code).toBe(2);
     expect(run.errors).toContain(
-      "[env] source DSN has an unassessable authority or fragment character — percent-encode special characters"
+      "[env] source DSN contains an unassessable character sequence — percent-encode special characters"
     );
     expect(run.calls).toEqual([]);
     // Refused in the bootstrap path: the out-dir is never created — no
@@ -1249,7 +1277,7 @@ describe("runBackup — failure boundaries", () => {
     // manifest's override channel — ends at the `#` and records `app_db`.
     expect(run.code).toBe(2);
     expect(run.errors).toContain(
-      "[env] source DSN has an unassessable authority or fragment character — percent-encode special characters"
+      "[env] source DSN contains an unassessable character sequence — percent-encode special characters"
     );
     expect(run.calls).toEqual([]);
     expect(existsSync(outDir)).toBe(false);
@@ -1267,7 +1295,7 @@ describe("runBackup — failure boundaries", () => {
     // would render the `(default)` marker in the manifest.
     expect(run.code).toBe(2);
     expect(run.errors).toContain(
-      "[env] source DSN has an unassessable authority or fragment character — percent-encode special characters"
+      "[env] source DSN contains an unassessable character sequence — percent-encode special characters"
     );
     expect(run.calls).toEqual([]);
     expect(existsSync(outDir)).toBe(false);
@@ -1285,8 +1313,59 @@ describe("runBackup — failure boundaries", () => {
     // database as role `ops_owner?k` — unassessable, refused fail-closed.
     expect(run.code).toBe(2);
     expect(run.errors).toContain(
-      "[env] source DSN has an unassessable authority or fragment character — percent-encode special characters"
+      "[env] source DSN contains an unassessable character sequence — percent-encode special characters"
     );
+    expect(run.calls).toEqual([]);
+    expect(existsSync(outDir)).toBe(false);
+  });
+
+  it("refuses a raw control character in the authority span with exit 2 and zero side effects", async () => {
+    const outDir = join(workspace, "run-raw-control-authority");
+    const run = await runBackupWith(probeAndDumpBehavior(dumpWritesArtifact), {
+      envFile: rawControlAuthorityEnvFile,
+      outDir,
+    });
+    // WHATWG strips a raw tab from the URL it parses while libpq keeps the
+    // literal byte in the userinfo it splits — the assessed view and the
+    // connection diverge, so the bootstrap refuses before anything runs.
+    expect(run.code).toBe(2);
+    expect(run.errors).toContain(
+      "[env] source DSN contains an unassessable character sequence — percent-encode special characters"
+    );
+    expect(run.calls).toEqual([]);
+    expect(existsSync(outDir)).toBe(false);
+  });
+
+  it("refuses a raw control character in the raw path span with exit 2 and zero side effects", async () => {
+    const outDir = join(workspace, "run-raw-control-path");
+    const run = await runBackupWith(probeAndDumpBehavior(dumpWritesArtifact), {
+      envFile: rawControlPathEnvFile,
+      outDir,
+    });
+    // Live-proven R12 shape: the database is literally named
+    // `r12ptab<TAB>k`; WHATWG strips the tab and the manifest would label
+    // `r12ptabk` while the dump contains the tab byte — refused fail-closed
+    // in the bootstrap.
+    expect(run.code).toBe(2);
+    expect(run.errors).toContain(
+      "[env] source DSN contains an unassessable character sequence — percent-encode special characters"
+    );
+    expect(run.calls).toEqual([]);
+    expect(existsSync(outDir)).toBe(false);
+  });
+
+  it("refuses an explicitly empty ?dbname= query value with exit 2 and zero side effects", async () => {
+    const outDir = join(workspace, "run-empty-query-dbname");
+    const run = await runBackupWith(probeAndDumpBehavior(dumpWritesArtifact), {
+      envFile: emptyQueryDbnameEnvFile,
+      outDir,
+    });
+    // libpq completes an EMPTY dbname= from the USER name (live-proven: the
+    // dump header said `dbname: postgres` while the path-fallback manifest
+    // label said the path database) — the same under-specified shape as the
+    // db-less DSN, refused with the same message.
+    expect(run.code).toBe(2);
+    expect(run.errors).toContain("[env] source database name is unspecified — name the database explicitly");
     expect(run.calls).toEqual([]);
     expect(existsSync(outDir)).toBe(false);
   });

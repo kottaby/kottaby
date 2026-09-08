@@ -163,36 +163,41 @@ function bootstrapDsn(envFile: string, deps: BackupRunDeps): { dsn: string; dsnU
     );
     return null;
   }
-  // RAW unassessable-authority/fragment gate — the backup-side mirror of
-  // the restore guard's raw-authority and raw-# channels
-  // (`assessRawUriAuthority`, `assessRawUriPath`, and the query-string rule
-  // in `restore-guard-url.ts`). libpq has no fragment delimiter and reads
-  // THROUGH a raw `#` in any span, and WHATWG and libpq DISAGREE on where
-  // the authority ends when a raw `?` sits inside it: libpq dumps the
-  // literal `…/pt9b#k` path database, connects as the literal `user#k`
-  // authority role, and folds `?dbname=app_db#k` into the parameter value,
-  // while every WHATWG-derived view (the `effectiveDatabaseName` label
-  // among them) ends that span at the `?`/`#` — breaking the _shared
-  // contract that the manifest records the database pg_dump dumps
-  // (live-proven R11 shape: `postgres?k@host:5432/db` → manifest
-  // `(default)` while dumping a named database). Refused here in the
-  // bootstrap path as an env/usage-class error, before any out-dir,
-  // staging, dump, or manifest side effect; a percent-encoded `%23` is
-  // fine — libpq percent-decodes each channel and the label decodes to
-  // the same literal name, so the manifest matches what was dumped.
+  // RAW unassessable-authority/fragment/control gate — the backup-side
+  // mirror of the restore guard's raw-authority, raw-#, and control
+  // character channels (`assessRawUriAuthority`, `assessRawUriPath`, and
+  // the query-string rule in `restore-guard-url.ts`). libpq has no
+  // fragment delimiter and reads THROUGH a raw `#` in any span, and WHATWG
+  // and libpq DISAGREE on where the authority ends when a raw `?` sits
+  // inside it: libpq dumps the literal `…/pt9b#k` path database, connects
+  // as the literal `user#k` authority role, and folds `?dbname=app_db#k`
+  // into the parameter value, while every WHATWG-derived view (the
+  // `effectiveDatabaseName` label among them) ends that span at the
+  // `?`/`#` — breaking the _shared contract that the manifest records the
+  // database pg_dump dumps (live-proven R11 shape: `postgres?k@host:5432/db`
+  // → manifest `(default)` while dumping a named database). A raw control
+  // character diverges the same way: WHATWG strips tab/newline/CR outright
+  // and percent-encodes the other C0 controls, while libpq keeps the
+  // literal bytes (live-proven R12 shape: db literally named
+  // `r12ptab<TAB>k` in the path — the manifest labeled `r12ptabk` while the
+  // dump contains the tab). Refused here in the bootstrap path as an
+  // env/usage-class error, before any out-dir, staging, dump, or manifest
+  // side effect; a percent-encoded escape (`%23`, `%09`) is fine — libpq
+  // percent-decodes each channel and the label decodes to the same literal
+  // name, so the manifest matches what was dumped.
   if (rawDsnHasAmbiguousAuthority(rawDsn.trim())) {
-    deps.emit.error(
-      `[env] source DSN has an unassessable authority or fragment character — percent-encode special characters`
-    );
+    deps.emit.error(`[env] source DSN contains an unassessable character sequence — percent-encode special characters`);
     return null;
   }
   // Unnamed-database gate — the backup-side mirror of the restore guard's
   // target-naming rule (R5: a target whose database is under-specified
   // refuses). A db-less source DSN (no path database, no `?dbname=` query)
-  // lets the ambient libpq environment complete the endpoint, so the dump's
-  // provenance is unverifiable and the manifest would carry the `(default)`
-  // marker for a database the DSN never named — refused before any side
-  // effect, like every `[env]` refusal.
+  // AND an explicitly EMPTY `?dbname=` value are the same under-specified
+  // endpoint: libpq completes an empty dbname from the USER name
+  // (live-proven: the dump header said `dbname: postgres` while a
+  // path-fallback label said the path database), so the dump's provenance
+  // is unverifiable and the manifest would mislabel it — refused before
+  // any side effect, like every `[env]` refusal.
   if (effectiveDatabaseName(dsnUrl).length === 0) {
     deps.emit.error(`[env] source database name is unspecified — name the database explicitly`);
     return null;
