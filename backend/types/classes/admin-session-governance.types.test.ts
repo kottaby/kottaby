@@ -189,8 +189,8 @@ const WINDOW_START = new Date("2026-03-01T10:00:00.000Z");
 const WINDOW_END = new Date("2026-03-01T12:00:00.000Z");
 const SESSION_START = new Date("2026-03-05T09:00:00.000Z");
 const SESSION_END = new Date("2026-03-05T10:30:00.000Z");
-const REASON_AT_LIMIT = "r".repeat(2000);
-const REASON_OVER_LIMIT = "r".repeat(2001);
+const REASON_AT_LIMIT = "r".repeat(1900);
+const REASON_OVER_LIMIT = "r".repeat(1901);
 
 describe("Admin Session Governance Types — zod boundary round-trips", () => {
   describe("directory filter", () => {
@@ -342,14 +342,14 @@ describe("Admin Session Governance Types — zod boundary round-trips", () => {
       expect(withReason.reason).toBe("duplicate booking");
     });
 
-    test("accepts a reason at the 2000-character boundary", () => {
+    test("accepts a reason at the 1900-character boundary (audit-details envelope headroom)", () => {
       const parsed = expectAcceptance(
         AdminSessionCancelInputSchema.safeParse({ sessionId: 3, reason: REASON_AT_LIMIT })
       );
-      expect(parsed.reason).toHaveLength(2000);
+      expect(parsed.reason).toHaveLength(1900);
     });
 
-    test("rejects a reason beyond the 2000-character boundary", () => {
+    test("rejects a reason beyond the 1900-character boundary", () => {
       expectRejection(AdminSessionCancelInputSchema.safeParse({ sessionId: 3, reason: REASON_OVER_LIMIT }));
     });
 

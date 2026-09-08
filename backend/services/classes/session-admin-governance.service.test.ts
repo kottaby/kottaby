@@ -38,7 +38,7 @@
  *    denial, non-scheduled rows are transition conflicts); the join gate
  *    (started observes with exactly one audit row, every other state is a
  *    zero-audit conflict).
- *  - Tier 2 (boundary): cancel reason EXACTLY 2000 chars accepted / 2001
+ *  - Tier 2 (boundary): cancel reason EXACTLY 1900 chars accepted / 1901
  *    rejected pre-DB; page 1 with pageSize 1 and 50 bounds plus
  *    out-of-range normalization (page < 1 → 1, pageSize > 50 → 25); the
  *    empty filter object returning every row; the zero-width creation
@@ -136,8 +136,15 @@ const NOTIFS_AR = getServerTranslations("ar").notificationsTranslations;
  */
 const RESCHEDULE_GRACE_MS = 5 * 60 * 1000;
 
-/** The audit-details ceiling the boundary schema enforces for the reason. */
-const MAX_CANCEL_REASON_LENGTH = 2000;
+/**
+ * The cancel-reason ceiling the boundary schema enforces — the audit-details
+ * column (2000) minus the serialized `details` envelope (31 chars: the
+ * `action` member + JSON punctuation) and JSON-escape headroom, so a
+ * boundary-legal reason can never shear the audit JSON at the column
+ * ceiling. Mirrors the boundary constant in
+ * `backend/types/classes/admin-session-governance.types.ts`.
+ */
+const MAX_CANCEL_REASON_LENGTH = 1900;
 
 /** The audit row's entity label for this surface (the service's constant). */
 const SESSION_ENTITY_TYPE = "session";
@@ -1499,7 +1506,7 @@ describe("SessionAdminGovernanceService — join (runInRollback)", () => {
 // ─── Tier 2: boundaries ──────────────────────────────────────────────────
 
 describe("SessionAdminGovernanceService — boundaries", () => {
-  test("cancel reason EXACTLY 2000 chars is accepted; 2001 is rejected pre-DB with zero writes", async () => {
+  test("cancel reason EXACTLY 1900 chars is accepted; 1901 is rejected pre-DB with zero writes", async () => {
     await runInRollback(async tx => {
       const actors = await createSessionActors(tx);
       const { adminId } = await createTestAdmin(tx);

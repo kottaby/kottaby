@@ -14,8 +14,10 @@ import { AdminSessionGovernance, Common, useAppTranslation } from "@/shared/loca
  * discipline, `React.SubmitEvent`, dismissal gated while the mutation is in
  * flight.
  *
- * Reason field — OPTIONAL (the cancel contract's `reason?`), ≤2000 chars at the UI seam
- * (mirrors the audit `details` contract), hard `maxLength` clamp at the
+ * Reason field — OPTIONAL (the cancel contract's `reason?`), ≤1900 chars at the UI seam
+ * (the backend boundary cap — the audit `details` column minus the serialized
+ * envelope + JSON-escape headroom, so a UI-legal reason can never overflow
+ * the audit slice server-side), hard `maxLength` clamp at the
  * input seam plus a live raw-character counter helper line. The reason
  * rides the mutation input verbatim-trimmed; empty resolves to `null`.
  *
@@ -29,8 +31,8 @@ import { AdminSessionGovernance, Common, useAppTranslation } from "@/shared/loca
  * targets, keyboard-focusable dialog (`aria-labelledby` + focusable field).
  */
 
-/** UI-seam cap for the optional cancel reason (mirrors the audit contract). */
-export const MAX_CANCEL_REASON_LENGTH = 2000;
+/** UI-seam cap for the optional cancel reason (mirrors the backend boundary constant). */
+export const MAX_CANCEL_REASON_LENGTH = 1900;
 
 interface CancelSessionDialogProps {
   /** The session being cancelled (drives the testids). */

@@ -31,8 +31,17 @@ import type { SessionReturnType } from "@/backend/types/classes/session.types";
 /** Upper bound of the admin list window's page size. */
 const MAX_PAGE_SIZE = 50;
 
-/** Upper bound of the admin cancel reason — the audit details column width. */
-const MAX_CANCEL_REASON_LENGTH = 2000;
+/**
+ * Upper bound of the admin cancel reason. The reason is the only
+ * caller-supplied member of the cancel audit row's `details` JSON
+ * (`{"action":"cancel","reason":"…"}` — a 31-char envelope), and the
+ * audit writer truncates the serialized payload to the 2000-char column
+ * ceiling — a truncation that would shear the closing quotes and corrupt
+ * the JSON. The cap therefore reserves the envelope's width plus
+ * JSON-escape headroom: a boundary-legal reason always serializes WELL
+ * inside the audit-details slice (1900 + 31 = 1931 ≤ 2000).
+ */
+const MAX_CANCEL_REASON_LENGTH = 1900;
 
 /**
  * Shape gate for every caller-supplied identifier on this surface: a
@@ -85,8 +94,9 @@ export interface AdminSessionRescheduleInput {
 
 /**
  * Cancel payload: the target session plus an optional free-text reason.
- * The reason is audit metadata — bounded to the audit-details width,
- * trimmed downstream, and persisted as no reason at all when empty.
+ * The reason is audit metadata — bounded below the audit-details width
+ * (envelope + escape headroom reserved, see the schema constant), trimmed
+ * downstream, and persisted as no reason at all when empty.
  */
 export interface AdminSessionCancelInput {
   readonly sessionId: number;

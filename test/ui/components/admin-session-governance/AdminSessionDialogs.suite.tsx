@@ -26,7 +26,7 @@
  *   grace mirror) · empty token disables the submit affordance · loading
  *   gates both actions · dismissal through the Common-namespace cancel.
  *
- *   cancel — open shell (optional-reason seam, `0/2000` counter, hard
+ *   cancel — open shell (optional-reason seam, `0/<cap>` counter, hard
  *   `maxlength` clamp attribute, submit ENABLED with an empty reason) ·
  *   empty submit sends `reason: null` on the wire · typed reason submits
  *   VERBATIM-TRIMMED with the live raw-character counter · loading gates.
