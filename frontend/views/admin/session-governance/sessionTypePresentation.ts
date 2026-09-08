@@ -12,7 +12,7 @@ import { SessionIntent, SessionType } from "@/frontend/graphql/generated/gql/gra
  */
 
 /** Governance-namespace type option label keys (the filter select's vocabulary). */
-export type SessionTypeLabelKey = "typeStudentSession" | "typeTeacherEvaluation" | "typeReEvaluation";
+type SessionTypeLabelKey = "typeStudentSession" | "typeTeacherEvaluation" | "typeReEvaluation";
 
 /** Type-cell label key per wire token. */
 export const SESSION_TYPE_LABEL_KEY: Record<string, SessionTypeLabelKey> = {
@@ -22,7 +22,7 @@ export const SESSION_TYPE_LABEL_KEY: Record<string, SessionTypeLabelKey> = {
 };
 
 /** Governance-namespace intent value label keys. */
-export type SessionIntentLabelKey = "intentHifz" | "intentTajweed" | "intentEvaluation";
+type SessionIntentLabelKey = "intentHifz" | "intentTajweed" | "intentEvaluation";
 
 /** Intent-cell label key per wire token (the wire member is nullable — callers render the placeholder). */
 export const SESSION_INTENT_LABEL_KEY: Record<string, SessionIntentLabelKey> = {

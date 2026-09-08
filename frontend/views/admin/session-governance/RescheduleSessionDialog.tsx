@@ -49,7 +49,7 @@ export function isoToDatetimeLocalToken(iso: string | null): string {
  * pair must be ordered AND the start may not sit further than the grace
  * window in the past. Returns the localized message, or null when valid.
  */
-export function validateReschedulePair(
+function validateReschedulePair(
   startedAtIso: string,
   endedAtIso: string,
   tErrors: {

@@ -88,7 +88,7 @@ const ADMIN_SESSIONS_PAGE_SIZE = 25;
 const SESSION_INVALID_TRANSITION_CODE = "SESSION_INVALID_TRANSITION";
 
 /** One transient container-level notice rendered in the MUI Snackbar slot. */
-export interface ContainerNotice {
+interface ContainerNotice {
   readonly message: string;
   readonly severity: "success" | "info" | "error";
 }
@@ -105,7 +105,7 @@ export interface DirectoryFilterDraft {
 }
 
 /** Which governance dialog (if any) is open, keyed to its session row. */
-export interface GovernanceDialogState {
+interface GovernanceDialogState {
   readonly kind: "reschedule" | "cancel" | "reassign";
   readonly session: AdminSessionsQuery_adminSessions_items;
 }

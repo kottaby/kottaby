@@ -111,7 +111,7 @@ export function rejectStateConflict(denial: string, sessionId: number, t: Govern
  * or a row mid-transition at the guarded statement's instant) is the
  * localized state conflict.
  */
-export async function rejectAdminTransitionMiss(
+async function rejectAdminTransitionMiss(
   denial: string,
   sessionId: number,
   tx: DBTransaction,
