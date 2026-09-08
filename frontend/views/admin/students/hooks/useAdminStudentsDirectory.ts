@@ -104,11 +104,13 @@ export function useAdminStudentsDirectory() {
     if (searchParams.toString() !== appliedQuery) {
       router.replace(appliedQuery === "" ? pathname : `${pathname}?${appliedQuery}`, { scroll: false });
     }
-    // `searchParams.toString` stays a dependency (biome's preferred shape —
-    // a fresh function reference per params object): after the replace the
-    // guard re-reads the NEW url, sees it already mirrors the applied state,
-    // and skips — one extra effect pass, zero replace churn.
-  }, [appliedQuery, router, pathname, searchParams.toString]);
+    // `searchParams` (the object — eslint exhaustive-deps) and
+    // `searchParams.toString` (the member chain — biome's tracked shape, a
+    // fresh function reference per params object) both stay dependencies:
+    // after the replace the guard re-reads the NEW url, sees it already
+    // mirrors the applied state, and skips — one extra effect pass, zero
+    // replace churn.
+  }, [appliedQuery, router, pathname, searchParams, searchParams.toString]);
 
   // Every filter setter resets to the first page — a new result set starts
   // at page 1, never on a stale (possibly out-of-range) page index.

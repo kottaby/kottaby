@@ -28,8 +28,7 @@
  */
 
 import { Alert, Box, Button, Snackbar, Stack, Typography } from "@mui/material";
-import type { ReactNode } from "react";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import { AdminStudentDetailDrawer } from "@/frontend/views/admin/students/AdminStudentDetailDrawer";
 import type { StudentDirectoryItem } from "@/frontend/views/admin/students/AdminStudentRowCells";
 import { AdminStudentsResults } from "@/frontend/views/admin/students/AdminStudentsResults";

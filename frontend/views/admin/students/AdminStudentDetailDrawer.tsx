@@ -381,51 +381,51 @@ interface StudentDrawerPlacementSectionProps {
  * missing (defensive — mirrors the row cell).
  */
 function StudentDrawerPlacementSection({ student, labels }: StudentDrawerPlacementSectionProps): ReactNode {
-  return (
-    <DrawerSection label={labels.drawer.sectionPlacement}>
-      {!student.hasParent ? (
-        <TonalChip tone="neutral" label={labels.parentLabels.noParent} />
-      ) : student.parentName === null && student.parentEmail === null ? (
-        <EmptyValue />
-      ) : (
-        <>
-          {student.parentName !== null && (
-            <LabelValueRow label={labels.headers.parent}>
-              <Typography
-                component="div"
-                title={student.parentName}
-                sx={theme => ({
-                  fontWeight: 500,
-                  color: theme.palette.text.primary,
-                  overflowWrap: "anywhere",
-                })}
-              >
-                {student.parentName}
-              </Typography>
-            </LabelValueRow>
-          )}
-          {student.parentEmail !== null && (
-            <LabelValueRow label={labels.fields.parentEmail} ltr>
-              <Typography
-                component="a"
-                href={`mailto:${student.parentEmail}`}
-                title={student.parentEmail}
-                sx={theme => ({
-                  color: theme.palette.primary.main,
-                  fontWeight: 500,
-                  textDecoration: "none",
-                  overflowWrap: "anywhere",
-                  "&:hover": { textDecoration: "underline" },
-                })}
-              >
-                {student.parentEmail}
-              </Typography>
-            </LabelValueRow>
-          )}
-        </>
-      )}
-    </DrawerSection>
-  );
+  let placementContent: ReactNode;
+  if (!student.hasParent) {
+    placementContent = <TonalChip tone="neutral" label={labels.parentLabels.noParent} />;
+  } else if (student.parentName === null && student.parentEmail === null) {
+    placementContent = <EmptyValue />;
+  } else {
+    placementContent = (
+      <>
+        {student.parentName !== null && (
+          <LabelValueRow label={labels.headers.parent}>
+            <Typography
+              component="div"
+              title={student.parentName}
+              sx={theme => ({
+                fontWeight: 500,
+                color: theme.palette.text.primary,
+                overflowWrap: "anywhere",
+              })}
+            >
+              {student.parentName}
+            </Typography>
+          </LabelValueRow>
+        )}
+        {student.parentEmail !== null && (
+          <LabelValueRow label={labels.fields.parentEmail} ltr>
+            <Typography
+              component="a"
+              href={`mailto:${student.parentEmail}`}
+              title={student.parentEmail}
+              sx={theme => ({
+                color: theme.palette.primary.main,
+                fontWeight: 500,
+                textDecoration: "none",
+                overflowWrap: "anywhere",
+                "&:hover": { textDecoration: "underline" },
+              })}
+            >
+              {student.parentEmail}
+            </Typography>
+          </LabelValueRow>
+        )}
+      </>
+    );
+  }
+  return <DrawerSection label={labels.drawer.sectionPlacement}>{placementContent}</DrawerSection>;
 }
 
 interface StudentDrawerLanguagesSectionProps {

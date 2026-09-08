@@ -38,14 +38,17 @@ import { getTranslations } from "@/shared/locale/server";
 
 afterEach(cleanup);
 
+type UserRoleFilterValue = "Admin" | "Teacher" | "Student" | "Parent" | "";
+type GovernanceFilterValue = "Active" | "Suspended" | "Blocked" | "Deleted" | "";
+
 interface RenderOptions {
   readonly locale: AppLocale;
-  readonly roleFilter?: "Admin" | "Teacher" | "Student" | "Parent" | "";
-  readonly governanceFilter?: "Active" | "Suspended" | "Blocked" | "Deleted" | "";
+  readonly roleFilter?: UserRoleFilterValue;
+  readonly governanceFilter?: GovernanceFilterValue;
   readonly countryFilter?: string;
   readonly searchApplied?: string;
-  readonly setRoleFilter?: (value: "Admin" | "Teacher" | "Student" | "Parent" | "") => void;
-  readonly setGovernanceFilter?: (value: "Active" | "Suspended" | "Blocked" | "Deleted" | "") => void;
+  readonly setRoleFilter?: (value: UserRoleFilterValue) => void;
+  readonly setGovernanceFilter?: (value: GovernanceFilterValue) => void;
   readonly setCountryFilter?: (value: string) => void;
   readonly setSearchInput?: (value: string) => void;
 }

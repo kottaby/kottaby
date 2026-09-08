@@ -35,8 +35,7 @@
 
 import { Box, Card, Stack, Tab, Tabs, Typography } from "@mui/material";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import type { ReactNode } from "react";
-import { useEffect, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { parseTeachersUrlTab, serializeTeachersSurfaceUrlState } from "@/frontend/views/admin/directory-url-state";
 import { AdminApplicantsPanel } from "@/frontend/views/admin/teachers/AdminApplicantsPanel";
 import { AdminTeachersDirectoryPanel } from "@/frontend/views/admin/teachers/AdminTeachersDirectoryPanel";
@@ -90,11 +89,13 @@ export function AdminTeachersSurface(): ReactNode {
     if (searchParams.toString() !== urlQuery) {
       router.replace(urlQuery === "" ? pathname : `${pathname}?${urlQuery}`, { scroll: false });
     }
-    // `searchParams.toString` stays a dependency (biome's preferred shape —
-    // a fresh function reference per params object): after the replace the
-    // guard re-reads the NEW url, sees it already mirrors the active view,
-    // and skips — one extra effect pass, zero replace churn.
-  }, [urlQuery, router, pathname, searchParams.toString]);
+    // `searchParams` (the object — eslint exhaustive-deps) and
+    // `searchParams.toString` (the member chain — biome's tracked shape, a
+    // fresh function reference per params object) both stay dependencies:
+    // after the replace the guard re-reads the NEW url, sees it already
+    // mirrors the active view, and skips — one extra effect pass, zero
+    // replace churn.
+  }, [urlQuery, router, pathname, searchParams, searchParams.toString]);
 
   // The count badge is an INACTIVE-tab affordance: while the admin reads
   // the queue the pagination footer already shows the total, so the badge
