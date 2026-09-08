@@ -83,8 +83,10 @@ interface AdminSessionGovernanceChromeProps {
   /** Shared sessions-namespace labels (status chip vocabulary). */
   readonly statusLabels: SessionsLabels;
   readonly filterDraft: DirectoryFilterDraft;
-  /** True when the last APPLY carried a non-whole-number id token. */
-  readonly filterInvalidId: boolean;
+  /** True when the last APPLY carried a non-whole-number TEACHER id token. */
+  readonly filterInvalidTeacherId: boolean;
+  /** True when the last APPLY carried a non-whole-number STUDENT id token. */
+  readonly filterInvalidStudentId: boolean;
   /** Localized invalid-id message for the offending id field. */
   readonly filterInvalidMessage: string;
   /** Draft edit intent (the container owns validation + commit). */
@@ -102,7 +104,8 @@ export function AdminSessionGovernanceChrome({
   summaryScopeHint,
   statusLabels,
   filterDraft,
-  filterInvalidId,
+  filterInvalidTeacherId,
+  filterInvalidStudentId,
   filterInvalidMessage,
   onFilterDraftChange,
   onApplyFilters,
@@ -200,9 +203,9 @@ export function AdminSessionGovernanceChrome({
           label={t.filterTeacherIdLabel}
           value={filterDraft.teacherUserId}
           onChange={event => onFilterDraftChange({ teacherUserId: event.target.value })}
-          error={filterInvalidId}
-          helperText={filterInvalidId ? filterInvalidMessage : undefined}
-          aria-invalid={filterInvalidId}
+          error={filterInvalidTeacherId}
+          helperText={filterInvalidTeacherId ? filterInvalidMessage : undefined}
+          aria-invalid={filterInvalidTeacherId}
           inputMode="numeric"
           data-testid="admin-session-governance-filter-teacher-id"
           slotProps={{ htmlInput: { inputMode: "numeric", autoComplete: "off" } }}
@@ -211,6 +214,9 @@ export function AdminSessionGovernanceChrome({
           label={t.filterStudentIdLabel}
           value={filterDraft.studentUserId}
           onChange={event => onFilterDraftChange({ studentUserId: event.target.value })}
+          error={filterInvalidStudentId}
+          helperText={filterInvalidStudentId ? filterInvalidMessage : undefined}
+          aria-invalid={filterInvalidStudentId}
           inputMode="numeric"
           data-testid="admin-session-governance-filter-student-id"
           slotProps={{ htmlInput: { inputMode: "numeric", autoComplete: "off" } }}

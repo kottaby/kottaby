@@ -158,7 +158,12 @@ export function AdminSessionGovernanceContainer(): ReactNode {
 
   // ---- filter state (draft → applied) -------------------------------------
   const [filterDraft, setFilterDraft] = useState<DirectoryFilterDraft>(EMPTY_FILTER_DRAFT);
-  const [filterInvalidId, setFilterInvalidId] = useState(false);
+  // Per-field invalid-id flags — the error binds to the OFFENDING field
+  // (teacher vs student), not one shared flag for both inputs.
+  const [filterInvalidIds, setFilterInvalidIds] = useState<{
+    teacher: boolean;
+    student: boolean;
+  }>({ teacher: false, student: false });
   const [appliedFilter, setAppliedFilter] = useState<AdminSessionListFilterInput>(EMPTY_APPLIED_FILTER);
   const [page, setPage] = useState(1);
 
@@ -227,7 +232,7 @@ export function AdminSessionGovernanceContainer(): ReactNode {
 
   // ---- filter callbacks ----------------------------------------------------
   const updateFilterDraft = useCallback((patch: Partial<DirectoryFilterDraft>): void => {
-    setFilterInvalidId(false);
+    setFilterInvalidIds({ teacher: false, student: false });
     setFilterDraft(prev => ({ ...prev, ...patch }));
   }, []);
 
@@ -237,7 +242,7 @@ export function AdminSessionGovernanceContainer(): ReactNode {
     const teacherInvalid = teacherToken !== "" && !WHOLE_NUMBER_PATTERN.test(teacherToken);
     const studentInvalid = studentToken !== "" && !WHOLE_NUMBER_PATTERN.test(studentToken);
     if (teacherInvalid || studentInvalid) {
-      setFilterInvalidId(true);
+      setFilterInvalidIds({ teacher: teacherInvalid, student: studentInvalid });
       return;
     }
     setAppliedFilter({
@@ -253,7 +258,7 @@ export function AdminSessionGovernanceContainer(): ReactNode {
 
   const resetFilters = useCallback((): void => {
     setFilterDraft(EMPTY_FILTER_DRAFT);
-    setFilterInvalidId(false);
+    setFilterInvalidIds({ teacher: false, student: false });
     setAppliedFilter(EMPTY_APPLIED_FILTER);
     setPage(1);
   }, []);
@@ -399,7 +404,8 @@ export function AdminSessionGovernanceContainer(): ReactNode {
         summaryScopeHint={t.summaryScopeHint}
         statusLabels={tSessions}
         filterDraft={filterDraft}
-        filterInvalidId={filterInvalidId}
+        filterInvalidTeacherId={filterInvalidIds.teacher}
+        filterInvalidStudentId={filterInvalidIds.student}
         filterInvalidMessage={t.filterInvalidId}
         onFilterDraftChange={updateFilterDraft}
         onApplyFilters={applyFilters}
