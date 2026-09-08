@@ -80,6 +80,7 @@ import { MAX_INTERVAL_DAYS } from "@/backend/services/billing/plan-catalog.helpe
 import { SubscriptionPurchaseService } from "@/backend/services/billing/subscription-purchase.service";
 import type { DBTransaction, PurchaseSubscriptionReturnType, PurchaseSubscriptionSubmitInput } from "@/backend/types";
 import { getServerTranslations } from "@/shared/locale/server-graphql";
+import { withImmutabilityTriggersSuspended } from "@/test/helpers/db-cleanup";
 import { isPgliteProvider } from "@/test/helpers/skip-when-pglite";
 
 /**
@@ -583,15 +584,36 @@ describe("SubscriptionPurchaseService — purchase (chaos: production tx path, c
   });
 
   afterAll(async () => {
-    // Tracked hard-delete cleanup, child rows first (the payments ledger
-    // restrict-deletes on its student; subscriptions restrict on their user).
+    // FK-safe hard-delete of every fixture row. The payment-ledger rows are
+    // un-deletable through their append-only DELETE guard — and the amended
+    // UPDATE guard also blocks the FK set-null the subscriptions delete
+    // would fire against a surviving payment row — so that leg runs under
+    // the sanctioned teardown-window trigger suspension (the sibling
+    // schema/replay/roles/journey teardowns wrap this exact leg); with the
+    // ledger leg resolved the rest deletes in strict child-first order
+    // (payments before subscriptions, so no set-null write ever fires
+    // against a surviving parent row).
+    await withImmutabilityTriggersSuspended(["student_payments"], async () => {
+      await db.delete(studentPayments).where(eq(studentPayments.studentId, chaosStudentId));
+    });
     await db.delete(subscriptionPurchaseIdempotency).where(eq(subscriptionPurchaseIdempotency.userId, chaosStudentId));
     await db.delete(studentSubscriptions).where(eq(studentSubscriptions.studentId, chaosStudentId));
-    await db.delete(studentPayments).where(eq(studentPayments.studentId, chaosStudentId));
     await db.delete(subscriptions).where(eq(subscriptions.userId, chaosStudentId));
     await db.delete(students).where(eq(students.id, chaosStudentId));
     await db.delete(users).where(eq(users.id, chaosStudentId));
     await db.delete(plans).where(eq(plans.id, chaosPlanId));
+
+    // Load-bearing residue proof: the teardown must leave zero rows behind.
+    const residueCounts = await Promise.all([
+      db.$count(subscriptions, eq(subscriptions.userId, chaosStudentId)),
+      db.$count(studentPayments, eq(studentPayments.studentId, chaosStudentId)),
+      db.$count(studentSubscriptions, eq(studentSubscriptions.studentId, chaosStudentId)),
+      db.$count(subscriptionPurchaseIdempotency, eq(subscriptionPurchaseIdempotency.userId, chaosStudentId)),
+      db.$count(users, eq(users.id, chaosStudentId)),
+    ]);
+    for (const count of residueCounts) {
+      expect(count).toBe(0);
+    }
   });
 
   function chaosPurchase(key: string): Promise<PurchaseSubscriptionReturnType> {

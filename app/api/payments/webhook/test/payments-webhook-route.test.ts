@@ -33,7 +33,11 @@
  *    envelope with exactly one correlated log line — never an uncaught
  *    route error; a stream that STALLS past the per-read deadline
  *    (injected short — production default 30s) has its reader CANCELLED
- *    and rides the SAME masked unreadable-body envelope;
+ *    and rides the SAME masked unreadable-body envelope; a compliant-but-
+ *    endless DRIP (inter-chunk gaps inside the per-read budget, total time
+ *    unbounded) is cut off by the TOTAL delivery deadline (injected short —
+ *    production default 60s) the same way — the per-read bound alone cannot
+ *    stop a 1-byte-per-29s-forever delivery;
  *  - ENVELOPE contract: happy path `{ data: { processed: true }, requestId }`
  *    with the parsed event + "en" locale handed to the service exactly once;
  *    replay deliveries append `replayed: true`; unknown-reference/quarantine
@@ -96,7 +100,7 @@ void mock.module("@/backend/services/billing/subscription-activation.service", (
 // The route import MUST trail its mock.module registration (bun evaluates
 // the module registry in import order; the eslint import-order exemption is
 // documented inline where the lint config expects it).
-import { BODY_READ_DEADLINE_MS, POST } from "@/app/api/payments/webhook/route";
+import { BODY_READ_DEADLINE_MS, BODY_READ_TOTAL_DEADLINE_MS, POST } from "@/app/api/payments/webhook/route";
 import { resetEnvironmentCache } from "@/backend/lib/env";
 import { ValidationError } from "@/backend/lib/errors";
 import { logger } from "@/backend/lib/logger";
@@ -572,6 +576,84 @@ describe("payments webhook route — bounded body", () => {
     } finally {
       errorSpy.mockRestore();
       BODY_READ_DEADLINE_MS.current = productionDeadline;
+    }
+  });
+
+  test("a compliant-but-endless DRIP is cut off by the TOTAL delivery deadline → the same masked envelope", async () => {
+    enableSurface();
+    // The per-read deadline cannot bound TOTAL delivery time: a drip whose
+    // every inter-chunk gap stays inside the per-read budget could stream
+    // 1 byte per 29s forever. Both holders' `current` are shortened for the
+    // test — the per-read deadline WIDENED to 200ms (the drip's 40ms gaps
+    // stay compliant) and the total deadline to 60ms — and restored in the
+    // finally (production keeps 30s + 60s).
+    const productionReadDeadline = BODY_READ_DEADLINE_MS.current;
+    const productionTotalDeadline = BODY_READ_TOTAL_DEADLINE_MS.current;
+    BODY_READ_DEADLINE_MS.current = 200;
+    BODY_READ_TOTAL_DEADLINE_MS.current = 60;
+    let cancelCalls = 0;
+    let drippedChunks = 0;
+    const drippingStream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode(CONFIRMED_EVENT_BODY.slice(0, 10)));
+        drippedChunks += 1;
+        // A second drip 40ms later — well inside the injected 200ms per-read
+        // window — then the stream never closes and never errors.
+        setTimeout(() => {
+          controller.enqueue(new TextEncoder().encode(CONFIRMED_EVENT_BODY.slice(10, 20)));
+          drippedChunks += 1;
+        }, 40);
+      },
+      cancel() {
+        cancelCalls += 1;
+      },
+    });
+    const errorSpy = spyOn(logger, "error");
+    try {
+      const startedAt = Date.now();
+      const response = await POST(new NextRequest(BASE_URL, { method: "POST", headers: {}, body: drippingStream }));
+      const elapsedMs = Date.now() - startedAt;
+
+      // The SAME masked unreadable-body envelope the stall and transport
+      // failure ride — a total-deadline cut-off is never a 500 or an echo.
+      expect(response.status).toBe(400);
+      const body = await readJson(response);
+      const error = memberRecord(body, "error");
+      expect(error.code).toBe("PAYMENT_WEBHOOK_BODY_UNREADABLE");
+      // Zero payload echo.
+      const wireJson = JSON.stringify(body) ?? "";
+      expect(wireJson).not.toContain(CONFIRMED_EVENT_BODY.slice(0, 10));
+      expect(wireJson).not.toContain("mock_ref_route_1");
+
+      // The injected TOTAL deadline — not the 60s default — bounded the
+      // delivery: the response arrives ~60ms in, and the drip PROGRESSED
+      // (two chunks delivered, every gap inside the per-read window), so
+      // the per-read deadline cannot be what fired.
+      expect(elapsedMs).toBeLessThan(5_000);
+      expect(drippedChunks).toBe(2);
+
+      // Exactly ONE correlated log line carrying a requestId — and none of
+      // the payload material.
+      expect(errorSpy).toHaveBeenCalledTimes(1);
+      const firstCall: unknown = errorSpy.mock.calls[0];
+      if (!Array.isArray(firstCall)) {
+        throw new Error("logger.error call was not captured");
+      }
+      const logBag: unknown = firstCall[1];
+      if (!isPlainJsonObject(logBag)) {
+        throw new Error("logger.error context bag was not a JSON object");
+      }
+      expect(typeof memberString(logBag, "requestId")).toBe("string");
+      expect(JSON.stringify(logBag)).not.toContain("mock_ref_route_1");
+
+      // The reader was CANCELLED — the endless drip released its connection
+      // instead of holding it forever.
+      expect(cancelCalls).toBe(1);
+      expect(processCalls).toHaveLength(0);
+    } finally {
+      errorSpy.mockRestore();
+      BODY_READ_DEADLINE_MS.current = productionReadDeadline;
+      BODY_READ_TOTAL_DEADLINE_MS.current = productionTotalDeadline;
     }
   });
 });

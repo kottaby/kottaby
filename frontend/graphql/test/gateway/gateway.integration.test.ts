@@ -228,7 +228,7 @@ describeGraphqlSuite("Gateway integration matrix", () => {
         input: {
           fullName: "Gateway F Probe",
           email: regEmail,
-          phone: "+2[CPF_REDACTED]",
+          phone: "+201000000000",
           password: GATEWAY_F_CREDENTIAL,
           gender: null,
           country: "EG",

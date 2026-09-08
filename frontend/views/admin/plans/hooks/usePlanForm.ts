@@ -26,6 +26,21 @@ type PlanItem = AdminPlansQuery["adminPlans"][number];
  */
 const MAX_INTERVAL_DAYS = 3650;
 
+/**
+ * Upper bound on a plan's session count (one million) — mirrors the
+ * server-side catalog ceiling (`MAX_SESSION_COUNT` in
+ * `backend/services/billing/plan-catalog.helpers.ts`, the int4-overflow
+ * guard on the activation credit) so an out-of-range value is rejected
+ * client-side with the field's own validation message instead of
+ * round-tripping into a generic server validation error. The literal is
+ * deliberately DUPLICATED, never imported: the server helper is backend
+ * runtime machinery that must not ride into the client bundle (the only
+ * sanctioned frontend→backend imports are generated types and pure enums).
+ * The server ceiling stays the authority — a drift here degrades to the
+ * generic server validation error, never to a persisted over-cap plan.
+ */
+const MAX_SESSION_COUNT = 1_000_000;
+
 export interface PlanFormState {
   readonly title: string;
   readonly sessionCount: string;
@@ -99,8 +114,10 @@ export function usePlanForm({ plan, serverFieldErrors, onSubmit }: UsePlanFormOp
 
     // Full-value numeric conversion (never `parseInt`): "1.5" and "1abc" must
     // both be rejected instead of silently truncating to 1 (CodeRabbit fix).
+    // The ceiling mirrors the server's MAX_SESSION_COUNT (same shape as the
+    // intervalDays check below) — an over-cap value can never ride the wire.
     const sessionCountNum = Number(form.sessionCount);
-    if (!Number.isInteger(sessionCountNum) || sessionCountNum <= 0) {
+    if (!Number.isInteger(sessionCountNum) || sessionCountNum <= 0 || sessionCountNum > MAX_SESSION_COUNT) {
       errors.sessionCount = t.validationSessionCountMessage;
     }
 

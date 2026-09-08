@@ -171,7 +171,18 @@ function createPlanMock(
   };
 }
 
+/**
+ * Update mutation mock whose variables are observed through the result
+ * function — MockLink hands the exact wire variables to the typed callback.
+ * The payload ECHOES the edited row's identity: the id comes from the
+ * mutation variables themselves (never a hardcoded row — the laneless-row
+ * edit would otherwise be handed a mocked payload claiming the configured
+ * row's id, and Apollo's normalized cache would write the mocked fields
+ * onto the wrong entry), and every untouched stored field comes from the
+ * `sourceRow` fixture the test opened the dialog with.
+ */
 function updatePlanMock(
+  sourceRow: PlanFixture,
   title: string,
   balanceLane: SubscriptionCreditLane | null,
   onVariables: (variables: UpdatePlanMutationVariables) => void
@@ -184,16 +195,21 @@ function updatePlanMock(
         data: {
           updatePlan: {
             __typename: "Plan",
-            id: PLAN_CONFIGURED.id,
+            // The edited row's OWN id — echoed from the wire variables. The
+            // generated variable type carries the ID scalar's `string |
+            // number` input union while the Plan result field is `string`;
+            // the template interpolation narrows without an assertion (the
+            // container always sends the row's string id).
+            id: `${variables.id}`,
             title,
-            sessionCount: PLAN_CONFIGURED.sessionCount,
-            price: PLAN_CONFIGURED.price,
-            currency: PLAN_CONFIGURED.currency,
-            intervalDays: PLAN_CONFIGURED.intervalDays,
-            isActive: true,
-            deactivatedAt: null,
-            createdAt: FIXED_STAMP,
-            updatedAt: FIXED_STAMP,
+            sessionCount: sourceRow.sessionCount,
+            price: sourceRow.price,
+            currency: sourceRow.currency,
+            intervalDays: sourceRow.intervalDays,
+            isActive: sourceRow.isActive,
+            deactivatedAt: sourceRow.deactivatedAt,
+            createdAt: sourceRow.createdAt,
+            updatedAt: sourceRow.updatedAt,
             balanceLane,
           },
         },
@@ -302,7 +318,9 @@ describe("PlanCatalogContainer (en / LTR)", () => {
     const captures: UpdatePlanMutationVariables[] = [];
     renderCatalog([
       plansMock(),
-      updatePlanMock(EDITED_TITLE, SubscriptionCreditLane.Tajweed, variables => captures.push(variables)),
+      updatePlanMock(PLAN_CONFIGURED, EDITED_TITLE, SubscriptionCreditLane.Tajweed, variables =>
+        captures.push(variables)
+      ),
     ]);
     await openFormDialog("edit-configured");
 
@@ -327,7 +345,9 @@ describe("PlanCatalogContainer (en / LTR)", () => {
     const captures: UpdatePlanMutationVariables[] = [];
     renderCatalog([
       plansMock(),
-      updatePlanMock(PLAN_CONFIGURED.title, SubscriptionCreditLane.Reviews, variables => captures.push(variables)),
+      updatePlanMock(PLAN_CONFIGURED, PLAN_CONFIGURED.title, SubscriptionCreditLane.Reviews, variables =>
+        captures.push(variables)
+      ),
     ]);
     await openFormDialog("edit-configured");
 
@@ -343,7 +363,9 @@ describe("PlanCatalogContainer (en / LTR)", () => {
     const captures: UpdatePlanMutationVariables[] = [];
     renderCatalog([
       plansMock(),
-      updatePlanMock(PLAN_LANELESS.title, SubscriptionCreditLane.Hifz, variables => captures.push(variables)),
+      updatePlanMock(PLAN_LANELESS, PLAN_LANELESS.title, SubscriptionCreditLane.Hifz, variables =>
+        captures.push(variables)
+      ),
     ]);
     await openFormDialog("edit-laneless");
 
@@ -359,6 +381,9 @@ describe("PlanCatalogContainer (en / LTR)", () => {
     await waitFor(() => expect(captures).toHaveLength(1));
     expect(captures[0].input.balanceLane).toBe(SubscriptionCreditLane.Hifz);
     expect(captures[0].input.title).toBe(PLAN_LANELESS.title);
+    // The update targets the laneless row's OWN id (never the configured
+    // row's) — the identity the mocked payload echoes back.
+    expect(captures[0].id).toBe(PLAN_LANELESS.id);
   });
 });
 
@@ -370,7 +395,9 @@ describe("PlanCatalogContainer (ar / RTL)", () => {
     renderCatalog(
       [
         plansMock(),
-        updatePlanMock(PLAN_CONFIGURED.title, SubscriptionCreditLane.Hifz, variables => captures.push(variables)),
+        updatePlanMock(PLAN_CONFIGURED, PLAN_CONFIGURED.title, SubscriptionCreditLane.Hifz, variables =>
+          captures.push(variables)
+        ),
       ],
       { locale: "ar" }
     );

@@ -13,21 +13,27 @@
  *    no requestId. Any structured body would prove THIS path exists and is
  *    special — the existence oracle a disabled deployment must never leak
  *    (a truly unknown path answers no envelope either).
- *  - **Bounded body, read ONCE, bounded TWICE** — the raw body is consumed
- *    exactly once (the signature is computed over these bytes, so no
+ *  - **Bounded body, read ONCE, bounded THREE ways** — the raw body is
+ *    consumed exactly once (the signature is computed over these bytes, so no
  *    re-serialization may occur) and capped at
  *    `MAX_PAYMENT_WEBHOOK_BODY_BYTES` UTF-8 bytes; oversize is rejected
- *    with a masked 400 envelope that never echoes the payload. The bound
- *    is enforced in two layers: a `Content-Length` header over the cap is
- *    rejected up-front (no body byte is ever buffered), and an
+ *    with a masked 400 envelope that never echoes the payload. The size
+ *    bound is enforced in two layers: a `Content-Length` header over the cap
+ *    is rejected up-front (no body byte is ever buffered), and an
  *    absent/undeclared length is read INCREMENTALLY through the request
  *    stream under a running byte budget that aborts the moment the cap is
  *    crossed — a chunked over-cap delivery can never force a full-body
- *    buffer. Every incremental read ALSO runs under a per-read deadline
- *    (`BODY_READ_DEADLINE_MS`, default 30s): a delivery that stalls between
- *    chunks has its reader cancelled and answers the same masked
- *    unreadable-body envelope — a slow-drip POST cannot hold the connection
- *    for the platform's full request budget.
+ *    buffer. Time is bounded at two layers on top: every incremental read
+ *    runs under a per-read deadline (`BODY_READ_DEADLINE_MS`, default 30s) —
+ *    a delivery that STALLS between chunks has its reader cancelled — and
+ *    the ENTIRE read runs under a total delivery deadline
+ *    (`BODY_READ_TOTAL_DEADLINE_MS`, default 60s) — a delivery that drips
+ *    forever (1 byte per just-under-30s: every gap inside the per-read
+ *    budget) is cut off there, so no combination of slow-drip pacing can
+ *    hold the connection past the total bound. Both timeouts cancel the
+ *    reader and answer the same masked unreadable-body envelope — a slow
+ *    POST can never hold the connection for the platform's full request
+ *    budget.
  *  - **Signature gate** — the `x-payment-signature` header must equal the
  *    lowercase-hex HMAC-SHA256 of the raw body under
  *    `PAYMENT_WEBHOOK_SECRET`, compared by the constant-time digest idiom
@@ -72,15 +78,35 @@ const MAX_PAYMENT_WEBHOOK_BODY_BYTES = 64_000;
 /**
  * Per-read deadline for the incremental body reader, in milliseconds: a
  * delivery that stalls longer than this between chunks has its reader
- * cancelled and answers the masked unreadable-body envelope — a slow-drip
- * POST can never hold the connection open for the platform's full request
- * budget. Default 30s.
+ * cancelled and answers the masked unreadable-body envelope — a stalled
+ * POST can never hold the connection open indefinitely. Default 30s.
+ *
+ * This bounds ONE gap between chunks, not the whole delivery — the total
+ * time is bounded separately by {@link BODY_READ_TOTAL_DEADLINE_MS} (a
+ * compliant drip with every gap inside this budget would otherwise stream
+ * forever).
  *
  * Exported as a single-field holder (the canonical test seam): the route
  * suite shortens `current` to exercise the stall path in milliseconds and
  * restores the production default afterwards; no production path writes it.
  */
 export const BODY_READ_DEADLINE_MS = { current: 30_000 };
+
+/**
+ * Total-delivery deadline for the ENTIRE incremental body read, in
+ * milliseconds: the whole bounded read races this timer, so a delivery
+ * whose inter-chunk gaps each stay inside the per-read budget but whose
+ * TOTAL time is unbounded (the 1-byte-per-29s-forever drip the per-read
+ * deadline alone cannot stop) is cut off here — reader cancelled, masked
+ * unreadable-body envelope. Must exceed the per-read deadline (it bounds
+ * the SUM of many per-read windows plus decode work); default 60s.
+ *
+ * Exported as a single-field holder (the same canonical test seam as the
+ * per-read deadline): the route suite shortens `current` to exercise the
+ * total path in milliseconds and restores the production default
+ * afterwards; no production path writes it.
+ */
+export const BODY_READ_TOTAL_DEADLINE_MS = { current: 60_000 };
 
 /** Header the gateway signs its deliveries with. */
 const SIGNATURE_HEADER = "x-payment-signature";
@@ -120,59 +146,80 @@ function webhookBodyUnreadableError(): DomainError {
  * One `reader.read()` under the per-read deadline: the read races a timer
  * sized from `BODY_READ_DEADLINE_MS.current`, so a stalled delivery (bytes
  * simply stop arriving) rejects after the deadline instead of hanging on
- * the stream until the platform reaps the request. The reader is cancelled
- * only AFTER the race settled with the rejection — cancelling earlier would
- * resolve the very read being raced (`done: true`) and could let the read
- * leg win with a partial body. From there the deadline rejection propagates
- * to the route's masked unreadable-body envelope (the same F-abort path a
+ * the stream until the platform reaps the request. The timer is a manual
+ * `AbortController` + `setTimeout` cleared in `finally` the moment the
+ * race settles either way — unlike `AbortSignal.timeout`, whose timer
+ * lingers for its full duration after every won read, no handle survives
+ * a completed chunk. The reader is cancelled only AFTER the race settled
+ * with the rejection — cancelling earlier would resolve the very read
+ * being raced (`done: true`) and could let the read leg win with a
+ * partial body. From there the deadline rejection propagates to the
+ * route's masked unreadable-body envelope (the same F-abort path a
  * mid-stream transport failure rides), with the stalled connection
- * released. `Promise.race` subscribes to both legs immediately, so whichever
- * leg loses is a handled rejection: a deadline firing after an already-won
- * read is inert. A genuine stream rejection is cancelled too (harmless,
- * best-effort) — the connection is released on every failure path.
+ * released. `Promise.race` subscribes to both legs immediately, so
+ * whichever leg loses is a handled rejection: a deadline firing after an
+ * already-won read cannot fire at all (its timer was cleared). A genuine
+ * stream rejection is cancelled too (harmless, best-effort) — the
+ * connection is released on every failure path.
  */
 
 /** The stream reader's own read-result type — inferred, never re-declared. */
 type BodyChunkRead = Awaited<ReturnType<ReadableStreamDefaultReader<Uint8Array>["read"]>>;
 
 async function readChunkWithDeadline(reader: ReadableStreamDefaultReader<Uint8Array>): Promise<BodyChunkRead> {
+  const abortController = new AbortController();
   const deadline = new Promise<never>((_, reject) => {
-    AbortSignal.timeout(BODY_READ_DEADLINE_MS.current).addEventListener(
+    abortController.signal.addEventListener(
       "abort",
       () => reject(new Error("payment webhook body read stalled past the per-read deadline")),
       { once: true }
     );
   });
+  const timer = setTimeout(() => abortController.abort(), BODY_READ_DEADLINE_MS.current);
   try {
     return await Promise.race([reader.read(), deadline]);
   } catch (error) {
     await reader.cancel().catch(() => undefined);
     throw error;
+  } finally {
+    // The timer dies with the race — a won read leaves no lingering handle.
+    clearTimeout(timer);
   }
 }
 
 /**
- * Reads the request body INCREMENTALLY under the byte cap AND the per-read
- * deadline — the DoS-safe counterpart of a plain `request.text()`, which
- * would buffer the whole delivery before any size check could run and hang
- * indefinitely on a delivery that never finishes. Raw chunks accumulate as
- * `Uint8Array`s while a running byte budget aborts the moment the cap is
- * crossed; the abort answer is `null` (indistinguishable to the caller from
- * any other oversize rejection). The aborting read also releases the
- * underlying stream (`reader.cancel()`, best-effort — a cancel rejection,
- * typically the peer already gone, must never mask the oversize denial).
- * The accumulated chunks are joined and UTF-8 decoded ONCE, after the last
- * chunk: no per-chunk string concatenation (an adversarial 1-byte-chunk
- * delivery cannot wedge O(n²) string growth into the reader), and the single
- * decode over the reassembled bytes is exactly the byte-faithful treatment
- * a buffered read applies (multibyte sequences straddling chunk boundaries
- * decode whole). A null stream is an empty body.
+ * Reads the request body INCREMENTALLY under the byte cap, the per-read
+ * deadline, AND the total-delivery deadline — the DoS-safe counterpart of a
+ * plain `request.text()`, which would buffer the whole delivery before any
+ * size check could run and hang indefinitely on a delivery that never
+ * finishes. Raw chunks accumulate as `Uint8Array`s while a running byte
+ * budget aborts the moment the cap is crossed; the abort answer is `null`
+ * (indistinguishable to the caller from any other oversize rejection). The
+ * aborting read also releases the underlying stream (`reader.cancel()`,
+ * best-effort — a cancel rejection, typically the peer already gone, must
+ * never mask the oversize denial). The accumulated chunks are joined and
+ * UTF-8 decoded ONCE, after the last chunk: no per-chunk string
+ * concatenation (an adversarial 1-byte-chunk delivery cannot wedge O(n²)
+ * string growth into the reader), and the single decode over the
+ * reassembled bytes is exactly the byte-faithful treatment a buffered read
+ * applies (multibyte sequences straddling chunk boundaries decode whole). A
+ * null stream is an empty body.
  *
  * The read is a sequential pull on a stateful stream reader (each chunk
  * arrives only after the previous read resolves), so it is expressed as the
  * sanctioned recursive helper — one `await` per read step, no loop. Every
- * pull runs through {@link readChunkWithDeadline}: a slow-drip delivery
- * cannot hold the connection past the per-read deadline.
+ * pull runs through {@link readChunkWithDeadline}: a stalled delivery
+ * cannot hold the connection past the per-read deadline. The ENTIRE
+ * recursive walk additionally races the total-delivery deadline
+ * (`BODY_READ_TOTAL_DEADLINE_MS`): a compliant drip whose every gap is
+ * inside the per-read budget would otherwise stream forever, so the whole
+ * delivery is bounded too — on timeout the reader is cancelled (the
+ * in-flight partial read resolves `done: true` into a race the route has
+ * already stopped awaiting) and the rejection propagates to the route's
+ * masked unreadable-body envelope. The total timer is a manual
+ * `AbortController` + `setTimeout` cleared in `finally` the moment the read
+ * settles either way, and a rejection on ANY path (deadline, transport
+ * error) cancels the reader best-effort so the connection is released.
  *
  * @returns The decoded body, or `null` when the byte budget was exceeded.
  */
@@ -201,7 +248,31 @@ async function readBoundedBody(request: NextRequest): Promise<string | null> {
     return readChunk(chunks, newTotalBytes);
   }
 
-  return readChunk([], 0);
+  // The TOTAL delivery deadline: the per-read deadline bounds one gap
+  // between chunks, this bounds the SUM. Manual controller + cleared timer
+  // (never `AbortSignal.timeout`) so a settled read leaves no lingering
+  // handle; the abort listener is `{ once: true }` and the rejection only
+  // fires while the race is still pending.
+  const totalAbortController = new AbortController();
+  const totalDeadline = new Promise<never>((_, reject) => {
+    totalAbortController.signal.addEventListener(
+      "abort",
+      () => reject(new Error("payment webhook body read exceeded the total delivery deadline")),
+      { once: true }
+    );
+  });
+  const totalTimer = setTimeout(() => totalAbortController.abort(), BODY_READ_TOTAL_DEADLINE_MS.current);
+  try {
+    return await Promise.race([readChunk([], 0), totalDeadline]);
+  } catch (error) {
+    // Deadline or transport failure: release the stream so the rejected
+    // delivery cannot keep feeding a connection nobody will finish reading.
+    // Cancel is best-effort (an already-cancelled reader resolves).
+    await reader.cancel().catch(() => undefined);
+    throw error;
+  } finally {
+    clearTimeout(totalTimer);
+  }
 }
 
 /** Joins the accumulated raw chunks into ONE buffer — no per-chunk strings. */
@@ -235,7 +306,8 @@ export async function POST(request: NextRequest): Promise<Response> {
   }
 
   // The bounded read runs under its own mask: a mid-stream transport
-  // failure (the gateway aborting the connection) rejects the stream read —
+  // failure (the gateway aborting the connection) or a deadline breach
+  // (per-read stall or total-delivery overrun) rejects the stream read —
   // an expected 400-family rejection, never an uncaught route error. The
   // exact transport breach goes to ONE correlated log line; the envelope
   // carries only the masked denial, never the payload or the raw error.

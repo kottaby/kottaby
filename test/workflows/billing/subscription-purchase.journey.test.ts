@@ -120,7 +120,7 @@ const PREFIX = journeyPrefix("billing");
 
 /** Error-copy locale for every service call and denial assertion. */
 const ERRORS_EN = getServerTranslations("en").errorsTranslations;
-/** Notification copy — the confirmation wave composes in the caller locale. */
+/** Notification copy — the confirmation wave composes in the RECIPIENT's persisted locale. */
 const NOTIFS_EN = getServerTranslations("en").notificationsTranslations;
 
 /** Milliseconds per day — the activation window arithmetic. */
@@ -346,6 +346,11 @@ function recordDomainLogs(): { codes: string[]; stop: () => void } {
  */
 async function provisionStudent(tx: DBTransaction): Promise<JourneyActorRow> {
   const actor = await provisionStudentActor(tx, { tracked });
+  // The journey cast members carry an explicit stored locale: the activation
+  // composes the confirmation copy in the RECIPIENT's persisted locale (the
+  // users row's `locale`, falling back to the platform default when unset),
+  // and every copy assertion below composes against the EN bundle.
+  await tx.update(users).set({ locale: "en" }).where(eq(users.id, actor.userId));
   const rows = await tx.select().from(users).where(eq(users.id, actor.userId)).limit(1);
   const row = rows[0];
   if (!row) {
