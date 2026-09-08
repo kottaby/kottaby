@@ -4,11 +4,19 @@
  * AdminApplicantMobileCard — one per-applicant card of the mobile queue
  * list (radius 12, `border.light` outline, 16px padding):
  *  - header as a 3-track grid (`auto minmax(0,1fr) auto`): 44px role-tinted
- *    avatar, the name profile link/email/copy-email block (truncating with
- *    the shared bidi ellipsis recipe), and a trailing column stacking the
- *    joined timestamp caption above the explicit view-profile quick action
- *    (the queue has no drawer — the card itself stays inert and only the
- *    links navigate),
+ *    avatar, the single-line ellipsized NAME profile link (the shared bidi
+ *    ellipsis recipe), and a trailing column stacking the joined timestamp
+ *    caption above the explicit view-profile quick action (the queue has no
+ *    drawer — the card itself stays inert and only the links navigate);
+ *  - FULL-WIDTH email row immediately BELOW the header grid (above the
+ *    divider): the email + copy-email quick action live in their own row
+ *    spanning the whole card instead of squeezing into the header's middle
+ *    track (at 390px that track is ~180px and long addresses wrapped
+ *    mid-word — QA-verified). The row is inset with the LOGICAL
+ *    `paddingInlineStart: "52px"` (44px avatar + 8px grid gap) so the email
+ *    aligns under the name column and the inset flips correctly under RTL;
+ *    at ~full card width even seeded addresses fit one line, with
+ *    `overflowWrap: "anywhere"` as the pathological-address fallback;
  *  - hairline divider;
  *  - strict two-column body rows (label at inline-start in `text.secondary`,
  *    value flexing to the inline-end edge, 500 weight): Status (lifecycle
@@ -63,17 +71,47 @@ export function AdminApplicantMobileCard({
       })}
     >
       {/*
-        Header as a 3-track grid — [avatar 44px] [name/email block (flexible,
+        Header as a 3-track grid — [avatar 44px] [NAME profile link (flexible,
         minmax(0,1fr) so it can shrink and ellipsize)] [joined caption +
-        view-profile quick action]. The middle block reserves every free
-        pixel for the text; the trailing column stacks vertically so the
-        name/email block keeps ≥ ~180px at a 390px viewport. This surface is
-        read-only, so there is no kebab column — the joined caption and the
-        view-profile quick action fill the trailing track.
+        view-profile quick action]. The name ALONE lives in the middle
+        track: the email + copy affordance moved OUT to the full-width row
+        below the grid, so the middle track no longer has to share its ~180px
+        with a wrapping address. This surface is read-only, so there is no
+        kebab column — the joined caption and the view-profile quick action
+        fill the trailing track.
       */}
       <Box sx={{ display: "grid", gridTemplateColumns: "auto minmax(0, 1fr) auto", alignItems: "center", gap: 1 }}>
         <UserAvatar fullName={applicant.name} role={APPLICANT_AVATAR_ROLE} size={44} />
-        <MobileApplicantIdentity applicant={applicant} labels={labels} deleted={deleted} onCopyEmail={onCopyEmail} />
+        <MuiLink
+          component={Link}
+          href={`/admin/users/${applicant.id}`}
+          underline="hover"
+          aria-label={`${labels.quickActions.viewProfile}: ${applicant.name}`}
+          title={applicant.name}
+          dir="ltr"
+          sx={theme => ({
+            display: "block",
+            maxWidth: "100%",
+            fontSize: 15,
+            fontWeight: 600,
+            unicodeBidi: "isolate",
+            textAlign: "start",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+            minWidth: 0,
+            color: deleted ? theme.palette.text.disabled : theme.palette.text.primary,
+            // ≥44px tap target without shifting the layout below: transparent
+            // block padding grows the clickable box while the matching
+            // negative margins keep the layout height unchanged.
+            minHeight: 44,
+            paddingBlock: "10.5px",
+            marginBlock: "-10.5px",
+            ...(deleted && { textDecoration: "line-through" }),
+          })}
+        >
+          {applicant.name}
+        </MuiLink>
         <Box sx={{ display: "flex", flexDirection: "column", alignItems: "flex-end", flexShrink: 0 }}>
           <Typography
             variant="caption"
@@ -103,6 +141,7 @@ export function AdminApplicantMobileCard({
           </Tooltip>
         </Box>
       </Box>
+      <MobileApplicantEmailRow applicant={applicant} labels={labels} deleted={deleted} onCopyEmail={onCopyEmail} />
       <Divider sx={{ my: 1.5 }} />
       <Stack spacing={1}>
         <MobileDetailRow label={labels.headers.status} dimmed={deleted}>
@@ -122,7 +161,7 @@ export function AdminApplicantMobileCard({
   );
 }
 
-interface MobileApplicantIdentityProps {
+interface MobileApplicantEmailRowProps {
   readonly applicant: ApplicantDirectoryItem;
   readonly labels: Pick<AdminTeachersLabels, "quickActions">;
   readonly deleted: boolean;
@@ -131,70 +170,60 @@ interface MobileApplicantIdentityProps {
 }
 
 /**
- * The mobile card's middle header track: name profile link + wrapping email
- * + copy-email quick action (parity with the desktop identity cell). The
- * email WRAPS (no ellipsis) so the full address stays visible at a 375px
- * viewport; the name keeps its single-line ellipsis. Bidi note: the HTML
- * `dir="ltr"` ATTRIBUTE isolates glyph direction — a CSS `direction` rule
- * MUST NOT be added (stylis-plugin-rtl would flip it and clip the string's
- * head).
+ * The full-card-width email row rendered between the header grid and the
+ * divider. Layout rationale (QA fix): the old placement inside the header
+ * grid's middle track squeezed addresses into ~180px and wrapped them
+ * mid-word — the row now spans the whole card and is inset with the LOGICAL
+ * `paddingInlineStart: "52px"` (44px avatar + 8px grid gap) so the email aligns
+ * under the name column; the inset flips correctly under RTL. The email
+ * WRAPS (no ellipsis) so the full address stays visible, with
+ * `overflowWrap: "anywhere"` as the pathological-address fallback. The copy
+ * affordance is unchanged (clipboard + success tint + `stopPropagation`,
+ * ≥44px touch target via transparent padding, `flexShrink: 0`).
+ *
+ * Bidi note (Latin emails inside an RTL page): the HTML `dir="ltr"`
+ * ATTRIBUTE isolates glyph direction — a CSS `direction` rule MUST NOT be
+ * added (stylis-plugin-rtl would flip it and clip the string's head). With
+ * the attribute alone plus `unicodeBidi: "isolate"`, `text-align: start`
+ * reads correctly in both directions.
  */
-function MobileApplicantIdentity({ applicant, labels, deleted, onCopyEmail }: MobileApplicantIdentityProps): ReactNode {
+function MobileApplicantEmailRow({ applicant, labels, deleted, onCopyEmail }: MobileApplicantEmailRowProps): ReactNode {
   const { emailCopied, handleCopyEmail } = useDirectoryCopyEmail(applicant.email, onCopyEmail);
   return (
-    <Box sx={{ minWidth: 0 }}>
-      <MuiLink
-        component={Link}
-        href={`/admin/users/${applicant.id}`}
-        underline="hover"
-        aria-label={`${labels.quickActions.viewProfile}: ${applicant.name}`}
-        title={applicant.name}
+    <Box
+      sx={{
+        display: "flex",
+        alignItems: "center",
+        gap: 0.5,
+        mt: 0.5,
+        minWidth: 0,
+        // 44px avatar + 8px grid gap — the email starts under the name
+        // column; logical property so RTL mirrors the inset. Explicit px
+        // STRING — a bare number would go through MUI's spacing transform
+        // (×8) and inflate the inset to 416px.
+        paddingInlineStart: "52px",
+      }}
+    >
+      <Typography
+        variant="body2"
+        component="div"
         dir="ltr"
         sx={theme => ({
           display: "block",
-          maxWidth: "100%",
-          fontSize: 15,
-          fontWeight: 600,
+          fontSize: 13,
           unicodeBidi: "isolate",
           textAlign: "start",
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-          whiteSpace: "nowrap",
+          // Wrap long addresses instead of ellipsizing them — a truncated
+          // email defeats the card's purpose (the full value at a glance).
+          overflowWrap: "anywhere",
+          flex: 1,
           minWidth: 0,
-          color: deleted ? theme.palette.text.disabled : theme.palette.text.primary,
-          // ≥44px tap target without shifting the email below: transparent
-          // block padding grows the clickable box while the matching
-          // negative margins keep the layout height unchanged.
-          minHeight: 44,
-          paddingBlock: "10.5px",
-          marginBlock: "-10.5px",
-          ...(deleted && { textDecoration: "line-through" }),
+          color: deleted ? theme.palette.text.disabled : theme.palette.text.secondary,
         })}
       >
-        {applicant.name}
-      </MuiLink>
-      <Stack direction="row" spacing={0.5} sx={{ alignItems: "center", minWidth: 0 }}>
-        <Typography
-          variant="body2"
-          component="div"
-          dir="ltr"
-          sx={theme => ({
-            display: "block",
-            fontSize: 13,
-            unicodeBidi: "isolate",
-            textAlign: "start",
-            // Wrap long addresses instead of ellipsizing them — a truncated
-            // email defeats the card's purpose (the full value at a glance).
-            overflowWrap: "anywhere",
-            flex: 1,
-            minWidth: 0,
-            color: deleted ? theme.palette.text.disabled : theme.palette.text.secondary,
-          })}
-        >
-          {applicant.email}
-        </Typography>
-        <CopyIconButton email={applicant.email} copied={emailCopied} labels={labels} onCopy={handleCopyEmail} />
-      </Stack>
+        {applicant.email}
+      </Typography>
+      <CopyIconButton email={applicant.email} copied={emailCopied} labels={labels} onCopy={handleCopyEmail} />
     </Box>
   );
 }

@@ -7,7 +7,8 @@
  *
  * Loading renders stable-key skeleton cards (announced through the
  * localized loading label); the empty state wraps `AdminTeachersEmptyState`
- * in a card.
+ * in a card (threading the surface's applicant-queue signals so the
+ * join-requests CTA can render).
  */
 
 import { Box, Card, Stack } from "@mui/material";
@@ -28,10 +29,14 @@ interface AdminTeachersMobileCardListProps {
   readonly onCopyEmail?: () => void;
   /** Opens the detail drawer for a card (the directory owns the drawer). */
   readonly onViewDetails?: (teacher: TeacherDirectoryItem) => void;
+  /** Whether the applicant queue holds ≥1 row (gates the join-requests CTA). */
+  readonly hasApplicants: boolean;
+  /** Flips the /teachers surface to the applicants tab (surface-owned state). */
+  readonly onReviewApplicants: () => void;
 }
 
 export function AdminTeachersMobileCardList(props: AdminTeachersMobileCardListProps): ReactNode {
-  const { labels, items, loading, hasFilters, onCopyEmail, onViewDetails } = props;
+  const { labels, items, loading, hasFilters, onCopyEmail, onViewDetails, hasApplicants, onReviewApplicants } = props;
   const locale = useAppLocale();
   return (
     <Stack
@@ -64,7 +69,12 @@ export function AdminTeachersMobileCardList(props: AdminTeachersMobileCardListPr
             boxShadow: theme.palette.shadow.card,
           })}
         >
-          <AdminTeachersEmptyState labels={labels} hasFilters={hasFilters} />
+          <AdminTeachersEmptyState
+            labels={labels}
+            hasFilters={hasFilters}
+            hasApplicants={hasApplicants}
+            onReviewApplicants={onReviewApplicants}
+          />
         </Card>
       )}
       {items.map(teacher => (

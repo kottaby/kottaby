@@ -167,6 +167,21 @@ export interface AdminStudentsLabels {
     readonly exportTruncated: string;
     /** Error snackbar shown when the export query fails (no download). */
     readonly exportCsvFailed: string;
+    /**
+     * CSV caption for the trial-session-BALANCE column (export column 9).
+     * Minted EXPORT-SCOPED because the shared `balances.trial` and
+     * `headers.trial` handles both resolve to "Trial" (EN) — reusing either
+     * emitted the caption twice in the exported header record (and the AR
+     * "التجربة" reads muddy for a count column).
+     */
+    readonly columnTrialBalance: string;
+    /**
+     * CSV caption for the trial-GRANTED-AT timestamp column (export column
+     * 10) — export-scoped for the same header de-duplication reason as
+     * `columnTrialBalance`; the on-screen table keeps reusing the shared
+     * `headers.trial` handle (single vocabulary where no collision exists).
+     */
+    readonly columnTrialGrantedAt: string;
   };
 
   /**

@@ -56,6 +56,7 @@ export const adminTeachersEn: AdminTeachersLabels = {
     filteredTitle: "No teachers match your filters",
     filteredMessage: "Adjust the filters above or clear them to see every teacher.",
     cta: "Review user accounts",
+    reviewApplicants: "Review join requests",
   },
   applicantsEmptyState: {
     title: "No applicants yet",

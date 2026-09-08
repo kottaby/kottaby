@@ -57,6 +57,8 @@ export const adminStudentsEn: AdminStudentsLabels = {
     exportedRows: "Exported rows: {count}.",
     exportTruncated: "The export was capped at the first 1000 rows.",
     exportCsvFailed: "The export failed. Please try again.",
+    columnTrialBalance: "Trial balance",
+    columnTrialGrantedAt: "Trial granted at",
   },
   fields: {
     id: "ID",

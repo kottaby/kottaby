@@ -4,12 +4,14 @@
  * Covers the serialization contract of `buildStudentsDirectoryCsv` and
  * `studentsDirectoryCsvFilename`:
  *
- *   BOM prefix · localized header row composed FROM the label handles ·
- *   boolean columns serialize as wire true/false · honest-null phone /
- *   country / trialGrantedAt / language / parent cells serialize as EMPTY
- *   (never —) · balances serialize as raw integer strings · RFC-4180
- *   escaping of delimiter/quote carrying NAMES · filename derivation from
- *   the injected wall clock at UTC minute precision.
+ *   BOM prefix · localized header row composed FROM the label handles (the
+ *   two TRIAL columns pinned to the export-scoped captions — the header
+ *   record carries NO duplicate captions) · boolean columns serialize as
+ *   wire true/false · honest-null phone / country / trialGrantedAt /
+ *   language / parent cells serialize as EMPTY (never —) · balances
+ *   serialize as raw integer strings · RFC-4180 escaping of
+ *   delimiter/quote carrying NAMES · filename derivation from the injected
+ *   wall clock at UTC minute precision.
  *
  * Labels resolve from the en/ar leaf maps directly (the same objects the
  * namespace composes) — assertions compose expected cells from the label
@@ -62,8 +64,11 @@ function expectedEnHeader(): string {
     adminStudentsEn.balances.hifz,
     adminStudentsEn.balances.reviews,
     adminStudentsEn.balances.tajweed,
-    adminStudentsEn.balances.trial,
-    adminStudentsEn.headers.trial,
+    // Export-scoped trial captions — the shared `balances.trial` /
+    // `headers.trial` handles both resolve to "Trial" (EN) and duplicated
+    // the header record (QA finding; see the builder docblock).
+    adminStudentsEn.export.columnTrialBalance,
+    adminStudentsEn.export.columnTrialGrantedAt,
     adminStudentsEn.fields.primaryLanguage,
     adminStudentsEn.fields.anotherLanguage,
     adminStudentsEn.parentLabels.withParent,
@@ -83,6 +88,28 @@ describe("students-directory CSV builder", () => {
     // The Arabic labels round-trip through the SAME builder (locale comes from labels only).
     const csvAr = buildStudentsDirectoryCsv([studentFixture()], adminStudentsAr);
     expect(csvAr).toContain(`${adminStudentsAr.fields.id},${adminStudentsAr.headers.name}`);
+  });
+
+  test("header record carries NO duplicate captions — the two trial columns use the export-scoped captions", () => {
+    for (const labels of [adminStudentsEn, adminStudentsAr]) {
+      const csv = buildStudentsDirectoryCsv([studentFixture()], labels);
+      const firstRecord = csv.slice(1, csv.indexOf("\n"));
+      const cells = firstRecord.split(",");
+      // No caption repeats anywhere in the 17-cell header record.
+      expect(new Set(cells).size).toBe(cells.length);
+      // Columns 9/10 carry the NEW export-scoped captions — never the
+      // colliding shared handles.
+      expect(cells[8]).toBe(labels.export.columnTrialBalance);
+      expect(cells[9]).toBe(labels.export.columnTrialGrantedAt);
+      expect(cells[8]).not.toBe(labels.balances.trial);
+      expect(cells[9]).not.toBe(labels.headers.trial);
+    }
+    // Verbatim caption pins (both locales) — regression lock for the
+    // "Trial,Trial" QA finding.
+    expect(adminStudentsEn.export.columnTrialBalance).toBe("Trial balance");
+    expect(adminStudentsEn.export.columnTrialGrantedAt).toBe("Trial granted at");
+    expect(adminStudentsAr.export.columnTrialBalance).toBe("رصيد التجربة");
+    expect(adminStudentsAr.export.columnTrialGrantedAt).toBe("تاريخ منح الفترة التجريبية");
   });
 
   test("one record per on-screen student with raw wire values", () => {

@@ -30,6 +30,11 @@
  * client-side via `useAppTranslation(AdminTeachers)`. MUI v9 `sx`-only
  * discipline; colors via `theme.palette.*` callbacks; `*Outlined` icons;
  * ≥44px touch targets; responsive (desktop table ≥md, stacked cards below).
+ *
+ * The surface above threads two applicant-queue signals down to the empty
+ * state (`hasApplicants` — the eagerly-fetched queue total, the same source
+ * the inactive-tab badge reads — and `onReviewApplicants`, which flips the
+ * surface's tab state in place). The panel is otherwise self-contained.
  */
 
 import { Alert, Button, Snackbar, Stack } from "@mui/material";
@@ -51,7 +56,17 @@ import { AdminTeachers } from "@/shared/locale/namespaces/adminTeachers";
 /** ICU token of `export.exportedRows` (one per locale, parity-pinned). */
 const EXPORTED_ROWS_PLACEHOLDER = "{count}";
 
-export function AdminTeachersDirectoryPanel(): ReactNode {
+interface AdminTeachersDirectoryPanelProps {
+  /** Whether the applicant queue holds ≥1 row (gates the join-requests CTA). */
+  readonly hasApplicants: boolean;
+  /** Flips the /teachers surface to the applicants tab (surface-owned state). */
+  readonly onReviewApplicants: () => void;
+}
+
+export function AdminTeachersDirectoryPanel({
+  hasApplicants,
+  onReviewApplicants,
+}: AdminTeachersDirectoryPanelProps): ReactNode {
   const labels = useAppTranslation(AdminTeachers);
   const locale = useAppLocale();
   const directory = useAdminTeachersDirectory();
@@ -144,6 +159,8 @@ export function AdminTeachersDirectoryPanel(): ReactNode {
         directory={directory}
         onCopyEmail={handleCopyEmail}
         onViewDetails={openTeacherDetails}
+        hasApplicants={hasApplicants}
+        onReviewApplicants={onReviewApplicants}
       />
 
       <AdminTeacherDetailDrawer

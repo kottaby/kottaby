@@ -57,6 +57,8 @@ export const adminStudentsAr: AdminStudentsLabels = {
     exportedRows: "الصفوف المصدَّرة: {count}.",
     exportTruncated: "تم تصدير أول 1000 صف فقط (بلغ الحد الأقصى للتصدير).",
     exportCsvFailed: "تعذّر التصدير. حاول مرة أخرى.",
+    columnTrialBalance: "رصيد التجربة",
+    columnTrialGrantedAt: "تاريخ منح الفترة التجريبية",
   },
   fields: {
     id: "المعرّف",

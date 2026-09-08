@@ -33,6 +33,10 @@ interface AdminTeachersResultsProps {
   readonly onCopyEmail?: () => void;
   /** Opens the detail drawer for a row/card (the directory owns the drawer). */
   readonly onViewDetails?: (teacher: TeacherDirectoryItem) => void;
+  /** Whether the applicant queue holds ≥1 row (gates the join-requests CTA). */
+  readonly hasApplicants: boolean;
+  /** Flips the /teachers surface to the applicants tab (surface-owned state). */
+  readonly onReviewApplicants: () => void;
 }
 
 export function AdminTeachersResults({
@@ -40,6 +44,8 @@ export function AdminTeachersResults({
   directory,
   onCopyEmail,
   onViewDetails,
+  hasApplicants,
+  onReviewApplicants,
 }: AdminTeachersResultsProps): ReactNode {
   // When the query (or a refetch with no cached rows) failed, the error
   // alert in `AdminTeachersDirectoryPanel` is the sole surface — rendering
@@ -55,6 +61,8 @@ export function AdminTeachersResults({
         hasFilters={directory.hasFilters}
         onCopyEmail={onCopyEmail}
         onViewDetails={onViewDetails}
+        hasApplicants={hasApplicants}
+        onReviewApplicants={onReviewApplicants}
         pagination={
           <DirectoryPagination
             labels={labels}
@@ -74,6 +82,8 @@ export function AdminTeachersResults({
         hasFilters={directory.hasFilters}
         onCopyEmail={onCopyEmail}
         onViewDetails={onViewDetails}
+        hasApplicants={hasApplicants}
+        onReviewApplicants={onReviewApplicants}
       />
 
       <AdminTeachersMobilePaginationCard

@@ -25,8 +25,13 @@
  * same translation handles the on-screen table renders (existing header /
  * balance / parent keys reused wherever the concept exists; `fields.*`
  * captions minted for concepts the directory chrome never needed before).
- * All VALUES stay locale-neutral wire data. The only non-label literals are
- * the field separators (`,`) and the newline (`\n`) — the CSV format itself.
+ * EXCEPTION — the two TRIAL columns use the export-scoped
+ * `export.columnTrialBalance` / `export.columnTrialGrantedAt` captions: the
+ * shared `balances.trial` and `headers.trial` handles both resolve to
+ * "Trial" (EN), which emitted the header caption TWICE (QA-verified) and
+ * muddied the AR count column. All VALUES stay locale-neutral wire data.
+ * The only non-label literals are the field separators (`,`) and the
+ * newline (`\n`) — the CSV format itself.
  *
  * Formula-injection note: every cell value originates from the repo-owned
  * translation files or the trusted directory read model (names, emails,
@@ -89,8 +94,10 @@ export function buildStudentsDirectoryCsv(items: readonly StudentDirectoryRow[],
       labels.balances.hifz,
       labels.balances.reviews,
       labels.balances.tajweed,
-      labels.balances.trial,
-      labels.headers.trial,
+      // Export-scoped trial captions — the shared handles collide on
+      // "Trial" (EN) and would duplicate the header record (see docblock).
+      labels.export.columnTrialBalance,
+      labels.export.columnTrialGrantedAt,
       labels.fields.primaryLanguage,
       labels.fields.anotherLanguage,
       labels.parentLabels.withParent,

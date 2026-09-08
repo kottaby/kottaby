@@ -15,6 +15,10 @@
  *
  * The queue state is lifted here (`useAdminTeacherApplicants`) so the tab
  * badge can read the total while the panel below receives it as a prop.
+ * The same eager total feeds the directory tab's empty state: when the
+ * directory is empty and the queue holds ≥1 applicant, the empty state's
+ * "review join requests" CTA renders and flips `activeTab` to the queue
+ * in place (the tab strip's own state flip — no URL navigation).
  * The directory panel keeps its own state exactly as before (hook, drawer,
  * snackbar, CSV export).
  *
@@ -113,7 +117,17 @@ export function AdminTeachersSurface(): ReactNode {
         aria-labelledby="teachers-tab-teachers"
         hidden={activeTab !== "teachers"}
       >
-        <AdminTeachersDirectoryPanel />
+        {/*
+          The queue total is fetched eagerly (the hook runs from mount — the
+          inactive-tab badge depends on it), so the directory's empty state
+          can gate its join-requests CTA on the SAME source the badge uses.
+        */}
+        <AdminTeachersDirectoryPanel
+          hasApplicants={applicants.total > 0}
+          onReviewApplicants={() => {
+            setActiveTab("applicants");
+          }}
+        />
       </Box>
 
       <Box

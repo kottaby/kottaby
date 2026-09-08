@@ -56,6 +56,7 @@ export const adminTeachersAr: AdminTeachersLabels = {
     filteredTitle: "لا يوجد معلمون مطابقون للمرشحات",
     filteredMessage: "عدّل المرشحات أعلاه أو امسحها لعرض كل المعلمين.",
     cta: "مراجعة حسابات المستخدمين",
+    reviewApplicants: "مراجعة طلبات الانضمام",
   },
   applicantsEmptyState: {
     title: "لا توجد طلبات انضمام بعد",

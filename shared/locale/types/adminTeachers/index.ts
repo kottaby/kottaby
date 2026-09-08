@@ -165,6 +165,14 @@ export interface AdminTeachersLabels {
      * mid-review live.
      */
     readonly cta: string;
+    /**
+     * SECONDARY call-to-action on the same zero-teachers (unfiltered) state
+     * — flips the surface to the applicant-queue tab when the queue holds
+     * at least one applicant (the surface owns the tab state; NO URL
+     * navigation). Hidden when the queue is empty so the empty state never
+     * offers a dead CTA.
+     */
+    readonly reviewApplicants: string;
   };
 
   /** Empty-state copy rendered inside the applicants table body when no rows match. */

@@ -18,9 +18,10 @@
  *
  * Loading renders stable-key skeleton rows (the rowgroup announces the
  * localized loading label); the empty state reuses the
- * `labels.emptyState` copy via `AdminTeachersEmptyState`. The pagination
- * footer is injected as a `pagination` slot rendered inside the same card
- * (top hairline from `DirectoryPagination`).
+ * `labels.emptyState` copy via `AdminTeachersEmptyState` (threading the
+ * surface's applicant-queue signals so the join-requests CTA can render).
+ * The pagination footer is injected as a `pagination` slot rendered inside
+ * the same card (top hairline from `DirectoryPagination`).
  */
 
 import { Card, Skeleton, Table, TableBody, TableCell, TableHead, TableRow } from "@mui/material";
@@ -43,12 +44,16 @@ interface AdminTeachersTableProps {
   readonly onViewDetails?: (teacher: TeacherDirectoryItem) => void;
   /** Footer slot rendered inside the card (the shared `DirectoryPagination` bar). */
   readonly pagination?: ReactNode;
+  /** Whether the applicant queue holds ≥1 row (gates the join-requests CTA). */
+  readonly hasApplicants: boolean;
+  /** Flips the /teachers surface to the applicants tab (surface-owned state). */
+  readonly onReviewApplicants: () => void;
 }
 
 const COLUMN_COUNT = 6;
 
 export function AdminTeachersTable(props: AdminTeachersTableProps): ReactNode {
-  const { labels, items, loading, hasFilters, onCopyEmail, onViewDetails } = props;
+  const { labels, items, loading, hasFilters, onCopyEmail, onViewDetails, hasApplicants, onReviewApplicants } = props;
   const locale = useAppLocale();
   return (
     <Card
@@ -87,7 +92,12 @@ export function AdminTeachersTable(props: AdminTeachersTableProps): ReactNode {
           {!loading && items.length === 0 && (
             <TableRow>
               <TableCell colSpan={COLUMN_COUNT} sx={{ borderBottom: 0 }}>
-                <AdminTeachersEmptyState labels={labels} hasFilters={hasFilters} />
+                <AdminTeachersEmptyState
+                  labels={labels}
+                  hasFilters={hasFilters}
+                  hasApplicants={hasApplicants}
+                  onReviewApplicants={onReviewApplicants}
+                />
               </TableCell>
             </TableRow>
           )}
