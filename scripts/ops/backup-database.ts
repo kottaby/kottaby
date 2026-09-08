@@ -162,12 +162,12 @@ function bootstrapDsn(envFile: string, deps: BackupRunDeps): { dsn: string; dsnU
     );
     return null;
   }
-  // The four fail-closed source-DSN gates (raw unassessable spans,
-  // dot-segment path, endpoint-override query keys, unnamed database) run
-  // through ONE shared assessor — the rules and their live-proven rationale
-  // live in `_shared` next to the primitives they mirror
-  // (`backupSourceDsnRefusal`). Refused here in the bootstrap path as an
-  // env/usage-class error, before any out-dir, staging, dump, or manifest
+  // The five fail-closed source-DSN gates (raw unassessable spans,
+  // dot-segment path, multi-host endpoints, endpoint-override query keys,
+  // unnamed database) run through ONE shared assessor — the rules and their
+  // live-proven rationale live in `_shared` next to the primitives they
+  // mirror (`backupSourceDsnRefusal`). Refused here in the bootstrap path as
+  // an env/usage-class error, before any out-dir, staging, dump, or manifest
   // side effect, like every `[env]` refusal.
   const sourceDsnRefusal = backupSourceDsnRefusal(rawDsn.trim(), dsnUrl);
   if (sourceDsnRefusal) {

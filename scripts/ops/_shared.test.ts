@@ -6,6 +6,7 @@ import {
   POSTGRES_PROTOCOLS,
   REDACTED_DSN,
   rawDsnHasAmbiguousAuthority,
+  rawDsnHasMultiHostEndpoints,
   rawDsnPathHasDotSegments,
   rawDsnQueryHasEndpointOverride,
   redactDsn,
@@ -154,6 +155,44 @@ describe("rawDsnQueryHasEndpointOverride", () => {
     expect(rawDsnQueryHasEndpointOverride("postgresql://u:p@db.example:5432/app_db?localhost=hint")).toBe(false);
     expect(rawDsnQueryHasEndpointOverride("postgresql://u:p@db.example:5432/app_db")).toBe(false);
     expect(rawDsnQueryHasEndpointOverride("postgresql://u:p@db.example:5432/app_db?sslmode=require")).toBe(false);
+  });
+});
+
+describe("rawDsnHasMultiHostEndpoints", () => {
+  it("refuses a comma in the authority host span — raw and percent-decoded", () => {
+    // Live-proven R16 shape: libpq failover connects to the SECOND host in
+    // the comma list while every URL-derived label renders only the first
+    // authority host; the list split happens after the host is
+    // percent-decoded, so %2C hides the second endpoint exactly like a
+    // literal comma.
+    expect(rawDsnHasMultiHostEndpoints("postgresql://postgres@127.0.0.1,8.8.8.8:5432/app_db")).toBe(true);
+    expect(rawDsnHasMultiHostEndpoints("postgresql://127.0.0.1,8.8.8.8:5432/app_db")).toBe(true);
+    expect(rawDsnHasMultiHostEndpoints("postgresql://postgres@127.0.0.1%2C8.8.8.8:5432/app_db")).toBe(true);
+    // Pathless: the host span ends at the query delimiter both parsers agree on.
+    expect(rawDsnHasMultiHostEndpoints("postgresql://127.0.0.1,8.8.8.8:5432?dbname=app_db")).toBe(true);
+  });
+
+  it("refuses a comma in a query host=/hostaddr= value — raw and percent-decoded", () => {
+    expect(rawDsnHasMultiHostEndpoints("postgresql://u:p@db.example:5432/app_db?host=127.0.0.1,8.8.8.8")).toBe(true);
+    expect(rawDsnHasMultiHostEndpoints("postgresql://u:p@db.example:5432/app_db?host=127.0.0.1%2C8.8.8.8")).toBe(true);
+    expect(rawDsnHasMultiHostEndpoints("postgresql://u:p@db.example:5432/app_db?hostaddr=8.8.8.8,9.9.9.9")).toBe(true);
+    // Key matching mirrors the endpoint-override gate: percent-decoded and case-insensitive.
+    expect(rawDsnHasMultiHostEndpoints("postgresql://u:p@db.example:5432/app_db?%68ost=127.0.0.1,8.8.8.8")).toBe(true);
+  });
+
+  it("never flags a comma outside the host spans (userinfo, path, benign query)", () => {
+    expect(rawDsnHasMultiHostEndpoints("postgresql://us,er@host.example:5432/app_db")).toBe(false);
+    expect(rawDsnHasMultiHostEndpoints("postgresql://u:p@host.example:5432/db,name")).toBe(false);
+    expect(
+      rawDsnHasMultiHostEndpoints("postgresql://u:p@host.example:5432/app_db?dbname=a,b&application_name=x,y")
+    ).toBe(false);
+  });
+
+  it("allows bracketed IPv6 hosts and single-endpoint DSNs unchanged", () => {
+    expect(rawDsnHasMultiHostEndpoints("postgresql://postgres@[::1]:5432/app_db")).toBe(false);
+    expect(rawDsnHasMultiHostEndpoints("postgresql://postgres@127.0.0.1:5432/app_db")).toBe(false);
+    expect(rawDsnHasMultiHostEndpoints("postgresql://host.example:5432?sslmode=disable")).toBe(false);
+    expect(rawDsnHasMultiHostEndpoints("postgresql://u:p@host.example:5432/app_db?sslmode=require")).toBe(false);
   });
 });
 

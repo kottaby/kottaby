@@ -222,20 +222,36 @@ function hasControlCharacter(span: string): boolean {
   return false;
 }
 
-export function rawDsnHasAmbiguousAuthority(trimmedDsn: string): boolean {
+/**
+ * The raw AUTHORITY SPAN of a DSN string — after `//` up to the first `/` of
+ * the raw string (with the guard's pathless refinement: on a pathless URI a
+ * first `?` followed by no later `@` is the query delimiter both parsers
+ * agree on, so the span ends there) — plus the raw `/` and `?` indices the
+ * span-based gates need for their own channel slices. One definition shared
+ * verbatim by every raw-span gate below (the restore guard's
+ * `assessRawUriAuthority` span math).
+ */
+type RawDsnAuthoritySpan = { span: string; slashAt: number; questionAt: number };
+
+function rawDsnAuthoritySpan(trimmedDsn: string): RawDsnAuthoritySpan {
   const schemeEnd = trimmedDsn.indexOf("://");
   const authorityStart = schemeEnd < 0 ? 0 : schemeEnd + 3;
   const slashAt = trimmedDsn.indexOf("/", authorityStart);
   const questionAt = trimmedDsn.indexOf("?", authorityStart);
-  // Channel 1 — raw authority span: the restore guard's span math
-  // (`assessRawUriAuthority`) mirrored exactly, control characters included.
   let authorityEnd = trimmedDsn.length;
   if (slashAt >= 0) {
     authorityEnd = slashAt;
   } else if (questionAt >= 0 && trimmedDsn.indexOf("@", questionAt) < 0) {
     authorityEnd = questionAt;
   }
-  const authoritySpan = trimmedDsn.slice(authorityStart, authorityEnd);
+  return { span: trimmedDsn.slice(authorityStart, authorityEnd), slashAt, questionAt };
+}
+
+export function rawDsnHasAmbiguousAuthority(trimmedDsn: string): boolean {
+  const { span: authoritySpan, slashAt, questionAt } = rawDsnAuthoritySpan(trimmedDsn);
+  // Channel 1 — raw authority span: the restore guard's span math
+  // (`assessRawUriAuthority`, the shared `rawDsnAuthoritySpan` slice),
+  // control characters included.
   if (authoritySpan.includes("?") || authoritySpan.includes("#") || hasControlCharacter(authoritySpan)) {
     return true;
   }
@@ -276,13 +292,10 @@ export function rawDsnHasAmbiguousAuthority(trimmedDsn: string): boolean {
  * the raw one and a dot-segment path is unassessable either way.
  */
 export function rawDsnPathHasDotSegments(trimmedDsn: string): boolean {
-  const schemeEnd = trimmedDsn.indexOf("://");
-  const authorityStart = schemeEnd < 0 ? 0 : schemeEnd + 3;
-  const slashAt = trimmedDsn.indexOf("/", authorityStart);
+  const { slashAt, questionAt } = rawDsnAuthoritySpan(trimmedDsn);
   if (slashAt < 0) {
     return false;
   }
-  const questionAt = trimmedDsn.indexOf("?", authorityStart);
   const rawPathDatabase = trimmedDsn.slice(slashAt, questionAt < 0 ? trimmedDsn.length : questionAt).replace(/^\//, "");
   if (hasDotSegments(rawPathDatabase)) {
     return true;
@@ -291,6 +304,48 @@ export function rawDsnPathHasDotSegments(trimmedDsn: string): boolean {
   // a literal one, so the decoded view is gated the same way (a malformed
   // escape degrades to the raw span — nothing new to normalize there).
   return hasDotSegments(decodeUrlSegment(rawPathDatabase));
+}
+
+/**
+ * Whether the DSN names MULTI-HOST endpoints — a comma (raw or
+ * percent-decoded) in the authority HOST span or in a query
+ * `host=`/`hostaddr=` value — the backup-side mirror of the restore guard's
+ * assessable-host charset (`CONNINFO_HOST_PATTERN` in `restore-guard-url.ts`,
+ * which excludes the comma). libpq accepts comma-separated host LISTS in the
+ * URI authority and in query `host=`/`hostaddr=` values, and it
+ * percent-decodes the host BEFORE the list is split, so the connection no
+ * longer has one endpoint while every URL-derived label — the redacted
+ * provenance line and the manifest's authority view among them — renders
+ * only the FIRST authority host (live-proven R16 shape:
+ * `postgresql://postgres@127.0.0.1,8.8.8.8:5432/db` completed a real backup
+ * through libpq failover while the manifest labeled only `127.0.0.1`, and
+ * the restore guard refuses the identical shape). The gate runs BEFORE the
+ * endpoint-override gate so a comma-carrying query host is refused with THIS
+ * message rather than the generic override one. A comma in the USERINFO, the
+ * path database, or a non-endpoint query parameter is untouched, and a
+ * bracketed IPv6 host (`[::1]`) names one host and passes. Each channel is
+ * ONE percent-decode: `decodeUrlSegment` preserves literal commas and
+ * degrades malformed escapes to the raw span, so a comma in the decoded
+ * value is exactly a raw or percent-encoded comma.
+ */
+export function rawDsnHasMultiHostEndpoints(trimmedDsn: string): boolean {
+  const { span: authoritySpan, questionAt } = rawDsnAuthoritySpan(trimmedDsn);
+  // libpq splits the userinfo at the LAST `@` inside the span; a span with
+  // no `@` is all host (lastIndexOf −1 + 1 → slice from 0).
+  const hostSpan = authoritySpan.slice(authoritySpan.lastIndexOf("@") + 1);
+  if (decodeUrlSegment(hostSpan).includes(",")) {
+    return true;
+  }
+  const rawQuery = questionAt < 0 ? "" : trimmedDsn.slice(questionAt + 1);
+  for (const pair of rawQuery.split("&")) {
+    const equals = pair.indexOf("=");
+    const key = equals < 0 ? "" : decodeUrlSegment(pair.slice(0, equals)).toLowerCase();
+    const value = equals < 0 ? "" : pair.slice(equals + 1);
+    if ((key === "host" || key === "hostaddr") && decodeUrlSegment(value).includes(",")) {
+      return true;
+    }
+  }
+  return false;
 }
 
 /**
@@ -411,7 +466,7 @@ export function databaseNameFromDsn(url: URL): string {
 /**
  * The source-DSN refusal (the exit-2 `[env]` message) for a BACKUP source
  * DSN — `null` when the DSN is assessable and backup-eligible. One
- * dispatcher for the four fail-closed gates the backup bootstrap applies,
+ * dispatcher for the five fail-closed gates the backup bootstrap applies,
  * in assessment order, before any out-dir, staging, dump, or manifest side
  * effect (the bootstrap prints the message; this function owns the rules):
  *
@@ -446,7 +501,18 @@ export function databaseNameFromDsn(url: URL): string {
  *     raw and the percent-encoded shape: percent-encoding a dot-segment is
  *     normalized away exactly like the literal one, so the remediation is
  *     the literal database name, not an escape.
- *  3. Endpoint-override query gate ({@link rawDsnQueryHasEndpointOverride})
+ *  3. Multi-host endpoint gate ({@link rawDsnHasMultiHostEndpoints}) — the
+ *     backup-side mirror of the restore guard's assessable-host charset
+ *     (`CONNINFO_HOST_PATTERN` in `restore-guard-url.ts`, which excludes the
+ *     comma). libpq accepts comma-separated host LISTS in the URI authority
+ *     and in query `host=`/`hostaddr=` values and percent-decodes the host
+ *     before the list is split, so the dump no longer has one endpoint while
+ *     every URL-derived label renders only the first authority host
+ *     (live-proven R16 shape: `postgresql://postgres@127.0.0.1,8.8.8.8:5432/db`
+ *     completed a real backup via libpq failover while the manifest labeled
+ *     only `127.0.0.1` — and restore refuses the identical shape). A
+ *     bracketed IPv6 host (`[::1]`) names one host and does not trip.
+ *  4. Endpoint-override query gate ({@link rawDsnQueryHasEndpointOverride})
  *     — the backup-side completion of the restore guard's query channels
  *     (restore targets have assessed `?host=`/`?hostaddr=` since R2; the
  *     backup source DSN had no equivalent gate). libpq applies URI query
@@ -459,7 +525,7 @@ export function databaseNameFromDsn(url: URL): string {
  *     off-box entirely. The authority is the only supported endpoint
  *     channel; plain query parameters (`dbname`, `sslmode`,
  *     `application_name`, …) are untouched.
- *  4. Unnamed-database gate — the backup-side mirror of the restore
+ *  5. Unnamed-database gate — the backup-side mirror of the restore
  *     guard's target-naming rule (R5: a target whose database is
  *     under-specified refuses). A db-less source DSN (no path database, no
  *     `?dbname=` query) AND an explicitly EMPTY `?dbname=` value are the
@@ -475,6 +541,9 @@ export function backupSourceDsnRefusal(trimmedDsn: string, dsnUrl: URL): string 
   }
   if (rawDsnPathHasDotSegments(trimmedDsn)) {
     return "source DSN path contains dot-segments — use the literal database name";
+  }
+  if (rawDsnHasMultiHostEndpoints(trimmedDsn)) {
+    return "source DSN multi-host endpoints are not supported — name a single host in the authority";
   }
   if (rawDsnQueryHasEndpointOverride(trimmedDsn)) {
     return "source DSN endpoint override in query string is not supported — put host/port in the DSN authority";

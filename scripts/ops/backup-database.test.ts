@@ -110,6 +110,10 @@ let encodedDotSegmentPathEnvFile = "";
 let emptyQueryDbnameEnvFile = "";
 let hostOverrideEnvFile = "";
 let hostaddrOverrideEnvFile = "";
+let commaAuthorityEnvFile = "";
+let encodedCommaAuthorityEnvFile = "";
+let commaQueryHostEnvFile = "";
+let bracketedIpv6EnvFile = "";
 let benignQueryParamsEnvFile = "";
 const missingEnvFile = (): string => relative(process.cwd(), join(workspace, ".env-backup-missing"));
 const ORIGINAL_DATABASE_URL = process.env.DATABASE_URL;
@@ -293,6 +297,29 @@ beforeAll(() => {
   hostaddrOverrideEnvFile = writeEnvFile(
     ".env-backup-hostaddr-override",
     "DATABASE_URL=postgresql://ops_owner:supersecret-pw@db.internal.example:5432/app_db?hostaddr=8.8.8.8\n"
+  );
+  // The R16 multi-host shapes: libpq accepts comma-separated host LISTS in
+  // the authority and in query host=/hostaddr= values and percent-decodes
+  // the host BEFORE the list is split, so the dump can fail over to a second
+  // endpoint no URL-derived label names (live-proven:
+  // `…@127.0.0.1,8.8.8.8:5432/app_db` completed a real backup while the
+  // manifest labeled only `127.0.0.1`). The bracketed IPv6 twin names ONE
+  // host and stays allowed.
+  commaAuthorityEnvFile = writeEnvFile(
+    ".env-backup-comma-authority",
+    "DATABASE_URL=postgresql://ops_owner:supersecret-pw@127.0.0.1,8.8.8.8:5432/app_db\n"
+  );
+  encodedCommaAuthorityEnvFile = writeEnvFile(
+    ".env-backup-encoded-comma-authority",
+    "DATABASE_URL=postgresql://ops_owner:supersecret-pw@127.0.0.1%2C8.8.8.8:5432/app_db\n"
+  );
+  commaQueryHostEnvFile = writeEnvFile(
+    ".env-backup-comma-query-host",
+    "DATABASE_URL=postgresql://ops_owner:supersecret-pw@db.internal.example:5432/app_db?host=127.0.0.1,8.8.8.8\n"
+  );
+  bracketedIpv6EnvFile = writeEnvFile(
+    ".env-backup-bracketed-ipv6",
+    "DATABASE_URL=postgresql://ops_owner:supersecret-pw@[::1]:5432/app_db\n"
   );
   benignQueryParamsEnvFile = writeEnvFile(
     ".env-backup-benign-query-params",
@@ -1482,6 +1509,75 @@ describe("runBackup — failure boundaries", () => {
     );
     expect(run.calls).toEqual([]);
     expect(existsSync(outDir)).toBe(false);
+  });
+
+  it("refuses a comma-separated authority host list with exit 2 and zero side effects", async () => {
+    const outDir = join(workspace, "run-comma-authority");
+    const run = await runBackupWith(probeAndDumpBehavior(dumpWritesArtifact), {
+      envFile: commaAuthorityEnvFile,
+      outDir,
+    });
+    // Live-proven R16 shape: libpq failover connects to the SECOND host in
+    // the comma list while the manifest labels only the first authority
+    // host — refused before anything runs (fail closed).
+    expect(run.code).toBe(2);
+    expect(run.errors).toContain(
+      "[env] source DSN multi-host endpoints are not supported — name a single host in the authority"
+    );
+    expect(run.calls).toEqual([]);
+    expect(existsSync(outDir)).toBe(false);
+  });
+
+  it("refuses a percent-encoded comma in the authority host span with exit 2 and zero side effects", async () => {
+    const outDir = join(workspace, "run-encoded-comma-authority");
+    const run = await runBackupWith(probeAndDumpBehavior(dumpWritesArtifact), {
+      envFile: encodedCommaAuthorityEnvFile,
+      outDir,
+    });
+    // libpq percent-decodes the host BEFORE the multi-host list is split,
+    // so %2C hides the second endpoint from the raw view exactly like a
+    // literal comma — the decoded span is refused with the same message.
+    expect(run.code).toBe(2);
+    expect(run.errors).toContain(
+      "[env] source DSN multi-host endpoints are not supported — name a single host in the authority"
+    );
+    expect(run.calls).toEqual([]);
+    expect(existsSync(outDir)).toBe(false);
+  });
+
+  it("refuses a comma-separated query host= value with the multi-host message and zero side effects", async () => {
+    const outDir = join(workspace, "run-comma-query-host");
+    const run = await runBackupWith(probeAndDumpBehavior(dumpWritesArtifact), {
+      envFile: commaQueryHostEnvFile,
+      outDir,
+    });
+    // Query host=/hostaddr= values are comma-split into host lists too; the
+    // multi-host gate runs BEFORE the endpoint-override gate, so this shape
+    // gets the multi-host message rather than the generic override one.
+    expect(run.code).toBe(2);
+    expect(run.errors).toContain(
+      "[env] source DSN multi-host endpoints are not supported — name a single host in the authority"
+    );
+    expect(run.calls).toEqual([]);
+    expect(existsSync(outDir)).toBe(false);
+  });
+
+  it("allows a bracketed IPv6 authority host and dumps the named database", async () => {
+    const outDir = join(workspace, "run-bracketed-ipv6");
+    const run = await runBackupWith(probeAndDumpBehavior(dumpWritesArtifact), {
+      envFile: bracketedIpv6EnvFile,
+      outDir,
+    });
+    // Brackets carry ONE host — commas cannot appear inside them — so the
+    // multi-host gate never trips and the run completes normally.
+    expect(run.code).toBe(0);
+    expect(run.all).not.toContain("multi-host");
+    const manifest = JSON.parse(readFileSync(join(outDir, STAMP, MANIFEST_FILE_NAME), "utf8")) as unknown;
+    expect(manifestProblems(manifest)).toEqual([]);
+    expect(manifest).toMatchObject({ database: "app_db" });
+    // The child still receives the ORIGINAL DSN libpq resolves.
+    const dumpCall = run.calls.find(call => call.argv[0] === "pg_dump" && call.argv[1] !== "--version");
+    expect(dumpCall?.argv.at(-1)).toBe("postgresql://ops_owner:supersecret-pw@[::1]:5432/app_db");
   });
 
   it("allows plain query parameters and dumps the authority-named database", async () => {
