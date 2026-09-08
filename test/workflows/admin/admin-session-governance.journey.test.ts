@@ -61,7 +61,7 @@ import { HeldBalanceLane } from "@/backend/enum/scheduling/held-balance-lane.enu
 import { SessionIntent } from "@/backend/enum/scheduling/session-intent.enum";
 import { SessionStatus } from "@/backend/enum/scheduling/session-status.enum";
 import { SessionType } from "@/backend/enum/scheduling/session-type.enum";
-import { ConflictError, DomainError, ForbiddenError, UnauthorizedError } from "@/backend/lib/errors";
+import { ConflictError, DomainError, ForbiddenError } from "@/backend/lib/errors";
 import { SessionAdminGovernanceService } from "@/backend/services/classes/session-admin-governance";
 import { SessionLifecycleService } from "@/backend/services/classes/session-lifecycle.service";
 import type { NotificationEngineCallOptions } from "@/backend/services/notifications";
@@ -541,10 +541,12 @@ describe("Journey W-1 — admin discovery, cancel with same-lane refund, cross-a
       emitSpyOptions(transport)
     );
 
-    // The mutation returns the flipped row; the hold marker itself stays
-    // (releasing it is the refund's composition, not the guard's).
+    // The mutation returns the flipped row with the hold marker ALREADY
+    // CLEARED — the admin guard's guarded statement rewrites fee_held
+    // itself (no fee_held=true terminal row survives), while the hold
+    // lane's release is the same-tx refund's composition below.
     expect(cancelled.status).toBe(SessionStatus.Cancelled);
-    expect(cancelled.feeHeld).toBe(true);
+    expect(cancelled.feeHeld).toBe(false);
     expect((await readSessionRow(w1Session.id)).status).toBe(SessionStatus.Cancelled);
 
     // The refund lands on the SAME recorded provenance lane — exactly one
@@ -996,18 +998,20 @@ describe("Journey W-4 — the role-denial matrix: every persisted non-admin role
     expect(inboxesAfter).toEqual(inboxBaselines);
   });
 
-  test("step 2 — the anonymous caller is denied all six operations with the byte-identical 401 and zero writes", async () => {
+  test("step 2 — the anonymous caller is denied all six operations with the byte-identical fail-closed denial and zero writes", async () => {
     const badgeBefore = await readSessionRow(badgeSessionId);
     const inboxBaselines = await Promise.all(castInboxUserIds().map(id => countNotificationsForUser(id)));
 
-    // The anonymous reference: actorId 0 on the shared admin-gate ladder
-    // (`assertActorAdmin` ⇒ UnauthorizedError) — the service-level mirror
-    // of the wire tier authenticated-scope 401 that 4.3 pinned
-    // byte-identical to the resolveSessionDispute reference operation.
+    // The anonymous reference: actorId 0 — the gate resolves the actor ROW
+    // and fails closed FORBIDDEN when it does not exist (the user row is
+    // the authority, never a token claim). The wire tier's anonymous 401
+    // is the GraphQL scope gate's, ahead of the service; at the service
+    // level every anonymous call earns the SAME localized 403 the
+    // reference arbitration op's gate applies to a missing row.
     const reference = await expectJourneyError(() => SessionAdminGovernanceService.listAll(0, {}, 1, 50, LOCALE));
-    expect(reference).toBeInstanceOf(UnauthorizedError);
-    expect(reference.code).toBe("UNAUTHORIZED");
-    expect(reference.message).toBe(T_ERRORS.unauthorized);
+    expect(reference).toBeInstanceOf(ForbiddenError);
+    expect(reference.code).toBe("FORBIDDEN");
+    expect(reference.message).toBe(T_ERRORS.forbidden);
 
     // The remaining five operations (adminSessions IS the reference) must
     // deny byte-identically.

@@ -392,12 +392,12 @@ describe("admin session-governance mutations — happy paths (admin)", () => {
     const payload = payloadOf(result, "adminCancelSession");
     expect(sessionIdOf(payload, "adminCancelSession")).toBe(sessionCancelId);
     expect(payload.status).toBe("Cancelled");
-    // The admin cancel DELIBERATELY preserves the hold marker on the row
-    // (marker + provenance lane are the refund composition's input record;
-    // the participant cancel is the variant that clears the marker). The
-    // hold RELEASE is proven by the lane balance below — exactly one unit
-    // back to the SAME recorded lane.
-    expect(payload.feeHeld).toBe(true);
+    // The admin cancel's guard CLEARS the hold marker inside the same
+    // guarded statement that flips the status (no fee_held=true terminal
+    // row survives). The hold RELEASE is proven by the lane balance below
+    // — exactly one unit back to the SAME recorded lane, refunded in the
+    // guard's own transaction.
+    expect(payload.feeHeld).toBe(false);
     const afterRefund = await readHifzBalance(cast.primaryStudent.userId);
     expect(afterRefund).toBe(beforeRefund + 1);
   });
@@ -422,8 +422,9 @@ describe("Tier 3 — adminCancelSession keyed retry is a no-op with the same res
     const payload = payloadOf(retry, "adminCancelSession");
     expect(sessionIdOf(payload, "adminCancelSession")).toBe(sessionCancelId);
     expect(payload.status).toBe("Cancelled");
-    // Same shape as the first call — the preserved hold marker included.
-    expect(payload.feeHeld).toBe(true);
+    // Same shape as the first call — the guard-cleared hold marker
+    // included (the replay reads the CURRENT row, never re-flips it).
+    expect(payload.feeHeld).toBe(false);
 
     expect(await readHifzBalance(cast.primaryStudent.userId)).toBe(balanceBeforeRetry);
     expect(await countAuditForSession(Number(sessionCancelId))).toBe(auditBeforeRetry);
