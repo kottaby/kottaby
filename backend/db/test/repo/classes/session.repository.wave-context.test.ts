@@ -39,7 +39,7 @@ import { teacher } from "@/backend/db/schema/teachers/teacher";
 import { users } from "@/backend/db/schema/users/users";
 import { createTestStudent, createTestUser } from "@/backend/db/test/entity-setup";
 import { runInRollback } from "@/backend/db/test/test-utils";
-import { SessionIntent, TeacherRequestPreference } from "@/backend/enum";
+import { SessionIntent, SessionStatus, SessionType, TeacherRequestPreference } from "@/backend/enum";
 import type { DBTransaction, SessionSelectType, TeacherSelectType } from "@/backend/types";
 
 /**
@@ -150,10 +150,10 @@ describe("SessionRepository.findById — transactional branch", () => {
       expect(found?.id).toBe(created.id);
       expect(found?.teacherId).toBe(fixture.teacherUserId);
       expect(found?.studentId).toBe(fixture.studentUserId);
-      expect(found?.intent).toBe("hifz");
+      expect(found?.intent).toBe(SessionIntent.Hifz);
       // Schema defaults flow through the full-row read.
-      expect(found?.status).toBe("scheduled");
-      expect(found?.sessionType).toBe("student_session");
+      expect(found?.status).toBe(SessionStatus.Scheduled);
+      expect(found?.sessionType).toBe(SessionType.StudentSession);
       expect(found?.feeHeld).toBe(false);
       expect(found?.createdAt).toBeInstanceOf(Date);
     });
@@ -185,7 +185,7 @@ describe("SessionRepository.findWaveContextById — transactional branch", () =>
 
       expect(row).not.toBeNull();
       expect(row?.sessionId).toBe(created.id);
-      expect(row?.intent).toBe("tajweed");
+      expect(row?.intent).toBe(SessionIntent.Tajweed);
       expect(row?.studentUserId).toBe(fixture.studentUserId);
       expect(row?.studentFullName).toBe(fixture.studentFullName);
       expect(row?.studentLocale).toBe("ar");
@@ -211,7 +211,7 @@ describe("SessionRepository.findWaveContextById — transactional branch", () =>
 
       expect(row).not.toBeNull();
       expect(row?.sessionId).toBe(created.id);
-      expect(row?.intent).toBe("evaluation");
+      expect(row?.intent).toBe(SessionIntent.Evaluation);
       expect(row?.studentUserId).toBe(fixture.studentUserId);
       expect(row?.studentFullName).toBe(fixture.studentFullName);
       expect(row?.studentLocale).toBeNull();
@@ -312,7 +312,7 @@ describe("SessionRepository — non-transactional branch (committed fixture)", (
 
     expect(found).not.toBeNull();
     expect(found?.id).toBe(fixture.sessionId);
-    expect(found?.intent).toBe("hifz");
+    expect(found?.intent).toBe(SessionIntent.Hifz);
     expect(found?.teacherId).toBe(fixture.teacherUserId);
     expect(found?.studentId).toBe(fixture.studentUserId);
   });
@@ -332,7 +332,7 @@ describe("SessionRepository — non-transactional branch (committed fixture)", (
 
     expect(row).not.toBeNull();
     expect(row?.sessionId).toBe(fixture.sessionId);
-    expect(row?.intent).toBe("hifz");
+    expect(row?.intent).toBe(SessionIntent.Hifz);
     expect(row?.studentUserId).toBe(fixture.studentUserId);
     expect(row?.studentFullName).toBe(fixture.studentFullName);
     expect(row?.studentLocale).toBe("ar");
