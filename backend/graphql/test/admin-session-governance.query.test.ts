@@ -36,8 +36,11 @@
  *  - **Tier 4 — 401/403 byte-identical to the admin reference query** —
  *    `adminDisputedSessions` is the existing admin-gated QUERY reference:
  *    anonymous callers get the SAME localized UNAUTHORIZED denial, and
- *    every authenticated non-admin persisted role (student / teacher /
- *    parent / applicant — `supervisor` is not a `user_role` enum member)
+ *    every authenticated non-admin caller — the three non-admin members
+ *    of the persisted `users.role` vocabulary (student / teacher /
+ *    parent) PLUS the "applicant" (a teacher-role user carrying an
+ *    `applicants` row; not a role member itself — `supervisor` is not a
+ *    `user_role` enum member either) —
  *    gets the SAME localized FORBIDDEN denial. "Byte-identical" = the
  *    finalized error item's `message`, `extensions.code`, and extension
  *    KEY SET are equal (the per-request `extensions.requestId`
@@ -117,7 +120,13 @@ let teacherTToken = "";
 let applicantToken = "";
 let parentToken = "";
 
-/** The authenticated non-admin persisted roles (the user_role vocabulary minus admin). */
+/**
+ * The authenticated non-admin callers this matrix exercises: the three
+ * non-admin members of the persisted `users.role` vocabulary
+ * {admin, teacher, student, parent} PLUS the "applicant" — NOT a role
+ * member but a teacher-role user carrying an `applicants` row and no
+ * `teacher` row, minted through the same real-token path.
+ */
 const NON_ADMIN_ROLES = ["student", "teacher", "parent", "applicant"] as const;
 type NonAdminRole = (typeof NON_ADMIN_ROLES)[number];
 const roleTokens = new Map<NonAdminRole, string>();
