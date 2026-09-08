@@ -8,6 +8,7 @@ import type { AdminSessionsQuery_adminSessions_items } from "@/frontend/graphql/
 import { SessionStatus } from "@/frontend/graphql/generated/gql/graphql";
 import { formatApplicantDate } from "@/frontend/lib/i18n/format-date";
 import { AdminSessionRowStatusCell } from "@/frontend/views/admin/session-governance/AdminSessionRowStatusCell";
+import { SESSION_TYPE_LABEL_KEY } from "@/frontend/views/admin/session-governance/sessionTypePresentation";
 import { SESSION_FEE_CURRENCY } from "@/shared/constants";
 import { useAppLocale } from "@/shared/locale";
 import type { AdminSessionGovernanceLabels } from "@/shared/locale/types/adminSessionGovernance";
@@ -34,7 +35,10 @@ import type { SessionsLabels } from "@/shared/locale/types/sessions";
  *    reassign on `scheduled` only, join on `started` only — INELIGIBLE
  *    actions render DISABLED with an explanatory tooltip instead of
  *    disappearing (the operator learns the rule, the affordance stays
- *    discoverable). View-details is always available.
+ *    discoverable). View-details is always available, and the join item
+ *    OPENS the drawer (the live-session banner inside is the single-click
+ *    observe confirm) rather than joining in place — so its label names
+ *    the view-and-observe intent, never the immediate action.
  *
  * The row is a pure affordance: dialog/drawer state lives in the container.
  * MUI v9 discipline: `sx`-only styling, theme-palette colors, `*Outlined`
@@ -138,7 +142,7 @@ export function AdminSessionRow({
           </Typography>
           <Stack sx={{ flexDirection: "row", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
             <Typography variant="h6" component="h3" sx={{ fontWeight: 700 }}>
-              {session.sessionType}
+              {t[SESSION_TYPE_LABEL_KEY[session.sessionType]]}
             </Typography>
             {session.needsAttention ? (
               <Tooltip title={t.needsAttentionLabel} placement="top">
@@ -280,7 +284,7 @@ export function AdminSessionRow({
                 }}
                 data-testid={`admin-session-action-${session.id}-join`}
               >
-                {t.actionJoin}
+                {t.actionViewAndObserve}
               </MenuItem>
             </Box>
           </Tooltip>

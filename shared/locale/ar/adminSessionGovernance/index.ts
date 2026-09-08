@@ -27,6 +27,9 @@ export const adminSessionGovernanceAr: AdminSessionGovernanceLabels = {
   typeStudentSession: "جلسة طالب",
   typeTeacherEvaluation: "تقييم معلّم",
   typeReEvaluation: "إعادة تقييم",
+  intentHifz: "الحفظ",
+  intentTajweed: "التجويد",
+  intentEvaluation: "التقييم",
 
   emptyTitle: "لا توجد جلسات",
   emptyBody: "ستظهر هنا جميع جلسات المنصّة بمجرّد أن ينشئها المشاركون.",
@@ -48,6 +51,7 @@ export const adminSessionGovernanceAr: AdminSessionGovernanceLabels = {
   actionCancel: "إلغاء الجلسة",
   actionReassign: "إسناد معلّم آخر",
   actionJoin: "الانضمام كمراقب",
+  actionViewAndObserve: "عرض ومراقبة",
   rescheduleDisabledHint: "لا يمكن إعادة جدولة إلا الجلسات المجدولة أو الجارية.",
   cancelDisabledHint: "لا يمكن إلغاء إلا الجلسات المجدولة أو الجارية.",
   reassignDisabledHint: "لا يمكن إسناد معلّم آخر إلا للجلسات المجدولة.",

@@ -25,6 +25,9 @@ export const adminSessionGovernanceEn: AdminSessionGovernanceLabels = {
   typeStudentSession: "Student session",
   typeTeacherEvaluation: "Teacher evaluation",
   typeReEvaluation: "Re-evaluation",
+  intentHifz: "Hifz",
+  intentTajweed: "Tajweed",
+  intentEvaluation: "Evaluation",
 
   emptyTitle: "No sessions found",
   emptyBody: "Sessions across the platform will appear here as participants create them.",
@@ -46,6 +49,7 @@ export const adminSessionGovernanceEn: AdminSessionGovernanceLabels = {
   actionCancel: "Cancel session",
   actionReassign: "Reassign teacher",
   actionJoin: "Join as observer",
+  actionViewAndObserve: "View & observe",
   rescheduleDisabledHint: "Only scheduled or started sessions can be rescheduled.",
   cancelDisabledHint: "Only scheduled or started sessions can be cancelled.",
   reassignDisabledHint: "Only scheduled sessions can be reassigned.",

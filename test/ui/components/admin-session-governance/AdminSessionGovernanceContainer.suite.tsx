@@ -73,6 +73,7 @@ import {
 } from "@/frontend/graphql/sharedDocuments";
 import { MAX_CANCEL_REASON_LENGTH } from "@/frontend/views/admin/session-governance/CancelSessionDialog";
 import { isoToDatetimeLocalToken } from "@/frontend/views/admin/session-governance/RescheduleSessionDialog";
+import { SESSION_TYPE_LABEL_KEY } from "@/frontend/views/admin/session-governance/sessionTypePresentation";
 import { AdminSessionGovernanceContainer } from "@/frontend/views/admin/session-governance/AdminSessionGovernanceContainer";
 import { SESSION_FEE_CURRENCY } from "@/shared/constants";
 import type { AppLocale } from "@/shared/locale/AppLocale";
@@ -617,12 +618,13 @@ for (const locale of componentSuiteLocales) {
       expect(screen.queryByTestId(`admin-session-needs-attention-${SCHEDULED_FRESH_ID}`)).toBeNull();
       expect(screen.queryByTestId(`admin-session-needs-attention-${STARTED_ID}`)).toBeNull();
 
-      // Per-row verbatim content: fee + currency, participant ids, intent.
+      // Per-row verbatim content: fee + currency, participant ids, plus the
+      // type label mapped through the namespace table (never a raw token).
       for (const row of PAGE_ROWS) {
         const rowEl = screen.getByTestId(`admin-session-row-${row.id}`);
         expect(within(rowEl).getAllByText(`${row.fee} ${SESSION_FEE_CURRENCY}`).length).toBeGreaterThanOrEqual(1);
         expect(within(rowEl).getByText(`${row.studentId} · ${row.teacherId}`)).toBeDefined();
-        expect(within(rowEl).getByText(row.sessionType)).toBeDefined();
+        expect(within(rowEl).getByText(t[SESSION_TYPE_LABEL_KEY[row.sessionType]])).toBeDefined();
       }
 
       // Derived duration (90 min) + locale stamps on the fresh scheduled row.

@@ -82,6 +82,13 @@ export interface AdminSessionGovernanceLabels {
   /** SessionType.ReEvaluation option label. */
   readonly typeReEvaluation: string;
 
+  /** SessionIntent.Hifz value label. */
+  readonly intentHifz: string;
+  /** SessionIntent.Tajweed value label. */
+  readonly intentTajweed: string;
+  /** SessionIntent.Evaluation value label. */
+  readonly intentEvaluation: string;
+
   /** Directory empty state heading (no rows at all). */
   readonly emptyTitle: string;
   /** Directory empty state body. */
@@ -120,6 +127,8 @@ export interface AdminSessionGovernanceLabels {
   readonly actionReassign: string;
   /** Kebab action — join as observer. */
   readonly actionJoin: string;
+  /** Kebab action — open the live session's drawer view (the observe confirm lives inside). */
+  readonly actionViewAndObserve: string;
   /** Disabled-action hint — reschedule needs scheduled|started. */
   readonly rescheduleDisabledHint: string;
   /** Disabled-action hint — cancel needs scheduled|started. */
