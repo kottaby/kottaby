@@ -1358,6 +1358,7 @@ describe("SessionLifecycleService — transactional flows (runInRollback)", () =
     join(import.meta.dir, "session-lifecycle.transitions.ts"),
     join(import.meta.dir, "session-lifecycle.booking.ts"),
     join(import.meta.dir, "session-lifecycle.confirmation.ts"),
+    join(import.meta.dir, "session-lifecycle.queries.ts"),
   ];
   const unitSources = SERVICE_UNIT_FILES.map(file => readFileSync(file, "utf8"));
   const serviceSource = unitSources.join("\n");
@@ -1401,6 +1402,7 @@ describe("SessionLifecycleService — transactional flows (runInRollback)", () =
       "@/backend/services/classes/session-lifecycle.confirmation",
       "@/backend/services/classes/session-lifecycle.governance",
       "@/backend/services/classes/session-lifecycle.guards",
+      "@/backend/services/classes/session-lifecycle.queries",
       "@/backend/services/classes/session-lifecycle.transitions",
       "@/backend/services/classes/session-request-notification.service",
       "@/backend/services/notifications",

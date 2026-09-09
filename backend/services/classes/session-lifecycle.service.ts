@@ -75,9 +75,12 @@
  * probe-status widenings), `session-lifecycle.governance.ts` (actor/admin
  * governance re-checks), `session-lifecycle.transitions.ts` (the zero-row
  * miss classifier and the same-lane refund primitive),
- * `session-lifecycle.booking.ts` (the booking transaction body) and
+ * `session-lifecycle.booking.ts` (the booking transaction body),
  * `session-lifecycle.confirmation.ts` (the dual-confirmation transaction
- * body). Every public method below is the same flow in the same order —
+ * body) and `session-lifecycle.queries.ts` (the read/query surface —
+ * participant reads and the admin arbitration list — surfaced here through
+ * thin same-signature delegates so the public namespace API is unchanged).
+ * Every public method below is the same flow in the same order —
  * each owns its boundary validation ordering, governance re-check, and the
  * `withTransaction` composition, delegating only the transaction bodies and
  * shared pre-DB checks to the siblings. The public API (names, signatures,
@@ -86,7 +89,6 @@
 
 import { SessionRepository, TeacherRepository } from "@/backend/db/repo";
 import { DisputeResolution, isDisputeResolution } from "@/backend/enum/scheduling/dispute-resolution.enum";
-import { SessionStatus } from "@/backend/enum/scheduling/session-status.enum";
 import { withTransaction } from "@/backend/lib/db/with-transaction";
 import { ValidationError } from "@/backend/lib/errors";
 import { logger } from "@/backend/lib/logger";
@@ -98,14 +100,11 @@ import {
 } from "@/backend/services/classes/session-lifecycle.governance";
 import {
   assertPositiveSafeSessionId,
-  guardStatusFilter,
-  isPositiveSafeSessionId,
-  normalizeAdminListBounds,
   normalizeOptionalReasonText,
-  normalizePageBounds,
   normalizeRequiredReasonText,
   SESSION_DISPUTED_STATUS,
 } from "@/backend/services/classes/session-lifecycle.guards";
+import { SessionLifecycleQueries } from "@/backend/services/classes/session-lifecycle.queries";
 import {
   refundHeldLaneToProvenance,
   refundSweptHolds,
@@ -787,170 +786,46 @@ export namespace SessionLifecycleService {
     return { cancelled: sweep.cancelled, refunded: sweep.refunded };
   }
 
-  /**
-   * Reads one session for a participant: the row is returned only when the
-   * caller is the session's student or its teacher. A nonexistent id and a
-   * non-participant caller resolve to the identical `null` (oracle-safe —
-   * the two cases are indistinguishable). A malformed id — anything but a
-   * positive safe integer, including the NaN/1.5/overflow shapes the
-   * boundary's shape-only `Number` parse yields for garbage `ID` strings —
-   * short-circuits to the SAME `null` before any database read (the pre-DB
-   * shape guard); well-formed-but-unknown ids degrade to `null`
-   * through the parameterized lookup. No error is ever raised: this read
-   * surface has no locale and its only answer shape is `null`.
-   *
-   * @param callerUserId  The calling participant's id.
-   * @param sessionId  The target session id.
-   * @param tx  Optional transaction — propagated so a caller-owned atomic
-   *     flow stays atomic.
-   */
-  export async function getSessionById(
+  // Read/query surface — extracted verbatim into
+  // `session-lifecycle.queries.ts` (behavior-identical max-lines refactor,
+  // same sibling-module layout as booking/confirmation/transitions); these
+  // thin delegates pin the public namespace API so every resolver and test
+  // call site stays stable.
+
+  export function getSessionById(
     callerUserId: number,
     sessionId: number,
     tx?: DBTransaction
   ): Promise<SessionReturnType | null> {
-    // Oracle-safe malformed-id channel: anything that is not a
-    // positive safe integer — the NaN/1.5/overflow shapes the boundary's
-    // shape-only `Number` parse yields for garbage `ID` strings — resolves
-    // to the SAME `null` as a nonexistent id, BEFORE any database read. No
-    // error is raised (this read surface has no locale and never throws).
-    if (!isPositiveSafeSessionId(sessionId)) {
-      return null;
-    }
-
-    const row = await SessionRepository.findById(sessionId, tx);
-    if (row === null) {
-      return null;
-    }
-    if (row.studentId !== callerUserId && row.teacherId !== callerUserId) {
-      return null;
-    }
-    return row;
+    return SessionLifecycleQueries.getSessionById(callerUserId, sessionId, tx);
   }
 
-  /**
-   * Lists the acting student's own sessions, newest first, paged.
-   *
-   * Page bounds are normalized before any database work: a page below 1
-   * falls back to the first page and a page size outside 1..50 falls back to
-   * the default (25) — the read surface never fabricates a window, and the
-   * returned `page`/`pageSize` echo the effective values honestly. The
-   * lifecycle filter is guarded against the closed status vocabulary (an
-   * out-of-vocabulary value drops out — filters never error); the total
-   * count is computed under the SAME filtered predicate as the list, so
-   * `totalCount` can never diverge from the items.
-   *
-   * @param studentId  The acting student's id (owner-side scoping).
-   * @param filter  Optional lifecycle filter (absent/null members drop out).
-   * @param page  Requested page (≥ 1; invalid values normalize to 1).
-   * @param pageSize  Requested page size (1..50; invalid values normalize
-   *     to the default).
-   * @param tx  Optional transaction — propagated to both reads.
-   */
-  export async function listMyStudentSessions(
+  export function listMyStudentSessions(
     studentId: number,
     filter: SessionListFilterInput,
     page: number,
     pageSize: number,
     tx?: DBTransaction
   ): Promise<SessionPageReturnType> {
-    const bounds = normalizePageBounds(page, pageSize);
-    const guardedFilter = guardStatusFilter(filter);
-
-    const items = await SessionRepository.listForStudent(
-      studentId,
-      guardedFilter,
-      bounds.pageSize,
-      (bounds.page - 1) * bounds.pageSize,
-      tx
-    );
-    const totalCount = await SessionRepository.countForStudent(studentId, guardedFilter, tx);
-
-    return { items, totalCount, page: bounds.page, pageSize: bounds.pageSize };
+    return SessionLifecycleQueries.listMyStudentSessions(studentId, filter, page, pageSize, tx);
   }
 
-  /**
-   * Lists the acting teacher's own sessions — the teacher-side twin of
-   * `listMyStudentSessions`, with identical paging, guarding, filtering,
-   * and honest-echo semantics over the owning-teacher predicate.
-   *
-   * @param teacherId  The acting teacher's id (owner-side scoping).
-   * @param filter  Optional lifecycle filter (absent/null members drop out).
-   * @param page  Requested page (≥ 1; invalid values normalize to 1).
-   * @param pageSize  Requested page size (1..50; invalid values normalize
-   *     to the default).
-   * @param tx  Optional transaction — propagated to both reads.
-   */
-  export async function listMyTeacherSessions(
+  export function listMyTeacherSessions(
     teacherId: number,
     filter: SessionListFilterInput,
     page: number,
     pageSize: number,
     tx?: DBTransaction
   ): Promise<SessionPageReturnType> {
-    const bounds = normalizePageBounds(page, pageSize);
-    const guardedFilter = guardStatusFilter(filter);
-
-    const items = await SessionRepository.listForTeacher(
-      teacherId,
-      guardedFilter,
-      bounds.pageSize,
-      (bounds.page - 1) * bounds.pageSize,
-      tx
-    );
-    const totalCount = await SessionRepository.countForTeacher(teacherId, guardedFilter, tx);
-
-    return { items, totalCount, page: bounds.page, pageSize: bounds.pageSize };
+    return SessionLifecycleQueries.listMyTeacherSessions(teacherId, filter, page, pageSize, tx);
   }
 
-  /**
-   * Lists the disputed sessions for the admin arbitration surface, newest
-   * first, paged.
-   *
-   * The limit clamp mirrors the participant lists exactly (1..50, default
-   * 25) and the offset floors at zero — both normalize pre-DB, never
-   * error. The lifecycle filter is guarded against the closed status
-   * vocabulary like every other read; the field's `disputed` scope is
-   * PINNED, so an explicitly contradictory filter (any status other than
-   * disputed) honestly resolves to an empty page without touching the
-   * database, while an absent/whitespace-drop filter returns the full
-   * arbitration queue. The total count is computed under the SAME pinned
-   * predicate as the list, so `totalCount` can never diverge from the
-   * items. The `limit`/`offset` window maps onto the page echo honestly:
-   * `pageSize` is the clamped limit and `page` is the 1-based window index
-   * that contains the requested offset.
-   *
-   * The admin role gate lives at the GraphQL scope (`$all { authenticated,
-   * role: [Admin] }`); this read takes no caller identity and never raises
-   * localized errors (the read-surface contract).
-   *
-   * @param filter  Optional lifecycle filter (absent/null members drop
-   *     out; a non-disputed member contradicts the pinned scope).
-   * @param limit  Requested page size (1..50; invalid values normalize to
-   *     the default).
-   * @param offset  Requested row offset (≥ 0; invalid values normalize to
-   *     0).
-   * @param tx  Optional transaction — propagated to both reads.
-   */
-  export async function listAdminDisputedSessions(
+  export function listAdminDisputedSessions(
     filter: SessionListFilterInput,
     limit: number,
     offset: number,
     tx?: DBTransaction
   ): Promise<SessionPageReturnType> {
-    const bounds = normalizeAdminListBounds(limit, offset);
-
-    // A filter explicitly contradicting the pinned disputed scope (any
-    // in-vocabulary status other than disputed) matches zero rows by
-    // definition — the honest empty page, no database round-trip.
-    const guardedStatus = guardStatusFilter(filter).status;
-    if (guardedStatus !== null && guardedStatus !== SessionStatus.Disputed) {
-      return { items: [], totalCount: 0, page: bounds.page, pageSize: bounds.safeLimit };
-    }
-
-    const items = await SessionRepository.listAdminDisputed(bounds.safeLimit, bounds.safeOffset, tx);
-    const totalCount = await SessionRepository.countAdminDisputed(tx);
-
-    return { items, totalCount, page: bounds.page, pageSize: bounds.safeLimit };
+    return SessionLifecycleQueries.listAdminDisputedSessions(filter, limit, offset, tx);
   }
 }
