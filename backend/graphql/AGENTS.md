@@ -139,6 +139,10 @@ The `createGeneralUser` mutation creates a user without a specialized profile ex
 
 - **Census-before-admin-mutation:** every new admin-gated mutation shipped under `backend/graphql/mutation/**` MUST add a matching `wired` row to `test/workflows/admin/audit-completeness.catalog.ts` (expected action types + entity type) AND emit its audit row per `docs/admin/user-management.md` §2.4. `backend/db/test/logic/audit/audit-census-drift.test.ts` enforces the bijection — an unaudited admin mutation fails CI. See `docs/admin/audit-trail.md` §10.5.
 
+## Admin-Mutation Audit Census (CRITICAL RULE)
+
+- **Census-before-admin-mutation:** every new admin-gated mutation shipped under `backend/graphql/mutation/**` MUST add a matching `wired` row to `test/workflows/admin/audit-completeness.catalog.ts` (expected action types + entity type) AND emit its audit row per `docs/admin/user-management.md` §2.4. `backend/db/test/logic/audit/audit-census-drift.test.ts` enforces the bijection — an unaudited admin mutation fails CI. See `docs/admin/audit-trail.md` §10.5.
+
 ## authScope Pattern: `permission` vs `superAdmin`
 
 Use `authScopes: { permission: AppPermission.X }` (not `authScopes: { superAdmin: true }`) for mutations accessible by non-superadmin users with the correct permission. The `superAdmin: true` authScope blocks ALL non-superadmin users — only use it for truly superadmin-only operations (e.g., impersonation, permission group simulation, system config).
@@ -166,4 +170,3 @@ Recitation enum registered in `shared/enum.pothos.ts` as `RecitationReadingPotho
 ## Linting Rules
 
 - See `docs/quality/linting-rules.md` for Oxlint & ESLint/sonarjs fix recipes. NEVER use `oxlint-disable` comments.
-
