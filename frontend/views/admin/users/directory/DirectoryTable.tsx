@@ -65,9 +65,9 @@ export function DirectoryTable(props: DirectoryTableProps): ReactNode {
       <Table sx={{ tableLayout: "fixed" }}>
         <TableHead>
           <TableRow sx={theme => ({ bgcolor: theme.palette.surfaceContainerHigh })}>
-            <DirectoryHeaderCell width="29.5%">{labels.headers.name}</DirectoryHeaderCell>
+            <DirectoryHeaderCell width="28%">{labels.headers.name}</DirectoryHeaderCell>
             <DirectoryHeaderCell width="13.5%">{labels.headers.phone}</DirectoryHeaderCell>
-            <DirectoryHeaderCell width="9%">{labels.headers.role}</DirectoryHeaderCell>
+            <DirectoryHeaderCell width="10.5%">{labels.headers.role}</DirectoryHeaderCell>
             <DirectoryHeaderCell width="17%">{labels.headers.statusDetails}</DirectoryHeaderCell>
             <DirectoryHeaderCell width="9%">{labels.headers.governance}</DirectoryHeaderCell>
             <DirectoryHeaderCell width="14%">{labels.headers.lastActive}</DirectoryHeaderCell>
