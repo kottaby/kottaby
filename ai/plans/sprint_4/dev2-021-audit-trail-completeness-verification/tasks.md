@@ -34,32 +34,32 @@
 
 ## Phase 0 — Pre-Implementation Baseline (blocking)
 
-- [ ] 0.1 **Record baseline**: tsgo error count, biome warnings, lint JSON snapshot → `outcome/phase0-baseline.md`; confirm `deferred-items.md` ledger pre-seeded (D-001..D-004); probe anchors in census plan (grep-verify each file:line cited in G-05..G-13).
+- [x] 0.1 **Record baseline**: tsgo error count, biome warnings, lint JSON snapshot → `outcome/phase0-baseline.md`; confirm `deferred-items.md` ledger pre-seeded (D-001..D-004); probe anchors in census plan (grep-verify each file:line cited in G-05..G-13).
   - _Requirements: REQ-000_
 
 ## Phase 1 — Plan Review Gate (blocking)
 
-- [ ] 1.1 **Plan review**: invoke the `plan-review` skill on this plan directory; fix ALL findings; re-run until clean; write `outcome/plan-review-R1.md`.
+- [x] 1.1 **Plan review**: invoke the `plan-review` skill on this plan directory; fix ALL findings; re-run until clean; write `outcome/plan-review-R1.md`.
   - _Requirements: REQ-000_
 
 ## Phase 2 — Census & Anti-Drift (foundation)
 
-- [ ] 2.1 **CREATE `test/workflows/admin/audit-completeness.catalog.ts`**: `AdminActionCensusEntry`, `ADMIN_ACTION_CENSUS` (9 wired + 4 deferred rows per plan §Component 2), `ACTION_TYPE_COVERAGE` exhaustive record; `export *` from a NEW `test/workflows/admin/` barrel if the layer convention requires (check sibling journeys' import style first).
+- [x] 2.1 **CREATE `test/workflows/admin/audit-completeness.catalog.ts`**: `AdminActionCensusEntry`, `ADMIN_ACTION_CENSUS` (9 wired + 4 deferred rows per plan §Component 2), `ACTION_TYPE_COVERAGE` exhaustive record; `export *` from a NEW `test/workflows/admin/` barrel if the layer convention requires (check sibling journeys' import style first).
   - QL + TE (type-level: exhaustiveness breaks on enum change) + SEC (no secrets in catalog) + SR + IV
   - _Requirements: REQ-010, REQ-042.3_
-- [ ] 2.2 **CREATE `backend/db/test/logic/audit/audit-census-drift.test.ts`**: corpus walk of `backend/graphql/mutation/**`; extract admin-gated mutation fields (plain-map AND `$all` forms); bijection vs census wired rows; corpus sanity ≥9; deferred rows reference existing ledger ids; negative self-test harness (helper accepts an injected extra field and the assertion fails).
+- [x] 2.2 **CREATE `backend/db/test/logic/audit/audit-census-drift.test.ts`**: corpus walk of `backend/graphql/mutation/**`; extract admin-gated mutation fields (plain-map AND `$all` forms); bijection vs census wired rows; corpus sanity ≥9; deferred rows reference existing ledger ids; negative self-test harness (helper accepts an injected extra field and the assertion fails).
   - QL + TE (t1: both directions; t2: malformed authScopes blocks skipped honestly; t4: injected fake mutation fails) + SEC + SR + IV
   - _Requirements: REQ-020_
 
 ## Phase 3 — Plan-Catalog Emission (gap G-06)
 
-- [ ] 3.1 **MODIFY `backend/services/billing/plan-catalog.service.ts`**: new actorId-threaded signatures (plan §Component 4 order); `assertActorAdmin` gate first; emissions at the three seams (`createPlan`→Create, `updatePlan`→Update, `setPlanActiveStatus`→Suspend/Reactivate); `buildPlanAuditContract` helper colocated (name-unique, no barrel collision).
+- [x] 3.1 **MODIFY `backend/services/billing/plan-catalog.service.ts`**: new actorId-threaded signatures (plan §Component 4 order); `assertActorAdmin` gate first; emissions at the three seams (`createPlan`→Create, `updatePlan`→Update, `setPlanActiveStatus`→Suspend/Reactivate); `buildPlanAuditContract` helper colocated (name-unique, no barrel collision).
   - QL + TE (tier1 all three paths; tier2 unknown id / already-in-status / empty patch; tier3 concurrent toggles via Promise.allSettled leave consistent trail; tier4 non-admin actorId denied before any write) + SEC + SR + IV
   - _Requirements: REQ-030.1–.4, REQ-070.1–.2_
-- [ ] 3.2 **MODIFY `backend/graphql/mutation/plan-catalog.mutation.ts`**: thread `ctx.user.id` into the three resolvers (assert non-null as in session-lifecycle mutations); authScopes unchanged.
+- [x] 3.2 **MODIFY `backend/graphql/mutation/plan-catalog.mutation.ts`**: thread `ctx.user.id` into the three resolvers (assert non-null as in session-lifecycle mutations); authScopes unchanged.
   - QL + TE (resolver wiring covered by service tests + journey; add GraphQL-level assertion only if the layer's convention requires) + SEC (BFLA re-check) + SR + IV
   - _Requirements: REQ-030.5..6_
-- [ ] 3.3 **Outcome**: `outcome/3.x-plan-catalog-outcome.md` (seam consumption, signature ripple, test deltas).
+- [x] 3.3 **Outcome**: `outcome/3.x-plan-catalog-outcome.md` (seam consumption, signature ripple, test deltas).
 
 ## Phase 4 — Dispute Arbitration Emission (gap G-07)
 

@@ -6,14 +6,51 @@
  * for all 5 plan operations (planCatalog, adminPlans, createPlan, updatePlan, setPlanActiveStatus).
  */
 
-import { describe, expect, test } from "bun:test";
+import { afterAll, describe, expect, test } from "bun:test";
+import { and, eq, inArray } from "drizzle-orm";
 import { graphql } from "graphql";
+import { db } from "@/backend/db";
+import { auditLogs } from "@/backend/db/schema/audit/audit-logs";
+import { plans as plansSchema } from "@/backend/db/schema/billing/plans";
+import { users } from "@/backend/db/schema/users/users";
 import { toUserRole, UserRole } from "@/backend/enum";
 import type { Context } from "@/backend/graphql/gqlContextFactory";
 import { graphQLSchema } from "@/backend/graphql/gqlSchema";
 import type { RegistrationReturnType, UserSelectType } from "@/backend/types";
 import { getServerTranslations } from "@/shared/locale/server-graphql";
 import type { Translations } from "@/shared/locale/types/message";
+import { withAuditDeleteTriggersSuspended } from "@/test/helpers/db-cleanup";
+
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL ?? "admin@app.local";
+
+/**
+ * Plan rows created by the admin happy-path tests are committed to the real
+ * database (the mutation stack owns its pool transactions), so their ids are
+ * tracked and the rows are removed — together with the audit rows they
+ * minted — once the suite finishes.
+ */
+const trackedPlanIds: number[] = [];
+let seededAdminRow: UserSelectType | null = null;
+
+async function resolveSeededAdmin(): Promise<UserSelectType> {
+  if (seededAdminRow) return seededAdminRow;
+  const [row] = await db.select().from(users).where(eq(users.email, ADMIN_EMAIL)).limit(1);
+  if (!row) {
+    throw new Error(`seeded admin ${ADMIN_EMAIL} not found — run the seed step before this suite`);
+  }
+  seededAdminRow = row;
+  return row;
+}
+
+afterAll(async () => {
+  if (trackedPlanIds.length === 0) return;
+  const ids = [...trackedPlanIds];
+  await withAuditDeleteTriggersSuspended(async () => {
+    await db.delete(auditLogs).where(and(eq(auditLogs.entityType, "plan"), inArray(auditLogs.entityId, ids)));
+  });
+  await db.delete(plansSchema).where(inArray(plansSchema.id, ids));
+  trackedPlanIds.length = 0;
+});
 
 function buildContextForUser(user: UserSelectType | null): Context {
   let safeUser: RegistrationReturnType | null = null;
@@ -240,7 +277,7 @@ describe("Plan Catalog GraphQL Role-Matrix (REQ-064)", () => {
     );
 
     test("Admin successfully creates plan", async () => {
-      const admin = mockUser(UserRole.Admin);
+      const admin = await resolveSeededAdmin();
       const res = await graphql({
         schema: graphQLSchema,
         source: document,
@@ -253,6 +290,7 @@ describe("Plan Catalog GraphQL Role-Matrix (REQ-064)", () => {
       const created = data?.createPlan;
       expect(created?.title).toContain("Admin Create");
       expect(created?.isActive).toBe(true);
+      if (created?.id != null) trackedPlanIds.push(Number(created.id));
     });
   });
 
@@ -298,7 +336,7 @@ describe("Plan Catalog GraphQL Role-Matrix (REQ-064)", () => {
     );
 
     test("Admin successfully updates plan", async () => {
-      const admin = mockUser(UserRole.Admin);
+      const admin = await resolveSeededAdmin();
 
       // Create a plan first to obtain a valid ID
       const createRes = await graphql({
@@ -322,6 +360,7 @@ describe("Plan Catalog GraphQL Role-Matrix (REQ-064)", () => {
 
       const createdId = extractResultData(createRes)?.createPlan?.id;
       expect(createdId).toBeDefined();
+      if (createdId != null) trackedPlanIds.push(Number(createdId));
 
       const res = await graphql({
         schema: graphQLSchema,
@@ -380,7 +419,7 @@ describe("Plan Catalog GraphQL Role-Matrix (REQ-064)", () => {
     );
 
     test("Admin successfully deactivates and reactivates plan", async () => {
-      const admin = mockUser(UserRole.Admin);
+      const admin = await resolveSeededAdmin();
 
       // Create a plan first to obtain a valid ID
       const createRes = await graphql({
@@ -404,6 +443,7 @@ describe("Plan Catalog GraphQL Role-Matrix (REQ-064)", () => {
 
       const createdId = extractResultData(createRes)?.createPlan?.id;
       expect(createdId).toBeDefined();
+      if (createdId != null) trackedPlanIds.push(Number(createdId));
 
       // Deactivate
       const res1 = await graphql({

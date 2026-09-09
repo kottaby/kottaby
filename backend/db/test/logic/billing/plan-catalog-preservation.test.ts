@@ -16,6 +16,9 @@ import { PlanCatalogService } from "@/backend/services/billing/plan-catalog.serv
 describe("Plan Catalog Preservation Proof (REQ-075)", () => {
   test("Deactivating a plan preserves plan history and linked user records without deletion", async () => {
     await runInRollback(async tx => {
+      // Catalog mutations are admin-gated: every mutation is attributed to a
+      // real admin-role user row the service re-asserts before any write.
+      const admin = await createTestUser(tx, { role: "admin" });
       const user = await createTestUser(tx, { role: "student" });
       const plan = await createTestPlan(tx, {
         title: "Preservation Plan",
@@ -30,7 +33,7 @@ describe("Plan Catalog Preservation Proof (REQ-075)", () => {
       const initialUserId = user.id;
       const initialUserEmail = user.email;
       // Deactivate plan
-      const deactivated = await PlanCatalogService.setPlanActiveStatus(plan.id, false, "en", tx);
+      const deactivated = await PlanCatalogService.setPlanActiveStatus(plan.id, false, admin.id, "en", tx);
       expect(deactivated.id).toBe(plan.id);
       expect(deactivated.isActive).toBe(false);
       expect(deactivated.deactivatedAt).not.toBeNull();
@@ -51,6 +54,7 @@ describe("Plan Catalog Preservation Proof (REQ-075)", () => {
 
   test("Updating a plan price and interval preserves original record ID and createdAt timestamp", async () => {
     await runInRollback(async tx => {
+      const admin = await createTestUser(tx, { role: "admin" });
       const plan = await createTestPlan(tx, {
         title: "Price Evolution Plan",
         sessionCount: 8,
@@ -69,6 +73,7 @@ describe("Plan Catalog Preservation Proof (REQ-075)", () => {
           price: "350.00",
           intervalDays: 45,
         },
+        admin.id,
         "en",
         tx
       );
