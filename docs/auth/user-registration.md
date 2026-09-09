@@ -286,7 +286,7 @@ The `refresh_token` is also set as an **httpOnly cookie** by the Next.js route h
 
 `query me` → `backend/graphql/query/auth.query.ts` (the resolver returns `ctx.user` directly — no service method):
 - Reads `ctx.user` (populated by `gqlContextFactory` from the `Authorization: Bearer <access_token>` header).
-- Returns the authenticated user shape or `null` if anonymous.
+- Requires an authenticated context (`authScopes: { authenticated: true }`): anonymous requests are rejected with GraphQL `UNAUTHORIZED` BEFORE the resolver runs (`me` is deliberately absent from `PUBLIC_OPERATION_NAMES`); the AuthProvider catches that error and restores the session via `refreshToken`. Authenticated requests return the full user shape.
 
 ### 7.4 `refreshToken` mutation
 
