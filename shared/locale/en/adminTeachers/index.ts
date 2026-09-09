@@ -7,6 +7,7 @@ export const adminTeachersEn: AdminTeachersLabels = {
     teachersTab: "Teachers",
     applicantsTab: "Applicants",
   },
+  scrollBackToTop: "Back to top",
   headers: {
     name: "Name",
     status: "Status",
