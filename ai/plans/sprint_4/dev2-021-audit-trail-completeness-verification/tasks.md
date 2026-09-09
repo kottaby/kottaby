@@ -72,10 +72,10 @@
 
 ## Phase 5 — Completeness Journey
 
-- [ ] 5.1 **CREATE `test/workflows/admin/audit-completeness.journey.test.ts`** (steps 1–12 of specs'): cast (2 admins + parent/student/teacher denials), census-driven action execution, full row-shape assertions, observer filtered reads (`listAuditTrail` filters: actor/actionType/entityType/entityId/time window), Adjust fixture lane, denials zero-mint, 1:1 mapping + count oracles, rerun-repeats oracle, teardown with baseline restore.
+- [x] 5.1 **CREATE `test/workflows/admin/audit-completeness.journey.test.ts`** (steps 1–12 of specs'): cast (2 admins + parent/student/teacher denials), census-driven action execution, full row-shape assertions, observer filtered reads (`listAuditTrail` filters: actor/actionType/entityType/entityId/time window), Adjust fixture lane, denials zero-mint, 1:1 mapping + count oracles, rerun-repeats oracle, teardown with baseline restore.
   - QL + TE (the file IS the test) + SEC (denial matrix) + SR + IV
   - _Requirements: REQ-040, REQ-041, REQ-042, REQ-043, REQ-070_
-- [ ] 5.2 **Outcome**: `outcome/5.x-journey-outcome.md` (oracle table, timings, flakes-if-any).
+- [x] 5.2 **Outcome**: `outcome/5.x-journey-outcome.md` (oracle table, timings, flakes-if-any).
 
 ## Phase 6 — Documentation & Propagation
 
