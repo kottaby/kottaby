@@ -14,7 +14,7 @@ import type { SessionRequestWaveKind, SessionWaveContext, SessionWaveParticipant
 import type { getServerTranslations } from "@/shared/locale/server-graphql";
 
 /** Localized intent label — exhaustive over every SessionIntent member. */
-export function resolveIntentLabel(
+function resolveIntentLabel(
   intent: SessionIntent,
   tNotifications: ReturnType<typeof getServerTranslations>["notificationsTranslations"]
 ): string {

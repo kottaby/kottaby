@@ -40,8 +40,6 @@ import { logger } from "@/backend/lib/logger";
 import { AuditService } from "@/backend/services/admin/audit.service";
 import { isClaimKeyUniqueViolation } from "@/backend/services/classes/session-lifecycle.guards";
 
-export { SESSION_STARTED_STATUS } from "@/backend/services/classes/session-lifecycle.guards";
-
 import { refundHeldLaneToProvenance } from "@/backend/services/classes/session-lifecycle.transitions";
 import { SessionRequestNotificationService } from "@/backend/services/classes/session-request-notification.service";
 import type { NotificationEngineCallOptions } from "@/backend/services/notifications";
