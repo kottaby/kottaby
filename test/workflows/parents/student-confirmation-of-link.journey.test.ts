@@ -136,6 +136,10 @@ const PARENT_LINK_NOTIFICATION_TYPE: NotificationRow["type"] = NotificationType.
  * DEV1-014-shipped emitters' own constant).
  */
 const PARENT_LINK_RELATED_ENTITY_TYPE = "parent_link_request";
+// Parent-audience refinement (issue #99) — the decision rows carry this
+// instead, so the drawer routes them to the feed, not the student-only
+// decision route.
+const PARENT_LINK_DECISION_RELATED_ENTITY_TYPE = "parent_link_request_decision";
 
 /** Closed outgoing wire shape (the parent never sees raw student identity). */
 const OUTGOING_KEYS = ["createdAt", "expiresAt", "id", "respondedAt", "status", "studentMaskedName"];
@@ -237,7 +241,11 @@ function callOptions(): NotificationEngineCallOptions {
 }
 
 /** Publish oracle: EXACTLY ONE post-commit publish, addressed to `targetUserId` alone. */
-function expectSinglePublish(targetUserId: number, relatedEntityId: number): void {
+function expectSinglePublish(
+  targetUserId: number,
+  relatedEntityId: number,
+  relatedEntityType: string = PARENT_LINK_RELATED_ENTITY_TYPE
+): void {
   expect(transportSpy.publishCount).toBe(1);
   const call = transportSpy.lastCall;
   if (call === null) {
@@ -245,7 +253,7 @@ function expectSinglePublish(targetUserId: number, relatedEntityId: number): voi
   }
   expect(call.userIds).toEqual([targetUserId]);
   expect(call.payload.data.type).toBe(NotificationType.ParentLinkRequest);
-  expect(call.payload.data.relatedEntityType).toBe(PARENT_LINK_RELATED_ENTITY_TYPE);
+  expect(call.payload.data.relatedEntityType).toBe(relatedEntityType);
   expect(call.payload.data.relatedEntityId).toBe(relatedEntityId);
 }
 
@@ -780,7 +788,7 @@ describe("Journey — student confirmation of the parent link (steps 1–11)", (
     expect(rejectionRow.body).toBe(enNotifications.eventParentLinkRejectedBody(studentSRow.fullName));
 
     // Fanout: exactly ONE post-commit publish to the parent.
-    expectSinglePublish(s.parentA.userId, requestId);
+    expectSinglePublish(s.parentA.userId, requestId, PARENT_LINK_DECISION_RELATED_ENTITY_TYPE);
     transportSpy.clear();
   });
 
@@ -860,7 +868,7 @@ describe("Journey — student confirmation of the parent link (steps 1–11)", (
     expect(acceptanceRow.body).toBe(enNotifications.eventParentLinkAcceptedBody(studentSRow.fullName));
 
     // Fanout: exactly ONE post-commit publish to the parent.
-    expectSinglePublish(s.parentB.userId, confirmTargetId);
+    expectSinglePublish(s.parentB.userId, confirmTargetId, PARENT_LINK_DECISION_RELATED_ENTITY_TYPE);
     transportSpy.clear();
   });
 
@@ -948,7 +956,7 @@ describe("Journey — student confirmation of the parent link (steps 1–11)", (
     // The winner's parent: exactly ONE acceptance notification + one publish.
     const parentBInbox = await linkInboxRowsFor(s.parentB.userId);
     expect(parentBInbox.filter(row => row.relatedEntityId === winnerRequestId)).toHaveLength(1);
-    expectSinglePublish(s.parentB.userId, winnerRequestId);
+    expectSinglePublish(s.parentB.userId, winnerRequestId, PARENT_LINK_DECISION_RELATED_ENTITY_TYPE);
     transportSpy.clear();
 
     // Loser: the confirm attempt on the expired sibling collapses to the
@@ -1224,15 +1232,16 @@ describe("Journey — student confirmation of the parent link (steps 1–11)", (
     expect(referencedIds.has(requireRequestId(REQUEST.reapplySibling))).toBe(true);
     expect(referencedIds.size).toBe(3);
 
-    // The parents' outcome rows carry the SAME relatedEntityType with the
-    // SAME relatedEntityId values — the notification data contract is
-    // symmetric, so a parent-side drawer row resolves to the same request
-    // entity the student's row points at.
+    // The parents' outcome rows carry the DECISION refinement with the SAME
+    // relatedEntityId values — the notification data contract binds both
+    // parties to the same request entity, while the audience-scoped
+    // relatedEntityType keeps the parent-side drawer row on the notifications
+    // feed (issue #99) instead of the student-only decision route.
     const aInbox = await linkInboxRowsFor(s.parentA.userId);
     const bInbox = await linkInboxRowsFor(s.parentB.userId);
     for (const row of [...aInbox, ...bInbox]) {
       expect(row.type).toBe(PARENT_LINK_NOTIFICATION_TYPE);
-      expect(row.relatedEntityType).toBe(PARENT_LINK_RELATED_ENTITY_TYPE);
+      expect(row.relatedEntityType).toBe(PARENT_LINK_DECISION_RELATED_ENTITY_TYPE);
       expect(row.relatedEntityId).not.toBeNull();
     }
     const outcomeEntityIds = [...aInbox, ...bInbox].map(row => row.relatedEntityId);

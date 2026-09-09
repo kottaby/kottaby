@@ -17,11 +17,20 @@ const NOTIFICATIONS_FEED_ROUTE = "/notifications";
 
 /**
  * `relatedEntityType` → deep-link route. The persisted `related_entity_type`
- * varchar carries the backend `NotificationType` enum VALUE (e.g.
- * `"parent_link_request"`), so the keys are that enum's members — never bare
- * string literals. `undefined` values model the runtime miss for an unknown
- * entity type (the realtime payload-map precedent in
- * `use-notification-realtime.helpers.ts`).
+ * varchar carries the backend `NotificationType` enum VALUE for the
+ * STUDENT-targeted parent-link row (e.g. `"parent_link_request"`), so that
+ * key is the enum's member — never a bare string literal. `undefined` values
+ * model the runtime miss for an unknown entity type (the realtime payload-map
+ * precedent in `use-notification-realtime.helpers.ts`).
+ *
+ * PARENT-targeted parent-link rows (issue #99) deliberately carry
+ * audience-scoped refinement values (`parent_link_request_decision` /
+ * `parent_link_request_expiry`, backend `parent-link-request.helpers.ts`)
+ * that MISS this map — the fall-through below lands them on the notifications
+ * feed instead of the student-only decision route. Adding them as keys is
+ * intentionally avoided: the fall-through is the designed safe default, and
+ * absence keeps this leaf module free of literals that could drift from the
+ * backend constants.
  */
 const NOTIFICATION_ROUTE_BY_ENTITY_TYPE: Readonly<Record<string, string | undefined>> = {
   [NotificationType.ParentLinkRequest]: STUDENT_LINK_REQUESTS_ROUTE,

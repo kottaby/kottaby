@@ -85,6 +85,7 @@ const FIXED_ISO = "2026-08-29T12:00:00.000Z";
 
 const LINK_REQUEST_ROW_TITLE = "drawer-deeplink-link-request";
 const UNKNOWN_ENTITY_ROW_TITLE = "drawer-deeplink-unknown-entity";
+const PARENT_DECISION_ROW_TITLE = "drawer-deeplink-parent-decision";
 
 /**
  * Fixture row type — the codegen row PLUS `__typename` (MockLink passes
@@ -133,6 +134,19 @@ const UNKNOWN_ENTITY_ROW = drawerRow({
   // bare literal is the fixture for that out-of-vocabulary varchar.
   type: NotificationType.SystemBroadcast,
   relatedEntityType: "unknown_entity_type",
+});
+
+const PARENT_DECISION_ROW = drawerRow({
+  id: "303",
+  title: PARENT_DECISION_ROW_TITLE,
+  // The PARENT-audience outcome row (issue #99): same notification TYPE as
+  // the student row, but the audience-scoped `related_entity_type`
+  // refinement (`parent_link_request_decision`, backend
+  // `parent-link-request.helpers.ts`) deliberately MISSES the route map —
+  // the row must anchor to the notifications feed, never the student-only
+  // decision route. The bare literal pins the backend wire value.
+  type: NotificationType.ParentLinkRequest,
+  relatedEntityType: "parent_link_request_decision",
 });
 
 /** The drawer's single inbox window (mirrors `DRAWER_PAGE_SIZE`). */
@@ -229,6 +243,20 @@ for (const locale of ["ar", "en"] as AppLocale[]) {
       expect(row.getAttribute("href")).toBe("/notifications");
       expect(webSocketConstructions).toBe(0);
     });
+
+    test("a PARENT-audience decision row falls through to the notifications feed (issue #99)", async () => {
+      renderDrawer([countMock(0), listMock([PARENT_DECISION_ROW])], locale);
+
+      const row = await waitFor(() => screen.getByText(PARENT_DECISION_ROW_TITLE).closest("a"));
+      if (row === null) {
+        throw new Error("row anchor must render (the row IS a Link anchor)");
+      }
+      // The decision refinement (`parent_link_request_decision`) is IN the
+      // parent-link family but OUT of the route map's student key — the row
+      // anchors to the feed page, never the student-only decision route.
+      expect(row.getAttribute("href")).toBe("/notifications");
+      expect(webSocketConstructions).toBe(0);
+    });
   });
 }
 
@@ -238,6 +266,15 @@ describe("resolveNotificationRoute (drawer route-resolution seam)", () => {
   test("maps the backend parent_link_request entity type to the shared route constant", () => {
     expect(resolveNotificationRoute(BackendNotificationType.ParentLinkRequest)).toBe(STUDENT_LINK_REQUESTS_ROUTE);
     expect(STUDENT_LINK_REQUESTS_ROUTE).toBe("/student/link-requests");
+  });
+
+  test("the PARENT-audience refinements fall through to the feed (issue #99 routing cells)", () => {
+    // The three parent-link routing cells: the student incoming row
+    // (pinned above) deep-links; the parent decision + expiry refinement
+    // values MISS the map and land on the feed. The values are the backend
+    // wire contract (`parent-link-request.helpers.ts`) pinned here verbatim.
+    expect(resolveNotificationRoute("parent_link_request_decision")).toBe("/notifications");
+    expect(resolveNotificationRoute("parent_link_request_expiry")).toBe("/notifications");
   });
 
   test("unknown and absent pointers fall through to the feed page (unchanged default)", () => {

@@ -100,7 +100,11 @@ import {
   type NotificationEngineCallOptions,
 } from "@/backend/services/notifications/notification-engine.service";
 import type { NotificationFanoutTransport } from "@/backend/services/notifications/realtime/fanout-transport";
-import { PARENT_LINK_RELATED_ENTITY_TYPE } from "@/backend/services/parents/parent-link-request.helpers";
+import {
+  PARENT_LINK_DECISION_RELATED_ENTITY_TYPE,
+  PARENT_LINK_EXPIRY_RELATED_ENTITY_TYPE,
+  PARENT_LINK_RELATED_ENTITY_TYPE,
+} from "@/backend/services/parents/parent-link-request.helpers";
 import { ParentLinkRequestService } from "@/backend/services/parents/parent-link-request.service";
 import type { DBTransaction, RealtimeNotificationPayload, StudentSelectType, UserSelectType } from "@/backend/types";
 import { isHandshakeCode, normalizeHandshakeCode } from "@/shared/constants/handshake-code.constants";
@@ -242,14 +246,19 @@ class RecordingFanoutTransport implements NotificationFanoutTransport {
  * Publish oracle: EXACTLY ONE publish since the last re-arm, addressed to
  * `targetUserId` alone, carrying the parent-link related-entity binding.
  */
-function expectSinglePublish(transport: RecordingFanoutTransport, targetUserId: number, relatedEntityId: number): void {
+function expectSinglePublish(
+  transport: RecordingFanoutTransport,
+  targetUserId: number,
+  relatedEntityId: number,
+  relatedEntityType: string = PARENT_LINK_RELATED_ENTITY_TYPE
+): void {
   expect(transport.publishCount).toBe(1);
   const call = transport.lastPublish;
   if (call === null) {
     throw new Error("expected one recorded publish");
   }
   expect(call.userIds).toEqual([targetUserId]);
-  expect(call.payload.data.relatedEntityType).toBe("parent_link_request");
+  expect(call.payload.data.relatedEntityType).toBe(relatedEntityType);
   expect(call.payload.data.relatedEntityId).toBe(relatedEntityId);
 }
 
@@ -824,7 +833,7 @@ describe("ParentLinkRequestService.respondToLinkRequest", () => {
     // The parent's notification: accepted copy bound to the request row.
     const parentAInbox = await linkInboxRowsFor(db, c.parentA.id);
     expect(parentAInbox).toHaveLength(1);
-    expect(parentAInbox[0]?.relatedEntityType).toBe("parent_link_request");
+    expect(parentAInbox[0]?.relatedEntityType).toBe(PARENT_LINK_DECISION_RELATED_ENTITY_TYPE);
     expect(parentAInbox[0]?.relatedEntityId).toBe(requestA.id);
     const arCopy = getServerTranslations(LOCALE_AR).notificationsTranslations;
     const enCopy = getServerTranslations(LOCALE_EN).notificationsTranslations;
@@ -833,8 +842,9 @@ describe("ParentLinkRequestService.respondToLinkRequest", () => {
     // The deciding student's inbox gained NOTHING from the respond.
     expect(await linkInboxRowsFor(db, acceptCast.user.id)).toHaveLength(2);
 
-    // EXACTLY ONE publish, to the winner parent alone.
-    expectSinglePublish(transport, c.parentA.id, requestA.id);
+    // EXACTLY ONE publish, to the winner parent alone — the parent audience
+    // carries the decision refinement (issue #99).
+    expectSinglePublish(transport, c.parentA.id, requestA.id, PARENT_LINK_DECISION_RELATED_ENTITY_TYPE);
 
     // Sibling pendings of the winner's student are terminal, seen
     // by BOTH parents from their own lists.
@@ -915,7 +925,7 @@ describe("ParentLinkRequestService.respondToLinkRequest", () => {
     const enCopy = getServerTranslations(LOCALE_EN).notificationsTranslations;
     expect(rejectedRow?.title).toBe(enCopy.eventParentLinkRejectedTitle);
     expect(rejectedRow?.body).toBe(enCopy.eventParentLinkRejectedBody(rejectCast.user.fullName));
-    expectSinglePublish(transport, c.parentA.id, requestA.id);
+    expectSinglePublish(transport, c.parentA.id, requestA.id, PARENT_LINK_DECISION_RELATED_ENTITY_TYPE);
   });
 
   test("Tier 1 — caller-tx accept NEVER publishes: claim + link + notify + sibling expiry all in-tx", async () => {
@@ -1119,7 +1129,7 @@ describe("ParentLinkRequestService.respondToLinkRequest", () => {
     );
     expect(first.status).toBe(LinkStatus.Confirmed);
     expect(first.respondedAt).not.toBeNull();
-    expectSinglePublish(transport, c.parentA.id, created.id);
+    expectSinglePublish(transport, c.parentA.id, created.id, PARENT_LINK_DECISION_RELATED_ENTITY_TYPE);
 
     // The parent's acceptance copy: EXACTLY ONE inbox row bound to the request.
     const accepted = (await linkInboxRowsFor(db, c.parentA.id)).filter(row => row.relatedEntityId === created.id);
@@ -1451,7 +1461,7 @@ describe("ParentLinkRequestService.sendExpiryReminders", () => {
     expect(reminder?.body).toBe(
       enCopy.eventParentLinkExpiringBody(isolateBidi(maskFullName(reminderCast.studentAName)))
     );
-    expect(reminder?.relatedEntityType).toBe(PARENT_LINK_RELATED_ENTITY_TYPE);
+    expect(reminder?.relatedEntityType).toBe(PARENT_LINK_EXPIRY_RELATED_ENTITY_TYPE);
 
     // The out-of-window pending got NO reminder.
     expect(inbox.filter(row => row.relatedEntityId === reminderCast.beyondId)).toHaveLength(0);
