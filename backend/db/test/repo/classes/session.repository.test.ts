@@ -1524,13 +1524,16 @@ describe("SessionRepository — transactional paths (runInRollback)", () => {
   });
 
   // The repository implementation is split across the public namespace file
-  // and its sibling helpers module (behavior-identical max-lines refactor):
-  // every source pin below scans BOTH files as one implementation unit, so
-  // the pinned invariants (executor discipline, predicate sharing, SQL
+  // and its sibling helpers modules (behavior-identical max-lines refactors:
+  // the read machinery in `session.repository.helpers.ts`, the joined
+  // wave-context read in `session.repository.wave.helpers.ts`): every source
+  // pin below scans ALL THREE files as one implementation unit, so the
+  // pinned invariants (executor discipline, predicate sharing, SQL
   // interpolation allowlist) keep covering the whole repository layer.
   const REPO_FILES = [
     join(import.meta.dir, "../../../repo/classes/session.repository.ts"),
     join(import.meta.dir, "../../../repo/classes/session.repository.helpers.ts"),
+    join(import.meta.dir, "../../../repo/classes/session.repository.wave.helpers.ts"),
   ];
   const repoSource = REPO_FILES.map(file => readFileSync(file, "utf8")).join("\n");
 
@@ -1662,9 +1665,10 @@ describe("SessionRepository — transactional paths (runInRollback)", () => {
     expect(repoSource.includes("const executor = tx ?? db;")).toBe(true);
     expect(repoSource.match(/const executor = tx \?\? db;/g) ?? []).toHaveLength(13);
     expect(repoSource.match(/queryDb</g) ?? []).toHaveLength(11);
-    // Twenty-four exported methods, every one ending in the optional tx
+    // Twenty-five exported methods (each namespace read method plus its
+    // one-to-one sibling implementation), every one ending in the optional tx
     // (LAST param); no REQUIRED-tx signature exists in this repository.
-    expect(repoSource.match(/export async function /g) ?? []).toHaveLength(24);
+    expect(repoSource.match(/export async function /g) ?? []).toHaveLength(25);
     expect((repoSource.match(/tx\?: DBTransaction/g) ?? []).length).toBeGreaterThanOrEqual(19);
     expect(repoSource.includes("tx: DBTransaction")).toBe(false);
   });

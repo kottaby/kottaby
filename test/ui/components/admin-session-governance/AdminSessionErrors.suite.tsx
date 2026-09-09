@@ -95,9 +95,13 @@ const COMPLETED_ID = "7413";
 const CANCELLED_ID = "7414";
 const DISPUTED_ID = "7415";
 
+/** Two-digit zero-pad — module scope (the consistent-function-scoping rule). */
+function pad(value: number): string {
+  return String(value).padStart(2, "0");
+}
+
 /** The dialog confirm arms submit the prefilled pair through this oracle. */
 function expectedSubmitIso(fixtureIso: string): string {
-  const pad = (value: number): string => String(value).padStart(2, "0");
   const instant = new Date(fixtureIso);
   const token = `${instant.getFullYear()}-${pad(instant.getMonth() + 1)}-${pad(instant.getDate())}T${pad(
     instant.getHours()

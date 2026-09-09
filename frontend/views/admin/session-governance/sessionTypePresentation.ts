@@ -35,6 +35,11 @@ export const SESSION_INTENT_LABEL_KEY: Record<string, SessionIntentLabelKey> = {
   [SessionIntent.Evaluation]: "intentEvaluation",
 };
 
+/** Two-digit zero-pad for the `datetime-local` token's numeric date/time fields. */
+function pad(value: number): string {
+  return String(value).padStart(2, "0");
+}
+
 /**
  * ISO wire instant → local `datetime-local` token (the reschedule dialog's
  * prefill converter). An absent or unparseable instant yields the empty
@@ -46,7 +51,6 @@ export function isoToDatetimeLocalToken(iso: string | null): string {
   if (iso === null) return "";
   const instant = new Date(iso);
   if (Number.isNaN(instant.getTime())) return "";
-  const pad = (value: number): string => String(value).padStart(2, "0");
   return `${instant.getFullYear()}-${pad(instant.getMonth() + 1)}-${pad(instant.getDate())}T${pad(
     instant.getHours()
   )}:${pad(instant.getMinutes())}`;

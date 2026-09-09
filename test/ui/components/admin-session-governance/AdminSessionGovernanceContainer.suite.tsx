@@ -203,6 +203,53 @@ function cancelledPayload(sessionId: string): RowFixture {
   return rowFixture({ id: sessionId, status: SessionStatus.Cancelled, feeHeld: false });
 }
 
+/** One kebab-eligibility scenario's expected gating (branch 8, per-status). */
+interface KebabEligibilityScenario {
+  /** Lifecycle fixture label (test-title DATA, never locale copy). */
+  readonly label: string;
+  readonly row: RowFixture;
+  readonly expected: { details: boolean; reschedule: boolean; cancel: boolean; reassign: boolean; join: boolean };
+}
+
+/** One render per status keeps the open menus isolated (branch 8's matrix). */
+const KEBAB_ELIGIBILITY_CASES: readonly KebabEligibilityScenario[] = [
+  {
+    label: "scheduled fresh",
+    row: rowFixture({ id: SCHEDULED_FRESH_ID }),
+    expected: { details: true, reschedule: true, cancel: true, reassign: true, join: false },
+  },
+  {
+    label: "started",
+    row: rowFixture({ id: STARTED_ID, status: SessionStatus.Started, startedAt: PAST_START_ISO, endedAt: null }),
+    expected: { details: true, reschedule: true, cancel: true, reassign: false, join: true },
+  },
+  {
+    label: "completed",
+    row: rowFixture({
+      id: COMPLETED_ID,
+      status: SessionStatus.Completed,
+      startedAt: PAST_START_ISO,
+      endedAt: PAST_END_ISO,
+    }),
+    expected: { details: true, reschedule: false, cancel: false, reassign: false, join: false },
+  },
+  {
+    label: "cancelled",
+    row: rowFixture({ id: CANCELLED_ID, status: SessionStatus.Cancelled, startedAt: null, endedAt: null }),
+    expected: { details: true, reschedule: false, cancel: false, reassign: false, join: false },
+  },
+  {
+    label: "disputed",
+    row: rowFixture({
+      id: DISPUTED_ID,
+      status: SessionStatus.Disputed,
+      startedAt: PAST_START_ISO,
+      endedAt: null,
+    }),
+    expected: { details: true, reschedule: false, cancel: false, reassign: false, join: false },
+  },
+];
+
 // ---------------------------------------------------------------------------
 // Mock builders
 
@@ -350,6 +397,14 @@ async function openRowMenu(sessionId: string): Promise<HTMLElement> {
 type KebabAction = "details" | "reschedule" | "cancel" | "reassign" | "join";
 
 /**
+ * The kebab actions in matrix order — a const key tuple, so the iteration
+ * over the expected table indexes a fully-keyed object with its OWN key
+ * union and needs NO type assertion (oxlint `no-unsafe-type-assertion` —
+ * the root cause is avoided, never silenced).
+ */
+const KEBAB_ACTIONS: readonly KebabAction[] = ["details", "reschedule", "cancel", "reassign", "join"];
+
+/**
  * Resolves one kebab item by testid. Disabled items stay clickable through
  * `fireEvent` (MUI blocks them at the handler seam via `aria-disabled`).
  */
@@ -369,10 +424,24 @@ async function expectEligibility(
   }
 ): Promise<void> {
   const menu = await openRowMenu(sessionId);
-  for (const [action, enabled] of Object.entries(expected) as ReadonlyArray<[KebabAction, boolean]>) {
+  for (const action of KEBAB_ACTIONS) {
+    const enabled: boolean = expected[action];
     const item = kebabItem(menu, sessionId, action);
     expect(item.getAttribute("aria-disabled")).toBe(enabled ? null : "true");
   }
+}
+
+/**
+ * Assertion-free read of an MUI TextField's underlying input: getByLabelText
+ * resolves the FIELD element itself, so the guard narrows it or fails the
+ * arm loudly — no `as HTMLInputElement` cast (oxlint
+ * `no-unsafe-type-assertion`; the root cause is avoided, never silenced).
+ */
+function inputElementOrThrow(element: HTMLElement): HTMLInputElement {
+  if (!(element instanceof HTMLInputElement)) {
+    throw new Error("expected the labelled element to be an HTMLInputElement");
+  }
+  return element;
 }
 
 /** Resolves the count `<p>` of one summary card (count Typography precedes the label). */
@@ -612,50 +681,19 @@ for (const locale of componentSuiteLocales) {
       expect(within(screen.getByTestId("admin-session-governance-pager")).getByText("1 / 2")).toBeDefined();
     });
 
-    test("branch 8 — kebab eligibility matrix: disabled-with-hint vs enabled across the lifecycle", async () => {
-      // One render per status keeps the open menus isolated (each iteration
-      // cleans up before the next render mounts a fresh directory).
-      const cases: ReadonlyArray<{
-        readonly row: RowFixture;
-        readonly expected: { details: boolean; reschedule: boolean; cancel: boolean; reassign: boolean; join: boolean };
-      }> = [
-        {
-          row: rowFixture({ id: SCHEDULED_FRESH_ID }),
-          expected: { details: true, reschedule: true, cancel: true, reassign: true, join: false },
-        },
-        {
-          row: rowFixture({ id: STARTED_ID, status: SessionStatus.Started, startedAt: PAST_START_ISO, endedAt: null }),
-          expected: { details: true, reschedule: true, cancel: true, reassign: false, join: true },
-        },
-        {
-          row: rowFixture({
-            id: COMPLETED_ID,
-            status: SessionStatus.Completed,
-            startedAt: PAST_START_ISO,
-            endedAt: PAST_END_ISO,
-          }),
-          expected: { details: true, reschedule: false, cancel: false, reassign: false, join: false },
-        },
-        {
-          row: rowFixture({ id: CANCELLED_ID, status: SessionStatus.Cancelled, startedAt: null, endedAt: null }),
-          expected: { details: true, reschedule: false, cancel: false, reassign: false, join: false },
-        },
-        {
-          row: rowFixture({
-            id: DISPUTED_ID,
-            status: SessionStatus.Disputed,
-            startedAt: PAST_START_ISO,
-            endedAt: null,
-          }),
-          expected: { details: true, reschedule: false, cancel: false, reassign: false, join: false },
-        },
-      ];
-      for (const scenario of cases) {
+    // Branch 8 — kebab eligibility matrix: ONE TEST PER LIFECYCLE STATUS
+    // (registered in a loop below the branch-7 case). Each scenario mounts
+    // its own single-row directory and awaits through its OWN async test
+    // callback — the registration loop contains no await — and the module
+    // afterEach cleanup unmounts every render before the next test mounts a
+    // fresh directory (identical isolation to the former in-test loop that
+    // called cleanup() between scenarios).
+    for (const scenario of KEBAB_ELIGIBILITY_CASES) {
+      test(`branch 8 — kebab eligibility matrix (${scenario.label}): disabled-with-hint vs enabled`, async () => {
         renderGovernance([directoryMock(1, [scenario.row], 1)], locale);
         await expectEligibility(scenario.row.id, scenario.expected);
-        cleanup();
-      }
-    });
+      });
+    }
 
     test("branch 9 — reschedule dialog: open from kebab, prefilled pair, past-start client gate blocks BEFORE the wire", async () => {
       // NO reschedule mock is chained: a leaked wire call from the gated
@@ -690,9 +728,9 @@ for (const locale of componentSuiteLocales) {
       // fieldset legend notch) — the FIELD is resolved through the label
       // association (getByLabelText), never through a root-wrapper testid.
       const startInput = within(dialog).getByLabelText(muiLabelPattern(t.rescheduleStartLabel));
-      expect((startInput as HTMLInputElement).value).toBe(isoToDatetimeLocalToken(PAST_START_ISO));
+      expect(inputElementOrThrow(startInput).value).toBe(isoToDatetimeLocalToken(PAST_START_ISO));
       const endInput = within(dialog).getByLabelText(muiLabelPattern(t.rescheduleEndLabel));
-      expect((endInput as HTMLInputElement).value).toBe(isoToDatetimeLocalToken(PAST_END_ISO));
+      expect(inputElementOrThrow(endInput).value).toBe(isoToDatetimeLocalToken(PAST_END_ISO));
       expect(within(dialog).getByTestId("reschedule-session-submit").getAttribute("disabled")).toBeNull();
 
       fireEvent.click(within(dialog).getByTestId("reschedule-session-submit"));

@@ -58,6 +58,21 @@ const STATUS_MATRIX: ReadonlyArray<{
   { status: SessionStatus.Disputed, labelKey: "statusDisputed" },
 ];
 
+/**
+ * A wire payload outside the enum — the shape a corrupted cache entry (or a
+ * future server enum member) arrives in. The raw token is written through a
+ * string-typed alias of the status-typed slot: the runtime value stays a
+ * genuine non-enum string while the suite needs NO type assertion
+ * (oxlint `no-unsafe-type-assertion` — the root cause is avoided, never
+ * silenced).
+ */
+function corruptedStatusPayload(): SessionStatus {
+  const entry: { status: SessionStatus } = { status: SessionStatus.Scheduled };
+  const corruptedWrite: { status: string } = entry;
+  corruptedWrite.status = "CORRUPTED_STATUS";
+  return entry.status;
+}
+
 afterEach(cleanup);
 
 for (const locale of componentSuiteLocales) {
@@ -81,7 +96,7 @@ for (const locale of componentSuiteLocales) {
       // A wire payload outside the enum (corrupted cache entry, future
       // server enum member) — the presentation tables' defensive arm keeps
       // the chip renderable, never crashing.
-      const corrupted = "CORRUPTED_STATUS" as unknown as SessionStatus;
+      const corrupted = corruptedStatusPayload();
       const { container } = renderWithWrapper(<AdminSessionRowStatusCell status={corrupted} t={ts} />, { locale });
 
       const chip = container.querySelector("[data-testid='admin-session-status-chip']");

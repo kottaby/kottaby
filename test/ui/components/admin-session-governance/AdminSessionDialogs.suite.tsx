@@ -109,6 +109,13 @@ type RowFixture = AdminSessionRowFixture;
 /** Deterministic payload builder — the shared 21-field governance wire shape. */
 const rowFixture = buildAdminSessionRowFixture;
 
+/**
+ * Stable default for the mutation harnesses' optional `mocks` prop — the
+ * shared empty-reference the no-object-type-as-default-prop rule mandates
+ * (a fresh array literal per render would churn the harness identity).
+ */
+const NO_MUTATION_MOCKS: ReadonlyArray<MockLink.MockedResponse> = [];
+
 /** An end BEFORE the start — the unordered-window validation arm. */
 const EARLIER_END_ISO = "2099-01-10T08:00:00.000Z";
 
@@ -128,6 +135,19 @@ const CANCEL_REASON_TRIMMED = "Duplicate booking.";
  */
 function expectedSubmitIso(fixtureIso: string): string {
   return new Date(isoToDatetimeLocalToken(fixtureIso)).toISOString();
+}
+
+/**
+ * Assertion-free `HTMLInputElement` access for the `datetime-local` prefill
+ * pins — the MUI labelled control is typed as a bare `HTMLElement`, and a
+ * narrowing `as` cast trips the unsafe-assertion lint (same guard shape the
+ * container suite uses).
+ */
+function inputElementOrThrow(element: HTMLElement): HTMLInputElement {
+  if (!(element instanceof HTMLInputElement)) {
+    throw new Error("expected the labelled element to be an HTMLInputElement");
+  }
+  return element;
 }
 
 // ---------------------------------------------------------------------------
@@ -202,7 +222,7 @@ function RescheduleMutationHarness({
   session,
   loading,
   onSubmitSpy,
-  mocks = [],
+  mocks = NO_MUTATION_MOCKS,
 }: {
   readonly session: RowFixture;
   readonly loading: boolean;
@@ -270,7 +290,7 @@ function CancelMutationHarness({
   session,
   loading,
   onSubmitSpy,
-  mocks = [],
+  mocks = NO_MUTATION_MOCKS,
 }: {
   readonly session: RowFixture;
   readonly loading: boolean;
@@ -325,7 +345,7 @@ function ReassignMutationHarness({
   session,
   loading,
   onSubmitSpy,
-  mocks = [],
+  mocks = NO_MUTATION_MOCKS,
 }: {
   readonly session: RowFixture;
   readonly loading: boolean;
@@ -377,7 +397,7 @@ function JoinMutationHarness({
   loading,
   joined,
   onJoinSpy,
-  mocks = [],
+  mocks = NO_MUTATION_MOCKS,
 }: {
   readonly sessionId: string;
   readonly loading: boolean;
@@ -474,8 +494,8 @@ for (const locale of componentSuiteLocales) {
 
       expect(within(dialog).getByRole("heading", { name: t.rescheduleTitle })).not.toBeNull();
       expect(within(dialog).getByText(t.rescheduleBody)).not.toBeNull();
-      const startInput = within(dialog).getByLabelText(muiLabelPattern(t.rescheduleStartLabel)) as HTMLInputElement;
-      const endInput = within(dialog).getByLabelText(muiLabelPattern(t.rescheduleEndLabel)) as HTMLInputElement;
+      const startInput = inputElementOrThrow(within(dialog).getByLabelText(muiLabelPattern(t.rescheduleStartLabel)));
+      const endInput = inputElementOrThrow(within(dialog).getByLabelText(muiLabelPattern(t.rescheduleEndLabel)));
       expect(startInput.value).toBe(isoToDatetimeLocalToken(FUTURE_START_ISO));
       expect(endInput.value).toBe(isoToDatetimeLocalToken(FUTURE_END_ISO));
       expect(within(dialog).getByTestId("reschedule-session-submit").getAttribute("disabled")).toBeNull();

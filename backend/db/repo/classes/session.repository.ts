@@ -44,7 +44,9 @@
  * File layout: the standalone-capable read machinery (shared predicate
  * builders, the select-column shape, the list/count/probe reads) lives in
  * the sibling `session.repository.helpers.ts` module (extracted verbatim);
- * the guarded write transitions stay in this file, their shared
+ * the joined wave-context read lives in the sibling
+ * `session.repository.wave.helpers.ts` module (extracted verbatim); the
+ * guarded write transitions stay in this file, their shared
  * participant live-state predicate factored into the module-level
  * `buildLiveParticipantTransitionPredicate` builder. Every read
  * method is a one-to-one delegation wrapper, so the public API (names,
@@ -54,6 +56,7 @@
 import { and, eq, isNotNull, ne, or, type SQL, sql } from "drizzle-orm";
 import { db } from "@/backend/db";
 import * as sessionRepositoryImpl from "@/backend/db/repo/classes/session.repository.helpers";
+import * as sessionRepositoryWaveImpl from "@/backend/db/repo/classes/session.repository.wave.helpers";
 import { session } from "@/backend/db/schema/classes/session";
 import { teacher } from "@/backend/db/schema/teachers/teacher";
 import { SessionStatus } from "@/backend/enum/scheduling/session-status.enum";
@@ -156,7 +159,7 @@ export namespace SessionRepository {
    *          session-not-found).
    */
   export async function findWaveContextById(id: number, tx?: DBTransaction): Promise<SessionWaveContextRow | null> {
-    return sessionRepositoryImpl.findWaveContextById(id, tx);
+    return sessionRepositoryWaveImpl.findWaveContextById(id, tx);
   }
 
   /**
