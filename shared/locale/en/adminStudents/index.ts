@@ -34,6 +34,7 @@ export const adminStudentsEn: AdminStudentsLabels = {
     all: "All",
   },
   trialBadge: "Trial granted",
+  scrollBackToTop: "Back to top",
   emptyState: {
     title: "No students yet",
     message: "Student accounts will appear here once they register on the platform.",
