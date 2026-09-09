@@ -58,7 +58,15 @@ export function DirectoryPagination(props: DirectoryPaginationProps): ReactNode 
         </Box>
         {` ${labels.pagination.of} ${totalCount}`}
       </Typography>
-      <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, flexWrap: "wrap" }}>
+      <Box
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          gap: 1.5,
+          flexWrap: "wrap",
+          justifyContent: "space-between",
+        }}
+      >
         <Select<number>
           size="small"
           value={pageSize}
@@ -96,7 +104,11 @@ export function DirectoryPagination(props: DirectoryPaginationProps): ReactNode 
           aria-label={labels.pagination.page}
           sx={theme => ({
             // ≥44px pagination buttons (WCAG 2.5.5) without switching the
-            // compact visual variant.
+            // compact visual variant. The page list NEVER wraps internally:
+            // a wrapped ul strands the prev/next arrows on their own lines
+            // on narrow cards; nowrap keeps the pager one atomic centered
+            // block that the outer flex wraps as a whole instead.
+            "& .MuiPagination-ul": { flexWrap: "nowrap", justifyContent: "center" },
             "& .MuiPaginationItem-root": { minWidth: 44, minHeight: 44 },
             "& .MuiPaginationItem-root.Mui-selected": {
               bgcolor: theme.palette.primary.main,

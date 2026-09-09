@@ -99,6 +99,9 @@ export interface AdminStudentsLabels {
   /** Trial chip label shown above the granted timestamp in the trial column. */
   readonly trialBadge: string;
 
+  /** Accessible label for the floating scroll-back-to-top affordance. */
+  readonly scrollBackToTop: string;
+
   /** Empty-state copy rendered inside the table body when no rows match. */
   readonly emptyState: {
     /** Empty-state heading line — shown when no students exist at all. */

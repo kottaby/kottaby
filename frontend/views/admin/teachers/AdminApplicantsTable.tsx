@@ -52,13 +52,17 @@ export function AdminApplicantsTable(props: AdminApplicantsTableProps): ReactNod
   const { labels, items, loading, hasFilters, onCopyEmail } = props;
   const locale = useAppLocale();
   const headers: readonly DirectoryTableHeader[] = [
-    { id: "name", width: "26%", label: labels.headers.name },
+    // COOLDOWN gets ≥15% — the active-cooldown chip ("Cooling down" /
+    // "في فترة تهدئة") needs ~110px of label space; at the former 13% the
+    // fixed-layout cell squeezed the chip into an ellipsis. ACTIONS drops
+    // to 9.5% (a single 44px icon button + cell padding fits comfortably).
+    { id: "name", width: "25%", label: labels.headers.name },
     { id: "status", width: "16%", label: labels.headers.status },
     { id: "attempts", width: "8%", label: labels.applicantHeaders.attempts },
-    { id: "lastAttempt", width: "13%", label: labels.applicantHeaders.lastAttempt },
-    { id: "cooldown", width: "13%", label: labels.applicantHeaders.cooldown },
+    { id: "lastAttempt", width: "13.5%", label: labels.applicantHeaders.lastAttempt },
+    { id: "cooldown", width: "15%", label: labels.applicantHeaders.cooldown },
     { id: "joined", width: "13%", label: labels.headers.joined },
-    { id: "actions", width: "11%", label: labels.applicantHeaders.actions },
+    { id: "actions", width: "9.5%", label: labels.applicantHeaders.actions },
   ];
   return (
     <DirectoryTableScaffold

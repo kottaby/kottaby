@@ -98,7 +98,32 @@ let pgliteSingleton: PGlite | null = null;
 let pgliteInitPromise: Promise<PGlite> | null = null;
 
 /**
- * Returns the singleton PGlite instance. Initial construction is async
+ * Cross-module-graph singleton carrier.
+ *
+ * Next.js dev (Turbopack) evaluates the server module graph MORE THAN ONCE
+ * per process — route handlers and server components resolve this module
+ * through separate module-graph copies, so a plain module-level `let`
+ * singleton silently produces TWO PGlite instances against ONE data dir.
+ * PGlite is a single-connection embedded Postgres: the second instance's
+ * first write hits the other instance's WAL/checkpoint state and aborts the
+ * WASM (`RuntimeError: Aborted()`), which Node escalates to an
+ * unhandledRejection process crash.
+ *
+ * Attaching the singleton to `globalThis` (the same trick Prisma's dev
+ * client uses for hot-reload) makes every module-graph copy in the process
+ * share ONE instance. Cross-PROCESS access (CLI seed scripts, the lint
+ * service) must still target a different `PGLITE_DATA_DIR` while the dev
+ * server is running — a data dir is single-process by design.
+ */
+interface PgliteGlobalCarrier {
+  kottabyPgliteSingleton?: PGlite | null;
+  kottabyPgliteInitPromise?: Promise<PGlite> | null;
+}
+const pgliteGlobal = globalThis as typeof globalThis & PgliteGlobalCarrier;
+pgliteSingleton = pgliteGlobal.kottabyPgliteSingleton ?? null;
+pgliteInitPromise = pgliteGlobal.kottabyPgliteInitPromise ?? null;
+
+/** Returns the singleton PGlite instance. Initial construction is async
  * (PGlite loads WASM + opens the data dir); concurrent first-callers await
  * the same promise.
  */
@@ -123,13 +148,16 @@ async function getPglite(): Promise<PGlite> {
       // yield identical trend buckets under any host timezone.
       await instance.query("SET TIME ZONE 'UTC'");
       pgliteSingleton = instance;
+      pgliteGlobal.kottabyPgliteSingleton = instance;
       logger.warn(`[PglitePool] PGlite initialized successfully`);
       return instance;
     })();
+    pgliteGlobal.kottabyPgliteInitPromise = pgliteInitPromise;
     try {
       await pgliteInitPromise;
     } catch (err) {
       pgliteInitPromise = null;
+      pgliteGlobal.kottabyPgliteInitPromise = null;
       throw err;
     }
   }
@@ -207,5 +235,7 @@ export async function closePglite(): Promise<void> {
     await pgliteSingleton.close();
     pgliteSingleton = null;
     pgliteInitPromise = null;
+    pgliteGlobal.kottabyPgliteSingleton = null;
+    pgliteGlobal.kottabyPgliteInitPromise = null;
   }
 }

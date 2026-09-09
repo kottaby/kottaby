@@ -30,6 +30,7 @@
 import { Box, Typography } from "@mui/material";
 import type { ReactNode } from "react";
 import type { AdminUsersQuery } from "@/frontend/graphql/generated/gql/graphql";
+import { formatApplicantDate } from "@/frontend/lib/i18n/format-date";
 import { TonalChip } from "@/frontend/views/admin/users/ui";
 import {
   type DirectoryGovernance,
@@ -94,10 +95,22 @@ interface DirectoryRelativeTimeProps {
   readonly locale: "ar" | "en";
 }
 
-/** Localized "last active" cell text; em-dash when the timestamp is unset. */
+/** Localized "last active" cell text; em-dash when the timestamp is unset.
+ *
+ * The cell carries a native `title` tooltip with the FULL absolute
+ * timestamp (same deterministic UTC formatter the directory drawers use),
+ * so the hover affordance reveals the exact instant behind the compressed
+ * relative label ("قبل 10 دقائق" → "2026/09/09, 04:22") without widening
+ * the fixed-layout column.
+ */
 export function DirectoryRelativeTime({ value, locale }: DirectoryRelativeTimeProps): ReactNode {
   return (
-    <Typography variant="body2" component="span" sx={theme => ({ color: theme.palette.text.secondary })}>
+    <Typography
+      variant="body2"
+      component="span"
+      title={value ? formatApplicantDate(value, locale) : undefined}
+      sx={theme => ({ color: theme.palette.text.secondary })}
+    >
       {formatDirectoryRelativeTime(value, locale)}
     </Typography>
   );
