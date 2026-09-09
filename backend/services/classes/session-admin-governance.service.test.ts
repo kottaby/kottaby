@@ -1817,9 +1817,26 @@ describe("SessionAdminGovernanceService — chaos (production tx path, committed
     expect(transport.publishedUserIds).toEqual([chaosStudentId, chaosTeacherId]);
   });
 
+  /**
+   * Per-test isolation for the concurrent tiers: the chaos cast's student
+   * row and inbox are SHARED across this describe's tests (zeroed once in
+   * beforeAll), so a test that pins ABSOLUTE refund/inbox counts must first
+   * reset them — the earlier committed-path cancel/reschedule tests in this
+   * block have already credited +1 refund and +2 inbox rows per cast by the
+   * time the postgres-only tiers execute.
+   */
+  async function resetChaosBalancesAndInbox(): Promise<void> {
+    await db
+      .update(students)
+      .set({ balanceTrial: 0, balanceHifz: 0, balanceTajweed: 0 })
+      .where(eq(students.id, chaosStudentId));
+    await db.delete(notifications).where(inArray(notifications.userId, [chaosStudentId, chaosTeacherId]));
+  }
+
   testOnRealPostgres(
     "admin cancel ⚡ participant complete on the SAME started session: exactly one survives, the loser is a transition conflict, zero partial writes",
     async () => {
+      await resetChaosBalancesAndInbox();
       const started = await commitStartedChaosSession();
 
       const outcomes = await Promise.allSettled([
@@ -1865,6 +1882,7 @@ describe("SessionAdminGovernanceService — chaos (production tx path, committed
   testOnRealPostgres(
     "concurrent double-cancel with the SAME idempotency key: the claim is spent exactly once — one audit row, one refund, one wave pair, one claim row",
     async () => {
+      await resetChaosBalancesAndInbox();
       const started = await commitStartedChaosSession();
       const sharedKey = `chaos-cancel-${randomUUID()}`;
 
