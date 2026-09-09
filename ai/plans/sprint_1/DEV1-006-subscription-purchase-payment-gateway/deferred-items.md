@@ -42,7 +42,7 @@ These belong to downstream tickets and are recorded here so their consumers see 
 
 | Item | Owning ticket | Note |
 |---|---|---|
-| Real payment gateway adapter (Paymob/Stripe) + purchase UI funnel | Sprint-2 gateway ticket (`docs/planning/SPRINT_PLAN.md:161`) | Mock adapter is the sanctioned Sprint-1 state (REQ-064 ruling) |
+| Real payment gateway adapter (Paymob/Stripe) + purchase UI funnel | Sprint-2 gateway ticket (`docs/planning/SPRINT_PLAN.md:161`) — planned 2026-09-07 at `ai/plans/sprint_1/paymob-gateway-integration/` | Mock adapter is the sanctioned Sprint-1 state (REQ-064 ruling) |
 | Segregated crediting refinement + reviews-lane hold semantics | DEV1-007 | This plan credits the three real lanes; hold/debit vocabulary (`HeldBalanceLane`) untouched by design (plan D7) |
 | Expiry job + balance zeroing at window end | DEV1-008 | Activation sets dates here; expiry sweep lands there |
 | Admin extend/renew/cancel + foreign-observer subscription reads | DEV1-009 | Reads beyond `mySubscriptions` are deliberately absent (BOLA minimization) |
