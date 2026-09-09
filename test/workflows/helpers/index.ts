@@ -12,6 +12,8 @@
  *    capture for fixture-immutability assertions (admin lifecycle/denials
  *    journeys).
  *  - `journey-cleanup` — tracked-id hard-delete teardown in FK-safe order.
+ *  - `second-precision` — the session journeys' shared second-precision
+ *    timestamp floor (fixture stamps + cross-source comparisons).
  *  - `spied-transport` — in-process fan-out transport spy.
  *  - `tracked-fixtures` — registry of committed fixture rows with
  *    zero-residue teardown verification.
@@ -24,6 +26,7 @@ export * from "./journey-actor-fixtures";
 export * from "./journey-cleanup";
 export * from "./journey-fixture-registry";
 export * from "./journey-fixtures";
+export * from "./second-precision";
 export * from "./session-cast";
 export * from "./spied-transport";
 export * from "./tracked-fixtures";
