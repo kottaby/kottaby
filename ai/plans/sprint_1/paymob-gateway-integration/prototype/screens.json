@@ -1,0 +1,122 @@
+[
+ {
+  "screenId": "8352b0cc8dcc437eaeaa22af8d266bf1",
+  "title": "Kottaby - Choose Your Plan",
+  "file": "student-plan-catalog-default-desktop.png",
+  "deviceType": "DESKTOP",
+  "state": "default",
+  "url": "https://lh3.googleusercontent.com/aida/AEtjO1UgWVBjAjxyYDopVTs-sGUm9jZKwsewwDNIo7YgOncUBxhRanRM6lpoem0SVDGR5b6SedQopulCsxhuUOejorZ3uY6AUG0cEHqquYaGV07GEunOHA3gO1d-QNQrwdHK87lB_EareV3r8KTW8Jh2z3PT56qDR6XNnq9gexAJHQN92rKxIitu8Z8DsPHpkRtvWDgeCCgCNoYlxJbvob4-FHwGeJcJqn7JbNSzN3Hbl1eW7p4pvBcw6pLJ_uo=s0"
+ },
+ {
+  "screenId": "fec42fc0e9eb48479459e7f18231bd7a",
+  "title": "Kottaby - Choose Your Plan (Mobile)",
+  "file": "student-plan-catalog-default-mobile.png",
+  "deviceType": "MOBILE",
+  "state": "default",
+  "url": "https://lh3.googleusercontent.com/aida/AEtjO1UZv0mQeQy_fNf-FHxN_42rtqjWwKVxYeHXEpUruE0-7vTFMb42LUXFaDFxPf7B0_zC89vSdGC9CUwxx-I548fDasfiy863KCHN0usxwit-2PCpAitTtErSaNGqSWsnr8EwR-3gFz6k-JKl503lOUl2dcAjMg7s_mniVTWviGiHLGyqd7tvyXof0UchCMl3UTRIutn5cgSuGgx1GeRsI_uS638Md-KRKbpCsiMHVpRyGkxsbWIySKSporE=s0"
+ },
+ {
+  "screenId": "843a4190d9e442c1a02e85354195f299",
+  "title": "Kottaby - Plans & Purchase Confirmation",
+  "file": "checkout-confirm-dialog-default-desktop.png",
+  "deviceType": "DESKTOP",
+  "state": "confirm-dialog",
+  "url": "https://lh3.googleusercontent.com/aida/AEtjO1VvzKjNLLiWdroO0Il9pUe8NMgrntTYgm3s4vUrl6XjiqMjtGDOyL7y1M51t6K4mbCdXZXGIaZM_S5_ZMTixkxeeN8WBUn2ssQk3_Znkhco2l7lzcRs3M6Bs-Wf8L_jyXLGwe2LOY1uSBREI3ZsA4lKWOXOXTBGhGGR3TJyAH939PsRVMo8v2dAHHT8VGPCFI8GsjNPY5PePIG9qNGEbM5I6NW7rQr1gZ57tPZHjOzeIamEKZaWEgiBeQ8=s0"
+ },
+ {
+  "screenId": "69943f69ea1d43309e20ee37d5fce8cf",
+  "title": "Kottaby - Confirm Purchase (Mobile)",
+  "file": "checkout-confirm-dialog-default-mobile.png",
+  "deviceType": "MOBILE",
+  "state": "confirm-dialog",
+  "url": "https://lh3.googleusercontent.com/aida/AEtjO1U1zBEopNk-RoTkm9EJ4r_nxOdGRvMroOFsU24EmDM2Hq3DzCLJJZm3sCh7m3s6K0cIUjHJu-VYpKHSFbwpoAirT2H3M8SaoCTDzkargvXipgEL1yZviMPKGz1qHqtLWRGnK84VkmbLVqen5_tFxmLNRv-uzU7LhCFt8_gWyrXv3P4SPPTHIPal1ihv3FPvbVU4_A-WfWMTn1Urlb0ucNrWZrRh3GVlHa3iIav0p30kqNnNJgASAMv2MBQ=s0"
+ },
+ {
+  "screenId": "ccc39f4b77824da780357a108e7302e3",
+  "title": "Kottaby - Secure Checkout (Paymob)",
+  "file": "paymob-unified-checkout-card-desktop.png",
+  "deviceType": "DESKTOP",
+  "state": "card",
+  "url": "https://lh3.googleusercontent.com/aida/AEtjO1VFRPeYogLtkZF8gFGzrZe0yAQui8bk9cy2BqKDuvGwKry4jvYwbKheeQyP56-Lx1Af080_fpSWWpp7U-NEaNYDDFdYQhps7sx8XuKtUphCaiD0e4SEKNCgnax-AkVfl4jTTvXaIX8VJfYHkzBRqOy2P7dGt6SvX8605PQEG8WG2VkqgC5s35sIvzJoXxTcXhaOySIgTQWBTn0KoVBLYw3ORponcOPZP4i-P6o1mqUHYGOmgZv5RMscnA=s0"
+ },
+ {
+  "screenId": "46d0d4e69cd34120886b8edafa4e9f2d",
+  "title": "Kottaby - Secure Checkout (Mobile)",
+  "file": "paymob-unified-checkout-card-mobile.png",
+  "deviceType": "MOBILE",
+  "state": "card",
+  "url": "https://lh3.googleusercontent.com/aida/AEtjO1XUMb1Aeu5l4t84VyEGu9XyvoM30weY5Rqmmp3KJuOqXcLaTYrqTAEyZ-2dvpmylJjQofDRfdsyqYLpEM3QYIxG8PJaSWVq7OaZlCBjY_hhj2eITy3OxNOyKLlxqKhU1E8VlXV2UPdcyqrEbJzX9FHdKamVNpc7EIBIqP5XRYJFVP1R27hbQ0NCyl9fHoKkpW-5Al-XvWwWpTqtWeUColNZ8NfwITkDHndRaIsIYpoybJQ8Df5qmWUffw=s0"
+ },
+ {
+  "screenId": "7fabc29cf0dd416d9296f0076829b31e",
+  "title": "Kottaby - Mobile Wallet Checkout (Mobile)",
+  "file": "paymob-unified-checkout-wallet-mobile.png",
+  "deviceType": "MOBILE",
+  "state": "wallet",
+  "url": "https://lh3.googleusercontent.com/aida/AEtjO1Ux97JC9O8Blqf5dtVIdIBozENpmjDDmoL4kL4kemPUAUO9sgI3umpEMAYxMxtsa_Gnf7JkrCvybyBdLmkE8JnUNL0ZF3L32128rlzpSm-XYoLxnncozl_NP6Nm7VkoymeQ9fZ8cFrNDBaEb0eADxDQNP4Eal0NXHJnMIzC3DIiBDoQWHONe88b7XR9HZBL0dAWUNOxztUz9RFxfVJZpYha31OMQgkqjv8YZx1vOROC9MKuMeFajwVAQOI=s0"
+ },
+ {
+  "screenId": "af713c50037d46d58e0d487b46af6f4d",
+  "title": "Kottaby - Payment Successful",
+  "file": "payment-result-success-desktop.png",
+  "deviceType": "DESKTOP",
+  "state": "success",
+  "url": "https://lh3.googleusercontent.com/aida/AEtjO1Ui8VkVHU9JD18af4MZzx81v_2RZilwYTxqcrJZDVVDqAXYvhW4POkq7TH7ykuM62AljJZMGp5vw8jwUNnr51BjJZt7MMUKMVzVwoR2WBnqxi9Xhwv6slSJPtsV4Nu1sgZdDjJtp_9y5ByaN7vXOPzzq_2-pklsfMiHOHD9grsmzZahjbIyxYTYHfhoSE6c69Pn7lOtMGBQKqtPqfW5Lp7LDhzmKxgstlkGnUqZt88fgSDHQXd3Yc8uhqk=s0"
+ },
+ {
+  "screenId": "5f0ad2c42ac94eff843d7d5a6f23cf73",
+  "title": "Kottaby - Payment Successful (Mobile)",
+  "file": "payment-result-success-mobile.png",
+  "deviceType": "MOBILE",
+  "state": "success",
+  "url": "https://lh3.googleusercontent.com/aida/AEtjO1WW5I0ku_8ehUzdeHXgFZvmM334MukBeGIZieif4J_QMJTVXm53pwgQB4BL0Q3eSrKv7Gm49P7qoHeymJsJYRmYyj9azGVoORI7XQmARF8cJlsA1d4kaE5jlzWst_Tu1N4GkPJc_DHKvxvrZMGtIuPwpBQ954f0TdOAHO2RQjliulbKQuRji7Y8ly0J6weZzI64otZrN61oA8SX-c0KkfXJctqiZTRj_yQfTkkImrE1dONxG3PxWIwSRDM=s0"
+ },
+ {
+  "screenId": "4b9c58b6cedf4924a678d619aec9a121",
+  "title": "Kottaby - Payment Failed (Mobile)",
+  "file": "payment-result-failed-mobile.png",
+  "deviceType": "MOBILE",
+  "state": "failed",
+  "url": "https://lh3.googleusercontent.com/aida/AEtjO1VmrP8yZnz2mXf_PDXyfvhWtNaT21fXDNpwXSqjbcwsLVamNH_vBmTQMvsDO3oA-mdWrc7lzIEBsWvw3aylmbHB-d8ZBn222Iluacaml-wnBOjEyMDH-TA4d3-26A_F81LlHgcNeY0BItuxfRsF0pw1LsOhMK4Df--uB11WSQRaNHzE3v-mJIHRkHzurPOyVfHf8c9cPZJPdjhUOnug9wfux_-PIyVHdcAw99UWFdYjMaSv4ts7zxtFyQ=s0"
+ },
+ {
+  "screenId": "a6d226a88ee54e4aa75b8a743ec5c7b7",
+  "title": "Kottaby - Payment Pending (Mobile)",
+  "file": "payment-result-pending-mobile.png",
+  "deviceType": "MOBILE",
+  "state": "pending",
+  "url": "https://lh3.googleusercontent.com/aida/AEtjO1VtuWRKh1gSUKbMZgpIR--pNujKyn6nOqeBXxtLlC_zwlPuunyl-R5v0jRjrgZjEmx5n-CiJOhm9W4ovqDYIuzVQnb1qOlpoJYPZa8qyBwD_T_0TiwFzKCclE5U_k1C05N9c62eJIFwyeu_zvAca5KNzDs10aptOdhefKP9TI4TEJ9DUvCrimBGe2TPhpZ5AEchSNYRb_NpcovtyFgvfIXaf3Y0WGQ2fv4ptHi8uBK7ZIquQE5UYDZ5DBU=s0"
+ },
+ {
+  "screenId": "33d2bfe4b77d4002812441ef2ab742fe",
+  "title": "Kottaby - My Subscriptions (Mobile)",
+  "file": "my-subscriptions-active-mobile.png",
+  "deviceType": "MOBILE",
+  "state": "active",
+  "url": "https://lh3.googleusercontent.com/aida/AEtjO1Xu30UpHFTq4BOvc4sB_FijRUHDhLAGXAiPW7wsBKudc_a_EF08bM6tcdKwMHRaNGLxoI8L6GunRs_aoADCo5PNWfgNzU8fbxMMaTji_4nCxHaA9mAE_zdTjva9MYlKrUMGvJ2naFqhu-yzu_D7TUwQR11xNgq90c9DnxnS0ugRXBv_TfyZ00GqZimAJUJQ4vKDBH_ONVgX7aAm4TlC3ZM_mCz34d0UxaLywhSCWOW1Fn61jGo3y7Tu53U=s0"
+ },
+ {
+  "screenId": "320271fccd57470eb023831a632af319",
+  "title": "Kottaby - My Subscriptions (Pending)",
+  "file": "my-subscriptions-pending-mobile.png",
+  "deviceType": "MOBILE",
+  "state": "pending",
+  "url": "https://lh3.googleusercontent.com/aida/AEtjO1V99gMCVhwnYaBdO3_Oyau1u3FLTVvtdXkFYKm5ByuInD34kASQsTlFFB4HGvo7mpleYi8pJoWgEGRtnS79kJdy89H45m6ExI1t7e2bCE_YwV3MRdGLCTQw6J607KX4iIo0q-QqWb4ISdWBiZl1E-8IAABy1R4UlssOPVRlfJtS5B2YLVXg-qRfObKmdDdh_AbP5tJVuxTAc09s9bGync4kfBn4VZiCVNN6M_ibMiT12bwtJR0XWB1x6A=s0"
+ },
+ {
+  "screenId": "6bed897819cb484a9d19c569fbb7239d",
+  "title": "Kottaby - My Subscriptions (Payment Failed)",
+  "file": "my-subscriptions-failed-mobile.png",
+  "deviceType": "MOBILE",
+  "state": "failed",
+  "url": "https://lh3.googleusercontent.com/aida/AEtjO1Ue0XBbxqY-HKZ_zLWJaJz4aQCnk4tAcLbEqI6R9E8GjbfDUfEnT3bEmzjIxVaNYiz-siRqYX_EzsAJCXfukPcQY1nl1fU91zsNZ13qWY5Iwhh8YiMsC0SN_aFeUiRBY_EB4k-rRqilCcQEhMeG9e15QTsjhxCKzNFGTpZCMkOa4ZfVyiW48cTymWmLbHrRDwT2sGVSflEY9LVlr1egGl57lfb7X6X0i-WnhOfALhUq_06lhad_z2LgEA=s0"
+ },
+ {
+  "screenId": "9ff740f19ac547e7825ae251e7e638a3",
+  "title": "Kottaby - My Subscriptions (Empty State)",
+  "file": "my-subscriptions-empty-mobile.png",
+  "deviceType": "MOBILE",
+  "state": "empty",
+  "url": "https://lh3.googleusercontent.com/aida/AEtjO1VxOS0jylreJJoINENNsm-t4zrC6pNEefi0fuw5e351C7o-spegizN43iH0WxXlDBFAb9NtMQeePdwat7SJ2eVNEJACugdibaKEOzVQDX8HahDzILGlssC3ChuBc9HMVtmyojTnYyWENyOw2RWdCHYTEWYBVShhASsSvRSVm0TIltrf6x5hbpK4xq3UVA4_zvfrP9hYAWOW-fPQYpEZGLBYTY8Nzb0PkMFkA_iwSFHzZpcUH4TPxaRQ6g=s0"
+ }
+]

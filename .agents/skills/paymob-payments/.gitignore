@@ -1,0 +1,5 @@
+# Working artifacts from the fetch/convert pipeline (regenerate via scripts/)
+/tmp/
+*.pyc
+__pycache__/
+.DS_Store
