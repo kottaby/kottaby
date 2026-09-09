@@ -1138,7 +1138,7 @@ describe("Journey — student confirmation of the parent link (steps 1–11)", (
     createdRequestIds.set(REQUEST.boundary, boundary.id);
 
     expect(boundary.status).toBe(LinkStatus.Pending);
-    // Grounding, DB-clock on BOTH sides (FIX-R2): the injected boundary
+    // Grounding, DB-clock on BOTH sides: the injected boundary
     // instant is compared against a FRESH DATABASE `now()` — the same clock
     // the strict-`>` claim predicate evaluates against — never the JS host
     // clock, so app-host vs DB-host skew cannot spuriously fail this cell

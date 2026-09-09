@@ -49,7 +49,7 @@ interface NotificationDrawerActions {
  * deep-link to the student decision route, every other entity falls through
  * to the feed page — so navigation is native, no router call. Mark-one /
  * mark-all run through the shared `useNotificationMarkActions` hook
- * (drawer-plan §3.1) so the count decrement and the stale-window sweep
+ * so the count decrement and the stale-window sweep
  * behave IDENTICALLY to the feed page.
  */
 export function useNotificationDrawerActions({

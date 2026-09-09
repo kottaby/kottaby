@@ -238,10 +238,10 @@ describe("template pins — function slots expand their arguments", () => {
     expect(parentLinkEn.dashboardCardCount(1)).toBe("1 pending request");
     expect(parentLinkEn.dashboardCardCount(3)).toBe("3 pending requests");
     // ar pins probe CONTAINMENT of the plural-class words, not exact strings
-    // (FIX-R5): the rendered digits come from `toLocaleString("ar")`, whose
+    // The rendered digits come from `toLocaleString("ar")`, whose
     // Arabic-Indic shaping is ICU/toolchain-dependent — a bun/ICU upgrade
     // must not fail this gate, so NO digit-shape assertion is made here
-    // (FIX-R6); digit shape is pinned once, repo-wide, by the summary-chip
+    // digit shape is pinned once, repo-wide, by the summary-chip
     // cell in the function-slot inventory below. The plural-class words stay
     // pinned so one/two/few/many remain mutually distinguishable; the dual
     // probe includes the following noun because "طلبات" (few) otherwise

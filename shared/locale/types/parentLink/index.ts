@@ -24,6 +24,8 @@
  *  - Frontend `StudentLinkRequestsContainer` (`useAppTranslation(ParentLink)`).
  *  - Frontend parent handshake send affordance + `OutgoingLinkRequestsSection`
  *    (`useAppTranslation(ParentLink)`).
+ *  - Frontend `PendingParentLinkRequestsCard` (the dashboard discoverability
+ *    card, `useAppTranslation(ParentLink)`).
  *
  * All keys MUST have both `en` and `ar` implementations with EXACT key-set
  * parity (compile-typed on both leaves + `parentLink-namespace.parity.test.ts`

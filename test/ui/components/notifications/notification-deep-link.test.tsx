@@ -223,7 +223,7 @@ for (const locale of ["ar", "en"] as AppLocale[]) {
       if (row === null) {
         throw new Error("row anchor must render (the row IS a Link anchor)");
       }
-      // Pre-4.1 behavior pinned: unknown pointers anchor to the feed page
+      // Pre-deep-link behavior pinned: unknown pointers anchor to the feed page
       // exactly as the hard-coded href did — unchanged fall-through, and a
       // clean render here proves no router error for the unknown type.
       expect(row.getAttribute("href")).toBe("/notifications");

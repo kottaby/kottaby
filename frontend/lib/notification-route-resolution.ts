@@ -6,7 +6,7 @@ import { NotificationType } from "@/backend/enum/notifications/notification-type
  * discoverability-card CTA, and the student nav entry) so the three never
  * drift.
  *
- * Leaf module (FIX-R5): directive-free and framework-free — NO `"use client"`,
+ * Leaf module: directive-free and framework-free — NO `"use client"`,
  * NO Apollo, NO logger — so nav/card/test consumers import the constant and
  * resolver WITHOUT transitively dragging the drawer-actions hook graph.
  */
