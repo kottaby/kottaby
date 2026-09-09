@@ -32,6 +32,16 @@ interface DirectoryScrollToTopProps {
   readonly revealAt?: number;
 }
 
+/**
+ * Smooth-scrolls the window back to the top - an instant jump when the user
+ * prefers reduced motion. Module scope: it captures nothing from the
+ * component render scope (oxlint consistent-function-scoping).
+ */
+function smoothScrollToTop(): void {
+  const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  window.scrollTo({ top: 0, behavior: reducedMotion ? "auto" : "smooth" });
+}
+
 export function DirectoryScrollToTop({ ariaLabel, revealAt = 480 }: DirectoryScrollToTopProps): ReactNode {
   const [visible, setVisible] = useState(false);
 
@@ -44,11 +54,6 @@ export function DirectoryScrollToTop({ ariaLabel, revealAt = 480 }: DirectoryScr
     return () => window.removeEventListener("scroll", onScroll);
   }, [revealAt]);
 
-  const smoothScroll = () => {
-    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    window.scrollTo({ top: 0, behavior: reducedMotion ? "auto" : "smooth" });
-  };
-
   return (
     <Zoom in={visible} unmountOnExit>
       <Fab
@@ -56,7 +61,7 @@ export function DirectoryScrollToTop({ ariaLabel, revealAt = 480 }: DirectoryScr
         color="primary"
         aria-label={ariaLabel}
         title={ariaLabel}
-        onClick={smoothScroll}
+        onClick={smoothScrollToTop}
         sx={theme => ({
           position: "fixed",
           insetInlineEnd: 24,

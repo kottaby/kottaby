@@ -116,12 +116,12 @@ let pgliteInitPromise: Promise<PGlite> | null = null;
  * server is running — a data dir is single-process by design.
  */
 interface PgliteGlobalCarrier {
-  __kottabyPgliteSingleton?: PGlite | null;
-  __kottabyPgliteInitPromise?: Promise<PGlite> | null;
+  kottabyPgliteSingleton?: PGlite | null;
+  kottabyPgliteInitPromise?: Promise<PGlite> | null;
 }
 const pgliteGlobal = globalThis as typeof globalThis & PgliteGlobalCarrier;
-pgliteSingleton = pgliteGlobal.__kottabyPgliteSingleton ?? null;
-pgliteInitPromise = pgliteGlobal.__kottabyPgliteInitPromise ?? null;
+pgliteSingleton = pgliteGlobal.kottabyPgliteSingleton ?? null;
+pgliteInitPromise = pgliteGlobal.kottabyPgliteInitPromise ?? null;
 
 /** Returns the singleton PGlite instance. Initial construction is async
  * (PGlite loads WASM + opens the data dir); concurrent first-callers await
@@ -148,16 +148,16 @@ async function getPglite(): Promise<PGlite> {
       // yield identical trend buckets under any host timezone.
       await instance.query("SET TIME ZONE 'UTC'");
       pgliteSingleton = instance;
-      pgliteGlobal.__kottabyPgliteSingleton = instance;
+      pgliteGlobal.kottabyPgliteSingleton = instance;
       logger.warn(`[PglitePool] PGlite initialized successfully`);
       return instance;
     })();
-    pgliteGlobal.__kottabyPgliteInitPromise = pgliteInitPromise;
+    pgliteGlobal.kottabyPgliteInitPromise = pgliteInitPromise;
     try {
       await pgliteInitPromise;
     } catch (err) {
       pgliteInitPromise = null;
-      pgliteGlobal.__kottabyPgliteInitPromise = null;
+      pgliteGlobal.kottabyPgliteInitPromise = null;
       throw err;
     }
   }
@@ -235,7 +235,7 @@ export async function closePglite(): Promise<void> {
     await pgliteSingleton.close();
     pgliteSingleton = null;
     pgliteInitPromise = null;
-    pgliteGlobal.__kottabyPgliteSingleton = null;
-    pgliteGlobal.__kottabyPgliteInitPromise = null;
+    pgliteGlobal.kottabyPgliteSingleton = null;
+    pgliteGlobal.kottabyPgliteInitPromise = null;
   }
 }
