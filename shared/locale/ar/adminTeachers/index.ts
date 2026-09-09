@@ -7,6 +7,7 @@ export const adminTeachersAr: AdminTeachersLabels = {
     teachersTab: "المعلمون",
     applicantsTab: "طلبات الانضمام",
   },
+  scrollBackToTop: "العودة إلى الأعلى",
   headers: {
     name: "الاسم",
     status: "الحالة",

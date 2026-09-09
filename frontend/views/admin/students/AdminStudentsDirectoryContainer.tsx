@@ -32,6 +32,7 @@ import { type ReactNode, useState } from "react";
 import { DirectoryErrorAlert } from "@/frontend/views/admin/directory-shared/DirectoryErrorAlert";
 import { DirectoryFeedbackSnackbar } from "@/frontend/views/admin/directory-shared/DirectoryFeedbackSnackbar";
 import { DirectoryPageHeader } from "@/frontend/views/admin/directory-shared/DirectoryPageHeader";
+import { DirectoryScrollToTop } from "@/frontend/views/admin/directory-shared/DirectoryScrollToTop";
 import { AdminStudentDetailDrawer } from "@/frontend/views/admin/students/AdminStudentDetailDrawer";
 import type { StudentDirectoryItem } from "@/frontend/views/admin/students/AdminStudentRowCells";
 import { AdminStudentsResults } from "@/frontend/views/admin/students/AdminStudentsResults";
@@ -113,6 +114,10 @@ export function AdminStudentsDirectoryContainer(): ReactNode {
       />
 
       <DirectoryFeedbackSnackbar snackbar={directory.snackbar} onClose={directory.clearSnackbar} />
+
+      {/* Floating back-to-top — the student list stacks past one viewport
+          on phones; the FAB reveals itself after ~a screenful of scroll. */}
+      <DirectoryScrollToTop ariaLabel={labels.scrollBackToTop} />
     </Stack>
   );
 }

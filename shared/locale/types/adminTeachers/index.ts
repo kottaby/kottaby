@@ -42,6 +42,9 @@ export interface AdminTeachersLabels {
     readonly applicantsTab: string;
   };
 
+  /** Accessible label for the floating scroll-back-to-top affordance. */
+  readonly scrollBackToTop: string;
+
   // NOTE: the `export`/`fields`/`drawer` blocks below extend the directory
   // with the CSV export affordance and the per-row detail drawer.
 
