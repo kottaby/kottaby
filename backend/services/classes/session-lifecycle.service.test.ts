@@ -285,6 +285,10 @@ async function insertSessionRow(
       teacherId: actors.teacherUserId,
       studentId: actors.studentUserId,
       status: SessionStatus.Scheduled,
+      // Non-null intent: the completion flow's confirm-prompt wave reads
+      // the session's intent — a null one is a corruption denial, and this
+      // fixture models a legitimately booked (hence intent-carrying) row.
+      intent: SessionIntent.Hifz,
       fee: "10.00",
       feeHeld: true,
       heldBalanceLane: HeldBalanceLane.Hifz,
