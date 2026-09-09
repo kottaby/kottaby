@@ -3,12 +3,13 @@
 import { useQuery } from "@apollo/client/react";
 import { PendingActionsOutlined as PendingActionsIcon, RefreshOutlined as RefreshIcon } from "@mui/icons-material";
 import { Alert, Button, Chip, Skeleton, Stack, Typography } from "@mui/material";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { focusVisibleRingSx } from "@/frontend/components/ui/focusRing";
 import { myIncomingParentLinkRequestsQueryDocument } from "@/frontend/graphql/sharedDocuments";
 import { extractErrorCode } from "@/frontend/lib/graphql-error-utils";
 import { STUDENT_LINK_REQUESTS_ROUTE } from "@/frontend/lib/notification-route-resolution";
 import { resolveParentLinkDenialCopyOrNull } from "@/frontend/lib/parent-link-denials";
+import { isLinkRequestActionable } from "@/frontend/lib/parent-link-request-status";
 import { CardShell } from "@/frontend/views/students/dashboard/CardShell";
 import { deriveActionableIncoming } from "@/frontend/views/students/dashboard/pending-parent-link-requests";
 import { isolateBidi } from "@/shared/lib/isolate-bidi";
@@ -16,6 +17,14 @@ import { Common, Errors, ParentLink, useAppTranslation } from "@/shared/locale";
 
 /** Review-CTA metrics — comfortable ≥44px touch target, full-width on mobile. */
 const reviewCtaSx = { ...focusVisibleRingSx, minHeight: 44, px: 3, width: { xs: "100%", sm: "auto" } } as const;
+
+/**
+ * `setTimeout` delay ceiling — runtimes clamp longer delays and fire them
+ * immediately, so a far-future expiry timer must stay below 2^31−1 ms. An
+ * early fire is harmless: the actionable verdict is unchanged until the TRUE
+ * expiry instant, and the timer simply reschedules.
+ */
+const MAX_TIMER_DELAY_MS = 2_147_483_647;
 
 /** Retry affordance metrics — same ≥44px discipline inside the error shell. */
 const retryButtonSx = { ...focusVisibleRingSx, minHeight: 44 } as const;
@@ -33,9 +42,12 @@ const retryButtonSx = { ...focusVisibleRingSx, minHeight: 44 } as const;
  * invalidation bus: the Apollo normalized cache is the single truth, so the
  * decision page's respond write-back re-renders this card to zero.
  *
- * Derivation: `deriveActionableIncoming` (pure, `now` captured ONCE at mount
- * per the read-purity convention) reuses the shared computed-status machinery
- * verbatim — a stored `pending` row past its expiry is NOT counted.
+ * Derivation: `deriveActionableIncoming` (pure; the card owns `nowMs` and
+ * ADVANCES it via a self-rescheduling timer when the nearest actionable
+ * row's `expiresAt` passes, so a request expiring while the dashboard stays
+ * mounted drops out of the count WITHOUT waiting for a refetch) reuses the
+ * shared computed-status machinery verbatim — a stored `pending` row past
+ * its expiry is NOT counted.
  *
  * Render branches:
  *
@@ -62,10 +74,44 @@ export function PendingParentLinkRequestsCard(): ReactNode {
   const te = useAppTranslation(Errors);
   const tc = useAppTranslation(Common);
   const { data, error, loading, refetch } = useQuery(myIncomingParentLinkRequestsQueryDocument);
-  // Read purity: ONE `now` captured at mount (lazy initializer — no impure
-  // calls during render). The actionable verdict stays stable for the mount's
-  // lifetime; the server-side materialization + refetch settle the truth.
-  const [nowMs] = useState(() => Date.now());
+  // Read purity: the derivation stays a PURE function of the rows and
+  // `nowMs`; `nowMs` STARTS at mount (lazy initializer — no impure calls
+  // during render) and advances ONLY through the expiry timer below, never
+  // on an arbitrary interval.
+  const [nowMs, setNowMs] = useState(() => Date.now());
+
+  // The next instant at which the actionable verdict can CHANGE: the
+  // earliest future `expiresAt` among rows the shared liveness predicate
+  // (`isLinkRequestActionable`) still counts. Terminal rows never cross it
+  // (their verdict is expiry-independent), and re-firing on an irrelevant
+  // boundary merely re-derives the SAME summary — harmless. `null` when no
+  // actionable row has a future expiry (no timer needed).
+  let nearestActionableExpiryMs: number | null = null;
+  for (const row of data?.myIncomingParentLinkRequests ?? []) {
+    if (!isLinkRequestActionable(row.status, row.expiresAt, nowMs)) {
+      continue;
+    }
+    const expiryMs = new Date(row.expiresAt).getTime();
+    if (nearestActionableExpiryMs === null || expiryMs < nearestActionableExpiryMs) {
+      nearestActionableExpiryMs = expiryMs;
+    }
+  }
+
+  // Expiry clock: when the nearest actionable expiry instant passes, bump
+  // `nowMs` so the derivation re-runs with the fresh clock (the expired row
+  // drops out — zero server writes, the materialization stays server-side).
+  // Re-derivation on every data change re-schedules automatically (the
+  // effect re-runs whenever the nearest boundary or the clock moves).
+  useEffect(() => {
+    if (nearestActionableExpiryMs === null) {
+      return undefined;
+    }
+    const delayMs = Math.min(nearestActionableExpiryMs - nowMs, MAX_TIMER_DELAY_MS);
+    const timerId = setTimeout(() => setNowMs(Date.now()), delayMs);
+    return () => {
+      clearTimeout(timerId);
+    };
+  }, [nearestActionableExpiryMs, nowMs]);
 
   const handleRetry = () => {
     void refetch().catch(() => undefined);

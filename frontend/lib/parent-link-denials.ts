@@ -45,7 +45,10 @@ export function resolveParentLinkDenialCopyOrNull(code: string | null, te: Error
   }
   // Membership guard (not an `=== undefined` comparison — a `Record` index
   // read is statically non-optional): a raw wire code CAN miss the table.
-  if (!(code in DENIAL_LABEL_ACCESSORS)) {
+  // OWN-property check only — the `in` operator walks the prototype chain,
+  // so inherited keys (`"toString"`, `"__proto__"`) would masquerade as
+  // mapped codes and break the caller's null-fallback contract.
+  if (!Object.hasOwn(DENIAL_LABEL_ACCESSORS, code)) {
     return null;
   }
   return DENIAL_LABEL_ACCESSORS[code](te);
