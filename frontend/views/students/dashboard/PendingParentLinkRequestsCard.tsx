@@ -3,7 +3,7 @@
 import { useQuery } from "@apollo/client/react";
 import { PendingActionsOutlined as PendingActionsIcon, RefreshOutlined as RefreshIcon } from "@mui/icons-material";
 import { Alert, Button, Chip, Skeleton, Stack, Typography } from "@mui/material";
-import { type ReactNode, useEffect, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useRef, useSyncExternalStore } from "react";
 import { focusVisibleRingSx } from "@/frontend/components/ui/focusRing";
 import { myIncomingParentLinkRequestsQueryDocument } from "@/frontend/graphql/sharedDocuments";
 import { extractErrorCode } from "@/frontend/lib/graphql-error-utils";
@@ -42,14 +42,15 @@ const retryButtonSx = { ...focusVisibleRingSx, minHeight: 44 } as const;
  * invalidation bus: the Apollo normalized cache is the single truth, so the
  * decision page's respond write-back re-renders this card to zero.
  *
- * Derivation: `deriveActionableIncoming` (pure; the card owns `nowMs`, which
- * advances on TWO events — a self-rescheduling timer when the nearest
+ * Derivation: `deriveActionableIncoming` (pure; the card owns `nowMs` as a
+ * wall-clock external store — see the `useSyncExternalStore` wiring below —
+ * which advances on TWO events — a self-rescheduling timer when the nearest
  * actionable row's `expiresAt` passes (a request expiring while the
  * dashboard stays mounted drops out WITHOUT a refetch), and every row
- * arrival (the clock re-reads the wall clock, so a request that expired
- * while the query was in flight never counts from the stale mount-time
- * value)) reuses the shared computed-status machinery verbatim — a stored
- * `pending` row past its expiry is NOT counted.
+ * arrival (the snapshot re-reads `Date.now()`, so a request that expired
+ * while the query was in flight cannot survive the settled verdict)) reuses
+ * the shared computed-status machinery verbatim — a stored `pending` row
+ * past its expiry is NOT counted.
  *
  * Render branches:
  *
@@ -71,29 +72,67 @@ const retryButtonSx = { ...focusVisibleRingSx, minHeight: 44 } as const;
  * retry copy from the `Common` handle; mapped failure copy from the `Errors`
  * handle; unmapped failure copy from `dashboardCardLoadError`.
  */
+/**
+ * useWallClockStore — the card's `nowMs` as a wall-clock EXTERNAL STORE
+ * (`useSyncExternalStore`, the same primitive as the applicant queue's
+ * `useMountedClockTick`): the wall clock is not derivable from props/state
+ * and is unreadable during render (react/purity), while a synchronous
+ * setState on row arrival cascades renders (react/set-state-in-effect).
+ * The external-store contract resolves both: the snapshot is a ref-cached
+ * `Date.now()` read (stable between notifications — the contract that keeps
+ * React from looping), `refreshClock` re-reads the clock and notifies, and
+ * the server snapshot is "never" so SSR/hydration stay deterministic (the
+ * zero-argument query never runs server-side, so clock-gated UI never owns
+ * a server frame).
+ */
+function useWallClockStore(): { nowMs: number; refreshClock: () => void } {
+  const clockMsRef = useRef<number | null>(null);
+  const notifyClockRef = useRef<(() => void) | null>(null);
+  const refreshClock = useCallback(() => {
+    clockMsRef.current = Date.now();
+    notifyClockRef.current?.();
+  }, []);
+  const subscribeClock = useCallback((onStoreChange: () => void) => {
+    notifyClockRef.current = onStoreChange;
+    return () => {
+      notifyClockRef.current = null;
+    };
+  }, []);
+  const nowMs = useSyncExternalStore(
+    subscribeClock,
+    () => {
+      // Lazy one-shot cache — getSnapshot may be consulted several times per
+      // render and must return the same value within a pass.
+      clockMsRef.current ??= Date.now();
+      return clockMsRef.current;
+    },
+    () => Number.POSITIVE_INFINITY
+  );
+  return { nowMs, refreshClock };
+}
+
 export function PendingParentLinkRequestsCard(): ReactNode {
   const t = useAppTranslation(ParentLink);
   const te = useAppTranslation(Errors);
   const tc = useAppTranslation(Common);
   const { data, error, loading, refetch } = useQuery(myIncomingParentLinkRequestsQueryDocument);
-  // Read purity: the derivation stays a PURE function of the rows and
-  // `nowMs`; `nowMs` STARTS at mount (lazy initializer — no impure calls
-  // during render) and advances ONLY through the two effects below (row
-  // arrival + nearest-expiry timer), never on an arbitrary interval.
-  const [nowMs, setNowMs] = useState(() => Date.now());
+  const { nowMs, refreshClock } = useWallClockStore();
 
   // Clock refresh on row arrival: liveness verdicts must read the wall
   // clock as of the LATEST rows, not the mount instant — a request that
   // expired while the query was in flight would otherwise flash the review
   // CTA until the overdue expiry timer fires, and background-tab timer
-  // throttling can defer that tick for minutes. Refreshing on every rows
-  // change makes the first settled verdict correct by construction (the
-  // retry-refetch and decision write-back paths ride the same effect).
+  // throttling can defer that tick for minutes. Re-reading the snapshot and
+  // notifying on every rows change makes the first settled verdict correct
+  // by construction (the retry-refetch and decision write-back paths ride
+  // the same effect).
   useEffect(() => {
-    if (data?.myIncomingParentLinkRequests !== undefined) {
-      setNowMs(Date.now());
+    if (data?.myIncomingParentLinkRequests === undefined) {
+      return undefined;
     }
-  }, [data?.myIncomingParentLinkRequests]);
+    refreshClock();
+    return undefined;
+  }, [data?.myIncomingParentLinkRequests, refreshClock]);
 
   // The next instant at which the actionable verdict can CHANGE: the
   // earliest future `expiresAt` among rows the shared liveness predicate
@@ -112,21 +151,21 @@ export function PendingParentLinkRequestsCard(): ReactNode {
     }
   }
 
-  // Expiry clock: when the nearest actionable expiry instant passes, bump
-  // `nowMs` so the derivation re-runs with the fresh clock (the expired row
-  // drops out — zero server writes, the materialization stays server-side).
-  // Re-derivation on every data change re-schedules automatically (the
-  // effect re-runs whenever the nearest boundary or the clock moves).
+  // Expiry clock: when the nearest actionable expiry instant passes, re-read
+  // the wall clock through the store (the expired row drops out — zero
+  // server writes, the materialization stays server-side). Re-derivation on
+  // every data change re-schedules automatically (the effect re-runs
+  // whenever the nearest boundary or the clock moves).
   useEffect(() => {
     if (nearestActionableExpiryMs === null) {
       return undefined;
     }
     const delayMs = Math.min(nearestActionableExpiryMs - nowMs, MAX_TIMER_DELAY_MS);
-    const timerId = setTimeout(() => setNowMs(Date.now()), delayMs);
+    const timerId = setTimeout(refreshClock, delayMs);
     return () => {
       clearTimeout(timerId);
     };
-  }, [nearestActionableExpiryMs, nowMs]);
+  }, [nearestActionableExpiryMs, nowMs, refreshClock]);
 
   const handleRetry = () => {
     void refetch().catch(() => undefined);

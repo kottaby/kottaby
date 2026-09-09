@@ -389,14 +389,17 @@ for (const locale of ["ar", "en"] as AppLocale[]) {
       const traffic = createNetworkTraffic();
       const realDateNow = Date.now;
       try {
-        // Mount instant: the lazy `nowMs` initializer reads T0 while the
-        // query is held in flight by the controlled-arrival link.
+        // Mount instant: the clock snapshot reads T0 while the query is held
+        // in flight by the controlled-arrival link.
         Date.now = () => LATE_ARRIVAL_MOUNT_MS;
         const controller = renderCardWithArrivalControl(traffic, locale);
         await screen.findByTestId("pending-parent-link-requests-card-loading");
 
         // The wall clock moves PAST the row's expiry while the query is
-        // still in flight, THEN the rows arrive.
+        // still in flight, THEN the rows arrive — the row-arrival store
+        // refresh (the component's useSyncExternalStore clock) must re-derive
+        // against T0+120s and converge to branch 3 (render NOTHING) without
+        // any refetch.
         Date.now = () => ROWS_ARRIVE_MS;
         controller.arrive([
           incomingRow({
@@ -407,14 +410,10 @@ for (const locale of ["ar", "en"] as AppLocale[]) {
           }),
         ]);
 
-        // First settled derivation would count the row against the stale
-        // mount clock (expiry T0+60s > T0) — the row-arrival refresh must
-        // re-derive against T0+120s and converge to branch 3 (render
-        // NOTHING) without any refetch.
         await waitFor(() => {
+          expect(screen.queryByTestId("pending-parent-link-requests-card")).toBeNull();
           expect(screen.queryByTestId("pending-parent-link-requests-card-loading")).toBeNull();
         });
-        expect(screen.queryByTestId("pending-parent-link-requests-card")).toBeNull();
         expect(screen.queryByTestId("pending-parent-link-requests-card-error")).toBeNull();
         expect(traffic.operationNames).toEqual([QUERY_OPERATION_NAME]);
       } finally {
