@@ -2,14 +2,14 @@
  * Dashboard Navigation Items Unit Tests
  *
  * Verifies:
- *  - REQ-054, REQ-064 (DEV1-005): Admin navigation contains "/admin/plans"
+ *  - Admin plans entry (DEV1-005): admin navigation contains "/admin/plans"
  *    entry; non-admin roles (Student, Teacher, Parent) do NOT contain it.
- *  - REQ-065 (zero-change nav retarget): the admin audit entry stays pinned
+ *  - Zero-change nav retarget: the admin audit entry stays pinned
  *    exactly where it already points — "/audit" with `labelKey: "audit"`,
  *    exactly once — and non-admin roles never see it. The `audit` label key
  *    remains owned by the dashboard bundle (no duplicate nav item, no label
  *    move): the route becomes reachable purely when its page ships.
- *  - REQ-064 (DEV3-022d): the admin broadcasts entry — exactly ONE
+ *  - Admin broadcasts (DEV3-022d): the broadcasts entry — exactly ONE
  *    `/admin/broadcasts` item with `labelKey: "broadcasts"`, positioned
  *    directly after the audit entry, dashboard-bundle owned, admin-only.
  *  - DEV3-021: the admin session-governance entry — exactly ONE
@@ -17,6 +17,11 @@
  *    and the `EventNoteOutlined` icon, inside the audit→disputes envelope of
  *    the admin block (directly before the disputes entry),
  *    dashboard-bundle owned, admin-only.
+ *  - Student link-requests entry: exactly ONE
+ *    student item whose `route` IS the shared `STUDENT_LINK_REQUESTS_ROUTE`
+ *    constant (nav / dashboard-card CTA / notification deep-link never
+ *    drift), `linkRequests` dashboard-bundle owned and resolved in BOTH
+ *    locales, and no non-student role leaks the entry.
  *  - The cross-namespace nav-label discrimination the sidebar depends on:
  *    every nav item's label key is owned by EXACTLY ONE label bundle
  *    (`DashboardLabels` for the shared shell entries, `HandshakeCodeLabels`
@@ -35,6 +40,7 @@
 import { describe, expect, test } from "bun:test";
 import { EventNoteOutlined } from "@mui/icons-material";
 import { UserRole } from "@/frontend/graphql/generated/gql/graphql";
+import { STUDENT_LINK_REQUESTS_ROUTE } from "@/frontend/lib/notification-route-resolution";
 import { type DashboardNavItem, getNavItemsForRole, resolveNavItemLabel } from "@/frontend/views/dashboard/nav";
 import type { AppLocale } from "@/shared/locale/AppLocale";
 import { dashboardEn } from "@/shared/locale/en/dashboard";
@@ -136,7 +142,7 @@ describe("getNavItemsForRole — role subsets and fallback", () => {
   });
 });
 
-describe("Dashboard Nav Items (REQ-054, REQ-064)", () => {
+describe("Admin plans navigation", () => {
   test("Admin navigation includes /admin/plans item", () => {
     const adminNav = getNavItemsForRole(UserRole.Admin);
     const plansItem = adminNav.find(item => item.route === "/admin/plans");
@@ -154,7 +160,7 @@ describe("Dashboard Nav Items (REQ-054, REQ-064)", () => {
   );
 });
 
-describe("Admin audit navigation (REQ-065)", () => {
+describe("Admin audit navigation", () => {
   test("Admin navigation carries exactly one /audit entry with the audit label key", () => {
     const adminNav = getNavItemsForRole(UserRole.Admin);
     const auditItems = adminNav.filter(item => item.route === "/audit");
@@ -228,7 +234,7 @@ describe("Admin session-governance navigation", () => {
   );
 });
 
-describe("Admin broadcasts navigation (REQ-064, DEV3-022d)", () => {
+describe("Admin broadcasts navigation (DEV3-022d)", () => {
   test("Admin navigation carries exactly one /admin/broadcasts entry with the broadcasts label key, directly after the audit entry", () => {
     const adminNav = getNavItemsForRole(UserRole.Admin);
     const broadcastItems = adminNav.filter(item => item.route === "/admin/broadcasts");
@@ -264,6 +270,50 @@ describe("Admin broadcasts navigation (REQ-064, DEV3-022d)", () => {
       const nav = getNavItemsForRole(role);
       const broadcastItem = nav.find(item => item.route === "/admin/broadcasts");
       expect(broadcastItem).toBeUndefined();
+    }
+  );
+});
+
+describe("Student link-requests navigation", () => {
+  test("student nav carries exactly ONE link-requests entry targeting the shared route constant", () => {
+    const studentNav = getNavItemsForRole(UserRole.Student);
+    const linkItems = studentNav.filter(item => item.route === STUDENT_LINK_REQUESTS_ROUTE);
+    expect(linkItems).toHaveLength(1);
+    expect(linkItems[0]?.labelKey).toBe("linkRequests");
+    // Frozen-value pin (belt-and-braces, mirroring the deep-link and card
+    // suites): the
+    // shared constant must never drift off the real student decision route
+    // (a retarget onto the `[feature]` catch-all ComingSoon page breaks
+    // this first).
+    expect(STUDENT_LINK_REQUESTS_ROUTE).toBe("/student/link-requests");
+  });
+
+  test("the linkRequests label key stays owned by the dashboard bundle", () => {
+    // Runtime pin of the ownership-matrix invariant for the link-requests
+    // entry: `linkRequests` must remain a dashboard-bundle key so
+    // `resolveNavItemLabel` resolves it from the owning bundle in both
+    // locales.
+    expect("linkRequests" in dashboardEn).toBe(true);
+    expect("linkRequests" in handshakeCodeEn).toBe(false);
+  });
+
+  test("the linkRequests label resolves non-empty in BOTH locales through the real runtime path", () => {
+    for (const locale of ["ar", "en"] as AppLocale[]) {
+      const dashboardLabels = DashboardNs.getLabels(getTranslations(locale));
+      const handshakeCodeLabels = HandshakeCodeNs.getLabels(getTranslations(locale));
+      const item = navItemFor(UserRole.Student, STUDENT_LINK_REQUESTS_ROUTE);
+      const label = resolveNavItemLabel(item, dashboardLabels, handshakeCodeLabels);
+      expect(label.length).toBeGreaterThan(0);
+      expect(label).toBe(dashboardLabels.linkRequests);
+    }
+  });
+
+  test.each([UserRole.Teacher, UserRole.Parent, UserRole.Admin])(
+    "Non-student role %s does NOT include the student link-requests item",
+    role => {
+      const nav = getNavItemsForRole(role);
+      const linkItem = nav.find(item => item.route === STUDENT_LINK_REQUESTS_ROUTE);
+      expect(linkItem).toBeUndefined();
     }
   );
 });

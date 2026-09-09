@@ -7,6 +7,7 @@ import type { ReactNode } from "react";
 import { focusVisibleRingSx } from "@/frontend/components/ui/focusRing";
 import type { MyNotificationsQuery_myNotifications_items } from "@/frontend/graphql/generated/gql/graphql";
 import { formatApplicantDate } from "@/frontend/lib/i18n/format-date";
+import { resolveNotificationRoute } from "@/frontend/lib/notification-route-resolution";
 import { Common, Notifications, useAppLocale, useAppTranslation } from "@/shared/locale";
 
 /**
@@ -92,8 +93,11 @@ interface NotificationDrawerListProps {
 /**
  * The settled rows list. Row anatomy follows the prototype: unread dot +
  * bold title + end-aligned locale-formatted timestamp + 2-line-clamped body.
- * Each row IS a real anchor to `/notifications` (Link), so navigation is
- * native — no router call.
+ * Each row IS a real anchor whose href resolves through
+ * `resolveNotificationRoute(relatedEntityType)` — entity-type-keyed deep
+ * links (parent-link rows land on the student decision route); unknown or
+ * absent entity types fall through to the notifications feed page. Either
+ * way navigation is native — no router call.
  */
 function NotificationDrawerList({ items, onOpenNotification }: Readonly<NotificationDrawerListProps>): ReactNode {
   const t = useAppTranslation(Notifications);
@@ -104,7 +108,7 @@ function NotificationDrawerList({ items, onOpenNotification }: Readonly<Notifica
         <ListItemButton
           key={item.id}
           component={Link}
-          href="/notifications"
+          href={resolveNotificationRoute(item.relatedEntityType)}
           divider={index < items.length - 1}
           onClick={() => onOpenNotification(item)}
           sx={{ ...focusVisibleRingSx, alignItems: "flex-start", gap: 1.5, px: 2, py: 1.5 }}
