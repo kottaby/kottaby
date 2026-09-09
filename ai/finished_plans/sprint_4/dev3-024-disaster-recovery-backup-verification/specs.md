@@ -57,10 +57,10 @@ Every capability claimed in this spec was checked against the filesystem BEFORE 
 | G-03 | RPO/RTO already defined | PRODUCTION_READINESS §7.4/7.5 | "Document RTO (e.g., 4 hours)" / "Document RPO (e.g., 1 hour)" — **examples, not ratified** | **DEFINE** — runbook ratifies RPO 1h / RTO 4h |
 | G-04 | Destructive-command guard | `grep -n "export" scripts/lib/destructiveDbGuard.ts` | EXISTS: `assessDestructiveDbCommandSafety`, `formatDestructiveDbBlockMessage`, `assertDestructiveDbCommandAllowed`, `clearDestructiveGuardEnvVars`, `DESTRUCTIVE_GUARD_ENV_KEYS` (lines 5–159) | **CONSUME** — restore target DSN is guard-assessed |
 | G-05 | DB provider matrix | `.env.example:8-32,321,332` | `DB_PROVIDER` = postgres (default) / neon / sqlite; `NEON_TEST_DATABASE_URL` for Neon integration tests; tests forbid production DSNs | Backup tooling targets Postgres/Neon only |
-| G-06 | Ops-script convention | `scripts/ops/{sweep,remind}-expiring-link-requests.ts`, `package.json:66-67` | `--env <file>` flag, `applyEnvFile`, `--help` contract, exit-code doc in header, `console.*` stdout-as-ops-record, `ops:*` package script pair | **FOLLOW exactly** |
+| G-06 | Ops-script convention | `scripts/ops/{sweep,remind}-expiring-link-requests.ts`, `package.json` `ops:*` pair (actual lines 63–64 per 0.2 re-probe; authoring-time probe cited 66–67) | `--env <file>` flag, `applyEnvFile`, `--help` contract, exit-code doc in header, `console.*` stdout-as-ops-record (sanctioned by `eslint.config.mjs` `no-console: off` for `scripts/**`), `ops:*` package script pair | **FOLLOW exactly** |
 | G-07 | Script test harness | `ls scripts/dbActions/*.test.ts` | Colocated `bootstrapEnv.test.ts`, `envFile.test.ts`, `runCommand.test.ts`, `destructive.test.ts` | **FOLLOW** colocated pattern |
 | G-08 | DB test runner for scripts | root `AGENTS.md` | `bun run test/scripts/run-test.ts <path>` mandatory for DB-touching tests (log capture) | Used for integration test |
-| G-09 | Journey-test layer | `test/workflows/AGENTS.md` (144 lines) + `docs/testing/workflow-journey-tests.md` | EXISTS | Evaluated → **ruled N/A** (single-actor ops tooling; see Journeys section) |
+| G-09 | Journey-test layer | `test/workflows/AGENTS.md` (147 lines) + `docs/testing/workflow-journey-tests.md` (124 lines) | EXISTS | Evaluated → **ruled N/A** (single-actor ops tooling; see Journeys section) |
 | G-10 | Migration pipeline | `scripts/dbActions/cli.ts` + `docs/DATABASE_MIGRATIONS.md` | `bun run db` → generate/push/migrate; `reset`/`cleanGenerate` permanently disabled by repo policy | Zero schema drift guaranteed (no schema tasks exist) |
 | G-11 | Drizzle journal paths | `ls backend/` | `backend/drizzle/` (PG) and `backend/drizzle-sqlite/` exist | Manifest records PG journal hash |
 | G-12 | i18n surface | `shared/locale/` compile-time system | Operator tooling is English-only by precedent — i18n exemptions recorded (REQ-052) | N/A — documented |
@@ -123,7 +123,7 @@ Every capability claimed in this spec was checked against the filesystem BEFORE 
 **User Story:** As the Platform Operator, I want every backup to carry a machine-readable manifest, so that restores are verifiable and an off-site uploader (D-003) can be added later without changing the producer.
 
 #### Acceptance Criteria
-1. WHEN a backup completes THEN the system SHALL write `manifest.json` into the run directory containing: `tool` name, `toolVersion`, `postgresServerVersion`, `pgDumpVersion`, `database` (name only), `startedAtUtc`, `finishedAtUtc`, `artifactFile`, `artifactBytes`, `sha256`, and `journalHash` (SHA-256 over `backend/drizzle/` journal listing).
+1. WHEN a backup completes THEN the system SHALL write `manifest.json` into the run directory containing: `tool` name, `toolVersion`, `postgresServerVersion`, `pgDumpVersion`, `database` (name only), `startedAtUtc`, `finishedAtUtc`, `artifactFile`, `artifactBytes`, `sha256`, and `journalHash` (sha256 over the terminal migration's SQL content per the repo's migration folder — drizzle-orm readMigrationFiles semantics; corresponds to the trailing `__drizzle_migrations.hash`).
 2. WHEN the manifest is written THEN host, user, and password portions of the DSN SHALL be redacted in every field (REQ-030).
 3. IF manifest writing fails THEN the backup run SHALL be reported as failed (exit 2) — an unverifiable backup is not a backup.
 4. WHEN a manifest exists THEN its JSON SHALL round-trip parse in tests (schema-shape assertion).
@@ -187,7 +187,7 @@ Every capability claimed in this spec was checked against the filesystem BEFORE 
 ### REQ-017: Structural Verification
 
 1. WHEN a restore completes THEN the verifier SHALL assert all expected tables exist in the scratch DB, comparing against the `pg_catalog` inventory of the *source-known* table list derived from `backend/db/schema/` table names (no hardcoded drift-prone list without a derivation note).
-2. WHEN row counts are checked THEN invariant-critical tables — `users`, `wallets`, `wallet_transactions`, `sessions`, `session_requests`, `audit_logs`, `notifications`, `parent_link_requests` — SHALL be reported individually; a source-non-empty table restored to 0 rows SHALL fail verification.
+2. WHEN row counts are checked THEN invariant-critical tables — `users`, `wallet`, `teacher_transaction`, `session`, `session_request_idempotency`, `audit_logs`, `notifications`, `parent_link_requests` — SHALL be reported individually; a source-non-empty table restored to 0 rows SHALL fail verification. (Table names verified against the live `backend/db/schema/` `pgTable` definitions during the plan-review gate — R1 probe: the schema has no `wallets`, `wallet_transactions`, `sessions`, or `session_requests` tables; the wallet ledger is `teacher_transaction`, booking-request state lives in `session_request_idempotency`, and `students` balance lanes (INV-B1) are exercised by the OR-B1 oracle rather than this row-count list.)
 3. WHEN migration state is compared THEN the scratch's last applied `__drizzle_migrations` entry SHALL equal the backup-time expectation recorded via the manifest `journalHash` correspondence, with drift reported as FAIL.
 
 ### REQ-018: Invariant Oracle Verification
@@ -195,7 +195,7 @@ Every capability claimed in this spec was checked against the filesystem BEFORE 
 **User Story:** As the Admin, I want the restored database re-proven against the platform's own invariants, so "it restored" means "it's safe to serve".
 
 #### Acceptance Criteria
-1. WHEN verification runs THEN the system SHALL execute the oracle registry (plan §4.3): wallet non-negativity (INV-W*), wallet-transaction referential integrity (INV-W*), session-hold/balance-lane integrity (INV-B*), audit-log actor integrity (A.5/INV-U*), soft-deleted history retention (INV-U4/U5), session-request referential integrity (workflow 02), and migration-hash match (REQ-017).
+1. WHEN verification runs THEN the system SHALL execute the oracle registry (plan §4.3): wallet non-negativity (INV-W*), `teacher_transaction`→`wallet` referential integrity (INV-W*; the wallet ledger table is `teacher_transaction`, not `wallet_transactions`), session-hold/balance-lane integrity (INV-B*: `students` balance lanes non-negative, `session` rows join existing student+teacher), audit-log actor integrity (A.5/INV-U*), soft-deleted history retention (INV-U4/U5), session-request idempotency-claim referential integrity (workflow 02: `session_request_idempotency` rows join existing users; claimed `session_id` joins an existing `session` row), and migration-hash match (REQ-017).
 2. WHEN an oracle runs THEN it SHALL be a read-only `SELECT` predicate returning pass/fail + offending-row count, never mutating the scratch DB.
 3. WHEN any oracle fails THEN the overall verdict SHALL be `FAIL` and the report SHALL name the failing oracle ids with counts.
 4. WHEN a new invariant lands in `docs/specs/state-machine-invariants.md` THEN adding an oracle SHALL be a pure data-append to the `ORACLES` registry (no control-flow edits).
@@ -258,7 +258,7 @@ Every capability claimed in this spec was checked against the filesystem BEFORE 
 
 ## Requirement: Error & Exit-Code Contracts (REQ-050..REQ-052)
 
-1. WHEN scripts exit THEN codes SHALL be: `0` success · `1` operational failure (tool error, verification mismatch) · `2` usage/guard refusal — matching `scripts/dbActions/cli-entry.ts` and `scripts/ops/*` precedent (REQ-050).
+1. WHEN scripts exit THEN codes SHALL be: `0` success · `1` operational failure (tool error, verification mismatch) · `2` usage/env/guard/lock refusal — matching `scripts/dbActions/cli-entry.ts` and `scripts/ops/*` precedent (REQ-050; lock-contention refusal = live lockfile held by a live PID).
 2. WHEN failures print THEN messages SHALL carry a bracketed tag — `[env]`, `[guard]`, `[pg_dump]`, `[pg_restore]`, `[verify:<oracle-id>]` — and unexpected throws MAY print a stack but SHALL strip credentials first (REQ-051).
 3. WHEN conventions are documented THEN the runbook SHALL record the operator-English stdout i18n exemption (REQ-052), mirroring REQ-000.5.
 

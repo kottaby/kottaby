@@ -460,6 +460,7 @@ After reading the applicable instruction files and AGENTS.md, subagents check fo
 - `docs/parents/parent-link-request.md` — Parent link-request workflow canonical reference (request state machine with 7-day expiry, guarded single-writer student link, expiry/reminder semantics, notification choreography, error/oracle matrix, confirmation discoverability closure; INV-P1 binding)
 - `docs/students/free-trial-provisioning.md` — Free Trial Provisioning canonical reference (one-time trial credit grant for new students, dedicated `balance_trial` lane, grant-once guarded UPDATE, DEV3 booking-eligibility & decrement forward contract)
 - `docs/sessions/session-lifecycle.md` — Session lifecycle canonical reference (DEV3-004: state machine + guarded-transition pattern, four-phase creation invariant, hold-as-debit + same-lane refund, idempotency claim design, sessions-are-sensitive oracle ruling + anti-copy-paste warning, consumer guidance for DEV3-005/006/011/012/013/021 + DEV2-016; DEV3-012: dual-confirmation completion handshake — two-leg expiry sweep + completion notification waves)
+- `docs/ops/disaster-recovery.md` — DR runbook (RPO 1h / RTO 4h), backup/restore-verify ops scripts, invariant-oracle verification
 
 
 ## Linting Rules
