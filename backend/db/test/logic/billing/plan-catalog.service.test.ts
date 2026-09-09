@@ -45,11 +45,6 @@ async function provisionAdminActor(tx: DBTransaction): Promise<UserSelectType> {
 }
 
 /**
- * Fetches every plan-entity audit row the supplied actor minted for one
- * entity id. Entity+actor scoping keeps counts immune to concurrent test
- * files committing their own rows against the shared database.
- */
-/**
  * Widens an action-type enum member to its raw stored string. Insert-returning
  * rows carry the raw `action_type` value (coercion to the enum is the read
  * service's job), so audit-row lookups compare primitive-to-primitive.
@@ -58,17 +53,26 @@ function rawActionType(actionType: AuditActionType): string {
   return actionType;
 }
 
+/**
+ * Fetches every plan-entity audit row the supplied actor minted for one
+ * entity id. Entity+actor scoping keeps counts immune to concurrent test
+ * files committing their own rows against the shared database.
+ */
 async function fetchPlanAuditRows(tx: DBTransaction, actorId: number, entityId: number) {
-  return tx
-    .select()
-    .from(auditLogs)
-    .where(
-      and(
-        eq(auditLogs.actorId, actorId),
-        eq(auditLogs.entityType, PLAN_AUDIT_ENTITY_TYPE),
-        eq(auditLogs.entityId, entityId)
-      )
-    );
+  // Widen the pg-enum column to its raw stored string so lookups compare
+  // primitive-to-primitive (see rawActionType).
+  return (
+    (await tx
+      .select()
+      .from(auditLogs)
+      .where(
+        and(
+          eq(auditLogs.actorId, actorId),
+          eq(auditLogs.entityType, PLAN_AUDIT_ENTITY_TYPE),
+          eq(auditLogs.entityId, entityId)
+        )
+      )) as { actionType: string }[]
+  );
 }
 
 /**

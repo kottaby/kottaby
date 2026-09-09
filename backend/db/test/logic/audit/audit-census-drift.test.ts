@@ -406,6 +406,18 @@ describe("deferred rows trace to the deferred-items ledger; coverage map stays c
       }
     }
   });
+
+  test("coverage converse: every verb marked wired has a producing wired census row", () => {
+    for (const member of Object.values(AuditActionType)) {
+      if (ACTION_TYPE_COVERAGE[member] !== "wired") {
+        continue;
+      }
+      const produced = ADMIN_ACTION_CENSUS.some(
+        row => row.kind === "wired" && row.expectedActionTypes.includes(member)
+      );
+      expect(produced).toBe(true);
+    }
+  });
 });
 
 // ─── Scanner non-vacuity + negative self-test harness ────────────────────────

@@ -21,7 +21,7 @@ import { getServerTranslations } from "@/shared/locale/server-graphql";
 import type { Translations } from "@/shared/locale/types/message";
 import { withAuditDeleteTriggersSuspended } from "@/test/helpers/db-cleanup";
 
-const ADMIN_EMAIL = process.env.ADMIN_EMAIL ?? "admin@app.local";
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL ?? "admin@draftacademy.local";
 
 /**
  * Plan rows created by the admin happy-path tests are committed to the real

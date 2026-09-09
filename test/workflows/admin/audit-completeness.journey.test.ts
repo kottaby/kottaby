@@ -837,7 +837,11 @@ describe("Audit-trail completeness journey — execute every admin action, prove
 
   test("canonical ordering holds with the createdAt DESC, id DESC tiebreak on the busiest anchor", async () => {
     const rows = await db
-      .select({ id: auditLogs.id, createdAt: auditLogs.createdAt, actionType: auditLogs.actionType })
+      .select({
+        id: auditLogs.id,
+        createdAt: auditLogs.createdAt,
+        actionType: sql<string>`${auditLogs.actionType}`,
+      })
       .from(auditLogs)
       .where(and(eq(auditLogs.entityType, "user"), eq(auditLogs.entityId, targetStudentId)))
       .orderBy(desc(auditLogs.createdAt), desc(auditLogs.id));
