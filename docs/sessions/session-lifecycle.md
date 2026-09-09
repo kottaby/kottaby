@@ -20,9 +20,9 @@ A booking is money in motion: one allowance unit leaves the student's balance th
 |---|---|
 | `scheduled` | Created; fee held (`fee_held = true`); 24h confirmation deadline armed. |
 | `started` | Live session (`started_at` set). |
-| `completed` | Teacher marked complete (`ended_at`, `confirmed_by_teacher_at` set). **Terminal in this slice.** |
+| `completed` | Teacher marked complete (`ended_at`, `confirmed_by_teacher_at` set). The student's confirmation adds `confirmed_by_student_at`, releases the hold (`fee_held = false`) and credits the teacher's wallet exactly once (dual confirmation — DEV3-012, implemented); a row left unconfirmed is swept to `cancelled` after the 24h window (§2.2). **Not terminal by itself** — it settles via the student's confirmation or the timeout sweep. |
 | `cancelled` | Cancelled before start or during (`fee_held = false`, hold refunded). **Terminal.** |
-| `disputed` | Exists in the `session_status` enum (B.18) but has **no transition surface** here — DEV3-022/DEV3-005 own it. |
+| `disputed` | Producer surface confirmed (B.18): `openSessionDispute` — either participant, from `scheduled`/`started` **only** (pre-completion), escrow hold frozen until arbitration. A dispute attempt on a `completed` row is rejected with `SESSION_INVALID_TRANSITION`; the hop out of `disputed` is the admin resolution `resolveSessionDispute` (DEV3-021 owns the arbitration surface). |
 
 ```mermaid
 stateDiagram-v2
@@ -31,7 +31,13 @@ stateDiagram-v2
     scheduled --> cancelled: cancelSession (either participant)
     started --> completed: completeSession (owner teacher, certified)
     started --> cancelled: cancelSession (either participant)
-    completed --> [*]: terminal (dual confirmation/wallet = DEV3-012/013)
+    scheduled --> disputed: openSessionDispute (either participant, pre-completion only)
+    started --> disputed: openSessionDispute (either participant, pre-completion only)
+    completed --> completed: confirmSessionCompletion (student confirm — DEV3-012, hold released + wallet credited)
+    completed --> cancelled: sweepExpiredCompletedOnce (system 24h timeout — DEV3-012)
+    disputed --> cancelled: resolveSessionDispute (admin CANCEL, same-lane refund)
+    disputed --> completed: resolveSessionDispute (admin COMPLETE, hold consumed)
+    completed --> [*]: terminal (settled — hold consumed; ledger accounting depth = DEV3-013)
     cancelled --> [*]: terminal (hold already refunded)
 ```
 
@@ -44,6 +50,9 @@ Every lifecycle mutation is **ONE** `UPDATE … WHERE <row identity> AND <owner/
 | `startSessionOnce` | `id ∧ teacher_id = caller ∧ status = scheduled` | `started_at`, `updated_at` (from ONE captured `now`). `confirmation_deadline` is **never** in any SET clause (B.2 — written at creation, never re-armed). |
 | `completeSessionOnce` | `id ∧ teacher_id = caller ∧ status = started ∧ EXISTS (SELECT 1 FROM teacher WHERE teacher.id = session.teacher_id AND teacher.is_approved = true)` | `status=completed`, `ended_at`, `confirmed_by_teacher_at`, `updated_at`. Certification is **fused into the statement** — a decertified teacher cannot complete, and there is no separate read to race against. |
 | `cancelSessionOnce` | `id ∧ (student_id = caller ∨ teacher_id = caller) ∧ status ∈ {scheduled, started}` | `status=cancelled`, `fee_held=false`, `updated_at`. Keeps `started_at`; never writes `ended_at`. Terminal states are structurally unreachable in the predicate — a double cancel can never double-refund. |
+| `sweepExpiredCompletedOnce` | *(system batch — no row identity, no participant leg)* `status = completed ∧ confirmed_by_student_at IS NULL ∧ confirmed_by_teacher_at < cutoff`, where `cutoff` = the ONE captured sweep instant − `SESSION_CONFIRMATION_WINDOW_MS` (24h; **strict `<`** — a stamp exactly at the cutoff is never swept) | `status=cancelled`, `fee_held=false`, `updated_at` (same captured `now`), `RETURNING *`. The completed-leg sibling of the scheduled-expiry sweep — both legs compose inside `sweepExpiredSessions` on ONE transaction, and the same-lane refund walk covers the UNION of both legs' returned rows (NULL `held_balance_lane` = nothing to refund). `confirmation_deadline` is never touched (B.2 — the window is sweep-time arithmetic on the recorded teacher stamp); `cancelled` is terminal, so a re-run matches zero rows. |
+
+The batch sweeps are the deliberate exception to the probe ritual: a zero-row sweep is the honest idempotent answer (nothing is overdue), not an ambiguity to classify — there is no caller to oracle-protect.
 
 A zero-row match is ambiguous (unknown id vs non-owner vs wrong state vs decertified), so the service classifies it with **one cold probe read** (`findTransitionProbe`: the 4-column projection `id, status, studentId, teacherId`) that runs only AFTER the guarded UPDATE already matched zero rows and **never feeds a write**:
 
@@ -52,6 +61,13 @@ A zero-row match is ambiguous (unknown id vs non-owner vs wrong state vs decerti
 - probe `started` on a complete attempt → the fused certification `EXISTS` was the miss cause → `TEACHER_NOT_CERTIFIED`.
 
 **Rules:** never branch a write off the probe; never add a second write path for a transition; never "helpfully" widen a participant predicate (admins get exactly the non-participant denial — DEV3-021 owns the future admin surface); never persist cancel `reason` here (validated ≤500 chars, then discarded — DEV3-005's status-history seam owns persistence).
+
+**Notification side effects (DEV3-012, implemented).** Two student-facing completion waves ride the transitions above. Each is emitted on the owning transaction as an unpublished delivery receipt and pushed through `NotificationEngine.publishReceipts` strictly AFTER the commit — a rolled-back flow never pushes a notification, and a caller-owned transaction leaves the publish to the caller (the outer-tx receipt surfaces through `completeSessionWithReceipt`). Copy is composed in the recipient's persisted locale:
+
+| Producer transition | Wave kind · row type | Recipient | Idempotency key |
+|---|---|---|---|
+| `completeSession` — the owner teacher's completion stamp; fires only when the guarded UPDATE matches, never on a denied or idempotent repeat | `completion_prompt` · `session_completion` | student | `session-completion-prompt:{sessionId}` |
+| `sweepExpiredSessions` completed leg — one notice per swept row; the scheduled-expiry leg stays notification-free | `completion_auto_cancelled` · `session_completion` | student | `session-completion-autocancel:{sessionId}` |
 
 ### 2.3 Invariant binding (state machine)
 
@@ -70,7 +86,7 @@ A zero-row match is ambiguous (unknown id vs non-owner vs wrong state vs decerti
 | **INV-U2/U5** | Governance denial verified at the login/SSR boundary (the GraphQL context is NOT fail-closed) **plus** a service-layer re-check on `createSession`/`startSession`/`completeSession` — `cancelSession` is deliberately EXEMPT (a governed student may still release an in-flight hold; REQ-023 no-punishment clause). Historical rows are never mutated by governance flips. |
 | **INV-TV1** | Booking an applicant (a `role=teacher` user with no `teacher` row) is impossible — the cert lock resolves `null` → `TEACHER_NOT_FOUND`. Nothing here mints certification. Teachers are **unconditionally FORBIDDEN** on `createSession` (the REQ-011 students-row carve-out was struck; its dedicated-authScope design is deferred — ledger D7). |
 
-**Decision binding:** A.8 — every row is `session_type = student_session` (evaluation types unreachable through this surface); A.10 — `intent` is `hifz | tajweed` only, `evaluation` is rejected pre-DB with `VALIDATION`; B.2 — `confirmation_deadline = now + 24h` at creation, never re-armed (sweeper = DEV3-012); B.3 — fee comes from platform constants, never input; B.4 — implemented per the hold-as-debit ruling (§4); B.18 — `disputed` exists in the enum with no producer here; C.5 — zero `recitation` rows written (1:1 session→recitation is DEV3-007's).
+**Decision binding:** A.8 — every row is `session_type = student_session` (evaluation types unreachable through this surface); A.10 — `intent` is `hifz | tajweed` only, `evaluation` is rejected pre-DB with `VALIDATION`; B.2 — `confirmation_deadline = now + 24h` at creation, never re-armed (sweeper = DEV3-012); B.3 — fee comes from platform constants, never input; B.4 — implemented per the hold-as-debit ruling (§4); B.18 — `disputed`'s producer is the confirmed pre-completion dispute surface (`openSessionDispute`, either participant — §2.1); C.5 — zero `recitation` rows written (1:1 session→recitation is DEV3-007's).
 
 ## 3. Four-Phase Creation Invariant (REQ-040)
 
@@ -86,9 +102,9 @@ Rollback is the only cleanup: any phase failure leaves zero writes (proven by a 
 
 ## 4. Hold-as-Debit Ruling & the B.4 Reconciliation
 
-**Ruling:** "hold" = a **guarded debit of one allowance unit at request time** (trial-first per INV-B8); dual confirmation (DEV3-012/013) flips `fee_held = false` and credits the wallet; cancellation re-increments the **SAME** lane exactly once. The `fee_held` boolean is the *marker*; the **`session.held_balance_lane` varchar column is the *provenance*** — it records which lane funded the hold (`trial | hifz | tajweed`), is NULL until a fee has ever been held, and once placed is **never rewritten or nulled** (release/consumption flips `fee_held` only; every refund reads the recorded lane).
+**Ruling:** "hold" = a **guarded debit of one allowance unit at request time** (trial-first per INV-B8); dual confirmation (DEV3-012 — student confirm + 24h timeout sweep, implemented) flips `fee_held = false` and credits the wallet; cancellation re-increments the **SAME** lane exactly once. The `fee_held` boolean is the *marker*; the **`session.held_balance_lane` varchar column is the *provenance*** — it records which lane funded the hold (`trial | hifz | tajweed`), is NULL until a fee has ever been held, and once placed is **never rewritten or nulled** (release/consumption flips `fee_held` only; every refund reads the recorded lane).
 
-This **supersedes `docs/planning/TEAM_ALLOCATION.md` Contract 1's older phrasing** ("held, not decremented"). Escrow-hold-at-request is only meaningful if the lane was debited at request; INV-B8 (booking decrements, trial-first) and the DEV3-004 acceptance criteria both require it. Decision B.4's escrow model is thereby *implemented* as debit-at-request + same-lane refund + the `fee_held` marker; the **wallet-side** release/credit still lands with DEV3-012/013. Pre-existing rows from the DEV1-004 era carry `fee_held = false` and a NULL lane — cancelling them refunds nothing, which is exactly correct (no hold exists).
+This **supersedes `docs/planning/TEAM_ALLOCATION.md` Contract 1's older phrasing** ("held, not decremented"). Escrow-hold-at-request is only meaningful if the lane was debited at request; INV-B8 (booking decrements, trial-first) and the DEV3-004 acceptance criteria both require it. Decision B.4's escrow model is thereby *implemented* as debit-at-request + same-lane refund + the `fee_held` marker; the **wallet-side** release/credit landed with the dual-confirmation handshake (DEV3-012, implemented); the escrow accounting depth stays with DEV3-013. Pre-existing rows from the DEV1-004 era carry `fee_held = false` and a NULL lane — cancelling them refunds nothing, which is exactly correct (no hold exists).
 
 ## 5. Trial-First Ladder & Same-Lane Refund
 

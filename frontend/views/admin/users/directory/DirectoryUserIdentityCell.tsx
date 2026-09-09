@@ -19,9 +19,9 @@
  */
 
 import { ContentCopyOutlined as CopyIcon } from "@mui/icons-material";
-import { Box, IconButton, Link as MuiLink, Stack, TableCell, Tooltip, Typography } from "@mui/material";
-import Link from "next/link";
+import { Box, IconButton, Stack, TableCell, Tooltip, Typography } from "@mui/material";
 import type { ReactNode } from "react";
+import { DirectoryNameLink } from "@/frontend/views/admin/directory-shared/DirectoryNameLink";
 import { type DirectoryUserItem, useDirectoryCopyEmail } from "@/frontend/views/admin/users/directory";
 import { UserAvatar } from "@/frontend/views/admin/users/ui";
 import type { DirectoryRole } from "@/frontend/views/admin/users/utils";
@@ -47,35 +47,11 @@ export function DirectoryUserIdentityCell({
       <Stack direction="row" spacing={1.5} sx={{ alignItems: "center", minWidth: 0 }}>
         <UserAvatar fullName={user.fullName} role={role} size={40} />
         <Box sx={{ minWidth: 0 }}>
-          <MuiLink
-            component={Link}
+          <DirectoryNameLink
             href={`/admin/users/${user.id}`}
-            underline="hover"
-            aria-label={`${labels.quickActions.viewProfile}: ${user.fullName}`}
-            title={user.fullName}
-            dir="ltr"
-            sx={theme => ({
-              display: "block",
-              maxWidth: "100%",
-              fontSize: 15,
-              fontWeight: 600,
-              color: theme.palette.text.primary,
-              unicodeBidi: "isolate",
-              textAlign: "start",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
-              minWidth: 0,
-              // ≥44px tap target without changing the row's visual density:
-              // transparent block padding grows the clickable box while the
-              // matching negative margins keep the layout height unchanged.
-              minHeight: 44,
-              paddingBlock: "10.5px",
-              marginBlock: "-10.5px",
-            })}
-          >
-            {user.fullName}
-          </MuiLink>
+            name={user.fullName}
+            viewProfileLabel={labels.quickActions.viewProfile}
+          />
           <Stack direction="row" spacing={0.5} sx={{ alignItems: "center", minWidth: 0 }}>
             <Typography
               variant="body2"
