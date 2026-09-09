@@ -1,8 +1,9 @@
 "use client";
 
 import { ContentCopy as CopyIcon, Share as ShareIcon } from "@mui/icons-material";
-import { Box, IconButton, Stack, Typography } from "@mui/material";
+import { Box, IconButton, Stack, Tooltip, Typography } from "@mui/material";
 import { type ReactNode, useCallback, useState } from "react";
+import { focusVisibleRingSx } from "@/frontend/components/ui/focusRing";
 import { Landing, useAppTranslation } from "@/shared/locale";
 
 /** Copy / Share action row for the verse of the day. */
@@ -41,17 +42,20 @@ export function VerseActions(): ReactNode {
 
   return (
     <Stack direction="row" spacing={1} sx={{ mt: -1 }}>
-      <IconButton
-        onClick={handleCopy}
-        size="small"
-        aria-label={t.verseCopy}
-        sx={{
-          color: "var(--mui-palette-secondary-light)",
-          "&:hover": { bgcolor: "color-mix(in srgb, var(--mui-palette-secondary-light) 15%, transparent)" },
-        }}
-      >
-        <CopyIcon sx={{ fontSize: 18 }} />
-      </IconButton>
+      <Tooltip title={copied ? t.verseCopied : t.verseCopy}>
+        <IconButton
+          onClick={handleCopy}
+          size="small"
+          aria-label={t.verseCopy}
+          sx={{
+            ...focusVisibleRingSx,
+            color: "var(--mui-palette-secondary-light)",
+            "&:hover": { bgcolor: "color-mix(in srgb, var(--mui-palette-secondary-light) 15%, transparent)" },
+          }}
+        >
+          <CopyIcon sx={{ fontSize: 18 }} />
+        </IconButton>
+      </Tooltip>
       <Typography
         variant="caption"
         sx={{
@@ -64,17 +68,20 @@ export function VerseActions(): ReactNode {
         {copied ? t.verseCopied : t.verseCopy}
       </Typography>
       <Box sx={{ width: 8 }} />
-      <IconButton
-        onClick={handleShare}
-        size="small"
-        aria-label={t.verseShare}
-        sx={{
-          color: "var(--mui-palette-secondary-light)",
-          "&:hover": { bgcolor: "color-mix(in srgb, var(--mui-palette-secondary-light) 15%, transparent)" },
-        }}
-      >
-        <ShareIcon sx={{ fontSize: 18 }} />
-      </IconButton>
+      <Tooltip title={t.verseShare}>
+        <IconButton
+          onClick={handleShare}
+          size="small"
+          aria-label={t.verseShare}
+          sx={{
+            ...focusVisibleRingSx,
+            color: "var(--mui-palette-secondary-light)",
+            "&:hover": { bgcolor: "color-mix(in srgb, var(--mui-palette-secondary-light) 15%, transparent)" },
+          }}
+        >
+          <ShareIcon sx={{ fontSize: 18 }} />
+        </IconButton>
+      </Tooltip>
       <Typography variant="caption" sx={{ color: "var(--mui-palette-secondary-light)", opacity: 0.7, lineHeight: 2.5 }}>
         {t.verseShare}
       </Typography>
