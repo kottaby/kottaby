@@ -55,8 +55,7 @@ jobs:
           llm_provider: openrouter
           llm_api_url: http://127.0.0.1:20128/v1
           llm_api_key: "local-proxy"
-          # llm_model: "z-ai/glm-5.2"
-          llm_model: "thinkingmachines/inkling"
+          llm_model: ${{ secrets.LLM_MODEL }}
           review_mode: both
           tone_mode: balanced
 
