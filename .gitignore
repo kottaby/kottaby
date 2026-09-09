@@ -28,6 +28,7 @@ node_modules
 /coverage/
 .playwright-cli/
 .playwright-mcp/
+.browser-tmp/
 storybook-static/
 *storybook.log
 .graphql-test-ports
