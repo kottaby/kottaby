@@ -90,7 +90,8 @@ export interface ParentLinkLabels {
   /**
    * "Latest requester" line — interpolates the MOST RECENT actionable
    * requester's FULL display name (already `isolateBidi`-assembled by the
-   * component; the card's sanctioned identity disclosure per REQ-015).
+   * component; the card's sanctioned identity disclosure — the requester's
+   * full name and the pending count only).
    */
   readonly dashboardCardLatestRequester: (parentName: string) => string;
   /** Single CTA label deep-linking to the student link-requests route. */

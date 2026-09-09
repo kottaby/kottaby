@@ -6,7 +6,7 @@ import { displayLinkRequestStatus, isLinkRequestActionable } from "@/frontend/li
 
 /**
  * Derivation helpers for the student dashboard's pending-link-requests
- * discoverability card (DEV1-015 task 4.2).
+ * discoverability card.
  *
  * PURE module — no React imports, no Apollo imports, no clock reads: the
  * caller owns `nowMs` (the card captures ONE `now` at mount per the
@@ -38,7 +38,8 @@ export interface ActionableIncomingSummary {
  *    leak a non-actionable row into the dashboard count;
  *  - `latest` is the most recent actionable row by `createdAt` (max, never
  *    array order — the wire's newest-first contract is not trusted here);
- *  - zero actionable rows → `null` (the card unmounts, REQ-015/052).
+ *  - zero actionable rows → `null` (the card unmounts — no empty-state
+ *    chrome on the dashboard).
  *
  * Single pass, no `reduce` (sonarjs/reduce-initial-value) and no indexed
  * access: the newest-so-far champion is tracked by timestamp, so a

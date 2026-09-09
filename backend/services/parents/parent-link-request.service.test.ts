@@ -38,7 +38,7 @@
  *    accepted/rejected copy to the parent); cancelLinkRequest silent
  *    withdrawal; self-scoped lists with closed wire shapes; classified denials
  *    (NOT_FOUND foreign ≡ nonexistent, ALREADY_RESOLVED, EXPIRED); the
- *    sequential COMMITTED double-respond replay idempotency (REQ-013): the
+ *    sequential COMMITTED double-respond replay idempotency: the
  *    replay answers the constant ALREADY_RESOLVED conflict while the parent
  *    keeps EXACTLY ONE notification + ONE publish total and the row keeps
  *    its single terminal state with the FIRST `respondedAt` stamp
@@ -56,7 +56,7 @@
  *    missing id, cross-role); governed-actor denial with a PRE-ISSUED-token
  *    simulation (actor row flipped governed between issue and call) with the
  *    SAME constant denial copy as the role arm (no branch disclosure); the
- *    governance PRE-TX ORDERING proof on the decision mutation (D9a/REQ-022):
+ *    governance PRE-TX ORDERING proof on the decision mutation:
  *    call-through repo spies over every post-gate collaborator record ZERO
  *    invocations while the gate's own `UserRepository.findById` records
  *    EXACTLY its sanctioned actor reads in call order (identity derives from
@@ -1336,7 +1336,7 @@ describe("ParentLinkRequestService.sweepExpiredRequests", () => {
       );
 
       // Pre-sweep: the lapsed-but-unmaterialized pending STILL answers the
-      // pair pre-check (the D9b lockout contract, pinned at chaos tier).
+      // pair pre-check (the pair-lockout contract, pinned at chaos tier).
       expect(await ParentLinkRequestRepository.findPendingByPair(parentUser.id, studentRow.id, tx)).not.toBeNull();
 
       await ParentLinkRequestService.sweepExpiredRequests(tx);

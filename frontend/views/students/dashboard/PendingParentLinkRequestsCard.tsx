@@ -22,7 +22,7 @@ const retryButtonSx = { ...focusVisibleRingSx, minHeight: 44 } as const;
 
 /**
  * PendingParentLinkRequestsCard — the student dashboard's discoverability
- * card for incoming parent-link requests (DEV1-015 task 4.2). Mounted in the
+ * card for incoming parent-link requests. Mounted in the
  * `RoleDashboardPage` student status slot next to `HandshakeCodeCard`.
  *
  * Self-contained client component: NO props, NO client-side role logic — the
@@ -37,7 +37,7 @@ const retryButtonSx = { ...focusVisibleRingSx, minHeight: 44 } as const;
  * per the read-purity convention) reuses the shared computed-status machinery
  * verbatim — a stored `pending` row past its expiry is NOT counted.
  *
- * Render branches (REQ-015/052):
+ * Render branches:
  *
  * | # | Condition | Surface |
  * |---|-----------|---------|
@@ -102,7 +102,7 @@ export function PendingParentLinkRequestsCard(): ReactNode {
   }
 
   // Branch 3 — settled, zero actionable: render NOTHING (discoverability
-  // chrome disappears the moment the queue converges, REQ-016).
+  // chrome disappears the moment the queue converges).
   const summary =
     data?.myIncomingParentLinkRequests === undefined
       ? null
@@ -122,8 +122,8 @@ export function PendingParentLinkRequestsCard(): ReactNode {
       </Stack>
       <Stack direction="row" spacing={1} sx={{ alignItems: "center", flexWrap: "wrap" }}>
         <Chip label={t.dashboardCardCount(summary.count)} size="small" color="warning" variant="outlined" />
-        {/* The name is isolateBidi-assembled BEFORE interpolation (1.1
-            carry-forward); `dir="auto"` adds first-strong isolation where the
+        {/* The name is isolateBidi-assembled BEFORE interpolation;
+            `dir="auto"` adds first-strong isolation where the
             line abuts the card chrome. */}
         <Typography variant="body2" dir="auto" sx={theme => ({ color: theme.palette.text.secondary })}>
           {t.dashboardCardLatestRequester(isolateBidi(summary.latestParentFullName))}

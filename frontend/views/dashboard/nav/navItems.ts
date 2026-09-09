@@ -82,8 +82,8 @@ function isDashboardLabelKey(key: NavLabelKey): key is keyof DashboardLabels {
  * dashboard landing + a profile). Role-specific links (Sessions, Subscriptions,
  * Wallet, etc.) are gated by role per the FR catalog. The Notifications
  * inbox link is present for ALL roles too (every authenticated audience has
- * an inbox — REQ-065), positioned right after each role's dashboard entry
- * (plan §5.2: existing general nav group, no new group).
+ * an inbox), positioned right after each role's dashboard entry
+ * (the existing general nav group — no new nav group).
  *
  * Each role's dashboard item points DIRECTLY at its role-specific route
  * (`/teacher/dashboard`, …) instead of the bare `/dashboard` dispatcher:
@@ -97,7 +97,7 @@ function isDashboardLabelKey(key: NavLabelKey): key is keyof DashboardLabels {
  * Profile, Notifications) take precedence over the catch-all per Next.js
  * route resolution.
  *
- * Canonical retargets (per sprint plans):
+ * Canonical retargets:
  *  - Sessions → `/student/sessions` / `/teacher/sessions` (DEV3-004 — a
  *    RETARGET of the former shared `/sessions` catch-all link)
  *  - Admin Users → `/admin/users` (DEV3-016 — the directory page exists)
@@ -105,7 +105,7 @@ function isDashboardLabelKey(key: NavLabelKey): key is keyof DashboardLabels {
  *  - Admin Broadcasts → `/admin/broadcasts` (DEV3-022d — a pure ADD, not a
  *    retarget: the compose surface ships at the route)
  *  - Student Link Requests → the real decision route via the shared
- *    `STUDENT_LINK_REQUESTS_ROUTE` constant (DEV1-015 — the nav, the
+ *    `STUDENT_LINK_REQUESTS_ROUTE` constant (the nav, the
  *    dashboard-card CTA, and the notification deep-link never drift).
  */
 const NAV_ITEMS_BY_ROLE: Record<UserRole, readonly DashboardNavItem[]> = {

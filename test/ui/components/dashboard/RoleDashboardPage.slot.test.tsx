@@ -1,5 +1,5 @@
 /**
- * RoleDashboardPage status-slot composition suite (DEV1-015 task 4.3.TE).
+ * RoleDashboardPage status-slot composition suite.
  *
  * Happy DOM + Apollo `MockedProvider` tier (`test/ui/components`): the REAL
  * `createRoleDashboardPage` factory runs against a controlled
@@ -283,7 +283,7 @@ for (const locale of ["ar", "en"] as AppLocale[]) {
       const handshakeCard = await screen.findByTestId("handshake-code-card");
       const pendingCard = await screen.findByTestId("pending-parent-link-requests-card");
 
-      // DOM order: handshake strictly BEFORE pending (plan D6 ordering).
+      // DOM order: handshake strictly BEFORE pending (the slot's sibling ordering).
       expect(handshakeCard.compareDocumentPosition(pendingCard) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
       // Sibling composition: both cards share ONE parent — the slot Stack —
       // so the spacing wrapper composes them rather than nesting either.

@@ -4,7 +4,7 @@ import { NotificationType } from "@/backend/enum/notifications/notification-type
  * The student link-requests decision route — ONE definition site for every
  * parent-link deep-link consumer (the drawer's row anchors, the dashboard
  * discoverability-card CTA, and the student nav entry) so the three never
- * drift (DEV1-015 tasks 4.1/4.2/4.4).
+ * drift.
  *
  * Leaf module (FIX-R5): directive-free and framework-free — NO `"use client"`,
  * NO Apollo, NO logger — so nav/card/test consumers import the constant and

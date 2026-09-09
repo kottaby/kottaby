@@ -1,13 +1,13 @@
 /**
- * PendingParentLinkRequestsCard — component suite (DEV1-015 task 4.2.TE).
+ * PendingParentLinkRequestsCard — component suite.
  *
  * Happy DOM + Apollo `MockedProvider` tier (`test/ui/components`): the
- * REQ-064 dashboard-card matrix gets ONE render case per outcome, driven
+ * dashboard-card matrix gets ONE render case per outcome, driven
  * across BOTH locales:
  *
  *   cold load → skeleton card with `aria-busy` + labelled `role="status"`
  *   (localized loading copy as the accessible name) · zero actionable →
- *   renders NOTHING (container is empty, REQ-015/052) · present-1 → title +
+ *   renders NOTHING (container is empty) · present-1 → title +
  *   count-1 chip + FULL requester name + CTA anchored to the shared
  *   `STUDENT_LINK_REQUESTS_ROUTE` (constant wiring + frozen-value pin) ·
  *   present-N → count-N chip + MOST RECENT requester (max `createdAt`,
@@ -17,7 +17,7 @@
  *   + retry invoking a real refetch · query error with a MAPPED denial
  *   code → the `errors`-namespace copy keeps flowing (no fallback fold) ·
  *   post-decision disappearance → normalized cache write-back flips the
- *   Confirmed → actionable 0 → the card unmounts (REQ-016 convergence) ·
+ *   Confirmed → actionable 0 → the card unmounts (queue convergence) ·
  *   expired-row exclusion → a stored-pending row past `expiresAt` is NOT
  *   counted even when it is the newest by `createdAt`.
  *
@@ -201,7 +201,7 @@ afterEach(() => {
 
 // ----------------------------------------------------------------------------
 // Suite — one block per locale keeps RTL/LTR both exercised over the FULL
-// REQ-064 branch matrix while every case stays independently readable.
+// branch matrix while every case stays independently readable.
 // ----------------------------------------------------------------------------
 
 for (const locale of ["ar", "en"] as AppLocale[]) {
@@ -217,7 +217,7 @@ for (const locale of ["ar", "en"] as AppLocale[]) {
       const skeleton = screen.getByTestId("pending-parent-link-requests-card-loading");
       expect(skeleton.getAttribute("aria-busy")).toBe("true");
       // The busy frame is a LABELLED `role="status"` live region — the
-      // localized loading copy is its accessible name (REQ-015 loading copy).
+      // localized loading copy is its accessible name.
       expect(screen.getByRole("status", { name: t.dashboardCardLoading })).toBe(skeleton);
       // No settled surface may leak into the skeleton branch.
       expect(screen.queryByTestId("pending-parent-link-requests-card")).toBeNull();

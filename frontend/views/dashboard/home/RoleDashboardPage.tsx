@@ -23,7 +23,7 @@ import { ApplicantStatusCard } from "@/frontend/views/teachers/dashboard";
  *       entirely from the query payload. No new routes, no
  *       extra guard logic.
  *     - Student → `<HandshakeCodeCard />` + `<PendingParentLinkRequestsCard />`
- *       composed as siblings inside a Stack (DEV1-015 plan D6). Same additive
+ *       composed as siblings inside a Stack. Same additive
  *       pattern: both cards are zero-prop client components whose zero-argument
  *       queries (`myHandshakeCode`, `myIncomingParentLinkRequests`) answer
  *       identity server-side (no student-id props), and they mount inside the

@@ -2,17 +2,17 @@
  * Dashboard Navigation Items Unit Tests
  *
  * Verifies:
- *  - REQ-054, REQ-064 (DEV1-005): Admin navigation contains "/admin/plans"
+ *  - Admin plans entry (DEV1-005): admin navigation contains "/admin/plans"
  *    entry; non-admin roles (Student, Teacher, Parent) do NOT contain it.
- *  - REQ-065 (zero-change nav retarget): the admin audit entry stays pinned
+ *  - Zero-change nav retarget: the admin audit entry stays pinned
  *    exactly where it already points — "/audit" with `labelKey: "audit"`,
  *    exactly once — and non-admin roles never see it. The `audit` label key
  *    remains owned by the dashboard bundle (no duplicate nav item, no label
  *    move): the route becomes reachable purely when its page ships.
- *  - REQ-064 (DEV3-022d): the admin broadcasts entry — exactly ONE
+ *  - Admin broadcasts (DEV3-022d): the broadcasts entry — exactly ONE
  *    `/admin/broadcasts` item with `labelKey: "broadcasts"`, positioned
  *    directly after the audit entry, dashboard-bundle owned, admin-only.
- *  - REQ-053 (DEV1-015): the student link-requests entry — exactly ONE
+ *  - Student link-requests entry: exactly ONE
  *    student item whose `route` IS the shared `STUDENT_LINK_REQUESTS_ROUTE`
  *    constant (nav / dashboard-card CTA / notification deep-link never
  *    drift), `linkRequests` dashboard-bundle owned and resolved in BOTH
@@ -136,7 +136,7 @@ describe("getNavItemsForRole — role subsets and fallback", () => {
   });
 });
 
-describe("Dashboard Nav Items (REQ-054, REQ-064)", () => {
+describe("Admin plans navigation", () => {
   test("Admin navigation includes /admin/plans item", () => {
     const adminNav = getNavItemsForRole(UserRole.Admin);
     const plansItem = adminNav.find(item => item.route === "/admin/plans");
@@ -154,7 +154,7 @@ describe("Dashboard Nav Items (REQ-054, REQ-064)", () => {
   );
 });
 
-describe("Admin audit navigation (REQ-065)", () => {
+describe("Admin audit navigation", () => {
   test("Admin navigation carries exactly one /audit entry with the audit label key", () => {
     const adminNav = getNavItemsForRole(UserRole.Admin);
     const auditItems = adminNav.filter(item => item.route === "/audit");
@@ -180,7 +180,7 @@ describe("Admin audit navigation (REQ-065)", () => {
   );
 });
 
-describe("Admin broadcasts navigation (REQ-064, DEV3-022d)", () => {
+describe("Admin broadcasts navigation (DEV3-022d)", () => {
   test("Admin navigation carries exactly one /admin/broadcasts entry with the broadcasts label key, directly after the audit entry", () => {
     const adminNav = getNavItemsForRole(UserRole.Admin);
     const broadcastItems = adminNav.filter(item => item.route === "/admin/broadcasts");
@@ -220,13 +220,14 @@ describe("Admin broadcasts navigation (REQ-064, DEV3-022d)", () => {
   );
 });
 
-describe("Student link-requests navigation (REQ-053, DEV1-015)", () => {
+describe("Student link-requests navigation", () => {
   test("student nav carries exactly ONE link-requests entry targeting the shared route constant", () => {
     const studentNav = getNavItemsForRole(UserRole.Student);
     const linkItems = studentNav.filter(item => item.route === STUDENT_LINK_REQUESTS_ROUTE);
     expect(linkItems).toHaveLength(1);
     expect(linkItems[0]?.labelKey).toBe("linkRequests");
-    // Frozen-value pin (belt-and-braces, mirroring the 4.1/4.2 suites): the
+    // Frozen-value pin (belt-and-braces, mirroring the deep-link and card
+    // suites): the
     // shared constant must never drift off the real student decision route
     // (a retarget onto the `[feature]` catch-all ComingSoon page breaks
     // this first).

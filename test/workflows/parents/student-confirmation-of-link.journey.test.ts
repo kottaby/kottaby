@@ -1,49 +1,48 @@
 /**
- * Cross-actor journey — student confirmation of the parent link (DEV1-015).
+ * Cross-actor journey — student confirmation of the parent link.
  *
- * Executes the §2.9 confirmation/rejection workflow against REAL services on
+ * Executes the confirmation/rejection workflow against REAL services on
  * the REAL test database (sequential, actor-attributed steps; later steps
  * observe the shared state earlier steps committed). DEV1-014's journey owns
  * the request-creation loop; THIS journey owns the decision legs and pins:
  *
  *  - Step 1  — Parent A creates the request: pending row, ONE deep-linked
- *              notification row, EXACTLY ONE publish to the student (J-REQ-01).
- *  - Step 2  — Student lists incoming: parent FULL name + expiry (J-REQ-01).
+ *              notification row, EXACTLY ONE publish to the student.
+ *  - Step 2  — Student lists incoming: parent FULL name + expiry.
  *  - Step 3  — DENIAL: teacher/admin/parent cannot decide or list; a foreign
  *              student gets the constant NOT_FOUND — zero rows, zero
- *              notification rows (J-REQ-04).
+ *              notification rows.
  *  - Step 4  — DENIAL: foreign ≡ nonexistent requestId — byte-identical
  *              constant NOT_FOUND, zero writes (BOLA, no oracle).
  *  - Step 5  — DENIAL: the governed (suspended) student's respond is the
  *              constant ForbiddenError copy via the real `requireActor`
- *              re-check, zero side effects (REQ-022).
+ *              re-check, zero side effects.
  *  - Step 6  — REJECT leg: rejected + respondedAt, `students.parent_id`
  *              unchanged (NULL), sibling pendings untouched, exactly ONE
  *              rejection notification in the parent's PERSISTED locale,
- *              fanout spied post-commit (J-REQ-03).
+ *              fanout spied post-commit.
  *  - Step 7  — CONFIRM leg: confirmed row, `students.parent_id = parentId`,
  *              ALL sibling pendings expired, exactly ONE acceptance
- *              notification, INV-P1 probes (J-REQ-02 + REQ-065).
+ *              notification, INV-P1 probes.
  *  - Step 8  — Parent-side visibility pin: terminal statuses surface while
- *              the student name stays masked FOREVER (maskFullName, R9).
+ *              the student name stays masked FOREVER (maskFullName).
  *  - Step 9  — RACE: winner/loser confirmation. 9a is the deterministic
  *              loser-collapse emulation (runs everywhere, the DEV1-014
  *              journey-C guard pattern); 9b is the TRUE concurrent
  *              `Promise.allSettled` race, wholesale-skip-gated via
- *              `isPgliteProvider` exactly like the chaos tier (J-REQ-05,
- *              REQ-032) — PGlite is single-connection and cannot host
- *              cross-connection interleavings.
+ *              `isPgliteProvider` exactly like the chaos tier — PGlite is
+ *              single-connection and cannot host cross-connection
+ *              interleavings.
  *  - Step 10 — BOUNDARY: respond at the expiry instant denies EXPIRED
  *              deterministically; the read renders Expired WITHOUT writing
  *              (service-side render parity through `toCanonicalLinkStatus`;
  *              the frontend `displayLinkRequestStatus` helper is
- *              frontend-layer-owned and is NEVER imported here — REQ-014).
+ *              frontend-layer-owned and is NEVER imported here).
  *  - Step 11 — NOTIFICATION deep-link data contract: every persisted
  *              parent-link row carries the (type, relatedEntityType,
- *              relatedEntityId) triple the drawer route resolution consumes
- *              (J-REQ-01 half).
+ *              relatedEntityId) triple the drawer route resolution consumes.
  *
- * Cast (specs §2.9 actor table): Parent A + Parent B, unlinked decider
+ * Cast (the confirmation workflow's actor table): Parent A + Parent B, unlinked decider
  * Student S, unlinked Student F (foreign/race target), Already-Linked
  * Student L (pre-linked to Parent A — the foreign-student probe), Governed
  * Student G (active suspension), plus a certified Teacher and an Admin for
@@ -398,7 +397,7 @@ function hasPgCode(error: unknown, pgCode: string): boolean {
   return false;
 }
 
-describe("Journey — student confirmation of the parent link (DEV1-015, steps 1–11)", () => {
+describe("Journey — student confirmation of the parent link (steps 1–11)", () => {
   beforeAll(async () => {
     // System actor provisions the full cast in ONE committing transaction
     // (commit-or-nothing: a throwing setup leaves nothing behind).
@@ -500,8 +499,8 @@ describe("Journey — student confirmation of the parent link (DEV1-015, steps 1
     expect(await db.$count(parentLinkRequests, eq(parentLinkRequests.id, created.id))).toBe(1);
     expect(await pendingCountForStudent(s.studentS.userId)).toBe(1);
 
-    // J-REQ-01 (notification half): exactly ONE inbox row for the student,
-    // bound to the request through the deep-link triple, unread.
+    // Request-creation notification contract: exactly ONE inbox row for the
+    // student, bound to the request through the deep-link triple, unread.
     const sInbox = await linkInboxRowsFor(s.studentS.userId);
     expect(sInbox).toHaveLength(1);
     const requestNotification = sInbox.at(0);
@@ -536,7 +535,7 @@ describe("Journey — student confirmation of the parent link (DEV1-015, steps 1
     transportSpy.clear();
   });
 
-  test("Step 2 — Student S lists incoming: Parent A's FULL name, live expiry, pending (J-REQ-01 service truth)", async () => {
+  test("Step 2 — Student S lists incoming: Parent A's FULL name, live expiry, pending (service truth)", async () => {
     const s = requireState();
     const incoming = await ParentLinkRequestService.listMyIncoming(s.studentS.userId, LOCALE);
     expect(incoming).toHaveLength(1);
@@ -562,7 +561,7 @@ describe("Journey — student confirmation of the parent link (DEV1-015, steps 1
     expectZeroPublishes();
   });
 
-  test("Step 3 — DENIAL (J-REQ-04): teacher/admin/parent cannot decide or list; the foreign student gets the constant NOT_FOUND — zero rows, zero notifications", async () => {
+  test("Step 3 — DENIAL: teacher/admin/parent cannot decide or list; the foreign student gets the constant NOT_FOUND — zero rows, zero notifications", async () => {
     const s = requireState();
     const requestId = requireRequestId(REQUEST.rejectTarget);
     const rowBefore = await requestRowById(requestId);
@@ -676,7 +675,7 @@ describe("Journey — student confirmation of the parent link (DEV1-015, steps 1
     expectZeroPublishes();
   });
 
-  test("Step 5 — DENIAL (REQ-022): the governed (suspended) student's respond is the constant ForbiddenError copy with zero side effects", async () => {
+  test("Step 5 — DENIAL: the governed (suspended) student's respond is the constant ForbiddenError copy with zero side effects", async () => {
     const s = requireState();
     const requestId = requireRequestId(REQUEST.rejectTarget);
 
@@ -711,7 +710,7 @@ describe("Journey — student confirmation of the parent link (DEV1-015, steps 1
     expectZeroPublishes();
   });
 
-  test("Step 6 — REJECT leg (J-REQ-03): rejected + respondedAt, parent_id unchanged (NULL), sibling pending untouched, ONE rejection notification in the parent's persisted locale", async () => {
+  test("Step 6 — REJECT leg: rejected + respondedAt, parent_id unchanged (NULL), sibling pending untouched, ONE rejection notification in the parent's persisted locale", async () => {
     const s = requireState();
     const requestId = requireRequestId(REQUEST.rejectTarget);
 
@@ -785,7 +784,7 @@ describe("Journey — student confirmation of the parent link (DEV1-015, steps 1
     transportSpy.clear();
   });
 
-  test("Step 7 — CONFIRM leg (J-REQ-02): confirmed row, parent_id = Parent B, ALL sibling pendings expired, ONE acceptance notification", async () => {
+  test("Step 7 — CONFIRM leg: confirmed row, parent_id = Parent B, ALL sibling pendings expired, ONE acceptance notification", async () => {
     const s = requireState();
     const confirmTargetId = requireRequestId(REQUEST.confirmSibling);
 
@@ -865,7 +864,7 @@ describe("Journey — student confirmation of the parent link (DEV1-015, steps 1
     transportSpy.clear();
   });
 
-  test("Step 8 — Parent-side visibility pin (R9): terminal statuses surface while the student name stays masked FOREVER", async () => {
+  test("Step 8 — Parent-side visibility pin: terminal statuses surface while the student name stays masked FOREVER", async () => {
     const s = requireState();
     const studentSRow = await userRowById(s.studentS.userId);
     if (studentSRow === null) {
@@ -1103,7 +1102,7 @@ describe("Journey — student confirmation of the parent link (DEV1-015, steps 1
     });
   });
 
-  test("Step 10 — BOUNDARY (REQ-014): respond at the expiry instant denies EXPIRED; the read renders Expired WITHOUT writing (service-side render parity)", async () => {
+  test("Step 10 — BOUNDARY: respond at the expiry instant denies EXPIRED; the read renders Expired WITHOUT writing (service-side render parity)", async () => {
     const s = requireState();
     // The boundary fixture: expiresAt injected AT the boundary instant —
     // every later captured `now` fails the strict `>` liveness predicate.
@@ -1200,7 +1199,7 @@ describe("Journey — student confirmation of the parent link (DEV1-015, steps 1
     expectZeroPublishes();
   });
 
-  test("Step 11 — NOTIFICATION deep-link data contract (J-REQ-01 half): every persisted parent-link row carries the drawer-resolvable (type, relatedEntityType, relatedEntityId) triple", async () => {
+  test("Step 11 — NOTIFICATION deep-link data contract: every persisted parent-link row carries the drawer-resolvable (type, relatedEntityType, relatedEntityId) triple", async () => {
     const s = requireState();
 
     // The student's rows: exactly the three creation notifications (step 1 +

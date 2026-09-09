@@ -1,5 +1,5 @@
 /**
- * Notification drawer deep-link resolution (DEV1-015 task 4.1, REQ-011).
+ * Notification drawer deep-link resolution.
  *
  * Happy DOM + Apollo `MockLink` tier (`test/ui/components`) asserting the
  * drawer's row-anchor route-resolution seam (`resolveNotificationRoute` in
@@ -10,7 +10,7 @@
  *   router target — rows are real `next/link` anchors, navigation is native,
  *   no router call) and row activation still closes the drawer;
  *   an UNKNOWN related entity type falls through UNCHANGED to the
- *   `/notifications` feed page (the pre-4.1 hard anchor, pinned by the
+ *   `/notifications` feed page (the pre-deep-link hard anchor, pinned by the
  *   notification-drawer suite) — render succeeds with no router errors and
  *   no mis-route.
  *
