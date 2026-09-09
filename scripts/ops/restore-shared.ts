@@ -17,13 +17,32 @@
 import { readdirSync, readFileSync, realpathSync, statSync } from "node:fs";
 import { join, sep } from "node:path";
 import { rawUriPathSubstring } from "@/scripts/ops/_shared";
-import { type BackupManifest, MANIFEST_FILE_NAME, MIGRATIONS_ABSENT_HASH } from "@/scripts/ops/backup-artifacts";
+import {
+  type BackupManifest,
+  MANIFEST_FILE_NAME,
+  MIGRATIONS_ABSENT_HASH,
+  utcStamp,
+} from "@/scripts/ops/backup-artifacts";
 
 export type { BackupManifest };
 export { MIGRATIONS_ABSENT_HASH };
 
 /** Restore report file name written into the run directory (0600). */
 export const RESTORE_REPORT_FILE = "restore-report.json";
+
+/**
+ * Per-run report file name: `restore-report-<UTC start stamp>.json`.
+ *
+ * The report lives in the RETAINED backup run directory, so a fixed name
+ * would collide with the previous run's report on a repeat drill (the
+ * writer fails closed, never clobbers). Second resolution keeps the name
+ * deterministic; same-second concurrent runs still fail closed via the
+ * exclusive create (an operator error the writer must not paper over).
+ */
+export function restoreReportFileName(startedAt: Date): string {
+  return `restore-report-${utcStamp(startedAt)}.json`;
+}
+
 /** Tool identifier persisted in restore-report.json. */
 export const RESTORE_TOOL_ID = "ops:db-restore-verify";
 

@@ -56,11 +56,11 @@ import {
   MIGRATIONS_ABSENT_HASH,
   type PsqlOutcome,
   parseBackupManifest,
-  RESTORE_REPORT_FILE,
   RESTORE_TOOL_ID,
   RestoreArtifactError,
   redactTargetDatabaseName,
   resolveRunArtifact,
+  restoreReportFileName,
   type SpawnRequest,
   type SpawnRunner,
 } from "@/scripts/ops/restore-shared";
@@ -239,6 +239,16 @@ function makeFakeSpawn(script: FakeDbScript): { runner: SpawnRunner; requests: S
         }
         const counts = dsn === SOURCE_DSN ? script.sourceCounts : script.targetCounts;
         return okCount(counts?.[table] ?? 0);
+      }
+      // Source-side bounded existence probe (see checkTable): route it to the
+      // same sourceCounts fixture — the probe returns 0/1, and the pipeline
+      // only consumes "any rows?" (sourceNonEmpty), so the exact fixture
+      // counts stay meaningful (nonzero → probe 1).
+      const sourceProbe = /^SELECT COUNT\(\*\) FROM \(SELECT 1 FROM "([A-Za-z_]\w*)" LIMIT 1\) probe$/u.exec(sql);
+      if (sourceProbe !== null && dsn === SOURCE_DSN) {
+        const table = sourceProbe[1] ?? "";
+        const count = script.sourceCounts?.[table] ?? 0;
+        return okCount(count > 0 ? 1 : 0);
       }
       return { exitCode: 1, stdout: "", stderr: "fake psql: unscripted query" };
     }
@@ -790,7 +800,10 @@ describe("restore-verify tool family (4-tier)", () => {
         expect(oracle.offendingCount).toBe(0);
       }
 
-      expect(run.reportPath).toBe(join(fixture.runDir, "restore-report.json"));
+      // Per-run report name derived from the run's injected start tick —
+      // the run directory is retained, so a fixed name would collide on a
+      // repeat drill against the same artifact (writer fails closed).
+      expect(run.reportPath).toBe(join(fixture.runDir, restoreReportFileName(new Date(CLOCK_BASE_MS))));
       expect(statSync(run.reportPath ?? "").mode & 0o777).toBe(0o600);
 
       expect(run.reportBody).not.toContain("127.0.0.1");
@@ -997,12 +1010,13 @@ describe("restore-verify tool family (4-tier)", () => {
       expect(driftRun.stdout).toContain("VERDICT: FAIL");
     });
 
-    test("OR-MIG: absent migration tracking is faithful, and sentinel-vs-rows is a mismatch", async () => {
+    test("OR-MIG: journal-less manifest matches absent tracking; real hash + absent tracking FAILS", async () => {
       const caseRoot = newCaseRoot();
       makeSchemaFixture(caseRoot);
-      // Push-managed source: the restored scratch DB tracks no migrations, so
-      // the OR-MIG query yields the sentinel and the oracle passes.
-      const pushFixture = makeBackupRun(caseRoot);
+      // Journal-less source: the backup itself recorded MIGRATIONS_ABSENT_HASH
+      // and the restored scratch DB tracks no migrations either — strict
+      // equality matches (sentinel === sentinel), the oracle passes.
+      const pushFixture = makeBackupRun(caseRoot, { journalHash: MIGRATIONS_ABSENT_HASH });
       const absentRun = await runPipeline(caseRoot, {
         from: pushFixture.runDir,
         script: { ...healthyScript(), migrationsHash: MIGRATIONS_ABSENT_HASH },
@@ -1012,15 +1026,6 @@ describe("restore-verify tool family (4-tier)", () => {
       const absentOracle = absentRun.report?.oracles.find(oracle => oracle.id === "OR-MIG");
       expect(absentOracle?.passed).toBe(true);
       expect(absentOracle?.offendingCount).toBe(0);
-
-      // A backup of a journal with no migrations records the same sentinel,
-      // so empty-journal + no-tracking matches strictly.
-      const emptyJournalFixture = makeBackupRun(caseRoot, { journalHash: MIGRATIONS_ABSENT_HASH });
-      const emptyJournalRun = await runPipeline(caseRoot, {
-        from: emptyJournalFixture.runDir,
-        script: { ...healthyScript(), migrationsHash: MIGRATIONS_ABSENT_HASH },
-      });
-      expect(emptyJournalRun.exitCode).toBe(0);
 
       // The inverse is a genuine inconsistency: the journal claims no
       // migrations, yet the restored database carries applied migration rows.
@@ -1033,6 +1038,23 @@ describe("restore-verify tool family (4-tier)", () => {
       const rowsOracle = rowsRun.report?.oracles.find(oracle => oracle.id === "OR-MIG");
       expect(rowsOracle?.passed).toBe(false);
       expect(rowsRun.stdout).toContain("VERDICT: FAIL");
+
+      // Zero-tolerance regression pin: a MIGRATE-managed source (real journal
+      // fingerprint) whose restored database LOST its tracking table/rows
+      // must FAIL — an unverifiable identity is a divergence, never a pass
+      // (the old unconditional sentinel tolerance swallowed exactly this).
+      const lostTrackingFixture = makeBackupRun(caseRoot);
+      const lostTrackingRun = await runPipeline(caseRoot, {
+        from: lostTrackingFixture.runDir,
+        script: { ...healthyScript(), migrationsHash: MIGRATIONS_ABSENT_HASH },
+      });
+      expect(lostTrackingRun.thrown).toBeNull();
+      expect(lostTrackingRun.exitCode).toBe(1);
+      const lostTrackingOracle = lostTrackingRun.report?.oracles.find(oracle => oracle.id === "OR-MIG");
+      expect(lostTrackingOracle?.passed).toBe(false);
+      expect(lostTrackingOracle?.offendingCount).toBe(1);
+      expect(lostTrackingRun.stderr).toContain("[verify:OR-MIG] 1 offending");
+      expect(lostTrackingRun.stdout).toContain("VERDICT: FAIL");
     });
 
     test("an unverifiable critical row count fails closed (ok=false, verdict FAIL)", async () => {
@@ -1947,7 +1969,10 @@ describe("restore-verify tool family (4-tier)", () => {
       expect(descended.passed).toBe(true);
       expect(descended.offendingCount).toBe(0);
 
-      // 42P01 on BOTH rungs → absentValue assumed (faithful absence).
+      // 42P01 on BOTH rungs → absentValue assumed (ladder mechanics), then
+      // compared STRICTLY: the sentinel ≠ the real expected hash → the
+      // oracle fails (an absent tracking table is a divergence against a
+      // journal-bearing expectation, never a silent pass).
       calls.length = 0;
       const absent = (
         await runLadder({
@@ -1956,7 +1981,8 @@ describe("restore-verify tool family (4-tier)", () => {
         })
       )[0];
       expect(calls).toEqual(["SELECT 1", "SELECT 2"]);
-      expect(absent.passed).toBe(true);
+      expect(absent.passed).toBe(false);
+      expect(absent.offendingCount).toBe(1);
 
       // Auth error on the primary rung → FAILS CLOSED, fallback never reached.
       calls.length = 0;
@@ -2118,7 +2144,10 @@ describe("restore-verify tool family (4-tier)", () => {
         const caseRoot = newCaseRoot();
         makeSchemaFixture(caseRoot);
         const fixture = makeBackupRun(caseRoot);
-        const reportPath = join(fixture.runDir, RESTORE_REPORT_FILE);
+        // Pin the run's clock so the per-run report path is predictable, and
+        // pre-place the entry at THAT path (the pipeline will target it).
+        const guardClock: Clock = () => new Date(CLOCK_BASE_MS);
+        const reportPath = join(fixture.runDir, restoreReportFileName(guardClock()));
         const canaryPath = join(tempRoot, `canary-${caseCounter}-${prePlacement.kind}.txt`);
         const canaryContent = "CANARY-MUST-NOT-BE-CLOBBERED";
         writeFileSync(canaryPath, canaryContent);
@@ -2132,7 +2161,7 @@ describe("restore-verify tool family (4-tier)", () => {
           writeFileSync(reportPath, "pre-placed-bytes");
         }
 
-        const run = await runPipeline(caseRoot, { from: fixture.runDir, script: healthyScript() });
+        const run = await runPipeline(caseRoot, { from: fixture.runDir, script: healthyScript(), clock: guardClock });
 
         // RestoreVerificationError is the error class main() maps to exit 1
         // with the [verify] tag on stderr.

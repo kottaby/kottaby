@@ -88,9 +88,15 @@ async function checkTable(
   }
 
   const countSql = `SELECT COUNT(*) FROM ${quoteIdentifier(table)}`;
+  // Source-side probe is BOUNDED (LIMIT 1 subquery): `sourcePsql` names the
+  // LIVE source database, and an exact COUNT(*) there is a full table scan —
+  // 8 critical tables through Promise.all would fire 8 concurrent scans on
+  // production. The source comparison only consumes "any rows?" (see
+  // `sourceNonEmpty` below), so a 0/1 probe preserves the semantics exactly.
+  const sourceProbeSql = `SELECT COUNT(*) FROM (SELECT 1 FROM ${quoteIdentifier(table)} LIMIT 1) probe`;
   const [targetCount, sourceCount] = await Promise.all([
     targetPsql(countSql),
-    sourcePsql !== null ? sourcePsql(countSql) : Promise.resolve(null),
+    sourcePsql !== null ? sourcePsql(sourceProbeSql) : Promise.resolve(null),
   ]);
 
   const targetRows = parseCount(targetCount);
@@ -185,15 +191,21 @@ export function evaluateVerdict(
   return structuralOk && oraclesOk && hashesMatch ? "PASS" : "FAIL";
 }
 
-/** Serializes and persists restore-report.json (0600) into the run directory. */
+/**
+ * Serializes and persists the restore report (0600) into the run directory.
+ *
+ * `fileName` defaults to the base `restore-report.json`; the orchestrator
+ * passes a UNIQUE per-run name (`restoreReportFileName(startedAt)`) because
+ * the run directory is retained — a repeat drill against the same artifact
+ * must never collide with (or overwrite) a previous run's report.
+ */
 export function writeRestoreReport(
   runDir: string,
   report: RestoreReport,
-  writeReportFile: (path: string, contents: string) => void
+  writeReportFile: (path: string, contents: string) => void,
+  fileName: string = RESTORE_REPORT_FILE
 ): string {
-  const reportPath = isAbsolute(runDir)
-    ? join(runDir, RESTORE_REPORT_FILE)
-    : resolve(join(runDir, RESTORE_REPORT_FILE));
+  const reportPath = isAbsolute(runDir) ? join(runDir, fileName) : resolve(join(runDir, fileName));
   writeReportFile(reportPath, `${JSON.stringify(report, null, 2)}\n`);
   return reportPath;
 }
@@ -203,13 +215,14 @@ export function writeRestoreReport(
  * (`wx` = O_CREAT|O_EXCL) and forced to 0600.
  *
  * The report path lives in the run directory the restore owns, so ABSENCE is
- * the expected state. A pre-existing entry of ANY kind — regular file, hard
- * link, symlink (dangling or not), or directory — refuses the run: the write
- * would otherwise follow a pre-placed link and clobber its target outside
- * the run directory (live-probe failure mode). The lstat gate produces the
- * precise [verify] error; the `wx` create is the atomic backstop — O_EXCL
- * never follows a symlink and fails if any entry appears between the check
- * and the create (TOCTOU-safe).
+ * the expected state; the CALLER supplies a unique per-run file name (see
+ * `writeRestoreReport` / `restoreReportFileName`). A pre-existing entry of
+ * ANY kind — regular file, hard link, symlink (dangling or not), or
+ * directory — refuses the run: the write would otherwise follow a pre-placed
+ * link and clobber its target outside the run directory (live-probe failure
+ * mode). The lstat gate produces the precise [verify] error; the `wx` create
+ * is the atomic backstop — O_EXCL never follows a symlink and fails if any
+ * entry appears between the check and the create (TOCTOU-safe).
  */
 export function defaultReportFileWriter(path: string, contents: string): void {
   let prePlaced = false;

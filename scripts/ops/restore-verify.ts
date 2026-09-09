@@ -53,6 +53,7 @@ import {
   RestoreArtifactError,
   redactTargetDatabaseName,
   resolveRunArtifact,
+  restoreReportFileName,
   type SpawnRunner,
   systemClock,
 } from "@/scripts/ops/restore-shared";
@@ -300,7 +301,11 @@ export async function runRestoreVerify(args: RestoreCliArgs, deps: RestoreVerify
     verdict,
   };
 
-  const reportPath = writeRestoreReport(resolved.runDir, report, writeReportFile);
+  // Per-run report name: the run directory is RETAINED (the operator may
+  // re-drill the same artifact), so the fixed base name would collide with
+  // the previous run's report and lose this run's verdict (writer fails
+  // closed, never clobbers).
+  const reportPath = writeRestoreReport(resolved.runDir, report, writeReportFile, restoreReportFileName(startedAt));
   printReportSummary(stdout, report);
   stdout(`restore-verify: report written to ${reportPath}`);
 

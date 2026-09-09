@@ -112,9 +112,11 @@ export interface OracleRunContext {
  * `drizzle` schema (backend/db/scripts/runDrizzleMigrations.ts), so `sql`
  * reads that table; `fallbackSql` hedges a `public`-schema layout, and
  * `absentValue` covers a restored database that tracks no migrations at all
- * (no table, or table without rows — COALESCE in each query): that absence
- * is faithful for a push-managed source database (drizzle-kit push never
- * writes migration rows), so it passes; any present-but-divergent hash fails.
+ * (no table, or table without rows — COALESCE in each query): the comparison
+ * is STRICT — absence matches ONLY a manifest that itself recorded
+ * `MIGRATIONS_ABSENT_HASH` (journal-less source); against a real expected
+ * hash, absent tracking means the restore lost its migration rows and the
+ * oracle FAILS (zero-tolerance: an unverifiable identity is a divergence).
  */
 export const ORACLES: OracleDefinition[] = [
   {
@@ -310,10 +312,11 @@ async function evaluateOracle(
   if (value === expected) {
     return toResult(oracle, true, 0);
   }
-  if (value === MIGRATIONS_ABSENT_HASH) {
-    // Restored database tracks no migrations (no table / no rows): faithful
-    // for a push-managed source — nothing to compare. Documented in OR-MIG.
-    return toResult(oracle, true, 0);
-  }
+  // NO sentinel tolerance: an absent tracking table against a REAL expected
+  // hash is exactly the divergence OR-MIG exists to catch (a restore that
+  // lost its migration rows must fail, never pass). Absence matches only
+  // when the backup itself recorded absence (journal-less source) — that
+  // case already passed the strict `value === expected` comparison above,
+  // because the manifest carries MIGRATIONS_ABSENT_HASH for it.
   return toResult(oracle, false, 1);
 }

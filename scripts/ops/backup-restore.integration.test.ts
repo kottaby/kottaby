@@ -25,6 +25,7 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   rmSync,
   statSync,
@@ -36,7 +37,6 @@ import { join, relative, resolve } from "node:path";
 import { ARTIFACT_FILE_NAME, MANIFEST_FILE_NAME } from "@/scripts/ops/backup-artifacts";
 import { CONFIRMATION_FLAG } from "@/scripts/ops/restore-guard";
 import { ORACLES } from "@/scripts/ops/restore-oracles";
-import { RESTORE_REPORT_FILE } from "@/scripts/ops/restore-shared";
 import { CRITICAL_TABLES } from "@/scripts/ops/restore-structure";
 
 const REPO_ROOT = resolve(import.meta.dir, "..", "..");
@@ -59,29 +59,34 @@ const FIXTURE_SQL =
   [
     "INSERT INTO users (id, full_name, email, password_hash, role) OVERRIDING SYSTEM VALUE SELECT 990100, 'DR Drill Student', 'dr-drill-student@kottaby.local', 'drill-noop-hash', 'student' WHERE NOT EXISTS (SELECT 1 FROM users WHERE id = 990100)",
     "INSERT INTO students (id, balance_trial, balance_hifz, balance_reviews, balance_tajweed, handshake_code) OVERRIDING SYSTEM VALUE SELECT 990100, 1, 0, 0, 0, 'dr-drill-handshake' WHERE EXISTS (SELECT 1 FROM users WHERE id = 990100) AND NOT EXISTS (SELECT 1 FROM students WHERE id = 990100)",
-    "INSERT INTO teacher (id) OVERRIDING SYSTEM VALUE SELECT id FROM users WHERE role = 'teacher' LIMIT 1",
-    "INSERT INTO wallet (id, teacher_id, balance, total_earning) OVERRIDING SYSTEM VALUE SELECT 990001, id, 0, 0 FROM teacher LIMIT 1",
+    // Every remaining statement is guarded exactly like the two above: the
+    // batch fires when ANY critical table is empty, so a template copy that
+    // already carries some rows must not collide on a primary key here
+    // (ON_ERROR_STOP=1 would abort the whole batch and fail the drill).
+    "INSERT INTO teacher (id) OVERRIDING SYSTEM VALUE SELECT id FROM users WHERE role = 'teacher' AND NOT EXISTS (SELECT 1 FROM teacher) LIMIT 1",
+    "INSERT INTO wallet (id, teacher_id, balance, total_earning) OVERRIDING SYSTEM VALUE SELECT 990001, id, 0, 0 FROM teacher WHERE NOT EXISTS (SELECT 1 FROM wallet WHERE id = 990001) LIMIT 1",
     [
       "INSERT INTO session (id, teacher_id, student_id, intent, fee, fee_held) OVERRIDING SYSTEM VALUE",
       "SELECT 990002, (SELECT id FROM teacher LIMIT 1), (SELECT id FROM students LIMIT 1), 'hifz', 10.00, FALSE",
+      "WHERE NOT EXISTS (SELECT 1 FROM session WHERE id = 990002)",
     ].join(" "),
-    "INSERT INTO teacher_transaction (id, wallet_id, amount, type) OVERRIDING SYSTEM VALUE SELECT 990003, id, 5.00, 'earning' FROM wallet LIMIT 1",
+    "INSERT INTO teacher_transaction (id, wallet_id, amount, type) OVERRIDING SYSTEM VALUE SELECT 990003, id, 5.00, 'earning' FROM wallet WHERE NOT EXISTS (SELECT 1 FROM teacher_transaction WHERE id = 990003) LIMIT 1",
     [
       "INSERT INTO session_request_idempotency (id, idempotency_key, user_id) OVERRIDING SYSTEM VALUE",
-      "SELECT 990007, 'kottaby-dr-it-fixture', id FROM users WHERE role = 'student' LIMIT 1",
+      "SELECT 990007, 'kottaby-dr-it-fixture', id FROM users WHERE role = 'student' AND NOT EXISTS (SELECT 1 FROM session_request_idempotency WHERE id = 990007) LIMIT 1",
     ].join(" "),
     [
       "INSERT INTO audit_logs (id, actor_id, action_type, entity_type, entity_id) OVERRIDING SYSTEM VALUE",
-      "SELECT 990004, id, 'create', 'user', id FROM users WHERE role = 'teacher' LIMIT 1",
+      "SELECT 990004, id, 'create', 'user', id FROM users WHERE role = 'teacher' AND NOT EXISTS (SELECT 1 FROM audit_logs WHERE id = 990004) LIMIT 1",
     ].join(" "),
     [
       "INSERT INTO notifications (id, user_id, type, title) OVERRIDING SYSTEM VALUE",
-      "SELECT 990005, id, 'system_broadcast', 'disaster-recovery drill fixture' FROM users WHERE role = 'parent' LIMIT 1",
+      "SELECT 990005, id, 'system_broadcast', 'disaster-recovery drill fixture' FROM users WHERE role = 'parent' AND NOT EXISTS (SELECT 1 FROM notifications WHERE id = 990005) LIMIT 1",
     ].join(" "),
     [
       "INSERT INTO parent_link_requests (id, parent_id, student_id, status, expires_at) OVERRIDING SYSTEM VALUE",
       "SELECT 990006, (SELECT id FROM users WHERE role = 'parent' LIMIT 1), id, 'pending', now() + interval '7 days'",
-      "FROM students LIMIT 1",
+      "FROM students WHERE NOT EXISTS (SELECT 1 FROM parent_link_requests WHERE id = 990006) LIMIT 1",
     ].join(" "),
   ].join(";\n") + ";";
 
@@ -377,12 +382,17 @@ describe("backup → restore-verify drill chain (real binaries, scratch database
     expect(outcome.stdout).toContain("VERDICT: PASS");
     expect(outcome.stdout).not.toContain("VERDICT: FAIL");
 
-    const reportPath = join(backupRunDir, RESTORE_REPORT_FILE);
+    // The report file name is per-run (`restore-report-<UTC start stamp>.json`)
+    // so repeat drills against the same retained artifact never collide with
+    // a previous run's report. The drill ran once here — expect exactly one.
+    const reportFiles = readdirSync(backupRunDir).filter(name => /^restore-report-\d{8}T\d{6}Z\.json$/u.test(name));
+    expect(reportFiles).toHaveLength(1);
+    const reportPath = join(backupRunDir, reportFiles[0] ?? "");
     expect(existsSync(reportPath)).toBe(true);
     expect(statSync(reportPath).mode & 0o777).toBe(0o600);
     const report: unknown = JSON.parse(readFileSync(reportPath, "utf8"));
     if (!isRestoredReport(report)) {
-      throw new Error("restore-report.json does not match the report contract");
+      throw new Error("restore report does not match the report contract");
     }
     expect(report.verdict).toBe("PASS");
     expect(report.target.database).toBe(targetDb);

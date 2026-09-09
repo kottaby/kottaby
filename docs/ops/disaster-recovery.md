@@ -11,7 +11,7 @@
 The disaster-recovery tooling is two registered ops scripts plus the artifacts and oracles they produce:
 
 - **`bun run ops:db-backup`** — takes a transactionally-consistent logical backup (`pg_dump` custom format) into a timestamped run directory with a **`manifest.json`** (provenance, SHA-256, migration-journal fingerprint).
-- **`bun run ops:db-restore-verify`** — restores a backup into an explicit scratch/staging target through a **triple safety gate**, then proves post-restore integrity with structural checks and **read-only invariant oracles**, writing **`restore-report.json`** and a final `VERDICT`.
+- **`bun run ops:db-restore-verify`** — restores a backup into an explicit scratch/staging target through a **triple safety gate**, then proves post-restore integrity with structural checks and **read-only invariant oracles**, writing a per-run **`restore-report-<UTC start stamp>.json`** report and a final `VERDICT`.
 
 One-line purpose: *prove continuously that a backup taken by this repository can actually be restored — with wallet, escrow, audit, and notification truth intact — before the day we need to do it for real.*
 
@@ -39,7 +39,7 @@ Backup *existence* proves nothing; only a periodically **restored and verified**
 
 **Budget arithmetic:**
 
-- *RPO side:* an hourly backup schedule bounds worst-case data loss at `schedule interval + backup runtime ≈ 1 hour`. A daily-only schedule would break this budget — hourly is the cadence that makes RPO 1h true (see scheduling guidance below).
+- *RPO side:* worst-case data loss = **schedule interval + backup runtime + scheduling jitter**, so the cadence invariant is `interval + runtime + jitter ≤ RPO` — an hourly schedule alone does NOT bound loss at 1 hour. Measure the backup runtime from the manifest (`startedAtUtc` → `finishedAtUtc`) and pick an interval that satisfies the inequality with margin: with a measured runtime of ~5 minutes and ±2 minutes of timer jitter, a **30-minute** interval keeps the worst case ≤ ~37 minutes — comfortably inside RPO 1h. A daily-only schedule breaks this budget outright. Re-check the arithmetic after any dataset growth that lengthens the dump (see scheduling guidance below).
 - *RTO side:* the full-recovery runbook (below) must complete in **≤ 2 hours** measured in a drill — that is the required **≥ 50 % headroom** inside the 4-hour RTO. The remaining 2 hours absorb region re-provisioning, manual secret re-entry, and cutover under stress.
 
 ---
@@ -78,19 +78,20 @@ backups/
 | `1` | Operational failure (pg_dump error, empty artifact, manifest validation / publish failure) |
 | `2` | Usage, environment, toolchain, lock-contention, or manifest-write failure |
 
-**Error tags** (prefix on stderr lines): `[env]` (env bootstrap, DATABASE_URL, lock, usage, toolchain-probe refusals), `[pg_dump]` (dump stage), `[backup]` (backup-internal manifest-validation / publish failures), `[guard]` (restore-target refusal), `[pg_restore]` (restore stage), `[verify:<oracle-id>]` (a failed verification oracle, e.g. `[verify:OR-W1]`), `[verify]` (bare tag — artifact sha256/byte-size mismatch against the manifest, restore artifact/manifest errors, and report-writer failures such as a pre-placed `restore-report.json`).
+**Error tags** (prefix on stderr lines): `[env]` (env bootstrap, DATABASE_URL, lock, usage, toolchain-probe refusals), `[pg_dump]` (dump stage), `[backup]` (backup-internal manifest-validation / publish failures), `[guard]` (restore-target refusal), `[pg_restore]` (restore stage), `[verify:<oracle-id>]` (a failed verification oracle, e.g. `[verify:OR-W1]`), `[verify]` (bare tag — artifact sha256/byte-size mismatch against the manifest, restore artifact/manifest errors, and report-writer failures such as a pre-placed entry at the per-run report path).
 
 **Source-DSN refusals (fail closed, exit 2):** the backup bootstrap assesses the source `DATABASE_URL` the same way the restore guard assesses its target. A raw `?` or `#` inside the **authority span** (WHATWG and libpq disagree on where the authority ends — e.g. `postgresql://user?k@host:5432/db`), a raw fragment character `#` in the raw path or query (libpq reads through it as a literal), or a raw **control character** in any span (tab/newline/CR are stripped by URL parsers while libpq keeps the literal bytes; other C0 controls are percent-encoded away the same way) refuses with `[env] source DSN contains an unassessable character sequence — percent-encode special characters`; percent-encoded forms (`%23`, `%09`) are assessed by their decoded value and allowed, so the manifest records exactly the database dumped. A **dot-segment path** — a whole `.` or `..` path segment, raw or percent-encoded (URL parsers normalize it away while libpq treats the raw path as the literal database name, so the manifest would record a renamed database) — refuses with `[env] source DSN path contains dot-segments — use the literal database name`. A **db-less** source DSN — no path database and no `?dbname=` query — or an explicitly **empty** `?dbname=` value (libpq completes an empty database name from the USER name, never from the path) refuses with `[env] source database name is unspecified — name the database explicitly`, because the endpoint would be completed outside the DSN and the manifest would carry an unverifiable `(default)` marker (the backup-side mirror of the restore guard's target-naming rule). A query carrying an **endpoint-override** parameter — a `host`, `hostaddr`, or `port` key (case-insensitive, percent-decoded key match; a valueless key counts) — refuses with `[env] source DSN endpoint override in query string is not supported — put host/port in the DSN authority`: libpq applies query parameters ON TOP of the DSN authority, so the query channel could point the dump at an endpoint no authority-derived label names (a `?hostaddr=` even ships the dump off-box) — the authority names the endpoint, and plain query parameters (`dbname`, `sslmode`, `application_name`, …) are unaffected. A `service=` key is the same endpoint indirection one step removed — libpq resolves it through the connection-service file (`~/.pg_service.conf` / `PGSERVICEFILE`), whose entries decide the endpoint nothing in the URL view sees (live-proven: `postgresql://postgres@127.0.0.1/db?service=x` with a redirected service file made psql connect on port 5999) — and refuses with the distinct `[env] source DSN service indirection is not supported — name the endpoint in the DSN authority`. A **multi-host** endpoint — a comma (raw or percent-decoded) in the authority **host span** or in a query `host=`/`hostaddr=` value (libpq accepts comma-separated host lists in both channels and percent-decodes the host before the list is split, so the dump can fail over to an endpoint no URL-derived label names — live-proven: `postgresql://postgres@127.0.0.1,8.8.8.8:5432/db` completed a real backup while the manifest labeled only `127.0.0.1`; restore refuses the identical shape) — refuses with `[env] source DSN multi-host endpoints are not supported — name a single host in the authority`; a bracketed IPv6 host (`[::1]`) names one host and stays allowed. The five source-DSN gates run in a fixed precedence — ambiguous spans → dot-segments → multi-host → endpoint-override/`service` → unnamed-database — and the FIRST matching gate decides the emitted `[env]` message (e.g. a comma inside a query `host=` value reports the multi-host refusal, not the endpoint-override one).
 
 **Consistency note:** `pg_dump` reads every table through a **single MVCC snapshot** — the artifact is transactionally consistent even while the application keeps running and writing. There is **no application pause** required. The lock footprint is a **shared (`ACCESS SHARE`) lock on each dumped table**: reads and writes continue unaffected; only concurrent DDL on the same tables would queue behind the dump. Schedule backups off the DDL/deploy window and off peak load; no other coordination is needed.
 
-**Scheduling guidance** — copy-pasteable stanzas:
+**Scheduling guidance** — copy-pasteable stanzas. The interval must satisfy the RPO-side budget arithmetic above (`interval + runtime + jitter ≤ RPO`); the half-hourly stanzas below assume a single-digit-minute dump runtime — re-derive the interval from YOUR measured `durationMs` if the dataset outgrows it:
 
 ```cron
-# Hourly — the cadence that makes RPO = 1h true (minute 5 off the top-of-hour boundary)
-5 * * * * cd /srv/kottaby && bun run ops:db-backup --env .env.production >> /var/log/kottaby/db-backup.log 2>&1
+# Every 30 minutes — the cadence that keeps worst-case loss (interval +
+# runtime + jitter) inside RPO 1h with measured single-digit-minute dumps
+5,35 * * * * cd /srv/kottaby && bun run ops:db-backup --env .env.production >> /var/log/kottaby/db-backup.log 2>&1
 
-# Daily floor — the minimum cadence the launch checklist requires; hourly above is what RPO 1h demands
+# Daily floor — the minimum cadence the launch checklist requires; the half-hourly cadence above is what RPO 1h demands
 15 3 * * * cd /srv/kottaby && bun run ops:db-backup --env .env.production >> /var/log/kottaby/db-backup.log 2>&1
 ```
 
@@ -107,12 +108,13 @@ ExecStart=/usr/local/bin/bun run ops:db-backup --env .env.production
 ```
 
 ```ini
-# /etc/systemd/system/kottaby-db-backup.timer — hourly (RPO cadence)
+# /etc/systemd/system/kottaby-db-backup.timer — every 30 minutes (RPO cadence;
+# interval + measured runtime + RandomizedDelaySec jitter must stay ≤ RPO 1h)
 [Unit]
-Description=Hourly Kottaby DB backup
+Description=Half-hourly Kottaby DB backup
 
 [Timer]
-OnCalendar=hourly
+OnCalendar=*:00/30
 RandomizedDelaySec=120
 Persistent=true
 
@@ -154,9 +156,9 @@ Registered verbatim in `package.json` as `ops:db-restore-verify` → `bun run sc
 | `OR-U1` | No `audit_logs` row with a null or dangling actor reference | `A.5/INV-U1` |
 | `OR-U2` | Soft-deleted users retain their audit history rows | `INV-U4/U5` |
 | `OR-REQ` | Every `session_request_idempotency` row references an existing user | `workflow 02` |
-| `OR-MIG` | Restored trailing migration-journal hash matches the backup's fingerprint | `migration-journal` |
+| `OR-MIG` | Restored trailing migration-journal hash matches the backup's fingerprint — STRICT: an absent tracking table passes only when the backup itself recorded no journal (journal-less source); against a real fingerprint it FAILS (lost migration rows) | `migration-journal` |
 
-A failing or errored oracle prints `[verify:<oracle-id>]` and fails the run. Results persist into **`restore-report.json`** (chmod `0600`) in the run directory, and the run ends with exactly one `VERDICT: PASS` or `VERDICT: FAIL` line.
+A failing or errored oracle prints `[verify:<oracle-id>]` and fails the run. Results persist into a **per-run report file `restore-report-<UTC start stamp>.json`** (chmod `0600`) in the run directory — the per-run name keeps repeat drills against the same retained artifact collision-free (the writer refuses to overwrite, never clobbers) — and the run ends with exactly one `VERDICT: PASS` or `VERDICT: FAIL` line.
 
 **Exit codes:**
 
@@ -206,8 +208,8 @@ Execute in order; fill the timing table during every drill and real recovery:
    Concrete example: `createdb kottaby_drill_<UTC-stamp>` (unique, obviously-disposable name), then confirm it is empty: `psql -d kottaby_drill_<UTC-stamp> -tAc "select count(*) from pg_tables where schemaname='public'"` must print `0`.
 2. **Take a backup — if no recent verified run exists.** If a current run directory with a validating `manifest.json` already exists (e.g. the last hourly run), reuse it; otherwise run `bun run ops:db-backup [--env <file>] [--out-dir <dir>]` against the source. Note the run directory path.
 3. **Restore & verify.** Run `bun run ops:db-restore-verify -- --from <runDir|artifact> --target <dsn> --yes-i-understand [--env <file>]` with the run directory from step 2 and the scratch DSN from step 1. Wait for the final `VERDICT` line.
-4. **Review `VERDICT` + report.** `VERDICT: PASS` required; open `restore-report.json` in the run directory and confirm the structural row counts, the 7/7 oracle results, and the hash correspondence. A `VERDICT: FAIL` (or any `[verify:*]` / `[guard]` line you cannot explain) stops the runbook — investigate before proceeding.
-   The report's key fields: `verdict`; `structural[]` (per-table `present` / `rowCount` / `sourceNonEmpty` / `ok` — non-critical tables report `rowCount: -1`, meaning "not counted"; only the critical set carries real counts); `oracles[]` (`id` / `passed`); and `durationMs` (restore+verify runtime). If a verify run crashes or is killed mid-flight, a partial `restore-report.json` can already exist in the run directory — remove it by hand before re-running this step (the verifier refuses to overwrite an existing report).
+4. **Review `VERDICT` + report.** `VERDICT: PASS` required; open the run's `restore-report-<UTC start stamp>.json` in the run directory and confirm the structural row counts, the 7/7 oracle results, and the hash correspondence. A `VERDICT: FAIL` (or any `[verify:*]` / `[guard]` line you cannot explain) stops the runbook — investigate before proceeding.
+   The report's key fields: `verdict`; `structural[]` (per-table `present` / `rowCount` / `sourceNonEmpty` / `ok` — non-critical tables report `rowCount: -1`, meaning "not counted"; only the critical set carries real counts); `oracles[]` (`id` / `passed`); and `durationMs` (restore+verify runtime). Per-run report names make re-drills collision-free — a crashed run simply leaves its own timestamped report behind; no manual cleanup is required before re-running this step (the writer still refuses to overwrite any pre-existing entry, by design).
 5. **Sign-off.** Record: run directory, manifest SHA-256, verdict, total wall-clock, and the completed timing table into the drill evidence store. For drills, file evidence to the plan outcome directory (see Related Documents).
 
 **Timing table (fill during the drill — leave no blanks in filed evidence):**
@@ -247,7 +249,7 @@ Execute in order; fill the timing table during every drill and real recovery:
 - **Cadence:** quarterly, cold. The drill is executed by an operator who has **never seen the runbook before** — they execute it verbatim against scratch infrastructure. Familiarity hides friction; a cold operator surfaces it.
 - **Friction rule:** every point where the operator hesitates, guesses, or improvises is a **runbook defect** — patch this document (or the tooling), never the operator's memory. The runbook must be executable by someone having their worst day.
 - **Measure:** wall-clock per step in the timing table; total must be ≤ 2 h (RTO headroom rule).
-- **Evidence:** file the completed timing table, run directory name, manifest SHA-256, final `VERDICT` line, and a copy of `restore-report.json` to the plan outcome directory (see Related Documents), plus a friction log and any runbook patches applied as a result.
+- **Evidence:** file the completed timing table, run directory name, manifest SHA-256, final `VERDICT` line, and a copy of the run's `restore-report-<UTC start stamp>.json` to the plan outcome directory (see Related Documents), plus a friction log and any runbook patches applied as a result.
 
 ---
 

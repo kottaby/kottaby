@@ -169,12 +169,17 @@ function bootstrapDsn(envFile: string, deps: BackupRunDeps): { dsn: string; dsnU
   // mirror (`backupSourceDsnRefusal`). Refused here in the bootstrap path as
   // an env/usage-class error, before any out-dir, staging, dump, or manifest
   // side effect, like every `[env]` refusal.
-  const sourceDsnRefusal = backupSourceDsnRefusal(rawDsn.trim(), dsnUrl);
+  // The TRIMMED DSN is what gets assessed and what gets threaded onward:
+  // `parsePostgresDatabaseUrl` trims internally, and a quoted dotenv value
+  // can preserve surrounding whitespace — `pg_dump` must receive exactly the
+  // connection string the gates assessed, never a whitespace-padded variant.
+  const dsn = rawDsn.trim();
+  const sourceDsnRefusal = backupSourceDsnRefusal(dsn, dsnUrl);
   if (sourceDsnRefusal) {
     deps.emit.error(`[env] ${sourceDsnRefusal}`);
     return null;
   }
-  return { dsn: rawDsn, dsnUrl };
+  return { dsn, dsnUrl };
 }
 
 /**
