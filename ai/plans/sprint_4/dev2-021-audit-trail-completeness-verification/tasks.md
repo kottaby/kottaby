@@ -89,9 +89,9 @@
 
 ## Phase 7 — Post-Implementation Review Wave (plan has >10 subtasks)
 
-- [ ] 7.1 **Dispatch review subagents** (files touched only): backend-review (atomicity, deny-path zero-mint, dead code), security-review (actor sourcing, PII in details, BFLA), types-review (census typing, enum value imports). Aggregate; fix; re-run until zero findings.
+- [x] 7.1 **Dispatch review subagents** (files touched only): backend-review (atomicity, deny-path zero-mint, dead code), security-review (actor sourcing, PII in details, BFLA), types-review (census typing, enum value imports). Aggregate; fix; re-run until zero findings.
   - _Requirements: REQ-060, REQ-070_
-- [ ] 7.2 **Final gate**: `bun quality-gate` vs Phase-0 baseline; all suites green (`backend/db/test/logic/audit/*`, `test/workflows/admin/*`, session lifecycle regression, plan-catalog tests); all checkboxes `[x]`; final outcome summary written.
+- [x] 7.2 **Final gate**: `bun quality-gate` vs Phase-0 baseline; all suites green (`backend/db/test/logic/audit/*`, `test/workflows/admin/*`, session lifecycle regression, plan-catalog tests); all checkboxes `[x]`; final outcome summary written.
   - _Requirements: REQ-060.4_
 
 ## Requirements Coverage Checklist
