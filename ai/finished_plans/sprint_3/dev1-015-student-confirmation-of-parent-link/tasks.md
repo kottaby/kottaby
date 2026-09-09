@@ -41,7 +41,7 @@
 
 ### 0.1 Record Error Baseline & Initialize Deferred-Items Ledger
 
-- [ ] 0.1 Record the pre-implementation error baseline and initialize the ledger
+- [x] 0.1 Record the pre-implementation error baseline and initialize the ledger
   - Run `bun x tsgo --noEmit` (or the repo's typecheck script), `bun run biome:check`, and the lint-service check; record exact error/warning counts per tool in `ai/plans/sprint_3/dev1-015-student-confirmation-of-parent-link/outcome/0.1-outcome.md`.
   - Create `ai/plans/sprint_3/dev1-015-student-confirmation-of-parent-link/deferred-items.md` from `.agents/spec-process-guide/templates/deferred-items-template.md` (empty body, headers intact).
   - Verify the `outcome/` directory exists; create it if not.
@@ -49,7 +49,7 @@
 
 ### 0.2 Verification-First Substrate Inventory (MANDATORY GATE)
 
-- [ ] 0.2 Verify the complete DEV1-014 substrate against bundled code and produce the Reuse/Create classification table
+- [x] 0.2 Verify the complete DEV1-014 substrate against bundled code and produce the Reuse/Create classification table
   - Verify by locating (path + exported symbol) — NOT by docs prose:
     1. `ParentLinkRequestService.respondToLinkRequest` and `listMyIncoming` in `backend/services/parents/parent-link-request.service.ts`
     2. `classifyUnclaimableRequest`, `raiseUnclaimableDenial`, `requireActor` in `backend/services/parents/parent-link-request.helpers.ts` — record the EXACT typed-denial vocabulary (codes + error classes + constructor shapes) found; this freezes REQ-041
@@ -76,18 +76,18 @@
 
 > **Scope gate (invariant #3-style):** This ticket adds NO columns, NO tables, NO enums, NO migrations. `bun run db push` is a no-op confirmation only; `git diff -- backend/db/schema/** backend/db/migration/**` MUST be empty at Phase 6. Phase 1 covers ONLY the canonical-type verification and the compile-time i18n label additions required by the new dashboard card.
 
-- [ ] 1.1 Pin canonical types (zero additions) and extend the `parentLink` i18n namespace for dashboard-card copy
+- [x] 1.1 Pin canonical types (zero additions) and extend the `parentLink` i18n namespace for dashboard-card copy
   - Confirm (no edits expected): `ParentLinkRequestSelectType`, `IncomingParentLinkRequestReturnType`, `OutgoingParentLinkRequestReturnType` in `backend/types/parents/parent-link-request.types.ts`; `DBTransaction` / `DBQueryExecutor` from `@/backend/types`. Any type gap discovered is a STOP + ledger entry (never a local type).
   - Extend the existing `parentLink` namespace (DO NOT create a new namespace): add dashboard-card keys under the namespace's type surface (`shared/locale/types/parentLink*` per the shape recorded in 0.2) — title, count/plural-safe label(s), "latest requester" line, CTA label, loading/error/retry copy — in BOTH `en` and `ar` sources.
   - Follow the namespace registration checklist in `shared/AGENTS.md` exactly (types → en → ar → export wiring). The namespace handle const (e.g. `ParentLink`) MUST already exist; only label members are added.
   - Run the locale parity suite (en/ar key parity `tsc` + tests) until green.
   - Enum discipline: all enum usages in this ticket (`LinkStatus`, `UserRole`, `NotificationType`) are VALUE imports with enum members — no string literals anywhere.
   - _Requirements: REQ-003, REQ-004, REQ-042, REQ-015 (copy contract)_
-  - [ ] 1.1.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts <each edited locale file> --lifecycle duplicates` — exit code 0 for every edited file.
-  - [ ] 1.1.TE **Test Engineering:** Locale parity suite green (en/ar bijective keys); a key-access compile check proves every new label resolves through the `Translations` tree (no orphan keys). Tier 1/2: parity of added keys only; Tier 3/4: N/A (pure data).
-  - [ ] 1.1.SEC **Security & Tenancy Audit:** No user data embedded in labels; placeholders use ICU args (no template concatenation of names beside localized chrome without `isolateBidi`); no disclosure-bearing copy (card shows parent FULL name — sanctioned; verify copy phrases never leak student identifiers to parents).
-  - [ ] 1.1.SR **Semantic Review:** No duplicate keys anywhere in the tree; flat `ErrorsLabels`-style conventions respected; no `next-intl` imports; zero dead keys.
-  - [ ] 1.1.IV **Instruction Verification:** Validate against `shared/AGENTS.md` namespace checklist (only instruction corpus applicable here; the ONLY instruction files in repo are `.agents/instructions/{frontend,backend,tests}.instructions.md`).
+  - [x] 1.1.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts <each edited locale file> --lifecycle duplicates` — exit code 0 for every edited file.
+  - [x] 1.1.TE **Test Engineering:** Locale parity suite green (en/ar bijective keys); a key-access compile check proves every new label resolves through the `Translations` tree (no orphan keys). Tier 1/2: parity of added keys only; Tier 3/4: N/A (pure data).
+  - [x] 1.1.SEC **Security & Tenancy Audit:** No user data embedded in labels; placeholders use ICU args (no template concatenation of names beside localized chrome without `isolateBidi`); no disclosure-bearing copy (card shows parent FULL name — sanctioned; verify copy phrases never leak student identifiers to parents).
+  - [x] 1.1.SR **Semantic Review:** No duplicate keys anywhere in the tree; flat `ErrorsLabels`-style conventions respected; no `next-intl` imports; zero dead keys.
+  - [x] 1.1.IV **Instruction Verification:** Validate against `shared/AGENTS.md` namespace checklist (only instruction corpus applicable here; the ONLY instruction files in repo are `.agents/instructions/{frontend,backend,tests}.instructions.md`).
   - Outcome: `1.1-outcome.md`.
 
 ---
@@ -96,7 +96,7 @@
 
 > **Scope gate:** NO backend logic delta is planned. Every symbol in this phase is REUSE. New code in this phase is **tests only** (journey + missing regression cells). If verification forces ANY service/repo edit, it is a deviation → ledger entry + explicit justification.
 
-- [ ] 2.1 **Write the "Student Confirmation of Parent Link" journey test — TEST-FIRST**
+- [x] 2.1 **Write the "Student Confirmation of Parent Link" journey test — TEST-FIRST**
   - Create `test/workflows/parents/student-confirmation-of-link.journey.test.ts` — one file for the cross-actor confirmation/rejection workflow (specs §2.9 steps 1–9, J-REQ-01..05).
   - `test/workflows/` already exists (verified in 0.2) — provisioning/cast helpers, `SpiedFanoutTransport`, and `test/workflows/AGENTS.md` are REUSED, not rescaffolded. If 0.2 found any helper missing, scaffold JUST that helper per Architectural Invariant 10 and ledger the gap.
   - Provision the actor cast via the parents-domain cast helper in `test/workflows/helpers/` with REAL permission-group membership rows (NEVER monkey-patch permission resolution): UUID-prefixed fixtures — ≥2 parents, ≥1 unlinked student, 1 already-linked student, 1 governed (suspended) student.
@@ -118,7 +118,7 @@
   - Verify: `bun run test/scripts/run-test.ts test/workflows` green (never raw `bun test` — it skips `--env-file=.env.test`).
   - _Requirements: REQ-062 (J-REQ-01..J-REQ-05), REQ-012, REQ-013, REQ-014, REQ-017, REQ-020, REQ-021, REQ-022, REQ-030–035, REQ-065_
 
-- [ ] 2.2 Audit existing service/repo suites against acceptance criteria; add ONLY genuinely missing regression cells
+- [x] 2.2 Audit existing service/repo suites against acceptance criteria; add ONLY genuinely missing regression cells
   - Diff `backend/services/parents/parent-link-request.service.test.ts` and `parent-link-request.chaos.test.ts` coverage against specs §2 acceptance criteria and produce the cell-by-cell coverage table in the outcome.
   - Add ONLY missing cells (expected candidates; each must be justified by the diff audit — no duplicates of DEV1-014 cells):
     - Publish-after-commit spy assertion: a forced mid-transaction failure yields ZERO `publishReceipts` calls and ZERO notification rows (REQ-034), if not already pinned.
@@ -128,16 +128,16 @@
   - All service/repo assertions use `runInRollback` + explicit `tx` propagation + `expectRepoError`-style try/catch (NEVER `expect().rejects.toThrow()` inside a rollback tx).
   - Do NOT modify `respondToLinkRequest`, `listMyIncoming`, helpers, or repositories — REUSE verbatim (plan D1). Any discovered need to edit = STOP + ledger.
   - _Requirements: REQ-060, REQ-061, REQ-024, REQ-025, REQ-022, REQ-031, REQ-033, REQ-034, REQ-035_
-  - [ ] 2.2.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts backend/services/parents/parent-link-request.service.test.ts --lifecycle duplicates` (and the chaos file if touched) — exit code 0.
-  - [ ] 2.2.TE **Test Engineering:** 4-Tier check on added cells — Tier 1 branch/stmt coverage of the exercised service branches; Tier 2 boundary (expiry instant, zero-row classification); Tier 3 chaos (rollback fanout-zero, double-respond); Tier 4 security (gated/governed denial ordering). `runInRollback` + `tx` propagation verified by inspection; notification engine mocked via the established adapter seam.
-  - [ ] 2.2.SEC **Security & Tenancy Audit:** New assertions prove: BOLA identity derives from `actorUserId` only; BOPLA field-by-field writes (verify no new `{ ...input }` spread introduced anywhere); BFLA service-side role check present; constant-denial no-oracle shape.
-  - [ ] 2.2.SR **Semantic Review:** Atomicity (single `withTransaction` unit asserted), env-config (no hardcoded URLs/secrets), zero dead test code, no cross-layer imports in tests (tests import services + `@/backend/enum/*` value enums), enums as value imports.
-  - [ ] 2.2.IV **Instruction Verification:** Validate against `.agents/instructions/backend.instructions.md` + `.agents/instructions/tests.instructions.md` + `backend/services/parents/AGENTS.md` (if present per 0.2) + `backend/db/repo/parents/AGENTS.md` (if present per 0.2).
+  - [x] 2.2.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts backend/services/parents/parent-link-request.service.test.ts --lifecycle duplicates` (and the chaos file if touched) — exit code 0.
+  - [x] 2.2.TE **Test Engineering:** 4-Tier check on added cells — Tier 1 branch/stmt coverage of the exercised service branches; Tier 2 boundary (expiry instant, zero-row classification); Tier 3 chaos (rollback fanout-zero, double-respond); Tier 4 security (gated/governed denial ordering). `runInRollback` + `tx` propagation verified by inspection; notification engine mocked via the established adapter seam.
+  - [x] 2.2.SEC **Security & Tenancy Audit:** New assertions prove: BOLA identity derives from `actorUserId` only; BOPLA field-by-field writes (verify no new `{ ...input }` spread introduced anywhere); BFLA service-side role check present; constant-denial no-oracle shape.
+  - [x] 2.2.SR **Semantic Review:** Atomicity (single `withTransaction` unit asserted), env-config (no hardcoded URLs/secrets), zero dead test code, no cross-layer imports in tests (tests import services + `@/backend/enum/*` value enums), enums as value imports.
+  - [x] 2.2.IV **Instruction Verification:** Validate against `.agents/instructions/backend.instructions.md` + `.agents/instructions/tests.instructions.md` + `backend/services/parents/AGENTS.md` (if present per 0.2) + `backend/db/repo/parents/AGENTS.md` (if present per 0.2).
   - Outcome: `2.2-outcome.md`.
 
 ### Phase 2.M — Mid-Point Review Gate
 
-- [ ] 2.M Mid-point review gate (BLOCKS Phase 3+)
+- [x] 2.M Mid-point review gate (BLOCKS Phase 3+)
   - Re-run: `bun run test/scripts/run-test.ts backend/services/parents` and `bun run test/scripts/run-test.ts test/workflows` — all green.
   - `bun x tsgo --noEmit` error count ≤ 0.1 baseline (any NEW error = fix now or ledger with justification).
   - Confirm zero production-code edits in `backend/services/**` and `backend/db/repo/**` so far (`git diff --stat`); any diff → ledger + explicit approval trail in outcome.
@@ -150,7 +150,7 @@
 
 > **Scope gate:** ZERO new root fields. `respondToParentLinkRequest` and `myIncomingParentLinkRequests` are verified-and-pinned, not modified. Any Pothos edit forces a same-change update of `backend/graphql/test/schema-surface.test.ts` + a ledger entry.
 
-- [ ] 3.1 Pin the wire surface and add ONLY the genuinely missing decision-leg wire cells
+- [x] 3.1 Pin the wire surface and add ONLY the genuinely missing decision-leg wire cells
   - Verify against bundled code (anchors from 0.2): exact signatures `myIncomingParentLinkRequests: [IncomingParentLinkRequest!]!` and `respondToParentLinkRequest(requestId: ID!, accept: Boolean!): IncomingParentLinkRequest!`; `authScopes: { $all: { authenticated: true, role: [UserRole.Student] } }` on BOTH fields (plain-map ANY-semantics is FORBIDDEN); `id` exposed first; `DateTime` scalar (no `toISOString()` into `String`); closed input shape `{ requestId, accept }`.
   - Extend `backend/graphql/test/parent-link.wire.test.ts` with ONLY missing decision-leg cells (per REQ-063; each cell justified by diffing existing wire matrix):
     - Expired-claim denial over the wire: respond past `expiresAt` → typed expiry-class denial with correct `extensions.code` and identical envelope key-set as sibling denials (no per-class disclosure).
@@ -159,50 +159,50 @@
   - `bun run generate:gqlSchema && bun codegen` → diff MUST show zero unrelated drift; `backend/graphql/test/schema-surface.test.ts` baseline byte-identical.
   - Denial code inventory emitted by these cells MUST be ⊆ the REQ-041 taxonomy frozen in 0.2; any new `extensions.code` → register per `docs/graphql/domain-error-extensions-code.md` + ledger entry (expected: none).
   - _Requirements: REQ-020, REQ-021, REQ-023, REQ-040, REQ-041, REQ-050, REQ-063_
-  - [ ] 3.1.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts backend/graphql/test/parent-link.wire.test.ts --lifecycle duplicates` — exit code 0.
-  - [ ] 3.1.TE **Test Engineering:** Wire cells run via `bun run test/scripts/run-test.ts backend/graphql/test/parent-link.wire.test.ts`; each cell asserts status class, `extensions.code`, envelope key-set parity, and zero side effects (row/notification counts unchanged on denials).
-  - [ ] 3.1.SEC **Security & Tenancy Audit:** BFLA pre-resolver ordering proven (resolver body spy never invoked on 401/403); BOLA foreign-vs-absent byte-identity re-pinned on the wire; BOPLA smuggled-field rejection; no internal error text surfaces at the boundary for any denial class.
-  - [ ] 3.1.SR **Semantic Review:** No local types introduced in resolvers/tests (canonical types only); enum value imports; no `console.*`; no hand-rolled date serialization.
-  - [ ] 3.1.IV **Instruction Verification:** Validate against `.agents/instructions/backend.instructions.md` + `backend/graphql/AGENTS.md` (if present per 0.2) + the invariant #11 scalar/schema-surface rules.
+  - [x] 3.1.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts backend/graphql/test/parent-link.wire.test.ts --lifecycle duplicates` — exit code 0.
+  - [x] 3.1.TE **Test Engineering:** Wire cells run via `bun run test/scripts/run-test.ts backend/graphql/test/parent-link.wire.test.ts`; each cell asserts status class, `extensions.code`, envelope key-set parity, and zero side effects (row/notification counts unchanged on denials).
+  - [x] 3.1.SEC **Security & Tenancy Audit:** BFLA pre-resolver ordering proven (resolver body spy never invoked on 401/403); BOLA foreign-vs-absent byte-identity re-pinned on the wire; BOPLA smuggled-field rejection; no internal error text surfaces at the boundary for any denial class.
+  - [x] 3.1.SR **Semantic Review:** No local types introduced in resolvers/tests (canonical types only); enum value imports; no `console.*`; no hand-rolled date serialization.
+  - [x] 3.1.IV **Instruction Verification:** Validate against `.agents/instructions/backend.instructions.md` + `backend/graphql/AGENTS.md` (if present per 0.2) + the invariant #11 scalar/schema-surface rules.
   - Outcome: `3.1-outcome.md`.
 
-- [ ] 3.2 Verify frontend documents parity (no edits expected)
+- [x] 3.2 Verify frontend documents parity (no edits expected)
   - Confirm `myIncomingParentLinkRequestsQueryDocument` / `respondToParentLinkRequestMutationDocument` remain `TypedDocumentNode`s with `id` selected first; the card consumes the SAME list document (no new document).
   - Run `bun run test/scripts/run-test.ts frontend/graphql/sharedDocuments/parents/parent-link.documents.test.ts` and `documents.contract.test.ts` — green, unchanged.
   - _Requirements: REQ-050, REQ-051_
-  - [ ] 3.2.QL **Quality Loop:** sub-loop on any touched document file (expected: none) — record no-op if untouched.
-  - [ ] 3.2.TE **Test Engineering:** Contract suites green; codegen types for the documents resolve with zero drift.
-  - [ ] 3.2.SEC **Security & Tenancy Audit:** No over-selected fields in the incoming list document beyond the sanctioned incoming disclosure contract (`parentFullName` is sanctioned; nothing student-private leaks parent-side).
-  - [ ] 3.2.SR **Semantic Review:** Single normalized-cache truth (one list document consumed by dashboard card + decision page); no duplicate query definitions anywhere.
-  - [ ] 3.2.IV **Instruction Verification:** `.agents/instructions/frontend.instructions.md` + `frontend/graphql/AGENTS.md`.
+  - [x] 3.2.QL **Quality Loop:** sub-loop on any touched document file (expected: none) — record no-op if untouched.
+  - [x] 3.2.TE **Test Engineering:** Contract suites green; codegen types for the documents resolve with zero drift.
+  - [x] 3.2.SEC **Security & Tenancy Audit:** No over-selected fields in the incoming list document beyond the sanctioned incoming disclosure contract (`parentFullName` is sanctioned; nothing student-private leaks parent-side).
+  - [x] 3.2.SR **Semantic Review:** Single normalized-cache truth (one list document consumed by dashboard card + decision page); no duplicate query definitions anywhere.
+  - [x] 3.2.IV **Instruction Verification:** `.agents/instructions/frontend.instructions.md` + `frontend/graphql/AGENTS.md`.
   - Outcome: `3.2-outcome.md`.
 
 ---
 
 ## Phase 4: Frontend Views, Dashboard Card & Navigation
 
-- [ ] 4.1 Verify/close the notification-drawer deep-link for `parent_link_request` (REQ-011)
+- [x] 4.1 Verify/close the notification-drawer deep-link for `parent_link_request` (REQ-011)
   - Input: 0.2 finding for `frontend/components/ui/NotificationDrawerBody.tsx` / `useNotificationDrawerActions.ts` (`handleOpenNotification`).
   - **If the `relatedEntityType === "parent_link_request"` branch already routes to the student decision route:** PIN it with a component/contract test only — no code edit.
   - **If not:** add the minimal mapping inside the drawer's EXISTING route-resolution seam (Record/switch keyed by `relatedEntityType`), exporting ONE shared route constant (e.g. `STUDENT_LINK_REQUESTS_ROUTE`) that task 4.2's CTA and task 4.4's nav entry BOTH consume — three consumers, one constant, zero drift.
   - Add a component test: a `parent_link_request` notification click resolves exactly to the student decision route (both locales; no router errors for unknown entity types — those fall through unchanged).
   - _Requirements: REQ-011, REQ-053_
-  - [ ] 4.1.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts <edited drawer/action file> --lifecycle duplicates` — exit code 0.
-  - [ ] 4.1.TE **Unit / Component Tests:** Happy DOM tests: notification click → route resolution; unknown entity → unchanged behavior; both locales; no `runInRollback` (UI test).
-  - [ ] 4.1.BF **Agent-Browser Functional Self-Loop:**
+  - [x] 4.1.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts <edited drawer/action file> --lifecycle duplicates` — exit code 0.
+  - [x] 4.1.TE **Unit / Component Tests:** Happy DOM tests: notification click → route resolution; unknown entity → unchanged behavior; both locales; no `runInRollback` (UI test).
+  - [x] 4.1.BF **Agent-Browser Functional Self-Loop:**
     • Launch dev server; login as a student with a seeded `parent_link_request` notification.
     • Open the notification drawer; click the link-request notification.
     • Assert navigation lands on the student link-requests decision route; assert the pending row is rendered.
     • Iterative self-loop: on any mis-route/no-op, patch the resolution seam and re-test until clean.
-  - [ ] 4.1.BS **Agent-Browser Visual & Styling Self-Loop (Screenshot Analysis):**
+  - [x] 4.1.BS **Agent-Browser Visual & Styling Self-Loop (Screenshot Analysis):**
     • Capture the drawer with the link-request notification at 1440×900 / 768×1024 / 375×812 × en/ar.
     • Inspect: notification row typography/spacing mirrors sibling rows; RTL mirroring correct; no truncation of the entity line; no hardcoded colors.
     • Iterate on `sx` tokens until visually consistent with the drawer baseline.
-  - [ ] 4.1.SR **Semantic Review:** Resolution seam edit is minimal and switch-shaped (no re-architecting the drawer); `sx` only; no hardcoded strings/colors; route constant has exactly ONE definition site.
-  - [ ] 4.1.IV **Instruction Verification:** `.agents/instructions/frontend.instructions.md` + `frontend/components/ui` layer AGENTS.md ONLY if present per 0.2 (`frontend/components/ui/AGENTS.md` does not exist in known prose — verify, never cite blindly).
+  - [x] 4.1.SR **Semantic Review:** Resolution seam edit is minimal and switch-shaped (no re-architecting the drawer); `sx` only; no hardcoded strings/colors; route constant has exactly ONE definition site.
+  - [x] 4.1.IV **Instruction Verification:** `.agents/instructions/frontend.instructions.md` + `frontend/components/ui` layer AGENTS.md ONLY if present per 0.2 (`frontend/components/ui/AGENTS.md` does not exist in known prose — verify, never cite blindly).
   - Outcome: `4.1-outcome.md`.
 
-- [ ] 4.2 Implement the NEW `PendingParentLinkRequestsCard` dashboard discoverability card
+- [x] 4.2 Implement the NEW `PendingParentLinkRequestsCard` dashboard discoverability card
   - Create:
     - `frontend/views/students/dashboard/PendingParentLinkRequestsCard.tsx` (client component)
     - `frontend/views/students/dashboard/pending-parent-link-requests.ts` (pure helpers: `deriveActionableIncoming(rows, nowMs)` → `{ count, latestParentFullName } | null`)
@@ -213,59 +213,59 @@
   - i18n: `useAppTranslation(ParentLink)` handle + property access only (labels from 1.1); names rendered with `dir="auto"` + `isolateBidi` where abutting chrome (`shared/lib/isolate-bidi.ts`).
   - MUI v9 discipline: `sx` only (no direct style props), `theme.palette.*` only (no hex/rgb), `*Outlined` icon (e.g. `PendingActionsOutlined`), logical properties only (no physical left/right; RTL via the emotion-cache stylis-plugin-rtl pipeline).
   - _Requirements: REQ-015, REQ-016, REQ-051, REQ-052, REQ-003, REQ-042_
-  - [ ] 4.2.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts frontend/views/students/dashboard/PendingParentLinkRequestsCard.tsx --lifecycle duplicates` and the pure-helper file — exit code 0 each.
-  - [ ] 4.2.TE **Unit / Component Tests:** New suite `test/ui/components/students/PendingParentLinkRequestsCard.test.tsx` — Happy DOM + Apollo `MockedProvider`. REQ-064 matrix: loading (skeleton, `aria-busy`) / absent (zero actionable → renders nothing) / present-1 (count=1, requester FULL name, CTA href = shared route constant) / present-N (count=N, MOST RECENT requester) / error (localized Alert + retry invokes refetch) / post-decision disappearance (cache write-back → actionable 0 → unmounts) / expired-row exclusion (row with `expiresAt <= now` not counted) — in BOTH en and ar; pure-helper unit tests for the derivation edges (boundary instant, ordering, empty).
-  - [ ] 4.2.BF **Agent-Browser Functional Self-Loop:**
+  - [x] 4.2.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts frontend/views/students/dashboard/PendingParentLinkRequestsCard.tsx --lifecycle duplicates` and the pure-helper file — exit code 0 each.
+  - [x] 4.2.TE **Unit / Component Tests:** New suite `test/ui/components/students/PendingParentLinkRequestsCard.test.tsx` — Happy DOM + Apollo `MockedProvider`. REQ-064 matrix: loading (skeleton, `aria-busy`) / absent (zero actionable → renders nothing) / present-1 (count=1, requester FULL name, CTA href = shared route constant) / present-N (count=N, MOST RECENT requester) / error (localized Alert + retry invokes refetch) / post-decision disappearance (cache write-back → actionable 0 → unmounts) / expired-row exclusion (row with `expiresAt <= now` not counted) — in BOTH en and ar; pure-helper unit tests for the derivation edges (boundary instant, ordering, empty).
+  - [x] 4.2.BF **Agent-Browser Functional Self-Loop:**
     • Launch dev server / connect via agent-browser (Playwright); login as a student with ONE pending incoming request.
     • Navigate to `/student/dashboard`; assert the card renders with correct count, requester name, and CTA.
     • Click the CTA → assert landing on the student link-requests route; Confirm or Reject from the decision page; return to dashboard → assert the card disappears (post-decision convergence, REQ-016).
     • Seed two parents' pendings → assert count=2 + most-recent requester; force a network error (offline toggle / route abort) → assert localized Alert + working retry.
     • Iterative self-loop: on any interaction/assertion failure, patch code and re-run until clean.
-  - [ ] 4.2.BS **Agent-Browser Visual & Styling Self-Loop (Screenshot Analysis):**
+  - [x] 4.2.BS **Agent-Browser Visual & Styling Self-Loop (Screenshot Analysis):**
     • Capture high-resolution screenshots at Desktop 1440×900, Tablet 768×1024, Mobile 375×812 × English LTR and Arabic RTL (six cells), covering present-1 and present-N states.
     • Visually inspect: MUI v9 theme palette compliance (no hardcoded hex/rgb), typography hierarchy vs `HandshakeCodeCard`, padding/margin rhythm, count-chip wrapping on mobile (wrap above requester line; full-width CTA at 375px), text truncation/overflow of long Arabic names, RTL mirroring (icon/CTA alignment, logical spacing), `dir="auto"` name isolation, dark/light contrast.
     • Iterative self-loop: inspect screenshot → identify UI defect → patch `sx` tokens → re-capture → repeat until visually polished; attach final six-cell screenshot set to the outcome.
-  - [ ] 4.2.SR **Semantic Review:** Zero direct style props (sx only); zero hardcoded colors/strings; `useAppTranslation(ParentLink)` property access; `*Outlined` icons; no Apollo-dispatch spaghetti (single `useQuery`, no bespoke invalidation bus); helper file is pure (no React imports).
-  - [ ] 4.2.IV **Instruction Verification:** `.agents/instructions/frontend.instructions.md` + `frontend/views/**` AGENTS.md ONLY if present per 0.2 (`frontend/views/AGENTS.md` is prose-phantom until proven otherwise).
+  - [x] 4.2.SR **Semantic Review:** Zero direct style props (sx only); zero hardcoded colors/strings; `useAppTranslation(ParentLink)` property access; `*Outlined` icons; no Apollo-dispatch spaghetti (single `useQuery`, no bespoke invalidation bus); helper file is pure (no React imports).
+  - [x] 4.2.IV **Instruction Verification:** `.agents/instructions/frontend.instructions.md` + `frontend/views/**` AGENTS.md ONLY if present per 0.2 (`frontend/views/AGENTS.md` is prose-phantom until proven otherwise).
   - Outcome: `4.2-outcome.md`.
 
-- [ ] 4.3 Compose the card into the student dashboard status slot (`RoleDashboardPage`)
+- [x] 4.3 Compose the card into the student dashboard status slot (`RoleDashboardPage`)
   - Edit `frontend/views/dashboard/home/RoleDashboardPage.tsx`: extend the EXISTING `resolveStatusSlot` student branch (which already renders `HandshakeCodeCard` from `@/frontend/views/students/dashboard`) to render `HandshakeCodeCard` + `PendingParentLinkRequestsCard` as siblings inside a `Stack` (plan D6 — no `DashboardView` contract change, no other-role impact).
   - No new props on `DashboardView`; no layout change for other roles.
   - _Requirements: REQ-015, REQ-053_
-  - [ ] 4.3.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts frontend/views/dashboard/home/RoleDashboardPage.tsx --lifecycle duplicates` — exit code 0.
-  - [ ] 4.3.TE **Unit / Component Tests:** Extend the dashboard home component tests (location per 0.2): student role renders both cards in the status slot; parent/teacher/admin slots unchanged (snapshot/role matrix green); component test for slot ordering.
-  - [ ] 4.3.BF **Agent-Browser Functional Self-Loop:**
+  - [x] 4.3.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts frontend/views/dashboard/home/RoleDashboardPage.tsx --lifecycle duplicates` — exit code 0.
+  - [x] 4.3.TE **Unit / Component Tests:** Extend the dashboard home component tests (location per 0.2): student role renders both cards in the status slot; parent/teacher/admin slots unchanged (snapshot/role matrix green); component test for slot ordering.
+  - [x] 4.3.BF **Agent-Browser Functional Self-Loop:**
     • Login as student → dashboard renders both cards; navigate away/back → no duplicate fetches (Apollo cache); logout/login as teacher → teacher dashboard renders with zero student cards and zero console errors.
     • Iterative self-loop until clean for both roles.
-  - [ ] 4.3.BS **Agent-Browser Visual & Styling Self-Loop (Screenshot Analysis):**
+  - [x] 4.3.BS **Agent-Browser Visual & Styling Self-Loop (Screenshot Analysis):**
     • Capture the full dashboard at the six viewport/locale cells with BOTH cards present: vertical rhythm between cards, stack spacing matches design tokens, no overflow at 375px, RTL order/alignment correct in ar.
     • Iterate on `sx` spacing tokens until the slot composition is visually seamless; attach screenshots to outcome.
-  - [ ] 4.3.SR **Semantic Review:** Single-role diff surface; `sx` only for the wrapper Stack; no hardcoded colors; no conditional-hook violations (hook lives INSIDE the card component, not in the server/route shell).
-  - [ ] 4.3.IV **Instruction Verification:** `.agents/instructions/frontend.instructions.md` + dashboard-layer AGENTS.md if present per 0.2.
+  - [x] 4.3.SR **Semantic Review:** Single-role diff surface; `sx` only for the wrapper Stack; no hardcoded colors; no conditional-hook violations (hook lives INSIDE the card component, not in the server/route shell).
+  - [x] 4.3.IV **Instruction Verification:** `.agents/instructions/frontend.instructions.md` + dashboard-layer AGENTS.md if present per 0.2.
   - Outcome: `4.3-outcome.md`.
 
-- [ ] 4.4 Nav retargeting (verify-first, retarget-if-needed — plan D5, invariant #12)
+- [x] 4.4 Nav retargeting (verify-first, retarget-if-needed — plan D5, invariant #12)
   - Per 0.2's finding on `frontend/views/dashboard/nav/navItems.ts` student section:
     - **If the link-requests entry targets the `[feature]` catch-all ComingSoon page:** RETARGET its `route` to the shared `STUDENT_LINK_REQUESTS_ROUTE` constant; update `navItems.test.ts` expectations.
     - **If it already targets the real route:** NO code change; record byte-identity proof; pin/refresh the nav test expectation only if absent.
   - No duplicate entries; no new nav items; NO mobile bottom-nav work (mobile nav = temporary MUI `Drawer`; out of scope).
   - Wrong-role page access MUST redirect via `roleDashboardPath(ctx.role)` — verify the decision-route page guard (`withPageAuth`) conforms; bare `/dashboard` redirect targets are FORBIDDEN.
   - _Requirements: REQ-053_
-  - [ ] 4.4.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts frontend/views/dashboard/nav/navItems.ts --lifecycle duplicates` (and its test) — exit code 0.
-  - [ ] 4.4.TE **Unit / Component Tests:** `frontend/views/dashboard/nav/navItems.test.ts` — student nav contains exactly ONE link-requests entry targeting the shared route constant; other roles' items untouched; page-guard test: non-student hitting the route redirects to `roleDashboardPath(role)`; anonymous → login redirect.
-  - [ ] 4.4.BF **Agent-Browser Functional Self-Loop:**
+  - [x] 4.4.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts frontend/views/dashboard/nav/navItems.ts --lifecycle duplicates` (and its test) — exit code 0.
+  - [x] 4.4.TE **Unit / Component Tests:** `frontend/views/dashboard/nav/navItems.test.ts` — student nav contains exactly ONE link-requests entry targeting the shared route constant; other roles' items untouched; page-guard test: non-student hitting the route redirects to `roleDashboardPath(role)`; anonymous → login redirect.
+  - [x] 4.4.BF **Agent-Browser Functional Self-Loop:**
     • Login as student → click the sidebar link-requests entry → lands on the real decision route (not ComingSoon).
     • Login as parent and teacher → navigate directly to the student link-requests URL → observe role-dashboard redirect; anonymous → login redirect.
     • Iterative self-loop until all four cells behave correctly.
-  - [ ] 4.4.BS **Agent-Browser Visual & Styling Self-Loop (Screenshot Analysis):**
+  - [x] 4.4.BS **Agent-Browser Visual & Styling Self-Loop (Screenshot Analysis):**
     • Capture sidebar (desktop drawer expanded + mobile temporary Drawer open) at the six cells; verify the entry label is localized, icon `*Outlined`, active-state highlight on the decision route, RTL drawer mirroring in ar.
     • Iterate styling only if a defect appears; otherwise record parity screenshots.
-  - [ ] 4.4.SR **Semantic Review:** Route constant single-sourced; no string duplication across nav/card/drawer; nav item diff is minimal (retarget-only).
-  - [ ] 4.4.IV **Instruction Verification:** `.agents/instructions/frontend.instructions.md` + `frontend/views/dashboard` layer AGENTS.md if present per 0.2.
+  - [x] 4.4.SR **Semantic Review:** Route constant single-sourced; no string duplication across nav/card/drawer; nav item diff is minimal (retarget-only).
+  - [x] 4.4.IV **Instruction Verification:** `.agents/instructions/frontend.instructions.md` + `frontend/views/dashboard` layer AGENTS.md if present per 0.2.
   - Outcome: `4.4-outcome.md`.
 
-- [ ] 4.5 Pin the decision page's existing behavior (regression, no redesign)
+- [x] 4.5 Pin the decision page's existing behavior (regression, no redesign)
   - Run the existing suites for `frontend/views/students/link-requests/**` (located per 0.2) and `parent-link.documents.test.ts`-adjacent component suites — all green, unmodified.
   - If any suite references behavior 4.1–4.4 changed (it should not), reconcile via the shared route constant, never by editing the DEV1-014 view logic.
   - _Requirements: REQ-010, REQ-014, REQ-016, REQ-060_
@@ -275,7 +275,7 @@
 
 ## Phase 5: Integration & Differential Testing
 
-- [ ] 5.1 Full integration battery & differential verification
+- [x] 5.1 Full integration battery & differential verification
   - Run (each via `bun run test/scripts/run-test.ts <path>`):
     1. `test/workflows` (entire journey layer — new + DEV1-014 journey both green)
     2. `backend/services/parents` (service + chaos + static-locks)
@@ -297,30 +297,30 @@
 
 > Launch the four review waves in parallel; each produces a findings file under `ai/plans/sprint_3/dev1-015-student-confirmation-of-parent-link/outcome/`. All Critical/High findings must be resolved (or ledgered with explicit rationale) before Phase 7.
 
-- [ ] 6.1 Wave: review-types
+- [x] 6.1 Wave: review-types
   - Zero local types in resolvers/components; all imports from `backend/types/**` / `@/backend/types`; `TypedDocumentNode` usage; i18n types complete (no missing key members); enum value imports only.
   - Verify `IncomingParentLinkRequestReturnType` is the card's sole row contract (no re-declared view types).
   - Findings → `6.1-outcome.md` (review-types section).
 
-- [ ] 6.2 Wave: review-backend
+- [x] 6.2 Wave: review-backend
   - Confirm zero production-code diff in `backend/services/**` / `backend/db/repo/**` / `backend/graphql/mutation|query|pothos/**` (git diff evidence).
   - Re-audit journey + added test cells for: honest permission resolution (no monkey-patching), `runInRollback` absence in journey files, committed-fixture discipline + complete `afterAll` teardown (FK-safe order), spied (never real) fanout/email/SMS, PGLite skip guard on true races.
   - Re-assert: guarded-claim SQL unchanged; no `SELECT FOR UPDATE`/advisory locks added; log hygiene (no names/codes) in any added logging (expected: none); `console.*` absence.
   - Findings → `6.2-outcome.md` (review-backend section).
 
-- [ ] 6.3 Wave: review-frontend
+- [x] 6.3 Wave: review-frontend
   - MUI v9 discipline across all new/edited files: `sx` only, `theme.palette.*` only, `*Outlined` icons, ≥44px targets, logical properties, `dir="auto"`/`isolateBidi` on names.
   - i18n: `useAppTranslation(ParentLink)` handle-form; zero hardcoded user-facing strings; both locales rendered in tests.
   - Apollo: single list document shared by card + decision page; id-first selection; no new queries; no bespoke invalidation.
   - Browser evidence review: 4.1/4.2/4.3/4.4 BF+BS artifacts complete (functional flows green; six-cell screenshot sets attached).
   - Findings → `6.3-outcome.md` (review-frontend section).
 
-- [ ] 6.4 Wave: pentester (security)
+- [x] 6.4 Wave: pentester (security)
   - Threat-model pass over the ticket delta: BFLA pre-resolver conjunction (`$all`) intact on both fields; BOLA foreign≡absent byte-identity on wire + service; BOPLA closed input `{ requestId, accept }` + no `{ ...input }` spreads; governance `requireActor` pre-tx ordering (context boundary is NOT fail-closed — service re-check is the defense); no existence oracle in any new UI copy; notification deep-link cannot be abused for IDOR (route is generic, authorization enforced server-side).
   - Attempt abuse cases: expired-id respond, double respond, smuggled fields due-schema validation, governed-student respond — all match frozen denial vocabulary with zero side effects.
   - Findings → `6.4-outcome.md` (pentester section).
 
-- [ ] 6.5 Deferred-items ledger gate (FINAL)
+- [x] 6.5 Deferred-items ledger gate (FINAL)
   - Re-read `ai/plans/sprint_3/dev1-015-student-confirmation-of-parent-link/deferred-items.md` in full.
   - Every entry is either ✅ resolved (with evidence link) or explicitly deferred with owner/rationale; ZERO ❌/⚠️ items may remain.
   - Record the ledger verdict in `6.5-outcome.md`; a non-clean ledger BLOCKS Phase 7 closure.
@@ -329,17 +329,17 @@
 
 ## Phase 7: Knowledge Propagation & Documentation
 
-- [ ] 7.1 Amend the canonical parent-link doc (no fork)
+- [x] 7.1 Amend the canonical parent-link doc (no fork)
   - Edit `docs/parents/parent-link-request.md`: add a **DEV1-015 closure section** recording: the dashboard discoverability card (files, data path, render states), the notification deep-link pin/close result, nav retargeting outcome (or no-op proof), the new journey file + added wire/service cells, and the verified INV-P1 closure statement.
   - Do NOT fork a parallel canonical doc; do NOT edit/renumber `docs/specs/state-machine-invariants.md` or `docs/specs/open-decisions-and-gaps.md` (bind by reference — B.14, INV-P1, A.2/A.4/B.12 — only).
   - _Requirements: REQ-070_
 
-- [ ] 7.2 Layer knowledge propagation (minimal, conditional)
+- [x] 7.2 Layer knowledge propagation (minimal, conditional)
   - Add a layer AGENTS.md line ONLY if a genuinely NEW permanent rule emerged (expected: none — single-writer/expiry/notification rules already documented). Candidates to evaluate: "one shared route constant for all parent-link deep-links" (nav/card/drawer) — if deemed durable, add ONE line to the closest existing layer AGENTS.md verified present in 0.2; otherwise skip and record why.
   - Root AGENTS.md Important References: no additions expected (parents docs already recorded) — verify rather than assume.
   - _Requirements: REQ-071_
 
-- [ ] 7.3 Outcome synthesis & ticket closure
+- [x] 7.3 Outcome synthesis & ticket closure
   - Write `ai/plans/sprint_3/dev1-015-student-confirmation-of-parent-link/outcome/FINAL-outcome.md` synthesizing: substrate verification results (0.2), every task outcome link, the full test matrix with counts, browser-evidence index (six-cell screenshot sets), security review disposition, ledger verdict, and the explicit acceptance-criteria trace (each Gherkin Given/When/Then → the task + test that proves it, incl. J-REQ-01..05).
   - Confirm every checkbox in this file is `[x]`, every referenced outcome file exists, and the final gate metrics: tsgo/biome/lint ≤ baseline; codegen drift 0; schema diff empty; all suites green; ledger clean.
   - _Requirements: REQ-001, REQ-060, REQ-070, REQ-071_

@@ -72,8 +72,6 @@ function normalizeFilters(filters: AdminStudentFiltersSubmitInput): NormalizedAd
   if (trimmedSearch) {
     searchPattern = `%${escapeLikeWildcards(trimmedSearch.slice(0, MAX_SEARCH_LENGTH))}%`;
   }
-  // Truthiness (not nullish) is intentional: an empty-string `language` must
-  // collapse to `null` exactly like an absent one (see docstring above).
   let language: string | null = null;
   const trimmedLanguage = filters.language?.trim();
   if (trimmedLanguage) {
