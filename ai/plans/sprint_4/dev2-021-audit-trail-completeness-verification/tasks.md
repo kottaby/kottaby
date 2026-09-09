@@ -79,12 +79,12 @@
 
 ## Phase 6 — Documentation & Propagation
 
-- [ ] 6.1 **MODIFY `docs/admin/audit-trail.md`**: add "Completeness Verification" section (census module path, drift test, journey, PRODUCTION_READINESS §1.3 evidence mapping).
+- [x] 6.1 **MODIFY `docs/admin/audit-trail.md`**: add "Completeness Verification" section (census module path, drift test, journey, PRODUCTION_READINESS §1.3 evidence mapping).
   - QL + SR + IV
   - _Requirements: REQ-080.1_
-- [ ] 6.2 **MODIFY `docs/admin/user-management.md` §2.4**: note plan-catalog + dispute surfaces now conform to the emission contract.
+- [x] 6.2 **MODIFY `docs/admin/user-management.md` §2.4**: note plan-catalog + dispute surfaces now conform to the emission contract.
   - _Requirements: REQ-080.2_
-- [ ] 6.3 **Propagation sweep**: only if a NEW permanent rule emerged (census-before-admin-mutation) — add 1–2 lines to `backend/graphql/AGENTS.md` with doc reference; otherwise record "no propagation warranted" in the outcome. Ledger sweep: D-001..D-004 statuses final.
+- [x] 6.3 **Propagation sweep**: only if a NEW permanent rule emerged (census-before-admin-mutation) — add 1–2 lines to `backend/graphql/AGENTS.md` with doc reference; otherwise record "no propagation warranted" in the outcome. Ledger sweep: D-001..D-004 statuses final.
   - _Requirements: REQ-080.3–.4_
 
 ## Phase 7 — Post-Implementation Review Wave (plan has >10 subtasks)

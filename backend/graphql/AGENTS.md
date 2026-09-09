@@ -131,6 +131,10 @@ Completed extractions:
 
 The `createGeneralUser` mutation creates a user without a specialized profile extension. It uses `authScopes: { permission: AppPermission.STAFF_CREATE, notImpersonating: true }` to require staff create permission and block creation while impersonating. The `groupSlug` input field is a plain `String!` (not an enum) to allow any permission group slug — specialized groups are rejected at the service layer via `isSpecializedGroup()`. The result type includes `id` (resolved from `parent.user.id`) for Apollo cache normalization. See `docs/services/general-user-creation.md` for the complete pattern reference.
 
+## Admin-Mutation Audit Census (CRITICAL RULE)
+
+- **Census-before-admin-mutation:** every new admin-gated mutation shipped under `backend/graphql/mutation/**` MUST add a matching `wired` row to `test/workflows/admin/audit-completeness.catalog.ts` (expected action types + entity type) AND emit its audit row per `docs/admin/user-management.md` §2.4. `backend/db/test/logic/audit/audit-census-drift.test.ts` enforces the bijection — an unaudited admin mutation fails CI. See `docs/admin/audit-trail.md` §10.5.
+
 ## authScope Pattern: `permission` vs `superAdmin`
 
 Use `authScopes: { permission: AppPermission.X }` (not `authScopes: { superAdmin: true }`) for mutations accessible by non-superadmin users with the correct permission. The `superAdmin: true` authScope blocks ALL non-superadmin users — only use it for truly superadmin-only operations (e.g., impersonation, permission group simulation, system config).

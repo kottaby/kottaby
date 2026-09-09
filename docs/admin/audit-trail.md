@@ -154,8 +154,21 @@ The `/audit` route accepts a sanitized deep-link seed so other admin surfaces ca
 - `backend/graphql/test/audit-trail.query.test.ts` — wire matrix over live HTTP: denial tiers, closed-input smuggle probes, hostile pagination, internal-error leak scan.
 - `backend/graphql/test/schema-surface.test.ts` — committed SDL byte-identity against a deterministic rebuild (pins the exact wire contract of §2).
 - `test/workflows/admin/audit-trail.journey.test.ts` — cross-actor journey: audited mutations land, denials write zero rows, the trail renders them.
+- `test/workflows/admin/audit-completeness.catalog.ts` + `backend/db/test/logic/audit/audit-census-drift.test.ts` + `test/workflows/admin/audit-completeness.journey.test.ts` — the completeness verification triad (§10.5): census ↔ shipped-mutation bijection lock and the execute-every-action journey.
 - `test/ui/components/admin/AuditTrailView.test.tsx` — component matrix: filter submit semantics, UTC-boundary wire pins, pagination echo, error seams, both locales.
 - `frontend/graphql/sharedDocuments/admin/audit-trail.documents.test.ts` + `frontend/providers/apollo/apolloCache.test.ts` — document/SDL agreement and cache-registration pins.
+
+---
+
+## 10.5 Completeness Verification
+
+"Every admin action is audited" is enforced, not assumed — three mutually binding mechanisms turn completeness into a computable, CI-guarded property:
+
+1. **The census** — `test/workflows/admin/audit-completeness.catalog.ts`: a typed, machine-readable inventory of every shipped admin mutation and its expected audit-row shape (`mutationField` → service entry → expected `AuditActionType`(s) → entity type). Rows are `wired` (a shipped producer the journey must execute) or `deferred` (a Workflow 05 §7.2 category with no shipped producer yet — each names its ledger row in the plan's deferred-items ledger). An exhaustive `ACTION_TYPE_COVERAGE` record fails compilation if a new enum verb is added without an accounting row.
+2. **The anti-drift lock** — `backend/db/test/logic/audit/audit-census-drift.test.ts`: a static corpus walk over `backend/graphql/mutation/**` extracts every admin-gated mutation field (plain-map AND `$all` scope forms) and asserts a two-directional bijection with the census's wired rows. **Shipping a new admin mutation without a census row fails CI** (and vice versa). A negative self-test harness proves the lock catches injected drift.
+3. **The completeness journey** — `test/workflows/admin/audit-completeness.journey.test.ts`: a cross-actor journey that executes every wired census action against the real services with committed fixtures, then proves: whole-table count deltas equal executions (zero missing, zero phantom), each row carries the exact actor/verb/entity/details contract, newest-first ordering holds under the `createdAt DESC, id DESC` tiebreak, an observer admin reads everything back through `listAuditTrail` on every filter axis, non-admin and anonymous actors are denied while minting zero rows, and repeated actions append repeated rows (append-only honesty). The `Adjust` verb — the only one without a shipped producer — is exercised through a System-actor fixture lane, so all seven `audit_action_type` values are verified.
+
+**Evidence mapping** (`docs/planning/PRODUCTION_READINESS.md` §1.3): the census is the completeness inventory, the drift lock is the no-future-drift guarantee, and the journey is the per-action proof — together they satisfy the launch-gate rows that demand demonstrated audit-trail completeness for every admin action.
 
 ---
 
