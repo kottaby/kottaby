@@ -60,18 +60,26 @@ function rawActionType(actionType: AuditActionType): string {
  */
 async function fetchPlanAuditRows(tx: DBTransaction, actorId: number, entityId: number) {
   // Widen the pg-enum column to its raw stored string so lookups compare
-  // primitive-to-primitive (see rawActionType).
-  return (
-    (await tx
-      .select()
-      .from(auditLogs)
-      .where(
-        and(
-          eq(auditLogs.actorId, actorId),
-          eq(auditLogs.entityType, PLAN_AUDIT_ENTITY_TYPE),
-          eq(auditLogs.entityId, entityId)
-        )
-      )) as { actionType: string }[]
+  // primitive-to-primitive (see rawActionType) while keeping every other
+  // column statically present for the row-shape assertions.
+  const rows = await tx
+    .select()
+    .from(auditLogs)
+    .where(
+      and(
+        eq(auditLogs.actorId, actorId),
+        eq(auditLogs.entityType, PLAN_AUDIT_ENTITY_TYPE),
+        eq(auditLogs.entityId, entityId)
+      )
+    );
+  return rows.map(
+    (row): { id: number; actionType: string; entityType: string; entityId: number | null; details: string | null } => ({
+      id: row.id,
+      actionType: row.actionType,
+      entityType: row.entityType,
+      entityId: row.entityId,
+      details: row.details,
+    })
   );
 }
 
