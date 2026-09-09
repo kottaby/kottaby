@@ -19,7 +19,10 @@
  *   post-decision disappearance → normalized cache write-back flips the
  *   Confirmed → actionable 0 → the card unmounts (queue convergence) ·
  *   expired-row exclusion → a stored-pending row past `expiresAt` is NOT
- *   counted even when it is the newest by `createdAt`.
+ *   counted even when it is the newest by `createdAt` · late-arriving rows
+ *   refresh the clock — a request that expired mid-flight is never counted
+ *   (zero refetches) while a LIVE late arrival still renders on the
+ *   refreshed clock.
  *
  * Translation discipline: assertions reference ONLY the PRELOADED label
  * objects resolved through the namespace handles — ZERO hardcoded
@@ -37,7 +40,7 @@
 // moved into the nested `testing/react` entrypoint, and the wire-shape types
 // were consolidated under the non-deprecated `MockLink` namespace.
 import { afterEach, describe, expect, test } from "bun:test";
-import { type ApolloClient, ApolloLink } from "@apollo/client";
+import { type ApolloClient, ApolloLink, Observable } from "@apollo/client";
 import { useApolloClient } from "@apollo/client/react";
 import { MockLink } from "@apollo/client/testing";
 import { MockedProvider } from "@apollo/client/testing/react";
@@ -78,6 +81,18 @@ const CREATED_AT_NEWEST_ISO = "2026-08-27T12:00:00.000Z";
 /** LIVE expiry far in the future; EXPIRED far in the past (strict-`>` liveness). */
 const LIVE_EXPIRES_ISO = "2099-01-07T12:00:00.000Z";
 const EXPIRED_EXPIRES_ISO = "2020-01-01T12:00:00.000Z";
+
+/**
+ * Late-arrival chronology for the clock-refresh cells: the card mounts at
+ * T0, the row's expiry lands T0+60s, and the query rows arrive T0+120s —
+ * i.e. the request expired while the query was in flight. `Date.now` is
+ * overridden (and restored in `finally`) so the stale-mount-clock bug this
+ * pins stays deterministic instead of racing the real wall clock.
+ */
+const LATE_ARRIVAL_MOUNT_MS = new Date("2026-09-01T12:00:00.000Z").getTime();
+const EXPIRED_IN_FLIGHT_MS = LATE_ARRIVAL_MOUNT_MS + 60_000;
+const ROWS_ARRIVE_MS = LATE_ARRIVAL_MOUNT_MS + 120_000;
+const EXPIRED_IN_FLIGHT_ISO = new Date(EXPIRED_IN_FLIGHT_MS).toISOString();
 
 /** Shared boundary anchor for the pure-helper cells. */
 const HELPER_NOW_MS = new Date("2026-09-01T12:00:00.000Z").getTime();
@@ -129,6 +144,55 @@ function inFlightListMock(): MockLink.MockedResponse {
   return {
     request: { query: myIncomingParentLinkRequestsQueryDocument, variables: {} },
     delay: Infinity,
+  };
+}
+
+/**
+ * Test-side handle over the controlled-arrival link: `arrive` pushes a rows
+ * payload into the in-flight query on demand (single emission + complete).
+ * The link's subscription status is asserted internally — calling `arrive`
+ * with no active subscription throws instead of silently dropping.
+ */
+interface ArrivalController {
+  arrive: (rows: ReadonlyArray<MyIncomingParentLinkRequestsQuery_myIncomingParentLinkRequests>) => void;
+}
+
+/**
+ * Render with a link that holds the query in flight until the test calls
+ * `controller.arrive(...)` — the harness for the clock-refresh cells, where
+ * the wall clock must MOVE between mount and row arrival (the in-flight
+ * window). Same single-child `MockedProvider` structure as `renderCard`
+ * (array children render an empty tree in this environment).
+ */
+function renderCardWithArrivalControl(traffic: NetworkTraffic, locale: AppLocale): ArrivalController {
+  let emit: ((rows: ReadonlyArray<MyIncomingParentLinkRequestsQuery_myIncomingParentLinkRequests>) => void) | null =
+    null;
+  const arrivalLink = new ApolloLink(operation => {
+    traffic.operationNames.push(operation.operationName ?? "");
+    return new Observable<ApolloLink.Result<MyIncomingParentLinkRequestsQuery>>(observer => {
+      emit = rows => {
+        observer.next({ data: { myIncomingParentLinkRequests: [...rows] } });
+        observer.complete();
+      };
+      return () => {
+        emit = null;
+      };
+    });
+  });
+  renderWithWrapper(
+    <MockedProvider link={arrivalLink}>
+      <PendingParentLinkRequestsCard />
+    </MockedProvider>,
+    { locale }
+  );
+  return {
+    arrive: rows => {
+      const push = emit;
+      if (push === null) {
+        throw new Error("controlled-arrival link has no active subscription");
+      }
+      push(rows);
+    },
   };
 }
 
@@ -319,6 +383,69 @@ for (const locale of ["ar", "en"] as AppLocale[]) {
       expect(screen.getByText(t.dashboardCardLatestRequester(isolateBidi(PARENT_NAME_A)))).toBeDefined();
       expect(screen.queryByText(t.dashboardCardLatestRequester(isolateBidi(PARENT_NAME_B)))).toBeNull();
       expect(traffic.operationNames).toEqual([QUERY_OPERATION_NAME]);
+    });
+
+    test("clock refresh on row arrival → request expired mid-flight NOT counted (zero refetches)", async () => {
+      const traffic = createNetworkTraffic();
+      const realDateNow = Date.now;
+      try {
+        // Mount instant: the lazy `nowMs` initializer reads T0 while the
+        // query is held in flight by the controlled-arrival link.
+        Date.now = () => LATE_ARRIVAL_MOUNT_MS;
+        const controller = renderCardWithArrivalControl(traffic, locale);
+        await screen.findByTestId("pending-parent-link-requests-card-loading");
+
+        // The wall clock moves PAST the row's expiry while the query is
+        // still in flight, THEN the rows arrive.
+        Date.now = () => ROWS_ARRIVE_MS;
+        controller.arrive([
+          incomingRow({
+            id: "305",
+            parentFullName: PARENT_NAME_B,
+            createdAt: CREATED_AT_NEWEST_ISO,
+            expiresAt: EXPIRED_IN_FLIGHT_ISO,
+          }),
+        ]);
+
+        // First settled derivation would count the row against the stale
+        // mount clock (expiry T0+60s > T0) — the row-arrival refresh must
+        // re-derive against T0+120s and converge to branch 3 (render
+        // NOTHING) without any refetch.
+        await waitFor(() => {
+          expect(screen.queryByTestId("pending-parent-link-requests-card-loading")).toBeNull();
+        });
+        expect(screen.queryByTestId("pending-parent-link-requests-card")).toBeNull();
+        expect(screen.queryByTestId("pending-parent-link-requests-card-error")).toBeNull();
+        expect(traffic.operationNames).toEqual([QUERY_OPERATION_NAME]);
+      } finally {
+        Date.now = realDateNow;
+      }
+    });
+
+    test("clock refresh on row arrival → LIVE late arrival still renders on the refreshed clock", async () => {
+      const traffic = createNetworkTraffic();
+      const realDateNow = Date.now;
+      try {
+        Date.now = () => LATE_ARRIVAL_MOUNT_MS;
+        const controller = renderCardWithArrivalControl(traffic, locale);
+        await screen.findByTestId("pending-parent-link-requests-card-loading");
+
+        Date.now = () => ROWS_ARRIVE_MS;
+        controller.arrive([
+          incomingRow({ id: "306", parentFullName: PARENT_NAME_C, createdAt: CREATED_AT_NEWEST_ISO }),
+        ]);
+
+        // The refresh must re-derive WITHOUT dropping the live row: count-1
+        // chip + CTA on the shared route, exactly as an on-time arrival.
+        const card = await screen.findByTestId("pending-parent-link-requests-card");
+        expect(screen.getByText(t.dashboardCardCount(1))).toBeDefined();
+        expect(screen.getByText(t.dashboardCardLatestRequester(isolateBidi(PARENT_NAME_C)))).toBeDefined();
+        const cta = within(card).getByRole("link", { name: t.dashboardCardCta });
+        expect(cta.getAttribute("href")).toBe(STUDENT_LINK_REQUESTS_ROUTE);
+        expect(traffic.operationNames).toEqual([QUERY_OPERATION_NAME]);
+      } finally {
+        Date.now = realDateNow;
+      }
     });
 
     test("query error, UNMAPPED code → ONE localized Alert (folds to card fallback copy) + retry refetches", async () => {

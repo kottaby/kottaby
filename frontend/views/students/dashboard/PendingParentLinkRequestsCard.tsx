@@ -42,12 +42,14 @@ const retryButtonSx = { ...focusVisibleRingSx, minHeight: 44 } as const;
  * invalidation bus: the Apollo normalized cache is the single truth, so the
  * decision page's respond write-back re-renders this card to zero.
  *
- * Derivation: `deriveActionableIncoming` (pure; the card owns `nowMs` and
- * ADVANCES it via a self-rescheduling timer when the nearest actionable
- * row's `expiresAt` passes, so a request expiring while the dashboard stays
- * mounted drops out of the count WITHOUT waiting for a refetch) reuses the
- * shared computed-status machinery verbatim — a stored `pending` row past
- * its expiry is NOT counted.
+ * Derivation: `deriveActionableIncoming` (pure; the card owns `nowMs`, which
+ * advances on TWO events — a self-rescheduling timer when the nearest
+ * actionable row's `expiresAt` passes (a request expiring while the
+ * dashboard stays mounted drops out WITHOUT a refetch), and every row
+ * arrival (the clock re-reads the wall clock, so a request that expired
+ * while the query was in flight never counts from the stale mount-time
+ * value)) reuses the shared computed-status machinery verbatim — a stored
+ * `pending` row past its expiry is NOT counted.
  *
  * Render branches:
  *
@@ -76,9 +78,22 @@ export function PendingParentLinkRequestsCard(): ReactNode {
   const { data, error, loading, refetch } = useQuery(myIncomingParentLinkRequestsQueryDocument);
   // Read purity: the derivation stays a PURE function of the rows and
   // `nowMs`; `nowMs` STARTS at mount (lazy initializer — no impure calls
-  // during render) and advances ONLY through the expiry timer below, never
-  // on an arbitrary interval.
+  // during render) and advances ONLY through the two effects below (row
+  // arrival + nearest-expiry timer), never on an arbitrary interval.
   const [nowMs, setNowMs] = useState(() => Date.now());
+
+  // Clock refresh on row arrival: liveness verdicts must read the wall
+  // clock as of the LATEST rows, not the mount instant — a request that
+  // expired while the query was in flight would otherwise flash the review
+  // CTA until the overdue expiry timer fires, and background-tab timer
+  // throttling can defer that tick for minutes. Refreshing on every rows
+  // change makes the first settled verdict correct by construction (the
+  // retry-refetch and decision write-back paths ride the same effect).
+  useEffect(() => {
+    if (data?.myIncomingParentLinkRequests !== undefined) {
+      setNowMs(Date.now());
+    }
+  }, [data?.myIncomingParentLinkRequests]);
 
   // The next instant at which the actionable verdict can CHANGE: the
   // earliest future `expiresAt` among rows the shared liveness predicate
