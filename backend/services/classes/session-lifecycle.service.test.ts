@@ -61,11 +61,13 @@
  *    `DomainError.code` and the localized message; `intent=evaluation`
  *    never reaches the DB (zero writes proof); grep-level pins — the
  *    service unit's imports are a pinned allowlist whose ONLY cross-surface
- *    channels are the wallet-credit slice (repository barrel) and the
+ *    channels are the wallet-credit slice (repository barrel), the
  *    engine-mediated completion waves (the wave-emitter sibling plus the
  *    notification engine's publish contract; the unit never imports a
- *    notification repository and never writes a notification row itself)
- *    and the unit holds zero `console.*` calls.
+ *    notification repository and never writes a notification row itself),
+ *    and the arbitration's audit trail row (the shared append-only audit
+ *    writer plus the enum that names the Override verb) — and the unit
+ *    holds zero `console.*` calls.
  *
  * Completion-handshake composition (the confirm prompt + the two-leg
  * sweeper's auto-cancel notices):
@@ -97,9 +99,10 @@ import { afterAll, beforeAll, describe, expect, spyOn, test } from "bun:test";
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/backend/db";
 import { WalletRepository } from "@/backend/db/repo";
+import { auditLogs } from "@/backend/db/schema/audit/audit-logs";
 import { session } from "@/backend/db/schema/classes/session";
 import { sessionRequestIdempotency } from "@/backend/db/schema/classes/session-request-idempotency";
 import { notifications } from "@/backend/db/schema/notifications";
@@ -108,6 +111,7 @@ import { teacher } from "@/backend/db/schema/teachers/teacher";
 import { users } from "@/backend/db/schema/users/users";
 import { createTestStudent, createTestUser } from "@/backend/db/test/entity-setup";
 import { expectRepoError, runInRollback } from "@/backend/db/test/test-utils";
+import { AuditActionType } from "@/backend/enum/audit/audit-action-type.enum";
 import { NotificationType } from "@/backend/enum/notifications/notification-type.enum";
 import { DisputeResolution } from "@/backend/enum/scheduling/dispute-resolution.enum";
 import { HeldBalanceLane } from "@/backend/enum/scheduling/held-balance-lane.enum";
@@ -332,6 +336,50 @@ function hasPostgresErrorCode(error: unknown, pgCode: string): boolean {
     current = (current as { cause?: unknown }).cause;
   }
   return false;
+}
+
+/**
+ * Widens an action-type enum member to its raw stored string. Select rows
+ * carry the raw `action_type` value (coercion to the enum is the read
+ * service's job), so audit-row lookups compare primitive-to-primitive.
+ */
+function rawActionType(actionType: AuditActionType): string {
+  return actionType;
+}
+
+/**
+ * Fetches every session-entity audit row the supplied actor minted for one
+ * entity id. Entity+actor scoping keeps counts immune to concurrent test
+ * files committing their own rows against the shared database.
+ */
+async function fetchSessionAuditRows(tx: DBTransaction, actorId: number, entityId: number) {
+  const rows = await tx
+    .select()
+    .from(auditLogs)
+    .where(and(eq(auditLogs.actorId, actorId), eq(auditLogs.entityType, "session"), eq(auditLogs.entityId, entityId)));
+  // Widen the pg-enum column to its raw stored string so lookups compare
+  // primitive-to-primitive (see rawActionType).
+  return rows.map(
+    (row): { id: number; actionType: string; entityType: string; entityId: number | null; details: string | null } => ({
+      id: row.id,
+      actionType: row.actionType,
+      entityType: row.entityType,
+      entityId: row.entityId,
+      details: row.details,
+    })
+  );
+}
+
+/**
+ * Counts `audit_logs` rows attributable to a single actor id — the zero-write
+ * oracle for denial probes. Global table totals are NOT stable mid-test under
+ * parallel bun test file execution, so write-freedom is asserted per-actor:
+ * an id this test owns (minted inside the rollback tx) cannot be perturbed by
+ * concurrent external churn.
+ */
+async function countAuditRowsForActor(tx: DBTransaction, actorId: number): Promise<number> {
+  const rows = await tx.select({ id: auditLogs.id }).from(auditLogs).where(eq(auditLogs.actorId, actorId));
+  return rows.length;
 }
 
 // ─── Transactional service flows (runInRollback) ────────────────────────
@@ -1359,28 +1407,34 @@ describe("SessionLifecycleService — transactional flows (runInRollback)", () =
   const serviceSource = unitSources.join("\n");
   const serviceFromClauses = serviceSource.match(/from "[^"]+"/g) ?? [];
 
-  test("source: the unit's cross-surface channels are the wallet-credit slice and the engine-mediated completion waves — imports are a pinned allowlist (no audit/report import, no notification-repository import)", () => {
+  test("source: the unit's cross-surface channels are the wallet-credit slice, the engine-mediated completion waves, and the arbitration's audit trail row — imports are a pinned allowlist (no report import, no notification-repository import)", () => {
     // HONEST PIN (adapted to the sibling-module split — the same three
-    // locks, with the notification channel consciously admitted):
+    // locks, with the notification and audit channels consciously admitted):
     //  1. every `from "…"` specifier in the unit must be on the explicit
     //     allowlist (the `@/backend/services/classes/` entries ARE the pinned
     //     siblings, aliased per the repo-wide eslint alias rule) — any
-    //     NEW import (a direct audit/report/billing service import, a
-    //     notification REPOSITORY import, or any other unaccounted module)
-    //     fails until the allowlist consciously admits it. The wave-emitter
-    //     sibling and the notification ENGINE are the sanctioned notification
-    //     channel: rows are written exclusively by the engine inside the
-    //     owning transaction, and the unit only ever hands receipts to the
-    //     engine's publish contract after that transaction commits;
+    //     NEW import (a report/billing service import, a notification
+    //     REPOSITORY import, or any other unaccounted module) fails until
+    //     the allowlist consciously admits it. The wave-emitter sibling and
+    //     the notification ENGINE are the sanctioned notification channel:
+    //     rows are written exclusively by the engine inside the owning
+    //     transaction, and the unit only ever hands receipts to the engine's
+    //     publish contract after that transaction commits. The audit writer
+    //     and the audit-verb enum are the sanctioned audit channel: the
+    //     admin arbitration appends its single Override row through the
+    //     append-only writer INSIDE the arbitration's own transaction
+    //     (denials classify before the emission and mint zero rows);
     //  2. the ONLY `@/backend/db/` specifier is the repository barrel itself
     //     (no deep repository bypass), and the UNION of the barrel's named
     //     import lists across the unit is pinned — WalletRepository rides it
     //     BY NAME and no other repository surface is reachable;
     //  3. the ONLY `@/backend/lib/db/` specifier is the shared transaction
-    //     helper — no cross-surface service import of any kind.
+    //     helper (the arbitration's audit writer is pinned separately on
+    //     the allowlist — no other cross-surface service import exists).
     const specifiers = serviceFromClauses.map(clause => clause.replace(/^from "/, "").replace(/"$/, ""));
     const allowedSpecifiers: ReadonlySet<string> = new Set([
       "@/backend/db/repo",
+      "@/backend/enum/audit/audit-action-type.enum",
       "@/backend/enum/scheduling/dispute-resolution.enum",
       "@/backend/enum/scheduling/held-balance-lane.enum",
       "@/backend/enum/scheduling/session-intent.enum",
@@ -1400,6 +1454,7 @@ describe("SessionLifecycleService — transactional flows (runInRollback)", () =
       "@/backend/services/classes/session-lifecycle.transitions",
       "@/backend/services/classes/session-request-notification.service",
       "@/backend/services/notifications",
+      "@/backend/services/admin/audit.service",
       "@/shared/locale/AppLocale",
     ]);
     for (const specifier of specifiers) {
@@ -1990,6 +2045,100 @@ describe("SessionLifecycleService — DEV3-005 dispute pair (runInRollback)", ()
       );
       expect(pinned.totalCount).toBe(queue.totalCount);
       expect(pinned.items.slice(0, 3).map(row => row.id)).toEqual(myIds);
+    });
+  });
+});
+
+// ─── Arbitration audit trail (Override rows on the dispute's own tx) ────
+
+describe("SessionLifecycleService — arbitration audit trail (runInRollback)", () => {
+  test("CANCEL arbitration mints exactly one Override/session row recording the resolution and the note's presence — never its content", async () => {
+    await runInRollback(async tx => {
+      const actors = await createSessionActors(tx);
+      await setLaneBalances(tx, actors.studentUserId, { hifz: 1 });
+      const admin = await createTestUser(tx, { role: "admin" });
+      const row = await bookSession(
+        tx,
+        actors.studentUserId,
+        actors.teacherUserId,
+        SessionIntent.Hifz,
+        "key-arbitrate-cancel-row"
+      );
+      await SessionLifecycleService.openSessionDispute(actors.studentUserId, row.id, "teacher no-show", "en", tx);
+
+      await SessionLifecycleService.resolveSessionDispute(
+        admin.id,
+        row.id,
+        DisputeResolution.Cancel,
+        "  refunded in full  ",
+        "en",
+        tx
+      );
+
+      const rows = await fetchSessionAuditRows(tx, admin.id, row.id);
+      expect(rows).toHaveLength(1);
+      const trailRow = rows[0];
+      if (!trailRow) throw new Error("expected one audit(Override) row for the cancelled arbitration");
+      expect(trailRow.actionType).toBe(rawActionType(AuditActionType.Override));
+      expect(trailRow.entityType).toBe("session");
+      expect(trailRow.entityId).toBe(row.id);
+      expect(JSON.parse(trailRow.details ?? "null")).toEqual({
+        resolution: DisputeResolution.Cancel,
+        notePresent: true,
+      });
+      // The note's free-text content must never reach the trail.
+      expect(trailRow.details).not.toContain("refunded");
+    });
+  });
+
+  test("COMPLETE arbitration (started row) mints one Override row with notePresent false when no note is supplied", async () => {
+    await runInRollback(async tx => {
+      const actors = await createSessionActors(tx);
+      await setLaneBalances(tx, actors.studentUserId, { trial: 1 });
+      const admin = await createTestUser(tx, { role: "admin" });
+      const row = await bookSession(
+        tx,
+        actors.studentUserId,
+        actors.teacherUserId,
+        SessionIntent.Hifz,
+        "key-arbitrate-complete-row"
+      );
+      await SessionLifecycleService.startSession(actors.teacherUserId, row.id, "en", tx);
+      await SessionLifecycleService.openSessionDispute(actors.teacherUserId, row.id, "disputed mid-session", "en", tx);
+
+      await SessionLifecycleService.resolveSessionDispute(admin.id, row.id, DisputeResolution.Complete, null, "en", tx);
+
+      const rows = await fetchSessionAuditRows(tx, admin.id, row.id);
+      expect(rows).toHaveLength(1);
+      const trailRow = rows[0];
+      if (!trailRow) throw new Error("expected one audit(Override) row for the completed arbitration");
+      expect(trailRow.actionType).toBe(rawActionType(AuditActionType.Override));
+      expect(JSON.parse(trailRow.details ?? "null")).toEqual({
+        resolution: DisputeResolution.Complete,
+        notePresent: false,
+      });
+    });
+  });
+
+  test("a bad-state arbitration denial mints ZERO audit rows", async () => {
+    await runInRollback(async tx => {
+      const actors = await createSessionActors(tx);
+      await setLaneBalances(tx, actors.studentUserId, { hifz: 1 });
+      const admin = await createTestUser(tx, { role: "admin" });
+      const row = await bookSession(
+        tx,
+        actors.studentUserId,
+        actors.teacherUserId,
+        SessionIntent.Hifz,
+        "key-arbitrate-denied-row"
+      );
+      // Never disputed: arbitration is a VALIDATION denial before any write.
+      const error = await expectRepoError(() =>
+        SessionLifecycleService.resolveSessionDispute(admin.id, row.id, DisputeResolution.Cancel, null, "en", tx)
+      );
+      expectDomainDenial(error, "SESSION_INVALID_TRANSITION", t().sessionInvalidTransition);
+
+      expect(await countAuditRowsForActor(tx, admin.id)).toBe(0);
     });
   });
 });

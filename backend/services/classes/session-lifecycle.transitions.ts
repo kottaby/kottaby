@@ -41,17 +41,26 @@
  * chain over an unbounded run of null-lane rows would exhaust the call
  * stack and abort the whole sweep transaction.
  *
+ * `buildDisputeAuditContract` composes the arbitration's audit trail row:
+ * ONE `Override` row for the session entity whose `details` records the
+ * resolution and the note's PRESENCE — never the note's free-text content.
+ * The composed row is persisted by `AuditService.createAuditLog` on the
+ * arbitration's own transaction so it can never outlive a rolled-back
+ * resolution.
+ *
  * The public surface stays the `SessionLifecycleService` namespace in
  * `session-lifecycle.service.ts`. Nothing in this module is part of the
  * public API.
  */
 
 import { SessionRepository, StudentRepository, TeacherRepository } from "@/backend/db/repo";
+import { AuditActionType } from "@/backend/enum/audit/audit-action-type.enum";
+import type { DisputeResolution } from "@/backend/enum/scheduling/dispute-resolution.enum";
 import { isHeldBalanceLane } from "@/backend/enum/scheduling/held-balance-lane.enum";
 import { ConflictError, NotFoundError } from "@/backend/lib/errors";
 import { logger } from "@/backend/lib/logger";
 import { SESSION_STARTED_STATUS } from "@/backend/services/classes/session-lifecycle.guards";
-import type { DBTransaction, SessionReturnType } from "@/backend/types";
+import type { AuditLogWriteContract, DBTransaction, SessionReturnType } from "@/backend/types";
 import type { getServerTranslations } from "@/shared/locale/server-graphql";
 
 /**
@@ -251,4 +260,27 @@ async function refundHeldRowsSequentially(
 export async function refundSweptHolds(rows: readonly SessionReturnType[], tx: DBTransaction): Promise<number> {
   const heldRows = rows.filter(row => row.heldBalanceLane !== null);
   return refundHeldRowsSequentially(heldRows, 0, tx);
+}
+
+/**
+ * Composes the arbitration's audit-log write contract: ONE `Override` row
+ * for the session entity whose `details` carries the resolution and the
+ * note's presence only — the note's free-text content never enters the
+ * trail. The composed row is persisted by `AuditService.createAuditLog`
+ * inside the arbitration's own transaction so it can never outlive a
+ * rolled-back resolution.
+ */
+export function buildDisputeAuditContract(
+  adminId: number,
+  sessionId: number,
+  resolution: DisputeResolution,
+  notePresent: boolean
+): AuditLogWriteContract {
+  return {
+    actorId: adminId,
+    actionType: AuditActionType.Override,
+    entityType: "session",
+    entityId: sessionId,
+    details: JSON.stringify({ resolution, notePresent }),
+  };
 }

@@ -63,12 +63,12 @@
 
 ## Phase 4 — Dispute Arbitration Emission (gap G-07)
 
-- [ ] 4.1 **MODIFY `backend/services/classes/session-lifecycle.service.ts`**: one `AuditService.createAuditLog` inside `resolveSessionDispute`'s `withTransaction` after guarded update (+refund ordering for Cancel); shape per plan §Component 5.
+- [x] 4.1 **MODIFY `backend/services/classes/session-lifecycle.service.ts`**: one `AuditService.createAuditLog` inside `resolveSessionDispute`'s `withTransaction` after guarded update (+refund ordering for Cancel); shape per plan §Component 5.
   - QL + TE (tier1 Cancel+Complete both mint; tier2 notePresent false/true; tier4 bad-state denial mints zero) + SEC (note content excluded) + SR + IV
   - _Requirements: REQ-031.1–.3_
-- [ ] 4.2 **Regression sweep**: existing `session-lifecycle` service tests + `test/workflows/classes/session-lifecycle*.test.ts` updated ONLY where they assert audit counts (expected: minimal-to-none); run via canonical runners.
+- [x] 4.2 **Regression sweep**: existing `session-lifecycle` service tests + `test/workflows/classes/session-lifecycle*.test.ts` updated ONLY where they assert audit counts (expected: minimal-to-none); run via canonical runners.
   - _Requirements: REQ-031.4_
-- [ ] 4.3 **Outcome**: `outcome/4.x-dispute-outcome.md`.
+- [x] 4.3 **Outcome**: `outcome/4.x-dispute-outcome.md`.
 
 ## Phase 5 — Completeness Journey
 

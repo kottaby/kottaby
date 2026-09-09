@@ -61,8 +61,11 @@
  * confirmation window lapses). Notification rows are written exclusively by
  * the engine inside the owning transaction, and their delivery receipts are
  * published strictly after that transaction commits — never for a
- * rolled-back flow. The module imports nothing from the audit or report
- * surfaces. All user-facing messages resolve through
+ * rolled-back flow. The module's remaining cross-surface channel is the
+ * admin arbitration's audit trail row: `resolveSessionDispute` appends its
+ * single Override row through the shared `AuditService` writer on the
+ * arbitration's own transaction (report surfaces stay unimported). All
+ * user-facing messages resolve through
  * `getServerTranslations(locale)`;
  * rejections log via `logger.logDomainError` with `{code, entity, entityId}`
  * only — never idempotency keys, payloads, or the other participant's data.
@@ -90,6 +93,7 @@ import { SessionStatus } from "@/backend/enum/scheduling/session-status.enum";
 import { withTransaction } from "@/backend/lib/db/with-transaction";
 import { ValidationError } from "@/backend/lib/errors";
 import { logger } from "@/backend/lib/logger";
+import { AuditService } from "@/backend/services/admin/audit.service";
 import { assertBookingBoundary, bookSessionInTx } from "@/backend/services/classes/session-lifecycle.booking";
 import { confirmCompletionInTx } from "@/backend/services/classes/session-lifecycle.confirmation";
 import {
@@ -107,6 +111,7 @@ import {
   SESSION_DISPUTED_STATUS,
 } from "@/backend/services/classes/session-lifecycle.guards";
 import {
+  buildDisputeAuditContract,
   refundHeldLaneToProvenance,
   refundSweptHolds,
   rejectTransitionMiss,
@@ -514,6 +519,11 @@ export namespace SessionLifecycleService {
    *    standard probe chain (unknown → not-found; any existing row that
    *    missed → transition conflict — the admin surface distinguishes
    *    state, never participants).
+   *  - Either outcome → with the guarded update (and the Cancel refund)
+   *    succeeded, ONE `Override` audit row (entity `session`) is appended
+   *    through the shared audit writer on the SAME transaction — an audit
+   *    failure throws and rolls the whole arbitration back. The note's
+   *    CONTENT never enters the trail; only its presence is recorded.
    *
    * @param adminId  The acting admin's id (context-resolved server-side by
    *     the caller; shared PK with the users table).
@@ -585,6 +595,16 @@ export namespace SessionLifecycleService {
       if (resolution === DisputeResolution.Cancel) {
         await refundHeldLaneToProvenance(resolved, "resolveSessionDispute", tx);
       }
+
+      // The arbitration's audit trail row rides the SAME transaction: one
+      // Override row for the session entity, appended only after the guarded
+      // update (and the Cancel refund) succeeded — an audit failure throws,
+      // so a partially-applied arbitration can never commit. The note's
+      // content stays out of the trail; only its presence is recorded.
+      await AuditService.createAuditLog(
+        buildDisputeAuditContract(adminId, sessionId, resolution, resolutionNote !== null),
+        tx
+      );
 
       return resolved;
     });
