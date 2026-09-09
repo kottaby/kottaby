@@ -11,6 +11,14 @@ import { scrubDsnSecrets } from "@/scripts/ops/_shared";
 
 const STDERR_TAIL_LINES = 20;
 
+/**
+ * Hard deadline for one external child process (pg_dump/psql). A hung child is
+ * killed (SIGTERM) instead of blocking the backup forever; the deadline sits
+ * above the measured single-digit-minute dump runtime and inside the RPO
+ * budget arithmetic in docs/ops/disaster-recovery.md.
+ */
+const SPAWN_TIMEOUT_MS = 30 * 60 * 1000;
+
 /** Last non-empty lines of tool output, for failure reporting. */
 export function stderrTail(text: string, maxLines = STDERR_TAIL_LINES): string {
   const lines = text
@@ -77,13 +85,22 @@ export function errorMessage(error: unknown): string {
 /** Production spawn runner: argv arrays only, piped output, no stdin. */
 export const bunSpawnRunner: SpawnRunner = async (argv, opts) => {
   try {
-    const proc = Bun.spawn([...argv], { env: opts.env, stdin: "ignore", stdout: "pipe", stderr: "pipe" });
+    const proc = Bun.spawn([...argv], {
+      env: opts.env,
+      stdin: "ignore",
+      stdout: "pipe",
+      stderr: "pipe",
+      timeout: SPAWN_TIMEOUT_MS,
+    });
     const [stdout, stderr, exitCode] = await Promise.all([
       new Response(proc.stdout).text(),
       new Response(proc.stderr).text(),
       proc.exited,
     ]);
-    return { exitCode, stdout, stderr };
+    // A timeout kill surfaces as a null exit code on Bun versions that report
+    // signal termination as null — normalize it so every `exitCode !== 0`
+    // failure check keeps firing and SpawnResult keeps its number contract.
+    return { exitCode: exitCode ?? -1, stdout, stderr };
   } catch (error) {
     throw new Error(`failed to spawn ${argv[0] ?? "<command>"}: ${errorMessage(error)}`, { cause: error });
   }

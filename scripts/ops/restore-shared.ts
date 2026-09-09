@@ -212,9 +212,7 @@ export function makePsqlRunner(spawn: SpawnRunner, dsn: string): PsqlRunner {
 function lastUriQueryValue(rawSearch: string, name: string): string | undefined {
   let value: string | undefined;
   for (const pair of rawSearch.replace(/^\?/, "").split("&")) {
-    if (pair.length === 0) {
-      continue;
-    }
+    // An empty pair has no "=" either, so one guard covers both skips.
     const equals = pair.indexOf("=");
     if (equals < 0) {
       continue;
