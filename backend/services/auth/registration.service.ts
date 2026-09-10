@@ -157,6 +157,23 @@ export namespace RegistrationService {
     }
   }
 
+  /**
+   * Read-only lookup of an already-registered user by email — the seeder
+   * bootstrap entry point for look-before-create flows. Seeders never query
+   * repositories directly (seed-layer Service-Only Data Access rule): a
+   * missing read bootstrap is added HERE instead. Returns null when no user
+   * carries the email; never authenticates, never provisions.
+   */
+  export async function findRegisteredUserByEmail(
+    email: string
+  ): Promise<{ id: number; email: string; role: "admin" | "teacher" | "student" | "parent" } | null> {
+    const user = await UserRepository.findByEmail(email);
+    if (!user) {
+      return null;
+    }
+    return { id: user.id, email: user.email, role: user.role };
+  }
+
   // ─── Internals ────────────────────────────────────────────────────────
 
   /**

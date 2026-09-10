@@ -532,7 +532,9 @@ const censusRunners: Record<string, CensusRunner> = {
       startedAt: toStart,
       endedAt: toEnd,
     };
-    const rescheduled = await SessionAdminGovernanceService.reschedule(adminA.userId, input, LOCALE);
+    const rescheduled = await SessionAdminGovernanceService.reschedule(adminA.userId, input, LOCALE, undefined, {
+      transport: transportSpy,
+    });
     expect(rescheduled.startedAt).toEqual(toStart);
     expect(rescheduled.endedAt).toEqual(toEnd);
     record(executed, entry, AuditActionType.Override, rescheduleSessionId, {
@@ -547,7 +549,9 @@ const censusRunners: Record<string, CensusRunner> = {
     // legitimate fire-and-forget admin operation). No fee is held, so the
     // refund slice is honestly a no-op.
     const input: AdminSessionCancelInput = { sessionId: cancelSessionId, reason: ADMIN_CANCEL_REASON };
-    const cancelled = await SessionAdminGovernanceService.cancel(adminA.userId, input, LOCALE, null);
+    const cancelled = await SessionAdminGovernanceService.cancel(adminA.userId, input, LOCALE, null, undefined, {
+      transport: transportSpy,
+    });
     expect(cancelled.status).toBe(SessionStatus.Cancelled);
     record(executed, entry, AuditActionType.Override, cancelSessionId, {
       action: "cancel",
@@ -563,7 +567,9 @@ const censusRunners: Record<string, CensusRunner> = {
       sessionId: reassignSessionId,
       newTeacherUserId: secondTeacherActor.userId,
     };
-    const reassigned = await SessionAdminGovernanceService.reassignTeacher(adminA.userId, input, LOCALE);
+    const reassigned = await SessionAdminGovernanceService.reassignTeacher(adminA.userId, input, LOCALE, undefined, {
+      transport: transportSpy,
+    });
     expect(reassigned.teacherId).toBe(secondTeacherActor.userId);
     record(executed, entry, AuditActionType.Override, reassignSessionId, {
       action: "reassign",
@@ -887,6 +893,7 @@ describe("Audit-trail completeness journey — execute every admin action, prove
 
   test("producer executes the session-governance census rows through the real service path", async () => {
     const auditBefore = await countAllAuditRows();
+    const spyBefore = transportSpy.publishCount;
     const legActions = await executeCensusRows(SESSION_GOVERNANCE_LEG);
     executedActions.push(...legActions);
 
@@ -901,6 +908,28 @@ describe("Audit-trail completeness journey — execute every admin action, prove
     ]);
     expect(await countAllAuditRows()).toBe(auditBefore + legActions.length);
     expect(await countAllAuditRows()).toBe(auditBaseline + executedActions.length);
+
+    // Dispatch proof: the three publishing ops fanned out through the spied
+    // transport — never the default one — with one envelope per participant
+    // receipt (reschedule: student+teacher, cancel: student+teacher,
+    // reassign: student+outgoing+incoming = 7 envelopes; the audit-only join
+    // publishes nothing).
+    expect(transportSpy.publishCount - spyBefore).toBe(7);
+    // The spy freezes each recorded `userIds` copy, so the envelopes can be
+    // read directly — no per-call copy needed.
+    const envelopes = transportSpy.calls.slice(spyBefore).map(call => call.userIds);
+    expect(envelopes.every(ids => ids.length === 1)).toBe(true);
+    const flattenedRecipients = envelopes.flat().toSorted((a, b) => a - b);
+    const expectedRecipients = [
+      studentActor.userId, // reschedule
+      teacherActor.userId, // reschedule
+      studentActor.userId, // cancel
+      teacherActor.userId, // cancel
+      studentActor.userId, // reassign
+      teacherActor.userId, // reassign (outgoing)
+      secondTeacherActor.userId, // reassign (incoming)
+    ].toSorted((a, b) => a - b);
+    expect(flattenedRecipients).toEqual(expectedRecipients);
 
     // Each guarded write committed its own side effect with the trail row.
     const rescheduledRows = await db.select().from(session).where(eq(session.id, rescheduleSessionId)).limit(1);

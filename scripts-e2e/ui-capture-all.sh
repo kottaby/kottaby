@@ -10,7 +10,12 @@ K=/home/z/my-project/kottaby
 
 capture() {
   local path="$1" slug="$2" waits="${3:-2}"
-  bash "$K/scripts-e2e/ui-capture.sh" "$path" "round$ROUND/$slug" "$waits"
+  # Propagate a failed viewport capture to the whole round: a capture that
+  # returns nonzero invalidates the artifact set — the round must not print
+  # DONE and exit zero after it.
+  if ! bash "$K/scripts-e2e/ui-capture.sh" "$path" "round$ROUND/$slug" "$waits"; then
+    exit 1
+  fi
 }
 
 echo "=== ROUND $ROUND — PUBLIC (no auth) ==="

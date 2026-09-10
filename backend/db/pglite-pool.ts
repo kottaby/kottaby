@@ -136,7 +136,9 @@ const DRIZZLE_NOOP_OIDS: readonly number[] = [OID_DATE, OID_TIMESTAMP, OID_TIMES
  * calls keep PGlite's default parsing (JS `Date` values), which the
  * repositories' `QueryResultRow` contracts expect on both providers.
  */
-function isDriverTypesConfig(types: unknown): types is { getTypeParser: unknown } {
+function isDriverTypesConfig(
+  types: unknown
+): types is { getTypeParser: (typeId: number, format?: string) => (value: string) => unknown } {
   return (
     typeof types === "object" && types !== null && "getTypeParser" in types && typeof types.getTypeParser === "function"
   );
@@ -238,9 +240,12 @@ export async function getPglitePool(): Promise<PglitePoolLike> {
       // already `number`, so the `as T[]` and `Number(...)` coercion that used
       // to live here are unnecessary — the type contract is enforced by PGlite.
       // When the caller supplies a pg-style `types` config (Drizzle always
-      // does), forward identity parsers for the temporal scalar OIDs so raw
-      // column text reaches Drizzle's codecs — mirroring the `postgres`
-      // provider, where Drizzle's NOOP parser receives raw text from `pg`.
+      // does), delegate each temporal scalar OID to the CALLER's own parser
+      // for raw-text delivery. Drizzle's typeConfig registers a NOOP parser
+      // for exactly this family, so its codecs rehydrate the raw column
+      // text themselves (mirroring the `postgres` provider, where the NOOP
+      // parser receives raw text from `pg`) — and any other pg-style caller
+      // gets its own parser choice honored instead of a forced identity.
       // See DRIZZLE_NOOP_OIDS above for the full precision-loss explanation.
       const options: {
         rowMode?: "array";
@@ -252,7 +257,7 @@ export async function getPglitePool(): Promise<PglitePoolLike> {
       if (isDriverTypesConfig(types)) {
         const parsers: Record<number, (value: string) => unknown> = {};
         for (const oid of DRIZZLE_NOOP_OIDS) {
-          parsers[oid] = (value: string) => value;
+          parsers[oid] = types.getTypeParser(oid, "text");
         }
         options.parsers = parsers;
       }

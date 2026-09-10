@@ -29,7 +29,13 @@ python3 - "$JAR" << 'PYEOF'
 import http.cookiejar, sys, subprocess
 jar = http.cookiejar.MozillaCookieJar(sys.argv[1])
 jar.load(ignore_discard=True, ignore_expires=True)
-for c in jar:
+cookies = list(jar)
+if not cookies:
+    # `curl -c` writes a valid header-only jar even when the response set NO
+    # cookies — a login that authenticates without a session cookie must be
+    # treated as a failure, otherwise the capture proceeds unauthenticated.
+    raise RuntimeError("Login succeeded but no authentication cookies were returned")
+for c in cookies:
     try:
         subprocess.run([
             "agent-browser", "cookies", "set", c.name, c.value,

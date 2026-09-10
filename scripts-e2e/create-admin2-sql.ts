@@ -40,6 +40,14 @@ async function main() {
   const check = await pg.query<{ id: number; email: string; role: string }>(
     "SELECT id, email, role::text AS role FROM users WHERE email = 'admin2@app.local'"
   );
+  // Fail loudly when the fixture is incomplete (e.g. the clone source
+  // admin@app.local was absent, so the INSERT..SELECT affected zero rows):
+  // a missing admin2 row must never report success.
+  if (!check.rows[0]) {
+    console.error("VERIFY FAILED: admin2 row missing after upsert (is the seeded admin@app.local present?)");
+    await pg.close();
+    process.exit(1);
+  }
   console.log("VERIFY:", JSON.stringify(check.rows[0]));
   await pg.close();
   process.exit(0);
