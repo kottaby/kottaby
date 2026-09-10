@@ -324,4 +324,55 @@ export namespace TeacherRepository {
     ]);
     return { rows, total: countRows[0]?.count ?? 0 };
   }
+
+  /**
+   * Writes the teacher's `is_online` flag in one guarded UPDATE — the
+   * INV-S6 in-session lock primitive (see
+   * `docs/specs/state-machine-invariants.md` §1).
+   *
+   * The write is deliberately UNCONDITIONAL beyond row identity: this
+   * method IS the guarded required-tx `UPDATE … RETURNING` primitive and
+   * nothing more — the SERVICE layer composes WHEN the flag is driven to
+   * `false` (a session start, the lock) or back to `true` (a `started`
+   * exit, the release). Restoration on exit is currently UNCONDITIONAL:
+   * a prior-online capture exists at the start flow (the teacher row read
+   * inside the start transaction), but until the future availability-
+   * toggle work owns the never-resurrect gating, a release restores
+   * availability without consulting it — the known seam documented in
+   * `docs/sessions/session-lifecycle.md` §Concurrency. Certification
+   * plays no part: an uncertified teacher may still go offline.
+   *
+   * The service layer is the ONLY intended caller: this write composes
+   * INSIDE the session lifecycle's own transaction (the same `withTransaction`
+   * that flips the session status), so a rollback of the flow aborts the
+   * lock/release with it — a stale lock without its session transition is
+   * structurally impossible.
+   *
+   * Parameterized always; no prepared statement (writes are excluded);
+   * no business logic, no permission checks, no i18n or logging imports.
+   *
+   * @param id  The teacher row's id (shared PK with `users.id`) — pinned by
+   *            the session row inside the caller's transaction, never a
+   *            client payload.
+   * @param online  The target flag value (`false` = the INV-S6 lock,
+   *                `true` = the release).
+   * @param tx  REQUIRED transaction — the write always joins the caller's
+   *            atomic unit of work (repo write convention; never the global
+   *            handle).
+   * @returns The updated teacher row, or `null` when zero rows matched (an
+   *          unknown id — the service layer maps that to its domain error).
+   *          A redundant same-value write still returns the row (idempotent
+   *          under retry by construction).
+   */
+  export async function setOnline(id: number, online: boolean, tx: DBTransaction): Promise<TeacherSelectType | null> {
+    const [row] = await tx
+      .update(teacher)
+      .set({
+        isOnline: online,
+        updatedAt: sql`now()`,
+      })
+      .where(eq(teacher.id, id))
+      .returning();
+    return row ?? null;
+  }
 }

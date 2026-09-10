@@ -190,9 +190,7 @@ export function AdminSessionGovernanceContainer(): ReactNode {
               joined={join.joinedSessionId === drawerSessionId}
               loading={join.joinLoading}
               onJoin={() => {
-                if (drawerSessionId !== null) {
-                  void join.commitJoin({ variables: { input: { sessionId: drawerSessionId } } });
-                }
+                void join.commitJoin({ variables: { input: { sessionId: drawerSessionId } } });
               }}
             />
           )
