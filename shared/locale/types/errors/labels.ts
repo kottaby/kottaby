@@ -166,6 +166,10 @@ export interface ErrorsLabels {
   readonly walletTeacherProfileMissing: string;
   /** Fail-closed deny when a stored sessions.intent value is not a known SessionIntent member. */
   readonly sessionIntentCorrupt: string;
+  /** "The start time must be before the end time." — admin reschedule reject: the submitted timing pair is inverted. */
+  readonly sessionRescheduleWindowInvalid: string;
+  /** "The start time cannot be more than 5 minutes in the past." — admin reschedule reject: the submitted start lies outside the start-time grace window. */
+  readonly sessionRescheduleStartInPast: string;
 }
 
 export type ErrorMessageKey = {

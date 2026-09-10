@@ -69,4 +69,12 @@ export const notificationsEn: NotificationsLabels = {
   eventParentLinkExpiringTitle: "Reminder: your link request is expiring soon",
   eventParentLinkExpiringBody: (studentName: string) =>
     `Your link request for ${studentName} is about to expire — the student can still confirm or decline before it lapses.`,
+  eventSessionGovernanceRescheduledTitle: "Session rescheduled",
+  eventSessionGovernanceRescheduledBody:
+    "A platform administrator changed your session's schedule. Open the session to see the new time.",
+  eventSessionGovernanceCancelledTitle: "Session cancelled",
+  eventSessionGovernanceCancelledBody: "A platform administrator cancelled your session.",
+  eventSessionGovernanceTeacherReassignedTitle: "Session teacher changed",
+  eventSessionGovernanceTeacherReassignedBody:
+    "A platform administrator changed the teacher for your session. Open the session to see the details.",
 };

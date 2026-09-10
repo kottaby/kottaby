@@ -17,6 +17,19 @@ export type SessionRequestWaveKind =
   | "completion_prompt"
   | "completion_auto_cancelled";
 
+/**
+ * Closed wave vocabulary — the three admin session-governance waves
+ * (`sessionGovernance.rescheduled`, `sessionGovernance.cancelled`,
+ * `sessionGovernance.teacherReassigned`): one wave per operator
+ * intervention, each fanned out per recipient (student, outgoing teacher,
+ * incoming teacher) with per-recipient-locale copy and a per-recipient
+ * deterministic emit-claim key.
+ */
+export type SessionGovernanceWaveKind =
+  | "sessionGovernance.rescheduled"
+  | "sessionGovernance.cancelled"
+  | "sessionGovernance.teacherReassigned";
+
 /** Raw joined read row (intent is STILL untrusted storage at this layer). */
 export interface SessionWaveContextRow {
   readonly sessionId: number;
@@ -27,6 +40,13 @@ export interface SessionWaveContextRow {
   readonly teacherUserId: number;
   readonly teacherFullName: string;
   readonly teacherLocale: AppLocale | null;
+  /**
+   * The session row's audit stamp as of the wave read — the occurrence
+   * discriminator the RECURRING governance waves fold into their emit-claim
+   * keys. Null until the row's first mutation stamps it; the one-shot waves
+   * (every participant wave + the governance cancel) never consume it.
+   */
+  readonly sessionUpdatedAt: Date | null;
 }
 
 /** Service-level, guard-validated wave context — intent is a real SessionIntent here. */
@@ -41,4 +61,6 @@ export interface SessionWaveContext {
   readonly intent: SessionIntent;
   readonly student: SessionWaveParticipantContext;
   readonly teacher: SessionWaveParticipantContext;
+  /** Emit-time occurrence stamp (see `SessionWaveContextRow.sessionUpdatedAt`). */
+  readonly sessionUpdatedAt: Date | null;
 }
