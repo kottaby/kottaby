@@ -68,11 +68,20 @@ function decodeCookieValue(rawValue: string): string {
 
 /** Parses a single `key=value` cookie pair segment between `start` and `end`. */
 function parseCookiePair(header: string, start: number, end: number, out: Record<string, string>): void {
-  const eqIdx = header.indexOf("=", start);
+  // Bounded to the current segment: an unbounded `indexOf("=", start)` would
+  // rescan ahead into later segments for every malformed pair, giving
+  // quadratic CPU on attacker-controlled headers with many `=`-less segments.
+  let eqIdx = -1;
+  for (let i = start; i < end; i++) {
+    if (header.charCodeAt(i) === 61) {
+      eqIdx = i;
+      break;
+    }
+  }
   // Malformed pair (no `=` inside this segment, or empty key) — skip silently.
   // Browsers never produce these, but defensive parsing keeps the context
   // factory resilient.
-  if (eqIdx <= start || eqIdx >= end) {
+  if (eqIdx <= start) {
     return;
   }
 

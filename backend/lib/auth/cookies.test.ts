@@ -30,6 +30,11 @@ describe("parseCookies", () => {
     expect(parseCookies("=b; c=d")).toEqual({ c: "d" });
   });
 
+  it("stays correct with many malformed segments before a valid cookie", () => {
+    const header = `${"no-equals-here; ".repeat(2000)}real=value`;
+    expect(parseCookies(header)).toEqual({ real: "value" });
+  });
+
   it("decodes URI-encoded cookie values", () => {
     expect(parseCookies("greeting=hello%20world; user=alice")).toEqual({
       greeting: "hello world",
