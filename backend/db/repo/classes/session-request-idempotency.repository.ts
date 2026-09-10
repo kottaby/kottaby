@@ -3,11 +3,16 @@
  * `session_request_idempotency` claim table.
  *
  * A claim is the durable record that an idempotency key has already been
- * spent on a booking: the producing service inserts it IN-PHASE with the
- * session insert (transactional fate-sharing), so a replayed request either
- * joins the same transaction (duplicate claim insert → PostgreSQL
- * unique-violation, code `23505`) or — after the original committed — finds
- * the claim by key and replays the already-created session id.
+ * spent on a claim-issuing session mutation: the producing service inserts
+ * it IN-PHASE with its write (transactional fate-sharing), so a replayed
+ * request either joins the same transaction (duplicate claim insert →
+ * PostgreSQL unique-violation, code `23505`) or — after the original
+ * committed — finds the claim by key and replays the already-created
+ * outcome. Two mutation kinds issue claims today: the participant BOOKING
+ * (the claim's `session_id` points at the row the booking created) and the
+ * ADMIN session cancel (the claim's `session_id` points at the row the
+ * cancel flipped to its terminal state) — the replay semantics of each kind
+ * are the issuing service's decision, never this repository's.
  *
  * The `23505` raised by a duplicate `insertClaim` is deliberately NOT
  * caught or translated here: it bubbles to the service's cause-chain

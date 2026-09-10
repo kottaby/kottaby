@@ -37,7 +37,12 @@
  *    reject branches (link write, sibling expiry vs children-choose-parents,
  *    accepted/rejected copy to the parent); cancelLinkRequest silent
  *    withdrawal; self-scoped lists with closed wire shapes; classified denials
- *    (NOT_FOUND foreign ≡ nonexistent, ALREADY_RESOLVED, EXPIRED).
+ *    (NOT_FOUND foreign ≡ nonexistent, ALREADY_RESOLVED, EXPIRED); the
+ *    sequential COMMITTED double-respond replay idempotency: the
+ *    replay answers the constant ALREADY_RESOLVED conflict while the parent
+ *    keeps EXACTLY ONE notification + ONE publish total and the row keeps
+ *    its single terminal state with the FIRST `respondedAt` stamp
+ *    byte-identically (the deterministic sibling of the concurrent chaos cell).
  *  - Tier 2 (boundary): claim/liveness at `expiresAt` exactly now, now−1ms,
  *    now+1ms (strict `>` proven; the materialized expiry survives the denial);
  *    render-time expiry on the lists at the same instants WITHOUT any write;
@@ -50,7 +55,13 @@
  *  - Tier 4 (security): the REAL actor re-check on every op (anonymous,
  *    missing id, cross-role); governed-actor denial with a PRE-ISSUED-token
  *    simulation (actor row flipped governed between issue and call) with the
- *    SAME constant denial copy as the role arm (no branch disclosure);
+ *    SAME constant denial copy as the role arm (no branch disclosure); the
+ *    governance PRE-TX ORDERING proof on the decision mutation:
+ *    call-through repo spies over every post-gate collaborator record ZERO
+ *    invocations while the gate's own `UserRepository.findById` records
+ *    EXACTLY its sanctioned actor reads in call order (identity derives from
+ *    the `actorUserId` argument alone), one bounded `entity: "users"` log per
+ *    denial;
  *    zero-write probes on EVERY denial arm across
  *    `parent_link_requests`/`students`/`notifications`/`audit_logs` (the
  *    expiry fold is the EXPIRED arm's only sanctioned write);
@@ -89,7 +100,11 @@ import {
   type NotificationEngineCallOptions,
 } from "@/backend/services/notifications/notification-engine.service";
 import type { NotificationFanoutTransport } from "@/backend/services/notifications/realtime/fanout-transport";
-import { PARENT_LINK_RELATED_ENTITY_TYPE } from "@/backend/services/parents/parent-link-request.helpers";
+import {
+  PARENT_LINK_DECISION_RELATED_ENTITY_TYPE,
+  PARENT_LINK_EXPIRY_RELATED_ENTITY_TYPE,
+  PARENT_LINK_RELATED_ENTITY_TYPE,
+} from "@/backend/services/parents/parent-link-request.helpers";
 import { ParentLinkRequestService } from "@/backend/services/parents/parent-link-request.service";
 import type { DBTransaction, RealtimeNotificationPayload, StudentSelectType, UserSelectType } from "@/backend/types";
 import { isHandshakeCode, normalizeHandshakeCode } from "@/shared/constants/handshake-code.constants";
@@ -231,14 +246,19 @@ class RecordingFanoutTransport implements NotificationFanoutTransport {
  * Publish oracle: EXACTLY ONE publish since the last re-arm, addressed to
  * `targetUserId` alone, carrying the parent-link related-entity binding.
  */
-function expectSinglePublish(transport: RecordingFanoutTransport, targetUserId: number, relatedEntityId: number): void {
+function expectSinglePublish(
+  transport: RecordingFanoutTransport,
+  targetUserId: number,
+  relatedEntityId: number,
+  relatedEntityType: string = PARENT_LINK_RELATED_ENTITY_TYPE
+): void {
   expect(transport.publishCount).toBe(1);
   const call = transport.lastPublish;
   if (call === null) {
     throw new Error("expected one recorded publish");
   }
   expect(call.userIds).toEqual([targetUserId]);
-  expect(call.payload.data.relatedEntityType).toBe("parent_link_request");
+  expect(call.payload.data.relatedEntityType).toBe(relatedEntityType);
   expect(call.payload.data.relatedEntityId).toBe(relatedEntityId);
 }
 
@@ -813,7 +833,7 @@ describe("ParentLinkRequestService.respondToLinkRequest", () => {
     // The parent's notification: accepted copy bound to the request row.
     const parentAInbox = await linkInboxRowsFor(db, c.parentA.id);
     expect(parentAInbox).toHaveLength(1);
-    expect(parentAInbox[0]?.relatedEntityType).toBe("parent_link_request");
+    expect(parentAInbox[0]?.relatedEntityType).toBe(PARENT_LINK_DECISION_RELATED_ENTITY_TYPE);
     expect(parentAInbox[0]?.relatedEntityId).toBe(requestA.id);
     const arCopy = getServerTranslations(LOCALE_AR).notificationsTranslations;
     const enCopy = getServerTranslations(LOCALE_EN).notificationsTranslations;
@@ -822,8 +842,9 @@ describe("ParentLinkRequestService.respondToLinkRequest", () => {
     // The deciding student's inbox gained NOTHING from the respond.
     expect(await linkInboxRowsFor(db, acceptCast.user.id)).toHaveLength(2);
 
-    // EXACTLY ONE publish, to the winner parent alone.
-    expectSinglePublish(transport, c.parentA.id, requestA.id);
+    // EXACTLY ONE publish, to the winner parent alone — the parent audience
+    // carries the decision refinement (issue #99).
+    expectSinglePublish(transport, c.parentA.id, requestA.id, PARENT_LINK_DECISION_RELATED_ENTITY_TYPE);
 
     // Sibling pendings of the winner's student are terminal, seen
     // by BOTH parents from their own lists.
@@ -904,7 +925,7 @@ describe("ParentLinkRequestService.respondToLinkRequest", () => {
     const enCopy = getServerTranslations(LOCALE_EN).notificationsTranslations;
     expect(rejectedRow?.title).toBe(enCopy.eventParentLinkRejectedTitle);
     expect(rejectedRow?.body).toBe(enCopy.eventParentLinkRejectedBody(rejectCast.user.fullName));
-    expectSinglePublish(transport, c.parentA.id, requestA.id);
+    expectSinglePublish(transport, c.parentA.id, requestA.id, PARENT_LINK_DECISION_RELATED_ENTITY_TYPE);
   });
 
   test("Tier 1 — caller-tx accept NEVER publishes: claim + link + notify + sibling expiry all in-tx", async () => {
@@ -1069,6 +1090,105 @@ describe("ParentLinkRequestService.respondToLinkRequest", () => {
       expect(transport.publishCount).toBe(0);
     });
   });
+
+  test("Tier 1/3 — sequential double-respond idempotency (own-commit): the replay answers the constant ALREADY_RESOLVED conflict and the parent holds EXACTLY ONE notification total", async () => {
+    const c = requireCast();
+    const transport = new RecordingFanoutTransport();
+    const enCopy = getServerTranslations(LOCALE_EN).notificationsTranslations;
+
+    // A dedicated committed student for the double-decision path — the shared
+    // cast students stay pristine for the zero-write probes. The committed-
+    // fixture convention applies because the service owns the commit boundary
+    // on BOTH decisions (in-tx emit → post-commit publish): `runInRollback`
+    // cannot host this cell.
+    const decideCast = await db.transaction(async (tx: DBTransaction) =>
+      createStudentFixture(tx, { locale: LOCALE_EN }, "student-decide-twice")
+    );
+
+    const created = await ParentLinkRequestService.requestLink(
+      decideCast.student.handshakeCode,
+      c.parentA.id,
+      LOCALE_EN,
+      undefined,
+      callOptions(transport)
+    );
+    if (created === null) {
+      throw new Error("expected the request to be created");
+    }
+    trackedRequestIds.push(created.id);
+    transport.clear();
+
+    // Decision #1 — own-commit accept: in-tx emit, publish after the commit.
+    const first = await ParentLinkRequestService.respondToLinkRequest(
+      created.id,
+      true,
+      decideCast.user.id,
+      LOCALE_EN,
+      undefined,
+      callOptions(transport)
+    );
+    expect(first.status).toBe(LinkStatus.Confirmed);
+    expect(first.respondedAt).not.toBeNull();
+    expectSinglePublish(transport, c.parentA.id, created.id, PARENT_LINK_DECISION_RELATED_ENTITY_TYPE);
+
+    // The parent's acceptance copy: EXACTLY ONE inbox row bound to the request.
+    const accepted = (await linkInboxRowsFor(db, c.parentA.id)).filter(row => row.relatedEntityId === created.id);
+    expect(accepted).toHaveLength(1);
+    expect(accepted[0]?.title).toBe(enCopy.eventParentLinkAcceptedTitle);
+    expect(accepted[0]?.body).toBe(enCopy.eventParentLinkAcceptedBody(decideCast.user.fullName));
+    // The FIRST stamp — the only decision stamp this row must ever carry.
+    const firstStamp = (await requestRowById(db, created.id))?.respondedAt;
+    if (firstStamp === null || firstStamp === undefined) {
+      throw new Error("expected decision #1 to stamp respondedAt on the committed row");
+    }
+
+    // Sequential replay (own-commit): the zero-row claim collapses into the
+    // classifier, which answers already-resolved — the constant conflict.
+    const logSpy = silenceDomainLog();
+    try {
+      await expectConflict(
+        () =>
+          ParentLinkRequestService.respondToLinkRequest(
+            created.id,
+            true,
+            decideCast.user.id,
+            LOCALE_EN,
+            undefined,
+            callOptions(transport)
+          ),
+        "PARENT_LINK_REQUEST_ALREADY_RESOLVED",
+        enErrors.parentLinkRequestAlreadyResolved
+      );
+      // The denial logs EXACTLY ONCE with the frozen bounded shape.
+      expect(logSpy).toHaveBeenCalledTimes(1);
+      const ctx = logSpy.mock.calls[0]?.[1];
+      expect(ctx).toMatchObject({
+        code: "PARENT_LINK_REQUEST_ALREADY_RESOLVED",
+        entity: "parent_link_requests",
+        entityId: created.id,
+        locale: LOCALE_EN,
+      });
+    } finally {
+      logSpy.mockRestore();
+    }
+
+    // Idempotency pins: the parent keeps EXACTLY ONE notification for this
+    // request (the replay emitted NOTHING) with the acceptance copy intact,
+    // NO second publish, the row keeps its single terminal state with the
+    // FIRST respondedAt byte-identically, the link write is untouched, and
+    // the deciding student's inbox gains nothing.
+    const afterReplay = (await linkInboxRowsFor(db, c.parentA.id)).filter(row => row.relatedEntityId === created.id);
+    expect(afterReplay).toHaveLength(1);
+    expect(afterReplay[0]?.title).toBe(enCopy.eventParentLinkAcceptedTitle);
+    expect(afterReplay[0]?.body).toBe(enCopy.eventParentLinkAcceptedBody(decideCast.user.fullName));
+    expect(transport.publishCount).toBe(1);
+    const replayedRow = await requestRowById(db, created.id);
+    expect(replayedRow).toMatchObject({ status: LinkStatus.Confirmed });
+    expect(replayedRow?.respondedAt).not.toBeNull();
+    expect(replayedRow?.respondedAt?.toISOString()).toBe(firstStamp.toISOString());
+    expect(await studentParentId(db, decideCast.user.id)).toBe(c.parentA.id);
+    expect(await linkInboxRowsFor(db, decideCast.user.id)).toHaveLength(1);
+  });
 });
 
 // ─── ParentLinkRequestService.cancelLinkRequest ─────────────────────────
@@ -1226,7 +1346,7 @@ describe("ParentLinkRequestService.sweepExpiredRequests", () => {
       );
 
       // Pre-sweep: the lapsed-but-unmaterialized pending STILL answers the
-      // pair pre-check (the D9b lockout contract, pinned at chaos tier).
+      // pair pre-check (the pair-lockout contract, pinned at chaos tier).
       expect(await ParentLinkRequestRepository.findPendingByPair(parentUser.id, studentRow.id, tx)).not.toBeNull();
 
       await ParentLinkRequestService.sweepExpiredRequests(tx);
@@ -1341,7 +1461,7 @@ describe("ParentLinkRequestService.sendExpiryReminders", () => {
     expect(reminder?.body).toBe(
       enCopy.eventParentLinkExpiringBody(isolateBidi(maskFullName(reminderCast.studentAName)))
     );
-    expect(reminder?.relatedEntityType).toBe(PARENT_LINK_RELATED_ENTITY_TYPE);
+    expect(reminder?.relatedEntityType).toBe(PARENT_LINK_EXPIRY_RELATED_ENTITY_TYPE);
 
     // The out-of-window pending got NO reminder.
     expect(inbox.filter(row => row.relatedEntityId === reminderCast.beyondId)).toHaveLength(0);
@@ -1947,6 +2067,111 @@ describe("ParentLinkRequestService security tier", () => {
       expect(notificationRows).toBe(0);
       expect(auditRows).toBe(0);
       expect(transport.publishCount).toBe(0);
+    });
+  });
+
+  test("Tier 4 — governance PRE-TX ordering on the decision mutation: the governed actor's respond denies BEFORE any transactional work (repo spies: zero calls past the gate)", async () => {
+    await runInRollback(async (tx: DBTransaction) => {
+      const c = requireCast();
+      const transport = new RecordingFanoutTransport();
+
+      // Call-through spies over EVERY post-gate collaborator — the ordering
+      // proof: `requireActor` runs BEFORE `withTransaction` opens, so a
+      // denied actor must never reach any of them.
+      const claimSpy = spyOn(ParentLinkRequestRepository, "respondToPendingForStudent");
+      const classifySpy = spyOn(ParentLinkRequestRepository, "findById");
+      const linkSpy = spyOn(StudentRepository, "linkParentIfUnlinked");
+      const siblingSpy = spyOn(ParentLinkRequestRepository, "expireSiblingPendingsForStudent");
+      const readBackSpy = spyOn(ParentLinkRequestRepository, "findIncomingRowById");
+      const foldSpy = spyOn(ParentLinkRequestRepository, "markExpiredIfPending");
+      const localesSpy = spyOn(UserRepository, "findLocalesByIds");
+      const emitSpy = spyOn(NotificationEngine, "emitForUser");
+      // The gate's OWN fresh actor read — the ONLY sanctioned lookup.
+      const actorReadSpy = spyOn(UserRepository, "findById");
+      const logSpy = silenceDomainLog();
+
+      try {
+        // Governed arm: the pre-issued "session" of a student whose row was
+        // flipped governed after issue — the REAL fresh re-read denies.
+        const governedRole = await expectRecheckDenial(
+          () =>
+            ParentLinkRequestService.respondToLinkRequest(
+              1,
+              true,
+              c.studentGov.user.id,
+              LOCALE_EN,
+              tx,
+              callOptions(transport)
+            ),
+          ForbiddenError,
+          "FORBIDDEN",
+          enErrors.forbidden
+        );
+
+        // Role arm: a parent calling the student-only decision mutation — the
+        // byte-parity oracle (no branch disclosure between the two denials).
+        const roleMismatch = await expectRecheckDenial(
+          () =>
+            ParentLinkRequestService.respondToLinkRequest(1, true, c.parentA.id, LOCALE_EN, tx, callOptions(transport)),
+          ForbiddenError,
+          "FORBIDDEN",
+          enErrors.forbidden
+        );
+
+        // Governed ≡ role-mismatch: byte-identical constant denial.
+        expect(errorFingerprint(governedRole)).toBe(errorFingerprint(roleMismatch));
+
+        // The gate read EXACTLY its sanctioned actor lookups, in call order —
+        // identity derives from the `actorUserId` argument alone (BOLA: no
+        // request-supplied student/parent id exists on the surface).
+        expect(actorReadSpy.mock.calls.map(call => call[0])).toEqual([c.studentGov.user.id, c.parentA.id]);
+
+        // ZERO invocations past the gate: no claim, no classifier oracle, no
+        // link write, no sibling expiry, no read-back, no expiry fold, no
+        // locale read, no emit — the decision unit never OPENS for a denied
+        // actor (nothing staged → nothing to roll back).
+        expect(claimSpy).toHaveBeenCalledTimes(0);
+        expect(classifySpy).toHaveBeenCalledTimes(0);
+        expect(linkSpy).toHaveBeenCalledTimes(0);
+        expect(siblingSpy).toHaveBeenCalledTimes(0);
+        expect(readBackSpy).toHaveBeenCalledTimes(0);
+        expect(foldSpy).toHaveBeenCalledTimes(0);
+        expect(localesSpy).toHaveBeenCalledTimes(0);
+        expect(emitSpy).toHaveBeenCalledTimes(0);
+
+        // Exactly ONE bounded actor-gate log per denial (`entity: "users"`),
+        // addressed to the probed actor id alone.
+        expect(logSpy).toHaveBeenCalledTimes(2);
+        const [governedLog, roleLog] = logSpy.mock.calls.map(call => call?.[1]);
+        expect(governedLog).toMatchObject({
+          code: "FORBIDDEN",
+          entity: "users",
+          entityId: c.studentGov.user.id,
+          locale: LOCALE_EN,
+        });
+        expect(roleLog).toMatchObject({
+          code: "FORBIDDEN",
+          entity: "users",
+          entityId: c.parentA.id,
+          locale: LOCALE_EN,
+        });
+
+        // The publish boundary stayed silent on BOTH denials.
+        expect(transport.publishCount).toBe(0);
+      } finally {
+        // Restores run LAST — every spy assertion above executed BEFORE the
+        // restores (bun's mockRestore clears mock state).
+        claimSpy.mockRestore();
+        classifySpy.mockRestore();
+        linkSpy.mockRestore();
+        siblingSpy.mockRestore();
+        readBackSpy.mockRestore();
+        foldSpy.mockRestore();
+        localesSpy.mockRestore();
+        emitSpy.mockRestore();
+        actorReadSpy.mockRestore();
+        logSpy.mockRestore();
+      }
     });
   });
 

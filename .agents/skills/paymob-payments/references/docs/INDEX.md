@@ -1,0 +1,126 @@
+# Paymob docs mirror — index
+
+Mirrored from https://developers.paymob.com/paymob-docs (Theneo). 116 pages.
+Each entry links to the local markdown file. API pages show METHOD endpoint.
+
+## Documentation tab
+
+- [Getting Started](getting-started.md)
+  - [Overview](getting-started/overview.md)
+  - [Integration Checklist](getting-started/integration-checklist.md)
+  - [Onboarding Wizard](getting-started/onboarding-wizard.md)
+  - [Dashboard](getting-started/dashboard.md)
+  - [New Dashboard](getting-started/new-dashboard.md)
+- [Integration Paths](integration-paths.md)
+  - [Overview](integration-paths/overview.md)
+  - [No Code](integration-paths/no-code.md)
+    - [Payment Links](integration-paths/no-code/payment-links.md)
+  - [APIs](integration-paths/apis.md)
+  - [Plugins](integration-paths/plugins.md)
+    - [WordPress (WooCommerce)](integration-paths/plugins/wordpress.md)
+    - [Shopify](integration-paths/plugins/shopify.md)
+    - [Magento 2](integration-paths/plugins/magento.md)
+    - [Odoo](integration-paths/plugins/odoo.md)
+    - [OpenCart](integration-paths/plugins/opencart.md)
+    - [PrestaShop](integration-paths/plugins/prestashop.md)
+    - [WHMCS](integration-paths/plugins/whmcs.md)
+    - [CS-Cart](integration-paths/plugins/cs-cart.md)
+    - [ZenCart](integration-paths/plugins/zencart.md)
+    - [Joomla](integration-paths/plugins/joomla.md)
+    - [Laravel-Bagisto](integration-paths/plugins/laravel-bagisto.md)
+    - [OsCommerce](integration-paths/plugins/oscommerce.md)
+    - [Drupal](integration-paths/plugins/drupal.md)
+    - [Staah](integration-paths/plugins/staah.md)
+  - [Mobile SDKs](integration-paths/mobile-sdks.md)
+- [Payments & Features](payments-and-features.md)
+  - [Overview](payments-and-features/overview.md)
+  - [Payment Methods](payments-and-features/payment-methods.md)
+    - [Cards [All regions]](payments-and-features/payment-methods/cards-all-regions.md)
+    - [Mobile Wallets [EGY]](payments-and-features/payment-methods/mobile-wallets-egy-ksa.md)
+    - [BNPLs [EGY, KSA, UAE]](payments-and-features/payment-methods/bnpls-egy-ksa-uae.md)
+    - [Apple Pay [All regions]](payments-and-features/payment-methods/apple-pay-all-regions.md)
+    - [Google Pay [KSA, UAE, OMN]](payments-and-features/payment-methods/google-pay-ksa-uae-omn.md)
+    - [Bank Installments [EGY]](payments-and-features/payment-methods/bank-installments-egy.md)
+    - [Kiosk [EGY]](payments-and-features/payment-methods/kiosk-egy.md)
+  - [Core Features](payments-and-features/core-features.md)
+    - [Subscriptions](payments-and-features/core-features/subscriptions.md)
+    - [Pay With Saved Cards](payments-and-features/core-features/pay-with-saved-cards.md)
+    - [Auth/Cap](payments-and-features/core-features/auth-cap.md)
+    - [Split Features](payments-and-features/core-features/split-features.md)
+    - [Convenience Fee](payments-and-features/core-features/convenience-fee.md) — `GET `
+    - [Transaction inquiry & Reports](payments-and-features/core-features/transaction-inquiry-and-reports.md)
+  - [Managing Payments](payments-and-features/managing-payments.md)
+    - [Refund](payments-and-features/managing-payments/refund.md)
+    - [Void](payments-and-features/managing-payments/void.md)
+    - [Capture](payments-and-features/managing-payments/capture.md)
+- [Need Help?](need-help.md)
+  - [Glossary](need-help/glossary.md)
+  - [FAQ](need-help/faq.md)
+    - [Getting Integration Credentials](need-help/faq/getting-integration-credentials.md)
+    - [Apple Pay - Domain Verification](need-help/faq/apple-pay-domain-verification.md)
+    - [Apple Pay - Certificates Creation](need-help/faq/apple-pay-certificates-creation.md)
+    - [Test Credentials](need-help/faq/test-credentials.md)
+    - [Common Issues & Inquires](need-help/faq/common-issues-and-inquires.md)
+
+## Developers tab (API reference)
+
+- [Authentication Request (Generate Auth Token)](authentication-request-generate-auth-token-1.md) — `POST api/auth/tokens`
+- [Intention APIs](intention-apis.md)
+  - [Overview](intention-apis/overview.md)
+  - [Create Intention](intention-apis/create-intention.md) — `POST v1/intention/`
+  - [Update Intention](intention-apis/update-intention.md) — `PUT v1/intention/{client_secret}/`
+- [Checkout Experiences](checkout-experiences.md)
+  - [Overview](checkout-experiences/overview.md)
+  - [Unified Checkout (Redirection)](checkout-experiences/unified-checkout-redirection.md) — `GET unifiedcheckout/`
+  - [Pixel (Embedded)](checkout-experiences/pixel-embedded.md)
+- [Mobile SDKs](mobile-sdks.md)
+  - [Overview](mobile-sdks/overview.md)
+  - [IOS SDK](mobile-sdks/ios-sdk.md) — `GET `
+  - [Android SDK](mobile-sdks/android-sdk.md) — `GET `
+  - [React Native SDK](mobile-sdks/react-native-sdk.md)
+  - [Flutter Native SDK](mobile-sdks/flutter-native-sdk.md)
+- [Webhook (Callbacks) & HMAC](webhook-callbacks-and-hmac.md)
+  - [Overview](webhook-callbacks-and-hmac/overview.md)
+  - [Transaction callbacks](webhook-callbacks-and-hmac/transaction-callbacks.md)
+  - [HMAC](webhook-callbacks-and-hmac/hmac.md) — `GET `
+    - [HMAC Transaction Callback](webhook-callbacks-and-hmac/hmac/hmac-transaction-callback.md)
+    - [HMAC Card Token Callback:](webhook-callbacks-and-hmac/hmac/hmac-for-card-tokens.md)
+  - [Webhook Testing Tool](webhook-callbacks-and-hmac/webhook-testing-tool.md)
+- [Manage Payment APIs](manage-payment-apis.md) — `POST api/acceptance/void_refund/refund`
+  - [Refund](manage-payment-apis/refund.md) — `POST api/acceptance/void_refund/refund`
+  - [Void](manage-payment-apis/void.md) — `POST api/acceptance/void_refund/void`
+  - [Capture](manage-payment-apis/capture.md) — `POST api/acceptance/capture`
+- [Subscription](subscription.md) — `POST api/acceptance/subscription-plans`
+  - [Create Subscription plan](subscription/create-subscription-plan.md) — `POST api/acceptance/subscription-plans`
+  - [Create Subscription](subscription/create-subscription.md)
+  - [Plan actions](subscription/plan-actions.md)
+    - [Update Subscription Plan](subscription/plan-actions/update-subscription-plan.md) — `PUT api/acceptance/subscription-plans/{Subscription_Plan_Id}`
+    - [List Subscription Plans](subscription/plan-actions/list-subscription-plans.md) — `GET api/acceptance/subscription-plans`
+    - [Suspend Subscription Plan](subscription/plan-actions/suspend-subscription-plan.md) — `POST api/acceptance/subscription-plans/{subscription_plan_id}/suspend`
+    - [Resume Subscription Plan](subscription/plan-actions/resume-subscription-plan.md) — `POST api/acceptance/subscription-plans/{subscription_plan_id}/resume`
+  - [Subscription actions](subscription/subscription-actions.md)
+    - [Update Subscription](subscription/subscription-actions/update-subscription.md) — `PUT api/acceptance/subscriptions/{Subscription_Id}`
+    - [List Subscription Details](subscription/subscription-actions/list-subscription-details.md) — `GET api/acceptance/subscriptions/{Subscription_id}`
+    - [Suspend Subscription](subscription/subscription-actions/suspend-subscription.md) — `POST api/acceptance/subscriptions/{subscription_id}/suspend`
+    - [Resume Subscription](subscription/subscription-actions/resume-subscription.md) — `POST api/acceptance/subscriptions/{Subscription_id}/resume`
+    - [Cancel Subscription](subscription/subscription-actions/cancel-subscription.md) — `POST api/acceptance/subscriptions/{Subscription_id}/cancel`
+    - [List Subscription Cards](subscription/subscription-actions/list-subscription-cards.md) — `GET api/acceptance/subscriptions/{Subscription_id}/card-tokens`
+    - [Add Secondary Card](subscription/subscription-actions/add-secondary-card.md)
+    - [Delete Secondary Card](subscription/subscription-actions/delete-secondary-card.md) — `POST api/acceptance/subscriptions/{Subscription_id}/delete-card`
+    - [Change Subscription Primary card](subscription/subscription-actions/change-subscription-primary-card.md) — `POST api/acceptance/subscriptions/{Subscription_Id}/change-primary-card`
+    - [Register Webhook](subscription/subscription-actions/register-webhook.md) — `POST api/acceptance/subscriptions/{subID}/register_webhook`
+    - [Last Transaction Subscription](subscription/subscription-actions/last-transaction-subscription.md) — `GET api/acceptance/subscriptions/{Subscription_Id}/last-transaction`
+    - [List Subscription Transactions](subscription/subscription-actions/list-subscription-transactions.md) — `GET api/acceptance/subscriptions/{Subscription_id}/transactions`
+  - [Subscription Callback and HMAC Calculation](subscription/hmac-calculation-for-subscription-callback.md)
+- [Pay With Saved Cards](pay-with-saved-cards.md) — `GET `
+  - [Create Card Token](pay-with-saved-cards/create-card-token.md) — `GET `
+  - [CIT (Customer Initiated Transaction)](pay-with-saved-cards/cit.md) — `GET `
+  - [MIT (Merchant Initiated Transaction)](pay-with-saved-cards/mit.md) — `POST api/acceptance/payments/pay`
+- [QuickLink APIs](quicklink-apis.md)
+  - [Overview](quicklink-apis/overview.md)
+  - [Create QuickLink](quicklink-apis/create-quicklink.md) — `POST api/ecommerce/payment-links`
+  - [Cancel QuickLink](quicklink-apis/cancel-quicklink.md) — `POST api/ecommerce/payment-links/cancel`
+- [Transaction Inquiry APIs](transaction-inquiry-apis.md) — `GET api/acceptance/transactions/{transaction_id}`
+  - [By Transaction ID](transaction-inquiry-apis/by-transaction-id.md) — `GET api/acceptance/transactions/{transaction_id}`
+  - [By Order ID or Reference](transaction-inquiry-apis/by-order-id-or-reference.md) — `POST api/ecommerce/orders/transaction_inquiry`
+- [Split Features Implementation](split-features-implementation.md)

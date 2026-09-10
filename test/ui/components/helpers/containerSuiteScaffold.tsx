@@ -3,13 +3,16 @@
  * (`StudentSessionsContainer`, `TeacherSessionsContainer`,
  * `AdminDisputesContainer`, `TeacherWalletContainer` suite bodies).
  *
- * Every hour of the four suites used to repeat the same wiring: the
+ * Every hour of the four sessions-family suites used to repeat the same wiring: the
  * lazily-bound `screen` proxy, the MockedProvider render helper, the
  * `Intl.DateTimeFormat` stamp oracle, the STUI_LOCALE locale-run filter, the
  * locale label resolution, the session wire-row fixture builder, and the
  * whole dispute/cancel dialog interaction vocabulary. Those blocks now live
  * HERE exactly once; the suites keep only their per-container fixtures,
- * documents, and branch-specific assertions.
+ * documents, and branch-specific assertions. The admin session-governance
+ * suites (DEV3-021) additionally share their namespace warming, the
+ * 21-field governance wire-row fixture + moments, and the cancel/reassign
+ * mutation mock builders (the governance section below).
  *
  * Import contract: suites consume this module ONLY through the barrel
  * (`@/test/ui/components/helpers`). The module is evaluated lazily — the
@@ -30,10 +33,22 @@ import {
   within,
 } from "@testing-library/react";
 import type { ReactElement } from "react";
-import { SessionIntent, SessionStatus, SessionType } from "@/frontend/graphql/generated/gql/graphql";
+import {
+  type AdminSessionsQuery_adminSessions_items,
+  SessionIntent,
+  SessionStatus,
+  SessionType,
+} from "@/frontend/graphql/generated/gql/graphql";
+import {
+  adminSessionCancelMutationDocument,
+  adminSessionReassignMutationDocument,
+} from "@/frontend/graphql/sharedDocuments";
 import { MAX_DISPUTE_REASON_LENGTH } from "@/frontend/views/student/sessions/SessionDisputeConfirmDialog";
 import { SESSION_FEE_CURRENCY } from "@/shared/constants";
 import type { AppLocale } from "@/shared/locale/AppLocale";
+import { arMessages } from "@/shared/locale/ar/messages";
+import { enMessages } from "@/shared/locale/en/messages";
+import { AdminSessionGovernance as AdminSessionGovernanceNs } from "@/shared/locale/namespaces/adminSessionGovernance";
 import { Common as CommonNs } from "@/shared/locale/namespaces/common";
 import { Errors as ErrorsNs } from "@/shared/locale/namespaces/errors";
 import { Sessions as SessionsNs } from "@/shared/locale/namespaces/sessions";
@@ -88,6 +103,18 @@ export function expectedStamp(iso: string, locale: AppLocale): string {
     hour12: false,
   });
   return formatter.format(new Date(iso));
+}
+
+/**
+ * MUI required-field label matcher — a `required` MUI TextField appends an
+ * aria-hidden asterisk to the visible InputLabel, so an exact-string
+ * `getByLabelText` misses the label association. The returned pattern
+ * matches the label text with an OPTIONAL trailing asterisk (any
+ * whitespace separation) at the standard query-normalizer granularity.
+ */
+export function muiLabelPattern(label: string): RegExp {
+  const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`^${escaped}\\s*\\*?$`);
 }
 
 /**
@@ -455,4 +482,129 @@ export async function expectDisputeRejectionConvergence(
   await expectSnackbar(errorText, "MuiAlert-colorError");
   expect(liveScreen.queryByRole("dialog")).toBeNull();
   expectScheduledRowWithLiveDisputeCta(sessionId, t);
+}
+
+// ---------------------------------------------------------------------------
+// Admin session-governance suite fixtures (DEV3-021)
+
+/**
+ * Eager namespace warming for the governance suites — every suite calls this
+ * ONCE at module scope so missing-key drift surfaces at LOAD, not inside an
+ * arm (the same contract the inline warming loops used to carry).
+ */
+export function warmSessionSuiteNamespaces(): void {
+  for (const translations of [enMessages, arMessages]) {
+    AdminSessionGovernanceNs.getLabels(translations);
+    SessionsNs.getLabels(translations);
+    ErrorsNs.getLabels(translations);
+    CommonNs.getLabels(translations);
+  }
+}
+
+/**
+ * The all-fields admin governance wire row (`__typename` mirrors what Apollo
+ * Server puts on the wire; it is what makes the `Session:<id>` entity
+ * normalizable so the mutation payloads converge the directory rows by id
+ * WITHOUT refetch).
+ */
+export interface AdminSessionRowFixture extends AdminSessionsQuery_adminSessions_items {
+  readonly __typename: "Session";
+}
+
+/**
+ * Deterministic fixture moments shared by the governance suites (DATA —
+ * never locale copy): the creation stamp, the future timing pair (reschedule
+ * prefill — outside the past-grace window) and the lapsed/past lifecycle
+ * moments (needs-attention producer + past-start gate).
+ */
+export const CREATED_ISO = "2099-01-05T08:00:00.000Z";
+export const FUTURE_START_ISO = "2099-01-10T09:00:00.000Z";
+export const FUTURE_END_ISO = "2099-01-10T10:30:00.000Z";
+export const PAST_START_ISO = "2024-11-01T09:00:00.000Z";
+export const PAST_END_ISO = "2024-11-01T10:00:00.000Z";
+
+/**
+ * Deterministic payload builder mirroring the closed 21-field governance
+ * wire shape (every governance suite's `rowFixture` local used to restate
+ * it; every call site passes an explicit `id`).
+ */
+export function buildAdminSessionRowFixture(
+  overrides?: Partial<AdminSessionsQuery_adminSessions_items>
+): AdminSessionRowFixture {
+  return {
+    __typename: "Session",
+    id: "7401",
+    status: SessionStatus.Scheduled,
+    intent: SessionIntent.Hifz,
+    sessionType: SessionType.StudentSession,
+    fee: "150.50",
+    feeHeld: true,
+    studentId: "401",
+    teacherId: "802",
+    startedAt: FUTURE_START_ISO,
+    endedAt: FUTURE_END_ISO,
+    confirmationDeadline: "2099-01-09T09:00:00.000Z",
+    confirmedByStudentAt: null,
+    confirmedByTeacherAt: null,
+    createdAt: CREATED_ISO,
+    updatedAt: CREATED_ISO,
+    cancelReason: null,
+    disputeReason: null,
+    disputedAt: null,
+    resolutionNote: null,
+    resolvedAt: null,
+    needsAttention: false,
+    ...overrides,
+  };
+}
+
+/** The success/error discriminator the governance mutation mock builders share. */
+export type AdminSessionMutationOutcome =
+  | { readonly kind: "success"; readonly payload: AdminSessionRowFixture }
+  | { readonly kind: "error"; readonly code: string };
+
+/**
+ * Builds one governance mutation's `result` for an outcome. The failure is
+ * authored as a raw `result.errors[]` entry exactly where the transport
+ * boundary puts `extensions.code`; Apollo's MockedProvider wraps it into a
+ * genuine `CombinedGraphQLErrors` — the same extraction path the production
+ * error-link uses.
+ */
+export function adminMutationMockResult(
+  wireField: string,
+  outcome: AdminSessionMutationOutcome
+): MockLink.MockedResponse["result"] {
+  if (outcome.kind === "success") {
+    return { data: { [wireField]: outcome.payload } };
+  }
+  return {
+    errors: [{ message: `${outcome.code} (masked transport surface)`, extensions: { code: outcome.code } }],
+  };
+}
+
+/** `AdminSessionCancel` mock with the container's variable shape (`reason: null` for the empty-submit arms). */
+export function adminSessionCancelMock(
+  sessionId: string,
+  reason: string | null,
+  outcome: AdminSessionMutationOutcome
+): MockLink.MockedResponse {
+  return {
+    request: { query: adminSessionCancelMutationDocument, variables: { input: { sessionId, reason } } },
+    result: adminMutationMockResult("adminCancelSession", outcome),
+  };
+}
+
+/** `AdminSessionReassign` mock with the container's variable shape (the parsed `Int` teacher id). */
+export function adminSessionReassignMock(
+  sessionId: string,
+  newTeacherUserId: number,
+  outcome: AdminSessionMutationOutcome
+): MockLink.MockedResponse {
+  return {
+    request: {
+      query: adminSessionReassignMutationDocument,
+      variables: { input: { sessionId, newTeacherUserId } },
+    },
+    result: adminMutationMockResult("adminReassignTeacher", outcome),
+  };
 }

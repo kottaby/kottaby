@@ -14,8 +14,9 @@
  * visually distinct from the static stripe rhythm.
  */
 
-import { Box, TableCell, TableRow, Typography } from "@mui/material";
+import { Box, TableCell, Typography } from "@mui/material";
 import type { ReactNode } from "react";
+import { DirectoryBodyRow } from "@/frontend/views/admin/directory-shared/DirectoryBodyRow";
 import {
   DirectoryActionsMenu,
   DirectoryGovernanceLabel,
@@ -51,20 +52,7 @@ export function DirectoryUserRow({
 }: DirectoryUserRowProps): ReactNode {
   const role = asDirectoryRole(user.role);
   return (
-    <TableRow
-      sx={theme => ({
-        height: 72,
-        bgcolor: striped ? theme.palette.action.hover : "transparent",
-        "& td": {
-          height: 72,
-          py: 1.5,
-          verticalAlign: "middle",
-          borderBottom: `1px solid ${theme.palette.border.light}`,
-        },
-        "&:last-child td": { borderBottom: 0 },
-        "&:hover": { bgcolor: theme.palette.action.selected },
-      })}
-    >
+    <DirectoryBodyRow striped={striped}>
       <DirectoryUserIdentityCell user={user} role={role} labels={labels} onCopyEmail={onCopyEmail} />
       <TableCell sx={{ minWidth: 0 }}>
         {user.phone ? (
@@ -113,6 +101,6 @@ export function DirectoryUserRow({
       <TableCell sx={theme => ({ textAlign: "end", color: theme.palette.text.secondary, paddingInlineEnd: 3 })}>
         <DirectoryActionsMenu user={user} labels={labels} onEdit={onEdit} onDelete={onDelete} />
       </TableCell>
-    </TableRow>
+    </DirectoryBodyRow>
   );
 }

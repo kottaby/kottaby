@@ -1,11 +1,12 @@
 /**
- * `me` query — returns the authenticated user (or `null` for anonymous).
+ * `me` query — returns the authenticated user.
  *
  * Contract (`me` SHALL require an authenticated context):
- *  - `me: User` (nullable — `null` when no `access_token` is present or the
- *    token is invalid/expired). Anonymous callers receive `null` (not an
- *    `UNAUTHORIZED` error) so the AuthProvider can quietly restore the
- *    session via `refreshToken` without surfacing an error to the user.
+ *  - Anonymous callers (no `ctx.user`) receive a GraphQL `UNAUTHORIZED`
+ *    error BEFORE the resolver runs; they never receive `null`.
+ *  - Authenticated callers receive the full user shape (`ctx.safeUser`).
+ *  - The AuthProvider treats the `UNAUTHORIZED` error as the signal to run
+ *    its refresh-then-retry restore path.
  *
  * authScopes:
  *  - The `me` query carries `authScopes: { authenticated: true }`. With
@@ -34,7 +35,7 @@ gqlSchemaBuilder.queryField("me", t =>
     type: UserPothosObject,
     nullable: true,
     description:
-      "Returns the authenticated user (or null for anonymous). Anonymous callers receive null — the AuthProvider uses this to detect expired access tokens and silently restore the session via `refreshToken`.",
+      "Returns the authenticated user. Anonymous callers are rejected with a GraphQL UNAUTHORIZED error before the resolver runs — the AuthProvider uses that to refresh the session and retry.",
     // Requires an authenticated context. Anonymous callers receive
     // a GraphQL UNAUTHORIZED error (401 semantics); the AuthProvider's
     // restoreSession catches it and falls through to refresh-then-retry.

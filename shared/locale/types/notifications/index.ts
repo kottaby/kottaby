@@ -125,6 +125,21 @@ export interface NotificationsLabels {
   readonly intentTajweed: string;
   /** Intent display label — evaluation session. */
   readonly intentEvaluation: string;
+  // ─── Session completion-handshake event copy ───────────────────────────────
+  /** Student title — the teacher marked the session complete; the student's confirmation is awaited. */
+  readonly eventSessionCompletionPromptTitle: string;
+  /**
+   * Student body for the completion prompt — interpolates ONLY the
+   * teacher's already-assembled display name.
+   */
+  readonly eventSessionCompletionPromptBody: (teacherName: string) => string;
+  /** Student title — the session was auto-cancelled once the confirmation window lapsed. */
+  readonly eventSessionAutoCancelledTitle: string;
+  /**
+   * Student body for the auto-cancel notice — interpolates ONLY the
+   * teacher's already-assembled display name.
+   */
+  readonly eventSessionAutoCancelledBody: (teacherName: string) => string;
   // ─── Parent-link lifecycle event copy ─────────────────────────────────────
   /** Notification title — a parent sent the student a link request. */
   readonly eventParentLinkRequestTitle: string;
@@ -165,4 +180,21 @@ export interface NotificationsLabels {
    * purchased plan's catalog title (the copy the student bought).
    */
   readonly eventPaymentConfirmedBody: (planTitle: string) => string;
+  // ─── Admin session-governance event copy ──────────────────────────────────
+  /** Notification title — an administrator rescheduled the session. */
+  readonly eventSessionGovernanceRescheduledTitle: string;
+  /**
+   * Notification body for a governance reschedule — plain factual copy
+   * (no participant names, no timing values; the inbox links back to the
+   * session where the new schedule is rendered).
+   */
+  readonly eventSessionGovernanceRescheduledBody: string;
+  /** Notification title — an administrator cancelled the session. */
+  readonly eventSessionGovernanceCancelledTitle: string;
+  /** Notification body for a governance cancel — plain factual copy, no refund promises. */
+  readonly eventSessionGovernanceCancelledBody: string;
+  /** Notification title — an administrator changed the session's teacher. */
+  readonly eventSessionGovernanceTeacherReassignedTitle: string;
+  /** Notification body for a governance teacher reassignment — plain factual copy, no participant names. */
+  readonly eventSessionGovernanceTeacherReassignedBody: string;
 }

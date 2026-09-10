@@ -164,6 +164,10 @@ export interface ErrorsLabels {
   readonly sessionInvalidTransition: string;
   /** Certification-gate reject — the targeted teacher account is not yet approved to host sessions. */
   readonly teacherNotCertified: string;
+  /** Homework-timing reject — homework creation attempted for a session whose teacher report has not been submitted (INV-S8 gate). */
+  readonly homeworkRequiresReport: string;
+  /** Availability-gate reject — the teacher is currently in a started session and cannot be toggled available (INV-S6 seam gate; no session id disclosed). */
+  readonly teacherInActiveSession: string;
   /** "The selected teacher was not found." — teacher lookup miss on booking (dedicated key, not the generic `notFound`). */
   readonly teacherNotFound: string;
   /** Balance reject — the caller's lane balances cannot cover the booking fee. */
@@ -185,6 +189,10 @@ export interface ErrorsLabels {
   readonly walletTeacherProfileMissing: string;
   /** Fail-closed deny when a stored sessions.intent value is not a known SessionIntent member. */
   readonly sessionIntentCorrupt: string;
+  /** "The start time must be before the end time." — admin reschedule reject: the submitted timing pair is inverted. */
+  readonly sessionRescheduleWindowInvalid: string;
+  /** "The start time cannot be more than 5 minutes in the past." — admin reschedule reject: the submitted start lies outside the start-time grace window. */
+  readonly sessionRescheduleStartInPast: string;
 }
 
 export type ErrorMessageKey = {

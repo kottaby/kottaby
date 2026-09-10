@@ -52,11 +52,17 @@
  * Cancellation is deliberately exempt so a governed participant can still
  * release an in-flight hold later.
  *
- * Cross-surface dependency policy: the module's ONLY cross-surface
- * dependency is the wallet repository, composed into the dual-confirmation
- * flow to credit the teacher's earnings when the student confirms a
- * completed session; it imports nothing from the notification, audit, or
- * report surfaces. All user-facing messages resolve through
+ * Cross-surface dependency policy: the module's cross-surface dependencies
+ * are the wallet repository — composed into the dual-confirmation flow to
+ * credit the teacher's earnings when the student confirms a completed
+ * session — and the notification engine's emit/publish contracts for the
+ * two student-facing completion waves (the confirm prompt once the
+ * teacher's completion stamp lands, and the auto-cancel notice once the
+ * confirmation window lapses). Notification rows are written exclusively by
+ * the engine inside the owning transaction, and their delivery receipts are
+ * published strictly after that transaction commits — never for a
+ * rolled-back flow. The module imports nothing from the audit or report
+ * surfaces. All user-facing messages resolve through
  * `getServerTranslations(locale)`;
  * rejections log via `logger.logDomainError` with `{code, entity, entityId}`
  * only — never idempotency keys, payloads, or the other participant's data.
@@ -69,18 +75,20 @@
  * probe-status widenings), `session-lifecycle.governance.ts` (actor/admin
  * governance re-checks), `session-lifecycle.transitions.ts` (the zero-row
  * miss classifier and the same-lane refund primitive),
- * `session-lifecycle.booking.ts` (the booking transaction body) and
+ * `session-lifecycle.booking.ts` (the booking transaction body),
  * `session-lifecycle.confirmation.ts` (the dual-confirmation transaction
- * body). Every public method below is the same flow in the same order —
+ * body) and `session-lifecycle.queries.ts` (the read/query surface —
+ * participant reads and the admin arbitration list — surfaced here through
+ * thin same-signature delegates so the public namespace API is unchanged).
+ * Every public method below is the same flow in the same order —
  * each owns its boundary validation ordering, governance re-check, and the
  * `withTransaction` composition, delegating only the transaction bodies and
  * shared pre-DB checks to the siblings. The public API (names, signatures,
  * behavior) is unchanged.
  */
 
-import { SessionRepository } from "@/backend/db/repo";
+import { SessionRepository, TeacherRepository } from "@/backend/db/repo";
 import { DisputeResolution, isDisputeResolution } from "@/backend/enum/scheduling/dispute-resolution.enum";
-import { SessionStatus } from "@/backend/enum/scheduling/session-status.enum";
 import { withTransaction } from "@/backend/lib/db/with-transaction";
 import { ValidationError } from "@/backend/lib/errors";
 import { logger } from "@/backend/lib/logger";
@@ -92,27 +100,56 @@ import {
 } from "@/backend/services/classes/session-lifecycle.governance";
 import {
   assertPositiveSafeSessionId,
-  guardStatusFilter,
-  isPositiveSafeSessionId,
-  normalizeAdminListBounds,
   normalizeOptionalReasonText,
-  normalizePageBounds,
   normalizeRequiredReasonText,
   SESSION_DISPUTED_STATUS,
 } from "@/backend/services/classes/session-lifecycle.guards";
+import { SessionLifecycleQueries } from "@/backend/services/classes/session-lifecycle.queries";
 import {
   refundHeldLaneToProvenance,
   refundSweptHolds,
   rejectTransitionMiss,
+  releaseTeacherInSessionLock,
 } from "@/backend/services/classes/session-lifecycle.transitions";
+import { SessionRequestNotificationService } from "@/backend/services/classes/session-request-notification.service";
+import { NotificationEngine } from "@/backend/services/notifications";
 import type {
   DBTransaction,
+  NotificationDeliveryReceipt,
   SessionListFilterInput,
   SessionPageReturnType,
   SessionReturnType,
   SessionSubmitInput,
 } from "@/backend/types";
+import { defaultLocale } from "@/shared/locale/AppLocale";
 import { getServerTranslations } from "@/shared/locale/server-graphql";
+
+/**
+ * Sequential head-first collection of the swept rows' auto-cancel
+ * receipts — the recursive-helper shape of the sweeper's by-design
+ * sequential loop (the same shape as the refund walk): each row's notice
+ * is emitted on the sweep transaction before the next row is touched, so
+ * the statement order is head-first and a failure leaves the loop's
+ * partial writes to the transaction's own rollback. Each await yields and
+ * unwinds the stack, so the recursion only happens ACROSS awaits.
+ */
+async function collectAutoCancelReceipts(
+  rows: readonly SessionReturnType[],
+  index: number,
+  tx: DBTransaction
+): Promise<NotificationDeliveryReceipt[]> {
+  const row = rows.at(index);
+  if (row === undefined) {
+    return [];
+  }
+  const receipt = await SessionRequestNotificationService.notifyStudentOfCompletionAutoCancelled(
+    row.id,
+    defaultLocale,
+    tx
+  );
+  const rest = await collectAutoCancelReceipts(rows, index + 1, tx);
+  return [receipt, ...rest];
+}
 
 export namespace SessionLifecycleService {
   /**
@@ -173,14 +210,24 @@ export namespace SessionLifecycleService {
   }
 
   /**
-   * Starts a scheduled session exactly once, as its owning teacher.
+   * Starts a scheduled session exactly once, as its owning teacher, and
+   * applies the INV-S6 in-session lock in the SAME transaction.
    *
    * The target session id is guarded as a positive safe integer BEFORE any
    * database work (the boundary parses `ID` shape-only, so a
    * malformed id is the canonical `VALIDATION` denial, never a SQL
    * round-trip). The teacher's governance state is re-asserted next. The
    * guarded transition writes the start and audit stamps from one captured
-   * instant and never touches the confirmation deadline. A zero-row match
+   * instant and never touches the confirmation deadline. The lock write
+   * (`teacher.is_online = false`) composes onto the SAME transaction —
+   * keyed on the teacher id the TRANSITIONED row carries (never caller
+   * input) — so a rollback of either write aborts both: a started session
+   * with an unlocked teacher is structurally impossible. The same-transaction
+   * teacher read doubles as the prior-online capture — the
+   * release-semantics seam recorded in the deferred ledger (D2): with no
+   * availability-toggle surface yet, a deliberate mid-session offline
+   * state cannot exist, so the release direction stays a plain restore.
+   * A zero-row match
    * is classified by one cold probe read: an unknown id and a non-owning
    * caller both surface the oracle-safe session-not-found error, and any
    * other miss cause is a lifecycle-state conflict.
@@ -189,14 +236,16 @@ export namespace SessionLifecycleService {
    *     stored in the session row's teacher column).
    * @param sessionId  The target session id.
    * @param locale  Active request locale (for the localized error messages).
-   * @param tx  Optional transaction — propagated to every read and write so
-   *     a caller-owned atomic flow stays atomic.
+   * @param outerTx  Optional transaction — propagated to every read and
+   *     write so a caller-owned atomic flow stays atomic (a SAVEPOINT on
+   *     it); production callers omit it and the flow opens its own
+   *     transaction, making the transition + lock one committed unit.
    */
   export async function startSession(
     teacherUserId: number,
     sessionId: number,
     locale: string,
-    tx?: DBTransaction
+    outerTx?: DBTransaction
   ): Promise<SessionReturnType> {
     const t = getServerTranslations(locale).errorsTranslations;
 
@@ -206,17 +255,40 @@ export namespace SessionLifecycleService {
     assertPositiveSafeSessionId(sessionId, t);
 
     // Governance re-check — the acting teacher must be governance-clean.
-    await assertActorGovernanceClean(teacherUserId, t, tx);
+    await assertActorGovernanceClean(teacherUserId, t, outerTx);
 
-    const started = await SessionRepository.startSessionOnce(sessionId, teacherUserId, tx);
-    if (started === null) {
-      throw await rejectTransitionMiss("teacherStart", sessionId, teacherUserId, tx, t);
-    }
-    return started;
+    return withTransaction(outerTx, async tx => {
+      const started = await SessionRepository.startSessionOnce(sessionId, teacherUserId, tx);
+      if (started === null) {
+        throw await rejectTransitionMiss("teacherStart", sessionId, teacherUserId, tx, t);
+      }
+
+      // INV-S6 lock — the teacher-row read inside the SAME transaction is
+      // the prior-online capture (the D2 seam note above); the write keys
+      // off the transitioned row's teacher id, never the caller input.
+      const priorTeacher = await TeacherRepository.findById(started.teacherId, tx);
+      if (priorTeacher === null) {
+        // Unreachable while the FK holds (the session row references its
+        // teacher) — fail closed rather than lock a phantom row.
+        throw new Error("SessionLifecycleService.startSession: teacher row vanished inside the start transaction");
+      }
+      // Fail closed symmetrically with the release direction: a zero-row
+      // lock write rolls the whole flow back instead of committing a
+      // started session with no lock applied.
+      const locked = await TeacherRepository.setOnline(started.teacherId, false, tx);
+      if (locked === null) {
+        logger.error("Session lifecycle blocked: in-session lock write matched zero teacher rows", {
+          teacherId: started.teacherId,
+        });
+        throw new Error("SessionLifecycleService.startSession: in-session lock write matched zero teacher rows");
+      }
+      return started;
+    });
   }
 
   /**
-   * Completes a started session exactly once, as its owning teacher.
+   * Completes a started session exactly once, as its owning teacher, and
+   * lifts the INV-S6 in-session lock in the SAME transaction.
    *
    * The target session id is guarded as a positive safe integer BEFORE any
    * database work (the boundary parses `ID` shape-only, so a
@@ -226,24 +298,86 @@ export namespace SessionLifecycleService {
    * predicate — a teacher decertified between booking and completion matches
    * zero rows —
    * and writes the end, confirmation, and audit stamps from one captured
-   * instant. Report or homework side effects are deliberately absent: this
-   * transition touches only the session row. A zero-row match is classified
-   * by one cold probe read (unknown/foreign → not-found; wrong state →
-   * transition conflict; owned + in-progress → certification conflict).
+   * instant. Report or homework side effects are deliberately absent: the
+   * guarded statement touches only the session row (plus the INV-S6 lock
+   * release) — the student's confirm-prompt wave (below) is the flow's one
+   * notification side effect. The guarded predicate guarantees the row
+   * exited `started`, so the in-session lock its start applied is lifted
+   * by the shared release primitive on the SAME transaction — a completed
+   * session with a still-locked teacher is structurally impossible. A
+   * zero-row match is classified by one cold probe read (unknown/foreign →
+   * not-found; wrong state → transition conflict; owned + in-progress →
+   * certification conflict).
+   *
+   * Once the guarded UPDATE matches, the student's confirm-prompt
+   * notification is emitted on the same transaction — the prompt commits
+   * with the completion stamp or not at all, and only for a row the
+   * guarded statement actually moved (a denied completion writes zero
+   * notification rows). When the flow owns its transaction, the prompt's
+   * delivery receipt is published through the notification engine strictly
+   * after that commit; a caller-owned transaction leaves publication to the
+   * caller (the receipt is reachable through `completeSessionWithReceipt`).
    *
    * @param teacherUserId  The acting teacher's id (shared PK — the value
    *     stored in the session row's teacher column).
    * @param sessionId  The target session id.
-   * @param locale  Active request locale (for the localized error messages).
-   * @param tx  Optional transaction — propagated to every read and write so
-   *     a caller-owned atomic flow stays atomic.
+   * @param outerTx  Optional transaction — propagated to every read and
+   *     write so a caller-owned atomic flow stays atomic.
    */
   export async function completeSession(
     teacherUserId: number,
     sessionId: number,
     locale: string,
-    tx?: DBTransaction
+    outerTx?: DBTransaction
   ): Promise<SessionReturnType> {
+    const result = await completeSessionWithReceipt(teacherUserId, sessionId, locale, outerTx);
+    return result.session;
+  }
+
+  /**
+   * The receipt-bearing completion flow — `completeSession` plus the
+   * confirm-prompt's delivery receipt, for callers that own the commit
+   * boundary.
+   *
+   * The transition, its guards, and its classification are identical to
+   * `completeSession`. The confirm-prompt wave is emitted on the owning
+   * transaction once the guarded UPDATE matches (never on a denied or
+   * repeated completion), and the return carries the session row alongside
+   * the wave's delivery receipt — the existing `SessionReturnType` surface
+   * of `completeSession` is unchanged; this variant is the non-breaking
+   * channel for the receipt.
+   *
+   * Receipt ownership mirrors the wave contract: when the flow opens its
+   * own transaction, the receipt is published through
+   * `NotificationEngine.publishReceipts` strictly after that commit and is
+   * returned already published; when the caller supplies a transaction, the
+   * receipt is returned UNPUBLISHED and the caller MUST publish it via
+   * `NotificationEngine.publishReceipts` after its own transaction commits
+   * — a rolled-back caller transaction therefore never pushes the prompt.
+   *
+   * @param teacherUserId  The acting teacher's id (shared PK — the value
+   *     stored in the session row's teacher column).
+   * @param sessionId  The target session id.
+   * @param locale  Active request locale (for the localized error messages;
+   *     the prompt copy itself follows the student's persisted locale).
+   * @param outerTx  Optional transaction — propagated to every read and
+   *     write so a caller-owned atomic flow stays atomic (a SAVEPOINT on
+   *     it); production callers omit it and the flow opens its own
+   *     transaction, making the transition, release, and prompt one
+   *     committed unit.
+   * @returns The completed session row and the confirm-prompt delivery
+   *     receipt (published on the flow-owned commit path; unpublished on the
+   *     caller-owned path).
+   */
+  export async function completeSessionWithReceipt(
+    teacherUserId: number,
+    sessionId: number,
+    locale: string,
+    outerTx?: DBTransaction
+  ): Promise<{
+    readonly session: SessionReturnType;
+    readonly receipt: NotificationDeliveryReceipt;
+  }> {
     const t = getServerTranslations(locale).errorsTranslations;
 
     // Pre-DB id-shape guard — BEFORE the governance probe: a
@@ -252,13 +386,34 @@ export namespace SessionLifecycleService {
     assertPositiveSafeSessionId(sessionId, t);
 
     // Governance re-check — the acting teacher must be governance-clean.
-    await assertActorGovernanceClean(teacherUserId, t, tx);
+    await assertActorGovernanceClean(teacherUserId, t, outerTx);
 
-    const completed = await SessionRepository.completeSessionOnce(sessionId, teacherUserId, tx);
-    if (completed === null) {
-      throw await rejectTransitionMiss("teacherComplete", sessionId, teacherUserId, tx, t);
+    const result = await withTransaction(outerTx, async tx => {
+      const completed = await SessionRepository.completeSessionOnce(sessionId, teacherUserId, tx);
+      if (completed === null) {
+        throw await rejectTransitionMiss("teacherComplete", sessionId, teacherUserId, tx, t);
+      }
+
+      // INV-S6 release — the predicate guaranteed the `started` pre-state,
+      // so this flow's start lock is lifted on the SAME transaction.
+      await releaseTeacherInSessionLock(completed.teacherId, tx);
+
+      // The confirm prompt rides the completion's own transaction — it
+      // commits with the stamp or not at all, and its receipt stays
+      // unpublished until the commit boundary below.
+      const receipt = await SessionRequestNotificationService.notifyStudentOfCompletionPrompt(sessionId, locale, tx);
+
+      return { session: completed, receipt };
+    });
+
+    // Publish strictly AFTER the commit — a denied or rolled-back
+    // completion never pushes its prompt. A caller-owned transaction is
+    // published by the caller after its own commit.
+    if (outerTx === undefined) {
+      await NotificationEngine.publishReceipts([result.receipt], locale);
     }
-    return completed;
+
+    return result;
   }
 
   /**
@@ -280,7 +435,11 @@ export namespace SessionLifecycleService {
    * increment — the lane that paid is refunded exactly once); a terminal or
    * foreign target is classified by one cold probe read (unknown/
    * non-participant → not-found; anything else → transition conflict), so a
-   * double cancel can never double-refund.
+   * double cancel can never double-refund. The INV-S6 in-session lock is
+   * lifted on the SAME transaction ONLY when the row had actually started
+   * — `started_at` is written by the start transition and never cleared, so
+   * it classifies the pre-state (a pre-start cancel releases nothing,
+   * because no lock was ever applied).
    *
    * @param callerUserId  The acting participant's id (the session's student
    *     or its teacher).
@@ -319,6 +478,12 @@ export namespace SessionLifecycleService {
       // Refund the lane that funded the hold — same transaction, same lane,
       // through the ONE shared same-lane refund primitive.
       await refundHeldLaneToProvenance(cancelled, "cancelSession", tx);
+
+      // INV-S6 release — ONLY a row that had started ever held the lock
+      // (`started_at` classifies the pre-state; see the docblock).
+      if (cancelled.startedAt !== null) {
+        await releaseTeacherInSessionLock(cancelled.teacherId, tx);
+      }
 
       return cancelled;
     });
@@ -404,6 +569,11 @@ export namespace SessionLifecycleService {
    *    missed → transition conflict — the admin surface distinguishes
    *    state, never participants).
    *
+   * Both outcomes lift the INV-S6 in-session lock on the SAME transaction
+   * when the row had actually started (`started_at` classifies the
+   * pre-state) — the arbitration exit is a `started`-session exit for
+   * lock purposes, identical to the participant flows.
+   *
    * @param adminId  The acting admin's id (context-resolved server-side by
    *     the caller; shared PK with the users table).
    * @param sessionId  The target session id.
@@ -475,6 +645,15 @@ export namespace SessionLifecycleService {
         await refundHeldLaneToProvenance(resolved, "resolveSessionDispute", tx);
       }
 
+      // INV-S6 release — ONLY a dispute opened from `started` held the
+      // lock: `started_at` classifies the pre-state (a never-started
+      // session's arbitration releases nothing). The COMPLETE outcome's
+      // guarded predicate already required a written start stamp, so its
+      // release is unconditional here.
+      if (resolved.startedAt !== null) {
+        await releaseTeacherInSessionLock(resolved.teacherId, tx);
+      }
+
       return resolved;
     });
   }
@@ -534,199 +713,119 @@ export namespace SessionLifecycleService {
 
   /**
    * The confirmation-deadline sweeper: cancels every still-`scheduled`
-   * session whose confirmation deadline has passed and refunds each held
-   * row's fee to its recorded provenance lane.
+   * session whose confirmation deadline has passed, then cancels every
+   * `completed` session whose student-confirmation window has lapsed
+   * without the student's confirmation, and refunds each held row's fee to
+   * its recorded provenance lane.
    *
-   * ONE captured `now` drives both the deadline comparison and the stamps.
-   * The batch UPDATE (guarded on the scheduled state and the expired
-   * deadline) returns the cancelled rows; each returned row with a
-   * recorded lane is refunded through the ONE shared same-lane primitive
-   * on the same transaction — a NULL lane (rows with no hold)
-   * means nothing to refund. Idempotent: a second sweep matches zero
-   * rows. Zero notification/audit writes (out of contract).
+   * ONE captured `now` drives both legs' comparisons and stamps. Each leg
+   * is ONE guarded batch UPDATE returning the cancelled rows; the refund
+   * walk covers the UNION of both legs' rows on the same transaction —
+   * sequential and fail-closed, so an unreadable lane rolls the whole sweep
+   * back (notifications included). A NULL lane (rows with no hold) means
+   * nothing to refund. The post-completion window is measured from the
+   * recorded teacher stamp at sweep time; the confirmation-deadline column
+   * is never re-armed. Idempotent: a second sweep matches zero rows on both
+   * legs.
+   *
+   * Every swept completed-leg row's student receives the auto-cancel notice;
+   * the scheduled-expiry leg deliberately stays notification-free (its
+   * semantics are unchanged). The notices are emitted on the sweep's
+   * transaction as unpublished receipts and pushed through the notification
+   * engine strictly after the commit boundary. The outer-tx contract is
+   * pinned: called WITH an outer transaction, the auto-cancel receipts are
+   * still collected on that transaction, but the counts-only
+   * `{cancelled, refunded}` return exposes no publish channel — a
+   * caller-owned transaction NEVER publishes (the caller owns the commit
+   * boundary and would own any publish after it). Production (the cron
+   * route) calls without `outerTx`, so the flow-owned post-commit publish
+   * path is the only live one. The counts-only return shape carries no
+   * receipts either way, so the cron contract is unchanged: zero row
+   * identities cross the wire.
    *
    * @param outerTx  Optional outer transaction. When provided (test path),
-   *     the flow runs inside a SAVEPOINT on it; production callers omit it
-   *     and the service opens its own transaction.
-   * @returns Honest counts: `cancelled` rows and how many of them carried
-   *     a refunded hold.
+   *     the flow runs inside a SAVEPOINT on it — the auto-cancel receipts
+   *     are collected on it but stay unpublished (the counts-only return
+   *     hands nothing back to publish); production callers omit it and the
+   *     service opens its own transaction, making the flow-owned
+   *     post-commit publish the only live one.
+   * @returns Honest counts: `cancelled` rows across BOTH legs and how many
+   *     of them carried a refunded hold.
    */
   export async function sweepExpiredSessions(outerTx?: DBTransaction): Promise<{
     readonly cancelled: number;
     readonly refunded: number;
   }> {
-    return withTransaction(outerTx, async tx => {
+    const sweep = await withTransaction(outerTx, async tx => {
       const now = new Date();
-      const expired = await SessionRepository.sweepExpiredScheduledOnce(now, tx);
-      const refunded = await refundSweptHolds(expired, tx);
-      return { cancelled: expired.length, refunded };
+      const expiredScheduled = await SessionRepository.sweepExpiredScheduledOnce(now, tx);
+      const expiredCompleted = await SessionRepository.sweepExpiredCompletedOnce(now, tx);
+
+      // The refund walk covers BOTH legs' rows — sequential, fail-closed,
+      // on the one sweep transaction.
+      const refunded = await refundSweptHolds([...expiredScheduled, ...expiredCompleted], tx);
+
+      // The auto-cancel notices ride the same transaction as unpublished
+      // receipts — they commit with the sweep or not at all, and publish
+      // only at the commit boundary below. The walk is sequential by
+      // design (head-first, one row's notice before the next row is
+      // touched).
+      const autoCancelReceipts = await collectAutoCancelReceipts(expiredCompleted, 0, tx);
+
+      return { cancelled: expiredScheduled.length + expiredCompleted.length, refunded, autoCancelReceipts };
     });
+
+    // Publish strictly AFTER the commit — a rolled-back sweep never pushes
+    // a receipt (an idle sweep publishes nothing at all), and a
+    // caller-owned transaction never publishes from here (the caller owns
+    // the commit boundary).
+    if (outerTx === undefined && sweep.autoCancelReceipts.length > 0) {
+      await NotificationEngine.publishReceipts(sweep.autoCancelReceipts, defaultLocale);
+    }
+
+    return { cancelled: sweep.cancelled, refunded: sweep.refunded };
   }
 
-  /**
-   * Reads one session for a participant: the row is returned only when the
-   * caller is the session's student or its teacher. A nonexistent id and a
-   * non-participant caller resolve to the identical `null` (oracle-safe —
-   * the two cases are indistinguishable). A malformed id — anything but a
-   * positive safe integer, including the NaN/1.5/overflow shapes the
-   * boundary's shape-only `Number` parse yields for garbage `ID` strings —
-   * short-circuits to the SAME `null` before any database read (the pre-DB
-   * shape guard); well-formed-but-unknown ids degrade to `null`
-   * through the parameterized lookup. No error is ever raised: this read
-   * surface has no locale and its only answer shape is `null`.
-   *
-   * @param callerUserId  The calling participant's id.
-   * @param sessionId  The target session id.
-   * @param tx  Optional transaction — propagated so a caller-owned atomic
-   *     flow stays atomic.
-   */
-  export async function getSessionById(
+  // Read/query surface — extracted verbatim into
+  // `session-lifecycle.queries.ts` (behavior-identical max-lines refactor,
+  // same sibling-module layout as booking/confirmation/transitions); these
+  // thin delegates pin the public namespace API so every resolver and test
+  // call site stays stable.
+
+  export function getSessionById(
     callerUserId: number,
     sessionId: number,
     tx?: DBTransaction
   ): Promise<SessionReturnType | null> {
-    // Oracle-safe malformed-id channel: anything that is not a
-    // positive safe integer — the NaN/1.5/overflow shapes the boundary's
-    // shape-only `Number` parse yields for garbage `ID` strings — resolves
-    // to the SAME `null` as a nonexistent id, BEFORE any database read. No
-    // error is raised (this read surface has no locale and never throws).
-    if (!isPositiveSafeSessionId(sessionId)) {
-      return null;
-    }
-
-    const row = await SessionRepository.findById(sessionId, tx);
-    if (row === null) {
-      return null;
-    }
-    if (row.studentId !== callerUserId && row.teacherId !== callerUserId) {
-      return null;
-    }
-    return row;
+    return SessionLifecycleQueries.getSessionById(callerUserId, sessionId, tx);
   }
 
-  /**
-   * Lists the acting student's own sessions, newest first, paged.
-   *
-   * Page bounds are normalized before any database work: a page below 1
-   * falls back to the first page and a page size outside 1..50 falls back to
-   * the default (25) — the read surface never fabricates a window, and the
-   * returned `page`/`pageSize` echo the effective values honestly. The
-   * lifecycle filter is guarded against the closed status vocabulary (an
-   * out-of-vocabulary value drops out — filters never error); the total
-   * count is computed under the SAME filtered predicate as the list, so
-   * `totalCount` can never diverge from the items.
-   *
-   * @param studentId  The acting student's id (owner-side scoping).
-   * @param filter  Optional lifecycle filter (absent/null members drop out).
-   * @param page  Requested page (≥ 1; invalid values normalize to 1).
-   * @param pageSize  Requested page size (1..50; invalid values normalize
-   *     to the default).
-   * @param tx  Optional transaction — propagated to both reads.
-   */
-  export async function listMyStudentSessions(
+  export function listMyStudentSessions(
     studentId: number,
     filter: SessionListFilterInput,
     page: number,
     pageSize: number,
     tx?: DBTransaction
   ): Promise<SessionPageReturnType> {
-    const bounds = normalizePageBounds(page, pageSize);
-    const guardedFilter = guardStatusFilter(filter);
-
-    const items = await SessionRepository.listForStudent(
-      studentId,
-      guardedFilter,
-      bounds.pageSize,
-      (bounds.page - 1) * bounds.pageSize,
-      tx
-    );
-    const totalCount = await SessionRepository.countForStudent(studentId, guardedFilter, tx);
-
-    return { items, totalCount, page: bounds.page, pageSize: bounds.pageSize };
+    return SessionLifecycleQueries.listMyStudentSessions(studentId, filter, page, pageSize, tx);
   }
 
-  /**
-   * Lists the acting teacher's own sessions — the teacher-side twin of
-   * `listMyStudentSessions`, with identical paging, guarding, filtering,
-   * and honest-echo semantics over the owning-teacher predicate.
-   *
-   * @param teacherId  The acting teacher's id (owner-side scoping).
-   * @param filter  Optional lifecycle filter (absent/null members drop out).
-   * @param page  Requested page (≥ 1; invalid values normalize to 1).
-   * @param pageSize  Requested page size (1..50; invalid values normalize
-   *     to the default).
-   * @param tx  Optional transaction — propagated to both reads.
-   */
-  export async function listMyTeacherSessions(
+  export function listMyTeacherSessions(
     teacherId: number,
     filter: SessionListFilterInput,
     page: number,
     pageSize: number,
     tx?: DBTransaction
   ): Promise<SessionPageReturnType> {
-    const bounds = normalizePageBounds(page, pageSize);
-    const guardedFilter = guardStatusFilter(filter);
-
-    const items = await SessionRepository.listForTeacher(
-      teacherId,
-      guardedFilter,
-      bounds.pageSize,
-      (bounds.page - 1) * bounds.pageSize,
-      tx
-    );
-    const totalCount = await SessionRepository.countForTeacher(teacherId, guardedFilter, tx);
-
-    return { items, totalCount, page: bounds.page, pageSize: bounds.pageSize };
+    return SessionLifecycleQueries.listMyTeacherSessions(teacherId, filter, page, pageSize, tx);
   }
 
-  /**
-   * Lists the disputed sessions for the admin arbitration surface, newest
-   * first, paged.
-   *
-   * The limit clamp mirrors the participant lists exactly (1..50, default
-   * 25) and the offset floors at zero — both normalize pre-DB, never
-   * error. The lifecycle filter is guarded against the closed status
-   * vocabulary like every other read; the field's `disputed` scope is
-   * PINNED, so an explicitly contradictory filter (any status other than
-   * disputed) honestly resolves to an empty page without touching the
-   * database, while an absent/whitespace-drop filter returns the full
-   * arbitration queue. The total count is computed under the SAME pinned
-   * predicate as the list, so `totalCount` can never diverge from the
-   * items. The `limit`/`offset` window maps onto the page echo honestly:
-   * `pageSize` is the clamped limit and `page` is the 1-based window index
-   * that contains the requested offset.
-   *
-   * The admin role gate lives at the GraphQL scope (`$all { authenticated,
-   * role: [Admin] }`); this read takes no caller identity and never raises
-   * localized errors (the read-surface contract).
-   *
-   * @param filter  Optional lifecycle filter (absent/null members drop
-   *     out; a non-disputed member contradicts the pinned scope).
-   * @param limit  Requested page size (1..50; invalid values normalize to
-   *     the default).
-   * @param offset  Requested row offset (≥ 0; invalid values normalize to
-   *     0).
-   * @param tx  Optional transaction — propagated to both reads.
-   */
-  export async function listAdminDisputedSessions(
+  export function listAdminDisputedSessions(
     filter: SessionListFilterInput,
     limit: number,
     offset: number,
     tx?: DBTransaction
   ): Promise<SessionPageReturnType> {
-    const bounds = normalizeAdminListBounds(limit, offset);
-
-    // A filter explicitly contradicting the pinned disputed scope (any
-    // in-vocabulary status other than disputed) matches zero rows by
-    // definition — the honest empty page, no database round-trip.
-    const guardedStatus = guardStatusFilter(filter).status;
-    if (guardedStatus !== null && guardedStatus !== SessionStatus.Disputed) {
-      return { items: [], totalCount: 0, page: bounds.page, pageSize: bounds.safeLimit };
-    }
-
-    const items = await SessionRepository.listAdminDisputed(bounds.safeLimit, bounds.safeOffset, tx);
-    const totalCount = await SessionRepository.countAdminDisputed(tx);
-
-    return { items, totalCount, page: bounds.page, pageSize: bounds.safeLimit };
+    return SessionLifecycleQueries.listAdminDisputedSessions(filter, limit, offset, tx);
   }
 }

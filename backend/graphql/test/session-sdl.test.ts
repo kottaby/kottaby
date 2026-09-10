@@ -81,7 +81,9 @@ function requireObject(name: string): GraphQLObjectType {
  * Exact `Session` field list in plan §3.1 declaration order (`id` FIRST),
  * extended by the five DEV3-005 dispute/reason fields in their Pothos
  * declaration position (after the confirmation stamps, before the row
- * timestamps).
+ * timestamps) and the server-derived admin attention badge in its Pothos
+ * declaration position (after the dispute surface, before the row
+ * timestamps — the directory read is its only populating producer).
  */
 const SESSION_FIELD_ORDER = [
   "id",
@@ -102,6 +104,7 @@ const SESSION_FIELD_ORDER = [
   "disputedAt",
   "resolutionNote",
   "resolvedAt",
+  "needsAttention",
   "createdAt",
   "updatedAt",
 ] as const;
@@ -120,6 +123,7 @@ const SESSION_FIELD_TYPES: Record<string, string> = {
   feeHeld: "Boolean!",
   id: "ID!",
   intent: "SessionIntent",
+  needsAttention: "Boolean!",
   resolutionNote: "String",
   resolvedAt: "DateTime",
   sessionType: "SessionType!",
@@ -209,7 +213,7 @@ describe("Session object — plan §3.1 exact shape", () => {
   const sessionType = requireObject("Session");
   const fields = sessionType.getFields();
 
-  test("exposes EXACTLY the plan §3.1 field set plus the DEV3-005 dispute fields (no extras, no omissions)", () => {
+  test("exposes EXACTLY the plan §3.1 field set plus the DEV3-005 dispute fields and the derived attention badge (no extras, no omissions)", () => {
     // GraphQL.js normalizes the field map (alphabetical key order); the
     // plan §3.1 declaration order (`id` FIRST) lives in the Pothos source
     // and is pinned by the file structure — here the EXACT field SET is

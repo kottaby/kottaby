@@ -10,12 +10,13 @@
  *      `ParentLinkLabels`; any missing key fails `bun tsgo`. This suite
  *      keeps the guarantee enforced even if someone loosens that typing
  *      later).
- *   2. MANDATED CONTENT — every key required by the two parent-link
- *      surfaces (student inbox title/empty/identity/expiry/status/action
- *      copy, confirm/reject dialogs, parent outgoing list, cancel dialog,
- *      send-flow affordance + success/pending/unavailable feedback)
- *      exists on BOTH maps — a key deleted from both maps simultaneously
- *      still fails this suite.
+ *   2. MANDATED CONTENT — every key required by the parent-link surfaces
+ *      (student inbox title/empty/identity/expiry/status/action copy,
+ *      confirm/reject dialogs, student dashboard discoverability card
+ *      title/count/latest-requester/CTA/loading/error copy, parent outgoing
+ *      list, cancel dialog, send-flow affordance + success/pending/
+ *      unavailable feedback) exists on BOTH maps — a key deleted from both
+ *      maps simultaneously still fails this suite.
  *   3. NO ENGLISH FALLTHROUGH — every ar STRING slot contains Arabic script
  *      (an accidentally English value in the ar map fails the sweep).
  *   4. STATUS VOCABULARY — one display label per link-request state
@@ -23,17 +24,22 @@
  *      `rejected` ↔ statusRejected, `expired` ↔ statusExpired); the
  *      expired chip is rendered from the computed state, never a stale
  *      write.
- *   5. TEMPLATE PINS — `expiresLine`, `confirmDialogBody`, and
- *      `rejectDialogBody` expand their arguments into the returned message
- *      in BOTH locales, with exact-pinned outputs and Arabic-script output
- *      on the ar side.
+ *   5. TEMPLATE PINS — `expiresLine`, `confirmDialogBody`,
+ *      `rejectDialogBody`, `dashboardCardCount`, and
+ *      `dashboardCardLatestRequester` expand their arguments into the
+ *      returned message in BOTH locales, with exact-pinned outputs (en
+ *      everywhere; the ar `dashboardCardCount` pins probe plural-class
+ *      word containment instead of exact strings — see the count cell
+ *      below for the ICU-robustness rationale; digit FORM is pinned once
+ *      by the summary-chip cell) and Arabic-script output on the ar side.
  *   6. REGISTRY WIRING — the `ParentLink` handle is registered in
  *      `shared/locale/namespaces/index.ts` with the conventional
  *      `<ns>.<ns>` id and its getter resolves the composed bundle slice.
  *
  * Mirrors the structure of `shared/locale/notifications-namespace.parity.test.ts`
- * (the sibling namespace gate), scaled to this namespace's three
- * function-valued slots (expiry line + confirmation dialog bodies).
+ * (the sibling namespace gate), scaled to this namespace's six function-valued
+ * slots (summary chip + expiry line + confirmation dialog bodies + dashboard
+ * card count/latest-requester lines).
  *
  * Pure unit tier — NO server boot, NO network, NO DB. Runs via the mandated
  * runner: `bun run test/scripts/run-test.ts shared/locale/parentLink-namespace.parity.test.ts`.
@@ -49,7 +55,7 @@ import { ParentLink } from "@/shared/locale/namespaces/parentLink";
 
 // ─── Mandated key inventory (the parent-link surface ground truth) ──────────
 
-/** Every key the parentLink UI namespace must carry (33 slots). */
+/** Every key the parentLink UI namespace must carry (39 slots). */
 const MANDATED_KEYS = [
   "studentPageTitle",
   "studentPageSubtitle",
@@ -84,6 +90,12 @@ const MANDATED_KEYS = [
   "sendRequestSuccessToast",
   "requestPendingNotice",
   "sendUnavailableNotice",
+  "dashboardCardTitle",
+  "dashboardCardCount",
+  "dashboardCardLatestRequester",
+  "dashboardCardCta",
+  "dashboardCardLoading",
+  "dashboardCardLoadError",
 ] as const;
 
 /**
@@ -94,8 +106,15 @@ const MANDATED_KEYS = [
  */
 const STATUS_LABEL_KEYS = ["statusPending", "statusConfirmed", "statusRejected", "statusExpired"] as const;
 
-/** The four function-valued slots (summary chip + expiry line + dialog bodies). */
-const FUNCTION_KEYS = ["summaryCountChip", "expiresLine", "confirmDialogBody", "rejectDialogBody"] as const;
+/** The six function-valued slots (summary chip + expiry line + dialog bodies + dashboard card count/requester). */
+const FUNCTION_KEYS = [
+  "summaryCountChip",
+  "expiresLine",
+  "confirmDialogBody",
+  "rejectDialogBody",
+  "dashboardCardCount",
+  "dashboardCardLatestRequester",
+] as const;
 
 /** Arabic-script probe — at least one Arabic-block character in the value. */
 const ARABIC_SCRIPT = /[\u0600-\u06FF]/;
@@ -144,7 +163,7 @@ describe("compile-time parity mirror — ar/en key sets agree", () => {
     expect(Object.hasOwn(parentLinkEn, key)).toBe(true);
   });
 
-  test("the mandated inventory is exhaustive (no silent key minting beyond the 30 slots)", () => {
+  test("the mandated inventory is exhaustive (no silent key minting beyond the 39 slots)", () => {
     const mandated = new Set<string>(MANDATED_KEYS);
     for (const key of Object.keys(parentLinkAr)) {
       expect(mandated.has(key)).toBe(true);
@@ -176,12 +195,14 @@ describe("no English fallthrough — ar map carries Arabic copy for every string
     }
   });
 
-  test("all four ar FUNCTION slots return Arabic-script output for Arabic-flavored arguments", () => {
+  test("all six ar FUNCTION slots return Arabic-script output for Arabic-flavored arguments", () => {
     const arParentName = "ولي الأمر";
     expect(ARABIC_SCRIPT.test(parentLinkAr.summaryCountChip("قيد الانتظار", 2))).toBe(true);
     expect(ARABIC_SCRIPT.test(parentLinkAr.expiresLine("١٤ سبتمبر ٢٠٢٦"))).toBe(true);
     expect(ARABIC_SCRIPT.test(parentLinkAr.confirmDialogBody(arParentName))).toBe(true);
     expect(ARABIC_SCRIPT.test(parentLinkAr.rejectDialogBody(arParentName))).toBe(true);
+    expect(ARABIC_SCRIPT.test(parentLinkAr.dashboardCardCount(2))).toBe(true);
+    expect(ARABIC_SCRIPT.test(parentLinkAr.dashboardCardLatestRequester(arParentName))).toBe(true);
   });
 });
 
@@ -213,19 +234,46 @@ describe("template pins — function slots expand their arguments", () => {
     expect(parentLinkAr.rejectDialogBody("ولي الأمر")).toBe("لن يتم ربط ولي الأمر بحسابك. يمكنه إرسال طلب جديد لاحقاً.");
   });
 
-  test("all four function slots are callable with non-empty output in BOTH locales", () => {
+  test("dashboardCardCount renders plural-safe counts in BOTH locales", () => {
+    expect(parentLinkEn.dashboardCardCount(1)).toBe("1 pending request");
+    expect(parentLinkEn.dashboardCardCount(3)).toBe("3 pending requests");
+    // ar pins probe CONTAINMENT of the plural-class words, not exact strings
+    // The rendered digits come from `toLocaleString("ar")`, whose
+    // Arabic-Indic shaping is ICU/toolchain-dependent — a bun/ICU upgrade
+    // must not fail this gate, so NO digit-shape assertion is made here
+    // digit shape is pinned once, repo-wide, by the summary-chip
+    // cell in the function-slot inventory below. The plural-class words stay
+    // pinned so one/two/few/many remain mutually distinguishable; the dual
+    // probe includes the following noun because "طلبات" (few) otherwise
+    // contains "طلبا" (two) as a substring.
+    expect(parentLinkAr.dashboardCardCount(1)).toContain("واحد");
+    expect(parentLinkAr.dashboardCardCount(2)).toContain("طلبا ربط");
+    expect(parentLinkAr.dashboardCardCount(3)).toContain("طلبات ربط");
+    expect(parentLinkAr.dashboardCardCount(12)).toContain("طلب ربط");
+  });
+
+  test("dashboardCardLatestRequester embeds the parent name in BOTH locales", () => {
+    expect(parentLinkEn.dashboardCardLatestRequester("Adam")).toBe("Latest request from Adam");
+    expect(parentLinkAr.dashboardCardLatestRequester("ولي الأمر")).toBe("أحدث طلب من ولي الأمر");
+  });
+
+  test("all six function slots are callable with non-empty output in BOTH locales", () => {
     expect(parentLinkEn.summaryCountChip("Pending", 2).length).toBeGreaterThan(0);
     expect(parentLinkEn.expiresLine("Sep 14, 2026").length).toBeGreaterThan(0);
     expect(parentLinkEn.confirmDialogBody("Adam").length).toBeGreaterThan(0);
     expect(parentLinkEn.rejectDialogBody("Adam").length).toBeGreaterThan(0);
+    expect(parentLinkEn.dashboardCardCount(2).length).toBeGreaterThan(0);
+    expect(parentLinkEn.dashboardCardLatestRequester("Adam").length).toBeGreaterThan(0);
     expect(parentLinkAr.expiresLine("١٤ سبتمبر ٢٠٢٦").length).toBeGreaterThan(0);
     expect(parentLinkAr.confirmDialogBody("ولي الأمر").length).toBeGreaterThan(0);
     expect(parentLinkAr.rejectDialogBody("ولي الأمر").length).toBeGreaterThan(0);
+    expect(parentLinkAr.dashboardCardCount(2).length).toBeGreaterThan(0);
+    expect(parentLinkAr.dashboardCardLatestRequester("ولي الأمر").length).toBeGreaterThan(0);
   });
 });
 
 // ===========================================================================
-describe("function-slot inventory — exactly the four locale functions, on BOTH maps", () => {
+describe("function-slot inventory — exactly the six locale functions, on BOTH maps", () => {
   test.each([...FUNCTION_KEYS])("slot `%s` is a function on BOTH maps", key => {
     expect(typeof Reflect.get(parentLinkAr, key)).toBe("function");
     expect(typeof Reflect.get(parentLinkEn, key)).toBe("function");

@@ -25,7 +25,14 @@
  *      `backend/services/parents/`, `backend/db/repo/parents/parent-link-request.repository.ts`,
  *      `backend/graphql/{query,mutation,pothos}/parents/`, the parent-link
  *      frontend trees and lib helpers (discovery is exact-match on the
- *      handshake code).
+ *      handshake code). Allowed-with-cause (admin students-directory
+ *      search, PR-note reviewed): `student.repository.ts` carries EXACTLY
+ *      the sanctioned set pinned by `SANCTIONED_STUDENT_REPO_LIKE_MATCHES`
+ *      below — the two directory-search `ilike()` bindings whose pattern is
+ *      escaped upstream (`escapeLikeWildcards` at the service, single
+ *      binding point at the repo) plus that discipline's own docblock
+ *      mention (the lexical caveat counts it). ANY other file, or a fourth
+ *      match in the sanctioned file, fails the lock visibly.
  *  (c) zero `auditLogs` writes in the new modules (audit writes live on
  *      the admin path only) — no insert shape, no raw insert, no audit-module
  *      import. Docblock MENTIONS of `audit_logs` are not writes and do not
@@ -363,6 +370,27 @@ function scanLikeConstructions(files: readonly SourceFile[]): string[] {
   return files.flatMap(file => (/\b(?:ilike|like)\s*\(/iu.test(file.content) ? [file.label] : []));
 }
 
+/**
+ * Per-file LIKE match counter (same shape the boolean scanner matches) —
+ * feeds the sanctioned-usage pin for the allowlisted file.
+ */
+function countLikeMatches(content: string): number {
+  return content.match(/\b(?:ilike|like)\s*\(/giu)?.length ?? 0;
+}
+
+/**
+ * The one sanctioned LIKE-carrying file in the new/modified backend corpus:
+ * the students repository binds the ADMIN STUDENTS-DIRECTORY search
+ * (name/email `ilike` pair). The pattern arrives FULLY escaped and
+ * %-wrapped from the service layer (`escapeLikeWildcards` — one canonical
+ * escape point upstream, one binding point here), so the usage is safe;
+ * the count pin keeps the sanctioned set visible — a FOURTH match (or the
+ * removal of the sanctioned pair) fails the lock and forces a PR-note
+ * review, exactly like the lock-(a) parent_id writer allowlist.
+ */
+const SANCTIONED_LIKE_FILE = "backend/db/repo/students/student.repository.ts";
+const SANCTIONED_STUDENT_REPO_LIKE_MATCHES = 3; // 2 ilike() bindings + 1 docblock mention (lexical caveat)
+
 // ─── Lock (c) — zero-audit scanners ──────────────────────────────────────────
 
 /** Drizzle audit-insert scanner — flags `.insert(auditLogs)` call-form. */
@@ -564,8 +592,21 @@ describe("lock (b) — zero LIKE/ilike construction in the new modules", () => {
     expect(scanLikeConstructions(frontendNewSources)).toEqual([]);
   });
 
-  test("zero LIKE constructions across the remaining new/modified backend files", () => {
-    expect(scanLikeConstructions(backendNewFileSources)).toEqual([]);
+  test("zero LIKE constructions across the remaining new/modified backend files outside the sanctioned allowlist", () => {
+    // The students repository is the ONE sanctioned LIKE carrier (admin
+    // students-directory search — pattern escaped upstream, count-pinned
+    // below); every OTHER file in the corpus stays at zero, visibly.
+    expect(scanLikeConstructions(backendNewFileSources).filter(label => label !== SANCTIONED_LIKE_FILE)).toEqual([]);
+  });
+
+  test("the sanctioned students-repository LIKE usage stays at EXACTLY the pinned count", () => {
+    const corpus = backendNewFileSources.find(file => file.label === SANCTIONED_LIKE_FILE);
+    // The file must exist in the frozen corpus (a rename/removal surfaces
+    // here, not as a silently-emptier scan) and carry EXACTLY the pinned
+    // match set — a fourth `like(`/`ilike(` construction OR the loss of the
+    // sanctioned pair both fail this pin and force a PR-note review.
+    expect(corpus).toBeDefined();
+    expect(countLikeMatches(corpus?.content ?? "")).toBe(SANCTIONED_STUDENT_REPO_LIKE_MATCHES);
   });
 });
 
@@ -761,6 +802,29 @@ describe("negative fixtures — every scanner fires on crafted input and spares 
       },
     ];
     expect(scanLikeConstructions(benign)).toEqual([]);
+  });
+
+  test("LIKE match counter pins the sanctioned usage — over-age and foreign files fire, the pinned set stays silent", () => {
+    // Exactly the sanctioned shape (2 bindings + 1 docblock mention) → 3.
+    const sanctioned = {
+      label: "fixture/students.repository.ts",
+      content: [
+        " * The repo binds this directly to its `ilike(column, pattern)`",
+        "or(ilike(users.fullName, p), ilike(users.email, p)) ?? sql`false`",
+      ].join("\n"),
+    };
+    expect(countLikeMatches(sanctioned.content)).toBe(3);
+    // A FOURTH match in the sanctioned file is a visible violation.
+    const overage = {
+      label: "fixture/students.repository.ts",
+      content: `${sanctioned.content}\nwhere(like(students.code, raw))`,
+    };
+    expect(countLikeMatches(overage.content)).toBe(4);
+    expect(countLikeMatches(overage.content) > 3).toBe(true);
+    // A single match in ANY non-sanctioned file is a violation (label-level
+    // zero-LIKE rule — exercised via the boolean scanner).
+    const foreign = [{ label: "fixture/other.repository.ts", content: "ilike(students.name, p)" }];
+    expect(scanLikeConstructions(foreign)).toEqual(["fixture/other.repository.ts"]);
   });
 
   test("audit scanners fire on insert(auditLogs), raw inserts and audit imports — spare docblock mentions", () => {

@@ -34,6 +34,8 @@ import {
   isDeliveryReceipt,
   mapIncoming,
   mapOutgoing,
+  PARENT_LINK_DECISION_RELATED_ENTITY_TYPE,
+  PARENT_LINK_EXPIRY_RELATED_ENTITY_TYPE,
   PARENT_LINK_RELATED_ENTITY_TYPE,
   PARENT_LINK_REQUEST_ENTITY,
   raiseUnclaimableDenial,
@@ -75,6 +77,16 @@ describe("parent-link-request.helpers — Constants", () => {
   test("PARENT_LINK_REQUEST_ENTITY and PARENT_LINK_RELATED_ENTITY_TYPE have expected values", () => {
     expect(PARENT_LINK_REQUEST_ENTITY).toBe("PARENT_LINK_REQUEST");
     expect(PARENT_LINK_RELATED_ENTITY_TYPE).toBe("parent_link_request");
+  });
+
+  test("audience-scoped related-entity-type refinements have expected values (issue #99)", () => {
+    // The parent-audience wire values the frontend route map deliberately
+    // misses — both MUST stay prefixed by the student value's family so the
+    // fall-through route stays the notifications feed.
+    expect(PARENT_LINK_DECISION_RELATED_ENTITY_TYPE).toBe("parent_link_request_decision");
+    expect(PARENT_LINK_EXPIRY_RELATED_ENTITY_TYPE).toBe("parent_link_request_expiry");
+    expect(PARENT_LINK_DECISION_RELATED_ENTITY_TYPE.startsWith(PARENT_LINK_RELATED_ENTITY_TYPE)).toBe(true);
+    expect(PARENT_LINK_EXPIRY_RELATED_ENTITY_TYPE.startsWith(PARENT_LINK_RELATED_ENTITY_TYPE)).toBe(true);
   });
 });
 

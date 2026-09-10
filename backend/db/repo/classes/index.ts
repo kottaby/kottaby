@@ -10,5 +10,6 @@
  *     "@/backend/db/repo"`).
  */
 
+export * from "./report.repository";
 export * from "./session.repository";
 export * from "./session-request-idempotency.repository";

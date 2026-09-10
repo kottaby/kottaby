@@ -7,15 +7,18 @@
 
 ## 1. Session Lifecycle
 
-> **Implementation reference (DEV3-004):** the guarded-transition pattern, four-phase creation invariant, hold-as-debit ruling, trial-first ladder + same-lane refund, and idempotency claim design are implemented and documented in [`docs/sessions/session-lifecycle.md`](../sessions/session-lifecycle.md) — INV-S1..S5 shipped there; INV-S6/S7/S8 + the `disputed` surface are DEV3-005/DEV2-013/DEV3-022-owned.
+> **Implementation reference (DEV3-004):** the guarded-transition pattern, four-phase creation invariant, hold-as-debit ruling, trial-first ladder + same-lane refund, and idempotency claim design are implemented and documented in [`docs/sessions/session-lifecycle.md`](../sessions/session-lifecycle.md) — INV-S1..S5 shipped there.
+>
+> **Implementation reference (DEV3-005):** INV-S6 is ENFORCED (the `TeacherRepository.setOnline` lock composes into the start transaction; `releaseTeacherInSessionLock` releases on every `started`-exit — see `docs/sessions/session-lifecycle.md` §2.3), and the INV-S7/INV-S8 enforcement gates are live at `backend/services/classes/session-lifecycle.enforcement.ts` (`assertSessionCompletedForReport` / `assertReportSubmittedForHomework`; consumed by DEV3-006). The `disputed` surface is journey-verified end-to-end (open exactly-once, admin-only exit, lane-intact refund — `test/workflows/sessions/session-state-machine.journey.test.ts`), and the closed transition matrix is codified in the same enforcement module (`SESSION_TRANSITION_MATRIX`). The read-side directory filter consuming INV-S6 remains DEV2-013/DEV3-008-owned.
 
 ### 1.1 States
 | State | Enum Value | Description |
 |---|---|---|
 | Scheduled | `scheduled` | Session created (teacher accepted request); not yet started |
 | Started | `started` | Live session in progress |
-| Completed | `completed` | Teacher marked complete + submitted report; awaiting or confirmed by student |
+| Completed | `completed` | Teacher marked the session complete; report submission is gated downstream (after this state) |
 | Cancelled | `cancelled` | Session cancelled (before start or during) |
+| Disputed | `disputed` | Session disputed by a participant from `scheduled` or `started`; only admin arbitration exits it |
 
 ### 1.2 Allowed Transitions
 ```mermaid
@@ -23,8 +26,12 @@ stateDiagram-v2
     [*] --> scheduled: Teacher accepts request
     scheduled --> started: Session begins
     scheduled --> cancelled: Cancelled before start
-    started --> completed: Teacher marks complete + submits report
+    scheduled --> disputed: Participant opens dispute
+    started --> completed: Teacher marks session complete
     started --> cancelled: Cancelled during session
+    started --> disputed: Participant opens dispute
+    disputed --> completed: Admin resolves as complete
+    disputed --> cancelled: Admin resolves as cancelled
     completed --> [*]: Dual confirmation → escrow released
     cancelled --> [*]: No financial transaction
 ```
@@ -311,4 +318,3 @@ The handshake-code discovery surface (parent search by code, preceding this life
 | INV-PC1 | A deactivated plan (`is_active = false`) never appears in the public student/parent/teacher catalog (`planCatalog` query) and cannot be purchased. |
 | INV-PC2 | Deactivation or forward-only plan edits never alter or invalidate existing subscriptions or credited balances. |
 | INV-PC3 | Plan rows are never hard-deleted from PostgreSQL (`DELETE` is prohibited). Deactivation transitions `is_active` to `false` and sets `deactivated_at`. |
-
