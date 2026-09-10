@@ -62,14 +62,33 @@ import {
 const MUTATION_CORPUS_ROOT = join(process.cwd(), "backend", "graphql", "mutation");
 
 /** The deferred-items ledger backing every census `deferred` row (repo-relative). */
-const DEFERRED_LEDGER_PATH = join(
-  process.cwd(),
-  "ai",
-  "plans",
-  "sprint_4",
-  "dev2-021-audit-trail-completeness-verification",
-  "deferred-items.md"
-);
+const DEFERRED_LEDGER_PATH =
+  [
+    join(
+      process.cwd(),
+      "ai",
+      "finished_plans",
+      "sprint_4",
+      "dev2-021-audit-trail-completeness-verification",
+      "deferred-items.md"
+    ),
+    join(
+      process.cwd(),
+      "ai",
+      "plans",
+      "sprint_4",
+      "dev2-021-audit-trail-completeness-verification",
+      "deferred-items.md"
+    ),
+  ].find(candidatePath => existsSync(candidatePath)) ??
+  join(
+    process.cwd(),
+    "ai",
+    "finished_plans",
+    "sprint_4",
+    "dev2-021-audit-trail-completeness-verification",
+    "deferred-items.md"
+  );
 
 /** Minimum number of admin-gated mutation fields the corpus must yield (anti-blind-spot floor). */
 const MIN_ADMIN_MUTATION_FIELDS = 15;
