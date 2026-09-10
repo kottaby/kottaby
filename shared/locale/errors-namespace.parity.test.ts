@@ -45,7 +45,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { errorsAr } from "@/shared/locale/ar/errors";
 import { errorsEn } from "@/shared/locale/en/errors";
-import type { ErrorsLabels } from "@/shared/locale/types/errors";
+import type { ErrorMessageKey, ErrorsLabels } from "@/shared/locale/types/errors";
 
 // ─── Route-source emission discovery ─────────────────────────────────────────
 
@@ -143,6 +143,7 @@ const SESSION_REPORT_HOMEWORK_KEYS = [
   "homeworkAyahRangeInvalid",
   "homeworkSurahJuzInvalid",
   "homeworkAssignmentBlocksRequired",
+  "homeworkRequiresReport",
 ] as const;
 
 // ===========================================================================
@@ -184,6 +185,21 @@ describe("route emitters — every transport key exists in BOTH locales", () => 
     // Key must be part of the COMPILE-TIME schema too — Reflect-only additions
     // (untyped holes) are prohibited by the ErrorsLabels contract.
     expect(Object.hasOwn(errorsEn, key)).toBe(true);
+  });
+});
+
+// ===========================================================================
+describe("recitation record denial keys — flat domain additions on BOTH locales", () => {
+  // Flatness is compile-time proven here: `ErrorMessageKey` admits ONLY
+  // `ErrorsLabels` slots typed as plain `string`, so nesting either key under
+  // a grouped sub-block fails `bun tsgo` before this suite ever runs.
+  const recitationDenialKeys: ErrorMessageKey[] = ["recitationAlreadyExists", "recitationSessionNotWriteable"];
+
+  test.each(recitationDenialKeys)("domain key `%s` is a top-level non-empty string on BOTH locale maps", key => {
+    expect(Object.hasOwn(errorsAr, key)).toBe(true);
+    expect(Object.hasOwn(errorsEn, key)).toBe(true);
+    expect(nonEmptyLabelOf(errorsAr, key, "ar").length).toBeGreaterThan(0);
+    expect(nonEmptyLabelOf(errorsEn, key, "en").length).toBeGreaterThan(0);
   });
 });
 

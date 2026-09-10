@@ -15,5 +15,6 @@
  *    `adminSession`.
  */
 import "./admin-session-governance.query";
+import "./recitation.query";
 import "./session-lifecycle.query";
 import "./session-report.query";

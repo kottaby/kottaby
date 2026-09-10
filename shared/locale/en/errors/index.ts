@@ -88,6 +88,8 @@ export const errorsEn: ErrorsLabels = {
   walletInvalidAmount: "Enter a valid withdrawal amount (a positive value with up to 2 decimal places).",
   walletTeacherProfileMissing: "Your wallet activates once your teaching profile is approved.",
   sessionIntentCorrupt: "This session could not be read. Please contact support.",
+  recitationAlreadyExists: "A recitation record already exists for this session.",
+  recitationSessionNotWriteable: "This session cannot receive a recitation record in its current state.",
   sessionReportAlreadyExists: "A session report has already been submitted for this session.",
   homeworkAlreadyGraded: "This homework has already been graded.",
   sessionReportNotesRequired: "Session report notes are required and cannot be empty.",

@@ -125,6 +125,16 @@
  * baseline flip — so the whole-schema freeze the DEV3-006 additions ride
  * on is honest again.
  *
+ *  - **DEV3-007 session-recitation pair** — the write-once per-session
+ *    record is pinned by name: the teacher-gated `setSessionRecitation`
+ *    mutation (NON-nullable payload), the participant-scoped NULLABLE
+ *    `sessionRecitation` query (the collapse channel), and the
+ *    `SessionRecitation` / `SessionRecitationInput` named types. The
+ *    broadcast-notification, audit-log, cold-start-certification, and
+ *    parent-link surfaces that shipped on the live roots without inventory
+ *    entries are re-anchored here as a documented one-time reconciliation
+ *    (additions only — no historical pin altered).
+ *
  * Pure unit tier — NO server boot, NO network, NO DB. Runs via the mandated
  * runner: `bun run test/scripts/run-test.ts backend/graphql/test/schema-surface.test.ts`.
  */
@@ -414,6 +424,20 @@ const DEV3_021_TYPE_NAMES = [
   "AdminSessionReassignInput",
   "AdminSessionRescheduleInput",
 ] as const;
+/**
+ * DEV3-007 session-recitation pair — the sanctioned post-reconciliation
+ * addition. The mutation is teacher-gated
+ * (`$all { authenticated: true, role: [UserRole.Teacher] }`) with a
+ * NON-nullable payload; the query is participant-scoped
+ * (`{ authenticated: true }` only, tenancy service-owned) with a NULLABLE
+ * payload (the collapse channel). Both are authScopes-gated — neither is
+ * allowlist material; the public-operation registry stays byte-unchanged.
+ */
+const DEV3_007_MUTATION_FIELDS = ["setSessionRecitation"] as const;
+/** DEV3-007 participant read — the nullable collapse-channel query. */
+const DEV3_007_QUERY_FIELDS = ["sessionRecitation"] as const;
+/** DEV3-007 record object + its closed two-member input (name + optional description). */
+const DEV3_007_TYPE_NAMES = ["SessionRecitation", "SessionRecitationInput"] as const;
 
 /**
  * R1–R3 admin directory query trio — RECONCILED baseline drift (the
@@ -615,6 +639,7 @@ describe("Query._health — retyped probe surface", () => {
         ...R5_ADMIN_EXPORT_QUERY_FIELDS,
         ...RECONCILED_PARENT_LINK_QUERY_FIELDS,
         ...RECONCILED_ADMIN_AUDIT_QUERY_FIELDS,
+        ...DEV3_007_QUERY_FIELDS,
       ].toSorted((a, b) => a.localeCompare(b))
     );
   });
@@ -676,7 +701,7 @@ describe("HealthCheck object shape — four scalar fields, no id", () => {
 });
 
 describe("Surface freeze — pinned additions vs the baseline inventory", () => {
-  test("mutation set grows ONLY by the sanctioned additions (DEV3-004 quartet + DEV3-005 dispute pair + DEV3-012 confirm + DEV3-013 payout + DEV3-016 admin-user trio + DEV3-017 admin-governance pair + DEV3-021 session-governance quartet + DEV3-006 session-report write + the subscription purchase write + the reconciled parent-link trio + broadcast/certify pair)", () => {
+  test("mutation set grows ONLY by the sanctioned additions (DEV3-004 quartet + DEV3-005 dispute pair + DEV3-012 confirm + DEV3-013 payout + DEV3-016 admin-user trio + DEV3-017 admin-governance pair + DEV3-021 session-governance quartet + DEV3-006 session-report write + the subscription purchase write + the reconciled parent-link trio + broadcast/certify pair + the DEV3-007 session-recitation write)", () => {
     const mutationFields = graphQLSchema.getMutationType()?.getFields() ?? {};
     const names = Object.keys(mutationFields).toSorted((a, b) => a.localeCompare(b));
 
@@ -688,13 +713,15 @@ describe("Surface freeze — pinned additions vs the baseline inventory", () => 
     // dispute pair, the DEV3-012 dual-confirmation mutation, the DEV3-013
     // payout write, the RECONCILED DEV3-016 admin-user-management trio
     // (shipped but never pinned — re-anchored here as a documented
-    // one-time reconciliation), the DEV3-017 admin-governance pair, the
-    // DEV3-021 session-governance quartet (4.4 reconcile), the DEV3-006
-    // session-report write, the subscription purchase write, and the
+    // one-time reconciliation), the DEV3-017 admin-governance pair (the
+    // sanctioned post-reconciliation addition), the DEV3-021
+    // session-governance quartet (4.4 reconcile), the DEV3-006
+    // session-report write, the subscription purchase write, the
     // RECONCILED parent-link trio + admin broadcast/certify pair (shipped
     // but never pinned — re-anchored alongside the R4 statusCounts
-    // aggregate). All authScopes-gated — none is allowlist material; the
-    // public-operation registry stays byte-unchanged.
+    // aggregate), and the DEV3-007 session-recitation write
+    // (`setSessionRecitation`). All authScopes-gated — none is allowlist
+    // material; the public-operation registry stays byte-unchanged.
     expect(names).toEqual(
       [
         ...PRE_3_1_MUTATION_FIELDS,
@@ -709,6 +736,7 @@ describe("Surface freeze — pinned additions vs the baseline inventory", () => 
         ...SUBSCRIPTION_PURCHASE_MUTATION_FIELDS,
         ...RECONCILED_PARENT_LINK_MUTATION_FIELDS,
         ...RECONCILED_ADMIN_BROADCAST_CERTIFY_MUTATION_FIELDS,
+        ...DEV3_007_MUTATION_FIELDS,
       ].toSorted((a, b) => a.localeCompare(b))
     );
     expect(names).not.toContain("_health");
@@ -830,7 +858,7 @@ describe("Surface freeze — pinned additions vs the baseline inventory", () => 
     }
   });
 
-  test("whole-schema named-type delta is pinned: refreshed baseline delta (DateTime scalar + HealthCheck probe + DEV1-013 handshake surface) + DEV3-004 session objects/inputs + scheduling/arbitration/ledger enums + DEV3-013 wallet surface + DEV3-016 admin-user-management surface + the parent-link objects (extend step) + the eleven analytics value objects + the DEV3-021 governance inputs + the subscription purchase surface (objects, input, root operations) + the reconciled audit/broadcast/directory surfaces + the R5 export envelopes + the DEV3-006 session-report surface (2 objects + 4 inputs + the recitation enum)", () => {
+  test("whole-schema named-type delta is pinned: refreshed baseline delta (DateTime scalar + HealthCheck probe + DEV1-013 handshake surface) + DEV3-004 session objects/inputs + scheduling/arbitration/ledger enums + DEV3-013 wallet surface + DEV3-016 admin-user-management surface + the parent-link objects (extend step) + the eleven analytics value objects + the DEV3-021 governance inputs + the subscription purchase surface (objects, input, root operations) + the reconciled audit/broadcast/directory surfaces + the R5 export envelopes + the DEV3-006 session-report surface (2 objects + 4 inputs + the recitation enum) + the DEV3-007 recitation record pair", () => {
     const post = new Set(sdlTypeNames());
 
     for (const name of PRE_3_1_TYPE_NAMES) {
@@ -860,6 +888,7 @@ describe("Surface freeze — pinned additions vs the baseline inventory", () => 
         ...RECONCILED_ADMIN_BROADCAST_TYPE_NAMES,
         ...R4R_ADMIN_DIRECTORY_TYPE_NAMES,
         ...R5_ADMIN_EXPORT_TYPE_NAMES,
+        ...DEV3_007_TYPE_NAMES,
       ].toSorted((a, b) => a.localeCompare(b))
     );
   });
@@ -1514,5 +1543,14 @@ describe("Codegen sync — committed SDL is byte-identical to the built schema",
     expect(committedSdl).toContain("input HomeWorkBlockInput {");
     expect(committedSdl).toContain("input HomeWorkGradeInput {");
     expect(committedSdl).toContain("enum SurahJuzRef {");
+    // …and the session-recitation pair (the write-once per-session record)
+    // is really inside the committed artifact — at the sorted positions,
+    // with the exact arg shapes and both type-block headers.
+    expect(committedSdl).toContain(
+      "setSessionRecitation(input: SessionRecitationInput!, sessionId: ID!): SessionRecitation!"
+    );
+    expect(committedSdl).toContain("sessionRecitation(sessionId: ID!): SessionRecitation");
+    expect(committedSdl).toContain("type SessionRecitation {");
+    expect(committedSdl).toContain("input SessionRecitationInput {");
   });
 });

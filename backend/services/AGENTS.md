@@ -164,3 +164,5 @@ Completed extractions:
 
 - See `docs/quality/linting-rules.md` for Oxlint & ESLint/sonarjs fix recipes. NEVER use `oxlint-disable` comments.
 
+
+- **Write-once record services (recitation-record precedent: `RecitationRecordService`)**: single-writer discipline — consumers (resolvers, sibling services, future read surfaces) import the owning service BY REFERENCE, never the repository or table. Composition seams accept the caller's `outerTx` as the FINAL parameter so composed writes join the caller's transaction; guard/governance pre-checks reuse the shared helpers verbatim (never forked twins), with the governance re-check BEFORE the transaction opens. For write-once tables, arbitrate duplicates with the table's UNIQUE constraint (catch the 23505 cause-chain → typed conflict) instead of a pre-check SELECT, which races and leaks. See `docs/sessions/recitation-record.md`.

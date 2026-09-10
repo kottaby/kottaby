@@ -14,7 +14,9 @@
  *  - `admin-session-governance.mutation.ts` registers
  *    `adminRescheduleSession`, `adminCancelSession`,
  *    `adminReassignTeacher`, and `adminJoinSession`.
+ *  - `recitation.mutation.ts` registers `setSessionRecitation`.
  */
 import "./admin-session-governance.mutation";
+import "./recitation.mutation";
 import "./session-lifecycle.mutation";
 import "./session-report.mutation";

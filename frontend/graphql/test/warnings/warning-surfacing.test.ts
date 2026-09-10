@@ -317,6 +317,11 @@ const MUTATION_SURFACE_INVENTORY_QUERY_DOCUMENT: DocumentNode = gql`
  * `PurchaseSubscriptionPayload` (pending subscription + payment pair plus
  * the gateway checkout descriptor; every denial rides `errors[]`), never a
  * partial-success wrapper, so it does not exercise Rules #6/#7 either.
+ *
+ * Refreshed for DEV3-007 (recitation record per session): `setSessionRecitation`
+ * resolves to the canonical `SessionRecitation` payload with every denial
+ * (`RECITATION_ALREADY_EXISTS`, `SESSION_NOT_FOUND`) riding `errors[]`, so it
+ * is warning-incapable like the session-family mutations enumerated above.
  */
 const KNOWN_LIVE_MUTATION_FIELDS = [
   "adminBroadcastNotification",
@@ -349,6 +354,7 @@ const KNOWN_LIVE_MUTATION_FIELDS = [
   "resolveSessionDispute",
   "respondToParentLinkRequest",
   "setPlanActiveStatus",
+  "setSessionRecitation",
   "startSession",
   "submitSessionReport",
   "updateMyLocale",

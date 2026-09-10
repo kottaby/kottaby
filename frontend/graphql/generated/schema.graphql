@@ -597,6 +597,7 @@ type Mutation {
     """Target active state for the plan."""
     isActive: Boolean!
   ): Plan!
+  setSessionRecitation(input: SessionRecitationInput!, sessionId: ID!): SessionRecitation!
 
   """
   Start one of the caller's scheduled sessions (teacher-only guarded transition).
@@ -939,6 +940,7 @@ type Query {
   recitationReadings: [RecitationReading!]!
   sessionById(id: ID!): Session
   sessionHomework(sessionId: ID!): SessionHomeWork
+  sessionRecitation(sessionId: ID!): SessionRecitation
   sessionReport(sessionId: ID!): SessionReport
 }
 
@@ -1041,6 +1043,20 @@ type SessionPage {
   page: Int!
   pageSize: Int!
   totalCount: Int!
+}
+
+type SessionRecitation {
+  createdAt: DateTime!
+  description: String
+  id: ID!
+  name: String!
+  sessionId: ID!
+  updatedAt: DateTime!
+}
+
+input SessionRecitationInput {
+  description: String
+  name: String!
 }
 
 type SessionReport {
