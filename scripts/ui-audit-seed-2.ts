@@ -32,35 +32,39 @@ async function main() {
 
   await pg.query(
     `INSERT INTO wallet (teacher_id, balance, total_earning, created_at, updated_at)
-     SELECT $1, 1500.00, 4200.00, $2, $2
-     WHERE NOT EXISTS (SELECT 1 FROM wallet WHERE teacher_id = $1)`,
+     VALUES ($1, 1500.00, 4200.00, $2, $2)
+     ON CONFLICT (teacher_id)
+     DO UPDATE SET balance = EXCLUDED.balance, total_earning = EXCLUDED.total_earning, updated_at = EXCLUDED.updated_at`,
     [teacherId, now]
   );
-  console.log("[seed-2] wallet row ensured");
+  console.log("[seed-2] wallet row upserted (balance + total_earning converged)");
 
-  const ledgerCount = await pg.query<{ n: number }>(
-    "SELECT COUNT(*)::int AS n FROM teacher_transaction WHERE wallet_id = (SELECT id FROM wallet WHERE teacher_id = $1)",
-    [teacherId]
-  );
-  if (ledgerCount.rows[0].n === 0) {
-    await pg.query(
-      `INSERT INTO teacher_transaction (wallet_id, description, amount, type, status, created_at)
-       SELECT w.id, 'أرباح جلسات — دفعة أولى', 2400.00, 'earning'::transaction_type,
-              'completed'::transaction_status, $2::timestamp
-       FROM wallet w WHERE w.teacher_id = $1`,
-      [teacherId, now]
+  const LEDGER_FIXTURES = [
+    { description: "أرباح جلسات — دفعة أولى", amount: "2400.00", type: "earning", status: "completed" },
+    { description: "طلب سحب", amount: "900.00", type: "withdrawal", status: "pending" },
+  ] as const;
+
+  // Per-fixture identity check (wallet_id + description) — an existing row
+  // from a previous run no longer hides the other fixture behind a COUNT gate.
+  await LEDGER_FIXTURES.reduce<Promise<void>>(async (previous, fixture) => {
+    await previous;
+    const dupe = await pg.query(
+      `SELECT 1 FROM teacher_transaction
+       WHERE wallet_id = (SELECT id FROM wallet WHERE teacher_id = $1) AND description = $2
+       LIMIT 1`,
+      [teacherId, fixture.description]
     );
-    await pg.query(
-      `INSERT INTO teacher_transaction (wallet_id, description, amount, type, status, created_at)
-       SELECT w.id, 'طلب سحب', 900.00, 'withdrawal'::transaction_type,
-              'pending'::transaction_status, $2::timestamp
-       FROM wallet w WHERE w.teacher_id = $1`,
-      [teacherId, now]
-    );
-    console.log("[seed-2] 2 ledger rows seeded");
-  } else {
-    console.log(`[seed-2] ledger already has ${ledgerCount.rows[0].n} rows`);
-  }
+    if (dupe.rows.length === 0) {
+      await pg.query(
+        `INSERT INTO teacher_transaction (wallet_id, description, amount, type, status, created_at)
+         SELECT w.id, $2, $3::numeric, $4::transaction_type, $5::transaction_status, $6::timestamp
+         FROM wallet w WHERE w.teacher_id = $1`,
+        [teacherId, fixture.description, fixture.amount, fixture.type, fixture.status, now]
+      );
+      console.log(`[seed-2] ledger fixture seeded: ${fixture.description}`);
+    }
+  }, Promise.resolve());
+  console.log("[seed-2] ledger fixtures ensured");
 
   const check = await pg.query(
     "SELECT (SELECT COUNT(*)::int FROM teacher) AS teachers, (SELECT COUNT(*)::int FROM wallet) AS wallets"

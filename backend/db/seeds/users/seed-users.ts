@@ -1,3 +1,4 @@
+import { UserRepository } from "@/backend/db/repo/users/user.repository";
 import { loadSeedConfig, type SeedConfig } from "@/backend/db/seeds/lib";
 import { Gender } from "@/backend/enum/users/gender.enum";
 import { logger } from "@/backend/lib/logger";
@@ -107,4 +108,28 @@ export async function seedOrGet(config?: SeedConfig): Promise<RegistrationReturn
 
   logger.info(`Demo users seeding completed (${results.length} newly created).`);
   return results;
+}
+
+/**
+ * Resolves the demo admin actor id by reading the `users` table for the
+ * deterministic demo-admin email spec — a pure read-only lookup (no
+ * authentication, no provisioning). The master seed controller calls this
+ * after the users step completes and threads the result into admin-gated
+ * seeders (controller-context rule in seeds/AGENTS.md).
+ *
+ * Throws when the users step has not produced the demo admin yet, so a
+ * missing prerequisite fails fast with a named message instead of a
+ * mid-seeder auth/provisioning fallback.
+ */
+export async function getDemoAdminActorId(): Promise<number> {
+  const adminSpec = INITIAL_DEMO_USERS.find(spec => spec.role === "admin");
+  if (!adminSpec) {
+    throw new Error("seed-users: INITIAL_DEMO_USERS carries no admin spec — cannot resolve a gated actor");
+  }
+
+  const admin = await UserRepository.findByEmail(adminSpec.email);
+  if (!admin) {
+    throw new Error(`seed-users: demo admin user not found (${adminSpec.email}) — run the users seed step first`);
+  }
+  return admin.id;
 }

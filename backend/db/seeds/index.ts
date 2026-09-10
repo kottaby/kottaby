@@ -7,7 +7,7 @@ import {
   type SeedStepResult,
 } from "@/backend/db/seeds/lib";
 import { seedOrGetStudents } from "@/backend/db/seeds/students";
-import { seedOrGetUsers } from "@/backend/db/seeds/users";
+import { getDemoAdminActorId, seedOrGetUsers } from "@/backend/db/seeds/users";
 import { logger } from "@/backend/lib/logger";
 
 export async function runAllSeeds(config?: SeedConfig): Promise<void> {
@@ -20,8 +20,14 @@ export async function runAllSeeds(config?: SeedConfig): Promise<void> {
   const usersStep = await runSeedStep("users", () => seedOrGetUsers(seedConfig));
   stepResults.push(usersStep);
 
+  // Resolve the demo admin actor from the users domain (read-only lookup) and
+  // thread it into the admin-gated plans seeder — controller-context rule in
+  // seeds/AGENTS.md: cross-seeder dependencies are wired HERE, never inside
+  // the consuming seeder (no auth/provisioning fallbacks in domain seeders).
+  const adminActorId = await getDemoAdminActorId();
+
   // Step 2: Plans (Catalog plans + verification plan + deactivated demo plan)
-  const plansStep = await runSeedStep("plans", () => seedOrGetPlans("en"));
+  const plansStep = await runSeedStep("plans", () => seedOrGetPlans("en", adminActorId));
   stepResults.push(plansStep);
 
   // Step 3: Demo student trial-grant reconcile. Receives the users-step result

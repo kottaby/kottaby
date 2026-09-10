@@ -30,10 +30,15 @@ import http.cookiejar, sys, subprocess
 jar = http.cookiejar.MozillaCookieJar(sys.argv[1])
 jar.load(ignore_discard=True, ignore_expires=True)
 for c in jar:
-    subprocess.run([
-        "agent-browser", "cookies", "set", c.name, c.value,
-        "--domain", c.domain.lstrip("."), "--path", c.path or "/",
-    ], capture_output=True)
+    try:
+        subprocess.run([
+            "agent-browser", "cookies", "set", c.name, c.value,
+            "--domain", c.domain.lstrip("."), "--path", c.path or "/",
+        ], capture_output=True, text=True, check=True)
+    except subprocess.CalledProcessError as e:
+        if e.stderr:
+            print(e.stderr.strip(), file=sys.stderr)
+        raise
     print(f"  cookie set: {c.name}")
 PYEOF
 

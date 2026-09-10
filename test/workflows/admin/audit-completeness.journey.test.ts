@@ -1044,7 +1044,8 @@ describe("Audit-trail completeness journey — execute every admin action, prove
           ColdStartCertificationService.certifyTeacherColdStart(
             actorId,
             { userId: teacherTargetId, makeEvaluator: false },
-            LOCALE
+            LOCALE,
+            { transport: transportSpy }
           ),
       },
       {
@@ -1057,7 +1058,9 @@ describe("Audit-trail completeness journey — execute every admin action, prove
               audience: { type: BroadcastAudienceType.Country, country: COHORT_COUNTRY },
             },
             actorId,
-            LOCALE
+            LOCALE,
+            undefined,
+            { transport: transportSpy }
           ),
       },
       {

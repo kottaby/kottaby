@@ -12,10 +12,9 @@ async function main() {
   const pg = new PGlite(DB_URL);
   await pg.query("SELECT 1 AS ok");
 
-  const existing = await pg.query<{ count: string }>(
-    "SELECT COUNT(*)::text AS count FROM users WHERE email = $1",
-    ["admin2@app.local"]
-  );
+  const existing = await pg.query<{ count: string }>("SELECT COUNT(*)::text AS count FROM users WHERE email = $1", [
+    "admin2@app.local",
+  ]);
   if (Number(existing.rows[0]?.count ?? 0) > 0) {
     console.log("admin2 already exists — continuing");
   } else {
@@ -27,6 +26,16 @@ async function main() {
     );
     console.log("CREATED admin2 (cloned from admin@app.local)");
   }
+
+  // Ensure the role-child `admin` row exists (same contract as
+  // RegistrationService.createAdminUser): queries that join the `admin`
+  // relation must resolve for this actor, not just the `users` row.
+  await pg.query(
+    `INSERT INTO admin (id, created_at, updated_at)
+     SELECT id, now(), now() FROM users WHERE email = 'admin2@app.local'
+     ON CONFLICT (id) DO NOTHING`
+  );
+  console.log("ENSURED admin2 role-child row (admin)");
 
   const check = await pg.query<{ id: number; email: string; role: string }>(
     "SELECT id, email, role::text AS role FROM users WHERE email = 'admin2@app.local'"

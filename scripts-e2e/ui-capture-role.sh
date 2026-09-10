@@ -13,7 +13,7 @@ agent-browser close > /dev/null 2>&1
 agent-browser open "http://127.0.0.1:3000/login" > /dev/null 2>&1
 sleep 2
 cd "$K"
-bash scripts-e2e/role-login.sh "$ROLE" || echo "$ROLE LOGIN FAILED"
+bash scripts-e2e/role-login.sh "$ROLE" || { echo "$ROLE LOGIN FAILED"; exit 1; }
 
 for spec in "$@"; do
   IFS=':' read -r path slug waits <<< "$spec"

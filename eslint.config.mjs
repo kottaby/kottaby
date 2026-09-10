@@ -235,6 +235,7 @@ const eslintConfig = defineConfig([
     files: [
       "frontend/utils/logger.ts",
       "scripts/**/*.ts",
+      "scripts-e2e/**/*.ts",
       "backend/db/scripts/**/*.ts",
       "backend/db/test/**/*.ts",
       "next.config.ts",

@@ -22,7 +22,7 @@ capture "/login" "02-login" 1
 capture "/register" "03-register" 2
 
 echo "=== ROUND $ROUND — ADMIN ==="
-cd "$K" && AGENT_BROWSER_SESSION=default bun run scripts/browser-login.ts --env-file .env.audit-admin --inject --base-url http://127.0.0.1:3000 > /dev/null 2>&1 && echo "admin logged in"
+cd "$K" && AGENT_BROWSER_SESSION=default bun run scripts/browser-login.ts --env-file .env.audit-admin --inject --base-url http://127.0.0.1:3000 > /dev/null 2>&1 && echo "admin logged in" || { echo "admin LOGIN FAILED"; exit 1; }
 capture "/dashboard" "04-dashboard-admin" 3
 capture "/admin/dashboard" "05-admin-dashboard" 3
 capture "/admin/users" "06-admin-users" 3
@@ -37,7 +37,7 @@ capture "/profile" "13-profile-admin" 2
 echo "=== ROUND $ROUND — STUDENT ==="
 agent-browser close > /dev/null 2>&1
 agent-browser open "http://127.0.0.1:3000/login" > /dev/null 2>&1
-cd "$K" && bun run scripts/browser-login.ts --env-file .env.audit-student --inject --base-url http://127.0.0.1:3000 > /dev/null 2>&1 && echo "student logged in"
+cd "$K" && bun run scripts/browser-login.ts --env-file .env.audit-student --inject --base-url http://127.0.0.1:3000 > /dev/null 2>&1 && echo "student logged in" || { echo "student LOGIN FAILED"; exit 1; }
 capture "/dashboard" "14-dashboard-student" 3
 capture "/student/dashboard" "15-student-dashboard" 3
 capture "/student/sessions" "16-student-sessions" 3
@@ -49,7 +49,7 @@ capture "/profile" "20-profile-student" 2
 echo "=== ROUND $ROUND — TEACHER ==="
 agent-browser close > /dev/null 2>&1
 agent-browser open "http://127.0.0.1:3000/login" > /dev/null 2>&1
-cd "$K" && bun run scripts/browser-login.ts --env-file .env.audit-teacher --inject --base-url http://127.0.0.1:3000 > /dev/null 2>&1 && echo "teacher logged in"
+cd "$K" && bun run scripts/browser-login.ts --env-file .env.audit-teacher --inject --base-url http://127.0.0.1:3000 > /dev/null 2>&1 && echo "teacher logged in" || { echo "teacher LOGIN FAILED"; exit 1; }
 capture "/dashboard" "21-dashboard-teacher" 3
 capture "/teacher/dashboard" "22-teacher-dashboard" 3
 capture "/teacher/sessions" "23-teacher-sessions" 3
@@ -60,7 +60,7 @@ capture "/disputes" "26-disputes" 3
 echo "=== ROUND $ROUND — PARENT ==="
 agent-browser close > /dev/null 2>&1
 agent-browser open "http://127.0.0.1:3000/login" > /dev/null 2>&1
-cd "$K" && bun run scripts/browser-login.ts --env-file .env.audit-parent --inject --base-url http://127.0.0.1:3000 > /dev/null 2>&1 && echo "parent logged in"
+cd "$K" && bun run scripts/browser-login.ts --env-file .env.audit-parent --inject --base-url http://127.0.0.1:3000 > /dev/null 2>&1 && echo "parent logged in" || { echo "parent LOGIN FAILED"; exit 1; }
 capture "/dashboard" "27-dashboard-parent" 3
 capture "/parent/dashboard" "28-parent-dashboard" 3
 capture "/parent/children" "29-parent-children" 3
