@@ -43,6 +43,7 @@
  */
 
 import { describe, expect, test } from "bun:test";
+import { max } from "drizzle-orm";
 import { db } from "@/backend/db";
 import { reports } from "@/backend/db/schema/classes/reports";
 import { session } from "@/backend/db/schema/classes/session";
@@ -151,10 +152,11 @@ async function insertReportRow(tx: DBTransaction, sessionId: number): Promise<vo
 
 /** An integer id that cannot exist as a `session` row during this transaction. */
 async function absentSessionId(tx: DBTransaction): Promise<number> {
-  // The ordered probe reads the table's LOWEST id (ASC, limit 1); the fixed
-  // seven-digit margin above it keeps the returned id absent for this tx.
-  const [minRow] = await tx.select({ minId: session.id }).from(session).orderBy(session.id).limit(1);
-  return (minRow?.minId ?? 0) + 1_000_000;
+  // Derived from the table's HIGHEST id (not its lowest): a fixed margin
+  // above the max guarantees the result exceeds every existing row, so the
+  // id stays absent on a populated database (min + margin could collide).
+  const [maxRow] = await tx.select({ maxId: max(session.id) }).from(session);
+  return (maxRow?.maxId ?? 0) + 1_000_000;
 }
 
 // ─── Tier 1 — the matrix truth table + gate pass paths ──────────────────

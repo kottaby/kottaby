@@ -16,8 +16,9 @@
 |---|---|---|
 | Scheduled | `scheduled` | Session created (teacher accepted request); not yet started |
 | Started | `started` | Live session in progress |
-| Completed | `completed` | Teacher marked complete + submitted report; awaiting or confirmed by student |
+| Completed | `completed` | Teacher marked the session complete; report submission is gated downstream (after this state) |
 | Cancelled | `cancelled` | Session cancelled (before start or during) |
+| Disputed | `disputed` | Session disputed by a participant from `scheduled` or `started`; only admin arbitration exits it |
 
 ### 1.2 Allowed Transitions
 ```mermaid
@@ -25,8 +26,12 @@ stateDiagram-v2
     [*] --> scheduled: Teacher accepts request
     scheduled --> started: Session begins
     scheduled --> cancelled: Cancelled before start
-    started --> completed: Teacher marks complete + submits report
+    scheduled --> disputed: Participant opens dispute
+    started --> completed: Teacher marks session complete
     started --> cancelled: Cancelled during session
+    started --> disputed: Participant opens dispute
+    disputed --> completed: Admin resolves as complete
+    disputed --> cancelled: Admin resolves as cancelled
     completed --> [*]: Dual confirmation → escrow released
     cancelled --> [*]: No financial transaction
 ```
@@ -297,4 +302,3 @@ The handshake-code discovery surface (parent search by code, preceding this life
 | INV-PC1 | A deactivated plan (`is_active = false`) never appears in the public student/parent/teacher catalog (`planCatalog` query) and cannot be purchased. |
 | INV-PC2 | Deactivation or forward-only plan edits never alter or invalidate existing subscriptions or credited balances. |
 | INV-PC3 | Plan rows are never hard-deleted from PostgreSQL (`DELETE` is prohibited). Deactivation transitions `is_active` to `false` and sets `deactivated_at`. |
-

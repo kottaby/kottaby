@@ -43,7 +43,7 @@
  *   bun run test/scripts/run-test.ts test/workflows/sessions/session-state-machine.journey.test.ts
  */
 
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { afterAll, beforeAll, describe, expect, spyOn, test } from "bun:test";
 import { eq } from "drizzle-orm";
 import { db } from "@/backend/db";
 import { session } from "@/backend/db/schema/classes/session";
@@ -56,6 +56,7 @@ import { SessionIntent } from "@/backend/enum/scheduling/session-intent.enum";
 import { SessionStatus } from "@/backend/enum/scheduling/session-status.enum";
 import { ConflictError, DomainError } from "@/backend/lib/errors";
 import { SessionLifecycleService } from "@/backend/services/classes/session-lifecycle.service";
+import { NotificationEngine } from "@/backend/services/notifications";
 import type {
   SessionReturnType,
   SessionSelectType,
@@ -339,10 +340,19 @@ describe("Journey J2 — in-session lock: start locks, cancel and complete both 
     await SessionLifecycleService.startSession(cast.teacher.userId, booked.id, LOCALE);
     expect(await readTeacherOnline(cast.teacher.userId)).toBe(false);
 
+    const publishSpy = spyOn(NotificationEngine, "publishReceipts");
     const completed = await SessionLifecycleService.completeSession(cast.teacher.userId, booked.id, LOCALE);
     expect(completed.status).toBe(SessionStatus.Completed);
     expect(completed.endedAt).not.toBeNull();
     expect(await readTeacherOnline(cast.teacher.userId)).toBe(true);
+
+    // The confirm prompt rides the completion's own commit and is published
+    // exactly once, to the primary student, strictly after that commit.
+    expect(publishSpy).toHaveBeenCalledTimes(1);
+    const published = publishSpy.mock.calls[0]?.[0];
+    expect(published).toHaveLength(1);
+    expect(published[0]?.recipientUserIds).toContain(cast.primaryStudent.userId);
+    publishSpy.mockRestore();
   });
 });
 
@@ -432,7 +442,10 @@ testOnRealPostgres(
     await SessionLifecycleService.startSession(cast.teacher.userId, booked.id, LOCALE);
     await SessionLifecycleService.openSessionDispute(cast.primaryStudent.userId, booked.id, "race fixture", LOCALE);
     const lanesBefore = await readStudentLanes(cast.primaryStudent.student.id);
-    await forceTeacherOnline(cast.teacher.userId);
+    // The start's INV-S6 lock must still be held going into the race: the
+    // winning resolution is what lifts it, so the final online assertion
+    // below genuinely proves the unlock happened.
+    expect(await readTeacherOnline(cast.teacher.userId)).toBe(false);
 
     const outcomes = await Promise.allSettled([
       SessionLifecycleService.resolveSessionDispute(
