@@ -34,25 +34,7 @@ import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import { db, queryDb } from "@/backend/db";
 import { homeWork } from "@/backend/db/schema/classes/home-work";
 import { session } from "@/backend/db/schema/classes/session";
-import type {
-  DBQueryExecutor,
-  DBTransaction,
-  HomeWorkGradeFieldsInput,
-  HomeWorkInsertType,
-  HomeWorkSelectType,
-} from "@/backend/types";
-
-/**
- * Type guard — narrows `DBQueryExecutor` to `DBTransaction`.
- *
- * `DBTransaction` (Drizzle's `PgAsyncTransaction`) exposes the `.select()`
- * builder API; raw `Pool` / `PoolClient` from `pg` do not. The presence of
- * `.select` therefore distinguishes the two at runtime without an unsafe
- * cast.
- */
-function isDBTransaction(tx: DBQueryExecutor): tx is DBTransaction {
-  return typeof tx === "object" && "select" in tx;
-}
+import type { DBTransaction, HomeWorkGradeFieldsInput, HomeWorkInsertType, HomeWorkSelectType } from "@/backend/types";
 
 export namespace HomeWorkRepository {
   /**
@@ -89,8 +71,8 @@ export namespace HomeWorkRepository {
    * @returns The matching homework row, or `null` when the session has no
    *          assignment yet.
    */
-  export async function findBySessionId(sessionId: number, tx?: DBQueryExecutor): Promise<HomeWorkSelectType | null> {
-    if (tx && isDBTransaction(tx)) {
+  export async function findBySessionId(sessionId: number, tx?: DBTransaction): Promise<HomeWorkSelectType | null> {
+    if (tx) {
       const rows = await tx.select().from(homeWork).where(eq(homeWork.sessionId, sessionId)).limit(1);
       return rows[0] ?? null;
     }

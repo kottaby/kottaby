@@ -10,7 +10,7 @@ This document is the single canonical reference for the session report and homew
 
 ## 1. Why
 
-A completed session is an academic event, and the report is its permanent record: the teacher's notes, the student rating, and the homework composite (the previous assignment's grades + the new assignment). The report and the homework are **co-created** — a homework assignment can never exist without the report that carries it — and the whole composite must land or not land as one unit, because a half-written record (report without homework, homework without report) is a corrupted transcript. Three failure modes drove every ruling here: a double submit producing two records, a grade racing itself (two teachers grading the same prior homework), and a ghost notification pushed for a submission that rolled back. Each was either proven or ruled out during the surface's review waves; nothing in this document is aspirational.
+A completed session is an academic event, and the report is its permanent record: the teacher's notes, the student rating, and the optional homework composite (the previous assignment's grades + the new assignment). When homework is assigned, it is **co-created atomically** with the report — a homework assignment can never exist without the report that carries it — and the composite must land or not land as one unit (a report can exist without homework, but homework without a report or a split commit is a corrupted transcript). Three failure modes drove every ruling here: a double submit producing two records, a grade racing itself (two teachers grading the same prior homework), and a ghost notification pushed for a submission that rolled back. Each was either proven or ruled out during the surface's review waves; nothing in this document is aspirational.
 
 ## 2. Pattern
 
@@ -118,7 +118,7 @@ Shipped with zero UI (documents only — the submit form and portal surfaces bel
 
 ## 7. Related Documents
 
-- `docs/sessions/session-lifecycle.md` — the state machine this surface gates on (`status = completed` is a lifecycle terminal); the guarded-transition pattern the write gate extends; the sessions-are-sensitive oracle ruling the reads inherit.
+- `docs/sessions/session-lifecycle.md` — the state machine this surface gates on (`status = completed` is this surface's required report-gate state); the guarded-transition pattern the write gate extends; the sessions-are-sensitive oracle ruling the reads inherit.
 - `docs/notifications/session-request-notifications.md` — the sibling session-notification seam (recipient-locale composition, caller-tx receipts, publish-after-commit) this wave follows.
 - `docs/graphql/error-handling-contract.md` — the transport taxonomy (`SESSION_REPORT_ALREADY_EXISTS` / `SESSION_INVALID_TRANSITION` / `VALIDATION` codes → HTTP semantics, client mapping).
 - `docs/graphql/domain-error-extensions-code.md` — the DomainError → `extensions.code` throw conventions this surface's denials follow.

@@ -329,9 +329,14 @@ describe("assertTeacherNotes", () => {
       expectValidationError(() => assertTeacherNotes(`  ${"d".repeat(2001)}  `, en), en.sessionReportNotesTooLong);
     });
 
-    test("unicode / RTL / control characters within the bound are preserved trimmed", () => {
-      expect(assertTeacherNotes("  \u0000 سبب الحفظ \u05D0\u05D1\u05D2  ", t())).toBe(
-        "\u0000 سبب الحفظ \u05D0\u05D1\u05D2"
+    test("unicode / RTL characters within the bound are preserved trimmed", () => {
+      expect(assertTeacherNotes("  سبب الحفظ \u05D0\u05D1\u05D2  ", t())).toBe("سبب الحفظ \u05D0\u05D1\u05D2");
+    });
+
+    test("rejects notes containing null bytes", () => {
+      expectValidationError(
+        () => assertTeacherNotes("  \u0000 سبب الحفظ \u05D0\u05D1\u05D2  ", t()),
+        t().sessionReportNotesRequired
       );
     });
   });

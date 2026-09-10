@@ -1,26 +1,36 @@
 #!/usr/bin/env python3
 """Fetch unresolved CodeRabbit review threads for open PRs (autofix skill Step 3, curl-based)."""
-import json, os, subprocess, sys
+import json, os, sys, urllib.request
 
 TOKEN = os.environ["GITHUB_TOKEN"]
 OWNER, REPO = "kottaby", "kottaby"
 API = "https://api.github.com"
 
 def gh(endpoint):
-    out = subprocess.run(
-        ["curl", "-s", "-H", f"Authorization: Bearer {TOKEN}",
-         "-H", "Accept: application/vnd.github+json", f"{API}{endpoint}"],
-        capture_output=True, text=True)
-    return json.loads(out.stdout)
+    req = urllib.request.Request(
+        f"{API}{endpoint}",
+        headers={
+            "Authorization": f"Bearer {TOKEN}",
+            "Accept": "application/vnd.github+json",
+            "User-Agent": "kottaby-script",
+        },
+    )
+    with urllib.request.urlopen(req) as resp:
+        return json.loads(resp.read().decode("utf-8"))
 
 def gql(query, variables):
-    payload = json.dumps({"query": query, "variables": variables})
-    out = subprocess.run(
-        ["curl", "-s", "-X", "POST", f"{API}/graphql",
-         "-H", f"Authorization: Bearer {TOKEN}",
-         "-H", "Content-Type: application/json", "-d", payload],
-        capture_output=True, text=True)
-    return json.loads(out.stdout)
+    payload = json.dumps({"query": query, "variables": variables}).encode("utf-8")
+    req = urllib.request.Request(
+        f"{API}/graphql",
+        data=payload,
+        headers={
+            "Authorization": f"Bearer {TOKEN}",
+            "Content-Type": "application/json",
+            "User-Agent": "kottaby-script",
+        },
+    )
+    with urllib.request.urlopen(req) as resp:
+        return json.loads(resp.read().decode("utf-8"))
 
 QUERY = """
 query($owner:String!, $repo:String!, $pr:Int!) {

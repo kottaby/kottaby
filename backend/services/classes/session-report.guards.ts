@@ -85,15 +85,16 @@ export function assertPositiveSessionId(id: unknown, t: ErrorsTranslations): ass
 
 /**
  * Normalizes the required free-text report notes: trims, then rejects a
- * whitespace-only value and over-limit content with the pre-DB `VALIDATION`
- * denial. The length bound is enforced by counting characters (never by
- * pattern-matching, so no regex backtracking surface exists) and the
- * trimmed value is what the guarded INSERT persists verbatim — no other
- * sanitization is applied (rendering is inert client-side).
+ * whitespace-only value, null bytes (unsupported in PostgreSQL text columns),
+ * and over-limit content with the pre-DB `VALIDATION` denial. The length
+ * bound is enforced by counting characters (never by pattern-matching, so
+ * no regex backtracking surface exists) and the trimmed value is what the
+ * guarded INSERT persists verbatim — no other sanitization is applied
+ * (rendering is inert client-side).
  */
 export function assertTeacherNotes(notes: string, t: ErrorsTranslations): string {
   const trimmed = notes.trim();
-  if (trimmed.length === 0) {
+  if (trimmed.length === 0 || trimmed.includes("\0")) {
     throw new ValidationError(t.sessionReportNotesRequired);
   }
   if (trimmed.length > MAX_TEACHER_NOTES_LENGTH) {

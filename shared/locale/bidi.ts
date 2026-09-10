@@ -8,9 +8,12 @@
  * (U+2068) / PDI (U+2069) isolate the run so it always renders in its own
  * internal order without affecting the sentence flow.
  */
+const BIDI_CONTROL_RE = /[\u202A-\u202E\u2066-\u2069]/g;
+
 export function isolateBidiRun(text: string): string {
   if (!text) return text;
-  return `\u2068${text}\u2069`;
+  const sanitized = text.replace(BIDI_CONTROL_RE, "");
+  return `\u2068${sanitized}\u2069`;
 }
 
 /**

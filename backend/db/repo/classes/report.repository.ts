@@ -36,19 +36,7 @@
 import { eq } from "drizzle-orm";
 import { db, queryDb } from "@/backend/db";
 import { reports } from "@/backend/db/schema/classes/reports";
-import type { DBQueryExecutor, DBTransaction, ReportInsertType, ReportSelectType } from "@/backend/types";
-
-/**
- * Type guard — narrows `DBQueryExecutor` to `DBTransaction`.
- *
- * `DBTransaction` (Drizzle's `PgAsyncTransaction`) exposes the `.select()`
- * builder API; raw `Pool` / `PoolClient` from `pg` do not. The presence of
- * `.select` therefore distinguishes the two at runtime without an unsafe
- * cast.
- */
-function isDBTransaction(tx: DBQueryExecutor): tx is DBTransaction {
-  return typeof tx === "object" && "select" in tx;
-}
+import type { DBTransaction, ReportInsertType, ReportSelectType } from "@/backend/types";
 
 export namespace ReportRepository {
   /**
@@ -85,8 +73,8 @@ export namespace ReportRepository {
    *          non-participants) is the read service's decision — this
    *          method is the raw session-keyed read.
    */
-  export async function findBySessionId(sessionId: number, tx?: DBQueryExecutor): Promise<ReportSelectType | null> {
-    if (tx && isDBTransaction(tx)) {
+  export async function findBySessionId(sessionId: number, tx?: DBTransaction): Promise<ReportSelectType | null> {
+    if (tx) {
       const rows = await tx.select().from(reports).where(eq(reports.sessionId, sessionId)).limit(1);
       return rows[0] ?? null;
     }

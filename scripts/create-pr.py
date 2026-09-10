@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Create PR: feat/dev3-006-session-report-homework -> main (autofix Step 2 flow)."""
-import json, os, subprocess, sys
+import json, os, sys, urllib.error, urllib.request
 
 TOKEN = os.environ["GITHUB_TOKEN"]
 API = "https://api.github.com"
@@ -43,14 +43,25 @@ payload = json.dumps({
     "head": "feat/dev3-006-session-report-homework",
     "base": "main",
     "body": BODY,
-})
-out = subprocess.run(
-    ["curl", "-s", "-X", "POST", f"{API}/repos/kottaby/kottaby/pulls",
-     "-H", f"Authorization: Bearer {TOKEN}",
-     "-H", "Accept: application/vnd.github+json",
-     "-H", "Content-Type: application/json", "-d", payload],
-    capture_output=True, text=True)
-r = json.loads(out.stdout)
+}).encode("utf-8")
+
+req = urllib.request.Request(
+    f"{API}/repos/kottaby/kottaby/pulls",
+    data=payload,
+    headers={
+        "Authorization": f"Bearer {TOKEN}",
+        "Accept": "application/vnd.github+json",
+        "Content-Type": "application/json",
+        "User-Agent": "kottaby-script",
+    },
+)
+
+try:
+    with urllib.request.urlopen(req) as resp:
+        r = json.loads(resp.read().decode("utf-8"))
+except urllib.error.HTTPError as e:
+    r = json.loads(e.read().decode("utf-8"))
+
 if "number" in r:
     print(f"PR CREATED: #{r['number']}  {r['html_url']}")
     print(f"  head: {r['head']['ref']} -> base: {r['base']['ref']}")
@@ -58,3 +69,4 @@ if "number" in r:
 else:
     print("ERROR:", json.dumps(r)[:500])
     sys.exit(1)
+

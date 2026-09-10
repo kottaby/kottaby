@@ -94,7 +94,6 @@ import { SessionReportNotificationService } from "@/backend/services/classes/ses
 import { NotificationEngine, type NotificationEngineCallOptions } from "@/backend/services/notifications";
 import { isUniqueViolation } from "@/backend/services/shared/user-provisioning.helpers";
 import type {
-  DBQueryExecutor,
   DBTransaction,
   HomeWorkAssignInput,
   HomeWorkInsertType,
@@ -395,19 +394,6 @@ export async function submitSessionReport(
 }
 
 /**
- * Read-surface tx narrowing: the transition probe runs on a Drizzle
- * transaction, while the read surface accepts the wider `DBQueryExecutor`
- * (transaction OR pool OR pool client). A non-transaction executor drops
- * to `undefined` — the probe then runs on its own cold-path raw-SQL
- * fallback — so a pool handed in for the plain SELECT can never reach the
- * transaction-only parameter. Mirrors the per-repo `isDBTransaction`
- * guard shape (those are file-private to each repository).
- */
-function isDBTransaction(tx: DBQueryExecutor): tx is DBTransaction {
-  return typeof tx === "object" && "select" in tx;
-}
-
-/**
  * The shared participant gate for the read surface (both readers call
  * this ONE predicate — no duplicated participant logic): re-reads the
  * cold-path transition probe with NO lock (`findTransitionProbe` is a
@@ -426,9 +412,9 @@ function isDBTransaction(tx: DBQueryExecutor): tx is DBTransaction {
 async function resolveVisibleSessionForCaller(
   callerUserId: number,
   sessionId: number,
-  tx: DBQueryExecutor | undefined
+  tx?: DBTransaction
 ): Promise<SessionTransitionProbeRowType | null> {
-  const probe = await SessionRepository.findTransitionProbe(sessionId, tx && isDBTransaction(tx) ? tx : undefined);
+  const probe = await SessionRepository.findTransitionProbe(sessionId, tx);
   if (probe === null) {
     return null;
   }
@@ -463,7 +449,7 @@ export async function getSessionReport(
   callerUserId: number,
   sessionId: number,
   locale: string,
-  tx?: DBQueryExecutor
+  tx?: DBTransaction
 ): Promise<ReportReturnType | null> {
   // Pre-DB boundary validation — the SAME id-shape guard the write
   // surface uses, with the locale's translations resolved once here.
@@ -502,7 +488,7 @@ export async function getSessionHomework(
   callerUserId: number,
   sessionId: number,
   locale: string,
-  tx?: DBQueryExecutor
+  tx?: DBTransaction
 ): Promise<HomeWorkReturnType | null> {
   // Pre-DB boundary validation — the SAME id-shape guard the write
   // surface uses, with the locale's translations resolved once here.
