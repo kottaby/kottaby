@@ -8,12 +8,13 @@
  * optimistic client state.
  */
 
-import { Card, Table, TableBody, TableContainer, TableHead, TablePagination, TableRow } from "@mui/material";
+import { Box, Card, Table, TableBody, TableContainer, TableHead, TablePagination, TableRow } from "@mui/material";
 import type { ReactNode } from "react";
 import type {
   AdminAuditLogsQuery_adminAuditLogs_items,
   AuditActionType,
 } from "@/frontend/graphql/generated/gql/graphql";
+import { AuditTrailMobileCards } from "@/frontend/views/admin/audit/AuditTrailMobileCards";
 import { AuditTrailHeaderCell, AuditTrailRow } from "@/frontend/views/admin/audit/AuditTrailRow";
 import { AuditTrailEmptyState } from "@/frontend/views/admin/audit/AuditTrailStates";
 import { surfaceCardSx } from "@/frontend/views/admin/audit/audit-trail-skin";
@@ -60,7 +61,19 @@ export function AuditTrailResults(props: Readonly<AuditTrailResultsProps>): Reac
   }
   return (
     <Card sx={surfaceCardSx}>
-      <TableContainer sx={{ overflowX: "auto" }}>
+      {/* Mobile (< md): per-entry card stack — the fixed-width table would
+          shear mid-column inside a 390px viewport. */}
+      <Box sx={{ display: { xs: "block", md: "none" }, p: 2 }}>
+        <AuditTrailMobileCards
+          entries={props.items}
+          tableLabels={props.labels.table}
+          locale={props.locale}
+          actionLabels={props.actionLabels}
+          expandedDetailsId={props.expandedDetailsId}
+          onToggleDetails={props.onToggleDetails}
+        />
+      </Box>
+      <TableContainer sx={{ overflowX: "auto", display: { xs: "none", md: "block" } }}>
         <Table sx={{ minWidth: TABLE_MIN_WIDTH_PX, tableLayout: "fixed" }} aria-label={props.labels.pageTitle}>
           <TableHead>
             <TableRow sx={theme => ({ backgroundColor: theme.palette.surfaceContainerHigh })}>

@@ -40,6 +40,7 @@ import type {
   AdminRegistrationSubmitInput,
   ApiFieldErrorType,
   DBTransaction,
+  RegisteredUserLookupResult,
   RegistrationReturnType,
   RegistrationSubmitInput,
   UserInsertType,
@@ -155,6 +156,21 @@ export namespace RegistrationService {
     } catch (error) {
       throw translateDbError(error, t.emailAlreadyExists);
     }
+  }
+
+  /**
+   * Read-only lookup of an already-registered user by email — the seeder
+   * bootstrap entry point for look-before-create flows. Seeders never query
+   * repositories directly (seed-layer Service-Only Data Access rule): a
+   * missing read bootstrap is added HERE instead. Returns null when no user
+   * carries the email; never authenticates, never provisions.
+   */
+  export async function findRegisteredUserByEmail(email: string): Promise<RegisteredUserLookupResult | null> {
+    const user = await UserRepository.findByEmail(email);
+    if (!user) {
+      return null;
+    }
+    return { id: user.id, email: user.email, role: user.role };
   }
 
   // ─── Internals ────────────────────────────────────────────────────────

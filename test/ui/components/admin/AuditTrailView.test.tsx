@@ -214,6 +214,20 @@ function renderTrailRtl(mocks: ReadonlyArray<MockLink.MockedResponse>): RenderRe
   );
 }
 
+/**
+ * Waits until trail content carrying `text` is on screen.
+ *
+ * Each entry renders in BOTH the desktop table row and the mobile card —
+ * the xs/md switch is CSS-only, so happy-dom keeps both subtrees in the
+ * DOM. `getByText` throws on the second match, so positive content
+ * assertions go through `getAllByText` with a ≥ 1 cardinality; absence
+ * assertions keep `queryByText(...).toBeNull()` (zero instances is
+ * unambiguous).
+ */
+async function waitForTrailContent(text: string): Promise<void> {
+  await waitFor(() => expect(screen.getAllByText(text).length).toBeGreaterThanOrEqual(1));
+}
+
 /** Recomputes the timestamp stamp independently of the implementation. */
 function expectedTimestamp(iso: string, locale: AppLocale): string {
   const formatter = new Intl.DateTimeFormat(locale === "en" ? "en" : "ar", {
@@ -249,10 +263,10 @@ describe("AuditTrailView (en / LTR)", () => {
 
     await waitFor(() => {
       expect(screen.getByRole("table", { name: t.auditTrail.pageTitle })).toBeDefined();
-      expect(screen.getByText(ROW_A.actorName)).toBeDefined();
+      expect(screen.getAllByText(ROW_A.actorName).length).toBeGreaterThanOrEqual(1);
     });
 
-    expect(screen.getByText(ROW_B.actorName)).toBeDefined();
+    expect(screen.getAllByText(ROW_B.actorName).length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText(expectedTimestamp(FIXED_ISO, "en")).length).toBeGreaterThanOrEqual(1);
     expect(screen.getByRole("heading", { level: 1, name: t.auditTrail.pageTitle })).toBeDefined();
     expect(screen.getByText(t.auditTrail.pageSubtitle)).toBeDefined();
@@ -267,8 +281,8 @@ describe("AuditTrailView (en / LTR)", () => {
     expect(within(table).getByRole("columnheader", { name: t.auditTrail.table.entityTypeHeader })).toBeDefined();
     expect(within(table).getByRole("columnheader", { name: t.auditTrail.table.entityIdHeader })).toBeDefined();
     expect(within(table).getByRole("columnheader", { name: t.auditTrail.table.detailsHeader })).toBeDefined();
-    expect(screen.getByText(t.activity.actionCreate)).toBeDefined();
-    expect(screen.getByText(t.activity.actionUpdate)).toBeDefined();
+    expect(screen.getAllByText(t.activity.actionCreate).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText(t.activity.actionUpdate).length).toBeGreaterThanOrEqual(1);
 
     // The filter bar carries the localized action-type combobox and the
     // 44px Apply/Clear pair.
@@ -284,7 +298,7 @@ describe("AuditTrailView (en / LTR)", () => {
       trailMock({ filters: wireFilters({ actorId: 9 }), page: 1, pageSize: 10 }, auditPage([ROW_FILTERED], 1)),
     ]);
 
-    await waitFor(() => expect(screen.getByText(ROW_A.actorName)).toBeDefined());
+    await waitForTrailContent(ROW_A.actorName);
 
     // Honest envelope echo in the displayed-rows caption.
     expect(screen.getByText(`${t.pagination.showingPrefix} 1–10 ${t.pagination.of} 25`)).toBeDefined();
@@ -292,7 +306,7 @@ describe("AuditTrailView (en / LTR)", () => {
     fireEvent.click(screen.getByRole("button", { name: t.pagination.next }));
 
     await waitFor(() => {
-      expect(screen.getByText(ROW_PAGE_TWO.actorName)).toBeDefined();
+      expect(screen.getAllByText(ROW_PAGE_TWO.actorName).length).toBeGreaterThanOrEqual(1);
       expect(screen.queryByText(ROW_A.actorName)).toBeNull();
     });
     expect(screen.getByText(`${t.pagination.showingPrefix} 11–20 ${t.pagination.of} 25`)).toBeDefined();
@@ -303,7 +317,7 @@ describe("AuditTrailView (en / LTR)", () => {
     fireEvent.click(screen.getByRole("button", { name: t.auditTrail.filters.applyAction }));
 
     await waitFor(() => {
-      expect(screen.getByText(ROW_FILTERED.actorName)).toBeDefined();
+      expect(screen.getAllByText(ROW_FILTERED.actorName).length).toBeGreaterThanOrEqual(1);
       expect(screen.queryByText(ROW_PAGE_TWO.actorName)).toBeNull();
     });
     expect(screen.getByText(`${t.pagination.showingPrefix} 1–1 ${t.pagination.of} 1`)).toBeDefined();
@@ -346,7 +360,7 @@ describe("AuditTrailView (en / LTR)", () => {
 
     fireEvent.click(screen.getByRole("button", { name: tc.retry }));
 
-    await waitFor(() => expect(screen.getByText(ROW_A.actorName)).toBeDefined());
+    await waitForTrailContent(ROW_A.actorName);
     expect(screen.queryByText(t.auditTrail.errorState.title)).toBeNull();
   });
 
@@ -360,8 +374,8 @@ describe("AuditTrailView (en / LTR)", () => {
     ]);
 
     await waitFor(() => {
-      expect(screen.getByText(ROW_A.actorName)).toBeDefined();
-      expect(screen.getByText(ROW_B.actorName)).toBeDefined();
+      expect(screen.getAllByText(ROW_A.actorName).length).toBeGreaterThanOrEqual(1);
+      expect(screen.getAllByText(ROW_B.actorName).length).toBeGreaterThanOrEqual(1);
     });
 
     fireEvent.change(screen.getByLabelText(t.auditTrail.filters.actorIdLabel), { target: { value: "3" } });
@@ -374,7 +388,7 @@ describe("AuditTrailView (en / LTR)", () => {
     await waitFor(() => {
       expect(screen.queryByText(ROW_A.actorName)).toBeNull();
       expect(screen.queryByText(ROW_B.actorName)).toBeNull();
-      expect(screen.getByText(ROW_FILTERED.actorName)).toBeDefined();
+      expect(screen.getAllByText(ROW_FILTERED.actorName).length).toBeGreaterThanOrEqual(1);
     });
   });
 
@@ -387,7 +401,7 @@ describe("AuditTrailView (en / LTR)", () => {
       { actorId: 9 }
     );
 
-    await waitFor(() => expect(screen.getByText(ROW_FILTERED.actorName)).toBeDefined());
+    await waitForTrailContent(ROW_FILTERED.actorName);
 
     // Ids are 1-based: typing `0` applies as a CLEARED filter (the same
     // bound the route's deep-link sanitizer enforces), so the unfiltered
@@ -397,8 +411,8 @@ describe("AuditTrailView (en / LTR)", () => {
     fireEvent.click(screen.getByRole("button", { name: t.auditTrail.filters.applyAction }));
 
     await waitFor(() => {
-      expect(screen.getByText(ROW_A.actorName)).toBeDefined();
-      expect(screen.getByText(ROW_B.actorName)).toBeDefined();
+      expect(screen.getAllByText(ROW_A.actorName).length).toBeGreaterThanOrEqual(1);
+      expect(screen.getAllByText(ROW_B.actorName).length).toBeGreaterThanOrEqual(1);
       expect(screen.queryByText(ROW_FILTERED.actorName)).toBeNull();
     });
     expect(screen.queryByText(t.auditTrail.errorState.title)).toBeNull();
@@ -414,7 +428,7 @@ describe("AuditTrailView (en / LTR)", () => {
       { actorId: 9 }
     );
 
-    await waitFor(() => expect(screen.getByText(ROW_FILTERED.actorName)).toBeDefined());
+    await waitForTrailContent(ROW_FILTERED.actorName);
 
     // 3000000000 exceeds the GraphQL Int wire max (2^31 - 1): the draft
     // applies as CLEARED (the same silent-drop posture as a zero id), so
@@ -424,8 +438,8 @@ describe("AuditTrailView (en / LTR)", () => {
     fireEvent.click(screen.getByRole("button", { name: t.auditTrail.filters.applyAction }));
 
     await waitFor(() => {
-      expect(screen.getByText(ROW_A.actorName)).toBeDefined();
-      expect(screen.getByText(ROW_B.actorName)).toBeDefined();
+      expect(screen.getAllByText(ROW_A.actorName).length).toBeGreaterThanOrEqual(1);
+      expect(screen.getAllByText(ROW_B.actorName).length).toBeGreaterThanOrEqual(1);
       expect(screen.queryByText(ROW_FILTERED.actorName)).toBeNull();
     });
     expect(screen.queryByText(t.auditTrail.errorState.title)).toBeNull();
@@ -448,7 +462,7 @@ describe("AuditTrailView (en / LTR)", () => {
       { entityType: "user", from: "2026-02-03" }
     );
 
-    await waitFor(() => expect(screen.getByText(ROW_A.actorName)).toBeDefined());
+    await waitForTrailContent(ROW_A.actorName);
 
     // Typing an earlier `to` inverts the range: the whole pair clears (the
     // route's own deep-link posture for inverted ranges) while the surviving
@@ -458,7 +472,7 @@ describe("AuditTrailView (en / LTR)", () => {
     fireEvent.click(screen.getByRole("button", { name: t.auditTrail.filters.applyAction }));
 
     await waitFor(() => {
-      expect(screen.getByText(ROW_B.actorName)).toBeDefined();
+      expect(screen.getAllByText(ROW_B.actorName).length).toBeGreaterThanOrEqual(1);
       expect(screen.queryByText(ROW_A.actorName)).toBeNull();
     });
     expect(screen.queryByText(t.auditTrail.errorState.title)).toBeNull();
@@ -467,13 +481,13 @@ describe("AuditTrailView (en / LTR)", () => {
   test("null details and null entityId render the namespace em-dash placeholders", async () => {
     renderTrail([trailMock(UNFILTERED_PAGE_ONE, auditPage([ROW_FILTERED], 1))]);
 
-    await waitFor(() => expect(screen.getByText(ROW_FILTERED.actorName)).toBeDefined());
+    await waitForTrailContent(ROW_FILTERED.actorName);
 
-    // The namespace pins BOTH placeholders to the SAME locale-neutral em-dash glyph,
-    // so the single fixture row's two null cells resolve as exactly two
-    // matching text nodes.
-    expect(screen.getAllByText(t.auditTrail.table.noEntityIdValue)).toHaveLength(2);
-    expect(screen.getAllByText(t.auditTrail.table.noDetailsValue)).toHaveLength(2);
+    // The namespace pins BOTH placeholders to the SAME locale-neutral em-dash
+    // glyph, and every entry renders in BOTH the desktop table (2 null cells)
+    // and the mobile card (2 fact lines) — 4 matching text nodes total.
+    expect(screen.getAllByText(t.auditTrail.table.noEntityIdValue)).toHaveLength(4);
+    expect(screen.getAllByText(t.auditTrail.table.noDetailsValue)).toHaveLength(4);
     // No expansion affordance exists for a null payload.
     expect(screen.queryByRole("button", { name: t.auditTrail.table.detailsShowLabel })).toBeNull();
   });
@@ -481,27 +495,32 @@ describe("AuditTrailView (en / LTR)", () => {
   test("details expansion renders the payload verbatim and collapses back", async () => {
     renderTrail([trailMock(UNFILTERED_PAGE_ONE, auditPage([ROW_A], 1))]);
 
-    await waitFor(() => expect(screen.getByText(ROW_A.actorName)).toBeDefined());
+    await waitForTrailContent(ROW_A.actorName);
     expect(screen.queryByText(DETAILS_JSON)).toBeNull();
 
-    fireEvent.click(screen.getByRole("button", { name: t.auditTrail.table.detailsShowLabel }));
+    // The toggle renders in BOTH the desktop row and the mobile card (the
+    // responsive switch is CSS-only); both are wired to the same shared
+    // expandedDetailsId state, so clicking either expands both.
+    fireEvent.click(screen.getAllByRole("button", { name: t.auditTrail.table.detailsShowLabel })[0]);
 
     // The pre-formatted block carries the RAW payload verbatim.
-    expect(screen.getByText(DETAILS_JSON)).toBeDefined();
+    expect(screen.getAllByText(DETAILS_JSON).length).toBeGreaterThanOrEqual(1);
     expect(
-      screen.getByRole("button", { name: t.auditTrail.table.detailsHideLabel }).getAttribute("aria-expanded")
+      screen.getAllByRole("button", { name: t.auditTrail.table.detailsHideLabel })[0].getAttribute("aria-expanded")
     ).toBe("true");
 
-    fireEvent.click(screen.getByRole("button", { name: t.auditTrail.table.detailsHideLabel }));
+    fireEvent.click(screen.getAllByRole("button", { name: t.auditTrail.table.detailsHideLabel })[0]);
 
     expect(screen.queryByText(DETAILS_JSON)).toBeNull();
-    expect(screen.getByRole("button", { name: t.auditTrail.table.detailsShowLabel })).toBeDefined();
+    expect(screen.getAllByRole("button", { name: t.auditTrail.table.detailsShowLabel }).length).toBeGreaterThanOrEqual(
+      1
+    );
   });
 
   test("action-type combobox opens onto the all-actions option and the seven localized actions", async () => {
     renderTrail([trailMock(UNFILTERED_PAGE_ONE, auditPage([ROW_A], 1))]);
 
-    await waitFor(() => expect(screen.getByText(ROW_A.actorName)).toBeDefined());
+    await waitForTrailContent(ROW_A.actorName);
 
     // MUI's Select trigger opens on mousedown (SelectInput wires handleMouseDown
     // onto the combobox) — a plain click never opens the listbox.
@@ -536,7 +555,7 @@ describe("AuditTrailView (en / LTR)", () => {
       { actorId: 5, entityId: 9, entityType: "user", from: "2026-02-01", to: "2026-02-03" }
     );
 
-    await waitFor(() => expect(screen.getByText(ROW_FILTERED.actorName)).toBeDefined());
+    await waitForTrailContent(ROW_FILTERED.actorName);
 
     // The draft bar is pre-filled from the sanitized seed.
     expect(screen.getByDisplayValue("5")).toBeDefined();
@@ -561,7 +580,7 @@ describe("AuditTrailView (en / LTR)", () => {
       { actorId: 5, from: "2026-02-01", to: "not-a-date" }
     );
 
-    await waitFor(() => expect(screen.getByText(ROW_FILTERED.actorName)).toBeDefined());
+    await waitForTrailContent(ROW_FILTERED.actorName);
 
     // The hostile seed never reaches the bar or the wire.
     expect(screen.queryByDisplayValue("not-a-date")).toBeNull();
@@ -586,13 +605,13 @@ describe("AuditTrailView (en / LTR)", () => {
       { entityType: "user" }
     );
 
-    await waitFor(() => expect(screen.getByText(ROW_FILTERED.actorName)).toBeDefined());
+    await waitForTrailContent(ROW_FILTERED.actorName);
 
     fireEvent.click(screen.getByRole("button", { name: t.auditTrail.filters.clearAction }));
 
     await waitFor(() => {
-      expect(screen.getByText(ROW_A.actorName)).toBeDefined();
-      expect(screen.getByText(ROW_B.actorName)).toBeDefined();
+      expect(screen.getAllByText(ROW_A.actorName).length).toBeGreaterThanOrEqual(1);
+      expect(screen.getAllByText(ROW_B.actorName).length).toBeGreaterThanOrEqual(1);
       expect(screen.queryByText(ROW_FILTERED.actorName)).toBeNull();
     });
     expect(screen.queryByDisplayValue("user")).toBeNull();
@@ -605,15 +624,15 @@ describe("AuditTrailView (ar / RTL)", () => {
   test("populated trail renders Arabic labels and Arabic-Indic stamps", async () => {
     renderTrailRtl([trailMock(UNFILTERED_PAGE_ONE, auditPage([ROW_A], 1))]);
 
-    await waitFor(() => expect(screen.getByText(ROW_A.actorName)).toBeDefined());
+    await waitForTrailContent(ROW_A.actorName);
 
     expect(screen.getByRole("heading", { level: 1, name: tar.auditTrail.pageTitle })).toBeDefined();
     expect(screen.getByText(tar.auditTrail.pageSubtitle)).toBeDefined();
     expect(screen.getByRole("table", { name: tar.auditTrail.pageTitle })).toBeDefined();
-    expect(screen.getByText(tar.auditTrail.table.whenHeader)).toBeDefined();
-    expect(screen.getByText(tar.auditTrail.table.actorHeader)).toBeDefined();
-    expect(screen.getByText(tar.auditTrail.table.detailsHeader)).toBeDefined();
-    expect(screen.getByText(tar.activity.actionCreate)).toBeDefined();
+    expect(screen.getAllByText(tar.auditTrail.table.whenHeader).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText(tar.auditTrail.table.actorHeader).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText(tar.auditTrail.table.detailsHeader).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText(tar.activity.actionCreate).length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText(expectedTimestamp(FIXED_ISO, "ar")).length).toBeGreaterThanOrEqual(1);
     expect(screen.getByRole("button", { name: tar.auditTrail.filters.applyAction })).toBeDefined();
     expect(screen.getByRole("button", { name: tar.auditTrail.filters.clearAction })).toBeDefined();

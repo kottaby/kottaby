@@ -7,13 +7,27 @@
  * Forward-only lifecycle guarantee (REQ-017, REQ-018):
  * Deactivating or modifying a plan does NOT cascade to subscriptions, balances,
  * invoices, or payments. This file contains ZERO imports of student or subscription tables.
+ *
+ * Catalog mutations are admin-gated: the acting admin's id is a required
+ * parameter that is re-asserted against the `users` table before any
+ * validation or write runs, and every successful mutation appends exactly
+ * one audit row inside the caller's transaction (the row shares the
+ * mutation's commit/rollback fate).
  */
 
 import { PlanRepository } from "@/backend/db/repo/billing/plan.repository";
+import { AuditActionType } from "@/backend/enum/audit/audit-action-type.enum";
+import { withTransaction } from "@/backend/lib/db/with-transaction";
 import { ConflictError, DomainError, NotFoundError, ValidationError } from "@/backend/lib/errors";
 import { logger } from "@/backend/lib/logger";
+import { assertActorAdmin } from "@/backend/services/admin/admin-gate.helpers";
+import { AuditService } from "@/backend/services/admin/audit.service";
+import {
+  buildPlanAuditContract,
+  validateAndExtractPlanPatch,
+  validatePlanInput,
+} from "@/backend/services/billing/plan-catalog.helpers";
 import type {
-  ApiFieldErrorType,
   DBTransaction,
   PlanInsertType,
   PlanListForAdminOptions,
@@ -24,8 +38,21 @@ import type {
 import { getServerTranslations } from "@/shared/locale/server-graphql";
 import type { ErrorsLabels } from "@/shared/locale/types/errors";
 
-const PRICE_REGEX = /^\d{1,8}(\.\d{1,2})?$/;
-const CURRENCY_REGEX = /^[A-Z]{3}$/;
+/**
+ * Shared mutation prelude for the admin catalog surface: resolves the
+ * request locale, re-asserts that the acting actor id belongs to a real
+ * admin-role user BEFORE any validation or write runs, and returns the
+ * resolved error translations for the localized domain messages.
+ */
+async function assertPlanMutationActor(
+  actorId: number,
+  locale: string | undefined,
+  tx?: DBTransaction
+): Promise<ErrorsLabels> {
+  const resolvedLocale = locale ?? "en";
+  await assertActorAdmin(actorId, resolvedLocale, tx);
+  return getServerTranslations(resolvedLocale).errorsTranslations;
+}
 
 /**
  * Type guard for checking PostgreSQL error codes across the cause chain.
@@ -40,166 +67,6 @@ function isPgErrorWithCode(error: unknown, code: string): boolean {
     }
   }
   return false;
-}
-
-function validateTitleField(
-  title: string | undefined,
-  tErrors: ErrorsLabels
-): { value?: string; error?: ApiFieldErrorType } {
-  if (title === undefined) return {};
-  const trimmed = title.trim();
-  if (trimmed.length === 0) {
-    return {
-      error: {
-        field: "title",
-        code: "PLAN_TITLE_EMPTY",
-        message: tErrors.planCatalog.planTitleRequired,
-      },
-    };
-  }
-  if (trimmed.length > 255) {
-    return {
-      error: {
-        field: "title",
-        code: "PLAN_TITLE_TOO_LONG",
-        message: tErrors.planCatalog.planTitleTooLong,
-      },
-    };
-  }
-  return { value: trimmed };
-}
-
-function validateSessionCountField(
-  count: number | undefined,
-  tErrors: ErrorsLabels
-): { value?: number; error?: ApiFieldErrorType } {
-  if (count === undefined) return {};
-  if (!Number.isInteger(count) || count < 1) {
-    return {
-      error: {
-        field: "sessionCount",
-        code: "PLAN_SESSION_COUNT_INVALID",
-        message: tErrors.planCatalog.planSessionCountInvalid,
-      },
-    };
-  }
-  return { value: count };
-}
-
-function validatePriceField(
-  price: string | undefined,
-  tErrors: ErrorsLabels
-): { value?: string; error?: ApiFieldErrorType } {
-  if (price === undefined) return {};
-  const trimmed = price.trim();
-  if (!PRICE_REGEX.test(trimmed) || Number.parseFloat(trimmed) < 0) {
-    return {
-      error: {
-        field: "price",
-        code: "PLAN_PRICE_INVALID",
-        message: tErrors.planCatalog.planPriceInvalid,
-      },
-    };
-  }
-  return { value: trimmed };
-}
-
-function validateCurrencyField(
-  currency: string | undefined,
-  tErrors: ErrorsLabels
-): { value?: string; error?: ApiFieldErrorType } {
-  if (currency === undefined) return {};
-  const trimmed = currency.trim();
-  if (!CURRENCY_REGEX.test(trimmed)) {
-    return {
-      error: {
-        field: "currency",
-        code: "PLAN_CURRENCY_INVALID",
-        message: tErrors.planCatalog.planCurrencyInvalid,
-      },
-    };
-  }
-  return { value: trimmed.toUpperCase() };
-}
-
-function validateIntervalDaysField(
-  days: number | undefined,
-  tErrors: ErrorsLabels
-): { value?: number; error?: ApiFieldErrorType } {
-  if (days === undefined) return {};
-  if (!Number.isInteger(days) || days < 1) {
-    return {
-      error: {
-        field: "intervalDays",
-        code: "PLAN_INTERVAL_DAYS_INVALID",
-        message: tErrors.planCatalog.planIntervalDaysInvalid,
-      },
-    };
-  }
-  return { value: days };
-}
-
-/**
- * Validates plan submit/create input fields.
- */
-function validatePlanInput(input: PlanSubmitInput, tErrors: ErrorsLabels): void {
-  const fields: ApiFieldErrorType[] = [];
-
-  const titleResult = validateTitleField(input.title, tErrors);
-  if (titleResult.error) fields.push(titleResult.error);
-
-  const sessionResult = validateSessionCountField(input.sessionCount, tErrors);
-  if (sessionResult.error) fields.push(sessionResult.error);
-
-  const priceResult = validatePriceField(input.price, tErrors);
-  if (priceResult.error) fields.push(priceResult.error);
-
-  const currencyResult = validateCurrencyField(input.currency, tErrors);
-  if (currencyResult.error) fields.push(currencyResult.error);
-
-  const intervalResult = validateIntervalDaysField(input.intervalDays, tErrors);
-  if (intervalResult.error) fields.push(intervalResult.error);
-
-  if (fields.length > 0) {
-    throw new ValidationError(tErrors.validation, fields);
-  }
-}
-
-interface ValidatedPatchResult {
-  updatePatch: PlanUpdateInput;
-  fields: ApiFieldErrorType[];
-}
-
-/**
- * Validates and projects supplied patch fields for updating a plan.
- */
-function validateAndExtractPlanPatch(patch: PlanUpdateInput, tErrors: ErrorsLabels): ValidatedPatchResult {
-  const fields: ApiFieldErrorType[] = [];
-
-  const titleResult = validateTitleField(patch.title, tErrors);
-  if (titleResult.error) fields.push(titleResult.error);
-
-  const sessionResult = validateSessionCountField(patch.sessionCount, tErrors);
-  if (sessionResult.error) fields.push(sessionResult.error);
-
-  const priceResult = validatePriceField(patch.price, tErrors);
-  if (priceResult.error) fields.push(priceResult.error);
-
-  const currencyResult = validateCurrencyField(patch.currency, tErrors);
-  if (currencyResult.error) fields.push(currencyResult.error);
-
-  const intervalResult = validateIntervalDaysField(patch.intervalDays, tErrors);
-  if (intervalResult.error) fields.push(intervalResult.error);
-
-  const updatePatch: PlanUpdateInput = {
-    ...(titleResult.value !== undefined && { title: titleResult.value }),
-    ...(sessionResult.value !== undefined && { sessionCount: sessionResult.value }),
-    ...(priceResult.value !== undefined && { price: priceResult.value }),
-    ...(currencyResult.value !== undefined && { currency: currencyResult.value }),
-    ...(intervalResult.value !== undefined && { intervalDays: intervalResult.value }),
-  };
-
-  return { updatePatch, fields };
 }
 
 export namespace PlanCatalogService {
@@ -225,13 +92,19 @@ export namespace PlanCatalogService {
 
   /**
    * Creates a new subscription plan in the catalog.
+   *
+   * Admin-gated before validation — a non-admin actor id is rejected with
+   * zero writes. The insert and its audit row (Create, with the persisted
+   * plan's catalog fields as details) share one transaction: a failure on
+   * either side rolls back both.
    */
   export async function createPlan(
     input: PlanSubmitInput,
+    actorId: number,
     locale?: string,
     tx?: DBTransaction
   ): Promise<PlanReturnType> {
-    const tErrors = getServerTranslations(locale ?? "en").errorsTranslations;
+    const tErrors = await assertPlanMutationActor(actorId, locale, tx);
     validatePlanInput(input, tErrors);
 
     const insert: PlanInsertType = {
@@ -243,10 +116,23 @@ export namespace PlanCatalogService {
     };
 
     try {
-      const created = await PlanRepository.insertPlan(insert, tx);
-      // DEV3-020 audit hook seam
-      logger.info("Plan created successfully", { planId: created.id });
-      return created;
+      return await withTransaction(tx, async scopedTx => {
+        const created = await PlanRepository.insertPlan(insert, scopedTx);
+
+        await AuditService.createAuditLog(
+          buildPlanAuditContract(actorId, AuditActionType.Create, created.id, {
+            title: created.title,
+            sessionCount: created.sessionCount,
+            price: created.price,
+            currency: created.currency,
+            intervalDays: created.intervalDays,
+          }),
+          scopedTx
+        );
+
+        logger.info("Plan created successfully", { planId: created.id });
+        return created;
+      });
     } catch (error: unknown) {
       if (isPgErrorWithCode(error, "23505")) {
         throw new ConflictError(tErrors.conflict, { cause: error });
@@ -260,14 +146,20 @@ export namespace PlanCatalogService {
 
   /**
    * Updates mutable fields on an existing plan record.
+   *
+   * Admin-gated before validation. The update and its audit row (Update,
+   * with the supplied field names as `changedFields`) share one
+   * transaction; a zero-row update classifies as PLAN_NOT_FOUND and mints
+   * nothing.
    */
   export async function updatePlan(
     id: number,
     patch: PlanUpdateInput,
+    actorId: number,
     locale?: string,
     tx?: DBTransaction
   ): Promise<PlanReturnType> {
-    const tErrors = getServerTranslations(locale ?? "en").errorsTranslations;
+    const tErrors = await assertPlanMutationActor(actorId, locale, tx);
 
     if (typeof id !== "number" || !Number.isInteger(id) || id < 1) {
       throw new ValidationError(tErrors.badRequest);
@@ -284,19 +176,27 @@ export namespace PlanCatalogService {
     }
 
     try {
-      const updated = await PlanRepository.updatePlanFields(id, updatePatch, tx);
-      if (!updated) {
-        logger.logDomainError("Plan not found during update", {
-          code: "PLAN_NOT_FOUND",
-          entity: "plans",
-          entityId: id,
-        });
-        throw new NotFoundError("PLAN", tErrors.planCatalog.planNotFound);
-      }
+      return await withTransaction(tx, async scopedTx => {
+        const updated = await PlanRepository.updatePlanFields(id, updatePatch, scopedTx);
+        if (!updated) {
+          logger.logDomainError("Plan not found during update", {
+            code: "PLAN_NOT_FOUND",
+            entity: "plans",
+            entityId: id,
+          });
+          throw new NotFoundError("PLAN", tErrors.planCatalog.planNotFound);
+        }
 
-      // DEV3-020 audit hook seam
-      logger.info("Plan updated successfully", { planId: id });
-      return updated;
+        await AuditService.createAuditLog(
+          buildPlanAuditContract(actorId, AuditActionType.Update, id, {
+            changedFields: Object.keys(updatePatch),
+          }),
+          scopedTx
+        );
+
+        logger.info("Plan updated successfully", { planId: id });
+        return updated;
+      });
     } catch (error: unknown) {
       if (isPgErrorWithCode(error, "23505")) {
         throw new ConflictError(tErrors.conflict, { cause: error });
@@ -310,46 +210,61 @@ export namespace PlanCatalogService {
 
   /**
    * Activates or deactivates a plan with atomic concurrency guards.
+   *
+   * Admin-gated before any write. The guarded transition and its audit row
+   * (Suspend on deactivation, Reactivate on activation) share one
+   * transaction; a zero-row transition classifies via the existence probe
+   * into PLAN_NOT_FOUND or the already-in-target-status domain error and
+   * mints nothing.
    */
   export async function setPlanActiveStatus(
     id: number,
     isActive: boolean,
+    actorId: number,
     locale?: string,
     tx?: DBTransaction
   ): Promise<PlanReturnType> {
-    const tErrors = getServerTranslations(locale ?? "en").errorsTranslations;
+    const tErrors = await assertPlanMutationActor(actorId, locale, tx);
 
     if (typeof id !== "number" || !Number.isInteger(id) || id < 1) {
       throw new ValidationError(tErrors.badRequest);
     }
 
-    const updated = await PlanRepository.setActiveStatusOnce(id, isActive, tx);
-    if (updated) {
-      // DEV3-020 audit hook seam
-      logger.info("Plan active status changed", { planId: id, isActive });
-      return updated;
-    }
+    return withTransaction(tx, async scopedTx => {
+      const updated = await PlanRepository.setActiveStatusOnce(id, isActive, scopedTx);
+      if (updated) {
+        await AuditService.createAuditLog(
+          buildPlanAuditContract(actorId, isActive ? AuditActionType.Reactivate : AuditActionType.Suspend, id, {
+            isActive,
+          }),
+          scopedTx
+        );
 
-    // Disambiguate why guarded update returned null
-    const exists = await PlanRepository.existsById(id, tx);
-    if (!exists) {
-      logger.logDomainError("Plan not found during status change", {
-        code: "PLAN_NOT_FOUND",
+        logger.info("Plan active status changed", { planId: id, isActive });
+        return updated;
+      }
+
+      // Disambiguate why guarded update returned null
+      const exists = await PlanRepository.existsById(id, scopedTx);
+      if (!exists) {
+        logger.logDomainError("Plan not found during status change", {
+          code: "PLAN_NOT_FOUND",
+          entity: "plans",
+          entityId: id,
+        });
+        throw new NotFoundError("PLAN", tErrors.planCatalog.planNotFound);
+      }
+
+      const code = isActive ? "PLAN_ALREADY_ACTIVE" : "PLAN_ALREADY_INACTIVE";
+      const message = isActive ? tErrors.planCatalog.planAlreadyActive : tErrors.planCatalog.planAlreadyInactive;
+
+      logger.logDomainError("Plan already in target active status", {
+        code,
         entity: "plans",
         entityId: id,
       });
-      throw new NotFoundError("PLAN", tErrors.planCatalog.planNotFound);
-    }
-
-    const code = isActive ? "PLAN_ALREADY_ACTIVE" : "PLAN_ALREADY_INACTIVE";
-    const message = isActive ? tErrors.planCatalog.planAlreadyActive : tErrors.planCatalog.planAlreadyInactive;
-
-    logger.logDomainError("Plan already in target active status", {
-      code,
-      entity: "plans",
-      entityId: id,
+      throw new DomainError(code, message);
     });
-    throw new DomainError(code, message);
   }
 
   /**

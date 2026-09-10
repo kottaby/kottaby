@@ -6,11 +6,16 @@
  * Security:
  *  - All plan management mutations require `{ authenticated: true, role: [UserRole.Admin] }`.
  *  - Forward-only lifecycle guarantee (INV-PC3): NO deletePlan/removePlan mutation exists.
+ *  - `actorId` is sourced EXCLUSIVELY from `ctx.user.id` (never from args —
+ *    BOLA-safe by construction) and threaded into the service, which
+ *    re-asserts the admin role from the user row (defense in depth) and
+ *    appends the audit row inside the mutation's transaction.
  */
 
 import { UserRole } from "@/backend/enum";
 import { CreatePlanInput, PlanPothosObject, UpdatePlanInput } from "@/backend/graphql/pothos/billing/plan.pothos";
 import { gqlSchemaBuilder } from "@/backend/graphql/pothos/builder";
+import { UnauthorizedError } from "@/backend/lib/errors";
 import { PlanCatalogService } from "@/backend/services/billing/plan-catalog.service";
 
 // Register `createPlan` mutation field
@@ -29,7 +34,17 @@ gqlSchemaBuilder.mutationField("createPlan", t =>
       }),
     },
     resolve: async (_root, args, ctx) => {
-      return PlanCatalogService.createPlan(args.input, ctx.locale);
+      // TypeScript narrowing only — the `role: [UserRole.Admin]` scope
+      // guarantees a verified user row at resolution time (anonymous callers
+      // never get past the scope step). This branch exists purely for
+      // TypeScript narrowing — the repo-wide no-non-null-assertion rule
+      // forbids dereferencing the nullable context directly; the thrown
+      // message mirrors builder.ts's own `authenticated` scope verbatim and
+      // is unreachable in practice.
+      if (!ctx.user) {
+        throw new UnauthorizedError("Authentication required.");
+      }
+      return PlanCatalogService.createPlan(args.input, ctx.user.id, ctx.locale);
     },
   })
 );
@@ -54,6 +69,10 @@ gqlSchemaBuilder.mutationField("updatePlan", t =>
       }),
     },
     resolve: async (_root, args, ctx) => {
+      // TypeScript narrowing only — see `createPlan` above.
+      if (!ctx.user) {
+        throw new UnauthorizedError("Authentication required.");
+      }
       const planId = PlanCatalogService.coercePlanId(args.id, ctx.locale);
       return PlanCatalogService.updatePlan(
         planId,
@@ -66,6 +85,7 @@ gqlSchemaBuilder.mutationField("updatePlan", t =>
           ...(args.input.intervalDays !== null &&
             args.input.intervalDays !== undefined && { intervalDays: args.input.intervalDays }),
         },
+        ctx.user.id,
         ctx.locale
       );
     },
@@ -91,8 +111,12 @@ gqlSchemaBuilder.mutationField("setPlanActiveStatus", t =>
       }),
     },
     resolve: async (_root, args, ctx) => {
+      // TypeScript narrowing only — see `createPlan` above.
+      if (!ctx.user) {
+        throw new UnauthorizedError("Authentication required.");
+      }
       const planId = PlanCatalogService.coercePlanId(args.id, ctx.locale);
-      return PlanCatalogService.setPlanActiveStatus(planId, args.isActive, ctx.locale);
+      return PlanCatalogService.setPlanActiveStatus(planId, args.isActive, ctx.user.id, ctx.locale);
     },
   })
 );

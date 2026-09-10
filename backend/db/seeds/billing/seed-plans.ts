@@ -4,6 +4,14 @@
  * Implements REQ-019, REQ-021.
  * Consumes PlanCatalogService exclusively (zero raw DB imports).
  * Idempotent via title matching.
+ *
+ * Actor attribution: plan mutations are admin-gated (the service re-asserts
+ * the acting admin against the `users` table before any write), so every
+ * mutation this seeder mints is attributed to a real admin-role user. The
+ * actor id is REQUIRED and supplied by the master seed controller
+ * (`seeds/index.ts`) via controller-context threading after the users step
+ * has provisioned the demo admin — this seeder never authenticates or
+ * provisions users itself (single-domain rule in seeds/AGENTS.md).
  */
 
 import { ConflictError } from "@/backend/lib/errors";
@@ -59,8 +67,11 @@ async function findPlanByTitle(title: string, locale: string, tx?: DBTransaction
   return plans.find(p => p.title === title);
 }
 
-export async function seedOrGet(locale = "en", tx?: DBTransaction): Promise<PlanReturnType[]> {
+export async function seedOrGet(locale = "en", adminActorId: number, tx?: DBTransaction): Promise<PlanReturnType[]> {
   logger.info("Seeding plan catalog via PlanCatalogService...");
+
+  const actorId = adminActorId;
+
   const existingPlans = await PlanCatalogService.listForAdmin({ includeInactive: true }, locale, tx);
   const existingByTitle = new Map(existingPlans.map(p => [p.title, p]));
 
@@ -79,6 +90,7 @@ export async function seedOrGet(locale = "en", tx?: DBTransaction): Promise<Plan
             currency: planSpec.currency,
             intervalDays: planSpec.intervalDays,
           },
+          actorId,
           locale,
           tx
         );
@@ -110,7 +122,7 @@ export async function seedOrGet(locale = "en", tx?: DBTransaction): Promise<Plan
     }
 
     if (planSpec.shouldBeActive === false && plan.isActive) {
-      plan = await PlanCatalogService.setPlanActiveStatus(plan.id, false, locale, tx);
+      plan = await PlanCatalogService.setPlanActiveStatus(plan.id, false, actorId, locale, tx);
       logger.info(`Deactivated plan "${plan.title}" (ID: ${plan.id})`);
     }
 
