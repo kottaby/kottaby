@@ -268,11 +268,12 @@ describe("SessionRepository — admin governance surface (runInRollback)", () =>
       await SessionRepository.openDisputeOnce(disputeRow.id, actorsA.studentUserId, "directory-scan", tx);
       await SessionRepository.cancelSessionOnce(terminalRow.id, actorsA.studentUserId, null, tx);
       // Three rows sharing one creation instant — only the id DESC tiebreak
-      // can order them deterministically (rows inside one transaction share
-      // the transaction's now()).
-      const sameInstant1 = await insertSessionRow(tx, actorsB);
-      const sameInstant2 = await insertSessionRow(tx, actorsB);
-      const sameInstant3 = await insertSessionRow(tx, actorsB);
+      // can order them deterministically. A future stamp keeps them ahead
+      // of any concurrent tests writing rows at now().
+      const sameInstant = new Date(now + 1_800_000);
+      const sameInstant1 = await insertSessionRow(tx, actorsB, { createdAt: sameInstant });
+      const sameInstant2 = await insertSessionRow(tx, actorsB, { createdAt: sameInstant });
+      const sameInstant3 = await insertSessionRow(tx, actorsB, { createdAt: sameInstant });
 
       const page = await SessionRepository.listForAdmin({}, 1, 25, tx);
 

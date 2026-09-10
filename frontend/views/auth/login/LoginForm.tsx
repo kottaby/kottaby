@@ -138,7 +138,7 @@ export function LoginForm() {
         </Stack>
       </Box>
 
-      <Stack direction="row" spacing={1} sx={{ justifyContent: "center", mt: 3 }}>
+      <Stack direction="row" spacing={1} sx={{ justifyContent: "center", mt: 4 }}>
         {/* 44px tap target via transparent padding — visible text size unchanged. */}
         <MuiLink
           component={Link}

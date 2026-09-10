@@ -1,3 +1,4 @@
+import { isolateBidiRun as iso, RLM } from "@/shared/locale/bidi";
 import type { NotificationsLabels } from "@/shared/locale/types/notifications";
 
 export const notificationsAr: NotificationsLabels = {
@@ -45,31 +46,36 @@ export const notificationsAr: NotificationsLabels = {
   eventSessionAutoRejectedTitle: "تم رفض طلب الجلسة تلقائيًا",
   eventSessionQueuedTitle: "طلب الجلسة في قائمة الانتظار",
   eventSessionAlternativesOfferedTitle: "تم اقتراح معلمين بدلاء",
-  eventSessionRequestBody: (studentName: string, intentLabel: string) => `طلب ${studentName} جلسة ${intentLabel} معك.`,
-  eventSessionAcceptedBody: (teacherName: string) => `قبل ${teacherName} طلب جلستك.`,
-  eventSessionDeclinedBody: (teacherName: string) => `اعتذر ${teacherName} عن طلب جلستك.`,
-  eventSessionAutoRejectedBody: (teacherName: string) => `تم رفض طلب جلستك لدى ${teacherName} تلقائيًا.`,
-  eventSessionQueuedBody: (teacherName: string) => `أُضيف طلب جلستك لدى ${teacherName} إلى قائمة الانتظار.`,
+  eventSessionRequestBody: (studentName: string, intentLabel: string) =>
+    `طلب ${iso(studentName)} جلسة ${intentLabel} معك.`,
+  eventSessionAcceptedBody: (teacherName: string) => `قبل ${iso(teacherName)} طلب جلستك.`,
+  eventSessionDeclinedBody: (teacherName: string) => `اعتذر ${iso(teacherName)} عن طلب جلستك.`,
+  eventSessionAutoRejectedBody: (teacherName: string) => `تم رفض طلب جلستك لدى ${iso(teacherName)} تلقائيًا.`,
+  eventSessionQueuedBody: (teacherName: string) => `أُضيف طلب جلستك لدى ${iso(teacherName)} إلى قائمة الانتظار.`,
   eventSessionAlternativesOfferedBody: (teacherName: string) =>
-    `تعذّر على ${teacherName} قبول طلبك، لذا اقترحنا لك معلمين بدلاء.`,
+    `تعذّر على ${iso(teacherName)} قبول طلبك، لذا اقترحنا لك معلمين بدلاء.`,
   eventSessionCompletionPromptTitle: "أكّد اكتمال جلستك",
   eventSessionAutoCancelledTitle: "تم إلغاء جلستك تلقائيًا",
   eventSessionCompletionPromptBody: (teacherName: string) =>
-    `علّم ${teacherName} جلستك كمكتملة — يرجى تأكيد الاكتمال حتى تُحتسب الجلسة.`,
+    `علّم ${iso(teacherName)} جلستك كمكتملة — يرجى تأكيد الاكتمال حتى تُحتسب الجلسة.`,
   eventSessionAutoCancelledBody: (teacherName: string) =>
-    `أُلغيت جلستك مع ${teacherName} تلقائيًا لعدم تأكيد الاكتمال خلال 24 ساعة.`,
+    `أُلغيت جلستك مع ${iso(teacherName)} تلقائيًا لعدم تأكيد الاكتمال خلال 24 ساعة.`,
   intentHifz: "الحفظ",
   intentTajweed: "التجويد",
   intentEvaluation: "التقييم",
   eventParentLinkRequestTitle: "طلب ربط جديد",
-  eventParentLinkRequestBody: (parentName: string) => `${parentName} أرسل إليك طلب ربط.`,
+  eventParentLinkRequestBody: (parentName: string) => `${RLM}${iso(parentName)} أرسل إليك طلب ربط.`,
   eventParentLinkAcceptedTitle: "تم تأكيد طلب الربط",
-  eventParentLinkAcceptedBody: (studentName: string) => `أكّد ${studentName} طلب ربطك.`,
+  eventParentLinkAcceptedBody: (studentName: string) => `أكّد ${iso(studentName)} طلب ربطك.`,
   eventParentLinkRejectedTitle: "تم رفض طلب الربط",
-  eventParentLinkRejectedBody: (studentName: string) => `رفض ${studentName} طلب ربطك.`,
+  eventParentLinkRejectedBody: (studentName: string) => `رفض ${iso(studentName)} طلب ربطك.`,
   eventParentLinkExpiringTitle: "تذكير: طلب ربطك على وشك الانتهاء",
   eventParentLinkExpiringBody: (studentName: string) =>
-    `طلب ربطك بـ ${studentName} سينتهي قريبًا — يمكن للطالب التأكيد أو الرفض قبل انتهاء صلاحيته.`,
+    `طلب ربطك بـ ${iso(studentName)} سينتهي قريبًا — يمكن للطالب التأكيد أو الرفض قبل انتهاء صلاحيته.`,
+  eventSessionReportReadyTitle: "تقرير الجلسة جاهز",
+  eventSessionReportReadyBody: (teacherName: string) => `قدّم ${iso(teacherName)} تقرير جلستك.`,
+  eventSessionReportReadyParentBody: (studentName: string, teacherName: string) =>
+    `قدّم ${iso(teacherName)} تقرير جلسة ${iso(studentName)}.`,
   eventSessionGovernanceRescheduledTitle: "تمت إعادة جدولة الجلسة",
   eventSessionGovernanceRescheduledBody:
     "قام أحد مشرفي المنصة بتغيير موعد جلستك. افتح الجلسة للاطلاع على الموعد الجديد.",

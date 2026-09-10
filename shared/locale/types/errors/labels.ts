@@ -170,6 +170,24 @@ export interface ErrorsLabels {
   readonly sessionRescheduleWindowInvalid: string;
   /** "The start time cannot be more than 5 minutes in the past." — admin reschedule reject: the submitted start lies outside the start-time grace window. */
   readonly sessionRescheduleStartInPast: string;
+  /** "A session report has already been submitted for this session." — unique-constraint loser on the one-report-per-session rule → ConflictError("SESSION_REPORT_ALREADY_EXISTS", …). */
+  readonly sessionReportAlreadyExists: string;
+  /** "This homework has already been graded." — one-shot grade-window reject on an already-graded homework row → ConflictError. */
+  readonly homeworkAlreadyGraded: string;
+  /** Validation reject — session-report notes are required and cannot be empty after trimming. */
+  readonly sessionReportNotesRequired: string;
+  /** Validation reject — session-report notes exceed the 2000-character bound. */
+  readonly sessionReportNotesTooLong: string;
+  /** Validation reject — the session rating is not an integer within 0..5. */
+  readonly sessionRatingRange: string;
+  /** Validation reject — a homework grade is not an integer within 0..100. */
+  readonly homeworkGradeRange: string;
+  /** Validation reject — a homework ayah range is malformed: non-positive, non-integer, or from > to. */
+  readonly homeworkAyahRangeInvalid: string;
+  /** Validation reject — a homework surah/juz reference is not a member of the shipped SurahJuzRef vocabulary. */
+  readonly homeworkSurahJuzInvalid: string;
+  /** Validation reject — a homework assignment carries neither the current nor the revision block. */
+  readonly homeworkAssignmentBlocksRequired: string;
 }
 
 export type ErrorMessageKey = {
