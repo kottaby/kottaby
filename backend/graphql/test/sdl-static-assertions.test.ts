@@ -414,10 +414,7 @@ describe("DEV3-017 admin-governance pair — exact SDL signatures pinned on the 
     // `adminCancelSession`: the window from that first member through
     // `adminUpdateUser` hosts the full union in sorted position (plus
     // the certification mutation noted above).
-    const adminBandMutationNames = [
-      ...adminSessionGovernanceMutationNames,
-      ...adminUserMutationNames,
-    ];
+    const adminBandMutationNames = [...adminSessionGovernanceMutationNames, ...adminUserMutationNames];
     const bandIndexes = adminBandMutationNames.map(name => sorted.indexOf(name));
     for (const index of bandIndexes) {
       expect(index).toBeGreaterThanOrEqual(0);
@@ -426,10 +423,9 @@ describe("DEV3-017 admin-governance pair — exact SDL signatures pinned on the 
     const bandEnd = sorted.indexOf("adminUpdateUser");
     expect(bandStart).toBeGreaterThanOrEqual(0);
     expect(bandEnd).toBeGreaterThan(bandStart);
-    const expectedBandWindow = [
-      ...adminBandMutationNames,
-      "adminCertifyTeacherColdStart",
-    ].toSorted((a, b) => a.localeCompare(b));
+    const expectedBandWindow = [...adminBandMutationNames, "adminCertifyTeacherColdStart"].toSorted((a, b) =>
+      a.localeCompare(b)
+    );
     expect(sorted.slice(bandStart, bandEnd + 1)).toEqual(expectedBandWindow);
   });
 });
