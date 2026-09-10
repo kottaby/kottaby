@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { parseCookies } from "./cookies";
+import { parseCookies } from "@/backend/lib/auth/cookies";
 
 describe("parseCookies", () => {
   it("returns empty object for missing, null, or undefined headers", () => {
