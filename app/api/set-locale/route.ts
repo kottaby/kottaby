@@ -28,21 +28,14 @@
  */
 
 import { type NextRequest, NextResponse } from "next/server";
+import { ALLOWED_ORIGINS, resolveSafeOrigin, safeRedirectPath } from "@/app/api/set-locale/safe-redirect";
 import { apiErrorResponse, apiSuccessResponse, resolveRequestId } from "@/backend/lib/api";
-import { getEnvironmentConfig, optionalEnv } from "@/backend/lib/env";
+import { getEnvironmentConfig } from "@/backend/lib/env";
 import { DomainError, ForbiddenError } from "@/backend/lib/errors";
 import { type AppLocale, isAppLocale } from "@/shared/locale/AppLocale";
 import { getServerTranslations } from "@/shared/locale/server-graphql";
 
 const envConfig = getEnvironmentConfig();
-const ALLOWED_ORIGINS = new Set(
-  [
-    optionalEnv("NEXT_PUBLIC_BASE_URL", ""),
-    optionalEnv("ALLOWED_ORIGIN", ""),
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-  ].filter((v): v is string => typeof v === "string" && v.length > 0)
-);
 
 const LOCALE_MAX_AGE = 365 * 24 * 60 * 60; // 1 year
 
@@ -106,17 +99,6 @@ function withLocaleCookie<T extends Response>(response: T, locale: AppLocale): T
   return response;
 }
 
-/** Only allow same-origin relative paths (block open redirects). */
-function safeRedirectPath(raw: string | null, fallback = "/"): string {
-  // Backslash anywhere → foreign-origin escape when WHATWG URL parsing folds
-  // "\" into "/" ("/\\evil.com" ≡ "//evil.com" ⇒ protocol-relative). Fail
-  // closed; legitimate relative paths never contain a raw backslash.
-  if (!raw?.startsWith("/") || raw.startsWith("//") || raw.includes("://") || raw.includes("\\")) {
-    return fallback;
-  }
-  return raw;
-}
-
 function isAllowedOrigin(request: NextRequest): boolean {
   const origin = request.headers.get("origin");
   const sameOrigin = request.nextUrl.origin;
@@ -154,12 +136,7 @@ export async function GET(request: NextRequest): Promise<Response> {
     }
 
     const redirectPath = safeRedirectPath(request.nextUrl.searchParams.get("redirect"));
-    // Prefer Host / X-Forwarded-* so we don't redirect to 0.0.0.0 when the
-    // server listens on all interfaces but the user browsed via localhost.
-    const host = request.headers.get("x-forwarded-host") ?? request.headers.get("host");
-    const protoHeader = request.headers.get("x-forwarded-proto");
-    const proto = protoHeader ?? request.nextUrl.protocol.replace(":", "");
-    const origin = host ? `${proto}://${host}` : request.nextUrl.origin;
+    const origin = resolveSafeOrigin(request);
     const response = NextResponse.redirect(new URL(redirectPath, origin));
     return withLocaleCookie(response, localeParam);
   } catch (error) {

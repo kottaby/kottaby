@@ -50,7 +50,71 @@ export function createAuthCookieOut(): AuthCookieOut {
 }
 
 /**
+ * Decodes a raw cookie value. Bypasses `decodeURIComponent` + `try...catch`
+ * when the value contains no `%` escapes (which applies to almost all cookie
+ * values like JWTs, session IDs, and locales).
+ */
+function decodeCookieValue(rawValue: string): string {
+  if (rawValue.indexOf("%") === -1) {
+    return rawValue;
+  }
+  try {
+    return decodeURIComponent(rawValue);
+  } catch {
+    // Invalid URI-encoded value (rare; treat as literal).
+    return rawValue;
+  }
+}
+
+/** Parses a single `key=value` cookie pair segment between `start` and `end`. */
+function parseCookiePair(header: string, start: number, end: number, out: Record<string, string>): void {
+  // Bounded to the current segment: an unbounded `indexOf("=", start)` would
+  // rescan ahead into later segments for every malformed pair, giving
+  // quadratic CPU on attacker-controlled headers with many `=`-less segments.
+  let eqIdx = -1;
+  for (let i = start; i < end; i++) {
+    if (header.charCodeAt(i) === 61) {
+      eqIdx = i;
+      break;
+    }
+  }
+  // Malformed pair (no `=` inside this segment, or empty key) — skip silently.
+  // Browsers never produce these, but defensive parsing keeps the context
+  // factory resilient.
+  if (eqIdx <= start) {
+    return;
+  }
+
+  let keyStart = start;
+  while (keyStart < eqIdx && header.charCodeAt(keyStart) <= 32) {
+    keyStart++;
+  }
+  let keyEnd = eqIdx;
+  while (keyEnd > keyStart && header.charCodeAt(keyEnd - 1) <= 32) {
+    keyEnd--;
+  }
+  if (keyEnd <= keyStart) {
+    return;
+  }
+  const key = header.slice(keyStart, keyEnd);
+
+  let valStart = eqIdx + 1;
+  while (valStart < end && header.charCodeAt(valStart) <= 32) {
+    valStart++;
+  }
+  let valEnd = end;
+  while (valEnd > valStart && header.charCodeAt(valEnd - 1) <= 32) {
+    valEnd--;
+  }
+  const rawValue = header.slice(valStart, valEnd);
+
+  out[key] = decodeCookieValue(rawValue);
+}
+
+/**
  * Parses a `Cookie` request header into a plain `Record<string, string>`.
+ *
+ * Performance: single-pass index scan (no `.split(";")` array allocation).
  *
  * Returns an empty object for an empty/missing header. Cookie values are
  * URL-decoded per RFC 6265 (best-effort — invalid encodings are passed
@@ -61,24 +125,15 @@ export function parseCookies(cookieHeader: string | null | undefined): Record<st
   if (!cookieHeader) {
     return out;
   }
-  for (const pair of cookieHeader.split(";")) {
-    const idx = pair.indexOf("=");
-    if (idx <= 0) {
-      // Malformed pair (no `=`) — skip silently. Browsers never produce these,
-      // but defensive parsing keeps the context factory resilient.
-      continue;
+  let start = 0;
+  const len = cookieHeader.length;
+  while (start < len) {
+    let end = cookieHeader.indexOf(";", start);
+    if (end === -1) {
+      end = len;
     }
-    const key = pair.slice(0, idx).trim();
-    const rawValue = pair.slice(idx + 1).trim();
-    if (!key) {
-      continue;
-    }
-    try {
-      out[key] = decodeURIComponent(rawValue);
-    } catch {
-      // Invalid URI-encoded value (rare; treat as literal).
-      out[key] = rawValue;
-    }
+    parseCookiePair(cookieHeader, start, end, out);
+    start = end + 1;
   }
   return out;
 }

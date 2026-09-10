@@ -1,7 +1,7 @@
 "use client";
 
 import { DoneOutlined } from "@mui/icons-material";
-import { Button, IconButton, Stack, Tooltip } from "@mui/material";
+import { Box, Button, IconButton, Stack, Tooltip } from "@mui/material";
 import type { ReactNode } from "react";
 // audit-R4: shared keyboard-focus ring (v9 ButtonBase ships none).
 import { focusVisibleRingSx } from "@/frontend/components/ui/focusRing";
@@ -39,39 +39,52 @@ export function NotificationRowMarkReadAction({
   return (
     <Stack direction="row" spacing={1} sx={{ flexShrink: 0, alignItems: "center" }}>
       <Tooltip title={markReadLabel}>
-        <Button
-          size="small"
-          variant="outlined"
-          startIcon={<DoneOutlined />}
-          disabled={markReadPending}
-          aria-label={markReadLabel}
-          onClick={onMarkRead}
-          // QA round 2 (axe serious): dark-mode outlined text/border lift.
-          sx={theme => ({
-            ...focusVisibleRingSx,
-            ...darkOutlinedContrastSx(theme),
+        <Box
+          component="span"
+          sx={{
             display: { xs: "none", sm: "inline-flex" },
             flexShrink: 0,
-          })}
-        >
-          {buttonLabel}
-        </Button>
-      </Tooltip>
-      <Tooltip title={markReadLabel}>
-        <IconButton
-          size="small"
-          aria-label={markReadLabel}
-          disabled={markReadPending}
-          onClick={onMarkRead}
-          sx={{
-            ...focusVisibleRingSx,
-            display: { xs: "inline-flex", sm: "none" },
-            minHeight: 44,
-            minWidth: 44,
           }}
         >
-          <DoneOutlined fontSize="small" />
-        </IconButton>
+          <Button
+            size="small"
+            variant="outlined"
+            startIcon={<DoneOutlined />}
+            disabled={markReadPending}
+            aria-label={markReadLabel}
+            onClick={onMarkRead}
+            // QA round 2 (axe serious): dark-mode outlined text/border lift.
+            sx={theme => ({
+              ...focusVisibleRingSx,
+              ...darkOutlinedContrastSx(theme),
+            })}
+          >
+            {buttonLabel}
+          </Button>
+        </Box>
+      </Tooltip>
+      <Tooltip title={markReadLabel}>
+        <Box
+          component="span"
+          sx={{
+            display: { xs: "inline-flex", sm: "none" },
+            flexShrink: 0,
+          }}
+        >
+          <IconButton
+            size="small"
+            aria-label={markReadLabel}
+            disabled={markReadPending}
+            onClick={onMarkRead}
+            sx={{
+              ...focusVisibleRingSx,
+              minHeight: 44,
+              minWidth: 44,
+            }}
+          >
+            <DoneOutlined fontSize="small" />
+          </IconButton>
+        </Box>
       </Tooltip>
     </Stack>
   );

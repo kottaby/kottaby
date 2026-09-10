@@ -313,6 +313,23 @@ describe("set-locale route envelope adoption", () => {
       // MUST fall back to root exactly like its forward-slash twin.
       await expectHostileRedirectFallsBackToRoot("/\\evil.example/x");
       await expectHostileRedirectFallsBackToRoot("/\\/evil.example/x");
+
+      // Control character / whitespace bypasses: MUST fall back to root.
+      await expectHostileRedirectFallsBackToRoot("/\t/evil.example");
+      await expectHostileRedirectFallsBackToRoot("/\n/evil.example");
+      await expectHostileRedirectFallsBackToRoot("/\r/evil.example");
+    });
+
+    test("host header injection / x-forwarded-host injection is rejected and falls back to safe origin", async () => {
+      const response = await GET(
+        makeGetRequest("locale=en&redirect=%2Fdashboard", {
+          "x-forwarded-host": "evil.example",
+          "x-forwarded-proto": "https",
+          host: "evil.example",
+        })
+      );
+      expect(response.headers.get("location")).toBe("http://localhost:3000/dashboard");
+      expect(response.headers.get("location")).not.toContain("evil.example");
     });
 
     test("invalid locale query → 400 BAD_REQUEST envelope with requestId echo", async () => {
