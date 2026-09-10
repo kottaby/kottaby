@@ -80,6 +80,8 @@ export const errorsAr: ErrorsLabels = {
   walletInvalidAmount: "أدخل مبلغ سحب صالحاً (قيمة موجبة بخانتين عشريتين كحد أقصى).",
   walletTeacherProfileMissing: "ستُفعَّل محفظتك بعد اعتماد ملفك التعليمي.",
   sessionIntentCorrupt: "تعذر قراءة هذه الجلسة. يرجى التواصل مع فريق الدعم.",
+  recitationAlreadyExists: "يوجد سجل تلاوة لهذه الجلسة بالفعل.",
+  recitationSessionNotWriteable: "لا يمكن إضافة سجل تلاوة لهذه الجلسة في حالتها الحالية.",
   sessionReportAlreadyExists: "تم تقديم تقرير لهذه الجلسة بالفعل.",
   homeworkAlreadyGraded: "تم تصحيح هذا الواجب بالفعل.",
   sessionReportNotesRequired: "ملاحظات تقرير الجلسة مطلوبة ولا يمكن تركها فارغة.",

@@ -1,3 +1,4 @@
+export * from "./recitation.service";
 export * from "./session-admin-governance";
 export * from "./session-lifecycle.enforcement";
 export * from "./session-lifecycle.queries";

@@ -312,6 +312,11 @@ const MUTATION_SURFACE_INVENTORY_QUERY_DOCUMENT: DocumentNode = gql`
  * `submitSessionReport` — it resolves to the canonical `SessionReport` payload
  * (denials ride `errors[]`, never a partial-success wrapper), so it is
  * warning-incapable like the DEV1-014 trio.
+ *
+ * Refreshed for DEV3-007 (recitation record per session): `setSessionRecitation`
+ * resolves to the canonical `SessionRecitation` payload with every denial
+ * (`RECITATION_ALREADY_EXISTS`, `SESSION_NOT_FOUND`) riding `errors[]`, so it
+ * is warning-incapable like the session-family mutations enumerated above.
  */
 const KNOWN_LIVE_MUTATION_FIELDS = [
   "adminBroadcastNotification",
@@ -343,6 +348,7 @@ const KNOWN_LIVE_MUTATION_FIELDS = [
   "resolveSessionDispute",
   "respondToParentLinkRequest",
   "setPlanActiveStatus",
+  "setSessionRecitation",
   "startSession",
   "submitSessionReport",
   "updateMyLocale",

@@ -166,6 +166,10 @@ export interface ErrorsLabels {
   readonly walletTeacherProfileMissing: string;
   /** Fail-closed deny when a stored sessions.intent value is not a known SessionIntent member. */
   readonly sessionIntentCorrupt: string;
+  /** "A recitation record already exists for this session." — write-once reject when a recitation row is already stored for the session → ConflictError("RECITATION_ALREADY_EXISTS", …). */
+  readonly recitationAlreadyExists: string;
+  /** Writeability reject — the session's current status does not admit a recitation record (only started-or-later sessions do) → ConflictError("RECITATION_SESSION_NOT_WRITEABLE", …). */
+  readonly recitationSessionNotWriteable: string;
   /** "The start time must be before the end time." — admin reschedule reject: the submitted timing pair is inverted. */
   readonly sessionRescheduleWindowInvalid: string;
   /** "The start time cannot be more than 5 minutes in the past." — admin reschedule reject: the submitted start lies outside the start-time grace window. */

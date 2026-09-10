@@ -47,6 +47,16 @@
  *    describe and the admin-governance wire-tier matrix
  *    (`admin-governance.matrix.test.ts` Tier 0) — this artifact-side tier
  *    pins the SDL TEXT (the contract surface clients parse).
+ *  - **DEV3-007 session-recitation surface pinned** — the write-once
+ *    per-session record rides the artifact tier too: the mutation
+ *    `setSessionRecitation(input: SessionRecitationInput!, sessionId: ID!):
+ *    SessionRecitation!` (args in the sorted `input` < `sessionId` order),
+ *    the NULLABLE `sessionRecitation(sessionId: ID!): SessionRecitation`
+ *    query (the collapse channel), the six-field `SessionRecitation` object
+ *    (id on the wire, every instant on the DateTime scalar), and the closed
+ *    two-member `SessionRecitationInput`. The `DateTime` scalar is asserted
+ *    to remain the artifact's ONLY custom scalar (registered exactly once —
+ *    no new scalars).
  *  - **Apollo normalization** — the `Notification` object carries `id: ID!`
  *    among EXACTLY the eight inbox fields.
  *  - **Depth/complexity posture (REQ-069)** — `Notification` is FLAT: every
@@ -129,6 +139,7 @@ const FROZEN_MUTATION_FIELDS = [
   "resolveSessionDispute",
   "respondToParentLinkRequest",
   "setPlanActiveStatus",
+  "setSessionRecitation",
   "startSession",
   "updateMyLocale",
   "updatePlan",
@@ -184,6 +195,7 @@ const FROZEN_QUERY_FIELDS = [
   "planCatalog",
   "recitationReadings",
   "sessionById",
+  "sessionRecitation",
 ] as const;
 
 /** REQ-032: emit is service-internal — these operations must NEVER exist. */
@@ -757,5 +769,96 @@ describe("Platform analytics surface (extend) — artifact-side pins", () => {
       "last30DaysAmount",
       "totalAmount",
     ]);
+  });
+});
+
+describe("Session-recitation surface (DEV3-007) — artifact-side pins", () => {
+  test("`setSessionRecitation(input: SessionRecitationInput!, sessionId: ID!): SessionRecitation!`", () => {
+    // The live sorted SDL emits args alphabetically — `input` precedes
+    // `sessionId` (both NonNull). The write-once record NEVER returns null:
+    // every denial throws (already-exists / not-writeable / not-found /
+    // validation), so the payload is NonNull on the contract surface.
+    const surface = fieldSurface("Mutation", "setSessionRecitation");
+    expect(surface.type).toBe("SessionRecitation!");
+    expect(surface.args).toEqual([
+      { name: "input", type: "SessionRecitationInput!" },
+      { name: "sessionId", type: "ID!" },
+    ]);
+  });
+
+  test("`sessionRecitation(sessionId: ID!): SessionRecitation` — NULLABLE (the collapse channel)", () => {
+    const surface = fieldSurface("Query", "sessionRecitation");
+    expect(surface.type).toBe("SessionRecitation");
+    expect(surface.args).toEqual([{ name: "sessionId", type: "ID!" }]);
+  });
+
+  test("both root-field lines appear verbatim in the artifact text (lexical belt-and-braces)", () => {
+    // The mutation line is exact (input arg first, sorted print order); the
+    // query line is exact and nullable (no `!` on the payload). Neither
+    // spelling can collide with the other: the lowercase-s query field name
+    // never occurs inside the mutation's camelCase `setSessionRecitation`.
+    expect(sdlText).toContain(
+      "setSessionRecitation(input: SessionRecitationInput!, sessionId: ID!): SessionRecitation!"
+    );
+    expect(sdlText).toContain("sessionRecitation(sessionId: ID!): SessionRecitation");
+  });
+
+  test("SessionRecitation exposes EXACTLY the six canonical fields — id on the wire, every instant on the DateTime scalar", () => {
+    const surfaces = fieldSurfaces("SessionRecitation");
+    expect(surfaces.map(surface => surface.name).toSorted((a, b) => a.localeCompare(b))).toEqual([
+      "createdAt",
+      "description",
+      "id",
+      "name",
+      "sessionId",
+      "updatedAt",
+    ]);
+    const byName = new Map(surfaces.map(surface => [surface.name, surface]));
+    expect(byName.get("id")?.type).toBe("ID!");
+    expect(byName.get("sessionId")?.type).toBe("ID!");
+    expect(byName.get("name")?.type).toBe("String!");
+    expect(byName.get("description")?.type).toBe("String");
+    expect(byName.get("createdAt")?.type).toBe("DateTime!");
+    expect(byName.get("updatedAt")?.type).toBe("DateTime!");
+    // SEC: no ownership/identity lane leaks onto the record object — the
+    // teacher/student participants stay behind the service's DB-row
+    // predicate and are never disclosed through this surface.
+    expect(surfaces.some(surface => surface.name === "teacherId")).toBe(false);
+    expect(surfaces.some(surface => surface.name === "studentId")).toBe(false);
+    expect(surfaces.some(surface => surface.name === "userId")).toBe(false);
+  });
+
+  test("SessionRecitationInput is the closed two-member whitelist (BOPLA) — description then name in sorted print order", () => {
+    const fields = inputObjectTypeDefinition("SessionRecitationInput").fields ?? [];
+    expect(fields.map(field => field.name.value).toSorted((a, b) => a.localeCompare(b))).toEqual([
+      "description",
+      "name",
+    ]);
+    const byName = new Map(fields.map(field => [field.name.value, renderType(field.type)]));
+    expect(byName.get("name")).toBe("String!");
+    expect(byName.get("description")).toBe("String");
+    // No server-controlled field is input-bound — identity, session
+    // coordinate, and timestamps are resolved server-side exclusively;
+    // smuggled fields die at validation before any resolver runs.
+    expect(byName.has("id")).toBe(false);
+    expect(byName.has("sessionId")).toBe(false);
+    expect(byName.has("createdAt")).toBe(false);
+    expect(byName.has("updatedAt")).toBe(false);
+    expect(fields).toHaveLength(2);
+  });
+
+  test("DateTime remains the artifact's ONLY custom scalar — registered EXACTLY once (no new scalars)", () => {
+    // AST tier: the complete scalar-definition set of the artifact is just
+    // `DateTime` — the session-recitation surface introduced zero new
+    // scalars, and both record timestamps ride the pre-existing
+    // registration.
+    const scalarDefinitions = sdlDocument.definitions
+      .filter(definition => definition.kind === Kind.SCALAR_TYPE_DEFINITION)
+      .map(definition => definition.name.value);
+    expect(scalarDefinitions).toEqual(["DateTime"]);
+    // Lexical belt-and-braces: exactly ONE scalar declaration line exists,
+    // and it is the DateTime registration.
+    expect(sdlText.match(/^scalar /gm) ?? []).toHaveLength(1);
+    expect(sdlText).toMatch(/^scalar DateTime$/gm);
   });
 });
