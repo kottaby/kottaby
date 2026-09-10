@@ -23,5 +23,14 @@ await runParallelTests({
   // the batch insert, the FK check fails with 23503 (proved deterministically;
   // see PR #56 CI). Running this file alone after the pool drains closes the
   // race without touching the production read→write contract.
-  sequentialTailPatterns: ["notifications/admin-broadcast.service.test.ts"],
+  // The admin-governance suite's `listAll` counts the WHOLE session table;
+  // a concurrently-running own-commit fixture file (session-lifecycle chaos)
+  // keeps committed session rows alive through its beforeAll/afterAll window,
+  // so the total drifts by that many rows. Serializing it to the tail lane
+  // (run alone, after the pool drains) restores a deterministic empty-table
+  // baseline for the global count without changing the production read path.
+  sequentialTailPatterns: [
+    "notifications/admin-broadcast.service.test.ts",
+    "classes/session-admin-governance.service.test.ts",
+  ],
 });

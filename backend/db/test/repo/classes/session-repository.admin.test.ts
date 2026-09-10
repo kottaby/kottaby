@@ -293,7 +293,10 @@ describe("SessionRepository — admin governance surface (runInRollback)", () =>
   test("the directory total is honest: it moves by exactly the rows the transaction adds", async () => {
     await runInRollback(async tx => {
       const actors = await createSessionActors(tx);
-      const before = await SessionRepository.listForAdmin({}, 1, 25, tx);
+      // The participant filter isolates the total delta from rows other
+      // parallel files commit between the two reads.
+      const filter = { teacherUserId: actors.teacherUserId };
+      const before = await SessionRepository.listForAdmin(filter, 1, 25, tx);
 
       const created = [
         await insertSessionRow(tx, actors),
@@ -301,12 +304,13 @@ describe("SessionRepository — admin governance surface (runInRollback)", () =>
         await insertSessionRow(tx, actors),
       ];
 
-      const after = await SessionRepository.listForAdmin({}, 1, 25, tx);
+      const after = await SessionRepository.listForAdmin(filter, 1, 25, tx);
       expect(after.total - before.total).toBe(created.length);
       // The windowed rows and the total describe the SAME filtered set —
-      // the page head carries every row this transaction created.
-      const myIds = after.rows.map(row => row.id).slice(0, created.length);
-      expect(myIds.toSorted((a, b) => a - b)).toEqual(created.map(row => row.id).toSorted((a, b) => a - b));
+      // the scoped page carries exactly the rows this transaction created.
+      expect(after.rows.map(row => row.id).toSorted((a, b) => a - b)).toEqual(
+        created.map(row => row.id).toSorted((a, b) => a - b)
+      );
     });
   });
 
@@ -440,45 +444,39 @@ describe("SessionRepository — admin governance surface (runInRollback)", () =>
       // LAST created row.
       const expectedHead = insertedRows.map(row => row.id).toReversed();
 
-      // The fixture stamps are future-dated into a unique band; a window
-      // spanning exactly that band isolates the fixture rows so the
-      // pagination oracles stay exact regardless of any OTHER committed
-      // sessions in the database (parallel repo suites and earlier files
-      // legitimately leave committed rows behind — the clamp contract under
-      // test is filter-agnostic).
-      const scopedWindow = {
-        dateFrom: new Date(now + 45_000),
-        dateTo: new Date(now + 31 * 60_000),
-      };
-      const scoped = (page: number, pageSize: number) =>
-        SessionRepository.listForAdmin(scopedWindow, page, pageSize, tx);
+      // Scope to this test's own teacher: other parallel files commit
+      // directory rows of their own, and only the participant filter keeps
+      // the exact page/total assertions deterministic under that traffic.
+      const filter = { teacherUserId: actors.teacherUserId };
 
-      const baseline = await scoped(1, 50);
-      expect(baseline.rows.map(row => row.id).slice(0, 30)).toEqual(expectedHead);
+      const baseline = await SessionRepository.listForAdmin(filter, 1, 50, tx);
+      expect(baseline.rows.map(row => row.id)).toEqual(expectedHead);
+      expect(baseline.total).toBe(30);
 
       // A page below 1 falls back to the first page; an oversized pageSize
       // falls back to the default window of 25.
-      const pageZero = await scoped(0, 100);
+      const pageZero = await SessionRepository.listForAdmin(filter, 0, 100, tx);
       expect(pageZero.rows).toHaveLength(25);
-      expect(pageZero.rows.map(row => row.id).slice(0, 25)).toEqual(expectedHead.slice(0, 25));
+      expect(pageZero.rows.map(row => row.id)).toEqual(expectedHead.slice(0, 25));
 
-      const negativePage = await scoped(-3, 0);
+      const negativePage = await SessionRepository.listForAdmin(filter, -3, 0, tx);
       expect(negativePage.rows).toHaveLength(25);
 
       // The pageSize bounds are honored verbatim.
-      const singleRow = await scoped(1, 1);
+      const singleRow = await SessionRepository.listForAdmin(filter, 1, 1, tx);
       expect(singleRow.rows.map(row => row.id)).toEqual([expectedHead[0]]);
 
-      const fullWindow = await scoped(1, 50);
-      expect(fullWindow.rows.map(row => row.id).slice(0, 30)).toEqual(expectedHead);
+      const fullWindow = await SessionRepository.listForAdmin(filter, 1, 50, tx);
+      expect(fullWindow.rows.map(row => row.id)).toEqual(expectedHead);
 
       // An offset past the end yields empty rows next to the honest total.
-      const beyond = await scoped(3, 25);
+      const beyond = await SessionRepository.listForAdmin(filter, 3, 25, tx);
       expect(beyond.rows).toEqual([]);
       expect(beyond.total).toBe(baseline.total);
 
-      // A mid window slices the ordered set.
-      const mid = await scoped(2, 25);
+      // A mid window slices the ordered set: the five oldest rows close out
+      // the scoped directory.
+      const mid = await SessionRepository.listForAdmin(filter, 2, 25, tx);
       expect(mid.rows.map(row => row.id)).toEqual(expectedHead.slice(25, 30));
     });
   });
@@ -487,21 +485,24 @@ describe("SessionRepository — admin governance surface (runInRollback)", () =>
     await runInRollback(async tx => {
       const actors = await createSessionActors(tx);
       await insertSessionRow(tx, actors, {});
-      const baseline = await SessionRepository.listForAdmin({}, 1, 25, tx);
-      expect(baseline.total).toBeGreaterThanOrEqual(1);
+      // The participant filter isolates the honest-total assertions from
+      // rows other parallel files commit between reads.
+      const filter = { teacherUserId: actors.teacherUserId };
+      const baseline = await SessionRepository.listForAdmin(filter, 1, 25, tx);
+      expect(baseline.total).toBe(1);
 
       // A page far past any real data resolves to the EMPTY window with
       // the honest total — and never errors: the resolved offset is
       // refused before it can reach the sorted scan as a hostile
       // multi-billion-row OFFSET.
-      const huge = await SessionRepository.listForAdmin({}, 1_000_000_000, 50, tx);
+      const huge = await SessionRepository.listForAdmin(filter, 1_000_000_000, 50, tx);
       expect(huge.rows).toEqual([]);
       expect(huge.total).toBe(baseline.total);
 
       // The deepest window the ceiling still admits resolves through the
-      // normal path (empty here only because the table holds a handful of
-      // rows) — the ceiling changes nothing for reachable windows.
-      const atCeilingEdge = await SessionRepository.listForAdmin({}, 201, 50, tx);
+      // normal path (empty here only because the directory holds a single
+      // row) — the ceiling changes nothing for reachable windows.
+      const atCeilingEdge = await SessionRepository.listForAdmin(filter, 201, 50, tx);
       expect(atCeilingEdge.rows).toEqual([]);
       expect(atCeilingEdge.total).toBe(baseline.total);
     });

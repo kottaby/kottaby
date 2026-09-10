@@ -359,3 +359,124 @@ describe("TeacherRepository.lockForCertificationCheck", () => {
     expect(/REQ-\d|DEV3|Phase \d|Task \d|plan\.md|tasks\.md|specs\.md/.test(repoSource)).toBe(false);
   });
 });
+
+/** The setOnline slice of the repository source (the static pin target). */
+function repoSetOnlineSource(): string {
+  const source = readFileSync(join(import.meta.dir, "../../../repo/teachers/teacher.repository.ts"), "utf8");
+  const start = source.indexOf("export async function setOnline(");
+  return source.slice(start, source.indexOf("\n  }", start));
+}
+
+describe("TeacherRepository.setOnline (the INV-S6 lock primitive)", () => {
+  // ─── Tier 1: branch/statement ───────────────────────────────────────
+
+  test("sets is_online=false on an online teacher (the lock direction)", async () => {
+    await runInRollback(async tx => {
+      const user = await createTestUser(tx, { role: "teacher" });
+      await createTestTeacherRow(tx, user.id, true);
+      // The fixture default is isOnline=false; force the online state first.
+      await tx.update(teacher).set({ isOnline: true }).where(eq(teacher.id, user.id));
+
+      const row = await TeacherRepository.setOnline(user.id, false, tx);
+
+      expect(row).not.toBeNull();
+      if (!row) throw new Error("expected the updated teacher row");
+      expect(row.id).toBe(user.id);
+      expect(row.isOnline).toBe(false);
+      // Independent read-back oracle (same tx — read-your-writes).
+      const [reread] = await tx.select().from(teacher).where(eq(teacher.id, user.id));
+      expect(reread?.isOnline).toBe(false);
+    });
+  });
+
+  test("sets is_online=true on an offline teacher (the release direction)", async () => {
+    await runInRollback(async tx => {
+      const user = await createTestUser(tx, { role: "teacher" });
+      await createTestTeacherRow(tx, user.id, true);
+
+      const row = await TeacherRepository.setOnline(user.id, true, tx);
+
+      expect(row?.isOnline).toBe(true);
+    });
+  });
+
+  // ─── Tier 2: boundary / honest failure ──────────────────────────────
+
+  test("returns null for an unknown teacher id (zero rows matched)", async () => {
+    await runInRollback(async tx => {
+      const absentId = await absentTeacherId(tx);
+      const row = await TeacherRepository.setOnline(absentId, false, tx);
+      expect(row).toBeNull();
+    });
+  });
+
+  test("a redundant same-value write returns the row and changes nothing (idempotent under retry)", async () => {
+    await runInRollback(async tx => {
+      const user = await createTestUser(tx, { role: "teacher" });
+      await createTestTeacherRow(tx, user.id, true);
+      await TeacherRepository.setOnline(user.id, false, tx);
+
+      const again = await TeacherRepository.setOnline(user.id, false, tx);
+
+      expect(again).not.toBeNull();
+      expect(again?.isOnline).toBe(false);
+      const [reread] = await tx.select().from(teacher).where(eq(teacher.id, user.id));
+      expect(reread?.isOnline).toBe(false);
+    });
+  });
+
+  test("certification plays no part: an unapproved teacher row locks and releases identically", async () => {
+    await runInRollback(async tx => {
+      const user = await createTestUser(tx, { role: "teacher" });
+      await createTestTeacherRow(tx, user.id, false);
+
+      const locked = await TeacherRepository.setOnline(user.id, false, tx);
+      const released = await TeacherRepository.setOnline(user.id, true, tx);
+
+      expect(locked?.isOnline).toBe(false);
+      expect(released?.isOnline).toBe(true);
+    });
+  });
+
+  // ─── Tier 3: transaction composition (tx propagation) ───────────────
+
+  test("the write rides the caller's transaction: a forced rollback un-applies the lock", async () => {
+    let probedTeacherId = 0;
+    await runInRollback(async tx => {
+      const user = await createTestUser(tx, { role: "teacher" });
+      await createTestTeacherRow(tx, user.id, true);
+      probedTeacherId = user.id;
+      const row = await TeacherRepository.setOnline(user.id, false, tx);
+      expect(row?.isOnline).toBe(false);
+    });
+    // The rollback un-applied the lock: a fresh read sees the durable
+    // default (is_online=false was the fixture state all along, so the
+    // honest probe is that the ROW itself is gone with its owning user).
+    const [gone] = await db.select().from(users).where(eq(users.id, probedTeacherId));
+    expect(gone).toBeUndefined();
+  });
+
+  test("lock + release composed inside ONE transaction resolve deadlock-free (tx-threading proof)", async () => {
+    await runInRollback(async tx => {
+      const user = await createTestUser(tx, { role: "teacher" });
+      await createTestTeacherRow(tx, user.id, true);
+
+      const locked = await TeacherRepository.setOnline(user.id, false, tx);
+      const released = await TeacherRepository.setOnline(user.id, true, tx);
+
+      expect(locked?.isOnline).toBe(false);
+      expect(released?.isOnline).toBe(true);
+      // Completion without deadlock IS the assertion: a call that mixed the
+      // ambient db into this tx would hang the single connection.
+    });
+  });
+
+  // ─── Tier 4: static surface pins ────────────────────────────────────
+
+  test("source: setOnline is a REQUIRED-tx guarded write returning the row or null", () => {
+    expect(repoSetOnlineSource()).toContain("export async function setOnline(");
+    expect(repoSetOnlineSource()).toContain("online: boolean");
+    expect(repoSetOnlineSource()).toContain("tx: DBTransaction");
+    expect(repoSetOnlineSource()).toContain(".returning()");
+  });
+});

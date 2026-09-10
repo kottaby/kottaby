@@ -510,7 +510,13 @@ describe("SessionAdminGovernanceService — directory reads (runInRollback)", ()
       await insertSessionRow(tx, actors, { status: SessionStatus.Completed });
       const disputed = await insertSessionRow(tx, actors, { status: SessionStatus.Disputed });
 
-      const page = await listAllVia(tx, adminId, { status: SessionStatus.Scheduled }, 1, 25);
+      const page = await listAllVia(
+        tx,
+        adminId,
+        { teacherUserId: actors.teacherUserId, status: SessionStatus.Scheduled },
+        1,
+        25
+      );
 
       expect(page.totalCount).toBe(2);
       expect(page.page).toBe(1);
@@ -522,7 +528,9 @@ describe("SessionAdminGovernanceService — directory reads (runInRollback)", ()
       }
 
       // The disputed row's badge flag is presentation-only (server-derived).
-      const allRows = await listAllVia(tx, adminId, {}, 1, 25);
+      // The participant filter keeps the exact total deterministic against
+      // rows other parallel files commit alongside this transaction.
+      const allRows = await listAllVia(tx, adminId, { teacherUserId: actors.teacherUserId }, 1, 25);
       const disputedRow = allRows.items.find(row => row.id === disputed.id);
       if (!disputedRow) {
         throw new Error("expected the disputed fixture row in the unfiltered directory");
@@ -1585,21 +1593,24 @@ describe("SessionAdminGovernanceService — boundaries", () => {
       await insertSessionRow(tx, actors, {});
       await insertSessionRow(tx, actors, {});
 
-      const first = await listAllVia(tx, adminId, {}, 1, 1);
+      // The participant filter keeps the exact totals deterministic against
+      // rows other parallel files commit alongside this transaction.
+      const filter = { teacherUserId: actors.teacherUserId };
+      const first = await listAllVia(tx, adminId, filter, 1, 1);
       expect(first.page).toBe(1);
       expect(first.pageSize).toBe(1);
       expect(first.items).toHaveLength(1);
       expect(first.totalCount).toBe(3);
 
-      const max = await listAllVia(tx, adminId, {}, 1, 50);
+      const max = await listAllVia(tx, adminId, filter, 1, 50);
       expect(max.pageSize).toBe(50);
       expect(max.items).toHaveLength(3);
 
-      const normalized = await listAllVia(tx, adminId, {}, 0, 100);
+      const normalized = await listAllVia(tx, adminId, filter, 0, 100);
       expect(normalized.page).toBe(1);
       expect(normalized.pageSize).toBe(25);
 
-      const negativePage = await listAllVia(tx, adminId, {}, -5, 25);
+      const negativePage = await listAllVia(tx, adminId, filter, -5, 25);
       expect(negativePage.page).toBe(1);
       expect(negativePage.items).toHaveLength(3);
     });
@@ -1611,27 +1622,43 @@ describe("SessionAdminGovernanceService — boundaries", () => {
       const { adminId } = await createTestAdmin(tx);
       const row = await insertSessionRow(tx, actors, {});
 
+      // The empty filter returns rows from every owner — parallel files
+      // commit sessions of their own, so membership (not an exact total)
+      // is what stays deterministic here.
       const all = await listAllVia(tx, adminId, {}, 1, 25);
-      expect(all.totalCount).toBe(1);
-      expect(all.items[0]?.id).toBe(row.id);
+      expect(all.totalCount).toBeGreaterThanOrEqual(1);
+      expect(all.items.some(item => item.id === row.id)).toBe(true);
 
       // Half-open window: the fixture's creation instant, second-aligned.
       // The zero-width window [W, W) is a legitimate empty result — data,
       // not an error — while a window straddling the instant includes it.
+      // The participant filter keeps the ±2-second window free of rows
+      // other parallel files commit inside the same seconds.
+      const participant = { teacherUserId: actors.teacherUserId };
       const stored = await readSessionRow(tx, row.id);
       const createdAt = stored?.createdAt;
       if (!createdAt) {
         throw new Error("expected the fixture row to carry a creation instant");
       }
       const windowEdge = new Date(Math.floor(createdAt.getTime() / 1000) * 1000);
-      const zeroWidth = await listAllVia(tx, adminId, { dateFrom: windowEdge, dateTo: windowEdge }, 1, 25);
+      const zeroWidth = await listAllVia(
+        tx,
+        adminId,
+        { ...participant, dateFrom: windowEdge, dateTo: windowEdge },
+        1,
+        25
+      );
       expect(zeroWidth.items).toHaveLength(0);
       expect(zeroWidth.totalCount).toBe(0);
 
       const spanning = await listAllVia(
         tx,
         adminId,
-        { dateFrom: new Date(windowEdge.getTime() - 1000), dateTo: new Date(windowEdge.getTime() + 2000) },
+        {
+          ...participant,
+          dateFrom: new Date(windowEdge.getTime() - 1000),
+          dateTo: new Date(windowEdge.getTime() + 2000),
+        },
         1,
         25
       );
