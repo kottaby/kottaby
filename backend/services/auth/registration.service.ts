@@ -165,9 +165,7 @@ export namespace RegistrationService {
    * missing read bootstrap is added HERE instead. Returns null when no user
    * carries the email; never authenticates, never provisions.
    */
-  export async function findRegisteredUserByEmail(
-    email: string
-  ): Promise<RegisteredUserLookupResult | null> {
+  export async function findRegisteredUserByEmail(email: string): Promise<RegisteredUserLookupResult | null> {
     const user = await UserRepository.findByEmail(email);
     if (!user) {
       return null;
