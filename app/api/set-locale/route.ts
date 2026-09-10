@@ -28,21 +28,14 @@
  */
 
 import { type NextRequest, NextResponse } from "next/server";
+import { ALLOWED_ORIGINS, resolveSafeOrigin, safeRedirectPath } from "@/app/api/set-locale/safe-redirect";
 import { apiErrorResponse, apiSuccessResponse, resolveRequestId } from "@/backend/lib/api";
-import { getEnvironmentConfig, optionalEnv } from "@/backend/lib/env";
+import { getEnvironmentConfig } from "@/backend/lib/env";
 import { DomainError, ForbiddenError } from "@/backend/lib/errors";
 import { type AppLocale, isAppLocale } from "@/shared/locale/AppLocale";
 import { getServerTranslations } from "@/shared/locale/server-graphql";
 
 const envConfig = getEnvironmentConfig();
-const ALLOWED_ORIGINS = new Set(
-  [
-    optionalEnv("NEXT_PUBLIC_BASE_URL", ""),
-    optionalEnv("ALLOWED_ORIGIN", ""),
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-  ].filter((v): v is string => typeof v === "string" && v.length > 0)
-);
 
 const LOCALE_MAX_AGE = 365 * 24 * 60 * 60; // 1 year
 
@@ -106,37 +99,6 @@ function withLocaleCookie<T extends Response>(response: T, locale: AppLocale): T
   return response;
 }
 
-function hasControlOrBackslashChar(raw: string): boolean {
-  for (let i = 0; i < raw.length; i++) {
-    const code = raw.charCodeAt(i);
-    if (code === 92 || code <= 31 || (code >= 127 && code <= 159)) {
-      return true;
-    }
-  }
-  return false;
-}
-
-/** Only allow same-origin relative paths (block open redirects). */
-function safeRedirectPath(raw: string | null, fallback = "/"): string {
-  if (!raw || typeof raw !== "string") {
-    return fallback;
-  }
-  // Backslash or ASCII control characters (tab, newline, CR, etc.) anywhere → fail closed.
-  if (!raw.startsWith("/") || hasControlOrBackslashChar(raw)) {
-    return fallback;
-  }
-  try {
-    const dummyBase = "http://localhost:3000";
-    const parsed = new URL(raw, dummyBase);
-    if (parsed.origin !== dummyBase || !parsed.pathname.startsWith("/")) {
-      return fallback;
-    }
-    return parsed.pathname + parsed.search + parsed.hash;
-  } catch {
-    return fallback;
-  }
-}
-
 function isAllowedOrigin(request: NextRequest): boolean {
   const origin = request.headers.get("origin");
   const sameOrigin = request.nextUrl.origin;
@@ -157,26 +119,6 @@ function isAllowedOrigin(request: NextRequest): boolean {
  */
 function resolveLocaleFromRequest(request: NextRequest): string {
   return request.headers.get("accept-language")?.split(",")[0]?.split("-")[0] ?? "ar";
-}
-
-/**
- * Resolves a validated, safe redirect origin to prevent Host header injection and
- * open redirects to untrusted external domains.
- */
-function resolveSafeOrigin(request: NextRequest): string {
-  const host = request.headers.get("x-forwarded-host") ?? request.headers.get("host");
-  const protoHeader = request.headers.get("x-forwarded-proto");
-  const proto = protoHeader ?? request.nextUrl.protocol.replace(":", "");
-  const fallbackOrigin = request.nextUrl.origin.replace("://0.0.0.0", "://localhost");
-
-  if (host) {
-    const candidateOrigin = `${proto}://${host}`;
-    if (candidateOrigin === request.nextUrl.origin || ALLOWED_ORIGINS.has(candidateOrigin)) {
-      return candidateOrigin;
-    }
-  }
-
-  return fallbackOrigin;
 }
 
 export async function GET(request: NextRequest): Promise<Response> {
