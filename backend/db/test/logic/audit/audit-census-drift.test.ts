@@ -26,7 +26,7 @@
  *     shipped without a census row fails, and a census row outliving its
  *     mutation fails. Deferred rows are excluded from the bijection (they
  *     name future surfaces) but must trace to an existing ledger row id in
- *     the plan's `deferred-items.md`.
+ *     `DEFERRED_ADMIN_ACTION_IDS`.
  *
  * NON-VACUITY: the classifier and the bijection helper are pure functions
  * over (path → content) maps and are exercised against crafted in-memory
@@ -54,41 +54,13 @@ import {
   ACTION_TYPE_COVERAGE,
   ADMIN_ACTION_CENSUS,
   type AdminActionCensusEntry,
+  DEFERRED_ADMIN_ACTION_IDS,
 } from "@/test/workflows/admin/audit-completeness.catalog";
 
 // ─── Contracts under pin ─────────────────────────────────────────────────────
 
 /** Root of the production mutation corpus (repo-relative, resolved from the repo root). */
 const MUTATION_CORPUS_ROOT = join(process.cwd(), "backend", "graphql", "mutation");
-
-/** The deferred-items ledger backing every census `deferred` row (repo-relative). */
-const DEFERRED_LEDGER_PATH =
-  [
-    join(
-      process.cwd(),
-      "ai",
-      "finished_plans",
-      "sprint_4",
-      "dev2-021-audit-trail-completeness-verification",
-      "deferred-items.md"
-    ),
-    join(
-      process.cwd(),
-      "ai",
-      "plans",
-      "sprint_4",
-      "dev2-021-audit-trail-completeness-verification",
-      "deferred-items.md"
-    ),
-  ].find(candidatePath => existsSync(candidatePath)) ??
-  join(
-    process.cwd(),
-    "ai",
-    "finished_plans",
-    "sprint_4",
-    "dev2-021-audit-trail-completeness-verification",
-    "deferred-items.md"
-  );
 
 /** Minimum number of admin-gated mutation fields the corpus must yield (anti-blind-spot floor). */
 const MIN_ADMIN_MUTATION_FIELDS = 15;
@@ -124,9 +96,6 @@ const STATIC_ROLE_MEMBER_PATTERN = /^UserRole\.[A-Za-z][A-Za-z0-9]*$/u;
 
 /** The role member that marks a chunk as admin-gated. */
 const ADMIN_ROLE_MEMBER = "UserRole.Admin";
-
-/** Ledger table rows: `| D-001 | … |`. */
-const LEDGER_ROW_PATTERN = /^\| (D-\d{3}) \|/gmu;
 
 // ─── Read-only traversal helpers ─────────────────────────────────────────────
 
@@ -318,14 +287,6 @@ function compareCensusWithExtractedFields(
   };
 }
 
-/** Reads the ledger row ids (`D-0xx`) from the plan's deferred-items ledger. */
-function readDeferredLedgerIds(): string[] {
-  if (!existsSync(DEFERRED_LEDGER_PATH)) {
-    throw new Error(`Deferred-items ledger not found at ${DEFERRED_LEDGER_PATH}`);
-  }
-  return [...readFileSync(DEFERRED_LEDGER_PATH, "utf8").matchAll(LEDGER_ROW_PATTERN)].map(match => match[1]);
-}
-
 // ─── Corpus extraction (module-level, deterministic) ─────────────────────────
 
 const mutationCorpus: SourceFile[] = listSourceFiles(MUTATION_CORPUS_ROOT);
@@ -393,15 +354,15 @@ describe("bijection — shipped admin mutations ≡ census wired rows", () => {
 
 // ─── Tier 3: deferred-row ledger traceability + enum coverage accounting ─────
 
-describe("deferred rows trace to the deferred-items ledger; coverage map stays consistent", () => {
+describe("deferred rows trace to the canonical deferred set; coverage map stays consistent", () => {
   test("every deferred row references an existing D-0xx ledger row id", () => {
-    const ledgerIds = readDeferredLedgerIds();
-    expect(ledgerIds.length).toBeGreaterThan(0);
+    expect(DEFERRED_ADMIN_ACTION_IDS.length).toBeGreaterThan(0);
+    const validIds: readonly string[] = DEFERRED_ADMIN_ACTION_IDS;
     for (const entry of ADMIN_ACTION_CENSUS.filter(candidate => candidate.kind === "deferred")) {
       // A missing ref falls back to an id no ledger row can ever carry,
       // so the containment assertion fails loudly.
       const ledgerRef = entry.deferredRef ?? "";
-      expect(ledgerIds).toContain(ledgerRef);
+      expect(validIds).toContain(ledgerRef);
     }
   });
 

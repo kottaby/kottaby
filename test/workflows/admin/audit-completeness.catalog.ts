@@ -32,6 +32,13 @@
 
 import { AuditActionType } from "@/backend/enum/audit/audit-action-type.enum";
 
+/**
+ * Canonical ledger IDs of deferred audit producers for future admin surfaces that have not yet shipped.
+ * Statically declared in TypeScript to keep anti-drift tests independent of markdown plan files.
+ */
+export const DEFERRED_ADMIN_ACTION_IDS = ["D-001", "D-002", "D-003"] as const;
+type DeferredAdminActionId = (typeof DEFERRED_ADMIN_ACTION_IDS)[number];
+
 /** One census row: a shipped admin mutation (or a ledger-backed future surface) and its expected audit shape. */
 export interface AdminActionCensusEntry {
   /** GraphQL mutation field name, e.g. "adminCreateUser". */
@@ -45,7 +52,7 @@ export interface AdminActionCensusEntry {
   /** wired = journey must execute it; deferred = no shipped producer (ledger row required). */
   readonly kind: "wired" | "deferred";
   /** deferred rows must name their deferred-items ledger id (e.g. "D-001"). */
-  readonly deferredRef?: string;
+  readonly deferredRef?: DeferredAdminActionId;
 }
 
 /**
