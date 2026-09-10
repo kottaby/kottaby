@@ -106,15 +106,35 @@ function withLocaleCookie<T extends Response>(response: T, locale: AppLocale): T
   return response;
 }
 
+function hasControlOrBackslashChar(raw: string): boolean {
+  for (let i = 0; i < raw.length; i++) {
+    const code = raw.charCodeAt(i);
+    if (code === 92 || code <= 31 || (code >= 127 && code <= 159)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 /** Only allow same-origin relative paths (block open redirects). */
 function safeRedirectPath(raw: string | null, fallback = "/"): string {
-  // Backslash anywhere → foreign-origin escape when WHATWG URL parsing folds
-  // "\" into "/" ("/\\evil.com" ≡ "//evil.com" ⇒ protocol-relative). Fail
-  // closed; legitimate relative paths never contain a raw backslash.
-  if (!raw?.startsWith("/") || raw.startsWith("//") || raw.includes("://") || raw.includes("\\")) {
+  if (!raw || typeof raw !== "string") {
     return fallback;
   }
-  return raw;
+  // Backslash or ASCII control characters (tab, newline, CR, etc.) anywhere → fail closed.
+  if (!raw.startsWith("/") || hasControlOrBackslashChar(raw)) {
+    return fallback;
+  }
+  try {
+    const dummyBase = "http://localhost:3000";
+    const parsed = new URL(raw, dummyBase);
+    if (parsed.origin !== dummyBase || !parsed.pathname.startsWith("/")) {
+      return fallback;
+    }
+    return parsed.pathname + parsed.search + parsed.hash;
+  } catch {
+    return fallback;
+  }
 }
 
 function isAllowedOrigin(request: NextRequest): boolean {
@@ -139,6 +159,26 @@ function resolveLocaleFromRequest(request: NextRequest): string {
   return request.headers.get("accept-language")?.split(",")[0]?.split("-")[0] ?? "ar";
 }
 
+/**
+ * Resolves a validated, safe redirect origin to prevent Host header injection and
+ * open redirects to untrusted external domains.
+ */
+function resolveSafeOrigin(request: NextRequest): string {
+  const host = request.headers.get("x-forwarded-host") ?? request.headers.get("host");
+  const protoHeader = request.headers.get("x-forwarded-proto");
+  const proto = protoHeader ?? request.nextUrl.protocol.replace(":", "");
+  const fallbackOrigin = request.nextUrl.origin.replace("://0.0.0.0", "://localhost");
+
+  if (host) {
+    const candidateOrigin = `${proto}://${host}`;
+    if (candidateOrigin === request.nextUrl.origin || ALLOWED_ORIGINS.has(candidateOrigin)) {
+      return candidateOrigin;
+    }
+  }
+
+  return fallbackOrigin;
+}
+
 export async function GET(request: NextRequest): Promise<Response> {
   const requestId = resolveRequestId(request.headers);
   const acceptLanguageLocale = resolveLocaleFromRequest(request);
@@ -154,12 +194,7 @@ export async function GET(request: NextRequest): Promise<Response> {
     }
 
     const redirectPath = safeRedirectPath(request.nextUrl.searchParams.get("redirect"));
-    // Prefer Host / X-Forwarded-* so we don't redirect to 0.0.0.0 when the
-    // server listens on all interfaces but the user browsed via localhost.
-    const host = request.headers.get("x-forwarded-host") ?? request.headers.get("host");
-    const protoHeader = request.headers.get("x-forwarded-proto");
-    const proto = protoHeader ?? request.nextUrl.protocol.replace(":", "");
-    const origin = host ? `${proto}://${host}` : request.nextUrl.origin;
+    const origin = resolveSafeOrigin(request);
     const response = NextResponse.redirect(new URL(redirectPath, origin));
     return withLocaleCookie(response, localeParam);
   } catch (error) {
