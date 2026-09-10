@@ -69,9 +69,9 @@ export function AdminUsersDirectoryContainer(): ReactNode {
     void directory.refetch();
   };
   return (
-    // Bottom padding clears the fixed mobile FAB (bottom 88 + 56 height) so
+    // Bottom padding clears the fixed mobile FAB (bottom 24 + 56 height) so
     // the last stacked card never slides under it when scrolled to the end.
-    <Stack spacing={3} sx={{ p: { xs: 2, md: 3 }, pb: { xs: 20, md: 4 } }}>
+    <Stack spacing={3} sx={{ p: { xs: 2, md: 3 }, pb: { xs: 12, md: 4 } }}>
       <Typography variant="h4" component="h1">
         {labels.title}
       </Typography>
@@ -117,15 +117,16 @@ export function AdminUsersDirectoryContainer(): ReactNode {
       <DirectoryResults labels={labels} directory={directory} onCopyEmail={handleCopyEmail} />
 
       {/* Mobile-only create affordance — the desktop one lives in the
-          toolbar. Fixed above the bottom nav (bottom: 88px), below dialogs.
-          The container's 160px mobile `pb` above guarantees scroll clearance
-          below the pagination card so this FAB never covers the last
-          content at the bottom of the page. */}
+          toolbar. Fixed at the standard 24px bottom offset (there is no
+          bottom nav on this surface), below dialogs. The container's 96px
+          mobile `pb` above guarantees scroll clearance below the pagination
+          card so this FAB never covers the last content at the bottom of
+          the page. */}
       <Fab
         color="primary"
         aria-label={labels.createDialog.title}
         onClick={() => directory.setCreateOpen(true)}
-        sx={{ display: { xs: "flex", md: "none" }, position: "fixed", insetInlineEnd: 16, bottom: 88, zIndex: 900 }}
+        sx={{ display: { xs: "flex", md: "none" }, position: "fixed", insetInlineEnd: 16, bottom: 24, zIndex: 900 }}
       >
         <AddIcon />
       </Fab>

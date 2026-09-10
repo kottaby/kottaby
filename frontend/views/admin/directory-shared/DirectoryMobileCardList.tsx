@@ -3,8 +3,8 @@
 /**
  * DirectoryMobileCardList — the shared mobile (< md) rendering of the
  * admin directory surfaces (students / teachers / applicants): a vertical
- * stack of the domain's per-item cards (16px gap). The stack keeps a 96px
- * `paddingBlockEnd` as a gap before the pagination card.
+ * stack of the domain's per-item cards (16px gap) separated from the
+ * pagination card by a single 24px gap.
  *
  * Loading renders stable-key skeleton cards (announced through the
  * localized loading label); the empty state renders the domain's node
@@ -35,7 +35,7 @@ export function DirectoryMobileCardList(props: DirectoryMobileCardListProps): Re
   return (
     <Stack
       spacing={2}
-      sx={{ display: { xs: "flex", md: "none" }, paddingBlockEnd: 12 /* 96px gap before the pagination card */ }}
+      sx={{ display: { xs: "flex", md: "none" }, paddingBlockEnd: 3 /* one 24px gap before the pagination card */ }}
     >
       {loading && cards.length === 0 ? (
         <Box component="output" aria-busy="true" aria-label={loadingLabel} sx={{ display: "contents" }}>

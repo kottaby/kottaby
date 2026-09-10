@@ -45,6 +45,8 @@ export interface DashboardLabels {
   readonly broadcasts: string;
   /** Sidebar nav: Disputes link (admin — session arbitration queue) */
   readonly disputes: string;
+  /** Sidebar nav: Session Governance link (admin — admin session directory: filter, reschedule, cancel, reassign) */
+  readonly sessionGovernance: string;
   /** Sidebar nav: Profile link */
   readonly profile: string;
   /** Sidebar nav: Children link (parent) */

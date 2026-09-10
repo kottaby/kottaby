@@ -248,7 +248,11 @@ function callOptions(): NotificationEngineCallOptions {
 }
 
 /** Publish oracle: EXACTLY ONE post-commit publish, addressed to `targetUserId` alone. */
-function expectSinglePublish(targetUserId: number, relatedEntityId: number): void {
+function expectSinglePublish(
+  targetUserId: number,
+  relatedEntityId: number,
+  relatedEntityType = "parent_link_request"
+): void {
   expect(transportSpy.publishCount).toBe(1);
   const call = transportSpy.lastCall;
   if (call === null) {
@@ -256,7 +260,7 @@ function expectSinglePublish(targetUserId: number, relatedEntityId: number): voi
   }
   expect(call.userIds).toEqual([targetUserId]);
   expect(call.payload.data.type).toBe(NotificationType.ParentLinkRequest);
-  expect(call.payload.data.relatedEntityType).toBe("parent_link_request");
+  expect(call.payload.data.relatedEntityType).toBe(relatedEntityType);
   expect(call.payload.data.relatedEntityId).toBe(relatedEntityId);
 }
 
@@ -721,13 +725,14 @@ describe("Journey — parent→child link request workflow (DEV1-014, journeys A
     // The winner write: the student's link field is A's id.
     expect(await studentParentId(s.studentS.userId)).toBe(s.parentA.userId);
 
-    // The parent's notification: accepted copy, bound to the request row.
+    // The parent's notification: accepted copy, bound to the request row —
+    // the parent audience carries the decision refinement (issue #99).
     const aInbox = await linkInboxRowsFor(s.parentA.userId);
     expect(aInbox).toHaveLength(1);
-    expect(aInbox[0]?.relatedEntityType).toBe("parent_link_request");
+    expect(aInbox[0]?.relatedEntityType).toBe("parent_link_request_decision");
     expect(aInbox[0]?.relatedEntityId).toBe(aRequestId);
     await expectEmptyLinkInboxes([s.parentB.userId, s.studentG.userId, s.studentL.userId, s.studentF.userId]);
-    expectSinglePublish(s.parentA.userId, aRequestId);
+    expectSinglePublish(s.parentA.userId, aRequestId, "parent_link_request_decision");
     transportSpy.clear();
 
     // REQ-091 — sibling pendings of the winner's student are terminal, and
@@ -846,7 +851,7 @@ describe("Journey — parent→child link request workflow (DEV1-014, journeys A
     const parentAInboxAfter = await linkInboxRowsFor(s.parentA.userId);
     expect(parentAInboxAfter.length - parentAInboxBefore.length).toBe(1);
     expect(parentAInboxAfter.filter(row => row.relatedEntityId === fRequestId)).toHaveLength(1);
-    expectSinglePublish(s.parentA.userId, fRequestId);
+    expectSinglePublish(s.parentA.userId, fRequestId, "parent_link_request_decision");
     transportSpy.clear();
 
     // Re-responding to the resolved row is the constant ALREADY_RESOLVED shape.

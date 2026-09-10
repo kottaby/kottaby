@@ -23,7 +23,8 @@
  *    certified teacher honestly classifies as the generic state conflict.
  *
  * `refundHeldLaneToProvenance` is the ONE same-lane refund primitive shared
- * by the participant cancel and the arbitration CANCEL outcome, always on
+ * by the participant cancel, the arbitration CANCEL outcome, the
+ * confirmation-deadline sweeper, and the admin governance cancel, always on
  * the caller's transaction (the refund and its status flip commit atomically
  * or not at all). The provenance column is a varchar read back from the
  * row: an unreadable value fails closed (the refusal rolls the
@@ -215,7 +216,7 @@ export async function rejectTransitionMiss(
  */
 export async function refundHeldLaneToProvenance(
   resolved: SessionReturnType,
-  context: "cancelSession" | "resolveSessionDispute" | "sweepExpiredSessions",
+  context: "cancelSession" | "resolveSessionDispute" | "sweepExpiredSessions" | "adminCancelSession",
   tx: DBTransaction
 ): Promise<void> {
   if (resolved.heldBalanceLane === null) {

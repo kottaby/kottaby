@@ -172,4 +172,21 @@ export interface NotificationsLabels {
    * correctly in mixed-direction feeds without a presentation wrapper.
    */
   readonly eventParentLinkExpiringBody: (studentName: string) => string;
+  // ─── Admin session-governance event copy ──────────────────────────────────
+  /** Notification title — an administrator rescheduled the session. */
+  readonly eventSessionGovernanceRescheduledTitle: string;
+  /**
+   * Notification body for a governance reschedule — plain factual copy
+   * (no participant names, no timing values; the inbox links back to the
+   * session where the new schedule is rendered).
+   */
+  readonly eventSessionGovernanceRescheduledBody: string;
+  /** Notification title — an administrator cancelled the session. */
+  readonly eventSessionGovernanceCancelledTitle: string;
+  /** Notification body for a governance cancel — plain factual copy, no refund promises. */
+  readonly eventSessionGovernanceCancelledBody: string;
+  /** Notification title — an administrator changed the session's teacher. */
+  readonly eventSessionGovernanceTeacherReassignedTitle: string;
+  /** Notification body for a governance teacher reassignment — plain factual copy, no participant names. */
+  readonly eventSessionGovernanceTeacherReassignedBody: string;
 }

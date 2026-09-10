@@ -65,12 +65,15 @@ export function DirectoryTable(props: DirectoryTableProps): ReactNode {
       <Table sx={{ tableLayout: "fixed" }}>
         <TableHead>
           <TableRow sx={theme => ({ bgcolor: theme.palette.surfaceContainerHigh })}>
-            <DirectoryHeaderCell width="28%">{labels.headers.name}</DirectoryHeaderCell>
-            <DirectoryHeaderCell width="13.5%">{labels.headers.phone}</DirectoryHeaderCell>
-            <DirectoryHeaderCell width="10.5%">{labels.headers.role}</DirectoryHeaderCell>
-            <DirectoryHeaderCell width="17%">{labels.headers.statusDetails}</DirectoryHeaderCell>
+            <DirectoryHeaderCell width="28.5%">{labels.headers.name}</DirectoryHeaderCell>
+            <DirectoryHeaderCell width="13%">{labels.headers.phone}</DirectoryHeaderCell>
+            {/* ROLE gets ≥11% — the tonal pill's Arabic label ("مسؤول") needs
+                ~60px of label space; at the former 9% the fixed-layout cell
+                squeezed the chip below its content size and ellipsized it. */}
+            <DirectoryHeaderCell width="11%">{labels.headers.role}</DirectoryHeaderCell>
+            <DirectoryHeaderCell width="16%">{labels.headers.statusDetails}</DirectoryHeaderCell>
             <DirectoryHeaderCell width="9%">{labels.headers.governance}</DirectoryHeaderCell>
-            <DirectoryHeaderCell width="14%">{labels.headers.lastActive}</DirectoryHeaderCell>
+            <DirectoryHeaderCell width="14.5%">{labels.headers.lastActive}</DirectoryHeaderCell>
             <DirectoryHeaderCell width="8%" align="end">
               {labels.headers.actions}
             </DirectoryHeaderCell>

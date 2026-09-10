@@ -56,8 +56,32 @@ import { getServerTranslations } from "@/shared/locale/server-graphql";
  */
 export const PARENT_LINK_REQUEST_ENTITY = "PARENT_LINK_REQUEST";
 
-/** Literal `related_entity_type` for every parent-link notification. */
+/**
+ * Literal `related_entity_type` for the STUDENT-targeted parent-link
+ * notification (the incoming-request row the drawer deep-links to
+ * `/student/link-requests`). Byte-equal to the `NotificationType`
+ * enum value — the original wire contract, kept stable for the pinned
+ * deep-link cell.
+ */
 export const PARENT_LINK_RELATED_ENTITY_TYPE = "parent_link_request";
+
+/**
+ * Audience-scoped `related_entity_type` refinements for the PARENT-targeted
+ * parent-link notifications (issue #99 — recipient-aware routing):
+ *
+ *  - `_decision` — the confirm/reject outcome row (respond leg);
+ *  - `_expiry` — the pre-expiry reminder row (`sendExpiryReminders`).
+ *
+ * The refinement carries the AUDIENCE in the wire value itself, so the
+ * frontend's type-keyed route map (`frontend/lib/notification-route-resolution.ts`)
+ * deliberately MISSES these values and the drawer rows fall through to the
+ * notifications feed — a parent clicking their outcome/reminder lands on the
+ * feed instead of bouncing off the student-only decision route (the page
+ * guard redirect was the documented DI-6.4-01 UX flaw). The student value is
+ * unchanged, so the pinned student deep-link cell keeps its contract.
+ */
+export const PARENT_LINK_DECISION_RELATED_ENTITY_TYPE = "parent_link_request_decision";
+export const PARENT_LINK_EXPIRY_RELATED_ENTITY_TYPE = "parent_link_request_expiry";
 
 /**
  * The three zero-row claim/withdrawal collapse verdicts — classified

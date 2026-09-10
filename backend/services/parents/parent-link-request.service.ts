@@ -99,7 +99,8 @@ import {
   isDeliveryReceipt,
   mapIncoming,
   mapOutgoing,
-  PARENT_LINK_RELATED_ENTITY_TYPE,
+  PARENT_LINK_DECISION_RELATED_ENTITY_TYPE,
+  PARENT_LINK_EXPIRY_RELATED_ENTITY_TYPE,
   raiseUnclaimableDenial,
   requireActor,
   toCanonicalLinkStatus,
@@ -313,7 +314,10 @@ export namespace ParentLinkRequestService {
           body: accept
             ? parentCopy.eventParentLinkAcceptedBody(actor.fullName)
             : parentCopy.eventParentLinkRejectedBody(actor.fullName),
-          relatedEntityType: PARENT_LINK_RELATED_ENTITY_TYPE,
+          // Parent audience — the outcome row carries the decision refinement,
+          // so the drawer falls through to the feed (never the student-only
+          // decision route; issue #99).
+          relatedEntityType: PARENT_LINK_DECISION_RELATED_ENTITY_TYPE,
           relatedEntityId: claim.id,
         },
         parentLocale,
@@ -523,7 +527,9 @@ export namespace ParentLinkRequestService {
             type: NotificationType.ParentLinkRequest,
             title: copy.eventParentLinkExpiringTitle,
             body: copy.eventParentLinkExpiringBody(isolateBidi(maskFullName(rawName))),
-            relatedEntityType: PARENT_LINK_RELATED_ENTITY_TYPE,
+            // Parent audience — expiry refinement (see the decision-leg note;
+            // issue #99).
+            relatedEntityType: PARENT_LINK_EXPIRY_RELATED_ENTITY_TYPE,
             relatedEntityId: row.id,
           },
           locale,

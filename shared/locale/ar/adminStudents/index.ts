@@ -34,6 +34,7 @@ export const adminStudentsAr: AdminStudentsLabels = {
     all: "الكل",
   },
   trialBadge: "فترة تجريبية",
+  scrollBackToTop: "العودة إلى الأعلى",
   emptyState: {
     title: "لا يوجد طلاب بعد",
     message: "ستظهر هنا حسابات الطلاب بمجرد تسجيلهم على المنصة.",

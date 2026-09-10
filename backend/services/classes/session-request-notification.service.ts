@@ -1,10 +1,11 @@
 /**
  * Session notification wave emitters — the internal engine-facing library for
- * the eight session lifecycle waves: the six request-intake waves (one
- * teacher-facing request wave, five student-facing outcome waves) plus the
- * two student-facing completion-handshake waves (the confirm-prompt after the
+ * the session notification waves: the six request-intake waves (one
+ * teacher-facing request wave, five student-facing outcome waves), the two
+ * student-facing completion-handshake waves (the confirm-prompt after the
  * teacher's completion stamp and the auto-cancel notice once the confirmation
- * window lapses).
+ * window lapses), and the three admin session-governance waves
+ * (reschedule / cancel / teacher reassignment).
  *
  * Recipient derivation: the ONLY caller input is the session id. Both
  * participants resolve server-side from the persisted session row inside the
@@ -30,12 +31,25 @@
  * are composed in the RECIPIENT's persisted locale (falling back to the
  * platform default locale when the user row carries none), and that same
  * locale is handed to the engine.
+ *
+ * File layout: the governance-wave machinery (type mapping, copy
+ * composition, participant resolution, emit planning, and the sequential
+ * receipt walk) lives in the sibling module
+ * `session-request-notification.governance.ts`, and the pure wave
+ * title/body copy composition lives in
+ * `session-request-notification.copy.ts` — both extracted verbatim
+ * (behavior-identical max-lines refactor); the three public governance
+ * emitters stay in the namespace below.
  */
 import { SessionRepository } from "@/backend/db/repo";
 import { NotificationType } from "@/backend/enum/notifications/notification-type.enum";
-import { SessionIntent } from "@/backend/enum/scheduling/session-intent.enum";
 import { DomainError, NotFoundError, ValidationError } from "@/backend/lib/errors";
 import { logger } from "@/backend/lib/logger";
+import { composeWaveCopy } from "@/backend/services/classes/session-request-notification.copy";
+import {
+  emitGovernanceWave,
+  resolveGovernanceParticipant,
+} from "@/backend/services/classes/session-request-notification.governance";
 import { NotificationEngine, type NotificationEngineCallOptions } from "@/backend/services/notifications";
 import { isPositiveSafeInt } from "@/backend/services/notifications/emit-validation";
 import {
@@ -45,7 +59,6 @@ import {
   type NotificationEmitInput,
   type SessionRequestWaveKind,
   type SessionWaveContext,
-  type SessionWaveParticipantContext,
 } from "@/backend/types";
 import { defaultLocale } from "@/shared/locale/AppLocale";
 import { getServerTranslations } from "@/shared/locale/server-graphql";
@@ -94,91 +107,8 @@ async function resolveWaveContext(
     intent: row.intent,
     student: { userId: row.studentUserId, fullName: row.studentFullName, locale: row.studentLocale },
     teacher: { userId: row.teacherUserId, fullName: row.teacherFullName, locale: row.teacherLocale },
+    sessionUpdatedAt: row.sessionUpdatedAt,
   };
-}
-
-/** Localized intent label — exhaustive over every SessionIntent member. */
-function resolveIntentLabel(
-  intent: SessionIntent,
-  tNotifications: ReturnType<typeof getServerTranslations>["notificationsTranslations"]
-): string {
-  switch (intent) {
-    case SessionIntent.Hifz:
-      return tNotifications.intentHifz;
-    case SessionIntent.Tajweed:
-      return tNotifications.intentTajweed;
-    case SessionIntent.Evaluation:
-      return tNotifications.intentEvaluation;
-    default: {
-      // Exhaustiveness guard — the enum union makes this unreachable.
-      const exhaustive: never = intent;
-      throw new Error(`Unexpected session intent: ${String(exhaustive)}`);
-    }
-  }
-}
-
-/**
- * Composes the wave's title/body from the notifications namespace in the
- * recipient's locale. The counterparty's display name is the only participant
- * detail that ever appears in copy (plus the intent label on the request
- * wave).
- */
-function composeWaveCopy(
-  waveKind: SessionRequestWaveKind,
-  wave: SessionWaveContext,
-  counterparty: SessionWaveParticipantContext,
-  tNotifications: ReturnType<typeof getServerTranslations>["notificationsTranslations"]
-): { readonly title: string; readonly body: string } {
-  switch (waveKind) {
-    case "teacher_request":
-      return {
-        title: tNotifications.eventSessionRequestTitle,
-        body: tNotifications.eventSessionRequestBody(
-          counterparty.fullName,
-          resolveIntentLabel(wave.intent, tNotifications)
-        ),
-      };
-    case "outcome_accepted":
-      return {
-        title: tNotifications.eventSessionAcceptedTitle,
-        body: tNotifications.eventSessionAcceptedBody(counterparty.fullName),
-      };
-    case "outcome_declined":
-      return {
-        title: tNotifications.eventSessionDeclinedTitle,
-        body: tNotifications.eventSessionDeclinedBody(counterparty.fullName),
-      };
-    case "outcome_auto_rejected":
-      return {
-        title: tNotifications.eventSessionAutoRejectedTitle,
-        body: tNotifications.eventSessionAutoRejectedBody(counterparty.fullName),
-      };
-    case "outcome_queued":
-      return {
-        title: tNotifications.eventSessionQueuedTitle,
-        body: tNotifications.eventSessionQueuedBody(counterparty.fullName),
-      };
-    case "outcome_alternatives_offered":
-      return {
-        title: tNotifications.eventSessionAlternativesOfferedTitle,
-        body: tNotifications.eventSessionAlternativesOfferedBody(counterparty.fullName),
-      };
-    case "completion_prompt":
-      return {
-        title: tNotifications.eventSessionCompletionPromptTitle,
-        body: tNotifications.eventSessionCompletionPromptBody(counterparty.fullName),
-      };
-    case "completion_auto_cancelled":
-      return {
-        title: tNotifications.eventSessionAutoCancelledTitle,
-        body: tNotifications.eventSessionAutoCancelledBody(counterparty.fullName),
-      };
-    default: {
-      // Exhaustiveness guard — the wave-kind union makes this unreachable.
-      const exhaustive: never = waveKind;
-      throw new Error(`Unexpected wave kind: ${String(exhaustive)}`);
-    }
-  }
 }
 
 /**
@@ -369,5 +299,61 @@ export namespace SessionRequestNotificationService {
     options?: NotificationEngineCallOptions
   ): Promise<NotificationDeliveryReceipt> {
     return emitWave(sessionId, "completion_auto_cancelled", "student", locale, tx, options);
+  }
+
+  /**
+   * Admin-governance wave: the session's timing pair was rescheduled.
+   * Recipients: the student and the (current) teacher, each in their own
+   * persisted locale. The calling flow owns the gate and the publish —
+   * this emitter only persists the receipts.
+   */
+  export async function notifySessionGovernanceRescheduled(
+    sessionId: number,
+    locale: string,
+    tx?: DBTransaction,
+    options?: NotificationEngineCallOptions
+  ): Promise<NotificationDeliveryReceipt[]> {
+    const wave = await resolveWaveContext(sessionId, locale, tx);
+    return emitGovernanceWave(wave, "sessionGovernance.rescheduled", [wave.student, wave.teacher], tx, options);
+  }
+
+  /**
+   * Admin-governance wave: the session was cancelled by an administrator.
+   * Recipients: the student and the (current) teacher, each in their own
+   * persisted locale. The calling flow owns the gate and the publish.
+   */
+  export async function notifySessionGovernanceCancelled(
+    sessionId: number,
+    locale: string,
+    tx?: DBTransaction,
+    options?: NotificationEngineCallOptions
+  ): Promise<NotificationDeliveryReceipt[]> {
+    const wave = await resolveWaveContext(sessionId, locale, tx);
+    return emitGovernanceWave(wave, "sessionGovernance.cancelled", [wave.student, wave.teacher], tx, options);
+  }
+
+  /**
+   * Admin-governance wave: the session's teacher was reassigned. Recipients:
+   * the student, the OUTGOING teacher (resolved by id — the row no longer
+   * references them after the guarded swap), and the incoming teacher, each
+   * in their own persisted locale. The calling flow owns the gate and the
+   * publish.
+   */
+  export async function notifySessionGovernanceTeacherReassigned(
+    sessionId: number,
+    outgoingTeacherUserId: number,
+    locale: string,
+    tx?: DBTransaction,
+    options?: NotificationEngineCallOptions
+  ): Promise<NotificationDeliveryReceipt[]> {
+    const wave = await resolveWaveContext(sessionId, locale, tx);
+    const outgoing = await resolveGovernanceParticipant(outgoingTeacherUserId, locale, tx);
+    return emitGovernanceWave(
+      wave,
+      "sessionGovernance.teacherReassigned",
+      [wave.student, outgoing, wave.teacher],
+      tx,
+      options
+    );
   }
 }

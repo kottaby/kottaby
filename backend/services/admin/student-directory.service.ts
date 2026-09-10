@@ -72,10 +72,15 @@ function normalizeFilters(filters: AdminStudentFiltersSubmitInput): NormalizedAd
   if (trimmedSearch) {
     searchPattern = `%${escapeLikeWildcards(trimmedSearch.slice(0, MAX_SEARCH_LENGTH))}%`;
   }
+  let language: string | null = null;
+  const trimmedLanguage = filters.language?.trim();
+  if (trimmedLanguage) {
+    language = trimmedLanguage;
+  }
   return {
     searchPattern,
     hasParent: filters.hasParent ?? null,
-    language: filters.language?.trim() || null,
+    language,
   };
 }
 
