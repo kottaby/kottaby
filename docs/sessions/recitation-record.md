@@ -151,7 +151,7 @@ Recitation writes sit OUTSIDE the mandated idempotency-key set of `docs/IDEMPOTE
 
 | Tier | Path |
 |---|---|
-| Repository (race arm on real PostgreSQL) | `backend/db/repo/classes/__tests__/recitation.repository.test.ts` |
+| Repository (race arm on real PostgreSQL) | `backend/db/test/repo/classes/recitation.repository.test.ts` |
 | Service (denial matrix, fuzz, race, rollback purity) | `backend/services/classes/recitation.service.test.ts` |
 | Cross-actor journey (eight ordered steps) | `test/workflows/sessions/recitation-record.journey.test.ts` |
 | Wire matrix (live HTTP stack) | `backend/graphql/test/recitation-record.wire.test.ts` |

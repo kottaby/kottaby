@@ -267,6 +267,9 @@ describe("RecitationRepository — standalone branches (committed fixture)", () 
   test("findBySessionId without a tx returns null for the record-less committed session", async () => {
     const fixture = requireCommittedFixture();
 
+    // Establish the record-less precondition locally — never inherit it from a sibling test's cleanup.
+    await db.delete(recitation).where(eq(recitation.sessionId, fixture.sessionId));
+
     const found = await RecitationRepository.findBySessionId(fixture.sessionId);
 
     expect(found).toBeNull();
