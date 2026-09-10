@@ -57,7 +57,7 @@
  * signatures, behavior) is unchanged.
  */
 
-import { and, eq, isNotNull, ne, or, type SQL, sql } from "drizzle-orm";
+import { and, eq, isNotNull, ne, sql } from "drizzle-orm";
 import { db } from "@/backend/db";
 import * as sessionRepositoryImpl from "@/backend/db/repo/classes/session.repository.helpers";
 import * as sessionRepositoryWaveImpl from "@/backend/db/repo/classes/session.repository.wave.helpers";
@@ -77,41 +77,6 @@ import type {
   SessionWaveContextRow,
 } from "@/backend/types";
 import { SESSION_CONFIRMATION_WINDOW_MS } from "@/shared/constants/session-fees.constants";
-
-/**
- * ONE module-scope predicate builder shared by the participant-initiated
- * live-state guarded transitions (`cancelSessionOnce` and
- * `openDisputeOnce`): row identity, the caller being the session's student
- * OR its teacher, and the lifecycle state still live (pre-start or
- * in-progress — terminal rows are structurally unreachable). The predicate
- * rides inside each method's single guarded UPDATE, so predicate evaluation
- * happens under PostgreSQL's row lock with zero check-then-write window.
- */
-function buildLiveParticipantTransitionPredicate(id: number, participantId: number): SQL | undefined {
-  return and(
-    eq(session.id, id),
-    or(eq(session.studentId, participantId), eq(session.teacherId, participantId)),
-    or(eq(session.status, SessionStatus.Scheduled), eq(session.status, SessionStatus.Started))
-  );
-}
-
-/**
- * ONE module-scope predicate builder shared by the admin reschedule and
- * cancel guards: row identity plus the row still being in one of the two
- * states whose timing and hold surface the governance mutations may reshape
- * (pre-start or in-progress). Completed and cancelled rows are structurally
- * unreachable here (terminal), and so is a disputed row — an open dispute
- * belongs to the arbitration surface, which is the only writer allowed to
- * exit a disputed row into a terminal state. The predicate rides inside
- * each guard's single UPDATE, so eligibility evaluation happens under
- * PostgreSQL's row lock with zero check-then-write window.
- */
-function buildAdminLiveStatePredicate(id: number): SQL | undefined {
-  return and(
-    eq(session.id, id),
-    or(eq(session.status, SessionStatus.Scheduled), eq(session.status, SessionStatus.Started))
-  );
-}
 
 export namespace SessionRepository {
   /**
@@ -260,7 +225,7 @@ export namespace SessionRepository {
     const rows = await executor
       .update(session)
       .set({ status: SessionStatus.Cancelled, feeHeld: false, cancelReason, updatedAt: now })
-      .where(buildLiveParticipantTransitionPredicate(id, participantId))
+      .where(sessionRepositoryWaveImpl.buildLiveParticipantTransitionPredicate(id, participantId))
       .returning();
     return rows[0] ?? null;
   }
@@ -291,7 +256,7 @@ export namespace SessionRepository {
     const rows = await executor
       .update(session)
       .set({ status: SessionStatus.Disputed, disputeReason, disputedAt: now, updatedAt: now })
-      .where(buildLiveParticipantTransitionPredicate(id, participantId))
+      .where(sessionRepositoryWaveImpl.buildLiveParticipantTransitionPredicate(id, participantId))
       .returning();
     return rows[0] ?? null;
   }
@@ -444,7 +409,7 @@ export namespace SessionRepository {
     id: number,
     tx?: DBTransaction
   ): Promise<SessionReportWaveContextRow | null> {
-    return sessionRepositoryImpl.findReportWaveContextById(id, tx);
+    return sessionRepositoryWaveImpl.findReportWaveContextById(id, tx);
   }
 
   /**
@@ -705,14 +670,7 @@ export namespace SessionRepository {
     endedAt: Date,
     tx?: DBTransaction
   ): Promise<SessionSelectType | null> {
-    const now = new Date();
-    const executor = tx ?? db;
-    const rows = await executor
-      .update(session)
-      .set({ startedAt, endedAt, updatedAt: now })
-      .where(buildAdminLiveStatePredicate(sessionId))
-      .returning();
-    return rows[0] ?? null;
+    return sessionRepositoryImpl.guardReschedule(sessionId, startedAt, endedAt, tx);
   }
 
   /**
@@ -738,14 +696,7 @@ export namespace SessionRepository {
     sessionId: number,
     tx?: DBTransaction
   ): Promise<SessionSelectType | null> {
-    const now = new Date();
-    const executor = tx ?? db;
-    const rows = await executor
-      .update(session)
-      .set({ status: SessionStatus.Cancelled, feeHeld: false, updatedAt: now })
-      .where(buildAdminLiveStatePredicate(sessionId))
-      .returning();
-    return rows[0] ?? null;
+    return sessionRepositoryImpl.guardCancelPreTerminal(sessionId, tx);
   }
 
   /**
