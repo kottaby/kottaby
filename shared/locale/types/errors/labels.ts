@@ -141,6 +141,10 @@ export interface ErrorsLabels {
   readonly sessionInvalidTransition: string;
   /** Certification-gate reject — the targeted teacher account is not yet approved to host sessions. */
   readonly teacherNotCertified: string;
+  /** Homework-timing reject — homework creation attempted for a session whose teacher report has not been submitted (INV-S8 gate). */
+  readonly homeworkRequiresReport: string;
+  /** Availability-gate reject — the teacher is currently in a started session and cannot be toggled available (INV-S6 seam gate; no session id disclosed). */
+  readonly teacherInActiveSession: string;
   /** "The selected teacher was not found." — teacher lookup miss on booking (dedicated key, not the generic `notFound`). */
   readonly teacherNotFound: string;
   /** Balance reject — the caller's lane balances cannot cover the booking fee. */
@@ -166,6 +170,28 @@ export interface ErrorsLabels {
   readonly recitationAlreadyExists: string;
   /** Writeability reject — the session's current status does not admit a recitation record (only started-or-later sessions do) → ConflictError("RECITATION_SESSION_NOT_WRITEABLE", …). */
   readonly recitationSessionNotWriteable: string;
+  /** "The start time must be before the end time." — admin reschedule reject: the submitted timing pair is inverted. */
+  readonly sessionRescheduleWindowInvalid: string;
+  /** "The start time cannot be more than 5 minutes in the past." — admin reschedule reject: the submitted start lies outside the start-time grace window. */
+  readonly sessionRescheduleStartInPast: string;
+  /** "A session report has already been submitted for this session." — unique-constraint loser on the one-report-per-session rule → ConflictError("SESSION_REPORT_ALREADY_EXISTS", …). */
+  readonly sessionReportAlreadyExists: string;
+  /** "This homework has already been graded." — one-shot grade-window reject on an already-graded homework row → ConflictError. */
+  readonly homeworkAlreadyGraded: string;
+  /** Validation reject — session-report notes are required and cannot be empty after trimming. */
+  readonly sessionReportNotesRequired: string;
+  /** Validation reject — session-report notes exceed the 2000-character bound. */
+  readonly sessionReportNotesTooLong: string;
+  /** Validation reject — the session rating is not an integer within 0..5. */
+  readonly sessionRatingRange: string;
+  /** Validation reject — a homework grade is not an integer within 0..100. */
+  readonly homeworkGradeRange: string;
+  /** Validation reject — a homework ayah range is malformed: non-positive, non-integer, or from > to. */
+  readonly homeworkAyahRangeInvalid: string;
+  /** Validation reject — a homework surah/juz reference is not a member of the shipped SurahJuzRef vocabulary. */
+  readonly homeworkSurahJuzInvalid: string;
+  /** Validation reject — a homework assignment carries neither the current nor the revision block. */
+  readonly homeworkAssignmentBlocksRequired: string;
 }
 
 export type ErrorMessageKey = {

@@ -9,7 +9,9 @@
  *
  * Domains whose objects are registered transitively through their resolvers
  * (`users`, `teachers`, `auth`) keep that convention; this barrel carries the
- * notifications domain, whose objects land ahead of their resolvers — the
- * objects ship first, the query/mutation fields follow.
+ * notifications domain and the classes session-report/homework objects,
+ * whose definitions land ahead of their resolvers — the objects ship first,
+ * the query/mutation fields follow.
  */
+export * from "./classes";
 export * from "./notifications";

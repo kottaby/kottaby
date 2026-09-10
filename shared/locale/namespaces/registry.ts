@@ -5,6 +5,7 @@
  * no import statements in `index.ts`).
  */
 import { AdminBroadcasts } from "@/shared/locale/namespaces/adminBroadcasts";
+import { AdminSessionGovernance } from "@/shared/locale/namespaces/adminSessionGovernance";
 import { AdminStudents } from "@/shared/locale/namespaces/adminStudents";
 import { AdminTeachers } from "@/shared/locale/namespaces/adminTeachers";
 import { AdminUsers } from "@/shared/locale/namespaces/adminUsers";
@@ -25,6 +26,7 @@ import { Wallet } from "@/shared/locale/namespaces/wallet";
 
 export const namespaces = {
   AdminBroadcasts,
+  AdminSessionGovernance,
   AdminStudents,
   AdminTeachers,
   AdminUsers,

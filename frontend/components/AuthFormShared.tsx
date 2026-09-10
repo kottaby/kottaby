@@ -159,10 +159,12 @@ export function AuthSubmitButton({
         opacity: loading || disabled ? 0.6 : 1,
         background: "var(--mui-palette-secondary-main)",
         color: "var(--mui-palette-onSecondary)",
-        boxShadow: "0 6px 16px var(--mui-palette-secondary-main, #B8733344)",
+        // Theme-aware alpha suffix keeps the glow translucent — a solid var()
+        // would resolve to the full-opacity accent and read as a heavy halo.
+        boxShadow: theme => `0 4px 12px ${theme.palette.secondary.main}2e`,
         transition: "box-shadow 0.15s ease, transform 0.15s ease",
         "&:hover": {
-          boxShadow: "0 8px 20px var(--mui-palette-secondary-main, #B8733355)",
+          boxShadow: theme => `0 6px 16px ${theme.palette.secondary.main}44`,
           transform: "translateY(-1px)",
         },
         ...reducedMotionSx,

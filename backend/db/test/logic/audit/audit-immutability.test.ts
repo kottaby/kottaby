@@ -91,13 +91,16 @@ const BACKEND_TEST_LAYER_PATHS = [
 
 /**
  * Teardown infrastructure allowed to remove audit rows — EXACT repo-root
- * file paths only. All three delete under suspended immutability triggers
+ * file paths only. All five delete under suspended immutability triggers
  * (committed teardown, outside any rollback). Adding an entry requires the
  * file to actually mutate `audit_logs` (the live-match assertion below
  * fails otherwise), so the allowlist cannot rot.
  */
 const TEARDOWN_ALLOWLIST_PATHS = [
   "test/helpers/db-cleanup.ts",
+  "test/workflows/admin/audit-completeness.journey.test.ts",
+  "test/ui/e2e/admin-session-governance.e2e.test.ts",
+  "test/workflows/admin/admin-session-governance.journey.test.ts",
   "test/workflows/admin/audit-trail.journey.test.ts",
   "test/workflows/helpers/journey-cleanup.ts",
 ] as const;

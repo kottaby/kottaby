@@ -10,14 +10,20 @@
 
 import { describe, expect, test } from "bun:test";
 import { INITIAL_DEMO_PLANS, seedOrGet } from "@/backend/db/seeds/billing/seed-plans";
+import { createTestUser } from "@/backend/db/test/entity-setup";
 import { runInRollback } from "@/backend/db/test/test-utils";
 import { PlanCatalogService } from "@/backend/services/billing/plan-catalog.service";
 
 describe("Plan Catalog Seeding", () => {
   test("seedOrGet creates all demo plans and is idempotent on repeat execution", async () => {
     await runInRollback(async tx => {
+      // Catalog mutations are admin-gated: the seeder attributes every minted
+      // plan to a real admin-role user row supplied by the caller when an
+      // external transaction is in scope.
+      const admin = await createTestUser(tx, { role: "admin" });
+
       // First pass: creates all demo plans
-      const firstPass = await seedOrGet("en", tx);
+      const firstPass = await seedOrGet("en", admin.id, tx);
       expect(firstPass).toHaveLength(INITIAL_DEMO_PLANS.length);
 
       // Verify "New Teacher Verification & Evaluation Plan" has sessionCount = 5
@@ -33,7 +39,7 @@ describe("Plan Catalog Seeding", () => {
       expect(deactivatedPlan?.deactivatedAt).not.toBeNull();
 
       // Second pass: must be idempotent and return identical plans without duplicate inserts
-      const secondPass = await seedOrGet("en", tx);
+      const secondPass = await seedOrGet("en", admin.id, tx);
       expect(secondPass).toHaveLength(INITIAL_DEMO_PLANS.length);
       expect(secondPass.map(p => p.id)).toEqual(firstPass.map(p => p.id));
 

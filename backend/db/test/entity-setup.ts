@@ -21,6 +21,7 @@ import { studentPayments } from "@/backend/db/schema/billing/student-payments";
 import { subscriptions } from "@/backend/db/schema/billing/subscriptions";
 import { teacherTransaction } from "@/backend/db/schema/billing/teacher-transaction";
 import { wallet } from "@/backend/db/schema/billing/wallet";
+import { homeWork } from "@/backend/db/schema/classes/home-work";
 import { reports } from "@/backend/db/schema/classes/reports";
 import { session } from "@/backend/db/schema/classes/session";
 import { parents } from "@/backend/db/schema/parents/parents";
@@ -42,6 +43,7 @@ import type {
   ApplicantSelectType,
   DBTransaction,
   EvaluationSelectType,
+  HomeWorkSelectType,
   ParentSelectType,
   PlanSelectType,
   ReportSelectType,
@@ -354,6 +356,44 @@ export async function createTestSessionReport(
     .returning();
   if (!row) {
     throw new Error("createTestSessionReport: insert returned no rows");
+  }
+  return row;
+}
+
+/**
+ * Creates a `home_work` row for an existing session (cascade FK — the row
+ * disappears with its session). One row per session (`session_id` UNIQUE).
+ *
+ * Defaults model the assigned-but-ungraded state: BOTH grade columns NULL
+ * and both assignment tracks empty — override the `current_*` (Jadid) and
+ * `revision_*` (Madi) columns to model authored blocks. Grades must stay
+ * within [0, 100] (`home_work_current_grade_check` /
+ * `home_work_revision_grade_check`) when provided; the surah/juz columns
+ * take `SurahJuzRef` members only.
+ */
+export async function createTestHomeWork(
+  tx: DBTransaction,
+  sessionId: number,
+  overrides: Partial<HomeWorkSelectType> = {}
+): Promise<HomeWorkSelectType> {
+  const [row] = await tx
+    .insert(homeWork)
+    .values({
+      sessionId,
+      currentFromAyah: null,
+      currentToAyah: null,
+      currentGrade: null,
+      currentSurahJuz: null,
+      revisionFromAyah: null,
+      revisionToAyah: null,
+      revisionGrade: null,
+      revisionSurahJuz: null,
+      createdAt: new Date(),
+      ...overrides,
+    })
+    .returning();
+  if (!row) {
+    throw new Error("createTestHomeWork: insert returned no rows");
   }
   return row;
 }

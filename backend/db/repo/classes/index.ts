@@ -10,6 +10,8 @@
  *     "@/backend/db/repo"`).
  */
 
+export * from "./home-work.repository";
 export * from "./recitation.repository";
+export * from "./report.repository";
 export * from "./session.repository";
 export * from "./session-request-idempotency.repository";

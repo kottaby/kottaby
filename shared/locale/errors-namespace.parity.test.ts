@@ -24,6 +24,10 @@
  *      `next-intl` imports / `getBackendTranslations` / `shared/messages`
  *      references: ONLY the compile-time system via `getServerTranslations`
  *      consumes these labels.
+ *   5. DOMAIN-SERVICE KEY PINS — the session-report/homework error keys
+ *      (conflict + validation denials emitted by the domain services, NOT by
+ *      the transport gateway) are pinned explicitly in BOTH locales, since
+ *      the route-source discovery above cannot see service-tier consumers.
  *
  * ENVELOPE LOCALIZATION (rendering-path evidence): behavioral proof that the
  * transport rejection envelopes carry the LOCALIZED value (never a literal) is
@@ -115,6 +119,50 @@ describe("compile-time parity mirror — ar/en key sets agree", () => {
   test("every leaf value on BOTH maps is a non-empty localized string (zero dead keys)", () => {
     expect(() => assertEveryLeafNonEmpty(errorsAr, "ar")).not.toThrow();
     expect(() => assertEveryLeafNonEmpty(errorsEn, "en")).not.toThrow();
+  });
+});
+
+// ─── Session-report/homework domain-service key pins ───────────────────────
+
+/**
+ * The `errors` keys minted for the session-report/homework service surface.
+ * The route-discovery gate above only scans the transport gateway's own
+ * emission sites; these keys are consumed by the domain services through
+ * `getServerTranslations(locale).errorsTranslations`, so they are pinned
+ * here — removing a key from BOTH locale maps simultaneously still fails
+ * this suite (the same belt the mandated inventories in the sibling
+ * namespace suites provide).
+ */
+const SESSION_REPORT_HOMEWORK_KEYS = [
+  "sessionReportAlreadyExists",
+  "homeworkAlreadyGraded",
+  "sessionReportNotesRequired",
+  "sessionReportNotesTooLong",
+  "sessionRatingRange",
+  "homeworkGradeRange",
+  "homeworkAyahRangeInvalid",
+  "homeworkSurahJuzInvalid",
+  "homeworkAssignmentBlocksRequired",
+  "homeworkRequiresReport",
+] as const;
+
+// ===========================================================================
+describe("session-report/homework service keys — pinned in BOTH locales", () => {
+  test("the domain inventory is exhaustive (no silent drift on the pinned session-report keys)", () => {
+    const pinned = new Set<string>(SESSION_REPORT_HOMEWORK_KEYS);
+    for (const key of Object.keys(errorsAr)) {
+      if (key.startsWith("sessionReport") || key.startsWith("homework") || key === "sessionRatingRange") {
+        expect(pinned.has(key)).toBe(true);
+      }
+    }
+  });
+
+  test.each([...SESSION_REPORT_HOMEWORK_KEYS])("domain key `%s` resolves non-empty in BOTH ar and en maps", key => {
+    expect(nonEmptyLabelOf(errorsAr, key, "ar").length).toBeGreaterThan(0);
+    expect(nonEmptyLabelOf(errorsEn, key, "en").length).toBeGreaterThan(0);
+    // Key must be part of the COMPILE-TIME schema too — Reflect-only
+    // additions (untyped holes) are prohibited by the ErrorsLabels contract.
+    expect(Object.hasOwn(errorsEn, key)).toBe(true);
   });
 });
 

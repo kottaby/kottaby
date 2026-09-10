@@ -1,0 +1,4 @@
+# The router is shipped to CI as a prebuilt binary only.
+# Source scripts live outside this repository and must never be committed here.
+*.sh
+router/

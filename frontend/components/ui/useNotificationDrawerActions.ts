@@ -44,11 +44,13 @@ interface NotificationDrawerActions {
  * Drawer interaction handlers + their pending state (NotificationDrawer).
  *
  * Row activation: mark read when unread (fire-and-forget — the cache
- * restyles the row) and close; the row IS a real anchor to `/notifications`
- * (Link), so navigation is native — no router call. Mark-one / mark-all run
- * through the shared `useNotificationMarkActions` hook (drawer-plan §3.1) so
- * the count decrement and the stale-window sweep behave IDENTICALLY to the
- * feed page.
+ * restyles the row) and close; the row IS a real anchor (Link) whose href
+ * resolves through `resolveNotificationRoute` — parent-link-request rows
+ * deep-link to the student decision route, every other entity falls through
+ * to the feed page — so navigation is native, no router call. Mark-one /
+ * mark-all run through the shared `useNotificationMarkActions` hook
+ * so the count decrement and the stale-window sweep
+ * behave IDENTICALLY to the feed page.
  */
 export function useNotificationDrawerActions({
   filter,

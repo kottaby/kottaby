@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { check, index, integer, pgTable, text, timestamp } from "drizzle-orm/pg-core";
+import { check, index, integer, pgTable, text, timestamp, unique } from "drizzle-orm/pg-core";
 import { session } from "@/backend/db/schema/classes/session";
 
 /**
@@ -7,10 +7,9 @@ import { session } from "@/backend/db/schema/classes/session";
  *
  * Post-session teacher report: free-form `teacher_notes` plus an optional
  * `student_rating_by_teacher` integer in [0, 5] (the CHECK enforces the
- * range). One report row per session is the typical pattern but the schema does
- * NOT mark session_id unique here, so multiple report revisions are
- * structurally allowed (the application layer enforces the one-per-session
- * invariant if desired).
+ * range). One report row per session: `session_id` is NOT NULL and UNIQUE
+ * (one-to-one with session) — a duplicate submission is rejected by the
+ * database itself.
  *
  * NO `teacher_id` column. The teacher is reached via
  * session.teacher_id — the column was removed as redundant. Access path:
@@ -34,6 +33,7 @@ export const reports = pgTable(
       .$onUpdate(() => new Date()),
   },
   t => [
+    unique("reports_session_id_unique").on(t.sessionId),
     check(
       "reports_student_rating_by_teacher_check",
       sql`${t.studentRatingByTeacher} >= 0 AND ${t.studentRatingByTeacher} <= 5`

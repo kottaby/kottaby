@@ -1,6 +1,7 @@
 # Backend Types Layer Rules
 
 - **Registration types: `RegistrationSubmitInput`, `RegistrationReturnType`, `RegisterPublicRole` in `backend/types/users/registration.types.ts`. See `docs/auth/user-registration.md`.**
+- **Session report & homework types: `Report*`/`HomeWork*` Select/Insert/Return types, `SessionReportSubmitInput`, and the homework composites (`HomeWorkAssignInput`/`HomeWorkBlockInput`/`HomeWorkGradeFieldsInput`) in `backend/types/classes/report.types.ts` + `home-work.types.ts`. See `docs/sessions/session-report-homework.md`.**
 
 ## Single Canonical Object Type Pattern
 

@@ -75,13 +75,18 @@ export interface PglitePoolLike {
   on(_event: string, _listener: (...args: unknown[]) => void): this;
 }
 
-/** Normalizes a pg.QueryConfig | string input into `(text, params, rowMode)`. */
+/** Normalizes a pg.QueryConfig | string input into `(text, params, rowMode, types)`. */
 function normalizeArgs(
   textOrConfig: string | PgQueryConfig,
   params?: ReadonlyArray<unknown>
-): { text: string; params: ReadonlyArray<unknown> | undefined; rowMode?: "array" } {
+): {
+  text: string;
+  params: ReadonlyArray<unknown> | undefined;
+  rowMode?: "array";
+  types: unknown;
+} {
   if (typeof textOrConfig === "string") {
-    return { text: textOrConfig, params, rowMode: undefined };
+    return { text: textOrConfig, params, rowMode: undefined, types: undefined };
   }
   // Object form — Drizzle passes { name, rowMode, text, types } and a
   // separate `params` array (or `values` inside the config). Prefer the
@@ -91,14 +96,84 @@ function normalizeArgs(
     text: typeof config.text === "string" ? config.text : "",
     params: params ?? config.values,
     rowMode: config.rowMode,
+    types: config.types,
   };
+}
+
+/** PostgreSQL type OIDs of the temporal scalar family (see DRIZZLE_NOOP_OIDS). */
+const OID_DATE = 1082;
+const OID_TIMESTAMP = 1114;
+const OID_TIMESTAMPTZ = 1184;
+const OID_INTERVAL = 1186;
+
+/**
+ * Scalar temporal OIDs Drizzle's `NodePgSession` handles itself.
+ *
+ * Drizzle passes `types: { getTypeParser }` on every query, registering a
+ * NOOP parser for the temporal family (see `node-postgres/session.ts →
+ * typeConfig`): on the `postgres` provider the driver therefore delivers RAW
+ * column text (e.g. `"2026-09-10 11:41:37.454"`) and Drizzle's codecs
+ * rehydrate it (`textToDateWithTz = v => new Date(v + "+0000")` for
+ * `timestamp`), preserving fractional seconds.
+ *
+ * Without the same passthrough here, PGlite pre-parses the column into a JS
+ * `Date`, and Drizzle's string-concatenating codec then does
+ * `new Date(Date + "+0000")` — JSC re-parses the `Date.toString()` output and
+ * SILENTLY DROPS the milliseconds (`.454` → `.000`). Every Drizzle read of a
+ * `timestamp` column on PGlite truncated to whole seconds, while the raw-SQL
+ * `queryDb` path kept full precision — the two surfaces drifted apart (caught
+ * by the notifications J1 journey step 9).
+ *
+ * Identity parsers restore the real-pg contract: raw text in, Drizzle codecs
+ * parse. Scoped to scalars — the schema uses no temporal array columns.
+ */
+const DRIZZLE_NOOP_OIDS: readonly number[] = [OID_DATE, OID_TIMESTAMP, OID_TIMESTAMPTZ, OID_INTERVAL];
+
+/**
+ * Detects Drizzle's `types` config (a `{ getTypeParser }` object, mirroring
+ * `pg.types`) so the passthrough parsers below are applied ONLY to callers
+ * that opted into driver-level parsing control. Raw `queryDb(text, params)`
+ * calls keep PGlite's default parsing (JS `Date` values), which the
+ * repositories' `QueryResultRow` contracts expect on both providers.
+ */
+function isDriverTypesConfig(
+  types: unknown
+): types is { getTypeParser: (typeId: number, format?: string) => (value: string) => unknown } {
+  return (
+    typeof types === "object" && types !== null && "getTypeParser" in types && typeof types.getTypeParser === "function"
+  );
 }
 
 let pgliteSingleton: PGlite | null = null;
 let pgliteInitPromise: Promise<PGlite> | null = null;
 
 /**
- * Returns the singleton PGlite instance. Initial construction is async
+ * Cross-module-graph singleton carrier.
+ *
+ * Next.js dev (Turbopack) evaluates the server module graph MORE THAN ONCE
+ * per process — route handlers and server components resolve this module
+ * through separate module-graph copies, so a plain module-level `let`
+ * singleton silently produces TWO PGlite instances against ONE data dir.
+ * PGlite is a single-connection embedded Postgres: the second instance's
+ * first write hits the other instance's WAL/checkpoint state and aborts the
+ * WASM (`RuntimeError: Aborted()`), which Node escalates to an
+ * unhandledRejection process crash.
+ *
+ * Attaching the singleton to `globalThis` (the same trick Prisma's dev
+ * client uses for hot-reload) makes every module-graph copy in the process
+ * share ONE instance. Cross-PROCESS access (CLI seed scripts, the lint
+ * service) must still target a different `PGLITE_DATA_DIR` while the dev
+ * server is running — a data dir is single-process by design.
+ */
+interface PgliteGlobalCarrier {
+  kottabyPgliteSingleton?: PGlite | null;
+  kottabyPgliteInitPromise?: Promise<PGlite> | null;
+}
+const pgliteGlobal = globalThis as typeof globalThis & PgliteGlobalCarrier;
+pgliteSingleton = pgliteGlobal.kottabyPgliteSingleton ?? null;
+pgliteInitPromise = pgliteGlobal.kottabyPgliteInitPromise ?? null;
+
+/** Returns the singleton PGlite instance. Initial construction is async
  * (PGlite loads WASM + opens the data dir); concurrent first-callers await
  * the same promise.
  */
@@ -123,13 +198,16 @@ async function getPglite(): Promise<PGlite> {
       // yield identical trend buckets under any host timezone.
       await instance.query("SET TIME ZONE 'UTC'");
       pgliteSingleton = instance;
+      pgliteGlobal.kottabyPgliteSingleton = instance;
       logger.warn(`[PglitePool] PGlite initialized successfully`);
       return instance;
     })();
+    pgliteGlobal.kottabyPgliteInitPromise = pgliteInitPromise;
     try {
       await pgliteInitPromise;
     } catch (err) {
       pgliteInitPromise = null;
+      pgliteGlobal.kottabyPgliteInitPromise = null;
       throw err;
     }
   }
@@ -150,7 +228,7 @@ export async function getPglitePool(): Promise<PglitePoolLike> {
       textOrConfig: string | PgQueryConfig,
       params?: ReadonlyArray<unknown>
     ): Promise<QueryResultLike<T>> {
-      const { text, params: resolvedParams, rowMode } = normalizeArgs(textOrConfig, params);
+      const { text, params: resolvedParams, rowMode, types } = normalizeArgs(textOrConfig, params);
       // PGlite accepts an options object as the 3rd arg: `{ rowMode: "array" }`.
       // When Drizzle requests `rowMode: "array"` (INSERT/UPDATE with RETURNING,
       // SELECT with fields), PGlite returns rows as arrays — Drizzle's mapper
@@ -161,10 +239,32 @@ export async function getPglitePool(): Promise<PglitePoolLike> {
       // required. `Results<T>.rows` is `T[]` and `fields[].dataTypeID` is
       // already `number`, so the `as T[]` and `Number(...)` coercion that used
       // to live here are unnecessary — the type contract is enforced by PGlite.
+      // When the caller supplies a pg-style `types` config (Drizzle always
+      // does), delegate each temporal scalar OID to the CALLER's own parser
+      // for raw-text delivery. Drizzle's typeConfig registers a NOOP parser
+      // for exactly this family, so its codecs rehydrate the raw column
+      // text themselves (mirroring the `postgres` provider, where the NOOP
+      // parser receives raw text from `pg`) — and any other pg-style caller
+      // gets its own parser choice honored instead of a forced identity.
+      // See DRIZZLE_NOOP_OIDS above for the full precision-loss explanation.
+      const options: {
+        rowMode?: "array";
+        parsers?: Record<number, (value: string) => unknown>;
+      } = {};
+      if (rowMode === "array") {
+        options.rowMode = "array";
+      }
+      if (isDriverTypesConfig(types)) {
+        const parsers: Record<number, (value: string) => unknown> = {};
+        for (const oid of DRIZZLE_NOOP_OIDS) {
+          parsers[oid] = types.getTypeParser(oid, "text");
+        }
+        options.parsers = parsers;
+      }
       const result = await pglite.query<T>(
         text,
         resolvedParams ? [...resolvedParams] : undefined,
-        rowMode === "array" ? { rowMode: "array" } : undefined
+        Object.keys(options).length > 0 ? options : undefined
       );
       return {
         rows: result.rows ?? [],
@@ -207,5 +307,7 @@ export async function closePglite(): Promise<void> {
     await pgliteSingleton.close();
     pgliteSingleton = null;
     pgliteInitPromise = null;
+    pgliteGlobal.kottabyPgliteSingleton = null;
+    pgliteGlobal.kottabyPgliteInitPromise = null;
   }
 }

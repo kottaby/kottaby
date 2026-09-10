@@ -36,6 +36,7 @@ import { Box, Stack } from "@mui/material";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { type ReactNode, useEffect, useState } from "react";
 import { DirectoryPageHeader } from "@/frontend/views/admin/directory-shared/DirectoryPageHeader";
+import { DirectoryScrollToTop } from "@/frontend/views/admin/directory-shared/DirectoryScrollToTop";
 import { parseTeachersUrlTab, serializeTeachersSurfaceUrlState } from "@/frontend/views/admin/directory-url-state";
 import { AdminApplicantsPanel } from "@/frontend/views/admin/teachers/AdminApplicantsPanel";
 import { AdminTeachersDirectoryPanel } from "@/frontend/views/admin/teachers/AdminTeachersDirectoryPanel";
@@ -143,6 +144,10 @@ export function AdminTeachersSurface(): ReactNode {
       >
         <AdminApplicantsPanel labels={labels} applicants={applicants} />
       </Box>
+
+      {/* Floating back-to-top — both tab panels stack past one viewport on
+          phones; the FAB reveals itself after ~a screenful of scroll. */}
+      <DirectoryScrollToTop ariaLabel={labels.scrollBackToTop} />
     </Stack>
   );
 }

@@ -172,4 +172,38 @@ export interface NotificationsLabels {
    * correctly in mixed-direction feeds without a presentation wrapper.
    */
   readonly eventParentLinkExpiringBody: (studentName: string) => string;
+  // ─── Session-report-ready event copy ───────────────────────────────────────
+  /** Notification title — the session's report was submitted and is ready to view. */
+  readonly eventSessionReportReadyTitle: string;
+  /**
+   * Student body — the session's teacher submitted the report; interpolates
+   * ONLY the teacher's already-assembled full name. The copy MUST stay free
+   * of grades, note content, and identifiers (the body is a link invite,
+   * not a content mirror), and names are bidi-isolated by the sender before
+   * interpolation so mixed-direction feeds render correctly.
+   */
+  readonly eventSessionReportReadyBody: (teacherName: string) => string;
+  /**
+   * Parent body — interpolates ONLY the student's and the teacher's
+   * already-assembled full names; same privacy constraint as the student
+   * body: no grades, no note content, no identifiers.
+   */
+  readonly eventSessionReportReadyParentBody: (studentName: string, teacherName: string) => string;
+  // ─── Admin session-governance event copy ──────────────────────────────────
+  /** Notification title — an administrator rescheduled the session. */
+  readonly eventSessionGovernanceRescheduledTitle: string;
+  /**
+   * Notification body for a governance reschedule — plain factual copy
+   * (no participant names, no timing values; the inbox links back to the
+   * session where the new schedule is rendered).
+   */
+  readonly eventSessionGovernanceRescheduledBody: string;
+  /** Notification title — an administrator cancelled the session. */
+  readonly eventSessionGovernanceCancelledTitle: string;
+  /** Notification body for a governance cancel — plain factual copy, no refund promises. */
+  readonly eventSessionGovernanceCancelledBody: string;
+  /** Notification title — an administrator changed the session's teacher. */
+  readonly eventSessionGovernanceTeacherReassignedTitle: string;
+  /** Notification body for a governance teacher reassignment — plain factual copy, no participant names. */
+  readonly eventSessionGovernanceTeacherReassignedBody: string;
 }

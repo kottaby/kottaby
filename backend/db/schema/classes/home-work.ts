@@ -1,12 +1,13 @@
 import { sql } from "drizzle-orm";
-import { check, index, integer, pgTable, timestamp } from "drizzle-orm/pg-core";
+import { check, index, integer, pgTable, timestamp, unique } from "drizzle-orm/pg-core";
 import { session } from "@/backend/db/schema/classes/session";
 import { surahJuzRef } from "@/backend/db/schema/enums";
 
 /**
  * Homework table (`home_work`).
  *
- * Per-session homework assignment with two parallel tracks:
+ * Per-session homework assignment, one row per session: `session_id` is
+ * NOT NULL and UNIQUE (one-to-one with session). Two parallel tracks:
  *  - `current_*`: the new assignment (from/to ayah, grade, surah/juz ref).
  *  - `revision_*`: the revision (Madi) assignment, same shape.
  *
@@ -41,6 +42,7 @@ export const homeWork = pgTable(
       .$onUpdate(() => new Date()),
   },
   t => [
+    unique("home_work_session_id_unique").on(t.sessionId),
     check("home_work_current_grade_check", sql`${t.currentGrade} >= 0 AND ${t.currentGrade} <= 100`),
     check("home_work_revision_grade_check", sql`${t.revisionGrade} >= 0 AND ${t.revisionGrade} <= 100`),
     index("home_work_session_id_idx").on(t.sessionId),

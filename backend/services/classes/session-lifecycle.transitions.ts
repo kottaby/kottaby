@@ -23,11 +23,17 @@
  *    certified teacher honestly classifies as the generic state conflict.
  *
  * `refundHeldLaneToProvenance` is the ONE same-lane refund primitive shared
- * by the participant cancel and the arbitration CANCEL outcome, always on
+ * by the participant cancel, the arbitration CANCEL outcome, the
+ * confirmation-deadline sweeper, and the admin governance cancel, always on
  * the caller's transaction (the refund and its status flip commit atomically
  * or not at all). The provenance column is a varchar read back from the
  * row: an unreadable value fails closed (the refusal rolls the
  * cancellation/resolution back, leaving the hold and the row consistent).
+ *
+ * `releaseTeacherInSessionLock` is the release twin of that primitive: the
+ * INV-S6 lock lifted inside the SAME transaction as the transition that
+ * exits the in-progress state (complete/cancel-from-started/arbitration),
+ * keyed on the transitioned row's teacher id.
  *
  * `refundSweptHolds` drives the confirmation-deadline sweeper's refunds
  * SEQUENTIALLY BY DESIGN through the same primitive: every refund composes
@@ -41,17 +47,26 @@
  * chain over an unbounded run of null-lane rows would exhaust the call
  * stack and abort the whole sweep transaction.
  *
+ * `buildDisputeAuditContract` composes the arbitration's audit trail row:
+ * ONE `Override` row for the session entity whose `details` records the
+ * resolution and the note's PRESENCE — never the note's free-text content.
+ * The composed row is persisted by `AuditService.createAuditLog` on the
+ * arbitration's own transaction so it can never outlive a rolled-back
+ * resolution.
+ *
  * The public surface stays the `SessionLifecycleService` namespace in
  * `session-lifecycle.service.ts`. Nothing in this module is part of the
  * public API.
  */
 
 import { SessionRepository, StudentRepository, TeacherRepository } from "@/backend/db/repo";
+import { AuditActionType } from "@/backend/enum/audit/audit-action-type.enum";
+import type { DisputeResolution } from "@/backend/enum/scheduling/dispute-resolution.enum";
 import { isHeldBalanceLane } from "@/backend/enum/scheduling/held-balance-lane.enum";
 import { ConflictError, NotFoundError } from "@/backend/lib/errors";
 import { logger } from "@/backend/lib/logger";
 import { SESSION_STARTED_STATUS } from "@/backend/services/classes/session-lifecycle.guards";
-import type { DBTransaction, SessionReturnType } from "@/backend/types";
+import type { AuditLogWriteContract, DBTransaction, SessionReturnType } from "@/backend/types";
 import type { getServerTranslations } from "@/shared/locale/server-graphql";
 
 /**
@@ -206,7 +221,7 @@ export async function rejectTransitionMiss(
  */
 export async function refundHeldLaneToProvenance(
   resolved: SessionReturnType,
-  context: "cancelSession" | "resolveSessionDispute" | "sweepExpiredSessions",
+  context: "cancelSession" | "resolveSessionDispute" | "sweepExpiredSessions" | "adminCancelSession",
   tx: DBTransaction
 ): Promise<void> {
   if (resolved.heldBalanceLane === null) {
@@ -219,6 +234,26 @@ export async function refundHeldLaneToProvenance(
     throw new Error(`SessionLifecycleService.${context}: unreadable held-balance lane`);
   }
   await StudentRepository.incrementLane(resolved.studentId, resolved.heldBalanceLane, tx);
+}
+
+/**
+ * Lifts the INV-S6 in-session teacher lock — the release twin of the
+ * same-lane refund primitive: a post-transition, same-transaction
+ * follow-up write that the cancel/arbitration/complete flows compose so
+ * the lock never outlives its session. The write is keyed on the teacher
+ * id the TRANSITIONED row carries (never caller input); a zero-row match
+ * is the fail-closed hard stop (the flow rolls back — the session stays
+ * in its pre-transition state and the lock question stays open for the
+ * retry), never a silent skip.
+ */
+export async function releaseTeacherInSessionLock(teacherId: number, tx: DBTransaction): Promise<void> {
+  const released = await TeacherRepository.setOnline(teacherId, true, tx);
+  if (released === null) {
+    logger.error("Session lifecycle blocked: in-session lock release matched zero teacher rows", {
+      teacherId,
+    });
+    throw new Error("SessionLifecycleService: in-session lock release matched zero teacher rows");
+  }
 }
 
 /**
@@ -251,4 +286,27 @@ async function refundHeldRowsSequentially(
 export async function refundSweptHolds(rows: readonly SessionReturnType[], tx: DBTransaction): Promise<number> {
   const heldRows = rows.filter(row => row.heldBalanceLane !== null);
   return refundHeldRowsSequentially(heldRows, 0, tx);
+}
+
+/**
+ * Composes the arbitration's audit-log write contract: ONE `Override` row
+ * for the session entity whose `details` carries the resolution and the
+ * note's presence only — the note's free-text content never enters the
+ * trail. The composed row is persisted by `AuditService.createAuditLog`
+ * inside the arbitration's own transaction so it can never outlive a
+ * rolled-back resolution.
+ */
+export function buildDisputeAuditContract(
+  adminId: number,
+  sessionId: number,
+  resolution: DisputeResolution,
+  notePresent: boolean
+): AuditLogWriteContract {
+  return {
+    actorId: adminId,
+    actionType: AuditActionType.Override,
+    entityType: "session",
+    entityId: sessionId,
+    details: JSON.stringify({ resolution, notePresent }),
+  };
 }

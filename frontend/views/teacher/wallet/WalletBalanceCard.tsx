@@ -65,11 +65,15 @@ export function WalletBalanceCard({
             <Typography
               data-testid={`${testId}-value`}
               variant="h5"
-              sx={theme => ({ fontWeight: 700, color: theme.palette.onSurface, fontVariantNumeric: "tabular-nums" })}
+              sx={theme => ({
+                fontWeight: 700,
+                color: theme.palette.onSurface,
+                fontVariantNumeric: "tabular-nums",
+              })}
             >
-              {value}
+              {value ?? "\u2014"}
             </Typography>
-            {currency !== undefined ? (
+            {value !== undefined && currency !== undefined ? (
               <Typography variant="caption" sx={theme => ({ fontWeight: 600, color: theme.palette.onSurfaceVariant })}>
                 {currency}
               </Typography>

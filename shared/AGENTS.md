@@ -2,13 +2,13 @@
 
 ## Purpose
 
-The `shared/` layer contains code used by **both** frontend and backend: utilities, i18n messages, domain constants, enums, and cross-layer types. It sits below `app/`, `frontend/`, and `backend/` in the dependency graph — nothing in shared may depend on those layers.
+The `shared/` layer contains code used by **both** frontend and backend: utilities, i18n messages, domain constants, enums, and cross-layer contract types (e.g. locale translation contracts). It sits below `app/`, `frontend/`, and `backend/` in the dependency graph — nothing in shared may depend on those layers. Canonical database/entity types do NOT live here — they belong to `backend/types/` (see "Cross-Layer Shared Types Pattern" below).
 
 ## Layer Isolation (CRITICAL)
 
 - **NEVER** import from `@/frontend/**`, `@/backend/**`, or `@/app/**`.
 - Enforced by ESLint `no-restricted-imports` in `eslint.config.mjs` for all `shared/**/*.{ts,tsx}` files.
-- If shared code needs a value that currently lives in another layer (enum, type, utility), **move or duplicate the canonical definition into `shared/`** and have the other layer import from shared — not the reverse.
+- If shared code needs a value that currently lives in another layer (enum, constant, utility, or cross-layer contract type), **move or duplicate the canonical definition into `shared/`** and have the other layer import from shared — not the reverse. Exception: canonical database/entity types stay in `backend/types/`; other layers import them from there type-only.
 
 ### Positive Pattern
 
@@ -63,6 +63,15 @@ When frontend and backend both need the same enum values:
 ## Recitation Catalog (Qira'ah)
 
 Recitation catalog: `shared/constants/recitation-reading.enum.ts` is the canonical `RecitationReading` enum (10 Qira'at — stable lowercase snake_case values), with the frozen `RECITATION_READINGS` array and the `isRecitationReading(value: unknown)` type guard. The physical `recitation` table is session-linked per decision C.5 (1:1 with `session` via unique `session_id`) — this catalog is for user-preference selection only and MUST NOT be used to create user-linked `recitation` rows. See `docs/auth/qiraah-selection-and-c5.md`.
+
+## Session Report & Homework Locale Keys (existing-namespace additions)
+
+No new namespace was registered — additions land in the EXISTING `errors` and `notifications` namespaces (types/en/ar triple each, parity inventory extended):
+
+- **`errors`** (flat keys): `sessionReportAlreadyExists`, `homeworkAlreadyGraded`, plus the report/homework validation set — `sessionReportNotesRequired`, `sessionReportNotesTooLong`, `sessionRatingRange`, `homeworkGradeRange`, `homeworkAyahRangeInvalid`, `homeworkSurahJuzInvalid`, `homeworkAssignmentBlocksRequired`.
+- **`notifications`** (event copy): `eventSessionReportReadyTitle`, `eventSessionReportReadyBody(teacherName)` (student) and `eventSessionReportReadyParentBody(studentName, teacherName)` (linked parent) — bodies interpolate names only, never grades or note content.
+
+See `docs/sessions/session-report-homework.md` for the choreography these slots serve.
 
 ## Extracting Code Into Shared
 

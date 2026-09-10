@@ -32,6 +32,12 @@
  *    re-armed; cancelled rows keep `startedAt`, never gain `endedAt`, and
  *    keep the provenance lane for the refund; the cancel reason and the
  *    dispute reason/note persist inside their own guarded statements).
+ *    The report-gate additions follow the same rules: `lockForReportGate`
+ *    returns the five-column probe under the row lock (null for unknown
+ *    ids), and `findReportWaveContextById` returns the three-participant
+ *    projection — student, teacher, and the LINKED parent only (a null
+ *    parent leg for an unlinked student, exactly the recipient set the
+ *    report notification seam needs).
  *  - Tier 2 (pagination): newest-first ordering (`created_at DESC`) with
  *    the `id DESC` tiebreak for rows created in the same instant; page 1
  *    exact-size; a mid window; an offset past the end yields empty items
@@ -47,7 +53,12 @@
  *    deterministically (cancel is legal from both pre-states, so both
  *    landed transitions stay consistent with the final row). The fused
  *    certification predicate is proven under duplication: a decertified
- *    teacher's completions produce zero winners and zero writes.
+ *    teacher's completions produce zero winners and zero writes. The
+ *    report-gate lock is exercised sequentially (the rollback harness
+ *    owns one connection, so true cross-connection blocking cannot be
+ *    simulated): re-locking the same row inside the writer's transaction
+ *    is re-entrant, and the second probe re-evaluates its predicate
+ *    against the in-transaction row state.
  *  - Tier 4 (security/tenancy/static): INV-S4 NOT NULL constraint probes
  *    (a party-less session row is rejected by the DB — 23502 naming the
  *    column); source pins — the status filter only ever carries
@@ -195,6 +206,25 @@ function secondPrecisionInstant(ms: number): Date {
 async function absentUserId(tx: DBTransaction): Promise<number> {
   const [row] = await tx.select({ maxId: sql<number>`coalesce(max(${users.id}), 0)::int` }).from(users);
   return (row?.maxId ?? 0) + 1_000_000;
+}
+
+/**
+ * Inserts a session row whose student user has NO `students` row — an
+ * out-of-band data edge the report wave read must survive (the RESTRICT FK
+ * on `session.student_id` makes the shape unreachable through ordinary
+ * inserts, so the insert rides `session_replication_role = replica` for
+ * THIS transaction only; the rollback harness removes the row afterward).
+ */
+async function insertSessionRowWithoutStudentsRow(
+  tx: DBTransaction,
+  actors: SessionActors
+): Promise<SessionSelectType> {
+  await tx.execute(sql`SET LOCAL session_replication_role = replica`);
+  try {
+    return await insertSessionRow(tx, actors);
+  } finally {
+    await tx.execute(sql`SET LOCAL session_replication_role = DEFAULT`);
+  }
 }
 
 /**
@@ -767,6 +797,122 @@ describe("SessionRepository — transactional paths (runInRollback)", () => {
 
       const probe = await SessionRepository.findTransitionProbe(row.id, tx);
       expect(probe?.status).toBe(SessionStatus.Cancelled);
+    });
+  });
+
+  test("lockForReportGate returns exactly the probe projection under the row lock, null for unknown ids", async () => {
+    await runInRollback(async tx => {
+      const actors = await createSessionActors(tx);
+      const row = await insertSessionRow(tx, actors);
+      const missingId = await absentSessionId(tx);
+
+      const locked = await SessionRepository.lockForReportGate(row.id, tx);
+
+      expect(locked).not.toBeNull();
+      expect(Object.keys(locked ?? {}).toSorted((a, b) => a.localeCompare(b))).toEqual([
+        "id",
+        "startedAt",
+        "status",
+        "studentId",
+        "teacherId",
+      ]);
+      expect(locked?.id).toBe(row.id);
+      expect(locked?.status).toBe(SessionStatus.Scheduled);
+      expect(locked?.studentId).toBe(actors.studentUserId);
+      expect(locked?.teacherId).toBe(actors.teacherUserId);
+
+      expect(await SessionRepository.lockForReportGate(missingId, tx)).toBeNull();
+    });
+  });
+
+  test("findReportWaveContextById returns student, teacher, and the LINKED parent (three participants)", async () => {
+    await runInRollback(async tx => {
+      const parentUser = await createTestUser(tx, { role: "parent" });
+      const teacherUser = await createTestUser(tx, { role: "teacher" });
+      await createTestTeacherRow(tx, teacherUser.id, true);
+      const studentUser = await createTestUser(tx, { role: "student" });
+      await createTestStudent(tx, studentUser.id, { parentId: parentUser.id });
+      const row = await insertSessionRow(tx, {
+        teacherUserId: teacherUser.id,
+        studentUserId: studentUser.id,
+      });
+
+      const context = await SessionRepository.findReportWaveContextById(row.id, tx);
+
+      expect(context).not.toBeNull();
+      expect(Object.keys(context ?? {}).toSorted((a, b) => a.localeCompare(b))).toEqual([
+        "parentFullName",
+        "parentLocale",
+        "parentUserId",
+        "sessionId",
+        "studentFullName",
+        "studentLocale",
+        "studentUserId",
+        "teacherFullName",
+        "teacherLocale",
+        "teacherUserId",
+      ]);
+      expect(context?.sessionId).toBe(row.id);
+      expect(context?.studentUserId).toBe(studentUser.id);
+      expect(context?.studentFullName).toBe(studentUser.fullName);
+      expect(context?.teacherUserId).toBe(teacherUser.id);
+      expect(context?.teacherFullName).toBe(teacherUser.fullName);
+      // The linked parent resolves through students.parent_id with the
+      // user's own name — the notification seam's third recipient.
+      expect(context?.parentUserId).toBe(parentUser.id);
+      expect(context?.parentFullName).toBe(parentUser.fullName);
+    });
+  });
+
+  test("findReportWaveContextById yields a null parent leg for an unlinked student (linked-parent-only shape)", async () => {
+    await runInRollback(async tx => {
+      const actors = await createSessionActors(tx);
+      const row = await insertSessionRow(tx, actors);
+
+      const context = await SessionRepository.findReportWaveContextById(row.id, tx);
+
+      expect(context).not.toBeNull();
+      expect(context?.studentUserId).toBe(actors.studentUserId);
+      expect(context?.teacherUserId).toBe(actors.teacherUserId);
+      expect(context?.parentUserId).toBeNull();
+      expect(context?.parentFullName).toBeNull();
+      expect(context?.parentLocale).toBeNull();
+    });
+  });
+
+  test("findReportWaveContextById still returns the wave context when the student user has no students row (data edge)", async () => {
+    await runInRollback(async tx => {
+      const teacherUser = await createTestUser(tx, { role: "teacher" });
+      await createTestTeacherRow(tx, teacherUser.id, true);
+      // Deliberately NO students row for this student user — the students
+      // bridge is LEFT JOINed, so the read must survive the data edge.
+      const studentUser = await createTestUser(tx, { role: "student" });
+      const row = await insertSessionRowWithoutStudentsRow(tx, {
+        teacherUserId: teacherUser.id,
+        studentUserId: studentUser.id,
+      });
+
+      const context = await SessionRepository.findReportWaveContextById(row.id, tx);
+
+      expect(context).not.toBeNull();
+      expect(context?.sessionId).toBe(row.id);
+      expect(context?.studentUserId).toBe(studentUser.id);
+      expect(context?.studentFullName).toBe(studentUser.fullName);
+      expect(context?.teacherUserId).toBe(teacherUser.id);
+      expect(context?.teacherFullName).toBe(teacherUser.fullName);
+      // No students row ⇒ no parent link ⇒ the parent leg stays null
+      // (the notification seam fail-closes on the missing recipient).
+      expect(context?.parentUserId).toBeNull();
+      expect(context?.parentFullName).toBeNull();
+      expect(context?.parentLocale).toBeNull();
+    });
+  });
+
+  test("findReportWaveContextById returns null for an unknown session id", async () => {
+    await runInRollback(async tx => {
+      const missingId = await absentSessionId(tx);
+
+      expect(await SessionRepository.findReportWaveContextById(missingId, tx)).toBeNull();
     });
   });
 
@@ -1371,6 +1517,38 @@ describe("SessionRepository — transactional paths (runInRollback)", () => {
     });
   });
 
+  test("the report-gate lock re-entrant probe re-evaluates its predicate against the in-transaction row state", async () => {
+    await runInRollback(async tx => {
+      const actors = await createSessionActors(tx);
+      const row = await insertSessionRow(tx, actors);
+
+      // Harness limitation: `runInRollback` owns ONE connection, so two
+      // transactions contending for the same row lock cannot be created
+      // here (a second connection would see nothing to lock — the row is
+      // uncommitted). The serialized equivalent is asserted instead: the
+      // first gate lock holds the row, the in-transaction transition
+      // lands while the lock is held, and the second lock probe
+      // re-evaluates its predicate against the NEW state — the exact
+      // guarantee a serialized cross-connection contender observes after
+      // blocking on the lock.
+      const first = await SessionRepository.lockForReportGate(row.id, tx);
+      expect(first?.status).toBe(SessionStatus.Scheduled);
+
+      const started = await SessionRepository.startSessionOnce(row.id, actors.teacherUserId, tx);
+      expect(started?.status).toBe(SessionStatus.Started);
+
+      const second = await SessionRepository.lockForReportGate(row.id, tx);
+      expect(second).not.toBeNull();
+      expect(second?.status).toBe(SessionStatus.Started);
+      expect(second?.startedAt).not.toBeNull();
+      // Identity columns are stable across re-evaluation — same row, new
+      // lifecycle basis for the gate decision.
+      expect(second?.id).toBe(row.id);
+      expect(second?.studentId).toBe(actors.studentUserId);
+      expect(second?.teacherId).toBe(actors.teacherUserId);
+    });
+  });
+
   test("double sweep under Promise.allSettled cancels each overdue row exactly once — the re-run matches zero rows", async () => {
     await runInRollback(async tx => {
       const actors = await createSessionActors(tx);
@@ -1524,13 +1702,16 @@ describe("SessionRepository — transactional paths (runInRollback)", () => {
   });
 
   // The repository implementation is split across the public namespace file
-  // and its sibling helpers module (behavior-identical max-lines refactor):
-  // every source pin below scans BOTH files as one implementation unit, so
-  // the pinned invariants (executor discipline, predicate sharing, SQL
+  // and its sibling helpers modules (behavior-identical max-lines refactors:
+  // the read machinery in `session.repository.helpers.ts`, the joined
+  // wave-context read in `session.repository.wave.helpers.ts`): every source
+  // pin below scans ALL THREE files as one implementation unit, so the
+  // pinned invariants (executor discipline, predicate sharing, SQL
   // interpolation allowlist) keep covering the whole repository layer.
   const REPO_FILES = [
     join(import.meta.dir, "../../../repo/classes/session.repository.ts"),
     join(import.meta.dir, "../../../repo/classes/session.repository.helpers.ts"),
+    join(import.meta.dir, "../../../repo/classes/session.repository.wave.helpers.ts"),
   ];
   const repoSource = REPO_FILES.map(file => readFileSync(file, "utf8")).join("\n");
 
@@ -1594,7 +1775,7 @@ describe("SessionRepository — transactional paths (runInRollback)", () => {
       "cutoff",
       "now",
     ]);
-    expect(interpolations).toHaveLength(20);
+    expect(interpolations).toHaveLength(26);
     for (const interpolation of interpolations) {
       expect(ALLOWED.has(interpolation)).toBe(true);
     }
@@ -1660,13 +1841,17 @@ describe("SessionRepository — transactional paths (runInRollback)", () => {
 
   test("source: executor discipline — reads fall back to queryDb, writes to the pool, tx last on every signature", () => {
     expect(repoSource.includes("const executor = tx ?? db;")).toBe(true);
-    expect(repoSource.match(/const executor = tx \?\? db;/g) ?? []).toHaveLength(10);
-    expect(repoSource.match(/queryDb</g) ?? []).toHaveLength(7);
-    // Nineteen exported methods, every one ending in the optional tx (LAST
-    // param); no REQUIRED-tx signature exists in this repository.
-    expect(repoSource.match(/export async function /g) ?? []).toHaveLength(19);
+    expect(repoSource.match(/const executor = tx \?\? db;/g) ?? []).toHaveLength(13);
+    expect(repoSource.match(/queryDb</g) ?? []).toHaveLength(12);
+    // Twenty-seven exported methods (each namespace read method plus its
+    // one-to-one sibling implementation, the report-gate lock, and the
+    // report wave-context read), every one ending in tx (LAST param).
+    // Exactly ONE takes it REQUIRED — the report-gate lock (a FOR UPDATE
+    // read taken outside a transaction releases when the statement ends
+    // and protects nothing); the other twenty-six keep the optional tx.
+    expect(repoSource.match(/export async function /g) ?? []).toHaveLength(27);
     expect((repoSource.match(/tx\?: DBTransaction/g) ?? []).length).toBeGreaterThanOrEqual(19);
-    expect(repoSource.includes("tx: DBTransaction")).toBe(false);
+    expect(repoSource.match(/tx: DBTransaction/g) ?? []).toHaveLength(1);
   });
 
   test("source: no i18n, no logger, no console, one namespace", () => {

@@ -61,11 +61,13 @@
  *    `DomainError.code` and the localized message; `intent=evaluation`
  *    never reaches the DB (zero writes proof); grep-level pins — the
  *    service unit's imports are a pinned allowlist whose ONLY cross-surface
- *    channels are the wallet-credit slice (repository barrel) and the
+ *    channels are the wallet-credit slice (repository barrel), the
  *    engine-mediated completion waves (the wave-emitter sibling plus the
  *    notification engine's publish contract; the unit never imports a
- *    notification repository and never writes a notification row itself)
- *    and the unit holds zero `console.*` calls.
+ *    notification repository and never writes a notification row itself),
+ *    and the arbitration's audit trail row (the shared append-only audit
+ *    writer plus the enum that names the Override verb) — and the unit
+ *    holds zero `console.*` calls.
  *
  * Completion-handshake composition (the confirm prompt + the two-leg
  * sweeper's auto-cancel notices):
@@ -97,9 +99,10 @@ import { afterAll, beforeAll, describe, expect, spyOn, test } from "bun:test";
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/backend/db";
 import { WalletRepository } from "@/backend/db/repo";
+import { auditLogs } from "@/backend/db/schema/audit/audit-logs";
 import { session } from "@/backend/db/schema/classes/session";
 import { sessionRequestIdempotency } from "@/backend/db/schema/classes/session-request-idempotency";
 import { notifications } from "@/backend/db/schema/notifications";
@@ -108,6 +111,7 @@ import { teacher } from "@/backend/db/schema/teachers/teacher";
 import { users } from "@/backend/db/schema/users/users";
 import { createTestStudent, createTestUser } from "@/backend/db/test/entity-setup";
 import { expectRepoError, runInRollback } from "@/backend/db/test/test-utils";
+import { AuditActionType } from "@/backend/enum/audit/audit-action-type.enum";
 import { NotificationType } from "@/backend/enum/notifications/notification-type.enum";
 import { DisputeResolution } from "@/backend/enum/scheduling/dispute-resolution.enum";
 import { HeldBalanceLane } from "@/backend/enum/scheduling/held-balance-lane.enum";
@@ -285,6 +289,10 @@ async function insertSessionRow(
       teacherId: actors.teacherUserId,
       studentId: actors.studentUserId,
       status: SessionStatus.Scheduled,
+      // Non-null intent: the completion flow's confirm-prompt wave reads
+      // the session's intent — a null one is a corruption denial, and this
+      // fixture models a legitimately booked (hence intent-carrying) row.
+      intent: SessionIntent.Hifz,
       fee: "10.00",
       feeHeld: true,
       heldBalanceLane: HeldBalanceLane.Hifz,
@@ -332,6 +340,50 @@ function hasPostgresErrorCode(error: unknown, pgCode: string): boolean {
     current = (current as { cause?: unknown }).cause;
   }
   return false;
+}
+
+/**
+ * Widens an action-type enum member to its raw stored string. Select rows
+ * carry the raw `action_type` value (coercion to the enum is the read
+ * service's job), so audit-row lookups compare primitive-to-primitive.
+ */
+function rawActionType(actionType: AuditActionType): string {
+  return actionType;
+}
+
+/**
+ * Fetches every session-entity audit row the supplied actor minted for one
+ * entity id. Entity+actor scoping keeps counts immune to concurrent test
+ * files committing their own rows against the shared database.
+ */
+async function fetchSessionAuditRows(tx: DBTransaction, actorId: number, entityId: number) {
+  const rows = await tx
+    .select()
+    .from(auditLogs)
+    .where(and(eq(auditLogs.actorId, actorId), eq(auditLogs.entityType, "session"), eq(auditLogs.entityId, entityId)));
+  // Widen the pg-enum column to its raw stored string so lookups compare
+  // primitive-to-primitive (see rawActionType).
+  return rows.map(
+    (row): { id: number; actionType: string; entityType: string; entityId: number | null; details: string | null } => ({
+      id: row.id,
+      actionType: row.actionType,
+      entityType: row.entityType,
+      entityId: row.entityId,
+      details: row.details,
+    })
+  );
+}
+
+/**
+ * Counts `audit_logs` rows attributable to a single actor id — the zero-write
+ * oracle for denial probes. Global table totals are NOT stable mid-test under
+ * parallel bun test file execution, so write-freedom is asserted per-actor:
+ * an id this test owns (minted inside the rollback tx) cannot be perturbed by
+ * concurrent external churn.
+ */
+async function countAuditRowsForActor(tx: DBTransaction, actorId: number): Promise<number> {
+  const rows = await tx.select({ id: auditLogs.id }).from(auditLogs).where(eq(auditLogs.actorId, actorId));
+  return rows.length;
 }
 
 // ─── Transactional service flows (runInRollback) ────────────────────────
@@ -1354,33 +1406,40 @@ describe("SessionLifecycleService — transactional flows (runInRollback)", () =
     join(import.meta.dir, "session-lifecycle.transitions.ts"),
     join(import.meta.dir, "session-lifecycle.booking.ts"),
     join(import.meta.dir, "session-lifecycle.confirmation.ts"),
+    join(import.meta.dir, "session-lifecycle.queries.ts"),
   ];
   const unitSources = SERVICE_UNIT_FILES.map(file => readFileSync(file, "utf8"));
   const serviceSource = unitSources.join("\n");
   const serviceFromClauses = serviceSource.match(/from "[^"]+"/g) ?? [];
 
-  test("source: the unit's cross-surface channels are the wallet-credit slice and the engine-mediated completion waves — imports are a pinned allowlist (no audit/report import, no notification-repository import)", () => {
+  test("source: the unit's cross-surface channels are the wallet-credit slice, the engine-mediated completion waves, and the arbitration's audit trail row — imports are a pinned allowlist (no report import, no notification-repository import)", () => {
     // HONEST PIN (adapted to the sibling-module split — the same three
-    // locks, with the notification channel consciously admitted):
+    // locks, with the notification and audit channels consciously admitted):
     //  1. every `from "…"` specifier in the unit must be on the explicit
     //     allowlist (the `@/backend/services/classes/` entries ARE the pinned
     //     siblings, aliased per the repo-wide eslint alias rule) — any
-    //     NEW import (a direct audit/report/billing service import, a
-    //     notification REPOSITORY import, or any other unaccounted module)
-    //     fails until the allowlist consciously admits it. The wave-emitter
-    //     sibling and the notification ENGINE are the sanctioned notification
-    //     channel: rows are written exclusively by the engine inside the
-    //     owning transaction, and the unit only ever hands receipts to the
-    //     engine's publish contract after that transaction commits;
+    //     NEW import (a report/billing service import, a notification
+    //     REPOSITORY import, or any other unaccounted module) fails until
+    //     the allowlist consciously admits it. The wave-emitter sibling and
+    //     the notification ENGINE are the sanctioned notification channel:
+    //     rows are written exclusively by the engine inside the owning
+    //     transaction, and the unit only ever hands receipts to the engine's
+    //     publish contract after that transaction commits. The audit writer
+    //     and the audit-verb enum are the sanctioned audit channel: the
+    //     admin arbitration appends its single Override row through the
+    //     append-only writer INSIDE the arbitration's own transaction
+    //     (denials classify before the emission and mint zero rows);
     //  2. the ONLY `@/backend/db/` specifier is the repository barrel itself
     //     (no deep repository bypass), and the UNION of the barrel's named
     //     import lists across the unit is pinned — WalletRepository rides it
     //     BY NAME and no other repository surface is reachable;
     //  3. the ONLY `@/backend/lib/db/` specifier is the shared transaction
-    //     helper — no cross-surface service import of any kind.
+    //     helper (the arbitration's audit writer is pinned separately on
+    //     the allowlist — no other cross-surface service import exists).
     const specifiers = serviceFromClauses.map(clause => clause.replace(/^from "/, "").replace(/"$/, ""));
     const allowedSpecifiers: ReadonlySet<string> = new Set([
       "@/backend/db/repo",
+      "@/backend/enum/audit/audit-action-type.enum",
       "@/backend/enum/scheduling/dispute-resolution.enum",
       "@/backend/enum/scheduling/held-balance-lane.enum",
       "@/backend/enum/scheduling/session-intent.enum",
@@ -1397,9 +1456,11 @@ describe("SessionLifecycleService — transactional flows (runInRollback)", () =
       "@/backend/services/classes/session-lifecycle.confirmation",
       "@/backend/services/classes/session-lifecycle.governance",
       "@/backend/services/classes/session-lifecycle.guards",
+      "@/backend/services/classes/session-lifecycle.queries",
       "@/backend/services/classes/session-lifecycle.transitions",
       "@/backend/services/classes/session-request-notification.service",
       "@/backend/services/notifications",
+      "@/backend/services/admin/audit.service",
       "@/shared/locale/AppLocale",
     ]);
     for (const specifier of specifiers) {
@@ -1994,6 +2055,100 @@ describe("SessionLifecycleService — DEV3-005 dispute pair (runInRollback)", ()
   });
 });
 
+// ─── Arbitration audit trail (Override rows on the dispute's own tx) ────
+
+describe("SessionLifecycleService — arbitration audit trail (runInRollback)", () => {
+  test("CANCEL arbitration mints exactly one Override/session row recording the resolution and the note's presence — never its content", async () => {
+    await runInRollback(async tx => {
+      const actors = await createSessionActors(tx);
+      await setLaneBalances(tx, actors.studentUserId, { hifz: 1 });
+      const admin = await createTestUser(tx, { role: "admin" });
+      const row = await bookSession(
+        tx,
+        actors.studentUserId,
+        actors.teacherUserId,
+        SessionIntent.Hifz,
+        "key-arbitrate-cancel-row"
+      );
+      await SessionLifecycleService.openSessionDispute(actors.studentUserId, row.id, "teacher no-show", "en", tx);
+
+      await SessionLifecycleService.resolveSessionDispute(
+        admin.id,
+        row.id,
+        DisputeResolution.Cancel,
+        "  refunded in full  ",
+        "en",
+        tx
+      );
+
+      const rows = await fetchSessionAuditRows(tx, admin.id, row.id);
+      expect(rows).toHaveLength(1);
+      const trailRow = rows[0];
+      if (!trailRow) throw new Error("expected one audit(Override) row for the cancelled arbitration");
+      expect(trailRow.actionType).toBe(rawActionType(AuditActionType.Override));
+      expect(trailRow.entityType).toBe("session");
+      expect(trailRow.entityId).toBe(row.id);
+      expect(JSON.parse(trailRow.details ?? "null")).toEqual({
+        resolution: DisputeResolution.Cancel,
+        notePresent: true,
+      });
+      // The note's free-text content must never reach the trail.
+      expect(trailRow.details).not.toContain("refunded");
+    });
+  });
+
+  test("COMPLETE arbitration (started row) mints one Override row with notePresent false when no note is supplied", async () => {
+    await runInRollback(async tx => {
+      const actors = await createSessionActors(tx);
+      await setLaneBalances(tx, actors.studentUserId, { trial: 1 });
+      const admin = await createTestUser(tx, { role: "admin" });
+      const row = await bookSession(
+        tx,
+        actors.studentUserId,
+        actors.teacherUserId,
+        SessionIntent.Hifz,
+        "key-arbitrate-complete-row"
+      );
+      await SessionLifecycleService.startSession(actors.teacherUserId, row.id, "en", tx);
+      await SessionLifecycleService.openSessionDispute(actors.teacherUserId, row.id, "disputed mid-session", "en", tx);
+
+      await SessionLifecycleService.resolveSessionDispute(admin.id, row.id, DisputeResolution.Complete, null, "en", tx);
+
+      const rows = await fetchSessionAuditRows(tx, admin.id, row.id);
+      expect(rows).toHaveLength(1);
+      const trailRow = rows[0];
+      if (!trailRow) throw new Error("expected one audit(Override) row for the completed arbitration");
+      expect(trailRow.actionType).toBe(rawActionType(AuditActionType.Override));
+      expect(JSON.parse(trailRow.details ?? "null")).toEqual({
+        resolution: DisputeResolution.Complete,
+        notePresent: false,
+      });
+    });
+  });
+
+  test("a bad-state arbitration denial mints ZERO audit rows", async () => {
+    await runInRollback(async tx => {
+      const actors = await createSessionActors(tx);
+      await setLaneBalances(tx, actors.studentUserId, { hifz: 1 });
+      const admin = await createTestUser(tx, { role: "admin" });
+      const row = await bookSession(
+        tx,
+        actors.studentUserId,
+        actors.teacherUserId,
+        SessionIntent.Hifz,
+        "key-arbitrate-denied-row"
+      );
+      // Never disputed: arbitration is a VALIDATION denial before any write.
+      const error = await expectRepoError(() =>
+        SessionLifecycleService.resolveSessionDispute(admin.id, row.id, DisputeResolution.Cancel, null, "en", tx)
+      );
+      expectDomainDenial(error, "SESSION_INVALID_TRANSITION", t().sessionInvalidTransition);
+
+      expect(await countAuditRowsForActor(tx, admin.id)).toBe(0);
+    });
+  });
+});
+
 // ─── REQ-043 chaos (production tx path, committed fixtures) ─────────────
 
 describe("SessionLifecycleService — REQ-043 chaos (production tx path, committed fixtures)", () => {
@@ -2059,67 +2214,73 @@ describe("SessionLifecycleService — REQ-043 chaos (production tx path, committ
     return SessionLifecycleService.createSession(chaosStudentId, { teacherId: chaosTeacherId, intent }, key, "en");
   }
 
-  test("REQ-043(a): concurrent double-start → one success + one SESSION_INVALID_TRANSITION, final started", async () => {
-    await setChaosBalances({ trial: 1 });
-    const created = await chaosBook(SessionIntent.Hifz, `chaos-a-${randomUUID()}`);
+  testOnRealPostgres(
+    "REQ-043(a): concurrent double-start → one success + one SESSION_INVALID_TRANSITION, final started",
+    async () => {
+      await setChaosBalances({ trial: 1 });
+      const created = await chaosBook(SessionIntent.Hifz, `chaos-a-${randomUUID()}`);
 
-    const outcomes = await Promise.allSettled([
-      SessionLifecycleService.startSession(chaosTeacherId, created.id, "en"),
-      SessionLifecycleService.startSession(chaosTeacherId, created.id, "en"),
-    ]);
+      const outcomes = await Promise.allSettled([
+        SessionLifecycleService.startSession(chaosTeacherId, created.id, "en"),
+        SessionLifecycleService.startSession(chaosTeacherId, created.id, "en"),
+      ]);
 
-    const fulfillments = outcomes.flatMap(outcome => (outcome.status === "fulfilled" ? [outcome.value] : []));
-    const rejections = outcomes.flatMap(outcome => (outcome.status === "rejected" ? [outcome.reason] : []));
-    expect(fulfillments).toHaveLength(1);
-    expect(rejections).toHaveLength(1);
-    expect(fulfillments[0]?.status).toBe(SessionStatus.Started);
-    expect(rejections[0]).toBeInstanceOf(DomainError);
-    expect(rejectionCode(rejections[0])).toBe("SESSION_INVALID_TRANSITION");
+      const fulfillments = outcomes.flatMap(outcome => (outcome.status === "fulfilled" ? [outcome.value] : []));
+      const rejections = outcomes.flatMap(outcome => (outcome.status === "rejected" ? [outcome.reason] : []));
+      expect(fulfillments).toHaveLength(1);
+      expect(rejections).toHaveLength(1);
+      expect(fulfillments[0]?.status).toBe(SessionStatus.Started);
+      expect(rejections[0]).toBeInstanceOf(DomainError);
+      expect(rejectionCode(rejections[0])).toBe("SESSION_INVALID_TRANSITION");
 
-    const finalRow = await readChaosSessionRow(created.id);
-    expect(finalRow?.status).toBe(SessionStatus.Started);
-    expect(finalRow?.startedAt).not.toBeNull();
-    expect(finalRow?.endedAt).toBeNull();
-  });
-
-  test("REQ-043(b): start⚡cancel race serializes to one consistent state — refund iff cancel wins (it always does)", async () => {
-    await setChaosBalances({ trial: 1 });
-    const created = await chaosBook(SessionIntent.Hifz, `chaos-b-${randomUUID()}`);
-
-    const outcomes = await Promise.allSettled([
-      SessionLifecycleService.startSession(chaosTeacherId, created.id, "en"),
-      SessionLifecycleService.cancelSession(chaosStudentId, created.id, null, "en"),
-    ]);
-
-    const fulfillments = outcomes.flatMap(outcome => (outcome.status === "fulfilled" ? [outcome.value] : []));
-    const rejections = outcomes.flatMap(outcome => (outcome.status === "rejected" ? [outcome.reason] : []));
-
-    // Cancel is legal from BOTH pre-start states, so it never loses; the
-    // start wins only if its guarded UPDATE acquired the row lock first.
-    const cancelledOutcome = fulfillments.find(value => value.status === SESSION_CANCELLED_STATUS);
-    expect(cancelledOutcome).toBeDefined();
-    for (const rejection of rejections) {
-      expect(rejection).toBeInstanceOf(DomainError);
-      expect(rejectionCode(rejection)).toBe("SESSION_INVALID_TRANSITION");
-    }
-
-    const finalRow = await readChaosSessionRow(created.id);
-    expect(finalRow?.status).toBe(SessionStatus.Cancelled);
-    expect(finalRow?.feeHeld).toBe(false);
-    expect(finalRow?.endedAt).toBeNull();
-    // The start stamp survives iff the start landed before the cancel.
-    if (fulfillments.some(value => value.status === SESSION_STARTED_STATUS)) {
+      const finalRow = await readChaosSessionRow(created.id);
+      expect(finalRow?.status).toBe(SessionStatus.Started);
       expect(finalRow?.startedAt).not.toBeNull();
-    } else {
-      expect(finalRow?.startedAt).toBeNull();
+      expect(finalRow?.endedAt).toBeNull();
     }
+  );
 
-    // Refund iff cancel won — and EXACTLY once (one unit back on trial).
-    const balances = await readChaosBalances();
-    expect(balances.trial).toBe(1);
-    expect(balances.hifz).toBe(0);
-    expect(balances.tajweed).toBe(0);
-  });
+  testOnRealPostgres(
+    "REQ-043(b): start⚡cancel race serializes to one consistent state — refund iff cancel wins (it always does)",
+    async () => {
+      await setChaosBalances({ trial: 1 });
+      const created = await chaosBook(SessionIntent.Hifz, `chaos-b-${randomUUID()}`);
+
+      const outcomes = await Promise.allSettled([
+        SessionLifecycleService.startSession(chaosTeacherId, created.id, "en"),
+        SessionLifecycleService.cancelSession(chaosStudentId, created.id, null, "en"),
+      ]);
+
+      const fulfillments = outcomes.flatMap(outcome => (outcome.status === "fulfilled" ? [outcome.value] : []));
+      const rejections = outcomes.flatMap(outcome => (outcome.status === "rejected" ? [outcome.reason] : []));
+
+      // Cancel is legal from BOTH pre-start states, so it never loses; the
+      // start wins only if its guarded UPDATE acquired the row lock first.
+      const cancelledOutcome = fulfillments.find(value => value.status === SESSION_CANCELLED_STATUS);
+      expect(cancelledOutcome).toBeDefined();
+      for (const rejection of rejections) {
+        expect(rejection).toBeInstanceOf(DomainError);
+        expect(rejectionCode(rejection)).toBe("SESSION_INVALID_TRANSITION");
+      }
+
+      const finalRow = await readChaosSessionRow(created.id);
+      expect(finalRow?.status).toBe(SessionStatus.Cancelled);
+      expect(finalRow?.feeHeld).toBe(false);
+      expect(finalRow?.endedAt).toBeNull();
+      // The start stamp survives iff the start landed before the cancel.
+      if (fulfillments.some(value => value.status === SESSION_STARTED_STATUS)) {
+        expect(finalRow?.startedAt).not.toBeNull();
+      } else {
+        expect(finalRow?.startedAt).toBeNull();
+      }
+
+      // Refund iff cancel won — and EXACTLY once (one unit back on trial).
+      const balances = await readChaosBalances();
+      expect(balances.trial).toBe(1);
+      expect(balances.hifz).toBe(0);
+      expect(balances.tajweed).toBe(0);
+    }
+  );
 
   testOnRealPostgres(
     "REQ-043(c): concurrent double-complete → one success, confirmedByTeacherAt written once, loser is a transition conflict",
@@ -2870,5 +3031,215 @@ describe("SessionLifecycleService — completion waves on the production commit 
     } finally {
       publish.stop();
     }
+  });
+});
+
+/** Read-back oracle: the teacher row's is_online flag (tx-scoped). */
+async function readTeacherOnline(tx: DBTransaction, teacherUserId: number): Promise<boolean | null> {
+  const [row] = await tx.select({ isOnline: teacher.isOnline }).from(teacher).where(eq(teacher.id, teacherUserId));
+  return row?.isOnline ?? null;
+}
+
+/** Forces the fixture teacher online (the INV-S6 cast posture). */
+async function forceTeacherOnline(tx: DBTransaction, teacherUserId: number): Promise<void> {
+  await tx.update(teacher).set({ isOnline: true }).where(eq(teacher.id, teacherUserId));
+}
+
+// ─── INV-S6 in-session lock (start / complete / cancel / arbitration) ────
+
+describe("SessionLifecycleService — INV-S6 in-session lock (runInRollback)", () => {
+  test("start ⇒ the teacher is locked offline in the SAME transaction (online fixture)", async () => {
+    await runInRollback(async tx => {
+      const actors = await createSessionActors(tx);
+      await forceTeacherOnline(tx, actors.teacherUserId);
+      const created = await insertSessionRow(tx, actors);
+
+      const started = await SessionLifecycleService.startSession(actors.teacherUserId, created.id, "en", tx);
+
+      expect(started.status).toBe(SessionStatus.Started);
+      expect(await readTeacherOnline(tx, actors.teacherUserId)).toBe(false);
+    });
+  });
+
+  test("a forced mid-flow fault (the lock write raises) rolls back BOTH the transition and the lock", async () => {
+    await runInRollback(async tx => {
+      const actors = await createSessionActors(tx);
+      await forceTeacherOnline(tx, actors.teacherUserId);
+      const created = await insertSessionRow(tx, actors);
+
+      // Chaos injection: the teacher-row UPDATE (the lock write) raises.
+      // The DDL lives inside the rolled-back test transaction — nothing
+      // leaks into the shared database.
+      const failFn = `raise_teacher_lock_fail_${randomUUID().slice(0, 8).replaceAll("-", "_")}`;
+      const failTrigger = `fail_teacher_lock_${randomUUID().slice(0, 8).replaceAll("-", "_")}`;
+      await tx.execute(
+        sql.raw(
+          `CREATE FUNCTION ${failFn}() RETURNS trigger LANGUAGE plpgsql AS $fn$ ` +
+            `BEGIN RAISE EXCEPTION 'forced teacher-lock failure'; END; $fn$;`
+        )
+      );
+      await tx.execute(
+        sql.raw(
+          `CREATE TRIGGER ${failTrigger} ` +
+            `BEFORE UPDATE ON teacher FOR EACH ROW WHEN (OLD.id = ${actors.teacherUserId}) ` +
+            `EXECUTE FUNCTION ${failFn}()`
+        )
+      );
+
+      const error = await expectRepoError(() =>
+        SessionLifecycleService.startSession(actors.teacherUserId, created.id, "en", tx)
+      );
+      expect(error).not.toBeInstanceOf(DomainError);
+      expect(hasPostgresErrorCode(error, PG_RAISE_EXCEPTION)).toBe(true);
+
+      await tx.execute(sql.raw(`DROP TRIGGER ${failTrigger} ON teacher`));
+
+      // Full rollback: the session is STILL scheduled with no start stamp,
+      // and the teacher is STILL online (no lock persisted).
+      const row = await readSessionRow(tx, created.id);
+      expect(row?.status).toBe(SessionStatus.Scheduled);
+      expect(row?.startedAt).toBeNull();
+      expect(await readTeacherOnline(tx, actors.teacherUserId)).toBe(true);
+    });
+  });
+
+  test("complete-from-started ⇒ unlock in the same transaction", async () => {
+    await runInRollback(async tx => {
+      const actors = await createSessionActors(tx);
+      await forceTeacherOnline(tx, actors.teacherUserId);
+      const created = await insertSessionRow(tx, actors, { status: SessionStatus.Started, startedAt: new Date() });
+      // The lock posture: the started session holds the teacher offline.
+      await tx.update(teacher).set({ isOnline: false }).where(eq(teacher.id, actors.teacherUserId));
+
+      const completed = await SessionLifecycleService.completeSession(actors.teacherUserId, created.id, "en", tx);
+
+      expect(completed.status).toBe(SessionStatus.Completed);
+      expect(await readTeacherOnline(tx, actors.teacherUserId)).toBe(true);
+    });
+  });
+
+  test("cancel-from-started ⇒ unlock; cancel-from-scheduled ⇒ no lock touch", async () => {
+    await runInRollback(async tx => {
+      const actors = await createSessionActors(tx);
+      await forceTeacherOnline(tx, actors.teacherUserId);
+
+      // In-progress leg: the locked teacher is restored by the cancel.
+      const started = await insertSessionRow(tx, actors, {
+        status: SessionStatus.Started,
+        startedAt: new Date(),
+        heldBalanceLane: null,
+        feeHeld: false,
+      });
+      await tx.update(teacher).set({ isOnline: false }).where(eq(teacher.id, actors.teacherUserId));
+      const cancelled = await SessionLifecycleService.cancelSession(actors.studentUserId, started.id, null, "en", tx);
+      expect(cancelled.status).toBe(SessionStatus.Cancelled);
+      expect(await readTeacherOnline(tx, actors.teacherUserId)).toBe(true);
+
+      // Pre-start leg: the teacher's flag is untouched (no lock to release).
+      const scheduled = await insertSessionRow(tx, actors, {
+        heldBalanceLane: null,
+        feeHeld: false,
+      });
+      await tx.update(teacher).set({ isOnline: false }).where(eq(teacher.id, actors.teacherUserId));
+      const cancelledScheduled = await SessionLifecycleService.cancelSession(
+        actors.teacherUserId,
+        scheduled.id,
+        null,
+        "en",
+        tx
+      );
+      expect(cancelledScheduled.status).toBe(SessionStatus.Cancelled);
+      expect(cancelledScheduled.startedAt).toBeNull();
+      expect(await readTeacherOnline(tx, actors.teacherUserId)).toBe(false);
+    });
+  });
+
+  test("resolve-from-started-dispute ⇒ unlock (+ lane-intact refund); resolve-from-scheduled-dispute ⇒ none", async () => {
+    await runInRollback(async tx => {
+      const admin = await createTestUser(tx, { role: "admin" });
+      const actors = await createSessionActors(tx);
+      await forceTeacherOnline(tx, actors.teacherUserId);
+      await setLaneBalances(tx, actors.studentUserId, { hifz: 1 });
+
+      // Started leg: dispute opened in-progress; the arbitration CANCEL
+      // refunds the hifz lane and lifts the lock in one transaction.
+      const started = await insertSessionRow(tx, actors, { status: SessionStatus.Started, startedAt: new Date() });
+      await tx.update(teacher).set({ isOnline: false }).where(eq(teacher.id, actors.teacherUserId));
+      await SessionLifecycleService.openSessionDispute(
+        actors.studentUserId,
+        started.id,
+        "in-progress dispute",
+        "en",
+        tx
+      );
+      const resolvedStarted = await SessionLifecycleService.resolveSessionDispute(
+        admin.id,
+        started.id,
+        DisputeResolution.Cancel,
+        null,
+        "en",
+        tx
+      );
+      expect(resolvedStarted.status).toBe(SessionStatus.Cancelled);
+      expect(resolvedStarted.feeHeld).toBe(false);
+      expect(await readTeacherOnline(tx, actors.teacherUserId)).toBe(true);
+
+      // Scheduled leg: a never-started dispute holds NO lock — the
+      // arbitration leaves the teacher flag exactly as it was.
+      const scheduled = await insertSessionRow(tx, actors);
+      await tx.update(teacher).set({ isOnline: false }).where(eq(teacher.id, actors.teacherUserId));
+      await SessionLifecycleService.openSessionDispute(
+        actors.studentUserId,
+        scheduled.id,
+        "pre-start dispute",
+        "en",
+        tx
+      );
+      const resolvedScheduled = await SessionLifecycleService.resolveSessionDispute(
+        admin.id,
+        scheduled.id,
+        DisputeResolution.Cancel,
+        null,
+        "en",
+        tx
+      );
+      expect(resolvedScheduled.status).toBe(SessionStatus.Cancelled);
+      expect(resolvedScheduled.startedAt).toBeNull();
+      expect(await readTeacherOnline(tx, actors.teacherUserId)).toBe(false);
+    });
+  });
+
+  test("resolve COMPLETE from a started dispute ⇒ unlock (the guarded predicate guarantees the start stamp)", async () => {
+    await runInRollback(async tx => {
+      const admin = await createTestUser(tx, { role: "admin" });
+      const actors = await createSessionActors(tx);
+      await forceTeacherOnline(tx, actors.teacherUserId);
+
+      const started = await insertSessionRow(tx, actors, {
+        status: SessionStatus.Started,
+        startedAt: new Date(),
+      });
+      await tx.update(teacher).set({ isOnline: false }).where(eq(teacher.id, actors.teacherUserId));
+      await SessionLifecycleService.openSessionDispute(
+        actors.studentUserId,
+        started.id,
+        "finish it via arbitration",
+        "en",
+        tx
+      );
+
+      const resolved = await SessionLifecycleService.resolveSessionDispute(
+        admin.id,
+        started.id,
+        DisputeResolution.Complete,
+        null,
+        "en",
+        tx
+      );
+
+      expect(resolved.status).toBe(SessionStatus.Completed);
+      expect(resolved.startedAt).not.toBeNull();
+      expect(await readTeacherOnline(tx, actors.teacherUserId)).toBe(true);
+    });
   });
 });

@@ -30,12 +30,22 @@ export function SessionRowCancelReason({ sessionId, reason }: Readonly<SessionRo
           alignItems: "baseline",
           minWidth: 0,
           maxWidth: "100%",
+          // Stretched column child (xs): the nowrap LTR run inside an RTL line
+          // lifts the stack's min-content width past the card and the box
+          // bleeds off-screen inline-end. Pin the cross size and clip — the
+          // truncation ellipsis then lands INSIDE the card.
+          width: { xs: "100%", sm: "auto" },
+          overflow: "hidden",
         }}
       >
         <Typography variant="overline" sx={theme => ({ color: theme.palette.text.secondary, flexShrink: 0 })}>
           {t.cancelReasonLine}
         </Typography>
-        <Typography variant="body2" noWrap sx={theme => ({ color: theme.palette.text.secondary })}>
+        <Typography
+          variant="body2"
+          noWrap
+          sx={theme => ({ color: theme.palette.text.secondary, minWidth: 0, flex: "1 1 0" })}
+        >
           {reason}
         </Typography>
       </Stack>
