@@ -94,3 +94,20 @@ export interface AdminRegistrationSubmitInput {
 export type RegistrationReturnType = Omit<UserSelectType, "passwordHash"> & {
   readonly preferredRecitation: RecitationReading | null;
 };
+
+/**
+ * Exact result shape of the read-only registered-user email lookup
+ * (`RegistrationService.findRegisteredUserByEmail`) — the seed-layer
+ * bootstrap contract for look-before-create flows.
+ *
+ * Deliberately NOT `RegistrationReturnType`: the lookup never needs the
+ * full user row, only identity + role. `role` is derived from
+ * `UserSelectType` so it tracks the `user_role` pgEnum value union
+ * ("admin" | "teacher" | "student" | "parent") without re-declaring the
+ * literals here.
+ */
+export type RegisteredUserLookupResult = {
+  readonly id: number;
+  readonly email: string;
+  readonly role: UserSelectType["role"];
+};

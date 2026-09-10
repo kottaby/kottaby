@@ -40,6 +40,7 @@ import type {
   AdminRegistrationSubmitInput,
   ApiFieldErrorType,
   DBTransaction,
+  RegisteredUserLookupResult,
   RegistrationReturnType,
   RegistrationSubmitInput,
   UserInsertType,
@@ -166,7 +167,7 @@ export namespace RegistrationService {
    */
   export async function findRegisteredUserByEmail(
     email: string
-  ): Promise<{ id: number; email: string; role: "admin" | "teacher" | "student" | "parent" } | null> {
+  ): Promise<RegisteredUserLookupResult | null> {
     const user = await UserRepository.findByEmail(email);
     if (!user) {
       return null;
