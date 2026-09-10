@@ -88,6 +88,35 @@ type AdminParentSnapshot {
   linkedChildrenCount: Int!
 }
 
+input AdminSessionCancelInput {
+  reason: String
+  sessionId: ID!
+}
+
+input AdminSessionJoinInput {
+  sessionId: ID!
+}
+
+input AdminSessionListFilterInput {
+  dateFrom: DateTime
+  dateTo: DateTime
+  status: SessionStatus
+  studentUserId: Int
+  teacherUserId: Int
+  type: SessionType
+}
+
+input AdminSessionReassignInput {
+  newTeacherUserId: ID!
+  sessionId: ID!
+}
+
+input AdminSessionRescheduleInput {
+  endedAt: DateTime!
+  sessionId: ID!
+  startedAt: DateTime!
+}
+
 type AdminStudentExportEnvelope {
   rows: [AdminStudentItem!]!
   total: Int!
@@ -423,10 +452,30 @@ type Mutation {
   adminBroadcastNotification(input: AdminBroadcastNotificationInput!): Int!
 
   """
+  Cancel one session and release its held fee to the original lane (admin-only; pre-terminal rows only). Keyed retries with the same X-Idempotency-Key header are no-ops returning the current row — never a duplicate audit row nor a second refund.
+  """
+  adminCancelSession(input: AdminSessionCancelInput!): Session!
+
+  """
   Admin-only cold-start certification (INV-TV1(b) / FR-3.9): promotes an existing teacher-role user to a certified founding Sheikh — inserts or elevates the teacher row (is_approved=true, is_evaluator per flag), finalizes any applicants row (passed, cooldown cleared), appends one override audit row, and notifies the teacher. Repeat calls answer TEACHER_ALREADY_CERTIFIED.
   """
   adminCertifyTeacherColdStart(makeEvaluator: Boolean = true, userId: Int!): AdminUserDetail!
   adminCreateUser(input: AdminCreateUserInput!): AdminUserDetail!
+
+  """
+  Join one started session as a read-only observer (admin-only, audit-only — no session column changes). Rows that are not started are SESSION_INVALID_TRANSITION conflicts with zero audit rows.
+  """
+  adminJoinSession(input: AdminSessionJoinInput!): Session!
+
+  """
+  Reassign one scheduled session to a different certified teacher (admin-only; scheduled rows only). The candidate's certification is asserted under lock — an unapproved candidate is TEACHER_NOT_CERTIFIED and leaves the row untouched.
+  """
+  adminReassignTeacher(input: AdminSessionReassignInput!): Session!
+
+  """
+  Reschedule one session's timing pair (admin-only guarded transition; scheduled/started rows only). Ordering and the past-grace window are validated before any read; zero-row misses are SESSION_INVALID_TRANSITION conflicts.
+  """
+  adminRescheduleSession(input: AdminSessionRescheduleInput!): Session!
   adminSetUserBlocked(blocked: Boolean!, id: Int!): AdminUserDetail!
   adminSetUserDeleted(deleted: Boolean!, id: Int!): AdminUserDetail!
   adminSetUserSuspended(id: Int!, periodDays: Int, suspended: Boolean!): AdminUserDetail!
@@ -727,6 +776,16 @@ type Query {
   Admin-only whole-platform analytics snapshot (users, sessions, revenue by currency, subscriptions, teacher presence, ratings, health indicators, 30-day daily trends). Zero arguments — the read scope is the closed contract. Governed admins are denied at the service tier.
   """
   adminPlatformAnalytics: PlatformAnalytics!
+
+  """
+  Read one session for the admin browse detail (admin-only): the row for ANY id regardless of lifecycle state. Unknown and malformed ids resolve to null — the browse view answers absence with data, not with an error.
+  """
+  adminSession(id: ID!): Session
+
+  """
+  List every session for the admin governance directory (admin-only): all rows regardless of state or ownership, newest first, paged with an honest total. Rows carry the server-derived needsAttention badge — presentation only, never an authorization signal.
+  """
+  adminSessions(filter: AdminSessionListFilterInput!, page: Int = 1, pageSize: Int = 25): SessionPage!
   adminStudents(filters: AdminStudentFiltersInput, page: Int, pageSize: Int): AdminStudentPage!
   adminStudentsExport(filters: AdminStudentFiltersInput): AdminStudentExportEnvelope!
   adminTeacherApplicants(filters: AdminApplicantFiltersInput, page: Int, pageSize: Int): AdminApplicantPage!
@@ -841,6 +900,7 @@ type Session {
   feeHeld: Boolean!
   id: ID!
   intent: SessionIntent
+  needsAttention: Boolean!
   resolutionNote: String
   resolvedAt: DateTime
   sessionType: SessionType!

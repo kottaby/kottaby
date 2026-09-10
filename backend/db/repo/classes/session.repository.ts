@@ -44,20 +44,26 @@
  * File layout: the standalone-capable read machinery (shared predicate
  * builders, the select-column shape, the list/count/probe reads) lives in
  * the sibling `session.repository.helpers.ts` module (extracted verbatim);
- * the guarded write transitions stay in this file, their shared
+ * the joined wave-context read lives in the sibling
+ * `session.repository.wave.helpers.ts` module (extracted verbatim); the
+ * guarded write transitions stay in this file, their shared
  * participant live-state predicate factored into the module-level
  * `buildLiveParticipantTransitionPredicate` builder. Every read
  * method is a one-to-one delegation wrapper, so the public API (names,
  * signatures, behavior) is unchanged.
  */
 
-import { and, eq, isNotNull, or, type SQL, sql } from "drizzle-orm";
+import { and, eq, isNotNull, ne, or, type SQL, sql } from "drizzle-orm";
 import { db } from "@/backend/db";
 import * as sessionRepositoryImpl from "@/backend/db/repo/classes/session.repository.helpers";
+import * as sessionRepositoryWaveImpl from "@/backend/db/repo/classes/session.repository.wave.helpers";
 import { session } from "@/backend/db/schema/classes/session";
 import { teacher } from "@/backend/db/schema/teachers/teacher";
 import { SessionStatus } from "@/backend/enum/scheduling/session-status.enum";
 import type {
+  AdminSessionDetail,
+  AdminSessionListFilterInput,
+  AdminSessionRowReturnType,
   DBTransaction,
   SessionInsertType,
   SessionListFilterInput,
@@ -80,6 +86,24 @@ function buildLiveParticipantTransitionPredicate(id: number, participantId: numb
   return and(
     eq(session.id, id),
     or(eq(session.studentId, participantId), eq(session.teacherId, participantId)),
+    or(eq(session.status, SessionStatus.Scheduled), eq(session.status, SessionStatus.Started))
+  );
+}
+
+/**
+ * ONE module-scope predicate builder shared by the admin reschedule and
+ * cancel guards: row identity plus the row still being in one of the two
+ * states whose timing and hold surface the governance mutations may reshape
+ * (pre-start or in-progress). Completed and cancelled rows are structurally
+ * unreachable here (terminal), and so is a disputed row — an open dispute
+ * belongs to the arbitration surface, which is the only writer allowed to
+ * exit a disputed row into a terminal state. The predicate rides inside
+ * each guard's single UPDATE, so eligibility evaluation happens under
+ * PostgreSQL's row lock with zero check-then-write window.
+ */
+function buildAdminLiveStatePredicate(id: number): SQL | undefined {
+  return and(
+    eq(session.id, id),
     or(eq(session.status, SessionStatus.Scheduled), eq(session.status, SessionStatus.Started))
   );
 }
@@ -135,7 +159,7 @@ export namespace SessionRepository {
    *          session-not-found).
    */
   export async function findWaveContextById(id: number, tx?: DBTransaction): Promise<SessionWaveContextRow | null> {
-    return sessionRepositoryImpl.findWaveContextById(id, tx);
+    return sessionRepositoryWaveImpl.findWaveContextById(id, tx);
   }
 
   /**
@@ -545,5 +569,152 @@ export namespace SessionRepository {
    */
   export async function countAdminDisputed(tx?: DBTransaction): Promise<number> {
     return sessionRepositoryImpl.countAdminDisputed(tx);
+  }
+
+  /**
+   * Lists sessions for the admin governance directory: EVERY row regardless
+   * of state or ownership (the admin surface is role-gated upstream — no
+   * participant scoping exists on this read), newest first, paged, under
+   * the caller's optional filter set: owning teacher, owning student, the
+   * session type, the lifecycle status, and the half-open creation window
+   * (`created_at >= dateFrom`, `created_at < dateTo`, UTC instants — a
+   * zero-width window is a legitimate empty result). Absent members drop
+   * out of the predicate; they never error. The page window normalizes
+   * before any database work exactly like the participant lists: a page
+   * below 1 falls back to the first page and a page size outside 1..50
+   * falls back to the default — the read never fabricates a window.
+   * READ-ONLY by contract: no session, audit, or notification write exists
+   * on this path, and no lazy side effect rides inside the query.
+   *
+   * @returns The page rows with the derived `needsAttention` badge flag
+   *          projected per row (disputed, or scheduled with a lapsed
+   *          confirmation deadline — styling only, never authorization),
+   *          plus the honest total computed by the SAME filtered predicate
+   *          (list and count share one predicate builder — the total can
+   *          never diverge from the items).
+   */
+  export async function listForAdmin(
+    filter: AdminSessionListFilterInput,
+    page: number,
+    pageSize: number,
+    tx?: DBTransaction
+  ): Promise<{ rows: AdminSessionRowReturnType[]; total: number }> {
+    return sessionRepositoryImpl.listAdminDirectoryPage(filter, page, pageSize, tx);
+  }
+
+  /**
+   * Admin browse read of ANY session row by primary key — no participant
+   * scoping and no lifecycle restriction (the detail view is read-only and
+   * role-gated upstream; ownership scoping is the participant reads' job).
+   *
+   * @returns The full row, or `null` when the id is unknown — a browse read
+   *          answers "no such row" with data, never with a thrown
+   *          not-found error; classifying an id-probe is the participant
+   *          reads' concern, not this one's.
+   */
+  export async function getAnyByIdForAdmin(id: number, tx?: DBTransaction): Promise<AdminSessionDetail> {
+    return sessionRepositoryImpl.findById(id, tx);
+  }
+
+  /**
+   * Admin reschedule guard: a single guarded UPDATE whose predicate
+   * requires row identity and the row still being in one of the two states
+   * with mutable timing (pre-start or in-progress — see the shared
+   * predicate builder). Writes ONLY the replacement timing pair plus the
+   * audit stamp from one captured instant — every other column is
+   * structurally absent from the SET clause, so a caller-supplied extra
+   * field has nowhere to land.
+   *
+   * @returns The updated row, or `null` when zero rows matched (unknown id
+   *          or a row no longer eligible — terminal rows and disputed rows
+   *          are structurally unreachable). The eligibility clause IS the
+   *          atomic gate: no read-then-write gap and no row lock beyond
+   *          the statement's own — the caller classifies a miss without a
+   *          second write attempt.
+   */
+  export async function guardReschedule(
+    sessionId: number,
+    startedAt: Date,
+    endedAt: Date,
+    tx?: DBTransaction
+  ): Promise<SessionSelectType | null> {
+    const now = new Date();
+    const executor = tx ?? db;
+    const rows = await executor
+      .update(session)
+      .set({ startedAt, endedAt, updatedAt: now })
+      .where(buildAdminLiveStatePredicate(sessionId))
+      .returning();
+    return rows[0] ?? null;
+  }
+
+  /**
+   * Admin cancel guard: a single guarded UPDATE whose predicate requires
+   * row identity and the row still being in one of the two pre-terminal
+   * live states (pre-start or in-progress). A disputed row is NOT
+   * eligible — an open dispute belongs to the arbitration surface, which
+   * is the only writer allowed to exit a disputed row into a terminal
+   * state — and a cancelled row is unreachable (terminal), so a replayed
+   * cancel matches zero rows and can never re-cancel. Writes the cancelled
+   * status, the CLEARED hold marker, and the audit stamp from one captured
+   * instant — the participant cancel's exact terminal shape
+   * (`cancelSessionOnce`), so a committed admin cancellation can never
+   * leave a `fee_held = true` terminal row behind. The provenance lane is
+   * deliberately untouched: the RETURNING row still carries the recorded
+   * lane the caller's same-transaction same-lane refund composes against.
+   *
+   * @returns The updated row, or `null` when zero rows matched (unknown id
+   *          or a row no longer eligible — the caller classifies via the
+   *          transition probe).
+   */
+  export async function guardCancelPreTerminal(
+    sessionId: number,
+    tx?: DBTransaction
+  ): Promise<SessionSelectType | null> {
+    const now = new Date();
+    const executor = tx ?? db;
+    const rows = await executor
+      .update(session)
+      .set({ status: SessionStatus.Cancelled, feeHeld: false, updatedAt: now })
+      .where(buildAdminLiveStatePredicate(sessionId))
+      .returning();
+    return rows[0] ?? null;
+  }
+
+  /**
+   * Admin teacher-reassignment guard: a single guarded UPDATE whose
+   * predicate requires row identity, the row still being `scheduled`, and
+   * the row's owning teacher being DIFFERENT from the candidate — the only
+   * state in which the owning teacher may be swapped (an in-progress or
+   * finished meeting has its teacher fixed, and a disputed row belongs to
+   * arbitration). The different-teacher fold is fail-closed: a same-teacher
+   * call (a no-op swap) matches zero rows like any other ineligible state —
+   * the eligibility-fold pattern — so the caller's transition probe
+   * classifies it as the state conflict with zero writes, never as a
+   * silent success. Writes ONLY the replacement teacher id plus the audit
+   * stamp from one captured instant — the candidate's certification is the
+   * CALLER's pre-write assertion (the fused certification re-assertion
+   * shape of `completeSessionOnce` is the lifecycle's own pattern for
+   * writes that cannot tolerate the gap).
+   *
+   * @returns The updated row, or `null` when zero rows matched (unknown id,
+   *          a row no longer `scheduled`, or a same-teacher candidate —
+   *          the caller classifies via the transition probe).
+   */
+  export async function guardReassignTeacher(
+    sessionId: number,
+    newTeacherId: number,
+    tx?: DBTransaction
+  ): Promise<SessionSelectType | null> {
+    const now = new Date();
+    const executor = tx ?? db;
+    const rows = await executor
+      .update(session)
+      .set({ teacherId: newTeacherId, updatedAt: now })
+      .where(
+        and(eq(session.id, sessionId), eq(session.status, SessionStatus.Scheduled), ne(session.teacherId, newTeacherId))
+      )
+      .returning();
+    return rows[0] ?? null;
   }
 }

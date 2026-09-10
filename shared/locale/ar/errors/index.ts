@@ -78,4 +78,6 @@ export const errorsAr: ErrorsLabels = {
   walletInvalidAmount: "أدخل مبلغ سحب صالحاً (قيمة موجبة بخانتين عشريتين كحد أقصى).",
   walletTeacherProfileMissing: "ستُفعَّل محفظتك بعد اعتماد ملفك التعليمي.",
   sessionIntentCorrupt: "تعذر قراءة هذه الجلسة. يرجى التواصل مع فريق الدعم.",
+  sessionRescheduleWindowInvalid: "يجب أن يكون وقت البدء قبل وقت الانتهاء.",
+  sessionRescheduleStartInPast: "لا يمكن أن يكون وقت البدء في الماضي بأكثر من 5 دقائق.",
 };

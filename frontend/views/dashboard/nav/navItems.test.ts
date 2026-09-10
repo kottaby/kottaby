@@ -12,6 +12,11 @@
  *  - Admin broadcasts (DEV3-022d): the broadcasts entry — exactly ONE
  *    `/admin/broadcasts` item with `labelKey: "broadcasts"`, positioned
  *    directly after the audit entry, dashboard-bundle owned, admin-only.
+ *  - DEV3-021: the admin session-governance entry — exactly ONE
+ *    `/admin/session-governance` item with `labelKey: "sessionGovernance"`
+ *    and the `EventNoteOutlined` icon, inside the audit→disputes envelope of
+ *    the admin block (directly before the disputes entry),
+ *    dashboard-bundle owned, admin-only.
  *  - Student link-requests entry: exactly ONE
  *    student item whose `route` IS the shared `STUDENT_LINK_REQUESTS_ROUTE`
  *    constant (nav / dashboard-card CTA / notification deep-link never
@@ -33,6 +38,7 @@
  */
 
 import { describe, expect, test } from "bun:test";
+import { EventNoteOutlined } from "@mui/icons-material";
 import { UserRole } from "@/frontend/graphql/generated/gql/graphql";
 import { STUDENT_LINK_REQUESTS_ROUTE } from "@/frontend/lib/notification-route-resolution";
 import { type DashboardNavItem, getNavItemsForRole, resolveNavItemLabel } from "@/frontend/views/dashboard/nav";
@@ -176,6 +182,54 @@ describe("Admin audit navigation", () => {
       const nav = getNavItemsForRole(role);
       const auditItem = nav.find(item => item.route === "/audit");
       expect(auditItem).toBeUndefined();
+    }
+  );
+});
+
+describe("Admin session-governance navigation", () => {
+  test("Admin navigation carries exactly one /admin/session-governance entry with the sessionGovernance label key and the EventNoteOutlined icon", () => {
+    const adminNav = getNavItemsForRole(UserRole.Admin);
+    const governanceItems = adminNav.filter(item => item.route === "/admin/session-governance");
+    expect(governanceItems).toHaveLength(1);
+    expect(governanceItems[0]?.labelKey).toBe("sessionGovernance");
+    expect(governanceItems[0]?.Icon).toBe(EventNoteOutlined);
+  });
+
+  test("the session-governance entry sits between the audit and disputes entries, directly before disputes", () => {
+    const adminNav = getNavItemsForRole(UserRole.Admin);
+    const auditIndex = adminNav.findIndex(item => item.route === "/audit");
+    const governanceIndex = adminNav.findIndex(item => item.route === "/admin/session-governance");
+    const disputesIndex = adminNav.findIndex(item => item.route === "/disputes");
+    expect(governanceIndex).toBe(disputesIndex - 1);
+    expect(governanceIndex).toBeGreaterThan(auditIndex);
+    expect(governanceIndex).toBeLessThan(disputesIndex);
+  });
+
+  test("the sessionGovernance label key stays owned by the dashboard bundle", () => {
+    // Runtime pin of the ownership-matrix invariant for the session-governance
+    // entry: `sessionGovernance` must remain a dashboard-bundle key so
+    // `resolveNavItemLabel` resolves it from the owning bundle in both locales.
+    expect("sessionGovernance" in dashboardEn).toBe(true);
+    expect("sessionGovernance" in handshakeCodeEn).toBe(false);
+  });
+
+  test("the sessionGovernance label resolves non-empty in BOTH locales through the real runtime path", () => {
+    for (const locale of ["ar", "en"] as AppLocale[]) {
+      const dashboardLabels = DashboardNs.getLabels(getTranslations(locale));
+      const handshakeCodeLabels = HandshakeCodeNs.getLabels(getTranslations(locale));
+      const item = navItemFor(UserRole.Admin, "/admin/session-governance");
+      const label = resolveNavItemLabel(item, dashboardLabels, handshakeCodeLabels);
+      expect(label.length).toBeGreaterThan(0);
+      expect(label).toBe(dashboardLabels.sessionGovernance);
+    }
+  });
+
+  test.each([UserRole.Student, UserRole.Teacher, UserRole.Parent])(
+    "Non-admin role %s does NOT include /admin/session-governance item",
+    role => {
+      const nav = getNavItemsForRole(role);
+      const governanceItem = nav.find(item => item.route === "/admin/session-governance");
+      expect(governanceItem).toBeUndefined();
     }
   );
 });

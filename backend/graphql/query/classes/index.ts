@@ -8,5 +8,11 @@
  *    exports.
  *  - The top-level `backend/graphql/query/index.ts` imports THIS barrel;
  *    `gqlSchema.ts` imports the top-level barrel exactly once.
+ *  - `session-lifecycle.query.ts` registers `sessionById`,
+ *    `myStudentSessions`, `myTeacherSessions`, and
+ *    `adminDisputedSessions`.
+ *  - `admin-session-governance.query.ts` registers `adminSessions` and
+ *    `adminSession`.
  */
+import "./admin-session-governance.query";
 import "./session-lifecycle.query";

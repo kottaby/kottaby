@@ -70,4 +70,12 @@ export const notificationsAr: NotificationsLabels = {
   eventParentLinkExpiringTitle: "تذكير: طلب ربطك على وشك الانتهاء",
   eventParentLinkExpiringBody: (studentName: string) =>
     `طلب ربطك بـ ${studentName} سينتهي قريبًا — يمكن للطالب التأكيد أو الرفض قبل انتهاء صلاحيته.`,
+  eventSessionGovernanceRescheduledTitle: "تمت إعادة جدولة الجلسة",
+  eventSessionGovernanceRescheduledBody:
+    "قام أحد مشرفي المنصة بتغيير موعد جلستك. افتح الجلسة للاطلاع على الموعد الجديد.",
+  eventSessionGovernanceCancelledTitle: "تم إلغاء الجلسة",
+  eventSessionGovernanceCancelledBody: "قام أحد مشرفي المنصة بإلغاء جلستك.",
+  eventSessionGovernanceTeacherReassignedTitle: "تم تغيير معلم الجلسة",
+  eventSessionGovernanceTeacherReassignedBody:
+    "قام أحد مشرفي المنصة بتغيير معلم جلستك. افتح الجلسة للاطلاع على التفاصيل.",
 };
