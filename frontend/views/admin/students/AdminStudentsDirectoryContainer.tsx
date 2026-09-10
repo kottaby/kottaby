@@ -1,0 +1,123 @@
+"use client";
+
+/**
+ * AdminStudentsDirectoryContainer — the admin student directory client
+ * surface (read-only, presentation only).
+ *
+ * State and query wiring lives in `useAdminStudentsDirectory`; the filter/
+ * refresh/export toolbar lives in `AdminStudentsToolbar`; the results
+ * section (desktop table + mobile card list + paginations) lives in
+ * `AdminStudentsResults`; the feedback snackbar closes the loop.
+ *
+ * The surface stays READ-ONLY by design — no create/edit/delete dialogs and
+ * no mutations exist here. Two affordances round it out: the per-row
+ * detail drawer (opened by clicking a row/card or through the explicit
+ * view-details quick action — the container owns the single drawer
+ * instance and keeps the selected item mounted through the exit
+ * transition) and the SERVER-SIDE EXPORT-ALL CSV download (the dedicated
+ * export query runs with the current filter state, the backend caps the
+ * dump and reports `truncated`, and the export flow serializes the rows
+ * with the existing pure CSV builder — `studentsCsvExport.ts`).
+ *
+ * All chrome copy comes from the `AdminStudents` locale namespace, resolved
+ * client-side via `useAppTranslation(AdminStudents)` — the page mounts this
+ * container label-free so no labels cross the server→client props boundary.
+ * MUI v9 `sx`-only discipline; colors via `theme.palette.*` callbacks;
+ * `*Outlined` icons; ≥44px touch targets; responsive (desktop table ≥md,
+ * stacked cards below).
+ */
+
+import { Stack } from "@mui/material";
+import { type ReactNode, useState } from "react";
+import { DirectoryErrorAlert } from "@/frontend/views/admin/directory-shared/DirectoryErrorAlert";
+import { DirectoryFeedbackSnackbar } from "@/frontend/views/admin/directory-shared/DirectoryFeedbackSnackbar";
+import { DirectoryPageHeader } from "@/frontend/views/admin/directory-shared/DirectoryPageHeader";
+import { DirectoryScrollToTop } from "@/frontend/views/admin/directory-shared/DirectoryScrollToTop";
+import { AdminStudentDetailDrawer } from "@/frontend/views/admin/students/AdminStudentDetailDrawer";
+import type { StudentDirectoryItem } from "@/frontend/views/admin/students/AdminStudentRowCells";
+import { AdminStudentsResults } from "@/frontend/views/admin/students/AdminStudentsResults";
+import { AdminStudentsToolbar } from "@/frontend/views/admin/students/AdminStudentsToolbar";
+import { useAdminStudentsDirectory } from "@/frontend/views/admin/students/hooks";
+import { runStudentsCsvExport } from "@/frontend/views/admin/students/studentsCsvExport";
+import { useAppLocale } from "@/shared/locale";
+import { useAppTranslation } from "@/shared/locale/client";
+import { AdminStudents } from "@/shared/locale/namespaces/adminStudents";
+
+export function AdminStudentsDirectoryContainer(): ReactNode {
+  const labels = useAppTranslation(AdminStudents);
+  const locale = useAppLocale();
+  const directory = useAdminStudentsDirectory();
+  // Single detail-drawer instance per directory — `selectedStudent` stays
+  // mounted through the drawer's exit transition (only `drawerOpen` flips
+  // on close), so the panel never slides out empty.
+  const [selectedStudent, setSelectedStudent] = useState<StudentDirectoryItem | null>(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const openStudentDetails = (student: StudentDirectoryItem) => {
+    setSelectedStudent(student);
+    setDrawerOpen(true);
+  };
+  // The copy-email quick action reports success through the shared
+  // snackbar (identical feedback channel as the users directory).
+  const handleCopyEmail = () => {
+    directory.showSnackbar(labels.quickActions.emailCopied);
+  };
+  // Server-side EXPORT-ALL (the flow lives in `studentsCsvExport.ts`): the
+  // dedicated export query runs with the CURRENT filter state, then the
+  // rows serialize through the EXISTING pure CSV builder and download —
+  // feedback through the shared snackbar.
+  const handleExportCsv = (): Promise<void> => runStudentsCsvExport(directory, labels);
+  // Re-fetch the current page after a load failure (transport failure or
+  // GraphQL error). The promise is handed to Apollo; rejections re-surface
+  // through the same `hasError` state.
+  const retryDirectory = () => {
+    void directory.refetch();
+  };
+  return (
+    <Stack spacing={3} sx={{ p: { xs: 2, md: 3 } }}>
+      <DirectoryPageHeader title={labels.title} subtitle={labels.subtitle} />
+
+      <AdminStudentsToolbar
+        labels={labels}
+        directory={directory}
+        loading={directory.loading}
+        hasFilters={directory.hasFilters}
+        onExportCsv={() => {
+          void handleExportCsv();
+        }}
+        exportLoading={directory.exportLoading}
+        exportDisabled={directory.exportLoading || directory.loading || directory.total === 0}
+        onCopyLink={() => {
+          directory.showSnackbar(labels.quickActions.linkCopied);
+        }}
+      />
+
+      {directory.hasError && (
+        <DirectoryErrorAlert labels={labels.errorState} onRetry={retryDirectory} errorCode={directory.firstErrorCode} />
+      )}
+
+      <AdminStudentsResults
+        labels={labels}
+        directory={directory}
+        onCopyEmail={handleCopyEmail}
+        onViewDetails={openStudentDetails}
+      />
+
+      <AdminStudentDetailDrawer
+        open={drawerOpen}
+        student={selectedStudent}
+        labels={labels}
+        locale={locale}
+        onClose={() => {
+          setDrawerOpen(false);
+        }}
+        onCopyEmail={handleCopyEmail}
+      />
+
+      <DirectoryFeedbackSnackbar snackbar={directory.snackbar} onClose={directory.clearSnackbar} />
+
+      {/* Floating back-to-top — the student list stacks past one viewport
+          on phones; the FAB reveals itself after ~a screenful of scroll. */}
+      <DirectoryScrollToTop ariaLabel={labels.scrollBackToTop} />
+    </Stack>
+  );
+}

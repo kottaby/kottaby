@@ -53,6 +53,12 @@ export const notificationsEn: NotificationsLabels = {
     `Your session request to ${iso(teacherName)} was added to the queue.`,
   eventSessionAlternativesOfferedBody: (teacherName: string) =>
     `${LRM}${iso(teacherName)} can't take your request, so we offered you alternative teachers.`,
+  eventSessionCompletionPromptTitle: "Confirm your completed session",
+  eventSessionAutoCancelledTitle: "Session auto-cancelled",
+  eventSessionCompletionPromptBody: (teacherName: string) =>
+    `${LRM}${iso(teacherName)} marked your session as complete — please confirm it so the session can be settled.`,
+  eventSessionAutoCancelledBody: (teacherName: string) =>
+    `Your session with ${iso(teacherName)} was auto-cancelled because it wasn't confirmed within 24 hours.`,
   intentHifz: "Hifz",
   intentTajweed: "Tajweed",
   intentEvaluation: "Evaluation",
@@ -70,4 +76,12 @@ export const notificationsEn: NotificationsLabels = {
     `${LRM}${iso(teacherName)} submitted a report for your session.`,
   eventSessionReportReadyParentBody: (studentName: string, teacherName: string) =>
     `${LRM}${iso(teacherName)} submitted a session report for ${iso(studentName)}.`,
+  eventSessionGovernanceRescheduledTitle: "Session rescheduled",
+  eventSessionGovernanceRescheduledBody:
+    "A platform administrator changed your session's schedule. Open the session to see the new time.",
+  eventSessionGovernanceCancelledTitle: "Session cancelled",
+  eventSessionGovernanceCancelledBody: "A platform administrator cancelled your session.",
+  eventSessionGovernanceTeacherReassignedTitle: "Session teacher changed",
+  eventSessionGovernanceTeacherReassignedBody:
+    "A platform administrator changed the teacher for your session. Open the session to see the details.",
 };

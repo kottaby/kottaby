@@ -36,9 +36,10 @@
  *  - No business logic, no permission checks, no i18n or logging imports —
  *    the caller decides what `isApproved = false` or a `null` row means.
  */
-import { and, eq, sql } from "drizzle-orm";
-import { queryDb } from "@/backend/db";
+import { and, desc, eq, ilike, or, type SQL, sql } from "drizzle-orm";
+import { db, queryDb } from "@/backend/db";
 import { teacher } from "@/backend/db/schema/teachers/teacher";
+import { users } from "@/backend/db/schema/users/users";
 import type { DBQueryExecutor, DBTransaction, TeacherSelectType } from "@/backend/types";
 
 /**
@@ -51,6 +52,86 @@ import type { DBQueryExecutor, DBTransaction, TeacherSelectType } from "@/backen
  */
 function isDBTransaction(tx: DBQueryExecutor): tx is DBTransaction {
   return typeof tx === "object" && "select" in tx;
+}
+
+/**
+ * `NormalizedAdminTeacherFilters` — repo-internal filter shape for the
+ * admin teacher directory listing.
+ *
+ * The service layer normalizes a transport-shape
+ * `AdminTeacherFiltersSubmitInput` into this structure before calling the
+ * repo:
+ *  - `searchPattern` is the search substring AFTER `escapeLikeWildcards`
+ *    has been applied AND after the result has been wrapped as `%…%`.
+ *    The repo binds this directly to its `ilike(column, pattern)`
+ *    predicates — never re-escaping or re-wrapping (one canonical escape
+ *    point at the service, one binding point at the repo).
+ *  - `isApproved` / `isOnline` / `isEvaluator` pass through unchanged
+ *    (`null` = no constraint — the member drops out of the WHERE chain).
+ */
+export interface NormalizedAdminTeacherFilters {
+  readonly searchPattern?: string | null;
+  readonly isApproved?: boolean | null;
+  readonly isOnline?: boolean | null;
+  readonly isEvaluator?: boolean | null;
+}
+
+/**
+ * `AdminTeacherDirectoryRow` — raw DB row shape returned by
+ * `listDirectory` (users INNER JOIN teacher on the shared PK). The
+ * nullable-with-default schema columns preserve their `| null` select
+ * types; the service layer null-coalesces the booleans and parses the
+ * decimal rating + subjects JSON at projection time.
+ */
+export interface AdminTeacherDirectoryRow {
+  readonly id: number;
+  readonly name: string;
+  readonly email: string;
+  readonly phone: string | null;
+  readonly country: string | null;
+  readonly isDeleted: boolean | null;
+  readonly suspended: boolean | null;
+  readonly isBlocked: boolean | null;
+  readonly isApproved: boolean | null;
+  readonly isEvaluator: boolean | null;
+  readonly averageRating: string | null;
+  readonly isOnline: boolean | null;
+  readonly subjects: string | null;
+  readonly createdAt: Date;
+}
+
+/**
+ * Builds the ANDed WHERE chain from the normalized teacher-directory
+ * filters. Absent or null members are skipped (the directory falls back to
+ * the unfiltered listing rather than erroring). The `searchPattern` is
+ * bound directly to two `ilike` predicates — one over the user's full
+ * name, one over the email — joined by `OR` so a single search term
+ * matches either column. No string interpolation; the pattern is
+ * Drizzle-parameterized.
+ */
+function buildTeacherDirectoryFilterChain(filters: NormalizedAdminTeacherFilters): SQL | undefined {
+  const conditions: SQL[] = [];
+  if (filters.searchPattern) {
+    conditions.push(
+      or(ilike(users.fullName, filters.searchPattern), ilike(users.email, filters.searchPattern)) ?? sql`false`
+    );
+  }
+  if (filters.isApproved !== null && filters.isApproved !== undefined) {
+    conditions.push(eq(teacher.isApproved, filters.isApproved));
+  }
+  if (filters.isOnline !== null && filters.isOnline !== undefined) {
+    conditions.push(eq(teacher.isOnline, filters.isOnline));
+  }
+  if (filters.isEvaluator !== null && filters.isEvaluator !== undefined) {
+    conditions.push(eq(teacher.isEvaluator, filters.isEvaluator));
+  }
+  if (conditions.length === 0) {
+    return undefined;
+  }
+  if (conditions.length === 1) {
+    return conditions[0];
+  }
+  return and(...conditions) ?? sql`true`;
 }
 
 export namespace TeacherRepository {
@@ -178,6 +259,119 @@ export namespace TeacherRepository {
         updatedAt: sql`now()`,
       })
       .where(and(eq(teacher.id, id), eq(teacher.isApproved, false)))
+      .returning();
+    return row ?? null;
+  }
+
+  /**
+   * Lists the admin teacher directory: `teacher` rows INNER JOINed to their
+   * `users` accounts on the shared PK, filtered by the normalized filter
+   * chain, ordered newest-account-first (deterministic `created_at DESC,
+   * id DESC` so consecutive pages never duplicate or drop a row inserted
+   * mid-pagination).
+   *
+   * Directory filters are dynamic AND chains of scalar predicates — no
+   * prepared statements (no reuse win, per repo policy), no `inArray`. The
+   * search pattern arrives already escaped + `%…%`-wrapped from the service
+   * layer and is bound as a Drizzle parameter.
+   *
+   * Runs the page query and the same-filter `count(*)` in one round-trip
+   * pair so the caller can surface an honest `total` — an out-of-range
+   * page yields an empty `rows` array with the unchanged count (never an
+   * error, never clamped results).
+   *
+   * @returns The raw directory rows plus the unfiltered-by-page total (NOT
+   *          the return type — the service layer maps rows →
+   *          `AdminTeacherItemReturnType`).
+   */
+  export async function listDirectory(
+    filters: NormalizedAdminTeacherFilters,
+    limit: number,
+    offset: number,
+    tx?: DBTransaction
+  ): Promise<{ rows: AdminTeacherDirectoryRow[]; total: number }> {
+    const where = buildTeacherDirectoryFilterChain(filters);
+    const select = {
+      id: users.id,
+      name: users.fullName,
+      email: users.email,
+      phone: users.phone,
+      country: users.country,
+      isDeleted: users.isDeleted,
+      suspended: users.suspended,
+      isBlocked: users.isBlocked,
+      isApproved: teacher.isApproved,
+      isEvaluator: teacher.isEvaluator,
+      averageRating: teacher.averageRating,
+      isOnline: teacher.isOnline,
+      subjects: teacher.subjects,
+      createdAt: users.createdAt,
+    } as const;
+    const [rows, countRows] = await Promise.all([
+      (tx ?? db)
+        .select(select)
+        .from(teacher)
+        .innerJoin(users, eq(users.id, teacher.id))
+        .where(where)
+        .orderBy(desc(users.createdAt), desc(users.id))
+        .limit(limit)
+        .offset(offset),
+      (tx ?? db)
+        .select({ count: sql<number>`count(*)::int`.as("count") })
+        .from(teacher)
+        .innerJoin(users, eq(users.id, teacher.id))
+        .where(where),
+    ]);
+    return { rows, total: countRows[0]?.count ?? 0 };
+  }
+
+  /**
+   * Writes the teacher's `is_online` flag in one guarded UPDATE — the
+   * INV-S6 in-session lock primitive (see
+   * `docs/specs/state-machine-invariants.md` §1).
+   *
+   * The write is deliberately UNCONDITIONAL beyond row identity: this
+   * method IS the guarded required-tx `UPDATE … RETURNING` primitive and
+   * nothing more — the SERVICE layer composes WHEN the flag is driven to
+   * `false` (a session start, the lock) or back to `true` (a `started`
+   * exit, the release). Restoration on exit is currently UNCONDITIONAL:
+   * a prior-online capture exists at the start flow (the teacher row read
+   * inside the start transaction), but until the future availability-
+   * toggle work owns the never-resurrect gating, a release restores
+   * availability without consulting it — the known seam documented in
+   * `docs/sessions/session-lifecycle.md` §Concurrency. Certification
+   * plays no part: an uncertified teacher may still go offline.
+   *
+   * The service layer is the ONLY intended caller: this write composes
+   * INSIDE the session lifecycle's own transaction (the same `withTransaction`
+   * that flips the session status), so a rollback of the flow aborts the
+   * lock/release with it — a stale lock without its session transition is
+   * structurally impossible.
+   *
+   * Parameterized always; no prepared statement (writes are excluded);
+   * no business logic, no permission checks, no i18n or logging imports.
+   *
+   * @param id  The teacher row's id (shared PK with `users.id`) — pinned by
+   *            the session row inside the caller's transaction, never a
+   *            client payload.
+   * @param online  The target flag value (`false` = the INV-S6 lock,
+   *                `true` = the release).
+   * @param tx  REQUIRED transaction — the write always joins the caller's
+   *            atomic unit of work (repo write convention; never the global
+   *            handle).
+   * @returns The updated teacher row, or `null` when zero rows matched (an
+   *          unknown id — the service layer maps that to its domain error).
+   *          A redundant same-value write still returns the row (idempotent
+   *          under retry by construction).
+   */
+  export async function setOnline(id: number, online: boolean, tx: DBTransaction): Promise<TeacherSelectType | null> {
+    const [row] = await tx
+      .update(teacher)
+      .set({
+        isOnline: online,
+        updatedAt: sql`now()`,
+      })
+      .where(eq(teacher.id, id))
       .returning();
     return row ?? null;
   }

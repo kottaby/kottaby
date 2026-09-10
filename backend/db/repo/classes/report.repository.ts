@@ -13,6 +13,11 @@
  * decision, so the repo never performs a SELECT-then-INSERT guard of its
  * own.
  *
+ * The surface covers both the report write/read path and the minimal
+ * EXISTS-style probe (`existsReportForSession`) that the INV-S8 homework
+ * gate needs — homework may only be created for a session whose teacher
+ * already filed a report.
+ *
  * Conventions per `backend/db/repo/AGENTS.md`:
  *  - One `namespace` per repository file; the namespace name is the
  *    canonical export.
@@ -93,5 +98,29 @@ export namespace ReportRepository {
       [sessionId]
     );
     return result.rows[0] ?? null;
+  }
+
+  /**
+   * Answers exactly one question: does ANY `reports` row exist for the
+   * session id? The INV-S8 gate's probe — homework may only be created
+   * for a session whose teacher already filed a report.
+   *
+   * Read-only: on the caller's transaction it runs as a Drizzle
+   * existence select; standalone it runs as raw parameterized SQL via
+   * `queryDb`. `tx` propagation keeps the probe on the caller's atomic
+   * unit (a gate evaluated mid-transaction must see the transaction's
+   * own writes).
+   *
+   * @returns `true` when at least one report row references the session,
+   *          `false` otherwise (including an unknown session id — the
+   *          caller's upstream gates own existence classification).
+   */
+  export async function existsReportForSession(sessionId: number, tx?: DBTransaction): Promise<boolean> {
+    if (tx) {
+      const rows = await tx.select({ id: reports.id }).from(reports).where(eq(reports.sessionId, sessionId)).limit(1);
+      return rows.length > 0;
+    }
+    const result = await queryDb<{ id: number }>(`SELECT id FROM reports WHERE session_id = $1 LIMIT 1`, [sessionId]);
+    return result.rows.length > 0;
   }
 }

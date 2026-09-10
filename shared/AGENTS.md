@@ -2,13 +2,13 @@
 
 ## Purpose
 
-The `shared/` layer contains code used by **both** frontend and backend: utilities, i18n messages, domain constants, enums, and cross-layer types. It sits below `app/`, `frontend/`, and `backend/` in the dependency graph — nothing in shared may depend on those layers.
+The `shared/` layer contains code used by **both** frontend and backend: utilities, i18n messages, domain constants, enums, and cross-layer contract types (e.g. locale translation contracts). It sits below `app/`, `frontend/`, and `backend/` in the dependency graph — nothing in shared may depend on those layers. Canonical database/entity types do NOT live here — they belong to `backend/types/` (see "Cross-Layer Shared Types Pattern" below).
 
 ## Layer Isolation (CRITICAL)
 
 - **NEVER** import from `@/frontend/**`, `@/backend/**`, or `@/app/**`.
 - Enforced by ESLint `no-restricted-imports` in `eslint.config.mjs` for all `shared/**/*.{ts,tsx}` files.
-- If shared code needs a value that currently lives in another layer (enum, type, utility), **move or duplicate the canonical definition into `shared/`** and have the other layer import from shared — not the reverse.
+- If shared code needs a value that currently lives in another layer (enum, constant, utility, or cross-layer contract type), **move or duplicate the canonical definition into `shared/`** and have the other layer import from shared — not the reverse. Exception: canonical database/entity types stay in `backend/types/`; other layers import them from there type-only.
 
 ### Positive Pattern
 

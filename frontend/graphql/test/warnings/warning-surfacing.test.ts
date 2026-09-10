@@ -315,8 +315,12 @@ const MUTATION_SURFACE_INVENTORY_QUERY_DOCUMENT: DocumentNode = gql`
  */
 const KNOWN_LIVE_MUTATION_FIELDS = [
   "adminBroadcastNotification",
+  "adminCancelSession",
   "adminCertifyTeacherColdStart",
   "adminCreateUser",
+  "adminJoinSession",
+  "adminReassignTeacher",
+  "adminRescheduleSession",
   "adminSetUserBlocked",
   "adminSetUserDeleted",
   "adminSetUserSuspended",

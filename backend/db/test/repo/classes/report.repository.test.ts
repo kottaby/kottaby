@@ -188,6 +188,28 @@ describe("ReportRepository — transactional paths (runInRollback)", () => {
     });
   });
 
+  test("existsReportForSession returns true for a session with a report, false without", async () => {
+    await runInRollback(async tx => {
+      const actors = await createSessionActors(tx);
+      const sessionWithReport = await createCompletedSession(tx, actors);
+      const sessionWithoutReport = await createCompletedSession(tx, actors);
+
+      await ReportRepository.insertReport(
+        { sessionId: sessionWithReport.id, teacherNotes: "existing report", studentRatingByTeacher: 5 },
+        tx
+      );
+
+      const exists = await ReportRepository.existsReportForSession(sessionWithReport.id, tx);
+      expect(exists).toBe(true);
+
+      const notExists = await ReportRepository.existsReportForSession(sessionWithoutReport.id, tx);
+      expect(notExists).toBe(false);
+
+      const unknownSession = await ReportRepository.existsReportForSession(999_999_999, tx);
+      expect(unknownSession).toBe(false);
+    });
+  });
+
   // ─── Tier 2: boundary ────────────────────────────────────────────────
 
   test("insertReport stores a maximal 2000-char notes payload verbatim", async () => {
@@ -315,11 +337,11 @@ describe("ReportRepository — transactional paths (runInRollback)", () => {
 
   const repoSource = readFileSync(join(import.meta.dir, "../../../repo/classes/report.repository.ts"), "utf8");
 
-  test("source: executor discipline — one pool-fallback write, one queryDb read, tx last on every signature", () => {
+  test("source: executor discipline — one pool-fallback write, two queryDb reads, tx last on every signature", () => {
     expect(repoSource.match(/const executor = tx \?\? db;/g) ?? []).toHaveLength(1);
-    expect(repoSource.match(/queryDb</g) ?? []).toHaveLength(1);
+    expect(repoSource.match(/queryDb</g) ?? []).toHaveLength(2);
     const signatures = repoSource.match(/export async function [a-zA-Z]+\([^)]*\)/g) ?? [];
-    expect(signatures).toHaveLength(2);
+    expect(signatures).toHaveLength(3);
     for (const signature of signatures) {
       const flattened = signature.replace(/\s+/g, " ").replace(/ \)/g, ")").trim();
       expect(flattened.endsWith("tx?: DBTransaction)") || flattened.endsWith("tx?: DBQueryExecutor)")).toBe(true);
@@ -405,5 +427,13 @@ describe("ReportRepository — standalone executor paths (committed fixtures)", 
 
     const miss = await ReportRepository.findBySessionId(emptySessionId);
     expect(miss).toBeNull();
+  });
+
+  test("existsReportForSession runs standalone via the queryDb read path (hit and miss)", async () => {
+    const hit = await ReportRepository.existsReportForSession(reportSessionId);
+    expect(hit).toBe(true);
+
+    const miss = await ReportRepository.existsReportForSession(emptySessionId);
+    expect(miss).toBe(false);
   });
 });

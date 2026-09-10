@@ -32,6 +32,18 @@ import { describe, expect, test } from "bun:test";
 import type { TypedDocumentNode } from "@apollo/client";
 import type { DocumentNode, FieldNode, OperationDefinitionNode } from "graphql";
 import type {
+  AdminSessionCancelMutation,
+  AdminSessionCancelMutationVariables,
+  AdminSessionJoinMutation,
+  AdminSessionJoinMutationVariables,
+  AdminSessionQuery,
+  AdminSessionQueryVariables,
+  AdminSessionReassignMutation,
+  AdminSessionReassignMutationVariables,
+  AdminSessionRescheduleMutation,
+  AdminSessionRescheduleMutationVariables,
+  AdminSessionsQuery,
+  AdminSessionsQueryVariables,
   CancelSessionMutation,
   CancelSessionMutationVariables,
   CompleteSessionMutation,
@@ -59,9 +71,18 @@ import type {
   UpdateMyLocaleMutationVariables,
 } from "@/frontend/graphql/generated/gql/graphql";
 import {
+  adminSessionsQueryDocument as adminSessionsViaBarrel,
   registerUserMutationDocument as registerUserViaBarrel,
   sessionByIdQueryDocument as sessionByIdViaBarrel,
 } from "@/frontend/graphql/sharedDocuments";
+import {
+  adminSessionCancelMutationDocument,
+  adminSessionJoinMutationDocument,
+  adminSessionQueryDocument,
+  adminSessionReassignMutationDocument,
+  adminSessionRescheduleMutationDocument,
+  adminSessionsQueryDocument,
+} from "@/frontend/graphql/sharedDocuments/admin/admin-session-governance.documents";
 import {
   loginMutationDocument,
   logoutMutationDocument,
@@ -232,6 +253,49 @@ const DOCUMENT_CONTRACT_TABLE: readonly DocumentContractRow[] = [
     variables: ["id", "reason"],
     objectSelections: ["cancelSession"],
   },
+  // --- DEV3-021 admin session governance (admin/admin-session-governance.documents.ts) ---
+  {
+    document: adminSessionsQueryDocument,
+    operationName: "AdminSessions",
+    channel: "query",
+    variables: ["filter", "page", "pageSize"],
+    objectSelections: ["adminSessions.items"],
+  },
+  {
+    document: adminSessionQueryDocument,
+    operationName: "AdminSession",
+    channel: "query",
+    variables: ["id"],
+    objectSelections: ["adminSession"],
+  },
+  {
+    document: adminSessionRescheduleMutationDocument,
+    operationName: "AdminSessionReschedule",
+    channel: "mutation",
+    variables: ["input"],
+    objectSelections: ["adminRescheduleSession"],
+  },
+  {
+    document: adminSessionCancelMutationDocument,
+    operationName: "AdminSessionCancel",
+    channel: "mutation",
+    variables: ["input"],
+    objectSelections: ["adminCancelSession"],
+  },
+  {
+    document: adminSessionReassignMutationDocument,
+    operationName: "AdminSessionReassign",
+    channel: "mutation",
+    variables: ["input"],
+    objectSelections: ["adminReassignTeacher"],
+  },
+  {
+    document: adminSessionJoinMutationDocument,
+    operationName: "AdminSessionJoin",
+    channel: "mutation",
+    variables: ["input"],
+    objectSelections: ["adminJoinSession"],
+  },
 ];
 
 describe("shared-document contract — named operations + channel + variables", () => {
@@ -327,6 +391,7 @@ describe("shared-document contract — id field requirement", () => {
 
 describe("consumer import conventions — barrel ≡ deep import identity", () => {
   test("top-level barrel re-exports the SAME document instance (cache-key safety)", () => {
+    expect(adminSessionsViaBarrel).toBe(adminSessionsQueryDocument);
     expect(registerUserViaBarrel).toBe(registerUserMutationDocument);
     expect(sessionByIdViaBarrel).toBe(sessionByIdQueryDocument);
   });
@@ -361,6 +426,25 @@ describe("consumer import conventions — barrel ≡ deep import identity", () =
     const typedCancelSession: TypedDocumentNode<CancelSessionMutation, CancelSessionMutationVariables> =
       cancelSessionMutationDocument;
 
+    // DEV3-021 admin session-governance documents (compile-time proof that
+    // every `Session` selection conforms to the generated operation types).
+    const typedAdminSessions: TypedDocumentNode<AdminSessionsQuery, AdminSessionsQueryVariables> =
+      adminSessionsQueryDocument;
+    const typedAdminSession: TypedDocumentNode<AdminSessionQuery, AdminSessionQueryVariables> =
+      adminSessionQueryDocument;
+    const typedAdminSessionReschedule: TypedDocumentNode<
+      AdminSessionRescheduleMutation,
+      AdminSessionRescheduleMutationVariables
+    > = adminSessionRescheduleMutationDocument;
+    const typedAdminSessionCancel: TypedDocumentNode<AdminSessionCancelMutation, AdminSessionCancelMutationVariables> =
+      adminSessionCancelMutationDocument;
+    const typedAdminSessionReassign: TypedDocumentNode<
+      AdminSessionReassignMutation,
+      AdminSessionReassignMutationVariables
+    > = adminSessionReassignMutationDocument;
+    const typedAdminSessionJoin: TypedDocumentNode<AdminSessionJoinMutation, AdminSessionJoinMutationVariables> =
+      adminSessionJoinMutationDocument;
+
     // Runtime uses keep the bindings from being flagged as unused.
     expect(typedRegister.loc).toBeDefined();
     expect(typedLogin.loc).toBeDefined();
@@ -375,6 +459,12 @@ describe("consumer import conventions — barrel ≡ deep import identity", () =
     expect(typedStartSession.loc).toBeDefined();
     expect(typedCompleteSession.loc).toBeDefined();
     expect(typedCancelSession.loc).toBeDefined();
+    expect(typedAdminSessions.loc).toBeDefined();
+    expect(typedAdminSession.loc).toBeDefined();
+    expect(typedAdminSessionReschedule.loc).toBeDefined();
+    expect(typedAdminSessionCancel.loc).toBeDefined();
+    expect(typedAdminSessionReassign.loc).toBeDefined();
+    expect(typedAdminSessionJoin.loc).toBeDefined();
     expect(typedUpdateMyLocale.loc).toBeDefined();
   });
 });

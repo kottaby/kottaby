@@ -54,6 +54,12 @@ export const notificationsAr: NotificationsLabels = {
   eventSessionQueuedBody: (teacherName: string) => `أُضيف طلب جلستك لدى ${iso(teacherName)} إلى قائمة الانتظار.`,
   eventSessionAlternativesOfferedBody: (teacherName: string) =>
     `تعذّر على ${iso(teacherName)} قبول طلبك، لذا اقترحنا لك معلمين بدلاء.`,
+  eventSessionCompletionPromptTitle: "أكّد اكتمال جلستك",
+  eventSessionAutoCancelledTitle: "تم إلغاء جلستك تلقائيًا",
+  eventSessionCompletionPromptBody: (teacherName: string) =>
+    `علّم ${iso(teacherName)} جلستك كمكتملة — يرجى تأكيد الاكتمال حتى تُحتسب الجلسة.`,
+  eventSessionAutoCancelledBody: (teacherName: string) =>
+    `أُلغيت جلستك مع ${iso(teacherName)} تلقائيًا لعدم تأكيد الاكتمال خلال 24 ساعة.`,
   intentHifz: "الحفظ",
   intentTajweed: "التجويد",
   intentEvaluation: "التقييم",
@@ -70,4 +76,12 @@ export const notificationsAr: NotificationsLabels = {
   eventSessionReportReadyBody: (teacherName: string) => `قدّم ${iso(teacherName)} تقرير جلستك.`,
   eventSessionReportReadyParentBody: (studentName: string, teacherName: string) =>
     `قدّم ${iso(teacherName)} تقرير جلسة ${iso(studentName)}.`,
+  eventSessionGovernanceRescheduledTitle: "تمت إعادة جدولة الجلسة",
+  eventSessionGovernanceRescheduledBody:
+    "قام أحد مشرفي المنصة بتغيير موعد جلستك. افتح الجلسة للاطلاع على الموعد الجديد.",
+  eventSessionGovernanceCancelledTitle: "تم إلغاء الجلسة",
+  eventSessionGovernanceCancelledBody: "قام أحد مشرفي المنصة بإلغاء جلستك.",
+  eventSessionGovernanceTeacherReassignedTitle: "تم تغيير معلم الجلسة",
+  eventSessionGovernanceTeacherReassignedBody:
+    "قام أحد مشرفي المنصة بتغيير معلم جلستك. افتح الجلسة للاطلاع على التفاصيل.",
 };

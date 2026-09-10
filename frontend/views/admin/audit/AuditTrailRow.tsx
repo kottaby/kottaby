@@ -17,6 +17,7 @@ import type {
 } from "@/frontend/graphql/generated/gql/graphql";
 import { formatApplicantDate } from "@/frontend/lib/i18n/format-date";
 import { bodyCellSx } from "@/frontend/views/admin/audit/audit-trail-skin";
+import { DirectoryHeaderCell } from "@/frontend/views/admin/directory-shared/DirectoryHeaderCell";
 import type { AdminUsersLabels } from "@/shared/locale/types/adminUsers";
 
 interface AuditTrailHeaderCellProps {
@@ -24,24 +25,13 @@ interface AuditTrailHeaderCellProps {
   readonly width: string;
 }
 
-/** Header cell — uppercase 12px / 600 / letter-spaced, `text.secondary`. */
-export function AuditTrailHeaderCell({ children, width }: Readonly<AuditTrailHeaderCellProps>): ReactNode {
-  return (
-    <TableCell
-      sx={theme => ({
-        width,
-        textTransform: "uppercase",
-        fontSize: 12,
-        fontWeight: 600,
-        letterSpacing: "0.06em",
-        color: theme.palette.text.secondary,
-        textAlign: "start",
-        borderBottom: `1px solid ${theme.palette.border.light}`,
-      })}
-    >
-      {children}
-    </TableCell>
-  );
+/**
+ * Header cell — the shared uppercase directory header cell
+ * (`DirectoryHeaderCell`), aliased under the audit-trail name for the
+ * trail's header row in `AuditTrailResults`.
+ */
+export function AuditTrailHeaderCell(props: Readonly<AuditTrailHeaderCellProps>): ReactNode {
+  return <DirectoryHeaderCell {...props} />;
 }
 
 interface AuditTrailRowProps {

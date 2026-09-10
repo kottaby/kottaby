@@ -26,6 +26,11 @@ export function SessionRowCardShell({ testId, children }: Readonly<SessionRowCar
       data-testid={testId}
       sx={theme => ({
         display: "grid",
+        // Single explicit track with a zero-able minimum: an `auto` track lets
+        // a wide nowrap run (an LTR cancel reason inside the RTL card, etc.)
+        // stretch the track past the card and bleed off-screen inline-end.
+        // minmax(0,1fr) clamps every row family to the shell's real width.
+        gridTemplateColumns: "minmax(0, 1fr)",
         gap: 1.5,
         p: { xs: 2.5, sm: 3 },
         borderRadius: 3,
