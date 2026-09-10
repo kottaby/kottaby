@@ -64,3 +64,33 @@ export interface SessionWaveContext {
   /** Emit-time occurrence stamp (see `SessionWaveContextRow.sessionUpdatedAt`). */
   readonly sessionUpdatedAt: Date | null;
 }
+
+/** Raw joined read row for the report wave (identities are STILL untrusted storage here). */
+export interface SessionReportWaveContextRow {
+  readonly sessionId: number;
+  readonly studentUserId: number;
+  readonly studentFullName: string;
+  readonly studentLocale: AppLocale | null;
+  readonly teacherUserId: number;
+  readonly teacherFullName: string;
+  readonly teacherLocale: AppLocale | null;
+  readonly parentUserId: number | null;
+  readonly parentFullName: string | null;
+  readonly parentLocale: AppLocale | null;
+}
+
+/** Report-wave participant — same trusted shape as the request-wave participant. */
+export type SessionReportWaveParticipant = SessionWaveParticipantContext;
+
+/**
+ * Report wave context — the notification seam's guard-validated view of the
+ * report recipients. The parent leg is `null` when the student has no linked
+ * parent account: only the student and teacher waves are emitted, and the
+ * parent leg can never be fabricated by a caller.
+ */
+export interface SessionReportWaveContext {
+  readonly sessionId: number;
+  readonly student: SessionReportWaveParticipant;
+  readonly teacher: SessionReportWaveParticipant;
+  readonly parent: SessionReportWaveParticipant | null;
+}

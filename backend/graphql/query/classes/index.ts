@@ -16,3 +16,4 @@
  */
 import "./admin-session-governance.query";
 import "./session-lifecycle.query";
+import "./session-report.query";
