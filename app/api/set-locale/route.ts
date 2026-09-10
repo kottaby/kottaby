@@ -139,6 +139,26 @@ function resolveLocaleFromRequest(request: NextRequest): string {
   return request.headers.get("accept-language")?.split(",")[0]?.split("-")[0] ?? "ar";
 }
 
+/**
+ * Resolves a validated, safe redirect origin to prevent Host header injection and
+ * open redirects to untrusted external domains.
+ */
+function resolveSafeOrigin(request: NextRequest): string {
+  const host = request.headers.get("x-forwarded-host") ?? request.headers.get("host");
+  const protoHeader = request.headers.get("x-forwarded-proto");
+  const proto = protoHeader ?? request.nextUrl.protocol.replace(":", "");
+  const fallbackOrigin = request.nextUrl.origin.replace("://0.0.0.0", "://localhost");
+
+  if (host) {
+    const candidateOrigin = `${proto}://${host}`;
+    if (candidateOrigin === request.nextUrl.origin || ALLOWED_ORIGINS.has(candidateOrigin)) {
+      return candidateOrigin;
+    }
+  }
+
+  return fallbackOrigin;
+}
+
 export async function GET(request: NextRequest): Promise<Response> {
   const requestId = resolveRequestId(request.headers);
   const acceptLanguageLocale = resolveLocaleFromRequest(request);
@@ -154,12 +174,7 @@ export async function GET(request: NextRequest): Promise<Response> {
     }
 
     const redirectPath = safeRedirectPath(request.nextUrl.searchParams.get("redirect"));
-    // Prefer Host / X-Forwarded-* so we don't redirect to 0.0.0.0 when the
-    // server listens on all interfaces but the user browsed via localhost.
-    const host = request.headers.get("x-forwarded-host") ?? request.headers.get("host");
-    const protoHeader = request.headers.get("x-forwarded-proto");
-    const proto = protoHeader ?? request.nextUrl.protocol.replace(":", "");
-    const origin = host ? `${proto}://${host}` : request.nextUrl.origin;
+    const origin = resolveSafeOrigin(request);
     const response = NextResponse.redirect(new URL(redirectPath, origin));
     return withLocaleCookie(response, localeParam);
   } catch (error) {
