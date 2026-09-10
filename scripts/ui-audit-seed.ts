@@ -13,6 +13,13 @@ const DB_URL = "file://" + join(process.cwd(), "db/pglite");
 
 const DEMO_PASSWORD = "Password123!";
 
+interface DemoUserIds {
+  adminId: number;
+  teacherId: number;
+  studentId: number;
+  parentId: number;
+}
+
 async function upsertUser(
   pg: PGlite,
   opts: { email: string; fullName: string; role: string; passwordHash: string; locale?: string }
@@ -31,15 +38,11 @@ async function upsertUser(
   return res.rows[0].id;
 }
 
-async function main() {
-  const pg = new PGlite(DB_URL);
-  await pg.query("SELECT 1 AS ok");
-  console.log("[ui-audit-seed] connected");
-
+/** One user per role — the actors every audit page renders as. */
+async function seedDemoUsers(pg: PGlite): Promise<DemoUserIds> {
   const adminHash = await hash("adminpassword123", 12);
   const demoHash = await hash(DEMO_PASSWORD, 12);
 
-  // --- Users, one per role ---
   const adminId = await upsertUser(pg, {
     email: "admin@app.local",
     fullName: "Super Admin",
@@ -65,77 +68,112 @@ async function main() {
     passwordHash: demoHash,
   });
   console.log(`[ui-audit-seed] users: admin=${adminId} teacher=${teacherId} student=${studentId} parent=${parentId}`);
+  return { adminId, teacherId, studentId, parentId };
+}
 
-  // --- Role-detail rows ---
+/** Role-detail child rows (students / applicants / parents) for the demo users. */
+async function ensureRoleDetailRows(pg: PGlite, ids: DemoUserIds): Promise<void> {
   const now = new Date();
   await pg.query(
     `INSERT INTO students (id, handshake_code, balance_trial, created_at, updated_at)
      SELECT $1, $2, 0, $3, $3 WHERE NOT EXISTS (SELECT 1 FROM students WHERE id = $1)`,
-    [studentId, `HS-${studentId}${Date.now().toString(36).toUpperCase()}`, now]
+    [ids.studentId, `HS-${ids.studentId}${Date.now().toString(36).toUpperCase()}`, now]
   );
   await pg.query(
     `INSERT INTO applicants (id, status, created_at, updated_at)
      SELECT $1, 'passed', $2, $2 WHERE NOT EXISTS (SELECT 1 FROM applicants WHERE id = $1)`,
-    [teacherId, now]
+    [ids.teacherId, now]
   );
   await pg.query(
     `INSERT INTO parents (id, created_at, updated_at)
      SELECT $1, $2, $2 WHERE NOT EXISTS (SELECT 1 FROM parents WHERE id = $1)`,
-    [parentId, now]
+    [ids.parentId, now]
   );
   console.log("[ui-audit-seed] role-detail rows ensured");
+}
 
-  // --- Billing plans ---
+/** The four billing plans the pricing/plan pages render (one multi-row INSERT). */
+async function seedBillingPlans(pg: PGlite): Promise<void> {
   const planCount = await pg.query<{ n: number }>("SELECT COUNT(*)::int AS n FROM plans");
-  if (planCount.rows[0].n === 0) {
-    const plans: Array<[string, number, string, number, boolean]> = [
-      ["Bronze — 8 Sessions", 8, "480.00", 30, true],
-      ["Silver — 12 Sessions", 12, "660.00", 30, true],
-      ["Gold — 20 Sessions", 20, "1000.00", 45, true],
-      ["Legacy Basic (retired)", 4, "220.00", 30, false],
-    ];
-    for (const [title, sessionCount, price, intervalDays, isActive] of plans) {
-      await pg.query(
-        `INSERT INTO plans (title, session_count, price, currency, interval_days, is_active, created_at, updated_at)
-         VALUES ($1, $2, $3, 'EGP', $4, $5, $6, $6)`,
-        [title, sessionCount, price, intervalDays, isActive, now]
-      );
-    }
-    console.log(`[ui-audit-seed] seeded ${plans.length} plans`);
-  } else {
+  if (planCount.rows[0].n > 0) {
     console.log(`[ui-audit-seed] plans already present (${planCount.rows[0].n})`);
+    return;
   }
+  const now = new Date();
+  const plans: Array<[string, number, string, number, boolean]> = [
+    ["Bronze — 8 Sessions", 8, "480.00", 30, true],
+    ["Silver — 12 Sessions", 12, "660.00", 30, true],
+    ["Gold — 20 Sessions", 20, "1000.00", 45, true],
+    ["Legacy Basic (retired)", 4, "220.00", 30, false],
+  ];
+  const rowsSql = plans
+    .map(
+      (_, i) =>
+        `($${i * 6 + 1}, $${i * 6 + 2}, $${i * 6 + 3}, 'EGP', $${i * 6 + 4}, $${i * 6 + 5}, $${i * 6 + 6}, $${i * 6 + 6})`
+    )
+    .join(", ");
+  const params = plans.flatMap(([title, sessionCount, price, intervalDays, isActive]) => [
+    title,
+    sessionCount,
+    price,
+    intervalDays,
+    isActive,
+    now,
+  ]);
+  await pg.query(
+    `INSERT INTO plans (title, session_count, price, currency, interval_days, is_active, created_at, updated_at)
+     VALUES ${rowsSql}`,
+    params
+  );
+  console.log(`[ui-audit-seed] seeded ${plans.length} plans`);
+}
 
-  // --- Wallet for teacher (wallet page needs content) ---
+/** Teacher wallet row so the wallet page has content. */
+async function ensureTeacherWallet(pg: PGlite, teacherId: number): Promise<void> {
   try {
     await pg.query(
       `INSERT INTO wallet (teacher_id, balance, created_at, updated_at)
        SELECT $1, 1500.00, $2, $2 WHERE NOT EXISTS (SELECT 1 FROM wallet WHERE teacher_id = $1)`,
-      [teacherId, now]
+      [teacherId, new Date()]
     );
     console.log("[ui-audit-seed] teacher wallet ensured");
   } catch (e) {
     console.warn(`[ui-audit-seed] wallet skipped: ${String(e).slice(0, 120)}`);
   }
+}
 
-  // --- Notification rows (notifications page) ---
+/** One welcome notification per key actor so the notifications page renders. */
+async function ensureNotifications(pg: PGlite, ids: DemoUserIds): Promise<void> {
   try {
+    const now = new Date();
     await pg.query(
       `INSERT INTO notifications (user_id, type, title, body, is_read, created_at)
        SELECT $1, 'system_broadcast', 'Welcome to Kottaby', 'Your account is ready. Explore your dashboard to get started.', false, $2
        WHERE NOT EXISTS (SELECT 1 FROM notifications WHERE user_id = $1)`,
-      [studentId, now]
+      [ids.studentId, now]
     );
     await pg.query(
       `INSERT INTO notifications (user_id, type, title, body, is_read, created_at)
        SELECT $1, 'system_broadcast', 'New plan published', 'The Silver plan is now available for subscription.', true, $2
        WHERE NOT EXISTS (SELECT 1 FROM notifications WHERE user_id = $1)`,
-      [adminId, now]
+      [ids.adminId, now]
     );
     console.log("[ui-audit-seed] notifications ensured");
   } catch (e) {
     console.warn(`[ui-audit-seed] notifications skipped: ${String(e).slice(0, 120)}`);
   }
+}
+
+async function main(): Promise<void> {
+  const pg = new PGlite(DB_URL);
+  await pg.query("SELECT 1 AS ok");
+  console.log("[ui-audit-seed] connected");
+
+  const ids = await seedDemoUsers(pg);
+  await ensureRoleDetailRows(pg, ids);
+  await seedBillingPlans(pg);
+  await ensureTeacherWallet(pg, ids.teacherId);
+  await ensureNotifications(pg, ids);
 
   const summary = await pg.query<{ email: string; role: string }>(
     "SELECT email, role::text AS role FROM users ORDER BY id"

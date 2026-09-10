@@ -603,10 +603,29 @@ describe("Journey — Account-Governance Cross-Actor Lifecycle (Workflow 05 §5)
     const session = await AuthService.login(cast.studentS.email, cast.studentS.credential, LOCALE);
     expect(session.user.id).toBe(cast.studentS.userId);
 
-    // 8c. Columns BYTE-IDENTICAL before/after login — REQ-019 zero-write
-    //     proof. Login MUST NOT mutate S's governance columns.
+    // 8c. Governance columns BYTE-IDENTICAL before/after login — REQ-019
+    //     zero-write proof. Login MUST NOT mutate S's governance columns.
+    //
+    //     The oracle is scoped to the governance set on purpose: login's
+    //     documented fire-and-forget `touchLastActiveAt` (dashboard
+    //     last-seen) legitimately bumps `last_active_at` and, through the
+    //     `users.updated_at` `$onUpdate` hook, `updated_at`. Those are NOT
+    //     governance columns. The whole-row compare used to pass only by
+    //     accident (the second-truncation bug in the PGlite timestamp path
+    //     collapsed both reads into the same wall-clock second).
+    const GOVERNANCE_COLUMNS = [
+      "suspended",
+      "suspendedAt",
+      "suspendedPeriodDays",
+      "isBlocked",
+      "blockedAt",
+      "isDeleted",
+      "deletedAt",
+    ] as const;
     const userRowAfterLogin = await readUserRow(cast.studentS.userId);
-    expect(userRowAfterLogin).toEqual(userRowBeforeLogin);
+    expect(Object.fromEntries(GOVERNANCE_COLUMNS.map(c => [c, userRowAfterLogin?.[c]]))).toEqual(
+      Object.fromEntries(GOVERNANCE_COLUMNS.map(c => [c, userRowBeforeLogin?.[c]]))
+    );
 
     // 8d. B's detail read still shows the suspended window fields
     //     until A's audited release (window fields persist until
@@ -731,7 +750,9 @@ describe("Journey — Account-Governance Cross-Actor Lifecycle (Workflow 05 §5)
       )
     );
     expect(err9e).toBeInstanceOf(ForbiddenError);
-    expect(err9e.message).toContain(tAuth.accountBlocked);
+    // Strict admin-guard surface (not the login flow): the guard throws the
+    // errors-locale copy — see admin-guards.helpers.ts assertActiveActorAdmin.
+    expect(err9e.message).toContain(tErrors.accountBlocked);
     const userSRowAfter9e = await readUserRow(cast.studentS.userId);
     expect(userSRowAfter9e).toEqual(userSRowBefore9e); // zero writes
     const auditAfter9e = await countAllAuditRows();

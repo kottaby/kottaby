@@ -13,14 +13,14 @@
  * only below the `md` breakpoint; the table owns `md` and up.
  */
 
-import { Box, Button, Card, Stack, Typography } from "@mui/material";
+import { Box, Card, Stack, Typography } from "@mui/material";
 import type { ReactNode } from "react";
-import { focusVisibleRingSx } from "@/frontend/components/ui/focusRing";
 import type {
   AdminAuditLogsQuery_adminAuditLogs_items,
   AuditActionType,
 } from "@/frontend/graphql/generated/gql/graphql";
 import { formatApplicantDate } from "@/frontend/lib/i18n/format-date";
+import { AuditDetailsDisclosure } from "@/frontend/views/admin/audit/AuditDetailsDisclosure";
 import type { AdminUsersLabels } from "@/shared/locale/types/adminUsers";
 
 type AuditTableLabels = AdminUsersLabels["auditTrail"]["table"];
@@ -72,7 +72,6 @@ function AuditTrailCard({
   isExpanded: boolean;
   onToggleDetails: (entryId: string) => void;
 }>): ReactNode {
-  const hasDetails = entry.details !== null;
   return (
     <Card
       sx={theme => ({
@@ -109,34 +108,19 @@ function AuditTrailCard({
         <CardFact
           label={tableLabels.entityIdHeader}
           muted={entry.entityId === null}
-          value={entry.entityId === null ? tableLabels.noEntityIdValue : entry.entityId}
+          value={entry.entityId ?? tableLabels.noEntityIdValue}
         />
-        {hasDetails ? (
+        {entry.details !== null ? (
           <Stack spacing={1}>
-            <Button
-              size="small"
-              variant="text"
-              aria-expanded={isExpanded}
-              onClick={() => onToggleDetails(entry.id)}
-              sx={{ ...focusVisibleRingSx, minHeight: 44, alignSelf: "flex-start" }}
-            >
-              {isExpanded ? tableLabels.detailsHideLabel : tableLabels.detailsShowLabel}
-            </Button>
-            {isExpanded ? (
-              <Box
-                component="pre"
-                dir="auto"
-                sx={theme => ({
-                  margin: 0,
-                  whiteSpace: "pre-wrap",
-                  wordBreak: "break-word",
-                  fontSize: 12,
-                  color: theme.palette.text.secondary,
-                })}
-              >
-                {entry.details}
-              </Box>
-            ) : null}
+            <AuditDetailsDisclosure
+              entryId={entry.id}
+              details={entry.details}
+              isExpanded={isExpanded}
+              onToggleDetails={onToggleDetails}
+              hideLabel={tableLabels.detailsHideLabel}
+              showLabel={tableLabels.detailsShowLabel}
+              alignFlexStart
+            />
           </Stack>
         ) : (
           <CardFact label={tableLabels.detailsHeader} value={tableLabels.noDetailsValue} muted />

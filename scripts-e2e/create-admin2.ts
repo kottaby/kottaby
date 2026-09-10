@@ -21,7 +21,7 @@ async function main() {
     );
     console.log("CREATED admin2:", admin.email, "id:", (admin as { id?: number }).id);
   } catch (err) {
-    const msg = String((err as Error)?.message ?? err);
+    const msg = err instanceof Error ? err.message : String(err);
     if (msg.includes("already exists") || msg.includes("23505")) {
       console.log("admin2 already exists — continuing");
     } else {
