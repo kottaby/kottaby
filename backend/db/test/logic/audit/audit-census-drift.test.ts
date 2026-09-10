@@ -72,7 +72,7 @@ const DEFERRED_LEDGER_PATH = join(
 );
 
 /** Minimum number of admin-gated mutation fields the corpus must yield (anti-blind-spot floor). */
-const MIN_ADMIN_MUTATION_FIELDS = 11;
+const MIN_ADMIN_MUTATION_FIELDS = 15;
 
 /** Minimum number of source files the mutation corpus must contain (anti-blind-spot floor). */
 const MIN_MUTATION_CORPUS_FILES = 10;

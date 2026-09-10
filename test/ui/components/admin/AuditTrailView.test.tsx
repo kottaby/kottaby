@@ -512,7 +512,9 @@ describe("AuditTrailView (en / LTR)", () => {
     fireEvent.click(screen.getAllByRole("button", { name: t.auditTrail.table.detailsHideLabel })[0]);
 
     expect(screen.queryByText(DETAILS_JSON)).toBeNull();
-    expect(screen.getAllByRole("button", { name: t.auditTrail.table.detailsShowLabel }).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByRole("button", { name: t.auditTrail.table.detailsShowLabel }).length).toBeGreaterThanOrEqual(
+      1
+    );
   });
 
   test("action-type combobox opens onto the all-actions option and the seven localized actions", async () => {

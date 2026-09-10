@@ -142,6 +142,36 @@ export const ADMIN_ACTION_CENSUS: readonly AdminActionCensusEntry[] = [
     kind: "wired",
   },
 
+  // ── Admin session governance (SessionAdminGovernanceService) ───────────────
+  {
+    mutationField: "adminRescheduleSession",
+    serviceEntry: "SessionAdminGovernanceService.reschedule",
+    expectedActionTypes: [AuditActionType.Override],
+    expectedEntityType: "session",
+    kind: "wired",
+  },
+  {
+    mutationField: "adminCancelSession",
+    serviceEntry: "SessionAdminGovernanceService.cancel",
+    expectedActionTypes: [AuditActionType.Override],
+    expectedEntityType: "session",
+    kind: "wired",
+  },
+  {
+    mutationField: "adminReassignTeacher",
+    serviceEntry: "SessionAdminGovernanceService.reassignTeacher",
+    expectedActionTypes: [AuditActionType.Override],
+    expectedEntityType: "session",
+    kind: "wired",
+  },
+  {
+    mutationField: "adminJoinSession",
+    serviceEntry: "SessionAdminGovernanceService.join",
+    expectedActionTypes: [AuditActionType.Override],
+    expectedEntityType: "session",
+    kind: "wired",
+  },
+
   // ── Deferred producers (ledger-backed future surfaces) ─────────────────────
   {
     mutationField: "(future) adminExtendSubscription / adminCancelSubscription",
@@ -166,14 +196,6 @@ export const ADMIN_ACTION_CENSUS: readonly AdminActionCensusEntry[] = [
     expectedEntityType: "user",
     kind: "deferred",
     deferredRef: "D-003",
-  },
-  {
-    mutationField: "(future) adminRescheduleSession / adminReassignSession",
-    serviceEntry: "session governance extensions — unshipped",
-    expectedActionTypes: [AuditActionType.Update, AuditActionType.Override],
-    expectedEntityType: "session",
-    kind: "deferred",
-    deferredRef: "D-004",
   },
 ];
 

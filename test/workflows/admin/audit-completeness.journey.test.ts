@@ -57,12 +57,17 @@ import { SessionStatus } from "@/backend/enum/scheduling/session-status.enum";
 import { ConflictError, DomainError, ForbiddenError, UnauthorizedError, ValidationError } from "@/backend/lib/errors";
 import { AdminUserManagementService, AuditTrailService, ColdStartCertificationService } from "@/backend/services/admin";
 import { PlanCatalogService } from "@/backend/services/billing/plan-catalog.service";
+import { SessionAdminGovernanceService } from "@/backend/services/classes/session-admin-governance";
 import { SessionLifecycleService } from "@/backend/services/classes/session-lifecycle.service";
 import { AdminBroadcastService } from "@/backend/services/notifications/admin-broadcast.service";
 import type {
   AdminAuditLogEntryReturnType,
   AdminAuditTrailFiltersSubmitInput,
   AdminCreateUserSubmitInput,
+  AdminSessionCancelInput,
+  AdminSessionJoinInput,
+  AdminSessionReassignInput,
+  AdminSessionRescheduleInput,
   AdminUpdateUserPatchInput,
   BroadcastNotificationSubmitInput,
   PlanSubmitInput,
@@ -124,7 +129,29 @@ const TARGET_CREDENTIAL = "completenessJourney123";
 /** The suspension window exercised by the suspend/reactivate census row. */
 const SUSPENSION_PERIOD_DAYS = 1;
 
+/** The admin-supplied cancel reason exercised by the governance cancel census row. */
+const ADMIN_CANCEL_REASON = `${runPrefix} admin schedule conflict`;
+
+/**
+ * The reschedule fixture's ORIGINAL timing pair (whole-second UTC instants —
+ * the audit `from` comparison is exact, so the stored-vs-read-back
+ * millisecond round trip must be lossless, which whole-second values
+ * guarantee on both providers).
+ */
+const RESCHEDULE_FROM_START = new Date("2030-01-10T10:00:00.000Z");
+const RESCHEDULE_FROM_END = new Date("2030-01-10T11:00:00.000Z");
+
+/** The join fixture's started stamp (any past instant — the status is the gate). */
+const JOIN_STARTED_AT = new Date("2030-01-05T09:00:00.000Z");
+const JOIN_ENDED_AT = new Date("2030-01-05T10:00:00.000Z");
+
 /** Census mutation fields grouped into executable legs (a partition of the wired rows). */
+const SESSION_GOVERNANCE_LEG = [
+  "adminRescheduleSession",
+  "adminCancelSession",
+  "adminReassignTeacher",
+  "adminJoinSession",
+] as const;
 const USER_LIFECYCLE_LEG = [
   "adminCreateUser",
   "adminUpdateUser",
@@ -252,12 +279,17 @@ let adminB: JourneyActor; // observer — reads the trail through the global sur
 let studentActor: JourneyActor; // denial cast
 let parentActor: JourneyActor; // denial cast + adjust-fixture anchor
 let teacherActor: JourneyActor; // denial cast + dispute-session counterpart
+let secondTeacherActor: JourneyActor; // certified reassignment candidate
 
 /** Service-minted / fixture entity anchors, bound during the legs. */
 let targetStudentId = 0;
 let teacherTargetId = 0;
 let planId = 0;
 let disputeSessionId = 0;
+let rescheduleSessionId = 0;
+let cancelSessionId = 0;
+let reassignSessionId = 0;
+let joinSessionId = 0;
 
 /** Row-count oracles — captured after the cast commit, restored by teardown. */
 let auditBaseline = 0;
@@ -489,6 +521,67 @@ const censusRunners: Record<string, CensusRunner> = {
       notePresent: true,
     });
   },
+
+  adminRescheduleSession: async (entry, executed) => {
+    // Ordered future replacement pair — the boundary schema's ordering
+    // refine and the service's past-grace window both accept it.
+    const toStart = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    const toEnd = new Date(toStart.getTime() + 60 * 60 * 1000);
+    const input: AdminSessionRescheduleInput = {
+      sessionId: rescheduleSessionId,
+      startedAt: toStart,
+      endedAt: toEnd,
+    };
+    const rescheduled = await SessionAdminGovernanceService.reschedule(adminA.userId, input, LOCALE);
+    expect(rescheduled.startedAt).toEqual(toStart);
+    expect(rescheduled.endedAt).toEqual(toEnd);
+    record(executed, entry, AuditActionType.Override, rescheduleSessionId, {
+      action: "reschedule",
+      from: { startedAt: RESCHEDULE_FROM_START.toISOString(), endedAt: RESCHEDULE_FROM_END.toISOString() },
+      to: { startedAt: toStart.toISOString(), endedAt: toEnd.toISOString() },
+    });
+  },
+
+  adminCancelSession: async (entry, executed) => {
+    // Unkeyed cancel (null key — the claim mechanism is disabled, a
+    // legitimate fire-and-forget admin operation). No fee is held, so the
+    // refund slice is honestly a no-op.
+    const input: AdminSessionCancelInput = { sessionId: cancelSessionId, reason: ADMIN_CANCEL_REASON };
+    const cancelled = await SessionAdminGovernanceService.cancel(adminA.userId, input, LOCALE, null);
+    expect(cancelled.status).toBe(SessionStatus.Cancelled);
+    record(executed, entry, AuditActionType.Override, cancelSessionId, {
+      action: "cancel",
+      reason: ADMIN_CANCEL_REASON,
+    });
+  },
+
+  adminReassignTeacher: async (entry, executed) => {
+    // The candidate (second certified teacher) differs from the fixture's
+    // outgoing teacher — the guarded UPDATE's different-teacher eligibility
+    // holds, and the audit row records BOTH ids.
+    const input: AdminSessionReassignInput = {
+      sessionId: reassignSessionId,
+      newTeacherUserId: secondTeacherActor.userId,
+    };
+    const reassigned = await SessionAdminGovernanceService.reassignTeacher(adminA.userId, input, LOCALE);
+    expect(reassigned.teacherId).toBe(secondTeacherActor.userId);
+    record(executed, entry, AuditActionType.Override, reassignSessionId, {
+      action: "reassign",
+      from: { teacherId: teacherActor.userId },
+      to: { teacherId: secondTeacherActor.userId },
+    });
+  },
+
+  adminJoinSession: async (entry, executed) => {
+    // Audit-only observation: the session columns are never touched, and
+    // the details payload is the service's FIXED literal.
+    const input: AdminSessionJoinInput = { sessionId: joinSessionId };
+    const joined = await SessionAdminGovernanceService.join(adminA.userId, input, LOCALE);
+    expect(joined.status).toBe(SessionStatus.Started);
+    record(executed, entry, AuditActionType.Override, joinSessionId, {
+      action: "join_observe",
+    });
+  },
 };
 
 /**
@@ -547,6 +640,7 @@ describe("Audit-trail completeness journey — execute every admin action, prove
       studentActor = await provisionStudentActor(tx, { tracked });
       parentActor = await provisionParentActor(tx, { tracked });
       teacherActor = await provisionCertifiedTeacherActor(tx, { tracked });
+      secondTeacherActor = await provisionCertifiedTeacherActor(tx, { tracked });
 
       // The broadcast cohort is fixture state, not permissions: an explicit
       // field-mapped update (never a spread) pins the run-unique sentinel.
@@ -573,6 +667,62 @@ describe("Audit-trail completeness journey — execute every admin action, prove
       }
       disputeSessionId = disputedRow.id;
       tracked.register(session, disputeSessionId);
+
+      // The governance-leg fixtures: four directly inserted real `session`
+      // rows, one per census action, each in the state its guarded mutation
+      // requires (same sanctioned fixture-level pattern as the dispute row;
+      // the participant booking flow is not under test here). No fee is held
+      // anywhere, so the cancel's refund slice is honestly a no-op.
+      const governanceRows = await tx
+        .insert(session)
+        .values([
+          {
+            // reschedule: a scheduled row whose stored pair the audit `from`
+            // reports (whole-second instants — lossless round trip).
+            teacherId: teacherActor.userId,
+            studentId: studentActor.userId,
+            intent: SessionIntent.Hifz,
+            status: SessionStatus.Scheduled,
+            startedAt: RESCHEDULE_FROM_START,
+            endedAt: RESCHEDULE_FROM_END,
+            feeHeld: false,
+          },
+          {
+            // cancel: a pre-terminal scheduled row.
+            teacherId: teacherActor.userId,
+            studentId: studentActor.userId,
+            intent: SessionIntent.Hifz,
+            status: SessionStatus.Scheduled,
+            feeHeld: false,
+          },
+          {
+            // reassign: a scheduled row whose outgoing teacher differs from
+            // the certified candidate.
+            teacherId: teacherActor.userId,
+            studentId: studentActor.userId,
+            intent: SessionIntent.Hifz,
+            status: SessionStatus.Scheduled,
+            feeHeld: false,
+          },
+          {
+            // join: a live started row (the observation is audit-only).
+            teacherId: teacherActor.userId,
+            studentId: studentActor.userId,
+            intent: SessionIntent.Hifz,
+            status: SessionStatus.Started,
+            startedAt: JOIN_STARTED_AT,
+            endedAt: JOIN_ENDED_AT,
+            feeHeld: false,
+          },
+        ])
+        .returning({ id: session.id });
+      if (governanceRows.length !== 4) {
+        throw new Error("journey setup: governance session fixtures insert returned unexpected row count");
+      }
+      [rescheduleSessionId, cancelSessionId, reassignSessionId, joinSessionId] = governanceRows.map(row => row.id);
+      for (const id of [rescheduleSessionId, cancelSessionId, reassignSessionId, joinSessionId]) {
+        tracked.register(session, id);
+      }
     });
 
     // Row-count oracles: whole-table baselines the legs assert deltas against.
@@ -588,6 +738,7 @@ describe("Audit-trail completeness journey — execute every admin action, prove
       studentActor?.userId,
       parentActor?.userId,
       teacherActor?.userId,
+      secondTeacherActor?.userId,
       targetStudentId,
       teacherTargetId,
     ].filter((id): id is number => typeof id === "number" && Number.isSafeInteger(id) && id > 0);
@@ -627,9 +778,10 @@ describe("Audit-trail completeness journey — execute every admin action, prove
     expect(await countAllNotificationRows()).toBe(notificationBaseline);
   });
 
-  test("system: cast and disputed-session fixture committed with clean audit and notification footprints", async () => {
-    // 5 actors × (users row + role-child row) + the disputed session.
-    expect(tracked.size).toBe(11);
+  test("system: cast and fixture sessions committed with clean audit and notification footprints", async () => {
+    // 6 actors × (users row + role-child row) + the five fixture sessions
+    // (dispute + reschedule + cancel + reassign + join).
+    expect(tracked.size).toBe(17);
 
     // The dispatch map covers every wired census row — a census row without
     // a runner would silently skip execution and fake completeness.
@@ -639,6 +791,7 @@ describe("Audit-trail completeness journey — execute every admin action, prove
       ...CERTIFICATION_BROADCAST_LEG,
       ...PLAN_CATALOG_LEG,
       ...DISPUTE_LEG,
+      ...SESSION_GOVERNANCE_LEG,
     ];
     expect(legFields).toHaveLength(wiredFields.length);
     expect(legFields.toSorted((a, b) => a.localeCompare(b))).toEqual(
@@ -730,6 +883,41 @@ describe("Audit-trail completeness journey — execute every admin action, prove
     expect(sessionRows[0]?.status).toBe(SessionStatus.Cancelled);
     expect(sessionRows[0]?.resolvedAt).not.toBeNull();
     expect(sessionRows[0]?.resolutionNote).toBe(ARBITRATION_NOTE);
+  });
+
+  test("producer executes the session-governance census rows through the real service path", async () => {
+    const auditBefore = await countAllAuditRows();
+    const legActions = await executeCensusRows(SESSION_GOVERNANCE_LEG);
+    executedActions.push(...legActions);
+
+    // Every governance mutation mints exactly one Override row on its
+    // session anchor.
+    expect(legActions).toHaveLength(4);
+    expect(legActions.map(action => action.actionType)).toEqual([
+      AuditActionType.Override,
+      AuditActionType.Override,
+      AuditActionType.Override,
+      AuditActionType.Override,
+    ]);
+    expect(await countAllAuditRows()).toBe(auditBefore + legActions.length);
+    expect(await countAllAuditRows()).toBe(auditBaseline + executedActions.length);
+
+    // Each guarded write committed its own side effect with the trail row.
+    const rescheduledRows = await db.select().from(session).where(eq(session.id, rescheduleSessionId)).limit(1);
+    expect(rescheduledRows[0]?.startedAt).not.toEqual(RESCHEDULE_FROM_START);
+
+    const cancelledRows = await db.select().from(session).where(eq(session.id, cancelSessionId)).limit(1);
+    expect(cancelledRows[0]?.status).toBe(SessionStatus.Cancelled);
+    expect(cancelledRows[0]?.feeHeld).toBe(false);
+
+    const reassignedRows = await db.select().from(session).where(eq(session.id, reassignSessionId)).limit(1);
+    expect(reassignedRows[0]?.teacherId).toBe(secondTeacherActor.userId);
+    expect(reassignedRows[0]?.status).toBe(SessionStatus.Scheduled);
+
+    // The join observation is audit-only — the session columns are untouched.
+    const joinedRows = await db.select().from(session).where(eq(session.id, joinSessionId)).limit(1);
+    expect(joinedRows[0]?.status).toBe(SessionStatus.Started);
+    expect(joinedRows[0]?.startedAt).toEqual(JOIN_STARTED_AT);
   });
 
   test("system fixture lane mints the adjustment row whose shipped producer is deferred", async () => {
@@ -1091,6 +1279,36 @@ describe("Audit-trail completeness journey — execute every admin action, prove
             LOCALE
           ),
       },
+      {
+        field: "adminRescheduleSession",
+        call: actorId =>
+          SessionAdminGovernanceService.reschedule(
+            actorId,
+            {
+              sessionId: rescheduleSessionId,
+              startedAt: new Date("2031-01-10T10:00:00.000Z"),
+              endedAt: new Date("2031-01-10T11:00:00.000Z"),
+            },
+            LOCALE
+          ),
+      },
+      {
+        field: "adminCancelSession",
+        call: actorId => SessionAdminGovernanceService.cancel(actorId, { sessionId: cancelSessionId }, LOCALE, null),
+      },
+      {
+        field: "adminReassignTeacher",
+        call: actorId =>
+          SessionAdminGovernanceService.reassignTeacher(
+            actorId,
+            { sessionId: reassignSessionId, newTeacherUserId: secondTeacherActor.userId },
+            LOCALE
+          ),
+      },
+      {
+        field: "adminJoinSession",
+        call: actorId => SessionAdminGovernanceService.join(actorId, { sessionId: joinSessionId }, LOCALE),
+      },
     ];
 
     // The denial matrix names exactly the wired census rows — a shipped admin
@@ -1133,9 +1351,13 @@ describe("Audit-trail completeness journey — execute every admin action, prove
     );
     for (const [attemptIndex, error] of anonymousErrors.entries()) {
       const attemptField = attempts[attemptIndex]?.field;
-      const arbitrationAttempt = DISPUTE_LEG.some(leg => leg === attemptField);
-      expect(error).toBeInstanceOf(arbitrationAttempt ? ForbiddenError : UnauthorizedError);
-      expect(error.message).toContain(arbitrationAttempt ? tErrors.forbidden : tErrors.unauthorized);
+      // Surfaces gated by `assertAdminGovernanceClean` (the arbitration AND
+      // the session-governance suite) classify a missing actor as a
+      // permission failure; `assertActorAdmin` surfaces deny with the
+      // unauthenticated class instead.
+      const governanceGatedAttempt = [...DISPUTE_LEG, ...SESSION_GOVERNANCE_LEG].some(leg => leg === attemptField);
+      expect(error).toBeInstanceOf(governanceGatedAttempt ? ForbiddenError : UnauthorizedError);
+      expect(error.message).toContain(governanceGatedAttempt ? tErrors.forbidden : tErrors.unauthorized);
     }
     expect(await countAuditRowsForActor(ANONYMOUS_ACTOR_ID)).toBe(0);
 
