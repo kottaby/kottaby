@@ -21,9 +21,9 @@
  *    caller decides what `null` means.
  */
 
-import { count, desc, eq, gte, lt, type SQL, sql } from "drizzle-orm";
+import { and, count, desc, eq, gte, lt, or, type SQL, sql } from "drizzle-orm";
 import { PgDialect } from "drizzle-orm/pg-core";
-import { queryDb } from "@/backend/db";
+import { db, queryDb } from "@/backend/db";
 import { session } from "@/backend/db/schema/classes/session";
 import { SessionStatus } from "@/backend/enum/scheduling/session-status.enum";
 import type {
@@ -48,14 +48,11 @@ type SessionOwnerColumn = typeof session.studentId;
 /** Column alias list for standalone reads — mirrors `$inferSelect` typing 1:1. */
 const SESSION_SELECT_COLUMNS = `
   id, teacher_id AS "teacherId", student_id AS "studentId", status,
-  session_type AS "sessionType", intent, fee, fee_held AS "feeHeld",
-  held_balance_lane AS "heldBalanceLane", started_at AS "startedAt",
-  ended_at AS "endedAt", confirmed_by_student_at AS "confirmedByStudentAt",
-  confirmed_by_teacher_at AS "confirmedByTeacherAt",
-  confirmation_deadline AS "confirmationDeadline",
-  cancel_reason AS "cancelReason", dispute_reason AS "disputeReason",
-  disputed_at AS "disputedAt", resolution_note AS "resolutionNote",
-  resolved_at AS "resolvedAt",
+  session_type AS "sessionType", intent, fee, fee_held AS "feeHeld", held_balance_lane AS "heldBalanceLane",
+  started_at AS "startedAt", ended_at AS "endedAt", confirmed_by_student_at AS "confirmedByStudentAt",
+  confirmed_by_teacher_at AS "confirmedByTeacherAt", confirmation_deadline AS "confirmationDeadline",
+  cancel_reason AS "cancelReason", dispute_reason AS "disputeReason", disputed_at AS "disputedAt",
+  resolution_note AS "resolutionNote", resolved_at AS "resolvedAt",
   created_at AS "createdAt", updated_at AS "updatedAt"`;
 
 /** Stateless renderer used to translate the shared predicate into standalone-read SQL. */
@@ -114,8 +111,7 @@ async function listParticipantSessions(
     `SELECT ${SESSION_SELECT_COLUMNS}
      FROM session
      WHERE ${rendered.sql}
-     ORDER BY created_at DESC, id DESC
-     LIMIT $${rendered.params.length + 1} OFFSET $${rendered.params.length + 2}`,
+     ORDER BY created_at DESC, id DESC LIMIT $${rendered.params.length + 1} OFFSET $${rendered.params.length + 2}`,
     [...rendered.params, limit, offset]
   );
   return result.rows;
@@ -286,8 +282,7 @@ async function listAdminDirectory(
     `SELECT ${SESSION_SELECT_COLUMNS}
      FROM session
      WHERE ${rendered.sql}
-     ORDER BY created_at DESC, id DESC
-     LIMIT $${rendered.params.length + 1} OFFSET $${rendered.params.length + 2}`,
+     ORDER BY created_at DESC, id DESC LIMIT $${rendered.params.length + 1} OFFSET $${rendered.params.length + 2}`,
     [...rendered.params, limit, offset]
   );
   return result.rows;
@@ -358,8 +353,7 @@ async function findById(id: number, tx?: DBTransaction): Promise<SessionSelectTy
     return rows[0] ?? null;
   }
   const result = await queryDb<SessionSelectType>(
-    `SELECT ${SESSION_SELECT_COLUMNS}
-       FROM session WHERE id = $1 LIMIT 1`,
+    `SELECT ${SESSION_SELECT_COLUMNS} FROM session WHERE id = $1 LIMIT 1`,
     [id]
   );
   return result.rows[0] ?? null;
@@ -385,9 +379,7 @@ async function findTransitionProbe(id: number, tx?: DBTransaction): Promise<Sess
     return rows[0] ?? null;
   }
   const result = await queryDb<SessionTransitionProbeRowType>(
-    `SELECT id, status, student_id AS "studentId", teacher_id AS "teacherId",
-            started_at AS "startedAt"
-     FROM session WHERE id = $1 LIMIT 1`,
+    `SELECT id, status, student_id AS "studentId", teacher_id AS "teacherId", started_at AS "startedAt" FROM session WHERE id = $1 LIMIT 1`,
     [id]
   );
   return result.rows[0] ?? null;
@@ -416,8 +408,7 @@ async function listAdminDisputed(limit: number, offset: number, tx?: DBTransacti
     `SELECT ${SESSION_SELECT_COLUMNS}
      FROM session
      WHERE ${rendered.sql}
-     ORDER BY created_at DESC, id DESC
-     LIMIT $${rendered.params.length + 1} OFFSET $${rendered.params.length + 2}`,
+     ORDER BY created_at DESC, id DESC LIMIT $${rendered.params.length + 1} OFFSET $${rendered.params.length + 2}`,
     [...rendered.params, limit, offset]
   );
   return result.rows;
@@ -436,11 +427,53 @@ async function countAdminDisputed(tx?: DBTransaction): Promise<number> {
   return Number(result.rows[0]?.value ?? 0);
 }
 
+/**
+ * ONE module-scope predicate builder shared by the admin reschedule and
+ * cancel guards: row identity plus the row still being in one of the two
+ * states whose timing and hold surface the governance mutations may reshape
+ * (pre-start or in-progress).
+ */
+function buildAdminLiveStatePredicate(id: number): SQL | undefined {
+  return and(
+    eq(session.id, id),
+    or(eq(session.status, SessionStatus.Scheduled), eq(session.status, SessionStatus.Started))
+  );
+}
+
+async function guardReschedule(
+  sessionId: number,
+  startedAt: Date,
+  endedAt: Date,
+  tx?: DBTransaction
+): Promise<SessionSelectType | null> {
+  const now = new Date();
+  const executor = tx ?? db;
+  const rows = await executor
+    .update(session)
+    .set({ startedAt, endedAt, updatedAt: now })
+    .where(buildAdminLiveStatePredicate(sessionId))
+    .returning();
+  return rows[0] ?? null;
+}
+
+async function guardCancelPreTerminal(sessionId: number, tx?: DBTransaction): Promise<SessionSelectType | null> {
+  const now = new Date();
+  const executor = tx ?? db;
+  const rows = await executor
+    .update(session)
+    .set({ status: SessionStatus.Cancelled, feeHeld: false, updatedAt: now })
+    .where(buildAdminLiveStatePredicate(sessionId))
+    .returning();
+  return rows[0] ?? null;
+}
+
 export {
   countAdminDisputed,
   countParticipantSessions,
   findById,
   findTransitionProbe,
+  guardCancelPreTerminal,
+  guardReschedule,
   listAdminDirectoryPage,
   listAdminDisputed,
   listParticipantSessions,

@@ -308,6 +308,11 @@ const MUTATION_SURFACE_INVENTORY_QUERY_DOCUMENT: DocumentNode = gql`
  * They still belong on this drift-guard list: the contract stays "every
  * deployed Mutation root field is enumerated".
  *
+ * Refreshed when DEV3-006 (session report & homework infrastructure) landed
+ * `submitSessionReport` — it resolves to the canonical `SessionReport` payload
+ * (denials ride `errors[]`, never a partial-success wrapper), so it is
+ * warning-incapable like the DEV1-014 trio.
+ *
  * `purchaseSubscription` also resolves to the canonical
  * `PurchaseSubscriptionPayload` (pending subscription + payment pair plus
  * the gateway checkout descriptor; every denial rides `errors[]`), never a
@@ -345,6 +350,7 @@ const KNOWN_LIVE_MUTATION_FIELDS = [
   "respondToParentLinkRequest",
   "setPlanActiveStatus",
   "startSession",
+  "submitSessionReport",
   "updateMyLocale",
   "updatePlan",
 ];

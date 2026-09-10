@@ -502,12 +502,16 @@ describeBranchIsolation("PlatformAnalyticsRepository — Tier 1: every method ×
       const teacherRow = await createTestTeacherRow(tx, teacherUser.id);
       const student = await seedStudent(tx);
       const sessionRow = await createTestSession(tx, teacherRow.id, student.id);
+      // One report per session (`reports_session_id_unique` arbiter, DEV3-006):
+      // the unrated probe row lives on its own session — it still never joins
+      // the average or the count.
+      const unratedSessionRow = await createTestSession(tx, teacherRow.id, student.id);
 
       const before = await probeBothBranches(tx, executor => PlatformAnalyticsRepository.getRatingStats(executor));
 
       await createTestSessionReport(tx, sessionRow.id, { studentRatingByTeacher: 4 });
       // An unrated report exists as a row but never joins the average or the count.
-      await createTestSessionReport(tx, sessionRow.id, { studentRatingByTeacher: null });
+      await createTestSessionReport(tx, unratedSessionRow.id, { studentRatingByTeacher: null });
       await createTestEvaluation(tx, student.id, teacherUser.id, sessionRow.id, { score: 85 });
       await createTestEvaluation(tx, student.id, teacherUser.id, sessionRow.id, {
         score: 90,

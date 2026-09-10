@@ -1,3 +1,4 @@
+import { isolateBidiRun as iso, LRM } from "@/shared/locale/bidi";
 import type { NotificationsLabels } from "@/shared/locale/types/notifications";
 
 export const notificationsEn: NotificationsLabels = {
@@ -43,35 +44,41 @@ export const notificationsEn: NotificationsLabels = {
   eventSessionQueuedTitle: "Session request queued",
   eventSessionAlternativesOfferedTitle: "Alternative teachers offered",
   eventSessionRequestBody: (studentName: string, intentLabel: string) =>
-    `${studentName} requested a session with you (${intentLabel}).`,
-  eventSessionAcceptedBody: (teacherName: string) => `${teacherName} accepted your session request.`,
-  eventSessionDeclinedBody: (teacherName: string) => `${teacherName} declined your session request.`,
+    `${LRM}${iso(studentName)} requested a session with you (${intentLabel}).`,
+  eventSessionAcceptedBody: (teacherName: string) => `${LRM}${iso(teacherName)} accepted your session request.`,
+  eventSessionDeclinedBody: (teacherName: string) => `${LRM}${iso(teacherName)} declined your session request.`,
   eventSessionAutoRejectedBody: (teacherName: string) =>
-    `Your session request to ${teacherName} was automatically declined.`,
-  eventSessionQueuedBody: (teacherName: string) => `Your session request to ${teacherName} was added to the queue.`,
+    `Your session request to ${iso(teacherName)} was automatically declined.`,
+  eventSessionQueuedBody: (teacherName: string) =>
+    `Your session request to ${iso(teacherName)} was added to the queue.`,
   eventSessionAlternativesOfferedBody: (teacherName: string) =>
-    `${teacherName} can't take your request, so we offered you alternative teachers.`,
+    `${LRM}${iso(teacherName)} can't take your request, so we offered you alternative teachers.`,
   eventSessionCompletionPromptTitle: "Confirm your completed session",
   eventSessionAutoCancelledTitle: "Session auto-cancelled",
   eventSessionCompletionPromptBody: (teacherName: string) =>
-    `${teacherName} marked your session as complete — please confirm it so the session can be settled.`,
+    `${LRM}${iso(teacherName)} marked your session as complete — please confirm it so the session can be settled.`,
   eventSessionAutoCancelledBody: (teacherName: string) =>
-    `Your session with ${teacherName} was auto-cancelled because it wasn't confirmed within 24 hours.`,
+    `Your session with ${iso(teacherName)} was auto-cancelled because it wasn't confirmed within 24 hours.`,
   intentHifz: "Hifz",
   intentTajweed: "Tajweed",
   intentEvaluation: "Evaluation",
   eventParentLinkRequestTitle: "New link request",
-  eventParentLinkRequestBody: (parentName: string) => `${parentName} sent you a link request.`,
+  eventParentLinkRequestBody: (parentName: string) => `${LRM}${iso(parentName)} sent you a link request.`,
   eventParentLinkAcceptedTitle: "Link request confirmed",
-  eventParentLinkAcceptedBody: (studentName: string) => `${studentName} confirmed your link request.`,
+  eventParentLinkAcceptedBody: (studentName: string) => `${LRM}${iso(studentName)} confirmed your link request.`,
   eventParentLinkRejectedTitle: "Link request rejected",
-  eventParentLinkRejectedBody: (studentName: string) => `${studentName} declined your link request.`,
+  eventParentLinkRejectedBody: (studentName: string) => `${LRM}${iso(studentName)} declined your link request.`,
   eventParentLinkExpiringTitle: "Reminder: your link request is expiring soon",
   eventParentLinkExpiringBody: (studentName: string) =>
-    `Your link request for ${studentName} is about to expire — the student can still confirm or decline before it lapses.`,
+    `Your link request for ${iso(studentName)} is about to expire — the student can still confirm or decline before it lapses.`,
   eventPaymentConfirmedTitle: "Payment confirmed",
   eventPaymentConfirmedBody: (planTitle: string) =>
     `Your payment for ${planTitle} was received — the subscription is now active and your sessions are available.`,
+  eventSessionReportReadyTitle: "Session report ready",
+  eventSessionReportReadyBody: (teacherName: string) =>
+    `${LRM}${iso(teacherName)} submitted a report for your session.`,
+  eventSessionReportReadyParentBody: (studentName: string, teacherName: string) =>
+    `${LRM}${iso(teacherName)} submitted a session report for ${iso(studentName)}.`,
   eventSessionGovernanceRescheduledTitle: "Session rescheduled",
   eventSessionGovernanceRescheduledBody:
     "A platform administrator changed your session's schedule. Open the session to see the new time.",

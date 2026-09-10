@@ -105,6 +105,7 @@ Use these service bootstrap entry points from seeders. Domain seed data (constan
 | Seeder domain | Service | Bootstrap method(s) |
 |---------------|---------|---------------------|
 | `auth/seed-user-permission-overrides` | `PermissionManagementService` | `ensureUserPermissionOverride` |
+| `users` (demo-admin actor lookup) | `RegistrationService` | `findRegisteredUserByEmail` |
 | `audit/seed-audit-logs` | `AuditService` | `countAuditLogs`, `listAuditLogs`, `createManyAuditLogs` |
 | `audit/seed-admin-audit-logs` | `AuditService` | `countAdminAuditLogs`, `listAdminAuditLogs`, `createManyAdminAuditLogs` |
 | `complaints/seed-complaints` | `ComplaintService` | `createManyComplaints` |

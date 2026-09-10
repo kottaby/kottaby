@@ -1,17 +1,32 @@
 /**
- * Plan catalog validation helpers — pure field validators shared by the
- * `PlanCatalogService` write paths.
+ * PlanCatalog helpers — pure validation, write-error translation, and
+ * audit-contract composition for the plan-catalog service (field-by-field
+ * input validation, patch projection, and the plan audit-log write
+ * contract).
+ *
+ * Extracted from `plan-catalog.service.ts` to keep the service namespace
+ * focused on orchestration; consumed directly by the service via the
+ * sibling path (mirroring `user-management.helpers.ts` — helpers stay out
+ * of the domain barrel because they are service-internal).
  *
  * Every validator follows the same contract: an absent field (`undefined`)
  * skips validation, a valid value is returned in `value`, and an invalid
  * value is returned as an `ApiFieldErrorType` the caller aggregates into a
  * single localized `ValidationError`. No I/O happens here — the service owns
  * orchestration, persistence, and logging.
+ *
+ * Disciplines enforced here:
+ *  - BOPLA: patch projection is field-by-field (never a spread of transport
+ *    input) so server-controlled fields are structurally absent from the
+ *    write payload.
+ *  - Audit contract: `details` carries plan field names + primitive values
+ *    only — never contact-PII, never credentials.
  */
 
+import type { AuditActionType } from "@/backend/enum/audit/audit-action-type.enum";
 import { SubscriptionCreditLane } from "@/backend/enum/billing/subscription-credit-lane.enum";
 import { ConflictError, isPgUniqueViolation, ValidationError } from "@/backend/lib/errors";
-import type { ApiFieldErrorType, PlanSubmitInput, PlanUpdateInput } from "@/backend/types";
+import type { ApiFieldErrorType, AuditLogWriteContract, PlanSubmitInput, PlanUpdateInput } from "@/backend/types";
 import type { ErrorsLabels } from "@/shared/locale/types/errors";
 
 const PRICE_REGEX = /^\d{1,8}(\.\d{1,2})?$/;
@@ -84,6 +99,34 @@ export function toPlanWriteDomainError(error: unknown, tErrors: ErrorsLabels): u
     return new ValidationError("VALIDATION", tErrors.validation, { cause: error });
   }
   return error;
+}
+
+/**
+ * The `entity_type` label minted into every plan-catalog audit row.
+ */
+export const PLAN_AUDIT_ENTITY_TYPE = "plan";
+
+/**
+ * Composes the audit-log write contract for a plan create / update /
+ * status transition. The `details` payload carries plan field names and
+ * primitive values only (title, counts, price, currency, flags) — never
+ * contact-PII or credentials. The composed row is persisted by
+ * `AuditService.createAuditLog` inside the caller's transaction so it can
+ * never outlive a rolled-back mutation.
+ */
+export function buildPlanAuditContract(
+  actorId: number,
+  actionType: AuditActionType,
+  entityId: number,
+  details: Record<string, unknown>
+): AuditLogWriteContract {
+  return {
+    actorId,
+    actionType,
+    entityType: PLAN_AUDIT_ENTITY_TYPE,
+    entityId,
+    details: JSON.stringify(details),
+  };
 }
 
 function validateTitleField(

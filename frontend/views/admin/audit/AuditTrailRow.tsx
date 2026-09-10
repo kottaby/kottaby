@@ -8,14 +8,14 @@
  * namespace em-dash placeholders for the null `details`/`entityId` cells.
  */
 
-import { Box, Button, TableCell, TableRow, Typography } from "@mui/material";
+import { Box, TableCell, TableRow, Typography } from "@mui/material";
 import type { ReactNode } from "react";
-import { focusVisibleRingSx } from "@/frontend/components/ui/focusRing";
 import type {
   AdminAuditLogsQuery_adminAuditLogs_items,
   AuditActionType,
 } from "@/frontend/graphql/generated/gql/graphql";
 import { formatApplicantDate } from "@/frontend/lib/i18n/format-date";
+import { AuditDetailsDisclosure } from "@/frontend/views/admin/audit/AuditDetailsDisclosure";
 import { bodyCellSx } from "@/frontend/views/admin/audit/audit-trail-skin";
 import { DirectoryHeaderCell } from "@/frontend/views/admin/directory-shared/DirectoryHeaderCell";
 import type { AdminUsersLabels } from "@/shared/locale/types/adminUsers";
@@ -51,7 +51,6 @@ export function AuditTrailRow({
   isExpanded,
   onToggleDetails,
 }: Readonly<AuditTrailRowProps>): ReactNode {
-  const hasDetails = entry.details !== null;
   return (
     <TableRow sx={theme => ({ "&:hover": { backgroundColor: theme.palette.action.hover } })}>
       <TableCell sx={bodyCellSx}>
@@ -98,33 +97,15 @@ export function AuditTrailRow({
         )}
       </TableCell>
       <TableCell sx={bodyCellSx}>
-        {hasDetails ? (
-          <>
-            <Button
-              size="small"
-              variant="text"
-              aria-expanded={isExpanded}
-              onClick={() => onToggleDetails(entry.id)}
-              sx={{ ...focusVisibleRingSx, minHeight: 44 }}
-            >
-              {isExpanded ? tableLabels.detailsHideLabel : tableLabels.detailsShowLabel}
-            </Button>
-            {isExpanded ? (
-              <Box
-                component="pre"
-                dir="auto"
-                sx={theme => ({
-                  margin: 0,
-                  whiteSpace: "pre-wrap",
-                  wordBreak: "break-word",
-                  fontSize: 12,
-                  color: theme.palette.text.secondary,
-                })}
-              >
-                {entry.details}
-              </Box>
-            ) : null}
-          </>
+        {entry.details !== null ? (
+          <AuditDetailsDisclosure
+            entryId={entry.id}
+            details={entry.details}
+            isExpanded={isExpanded}
+            onToggleDetails={onToggleDetails}
+            hideLabel={tableLabels.detailsHideLabel}
+            showLabel={tableLabels.detailsShowLabel}
+          />
         ) : (
           <Typography variant="body2" component="p" sx={theme => ({ color: theme.palette.text.secondary })}>
             {tableLabels.noDetailsValue}

@@ -414,6 +414,22 @@ type HealthCheck {
   version: String!
 }
 
+input HomeWorkAssignmentInput {
+  jadid: HomeWorkBlockInput
+  madi: HomeWorkBlockInput
+}
+
+input HomeWorkBlockInput {
+  fromAyah: Int!
+  surahJuz: SurahJuzRef!
+  toAyah: Int!
+}
+
+input HomeWorkGradeInput {
+  currentGrade: Int!
+  revisionGrade: Int!
+}
+
 type IncomingParentLinkRequest {
   createdAt: DateTime!
   expiresAt: DateTime!
@@ -586,6 +602,11 @@ type Mutation {
   Start one of the caller's scheduled sessions (teacher-only guarded transition).
   """
   startSession(id: ID!): Session!
+
+  """
+  Submit the teacher's report for one completed session: notes, the student rating, and the optional homework composites (previous-row grades + the new assignment) settle atomically. A duplicate submission replays SESSION_REPORT_ALREADY_EXISTS.
+  """
+  submitSessionReport(id: ID!, input: SubmitSessionReportInput!): SessionReport!
 
   """
   Persists the caller's app locale preference (UI + notification-copy language) and returns the updated user. Idempotent. Self-scoped — identity is derived from the verified context, never from arguments.
@@ -917,6 +938,8 @@ type Query {
   """
   recitationReadings: [RecitationReading!]!
   sessionById(id: ID!): Session
+  sessionHomework(sessionId: ID!): SessionHomeWork
+  sessionReport(sessionId: ID!): SessionReport
 }
 
 enum RecitationReading {
@@ -988,6 +1011,21 @@ type Session {
   updatedAt: DateTime!
 }
 
+type SessionHomeWork {
+  createdAt: DateTime!
+  currentFromAyah: Int
+  currentGrade: Int
+  currentSurahJuz: SurahJuzRef
+  currentToAyah: Int
+  id: ID!
+  revisionFromAyah: Int
+  revisionGrade: Int
+  revisionSurahJuz: SurahJuzRef
+  revisionToAyah: Int
+  sessionId: Int!
+  updatedAt: DateTime!
+}
+
 enum SessionIntent {
   Evaluation
   Hifz
@@ -1003,6 +1041,15 @@ type SessionPage {
   page: Int!
   pageSize: Int!
   totalCount: Int!
+}
+
+type SessionReport {
+  createdAt: DateTime!
+  id: ID!
+  sessionId: Int!
+  studentRatingByTeacher: Int!
+  teacherNotes: String!
+  updatedAt: DateTime!
 }
 
 enum SessionStatus {
@@ -1087,6 +1134,13 @@ type StudentSubscription {
   updatedAt: String!
 }
 
+input SubmitSessionReportInput {
+  homework: HomeWorkAssignmentInput
+  previousGrades: HomeWorkGradeInput
+  studentRatingByTeacher: Int!
+  teacherNotes: String!
+}
+
 enum SubscriptionCreditLane {
   Hifz
   Reviews
@@ -1099,6 +1153,44 @@ enum SubscriptionStatus {
   Expired
   Pending
   Suspended
+}
+
+enum SurahJuzRef {
+  Juz1
+  Juz2
+  Juz3
+  Juz4
+  Juz5
+  Juz6
+  Juz7
+  Juz8
+  Juz9
+  Juz10
+  Juz11
+  Juz12
+  Juz13
+  Juz14
+  Juz15
+  Juz16
+  Juz17
+  Juz18
+  Juz19
+  Juz20
+  Juz21
+  Juz22
+  Juz23
+  Juz24
+  Juz25
+  Juz26
+  Juz27
+  Juz28
+  Juz29
+  Juz30
+  SurahAalImran
+  SurahAlBaqarah
+  SurahAlFatihah
+  SurahAlMaidah
+  SurahAnNisa
 }
 
 type TeacherTransaction {

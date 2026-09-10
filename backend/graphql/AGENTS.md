@@ -18,6 +18,7 @@
 - **Admin audit trail (read-only query): `adminAuditLogs` is admin-gated with the mandatory `$all` scope conjunction over a closed six-member filter input, delegating to `AuditTrailService` — see `docs/admin/audit-trail.md` for the wire contract, embedded page-envelope cache rule, and the append-only `audit_logs` immutability rules.**
 - **Gateway route & registration contract**: see `docs/graphql/api-gateway-and-routing.md` for the canonical seven-step pipeline in `app/api/graphql/route.ts`, the default-deny public-operation allowlist (`backend/lib/gateway/public-operations.ts` — every new anonymous operation needs a security-rationale entry BEFORE its resolver ships scopeless), and the REQ-018 rules for registering resolvers/objects/enums. `ctx.idempotencyKey` is captured exactly once in `createGraphQLContext` from the raw `X-Idempotency-Key` header (`null` when absent) and is PROPAGATION-ONLY: mutations consume it for duplicate-blocking semantics, but it must never influence authorization or be re-derived/trimmed elsewhere.
 - **Participant-scoped operations (session lifecycle precedent)**: when an operation's access rule is "authenticated, then the service checks participation/ownership" (e.g. `sessionById`, `cancelSession`), declare ONLY `{ authenticated: true }` and keep the participant predicate service-side — never widen it for admins or other roles. When a role leg exists, make the conjunction EXPLICIT with `$all { authenticated: true, role: [UserRole.X] }` — a plain key-map combines its keys with ANY semantics (wrong). Sessions are disclosure-sensitive: a foreign id and a nonexistent id are indistinguishable on every read and mutation (identical `null` channel / byte-identical denial). See `docs/sessions/session-lifecycle.md` §2/§7.
+- **Session report & homework surface**: `submitSessionReport` mutation (explicit `$all { authenticated, role: [UserRole.Teacher] }` + service-tier governance re-check) and the `sessionReport`/`sessionHomework` queries (`{ authenticated: true }` only — nullable payloads where foreign/nonexistent/no-report-yet collapse into one indistinguishable `null`). Objects `SessionReport`/`SessionHomeWork` expose `id` for Apollo normalization; the `SurahJuzRef` enum is registered once in `shared/enum.pothos.ts` (enum-object form) and consumed by the homework block inputs. See `docs/sessions/session-report-homework.md`.
 
 ## Pothos Enum Registration Pattern (CRITICAL RULE)
 
@@ -132,6 +133,10 @@ Completed extractions:
 
 The `createGeneralUser` mutation creates a user without a specialized profile extension. It uses `authScopes: { permission: AppPermission.STAFF_CREATE, notImpersonating: true }` to require staff create permission and block creation while impersonating. The `groupSlug` input field is a plain `String!` (not an enum) to allow any permission group slug — specialized groups are rejected at the service layer via `isSpecializedGroup()`. The result type includes `id` (resolved from `parent.user.id`) for Apollo cache normalization. See `docs/services/general-user-creation.md` for the complete pattern reference.
 
+## Admin-Mutation Audit Census (CRITICAL RULE)
+
+- **Census-before-admin-mutation:** every new admin-gated mutation shipped under `backend/graphql/mutation/**` MUST add a matching `wired` row to `test/workflows/admin/audit-completeness.catalog.ts` (expected action types + entity type) AND emit its audit row per `docs/admin/user-management.md` §2.4. `backend/db/test/logic/audit/audit-census-drift.test.ts` enforces the bijection — an unaudited admin mutation fails CI. See `docs/admin/audit-trail.md` §10.5.
+
 ## authScope Pattern: `permission` vs `superAdmin`
 
 Use `authScopes: { permission: AppPermission.X }` (not `authScopes: { superAdmin: true }`) for mutations accessible by non-superadmin users with the correct permission. The `superAdmin: true` authScope blocks ALL non-superadmin users — only use it for truly superadmin-only operations (e.g., impersonation, permission group simulation, system config).
@@ -159,4 +164,3 @@ Recitation enum registered in `shared/enum.pothos.ts` as `RecitationReadingPotho
 ## Linting Rules
 
 - See `docs/quality/linting-rules.md` for Oxlint & ESLint/sonarjs fix recipes. NEVER use `oxlint-disable` comments.
-

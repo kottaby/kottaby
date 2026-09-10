@@ -26,6 +26,7 @@
  *  - `BroadcastAudienceType` (all|role|country|plan — admin broadcast cohort kinds)
  *  - `AppLocale` (the per-user UI/copy preference — "ar" | "en")
  *  - `LinkStatus` (pending|confirmed|rejected|expired — parent-child link request lifecycle)
+ *  - `SurahJuzRef` (5 surahs + 30 juz — home_work assignment/ref vocabulary)
  *
  * After registering a new enum here, run `bun run generate:gqlSchema` and
  * `bun codegen` to refresh the SDL + frontend codegen.
@@ -45,6 +46,7 @@ import { SessionIntent } from "@/backend/enum/scheduling/session-intent.enum";
 import { SessionStatus } from "@/backend/enum/scheduling/session-status.enum";
 import { SessionType } from "@/backend/enum/scheduling/session-type.enum";
 import { LinkStatus } from "@/backend/enum/shared/link-status.enum";
+import { SurahJuzRef } from "@/backend/enum/shared/surah-juz-ref.enum";
 import { ApplicantStatus } from "@/backend/enum/teachers/applicant-status.enum";
 import { AdminUserGovernanceFilter } from "@/backend/enum/users/admin-user-governance-filter.enum";
 import { AppLocale } from "@/backend/enum/users/app-locale.enum";
@@ -308,4 +310,23 @@ export const LinkStatusPothosEnum = gqlSchemaBuilder.enumType(LinkStatus, {
  */
 export const BroadcastAudienceTypePothosEnum = gqlSchemaBuilder.enumType(BroadcastAudienceType, {
   name: "BroadcastAudienceType",
+});
+
+/**
+ * GraphQL `SurahJuzRef` enum (5 surahs `SurahAlFatihah`…`SurahAlMaidah`
+ * followed by 30 juz `Juz1`…`Juz30`).
+ *
+ * Registered ONCE from the canonical TS enum
+ * (`backend/enum/shared/surah-juz-ref.enum.ts`), which mirrors the
+ * `surah_juz_ref` pgEnum byte-for-byte. Backs the assignment/ref fields on
+ * the `SessionHomeWork` object — the stored `surah_juz_ref` column values
+ * (`surah_al_fatihah`, `juz_1`, …) map onto the Pothos enum through the
+ * exhaustive DB-string mapper in `classes/home-work.pothos.ts`, never via
+ * casts. Per the Pothos enum-object convention (identical to
+ * `NotificationType`/`LinkStatus`), the enum KEYS are the GraphQL value
+ * names on the wire (`SurahAlFatihah`, `Juz1`, …) while the snake_case
+ * string values remain the runtime and database representation.
+ */
+export const SurahJuzRefPothosEnum = gqlSchemaBuilder.enumType(SurahJuzRef, {
+  name: "SurahJuzRef",
 });

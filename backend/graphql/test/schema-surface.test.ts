@@ -46,7 +46,11 @@
  *    enumeration (admin audit trail, admin broadcast, teacher cold-start
  *    certification, parent-link lifecycle, the R1–R3 admin directory trio
  *    and the R5 export trio) to the live schema — the same documented
- *    one-time reconciliation idiom as DEV3-016.
+ *    one-time reconciliation idiom as DEV3-016. The DEV3-006 session-report
+ *    surface then grows the sets ONLY by the `submitSessionReport` write, the
+ *    `sessionReport` / `sessionHomework` read pair, the `SurahJuzRef`
+ *    recitation enum, the four closed report/homework input whitelists, and
+ *    the two report objects.
  *  - **DEV3-017 admin-governance surface pins** — the two new
  *    admin-governance mutations carry the EXACT arg shapes
  *    (`adminSetUserBlocked(blocked: Boolean!, id: Int!): AdminUserDetail!` /
@@ -106,6 +110,20 @@
  * one-time reconciliation (not a silent baseline flip). The codegen-sync
  * pin (byte-identical committed SDL) was restored by the 4.4
  * `bun run generate:gqlSchema` regeneration.
+ *
+ * Reconciliation note (DEV3-006): the same drift class had recurred — the
+ * parent-link surface (2 listing reads + 3 participant mutations + the
+ * `LinkStatus` enum + 2 request objects), the admin audit-trail surface
+ * (`adminAuditLogs` + the `AdminAuditLog*` page/input types), the admin
+ * broadcast surface (`adminBroadcastNotification` + `BroadcastAudienceInput`
+ * + `BroadcastAudienceType` + `AdminBroadcastNotificationInput`), and the
+ * admin teacher cold-start certification (`adminCertifyTeacherColdStart`)
+ * were all committed to the schema (and inside the checked-in codegen
+ * artifact at HEAD) but never enumerated in the assertion arrays. They are
+ * re-anchored to the live built schema via the `RECONCILED*` constants
+ * below — the same documented one-time reconciliation, not a silent
+ * baseline flip — so the whole-schema freeze the DEV3-006 additions ride
+ * on is honest again.
  *
  * Pure unit tier — NO server boot, NO network, NO DB. Runs via the mandated
  * runner: `bun run test/scripts/run-test.ts backend/graphql/test/schema-surface.test.ts`.
@@ -348,6 +366,27 @@ const SUBSCRIPTION_PURCHASE_TYPE_NAMES = [
   "StudentPayment",
   "StudentSubscription",
 ] as const;
+
+/** DEV3-006 participant session-report read pair — nullable root reads, `sessionId: ID!` single-arg. */
+const DEV3_006_QUERY_FIELDS = ["sessionHomework", "sessionReport"] as const;
+/** DEV3-006 teacher report submission write — `$all`-gated (authenticated Teacher) per plan §3.2. */
+const DEV3_006_MUTATION_FIELDS = ["submitSessionReport"] as const;
+/** DEV3-006 recitation-location vocabulary — registered ONCE in `shared/enum.pothos.ts` (enum-object form). */
+const DEV3_006_ENUMS = ["SurahJuzRef"] as const;
+/**
+ * DEV3-006 session-report/homework surface — the two report objects plus the
+ * four closed input whitelists (plan §3.1 SDL; `SurahJuzRef` is pinned
+ * separately via `DEV3_006_ENUMS`).
+ */
+const DEV3_006_TYPE_NAMES = [
+  "HomeWorkAssignmentInput",
+  "HomeWorkBlockInput",
+  "HomeWorkGradeInput",
+  "SessionHomeWork",
+  "SessionReport",
+  "SubmitSessionReportInput",
+] as const;
+
 /**
  * DEV3-021 admin session-governance root fields — the sanctioned addition
  * pinned by the 4.4 codegen reconcile. Two admin-only queries (directory +
@@ -550,13 +589,14 @@ describe("Query._health — retyped probe surface", () => {
     // arbitration listing, the DEV3-013 wallet read, the RECONCILED
     // DEV3-016 admin-user-management query quartet (shipped but never
     // pinned — re-anchored ahead of the dev3-017 admin-governance
-    // mutation pair), the whole-platform analytics snapshot, the DEV3-021
-    // admin session-governance pair (4.4 reconcile), the
-    // subscription-purchase owner listing (`mySubscriptions`), and the
-    // RECONCILED admin audit listing + parent-link read pair + R1–R3
-    // admin directory trio (shipped but never pinned — re-anchored
-    // alongside the R4 statusCounts aggregate) + the R5 admin directory
-    // export trio (the sanctioned export-all read surface).
+    // mutation pair), the whole-platform analytics snapshot, the DEV3-006
+    // session-report read pair, the DEV3-021 admin session-governance pair
+    // (4.4 reconcile), the subscription-purchase owner listing
+    // (`mySubscriptions`), and the RECONCILED admin audit listing +
+    // parent-link read pair + R1–R3 admin directory trio (shipped but never
+    // pinned — re-anchored alongside the R4 statusCounts aggregate) + the
+    // R5 admin directory export trio (the sanctioned export-all read
+    // surface).
     const additions = fieldNames.filter(name => !(PRE_3_1_QUERY_FIELDS as readonly string[]).includes(name));
     expect(additions.toSorted((a, b) => a.localeCompare(b))).toEqual(
       [
@@ -565,6 +605,7 @@ describe("Query._health — retyped probe surface", () => {
         "myHandshakeCode",
         ...DEV3_004_QUERY_FIELDS,
         ...DEV3_005_QUERY_FIELDS,
+        ...DEV3_006_QUERY_FIELDS,
         ...DEV3_013_QUERY_FIELDS,
         ...DEV3_016_ADMIN_USER_QUERY_FIELDS,
         ...DEV3_021_QUERY_FIELDS,
@@ -635,7 +676,7 @@ describe("HealthCheck object shape — four scalar fields, no id", () => {
 });
 
 describe("Surface freeze — pinned additions vs the baseline inventory", () => {
-  test("mutation set grows ONLY by the sanctioned additions (DEV3-004 quartet + DEV3-005 dispute pair + DEV3-012 confirm + DEV3-013 payout + DEV3-016 admin-user trio + DEV3-017 admin-governance pair + DEV3-021 session-governance quartet + the subscription purchase write + the reconciled parent-link trio + broadcast/certify pair)", () => {
+  test("mutation set grows ONLY by the sanctioned additions (DEV3-004 quartet + DEV3-005 dispute pair + DEV3-012 confirm + DEV3-013 payout + DEV3-016 admin-user trio + DEV3-017 admin-governance pair + DEV3-021 session-governance quartet + DEV3-006 session-report write + the subscription purchase write + the reconciled parent-link trio + broadcast/certify pair)", () => {
     const mutationFields = graphQLSchema.getMutationType()?.getFields() ?? {};
     const names = Object.keys(mutationFields).toSorted((a, b) => a.localeCompare(b));
 
@@ -648,17 +689,18 @@ describe("Surface freeze — pinned additions vs the baseline inventory", () => 
     // payout write, the RECONCILED DEV3-016 admin-user-management trio
     // (shipped but never pinned — re-anchored here as a documented
     // one-time reconciliation), the DEV3-017 admin-governance pair, the
-    // DEV3-021 session-governance quartet (4.4 reconcile), the
-    // subscription purchase write, and the RECONCILED parent-link trio +
-    // admin broadcast/certify pair (shipped but never pinned —
-    // re-anchored alongside the R4 statusCounts aggregate). All
-    // authScopes-gated — none is allowlist material; the public-operation
-    // registry stays byte-unchanged.
+    // DEV3-021 session-governance quartet (4.4 reconcile), the DEV3-006
+    // session-report write, the subscription purchase write, and the
+    // RECONCILED parent-link trio + admin broadcast/certify pair (shipped
+    // but never pinned — re-anchored alongside the R4 statusCounts
+    // aggregate). All authScopes-gated — none is allowlist material; the
+    // public-operation registry stays byte-unchanged.
     expect(names).toEqual(
       [
         ...PRE_3_1_MUTATION_FIELDS,
         ...DEV3_004_MUTATION_FIELDS,
         ...DEV3_005_MUTATION_FIELDS,
+        ...DEV3_006_MUTATION_FIELDS,
         ...DEV3_012_MUTATION_FIELDS,
         ...DEV3_013_MUTATION_FIELDS,
         ...DEV3_016_ADMIN_USER_MUTATION_FIELDS,
@@ -720,7 +762,8 @@ describe("Surface freeze — pinned additions vs the baseline inventory", () => 
     // DEV3-021 adds NO new enum (the governance surface reuses the
     // registered SessionStatus/SessionType vocabularies);
     // BroadcastAudienceType + LinkStatus arrive from the merged PRs #53
-    // and #49 respectively (4.4 re-anchor); the subscription-purchase
+    // and #49 respectively (4.4 re-anchor); the `SurahJuzRef` recitation
+    // enum is the DEV3-006 sanctioned addition; the subscription-purchase
     // settlement quartet (`PaymentGateway`, `PaymentStatus`,
     // `SubscriptionCreditLane`, `SubscriptionStatus`) is the DEV1-006
     // sanctioned addition.
@@ -729,6 +772,7 @@ describe("Surface freeze — pinned additions vs the baseline inventory", () => 
         ...PRE_3_1_ENUMS,
         ...DEV3_004_ENUMS,
         ...DEV3_005_ENUMS,
+        ...DEV3_006_ENUMS,
         ...DEV3_013_ENUMS,
         ...DEV3_016_ADMIN_ENUMS,
         ...SUBSCRIPTION_PURCHASE_ENUMS,
@@ -786,7 +830,7 @@ describe("Surface freeze — pinned additions vs the baseline inventory", () => 
     }
   });
 
-  test("whole-schema named-type delta is pinned: refreshed baseline delta (DateTime scalar + HealthCheck probe + DEV1-013 handshake surface) + DEV3-004 session objects/inputs + scheduling/arbitration/ledger enums + DEV3-013 wallet surface + DEV3-016 admin-user-management surface + the parent-link objects (extend step) + the eleven analytics value objects + the DEV3-021 governance inputs + the subscription purchase surface (objects, input, root operations) + the reconciled audit/broadcast/directory surfaces + the R5 export envelopes", () => {
+  test("whole-schema named-type delta is pinned: refreshed baseline delta (DateTime scalar + HealthCheck probe + DEV1-013 handshake surface) + DEV3-004 session objects/inputs + scheduling/arbitration/ledger enums + DEV3-013 wallet surface + DEV3-016 admin-user-management surface + the parent-link objects (extend step) + the eleven analytics value objects + the DEV3-021 governance inputs + the subscription purchase surface (objects, input, root operations) + the reconciled audit/broadcast/directory surfaces + the R5 export envelopes + the DEV3-006 session-report surface (2 objects + 4 inputs + the recitation enum)", () => {
     const post = new Set(sdlTypeNames());
 
     for (const name of PRE_3_1_TYPE_NAMES) {
@@ -801,6 +845,8 @@ describe("Surface freeze — pinned additions vs the baseline inventory", () => 
         ...DEV3_004_TYPE_NAMES,
         ...DEV3_004_ENUMS,
         ...DEV3_005_ENUMS,
+        ...DEV3_006_TYPE_NAMES,
+        ...DEV3_006_ENUMS,
         ...DEV3_013_TYPE_NAMES,
         ...DEV3_013_ENUMS,
         ...DEV3_016_ADMIN_TYPE_NAMES,
@@ -1455,5 +1501,18 @@ describe("Codegen sync — committed SDL is byte-identical to the built schema",
     expect(committedSdl).toContain("type AdminUserStats {");
     expect(committedSdl).toContain("enum AdminUserGovernanceFilter {");
     expect(committedSdl).toContain("enum AuditActionType {");
+    // …and the DEV3-006 session-report surface (1 mutation + 2 queries +
+    // the two report objects + the four closed input whitelists + the
+    // recitation enum) is really inside the committed artifact.
+    expect(committedSdl).toContain("submitSessionReport(id: ID!, input: SubmitSessionReportInput!): SessionReport!");
+    expect(committedSdl).toContain("sessionReport(sessionId: ID!): SessionReport");
+    expect(committedSdl).toContain("sessionHomework(sessionId: ID!): SessionHomeWork");
+    expect(committedSdl).toContain("type SessionReport {");
+    expect(committedSdl).toContain("type SessionHomeWork {");
+    expect(committedSdl).toContain("input SubmitSessionReportInput {");
+    expect(committedSdl).toContain("input HomeWorkAssignmentInput {");
+    expect(committedSdl).toContain("input HomeWorkBlockInput {");
+    expect(committedSdl).toContain("input HomeWorkGradeInput {");
+    expect(committedSdl).toContain("enum SurahJuzRef {");
   });
 });

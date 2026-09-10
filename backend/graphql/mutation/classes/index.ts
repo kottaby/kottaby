@@ -10,9 +10,11 @@
  *    `gqlSchema.ts` imports that top-level barrel exactly once.
  *  - `session-lifecycle.mutation.ts` registers `createSession`,
  *    `startSession`, `completeSession`, and `cancelSession`.
+ *  - `session-report.mutation.ts` registers `submitSessionReport`.
  *  - `admin-session-governance.mutation.ts` registers
  *    `adminRescheduleSession`, `adminCancelSession`,
  *    `adminReassignTeacher`, and `adminJoinSession`.
  */
 import "./admin-session-governance.mutation";
 import "./session-lifecycle.mutation";
+import "./session-report.mutation";

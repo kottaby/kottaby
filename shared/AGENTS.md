@@ -64,6 +64,15 @@ When frontend and backend both need the same enum values:
 
 Recitation catalog: `shared/constants/recitation-reading.enum.ts` is the canonical `RecitationReading` enum (10 Qira'at — stable lowercase snake_case values), with the frozen `RECITATION_READINGS` array and the `isRecitationReading(value: unknown)` type guard. The physical `recitation` table is session-linked per decision C.5 (1:1 with `session` via unique `session_id`) — this catalog is for user-preference selection only and MUST NOT be used to create user-linked `recitation` rows. See `docs/auth/qiraah-selection-and-c5.md`.
 
+## Session Report & Homework Locale Keys (existing-namespace additions)
+
+No new namespace was registered — additions land in the EXISTING `errors` and `notifications` namespaces (types/en/ar triple each, parity inventory extended):
+
+- **`errors`** (flat keys): `sessionReportAlreadyExists`, `homeworkAlreadyGraded`, plus the report/homework validation set — `sessionReportNotesRequired`, `sessionReportNotesTooLong`, `sessionRatingRange`, `homeworkGradeRange`, `homeworkAyahRangeInvalid`, `homeworkSurahJuzInvalid`, `homeworkAssignmentBlocksRequired`.
+- **`notifications`** (event copy): `eventSessionReportReadyTitle`, `eventSessionReportReadyBody(teacherName)` (student) and `eventSessionReportReadyParentBody(studentName, teacherName)` (linked parent) — bodies interpolate names only, never grades or note content.
+
+See `docs/sessions/session-report-homework.md` for the choreography these slots serve.
+
 ## Extracting Code Into Shared
 
 When moving logic from `frontend/` or `backend/` into `shared/`:

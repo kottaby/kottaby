@@ -70,14 +70,14 @@ const config: KnipConfig = {
     //   - register-public-role: whole enum registered as the GraphQL
     //     `RegisterPublicRole` type (backend/graphql/pothos/shared/enum.pothos.ts)
     //     — all three members are schema-exposed.
-    //   - surah-juz-ref: mirrors the live `surah_juz_ref` pgEnum backing
-    //     home_work.current/revision_surah_juz columns; Pothos registration is
-    //     pending future schema work.
+    //   - surah-juz-ref: REMOVED from this list — the enum is now live in the
+    //     import graph (registered with Pothos in enum.pothos.ts, consumed by
+    //     home-work.pothos.ts + the session-report guards), so knip resolves it
+    //     natively and an ignore entry would only be a stale-config hint.
     //   - recitation-reading: documented backend re-export shim of the canonical
     //     shared enum (docs/auth/qiraah-selection-and-c5.md) — an intentional
     //     @/backend/enum import-path alias, not a second value list.
     "backend/enum/users/register-public-role.enum.ts",
-    "backend/enum/shared/surah-juz-ref.enum.ts",
     "backend/enum/shared/recitation-reading.enum.ts",
   ],
 

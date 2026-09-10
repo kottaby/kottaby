@@ -17,11 +17,15 @@
  * Conventions per `backend/db/repo/AGENTS.md`:
  *  - One `namespace` per repository file; the namespace name is the
  *    canonical export.
- *  - Every method takes `tx?: DBTransaction` as its LAST parameter. Reads
- *    run on the caller's transaction when supplied and fall back to raw
+ *  - Every method takes `tx` as its LAST parameter. Reads run on the
+ *    caller's transaction when supplied and fall back to raw
  *    parameterized SQL via `queryDb` (the Neon-HTTP-eligible pattern, as in
  *    `UserRepository.findById`) otherwise; writes execute on `tx ?? db`
- *    (the same fallback the student lane debit/refund methods use).
+ *    (the same fallback the student lane debit/refund methods use). The
+ *    ONE exception is `lockForReportGate`, whose `tx` is REQUIRED: a
+ *    `FOR UPDATE` lock taken outside a transaction releases when the
+ *    statement ends and protects nothing (the
+ *    `lockForCertificationCheck` shape).
  *  - NO prepared statements — the list predicates are dynamically composed
  *    and every write is transactional (`docs/drizzle/prepared-statements.md`
  *    excludes both from preparation). NO array-membership operators — the
@@ -53,7 +57,7 @@
  * signatures, behavior) is unchanged.
  */
 
-import { and, eq, isNotNull, ne, or, type SQL, sql } from "drizzle-orm";
+import { and, eq, isNotNull, ne, sql } from "drizzle-orm";
 import { db } from "@/backend/db";
 import * as sessionRepositoryImpl from "@/backend/db/repo/classes/session.repository.helpers";
 import * as sessionRepositoryWaveImpl from "@/backend/db/repo/classes/session.repository.wave.helpers";
@@ -67,46 +71,12 @@ import type {
   DBTransaction,
   SessionInsertType,
   SessionListFilterInput,
+  SessionReportWaveContextRow,
   SessionSelectType,
   SessionTransitionProbeRowType,
   SessionWaveContextRow,
 } from "@/backend/types";
 import { SESSION_CONFIRMATION_WINDOW_MS } from "@/shared/constants/session-fees.constants";
-
-/**
- * ONE module-scope predicate builder shared by the participant-initiated
- * live-state guarded transitions (`cancelSessionOnce` and
- * `openDisputeOnce`): row identity, the caller being the session's student
- * OR its teacher, and the lifecycle state still live (pre-start or
- * in-progress — terminal rows are structurally unreachable). The predicate
- * rides inside each method's single guarded UPDATE, so predicate evaluation
- * happens under PostgreSQL's row lock with zero check-then-write window.
- */
-function buildLiveParticipantTransitionPredicate(id: number, participantId: number): SQL | undefined {
-  return and(
-    eq(session.id, id),
-    or(eq(session.studentId, participantId), eq(session.teacherId, participantId)),
-    or(eq(session.status, SessionStatus.Scheduled), eq(session.status, SessionStatus.Started))
-  );
-}
-
-/**
- * ONE module-scope predicate builder shared by the admin reschedule and
- * cancel guards: row identity plus the row still being in one of the two
- * states whose timing and hold surface the governance mutations may reshape
- * (pre-start or in-progress). Completed and cancelled rows are structurally
- * unreachable here (terminal), and so is a disputed row — an open dispute
- * belongs to the arbitration surface, which is the only writer allowed to
- * exit a disputed row into a terminal state. The predicate rides inside
- * each guard's single UPDATE, so eligibility evaluation happens under
- * PostgreSQL's row lock with zero check-then-write window.
- */
-function buildAdminLiveStatePredicate(id: number): SQL | undefined {
-  return and(
-    eq(session.id, id),
-    or(eq(session.status, SessionStatus.Scheduled), eq(session.status, SessionStatus.Started))
-  );
-}
 
 export namespace SessionRepository {
   /**
@@ -255,7 +225,7 @@ export namespace SessionRepository {
     const rows = await executor
       .update(session)
       .set({ status: SessionStatus.Cancelled, feeHeld: false, cancelReason, updatedAt: now })
-      .where(buildLiveParticipantTransitionPredicate(id, participantId))
+      .where(sessionRepositoryWaveImpl.buildLiveParticipantTransitionPredicate(id, participantId))
       .returning();
     return rows[0] ?? null;
   }
@@ -286,7 +256,7 @@ export namespace SessionRepository {
     const rows = await executor
       .update(session)
       .set({ status: SessionStatus.Disputed, disputeReason, disputedAt: now, updatedAt: now })
-      .where(buildLiveParticipantTransitionPredicate(id, participantId))
+      .where(sessionRepositoryWaveImpl.buildLiveParticipantTransitionPredicate(id, participantId))
       .returning();
     return rows[0] ?? null;
   }
@@ -378,6 +348,68 @@ export namespace SessionRepository {
     tx?: DBTransaction
   ): Promise<SessionTransitionProbeRowType | null> {
     return sessionRepositoryImpl.findTransitionProbe(id, tx);
+  }
+
+  /**
+   * Report-gate row lock: takes the `FOR UPDATE` lock on the session row
+   * and reads the transition-probe projection inside the SAME statement,
+   * so a report submission serializes against every other
+   * gate-locked writer of that row and the returned lifecycle state is
+   * the state the caller's subsequent writes commit against (no window
+   * for the row to change between the read and the caller's writes).
+   *
+   * `tx` is REQUIRED (not optional): a locking read without a transaction
+   * releases its lock as soon as the statement finishes, which would make
+   * the gate meaningless — the shape mirrors
+   * `TeacherRepository.lockForCertificationCheck`. The projection reuses
+   * the transition-probe row type (identity, lifecycle state, both
+   * participants, start stamp — the stamp rides along unused by callers
+   * that only need the gate quadruple).
+   *
+   * @returns The locked probe row, or `null` when the id is unknown
+   *          (the caller classifies, exactly as for the transition
+   *          probe).
+   */
+  export async function lockForReportGate(
+    sessionId: number,
+    tx: DBTransaction
+  ): Promise<SessionTransitionProbeRowType | null> {
+    const rows = await tx
+      .select({
+        id: session.id,
+        status: session.status,
+        studentId: session.studentId,
+        teacherId: session.teacherId,
+        startedAt: session.startedAt,
+      })
+      .from(session)
+      .where(eq(session.id, sessionId))
+      .for("update");
+    return rows[0] ?? null;
+  }
+
+  /**
+   * ONE joined read of the report wave context: BOTH participants'
+   * `userId`/`fullName`/`locale` together with the student's LINKED PARENT
+   * (via `students.parent_id`, LEFT JOINed — unlinked students yield a
+   * `null` parent leg). This is exactly the recipient set the report
+   * notification seam needs, and nothing else.
+   *
+   * Read-only: on the caller's transaction it runs as a Drizzle join;
+   * standalone it runs as raw parameterized SQL via `queryDb`.
+   *
+   * @returns The joined wave-context row, or `null` when no session
+   *          carries that id (the participant INNER JOINs make a
+   *          participant-missing row structurally impossible, so `null`
+   *          uniformly means session-not-found; the `students` bridge is
+   *          LEFT JOINed, so a student user without a `students` row still
+   *          yields the context with a `null` parent leg).
+   */
+  export async function findReportWaveContextById(
+    id: number,
+    tx?: DBTransaction
+  ): Promise<SessionReportWaveContextRow | null> {
+    return sessionRepositoryWaveImpl.findReportWaveContextById(id, tx);
   }
 
   /**
@@ -638,14 +670,7 @@ export namespace SessionRepository {
     endedAt: Date,
     tx?: DBTransaction
   ): Promise<SessionSelectType | null> {
-    const now = new Date();
-    const executor = tx ?? db;
-    const rows = await executor
-      .update(session)
-      .set({ startedAt, endedAt, updatedAt: now })
-      .where(buildAdminLiveStatePredicate(sessionId))
-      .returning();
-    return rows[0] ?? null;
+    return sessionRepositoryImpl.guardReschedule(sessionId, startedAt, endedAt, tx);
   }
 
   /**
@@ -671,14 +696,7 @@ export namespace SessionRepository {
     sessionId: number,
     tx?: DBTransaction
   ): Promise<SessionSelectType | null> {
-    const now = new Date();
-    const executor = tx ?? db;
-    const rows = await executor
-      .update(session)
-      .set({ status: SessionStatus.Cancelled, feeHeld: false, updatedAt: now })
-      .where(buildAdminLiveStatePredicate(sessionId))
-      .returning();
-    return rows[0] ?? null;
+    return sessionRepositoryImpl.guardCancelPreTerminal(sessionId, tx);
   }
 
   /**

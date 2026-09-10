@@ -88,6 +88,16 @@ export const errorsEn: ErrorsLabels = {
   walletInvalidAmount: "Enter a valid withdrawal amount (a positive value with up to 2 decimal places).",
   walletTeacherProfileMissing: "Your wallet activates once your teaching profile is approved.",
   sessionIntentCorrupt: "This session could not be read. Please contact support.",
+  sessionReportAlreadyExists: "A session report has already been submitted for this session.",
+  homeworkAlreadyGraded: "This homework has already been graded.",
+  sessionReportNotesRequired: "Session report notes are required and cannot be empty.",
+  sessionReportNotesTooLong: "Session report notes cannot exceed 2000 characters.",
+  sessionRatingRange: "The session rating must be a whole number between 0 and 5.",
+  homeworkGradeRange: "Homework grades must be whole numbers between 0 and 100.",
+  homeworkAyahRangeInvalid:
+    "Homework verse numbers must be positive whole numbers, and the starting verse cannot come after the ending verse.",
+  homeworkSurahJuzInvalid: "Select a valid surah or juz for the homework assignment.",
+  homeworkAssignmentBlocksRequired: "Provide at least one homework assignment block (new portion or revision).",
   sessionRescheduleWindowInvalid: "The start time must be before the end time.",
   sessionRescheduleStartInPast: "The start time cannot be more than 5 minutes in the past.",
 };

@@ -19,6 +19,9 @@ export function FooterLinksSection(): ReactNode {
         flexWrap: "wrap",
         rowGap: { xs: 4, sm: 3 },
         justifyContent: { xs: "flex-start", sm: "space-between", md: "space-between" },
+        // Equal-width columns: fit-content columns of differing label
+        // lengths made the three-across grid read lopsided at sm/md widths.
+        "& > *": { flex: { sm: "1 1 0" }, minWidth: 132 },
       }}
     >
       <FooterColumn title={t.footerProduct}>

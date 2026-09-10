@@ -64,7 +64,6 @@ import {
   createSessionFixtureRegistry,
   journeyPrefix,
   type SessionJourneyCast,
-  secondPrecisionMs,
 } from "@/test/workflows/helpers";
 
 /** The errors-namespace translations for the default journey locale. */
@@ -282,12 +281,15 @@ describe("Journey J2 — session lifecycle hostile & boundary legs", () => {
     expect(funded.heldBalanceLane).toBe(HeldBalanceLane.Hifz);
     expect(funded.fee).toBe(SESSION_FEE_HIFZ);
     // The confirmation deadline derives from ONE captured instant: now + 24h
-    // EXACTLY (bracketed by the call's start/end instants, compared at the
-    // timestamps' stored second resolution — see secondPrecisionMs). A null
-    // deadline degrades to -1 and fails both brackets loudly.
+    // EXACTLY, bracketed by the call's raw start/end instants. Both the stored
+    // deadline and the JS clocks carry full millisecond precision (the read
+    // path no longer truncates to seconds), so the brackets hold EXACTLY on
+    // every provider: captured ∈ [callStart, callEnd] implies
+    // deadline − callEnd ≤ W and deadline − callStart ≥ W. A null deadline
+    // degrades to -1 and fails both brackets loudly.
     const deadlineMs = funded.confirmationDeadline?.getTime() ?? -1;
-    expect(deadlineMs - secondPrecisionMs(callEnd)).toBeLessThanOrEqual(SESSION_CONFIRMATION_WINDOW_MS);
-    expect(deadlineMs - secondPrecisionMs(callStart)).toBeGreaterThanOrEqual(SESSION_CONFIRMATION_WINDOW_MS);
+    expect(deadlineMs - callEnd.getTime()).toBeLessThanOrEqual(SESSION_CONFIRMATION_WINDOW_MS);
+    expect(deadlineMs - callStart.getTime()).toBeGreaterThanOrEqual(SESSION_CONFIRMATION_WINDOW_MS);
 
     // The hold: exactly one unit left the intent lane (the trial lane was empty).
     expect(await readLaneBalances(caller.userId)).toEqual({ trial: 0, hifz: 0, tajweed: 0 });
