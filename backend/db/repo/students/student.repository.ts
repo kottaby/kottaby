@@ -520,8 +520,8 @@ export namespace StudentRepository {
    * activation-time write for a purchased subscription (one unguarded
    * `COALESCE(balance_<lane>, 0) + amount` UPDATE returning the updated
    * row). Implementation lives in the sibling
-   * `student.repository.credit-lane.helpers.ts` module (extracted
-   * verbatim); this method is a one-to-one delegation wrapper, so the
+   * `student.repository.credit-lane.helpers.ts` module (behavior-identical
+   * extraction); this method is a one-to-one delegation wrapper, so the
    * public API (name, signature, behavior) is unchanged.
    *
    * @returns The updated student row, or null when the student does not

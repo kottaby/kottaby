@@ -13,7 +13,11 @@
  *   2. the gateway checkout, OUTSIDE any database transaction — a provider
  *      call is a network boundary and must never hold a transaction open.
  *      The plan row feeding the checkout input (price + currency, carried
- *      verbatim as decimal strings) is read before the gateway call;
+ *      verbatim as decimal strings) is read before the gateway call — on
+ *      the caller's transaction when `outerTx` is supplied (the activation
+ *      service's outerTx contract: the whole flow participates in the
+ *      caller's unit instead of escaping to the pool), otherwise a bare
+ *      pool read;
  *   3. ONE transaction that owns the authoritative validation and every
  *      write: the plan is re-validated as active (the pre-checkout read is
  *      only a gateway-input lookup — a plan deactivated mid-checkout fails
@@ -513,8 +517,11 @@ export namespace SubscriptionPurchaseService {
    *     when the transport supplied none.
    * @param locale  Active request locale (for the localized error messages).
    * @param outerTx  Optional outer transaction. When provided (test path),
-   *     the flow runs inside a SAVEPOINT on it; production callers omit it
-   *     and the service opens its own transaction.
+   *     the flow runs inside a SAVEPOINT on it and the pre-checkout plan
+   *     read rides the same transaction — the whole flow participates in
+   *     the caller's unit instead of escaping to the pool; production
+   *     callers omit it and the service opens its own transaction (the
+   *     plan read is then a bare pool read).
    * @returns The pending subscription/payment pair plus the checkout
    *     descriptor for a FIRST purchase; a replay never returns — it
    *     throws `ConflictError("DUPLICATE_REQUEST")`.
@@ -548,10 +555,14 @@ export namespace SubscriptionPurchaseService {
     }
 
     // The plan read feeding the checkout input — active-only, outside the
-    // transaction (a missing or deactivated plan never reaches the
-    // gateway). The authoritative re-validation runs inside the purchase
-    // transaction below.
-    const plan = await PlanRepository.findActiveById(input.planId);
+    // purchase transaction (a missing or deactivated plan never reaches
+    // the gateway). The read rides the caller's transaction when `outerTx`
+    // is supplied (the activation service's outerTx contract: the whole
+    // flow participates in the caller's unit instead of escaping to the
+    // pool); production callers omit it and this is a bare pool read. The
+    // authoritative re-validation runs inside the purchase transaction
+    // below.
+    const plan = await PlanRepository.findActiveById(input.planId, outerTx);
     if (plan === null) {
       logger.logDomainError("Subscription purchase rejected: plan is not purchasable", {
         code: "PLAN_NOT_FOUND",

@@ -307,6 +307,11 @@ const MUTATION_SURFACE_INVENTORY_QUERY_DOCUMENT: DocumentNode = gql`
  * (never a partial-success wrapper), so they do not exercise Rules #6/#7.
  * They still belong on this drift-guard list: the contract stays "every
  * deployed Mutation root field is enumerated".
+ *
+ * `purchaseSubscription` also resolves to the canonical
+ * `PurchaseSubscriptionPayload` (pending subscription + payment pair plus
+ * the gateway checkout descriptor; every denial rides `errors[]`), never a
+ * partial-success wrapper, so it does not exercise Rules #6/#7 either.
  */
 const KNOWN_LIVE_MUTATION_FIELDS = [
   "adminBroadcastNotification",
@@ -331,6 +336,7 @@ const KNOWN_LIVE_MUTATION_FIELDS = [
   "markAllNotificationsRead",
   "markNotificationRead",
   "openSessionDispute",
+  "purchaseSubscription",
   "refreshToken",
   "registerUser",
   "requestParentChildLink",
