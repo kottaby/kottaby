@@ -440,32 +440,45 @@ describe("SessionRepository — admin governance surface (runInRollback)", () =>
       // LAST created row.
       const expectedHead = insertedRows.map(row => row.id).toReversed();
 
-      const baseline = await SessionRepository.listForAdmin({}, 1, 50, tx);
+      // The fixture stamps are future-dated into a unique band; a window
+      // spanning exactly that band isolates the fixture rows so the
+      // pagination oracles stay exact regardless of any OTHER committed
+      // sessions in the database (parallel repo suites and earlier files
+      // legitimately leave committed rows behind — the clamp contract under
+      // test is filter-agnostic).
+      const scopedWindow = {
+        dateFrom: new Date(now + 45_000),
+        dateTo: new Date(now + 31 * 60_000),
+      };
+      const scoped = (page: number, pageSize: number) =>
+        SessionRepository.listForAdmin(scopedWindow, page, pageSize, tx);
+
+      const baseline = await scoped(1, 50);
       expect(baseline.rows.map(row => row.id).slice(0, 30)).toEqual(expectedHead);
 
       // A page below 1 falls back to the first page; an oversized pageSize
       // falls back to the default window of 25.
-      const pageZero = await SessionRepository.listForAdmin({}, 0, 100, tx);
+      const pageZero = await scoped(0, 100);
       expect(pageZero.rows).toHaveLength(25);
       expect(pageZero.rows.map(row => row.id).slice(0, 25)).toEqual(expectedHead.slice(0, 25));
 
-      const negativePage = await SessionRepository.listForAdmin({}, -3, 0, tx);
+      const negativePage = await scoped(-3, 0);
       expect(negativePage.rows).toHaveLength(25);
 
       // The pageSize bounds are honored verbatim.
-      const singleRow = await SessionRepository.listForAdmin({}, 1, 1, tx);
+      const singleRow = await scoped(1, 1);
       expect(singleRow.rows.map(row => row.id)).toEqual([expectedHead[0]]);
 
-      const fullWindow = await SessionRepository.listForAdmin({}, 1, 50, tx);
+      const fullWindow = await scoped(1, 50);
       expect(fullWindow.rows.map(row => row.id).slice(0, 30)).toEqual(expectedHead);
 
       // An offset past the end yields empty rows next to the honest total.
-      const beyond = await SessionRepository.listForAdmin({}, 3, 25, tx);
+      const beyond = await scoped(3, 25);
       expect(beyond.rows).toEqual([]);
       expect(beyond.total).toBe(baseline.total);
 
       // A mid window slices the ordered set.
-      const mid = await SessionRepository.listForAdmin({}, 2, 25, tx);
+      const mid = await scoped(2, 25);
       expect(mid.rows.map(row => row.id)).toEqual(expectedHead.slice(25, 30));
     });
   });
