@@ -41,7 +41,7 @@ Three hard gates protect every closure:
 ### Step 2 — Match gate: does this plan implement THIS issue?
 
 - [ ] Extract the ticket ID from the issue title (from its `[...]` prefix when present) and/or the issue body (overview text, ticket-catalog references).
-- [ ] Extract the ticket ID from the plan directory name (e.g. `dev1-003-recitation-selection-on-registration`) and from the plan's `plan.md`/`specs.md` header.
+- [ ] Extract the ticket ID from the plan directory name (e.g. `recitation-selection-on-registration`) and from the plan's `plan.md`/`specs.md` header.
 - [ ] Compare semantically, not just by ID: the issue's Overview text and the plan's summary must describe the same feature. Ticket-IDs in adjacent sprints are easy to confuse (adjacent ticket IDs have been confused in practice).
 - [ ] **Mismatch → BLOCK.** Do not comment, do not close. Instead:
   - Scan `ai/finished_plans/` and `ai/plans/` for the directory whose ticket ID or topic matches the issue.

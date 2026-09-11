@@ -30,7 +30,7 @@ All shared test infrastructure (Apollo client, port allocation, server lifecycle
 
 ### `gateway/` sub-directory
 
-Suites under `test/gateway/` (e.g. `allowlist-coverage.test.ts`) run against the BUILT schema imported in-process (`import { graphQLSchema } from "@/backend/graphql/gqlSchema"`) — the same tier as `schema-surface.test.ts`. They deliberately do NOT use `setupTestServerLifecycle`/`testClient`: the delegated live-boot tier is env-locked while an interactive dev server runs (Next.js 16 singleton dev-server lock), and the harness liveness probe still polls the retired `{ _health }` document (must become `{ _health { status } }` post-retyping). Both walls are tracked as ledger row BLT-07 in `ai/plans/sprint_0/dev3-003-api-gateway-routing-skeleton/deferred-items.md`; live-wire gateway coverage belongs to that owning stream once the harness heals.
+Suites under `test/gateway/` (e.g. `allowlist-coverage.test.ts`) run against the BUILT schema imported in-process (`import { graphQLSchema } from "@/backend/graphql/gqlSchema"`) — the same tier as `schema-surface.test.ts`. They deliberately do NOT use `setupTestServerLifecycle`/`testClient`: the delegated live-boot tier is env-locked while an interactive dev server runs (Next.js 16 singleton dev-server lock), and the harness liveness probe still polls the retired `{ _health }` document (must become `{ _health { status } }` post-retyping). Both walls are tracked as ledger row BLT-07 in `ai/plans/sprint_0/api-gateway-routing-skeleton/deferred-items.md`; live-wire gateway coverage belongs to that owning stream once the harness heals.
 
 ### Import conventions for test files
 

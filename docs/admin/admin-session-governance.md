@@ -111,7 +111,7 @@ Both enforce the SAME governance-clean admin gate and therefore the same byte-id
 
 ## 11. Forward items
 
-Genuinely-deferred work is tracked in this ticket's plan ledger (`ai/plans/sprint_3/dev3-021-admin-session-governance/deferred-items.md`), all forward-owned and none blocking this surface's contract:
+Genuinely-deferred work is tracked in this ticket's plan ledger (`ai/plans/sprint_3/admin-session-governance/deferred-items.md`), all forward-owned and none blocking this surface's contract:
 
 - Bespoke rate limit for admin mutations (platform hardening stream).
 - Real-time admin dashboards over governance surfaces (analytics family).

@@ -59,14 +59,14 @@
 
 ```mermaid
 graph LR
-    DEV1_001[Schema Migration] --> DEV1_002[User Registration]
-    DEV1_001 --> DEV2_001[JWT Auth]
-    DEV1_001 --> DEV2_003[Shared Types]
-    DEV1_002 --> DEV1_003[Recitation Selection]
-    DEV1_002 --> DEV1_004[Free Trial Session]
-    DEV2_001 --> DEV2_002[RBAC Middleware]
-    DEV3_001[CI/CD Pipeline]
-    DEV3_002[Error Handling] --> DEV3_003[API Gateway]
+    T1_001[Schema Migration] --> T1_002[User Registration]
+    T1_001 --> T2_001[JWT Auth]
+    T1_001 --> T2_003[Shared Types]
+    T1_002 --> T1_003[Recitation Selection]
+    T1_002 --> T1_004[Free Trial Session]
+    T2_001 --> T2_002[RBAC Middleware]
+    T3_001[CI/CD Pipeline]
+    T3_002[Error Handling] --> T3_003[API Gateway]
 ```
 
 ### Risks
@@ -132,25 +132,25 @@ graph LR
 
 ```mermaid
 graph LR
-    DEV1_005[Plan Catalog] --> DEV1_006[Subscription Purchase]
-    DEV1_006 --> DEV1_007[Balance Crediting]
-    DEV1_007 --> DEV1_008[Validity & Expiry]
-    DEV1_008 --> DEV1_009[Admin Sub Management]
+    T1_005[Plan Catalog] --> T1_006[Subscription Purchase]
+    T1_006 --> T1_007[Balance Crediting]
+    T1_007 --> T1_008[Validity & Expiry]
+    T1_008 --> T1_009[Admin Sub Management]
 
-    DEV2_004[Applicant Registration] --> DEV2_005[Verification Plan]
-    DEV2_005 --> DEV2_006[5-Session Loop]
-    DEV2_006 --> DEV2_007[Rubric Scoring]
-    DEV2_007 --> DEV2_008[Cooldown SM]
-    DEV2_008 --> DEV2_009[Failed→Student]
-    DEV2_008 --> DEV2_010[Admin Override]
+    T2_004[Applicant Registration] --> T2_005[Verification Plan]
+    T2_005 --> T2_006[5-Session Loop]
+    T2_006 --> T2_007[Rubric Scoring]
+    T2_007 --> T2_008[Cooldown SM]
+    T2_008 --> T2_009[Failed→Student]
+    T2_008 --> T2_010[Admin Override]
 
-    DEV3_004[Session Lifecycle] --> DEV3_005[State Machine]
-    DEV3_004 --> DEV3_006[Report Infrastructure]
-    DEV3_004 --> DEV3_007[Recitation Record]
+    T3_004[Session Lifecycle] --> T3_005[State Machine]
+    T3_004 --> T3_006[Report Infrastructure]
+    T3_004 --> T3_007[Recitation Record]
 
-    DEV1_006 -.->|provides plan purchase| DEV2_005
-    DEV1_001 -.->|provides schema| DEV3_004
-    DEV2_002 -.->|provides RBAC| DEV3_004
+    T1_006 -.->|provides plan purchase| T2_005
+    T1_001 -.->|provides schema| T3_004
+    T2_002 -.->|provides RBAC| T3_004
 ```
 
 ### Risks
@@ -217,22 +217,22 @@ graph LR
 
 ```mermaid
 graph LR
-    DEV1_010[Lessons CRUD] --> DEV1_011[Progress Tracking]
-    DEV1_011 --> DEV1_012[Teacher Prep View]
+    T1_010[Lessons CRUD] --> T1_011[Progress Tracking]
+    T1_011 --> T1_012[Teacher Prep View]
 
-    DEV2_011[Availability Toggle] --> DEV2_012[Inactivity Timeout]
-    DEV2_011 --> DEV2_013[In-Session Lock]
-    DEV3_006[Report Infra] --> DEV2_014[Report Submission]
-    DEV2_014 --> DEV2_015[Surah/Juz Homework]
+    T2_011[Availability Toggle] --> T2_012[Inactivity Timeout]
+    T2_011 --> T2_013[In-Session Lock]
+    T3_006[Report Infra] --> T2_014[Report Submission]
+    T2_014 --> T2_015[Surah/Juz Homework]
 
-    DEV3_008[Matching Algorithm] --> DEV3_009[Directory API]
-    DEV3_010[Notification Engine] --> DEV3_011[Request Notification]
-    DEV3_012[Dual Confirmation] --> DEV3_013[Fee Escrow]
-    DEV3_013 --> DEV3_014[Wallet Crediting]
-    DEV3_014 --> DEV3_015[Withdrawal Workflow]
+    T3_008[Matching Algorithm] --> T3_009[Directory API]
+    T3_010[Notification Engine] --> T3_011[Request Notification]
+    T3_012[Dual Confirmation] --> T3_013[Fee Escrow]
+    T3_013 --> T3_014[Wallet Crediting]
+    T3_014 --> T3_015[Withdrawal Workflow]
 
-    DEV2_011 -.->|provides availability| DEV3_008
-    DEV1_007 -.->|provides balance| DEV3_013
+    T2_011 -.->|provides availability| T3_008
+    T1_007 -.->|provides balance| T3_013
 ```
 
 ### Risks
@@ -311,29 +311,29 @@ graph LR
 
 ```mermaid
 graph LR
-    DEV1_013[Handshake Code] --> DEV1_014[Link Request]
-    DEV1_014 --> DEV1_015[Student Confirmation]
-    DEV1_015 --> DEV1_016[Parent Portal]
-    DEV1_016 --> DEV1_017[Parent Notifications]
+    T1_013[Handshake Code] --> T1_014[Link Request]
+    T1_014 --> T1_015[Student Confirmation]
+    T1_015 --> T1_016[Parent Portal]
+    T1_016 --> T1_017[Parent Notifications]
 
-    DEV3_012[Dual Confirm] --> DEV2_016[Student Rating]
-    DEV2_016 --> DEV2_017[Rating Aggregation]
-    DEV2_008[Cooldown] --> DEV2_018[Re-Evaluation]
-    DEV3_014[Wallet] --> DEV2_018
-    DEV2_014[Report Submission] --> DEV2_019[Academic Tracking]
+    T3_012[Dual Confirm] --> T2_016[Student Rating]
+    T2_016 --> T2_017[Rating Aggregation]
+    T2_008[Cooldown] --> T2_018[Re-Evaluation]
+    T3_014[Wallet] --> T2_018
+    T2_014[Report Submission] --> T2_019[Academic Tracking]
 
-    DEV3_016[Admin CRUD] --> DEV3_017[Soft Delete]
-    DEV3_016 --> DEV3_018[Cold-Start]
-    DEV3_016 --> DEV3_019[Direct Onboarding]
-    DEV3_016 --> DEV3_020[Audit Logging]
-    DEV3_016 --> DEV3_021[Session Governance]
-    DEV3_012 --> DEV3_022[Dispute Resolution]
-    DEV3_014 --> DEV3_022b[Financial Auditing]
-    DEV3_016 --> DEV3_022c[Analytics]
-    DEV3_010[Notification Engine] --> DEV3_022d[Broadcast]
+    T3_016[Admin CRUD] --> T3_017[Soft Delete]
+    T3_016 --> T3_018[Cold-Start]
+    T3_016 --> T3_019[Direct Onboarding]
+    T3_016 --> T3_020[Audit Logging]
+    T3_016 --> T3_021[Session Governance]
+    T3_012 --> T3_022[Dispute Resolution]
+    T3_014 --> T3_022b[Financial Auditing]
+    T3_016 --> T3_022c[Analytics]
+    T3_010[Notification Engine] --> T3_022d[Broadcast]
 
-    DEV1_009 -.->|provides sub management| DEV3_019
-    DEV3_011 -.->|provides notifications| DEV1_016
+    T1_009 -.->|provides sub management| T3_019
+    T3_011 -.->|provides notifications| T1_016
 ```
 
 ### Risks
@@ -390,15 +390,15 @@ graph LR
 
 ```mermaid
 graph LR
-    DEV1_018[E2E Student Journey] --> DEV3_026[Launch Checklist]
-    DEV1_019[E2E Parent Journey] --> DEV3_026
-    DEV1_020[E2E Subscription] --> DEV3_026
-    DEV2_020[Security Hardening] --> DEV3_026
-    DEV2_021[Audit Verification] --> DEV3_026
-    DEV2_022[Invariant Tests] --> DEV3_026
-    DEV3_023[Load Testing] --> DEV3_026
-    DEV3_024[Disaster Recovery] --> DEV3_026
-    DEV3_025[Financial Safety] --> DEV3_026
+    T1_018[E2E Student Journey] --> T3_026[Launch Checklist]
+    T1_019[E2E Parent Journey] --> T3_026
+    T1_020[E2E Subscription] --> T3_026
+    T2_020[Security Hardening] --> T3_026
+    T2_021[Audit Verification] --> T3_026
+    T2_022[Invariant Tests] --> T3_026
+    T3_023[Load Testing] --> T3_026
+    T3_024[Disaster Recovery] --> T3_026
+    T3_025[Financial Safety] --> T3_026
 ```
 
 ### Risks

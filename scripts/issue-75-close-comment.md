@@ -1,9 +1,9 @@
 ## ✅ Complete — Session Report & Homework Infrastructure
 
-Implemented per plan: `ai/plans/sprint_1/dev3-006-session-report-homework-infrastructure/`
-Close-out: `ai/plans/sprint_1/dev3-006-session-report-homework-infrastructure/outcome/final-outcome.md`
+Implemented per plan: `ai/plans/sprint_1/session-report-homework-infrastructure/`
+Close-out: `ai/plans/sprint_1/session-report-homework-infrastructure/outcome/final-outcome.md`
 Canonical reference: `docs/sessions/session-report-homework.md`
-Integration: PR #86 (`feat/dev3-006-session-report-homework` → `main`) — merge gated on the branch's required status checks.
+Integration: PR #86 (`feat/session-report-homework` → `main`) — merge gated on the branch's required status checks.
 
 ### What was delivered
 

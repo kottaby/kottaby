@@ -170,7 +170,7 @@ function buildDeleteProbe(entity: string): RegExp {
  * The Mutation root inventory in `schema-surface.test.ts` is already
  * pinned via an EXACT-MATCH `toEqual` assertion (the 23-op list
  * includes no `hardDelete*` / `deleteUser` field — see the
- * `DEV3_017_ADMIN_GOVERNANCE_MUTATION_FIELDS` reconciliation note).
+ * `ADMIN_GOVERNANCE_MUTATION_FIELDS` reconciliation note).
  * The probe below is the negative-form defense-in-depth: it asserts
  * that NO live Mutation field name starts with `hardDelete` or matches
  * the `deleteUser` / `deleteAccount` class. A future addition of

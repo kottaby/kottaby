@@ -88,7 +88,7 @@
  * `adminSetUserDeleted`, `adminUpdateUser`), the admin enums
  * (`AdminUserGovernanceFilter`, `AuditActionType`), and the
  * admin-user named-type surface (11 object/input types) are now re-anchored
- * to the LIVE built schema via the new `DEV3_016_ADMIN_*` constants below
+ * to the LIVE built schema via the new `ADMIN_USER_*` constants below
  * — captured via `printSchema(lexicographicSortSchema(graphQLSchema))` as
  * empirical evidence and documented here as a one-time reconciliation (not
  * a silent baseline flip). The admin-governance pair is then
@@ -204,33 +204,32 @@ const PRE_3_1_ENUMS = [
  * therefore deliberately ABSENT from the public-operation allowlist
  * (`backend/lib/gateway/public-operations.ts` stays byte-unchanged).
  */
-const DEV3_004_QUERY_FIELDS = ["myStudentSessions", "myTeacherSessions", "sessionById"] as const;
+const SESSION_LIFECYCLE_QUERY_FIELDS = ["myStudentSessions", "myTeacherSessions", "sessionById"] as const;
 /** admin arbitration listing — the admin-gated disputed queue. */
-const DEV3_005_QUERY_FIELDS = ["adminDisputedSessions"] as const;
+const DISPUTE_QUERY_FIELDS = ["adminDisputedSessions"] as const;
 /** lifecycle mutation quartet (plan §3.1/§3.2 — REQ-060/061). */
-const DEV3_004_MUTATION_FIELDS = ["cancelSession", "completeSession", "createSession", "startSession"] as const;
-/** dispute mutation pair (R-102/R-104). */
-const DEV3_005_MUTATION_FIELDS = ["openSessionDispute", "resolveSessionDispute"] as const;
-/** dual-confirmation mutation (R-201/R-202). */
-const DEV3_012_MUTATION_FIELDS = ["confirmSessionCompletion"] as const;
-/** wallet read — the teacher-only wallet + ledger surface (R-301). */
-const DEV3_013_QUERY_FIELDS = ["myWallet"] as const;
-/** wallet payout write — the teacher-only withdrawal request (R-302). */
-const DEV3_013_MUTATION_FIELDS = ["requestWithdrawal"] as const;
-/** billing ledger vocabulary — registered ONCE in `shared/enum.pothos.ts`. */
-const DEV3_013_ENUMS = ["TransactionStatus", "TransactionType"] as const;
-/** arbitration outcome vocabulary — registered ONCE, no pgEnum backing. */
-const DEV3_005_ENUMS = ["DisputeResolution"] as const;
-/** nullable `Session` fields — the dispute + reason surface (R-105/R-107). */
-const DEV3_005_SESSION_FIELDS = [
-  "cancelReason",
-  "disputeReason",
-  "disputedAt",
-  "resolutionNote",
-  "resolvedAt",
+const SESSION_LIFECYCLE_MUTATION_FIELDS = [
+  "cancelSession",
+  "completeSession",
+  "createSession",
+  "startSession",
 ] as const;
+/** dispute mutation pair (R-102/R-104). */
+const DISPUTE_MUTATION_FIELDS = ["openSessionDispute", "resolveSessionDispute"] as const;
+/** dual-confirmation mutation (R-201/R-202). */
+const DUAL_CONFIRMATION_MUTATION_FIELDS = ["confirmSessionCompletion"] as const;
+/** wallet read — the teacher-only wallet + ledger surface (R-301). */
+const WALLET_QUERY_FIELDS = ["myWallet"] as const;
+/** wallet payout write — the teacher-only withdrawal request (R-302). */
+const WALLET_MUTATION_FIELDS = ["requestWithdrawal"] as const;
+/** billing ledger vocabulary — registered ONCE in `shared/enum.pothos.ts`. */
+const WALLET_ENUMS = ["TransactionStatus", "TransactionType"] as const;
+/** arbitration outcome vocabulary — registered ONCE, no pgEnum backing. */
+const DISPUTE_ENUMS = ["DisputeResolution"] as const;
+/** nullable `Session` fields — the dispute + reason surface (R-105/R-107). */
+const DISPUTE_SESSION_FIELDS = ["cancelReason", "disputeReason", "disputedAt", "resolutionNote", "resolvedAt"] as const;
 /** scheduling enum trio — registered ONCE in `shared/enum.pothos.ts`. */
-const DEV3_004_ENUMS = ["SessionIntent", "SessionStatus", "SessionType"] as const;
+const SESSION_LIFECYCLE_ENUMS = ["SessionIntent", "SessionStatus", "SessionType"] as const;
 /**
  * admin-user-management query quartet — RECONCILED baseline drift
  * (these fields shipped on the live Mutation root as part of the
@@ -239,26 +238,21 @@ const DEV3_004_ENUMS = ["SessionIntent", "SessionStatus", "SessionType"] as cons
  * documented one-time reconciliation ahead of pinning the
  * admin-governance pair.
  */
-const DEV3_016_ADMIN_USER_QUERY_FIELDS = [
-  "adminUserActivity",
-  "adminUserDetail",
-  "adminUserStats",
-  "adminUsers",
-] as const;
+const ADMIN_USER_USER_QUERY_FIELDS = ["adminUserActivity", "adminUserDetail", "adminUserStats", "adminUsers"] as const;
 /**
  * admin-user-management mutation trio — RECONCILED baseline drift
  * (the prior `PRE_3_1_MUTATION_FIELDS` inventory listed plan-catalog CRUD
  * but omitted the three admin-user writes that landed alongside it). The
  * admin-governance pair is pinned separately below.
  */
-const DEV3_016_ADMIN_USER_MUTATION_FIELDS = ["adminCreateUser", "adminSetUserDeleted", "adminUpdateUser"] as const;
+const ADMIN_USER_USER_MUTATION_FIELDS = ["adminCreateUser", "adminSetUserDeleted", "adminUpdateUser"] as const;
 /**
  * admin-user-management vocabulary — RECONCILED baseline drift
  * (the governance-filter enum and the audit-action enum were never pinned
  * in the prior `PRE_3_1_ENUMS` inventory). Both enums are referenced by
  * the admin-user surface (filter input + activity feed).
  */
-const DEV3_016_ADMIN_ENUMS = ["AdminUserGovernanceFilter", "AuditActionType"] as const;
+const ADMIN_USER_ENUMS = ["AdminUserGovernanceFilter", "AuditActionType"] as const;
 /**
  * admin-governance mutation pair — the sanctioned
  * post-reconciliation addition. Both mutations carry the
@@ -268,7 +262,7 @@ const DEV3_016_ADMIN_ENUMS = ["AdminUserGovernanceFilter", "AuditActionType"] as
  * the positions `adminCreateUser` < `adminSetUserBlocked` <
  * `adminSetUserDeleted` < `adminSetUserSuspended` < `adminUpdateUser`.
  */
-const DEV3_017_ADMIN_GOVERNANCE_MUTATION_FIELDS = ["adminSetUserBlocked", "adminSetUserSuspended"] as const;
+const ADMIN_GOVERNANCE_MUTATION_FIELDS = ["adminSetUserBlocked", "adminSetUserSuspended"] as const;
 /** Non-root object/enum/scalar SDL type names in the baseline (introspection `__*` and spec scalars excluded). */
 const PRE_3_1_TYPE_NAMES = [
   "AppLocale",
@@ -296,19 +290,24 @@ const PRE_3_1_TYPE_NAMES = [
 /**
  * session surface — objects + inputs that enter the named-type
  * map when the resolver modules register the root fields (plan §3.1 SDL).
- * The scheduling enum trio is pinned separately (see `DEV3_004_ENUMS`).
+ * The scheduling enum trio is pinned separately (see `SESSION_LIFECYCLE_ENUMS`).
  */
-const DEV3_004_TYPE_NAMES = ["CreateSessionInput", "Session", "SessionListFilterInput", "SessionPage"] as const;
+const SESSION_LIFECYCLE_TYPE_NAMES = [
+  "CreateSessionInput",
+  "Session",
+  "SessionListFilterInput",
+  "SessionPage",
+] as const;
 /** billing objects + input (R-301/R-302) — the wallet surface types. */
-const DEV3_013_TYPE_NAMES = ["RequestWithdrawalInput", "TeacherTransaction", "Wallet"] as const;
+const WALLET_TYPE_NAMES = ["RequestWithdrawalInput", "TeacherTransaction", "Wallet"] as const;
 /**
  * admin-user-management named-type surface — RECONCILED baseline
  * drift (the prior `PRE_3_1_TYPE_NAMES` inventory listed plan-catalog
  * objects/inputs but omitted the eleven admin-user objects/inputs that
  * landed alongside it). The two enum names (`AdminUserGovernanceFilter`,
- * `AuditActionType`) are pinned separately via `DEV3_016_ADMIN_ENUMS`.
+ * `AuditActionType`) are pinned separately via `ADMIN_USER_ENUMS`.
  */
-const DEV3_016_ADMIN_TYPE_NAMES = [
+const ADMIN_USER_TYPE_NAMES = [
   "AdminCreateUserInput",
   "AdminParentSnapshot",
   "AdminStudentSnapshot",
@@ -323,9 +322,9 @@ const DEV3_016_ADMIN_TYPE_NAMES = [
 ] as const;
 // ─── Whole-platform analytics read — ONE admin root query (zero arguments, ──
 // ─── `$all`-gated; no anonymous surface, the allowlist stays byte-unchanged)─
-const DEV3_022C_QUERY_FIELDS = ["adminPlatformAnalytics"] as const;
+const PLATFORM_ANALYTICS_QUERY_FIELDS = ["adminPlatformAnalytics"] as const;
 /** Analytics embedded value objects — root snapshot + ten sections/trend points; NO `id` anywhere, NO new enum, NO input, NO mutation. */
-const DEV3_022C_TYPE_NAMES = [
+const PLATFORM_ANALYTICS_TYPE_NAMES = [
   "PlatformAnalytics",
   "PlatformAnalyticsCurrencyRevenue",
   "PlatformAnalyticsHealth",
@@ -378,17 +377,17 @@ const SUBSCRIPTION_PURCHASE_TYPE_NAMES = [
 ] as const;
 
 /** participant session-report read pair — nullable root reads, `sessionId: ID!` single-arg. */
-const DEV3_006_QUERY_FIELDS = ["sessionHomework", "sessionReport"] as const;
+const SESSION_REPORT_QUERY_FIELDS = ["sessionHomework", "sessionReport"] as const;
 /** teacher report submission write — `$all`-gated (authenticated Teacher) per plan §3.2. */
-const DEV3_006_MUTATION_FIELDS = ["submitSessionReport"] as const;
+const SESSION_REPORT_MUTATION_FIELDS = ["submitSessionReport"] as const;
 /** recitation-location vocabulary — registered ONCE in `shared/enum.pothos.ts` (enum-object form). */
-const DEV3_006_ENUMS = ["SurahJuzRef"] as const;
+const SESSION_REPORT_ENUMS = ["SurahJuzRef"] as const;
 /**
  * session-report/homework surface — the two report objects plus the
  * four closed input whitelists (plan §3.1 SDL; `SurahJuzRef` is pinned
- * separately via `DEV3_006_ENUMS`).
+ * separately via `SESSION_REPORT_ENUMS`).
  */
-const DEV3_006_TYPE_NAMES = [
+const SESSION_REPORT_TYPE_NAMES = [
   "HomeWorkAssignmentInput",
   "HomeWorkBlockInput",
   "HomeWorkGradeInput",
@@ -405,8 +404,8 @@ const DEV3_006_TYPE_NAMES = [
  * `authScopes: { $all: { authenticated: true, role: [UserRole.Admin] } }`
  * conjunction.
  */
-const DEV3_021_QUERY_FIELDS = ["adminSession", "adminSessions"] as const;
-const DEV3_021_MUTATION_FIELDS = [
+const ADMIN_SESSION_GOVERNANCE_QUERY_FIELDS = ["adminSession", "adminSessions"] as const;
+const ADMIN_SESSION_GOVERNANCE_MUTATION_FIELDS = [
   "adminCancelSession",
   "adminJoinSession",
   "adminReassignTeacher",
@@ -417,7 +416,7 @@ const DEV3_021_MUTATION_FIELDS = [
  * filter input. NO new object/enum: the canonical `Session`/`SessionPage`
  * objects are reused (`Session` widened with `needsAttention: Boolean!`).
  */
-const DEV3_021_TYPE_NAMES = [
+const ADMIN_SESSION_GOVERNANCE_TYPE_NAMES = [
   "AdminSessionCancelInput",
   "AdminSessionJoinInput",
   "AdminSessionListFilterInput",
@@ -433,11 +432,11 @@ const DEV3_021_TYPE_NAMES = [
  * payload (the collapse channel). Both are authScopes-gated — neither is
  * allowlist material; the public-operation registry stays byte-unchanged.
  */
-const DEV3_007_MUTATION_FIELDS = ["setSessionRecitation"] as const;
+const RECITATION_RECORD_MUTATION_FIELDS = ["setSessionRecitation"] as const;
 /** participant read — the nullable collapse-channel query. */
-const DEV3_007_QUERY_FIELDS = ["sessionRecitation"] as const;
+const RECITATION_RECORD_QUERY_FIELDS = ["sessionRecitation"] as const;
 /** record object + its closed two-member input (name + optional description). */
-const DEV3_007_TYPE_NAMES = ["SessionRecitation", "SessionRecitationInput"] as const;
+const RECITATION_RECORD_TYPE_NAMES = ["SessionRecitation", "SessionRecitationInput"] as const;
 
 /**
  * R1–R3 admin directory query trio — RECONCILED baseline drift (the
@@ -627,19 +626,19 @@ describe("Query._health — retyped probe surface", () => {
         "_health",
         "findStudentByHandshakeCode",
         "myHandshakeCode",
-        ...DEV3_004_QUERY_FIELDS,
-        ...DEV3_005_QUERY_FIELDS,
-        ...DEV3_006_QUERY_FIELDS,
-        ...DEV3_013_QUERY_FIELDS,
-        ...DEV3_016_ADMIN_USER_QUERY_FIELDS,
-        ...DEV3_021_QUERY_FIELDS,
-        ...DEV3_022C_QUERY_FIELDS,
+        ...SESSION_LIFECYCLE_QUERY_FIELDS,
+        ...DISPUTE_QUERY_FIELDS,
+        ...SESSION_REPORT_QUERY_FIELDS,
+        ...WALLET_QUERY_FIELDS,
+        ...ADMIN_USER_USER_QUERY_FIELDS,
+        ...ADMIN_SESSION_GOVERNANCE_QUERY_FIELDS,
+        ...PLATFORM_ANALYTICS_QUERY_FIELDS,
         ...SUBSCRIPTION_QUERY_FIELDS,
         ...R4R_ADMIN_DIRECTORY_QUERY_FIELDS,
         ...R5_ADMIN_EXPORT_QUERY_FIELDS,
         ...RECONCILED_PARENT_LINK_QUERY_FIELDS,
         ...RECONCILED_ADMIN_AUDIT_QUERY_FIELDS,
-        ...DEV3_007_QUERY_FIELDS,
+        ...RECITATION_RECORD_QUERY_FIELDS,
       ].toSorted((a, b) => a.localeCompare(b))
     );
   });
@@ -725,18 +724,18 @@ describe("Surface freeze — pinned additions vs the baseline inventory", () => 
     expect(names).toEqual(
       [
         ...PRE_3_1_MUTATION_FIELDS,
-        ...DEV3_004_MUTATION_FIELDS,
-        ...DEV3_005_MUTATION_FIELDS,
-        ...DEV3_006_MUTATION_FIELDS,
-        ...DEV3_012_MUTATION_FIELDS,
-        ...DEV3_013_MUTATION_FIELDS,
-        ...DEV3_016_ADMIN_USER_MUTATION_FIELDS,
-        ...DEV3_017_ADMIN_GOVERNANCE_MUTATION_FIELDS,
-        ...DEV3_021_MUTATION_FIELDS,
+        ...SESSION_LIFECYCLE_MUTATION_FIELDS,
+        ...DISPUTE_MUTATION_FIELDS,
+        ...SESSION_REPORT_MUTATION_FIELDS,
+        ...DUAL_CONFIRMATION_MUTATION_FIELDS,
+        ...WALLET_MUTATION_FIELDS,
+        ...ADMIN_USER_USER_MUTATION_FIELDS,
+        ...ADMIN_GOVERNANCE_MUTATION_FIELDS,
+        ...ADMIN_SESSION_GOVERNANCE_MUTATION_FIELDS,
         ...SUBSCRIPTION_PURCHASE_MUTATION_FIELDS,
         ...RECONCILED_PARENT_LINK_MUTATION_FIELDS,
         ...RECONCILED_ADMIN_BROADCAST_CERTIFY_MUTATION_FIELDS,
-        ...DEV3_007_MUTATION_FIELDS,
+        ...RECITATION_RECORD_MUTATION_FIELDS,
       ].toSorted((a, b) => a.localeCompare(b))
     );
     expect(names).not.toContain("_health");
@@ -798,11 +797,11 @@ describe("Surface freeze — pinned additions vs the baseline inventory", () => 
     expect(enumNames).toEqual(
       [
         ...PRE_3_1_ENUMS,
-        ...DEV3_004_ENUMS,
-        ...DEV3_005_ENUMS,
-        ...DEV3_006_ENUMS,
-        ...DEV3_013_ENUMS,
-        ...DEV3_016_ADMIN_ENUMS,
+        ...SESSION_LIFECYCLE_ENUMS,
+        ...DISPUTE_ENUMS,
+        ...SESSION_REPORT_ENUMS,
+        ...WALLET_ENUMS,
+        ...ADMIN_USER_ENUMS,
         ...SUBSCRIPTION_PURCHASE_ENUMS,
         ...RECONCILED_ENUMS,
       ].toSorted((a, b) => a.localeCompare(b))
@@ -844,7 +843,7 @@ describe("Surface freeze — pinned additions vs the baseline inventory", () => 
       throw new Error("Session must be registered as a GraphQL object type");
     }
     const fields = sessionType.getFields();
-    for (const name of DEV3_005_SESSION_FIELDS) {
+    for (const name of DISPUTE_SESSION_FIELDS) {
       expect(Object.hasOwn(fields, name)).toBe(true);
     }
     // All five are nullable (no `!` wrapping) — the dispute/reason data is
@@ -870,17 +869,17 @@ describe("Surface freeze — pinned additions vs the baseline inventory", () => 
         "DateTime",
         "HandshakeCodeLookup",
         "HealthCheck",
-        ...DEV3_004_TYPE_NAMES,
-        ...DEV3_004_ENUMS,
-        ...DEV3_005_ENUMS,
-        ...DEV3_006_TYPE_NAMES,
-        ...DEV3_006_ENUMS,
-        ...DEV3_013_TYPE_NAMES,
-        ...DEV3_013_ENUMS,
-        ...DEV3_016_ADMIN_TYPE_NAMES,
-        ...DEV3_016_ADMIN_ENUMS,
-        ...DEV3_021_TYPE_NAMES,
-        ...DEV3_022C_TYPE_NAMES,
+        ...SESSION_LIFECYCLE_TYPE_NAMES,
+        ...SESSION_LIFECYCLE_ENUMS,
+        ...DISPUTE_ENUMS,
+        ...SESSION_REPORT_TYPE_NAMES,
+        ...SESSION_REPORT_ENUMS,
+        ...WALLET_TYPE_NAMES,
+        ...WALLET_ENUMS,
+        ...ADMIN_USER_TYPE_NAMES,
+        ...ADMIN_USER_ENUMS,
+        ...ADMIN_SESSION_GOVERNANCE_TYPE_NAMES,
+        ...PLATFORM_ANALYTICS_TYPE_NAMES,
         ...SUBSCRIPTION_PURCHASE_ENUMS,
         ...SUBSCRIPTION_PURCHASE_TYPE_NAMES,
         ...RECONCILED_PARENT_LINK_TYPE_NAMES,
@@ -888,7 +887,7 @@ describe("Surface freeze — pinned additions vs the baseline inventory", () => 
         ...RECONCILED_ADMIN_BROADCAST_TYPE_NAMES,
         ...R4R_ADMIN_DIRECTORY_TYPE_NAMES,
         ...R5_ADMIN_EXPORT_TYPE_NAMES,
-        ...DEV3_007_TYPE_NAMES,
+        ...RECITATION_RECORD_TYPE_NAMES,
       ].toSorted((a, b) => a.localeCompare(b))
     );
   });
@@ -1354,7 +1353,7 @@ describe("admin-governance mutations — exact arg shapes + `$all` scope pins", 
     // Tier 0), which pins the same declaration via the same introspection
     // substrate and asserts the live FORBIDDEN / UNAUTHORIZED verdicts
     // over real HTTP.
-    for (const name of DEV3_017_ADMIN_GOVERNANCE_MUTATION_FIELDS) {
+    for (const name of ADMIN_GOVERNANCE_MUTATION_FIELDS) {
       const scopes = authScopesSnapshot(mutationField(name));
       expect(scopes).toEqual({
         $all: { authenticated: true, role: [UserRole.Admin] },
@@ -1493,7 +1492,7 @@ describe("Codegen sync — committed SDL is byte-identical to the built schema",
       "adminDisputedSessions(filter: SessionListFilterInput, limit: Int = 25, offset: Int = 0): SessionPage!"
     );
     expect(committedSdl).toContain("enum DisputeResolution {");
-    for (const field of DEV3_005_SESSION_FIELDS) {
+    for (const field of DISPUTE_SESSION_FIELDS) {
       expect(committedSdl).toContain(field);
     }
     // …and the dual-confirmation mutation is really inside the

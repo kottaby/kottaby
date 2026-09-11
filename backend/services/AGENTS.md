@@ -63,11 +63,11 @@ Each integration file gets **one** smoke test (single API call) to confirm the a
 - **`providerKindToSlug(providerKind)`** is the canonical mapping from the `meeting_providers.provider_kind` column to the adapter slug. Unknown kinds throw `UnsupportedProviderKindError`.
 - **Booking-time generation is non-blocking**: `maybeGenerateUrl` runs adapter calls outside the booking DB transaction; a class booking must never fail because a provider API is down.
 - **Zoom refresh-token re-auth**: Treat `invalid_grant` as the sole authoritative trigger for re-auth — do NOT build proactive renewal on a hardcoded 90-day clock. See `docs/services/zoom-token-types.md`.
-- See `docs/services/meeting-providers.md` for the complete pattern reference (interface, factory, adapter examples, deployment prerequisites, rollout summary). *(doc file absent from this tree — pending the meeting-services ticket; see `ai/plans/dev3-002-shared-error-handling-response-contracts/deferred-items.md` BLT-03)*
+- See `docs/services/meeting-providers.md` for the complete pattern reference (interface, factory, adapter examples, deployment prerequisites, rollout summary). *(doc file absent from this tree — pending the meeting-services ticket; see `ai/plans/shared-error-handling-response-contracts/deferred-items.md` BLT-03)*
 
 ## WhatsApp Cloud API Integration
 
-- **Canonical reference**: `docs/services/whatsapp-cloud-api.md` — covers the full integration (adapter, factory, webhook, dispatch, schema, opt-in, frontend). *(doc file absent from this tree — pending the WhatsApp-integration ticket; see `ai/plans/dev3-002-shared-error-handling-response-contracts/deferred-items.md` BLT-03)*
+- **Canonical reference**: `docs/services/whatsapp-cloud-api.md` — covers the full integration (adapter, factory, webhook, dispatch, schema, opt-in, frontend). *(doc file absent from this tree — pending the WhatsApp-integration ticket; see `ai/plans/shared-error-handling-response-contracts/deferred-items.md` BLT-03)*
 - **Service modules**: `backend/services/whatsapp/` — `WhatsappChannelFactory.ts` (lazy singleton + `resetWhatsappChannel()`), `MetaCloudApiAdapter.ts`, `whatsapp-account.service.ts`, `whatsapp-template.service.ts`.
 - **Channel dispatch**: WhatsApp has its **own dispatch branch** (`dispatchWhatsapp` in `notification-dispatch.helpers.ts`) — never routed through email/SMS-shaped `dispatchRecipientChannel`. Extracts `whatsappTemplate` from `payload.metadata`, fails fast if absent.
 - **Template-only sends (B1)**: `WhatsappPayload` has no free-text `body` field — only `template` + `components[]`. Free-text deferred to v2.

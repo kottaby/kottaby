@@ -1,6 +1,6 @@
 # Real-Time Notification Engine (WebSocket)
 
-> **Source of truth:** `ai/plans/sprint_2/dev3-010-real-time-notification-engine-websocket/` (specs + outcomes) and the shipped code cited below
+> **Source of truth:** `ai/plans/sprint_2/real-time-notification-engine-websocket/` (specs + outcomes) and the shipped code cited below
 > **Related:** `docs/specs/state-machine-invariants.md` (INV-P3), `docs/specs/open-decisions-and-gaps.md`, `docs/IDEMPOTENCY.md`, `docs/workflows/03-session-lifecycle-escrow.md`
 
 ---
@@ -223,4 +223,4 @@ Shipped, all gates green:
 - `docs/workflows/03-session-lifecycle-escrow.md` — completion/cancellation notifications hang off the future emitters (the confirmation/escrow and parent surfaces)
 - `docs/workflows/05-admin-governance-override.md` — broadcasts become admin-surfaced via the broadcast surface over the engine's bulk primitive
 - `backend/services/AGENTS.md`, `backend/ws/AGENTS.md` — layer rules (single-writer; handshake order, close-code vocabulary, bounded-state contract)
-- `ai/plans/sprint_2/dev3-010-real-time-notification-engine-websocket/` — specs, deferred-items ledger, and per-task outcomes (binding summaries: 2.5, 2.6, 2.7, 2.8, 4.2)
+- `ai/plans/sprint_2/real-time-notification-engine-websocket/` — specs, deferred-items ledger, and per-task outcomes (binding summaries: 2.5, 2.6, 2.7, 2.8, 4.2)

@@ -82,12 +82,12 @@ The backend follows a consistent pattern for defining and using types across all
 
 ## Important References
 
-- `docs/services/meeting-providers.md` - Meeting provider adapter/factory pattern reference (auto URL generation for Zoom, Google Meet, Microsoft Teams) *(doc file absent from this tree — pending the meeting-services ticket; see `ai/plans/dev3-002-shared-error-handling-response-contracts/deferred-items.md` BLT-03)*
+- `docs/services/meeting-providers.md` - Meeting provider adapter/factory pattern reference (auto URL generation for Zoom, Google Meet, Microsoft Teams) *(doc file absent from this tree — pending the meeting-services ticket; see `ai/plans/shared-error-handling-response-contracts/deferred-items.md` BLT-03)*
 - `docs/services/zoom-token-types.md` - Zoom token kinds (SDK JWT, OBF, ZAK, S2S OAuth, per-user OAuth) semantics and constraints
 
 ## WhatsApp Cloud API Integration
 
-- **Canonical reference**: `docs/services/whatsapp-cloud-api.md` — covers the full integration (adapter, factory, webhook, dispatch, schema, opt-in, frontend). *(doc file absent from this tree — pending the WhatsApp-integration ticket; see `ai/plans/dev3-002-shared-error-handling-response-contracts/deferred-items.md` BLT-03. When the webhook route lands, its ack contract registers as an envelope exemption in `docs/graphql/error-handling-contract.md`.)*
+- **Canonical reference**: `docs/services/whatsapp-cloud-api.md` — covers the full integration (adapter, factory, webhook, dispatch, schema, opt-in, frontend). *(doc file absent from this tree — pending the WhatsApp-integration ticket; see `ai/plans/shared-error-handling-response-contracts/deferred-items.md` BLT-03. When the webhook route lands, its ack contract registers as an envelope exemption in `docs/graphql/error-handling-contract.md`.)*
 - **Schema**: `backend/db/schema/whatsapp-accounts.ts` — `whatsapp_accounts` table with `encryptedText` columns for credentials, `varchar` for raw Meta tier enums (no local mapping), `isActive` for soft delete (no `deletedAt`).
 - **Permissions**: `WHATSAPP_VIEW`, `WHATSAPP_CONFIG_MANAGE`, `WHATSAPP_TEMPLATES_MANAGE` (no `WHATSAPP_DISPATCH` in v1 — no send mutation).
 - **Migrations**: Two-phase (enum ALTER TYPE + data INSERT) with idempotent `IF NOT EXISTS` / `ON CONFLICT` clauses.

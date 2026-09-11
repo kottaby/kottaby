@@ -17,20 +17,21 @@
  *    text. Notification emission is service-internal ONLY — the GraphQL
  *    write surface is exactly the read-latch pair.
  *  - **Root-set freeze** — the Mutation root is EXACTLY the refreshed frozen
- *    33-op baseline (the prior 7-op auth-quartet + notification read-latch
+ *    34-op baseline (the prior 7-op auth-quartet + notification read-latch
  *    pair + users-locale surface, plus the reconciled admin-user
  *    trio + session quartet + dispute pair +
  *    dual-confirmation + payout + the sanctioned admin-governance
  *    pair + the session-governance quartet + the RECONCILED
  *    parent-link trio + admin broadcast/certify pair + the subscription
- *    purchase write) and the Query root is EXACTLY the refreshed 32-op
- *    baseline (the prior frozen baseline + the `_health` probe + the
- *    reconciled admin-user query quartet + the
+ *    purchase write + the session-report write) and the Query root is
+ *    EXACTLY the refreshed 33-op baseline (the prior frozen baseline +
+ *    the `_health` probe + the session-report read pair +
+ *    the reconciled admin-user query quartet + the
  *    participant-read trio + the admin arbitration listing + the
  *    wallet read + the handshake pair + the
  *    admin session pair + the subscription purchase caller-scoped read +
  *    the re-anchored R1–R3 admin directory trio). Mirrors the `PRE_3_1_*` +
- *    `DEV3_016_ADMIN_*` + `DEV3_017_ADMIN_GOVERNANCE_MUTATION_FIELDS`
+ *    `ADMIN_USER_*` + `ADMIN_GOVERNANCE_MUTATION_FIELDS`
  *    inventories in schema-surface.test.ts, extended with the R5 admin
  *    directory export trio and the subscription-purchase surface.
  *  - **Users-locale surface (D2)** — `updateMyLocale(locale: AppLocale!): User!`
@@ -100,17 +101,18 @@ import {
   type TypeNode,
 } from "graphql";
 
-// ─── Frozen baselines (mirror the refreshed PRE_3_1_* + DEV3_016_ADMIN_* + ──
-// ─── DEV3_017_ADMIN_GOVERNANCE_MUTATION_FIELDS inventories in schema-surface ─
+// ─── Frozen baselines (mirror the refreshed PRE_3_1_* + ADMIN_USER_* + ──
+// ─── ADMIN_GOVERNANCE_MUTATION_FIELDS inventories in schema-surface ─
 // ─── .test.ts — the single sanctioned growth history) ────────────────────────
 
 /**
- * Root mutation fields — the refreshed 33-op baseline: the prior auth
+ * Root mutation fields — the refreshed 34-op baseline: the prior auth
  * quartet + notification read-latch pair + users-locale surface, the
  * reconciled admin-user-management trio (3 mutations) + the
  * session quartet + dispute pair + confirm
  * + payout, the sanctioned admin-governance pair + the
- * session-governance quartet + the subscription purchase write.
+ * session-governance quartet + the subscription purchase write + the
+ * session-report write.
  * Sorted alphabetically (mirrors the
  * live `printSchema(lexicographicSortSchema(graphQLSchema))` Mutation root
  * inventory verbatim). Re-anchored to the live schema as a documented
@@ -150,13 +152,15 @@ const FROZEN_MUTATION_FIELDS = [
   "setPlanActiveStatus",
   "setSessionRecitation",
   "startSession",
+  "submitSessionReport",
   "updateMyLocale",
   "updatePlan",
 ] as const;
 
 /**
- * Root query fields — the refreshed 32-op baseline + the whole-platform
+ * Root query fields — the refreshed 33-op baseline + the whole-platform
  * analytics snapshot: the prior frozen baseline + the `_health` probe +
+ * the session-report read pair (`sessionHomework` / `sessionReport`) +
  * the reconciled admin-user query quartet + the
  * participant-read trio + the admin arbitration listing + the
  * wallet read + the handshake pair + the admin
@@ -209,7 +213,9 @@ const FROZEN_QUERY_FIELDS = [
   "planCatalog",
   "recitationReadings",
   "sessionById",
+  "sessionHomework",
   "sessionRecitation",
+  "sessionReport",
 ] as const;
 
 /** REQ-032: emit is service-internal — these operations must NEVER exist. */
@@ -345,12 +351,12 @@ describe("BFLA structural verdict — zero notification CUD surface (REQ-032)", 
     }
   });
 
-  test("Mutation root is EXACTLY the refreshed frozen 33-op baseline — the reconciled admin-user trio + quartet + dispute pair + confirm + payout + the sanctioned admin-governance pair + the session-governance quartet + the subscription purchase write on top of the auth quartet + notification read-latch pair + users-locale surface", () => {
+  test("Mutation root is EXACTLY the refreshed frozen 34-op baseline — the reconciled admin-user trio + quartet + dispute pair + confirm + payout + the sanctioned admin-governance pair + the session-governance quartet + the subscription purchase write + the session-report write on top of the auth quartet + notification read-latch pair + users-locale surface", () => {
     const names = fieldSurfaces("Mutation").map(surface => surface.name);
     expect(names.toSorted((a, b) => a.localeCompare(b))).toEqual([...FROZEN_MUTATION_FIELDS]);
   });
 
-  test("Query root is EXACTLY the refreshed frozen 32-op baseline (zero unsanctioned growth)", () => {
+  test("Query root is EXACTLY the refreshed frozen 33-op baseline (zero unsanctioned growth)", () => {
     const names = fieldSurfaces("Query").map(surface => surface.name);
     expect(names.toSorted((a, b) => a.localeCompare(b))).toEqual([...FROZEN_QUERY_FIELDS]);
   });

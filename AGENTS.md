@@ -414,9 +414,9 @@ After reading the applicable instruction files and AGENTS.md, subagents check fo
 - `docs/drizzle/neon-http-client.md` - Neon HTTP Client & Provider-Agnostic Stateless Queries reference
 - `docs/graphql/dataloader-batching.md` - Pothos DataLoader batching pattern reference
 - `docs/services/entity-cache-service.md` - Entity Cache Service pattern reference
-- `docs/services/meeting-providers.md` - Meeting provider adapter/factory pattern reference (auto URL generation) *(doc file absent from this tree — pending the meeting-services ticket; see `ai/plans/dev3-002-shared-error-handling-response-contracts/deferred-items.md` BLT-03)*
+- `docs/services/meeting-providers.md` - Meeting provider adapter/factory pattern reference (auto URL generation) *(doc file absent from this tree — pending the meeting-services ticket; see `ai/plans/shared-error-handling-response-contracts/deferred-items.md` BLT-03)*
 - `docs/services/zoom-token-types.md` - Zoom token kinds (SDK JWT, OBF, ZAK, S2S OAuth, per-user OAuth) semantics and constraints
-- `docs/services/whatsapp-cloud-api.md` - WhatsApp Cloud API integration reference (adapter, factory, webhook, dispatch, schema, opt-in, frontend) *(doc file absent from this tree — pending the WhatsApp-integration ticket; see `ai/plans/dev3-002-shared-error-handling-response-contracts/deferred-items.md` BLT-03)*
+- `docs/services/whatsapp-cloud-api.md` - WhatsApp Cloud API integration reference (adapter, factory, webhook, dispatch, schema, opt-in, frontend) *(doc file absent from this tree — pending the WhatsApp-integration ticket; see `ai/plans/shared-error-handling-response-contracts/deferred-items.md` BLT-03)*
 - `docs/services/general-user-creation.md` - General user creation pattern (createUserOfType null extension, specialized group filtering, cache eviction)
 - `docs/billing/quota-system.md` - Quota System: append-only ledger, FIFO selection, periodic rollover, on-demand scheduling integration
 - `.github/CODE_REVIEW_CHECKLIST.md` - Code review guidelines

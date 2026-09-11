@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Create PR: feat/dev3-006-session-report-homework -> main (autofix Step 2 flow)."""
+"""Create PR: feat/session-report-homework -> main (autofix Step 2 flow)."""
 import json, os, sys, urllib.error, urllib.request
 
 TOKEN = os.environ["GITHUB_TOKEN"]
@@ -9,7 +9,7 @@ BODY = """## Session Report & Homework Infrastructure — issue #75
 
 Closes #75
 
-Full implementation per `ai/plans/sprint_1/dev3-006-session-report-homework-infrastructure/`
+Full implementation per `ai/plans/sprint_1/session-report-homework-infrastructure/`
 (spec-implementation protocol: outcome files, checkbox state machine, mid-point gate, review waves).
 
 ### Scope
@@ -40,7 +40,7 @@ Full implementation per `ai/plans/sprint_1/dev3-006-session-report-homework-infr
 
 payload = json.dumps({
     "title": "feat: session report & homework infrastructure (issue #75) — tests + quality-gate green",
-    "head": "feat/dev3-006-session-report-homework",
+    "head": "feat/session-report-homework",
     "base": "main",
     "body": BODY,
 }).encode("utf-8")

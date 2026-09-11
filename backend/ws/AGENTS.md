@@ -1,6 +1,6 @@
 # Backend WS Sidecar Layer Rules
 
-The `backend/ws/` namespace hosts the **notification WebSocket sidecar** — a standalone Bun process (`bun run ws`, entry `scripts/start-notification-ws.ts`), NOT a Next.js route. Route handlers cannot hold upgraded connections in Next.js 16; the sidecar never enters `ROUTE_INVENTORY` and its ingress surface is governed by the notification plan (`ai/plans/sprint_2/dev3-010-real-time-notification-engine-websocket/`), not by `docs/graphql/api-gateway-and-routing.md`.
+The `backend/ws/` namespace hosts the **notification WebSocket sidecar** — a standalone Bun process (`bun run ws`, entry `scripts/start-notification-ws.ts`), NOT a Next.js route. Route handlers cannot hold upgraded connections in Next.js 16; the sidecar never enters `ROUTE_INVENTORY` and its ingress surface is governed by the notification plan (`ai/plans/sprint_2/real-time-notification-engine-websocket/`), not by `docs/graphql/api-gateway-and-routing.md`.
 
 ## Process & Wiring
 

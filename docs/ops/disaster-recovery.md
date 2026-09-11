@@ -287,7 +287,7 @@ Execute in order; fill the timing table during every drill and real recovery:
 - `docs/DATABASE_MIGRATIONS.md` — migration pipeline and the destructive-database guard family the restore guard extends
 - `docs/notifications/realtime-engine.md` — persist-first ruling: a database restore restores **notification truth** (rows are the record; pushes are best-effort hints, healed by post-restore catch-up refetches)
 - `docs/specs/state-machine-invariants.md` — the invariant anchors (`INV-W1`, `INV-B1/B8`, `INV-U1`, …) the restore oracles pin
-- `ai/finished_plans/sprint_4/dev3-024-disaster-recovery-backup-verification/` — the archived plan bundle (plan / specs / tasks) for this tooling; per-task outcome and review records live in the branch/PR history (PR #96)
+- `ai/finished_plans/sprint_4/disaster-recovery-backup-verification/` — the archived plan bundle (plan / specs / tasks) for this tooling; per-task outcome and review records live in the branch/PR history (PR #96)
 
 ---
 

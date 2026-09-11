@@ -79,7 +79,7 @@ Each sub-directory (except `scheduling/` and `utils/` which pre-date this refact
 - **Reads via `queryDb(tx)`**: Non-transactional reads (`getByUserAndProvider`, `listByUser`, `listByProvider`) use `queryDb(tx)` per the Neon HTTP Client pattern. See `docs/drizzle/neon-http-client.md`.
 - **Refresh-token rotation**: Zoom rotates refresh tokens on every exchange. After `refreshAccessToken` (`backend/services/meeting/integrations/token-refresh.ts`) succeeds, the service layer calls `upsert` with the rotated `refresh_token` value. Never assume the stored refresh token is still valid after a refresh.
 - **Scope column**: Per-user OAuth tokens carry a `scope` text column for auditing which scopes were granted at consent time. adapters compare it against the required scope set and throw `InsufficientScopesError` when missing.
-- See `docs/services/meeting-providers.md` for the complete adapter/factory pattern reference. *(doc file absent from this tree — pending the meeting-services ticket; see `ai/plans/dev3-002-shared-error-handling-response-contracts/deferred-items.md` BLT-03)*
+- See `docs/services/meeting-providers.md` for the complete adapter/factory pattern reference. *(doc file absent from this tree — pending the meeting-services ticket; see `ai/plans/shared-error-handling-response-contracts/deferred-items.md` BLT-03)*
 
 ## Append-Only Ledger Pattern (Quota)
 

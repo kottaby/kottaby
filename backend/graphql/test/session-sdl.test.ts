@@ -371,7 +371,7 @@ const SESSION_HOME_WORK_FIELD_TYPES: Record<string, string> = {
  * server-derivable field (no `id`, no `sessionId`, no timestamps, no teacher
  * identity) may appear, and the required/nullable split is exact.
  */
-const DEV3_006_INPUT_WHITELISTS: Record<string, Record<string, string>> = {
+const SESSION_REPORT_INPUT_WHITELISTS: Record<string, Record<string, string>> = {
   HomeWorkAssignmentInput: {
     jadid: "HomeWorkBlockInput",
     madi: "HomeWorkBlockInput",
@@ -503,7 +503,7 @@ describe("session-report surface — plan §3.1 exact shapes", () => {
   });
 
   test("the four input whitelists are CLOSED with exact members and exact type strings", () => {
-    for (const [typeName, members] of Object.entries(DEV3_006_INPUT_WHITELISTS)) {
+    for (const [typeName, members] of Object.entries(SESSION_REPORT_INPUT_WHITELISTS)) {
       const inputType = graphQLSchema.getType(typeName);
       if (!(inputType instanceof GraphQLInputObjectType)) {
         throw new Error(`${typeName} must be registered as a GraphQL input type`);
@@ -520,7 +520,7 @@ describe("session-report surface — plan §3.1 exact shapes", () => {
   });
 
   test("no server-derivable field leaks into any input whitelist (static SDL slice scan)", () => {
-    for (const inputName of Object.keys(DEV3_006_INPUT_WHITELISTS)) {
+    for (const inputName of Object.keys(SESSION_REPORT_INPUT_WHITELISTS)) {
       const blockStart = productionSdl.indexOf(`input ${inputName} {`);
       if (blockStart < 0) throw new Error(`SDL must declare the \`input ${inputName}\` type`);
       const blockEnd = productionSdl.indexOf("}", blockStart);

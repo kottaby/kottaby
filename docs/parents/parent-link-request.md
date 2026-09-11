@@ -187,4 +187,4 @@ Invariants and open decisions are bound by REFERENCE (never renumbered here): [`
 - [`docs/workflows/04-parent-supervision-handshake.md`](../workflows/04-parent-supervision-handshake.md) — the governing workflow (§4.2 discovery, §4.3 request/confirm, §4.4 visibility).
 - [`docs/specs/state-machine-invariants.md`](../specs/state-machine-invariants.md) — INV-P1 (and the sibling INV family).
 - [`docs/notifications/realtime-engine.md`](../notifications/realtime-engine.md) — the notification engine contracts (single writer, publish-after-commit).
-- Plan artifacts: `ai/plans/sprint_3/dev1-014-parent-child-link-request-workflow-7-day/` (plan.md, tasks.md, deferred-items.md ledger, outcome/).
+- Plan artifacts: `ai/plans/sprint_3/parent-child-link-request-workflow-7-day/` (plan.md, tasks.md, deferred-items.md ledger, outcome/).
