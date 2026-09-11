@@ -138,3 +138,23 @@ Work Log:
 Stage Summary:
 - Task 3.1 COMPLETE: HMAC trust boundary (constants + builders + timing-safe verify) landed with golden/tamper vector coverage; committing on feat/paymob-gateway-integration
 - Carry-forward: 3.3 parseWebhookEvent is the first consumer — message via buildTransactionHmacMessage(body.obj) (token-shaped → buildTokenHmacMessage), verify against input.query["hmac"] with config.hmacSecret; GET order-id reads `order` first then `order_id`; compare is case-sensitive lowercase hex (uppercase denied by design); 5.4 simulation channel must sign via these builders (no parallel signer)
+
+---
+Task ID: 3.2
+Agent: general-purpose subagent
+Task: Paymob mappers
+
+Work Log:
+- Created paymob.mapper.ts (3 pure functions + 4 private helpers; zero I/O/env/logging/module state — config and URLs passed in per plan §4.1 signatures) + colocated __tests__/paymob.mapper.test.ts
+- buildIntentionRequest: strict cents guard — regex ^\d+(\.\d{1,2})?$ then exact string-split integer math (whole*100 + fraction.padEnd(2,"0"), no float round-trip) + Number.isSafeInteger ceiling; ValidationError pre-network on >2dp/non-numeric/empty/dot-shaped/scientific/signed (incl. negative)/overflow; "0.01"→1, "0.1"→10, "250.00"→25000, MAX_SAFE_INTEGER boundary accepted, "0"→0 (format-valid; positivity owned upstream by catalog/purchase flow)
+- Single line item built from the SAME conversion (name from args, quantity 1) so the vendor's sum-of-items==total rule holds by construction; payment_methods = [integrationIdCard] + integrationIdWallet only when non-null (integers verbatim; 0 is a valid value, null = absent); special_reference passthrough; notification_url/redirection_url verbatim from args
+- Billing placeholder matrix: first_name/last_name/email/phone_number trim-then-"NA" on null/empty/whitespace (phone arrives nullable per A1); ALL seven address members (apartment/street/building/city/country/floor/state) always "NA" — nothing fabricated
+- toCheckoutDescriptor: guards id + client_secret presence (typeof/length — response is wire data) → DomainError("SERVICE_UNAVAILABLE") (registered code, 503 surface = the generic "payment unavailable" client face; sanitized log line is 3.3's job, upstream body never rethrown); checkoutUrl = config.checkoutBaseUrl + "?publicKey=" + publicKey + "&clientSecret=" + client_secret — EXACTLY the two documented params, NO path appended (prefix is full host(+path) owned by env; default eg.checkout.paymob.com and legacy accept.paymob.com/unifiedcheckout/ both assemble correctly, both pinned); provider = enum VALUE PaymentGateway.Paymob; providerReference = the handed-in specialReference arg, NOT response.special_reference (test pins the distinction)
+- mapCallbackToEvent: reference = order.merchant_order_id ?? "" (null echo → unresolvable empty reference → activation treats unknown payment → ack/no-op path); outcome = success && !pending ? confirmed : failed (pending success ≠ money moved); amount = (amount_cents/100).toFixed(2); currency verbatim; providerTransactionId = String(obj.id)
+- Tests 28 pass / 0 fail (63 expect()): full-body field-by-field, placeholder matrix, cents boundary matrix incl. safe-integer ceiling, URL assembly ×2 prefixes, enum value, ref-echo distinction, id/client_secret throws, confirmed/pending-failed/declined/sub-unit amounts/stringification/null-echo
+- QL duplicates exit 0 ×2 (mapper first-run clean; test needed 2 lint fixes: enum toBe string-literal overload → enum member pin, expect length → toHaveLength); plan-meta/log grep over both files: zero matches
+- Wrote outcome/3.2-outcome.md; flipped tasks.md 3.2 main box + 3.2.QL/TE/SEC/SR/IV
+
+Stage Summary:
+- Task 3.2 COMPLETE: pure intention/callback mappers landed with boundary coverage; committing on feat/paymob-gateway-integration
+- Carry-forward: 3.3 adapter is the consumer — resolve PaymobResolvedConfig fail-closed + both URLs, pass into buildIntentionRequest, POST, then toCheckoutDescriptor(response, config, input.specialReference); on the SERVICE_UNAVAILABLE domain error log sanitized upstream status server-side; checkoutUrl formula = {checkoutBaseUrl}?publicKey={publicKey}&clientSecret={client_secret} (base carries any path/trailing slash; mapper appends only the two-param query); null merchant_order_id → reference "" (unknown-payment ack); amount string toFixed(2) — activation's amount comparison can pin exact string equality

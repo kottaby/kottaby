@@ -65,9 +65,9 @@
   - [x] 3.1.QL · [x] 3.1.TE — golden vectors (valid POST success/declined, valid GET) + tamper vectors (flipped `success`, altered `amount_cents`, missing key, wrong secret, GET `order` vs `order_id` fallback, token-list vector) in colocated `__tests__/paymob.hmac.test.ts` · [x] 3.1.SEC — constant-time behavior · [x] 3.1.SR · [x] 3.1.IV
   - _Requirements: REQ-004, REQ-022, REQ-070_
 
-- [ ] 3.2 Paymob mappers
+- [x] 3.2 Paymob mappers
   - CREATE `backend/services/billing/payment-gateway/paymob/paymob.mapper.ts`: `buildIntentionRequest` (cents conversion w/ 2dp guard, billing placeholders, integer method IDs, `special_reference`), `toCheckoutDescriptor` (validates `id`/`client_secret`; URL assembly from config), `mapCallbackToEvent` (incl. `providerTransactionId`, cents→decimal string).
-  - [ ] 3.2.QL · [ ] 3.2.TE — field-by-field request body assertions; boundary cents cases; descriptor URL assembly; callback mapping incl. declined/PENDING flags · [ ] 3.2.SEC — no client-derived money fields · [ ] 3.2.SR · [ ] 3.2.IV
+  - [x] 3.2.QL · [x] 3.2.TE — field-by-field request body assertions; boundary cents cases; descriptor URL assembly; callback mapping incl. declined/PENDING flags · [x] 3.2.SEC — no client-derived money fields · [x] 3.2.SR · [x] 3.2.IV
   - _Requirements: REQ-011, REQ-012, REQ-013, REQ-014, REQ-015, REQ-016, REQ-017, REQ-044_
 - [ ] 3.3 HTTP client + adapter
   - CREATE `…/paymob/paymob.http.ts` (injectable `fetch` boundary; `AbortSignal.timeout`; `retryTransient` only on transport/5xx; typed minimal validation) and `…/paymob/paymob.adapter.ts` — `class PaymobPaymentGateway implements PaymentGatewayPort` with `requirePaymobConfig()` fail-closed guard, `createCheckout`, `parseWebhookEvent(input)` (returns `null` for verified-but-ignored variants; throws typed errors the route maps to 400/401).
