@@ -12,9 +12,12 @@
  * Consequently the decision writes are single guarded UPDATEs
  * (`markPaidOnce` / `markFailedOnce`) whose `status = 'pending'` predicate
  * is the concurrency lock: a replayed delivery matches zero rows and the
- * caller replays instead of re-deciding. No SELECT-then-UPDATE anywhere,
- * and no column other than `status` / `updated_at` is ever written — the
- * repo and the trigger agree on the single permitted exception.
+ * caller replays instead of re-deciding. No SELECT-then-UPDATE anywhere.
+ * No column other than `status` / `updated_at` is ever written by this
+ * repo's writers — the trigger additionally admits a one-time
+ * `provider_transaction_id` recording (NULL → value) inside that same
+ * guarded decision, which the fulfillment surface writes directly; the
+ * repo and the trigger agree on that single permitted exception.
  *
  * Reads follow the `backend/db/repo/AGENTS.md` "Neon HTTP Client for Bare
  * Reads (CRITICAL)" rule: non-transactional reads run as raw parameterized SQL
@@ -23,9 +26,11 @@
  *
  * Write methods take an optional `tx: DBTransaction` as their last parameter.
  */
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, lt } from "drizzle-orm";
 import { db, queryDb } from "@/backend/db";
 import { studentPayments } from "@/backend/db/schema/billing/student-payments";
+import { subscriptions } from "@/backend/db/schema/billing/subscriptions";
+import type { PaymentGateway } from "@/backend/enum/billing/payment-gateway.enum";
 import { PaymentStatus } from "@/backend/enum/billing/payment-status.enum";
 import { ConflictError } from "@/backend/lib/errors";
 import type {
@@ -34,6 +39,16 @@ import type {
   StudentPaymentInsertType,
   StudentPaymentSelectType,
 } from "@/backend/types";
+
+/**
+ * One stale-pending ledger row joined with the subscription's payment
+ * reference — the provider correlation key a gateway transaction inquiry
+ * needs. Derived from the canonical select row, so the ledger columns stay
+ * single-sourced.
+ */
+export type StalePendingPaymentWithReferenceRow = StudentPaymentSelectType & {
+  paymentReference: string | null;
+};
 
 /**
  * Type guard — narrows `DBQueryExecutor` to `DBTransaction`.
@@ -51,7 +66,27 @@ function isDBTransaction(tx: DBQueryExecutor): tx is DBTransaction {
 const PAYMENT_READ_COLUMNS = `
   id, student_id AS "studentId", subscription_id AS "subscriptionId",
   amount, currency, payment_gateway AS "paymentGateway", status,
+  provider_transaction_id AS "providerTransactionId",
   created_at AS "createdAt", updated_at AS "updatedAt"
+`;
+
+/**
+ * Column projection for the payment ⟕ subscription read: both tables share
+ * `id` / `status` / `created_at` / `updated_at` column names, so every
+ * ledger column is qualified by table and aliased to its camelCase shape.
+ */
+const PAYMENT_WITH_REFERENCE_READ_COLUMNS = `
+  student_payments.id,
+  student_payments.student_id AS "studentId",
+  student_payments.subscription_id AS "subscriptionId",
+  student_payments.amount,
+  student_payments.currency,
+  student_payments.payment_gateway AS "paymentGateway",
+  student_payments.status,
+  student_payments.provider_transaction_id AS "providerTransactionId",
+  student_payments.created_at AS "createdAt",
+  student_payments.updated_at AS "updatedAt",
+  subscriptions.payment_reference AS "paymentReference"
 `;
 
 /**
@@ -165,5 +200,70 @@ export namespace StudentPaymentRepository {
     tx?: DBTransaction
   ): Promise<StudentPaymentSelectType | null> {
     return markStatusOnce(subscriptionId, PaymentStatus.Failed, tx);
+  }
+
+  /**
+   * Finds the pending payments of one gateway that have been undecided
+   * longer than a cutoff instant — the reconciliation sweep's read.
+   *
+   * Each row is joined with the subscription's `payment_reference`, the
+   * merchant-order key the gateway inquiry is addressed by (a pending
+   * payment is always created alongside its subscription, but the FK is
+   * nullable, so the join is a LEFT JOIN and the reference degrades to
+   * `null` rather than nulling the row). Ordering is oldest-first with the
+   * row id as the deterministic tiebreaker, and `limit` caps the batch so
+   * one sweep pass stays bounded.
+   *
+   * Read-only by design: the sweep never updates here — every outcome is
+   * routed through the guarded decision writers by the caller.
+   *
+   * @returns The stale pending rows (possibly empty), oldest first.
+   */
+  export async function findStalePendingByGateway(
+    gateway: PaymentGateway,
+    olderThan: Date,
+    limit: number,
+    tx?: DBQueryExecutor
+  ): Promise<StalePendingPaymentWithReferenceRow[]> {
+    if (tx && isDBTransaction(tx)) {
+      // Transactional read — Drizzle select on the supplied executor.
+      return tx
+        .select({
+          id: studentPayments.id,
+          studentId: studentPayments.studentId,
+          subscriptionId: studentPayments.subscriptionId,
+          amount: studentPayments.amount,
+          currency: studentPayments.currency,
+          paymentGateway: studentPayments.paymentGateway,
+          status: studentPayments.status,
+          providerTransactionId: studentPayments.providerTransactionId,
+          createdAt: studentPayments.createdAt,
+          updatedAt: studentPayments.updatedAt,
+          paymentReference: subscriptions.paymentReference,
+        })
+        .from(studentPayments)
+        .leftJoin(subscriptions, eq(subscriptions.id, studentPayments.subscriptionId))
+        .where(
+          and(
+            eq(studentPayments.paymentGateway, gateway),
+            eq(studentPayments.status, PaymentStatus.Pending),
+            lt(studentPayments.createdAt, olderThan)
+          )
+        )
+        .orderBy(asc(studentPayments.createdAt), asc(studentPayments.id))
+        .limit(limit);
+    }
+    // Non-transactional read — raw SQL via queryDb (Neon HTTP fast path).
+    const result = await queryDb<StalePendingPaymentWithReferenceRow>(
+      `SELECT ${PAYMENT_WITH_REFERENCE_READ_COLUMNS} FROM student_payments
+       LEFT JOIN subscriptions ON subscriptions.id = student_payments.subscription_id
+       WHERE student_payments.payment_gateway = $1
+         AND student_payments.status = $2
+         AND student_payments.created_at < $3
+       ORDER BY student_payments.created_at ASC, student_payments.id ASC
+       LIMIT $4`,
+      [gateway, PaymentStatus.Pending, olderThan, limit]
+    );
+    return result.rows;
   }
 }

@@ -65,3 +65,21 @@ Work Log:
 Stage Summary:
 - Task 2.1 COMPLETE: paymob/ngrok env seam typed, tested (75 green), documented; committed on feat/paymob-gateway-integration
 - Carry-forward: getPaymobConfig() (+ getEnvironmentConfig().ngrok); null = unconfigured → fail closed; tunnel eligibility = NGROK_AUTHTOKEN AND NGROK_DOMAIN both set; resetEnvironmentCache() required after env mutation in tests; TEST_CI_UNSET_PAYMOB_ENV_KEYS pinned (never add NGROK_*)
+
+---
+Task ID: 2.2
+Agent: general-purpose subagent (finished by a follow-up agent)
+Task: Schema delta + migration 5 + A4 repo method
+
+Work Log:
+- Reviewed the prior agent's uncommitted work in full: schema +providerTransactionId varchar(64) nullable; migration 5 PG (ADD COLUMN IF NOT EXISTS + CREATE OR REPLACE FUNCTION guard: transition-only, NULL→value set-once, all financial columns IS NOT DISTINCT FROM) + sqlite parity (ADD COLUMN + DROP/CREATE TRIGGER); repo findStalePendingByGateway (dual read path: Drizzle-on-tx + queryDb raw with fully-qualified aliased projection, LEFT JOIN subscriptions.payment_reference, oldest-first + id tiebreaker, limit); applyCustomMigrations EXCLUDED_FILES += 5-…-sqlite.sql; sidecar manifest/appliedFolders updated (sha256 re-verified 7521e351…); test file WAS already extended by the prior agent (7 new tests: finder filter/join/empty, decided-exclusion+limit+ordering, allowed set-once, optional reference, overwrite/erasure blocked, writes outside transition blocked, financial freeze with reference recorded) — no test edits needed
+- Drizzle plumbing verified with NO meta/_journal.json: this repo's readMigrationFiles scans backend/drizzle/*/migration.sql and sorts lexicographically (journal presence would even throw); custom_5 and schema sibling share timestamp 20260911175854 with custom sorting first — exactly the migration-2 precedent (custom_2-functions < omniscient_karen_page); sweet_ted_forrester snapshot v8 contains the column and chains prevIds correctly
+- No plan-meta comments (grep A4|REQ-|Task 2.2|plan path over backend/db + backend/drizzle: zero); biome check on changed TS files clean; no console./logger. in diff (SEC: freeze-proof tests are the evidence)
+- Migrations: `bun run db migrate` is INTERACTIVE (hung 180s) — non-interactive form `bun --no-env-file run scripts/dbActions/cli-entry.ts migrate --env-file=.env` → migration 5 already applied, "No pending Drizzle migrations", exit 0
+- Tests: 14 pass / 0 fail / 95 expect(), exit 0 (first run; no fixes needed anywhere this session)
+- Sub-loops (--lifecycle duplicates): schema 0, repo 0, test 0, applyCustomMigrations.ts 0; applyCustomMigrations.test.ts does NOT exist in this repo (closeout instruction N/A — nothing to run or extend)
+- Wrote outcome/2.2-outcome.md; flipped tasks.md 2.2 main + all five 2.2.QL/TE/SEC/SR/IV checkboxes
+
+Stage Summary:
+- Task 2.2 COMPLETE: provider_transaction_id set-once ledger link + stale-pending reconcile read implemented, tested (14 green), documented; committing on feat/paymob-gateway-integration
+- Carry-forward: findStalePendingByGateway(gateway: PaymentGateway, olderThan: Date, limit: number, tx?: DBQueryExecutor) → StalePendingWithReferenceRow = StudentPaymentSelectType & { paymentReference: string | null }; reference via LEFT JOIN subscriptions.payment_reference (null = no provider key, keep row); record providerTransactionId ONLY inside the same guarded transition (markPaidOnce/markFailedOnce never touch it); stale window from getPaymobConfig().reconcilePendingMinutes; drizzle ordering is folder-name lexicographic (no journal) — custom bundles before same-timestamp schema siblings
