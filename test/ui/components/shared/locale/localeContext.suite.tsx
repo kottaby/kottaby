@@ -1,31 +1,34 @@
-import { expect, test } from "bun:test";
+import { expect, test, spyOn } from "bun:test";
 import { renderHook } from "@testing-library/react";
-import { useAppLocale, LocaleContext } from "@/shared/locale/localeContext";
+import { useAppLocale, LocaleContext, type LocaleContextValue } from "@/shared/locale/localeContext";
 import type { ReactNode } from "react";
+import { useMemo } from "react";
+
+function EnglishWrapper({ children }: Readonly<{ children: ReactNode }>) {
+  const value = useMemo<LocaleContextValue>(() => ({ locale: "en" }), []);
+  return <LocaleContext.Provider value={value}>{children}</LocaleContext.Provider>;
+}
+
+function ArabicWrapper({ children }: Readonly<{ children: ReactNode }>) {
+  const value = useMemo<LocaleContextValue>(() => ({ locale: "ar" }), []);
+  return <LocaleContext.Provider value={value}>{children}</LocaleContext.Provider>;
+}
 
 test("useAppLocale throws if called outside of LocaleProvider", () => {
-  const originalError = console.error;
-  console.error = () => {};
+  // Suppress the expected React error boundary console.error to keep the test output clean
+  const spy = spyOn(console, "error").mockImplementation(() => {});
 
   expect(() => renderHook(() => useAppLocale())).toThrow("useLocaleContext must be called inside <LocaleProvider>");
 
-  console.error = originalError;
+  spy.mockRestore();
 });
 
 test("useAppLocale returns locale when inside LocaleProvider", () => {
-  const wrapper = ({ children }: { children: ReactNode }) => (
-    <LocaleContext.Provider value={{ locale: "en" }}>{children}</LocaleContext.Provider>
-  );
-
-  const { result } = renderHook(() => useAppLocale(), { wrapper });
+  const { result } = renderHook(() => useAppLocale(), { wrapper: EnglishWrapper });
   expect(result.current).toBe("en");
 });
 
 test("useAppLocale returns arabic locale when inside LocaleProvider", () => {
-  const wrapper = ({ children }: { children: ReactNode }) => (
-    <LocaleContext.Provider value={{ locale: "ar" }}>{children}</LocaleContext.Provider>
-  );
-
-  const { result } = renderHook(() => useAppLocale(), { wrapper });
+  const { result } = renderHook(() => useAppLocale(), { wrapper: ArabicWrapper });
   expect(result.current).toBe("ar");
 });
