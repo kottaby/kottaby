@@ -46,8 +46,8 @@ Tests in this directory may still exercise **multiple repositories/services toge
 
 4. **Code Cleanliness, Strict Linting & Type Checking**
    - Clean up all unused imports and unused variables (especially those destructured from setup helpers).
-   - Run `bun tsgo` and lint via the lint queue client after creating or modifying tests. You MUST fix any resulting errors (e.g., TS6133 unused variables).
-   - You can run `bun run lint` directly — it IS the lint queue client (calls `requestFullRepoLint` from `scripts/lint-queue-client.ts` and serializes through the queue server). Make sure `bun run lint:server` is running first. For file-scoped lint, use the queue client directly: `curl -s -X POST http://localhost:${LINT_QUEUE_PORT}/lint -H "Content-Type: application/json" -d '{"id":"db-test","files":["<file>"]}'`.
+   - Run `bun tsgo` and lint after creating or modifying tests. You MUST fix any resulting errors (e.g., TS6133 unused variables).
+   - Run `bun run lint` for full-repo lint, or use the lint service for file-scoped linting: `bun run scripts/lint-service.ts -f <file> --id db-test`.
    - Follow standard Biome/ESLint formatting and linting rules. Do not use `console.log` directly; prefer `testLogger` or no logging if not needed.
    - Make sure all TypeScript types are fully resolved. **NEVER use `any` type overrides** (e.g., `as any`) to bypass validation. Use proper `Partial<...>` or specific object typing instead.
 
@@ -107,16 +107,10 @@ Tests in this directory may still exercise **multiple repositories/services toge
 16. **Always Pass `tx` to Repository Methods**
     - Every repository method accepts an optional `tx` (transaction) parameter. When inside `runInRollback`, you **MUST** pass `tx` as the transaction argument to all repo method calls.
     - Failing to pass `tx` causes the repo method to use the global `db` connection, which is outside the rollback transaction — leading to state pollution, deadlocks, and non-deterministic test results.
-    - **Check the actual parameter position** of `tx` in each repo method signature before calling — it varies:
-      - `ParentRepository.getParentProfile(parentId, tx?)` — `tx` is 2nd param
-      - `StudentRepository.setClassesRemaining(studentId, value, expectedVersion?, tx?)` — `tx` is 4th param
-      - `StorageDbRepository.linkFileToParent(parentId, fileId, usageType, tx?)` — `tx` is 4th param
+    - **Check the actual parameter position** of `tx` in each repo method signature before calling — it varies per method.
 
 17. **Verify Entity Setup Helper Signatures Before Use**
-    - Always read the actual function signature in `entity-setup.ts` before calling a helper. Common mistakes:
-      - `setupStudent(tx, userOverrides, parentOverrides, studentOverrides)` — takes 4 args (tx + 3 override objects), NOT `(tx, parentId, overrides)`.
-      - `createTestParent(tx, userId, overrides)` — requires a `userId` from a previously created user, NOT a standalone call.
-      - `createTestStudent(tx, parentId, overrides)` — requires a `parentId` from a previously created parent.
+    - Always read the actual function signature in `entity-setup.ts` before calling a helper — argument shape is not uniform across helpers (some take `tx` plus override objects, others a parent id plus overrides).
     - When in doubt, read the helper source in `entity-setup.ts` before writing the test.
 
 18. **Verify Schema Columns Before Writing Test Setup**
@@ -130,8 +124,4 @@ Tests in this directory may still exercise **multiple repositories/services toge
     - This avoids potential hangs from the translation loader in the test environment and keeps tests decoupled from the translation system's internal state. The legacy `getBackendTranslations` helper is deprecated and must not be used.
 
 20. **Type Definition Pattern**: Use types defined in `backend/types/` (e.g., `{Entity}SelectType`, `{Entity}InsertType`) for testing purposes rather than creating test-specific type definitions or directly referencing schema types. Import these types from `@/backend/types` and use them in test assertions and helper functions to maintain consistency with the backend architecture.
-
-## Linting Rules
-
-- See `docs/quality/linting-rules.md` for Oxlint & ESLint/sonarjs fix recipes. NEVER use `oxlint-disable` comments.
 

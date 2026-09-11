@@ -19,7 +19,7 @@ bun run build:test
 ```
 
 - Output directory: `.next-test-prod` (override with `TEST_SERVER_DIST_DIR`)
-- Uses **only** `.env.test` — injected into the `next build` / `next start` process env (no parent shell env). Per [Next.js test env rules](https://nextjs.org/docs/app/guides/environment-variables#test-environment-variables), keys already set in `process.env` are not overridden by `.env.local` or other files on disk
+- Uses **only** `.env.test` — injected into the `next build` / `next start` process env (no parent shell env). Keys already set in `process.env` are not overridden by `.env.local` or other files on disk (Next.js test env rules)
 - Tests do **not** run `next build` automatically; missing build fails fast with a clear error
 
 **Rebuild `build:test` after changes to:** server code, auth/cookies, middleware, API routes, or anything that affects the running Next.js app. (Only needed for production mode — dev mode hot-reloads automatically.)
@@ -53,8 +53,8 @@ All `test:ui*` scripts preload `test/ui/test-env.ts`, which sets `TEST_SERVER_MO
 E2E reuses the GraphQL test harness in `frontend/graphql/test/`:
 
 - `lifecycle.ts` — `setupTestServerLifecycle()` (port allocation, start/stop, dev-server reuse)
-- `testServer.ts` — in dev mode, detects and reuses a running dev server on port 3000; otherwise spawns a test dev server on port 3066. In production mode, spawns `next start` on port 3066.
-- `testPort.ts` — `getTestServerMode()` defaults to dev for `test/ui/` runs; `DEV_SERVER_PORT = 3000`; `isServerRunningOnPort()` detects existing dev server
+- `testServer.ts` — in dev mode, detects and reuses a running dev server on port 3000; otherwise spawns a separate test server. In production mode, spawns `next start` on the test port.
+- `testPort.ts` — `getTestServerMode()` defaults to dev for `test/ui/` runs; `isServerRunningOnPort()` detects an existing dev server
 
 **Dev-server reuse behavior:** When `TEST_SERVER_MODE=dev` and a dev server is already running on port 3000, the E2E test harness sets the test port to 3000 and skips spawning a separate server. The `stopTestServer()` function detects this case and does **not** kill the externally-managed dev server — only the Playwright browser is closed.
 
@@ -114,7 +114,7 @@ page.locator(`button[aria-label="${escapeRegExp(common.notifications)}"]`)
 
 **Access pattern:**
 - `getDefaultTranslations()` returns the full `Translations` object
-- Access via `.dashboardTranslations.<namespace>.<key>`
+- Access via `.<domain>Translations.<namespace>.<key>` (e.g., `.dashboardTranslations.<namespace>.<key>`)
 - Other top-level: `.commonTranslations`, `.uiTranslations.phoneInput`, `.errorsTranslations`
 
 ### What Counts as "Hardcoded" in E2E (Prohibited)
@@ -133,7 +133,6 @@ page.locator(`button[aria-label="${escapeRegExp(common.notifications)}"]`)
 
 - Preloads: `test/ui/test-env.ts`, `happydom-preload.ts`, `next-dynamic-mock.ts`, **`translation-preload.ts`**
 - Use `renderWithWrapper` from `@/test/ui/components/TestWrapper` (wrap children in Apollo `MockedProvider` for mocks) — never hit a real server
-- See `frontend/components/ui/AGENTS.md` for component test structure
 
 ## Agent Browser Login (manual/E2E-style verification)
 
@@ -149,7 +148,7 @@ bun run scripts/browser-login.ts --inject              # + inject cookies into $
 - **Do NOT call `ReadMediaFile` directly in the main test/orchestrator context** for browser screenshots.
 - In multi-step browser verification runs, calling `ReadMediaFile` repeatedly accumulates multiple images into the conversation history, creating multi-megabyte payloads that cause upstream LLM timeouts and stream drops (`Stream ended before producing a non-ping SSE event`).
 - **Use DOM/Text verification first**: `agent-browser snapshot -i -c`, `agent-browser eval`, and console/network logs.
-- **Isolate Visual Checks**: If an image requires visual LLM inspection, spawn a dedicated short-lived subagent (`invoke_subagent` as `Visual Inspector`) that opens the single image with `ReadMediaFile` and returns a text-only summary. The main session receives only the text summary, keeping context clean and fast.
+- **Isolate Visual Checks**: If an image requires visual LLM inspection, spawn a dedicated short-lived subagent that opens the single image with `ReadMediaFile` and returns a text-only summary. The main session receives only the text summary, keeping context clean and fast.
 
 ## Translation Rules (CRITICAL — No Hardcoded Strings)
 
@@ -171,13 +170,13 @@ Tests resolve labels through the same compile-time catalog `useAppTranslation` r
 
 ```typescript
 import type { AppLocale } from "@/shared/locale/AppLocale";
-import { HandshakeCode as HandshakeCodeNs } from "@/shared/locale/namespaces/handshakeCode";
+import { Errors } from "@/shared/locale/namespaces/errors";
 import { getTranslations } from "@/shared/locale/server";
 import { renderWithWrapper } from "@/test/ui/components/TestWrapper";
 
 const locale: AppLocale = "ar";
-const labels = HandshakeCodeNs.getLabels(getTranslations(locale));
-// now use labels.yourCodeTitle, labels.copyCode, etc. in assertions
+const labels = Errors.getLabels(getTranslations(locale));
+// now use labels.<key> in assertions
 ```
 
 `getLabels` is NOT a React hook — safe to call at module level. `getTranslations(locale)` returns the full catalog synchronously; `translation-preload.ts` pre-warms the namespace handles so missing keys surface at preload time, not mid-assertion.
@@ -204,21 +203,21 @@ renderWithWrapper(<Component />, { locale });
 
 **Pattern 1 — Component accepts `labels` prop:**
 ```typescript
-const labels = HandshakeCodeNs.getLabels(getTranslations(locale));
+const labels = Errors.getLabels(getTranslations(locale));
 renderWithWrapper(<Component labels={labels} />, { locale });
-expect(screen.getByText(labels.copyCode)).toBeInTheDocument();
+expect(screen.getByText(labels.forbidden)).toBeInTheDocument();
 ```
 
 **Pattern 2 — Component uses `useAppTranslation` internally:**
 ```typescript
-const labels = HandshakeCodeNs.getLabels(getTranslations(locale));
+const labels = Errors.getLabels(getTranslations(locale));
 renderWithWrapper(<Component />, { locale });
-expect(screen.getByText(labels.codeCopied)).toBeInTheDocument();
+expect(screen.getByText(labels.forbidden)).toBeInTheDocument();
 ```
 
 ### What Counts as "Hardcoded" (Prohibited)
 
-- **Arabic/English UI labels** — e.g., `"متصل"`, `"Connected"`, `"تمت المصادقة"` — must come from `<Namespace>.getLabels(getTranslations(locale))`
+- **Arabic/English UI labels** — e.g., `"متصل"`, `"Connected"` — must come from `<Namespace>.getLabels(getTranslations(locale))`
 - **Button text, badge text, headings, descriptions** — any text rendered by the component
 - **Alert/error messages** — use translated strings from the appropriate namespace
 
@@ -227,8 +226,8 @@ expect(screen.getByText(labels.codeCopied)).toBeInTheDocument();
 These are test data, not UI labels — they do NOT need translation:
 
 - **Custom override strings** — e.g., `"Custom Copy Label"` passed as a prop to test label override behavior
-- **Technical test data** — URLs (`"https://meet.example.com/abc"`), HTTP status codes (`"200 OK"`), error codes (`"AUTH_FAILED"`), response times (`"150ms"`)
-- **Person names in test input** — e.g., `"أحمد محمد"`, `"سارة"` are input data, not rendered translations
+- **Technical test data** — URLs, HTTP status codes (`"200 OK"`), error codes (`"AUTH_FAILED"`), response times (`"150ms"`)
+- **Person names in test input** — e.g., `"أحمد محمد"` is input data, not rendered translations
 - **Provider names** — e.g., `"Zoom"`, `"Google Meet"` are brand names, not translatable UI text
 
 ### MUI v9 Class Name Gotchas
@@ -242,49 +241,32 @@ When asserting on MUI component classes (e.g., Alert severity):
 
 Some components render combined text (e.g., `"{label}: {value}"`) in a single paragraph. `getByText` with exact string match will fail. Use:
 
-- `screen.getByText(new RegExp(labels.testPanel.authSuccess))` — regex matcher
+- `screen.getByText(new RegExp(labels.someLabel))` — regex matcher
 - `screen.getByText(content => content.includes(labels.someLabel))` — function matcher
 - `element.textContent.includes(labels.someLabel)` — direct DOM check on a parent element
 
 ### Namespace Handle Discovery
 
-Namespace handles live in per-namespace modules under `@/shared/locale/namespaces/` — each exports a typed handle (e.g. `HandshakeCode`, `Errors`, `Dashboard`), and `@/shared/locale/namespaces/registry.ts` composes them into the `namespaces` object. Resolve labels with `<Handle>.getLabels(getTranslations(locale))`. Common handles:
-
-| Handle (module under `@/shared/locale/namespaces/`) | Keys |
-|--------|------|
-| `handshakeCode` → `HandshakeCode` | Student card: `yourCodeTitle`, `yourCodeDescription`, `copyCode`, `codeCopied`, `copyFailed`; parent discovery: `pageTitle`, `inputLabel`, `notFoundTitle`, `foundTitle`, … |
-| `errors` → `Errors` | `forbidden`, `forbiddenRole`, `studentHandshakeNotFound`, `internalServerError`, `sessionNotFound`, … |
-| `dashboard` → `Dashboard` | Sidebar nav (`sessions`, `wallet`, `profile`, …), profile-page, and stat-card strings |
-| `notifications` → `Notifications` | Realtime feed surface: `title`, `emptyTitle`, `filterAll`, `filterUnread`, per-type display labels, toast strings |
+Namespace handles live in per-namespace modules under `@/shared/locale/namespaces/` — each exports a typed handle (e.g. `Errors`, `Dashboard`), and `@/shared/locale/namespaces/registry.ts` composes them into the `namespaces` object. Resolve labels with `<Handle>.getLabels(getTranslations(locale))`.
 
 ### Apollo Mock Requirement
 
-When a component uses `useQuery` internally (e.g., `MeetingConfigFormDialog` queries `meetingProviders`), the test must provide an Apollo mock via `renderWithWrapper`'s `mocks` option:
+When a component uses `useQuery` internally, the test must provide an Apollo mock via `renderWithWrapper`'s `mocks` option. Import the query document from `@/frontend/graphql/sharedDocuments` and the result type from `@/frontend/graphql/generated/gql/graphql`:
 
 ```typescript
-import { meetingProvidersQueryDocument } from "@/frontend/graphql/sharedDocuments";
-import type { MeetingProvidersQuery } from "@/frontend/graphql/generated/gql/graphql";
-
 const mock = {
-  request: { query: meetingProvidersQueryDocument, variables: { activeOnly: true } },
-  result: { data: { meetingProviders: [/* ... */] } satisfies MeetingProvidersQuery },
+  request: { query: someQueryDocument, variables: { /* ... */ } },
+  result: { data: { /* ... */ } satisfies SomeQuery },
 };
 
 renderWithWrapper(<Component />, { mocks: [mock] });
 ```
 
 
-## Shared Test Helpers (Duplication Elimination)
+## Shared Test Helpers
 
-Test files sharing identical mock setup (navigation, router, session activation) should import from shared helpers instead of defining inline mocks:
-
-- **Navigation mocks:** `test/ui/components/helpers/mockNavigation.tsx` — Next.js router mock, pathname mock, router state
-- **Session activate button tests:** `test/ui/components/helpers/sessionActivateButtonTests.ts` — shared test logic for activate/deactivate button
-- **Student history fixtures:** `test/ui/components/fixtures/studentHistoryFixtures.ts` — shared test data shapes
-
-See `docs/testing/mock-navigation-helpers.md` for the complete pattern reference.
+Test files sharing identical mock setup (navigation, router, session activation) should import from the shared helpers under `test/ui/components/helpers/` and fixtures under `test/ui/components/fixtures/` instead of defining inline mocks.
 
 ## Linting Rules
 
-- See `docs/quality/linting-rules.md` for Oxlint & ESLint/sonarjs fix recipes. NEVER use `oxlint-disable` comments.
-
+- NEVER use `oxlint-disable` comments — fix the root cause of the error instead.

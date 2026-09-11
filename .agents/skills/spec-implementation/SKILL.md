@@ -71,7 +71,7 @@ Before executing any task, verify:
 2. **Tasks have checkboxes**: Every task in `trackable-tasks.md` must have `[ ]` checkboxes.
 3. **Tasks reference requirements**: Each task should have `_Requirements: REQ-N_` traceability tags.
 4. **No stale in-progress markers**: No `[-]` markers from a previous incomplete run (if found, resume from that point).
-5. **Journey coverage (cross-actor workflows)**: If `specs.md` contains a "Cross-Actor Workflow Scenarios" / journeys section, every captured journey MUST have a corresponding `test/workflows/<domain>/<journey>.test.ts` task (see `docs/testing/workflow-journey-tests.md`). If missing, pause and flag it to the user before executing — the plan is incomplete.
+5. **Journey coverage (cross-actor workflows)**: If `specs.md` contains a "Cross-Actor Workflow Scenarios" / journeys section, every captured journey MUST have a corresponding `test/workflows/<domain>/<journey>.test.ts` task. If missing, pause and flag it to the user before executing — the plan is incomplete.
 6. **Test-kind inventory**: Scan the plan for which test layers it mandates (repo `test:db`, services `test:services`, journeys `bun test test/workflows`, GraphQL `test:graphql`, UI components, E2E). Record the inventory in memory — the Test-Layer Coverage Gate (below) verifies all of them ran before completion.
 7. **X.Y subtask pipeline presence (PLAN-INDEPENDENT MANDATE)**: Check whether implementation tasks carry the mandatory `X.Y.QL` / `X.Y.TE` / `X.Y.SEC` / `X.Y.SR` / `X.Y.IV` subtask pipeline. **If the plan text omits it, that is a plan deficiency, not permission to skip**: the orchestrator MUST inject the pipeline into every per-subagent prompt at dispatch time (see Per-Task Execution Flow). Same rule for the 4-Tier framework in `X.Y.TE` — it applies to every implementation task even when the plan never mentions it.
 
@@ -204,8 +204,8 @@ For each task in the execution queue:
 │  3. READ applicable AGENTS.md + instructions files          │
 │  4. EXECUTE the implementation (create/modify source files) │
 │  5. QUALITY LOOP (X.Y.QL via sub-loop.ts per file)          │
-│  6. TEST ENGINEERING (X.Y.TE via write-tests/test-expert)   │
-│  7. SECURITY AUDIT (X.Y.SEC via idor-testing/pentester)     │
+│  6. TEST ENGINEERING (X.Y.TE paired tests, 4-Tier framework) │
+│  7. SECURITY AUDIT (X.Y.SEC abuse/IDOR/privilege review)    │
 │  8. SEMANTIC REVIEW (X.Y.SR agent self-review checklist)    │
 │  9. INSTRUCTION VERIFICATION (X.Y.IV against rule files)    │
 │ 10. WRITE outcome file (<task-id>-outcome.md)               │
@@ -344,7 +344,8 @@ The task-to-instructions mapping:
 | `shared/` | `shared/AGENTS.md` |
 | `frontend/views/` | `frontend/views/AGENTS.md`, `frontend/AGENTS.md` |
 | `frontend/stores/` | `frontend/stores/AGENTS.md`, `frontend/AGENTS.md` |
-| `frontend/common/graphql/` | `frontend/common/graphql/AGENTS.md`, `frontend/AGENTS.md` |
+| `frontend/graphql/sharedDocuments/` | `frontend/graphql/sharedDocuments/AGENTS.md`, `frontend/graphql/AGENTS.md`, `frontend/AGENTS.md` |
+| `frontend/graphql/` | `frontend/graphql/AGENTS.md`, `frontend/AGENTS.md` |
 | `backend/services/` | `backend/services/AGENTS.md`, `backend/AGENTS.md` |
 | `backend/graphql/` | `backend/graphql/AGENTS.md`, `backend/AGENTS.md` |
 | `backend/db/repo/` | `backend/db/repo/AGENTS.md`, `backend/AGENTS.md` |
@@ -361,14 +362,14 @@ Each builder/adapter/service task MUST include paired tests as subtasks. This is
   - [ ] 5.1 Implement adapter interface methods
     - Core logic, error handling, retries
     - Quality Loop (sub-loop.ts --lifecycle duplicates) + Semantic Review
-  - [ ] 5.2 Write paired tests via write-tests & test-expert
+  - [ ] 5.2 Write paired tests
     - Test file: backend/services/.../test/meta-cloud-api.adapter.test.ts
-    - Apply 4-Tier Test Framework (test-expert):
+    - Apply 4-Tier Test Framework:
       • Tier 1: 100% branch and statement coverage
       • Tier 2: Boundary & edge cases (empty strings, nullability, unicode/emoji, limits)
       • Tier 3: Monkey & chaos cases (randomized fuzz payloads, concurrent replay bursts)
       • Tier 4: Security & abuse tests (payload injection, secret header leaks, forged signatures)
-    - Enforce layer rules (write-tests): Mock outbound integrations, no live network calls
+    - Enforce layer rules: mock outbound integrations, no live network calls
     - Quality Loop (sub-loop.ts --lifecycle duplicates)
   - [ ] 5.3 Run test suite via `bun run test/scripts/run-test.ts <test-path>` and verify all pass
   - [ ] 5.4 Quality loop on both implementation + test files
@@ -378,13 +379,13 @@ Each builder/adapter/service task MUST include paired tests as subtasks. This is
 - Builder/adapter tasks — always
 - Service layer tasks — recommended
 - Repository layer tasks — recommended (100% coverage target, `runInRollback` + `tx` propagation)
-- Cross-actor journey tasks — always, and **test-first**: write `test/workflows/<domain>/<journey>.test.ts` before the service surface, then implement until the journey passes. Real services + real DB, committed fixtures + tracked `afterAll` cleanup, NO `runInRollback`, honest role/authorization resolution, notification dispatch spied. Run via `bun run test/scripts/run-test.ts <path>` then `bun test test/workflows`. See `docs/testing/workflow-journey-tests.md` and `test/workflows/AGENTS.md`.
+- Cross-actor journey tasks — always, and **test-first**: write `test/workflows/<domain>/<journey>.test.ts` before the service surface, then implement until the journey passes. Real services + real DB, committed fixtures + tracked `afterAll` cleanup, NO `runInRollback`, honest role/authorization resolution, notification dispatch spied. Run via `bun run test/scripts/run-test.ts <path>` then `bun test test/workflows`. Follow `test/workflows/AGENTS.md`.
 - Complex business logic tasks — recommended
 
 **When to defer tests:**
 - Simple utility functions — batch at phase end
 - UI component tests — batch at phase end
-- E2E & Penetration tests — requires complete feature (executed in Phase 5 / review wave via [.agents/skills/pentester/SKILL.md](file://../.agents/skills/pentester/SKILL.md))
+- E2E & Penetration tests — requires complete feature (executed in Phase 5 / review wave)
 
 **Evidence:** whatsapp Task 4 builders shipped without tests; integration issues discovered late. Interleaved tests provide immediate feedback.
 
@@ -467,7 +468,7 @@ Dispatch these review subagents via the `task` tool in a **single response** (pa
 - Theme compliance
 - Component patterns
 
-**pentester & backend-security** (scope: all new/modified endpoints, resolvers, mutations, webhooks)
+**security review** (scope: all new/modified endpoints, resolvers, mutations, webhooks)
 - Probing for BOLA / IDOR cross-tenant data leaks
 - Vertical privilege escalation on admin/supervisor mutations
 - GraphQL query depth/complexity and batching abuse
@@ -541,44 +542,30 @@ After all implementation tasks and post-implementation review are complete, exec
 
 1. **Read ALL outcome files** in `.ai/plans/<feature-name>/outcome/`
 2. **Extract recurring patterns/gotchas** — non-obvious engineering gotchas, library/runtime breaking behaviors, or architectural invariants discovered across tasks
-3. **Filter for Global Battle-Tested Knowledge (CRITICAL)**:
-   - **DO NOT add to AGENTS.md / instructions**: Plan-specific constraints, feature business logic, temporary migration steps, entity-specific database schemas/columns, or one-off feature instructions.
-   - **DO add to AGENTS.md / instructions**: Permanent, codebase-wide architectural rules, library/tooling breaking pitfalls (Next.js 16, React 19, MUI v9, Drizzle, Apollo, Bun), concurrency/deadlock rules, or cross-cutting safety invariants that every future developer/agent must follow.
-   - **DO add to `docs/<domain>/<topic>.md`**: Deep domain architecture guides, pattern catalogs, and feature references.
-4. **Identify knowledge propagation targets** using the domain-to-artifacts mapping (below)
-5. **Propagate learnings** to permanent project knowledge:
+3. **Propagation is docs-only (POLICY — NO EXCEPTIONS)**: `AGENTS.md` files and `.agents/instructions/` files are hand-curated rule files. Plan work NEVER creates or updates them, regardless of how reusable a discovered rule seems. Durable knowledge goes to `docs/<domain>/<topic>.md` and the plan's own outcome files; if a discovered rule feels important enough for a rule file, record it in the docs and outcome files — a human curator decides whether it lands in a rule file.
+4. **Write the canonical doc** — create or update `docs/<domain>/<topic>.md` consolidating the plan's patterns, rules, gotchas, and architecture diagrams. Skip plan-specific constraints, feature business logic, and one-off migration steps; those belong in the plan's outcome files, not permanent docs.
 
-### What Gets Updated
+### Domain-to-Docs Mapping
 
-| Artifact | Action |
+| Plan Domain | Docs Subdir |
 |---|---|
-| **Canonical reference doc** | Create `docs/<domain>/<topic>.md` consolidating patterns, rules, gotchas, architecture diagrams |
-| **Layer AGENTS.md** | Add ONLY permanent, global, battle-tested architectural rules (1-2 lines, no code) and a one-line pointer to the doc in `Important References`. NEVER add plan-specific constraints or entity rules. |
-| **Skills** | Update `.agents/skills/<skill>/SKILL.md` if new patterns affect the skill's domain |
-| **Instructions** | Update `.agents/instructions/<layer>.instructions.md` if new permanent conventions should be enforced |
-| **Root AGENTS.md** | Add new doc to "Important References" section |
-
-### Domain-to-Artifacts Mapping
-
-| Plan Domain | Docs Subdir | AGENTS.md to Update | Skills to Update | Instructions to Update |
-|---|---|---|---|---|
-| Drizzle / DB patterns | `docs/drizzle/` | `backend/db/repo/AGENTS.md`, `backend/db/schema/AGENTS.md`, `backend/AGENTS.md` | `.agents/skills/drizzle/SKILL.md` | `backend.instructions.md` |
-| DB migrations | `docs/drizzle/` | `backend/db/schema/AGENTS.md`, `backend/AGENTS.md` | `.agents/skills/drizzle-migrations/SKILL.md`, `.agents/skills/drizzle-generate/SKILL.md` | `backend.instructions.md` |
-| GraphQL / Pothos | `docs/graphql/` | `backend/graphql/AGENTS.md`, `backend/graphql/pothos/AGENTS.md`, `frontend/common/graphql/AGENTS.md` | — | `backend.instructions.md` |
-| Backend services | `docs/services/` | `backend/services/AGENTS.md`, `backend/AGENTS.md` | — | `backend.instructions.md` |
-| Backend types / enums | `docs/backend/` | `backend/types/AGENTS.md`, `backend/enum/AGENTS.md`, `backend/AGENTS.md` | — | `backend.instructions.md` |
-| Frontend components / views | `docs/frontend/` | `frontend/AGENTS.md`, `frontend/views/AGENTS.md` | `.agents/skills/frontend-patterns/SKILL.md` | `frontend.instructions.md` |
-| Frontend mobile/desktop | `docs/frontend/` | `frontend/mobile/AGENTS.md`, `frontend/desktop/AGENTS.md`, `frontend/views/AGENTS.md` | `.agents/skills/refactor-mobile-desktop/SKILL.md` | `mobile-desktop.instructions.md` |
-| Frontend stores / state | `docs/frontend/` | `frontend/common/stores/AGENTS.md`, `frontend/AGENTS.md` | `.agents/skills/frontend-patterns/SKILL.md` | `frontend.instructions.md` |
-| Frontend GraphQL / Apollo | `docs/frontend/` | `frontend/common/graphql/AGENTS.md`, `frontend/common/graphql/sharedDocuments/AGENTS.md` | — | `frontend.instructions.md` |
-| Testing (DB) | `docs/testing/` | `backend/db/test/AGENTS.md`, `backend/db/test/logic/AGENTS.md` | `.agents/skills/fix-db-tests/SKILL.md` | `tests.instructions.md` |
-| Testing (UI / E2E) | `docs/testing/` | `test/ui/AGENTS.md` | `.agents/skills/fix-tests/SKILL.md` | `tests.instructions.md` |
-| i18n / locale | `docs/i18n/` | `shared/AGENTS.md` | — | — |
-| Auth / security | `docs/auth/` | `backend/services/AGENTS.md`, `backend/AGENTS.md` | `.agents/skills/security-review/SKILL.md` | `backend.instructions.md` |
-| App Router / Next.js | `docs/app/` | `app/AGENTS.md` | — | `frontend.instructions.md` |
-| Quality gates / CI | `docs/quality/` | `AGENTS.md` (root) | `.agents/skills/quality-gate/SKILL.md`, `.agents/skills/quality-loop/SKILL.md` | — |
-| Idempotency | `docs/` (top-level) | `backend/services/AGENTS.md` | — | `backend.instructions.md` |
-| Bun / runtime | `docs/bun/` | `AGENTS.md` (root) | — | — |
+| Drizzle / DB patterns | `docs/drizzle/` |
+| DB migrations | `docs/drizzle/` |
+| GraphQL / Pothos | `docs/graphql/` |
+| Backend services | `docs/services/` |
+| Backend types / enums | `docs/backend/` |
+| Frontend components / views | `docs/frontend/` |
+| Frontend mobile/desktop | `docs/frontend/` |
+| Frontend stores / state | `docs/frontend/` |
+| Frontend GraphQL / Apollo | `docs/frontend/` |
+| Testing (DB) | `docs/testing/` |
+| Testing (UI / E2E) | `docs/testing/` |
+| i18n / locale | `docs/i18n/` |
+| Auth / security | `docs/auth/` |
+| App Router / Next.js | `docs/app/` |
+| Quality gates / CI | `docs/quality/` |
+| Idempotency | `docs/` (top-level) |
+| Bun / runtime | `docs/bun/` |
 
 ### Verification
 
@@ -624,7 +611,7 @@ For plans using `quick-spec-template.md` (1-3 day features, single combined docu
 
 ### What's Reduced
 - No mid-point review gate (plans are typically <15 tasks)
-- Knowledge propagation simplified: update only the most directly relevant AGENTS.md + create a single doc
+- Knowledge propagation simplified: create a single doc under `docs/<domain>/`; never touch AGENTS.md or instructions
 - No plan-review gate (quick-specs skip Phase 1.5)
 - Instruction verification still happens via sub-loop auto-discovery
 
@@ -740,10 +727,7 @@ At the end of implementation, provide the user with:
 - E2E: ✅ / ❌ / N/A (only if mandated)
 
 ### Knowledge Propagation
-- Doc created: docs/<domain>/<topic>.md
-- AGENTS.md updated: <list>
-- Skills updated: <list>
-- Instructions updated: <list>
+- Doc created/updated: docs/<domain>/<topic>.md (AGENTS.md and instructions are never updated from plan work)
 
 ### Outcome Files
 - <count> outcome files written to .ai/plans/<feature-name>/outcome/

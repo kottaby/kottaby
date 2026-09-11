@@ -32,7 +32,7 @@ Each sub-directory contains its own `index.ts` barrel that side-effect-imports e
 - A `.mutation.ts` file MUST NOT be imported directly from outside this directory. To add a new mutation, create a `*.mutation.ts` file in the matching sub-directory and add a side-effect import to that sub-directory's `index.ts`.
 
 ### Resolver Delegation
-- Field resolvers delegate to the `backend/services/` layer — never to repositories directly and never with inline business logic. See the root `backend/graphql/AGENTS.md` for the full rules (locale propagation, localized errors, Apollo cache `id` exposure, type-definition pattern).
+- Field resolvers delegate to the `backend/services/` layer — never to repositories directly and never with inline business logic. See the root `backend/graphql/AGENTS.md` for shared Pothos/resolver rules.
 
 ### Import Convention
 - Use `@/` aliased imports for cross-layer dependencies (services, types, pothos objects, enums). E.g. `import { TeacherService } from "@/backend/services/teacher";`, `import { TeacherCreateInputPothosObject } from "@/backend/graphql/pothos/teachers/teacher.pothos";`.
@@ -50,8 +50,4 @@ Each sub-directory contains its own `index.ts` barrel that side-effect-imports e
 3. Add `import "./<entity>.mutation";` to the sub-directory's `index.ts`.
 4. If a new sub-directory was created, add `import "./<subdir>";` to the top-level `backend/graphql/mutation/index.ts`.
 5. Run `bun run generate:gqlSchema` then `bun codegen` to refresh the GraphQL schema and frontend types.
-
-## Linting Rules
-
-- See `docs/quality/linting-rules.md` for Oxlint & ESLint/sonarjs fix recipes. NEVER use `oxlint-disable` comments.
 

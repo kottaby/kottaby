@@ -13,7 +13,7 @@
 - All GraphQL operations must be strongly typed using generated types from `frontend/graphql/generated/gql/graphql`
 - Use `TypedDocumentNode` with proper typing: `TypedDocumentNode<{EntityName}Query, {EntityName}QueryVariables>`
 - All types (operation results, variables, enums, extracted field types) live in the single `graphql.ts` file
-- No schema-level object types are generated — only operation-derived types (the docs say "Object types should never be used")
+- No schema-level object types are generated — only operation-derived types
 - Follow the standardized naming convention for document constants as outlined in `frontend/graphql/sharedDocuments/AGENTS.md`
 
 ## Code Generation
@@ -82,58 +82,16 @@ const entityNameMutationDocument = gql`
     }
   }
 ` as TypedDocumentNode<EntityNameMutation, EntityNameMutationVariables>;
-
-## Linting Rules
-
-- See `docs/quality/linting-rules.md` for Oxlint & ESLint/sonarjs fix recipes. NEVER use `oxlint-disable` comments.
-
+```
 
 ## Embedded type normalization policy
 
-Types that lack an `id` field (value-type / embedded objects) must opt out of
-normalization via `keyFields: false` in `frontend/providers/apollo/apolloCache.ts`.
-This prevents Apollo's "Cache data may be lost" warnings when the same shape is
-written through different parent objects.
-
-Current embedded types:
-- `AdminNoteInfo` (fields: `content`, `lastUpdated`) — no `id`.
-- `HandshakeCodeLookup` (fields: `linkable`, `maskedName`) — no `id`; masked
-  parent-discovery payload, cached inline under `Query.findStudentByHandshakeCode`;
-  see `docs/parents/handshake-code-discovery.md` for the payload contract.
-- `OnlineMeetingInfo` (fields: `joinUrl`, `logoUrl`, `meetingId`, `platform`,
-  `providerName`, `source`) — no `id`.
-- `HealthCheck` (fields: `service`, `status`, `timestamp`, `version`) — no `id`;
-  scalar-only probe object exposed by `Query._health`.
-- `NotificationListPage` (fields: `hasMore`, `items`, `totalCount`) — no `id`;
-  notifications-inbox pagination wrapper. The normalizable
-  entities are the `Notification` rows inside `items` (each carries `id`).
-- `AdminAuditLogPage` (fields: `items`, `page`, `pageSize`, `totalCount`) — no
-  `id`; admin audit-trail pagination wrapper. The normalizable entities are
-  the `AdminAuditLogEntry` rows inside `items` (each carries `id`).
-- `PlatformAnalytics` (fields: `generatedAt`, `users`, `sessions`, `revenue`,
-  `subscriptions`, `teachers`, `ratings`, `health`, `sessionTrendDaily`,
-  `revenueTrendDaily`) — no `id`; the whole-platform analytics snapshot,
-  cached inline under `Query.adminPlatformAnalytics` and replaced wholesale
-  per refetch; see `docs/admin/platform-analytics.md`.
-- `PlatformAnalyticsUsers` (11 counters incl. `recentlyActive24h`) — no `id`.
-- `PlatformAnalyticsSessions` (10 counters incl. `awaitingConfirmation`) — no `id`.
-- `PlatformAnalyticsRevenue` (fields: `gatewayRevenueByCurrency`,
-  `offlineActivationsCount`) — no `id`.
-- `PlatformAnalyticsCurrencyRevenue` (fields: `currency`, `totalAmount`,
-  `last30DaysAmount`, `paidPaymentsCount`) — no `id`.
-- `PlatformAnalyticsSubscriptions` (7 counters incl. `activeInWindowNow`) — no `id`.
-- `PlatformAnalyticsTeachers` (fields: `certifiedCount`, `evaluatorCount`,
-  `onlineNowCount`) — no `id`.
-- `PlatformAnalyticsRatings` (fields: `averageSessionRating` (nullable),
-  `sessionRatingsCount`, `averageEvaluationScore` (nullable),
-  `evaluationScoresCount`) — no `id`.
-- `PlatformAnalyticsHealth` (fields: `pendingDisputes`, `pendingWithdrawals`) — no `id`.
-- `PlatformAnalyticsSessionTrendPoint` (fields: `bucketStart`, `sessionCount`) — no `id`.
-- `PlatformAnalyticsRevenueTrendPoint` (fields: `bucketStart`, `currency`,
-  `amount`) — no `id`.
+Types that lack an `id` field (value-type / embedded objects such as pagination
+wrappers or scalar-only payloads) must opt out of normalization via
+`keyFields: false` in `frontend/providers/apollo/apolloCache.ts`. This prevents
+Apollo's "Cache data may be lost" warnings when the same shape is written
+through different parent objects.
 
 If you add a new GraphQL type without an `id` field, add it to `typePolicies`
-in `apolloCache.ts` with `keyFields: false` and list it here.
-
-Gateway surface contract (probe routes, transport matrix, operation
-registration): see `docs/graphql/api-gateway-and-routing.md`.
+in `apolloCache.ts` with `keyFields: false`. The normalizable entities are
+always the row objects carrying an `id` inside any wrapper.

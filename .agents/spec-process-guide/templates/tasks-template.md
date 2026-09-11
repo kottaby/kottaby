@@ -37,7 +37,7 @@ Use this template to create actionable implementation plans that break down your
    ```bash
    bun run scripts/health/sub-loop.ts <file> --lifecycle duplicates
    ```
-   This single script runs `tsgo → oxlint → biome:check → lint:type-aware → check:duplicates` in strict progressive order, short-circuiting at the first failing check. It also auto-discovers and prints the applicable `.github/instructions/*.instructions.md` and layer `AGENTS.md` files for the target file. Exit code `0` = all checks passed.
+   This single script runs `tsgo → oxlint → biome:check → lint:type-aware → check:duplicates` in strict progressive order, short-circuiting at the first failing check. It also auto-discovers and prints the applicable `.agents/instructions/*.instructions.md` and layer `AGENTS.md` files for the target file. Exit code `0` = all checks passed.
 3. **Semantic Review Checklist (Pre-Completion Gate):**  
    Before marking any subtask as complete, execute agent self-review against semantic checklist (race conditions, env-config, dead code, cross-layer, enums, deferred items). The `sub-loop.ts` script handles mechanical checks but cannot detect semantic bugs — this checklist covers what the script cannot.
 4. **Global Health Check (Completion Gate):**  
@@ -62,7 +62,7 @@ Use this template to create actionable implementation plans that break down your
   - Fix all errors and re-run until exit code 0 before proceeding
 ```
 
-### 2. Test Engineering Subtask (X.Y.TE) — [.agents/skills/write-tests/SKILL.md](file:///home/ahmed/Projects/kottaby/.agents/skills/write-tests/SKILL.md) & [.agents/skills/test-expert/SKILL.md](file:///home/ahmed/Projects/kottaby/.agents/skills/test-expert/SKILL.md)
+### 2. Test Engineering Subtask (X.Y.TE)
 ```markdown
 - [ ] X.Y.TE **Test Engineering**: Author / expand tests using 4-Tier Framework
   - **Tier 1 (Branch & Statement Coverage)**: 100% method and branch coverage for new logic/methods.
@@ -73,10 +73,10 @@ Use this template to create actionable implementation plans that break down your
     • Database tests: Wrapped in `runInRollback` + `tx` propagation to every repository method (`expectRepoError` try/catch).
     • Service tests: Mock all external channels (WhatsApp, Resend, Twilio, Fixer, Upstash Redis).
     • GraphQL tests: Setup via `setupTestServerLifecycle()` + execute via `testClient`.
-    • Journey tests (`test/workflows/`): Real services + real DB, committed fixtures + tracked `afterAll` cleanup, NO `runInRollback`; authorization resolves honestly via real user roles; side effects (notifications) spied — see `docs/testing/workflow-journey-tests.md` and `test/workflows/AGENTS.md`.
+    • Journey tests (`test/workflows/`): Real services + real DB, committed fixtures + tracked `afterAll` cleanup, NO `runInRollback`; authorization resolves honestly via real user roles; side effects (notifications) spied.
 ```
 
-### 3. Security & Tenancy Audit Subtask (X.Y.SEC) — [.agents/skills/idor-testing/SKILL.md](file:///home/ahmed/Projects/kottaby/.agents/skills/idor-testing/SKILL.md) & [.agents/skills/pentester/SKILL.md](file:///home/ahmed/Projects/kottaby/.agents/skills/pentester/SKILL.md)
+### 3. Security & Tenancy Audit Subtask (X.Y.SEC)
 ```markdown
 - [ ] X.Y.SEC **Security & Tenancy Audit**: Probe for authorization and boundary vulnerabilities
   - **BOLA / IDOR Defense**: Verify identity is derived from `ctx.user.id` / session context; confirm caller cannot read/mutate sibling tenant records.
@@ -109,8 +109,8 @@ Use this template to create actionable implementation plans that break down your
 ```markdown
 - [ ] X.Y.IV **Instruction Verification**: Read & validate `<file-path>` against rule files
   - The `sub-loop.ts` script (run in X.Y.QL) auto-discovers & prints applicable rule files
-  - Read ALL printed AGENTS.md files (e.g., `/home/ahmed/Projects/kottaby/AGENTS.md`, `/home/ahmed/Projects/kottaby/<layer>/AGENTS.md`)
-  - Read ALL printed .agents/instructions files (e.g., `/home/ahmed/Projects/kottaby/.agents/instructions/<layer>.instructions.md`)
+  - Read ALL printed AGENTS.md files (e.g., `AGENTS.md`, `<layer>/AGENTS.md`)
+  - Read ALL printed .agents/instructions files (e.g., `.agents/instructions/<layer>.instructions.md`)
   - Validate the file against the rules in those files
 ```
 
@@ -120,22 +120,19 @@ Use this template to create actionable implementation plans that break down your
 
 | Layer | AGENTS.md Files (absolute paths) | .agents/instructions Files (absolute paths) |
 |-------|----------------------------------|---------------------------------------------|
-| Root | `/home/ahmed/Projects/kottaby/AGENTS.md` | — |
-| Backend Schema | `/home/ahmed/Projects/kottaby/backend/db/schema/AGENTS.md`, `/home/ahmed/Projects/kottaby/backend/AGENTS.md` | `/home/ahmed/Projects/kottaby/.agents/instructions/backend.instructions.md` |
-| Backend Repos | `/home/ahmed/Projects/kottaby/backend/db/repo/AGENTS.md`, `/home/ahmed/Projects/kottaby/backend/AGENTS.md` | `/home/ahmed/Projects/kottaby/.agents/instructions/backend.instructions.md` |
-| Backend Tests | `/home/ahmed/Projects/kottaby/backend/db/test/AGENTS.md`, `/home/ahmed/Projects/kottaby/backend/AGENTS.md` | `/home/ahmed/Projects/kottaby/.agents/instructions/backend.instructions.md`, `/home/ahmed/Projects/kottaby/.agents/instructions/tests.instructions.md` |
-| Backend Services | `/home/ahmed/Projects/kottaby/backend/services/AGENTS.md`, `/home/ahmed/Projects/kottaby/backend/AGENTS.md` | `/home/ahmed/Projects/kottaby/.agents/instructions/backend.instructions.md` |
-| Backend GraphQL | `/home/ahmed/Projects/kottaby/backend/graphql/AGENTS.md`, `/home/ahmed/Projects/kottaby/backend/AGENTS.md` | `/home/ahmed/Projects/kottaby/.agents/instructions/backend.instructions.md` |
-| Backend Types | `/home/ahmed/Projects/kottaby/backend/types/AGENTS.md`, `/home/ahmed/Projects/kottaby/backend/AGENTS.md` | `/home/ahmed/Projects/kottaby/.agents/instructions/backend.instructions.md` |
-| Backend Enums | `/home/ahmed/Projects/kottaby/backend/enum/AGENTS.md`, `/home/ahmed/Projects/kottaby/backend/AGENTS.md` | `/home/ahmed/Projects/kottaby/.agents/instructions/backend.instructions.md` |
-| Scripts | `/home/ahmed/Projects/kottaby/scripts/run-test/AGENTS.md` | `/home/ahmed/Projects/kottaby/.agents/instructions/backend.instructions.md`, `/home/ahmed/Projects/kottaby/.agents/instructions/tests.instructions.md` |
-| Shared Locale | `/home/ahmed/Projects/kottaby/shared/AGENTS.md` | (none) |
-| App Router | `/home/ahmed/Projects/kottaby/app/AGENTS.md` | `/home/ahmed/Projects/kottaby/.agents/instructions/frontend.instructions.md` |
-| Frontend Common | `/home/ahmed/Projects/kottaby/frontend/views/AGENTS.md`, `/home/ahmed/Projects/kottaby/frontend/graphql/AGENTS.md`, `/home/ahmed/Projects/kottaby/frontend/stores/AGENTS.md`, `/home/ahmed/Projects/kottaby/frontend/AGENTS.md` | `/home/ahmed/Projects/kottaby/.agents/instructions/frontend.instructions.md` |
-| Frontend Desktop | `/home/ahmed/Projects/kottaby/frontend/desktop/AGENTS.md`, `/home/ahmed/Projects/kottaby/frontend/views/AGENTS.md`, `/home/ahmed/Projects/kottaby/frontend/AGENTS.md` | `/home/ahmed/Projects/kottaby/.agents/instructions/frontend.instructions.md`, `/home/ahmed/Projects/kottaby/.agents/instructions/mobile-desktop.instructions.md` |
-| Frontend Mobile | `/home/ahmed/Projects/kottaby/frontend/mobile/AGENTS.md`, `/home/ahmed/Projects/kottaby/frontend/views/AGENTS.md`, `/home/ahmed/Projects/kottaby/frontend/AGENTS.md` | `/home/ahmed/Projects/kottaby/.agents/instructions/frontend.instructions.md`, `/home/ahmed/Projects/kottaby/.agents/instructions/mobile-desktop.instructions.md` |
-| Test UI | `/home/ahmed/Projects/kottaby/test/ui/AGENTS.md` | `/home/ahmed/Projects/kottaby/.agents/instructions/tests.instructions.md` |
-| Journey/Workflow Tests | `/home/ahmed/Projects/kottaby/test/workflows/AGENTS.md` | `/home/ahmed/Projects/kottaby/.agents/instructions/tests.instructions.md` |
+| Root | `/home/ahmed/Projects/kottaby_kottaby/AGENTS.md` | — |
+| Backend Schema | `/home/ahmed/Projects/kottaby_kottaby/backend/db/schema/AGENTS.md`, `/home/ahmed/Projects/kottaby_kottaby/backend/AGENTS.md` | `/home/ahmed/Projects/kottaby_kottaby/.agents/instructions/backend.instructions.md` |
+| Backend Repos | `/home/ahmed/Projects/kottaby_kottaby/backend/db/repo/AGENTS.md`, `/home/ahmed/Projects/kottaby_kottaby/backend/AGENTS.md` | `/home/ahmed/Projects/kottaby_kottaby/.agents/instructions/backend.instructions.md` |
+| Backend Tests | `/home/ahmed/Projects/kottaby_kottaby/backend/db/test/AGENTS.md`, `/home/ahmed/Projects/kottaby_kottaby/backend/AGENTS.md` | `/home/ahmed/Projects/kottaby_kottaby/.agents/instructions/backend.instructions.md`, `/home/ahmed/Projects/kottaby_kottaby/.agents/instructions/tests.instructions.md` |
+| Backend Services | `/home/ahmed/Projects/kottaby_kottaby/backend/services/AGENTS.md`, `/home/ahmed/Projects/kottaby_kottaby/backend/AGENTS.md` | `/home/ahmed/Projects/kottaby_kottaby/.agents/instructions/backend.instructions.md` |
+| Backend GraphQL | `/home/ahmed/Projects/kottaby_kottaby/backend/graphql/AGENTS.md`, `/home/ahmed/Projects/kottaby_kottaby/backend/AGENTS.md` | `/home/ahmed/Projects/kottaby_kottaby/.agents/instructions/backend.instructions.md` |
+| Backend Types | `/home/ahmed/Projects/kottaby_kottaby/backend/types/AGENTS.md`, `/home/ahmed/Projects/kottaby_kottaby/backend/AGENTS.md` | `/home/ahmed/Projects/kottaby_kottaby/.agents/instructions/backend.instructions.md` |
+| Backend Enums | `/home/ahmed/Projects/kottaby_kottaby/backend/enum/AGENTS.md`, `/home/ahmed/Projects/kottaby_kottaby/backend/AGENTS.md` | `/home/ahmed/Projects/kottaby_kottaby/.agents/instructions/backend.instructions.md` |
+| Shared Locale | `/home/ahmed/Projects/kottaby_kottaby/shared/AGENTS.md` | (none) |
+| App Router | `/home/ahmed/Projects/kottaby_kottaby/app/AGENTS.md` | `/home/ahmed/Projects/kottaby_kottaby/.agents/instructions/frontend.instructions.md` |
+| Frontend Common | `/home/ahmed/Projects/kottaby_kottaby/frontend/views/AGENTS.md`, `/home/ahmed/Projects/kottaby_kottaby/frontend/graphql/AGENTS.md`, `/home/ahmed/Projects/kottaby_kottaby/frontend/stores/AGENTS.md`, `/home/ahmed/Projects/kottaby_kottaby/frontend/AGENTS.md` | `/home/ahmed/Projects/kottaby_kottaby/.agents/instructions/frontend.instructions.md` |
+| Test UI | `/home/ahmed/Projects/kottaby_kottaby/test/ui/AGENTS.md` | `/home/ahmed/Projects/kottaby_kottaby/.agents/instructions/tests.instructions.md` |
+| Journey/Workflow Tests | `/home/ahmed/Projects/kottaby_kottaby/test/workflows/AGENTS.md` | `/home/ahmed/Projects/kottaby_kottaby/.agents/instructions/tests.instructions.md` |
 
 ### Drizzle Schema Convention (Reference)
 - **Schema changes** (new tables, columns, indexes): `bun run db push` — creates schema automatically
@@ -346,7 +343,7 @@ Use this template to create actionable implementation plans that break down your
   - **Instruction Verification**: sub-loop.ts auto-discovers & prints applicable AGENTS.md + .agents/instructions; read & validate against them
   - _Requirements: [Reference specific requirements]_
 
-- [ ] 7.3 Implement comprehensive testing suite via [.agents/skills/test-expert/SKILL.md](file:///home/ahmed/Projects/kottaby/.agents/skills/test-expert/SKILL.md) & [.agents/skills/write-tests/SKILL.md](file:///home/ahmed/Projects/kottaby/.agents/skills/write-tests/SKILL.md)
+- [ ] 7.3 Implement comprehensive testing suite
   - Apply 4-Tier Testing Framework:
     - **Tier 1: 100% Branch & Core Coverage**: Exercise all conditional branches, fallbacks, and error paths.
     - **Tier 2: Boundary & Edge Cases**: Test empty/whitespace strings, max integers, boundary dates/timezones, and optimistic version races.
@@ -357,7 +354,7 @@ Use this template to create actionable implementation plans that break down your
   - **Instruction Verification**: sub-loop.ts auto-discovers & prints applicable AGENTS.md + .agents/instructions; read & validate against them
   - _Requirements: [Reference specific requirements]_
 
-- [ ] 7.4 Execute penetration testing & vulnerability assessment via [.agents/skills/pentester/SKILL.md](file:///home/ahmed/Projects/kottaby/.agents/skills/pentester/SKILL.md)
+- [ ] 7.4 Execute penetration testing & vulnerability assessment
   - Probe GraphQL endpoints for query depth/circular complexity and batching abuse
   - Execute BOLA / IDOR tenant isolation tests across Parent, Student, and Teacher roles
   - Test for vertical privilege escalation on administrative mutations and cron triggers
@@ -415,41 +412,32 @@ Use this template to create actionable implementation plans that break down your
     - If no matching subdirectory exists, create one: `mkdir -p docs/<domain>/`
     - File naming: `kebab-case.md` (e.g., `prepared-statements.md`, `dataloader-batching.md`)
     - Follow the docs file structure: Why → Pattern → Rules → Anti-patterns → Rollout Summary → Related Documents
-  - Update layer AGENTS.md files with new rules/patterns discovered during implementation
-    - Add rules inline with a reference to the new doc: `See docs/<domain>/<topic>.md for the complete pattern reference.`
-  - Update `.agents/skills/<skill>/SKILL.md` if new patterns affect the skill's domain
-    - Add a domain-specific section with key rules and a reference to the new doc
-  - Update `.agents/instructions/<layer>.instructions.md` if new conventions should be enforced by instruction files
-  - Update root `AGENTS.md` Important References section with the new doc
+  - AGENTS.md files and `.agents/instructions/*.instructions.md` are hand-curated: plan work NEVER creates or updates them. Durable knowledge goes to `docs/<domain>/` and the plan's own outcome files.
   - Run global check: `bun run scripts/health/sub-loop.ts <file> --lifecycle duplicates` per modified file (exit code 0)
   - Write outcome file: `ai/plans/<feature-name>/outcome/10-knowledge-propagation-outcome.md`
   - Update progress: Mark task 10 as `[x]` in `trackable-tasks.md`
   - _Requirements: Knowledge propagation protocol_
 
-### Domain-to-Artifacts Mapping (Reference for Knowledge Propagation)
+### Domain-to-Docs Mapping (Reference for Knowledge Propagation)
 
-Use this table to determine which docs subdir, AGENTS.md files, skills, and instructions to update:
+Use this table to choose the `docs/` subdirectory for the canonical reference doc:
 
-| Plan Domain | Docs Subdir | AGENTS.md to Update | Skills to Update | Instructions to Update |
-|---|---|---|---|---|
-| Drizzle / DB patterns | `docs/drizzle/` | `backend/db/repo/AGENTS.md`, `backend/db/schema/AGENTS.md`, `backend/AGENTS.md` | `.agents/skills/drizzle/SKILL.md` | `.agents/instructions/backend.instructions.md` |
-| DB migrations | `docs/drizzle/` | `backend/db/schema/AGENTS.md`, `backend/AGENTS.md` | `.agents/skills/drizzle-migrations/SKILL.md`, `.agents/skills/drizzle-generate/SKILL.md` | `.agents/instructions/backend.instructions.md` |
-| GraphQL / Pothos | `docs/graphql/` | `backend/graphql/AGENTS.md`, `backend/graphql/pothos/AGENTS.md`, `frontend/graphql/AGENTS.md` | — | `.agents/instructions/backend.instructions.md` |
-| Backend services | `docs/services/` | `backend/services/AGENTS.md`, `backend/AGENTS.md` | — | `.agents/instructions/backend.instructions.md` |
-| Backend types / enums | `docs/backend/` | `backend/types/AGENTS.md`, `backend/enum/AGENTS.md`, `backend/AGENTS.md` | — | `.agents/instructions/backend.instructions.md` |
-| Frontend components / views | `docs/frontend/` | `frontend/AGENTS.md`, `frontend/views/AGENTS.md`, `frontend/components/ui/AGENTS.md` | `.agents/skills/frontend-patterns/SKILL.md` | `.agents/instructions/frontend.instructions.md` |
-| Frontend mobile/desktop | `docs/frontend/` | `frontend/mobile/AGENTS.md`, `frontend/desktop/AGENTS.md`, `frontend/views/AGENTS.md` | `.agents/skills/refactor-mobile-desktop/SKILL.md` | `.agents/instructions/mobile-desktop.instructions.md` |
-| Frontend stores / state | `docs/frontend/` | `frontend/stores/AGENTS.md`, `frontend/AGENTS.md` | `.agents/skills/frontend-patterns/SKILL.md` | `.agents/instructions/frontend.instructions.md` |
-| Frontend GraphQL / Apollo | `docs/frontend/` | `frontend/graphql/AGENTS.md`, `frontend/graphql/sharedDocuments/AGENTS.md` | — | `.agents/instructions/frontend.instructions.md` |
-| Testing (DB) | `docs/testing/` | `backend/db/test/AGENTS.md`, `backend/db/test/logic/AGENTS.md` | `.agents/skills/write-tests/SKILL.md`, `.agents/skills/test-expert/SKILL.md`, `.agents/skills/fix-db-tests/SKILL.md` | `.agents/instructions/tests.instructions.md` |
-| Testing (UI / E2E) | `docs/testing/` | `test/ui/AGENTS.md` | `.agents/skills/write-tests/SKILL.md`, `.agents/skills/fix-tests/SKILL.md` | `.agents/instructions/tests.instructions.md` |
-| Testing (general) | `docs/testing/` | `scripts/run-test/AGENTS.md` | `.agents/skills/write-tests/SKILL.md`, `.agents/skills/test-expert/SKILL.md`, `.agents/skills/fix-tests/SKILL.md` | `.agents/instructions/tests.instructions.md` |
-| i18n / locale | `docs/i18n/` | `shared/AGENTS.md` | — | — |
-| Auth / security | `docs/auth/` | `backend/services/AGENTS.md`, `backend/AGENTS.md` | `.agents/skills/idor-testing/SKILL.md`, `.agents/skills/pentester/SKILL.md`, `.agents/skills/backend-security-review/SKILL.md`, `.agents/skills/security-and-hardening/SKILL.md` | `.agents/instructions/backend.instructions.md` |
-| App Router / Next.js | `docs/app/` | `app/AGENTS.md` | — | `.agents/instructions/frontend.instructions.md` |
-| Quality gates / CI | `docs/quality/` | `AGENTS.md` (root) | `.agents/skills/quality-gate/SKILL.md`, `.agents/skills/quality-loop/SKILL.md` | — |
-| Idempotency | `docs/` (top-level) | `backend/services/AGENTS.md` | — | `.agents/instructions/backend.instructions.md` |
-| Bun / runtime | `docs/bun/` | `AGENTS.md` (root) | — | — |
+| Plan Domain | Docs Subdir |
+|---|---|
+| Drizzle / DB patterns | `docs/drizzle/` |
+| DB migrations | `docs/drizzle/` |
+| GraphQL / Pothos | `docs/graphql/` |
+| Backend services | `docs/services/` |
+| Backend types / enums | `docs/backend/` |
+| Frontend components / views / stores / state | `docs/frontend/` |
+| Frontend GraphQL / Apollo | `docs/frontend/` |
+| Testing (DB, UI, E2E, general) | `docs/testing/` |
+| i18n / locale | `docs/i18n/` |
+| Auth / security | `docs/auth/` |
+| App Router / Next.js | `docs/app/` |
+| Quality gates / CI | `docs/quality/` |
+| Idempotency | `docs/` (top-level) |
+| Bun / runtime | `docs/bun/` |
 
 ---
 
@@ -601,7 +589,6 @@ Use this checklist when executing each task:
   - Run: `bun run test/scripts/run-test.ts test/workflows/<domain>/<workflow-name>.test.ts` until green, then `bun test test/workflows`
   - **Quality Loop**: `bun run scripts/health/sub-loop.ts <file> --lifecycle duplicates` (exit code 0)
   - **Instruction Verification**: sub-loop.ts auto-discovers & prints applicable AGENTS.md + .agents/instructions; read & validate against them
-  - Reference: `docs/testing/workflow-journey-tests.md` + `test/workflows/AGENTS.md`
   - _Requirements: [X.X — the journey's cross-actor EARS criteria]_
 ```
 

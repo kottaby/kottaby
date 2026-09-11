@@ -1,14 +1,16 @@
 # Evolution Log
 
 This log is how the skill keeps improving after every run. Each visual-improvement loop ends by
-appending its reusable lessons here; lessons then graduate to a permanent home (a skill reference,
-the agent-browser skill, or a global rule file) — and the entry records where it landed.
+appending its reusable lessons here; lessons then graduate to a permanent home in this skill's own
+`references/` files or, optionally, `docs/<domain>/` — and the entry records where it landed.
+AGENTS.md and `.agents/instructions/` files are hand-curated; runs NEVER update them.
 
 ## Append rules
 
 - One entry per lesson, dated, with the plan/run that produced it.
 - Record **where it landed** (or "candidate" until promoted). An entry without a home is a to-do.
-- Only GENERAL invariants graduate into rule files (AGENTS.md, instructions). Feature specifics
+- Only GENERAL invariants graduate into this skill's `references/` files or `docs/<domain>/`;
+  AGENTS.md and `.agents/instructions/` are hand-curated and never promoted to. Feature specifics
   (entity names, routes, permission strings) stay in the plan's outcome file — never in this log's
   promoted form.
 - When a lesson revises an existing reference, update that reference in the same change and say so here.
@@ -53,7 +55,7 @@ the agent-browser skill, or a global rule file) — and the entry records where 
   is sticky across browser restarts). → candidate: `references/capture-protocol.md` (Sessions & auth).
 - Snapshot-text gotchas: EN buttons render uppercase with a leading space (" CREATE PLAN"); desktop
   table row-action text first matches the header/cell, not the row button; MUI Select "empty" state
-  renders a zero-width-space placeholder. → candidate: `agent-browser` SKILL.md gotcha list.
+  renders a zero-width-space placeholder. → candidate: `references/capture-protocol.md` snapshot-text gotchas.
 - VLM structure readings of Arabic screens paraphrase/hallucinate labels ("Add New Service", "Tax
   Percentage", "Difficulty Level") — ground-truth implementation structure lists against component
   source/DOM state guards; comparison verdicts rest on the layout skeleton, never label text. →

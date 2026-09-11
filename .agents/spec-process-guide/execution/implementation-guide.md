@@ -345,68 +345,35 @@ Table of files modified, methods refactored, test results.
 - `path/to/other-doc.md` — description
 ```
 
-### How AGENTS.md References Docs
+### Rule Files Are Hand-Curated (NEVER Updated by Plan Work)
 
-```markdown
-## Rules
-- **Topic (CRITICAL)**: Rule description. See `docs/<domain>/<topic>.md` for the complete pattern reference.
-```
-
-Root `AGENTS.md` Important References:
-```markdown
-## Important References
-- `docs/<domain>/<topic>.md` - Brief description
-```
-
-### How Skills Reference Docs
-
-```markdown
-## <Topic Section>
-When working with <files>, follow the pattern documented in `docs/<domain>/<topic>.md`. Key rules:
-- Rule 1
-- Rule 2
-```
-
-### How Instructions Reference Docs
-
-```markdown
-## Required Reading
-Before modifying <files>, read:
-- `docs/<domain>/<topic>.md` — Pattern description
-```
+`AGENTS.md` files and `.agents/instructions/*.instructions.md` are hand-curated. Plan work NEVER creates or updates them. Durable knowledge discovered during implementation goes to `docs/<domain>/` (and the plan's own outcome files) only.
 
 ### Knowledge Propagation Steps
 
 1. **Read all outcome files** in `ai/plans/<feature-name>/outcome/` to synthesize all learnings
 2. **Create a canonical reference doc** under `docs/<domain>/<topic>.md` following the structure above
-3. **Update layer AGENTS.md files** with new rules/patterns and a reference to the new doc
-4. **Update `.agents/skills/<skill>/SKILL.md`** if new patterns affect a skill's domain
-5. **Update `.agents/instructions/<layer>.instructions.md`** if new conventions should be enforced
-6. **Update root `AGENTS.md`** Important References section with the new doc
-7. **Run quality checks**: `bun tsgo`, `bun biome:check`, `bun run lint`
+3. **Run quality checks**: `bun tsgo`, `bun biome:check`, `bun run lint`
 
-### Complete Domain-to-Artifacts Mapping
+### Complete Domain-to-Docs Mapping
 
-| Plan Domain | Docs Subdir | AGENTS.md to Update | Skills to Update | Instructions to Update |
-|---|---|---|---|---|
-| Drizzle / DB patterns | `docs/drizzle/` | `backend/db/repo/AGENTS.md`, `backend/db/schema/AGENTS.md`, `backend/AGENTS.md` | `.agents/skills/drizzle/SKILL.md` | `.agents/instructions/backend.instructions.md` |
-| DB migrations | `docs/drizzle/` | `backend/db/schema/AGENTS.md`, `backend/AGENTS.md` | `.agents/skills/drizzle-migrations/SKILL.md`, `.agents/skills/drizzle-generate/SKILL.md` | `.agents/instructions/backend.instructions.md` |
-| GraphQL / Pothos | `docs/graphql/` | `backend/graphql/AGENTS.md`, `backend/graphql/pothos/AGENTS.md`, `frontend/graphql/AGENTS.md` | — | `.agents/instructions/backend.instructions.md` |
-| Backend services | `docs/services/` | `backend/services/AGENTS.md`, `backend/AGENTS.md` | — | `.agents/instructions/backend.instructions.md` |
-| Backend types / enums | `docs/backend/` | `backend/types/AGENTS.md`, `backend/enum/AGENTS.md`, `backend/AGENTS.md` | — | `.agents/instructions/backend.instructions.md` |
-| Frontend components / views | `docs/frontend/` | `frontend/AGENTS.md`, `frontend/views/AGENTS.md`, `frontend/components/ui/AGENTS.md` | `.agents/skills/frontend-patterns/SKILL.md` | `.agents/instructions/frontend.instructions.md` |
-| Frontend mobile/desktop | `docs/frontend/` | `frontend/mobile/AGENTS.md`, `frontend/desktop/AGENTS.md`, `frontend/views/AGENTS.md` | `.agents/skills/refactor-mobile-desktop/SKILL.md` | `.agents/instructions/mobile-desktop.instructions.md` |
-| Frontend stores / state | `docs/frontend/` | `frontend/stores/AGENTS.md`, `frontend/AGENTS.md` | `.agents/skills/frontend-patterns/SKILL.md` | `.agents/instructions/frontend.instructions.md` |
-| Frontend GraphQL / Apollo | `docs/frontend/` | `frontend/graphql/AGENTS.md`, `frontend/graphql/sharedDocuments/AGENTS.md` | — | `.agents/instructions/frontend.instructions.md` |
-| Testing (DB) | `docs/testing/` | `backend/db/test/AGENTS.md`, `backend/db/test/logic/AGENTS.md` | `.agents/skills/fix-db-tests/SKILL.md` | `.agents/instructions/tests.instructions.md` |
-| Testing (UI / E2E) | `docs/testing/` | `test/ui/AGENTS.md` | `.agents/skills/fix-tests/SKILL.md` | `.agents/instructions/tests.instructions.md` |
-| Testing (general) | `docs/testing/` | `scripts/run-test/AGENTS.md` | `.agents/skills/fix-tests/SKILL.md` | `.agents/instructions/tests.instructions.md` |
-| i18n / locale | `docs/i18n/` | `shared/AGENTS.md` | — | — |
-| Auth / security | `docs/auth/` | `backend/services/AGENTS.md`, `backend/AGENTS.md` | `.agents/skills/security-review/SKILL.md` | `.agents/instructions/backend.instructions.md` |
-| App Router / Next.js | `docs/app/` | `app/AGENTS.md` | — | `.agents/instructions/frontend.instructions.md` |
-| Quality gates / CI | `docs/quality/` | `AGENTS.md` (root) | `.agents/skills/quality-gate/SKILL.md`, `.agents/skills/quality-loop/SKILL.md` | — |
-| Idempotency | `docs/` (top-level) | `backend/services/AGENTS.md` | — | `.agents/instructions/backend.instructions.md` |
-| Bun / runtime | `docs/bun/` | `AGENTS.md` (root) | — | — |
+| Plan Domain | Docs Subdir |
+|---|---|
+| Drizzle / DB patterns | `docs/drizzle/` |
+| DB migrations | `docs/drizzle/` |
+| GraphQL / Pothos | `docs/graphql/` |
+| Backend services | `docs/services/` |
+| Backend types / enums | `docs/backend/` |
+| Frontend components / views | `docs/frontend/` |
+| Frontend stores / state | `docs/frontend/` |
+| Frontend GraphQL / Apollo | `docs/frontend/` |
+| Testing (DB / UI / E2E / general) | `docs/testing/` |
+| i18n / locale | `docs/i18n/` |
+| Auth / security | `docs/auth/` |
+| App Router / Next.js | `docs/app/` |
+| Quality gates / CI | `docs/quality/` |
+| Idempotency | `docs/` (top-level) |
+| Bun / runtime | `docs/bun/` |
 
 ## Success Metrics
 

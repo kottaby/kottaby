@@ -77,9 +77,9 @@ across stages — e.g., don't dispatch DUPLICATES fix subagents while BASIC_CHEC
 
 6. **Read instruction files before fixing.** The `sub-loop.ts` script prints which instruction
    files apply to the target file. Subagents MUST read them before fixing. The mapping is:
-   - `frontend/**/*.ts(x)` or `app/**/*.ts(x)` → `.github/instructions/frontend.instructions.md`
-   - `backend/**/*.ts` → `.github/instructions/backend.instructions.md`
-   - `**/*.test.ts(x)`, `**/*.spec.ts(x)`, or `scripts/run-test/**/*.ts` → `.github/instructions/tests.instructions.md`
+   - `frontend/**/*.ts(x)` or `app/**/*.ts(x)` → `.agents/instructions/frontend.instructions.md`
+   - `backend/**/*.ts` → `.agents/instructions/backend.instructions.md`
+   - `**/*.test.ts(x)`, `**/*.spec.ts(x)`, or `scripts/run-test/**/*.ts` → `.agents/instructions/tests.instructions.md`
    - A file may match **multiple** instruction files (e.g., `backend/db/test/*.test.ts` matches
      both `backend.instructions.md` and `tests.instructions.md`). Read ALL matching files.
 
@@ -376,7 +376,7 @@ Run the sub-loop script to see which instruction files and AGENTS.md files apply
  bun run scripts/health/sub-loop.ts <file-path> --lifecycle <lifecycle>
 
 The script will print an "Applicable Rule Files" section listing:
- - Instruction files (.github/instructions/*.instructions.md) that apply to this file
+ - Instruction files (.agents/instructions/*.instructions.md) that apply to this file
  - AGENTS.md files (root + layer-specific) that apply to this file
 
 ## STEP 2: Read ALL Listed Rule Files

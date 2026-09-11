@@ -115,7 +115,7 @@ When a feature involves multiple roles interacting over shared state (e.g. teach
    IF the teacher did not teach the class THEN system SHALL reject the submission
    ```
 
-These journeys map 1:1 onto `test/workflows/` journey tests (service-level, multi-actor, real DB). See `docs/testing/workflow-journey-tests.md` for the layer conventions.
+These journeys map 1:1 onto `test/workflows/` journey tests (service-level, multi-actor, real DB).
 
 ### Phase 1.5: Plan Review Gate (MANDATORY)
 
@@ -269,14 +269,14 @@ Every implementation task (X.Y) in `trackable-tasks.md` must follow the 5-stage 
 ```markdown
 - [ ] X.Y [Implement Target Component / Service / Resolver]
   - [ ] X.Y.QL **Quality Loop**: Run `bun run scripts/health/sub-loop.ts <file> --lifecycle duplicates` (exit code 0)
-  - [ ] X.Y.TE **Test Engineering** ([.agents/skills/write-tests/SKILL.md](file:///home/ahmed/Projects/kottaby/.agents/skills/write-tests/SKILL.md) & [.agents/skills/test-expert/SKILL.md](file:///home/ahmed/Projects/kottaby/.agents/skills/test-expert/SKILL.md)):
+  - [ ] X.Y.TE **Test Engineering**:
     • Tier 1: 100% branch and statement coverage
     • Tier 2: Boundary & edge cases (empty strings, nullability, unicode/RTL, numeric/date bounds)
     • Tier 3: Monkey & chaos cases (randomized fuzz payloads, concurrency races via Promise.allSettled)
     • Tier 4: Security & abuse tests (payload injection, invalid roles, error handling)
     • Layer constraints: DB tests wrapped in `runInRollback` + `tx`; Service tests mock all external adapters
-    • Cross-actor journey tests (`test/workflows/`): real services + real DB, committed fixtures + tracked `afterAll` cleanup, NO `runInRollback`; permission checks resolve honestly; run via `bun test test/workflows` — see `docs/testing/workflow-journey-tests.md` and `test/workflows/AGENTS.md`
-  - [ ] X.Y.SEC **Security & Tenancy Audit** ([.agents/skills/idor-testing/SKILL.md](file:///home/ahmed/Projects/kottaby/.agents/skills/idor-testing/SKILL.md) & [.agents/skills/pentester/SKILL.md](file:///home/ahmed/Projects/kottaby/.agents/skills/pentester/SKILL.md)):
+    • Cross-actor journey tests (`test/workflows/`): real services + real DB, committed fixtures + tracked `afterAll` cleanup, NO `runInRollback`; permission checks resolve honestly; run via `bun test test/workflows`
+  - [ ] X.Y.SEC **Security & Tenancy Audit**:
     • BOLA / IDOR Defense: Assert caller ownership (`ctx.user.id`), verify tenant isolation
     • BOPLA Defense: Strict DTO mapping; ensure no `{ ...input }` spread into DB updates
     • BFLA Defense: Verify low-privilege tokens cannot execute administrative functions
@@ -296,7 +296,7 @@ Every implementation task (X.Y) in `trackable-tasks.md` must follow the 5-stage 
 **When to defer tests:**
 - Simple utility functions (test in batch)
 - UI component tests (can batch at phase end)
-- E2E & Penetration tests (requires complete feature — executed in Phase 5 via [.agents/skills/pentester/SKILL.md](file:///home/ahmed/Projects/kottaby/.agents/skills/pentester/SKILL.md))
+- E2E & Penetration tests (requires complete feature — executed in Phase 5)
 
 **Evidence:** whatsapp "Task 4 builders shipped without @live-comm tests; Task 5 adapter shipped without integration tests" — integration issues discovered late. Interleaved tests provide immediate feedback.
 
@@ -396,7 +396,7 @@ Dispatch these review subagents via Task tool:
 - Theme compliance
 - Component patterns
 
-**4. idor-testing, pentester & backend-security** (scope: all endpoints, resolvers, mutations, webhooks)
+**4. security-probing** (scope: all endpoints, resolvers, mutations, webhooks)
 - Probing for BOLA / IDOR cross-tenant data leaks across Parent, Student, and Teacher roles
 - Testing Parent-Child tenancy integrity and composite ID mismatches
 - Verifying Broken Object Property-Level Authorization (BOPLA / mass assignment defense)
@@ -439,8 +439,8 @@ After post-implementation review is clean:
 
 1. **Read ALL outcome files** in `ai/plans/<feature-name>/outcome/`
 2. **Extract recurring patterns/gotchas** (e.g., "dialog/ vs dialogs/ directory confusion appeared 3x")
-3. **Identify knowledge propagation targets** based on plan domain (see table below)
-4. **Phase 7 Knowledge Propagation task** creates docs and updates AGENTS.md files with learnings
+3. **Identify the docs propagation target** based on plan domain
+4. **Phase 7 Knowledge Propagation task** creates/consolidates the canonical doc under `docs/<domain>/`. AGENTS.md and `.agents/instructions/` files are NEVER updated from plan outcomes — those rule files are hand-curated only.
 
 This synthesis ensures learnings don't remain siloed in outcome files but propagate to permanent project knowledge.
 
@@ -498,30 +498,8 @@ Table of files modified, methods refactored, test results.
 
 ## Related Documents
 
-- `path/to/AGENTS.md` — description
 - `path/to/other-doc.md` — description
 - `ai/plans/<name>/outcome/` — plan outcome files
-```
-
-### How AGENTS.md Files Reference Docs
-
-Layer AGENTS.md files reference docs using relative paths from the repo root:
-
-```markdown
-## Rules
-
-- **Prepared Statements (CRITICAL)**: All simple read-only repository methods MUST use
-  Drizzle Prepared Statements 2.0 (`sql.placeholder(...)`) defined at module level.
-  See `docs/drizzle/prepared-statements.md` for the complete pattern reference.
-```
-
-The root `AGENTS.md` lists all docs in its Important References section:
-
-```markdown
-## Important References
-
-- `docs/drizzle/prepared-statements.md` - Drizzle Prepared Statements 2.0 pattern reference
-- `docs/IDEMPOTENCY.md` - Idempotency patterns
 ```
 
 ### How Skills Reference Docs
@@ -536,47 +514,16 @@ prepared statements pattern documented in `docs/drizzle/prepared-statements.md`.
 - ...
 ```
 
-### How Instructions Reference Docs
-
-Instruction files (`.agents/instructions/<layer>.instructions.md`) reference docs as mandatory reading:
-
-```markdown
-## Required Reading
-
-Before modifying any repository file, read:
-- `docs/drizzle/prepared-statements.md` — Prepared statements pattern
-- `backend/db/repo/AGENTS.md` — Repository layer rules
-```
-
 ### What Gets Updated
 
 After all implementation tasks are complete, the final task in every plan MUST:
 
 1. **Create a canonical reference doc** under `docs/<domain>/` consolidating all outcome learnings from the plan
-2. **Update layer AGENTS.md files** that govern the modified layers — add ONLY layer-specific architectural rules and decisions (1-2 lines, no code). Add a one-line reference to the new doc. NEVER add implementation details, code examples, or fix recipes.
-3. **Update `.agents/skills/<skill>/SKILL.md`** if the plan introduced new patterns relevant to a skill's domain — add a section with key rules and a reference to the new doc
-4. **Update `.agents/instructions/<layer>.instructions.md`** — add ONLY rules and decisions, never implementation details. Add a one-line reference to the new doc.
-5. **Update root `AGENTS.md`** Important References section with a one-line reference to the new doc only.
+2. **Update `.agents/skills/<skill>/SKILL.md`** if the plan introduced new patterns relevant to a skill's domain — add a section with key rules and a reference to the new doc
 
-### AGENTS.md & Instructions Content Policy (CRITICAL)
+### Rule Files Content Policy (CRITICAL)
 
-AGENTS.md files and `.agents/instructions/*.md` files MUST contain ONLY:
-1. **Global & Layer-Specific Architectural Rules** — permanent invariants and constraints unique to that layer (e.g., "shared/ must never import from frontend/backend", "all types must live in backend/types/", "pass tx to all repository calls inside runInRollback").
-2. **Library & Runtime Battle-Tested Gotchas** — non-obvious breaking changes and bug-inducing patterns with libraries (e.g. Next.js 16 breaking changes, React 19 FormEvent removal, MUI v9 style props in sx, Emotion RTL stylis plugin crash, Postgres inArray limitation with prepared statements).
-3. **Decisions** — global architectural choices and their rationale (1-2 lines, no code).
-4. **References** — one-line pointers to `docs/` for detailed patterns, code examples, domain guides, and fix recipes.
-
-AGENTS.md and instructions files MUST NOT contain:
-- **Plan-specific constraints & feature notes** (e.g., entity column lists, temporary migration steps, feature-specific business logic)
-- Implementation details (code examples, fix recipes, step-by-step patterns)
-- Duplicated content from other AGENTS.md files or instructions files
-- Command references (those live in root AGENTS.md "Essential Commands" only)
-- Generic workflow documentation (e.g., quality-gate lifecycle)
-
-When propagating learnings from a plan:
-- Plan details and task outcomes → `.ai/plans/<feature-name>/outcome/`
-- Full patterns, code examples, domain architecture, and implementation details → `docs/<domain>/<topic>.md`
-- Permanent, global architectural rules and library battle-tested gotchas → AGENTS.md / instructions (1-2 lines + doc reference in Important References)
+AGENTS.md files and `.agents/instructions/*.instructions.md` files are **hand-curated only**. Plan work NEVER adds learnings to them, and they are NEVER updated from plan outcomes. Durable knowledge from a plan lives in `docs/<domain>/` (and the plan's own outcome files) only.
 
 ### Knowledge Propagation Task Template
 
@@ -584,50 +531,19 @@ When propagating learnings from a plan:
 - [ ] X. **Knowledge Propagation & Documentation**
   - Read all outcome files in `ai/plans/<feature-name>/outcome/` to synthesize all learnings
   - Create canonical reference doc under `docs/<domain>/<topic>.md` consolidating patterns, rules, and gotchas
-  - Update layer AGENTS.md files with layer-specific rules/decisions (no implementation details) and a one-line doc reference
   - Update `.agents/skills/<skill>/SKILL.md` if new patterns affect the skill's domain
-  - Update `.agents/instructions/<layer>.instructions.md` with rules/decisions only and a one-line doc reference
-  - Update root `AGENTS.md` Important References section with a one-line reference to the new doc
   - Run global check: `bun run scripts/health/sub-loop.ts <file> --lifecycle duplicates` per modified file (0 errors, 0 warnings)
   - Write outcome file: `ai/plans/<feature-name>/outcome/X.Y-knowledge-propagation-outcome.md`
   - Update progress: Mark task X.Y as `[x]` in `tasks.md`
 ```
-
-### Complete Domain-to-Artifacts Mapping
-
-Use this table to determine which docs subdir, AGENTS.md files, skills, and instructions to update for a given plan domain:
-
-| Plan Domain | Docs Subdir | AGENTS.md to Update | Skills to Update | Instructions to Update |
-|---|---|---|---|---|
-| Drizzle / DB patterns | `docs/drizzle/` | `backend/db/repo/AGENTS.md`, `backend/db/schema/AGENTS.md`, `backend/AGENTS.md` | `.agents/skills/drizzle/SKILL.md` | `.agents/instructions/backend.instructions.md` |
-| DB migrations | `docs/drizzle/` | `backend/db/schema/AGENTS.md`, `backend/AGENTS.md` | `.agents/skills/drizzle-migrations/SKILL.md`, `.agents/skills/drizzle-generate/SKILL.md` | `.agents/instructions/backend.instructions.md` |
-| GraphQL / Pothos | `docs/graphql/` | `backend/graphql/AGENTS.md`, `backend/graphql/pothos/AGENTS.md`, `frontend/graphql/AGENTS.md` | — | `.agents/instructions/backend.instructions.md` |
-| Backend services | `docs/services/` | `backend/services/AGENTS.md`, `backend/AGENTS.md` | — | `.agents/instructions/backend.instructions.md` |
-| Backend types / enums | `docs/backend/` | `backend/types/AGENTS.md`, `backend/enum/AGENTS.md`, `backend/AGENTS.md` | — | `.agents/instructions/backend.instructions.md` |
-| Frontend components / views | `docs/frontend/` | `frontend/AGENTS.md`, `frontend/views/AGENTS.md`, `frontend/components/ui/AGENTS.md` | `.agents/skills/frontend-patterns/SKILL.md` | `.agents/instructions/frontend.instructions.md` |
-| Frontend mobile/desktop | `docs/frontend/` | `frontend/mobile/AGENTS.md`, `frontend/desktop/AGENTS.md`, `frontend/views/AGENTS.md` | `.agents/skills/refactor-mobile-desktop/SKILL.md` | `.agents/instructions/mobile-desktop.instructions.md` |
-| Frontend stores / state | `docs/frontend/` | `frontend/stores/AGENTS.md`, `frontend/AGENTS.md` | `.agents/skills/frontend-patterns/SKILL.md` | `.agents/instructions/frontend.instructions.md` |
-| Frontend GraphQL / Apollo | `docs/frontend/` | `frontend/graphql/AGENTS.md`, `frontend/graphql/sharedDocuments/AGENTS.md` | — | `.agents/instructions/frontend.instructions.md` |
-| Testing (DB) | `docs/testing/` | `backend/db/test/AGENTS.md`, `backend/db/test/logic/AGENTS.md` | `.agents/skills/write-tests/SKILL.md`, `.agents/skills/test-expert/SKILL.md`, `.agents/skills/fix-db-tests/SKILL.md` | `.agents/instructions/tests.instructions.md` |
-| Testing (UI / E2E) | `docs/testing/` | `test/ui/AGENTS.md` | `.agents/skills/write-tests/SKILL.md`, `.agents/skills/fix-tests/SKILL.md` | `.agents/instructions/tests.instructions.md` |
-| Testing (general) | `docs/testing/` | `scripts/run-test/AGENTS.md` | `.agents/skills/write-tests/SKILL.md`, `.agents/skills/test-expert/SKILL.md`, `.agents/skills/fix-tests/SKILL.md` | `.agents/instructions/tests.instructions.md` |
-| i18n / locale | `docs/i18n/` | `shared/AGENTS.md` | — | — |
-| Auth / security | `docs/auth/` | `backend/services/AGENTS.md`, `backend/AGENTS.md` | `.agents/skills/idor-testing/SKILL.md`, `.agents/skills/pentester/SKILL.md`, `.agents/skills/backend-security-review/SKILL.md`, `.agents/skills/security-and-hardening/SKILL.md` | `.agents/instructions/backend.instructions.md` |
-| App Router / Next.js | `docs/app/` | `app/AGENTS.md` | — | `.agents/instructions/frontend.instructions.md` |
-| Quality gates / CI | `docs/quality/` | `AGENTS.md` (root) | `.agents/skills/quality-gate/SKILL.md`, `.agents/skills/quality-loop/SKILL.md` | — |
-| Idempotency | `docs/` (top-level) | `backend/services/AGENTS.md` | — | `.agents/instructions/backend.instructions.md` |
-| Bun / runtime | `docs/bun/` | `AGENTS.md` (root) | — | — |
 
 ### Example: Full Propagation for a Drizzle Plan
 
 Given a plan that introduced prepared statements across repositories:
 
 1. **Create doc**: `docs/drizzle/prepared-statements.md` with pattern, rules, anti-patterns, rollout summary
-2. **Update `backend/db/repo/AGENTS.md`**: Add "Prepared Statements (CRITICAL)" rule referencing the doc
-3. **Update `backend/AGENTS.md`**: Add prepared statements bullet to Repository Layer section
-4. **Update `.agents/skills/drizzle/SKILL.md`**: Add "Prepared Statements" section with key rules and doc reference
-5. **Update root `AGENTS.md`**: Add `docs/drizzle/prepared-statements.md` to Important References
-6. **Quality check**: `bun run scripts/health/sub-loop.ts <file> --lifecycle duplicates` per modified file
+2. **Update `.agents/skills/drizzle/SKILL.md`**: Add "Prepared Statements" section with key rules and doc reference
+3. **Quality check**: `bun run scripts/health/sub-loop.ts <file> --lifecycle duplicates` per modified file
 
 ## Standard Task Enhancement Rules (Applied to Every Feature Plan)
 
@@ -658,7 +574,7 @@ bun run scripts/health/sub-loop.ts <the-file> --lifecycle duplicates
 | `duplicates` | tsgo → oxlint → biome:check → lint:type-aware → check:duplicates |
 
 **What the script handles automatically (no manual steps needed):**
-- ✅ Discovers and prints ALL applicable `.github/instructions/*.instructions.md` files for the target file
+- ✅ Discovers and prints ALL applicable `.agents/instructions/*.instructions.md` files for the target file
 - ✅ Discovers and prints ALL applicable layer `AGENTS.md` files for the target file
 - ✅ Enforces the Fix-Or-Report rule (fix within same file; report cross-file dependencies to orchestrator)
 - ✅ Runs `check:duplicates` for single-file duplication detection (duplicates lifecycle)
@@ -711,7 +627,7 @@ Before marking ANY subtask `[x]`, verify (the sub-loop script handles mechanical
 Fix all errors reported by `sub-loop.ts` and resolve all semantic checklist findings before proceeding to next file/subtask.
 
 ### 3. Instruction Verification Per Subtask (Default in Every Subtask)
-After the `sub-loop.ts` quality loop passes, the agent MUST read and validate the file against ALL applicable instruction files. **The `sub-loop.ts` script automatically discovers and prints** the applicable `.github/instructions/*.instructions.md` and layer `AGENTS.md` files for the target file — the agent reads those printed paths (no manual lookup needed):
+After the `sub-loop.ts` quality loop passes, the agent MUST read and validate the file against ALL applicable instruction files. **The `sub-loop.ts` script automatically discovers and prints** the applicable `.agents/instructions/*.instructions.md` and layer `AGENTS.md` files for the target file — the agent reads those printed paths (no manual lookup needed):
 - **Layer AGENTS.md**: Printed by `sub-loop.ts` under the "AGENTS.md files (read before fixing)" section
 - **.agents/instructions/*.md**: Printed by `sub-loop.ts` under the "Instruction files (read before fixing)" section
 

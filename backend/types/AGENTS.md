@@ -1,8 +1,5 @@
 # Backend Types Layer Rules
 
-- **Registration types: `RegistrationSubmitInput`, `RegistrationReturnType`, `RegisterPublicRole` in `backend/types/users/registration.types.ts`. See `docs/auth/user-registration.md`.**
-- **Session report & homework types: `Report*`/`HomeWork*` Select/Insert/Return types, `SessionReportSubmitInput`, and the homework composites (`HomeWorkAssignInput`/`HomeWorkBlockInput`/`HomeWorkGradeFieldsInput`) in `backend/types/classes/report.types.ts` + `home-work.types.ts`. See `docs/sessions/session-report-homework.md`.**
-
 ## Single Canonical Object Type Pattern
 
 Each database table/entity must have a single canonical type definition in the types layer that serves as the foundation for all GraphQL and backend operations.
@@ -49,55 +46,19 @@ export type {Entity}ReturnType = Omit<{Entity}SelectType,
 
 ## Base Interface Pattern (Duplication Elimination)
 
-When multiple entity types share identical fields/methods (e.g., meeting config base, communication base entity), extract a `*Base*` type in a shared types file. See `docs/backend/shared-types-pattern.md` and `docs/frontend/duplication-elimination-patterns.md` Pattern 3 for the extraction process.
-
-Completed extractions:
-- `backend/types/meeting/meeting-config-base.types.ts` — shared shape for class-meeting-config and meeting-config types
-- `backend/types/communication/communication.types.ts` — `BaseEntity`, `BaseRepo<T>`, `DBTx`, `ResolutionResult` for complaint/suggestion types
+When multiple entity types share identical fields/methods, extract a `*Base*` type in a shared types file rather than duplicating the shape across per-entity type files.
 
 ## Types Location Rules (CRITICAL)
 
 - **All `.types.ts` files MUST live in `backend/types/`.** Service-layer files must not define or re-export types — import from `@/backend/types` instead.
 - **If a service file contains both types and runtime code, split:** types → `backend/types/`, runtime → stays in the service layer with a non-`.types` filename (e.g., `.helpers.ts`, `.constants.ts`).
 - **`backend/types/**/index.ts` barrels MUST use `./` relative paths and `export * from "./..."`.** No `@/` aliases, no `../` parent traversal, no explicit per-export `export type { ... }`.
-- **`DBTransaction` and `DBQueryExecutor` live in `@/backend/types`** (moved from `@/backend/db/db.types`). All consumers import from `@/backend/types`.
+- **`DBTransaction` and `DBQueryExecutor` live in `@/backend/types`.** All consumers import from `@/backend/types`.
 
-### Completed Migration: Service-Layer `.types.ts` → `backend/types/`
+## Cross-Layer Enums
 
-The following `.types.ts` files were moved from the service layer into `backend/types/`:
+`shared/constants/` is the canonical home for cross-layer enums. A duplicate under `backend/enum/` must be converted to a re-export of the `shared/constants/` definition rather than maintained as a second source of truth.
 
-| Source (deleted) | Target | Notes |
-|---|---|---|
-| `backend/db/db.types.ts` | `backend/types/db.types.ts` | `DBTransaction`, `DBQueryExecutor` |
-| `backend/services/fx/providers/fixer/fixer.types.ts` | `backend/types/fx/fixer.types.ts` | `FixerLatestResponse` (interface only); `fixerResponseSchema` (Zod) → `fixer.helpers.ts` |
-| `backend/services/fx/providers/openexchangerates/openexchangerates.types.ts` | `backend/types/fx/openexchangerates.types.ts` | `OpenExchangeRatesResponse` |
-| `backend/services/communication/channels/email/resend/resend.types.ts` | `backend/types/communication/resend.types.ts` | `ResendEmailContext`, `ResendSendResponse`, `ResendErrorResponse` |
-| `backend/services/communication/channels/push/fcm/fcm.types.ts` | `backend/types/communication/fcm.types.ts` | Interfaces only; `FCM_*` consts → `fcm.helpers.ts` |
-| `backend/services/communication/channels/sms/twilio/twilio.types.ts` | `backend/types/communication/twilio.types.ts` | `TwilioSmsContext`, `TwilioMessageResponse`, `TwilioRateLimitConfig` |
-| `backend/services/communication/channels/whatsapp/cloud-api/meta-cloud-api.types.ts` | (types already in `backend/types/whatsapp/`) | Runtime helpers → `meta-cloud-api.helpers.ts` |
-| `backend/services/meeting/channels/google-meet/google-meet.types.ts` | `backend/types/meeting/channels/google-meet.types.ts` | Google Meet interfaces |
-| `backend/services/meeting/channels/microsoft-teams/microsoft-teams.types.ts` | `backend/types/meeting/channels/microsoft-teams.types.ts` | Teams interfaces |
-| `backend/services/meeting/channels/zoom/zoom.types.ts` | `backend/types/meeting/channels/zoom.types.ts` | Zoom interfaces |
+## Schema Ground Truth
 
-## Cross-Layer Enum Migration
-
-When an enum exists in both `shared/constants/` (canonical) and `backend/enum/` (duplicate), convert the backend file to a re-export shim. See `docs/i18n/cross-layer-enum-migration.md` for the complete migration workflow.
-
-Completed migrations:
-- `IANATimezone` — `backend/enum/shared/timezone.enum.ts` → re-export from `shared/constants/iana-timezone.enum.ts`
-- `CurrencyCode` — `backend/enum/shared/currency.enum.ts` → re-export from `shared/constants/currency.enum.ts`
-- `ClassInstanceDetail` — `backend/enum/shared/class-instance-detail.enum.ts` → re-export from `shared/constants/class-instance-detail.enum.ts`
-
-## Linting Rules
-
-- See `docs/quality/linting-rules.md` for Oxlint & ESLint/sonarjs fix recipes. NEVER use `oxlint-disable` comments.
-
-## Schema Footprint
-
-The 15-enum registry (`backend/db/schema/enums.ts`) + 22-table canonical types. All `$inferSelect`/`$inferInsert` types derive from `backend/db/schema/<domain>/`, which is the sole structural ground truth.
-
-## Contracts Subtree
-
-Cross-stream contract types live in `contracts/`. See `docs/backend/cross-stream-contracts.md` for governance.
-
-
+All `$inferSelect`/`$inferInsert` types derive from `backend/db/schema/<domain>/`, which is the sole structural ground truth. Cross-stream contract types live in `contracts/`.

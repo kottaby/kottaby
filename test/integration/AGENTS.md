@@ -104,9 +104,9 @@ bun run scripts/health/sub-loop.ts test/integration/redis/redis-fanout-transport
 bun run test:integration
 ```
 
-Instruction file for integration tests: `.github/instructions/tests.instructions.md` (when present).
+Instruction file for integration tests: `.agents/instructions/tests.instructions.md`.
 
 ## Linting Rules
 
-- See `docs/quality/linting-rules.md` for Oxlint & ESLint/sonarjs fix recipes. NEVER use `oxlint-disable` comments.
+- NEVER use `oxlint-disable` comments — fix the root cause.
 
