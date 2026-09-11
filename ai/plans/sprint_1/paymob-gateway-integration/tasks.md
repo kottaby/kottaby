@@ -31,7 +31,7 @@
 
 ## Phase 0: Pre-Implementation Baseline (MANDATORY)
 
-- [ ] 0.1 Record tsgo/biome/lint baselines (counts in `outcome/0.1-outcome.md`); confirm the landed subscription-purchase seams' shapes in the working tree (port signatures, factory, route, repos — amendments A1–A5 key off them); re-confirm every `path:line` cited in `specs.md` §1 still resolves.
+- [x] 0.1 Record tsgo/biome/lint baselines (counts in `outcome/0.1-outcome.md`); confirm the landed subscription-purchase seams' shapes in the working tree (port signatures, factory, route, repos — amendments A1–A5 key off them); re-confirm every `path:line` cited in `specs.md` §1 still resolves.
   - _Requirements: REQ-001_
 
 ## Phase 1.5: Plan Review Gate (MANDATORY — executed at authoring time)
