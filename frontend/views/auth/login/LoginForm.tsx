@@ -113,7 +113,7 @@ export function LoginForm() {
           <PasswordField
             label={t.loginPassword}
             value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            onChange={e => setPassword(e.target.value)}
             showPassword={showPassword}
             onToggleShow={() => setShowPassword(!showPassword)}
             autoComplete="current-password"
