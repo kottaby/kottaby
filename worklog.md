@@ -83,3 +83,24 @@ Work Log:
 Stage Summary:
 - Task 2.2 COMPLETE: provider_transaction_id set-once ledger link + stale-pending reconcile read implemented, tested (14 green), documented; committing on feat/paymob-gateway-integration
 - Carry-forward: findStalePendingByGateway(gateway: PaymentGateway, olderThan: Date, limit: number, tx?: DBQueryExecutor) → StalePendingWithReferenceRow = StudentPaymentSelectType & { paymentReference: string | null }; reference via LEFT JOIN subscriptions.payment_reference (null = no provider key, keep row); record providerTransactionId ONLY inside the same guarded transition (markPaidOnce/markFailedOnce never touch it); stale window from getPaymobConfig().reconcilePendingMinutes; drizzle ordering is folder-name lexicographic (no journal) — custom bundles before same-timestamp schema siblings
+
+---
+Task ID: 2.3
+Agent: general-purpose subagent (finished by follow-up agent)
+Task: Vendor types + port amendments A1-A3
+
+Work Log:
+- Resumed prior agent's uncommitted work on feat/paymob-gateway-integration @ ac8a841 (task 2.2); reviewed full diff + 3 new files against plan §2.3 + the offline Paymob mirror (create-intention, hmac-transaction-callback, hmac-for-card-tokens, transaction-callbacks, inquiry docs — all member lists check out)
+- paymob.types.ts verified types-only (0 imports/0 runtime), snake_case vendor DTOs + camelCase PaymobResolvedConfig (9 members, integrationIdWallet nullable); barrel exports it in alphabetical slot
+- A1/A2/A3 confirmed in payment-gateway.types.ts (specialReference + billing{firstName,lastName,email,phone: string|null}; providerTransactionId?; WebhookParseInput {rawBody, query} + port → PaymentWebhookEvent | null, old raw-body signature gone)
+- Route conformance VERIFIED (the stale probe claiming no WebhookParseInput usage was wrong): route builds {rawBody, query} via Object.fromEntries(searchParams) and acks null with { processed: false } 200 (same no-op envelope as replay); mock adapter parses input.rawBody, query deliberately unused, never-null documented as domain property
+- Fix (1 docblock): PaymobTransactionCallbackObj claimed "every member is a signed HMAC value" — false for is_refund/is_void/refunded_amount_cents/captured_amount (real vendor members, not signed) → reworded; no plan-meta comments in any touched file
+- Helpers verdict: subscription-purchase.helpers.ts is sound — isPositiveSafeId (relocated guard) + buildCheckoutBillingInput = fail-closed UserRepository.findById ride of outerTx (vanished purchaser → ForbiddenError) → billingFromUserRow projects REAL fullName/email/phone (phone nullable; no placeholders — "NA" fill owned by the 3.2 mapper); purchase service sends specialReference = idempotencyKey (claim key, D4) after isCarryableIdempotencyKey narrowing (key is string predicate)
+- Tests: static-assertions 13/0; factory 20/0; purchase-service 20 pass + 1 pre-existing pglite-gated skip / 0 fail; webhook-route 34/0; signature-helpers 20/0; activation 17/0
+- Sub-loop duplicates exit 0 ×9 (paymob.types, payment-gateway.types, barrel, mock adapter, route, purchase service, helpers, static-assertions test, factory test) — repo-wide tsgo included, cascade complete
+- Wrote outcome/2.3-outcome.md; flipped tasks.md 2.3 main + all five 2.3.QL/TE/SEC/SR/IV checkboxes; deferred-items.md: NO new rows from 2.3 (A-set is coordination, carries no statuses)
+
+Stage Summary:
+- Task 2.3 COMPLETE: vendor mirror types + A1-A3 port amendments landed with all consumers ported; committed on feat/paymob-gateway-integration
+- Carry-forward: WebhookParseInput = {rawBody, query}, null = verified-but-ignored → route 200-ack no-op; specialReference = purchase-claim idempotency key (≤128 chars) echoed back as order.merchant_order_id (4.2 fulfillment + 5.1 inquiry resolve by it); billing identity = buildCheckoutBillingInput (server-side, real user row, rides outerTx); "NA" billing placeholder fill belongs to 3.2 buildIntentionRequest; PaymobResolvedConfig = fail-closed narrowing of 2.1 env config
+- Observation (NOT 2.3 scope): task 2.2's closeout artifacts (outcome/2.2-outcome.md, tasks.md 2.2 checkbox flip) are absent on feat though the 2.2 schema/migration/repo commit ac8a841 landed

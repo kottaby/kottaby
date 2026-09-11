@@ -51,9 +51,9 @@
   - EXTEND `backend/db/schema/billing/student-payments.ts` (+`providerTransactionId`); CREATE `backend/db/migration/5-student-payments-provider-transaction.sql` + `-sqlite.sql` pair (trigger allowance for NULL→value during the guarded transition; schema via push, trigger via migration — same convention as the landed `4-student-payments-status-transition{,-sqlite}.sql` pair + its Drizzle mirror dir `backend/drizzle/*_custom_4-student-payments-status-transition/`); EXTEND `backend/db/repo/billing/student-payment.repository.ts` with `findStalePendingByGateway(gateway, olderThan, limit)` (amendment A4 — the repository exists; this ADDS the method).
   - [x] 2.2.QL · [x] 2.2.TE — EXTEND `backend/db/test/logic/billing/student-payment.repository.test.ts` (the subscription-purchase plan's planned suite location, `tasks.md:87`): `runInRollback` + `tx` everywhere; allow set-on-transition; forbid second update; forbid financial-column mutation · [x] 2.2.SEC — freeze proofs · [x] 2.2.SR · [x] 2.2.IV
   - _Requirements: REQ-004, REQ-031, REQ-073_
-- [ ] 2.3 Canonical vendor types + port amendments
+- [x] 2.3 Canonical vendor types + port amendments
   - CREATE `backend/types/billing/paymob.types.ts` (vendor DTOs per plan §2.3); EXTEND `backend/types/billing/payment-gateway.types.ts` per amendments A1–A3 (coordinate with the subscription-purchase plan executor if concurrent — ledger A-set).
-  - [ ] 2.3.QL · [ ] 2.3.TE — type-level assertions compile; enum value imports · [ ] 2.3.SEC · [ ] 2.3.SR — types-only file (no runtime in types dir) · [ ] 2.3.IV
+  - [x] 2.3.QL · [x] 2.3.TE — type-level assertions compile; enum value imports · [x] 2.3.SEC · [x] 2.3.SR — types-only file (no runtime in types dir) · [x] 2.3.IV
   - _Requirements: REQ-005, REQ-014, REQ-017, REQ-031_
 
 ---

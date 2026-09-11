@@ -42,9 +42,11 @@
  *    401: a misconfigured deployment is indistinguishable from a forged
  *    callback, and the gate can never be bypassed.
  *  - **Envelope** — success `{ data: { processed, replayed? }, requestId }`;
- *    replays ack 200 like first deliveries (gateways retry on non-2xx), and
+ *    replays ack 200 like first deliveries (gateways retry on non-2xx),
  *    verified-but-unknown references / quarantined mismatches ack
- *    `{ processed: false }` 200 — settlement integrity beats liveness.
+ *    `{ processed: false }` 200, and a verified-but-ignored callback
+ *    variant (a delivery type this integration never settles) acks the
+ *    same no-op — settlement integrity beats liveness.
  *    Parse rejections, oversize bodies, and a request stream that rejects
  *    mid-read are masked 400-family envelopes; anything thrown is masked
  *    through the shared error machinery with one correlated log line. The
@@ -339,9 +341,18 @@ export async function POST(request: NextRequest): Promise<Response> {
   // Parse through the active gateway port, then delegate settlement. The
   // service never throws for outcome content — unknown references,
   // quarantines, and replays all come back as honest acks — so only true
-  // infrastructure failures reach the masked envelope below.
+  // infrastructure failures reach the masked envelope below. The request's
+  // query parameters ride along as a plain record: query-signed providers
+  // carry their signature and correlation fields in the URL, not the body.
+  // A null event is a verified-but-ignored delivery (nothing to settle) —
+  // acked like a replay so the provider's retry schedule stops, with zero
+  // state change.
   try {
-    const event = getPaymentGateway(ENVELOPE_LOCALE).parseWebhookEvent(rawBody);
+    const query: Record<string, string | undefined> = Object.fromEntries(request.nextUrl.searchParams);
+    const event = getPaymentGateway(ENVELOPE_LOCALE).parseWebhookEvent({ rawBody, query });
+    if (event === null) {
+      return apiSuccessResponse({ processed: false }, { requestId });
+    }
     const result = await SubscriptionActivationService.processWebhookEvent(event, ENVELOPE_LOCALE);
     return apiSuccessResponse(
       { processed: result.processed, ...(result.replayed !== undefined && { replayed: result.replayed }) },

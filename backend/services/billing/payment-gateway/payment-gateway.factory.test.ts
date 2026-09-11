@@ -208,14 +208,24 @@ describe("getPaymentGateway singleton + resetPaymentGateway completeness", () =>
   });
 });
 
-// ─── Mock adapter: checkout determinism ─────────────────────────────────────
+// ─── Mock adapter: checkout determinism ─────────────────────────────────
+
+/** A well-formed checkout input carrying the correlation + billing fields the port requires. */
+const CHECKOUT_INPUT = {
+  studentId: 7,
+  planId: 3,
+  amount: "150.00",
+  currency: "EGP",
+  specialReference: "purchase-claim-key",
+  billing: { firstName: "Test", lastName: "Student", email: "student@test.local", phone: null },
+};
 
 describe("MockPaymentGatewayAdapter.createCheckout determinism", () => {
   const adapter = new MockPaymentGatewayAdapter();
 
   test("each checkout mints a fresh mock_<uuid> reference with no checkout URL", async () => {
-    const first = await adapter.createCheckout({ studentId: 7, planId: 3, amount: "150.00", currency: "EGP" });
-    const second = await adapter.createCheckout({ studentId: 7, planId: 3, amount: "150.00", currency: "EGP" });
+    const first = await adapter.createCheckout(CHECKOUT_INPUT);
+    const second = await adapter.createCheckout(CHECKOUT_INPUT);
 
     expect(first.provider).toBe(PaymentGateway.Mock);
     expect(second.provider).toBe(PaymentGateway.Mock);
@@ -230,9 +240,15 @@ describe("MockPaymentGatewayAdapter.createCheckout determinism", () => {
 
   test("checkout never throws — any well-formed input resolves", async () => {
     const inputs = [
-      { studentId: 1, planId: 1, amount: "0.00", currency: "EGP" },
-      { studentId: Number.MAX_SAFE_INTEGER, planId: 999_999, amount: "99999999.99", currency: "USD" },
-      { studentId: 42, planId: 5, amount: "", currency: "" },
+      { ...CHECKOUT_INPUT, studentId: 1, planId: 1, amount: "0.00", currency: "EGP" },
+      {
+        ...CHECKOUT_INPUT,
+        studentId: Number.MAX_SAFE_INTEGER,
+        planId: 999_999,
+        amount: "99999999.99",
+        currency: "USD",
+      },
+      { ...CHECKOUT_INPUT, studentId: 42, planId: 5, amount: "", currency: "" },
     ];
     const sessions = await Promise.all(inputs.map(input => adapter.createCheckout(input)));
     for (const session of sessions) {
@@ -251,7 +267,7 @@ describe("MockPaymentGatewayAdapter.parseWebhookEvent envelope", () => {
 
   /** Parses a body, returning the thrown value (or null when parsing succeeded). */
   function parseError(rawBody: string): unknown {
-    return catchSync(() => adapter.parseWebhookEvent(rawBody));
+    return catchSync(() => adapter.parseWebhookEvent({ rawBody, query: {} }));
   }
 
   function expectMalformed(rawBody: string): void {
@@ -262,29 +278,34 @@ describe("MockPaymentGatewayAdapter.parseWebhookEvent envelope", () => {
   }
 
   test("a confirmed callback parses into the verified-event contract", () => {
-    const event = adapter.parseWebhookEvent(
-      JSON.stringify({ reference: "mock_abc", outcome: "confirmed", amount: "150.00", currency: "EGP" })
-    );
+    // Query members ride along untouched — the mock has no query-signed
+    // delivery variant, so URL fields never leak into the parsed event.
+    const event = adapter.parseWebhookEvent({
+      rawBody: JSON.stringify({ reference: "mock_abc", outcome: "confirmed", amount: "150.00", currency: "EGP" }),
+      query: { hmac: "attacker-supplied", amount_cents: "999" },
+    });
     expect(event).toEqual({ reference: "mock_abc", outcome: "confirmed", amount: "150.00", currency: "EGP" });
   });
 
   test("a failed callback parses with the failed outcome", () => {
-    const event = adapter.parseWebhookEvent(
-      JSON.stringify({ reference: "mock_abc", outcome: "failed", amount: "150.00", currency: "EGP" })
-    );
+    const event = adapter.parseWebhookEvent({
+      rawBody: JSON.stringify({ reference: "mock_abc", outcome: "failed", amount: "150.00", currency: "EGP" }),
+      query: {},
+    });
     expect(event.outcome).toBe("failed");
   });
 
   test("extra payload members are dropped — only the four contract fields survive", () => {
-    const event = adapter.parseWebhookEvent(
-      JSON.stringify({
+    const event = adapter.parseWebhookEvent({
+      rawBody: JSON.stringify({
         reference: "mock_abc",
         outcome: "confirmed",
         amount: "150.00",
         currency: "EGP",
         injectedField: "attacker-controlled",
-      })
-    );
+      }),
+      query: {},
+    });
     expect(Object.keys(event).toSorted((a, b) => a.localeCompare(b))).toEqual([
       "amount",
       "currency",
