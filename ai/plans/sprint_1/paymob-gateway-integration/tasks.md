@@ -69,9 +69,9 @@
   - CREATE `backend/services/billing/payment-gateway/paymob/paymob.mapper.ts`: `buildIntentionRequest` (cents conversion w/ 2dp guard, billing placeholders, integer method IDs, `special_reference`), `toCheckoutDescriptor` (validates `id`/`client_secret`; URL assembly from config), `mapCallbackToEvent` (incl. `providerTransactionId`, cents→decimal string).
   - [x] 3.2.QL · [x] 3.2.TE — field-by-field request body assertions; boundary cents cases; descriptor URL assembly; callback mapping incl. declined/PENDING flags · [x] 3.2.SEC — no client-derived money fields · [x] 3.2.SR · [x] 3.2.IV
   - _Requirements: REQ-011, REQ-012, REQ-013, REQ-014, REQ-015, REQ-016, REQ-017, REQ-044_
-- [ ] 3.3 HTTP client + adapter
+- [x] 3.3 HTTP client + adapter
   - CREATE `…/paymob/paymob.http.ts` (injectable `fetch` boundary; `AbortSignal.timeout`; `retryTransient` only on transport/5xx; typed minimal validation) and `…/paymob/paymob.adapter.ts` — `class PaymobPaymentGateway implements PaymentGatewayPort` with `requirePaymobConfig()` fail-closed guard, `createCheckout`, `parseWebhookEvent(input)` (returns `null` for verified-but-ignored variants; throws typed errors the route maps to 400/401).
-  - [ ] 3.3.QL · [ ] 3.3.TE — mocked-fetch suite incl. no-retry-on-unknown-state, timeout aborts, 404/400 upstream mapping, config guard throws · [ ] 3.3.SEC — no upstream body leaks to caller · [ ] 3.3.SR — zero module-level mutable state · [ ] 3.3.IV
+  - [x] 3.3.QL · [x] 3.3.TE — mocked-fetch suite incl. no-retry-on-unknown-state, timeout aborts, 404/400 upstream mapping, config guard throws · [x] 3.3.SEC — no upstream body leaks to caller · [x] 3.3.SR — zero module-level mutable state · [x] 3.3.IV
   - _Requirements: REQ-004, REQ-010, REQ-013, REQ-015, REQ-032, REQ-033, REQ-040, REQ-042, REQ-050, REQ-051, REQ-072_
 
 ---

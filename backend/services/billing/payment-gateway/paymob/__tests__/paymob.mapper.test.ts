@@ -210,6 +210,19 @@ describe("buildIntentionRequest", () => {
     expect(request.redirection_url).toBe("https://app.example.org/student/checkout/result?src=paymob");
   });
 
+  test("omits the callback URL members entirely when the caller resolved none", () => {
+    // No fabricated URLs: without caller-resolved values the vendor falls
+    // back to the callback URL configured on the merchant dashboard, so the
+    // members must be ABSENT from the body — never empty strings.
+    const request = buildIntentionRequest({
+      input: makeInput({}),
+      itemName: "Math Annual Plan",
+      config: makeConfig({}),
+    });
+    expect("notification_url" in request).toBe(false);
+    expect("redirection_url" in request).toBe(false);
+  });
+
   test("fills a missing phone with the placeholder", () => {
     const request = buildRequest({ input: { billing: { ...BASE_INPUT.billing, phone: null } } });
     expect(request.billing_data.phone_number).toBe("NA");

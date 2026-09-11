@@ -112,15 +112,16 @@ function buildPaymentMethods(config: PaymobResolvedConfig): number[] {
  * Builds the `POST v1/intention/` request body for one plan purchase: the
  * total and its single line item share one cents conversion, the
  * configured integration IDs ride as integers, the correlation key is sent
- * verbatim as `special_reference`, and the callback URLs are the ones the
- * caller resolved.
+ * verbatim as `special_reference`, and the callback URLs ride only when
+ * the caller resolved them — omitted otherwise, in which case the vendor
+ * falls back to the callback URL configured on the merchant dashboard.
  */
 export function buildIntentionRequest(args: {
   input: PaymentCheckoutInput;
   itemName: string;
   config: PaymobResolvedConfig;
-  notificationUrl: string;
-  redirectionUrl: string;
+  notificationUrl?: string;
+  redirectionUrl?: string;
 }): PaymobIntentionRequest {
   const amountCents = convertAmountToCents(args.input.amount);
   return {
@@ -130,8 +131,8 @@ export function buildIntentionRequest(args: {
     items: [{ name: args.itemName, amount: amountCents, quantity: 1 }],
     billing_data: buildBillingData(args.input.billing),
     special_reference: args.input.specialReference,
-    notification_url: args.notificationUrl,
-    redirection_url: args.redirectionUrl,
+    ...(args.notificationUrl !== undefined && { notification_url: args.notificationUrl }),
+    ...(args.redirectionUrl !== undefined && { redirection_url: args.redirectionUrl }),
   };
 }
 

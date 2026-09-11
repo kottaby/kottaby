@@ -32,6 +32,7 @@ import {
   getPaymentGateway,
   resetPaymentGateway,
 } from "@/backend/services/billing/payment-gateway/payment-gateway.factory";
+import { PaymobPaymentGateway } from "@/backend/services/billing/payment-gateway/paymob/paymob.adapter";
 import { getServerTranslations } from "@/shared/locale/server-graphql";
 
 // ─── Env-manipulation fixture (restored after every case) ───────────────────
@@ -109,6 +110,12 @@ describe("getPaymentGateway provider resolution", () => {
     expect(getPaymentGateway()).toBeInstanceOf(MockPaymentGatewayAdapter);
   });
 
+  test("the paymob provider resolves the PaymobPaymentGateway adapter", () => {
+    process.env.PAYMENT_GATEWAY_PROVIDER = "paymob";
+    resetPaymentGateway();
+    expect(getPaymentGateway()).toBeInstanceOf(PaymobPaymentGateway);
+  });
+
   test("an empty or whitespace-only provider falls back to mock, never fails", () => {
     for (const value of ["", "   "]) {
       process.env.PAYMENT_GATEWAY_PROVIDER = value;
@@ -118,7 +125,7 @@ describe("getPaymentGateway provider resolution", () => {
   });
 
   test("an unknown provider fails closed with the typed unsupported error", () => {
-    process.env.PAYMENT_GATEWAY_PROVIDER = "paymob";
+    process.env.PAYMENT_GATEWAY_PROVIDER = "stripe";
     resetPaymentGateway();
 
     const caught = catchSync(() => getPaymentGateway());
@@ -128,11 +135,11 @@ describe("getPaymentGateway provider resolution", () => {
     expect(rejection).not.toBeNull();
     expect(rejection?.code).toBe("PAYMENT_GATEWAY_UNSUPPORTED");
     expect(rejection?.message).toBe(getServerTranslations("en").errorsTranslations.validation);
-    expect(rejection?.message).not.toContain("paymob");
+    expect(rejection?.message).not.toContain("stripe");
   });
 
   test("the fail-closed message follows the requested locale", () => {
-    process.env.PAYMENT_GATEWAY_PROVIDER = "paymob";
+    process.env.PAYMENT_GATEWAY_PROVIDER = "stripe";
     resetPaymentGateway();
 
     const caught = catchSync(() => getPaymentGateway("ar"));
@@ -172,7 +179,7 @@ describe("getPaymentGateway singleton + resetPaymentGateway completeness", () =>
 
   test("the singleton keeps serving across an env change until reset", () => {
     const cached = getPaymentGateway();
-    process.env.PAYMENT_GATEWAY_PROVIDER = "paymob";
+    process.env.PAYMENT_GATEWAY_PROVIDER = "stripe";
     expect(getPaymentGateway()).toBe(cached);
   });
 
@@ -181,7 +188,7 @@ describe("getPaymentGateway singleton + resetPaymentGateway completeness", () =>
     expect(stale).toBeInstanceOf(MockPaymentGatewayAdapter);
 
     // Provider swap to an unsupported value: reset must surface the change.
-    process.env.PAYMENT_GATEWAY_PROVIDER = "paymob";
+    process.env.PAYMENT_GATEWAY_PROVIDER = "stripe";
     resetPaymentGateway();
     expect(catchSync(() => getPaymentGateway())).toBeInstanceOf(DomainError);
 
@@ -202,7 +209,7 @@ describe("getPaymentGateway singleton + resetPaymentGateway completeness", () =>
     // …then flip the raw env WITHOUT any explicit env-cache reset: the
     // factory's own reset must invalidate the snapshot too, or the stale
     // snapshot would keep resolving the mock adapter.
-    process.env.PAYMENT_GATEWAY_PROVIDER = "paymob";
+    process.env.PAYMENT_GATEWAY_PROVIDER = "stripe";
     resetPaymentGateway();
     expect(catchSync(() => getPaymentGateway())).toBeInstanceOf(DomainError);
   });
