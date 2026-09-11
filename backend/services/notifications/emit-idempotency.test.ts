@@ -20,7 +20,7 @@ import {
   serializeEmitReceipt,
   storeEmitReceiptQuietly,
   warnEmitIdempotencyUnavailable,
-} from "./emit-idempotency";
+} from "@/backend/services/notifications/emit-idempotency";
 import { logger } from "@/backend/lib/logger";
 import { NotificationType } from "@/backend/enum/notifications/notification-type.enum";
 import type { NotificationDeliveryReceipt } from "@/backend/types";
