@@ -30,9 +30,9 @@ This ledger tracks all work deferred from one task to another to ensure no defer
 
 ---
 
-## Cross-Plan Amendments (A-set — consumed or applied by DEV1-006's executor / this plan, per landing order)
+## Cross-Plan Amendments (A-set — applied to the EXISTING subscription-purchase seams by this plan)
 
-This plan refines five DEV1-006 *planned-but-unwritten* contracts. They are blocking coordination items, NOT implementation deferrals:
+The subscription-purchase backend has landed with a mock-adapter-only shape. This plan amends five EXISTING contracts to fit a real redirect-based gateway. They are blocking coordination items, NOT implementation deferrals:
 
 | ID | Amendment | Detail | Coordinating task |
 |---|---|---|---|
@@ -40,8 +40,8 @@ This plan refines five DEV1-006 *planned-but-unwritten* contracts. They are bloc
 | A2 | `PaymentWebhookEvent` += `providerTransactionId?: string` | REQ-031 persistence of Paymob `obj.id` | Task 2.3 |
 | A3 | `parseWebhookEvent(input: WebhookParseInput): PaymentWebhookEvent \| null` replaces the planned `parseWebhookEvent(rawBody)` | Paymob's `hmac` is a QUERY param — the parse step needs `query`; `null` = verified-but-ignored | Tasks 2.3, 3.3, 4.1 |
 | A4 | `StudentPaymentRepository` += `findStalePendingByGateway(gateway, olderThan, limit)` | Reconciliation sweep query | Task 2.2 |
-| A5 | Factory env access via `backend/lib/env.ts` typed config (NOT the `resolveEnvConfig` helper DEV1-006's plan references — that helper does not exist in this tree, verified 2026-09-07) | Mechanism correction | Task 2.1 |
-| A6 | Activation failure path emits `payment_confirmation` on failure too (this plan's REQ-024/REQ-028); DEV1-006's planned contract said "no notification" on `failed` (DEV1-006 `specs.md:83` REQ-023) | **AUTHOR RULING (2026-09-07): KEEP the failure notification** — the funnel UX needs a failure signal (result page + notification counterpart); DEV1-006 REQ-023's no-notification rule is superseded for the failure branch when this plan wires it into the activation surface (success semantics unchanged) | Task 4.2 |
+| A5 | Factory env access via the `backend/lib/env.ts` typed config snapshot (the `getPaymobConfig()` getter added by Task 2.1; `resetEnvironmentCache()` already invalidates it) | Established mechanism in this repo | Task 2.1 |
+| A6 | Activation failure path emits `payment_confirmation` on failure too (this plan's REQ-024/REQ-028); the LANDED activation contract (canonical doc `docs/billing/subscription-purchase.md` §7 step 4) currently says "no notification" on `failed` | **AUTHOR RULING (2026-09-07): KEEP the failure notification** — the funnel UX needs a failure signal (result page + notification counterpart); this plan amends the landed activation service's failure branch to persist+publish the failure notification (success semantics unchanged); the canonical doc's §7 step 4 wording is updated in the same change set | Task 4.2 |
 
 ---
 
@@ -49,9 +49,9 @@ This plan refines five DEV1-006 *planned-but-unwritten* contracts. They are bloc
 
 | External contract | Source | How this plan resolves it |
 |---|---|---|
-| "Real payment gateway adapter (Paymob/Stripe) + purchase UI funnel" | `ai/plans/sprint_1/DEV1-006-subscription-purchase-payment-gateway/deferred-items.md:45` (Known Cross-Ticket Deferrals) | This plan IS that Sprint-2 gateway ticket: Paymob adapter (Phase 3) + funnel UI (Phase 7) |
-| REQ-064 forward ruling ("real-gateway ticket SHALL build the purchase funnel on top of `purchaseSubscription`") | DEV1-006 `specs.md:120` | Phase 7 builds exactly that funnel |
-| REQ-017 descriptor consumption for a real provider | DEV1-006 `specs.md:76` | Paymob `createCheckout` returns the descriptor with live `checkoutUrl` (REQ-017 here) |
+| "Real payment gateway adapter (Paymob/Stripe) + purchase UI funnel" | `ai/plans/sprint_1/subscription-purchase-payment-gateway/deferred-items.md:45` (Known Cross-Ticket Deferrals) | This plan IS that Sprint-2 gateway ticket: Paymob adapter (Phase 3) + funnel UI (Phase 7) |
+| REQ-064 forward ruling ("real-gateway ticket SHALL build the purchase funnel on top of `purchaseSubscription`") | the subscription-purchase plan `specs.md:120` | Phase 7 builds exactly that funnel |
+| REQ-017 descriptor consumption for a real provider | the subscription-purchase plan `specs.md:76` | Paymob `createCheckout` returns the descriptor with live `checkoutUrl` (REQ-017 here) |
 | "integrate real gateway in Sprint 2" risk mitigation | `docs/planning/SPRINT_PLAN.md:161` | This plan |
 
 ## Known Cross-Ticket Deferrals (NOT this plan's ledger entries)
@@ -60,10 +60,11 @@ These belong to other tickets and are recorded so their consumers see them — t
 
 | Item | Owning ticket | Note |
 |---|---|---|
-| Refund / void / capture adapter methods + admin UI | DEV1-009 admin lane | callback shapes safely ignored here (REQ-026); Paymob endpoints documented in `.agents/skills/paymob-payments/references/docs/manage-payment-apis/` |
+| Refund / void / capture adapter methods + admin UI | the admin refund-lane ticket admin lane | callback shapes safely ignored here (REQ-026); Paymob endpoints documented in `.agents/skills/paymob-payments/references/docs/manage-payment-apis/` |
 | Saved cards (CIT/MIT/tokenization) | future ticket | TOKEN callbacks are safely ignored (REQ-026); enabling them is an intentional scope change |
 | Pixel embedded checkout (in-page) | future UX ticket | D2 chose Unified Checkout redirect; Pixel is a drop-in alternative UX, not a different contract |
 | Paymob-native subscription plans | rejected by design | Kottaby subscriptions are one-time purchases; the gateway-side recurring module does not fit the domain model |
+| ngrok tunnel envs (`NGROK_AUTHTOKEN`, `NGROK_DOMAIN`, `NGROK_PORT`) | OPTIONAL operator/dev config — never blocking | The callback-channel factory (D14/REQ-090..093) is fully implemented WITHOUT these values (simulation channel is the complete dev default); setting them later upgrades dev (and channel-aware tests) to real ngrok delivery with zero code changes — nothing is deferred waiting on them |
 | Sandbox phone-placeholder tolerance validation | manual QA before live rollout | REQ-012 placeholder assumption must be proven against Paymob sandbox (runbook in final doc — task 9.2) |
 
 ---

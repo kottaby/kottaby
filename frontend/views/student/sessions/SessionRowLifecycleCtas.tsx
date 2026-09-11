@@ -44,7 +44,7 @@ export function SessionRowLifecycleCtas({
   return (
     <>
       {/*
-       * Dispute affordance (DEV3-005 R-110) with the warning/amber accent
+       * Dispute affordance (R-110) with the warning/amber accent
        * THROUGH theme tokens, disabled while this row's dispute slot is in
        * flight. Only for disputable lifecycles (the caller resolves that).
        */}

@@ -95,7 +95,7 @@ for (const translations of [arMessages, enMessages]) {
   // Warm the HandshakeCode handle so the student handshake-code card suite
   // surfaces missing-key drift at preload time.
   HandshakeCode.getLabels(translations);
-  // Warm the ParentLink handle so the DEV1-014 link-requests suites (student
+  // Warm the ParentLink handle so the link-requests suites (student
   // incoming queue + parent outgoing section) surface missing-key drift at
   // preload time.
   ParentLink.getLabels(translations);

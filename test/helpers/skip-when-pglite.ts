@@ -26,7 +26,7 @@
  *
  * Both limitations are sandbox-infrastructure-level, NOT code defects. The
  * suite is GREEN in CI (real PG, ≥8 GB RAM) — see
- * `ai/plans/sprint_3/dev3-016-admin-crud-users-teachers-students-paren/outcome/5.1-outcome.md`
+ * `ai/plans/sprint_3/admin-crud-users-teachers-students-paren/outcome/5.1-outcome.md`
  * for the 32/32 matrix evidence.
  *
  * Usage in a GraphQL integration test file:

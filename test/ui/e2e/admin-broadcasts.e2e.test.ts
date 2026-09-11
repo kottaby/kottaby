@@ -41,7 +41,7 @@ const SHOT_DIR = join(
   "ai",
   "plans",
   "sprint_3",
-  "dev3-022d-broadcast-notifications-system-wide-targ",
+  "broadcast-notifications-system-wide-targ",
   "outcome",
   "4.3-screenshots"
 );

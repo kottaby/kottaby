@@ -88,9 +88,9 @@ Shipped with zero schema, zero GraphQL, and zero frontend surface — the existi
 
 | Owning ticket | Contract |
 |---|---|
-| DEV3-004 / DEV3-005 (session intake + accept/decline) | The intake mutation calls `notifyTeacherOfSessionRequest`; the accept/decline mutations call the corresponding outcome emitters. These flows own `session` row authorship and authorization, and publish receipts after their own commits. |
-| DEV2-011 (in-session detection) | In-session availability/detection signals do not flow through these waves; that surface consumes session presence, not the request lifecycle. |
-| DEV3-008 (alternatives computation) | Computes the alternative-teacher set and routes the teacher's `offer_alternatives` preference onto `notifyStudentOfAlternativesOffered`; the matching surplus itself lives with that ticket. |
+| Session intake + accept/decline | The intake mutation calls `notifyTeacherOfSessionRequest`; the accept/decline mutations call the corresponding outcome emitters. These flows own `session` row authorship and authorization, and publish receipts after their own commits. |
+| In-session detection | In-session availability/detection signals do not flow through these waves; that surface consumes session presence, not the request lifecycle. |
+| Alternatives computation | Computes the alternative-teacher set and routes the teacher's `offer_alternatives` preference onto `notifyStudentOfAlternativesOffered`; the matching surplus itself lives with that ticket. |
 | Session-engine design era | Queue persistence for the `queue` preference (no pending-request entity exists yet) and preference→wave routing resolution land with the session engine; the `outcome_queued` / `outcome_alternatives_offered` emitters are the emission half, ready today. |
 
 This module is the emitter those engines call: they own state transitions and routing, these six functions own every session-request notification row and push.

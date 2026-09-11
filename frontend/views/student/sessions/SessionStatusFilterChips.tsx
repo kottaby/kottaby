@@ -11,7 +11,7 @@ import type { SessionsLabels } from "@/shared/locale/types/sessions";
  * SessionStatusFilterChips — the student/teacher sessions list status filter.
  *
  * A single-select (`exclusive`) MUI `ToggleButtonGroup` row rendering the
- * "all statuses" token plus ALL FIVE `SessionStatus` values (DEV3-005 made
+ * "all statuses" token plus ALL FIVE `SessionStatus` values (the dispute surface made
  * `Disputed` reachable on the participant surfaces — a row sits in the
  * disputed state until an admin resolves it, so its filter chip is offered
  * like any other lifecycle status).
@@ -35,8 +35,8 @@ import type { SessionsLabels } from "@/shared/locale/types/sessions";
 const ALL_TOKEN = "all";
 
 /**
- * Chip order — "all" first, then the lifecycle statuses (DEV3-005 adds the
- * `Disputed` chip — reachable since the dispute surface landed).
+ * Chip order — "all" first, then the lifecycle statuses (the `Disputed` chip has been
+ * reachable since the dispute surface landed).
  * Plain string tokens, never enum-typed comparisons.
  */
 const FILTER_TOKENS: readonly string[] = [

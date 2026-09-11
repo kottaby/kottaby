@@ -7,12 +7,12 @@ import { Sessions, useAppTranslation } from "@/shared/locale";
 interface SessionRowCancelReasonProps {
   /** Row identity (testid suffix). */
   readonly sessionId: string;
-  /** Persisted cancellation reason (DEV3-005 R-107) — never empty here. */
+  /** Persisted cancellation reason (R-107) — never empty here. */
   readonly reason: string;
 }
 
 /**
- * Persisted cancellation reason (DEV3-005 R-107) — rendered ONLY when the
+ * Persisted cancellation reason (R-107) — rendered ONLY when the
  * lifecycle set it. Truncated to one line with the FULL reason reachable
  * through the tooltip (min-width:0 keeps the truncation RTL-safe inside the
  * wrap-friendly flex row).

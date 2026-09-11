@@ -11,7 +11,7 @@ import type { SessionsLabels } from "@/shared/locale/types/sessions";
 
 /**
  * AdminSessionDetailDrawer — the read-only side-panel detail of one
- * governance session (`/admin/session-governance`, DEV3-021). The SAME
+ * governance session (`/admin/session-governance`). The SAME
  * read-only body renders through THREE responsive hosts (one component
  * tree, MUI responsive breakpoints, no mobile/desktop triplication):
  *

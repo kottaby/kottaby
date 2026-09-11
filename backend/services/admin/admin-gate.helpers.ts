@@ -3,7 +3,7 @@
  * audit-enum coercion shared by every admin-domain service.
  *
  * Extracted VERBATIM from `user-management.service.ts` (behavior-identical;
- * the DEV3-016 service + chaos suites are the byte-equivalence regression
+ * the service + chaos suites are the byte-equivalence regression
  * lock). See `docs/admin/user-management.md`.
  */
 import { UserRepository } from "@/backend/db/repo";

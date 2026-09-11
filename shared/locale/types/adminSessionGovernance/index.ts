@@ -1,6 +1,6 @@
 /**
  * AdminSessionGovernance namespace labels — the admin session-governance
- * surface (`/admin/session-governance`, DEV3-021): the filterable/paginated
+ * surface (`/admin/session-governance`): the filterable/paginated
  * directory of ALL sessions, the status-summary strip, the read-only detail
  * drawer, and the four governance operations (reschedule, cancel with held
  * funds released, teacher reassignment, join-as-observer).

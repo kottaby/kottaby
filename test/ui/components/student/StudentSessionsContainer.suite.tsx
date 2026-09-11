@@ -19,9 +19,9 @@
  *   verbatim fee + currency · formatted deadline/created · cancel affordance
  *   matrix) · cancel flow (dialog → reason → React.SubmitEvent submit →
  *   hold-released snackbar + cache-driven chip flip) · dispute flow
- *   (DEV3-005: dialog open + REQUIRED-reason gate blocking an empty submit
+ *   (dialog open + REQUIRED-reason gate blocking an empty submit
  *   + clean dismissal; the typed wire arm + its error arm are deferred) ·
- *   confirm-completion flow (DEV3-012: affordance matrix over the three
+ *   confirm-completion flow (affordance matrix over the three
  *   Completed shapes — pending CTA + awaiting pill, arbitration-settled
  *   none, stamped meta cell — success snackbar + cache-driven stamp/hold
  *   convergence, invalid-transition row alert; the container-owned
@@ -58,13 +58,12 @@
  *   - `useLazyQuery` appears NOWHERE in the view or its consumers;
  *   - the ONLY `.skip(` markers in this suite are deliberate environment
  *     deferrals: the cancel-flow typing arm + the cancel SESSION_NOT_FOUND
- *     eviction arm (D8/D9 in deferred-items.md), the DEV3-005 dispute
- *     typed/error arms (D8-family — branches 6c + 6d) and the DEV3-012
+ *     eviction arm (D8/D9 in deferred-items.md), the dispute
+ *     typed/error arms (D8-family — branches 6c + 6d) and the confirm
  *     confirm SESSION_NOT_FOUND eviction arm (D9-family — branch 6h, the
  *     cache-surgery-under-active-observer shape) — never a `test.only(`
  *     or a silent drop; every deferred flow is compensated by the
- *     real-browser loop (4.2.BF / the DEV3-005 + DEV3-012 4.1 agent-browser
- *     passes).
+ *     real-browser loop (4.2.BF / the task-4.1 agent-browser passes).
  */
 
 import { afterEach, describe, expect, test } from "bun:test";
@@ -132,10 +131,10 @@ const DEADLINE_ISO = "2099-01-11T20:30:00.000Z";
 /** The row exercised by every cancel-dialog flow. */
 const CANCEL_SESSION_ID = "9201";
 
-/** The Scheduled row exercised by every dispute-dialog flow (DEV3-005). */
+/** The Scheduled row exercised by every dispute-dialog flow. */
 const DISPUTE_SESSION_ID = "9205";
 
-/** The Completed row exercised by every confirm flow (DEV3-012). */
+/** The Completed row exercised by every confirm flow. */
 const CONFIRM_SESSION_ID = "9207";
 
 /** First row id of the populated page (settled-render wait handle). */
@@ -153,7 +152,7 @@ const DISPUTE_REASON_TYPED = "  Teacher never showed up  ";
 /** The trimmed value the dispute dialog sends on the wire (reason REQUIRED). */
 const DISPUTE_REASON_SENT = DISPUTE_REASON_TYPED.trim();
 
-/** Student-confirmation moment returned by the confirm success mock (DEV3-012). */
+/** Student-confirmation moment returned by the confirm success mock. */
 const CONFIRMED_ISO = "2099-01-10T14:05:00.000Z";
 
 /** Deterministic payload builder over the shared closed-session wire shape. */
@@ -345,7 +344,7 @@ function disputeErrorMock(code: string): MockLink.MockedResponse {
 }
 
 /**
- * The completed hold-marked row (DEV3-012's exactly-once pending shape) the
+ * The completed hold-marked row (the exactly-once pending shape) the
  * confirm CTAs render on: `Completed` ∧ student stamp unset ∧ `feeHeld`.
  */
 const CONFIRM_PENDING_SESSION = sessionFixture({
@@ -421,7 +420,7 @@ for (const locale of componentSuiteLocales) {
 
   /**
    * Renders the container with `mocks`, waits for the confirm row and clicks
-   * its Confirm CTA — the shared prologue of the DEV3-012 confirm-flow
+   * its Confirm CTA — the shared prologue of the confirm-flow
    * branches (6f/6g/6h).
    */
   async function renderConfirmFlowAndClick(mocks: ReadonlyArray<MockLink.MockedResponse>): Promise<void> {
@@ -524,19 +523,19 @@ for (const locale of componentSuiteLocales) {
       }
 
       // Toolbar: the "all" token is rendered + selected, every reachable
-      // status chip is offered — including Disputed (DEV3-005 made the
-      // disputed state reachable on participant surfaces, so its chip is
+      // status chip is offered — including Disputed (the
+      // disputed state is reachable on participant surfaces, so its chip is
       // offered like any other lifecycle status).
       expectStatusFilterToolbar(t);
     });
 
-    // DEV3-005 (R-110) — branch 6b is the dispute dialog's runner-safe
+    // R-110 — branch 6b is the dispute dialog's runner-safe
     // surface: click + submit events DO cross the MUI Dialog portal (only
     // TYPED input is the D8 dead-end), so open → REQUIRED-gate → dismiss
     // runs ACTIVE. No mutation mock is chained: the REQUIRED gate must keep
     // the empty submit off the wire (a leaked call would surface as an
     // unmatched MockLink operation and fail the branch).
-    test("branch 6b — dispute dialog (DEV3-005): opens, REQUIRED-reason gate blocks an empty submit, dismisses cleanly", async () => {
+    test("branch 6b — dispute dialog: opens, REQUIRED-reason gate blocks an empty submit, dismisses cleanly", async () => {
       renderSessions([listPageMock([sessionFixture({ id: DISPUTE_SESSION_ID })])], locale);
 
       // 1. Row dispute CTA → the dispute dialog opens (the row holds its
@@ -560,7 +559,7 @@ for (const locale of componentSuiteLocales) {
     // delivery React 19 + Happy DOM do not support (the controlled
     // onChange never fires; the native-setter + bubbled input event is also
     // unreachable). Body INTACT — one-line flip re-enables. Compensating
-    // controls: the real-browser DEV3-005 4.1 agent-browser loop (open
+    // controls: the real-browser task-4.1 agent-browser loop (open
     // dispute → chip flips) + the branch-6b empty-submit gate above.
     test.skip("branch 6c — dispute flow typed: live counter → submit → success snackbar + DISPUTED chip flip", async () => {
       renderSessions([listPageMock([sessionFixture({ id: DISPUTE_SESSION_ID })]), disputeSuccessMock()], locale);
@@ -585,7 +584,7 @@ for (const locale of componentSuiteLocales) {
     // D8-class (deferred-items.md D8 family) — SKIPped for the same typed-
     // input reason as branch 6c: the dispute error arms are only reachable
     // with a valid typed reason. Body INTACT — one-line flip re-enables.
-    // Compensating control: the real-browser DEV3-005 4.1 loop drives the
+    // Compensating control: the real-browser task-4.1 loop drives the
     // error surface (raced/invalid dispute → localized snackbar).
     test.skip("branch 6d — dispute submit error: SESSION_INVALID_TRANSITION → error snackbar, row stays scheduled", async () => {
       renderSessions(
@@ -602,13 +601,13 @@ for (const locale of componentSuiteLocales) {
       await expectDisputeRejectionConvergence(DISPUTE_SESSION_ID, te.sessionInvalidTransition, t);
     });
 
-    // DEV3-012 (R-201/R-202) — the confirm affordance matrix. Three
+    // R-201/R-202 — the confirm affordance matrix. Three
     // Completed shapes on ONE page: the exactly-once pending shape (hold
     // marked + stamp unset → Confirm CTA + awaiting pill), the
     // arbitration-settled shape (hold already consumed → NO affordance —
     // the idempotent mutation would return the row untouched), and the
     // student-stamped shape (the confirm meta cell renders instead).
-    test("branch 6e — confirm affordance matrix (DEV3-012): pending vs arbitration-settled vs stamped", async () => {
+    test("branch 6e — confirm affordance matrix: pending vs arbitration-settled vs stamped", async () => {
       const settledId = "9208";
       const stampedId = "9209";
       renderSessions(
@@ -670,7 +669,7 @@ for (const locale of componentSuiteLocales) {
       expect(within(stampedRow).getAllByText(expectedStamp(CONFIRMED_ISO, locale)).length).toBeGreaterThanOrEqual(1);
     });
 
-    // DEV3-012 — the confirm SUCCESS arm runs ACTIVE: no dialog, no typed
+    // The confirm SUCCESS arm runs ACTIVE: no dialog, no typed
     // input — the exact direct-mutation shape the teacher suite proves
     // runner-safe (its branches 7/8).
     test("branch 6f — confirm success: notice snackbar + stamp meta appears + affordances leave via cache", async () => {
@@ -699,7 +698,7 @@ for (const locale of componentSuiteLocales) {
       expect(screen.queryByText(te.sessionNotFound)).toBeNull();
     });
 
-    // DEV3-012 — the confirm rejection arm mirrors the teacher lifecycle
+    // The confirm rejection arm mirrors the teacher lifecycle
     // matrix: SESSION_INVALID_TRANSITION → row-scoped inline alert, row
     // unchanged, CTA re-enabled once the mutation settled.
     test("branch 6g — confirm SESSION_INVALID_TRANSITION: row-scoped inline alert, row unchanged", async () => {
@@ -731,7 +730,7 @@ for (const locale of componentSuiteLocales) {
     // documents as killed/runaway deterministically under Happy DOM (its
     // branch 17, exit 124 timeout + multi-GB RSS spiral even run alone).
     // Body INTACT — one-line flip re-enables. Compensating control: the
-    // real-browser DEV3-012 4.1 agent-browser loop drives the confirm
+    // real-browser task-4.1 agent-browser loop drives the confirm
     // surface end-to-end (the arm itself is a byte-pattern copy of the
     // teacher container's proven production wiring).
     test.skip("branch 6h — confirm SESSION_NOT_FOUND: error snackbar + row evicted from the list", async () => {

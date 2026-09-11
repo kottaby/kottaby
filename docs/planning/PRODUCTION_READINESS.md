@@ -363,7 +363,7 @@ This document defines the comprehensive production launch criteria for Draft Aca
 - [ ] All Section 8 (33 Decisions) verified
 - [ ] Drizzle schema in `backend/db/schema/` type-checks (`bun tsgo`)
 - [ ] `bun run scripts/validate-mermaid.ts` passes on all planning docs
-- [ ] All Sprint 4 tickets (DEV1-018 through DEV3-026) completed
+- [ ] All Sprint 4 tickets completed
 - [ ] All 5 sign-offs obtained
 
 **🚀 Launch Approved:** _______ (Date: _______)

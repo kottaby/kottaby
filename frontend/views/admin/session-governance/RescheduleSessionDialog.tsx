@@ -13,7 +13,7 @@ import { AdminSessionGovernance, Common, Errors, useAppTranslation } from "@/sha
 
 /**
  * RescheduleSessionDialog — the admin reschedule seam for one governance
- * session (`/admin/session-governance`, DEV3-021). Structural
+ * session (`/admin/session-governance`). Structural
  * sibling of the arbitration dialog: portal/dialog/form discipline,
  * `React.SubmitEvent`, dismissal gated while the mutation is in flight
  * (the shared {@link GovernanceFormDialog} / {@link GovernanceDialogActions}

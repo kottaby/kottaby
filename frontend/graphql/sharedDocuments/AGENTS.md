@@ -1,8 +1,5 @@
 # Shared GraphQL Documents Rules
 
-- **Auth documents: `registerUserMutationDocument`, `loginMutationDocument`, `meQueryDocument`, `refreshTokenMutationDocument` in `sharedDocuments/auth/auth.documents.ts`.**
-- **Recitation catalog document: `recitationReadingsQueryDocument` in `sharedDocuments/auth/recitation.documents.ts`** — public `recitationReadings` query (no auth, no variables, `TypedDocumentNode<RecitationReadingsQuery>`). Consumed by the `/register` form selector. See `docs/auth/qiraah-selection-and-c5.md`.
-
 ## Layout
 
 GraphQL documents are organized **by domain** into sub-directories, each with an `index.ts` barrel that re-exports its `.documents.ts` files. The top-level `index.ts` re-exports all sub-directory barrels.
@@ -34,7 +31,7 @@ frontend/graphql/sharedDocuments/
 ├── supervisor/           supervisor-dashboard
 └── teachers/             teacher, teacher-dashboard, teacher-notes, teacher-onboarding,
                           teacher-portal, staff-profile, staff-directory, manager-onboarding,
-                          applicant.documents (myApplicantProfileQueryDocument)
+                          applicant
 ```
 
 ### Barrel pattern
@@ -84,8 +81,6 @@ import { gql, type TypedDocumentNode } from "@apollo/client";
 import type { EntityNameQuery, EntityNameQueryVariables } from "@/frontend/graphql/generated/gql/graphql";
 ```
 
-All types (operation results, variables, enums, extracted field types, inputs) live in the single `graphql.ts` file. The old `graphql-types.ts` and `operations.ts` files no longer exist.
-
 ## TypedDocumentNode Convention
 The naming follows a strict, predictable pattern derived from the operation name:
 
@@ -102,22 +97,3 @@ The naming follows a strict, predictable pattern derived from the operation name
 - For nested field types, use compact extracted names: `{OperationName}_{field}` (e.g., `MeQuery_me`, `QuotaQuery_quota`)
 - **NO MAPPING**: No type mapping functions, no intermediate conversion layers, no indexed-access workarounds (e.g., `NonNullable<MeQuery["me"]>`). Use the exact codegen-generated type name directly.
 - **NO SCHEMA TYPES**: No schema-level object types (e.g., `User`, `Quota`). Only operation-derived types from `graphql.ts`.
-
-## Codegen
-After modifying any `.documents.ts` file or any backend schema/pothos file, always run:
-```bash
-~/.bun/bin/bun run generate:gqlSchema
-~/.bun/bin/bun codegen
-```
-
-## `id` Field Requirement
-Every query/mutation selection set **must** include the `id` field on every named object type so Apollo Client can auto-update its cache.
-
-## Frontend Client Queries and Hook Usage
-- **NO Lazy Queries**: Do NOT use `useLazyQuery`. It is banned in this project. Use stateful `useQuery` exclusively, which automatically tracks data, loading, and error states.
-- **Imports**: Always import Apollo hooks from `"@apollo/client/react"` (e.g., `import { useQuery, useApolloClient } from "@apollo/client/react";`).
-
-## Linting Rules
-
-- See `docs/quality/linting-rules.md` for Oxlint & ESLint/sonarjs fix recipes. NEVER use `oxlint-disable` comments.
-

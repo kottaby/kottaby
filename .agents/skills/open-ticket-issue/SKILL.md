@@ -1,7 +1,7 @@
 ---
 name: open-ticket-issue
 description: >
-  Open a GitHub issue for a planning ticket (e.g. DEV1-005) on this repo's GitHub remote,
+  Open a GitHub issue for a planning ticket on this repo's GitHub remote,
   with the correct sprint milestone, labels, assignee, dependency cross-links, and a plan-backed
   issue body. Use this skill when: (1) the user asks to open/create a GitHub issue for a ticket,
   sprint, or plan under ai/plans, (2) the user wants issues synced from docs/planning/TICKETS.md,
@@ -21,7 +21,7 @@ backed by its implementation plan under `ai/plans/sprint_N/<slug>/` when one exi
 
 ## Required Inputs (confirm before creating)
 
-- **Ticket ID** (e.g. `DEV1-005`) or the plan directory path.
+- **Ticket ID** or the plan directory path.
 - **Assignee** (GitHub login). NEVER create the issue without one — ask if not given.
 - Whether the ticket is **already implemented** (a "Status" line is only allowed with evidence; see Content Rules).
 
@@ -93,7 +93,7 @@ state machines, security posture, forward contracts. Bullet sentences, no code d
 
 - **Title**: ticket title WITHOUT the `[DEVx-XXX]` prefix (e.g. `Plan Catalog CRUD (Admin Only)`).
 - **No ticket IDs in prose**: bodies must not use `DEVx-XXX` as text or `Dev N` stream names. Replace dependency mentions with issue refs (`#4`). Keep the "Decision Refs" line verbatim from the ticket (e.g. FR-2.1, INV-S3 — these are spec refs, not ticket refs).
-- **File paths stay verbatim**: plan directory paths inside `ai/plans/` keep their slug (e.g. `.../dev1-005-plan-catalog-crud-admin-only/plan.md`) — they are real locations, not labels.
+- **File paths stay verbatim**: plan directory paths inside `ai/plans/` keep their slug (e.g. `.../plan-catalog-crud-admin-only/plan.md`) — they are real locations, not labels.
 - **Status line evidence**: add "**Status**: ✅ Implemented (tracked retroactively)" only when there is concrete evidence — an `outcome/` directory in the plan bundle, a merged PR touching the ticket, or a canonical implementation doc on `main` — or when the user states the ticket is done.
 - **Dependencies section is mandatory** when dependencies exist: map `Blocked By` to issue numbers, add builds-on/unblocks context where the plan spec names them.
 - **Specification summary is a summary**: distill `specs.md`, do not copy section text wholesale. Capture the reconciliations and rulings a reviewer most needs (schema deltas, contract surfaces, invariants, security posture).

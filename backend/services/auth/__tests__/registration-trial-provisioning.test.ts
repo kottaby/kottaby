@@ -18,7 +18,7 @@
  *  - Tier 1 (role matrix): student → grant present + paid-lane balances zero;
  *    teacher (applicant pending) / parent / admin → no student row, no grant.
  *  - Tier 1 (response contract): mutation return type byte-identical to the
- *    DEV1-002 baseline (no balanceTrial / trialGrantedAt exposed); service-
+ *    registration baseline (no balanceTrial / trialGrantedAt exposed); service-
  *    level read shows the grant.
  *  - Tier 2 (boundary): duplicate-email re-registration throws ConflictError
  *    BEFORE any student row or grant exists (23505 upstream guard).
@@ -61,7 +61,7 @@ const TEST_DEFAULT_CREDENTIAL = "password123";
  * executed inside the service-owned nested transaction (rollback residual
  * proof).
  */
-const FORCED_POST_GRANT_FAILURE_MESSAGE = "DEV1-004 forced post-grant failure";
+const FORCED_POST_GRANT_FAILURE_MESSAGE = "forced post-grant failure";
 
 /**
  * Type guard for the optional `passwordHash` property on a registration

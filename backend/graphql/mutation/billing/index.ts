@@ -8,6 +8,6 @@
  *    time and has no named exports.
  *  - Wired via side-effect barrels: this barrel → `mutation/index.ts` →
  *    `gqlSchema.ts`.
- *  - `wallet.mutation.ts` registers `requestWithdrawal` (DEV3-013).
+ *  - `wallet.mutation.ts` registers `requestWithdrawal`.
  */
 import "./wallet.mutation";

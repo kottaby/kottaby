@@ -1,5 +1,5 @@
 /**
- * GraphQL schema contract tests for Plan Catalog — DEV1-005 Task 3.4.TE
+ * GraphQL schema contract tests for Plan Catalog
  *
  * Verifies:
  *  - REQ-060: Plan SDL shape matches contract (`price: String!`, `deactivatedAt` nullable String, etc.)

@@ -16,7 +16,7 @@ import type {
 
 /**
  * Admin session-governance documents — the admin surface over the canonical
- * `Session`/`SessionPage` objects (DEV3-021 SDL): the paginated directory
+ * `Session`/`SessionPage` objects: the paginated directory
  * read (`adminSessions`), the nullable browse-detail read (`adminSession`)
  * and the governance mutation quartet (`adminRescheduleSession`,
  * `adminCancelSession`, `adminReassignTeacher`, `adminJoinSession`).

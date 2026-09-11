@@ -1,5 +1,5 @@
 /**
- * Consolidated GraphQL wire matrix — Task 5.1 (DEV3-006): the role ×
+ * Consolidated GraphQL wire matrix — Task 5.1: the role ×
  * operation × validation tier for the session-report/homework surface
  * (`submitSessionReport` + `sessionReport` + `sessionHomework`) over the
  * REAL wire (HTTP → gateway pipeline → scope-auth → resolver →
@@ -576,7 +576,7 @@ beforeAll(async () => {
 
     // The parent-LINKED actor: cast.parent links to the primary student
     // (emulates the link-request mutation per the journey precedent). The
-    // matrix still expects a `null` read — DEV1-016 owns parent reads.
+    // matrix still expects a `null` read — owns parent reads.
     await tx.update(students).set({ parentId: cast.parent.userId }).where(eq(students.id, cast.primaryStudent.userId));
   });
 
@@ -1011,7 +1011,7 @@ describe("matrix §3.4 — sessionReport × caller classes (participant rows + n
     expectNullCollapsed(result, "sessionReport");
   });
 
-  test("sessionReport × parent-linked → null (DEV1-016 owns parent reads)", async () => {
+  test("sessionReport × parent-linked → null (owns parent reads)", async () => {
     const result = await parentLinked.query({ query: SESSION_REPORT_DOC, variables: { sessionId: sigmaId } });
     expectNullCollapsed(result, "sessionReport");
   });
@@ -1065,7 +1065,7 @@ describe("matrix §3.4 — sessionHomework × caller classes (participant rows +
     expectNullCollapsed(result, "sessionHomework");
   });
 
-  test("sessionHomework × parent-linked → null (DEV1-016 owns parent reads)", async () => {
+  test("sessionHomework × parent-linked → null (owns parent reads)", async () => {
     const result = await parentLinked.query({ query: SESSION_HOMEWORK_DOC, variables: { sessionId: sigmaId } });
     expectNullCollapsed(result, "sessionHomework");
   });

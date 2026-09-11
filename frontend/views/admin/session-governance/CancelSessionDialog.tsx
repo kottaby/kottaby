@@ -12,7 +12,7 @@ import { AdminSessionGovernance, Common, useAppTranslation } from "@/shared/loca
 
 /**
  * CancelSessionDialog — the admin cancel seam for one governance session
- * (`/admin/session-governance`, DEV3-021). Structural sibling of
+ * (`/admin/session-governance`). Structural sibling of
  * the participant cancel + arbitration dialogs: portal/dialog/form
  * discipline, `React.SubmitEvent`, dismissal gated while the mutation is in
  * flight (the shared {@link GovernanceFormDialog} /

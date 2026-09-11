@@ -9,7 +9,7 @@ Kottaby is a Next.js 16 (App Router) full-stack application using:
 - **Frontend**: React 19, MUI v9, Apollo Client v4, Zustand
 - **Backend**: Pothos GraphQL, Drizzle ORM, PostgreSQL
 - **Testing**: Bun test runner, Vitest for Storybook, Playwright for E2E
-- **i18n**: **Custom compile-time TypeScript system** in `shared/locale/` (replaces legacy `next-intl`; see `shared/AGENTS.md` for rules). Next.js native `[locale]` routing preserved.
+- **i18n**: **Custom compile-time TypeScript system** in `shared/locale/` (replaces legacy `next-intl`). There is NO `[locale]` route segment under `app/` — the active locale comes from the `NEXT_LOCALE` cookie (set via `app/api/set-locale/`, read via `shared/locale/server-cookies.ts`).
 
 ## Essential Commands
 
@@ -61,7 +61,7 @@ bun run test/scripts/run-test.ts --last --focus "<pattern>" <path>  # Filtered v
 bun quality-gate               # Automated quality verification (tsgo → oxlint → biome → lint → duplicates)
 bun quality-gate:fresh         # Reset state and run fresh
 
-# Unused-code analysis (knip — MUST run under Bun; see docs/quality/unused-code-cleanup.md)
+# Unused-code analysis (knip — MUST run under Bun)
 bun run check:unused           # Unused files/exports/deps scan; exit 0 = clean (informational extension hints OK)
 
 # Database
@@ -112,7 +112,6 @@ This is NOT standard Next.js. APIs and conventions differ from training data. **
 - Style props (`fontWeight`, `textAlign`, `mb`, `mt`, `p`, `display`, etc.) are NOT valid direct props on Typography, Stack, Box, Grid
 - Always use `sx` prop: `<Typography sx={{ fontWeight: 700, mb: 1 }}>`
 - Icon naming changed: `*Outline` → `*Outlined` (e.g., `ErrorOutline` → `ErrorOutlined`)
-- See `frontend/AGENTS.md` for complete list
 
 ### React 19 Changes
 - `FormEvent` is deprecated/removed. Use `React.SubmitEvent` or `React.SyntheticEvent<HTMLFormElement>`
@@ -124,14 +123,14 @@ This is NOT standard Next.js. APIs and conventions differ from training data. **
 - Examples: `@/backend/services/` → `./backend/services/`, `@/frontend/views/` → `./frontend/views/`
 
 ### Import & Barrel Conventions
-- **Deep imports are the default**: import directly from the module file (`import { logger } from "@/backend/lib/logger"`, `import { isValidEmail } from "@/shared/lib/email"`). Never create a barrel just to shorten an import path — `shared/AGENTS.md` ("prefer deep imports over barrel files") is the layer-level rule.
-- **Barrels only where genuinely consumed**: an `index.ts` barrel may exist only while multiple consumers import it — knip flags unused barrels and dead barrels are deleted (the `clean-unused` wave removed 15 that existed only for the old mandate). Live examples: `@/backend/types`, `@/backend/db/repo`, `@/shared/locale`, `@/shared/constants`, `@/backend/services`, plus the GraphQL side-effect barrels (`@/backend/graphql/pothos`, `@/backend/graphql/{query,mutation}` — knip entries in `knip.config.ts`, loaded via `import "@/..."` to register schema types).
+- **Deep imports are the default**: import directly from the module file (`import { logger } from "@/backend/lib/logger"`, `import { isValidEmail } from "@/shared/lib/email"`). Never create a barrel just to shorten an import path — deep imports are preferred over barrel files.
+- **Barrels only where genuinely consumed**: an `index.ts` barrel may exist only while multiple consumers import it — knip flags unused barrels and dead barrels are deleted. Live examples: `@/backend/types`, `@/backend/db/repo`, `@/shared/locale`, `@/shared/constants`, `@/backend/services`, plus the GraphQL side-effect barrels (`@/backend/graphql/pothos`, `@/backend/graphql/{query,mutation}` — knip entries in `knip.config.ts`, loaded via `import "@/..."` to register schema types).
 - **Barrel mechanics** (for barrels that legitimately exist): `export * from "./module"` is the default; named re-exports only to disambiguate a real collision (TS2308 / ESLint `import-x/export`) — keep `export { }` for the colliding symbol only. `index.ts` files use relative `./` paths (never `@/` aliases, never `../`) and contain only re-export statements — `import` statements are prohibited except in GraphQL mutation/query layers where side-effect imports register types in the schema. Type-only re-exports (`export type { X } from "./file"`) stay explicit.
 - **No re-export shims**: Files that only re-export from another directory (`export { X } from "@/other/dir/file"`) are prohibited. Consumers must import directly from the original source. Delete shim files and update consumers.
 
 ### Shared Layer
 - `shared/` is used by both frontend and backend — it must **never** import from `@/frontend/**`, `@/backend/**`, or `@/app/**` (ESLint enforced).
-- Cross-layer enums and constants belong in `shared/constants/`; utilities in `shared/lib/`. See `shared/AGENTS.md`.
+- Cross-layer enums and constants belong in `shared/constants/`; utilities in `shared/lib/`.
 
 ### Database Testing Critical Rules
 - **ALWAYS use `runInRollback` wrapper** for database tests
@@ -171,13 +170,12 @@ All layers use types from `backend/types/{entity}.types.ts`:
 - **NO hardcoded colors** - all colors from theme palette
 - Use theme callback: `sx={(theme) => ({ color: theme.palette.primary.main })}`
 - Use Material 3 `on<Color>` siblings for contrast (e.g., `theme.palette.onPrimary`)
-- See `frontend/THEME_PALETTE.md` for tokens
 
 ## Code Quality Workflow
 
 After making changes:
 1. Run `bun quality-gate` - it handles tsgo, oxlint, biome, lint, duplicates sequentially
-2. If DUPLICATES fails: run `bun run check:duplicates` to see cross-file clones. Fix by extracting shared scaffolds/utilities (see `docs/frontend/duplication-elimination-patterns.md`). NEVER add `jscpd:ignore` comments or modify `.jscpd.json`.
+2. If DUPLICATES fails: run `bun run check:duplicates` to see cross-file clones. Fix by extracting shared scaffolds/utilities. NEVER add `jscpd:ignore` comments or modify `.jscpd.json`.
 3. Re-run `bun quality-gate` to resume from last failed stage
 4. Use `bun quality-gate:fresh` only for clean-slate verification
 
@@ -326,13 +324,13 @@ The `scripts/health/sub-loop.ts` script automatically discovers and prints which
 files and AGENTS.md files apply to the target file. Subagents MUST read ALL listed files before
 fixing. The mapping is:
 
-**Instruction files** (`.github/instructions/*.instructions.md`):
+**Instruction files** (`.agents/instructions/*.instructions.md`):
 
 | File Path Pattern | Instruction File |
 |---|---|
 | `frontend/**/*.ts(x)`, `app/**/*.ts(x)` | `frontend.instructions.md` |
 | `backend/**/*.ts` | `backend.instructions.md` |
-| `**/*.test.ts(x)`, `**/*.spec.ts(x)`, `scripts/run-test/**/*.ts` | `tests.instructions.md` |
+| `**/*.test.ts(x)`, `**/*.spec.ts(x)` | `tests.instructions.md` |
 
 A file may match **multiple** instruction files (e.g., `backend/db/test/*.test.ts` matches
 both `backend.instructions.md` and `tests.instructions.md`). Read ALL matching files.
@@ -353,7 +351,6 @@ both `backend.instructions.md` and `tests.instructions.md`). Read ALL matching f
 | `backend/db/seeds/` | `backend/db/seeds/AGENTS.md`, `backend/AGENTS.md` |
 | `backend/db/test/` | `backend/db/test/AGENTS.md`, `backend/AGENTS.md` |
 | `backend/types/` | `backend/types/AGENTS.md`, `backend/AGENTS.md` |
-| `scripts/run-test/` | `scripts/run-test/AGENTS.md` |
 
 ### Fix-Or-Report Rule for Cross-File Violations
 
@@ -398,78 +395,13 @@ After reading the applicable instruction files and AGENTS.md, subagents check fo
 - `backend/db/test/repo/` - Repository unit tests (100% coverage required)
 - `backend/db/test/logic/` - Business logic integration tests
 - `frontend/graphql/test/` - GraphQL integration tests (dev server; use testClient, not raw fetch)
-- `test/ui/` - UI tests — see `test/ui/AGENTS.md`
+- `test/ui/` - UI tests
 - `test/ui/components/` - Component tests (Happy DOM + mocked Apollo; no server)
 - `test/ui/e2e/` - End-to-end tests (production server; requires `bun run build:test` first)
 
-## Important References
-
-- `frontend/COMPONENT_PATTERNS.md` - Dashboard UI patterns
-- `frontend/IMPLEMENTATION_LEARNINGS.md` - Error resolutions from past mistakes
-- `frontend/NEW_PAGE_WORKFLOW.md` - Required workflow for new pages
-- `frontend/THEME_PALETTE.md` - Color tokens and access patterns
-- `docs/IDEMPOTENCY.md` - Idempotency patterns
-- `docs/notifications/realtime-engine.md` - Real-time notification engine (WebSocket): persist-first/push-second, single-writer emit contract, sidecar topology, fail-open idempotency deviation
-- `docs/drizzle/prepared-statements.md` - Drizzle Prepared Statements 2.0 pattern reference
-- `docs/drizzle/neon-http-client.md` - Neon HTTP Client & Provider-Agnostic Stateless Queries reference
-- `docs/graphql/dataloader-batching.md` - Pothos DataLoader batching pattern reference
-- `docs/services/entity-cache-service.md` - Entity Cache Service pattern reference
-- `docs/services/meeting-providers.md` - Meeting provider adapter/factory pattern reference (auto URL generation) *(doc file absent from this tree — pending the meeting-services ticket; see `ai/plans/dev3-002-shared-error-handling-response-contracts/deferred-items.md` BLT-03)*
-- `docs/services/zoom-token-types.md` - Zoom token kinds (SDK JWT, OBF, ZAK, S2S OAuth, per-user OAuth) semantics and constraints
-- `docs/services/whatsapp-cloud-api.md` - WhatsApp Cloud API integration reference (adapter, factory, webhook, dispatch, schema, opt-in, frontend) *(doc file absent from this tree — pending the WhatsApp-integration ticket; see `ai/plans/dev3-002-shared-error-handling-response-contracts/deferred-items.md` BLT-03)*
-- `docs/services/general-user-creation.md` - General user creation pattern (createUserOfType null extension, specialized group filtering, cache eviction)
-- `docs/billing/quota-system.md` - Quota System: append-only ledger, FIFO selection, periodic rollover, on-demand scheduling integration
-- `.github/CODE_REVIEW_CHECKLIST.md` - Code review guidelines
-- `docs/frontend/ui-shared-scaffold-pattern.md` - UI Shared Scaffold (*Shared.tsx) pattern for common/desktop/mobile triplication
-- `docs/frontend/duplication-elimination-patterns.md` - Duplication elimination patterns A-G (scaffold extraction, shared utility, dead code deletion, store consolidation, scaffold extension, shared view scaffold, locale type consolidation) — Phase 6 eliminated 96% of duplications (475→18 pairs) with zero jscpd:ignore
-- `docs/frontend/meeting-integrations-ui.md` - Meeting Integrations UI canonical reference (MetricCardGrid, AppDataGrid, OAuth callback, reconnect-all, status badges, clipboard, i18n namespaces, mobile-desktop responsive, Zod schema factory, animations, permission-gated cross-links, lint workarounds, accessibility)
-- `docs/frontend/whatsapp-ui-patterns.md` - WhatsApp UI canonical reference (ViewModel composable hooks, URL-synced tabs, dialog state, per-row loading, i18n label helpers, StatusBadge, animations, accessibility, testing patterns, gotchas)
-- `docs/frontend/quota-ui-patterns.md` - Quota UI canonical reference (tier isolation, RHF 3-generic pattern, cache.updateQuery for paginated lists, StatusBadge categories, MetricCard animations, reduced-motion CSS in sx, Storybook ErrorState naming, component test tier-view mocking, i18n CLDR plurals, 150-line file limit, QuotaFormAccessProvider RBAC)
-- `docs/quality/unused-code-cleanup.md` - Knip/check:unused usage, deletion-safety protocol, knip blind-spot catalog, quality-gate memory-constrained host playbook
-- `docs/testing/shared-test-runner.md` - Shared parallel test runner pattern
-- `docs/backend/meeting-adapter-base.md` - Meeting provider adapter base class pattern reference
-- `docs/admin/admin-session-governance.md` - Admin session governance canonical reference (state-eligibility matrix, single-transaction mutation discipline, audit shape + serialized-details envelope, notification waves + claim keys, join-observation semantics, arbitration boundary)
-- `docs/backend/billing-repo-factory.md` - Billing repo factory with configurable hooks pattern reference
-- `docs/backend/schema-helpers.md` - Schema column and junction table helpers pattern reference
-- `docs/app/with-page-auth.md` - App router page auth wrapper pattern reference
-- `docs/testing/mock-navigation-helpers.md` - Test mock navigation helpers pattern reference
-- `docs/auth/manager-role-mapping.md` - Manager role mapping architecture & permission group slug convention
-- `docs/i18n/locale-namespace-migration.md` - Locale namespace migration from monolithic to sub-module directories
-- `docs/auth/permission-architecture.md` - Client-side permission architecture (3-tier model, wrapper removal rationale)
-- `docs/auth/supervisor-permissions.md` - Supervisor permission model (teacher/student/parent management, staff exclusion, system group editing, authScope pattern)
-- `docs/i18n/cross-layer-enum-migration.md` - Cross-layer enum delete/codemod pattern (currency/timezone/class-instance-detail workflow)
-- `docs/backend/service-base-pattern.md` - Service base class, shared resolvers, insert payload builders, auth session helpers
-- `docs/quality/linting-rules.md` - Oxlint & ESLint/sonarjs lint rule fix recipes and config overrides
-- `docs/quality/ci-pipeline.md` - CI pipeline canonical reference (.github/workflows/ci.yml trigger model, job/stage topology, caching rules, security posture, branch-protection admin setup, local reproduction commands, sabotage evidence)
-- `docs/workflows/plan-doc-reconciliation.md` - Plan-vs-canonical-doc reconciliation workflow (docs-only plan pattern, anchor-on-text, outcome-pointer rule, known-open-issues propagation, phantom-spec-code handling, markdown link-integrity loop)
-- `docs/backend/serverless-cold-start-optimization.md` - Serverless cold-start optimization patterns (permission context, env-config pre-warm, singleton persistence, HTTP batching, client log batching)
-- `docs/backend/login-cold-start-resilience.md` - Login cold-start resilience patterns (fail-open rate limiter, retryTransient on DB reads, frontend retry on SERVICE_UNAVAILABLE, env-config transient short TTL) *(doc file absent from this tree — rule text lives in `backend/graphql/AGENTS.md` §Serverless Cold-Start Optimization; `SERVICE_UNAVAILABLE` transport semantics in `docs/graphql/error-handling-contract.md`; see dev3-002 BLT-03)*
-- `docs/graphql/error-handling-contract.md` — Shared error handling & response contract: REQ-010 code↔HTTP taxonomy + legacy alias normalization, masking/redaction pipeline & correlation bounds, API envelope shapes `{data,requestId}` / `{error:{…}}` with exemptions register, REQ-061 client mapping table, and the per-guarantee test-suite matrix
-- `docs/graphql/domain-error-extensions-code.md` - DomainError → GraphQLError extensions.code propagation pattern
-- `docs/observability/new-relic-integration.md` - New Relic APM integration (Hybrid Agent, GraphQL resolver tracing, zero dev/test overhead)
-- `docs/auth/user-registration.md` — User registration canonical reference (role→child mapping, handshake generation, atomicity pattern, BOPLA/BFLA defenses, 23505→ConflictError translation, JWT auth flow)
-- `docs/auth/qiraah-selection-and-c5.md` — Qira'ah selection and the C.5 invariant (canonical RecitationReading catalog, public recitationReadings query, registration preferredRecitation contract, deferred persistence, security rules)
-- `docs/auth/jwt-authentication-service.md` — JWT authentication service canonical reference (token claims contract, cookie matrix, redirect-loop fix, authScopes, SSR auth, page guards, role-based dashboards, DEV2-002 RBAC consumption guide)
-- `docs/backend/cross-stream-contracts.md` — Cross-stream contract types canonical reference (DEV2-003: 6 contracts, composition-only rule, forbidden-field registry, consumer-ticket wiring, change governance)
-- `docs/graphql/api-gateway-and-routing.md` — API gateway & routing canonical reference (dev3-003: seven-step request pipeline in `app/api/graphql/route.ts`, transport-failure matrix + `MAX_GRAPHQL_BODY_BYTES`, default-deny public-operation allowlist gate, the two sanctioned health probes, ROUTE_INVENTORY registration rule (A4), REQ-018 operation-registration contract)
-- `docs/teachers/applicant-lifecycle.md` — Teacher applicant lifecycle canonical reference (DEV2-004: `applicants` state machine REQ-013, cooldown/attempt contracts REQ-014/015/016, zero-arg `myApplicantProfile` query contract REQ-017, INV-TV1..TV7 + B.6/B.7 anchoring, consumer guidance for DEV2-005..010/DEV3-019)
-- `docs/admin/user-management.md` — Admin user-management canonical reference (DEV3-016: directory/filter/search contract incl. `escapeLikeWildcards` mandate, guarded soft-delete/reactivate pattern, role-child projection rules, audit-emission contract — writer-side, in-tx, denials write ZERO audit rows — JR-C-1, self-protection rule, `USER_NOT_FOUND` oracle ruling — admin-surface-only, MUST NOT be copy-pasted to non-admin surfaces, shared-PK "one user, four role children" model, idempotency ruling, scope-split record for DEV3-017..022b consumer obligations; A.5/A.7/B.6/B.7/INV-U1..U5/INV-TV1 + Workflow 05 anchoring)
-- `docs/admin/account-governance.md` — Account governance canonical reference (DEV3-017: four-state lifecycle on `users`, guarded single-statement transitions + zero-row classifier + ONE in-tx audit row, suspend-window rules `1..3650` mandatory on ON direction, fail-closed shared suspension predicate at `backend/lib/auth/suspension-window.ts`, audit-vocabulary mapping for block/unblock via Suspend/Reactivate, axis independence, lapse = READ-ONLY on the auth path, strict `assertActiveActorAdmin` guard on governance mutations, INV-U4 hard-delete lock)
-- `docs/admin/audit-trail.md` — Admin audit trail canonical reference (read-only `adminAuditLogs` surface: entry fields + `createdAt DESC, id DESC` order, honest pagination + half-open `>= from` / `< to` UTC-day filter semantics, two-tier immutability proof — application single-writer scan + DB triggers — incl. the push-vs-migrate trigger caveat, governance-window acknowledgment, history-survives-governance rule, verbatim `details` pass-through, deep-link contract, anti-patterns)
-- `docs/admin/platform-analytics.md` — Platform analytics canonical reference (DEV3-022c: zero-argument `adminPlatformAnalytics` whole-platform snapshot, single-captured-instant + UTC boundary rulings (day / ISO-week Monday / month / 24h / 30-day closed window incl. the 31-day-touch vs 30-bucket skeleton note), metric definitions per enum member, money-as-string + currency containment + honest-EMPTY arrays, offline-activation honesty split (never mixed into gateway revenue), honest-null rating averages, governed-admin service-tier denial via `assertActorAdminActive`, statement-level snapshot-consistency ruling, read-purity/no-audit rule, "what NOT to do" list, journey-suite behavioral contract)
-- `docs/parents/handshake-code-discovery.md` — Parent handshake-code discovery canonical reference (code format + generation contract by reference, minimal masked payload with no `id`, governance-exclusion collapse, null-not-error not-found, advisory `linkable` semantics, binding link-request forward contract, brute-force posture)
-- `docs/parents/parent-link-request.md` — Parent link-request workflow canonical reference (request state machine with 7-day expiry, guarded single-writer student link, expiry/reminder semantics, notification choreography, error/oracle matrix, confirmation discoverability closure; INV-P1 binding)
-- `docs/students/free-trial-provisioning.md` — Free Trial Provisioning canonical reference (one-time trial credit grant for new students, dedicated `balance_trial` lane, grant-once guarded UPDATE, DEV3 booking-eligibility & decrement forward contract)
-- `docs/sessions/session-lifecycle.md` — Session lifecycle canonical reference (DEV3-004: state machine + guarded-transition pattern, four-phase creation invariant, hold-as-debit + same-lane refund, idempotency claim design, sessions-are-sensitive oracle ruling + anti-copy-paste warning, consumer guidance for DEV3-005/006/011/012/013/021 + DEV2-016; DEV3-012: dual-confirmation completion handshake — two-leg expiry sweep + completion notification waves)
-- `docs/sessions/session-report-homework.md` — Session report & homework canonical reference (INV-S7 write gate + governance re-check, atomic report+homework co-creation (INV-S8), one-report-per-session arbiter + `SESSION_REPORT_ALREADY_EXISTS`, first-vs-subsequent grading (INV-HW3/HW4) via the one-shot guarded grade UPDATE, oracle-collapse participant-only reads, recipient-locale notification choreography with publish-after-commit, append-only + pure-wallet posture, consumer guidance for DEV2-014/015/017/019 + DEV1-016/017 + DEV3-012/013)
-- `docs/billing/subscription-purchase.md` — Subscription purchase & payment gateway canonical reference (provider-agnostic gateway port + mock adapter, purchase contract with idempotency claims + pending pair, webhook security contract (kill switch, HMAC, quarantine), guarded activation + balance-lane crediting, INV-PAY2 trigger amendment, consumer guidance for DEV1-007/008/009 + DEV2-005)
-- `docs/sessions/recitation-record.md` — Recitation record per session canonical reference (DEV3-007: write-once C.5 binding, unique-constraint arbiter, collapse read, write-acceptance status window, governance re-check posture, closed error taxonomy, import-by-reference consumer obligations for DEV3-006/DEV2-014/DEV1-016/DEV3-021, NO-notifications/NO-audit ruling)
-- `docs/ops/disaster-recovery.md` — DR runbook (RPO 1h / RTO 4h), backup/restore-verify ops scripts, invariant-oracle verification
-
-
 ## Linting Rules
 
-- **Oxlint & ESLint/sonarjs fix recipes**: See `docs/quality/linting-rules.md` for all lint rule patterns, code examples, and config overrides. NEVER add `oxlint-disable` comments — fix the root cause.
+- **NEVER add `oxlint-disable` comments** — fix the root cause.
 
 <!-- BEGIN:nextjs-agent-rules -->
 

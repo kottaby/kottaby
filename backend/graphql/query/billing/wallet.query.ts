@@ -1,5 +1,5 @@
 /**
- * `myWallet` query — the caller's own teacher wallet (DEV3-013, R-301).
+ * `myWallet` query — the caller's own teacher wallet (R-301).
  *
  * Contract:
  *  - ZERO arguments — identity is derived EXCLUSIVELY from the verified

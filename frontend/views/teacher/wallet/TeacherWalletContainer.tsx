@@ -2,7 +2,7 @@
 
 /**
  * TeacherWalletContainer — the teacher's self-service wallet surface
- * (DEV3-013, R-306): the balance header, the withdrawal-request dialog,
+ * (R-306): the balance header, the withdrawal-request dialog,
  * and the newest-first transaction ledger.
  *
  * Data flow (mirrors the sessions containers):

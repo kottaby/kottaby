@@ -1,5 +1,5 @@
 /**
- * WalletService tests (DEV3-013) — the teacher self-service wallet surface.
+ * WalletService tests — the teacher self-service wallet surface.
  *
  * Tier: transactional service flows on `runInRollback` (the same isolation
  * discipline `session-lifecycle.service.test.ts` uses): every case seeds

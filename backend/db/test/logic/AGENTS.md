@@ -33,36 +33,22 @@ backend/db/test/logic/
 
 ## Rules
 
-All rules from the parent `backend/db/test/AGENTS.md` apply here (transaction rollbacks, `runInRollback`, try/catch error helper pattern, `bun:test`, no `any`, no hardcoded error strings). The sub-directory layout is the only addition; rules are restated for convenience.
-
-### Mandatory Test Patterns
-- **`runInRollback`**: Every database test MUST run inside `runInRollback` (imported from `@/backend/db/test/test-utils` or `../../test-utils`). Pass the `tx` instance to **every** repository method AND Drizzle query — mixing `tx` queries with `db`-backed repo calls causes deadlocks.
-- **No `expect(...).rejects.toThrow()` inside `runInRollback`** — use a try/catch helper (e.g. `expectRepoError` / `expectRepositoryError`) and assert on `.toContain()` with a translated-message substring, not the raw translation key.
-- **Clean Setup Helpers**: Use helpers from `@/backend/db/test/entity-setup` (or `../../entity-setup`) — `createTestUser`, `createTestTeacher`, `setupTestEntities`, etc. Generate unique emails / IDs via `randomUUID()` or prefixed strings to avoid unique-constraint violations.
-- **Bun Test**: Use `import { describe, test, it, expect, beforeAll, afterAll } from "bun:test"` — never Jest/Vitest.
-- **Strict Type Safety**: No `as any` overrides. No `console.log` — use `testLogger` or no logging.
-- **Code Cleanliness**: Run `bun tsgo` and lint via the queue client after creating or modifying tests (`curl -s -X POST http://localhost:${LINT_QUEUE_PORT}/lint -H "Content-Type: application/json" -d '{"id":"db-logic","files":["<file>"]}'`). Fix all resulting TS6133 unused-import / unused-variable errors.
+All rules from the parent `backend/db/test/AGENTS.md` apply here — transaction rollbacks via `runInRollback`, `tx` passed to every repo method and Drizzle query, try/catch error helper instead of `expect(...).rejects.toThrow()`, `bun:test`, no `any`, no hardcoded error strings, always-create-test-data. The sub-directory layout and the conventions below are the only additions.
 
 ### Import Convention
 - **Aliased imports for parent helpers** (preferred): `import { runInRollback } from "@/backend/db/test/test-utils";` and `import { setupTestEntities } from "@/backend/db/test/entity-setup";`. Aliased paths are unchanged by sub-directory moves, so prefer them over relative references.
 - **Relative imports allowed**: `import { runInRollback } from "../../test-utils";` also works. If you use relative paths, remember that sub-directory files are **one level deeper** than the old flat layout — parent helpers are now at `../../entity-setup` and `../../test-utils`.
-- Respository / service / type / schema / enum imports use the standard `@/` aliases: `import { TeacherRepository } from "@/backend/db/repo";`, `import { teachers, users } from "@/backend/db/schema";`, `import { TeacherBankingDetailsHistorySelectType } from "@/backend/types";`, `import { StudentStatus } from "@/backend/enum";`.
+- Repository / service / type / schema / enum imports use the standard `@/` aliases: `import { TeacherRepository } from "@/backend/db/repo";`, `import { teachers, users } from "@/backend/db/schema";`, `import { TeacherBankingDetailsHistorySelectType } from "@/backend/types";`, `import { StudentStatus } from "@/backend/enum";`.
 - Intra-domain sibling imports (rare in `test/logic/`) use relative paths: `import { testRepoError } from "./scheduling-test-helpers";`.
 
 ### File Organization
 - Group related business-logic tests for the same domain in the matching sub-directory.
-- File naming follows the existing convention (mixed `_` and `-` are tolerated for legacy file names): `backend/db/test/logic/<subdir>/<scenario>.test.ts` (e.g. `backend/db/test/logic/scheduling/class_quota_race.test.ts`).
+- File naming follows the existing convention (mixed `_` and `-` are tolerated for legacy file names): `backend/db/test/logic/<subdir>/<scenario>.test.ts`.
 - The pre-existing `backend/db/test/repo/` directory holds repository **unit** tests (one repo per file); this `logic/` directory holds **cross-repo / cross-service** tests. Don't duplicate coverage between them.
-- Cross-cutting tests that don't fit any single domain (RLS, cache routing, encryption, concurrency, audit immutability across tables) live in `shared/`. Domain-specific audit tests live in `audit/`. Domain-specific permission RLS tests can live either in `permissions/` (permission-table-centred) or in the relevant domain subdir (e.g. `scheduling/scheduling_security.test.ts`) — both are acceptable; pick the one that matches the table the test primarily asserts against.
+- Cross-cutting tests that don't fit any single domain (RLS, cache routing, encryption, concurrency, audit immutability across tables) live in `shared/`. Domain-specific audit tests live in `audit/`. Domain-specific permission RLS tests can live either in `permissions/` (permission-table-centred) or in the relevant domain subdir — both are acceptable; pick the one that matches the table the test primarily asserts against.
 
 ### Adding New Tests
 1. Identify the matching sub-directory (or create a new one following the sub-directory convention).
 2. Create `<scenario>.test.ts` in that sub-directory.
 3. No `index.ts` barrel is needed — test files are not imported by other code; the test runner discovers them by glob (`backend/db/test/logic/**/*.test.ts`). Sub-directories exist purely for organisation.
 4. If a new sub-directory is created, document it in this `AGENTS.md` under **Layout**.
-5. Follow the verification loop: `bun tsgo` + `bun biome:check` + lint queue client for new/modified test files before considering the test done.
-
-## Linting Rules
-
-- See `docs/quality/linting-rules.md` for Oxlint & ESLint/sonarjs fix recipes. NEVER use `oxlint-disable` comments.
-

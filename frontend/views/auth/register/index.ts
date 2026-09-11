@@ -6,7 +6,6 @@ export * from "./RegisterAccountSection";
 export * from "./RegisterForm";
 export * from "./RegisterIdentityFields";
 export * from "./RegisterPreferencesSection";
-export * from "./RegisterSubmitButton";
 export * from "./registerFormUtils";
 export * from "./SectionLabel";
 export * from "./useRegisterFormState";

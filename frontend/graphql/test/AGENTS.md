@@ -4,72 +4,59 @@ Integration tests for GraphQL queries/mutations under `frontend/graphql/test/` m
 
 ## Layout
 
-Tests are organized **by domain** into sub-directories mirroring the `frontend/graphql/sharedDocuments/` taxonomy. Shared infrastructure files live in root `test/helpers/`:
+Tests are organized **by domain** into sub-directories mirroring the `frontend/graphql/sharedDocuments/` taxonomy. Shared infrastructure lives in the repo-root `test/` directory:
 
 ```
 test/
-├── gateway/              ← gateway-tier suites (schema-imported IN-PROCESS; no live server)
-├── helpers/              ← shared test helpers & server infra
-│   ├── index.ts          ← exports all test helpers
-│   ├── graphql-test-helpers.ts
-│   ├── test-client.ts
-│   ├── test-lifecycle.ts
-│   ├── test-port.ts
-│   ├── test-server.ts
-│   └── storage-upload-harness.ts
+├── helpers/              ← shared test helpers & server lifecycle (exported via @/test/helpers)
 └── scripts/              ← test execution runners
-    ├── run-server-tests.ts
-    ├── run-test.ts
-    ├── test-runner-guard.ts
-    └── kill-test-servers.ts
 ```
 
 ### Shared test infrastructure
 
-All shared test infrastructure (Apollo client, port allocation, server lifecycle, and test entity setup helpers) are exported via `@/test/helpers`.
+All shared test infrastructure (Apollo test client, port allocation, server lifecycle, entity setup helpers) is exported via `@/test/helpers`. Never hand-roll per-suite server bootstrap or clients.
 
-### `gateway/` sub-directory (added by dev3-003)
+### `gateway/` sub-directory
 
-Suites under `test/gateway/` (e.g. `allowlist-coverage.test.ts`) run against the BUILT schema imported in-process (`import { graphQLSchema } from "@/backend/graphql/gqlSchema"`) — the same tier as `schema-surface.test.ts`. They deliberately do NOT use `setupTestServerLifecycle`/`testClient`: the delegated live-boot tier is env-locked while an interactive dev server runs (Next.js 16 singleton dev-server lock), and the harness liveness probe still polls the retired `{ _health }` document (must become `{ _health { status } }` post-retyping). Both walls are tracked as ledger row BLT-07 in `ai/plans/sprint_0/dev3-003-api-gateway-routing-skeleton/deferred-items.md`; live-wire gateway coverage belongs to that owning stream once the harness heals.
+Suites under `frontend/graphql/test/gateway/` run against the BUILT schema imported in-process (`import { graphQLSchema } from "@/backend/graphql/gqlSchema"`) — they deliberately do NOT spin up a live server.
 
 ### Import conventions for test files
 
 | Target | Recommended import pattern | Notes |
 |---|---|---|
-| Test Helpers & Lifecycle | `import { setupTestServerLifecycle, loginAndProvision, testClient } from "@/test/helpers";` | **Preferred alias** — canonical shared test helpers. |
-| Documents | `import { fooQueryDocument } from "@/frontend/graphql/sharedDocuments/<subdir>/foo.documents";` | Always use the full deep alias, including the `sharedDocuments` sub-directory segment. See `frontend/graphql/sharedDocuments/AGENTS.md`. |
+| Test Helpers & Lifecycle | `import { setupTestServerLifecycle, testClient } from "@/test/helpers";` | **Preferred alias** — canonical shared test helpers. |
+| Documents | `import { fooQueryDocument } from "@/frontend/graphql/sharedDocuments/<subdir>/foo.documents";` | Always use the full deep alias, including the `sharedDocuments` sub-directory segment. |
 | Generated types | `import { … } from "@/frontend/graphql/generated/gql/graphql";` | Single file — all types. |
-| Generated enums | `import { CurrencyCode, AccountStatus, ClassType } from "@/frontend/graphql/generated/gql/graphql";` | Always import enum values from generated types — never hardcode string equivalents (see rule 11). |
+| Generated enums | `import { CurrencyCode, AccountStatus } from "@/frontend/graphql/generated/gql/graphql";` | Always import enum values from generated types — never hardcode string equivalents (see rule 11). |
 
 When adding a **new** test:
 1. Identify the matching sub-directory (or create a new one following the conventions above).
 2. Create `<scenario>.test.ts` in that sub-directory.
 3. Import shared helpers from `@/test/helpers`.
 4. If a new sub-directory is created, document it under **Layout** above.
-5. For mutations: look up `Mutation<Name>Args` in generated types and pass ALL args (required + optional) as `variables` — see rule 11.
+5. For mutations: look up `Mutation<Name>Variables` in generated types and pass ALL args (required + optional) as `variables` — see rule 11.
 6. Run `bun tsgo` and `bun biome:check` on the new file before considering it done.
 
 ---
 
 1. **Next.js Server Lifecycle Management**:
-   - Import the reusable dev server setup lifecycle helper from `lifecycle.ts` and call it at the root of your `describe` block:
+   - Import the reusable dev server setup lifecycle helper from `@/test/helpers` and call it at the root of your `describe` block:
      ```typescript
-     import { setupTestServerLifecycle } from "@/frontend/graphql/test/lifecycle";
+     import { setupTestServerLifecycle } from "@/test/helpers";
 
      describe("My GraphQL Tests", () => {
        setupTestServerLifecycle();
        // ...
      });
      ```
-   - This automatically handles hooking into Bun's `beforeAll` and `afterAll` lifecycles to spawn the Next.js dev server on the fixed test port (`3066`) using `.next-dev`, poll until ready, and kill only this process's server tree upon test suite completion.
+   - This automatically handles hooking into Bun's `beforeAll` and `afterAll` lifecycles to spawn the Next.js dev server on the fixed test port (`3066`), poll until ready, and kill only this process's server tree upon test suite completion.
    - Optional env override: `GRAPHQL_TEST_PORT=<port>` pins the port for debugging.
-   - For REST endpoints outside GraphQL (e.g. storage upload), use `getTestApiUrl("/api/...")` from `testPort.ts` — never hardcode port numbers.
-   - The process logic itself is defined separately in `testServer.ts` and `testPort.ts`.
+   - Never hardcode port numbers — the shared port constant is exported from `@/test/helpers` (`TEST_PORT`).
 
 2. **Apollo Shared Client**:
-   - Import the shared, cache-disabled test client from `testClient.ts` to perform all GraphQL operations:
+   - Import the shared, cache-disabled test client to perform all GraphQL operations:
      ```typescript
-     import { testClient } from "@/frontend/graphql/test/testClient";
+     import { testClient } from "@/test/helpers";
      ```
 
 3. **Type-Safe GraphQL Execution**:
@@ -100,20 +87,19 @@ When adding a **new** test:
    - Always verify that target query properties (e.g., `result.data?.teachers`) are defined and not null before performing assertions on them, to satisfy TypeScript's strict null checking. Use guards (e.g., `if (!teachers) throw new Error("...")`) to narrow the type cleanly.
 
 6. **Align Test Data with Provisioned Entities**:
-   - Avoid hardcoding search strings or expected names (e.g., `"Default Teacher"`). Instead, use provisioned test entity names via `loginAndProvision(prefix)` from `helpers.ts` — the prefix argument is injected into entity names (e.g., `"TeacherTest"` → teacher named `"TeacherTest Teacher"`). Use these names in both search parameters and assertions. For super_admin-only operations, use `provisionTestSuperAdmin(adminToken, prefix)`.
-   - Never import from `@/shared/demo-users` in integration tests — all test data should be provisioned via `loginAndProvision` or `provisionTestEntities`.
+   - Avoid hardcoding search strings or expected names — create and reference the entities each test provisions, and use those exact names/IDs in search parameters and assertions.
+   - Never import from `@/shared/demo-users` in integration tests — all test data should be provisioned via the shared test setup helpers.
 
 7. **Optional Chaining Preference (Linter & TS Compliance)**:
    - Prefer optional chain expressions (`?.`) over verbose logical checks. Avoid code structures like `if (!result.data || !result.data.field)`. Instead, use `if (!result.data?.field)`. This complies with the `@typescript-eslint/prefer-optional-chain` lint rule.
 
 8. **Test Duplication Prevention**:
-   - Never duplicate standard test setup routines—such as demo user login mutations or querying/extracting basic database entities (e.g., matching student/teacher ID pairs)—across multiple test files.
-   - Centralize all reusable test logic in the shared helpers file at `frontend/graphql/test/helpers.ts`.
-   - Use `authenticatedRequest` from `helpers.ts` when performing authenticated queries/mutations in tests instead of manually setting authorization headers and assertions on each call.
-   - For mutation variable construction shared across test cases (e.g., `buildInvoiceVars`, `buildTeacherInput`), use a typed builder helper that defaults optional fields to `null` and accepts `Partial<T>` overrides — see rule 11 for the builder pattern.
+   - Never duplicate standard test setup routines—such as login mutations or querying/extracting basic entities (e.g., matching student/teacher ID pairs)—across multiple test files.
+   - Centralize all reusable test logic in the shared helpers under `test/helpers/`.
+   - For mutation variable construction shared across test cases, use a typed builder helper that defaults optional fields to `null` and accepts `Partial<T>` overrides — see rule 11 for the builder pattern.
 
 9. **Large Method Remediation**:
-   - Keep helper functions and database seeders modular and concise. If a function or seeder (such as `seedOrGet` in `seed-students.ts`) exceeds ~70–80 lines, refactor it by extracting distinct steps into smaller helper functions (e.g., `upsertStudent(...)`, `ensureTeacherAssignments(...)`).
+   - Keep helper functions and test seeders modular and concise. If a helper or seeder exceeds ~70–80 lines, refactor it by extracting distinct steps into smaller helper functions.
 
 10. **Strict Interface Layer Separation**:
     - Integration tests under `frontend/graphql/test/` must interact with the application *exclusively* via the GraphQL API (using `testClient`). Under no circumstances should backend repositories (`db/repo/`), drizzle schemas directly (other than for checking in seed files), or service layers (`backend/services/`) be imported or invoked directly inside integration test files.
@@ -125,8 +111,7 @@ When adding a **new** test:
     **Discovering Arguments**: Look up the mutation's variables type in `frontend/graphql/generated/gql/graphql.ts` (search for `{MutationName}Variables`). For `input` object mutations, also look up the input type definition (e.g., `TeacherOnboardingInput`) and include **ALL** its fields:
 
     ```typescript
-    // UpdateStudentQuotaMutationVariables — from graphql.ts
-    type UpdateStudentQuotaMutationVariables = {
+    type SomeMutationVariables = {
       expectedVersion?: number | null;  // OPTIONAL — has | null
       newClassesRemaining: number;       // REQUIRED — no | null
       studentId: string;                 // REQUIRED
@@ -144,51 +129,44 @@ When adding a **new** test:
 
     ```typescript
     // ✅ Correct — generated enums
-    import { CurrencyCode, AccountStatus, ClassType, Gender } from "@/frontend/graphql/generated/gql/graphql";
+    import { CurrencyCode, AccountStatus } from "@/frontend/graphql/generated/gql/graphql";
     const input = { status: AccountStatus.Activated, currency: CurrencyCode.Usd };
 
     // ❌ Wrong — hardcoded strings
     const input = { status: "ACTIVATED", currency: "USD" };
     ```
 
-    **Nested Input Types**: For input objects containing nested input types (e.g., `PaymentMethodDetailsInput` inside `UserPaymentMethodCreateInput`), populate ALL fields at every nesting level — do not skip nested optional fields.
+    **Nested Input Types**: For input objects containing nested input types, populate ALL fields at every nesting level — do not skip nested optional fields.
 
-    **Builder Pattern for Large Input Objects**: When a mutation has many optional fields (e.g., `TeacherOnboardingInput` with 17 fields, `ManagerOnboardingInput` with 10+), use a typed builder helper:
+    **Builder Pattern for Large Input Objects**: When a mutation has many optional fields, use a typed builder helper:
 
     ```typescript
-    type TeacherInputOverrides = Partial<TeacherOnboardingInput> & { name: string; email: string; password: string; timezone: IanaTimezone };
+    type TeacherInputOverrides = Partial<TeacherOnboardingInput> & { name: string; email: string; password: string };
 
     function buildTeacherInput(overrides: TeacherInputOverrides): TeacherOnboardingInput {
       return {
         name: overrides.name,
         email: overrides.email,
         password: overrides.password,
-        timezone: overrides.timezone,
         // Required defaults — always present
         address: overrides.address ?? null,
         avatarUrl: overrides.avatarUrl ?? null,
         hourlyRate: overrides.hourlyRate ?? null,
-        rateCurrency: overrides.rateCurrency ?? null,
         // ... all optional fields default to null, overridable
       };
     }
-
-    // Usage: full input with non-null optionals
-    const fullInput = buildTeacherInput({ name: "Teacher 1", email: "t1@test.com", password: "pw", timezone: "Africa/Cairo", avatarUrl: "https://example.com/a.png", hourlyRate: 250 });
-    // Usage: minimal input with null optionals
-    const minimalInput = buildTeacherInput({ name: "Teacher 2", email: "t2@test.com", password: "pw", timezone: "Africa/Cairo" });
     ```
 
     **Cleanup Guards**: When tests provision multiple entities used in cleanup mutations, guard against `null` IDs for **ALL** required arguments — not just the ones used as variables in the test body. Missing an ID in the guard can cause empty strings to be passed for required `String!` fields:
 
     ```typescript
-    // ✅ Good — guard all 6 required IDs
-    if (studentId && teacherId && parentId && studentUserId && teacherUserId && parentUserId) {
+    // ✅ Good — guard all required IDs
+    if (studentId && teacherId && studentUserId && teacherUserId) {
       // cleanup mutations with all required variables
     }
 
-    // ❌ Bad — only checks 3 of 6, empty-string fallback for remaining required fields
-    if (studentUserId && teacherUserId && parentUserId) {
+    // ❌ Bad — only checks some, empty-string fallback for remaining required fields
+    if (studentUserId && teacherUserId) {
       // studentId: studentId || "" → empty string for required String! field
     }
     ```
@@ -196,25 +174,14 @@ When adding a **new** test:
     **Helper Function Pattern**: For mutations shared across multiple test cases, centralize the variable construction in a typed helper function (following rule 8 about test duplication):
 
     ```typescript
-    function buildInvoiceVars(parentId: string, overrides: Partial<CreateManualInvoiceInput> = {}): CreateManualInvoiceInput {
+    function buildEntityVars(entityId: string, overrides: Partial<UpdateEntityInput> = {}): UpdateEntityInput {
       return {
-        parentId,
+        entityId,
         // required fields
         issueDate: overrides.issueDate ?? new Date().toISOString(),
         // default optional fields to null
         description: overrides.description ?? null,
-        lineItems: overrides.lineItems ?? null,
-        currency: overrides.currency ?? null,
         expectedVersion: overrides.expectedVersion ?? null,
       };
     }
     ```
-
-    **Reference Files**:
-    - `docs/testing/mutation-argument-coverage.md` — comprehensive pattern reference with examples
-    - `ai/plans/graphql-mutation-test-args/outcome/mutation-args-reference.json` — JSON map of all 137 mutation documents and their variable fields
-
-## Linting Rules
-
-- See `docs/quality/linting-rules.md` for Oxlint & ESLint/sonarjs fix recipes. NEVER use `oxlint-disable` comments.
-

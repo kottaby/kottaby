@@ -9,9 +9,9 @@
 
 | Finding | Disposition |
 |---|---|
-| F5 (HIGH) — REQ-041 404-gating conflicted with the single provider-dispatched receiver | **Ruled + fixed.** Gating is per-branch: the paymob branch 404s when `PAYMENT_GATEWAY_PROVIDER ≠ paymob`; the route's availability follows the active provider's own gate (mock keeps DEV1-006's `PAYMENT_WEBHOOK_ENABLED` semantics). Updated: `specs.md` REQ-041, `plan.md` §3.4 matrix row, `tasks.md` 4.1 + 4.1.TE. |
+| F5 (HIGH) — REQ-041 404-gating conflicted with the single provider-dispatched receiver | **Ruled + fixed.** Gating is per-branch: the paymob branch 404s when `PAYMENT_GATEWAY_PROVIDER ≠ paymob`; the route's availability follows the active provider's own gate (mock keeps the subscription-purchase plan's `PAYMENT_WEBHOOK_ENABLED` semantics). Updated: `specs.md` REQ-041, `plan.md` §3.4 matrix row, `tasks.md` 4.1 + 4.1.TE. |
 | F6 (MEDIUM) — no mid-point review gate for a >15-task plan | **Fixed.** New task 5.3 "Mid-point backend review gate" (Phase 2.5 pattern) added after Phase 5; traceability map updated (REQ-002, REQ-082 rows). |
-| A6 — failure-path notification diverges from DEV1-006 REQ-023 | **Ruled: keep failure notification.** The funnel UX requires a failure signal; ruling recorded verbatim in `deferred-items.md` A6. |
+| A6 — failure-path notification diverges from the subscription-purchase plan REQ-023 | **Ruled: keep failure notification.** The funnel UX requires a failure signal; ruling recorded verbatim in `deferred-items.md` A6. |
 | F7 (LOW) — pre-existing A4 static-assertion discrepancy for `/api/cron/sweep-sessions` | No plan change; execution-time reconciliation already specified (plan §3.4 step 3, task 0.1 baseline check). |
 
 ## Audit A — Paymob vendor accuracy (mirror cross-check)
@@ -27,8 +27,8 @@ Note: the mirror count on disk is 119 pages (specs ground-truth table updated fr
 
 ## Audit B — Reference integrity
 
-~95 citations checked across the four plan files: all paths exist; all DEV1-006 cross-references land on the cited content (verified individually). One stale anchor fixed: `backend/lib/gateway/static-assertions.test.ts:238` → `:241` (the disk↔registry A4 test). No NOT-FOUND citations remain.
+~95 citations checked across the four plan files: all paths exist; all the subscription-purchase plan cross-references land on the cited content (verified individually). One stale anchor fixed: `backend/lib/gateway/static-assertions.test.ts:238` → `:241` (the disk↔registry A4 test). No NOT-FOUND citations remain.
 
 ## Result
 
-All three review tracks are green after the fixes above. The plan is gate-clean and execution-ready, subject to the stated blocking dependency (DEV1-006 backend landing first).
+All three review tracks are green after the fixes above. The plan is gate-clean and execution-ready, subject to the stated blocking dependency (the subscription-purchase plan backend landing first).

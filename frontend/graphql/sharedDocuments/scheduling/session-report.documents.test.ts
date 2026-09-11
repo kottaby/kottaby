@@ -1,10 +1,10 @@
 /**
- * Structural lock over the DEV3-006 session report/homework shared GraphQL
+ * Structural lock over the session report/homework shared GraphQL
  * documents.
  *
  * Mirrors the `sharedDocuments/documents.contract.test.ts` + notifications
- * discipline for the report/homework domain: the DEV2-014 submit form and
- * the report/homework readers (deferred — no UI ships in DEV3-006) consume
+ * discipline for the report/homework domain: the submit form and
+ * the report/homework readers consume
  * these SHARED `TypedDocumentNode` documents, so drift fails at this pure
  * logic tier instead of surfacing as confusing wire mismatches later:
  *
@@ -219,7 +219,7 @@ describe("session-report documents — named operations + channel + variables", 
 
   test("variable surface is exactly the server contract signatures (id+input / sessionId)", () => {
     // The mutation carries the session id + the closed SubmitSessionReportInput
-    // (DEV3-006 plan §3.1); both reads carry ONLY the session id — identity is
+    // (plan §3.1); both reads carry ONLY the session id — identity is
     // otherwise derived server-side from the authenticated caller.
     expect(variableNames(operationOrThrow(submitSessionReportMutationDocument))).toEqual(["id", "input"]);
     expect(variableNames(operationOrThrow(sessionReportQueryDocument))).toEqual(["sessionId"]);

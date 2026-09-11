@@ -1,6 +1,6 @@
 /**
- * DEV3-004 session SDL surface suite — REQ-060 exact-contract parity,
- * extended by the DEV3-005 dispute surface.
+ * session SDL surface suite — REQ-060 exact-contract parity,
+ * extended by the dispute surface.
  *
  * What this locks down:
  *  - **Clean construction** — the production schema builds without throwing
@@ -11,11 +11,11 @@
  *  - **Enum member parity** — the three scheduling enums expose exactly the
  *    members of their canonical TS enums (`backend/enum/scheduling/`),
  *    mapped member-for-member onto the same runtime values. The `disputed`
- *    member exists per REQ-060/B.18 and is PRODUCED by the DEV3-005
+ *    member exists per REQ-060/B.18 and is PRODUCED by the
  *    participant dispute transition (consumed by the admin arbitration).
- *    The DEV3-005 `DisputeResolution` arbitration vocabulary (Cancel |
+ *    The `DisputeResolution` arbitration vocabulary (Cancel |
  *    Complete) is pinned with the same member/value parity contract.
- *  - **`Session` shape parity (plan §3.1 + DEV3-005 R-105/R-107)** — EXACT
+ *  - **`Session` shape parity (plan §3.1 + R-105/R-107)** — EXACT
  *    field list in the exact order (`id` FIRST — Apollo cache
  *    normalization), each field's exact GraphQL type string (including the
  *    five nullable dispute/reason fields), `heldBalanceLane` DELIBERATELY
@@ -23,7 +23,7 @@
  *    client-consumed).
  *  - **`SessionPage` shape parity** — the sanctioned list-wrapper exception:
  *    `items: [Session!]!` + the honest `totalCount`/`page`/`pageSize` echo.
- *  - **DEV3-006 session-report/homework surface (plan §3.1)** — asserted
+ *  - **session-report/homework surface (plan §3.1)** — asserted
  *    against the LIVE production schema (the Phase-3 resolver modules now
  *    register everything through the `gqlSchema.ts` side-effect chain):
  *    the `sessionReport`/`sessionHomework` read pair are NULLABLE with a
@@ -38,8 +38,8 @@
  * The `Session` objects join the production type map through the Phase-3
  * resolver modules (tasks 3.2/3.3) — the session Pothos module is still
  * imported HERE (side-effect registration on the shared builder) so the
- * fresh deterministic `toSchema()` emission used by the DEV3-004 enum-once
- * checks keeps containing everything those checks need. The DEV3-006
+ * fresh deterministic `toSchema()` emission used by the enum-once
+ * checks keeps containing everything those checks need. The
  * assertions below run against the production `graphQLSchema` instead, so
  * they pin the surface exactly as it ships.
  *
@@ -66,7 +66,7 @@ import { graphQLSchema } from "@/backend/graphql/gqlSchema";
 import { gqlSchemaBuilder } from "@/backend/graphql/pothos/builder";
 import "@/backend/graphql/pothos/classes/session.pothos";
 
-// ─── Fresh deterministic emission (includes the DEV3-004 objects) ────────────
+// ─── Fresh deterministic emission (includes the objects) ────────────
 
 const sessionInclusiveSchema = gqlSchemaBuilder.toSchema();
 const sdl = printSchema(lexicographicSortSchema(sessionInclusiveSchema));
@@ -123,7 +123,7 @@ function assertIdFirstInSource(sourcePath: string, fieldNames: readonly string[]
 
 /**
  * Exact `Session` field list in plan §3.1 declaration order (`id` FIRST),
- * extended by the five DEV3-005 dispute/reason fields in their Pothos
+ * extended by the five dispute/reason fields in their Pothos
  * declaration position (after the confirmation stamps, before the row
  * timestamps) and the server-derived admin attention badge in its Pothos
  * declaration position (after the dispute surface, before the row
@@ -153,7 +153,7 @@ const SESSION_FIELD_ORDER = [
   "updatedAt",
 ] as const;
 
-/** Exact per-field SDL type strings for `Session` (REQ-060 + DEV3-005). */
+/** Exact per-field SDL type strings for `Session` (REQ-060). */
 const SESSION_FIELD_TYPES: Record<string, string> = {
   cancelReason: "String",
   confirmationDeadline: "DateTime",
@@ -196,7 +196,7 @@ describe("Schema construction — scheduling enums registered exactly once", () 
 });
 
 describe("Scheduling enum member parity vs the canonical TS enums", () => {
-  test("SessionStatus exposes exactly the five canonical members (incl. the DEV3-005-produced `disputed`)", () => {
+  test("SessionStatus exposes exactly the five canonical members (incl. the produced `disputed`)", () => {
     const enumType = requireEnum("SessionStatus");
 
     expect(
@@ -257,7 +257,7 @@ describe("Session object — plan §3.1 exact shape", () => {
   const sessionType = requireObject("Session");
   const fields = sessionType.getFields();
 
-  test("exposes EXACTLY the plan §3.1 field set plus the DEV3-005 dispute fields and the derived attention badge (no extras, no omissions)", () => {
+  test("exposes EXACTLY the plan §3.1 field set plus the dispute fields and the derived attention badge (no extras, no omissions)", () => {
     // GraphQL.js normalizes the field map (alphabetical key order); the
     // plan §3.1 declaration order (`id` FIRST) lives in the Pothos source
     // and is pinned by the file structure — here the EXACT field SET is
@@ -301,7 +301,7 @@ describe("SessionPage object — sanctioned list wrapper", () => {
   });
 });
 
-// ─── DEV3-006 session-report/homework surface (plan §3.1) ────────────────────
+// ─── session-report/homework surface (plan §3.1) ────────────────────
 
 /**
  * Exact `SessionReport` field list in plan §3.1 declaration order (`id`
@@ -366,12 +366,12 @@ const SESSION_HOME_WORK_FIELD_TYPES: Record<string, string> = {
 };
 
 /**
- * The four DEV3-006 input whitelists — CLOSED member sets (BOPLA): member
+ * The four input whitelists — CLOSED member sets (BOPLA): member
  * name → exact SDL type string. No member beyond these may exist, no
  * server-derivable field (no `id`, no `sessionId`, no timestamps, no teacher
  * identity) may appear, and the required/nullable split is exact.
  */
-const DEV3_006_INPUT_WHITELISTS: Record<string, Record<string, string>> = {
+const SESSION_REPORT_INPUT_WHITELISTS: Record<string, Record<string, string>> = {
   HomeWorkAssignmentInput: {
     jadid: "HomeWorkBlockInput",
     madi: "HomeWorkBlockInput",
@@ -393,8 +393,8 @@ const DEV3_006_INPUT_WHITELISTS: Record<string, Record<string, string>> = {
   },
 };
 
-describe("DEV3-006 session-report surface — plan §3.1 exact shapes", () => {
-  // The DEV3-006 surface ships through the LIVE production schema (the
+describe("session-report surface — plan §3.1 exact shapes", () => {
+  // The surface ships through the LIVE production schema (the
   // Phase-3 resolver modules register the root fields via the side-effect
   // barrels), so the pins below read `graphQLSchema` — the exact surface
   // the gateway exposes.
@@ -503,7 +503,7 @@ describe("DEV3-006 session-report surface — plan §3.1 exact shapes", () => {
   });
 
   test("the four input whitelists are CLOSED with exact members and exact type strings", () => {
-    for (const [typeName, members] of Object.entries(DEV3_006_INPUT_WHITELISTS)) {
+    for (const [typeName, members] of Object.entries(SESSION_REPORT_INPUT_WHITELISTS)) {
       const inputType = graphQLSchema.getType(typeName);
       if (!(inputType instanceof GraphQLInputObjectType)) {
         throw new Error(`${typeName} must be registered as a GraphQL input type`);
@@ -520,7 +520,7 @@ describe("DEV3-006 session-report surface — plan §3.1 exact shapes", () => {
   });
 
   test("no server-derivable field leaks into any input whitelist (static SDL slice scan)", () => {
-    for (const inputName of Object.keys(DEV3_006_INPUT_WHITELISTS)) {
+    for (const inputName of Object.keys(SESSION_REPORT_INPUT_WHITELISTS)) {
       const blockStart = productionSdl.indexOf(`input ${inputName} {`);
       if (blockStart < 0) throw new Error(`SDL must declare the \`input ${inputName}\` type`);
       const blockEnd = productionSdl.indexOf("}", blockStart);

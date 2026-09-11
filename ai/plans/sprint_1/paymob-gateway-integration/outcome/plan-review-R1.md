@@ -2,7 +2,7 @@
 
 ## Review Round: 1 (Phase 1.5 gate)
 ## Date: 2026-09-07
-## Subagents Dispatched: none — review executed inline against verification templates (research-03 §2 verdict format). Evidence gathers: six `outcome/research-*.md` digests + fresh `path:line` re-verification in this tree + DEV1-006 contract comparison (`specs.md`/`plan.md`/`tasks.md`/`deferred-items.md`).
+## Subagents Dispatched: none — review executed inline against verification templates (research-03 §2 verdict format). Evidence gathers: six `outcome/research-*.md` digests + fresh `path:line` re-verification in this tree + the subscription-purchase plan contract comparison (`specs.md`/`plan.md`/`tasks.md`/`deferred-items.md`).
 
 ---
 
@@ -22,11 +22,11 @@
 |---|---|---|---|
 | Paths Existence | re-verified every `path:line` cite in specs §1 table + plan §2/§3/§4/§5 | 1 (test-path wrong directory) | ✅ Fixed (F3) |
 | i18n Compliance | `shared/locale/` conventions check (namespace pipeline) | 1 (registration files omitted) | ✅ Fixed (F2) |
-| GraphQL Accuracy | DEV1-006 SDL cross-check (`plan.md:95-129`) + sharedDocuments rules | 0 | ✅ Pass |
+| GraphQL Accuracy | the subscription-purchase plan SDL cross-check (`plan.md:95-129`) + sharedDocuments rules | 0 | ✅ Pass |
 | Component Props | not applicable at plan level (MUI rules mandated as REQs, verified against `frontend/AGENTS.md`) | 0 | ✅ Pass |
 | Permissions/Enums | permission matrix vs `withPageAuth` reality; enum cites re-verified | 0 | ✅ Pass |
 | Architecture Compliance | root + layer AGENTS.md (`app/`, `backend/`, `backend/types/`, `backend/db/repo/`, `shared/locale/`) | 1 (specs↔plan 400/401 contradiction) | ✅ Fixed (F1) |
-| Cross-Reference Consistency (specs↔plan↔tasks↔ledger↔DEV1-006) | traceability grep loop + ledger gate + cross-plan contract diff | 3 | F4 ✅ Fixed; F5 ⚠️ ruling needed; F7 ℹ️ noted |
+| Cross-Reference Consistency (specs↔plan↔tasks↔ledger↔the subscription-purchase plan) | traceability grep loop + ledger gate + cross-plan contract diff | 3 | F4 ✅ Fixed; F5 ⚠️ ruling needed; F7 ℹ️ noted |
 | Task Conventions (QL/TE/SEC/SR/IV, expanded `_Requirements:`, traceability) | grep loop per `ai/prompt.md:17` | 1 (mid-point gate absent) | ⚠️ Reported (F6) |
 
 ---
@@ -50,15 +50,15 @@
 ### F3 — [MEDIUM] Wrong DB-test directory cited for the student-payment suite
 
 - **Location:** `plan.md` §9 row "Repository"; `tasks.md` task 2.2
-- **Expected:** DEV1-006 plans the suite at `backend/db/test/logic/billing/student-payment.repository.test.ts` (`DEV1-006/tasks.md:87`); in-tree billing DB tests live under `backend/db/test/logic/billing/`; `backend/db/test/repo/billing/` does not exist.
+- **Expected:** the subscription-purchase plan plans the suite at `backend/db/test/logic/billing/student-payment.repository.test.ts` (`tasks.md:87` of the subscription-purchase plan); in-tree billing DB tests live under `backend/db/test/logic/billing/`; `backend/db/test/repo/billing/` does not exist.
 - **Actual:** plan/tasks cited `backend/db/test/repo/billing/student-payment.repository.test.ts`.
-- **Fix Applied:** corrected to `backend/db/test/logic/billing/…` with a pointer to DEV1-006's planned file in both spots.
+- **Fix Applied:** corrected to `backend/db/test/logic/billing/…` with a pointer to the subscription-purchase plan's planned file in both spots.
 
-### F4 — [MEDIUM] Failure-notification divergence from DEV1-006 was untracked
+### F4 — [MEDIUM] Failure-notification divergence from the subscription-purchase plan was untracked
 
-- **Location:** `specs.md` REQ-024/REQ-028 vs DEV1-006 `specs.md:83` (its REQ-023: failed transition — "no credit, no notification"); consumed at `tasks.md` task 4.2
-- **Expected:** Every cross-plan behavioral amendment on DEV1-006-owned surfaces is recorded in `deferred-items.md` (the plan's own A1–A5 discipline).
-- **Actual:** this plan's REQ-024/REQ-028 add a `payment_confirmation` failure notification — a real behavioral amendment to DEV1-006's planned activation branch — but the A-set had no entry for it.
+- **Location:** `specs.md` REQ-024/REQ-028 vs the subscription-purchase plan `specs.md:83` (its REQ-023: failed transition — "no credit, no notification"); consumed at `tasks.md` task 4.2
+- **Expected:** Every cross-plan behavioral amendment on the subscription-purchase plan-owned surfaces is recorded in `deferred-items.md` (the plan's own A1–A5 discipline).
+- **Actual:** this plan's REQ-024/REQ-028 add a `payment_confirmation` failure notification — a real behavioral amendment to the subscription-purchase plan's planned activation branch — but the A-set had no entry for it.
 - **Fix Applied:** added ledger row **A6** (`deferred-items.md`) recording the divergence and routing it to task 4.2. (Contract-semantics decision itself left to the author; the ledger now makes it explicit.)
 
 ---
@@ -68,8 +68,8 @@
 ### F5 — [HIGH] REQ-041's whole-route 404 gate conflicts with the shared provider-dispatched receiver and would regress the mock flow
 
 - **Location:** `specs.md` REQ-041 (`:132`); `plan.md` §3.4 matrix row ("provider ≠ paymob | 404") and §10 rollout step 2
-- **Issue:** D6 + REQ-020 mandate ONE provider-dispatched receiver that DEV1-006 may create first (with its mock branch, gated by `PAYMENT_WEBHOOK_ENABLED` per DEV1-006 REQ-020). REQ-041 as written 404s THE ROUTE whenever `PAYMENT_GATEWAY_PROVIDER ≠ paymob` — which, after this plan lands, would disable DEV1-006's mock-webhook activation path during exactly the "deploy with `PAYMENT_GATEWAY_PROVIDER=mock`" rollout phase this plan itself prescribes (`plan.md:333`). Mock-mode purchases would stay `pending` forever in that window.
-- **Recommended ruling (author decides):** scope the 404 to the PAYMOB BRANCH (paymob callbacks 404 when provider ≠ paymob; the mock branch keeps DEV1-006's `PAYMENT_WEBHOOK_ENABLED` gate), or explicitly supersede DEV1-006's mock-webhook flow and record that as an A7 amendment.
+- **Issue:** D6 + REQ-020 mandate ONE provider-dispatched receiver that the subscription-purchase plan may create first (with its mock branch, gated by `PAYMENT_WEBHOOK_ENABLED` per the subscription-purchase plan REQ-020). REQ-041 as written 404s THE ROUTE whenever `PAYMENT_GATEWAY_PROVIDER ≠ paymob` — which, after this plan lands, would disable the subscription-purchase plan's mock-webhook activation path during exactly the "deploy with `PAYMENT_GATEWAY_PROVIDER=mock`" rollout phase this plan itself prescribes (`plan.md:333`). Mock-mode purchases would stay `pending` forever in that window.
+- **Recommended ruling (author decides):** scope the 404 to the PAYMOB BRANCH (paymob callbacks 404 when provider ≠ paymob; the mock branch keeps the subscription-purchase plan's `PAYMENT_WEBHOOK_ENABLED` gate), or explicitly supersede the subscription-purchase plan's mock-webhook flow and record that as an A7 amendment.
 - **Why not auto-fixed:** this is a semantic contract decision between two plans, not a typo; the reviewer must not pick the ruling.
 
 ---
@@ -78,7 +78,7 @@
 
 ### F6 — [MEDIUM] No mid-point review gate despite >15 tasks
 
-- **Location:** `tasks.md` (20 implementation/top-level tasks counted; template's conditional gate at `tasks-template.md:257`: "Phase 2.5: Mid-Point Review Gate (CONDITIONAL — Multi-Phase Plans >15 Tasks)"; house precedent: DEV1-006 `tasks.md:127-132`)
+- **Location:** `tasks.md` (20 implementation/top-level tasks counted; template's conditional gate at `tasks-template.md:257`: "Phase 2.5: Mid-Point Review Gate (CONDITIONAL — Multi-Phase Plans >15 Tasks)"; house precedent: the subscription-purchase plan `tasks.md:127-132`)
 - **Expected:** a mid-point backend review gate after the backend block (≈ after task 4.2/5.2), writing `outcome/midpoint-review-R1.md`.
 - **Actual:** only the Phase-1.5 gate and the Phase-9 final gate exist; the backend→frontend handoff (task 6.x/7.x) has no review checkpoint.
 - **Action:** author to add the gate phase (structure change — outside reviewer fix scope).
@@ -93,9 +93,9 @@
 
 ## Dimension Pass Notes
 
-- **Paths:** every other `path:line` cite re-verified EXACT: `student-payments.ts:23-48`, `subscriptions.ts:33`, `payment-gateway.enum.ts:10`, `enums.ts:35-44`, `payment-status.enum.ts:5-10`, `notification-engine.service.ts:42/79/116`, `notification-type.enum.ts:11`, `route-inventory.ts:33` (classification) + `:47-52` (inventory), `static-assertions.test.ts:238` (A4), `error-handling-contract.md:94-102` (exemptions), `env.ts:196/233/279/286/293/303`, `users.ts:17`, `navItems.ts:112` + `:53-74`, `plan-catalog.query.ts:18`, `sweep-sessions/route.ts:66-73`, `withPageAuth.ts:67-105`, `useBroadcastComposeSend.ts:35-63`, mirror `hmac-transaction-callback.md:27-48` + `hmac-for-card-tokens.md:23-32`, `SPRINT_PLAN.md:161`, DEV1-006 `deferred-items.md:45`, DEV1-006 `plan.md:105/135-136/199-202`, DEV1-006 `specs.md:76/120`. `.agents/instructions/{backend,frontend,tests}.instructions.md` all EXIST; `frontend/views/AGENTS.md` confirmed MISSING (plan's appendix correctly rules it uncitable); `app/(dashboard)/shared/withPageAuth.ts` confirmed MISSING (app/AGENTS.md is stale there; plan cites the real `frontend/lib/auth/withPageAuth.ts` — correct).
+- **Paths:** every other `path:line` cite re-verified EXACT: `student-payments.ts:23-48`, `subscriptions.ts:33`, `payment-gateway.enum.ts:10`, `enums.ts:35-44`, `payment-status.enum.ts:5-10`, `notification-engine.service.ts:42/79/116`, `notification-type.enum.ts:11`, `route-inventory.ts:33` (classification) + `:47-52` (inventory), `static-assertions.test.ts:238` (A4), `error-handling-contract.md:94-102` (exemptions), `env.ts:196/233/279/286/293/303`, `users.ts:17`, `navItems.ts:112` + `:53-74`, `plan-catalog.query.ts:18`, `sweep-sessions/route.ts:66-73`, `withPageAuth.ts:67-105`, `useBroadcastComposeSend.ts:35-63`, mirror `hmac-transaction-callback.md:27-48` + `hmac-for-card-tokens.md:23-32`, `SPRINT_PLAN.md:161`, the subscription-purchase plan `deferred-items.md:45`, the subscription-purchase plan `plan.md:105/135-136/199-202`, the subscription-purchase plan `specs.md:76/120`. `.agents/instructions/{backend,frontend,tests}.instructions.md` all EXIST; `frontend/views/AGENTS.md` confirmed MISSING (plan's appendix correctly rules it uncitable); `app/(dashboard)/shared/withPageAuth.ts` confirmed MISSING (app/AGENTS.md is stale there; plan cites the real `frontend/lib/auth/withPageAuth.ts` — correct).
 - **i18n:** single-arg `getTranslations`/`getServerTranslations`; handle-based `useAppTranslation(Checkout)`; no `next-intl`; wallet-namespace template real; post-F2 registration list complete.
-- **GraphQL:** NO new operations (D11) — consumes DEV1-006's `purchaseSubscription`/`mySubscriptions` + existing `planCatalog`; document naming/id-in-selection-set/`@apollo/client/react`/no-`useLazyQuery`/codegen-gate all match `frontend/graphql/sharedDocuments/AGENTS.md`.
+- **GraphQL:** NO new operations (D11) — consumes the subscription-purchase plan's `purchaseSubscription`/`mySubscriptions` + existing `planCatalog`; document naming/id-in-selection-set/`@apollo/client/react`/no-`useLazyQuery`/codegen-gate all match `frontend/graphql/sharedDocuments/AGENTS.md`.
 - **Permissions:** student-role pages via `withPageAuth({ roles: [UserRole.Student] })` (in-tree precedent), webhook HMAC-authentic unauthenticated, cron bearer timing-safe — all consistent with `route-inventory`/`error-handling-contract` doctrine; no invented `requirePermissionForPage` usage.
 - **Architecture:** port extension (not fork) honors D1/D6; port-type amendments confined to `backend/types/` with types-only discipline; intention HTTP outside tx (REQ-032); no module-level mutable state (REQ-033/D7); `queryDb` for non-tx repo read (A4 note matches `backend/db/repo/AGENTS.md:39`).
 - **Traceability:** `for r in $(grep -oE 'REQ-[0-9]+' specs.md | sort -u); do grep -q "$r" tasks.md || echo MISSING: $r; done` → zero misses after fixes. `_Requirements:` lines expanded (no ranges) ✓. Ledger gate `awk '/^## Ledger Table/,/^## Status Values/' deferred-items.md | grep -c "❌\|⚠️"` → 0 ✓ (git diff-gate exemption of the A-set confirmed structurally). REQ-067/068/… never claimed; numbering bands match house convention.

@@ -28,6 +28,5 @@ import type { AuthLabels } from "../../types/auth";
   const typed against the matching `*Labels` interface from
   `shared/locale/types/...`.
 - Leaf modules contain **no logic** — only plain string/object literals.
-- Interpolation uses the ICU `{var}` format consumed by the runtime formatter
-  in `shared/locale/client/format.ts` and the server formatter in
-  `shared/locale/format.ts`.
+- Interpolation uses the ICU `{var}` format consumed by the shared runtime
+  formatters.

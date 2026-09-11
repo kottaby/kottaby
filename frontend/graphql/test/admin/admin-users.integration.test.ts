@@ -1,7 +1,7 @@
 /**
  * Admin user-management GraphQL permission-matrix integration suite.
  *
- * DEV3-016 Phase 5.1 — full §3.4 permission matrix proven over the LIVE
+ * Phase 5.1 — full §3.4 permission matrix proven over the LIVE
  * Next.js dev server + real PostgreSQL rows, exercising all six admin
  * operations through the shared TypedDocumentNodes the production UI
  * consumes.

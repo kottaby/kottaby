@@ -29,7 +29,7 @@
  *    map would combine with ANY semantics and leak access — the
  *    conjunction is load-bearing.
  *  - NO admin/supervisor override exists on any field: link requests are a
- *    user-to-user handshake (governance reads live on DEV3-016 surfaces
+ *    user-to-user handshake (governance reads live on surfaces
  *    ONLY; zero `audit_logs` rows by design).
  *
  * Thin-resolver discipline:

@@ -8,7 +8,7 @@ import { AdminSessionGovernance, Errors, useAppTranslation } from "@/shared/loca
 
 /**
  * useAdminSessionGovernanceJoin — the join-observation mutation of the
- * admin session-governance container (DEV3-021), fired from the detail
+ * admin session-governance container, fired from the detail
  * drawer's banner (`JoinObservationAction`): `adminJoinSession` with the
  * drawer's session id.
  *

@@ -10,11 +10,11 @@ import type {
 
 /**
  * Participant session READ documents (the `Session` lifecycle + dispute
- * domain, DEV3-004 + DEV3-005) — the read third of the split out of
+ * domain) — the read third of the split out of
  * `session.documents.ts` (which re-exports every sibling, so the
  * deep-import path and the export surface are unchanged).
  *
- * Three reads over the DEV3-004 SDL surface: the nullable single-session
+ * Three reads over the session lifecycle SDL surface: the nullable single-session
  * read (`sessionById`) and the two paginated participant lists
  * (`myStudentSessions`, `myTeacherSessions`). Every `Session` payload
  * selects `id` first so Apollo Client normalizes returned rows into the
@@ -22,7 +22,7 @@ import type {
  * WITHOUT refetch storms (per `sharedDocuments/AGENTS.md` "id Field
  * Requirement" and plan §5.4 "no refetch").
  *
- * Every `Session` selection carries the DEV3-005 dispute/cancel-audit
+ * Every `Session` selection carries the dispute/cancel-audit
  * fields (`cancelReason`, `disputeReason`, `disputedAt`, `resolutionNote`,
  * `resolvedAt` — all nullable) so the rows that render them (cancelled
  * rows with a persisted cancel reason; the admin arbitration list) and

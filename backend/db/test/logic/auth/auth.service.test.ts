@@ -1,5 +1,5 @@
 /**
- * AuthService.updateMyLocale tests — the service tier of the DEV3-010 D2
+ * AuthService.updateMyLocale tests — the service tier of the D2
  * backend vertical (users.locale persistence).
  *
  * Per `backend/db/test/AGENTS.md` (same conventions as the sibling

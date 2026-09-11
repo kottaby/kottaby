@@ -1,5 +1,5 @@
 /**
- * `requestWithdrawal` mutation — the teacher's payout request (DEV3-013,
+ * `requestWithdrawal` mutation — the teacher's payout request (,
  * R-302).
  *
  * Contract:

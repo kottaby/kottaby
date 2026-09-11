@@ -5,8 +5,8 @@ teacher) performs an action that changes shared state, and actor B (e.g. a super
 and responds — executed through the **real service layer** against the **real test database**.
 
 > **Status:** The journey layer is live: `test/workflows/helpers/` (cast builders +
-> tracked-id cleanup registry, scaffolded by DEV3-004 task 2.1) and the first journey
-> implementations under `test/workflows/sessions/` (DEV3-004 task 2.2: the J1 Full Happy
+> tracked-id cleanup registry, scaffolded by the session-lifecycle work) and the first journey
+> implementations under `test/workflows/sessions/` (the J1 Full Happy
 > Lifecycle cross-actor workflow) exist. The plan-generator invariant holds: every
 > cross-actor workflow in the requirements maps to exactly one
 > `test/workflows/<domain>/<journey>.test.ts` task.

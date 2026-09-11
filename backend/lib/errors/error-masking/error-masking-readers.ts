@@ -101,7 +101,7 @@ export function capRenderedText(raw: string, budget: number): string {
  * in `JSON.stringify` output nor in `{...spread}` copies-only-enumerable —
  * the client can neither observe nor trigger it.
  */
-const RAW_ERROR_HOP: unique symbol = Symbol.for("dev3-002.graphqlBoundary.rawError");
+const RAW_ERROR_HOP: unique symbol = Symbol.for("kottaby.graphqlBoundary.rawError");
 
 /**
  * Attaches the raw throwable to a formatted wire item without affecting its

@@ -85,7 +85,7 @@ function handleConfirmMutationError(
 }
 
 /**
- * Confirm-completion wiring (DEV3-012, container-owned, no dialog — the
+ * Confirm-completion wiring (container-owned, no dialog — the
  * row's Confirm CTA fires directly, its consequence explainer riding the
  * CTA tooltip). Per-call options carry the session id in scope so every
  * outcome arm can address ITS row (row alerts, in-flight clearing)

@@ -1,6 +1,6 @@
 /**
  * NotificationDrawer — the app-bar bell popover component suite
- * (drawer-plan DR-1..DR-8, `ai/plans/sprint_2/dev3-010-real-time-notification-engine-websocket/drawer/plan.md`).
+ * (drawer-plan DR-1..DR-8, `ai/plans/sprint_2/real-time-notification-engine-websocket/drawer/plan.md`).
  *
  * Happy DOM + Apollo `MockLink` tier (`test/ui/components`) on a REAL
  * `ApolloClient` with `createApolloCache()` (the badge/feed-suite

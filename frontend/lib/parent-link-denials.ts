@@ -1,7 +1,7 @@
 import type { ErrorsLabels } from "@/shared/locale/types/errors";
 
 /**
- * Denial-code → `errors`-namespace copy accessor table for the DEV1-014
+ * Denial-code → `errors`-namespace copy accessor table for the
  * parent-link surfaces (the notification-type-presentation precedent). Keys
  * are the raw `extensions.code` strings the backend DomainError hierarchy
  * puts on the wire:

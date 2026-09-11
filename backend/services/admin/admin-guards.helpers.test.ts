@@ -138,7 +138,7 @@ describe("admin-guards.helpers — re-exported relaxed BFLA gate (assertActorAdm
   test("the relaxed guard is importable from the new canonical home and is byte-identical to the original", () => {
     // The re-export MUST be the same function reference — no copy, no
     // wrapper. A future refactor that introduces a wrapper would flip
-    // this assertion (it would also silently change DEV3-016's behavior).
+    // this assertion (it would also silently change existing behavior).
     expect(typeof assertActorAdmin).toBe("function");
     expect(assertActorAdmin.name).toBe("assertActorAdmin");
   });

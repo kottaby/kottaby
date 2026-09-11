@@ -314,7 +314,7 @@ describe("finalizeGraphqlResponseScope — formatError envelope-hop contract", (
     expect(extensionsOf(scope).requestId).toBe("finalizer-test-request-id");
     // The hop is invisible to serialization — leak-scan the WHOLE body for
     // any property key derived from the symbol.
-    expect(JSON.stringify(scope.response.body).includes("dev3-002.graphqlBoundary.rawError")).toBe(false);
+    expect(JSON.stringify(scope.response.body).includes("kottaby.graphqlBoundary.rawError")).toBe(false);
   });
 
   test("raw unresolved throwables reachable ONLY through the hop are still masked", () => {

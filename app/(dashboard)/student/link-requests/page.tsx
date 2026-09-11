@@ -7,7 +7,7 @@ import { getLocaleFromCookie } from "@/shared/locale/server-cookies";
 
 /**
  * `/student/link-requests` — the student's incoming parent-link request
- * inbox (DEV1-014 task 4.2).
+ * inbox.
  *
  * Server Component shell:
  *  1. `withPageAuth({ roles: [UserRole.Student], redirectTo: "/student/link-requests" })`

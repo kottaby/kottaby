@@ -28,7 +28,7 @@ interface LinkRequestDecisionDialogProps {
 
 /**
  * LinkRequestDecisionDialog — the translated confirmation gate for BOTH
- * transitions (DEV1-014 task 4.2). The body interpolates the snapshotted
+ * transitions. The body interpolates the snapshotted
  * parent display name through `confirmDialogBody(parentName)` /
  * `rejectDialogBody(parentName)` (the namespace function slots — never
  * hand-rolled string interpolation). The dialog is form-bearing: the submit

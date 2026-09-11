@@ -541,11 +541,11 @@ export interface AdminUsersLabels {
     readonly actionDelete: string;
     /** Action chip label — account reactivated. */
     readonly actionReactivate: string;
-    /** Action chip label — governance override (reserved for DEV3-017/020). */
+    /** Action chip label — governance override (reserved for future lanes). */
     readonly actionOverride: string;
     /** Action chip label — balance adjustment (reserved for future lanes). */
     readonly actionAdjust: string;
-    /** Action chip label — suspension (reserved for DEV3-017). */
+    /** Action chip label — suspension (reserved for future lanes). */
     readonly actionSuspend: string;
   };
 

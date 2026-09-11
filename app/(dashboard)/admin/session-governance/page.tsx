@@ -6,8 +6,8 @@ import { getTranslations } from "@/shared/locale/server";
 import { getLocaleFromCookie } from "@/shared/locale/server-cookies";
 
 /**
- * `/admin/session-governance` — the admin session-governance directory
- * (DEV3-021): the filterable/paginated directory over ALL sessions plus
+ * `/admin/session-governance` — the admin session-governance directory:
+ * the filterable/paginated directory over ALL sessions plus
  * the four governance operations (reschedule, cancel, teacher reassignment,
  * join-as-observer).
  *

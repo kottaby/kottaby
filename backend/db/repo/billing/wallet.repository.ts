@@ -2,7 +2,7 @@
  * WalletRepository — data-access layer for the teacher `wallet` table and
  * its append-only `teacher_transaction` ledger.
  *
- * DEV3-012 (R-202): the dual-confirmation credit slice composes THREE
+ * Dual-confirmation credit slice (R-202): composes THREE
  * writes on the caller's transaction — ensure the wallet row exists, insert
  * the `earning` ledger row, increment the wallet's `balance` and
  * `total_earning` by the credited amount. The schema docblocks describe a
@@ -126,7 +126,7 @@ export namespace WalletRepository {
   }
 
   /**
-   * DEV3-013 (R-302) — the withdrawal debit slice, on the caller's
+   * The withdrawal debit slice (R-302), on the caller's
    * transaction: inserts ONE `pending` `withdrawal` ledger row (the
    * in-flight payout record; the append-only contract means settlement is
    * a future compensating flow, never an in-place flip) and debits the

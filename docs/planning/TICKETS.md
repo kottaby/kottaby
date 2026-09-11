@@ -12,7 +12,6 @@ Each ticket follows the tracer-bullet format: a vertical slice cutting through e
 
 | Field | Description |
 |---|---|
-| **ID** | `[DEV1-001]`, `[DEV2-004]`, `[DEV3-002]` |
 | **Title** | Action-oriented title |
 | **Owner Stream** | Dev 1 / Dev 2 / Dev 3 / Shared |
 | **Sprint** | Sprint 0, 1, 2, 3, or 4 |
@@ -28,7 +27,7 @@ Each ticket follows the tracer-bullet format: a vertical slice cutting through e
 
 ---
 
-### [DEV1-001] Database Schema Migration
+### Database Schema Migration
 
 | Field | Value |
 |---|---|
@@ -64,14 +63,14 @@ And the Drizzle schema type-checks (`bun tsgo`)
 
 ---
 
-### [DEV1-002] User Registration with Role-Specific Child Table Creation
+### User Registration with Role-Specific Child Table Creation
 
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 1 |
 | **Sprint** | 0 |
 | **Story Points** | 5 |
-| **Blocked By** | DEV1-001 |
+| **Blocked By** | Database Schema Migration |
 
 **Description & Scope:**
 Implement user registration endpoint that creates a `users` record and the corresponding role-specific child table record (admin, teacher, students, parents, applicants) via shared PK inheritance. Include governance fields on `users` table (is_deleted, suspended, is_blocked, last_active_at).
@@ -114,14 +113,14 @@ Then a parents record is created
 
 ---
 
-### [DEV1-003] Recitation Selection on Registration
+### Recitation Selection on Registration
 
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 1 |
 | **Sprint** | 0 |
 | **Story Points** | 2 |
-| **Blocked By** | DEV1-002 |
+| **Blocked By** | User Registration with Role-Specific Child Table Creation |
 
 **Description & Scope:**
 Allow users to select their recitation reading (Qira'ah) during or after registration. The recitation is stored in the `recitation` table linked to the user. This is used by the matching algorithm (Dev 3) to filter teachers.
@@ -147,14 +146,14 @@ Then a second recitation record is created (1:M relationship)
 
 ---
 
-### [DEV1-004] Free Trial Session Provisioning
+### Free Trial Session Provisioning
 
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 1 |
 | **Sprint** | 0 |
 | **Story Points** | 3 |
-| **Blocked By** | DEV1-002 |
+| **Blocked By** | User Registration with Role-Specific Child Table Creation |
 
 **Description & Scope:**
 Credit new students with a free trial session upon registration. The trial session is credited to the appropriate balance field.
@@ -178,14 +177,14 @@ Then the trial session balance is decremented
 
 ---
 
-### [DEV2-001] JWT Authentication Service
+### JWT Authentication Service
 
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 2 (Shared) |
 | **Sprint** | 0 |
 | **Story Points** | 5 |
-| **Blocked By** | DEV1-001 |
+| **Blocked By** | Database Schema Migration |
 
 **Description & Scope:**
 Implement JWT-based authentication: login endpoint, token issuance, token verification, and token refresh. Tokens include user role for RBAC.
@@ -220,14 +219,14 @@ Then the request is rejected with 401
 
 ---
 
-### [DEV2-002] Role-Based Authorization Middleware
+### Role-Based Authorization Middleware
 
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 2 (Shared) |
 | **Sprint** | 0 |
 | **Story Points** | 3 |
-| **Blocked By** | DEV2-001 |
+| **Blocked By** | JWT Authentication Service |
 
 **Description & Scope:**
 Implement RBAC middleware that enforces role-based access control on all endpoints. Middleware checks the user's role from the JWT token and allows/denies access based on required role.
@@ -272,14 +271,14 @@ Then access is denied with 403
 
 ---
 
-### [DEV2-003] Shared Types & Interface Contracts
+### Shared Types & Interface Contracts
 
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 2 (Shared) |
 | **Sprint** | 0 |
 | **Story Points** | 3 |
-| **Blocked By** | DEV1-001 |
+| **Blocked By** | Database Schema Migration |
 
 **Description & Scope:**
 Define shared TypeScript types, interfaces, and cross-stream contracts that all three streams code against. This includes user types, session types, notification types, and the interface contracts defined in TEAM_ALLOCATION.md.
@@ -300,7 +299,7 @@ And the types are validated at compile time
 
 ---
 
-### [DEV3-001] CI/CD Pipeline with Mermaid Validation
+### CI/CD Pipeline with Mermaid Validation
 
 | Field | Value |
 |---|---|
@@ -329,7 +328,7 @@ And the PR cannot be merged if any check fails
 
 ---
 
-### [DEV3-002] Shared Error Handling & Response Contracts
+### Shared Error Handling & Response Contracts
 
 | Field | Value |
 |---|---|
@@ -363,14 +362,14 @@ And validation errors include field-level details
 
 ---
 
-### [DEV3-003] API Gateway & Routing Skeleton
+### API Gateway & Routing Skeleton
 
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 3 (Shared) |
 | **Sprint** | 0 |
 | **Story Points** | 3 |
-| **Blocked By** | DEV3-002 |
+| **Blocked By** | Shared Error Handling & Response Contracts |
 
 **Description & Scope:**
 Set up the API gateway and routing skeleton that all streams will use. Include health check endpoints, route registration, and middleware chain (auth → RBAC → handler).
@@ -399,14 +398,14 @@ And the response is returned in standardized format
 
 ---
 
-### [DEV1-005] Plan Catalog CRUD (Admin Only)
+### Plan Catalog CRUD (Admin Only)
 
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 1 |
 | **Sprint** | 1 |
 | **Story Points** | 3 |
-| **Blocked By** | DEV1-002 |
+| **Blocked By** | User Registration with Role-Specific Child Table Creation |
 
 **Description & Scope:**
 Implement admin-only CRUD for the plan catalog. Admin can create, edit, activate, and deactivate all subscription plan types (Hifz Jadid, Muraja'ah, Tathbeet, Atfal, Mukathaf, Tajweed, Teacher Verification).
@@ -446,14 +445,14 @@ Then access is denied with 403
 
 ---
 
-### [DEV1-006] Subscription Purchase via Payment Gateway
+### Subscription Purchase via Payment Gateway
 
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 1 |
 | **Sprint** | 1 |
 | **Story Points** | 5 |
-| **Blocked By** | DEV1-005 |
+| **Blocked By** | Plan Catalog CRUD (Admin Only) |
 
 **Description & Scope:**
 Implement subscription purchase flow: student selects a plan, pays via payment gateway, subscription is created with status=pending, payment is recorded, and upon payment confirmation, subscription status changes to active and session balance is credited.
@@ -494,14 +493,14 @@ Then a new subscription period is created (renewal)
 
 ---
 
-### [DEV1-007] Segregated Session Balance Crediting
+### Segregated Session Balance Crediting
 
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 1 |
 | **Sprint** | 1 |
 | **Story Points** | 5 |
-| **Blocked By** | DEV1-006 |
+| **Blocked By** | Subscription Purchase via Payment Gateway |
 
 **Description & Scope:**
 Implement segregated session balance crediting logic. When a subscription is activated, the full session_count is credited to the respective balance (balance_hifz, balance_tajweed, or balance_reviews) based on the plan type. Balances are non-negative integers.
@@ -538,14 +537,14 @@ Then the request is rejected with 422 "Insufficient balance"
 
 ---
 
-### [DEV1-008] Subscription Validity Window & Expiry
+### Subscription Validity Window & Expiry
 
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 1 |
 | **Sprint** | 1 |
 | **Story Points** | 3 |
-| **Blocked By** | DEV1-007 |
+| **Blocked By** | Segregated Session Balance Crediting |
 
 **Description & Scope:**
 Implement subscription validity window: set start_date and end_date based on interval_days. Unused sessions expire at the end of the interval with no carryover. A background job checks for expired subscriptions and sets status=expired.
@@ -581,14 +580,14 @@ Then the balance reflects sessions remaining in the current period
 
 ---
 
-### [DEV1-009] Admin Subscription Management (Extend/Renew/Cancel/Upgrade/Downgrade)
+### Admin Subscription Management (Extend/Renew/Cancel/Upgrade/Downgrade)
 
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 1 |
 | **Sprint** | 1 |
 | **Story Points** | 5 |
-| **Blocked By** | DEV1-008 |
+| **Blocked By** | Subscription Validity Window & Expiry |
 
 **Description & Scope:**
 Implement admin subscription management: extend validity window, renew subscription, cancel subscription, and upgrade/downgrade with prorated balance handling.
@@ -633,14 +632,14 @@ And a new subscription is created with the new plan's session_count
 
 ---
 
-### [DEV2-004] Teacher Applicant Registration & Applicants Table
+### Teacher Applicant Registration & Applicants Table
 
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 2 |
 | **Sprint** | 1 |
 | **Story Points** | 3 |
-| **Blocked By** | DEV2-002 |
+| **Blocked By** | Role-Based Authorization Middleware |
 
 **Description & Scope:**
 Implement teacher applicant registration flow. When a user registers as role=teacher, an applicants record is created (NOT a teacher record). The applicants table tracks verification_attempts, last_attempt_at, cooldown_until, and status.
@@ -676,14 +675,14 @@ And last_attempt_at is updated
 
 ---
 
-### [DEV2-005] Verification Plan Purchase (5 Sessions)
+### Verification Plan Purchase (5 Sessions)
 
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 2 |
 | **Sprint** | 1 |
 | **Story Points** | 3 |
-| **Blocked By** | DEV2-004, DEV1-006 |
+| **Blocked By** | Teacher Applicant Registration & Applicants Table, Subscription Purchase via Payment Gateway |
 
 **Description & Scope:**
 Implement verification plan purchase for teacher applicants. The verification plan is a specialized plan with session_count=5. Upon purchase, 5 evaluation session credits are available. Uses the same subscription/payment infrastructure as student plans (subscriptions.user_id is generic).
@@ -717,14 +716,14 @@ And verification_attempts is incremented
 
 ---
 
-### [DEV2-006] 5-Session Evaluation Loop Booking
+### 5-Session Evaluation Loop Booking
 
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 2 |
 | **Sprint** | 1 |
 | **Story Points** | 5 |
-| **Blocked By** | DEV2-005 |
+| **Blocked By** | Verification Plan Purchase (5 Sessions) |
 
 **Description & Scope:**
 Implement the 5-session evaluation loop. The applicant must book 5 evaluation sessions with 5 distinct certified Shuyukh. Each session has session_type=teacher_evaluation and intent=evaluation. The system enforces that no evaluator evaluates the same applicant twice.
@@ -762,14 +761,14 @@ Then the request is rejected with 422 "No evaluation sessions remaining"
 
 ---
 
-### [DEV2-007] Evaluation Rubric Scoring (≥80% Threshold)
+### Evaluation Rubric Scoring (≥80% Threshold)
 
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 2 |
 | **Sprint** | 1 |
 | **Story Points** | 5 |
-| **Blocked By** | DEV2-006 |
+| **Blocked By** | 5-Session Evaluation Loop Booking |
 
 **Description & Scope:**
 Implement evaluation rubric scoring. Each evaluator submits an evaluation with score (0-100), notes, and pass/fail. The system aggregates 5 evaluation results and applies the ≥80% pass threshold. If the applicant meets the threshold, teacher.is_approved is set to true and a teacher record is created.
@@ -816,14 +815,14 @@ And a students record is created for the failed applicant
 
 ---
 
-### [DEV2-008] Cooldown State Machine (1-Month Tajweed / 3-Month Hifz)
+### Cooldown State Machine (1-Month Tajweed / 3-Month Hifz)
 
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 2 |
 | **Sprint** | 1 |
 | **Story Points** | 5 |
-| **Blocked By** | DEV2-007 |
+| **Blocked By** | Evaluation Rubric Scoring (≥80% Threshold) |
 
 **Description & Scope:**
 Implement the cooldown state machine. Failed applicants are assigned a cooldown period: 1 month (30 days) for Tajweed weakness, 3 months (90 days) for Hifz weakness. During cooldown, the applicant is suspended and cannot re-purchase the verification plan. After cooldown, they can re-apply.
@@ -870,14 +869,14 @@ And they can subscribe to plans and attend sessions during cooldown
 
 ---
 
-### [DEV2-009] Failed Applicant → Student Record Conversion
+### Failed Applicant → Student Record Conversion
 
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 2 |
 | **Sprint** | 1 |
 | **Story Points** | 3 |
-| **Blocked By** | DEV2-008 |
+| **Blocked By** | Cooldown State Machine (1-Month Tajweed / 3-Month Hifz) |
 
 **Description & Scope:**
 When an applicant fails evaluation, create a students record for them so they can subscribe to plans and attend sessions during their cooldown period. The applicant retains their applicants record for re-evaluation tracking.
@@ -914,14 +913,14 @@ And their students record is preserved (historical data)
 
 ---
 
-### [DEV2-010] Admin Override of Evaluation Results
+### Admin Override of Evaluation Results
 
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 2 |
 | **Sprint** | 1 |
 | **Story Points** | 3 |
-| **Blocked By** | DEV2-008 |
+| **Blocked By** | Cooldown State Machine (1-Month Tajweed / 3-Month Hifz) |
 
 **Description & Scope:**
 Implement admin override capability for evaluation results. The admin can inspect all 5 session reports and evaluation notes, and manually certify, reject, or grant re-evaluation to an applicant. The override supersedes the automated algorithm and is logged in audit_logs.
@@ -960,14 +959,14 @@ And the action is logged in audit_logs
 
 ---
 
-### [DEV3-004] Session Creation & Lifecycle (Scheduled → Started → Completed/Cancelled)
+### Session Creation & Lifecycle (Scheduled → Started → Completed/Cancelled)
 
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 3 |
 | **Sprint** | 1 |
 | **Story Points** | 5 |
-| **Blocked By** | DEV1-001, DEV2-002 |
+| **Blocked By** | Database Schema Migration, Role-Based Authorization Middleware |
 
 **Description & Scope:**
 Implement the session lifecycle: creation (scheduled), start (started), completion (completed), and cancellation (cancelled). Enforce state machine invariants. Session must have both teacher_id and student_id (NOT NULL). Teacher must be certified (is_approved=true).
@@ -1021,14 +1020,14 @@ Then the transition is rejected (INV-S2)
 
 ---
 
-### [DEV3-005] Session Status State Machine Enforcement
+### Session Status State Machine Enforcement
 
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 3 |
 | **Sprint** | 1 |
 | **Story Points** | 3 |
-| **Blocked By** | DEV3-004 |
+| **Blocked By** | Session Creation & Lifecycle (Scheduled → Started → Completed/Cancelled) |
 
 **Description & Scope:**
 Implement and enforce all session state machine invariants from `docs/specs/state-machine-invariants.md`. This includes transition validation, in-session locking, and report/homework timing constraints.
@@ -1063,14 +1062,14 @@ Then the session transitions to 'completed' (refund/partial refund) or stays 'co
 
 ---
 
-### [DEV3-006] Session Report & Homework Infrastructure
+### Session Report & Homework Infrastructure
 
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 3 |
 | **Sprint** | 1 |
 | **Story Points** | 5 |
-| **Blocked By** | DEV3-004 |
+| **Blocked By** | Session Creation & Lifecycle (Scheduled → Started → Completed/Cancelled) |
 
 **Description & Scope:**
 Implement the session report and homework infrastructure. Reports table (session_id, teacher_notes, student_rating_by_teacher) and home_work table (session_id, current/revision fields with grades and Surah/Juz). Reports.teacher_id is removed (access via session.teacher_id — C.4).
@@ -1105,14 +1104,14 @@ And grades are 0-100 (check constraints)
 
 ---
 
-### [DEV3-007] Recitation Record per Session (1:1)
+### Recitation Record per Session (1:1)
 
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 3 |
 | **Sprint** | 1 |
 | **Story Points** | 2 |
-| **Blocked By** | DEV3-004 |
+| **Blocked By** | Session Creation & Lifecycle (Scheduled → Started → Completed/Cancelled) |
 
 **Description & Scope:**
 Implement the recitation record for sessions. The recitation table has a 1:1 relationship with sessions (session_id is unique). Each session has exactly one recitation record. The recitation.user_id column was renamed to session_id (C.5).
@@ -1143,14 +1142,14 @@ Then the attempt is rejected (unique constraint)
 
 ---
 
-### [DEV1-010] Tajweed Curriculum Lessons CRUD
+### Tajweed Curriculum Lessons CRUD
 
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 1 |
 | **Sprint** | 2 |
 | **Story Points** | 3 |
-| **Blocked By** | DEV1-008 |
+| **Blocked By** | Subscription Validity Window & Expiry |
 
 **Description & Scope:**
 Implement CRUD for Tajweed curriculum lessons. Lessons belong to plans (lessons.plan_id). Admin can create, edit, and delete lessons. Lessons are used for student progress tracking.
@@ -1178,14 +1177,14 @@ And students subscribing to the plan get progress tracking for these lessons
 
 ---
 
-### [DEV1-011] Student Progress Tracking & Increment
+### Student Progress Tracking & Increment
 
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 1 |
 | **Sprint** | 2 |
 | **Story Points** | 5 |
-| **Blocked By** | DEV1-010 |
+| **Blocked By** | Tajweed Curriculum Lessons CRUD |
 
 **Description & Scope:**
 Implement student progress tracking. Progress records link students to lessons (progress.student_id, progress.lesson_id). Upon successful completion of a Tajweed session, the student's progress is updated and incremented to the next lesson.
@@ -1216,14 +1215,14 @@ Then progress remains at the last lesson (curriculum complete)
 
 ---
 
-### [DEV1-012] Teacher Preparation View (Student Progress Before Session)
+### Teacher Preparation View (Student Progress Before Session)
 
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 1 |
 | **Sprint** | 2 |
 | **Story Points** | 3 |
-| **Blocked By** | DEV1-011 |
+| **Blocked By** | Student Progress Tracking & Increment |
 
 **Description & Scope:**
 When a student requests a Tajweed session, the teacher can review the student's current lesson progress before accepting the request. This ensures the teacher is prepared with the appropriate lesson material.
@@ -1251,14 +1250,14 @@ Then the teacher sees "First session — diagnostic"
 
 ---
 
-### [DEV2-011] Teacher Availability Toggle (Available/Unavailable)
+### Teacher Availability Toggle (Available/Unavailable)
 
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 2 |
 | **Sprint** | 2 |
 | **Story Points** | 3 |
-| **Blocked By** | DEV2-008 |
+| **Blocked By** | Cooldown State Machine (1-Month Tajweed / 3-Month Hifz) |
 
 **Description & Scope:**
 Implement teacher availability toggle. Certified teachers (is_approved=true) can manually toggle their status between Available (is_online=true) and Unavailable (is_online=false). Only certified teachers can set Available.
@@ -1296,14 +1295,14 @@ And the teacher cannot toggle to Available during the session
 
 ---
 
-### [DEV2-012] 15-Minute Inactivity Auto-Offline
+### 15-Minute Inactivity Auto-Offline
 
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 2 |
 | **Sprint** | 2 |
 | **Story Points** | 5 |
-| **Blocked By** | DEV2-011 |
+| **Blocked By** | Teacher Availability Toggle (Available/Unavailable) |
 
 **Description & Scope:**
 Implement 15-minute inactivity timeout. Teachers are marked unavailable (is_online=false) after 15 minutes of inactivity (no WebSocket heartbeat or API call). The users.last_active_at field tracks the last activity timestamp.
@@ -1336,14 +1335,14 @@ Then the teacher is NOT auto-set to offline (in-session lock takes priority)
 
 ---
 
-### [DEV2-013] In-Session Locking (Hide from Directory)
+### In-Session Locking (Hide from Directory)
 
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 2 |
 | **Sprint** | 2 |
 | **Story Points** | 3 |
-| **Blocked By** | DEV2-011 |
+| **Blocked By** | Teacher Availability Toggle (Available/Unavailable) |
 
 **Description & Scope:**
 When a teacher accepts a session request, their status automatically becomes Unavailable and they are hidden from the Available Teachers directory until the session concludes.
@@ -1374,14 +1373,14 @@ Then the teacher's status returns to Available only if they are still active (ap
 
 ---
 
-### [DEV2-014] Session Report Submission with Homework (Jadid & Madi)
+### Session Report Submission with Homework (Jadid & Madi)
 
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 2 |
 | **Sprint** | 2 |
 | **Story Points** | 5 |
-| **Blocked By** | DEV3-006 |
+| **Blocked By** | Session Report & Homework Infrastructure |
 
 **Description & Scope:**
 Implement the teacher's session report submission flow. At the end of every completed session, the teacher submits a report with performance notes, homework assignments (Jadid: new memorization, Madi: review), and a numerical grade. The first session is diagnostic (no prior homework to evaluate).
@@ -1420,14 +1419,14 @@ Then all homework assignments are visible (cross-teacher continuity)
 
 ---
 
-### [DEV2-015] Surah/Juz Enum Homework Tracking
+### Surah/Juz Enum Homework Tracking
 
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 2 |
 | **Sprint** | 2 |
 | **Story Points** | 3 |
-| **Blocked By** | DEV2-014 |
+| **Blocked By** | Session Report Submission with Homework (Jadid & Madi) |
 
 **Description & Scope:**
 Implement Surah/Juz enum-based homework tracking. Homework uses the surah_juz_ref enum for current_surah_juz and revision_surah_juz. This allows non-contiguous review assignments (e.g., "Surah Al-Baqarah" or "Juz 30").
@@ -1455,14 +1454,14 @@ And non-contiguous assignments are supported
 
 ---
 
-### [DEV3-008] On-Demand Matching Algorithm (Filter/Sort Pipeline)
+### On-Demand Matching Algorithm (Filter/Sort Pipeline)
 
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 3 |
 | **Sprint** | 2 |
 | **Story Points** | 8 |
-| **Blocked By** | DEV2-011, DEV3-004 |
+| **Blocked By** | Teacher Availability Toggle (Available/Unavailable), Session Creation & Lifecycle (Scheduled → Started → Completed/Cancelled) |
 
 **Description & Scope:**
 Implement the on-demand matching algorithm. Students browse available teachers filtered by: (1) Qira'ah match, (2) subject availability, (3) country priority, (4) language match, (5) rating ranking. Only teachers with is_online=true and is_approved=true appear. In-session teachers are excluded.
@@ -1507,14 +1506,14 @@ Then an empty result is returned with a message "No teachers available"
 
 ---
 
-### [DEV3-009] Teacher Directory Browse & Filter API
+### Teacher Directory Browse & Filter API
 
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 3 |
 | **Sprint** | 2 |
 | **Story Points** | 5 |
-| **Blocked By** | DEV3-008 |
+| **Blocked By** | On-Demand Matching Algorithm (Filter/Sort Pipeline) |
 
 **Description & Scope:**
 Implement the teacher directory API. Students can browse available teachers with pagination, filter by subject/country/language, and sort by rating. The API returns teacher profiles with relevant details for the student to choose.
@@ -1551,14 +1550,14 @@ Then teachers are sorted by average_rating descending
 
 ---
 
-### [DEV3-010] Real-Time Notification Engine (WebSocket)
+### Real-Time Notification Engine (WebSocket)
 
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 3 |
 | **Sprint** | 2 |
 | **Story Points** | 8 |
-| **Blocked By** | DEV3-003 |
+| **Blocked By** | API Gateway & Routing Skeleton |
 
 **Description & Scope:**
 Implement the real-time notification engine using WebSocket. Notifications are persisted in the notifications table and pushed in real-time to connected users. Notification types: session_request, session_completion, session_cancellation, parent_link_request, system_broadcast, payment_confirmation, evaluation_result.
@@ -1599,14 +1598,14 @@ Then only valid notification_type enum values are accepted
 
 ---
 
-### [DEV3-011] Session Request Notification to Teacher
+### Session Request Notification to Teacher
 
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 3 |
 | **Sprint** | 2 |
 | **Story Points** | 3 |
-| **Blocked By** | DEV3-010 |
+| **Blocked By** | Real-Time Notification Engine (WebSocket) |
 
 **Description & Scope:**
 When a student requests an instant session, a real-time notification is sent to the teacher. The notification includes session request details and allows the teacher to accept or decline.
@@ -1651,14 +1650,14 @@ Then the student is offered alternative available teachers
 
 ---
 
-### [DEV3-012] Dual-Confirmation Completion Handshake (24h Timeout)
+### Dual-Confirmation Completion Handshake (24h Timeout)
 
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 3 |
 | **Sprint** | 2 |
 | **Story Points** | 5 |
-| **Blocked By** | DEV3-004 |
+| **Blocked By** | Session Creation & Lifecycle (Scheduled → Started → Completed/Cancelled) |
 
 **Description & Scope:**
 Implement the dual-confirmation completion handshake. Session completion requires: (1) teacher marks complete + submits report, (2) student confirms satisfactory completion. If neither party confirms within 24 hours, the session is auto-cancelled and held funds are refunded.
@@ -1702,14 +1701,14 @@ And the dispute is sent to admin for arbitration
 
 ---
 
-### [DEV3-013] Fee Escrow: Hold at Request, Decrement at Completion
+### Fee Escrow: Hold at Request, Decrement at Completion
 
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 3 |
 | **Sprint** | 2 |
 | **Story Points** | 5 |
-| **Blocked By** | DEV3-012, DEV1-007 |
+| **Blocked By** | Dual-Confirmation Completion Handshake (24h Timeout), Segregated Session Balance Crediting |
 
 **Description & Scope:**
 Implement the fee escrow model. When a session is requested, the fee is held (fee_held=true, balance held but not decremented). Upon dual confirmation, the balance is decremented and the teacher's wallet is credited. If cancelled, held funds are released back.
@@ -1751,14 +1750,14 @@ And no session is created
 
 ---
 
-### [DEV3-014] Teacher Wallet Crediting (Earning Transactions)
+### Teacher Wallet Crediting (Earning Transactions)
 
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 3 |
 | **Sprint** | 2 |
 | **Story Points** | 5 |
-| **Blocked By** | DEV3-013 |
+| **Blocked By** | Fee Escrow: Hold at Request, Decrement at Completion |
 
 **Description & Scope:**
 Implement teacher wallet crediting. Upon dual confirmation, a teacher_transaction (type=earning) is created, crediting the session fee to the teacher's wallet. Wallet balance and total_earning are updated. Each teacher has exactly one wallet.
@@ -1797,14 +1796,14 @@ Then NO teacher_transaction is created (no earning for cancelled sessions)
 
 ---
 
-### [DEV3-015] Teacher Withdrawal Workflow & Admin Approval
+### Teacher Withdrawal Workflow & Admin Approval
 
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 3 |
 | **Sprint** | 2 |
 | **Story Points** | 5 |
-| **Blocked By** | DEV3-014 |
+| **Blocked By** | Teacher Wallet Crediting (Earning Transactions) |
 
 **Description & Scope:**
 Implement teacher withdrawal workflow. Teachers can request withdrawals from their wallet. Withdrawal requests start as pending and transition to completed (admin approves) or failed (admin rejects). Financial records are immutable.
@@ -1851,14 +1850,14 @@ Then the attempt is rejected (INV-W6: financial immutability)
 
 ---
 
-### [DEV1-013] Student Handshake Code Generation
+### Student Handshake Code Generation
 
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 1 |
 | **Sprint** | 3 |
 | **Story Points** | 2 |
-| **Blocked By** | DEV1-002 |
+| **Blocked By** | User Registration with Role-Specific Child Table Creation |
 
 **Description & Scope:**
 Each student is assigned a unique handshake code on creation. The code is used by parents to search for and link to their child. The handshake_code is unique, not null, and generated automatically.
@@ -1890,14 +1889,14 @@ Then the corresponding student is found
 
 ---
 
-### [DEV1-014] Parent-Child Link Request Workflow (7-Day Expiry)
+### Parent-Child Link Request Workflow (7-Day Expiry)
 
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 1 |
 | **Sprint** | 3 |
 | **Story Points** | 5 |
-| **Blocked By** | DEV1-013 |
+| **Blocked By** | Student Handshake Code Generation |
 
 **Description & Scope:**
 Implement the parent-child link request workflow. A parent searches for their child using the handshake code and sends a link request. The student must explicitly confirm within 7 days. After 7 days, the link request expires.
@@ -1944,14 +1943,14 @@ Then the attempt is rejected (B.12: one parent per student)
 
 ---
 
-### [DEV1-015] Student Confirmation of Parent Link
+### Student Confirmation of Parent Link
 
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 1 |
 | **Sprint** | 3 |
 | **Story Points** | 3 |
-| **Blocked By** | DEV1-014 |
+| **Blocked By** | Parent-Child Link Request Workflow (7-Day Expiry) |
 
 **Description & Scope:**
 The student must explicitly confirm or reject the parent link request. This prevents unauthorized tracking. The student sees the pending link request and can accept or reject it.
@@ -1986,14 +1985,14 @@ And the parent cannot monitor the student
 
 ---
 
-### [DEV1-016] Parent Read-Only Monitoring Portal
+### Parent Read-Only Monitoring Portal
 
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 1 |
 | **Sprint** | 3 |
 | **Story Points** | 8 |
-| **Blocked By** | DEV1-015, DEV3-011 |
+| **Blocked By** | Student Confirmation of Parent Link, Session Request Notification to Teacher |
 
 **Description & Scope:**
 Implement the parent read-only monitoring portal. Parents can view their linked children's: attendance history, session reports, homework assignments, teacher evaluations, and academic progress statistics. MVP parents are read-only — they cannot modify data, request sessions, or make payments.
@@ -2036,14 +2035,14 @@ Then they can switch between children's views
 
 ---
 
-### [DEV1-017] Parent Session Completion Notification Display
+### Parent Session Completion Notification Display
 
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 1 |
 | **Sprint** | 3 |
 | **Story Points** | 3 |
-| **Blocked By** | DEV1-016, DEV3-010 |
+| **Blocked By** | Parent Read-Only Monitoring Portal, Real-Time Notification Engine (WebSocket) |
 
 **Description & Scope:**
 When a child's session completes, the linked parent receives a real-time notification with a link to the session report, homework, and evaluation score. The parent portal displays these notifications.
@@ -2071,14 +2070,14 @@ Then they are taken to the session report view in the monitoring portal
 
 ---
 
-### [DEV2-016] Student Evaluation Submission (Teacher Rating)
+### Student Evaluation Submission (Teacher Rating)
 
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 2 |
 | **Sprint** | 3 |
 | **Story Points** | 3 |
-| **Blocked By** | DEV3-012 |
+| **Blocked By** | Dual-Confirmation Completion Handshake (24h Timeout) |
 
 **Description & Scope:**
 Students can submit a teacher evaluation (rating) at the end of each completed session. The rating directly influences the teacher's search ranking and visibility.
@@ -2106,14 +2105,14 @@ Then the attempt is rejected with 422 "Session not completed"
 
 ---
 
-### [DEV2-017] Teacher Average Rating Aggregation & Update
+### Teacher Average Rating Aggregation & Update
 
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 2 |
 | **Sprint** | 3 |
 | **Story Points** | 3 |
-| **Blocked By** | DEV2-016 |
+| **Blocked By** | Student Evaluation Submission (Teacher Rating) |
 
 **Description & Scope:**
 The teacher's average_rating is updated based on student evaluations. The average is computed from all evaluation scores for the teacher and stored in teacher.average_rating (0-5 scale, check constraint).
@@ -2141,14 +2140,14 @@ Then teacher.average_rating = 0 (default)
 
 ---
 
-### [DEV2-018] Admin-Ordered Re-Evaluation (Teacher Wallet Deduction)
+### Admin-Ordered Re-Evaluation (Teacher Wallet Deduction)
 
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 2 |
 | **Sprint** | 3 |
 | **Story Points** | 5 |
-| **Blocked By** | DEV2-008, DEV3-014 |
+| **Blocked By** | Cooldown State Machine (1-Month Tajweed / 3-Month Hifz), Teacher Wallet Crediting (Earning Transactions) |
 
 **Description & Scope:**
 When an admin orders a re-evaluation for a teacher, the cost is deducted from the teacher's wallet balance. This is recorded as a teacher_transaction with type=withdrawal. The re-evaluation process follows the same 5-session loop.
@@ -2182,14 +2181,14 @@ And the teacher's is_approved is set to false during re-evaluation
 
 ---
 
-### [DEV2-019] Admin Academic Tracking (Memorization & Revision Milestones)
+### Admin Academic Tracking (Memorization & Revision Milestones)
 
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 2 |
 | **Sprint** | 3 |
 | **Story Points** | 3 |
-| **Blocked By** | DEV2-014 |
+| **Blocked By** | Session Report Submission with Homework (Jadid & Madi) |
 
 **Description & Scope:**
 Admin can monitor student memorization and revision milestones. This includes tracking homework grades, Surah/Juz progress, and overall academic advancement across all students.
@@ -2219,14 +2218,14 @@ Then they see all homework assignments, grades, and progress over time
 
 ---
 
-### [DEV3-016] Admin CRUD: Users, Teachers, Students, Parents
+### Admin CRUD: Users, Teachers, Students, Parents
 
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 3 |
 | **Sprint** | 3 |
 | **Story Points** | 5 |
-| **Blocked By** | DEV2-002 |
+| **Blocked By** | Role-Based Authorization Middleware |
 
 **Description & Scope:**
 Implement full CRUD for admin over all entities: users, teachers, students, parents, plans, subscriptions, sessions, reports, evaluations, wallets, and transactions. Admin can view, create, update, and soft-delete records.
@@ -2264,14 +2263,14 @@ Then access is denied with 403
 
 ---
 
-### [DEV3-017] Account Soft-Delete Governance (users.is_deleted)
+### Account Soft-Delete Governance (users.is_deleted)
 
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 3 |
 | **Sprint** | 3 |
 | **Story Points** | 3 |
-| **Blocked By** | DEV3-016 |
+| **Blocked By** | Admin CRUD: Users, Teachers, Students, Parents |
 
 **Description & Scope:**
 Implement soft-delete governance. Users, students, and teachers must never be hard-deleted. Deletions use soft delete (is_deleted=true). Historical data (sessions, reports, financial transactions) is preserved. Soft-deleted users cannot access the platform.
@@ -2312,14 +2311,14 @@ Then the attempt is rejected (INV-U4: no hard deletes)
 
 ---
 
-### [DEV3-018] Cold-Start Bootstrapping (Direct Sheikh Certification)
+### Cold-Start Bootstrapping (Direct Sheikh Certification)
 
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 3 |
 | **Sprint** | 3 |
 | **Story Points** | 3 |
-| **Blocked By** | DEV3-016 |
+| **Blocked By** | Admin CRUD: Users, Teachers, Students, Parents |
 
 **Description & Scope:**
 Admin can directly onboard and certify foundational Shuyukh without requiring evaluation purchases. These certified Shuyukh form the "Certified Evaluation Committee" and can evaluate new applicants. teacher.is_approved=true and teacher.is_evaluator=true are set directly.
@@ -2355,14 +2354,14 @@ Then access is denied with 403
 
 ---
 
-### [DEV3-019] Direct Student Onboarding with Offline Payment
+### Direct Student Onboarding with Offline Payment
 
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 3 |
 | **Sprint** | 3 |
 | **Story Points** | 5 |
-| **Blocked By** | DEV3-016, DEV1-009 |
+| **Blocked By** | Admin CRUD: Users, Teachers, Students, Parents, Admin Subscription Management (Extend/Renew/Cancel/Upgrade/Downgrade) |
 
 **Description & Scope:**
 Admin can manually register a student with profile, parent association, direct subscription activation, and offline payment (cash/bank transfer/scholarship). Offline payments bypass student_payments and are tracked via subscriptions.payment_method, payment_reference, and payment_verified_at.
@@ -2404,14 +2403,14 @@ Then only valid payment_gateway enum values are accepted (including offline type
 
 ---
 
-### [DEV3-020] Immutable Audit Logging for All Admin Actions
+### Immutable Audit Logging for All Admin Actions
 
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 3 |
 | **Sprint** | 3 |
 | **Story Points** | 5 |
-| **Blocked By** | DEV3-016 |
+| **Blocked By** | Admin CRUD: Users, Teachers, Students, Parents |
 
 **Description & Scope:**
 Implement immutable audit logging for all admin actions. Every administrative action is permanently logged in audit_logs with actor_id, action_type, entity_type, entity_id, details (JSON), and created_at. The audit log is append-only (immutable).
@@ -2454,14 +2453,14 @@ And the results show all administrative actions in chronological order
 
 ---
 
-### [DEV3-021] Admin Session Governance (View/Filter/Reschedule/Cancel/Reassign/Join)
+### Admin Session Governance (View/Filter/Reschedule/Cancel/Reassign/Join)
 
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 3 |
 | **Sprint** | 3 |
 | **Story Points** | 5 |
-| **Blocked By** | DEV3-004 |
+| **Blocked By** | Session Creation & Lifecycle (Scheduled → Started → Completed/Cancelled) |
 
 **Description & Scope:**
 Admin can view all sessions with filtering by teacher, student, type, date. Admin can reschedule, cancel, reassign teachers, join live sessions, and review reports/evaluations.
@@ -2507,14 +2506,14 @@ And the action is logged in audit_logs
 
 ---
 
-### [DEV3-022] Dispute Resolution with Admin Arbitration
+### Dispute Resolution with Admin Arbitration
 
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 3 |
 | **Sprint** | 3 |
 | **Story Points** | 5 |
-| **Blocked By** | DEV3-012 |
+| **Blocked By** | Dual-Confirmation Completion Handshake (24h Timeout) |
 
 **Description & Scope:**
 After dual confirmation, if a student disputes a session, the session enters 'disputed' status. An admin reviews the case via the audit log and makes a binding arbitration decision: refund, partial refund, or uphold.
@@ -2562,14 +2561,14 @@ And the action is logged in audit_logs
 
 ---
 
-### [DEV3-022b] Admin Financial Auditing (Payments, Wallets, Withdrawal Approval)
+### Admin Financial Auditing (Payments, Wallets, Withdrawal Approval)
 
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 3 |
 | **Sprint** | 3 |
 | **Story Points** | 5 |
-| **Blocked By** | DEV3-014 |
+| **Blocked By** | Teacher Wallet Crediting (Earning Transactions) |
 
 **Description & Scope:**
 Admin can audit all student payments, inspect teacher wallets, approve/reject withdrawal requests, and issue manual wallet adjustments with audit logging.
@@ -2617,14 +2616,14 @@ And the action is logged in audit_logs with action_type='adjust'
 
 ---
 
-### [DEV3-022c] Platform Analytics Dashboard
+### Platform Analytics Dashboard
 
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 3 |
 | **Sprint** | 3 |
 | **Story Points** | 5 |
-| **Blocked By** | DEV3-016 |
+| **Blocked By** | Admin CRUD: Users, Teachers, Students, Parents |
 
 **Description & Scope:**
 Real-time monitoring of all platform statistics, sessions, and operational reports. Admin dashboard shows key metrics: active users, sessions per day, revenue, teacher availability, subscription stats.
@@ -2657,14 +2656,14 @@ Then they see detailed breakdowns and trends
 
 ---
 
-### [DEV3-022d] Broadcast Notifications (System-Wide & Targeted)
+### Broadcast Notifications (System-Wide & Targeted)
 
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 3 |
 | **Sprint** | 3 |
 | **Story Points** | 3 |
-| **Blocked By** | DEV3-010 |
+| **Blocked By** | Real-Time Notification Engine (WebSocket) |
 
 **Description & Scope:**
 Admin can broadcast system-wide announcements or targeted notifications to specific cohorts (all teachers, all students, all parents, specific country, specific plan subscribers).
@@ -2702,7 +2701,7 @@ Then only users with active subscriptions to that plan receive the notification
 
 ---
 
-### [DEV1-018] End-to-End Integration Tests: Student Journey
+### End-to-End Integration Tests: Student Journey
 
 | Field | Value |
 |---|---|
@@ -2733,14 +2732,14 @@ Then all steps succeed and data is consistent across all tables
 
 ---
 
-### [DEV1-019] End-to-End Integration Tests: Parent Journey
+### End-to-End Integration Tests: Parent Journey
 
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 1 |
 | **Sprint** | 4 |
 | **Story Points** | 5 |
-| **Blocked By** | DEV1-016, DEV1-017 |
+| **Blocked By** | Parent Read-Only Monitoring Portal, Parent Session Completion Notification Display |
 
 **Description & Scope:**
 End-to-end integration tests covering the complete parent journey: registration → search child by code → send link request → student confirms → monitor child → receive notifications.
@@ -2764,14 +2763,14 @@ Then all steps succeed and parent sees correct read-only data
 
 ---
 
-### [DEV1-020] End-to-End Integration Tests: Subscription Lifecycle
+### End-to-End Integration Tests: Subscription Lifecycle
 
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 1 |
 | **Sprint** | 4 |
 | **Story Points** | 3 |
-| **Blocked By** | DEV1-009 |
+| **Blocked By** | Admin Subscription Management (Extend/Renew/Cancel/Upgrade/Downgrade) |
 
 **Description & Scope:**
 End-to-end integration tests covering the complete subscription lifecycle: purchase → activation → balance crediting → validity window → expiry → renewal → upgrade/downgrade with proration.
@@ -2796,7 +2795,7 @@ Then all steps succeed and balances are correct at each stage
 
 ---
 
-### [DEV2-020] Security Hardening: Input Validation & SQL Injection Prevention
+### Security Hardening: Input Validation & SQL Injection Prevention
 
 | Field | Value |
 |---|---|
@@ -2835,14 +2834,14 @@ And no SQL injection or XSS is possible
 
 ---
 
-### [DEV2-021] Audit Trail Completeness Verification
+### Audit Trail Completeness Verification
 
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 2 |
 | **Sprint** | 4 |
 | **Story Points** | 3 |
-| **Blocked By** | DEV3-020 |
+| **Blocked By** | Immutable Audit Logging for All Admin Actions |
 
 **Description & Scope:**
 Verify that all admin actions are logged in the audit trail. Automated tests that perform every admin action and verify the corresponding audit_log record exists.
@@ -2871,7 +2870,7 @@ And no actions are missing from the log
 
 ---
 
-### [DEV2-022] State Machine Invariant Verification Tests
+### State Machine Invariant Verification Tests
 
 | Field | Value |
 |---|---|
@@ -2909,7 +2908,7 @@ Then every invariant is tested and passes:
 
 ---
 
-### [DEV3-023] Load Testing & Performance Optimization
+### Load Testing & Performance Optimization
 
 | Field | Value |
 |---|---|
@@ -2947,7 +2946,7 @@ And results are paginated
 
 ---
 
-### [DEV3-024] Disaster Recovery & Backup Verification
+### Disaster Recovery & Backup Verification
 
 | Field | Value |
 |---|---|
@@ -2983,14 +2982,14 @@ And the disaster recovery plan is documented
 
 ---
 
-### [DEV3-025] Financial Safety Verification (Double-Spend, Escrow Integrity)
+### Financial Safety Verification (Double-Spend, Escrow Integrity)
 
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 3 |
 | **Sprint** | 4 |
 | **Story Points** | 5 |
-| **Blocked By** | DEV3-013, DEV3-014 |
+| **Blocked By** | Fee Escrow: Hold at Request, Decrement at Completion, Teacher Wallet Crediting (Earning Transactions) |
 
 **Description & Scope:**
 Financial safety verification: double-spend prevention, escrow integrity, financial immutability, and wallet balance consistency. Automated tests that attempt to exploit financial edge cases.
@@ -3027,7 +3026,7 @@ And the balance is non-negative
 
 ---
 
-### [DEV3-026] Production Launch Checklist Execution
+### Production Launch Checklist Execution
 
 | Field | Value |
 |---|---|
@@ -3091,35 +3090,35 @@ All 33 resolved decisions are covered by tickets:
 
 | Decision | Primary Ticket(s) |
 |---|---|
-| A.1 (parents table) | DEV1-002 |
-| A.2 (parent_id FK) | DEV1-014 |
-| A.3 (handshake_code) | DEV1-002, DEV1-013 |
-| A.4 (notifications) | DEV3-010, DEV3-011, DEV1-017, DEV3-022d |
-| A.5 (audit_logs) | DEV3-020, DEV2-018, DEV3-019 |
-| A.6 (teacher.subjects) | DEV3-008 |
-| A.7 (governance on users) | DEV1-002, DEV2-002, DEV3-017 |
-| A.8 (session_type) | DEV3-004, DEV2-006 |
-| A.9 (subscription status) | DEV1-006, DEV1-008 |
-| A.10 (session_intent) | DEV3-004, DEV2-006 |
-| B.1 (80% threshold) | DEV2-007 |
-| B.2 (24h timeout) | DEV3-012, DEV3-004 |
-| B.3 (platform-set fees) | DEV3-004, DEV3-013 |
-| B.4 (escrow hold-at-request) | DEV3-004, DEV3-013 |
-| B.5 (re-eval paid by teacher) | DEV2-018 |
-| B.6 (applicants table) | DEV2-004, DEV2-009 |
-| B.7 (teacher after verification) | DEV2-007, DEV2-009 |
-| B.8/C.2 (user_id generic) | DEV1-006, DEV2-005 |
-| B.9 (offline payment) | DEV3-019 |
-| B.10 (on-demand model) | DEV3-008 |
-| B.11 (Surah/Juz enum) | DEV2-014, DEV2-015 |
-| B.12 (one parent per student) | DEV1-014 |
-| B.13 (parent multiple children) | DEV1-014 |
-| B.14 (7-day link expiry) | DEV1-014 |
-| B.15 (15-min inactivity) | DEV2-012 |
-| B.16 (request_preference) | DEV2-011, DEV3-011 |
-| B.17 (prorated plan changes) | DEV1-009 |
-| B.18 (admin arbitration) | DEV3-012, DEV3-022 |
-| C.1 (parent role) | DEV1-002, DEV2-002 |
-| C.3 (evaluated_id/evaluator_id) | DEV2-007, DEV2-016 |
-| C.4 (reports.teacher_id removed) | DEV3-006 |
-| C.5 (recitation 1:1 session) | DEV3-007 |
+| A.1 (parents table) | User Registration with Role-Specific Child Table Creation |
+| A.2 (parent_id FK) | Parent-Child Link Request Workflow (7-Day Expiry) |
+| A.3 (handshake_code) | User Registration with Role-Specific Child Table Creation, Student Handshake Code Generation |
+| A.4 (notifications) | Real-Time Notification Engine (WebSocket), Session Request Notification to Teacher, Parent Session Completion Notification Display, Broadcast Notifications (System-Wide & Targeted) |
+| A.5 (audit_logs) | Immutable Audit Logging for All Admin Actions, Admin-Ordered Re-Evaluation (Teacher Wallet Deduction), Direct Student Onboarding with Offline Payment |
+| A.6 (teacher.subjects) | On-Demand Matching Algorithm (Filter/Sort Pipeline) |
+| A.7 (governance on users) | User Registration with Role-Specific Child Table Creation, Role-Based Authorization Middleware, Account Soft-Delete Governance (users.is_deleted) |
+| A.8 (session_type) | Session Creation & Lifecycle (Scheduled → Started → Completed/Cancelled), 5-Session Evaluation Loop Booking |
+| A.9 (subscription status) | Subscription Purchase via Payment Gateway, Subscription Validity Window & Expiry |
+| A.10 (session_intent) | Session Creation & Lifecycle (Scheduled → Started → Completed/Cancelled), 5-Session Evaluation Loop Booking |
+| B.1 (80% threshold) | Evaluation Rubric Scoring (≥80% Threshold) |
+| B.2 (24h timeout) | Dual-Confirmation Completion Handshake (24h Timeout), Session Creation & Lifecycle (Scheduled → Started → Completed/Cancelled) |
+| B.3 (platform-set fees) | Session Creation & Lifecycle (Scheduled → Started → Completed/Cancelled), Fee Escrow: Hold at Request, Decrement at Completion |
+| B.4 (escrow hold-at-request) | Session Creation & Lifecycle (Scheduled → Started → Completed/Cancelled), Fee Escrow: Hold at Request, Decrement at Completion |
+| B.5 (re-eval paid by teacher) | Admin-Ordered Re-Evaluation (Teacher Wallet Deduction) |
+| B.6 (applicants table) | Teacher Applicant Registration & Applicants Table, Failed Applicant → Student Record Conversion |
+| B.7 (teacher after verification) | Evaluation Rubric Scoring (≥80% Threshold), Failed Applicant → Student Record Conversion |
+| B.8/C.2 (user_id generic) | Subscription Purchase via Payment Gateway, Verification Plan Purchase (5 Sessions) |
+| B.9 (offline payment) | Direct Student Onboarding with Offline Payment |
+| B.10 (on-demand model) | On-Demand Matching Algorithm (Filter/Sort Pipeline) |
+| B.11 (Surah/Juz enum) | Session Report Submission with Homework (Jadid & Madi), Surah/Juz Enum Homework Tracking |
+| B.12 (one parent per student) | Parent-Child Link Request Workflow (7-Day Expiry) |
+| B.13 (parent multiple children) | Parent-Child Link Request Workflow (7-Day Expiry) |
+| B.14 (7-day link expiry) | Parent-Child Link Request Workflow (7-Day Expiry) |
+| B.15 (15-min inactivity) | 15-Minute Inactivity Auto-Offline |
+| B.16 (request_preference) | Teacher Availability Toggle (Available/Unavailable), Session Request Notification to Teacher |
+| B.17 (prorated plan changes) | Admin Subscription Management (Extend/Renew/Cancel/Upgrade/Downgrade) |
+| B.18 (admin arbitration) | Dual-Confirmation Completion Handshake (24h Timeout), Dispute Resolution with Admin Arbitration |
+| C.1 (parent role) | User Registration with Role-Specific Child Table Creation, Role-Based Authorization Middleware |
+| C.3 (evaluated_id/evaluator_id) | Evaluation Rubric Scoring (≥80% Threshold), Student Evaluation Submission (Teacher Rating) |
+| C.4 (reports.teacher_id removed) | Session Report & Homework Infrastructure |
+| C.5 (recitation 1:1 session) | Recitation Record per Session (1:1) |

@@ -15,10 +15,10 @@
  *   The quota / class-instance domains are NOT yet materialized in this tree —
  *   the live schema exposes exactly the twenty live root mutations pinned in
  *   KNOWN_LIVE_MUTATION_FIELDS below: the auth quartet, the notification
- *   read-latch pair (DEV3-010), the users-locale mutation (D2), the billing
- *   plan-catalog CRUD (upstream #28), the DEV3-016 admin user-management
- *   trio, the 7-mutation session family (DEV3-004/005/012) and the wallet
- *   payout (DEV3-013). Test A2 pins the inventory
+ *   read-latch pair, the users-locale mutation (D2), the billing
+ *   plan-catalog CRUD (upstream #28), the admin user-management
+ *   trio, the 7-mutation session family and the wallet
+ *   payout. Test A2 pins the inventory
  *   gap so the moment those domains land, this suite fails loudly until they
  *   adopt the locked shapes (and gets updated to point Section B's
  *   reproduction directly at them).
@@ -281,7 +281,7 @@ const MUTATION_SURFACE_INVENTORY_QUERY_DOCUMENT: DocumentNode = gql`
  * The exhaustive live root-mutation inventory (ground truth at lock time,
  * derived from the committed SDL `frontend/graphql/generated/schema.graphql`).
  *
- * Updated when DEV3-016 (Admin User CRUD) landed the three admin mutations
+ * Updated when Admin User CRUD landed the three admin mutations
  * `adminCreateUser`, `adminUpdateUser`, `adminSetUserDeleted` — they are
  * warning-incapable (return the canonical `AdminUserDetail` payload, never
  * a partial-success wrapper), so they do not exercise Rules #6/#7. They
@@ -290,35 +290,35 @@ const MUTATION_SURFACE_INVENTORY_QUERY_DOCUMENT: DocumentNode = gql`
  * mutation ships without an explicit decision about warning propagation.
  *
  * Refreshed for the sanctioned additions: notification read-latch pair
- * (DEV3-010) + users-locale (D2) + billing plan-catalog CRUD (upstream #28)
- * + `adminBroadcastNotification` (the DEV3-022d admin broadcast surface —
+ * + users-locale (D2) + billing plan-catalog CRUD (upstream #28)
+ * + `adminBroadcastNotification` (the admin broadcast surface —
  * returns the persisted-recipient `Int!` count, never a partial-success
  * wrapper, so it is warning-incapable like the admin user mutations; it is
  * admin-scoped via its own auth-scopes conjunction and is NOT on the public
- * allowlist) + the 7-mutation DEV3-004/005/012 session family + the
- * DEV3-013 wallet payout (same warning-incapable canonical-payload shapes)
- * + cold-start teacher certification (DEV3-018) — the latter returns the
+ * allowlist) + the 7-mutation session family + the
+ * wallet payout (same warning-incapable canonical-payload shapes)
+ * + cold-start teacher certification — the latter returns the
  * canonical `AdminUserDetail` payload with every denial riding `errors[]`,
- * so it is warning-incapable exactly like the DEV3-016 trio.
+ * so it is warning-incapable exactly like the admin user-management trio.
  *
- * Refreshed again when DEV1-014 (parent→child link request workflow) landed
+ * Refreshed again when the parent→child link request workflow landed
  * `requestParentChildLink`, `respondToParentLinkRequest` and
  * `cancelParentLinkRequest` — they resolve to canonical parent-link payloads
  * (never a partial-success wrapper), so they do not exercise Rules #6/#7.
  * They still belong on this drift-guard list: the contract stays "every
  * deployed Mutation root field is enumerated".
  *
- * Refreshed when DEV3-006 (session report & homework infrastructure) landed
+ * Refreshed when the session report & homework infrastructure landed
  * `submitSessionReport` — it resolves to the canonical `SessionReport` payload
  * (denials ride `errors[]`, never a partial-success wrapper), so it is
- * warning-incapable like the DEV1-014 trio.
+ * warning-incapable like the parent-link trio.
  *
  * `purchaseSubscription` also resolves to the canonical
  * `PurchaseSubscriptionPayload` (pending subscription + payment pair plus
  * the gateway checkout descriptor; every denial rides `errors[]`), never a
  * partial-success wrapper, so it does not exercise Rules #6/#7 either.
  *
- * Refreshed for DEV3-007 (recitation record per session): `setSessionRecitation`
+ * Refreshed for the recitation record per session: `setSessionRecitation`
  * resolves to the canonical `SessionRecitation` payload with every denial
  * (`RECITATION_ALREADY_EXISTS`, `SESSION_NOT_FOUND`) riding `errors[]`, so it
  * is warning-incapable like the session-family mutations enumerated above.

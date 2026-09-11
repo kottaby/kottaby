@@ -18,7 +18,7 @@ import type { ErrorsLabels } from "@/shared/locale/types/errors";
 
 /**
  * useAdminSessionGovernanceActions — the write tier of the admin
- * session-governance container (DEV3-021): the three governance-dialog
+ * session-governance container: the three governance-dialog
  * mutations (`adminRescheduleSession` / `adminCancelSession` /
  * `adminReassignTeacher`), the dialog state they open/close, the transient
  * snackbar notice slot, and the cancel idempotency claim. The join mutation

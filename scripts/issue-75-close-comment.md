@@ -1,9 +1,9 @@
-## ✅ DEV3-006 Complete — Session Report & Homework Infrastructure
+## ✅ Complete — Session Report & Homework Infrastructure
 
-Implemented per plan: `ai/plans/sprint_1/dev3-006-session-report-homework-infrastructure/`
-Close-out: `ai/plans/sprint_1/dev3-006-session-report-homework-infrastructure/outcome/final-outcome.md`
+Implemented per plan: `ai/plans/sprint_1/session-report-homework-infrastructure/`
+Close-out: `ai/plans/sprint_1/session-report-homework-infrastructure/outcome/final-outcome.md`
 Canonical reference: `docs/sessions/session-report-homework.md`
-Integration: PR #86 (`feat/dev3-006-session-report-homework` → `main`) — merge gated on the branch's required status checks.
+Integration: PR #86 (`feat/session-report-homework` → `main`) — merge gated on the branch's required status checks.
 
 ### What was delivered
 
@@ -39,9 +39,9 @@ Integration: PR #86 (`feat/dev3-006-session-report-homework` → `main`) — mer
 ### Deferred items (D1–D5 + Wire-Suite-CI, tracked in `deferred-items.md`)
 
 - **D1** — `SurahJuzRef` 114-surah expansion → curriculum/content stream (📅 Forward)
-- **D2** — Parent report read surface → DEV1-016 parent portal (📅 Forward)
-- **D3** — Teacher submit/browse UX → DEV2-014 (📅 Forward)
-- **D4** — `teacher.average_rating` aggregation → DEV2-017 (📅 Forward)
+- **D2** — Parent report read surface → parent portal (📅 Forward)
+- **D3** — Teacher submit/browse UX (📅 Forward)
+- **D4** — `teacher.average_rating` aggregation (📅 Forward)
 - **D5** — Report amendment/void semantics → future ticket (📅 Forward)
 - **Wire-Suite-CI** — wire-suite execution → CI environment (📅 Forward, environmental)
 

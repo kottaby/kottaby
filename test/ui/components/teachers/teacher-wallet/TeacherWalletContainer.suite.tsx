@@ -1,5 +1,5 @@
 /**
- * TeacherWalletContainer — component suite BODY (DEV3-013).
+ * TeacherWalletContainer — component suite BODY.
  *
  * NOT a runner target: `bun test` collects `*.test.*` files only, and this
  * file carries the suite implementation on behalf of the sibling bootstrap

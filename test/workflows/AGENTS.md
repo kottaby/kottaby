@@ -1,13 +1,7 @@
 # Workflow / Journey Test Layer Rules
 
 This directory contains **cross-actor journey tests**: sequential, multi-actor workflows executed
-through the real service layer against the real test database. Canonical reference:
-`docs/testing/workflow-journey-tests.md`.
-
-> **Status:** The shared harness is scaffolded: `test/workflows/helpers/` (tracked-fixtures,
-> actor-context, spied-transport — pure `export *` barrel) plus the harness self-test
-> (`helpers/helpers.self-test.test.ts`, run via the canonical runner). Domain journey
-> subdirectories (`test/workflows/<domain>/`) land with their owning tickets.
+through the real service layer against the real test database.
 
 ## Hard rules
 
@@ -17,11 +11,9 @@ through the real service layer against the real test database. Canonical referen
    `test/workflows/`.
 2. **Committed fixtures + tracked cleanup.** Create the full actor cast in `beforeAll` inside a
    committing `db.transaction(...)`. Track every created row id (including side-effect rows the
-   services create: reports, dues, credit transactions, idempotency-keyed rows) and hard-delete
-   all of them in `afterAll`, in FK-safe order, via the cast helper's cleanup function.
-   Use `TrackedFixtures` (`@/test/workflows/helpers`) as that registry: registration order IS
-   the FK-safe deletion order (deletes run in reverse), and `cleanup()` re-probes the database
-   for EVERY registered row afterwards — teardown must leave ZERO residue, and those
+   services create) and hard-delete all of them in `afterAll`, in FK-safe order. Registration
+   order IS the FK-safe deletion order (deletes run in reverse), and cleanup re-probes the
+   database for EVERY registered row afterwards — teardown must leave ZERO residue, and those
    post-teardown existence checks are mandatory, not advisory (a leaking `afterAll` must fail
    the suite). Provision inside ONE committing transaction so setup is commit-or-nothing: a
    throwing `beforeAll` rolls back and leaves nothing behind.
@@ -31,16 +23,13 @@ through the real service layer against the real test database. Canonical referen
 4. **Honest authorization only.** Actors are real users holding their real roles (`users.role` +
    role-child rows). Never monkey-patch role/permission resolution in a journey — negative steps
    must fail through the real authorization/ownership checks. Provision the cast with the
-   `actor-context` factory (`provisionStudentActor` / `provisionCertifiedTeacherActor` /
-   `provisionParentActor` / `provisionAdminActor`) — REAL `users` rows plus REAL role-child rows
-   (`students` / approved `teacher` / `parents` / `admin`), never permission stubs.
+   `actor-context` factory — REAL `users` rows plus REAL role-child rows, never permission stubs.
 5. **External effects always intercepted.** Nothing may reach real email/SMS/push/FX providers.
    Spy the notification dispatch boundary (namespace import + `spyOn` from `bun:test`; if
    interception empirically fails, fall back to `mock.module` and restore in `afterAll`). Assert
    both that a dispatch happened and **which userIds it targeted**. For services that take
-   their transports / caches as INJECTED dependencies, install the spy at the injection seam
-   (`SpiedFanoutTransport` for the notification fan-out transport) — a spy is still a real
-   dependency, just a recording one; side effects are SPIED, never sent.
+   their transports / caches as INJECTED dependencies, install the spy at the injection seam —
+   a spy is still a real dependency, just a recording one; side effects are SPIED, never sent.
 6. **Never `expect(...).rejects.toThrow()`.** Use a try/catch helper and assert translated
    substrings from `getServerTranslations("en").errorsTranslations` — no hardcoded English strings.
 7. **Use `bun:test` for test-framework imports.** Do not use Jest or Vitest; no `console.*`, no `any` casts.
@@ -54,10 +43,9 @@ through the real service layer against the real test database. Canonical referen
     `test/workflows/helpers/` with a pure `export *` barrel (`./` paths only, one `/` max per
     export path).
 11. **Sequential actor-attributed steps.** A journey is an ordered sequence of steps, each
-    attributed to one named actor (or "System" for fixture setup, "Emitter" for test-invoked
-    server-side emitters); every service call receives that actor's real `actorUserId` from the
-    actor-context factory. Steps run in declaration order — later steps observe the shared
-    state that earlier steps committed.
+    attributed to one named actor (or "System" for fixture setup); every service call receives
+    that actor's real `actorUserId` from the actor-context factory. Steps run in declaration
+    order — later steps observe the shared state that earlier steps committed.
 12. **Cross-actor visibility + denial assertions.** Every journey asserts BOTH directions: the
     intended observer sees the change (row present / count flipped) AND every other cast
     member observes no accidental fan-out (foreign inboxes stay untouched), plus at least one
@@ -66,12 +54,17 @@ through the real service layer against the real test database. Canonical referen
 
 ## Shared helpers (`test/workflows/helpers/`)
 
-Import via the barrel: `@/test/workflows/helpers`.
+The helpers directory is the ONLY shared-scaffolding home for this layer. Import via the barrel:
+`@/test/workflows/helpers`; its `index.ts` is a pure `export *` barrel (`./` paths only).
 
-- **`TrackedFixtures`** — registry of committed fixture rows. `register(table, id)` tracks a
-  row (key defaults to the table name); `cleanup()` hard-deletes in reverse registration order
-  and then re-probes EVERY row, throwing on any residue; `exists(record)`,
-  `verifyAllAbsent()`, `records`, `size` support direct assertions.
+- **Registry helper** (`createSessionFixtureRegistry()` → `{ track, trackAll, ids, trackedCount,
+  cleanup }`) — create ONE registry per suite. Every fixture row AND every row the services
+  create during the journey must be registered via `track(<table>, id)`: the registry is the
+  hard-delete worklist for `afterAll`. `cleanup()` hard-deletes all tracked ids inside ONE
+  committed transaction in FK-safe order (children first, `users` last), then clears the
+  registry; repeated calls are no-ops — safe under retries. Do NOT track trigger-immutable
+  (DELETE-blocked) tables such as audit/transaction ledgers — journeys assert ZERO rows there
+  instead, and a leak there is meant to fail the suite loudly.
 - **`actor-context` factory** — `provisionStudentActor` / `provisionCertifiedTeacherActor` /
   `provisionParentActor` / `provisionAdminActor` (`(tx, { locale?, tracked? }) =>
   JourneyActor`). Each creates a REAL `users` row + its role-child row and returns
@@ -83,6 +76,12 @@ Import via the barrel: `@/test/workflows/helpers`.
 - **`helpers.self-test.test.ts`** — the harness self-test proving the contract above
   (registration → teardown → zero residue; publish-log replay; honest role provisioning).
   Keep it green and extend it whenever a helper gains new behavior.
+- Side-effect absence is asserted by row-count deltas scoped to fixture ids (baseline before
+  the step, unchanged after). Rule 5's dispatch spy still applies whenever a journey EXPECTS
+  a dispatch.
+- Idempotent-teardown proof: run the suite twice consecutively — a second green run proves
+  zero residual state (per-run `jrn_<domain>_<8hex>` prefixes make collisions impossible;
+  `cleanup` must leave nothing).
 
 ## Running
 
@@ -97,51 +96,3 @@ The whole layer (via the approved runner):
 ```bash
 bun run test/scripts/run-test.ts test/workflows
 ```
-
-## Helpers (`test/workflows/helpers/`) — scaffolded by DEV3-004 task 2.1
-
-The helpers directory exists and is the ONLY shared-scaffolding home for this layer
-(rule 10). Import it via `@/test/workflows/helpers` (rule 8); its `index.ts` is a pure
-`export *` barrel.
-
-### `journey-fixture-registry.ts` — tracked-ID registry + FK-order-aware cleanup
-
-- `createSessionFixtureRegistry()` → `{ track, trackAll, ids, trackedCount, cleanup }`.
-  Create ONE registry per suite. Every fixture row AND every row the services create
-  during the journey (sessions, idempotency claims, …) must be registered via
-  `track(<table>, id)` — the registry is the hard-delete worklist for `afterAll`.
-- Trackable tables are exactly `session_request_idempotency`, `session`,
-  `students`, `teacher`, `applicants`, `parents`, `admin`, `users`.
-  `cleanup()` hard-deletes all tracked ids inside ONE
-  committed transaction in that FK-safe order (children first, `users` last), then
-  clears the registry. Repeated `cleanup()` calls are no-ops — safe under retries.
-- Do NOT track `audit_logs` or `teacher_transaction`: both are trigger-immutable
-  (DELETE-blocked) and restrict-delete into `users`/`wallet`. Journeys assert ZERO
-  rows there instead (below); a leak there is meant to fail the suite loudly.
-- Side-effect absence is asserted by row-count deltas scoped to fixture ids — use
-  `countNotificationsForUser`, `countAuditLogsForActor`, `countWalletsForTeacher`,
-  `countTeacherTransactionsForTeacher` (baseline before the step, unchanged after).
-  Rule 5's dispatch spy still applies whenever a journey EXPECTS a dispatch.
-- Idempotent-teardown proof (rule 2 + REQ-J6): run the suite twice consecutively —
-  a second green run proves zero residual state (per-run `jrn_<domain>_<8hex>`
-  prefixes + unique emails make collisions impossible; `cleanup` must leave nothing).
-
-### `session-cast.ts` — the session journey cast over `entity-setup.ts`
-
-- `buildSessionJourneyCast(tx, registry, { prefix, primaryStudent?, secondStudent? })`
-  builds the canonical cross-actor cast inside the committing
-  `db.transaction(...)` of `beforeAll` and registers every row it creates:
-  a funded primary student, a zero-balance second student (the
-  cross-participant-probe actor), a certified teacher plus a second
-  certified teacher (real `teacher` rows with `isApproved = true` — the
-  non-participant teacher observer), a teacher applicant (real `applicants`
-  row, deliberately NO `teacher` row — INV-TV1 by construction, never
-  simulated), a parent, and an admin.
-- `primaryStudent` / `secondStudent` take a lane profile
-  (`{ trial?, hifz?, tajweed?, reviews? }` — units per lane, 0/omitted =
-  lane empty) funding that student's balance lanes; defaults: primary =
-  1 trial + 1 hifz unit (the funded booker), second = all lanes empty
-  (the zero-balance booking denial leg).
-- `journeyPrefix(domain)` derives the rule-3 prefix.
-- All rows are real entity rows — permission resolution in the journey
-  flows through these committed rows only (rule 4: never monkey-patch).

@@ -24,7 +24,7 @@ export const users = pgTable(
      * Per-user app locale (UI + copy preference). Nullable — unset until the
      * user explicitly chooses one (registration leaves it null by the D2
      * deferred decision); the notification emitters read it to localize
-     * per-recipient copy (DEV3-010 D2).
+     * per-recipient copy (the D2 locale vertical).
      */
     locale: appLocale("locale"),
     isDeleted: boolean("is_deleted").default(false),

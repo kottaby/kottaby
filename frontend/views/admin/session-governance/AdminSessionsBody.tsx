@@ -20,7 +20,7 @@ import type { SessionsLabels } from "@/shared/locale/types/sessions";
 
 /**
  * AdminSessionsBody — the swapping body BELOW the governance directory's
- * always-on chrome (`/admin/session-governance`, DEV3-021) — the visual
+ * always-on chrome (`/admin/session-governance`) — the visual
  * state matrix as a pure presentational resolver (module scope keeps the
  * container a state+callbacks orchestrator; the chrome renders in EVERY
  * branch, only this body swaps):

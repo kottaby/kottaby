@@ -2,7 +2,7 @@
 
 **Domain:** Parents / Student–parent linking (link-request workflow, 7-day expiry)
 **Specs:** `docs/specs/functional-requirements.md` (§7 Parent Supervision), `docs/specs/state-machine-invariants.md` (INV-P1), `docs/workflows/04-parent-supervision-handshake.md` (§4.3/§4.4)
-**Status:** Implemented and verified (DEV1-014)
+**Status:** Implemented and verified
 
 This document is the single canonical reference for the parent→student link-request workflow: the `parent_link_requests` model and its exact state machine, the five-operation service surface, the guarded single-writer student link, expiry semantics (liveness + materialization), sibling-expiry choreography on confirmation, notification choreography, the error/oracle matrix, and the consumer contract for downstream tickets. All layers (schema, repositories, services, GraphQL, frontend) MUST conform to the contracts described here. Code blocks are **illustrative and NON-authoritative** — the authoritative implementations are cited by path in each section.
 
@@ -118,8 +118,8 @@ Wire-level proof: `backend/graphql/test/parent-link.wire.test.ts` (1267 ln — 4
 
 ### 8. Consumer contract (forward-pointers)
 
-- **DEV1-016 (parent monitoring portal):** reads ONLY `students.parent_id`. It must NEVER query `parent_link_requests` for authorization — the link table is history, the student row is the grant.
-- **DEV1-017 (session-completion notifications):** resolves parents through `students.parent_id` — same grant rule.
+- **Parent monitoring portal:** reads ONLY `students.parent_id`. It must NEVER query `parent_link_requests` for authorization — the link table is history, the student row is the grant.
+- **Session-completion notifications:** resolves parents through `students.parent_id` — same grant rule.
 - **D1 (cron sweep + reminder scheduler):** BOTH system primitives are shipped and tested — the sweep (`markAllExpiredIfPending` + `sweepExpiredRequests`, ops: `bun run ops:sweep-link-requests`) and the expiry reminder (`claimPendingForExpiryReminder` + `sendExpiryReminders`, ops: `bun run ops:remind-link-requests [--horizon-hours <n>]`). The cron stream/trigger is the future cron-stream ticket — it registers BOTH primitives as job handlers (sweep cadence + reminder cadence) and unlocks the silent-expiry UX choreography (§5, D9b) on a schedule instead of on-demand.
 - **D2 (cancelled vocabulary):** if product later wants a distinct `cancelled` chip, it is a vocabulary migration ON TOP of this state machine — `rejected` remains the fold until then.
 - **D3 (unlink):** the exit from `confirmed` is a future ticket; this workflow mints no `Unlinked` state.
@@ -159,14 +159,14 @@ Wire-level proof: `backend/graphql/test/parent-link.wire.test.ts` (1267 ln — 4
 
 ## Rollout
 
-- **Shipped in this ticket (DEV1-014):** schema + partial unique arbiter (Task 1.2), enums/types/constants (1.3/1.4), i18n namespaces (1.1), repository layer (2.2), service layer (2.3), GraphQL surface (3.1–3.3), frontend wiring + views (4.1–4.4), journey/wire/chaos/static-lock suites (5.1–5.4), four review waves (6.1–6.4) + ledger gate (6.5), live browser QA (D8), the D1 sweep primitive (repo bulk `markAllExpiredIfPending` + service `sweepExpiredRequests` + 6 delta-tested tiers), the bidi-isolation polish (D8 note a), and the on-demand ops sweep trigger (`scripts/ops/sweep-expired-link-requests.ts`, `bun run ops:sweep-link-requests` — post-plan round, 2026-09-02).
+- **Shipped in this ticket:** schema + partial unique arbiter (Task 1.2), enums/types/constants (1.3/1.4), i18n namespaces (1.1), repository layer (2.2), service layer (2.3), GraphQL surface (3.1–3.3), frontend wiring + views (4.1–4.4), journey/wire/chaos/static-lock suites (5.1–5.4), four review waves (6.1–6.4) + ledger gate (6.5), live browser QA (D8), the D1 sweep primitive (repo bulk `markAllExpiredIfPending` + service `sweepExpiredRequests` + 6 delta-tested tiers), the bidi-isolation polish (D8 note a), and the on-demand ops sweep trigger (`scripts/ops/sweep-expired-link-requests.ts`, `bun run ops:sweep-link-requests` — post-plan round, 2026-09-02).
 - **Shipped post-plan (2026-09-02, reminder round):** the D1 expiry-reminder slice — `reminder_sent_at` column (schema), `ParentLinkRequestReminderRepository` (`claimPendingForExpiryReminder` + `listStudentFullNamesByIds`), `ParentLinkRequestService.sendExpiryReminders` (R13 semantics), `eventParentLinkExpiringTitle/Body` i18n (en/ar/types + parity inventory 32→34 slots), the ops trigger (`scripts/ops/remind-expiring-link-requests.ts`, `bun run ops:remind-link-requests`), 7 new delta-tested tiers (repo 38, service 35), and the parent outgoing empty-state icon parity (`OutgoingEmptyState` — same 72/36 tinted-circle composition as the student side). PLUS the test-env isolation fix: `backend/lib/env.ts` `applyDbEnvOverride` now overrides only missing/placeholder (`file:`/`libsql:`) URLs so `--env-file=.env.test` pins hold (previously EVERY test process was silently retargeted at the dev DB — the admin directory suite's residue sensitivity exposed it); runners additionally pin `DATABASE_URL` explicitly; the test DB is now seeded (`bun --no-env-file run scripts/dbActions/cli-entry.ts --env-file=.env.test seed`).
 - **Verification stack (all GREEN at HEAD `8cb466e`):** journey `test/workflows/parents/parent-link-request.journey.test.ts`; chaos 11 cells `backend/services/parents/parent-link-request.chaos.test.ts`; wire matrix `backend/graphql/test/parent-link.wire.test.ts`; static locks `backend/services/parents/parent-link.static-locks.test.ts`; repo suite `backend/db/test/repo/students/student.repository.test.ts`; UI suites `test/ui/components/{students/StudentLinkRequestsContainer,parent/OutgoingLinkRequestsSection}.test.tsx`.
-- **Next tickets (owners):** D1 cron sweep (cron-stream ticket) → unlocks the silent-expiry re-request choreography; D2 cancelled vocabulary (product ticket); D3 unlink (revoke ticket); DEV1-016 / DEV1-017 consumers (§8 contract).
+- **Next tickets (owners):** D1 cron sweep (cron-stream ticket) → unlocks the silent-expiry re-request choreography; D2 cancelled vocabulary (product ticket); D3 unlink (revoke ticket); the consumer surfaces (§8 contract).
 
 ---
 
-## DEV1-015 Closure — Student Confirmation Discoverability (2026-09)
+## Closure — Student Confirmation Discoverability (2026-09)
 
 The binding half of the handshake (everything above) is only as strong as a student's ability to FIND the decision surface. The confirmation-discoverability closure wired all three reachability surfaces end-to-end and re-proved INV-P1 against the live workflow:
 
@@ -187,4 +187,4 @@ Invariants and open decisions are bound by REFERENCE (never renumbered here): [`
 - [`docs/workflows/04-parent-supervision-handshake.md`](../workflows/04-parent-supervision-handshake.md) — the governing workflow (§4.2 discovery, §4.3 request/confirm, §4.4 visibility).
 - [`docs/specs/state-machine-invariants.md`](../specs/state-machine-invariants.md) — INV-P1 (and the sibling INV family).
 - [`docs/notifications/realtime-engine.md`](../notifications/realtime-engine.md) — the notification engine contracts (single writer, publish-after-commit).
-- Plan artifacts: `ai/plans/sprint_3/dev1-014-parent-child-link-request-workflow-7-day/` (plan.md, tasks.md, deferred-items.md ledger, outcome/).
+- Plan artifacts: `ai/plans/sprint_3/parent-child-link-request-workflow-7-day/` (plan.md, tasks.md, deferred-items.md ledger, outcome/).

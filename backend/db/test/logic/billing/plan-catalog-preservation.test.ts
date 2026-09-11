@@ -1,5 +1,5 @@
 /**
- * Plan Catalog Preservation Proof Tests — DEV1-005 Task 5.1.TE
+ * Plan Catalog Preservation Proof Tests
  *
  * Implements REQ-017, REQ-018, REQ-075:
  * Proves that plan deactivation and forward-only edits preserve data integrity,

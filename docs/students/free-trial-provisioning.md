@@ -1,7 +1,7 @@
 # Free Trial Session Provisioning — Canonical Reference
 
 **Domain:** Students / Acquisition & onboarding
-**Status:** Implemented and verified (DEV1-004)
+**Status:** Implemented and verified
 **Source of truth for:** the one-time free-trial-credit grant mechanic, the dedicated `balance_trial` lane, the grant-once atomic UPDATE, the forward booking-eligibility & decrement contract for DEV3, and the security posture that keeps the trial out of low-privilege hands.
 
 This document is the single canonical reference for how the platform credits one free trial session to every newly registered student. Future developers touching the student balance family, the registration transaction, or the downstream booking/escrow flows MUST read this document before adding any new balance lane, exposure mutation, or admin grant surface.
@@ -40,7 +40,7 @@ The grant is invoked from exactly one call site today: the `student` branch of `
 
 ## 3. Forward Contract for DEV3 (Booking & Escrow)
 
-DEV1-004 ships only the grant; the eligibility check and decrement execution belong to the DEV3 booking and escrow verticals (`DEV3-004` session booking, `DEV3-013` escrow crediting). The forward contract recorded here locks in the semantics so DEV3 does not re-litigate balance rules.
+This surface ships only the grant; the eligibility check and decrement execution belong to the booking and escrow verticals (session booking, escrow crediting). The forward contract recorded here locks in the semantics so those surfaces do not re-litigate balance rules.
 
 ### 3.1 Eligibility
 
@@ -56,19 +56,19 @@ The interval-based expiry rule **INV-B3** (subscription validity windows) does N
 
 ### 3.4 GraphQL exposure rules (future)
 
-The trial balance is NOT exposed via GraphQL in DEV1-004 (no new mutation or query surface was added — verified by schema-diff at [`frontend/graphql/generated/schema.graphql`](../../frontend/graphql/generated/schema.graphql)). When a future ticket surfaces the trial balance over GraphQL, it MUST do so on the canonical `Student` Pothos object pattern with an `id` field present for Apollo cache normalization, use `t.loadable()` / batch service methods per [`docs/graphql/dataloader-batching.md`](../graphql/dataloader-batching.md), and import server types from `@/backend/types` — never a local Pothos type. There is no grant mutation and there must never be one: the grant exists only as an internal service call, never reachable from a low-privilege token.
+The trial balance is NOT exposed via GraphQL on this surface (no new mutation or query surface was added — verified by schema-diff at [`frontend/graphql/generated/schema.graphql`](../../frontend/graphql/generated/schema.graphql)). When a future ticket surfaces the trial balance over GraphQL, it MUST do so on the canonical `Student` Pothos object pattern with an `id` field present for Apollo cache normalization, use `t.loadable()` / batch service methods per [`docs/graphql/dataloader-batching.md`](../graphql/dataloader-batching.md), and import server types from `@/backend/types` — never a local Pothos type. There is no grant mutation and there must never be one: the grant exists only as an internal service call, never reachable from a low-privilege token.
 
 ---
 
 ## 4. Anti-Patterns (DO NOT)
 
-These anti-patterns are listed explicitly because each was considered and rejected during the DEV1-004 design. Future developers MUST NOT reintroduce them.
+These anti-patterns are listed explicitly because each was considered and rejected during this surface's design. Future developers MUST NOT reintroduce them.
 
 - **NEVER credit `balance_hifz` (or `balance_tajweed` / `balance_reviews`) with trial credits.** The dedicated `balance_trial` lane is the only acceptable target. Crediting a paid lane violates INV-B5 (paid-lane segregation), violates INV-B2 (paid crediting is subscription-bound; a trial has no subscription), and destroys the trial-vs-paid analytics distinction that the M3 funnel depends on.
 - **NEVER poll paid lanes for booking eligibility where the trial applies first.** The eligibility check is `paid_lane > 0 OR balance_trial > 0`, and the decrement order is trial-first. Reading paid lanes first and only falling through to the trial as a last resort reverses INV-B8 and silently changes the analytics semantics.
-- **NEVER expose a trial grant, top-up, or manipulation mutation via GraphQL.** The grant exists only as an internal service call. There is no admin surface for mercy re-grants in DEV1-004 — BFLA design requires that low-privilege tokens (student/parent/teacher/guest) have no function path to mint trial credits. Any future admin re-grant surface MUST land behind a permission-gated mutation with audit logging via the existing `audit_logs` table (A.5), and MUST reuse `StudentTrialService.grantFreeTrial` as the entry point so the guarded UPDATE enforces grant-once even for admin re-grants.
+- **NEVER expose a trial grant, top-up, or manipulation mutation via GraphQL.** The grant exists only as an internal service call. There is no admin surface for mercy re-grants — BFLA design requires that low-privilege tokens (student/parent/teacher/guest) have no function path to mint trial credits. Any future admin re-grant surface MUST land behind a permission-gated mutation with audit logging via the existing `audit_logs` table (A.5), and MUST reuse `StudentTrialService.grantFreeTrial` as the entry point so the guarded UPDATE enforces grant-once even for admin re-grants.
 - **NEVER re-grant via admin UI without auditing.** If an admin re-grant path is ever added, it MUST write an `audit_logs` row with `action_type = 'admin_trial_adjustment'`, `entity_type = 'students'`, `entity_id = <studentId>`, and a `details` JSON containing the prior `trial_granted_at` and the new marker. Unaudited admin adjustments are forbidden because they break the conversion-analytics invariant.
-- **NEVER call `StudentRepository.grantFreeTrialOnce` directly from outside `StudentTrialService.grantFreeTrial`.** The service is the single canonical provisioning entry point (this is the structural mechanism that makes grant-once impossible to bypass). Future student-creation flows — failed-applicant conversion (`DEV2-009`), direct admin onboarding (`DEV3-019`) — MUST call `StudentTrialService.grantFreeTrial`, not the repo method.
+- **NEVER call `StudentRepository.grantFreeTrialOnce` directly from outside `StudentTrialService.grantFreeTrial`.** The service is the single canonical provisioning entry point (this is the structural mechanism that makes grant-once impossible to bypass). Future student-creation flows — failed-applicant conversion, direct admin onboarding — MUST call `StudentTrialService.grantFreeTrial`, not the repo method.
 - **NEVER add a `try/catch` that swallows the grant exception on the registration happy path.** The grant is a first-class step of registration; if it throws, the whole transaction rolls back atomically (the surrounding `withTransaction(outerTx)` SAVEPOINT-aware scope guarantees this). Swallowing would leave a student row with `balance_trial = 0` and `trial_granted_at = NULL` — a silent violation of the acquisition contract.
 
 ---
@@ -108,4 +108,4 @@ The trial count is the shared constant `FREE_TRIAL_SESSION_COUNT = 1` in `shared
 - [`docs/specs/state-machine-invariants.md`](../specs/state-machine-invariants.md) — Balance invariants §4.2; **INV-B7** (grant-once marker) and **INV-B8** (trial-first decrement) are recorded there, alongside the INV-B1 structural extension (4th non-negative lane), the INV-B3 explicit non-application to the trial lane, and the INV-B4 eligibility extension.
 - [`docs/specs/open-decisions-and-gaps.md`](../specs/open-decisions-and-gaps.md) — Trial-placement decision resolution (dedicated `balance_trial` lane, NOT `balance_hifz`) per FR-2.6, with the three-point rationale (INV-B5 purity, INV-B2 subscription-binding, analytics separability).
 - [`docs/workflows/03-session-lifecycle-escrow.md`](../workflows/03-session-lifecycle-escrow.md) — Session lifecycle & escrow canonical workflow; the trial exists to enable the first-session (Tas-heeh) diagnostic model documented there.
-- DEV1-002 outcomes (`ai/plans/sprint_0/dev1-002-*/outcome/`) — The registration transaction pattern, BOPLA whitelist, SAVEPOINT-aware test isolation, and 23505→ConflictError cause-chain traversal that the trial grant inherits unchanged.
+- Registration outcomes (`ai/plans/sprint_0/*/outcome/`) — The registration transaction pattern, BOPLA whitelist, SAVEPOINT-aware test isolation, and 23505→ConflictError cause-chain traversal that the trial grant inherits unchanged.

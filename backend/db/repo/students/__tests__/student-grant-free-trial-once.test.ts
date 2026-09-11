@@ -210,13 +210,13 @@ describe("StudentRepository.grantFreeTrialOnce", () => {
       // this guard, PostgreSQL enters the "aborted" state (SQLSTATE 25P02)
       // after the constraint rejection and every subsequent query on the
       // outer tx would fail.
-      await tx.execute(sql`savepoint dev1_004_check_violation`);
+      await tx.execute(sql`savepoint grant_free_trial_check_violation`);
 
       const error = await expectRepoError(() =>
         tx.update(students).set({ balanceTrial: -1 }).where(eq(students.id, student.id)).returning()
       );
 
-      await tx.execute(sql`rollback to savepoint dev1_004_check_violation`);
+      await tx.execute(sql`rollback to savepoint grant_free_trial_check_violation`);
 
       // SQLSTATE 23514 = check_violation — the DB-layer CHECK constraint
       // rejected the negative balance regardless of any application guard.

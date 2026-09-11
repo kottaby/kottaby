@@ -33,7 +33,7 @@ Draft Academy is delivered across **5 milestones** (M0–M4) spanning **5 two-we
 - Shared types, interfaces, and cross-stream contracts
 
 **Release Gate:** All three streams can register users, authenticate, and access role-specific endpoints. Schema validates clean. CI/CD green.
-Delivered checks (DEV3-001): the CI/CD-green criterion above is enforced by six required status checks — `workflow-sanity`, `quality`, `docs-validation`, `tests-db`, `tests-services`, `tests-ui` — specified in `docs/quality/ci-pipeline.md`.
+Delivered checks (CI/CD Pipeline with Mermaid Validation): the CI/CD-green criterion above is enforced by six required status checks — `workflow-sanity`, `quality`, `docs-validation`, `tests-db`, `tests-services`, `tests-ui` — specified in `docs/quality/ci-pipeline.md`.
 
 **Key Decisions Incorporated:** A.1 (parents table), A.7 (governance fields on users), C.1 (parent role in enum), B.6/B.7 (applicants table, teacher record after verification)
 

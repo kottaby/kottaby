@@ -253,7 +253,7 @@ describe("assertReportSubmittedForHomework (INV-S8) — pass paths", () => {
   });
 });
 
-describe("assertTeacherNotInActiveSession (DEV2-011 seam) — pass paths", () => {
+describe("assertTeacherNotInActiveSession (enforcement seam) — pass paths", () => {
   test("passes silently when the teacher has no started session", async () => {
     await runInRollback(async tx => {
       const actors = await createSessionActors(tx);
@@ -363,7 +363,7 @@ describe("assertReportSubmittedForHomework (INV-S8) — denials", () => {
   });
 });
 
-describe("assertTeacherNotInActiveSession (DEV2-011 seam) — denials", () => {
+describe("assertTeacherNotInActiveSession (enforcement seam) — denials", () => {
   test("denies a teacher holding a started session; the message discloses NO session id", async () => {
     await runInRollback(async tx => {
       const actors = await createSessionActors(tx);

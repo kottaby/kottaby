@@ -13,10 +13,10 @@
  *   2. Channel table — mutations vs queries match `sharedDocuments/AGENTS.md`.
  *   3. Variable wiring — declared variable sets line up with the generated
  *      `…Variables` contracts (input / email+password / locale / refreshToken /
- *      none / the DEV3-004 session lifecycle signatures / the DEV3-013 payout).
+ *      none / the session lifecycle signatures / the payout).
  *   4. `id` field requirement — every object-typed selection set the Apollo
  *      cache normalizes (`registerUser`, `me`, `login.user`, `updateMyLocale`,
- *      EVERY DEV3-004 `Session` payload + `SessionPage.items`) selects `id`;
+ *      EVERY `Session` payload + `SessionPage.items`) selects `id`;
  *      scalar-only payloads (`refreshToken`, `logout`, `recitationReadings`)
  *      correctly select no objects needing one.
  *   5. Barrel parity — deep-import and top-level barrel paths resolve to the
@@ -203,7 +203,7 @@ const DOCUMENT_CONTRACT_TABLE: readonly DocumentContractRow[] = [
     variables: [],
     objectSelections: [],
   },
-  // --- DEV3-004 session lifecycle (scheduling/session.documents.ts) ---
+  // --- session lifecycle (scheduling/session.documents.ts) ---
   {
     document: sessionByIdQueryDocument,
     operationName: "SessionById",
@@ -253,7 +253,7 @@ const DOCUMENT_CONTRACT_TABLE: readonly DocumentContractRow[] = [
     variables: ["id", "reason"],
     objectSelections: ["cancelSession"],
   },
-  // --- DEV3-021 admin session governance (admin/admin-session-governance.documents.ts) ---
+  // --- admin session governance (admin/admin-session-governance.documents.ts) ---
   {
     document: adminSessionsQueryDocument,
     operationName: "AdminSessions",
@@ -410,7 +410,7 @@ describe("consumer import conventions — barrel ≡ deep import identity", () =
     const typedUpdateMyLocale: TypedDocumentNode<UpdateMyLocaleMutation, UpdateMyLocaleMutationVariables> =
       updateMyLocaleMutationDocument;
 
-    // DEV3-004 session lifecycle documents (compile-time proof that every
+    // The session lifecycle documents (compile-time proof that every
     // `Session` selection conforms to the generated operation types).
     const typedSessionById: TypedDocumentNode<SessionByIdQuery, SessionByIdQueryVariables> = sessionByIdQueryDocument;
     const typedMyStudentSessions: TypedDocumentNode<MyStudentSessionsQuery, MyStudentSessionsQueryVariables> =
@@ -426,7 +426,7 @@ describe("consumer import conventions — barrel ≡ deep import identity", () =
     const typedCancelSession: TypedDocumentNode<CancelSessionMutation, CancelSessionMutationVariables> =
       cancelSessionMutationDocument;
 
-    // DEV3-021 admin session-governance documents (compile-time proof that
+    // The admin session-governance documents (compile-time proof that
     // every `Session` selection conforms to the generated operation types).
     const typedAdminSessions: TypedDocumentNode<AdminSessionsQuery, AdminSessionsQueryVariables> =
       adminSessionsQueryDocument;

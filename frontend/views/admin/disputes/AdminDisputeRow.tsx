@@ -12,7 +12,7 @@ import type { SessionsLabels } from "@/shared/locale/types/sessions";
 
 /**
  * AdminDisputeRow — ONE disputed session rendered as a bordered list card in
- * the admin arbitration queue (`/disputes`, DEV3-005 R-111).
+ * the admin arbitration queue (`/disputes`, R-111).
  *
  * Presentation mirrors the participant `SessionRow` family (bordered card,
  * hover elevation, overline-label meta cells, verbatim fee) while the ROW

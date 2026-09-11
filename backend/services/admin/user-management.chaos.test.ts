@@ -1,7 +1,7 @@
 /**
  * AdminUserManagementService — chaos, concurrency & fuzz suite.
  *
- * DEV3-016 Phase 5.2 — REQ-043, REQ-075, REQ-021, REQ-035, REQ-044, REQ-079
+ * Phase 5.2 — REQ-043, REQ-075, REQ-021, REQ-035, REQ-044, REQ-079
  *
  * Extends the sequential double-delete / duplicate-email proofs of
  * `user-management.service.test.ts` Tier 3 into explicit

@@ -12,7 +12,7 @@ backend/db/seeds/
 ├── AGENTS.md            (this file)
 │
 ├── lib/                 Shared factories + helpers (admin-user, faker, orchestrateSeedMany, schedule-factory, …)
-├── assets/              Static JSON / image seed assets (unchanged)
+├── assets/              Static JSON / image seed assets
 │
 ├── shared/              cross-cutting reference data + coverage verifier (system-settings, timezones, verify-coverage)
 ├── auth/                user-permission-overrides (auth-coupled seed)
@@ -33,7 +33,7 @@ backend/db/seeds/
 └── storage/             seed-learning-resources, seed-site-content
 ```
 
-Each domain sub-directory contains its own `index.ts` barrel that re-exports each `seedOrGet` under a domain-qualified alias (e.g. `export { seedOrGet as seedOrGetTeachers } from "./seed-teachers";`). The top-level `backend/db/seeds/index.ts` master controller is the **only** file that imports individual seeders — it now imports them via the sub-directory paths (e.g. `@/backend/db/seeds/teachers/seed-teachers`) or, equivalently, the sub-directory barrel aliases.
+Each domain sub-directory contains its own `index.ts` barrel that re-exports each `seedOrGet` under a domain-qualified alias (e.g. `export { seedOrGet as seedOrGetTeachers } from "./seed-teachers";`). The top-level `backend/db/seeds/index.ts` master controller is the **only** file that imports individual seeders, via the sub-directory paths or barrel aliases.
 
 ## Rules
 
@@ -45,9 +45,8 @@ When creating or updating a seeder in this directory, you must adhere to the fol
 
 - **Never** insert/upsert into `permissions`, `permission_groups`, or `group_permissions` from a seeder
 - **Never** call `PermissionManagementService.upsertSystemPermissions`, `ensureSystemPermissionGroup`, `ensureGroupPermissionsForGroups`, or `revokeGroupPermissions` from seeders
-- New permission keys, system groups (`student_default`, `supervisor_default`, etc.), or group grants → add SQL under `backend/db/migration/` **and** a new drizzle migration folder under `backend/drizzle/`
-- Seeders **may** assign users to existing groups (`user_permission_groups`) and seed `user_permission_overrides` (per-user overrides only)
-- Demo student / supervisor logins come from `shared/demo-users.ts` → `seed-users.ts`; student domain rows from `students/seed-students.ts`. Groups must already exist from migrations before `seed-users` runs.
+- New permission keys, system groups, or group grants → add SQL under `backend/db/migration/` **and** a new drizzle migration folder under `backend/drizzle/`
+- Seeders **may** assign users to existing groups (`user_permission_groups`) and seed `user_permission_overrides` (per-user overrides only). Groups must already exist from migrations before any seeder assigns them.
 
 ### Standard seeder rules
 
@@ -59,10 +58,10 @@ When creating or updating a seeder in this directory, you must adhere to the fol
 
 This ensures that we avoid duplicating data (such as permission groups or users) even if seeders are run multiple times.
 
-- **Check Constraints**: Ensure your seeded data respects database-level `CHECK` constraints (e.g. `class_instances_state_machine_chk`). Check `backend/db/schema/*.ts` for these constraints to prevent seeding failures.
-- **Enums Verification**: PostgreSQL enums must be matched EXACTLY. Check the `backend/db/schema/enums.ts` for the correct values (e.g., using `"ACTIVATED"` or `"REGULAR"` instead of `"ACTIVE"`). Do not guess valid statuses.
-- **Schema Synchronization**: If you modified the database schema during your task (e.g. adding a column like `avatar_url`), you MUST run `bun run db push` to apply changes to the local database before running `bun run db seed`. Drizzle kit config (`drizzle.config.ts`) points at `./backend/db/schema/index.ts`, which resolves every table via the sub-directory barrels — no config change needed when adding sub-directories. **Note: `db reset` and `db cleanGenerate` are permanently disabled by repo policy** — use `db push` for schema changes and `db migrate` for migration management.
-- **Type Safety**: Seeders do not query the database directly. Use canonical types from `@/backend/types` for entities passed between seeders and returned from services. If a type is missing, add it under `backend/types/` (one type file per domain) rather than using inline types or `any`. For many-row idempotent inserts, use `orchestrateSeedMany` from `@/backend/db/seeds/lib` with service `find*` / `list*` + `createMany*` / `upsert*` methods.
+- **Check Constraints**: Ensure your seeded data respects database-level `CHECK` constraints. Check `backend/db/schema/*.ts` for these constraints to prevent seeding failures.
+- **Enums Verification**: PostgreSQL enums must be matched EXACTLY. Check `backend/db/schema/enums.ts` for the correct values (e.g., using `"ACTIVATED"` or `"REGULAR"` instead of `"ACTIVE"`). Do not guess valid statuses.
+- **Schema Synchronization**: If you modified the database schema during your task, you MUST run `bun run db push` to apply changes to the local database before running `bun run db seed`. **Note: `db reset` and `db cleanGenerate` are permanently disabled by repo policy** — use `db push` for schema changes and `db migrate` for migration management.
+- **Type Safety**: Seeders do not query the database directly. Use canonical types from `@/backend/types` for entities passed between seeders and returned from services. If a type is missing, add it under `backend/types/` rather than using inline types or `any`. For many-row idempotent inserts, use `orchestrateSeedMany` from `@/backend/db/seeds/lib` with service `find*` / `list*` + `createMany*` / `upsert*` methods.
 
 ### File Organization
 - Group seeders for the same domain in the matching sub-directory.
@@ -94,36 +93,8 @@ Seeders **must not** import from `@/backend/db/**` (schema, repo, drizzleDb, mig
 
 - `@/backend/db/drizzleDb`, `@/backend/db/schema/**`, `@/backend/db/repo/**`
 - Direct `drizzle-orm` queries against application tables
-- `batchInsert` (moved to `@/backend/db/repo/shared/bulk-upsert` — use service bootstrap methods instead)
 
-When a bootstrap method is missing on a service, **add it to the service** (and repository if needed) rather than querying the DB from the seeder.
-
-## Stable Key Registry
-
-Use these service bootstrap entry points from seeders. Domain seed data (constants, specs) stays in the seeder or `lib/*-factory.ts`; persistence goes through services.
-
-| Seeder domain | Service | Bootstrap method(s) |
-|---------------|---------|---------------------|
-| `auth/seed-user-permission-overrides` | `PermissionManagementService` | `ensureUserPermissionOverride` |
-| `users` (demo-admin actor lookup) | `RegistrationService` | `findRegisteredUserByEmail` |
-| `audit/seed-audit-logs` | `AuditService` | `countAuditLogs`, `listAuditLogs`, `createManyAuditLogs` |
-| `audit/seed-admin-audit-logs` | `AuditService` | `countAdminAuditLogs`, `listAdminAuditLogs`, `createManyAdminAuditLogs` |
-| `complaints/seed-complaints` | `ComplaintService` | `createManyComplaints` |
-| `complaints/seed-complaint-responses` | `ComplaintService` | `ensureComplaintResponse` |
-| `notifications/seed-user-notification-preferences` | `NotificationPreferencesService` | `upsertManyPreferences` |
-| `notifications/seed-notification-deliveries` | `CommunicationService` | `createManyDeliveries` |
-| `parents/seed-suggestions` | `SuggestionService` | `createManySuggestions` |
-| `storage/seed-learning-resources` | `LearningResourceService` | `findByFilePath`, `insertResource` |
-| `storage/seed-site-content` | `StorageService` | `upsertManySiteContent` |
-| `meeting/seed-meeting-providers` | `MeetingProviderCatalogService` | `upsertManyProviders` |
-| `shared/timezones` | `ReferenceDataService` | `upsertManyTimezones` |
-| `shared/system-settings` | `SystemSettingsService` | `upsertManySettings`, `uploadHandbook`, `uploadParentHandbook` |
-| File attachments | `StorageService` (via `lib/file-seed-helper`) | `linkFileToEntity` |
-
-### Shared lib exports
-
-- `orchestrateSeedMany` — idempotent many-row seeding helper (re-exported from `lib/index.ts`); coordinates look-before-create and duplicate-key race recovery via services
-- `batchInsert` — **removed**; bulk inserts live in `@/backend/db/repo/shared/bulk-upsert` and are called from service bootstrap methods, not seeders
+When a bootstrap method is missing on a service, **add it to the service** (and repository if needed) rather than querying the DB from the seeder. Domain seed data (constants, specs) stays in the seeder or `lib/*-factory.ts`; persistence goes through services.
 
 ## Phased execution (`runSeedStep`)
 
@@ -134,30 +105,7 @@ Use these service bootstrap entry points from seeders. Domain seed data (constan
 - Manifest: `lib/asset-manifest.ts`
 - Validator: `bun run validate:seed-assets` (also runs automatically in `backend/db/scripts/drizzleSeed.ts` for `standard` profile)
 - Skip gate: `SEED_SKIP_ASSET_CHECK=true`
-- Prompts for human-generated assets: `backend/db/seeds/prompts/`
-
-## Additional bootstrap registry entries
-
-| Seeder | Service | Bootstrap method(s) |
-|--------|---------|---------------------|
-| `books/seed-books` | `BookService` | `findBooksByNames`, `upsertManyBooks` |
-| `classes/seed-class-categories` | `ClassCatalogService` | `findCategoriesBySlugs`, `upsertManyCategories` |
-| `classes/seed-class-subjects` | `ClassCatalogService` | `findSubjectsBySlugs`, `upsertManySubjects` |
-| `classes/seed-class-instances` | `ClassSessionService` | `upsertManyClassInstancesForSeed` |
-| `classes/seed-subject-resources` | `ClassCatalogService` | `createManySubjectResources` |
-| `meeting/seed-user-meeting-configs` | `MeetingConfigService` | `upsertManyUserMeetingConfigs` |
-| `meeting/seed-class-meeting-configs` | `MeetingConfigService` | `upsertManyClassMeetingConfigs` |
-| `teachers/seed-teacher-important-notes` | `TeacherNotesService` | `findNotesByTitles`, `createManyImportantNotes` |
-| `billing/seed-invoice-payment-submissions` | `BillingManagementService` | `findInvoicePaymentSubmissionsByInvoiceIds`, `createManyInvoicePaymentSubmissions` |
-| `billing/seed-quotas` | `QuotaService`, `ClassCatalogService`, `RecurringClassService` | `seedOrGetQuotaBatch`, `findSubjectsBySlugs`, `upsertManyRecurringSchedules` |
-
-### Avatar and logo helpers
-
-- `lib/avatar-seed-helper.ts` — `seedAvatarForEntity`, `seedAvatarPool`, `linkAvatarsToEntities`
-- `lib/logo-seed-helper.ts` — `seedCatalogLogoUrl` for meeting/payment/subject branding assets
-- `lib/class-catalog-factory.ts` — canonical specs for books, categories, subjects, and subject-resource links
 
 ## Linting Rules
 
-- See `docs/quality/linting-rules.md` for Oxlint & ESLint/sonarjs fix recipes. NEVER use `oxlint-disable` comments.
-
+- NEVER use `oxlint-disable` comments — fix the root cause per the repo's linting-rule guidance.

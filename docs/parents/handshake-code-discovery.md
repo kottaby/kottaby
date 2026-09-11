@@ -138,7 +138,7 @@ A matched child whose `users` row is governed is treated **exactly as if the stu
 
 Window end = `suspendedAt + suspendedPeriodDays × 24h` (86,400,000 ms per day), evaluated against **one captured `now` per invocation**. The fail-closed direction is binding: missing or corrupt governance data must never widen discovery visibility. Rationale: Workflow 04's resolved ruling that a soft-deleted child means the parent loses access immediately — unfindability is the read-side twin.
 
-> **Note (DEV3-017):** The window math above now lives in the shared predicate `backend/lib/auth/suspension-window.ts#isSuspensionActive`; this R3 table stays the semantic source. See `docs/admin/account-governance.md`.
+> **Note:** The window math above now lives in the shared predicate `backend/lib/auth/suspension-window.ts#isSuspensionActive`; this R3 table stays the semantic source. See `docs/admin/account-governance.md`.
 
 ### R4 — `linkable` semantics (advisory, per-child)
 
@@ -152,7 +152,7 @@ Window end = `suspendedAt + suspendedPeriodDays × 24h` (86,400,000 ms per day),
 
 ### R5 — Binding forward contract for the link-request flow
 
-> **Status update (DEV1-014):** the link-request flow described here is now SHIPPED — see `docs/parents/parent-link-request.md` for the implemented workflow (the R5 rules below remain intact and are enforced there).
+> **Status update:** the link-request flow described here is now SHIPPED — see `docs/parents/parent-link-request.md` for the implemented workflow (the R5 rules below remain intact and are enforced there).
 
 Whoever implements the link-request mutation (Workflow 04 §4.3) is bound by this contract:
 

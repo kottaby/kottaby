@@ -4,7 +4,7 @@ import type { wallet } from "@/backend/db/schema/billing/wallet";
 export type WalletSelectType = typeof wallet.$inferSelect;
 
 /**
- * DEV3-013 (R-301) — the canonical wallet READ shape: the wallet row plus
+ * The canonical wallet READ shape (R-301): the wallet row plus
  * its newest-first ledger page (the documented 50-row cap is applied by
  * the service). The GraphQL `Wallet` object is backed EXCLUSIVELY by this
  * shape — `id` normalization rides `wallet.id`, and the `transactions`

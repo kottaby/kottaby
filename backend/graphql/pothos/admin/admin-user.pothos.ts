@@ -12,7 +12,7 @@
  *  - `AdminStudentSnapshot` ← `AdminStudentSnapshotReturnType`
  *  - `AdminParentSnapshot` ← `AdminParentSnapshotReturnType`
  *
- * The `applicant` field on `AdminUserDetail` reuses the DEV2-004 canonical
+ * The `applicant` field on `AdminUserDetail` reuses the canonical
  * `ApplicantProfilePothosObject` — never re-declared here.
  *
  * `passwordHash` is structurally absent from every shape (composed via

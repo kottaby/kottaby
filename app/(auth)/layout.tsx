@@ -31,7 +31,7 @@ import { AuthBrandPanel, AuthFormPanel, AuthLayoutStyles } from "@/frontend/view
  * `app/layout.tsx` (root layout), so auth pages inherit them — no provider
  * re-mounting here.
  *
- * DEV2-CORE — Login page auto-redirect (redirect-loop fix):
+ * Login page auto-redirect (redirect-loop fix):
  *  - If `isAuthenticated` is true (from `useAuth()`), redirect to the
  *    `?redirect=` param (if safe) or the caller's ROLE-SPECIFIC dashboard.
  *  - The redirect runs in a `useEffect` (after hydration) to avoid SSR/CSR
@@ -48,7 +48,7 @@ export default function AuthLayout({ children }: { readonly children: ReactNode 
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  // DEV2-CORE: auto-redirect authenticated users away from /login (and
+  // Auto-redirect authenticated users away from /login (and
   // /register). Skipped during `isLoading` so we don't redirect a user
   // whose session is still being restored (e.g. via `refreshToken`).
   // Mirrors the `DashboardLayout` auth-redirect pattern.

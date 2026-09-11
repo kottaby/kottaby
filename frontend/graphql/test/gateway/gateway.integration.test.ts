@@ -2,7 +2,7 @@
  * GraphQL Gateway Integration Matrix.
  *
  * Covers the post-merge surface: auth mutations, the admin user-management
- * mutations (DEV3-016), and the plans/notifications operations from main.
+ * mutations, and the plans/notifications operations from main.
  *
  * Exercises the FULL gateway pipeline through real HTTP requests against a
  * live Next.js dev server — no mocked internals, no backend imports
@@ -19,7 +19,7 @@
  * `setupTestServerLifecycle()` depends on that shape.
  *
  * Deferred test rows (infrastructure gaps, marked test.failing):
- *  - (f) UN-DEFERRED (DEV1-005): `createPlan` is now an admin-only, role-gated
+ *  - (f) UN-DEFERRED: `createPlan` is now an admin-only, role-gated
  *    mutation — the row probes it with a freshly registered STUDENT token
  *    asserting FORBIDDEN.
  *  - (g) Synthetic raw non-DomainError throw: no test-only forced-failure
@@ -213,7 +213,7 @@ describeGraphqlSuite("Gateway integration matrix", () => {
   });
 
   // ── (f) Authenticated-but-forbidden role-gated op → FORBIDDEN ───────────
-  // UN-DEFERRED (DEV1-005): `createPlan` is an admin-only, role-gated
+  // UN-DEFERRED: `createPlan` is an admin-only, role-gated
   // mutation. A freshly registered STUDENT token must be rejected with the
   // canonical FORBIDDEN domain code (extensions.code) — never a masked 500,
   // never a silent success.

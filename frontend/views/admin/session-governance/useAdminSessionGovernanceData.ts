@@ -17,7 +17,7 @@ import { WHOLE_NUMBER_PATTERN } from "@/frontend/views/admin/session-governance/
 
 /**
  * useAdminSessionGovernanceData — the read tier of the admin
- * session-governance container (DEV3-021): the stateful directory query
+ * session-governance container: the stateful directory query
  * (`adminSessions`, filter + honest-total paging), the filter draft →
  * applied orchestration, the pager clamping, and the per-status summary
  * over the LOADED page. The detail read for the drawer stays in the

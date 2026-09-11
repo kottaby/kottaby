@@ -99,13 +99,13 @@ function isDashboardLabelKey(key: NavLabelKey): key is keyof DashboardLabels {
  * route resolution.
  *
  * Canonical retargets:
- *  - Sessions → `/student/sessions` / `/teacher/sessions` (DEV3-004 — a
+ *  - Sessions → `/student/sessions` / `/teacher/sessions` (a
  *    RETARGET of the former shared `/sessions` catch-all link)
- *  - Admin Users → `/admin/users` (DEV3-016 — the directory page exists)
- *  - Admin Plans → `/admin/plans` (DEV1-005)
- *  - Admin Broadcasts → `/admin/broadcasts` (DEV3-022d — a pure ADD, not a
+ *  - Admin Users → `/admin/users` (the directory page exists)
+ *  - Admin Plans → `/admin/plans`
+ *  - Admin Broadcasts → `/admin/broadcasts` (a pure ADD, not a
  *    retarget: the compose surface ships at the route)
- *  - Admin Session Governance → `/admin/session-governance` (DEV3-021 — a
+ *  - Admin Session Governance → `/admin/session-governance` (a
  *    pure ADD, not a retarget: the admin session directory ships at the
  *    route)
  *  - Student Link Requests → the real decision route via the shared
@@ -156,7 +156,7 @@ const NAV_ITEMS_BY_ROLE: Record<UserRole, readonly DashboardNavItem[]> = {
       labelKey: "sessionGovernance",
       Icon: SessionGovernanceIcon,
     },
-    // DEV3-005 (R-111) — the session-arbitration queue: a REAL admin page
+    // (R-111) — the session-arbitration queue: a REAL admin page
     // (`app/(dashboard)/disputes/page.tsx`, `withPageAuth` admin-gated like
     // the role dashboards) instead of a catch-all coming-soon stub.
     { route: "/disputes", labelKey: "disputes", Icon: DisputesIcon },

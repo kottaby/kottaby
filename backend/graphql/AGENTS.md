@@ -7,18 +7,15 @@
   3. `pothos/builder.ts` dynamically imports `gqlSchema.definitions.ts` in dev, creating an HMR dependency edge so every definition change re-evaluates the builder module against a fresh SchemaBuilder. Do NOT cache the builder on `globalThis` — that pins a stale ConfigStore across HMR.
   4. `app/api/graphql/route.ts` `getHandler()` swaps Apollo onto the new `graphQLSchema` when the module export changes.
   All four layers are dev-only (`NODE_ENV !== "production"`).
-- **Auth scopes + RBAC: see `docs/auth/jwt-authentication-service.md` for the canonical `authScopes` contract (`authenticated` / `role` / `permission` / `superAdmin` / `notImpersonating`), 401-vs-403 decision state chart, fail-closed rule, `me` `authenticated` boundary, and DEV2-002 RBAC consumption guide.**
-- **Plan catalog operations: see `docs/billing/plan-catalog.md` for role-scoped queries/mutations and Apollo cache `id` normalization requirements.**
-- **Subscription purchase operations: see `docs/billing/subscription-purchase.md` for the caller-scoped purchase mutation and owner-scoped subscriptions query, idempotency-key consumption, and the webhook security gates guarding activation.**
+- **Auth scopes**: `authScopes` supports the kinds `authenticated` / `role` / `permission` / `superAdmin` / `notImpersonating`. Scope checks are fail-closed: an unrecognized or unsatisfied scope denies access rather than falling through. Returning `401` vs `403` matters — unauthenticated requests must not be indistinguishable from denied authenticated ones.
 - **Nullability**: In Pothos, fields are non-nullable by default unless explicitly set to `nullable: true`. Ensure your TypeScript types align with your Pothos definitions.
 - **Resolvers**: Pothos field resolvers should generally delegate to the `backend/services/` layer, rather than putting business logic inside the GraphQL definitions or calling Repositories directly.
 - **Cache Updates**: Ensure `id` fields are always exposed on GraphQL objects so the Apollo client can auto-update its cache.
 - **Locale Propagation & Localized Errors**: GraphQL field resolvers must propagate the request locale (`ctx.locale`) to service and repository calls to enable proper localized error messages. Any direct error thrown in resolvers must be translated via `ctx.t("<namespace>")` — already bound to `ctx.locale`. Example: `const tErrors = await ctx.t("errors"); throw new GraphQLError(tErrors.auth.invalidCredentials, ...);`. Do NOT import `getBackendTranslations` or `next-intl`.
 - **Type Definition Pattern**: GraphQL Pothos objects should use types from `backend/types/` (e.g., `{Entity}ReturnType`, `{Entity}SubmitInput`) as the underlying type references for object and input definitions. Import these types from `@/backend/types` and use them in Pothos `.implement()` calls to ensure consistency between GraphQL types and backend service/repository types.
-- **Admin audit trail (read-only query): `adminAuditLogs` is admin-gated with the mandatory `$all` scope conjunction over a closed six-member filter input, delegating to `AuditTrailService` — see `docs/admin/audit-trail.md` for the wire contract, embedded page-envelope cache rule, and the append-only `audit_logs` immutability rules.**
-- **Gateway route & registration contract**: see `docs/graphql/api-gateway-and-routing.md` for the canonical seven-step pipeline in `app/api/graphql/route.ts`, the default-deny public-operation allowlist (`backend/lib/gateway/public-operations.ts` — every new anonymous operation needs a security-rationale entry BEFORE its resolver ships scopeless), and the REQ-018 rules for registering resolvers/objects/enums. `ctx.idempotencyKey` is captured exactly once in `createGraphQLContext` from the raw `X-Idempotency-Key` header (`null` when absent) and is PROPAGATION-ONLY: mutations consume it for duplicate-blocking semantics, but it must never influence authorization or be re-derived/trimmed elsewhere.
-- **Participant-scoped operations (session lifecycle precedent)**: when an operation's access rule is "authenticated, then the service checks participation/ownership" (e.g. `sessionById`, `cancelSession`), declare ONLY `{ authenticated: true }` and keep the participant predicate service-side — never widen it for admins or other roles. When a role leg exists, make the conjunction EXPLICIT with `$all { authenticated: true, role: [UserRole.X] }` — a plain key-map combines its keys with ANY semantics (wrong). Sessions are disclosure-sensitive: a foreign id and a nonexistent id are indistinguishable on every read and mutation (identical `null` channel / byte-identical denial). See `docs/sessions/session-lifecycle.md` §2/§7.
-- **Session report & homework surface**: `submitSessionReport` mutation (explicit `$all { authenticated, role: [UserRole.Teacher] }` + service-tier governance re-check) and the `sessionReport`/`sessionHomework` queries (`{ authenticated: true }` only — nullable payloads where foreign/nonexistent/no-report-yet collapse into one indistinguishable `null`). Objects `SessionReport`/`SessionHomeWork` expose `id` for Apollo normalization; the `SurahJuzRef` enum is registered once in `shared/enum.pothos.ts` (enum-object form) and consumed by the homework block inputs. See `docs/sessions/session-report-homework.md`.
+- **Gateway public-operation allowlist**: the anonymous-access allowlist (`backend/lib/gateway/public-operations.ts`) is default-deny — every new anonymous operation needs a security-rationale entry in it BEFORE its resolver ships scopeless. `ctx.idempotencyKey` is captured exactly once in `createGraphQLContext` from the raw `X-Idempotency-Key` header (`null` when absent) and is PROPAGATION-ONLY: mutations consume it for duplicate-blocking semantics, but it must never influence authorization or be re-derived/trimmed elsewhere.
+- **Scope composition**: when an operation's access rule is "authenticated, then the service checks participation/ownership", declare ONLY `{ authenticated: true }` and keep the predicate service-side — never widen it for admins or other roles. When a role leg exists, make the conjunction EXPLICIT with `$all { authenticated: true, role: [UserRole.X] }` — a plain key-map combines its keys with ANY semantics (wrong). For disclosure-sensitive objects, a foreign id and a nonexistent id should be indistinguishable on every read and mutation (identical `null` channel / byte-identical denial).
+- **Resolver side-effect imports**: domain definition modules register their Pothos types/resolvers via side-effect imports (e.g. `import "./<domain>.mutation";`) from the definitions entrypoint.
 
 ## Pothos Enum Registration Pattern (CRITICAL RULE)
 
@@ -67,28 +64,12 @@ import { ProfileModePothosEnum } from "@/backend/graphql/pothos/shared/enum.poth
 
 ## Single Canonical Object Type Pattern (CRITICAL RULE)
 
-### Positive Pattern (Required):
-- Create a single GraphQL object type per entity using types from `backend/types/` (e.g., `{Entity}ReturnType`)
-- Use the canonical type as the basis for Pothos object implementation: `gqlSchemaBuilder.objectRef<{Entity}ReturnType>("<Entity>")`
-- Add additional fields as needed (resolved relationships, computed properties) beyond the canonical type
-- Leverage GraphQL's selection mechanism - clients can request only the fields they need from the full object
-- Define input types using types from `backend/types/` (e.g., `{Entity}SubmitInput`)
+The `backend/AGENTS.md` canonical-object-type rule applies here with Pothos specifics:
+- Create a single GraphQL object type per entity: `gqlSchemaBuilder.objectRef<{Entity}ReturnType>("<Entity>")`, with additional resolved/computed fields added to that one type as needed.
+- Input types (mutation inputs, filter inputs) are allowed as separate definitions when they serve a specific purpose, as are wrapper types for collections or complex responses (e.g., paginated results) and computed/derived types that don't map to a single table (still importing base types from `backend/types/`).
+- Prefer `inputType(string-named)` over `inputRef<BackendType>` for inputs — `inputRef` couples the input's nullability to the backend type's exact shape, and drift between the two surfaces as null-incompatibility errors.
 
-### Negative Pattern (PROHIBITED - Major Violation):
-- Creating local type definitions within Pothos files (e.g., `export type {Entity}Definition = {...}`)
-- Defining multiple GraphQL object types for the same entity when one canonical type would suffice
-- Duplicating entity structure in local types instead of using centralized types from `backend/types/`
-- Creating ad-hoc types like `export type <Entity>SimpleDefinition`
-
-### Example of Proper Pattern:
 ```typescript
-// Instead of defining local types in Pothos files:
-export type <Entity>SimpleDefinition = {
-  id: string;
-  name: string;
-};
-
-// Use types from backend/types:
 import type { {Entity}ReturnType } from "@/backend/types";
 
 const {Entity}Ref = gqlSchemaBuilder.objectRef<{Entity}ReturnType>("<Entity>");
@@ -101,66 +82,27 @@ export const {Entity}PothosObject = {Entity}Ref.implement({
 });
 ```
 
-### Exception Policy:
-- Input types (mutation inputs, filter inputs) are allowed as separate definitions when they serve a specific purpose
-- Wrapper types for collections or complex responses (e.g., paginated results) are allowed as separate definitions
-- Complex computed/derived types that don't map directly to a single table may require custom definitions (but should still import base types from `backend/types/`)
-
-## WhatsApp GraphQL Patterns
-
-- **Canonical reference**: `docs/services/whatsapp-cloud-api.md` — comprehensive WhatsApp integration patterns. *(doc file absent from this tree — pending the WhatsApp-integration ticket; see `ai/plans/dev3-002-shared-error-handling-response-contracts/deferred-items.md` BLT-03)*
-- **Object types**: `WhatsappAccountPothosObject`, `WhatsappTemplateSnapshotPothosObject` (BL3), `WhatsappSyncFromMetaResultPothosObject` (wrapper). All expose `id` for Apollo cache normalization.
-- **Input type pattern**: Use `inputType(string-named)` instead of `inputRef<BackendType>` — `inputRef` couples the input's nullability to the backend type's exact shape, and drift between the two surfaces as null-incompatibility errors.
-- **Credential mutations**: `setWhatsappAccessToken`, `setWhatsappTwoStepPin` — all credential/config mutations call `resetWhatsappChannel()` (S4) for token rotation without restart.
-- **Delete behavior**: `deleteWhatsappAccount` deactivates (`isActive = false`), does not hard-delete.
-- **Side-effect barrels**: `import "./whatsapp-account.mutation";` registers resolvers via side-effect imports.
-
 ## Pothos Field Factories (Duplication Elimination)
 
-When multiple Pothos object types, input types, or query fields share identical field definitions, extract into `shared/` helper modules. See `docs/graphql/pothos-field-factories.md` for the complete pattern reference.
-
-Completed extractions:
-- `paymentFields` — `backend/graphql/pothos/billing/shared/paymentFieldHelpers.ts`
-- `creditTransactionFields` — `backend/graphql/pothos/billing/shared/creditFieldHelpers.ts`
-- `classSubjectInputFields` — `backend/graphql/pothos/classes/shared/classSubjectFieldHelpers.ts`
-- `teacherNoteInputFields` — `backend/graphql/pothos/teachers/shared/teacherNoteFieldHelpers.ts`
-- `whatsappAccountSharedInputFields` — `backend/graphql/pothos/whatsapp/shared/whatsappAccountFieldHelpers.ts`
-- `supportedListArgs` / `supportedListResolve` — `backend/graphql/query/billing/shared/makeSupportedPaymentListQueryField.ts`
-- `makeTeacherMonthlyReportQueryField` / `makeStudentMonthlyReportQueryField` — `backend/graphql/query/reports/shared/makeMonthlyReportQueryField.ts`
-- `resolveStudentIdFromArgsOrUser` — `backend/graphql/query/students/shared/resolveStudentIdFromArgsOrUser.ts`
-
-## General User Create Mutation Pattern
-
-The `createGeneralUser` mutation creates a user without a specialized profile extension. It uses `authScopes: { permission: AppPermission.STAFF_CREATE, notImpersonating: true }` to require staff create permission and block creation while impersonating. The `groupSlug` input field is a plain `String!` (not an enum) to allow any permission group slug — specialized groups are rejected at the service layer via `isSpecializedGroup()`. The result type includes `id` (resolved from `parent.user.id`) for Apollo cache normalization. See `docs/services/general-user-creation.md` for the complete pattern reference.
+When multiple Pothos object types, input types, or query fields share identical field definitions, extract them into `shared/` helper modules within the domain directory and import them from each consumer.
 
 ## Admin-Mutation Audit Census (CRITICAL RULE)
 
-- **Census-before-admin-mutation:** every new admin-gated mutation shipped under `backend/graphql/mutation/**` MUST add a matching `wired` row to `test/workflows/admin/audit-completeness.catalog.ts` (expected action types + entity type) AND emit its audit row per `docs/admin/user-management.md` §2.4. `backend/db/test/logic/audit/audit-census-drift.test.ts` enforces the bijection — an unaudited admin mutation fails CI. See `docs/admin/audit-trail.md` §10.5.
+- **Census-before-admin-mutation:** every new admin-gated mutation shipped under `backend/graphql/mutation/**` MUST add a matching `wired` row to `test/workflows/admin/audit-completeness.catalog.ts` (expected action types + entity type) and emit its audit row at the service layer. `backend/db/test/logic/audit/audit-census-drift.test.ts` enforces the bijection — an unaudited admin mutation fails CI.
 
 ## authScope Pattern: `permission` vs `superAdmin`
 
-Use `authScopes: { permission: AppPermission.X }` (not `authScopes: { superAdmin: true }`) for mutations accessible by non-superadmin users with the correct permission. The `superAdmin: true` authScope blocks ALL non-superadmin users — only use it for truly superadmin-only operations (e.g., impersonation, permission group simulation, system config).
-
-See `docs/auth/supervisor-permissions.md` for the supervisor permission model and the list of mutations that were fixed from `superAdmin: true` to permission-based authScopes.
+Use `authScopes: { permission: AppPermission.X }` (not `authScopes: { superAdmin: true }`) for mutations accessible by non-superadmin users with the correct permission. The `superAdmin: true` authScope blocks ALL non-superadmin users — only use it for truly superadmin-only operations.
 
 ## Serverless Cold-Start Optimization
 
-- **Permission Context Propagation**: Resolvers calling services with permission checks MUST pass `UserPermissionContext` from `ctx` instead of passing only `ctx.user.id`. This eliminates redundant `PermissionsService.getUserContext(userId)` DB queries. The context object `{ permissions: ctx.permissions, permissionGroups: ctx.permissionGroups, isSuperAdmin: ctx.isSuperAdmin, role: ctx.role }` is already populated by `createContext`. See `docs/backend/serverless-cold-start-optimization.md`.
+- **Permission Context Propagation**: Resolvers calling services with permission checks MUST pass `UserPermissionContext` from `ctx` instead of passing only `ctx.user.id`. This eliminates redundant `PermissionsService.getUserContext(userId)` DB queries. The context object `{ permissions: ctx.permissions, permissionGroups: ctx.permissionGroups, isSuperAdmin: ctx.isSuperAdmin, role: ctx.role }` is already populated by `createContext`.
 - **Lazy scopeAuth**: `superAdmin` scope is a lazy scope-loader function, not an eager boolean — only evaluates when a field with `authScopes: { superAdmin: true }` is actually queried. The `permission` scope uses `ctx.isSuperAdmin` and `ctx.permissions` directly (no `getUserContext` call).
 - **`safeUser` on `BaseContext`**: `ctx.safeUser` contains the full sanitized user object (password/rememberTokenHash stripped). Resolvers needing user data (e.g., `Query.me`) should use `ctx.safeUser` instead of calling `UserService.findById`.
 - **Context anchor**: All per-request context wiring happens inside `createGraphQLContext` (`gqlContextFactory.ts`) — including the SINGLE requestId resolution point, which composes `resolveRequestId(request.headers)` exactly once and exposes it as `ctx.requestId` (correlation-only; never re-resolved downstream). There is no `preloadSession` helper; treat that legacy name as retired.
-- **Login resolver cold-start resilience**: Rate limiter operations in the login resolver (`checkRateLimit`, `isLocked`, `recordAttempt`, `resetAttempts`) MUST use fail-open `try/catch` — transient cold-start errors must NOT block login. Critical DB reads (`findByEmail`, `createAuthSession`) MUST use `retryTransient()` from `@/backend/lib`. On exhaustion, return `SERVICE_UNAVAILABLE` (NOT `INVALID_CREDENTIALS`). See `docs/graphql/error-handling-contract.md` for the `SERVICE_UNAVAILABLE` transport semantics.
 
 ## DomainError → GraphQLError extensions.code
 
-- DomainError subclasses extend GraphQLError to propagate `extensions.code` to clients. All resolver errors MUST use DomainError subclasses (NotFoundError, UnauthorizedError, ForbiddenError, ValidationError, ConflictError). See `docs/graphql/domain-error-extensions-code.md` for throw conventions and `docs/graphql/error-handling-contract.md` for the transport contract (REQ-010 taxonomy, envelopes, client mapping).
+- DomainError subclasses extend GraphQLError to propagate `extensions.code` to clients. All resolver errors MUST use DomainError subclasses (NotFoundError, UnauthorizedError, ForbiddenError, ValidationError, ConflictError).
 - **Masking belongs to the boundary only** — resolvers/services NEVER format, mask, or log-classify errors themselves; `finalizeGraphqlErrors` runs solely via its plugin.
 - **Exactly one finalizer registration**: `createGraphqlErrorsFinalizerPlugin()` is registered once, in the single module-scope ApolloServer plugins array of `app/api/graphql/route.ts`. A second registration double-masks classified items and fails the pinned suites.
-
-## Recitation Catalog (Qira'ah)
-
-Recitation enum registered in `shared/enum.pothos.ts` as `RecitationReadingPothosEnum` (enum-object form, from the canonical shared `RecitationReading` enum in `@/shared/constants/recitation-reading.enum`); public `recitationReadings: [RecitationReading!]!` query in `query/recitation.query.ts` (no authScope, delegates to `RecitationCatalogService.listReadings()`, pure — no DB). The registration input `preferredRecitation` is validated by `RecitationCatalogService.validateOptionalReading` and echoed as contract metadata only — NOT persisted to `recitation` (C.5 invariant). See `docs/auth/qiraah-selection-and-c5.md`.
-
-## Linting Rules
-
-- See `docs/quality/linting-rules.md` for Oxlint & ESLint/sonarjs fix recipes. NEVER use `oxlint-disable` comments.

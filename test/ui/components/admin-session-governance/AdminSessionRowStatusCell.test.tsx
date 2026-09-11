@@ -2,7 +2,7 @@
  * AdminSessionRowStatusCell — component suite ENTRY (runner target).
  *
  * The lifecycle StatusBadge matrix of the admin session-governance directory
- * (DEV3-021): the suite BODY lives in the sibling
+ * (suite): the suite BODY lives in the sibling
  * `AdminSessionRowStatusCell.suite.tsx` — the shared status chip rendered
  * for every lifecycle status (plus the defensive unknown-status arm) across
  * BOTH locales.

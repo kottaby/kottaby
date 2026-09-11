@@ -25,18 +25,18 @@
 
 ### Sprint Backlog
 
-| Ticket ID | Title | Owner | SP | Blocked By |
-|---|---|---|---|---|
-| DEV1-001 | Database schema migration | Dev 1 | 5 | — |
-| DEV1-002 | User registration with role-specific child table creation | Dev 1 | 5 | DEV1-001 |
-| DEV1-003 | Recitation selection on registration | Dev 1 | 2 | DEV1-002 |
-| DEV1-004 | Free trial session provisioning | Dev 1 | 3 | DEV1-002 |
-| DEV2-001 | JWT authentication service | Dev 2 | 5 | DEV1-001 |
-| DEV2-002 | Role-based authorization middleware | Dev 2 | 3 | DEV2-001 |
-| DEV2-003 | Shared types & interface contracts | Dev 2 | 3 | DEV1-001 |
-| DEV3-001 | CI/CD pipeline with Mermaid validation | Dev 3 | 5 | — |
-| DEV3-002 | Shared error handling & response contracts | Dev 3 | 3 | — |
-| DEV3-003 | API gateway & routing skeleton | Dev 3 | 3 | DEV3-002 |
+| Title | Owner | SP | Blocked By |
+|---|---|---|---|
+| Database schema migration | Dev 1 | 5 | — |
+| User registration with role-specific child table creation | Dev 1 | 5 | Database Schema Migration |
+| Recitation selection on registration | Dev 1 | 2 | User Registration with Role-Specific Child Table Creation |
+| Free trial session provisioning | Dev 1 | 3 | User Registration with Role-Specific Child Table Creation |
+| JWT authentication service | Dev 2 | 5 | Database Schema Migration |
+| Role-based authorization middleware | Dev 2 | 3 | JWT Authentication Service |
+| Shared types & interface contracts | Dev 2 | 3 | Database Schema Migration |
+| CI/CD pipeline with Mermaid validation | Dev 3 | 5 | — |
+| Shared error handling & response contracts | Dev 3 | 3 | — |
+| API gateway & routing skeleton | Dev 3 | 3 | Shared Error Handling & Response Contracts |
 
 **Total story points:** 37 (adjusted: 24 with parallelization — see capacity note below)
 
@@ -59,14 +59,14 @@
 
 ```mermaid
 graph LR
-    DEV1_001[DEV1-001: Schema Migration] --> DEV1_002[DEV1-002: User Registration]
-    DEV1_001 --> DEV2_001[DEV2-001: JWT Auth]
-    DEV1_001 --> DEV2_003[DEV2-003: Shared Types]
-    DEV1_002 --> DEV1_003[DEV1-003: Recitation Selection]
-    DEV1_002 --> DEV1_004[DEV1-004: Free Trial Session]
-    DEV2_001 --> DEV2_002[DEV2-002: RBAC Middleware]
-    DEV3_001[DEV3-001: CI/CD Pipeline]
-    DEV3_002[DEV3-002: Error Handling] --> DEV3_003[DEV3-003: API Gateway]
+    T1_001[Schema Migration] --> T1_002[User Registration]
+    T1_001 --> T2_001[JWT Auth]
+    T1_001 --> T2_003[Shared Types]
+    T1_002 --> T1_003[Recitation Selection]
+    T1_002 --> T1_004[Free Trial Session]
+    T2_001 --> T2_002[RBAC Middleware]
+    T3_001[CI/CD Pipeline]
+    T3_002[Error Handling] --> T3_003[API Gateway]
 ```
 
 ### Risks
@@ -74,7 +74,7 @@ graph LR
 | Risk | Mitigation |
 |---|---|
 | Schema migration issues on target database | Test migration on staging first; have rollback script ready |
-| Auth token format disagreement between streams | Define token contract in DEV2-003 before implementation |
+| Auth token format disagreement between streams | Define token contract in Shared Types & Interface Contracts before implementation |
 | CI/CD pipeline setup delays | Dev 3 starts CI/CD on day 1; manual validation as fallback |
 
 ---
@@ -86,28 +86,28 @@ graph LR
 
 ### Sprint Backlog
 
-| Ticket ID | Title | Owner | SP | Blocked By |
-|---|---|---|---|---|
-| DEV1-005 | Plan catalog CRUD (admin) | Dev 1 | 3 | DEV1-002 |
-| DEV1-006 | Subscription purchase via payment gateway | Dev 1 | 5 | DEV1-005 |
-| DEV1-007 | Segregated session balance crediting | Dev 1 | 5 | DEV1-006 |
-| DEV1-008 | Subscription validity window & expiry | Dev 1 | 3 | DEV1-007 |
-| DEV1-009 | Admin subscription management (extend/renew/cancel) | Dev 1 | 5 | DEV1-008 |
-| DEV2-004 | Teacher applicant registration & applicants table | Dev 2 | 3 | DEV2-002 |
-| DEV2-005 | Verification plan purchase (5 sessions) | Dev 2 | 3 | DEV2-004, DEV1-006 |
-| DEV2-006 | 5-session evaluation loop booking | Dev 2 | 5 | DEV2-005 |
-| DEV2-007 | Evaluation rubric scoring (≥80% threshold) | Dev 2 | 5 | DEV2-006 |
-| DEV2-008 | Cooldown state machine (1mo Tajweed / 3mo Hifz) | Dev 2 | 5 | DEV2-007 |
-| DEV2-009 | Failed applicant → students record conversion | Dev 2 | 3 | DEV2-008 |
-| DEV2-010 | Admin override of evaluation results | Dev 2 | 3 | DEV2-008 |
-| DEV3-004 | Session creation & lifecycle (scheduled→started→completed/cancelled) | Dev 3 | 5 | DEV1-001, DEV2-002 |
-| DEV3-005 | Session status state machine enforcement | Dev 3 | 3 | DEV3-004 |
-| DEV3-006 | Session report & homework infrastructure | Dev 3 | 5 | DEV3-004 |
-| DEV3-007 | Recitation record per session (1:1) | Dev 3 | 2 | DEV3-004 |
+| Title | Owner | SP | Blocked By |
+|---|---|---|---|
+| Plan catalog CRUD (admin) | Dev 1 | 3 | User Registration with Role-Specific Child Table Creation |
+| Subscription purchase via payment gateway | Dev 1 | 5 | Plan Catalog CRUD (Admin Only) |
+| Segregated session balance crediting | Dev 1 | 5 | Subscription Purchase via Payment Gateway |
+| Subscription validity window & expiry | Dev 1 | 3 | Segregated Session Balance Crediting |
+| Admin subscription management (extend/renew/cancel) | Dev 1 | 5 | Subscription Validity Window & Expiry |
+| Teacher applicant registration & applicants table | Dev 2 | 3 | Role-Based Authorization Middleware |
+| Verification plan purchase (5 sessions) | Dev 2 | 3 | Teacher Applicant Registration & Applicants Table, Subscription Purchase via Payment Gateway |
+| 5-session evaluation loop booking | Dev 2 | 5 | Verification Plan Purchase (5 Sessions) |
+| Evaluation rubric scoring (≥80% threshold) | Dev 2 | 5 | 5-Session Evaluation Loop Booking |
+| Cooldown state machine (1mo Tajweed / 3mo Hifz) | Dev 2 | 5 | Evaluation Rubric Scoring (≥80% Threshold) |
+| Failed applicant → students record conversion | Dev 2 | 3 | Cooldown State Machine (1-Month Tajweed / 3-Month Hifz) |
+| Admin override of evaluation results | Dev 2 | 3 | Cooldown State Machine (1-Month Tajweed / 3-Month Hifz) |
+| Session creation & lifecycle (scheduled→started→completed/cancelled) | Dev 3 | 5 | Database Schema Migration, Role-Based Authorization Middleware |
+| Session status state machine enforcement | Dev 3 | 3 | Session Creation & Lifecycle (Scheduled → Started → Completed/Cancelled) |
+| Session report & homework infrastructure | Dev 3 | 5 | Session Creation & Lifecycle (Scheduled → Started → Completed/Cancelled) |
+| Recitation record per session (1:1) | Dev 3 | 2 | Session Creation & Lifecycle (Scheduled → Started → Completed/Cancelled) |
 
 **Total story points:** 64 (distributed across 3 developers: Dev 1 = 21 SP, Dev 2 = 27 SP, Dev 3 = 15 SP)
 
-> **Capacity note:** This is a heavy sprint. Dev 2 carries 27 SP (above 8 SP capacity) because the evaluation loop is a deep vertical slice. To manage, Dev 2's tickets are sequenced so that DEV2-004 through DEV2-007 form a continuous chain, and DEV2-008 through DEV2-010 can spill into Sprint 2 if needed. The sprint goal is met when the evaluation loop is demoable end-to-end.
+> **Capacity note:** This is a heavy sprint. Dev 2 carries 27 SP (above 8 SP capacity) because the evaluation loop is a deep vertical slice. To manage, Dev 2's tickets are sequenced so that Teacher Applicant Registration & Applicants Table through Evaluation Rubric Scoring (≥80% Threshold) form a continuous chain, and Cooldown State Machine (1-Month Tajweed / 3-Month Hifz) through Admin Override of Evaluation Results can spill into Sprint 2 if needed. The sprint goal is met when the evaluation loop is demoable end-to-end.
 
 ### Definition of Done (Sprint 1)
 
@@ -132,25 +132,25 @@ graph LR
 
 ```mermaid
 graph LR
-    DEV1_005[DEV1-005: Plan Catalog] --> DEV1_006[DEV1-006: Subscription Purchase]
-    DEV1_006 --> DEV1_007[DEV1-007: Balance Crediting]
-    DEV1_007 --> DEV1_008[DEV1-008: Validity & Expiry]
-    DEV1_008 --> DEV1_009[DEV1-009: Admin Sub Management]
+    T1_005[Plan Catalog] --> T1_006[Subscription Purchase]
+    T1_006 --> T1_007[Balance Crediting]
+    T1_007 --> T1_008[Validity & Expiry]
+    T1_008 --> T1_009[Admin Sub Management]
 
-    DEV2_004[DEV2-004: Applicant Registration] --> DEV2_005[DEV2-005: Verification Plan]
-    DEV2_005 --> DEV2_006[DEV2-006: 5-Session Loop]
-    DEV2_006 --> DEV2_007[DEV2-007: Rubric Scoring]
-    DEV2_007 --> DEV2_008[DEV2-008: Cooldown SM]
-    DEV2_008 --> DEV2_009[DEV2-009: Failed→Student]
-    DEV2_008 --> DEV2_010[DEV2-010: Admin Override]
+    T2_004[Applicant Registration] --> T2_005[Verification Plan]
+    T2_005 --> T2_006[5-Session Loop]
+    T2_006 --> T2_007[Rubric Scoring]
+    T2_007 --> T2_008[Cooldown SM]
+    T2_008 --> T2_009[Failed→Student]
+    T2_008 --> T2_010[Admin Override]
 
-    DEV3_004[DEV3-004: Session Lifecycle] --> DEV3_005[DEV3-005: State Machine]
-    DEV3_004 --> DEV3_006[DEV3-006: Report Infrastructure]
-    DEV3_004 --> DEV3_007[DEV3-007: Recitation Record]
+    T3_004[Session Lifecycle] --> T3_005[State Machine]
+    T3_004 --> T3_006[Report Infrastructure]
+    T3_004 --> T3_007[Recitation Record]
 
-    DEV1_006 -.->|provides plan purchase| DEV2_005
-    DEV1_001 -.->|provides schema| DEV3_004
-    DEV2_002 -.->|provides RBAC| DEV3_004
+    T1_006 -.->|provides plan purchase| T2_005
+    T1_001 -.->|provides schema| T3_004
+    T2_002 -.->|provides RBAC| T3_004
 ```
 
 ### Risks
@@ -170,28 +170,28 @@ graph LR
 
 ### Sprint Backlog
 
-| Ticket ID | Title | Owner | SP | Blocked By |
-|---|---|---|---|---|
-| DEV1-010 | Tajweed curriculum lessons CRUD | Dev 1 | 3 | DEV1-008 |
-| DEV1-011 | Student progress tracking & increment | Dev 1 | 5 | DEV1-010 |
-| DEV1-012 | Teacher preparation view (student progress before session) | Dev 1 | 3 | DEV1-011 |
-| DEV2-011 | Teacher availability toggle (Available/Unavailable) | Dev 2 | 3 | DEV2-008 |
-| DEV2-012 | 15-minute inactivity auto-offline | Dev 2 | 5 | DEV2-011 |
-| DEV2-013 | In-session locking (hide from directory) | Dev 2 | 3 | DEV2-011 |
-| DEV2-014 | Session report submission with homework (Jadid & Madi) | Dev 2 | 5 | DEV3-006 |
-| DEV2-015 | Surah/Juz enum homework tracking | Dev 2 | 3 | DEV2-014 |
-| DEV3-008 | On-demand matching algorithm (filter/sort pipeline) | Dev 3 | 8 | DEV2-011, DEV3-004 |
-| DEV3-009 | Teacher directory browse & filter API | Dev 3 | 5 | DEV3-008 |
-| DEV3-010 | Real-time notification engine (WebSocket) | Dev 3 | 8 | DEV3-003 |
-| DEV3-011 | Session request notification to teacher | Dev 3 | 3 | DEV3-010 |
-| DEV3-012 | Dual-confirmation completion handshake (24h timeout) | Dev 3 | 5 | DEV3-004 |
-| DEV3-013 | Fee escrow: hold at request, decrement at completion | Dev 3 | 5 | DEV3-012, DEV1-007 |
-| DEV3-014 | Teacher wallet crediting (earning transactions) | Dev 3 | 5 | DEV3-013 |
-| DEV3-015 | Teacher withdrawal workflow & admin approval | Dev 3 | 5 | DEV3-014 |
+| Title | Owner | SP | Blocked By |
+|---|---|---|---|
+| Tajweed curriculum lessons CRUD | Dev 1 | 3 | Subscription Validity Window & Expiry |
+| Student progress tracking & increment | Dev 1 | 5 | Tajweed Curriculum Lessons CRUD |
+| Teacher preparation view (student progress before session) | Dev 1 | 3 | Student Progress Tracking & Increment |
+| Teacher availability toggle (Available/Unavailable) | Dev 2 | 3 | Cooldown State Machine (1-Month Tajweed / 3-Month Hifz) |
+| 15-minute inactivity auto-offline | Dev 2 | 5 | Teacher Availability Toggle (Available/Unavailable) |
+| In-session locking (hide from directory) | Dev 2 | 3 | Teacher Availability Toggle (Available/Unavailable) |
+| Session report submission with homework (Jadid & Madi) | Dev 2 | 5 | Session Report & Homework Infrastructure |
+| Surah/Juz enum homework tracking | Dev 2 | 3 | Session Report Submission with Homework (Jadid & Madi) |
+| On-demand matching algorithm (filter/sort pipeline) | Dev 3 | 8 | Teacher Availability Toggle (Available/Unavailable), Session Creation & Lifecycle (Scheduled → Started → Completed/Cancelled) |
+| Teacher directory browse & filter API | Dev 3 | 5 | On-Demand Matching Algorithm (Filter/Sort Pipeline) |
+| Real-time notification engine (WebSocket) | Dev 3 | 8 | API Gateway & Routing Skeleton |
+| Session request notification to teacher | Dev 3 | 3 | Real-Time Notification Engine (WebSocket) |
+| Dual-confirmation completion handshake (24h timeout) | Dev 3 | 5 | Session Creation & Lifecycle (Scheduled → Started → Completed/Cancelled) |
+| Fee escrow: hold at request, decrement at completion | Dev 3 | 5 | Dual-Confirmation Completion Handshake (24h Timeout), Segregated Session Balance Crediting |
+| Teacher wallet crediting (earning transactions) | Dev 3 | 5 | Fee Escrow: Hold at Request, Decrement at Completion |
+| Teacher withdrawal workflow & admin approval | Dev 3 | 5 | Teacher Wallet Crediting (Earning Transactions) |
 
 **Total story points:** 75 (Dev 1 = 11 SP, Dev 2 = 19 SP, Dev 3 = 39 SP)
 
-> **Capacity note:** Dev 3 carries the heaviest load (39 SP) due to the matching engine, notification engine, and escrow all landing in this sprint. This is intentional — these are the critical-path items for M2. Dev 3 should prioritize DEV3-008 (matching) and DEV3-012/013 (escrow) first, with DEV3-010 (notifications) as parallel work. If needed, DEV3-015 (withdrawal) can spill into Sprint 3.
+> **Capacity note:** Dev 3 carries the heaviest load (39 SP) due to the matching engine, notification engine, and escrow all landing in this sprint. This is intentional — these are the critical-path items for M2. Dev 3 should prioritize On-Demand Matching Algorithm (Filter/Sort Pipeline) (matching) and Dual-Confirmation Completion Handshake (24h Timeout) / Fee Escrow: Hold at Request, Decrement at Completion (escrow) first, with Real-Time Notification Engine (WebSocket) (notifications) as parallel work. If needed, Teacher Withdrawal Workflow & Admin Approval (withdrawal) can spill into Sprint 3.
 
 ### Definition of Done (Sprint 2)
 
@@ -217,22 +217,22 @@ graph LR
 
 ```mermaid
 graph LR
-    DEV1_010[DEV1-010: Lessons CRUD] --> DEV1_011[DEV1-011: Progress Tracking]
-    DEV1_011 --> DEV1_012[DEV1-012: Teacher Prep View]
+    T1_010[Lessons CRUD] --> T1_011[Progress Tracking]
+    T1_011 --> T1_012[Teacher Prep View]
 
-    DEV2_011[DEV2-011: Availability Toggle] --> DEV2_012[DEV2-012: Inactivity Timeout]
-    DEV2_011 --> DEV2_013[DEV2-013: In-Session Lock]
-    DEV3_006[DEV3-006: Report Infra] --> DEV2_014[DEV2-014: Report Submission]
-    DEV2_014 --> DEV2_015[DEV2-015: Surah/Juz Homework]
+    T2_011[Availability Toggle] --> T2_012[Inactivity Timeout]
+    T2_011 --> T2_013[In-Session Lock]
+    T3_006[Report Infra] --> T2_014[Report Submission]
+    T2_014 --> T2_015[Surah/Juz Homework]
 
-    DEV3_008[DEV3-008: Matching Algorithm] --> DEV3_009[DEV3-009: Directory API]
-    DEV3_010[DEV3-010: Notification Engine] --> DEV3_011[DEV3-011: Request Notification]
-    DEV3_012[DEV3-012: Dual Confirmation] --> DEV3_013[DEV3-013: Fee Escrow]
-    DEV3_013 --> DEV3_014[DEV3-014: Wallet Crediting]
-    DEV3_014 --> DEV3_015[DEV3-015: Withdrawal Workflow]
+    T3_008[Matching Algorithm] --> T3_009[Directory API]
+    T3_010[Notification Engine] --> T3_011[Request Notification]
+    T3_012[Dual Confirmation] --> T3_013[Fee Escrow]
+    T3_013 --> T3_014[Wallet Crediting]
+    T3_014 --> T3_015[Withdrawal Workflow]
 
-    DEV2_011 -.->|provides availability| DEV3_008
-    DEV1_007 -.->|provides balance| DEV3_013
+    T2_011 -.->|provides availability| T3_008
+    T1_007 -.->|provides balance| T3_013
 ```
 
 ### Risks
@@ -253,31 +253,31 @@ graph LR
 
 ### Sprint Backlog
 
-| Ticket ID | Title | Owner | SP | Blocked By |
-|---|---|---|---|---|
-| DEV1-013 | Student handshake code generation | Dev 1 | 2 | DEV1-002 |
-| DEV1-014 | Parent-child link request workflow (7-day expiry) | Dev 1 | 5 | DEV1-013 |
-| DEV1-015 | Student confirmation of parent link | Dev 1 | 3 | DEV1-014 |
-| DEV1-016 | Parent read-only monitoring portal | Dev 1 | 8 | DEV1-015, DEV3-011 |
-| DEV1-017 | Parent session completion notification display | Dev 1 | 3 | DEV1-016, DEV3-010 |
-| DEV2-016 | Student evaluation submission (teacher rating) | Dev 2 | 3 | DEV3-012 |
-| DEV2-017 | Teacher average_rating aggregation & update | Dev 2 | 3 | DEV2-016 |
-| DEV2-018 | Admin-ordered re-evaluation (teacher wallet deduction) | Dev 2 | 5 | DEV2-008, DEV3-014 |
-| DEV2-019 | Admin academic tracking (memorization & revision milestones) | Dev 2 | 3 | DEV2-014 |
-| DEV3-016 | Admin CRUD: users, teachers, students, parents | Dev 3 | 5 | DEV2-002 |
-| DEV3-017 | Account soft-delete governance (users.is_deleted) | Dev 3 | 3 | DEV3-016 |
-| DEV3-018 | Cold-start bootstrapping (direct sheikh certification) | Dev 3 | 3 | DEV3-016 |
-| DEV3-019 | Direct student onboarding with offline payment | Dev 3 | 5 | DEV3-016, DEV1-009 |
-| DEV3-020 | Immutable audit logging for all admin actions | Dev 3 | 5 | DEV3-016 |
-| DEV3-021 | Admin session governance (view/filter/reschedule/cancel/reassign/join) | Dev 3 | 5 | DEV3-004 |
-| DEV3-022 | Dispute resolution with admin arbitration | Dev 3 | 5 | DEV3-012 |
-| DEV3-022b | Admin financial auditing (payments, wallets, withdrawal approval) | Dev 3 | 5 | DEV3-014 |
-| DEV3-022c | Platform analytics dashboard | Dev 3 | 5 | DEV3-016 |
-| DEV3-022d | Broadcast notifications (system-wide & targeted) | Dev 3 | 3 | DEV3-010 |
+| Title | Owner | SP | Blocked By |
+|---|---|---|---|
+| Student handshake code generation | Dev 1 | 2 | User Registration with Role-Specific Child Table Creation |
+| Parent-child link request workflow (7-day expiry) | Dev 1 | 5 | Student Handshake Code Generation |
+| Student confirmation of parent link | Dev 1 | 3 | Parent-Child Link Request Workflow (7-Day Expiry) |
+| Parent read-only monitoring portal | Dev 1 | 8 | Student Confirmation of Parent Link, Session Request Notification to Teacher |
+| Parent session completion notification display | Dev 1 | 3 | Parent Read-Only Monitoring Portal, Real-Time Notification Engine (WebSocket) |
+| Student evaluation submission (teacher rating) | Dev 2 | 3 | Dual-Confirmation Completion Handshake (24h Timeout) |
+| Teacher average_rating aggregation & update | Dev 2 | 3 | Student Evaluation Submission (Teacher Rating) |
+| Admin-ordered re-evaluation (teacher wallet deduction) | Dev 2 | 5 | Cooldown State Machine (1-Month Tajweed / 3-Month Hifz), Teacher Wallet Crediting (Earning Transactions) |
+| Admin academic tracking (memorization & revision milestones) | Dev 2 | 3 | Session Report Submission with Homework (Jadid & Madi) |
+| Admin CRUD: users, teachers, students, parents | Dev 3 | 5 | Role-Based Authorization Middleware |
+| Account soft-delete governance (users.is_deleted) | Dev 3 | 3 | Admin CRUD: Users, Teachers, Students, Parents |
+| Cold-start bootstrapping (direct sheikh certification) | Dev 3 | 3 | Admin CRUD: Users, Teachers, Students, Parents |
+| Direct student onboarding with offline payment | Dev 3 | 5 | Admin CRUD: Users, Teachers, Students, Parents, Admin Subscription Management (Extend/Renew/Cancel/Upgrade/Downgrade) |
+| Immutable audit logging for all admin actions | Dev 3 | 5 | Admin CRUD: Users, Teachers, Students, Parents |
+| Admin session governance (view/filter/reschedule/cancel/reassign/join) | Dev 3 | 5 | Session Creation & Lifecycle (Scheduled → Started → Completed/Cancelled) |
+| Dispute resolution with admin arbitration | Dev 3 | 5 | Dual-Confirmation Completion Handshake (24h Timeout) |
+| Admin financial auditing (payments, wallets, withdrawal approval) | Dev 3 | 5 | Teacher Wallet Crediting (Earning Transactions) |
+| Platform analytics dashboard | Dev 3 | 5 | Admin CRUD: Users, Teachers, Students, Parents |
+| Broadcast notifications (system-wide & targeted) | Dev 3 | 3 | Real-Time Notification Engine (WebSocket) |
 
 **Total story points:** 82 (Dev 1 = 21 SP, Dev 2 = 14 SP, Dev 3 = 39 SP)
 
-> **Capacity note:** Dev 3 again carries the heaviest load (39 SP) due to the breadth of admin governance features. Priority order: DEV3-016 (CRUD) → DEV3-020 (audit logs) → DEV3-018 (cold-start) → DEV3-019 (direct onboarding) → DEV3-021 (session governance) → DEV3-022 (disputes) → DEV3-022b/c/d (financial auditing, analytics, broadcasts). DEV3-022c and DEV3-022d can spill into Sprint 4 if needed.
+> **Capacity note:** Dev 3 again carries the heaviest load (39 SP) due to the breadth of admin governance features. Priority order: Admin CRUD: Users, Teachers, Students, Parents (CRUD) → Immutable Audit Logging for All Admin Actions (audit logs) → Cold-Start Bootstrapping (Direct Sheikh Certification) (cold-start) → Direct Student Onboarding with Offline Payment (direct onboarding) → Admin Session Governance (View/Filter/Reschedule/Cancel/Reassign/Join) (session governance) → Dispute Resolution with Admin Arbitration (disputes) → Admin Financial Auditing (Payments, Wallets, Withdrawal Approval) / Platform Analytics Dashboard / Broadcast Notifications (System-Wide & Targeted) (financial auditing, analytics, broadcasts). Platform Analytics Dashboard and Broadcast Notifications (System-Wide & Targeted) can spill into Sprint 4 if needed.
 
 ### Definition of Done (Sprint 3)
 
@@ -311,29 +311,29 @@ graph LR
 
 ```mermaid
 graph LR
-    DEV1_013[DEV1-013: Handshake Code] --> DEV1_014[DEV1-014: Link Request]
-    DEV1_014 --> DEV1_015[DEV1-015: Student Confirmation]
-    DEV1_015 --> DEV1_016[DEV1-016: Parent Portal]
-    DEV1_016 --> DEV1_017[DEV1-017: Parent Notifications]
+    T1_013[Handshake Code] --> T1_014[Link Request]
+    T1_014 --> T1_015[Student Confirmation]
+    T1_015 --> T1_016[Parent Portal]
+    T1_016 --> T1_017[Parent Notifications]
 
-    DEV3_012[DEV3-012: Dual Confirm] --> DEV2_016[DEV2-016: Student Rating]
-    DEV2_016 --> DEV2_017[DEV2-017: Rating Aggregation]
-    DEV2_008[DEV2-008: Cooldown] --> DEV2_018[DEV2-018: Re-Evaluation]
-    DEV3_014[DEV3-014: Wallet] --> DEV2_018
-    DEV2_014[DEV2-014: Report Submission] --> DEV2_019[DEV2-019: Academic Tracking]
+    T3_012[Dual Confirm] --> T2_016[Student Rating]
+    T2_016 --> T2_017[Rating Aggregation]
+    T2_008[Cooldown] --> T2_018[Re-Evaluation]
+    T3_014[Wallet] --> T2_018
+    T2_014[Report Submission] --> T2_019[Academic Tracking]
 
-    DEV3_016[DEV3-016: Admin CRUD] --> DEV3_017[DEV3-017: Soft Delete]
-    DEV3_016 --> DEV3_018[DEV3-018: Cold-Start]
-    DEV3_016 --> DEV3_019[DEV3-019: Direct Onboarding]
-    DEV3_016 --> DEV3_020[DEV3-020: Audit Logging]
-    DEV3_016 --> DEV3_021[DEV3-021: Session Governance]
-    DEV3_012 --> DEV3_022[DEV3-022: Dispute Resolution]
-    DEV3_014 --> DEV3_022b[DEV3-022b: Financial Auditing]
-    DEV3_016 --> DEV3_022c[DEV3-022c: Analytics]
-    DEV3_010[DEV3-010: Notification Engine] --> DEV3_022d[DEV3-022d: Broadcast]
+    T3_016[Admin CRUD] --> T3_017[Soft Delete]
+    T3_016 --> T3_018[Cold-Start]
+    T3_016 --> T3_019[Direct Onboarding]
+    T3_016 --> T3_020[Audit Logging]
+    T3_016 --> T3_021[Session Governance]
+    T3_012 --> T3_022[Dispute Resolution]
+    T3_014 --> T3_022b[Financial Auditing]
+    T3_016 --> T3_022c[Analytics]
+    T3_010[Notification Engine] --> T3_022d[Broadcast]
 
-    DEV1_009 -.->|provides sub management| DEV3_019
-    DEV3_011 -.->|provides notifications| DEV1_016
+    T1_009 -.->|provides sub management| T3_019
+    T3_011 -.->|provides notifications| T1_016
 ```
 
 ### Risks
@@ -353,18 +353,18 @@ graph LR
 
 ### Sprint Backlog
 
-| Ticket ID | Title | Owner | SP | Blocked By |
-|---|---|---|---|---|
-| DEV1-018 | End-to-end integration tests: student journey | Dev 1 | 5 | All Sprint 1–3 tickets |
-| DEV1-019 | End-to-end integration tests: parent journey | Dev 1 | 5 | DEV1-016, DEV1-017 |
-| DEV1-020 | End-to-end integration tests: subscription lifecycle | Dev 1 | 3 | DEV1-009 |
-| DEV2-020 | Security hardening: input validation & SQL injection prevention | Dev 2 | 5 | All Sprint 1–3 tickets |
-| DEV2-021 | Audit trail completeness verification | Dev 2 | 3 | DEV3-020 |
-| DEV2-022 | State machine invariant verification tests | Dev 2 | 5 | All Sprint 1–3 tickets |
-| DEV3-023 | Load testing & performance optimization | Dev 3 | 8 | All Sprint 1–3 tickets |
-| DEV3-024 | Disaster recovery & backup verification | Dev 3 | 5 | — |
-| DEV3-025 | Financial safety verification (double-spend, escrow integrity) | Dev 3 | 5 | DEV3-013, DEV3-014 |
-| DEV3-026 | Production launch checklist execution | Dev 3 | 5 | All Sprint 4 tickets |
+| Title | Owner | SP | Blocked By |
+|---|---|---|---|
+| End-to-end integration tests: student journey | Dev 1 | 5 | All Sprint 1–3 tickets |
+| End-to-end integration tests: parent journey | Dev 1 | 5 | Parent Read-Only Monitoring Portal, Parent Session Completion Notification Display |
+| End-to-end integration tests: subscription lifecycle | Dev 1 | 3 | Admin Subscription Management (Extend/Renew/Cancel/Upgrade/Downgrade) |
+| Security hardening: input validation & SQL injection prevention | Dev 2 | 5 | All Sprint 1–3 tickets |
+| Audit trail completeness verification | Dev 2 | 3 | Immutable Audit Logging for All Admin Actions |
+| State machine invariant verification tests | Dev 2 | 5 | All Sprint 1–3 tickets |
+| Load testing & performance optimization | Dev 3 | 8 | All Sprint 1–3 tickets |
+| Disaster recovery & backup verification | Dev 3 | 5 | — |
+| Financial safety verification (double-spend, escrow integrity) | Dev 3 | 5 | Fee Escrow: Hold at Request, Decrement at Completion, Teacher Wallet Crediting (Earning Transactions) |
+| Production launch checklist execution | Dev 3 | 5 | All Sprint 4 tickets |
 
 **Total story points:** 49 (Dev 1 = 13 SP, Dev 2 = 13 SP, Dev 3 = 23 SP)
 
@@ -390,15 +390,15 @@ graph LR
 
 ```mermaid
 graph LR
-    DEV1_018[DEV1-018: E2E Student Journey] --> DEV3_026[DEV3-026: Launch Checklist]
-    DEV1_019[DEV1-019: E2E Parent Journey] --> DEV3_026
-    DEV1_020[DEV1-020: E2E Subscription] --> DEV3_026
-    DEV2_020[DEV2-020: Security Hardening] --> DEV3_026
-    DEV2_021[DEV2-021: Audit Verification] --> DEV3_026
-    DEV2_022[DEV2-022: Invariant Tests] --> DEV3_026
-    DEV3_023[DEV3-023: Load Testing] --> DEV3_026
-    DEV3_024[DEV3-024: Disaster Recovery] --> DEV3_026
-    DEV3_025[DEV3-025: Financial Safety] --> DEV3_026
+    T1_018[E2E Student Journey] --> T3_026[Launch Checklist]
+    T1_019[E2E Parent Journey] --> T3_026
+    T1_020[E2E Subscription] --> T3_026
+    T2_020[Security Hardening] --> T3_026
+    T2_021[Audit Verification] --> T3_026
+    T2_022[Invariant Tests] --> T3_026
+    T3_023[Load Testing] --> T3_026
+    T3_024[Disaster Recovery] --> T3_026
+    T3_025[Financial Safety] --> T3_026
 ```
 
 ### Risks
@@ -415,16 +415,16 @@ graph LR
 
 | Ticket | Depends On (Cross-Stream) | Stream Interface |
 |---|---|---|
-| DEV2-005 (Verification Plan) | DEV1-006 (Subscription Purchase) | Dev 1 provides plan purchase; Dev 2 uses it for verification plan |
-| DEV2-014 (Report Submission) | DEV3-006 (Report Infrastructure) | Dev 3 provides report table; Dev 2 implements submission logic |
-| DEV3-008 (Matching Algorithm) | DEV2-011 (Availability Toggle) | Dev 2 provides availability; Dev 3 queries it for directory |
-| DEV3-013 (Fee Escrow) | DEV1-007 (Balance Crediting) | Dev 1 provides balance; Dev 3 holds/decrements for escrow |
-| DEV1-016 (Parent Portal) | DEV3-011 (Request Notification) | Dev 3 provides notifications; Dev 1 displays them in portal |
-| DEV1-017 (Parent Notifications) | DEV3-010 (Notification Engine) | Dev 3 provides notification engine; Dev 1 consumes for parent display |
-| DEV2-016 (Student Rating) | DEV3-012 (Dual Confirmation) | Dev 3 provides completion status; Dev 2 triggers rating submission |
-| DEV2-018 (Re-Evaluation) | DEV3-014 (Wallet Crediting) | Dev 3 provides wallet; Dev 2 deducts for re-evaluation cost |
-| DEV3-019 (Direct Onboarding) | DEV1-009 (Admin Sub Management) | Dev 1 provides subscription management; Dev 3 uses for offline payment |
-| DEV3-022 (Dispute Resolution) | DEV3-012 (Dual Confirmation) | Dev 3's own dual confirmation enables dispute state |
+| Verification Plan | Subscription Purchase | Dev 1 provides plan purchase; Dev 2 uses it for verification plan |
+| Report Submission | Report Infrastructure | Dev 3 provides report table; Dev 2 implements submission logic |
+| Matching Algorithm | Availability Toggle | Dev 2 provides availability; Dev 3 queries it for directory |
+| Fee Escrow | Balance Crediting | Dev 1 provides balance; Dev 3 holds/decrements for escrow |
+| Parent Portal | Request Notification | Dev 3 provides notifications; Dev 1 displays them in portal |
+| Parent Notifications | Notification Engine | Dev 3 provides notification engine; Dev 1 consumes for parent display |
+| Student Rating | Dual Confirmation | Dev 3 provides completion status; Dev 2 triggers rating submission |
+| Re-Evaluation | Wallet Crediting | Dev 3 provides wallet; Dev 2 deducts for re-evaluation cost |
+| Direct Onboarding | Admin Sub Management | Dev 1 provides subscription management; Dev 3 uses for offline payment |
+| Dispute Resolution | Dual Confirmation | Dev 3's own dual confirmation enables dispute state |
 
 ---
 

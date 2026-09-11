@@ -6,7 +6,7 @@ import { getTranslations } from "@/shared/locale/server";
 import { getLocaleFromCookie } from "@/shared/locale/server-cookies";
 
 /**
- * `/wallet` route — the teacher's self-service wallet (DEV3-013): the
+ * `/wallet` route — the teacher's self-service wallet: the
  * balance surface + the withdrawal-request flow + the transaction ledger.
  *
  * This page replaces the catch-all ComingSoon stub the `/wallet` teacher

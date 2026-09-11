@@ -1,7 +1,7 @@
 # Plan Catalog Reference Documentation
 
 **Domain:** Billing & Subscriptions  
-**Target Ticket:** DEV1-005: Plan Catalog CRUD (Admin Only)  
+**Target Ticket:** Plan Catalog CRUD (Admin Only)  
 **Lifecycle Status:** Active  
 
 ---
@@ -14,7 +14,7 @@ The Plan Catalog defines the purchasable lesson packages and verification plans 
 
 1. **INV-PC1 (Active Visibility & Purchase Gate):**
    - Deactivated plans (`isActive = false`) NEVER appear in the public student/parent/teacher catalog (`planCatalog` query).
-   - Only active plans can be purchased (enforced at purchase time in `DEV1-006`).
+   - Only active plans can be purchased (enforced at purchase time by subscription checkout).
 2. **INV-PC2 (Forward-Only Lifecycle & Historical Immutability):**
    - Plan deactivation or forward-only price/session edits NEVER alter or invalidate existing subscriptions or credited balances.
 3. **INV-PC3 (No Hard Deletion):**
@@ -79,17 +79,17 @@ RETURNING *;
 
 ## 5. Downstream Consumption Guidelines
 
-- **DEV1-006 (Subscription Checkout):**
+- **Subscription Checkout:**
   - Always re-validate `plan.isActive === true` inside checkout transactions before charging or provisioning subscriptions.
-- **DEV2-005 (Teacher Verification):**
+- **Teacher Verification:**
   - Look up verification plan by title: `"New Teacher Verification & Evaluation Plan"` (`sessionCount = 5`).
-- **DEV1-009 (Ledger & Invoicing):**
+- **Ledger & Invoicing:**
   - Compose `PlanRepository.findById(id, tx)` directly within billing transactions.
 ---
 
 ## 6. Security Rulings (post-implementation review)
 
-These rulings were recorded during the DEV1-005 implementation review and are
+These rulings were recorded during the implementation review and are
 binding for all downstream tickets touching this surface.
 
 ### REQ-030 — scope-auth shape (SECURITY)
@@ -108,7 +108,7 @@ builder's role scope throws the localized `UnauthorizedError` -> 401) and
 requires the exact admin role for everyone else (403 otherwise). The literal
 composite shape must not be reintroduced.
 
-**Platform suggestion (pending DEV2-002 owner ack):** set
+**Platform suggestion (pending owning-ticket ack):** set
 `scopeAuth.defaultStrategy: "all"` builder-wide so a future composite scope
 fails closed by default instead of open.
 

@@ -1,7 +1,7 @@
 /**
  * AdminUserManagementService — governance chaos & concurrency suite.
  *
- * DEV3-017 Phase 2.5 — REQ-043, REQ-073, REQ-013, REQ-042
+ * Phase 2.5 — REQ-043, REQ-073, REQ-013, REQ-042
  *
  * Extends the sequential duplicate-transition proofs of
  * `user-governance.service.test.ts` (Tier 1 state-conflict branch) into

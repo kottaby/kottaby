@@ -2,17 +2,17 @@
  * Dashboard Navigation Items Unit Tests
  *
  * Verifies:
- *  - Admin plans entry (DEV1-005): admin navigation contains "/admin/plans"
+ *  - Admin plans entry: admin navigation contains "/admin/plans"
  *    entry; non-admin roles (Student, Teacher, Parent) do NOT contain it.
  *  - Zero-change nav retarget: the admin audit entry stays pinned
  *    exactly where it already points — "/audit" with `labelKey: "audit"`,
  *    exactly once — and non-admin roles never see it. The `audit` label key
  *    remains owned by the dashboard bundle (no duplicate nav item, no label
  *    move): the route becomes reachable purely when its page ships.
- *  - Admin broadcasts (DEV3-022d): the broadcasts entry — exactly ONE
+ *  - Admin broadcasts: the broadcasts entry — exactly ONE
  *    `/admin/broadcasts` item with `labelKey: "broadcasts"`, positioned
  *    directly after the audit entry, dashboard-bundle owned, admin-only.
- *  - DEV3-021: the admin session-governance entry — exactly ONE
+ *  - Admin session governance: the admin session-governance entry — exactly ONE
  *    `/admin/session-governance` item with `labelKey: "sessionGovernance"`
  *    and the `EventNoteOutlined` icon, inside the audit→disputes envelope of
  *    the admin block (directly before the disputes entry),
@@ -234,7 +234,7 @@ describe("Admin session-governance navigation", () => {
   );
 });
 
-describe("Admin broadcasts navigation (DEV3-022d)", () => {
+describe("Admin broadcasts navigation", () => {
   test("Admin navigation carries exactly one /admin/broadcasts entry with the broadcasts label key, directly after the audit entry", () => {
     const adminNav = getNavItemsForRole(UserRole.Admin);
     const broadcastItems = adminNav.filter(item => item.route === "/admin/broadcasts");

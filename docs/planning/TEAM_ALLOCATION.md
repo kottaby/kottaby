@@ -37,11 +37,11 @@ Draft Academy is built by a **3-developer team** organized into **vertical trace
 
 | Sprint | Focus | Tickets |
 |---|---|---|
-| Sprint 0 | Schema migrations, user registration, role-based child table creation | DEV1-001 through DEV1-004 |
-| Sprint 1 | Plan catalog, subscription purchase, session balance crediting, free trial | DEV1-005 through DEV1-009 |
-| Sprint 2 | Tajweed curriculum lessons, progress tracking | DEV1-010 through DEV1-012 |
-| Sprint 3 | Parent handshake portal, parent monitoring portal | DEV1-013 through DEV1-017 |
-| Sprint 4 | E2E integration tests, parent portal polish | DEV1-018 through DEV1-020 |
+| Sprint 0 | Schema migrations, user registration, role-based child table creation | Database Schema Migration through Free Trial Session Provisioning |
+| Sprint 1 | Plan catalog, subscription purchase, session balance crediting, free trial | Plan Catalog CRUD (Admin Only) through Admin Subscription Management (Extend/Renew/Cancel/Upgrade/Downgrade) |
+| Sprint 2 | Tajweed curriculum lessons, progress tracking | Tajweed Curriculum Lessons CRUD through Teacher Preparation View (Student Progress Before Session) |
+| Sprint 3 | Parent handshake portal, parent monitoring portal | Student Handshake Code Generation through Parent Session Completion Notification Display |
+| Sprint 4 | E2E integration tests, parent portal polish | End-to-End Integration Tests: Student Journey through End-to-End Integration Tests: Subscription Lifecycle |
 
 ---
 
@@ -62,11 +62,11 @@ Draft Academy is built by a **3-developer team** organized into **vertical trace
 
 | Sprint | Focus | Tickets |
 |---|---|---|
-| Sprint 0 | Auth & RBAC middleware, role-based access contracts | DEV2-001 through DEV2-003 |
-| Sprint 1 | Applicant registration, verification plan, 5-session evaluation loop, cooldown | DEV2-004 through DEV2-010 |
-| Sprint 2 | Teacher availability toggle, in-session locking, session report & homework submission | DEV2-011 through DEV2-015 |
-| Sprint 3 | Evaluation system (student ratings → teacher rating), re-evaluation workflow | DEV2-016 through DEV2-019 |
-| Sprint 4 | Security hardening, audit trail verification | DEV2-020 through DEV2-022 |
+| Sprint 0 | Auth & RBAC middleware, role-based access contracts | JWT Authentication Service through Shared Types & Interface Contracts |
+| Sprint 1 | Applicant registration, verification plan, 5-session evaluation loop, cooldown | Teacher Applicant Registration & Applicants Table through Admin Override of Evaluation Results |
+| Sprint 2 | Teacher availability toggle, in-session locking, session report & homework submission | Teacher Availability Toggle (Available/Unavailable) through Surah/Juz Enum Homework Tracking |
+| Sprint 3 | Evaluation system (student ratings → teacher rating), re-evaluation workflow | Student Evaluation Submission (Teacher Rating) through Admin Academic Tracking (Memorization & Revision Milestones) |
+| Sprint 4 | Security hardening, audit trail verification | Security Hardening: Input Validation & SQL Injection Prevention through State Machine Invariant Verification Tests |
 
 ---
 
@@ -89,11 +89,11 @@ Draft Academy is built by a **3-developer team** organized into **vertical trace
 
 | Sprint | Focus | Tickets |
 |---|---|---|
-| Sprint 0 | CI/CD pipeline, Mermaid validation, shared types & interfaces | DEV3-001 through DEV3-003 |
-| Sprint 1 | Basic session lifecycle (scheduled → started → completed/cancelled), session creation | DEV3-004 through DEV3-007 |
-| Sprint 2 | Matching algorithm, notification engine, dual-confirmation escrow, wallet & transactions | DEV3-008 through DEV3-015 |
-| Sprint 3 | Admin governance, audit logging, cold-start bootstrapping, direct onboarding, dispute resolution | DEV3-016 through DEV3-022 |
-| Sprint 4 | Load testing, disaster recovery, production launch checklist | DEV3-023 through DEV3-026 |
+| Sprint 0 | CI/CD pipeline, Mermaid validation, shared types & interfaces | CI/CD Pipeline with Mermaid Validation through API Gateway & Routing Skeleton |
+| Sprint 1 | Basic session lifecycle (scheduled → started → completed/cancelled), session creation | Session Creation & Lifecycle (Scheduled → Started → Completed/Cancelled) through Recitation Record per Session (1:1) |
+| Sprint 2 | Matching algorithm, notification engine, dual-confirmation escrow, wallet & transactions | On-Demand Matching Algorithm (Filter/Sort Pipeline) through Teacher Withdrawal Workflow & Admin Approval |
+| Sprint 3 | Admin governance, audit logging, cold-start bootstrapping, direct onboarding, dispute resolution | Admin CRUD: Users, Teachers, Students, Parents through Dispute Resolution with Admin Arbitration |
+| Sprint 4 | Load testing, disaster recovery, production launch checklist | Load Testing & Performance Optimization through Production Launch Checklist Execution |
 
 ---
 

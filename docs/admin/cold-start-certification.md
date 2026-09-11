@@ -2,7 +2,7 @@
 
 **Domain:** Admin / Cold-start bootstrapping (Workflow 05 — direct sheikh certification half)
 **Specs:** `docs/specs/functional-requirements.md`, `docs/specs/state-machine-invariants.md` (INV-TV1), `docs/specs/open-decisions-and-gaps.md` (A.4/A.4.3, A.5, A.7, B.6, B.7)
-**Status:** Implemented and verified (DEV3-018)
+**Status:** Implemented and verified
 
 This document is the single canonical reference for the admin cold-start certification surface — the `adminCertifyTeacherColdStart` mutation that promotes an existing teacher-role user directly to a certified founding Sheikh, bypassing the applicant evaluation pipeline. All layers (types, repos, service, GraphQL, tests) MUST conform to the contracts described here. Code blocks in this document are **illustrative and NON-authoritative** — the authoritative implementations are cited by path in each section.
 
@@ -14,7 +14,7 @@ This document is the single canonical reference for the admin cold-start certifi
 
 Cold-start bootstrapping exists because a brand-new platform has no certified evaluation committee yet — nobody exists who could evaluate teacher applicants through the normal pipeline (`docs/teachers/applicant-lifecycle.md`). FR-3.9 / INV-TV1(b) resolves this: the Super Admin (supreme authority, Workflow 05) directly certifies the founding cohort, and that cohort **is** the initial Evaluation Committee. Once the committee exists, the normal applicant evaluation loop takes over and this surface remains the governance override, not the routine path.
 
-DEV3-018 ships:
+This surface ships:
 
 - The GraphQL mutation `adminCertifyTeacherColdStart(userId: Int!, makeEvaluator: Boolean = true): AdminUserDetail!` — admin-only, `$all`-conjunction gated.
 - `TeacherRepository` (the first governed-write repository for the `teacher` role-child table): insert-into-certified-state plus a guarded elevate, nothing else.
@@ -38,7 +38,7 @@ extend type Mutation {
 }
 ```
 
-- Authoritative registration: `backend/graphql/mutation/admin/admin-teachers.mutation.ts:36-69`. No new Pothos object/input types; the return type is the DEV3-016 `AdminUserDetailPothosObject`.
+- Authoritative registration: `backend/graphql/mutation/admin/admin-teachers.mutation.ts:36-69`. No new Pothos object/input types; the return type is the existing `AdminUserDetailPothosObject`.
 - `authScopes: { $all: { authenticated: true, role: [UserRole.Admin] } }` — the `$all` conjunction is load-bearing (a plain map is ANY-semantics = wrong); the verified pattern lives at `docs/teachers/applicant-lifecycle.md` §3. Anonymous → `UNAUTHORIZED`, authenticated non-admin → `FORBIDDEN`, both BEFORE the resolver body runs.
 - The resolver is thin: `!ctx.user` narrowing guard, then field-by-field argument hand-off (no spread, no try/catch). `actorId` is `ctx.user.id` — sourced from the verified session, NEVER from input.
 - The resolver's $all scope is NOT sufficient authorization on its own: the service's FIRST action re-checks the actor (§2.6).
@@ -75,7 +75,7 @@ Every successful certification appends EXACTLY ONE `audit_logs` row INSIDE the s
 | `entityId` | the target user id (non-null) |
 | `details` | fixed 3-field JSON: `{ makeEvaluator: boolean, applicantRow: "finalized"\|"absent", elevation: "created"\|"elevated" }` |
 
-The `details` payload is PII-free BY CONSTRUCTION (IDs/booleans/enums only — never names, emails, or content) and far below the `varchar(2000)` ceiling; the writer-side `truncateDetailsSafely` belt still applies. The fixed triple exactly reconstructs WHO/WHAT/HOW for the audit-trail browser (DEV3-020 consumer).
+The `details` payload is PII-free BY CONSTRUCTION (IDs/booleans/enums only — never names, emails, or content) and far below the `varchar(2000)` ceiling; the writer-side `truncateDetailsSafely` belt still applies. The fixed triple exactly reconstructs WHO/WHAT/HOW for the audit-trail browser (its consumer).
 
 **JR-C-1 denial purity:** EVERY denial path emits ZERO audit rows. The actor gate + shape validation run BEFORE any transaction opens; the target checks (existence/role/governance) and the already-certified conflicts throw BEFORE the audit stage inside the tx, so a thrown tx rolls back with zero writes anywhere. Denials log once each via `logger.logDomainError` with the bounded context `{ code, entity: "user", entityId, locale }` (`cold-start-certification.service.ts:79-86`; note B-2/F-D3 reconciliation — the target id belongs to a `users` row regardless of the denial reason).
 
@@ -92,11 +92,11 @@ ZERO writes to `users` (profile / role / governance columns — A.7 columns are 
 
 ### 2.6 Actor-Governance Blast-Radius Divergence (REQ-031 / D1)
 
-**This is a documented divergence from the DEV3-016 role-only gate — read it before reusing either gate.**
+**This is a documented divergence from the user-management role-only gate — read it before reusing either gate.**
 
-- `createGraphQLContext` applies NO governance filter (`backend/graphql/gqlContextFactory.ts`) and `UserRepository.findById` applies none either — a SUSPENDED (or blocked/deleted) admin holding a still-valid token passes the role-only `assertActorAdmin` and the `$all` authScopes. For the low-blast CRUD surface that window was accepted (DEV3-016); for minting certified Shuyukh it is NOT.
+- `createGraphQLContext` applies NO governance filter (`backend/graphql/gqlContextFactory.ts`) and `UserRepository.findById` applies none either — a SUSPENDED (or blocked/deleted) admin holding a still-valid token passes the role-only `assertActorAdmin` and the `$all` authScopes. For the low-blast CRUD surface that window was accepted; for minting certified Shuyukh it is NOT.
 - This mutation's FIRST service action is therefore `assertActorAdminActive` (`backend/services/admin/admin-gate.helpers.ts:105-137`): the shared role gate verbatim, PLUS a governance clause re-reading the actor row and checking `isDeleted` → `isBlocked` → `suspended` in deterministic order, each denial a `ForbiddenError` carrying the existing localized `accountDeleted` / `accountBlocked` / `accountSuspended` copy. Every denial happens BEFORE the transaction opens, with ZERO audit rows and ZERO reads past the gate.
-- Known shape (ledgered, not fixed on this ticket): the governance clause performs a SECOND read of the actor row; under READ COMMITTED the two reads see different snapshots (micro TOCTOU). `assertActorAdmin` is byte-parity locked to the DEV3-016 regression suites and returns void, so it cannot hand back its row — the double-read is the forced consequence, recorded as ledger rows `D-GATE-DOUBLE-READ` / `D-GATE-NULL-READ` owned by the gate-consolidation follow-up. The `audit_logs.actor_id` FK restrict guarantees rollback if the actor row is hard-deleted mid-window.
+- Known shape (ledgered, not fixed on this ticket): the governance clause performs a SECOND read of the actor row; under READ COMMITTED the two reads see different snapshots (micro TOCTOU). `assertActorAdmin` is byte-parity locked to the user-management regression suites and returns void, so it cannot hand back its row — the double-read is the forced consequence, recorded as ledger rows `D-GATE-DOUBLE-READ` / `D-GATE-NULL-READ` owned by the gate-consolidation follow-up. The `audit_logs.actor_id` FK restrict guarantees rollback if the actor row is hard-deleted mid-window.
 - The target's governance state is ALSO checked inside the tx (`isDeleted || isBlocked || suspended` ⇒ `TEACHER_ACCOUNT_GOVERNED`), NULL-safe, with no suspension-window hysteresis.
 
 ### 2.7 Concurrency Rulings (REQ-042)
@@ -110,7 +110,7 @@ Two PostgreSQL mechanisms — and NOTHING else:
 
 ### 2.8 Idempotency Ruling (REQ-043 — Conflict, Not Keys)
 
-This mutation is OUTSIDE the `docs/IDEMPOTENCY.md` mandated key set (Student / Invoice / Class Instance / Payment). Repeat-call safety is carried by the conflict ruling, mirroring the DEV3-016 admin-ops ruling (`docs/admin/user-management.md` §2.5): a double-submit / retry / replay resolves to `TEACHER_ALREADY_CERTIFIED` BEFORE any second write, audit row, notification, or publish — because the `isApproved = true` pre-check, the `23505` translation, and the zero-row re-read all funnel a repeat into the same typed conflict. There is NO claim cache, NO key derivation, NO replay machinery.
+This mutation is OUTSIDE the `docs/IDEMPOTENCY.md` mandated key set (Student / Invoice / Class Instance / Payment). Repeat-call safety is carried by the conflict ruling, mirroring the user-management admin-ops ruling (`docs/admin/user-management.md` §2.5): a double-submit / retry / replay resolves to `TEACHER_ALREADY_CERTIFIED` BEFORE any second write, audit row, notification, or publish — because the `isApproved = true` pre-check, the `23505` translation, and the zero-row re-read all funnel a repeat into the same typed conflict. There is NO claim cache, NO key derivation, NO replay machinery.
 
 ### 2.9 Error-Code Table (verbatim from plan §3.3)
 
@@ -157,7 +157,7 @@ The taxonomy is CLOSED (REQ-050): no new error subclasses; the custom conflict c
 - **DO NOT re-litigate the emitter-locale rule inline.** Certification copy is composed in the ADMIN's locale (A.4.3). Per-recipient localization is the NotificationEngine's deferred D2 — do not patch a per-recipient lookup into this service; route the requirement through the engine stream.
 - **DO NOT add locking.** No `SELECT FOR UPDATE`, no advisory locks, no Redis. The PK constraint and the guarded predicate are the entire concurrency story (§2.7); adding locks would signal a misunderstanding of the rulings and risks deadlocks against sibling admin writes.
 - **DO NOT write audit rows outside the certification transaction, or on denials** (JR-C-1). The audit insert MUST live inside the certification `tx`; denials append zero rows.
-- **DO NOT widen the audit `details` payload** beyond the fixed D8 triple. Field names and metadata only — names, emails, and content violate the PII-minimal contract (DEV3-020 reads this shape).
+- **DO NOT widen the audit `details` payload** beyond the fixed D8 triple. Field names and metadata only — names, emails, and content violate the PII-minimal contract (the audit-trail browser reads this shape).
 - **DO NOT mint `teacher` rows for non-teacher users** "to prepare them" elsewhere: `TEACHER_ROLE_REQUIRED` is the gate, and `users.role` is NEVER written by this surface (A.7 purity).
 - **DO NOT touch `docs/specs/state-machine-invariants.md` or `docs/specs/open-decisions-and-gaps.md` numbering** from this surface — bindings are by reference (INV-TV1, A.4/A.4.3, A.5, A.7, B.6, B.7).
 
@@ -165,11 +165,11 @@ The taxonomy is CLOSED (REQ-050): no new error subclasses; the custom conflict c
 
 ## 5. Rollout Summary
 
-DEV3-018 ships:
+This surface ships:
 
 - `backend/graphql/mutation/admin/admin-teachers.mutation.ts` — the mutation field (thin resolver, `$all` scope, field-by-field delegation).
 - `backend/services/admin/cold-start-certification.service.ts` — `certifyTeacherColdStart` pipeline; module helpers `logCertificationDenial`, `asDeliveryReceipt`, `certifyTeacherRow`.
-- `backend/services/admin/admin-gate.helpers.ts` — `assertActorAdmin` (extracted byte-verbatim from DEV3-016; its suites are the parity lock) + NEW `assertActorAdminActive`.
+- `backend/services/admin/admin-gate.helpers.ts` — `assertActorAdmin` (extracted byte-verbatim from the admin-gate substrate; its suites are the parity lock) + NEW `assertActorAdminActive`.
 - `backend/db/repo/teachers/teacher.repository.ts` — `TeacherRepository.findById` / `insertColdStartCertified` / `elevateToCertified`.
 - `backend/db/repo/teachers/applicant.repository.ts` — `finalizeOnCertification` (additive).
 - `backend/types/teachers/teacher.types.ts` — `TeacherColdStartCertificationInput`.

@@ -8,7 +8,7 @@ import { Errors, Sessions, useAppTranslation } from "@/shared/locale";
 
 /**
  * useResolveSessionDispute — the mutation + error-classification seam of the
- * `ResolveDisputeDialog` arbitration flow (DEV3-005 R-104, plan §3.2).
+ * `ResolveDisputeDialog` arbitration flow (R-104, plan §3.2).
  *
  * Mutation behavior (NO refetch):
  *

@@ -13,7 +13,7 @@ import type { SessionsLabels } from "@/shared/locale/types/sessions";
 
 /**
  * AdminSessionRow — ONE session rendered as a bordered list card in the
- * admin governance directory (`/admin/session-governance`, DEV3-021).
+ * admin governance directory (`/admin/session-governance`).
  * Presentation mirrors the arbitration-queue row (shared card shell, overline
  * meta cells, verbatim fee) while the CONTENT is governance-specific:
  *

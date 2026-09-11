@@ -52,7 +52,3 @@ Each sub-directory contains its own `index.ts` barrel that side-effect-imports e
 4. If a new sub-directory was created, add `import "./<subdir>";` to the top-level `backend/graphql/query/index.ts`.
 5. Run `bun run generate:gqlSchema` then `bun codegen` to refresh the GraphQL schema and frontend types.
 
-## Linting Rules
-
-- See `docs/quality/linting-rules.md` for Oxlint & ESLint/sonarjs fix recipes. NEVER use `oxlint-disable` comments.
-

@@ -1,7 +1,7 @@
 /**
  * WalletPothosObject + TeacherTransactionPothosObject — the single
  * canonical GraphQL object types for a teacher's wallet and one of its
- * ledger rows (DEV3-013, R-301).
+ * ledger rows (R-301).
  *
  * Single Canonical Object Type Pattern (`backend/graphql/AGENTS.md`):
  *  - Backed EXCLUSIVELY by the canonical `WalletViewType` /

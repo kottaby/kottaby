@@ -29,8 +29,15 @@ await runParallelTests({
   // so the total drifts by that many rows. Serializing it to the tail lane
   // (run alone, after the pool drains) restores a deterministic empty-table
   // baseline for the global count without changing the production read path.
+  // The admin cold-start certification chaos suite provisions committed fixtures
+  // and in afterAll calls deleteUsersByIds, which executes DDL
+  // (`ALTER TABLE audit_logs DISABLE/ENABLE TRIGGER`). Running DDL against
+  // audit_logs concurrently with other test workers creates table-level lock
+  // and trigger state races against the immutable audit table. Serializing it
+  // to the tail lane runs it alone after the worker pool drains.
   sequentialTailPatterns: [
     "notifications/admin-broadcast.service.test.ts",
     "classes/session-admin-governance.service.test.ts",
+    "admin/cold-start-certification.chaos.test.ts",
   ],
 });

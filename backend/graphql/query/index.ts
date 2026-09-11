@@ -11,7 +11,7 @@
  *    `index.ts`.
  *
  * `auth.query.ts` wires the `me` query; the other entries register the
- * health, recitation, classes (session lifecycle), billing (wallet DEV3-013
+ * health, recitation, classes (session lifecycle), billing (wallet
  * + plan-catalog), teacher-domain, student-domain, notification-domain,
  * and admin-domain queries; `subscription.query.ts` wires the
  * caller-scoped subscription list (`mySubscriptions`).

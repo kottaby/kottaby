@@ -18,7 +18,7 @@ import type { SessionsLabels } from "@/shared/locale/types/sessions";
 
 /**
  * AdminDisputesBody — the swapping body BELOW the admin arbitration queue's
- * always-on chrome (`/disputes`, DEV3-005 R-111) — the visual state matrix
+ * always-on chrome (`/disputes`, R-111) — the visual state matrix
  * branches 1–5 as a pure presentational resolver (module scope keeps the
  * container a state+callbacks orchestrator; the chrome renders in EVERY
  * branch, only this body swaps):

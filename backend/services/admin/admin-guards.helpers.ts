@@ -6,12 +6,12 @@
  *
  * Two variants:
  *  - {@linkcode assertActorAdmin}: relaxed BFLA gate (anonymous + role check
- *    only). Used by every DEV3-016 admin-user-management method (list /
+ *    only). Used by every admin-user-management method (list /
  *    detail / create / update / soft-delete). The documented GraphQL context
  *    governance window applies for the duration of an issued token; the
  *    relaxed gate intentionally does NOT re-evaluate governance state on
  *    every call — REQ-031 leaves the strict backport to a forward-referenced
- *    sibling ticket (D4) and keeps DEV3-016's existing methods byte-stable.
+ *    sibling ticket (D4) and keeps the existing methods byte-stable.
  *  - {@linkcode assertActiveActorAdmin}: strict governance gate (relaxed
  *    checks PLUS deterministic-order evaluation of `isDeleted` /
  *    `isBlocked` / `isSuspensionActive`). Used by governance mutations

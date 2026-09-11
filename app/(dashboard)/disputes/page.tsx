@@ -6,7 +6,7 @@ import { getTranslations } from "@/shared/locale/server";
 import { getLocaleFromCookie } from "@/shared/locale/server-cookies";
 
 /**
- * `/disputes` route (DEV3-005 R-111) — server component shell that renders
+ * `/disputes` route — server component shell that renders
  * the `AdminDisputesContainer` arbitration queue.
  *
  * Mirrors the `/student/sessions` page structure: `createRoleDashboardPage`

@@ -14,7 +14,7 @@
  *    rotates the pair (issues a NEW refresh token + session id), returns the
  *    fresh `RefreshResult`.
  *  - `updateMyLocale(userId, locale, requestLocale, tx?)` — persists the
- *    caller's UI/copy locale preference on `users.locale` (DEV3-010 D2).
+ *    caller's UI/copy locale preference on `users.locale` (the D2 column).
  *    Validates the closed locale set (defense-in-depth — the GraphQL enum
  *    already constrains it), writes inside a transaction, and returns the
  *    updated user with `passwordHash` stripped. Throws `ValidationError`
@@ -266,7 +266,7 @@ export namespace AuthService {
 
   /**
    * Persists the caller's app locale preference (UI + notification-copy
-   * language) on `users.locale` — the DEV3-010 D2 column.
+   * language) on `users.locale` — the D2 column.
    *
    * The GraphQL `AppLocale!` argument already constrains the value at the
    * schema layer; the `isAppLocale` check here is defense-in-depth for

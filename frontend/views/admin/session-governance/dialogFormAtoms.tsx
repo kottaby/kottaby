@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
 
 /**
  * Shared form-dialog atoms for the admin session-governance dialogs
- * (cancel / reschedule / reassign — `/admin/session-governance`, DEV3-021).
+ * (cancel / reschedule / reassign — `/admin/session-governance`).
  *
  * The three dialogs are structural siblings of the participant cancel +
  * arbitration dialogs (portal/dialog/form discipline, `React.SubmitEvent`,

@@ -516,8 +516,8 @@ describe("Journey — Account-Governance Cross-Actor Lifecycle (Workflow 05 §5)
   });
 
   // ─── Step 7: A soft-deletes S; suspend on DELETED S → USER_ALREADY_DELETED; reactivate S; login succeeds
-  test("step 7: A soft-deletes S (DEV3-016) → login denied; suspend on DELETED S → USER_ALREADY_DELETED + ZERO audit; reactivate S → login succeeds", async () => {
-    // 7a. A soft-deletes S via the EXISTING DEV3-016 path (consumed, never forked).
+  test("step 7: A soft-deletes S → login denied; suspend on DELETED S → USER_ALREADY_DELETED + ZERO audit; reactivate S → login succeeds", async () => {
+    // 7a. A soft-deletes S via the existing soft-delete path (consumed, never forked).
     const deleteResult = await AdminUserManagementService.setUserDeleted(
       cast.studentS.userId,
       true,
@@ -558,7 +558,7 @@ describe("Journey — Account-Governance Cross-Actor Lifecycle (Workflow 05 §5)
     const allAuditForAAfter = await countAllAuditForActor(cast.adminA.userId);
     expect(allAuditForAAfter).toBe(allAuditForABefore);
 
-    // 7d. A reactivates S via the EXISTING DEV3-016 path (existing path, consumed).
+    // 7d. A reactivates S via the existing soft-delete path (consumed, never forked).
     const reactivateResult = await AdminUserManagementService.setUserDeleted(
       cast.studentS.userId,
       false,
