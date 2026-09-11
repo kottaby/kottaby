@@ -64,6 +64,7 @@ These belong to other tickets and are recorded so their consumers see them — t
 | Saved cards (CIT/MIT/tokenization) | future ticket | TOKEN callbacks are safely ignored (REQ-026); enabling them is an intentional scope change |
 | Pixel embedded checkout (in-page) | future UX ticket | D2 chose Unified Checkout redirect; Pixel is a drop-in alternative UX, not a different contract |
 | Paymob-native subscription plans | rejected by design | Kottaby subscriptions are one-time purchases; the gateway-side recurring module does not fit the domain model |
+| ngrok tunnel envs (`NGROK_AUTHTOKEN`, `NGROK_DOMAIN`, `NGROK_PORT`) | OPTIONAL operator/dev config — never blocking | The callback-channel factory (D14/REQ-090..093) is fully implemented WITHOUT these values (simulation channel is the complete dev default); setting them later upgrades dev (and channel-aware tests) to real ngrok delivery with zero code changes — nothing is deferred waiting on them |
 | Sandbox phone-placeholder tolerance validation | manual QA before live rollout | REQ-012 placeholder assumption must be proven against Paymob sandbox (runbook in final doc — task 9.2) |
 
 ---

@@ -44,7 +44,7 @@
 
 - [ ] 2.1 Paymob env configuration
   - EXTEND `backend/lib/env.ts`: `EnvironmentConfig.paymob` object + parsing in `readEnvironment()` + `getPaymobConfig()` getter (plan §4.1 — 10 keys incl. defaults for `PAYMOB_API_BASE_URL`/`PAYMOB_CHECKOUT_BASE_URL`/timeout/sweep window).
-  - EXTEND `.env.example` with the 10 keys using `<your-…-here>` placeholders; EXTEND `backend/lib/test-ci-env.ts` with harmless test-mode defaults.
+  - EXTEND `.env.example` with ALL 13 new keys — the 10 PAYMOB_* (`PAYMOB_SECRET_KEY`, `PAYMOB_PUBLIC_KEY`, `PAYMOB_HMAC_SECRET`, `PAYMOB_API_KEY`, `PAYMOB_INTEGRATION_ID_CARD`, `PAYMOB_INTEGRATION_ID_WALLET`, `PAYMOB_API_BASE_URL`, `PAYMOB_CHECKOUT_BASE_URL`, `PAYMOB_HTTP_TIMEOUT_MS`, `PAYMOB_RECONCILE_PENDING_MINUTES`) + the 3 optional `NGROK_*` (`NGROK_AUTHTOKEN`, `NGROK_DOMAIN`, `NGROK_PORT`) — using `<your-…-here>`/comment-only placeholders; EXTEND `backend/lib/test-ci-env.ts` with harmless test-mode defaults (NGROK_* absent there — CI exercises the simulation channel).
   - [ ] 2.1.QL · [ ] 2.1.TE — unit tests: defaults applied, integer coercion for integration IDs, empty-string secret rejected, cache reset parity · [ ] 2.1.SEC — secrets only parsed server-side; nothing logged · [ ] 2.1.SR · [ ] 2.1.IV
   - _Requirements: REQ-002, REQ-040, REQ-042_
 - [ ] 2.2 Schema delta + migration 5
@@ -81,7 +81,7 @@
 - [ ] 4.1 Provider-dispatched webhook route
   - EXTEND the EXISTING `app/api/payments/webhook/route.ts` with the paymob branch: keep the kill switch (`PAYMENT_WEBHOOK_ENABLED` → bare 404), the 64 KiB bounded body read, quarantine/replay ack semantics, and masked envelopes; paymob-branch 404 gate when `PAYMENT_GATEWAY_PROVIDER ≠ paymob` → parse+verify via the paymob HMAC path (query-param `?hmac=`, SHA-512 20-key concat — amendment A3 gives the port the query) → dispatch `PaymentWebhookEvent` to the EXISTING `SubscriptionActivationService.processWebhookEvent` → 200 ack per plan §3.4 matrix.
   - VERIFY registration: `{ path: "/api/payments/webhook", classification: "provider-ack-exempt" }` already exists (`backend/lib/gateway/route-inventory.ts:65`) — confirm no new row needed; if the paymob branch changes the exemption surface, update the row + `docs/graphql/error-handling-contract.md` §Exemptions accordingly.
-  - [ ] 4.1.QL · [ ] 4.1.TE — full REQ-053 status matrix; replay; TOKEN/refund/void no-ops; unknown `merchant_order_id` 200; oversized 413; paymob-branch 404 when `PAYMENT_GATEWAY_PROVIDER ≠ paymob` · [ ] 4.1.SEC — forged/malformed probes green; logs redacted + minimal · [ ] 4.1.SR · [ ] 4.1.IV
+  - [ ] 4.1.QL · [ ] 4.1.TE — full REQ-053 status matrix; replay — including an N≥5 burst of the SAME signed callback in quick succession (Auto Callback Retrial shape, REQ-029: exactly one settlement, the rest 200 no-ops); TOKEN/refund/void no-ops; unknown `merchant_order_id` 200; oversized 413; paymob-branch 404 when `PAYMENT_GATEWAY_PROVIDER ≠ paymob` · [ ] 4.1.SEC — forged/malformed probes green; logs redacted + minimal · [ ] 4.1.SR · [ ] 4.1.IV
   - _Requirements: REQ-004, REQ-020, REQ-021, REQ-022, REQ-023, REQ-024, REQ-025, REQ-026, REQ-041, REQ-043, REQ-053, REQ-071_
 - [ ] 4.2 Fulfillment integration (activation + notification)
   - Verify/wire the subscription-purchase plan's `SubscriptionActivationService.processWebhookEvent`: guarded transition resolves reference→pending pair, applies `providerTransactionId` when present (REQ-031 amendment), credits lanes, and emits `payment_confirmation` via `NotificationEngine.emitForUser` in-tx with `publishReceipts` post-commit; idempotency key `payment:<providerTransactionId>:confirmation`.
@@ -100,7 +100,15 @@
   - CREATE `app/api/cron/reconcile-paymob-payments/route.ts` following `app/api/cron/sweep-sessions/route.ts` (GET-only, `CRON_SECRET` timing-safe compare, 404 when inactive, `apiSuccessResponse`/`apiErrorResponse`, `resolveRequestId`); register in `ROUTE_INVENTORY` (A4 assertion green).
   - [ ] 5.2.QL · [ ] 5.2.TE — bearer ok/missing/wrong; mode gate; happy path delegates · [ ] 5.2.SEC · [ ] 5.2.SR · [ ] 5.2.IV
   - _Requirements: REQ-041, REQ-043, REQ-035_
-- [ ] 5.3 Mid-point backend review gate (Phase 2.5 pattern)
+- [ ] 5.4 Callback channel factory + simulation channel (the fully-implemented dev default)
+  - CREATE `backend/types/billing/callback-channel.types.ts` (`CallbackChannelKind`, `CallbackChannelPort`), `backend/services/billing/payment-gateway/callback-channel/callback-channel.factory.ts` (`getCallbackChannel()` — `real` in production / provider≠paymob, `ngrok` only when BOTH `NGROK_AUTHTOKEN` + `NGROK_DOMAIN` set AND probe passes, else `simulation` + one structured log), and `…/callback-channel/simulation-callback-channel.channel.ts` (synthesizes Paymob-shaped processed callbacks signed via the PRODUCTION `paymob.hmac.ts` builder with `PAYMOB_HMAC_SECRET`, POSTs `?hmac=<digest>` to the local webhook; supports confirm/fail/replay/cross-user; fail-closed guard in production). No consumer reads `NGROK_*` directly.
+  - [ ] 5.4.QL · [ ] 5.4.TE — factory resolution matrix (real/ngrok/simulation incl. missing-env and failed-probe fallbacks); simulation callback passes the real route's HMAC gate and fulfills end-to-end; production guard throws · [ ] 5.4.SEC — simulation unreachable in production; signer reuse (no drift) · [ ] 5.4.SR — NO per-file ngrok checks anywhere · [ ] 5.4.IV
+  - _Requirements: REQ-090, REQ-091, REQ-093_
+- [ ] 5.5 Ngrok channel + intention URL wiring
+  - CREATE `…/callback-channel/ngrok-callback-channel.channel.ts` (spawn `ngrok http --url="https://<NGROK_DOMAIN>" <NGROK_PORT>`; probe the PUBLIC domain URL — local agent API off-limits; `publicBaseUrl = https://<NGROK_DOMAIN>`); EXTEND the intention URL composition to use the channel's `publicBaseUrl` for the dev `notification_url`; EXTEND `backend/lib/env.ts` (+`.env.example`, `backend/lib/test-ci-env.ts`) with the three optional `NGROK_AUTHTOKEN` / `NGROK_DOMAIN` / `NGROK_PORT` (default 3000) keys.
+  - [ ] 5.5.QL · [ ] 5.5.TE — probe success/failure matrix; notification_url composition per channel; env parsing · [ ] 5.5.SEC — authtoken never logged; dev-only selection · [ ] 5.5.SR · [ ] 5.5.IV
+  - _Requirements: REQ-090, REQ-091, REQ-092_
+- [ ] 5.6 Mid-point backend review gate (Phase 2.5 pattern)
   - Dispatch backend-scoped review over Phase 2–5 outputs (types/repo/service/route files); aggregate + fix findings per file with sub-loop re-verification; repeat until zero backend-specific findings; write `outcome/midpoint-review-R1.md`.
   - _Requirements: REQ-002, REQ-082_
 
@@ -144,7 +152,7 @@
 ## Phase 8: Journey Validation
 
 - [ ] 8.1 Purchase→webhook→activation journey
-  - CREATE `test/workflows/billing/paymob-purchase-journey.test.ts` per `docs/testing/workflow-journey-tests.md`: real services + real DB; Paymob HTTP mocked at the injected fetch boundary; drives purchase → synthetic HMAC-signed callback → asserts activation + lane credit + persisted notification; replay + tamper + failure journeys green.
+  - CREATE `test/workflows/billing/paymob-purchase-journey.test.ts` per `docs/testing/workflow-journey-tests.md`: real services + real DB; Paymob HTTP mocked at the injected fetch boundary; callback delivery resolved through `getCallbackChannel()` (ngrok when reachable, simulation otherwise — REQ-094; NO per-test ngrok logic); drives purchase → verified callback → asserts activation + lane credit + persisted notification; replay + tamper + failure + cross-user journeys green.
   - [ ] 8.1.QL · [ ] 8.1.TE · [ ] 8.1.SEC — denial probes from specs §3 · [ ] 8.1.SR · [ ] 8.1.IV
   - _Requirements: REQ-004, REQ-023, REQ-025, REQ-028, REQ-034, REQ-074_
 
@@ -167,7 +175,7 @@
 | REQ | Tasks |
 |---|---|
 | REQ-001 | 0.1, 9.1 |
-| REQ-002 | 2.1 (pattern applied to all), 5.3, 9.1 |
+| REQ-002 | 2.1 (pattern applied to all), 5.6, 9.1 |
 | REQ-003 | 6.1, 7.2 |
 | REQ-004 | 2.2, 3.1, 3.3, 4.1, 5.1, 7.5, 8.1 |
 | REQ-005 | 2.3 |
@@ -185,6 +193,7 @@
 | REQ-023 | 4.1, 4.2, 8.1 |
 | REQ-024 | 4.1 |
 | REQ-025 | 4.1, 8.1 |
+| REQ-029 | 4.1, 9.2 |
 | REQ-026 | 4.1 |
 | REQ-027 | 7.3 |
 | REQ-028 | 4.2, 8.1 |
@@ -219,4 +228,9 @@
 | REQ-074 | 8.1 |
 | REQ-075 | 7.1, 7.5 |
 | REQ-080, REQ-081 | 9.2 |
-| REQ-082 | 5.3, 9.1 |
+| REQ-082 | 5.6, 9.1 |
+| REQ-090 | 5.4, 5.5 |
+| REQ-091 | 5.4, 5.5 |
+| REQ-092 | 5.5 |
+| REQ-093 | 5.4 |
+| REQ-094 | 8.1 |
