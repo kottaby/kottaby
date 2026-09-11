@@ -1,4 +1,5 @@
-import { index, integer, pgTable, timestamp, varchar } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
+import { index, integer, pgTable, timestamp, uniqueIndex, varchar } from "drizzle-orm/pg-core";
 import { plans } from "@/backend/db/schema/billing/plans";
 import { paymentGateway, subscriptionStatus } from "@/backend/db/schema/enums";
 import { users } from "@/backend/db/schema/users/users";
@@ -15,6 +16,14 @@ import { users } from "@/backend/db/schema/users/users";
  * Both FKs use `restrict` delete semantics: a user or plan with active
  * subscriptions cannot be hard-deleted until the subscriptions are resolved.
  * Indexes on `user_id` and `plan_id`.
+ *
+ * `payment_reference` carries the gateway-issued reference for the purchase.
+ * The partial unique index (`... WHERE payment_reference IS NOT NULL`) is
+ * declared as a UNIQUE INDEX, not a table constraint: PostgreSQL unique
+ * constraints cannot carry a WHERE predicate. It guarantees at most one
+ * subscription ever claims a given gateway reference (the losing insert
+ * surfaces as a 23505 unique violation), while subscriptions that have no
+ * reference yet — or offline payments recorded without one — stay exempt.
  */
 export const subscriptions = pgTable(
   "subscriptions",
@@ -38,5 +47,11 @@ export const subscriptions = pgTable(
       .notNull()
       .$onUpdate(() => new Date()),
   },
-  t => [index("subscriptions_user_id_idx").on(t.userId), index("subscriptions_plan_id_idx").on(t.planId)]
+  t => [
+    index("subscriptions_user_id_idx").on(t.userId),
+    index("subscriptions_plan_id_idx").on(t.planId),
+    uniqueIndex("subscriptions_payment_reference_unique")
+      .on(t.paymentReference)
+      .where(sql`${t.paymentReference} IS NOT NULL`),
+  ]
 );

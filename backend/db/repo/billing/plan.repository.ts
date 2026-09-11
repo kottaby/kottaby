@@ -16,6 +16,7 @@
 import { and, asc, eq } from "drizzle-orm";
 import { db, queryDb } from "@/backend/db";
 import { plans } from "@/backend/db/schema/billing/plans";
+import { ConflictError } from "@/backend/lib/errors";
 import type { DBQueryExecutor, DBTransaction, PlanInsertType, PlanSelectType, PlanUpdateInput } from "@/backend/types";
 
 /**
@@ -33,13 +34,18 @@ function isDBTransaction(tx: DBQueryExecutor): tx is DBTransaction {
 /** Shared column projection with camelCase aliasing for raw `queryDb` reads. */
 const PLAN_READ_COLUMNS = `
   id, title, session_count AS "sessionCount", price, currency,
-  interval_days AS "intervalDays", is_active AS "isActive",
-  deactivated_at AS "deactivatedAt", created_at AS "createdAt", updated_at AS "updatedAt"
+  interval_days AS "intervalDays", balance_lane AS "balanceLane",
+  is_active AS "isActive", deactivated_at AS "deactivatedAt",
+  created_at AS "createdAt", updated_at AS "updatedAt"
 `;
 
 export namespace PlanRepository {
   /**
    * Inserts a new subscription plan record.
+   *
+   * @throws ConflictError when the INSERT somehow returns no row — the
+   * defensive invariant shared by the billing repositories (an INSERT…
+   * RETURNING that inserts never yields an empty row list).
    *
    * @returns The inserted plan row.
    */
@@ -47,7 +53,7 @@ export namespace PlanRepository {
     const executor = tx ?? db;
     const [row] = await executor.insert(plans).values(insert).returning();
     if (!row) {
-      throw new Error("PlanRepository.insertPlan: insert returned no rows");
+      throw new ConflictError("PlanRepository.insertPlan: insert returned no rows");
     }
     return row;
   }
@@ -130,6 +136,38 @@ export namespace PlanRepository {
     }
     // Non-transactional read — raw SQL via queryDb (Neon HTTP fast path).
     const result = await queryDb<PlanSelectType>(`SELECT ${PLAN_READ_COLUMNS} FROM plans WHERE id = $1 LIMIT 1`, [id]);
+    return result.rows[0] ?? null;
+  }
+
+  /**
+   * Finds an ACTIVE plan by ID — the purchase-time re-validation read.
+   *
+   * The single predicate `WHERE id = ? AND is_active = true` collapses an
+   * unknown plan and a deactivated plan into the same `null` result, so a
+   * purchase can never bind to a plan that was withdrawn between catalog
+   * browsing and checkout. Takes an optional transaction because the
+   * purchase flow re-validates the plan INSIDE its transaction: the active
+   * state is then judged against the same snapshot the purchase writes
+   * against, and a concurrent deactivation serializes behind the row lock
+   * instead of slipping through a stale read.
+   *
+   * @returns The active plan row, or null when the plan is unknown or inactive.
+   */
+  export async function findActiveById(id: number, tx?: DBQueryExecutor): Promise<PlanSelectType | null> {
+    if (tx && isDBTransaction(tx)) {
+      // Transactional read — Drizzle select on the supplied executor.
+      const rows = await tx
+        .select()
+        .from(plans)
+        .where(and(eq(plans.id, id), eq(plans.isActive, true)))
+        .limit(1);
+      return rows[0] ?? null;
+    }
+    // Non-transactional read — raw SQL via queryDb (Neon HTTP fast path).
+    const result = await queryDb<PlanSelectType>(
+      `SELECT ${PLAN_READ_COLUMNS} FROM plans WHERE id = $1 AND is_active = true LIMIT 1`,
+      [id]
+    );
     return result.rows[0] ?? null;
   }
 

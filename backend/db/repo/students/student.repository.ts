@@ -10,8 +10,9 @@
  * Registration-path writes (`createForRegistration`) take a REQUIRED
  * `tx: DBTransaction` (last param) so the registration transaction can roll
  * back on any child-insert failure (atomicity). The trial grant method
- * (`grantFreeTrialOnce`) and the held-balance lane debit/refund methods
- * (`decrementLaneIfAvailable` / `incrementLane`) accept an optional `tx` so
+ * (`grantFreeTrialOnce`), the held-balance lane debit/refund methods
+ * (`decrementLaneIfAvailable` / `incrementLane`) and the subscription
+ * activation credit (`creditLaneBalance`) accept an optional `tx` so
  * they can run either inside a caller's transaction or standalone against
  * the global handle.
  *
@@ -29,12 +30,21 @@
  *  - Zero business rules, zero log strings, zero i18n imports — reads return
  *    `null` on miss; the service layer owns validation, governance filtering
  *    and error mapping.
+ *
+ * File layout: the subscription activation credit (`creditLaneBalance` and
+ * its frozen `CREDIT_LANE_BALANCE_COLUMNS` lane→column map) lives in the
+ * sibling `student.repository.credit-lane.helpers.ts` module (extracted
+ * verbatim); the namespace's `creditLaneBalance` method is a one-to-one
+ * delegation wrapper, so the public API (names, signatures, behavior) is
+ * unchanged.
  */
 import { and, desc, eq, ilike, isNotNull, isNull, or, type SQL, sql } from "drizzle-orm";
 import { type AnyPgColumn, alias } from "drizzle-orm/pg-core";
 import { db, queryDb } from "@/backend/db";
+import * as studentRepositoryCreditLaneImpl from "@/backend/db/repo/students/student.repository.credit-lane.helpers";
 import { students } from "@/backend/db/schema/students/students";
 import { users } from "@/backend/db/schema/users/users";
+import type { SubscriptionCreditLane } from "@/backend/enum/billing/subscription-credit-lane.enum";
 import { HeldBalanceLane } from "@/backend/enum/scheduling/held-balance-lane.enum";
 import type {
   DBQueryExecutor,
@@ -503,6 +513,28 @@ export namespace StudentRepository {
           ${sql.identifier(students.updatedAt.name)} = now()
       WHERE ${students.id} = ${studentId}
     `);
+  }
+
+  /**
+   * Credits `amount` session units to ONE student balance lane — the
+   * activation-time write for a purchased subscription (one unguarded
+   * `COALESCE(balance_<lane>, 0) + amount` UPDATE returning the updated
+   * row). Implementation lives in the sibling
+   * `student.repository.credit-lane.helpers.ts` module (behavior-identical
+   * extraction); this method is a one-to-one delegation wrapper, so the
+   * public API (name, signature, behavior) is unchanged.
+   *
+   * @returns The updated student row, or null when the student does not
+   *   exist (the caller decides what the miss means — the repository raises
+   *   nothing).
+   */
+  export async function creditLaneBalance(
+    studentId: number,
+    lane: SubscriptionCreditLane,
+    amount: number,
+    tx?: DBTransaction
+  ): Promise<StudentSelectType | null> {
+    return studentRepositoryCreditLaneImpl.creditLaneBalance(studentId, lane, amount, tx);
   }
 
   /**

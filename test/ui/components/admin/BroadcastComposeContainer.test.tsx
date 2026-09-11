@@ -110,6 +110,7 @@ const PLAN_A: PlanFixture = {
   deactivatedAt: null,
   createdAt: FIXED_STAMP,
   updatedAt: FIXED_STAMP,
+  balanceLane: null,
 };
 
 const PLAN_B: PlanFixture = { ...PLAN_A, id: "21", title: "Tajweed Weekend", sessionCount: 4 };

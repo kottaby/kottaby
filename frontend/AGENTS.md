@@ -22,6 +22,7 @@
 - **FormData**: Always cast results: `(formData.get("name") as string | null) ?? ""` to avoid `@typescript-eslint/no-base-to-string`.
 - **Context/Hooks**: Keep `Context`, `Provider`, and `useHook` in separate files to avoid Fast Refresh warnings.
 - **Cross-surface navigation targets** (nav entries, card CTAs, notification deep-links) MUST single-source their route string in a leaf lib module — never duplicate route literals across consumers. Reference: `docs/parents/parent-link-request.md` (Closure section).
+- **Plan-catalog purchase forms**: subscription purchase UI follows the billing domain's plan-catalog form conventions — caller-scoped purchase submission with the idempotency header and contract error-code handling; canonical reference: `docs/billing/subscription-purchase.md`.
 - **NextAuth**: In App Router `route.ts`, cast handler: `const handler = NextAuth(authOptions) as (req: Request) => Promise<Response>`.
 
 ## MUI Breaking Changes (v9+)

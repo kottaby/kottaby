@@ -224,6 +224,25 @@ export interface EnvironmentConfig {
   wsMaxConnections: number;
   /** Per-user WebSocket connection cap (the sidecar evicts the oldest beyond it). */
   wsMaxConnectionsPerUser: number;
+  /**
+   * Active payment gateway provider for the billing purchase flow
+   * (`PAYMENT_GATEWAY_PROVIDER`, trimmed + lowercased; default `"mock"`).
+   * Only adapters with a matching gateway implementation can be selected;
+   * any other value makes the gateway factory fail closed.
+   */
+  paymentGatewayProvider: string;
+  /**
+   * Shared secret verifying payment gateway webhook signatures
+   * (`PAYMENT_WEBHOOK_SECRET`). `undefined` means no secret is configured —
+   * the webhook surface must then reject every callback (fail closed).
+   */
+  paymentWebhookSecret: string | undefined;
+  /**
+   * Whether the payment webhook surface accepts gateway callbacks
+   * (`PAYMENT_WEBHOOK_ENABLED === "true"` after trimming; default `false`).
+   * A disabled surface must be indistinguishable from an unknown path.
+   */
+  paymentWebhookEnabled: boolean;
 }
 
 /**
@@ -254,6 +273,9 @@ function readEnvironment(): EnvironmentConfig {
       process.env.WS_MAX_CONNECTIONS_PER_USER,
       DEFAULT_WS_MAX_CONNECTIONS_PER_USER
     ),
+    paymentGatewayProvider: (trimmedEnvValue(process.env.PAYMENT_GATEWAY_PROVIDER) ?? "mock").toLowerCase(),
+    paymentWebhookSecret: trimmedEnvValue(process.env.PAYMENT_WEBHOOK_SECRET),
+    paymentWebhookEnabled: trimmedEnvValue(process.env.PAYMENT_WEBHOOK_ENABLED) === "true",
   };
 }
 
@@ -381,6 +403,43 @@ export function getWebSocketMaxConnections(): number {
  */
 export function getWebSocketMaxConnectionsPerUser(): number {
   return getEnvironmentConfig().wsMaxConnectionsPerUser;
+}
+
+// ─── Payment gateway (billing purchase flow) typed getters ──────────────────
+// Every getter reads through getEnvironmentConfig(), so all of these keys are
+// covered by resetEnvironmentCache(): after a reset the next call re-reads
+// process.env from scratch. The gateway factory's resetPaymentGateway()
+// drops its resolved adapter AND this snapshot, so provider/secret/enabled
+// swaps take effect without a process restart.
+
+/**
+ * Active payment gateway provider (`PAYMENT_GATEWAY_PROVIDER`).
+ *
+ * Trimmed + lowercased; missing/empty/whitespace values resolve to the
+ * built-in `"mock"` provider. Must be compared against gateway enum members
+ * — anything without an adapter makes the factory fail closed.
+ */
+export function getPaymentGatewayProvider(): string {
+  return getEnvironmentConfig().paymentGatewayProvider;
+}
+
+/**
+ * Shared secret verifying payment gateway webhook signatures
+ * (`PAYMENT_WEBHOOK_SECRET`). `undefined` means "no secret configured" —
+ * consumers must treat every callback as unauthentic (fail closed).
+ */
+export function getPaymentWebhookSecret(): string | undefined {
+  return getEnvironmentConfig().paymentWebhookSecret;
+}
+
+/**
+ * Whether the payment webhook surface accepts gateway callbacks
+ * (`PAYMENT_WEBHOOK_ENABLED`). Only the exact value `"true"` (after
+ * trimming) enables the surface; every other value — including unset —
+ * keeps it disabled so an unconfigured deployment leaks nothing.
+ */
+export function isPaymentWebhookEnabled(): boolean {
+  return getEnvironmentConfig().paymentWebhookEnabled;
 }
 
 /**

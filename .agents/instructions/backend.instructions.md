@@ -48,6 +48,7 @@ applyTo: "backend/**/*.ts"
   };
   ```
 - Input type: `{Entity}SubmitInput` for mutation/filter inputs
+- **ReturnType conversion (CRITICAL)**: raw `$inferSelect` rows are NOT assignable to `*ReturnType` shapes that re-type pgEnum columns as TS enums (Omit + enum override) — map rows through total-over-vocabulary mappers (spread + enum-member overrides) before returning them; enum members flow through without casts, raw string unions do not
 - NEVER create local types in Pothos files: `{Entity}Definition`, `<Entity>SimpleDefinition`
 - Single canonical GraphQL object type per entity - clients select fields they need
 - Types must be compatible with Pothos object implementations
@@ -129,6 +130,7 @@ applyTo: "backend/**/*.ts"
 - Check constraints before seeding (e.g., `class_instances_state_machine_chk`) - read `backend/db/schema/*.ts`
 - Match PostgreSQL enums EXACTLY from `backend/db/schema/enums.ts` or `shared/lib/enum.ts` - never guess valid statuses (e.g., use `"ACTIVATED"` not `"ACTIVE"`, `"REGULAR"` not `"NORMAL"`)
 - Schema changes: MUST run `bun run scripts/dbActions.ts push` before `bun run db seed`. **Note: `db reset` and `db cleanGenerate` are permanently disabled by repo policy** — use `db push` for schema changes and `db migrate` for migration management.
+- Custom SQL migrations: every `backend/db/migration/*.sql` file is auto-bundled into its own `backend/drizzle/<ts>_custom_<slug>/` folder on the next `migrate` (manifest in `backend/drizzle/.custom-migrations.json`); SQLite parity files (`*-sqlite.sql`) are NEVER bundled — each new one MUST be added to `EXCLUDED_FILES` in `backend/db/scripts/applyCustomMigrations.ts`, or `migrate` fails on PostgreSQL syntax
 - Return seeded entities for downstream seeders - other seeders should not need to re-query
 - Dependencies passed via controller context (`index.ts`) - call other `seedOrGet` functions or accept as parameter
 - If strict Entity types unavailable: create new types in `backend/types/`, update `index.ts` - never use `any` or inline types

@@ -72,6 +72,9 @@ export const notificationsAr: NotificationsLabels = {
   eventParentLinkExpiringTitle: "تذكير: طلب ربطك على وشك الانتهاء",
   eventParentLinkExpiringBody: (studentName: string) =>
     `طلب ربطك بـ ${iso(studentName)} سينتهي قريبًا — يمكن للطالب التأكيد أو الرفض قبل انتهاء صلاحيته.`,
+  eventPaymentConfirmedTitle: "تم تأكيد الدفع",
+  eventPaymentConfirmedBody: (planTitle: string) =>
+    `تم استلام دفعتك لخطة ${planTitle} — اشتراكك مفعّل الآن وحصصك متاحة.`,
   eventSessionReportReadyTitle: "تقرير الجلسة جاهز",
   eventSessionReportReadyBody: (teacherName: string) => `قدّم ${iso(teacherName)} تقرير جلستك.`,
   eventSessionReportReadyParentBody: (studentName: string, teacherName: string) =>

@@ -38,6 +38,7 @@ Each sub-directory contains its own `index.ts` barrel that re-exports every `*.t
 - **Enum Verification**: PostgreSQL enums must be matched EXACTLY. Check `backend/db/schema/enums.ts` for the correct values (e.g. using `"ACTIVATED"` or `"REGULAR"` instead of `"ACTIVE"`). Do not guess valid statuses.
 - **Schema Synchronization**: After schema edits, run `bun run db push` (or `bun run scripts/dbActions.ts push`) to apply changes to the local database before running `bun run db seed`. Drizzle kit config (`drizzle.config.ts`) points at `./backend/db/schema/index.ts`, which resolves every table via the sub-directory barrels — no config change needed when adding sub-directories. **Note: `db reset` and `db cleanGenerate` are permanently disabled by repo policy** — use `db push` for schema changes and `db migrate` for migration management.
 - **Structural Ground Truth**: `backend/db/schema/` (Drizzle) is the sole structural ground truth (per REQ-002). Before authoring any new table/enum, verify it does not already exist in this tree.
+- **Subscription purchase (billing)**: the schema behind the payment-gateway purchase domain — append-only payment ledger, subscription lifecycle, per-plan credit lanes — and its guarded-writer contract are documented in `docs/billing/subscription-purchase.md`.
 
 ### Import Convention
 - Consumers (`backend/db/repo/`, services, types, seeds, graphql) import tables via the top-level barrel: `import { teachers, users, auditLogs } from "@/backend/db/schema";`. This keeps move/refactor churn contained to the barrel.

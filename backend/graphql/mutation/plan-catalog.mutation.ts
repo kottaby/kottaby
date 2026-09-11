@@ -1,8 +1,6 @@
 /**
  * Plan catalog mutations — `createPlan`, `updatePlan`, `setPlanActiveStatus`.
  *
- * Implements REQ-011, REQ-013, REQ-014, REQ-015, REQ-020, REQ-030, REQ-031, REQ-050, REQ-060.
- *
  * Security:
  *  - All plan management mutations require `{ authenticated: true, role: [UserRole.Admin] }`.
  *  - Forward-only lifecycle guarantee (INV-PC3): NO deletePlan/removePlan mutation exists.
@@ -84,6 +82,9 @@ gqlSchemaBuilder.mutationField("updatePlan", t =>
           ...(args.input.currency !== null && args.input.currency !== undefined && { currency: args.input.currency }),
           ...(args.input.intervalDays !== null &&
             args.input.intervalDays !== undefined && { intervalDays: args.input.intervalDays }),
+          // null (explicit clear) is meaningful for the lane, so only an
+          // absent field is dropped; the service validates the member itself.
+          ...(args.input.balanceLane !== undefined && { balanceLane: args.input.balanceLane }),
         },
         ctx.user.id,
         ctx.locale

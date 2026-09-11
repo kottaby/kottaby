@@ -2,7 +2,7 @@
  * usePlanForm — Form state, client-side validation, and submit wiring for the
  * plan create/edit dialog.
  *
- * Extracted from PlanFormDialog (Task 4.4).
+ * Extracted from PlanFormDialog.
  *  - Client & server validation with field-level error messages
  *  - React 19 synthetic form submit handling
  */
@@ -11,10 +11,35 @@
 
 import { useState } from "react";
 import type { AdminPlansQuery, CreatePlanInput } from "@/frontend/graphql/generated/gql/graphql";
+import { BALANCE_LANE_BY_VALUE } from "@/frontend/views/admin/plans/balanceLaneVocabulary";
 import { useAppTranslation } from "@/shared/locale/client";
 import { Plans } from "@/shared/locale/namespaces/plans";
 
 type PlanItem = AdminPlansQuery["adminPlans"][number];
+
+/**
+ * Upper bound on a plan's billing interval (ten years) — mirrors the
+ * server-side catalog ceiling (`MAX_INTERVAL_DAYS` in
+ * `backend/services/billing/plan-catalog.helpers.ts`) so an out-of-range
+ * value is rejected client-side with the field's own validation message
+ * instead of round-tripping into a generic server validation error.
+ */
+const MAX_INTERVAL_DAYS = 3650;
+
+/**
+ * Upper bound on a plan's session count (one million) — mirrors the
+ * server-side catalog ceiling (`MAX_SESSION_COUNT` in
+ * `backend/services/billing/plan-catalog.helpers.ts`, the int4-overflow
+ * guard on the activation credit) so an out-of-range value is rejected
+ * client-side with the field's own validation message instead of
+ * round-tripping into a generic server validation error. The literal is
+ * deliberately DUPLICATED, never imported: the server helper is backend
+ * runtime machinery that must not ride into the client bundle (the only
+ * sanctioned frontend→backend imports are generated types and pure enums).
+ * The server ceiling stays the authority — a drift here degrades to the
+ * generic server validation error, never to a persisted over-cap plan.
+ */
+const MAX_SESSION_COUNT = 1_000_000;
 
 export interface PlanFormState {
   readonly title: string;
@@ -22,6 +47,8 @@ export interface PlanFormState {
   readonly price: string;
   readonly currency: string;
   readonly intervalDays: string;
+  /** Selected balance-credit lane as a raw string; empty until a lane is picked. */
+  readonly balanceLane: string;
 }
 
 type PlanFormErrors = {
@@ -42,6 +69,7 @@ function buildInitialPlanForm(plan: PlanItem | null): PlanFormState {
       price: plan.price,
       currency: plan.currency,
       intervalDays: String(plan.intervalDays),
+      balanceLane: plan.balanceLane ?? "",
     };
   }
   return {
@@ -50,6 +78,7 @@ function buildInitialPlanForm(plan: PlanItem | null): PlanFormState {
     price: "250.00",
     currency: "EGP",
     intervalDays: "30",
+    balanceLane: "",
   };
 }
 
@@ -85,13 +114,22 @@ export function usePlanForm({ plan, serverFieldErrors, onSubmit }: UsePlanFormOp
 
     // Full-value numeric conversion (never `parseInt`): "1.5" and "1abc" must
     // both be rejected instead of silently truncating to 1 (CodeRabbit fix).
+    // The ceiling mirrors the server's MAX_SESSION_COUNT (same shape as the
+    // intervalDays check below) — an over-cap value can never ride the wire.
     const sessionCountNum = Number(form.sessionCount);
-    if (!Number.isInteger(sessionCountNum) || sessionCountNum <= 0) {
+    if (!Number.isInteger(sessionCountNum) || sessionCountNum <= 0 || sessionCountNum > MAX_SESSION_COUNT) {
       errors.sessionCount = t.validationSessionCountMessage;
     }
 
     const priceTrimmed = form.price.trim();
-    const priceRegex = /^\d+(\.\d{1,2})?$/;
+    // The 8-digit integer-part cap mirrors the server's PRICE_REGEX
+    // (`backend/services/billing/plan-catalog.helpers.ts`) — the literal is
+    // deliberately DUPLICATED, never imported (same rule as the
+    // MAX_INTERVAL_DAYS / MAX_SESSION_COUNT mirrors above: backend runtime
+    // modules must not ride into the client bundle). The server check
+    // remains the authority — a drift here degrades to the generic server
+    // validation error, never to a persisted over-cap plan.
+    const priceRegex = /^\d{1,8}(\.\d{1,2})?$/;
     // Non-negative per the plan contract (price >= 0.00 — "0.00" is a valid
     // free plan); the server CHECK/service layer remains the authority.
     if (!priceRegex.test(priceTrimmed) || Number.parseFloat(priceTrimmed) < 0) {
@@ -104,8 +142,17 @@ export function usePlanForm({ plan, serverFieldErrors, onSubmit }: UsePlanFormOp
     }
 
     const intervalDaysNum = Number(form.intervalDays);
-    if (!Number.isInteger(intervalDaysNum) || intervalDaysNum <= 0) {
+    if (!Number.isInteger(intervalDaysNum) || intervalDaysNum <= 0 || intervalDaysNum > MAX_INTERVAL_DAYS) {
       errors.intervalDays = t.validationIntervalDaysMessage;
+    }
+
+    // A lane is mandatory on create and on edit (a stored lane is pre-filled;
+    // only legacy laneless rows start empty and force a pick). Own-property
+    // guard — inherited `Object.prototype` names must fail the validation
+    // exactly like any other unknown raw value (house idiom per the gateway
+    // adapter registry's `Object.hasOwn` lookup).
+    if (!Object.hasOwn(BALANCE_LANE_BY_VALUE, form.balanceLane)) {
+      errors.balanceLane = t.validationBalanceLaneMessage;
     }
 
     setClientErrors(errors);
@@ -126,6 +173,13 @@ export function usePlanForm({ plan, serverFieldErrors, onSubmit }: UsePlanFormOp
       price: form.price.trim(),
       currency: form.currency.trim().toUpperCase(),
       intervalDays: Number(form.intervalDays),
+      // The select guarantees a vocabulary member by the time submit runs —
+      // validate()'s own-property guard above; the same guard here keeps the
+      // submit conversion prototype-chain-safe. The dialog layer decides
+      // whether a lane change rides the wire.
+      balanceLane: Object.hasOwn(BALANCE_LANE_BY_VALUE, form.balanceLane)
+        ? BALANCE_LANE_BY_VALUE[form.balanceLane]
+        : undefined,
     });
   };
 

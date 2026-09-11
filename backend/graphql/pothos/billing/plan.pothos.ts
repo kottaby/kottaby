@@ -1,12 +1,50 @@
 /**
  * PlanPothosObject — canonical GraphQL object type and inputs for `Plan`.
  *
- * Implements REQ-003, REQ-022, REQ-060.
- * Backed exclusively by `PlanReturnType` from `@/backend/types` (zero local types).
+ * Backed exclusively by `PlanReturnType` from `@/backend/types` (zero local
+ * types). The canonical row carries `balanceLane` as the raw pgEnum string
+ * union, so the catalog field maps it onto the `SubscriptionCreditLane`
+ * Pothos enum through an exhaustive, fail-closed mapper — never a cast.
  */
 
+import { SubscriptionCreditLane } from "@/backend/enum/billing/subscription-credit-lane.enum";
 import { gqlSchemaBuilder } from "@/backend/graphql/pothos/builder";
+import { SubscriptionCreditLanePothosEnum } from "@/backend/graphql/pothos/shared/enum.pothos";
 import type { PlanReturnType } from "@/backend/types";
+
+/**
+ * The lane vocabulary, widened to plain strings: the canonical row's
+ * `balanceLane` is the raw pgEnum string union, so the mapper's cases test
+ * the enum member's string identity — the vocabulary flows from the enum
+ * object, never from a bare literal.
+ */
+const LANE_HIFZ: string = SubscriptionCreditLane.Hifz;
+const LANE_TAJWEED: string = SubscriptionCreditLane.Tajweed;
+const LANE_REVIEWS: string = SubscriptionCreditLane.Reviews;
+
+/**
+ * Maps the `balance_lane` pgEnum value carried by the canonical
+ * `PlanReturnType` row onto the `SubscriptionCreditLane` TS enum —
+ * exhaustive over the lane vocabulary plus `null` (a plan may stay
+ * laneless): one case per member, NO `default`; the fail-closed trailing
+ * throw guards a runtime-only drift (a DB enum ahead of the TS schema) by
+ * surfacing a resolver error instead of passing an unmapped value through.
+ */
+function toSubscriptionCreditLane(lane: PlanReturnType["balanceLane"]): SubscriptionCreditLane | null {
+  switch (lane) {
+    case LANE_HIFZ:
+      return SubscriptionCreditLane.Hifz;
+    case LANE_TAJWEED:
+      return SubscriptionCreditLane.Tajweed;
+    case LANE_REVIEWS:
+      return SubscriptionCreditLane.Reviews;
+    case null:
+      return null;
+  }
+  // Reachable only on a runtime-only drift (a DB enum value ahead of the
+  // TS schema) — fail closed instead of passing an unmapped lane through.
+  throw new Error(`Unexpected subscription credit lane: ${lane}`);
+}
 
 /**
  * The canonical `Plan` GraphQL object type.
@@ -31,6 +69,13 @@ export const PlanPothosObject = gqlSchemaBuilder.objectRef<PlanReturnType>("Plan
     }),
     intervalDays: t.exposeInt("intervalDays", {
       description: "Duration of the billing/service cycle in days.",
+    }),
+    balanceLane: t.field({
+      type: SubscriptionCreditLanePothosEnum,
+      nullable: true,
+      description:
+        "Student balance lane this plan's sessions are credited to on activation, or null while unconfigured.",
+      resolve: parent => toSubscriptionCreditLane(parent.balanceLane),
     }),
     isActive: t.exposeBoolean("isActive", {
       description: "Flag indicating whether this plan is actively offered in the student catalog.",
@@ -77,6 +122,12 @@ export const CreatePlanInput = gqlSchemaBuilder.inputType("CreatePlanInput", {
       required: true,
       description: "Plan duration in days (integer >= 1).",
     }),
+    balanceLane: t.field({
+      type: SubscriptionCreditLanePothosEnum,
+      required: false,
+      description:
+        "Balance lane to assign to the plan. Omitted or null leaves the plan unconfigured — purchases fail closed until a lane is set.",
+    }),
   }),
 });
 
@@ -105,6 +156,12 @@ export const UpdatePlanInput = gqlSchemaBuilder.inputType("UpdatePlanInput", {
     intervalDays: t.int({
       required: false,
       description: "Updated duration in days.",
+    }),
+    balanceLane: t.field({
+      type: SubscriptionCreditLanePothosEnum,
+      required: false,
+      description:
+        "Updated balance lane. Omitted leaves the stored lane untouched; null clears it (purchases fail closed while unconfigured).",
     }),
   }),
 });

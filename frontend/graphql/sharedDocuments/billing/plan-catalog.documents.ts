@@ -1,7 +1,6 @@
 /**
  * Plan Catalog GraphQL Documents — queries and mutations for plan catalog management.
  *
- * Implements REQ-061.
  * Follows TypedDocumentNode convention and includes `id` in every selection set.
  */
 
@@ -48,6 +47,7 @@ export const adminPlansQueryDocument: TypedDocumentNode<AdminPlansQuery, AdminPl
       deactivatedAt
       createdAt
       updatedAt
+      balanceLane
     }
   }
 `;
@@ -65,6 +65,7 @@ export const createPlanMutationDocument: TypedDocumentNode<CreatePlanMutation, C
       deactivatedAt
       createdAt
       updatedAt
+      balanceLane
     }
   }
 `;
@@ -82,6 +83,7 @@ export const updatePlanMutationDocument: TypedDocumentNode<UpdatePlanMutation, U
       deactivatedAt
       createdAt
       updatedAt
+      balanceLane
     }
   }
 `;

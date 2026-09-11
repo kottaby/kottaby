@@ -4,8 +4,9 @@
  * Coverage:
  *  - Tier 1: registry shape (exact entry keys, closed classification set).
  *  - Tier 2: ground-truth rows present (`/api/graphql` gateway,
- *    `/api/set-locale` envelope, `/api/health` envelope from its first commit)
- *    and frozen ordering.
+ *    `/api/set-locale` envelope, `/api/health` envelope from its first commit,
+ *    `/api/cron/sweep-sessions` envelope, `/api/payments/webhook`
+ *    provider-ack-exempt) and frozen ordering.
  *  - Tier 3: LIVE-TREE completeness — every physical route file under
  *    `app/api/` on disk maps to a registry path and vice-versa, both sides
  *    sorted for CI/local determinism. This independently re-implements the
@@ -96,8 +97,24 @@ describe("ROUTE_INVENTORY — ground-truth rows (Tier 2)", () => {
     expect(healthEntry?.classification).toBe("envelope");
   });
 
+  test("/api/cron/sweep-sessions classified as envelope (bearer-gated REST envelope contract)", () => {
+    const cronEntry = ROUTE_INVENTORY.find(entry => entry.path === "/api/cron/sweep-sessions");
+    expect(cronEntry?.classification).toBe("envelope");
+  });
+
+  test("/api/payments/webhook classified as provider-ack-exempt (gateway callback surface)", () => {
+    const webhookEntry = ROUTE_INVENTORY.find(entry => entry.path === "/api/payments/webhook");
+    expect(webhookEntry?.classification).toBe("provider-ack-exempt");
+  });
+
   test("registry ordering is a locked snapshot (single source for the doc table)", () => {
-    expect(ROUTE_INVENTORY.map(entry => entry.path)).toEqual(["/api/graphql", "/api/set-locale", "/api/health"]);
+    expect(ROUTE_INVENTORY.map(entry => entry.path)).toEqual([
+      "/api/graphql",
+      "/api/set-locale",
+      "/api/health",
+      "/api/cron/sweep-sessions",
+      "/api/payments/webhook",
+    ]);
   });
 });
 

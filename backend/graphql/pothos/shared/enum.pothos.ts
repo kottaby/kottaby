@@ -19,6 +19,8 @@
  *  - `SessionStatus`, `SessionType`, `SessionIntent` (scheduling domain)
  *  - `DisputeResolution` (admin arbitration outcome vocabulary)
  *  - `TransactionType`, `TransactionStatus` (billing ledger vocabulary, DEV3-013)
+ *  - `PaymentGateway`, `PaymentStatus`, `SubscriptionStatus`,
+ *    `SubscriptionCreditLane` (subscription purchase + settlement vocabulary)
  *  - `AdminUserGovernanceFilter` (active|suspended|blocked|deleted — admin directory filter)
  *  - `NotificationType` (the seven notification kinds)
  *  - `BroadcastAudienceType` (all|role|country|plan — admin broadcast cohort kinds)
@@ -31,6 +33,10 @@
  */
 
 import { AuditActionType } from "@/backend/enum/audit/audit-action-type.enum";
+import { PaymentGateway } from "@/backend/enum/billing/payment-gateway.enum";
+import { PaymentStatus } from "@/backend/enum/billing/payment-status.enum";
+import { SubscriptionCreditLane } from "@/backend/enum/billing/subscription-credit-lane.enum";
+import { SubscriptionStatus } from "@/backend/enum/billing/subscription-status.enum";
 import { TransactionStatus } from "@/backend/enum/billing/transaction-status.enum";
 import { TransactionType } from "@/backend/enum/billing/transaction-type.enum";
 import { BroadcastAudienceType } from "@/backend/enum/notifications/broadcast-audience-type.enum";
@@ -176,6 +182,61 @@ export const TransactionTypePothosEnum = gqlSchemaBuilder.enumType(TransactionTy
  */
 export const TransactionStatusPothosEnum = gqlSchemaBuilder.enumType(TransactionStatus, {
   name: "TransactionStatus",
+});
+
+/**
+ * GraphQL `PaymentGateway` enum — the channel a payment traveled
+ * (stripe|paypal|paymob|fawry|offline_cash|bank_transfer|scholarship|other
+ * |mock on the runtime/database side).
+ *
+ * Registered ONCE from the canonical TS enum
+ * (`backend/enum/billing/payment-gateway.enum.ts`) mirroring the
+ * `payment_gateway` pgEnum. The `Mock` member records purchases processed
+ * by the built-in mock gateway so development transactions stay
+ * distinguishable from real `Other` payments in the ledger.
+ */
+export const PaymentGatewayPothosEnum = gqlSchemaBuilder.enumType(PaymentGateway, {
+  name: "PaymentGateway",
+});
+
+/**
+ * GraphQL `PaymentStatus` enum (pending|paid|failed|refunded) — the
+ * `student_payments` settlement lifecycle.
+ *
+ * Registered ONCE from the canonical TS enum
+ * (`backend/enum/billing/payment-status.enum.ts`) mirroring the
+ * `payment_status` pgEnum. A payment leaves `Pending` exactly once via
+ * the guarded decision writes; decided rows are terminal.
+ */
+export const PaymentStatusPothosEnum = gqlSchemaBuilder.enumType(PaymentStatus, {
+  name: "PaymentStatus",
+});
+
+/**
+ * GraphQL `SubscriptionStatus` enum (active|pending|expired|cancelled|
+ * suspended) — the subscription lifecycle.
+ *
+ * Registered ONCE from the canonical TS enum
+ * (`backend/enum/billing/subscription-status.enum.ts`) mirroring the
+ * `subscription_status` pgEnum. Purchases create rows in `Pending`;
+ * only the payment-activation path moves them to `Active`.
+ */
+export const SubscriptionStatusPothosEnum = gqlSchemaBuilder.enumType(SubscriptionStatus, {
+  name: "SubscriptionStatus",
+});
+
+/**
+ * GraphQL `SubscriptionCreditLane` enum (hifz|tajweed|reviews) — the
+ * student balance lane a plan's sessions are credited to on activation.
+ *
+ * Registered ONCE from the canonical TS enum
+ * (`backend/enum/billing/subscription-credit-lane.enum.ts`) mirroring the
+ * `subscription_credit_lane` pgEnum. Nullable on catalog surfaces: a plan
+ * without a lane is valid but unfulfillable — purchases fail closed
+ * instead of crediting a guessed lane.
+ */
+export const SubscriptionCreditLanePothosEnum = gqlSchemaBuilder.enumType(SubscriptionCreditLane, {
+  name: "SubscriptionCreditLane",
 });
 
 /**

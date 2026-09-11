@@ -2,7 +2,7 @@
  * PlanCatalogService 4-Tier Unit Test Suite.
  *
  * Tier 1: Statement & branch coverage for all service methods and domain error classes.
- * Tier 2: Boundary conditions & exhaustive REQ-073 validation matrix.
+ * Tier 2: Boundary conditions & the exhaustive field-validation matrix.
  * Tier 3: Chaos & concurrency (concurrent deactivations, round-trip state transitions).
  * Tier 4: Security (BOPLA field smuggling prevention, cause-chain translation, i18n ar/en).
  *
@@ -13,16 +13,18 @@
 
 import { describe, expect, spyOn, test } from "bun:test";
 import { and, eq } from "drizzle-orm";
+import { PlanRepository } from "@/backend/db/repo/billing/plan.repository";
 import { auditLogs } from "@/backend/db/schema/audit/audit-logs";
 import { plans } from "@/backend/db/schema/billing/plans";
 import { createTestPlan, createTestUser } from "@/backend/db/test/entity-setup";
 import { expectRepoError, runInRollback } from "@/backend/db/test/test-utils";
 import { AuditActionType } from "@/backend/enum/audit/audit-action-type.enum";
+import { SubscriptionCreditLane } from "@/backend/enum/billing/subscription-credit-lane.enum";
 import { DomainError, ForbiddenError, NotFoundError, ValidationError } from "@/backend/lib/errors";
 import { logger } from "@/backend/lib/logger";
 import { PLAN_AUDIT_ENTITY_TYPE } from "@/backend/services/billing/plan-catalog.helpers";
 import { PlanCatalogService } from "@/backend/services/billing/plan-catalog.service";
-import type { DBTransaction, PlanSubmitInput, UserSelectType } from "@/backend/types";
+import type { DBTransaction, PlanSubmitInput, PlanUpdateInput, UserSelectType } from "@/backend/types";
 import { getServerTranslations } from "@/shared/locale/server-graphql";
 
 const LOCALE = "en";
@@ -470,6 +472,265 @@ describe("PlanCatalogService", () => {
     });
   });
 
+  // ─── intervalDays upper bound (the activation window multiplies this field) ─
+
+  test("createPlan and updatePlan reject intervalDays past the validated ceiling (3651 → out of range)", async () => {
+    await runInRollback(async tx => {
+      const admin = await provisionAdminActor(tx);
+
+      // Create: one day past the ten-year ceiling is rejected before persistence.
+      let errCreate: unknown;
+      try {
+        await PlanCatalogService.createPlan(
+          { title: "Overflow Interval Plan", sessionCount: 5, price: "100.00", currency: "EGP", intervalDays: 3651 },
+          admin.id,
+          "en",
+          tx
+        );
+      } catch (err: unknown) {
+        errCreate = err;
+      }
+      expect(errCreate).toBeInstanceOf(ValidationError);
+      if (errCreate instanceof ValidationError) {
+        const fieldError = errCreate.fields?.find(f => f.field === "intervalDays");
+        expect(fieldError?.code).toBe("PLAN_INTERVAL_DAYS_OUT_OF_RANGE");
+        expect(fieldError?.message).toBe("Invalid input.");
+      }
+
+      // Update: the same ceiling guards the patch path on an existing plan.
+      const existing = await createTestPlan(tx, { title: "Interval Patch Plan" });
+      let errUpdate: unknown;
+      try {
+        await PlanCatalogService.updatePlan(existing.id, { intervalDays: 3651 }, admin.id, "en", tx);
+      } catch (err: unknown) {
+        errUpdate = err;
+      }
+      expect(errUpdate).toBeInstanceOf(ValidationError);
+      if (errUpdate instanceof ValidationError) {
+        const fieldError = errUpdate.fields?.find(f => f.field === "intervalDays");
+        expect(fieldError?.code).toBe("PLAN_INTERVAL_DAYS_OUT_OF_RANGE");
+      }
+      expect((await PlanRepository.findById(existing.id, tx))?.intervalDays).toBe(30);
+    });
+  });
+
+  test("intervalDays at the validated ceiling (3650) is accepted on the boundary", async () => {
+    await runInRollback(async tx => {
+      const admin = await provisionAdminActor(tx);
+      const created = await PlanCatalogService.createPlan(
+        { title: "Ten Year Plan", sessionCount: 5, price: "100.00", currency: "EGP", intervalDays: 3650 },
+        admin.id,
+        "en",
+        tx
+      );
+      expect(created.intervalDays).toBe(3650);
+    });
+  });
+
+  // ─── sessionCount upper bound (the activation credit adds this field) ───────
+
+  test("createPlan and updatePlan reject sessionCount past the credit ceiling (1_000_001 → out of range)", async () => {
+    await runInRollback(async tx => {
+      const admin = await provisionAdminActor(tx);
+
+      // Create: one session past the one-million credit ceiling is rejected
+      // before persistence (the activation credit adds sessionCount onto the
+      // lane's int4 balance — an over-ceiling plan would overflow it).
+      let errCreate: unknown;
+      try {
+        await PlanCatalogService.createPlan(
+          {
+            title: "Overflow Session Plan",
+            sessionCount: 1_000_001,
+            price: "100.00",
+            currency: "EGP",
+            intervalDays: 30,
+          },
+          admin.id,
+          "en",
+          tx
+        );
+      } catch (err: unknown) {
+        errCreate = err;
+      }
+      expect(errCreate).toBeInstanceOf(ValidationError);
+      if (errCreate instanceof ValidationError) {
+        const fieldError = errCreate.fields?.find(f => f.field === "sessionCount");
+        expect(fieldError?.code).toBe("PLAN_SESSION_COUNT_OUT_OF_RANGE");
+        expect(fieldError?.message).toBe("Invalid input.");
+      }
+
+      // Update: the same ceiling guards the patch path on an existing plan.
+      const existing = await createTestPlan(tx, { title: "Session Patch Plan" });
+      let errUpdate: unknown;
+      try {
+        await PlanCatalogService.updatePlan(existing.id, { sessionCount: 1_000_001 }, admin.id, "en", tx);
+      } catch (err: unknown) {
+        errUpdate = err;
+      }
+      expect(errUpdate).toBeInstanceOf(ValidationError);
+      if (errUpdate instanceof ValidationError) {
+        const fieldError = errUpdate.fields?.find(f => f.field === "sessionCount");
+        expect(fieldError?.code).toBe("PLAN_SESSION_COUNT_OUT_OF_RANGE");
+      }
+      expect((await PlanRepository.findById(existing.id, tx))?.sessionCount).toBe(8);
+    });
+  });
+
+  test("sessionCount at the credit ceiling (1_000_000) is accepted on the boundary", async () => {
+    await runInRollback(async tx => {
+      const admin = await provisionAdminActor(tx);
+      const created = await PlanCatalogService.createPlan(
+        {
+          title: "Million Session Plan",
+          sessionCount: 1_000_000,
+          price: "100.00",
+          currency: "EGP",
+          intervalDays: 30,
+        },
+        admin.id,
+        "en",
+        tx
+      );
+      expect(created.sessionCount).toBe(1_000_000);
+    });
+  });
+
+  // ─── Balance lane validation (valid member | null | undefined only) ───────
+
+  test("createPlan persists each balance lane member (roundtrip)", async () => {
+    await runInRollback(async tx => {
+      const admin = await provisionAdminActor(tx);
+      const lanes = [SubscriptionCreditLane.Hifz, SubscriptionCreditLane.Tajweed, SubscriptionCreditLane.Reviews];
+      const created = await Promise.all(
+        lanes.map(lane =>
+          PlanCatalogService.createPlan(
+            {
+              title: `Lane Plan ${lane}`,
+              sessionCount: 5,
+              price: "100.00",
+              currency: "EGP",
+              intervalDays: 30,
+              balanceLane: lane,
+            },
+            admin.id,
+            "en",
+            tx
+          )
+        )
+      );
+      for (const [index, lane] of lanes.entries()) {
+        expect(created[index]?.balanceLane).toBe(lane);
+      }
+    });
+  });
+
+  test("updatePlan re-targets the stored lane (Hifz → Tajweed)", async () => {
+    await runInRollback(async tx => {
+      const admin = await provisionAdminActor(tx);
+      const created = await createTestPlan(tx, {
+        title: "Lane Switch Plan",
+        balanceLane: SubscriptionCreditLane.Hifz,
+      });
+
+      const updated = await PlanCatalogService.updatePlan(
+        created.id,
+        { balanceLane: SubscriptionCreditLane.Tajweed },
+        admin.id,
+        "en",
+        tx
+      );
+      expect(updated.balanceLane).toBe(SubscriptionCreditLane.Tajweed);
+    });
+  });
+
+  test("createPlan without a lane leaves balanceLane null and the purchase read stays fail-closed", async () => {
+    await runInRollback(async tx => {
+      const admin = await provisionAdminActor(tx);
+      const created = await PlanCatalogService.createPlan(
+        { title: "Laneless Plan", sessionCount: 5, price: "100.00", currency: "EGP", intervalDays: 30 },
+        admin.id,
+        "en",
+        tx
+      );
+      expect(created.balanceLane).toBeNull();
+
+      // The purchase-time re-validation read surfaces the row with a null
+      // lane — the shape the purchase flow maps onto PLAN_LANE_UNCONFIGURED
+      // instead of crediting a guessed lane.
+      const active = await PlanRepository.findActiveById(created.id, tx);
+      expect(active).not.toBeNull();
+      expect(active?.balanceLane).toBeNull();
+    });
+  });
+
+  test("updatePlan with an explicit null lane clears the stored lane", async () => {
+    await runInRollback(async tx => {
+      const admin = await provisionAdminActor(tx);
+      const created = await createTestPlan(tx, {
+        title: "Lane Clear Plan",
+        balanceLane: SubscriptionCreditLane.Reviews,
+      });
+
+      const cleared = await PlanCatalogService.updatePlan(created.id, { balanceLane: null }, admin.id, "en", tx);
+      expect(cleared.balanceLane).toBeNull();
+    });
+  });
+
+  test("createPlan rejects an unknown lane member with a field error", async () => {
+    await runInRollback(async tx => {
+      const admin = await provisionAdminActor(tx);
+
+      // A non-GraphQL caller crossing the service boundary can carry a value
+      // the static input type cannot express. defineProperty attaches the
+      // unknown member beyond the type system, so the runtime rejection is
+      // proven honestly instead of being blocked by the compiler.
+      const forgedInput = {
+        title: "Forged Lane Plan",
+        sessionCount: 5,
+        price: "100.00",
+        currency: "EGP",
+        intervalDays: 30,
+      };
+      Object.defineProperty(forgedInput, "balanceLane", { value: "undecided", enumerable: true });
+
+      let thrown: unknown;
+      try {
+        await PlanCatalogService.createPlan(forgedInput, admin.id, "en", tx);
+      } catch (err: unknown) {
+        thrown = err;
+      }
+      expect(thrown).toBeInstanceOf(ValidationError);
+      if (thrown instanceof ValidationError) {
+        expect(thrown.code).toBe("VALIDATION");
+        const fieldError = thrown.fields?.find(f => f.field === "balanceLane");
+        expect(fieldError?.code).toBe("PLAN_BALANCE_LANE_INVALID");
+        expect(fieldError?.message).toBe("Invalid input.");
+      }
+    });
+  });
+
+  test("updatePlan rejects an unknown lane member and leaves the stored lane untouched", async () => {
+    await runInRollback(async tx => {
+      const admin = await provisionAdminActor(tx);
+      const created = await createTestPlan(tx, {
+        title: "Forged Patch Plan",
+        balanceLane: SubscriptionCreditLane.Hifz,
+      });
+      const forgedPatch: PlanUpdateInput = {};
+      Object.defineProperty(forgedPatch, "balanceLane", { value: "chess", enumerable: true });
+
+      let thrown: unknown;
+      try {
+        await PlanCatalogService.updatePlan(created.id, forgedPatch, admin.id, "en", tx);
+      } catch (err: unknown) {
+        thrown = err;
+      }
+      expect(thrown).toBeInstanceOf(ValidationError);
+      expect((await PlanRepository.findById(created.id, tx))?.balanceLane).toBe(SubscriptionCreditLane.Hifz);
+    });
+  });
+
   // ─── Tier 3: Chaos & Concurrency ──────────────────────────────────────────
 
   test("concurrent deactivation calls: exactly one succeeds and one receives PLAN_ALREADY_INACTIVE", async () => {
@@ -540,6 +801,32 @@ describe("PlanCatalogService", () => {
       if (thrown instanceof ValidationError) {
         expect(thrown.message).toBe("إدخال غير صحيح.");
         expect(thrown.fields?.[0]?.message).toBe("عنوان الخطة مطلوب.");
+      }
+    });
+  });
+
+  test("Arabic locale localizes the unknown-lane rejection", async () => {
+    await runInRollback(async tx => {
+      const admin = await provisionAdminActor(tx);
+      const forgedInput = {
+        title: "Lane i18n Plan",
+        sessionCount: 5,
+        price: "100.00",
+        currency: "EGP",
+        intervalDays: 30,
+      };
+      Object.defineProperty(forgedInput, "balanceLane", { value: "undecided", enumerable: true });
+
+      let thrown: unknown;
+      try {
+        await PlanCatalogService.createPlan(forgedInput, admin.id, "ar", tx);
+      } catch (err: unknown) {
+        thrown = err;
+      }
+      expect(thrown).toBeInstanceOf(ValidationError);
+      if (thrown instanceof ValidationError) {
+        expect(thrown.message).toBe("إدخال غير صحيح.");
+        expect(thrown.fields?.[0]?.message).toBe("إدخال غير صحيح.");
       }
     });
   });

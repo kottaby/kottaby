@@ -100,6 +100,11 @@ applyTo: "**/*.test.ts,**/*.test.tsx,**/*.spec.ts,**/*.spec.tsx,scripts/run-test
 - Clean up unused imports/variables - run `bun tsgo` and `bun run lint` (which IS the lint queue client) after changes
 - Use `testLogger` (never `console.log` or `console.*`) - prefer `testLogger` or no logging if not needed
 
+### PGlite Single-Instance & Immutable-Ledger Cleanup (CRITICAL)
+
+- PGlite permits exactly ONE open per data dir — serialize DB commands (`generate`/`migrate`/`push`/`seed`) and DB-backed suites through the process-lock runners, and NEVER run the live-server (`setupTestServerLifecycle`) harness concurrently with DB-backed suites in the same worktree (the spawned server gets a disjoint DB snapshot → failed oracle reads; concurrent opens → WAL `PANIC: could not locate a valid checkpoint record`).
+- Suites that write to append-only/trigger-locked tables (immutable ledgers) cannot rely on committed-row cleanup — teardown MUST delete those tables FIRST under `withImmutabilityTriggersSuspended([table])` (`test/helpers/db-cleanup.ts`), then dependents in FK order, and use unique per-run fixture prefixes so mid-crash residue stays greppable and collision-free.
+
 ### Run-Test Script
 
 - Run with log capture: `bun run scripts/run-test/run-test.ts <test-path>` (not raw `bun test`)

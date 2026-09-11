@@ -31,6 +31,13 @@ export const errorsEn: ErrorsLabels = {
     planIntervalDaysInvalid: "Validity interval must be a positive integer representing days.",
     planPatchEmpty: "At least one field must be provided to update the plan.",
   },
+  subscriptionPurchase: {
+    planNotPurchasable: "This subscription plan is not available for purchase.",
+    planLaneUnconfigured: "This plan cannot be purchased yet because its credit lane is not configured.",
+    idempotencyKeyRequired: "A request idempotency key is required. Please retry the request.",
+    paymentReferenceConflict: "This payment was already used for another subscription. Please start a new payment.",
+    paymentAmountMismatch: "The payment amount did not match the plan price, so the payment was not applied.",
+  },
   applicantNotFound: "Teacher application not found.",
   applicantCooldownActive: "You can re-apply for teacher verification after {cooldownUntil}.",
   applicantStatusCorrupt: "Your application status could not be read. Please contact support.",

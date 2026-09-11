@@ -17,8 +17,9 @@
  * payout mutation (`requestWithdrawal`, DEV3-013) and the admin plan-catalog
  * CRUD; `notifications/` wires the inbox read-latch mutations
  * (`markNotificationRead`, `markAllNotificationsRead`);
- * `user.mutation.ts` wires the caller-scoped profile mutations
- * (`updateMyLocale`).
+ * `subscription-purchase.mutation.ts` wires the student purchase mutation
+ * (`purchaseSubscription`); `user.mutation.ts` wires the caller-scoped
+ * profile mutations (`updateMyLocale`).
  */
 import "./auth.mutation";
 import "./admin";
@@ -27,4 +28,5 @@ import "./classes";
 import "./notifications";
 import "./parents";
 import "./plan-catalog.mutation";
+import "./subscription-purchase.mutation";
 import "./user.mutation";

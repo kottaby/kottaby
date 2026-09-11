@@ -138,3 +138,7 @@ The Quota System is an append-only ledger-based class credit tracking system. Se
 - **Taxonomy-only statuses**: HTTP statuses for errors MUST derive from `ERROR_CODE_HTTP_STATUS` via `normalizeErrorCode(...)` in `backend/lib/errors/error-code-taxonomy.ts`; numeric error-status literals anywhere else are prohibited (grep-gated).
 - **Envelope helpers location**: API routes use `resolveRequestId` / `apiSuccessResponse` / `apiErrorResponse` from the `@/backend/lib/api` barrel — never hand-roll `{ data }` / `{ error }` bodies.
 
+## Subscription Purchase & Payments (Billing Domain)
+
+- Purchase/settlement flows are idempotency-claimed and guarded-transition (zero rows = replay); the `student_payments` ledger is append-only with a single trigger-guarded `pending → paid | failed` exception (all financial columns frozen), and the payments webhook route is kill-switch + HMAC fail-closed with quarantine semantics on amount/currency mismatch. Canonical contract (port + mock adapter, purchase/webhook/activation, lane crediting, consumer guidance): `docs/billing/subscription-purchase.md`.
+

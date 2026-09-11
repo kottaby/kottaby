@@ -44,6 +44,17 @@ export function PlanFormDialog({
       maxWidth="sm"
       fullWidth
       aria-labelledby="plan-form-dialog-title"
+      slotProps={{
+        backdrop: {
+          sx: {
+            // Scoped to this dialog: one step past MUI's 50% scrim plus a
+            // subtle blur so the page behind reads as depth, not noise.
+            backgroundColor: "color-mix(in srgb, var(--mui-palette-scrim) 60%, transparent)",
+            backdropFilter: "blur(2px)",
+            WebkitBackdropFilter: "blur(2px)",
+          },
+        },
+      }}
     >
       {open && (
         <PlanFormContent

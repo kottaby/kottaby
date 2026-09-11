@@ -228,7 +228,7 @@ describeGraphqlSuite("Gateway integration matrix", () => {
         input: {
           fullName: "Gateway F Probe",
           email: regEmail,
-          phone: "+2[CPF_REDACTED]",
+          phone: "+201000000000",
           password: GATEWAY_F_CREDENTIAL,
           gender: null,
           country: "EG",
@@ -263,6 +263,7 @@ describeGraphqlSuite("Gateway integration matrix", () => {
           price: "10.00",
           currency: "EGP",
           intervalDays: 30,
+          balanceLane: undefined,
         },
       },
       context: { headers: { Authorization: `Bearer ${accessToken}` } },

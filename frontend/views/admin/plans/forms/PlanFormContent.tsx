@@ -47,7 +47,13 @@ export function PlanFormContent({
       <DialogTitle id="plan-form-dialog-title" sx={{ fontWeight: 600 }}>
         {dialogTitle}
       </DialogTitle>
-      <DialogContent>
+      <DialogContent
+        sx={theme => ({
+          // Symmetric inline gutter pinned to the theme spacing scale (logical
+          // property — identical inset on both edges in LTR and RTL).
+          paddingInline: theme.spacing(3),
+        })}
+      >
         <Stack sx={{ gap: 2.5, mt: 1 }}>
           {globalError && (
             <Alert severity="error" sx={{ width: "100%" }}>
@@ -59,7 +65,7 @@ export function PlanFormContent({
         </Stack>
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2.5 }}>
-        <Button onClick={onClose} disabled={loading} color="inherit">
+        <Button onClick={onClose} disabled={loading} variant="outlined" color="inherit">
           {t.cancelButton}
         </Button>
         <Button

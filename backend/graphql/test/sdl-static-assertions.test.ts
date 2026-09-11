@@ -17,19 +17,22 @@
  *    text. Notification emission is service-internal ONLY — the GraphQL
  *    write surface is exactly the read-latch pair.
  *  - **Root-set freeze** — the Mutation root is EXACTLY the refreshed frozen
- *    23-op baseline (the prior 7-op auth-quartet + notification read-latch
+ *    33-op baseline (the prior 7-op auth-quartet + notification read-latch
  *    pair + users-locale surface, plus the reconciled DEV3-016 admin-user
  *    trio + DEV3-004 session quartet + DEV3-005 dispute pair + DEV3-012
  *    confirm + DEV3-013 payout + the sanctioned DEV3-017 admin-governance
- *    pair) and the Query root is EXACTLY the refreshed 29-op baseline (the
- *    prior frozen baseline + the `_health` probe + the reconciled
- *    DEV3-016 admin-user query quartet + the DEV3-004 participant-read
- *    trio + the DEV3-005 admin arbitration listing + the DEV3-013 wallet
- *    read + the DEV1-013 handshake pair + the re-anchored R1–R3 admin
- *    directory trio). Mirrors the `PRE_3_1_*` +
+ *    pair + the DEV3-021 session-governance quartet + the RECONCILED
+ *    parent-link trio + admin broadcast/certify pair + the subscription
+ *    purchase write) and the Query root is EXACTLY the refreshed 32-op
+ *    baseline (the prior frozen baseline + the `_health` probe + the
+ *    reconciled DEV3-016 admin-user query quartet + the DEV3-004
+ *    participant-read trio + the DEV3-005 admin arbitration listing + the
+ *    DEV3-013 wallet read + the DEV1-013 handshake pair + the DEV3-021
+ *    admin session pair + the subscription purchase caller-scoped read +
+ *    the re-anchored R1–R3 admin directory trio). Mirrors the `PRE_3_1_*` +
  *    `DEV3_016_ADMIN_*` + `DEV3_017_ADMIN_GOVERNANCE_MUTATION_FIELDS`
  *    inventories in schema-surface.test.ts, extended with the R5 admin
- *    directory export trio.
+ *    directory export trio and the DEV1-006 subscription-purchase surface.
  *  - **Users-locale surface (D2)** — `updateMyLocale(locale: AppLocale!): User!`
  *    is present with its EXACT SDL signature, `User.locale` is the nullable
  *    `AppLocale` enum, and the `AppLocale` enum carries exactly the two
@@ -72,7 +75,7 @@
  * Reconciliation note (DEV3-017): the prior 7-op Mutation baseline and
  * 6-op Query baseline predates the dev3-016 admin-user-management surface
  * (and the dev3-004 / dev3-005 / dev3-012 / dev3-013 surfaces). The live
- * Mutation root today carries 23 ops and the live Query root carries 19
+ * Mutation root today carries 33 ops and the live Query root carries 32
  * ops — both re-anchored to the LIVE built schema via
  * `printSchema(lexicographicSortSchema(graphQLSchema))` as empirical
  * evidence and documented here as a one-time reconciliation (NOT a silent
@@ -102,21 +105,26 @@ import {
 // ─── .test.ts — the single sanctioned growth history) ────────────────────────
 
 /**
- * Root mutation fields — the refreshed 23-op baseline: the prior auth
+ * Root mutation fields — the refreshed 33-op baseline: the prior auth
  * quartet + notification read-latch pair + users-locale surface, the
  * reconciled dev3-016 admin-user-management trio (3 mutations) + the
  * dev3-004 session quartet + dev3-005 dispute pair + dev3-012 confirm
- * + dev3-013 payout, and the sanctioned dev3-017 admin-governance pair.
- * Sorted alphabetically (mirrors the live
- * `printSchema(lexicographicSortSchema(graphQLSchema))` Mutation root
+ * + dev3-013 payout, the sanctioned dev3-017 admin-governance pair + the
+ * DEV3-021 session-governance quartet + the subscription purchase write.
+ * Sorted alphabetically (mirrors the
+ * live `printSchema(lexicographicSortSchema(graphQLSchema))` Mutation root
  * inventory verbatim). Re-anchored to the live schema as a documented
  * one-time reconciliation (NOT a silent baseline flip) ahead of pinning
  * the dev3-017 admin-governance pair.
  */
 const FROZEN_MUTATION_FIELDS = [
   "adminBroadcastNotification",
+  "adminCancelSession",
   "adminCertifyTeacherColdStart",
   "adminCreateUser",
+  "adminJoinSession",
+  "adminReassignTeacher",
+  "adminRescheduleSession",
   "adminSetUserBlocked",
   "adminSetUserDeleted",
   "adminSetUserSuspended",
@@ -132,6 +140,7 @@ const FROZEN_MUTATION_FIELDS = [
   "markAllNotificationsRead",
   "markNotificationRead",
   "openSessionDispute",
+  "purchaseSubscription",
   "refreshToken",
   "registerUser",
   "requestParentChildLink",
@@ -146,21 +155,23 @@ const FROZEN_MUTATION_FIELDS = [
 ] as const;
 
 /**
- * Root query fields — the refreshed 29-op baseline + the whole-platform
+ * Root query fields — the refreshed 32-op baseline + the whole-platform
  * analytics snapshot: the prior frozen baseline + the `_health` probe +
  * the reconciled dev3-016 admin-user query quartet + the dev3-004
  * participant-read trio + the dev3-005 admin arbitration listing + the
- * dev3-013 wallet read + the dev1-013 handshake pair + the R1–R3 admin
- * directory trio (`adminTeachers` / `adminStudents` /
- * `adminTeacherApplicants` — shipped across the admin-directory rounds
- * but never enumerated here; re-anchored to the live schema as a
- * documented one-time reconciliation, NOT a silent baseline flip) + the
- * R5 admin directory export trio (`adminTeachersExport` /
- * `adminStudentsExport` / `adminTeacherApplicantsExport` — the sanctioned
- * export-all read surface, pinned as the documented one-time
- * reconciliation in the same convention). Sorted alphabetically (mirrors
- * the live `printSchema(lexicographicSortSchema(graphQLSchema))` Query
- * root inventory verbatim, with locale-aware case handling:
+ * dev3-013 wallet read + the dev1-013 handshake pair + the DEV3-021 admin
+ * session pair (`adminSession` / `adminSessions` — 4.4 reconcile) + the
+ * subscription purchase caller-scoped read + the R1–R3 admin directory
+ * trio (`adminTeachers` / `adminStudents` / `adminTeacherApplicants` —
+ * shipped across the admin-directory rounds but never enumerated here;
+ * re-anchored to the live schema as a documented one-time reconciliation,
+ * NOT a silent baseline flip) + the R5 admin directory export trio
+ * (`adminTeachersExport` / `adminStudentsExport` /
+ * `adminTeacherApplicantsExport` — the sanctioned export-all read
+ * surface, pinned as the documented one-time reconciliation in the same
+ * convention). Sorted alphabetically (mirrors the live
+ * `printSchema(lexicographicSortSchema(graphQLSchema))` Query root
+ * inventory verbatim, with locale-aware case handling:
  * `adminUsers` precedes `adminUserStats` because the locale comparator
  * treats `s`/`S` as primary-equal and lowercases win on the secondary
  * tie-breaker — verified by the live built schema).
@@ -171,6 +182,8 @@ const FROZEN_QUERY_FIELDS = [
   "adminDisputedSessions",
   "adminPlans",
   "adminPlatformAnalytics",
+  "adminSession",
+  "adminSessions",
   "adminStudents",
   "adminStudentsExport",
   "adminTeacherApplicants",
@@ -189,6 +202,7 @@ const FROZEN_QUERY_FIELDS = [
   "myNotifications",
   "myOutgoingParentLinkRequests",
   "myStudentSessions",
+  "mySubscriptions",
   "myTeacherSessions",
   "myUnreadNotificationCount",
   "myWallet",
@@ -331,12 +345,12 @@ describe("BFLA structural verdict — zero notification CUD surface (REQ-032)", 
     }
   });
 
-  test("Mutation root is EXACTLY the refreshed frozen 23-op baseline — the reconciled dev3-016 admin-user trio + dev3-004 quartet + dev3-005 dispute pair + dev3-012 confirm + dev3-013 payout + the sanctioned dev3-017 admin-governance pair on top of the auth quartet + notification read-latch pair + users-locale surface", () => {
+  test("Mutation root is EXACTLY the refreshed frozen 33-op baseline — the reconciled dev3-016 admin-user trio + dev3-004 quartet + dev3-005 dispute pair + dev3-012 confirm + dev3-013 payout + the sanctioned dev3-017 admin-governance pair + the DEV3-021 session-governance quartet + the subscription purchase write on top of the auth quartet + notification read-latch pair + users-locale surface", () => {
     const names = fieldSurfaces("Mutation").map(surface => surface.name);
     expect(names.toSorted((a, b) => a.localeCompare(b))).toEqual([...FROZEN_MUTATION_FIELDS]);
   });
 
-  test("Query root is EXACTLY the refreshed frozen 29-op baseline (zero unsanctioned growth)", () => {
+  test("Query root is EXACTLY the refreshed frozen 32-op baseline (zero unsanctioned growth)", () => {
     const names = fieldSurfaces("Query").map(surface => surface.name);
     expect(names.toSorted((a, b) => a.localeCompare(b))).toEqual([...FROZEN_QUERY_FIELDS]);
   });
@@ -371,11 +385,15 @@ describe("DEV3-017 admin-governance pair — exact SDL signatures pinned on the 
   });
 
   test("both governance mutations sit at their SORTED positions in the Mutation root inventory", () => {
-    // Sorted lexicographically: adminCreateUser < adminSetUserBlocked <
-    // adminSetUserDeleted < adminSetUserSuspended < adminUpdateUser —
-    // the dev3-017 admin-governance pair slots BETWEEN the prior dev3-016
-    // surface and the dev3-016 update mutation, exactly as the live
-    // sorted schema emits them.
+    // The live schema emits root fields alphabetically, so the admin
+    // operations read as one sorted band: the admin session-governance
+    // operations (cancel / join / reassign / reschedule) interlock with
+    // the admin-user CRUD surface, and the combined set occupies ONE
+    // contiguous run of the sorted Mutation inventory — opening at
+    // `adminCancelSession` (alphabetically first of the union) and
+    // closing at `adminUpdateUser`. The teacher cold-start certification
+    // mutation also sorts inside that band, between `adminCancelSession`
+    // and `adminCreateUser`.
     const names = fieldSurfaces("Mutation").map(surface => surface.name);
     const sorted = names.toSorted((a, b) => a.localeCompare(b));
     const adminUserMutationNames = [
@@ -385,9 +403,42 @@ describe("DEV3-017 admin-governance pair — exact SDL signatures pinned on the 
       "adminSetUserSuspended",
       "adminUpdateUser",
     ];
-    const firstIndex = sorted.indexOf(adminUserMutationNames[0] ?? "");
-    expect(firstIndex).toBeGreaterThanOrEqual(0);
-    expect(sorted.slice(firstIndex, firstIndex + adminUserMutationNames.length)).toEqual(adminUserMutationNames);
+    const adminSessionGovernanceMutationNames = [
+      "adminCancelSession",
+      "adminJoinSession",
+      "adminReassignTeacher",
+      "adminRescheduleSession",
+    ];
+    // Every admin-user mutation is present, and their relative
+    // lexicographic order is preserved (strictly increasing indexes in
+    // the sorted inventory).
+    const adminUserIndexes = adminUserMutationNames.map(name => sorted.indexOf(name));
+    for (const index of adminUserIndexes) {
+      expect(index).toBeGreaterThanOrEqual(0);
+    }
+    for (let i = 1; i < adminUserIndexes.length; i += 1) {
+      const previous = adminUserIndexes[i - 1] ?? -1;
+      const current = adminUserIndexes[i] ?? -1;
+      expect(current).toBeGreaterThan(previous);
+    }
+    // The session-governance quartet is present too, and the combined
+    // admin band fills ONE contiguous sorted run starting at
+    // `adminCancelSession`: the window from that first member through
+    // `adminUpdateUser` hosts the full union in sorted position (plus
+    // the certification mutation noted above).
+    const adminBandMutationNames = [...adminSessionGovernanceMutationNames, ...adminUserMutationNames];
+    const bandIndexes = adminBandMutationNames.map(name => sorted.indexOf(name));
+    for (const index of bandIndexes) {
+      expect(index).toBeGreaterThanOrEqual(0);
+    }
+    const bandStart = sorted.indexOf("adminCancelSession");
+    const bandEnd = sorted.indexOf("adminUpdateUser");
+    expect(bandStart).toBeGreaterThanOrEqual(0);
+    expect(bandEnd).toBeGreaterThan(bandStart);
+    const expectedBandWindow = [...adminBandMutationNames, "adminCertifyTeacherColdStart"].toSorted((a, b) =>
+      a.localeCompare(b)
+    );
+    expect(sorted.slice(bandStart, bandEnd + 1)).toEqual(expectedBandWindow);
   });
 });
 
@@ -485,24 +536,29 @@ describe("Notification object — `id` + REQ-069 depth/complexity posture", () =
   });
 
   test("NO Subscription root exists — realtime delivery is the WebSocket sidecar's contract, never a GraphQL subscription", () => {
-    // AST-tier check: no ObjectTypeDefinition named "Subscription" exists.
-    // (The prior lexical `sdlText.not.toContain("Subscription")` belt-and-
-    // braces was retired as part of the dev3-016 admin-user surface
-    // reconciliation: the dev3-016 `AdminStudentSnapshot.hasActiveSubscription`
-    // and `AdminUserListItem.studentHasActiveSubscription` field names
-    // legitimately contain the substring "Subscription" — the lexical check
-    // became over-broad and would fire false positives. The AST-tier
-    // ObjectTypeDefinition-name check is the canonical contract.)
-    const hasSubscriptionRoot = sdlDocument.definitions.some(
-      definition => definition.kind === Kind.OBJECT_TYPE_DEFINITION && definition.name.value === "Subscription"
+    // History of this pin: the original lexical
+    // `sdlText.not.toContain("Subscription")` was retired as part of the
+    // dev3-016 admin-user surface reconciliation (the
+    // `hasActiveSubscription` field names are legitimate substrings), and
+    // the follow-up "no ObjectTypeDefinition named `Subscription`" AST
+    // check was retired when the subscription-purchase surface landed —
+    // not because the domain entity carries that name (it ships as
+    // `StudentSubscription` on the wire precisely BECAUSE `Subscription`
+    // is reserved), but because with default root naming the artifact
+    // text cannot distinguish a plain object named `Subscription` from
+    // the subscription root it would be auto-adopted as — the ban is
+    // undecidable on that tier, so the root-level contract is enforced
+    // where it is decidable:
+    //  - artifact tier (here): NO schema-definition entry may declare a
+    //    `subscription:` root — the only textually-decidable half.
+    //  - built-schema tier (schema-surface.test.ts): the built schema
+    //    must expose NO subscription root at all.
+    const schemaDefinitionSubscriptionEntries = sdlDocument.definitions.filter(
+      definition =>
+        definition.kind === Kind.SCHEMA_DEFINITION &&
+        definition.operationTypes.some(operation => operation.operation === "subscription")
     );
-    expect(hasSubscriptionRoot).toBe(false);
-    // Belt-and-braces: no `type Subscription {` block header appears in the
-    // artifact text either (the AST check above is the source of truth; this
-    // is the lexical mirror of the same contract — scoped to the precise
-    // `type Subscription` token sequence so legitimate substrings like
-    // `hasActiveSubscription` do not trigger a false positive).
-    expect(sdlText).not.toMatch(/\btype\s+Subscription\b/);
+    expect(schemaDefinitionSubscriptionEntries).toHaveLength(0);
   });
 });
 

@@ -2,9 +2,10 @@
  * PlanCatalogService — domain service for plan catalog management.
  *
  * Implements business rules, validation, and concurrency-guarded transitions
- * for subscription plans (REQ-001..REQ-083).
+ * for subscription plans. Field-level input validation lives in the sibling
+ * `plan-catalog.helpers.ts` module.
  *
- * Forward-only lifecycle guarantee (REQ-017, REQ-018):
+ * Forward-only lifecycle guarantee:
  * Deactivating or modifying a plan does NOT cascade to subscriptions, balances,
  * invoices, or payments. This file contains ZERO imports of student or subscription tables.
  *
@@ -18,12 +19,13 @@
 import { PlanRepository } from "@/backend/db/repo/billing/plan.repository";
 import { AuditActionType } from "@/backend/enum/audit/audit-action-type.enum";
 import { withTransaction } from "@/backend/lib/db/with-transaction";
-import { ConflictError, DomainError, NotFoundError, ValidationError } from "@/backend/lib/errors";
+import { DomainError, NotFoundError, ValidationError } from "@/backend/lib/errors";
 import { logger } from "@/backend/lib/logger";
 import { assertActorAdmin } from "@/backend/services/admin/admin-gate.helpers";
 import { AuditService } from "@/backend/services/admin/audit.service";
 import {
   buildPlanAuditContract,
+  toPlanWriteDomainError,
   validateAndExtractPlanPatch,
   validatePlanInput,
 } from "@/backend/services/billing/plan-catalog.helpers";
@@ -54,25 +56,10 @@ async function assertPlanMutationActor(
   return getServerTranslations(resolvedLocale).errorsTranslations;
 }
 
-/**
- * Type guard for checking PostgreSQL error codes across the cause chain.
- */
-function isPgErrorWithCode(error: unknown, code: string): boolean {
-  if (typeof error === "object" && error !== null) {
-    if ("code" in error && error.code === code) {
-      return true;
-    }
-    if ("cause" in error) {
-      return isPgErrorWithCode(error.cause, code);
-    }
-  }
-  return false;
-}
-
 export namespace PlanCatalogService {
   /**
    * Coerces a GraphQL `ID` argument into a plan id using STRICT numeric
-   * parsing (REQ-032). Unlike `Number.parseInt`, `Number()` rejects trailing
+   * parsing. Unlike `Number.parseInt`, `Number()` rejects trailing
    * garbage (`"12abc"` -> NaN) so a malformed id can never silently address an
    * unrelated plan row; any non-integer / non-positive result maps onto the
    * canonical `PLAN_NOT_FOUND` domain error.
@@ -113,6 +100,7 @@ export namespace PlanCatalogService {
       price: input.price.trim(),
       currency: input.currency.trim().toUpperCase(),
       intervalDays: input.intervalDays,
+      balanceLane: input.balanceLane ?? null,
     };
 
     try {
@@ -134,13 +122,7 @@ export namespace PlanCatalogService {
         return created;
       });
     } catch (error: unknown) {
-      if (isPgErrorWithCode(error, "23505")) {
-        throw new ConflictError(tErrors.conflict, { cause: error });
-      }
-      if (isPgErrorWithCode(error, "23514")) {
-        throw new ValidationError("VALIDATION", tErrors.validation, { cause: error });
-      }
-      throw error;
+      throw toPlanWriteDomainError(error, tErrors);
     }
   }
 
@@ -198,13 +180,7 @@ export namespace PlanCatalogService {
         return updated;
       });
     } catch (error: unknown) {
-      if (isPgErrorWithCode(error, "23505")) {
-        throw new ConflictError(tErrors.conflict, { cause: error });
-      }
-      if (isPgErrorWithCode(error, "23514")) {
-        throw new ValidationError("VALIDATION", tErrors.validation, { cause: error });
-      }
-      throw error;
+      throw toPlanWriteDomainError(error, tErrors);
     }
   }
 

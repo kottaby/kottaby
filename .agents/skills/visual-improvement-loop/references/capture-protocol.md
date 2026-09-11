@@ -33,6 +33,8 @@ Screenshots must not be trusted just because `screenshot` exited 0. Verify:
 
 The orchestrator NEVER calls ReadMediaFile on screenshots in its own loop. Images go to isolated inspector subagents; the main context receives text-only verdicts.
 
+**VLM-CLI inspector mode**: when subagent image delivery is unavailable (agent contexts that never receive image payloads), inspectors run via the `z-ai vision` CLI in Bash — one image per call, rubric inlined in the prompt; the orchestrator aggregates text verdicts.
+
 ## Useful DOM-first verifications (don't need pixels)
 
 - `agent-browser snapshot -i -c` — interactive a11y tree: proves headings, fields, per-row actions, checkmarks.

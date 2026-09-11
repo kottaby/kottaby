@@ -244,6 +244,21 @@ function hasSqliteUnique(error: unknown): boolean {
   return false;
 }
 
+/**
+ * The code-only PostgreSQL unique-violation detector shared by the
+ * service-layer `23505` → conflict translations (billing purchases, session
+ * claim keys, …): walks the thrown value's `Error.cause` chain — Drizzle
+ * wraps the driver error, so the `code` lives on a cause, never on the
+ * top-level wrapper — with a cycle-safe visited set. A `code` member
+ * anywhere on an `Error` link equal to `23505` answers true; everything
+ * else (non-Error roots, missing causes, self-referential chains) answers
+ * false. The error MESSAGE is never consulted here — the wider
+ * SQLite-parity variant lives beside the provisioning helpers it serves.
+ */
+export function isPgUniqueViolation(error: unknown): boolean {
+  return hasPgCode(error, "23505");
+}
+
 // ─── Error-code taxonomy re-export ──────────────────────────────────────────
 // The `backend/lib/errors/` directory hosts the error-boundary contract
 // modules (taxonomy, masking/envelope helpers). Consumers keep importing
