@@ -8,16 +8,6 @@ export const MIN_PASSWORD_LENGTH = 8;
 /** Shared helper-text treatment for the manual helper nodes */
 export const helperTextSx = { lineHeight: 1.6 };
 
-/** Honor prefers-reduced-motion for the submit CTA motion. */
-export const reducedMotionSx = {
-  "@media (prefers-reduced-motion: reduce)": {
-    transition: "none",
-    "&:hover": {
-      transform: "none",
-    },
-  },
-};
-
 /**
  * Re-export `isValidEmail` under its legacy form-utility name so existing
  * form callers keep a semantically accurate callsite.
