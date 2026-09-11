@@ -1,12 +1,9 @@
 "use client";
 
 import { useApolloClient, useMutation } from "@apollo/client/react";
-import { Dialog, DialogContent, DialogTitle } from "@mui/material";
-import { type ReactNode, useState } from "react";
+import type { ReactNode } from "react";
 import { cancelSessionMutationDocument } from "@/frontend/graphql/sharedDocuments";
-import { SessionDialogActionButtons } from "@/frontend/views/student/sessions/SessionDialogActionButtons";
-import { SessionDialogReasonField } from "@/frontend/views/student/sessions/SessionDialogReasonField";
-import { SessionDialogWarningCallout } from "@/frontend/views/student/sessions/SessionDialogWarningCallout";
+import { SessionConfirmDialogLayout } from "@/frontend/views/student/sessions/SessionConfirmDialogLayout";
 import { handleCancelSessionMutationError } from "@/frontend/views/student/sessions/sessionDialogErrorArms";
 import { Errors, Sessions, useAppTranslation } from "@/shared/locale";
 
@@ -80,12 +77,6 @@ export function CancelSessionConfirmDialog({
   const te = useAppTranslation(Errors);
   const client = useApolloClient();
 
-  const [reason, setReason] = useState("");
-  const [reasonInvalid, setReasonInvalid] = useState(false);
-  // Fresh-dialog discipline: the container mounts this dialog UNMOUNTED-KEYED
-  // per session (`key={sessionId}` in the role containers), so every open
-  // starts from the initial draft state — no reset effect needed.
-
   const [cancelSession, { loading }] = useMutation(cancelSessionMutationDocument, {
     // Cache NORMALIZE on success — rewrite the terminal lifecycle fields onto
     // the normalized `Session:<id>` entity (belt-and-braces over the automatic
@@ -118,59 +109,22 @@ export function CancelSessionConfirmDialog({
     },
   });
 
-  const handleSubmit = (event: React.SubmitEvent<HTMLFormElement>): void => {
-    event.preventDefault();
-    if (loading) return;
-    const trimmed = reason.trim();
-    if (trimmed.length > MAX_CANCEL_REASON_LENGTH) {
-      setReasonInvalid(true);
-      return;
-    }
-    setReasonInvalid(false);
-    void cancelSession({ variables: { id: sessionId, reason: trimmed.length === 0 ? null : trimmed } });
-  };
-
-  // Dismissal gate — enforces the `onClose` prop contract at the dialog
-  // itself: backdrop click and Escape are IGNORED while the mutation is
-  // pending (the cancel Button is separately disabled while loading).
-  const handleDialogClose = (): void => {
-    if (!loading) {
-      onClose();
-    }
-  };
-
   return (
-    <Dialog
+    <SessionConfirmDialogLayout
+      idPrefix="cancel-session"
       open={open}
-      onClose={handleDialogClose}
-      fullWidth
-      maxWidth="sm"
-      slotProps={{ paper: { component: "form", onSubmit: handleSubmit } }}
-      aria-labelledby="cancel-session-dialog-title"
-    >
-      <DialogTitle id="cancel-session-dialog-title" sx={theme => ({ color: theme.palette.onSurface })}>
-        {t.cancelConfirmTitle}
-      </DialogTitle>
-      <DialogContent sx={{ display: "grid", gap: 2 }}>
-        <SessionDialogWarningCallout message={t.cancelConfirmBody} />
-        <SessionDialogReasonField
-          value={reason}
-          onValueChange={setReason}
-          label={t.cancelReasonLabel}
-          placeholder={t.cancelReasonPlaceholder}
-          required={false}
-          error={reasonInvalid}
-          helperText={`${reason.length}/${MAX_CANCEL_REASON_LENGTH}`}
-          maxLength={MAX_CANCEL_REASON_LENGTH}
-        />
-      </DialogContent>
-      <SessionDialogActionButtons
-        loading={loading}
-        onClose={onClose}
-        submitLabel={t.cancelSession}
-        submitColor="error"
-        submitDisabled={loading}
-      />
-    </Dialog>
+      onClose={onClose}
+      title={t.cancelConfirmTitle}
+      warningMessage={t.cancelConfirmBody}
+      reasonLabel={t.cancelReasonLabel}
+      reasonPlaceholder={t.cancelReasonPlaceholder}
+      maxLength={MAX_CANCEL_REASON_LENGTH}
+      loading={loading}
+      onSubmit={reason => {
+        void cancelSession({ variables: { id: sessionId, reason: reason.length === 0 ? null : reason } });
+      }}
+      submitLabel={t.cancelSession}
+      submitColor="error"
+    />
   );
 }
