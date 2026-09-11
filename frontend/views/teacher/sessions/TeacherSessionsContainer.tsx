@@ -94,8 +94,8 @@ import { NoticeSnackbar } from "@/frontend/components/ui/NoticeSnackbar";
 import type { SessionStatus } from "@/frontend/graphql/generated/gql/graphql";
 import { myTeacherSessionsQueryDocument } from "@/frontend/graphql/sharedDocuments";
 import { SessionStatusFilterChips } from "@/frontend/views/student/sessions/SessionStatusFilterChips";
+import { StudentSessionsDialogs } from "@/frontend/views/student/sessions/StudentSessionsDialogs";
 import { TeacherSessionsBody } from "@/frontend/views/teacher/sessions/TeacherSessionsBody";
-import { TeacherSessionsDialogs } from "@/frontend/views/teacher/sessions/TeacherSessionsDialogs";
 import { type ContainerNotice, SNACKBAR_AUTOHIDE_MS } from "@/frontend/views/teacher/sessions/teacherSessionSlots";
 import { useTeacherCancelDialogArms } from "@/frontend/views/teacher/sessions/useTeacherCancelDialogArms";
 import { useTeacherDisputeDialogArms } from "@/frontend/views/teacher/sessions/useTeacherDisputeDialogArms";
@@ -184,7 +184,7 @@ export function TeacherSessionsContainer(): ReactNode {
         onComplete={mutations.handleComplete}
         t={t}
       />
-      <TeacherSessionsDialogs
+      <StudentSessionsDialogs
         cancelDialogSessionId={cancelArms.cancelDialogSessionId}
         disputeDialogSessionId={disputeArms.disputeDialogSessionId}
         onCloseCancelDialog={cancelArms.closeCancelDialog}
