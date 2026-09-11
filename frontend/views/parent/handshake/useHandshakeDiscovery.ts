@@ -15,7 +15,7 @@ import { isHandshakeCode, normalizeHandshakeCode } from "@/shared/constants";
 import { ParentLink, useAppTranslation } from "@/shared/locale";
 
 /** The resting send outcome — the affordance resets to this after edits. */
-export const SEND_OUTCOME_IDLE: SendOutcomeState = { kind: "idle" };
+const SEND_OUTCOME_IDLE: SendOutcomeState = { kind: "idle" };
 
 export interface UseHandshakeDiscoveryResult {
   readonly codeInput: string;
