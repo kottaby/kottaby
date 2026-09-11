@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import nextConfig from "../../next.config";
+import nextConfig from "@/next.config";
 
 describe("Security Headers Configuration", () => {
   it("defines expected security headers for all routes", async () => {
