@@ -1,0 +1,3 @@
+## 2026-09-12 - Accessible Tooltips on Disabled Pager IconButtons
+**Learning:** In Material-UI, disabled `<IconButton>` components suppress pointer events, preventing `<Tooltip>` hover and focus triggers from showing when a user hovers over a disabled pager chevron. Wrapping the disabled `<IconButton>` in a `<span>` element allows the `<Tooltip>` to capture mouse events while preserving standard `focusVisibleRingSx` focus ring accessibility across all pagers.
+**Action:** Always wrap disabled or conditionally disabled `<IconButton>` components in `<span>` tags inside `<Tooltip>` and use `focusVisibleRingSx` for consistent focus ring styling.
