@@ -60,9 +60,9 @@
 
 ## Phase 3: Paymob Port Implementation
 
-- [ ] 3.1 HMAC verification module
+- [x] 3.1 HMAC verification module
   - CREATE `backend/services/billing/payment-gateway/paymob/paymob.constants.ts` (POST/GET/token key lists verbatim from mirror `hmac/hmac-transaction-callback.md:27-48` + `hmac/hmac-for-card-tokens.md:23-32`) and `paymob.hmac.ts` (builders + `verifyPaymobHmac` with digest-based `timingSafeEqual`).
-  - [ ] 3.1.QL · [ ] 3.1.TE — golden vectors (valid POST success/declined, valid GET) + tamper vectors (flipped `success`, altered `amount_cents`, missing key, wrong secret, GET `order` vs `order_id` fallback, token-list vector) in colocated `__tests__/paymob.hmac.test.ts` · [ ] 3.1.SEC — constant-time behavior · [ ] 3.1.SR · [ ] 3.1.IV
+  - [x] 3.1.QL · [x] 3.1.TE — golden vectors (valid POST success/declined, valid GET) + tamper vectors (flipped `success`, altered `amount_cents`, missing key, wrong secret, GET `order` vs `order_id` fallback, token-list vector) in colocated `__tests__/paymob.hmac.test.ts` · [x] 3.1.SEC — constant-time behavior · [x] 3.1.SR · [x] 3.1.IV
   - _Requirements: REQ-004, REQ-022, REQ-070_
 
 - [ ] 3.2 Paymob mappers

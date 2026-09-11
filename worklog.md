@@ -120,3 +120,21 @@ Work Log:
 
 Stage Summary:
 - 2.2 evidence confirmed present at d37cad8 and re-verified green (migrate exit 0; 14/0/95 tests, exit 0); outcome cross-references corrected; nothing reconstructed because nothing was missing — committed on feat/paymob-gateway-integration
+
+---
+Task ID: 3.1
+Agent: general-purpose subagent
+Task: Paymob HMAC verification module
+
+Work Log:
+- Created backend/services/billing/payment-gateway/paymob/ with three pure-function files: paymob.constants.ts (PAYMOB_TXN_HMAC_KEYS_POST 20 nested getter paths, PAYMOB_TXN_HMAC_KEYS_GET 20 flat param names — differs from POST only at the order-id slot order.id→order_id, PAYMOB_TOKEN_HMAC_KEYS 8) and paymob.hmac.ts (buildTransactionHmacMessage, buildTransactionHmacMessageFromQuery with order→order_id fallback precedence, buildTokenHmacMessage, verifyPaymobHmac) + colocated __tests__/paymob.hmac.test.ts
+- Key lists transcribed VERBATIM from the offline mirror (references/docs/webhook-callbacks-and-hmac/hmac/…); reconciled the 19-vs-20 key-count discrepancy by decoding the mirror's own sample concatenation: exactly 20 signed slots (its `pending` slot is empty — proving missing→empty-string serialization); mirror text wins over SKILL.md/cheatsheet/plan approximations, REQ-022 also pins 20
+- Builders: booleans lowercase true/false, numbers/strings plain, absent → empty string (position-sensitive slot preserved); dotted-path walker via isRecord type predicate (no casts — oxlint no-unsafe-type-assertion fixed); stringify branches on documented primitives (no-base-to-string fixed); secret always a parameter — zero I/O, zero env reads, zero logging, zero module state
+- verifyPaymobHmac: HMAC-SHA512 lowercase hex vs presented query hmac, compared through the SHA-256 fixed-length digest idiom (bearerSecretMatches/webhook-signature.helpers precedent) — length-agnostic, fail-closed on missing/empty presented value or empty secret, never throws
+- Tests 23 pass / 0 fail (50 expect()): golden vectors with expected message written out slot-by-slot in the test (POST success, POST declined/pending, GET via order, GET via order_id fallback, order-wins precedence, token) each verified true; tamper vectors (flipped success, altered amount_cents, missing key, wrong secret both directions, missing/empty hmac, empty secret, whitespace, uppercase hex) each denied while the honestly-signed twin verifies; unsigned-member proofs (is_refund/is_void/refunded_amount_cents/captured_amount/merchant_order_id never influence the message); digest-comparison shape (wrong-length + same-length-wrong denied without throwing)
+- Sub-loop duplicates exit 0 ×3 (constants, hmac, test — first run caught the two oxlint rules + the test-side assertion; all fixed, re-run green); static-assertions suite re-run 13/0 (no pin changes needed — paymob.types.ts untouched); plan-meta grep over the new directory: zero matches
+- Wrote outcome/3.1-outcome.md (exact key lists captured for 3.2/4.1/5.4); flipped tasks.md 3.1 main box + 3.1.QL/TE/SEC/SR/IV
+
+Stage Summary:
+- Task 3.1 COMPLETE: HMAC trust boundary (constants + builders + timing-safe verify) landed with golden/tamper vector coverage; committing on feat/paymob-gateway-integration
+- Carry-forward: 3.3 parseWebhookEvent is the first consumer — message via buildTransactionHmacMessage(body.obj) (token-shaped → buildTokenHmacMessage), verify against input.query["hmac"] with config.hmacSecret; GET order-id reads `order` first then `order_id`; compare is case-sensitive lowercase hex (uppercase denied by design); 5.4 simulation channel must sign via these builders (no parallel signer)
