@@ -1,23 +1,9 @@
 "use client";
 
-import {
-  LockOutlined as LockIcon,
-  VisibilityOutlined as VisibilityIcon,
-  VisibilityOffOutlined as VisibilityOffIcon,
-} from "@mui/icons-material";
-import {
-  Box,
-  FormControl,
-  InputAdornment,
-  InputLabel,
-  MenuItem,
-  IconButton as MuiIconButton,
-  Select,
-  TextField,
-} from "@mui/material";
+import { Box, FormControl, InputLabel, MenuItem, Select } from "@mui/material";
 import { useState } from "react";
 import type { FieldErrors, UseControllerReturn, UseFormRegister } from "react-hook-form";
-import { focusVisibleRingSx } from "@/frontend/components/ui/focusRing";
+import { PasswordField } from "@/frontend/components/AuthFormShared";
 import type { Gender } from "@/frontend/graphql/generated/gql/graphql";
 import {
   genderFromSelectValue,
@@ -71,47 +57,21 @@ export function RegisterAccountSection({
             meter (remote visual, reconciled onto the register() contract)
             sits flush under the field instead of a squeezed half-cell. */}
         <Box sx={{ gridColumn: { xs: "1 / -1", sm: "1 / -1" } }}>
-          <TextField
-            {...register("password", {
-              required: t.passwordRequired,
-              minLength: { value: MIN_PASSWORD_LENGTH, message: t.passwordTooShort },
-            })}
+          <PasswordField
+            {...(() => {
+              const { ref, ...rest } = register("password", {
+                required: t.passwordRequired,
+                minLength: { value: MIN_PASSWORD_LENGTH, message: t.passwordTooShort },
+              });
+              return { inputRef: ref, ...rest };
+            })()}
             label={t.password}
-            type={showPassword ? "text" : "password"}
-            required
-            fullWidth
+            showPassword={showPassword}
+            onToggleShow={() => setShowPassword(!showPassword)}
             autoComplete="new-password"
             helperText={errors.password?.message ?? (passwordTooShort ? t.passwordTooShort : " ")}
             error={Boolean(errors.password) || passwordTooShort}
             aria-invalid={Boolean(errors.password) || passwordTooShort}
-            slotProps={{
-              input: {
-                startAdornment: <LockIcon fontSize="small" sx={{ mr: 1, color: "var(--mui-palette-action-active)" }} />,
-                endAdornment: (
-                  <InputAdornment position="end">
-                    <MuiIconButton
-                      aria-label={showPassword ? t.hidePassword : t.showPassword}
-                      onClick={() => setShowPassword(!showPassword)}
-                      size="small"
-                      // v9 ButtonBase has no focus ring — this toggle
-                      // was invisible to keyboard users when focused.
-                      sx={{
-                        ...focusVisibleRingSx,
-                        // 44px touch target: 12px padding around the 20px
-                        // glyph, pulled back with matching negative margins so
-                        // the input row keeps its natural height (the same
-                        // invisible-padding trick as the auth/profile fields).
-                        p: 1.5,
-                        m: -1.5,
-                      }}
-                    >
-                      {showPassword ? <VisibilityOffIcon fontSize="small" /> : <VisibilityIcon fontSize="small" />}
-                    </MuiIconButton>
-                  </InputAdornment>
-                ),
-              },
-              formHelperText: { "aria-live": "polite" },
-            }}
           />
           <PasswordStrengthMeter pw={passwordValue} t={t} />
         </Box>
