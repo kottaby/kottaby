@@ -1,0 +1,104 @@
+"use client";
+
+/**
+ * PlanMobileCard — Single mobile card for the admin plan catalog.
+ *
+ * Renders plan status, metrics, and action buttons for mobile layouts.
+ */
+
+import {
+  CheckCircleOutlined as ActivateIcon,
+  BlockOutlined as DeactivateIcon,
+  EditOutlined as EditIcon,
+} from "@mui/icons-material";
+import { Button, Card, CardActions, CardContent, Stack, Typography } from "@mui/material";
+import type { AdminPlansQuery } from "@/frontend/graphql/generated/gql/graphql";
+import { PlanStatusChip } from "@/frontend/views/admin/plans";
+import { formatPlanDate } from "@/frontend/views/admin/plans/catalog/planCatalogFormatting";
+import { useAppTranslation } from "@/shared/locale/client";
+import { Plans } from "@/shared/locale/namespaces/plans";
+
+type PlanItem = AdminPlansQuery["adminPlans"][number];
+
+export interface PlanMobileCardProps {
+  readonly plan: PlanItem;
+  readonly actionLoadingId?: string | null;
+  readonly onEdit: (plan: PlanItem) => void;
+  readonly onToggleStatus: (plan: PlanItem, targetActive: boolean) => void;
+}
+
+export function PlanMobileCard({
+  plan,
+  actionLoadingId,
+  onEdit,
+  onToggleStatus,
+}: PlanMobileCardProps): React.ReactElement {
+  const t = useAppTranslation(Plans);
+  const isActionPending = actionLoadingId === plan.id;
+
+  return (
+    <Card
+      elevation={0}
+      sx={theme => ({
+        border: 1,
+        borderColor: theme.palette.divider,
+        borderRadius: 2,
+      })}
+    >
+      <CardContent sx={{ pb: 1 }}>
+        <Stack sx={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", mb: 1 }}>
+          <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+            {plan.title}
+          </Typography>
+          <PlanStatusChip isActive={plan.isActive} activeLabel={t.activeStatus} inactiveLabel={t.inactiveStatus} />
+        </Stack>
+        <Stack sx={{ gap: 0.5 }}>
+          <Typography variant="body2" sx={theme => ({ color: theme.palette.text.secondary })}>
+            {t.sessionCountColumn}: <strong>{plan.sessionCount}</strong>
+          </Typography>
+          <Typography variant="body2" sx={theme => ({ color: theme.palette.text.secondary })}>
+            {t.priceColumn}:{" "}
+            <strong>
+              <span dir="ltr">
+                {plan.price} {plan.currency}
+              </span>
+            </strong>
+            {" · "}
+            {plan.intervalDays} {t.intervalDaysShort}
+          </Typography>
+          <Typography variant="caption" sx={theme => ({ color: theme.palette.text.secondary, whiteSpace: "nowrap" })}>
+            {t.createdAtColumn}: {formatPlanDate(plan.createdAt, t.emptyValue)}
+          </Typography>
+          {!plan.isActive && plan.deactivatedAt && (
+            <Typography variant="caption" sx={theme => ({ color: theme.palette.error.main, whiteSpace: "nowrap" })}>
+              {t.deactivatedAtColumn}: {formatPlanDate(plan.deactivatedAt, t.emptyValue)}
+            </Typography>
+          )}
+        </Stack>
+      </CardContent>
+      <CardActions sx={{ px: 2, pb: 2, pt: 0, justifyContent: "flex-end" }}>
+        <Button
+          size="small"
+          startIcon={<EditIcon />}
+          onClick={() => onEdit(plan)}
+          disabled={isActionPending}
+          sx={{ minHeight: 44 }}
+        >
+          {t.editPlanButton}
+        </Button>
+        <Button
+          size="small"
+          startIcon={plan.isActive ? <DeactivateIcon /> : <ActivateIcon />}
+          onClick={() => onToggleStatus(plan, !plan.isActive)}
+          disabled={isActionPending}
+          sx={theme => ({
+            color: plan.isActive ? theme.palette.error.main : theme.palette.primary.main,
+            minHeight: 44,
+          })}
+        >
+          {plan.isActive ? t.deactivatePlanButton : t.activatePlanButton}
+        </Button>
+      </CardActions>
+    </Card>
+  );
+}
