@@ -160,10 +160,7 @@ describe("assertBookingBoundary", () => {
       const badStudentIds = [0, -1, -100, 1.5, Number.NaN, Number.POSITIVE_INFINITY, Number.MAX_SAFE_INTEGER + 1];
 
       for (const badId of badStudentIds) {
-        expectValidationError(
-          () => assertBookingBoundary(badId, validInput(), "valid-key", en),
-          en.validation
-        );
+        expectValidationError(() => assertBookingBoundary(badId, validInput(), "valid-key", en), en.validation);
       }
     });
 
@@ -173,10 +170,7 @@ describe("assertBookingBoundary", () => {
 
       for (const badTeacherId of badTeacherIds) {
         const input: SessionSubmitInput = Object.assign({}, validInput(), { teacherId: badTeacherId });
-        expectValidationError(
-          () => assertBookingBoundary(1, input, "valid-key", en),
-          en.validation
-        );
+        expectValidationError(() => assertBookingBoundary(1, input, "valid-key", en), en.validation);
       }
     });
 
@@ -184,17 +178,11 @@ describe("assertBookingBoundary", () => {
       const en = t();
 
       // Empty key
-      expectValidationError(
-        () => assertBookingBoundary(1, validInput(), "", en),
-        en.idempotencyKeyRequired
-      );
+      expectValidationError(() => assertBookingBoundary(1, validInput(), "", en), en.idempotencyKeyRequired);
 
       // 129 chars key
       const oversizedKey = "k".repeat(MAX_IDEMPOTENCY_KEY_LENGTH + 1);
-      expectValidationError(
-        () => assertBookingBoundary(1, validInput(), oversizedKey, en),
-        en.idempotencyKeyRequired
-      );
+      expectValidationError(() => assertBookingBoundary(1, validInput(), oversizedKey, en), en.idempotencyKeyRequired);
     });
 
     test("intent branch: throws ValidationError(t.invalidSessionIntent) for non-bookable intents", () => {
@@ -202,17 +190,11 @@ describe("assertBookingBoundary", () => {
 
       // SessionIntent.Evaluation is not bookable via createSession
       const evalInput: SessionSubmitInput = Object.assign({}, validInput(), { intent: SessionIntent.Evaluation });
-      expectValidationError(
-        () => assertBookingBoundary(1, evalInput, "valid-key", en),
-        en.invalidSessionIntent
-      );
+      expectValidationError(() => assertBookingBoundary(1, evalInput, "valid-key", en), en.invalidSessionIntent);
 
       // Arbitrary invalid strings smuggled into input
       const invalidInput: SessionSubmitInput = Object.assign({}, validInput(), { intent: "INVALID_INTENT" });
-      expectValidationError(
-        () => assertBookingBoundary(1, invalidInput, "valid-key", en),
-        en.invalidSessionIntent
-      );
+      expectValidationError(() => assertBookingBoundary(1, invalidInput, "valid-key", en), en.invalidSessionIntent);
     });
   });
 
@@ -223,10 +205,7 @@ describe("assertBookingBoundary", () => {
       expect(() => assertBookingBoundary(1, validInput(), "a", en)).not.toThrow();
       expect(() => assertBookingBoundary(1, validInput(), "b".repeat(128), en)).not.toThrow();
 
-      expectValidationError(
-        () => assertBookingBoundary(1, validInput(), "", en),
-        en.idempotencyKeyRequired
-      );
+      expectValidationError(() => assertBookingBoundary(1, validInput(), "", en), en.idempotencyKeyRequired);
 
       expectValidationError(
         () => assertBookingBoundary(1, validInput(), "c".repeat(129), en),
@@ -236,12 +215,7 @@ describe("assertBookingBoundary", () => {
 
     test("idempotencyKey preserves content verbatim (spaces, symbols, unicode)", () => {
       const en = t();
-      const specialKeys = [
-        "  key-with-padding  ",
-        "مفتاح-تأكيد-١٢٣",
-        "key_#123-abc.xyz",
-        "key\twith\nwhitespace",
-      ];
+      const specialKeys = ["  key-with-padding  ", "مفتاح-تأكيد-١٢٣", "key_#123-abc.xyz", "key\twith\nwhitespace"];
 
       for (const key of specialKeys) {
         expect(() => assertBookingBoundary(1, validInput(), key, en)).not.toThrow();
@@ -254,10 +228,7 @@ describe("assertBookingBoundary", () => {
       expect(() => assertBookingBoundary(1, validInput(), "key", en)).not.toThrow();
       expect(() => assertBookingBoundary(Number.MAX_SAFE_INTEGER, validInput(), "key", en)).not.toThrow();
 
-      expectValidationError(
-        () => assertBookingBoundary(0, validInput(), "key", en),
-        en.validation
-      );
+      expectValidationError(() => assertBookingBoundary(0, validInput(), "key", en), en.validation);
 
       expectValidationError(
         () => assertBookingBoundary(Number.MAX_SAFE_INTEGER + 1, validInput(), "key", en),
@@ -268,21 +239,14 @@ describe("assertBookingBoundary", () => {
       expect(() => assertBookingBoundary(1, maxTeacherInput, "key", en)).not.toThrow();
 
       const invalidTeacherInput: SessionSubmitInput = Object.assign({}, validInput(), { teacherId: 0 });
-      expectValidationError(
-        () => assertBookingBoundary(1, invalidTeacherInput, "key", en),
-        en.validation
-      );
+      expectValidationError(() => assertBookingBoundary(1, invalidTeacherInput, "key", en), en.validation);
     });
   });
 
   describe("Tier 3 — chaos, fuzzing & statelessness", () => {
     test("seeded PRNG fuzz sweep over assertBookingBoundary throws only ValidationError (code VALIDATION)", () => {
       const en = t();
-      const allowedMessages = new Set([
-        en.validation,
-        en.idempotencyKeyRequired,
-        en.invalidSessionIntent,
-      ]);
+      const allowedMessages = new Set([en.validation, en.idempotencyKeyRequired, en.invalidSessionIntent]);
 
       const outcomes = runSweep();
       expect(outcomes).toHaveLength(300);
@@ -334,10 +298,7 @@ describe("assertBookingBoundary", () => {
         extraHostileProp: "<script>alert('xss')</script>",
       });
 
-      expectValidationError(
-        () => assertBookingBoundary(1, smuggledInput, "key-123", en),
-        en.invalidSessionIntent
-      );
+      expectValidationError(() => assertBookingBoundary(1, smuggledInput, "key-123", en), en.invalidSessionIntent);
     });
 
     test("denials never echo rejected or hostile payloads", () => {
@@ -371,53 +332,29 @@ describe("assertBookingBoundary", () => {
     test("every boundary denial resolves its dedicated flat key in English", () => {
       const en = t();
 
-      expectValidationError(
-        () => assertBookingBoundary(0, validInput(), "key", en),
-        en.validation
-      );
+      expectValidationError(() => assertBookingBoundary(0, validInput(), "key", en), en.validation);
 
       const invalidTeacherInput: SessionSubmitInput = Object.assign({}, validInput(), { teacherId: -1 });
-      expectValidationError(
-        () => assertBookingBoundary(1, invalidTeacherInput, "key", en),
-        en.validation
-      );
+      expectValidationError(() => assertBookingBoundary(1, invalidTeacherInput, "key", en), en.validation);
 
-      expectValidationError(
-        () => assertBookingBoundary(1, validInput(), "", en),
-        en.idempotencyKeyRequired
-      );
+      expectValidationError(() => assertBookingBoundary(1, validInput(), "", en), en.idempotencyKeyRequired);
 
       const evalInput: SessionSubmitInput = Object.assign({}, validInput(), { intent: SessionIntent.Evaluation });
-      expectValidationError(
-        () => assertBookingBoundary(1, evalInput, "key", en),
-        en.invalidSessionIntent
-      );
+      expectValidationError(() => assertBookingBoundary(1, evalInput, "key", en), en.invalidSessionIntent);
     });
 
     test("every boundary denial resolves its dedicated flat key in Arabic", () => {
       const ar = tAr();
 
-      expectValidationError(
-        () => assertBookingBoundary(0, validInput(), "key", ar),
-        ar.validation
-      );
+      expectValidationError(() => assertBookingBoundary(0, validInput(), "key", ar), ar.validation);
 
       const invalidTeacherInput: SessionSubmitInput = Object.assign({}, validInput(), { teacherId: -1 });
-      expectValidationError(
-        () => assertBookingBoundary(1, invalidTeacherInput, "key", ar),
-        ar.validation
-      );
+      expectValidationError(() => assertBookingBoundary(1, invalidTeacherInput, "key", ar), ar.validation);
 
-      expectValidationError(
-        () => assertBookingBoundary(1, validInput(), "", ar),
-        ar.idempotencyKeyRequired
-      );
+      expectValidationError(() => assertBookingBoundary(1, validInput(), "", ar), ar.idempotencyKeyRequired);
 
       const evalInput: SessionSubmitInput = Object.assign({}, validInput(), { intent: SessionIntent.Evaluation });
-      expectValidationError(
-        () => assertBookingBoundary(1, evalInput, "key", ar),
-        ar.invalidSessionIntent
-      );
+      expectValidationError(() => assertBookingBoundary(1, evalInput, "key", ar), ar.invalidSessionIntent);
     });
 
     test("en and ar copies are distinct localizations of the same error keys", () => {
