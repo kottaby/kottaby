@@ -42,10 +42,10 @@
 
 ## Phase 2: Configuration, Schema & Type Foundations
 
-- [ ] 2.1 Paymob env configuration
+- [x] 2.1 Paymob env configuration
   - EXTEND `backend/lib/env.ts`: `EnvironmentConfig.paymob` object + parsing in `readEnvironment()` + `getPaymobConfig()` getter (plan §4.1 — 10 keys incl. defaults for `PAYMOB_API_BASE_URL`/`PAYMOB_CHECKOUT_BASE_URL`/timeout/sweep window).
   - EXTEND `.env.example` with ALL 13 new keys — the 10 PAYMOB_* (`PAYMOB_SECRET_KEY`, `PAYMOB_PUBLIC_KEY`, `PAYMOB_HMAC_SECRET`, `PAYMOB_API_KEY`, `PAYMOB_INTEGRATION_ID_CARD`, `PAYMOB_INTEGRATION_ID_WALLET`, `PAYMOB_API_BASE_URL`, `PAYMOB_CHECKOUT_BASE_URL`, `PAYMOB_HTTP_TIMEOUT_MS`, `PAYMOB_RECONCILE_PENDING_MINUTES`) + the 3 optional `NGROK_*` (`NGROK_AUTHTOKEN`, `NGROK_DOMAIN`, `NGROK_PORT`) — using `<your-…-here>`/comment-only placeholders; EXTEND `backend/lib/test-ci-env.ts` with harmless test-mode defaults (NGROK_* absent there — CI exercises the simulation channel).
-  - [ ] 2.1.QL · [ ] 2.1.TE — unit tests: defaults applied, integer coercion for integration IDs, empty-string secret rejected, cache reset parity · [ ] 2.1.SEC — secrets only parsed server-side; nothing logged · [ ] 2.1.SR · [ ] 2.1.IV
+  - [x] 2.1.QL · [x] 2.1.TE — unit tests: defaults applied, integer coercion for integration IDs, empty-string secret rejected, cache reset parity · [x] 2.1.SEC — secrets only parsed server-side; nothing logged · [x] 2.1.SR · [x] 2.1.IV
   - _Requirements: REQ-002, REQ-040, REQ-042_
 - [ ] 2.2 Schema delta + migration 5
   - EXTEND `backend/db/schema/billing/student-payments.ts` (+`providerTransactionId`); CREATE `backend/db/migration/5-student-payments-provider-transaction.sql` + `-sqlite.sql` pair (trigger allowance for NULL→value during the guarded transition; schema via push, trigger via migration — same convention as the landed `4-student-payments-status-transition{,-sqlite}.sql` pair + its Drizzle mirror dir `backend/drizzle/*_custom_4-student-payments-status-transition/`); EXTEND `backend/db/repo/billing/student-payment.repository.ts` with `findStalePendingByGateway(gateway, olderThan, limit)` (amendment A4 — the repository exists; this ADDS the method).

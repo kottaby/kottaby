@@ -48,3 +48,20 @@ Work Log:
 Stage Summary:
 - Phase 0 COMPLETE: baselines all-zero, A1-A6 seams confirmed pending-shaped, citation integrity verified (one archived-path finding, non-blocking)
 - Next: task 2.1 (paymob env config); check feat branch + two custom_4 mirror dirs before migration 5
+
+---
+Task ID: 2.1
+Agent: general-purpose subagent
+Task: Paymob env configuration
+
+Work Log:
+- Verified branch feat/paymob-gateway-integration @ 11ca43a (up to date with origin); reviewed uncommitted implementation against spec — env.ts paymob (10 fields) + ngrok (3 fields) config, correct defaults (accept.paymob.com / eg.checkout.paymob.com / 10000ms / 30min / port 3000), empty-secret→null, strict int-or-null integration IDs, getPaymobConfig() through the single pre-existing cache, .env.example 13 keys placeholder-only, test-ci-env.ts frozen 10-key PAYMOB list with NGROK_* excluded
+- Sub-loop (tsgo/oxlint/biome/lint:type-aware/duplicates): env.ts exit 0 (first run); test-ci-env.ts exit 0 (first run); env.test.ts exit 0 after fixes — .sort()→.toSorted() (oxlint unicorn/no-array-sort) + localeCompare comparators (sonarjs/no-alphabetical-sort)
+- Tests: first run 68/75 (7 failures all in test harness, zero implementation defects): numeric members observed as numbers were compared to raw env strings → added optional `observed` field to GatewayKeyProbe (5 probes, 2 assert sites); API-base-URL "whitespace-only" fixture used " , " (not whitespace-only; impl correctly keeps trimmed "," verbatim) → changed to "   ". Final: 75 pass / 0 fail / 252 expect(), exit 0
+- SEC: diff grep console./logger. → zero matches (no secret logging); no frontend/app/shared reference to getPaymobConfig/paymob (only pre-existing `Paymob` enum value in generated schema.graphql); .env.example placeholders only
+- IV: read AGENTS.md, backend/AGENTS.md, .agents/instructions/backend.instructions.md, .agents/instructions/tests.instructions.md; no plan-meta comments in any new code
+- Wrote outcome/2.1-outcome.md; flipped tasks.md 2.1 main + all five 2.1.QL/TE/SEC/SR/IV checkboxes
+
+Stage Summary:
+- Task 2.1 COMPLETE: paymob/ngrok env seam typed, tested (75 green), documented; committed on feat/paymob-gateway-integration
+- Carry-forward: getPaymobConfig() (+ getEnvironmentConfig().ngrok); null = unconfigured → fail closed; tunnel eligibility = NGROK_AUTHTOKEN AND NGROK_DOMAIN both set; resetEnvironmentCache() required after env mutation in tests; TEST_CI_UNSET_PAYMOB_ENV_KEYS pinned (never add NGROK_*)
