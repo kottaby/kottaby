@@ -4,7 +4,7 @@
 **Specs:** `specs.md` · **Plan:** `plan.md` · **Ledger:** `deferred-items.md` · **Outcomes:** `outcome/`
 
 > **Source of truth:** `specs.md` (REQ-001..REQ-082 bands) + `plan.md` (D1..D13, amendments A1..A5).
-> **Blocking dependency:** the subscription-purchase plan's backend lands first (port, factory, purchase/activation services, repos, resolvers — see `ai/plans/sprint_1/subscription-purchase-payment-gateway/tasks.md`). This plan EXTENDS those seams; the A1–A5 cross-plan amendments are tracked in `deferred-items.md`.
+> **Blocking dependency:** none in-repo — the subscription-purchase backend is implemented (port, factory, purchase/activation services, repos, resolvers, webhook route; canonical doc `docs/billing/subscription-purchase.md` is Active). This plan EXTENDS those existing seams; the A1–A5 amendments (against EXISTING types/repos) are tracked in `deferred-items.md`.
 
 ## Document Information
 
@@ -31,7 +31,7 @@
 
 ## Phase 0: Pre-Implementation Baseline (MANDATORY)
 
-- [ ] 0.1 Record tsgo/biome/lint baselines (counts in `outcome/0.1-outcome.md`); confirm the subscription-purchase plan execution state in the working tree (port/factory/purchase symbols present or NOT — the whole plan keying off it); re-confirm every `path:line` cited in `specs.md` §1 still resolves.
+- [ ] 0.1 Record tsgo/biome/lint baselines (counts in `outcome/0.1-outcome.md`); confirm the landed subscription-purchase seams' shapes in the working tree (port signatures, factory, route, repos — amendments A1–A5 key off them); re-confirm every `path:line` cited in `specs.md` §1 still resolves.
   - _Requirements: REQ-001_
 
 ## Phase 1.5: Plan Review Gate (MANDATORY — executed at authoring time)
@@ -48,7 +48,7 @@
   - [ ] 2.1.QL · [ ] 2.1.TE — unit tests: defaults applied, integer coercion for integration IDs, empty-string secret rejected, cache reset parity · [ ] 2.1.SEC — secrets only parsed server-side; nothing logged · [ ] 2.1.SR · [ ] 2.1.IV
   - _Requirements: REQ-002, REQ-040, REQ-042_
 - [ ] 2.2 Schema delta + migration 5
-  - EXTEND `backend/db/schema/billing/student-payments.ts` (+`providerTransactionId`); CREATE `backend/db/migration/5-student-payments-provider-transaction.sql` + `-sqlite.sql` pair (trigger allowance for NULL→value during the guarded transition; schema via push, trigger via migration); EXTEND `backend/db/repo/billing/student-payment.repository.ts` with `findStalePendingByGateway(gateway, olderThan, limit)` (amendment A4 — verify the subscription-purchase plan landed it first; else ledger).
+  - EXTEND `backend/db/schema/billing/student-payments.ts` (+`providerTransactionId`); CREATE `backend/db/migration/5-student-payments-provider-transaction.sql` + `-sqlite.sql` pair (trigger allowance for NULL→value during the guarded transition; schema via push, trigger via migration — same convention as the landed `4-student-payments-status-transition{,-sqlite}.sql` pair + its Drizzle mirror dir `backend/drizzle/*_custom_4-student-payments-status-transition/`); EXTEND `backend/db/repo/billing/student-payment.repository.ts` with `findStalePendingByGateway(gateway, olderThan, limit)` (amendment A4 — the repository exists; this ADDS the method).
   - [ ] 2.2.QL · [ ] 2.2.TE — EXTEND `backend/db/test/logic/billing/student-payment.repository.test.ts` (the subscription-purchase plan's planned suite location, `tasks.md:87`): `runInRollback` + `tx` everywhere; allow set-on-transition; forbid second update; forbid financial-column mutation · [ ] 2.2.SEC — freeze proofs · [ ] 2.2.SR · [ ] 2.2.IV
   - _Requirements: REQ-004, REQ-031, REQ-073_
 - [ ] 2.3 Canonical vendor types + port amendments
@@ -79,8 +79,8 @@
 ## Phase 4: Webhook Receiver
 
 - [ ] 4.1 Provider-dispatched webhook route
-  - CREATE/EXTEND `app/api/payments/webhook/route.ts` (if the subscription-purchase plan's route exists, extend with the paymob branch; else create the full provider-dispatched route): paymob-branch 404 gate when `PAYMENT_GATEWAY_PROVIDER ≠ paymob` → 64 KiB bounded raw read → parse+verify via the active port (`WebhookParseInput` incl. query) → dispatch `PaymentWebhookEvent` to the subscription-purchase plan's `SubscriptionActivationService.processWebhookEvent` → 200 ack per plan §3.4 matrix.
-  - REGISTER: `ROUTE_INVENTORY` += `{ path: "/api/payments/webhook", classification: "provider-ack-exempt" }` (same change set; A4 static assertion) + exemption row in `docs/graphql/error-handling-contract.md` §Exemptions.
+  - EXTEND the EXISTING `app/api/payments/webhook/route.ts` with the paymob branch: keep the kill switch (`PAYMENT_WEBHOOK_ENABLED` → bare 404), the 64 KiB bounded body read, quarantine/replay ack semantics, and masked envelopes; paymob-branch 404 gate when `PAYMENT_GATEWAY_PROVIDER ≠ paymob` → parse+verify via the paymob HMAC path (query-param `?hmac=`, SHA-512 20-key concat — amendment A3 gives the port the query) → dispatch `PaymentWebhookEvent` to the EXISTING `SubscriptionActivationService.processWebhookEvent` → 200 ack per plan §3.4 matrix.
+  - VERIFY registration: `{ path: "/api/payments/webhook", classification: "provider-ack-exempt" }` already exists (`backend/lib/gateway/route-inventory.ts:65`) — confirm no new row needed; if the paymob branch changes the exemption surface, update the row + `docs/graphql/error-handling-contract.md` §Exemptions accordingly.
   - [ ] 4.1.QL · [ ] 4.1.TE — full REQ-053 status matrix; replay; TOKEN/refund/void no-ops; unknown `merchant_order_id` 200; oversized 413; paymob-branch 404 when `PAYMENT_GATEWAY_PROVIDER ≠ paymob` · [ ] 4.1.SEC — forged/malformed probes green; logs redacted + minimal · [ ] 4.1.SR · [ ] 4.1.IV
   - _Requirements: REQ-004, REQ-020, REQ-021, REQ-022, REQ-023, REQ-024, REQ-025, REQ-026, REQ-041, REQ-043, REQ-053, REQ-071_
 - [ ] 4.2 Fulfillment integration (activation + notification)
@@ -118,7 +118,7 @@
 ## Phase 7: Student Purchase Funnel
 
 - [ ] 7.1 GraphQL documents + codegen
-  - CREATE `frontend/graphql/sharedDocuments/billing/subscription-purchase.documents.ts` (`purchaseSubscriptionMutationDocument`, `mySubscriptionsQueryDocument`; `TypedDocumentNode`; `id` in every selection set); export through `frontend/graphql/sharedDocuments/billing/index.ts`; run `bun run generate:gqlSchema && bun codegen` (requires the subscription-purchase plan resolvers present).
+  - CREATE `frontend/graphql/sharedDocuments/billing/subscription-purchase.documents.ts` (`purchaseSubscriptionMutationDocument`, `mySubscriptionsQueryDocument`; `TypedDocumentNode`; `id` in every selection set); export through `frontend/graphql/sharedDocuments/billing/index.ts`; run `bun run generate:gqlSchema && bun codegen` (the `purchaseSubscription`/`mySubscriptions` resolvers are already landed).
   - [ ] 7.1.QL · [ ] 7.1.TE — document snapshot/type compile checks · [ ] 7.1.SEC · [ ] 7.1.SR · [ ] 7.1.IV
   - _Requirements: REQ-060, REQ-075_
 

@@ -9,7 +9,7 @@
 
 - **Feature Name**: Paymob Gateway Integration — real subscription purchase payments + purchase funnel
 - **Ticket**: none in `docs/planning/TICKETS.md` (intentional — anchor is `docs/planning/SPRINT_PLAN.md:161` + the subscription-purchase plan's forward contract at `ai/plans/sprint_1/subscription-purchase-payment-gateway/deferred-items.md:45`)
-- **Blocked By**: the subscription-purchase plan backend execution — this plan EXTENDS its planned-but-unwritten seams (`PaymentGatewayPort`, purchase/activation services, `app/api/payments/webhook/route.ts`, repos); it does not fork them
+- **Standing On**: the subscription-purchase/gateway-plan backend is IMPLEMENTED and live — `PaymentGatewayPort` + mock adapter + factory (`backend/services/billing/payment-gateway/`), port types (`backend/types/billing/payment-gateway.types.ts`), purchase/activation services (`backend/services/billing/`), webhook route (`app/api/payments/webhook/route.ts`, registered `provider-ack-exempt` in `backend/lib/gateway/route-inventory.ts:65`), `purchaseSubscription` mutation / `mySubscriptions` query, canonical contract `docs/billing/subscription-purchase.md` (Lifecycle Status: Active). This plan EXTENDS those existing seams; it does not fork them
 - **Version**: 1.0 · **Date**: 2026-09-07
 - **Related Documents**: `.agents/skills/paymob-payments/SKILL.md` + `references/` (vendor mirror), `docs/IDEMPOTENCY.md`, `docs/notifications/realtime-engine.md`, `docs/graphql/error-handling-contract.md`, `docs/graphql/api-gateway-and-routing.md`, `docs/billing/plan-catalog.md`, `ai/plans/sprint_1/subscription-purchase-payment-gateway/{specs,plan,tasks}.md`, research digests in `outcome/research-00..05-*.md`
 
@@ -58,12 +58,12 @@ sequenceDiagram
 
 | # | Decision | Rationale | Alternatives rejected |
 |---|---|---|---|
-| D1 | EXTEND the subscription-purchase plan's reserved seams (port, factory, route, services); zero parallel payment stack | Port architecture is the sanctioned doctrine (the subscription-purchase plan D1); fork would duplicate purchase/activation logic | A bespoke paymob-only purchase path |
+| D1 | EXTEND the landed subscription-purchase seams (port, factory, route, services); zero parallel payment stack | Port architecture is the sanctioned doctrine (the subscription-purchase plan D1); fork would duplicate purchase/activation logic | A bespoke paymob-only purchase path |
 | D2 | Unified Checkout redirect (not Pixel embedded) | Zero PCI surface; wallets + 3DS hosted by Paymob; minimal UI surface | Pixel JS SDK (heavier integration, styling burden) — re-visitable later (ledger) |
-| D3 | Checkout host env-configurable: `PAYMOB_CHECKOUT_BASE_URL`, default `https://eg.checkout.paymob.com` | Live docs (2026-07-22) moved hosts vs mirror's `accept.paymob.com/unifiedcheckout/` (research-02 §3); config survives upstream churn | Hardcoding either host |
+| D3 | Checkout host env-configurable: `PAYMOB_CHECKOUT_BASE_URL`, default `https://eg.checkout.paymob.com` | Live docs (2026-07-22) moved hosts vs mirror's `accept.paymob.com/unifiedcheckout/` (research-02 §3); config survives upstream churn. **Re-verify against the mirror + live dashboard at execution** — if the move cannot be confirmed, fall back to the mirror value `https://accept.paymob.com/unifiedcheckout/` as the default (it stays a valid operator-configurable value either way) | Hardcoding either host |
 | D4 | `providerReference := specialReference := purchase claim key`; intention id (`pi_…`) NOT persisted | Activation resolves by `reference == providerReference` (the subscription-purchase plan flow); inquiry recovers intention data by `merchant_order_id` when needed | Storing `pi_…` in `subscriptions.payment_reference` (breaks callback correlation) |
 | D5 | Fulfill ONLY on the HMAC-verified POST processed callback; GET response callback is display-only | GET params are client-spoofable; `success==true` in a URL never moves money state | Trusting the redirect; HMAC-verifying the redirect then trusting it (still display-only by ruling) |
-| D6 | ONE provider-dispatched route at the subscription-purchase plan's reserved `/api/payments/webhook` (classification `provider-ack-exempt`) | Single exemption surface; A4 registry discipline; future adapters join the same dispatch | A separate `/api/paymob/webhook` route (second webhook surface to secure/audit) |
+| D6 | ONE provider-dispatched route at the existing `/api/payments/webhook` (classification `provider-ack-exempt`) | Single exemption surface; A4 registry discipline; future adapters join the same dispatch | A separate `/api/paymob/webhook` route (second webhook surface to secure/audit) |
 | D7 | No Paymob auth-token caching; token minted per reconciliation run; no module-level mutable state | Token TTL is 1 hour (mirror §6); sweep needs ≤1 token/run; module state violates the stateless posture | Shared token cache with TTL/mutex |
 | D8 | `student_payments.provider_transaction_id` nullable column; trigger amended to allow NULL→value ONLY within the guarded `pending→paid|failed` transition | Auditable gateway correlation without weakening the immutability record (migration 5 on top of the subscription-purchase plan's planned migration 4) | A separate join table (overkill for one immutable-ish field) |
 | D9 | Intention retry ONLY when no response was received, reusing the same `special_reference` | Paymob rejects reused `special_reference` — the retry is naturally collision-proof | Blind retry on any error (double-charge risk class) |
@@ -78,7 +78,7 @@ sequenceDiagram
 
 ### 2.1 Existing-schema verification
 
-See the ground-truth table in `specs.md` §1 (every row verified 2026-09-07 with `path:line`). Recap of the two rows this plan mutates: `student_payments` exists and is append-only (`backend/db/schema/billing/student-payments.ts:23-48`, trigger at `backend/db/migration/3-immutability-triggers.sql:59-77`); `PaymentGateway.Paymob` already exists (`backend/enum/billing/payment-gateway.enum.ts:10`).
+See the ground-truth table in `specs.md` §1 (every row verified 2026-09-07 with `path:line`). Recap of the two rows this plan mutates: `student_payments` exists and is append-only (`backend/db/schema/billing/student-payments.ts:23-48`, trigger at `backend/db/migration/3-immutability-triggers.sql:59-77`); `PaymentGateway.Paymob` already exists (`backend/enum/billing/payment-gateway.enum.ts:13`).
 
 ### 2.2 Schema deltas (all EXTEND)
 
@@ -138,7 +138,7 @@ This plan adds NO GraphQL types/operations. The funnel consumes (qualified refer
 
 Compliance registrations (MANDATORY, same change set as the route):
 
-1. `ROUTE_INVENTORY` += `{ path: "/api/payments/webhook", classification: "provider-ack-exempt" }` (`backend/lib/gateway/route-inventory.ts:47-52`; A4 static assertion `backend/lib/gateway/static-assertions.test.ts:241` walks disk↔registry both directions).
+1. `ROUTE_INVENTORY` registration already exists — `{ path: "/api/payments/webhook", classification: "provider-ack-exempt" }` at `backend/lib/gateway/route-inventory.ts:65`; this change set VERIFIES it (no new row) and updates `docs/graphql/error-handling-contract.md` §Exemptions (`:94-102`) only if the paymob branch alters the exemption envelope.
 2. `docs/graphql/error-handling-contract.md` §Exemptions inventory gains the provider-ack row for this route (`:94-102`).
 3. The cron route registers its own `ROUTE_INVENTORY` row following the same rule (classification per cron precedent; verify the committed `sweep-sessions` row state — research-04 flagged the inventory as stale for `/api/cron/sweep-sessions`, so reconcile on execution).
 4. Response/redirect URLs to configure in the Paymob dashboard (documented in `docs/billing/paymob-gateway.md` at propagation): processed-callback URL = `https://<host>/api/payments/webhook`; redirection URL = `https://<host>/student/checkout/result`.
@@ -196,15 +196,15 @@ Compliance registrations (MANDATORY, same change set as the route):
 
 **`backend/types/billing/paymob.types.ts`** (CREATE): per §2.3 — vendor DTOs only, no logic, no re-exports of domain types
 
-**the subscription-purchase plan-owned files this plan amends (amendments A1–A5, each mirrored in `deferred-items.md`):**
+**the subscription-purchase plan-OWNED (landed) files this plan amends (amendments A1–A5, each mirrored in `deferred-items.md`):**
 
-| # | File (the subscription-purchase plan-planned) | Amendment |
+| # | File (landed, owned by the subscription-purchase plan) | Amendment |
 |---|---|---|
 | A1 | `backend/types/billing/payment-gateway.types.ts` | `PaymentCheckoutInput` += `specialReference`, `billing` |
 | A2 | same | `PaymentWebhookEvent` += `providerTransactionId?: string` |
 | A3 | same | `parseWebhookEvent(rawBody)` → `parseWebhookEvent(input: WebhookParseInput): PaymentWebhookEvent \| null` |
 | A4 | `backend/db/repo/billing/student-payment.repository.ts` | += `findStalePendingByGateway(gateway, olderThan, limit)` |
-| A5 | `backend/lib/env.ts` consumption | the subscription-purchase plan's planned `resolveEnvConfig("PAYMENT_GATEWAY_PROVIDER")` factory key — that helper does NOT exist (`backend/lib/env.ts` is the mechanism); the factory reads the typed config getter instead |
+| A5 | `backend/lib/env.ts` consumption | the factory reads the `backend/lib/env.ts` typed config snapshot (`getPaymobConfig()`); no separate env helper |
 
 ### 4.2 Race & concurrency register
 
@@ -330,10 +330,17 @@ Routes, access, nav, and per-audience rendering are fixed in `specs.md` §4. Imp
 ## 10. Deployment, Migration & Compatibility
 
 1. **Provision** (out-of-band): Paymob dashboard — collect `sk_test/sk_live` key pairs, `pk_*` public key, HMAC secret, card + (optional) wallet integration IDs (test set first); set processed-callback URL to `https://<host>/api/payments/webhook` and redirection URL to `https://<host>/student/checkout/result` on the integration IDs (per-intention overrides also sent by the adapter — REQ-022 fields).
-2. **Order of rollout**: the subscription-purchase plan lands (mock provider) → this plan's schema migration 5 (push + migration) → env keys set → deploy with `PAYMENT_GATEWAY_PROVIDER=mock` → flip to `paymob` per environment → smoke-test one purchase with test credentials.
+2. **Order of rollout**: the subscription-purchase backend is already deployed with the mock provider → this plan lands the schema migration 5 (+ column, trigger allowance) → env keys set → deploy with `PAYMENT_GATEWAY_PROVIDER=mock` (unchanged behavior) → flip to `paymob` per environment → smoke-test one purchase with test credentials.
 3. **Rollback**: set `PAYMENT_GATEWAY_PROVIDER=mock` (webhook immediately 404s; purchases resume mock behavior); schema column is additive and stays inert.
 4. **Migrations**: schema column via the project's db push flow; trigger-amendment SQL via the numbered migration pair (repo rule: push for schema, migrate for custom SQL).
 5. **Compatibility**: mock adapter untouched; existing analytics reads untouched; no GraphQL schema drift; upstream plan-catalog/purchase contracts preserved verbatim except the recorded A1–A5 amendments.
+
+### 10.1 Local development — callbacks can't reach localhost
+
+- **Processed callback (webhook)** — Paymob's servers POST server-to-server; they cannot reach `http://localhost:3000`. For local development the traffic needs a public tunnel: run `ngrok http 3000` (or cloudflared / webhook.site), then set the Paymob dashboard processed-callback URL (or the per-intention `notification_url` override) to `https://<tunnel-host>/api/payments/webhook`. Alternative without a tunnel: the Paymob dashboard **webhook testing tool** (mirror `references/docs/webhook-callbacks-and-hmac/webhook-testing-tool.md`) which replays callbacks against a public URL.
+- **Response callback (redirect)** — this one is a plain browser redirect, so it CAN point at localhost: `http://localhost:3000/student/checkout/result` works as the redirection URL in local dev. It is display-only (REQ-027), so no security depends on its reachability.
+- **Env keys in dev**: use the `sk_test_…`/`pk_test_…` pair with the TEST integration IDs (test/live mismatch is the classic 404 `Integration ID/Name does not exist`, mirror §7), `PAYMENT_GATEWAY_PROVIDER=paymob`, `PAYMENT_WEBHOOK_ENABLED=true`, and a throwaway local `PAYMOB_HMAC_SECRET`.
+- Never commit tunnel URLs or real secrets; `.env.example` carries placeholders only.
 
 ---
 

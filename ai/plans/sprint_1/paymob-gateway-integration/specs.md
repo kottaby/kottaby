@@ -13,7 +13,7 @@
 - **Outcome Directory**: `ai/plans/sprint_1/paymob-gateway-integration/outcome/`
 - **Companion Plan**: `ai/plans/sprint_1/paymob-gateway-integration/plan.md`
 - **Companion Tasks**: `ai/plans/sprint_1/paymob-gateway-integration/tasks.md`
-- **Blocked By**: the subscription-purchase plan backend execution (`ai/plans/sprint_1/subscription-purchase-payment-gateway/`) — its plan is reviewed (`…/outcome/plan-review-R1.md`) but every implementation checkbox is still `[ ]` (verified 2026-09-07; digest `outcome/research-00-gateway-codebase-map.md`). This plan consumes the subscription-purchase plan's reserved seams and MUST NOT re-own them.
+- **Blocked By**: nothing in-repo — the subscription-purchase backend (`ai/plans/sprint_1/subscription-purchase-payment-gateway/`) has LANDED: `PaymentGatewayPort` + mock adapter + factory (`backend/services/billing/payment-gateway/`), purchase/activation services, `purchaseSubscription`/`mySubscriptions` GraphQL operations, the provider-ack-exempt webhook route (`app/api/payments/webhook/route.ts`), and the canonical contract `docs/billing/subscription-purchase.md` (**Active**). This plan EXTENDS those existing seams (amendments A1–A5 in `deferred-items.md`) and MUST NOT fork them.
 - **Version**: 1.0 · **Date**: 2026-09-07 · **Author**: Spec Plan Generator (research-swarm assisted)
 - **Stakeholders**: Dev 1 stream (billing owner), students (paying audience), academy admins (revenue observability), Paymob account owner (dashboard + credentials)
 
@@ -35,7 +35,7 @@ Kottaby's subscription purchase flow (the subscription-purchase plan) plans a pr
 
 1. Paymob adapter implementing the subscription-purchase plan's planned `PaymentGatewayPort` (intention creation + checkout descriptor + webhook-event parsing/verification).
 2. HMAC-SHA512 callback verification module (transaction callbacks, POST-nested + GET-flat key variants; safe no-op handling of TOKEN / refund / void callback shapes).
-3. The single provider-dispatched webhook receiver at the subscription-purchase plan's reserved `app/api/payments/webhook/route.ts` (Paymob branch), incl. route registration compliance.
+3. The single provider-dispatched webhook receiver at the EXISTING `app/api/payments/webhook/route.ts` (Paymob branch extension), incl. route-registration verification.
 4. `PAYMOB_*` env/config registration via the real `backend/lib/env.ts` mechanism + `.env.example` entries + CI-safe test defaults (`backend/lib/test-ci-env.ts`).
 5. Webhook fulfillment wiring into the subscription-purchase plan's activation surface + `payment_confirmation` notification emission + replay/idempotency semantics.
 6. Schema delta: `student_payments.provider_transaction_id` + immutability-trigger allowance (migration + SQLite pair).
@@ -55,7 +55,7 @@ Kottaby's subscription purchase flow (the subscription-purchase plan) plans a pr
 
 ## 1. Executive Summary & Problem Statement
 
-**Problem.** The gateway port, purchase service, webhook receiver, and purchase UI do not exist in code yet — they are the subscription-purchase plan plan artifacts (grep-verified NOT FOUND, table below). Money cannot move until a real adapter + verified callback receiver + fulfillment path + funnel exist, and Paymob's contract (intention API, HMAC, callback cadence) imposes precise, non-obvious requirements (20-key HMAC order, integer cents, `special_reference` correlation) that this plan pins down so implementation is mechanical.
+**Problem.** The gateway port, purchase service, and webhook receiver now exist in code (mock-adapter shape — ground-truth table below), but only the mock provider is wired behind them: no real adapter exists, so money cannot actually move, and the purchase funnel UI is still absent (the deferred REQ-064 forward item). A real adapter + HMAC-verified callback branch + funnel are required, and Paymob's contract (intention API, HMAC, callback cadence) imposes precise, non-obvious requirements (20-key HMAC order, integer cents, `special_reference` correlation) that this plan pins down so implementation is mechanical.
 
 **Approach (summary of `plan.md`).** Paymob adapter behind the subscription-purchase plan's port; single provider-dispatched webhook route with verify-before-trust; fulfillment via the subscription-purchase plan's activation service; configurable checkout host (live docs moved it — see D-notes); student funnel screens per the subscription-purchase plan's prototype states.
 
@@ -63,10 +63,10 @@ Kottaby's subscription purchase flow (the subscription-purchase plan) plans a pr
 
 | Substrate | State | Evidence |
 |---|---|---|
-| `PaymentGatewayPort` / `PaymentCheckoutInput` / `PaymentCheckoutSession` / `PaymentWebhookEvent` | **NOT FOUND** (planned only) | `ai/plans/sprint_1/subscription-purchase-payment-gateway/plan.md:199-202`; repo grep zero hits |
-| Mock adapter + `getPaymentGateway()` factory | **NOT FOUND** (planned only) | the subscription-purchase plan `tasks.md` task 5.1; repo grep zero hits |
-| Purchase service / `purchaseSubscription` mutation / `mySubscriptions` query | **NOT FOUND** | research-00 §(d); research-05 §0 |
-| Webhook route (any) | **NOT FOUND** | `app/api/payments/` absent; research-00 §(f) |
+| `PaymentGatewayPort` / `PaymentCheckoutInput` / `PaymentCheckoutSession` / `PaymentWebhookEvent` | **EXIST** (mock-shaped: input is `{studentId, planId, amount, currency}`; parse takes `rawBody` only — amendments A1–A3) | `backend/types/billing/payment-gateway.types.ts:12-17,26-30,41-46,55-58` |
+| Mock adapter + `getPaymentGateway()` factory | **EXIST** | `backend/services/billing/payment-gateway/mock-payment-gateway.adapter.ts`, `payment-gateway.factory.ts`; env registration in `backend/lib/env.ts` (`PAYMENT_GATEWAY_PROVIDER` default `mock`, `PAYMENT_WEBHOOK_SECRET`, `PAYMENT_WEBHOOK_ENABLED`, ~:229-278 with getters ~:416+) |
+| Purchase service / `purchaseSubscription` mutation / `mySubscriptions` query | **EXIST** | `backend/services/billing/subscription-purchase.service.ts`, `backend/graphql/mutation/subscription-purchase.mutation.ts`, `backend/graphql/query/subscription.query.ts`; canonical contract `docs/billing/subscription-purchase.md` (Active) |
+| Webhook route | **EXISTS** (kill switch → bare 404; 64 KiB bounded body; mock-branch HMAC-SHA256 `x-payment-signature` header; delegates to `SubscriptionActivationService.processWebhookEvent`) | `app/api/payments/webhook/route.ts`; registered `{ path: "/api/payments/webhook", classification: "provider-ack-exempt" }` at `backend/lib/gateway/route-inventory.ts:65` |
 | `student_payments` table | **EXISTS** | `backend/db/schema/billing/student-payments.ts:23-48` (append-only via trigger `prevent_student_payments_update`, `backend/db/migration/3-immutability-triggers.sql:59-77`) |
 | `subscriptions.payment_reference varchar(255)` | **EXISTS** | `backend/db/schema/billing/subscriptions.ts:33` |
 | `PaymentGateway.Paymob = "paymob"` | **EXISTS** | `backend/enum/billing/payment-gateway.enum.ts:10`; pgEnum `backend/db/schema/enums.ts:35-44` |
@@ -106,7 +106,7 @@ Kottaby's subscription purchase flow (the subscription-purchase plan) plans a pr
 
 ### 2.2 Webhook Receiver, HMAC & Fulfillment
 
-- **REQ-020 (Single Provider-Dispatched Receiver)**: There SHALL be exactly ONE webhook receiver at `app/api/payments/webhook/route.ts` (the subscription-purchase plan's reserved surface), registered in `ROUTE_INVENTORY` with classification `provider-ack-exempt` (`backend/lib/gateway/route-inventory.ts:33`) and an exemption row in `docs/graphql/error-handling-contract.md` §Exemptions. IF the subscription-purchase plan has not yet created the route when this plan executes THEN this plan creates the full route incl. provider dispatch (coordination note, not duplication).
+- **REQ-020 (Single Provider-Dispatched Receiver)**: There SHALL be exactly ONE webhook receiver at `app/api/payments/webhook/route.ts` — the route EXISTS (kill switch, bounded body, mock branch, registered `provider-ack-exempt` at `backend/lib/gateway/route-inventory.ts:65`); this plan EXTENDS it with the paymob branch (HMAC-over-query-param verification via amendment A3) and verifies the `docs/graphql/error-handling-contract.md` §Exemptions row still matches the branch behavior.
 - **REQ-021 (Raw Body + Size Cap)**: The route SHALL read the raw request body as text with a dedicated bounded drain capped at `MAX_PAYMENT_WEBHOOK_BODY_BYTES = 64_000` (the subscription-purchase plan reservation); oversized bodies SHALL be rejected 413 with no processing. The gateway's `guardTransport`/`MAX_GRAPHQL_BODY_BYTES` SHALL NOT be reused (gateway-only rule).
 - **REQ-022 (HMAC Before Trust)**: The route SHALL verify the `hmac` QUERY param as HMAC-SHA512 over the concatenated VALUES of the 20 documented keys in exact documented order (`references/docs/webhook-callbacks-and-hmac/hmac/hmac-transaction-callback.md`): `amount_cents, created_at, currency, error_occured, has_parent_transaction, obj.id|id, integration_id, is_3d_secure, is_auth, is_capture, is_refunded, is_standalone_payment, is_voided, order.id|order_id, owner, pending, source_data.pan, source_data.sub_type, source_data.type, success` — POST reads nested `obj.*` paths; GET (response callback) reads flat params; booleans serialize lowercase `true`/`false`; missing/null values concatenate as empty string. Comparison SHALL be timing-safe (e.g. compare SHA-256 digests of both hex strings, per `app/api/cron/sweep-sessions/route.ts:66-73` precedent) and length-agnostic.
 - **REQ-023 (Fulfillment Predicate)**: Fulfillment SHALL proceed to the subscription-purchase plan's activation surface ONLY when ALL hold: (a) HMAC valid; (b) `obj.success == true` AND `obj.pending == false`; (c) `merchant_order_id` resolves to one of the caller's stored pending payments; (d) `amount_cents` == stored amount in cents AND `currency` == stored currency. IF (d) mismatches THEN the payment SHALL NOT be fulfilled and SHALL stay `pending` (reconciliation surface), with a `logDomainError` alert — never auto-mark paid on mismatched money.
@@ -248,12 +248,12 @@ Kottaby's subscription purchase flow (the subscription-purchase plan) plans a pr
 
 1. Bun runtime `fetch` for Paymob HTTP (no official server-side TS SDK — vendor surface is REST; no dependency added).
 2. No shared HTTP body-cap/rate-limit helper exists for non-GraphQL routes — the webhook owns its bounded read (REQ-021).
-3. the subscription-purchase plan's backend must land first (Blocked-By in Document Information); where this plan amends the subscription-purchase plan-planned-but-unwritten contracts (`PaymentCheckoutInput.specialReference`, webhook parse signature accepting query params), the amendments are recorded in `deferred-items.md` as cross-plan amendments.
+3. the constraints above assume the landed subscription-purchase backend; where this plan amends EXISTING contracts (`PaymentCheckoutInput.specialReference`, webhook parse signature accepting query params), the amendments are recorded in `deferred-items.md` as cross-plan amendments (A-set).
 4. Codegen gate: funnel Apollo types only exist after the subscription-purchase plan's resolvers land + `bun run generate:gqlSchema && bun codegen`.
 
 **Business / environment assumptions**
 
-1. A Paymob Egypt merchant account with test+live key pairs, card (online 3DS) and wallet integration IDs, and dashboard callback URL access exists (obtained out-of-band; Credentials section in the canonical doc).
+1. A Paymob Egypt merchant account with test+live key pairs, card (online 3DS) and wallet integration IDs, and dashboard callback URL access exists (obtained out-of-band; Credentials section in the canonical doc). Local development SHALL use a public tunnel (ngrok/cloudflared — Paymob's servers cannot reach localhost) for the processed callback; the redirects-only response callback MAY stay on localhost (details in plan.md §10.1).
 2. Test/live alignment is operator-enforced: test integration IDs are used ONLY with `sk_test_*`, live IDs with `sk_live_*` (classic 404 cause — mirror §7).
 3. Paymob test credentials (cards/wallet, mirror §7) are for manual QA; CI never touches Paymob.
 4. `users.phone` may be empty for some accounts; `"NA"` placeholder tolerance is assumed per Paymob sample payloads and MUST be validated in sandbox QA before live rollout (noted in ledger).

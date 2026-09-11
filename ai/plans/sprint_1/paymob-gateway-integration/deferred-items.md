@@ -30,9 +30,9 @@ This ledger tracks all work deferred from one task to another to ensure no defer
 
 ---
 
-## Cross-Plan Amendments (A-set — consumed or applied by the subscription-purchase plan's executor / this plan, per landing order)
+## Cross-Plan Amendments (A-set — applied to the EXISTING subscription-purchase seams by this plan)
 
-This plan refines five the subscription-purchase plan *planned-but-unwritten* contracts. They are blocking coordination items, NOT implementation deferrals:
+The subscription-purchase backend has landed with a mock-adapter-only shape. This plan amends five EXISTING contracts to fit a real redirect-based gateway. They are blocking coordination items, NOT implementation deferrals:
 
 | ID | Amendment | Detail | Coordinating task |
 |---|---|---|---|
@@ -40,8 +40,8 @@ This plan refines five the subscription-purchase plan *planned-but-unwritten* co
 | A2 | `PaymentWebhookEvent` += `providerTransactionId?: string` | REQ-031 persistence of Paymob `obj.id` | Task 2.3 |
 | A3 | `parseWebhookEvent(input: WebhookParseInput): PaymentWebhookEvent \| null` replaces the planned `parseWebhookEvent(rawBody)` | Paymob's `hmac` is a QUERY param — the parse step needs `query`; `null` = verified-but-ignored | Tasks 2.3, 3.3, 4.1 |
 | A4 | `StudentPaymentRepository` += `findStalePendingByGateway(gateway, olderThan, limit)` | Reconciliation sweep query | Task 2.2 |
-| A5 | Factory env access via `backend/lib/env.ts` typed config (NOT the `resolveEnvConfig` helper the subscription-purchase plan's plan references — that helper does not exist in this tree, verified 2026-09-07) | Mechanism correction | Task 2.1 |
-| A6 | Activation failure path emits `payment_confirmation` on failure too (this plan's REQ-024/REQ-028); the subscription-purchase plan's planned contract said "no notification" on `failed` (the subscription-purchase plan `specs.md:83` REQ-023) | **AUTHOR RULING (2026-09-07): KEEP the failure notification** — the funnel UX needs a failure signal (result page + notification counterpart); the subscription-purchase plan REQ-023's no-notification rule is superseded for the failure branch when this plan wires it into the activation surface (success semantics unchanged) | Task 4.2 |
+| A5 | Factory env access via the `backend/lib/env.ts` typed config snapshot (the `getPaymobConfig()` getter added by Task 2.1; `resetEnvironmentCache()` already invalidates it) | Established mechanism in this repo | Task 2.1 |
+| A6 | Activation failure path emits `payment_confirmation` on failure too (this plan's REQ-024/REQ-028); the LANDED activation contract (canonical doc `docs/billing/subscription-purchase.md` §7 step 4) currently says "no notification" on `failed` | **AUTHOR RULING (2026-09-07): KEEP the failure notification** — the funnel UX needs a failure signal (result page + notification counterpart); this plan amends the landed activation service's failure branch to persist+publish the failure notification (success semantics unchanged); the canonical doc's §7 step 4 wording is updated in the same change set | Task 4.2 |
 
 ---
 
