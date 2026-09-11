@@ -104,3 +104,19 @@ Stage Summary:
 - Task 2.3 COMPLETE: vendor mirror types + A1-A3 port amendments landed with all consumers ported; committed on feat/paymob-gateway-integration
 - Carry-forward: WebhookParseInput = {rawBody, query}, null = verified-but-ignored → route 200-ack no-op; specialReference = purchase-claim idempotency key (≤128 chars) echoed back as order.merchant_order_id (4.2 fulfillment + 5.1 inquiry resolve by it); billing identity = buildCheckoutBillingInput (server-side, real user row, rides outerTx); "NA" billing placeholder fill belongs to 3.2 buildIntentionRequest; PaymobResolvedConfig = fail-closed narrowing of 2.1 env config
 - Observation (NOT 2.3 scope): task 2.2's closeout artifacts (outcome/2.2-outcome.md, tasks.md 2.2 checkbox flip) are absent on feat though the 2.2 schema/migration/repo commit ac8a841 landed
+
+---
+Task ID: 2.2-evidence-repair
+Agent: general-purpose subagent
+Task: Reconstruct lost 2.2 evidence artifacts (found intact — verified + cross-ref fix)
+
+Work Log:
+- Dispatched to repair a reported 2.2 evidence gap (outcome/2.2-outcome.md missing, tasks.md 2.2 boxes unchecked) on feat/paymob-gateway-integration @ d37cad8; investigation found the evidence INTACT at HEAD, not lost: outcome/2.2-outcome.md (58 lines) landed inside ac8a841 itself and tasks.md 2.2 main + 2.2.QL/TE/SEC/SR/IV are all [x] at d37cad8 — the Task 2.3 entry's "Observation" line (2.2 closeout artifacts absent on feat) does not match its own commit tree and appears to have been written while this sandbox's working tree sat on main
+- Root-cause context: a background process repeatedly flips this repo's checkout between main and feat (reflog shows alternating checkouts roughly every 60–90s); on main the 2.2 code, outcome file, and flipped boxes are all absent — exactly the reported symptoms. Any working-tree inspection in this sandbox must first assert the branch
+- Code-state verification on feat: schema providerTransactionId varchar(64) nullable (backend/db/schema/billing/student-payments.ts:54); repo findStalePendingByGateway (backend/db/repo/billing/student-payment.repository.ts:222); backend/db/migration/5-student-payments-provider-transaction.sql + -sqlite.sql pair; backend/drizzle/20260911175854_custom_5-student-payments-provider-transaction/ — all present
+- Fresh verification, matching the original closeout numbers: bun --no-env-file run scripts/dbActions/cli-entry.ts migrate --env-file=.env → "Custom migrations: no new or changed custom SQL files detected." + "No pending Drizzle migrations.", exit 0; bun run test/scripts/run-test.ts backend/db/test/logic/billing/student-payment.repository.test.ts → 14 pass / 0 fail / 95 expect(), exit 0 (sub-loop exits were 0 ×4 on the original run per the Task 2.2 entry; not re-run here — schema/repo/test/applyCustomMigrations files untouched)
+- Surgical fix to outcome/2.2-outcome.md Cross-file dependencies section only: stale "Task 3.x" placeholders corrected to the plan's real consumers — 5.1 reconcile sweep (finder + transaction-inquiry flow, per tasks.md "stale-pending query via A4 repo method") and 4.1/4.2 webhook/fulfillment surface (records providerTransactionId inside the guarded transition); no other content touched, original evidence not rewritten
+- tasks.md: NO edit needed — 2.2 checkboxes already flipped at d37cad8
+
+Stage Summary:
+- 2.2 evidence confirmed present at d37cad8 and re-verified green (migrate exit 0; 14/0/95 tests, exit 0); outcome cross-references corrected; nothing reconstructed because nothing was missing — committed on feat/paymob-gateway-integration
