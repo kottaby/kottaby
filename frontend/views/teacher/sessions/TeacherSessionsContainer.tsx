@@ -93,10 +93,9 @@ import { type ReactNode, useCallback, useState } from "react";
 import { NoticeSnackbar } from "@/frontend/components/ui/NoticeSnackbar";
 import type { SessionStatus } from "@/frontend/graphql/generated/gql/graphql";
 import { myTeacherSessionsQueryDocument } from "@/frontend/graphql/sharedDocuments";
-import { CancelSessionConfirmDialog } from "@/frontend/views/student/sessions/CancelSessionConfirmDialog";
-import { SessionDisputeConfirmDialog } from "@/frontend/views/student/sessions/SessionDisputeConfirmDialog";
 import { SessionStatusFilterChips } from "@/frontend/views/student/sessions/SessionStatusFilterChips";
 import { TeacherSessionsBody } from "@/frontend/views/teacher/sessions/TeacherSessionsBody";
+import { TeacherSessionsDialogs } from "@/frontend/views/teacher/sessions/TeacherSessionsDialogs";
 import { type ContainerNotice, SNACKBAR_AUTOHIDE_MS } from "@/frontend/views/teacher/sessions/teacherSessionSlots";
 import { useTeacherCancelDialogArms } from "@/frontend/views/teacher/sessions/useTeacherCancelDialogArms";
 import { useTeacherDisputeDialogArms } from "@/frontend/views/teacher/sessions/useTeacherDisputeDialogArms";
@@ -185,31 +184,21 @@ export function TeacherSessionsContainer(): ReactNode {
         onComplete={mutations.handleComplete}
         t={t}
       />
-      {cancelArms.cancelDialogSessionId !== null ? (
-        <CancelSessionConfirmDialog
-          key={cancelArms.cancelDialogSessionId}
-          sessionId={cancelArms.cancelDialogSessionId}
-          open
-          onClose={cancelArms.closeCancelDialog}
-          onCancelled={cancelArms.handleCancelled}
-          onSessionMissing={cancelArms.handleSessionMissing}
-          onInvalidTransition={cancelArms.handleInvalidTransition}
-          onDuplicateReplay={cancelArms.handleDuplicateReplay}
-          onFailure={cancelArms.handleFailure}
-        />
-      ) : null}
-      {disputeArms.disputeDialogSessionId !== null ? (
-        <SessionDisputeConfirmDialog
-          key={disputeArms.disputeDialogSessionId}
-          sessionId={disputeArms.disputeDialogSessionId}
-          open
-          onClose={disputeArms.closeDisputeDialog}
-          onDisputed={disputeArms.handleDisputed}
-          onSessionMissing={disputeArms.handleDisputeSessionMissing}
-          onInvalidTransition={disputeArms.handleDisputeInvalidTransition}
-          onFailure={disputeArms.handleDisputeFailure}
-        />
-      ) : null}
+      <TeacherSessionsDialogs
+        cancelDialogSessionId={cancelArms.cancelDialogSessionId}
+        disputeDialogSessionId={disputeArms.disputeDialogSessionId}
+        onCloseCancelDialog={cancelArms.closeCancelDialog}
+        onCloseDisputeDialog={disputeArms.closeDisputeDialog}
+        onCancelled={cancelArms.handleCancelled}
+        onSessionMissing={cancelArms.handleSessionMissing}
+        onInvalidTransition={cancelArms.handleInvalidTransition}
+        onDuplicateReplay={cancelArms.handleDuplicateReplay}
+        onCancelFailure={cancelArms.handleFailure}
+        onDisputed={disputeArms.handleDisputed}
+        onDisputeSessionMissing={disputeArms.handleDisputeSessionMissing}
+        onDisputeInvalidTransition={disputeArms.handleDisputeInvalidTransition}
+        onDisputeFailure={disputeArms.handleDisputeFailure}
+      />
       <NoticeSnackbar notice={notice} autoHideDuration={SNACKBAR_AUTOHIDE_MS} onClose={dismissNotice} />
     </Stack>
   );
