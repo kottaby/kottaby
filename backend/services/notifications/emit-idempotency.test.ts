@@ -9,9 +9,11 @@
  *
  * Runs via the mandated runner: `bun run test/scripts/run-test.ts <path>`.
  */
-import { describe, expect, spyOn, test, mock } from "bun:test";
+import { describe, expect, mock, spyOn, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { NotificationType } from "@/backend/enum/notifications/notification-type.enum";
+import { logger } from "@/backend/lib/logger";
 import {
   attemptEmitClaim,
   buildEmitClaimKey,
@@ -21,8 +23,6 @@ import {
   storeEmitReceiptQuietly,
   warnEmitIdempotencyUnavailable,
 } from "@/backend/services/notifications/emit-idempotency";
-import { logger } from "@/backend/lib/logger";
-import { NotificationType } from "@/backend/enum/notifications/notification-type.enum";
 import type { NotificationDeliveryReceipt } from "@/backend/types";
 
 describe("buildEmitClaimKey", () => {
@@ -148,7 +148,18 @@ describe("parseStoredEmitReceipt", () => {
 
   test("returns null if arrays are empty", () => {
     expect(parseStoredEmitReceipt(JSON.stringify({ notifications: [], recipientUserIds: [1] }))).toBeNull();
-    expect(parseStoredEmitReceipt(JSON.stringify({ notifications: [{ /* dummy row */ }], recipientUserIds: [] }))).toBeNull();
+    expect(
+      parseStoredEmitReceipt(
+        JSON.stringify({
+          notifications: [
+            {
+              /* dummy row */
+            },
+          ],
+          recipientUserIds: [],
+        })
+      )
+    ).toBeNull();
   });
 
   test("returns null for non-positive safe integer recipient ids", () => {
@@ -180,42 +191,54 @@ describe("parseStoredEmitReceipt", () => {
     };
 
     test("returns null if missing required fields in row", () => {
-      expect(runParseWithRow((r) => { delete r.id; })).toBeNull();
-      expect(runParseWithRow((r) => { delete r.title; })).toBeNull();
-      expect(runParseWithRow((r) => { delete r.createdAt; })).toBeNull();
+      expect(
+        runParseWithRow(r => {
+          delete r.id;
+        })
+      ).toBeNull();
+      expect(
+        runParseWithRow(r => {
+          delete r.title;
+        })
+      ).toBeNull();
+      expect(
+        runParseWithRow(r => {
+          delete r.createdAt;
+        })
+      ).toBeNull();
     });
 
     test("returns null if id or userId are not positive safe integers", () => {
-      expect(runParseWithRow((r) => Object.assign(r, { id: -1 }))).toBeNull();
-      expect(runParseWithRow((r) => Object.assign(r, { userId: 1.5 }))).toBeNull();
+      expect(runParseWithRow(r => Object.assign(r, { id: -1 }))).toBeNull();
+      expect(runParseWithRow(r => Object.assign(r, { userId: 1.5 }))).toBeNull();
     });
 
     test("returns null if type is not a valid NotificationType", () => {
-      expect(runParseWithRow((r) => Object.assign(r, { type: "INVALID_TYPE" }))).toBeNull();
+      expect(runParseWithRow(r => Object.assign(r, { type: "INVALID_TYPE" }))).toBeNull();
     });
 
     test("returns null if string fields are not strings", () => {
-      expect(runParseWithRow((r) => Object.assign(r, { title: 123 }))).toBeNull();
-      expect(runParseWithRow((r) => Object.assign(r, { body: 123 }))).toBeNull();
-      expect(runParseWithRow((r) => Object.assign(r, { relatedEntityType: 123 }))).toBeNull();
+      expect(runParseWithRow(r => Object.assign(r, { title: 123 }))).toBeNull();
+      expect(runParseWithRow(r => Object.assign(r, { body: 123 }))).toBeNull();
+      expect(runParseWithRow(r => Object.assign(r, { relatedEntityType: 123 }))).toBeNull();
     });
 
     test("allows body and relatedEntityType to be null", () => {
-      expect(runParseWithRow((r) => Object.assign(r, { body: null, relatedEntityType: null }))).not.toBeNull();
+      expect(runParseWithRow(r => Object.assign(r, { body: null, relatedEntityType: null }))).not.toBeNull();
     });
 
     test("returns null if isRead is not boolean", () => {
-      expect(runParseWithRow((r) => Object.assign(r, { isRead: 1 }))).toBeNull();
+      expect(runParseWithRow(r => Object.assign(r, { isRead: 1 }))).toBeNull();
     });
 
     test("returns null if relatedEntityId is not a positive safe int", () => {
-      expect(runParseWithRow((r) => Object.assign(r, { relatedEntityId: -1 }))).toBeNull();
-      expect(runParseWithRow((r) => Object.assign(r, { relatedEntityId: "1" }))).toBeNull();
+      expect(runParseWithRow(r => Object.assign(r, { relatedEntityId: -1 }))).toBeNull();
+      expect(runParseWithRow(r => Object.assign(r, { relatedEntityId: "1" }))).toBeNull();
     });
 
     test("returns null if createdAt is not a valid date string", () => {
-      expect(runParseWithRow((r) => Object.assign(r, { createdAt: 123 }))).toBeNull();
-      expect(runParseWithRow((r) => Object.assign(r, { createdAt: "not a date" }))).toBeNull();
+      expect(runParseWithRow(r => Object.assign(r, { createdAt: 123 }))).toBeNull();
+      expect(runParseWithRow(r => Object.assign(r, { createdAt: "not a date" }))).toBeNull();
     });
   });
 });
