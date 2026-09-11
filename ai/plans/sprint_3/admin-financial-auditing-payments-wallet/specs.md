@@ -220,8 +220,8 @@ Admin-only financial auditing console: paginated/filterable audit of all `studen
 3. Teacher → views wallet → balance equals pre-request value; ledger shows the `failed` row.
 
 ### Journey J-ADJ — Manual adjustment
-1. Admin → `adjustTeacherWallet(teacherId, amount, CREDIT, reason)` → `bonus/completed` row; balance increases; `audit_logs(adjust)` row.
-2. Admin → `adjustTeacherWallet(teacherId, amount, DEBIT, reason)` with balance ≥ amount → `withdrawal/completed` row (manual-adjustment marker); balance decreases; `audit_logs(adjust)` row.
+1. Admin → `adjustTeacherWallet(teacherId, amount, Credit, reason)` → `bonus/completed` row; balance increases; `audit_logs(adjust)` row.
+2. Admin → `adjustTeacherWallet(teacherId, amount, Debit, reason)` with balance ≥ amount → `withdrawal/completed` row (manual-adjustment marker); balance decreases; `audit_logs(adjust)` row.
 3. Teacher → views wallet → new ledger rows visible; analytics/admin queue counters unaffected (no `pending` rows involved).
 
 ### Cross-Actor EARS criteria
@@ -246,9 +246,8 @@ Admin-only financial auditing console: paginated/filterable audit of all `studen
 
 ### Technical Constraints
 - `teacher_transaction` UPDATE is trigger-blocked today — settlement REQUIRES the trigger amendment (plan D-2); until the migration lands, no approve/reject code can pass integration tests.
-- Custom SQL migrations apply in alphabetical filename order; the new file MUST sort after `4-*` (name: `5-teacher-transaction-settlement.sql` + `-sqlite.sql` parity variant).
-- The two `custom_4-student-payments-status-transition` drizzle dirs (`20260907182426_…`, `20260908103411_…`) are a pre-existing naming collision to verify (identical payload expected) before adding `custom_5_*`.
-- pglite (test DB) needs the sqlite-flavored trigger variant (`*-sqlite.sql` precedent).
+- Custom SQL migrations apply in alphabetical filename order; the new file MUST sort after `4-*` (name: `5-teacher-transaction-settlement.sql`). The `-sqlite.sql` parity variant serves ONLY the legacy libsql dialect and MUST be registered in `EXCLUDED_FILES` (`backend/db/scripts/applyCustomMigrations.ts:58-68`); pglite test DBs consume the **PG** file (pglite runs the postgres dialect and supports PL/pgSQL triggers).
+- The two `custom_4-student-payments-status-transition` drizzle dirs (`20260907182426_…`, `20260908103411_…`) are a pre-existing naming collision — payload-identical (confirmed at plan review R1); Task 2.1 records the formal verification.
 
 ### Business Constraints
 - Approval does NOT execute a real-world payout — it settles the ledger; disbursement is ops (out of scope).

@@ -41,11 +41,11 @@ This design adds the admin control room over the two money ledgers (`student_pay
 ### Decision: D-2 — Trigger amendment for settlement (not compensating rows)
 **Context:** `prevent_teacher_transaction_update()` raises on ANY update (`backend/db/migration/3-immutability-triggers.sql` + `backend/drizzle/20260904084152_custom_3-immutability-triggers/migration.sql`). INV-W5 requires a status flip on the SAME row.
 **Options Considered:**
-1. *Compensating rows only* (sibling dispute plan D-5 approach) — approve never flips the pending row. Cons: permanent `pending` residue breaks the shipped analytics counter (`platform-analytics.repository.ts:419-431` counts `type=withdrawal ∧ status=pending` as the backlog), pollutes the queue, and INV-W5 literally demands a transition.
+1. *Compensating rows only* (sibling dispute plan D-5 approach) — approve never flips the pending row. Cons: permanent `pending` residue breaks the shipped analytics counter (`platform-analytics.repository.ts:427-434` counts `type=withdrawal ∧ status=pending` as the backlog), pollutes the queue, and INV-W5 literally demands a transition.
 2. *Trigger amendment* mirroring `4-student-payments-status-transition.sql`: permit ONLY `OLD.status='pending' AND OLD.type='withdrawal' AND NEW.status IN ('completed','failed')` with ALL other columns frozen (null-safe `IS NOT DISTINCT FROM`).
 **Decision:** Option 2.
 **Rationale:** Precedent exists and is battle-tested in this repo; the ledger remains append-preserved for every OTHER column; analytics and queue semantics stay honest.
-**Mechanics:** `backend/db/migration/5-teacher-transaction-settlement.sql` (+ `-sqlite.sql` parity variant for pglite test DBs — same pattern as `4-…-sqlite.sql`), applied via the custom-migration path (`bun db migrate`); new drizzle custom folder MUST be `custom_5-teacher-transaction-settlement` — first verify the pre-existing duplicate `custom_4-student-payments-status-transition` dirs (`20260907182426_…` / `20260908103411_…`) carry identical payloads (ledger D1).
+**Mechanics:** `backend/db/migration/5-teacher-transaction-settlement.sql` applied via the custom-migration path (`bun db migrate`). **Dialect truth (verified in review R1):** pglite test DBs run the **PG-dialect** pipeline (`backend/db/scripts/migrate.ts:24-54`) and support PL/pgSQL triggers (`backend/db/pglite-pool.ts:19-23`) — the PG file covers both real PG and tests. The `-sqlite.sql` variant of the `3-*`/`4-*` precedents exists for the LEGACY libsql dialect (`backend/drizzle-sqlite/`, absent from the repo); a matching `5-teacher-transaction-settlement-sqlite.sql` is authored for parity only AND MUST be registered in `EXCLUDED_FILES` (`backend/db/scripts/applyCustomMigrations.ts:58-68`) or it gets bundled into the PG pipeline and aborts migration. New drizzle custom folder: `custom_5-teacher-transaction-settlement` — the duplicate `custom_4-student-payments-status-transition` dirs (`20260907182426_…` / `20260908103411_…`) were verified payload-identical during plan review R1 (formal confirmation lands in Task 2.1's outcome; ledger D1).
 
 ### Decision: D-3 — Adjustment direction via existing `transaction_type` vocabulary
 **Context:** Ticket AC: manual adjustment creates `type='bonus'` row and adjusts balance "(credit or deduction)". `teacher_transaction.amount` has CHECK `amount >= 0` — no signed amounts. Direction must live somewhere non-numeric.
@@ -175,6 +175,8 @@ graph LR
 
 `backend/db/repo/billing/student-payment.repository.ts` (extends existing):
 - `listForAdminAudit(filters: NormalizedAdminPaymentFilters, limit: number, offset: number, tx?): Promise<AdminStudentPaymentRow[]>` — joins `students`→`users` for display name + email; filters `{studentId?, studentNameSearch?, status?, paymentGateway?, from?, to?}`; newest-first; ILIKE only via `escapeLikeWildcards`.
+
+**Repo-layer directive (backend AGENTS bare-read rule):** every new READ method above follows the shipped dual-branch idiom — Drizzle select on `tx` when supplied, raw parameterized SQL via `queryDb(tx)` when not (precedent `student-payment.repository.ts:113-134`); write primitives stay statement-atomic with `RETURNING` and `tx`-as-last-param.
 - `countForAdminAudit(filters, tx?): Promise<number>` — same predicates, no join needed unless name search is set.
 
 `backend/db/repo/billing/wallet.repository.ts` (extends existing):
@@ -192,7 +194,7 @@ graph LR
 - **File**: `backend/services/billing/admin-financial-auditing.service.ts` (+ `.helpers.ts` for contract builders / normalizers).
 - **Signatures** (service style: `locale: string`, `outerTx?: DBTransaction`, `withTransaction` from `@/backend/lib/db/with-transaction`):
   - `listStudentPaymentsForAdmin(actorUserId: number, filters: AdminStudentPaymentsFilterInput, page: number | null, pageSize: number | null, locale: string, outerTx?: DBTransaction): Promise<AdminStudentPaymentPageReturnType>`
-  - `getTeacherWalletForAdmin(actorUserId: number, teacherId: number, txFilters: AdminWalletTransactionFilterInput, page, pageSize, locale, outerTx?): Promise<AdminTeacherWalletReturnType>` (wallet nullable inside → honest empty state)
+  - `getTeacherWalletForAdmin(actorUserId: number, teacherId: number, txFilters: AdminWalletTransactionFilterInput, page, pageSize, locale, outerTx?): Promise<AdminTeacherWalletReturnType>` (wallet fields nullable inside → honest empty state; teacher identity resolves from the probe when a wallet exists, else via a teacher→user lookup fallback — the inspector header must render the teacher's name even when no wallet row exists)
   - `listPendingWithdrawalsForAdmin(actorUserId, page, pageSize, locale, outerTx?): Promise<AdminWithdrawalQueuePageReturnType>`
   - `approveWithdrawal(actorUserId: number, transactionId: number, locale: string, outerTx?): Promise<TeacherTransactionSelectType>`
   - `rejectWithdrawal(actorUserId: number, transactionId: number, reason: string, locale, outerTx?): Promise<TeacherTransactionSelectType>`
@@ -202,18 +204,22 @@ graph LR
 
 #### Component 3: GraphQL surface (NEW files, side-effect registration)
 
-- Pothos/inputs (in `backend/graphql/pothos/billing/` + `pothos/admin/` per placement convention — page wrappers/inputs follow the `AdminAuditLogPagePothosObject` precedent at `backend/graphql/query/admin/audit-trail.query.ts:43`): `AdminStudentPaymentPage` (items: payment + `studentName`), `AdminTeacherWallet` (wallet nullable + teacher identity + tx page), `AdminWithdrawalQueuePage`, inputs `AdminStudentPaymentsFilterInput`, `AdminWalletTransactionFilterInput`, `AdjustTeacherWalletInput`; REUSE `TeacherTransactionPothosObject` for mutation payloads (canonical object rule).
-- Enum: `WalletAdjustmentDirection` TS enum in `backend/enum/billing/wallet-adjustment-direction.enum.ts` (`Credit`/`Debit`) registered once in `backend/graphql/pothos/shared/enum.pothos.ts`.
+- Pothos/inputs (in `backend/graphql/pothos/billing/` + `pothos/admin/` per placement convention — page wrappers/inputs follow the precedent of `AdminAuditLogPagePothosObject` at `backend/graphql/pothos/admin/audit-trail.pothos.ts:56` and `AdminAuditLogFiltersInput` at :79): `AdminStudentPaymentPage` (items: payment + `studentName`), `AdminTeacherWallet` (FLAT wallet summary — `balance`/`totalEarning`/`currency` nullable + teacher identity + tx page; do NOT embed the `Wallet` object — it is bound to the teacher-capped `WalletViewType`, the very surface D-5 forbids reusing), `AdminWithdrawalQueuePage`, inputs `AdminStudentPaymentsFilterInput`, `AdminWalletTransactionFilterInput`, `AdjustTeacherWalletInput`; REUSE `TeacherTransactionPothosObject` for mutation payloads (canonical object rule) — NOTE: that object is currently module-private (`backend/graphql/pothos/billing/wallet.pothos.ts:86`, plain `const`); a one-line `export` addition is part of this task (barrel stays untouched — wallet objects register resolver-transitively by convention).
+- Enum: `WalletAdjustmentDirection` TS enum in `backend/enum/billing/wallet-adjustment-direction.enum.ts` (`Credit`/`Debit`) registered once in `backend/graphql/pothos/shared/enum.pothos.ts` — SDL members render as the TS member NAMES (`Credit`/`Debit`, same as `TransactionType { Bonus Earning Withdrawal }`).
 - Queries: `backend/graphql/query/admin/admin-finance.query.ts` (3 fields) — `authScopes: adminOnlyAuthScopes`, `requireAdminUser`, closed filter copy (never spread wire args), locale propagation via `ctx.locale`.
 - Mutations: `backend/graphql/mutation/admin/admin-finance.mutation.ts` (3 fields) — same gates.
 - Barrels: add `import "./admin-finance.query";` / `import "./admin-finance.mutation";` to the admin sub-barrels (`backend/graphql/query/admin/index.ts`, `backend/graphql/mutation/admin/index.ts`).
+- **Two schema-facing registries MUST move with this surface** (both are CI-pinned):
+  1. `backend/graphql/test/schema-surface.test.ts` — frozen inventory gains 3 queries + 3 mutations + 1 enum + the new object/input types.
+  2. `test/workflows/admin/audit-completeness.catalog.ts` — the deferred row `"(future) adminAdjustWallet / withdrawal approval"` (currently `kind:"deferred"`, ref `D-002`) is replaced by three `wired` rows (`approveWithdrawal`/`rejectWithdrawal` → `override` on `teacher_transaction`; `adjustTeacherWallet` → `adjust`), `ACTION_TYPE_COVERAGE.Adjust` flips `fixture`→`wired`, and the producer lanes in `test/workflows/admin/audit-completeness.journey.test.ts` gain execution lanes for the new rows (enforced by `backend/db/test/logic/audit/audit-census-drift.test.ts`).
 - After edits: `bun run generate:gqlSchema && bun codegen` — generated SDL/TS committed.
 
 #### Component 4: Frontend console (NEW)
 
 - Route shell: `app/(dashboard)/admin/finances/page.tsx` — thin server component: `withPageAuth` + metadata from `getTranslations(locale).adminFinanceTranslations` + `<AdminFinancesContainer>`.
 - Views: `frontend/views/admin/finances/` — `AdminFinancesContainer.tsx` (tab switcher via searchParams), `PaymentsAuditPanel.tsx` (+ `PaymentsFilterBar.tsx`, hand-rolled MUI table per `DirectoryTableScaffold`), `WithdrawalQueuePanel.tsx` (+ `ApproveWithdrawalDialog.tsx`, `RejectWithdrawalDialog.tsx` with reason field), `WalletInspectorPanel.tsx` (teacher picker using the shipped `adminTeachers` query, summary cards, `WalletTransactionsTable.tsx`), hooks `useAdminFinanceQueries.ts`.
-- Documents: `frontend/graphql/sharedDocuments/admin/admin-finance.documents.ts` + `.documents.test.ts`; export via the admin barrel; `id` first on every selection (Apollo normalization).
+- Documents: `frontend/graphql/sharedDocuments/admin/admin-finance.documents.ts` + `.documents.test.ts`; export via the admin barrel; `id` first on every selection (Apollo normalization). Hooks import from `@apollo/client/react` (no `useLazyQuery`).
+- Apollo cache: the id-less wrapper types (`AdminStudentPaymentPage`, `AdminTeacherWallet`, `AdminWithdrawalQueueRow`, `AdminWithdrawalQueuePage`) get `keyFields: false` entries in `frontend/providers/apollo/apolloCache.ts` (precedent: `AdminAuditLogPage` there) — omission leaks normalization warnings.
 - Nav: add `finances` item + label keys (en/ar dashboard leaves).
 
 ## Data Models
@@ -263,7 +269,8 @@ export interface AdminWalletTransactionFilters {
   type: TransactionType | null; status: TransactionStatus | null; from: Date | null; to: Date | null;
 }
 export interface AdminTeacherWalletReturnType {
-  wallet: WalletSelectType | null; teacherId: number; teacherName: string;
+  balance: string | null; totalEarning: string | null;   // null pair = teacher has no wallet row yet
+  teacherId: number; teacherName: string;
   transactions: readonly TeacherTransactionSelectType[]; totalCount: number; page: number; pageSize: number;
 }
 export interface AdminWithdrawalQueueRow {
@@ -288,8 +295,8 @@ export interface AdminWalletAdjustmentSubmitInput {
 
 ```graphql
 enum WalletAdjustmentDirection {
-  CREDIT
-  DEBIT
+  Credit
+  Debit
 }
 
 input AdminStudentPaymentsFilterInput {
@@ -318,7 +325,9 @@ type AdminStudentPaymentPage { items: [AdminStudentPayment!]! totalCount: Int! p
 input AdminWalletTransactionFilterInput { type: TransactionType, status: TransactionStatus, from: DateTime, to: DateTime }
 
 type AdminTeacherWallet {
-  wallet: Wallet              # nullable → honest empty state
+  balance: String            # null pair (with totalEarning) = no wallet row yet → honest empty state
+  totalEarning: String
+  currency: String!          # constant EGP render label (wallet has no currency column)
   teacherId: ID!
   teacherName: String!
   transactions: [TeacherTransaction!]!
@@ -402,18 +411,19 @@ Logging: expected rejections via `logger.logDomainError` (debug in test mode, wa
 
 ## Testing Strategy
 
-- **Repo layer** (`backend/db/test/repo/billing/…`): 100% branch coverage over the new list/count/settle/credit/debit primitives — happy paths, filter matrix, wrong-state misses, guarded-debit miss, trigger freeze proofs (attempt to flip with a changed amount must raise). `runInRollback` + `tx` everywhere; `expectRepoError`-style try/catch helpers (NEVER `expect.rejects` inside rollback); fixtures from `backend/db/test/entity-setup.ts` (`createTestWallet`:450, `createTestTeacherTransaction`:486, `createTestStudentPayment`:262, `createTestAdmin`:167). Run via `bun run test/scripts/run-test.ts <path>`.
+- **Repo layer** (NEW `backend/db/test/repo/billing/` suites — the directory does not exist yet; zero wallet/student-payment repo tests ship today): 100% branch coverage over the new list/count/settle/credit/debit primitives — happy paths, filter matrix, wrong-state misses, guarded-debit miss, trigger freeze proofs (attempt to flip with a changed amount must raise). `runInRollback` + `tx` everywhere; `expectRepoError`-style try/catch helpers (NEVER `expect.rejects` inside rollback); fixtures from `backend/db/test/entity-setup.ts` (`createTestWallet`:450, `createTestTeacherTransaction`:486, `createTestStudentPayment`:262, `createTestAdmin`:167). Run via `bun run test/scripts/run-test.ts <path>`.
 - **Trigger amendment proof**: dedicated migration-behavior test asserting (a) permitted settle passes, (b) settled row re-touch raises, (c) column-freeze violations raise, (d) earning/bonus rows still raise on any update — mirror the audit-immutability test's approach; guard for pglite-vs-pg capability divergence as the existing immutability tests do (`withAuditDeleteTriggersSuspended` precedent shows the shape).
 - **Service layer** (`backend/services/billing/admin-financial-auditing.service.test.ts`): admin gate matrix, settle/reject/adjust flows with audit-row assertions, DTO/validation matrix, rollback integrity, `Promise.allSettled` double-settle race.
 - **GraphQL layer**: `frontend/graphql/test/admin/admin-finance.integration.test.ts` via `setupTestServerLifecycle` + `testClient` — scope denials (anon/non-admin per field), SDL surface pinning, happy paths, cleanup in `afterAll`.
-- **Workflow journey**: `test/workflows/billing/admin-financial-auditing.journey.test.ts` — J-W1/J-W2/J-ADJ + denials + concurrency race; committed fixtures + tracked `afterAll` cleanup (audit rows via `withAuditDeleteTriggersSuspended`); NO `runInRollback`; run via `bun run test/scripts/run-test.ts`.
-- **UI**: `test/ui/components/admin-finances/` Happy-DOM suites (both locales; loading/403/error/empty/populated matrix; dialog mutation-variable assertions through mocked Apollo).
+- **Workflow journey**: `test/workflows/billing/admin-financial-auditing.journey.test.ts` — J-W1/J-W2/J-ADJ + denials + concurrency race; `journeyPrefix("billing")` (`jrn_billing_<8hex>`); committed fixtures + tracked `afterAll` cleanup; NO `runInRollback`; run via `bun run test/scripts/run-test.ts`. **Immutable-ledger teardown regime (review-pinned):** `teacher_transaction` rows created by the journey are DELETE-blocked too — they are hard-deleted FIRST inside `withImmutabilityTriggersSuspended(["teacher_transaction"])` (helper at `test/helpers/db-cleanup.ts`, same idiom as `withAuditDeleteTriggersSuspended:83` for `audit_logs`), and NEVER registered in the tracked-fixture registry — mirroring the shipped `subscription-purchase` journey's payment cleanup.
+- **Audit census (CI-pinned)**: the three mutations flip `test/workflows/admin/audit-completeness.catalog.ts` D-002's deferred row into `wired` rows and `ACTION_TYPE_COVERAGE.Adjust` to `wired`; producer lanes are added to `audit-completeness.journey.test.ts` (guard: `backend/db/test/logic/audit/audit-census-drift.test.ts`).
+- **UI**: `test/ui/components/admin/AdminFinances*.test.tsx` (flat placement, mirroring `PlatformAnalyticsContainer.test.tsx`) — Happy-DOM suites (both locales; loading/403/error/empty/populated matrix; dialog mutation-variable assertions through mocked Apollo).
 - **Locale parity**: `shared/locale/adminFinance-namespace.parity.test.ts` + errors parity stay green.
 
 ## Deployment / Compatibility
 
 - DB delta = trigger-function replacement only (`CREATE OR REPLACE`; idempotent; safe to re-run; both fresh + existing DBs converge in filename-alphabetical custom-SQL order).
-- pglite test provisioning needs the `-sqlite.sql` variant; missing variant → silent trigger loss in tests (the plan tasks assert it).
+- Dialects: PG and pglite test DBs both consume the PG file (the pglite pool runs PL/pgSQL); the `-sqlite.sql` parity variant targets ONLY the legacy libsql dialect and MUST be listed in `EXCLUDED_FILES` (`backend/db/scripts/applyCustomMigrations.ts:58-68`) so it never reaches the PG pipeline.
 - Rollback: `CREATE OR REPLACE` back to the strict-raise function; no data migration involved.
 - Backward compatibility: additive GraphQL fields; teacher wallet view unchanged; analytics counter semantics PRESERVED (they count pending — exactly the queue this feature drains).
 
