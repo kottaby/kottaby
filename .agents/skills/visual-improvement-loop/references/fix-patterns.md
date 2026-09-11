@@ -22,6 +22,10 @@ matches the finding, say so in the wave report: that gap is a playbook candidate
 | Hardcoded copy in JSX | String literals in components | All user-visible text via `useAppTranslation` keys with typed interpolation | Includes aria-labels and dialog titles |
 | Card/elevation inconsistency | Mixed shadow treatments per card | One card treatment per surface family (hairline border + consistent shadow) | Fix the family, not the instance |
 | Numbers/dates formatted ad hoc | Inline `toLocaleString`/`Intl` calls | The project's shared formatters/locale helpers | Date/currency formatting is centralized |
+| Bare-text dialog cancel reads as non-interactive | Cancel rendered as a text-only button beside a contained primary | `variant="outlined"` on the Cancel button (keep `color="inherit"`); equal-quality interactive control next to Save | Button order/spacing untouched; still ONE contained primary per dialog |
+| Asymmetric dialog gutter | Per-side ad-hoc padding / unpinned DialogContent defaults | Pin a symmetric logical gutter: DialogContent `paddingInline: theme.spacing(3)` | Pixel-verify first — VLM "asymmetry" calls can be misperception; logical props stay RTL-safe |
+| Low-contrast select dropdown icon | MUI `.MuiSelect-icon` inherits `action.active` (54% black in light mode) | Scoped `sx={{ "& .MuiSelect-icon": { color: "var(--mui-palette-text-primary)" } }}` on the one select | Mode-aware token clears AA in both schemes; never recolor globally |
+| Weak dialog isolation (page behind barely dimmed) | MUI default backdrop (50% scrim, no blur) reads flat over busy pages | Dialog-only `slotProps={{ backdrop: { sx: { backgroundColor: color-mix(...palette-scrim 60%, transparent), backdropFilter: "blur(2px)" } } }}` | Scoped to that dialog's slotProps — never global theme edits |
 
 ## Convergence rule
 

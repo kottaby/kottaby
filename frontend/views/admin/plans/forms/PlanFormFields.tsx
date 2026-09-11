@@ -117,6 +117,13 @@ export function PlanFormFields({ form, loading, onFieldChange, fieldError }: Pla
         fullWidth
         required
         disabled={loading}
+        sx={{
+          // Dropdown affordance: pin the select arrow to the mode-aware
+          // primary text token so it clears WCAG AA non-text contrast on the
+          // dialog surface in both color schemes (MUI's action.active default
+          // drops to 54% black in light mode).
+          "& .MuiSelect-icon": { color: "var(--mui-palette-text-primary)" },
+        }}
       >
         {BALANCE_LANE_OPTIONS.map(lane => (
           <MenuItem key={lane} value={lane}>
