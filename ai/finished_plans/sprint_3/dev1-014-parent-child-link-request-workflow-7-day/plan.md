@@ -1,10 +1,10 @@
 ```markdown
-# Technical Architecture & Implementation Design: DEV1-014 — Parent-Child Link Request Workflow (7-Day Expiry)
+# Technical Architecture & Implementation Design: Parent-Child Link Request Workflow (7-Day Expiry)
 
 > **Plan directory (verbatim — every header, ledger path, and self-reference in this plan uses exactly this string):** `ai/plans/sprint_3/dev1-014-parent-child-link-request-workflow-7-day`
 > **Specs of record:** `ai/plans/sprint_3/dev1-014-parent-child-link-request-workflow-7-day/specs.md` (REQ-001..REQ-096)
 > **Canonical refs consumed:** `docs/workflows/04-parent-supervision-handshake.md` (§2 state machine, §4.3/§4.4), `docs/parents/handshake-code-discovery.md` (R1–R8 — binding R5 link-flow contract), `docs/notifications/realtime-engine.md` §3.1–§3.3, `docs/specs/state-machine-invariants.md` (INV-P1..P4, INV-U1/U4/U5), `docs/specs/open-decisions-and-gaps.md` (A.2, A.3, B.12, B.13, B.14), `docs/graphql/error-handling-contract.md`, `docs/graphql/domain-error-extensions-code.md`, `docs/DATABASE_MIGRATIONS.md`, `docs/IDEMPOTENCY.md`, `docs/testing/workflow-journey-tests.md`
-> **Blocking dependencies (SHIPPED, verified in-tree):** DEV1-002 registration (`backend/services/auth/registration.service.ts:79`), DEV1-013 handshake substrate (`backend/services/students/student-handshake.service.ts`, `backend/graphql/query/students/handshake-code.query.ts`), DEV3-010 notification engine (`backend/services/notifications/notification-engine.service.ts:43-123`; anchors re-verified by Task 0.2).
+> **Blocking dependencies (SHIPPED, verified in-tree):** registration (`backend/services/auth/registration.service.ts:79`), handshake substrate (`backend/services/students/student-handshake.service.ts`, `backend/graphql/query/students/handshake-code.query.ts`), notification engine (`backend/services/notifications/notification-engine.service.ts:43-123`; anchors re-verified by Task 0.2).
 
 ---
 
@@ -12,9 +12,9 @@
 
 ### 1.1 Scope Statement
 
-DEV1-014 ships the platform's first **persistent link-request record** and the only sanctioned write path onto `students.parent_id` (INV-P1). The net-new work:
+ ships the platform's first **persistent link-request record** and the only sanctioned write path onto `students.parent_id` (INV-P1). The net-new work:
 
-1. **ONE new table** — `parent_link_requests` (the first new table since DEV1-001), reusing the ALREADY-EXISTING `link_status` pgEnum (`backend/db/schema/enums.ts:54`) and its dormant TS mirror (`backend/enum/shared/link-status.enum.ts:1-6`). Zero enum drift. A partial unique index `(parent_id, student_id) WHERE status='pending'` enforces one live pending per pair at the DB level.
+1. **ONE new table** — `parent_link_requests` (the first new table since), reusing the ALREADY-EXISTING `link_status` pgEnum (`backend/db/schema/enums.ts:54`) and its dormant TS mirror (`backend/enum/shared/link-status.enum.ts:1-6`). Zero enum drift. A partial unique index `(parent_id, student_id) WHERE status='pending'` enforces one live pending per pair at the DB level.
 2. **One new domain service** — `ParentLinkRequestService` (`backend/services/parents/parent-link-request.service.ts`): request (capability-by-code re-submission), respond (confirm — THE `parent_id` writer — / reject), cancel, and two self-scoped list reads with compute-on-read expiry rendering.
 3. **One new repository** — `ParentLinkRequestRepository` (`backend/db/repo/parents/parent-link-request.repository.ts`) + TWO additive students-repo methods (`findLinkTargetByHandshakeCode`, `linkParentIfUnlinked`).
 4. **Five GraphQL operations** — 2 self-scoped queries + 3 mutations — with the load-bearing `$all` authScopes conjunction and service-layer governance re-checks (the context factory applies NO governance filter — `backend/graphql/gqlContextFactory.ts:206-216`; anchor re-verified at the 0.3 gate).
@@ -68,14 +68,14 @@ DEV1-014 ships the platform's first **persistent link-request record** and the o
 | D2 | **All transitions are single guarded `UPDATE … WHERE <ownership ∧ status ∧ liveness> RETURNING`** — zero SELECT-then-UPDATE | (a) read-check-write; (b) guarded updates + zero-row classifiers | (a) TOCTOU under concurrent claim (two confirms win). (b) predicate+mutation in one statement; the zero-row branch drives an honest classifier | REQ-041. Precedent: `AdminUserRepository.setDeletedOnce` (`backend/db/repo/admin/admin-user.repository.ts:355`) |
 | D3 | **The confirm flow's arbiter is the guarded `students.parent_id IS NULL` write, and failure rolls back the WHOLE tx** (claim + notification die with it) | (a) claim-check-then-link in separate steps; (b) single-tx order claim → link → sibling-expiry → notify | (a) ghost confirmed state without a link (INV-P1 breach). (b) the loser's claim is NEVER committed; confirmed rows and linked parents stay 1:1 | REQ-016/042. Two-parent confirm race: exactly one winner by construction |
 | D4 | **Partial unique index `(parent_id, student_id) WHERE status='pending'`** as the duplicate-pending final arbiter | (a) full unique on pair (blocks legitimate re-request after rejection); (b) partial unique; (c) app-level check only | (a) forbids re-applying after rejection/expiry — wrong product rule. (c) racy. (b) terminates duplicates under concurrency AND lets reject→re-request succeed | REQ-014/043. 23505 loser maps to `PARENT_LINK_ALREADY_PENDING` via cause-chain traversal (`isUniqueViolation`, `backend/services/shared/user-provisioning.helpers.ts:54`) |
-| D5 | **Service-layer actor re-check (fresh `users` read: role + governance) is the FIRST action of every mutation** | (a) trust the context; (b) re-check per surface | (a) rides the documented governance window — a suspended parent could act with a pre-issued token. (b) closes the window for THIS surface only, honestly documented | REQ-031; same posture as DEV3-018's strict actor re-check. The context factory stays as-is |
+| D5 | **Service-layer actor re-check (fresh `users` read: role + governance) is the FIRST action of every mutation** | (a) trust the context; (b) re-check per surface | (a) rides the documented governance window — a suspended parent could act with a pre-issued token. (b) closes the window for THIS surface only, honestly documented | REQ-031; same posture as the strict actor re-check. The context factory stays as-is |
 | D6 | **Target resolution is server-internal: a NEW joint read `findLinkTargetByHandshakeCode` returns `students.id`** — the public discovery payload stays id-free | (a) widen the discovery payload with `id`; (b) a second read inside the write tx | (a) violates R1 payload closure (`docs/parents/handshake-code-discovery.md`) — the id must never cross the wire. (b) the code is re-submitted server-side (R5.1); the id never leaves the backend | REQ-011/032. Client args carry the CODE only; the id surfaces only inside the write tx |
 | D7 | **Null-collapse for miss/governed (`requestParentChildLink` returns `null`)**; honest conflicts for already-linked/duplicate | (a) errors for every denial; (b) R2/R3 parity collapse for the miss family, conflict codes for the honest family | (b) preserves the discovery oracle contract byte-for-byte (governed ≡ never existed) while keeping `linkable:false`'s honest disclosure | REQ-012/013/034. The `linkable` bit already disclosed linkability; erroring on it leaks nothing new |
-| D8 | **Recipient-locale notification copy, verbatim-stored, publish-after-commit** via the engine's caller-tx receipt pattern | (a) actor locale; (b) recipient locale via `UserRepository.findLocalesByIds` + `defaultLocale` fallback | (b) is the engine's emitter-localization rule (§3.3) and the DEV3-018 D6 precedent | REQ-023; `defaultLocale = "ar"` (`shared/locale/AppLocale.ts:3`) |
+| D8 | **Recipient-locale notification copy, verbatim-stored, publish-after-commit** via the engine's caller-tx receipt pattern | (a) actor locale; (b) recipient locale via `UserRepository.findLocalesByIds` + `defaultLocale` fallback | (b) is the engine's emitter-localization rule (§3.3) and the D6 precedent | REQ-023; `defaultLocale = "ar"` (`shared/locale/AppLocale.ts:3`) |
 | D9 | **Cancel folds into `status='rejected'`** (the frozen `link_status` enum has no `cancelled`), recorded as withdrawal-with-note | (a) widen the enum (needs a migration); (b) fold with a documented semantic | (a) REQ-045 forbids enum drift; (b) preserves the append-only history row with zero schema churn | REQ-018; product-vocabulary change = future-ticket pointer, never patched here |
-| D10 | **Reconcile-then-extend the stale frozen SDL baselines in ONE documented two-step** | (a) silent baseline patch; (b) re-anchor to live, then append this surface | The bundled freeze suites predate the DEV3-016 admin surface; a silent edit erases that history | REQ-061; DEV3-018 §3.3 precedent — reconciliation commit context + extension step, both recorded in the outcome |
+| D10 | **Reconcile-then-extend the stale frozen SDL baselines in ONE documented two-step** | (a) silent baseline patch; (b) re-anchor to live, then append this surface | The bundled freeze suites predate the admin surface; a silent edit erases that history | REQ-061; §3.3 precedent — reconciliation commit context + extension step, both recorded in the outcome |
 | D11 | **Timestamps use the registered `DateTime` scalar, never `String` + `toISOString()`** | (a) legacy String pattern; (b) `type: "DateTime"` | (b) Architectural Invariant 11; scalar registered at `backend/graphql/pothos/shared/scalar.pothos.ts:28`, builder slot `backend/graphql/pothos/builder.ts:76` | REQ-060; codegen maps to `string` (`codegen.ts`) |
-| D12 | **No idempotency-key contract (out of the mandated set); natural guards ARE the replay protection** | (a) `X-Idempotency-Key` plumbing; (b) partial-unique + guarded transitions + UI in-flight disable | Key set = Students/Invoices/Class Instances/Payments only (`docs/IDEMPOTENCY.md`); the DEV3-016 ruling pattern applies verbatim | REQ-023. Duplicate double-submit ⇒ one row + one `PARENT_LINK_ALREADY_PENDING` |
+| D12 | **No idempotency-key contract (out of the mandated set); natural guards ARE the replay protection** | (a) `X-Idempotency-Key` plumbing; (b) partial-unique + guarded transitions + UI in-flight disable | Key set = Students/Invoices/Class Instances/Payments only (`docs/IDEMPOTENCY.md`); the ruling pattern applies verbatim | REQ-023. Duplicate double-submit ⇒ one row + one `PARENT_LINK_ALREADY_PENDING` |
 
 ---
 
@@ -130,7 +130,7 @@ export const parentLinkRequests = pgTable(
 
 - **Barrel:** `backend/db/schema/parents/index.ts` gains `export * from "./parent-link-requests";` (currently re-exports only `./parents`).
 - **Delivery (REQ-010):** `bun run db push` per `docs/DATABASE_MIGRATIONS.md`. IF the partial-unique `.where(...)` proves unexpressible in the bundled Drizzle version, the recorded fallback is ONE ADDITIVE custom SQL file under `backend/db/migration/` + its drizzle folder — ledger-recorded, never silent.
-- **FK posture rationale:** both FKs are `RESTRICT` — a request row is durable history (append-and-transition); the row must outlive governance bookkeeping, and the DEV3-017 purge-guard family treats identity-table deletes as sanctioned-test-only. Journey teardown deletes request rows FIRST (REQ-046).
+- **FK posture rationale:** both FKs are `RESTRICT` — a request row is durable history (append-and-transition); the row must outlive governance bookkeeping, and the purge-guard family treats identity-table deletes as sanctioned-test-only. Journey teardown deletes request rows FIRST (REQ-046).
 
 ### 2.3 Canonical Types (CREATE `backend/types/parents/parent-link-request.types.ts`)
 
@@ -252,7 +252,7 @@ extend type Mutation {
 
 ### 3.3 Baseline Reconciliation + Extension (REQ-061 — documented two-step)
 
-1. **Re-anchor:** `backend/graphql/test/schema-surface.test.ts` (`PRE_3_1_*`) and `backend/graphql/test/sdl-static-assertions.test.ts` (`FROZEN_*`) are STALE relative to the already-shipped DEV3-016 admin surface (live: `backend/graphql/mutation/admin/index.ts`, `backend/graphql/query/admin/index.ts` exist; the frozen arrays predate them). STEP ONE re-anchors the inventories to the CURRENT live built schema (verified via `printSchema(lexicographicSortSchema(graphQLSchema))` probe).
+1. **Re-anchor:** `backend/graphql/test/schema-surface.test.ts` (`PRE_3_1_*`) and `backend/graphql/test/sdl-static-assertions.test.ts` (`FROZEN_*`) are STALE relative to the already-shipped admin surface (live: `backend/graphql/mutation/admin/index.ts`, `backend/graphql/query/admin/index.ts` exist; the frozen arrays predate them). STEP ONE re-anchors the inventories to the CURRENT live built schema (verified via `printSchema(lexicographicSortSchema(graphQLSchema))` probe).
 2. **Extend:** STEP TWO appends the five new root fields, the `LinkStatus` enum, and the two object types to the now-current baselines — including pins that BOTH lists are NON-paginated arrays AND that `requestParentChildLink` is the ONLY nullable new mutation (the collapse contract).
 Both steps and their rationale are recorded in the same changeset's outcome file; `plan-catalog.schema.test.ts`'s committed-vs-live SDL byte-parity stays green via the regenerated `frontend/graphql/generated/schema.graphql`.
 
@@ -282,7 +282,7 @@ Both steps and their rationale are recorded in the same changeset's outcome file
 | Student | ❌ `FORBIDDEN` | ✅ own incoming surface |
 | Parent | ✅ own outgoing surface | ❌ `FORBIDDEN` |
 | Teacher | ❌ `FORBIDDEN` | ❌ `FORBIDDEN` |
-| Admin | ❌ `FORBIDDEN` (no admin read/write override — governance reads live on DEV3-016 surfaces ONLY) | ❌ `FORBIDDEN` |
+| Admin | ❌ `FORBIDDEN` (no admin read/write override — governance reads live on surfaces ONLY) | ❌ `FORBIDDEN` |
 | Governed caller (pre-issued token) | ❌ `FORBIDDEN` at the SERVICE layer (REQ-031) | ❌ `FORBIDDEN` |
 
 There is deliberately NO admin/supervisor axis — link requests are a user-to-user handshake, zero `audit_logs` rows by design (A.5 covers ADMIN actions only; REQ-074(c) scan-locks zero audit writes in the new modules).

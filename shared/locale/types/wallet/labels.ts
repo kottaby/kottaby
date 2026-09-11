@@ -1,6 +1,6 @@
 /**
- * Wallet namespace labels — the teacher self-service wallet surface
- * (DEV3-013): the balance header, the withdrawal-request dialog, and the
+ * Wallet namespace labels — the teacher self-service wallet surface:
+ * the balance header, the withdrawal-request dialog, and the
  * transaction ledger.
  *
  * Used by:

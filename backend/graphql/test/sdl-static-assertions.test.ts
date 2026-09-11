@@ -18,21 +18,21 @@
  *    write surface is exactly the read-latch pair.
  *  - **Root-set freeze** — the Mutation root is EXACTLY the refreshed frozen
  *    33-op baseline (the prior 7-op auth-quartet + notification read-latch
- *    pair + users-locale surface, plus the reconciled DEV3-016 admin-user
- *    trio + DEV3-004 session quartet + DEV3-005 dispute pair + DEV3-012
- *    confirm + DEV3-013 payout + the sanctioned DEV3-017 admin-governance
- *    pair + the DEV3-021 session-governance quartet + the RECONCILED
+ *    pair + users-locale surface, plus the reconciled admin-user
+ *    trio + session quartet + dispute pair +
+ *    dual-confirmation + payout + the sanctioned admin-governance
+ *    pair + the session-governance quartet + the RECONCILED
  *    parent-link trio + admin broadcast/certify pair + the subscription
  *    purchase write) and the Query root is EXACTLY the refreshed 32-op
  *    baseline (the prior frozen baseline + the `_health` probe + the
- *    reconciled DEV3-016 admin-user query quartet + the DEV3-004
- *    participant-read trio + the DEV3-005 admin arbitration listing + the
- *    DEV3-013 wallet read + the DEV1-013 handshake pair + the DEV3-021
+ *    reconciled admin-user query quartet + the
+ *    participant-read trio + the admin arbitration listing + the
+ *    wallet read + the handshake pair + the
  *    admin session pair + the subscription purchase caller-scoped read +
  *    the re-anchored R1–R3 admin directory trio). Mirrors the `PRE_3_1_*` +
  *    `DEV3_016_ADMIN_*` + `DEV3_017_ADMIN_GOVERNANCE_MUTATION_FIELDS`
  *    inventories in schema-surface.test.ts, extended with the R5 admin
- *    directory export trio and the DEV1-006 subscription-purchase surface.
+ *    directory export trio and the subscription-purchase surface.
  *  - **Users-locale surface (D2)** — `updateMyLocale(locale: AppLocale!): User!`
  *    is present with its EXACT SDL signature, `User.locale` is the nullable
  *    `AppLocale` enum, and the `AppLocale` enum carries exactly the two
@@ -42,7 +42,7 @@
  *    `markAllNotificationsRead` are present with their EXACT SDL signatures
  *    (argument names/types + return types), and `MyNotificationsFilterInput`
  *    carries exactly the four nullable filter fields.
- *  - **DEV3-017 admin-governance pair pinned** — `adminSetUserBlocked` and
+ *  - **admin-governance pair pinned** — `adminSetUserBlocked` and
  *    `adminSetUserSuspended` are present with their EXACT SDL signatures
  *    (the load-bearing arg shapes the resolver contract pins) at their
  *    sorted positions in the Mutation root inventory. The `$all` scope
@@ -50,7 +50,7 @@
  *    describe and the admin-governance wire-tier matrix
  *    (`admin-governance.matrix.test.ts` Tier 0) — this artifact-side tier
  *    pins the SDL TEXT (the contract surface clients parse).
- *  - **DEV3-007 session-recitation surface pinned** — the write-once
+ *  - **session-recitation surface pinned** — the write-once
  *    per-session record rides the artifact tier too: the mutation
  *    `setSessionRecitation(input: SessionRecitationInput!, sessionId: ID!):
  *    SessionRecitation!` (args in the sorted `input` < `sessionId` order),
@@ -72,14 +72,14 @@
  *    NO Subscription root exists — realtime delivery is the WebSocket
  *    sidecar's contract, never a GraphQL subscription.
  *
- * Reconciliation note (DEV3-017): the prior 7-op Mutation baseline and
- * 6-op Query baseline predates the dev3-016 admin-user-management surface
- * (and the dev3-004 / dev3-005 / dev3-012 / dev3-013 surfaces). The live
+ * Reconciliation note: the prior 7-op Mutation baseline and
+ * 6-op Query baseline predates the admin-user-management surface
+ * (and the session / dispute / dual-confirmation surfaces). The live
  * Mutation root today carries 33 ops and the live Query root carries 32
  * ops — both re-anchored to the LIVE built schema via
  * `printSchema(lexicographicSortSchema(graphQLSchema))` as empirical
  * evidence and documented here as a one-time reconciliation (NOT a silent
- * baseline flip). The DEV3-017 admin-governance pair is then pinned on
+ * baseline flip). The admin-governance pair is then pinned on
  * top as the sanctioned post-reconciliation addition.
  *
  * Pure static tier — the SDL text is parsed with `parse()` and walked as an
@@ -107,15 +107,15 @@ import {
 /**
  * Root mutation fields — the refreshed 33-op baseline: the prior auth
  * quartet + notification read-latch pair + users-locale surface, the
- * reconciled dev3-016 admin-user-management trio (3 mutations) + the
- * dev3-004 session quartet + dev3-005 dispute pair + dev3-012 confirm
- * + dev3-013 payout, the sanctioned dev3-017 admin-governance pair + the
- * DEV3-021 session-governance quartet + the subscription purchase write.
+ * reconciled admin-user-management trio (3 mutations) + the
+ * session quartet + dispute pair + confirm
+ * + payout, the sanctioned admin-governance pair + the
+ * session-governance quartet + the subscription purchase write.
  * Sorted alphabetically (mirrors the
  * live `printSchema(lexicographicSortSchema(graphQLSchema))` Mutation root
  * inventory verbatim). Re-anchored to the live schema as a documented
  * one-time reconciliation (NOT a silent baseline flip) ahead of pinning
- * the dev3-017 admin-governance pair.
+ * the admin-governance pair.
  */
 const FROZEN_MUTATION_FIELDS = [
   "adminBroadcastNotification",
@@ -157,9 +157,9 @@ const FROZEN_MUTATION_FIELDS = [
 /**
  * Root query fields — the refreshed 32-op baseline + the whole-platform
  * analytics snapshot: the prior frozen baseline + the `_health` probe +
- * the reconciled dev3-016 admin-user query quartet + the dev3-004
- * participant-read trio + the dev3-005 admin arbitration listing + the
- * dev3-013 wallet read + the dev1-013 handshake pair + the DEV3-021 admin
+ * the reconciled admin-user query quartet + the
+ * participant-read trio + the admin arbitration listing + the
+ * wallet read + the handshake pair + the admin
  * session pair (`adminSession` / `adminSessions` — 4.4 reconcile) + the
  * subscription purchase caller-scoped read + the R1–R3 admin directory
  * trio (`adminTeachers` / `adminStudents` / `adminTeacherApplicants` —
@@ -345,7 +345,7 @@ describe("BFLA structural verdict — zero notification CUD surface (REQ-032)", 
     }
   });
 
-  test("Mutation root is EXACTLY the refreshed frozen 33-op baseline — the reconciled dev3-016 admin-user trio + dev3-004 quartet + dev3-005 dispute pair + dev3-012 confirm + dev3-013 payout + the sanctioned dev3-017 admin-governance pair + the DEV3-021 session-governance quartet + the subscription purchase write on top of the auth quartet + notification read-latch pair + users-locale surface", () => {
+  test("Mutation root is EXACTLY the refreshed frozen 33-op baseline — the reconciled admin-user trio + quartet + dispute pair + confirm + payout + the sanctioned admin-governance pair + the session-governance quartet + the subscription purchase write on top of the auth quartet + notification read-latch pair + users-locale surface", () => {
     const names = fieldSurfaces("Mutation").map(surface => surface.name);
     expect(names.toSorted((a, b) => a.localeCompare(b))).toEqual([...FROZEN_MUTATION_FIELDS]);
   });
@@ -356,10 +356,10 @@ describe("BFLA structural verdict — zero notification CUD surface (REQ-032)", 
   });
 });
 
-describe("DEV3-017 admin-governance pair — exact SDL signatures pinned on the artifact", () => {
+describe("admin-governance pair — exact SDL signatures pinned on the artifact", () => {
   test("`adminSetUserBlocked(blocked: Boolean!, id: Int!): AdminUserDetail!`", () => {
     // The live sorted SDL emits args alphabetically — `blocked` precedes
-    // `id` (both NonNull). The dev3-017 resolver contract pins this
+    // `id` (both NonNull). The resolver contract pins this
     // exact arg shape — the resolver never has to defend against a NULL
     // `blocked` (a NULL would be a GRAPHQL_VALIDATION_FAILED before the
     // resolver body runs).
@@ -538,7 +538,7 @@ describe("Notification object — `id` + REQ-069 depth/complexity posture", () =
   test("NO Subscription root exists — realtime delivery is the WebSocket sidecar's contract, never a GraphQL subscription", () => {
     // History of this pin: the original lexical
     // `sdlText.not.toContain("Subscription")` was retired as part of the
-    // dev3-016 admin-user surface reconciliation (the
+    // admin-user surface reconciliation (the
     // `hasActiveSubscription` field names are legitimate substrings), and
     // the follow-up "no ObjectTypeDefinition named `Subscription`" AST
     // check was retired when the subscription-purchase surface landed —
@@ -828,7 +828,7 @@ describe("Platform analytics surface (extend) — artifact-side pins", () => {
   });
 });
 
-describe("Session-recitation surface (DEV3-007) — artifact-side pins", () => {
+describe("Session-recitation surface — artifact-side pins", () => {
   test("`setSessionRecitation(input: SessionRecitationInput!, sessionId: ID!): SessionRecitation!`", () => {
     // The live sorted SDL emits args alphabetically — `input` precedes
     // `sessionId` (both NonNull). The write-once record NEVER returns null:

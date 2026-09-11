@@ -1,22 +1,22 @@
-# Requirements & Specification: DEV1-006 — Subscription Purchase via Payment Gateway
+# Requirements & Specification: Subscription Purchase via Payment Gateway
 
-**Plan directory:** `ai/plans/sprint_1/DEV1-006-subscription-purchase-payment-gateway/`
-**Specs path:** `ai/plans/sprint_1/DEV1-006-subscription-purchase-payment-gateway/specs.md`
-**Deferred-items ledger:** `ai/plans/sprint_1/DEV1-006-subscription-purchase-payment-gateway/deferred-items.md`
-**Outcome directory:** `ai/plans/sprint_1/DEV1-006-subscription-purchase-payment-gateway/outcome/`
+**Plan directory:** this directory (under `ai/finished_plans/sprint_1/`; moved from `ai/plans/` on completion)
+**Specs path:** this file
+**Deferred-items ledger:** `deferred-items.md` (this directory)
+**Outcome directory:** `outcome/` (this directory)
 
 ## Document Information
 
 - **Feature Name**: Subscription Purchase via Payment Gateway
-- **Ticket Reference**: `docs/planning/TICKETS.md:449-493` (DEV1-006, Sprint 1, 5 pts, Blocked By DEV1-005 — done in `ai/finished_plans/sprint_1/dev1-005-plan-catalog-crud-admin-only/`)
-- **Target Directory**: `ai/plans/sprint_1/DEV1-006-subscription-purchase-payment-gateway/`
-- **Outcome Directory**: `ai/plans/sprint_1/DEV1-006-subscription-purchase-payment-gateway/outcome/`
-- **Companion Plan**: `ai/plans/sprint_1/DEV1-006-subscription-purchase-payment-gateway/plan.md`
-- **Companion Tasks**: `ai/plans/sprint_1/DEV1-006-subscription-purchase-payment-gateway/tasks.md`
+- **Ticket Reference**: `docs/planning/TICKETS.md:449-493` (this ticket, Sprint 1, 5 pts, Blocked By the Plan Catalog CRUD (Admin Only) ticket — done in `ai/finished_plans/sprint_1/dev1-005-plan-catalog-crud-admin-only/`)
+- **Target Directory**: this directory (under `ai/finished_plans/sprint_1/`)
+- **Outcome Directory**: `outcome/`
+- **Companion Plan**: `plan.md`
+- **Companion Tasks**: `tasks.md`
 - **Version**: 1.0
 - **Date**: 2026-09-06
 - **Author**: Spec Plan Generator (swarm)
-- **Stakeholders**: Dev 1 stream (owner), Dev 2 (DEV2-005 verification-plan consumer), Planner/PM, QA
+- **Stakeholders**: Dev 1 stream (owner), Dev 2 (verification-plan consumer), Planner/PM, QA
 
 ## Introduction
 
@@ -24,11 +24,11 @@
 A student selects an active catalog plan, pays through the platform's payment gateway (Sprint-1: mock provider behind a provider-agnostic port — `docs/planning/SPRINT_PLAN.md:161`), and upon confirmed payment the subscription is activated: dates set from `interval_days` and the full `session_count` credited to the plan's designated balance lane.
 
 ### Business Value
-Converts the curated plan catalog (DEV1-005) into revenue: monetized subscriptions become purchasable, recorded in the immutable `student_payments` ledger, and activated atomically — unlocking DEV1-007 (segregated crediting rules), DEV1-008 (validity windows), DEV1-009 (admin subscription management), and DEV2-005 (teacher verification purchase).
+Converts the curated plan catalog (the Plan Catalog CRUD (Admin Only) ticket) into revenue: monetized subscriptions become purchasable, recorded in the immutable `student_payments` ledger, and activated atomically — unlocking (segregated crediting rules), (validity windows), (admin subscription management), and (teacher verification purchase).
 
 ### Scope
 - **IN**: Purchase mutation (student-only), mock payment gateway behind a provider port, payment webhook route (signature-verified), atomic activation (status + validity dates + lane credit + notification), idempotent purchase & webhook replay, renewal semantics, `student_payments` immutability reconciliation, plan→balance-lane encoding on `plans`, minimal admin plan-form extension (lane select).
-- **OUT**: Real gateway SDK integration (Sprint 2 per `SPRINT_PLAN.md:161`); segregated crediting refinement & reviews-lane semantics (DEV1-007); expiry job & balance zeroing (DEV1-008); admin extend/renew/cancel (DEV1-009); refund flows; student-facing purchase UI (needs real checkout UX — see REQ-064 ruling); teacher wallet side (existing, untouched).
+- **OUT**: Real gateway SDK integration (Sprint 2 per `SPRINT_PLAN.md:161`); segregated crediting refinement & reviews-lane semantics; expiry job & balance zeroing; admin extend/renew/cancel; refund flows; student-facing purchase UI (needs real checkout UX — see REQ-064 ruling); teacher wallet side (existing, untouched).
 
 ## 1. Executive Summary & Problem Statement
 
@@ -36,7 +36,7 @@ Converts the curated plan catalog (DEV1-005) into revenue: monetized subscriptio
 
 | Substrate | State | Evidence |
 |---|---|---|
-| `plans` table + catalog CRUD + admin UI | EXISTS (DEV1-005 shipped) | `backend/db/schema/billing/plans.ts:14-36`; `backend/services/billing/plan-catalog.service.ts:205`; `backend/graphql/mutation/plan-catalog.mutation.ts` |
+| `plans` table + catalog CRUD + admin UI | EXISTS (the Plan Catalog CRUD (Admin Only) ticket shipped) | `backend/db/schema/billing/plans.ts:14-36`; `backend/services/billing/plan-catalog.service.ts:205`; `backend/graphql/mutation/plan-catalog.mutation.ts` |
 | `subscriptions` table (`user_id` generic per B.8/C.2, `payment_method`/`payment_reference`/`payment_verified_at` per B.9) | EXISTS, zero consumers | `backend/db/schema/billing/subscriptions.ts:19-42` |
 | `student_payments` (append-only; UPDATE/DELETE trigger-blocked) | EXISTS, triggers hard-block UPDATE | `backend/db/schema/billing/student-payments.ts:23-48`; `backend/db/migration/3-immutability-triggers.sql:59-83` |
 | `student_subscriptions` junction | EXISTS, zero consumers | `backend/db/schema/billing/student-subscriptions.ts:20-35` |
@@ -52,13 +52,13 @@ Converts the curated plan catalog (DEV1-005) into revenue: monetized subscriptio
 
 **Actors:** Student (purchaser), Payment Gateway (system emitter via webhook), Parent (denied), Administrator (configures plans incl. lane), second Student (foreign-observer probe).
 
-**Non-goals:** real gateway SDKs, refunds, expiry sweeps (DEV1-008), reviews-lane hold/debit semantics (DEV1-007), teacher wallet, invoicing.
+**Non-goals:** real gateway SDKs, refunds, expiry sweeps, reviews-lane hold/debit semantics, teacher wallet, invoicing.
 
 ## 2. Requirements (EARS)
 
 ### 2.0 Execution Protocol & Engineering Discipline
 
-- **REQ-001 (Baseline & Outcome Protocol)**: WHEN implementation begins THEN the executor SHALL record the error baseline (`bun tsgo`, `bun biome:check`, lint JSON) in `outcome/0.1-outcome.md`, SHALL read ALL existing files under `ai/plans/sprint_1/DEV1-006-subscription-purchase-payment-gateway/outcome/` before ANY task, SHALL write `<task-id>-outcome.md` after each task, and SHALL flip task checkboxes `[ ]` → `[x]` in `tasks.md` only with verification evidence.
+- **REQ-001 (Baseline & Outcome Protocol)**: WHEN implementation begins THEN the executor SHALL record the error baseline (`bun tsgo`, `bun biome:check`, lint JSON) in `outcome/0.1-outcome.md`, SHALL read ALL existing files under this plan's `outcome/` directory before ANY task, SHALL write `<task-id>-outcome.md` after each task, and SHALL flip task checkboxes `[ ]` → `[x]` in `tasks.md` only with verification evidence.
 - **REQ-002 (Per-File Quality Loop)**: WHEN any file is created or modified THEN `bun run scripts/health/sub-loop.ts <file> --lifecycle duplicates` SHALL pass with exit code 0 (progressive tsgo → oxlint → biome → lint → duplicates, short-circuit on first failure) before the next file is touched.
 - **REQ-003 (i18n Compile-Time Discipline)**: WHEN any user-facing string is authored THEN services SHALL use `getServerTranslations(locale)` from `@/shared/locale/server-graphql` with property access ONLY (single argument — verified signature `shared/locale/server-graphql.ts`; two-arg `getTranslations`, `Translation.*` enums, `next-intl`, and hardcoded strings are PROHIBITED), resolvers SHALL use `ctx.t("errors")`, and every new key SHALL exist in the types group + `en` + `ar` leaves so the namespace parity suites pass (`shared/locale/*-namespace.parity.test.ts`).
 - **REQ-004 (Test Runner Discipline)**: WHEN DB, service, GraphQL, or journey tests run THEN execution SHALL go through `bun run test/scripts/run-test.ts <path>` (log capture); raw `bun test` is PROHIBITED for DB/journey surfaces.
@@ -67,11 +67,11 @@ Converts the curated plan catalog (DEV1-005) into revenue: monetized subscriptio
 ### 2.1 Purchase Flow
 
 - **REQ-010 (Purchase Mutation Surface)**: WHEN a client calls `purchaseSubscription(input: PurchaseSubscriptionInput!)` THEN the mutation SHALL be gated by `authScopes: { $all: { authenticated: true, role: [UserRole.Student] } }` (explicit `$all` conjunction — verified precedent `backend/graphql/mutation/classes/session-lifecycle.mutation.ts:98-103`), and the resolver SHALL derive `studentId` from `ctx.user.id` (shared-PK `students.id ≡ users.id`), never from input.
-- **REQ-011 (Purchase-Time Activation Re-validation — fulfills DEV1-005 REQ-044/D2)**: WHEN a purchase executes THEN the plan SHALL be re-fetched INSIDE the transaction via an active-only predicate (`WHERE id = ? AND is_active = true`); a missing/inactive plan SHALL raise `PLAN_NOT_PURCHASABLE` (`NotFoundError("PLAN", …)` channel), rolling back the whole transaction.
+- **REQ-011 (Purchase-Time Activation Re-validation — fulfills REQ-044/D2)**: WHEN a purchase executes THEN the plan SHALL be re-fetched INSIDE the transaction via an active-only predicate (`WHERE id = ? AND is_active = true`); a missing/inactive plan SHALL raise `PLAN_NOT_PURCHASABLE` (`NotFoundError("PLAN", …)` channel), rolling back the whole transaction.
 - **REQ-012 (Pending Pair Creation)**: WHEN a valid purchase executes THEN the system SHALL create, inside ONE transaction: (a) a `subscriptions` row with `status = 'pending'` (default), `userId = caller`, `planId`, `paymentMethod = <gateway>`, `paymentReference = <gateway client reference>`; (b) a `student_payments` row with `status = 'pending'` (default), `studentId = caller`, `subscriptionId` linking (a), `amount`/`currency` copied verbatim (decimal strings) from the plan; (c) a `student_subscriptions` junction row `(studentId, subscriptionId)`.
 - **REQ-013 (No Price Re-derivation)**: WHEN the payment row is written THEN `amount`/`currency` SHALL be copied from the freshly-read plan row with NO arithmetic and NO client-supplied amounts (BOPLA defense; money-as-string discipline per `WalletService` precedent).
 - **REQ-014 (Mandatory Payment Idempotency)**: WHEN the purchase mutation is called THEN `ctx.idempotencyKey` (captured at `backend/graphql/gqlContextFactory.ts:181`, propagation-only) SHALL be non-empty — a missing key SHALL raise a localized `ValidationError` — AND the key SHALL be claimed via an INSERT into a dedicated `subscription_purchase_idempotency` table inside the same transaction (fate-sharing); a 23505 unique violation on replay SHALL map to `ConflictError("DUPLICATE_REQUEST", …)` for the SAME caller (409 — client treats as already-received per `docs/IDEMPOTENCY.md`) and to an oracle-safe `NotFoundError("PAYMENT", …)` for a foreign caller (sessions precedent `session-lifecycle.booking.ts:168-181`).
-- **REQ-015 (Renewal Semantics)**: WHEN a student with an ACTIVE subscription to a plan purchases that same plan (or any plan) again THEN the system SHALL create a NEW `pending` subscription + payment pair (renewal = new period); existing subscriptions SHALL NOT be mutated at purchase time (INV-PC2), and overlapping validity is deferred to DEV1-008 expiry mechanics.
+- **REQ-015 (Renewal Semantics)**: WHEN a student with an ACTIVE subscription to a plan purchases that same plan (or any plan) again THEN the system SHALL create a NEW `pending` subscription + payment pair (renewal = new period); existing subscriptions SHALL NOT be mutated at purchase time (INV-PC2), and overlapping validity is deferred to expiry mechanics.
 - **REQ-016 (Governance Gate)**: WHEN a suspended/deleted/block-gated caller attempts purchase THEN the service SHALL reject with the localized governance-domain error via the shared governance predicate (precedent: `assertActorGovernanceClean` in `backend/services/classes/session-lifecycle.service.ts:167`); governance callers do not proceed to seat/billing writes.
 - **REQ-017 (Checkout Payload)**: WHEN the purchase pair is committed THEN the response SHALL include the gateway checkout descriptor `{ provider, providerReference, checkoutUrl (nullable) }` produced by the active `PaymentGatewayPort` adapter — Sprint-1 this is the mock adapter (decision per `docs/planning/SPRINT_PLAN.md:161`); the adapter port SHALL be provider-agnostic so a real adapter (Paymob/Stripe) is a configuration swap.
 
@@ -80,7 +80,7 @@ Converts the curated plan catalog (DEV1-005) into revenue: monetized subscriptio
 - **REQ-020 (Webhook Route)**: WHEN the payment gateway calls back THEN the system SHALL expose `POST /api/payments/webhook` (`app/api/payments/webhook/route.ts`) following the envelope/auth precedent of `app/api/cron/sweep-sessions/route.ts` (`apiSuccessResponse` / `apiErrorResponse` / `resolveRequestId` from `@/backend/lib/api`), and WHEN the surface is not explicitly enabled (`PAYMENT_WEBHOOK_ENABLED !== "true"`) THEN it SHALL answer a bare 404 with NO envelope (no existence oracle).
 - **REQ-021 (Signature Verification)**: WHEN a webhook request arrives THEN the raw body SHALL be read ONCE with a bounded cap (`MAX_PAYMENT_WEBHOOK_BODY_BYTES = 64_000`) and the request SHALL be rejected with the error envelope (401 channel) unless the HMAC-SHA256 signature of the raw body matches `PAYMENT_WEBHOOK_SECRET`, compared via the constant-time digest idiom (`createHash` both sides → `timingSafeEqual`) copied from `bearerSecretMatches` at `app/api/cron/sweep-sessions/route.ts:66-73`; the service layer SHALL receive only the ALREADY-VERIFIED event.
 - **REQ-022 (Confirmation Transition — atomic)**: WHEN a verified `confirmed` event arrives for a known reference THEN inside ONE transaction the system SHALL: (a) flip `student_payments.status: pending → paid`; (b) flip `subscriptions.status: pending → active` setting `startDate = now()`, `endDate = now() + plan.intervalDays`, `paymentVerifiedAt = now()`; (c) credit the full `plan.sessionCount` to the plan's designated balance lane on `students`; (d) persist the `payment_confirmation` notification (`NotificationEngine.emitForUser(…, locale, tx)` — persist-first inside the tx, publish-after-commit via returned receipt, per `docs/notifications/realtime-engine.md`).
-- **REQ-023 (Failure Transition)**: WHEN a verified `failed` event arrives THEN `student_payments.status` SHALL become `failed` and the subscription SHALL REMAIN `pending` (ticket AC); no credit, no notification; DEV1-009 owns operator follow-up on stuck pendings.
+- **REQ-023 (Failure Transition)**: WHEN a verified `failed` event arrives THEN `student_payments.status` SHALL become `failed` and the subscription SHALL REMAIN `pending` (ticket AC); no credit, no notification; owns operator follow-up on stuck pendings.
 - **REQ-024 (Webhook Idempotent Replay)**: WHEN the same confirmation event is delivered twice THEN both subscription and payment guarded transitions SHALL hit zero rows (replay), NO second credit SHALL occur, and the route SHALL still ack 200 (gateways retry on non-2xx).
 - **REQ-025 (Reference Correlation)**: WHEN an event's gateway reference is unknown THEN the route SHALL ack 200 with `{ processed: false }`, log a warning (never an error storm), and mutate NOTHING.
 - **REQ-026 (Amount/Currency Mismatch Quarantine)**: WHEN a verified event's amount/currency disagrees with the stored payment row THEN the system SHALL mutate NOTHING, SHALL log `logger.error` with correlation ids (never raw payloads), and SHALL ack 200 — settlement integrity beats liveness.
@@ -122,16 +122,16 @@ Converts the curated plan catalog (DEV1-005) into revenue: monetized subscriptio
 
 ### 2.7 Testing Obligations
 
-- **REQ-070 (Repository Tests)**: WHEN repositories ship THEN `backend/db/test/logic/billing/` suites (DEV1-005 home for billing DB tests; `backend/db/test/AGENTS.md` rules) SHALL reach 100% branch coverage under `runInRollback` with `tx` propagation everywhere (never `expect(...).rejects` inside rollback; try/catch helper), INCLUDING trigger tests proving: `pending→paid` allowed, `pending→failed` allowed, `paid→anything` blocked, amount tamper blocked, DELETE blocked.
+- **REQ-070 (Repository Tests)**: WHEN repositories ship THEN `backend/db/test/logic/billing/` suites (the Plan Catalog CRUD (Admin Only) ticket home for billing DB tests; `backend/db/test/AGENTS.md` rules) SHALL reach 100% branch coverage under `runInRollback` with `tx` propagation everywhere (never `expect(...).rejects` inside rollback; try/catch helper), INCLUDING trigger tests proving: `pending→paid` allowed, `pending→failed` allowed, `paid→anything` blocked, amount tamper blocked, DELETE blocked.
 - **REQ-071 (Service Tests)**: WHEN services ship THEN 4-tier suites SHALL run with the gateway adapter replaced by a programmatic fake (Tier 1 branch coverage; Tier 2 boundaries: zero-boundary amounts cannot occur but empty/oversized references and boundary interval days SHALL be probed; Tier 3 chaos: concurrent double-webhook via `Promise.allSettled` proving single credit, out-of-order failed→confirmed delivery; Tier 4 abuse: forged signature, tampered amounts, missing keys).
 - **REQ-072 (Webhook Shell Tests)**: WHEN the route ships THEN the extracted pure verifier (`webhook-signature` helper) SHALL be unit-tested exhaustively (wrong secret, empty signature, digest-length mismatch, boundary-byte body), the route's disabled-404, bounded-body, and envelope behavior SHALL be covered by a route-level test module, and handler-level heavy logic SHALL remain covered at the service layer.
 - **REQ-073 (Journey Tests)**: WHEN the workflow is implemented THEN `test/workflows/billing/subscription-purchase.journey.test.ts` SHALL exist TEST-FIRST-per-journey rules (`test/workflows/AGENTS.md`: committed fixtures + tracked cleanup, NO `runInRollback`, honest roles via the actor factories, spied fan-out transport), encoding every cross-actor step of §3 below including denial probes and the no-double-credit replay; run via `bun run test/scripts/run-test.ts test/workflows/billing/subscription-purchase.journey.test.ts`.
 - **REQ-074 (GraphQL Contract Tests)**: WHEN resolvers ship THEN `backend/graphql/test/` suites (pattern after `plan-catalog.schema.test.ts` / `plan-catalog.roles.test.ts`) SHALL pin: scope matrix (anonymous 401, parent/teacher/admin 403, student 200), payload shape, missing idempotency-key 422, replay 409 `DUPLICATE_REQUEST`, and oracle-safety of foreign-key replay.
-- **REQ-075 (Regression Pin)**: WHEN the plan form/namespace changes land THEN existing plan-catalog suites SHALL still pass unchanged (DEV1-005 shipped green tests must stay green).
+- **REQ-075 (Regression Pin)**: WHEN the plan form/namespace changes land THEN existing plan-catalog suites SHALL still pass unchanged (the Plan Catalog CRUD (Admin Only) ticket shipped green tests must stay green).
 
 ### 2.8 Knowledge Propagation & Spec Hygiene
 
-- **REQ-080 (Canonical Doc)**: WHEN the plan completes THEN `docs/billing/subscription-purchase.md` SHALL be created as the canonical reference (adapter port + mock provider, purchase flow, webhook security contract, guarded activation, idempotency, lane crediting, trigger amendment, consumer guidance for DEV1-007/008/009 + DEV2-005).
+- **REQ-080 (Canonical Doc)**: WHEN the plan completes THEN `docs/billing/subscription-purchase.md` SHALL be created as the canonical reference (adapter port + mock provider, purchase flow, webhook security contract, guarded activation, idempotency, lane crediting, trigger amendment, consumer guidance).
 - **REQ-081 (Invariant & Decision Addenda)**: WHEN knowledge propagation runs THEN `docs/specs/state-machine-invariants.md` SHALL gain: INV-PAY2 addendum (guarded status transitions exception), new **INV-PAY6** (exactly one `pending→paid` activation ever; replays zero-row), **INV-PAY7** (amount/currency mismatch quarantines), §4.1 pending-semantics reconciliation (REQ-028), and `docs/specs/open-decisions-and-gaps.md` SHALL gain resolved addenda for: lane-encoding decision, `mock` gateway member, no-purchase-UI ruling.
 - **REQ-082 (AGENTS/Doc Cross-Refs)**: WHEN propagation runs THEN `backend/AGENTS.md` / `backend/services/AGENTS.md` SHALL gain ≤2-line rule references to the new canonical doc; root `AGENTS.md` Important References SHALL gain one line.
 
@@ -220,7 +220,7 @@ UNCHANGED — no new nav items, no bottom-nav deltas (purchase UI explicitly rul
 ### Business Constraints
 - Purchase is student-self only in this ticket (parent-on-behalf purchasing is not sanctioned by any decision ref).
 - Renewal = new subscription period (`TICKETS.md:483-484`); no pro-rating, no stacking rules in scope.
-- Money values are decimal strings end-to-end; zero free plans (`price = 0`) remain purchasable (mock provider confirms neutrally — flagged for DEV1-009 review, not blocked here).
+- Money values are decimal strings end-to-end; zero free plans (`price = 0`) remain purchasable (mock provider confirms neutrally — flagged for review, not blocked here).
 
 ### Assumptions
 - One gateway active at a time (`PAYMENT_GATEWAY_PROVIDER` single-valued).

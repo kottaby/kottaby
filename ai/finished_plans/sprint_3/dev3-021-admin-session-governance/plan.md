@@ -1,8 +1,8 @@
-# Implementation Plan: DEV3-021 — Admin Session Governance
+# Implementation Plan: Admin Session Governance
 
 > **Plan directory (verbatim):** `ai/plans/sprint_3/dev3-021-admin-session-governance`
 > **Specs:** §2 ids REQ-001..REQ-081
-> **Blocked by:** DEV3-004 (session lifecycle) — shipped.
+> **Blocked:** (session lifecycle) — shipped.
 
 ---
 
@@ -28,7 +28,7 @@ SessionAdminGovernanceService
 
 **Key Design Decisions:**
 - **D-01** Reuse-first: no forks of `assertActorAdmin`, `AuditService`, `refundHeldLaneToProvenance`, `withTransaction`, session Pothos objects, or barrels — task 0.2 verify-then-claim sweep anchors each by `path:line`.
-- **D-02** Five new service functions grouped in ONE new module `backend/services/classes/session-admin-governance.ts` registered on the existing `SessionLifecycleService` namespace — keeps the "single writer" doctrine coherent with DEV3-004's module extraction pattern (mirrors `session-lifecycle.{booking,confirmation,governance,guards,transitions}.ts`).
+- **D-02** Five new service functions grouped in ONE new module `backend/services/classes/session-admin-governance.ts` registered on the existing `SessionLifecycleService` namespace — keeps the "single writer" doctrine coherent with the module extraction pattern (mirrors `session-lifecycle.{booking,confirmation,governance,guards,transitions}.ts`).
 - **D-03** Eligibility matrix (canonized in specs §2.4): reschedule → `scheduled|started`; cancel → any pre-terminal (`scheduled|started`); reassign → `scheduled` only; join → `started` only.
 - **D-04** Frontend view structure follows `frontend/views/admin/disputes/...` scaffold: `AdminSessionGovernanceContainer` + `AdminSessionGovernanceChrome` + row components — common/desktop/mobile triplication avoided since this is a single-density desk-first surface (one component tree, MUI responsive breakpoints only).
 - **D-05** Timestamps update in place (D-01A): `startedAt`/`endedAt` — they exist (`backend/db/schema/classes/session.ts:46-47`); no `scheduled_at`/`scheduledAt`/`meetingUrl` columns exist — VERIFIED ABSENT.

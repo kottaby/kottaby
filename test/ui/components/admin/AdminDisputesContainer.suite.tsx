@@ -10,7 +10,7 @@
  *
  * Happy DOM + Apollo `MockedProvider` tier (`test/ui/components/admin`,
  * mirroring the student/teacher sessions suites): ONE render case per branch
- * of the admin disputes visual state matrix (DEV3-005 R-111), driven across
+ * of the admin disputes visual state matrix (R-111), driven across
  * BOTH locales:
  *
  *   loading skeleton · FORBIDDEN fallback · generic error · drained-queue
@@ -523,7 +523,7 @@ for (const locale of componentSuiteLocales) {
       expect(screen.queryByText(t.genericError)).toBeNull();
     });
 
-    // RUNNER-WEDGE family (DEV3-005 4.1 compensating control) — SKIPped:
+    // RUNNER-WEDGE family (task-4.1 compensating control) — SKIPped:
     // the resolve→SUCCESS convergence (MockLink resolution racing the
     // dialog unmount + ROOT_QUERY cache-filter write) dead-ends the Happy
     // DOM runner into a timer- AND microtask-starving allocation loop

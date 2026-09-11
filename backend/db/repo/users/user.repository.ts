@@ -138,7 +138,7 @@ export namespace UserRepository {
 
   /**
    * Batch locale lookup for a set of user ids — the read the notification
-   * emitters use to localize per-recipient copy (DEV3-010 D2).
+   * emitters use to localize per-recipient copy (the D2 locale vertical).
    *
    * Follows the repo batch-lookup convention: the returned `Map` is
    * pre-initialized with EVERY requested id mapped to `null`, then filled

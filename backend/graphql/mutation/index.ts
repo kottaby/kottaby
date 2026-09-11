@@ -14,7 +14,7 @@
  * mutations; the `classes` sub-directory barrel wires the session lifecycle
  * mutations (`createSession`, `startSession`, `completeSession`,
  * `cancelSession`); the `billing` sub-directory barrel wires the wallet
- * payout mutation (`requestWithdrawal`, DEV3-013) and the admin plan-catalog
+ * payout mutation (`requestWithdrawal`) and the admin plan-catalog
  * CRUD; `notifications/` wires the inbox read-latch mutations
  * (`markNotificationRead`, `markAllNotificationsRead`);
  * `subscription-purchase.mutation.ts` wires the student purchase mutation

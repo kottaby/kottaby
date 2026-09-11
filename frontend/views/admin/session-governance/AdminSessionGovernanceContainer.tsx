@@ -18,7 +18,7 @@ import { AdminSessionGovernance, Sessions, useAppTranslation } from "@/shared/lo
 
 /**
  * AdminSessionGovernanceContainer — the client orchestrator behind
- * `/admin/session-governance` (DEV3-021, the admin directory over ALL
+ * `/admin/session-governance` (the admin directory over ALL
  * sessions plus the four governance operations).
  *
  * Stateful composition ONLY (mirrors the admin disputes orchestrator):

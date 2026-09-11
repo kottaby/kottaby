@@ -277,7 +277,7 @@ Execute in order; fill the timing table during every drill and real recovery:
 - Both tools are registered in `package.json`: `ops:db-backup` → `bun run scripts/ops/backup-database.ts`, `ops:db-restore-verify` → `bun run scripts/ops/restore-verify.ts`; artifacts land in the gitignored `/backups/`.
 - This runbook is live at `docs/ops/disaster-recovery.md` and is the canonical DR procedure.
 - Drill evidence accumulates in the plan outcome directory (Related Documents); each quarterly drill appends its timing table and friction log there.
-- The launch-readiness §7 DR block consumes this runbook for sign-off — **checkbox authority stays with the launch-checklist gate (DEV3-026)**; this document supplies the procedure, the ratified RPO/RTO definitions, and the evidence trail that gate checks.
+- The launch-readiness §7 DR block consumes this runbook for sign-off — **checkbox authority stays with the launch-checklist gate**; this document supplies the procedure, the ratified RPO/RTO definitions, and the evidence trail that gate checks.
 
 ---
 
@@ -293,7 +293,7 @@ Execute in order; fill the timing table during every drill and real recovery:
 
 ## Appendix: Neon PITR / managed-backup evidence (D-001)
 
-**Honest scope note.** This repository ships the **verification scripts and the documented procedure** only. The provider-side PITR/snapshot retention settings (Neon console) are configured and screenshot-evidenced by the operator **outside the repo** — tracked as deferred item **D-001** and owned by the DEV3-026 launch-checklist gate. **No retention numbers are documented here, because none were observed. Nothing in this appendix is aspirational.**
+**Honest scope note.** This repository ships the **verification scripts and the documented procedure** only. The provider-side PITR/snapshot retention settings (Neon console) are configured and screenshot-evidenced by the operator **outside the repo** — tracked as deferred item **D-001** and owned by the launch-checklist gate. **No retention numbers are documented here, because none were observed. Nothing in this appendix is aspirational.**
 
 **What was actually observed in the sandbox drill:**
 
@@ -315,6 +315,6 @@ Run the first form (a real file inside the directory) when auditing that artifac
 
 | ID | Item | Owner | Status |
 |---|---|---|---|
-| **D-001** | Neon PITR / managed-backup console configuration + screenshot evidence (outside the repo; consumes this runbook's appendix) | Operator / DEV3-026 launch-checklist gate | 📅 Forward |
+| **D-001** | Neon PITR / managed-backup console configuration + screenshot evidence (outside the repo; consumes this runbook's appendix) | Operator / launch-checklist gate | 📅 Forward |
 | **D-002** | Scheduled CI restore drill — `restore-verify` on a schedule against an anonymized staging dump (needs CI secrets for a scratch Postgres) | Post-launch DevOps CI hardening | 📅 Forward |
 | **D-003** | Off-site (second-region / object-storage) upload of backup artifacts — the run-directory + manifest layout is uploader-ready; needs credential provisioning | Post-launch infrastructure | 📅 Forward |

@@ -1,8 +1,8 @@
-# Requirements — DEV3-012 Dual-Confirmation Completion Handshake (24h Timeout)
+# Requirements — Dual-Confirmation Completion Handshake (24h Timeout)
 
 **Plan Directory:** `ai/plans/sprint_2/dev3-012-dual-confirmation-completion-handshake/`
 **Outcome Directory:** `ai/plans/sprint_2/dev3-012-dual-confirmation-completion-handshake/outcome/`
-**Ticket:** `docs/planning/TICKETS.md` §`[DEV3-012] Dual-Confirmation Completion Handshake (24h Timeout)` (line 1654)
+**Ticket:** `docs/planning/TICKETS.md` — `Dual-Confirmation Completion Handshake (24h Timeout)` (line 1654)
 **Sprint:** 2 (per `| **Sprint** | 2 |` row of the ticket table; Owner Stream Dev 3)
 **Decision Refs:** B.2 (24h timeout), B.18 (disputed status), FR-5.5, INV-S3
 **Version:** 1.0 · **Date:** 2026-09-05
@@ -11,7 +11,7 @@
 
 ## Introduction
 
-A session holds one allowance unit of a student's balance in escrow from the moment of booking (DEV3-004 hold-as-debit ruling). That escrow may only be consumed — i.e. the teacher actually paid — when **both** parties have confirmed completion: the teacher marks the lesson complete and the student confirms satisfactory completion. If the student never confirms within a 24-hour window, the session auto-cancels and the held unit returns to the lane it came from. The student may instead dispute, sending the session to admin arbitration (B.18).
+A session holds one allowance unit of a student's balance in escrow from the moment of booking (hold-as-debit ruling). That escrow may only be consumed — i.e. the teacher actually paid — when **both** parties have confirmed completion: the teacher marks the lesson complete and the student confirms satisfactory completion. If the student never confirms within a 24-hour window, the session auto-cancels and the held unit returns to the lane it came. The student may instead dispute, sending the session to admin arbitration (B.18).
 
 **Behavioral ground truth already in the tree (verified 2026-09-05):** the schema columns (`confirmed_by_student_at`, `confirmed_by_teacher_at`, `confirmation_deadline` — `backend/db/schema/classes/session.ts:68-70`), the `session_status` enum with `disputed` (`backend/db/schema/enums.ts:23`), `SessionLifecycleService.completeSession/confirmSessionCompletion/sweepExpiredSessions/openSessionDispute` (`backend/services/classes/session-lifecycle.service.ts:241,521,554,352`), the wallet-credit slice (`backend/services/classes/session-lifecycle.confirmation.ts`), the GraphQL mutation `confirmSessionCompletion` (`backend/graphql/mutation/classes/session-lifecycle.mutation.ts:293`), the cron route `app/api/cron/sweep-sessions/route.ts`, and the student UI confirm hook (`frontend/views/student/sessions/useStudentSessionConfirm.ts`) all EXIST.
 
@@ -19,7 +19,7 @@ A session holds one allowance unit of a student's balance in escrow from the mom
 1. The timeout sweep cancels only `scheduled` rows (`sweepExpiredScheduledOnce`, `session.repository.ts:409`) — there is NO sweep leg for `completed` rows whose student confirmation is 24h overdue (ticket AC 3).
 2. **Zero notifications** exist for the handshake: no "please confirm" prompt to the student after teacher completion, and no auto-cancel notice (ticket ACs 1 & 3 — "student is notified to confirm" / "the student is notified").
 3. No cross-actor **journey test** covers the confirm → credit / timeout → refund paths end-to-end.
-4. `docs/sessions/session-lifecycle.md` still labels dual confirmation "DEV3-012/013"-pending and must be updated to the implemented contract.
+4. `docs/sessions/session-lifecycle.md` still labels dual confirmation ""-pending and must be updated to the implemented contract.
 
 ### Feature Summary
 Complete the dual-confirmation handshake: post-completion 24h timeout sweep with same-lane refund, student/teacher notification waves, and journey-level proof.
@@ -29,7 +29,7 @@ Escrowed money can never be stranded: every completed session terminates in exac
 
 ### Scope
 - **In scope:** `completed`-row timeout sweep leg; same-lane refund reuse; two new notification waves (completion prompt → student; auto-cancelled → student); i18n keys (en/ar); journey tests; canonical doc update.
-- **Out of scope:** ticket-side wallet ledger accounting refinements (DEV3-013 owns escrow accounting depth); admin dispute queue UI (DEV3-021 owns `listAdminDisputedSessions`); the pre-start request-expiry sweep leg (already shipped via `sweepExpiredScheduledOnce`); report submission gating (DEV3-005).
+- **Out of scope:** ticket-side wallet ledger accounting refinements (owns escrow accounting depth); admin dispute queue UI (owns `listAdminDisputedSessions`); the pre-start request-expiry sweep leg (already shipped via `sweepExpiredScheduledOnce`); report submission gating.
 
 ---
 
@@ -90,7 +90,7 @@ Escrowed money can never be stranded: every completed session terminates in exac
 
 1. WHEN either participant opens a dispute on a `scheduled` or `started` session THEN one guarded UPDATE SHALL set `status=disputed`, `dispute_reason`, `disputed_at` (`openDisputeOnce`, `session.repository.ts:240`) and the escrow hold SHALL remain frozen (untouched).
 2. WHEN an admin resolves a dispute THEN the row SHALL move to exactly one terminal state (`cancelled` + same-lane refund, or `completed` + hold consumed, `session-lifecycle.service.ts:418`).
-3. IF the ticket's AC "student disputes a completed session" is exercised THEN the system SHALL — per the existing canonical state machine (`session.ts:16-20`, disputed reachable only from pre-completion states) — reject it with `SESSION_INVALID_TRANSITION`; the canonical ruling is confirmed in this plan's Design (D-DEV3-012-2): dispute-before-completion is the ticket text's operative path for the 24h window.
+3. IF the ticket's AC "student disputes a completed session" is exercised THEN the system SHALL — per the existing canonical state machine (`session.ts:16-20`, disputed reachable only from pre-completion states) — reject it with `SESSION_INVALID_TRANSITION`; the canonical ruling is confirmed in this plan's Design (D-2): dispute-before-completion is the ticket text's operative path for the 24h window.
 - **Priority:** High · **Status:** EXISTS (state guard unchanged; design ruling documents the ticket-vs-code divergence).
 
 ## Requirement 5: Handshake Notification Waves (NEW)
@@ -114,7 +114,7 @@ Escrowed money can never be stranded: every completed session terminates in exac
 
 ## Requirement 7: Canonical Documentation Update (NEW)
 
-1. WHEN implementation lands THEN `docs/sessions/session-lifecycle.md` §2.1/§3 SHALL be updated: `disputed` producer surface confirmed, the dual-confirmation rows and the two-sweep-leg model documented, "DEV3-012/013 pending" annotations resolved for the 012 part.
+1. WHEN implementation lands THEN `docs/sessions/session-lifecycle.md` §2.1/§3 SHALL be updated: `disputed` producer surface confirmed, the dual-confirmation rows and the two-sweep-leg model documented, and the "pending" annotations resolved.
 2. WHEN docs change THEN the root `AGENTS.md` Important References line for the doc SHALL stay accurate (already present — verify description string only).
 
 ---
@@ -128,7 +128,7 @@ No new routes or navigation items. The confirm affordance already exists in the 
 | Student sessions list (existing route) | Row-scoped "Confirm" CTA with in-flight slot bookkeeping and error-surface mapping | STUDENT | `frontend/views/student/sessions/useStudentSessionConfirm.ts` (hook) |
 | Notifications inbox | Receives `session_completion` prompt/auto-cancel items | STUDENT | existing inbox |
 
-**No-UI ruling:** DEV3-012 adds no UI. The only user-facing delta is two notifications arriving in the existing inbox. Teacher-side CTA (`completeSession`) is DEV3-005/DEV3-011 territory and unchanged. Admin arbitration UI is DEV3-021.
+**No-UI ruling:** This ticket adds no UI. The only user-facing delta is two notifications arriving in the existing inbox. Teacher-side CTA (`completeSession`) belongs to other tickets and is unchanged. Admin arbitration UI likewise.
 
 ## Cross-Actor Workflow Journey
 
@@ -144,7 +144,7 @@ No new routes or navigation items. The confirm affordance already exists in the 
 1. Teacher → `completeSession` → row `completed`, `started_at..ended_at` span closed, `confirmed_by_teacher_at` set → **student receives confirm-prompt notification**.
 2. Student → `confirmSessionCompletion` → `confirmed_by_student_at`, `fee_held=false`, teacher wallet credited exactly once → both parties observe settled state.
 3. System (teacher stamp + 24h) → sweep → overdue row `cancelled` + same-lane refund → **student receives auto-cancel notification**.
-4. Either participant (pre-completion) → `openSessionDispute` → `disputed`; admin arbitration (existing DEV3-021 surface).
+4. Either participant (pre-completion) → `openSessionDispute` → `disputed`; admin arbitration (existing surface).
 
 ### Observer-perspective EARS
 - WHEN teacher completes THEN student SHALL observe a confirm-required notification AND the row remains payable-but-unpaid.

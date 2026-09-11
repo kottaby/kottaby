@@ -1,10 +1,10 @@
 ```markdown
-# Trackable Implementation Tasks: DEV1-014 — Parent-Child Link Request Workflow (7-Day Expiry)
+# Trackable Implementation Tasks: Parent-Child Link Request Workflow (7-Day Expiry)
 
 > **Plan directory (verbatim — every header, ledger path, outcome path, and self-reference in this document uses exactly this string):** `ai/plans/sprint_3/dev1-014-parent-child-link-request-workflow-7-day`
 > **Specs of record:** `ai/plans/sprint_3/dev1-014-parent-child-link-request-workflow-7-day/specs.md` (REQ-001..REQ-096)
 > **Architecture of record:** `ai/plans/sprint_3/dev1-014-parent-child-link-request-workflow-7-day/plan.md` (D1..D12)
-> **Ticket:** DEV1-014 · Sprint 3 · 5 SP · Blocked by DEV1-013 (shipped)
+> **Ticket:** · Sprint 3 · 5 SP · Blocked (shipped)
 > **Scope reality:** Backend (schema + types + repo + service + resolvers) — AND — Frontend (documents + one new student page + one parent-page section + nav + i18n namespace). ALL 8 phases are in scope; none are padded.
 
 ---
@@ -238,7 +238,7 @@ Verify each anchor is REAL in the bundled tree (locate it; cite line). ANY miss 
   - **`respondToLinkRequest`** per plan §4.2: actor re-check (student) → ONE tx → `respondToPendingForStudent` guarded claim; null → classifier via `findById` (nonexistent/foreign ⇒ constant `NotFoundError("PARENT_LINK_REQUEST", t.parentLinkRequestNotFound)`; non-pending ⇒ `..._ALREADY_RESOLVED`; pending-but-dead ⇒ `markExpiredIfPending` + `..._EXPIRED`); accept=true: `linkParentIfUnlinked` guarded link write (zero rows ⇒ `PARENT_LINK_TARGET_ALREADY_LINKED` — the WHOLE tx rolls back; NO ghost confirmation), then `expireSiblingPendingsForStudent`, then in-tx `emitForUser` to the parent in parent's persisted locale (accepted copy + student's name), post-commit publish; accept=false: in-tx `emitForUser` (rejected copy) + NO students write + NO sibling expiry
   - **`cancelLinkRequest`**: actor re-check (parent) → tx → `cancelPendingForParent`; zero rows ⇒ SAME classifier; success ⇒ ZERO notifications (silent withdrawal); return outgoing-shaped payload via `findOutgoingRowById`
   - **`listMyOutgoing` / `listMyIncoming`**: relaxed-read actor re-check (self-scope honesty — self-scoped by the VERIFIED actorId regardless of request payload) → repo list → per-row computed render: `status === LinkStatus.Pending && expiresAt <= now` ⇒ surface `LinkStatus.Expired` WITHOUT writing (read purity, REQ-015); read-mapping goes through `isLinkStatus` (fail-closed on corrupt stored status)
-  - Copy composition: via `getServerTranslations(recipientLocale).notificationsTranslations.eventParentLink*` — recipient-locale at the EMITTER (engine §3.3, DEV3-018 D6)
+  - Copy composition: via `getServerTranslations(recipientLocale).notificationsTranslations.eventParentLink*` — recipient-locale at the EMITTER (engine §3.3, D6)
   - Log hygiene: `logDomainError` contexts EXACTLY `{ code, entity: "parent_link_requests" | "students" | "users", entityId?, locale }` — NEVER codes, NEVER names, NEVER emails, NEVER the submitted handshake code (R8 carried forward); happy path emits NOTHING (REQ-054)
 - [x] 2.3.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts backend/services/parents/parent-link-request.service.ts --lifecycle duplicates` AND `bun run scripts/health/sub-loop.ts backend/services/parents/index.ts --lifecycle duplicates` AND `bun run scripts/health/sub-loop.ts backend/services/index.ts --lifecycle duplicates` (exit 0)
 - [x] 2.3.TE **Test Engineering (4-Tier, `backend/services/parents/parent-link-request.service.test.ts`; REQ-071):**
@@ -322,7 +322,7 @@ Verify each anchor is REAL in the bundled tree (locate it; cite line). ANY miss 
 ### 3.3 [x] Codegen + schema-surface baseline reconcile-then-extend (TWO documented steps in ONE changeset)
 **REQ:** REQ-061 · plan §3.3
 
-- **STEP 1 — Re-anchor (reconcile):** rebuild the current SDL (`bun run generate:gqlSchema`); update `backend/graphql/test/schema-surface.test.ts` (the stale `PRE_3_1_*` baseline at `:19-71`) and `backend/graphql/test/sdl-static-assertions.test.ts` (`FROZEN_*` at `:12-28`) to reflect the CURRENT LIVE surface (which includes the already-shipped DEV3-016 admin surface). Record the reconcile decision + anchors in `outcome/3.3-outcome.md`. NEVER do this silently.
+- **STEP 1 — Re-anchor (reconcile):** rebuild the current SDL (`bun run generate:gqlSchema`); update `backend/graphql/test/schema-surface.test.ts` (the stale `PRE_3_1_*` baseline at `:19-71`) and `backend/graphql/test/sdl-static-assertions.test.ts` (`FROZEN_*` at `:12-28`) to reflect the CURRENT LIVE surface (which includes the already-shipped admin surface). Record the reconcile decision + anchors in `outcome/3.3-outcome.md`. NEVER do this silently.
 - **STEP 2 — Extend:** ADD this ticket's surface to the now-current baselines:
   - Pins for the five new root fields (2 queries + 3 mutations)
   - Pin `requestParentChildLink` as the ONLY nullable new mutation field
@@ -571,14 +571,14 @@ Verify each anchor is REAL in the bundled tree (locate it; cite line). ANY miss 
   - Sibling-expiry semantics on confirmation (why reject does NOT expire siblings — children choose parents)
   - Notification choreography: recipients, emitter-localized copy, `relatedEntityType="parent_link_request"` + `relatedEntityId`, publish-after-commit
   - Error/oracle matrix (the four channels)
-  - Consumer contract for DEV1-016 (parent monitoring portal reads ONLY `parent_id`) and DEV1-017 (session-completion notifications resolve parents through `parent_id`)
+  - Consumer contract: the parent monitoring portal reads ONLY `parent_id`, and session-completion notifications resolve parents through `parent_id`
 - [x] 7.1.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts docs/parents/parent-link-request.md --lifecycle duplicates` (exit 0; tsgo pass + jscpd 0 clones — sub-loop's oxlint leg structurally reports "No files found" on `.md` targets, the known D6 limitation; compensating jscpd gate green per D6)
 - [x] 7.1.SR **Semantic Review:** every RULE in the doc is backed by a test anchor (file:line) not just prose; forward-pointers named with owner + candidate ticket
 - [x] 7.1.IV **Instruction Verification:** `.agents/instructions/backend.instructions.md` (doc conventions)
 
 ### 7.2 [x] Surgical doc crosslinks + AGENTS propagation + root references
 **REQ:** REQ-081, REQ-082
-- UPDATE `docs/parents/handshake-code-discovery.md` R5 — ONE line: "shipped in DEV1-014 → see `docs/parents/parent-link-request.md`" (rules stay intact)
+- UPDATE `docs/parents/handshake-code-discovery.md` R5 — ONE line: "shipped in → see `docs/parents/parent-link-request.md`" (rules stay intact)
 - OPTIONAL single-line pointer in `docs/workflows/04-parent-supervision-handshake.md` (NO renumbering)
 - NO edits to `docs/specs/state-machine-invariants.md` / `docs/specs/open-decisions-and-gaps.md` (this ticket implements B.12/B.14/INV-P1 — it mints no new invariant)
 - UPDATE `backend/services/AGENTS.md` — ONE line for the parent-link service rule (single-writer `parent_id` via guarded confirm; single-writer notifications via the engine)
@@ -591,11 +591,11 @@ Verify each anchor is REAL in the bundled tree (locate it; cite line). ANY miss 
 
 ### 7.3 [x] Outcome synthesis + completion gate
 **REQ:** REQ-083 protocol closure
-- Write `outcome/7.3-synthesis-outcome.md` tying together: baseline vs final counts, acceptance-criteria traceability (every REQ with its evidence anchor), journey GREEN proof, static-locks proof, and the four forward-pointers to the cron sweep / cancelled vocabulary / unlink / DEV1-016+017 consumers
+- Write `outcome/7.3-synthesis-outcome.md` tying together: baseline vs final counts, acceptance-criteria traceability (every REQ with its evidence anchor), journey GREEN proof, static-locks proof, and the four forward-pointers to the cron sweep / cancelled vocabulary / unlink /  consumers
 - Verify EVERY task checkbox in this file is `[x]`; verify every task's outcome file exists; verify the §0 ledger gate is still 0 ❌/⚠️
 - Final gate: `grep -c "❌\|⚠️" ai/plans/sprint_3/dev1-014-parent-child-link-request-workflow-7-day/deferred-items.md` == 0
 - The acceptance criteria from the ticket are all satisfied:
-  - Parent searches via handshake code → student found (pre-shipped DEV1-013; reused, not reimplemented)
+  - Parent searches via handshake code → student found (pre-shipped; reused, not reimplemented)
   - Link request created with 7-day expiry → ✅ via REQ-010/011/015 + the partial-unique index
   - Student confirms → link established (`parent_id` written by the guarded single-writer) → ✅ via REQ-016/021
   - 7 days pass → lazy expiry materialization + computed render on reads → ✅ via REQ-015/044
@@ -608,4 +608,4 @@ Verify each anchor is REAL in the bundled tree (locate it; cite line). ANY miss 
 
 ---
 
-**End of tasks.md — DEV1-014.** The Phase-1.5 `@plan-review` gate (task 0.3) MUST pass BEFORE Phase 1 begins. The journey task (2.1) is authored TEST-FIRST — RED by construction until task 2.3 completes the service surface; thereafter it serves as the standing cross-actor regression gate re-verified at 5.4 and again at Phase 6 review waves.
+**End of tasks.md.** The Phase-1.5 `@plan-review` gate (task 0.3) MUST pass BEFORE Phase 1 begins. The journey task (2.1) is authored TEST-FIRST — RED by construction until task 2.3 completes the service surface; thereafter it serves as the standing cross-actor regression gate re-verified at 5.4 and again at Phase 6 review waves.

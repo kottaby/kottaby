@@ -1,13 +1,13 @@
-# `tasks.md` — DEV1-006: Subscription Purchase via Payment Gateway
+# `tasks.md` — Subscription Purchase via Payment Gateway
 
-**Plan directory:** `ai/plans/sprint_1/DEV1-006-subscription-purchase-payment-gateway/`
+**Plan directory:** this directory (under `ai/finished_plans/sprint_1/`; moved from `ai/plans/` on completion)
 **Specs:** `specs.md` · **Plan:** `plan.md` · **Ledger:** `deferred-items.md` · **Outcomes:** `outcome/`
 
-**Nature of this ticket:** buys-side money flow — green-field creation on top of an EXISTING catalog (DEV1-005), with a deliberate, documented amendment to the `student_payments` immutability trigger and a mock gateway behind a provider-agnostic port.
+**Nature of this ticket:** buys-side money flow — green-field creation on top of an EXISTING catalog (the Plan Catalog CRUD (Admin Only) ticket), with a deliberate, documented amendment to the `student_payments` immutability trigger and a mock gateway behind a provider-agnostic port.
 
 ## Document Information
 
-- **Feature**: Subscription Purchase via Payment Gateway · **Ticket**: DEV1-006 (Sprint 1, 5 pts)
+- **Feature**: Subscription Purchase via Payment Gateway · **Ticket**: Subscription Purchase via Payment Gateway (Sprint 1, 5 pts)
 - **Version**: 1.0 · **Date**: 2026-09-06
 
 ### Numbering & Traceability Conventions
@@ -93,7 +93,7 @@
   - _Requirements: REQ-004, REQ-014, REQ-030, REQ-070_
 
 - [x] 4.4 Repo extensions: `PlanRepository.findActiveById` + `StudentRepository.creditLaneBalance`
-  - EXTEND `backend/db/repo/billing/plan.repository.ts` (active-only read predicate — DEV1-005 REQ-044 fulfillment); EXTEND `backend/db/repo/students/student.repository.ts` with `creditLaneBalance` (frozen `CREDIT_LANE_BALANCE_COLUMNS` map: Hifz→`balanceHifz`, Tajweed→`balanceTajweed`, Reviews→`balanceReviews`; do NOT touch `LANE_BALANCE_COLUMNS`).
+  - EXTEND `backend/db/repo/billing/plan.repository.ts` (active-only read predicate — REQ-044 fulfillment); EXTEND `backend/db/repo/students/student.repository.ts` with `creditLaneBalance` (frozen `CREDIT_LANE_BALANCE_COLUMNS` map: Hifz→`balanceHifz`, Tajweed→`balanceTajweed`, Reviews→`balanceReviews`; do NOT touch `LANE_BALANCE_COLUMNS`).
   - [x] 4.4.QL · [x] 4.4.TE — extend existing suites (`backend/db/test/logic/billing/plan-catalog.repository.test.ts` for the plan predicate; the students test suite for the credit method; lane credit proves +N mutation + CHECK floor intact + unchanged-other-lanes) · [x] 4.4.SEC · [x] 4.4.SR · [x] 4.4.IV
   - _Requirements: REQ-004, REQ-011, REQ-032, REQ-070_
 
@@ -190,7 +190,7 @@
   - _Requirements: REQ-001, REQ-002_
 
 - [x] 13.1 Knowledge propagation
-  - CREATE `docs/billing/subscription-purchase.md` (canonical: port + mock provider, purchase contract, webhook security, guarded activation + credit, idempotency, trigger amendment, consumer guidance for DEV1-007/008/009 + DEV2-005).
+  - CREATE `docs/billing/subscription-purchase.md` (canonical: port + mock provider, purchase contract, webhook security, guarded activation + credit, idempotency, trigger amendment, consumer guidance).
   - Add addenda: `docs/specs/state-machine-invariants.md` (INV-PAY2 addendum, new INV-PAY6/INV-PAY7, §4.1 reconciliation), `docs/specs/open-decisions-and-gaps.md` (lane encoding D4, `mock` member D5, no-UI D8).
   - ≤2-line AGENTS cross-refs + root `AGENTS.md` Important References line; `sub-loop.ts` per modified doc/AGENTS file.
   - Write `outcome/13.1-outcome.md`.

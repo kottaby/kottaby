@@ -1,4 +1,4 @@
-# DEV3-005 — Session Status State Machine Enforcement: Trackable Implementation Tasks
+# Session Status State Machine Enforcement: Trackable Implementation Tasks
 
 > **Plan directory (verbatim):** `ai/plans/sprint_1/dev3-005-session-status-state-machine-enforcement`
 > **Specs:** `ai/plans/sprint_1/dev3-005-session-status-state-machine-enforcement/specs.md` · **Plan:** `ai/plans/sprint_1/dev3-005-session-status-state-machine-enforcement/plan.md`
@@ -29,7 +29,7 @@
 ## Phase 1 — Transition Matrix & Gate Module
 
 - [x] 1.1 Create `backend/services/classes/session-lifecycle.enforcement.ts`
-  - Contents (per plan §Service/Repository Contracts): `SESSION_TRANSITION_MATRIX`, `isSessionTransitionAllowed(from, to)`, `assertSessionCompletedForReport`, `assertReportSubmittedForHomework`, `assertTeacherNotInActiveSession`. Pure matrix + tx-propagated assertions; denials via `ConflictError` + localized messages (`sessionInvalidTransition`; NEW keys `homeworkRequiresReport`, `teacherInActiveSession`). Session/report reads via existing repo surfaces only (`SessionRepository.findById`; for reports read, use a minimal `ReportRepository` EXISTS-style read IF one exists after 0.2 — otherwise create `backend/db/repo/classes/report.repository.ts` with ONLY `existsReportForSession(sessionId, tx)` and record the DEV3-006 extension contract in the ledger).
+  - Contents (per plan §Service/Repository Contracts): `SESSION_TRANSITION_MATRIX`, `isSessionTransitionAllowed(from, to)`, `assertSessionCompletedForReport`, `assertReportSubmittedForHomework`, `assertTeacherNotInActiveSession`. Pure matrix + tx-propagated assertions; denials via `ConflictError` + localized messages (`sessionInvalidTransition`; NEW keys `homeworkRequiresReport`, `teacherInActiveSession`). Session/report reads via existing repo surfaces only (`SessionRepository.findById`; for reports read, use a minimal `ReportRepository` EXISTS-style read IF one exists after 0.2 — otherwise create `backend/db/repo/classes/report.repository.ts` with ONLY `existsReportForSession(sessionId, tx)` and record the extension contract in the ledger).
   - Re-export through `backend/services/classes/index.ts` barrel per barrel rules (`export *`; `./` paths; max one `/`).
   - _Requirements: REQ-1, REQ-3_
   - [x] 1.1.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts backend/services/classes/session-lifecycle.enforcement.ts --lifecycle duplicates` (+ any new repo file) — exit 0.
@@ -74,7 +74,7 @@
 ## Phase 4 — Docs, Ledger Close, Knowledge Propagation
 
 - [x] 4.1 Documentation amendments
-  - `docs/sessions/session-lifecycle.md` §10 consumer table: INV-S6 (lock + release landed, cite anchors), INV-S7/S8 gates live at `session-lifecycle.enforcement.ts` with anchors, dispute-surface verified by journey; remove stale "DEV3-005-owned" forwards for these rows only.
+  - `docs/sessions/session-lifecycle.md` §10 consumer table: INV-S6 (lock + release landed, cite anchors), INV-S7/S8 gates live at `session-lifecycle.enforcement.ts` with anchors, dispute-surface verified by journey; remove stale "this-ticket-owned" forwards for these rows only.
   - `docs/specs/state-machine-invariants.md` §1.1 implementation-reference note: INV-S6 enforced; dispute verified.
   - Verify `AGENTS.md` (root) INV/session doc line pulls are not stale before touching; change only if stale.
   - _Requirements: REQ-6_

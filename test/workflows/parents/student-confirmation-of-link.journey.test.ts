@@ -3,7 +3,7 @@
  *
  * Executes the confirmation/rejection workflow against REAL services on
  * the REAL test database (sequential, actor-attributed steps; later steps
- * observe the shared state earlier steps committed). DEV1-014's journey owns
+ * observe the shared state earlier steps committed). The request journey owns
  * the request-creation loop; THIS journey owns the decision legs and pins:
  *
  *  - Step 1  — Parent A creates the request: pending row, ONE deep-linked
@@ -27,7 +27,7 @@
  *  - Step 8  — Parent-side visibility pin: terminal statuses surface while
  *              the student name stays masked FOREVER (maskFullName).
  *  - Step 9  — RACE: winner/loser confirmation. 9a is the deterministic
- *              loser-collapse emulation (runs everywhere, the DEV1-014
+ *              loser-collapse emulation (runs everywhere, the
  *              journey-C guard pattern); 9b is the TRUE concurrent
  *              `Promise.allSettled` race, wholesale-skip-gated via
  *              `isPgliteProvider` exactly like the chaos tier — PGlite is
@@ -133,7 +133,7 @@ const PARENT_LINK_NOTIFICATION_TYPE: NotificationRow["type"] = NotificationType.
 /**
  * The free-varchar `related_entity_type` value the notification rows carry —
  * the drawer's deep-link key (no enum exists for it; the value is the
- * DEV1-014-shipped emitters' own constant).
+ * emitted rows' own constant).
  */
 const PARENT_LINK_RELATED_ENTITY_TYPE = "parent_link_request";
 // Parent-audience refinement (issue #99) — the decision rows carry this
@@ -1115,7 +1115,7 @@ describe("Journey — student confirmation of the parent link (steps 1–11)", (
     // The boundary fixture: expiresAt injected AT the boundary instant —
     // every later captured `now` fails the strict `>` liveness predicate.
     // The column is application-written, so committing the instant directly
-    // is honest fixture control (the DEV1-014 journey-C pattern).
+    // is honest fixture control (the journey-C pattern).
     const sInboxBeforeFixture = (await linkInboxRowsFor(s.studentS.userId)).length;
     const boundary = await db.transaction(async (tx: DBTransaction): Promise<ParentLinkRequestRow> => {
       // DB-CLOCK read — the injected boundary instant is the DATABASE's own

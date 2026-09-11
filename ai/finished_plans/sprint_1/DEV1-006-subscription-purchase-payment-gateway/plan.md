@@ -1,16 +1,16 @@
-# Technical Architecture & Implementation Design: DEV1-006 — Subscription Purchase via Payment Gateway
+# Technical Architecture & Implementation Design: Subscription Purchase via Payment Gateway
 
-**Plan directory:** `ai/plans/sprint_1/DEV1-006-subscription-purchase-payment-gateway/`
-**Specs:** `ai/plans/sprint_1/DEV1-006-subscription-purchase-payment-gateway/specs.md`
-**Tasks:** `ai/plans/sprint_1/DEV1-006-subscription-purchase-payment-gateway/tasks.md`
-**Deferred-items ledger:** `ai/plans/sprint_1/DEV1-006-subscription-purchase-payment-gateway/deferred-items.md`
+**Plan directory:** this directory (under `ai/finished_plans/sprint_1/`; moved from `ai/plans/` on completion)
+**Specs:** `specs.md` (this directory)
+**Tasks:** `tasks.md` (this directory)
+**Deferred-items ledger:** `deferred-items.md` (this directory)
 
 ## Document Information
 
 - **Feature Name**: Subscription Purchase via Payment Gateway
-- **Ticket**: DEV1-006 (Sprint 1, 5 pts) — `docs/planning/TICKETS.md:449-493`
+- **Ticket**: Subscription Purchase via Payment Gateway (Sprint 1, 5 pts) — `docs/planning/TICKETS.md:449-493`
 - **Version**: 1.0 · **Date**: 2026-09-06
-- **Related Documents**: `docs/billing/plan-catalog.md` (DEV1-005), `docs/IDEMPOTENCY.md`, `docs/notifications/realtime-engine.md`, `docs/graphql/error-handling-contract.md`, `docs/specs/state-machine-invariants.md`, `docs/specs/open-decisions-and-gaps.md`, `docs/planning/SPRINT_PLAN.md`
+- **Related Documents**: `docs/billing/plan-catalog.md` (the Plan Catalog CRUD (Admin Only) ticket), `docs/IDEMPOTENCY.md`, `docs/notifications/realtime-engine.md`, `docs/graphql/error-handling-contract.md`, `docs/specs/state-machine-invariants.md`, `docs/specs/open-decisions-and-gaps.md`, `docs/planning/SPRINT_PLAN.md`
 
 ## 1. System Overview & Architecture
 
@@ -48,7 +48,7 @@ sequenceDiagram
 | D1 | Mock provider behind `PaymentGatewayPort` (`backend/types/billing/payment-gateway.types.ts` types + `backend/services/billing/payment-gateway/` runtime) | SPRINT_PLAN:161 mandates mock-for-dev; port + factory mirrors meeting-provider doctrine | Hardcoding a real SDK (no credentials exist), inline "if mock" branches |
 | D2 | Amend `prevent_student_payments_update` trigger: allow ONLY `pending→paid|failed` with financial columns frozen | Ticket AC flips `student_payments.status`; INV-PAY2 correction-ban preserved as column-freeze | Compensating-row ledger (breaks unique read model, double-booking risk), dropping the trigger (loses INV-PAY2) |
 | D3 | Stage activation crediting on `subscriptions`, not a separate event table | `subscriptions.status` guarded transition IS the idempotency arbiter (zero-row replay); no extra infra | New `processed_webhook_events` table (unneeded second source of truth) |
-| D4 | New `plans.balance_lane` column (`subscription_credit_lane` pgEnum: hifz/tajweed/reviews), fail-closed purchase when NULL | Nothing in tree encodes plan→lane (verified); title-parsing is forbidden heuristic; FR-2.4/INV-B2 requires a lane at activation | Title heuristics; deferring to DEV1-007 (would break DEV1-006 AC "credit on activation") |
+| D4 | New `plans.balance_lane` column (`subscription_credit_lane` pgEnum: hifz/tajweed/reviews), fail-closed purchase when NULL | Nothing in tree encodes plan→lane (verified); title-parsing is forbidden heuristic; FR-2.4/INV-B2 requires a lane at activation | Title heuristics; deferring to (would break this ticket AC "credit on activation") |
 | D5 | Add `mock` member to `payment_gateway` pgEnum + TS enum | Audit honesty (INV-PAY4): mock payments must be distinguishable from `other` | Mapping to `other` (loses attribution in auditor queries) |
 | D6 | Purchase idempotency via NEW `subscription_purchase_idempotency` claim table (fate-sharing insert-in-tx) | Mirrors exact session-claim precedent (`session_request_idempotency`); `docs/IDEMPOTENCY.md` mandates keys for Payment creation | Unique constraint on `(user_id,plan_id)` (would block legitimate renewals) |
 | D7 | lane credit via new `StudentRepository.creditLaneBalance(studentId, lane, amount, tx)` using a FROZEN credit-lane column map (3 lanes incl. reviews) | Existing `LANE_BALANCE_COLUMNS` deliberately excludes reviews (holds vocabulary); crediting needs all three | Reusing `HeldBalanceLane` (would smuggle `reviews` into hold vocabulary) |
@@ -147,7 +147,7 @@ enum SubscriptionCreditLane { HIFZ TAJWEED REVIEWS }
 | Anonymous | 401 | 401 | verified signature or 401; 404 when disabled | 403 |
 | STUDENT | ✅ own | ✅ own | — | 403 |
 | PARENT / TEACHER / SUPERVISOR | 403 | 403 | — | 403 |
-| ADMIN (non-super) | 403 (role-gated; admin completes purchases via DEV1-009 surfaces) | 403 | — | ✅ (existing catalog gate) |
+| ADMIN (non-super) | 403 (role-gated; admin completes purchases via surfaces) | 403 | — | ✅ (existing catalog gate) |
 
 ### 3.4 Webhook REST contract
 
@@ -184,7 +184,7 @@ enum SubscriptionCreditLane { HIFZ TAJWEED REVIEWS }
 - `insertClaim(insert, tx?)` (23505 NOT caught inside repo), `findByKey(key, tx?)`, `updateClaimSubscriptionId(claimId, subscriptionId, tx?)`
 
 **`backend/db/repo/billing/plan.repository.ts`** (EXTEND):
-- `findActiveById(id: number, tx?: DBQueryExecutor): Promise<PlanSelectType | null>` — `WHERE id AND is_active = true` (fulfills the DEV1-005 REQ-044 read predicate)
+- `findActiveById(id: number, tx?: DBQueryExecutor): Promise<PlanSelectType | null>` — `WHERE id AND is_active = true` (fulfills the REQ-044 read predicate)
 
 **`backend/db/repo/students/student.repository.ts`** (EXTEND):
 - `creditLaneBalance(studentId: number, lane: SubscriptionCreditLane, amount: number, tx?: DBTransaction): Promise<StudentSelectType | null>` — single guarded `SET balance_x = balance_x + amount WHERE id`; frozen `CREDIT_LANE_BALANCE_COLUMNS` map (hifz/tajweed/reviews)
@@ -242,13 +242,13 @@ stateDiagram-v2
 |---|---|---|---|
 | purchase → pending | `subscriptions`, `student_payments`, `student_subscriptions`, `subscription_purchase_idempotency` | none (pending is silent) | `X-Idempotency-Key` claim row |
 | → active | guarded UPDATE ×2 + students lane credit | `NotificationType.PaymentConfirmation` → purchaser (in-tx persist, post-commit publish) | zero-row guard on transition |
-| → failed payment | guarded UPDATE ×1 | none this ticket (DEV1-009 follow-up) | same guard |
+| → failed payment | guarded UPDATE ×1 | none this ticket (follow-up) | same guard |
 
 **Cross-Actor visibility:**
 
 | State | Student A sees | Student B sees | Admin sees |
 |---|---|---|---|
-| pending | pending sub + payment via `mySubscriptions` | nothing | existing catalog only (subscriber views: DEV1-009) |
+| pending | pending sub + payment via `mySubscriptions` | nothing | existing catalog only (subscriber views:) |
 | active | active sub + dates; bigger balance | nothing | unchanged this ticket |
 | failed payment | pending sub + failed payment | nothing | unchanged |
 

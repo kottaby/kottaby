@@ -207,8 +207,8 @@ jobs:
       - name: Run database repository tests
         run: bun run test:db
 
-  # Backend service tests (DB-backed lifecycle suites, e.g. DEV2-004
-  # tasks.md 2.2.TE which mandates the real repository over mocked adapters).
+  # Backend service tests (DB-backed lifecycle suites, which mandate the
+  # real repository over mocked adapters).
   tests-services:
     needs: quality
     runs-on: ubuntu-latest

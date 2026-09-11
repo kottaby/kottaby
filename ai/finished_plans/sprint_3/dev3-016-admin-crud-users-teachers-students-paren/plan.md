@@ -1,4 +1,4 @@
-# Technical Architecture & Implementation Design: DEV3-016 — Admin CRUD: Users, Teachers, Students, Parents
+# Technical Architecture & Implementation Design: Admin CRUD: Users, Teachers, Students, Parents
 
 > **Plan of record:** `ai/plans/sprint_3/dev3-016-admin-user-crud/`
 > **Specs:** `specs.md` REQ-001..REQ-083, Journeys §2.9 (A/B/C, JR-A-1, JR-A-2, JR-B-1, JR-C-1)
@@ -10,7 +10,7 @@
 
 ### 1.1 Scope Statement
 
-DEV3-016 ships the **identity-and-governance core of Workflow 05**: one admin user directory, one admin user detail surface, and three mutations (create / update / soft-delete-reactivate) with transactional audit emission. It deliberately does **not** ship plan CRUD (DEV1-005, shipped), session governance (DEV3-021), financial auditing (DEV3-022b), audit browsing (DEV3-020), cold-start certification (DEV3-018), or direct student onboarding (DEV3-019). Because `teachers`/`students`/`parents`/`applicants` are shared-PK role children of `users` (FR-1.2), "CRUD over teachers/students/parents" is realized as **role-aware projections over the one `users` directory** — no parallel per-role CRUD surface is created.
+ ships the **identity-and-governance core of Workflow 05**: one admin user directory, one admin user detail surface, and three mutations (create / update / soft-delete-reactivate) with transactional audit emission. It deliberately does **not** ship plan CRUD (shipped), session governance, financial auditing, audit browsing, cold-start certification, or direct student onboarding. Because `teachers`/`students`/`parents`/`applicants` are shared-PK role children of `users` (FR-1.2), "CRUD over teachers/students/parents" is realized as **role-aware projections over the one `users` directory** — no parallel per-role CRUD surface is created.
 
 ### 1.2 Write Path (create / update / setDeleted)
 
@@ -26,7 +26,7 @@ DEV3-016 ships the **identity-and-governance core of Workflow 05**: one admin us
 │   authScopes: { $all: { authenticated: true, role: [UserRole.Admin] } }     │
 │     • anonymous   → UnauthorizedError  → UNAUTHORIZED (401 semantics)       │
 │     • non-admin   → role scope false   → FORBIDDEN (403)                    │
-│   (verified DEV2-004 semantics: plain key-map = ANY-semantics — WRONG;      │
+│   (verified          semantics: plain key-map = ANY-semantics — WRONG;      │
 │    $all conjunction is the REQUIRED shape. Docs: applicant-lifecycle §3)    │
 └──────────────────────────────────┬──────────────────────────────────────────┘
                                    ▼
@@ -36,8 +36,8 @@ DEV3-016 ships the **identity-and-governance core of Workflow 05**: one admin us
 │     withTransaction(outerTx) {                                              │
 │       1. role guard (≠ admin → ADMIN_ROLE_CREATION_FORBIDDEN)               │
 │       2. boundary validation (fields whitelist, pre-DB)                     │
-│       3. UserRepository.create(insert, tx)        ← DEV1-002 reuse          │
-│       4. role child: students(+handshake retry + trial via DEV1-004 entry)  │
+│       3. UserRepository.create(insert, tx)        ←          reuse          │
+│       4. role child: students(+handshake retry + trial via          entry)  │
 │                      applicants (NEVER teacher row — B.7) / parents         │
 │       5. AuditService.createAuditLog(AuditLogWriteContract, tx)             │
 │       6. getUserDetail(id, locale, tx)  → RETURNING-equivalent detail       │
@@ -57,10 +57,10 @@ DEV3-016 ships the **identity-and-governance core of Workflow 05**: one admin us
                                    ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │ REPOSITORIES (all accept tx?: DBTransaction — optional-last)                │
-│   UserRepository.create                        (EXISTING — DEV1-002 reuse)  │
+│   UserRepository.create                        (EXISTING —          reuse)  │
 │   StudentRepository.createForRegistration      (EXISTING)                   │
 │   ApplicantRepository.create / ParentRepository.createForRegistration       │
-│   StudentTrialService.grantFreeTrial           (DEV1-004 entry — verify)    │
+│   StudentTrialService.grantFreeTrial           (         entry — verify)    │
 │   AuditService.createAuditLog                  (EXISTING — verify name)     │
 │   AdminUserRepository  (NEW — backend/db/repo/admin/)                       │
 │     listDirectory(filters, offset, limit, tx?)                              │
@@ -93,24 +93,24 @@ adminUsers(filters, page, pageSize)                       adminUserDetail(id)
         WHERE <ANDed filters incl. escaped ilike>               (isApplicantStatus fail-closed)
         ORDER BY created_at ASC, id ASC                       → ⊘ row → USER_NOT_FOUND
         LIMIT/OFFSET                                        (oracle ruling: admin surface —
-      + countDirectory (same WHERE, no joins)                 NOT_FOUND not FORBIDDEN, DEV1-005)
+      + countDirectory (same WHERE, no joins)                 NOT_FOUND not FORBIDDEN)
 ```
 
 ### 1.4 Key Design Decisions Table
 
 | # | Decision | Options Considered | Pros / Cons | Rationale (Maintainability, Scalability, Reliability) |
 |---|---|---|---|---|
-| D1 | **Scope = identity core only**: no plan/session/financial/audit-browsing/parent-link/cold-start surfaces | (a) full Workflow-05 build in one ticket; (b) identity core only | (a) Cons: 30+ SP, unreviewable, collides with DEV3-017..022b ownership. (b) Pros: satisfies Sprint-3 dependency graph, ships the substrate every later ticket imports. | The specs §1 scope ruling + TICKETS/SPRINT_PLAN dependency graph. Non-goals are contractual, verified by static scans (REQ-021/075). |
+| D1 | **Scope = identity core only**: no plan/session/financial/audit-browsing/parent-link/cold-start surfaces | (a) full Workflow-05 build in one ticket; (b) identity core only | (a) Cons: 30+ SP, unreviewable, collides with ownership. (b) Pros: satisfies Sprint-3 dependency graph, ships the substrate every later ticket imports. | The specs §1 scope ruling + TICKETS/SPRINT_PLAN dependency graph. Non-goals are contractual, verified by static scans (REQ-021/075). |
 | D2 | **One `users` directory with role-child projections via LEFT JOINs + scalar subselects** (single round trip) | (a) per-role separate queries/tabs; (b) one joined query; (c) DataLoader fan-out | (a) Cons: four surfaces to secure/test; paging across role tabs is incoherent. (b) Pros: one permission boundary, one page order, M:N fan-out avoided by scalar subqueries (counts/exists never join-multiply). (c) Cons: list latency dominated by one query anyway; DataLoader solves N+1 per-parent resolution that doesn't exist here (REQ-060 note; docs/graphql/dataloader-batching.md forward contract). | FR-10.1 "directory of all users"; projections are 1:1 shared-PK joins. Deterministic single-query plan is trivially EXPLAIN-able (PROD-READINESS 6.4). |
-| D3 | **Soft-delete/reactivate via single guarded conditional `UPDATE … WHERE id=? AND <null-safe inverse-state guard> … RETURNING *`; empty result → cold-path `existsById` probe → USER_NOT_FOUND vs typed CONFLICT** | (a) SELECT-then-UPDATE; (b) advisory lock; (c) guarded UPDATE | (a) TOCTOU — two concurrent deletes both read `false` and both "succeed" (REQ-043a violated). (b) serialization without need. (c) predicate evaluated under PostgreSQL row lock ⇒ race window = 0; loser gets typed conflict. | DEV1-004 (`grantFreeTrialOnce`) + DEV1-005 (`setActiveStatusOnce`) proven precedent, reused verbatim in spirit (REQ-017/018/040/041). |
-| D4 | **Null-safe state guards**: delete guard = `is_deleted = false OR is_deleted IS NULL`; reactivate guard = `is_deleted = true` | (a) naive `= <bool>`; (b) null-aware predicate | (a) `NULL IS NOT FALSE` in SQL — a legacy NULL row would be un-deletable forever (silent bug). (b) correct under the nullable-with-default column shape (DEV1-001). | `$inferSelect` yields `boolean \| null` for the governance columns; guards must respect three-valued logic. Test-locked by REQ-074 (fixture inserted with explicit NULL proves guard). |
-| D5 | **Creation composes DEV1-002 primitives** (`UserRepository.create`, role-child repos, handshake retry, 23505→ConflictError cause-chain) inside `withTransaction(outerTx)`; trial grant via DEV1-004's single provisioning entry point WHEN present | (a) fork an admin-specific registration pipeline; (b) compose existing | (a) two registration truths → INV-U/B invariants diverge. (b) one atomicity pattern, one handshake algorithm, one duplicate-email translation. | REQ-014/040 + `docs/auth/user-registration.md` §3. If DEV1-004's entry point is absent, the trial grant registers as a ❌/targeted deferred dependency (REQ-004), never re-implemented. |
-| D6 | **Admin-role creation blocked twice**: `RegisterPublicRole` input enum structurally excludes admin (schema layer), and the service re-guards (`ADMIN_ROLE_CREATION_FORBIDDEN`) for transport tamper | (a) enum only; (b) service only; (c) both | (a) fails hand-crafted HTTP bodies bypassing schema validation. (b) fails future schema drift. (c) defense in depth. | REQ-015 + DEV1-002 §5 BFLA layering precedent. The service-only `createAdminUser` path stays unwired to GraphQL (grep-proven). |
-| D7 | **Every successful mutation appends exactly one `audit_logs` row INSIDE the same tx, composed via `AuditLogWriteContract`; denials write ZERO audit rows** | (a) post-commit audit side effect; (b) in-tx via contract; (c) audit on denials too | (a) Cons: crash between write and audit loses the trail. (b) Pros: audit and mutation share fate (commit or roll back together); contract composition-only rule satisfies DEV2-003 governance. (c) Cons: denial noise pollutes the append-only trail; JR-C-1 forbids it. | A.5 + FR-10.5 + contract §5 actor discipline (`actorId` from `ctx.user.id` always). Rollback test proves zero residual rows in all three tables on failure (REQ-040). |
+| D3 | **Soft-delete/reactivate via single guarded conditional `UPDATE … WHERE id=? AND <null-safe inverse-state guard> … RETURNING *`; empty result → cold-path `existsById` probe → USER_NOT_FOUND vs typed CONFLICT** | (a) SELECT-then-UPDATE; (b) advisory lock; (c) guarded UPDATE | (a) TOCTOU — two concurrent deletes both read `false` and both "succeed" (REQ-043a violated). (b) serialization without need. (c) predicate evaluated under PostgreSQL row lock ⇒ race window = 0; loser gets typed conflict. |  (`grantFreeTrialOnce`) +  (`setActiveStatusOnce`) proven precedent, reused verbatim in spirit (REQ-017/018/040/041). |
+| D4 | **Null-safe state guards**: delete guard = `is_deleted = false OR is_deleted IS NULL`; reactivate guard = `is_deleted = true` | (a) naive `= <bool>`; (b) null-aware predicate | (a) `NULL IS NOT FALSE` in SQL — a legacy NULL row would be un-deletable forever (silent bug). (b) correct under the nullable-with-default column shape. | `$inferSelect` yields `boolean \| null` for the governance columns; guards must respect three-valued logic. Test-locked by REQ-074 (fixture inserted with explicit NULL proves guard). |
+| D5 | **Creation composes primitives** (`UserRepository.create`, role-child repos, handshake retry, 23505→ConflictError cause-chain) inside `withTransaction(outerTx)`; trial grant via the single provisioning entry point WHEN present | (a) fork an admin-specific registration pipeline; (b) compose existing | (a) two registration truths → INV-U/B invariants diverge. (b) one atomicity pattern, one handshake algorithm, one duplicate-email translation. | REQ-014/040 + `docs/auth/user-registration.md` §3. If the entry point is absent, the trial grant registers as a ❌/targeted deferred dependency (REQ-004), never re-implemented. |
+| D6 | **Admin-role creation blocked twice**: `RegisterPublicRole` input enum structurally excludes admin (schema layer), and the service re-guards (`ADMIN_ROLE_CREATION_FORBIDDEN`) for transport tamper | (a) enum only; (b) service only; (c) both | (a) fails hand-crafted HTTP bodies bypassing schema validation. (b) fails future schema drift. (c) defense in depth. | REQ-015 +  §5 BFLA layering precedent. The service-only `createAdminUser` path stays unwired to GraphQL (grep-proven). |
+| D7 | **Every successful mutation appends exactly one `audit_logs` row INSIDE the same tx, composed via `AuditLogWriteContract`; denials write ZERO audit rows** | (a) post-commit audit side effect; (b) in-tx via contract; (c) audit on denials too | (a) Cons: crash between write and audit loses the trail. (b) Pros: audit and mutation share fate (commit or roll back together); contract composition-only rule satisfies governance. (c) Cons: denial noise pollutes the append-only trail; JR-C-1 forbids it. | A.5 + FR-10.5 + contract §5 actor discipline (`actorId` from `ctx.user.id` always). Rollback test proves zero residual rows in all three tables on failure (REQ-040). |
 | D8 | **Page-based pagination, bounded (`page ≥ 1`, `pageSize ∈ 1..100`, default 25), stable order `(created_at ASC, id ASC)`** | (a) keyset/cursor; (b) offset page-based | (a) Pros: drift-proof under concurrent inserts. Cons: complexity unjustified for a sparse admin directory (dozens–hundreds). (b) Pros: simple, honest `totalCount`, empty-page (not error, not clamped) on overflow per REQ-012. | REQ-012/046; keyset recorded as a documented future refinement, not shipped (documented in canonical doc). |
 | D9 | **Directory search: `escapeLikeWildcards` + parameterized `ilike` on `fullName`/`email`; filters ANDed; unknown/empty filters drop to unfiltered; malformed enums/pagination fail VALIDATION pre-DB** | (a) raw pattern interpolation; (b) escaped + parameterized | (a) wildcard injection lets `%` enumerate everything regardless of intent. (b) literal-match semantics provable by fuzz (REQ-034/072/075). | Only injection-sensitive input surface in the ticket — the canonical doc mandates the same for any future admin search. |
-| D10 | **`authScopes: { $all: { authenticated: true, role: [UserRole.Admin] } }` on ALL five operations** | (a) plain `{ authenticated, role }` map; (b) `$all`; (c) `superAdmin: true` | (a) WRONG: Pothos scope-auth combines one map's keys with ANY semantics — any authenticated caller passes `authenticated` alone (verified in DEV2-004). (b) correct conjunction: anonymous → 401 via thrown `UnauthorizedError`; authed non-admin → 403. (c) equivalent outcome here but conflates axes (jwt-authentication-service §3.3); role-axis chosen for dev-annotation clarity & future group decoupling. | REQ-030/062 + `docs/teachers/applicant-lifecycle.md` §3 verified semantics. |
-| D11 | **Missing/unknown user id on admin surfaces → `USER_NOT_FOUND`, NOT `FORBIDDEN`** | (a) FORBIDDEN; (b) NOT_FOUND | (a) wrongly implies the id exists but is off-limits — an oracle-ish lie and wrong semantics. (b) Admin is the full-governance actor; user existence is non-sensitive to him (DEV1-005 REQ-032 ruling). | REQ-013/032. Canonical doc carries the warning: this ruling MUST NOT be copy-pasted to non-admin surfaces. |
+| D10 | **`authScopes: { $all: { authenticated: true, role: [UserRole.Admin] } }` on ALL five operations** | (a) plain `{ authenticated, role }` map; (b) `$all`; (c) `superAdmin: true` | (a) WRONG: Pothos scope-auth combines one map's keys with ANY semantics — any authenticated caller passes `authenticated` alone (verified). (b) correct conjunction: anonymous → 401 via thrown `UnauthorizedError`; authed non-admin → 403. (c) equivalent outcome here but conflates axes (jwt-authentication-service §3.3); role-axis chosen for dev-annotation clarity & future group decoupling. | REQ-030/062 + `docs/teachers/applicant-lifecycle.md` §3 verified semantics. |
+| D11 | **Missing/unknown user id on admin surfaces → `USER_NOT_FOUND`, NOT `FORBIDDEN`** | (a) FORBIDDEN; (b) NOT_FOUND | (a) wrongly implies the id exists but is off-limits — an oracle-ish lie and wrong semantics. (b) Admin is the full-governance actor; user existence is non-sensitive to him (REQ-032 ruling). | REQ-013/032. Canonical doc carries the warning: this ruling MUST NOT be copy-pasted to non-admin surfaces. |
 | D12 | **Journey tests at `test/workflows/` tier** (real services, real DB, committed fixtures, hard-delete teardown, NO runInRollback, actor-attributed steps) | (a) GraphQL e2e only; (b) runInRollback integration only; (c) locked workflow tier | (a) spikes HTTP noise, misses actor-attribution assertions. (b) services spawn own transactions; rollback wrapper deadlocks/false-passes. (c) matches specs §2.9 1:1 and REQ-078 rules. | Cross-actor journey invariant (Section 4.5 → assertion set). Scaffold `test/workflows/` if absent (helpers + AGENTS.md). |
 
 ---
@@ -128,7 +128,7 @@ All structures pre-exist. `git diff -- backend/db/schema/** backend/db/migration
 | Shared-PK role children | `admin`, `teacher` (`is_approved`, `is_evaluator`, `is_online`, `average_rating`, `subjects`, `request_preference`), `students` (balances, `handshake_code` unique, `parent_id`, languages), `parents`, `applicants` (`verification_attempts`, `last_attempt_at`, `cooldown_until`, `status varchar(50)`) | `backend/db/schema/{users,teachers,students,parents}/*` |
 | Subscription headline source | `subscriptions.user_id`/`plan_id`, `status subscription_status`, `start_date`, `end_date` | `backend/db/schema/billing/subscriptions.ts` |
 | Audit append-only target (A.5) | `audit_logs` (`actorId`, `actionType audit_action_type`, `entityType`, `entityId`, `details varchar(2000)`, `createdAt`) | `backend/db/schema/audit/audit-logs.ts` |
-| DEV1-004 trial lane (conditional) | `students.balance_trial`, `trial_granted_at` + CHECK | `backend/db/schema/students/students.ts` (verify presence; else deferred-dependency note per REQ-004) |
+|  trial lane (conditional) | `students.balance_trial`, `trial_granted_at` + CHECK | `backend/db/schema/students/students.ts` (verify presence; else deferred-dependency note per REQ-004) |
 
 **Prohibited by construction:** no new tables/columns/enums; no `bun run db push`; no custom SQL in `backend/db/migration/`; `db reset`/`cleanGenerate` remain permanently disabled (`docs/DATABASE_MIGRATIONS.md`).
 
@@ -143,7 +143,7 @@ import type { UserRole } from "@/backend/enum/users/user-role.enum";
 import type { RegisterPublicRole } from "@/backend/types/users/registration.types";
 import type { UserSelectType } from "@/backend/types/users/user.types";
 
-/** passwordHash NEVER appears on any projection (DEV2-003 forbidden-field registry). */
+/** passwordHash NEVER appears on any projection (forbidden-field registry). */
 export type AdminUserSafeSelect = Omit<UserSelectType, "passwordHash">;
 
 /** Directory row — one users row + role-child headline projection (REQ-010). */
@@ -193,7 +193,7 @@ export interface AdminStudentSnapshotReturnType {
   readonly balanceHifz: number | null;
   readonly balanceTajweed: number | null;
   readonly balanceReviews: number | null;
-  readonly balanceTrial: number | null;           // present iff DEV1-004 lane landed
+  readonly balanceTrial: number | null; // present iff lane landed
   readonly trialGrantedAt: Date | null;
 }
 export interface AdminParentSnapshotReturnType {
@@ -201,7 +201,7 @@ export interface AdminParentSnapshotReturnType {
 }
 
 export interface AdminUserDetailReturnType extends AdminUserSafeSelect {
-  readonly applicant: ApplicantProfileReturnType | null;    // DEV2-004 canonical reuse
+  readonly applicant: ApplicantProfileReturnType | null; //  canonical reuse
   readonly teacher: AdminTeacherSnapshotReturnType | null;
   readonly student: AdminStudentSnapshotReturnType | null;
   readonly parent: AdminParentSnapshotReturnType | null;
@@ -343,7 +343,7 @@ type AdminUserDetail {
   suspended: Boolean!; suspendedAt: DateTime; suspendedPeriodDays: Int
   isBlocked: Boolean!; blockedAt: DateTime
   lastActiveAt: DateTime; createdAt: DateTime!; updatedAt: DateTime!
-  applicant: ApplicantProfile    # DEV2-004 object reuse — no ApplicantDetail re-declaration
+  applicant: ApplicantProfile #  object reuse — no ApplicantDetail re-declaration
   teacher: AdminTeacherSnapshot
   student: AdminStudentSnapshot
   parent: AdminParentSnapshot
@@ -376,7 +376,7 @@ extend type Mutation {
 | authScopes (EXACT) | `{ $all: { authenticated: true, role: [UserRole.Admin] } }` on ALL five operations (D10). Anonymous → `UNAUTHORIZED`; authenticated non-admin → `FORBIDDEN`. |
 | Rate limiting | Inherits platform posture unchanged (REQ-036); no new public surface; no limiter additions. |
 | Public allowlist | `backend/lib/gateway/public-operations.ts` UNTOUCHED — the 1:1 allowlist-coverage gate must stay green (REQ-062). |
-| No-delete-surface gate | Post-codegen grep assertions on generated `schema.graphql`: NO `deleteUser`/`hardDelete*`/`suspendUser`/`blockUser` operations (hard delete + suspend/block governance windows are structurally absent — REQ-021, INV-U4, DEV3-017 ownership). |
+| No-delete-surface gate | Post-codegen grep assertions on generated `schema.graphql`: NO `deleteUser`/`hardDelete*`/`suspendUser`/`blockUser` operations (hard delete + suspend/block governance windows are structurally absent — REQ-021, INV-U4, ownership). |
 | Codegen | `bun run generate:gqlSchema && bun codegen`; generated artifacts committed in the same change set (REQ-061). |
 | ROAD/route inventory | NO new `app/api/**` route — all traffic flows through `/api/graphql`; `ROUTE_INVENTORY` unchanged (A4 gate stays green). |
 
@@ -438,9 +438,9 @@ export namespace AdminUserManagementService {
 
 Method contracts:
 
-- **`listDirectory`** — validate pagination bounds pre-DB (`VALIDATION` on breach); drop empty/unknown filter members silently (REQ-011); escape `search` via `escapeLikeWildcards` then wrap as `%…%` parameterized `ilike` across `fullName`/`email` (REQ-034); call `listDirectory` + `countDirectory`; out-of-range page → empty `items` + honest `totalCount` (REQ-012); projection mapping null-coalesces governance booleans (`?? false`) and fail-closes stored applicant status through `isApplicantStatus` (corrupt value → `ValidationError("APPLICANT_STATUS_CORRUPT"…)` — reuse DEV2-004 key/behavior where present; otherwise the directory path documents the reuse and the DEV2-004 error code/key is imported, NEVER re-invented).
+- **`listDirectory`** — validate pagination bounds pre-DB (`VALIDATION` on breach); drop empty/unknown filter members silently (REQ-011); escape `search` via `escapeLikeWildcards` then wrap as `%…%` parameterized `ilike` across `fullName`/`email` (REQ-034); call `listDirectory` + `countDirectory`; out-of-range page → empty `items` + honest `totalCount` (REQ-012); projection mapping null-coalesces governance booleans (`?? false`) and fail-closes stored applicant status through `isApplicantStatus` (corrupt value → `ValidationError("APPLICANT_STATUS_CORRUPT"…)` — reuse key/behavior where present; otherwise the directory path documents the reuse and the error code/key is imported, NEVER re-invented).
 - **`getUserDetail`** — ID already validated by resolver guard is re-asserted defensively (pure, cheap); `⊘ row` → `NotFoundError("USER", tErrors.adminUsers.userNotFound)`; assemble role-child snapshots in the same tx (null per absent child table row). Student snapshot queries `subscriptions` for `status='active'` existence only (REQ-010 headline semantics; balances are pure reads).
-- **`createUser`** — order: role pre-guard (`input.role` admin → `ADMIN_ROLE_CREATION_FORBIDDEN`); field validation (name/phone/country bounds, email shape — reuse DEV1-002 validator helpers if exported, else local module-scope helpers); password hashing via the existing auth password helper; then `withTransaction(outerTx)`: `UserRepository.create` → role child create (`StudentRepository.createForRegistration` incl. its handshake collision retry per `docs/auth/user-registration.md` §2; `ApplicantRepository.create` ONLY for teacher — **never** a `teacher` row (B.7/INV-TV1); `ParentRepository.createForRegistration`) → trial grant via `StudentTrialService.grantFreeTrial(userId, locale, tx)` **iff** the DEV1-004 entry point exists (else record the gap in `deferred-items.md` targeting DEV1-004 contract — REQ-014's conditional path) → `AuditService.createAuditLog({ actorId, actionType: AuditActionType.Create, entityType: "user", entityId: newId, details: <PII-minimal JSON ≤2000 chars> }, tx)` → return `getUserDetail(newId, locale, tx)`. 23505 on email → existing cause-chain traversal → `ConflictError(tErrors.auth.emailAlreadyExists)`.
+- **`createUser`** — order: role pre-guard (`input.role` admin → `ADMIN_ROLE_CREATION_FORBIDDEN`); field validation (name/phone/country bounds, email shape — reuse validator helpers if exported, else local module-scope helpers); password hashing via the existing auth password helper; then `withTransaction(outerTx)`: `UserRepository.create` → role child create (`StudentRepository.createForRegistration` incl. its handshake collision retry per `docs/auth/user-registration.md` §2; `ApplicantRepository.create` ONLY for teacher — **never** a `teacher` row (B.7/INV-TV1); `ParentRepository.createForRegistration`) → trial grant via `StudentTrialService.grantFreeTrial(userId, locale, tx)` **iff** the entry point exists (else record the gap in `deferred-items.md` targeting contract — REQ-014's conditional path) → `AuditService.createAuditLog({ actorId, actionType: AuditActionType.Create, entityType: "user", entityId: newId, details: <PII-minimal JSON ≤2000 chars> }, tx)` → return `getUserDetail(newId, locale, tx)`. 23505 on email → existing cause-chain traversal → `ConflictError(tErrors.auth.emailAlreadyExists)`.
 - **`updateUser`** — pre-DB: reject empty patch (`VALIDATION` + `userPatchEmpty`); validate each supplied field; build `AdminUserUpdateDbPatch` **key-by-key** (no `{ ...input }` anywhere — grep-gate); tx: `updateProfileFields(id, patch + server `updatedAt`, tx)` → `null` row → `USER_NOT_FOUND`; audit `Update` with `details = {"changedFields": [...]}` (field NAMES only — never values for contact-PII classes, REQ-052); return detail. Runtime re-verification: the patch type structurally omits `role`/`email`/`passwordHash`/governance columns; a static assertion additionally proves the service file literally cannot reference them in a `.set()` (REQ-015 BFLA defense-in-depth).
 - **`setUserDeleted`** — tx: self-protection check FIRST (`id === actorId` → `ConflictError(USER_SELF_DEACTIVATION_FORBIDDEN)`, zero writes — JR-C-1/REQ-019 guard position is load-bearing for the no-audit-on-denial rule); guarded `setDeletedOnce(id, deleted, tx)` → null → `existsById` probe: `false` → `USER_NOT_FOUND`; `true` → `USER_ALREADY_DELETED` or `USER_NOT_DELETED` (per target); success → audit (`Delete` | `Reactivate`) → `getUserDetail`.
 - **Logging discipline (REQ-052/053)** — expected rejections via `logger.logDomainError` with `{ code, entity: "user", entityId }` (ids + codes only — no PII payloads, no emails); unexpected → `logger.error`; **never `console.*`**. Audit `details` JSON is production-capped to ≤ 2000 chars with safe truncation that NEVER fails the mutation (the varchar(2000) column ceiling).
@@ -492,8 +492,8 @@ export namespace AdminUserRepository {
 | Double-create same email (double-click / retry storm) | admin + client UI | duplicate account | `users.email` unique 23505 → `ConflictError` via cause-chain traversal; UI also disables submit in-flight (REQ-043d, REQ-065; `docs/IDEMPOTENCY.md` scope analysis: admin user creation is OUTSIDE the mandated key set — Student/Invoice/Class/Payment, ruling documented in canonical doc). |
 | Forced failure mid-create (child insert or audit fails) | service tx | residual partial account | One Drizzle tx discards users+child+audit atomically; `runInRollback`-style forced-failure test asserts zero residual rows (REQ-040/043e). |
 | Directory scan pagination drift (rows inserted mid-pagination) | admin readers + admin writer | duplicate/gap across pages | Mitigated to "static-anchor" level by `(created_at ASC, id ASC)` stable order (REQ-046); full immunity requires keyset — documented future refinement. |
-| TOCTOU on existence probe after guard miss | post-guard probe | NotFound-vs-Conflict misclassification | Users are never hard-deleted (INV-U4) — probe classification is stable (D3/DEV1-005 D3 argument); NULL-boolean edge closed by D4. |
-| Corrupt stored `applicants.status` (out-of-band write) | ops script | renderer crash/loose typing | `isApplicantStatus` fail-closed in service mapping (D2/REQ-002; DEV2-004 contract). |
+| TOCTOU on existence probe after guard miss | post-guard probe | NotFound-vs-Conflict misclassification | Users are never hard-deleted (INV-U4) — probe classification is stable (D3/ D3 argument); NULL-boolean edge closed by D4. |
+| Corrupt stored `applicants.status` (out-of-band write) | ops script | renderer crash/loose typing | `isApplicantStatus` fail-closed in service mapping (D2/REQ-002; contract). |
 
 **Locking summary:** NO `SELECT FOR UPDATE`, NO advisory locks, NO Redis — every mutable-state touch is a single guarded statement or a fresh row inside one tx. **TOCTOU window = 0** on all writes (predicate + mutation share the statement). **No module-level mutable state** anywhere in the new modules (REQ-045; static scan asserts zero module-level `Map`/`Set`/`[]` state).
 
@@ -509,7 +509,7 @@ stateDiagram-v2
   Deleted --> Active: A6 adminSetUserDeleted(target=false)\nguarded UPDATE + audit(Reactivate)
   Active --> [*]: NEVER hard-deleted (INV-U4)
   Deleted --> [*]: NEVER hard-deleted (INV-U4)
-  note right of Deleted: login/session context fails closed\n(governance boundary — DEV2-001/002 owned)
+  note right of Deleted: login/session context fails closed\n(governance boundary —  owned)
 ```
 
 | Transition guard | Driving actor & permission |
@@ -517,13 +517,13 @@ stateDiagram-v2
 | `[*] → Active` | Super Admin only (`$all{authenticated, role:[Admin]}`); role ∈ {student, teacher, parent} |
 | `Active → Deleted` | Super Admin; target ≠ actor (self-protection); current state not-deleted (incl. NULL) |
 | `Deleted → Active` | Super Admin; current state deleted=true |
-| any → suspend/block | **NOT this ticket** (DEV3-017) — no surface exists |
+| any → suspend/block | **NOT this ticket** — no surface exists |
 
 **Side-effect matrix per journey step (assertion set):**
 
 | Journey step | Actor → action | Rows created/updated (atomic tx) | Audit row | Notifications dispatched | Post-state |
 |---|---|---|---|---|---|
-| A1 | admin → `adminCreateUser(role=student)` | `users` +1; `students` +1 (zeroed balances, unique handshake; trial via DEV1-004 entry iff landed) | exactly one, `Create`, actorId=admin | **none** | Active student; directory-visible |
+| A1 | admin → `adminCreateUser(role=student)` | `users` +1; `students` +1 (zeroed balances, unique handshake; trial via entry iff landed) | exactly one, `Create`, actorId=admin | **none** | Active student; directory-visible |
 | A2 | admin → `adminUsers(role=student)` | none | none | none | new row observable, projection correct |
 | A3 | student → `login` (existing flow) | none | none | none | login SUCCEEDS (governance clean) |
 | A4 | admin → `adminSetUserDeleted(id, true)` | `users.is_deleted=true`, `deleted_at=now`, `updated_at=now` | `Delete` | none | login now fails |
@@ -532,7 +532,7 @@ stateDiagram-v2
 | A7 | admin → `adminSetUserDeleted(ownId, true)` | **ZERO writes** | **ZERO rows (JR-C-1)** | none | unchanged, typed conflict returned |
 | B1 | admin → `adminCreateUser(role=teacher)` | `users` +1; `applicants` +1 (pending/0/NULL); **`teacher` +0 (B.7)** | `Create` | none | truthful applicant identity |
 | B2 | admin → `adminUserDetail(id)` | none | none | none | applicant projection pending |
-| B3 | applicant → `myApplicantProfile` (existing DEV2-004 surface) | none | none | none | sees `pending` truthfully (JR-B-1) |
+| B3 | applicant → `myApplicantProfile` (existing surface) | none | none | none | sees `pending` truthfully (JR-B-1) |
 | B4 | admin → `adminUpdateUser(id, {fullName})` | `users.fullName`+`updated_at` only | `Update` (`changedFields:["fullName"]`) | none | applicant row byte-identical |
 | B5 | applicant → `adminUsers` | none | none | none | `FORBIDDEN` pre-resolver |
 | C1 | anonymous → any op | none | none | none | `UNAUTHORIZED` |
@@ -667,31 +667,31 @@ app/(dashboard)/admin/users/[id]/page.tsx                (Server Component)
 
 ### 6.1 BOLA / IDOR
 
-- Actor identity is ALWAYS `ctx.user.id` from the verified DEV2-001/002 context — never from input (no `actorId`-shaped input exists anywhere; REQ-030/032).
-- Target user ids are legitimate admin-managed parameters; the response for unknown/cross-missing ids is `USER_NOT_FOUND` (D11 ruling) — safe because the surface is role-gated to full-governance admin and user existence is non-sensitive to him. Canonical doc carries the DO-NOT-COPY-PASTE warning (DEV1-005 REQ-032 precedent).
+- Actor identity is ALWAYS `ctx.user.id` from the verified context — never from input (no `actorId`-shaped input exists anywhere; REQ-030/032).
+- Target user ids are legitimate admin-managed parameters; the response for unknown/cross-missing ids is `USER_NOT_FOUND` (D11 ruling) — safe because the surface is role-gated to full-governance admin and user existence is non-sensitive to him. Canonical doc carries the DO-NOT-COPY-PASTE warning (REQ-032 precedent).
 - DataLoader is not used on this surface; any future per-parent field resolution on `AdminUserDetail` MUST use `t.loadable()` + batch repos with tenancy filtering per `docs/graphql/dataloader-batching.md` (forward note).
 
 ### 6.2 BOPLA (Mass Assignment)
 
 - Create whitelist = `{fullName, email, phone, password, gender?, country, role}`; update whitelist = `{fullName?, phone?, country?, gender?, dateOfBirth?}` — both closed interfaces (`AdminCreateUserSubmitInput`, `AdminUpdateUserPatchInput`). Server-controlled fields (`id`, governance columns, timestamps, `lastActiveAt`, balances, handshake, `parentId`, `subscription` fields, `passwordHash`, `role` on update) are **structurally unreachable**.
 - Service→repo mapping is field-by-field into `AdminUserUpdateDbPatch`; a static/grep assertion verifies zero `{ ...input }` spreads in ALL new files (REQ-031).
-- Transport-tampered extra properties are ignored by construction AND by explicit mapping (double-layer mirror of DEV1-002 §4).
+- Transport-tampered extra properties are ignored by construction AND by explicit mapping (double-layer mirror of §4).
 
 ### 6.3 BFLA (Function-Level)
 
 - All five operations gated via `$all{authenticated, role:[UserRole.Admin]}` (D10); non-admin tokens are denied pre-resolver (REQ-076 matrix proves every §3.4 cell via `expectMutationError(…, expectedCode)`).
-- No `grantRole*`/`assignRole*`/`elevate*` operation exists by construction; no admin-creation surface (D6 double block); no certification-attributing write (INV-TV1 — only DEV3-018/the verification loop may create `teacher` rows); no suspend/block write (DEV3-017); no parent-link write (B.12/13/14 surfaces live elsewhere).
-- `createAdminUser` (DEV1-002 service-only path) stays UNWIRED from GraphQL — grep gate proves no resolver imports/calls it (REQ-015).
+- No `grantRole*`/`assignRole*`/`elevate*` operation exists by construction; no admin-creation surface (D6 double block); no certification-attributing write (INV-TV1 — only /the verification loop may create `teacher` rows); no suspend/block write; no parent-link write (B.12/13/14 surfaces live elsewhere).
+- `createAdminUser` (service-only path) stays UNWIRED from GraphQL — grep gate proves no resolver imports/calls it (REQ-015).
 
 ### 6.4 Injection / Input Sanitization
 
 - Only user-driven search surface: directory `search`. ALWAYS routed through `escapeLikeWildcards` BEFORE `ilike` pattern assembly (REQ-034); wildcard fuzz (`%`, `_`, `\`, unicode/RTL, control chars) asserts literal-match semantics (REQ-072/075).
 - All queries are Drizzle-parameterized; no raw concatenated SQL; NO inline `--` comments inside any `sql` template (parameter-binding rule).
-- ID channel: positive-safe-integer guard before any DB read (`VALIDATION` pre-DB, no `as number` anywhere — DEV3-004 pattern).
+- ID channel: positive-safe-integer guard before any DB read (`VALIDATION` pre-DB, no `as number` anywhere —  pattern).
 
 ### 6.5 Error Disclosure & Logging Hygiene
 
-- `passwordHash` structurally absent from every projection/type (`Omit<UserSelectType,"passwordHash">` + DEV2-003 forbidden-field discipline); a conformance static assertion verifies no new contract/type reintroduces it.
+- `passwordHash` structurally absent from every projection/type (`Omit<UserSelectType,"passwordHash">` + forbidden-field discipline); a conformance static assertion verifies no new contract/type reintroduces it.
 - Governance state of OTHER users is visible to admin BY DESIGN (that's the feature); errors never echo internals (constraint names, SQL, driver text) — masked boundary per `docs/graphql/error-handling-contract.md`.
 - Logs: expected rejections via `logger.logDomainError` with code/entity/entityId only; audit `details` carries field NAMES and metadata (never contact-PII values, never credentials), capped ≤2000 chars with truncation that never fails the write (REQ-052); NO `console.*` anywhere (grep gate).
 
@@ -707,8 +707,8 @@ app/(dashboard)/admin/users/[id]/page.tsx                (Server Component)
 - Test suites: 100% statement/branch coverage on new service + repo modules (`bun test --coverage`); `backend/db/test/logic/admin/` suites (directory filter matrix REQ-072, detail projections REQ-073, mutation matrix + fixture immutability REQ-074, rollback proof REQ-040); service tests with external-free adapters (`bun run test:services` tier rules); chaos suite REQ-043(a–e) via `Promise.allSettled`; GraphQL role matrix via `setupTestServerLifecycle` + `testClient` (REQ-076 = permission-matrix evidence); journey suites `test/workflows/admin/*` per §4.4/§4.5 (REQ-078); component suites Happy DOM + `translation-preload.ts` + `readTranslation` + `TestWrapper locale` (REQ-077).
 - All DB tests: `runInRollback` + `tx` everywhere (param positions verified) + `entity-setup.ts`-only fixtures + `expectRepoError` substring assertions (never raw keys) + executed via `bun run scripts/run-test/run-test.ts`.
 - Quality gates: `bun run scripts/health/sub-loop.ts <file> --lifecycle duplicates` exit 0 per file; baseline delta zero vs REQ-001 baseline (REQ-079); codegen no-unrelated-drift.
-- Documentation outputs: `docs/admin/user-management.md` canonical doc (Why → Pattern → Rules → What NOT to Do → Rollout Summary → Related Documents; carries the scope-split record, the NOT_FOUND-ruling warning, and the consumer obligations for DEV3-017/018/019/020/021/022b); layer AGENTS one-liners in `backend/services/AGENTS.md` (audit-emission rule) + root `AGENTS.md` Important References (REQ-080..082); `deferred-items.md` seeds D1–D4 (audit browsing→DEV3-020, onboarding→DEV3-019, suspend/block→DEV3-017, cold-start→DEV3-018) as non-blocking, owner-referenced; final gate `grep -c "❌\|⚠️"` = 0 except D1–D4 (REQ-083).
+- Documentation outputs: `docs/admin/user-management.md` canonical doc (Why → Pattern → Rules → What NOT to Do → Rollout Summary → Related Documents; carries the scope-split record, the NOT_FOUND-ruling warning, and the consumer obligations); layer AGENTS one-liners in `backend/services/AGENTS.md` (audit-emission rule) + root `AGENTS.md` Important References (REQ-080..082); `deferred-items.md` seeds D1–D4 (audit browsing→, onboarding→, suspend/block→, cold-start→) as non-blocking, owner-referenced; final gate `grep -c "❌\|⚠️"` = 0 except D1–D4 (REQ-083).
 
 ---
 
-**Traceability note for consumers (binding):** DEV3-017 (governance windows), DEV3-018 (cold-start), DEV3-019 (direct onboarding), DEV3-020 (audit browsing), DEV3-021 (session governance), DEV3-022b (financial auditing) SHALL import this ticket's directory/projection substrate, guarded governance primitives, and the audit-write contract by reference; SHALL NOT fork the user-creation atomicity pattern, the null-safe guarded state transition, the search-sanitization discipline, or the `$all{authenticated, role:[Admin]}` gating contract; plan-review (Phase 1.5) on those tickets verifies citation of this plan's REQ ranges.
+**Traceability note for consumers (binding):** (governance windows), (cold-start), (direct onboarding), (audit browsing), (session governance), (financial auditing) SHALL import this ticket's directory/projection substrate, guarded governance primitives, and the audit-write contract by reference; SHALL NOT fork the user-creation atomicity pattern, the null-safe guarded state transition, the search-sanitization discipline, or the `$all{authenticated, role:[Admin]}` gating contract; plan-review (Phase 1.5) on those tickets verifies citation of this plan's REQ ranges.

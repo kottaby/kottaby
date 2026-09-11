@@ -1,8 +1,8 @@
-# Technical Architecture & Implementation Design: DEV1-004 — Free Trial Session Provisioning
+# Technical Architecture & Implementation Design: Free Trial Session Provisioning
 
 ## 1. System Overview & Architecture Diagram
 
-This is a **backend-only vertical slice** that injects a one-time trial-credit grant into the existing DEV1-002 registration transaction. No new GraphQL operations, no new frontend views, no new tables. The grant is a single guarded `UPDATE` executed inside the registration transaction via a new student-trial domain service.
+This is a **backend-only vertical slice** that injects a one-time trial-credit grant into the existing the User Registration ticket registration transaction. No new GraphQL operations, no new frontend views, no new tables. The grant is a single guarded `UPDATE` executed inside the registration transaction via a new student-trial domain service.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -34,7 +34,7 @@ This is a **backend-only vertical slice** that injects a one-time trial-credit g
 │   ├─ StudentRepository.grantFreeTrialOnce(studentId, count, tx)            │
 │   ├─ granted=false → logger.logDomainError + throw ConflictError            │
 │   │         (localized `trialAlreadyGranted`, extensions.code = CONFLICT)   │
-│   └─ future callers: DEV2-009 conversion, DEV3-019 direct onboarding        │
+│ └─ future callers: conversion, direct onboarding │
 └─────────────────────────────────┬───────────────────────────────────────────┘
                                   │ single guarded conditional UPDATE
                                   ▼
@@ -66,7 +66,7 @@ This is a **backend-only vertical slice** that injects a one-time trial-credit g
 | # | Decision | Options Considered | Pros / Cons | Rationale |
 |---|----------|--------------------|--------------------|-----------|
 | D1 | Dedicated `balance_trial` lane | (a) credit `balance_hifz`; (b) dedicated lane + `trial_granted_at` marker | (a) Pros: zero schema change. Cons: pollutes INV-B5 paid-lane segregation, breaks INV-B2 (paid crediting is subscription-bound), destroys trial-vs-paid auditability. (b) Pros: INV-B5 pure, grant-once marker enables INV-B7, conversion analytics clean. Cons: one schema delta. | Spec ruling: (b). The trial has no `subscriptions` row (INV-B3/B.8/C.2 non-applicable), and DEV3 booking needs an unambiguous "trial OR paid" eligibility lane (REQ-020). Recorded as an open-decisions addendum per REQ-081. |
-| D2 | Grant-once enforcement via single guarded `UPDATE … WHERE trial_granted_at IS NULL … RETURNING id` | (a) SELECT-then-UPDATE; (b) advisory lock; (c) guarded conditional UPDATE | (a) Pros: simple. Cons: TOCTOU window — concurrent grants double-credit. (b) Pros: serializes. Cons: unnecessary lock infrastructure; still two-statement races unless wrapped. (c) Pros: SQL-level atomicity, predicate evaluation under row lock → re-grant returns empty set; zero extra infra. Cons: none meaningful on a row just inserted in the same tx. | REQ-012/REQ-042 mandate (c). The fresh `students` row is transactionally owned by the inserting tx, so no cross-session contention exists during registration; the guard exists to defend all *future* re-grant paths (DEV2-009, DEV3-019, retries) with TOCTOU window = 0. |
+| D2 | Grant-once enforcement via single guarded `UPDATE … WHERE trial_granted_at IS NULL … RETURNING id` | (a) SELECT-then-UPDATE; (b) advisory lock; (c) guarded conditional UPDATE | (a) Pros: simple. Cons: TOCTOU window — concurrent grants double-credit. (b) Pros: serializes. Cons: unnecessary lock infrastructure; still two-statement races unless wrapped. (c) Pros: SQL-level atomicity, predicate evaluation under row lock → re-grant returns empty set; zero extra infra. Cons: none meaningful on a row just inserted in the same tx. | REQ-012/REQ-042 mandate (c). The fresh `students` row is transactionally owned by the inserting tx, so no cross-session contention exists during registration; the guard exists to defend all *future* re-grant paths (retries) with TOCTOU window = 0. |
 | D3 | Grant placed inside `createRoleChild`'s student branch, same Drizzle tx | (a) wrapped in insert defaults (grant columns directly on `createForRegistration`); (b) separate guarded UPDATE called post-insert in same tx; (c) post-commit side effect | (a) Pros: one statement. Cons: couples the grant to one repo method, violating the REQ-017 "one provisioning implementation" for paths that create student rows via other flows; re-grant impossible by construction. (b) Pros: single reusable entry point for all future student-creation paths; explicit grant contract; REQ-013 testable in isolation. Cons: one extra round-trip (negligible, same tx). (c) Pros/cons: catastrophic — non-atomic, violates REQ-018. | (b). REQ-040/041 (tx propagation + SAVEPOINT) and REQ-017 (single provisioning entry point) both point at (b). INV (A.7 governance fields are server-side only) reinforced: the client cannot influence the columns (BOPLA). |
 | D4 | Trial count as `shared/constants/free-trial.constants.ts` constant | (a) hardcoded `1` in service; (b) env var; (c) shared constant | (a) Cons: magic number duplicated by tests/seeds/future frontend. (b) Cons: admin-secret risk, empty-string footgun, unnecessary deploy plumbing for a product rule. (c) Pros: single source of truth, importable everywhere under shared-layer isolation, compile-time stable. | REQ-014. The count is a product/business constant (FR-2.6 defaults to one trial session), not environment configuration; `shared/` satisfies the shared-layer import rules and lets DEV3 booking + future dashboards reuse it. |
 | D5 | Repository returns `boolean`; service throws localized `ConflictError` | (a) repo throws `ConflictError`; (b) repo returns `boolean` / affected-row signal; (c) silent no-op | (a) Cons: repo layer must stay free of business policy per `backend/db/repo/AGENTS.md`; localized error lookups (`getServerTranslations`) belong to the service layer. (b) Pros: pure data access, service owns i18n + error taxonomy + logging. Cons: one extra branch in service. (c) Cons: violates REQ-013 (re-grant must surface loudly, not silently). | (b). Follows Directive `docs/graphql/domain-error-extensions-code.md` + repo/service separation; the service converts `false` into `ConflictError` with `extensions.code = CONFLICT` and `logger.logDomainError` context (REQ-050/051/052). |
@@ -136,7 +136,7 @@ No new queries, mutations, object types, or input types. `RegisterUserInput`, `R
 
 **Forward contract (REQ-062, no code here)**: any future exposure of `balanceTrial`/`trialGrantedAt` MUST land on the canonical `StudentPothosObject` with `id` present for Apollo normalization, use `t.loadable()`/batch service methods per `docs/graphql/dataloader-batching.md`, and import server types from `@/backend/types`.
 
-### Permission matrix (deviations from DEV1-002 baseline: none)
+### Permission matrix (deviations from the User Registration ticket baseline: none)
 
 | Operation | Anonymous | Student | Parent | Teacher (Applicant/Certified) | Supervisor | Super Admin |
 |---|---|---|---|---|---|---|
@@ -162,7 +162,7 @@ import { getServerTranslations } from "@/shared/locale/server-graphql";
 
 export namespace StudentTrialService {
   /** FR-2.6 / REQ-017: the ONLY trial-grant entry point, used by registration today and
-   * DEV2-009 conversion + DEV3-019 onboarding in the future. Idempotent at SQL level. */
+   * conversion + onboarding in the future. Idempotent at SQL level. */
   export async function grantFreeTrial(
     studentId: number,
     locale: string,
@@ -198,7 +198,7 @@ await StudentRepository.createForRegistration(userId, handshakeCode, tx);
 await StudentTrialService.grantFreeTrial(userId, locale, tx);   // REQ-011 grant on student registration
 ```
 
-NOT invoked in teacher (`applicants`) or parent branches; `createAdminUser` untouched (REQ-015/033). The grant inherits DEV1-002's `withTransaction(outerTx)` SAVEPOINT-aware pattern, so `runInRollback` test isolation is preserved (REQ-040).
+NOT invoked in teacher (`applicants`) or parent branches; `createAdminUser` untouched (REQ-015/033). The grant inherits the User Registration ticket's `withTransaction(outerTx)` SAVEPOINT-aware pattern, so `runInRollback` test isolation is preserved (REQ-040).
 
 ### NEW (method) in existing: `backend/db/repo/students/student.repository.ts`
 
@@ -233,7 +233,7 @@ Repository-layer notes:
 | Scenario | Actors | Risk | Mitigation |
 |---|---|---|---|
 | Client double-submits `registerUser` | 2 anonymous clients, same email | Duplicate account → duplicate trial | `users.email` unique constraint (23505 → cause-chain traversal → `ConflictError`) fires before any student row/grant (REQ-044). |
-| Grant invoked twice for the same student (retry loops, DEV2-009 double-call, DEV3-019 re-entry) | Two sequential/concurrent service calls | Double credit | Single guarded UPDATE: first holds row lock and sets marker; second evaluates `trial_granted_at IS NULL` AFTER lock wait under the updated row → returns empty set → `ConflictError` (REQ-042, INV-B7). |
+| Grant invoked twice for the same student (retry loops, double-call, re-entry) | Two sequential/concurrent service calls | Double credit | Single guarded UPDATE: first holds row lock and sets marker; second evaluates `trial_granted_at IS NULL` AFTER lock wait under the updated row → returns empty set → `ConflictError` (REQ-042, INV-B7). |
 | Registration fails after grant runs | Registration tx, any child-insert failure | Orphaned grant on rolled-back row | Grant is inside the same tx ⇒ roll back removes user row, student row, and grant atomically (REQ-018, REQ-040). |
 | Concurrent grants on one row from distinct sessions | Two backend transactions | Credit leak | PostgreSQL row-locking on the conditional UPDATE serializes; the second statement *re-evaluates* the predicate against the committed/locker's row. No advisory lock needed (REQ-042). |
 | Direct SQL/absent app guard writes negative balance | Ops script, future bug | Negative lane violates INV-B1 | `students_balance_trial_check` CHECK rejects regardless of app behavior (REQ-035). |
@@ -251,7 +251,7 @@ Repository-layer notes:
 |---|---|
 | **Routes & URLs** | None added. `/register` and `/login` are unchanged. |
 | **Sidebar & Navigation** | No changes. No new nav items on any role. |
-| **Per-audience rendering** | Students/Parents/Teachers/Supervisors/Admins see zero visual differences vs. DEV1-003 baseline. The grant is invisible (REQ-023). |
+| **Per-audience rendering** | Students/Parents/Teachers/Supervisors/Admins see zero visual differences vs. the Recitation Selection on Registration ticket baseline. The grant is invisible (REQ-023). |
 | **Apollo documents** | None added. `registerUserMutationDocument`, `loginMutationDocument`, `meQueryDocument`, `refreshTokenMutationDocument`, `recitationReadingsQueryDocument` are untouched. No `id`-field implications. |
 | **Permissions (`AppPermission`)** | None added. No new enum value; no `requirePermissionForPage`/`RequirePermission` integration. |
 | **Responsive/RTL** | N/A — no UI shipped. Any future trial-balance UI obeys MUI v9 `sx`-only + RTL bidirectional rules per default frontend conventions (this line exists to preempt downstream violations, not to add code). |
@@ -262,12 +262,12 @@ Repository-layer notes:
 ## 6. Security, Authorization & Tenancy Mitigations
 
 - **BOLA / IDOR (REQ-032)**: `studentId` is sourced exclusively from the server-side insert result (`users.id`/shared PK) inside the transaction; no client-supplied identifier reaches `grantFreeTrialOnce`. The single caller path enforces this structurally (no parameters crossing the client boundary).
-- **BOPLA / mass assignment (REQ-031)**: `RegistrationSubmitInput` whitelist is byte-identical to DEV1-002. No client field (smuggled `balanceTrial`, `trialCount`, `trial_granted_at`) can affect the grant — the count is `FREE_TRIAL_SESSION_COUNT` from shared constants, the marker is server `now()`, and the insert mapping remains field-by-field (no `{ ...input }` spread; grep-verifiable).
+- **BOPLA / mass assignment (REQ-031)**: `RegistrationSubmitInput` whitelist is byte-identical to the User Registration ticket. No client field (smuggled `balanceTrial`, `trialCount`, `trial_granted_at`) can affect the grant — the count is `FREE_TRIAL_SESSION_COUNT` from shared constants, the marker is server `now()`, and the insert mapping remains field-by-field (no `{ ...input }` spread; grep-verifiable).
 - **BFLA (REQ-030/033)**: no grant/topping mutation exists in the GraphQL schema ⇒ no function for low-privilege tokens to call. Teacher self-registration never creates a `teacher` row (B.6/B.7 unchanged) and never receives a trial; applicant status, certification, and evaluator rights are untouched by the grant (REQ-033).
 - **Private data disclosure**: the re-grant `ConflictError` message is generic-localized and does not leak soft-deleted state, ownership, or other account internals (the error is only reachable by internal callers anyway; REQ-050/051).
 - **Injection surface**: the grant parameters are PK + server constant + `Date` — no LIKE/ILIKE/search input exists in this slice, so no `escapeLikeWildcards` usage applies; the `sql`` template uses bound parameters only and contains no inline `--` comments (per Drizzle template rule).
-- **Governance preservation (INV-U5/A.7)**: trial credits live on `students`, not `users`; soft-delete/suspend/block flows from DEV1-002 are unaffected, and the trial lane persists across those states.
-- **Rate limiting (REQ-034)**: unchanged — no new public endpoint; registration's fail-open stub posture (real limits deferred to DEV2-002) continues unmodified.
+- **Governance preservation (INV-U5/A.7)**: trial credits live on `students`, not `users`; soft-delete/suspend/block flows from the User Registration ticket are unaffected, and the trial lane persists across those states.
+- **Rate limiting (REQ-034)**: unchanged — no new public endpoint; registration's fail-open stub posture (real limits deferred to the Role-Based Authorization Middleware ticket) continues unmodified.
 - **Tenancy**: single-tenant schema; no tenant filtering applies to the grant (identity is the newly created row, trivially in-scope).
 
 ---
@@ -278,4 +278,4 @@ Repository-layer notes:
 - `bun tsgo && bun biome:check && lint-service per-file` + `bun quality-gate` staged flow.
 - `bun run generate:gqlSchema && bun codegen` — expect zero trial-related schema diff (REQ-060).
 - Tests covering REQ-070..076: repo coverage (grant success, re-grant guard, negative-balance CHECK), registration service role matrix + forced-failure rollback, logic-level double-grant idempotency with `expectRepoError` substring assertion against the translated `trialAlreadyGranted` message (never the raw key — per `backend/db/test/AGENTS.md` rule 19).
-- Knowledge propagation outputs: `docs/students/free-trial-provisioning.md` (canonical), INV-B7/INV-B8 addendum in `state-machine-invariants.md`, decisions addendum in `open-decisions-and-gaps.md`, AGENTS one-liner references (services + shared + root), and deferred-items ledger pre-seeded with D1 (notification → DEV3-010) and D2 (booking/decrement execution → DEV3-004/013) as non-blocking per the deferred-items enforcement rule (REQ-083).
+- Knowledge propagation outputs: `docs/students/free-trial-provisioning.md` (canonical), INV-B7/INV-B8 addendum in `state-machine-invariants.md`, decisions addendum in `open-decisions-and-gaps.md`, AGENTS one-liner references (services + shared + root), and deferred-items ledger pre-seeded with D1 (notification →) and D2 (booking/decrement execution → the Session Creation & Lifecycle ticket) as non-blocking per the deferred-items enforcement rule (REQ-083).

@@ -1,7 +1,7 @@
-# Tasks: DEV3-007 — Recitation Record per Session (1:1)
+# Tasks: Recitation Record per Session (1:1)
 
 **Plan directory (verbatim — every header, ledger path, outcome path, and self-reference in this file uses exactly this string):** `ai/plans/sprint_1/dev3-007-recitation-record-per-session-11`
-**Ticket:** DEV3-007 · Sprint 1 · Dev 3 · 2 SP · Blocked-By DEV3-004 (shipped — `docs/sessions/session-lifecycle.md`)
+**Ticket:** this ticket · Sprint 1 · Dev 3 · 2 SP · Blocked-By the Session Creation & Lifecycle ticket (shipped — `docs/sessions/session-lifecycle.md`)
 **Inputs:** `ai/plans/sprint_1/dev3-007-recitation-record-per-session-11/specs.md` · `ai/plans/sprint_1/dev3-007-recitation-record-per-session-11/plan.md`
 **Scope note:** This ticket ships backend (types/repo/service/resolvers) + GraphQL SDL + **frontend shared documents only** (REQ-065 — no views per non-goal 3). It does **NOT** pad phases: Phase 4 contains documents + contract tests only (no view tasks, no `.BF`/`.BS` loops — there is no rendered UI surface to screenshot).
 
@@ -26,8 +26,8 @@
   - `ai/plans/sprint_1/dev3-007-recitation-record-per-session-11/outcome/0-baseline-outcome.md` (CREATE)
   - `ai/plans/sprint_1/dev3-007-recitation-record-per-session-11/deferred-items.md` (CREATE, initialized verbatim from `.agents/spec-process-guide/templates/deferred-items-template.md`)
 - **Work:**
-  - Run and RECORD (counts + first-30-lines snippets) into the baseline outcome: `bun tsgo`, `bun biome:check`, and the lint-service harness output as recorded for the DEV3-004 baseline.
-  - Seed the ledger with the two known deferrals from specs: **D1** (write-once → future audited update/correction surface), **D2** (parent-portal read consumer DEV1-016) and **D3** (admin review read consumer DEV3-021) — record-now, close-later.
+  - Run and RECORD (counts + first-30-lines snippets) into the baseline outcome: `bun tsgo`, `bun biome:check`, and the lint-service harness output as recorded for the Session Creation & Lifecycle ticket baseline.
+  - Seed the ledger with the two known deferrals from specs: **D1** (write-once → future audited update/correction surface), **D2** (parent-portal read consumer) and **D3** (admin review read consumer) — record-now, close-later.
   - This MUST land BEFORE any source file is created or modified (REQ-001).
 - **Instruction files:** `.agents/instructions/backend.instructions.md`, `AGENTS.md`.
 - **Accept:** baseline counts recorded; ledger initialized with D1–D3; no source file touched yet.
@@ -276,14 +276,14 @@
 ## Phase 7: Knowledge Propagation & Documentation
 
 ### - [x] 7.1 [Canonical doc — `docs/sessions/recitation-record.md`]
-- **Content (REQ-080):** C.5 binding; write-once + unique-arbiter rule (23505 → `RECITATION_ALREADY_EXISTS`); collapse read (foreign ≡ nonexistent); write-acceptance window (`started | completed | disputed`, B.18 note); governance re-check posture; closed error-code table; consumer obligations for DEV3-006 / DEV2-014 / DEV1-016 / DEV3-021 (import-by-reference — never a second writer, never a direct table read); composition seam (`outerTx`); explicit NO-notifications/NO-audit ruling with owning-ticket pointers.
+- **Content (REQ-080):** C.5 binding; write-once + unique-arbiter rule (23505 → `RECITATION_ALREADY_EXISTS`); collapse read (foreign ≡ nonexistent); write-acceptance window (`started | completed | disputed`, B.18 note); governance re-check posture; closed error-code table; consumer obligations for (import-by-reference — never a second writer, never a direct table read); composition seam (`outerTx`); explicit NO-notifications/NO-audit ruling with owning-ticket pointers.
 - **Verification:** quality loop on the doc not applicable (docs) — instead, cross-link check: every referenced doc path exists; every referenced ticket id matches the sprint backlog.
 - **Artifacts:** `docs/sessions/recitation-record.md` (CREATE), `outcome/7.1-outcome.md`.
 - _Requirements: REQ-080_
 
 ### - [x] 7.2 [Layer AGENTS.md + lifecycle consumer-table amendment + ledger finalization]
 - **Work:**
-  - `docs/sessions/session-lifecycle.md` (UPDATE — consumer table marks DEV3-007 DELIVERED and points recitation writes/reads to `docs/sessions/recitation-record.md`).
+  - `docs/sessions/session-lifecycle.md` (UPDATE — consumer table marks this ticket DELIVERED and points recitation writes/reads to `docs/sessions/recitation-record.md`).
   - `backend/services/AGENTS.md` (UPDATE — register `RecitationRecordService` pattern notes: outerTx seam, guard/governance reuse, write-once arbiter) and `backend/graphql/AGENTS.md` (UPDATE ONLY if a generalizable surface rule emerged — e.g. `$all` conjunction note; otherwise record "no change needed" in the outcome).
   - Root `AGENTS.md` Important References (UPDATE — add `docs/sessions/recitation-record.md` entry).
   - Do NOT touch `backend/db/repo/AGENTS.md` unless the bundled file exists and genuinely has a layer-rule delta (0.2 recorded whether it exists; most likely only docs pointers change).

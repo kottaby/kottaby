@@ -4,7 +4,7 @@
 **Status:** Implemented and verified
 **Source of truth for:** the report write gate and its governance re-check, the atomic report+homework co-creation contract, the one-report-per-session unique arbiter, the first-vs-subsequent grading ruling and its one-shot grade guard, the oracle-collapse read posture, the report-ready notification choreography, and the consumer guidance for every downstream ticket that touches `reports` or `home_work`.
 
-This document is the single canonical reference for the session report and homework surface. Downstream tickets (DEV2-014/015/017/019, DEV1-016/017, DEV3-012/013) MUST read it before touching `reports`, `home_work`, or the report mutation. The record is written **exactly once per session** — the guarded primitives live in `ReportRepository`/`HomeWorkRepository` and are composed by `SessionReportService`; consumers extend them, never re-implement them.
+This document is the single canonical reference for the session report and homework surface. Downstream consumers (submit UX, Surah/Juz UI, rating aggregation, admin tracking, parent portal, dual confirmation/escrow) MUST read it before touching `reports`, `home_work`, or the report mutation. The record is written **exactly once per session** — the guarded primitives live in `ReportRepository`/`HomeWorkRepository` and are composed by `SessionReportService`; consumers extend them, never re-implement them.
 
 ---
 
@@ -85,12 +85,12 @@ One report-ready wave per submission, emitted through `SessionReportNotification
 
 | Ticket | What each may rely on (and must not do) |
 |---|---|
-| **DEV2-014** (submit UX) | The typed documents at `frontend/graphql/sharedDocuments/scheduling/session-report.documents.ts` (`submitSessionReportMutationDocument`, `sessionReportQueryDocument`, `sessionHomeworkQueryDocument`) are the wire contract. May rely on: pre-DB typed `VALIDATION` denials, the 401/403 scope split, `SESSION_REPORT_ALREADY_EXISTS` as the duplicate signal (safe to present as "already submitted"), oracle-identical denials. Must not re-implement validation client-side as the authority or add client-side fields beyond the object contract. |
-| **DEV2-015** (Surah/Juz UI) | The `SurahJuzRef` enum (5 surahs + 30 juz) is the assignment-block vocabulary; use codegen members only. `from ≤ to` cohesiveness and ayah bounds are validated server-side — the UI may pre-check for UX but the typed denial is authoritative. |
-| **DEV1-016/017** (parent portal) | Parent reads resolve to `null` today — participant-only collapse is by design, byte-identical to a foreign read. The parent's channel is the report-ready notification only. A parent read surface is a new ruling to be made with its own oracle review, not a widening of these queries. |
-| **DEV2-017** (rating aggregation) | The 0..5 `studentRatingByTeacher` lives on `reports` rows — read-only consumption. Do not add write surfaces to this domain to support aggregation; ratings are teacher-authored at submission and immutable (append-only posture). |
-| **DEV3-012/013** (dual confirmation/escrow) | This surface never touches `fee_held`, lanes, or wallet rows — settlement reads nothing from reports/homework and vice versa. `status = completed` is only this surface's gate; the confirmation flow owns the money side exactly as the lifecycle defines it. |
-| **DEV2-019** (admin tracking) | Admins are non-participants here: `null` reads and the standard denials, no bypass exists. A future admin oversight surface ships under its own authScopes with its own oracle ruling. |
+| **Submit UX** | The typed documents at `frontend/graphql/sharedDocuments/scheduling/session-report.documents.ts` (`submitSessionReportMutationDocument`, `sessionReportQueryDocument`, `sessionHomeworkQueryDocument`) are the wire contract. May rely on: pre-DB typed `VALIDATION` denials, the 401/403 scope split, `SESSION_REPORT_ALREADY_EXISTS` as the duplicate signal (safe to present as "already submitted"), oracle-identical denials. Must not re-implement validation client-side as the authority or add client-side fields beyond the object contract. |
+| **Surah/Juz UI** | The `SurahJuzRef` enum (5 surahs + 30 juz) is the assignment-block vocabulary; use codegen members only. `from ≤ to` cohesiveness and ayah bounds are validated server-side — the UI may pre-check for UX but the typed denial is authoritative. |
+| **Parent portal** | Parent reads resolve to `null` today — participant-only collapse is by design, byte-identical to a foreign read. The parent's channel is the report-ready notification only. A parent read surface is a new ruling to be made with its own oracle review, not a widening of these queries. |
+| **Rating aggregation** | The 0..5 `studentRatingByTeacher` lives on `reports` rows — read-only consumption. Do not add write surfaces to this domain to support aggregation; ratings are teacher-authored at submission and immutable (append-only posture). |
+| **Dual confirmation / escrow** | This surface never touches `fee_held`, lanes, or wallet rows — settlement reads nothing from reports/homework and vice versa. `status = completed` is only this surface's gate; the confirmation flow owns the money side exactly as the lifecycle defines it. |
+| **Admin tracking** | Admins are non-participants here: `null` reads and the standard denials, no bypass exists. A future admin oversight surface ships under its own authScopes with its own oracle ruling. |
 
 ## 6. Rollout Summary
 

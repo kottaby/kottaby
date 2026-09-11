@@ -11,7 +11,7 @@ The platform needs one service-side substrate that (a) persists notifications in
 
 The engine's founding ruling is **correctness of record beats liveness**: a notification that is durably persisted but never pushed is a recoverable miss (the client catch-up refetch heals it); a notification that is pushed but not durably persisted is a lie. Everything below derives from that ordering.
 
-This engine is the substrate that **enables INV-P3** ("a parent receives real-time notification when a linked child's session completes" — `docs/specs/state-machine-invariants.md`). The substrate shipped in DEV3-010; the semantic emitters land in DEV1-016/017 (see §3.2).
+This engine is the substrate that **enables INV-P3** ("a parent receives real-time notification when a linked child's session completes" — `docs/specs/state-machine-invariants.md`). This engine is that substrate; the semantic emitters land with the completion-notification surfaces (see §3.2).
 
 ---
 
@@ -62,7 +62,7 @@ A row must be committed before any push referencing it may exist. The engine's o
 
 ### 3.2 Publish-after-commit + caller-tx receipt composition (REQ-012/042)
 
-When the emitter owns a transaction, the engine joins it as a **SAVEPOINT** (`outerTx.transaction(fn)` — the DEV1-002 pattern) and returns a `NotificationDeliveryReceipt` **without publishing**. The caller publishes only after its unit resolves:
+When the emitter owns a transaction, the engine joins it as a **SAVEPOINT** (`outerTx.transaction(fn)` — the SAVEPOINT-join pattern) and returns a `NotificationDeliveryReceipt` **without publishing**. The caller publishes only after its unit resolves:
 
 ```typescript
 import { NotificationType } from "@/backend/enum/notifications/notification-type.enum";
@@ -100,11 +100,11 @@ Emitters that do NOT own a transaction call `emitForUser(input, locale)` (or `em
 
 | Ticket | Semantic trigger | What it consumes |
 |---|---|---|
-| DEV3-011 | `session_request` accept/decline wave | `emitForUser` per recipient — SHIPPED: `docs/notifications/session-request-notifications.md` |
-| DEV1-016 / DEV1-017 | Session completion → parent (INV-P3's emitters) + parent portal consumption | `emitForUser(s)` inside the session-completion tx + `publishReceipts` |
-| DEV2-016 / DEV2-017 | `evaluation_result` | `emitForUser` per teacher/applicant |
-| DEV3-012 / DEV3-013 | `session_cancellation` / `payment_confirmation` | Same receipt composition as above |
-| DEV3-022d | `system_broadcast` admin surface — **SHIPPED** (canonical reference: `docs/notifications/broadcast-notifications.md`) | `emitForUsers` bulk primitive; cohort resolution is the admin mutation's concern (REQ-027 BFLA containment — the engine provides NO role/all-user resolution queries) |
+| Session-request notifications | `session_request` accept/decline wave | `emitForUser` per recipient — SHIPPED: `docs/notifications/session-request-notifications.md` |
+| Parent completion notifications | Session completion → parent (INV-P3's emitters) + parent portal consumption | `emitForUser(s)` inside the session-completion tx + `publishReceipts` |
+| Evaluation results | `evaluation_result` | `emitForUser` per teacher/applicant |
+| Dual confirmation / escrow | `session_cancellation` / `payment_confirmation` | Same receipt composition as above |
+| Broadcast notifications | `system_broadcast` admin surface — **SHIPPED** (canonical reference: `docs/notifications/broadcast-notifications.md`) | `emitForUsers` bulk primitive; cohort resolution is the admin mutation's concern (REQ-027 BFLA containment — the engine provides NO role/all-user resolution queries) |
 
 Binding rules for all of them: **import the engine's emit contracts — never write `notifications` rows directly** (REQ-010 single-writer; static scans pin that emit primitives appear in zero resolver files); **honor the publish-after-commit composition** (REQ-012) whenever the emitter carries its own transaction; keyless emits are the emitter's dedupe obligation.
 
@@ -177,7 +177,7 @@ This engine mints **NO new state-machine invariants**. Two properties are docume
 - **Append-only rows:** `notifications` rows are append-only from the recipient's perspective — emitters create; nothing edits or deletes recipient-visible history.
 - **One-way read latch:** `is_read` moves `false → true` only, via the self-scoped `markRead` / `markAllRead` inbox ops (guarded `WHERE id AND user_id` — foreign ids answer `NOTIFICATION_NOT_FOUND`, BOLA posture pinned). **Mark-read is NOT a realtime event** — no push is emitted on read-state change.
 
-INV-P3 is referenced as **ENABLED-BY** this engine (`docs/specs/state-machine-invariants.md`): the substrate exists; the semantic emitters ship in DEV1-016/017.
+INV-P3 is referenced as **ENABLED-BY** this engine (`docs/specs/state-machine-invariants.md`): the substrate exists; the semantic emitters ship with the parent completion-notification surface.
 
 **Documented governance window (deferred item D5):** `createGraphQLContext` verifies the JWT but does not re-check governance flags, so a governed caller holding a pre-issued, unexpired access token retains its full self-scoped inbox surface (reads AND mark ops) until token expiry — analogous to REQ-038's documented WS-socket JWT-only trade-off, pinned by the integration matrix suite; owned by a future governance-context gate ticket.
 
@@ -194,15 +194,15 @@ INV-P3 is referenced as **ENABLED-BY** this engine (`docs/specs/state-machine-in
 - **Never block a domain flow on push or cache failure** — the fail-open rulings (§3.1, §3.6) are load-bearing; a transport outage must degrade, not throw.
 - **Never re-mount `useNotificationRealtime` per page** — the `DashboardLayout`-mounted toast host owns the tab's single socket (REQ-067); pages and badges consume the Apollo cache the hook maintains. Sign-out unmounts it.
 - **Never refetch on first connect, and never emit a realtime event for mark-read** — catch-up is reconnect-only (REQ-025); read-state changes are not pushes.
-- **Never reuse the WS sidecar for presence** — availability is DEV2-011/012/013's own surface.
-- **Never resolve roles or all-users inside the engine** — `emitForUsers` takes EXPLICIT recipient id lists only (REQ-027); broadcast cohort composition is DEV3-022d's obligation.
+- **Never reuse the WS sidecar for presence** — availability is the presence surface's own concern.
+- **Never resolve roles or all-users inside the engine** — `emitForUsers` takes EXPLICIT recipient id lists only (REQ-027); broadcast cohort composition is the broadcast surface's obligation.
 - **Never import the sidecar module from app code to "reach the registry"** — the handle is process-local by design; cross-process fan-out goes through the transport port.
 
 ---
 
 ## 5. Rollout Summary
 
-Shipped in DEV3-010 (`feat/dev3-010-real-time-notification-engine-websocket`), all gates green:
+Shipped, all gates green:
 
 - **Persistence + emit surface** — engine namespace, fail-closed validation, injected idempotency port (33 tests / 288 expects, task 2.6).
 - **Backplane** — port pair + in-process and Redis adapters + stateless factory (task 2.5); the channel literal exists only in `NOTIFICATIONS_FANOUT_CHANNEL`.
@@ -216,11 +216,11 @@ Shipped in DEV3-010 (`feat/dev3-010-real-time-notification-engine-websocket`), a
 
 ## 6. Related Documents
 
-- `docs/specs/state-machine-invariants.md` — INV-P3 (enabled-by this engine; emitters in DEV1-016/017)
+- `docs/specs/state-machine-invariants.md` — INV-P3 (enabled-by this engine; emitters ship with the parent completion-notification surface)
 - `docs/specs/open-decisions-and-gaps.md` — decisions addendum: WS-via-sidecar topology, emit fail-open idempotency, localization-at-emitter (task 7.2)
 - `docs/specs/functional-requirements.md` — the REQ catalog cited throughout
 - `docs/IDEMPOTENCY.md` — the fail-closed posture this engine's emit path deliberately deviates from (§3.6)
-- `docs/workflows/03-session-lifecycle-escrow.md` — completion/cancellation notifications hang off the future emitters (DEV3-012/013, DEV1-016/017)
-- `docs/workflows/05-admin-governance-override.md` — broadcasts become admin-surfaced in DEV3-022d over the engine's bulk primitive
+- `docs/workflows/03-session-lifecycle-escrow.md` — completion/cancellation notifications hang off the future emitters (the confirmation/escrow and parent surfaces)
+- `docs/workflows/05-admin-governance-override.md` — broadcasts become admin-surfaced via the broadcast surface over the engine's bulk primitive
 - `backend/services/AGENTS.md`, `backend/ws/AGENTS.md` — layer rules (single-writer; handshake order, close-code vocabulary, bounded-state contract)
 - `ai/plans/sprint_2/dev3-010-real-time-notification-engine-websocket/` — specs, deferred-items ledger, and per-task outcomes (binding summaries: 2.5, 2.6, 2.7, 2.8, 4.2)

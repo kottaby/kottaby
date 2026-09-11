@@ -1,4 +1,4 @@
-# Final Outcome — DEV3-006 Session Report & Homework Infrastructure
+# Final Outcome — Session Report & Homework Infrastructure
 
 **Plan:** `ai/plans/sprint_1/dev3-006-session-report-homework-infrastructure`
 **Branch:** `feat/dev3-006-session-report-homework` (base: `origin/main` @ `ffce457`)
@@ -62,12 +62,12 @@ All findings LOW or below — 4 fixed (ayah bound, resilient wave join, `isSuppl
 
 ## Deferred-items final snapshot
 
-D1 (114-surah expansion → curriculum stream), D2 (parent read surface → DEV1-016), D3 (submit UX → DEV2-014), D4 (rating aggregation → DEV2-017), D5 (report amendment semantics → future ticket), Wire-Suite-CI (wire execution → CI/postgres, environmental). Zero blocked items.
+D1 (114-surah expansion → curriculum stream), D2 (parent read surface → the parent-portal ticket), D3 (submit UX → the submit-UX ticket), D4 (rating aggregation → the rating-aggregation ticket), D5 (report amendment semantics → future ticket), Wire-Suite-CI (wire execution → CI/postgres, environmental). Zero blocked items.
 
 ## Known limitations & handoff notes
 
-- **DEV2-014 (submit UX)** consumes `submitSessionReportMutationDocument`, `sessionReportQueryDocument`, `sessionHomeworkQueryDocument` from `frontend/graphql/sharedDocuments/scheduling/session-report.documents.ts` (also re-exported via the hub + root barrel). Nullable roots: both queries return `null` for non-participants — render an empty/skeleton state, never an error.
-- **DEV1-016 (parent portal)**: parent reads are `null` by design until the parent read surface lands (ledger D2); parents currently receive the report-ready notification only.
-- **DEV2-017 (rating aggregation)**: source rows live in `reports.student_rating_by_teacher` (0–5 int, CHECK-backstopped).
+- **Submit-UX ticket** consumes `submitSessionReportMutationDocument`, `sessionReportQueryDocument`, `sessionHomeworkQueryDocument` from `frontend/graphql/sharedDocuments/scheduling/session-report.documents.ts` (also re-exported via the hub + root barrel). Nullable roots: both queries return `null` for non-participants — render an empty/skeleton state, never an error.
+- **Parent-portal ticket**: parent reads are `null` by design until the parent read surface lands (ledger D2); parents currently receive the report-ready notification only.
+- **Rating-aggregation ticket**: source rows live in `reports.student_rating_by_teacher` (0–5 int, CHECK-backstopped).
 - **Governance**: submission requires governance-clean + teacher-role (service re-assertion `assertTeacherGovernanceClean`, shared `assertRoleGovernanceClean` core with the admin variant).
 - **Wire suite**: executes in CI with real postgres (`bun run test:graphql`); in pglite sandboxes every GraphQL suite skips by repo design.

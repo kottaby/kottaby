@@ -9,7 +9,7 @@
  * `isInputEventSupported === false`).
  *
  * The ERROR-DISPLAY + ELIGIBILITY-GATING tier of the admin session-
- * governance surface (DEV3-021 / tasks 5.2.4 "403 error tenant denial
+ * governance surface (tasks 5.2.4 "403 error tenant denial
  * display" + the D-03 gating matrix). Two complementary tiers:
  *
  *   ROW TIER (`AdminSessionRow` in isolation — the Record lookup tables

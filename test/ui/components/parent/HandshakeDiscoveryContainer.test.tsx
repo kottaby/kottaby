@@ -10,7 +10,7 @@
  *   lowercase valid input (query fires with the NORMALIZED uppercase
  *   variable) · searching skeleton · null payload (neutral not-found state —
  *   asserted NOT error styling) · found + linkable (can-link copy + the
- *   DEV1-014 send affordance) · found + already-linked (already-linked copy;
+ *   send affordance) · found + already-linked (already-linked copy;
  *   both assert no discovery CTA element and no raw identity leaked) ·
  *   server `VALIDATION` re-judgment (inline input error) · `FORBIDDEN`
  *   denial (PermissionDeniedFallback) · generic transport error · generic
@@ -21,7 +21,7 @@
  *   two searches, pinning that the refreshed result replaces the stale
  *   cached one).
  *
- * DEV1-014 task 4.3 coverage (container-augmented send affordance): the
+ * Task 4.3 coverage (container-augmented send affordance): the
  * container mounts the outgoing-requests section below the discovery flow,
  * so EVERY render also carries a `MyOutgoingParentLinkRequests` mock (the
  * section's own legitimate zero-arg query — the recorded traffic
@@ -107,9 +107,9 @@ const MALFORMED_INPUTS = ["", "KSB-1", "KSB-", "%KSB-ABCD1234", "رمز غير �
 
 /** The discovery query's operation name. */
 const FIND_OPERATION_NAME = "FindStudentByHandshakeCode";
-/** The outgoing-list query the mounted section fires at mount (DEV1-014). */
+/** The outgoing-list query the mounted section fires at mount. */
 const OUTGOING_OPERATION_NAME = "MyOutgoingParentLinkRequests";
-/** The send mutation's operation name (DEV1-014 task 4.3). */
+/** The send mutation's operation name (task 4.3). */
 const SEND_OPERATION_NAME = "RequestParentChildLink";
 
 /** Outgoing-row timestamps — canonical ISO instants (never asserted as copy). */
@@ -175,7 +175,7 @@ function inFlightMock(code: string): MockLink.MockedResponse {
 }
 
 /**
- * Outgoing-list mock — the zero-arg query the mounted DEV1-014 section fires
+ * Outgoing-list mock — the zero-arg query the mounted send section fires
  * on mount and after every completed send (`refetchQueries`). Identical
  * entries queue: the first consumption serves the mount read, the second the
  * post-send refetch.
@@ -321,7 +321,7 @@ for (const locale of ["ar", "en"] as AppLocale[]) {
       expect(screen.queryByTestId("handshake-discovery-searching")).toBeNull();
       expect(screen.queryByTestId("handshake-discovery-not-found")).toBeNull();
       expect(screen.queryByTestId("handshake-discovery-result")).toBeNull();
-      // The DEV1-014 send affordance is discovery-driven — nothing while idle.
+      // The send affordance is discovery-driven — nothing while idle.
       expect(screen.queryByTestId("parent-link-send-affordance")).toBeNull();
 
       // Skip-gate proof: mounting the container fires NOTHING for the
@@ -387,7 +387,7 @@ for (const locale of ["ar", "en"] as AppLocale[]) {
       expect(maskedNameEl.getAttribute("dir")).toBe("auto");
       expect(screen.getByText(t.canLinkDescription)).toBeDefined();
 
-      // D1 — no CTA INSIDE the result card. The DEV1-014 send affordance is
+      // D1 — no CTA INSIDE the result card. The send affordance is
       // a SEPARATE seam below the card (its own testid), not a child of it.
       expect(resultCard.querySelector("button")).toBeNull();
       expect(screen.getByTestId("parent-link-send-affordance")).toBeDefined();
@@ -473,7 +473,7 @@ for (const locale of ["ar", "en"] as AppLocale[]) {
       expect(screen.getByText(MASKED_STUDENT_NAME).getAttribute("dir")).toBe("auto");
       // `linkable`-driven copy: the can-link branch must NOT render.
       expect(screen.queryByText(t.canLinkDescription)).toBeNull();
-      // The DEV1-014 send affordance exists ONLY on a linkable result.
+      // The send affordance exists ONLY on a linkable result.
       expect(screen.queryByTestId("parent-link-send-affordance")).toBeNull();
 
       // D1 — NO CTA; minimal disclosure holds on this branch too.
@@ -639,7 +639,7 @@ for (const locale of ["ar", "en"] as AppLocale[]) {
     });
 
     // ------------------------------------------------------------------
-    // DEV1-014 task 4.3 — the container-augmented send affordance.
+    // Task 4.3 — the container-augmented send affordance.
     // ------------------------------------------------------------------
 
     test("send affordance: CTA click fires requestParentChildLink with the exact {code} variables; success → notice + toast + outgoing list refetched", async () => {

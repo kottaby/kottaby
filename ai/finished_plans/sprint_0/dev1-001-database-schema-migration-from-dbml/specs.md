@@ -1,15 +1,15 @@
 > **Date**: 2026-08-25 12:42:30
-> **Target Ticket**: DEV1-001
+> **Target Ticket**: Database Schema Migration
 
-# Requirements & Specification: DEV1-001 — Database Schema Migration from DBML
+# Requirements & Specification: Database Schema Migration from DBML
 
 ## 1. Executive Summary & Problem Statement
 
 **Feature:** Migrate the canonical `db/schema.dbml` into a runnable, reversible PostgreSQL schema using the Kottaby repository infrastructure (Drizzle ORM schema layer + `bun run db` pipeline), producing all 22 tables, 13 enums, foreign keys, check constraints, indexes, and immutability triggers that constitute the ground truth for all three developer streams.
 
-**Problem from the user perspective:** All downstream work — user registration (DEV1-002), JWT/RBAC (DEV2-001/002), CI/CD (DEV3-001), the session/escrow engine (DEV3-004+), the evaluation loop (DEV2-004+), the parent handshake (DEV1-013+), and admin governance (DEV3-016+) — depends on a correct, unified physical schema. Today, `db/schema.dbml` is the *documented* ground truth (22 tables, 13 enums, 33 resolved decisions incorporated), but the buildable Kottaby stack (Drizzle `pgTable` definitions in `backend/db/schema/`, enum registry in `backend/db/schema/enums.ts`, canonical enums in `backend/enum/`, custom SQL in `backend/db/migration/`) has no guarantee of 1:1 DBML parity for the 10 new tables / 8 new enums introduced by the resolved decisions (A.1–A.10, B.12–B.18, C.1–C.5).
+**Problem from the user perspective:** All downstream work — user registration (the User Registration ticket), JWT/RBAC (the JWT Authentication Service ticket), CI/CD (the CI/CD Pipeline ticket), the session/escrow engine (the Session Creation & Lifecycle ticket), the evaluation loop (the Teacher Applicant Registration ticket), the parent handshake, and admin governance — depends on a correct, unified physical schema. Today, `db/schema.dbml` is the *documented* ground truth (22 tables, 13 enums, 33 resolved decisions incorporated), but the buildable Kottaby stack (Drizzle `pgTable` definitions in `backend/db/schema/`, enum registry in `backend/db/schema/enums.ts`, canonical enums in `backend/enum/`, custom SQL in `backend/db/migration/`) has no guarantee of 1:1 DBML parity for the 10 new tables / 8 new enums introduced by the resolved decisions (A.1–A.10, B.12–B.18, C.1–C.5).
 
-**Business value:** The schema is the single most blocking dependency in the roadmap (it gates Sprint 0's M0 release gate and every Sprint 1–4 ticket). A validated, reversible, idempotent migration eliminates schema-drift disputes between streams and unlocks `bun validate:dbml` as a CI gate (DEV3-001).
+**Business value:** The schema is the single most blocking dependency in the roadmap (it gates Sprint 0's M0 release gate and every Sprint 1–4 ticket). A validated, reversible, idempotent migration eliminates schema-drift disputes between streams and unlocks `bun validate:dbml` as a CI gate (the CI/CD Pipeline ticket).
 
 **Actors involved:**
 - **Dev 1 (executor):** builds and validates the schema (Owner Stream: Dev 1, Shared gate).
@@ -17,7 +17,7 @@
 - **Super Admin / runtime system (downstream):** immutability triggers on `audit_logs`, `student_payments`, `teacher_transaction` protect financial and audit integrity (INV-W6, INV-PAY2, FR-10.5).
 - **FK cascades / soft-delete policies:** govern data retention (INV-U1, INV-U4, INV-U5).
 
-**Non-goals (explicitly out of scope for DEV1-001):**
+**Non-goals (explicitly out of scope for this ticket):**
 - No GraphQL/Pothos resolvers, no Apollo documents, no frontend views or routes (Sprint 0 is schema-only for this ticket).
 - No seeders for domain data (seeder rules in `backend/db/seeds/AGENTS.md`; system permissions belong in migrations only, not seeds).
 - No repository/service business logic beyond what is needed for constraint enumeration; behavioral flows (booking, escrow, cooldown) are Sprint 1+ tickets.
@@ -98,7 +98,7 @@
 | Requirement ID | Backend Service | GraphQL Mutation/Query | Frontend View | Test Coverage |
 |---|---|---|---|---|
 | REQ-001 / REQ-002 | — (baseline; `ai/plans/dev1-001-schema-migration/`) | — | — | Plan-review gate + Phase 0 baseline outcome |
-| REQ-003 (enums) | `backend/enum/<subdir>/*.enum.ts`, `backend/db/schema/enums.ts` | Registration deferred (no Pothos enum registration in DEV1-001 — no GraphQL exposure; codegen NOT required this ticket) | — | `backend/db/test/logic/shared/` enum value assertion test |
+| REQ-003 (enums) | `backend/enum/<subdir>/*.enum.ts`, `backend/db/schema/enums.ts` | Registration deferred (no Pothos enum registration in this ticket — no GraphQL exposure; codegen NOT required this ticket) | — | `backend/db/test/logic/shared/` enum value assertion test |
 | REQ-010–REQ-029 (tables) | `backend/db/schema/<domain>/*.ts`, canonical types `backend/types/<domain>/*.types.ts` | — | — | `backend/db/test/logic/shared/schema-coverage.test.ts` (REQ-060) |
 | REQ-011 | `backend/db/schema/users/users.ts` | — | — | Column presence + governance-field test in `logic/users/` |
 | REQ-014 / REQ-022 / REQ-026 / REQ-027 / REQ-032 | `backend/db/schema/{students,billing}/` constraint definitions | — | — | `logic/shared/check-constraints.test.ts` (REQ-062) |

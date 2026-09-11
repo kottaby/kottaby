@@ -2,7 +2,7 @@
 
 **Domain:** Admin / operator surface over the `session` entity (directory, detail, reschedule, cancel, teacher reassignment, live join observation)
 **Status:** Implemented and verified
-**Source of truth for:** the state-eligibility matrix for admin session mutations, the single-transaction mutation discipline, the governance audit-row shape, the three notification waves and their claim keys, the join-observation semantics, the admin i18n/roles posture, the rate-limit posture, and the boundary this surface shares with the session arbitration surface (DEV3-022).
+**Source of truth for:** the state-eligibility matrix for admin session mutations, the single-transaction mutation discipline, the governance audit-row shape, the three notification waves and their claim keys, the join-observation semantics, the admin i18n/roles posture, the rate-limit posture, and the boundary this surface shares with the session arbitration surface.
 
 This document is the single canonical reference for the admin session-governance surface (`/admin/session-governance`, the `SessionAdminGovernanceService` namespace and its repository guards). All layers (types, repo, service, GraphQL, frontend, tests) MUST conform to the contracts described here. Downstream tickets that touch `session` writes outside the participant lifecycle MUST read this document together with `docs/sessions/session-lifecycle.md` — the lifecycle owns the participant transitions; this surface is the operator complement over the same rows.
 
@@ -93,12 +93,12 @@ The admin join is an OBSERVATION, not an access grant: it records that an admin 
 
 The platform-wide GraphQL rate-limit wrapper (per-IP Redis sliding-window limiter, `backend/lib/ratelimit.ts`) covers the surface at the transport layer; it fails open in the test transport. There is deliberately NO bespoke admin-mutation limiter — a tighter per-admin quota is a recorded forward item on the platform hardening stream (the plan ledger's rate-limit row). Cost is otherwise bounded by construction: the directory's page size is capped (1..50, default 25), the offset is ceiling-bounded against the honest filtered total, and every mutation is O(1) statements inside one transaction. Missing supporting indexes for the filter/order columns are a recorded forward item (schema/index stream).
 
-## 9. The arbitration boundary (DEV3-022)
+## 9. The arbitration boundary
 
 Two admin roads over the same rows stay strictly independent:
 
 - **This surface** sees EVERY row (the browse plane) but can mutate none of the disputed ones — the guard predicates make a disputed row structurally unreachable.
-- **The arbitration surface** (the DEV3-022 family — `resolveSessionDispute` is its reference operation, `docs/workflows/05-admin-governance-override.md` the workflow source) is the ONLY writer allowed to exit a disputed row into a terminal state.
+- **The arbitration surface** (`resolveSessionDispute` is its reference operation, `docs/workflows/05-admin-governance-override.md` the workflow source) is the ONLY writer allowed to exit a disputed row into a terminal state.
 
 Both enforce the SAME governance-clean admin gate and therefore the same byte-identical denial split. Never widen this surface's predicates to "helpfully" touch a disputed row; never add a second write path for a transition.
 

@@ -1,6 +1,6 @@
 # Admin Broadcast Notifications (System-Wide & Targeted)
 
-Provenance: shipped as DEV3-022d ("Broadcast Notifications — System-Wide & Targeted"). Composes on the real-time notification engine (`docs/notifications/realtime-engine.md` — DEV3-010) as its `system_broadcast` emitter, and on the admin governance substrate (shared `assertActorAdmin` gate, in-tx audit writer).
+Provenance: shipped as "Broadcast Notifications — System-Wide & Targeted". Composes on the real-time notification engine (`docs/notifications/realtime-engine.md`) as its `system_broadcast` emitter, and on the admin governance substrate (shared `assertActorAdmin` gate, in-tx audit writer).
 
 ## 1. What it is
 

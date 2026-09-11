@@ -10,7 +10,7 @@
  * whole dispute/cancel dialog interaction vocabulary. Those blocks now live
  * HERE exactly once; the suites keep only their per-container fixtures,
  * documents, and branch-specific assertions. The admin session-governance
- * suites (DEV3-021) additionally share their namespace warming, the
+ * suites additionally share their namespace warming, the
  * 21-field governance wire-row fixture + moments, and the cancel/reassign
  * mutation mock builders (the governance section below).
  *
@@ -259,7 +259,7 @@ export function buildSessionWireRow(
     confirmedByTeacherAt: null,
     createdAt: defaults.createdIso,
     updatedAt: defaults.createdIso,
-    // DEV3-005 dispute/cancel-audit columns — nullable, defaulted off.
+    // Dispute/cancel-audit columns — nullable, defaulted off.
     cancelReason: null,
     disputeReason: null,
     disputedAt: null,
@@ -316,7 +316,7 @@ export type StatusFilterToolbarLabels = Pick<
 /**
  * Filter-chip toolbar assertions shared by the sessions-family suites: the
  * "all" token is rendered + selected and every reachable lifecycle status
- * chip is offered — INCLUDING Disputed (DEV3-005 made the disputed state
+ * chip is offered — INCLUDING Disputed (the disputed state is
  * reachable on participant surfaces).
  */
 export function expectStatusFilterToolbar(t: StatusFilterToolbarLabels): void {
@@ -401,7 +401,7 @@ export type DisputeDialogGateLabels = Pick<
 >;
 
 /**
- * The dispute dialog's (DEV3-005, R-110) REQUIRED-reason gate: static shell
+ * The dispute dialog's (R-110) REQUIRED-reason gate: static shell
  * copy + submit affordance + initial RAW-character counter, then an EMPTY
  * submit that the UI-seam gate blocks — aria-invalid raises, the localized
  * error helper swaps in for the counter, and the dialog STAYS OPEN (no wire
@@ -485,7 +485,7 @@ export async function expectDisputeRejectionConvergence(
 }
 
 // ---------------------------------------------------------------------------
-// Admin session-governance suite fixtures (DEV3-021)
+// Admin session-governance suite fixtures
 
 /**
  * Eager namespace warming for the governance suites — every suite calls this

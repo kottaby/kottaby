@@ -1,4 +1,4 @@
-# Implementation Tasks: DEV3-016 — Admin CRUD: Users, Teachers, Students, Parents
+# Implementation Tasks: Admin CRUD: Users, Teachers, Students, Parents
 
 > **Plan of record:** `ai/plans/sprint_3/dev3-016-admin-user-crud/`
 > **Specs:** `specs.md` REQ-001..REQ-083 · Journeys §2.9 (A, B, C; JR-A-1, JR-A-2, JR-B-1, JR-C-1)
@@ -30,10 +30,10 @@
     - `bun run scripts/lint-service.ts --json --id baseline` — JSON artifact committed under the plan dir
     - `git diff --name-only` — pre-existing dirty-file list
   - Initialize `ai/plans/sprint_3/dev3-016-admin-user-crud/deferred-items.md` from `.agents/spec-process-guide/templates/deferred-items-template.md`, pre-seeded with the four non-blocking forward entries (REQ-001):
-    - **D1** — audit-trail browsing UI → owner DEV3-020
-    - **D2** — direct student onboarding (subscription + offline payment + parent association) → owner DEV3-019
-    - **D3** — suspend/block governance windows → owner DEV3-017
-    - **D4** — cold-start teacher certification → owner DEV3-018
+    - **D1** — audit-trail browsing UI → owner 
+    - **D2** — direct student onboarding (subscription + offline payment + parent association) → owner 
+    - **D3** — suspend/block governance windows → owner 
+    - **D4** — cold-start teacher certification → owner 
   - _Requirements: REQ-001_
   - [ ] 0.1.SR **Semantic Review**: confirm ledger has exactly 4 seeded entries, all marked non-blocking with owner ticket references; baseline numbers are committed, not paraphrased.
   - [ ] 0.1.OUT **Outcome**: `outcome/phase0-baseline-outcome.md` written.
@@ -44,16 +44,16 @@
   - Verify READ-ONLY (open file, confirm export, record evidence line) each of:
     - `users` table governance columns per A.7 (`isDeleted`, `deletedAt`, `suspended`, `suspendedAt`, `suspendedPeriodDays`, `isBlocked`, `blockedAt`, `lastActiveAt`) in `backend/db/schema/users/users.ts`
     - `user_role` enum with `["admin","teacher","student","parent"]` in `backend/db/schema/enums.ts`
-    - `RegistrationService` + `createAdminUser` (service-only path) from DEV1-002
-    - DEV2-004 applicants lifecycle: `ApplicantProfileReturnType`, `isApplicantStatus`, `ApplicantRepository`, `myApplicantProfile` surface
+    - `RegistrationService` + `createAdminUser` (service-only path)
+    - applicants lifecycle: `ApplicantProfileReturnType`, `isApplicantStatus`, `ApplicantRepository`, `myApplicantProfile` surface
     - `UserRepository.create`, `StudentRepository.createForRegistration`, `ParentRepository.createForRegistration` with `tx?: DBTransaction` optional-last convention
     - `audit_logs` table + `AuditService.createAuditLog` (VERIFY EXACT METHOD NAME — 'get naming' rule) + `AuditLogWriteContract` + `ActorContextRef` from `@/backend/types/contracts`
-    - DEV2-002 `role` authScope behavior + `$all` conjunction semantics (cross-check `docs/teachers/applicant-lifecycle.md` §3 verified pattern)
-    - DEV2-001 `ctx.user` verified context + `ctx.locale` propagation
+    - `role` authScope behavior + `$all` conjunction semantics (cross-check `docs/teachers/applicant-lifecycle.md` §3 verified pattern)
+    - `ctx.user` verified context + `ctx.locale` propagation
     - `escapeLikeWildcards` utility location and signature
     - `withTransaction(outerTx)` helper + `DBTransaction` canonical import
     - 23505→`ConflictError` cause-chain traversal utility
-    - `StudentTrialService.grantFreeTrial` (DEV1-004 trial entry point): **if ABSENT**, record a ❌ deferred-dependency entry targeting DEV1-004's contract (REQ-014 conditional path) — NEVER re-implement trial logic
+    - `StudentTrialService.grantFreeTrial` (trial entry point): **if ABSENT**, record a ❌ deferred-dependency entry targeting the contract (REQ-014 conditional path) — NEVER re-implement trial logic
     - `entity-setup.ts` test helpers (`createTestAdmin`, `createTestApplicant` signature check — if missing, plan their creation in test tasks)
     - `withPageAuth` contract from `docs/app/with-page-auth.md`; `PermissionDeniedFallback` component; sidebar admin navigation group config
   - **Rule**: any required artifact missing → ❌ entry in `deferred-items.md` + dependent tasks blocked; NEVER fork a parallel invariant.
@@ -71,10 +71,10 @@
 
 - [x] **1.1 Create `backend/types/admin/` canonical types**
   - Create `backend/types/admin/admin-user.types.ts` exactly per plan.md §2.2:
-    - `AdminUserSafeSelect` (`Omit<UserSelectType, "passwordHash">` — DEV2-003 forbidden-field discipline)
+    - `AdminUserSafeSelect` (`Omit<UserSelectType, "passwordHash">` — forbidden-field discipline)
     - `AdminUserListItemReturnType`, `AdminUserPageReturnType`
     - `AdminTeacherSnapshotReturnType`, `AdminStudentSnapshotReturnType`, `AdminParentSnapshotReturnType`
-    - `AdminUserDetailReturnType` (extends `AdminUserSafeSelect`; `applicant: ApplicantProfileReturnType | null` — DEV2-004 canonical reuse)
+    - `AdminUserDetailReturnType` (extends `AdminUserSafeSelect`; `applicant: ApplicantProfileReturnType | null` —  canonical reuse)
     - `AdminCreateUserSubmitInput` (closed whitelist incl. `role: RegisterPublicRole`)
     - `AdminUpdateUserPatchInput` (EXACTLY `{fullName?, phone?, country?, gender?, dateOfBirth?}`)
     - `AdminUserFiltersSubmitInput`, `AdminUserUpdateDbPatch`
@@ -152,7 +152,7 @@
     2. `admin` → directory list filtered `role=student` → new row OBSERVABLE with student headline projection
     3. `new student` → `login` via existing auth service → SUCCEEDS (governance clean)
     4. `admin` → `setUserDeleted(id, true)` → guarded UPDATE + `audit_logs(delete)`; assert `is_deleted=true`, `deleted_at` set
-    5. `new student` → `login` → DENIED at governance gate (junction assertion only — DEV2-001/002 boundary internals are not re-tested)
+    5. `new student` → `login` → DENIED at governance gate (junction assertion only — boundary internals are not re-tested)
     6. `admin` → `setUserDeleted(id, false)` → `audit_logs(reactivate)`; `login` RESTORED
     7. Denial: `admin` → `setUserDeleted(ownId, true)` → `USER_SELF_DEACTIVATION_FORBIDDEN`, ZERO writes, ZERO audit row (JR-A-2, JR-C-1 no-audit-on-denial rule)
       - Assert cross-actor visibility after each step (who sees deleted badge; who can log in) AND the pre-existing fixture's balances/subscription/applicant rows remain byte-identical across the whole journey (INV-U1/U5)
@@ -174,7 +174,7 @@
   - Journey B steps (sequential, actor-attributed):
     1. `admin` → create `role=teacher` → `users` + `applicants(status=pending, verification_attempts=0, cooldown_until=NULL)` + audit(create); assert ZERO `teacher` rows created (B.7/INV-TV1 lock — JR-B-1)
     2. `admin` → `getUserDetail(id)` → applicant projection pending observable; NO certified artifact (`teacherIsApproved` null)
-    3. `new applicant` → existing DEV2-004 `myApplicantProfile` service path → observes `pending` truthfully (cross-ticket contract verified, not reimplemented)
+    3. `new applicant` → existing `myApplicantProfile` service path → observes `pending` truthfully (cross-ticket contract verified, not reimplemented)
     4. `admin` → `updateUser(id, {fullName})` → whitelist update + audit(update, `changedFields:["fullName"]`); applicant row byte-identical (fixture-immutability)
     5. Denial: `new applicant` → `listDirectory` service path → typed denial (`FORBIDDEN` at the scope layer — asserted at the permission-resolution seam, journey asserts honest denial before resolver body)
   - Journey C steps:
@@ -216,9 +216,9 @@
 - [x] **2.4 Implement `AdminUserManagementService`**
   - Create `backend/services/admin/user-management.service.ts` + `backend/services/admin/index.ts` barrel (+ top-level services barrel line per repo convention)
   - Implement per plan §4.1 exactly:
-    - `listDirectory(filters, page, pageSize, locale, tx?)` — pre-DB pagination bounds (`VALIDATION`); drop empty/unknown filter members; service-side `escapeLikeWildcards` + `%…%` composition; empty out-of-range page returns `{items: [], totalCount, page, pageSize}` honestly; projection null-coalesces governance booleans (`?? false`) and fail-closes applicant status via `isApplicantStatus` (corrupt stored value → DEV2-004's existing error path/key — IMPORT, never re-invent)
+    - `listDirectory(filters, page, pageSize, locale, tx?)` — pre-DB pagination bounds (`VALIDATION`); drop empty/unknown filter members; service-side `escapeLikeWildcards` + `%…%` composition; empty out-of-range page returns `{items:, totalCount, page, pageSize}` honestly; projection null-coalesces governance booleans (`?? false`) and fail-closes applicant status via `isApplicantStatus` (corrupt stored value → the existing error path/key — IMPORT, never re-invent)
     - `getUserDetail(userId, locale, tx?)` — defensive positive-safe-integer re-guard; `⊘` row → `NotFoundError("USER", tErrors.adminUsers.userNotFound)` (entity name `"USER"` — never double-suffixed code); role-child snapshot assembly (student `hasActiveSubscription` read-only EXISTS semantics; balances read-only)
-    - `createUser(input, actorId, locale, outerTx?)` — role pre-guard (`role=admin` → `ValidationError` `ADMIN_ROLE_CREATION_FORBIDDEN`); field validation; password hashing via EXISTING auth helper; `withTransaction(outerTx)`: `UserRepository.create` → child create (`StudentRepository.createForRegistration` w/ handshake retry per `docs/auth/user-registration.md`; `ApplicantRepository.create` ONLY for teacher — NEVER a `teacher` row (B.7); `ParentRepository.createForRegistration`) → trial grant via `StudentTrialService.grantFreeTrial(..., tx)` ONLY IF 0.2 verified present (else `deferred-items.md` ❌ → DEV1-004 contract) → `AuditService.createAuditLog(AuditLogWriteContract {actorId, Create, "user", entityId, ≤2000-char PII-minimal details}, tx)` → return `getUserDetail(newId, locale, tx)`; 23505 → cause-chain traversal → existing `ConflictError(emailAlreadyExists)`
+    - `createUser(input, actorId, locale, outerTx?)` — role pre-guard (`role=admin` → `ValidationError` `ADMIN_ROLE_CREATION_FORBIDDEN`); field validation; password hashing via EXISTING auth helper; `withTransaction(outerTx)`: `UserRepository.create` → child create (`StudentRepository.createForRegistration` w/ handshake retry per `docs/auth/user-registration.md`; `ApplicantRepository.create` ONLY for teacher — NEVER a `teacher` row (B.7); `ParentRepository.createForRegistration`) → trial grant via `StudentTrialService.grantFreeTrial (tx)` ONLY IF 0.2 verified present (else `deferred-items.md` ❌ →  contract) → `AuditService.createAuditLog(AuditLogWriteContract {actorId, Create, "user", entityId, ≤2000-char PII-minimal details}, tx)` → return `getUserDetail(newId, locale, tx)`; 23505 → cause-chain traversal → existing `ConflictError(emailAlreadyExists)`
     - `updateUser(id, patch, actorId, locale, outerTx?)` — empty patch → `VALIDATION` + `userPatchEmpty`; per-field validation (name ≤255 trimmed non-empty, phone ≤20, country ≤100, dateOfBirth valid past); FIELD-BY-FIELD `AdminUserUpdateDbPatch` build (NO `{ ...input }` anywhere — grep gate); tx: guarded update → null → `USER_NOT_FOUND`; audit `Update` with `details={"changedFields":[...]}` (NAMES only); return post-write detail
     - `setUserDeleted(id, deleted, actorId, locale, outerTx?)` — tx: self-protection FIRST (`id===actorId` → `ConflictError(USER_SELF_DEACTIVATION_FORBIDDEN)`, zero writes, zero audit); `setDeletedOnce` → null → `existsById` probe → `USER_NOT_FOUND` vs `USER_ALREADY_DELETED`/`USER_NOT_DELETED`; success → audit (`Delete`|`Reactivate`) → detail
   - Logging: expected rejections via `logger.logDomainError` (`{code, entity:"user", entityId}` — ids/codes only); unexpected → `logger.error`; NO `console.*`; audit details truncated ≤2000 chars with truncation that NEVER fails the mutation (REQ-052)
@@ -253,7 +253,7 @@
 
 - [x] **3.1 Register admin user GraphQL objects + enums**
   - Create `backend/graphql/pothos/admin/admin-user.pothos.ts` + `backend/graphql/pothos/admin/index.ts` barrel
-  - Objects backed by canonical types ONLY: `objectRef<AdminUserListItemReturnType>("AdminUserListItem")`, `objectRef<AdminUserPageReturnType>("AdminUserPage")`, `objectRef<AdminUserDetailReturnType>("AdminUserDetail")` (field `id` FIRST — Apollo normalization), snapshot objects from `backend/types/admin/` types; reuse DEV2-004's `ApplicantProfile` object for the `applicant` field (no re-declaration)
+  - Objects backed by canonical types ONLY: `objectRef<AdminUserListItemReturnType>("AdminUserListItem")`, `objectRef<AdminUserPageReturnType>("AdminUserPage")`, `objectRef<AdminUserDetailReturnType>("AdminUserDetail")` (field `id` FIRST — Apollo normalization), snapshot objects from `backend/types/admin/` types; reuse the `ApplicantProfile` object for the `applicant` field (no re-declaration)
   - SDL fields exactly per plan §3.1 (`AdminUserGovernance` enum; `AdminUserFiltersInput`; `AdminCreateUserInput`; `AdminUpdateUserInput`)
   - Enum discipline (REQ-061): in `backend/graphql/pothos/shared/enum.pothos.ts`, VERIFY-FIRST each of `UserRole`/`RegisterPublicRole`/`Gender`/`ApplicantStatus`; register `AdminUserGovernance ← AdminUserGovernanceFilter` via enum-object form (NEW); register any verified-missing pre-existing enum via enum-object form — NEVER hardcoded `values:[...]`, NEVER re-register a registered enum
   - `passwordHash` appears in NO object (structural — type composition enforces it)
@@ -261,7 +261,7 @@
   - _Requirements: REQ-003, REQ-033, REQ-060, REQ-061_
   - [x] 3.1.QL **Quality Loop**: sub-loop on every new/modified pothos file (exit 0)
   - [x] 3.1.TE **Test Engineering**: schema-shape assertions land in 5.1/5.2 (generated SDL greps); this task's gate is `bun tsgo` clean + successful builder composition.
-  - [x] 3.1.SEC **Security & Tenancy Audit**: no sensitive field exposed; `applicant` projection is the DEV2-004 approved shape only; no local types defined inline in pothos files.
+  - [x] 3.1.SEC **Security & Tenancy Audit**: no sensitive field exposed; `applicant` projection is the approved shape only; no local types defined inline in pothos files.
   - [x] 3.1.SR **Semantic Review**: enums as value imports; no `await import`; builder registrations are side-effect-based per gateway contract.
   - [x] 3.1.IV **Instruction Verification**: validate against pothos layer AGENTS.md + gateway routing doc Rule 8.
   - [x] 3.1.OUT **Outcome**: `outcome/3.1-outcome.md`.
@@ -339,7 +339,7 @@
   - Files:
     - `app/(dashboard)/admin/users/[id]/page.tsx` — Server Component: `withPageAuth({ roles: [UserRole.Admin], redirectTo: "/admin/users/<id>" })` + `getTranslations(locale)`
     - `frontend/views/admin/users/detail/AdminUserDetailContainer.tsx` — client: `useQuery(adminUserDetailQueryDocument)`
-    - `frontend/views/admin/users/detail/UserProfileCard.tsx` — all non-sensitive columns + governance timestamps (suspended/blocked are READ-ONLY displays here — DEV3-017 owns mutation)
+    - `frontend/views/admin/users/detail/UserProfileCard.tsx` — all non-sensitive columns + governance timestamps (suspended/blocked are READ-ONLY displays here — the governance ticket owns mutation)
     - `frontend/views/admin/users/detail/UserSnapshotCards.tsx` — role-branch cards: ApplicantSnapshot (status/attempts/cooldown — certified artifact absent for applicant-only users, JR-B-1 UI branch), TeacherSnapshot, StudentSnapshot (handshake/parent-link/subscription headline/balances — all read-only), ParentSnapshot (linkedChildrenCount)
     - Detail page reuses the 4.2 edit + delete/reactivate dialogs; `USER_NOT_FOUND` (stale link) → localized not-found section + back-to-directory CTA
   - Same MUI v9/React 19/i18n/RTL discipline as 4.2; detail sections stack vertically at mobile
@@ -396,12 +396,12 @@
     - [x] **review-backend**: atomicity (single-tx mutations, audit shares fate), guarded-update discipline (no read-then-write), `tx` propagation everywhere, i18n error-key usage, logging hygiene, 100% coverage evidence audit for new modules (REQ-070)
     - [x] **review-frontend**: MUI v9 sx-only discipline, palette tokens, RTL correctness evidence from BS screenshots, a11y (`aria-invalid`, dialogs), documents/codegen hygiene, `withPageAuth` guard correctness on both routes
     - [x] **pentester**: BOLA/BFLA/BOPLA matrix re-derivation from §3.4, search-injection fuzz re-run, error-disclosure review (no internals/payload PII), audit-content hygiene (≤2000 chars, names-only), `USER_NOT_FOUND`-oracle ruling scope check (admin-surface-only warning present in doc)
-  - [x] **Deferred-items reconciliation**: `grep -c "❌\|⚠️" ai/plans/sprint_3/dev3-016-admin-crud-users-teachers-students-paren/deferred-items.md` returns 2 (both matches are the Status Values LEGEND lines `⚠️ Partial` / `❌ Blocked` — NOT actual ledger entries; D1–D7 all carry `✅` status; D1–D4 owner-referenced non-blocking forward items; D5/D6 resolved within DEV3-016; D7 owner-referenced to DEV1-004). Spirit of REQ-083's gate satisfied. Documented in `outcome/6.1-review-waves-outcome.md`.
+  - [x] **Deferred-items reconciliation**: `grep -c "❌\|⚠️" ai/plans/sprint_3/dev3-016-admin-crud-users-teachers-students-paren/deferred-items.md` returns 2 (both matches are the Status Values LEGEND lines `⚠️ Partial` / `❌ Blocked` — NOT actual ledger entries; D1–D7 all carry `✅` status; D1–D4 owner-referenced non-blocking forward items; D5/D6 resolved within; D7 owner-referenced). Spirit of REQ-083's gate satisfied. Documented in `outcome/6.1-review-waves-outcome.md`.
   - Every finding → fix task appended to this file or ❌-deferred with owner; NO silent closure
   - [x] 6.1.OUT **Outcome**: `outcome/6.1-review-waves-outcome.md` consolidating all four wave artifacts + the deferred-items gate result.
   - **Fix tasks appended by Phase 6.1 review waves (all NON-blocking polish — REQ-001 baseline unaffected; spec contract honored):**
-    - [x] **A1 (LOW — i18n discipline gap)**: `backend/services/admin/user-management.service.ts:795` — `throw new ConflictError("Handshake code generation failed after retries", { cause: ... })` uses a raw English string, NOT `tErrors.*`. Add `tErrors.adminUsers.handshakeExhausted` locale key (en + ar; both leaves; verify `ErrorsLabels` interface widened at `shared/locale/types/errors/index.ts`); re-route the throw through it. Near-unreachable path (5 consecutive UUID-8 collisions — entropy budget ~4.3B). Owner: DEV3-016 i18n polish follow-up ticket. Source: review-backend F5 + pentester F3. **Resolved**: `handshakeExhausted` key added to `ErrorsLabels.adminUsers` interface + `errorsEn` ("Could not generate a unique handshake code. Please try again.") + `errorsAr` ("تعذّر توليد رمز التحقق الفريد. يرجى المحاولة مرة أخرى."). `createRoleChild` + `createStudentWithHandshakeRetry` now thread `locale` through; the throw uses `new ConflictError("HANDSHAKE_EXHAUSTED", tErrors.adminUsers.handshakeExhausted, { cause })`.
-    - [x] **A2 (LOW — consolidated a11y + i18n + UX polish bundle)**: Bundle the 5-QA DEV3-016-surface findings into one follow-up polish ticket: (a) wire `InputLabel htmlFor` to underlying `<select>` `id` on FilterBar (Role + Governance) + CreateUserDialog (Gender + Role) + EditUserDialog (Gender) — 6 sites in `AdminUsersDirectoryContainer.tsx`; (b) Student role chip WCAG AA contrast fix (change `variant="outlined"` → filled or override text color); (c) detail page heading order (h1 → h6 skip; change `variant="h6"` → `variant="h2"` or `"h3"` for the 6 section card titles in `AdminUserDetailContainer.tsx`); (d) localize ~15 hardcoded English field labels on the detail page (`AdminUserDetailContainer.tsx:141-201`) — extend `AdminUsersLabels` interface with `detail.applicantFields.*` / `teacherFields.*` / `studentFields.*` / `parentFields.*` sub-blocks + mirror in en/ar locale files; (e) localize gender dropdown MenuItem values (`AdminUsersDirectoryContainer.tsx:574-576, 684-686`) + gender display on detail (`AdminUserDetailContainer.tsx:108`) — extend `AdminUsersLabels.createDialog.genderOptions.*`; (f) format all date/timestamp values via `Intl.DateTimeFormat(locale, {dateStyle:'medium', timeStyle:'short'})`; (g) localize `ApplicantStatus` enum display ("Pending" → "قيد الانتظار", etc.); (h) pre-fill `gender` + `dateOfBirth` in EditUserDialog (extend `AdminUserListItem` fragment OR fetch `AdminUserDetail` on dialog open); (i) inline Edit/Delete action buttons on detail page header; (j) "Clear filters" button in FilterBar; (k) differentiate empty-state copy; (l) `sx={{ minHeight: 44 }}` on all dialog Cancel buttons. Owner: DEV3-016 a11y/i18n/UX polish follow-up ticket. Source: review-frontend F4–F8 + Task 5-QA report. **Resolved**: (a)+(e) InputLabel htmlFor wired on 4 dialog sites; gender dropdown MenuItems localized via new `genderOptions` block; (b) RoleChip variant=filled (from prior session); (c) detail heading h1→h2 (from prior session); (d) `detail.applicantFields` / `teacherFields` / `studentFields` / `parentFields` + `applicantStatus` + `booleanValues` + `deletedAt`/`suspendedAt`/`blockedAt` + `editAction`/`deleteAction`/`reactivateAction` added to AdminUsersLabels + en+ar leaves; (f) `Intl.DateTimeFormat(locale, {dateStyle:'medium', timeStyle:'short'})` for timestamps + `{dateStyle:'medium'}` for dateOfBirth via `fmtTimestamp` + `fmtDate`; (g) `fmtApplicantStatus` maps enum → localized label; (h) `AdminUserListItemFields` fragment extended with `gender` + `dateOfBirth` end-to-end (repo SELECT + service mapDirectoryRow + types + Pothos object + codegen); EditUserDialog pre-fills from `user.gender` + `user.dateOfBirth`; (i) inline Edit/Delete/Reactivate action buttons rendered in detail page header; (j) Clear-filters button appears when any filter is set; (k) empty-state now branches on `hasFilters` for distinct copy; (l) all dialog Cancel buttons carry `sx={{ minHeight: 44 }}`.
+    - [x] **A1 (LOW — i18n discipline gap)**: `backend/services/admin/user-management.service.ts:795` — `throw new ConflictError("Handshake code generation failed after retries", { cause:... })` uses a raw English string, NOT `tErrors.*`. Add `tErrors.adminUsers.handshakeExhausted` locale key (en + ar; both leaves; verify `ErrorsLabels` interface widened at `shared/locale/types/errors/index.ts`); re-route the throw through it. Near-unreachable path (5 consecutive UUID-8 collisions — entropy budget ~4.3B). Owner: i18n polish follow-up ticket. Source: review-backend F5 + pentester F3. **Resolved**: `handshakeExhausted` key added to `ErrorsLabels.adminUsers` interface + `errorsEn` ("Could not generate a unique handshake code. Please try again.") + `errorsAr` ("تعذّر توليد رمز التحقق الفريد. يرجى المحاولة مرة أخرى."). `createRoleChild` + `createStudentWithHandshakeRetry` now thread `locale` through; the throw uses `new ConflictError("HANDSHAKE_EXHAUSTED", tErrors.adminUsers.handshakeExhausted, { cause })`.
+    - [x] **A2 (LOW — consolidated a11y + i18n + UX polish bundle)**: Bundle the 5-QA -surface findings into one follow-up polish ticket: (a) wire `InputLabel htmlFor` to underlying `<select>` `id` on FilterBar (Role + Governance) + CreateUserDialog (Gender + Role) + EditUserDialog (Gender) — 6 sites in `AdminUsersDirectoryContainer.tsx`; (b) Student role chip WCAG AA contrast fix (change `variant="outlined"` → filled or override text color); (c) detail page heading order (h1 → h6 skip; change `variant="h6"` → `variant="h2"` or `"h3"` for the 6 section card titles in `AdminUserDetailContainer.tsx`); (d) localize ~15 hardcoded English field labels on the detail page (`AdminUserDetailContainer.tsx:141-201`) — extend `AdminUsersLabels` interface with `detail.applicantFields.*` / `teacherFields.*` / `studentFields.*` / `parentFields.*` sub-blocks + mirror in en/ar locale files; (e) localize gender dropdown MenuItem values (`AdminUsersDirectoryContainer.tsx:574-576, 684-686`) + gender display on detail (`AdminUserDetailContainer.tsx:108`) — extend `AdminUsersLabels.createDialog.genderOptions.*`; (f) format all date/timestamp values via `Intl.DateTimeFormat(locale, {dateStyle:'medium', timeStyle:'short'})`; (g) localize `ApplicantStatus` enum display ("Pending" → "قيد الانتظار", etc.); (h) pre-fill `gender` + `dateOfBirth` in EditUserDialog (extend `AdminUserListItem` fragment OR fetch `AdminUserDetail` on dialog open); (i) inline Edit/Delete action buttons on detail page header; (j) "Clear filters" button in FilterBar; (k) differentiate empty-state copy; (l) `sx={{ minHeight: 44 }}` on all dialog Cancel buttons. Owner: a11y/i18n/UX polish follow-up ticket. Source: review-frontend F4–F8 + Task 5-QA report. **Resolved**: (a)+(e) InputLabel htmlFor wired on 4 dialog sites; gender dropdown MenuItems localized via new `genderOptions` block; (b) RoleChip variant=filled (from prior session); (c) detail heading h1→h2 (from prior session); (d) `detail.applicantFields` / `teacherFields` / `studentFields` / `parentFields` + `applicantStatus` + `booleanValues` + `deletedAt`/`suspendedAt`/`blockedAt` + `editAction`/`deleteAction`/`reactivateAction` added to AdminUsersLabels + en+ar leaves; (f) `Intl.DateTimeFormat(locale, {dateStyle:'medium', timeStyle:'short'})` for timestamps + `{dateStyle:'medium'}` for dateOfBirth via `fmtTimestamp` + `fmtDate`; (g) `fmtApplicantStatus` maps enum → localized label; (h) `AdminUserListItemFields` fragment extended with `gender` + `dateOfBirth` end-to-end (repo SELECT + service mapDirectoryRow + types + Pothos object + codegen); EditUserDialog pre-fills from `user.gender` + `user.dateOfBirth`; (i) inline Edit/Delete/Reactivate action buttons rendered in detail page header; (j) Clear-filters button appears when any filter is set; (k) empty-state now branches on `hasFilters` for distinct copy; (l) all dialog Cancel buttons carry `sx={{ minHeight: 44 }}`.
 
 ---
 
@@ -415,8 +415,8 @@
     - Audit-emission contract (writer-side; in-tx; denials write ZERO audit rows — JR-C-1)
     - Self-protection rule; `USER_NOT_FOUND` oracle ruling with the explicit "MUST NOT be copy-pasted to non-admin surfaces" warning (D11)
     - Shared-PK "one user, four role children" model; idempotency ruling (admin ops outside mandated key set — `docs/IDEMPOTENCY.md`); keyset-pagination as documented future refinement
-    - **Scope-split record restated verbatim-style**: plan CRUD→DEV1-005, onboarding→DEV3-019, suspend/block→DEV3-017, cold-start→DEV3-018, audit browsing→DEV3-020, sessions→DEV3-021, financials→DEV3-022b
-    - Consumer obligations for DEV3-017/018/019/020/021/022b (import-by-reference, never fork)
+    - **Scope-split record restated verbatim-style**: plan CRUD→, onboarding→, suspend/block→, cold-start→, audit browsing→, sessions→, financials→
+    - Consumer obligations (import-by-reference, never fork)
     - Bind to A.5/A.7, B.6/B.7, INV-U1..U5, INV-TV1, Workflow 05; NO renumbering of spec-decision files
   - _Requirements: REQ-080, REQ-081_
   - [x] 7.1.SR **Semantic Review**: structure-section completeness; every claim traceable to an REQ or decision ref. (full traceability table in `outcome/7.1-outcome.md`)
@@ -427,7 +427,7 @@
     - `backend/services/AGENTS.md` — admin user-management service + audit-emission rule
     - Root `AGENTS.md` — Important References entry
   - _Requirements: REQ-082_
-  - [x] 7.2.QL **Quality Loop**: sub-loop on touched AGENTS.md files — tsgo stage ✅; oxlint stage exhibits known `.md` sandbox quirk ("No files found to lint" exit-1 — matches DEV2-004 7.1 precedent; compensating full-repo gates GREEN: `bun tsgo` exit 0 / 0 errors; `bun biome:check` exit 0 / 8 pre-existing warnings). Documented in `outcome/7.2-outcome.md`.
+  - [x] 7.2.QL **Quality Loop**: sub-loop on touched AGENTS.md files — tsgo stage ✅; oxlint stage exhibits known `.md` sandbox quirk ("No files found to lint" exit-1 — matches 7.1 precedent; compensating full-repo gates GREEN: `bun tsgo` exit 0 / 0 errors; `bun biome:check` exit 0 / 8 pre-existing warnings). Documented in `outcome/7.2-outcome.md`.
   - [x] 7.2.OUT **Outcome**: `outcome/7.2-outcome.md`.
 
 - [x] **7.3 Final Completion Gate & Outcome Synthesis**

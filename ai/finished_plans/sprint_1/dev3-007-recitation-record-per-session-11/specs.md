@@ -1,7 +1,7 @@
-# Requirements & Specification: DEV3-007 — Recitation Record per Session (1:1)
+# Requirements & Specification: Recitation Record per Session (1:1)
 
 **Plan directory (verbatim):** `ai/plans/sprint_1/dev3-007-recitation-record-per-session-11`
-**Ticket:** DEV3-007 · Sprint 1 · Dev 3 · 2 SP · Blocked by DEV3-004 (shipped — `docs/sessions/session-lifecycle.md`)
+**Ticket:** this ticket · Sprint 1 · Dev 3 · 2 SP · Blocked by the Session Creation & Lifecycle ticket (shipped — `docs/sessions/session-lifecycle.md`)
 **Trace anchor:** Decision **C.5** (`docs/specs/open-decisions-and-gaps.md`) — the `recitation` table is session-linked 1:1 (`recitation.session_id` UNIQUE), and this ticket ships the write/read surface over it.
 
 ---
@@ -10,18 +10,18 @@
 
 ### Feature
 
-The `recitation` table already exists and ALREADY enforces the 1:1 structural contract at rest — `recitation.sessionId` is `NOT NULL`, FK to `session.id` (`onDelete: "cascade"`), carries a UNIQUE constraint (`recitation_session_id_unique`), and holds exactly two content columns (`name: varchar(255) NOT NULL`, `description: text NULL`) plus the audit timestamps (`backend/db/schema/classes/recitation.ts:1-19`). What does NOT exist is any way to write or read a recitation record: there is no repository (only `backend/types/classes/recitation.types.ts` with `RecitationSelectType`/`RecitationInsertType` exists — no `ReturnType`/input types), no service, no GraphQL surface, no read path. This ticket ships exactly that surface — the canonical, single-writer, oracle-safe write + read seam through which every downstream consumer (the session report flow DEV3-006, the teacher submit-report flow DEV2-014, the parent portal DEV1-016, the admin review surface DEV3-021) will write and read session recitation records — never directly against the table.
+The `recitation` table already exists and ALREADY enforces the 1:1 structural contract at rest — `recitation.sessionId` is `NOT NULL`, FK to `session.id` (`onDelete: "cascade"`), carries a UNIQUE constraint (`recitation_session_id_unique`), and holds exactly two content columns (`name: varchar(255) NOT NULL`, `description: text NULL`) plus the audit timestamps (`backend/db/schema/classes/recitation.ts:1-19`). What does NOT exist is any way to write or read a recitation record: there is no repository (only `backend/types/classes/recitation.types.ts` with `RecitationSelectType`/`RecitationInsertType` exists — no `ReturnType`/input types), no service, no GraphQL surface, no read path. This ticket ships exactly that surface — the canonical, single-writer, oracle-safe write + read seam through which every downstream consumer (the session report flow, the teacher submit-report flow, the parent portal, the admin review surface) will write and read session recitation records — never directly against the table.
 
 ### Problem from user perspective
 
 - **Teacher (Certified Sheikh):** after (or during) a teaching session, she records what was recited — the session's recitation content/notes (e.g. *"Hafs — Al-Fatihah 1:1–7"*, free-form record text + optional notes). Until this surface exists, nothing in the platform captures the per-session recitation record, even though decision C.5 mandates exactly one per session and `docs/workflows/05-admin-governance-override.md` §8 mandates permanent retention of recitation records for dispute resolution and teacher re-evaluation evidence.
 - **Student:** observes the recitation record attached to her own session — a permanent, readable record of what was covered.
 - **Parent / foreign actors:** never see another student's recitation; the read surface collapses to `null` for any non-participant, preserving the session domain's "sessions are sensitive ⇒ collapse" ruling (`docs/sessions/session-lifecycle.md` §7).
-- **Admin:** recitation records are *evidence for later review flows*; no admin read surface ships here (owned by DEV3-021 / parent-portal reads by DEV1-016 — import-by-reference from this ticket's service, never by direct table access).
+- **Admin:** recitation records are *evidence for later review flows*; no admin read surface ships here (owned by / parent-portal reads — import-by-reference from this ticket's service, never by direct table access).
 
 ### Business value
 
-- Fulfils decision **C.5** at the *behavioral* level (the schema ships structure; this ticket ships the sanctioned write path), unlocking the report-submission flow (DEV3-006/2-014) and the parent-monitoring portal (DEV1-016).
+- Fulfils decision **C.5** at the *behavioral* level (the schema ships structure; this ticket ships the sanctioned write path), unlocking the report-submission flow (-014) and the parent-monitoring portal.
 - Keeps the permanent-retention evidence chain intact: every session that happened can carry exactly one recitation record, which downstream dispute-resolution and re-evaluation flows rely on.
 - Prevents second-writer drift: the unique constraint + single-writer service + oracle-collapse read are the **only** channel; a second implementation of recitation writes anywhere in the codebase is structurally rejected.
 
@@ -38,9 +38,9 @@ The `recitation` table already exists and ALREADY enforces the 1:1 structural co
 
 1. **No update / no delete surface.** Recitation records are write-once; the retention policy (`docs/workflows/05-admin-governance-override.md` §8, data-integrity rules) treats them as permanent. No correction/edit mutation ships here — a correction path is a future, separately designed, audited surface.
 2. **No list / history query** ("all recitations of X"). No such surface ships; list consumers (parent portal, admin review) belong to their owning tickets and MUST import this ticket's service methods, never touch the table directly.
-3. **No UI page or form.** Only the typed GraphQL shared documents ship (consumable contracts); the authoring form integrates with the report/homework flow ticket (DEV3-006 / DEV2-014), not here. No navigation/menu work.
-4. **No notifications, no audit rows.** Recitation writes and reads emit ZERO `notifications` rows and ZERO `audit_logs` rows in this slice (the audit trail logs admin actions; this is a teacher write). The parent session-completion notification wave is DEV1-017's emitter, NOT this ticket.
-5. **No admin override read.** Governance review of recitation records over a session is DEV3-021's surface; `sessionRecitation` here is participant-only and collapses for admins like any other non-participant.
+3. **No UI page or form.** Only the typed GraphQL shared documents ship (consumable contracts); the authoring form integrates with the report/homework flow ticket, not here. No navigation/menu work.
+4. **No notifications, no audit rows.** Recitation writes and reads emit ZERO `notifications` rows and ZERO `audit_logs` rows in this slice (the audit trail logs admin actions; this is a teacher write). The parent session-completion notification wave is emitter, NOT this ticket.
+5. **No admin override read.** Governance review of recitation records over a session surface; `sessionRecitation` here is participant-only and collapses for admins like any other non-participant.
 6. **No RecitationReading (Qira'ah) re-purposing.** `recitation.name` / `description` stay FREE-TEXT record fields; the Qira'ah vocabulary (`shared/constants/recitation-reading.enum.ts`) and the user-level `preferredRecitation` preference (`docs/auth/qiraah-selection-and-c5.md`) are unrelated and MUST NOT be folded into this entity.
 7. **No schema changes.** The table, the unique constraint, and the session FK all exist. `bun run db push` must produce ZERO drift for this ticket.
 8. **No session-lifecycle transition changes.** The lifecycle owns states; this service reads session state only to adjudicate write acceptance.
@@ -68,7 +68,7 @@ The `recitation` table already exists and ALREADY enforces the 1:1 structural co
 - **REQ-014 (Participant-only read):** WHEN `RecitationRecordService.getSessionRecitation(callerUserId, sessionId, tx?)` is invoked THEN (1) a malformed session id SHALL return `null` pre-DB (mirror `SessionLifecycleService.getSessionById`'s null-short-circuit), (2) a nonexistent OR foreign session id SHALL return `null` (oracle collapse: absent ≡ foreign), (3) a participant (session's student or owning teacher) SHALL receive the recitation row when it exists and `null` when no recitation has been written yet, with NO error on any of these paths.
 - **REQ-015 (Write-once permanence — repeat-write conflict, not upsert):** WHEN the same owning teacher calls `setSessionRecitation` twice for the same sessionId THEN the second call SHALL reject with `ConflictError("RECITATION_ALREADY_EXISTS", …)` — the unique constraint is the arbiter; the service NEVER updates or replaces the stored record, and NO update/replace method exists on the repository.
 - **REQ-016 (Cross-entity write purity):** WHEN the recitation write or read executes THEN it SHALL write to the `recitation` table ONLY — ZERO writes to `session`, `students`, `users`, `teacher`, `wallet`, `teacher_transaction`, `notifications`, and `audit_logs` (row-count oracles pinned in tests; the lifecycle owns the session row exclusively, `docs/sessions/session-lifecycle.md` §10).
-- **REQ-017 (Composition seam — outerTx):** WHEN a future owner flow (report submission, DEV3-006 / DEV2-014) composes the recitation write inside its own transaction THEN `setSessionRecitation` SHALL accept `outerTx?: DBTransaction` as its final parameter and propagate it into `withTransaction` (SAVEPOINT discipline), and the wire-driven mutation path SHALL pass `undefined` (own top-level transaction).
+- **REQ-017 (Composition seam — outerTx):** WHEN a future owner flow (report submission) composes the recitation write inside its own transaction THEN `setSessionRecitation` SHALL accept `outerTx?: DBTransaction` as its final parameter and propagate it into `withTransaction` (SAVEPOINT discipline), and the wire-driven mutation path SHALL pass `undefined` (own top-level transaction).
 - **REQ-018 (Zero notifications, zero audit on this slice):** WHEN a recitation is written or read THEN the service SHALL call `NotificationEngine` NEVER and `AuditService` NEVER — establishes zero notifications AND zero audit rows as a locked contract of this ticket (parent-completion emitters and admin-review audit belong to their owning tickets).
 
 ### 2.3 Security, Authorization & Tenancy (REQ-030 … REQ-035)
@@ -126,8 +126,8 @@ The `recitation` table already exists and ALREADY enforces the 1:1 structural co
 
 ### 2.8 Documentation & Knowledge Gates (REQ-080 … REQ-081)
 
-- **REQ-080 (Canonical doc):** The plan SHALL create `docs/sessions/recitation-record.md` as the canonical reference for the write-once recitation record: the C.5 binding, the write-once + unique-arbiter rule, the collapse read, the write-acceptance status window, governance and oracle rulings, the error-code table, and consumer obligations for DEV3-006 / DEV2-014 / DEV1-016 / DEV3-021 (import-by-reference — never a second writer, never a direct table read).
-- **REQ-081 (Knowledge propagation targets):** The completion task SHALL update the layer AGENTS.md files for the touched layers (`backend/db/repo/AGENTS.md`? NO — only docs pointers change under the layer-rule policy; concrete edits: `backend/services/AGENTS.md`, `backend/graphql/AGENTS.md` if new surface rules arise, root `AGENTS.md` Important References, plus `docs/sessions/session-lifecycle.md` consumer table amended to mark DEV3-007 DELIVERED) and record every deferred item in `ai/plans/sprint_1/dev3-007-recitation-record-per-session-11/deferred-items.md` (the write-once→update surface decision and the parent-portal/admin read consumers are recorded there).
+- **REQ-080 (Canonical doc):** The plan SHALL create `docs/sessions/recitation-record.md` as the canonical reference for the write-once recitation record: the C.5 binding, the write-once + unique-arbiter rule, the collapse read, the write-acceptance status window, governance and oracle rulings, the error-code table, and consumer obligations for (import-by-reference — never a second writer, never a direct table read).
+- **REQ-081 (Knowledge propagation targets):** The completion task SHALL update the layer AGENTS.md files for the touched layers (`backend/db/repo/AGENTS.md`? NO — only docs pointers change under the layer-rule policy; concrete edits: `backend/services/AGENTS.md`, `backend/graphql/AGENTS.md` if new surface rules arise, root `AGENTS.md` Important References, plus `docs/sessions/session-lifecycle.md` consumer table amended to mark this ticket DELIVERED) and record every deferred item in `ai/plans/sprint_1/dev3-007-recitation-record-per-session-11/deferred-items.md` (the write-once→update surface decision and the parent-portal/admin read consumers are recorded there).
 
 ### 2.9 Cross-Actor Workflow Scenarios (Journeys) — MANDATORY
 
@@ -140,8 +140,8 @@ This feature spans teacher (writes) and student (reads) over the shared recitati
 | Owning Teacher | `teacher` (session.teacher_id = self) | Write the recitation record (once) for a session they own (started/completed/disputed); read it back | Write twice; write for a session they do not own; write for a scheduled/cancelled session; mutate any sibling entity |
 | Student | `student` (session.student_id = self) | Read the recitation record of their own session | Write any recitation (`FORBIDDEN` pre-resolver); read another student's session recitation (collapses to `null`) |
 | Foreign Teacher | `teacher` | — | Write on a foreign session (`SESSION_NOT_FOUND`, indistinguishable from nonexistent); read a foreign session's recitation (`null`) |
-| Parent | `parent` (not a session participant) | — | Write (`FORBIDDEN` pre-resolver); read the child's session recitation via this surface (`null` — parent-portal reads ship in DEV1-016) |
-| Admin | `admin` (non-participant) | — | Write (`FORBIDDEN` pre-resolver); read via this surface (`null` — admin review ships in DEV3-021) |
+| Parent | `parent` (not a session participant) | — | Write (`FORBIDDEN` pre-resolver); read the child's session recitation via this surface (`null` — parent-portal reads ship) |
+| Admin | `admin` (non-participant) | — | Write (`FORBIDDEN` pre-resolver); read via this surface (`null` — admin review ships) |
 | Anonymous | — | — | Everything (`UNAUTHORIZED` pre-resolver) |
 
 **Ordered Step List (actor → action → shared-state + side effects):**

@@ -1,7 +1,7 @@
 > **Date**: 2026-08-25 12:42:30
-> **Target Ticket**: DEV1-001
+> **Target Ticket**: Database Schema Migration
 
-# Technical Architecture & Implementation Design: DEV1-001 — Database Schema Migration from DBML
+# Technical Architecture & Implementation Design: Database Schema Migration from DBML
 
 ## 1. System Overview & Architecture Diagram
 
@@ -57,7 +57,7 @@ This ticket is **schema-foundation work**. There are no GraphQL resolvers, no fr
 | D2 | Immutability (audit_logs, student_payments, teacher_transaction) enforced by PG trigger functions in `backend/db/migration/<n>-immutability-triggers.sql` | Drizzle cannot express trigger functions (per `docs/DATABASE_MIGRATIONS.md` "Prefer schema for structure... custom SQL for triggers/RLS/functions"). Append-only enforcement is DB-level, not app-level (INV-W6/INV-PAY2). Portable triggers get SQLite parity; `current_user_id()`-dependent triggers stay PG-only with documented app-layer fallback. |
 | D3 | DOWN/reversibility delivered as a generated rollback artifact + verified up→down→up run, not a drizzle feature | Drizzle-kit `generate` produces UP SQL only. The ticket's "reversible" AC is satisfied by a dependency-ordered `DROP` script executed against a disposable local database and verified idempotently (no `CONCURRENTLY`, `DROP ... IF EXISTS`, enums dropped after tables). |
 | D4 | 22-tables / 13-enums counts pinned by an automated coverage test against `information_schema` / `pg_enum` / `pg_indexes` | Prevents silent drift between dbml and DDL; the test is the executable acceptance criterion. |
-| D5 | No Pothos enum registration, no codegen in this ticket | GraphQL exposure is out of scope for DEV1-001. Enum registrations land in whichever Sprint ticket first exposes the entity via GraphQL. |
+| D5 | No Pothos enum registration, no codegen in this ticket | GraphQL exposure is out of scope for this ticket. Enum registrations land in whichever Sprint ticket first exposes the entity via GraphQL. |
 
 ---
 
@@ -111,7 +111,7 @@ Values MUST be verified against `db/schema.dbml` + `shared/lib/enum.ts` — neve
 
 - One new idempotent SQL file: `<next-ordinal>-immutability-triggers.sql` — trigger functions preventing UPDATE/DELETE on `audit_logs`, `student_payments`, `teacher_transaction`, following the existing `prevent_audit_log_mod_trigger` pattern; `CREATE OR REPLACE FUNCTION` + `DROP TRIGGER IF EXISTS` + `CREATE TRIGGER` (idempotent; REQ-042).
 - Enum values are created by the schema's `pgEnum` (no `ALTER TYPE` needed on fresh DBs); if the target DB is already migrated, add `ALTER TYPE ... ADD VALUE IF NOT EXISTS` statements ordered BEFORE any dependent inserts (REQ-043).
-- System permission rows, if needed by later Sprint 0 tickets, go in THEIR OWN migration file per the seeds-AGENTS FORBIDDEN rule (not authored by DEV1-001).
+- System permission rows, if needed by later Sprint 0 tickets, go in THEIR OWN migration file per the seeds-AGENTS FORBIDDEN rule (not authored by this ticket).
 
 ### 2.5 Canonical types (`backend/types/`)
 
@@ -121,7 +121,7 @@ For each new entity: `{Entity}SelectType = typeof tbl.$inferSelect`, `{Entity}In
 
 ## 3. API Contracts & Pothos Resolvers
 
-**Not applicable to DEV1-001.** No GraphQL object types, input types, queries, mutations, or `authScopes` are created. Defensible no-op justification, per the ticket's own scope (schema migration only): the Sprint 0 dependency graph shows GraphQL consumers arrive at DEV2-001 (auth) at the earliest, and exposure happens in Sprint 1+. Pothos enum registration in `backend/graphql/pothos/shared/enum.pothos.ts` and `bun run generate:gqlSchema && bun codegen` are DEFERRED (each lands with the first ticket exposing that entity through GraphQL) and recorded in `deferred-items.md` to prevent lost work.
+**Not applicable to this ticket.** No GraphQL object types, input types, queries, mutations, or `authScopes` are created. Defensible no-op justification, per the ticket's own scope (schema migration only): the Sprint 0 dependency graph shows GraphQL consumers arrive at the JWT Authentication Service ticket (auth) at the earliest, and exposure happens in Sprint 1+. Pothos enum registration in `backend/graphql/pothos/shared/enum.pothos.ts` and `bun run generate:gqlSchema && bun codegen` are DEFERRED (each lands with the first ticket exposing that entity through GraphQL) and recorded in `deferred-items.md` to prevent lost work.
 
 ---
 
@@ -139,7 +139,7 @@ For each new entity: `{Entity}SelectType = typeof tbl.$inferSelect`, `{Entity}In
 
 ## 5. Frontend UX & Navigation Specification
 
-**Not applicable.** DEV1-001 touches no routes, pages, navigation groups, mobile nav, Apollo documents, Zustand stores, MUI components, or i18n namespaces.
+**Not applicable.** This ticket touches no routes, pages, navigation groups, mobile nav, Apollo documents, Zustand stores, MUI components, or i18n namespaces.
 
 - **Routes & URLs Table:** none added.
 - **Navigation Integration:** none.

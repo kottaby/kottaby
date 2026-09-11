@@ -1,7 +1,7 @@
 /**
  * Deadline-sweeper cron entry (`GET /api/cron/sweep-sessions`).
  *
- * DEV3-012 (R-203) — the B.2 dual-confirmation timeout sweep as an
+ * The B.2 dual-confirmation timeout sweep as an
  * externally-triggered job endpoint, following the documented cron rules
  * (R1-R11 per `backend/services/fx/README.md`, which this route makes
  * concrete for the sessions surface):

@@ -4,7 +4,7 @@
  * Contract:
  *  - `updateMyLocale(locale: AppLocale!): User!`
  *      Persists the CALLER's app locale preference (UI + notification-copy
- *      language) on `users.locale` — the DEV3-010 deferred item D2 column.
+ *      language) on `users.locale` — the deferred item D2 column.
  *      Identity is derived EXCLUSIVELY from the verified context (`ctx.user`)
  *      — the field accepts no identity argument of any kind, so a BOLA probe
  *      dies as a GraphQL validation failure before a resolver ever runs.

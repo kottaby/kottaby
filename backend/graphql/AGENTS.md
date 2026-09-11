@@ -7,7 +7,7 @@
   3. `pothos/builder.ts` dynamically imports `gqlSchema.definitions.ts` in dev, creating an HMR dependency edge so every definition change re-evaluates the builder module against a fresh SchemaBuilder. Do NOT cache the builder on `globalThis` — that pins a stale ConfigStore across HMR.
   4. `app/api/graphql/route.ts` `getHandler()` swaps Apollo onto the new `graphQLSchema` when the module export changes.
   All four layers are dev-only (`NODE_ENV !== "production"`).
-- **Auth scopes + RBAC: see `docs/auth/jwt-authentication-service.md` for the canonical `authScopes` contract (`authenticated` / `role` / `permission` / `superAdmin` / `notImpersonating`), 401-vs-403 decision state chart, fail-closed rule, `me` `authenticated` boundary, and DEV2-002 RBAC consumption guide.**
+- **Auth scopes + RBAC: see `docs/auth/jwt-authentication-service.md` for the canonical `authScopes` contract (`authenticated` / `role` / `permission` / `superAdmin` / `notImpersonating`), 401-vs-403 decision state chart, fail-closed rule, `me` `authenticated` boundary, and RBAC consumption guide.**
 - **Plan catalog operations: see `docs/billing/plan-catalog.md` for role-scoped queries/mutations and Apollo cache `id` normalization requirements.**
 - **Subscription purchase operations: see `docs/billing/subscription-purchase.md` for the caller-scoped purchase mutation and owner-scoped subscriptions query, idempotency-key consumption, and the webhook security gates guarding activation.**
 - **Nullability**: In Pothos, fields are non-nullable by default unless explicitly set to `nullable: true`. Ensure your TypeScript types align with your Pothos definitions.
@@ -108,7 +108,7 @@ export const {Entity}PothosObject = {Entity}Ref.implement({
 
 ## WhatsApp GraphQL Patterns
 
-- **Canonical reference**: `docs/services/whatsapp-cloud-api.md` — comprehensive WhatsApp integration patterns. *(doc file absent from this tree — pending the WhatsApp-integration ticket; see `ai/plans/dev3-002-shared-error-handling-response-contracts/deferred-items.md` BLT-03)*
+- **Canonical reference**: `docs/services/whatsapp-cloud-api.md` — comprehensive WhatsApp integration patterns. *(doc file absent from this tree — pending the WhatsApp-integration ticket; see `ai/plans/shared-error-handling-response-contracts/deferred-items.md` BLT-03)*
 - **Object types**: `WhatsappAccountPothosObject`, `WhatsappTemplateSnapshotPothosObject` (BL3), `WhatsappSyncFromMetaResultPothosObject` (wrapper). All expose `id` for Apollo cache normalization.
 - **Input type pattern**: Use `inputType(string-named)` instead of `inputRef<BackendType>` — `inputRef` couples the input's nullability to the backend type's exact shape, and drift between the two surfaces as null-incompatibility errors.
 - **Credential mutations**: `setWhatsappAccessToken`, `setWhatsappTwoStepPin` — all credential/config mutations call `resetWhatsappChannel()` (S4) for token rotation without restart.

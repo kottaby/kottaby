@@ -1,5 +1,5 @@
 ```markdown
-# Requirements & Specification: DEV1-015 — Student Confirmation of Parent Link
+# Requirements & Specification: Student Confirmation of Parent Link
 
 **Plan directory (verbatim):** `ai/plans/sprint_3/dev1-015-student-confirmation-of-parent-link`
 **Specs file:** `ai/plans/sprint_3/dev1-015-student-confirmation-of-parent-link/specs.md`
@@ -10,8 +10,8 @@
 
 ## Document Information
 
-- **Feature Name**: DEV1-015 — Student Confirmation of Parent Link
-- **Ticket Reference**: `DEV1-015` in `docs/planning/TICKETS.md` (Sprint 3, `Blocked By: DEV1-016 (satisfied)`, `Blocks: DEV3-011`)
+- **Feature Name**: Student Confirmation of Parent Link
+- **Ticket Reference**: `` in `docs/planning/TICKETS.md` (Sprint 3, `Blocked By: (satisfied)`, `Blocks: `)
 - **Target Directory**: `ai/plans/sprint_3/dev1-015-student-confirmation-of-parent-link/`
 - **Outcome Directory**: `ai/plans/sprint_3/dev1-015-student-confirmation-of-parent-link/outcome/`
 - **Companion Plan**: `plan.md` (same directory)
@@ -24,42 +24,42 @@
 
 ## Introduction
 
-This specification defines DEV1-015 — the student-side confirmation of parent link requests. The ticket converts the previously headless DEV1-014 service/repository spine into a consumed, regression-pinned feature: a student's single decision (approve or reject) drives a guarded, atomic state transition on the shared `parent_link_requests` row, notifies the parent, and — through DEV1-016 — renders the student's action box. Because sprint order pre-bound the substrate (DEV1-016 executes before DEV1-015 in chronological order), this plan executes as a substrate-closure ticket: verify exists → write Zero-Schema / Zero-Types proof → regression-bind the contract → close the discoverability hole with one new dashboard card.
+This specification defines — the student-side confirmation of parent link requests. The ticket converts the previously headless service/repository spine into a consumed, regression-pinned feature: a student's single decision (approve or reject) drives a guarded, atomic state transition on the shared `parent_link_requests` row, notifies the parent, and — through — renders the student's action box. Because sprint order pre-bound the substrate (executes before in chronological order), this plan executes as a substrate-closure ticket: verify exists → write Zero-Schema / Zero-Types proof → regression-bind the contract → close the discoverability hole with one new dashboard card.
 
 ### Feature Summary
 
-A student confirms or rejects an incoming parent link request (submitted earlier by a parent via DEV1-014 handshake discovery) through a dedicated `myIncomingLinkRequests` inbox, a dual-actor `respondToLinkRequest` confirmation mutation, and a new dashboard discoverability card listing pending requests.
+A student confirms or rejects an incoming parent link request (submitted earlier by a parent via handshake discovery) through a dedicated `myIncomingLinkRequests` inbox, a dual-actor `respondToLinkRequest` confirmation mutation, and a new dashboard discoverability card listing pending requests.
 
 ### Business Value
 
 - Closes the guardian-linking loop: without student confirmation, parent link requests stay `PENDING` forever and no billing/approval visibility chain can form.
 - Gives minors an explicit consent gate (safety/regulatory expectation for parent-child account linking) with a hard anti-spam denylist.
-- Unblocks DEV3-011 (supervision dashboards) which consumes affirmed parent→student links.
+- Unblocks (supervision dashboards) which consumes affirmed parent→student links.
 
 ### Scope
 
-- **IN**: DEV1-014 substrate verification (`respondToLinkRequest`, reject + denylist co-write, `REJECTION` notification, inbox query, denylist repo, GraphQL wiring); frontend inbox card, navigation retargeting, inbox page wiring; NEW student-dashboard discoverability card; regression test suite additions; journey test J-REQ-01 scenario (already authored by DEV1-014, re-verified); knowledge propagation (doc + AGENTS.md references).
-- **OUT**: Per ticket DEC-015 — no schema/tables/types (substrate owns), no rate limiting (DEV3-002), no audit emission (DEV3-016/017), no admin dashboards (DEV3-019), no notification-copy changes, no DEV1-013/014/016 re-implementation. Parent-side request initiation and email facility remain DEV1-014 scope; parent surface link to a student's request list is DEV1-013 scope.
+- **IN**: substrate verification (`respondToLinkRequest`, reject + denylist co-write, `REJECTION` notification, inbox query, denylist repo, GraphQL wiring); frontend inbox card, navigation retargeting, inbox page wiring; NEW student-dashboard discoverability card; regression test suite additions; journey test J-REQ-01 scenario (already authored, re-verified); knowledge propagation (doc + AGENTS.md references).
+- **OUT**: Per ticket DEC-015 — no schema/tables/types (substrate owns), no rate limiting, no audit emission, no admin dashboards, no notification-copy changes, no re-implementation. Parent-side request initiation and email facility remain scope; parent surface link to a student's request list is scope.
 
 
 ## 1. Executive Summary & Problem Statement
 
 ### Feature
-The student-side decision half of the parent-supervision handshake (Workflow 04 §4.4): the student must explicitly **confirm or reject** each incoming parent link request before any monitoring relationship exists. A pending `parent_link_requests` row confers nothing; only the student's confirmation writes `students.parent_id` and grants the parent read-only monitoring eligibility (the portal itself is DEV1-016's scope).
+The student-side decision half of the parent-supervision handshake (Workflow 04 §4.4): the student must explicitly **confirm or reject** each incoming parent link request before any monitoring relationship exists. A pending `parent_link_requests` row confers nothing; only the student's confirmation writes `students.parent_id` and grants the parent read-only monitoring eligibility (the portal itself is the scope).
 
-**Verification-First finding (load-bearing):** the authorizing substrate for this ticket is already shipped and verified by DEV1-014 (`docs/parents/parent-link-request.md`, status "Implemented and verified"). Confirmed present in the bundled code:
+**Verification-First finding (load-bearing):** the authorizing substrate for this ticket is already shipped and verified by (`docs/parents/parent-link-request.md`, status "Implemented and verified"). Confirmed present in the bundled code:
 - `ParentLinkRequestService.respondToLinkRequest` / `listMyIncoming` — `backend/services/parents/parent-link-request.service.ts`
 - Guarded claim + single-writer link — `backend/db/repo/parents/parent-link-request.repository.ts` (`respondToPendingForStudent`), `StudentRepository.linkParentIfUnlinked` (`backend/db/repo/students/student.repository.ts`)
 - GraphQL surface — `respondToParentLinkRequest` mutation (`backend/graphql/mutation/parents/parent-link.mutation.ts`), `myIncomingParentLinkRequests` query (`backend/graphql/query/parents/parent-link.query.ts`), `IncomingParentLinkRequestPothosObject` (`backend/graphql/pothos/parents/parent-link-request.pothos.ts`)
 - Documents — `myIncomingParentLinkRequestsQueryDocument`, `respondToParentLinkRequestMutationDocument` (`frontend/graphql/sharedDocuments/parents/parent-link.documents.ts`)
 - Frontend status/denial helpers — `frontend/lib/parent-link-request-status.ts` (`isLinkRequestActionable`, `displayLinkRequestStatus`, `parentLinkStatusChipSpec`), `frontend/lib/parent-link-denials.ts` (`resolveParentLinkDenialCopy`)
 
-DEV1-015 is therefore a **closure and discoverability slice**, not a re-implementation: it (a) pins the ticket's four acceptance criteria onto the shipped surface with dedicated regression batteries, (b) ships the one genuinely missing UX element — **dashboard discoverability** of pending incoming requests so the INV-P1 decision actually happens (a pending request the student never sees never gets confirmed), and (c) proves the cross-actor confirmation/rejection journey test-first.
+ is therefore a **closure and discoverability slice**, not a re-implementation: it (a) pins the ticket's four acceptance criteria onto the shipped surface with dedicated regression batteries, (b) ships the one genuinely missing UX element — **dashboard discoverability** of pending incoming requests so the INV-P1 decision actually happens (a pending request the student never sees never gets confirmed), and (c) proves the cross-actor confirmation/rejection journey test-first.
 
 ### Problem from user perspective
 - **Student (Yusuf):** A parent sent a link request. The student needs a prominent, trustworthy place to see WHO is asking (parent's FULL name — the sanctioned identity disclosure, since the decision needs it), until when they must act (7-day expiry), and a dead-simple Confirm/Reject. If the request is buried, the learning-parent relationship silently expires (B.14).
-- **Parent (Fatima):** She needs to know the outcome — confirmed (she can start monitoring; portal arrives in DEV1-016) or rejected (she must not monitor, and learns nothing else about her child's activity).
-- **Super Admin:** No admin override exists in this flow's decision step (the DEV3-019 direct-onboarding override lives outside the handshake); the admin only observes audit-free — this workflow intentionally writes ZERO `audit_logs` rows (DEV1-014 R10).
+- **Parent (Fatima):** She needs to know the outcome — confirmed (she can start monitoring; portal arrives) or rejected (she must not monitor, and learns nothing else about her child's activity).
+- **Super Admin:** No admin override exists in this flow's decision step (the direct-onboarding override lives outside the handshake); the admin only observes audit-free — this workflow intentionally writes ZERO `audit_logs` rows (R10).
 
 ### Business value
 - Child-safety gate INV-P1 ("a parent cannot monitor a student without the student's explicit confirmation") only materializes when the student *actually notices and decides* — discoverability is the activation step of the trust funnel for the parent-supervision feature (FR-7.2).
@@ -69,15 +69,15 @@ DEV1-015 is therefore a **closure and discoverability slice**, not a re-implemen
 | Actor | Role | Capability in this ticket |
 |---|---|---|
 | Student (caller) | `UserRole.Student` | List own incoming requests, confirm, reject |
-| Parent (counterparty) | `UserRole.Parent` | Request/cancel (DEV1-014); here: observes the outcome via notification |
+| Parent (counterparty) | `UserRole.Parent` | Request/cancel; here: observes the outcome via notification |
 | Teacher / Admin / other Student | other roles | MUST be rejected from every student link surface (BFLA) |
 | Unauthenticated | — | MUST be rejected (401) before any resolver runs |
 
 ### Non-goals (explicitly OUT of scope)
-- ❌ Re-implementing `respondToLinkRequest`, `listMyIncoming`, the guarded claim, sibling-expiry choreography, or the single-writer `linkParentIfUnlinked` (all shipped by DEV1-014).
-- ❌ The parent monitoring portal reads (DEV1-016) and parent session-completion notification emitters (DEV1-017).
-- ❌ Unlink/revoke of an established link (deferred decision D3 of DEV1-014 — a future ticket owns the exit from `confirmed`).
-- ❌ The cron sweep/reminder schedulers (DEV1-014 D1) — the sweep/reminder primitives already exist.
+- ❌ Re-implementing `respondToLinkRequest`, `listMyIncoming`, the guarded claim, sibling-expiry choreography, or the single-writer `linkParentIfUnlinked` (all shipped).
+- ❌ The parent monitoring portal reads and parent session-completion notification emitters.
+- ❌ Unlink/revoke of an established link (deferred decision D3 — a future ticket owns the exit from `confirmed`).
+- ❌ The cron sweep/reminder schedulers (D1) — the sweep/reminder primitives already exist.
 - ❌ Any new GraphQL root field, new state vocabulary (`cancelled`, `Unlinked`), new notification type, or schema/migration change.
 - ❌ Admin-side views of link requests (governance surface — DEV3 stream).
 - ❌ Email/SMS channel delivery (notifications arrive via the existing in-app engine only).
@@ -89,7 +89,7 @@ DEV1-015 is therefore a **closure and discoverability slice**, not a re-implemen
 ### 2.1 Baseline & Foundational Preparation (MANDATORY)
 
 - **REQ-001 (Pre-Implementation Baseline & Ledger):** WHEN implementation begins THEN the system-of-record SHALL capture baseline error counts (`tsgo`, `biome:check`, `lint-service`) and initialize `ai/plans/sprint_3/dev1-015-student-confirmation-of-parent-link/deferred-items.md` from `.agents/spec-process-guide/templates/deferred-items-template.md` BEFORE any code change.
-- **REQ-002 (Verification-First Substrate Inventory):** WHEN planning implementation details THEN the plan SHALL verify — against the bundled code, not docs prose — the presence of every substrate item DEV1-015 consumes (service methods, repo guarded writes, GraphQL fields, documents, frontend helpers, the student link-requests view at `frontend/views/students/link-requests/**`, its route under `app/`, the nav entry in `frontend/views/dashboard/nav/navItems.ts`, and the DEV1-014 journey `test/workflows/parents/parent-link-request.journey.test.ts`). Items confirmed present are classified UPDATE/REUSE; items absent are explicitly classified CREATE. No "extend" claim may cite prose alone.
+- **REQ-002 (Verification-First Substrate Inventory):** WHEN planning implementation details THEN the plan SHALL verify — against the bundled code, not docs prose — the presence of every substrate item consumes (service methods, repo guarded writes, GraphQL fields, documents, frontend helpers, the student link-requests view at `frontend/views/students/link-requests/**`, its route under `app/`, the nav entry in `frontend/views/dashboard/nav/navItems.ts`, and the journey `test/workflows/parents/parent-link-request.journey.test.ts`). Items confirmed present are classified UPDATE/REUSE; items absent are explicitly classified CREATE. No "extend" claim may cite prose alone.
 - **REQ-003 (Type-Safe i18n & Enum Value Imports Compliance):**
   - Client components MUST use `useAppTranslation(<NamespaceHandle>)` with `defineNamespace` handle consts (e.g. `useAppTranslation(ParentLink)`) and property access (`t.someLabel`) — never string literals, never a `Translation` enum (does not exist), never `t('key')` call form.
   - Server components MUST use `getTranslations(locale)` (ONE argument, full `Translations` tree) with property access.
@@ -100,13 +100,13 @@ DEV1-015 is therefore a **closure and discoverability slice**, not a re-implemen
 ### 2.2 Core Feature Logic / Happy Paths
 
 - **REQ-010 (Pending visibility — list):** WHEN an authenticated student has ≥1 incoming link request with `status = pending` AND `expiresAt > now` THEN the link-requests surface SHALL render each request with the requesting parent's FULL name, creation time, expiry time, and Confirm/Reject affordances. (Substrate: `myIncomingParentLinkRequests` → `ParentLinkRequestService.listMyIncoming` — REUSE, pinned.)
-- **REQ-011 (Pending visibility — notification):** WHEN a parent creates a link request THEN the system SHALL persist exactly ONE `parent_link_request` notification for the student carrying `relatedEntityType = "parent_link_request"` and `relatedEntityId = <requestId>`, and the notification drawer SHALL route the student's click to the student link-requests route. (Emission shipped by DEV1-014 (`emitRequestNotificationTx`); DEV1-015 pins the consumption/deep-link behavior — verify existing drawer resolution, close any gap.)
+- **REQ-011 (Pending visibility — notification):** WHEN a parent creates a link request THEN the system SHALL persist exactly ONE `parent_link_request` notification for the student carrying `relatedEntityType = "parent_link_request"` and `relatedEntityId = <requestId>`, and the notification drawer SHALL route the student's click to the student link-requests route. (Emission shipped by (`emitRequestNotificationTx`); pins the consumption/deep-link behavior — verify existing drawer resolution, close any gap.)
 - **REQ-012 (Confirm):** WHEN a student confirms an own pending unexpired request THEN the system SHALL, inside ONE transaction: (a) claim the row `pending → confirmed` via the owner-scoped guarded update, (b) write `students.parent_id` ONLY through `StudentRepository.linkParentIfUnlinked` (single-writer), (c) materialize every sibling pending request for that student to `expired`, (d) set `respondedAt`, and (e) emit the acceptance notification to the PARENT in the parent's persisted locale; publishing SHALL occur strictly after commit.
 - **REQ-013 (Reject):** WHEN a student rejects an own pending unexpired request THEN the system SHALL flip ONLY that row `pending → rejected` with `respondedAt` stamped, SHALL write NOTHING to `students.parent_id`, SHALL leave sibling pendings untouched (a "no" to parent A is not a "no" to parent B), and SHALL notify the parent in the parent's persisted locale.
 - **REQ-014 (Expiry liveness):** IF `expiresAt <= now` (strict-`>` liveness; the boundary instant belongs to expiry) THEN the request SHALL be non-actionable everywhere: the mutation-side claim rejects it, and every read renders it as `LinkStatus.Expired` — with the decision affordances hidden/disabled. Reads SHALL perform ZERO writes (lazy materialization; the D1 sweep owns bulk materialization).
 - **REQ-015 (Dashboard discoverability card — NEW):** WHEN an authenticated student with ≥1 actionable incoming link request (pending AND unexpired) opens the student dashboard home THEN the system SHALL render a dedicated "pending parent link request" card (count, parent full name of the most recent requester or localized plus-N copy, and a single CTA deep-linking to the student link-requests route). WHEN zero actionable requests exist THEN the card SHALL NOT render (no empty-state scar).
 - **REQ-016 (Post-decision convergence):** WHEN a Confirm/Reject mutation resolves THEN the client SHALL converge state via the returned id-first row write-back PLUS a refetch of the incoming list (siblings fold to expired on confirm), and the dashboard card SHALL disappear when no actionable request remains.
-- **REQ-017 (INV-P1 closure — no pre-confirmation monitoring):** UNTIL a confirmation commits THEN `students.parent_id` SHALL remain `NULL` (or its prior confirmed value) and NOTHING in this flow SHALL grant the parent any observation of student data beyond the DEV1-014 masked-name discovery contract (R9 — the parent side stays masked FOREVER, including post-confirm outgoing rows).
+- **REQ-017 (INV-P1 closure — no pre-confirmation monitoring):** UNTIL a confirmation commits THEN `students.parent_id` SHALL remain `NULL` (or its prior confirmed value) and NOTHING in this flow SHALL grant the parent any observation of student data beyond the masked-name discovery contract (R9 — the parent side stays masked FOREVER, including post-confirm outgoing rows).
 
 ### 2.3 Security, Authorization & Tenancy
 
@@ -124,12 +124,12 @@ DEV1-015 is therefore a **closure and discoverability slice**, not a re-implemen
 - **REQ-032 (Two-parent race — exactly one winner):** WHEN two parents' requests for the same student are confirmed concurrently THEN exactly ONE SHALL win: the loser's `linkParentIfUnlinked` zero-row SHALL abort its whole transaction into the already-resolved conflict shape, with the loser parent emitted NOTHING from the losing unit.
 - **REQ-033 (Respond-vs-expiry race):** WHEN a respond races the expiry boundary/sweep THEN the row SHALL converge to EXACTLY ONE terminal state (confirmed/rejected/expired), never a double-write.
 - **REQ-034 (Publish-after-commit):** Realtime fan-out SHALL be reachable ONLY after the owning transaction commits; a rolled-back decision SHALL produce zero pushes (publish structurally unreachable pre-commit).
-- **REQ-035 (Regression — pair arbiter untouched):** The partial unique index `parent_link_requests_pending_pair_unique` (one live pending per parent+student pair) and its 23505→`PARENT_LINK_ALREADY_PENDING` mapping SHALL remain the only duplicate-pending defense; DEV1-015 adds no second arbiter.
+- **REQ-035 (Regression — pair arbiter untouched):** The partial unique index `parent_link_requests_pending_pair_unique` (one live pending per parent+student pair) and its 23505→`PARENT_LINK_ALREADY_PENDING` mapping SHALL remain the only duplicate-pending defense; adds no second arbiter.
 
 ### 2.5 Validation & Error Contracts
 
 - **REQ-040 (Pre-DB input shape):** WHEN `requestId` is missing, non-numeric, ≤ 0, fractional, or non-safe-integer THEN the resolver/service boundary SHALL reject with `ValidationError` (code `VALIDATION`) BEFORE any database read (existing `isPositiveSafeInt` gate — REUSE, do not fork).
-- **REQ-041 (Closed denial taxonomy — verify, never extend silently):** The decision surface SHALL reuse the EXACT typed-denial vocabulary shipped by DEV1-014 (verified against `backend/services/parents/parent-link-request.helpers.ts` + `parent-link-request.service.ts` at implementation time; expected families: constant NOT_FOUND shape for foreign/absent ids, typed conflict for already-resolved, typed expiry denial). ANY new `extensions.code` MUST be registered per `docs/graphql/domain-error-extensions-code.md` and recorded in the plan's deferred-items ledger — otherwise the taxonomy stays closed.
+- **REQ-041 (Closed denial taxonomy — verify, never extend silently):** The decision surface SHALL reuse the EXACT typed-denial vocabulary shipped by (verified against `backend/services/parents/parent-link-request.helpers.ts` + `parent-link-request.service.ts` at implementation time; expected families: constant NOT_FOUND shape for foreign/absent ids, typed conflict for already-resolved, typed expiry denial). ANY new `extensions.code` MUST be registered per `docs/graphql/domain-error-extensions-code.md` and recorded in the plan's deferred-items ledger — otherwise the taxonomy stays closed.
 - **REQ-042 (Localization):** ALL user-facing copy and errors SHALL resolve through compile-time i18n (server: `getServerTranslations(locale)`; client: `useAppTranslation(ParentLink)` etc.); error codes map bijectively to flat `ErrorsLabels` keys (domain-prefixed camelCase like `parentLink…`), en/ar parity proven by the locale parity suite.
 
 ### 2.6 GraphQL & Frontend Contracts
@@ -141,16 +141,16 @@ DEV1-015 is therefore a **closure and discoverability slice**, not a re-implemen
 
 ### 2.7 Test Coverage
 
-- **REQ-060 (Coverage):** ALL NEW code (dashboard card + any glue) SHALL reach 100% statement/branch coverage; existing DEV1-014 surfaces SHALL be pinned by extension, never rewritten suites.
+- **REQ-060 (Coverage):** ALL NEW code (dashboard card + any glue) SHALL reach 100% statement/branch coverage; existing surfaces SHALL be pinned by extension, never rewritten suites.
 - **REQ-061 (Layer discipline):** Repository/service assertions SHALL use `runInRollback` + explicit `tx` propagation + `expectRepoError` try/catch (NEVER `expect().rejects.toThrow()` inside a rollback tx).
-- **REQ-062 (Journey — test-first):** BEFORE any implementation, a new journey `test/workflows/parents/student-confirmation-of-link.journey.test.ts` SHALL encode the §2.9 journeys against the REAL services and REAL test DB: committed fixtures in `beforeAll`, tracked hard-delete in `afterAll`, ZERO `runInRollback`, honest role resolution, and the fanout/notification boundary spied (no external sends). If verification (REQ-002) proves the existing DEV1-014 journey already covers a step byte-for-byte, the new journey references it and pins only the uncovered confirmation-leg assertions (e.g., notification-drawer/visibility semantics).
-- **REQ-063 (Wire regression):** The existing wire matrix (`backend/graphql/test/parent-link.wire.test.ts`) SHALL stay green; DEV1-015 adds only genuinely missing decision-leg cells (e.g., expired-claim denial on the wire), nothing duplicative.
+- **REQ-062 (Journey — test-first):** BEFORE any implementation, a new journey `test/workflows/parents/student-confirmation-of-link.journey.test.ts` SHALL encode the §2.9 journeys against the REAL services and REAL test DB: committed fixtures in `beforeAll`, tracked hard-delete in `afterAll`, ZERO `runInRollback`, honest role resolution, and the fanout/notification boundary spied (no external sends). If verification (REQ-002) proves the existing journey already covers a step byte-for-byte, the new journey references it and pins only the uncovered confirmation-leg assertions (e.g., notification-drawer/visibility semantics).
+- **REQ-063 (Wire regression):** The existing wire matrix (`backend/graphql/test/parent-link.wire.test.ts`) SHALL stay green; adds only genuinely missing decision-leg cells (e.g., expired-claim denial on the wire), nothing duplicative.
 - **REQ-064 (Component tests):** The dashboard card SHALL ship with component suites covering loading / absent (no actionable) / present (count + CTA + RTL) / post-decision disappearance, in both locales.
 - **REQ-065 (Invariant probes):** Dedicated negative assertions SHALL prove: (a) pre-confirmation `students.parent_id` is NULL; (b) rejection leaves it unchanged; (c) the parent holds zero monitoring capability at every non-confirmed state (INV-P1).
 
 ### 2.8 Documentation & Knowledge Gates
 
-- **REQ-070 (Canonical doc):** Implementation SHALL amend `docs/parents/parent-link-request.md` with a DEV1-015 closure section (what the student-confirmation slice added: dashboard discoverability card, journey, decision-leg wire cells) — it SHALL NOT fork a parallel canonical doc and SHALL NOT renumber or edit `docs/specs/state-machine-invariants.md` or `docs/specs/open-decisions-and-gaps.md` (bindings are by reference only).
+- **REQ-070 (Canonical doc):** Implementation SHALL amend `docs/parents/parent-link-request.md` with a closure section (what the student-confirmation slice added: dashboard discoverability card, journey, decision-leg wire cells) — it SHALL NOT fork a parallel canonical doc and SHALL NOT renumber or edit `docs/specs/state-machine-invariants.md` or `docs/specs/open-decisions-and-gaps.md` (bindings are by reference only).
 - **REQ-071 (Layer knowledge):** Layer AGENTS.md updates SHALL be minimal one-line rule additions only if a NEW permanent rule emerged (expectation: none — the single-writer/expiry/notification rules already exist); the root AGENTS.md Important References list gains nothing new (the parents docs are already recorded).
 
 ### 2.9 Cross-Actor Workflow Scenarios (Journeys)
@@ -158,13 +158,13 @@ DEV1-015 is therefore a **closure and discoverability slice**, not a re-implemen
 #### Actor Table
 | Actor | Role / permission group | CAN do | CANNOT do |
 |---|---|---|---|
-| Parent (requester) | `UserRole.Parent` | Send/cancel link requests (DEV1-014); receive outcome notification | Confirm/reject; read any student data pre-confirmation; see the student's full name |
+| Parent (requester) | `UserRole.Parent` | Send/cancel link requests; receive outcome notification | Confirm/reject; read any student data pre-confirmation; see the student's full name |
 | Student (decider) | `UserRole.Student` | List own incoming requests; confirm; reject | Respond to others' requests; respond when governed; see masked names |
 | Other student / Teacher / Admin | other roles | — | Every student link operation (pre-resolver FORBIDDEN) |
 | Anonymous | — | — | Everything (401) |
 
 #### Ordered Step List
-1. **Parent → creates link request** (DEV1-014 surface) → shared state: `parent_link_requests(pending)` row + ONE `parent_link_request` notification row for the student + one post-commit publish to the student.
+1. **Parent → creates link request** (surface) → shared state: `parent_link_requests(pending)` row + ONE `parent_link_request` notification row for the student + one post-commit publish to the student.
 2. **Student → opens dashboard** → observes the pending-request card (count + CTA); incoming list shows parent FULL name + expiry.
 3. **Student → opens the `parent_link_request` notification** → lands on the link-requests decision route.
 4. **DENIAL: Teacher/Admin/foreign student → hits the decision surface** → pre-resolver FORBIDDEN; zero rows touched.
@@ -190,7 +190,7 @@ DEV1-015 is therefore a **closure and discoverability slice**, not a re-implemen
 |---|---|
 | **A.2** (`students.parent_id` FK model) | The confirmation writes THIS column only, via the guarded single-writer — no separate linking table, ever. |
 | **A.3** (unique `handshake_code`) | The code stays a capability for request creation only; the decision flow consumes request ids scoped to the caller — no code crosses the decision wire. |
-| **A.4 / A.4.3** (notifications table; emitter-locale) | Outcome notifications are engine-emitted in the PARENT's persisted locale (the emitters shipped by DEV1-014 already implement recipient-locale composition); publish-after-commit per `docs/notifications/realtime-engine.md` §3.1/3.2. |
+| **A.4 / A.4.3** (notifications table; emitter-locale) | Outcome notifications are engine-emitted in the PARENT's persisted locale (the emitters shipped by already implement recipient-locale composition); publish-after-commit per `docs/notifications/realtime-engine.md` §3.1/3.2. |
 | **B.12** (one parent per student) | The guarded `linkParentIfUnlinked` predicate (`parent_id IS NULL`) is the two-parent race arbiter (REQ-032). |
 | **B.13** (parent links multiple children) | Per-child gating; nothing here constrains the parent globally. |
 | **B.14** (7-day expiry) | Strict-`>` liveness; lazy materialization on reads; boundary instant = expired (REQ-014; parity pinned in the journey). |
@@ -199,13 +199,13 @@ DEV1-015 is therefore a **closure and discoverability slice**, not a re-implemen
 | Invariant | Enforcement in this ticket |
 |---|---|
 | **INV-P1** (no monitoring without explicit confirmation) | THE central invariant: REQ-012's link write is the ONLY grant; REQ-017 + journey negative probes (J-REQ-03/04) prove no capability exists pre-confirmation or post-rejection. |
-| **INV-P2** (parent read-only MVP) | Unaffected — DEV1-015 ships no parent read surface; the portal is DEV1-016's and MUST consume only `students.parent_id` (never the request table). |
-| **INV-P3** (parent real-time notification on session completion) | Enabled-by the engine substrate; NOT exercised here (the emitters are DEV1-016/017). This ticket's parent notifications are link-outcome only. |
+| **INV-P2** (parent read-only MVP) | Unaffected —  ships no parent read surface; the portal is the downstream owner and MUST consume only `students.parent_id` (never the request table). |
+| **INV-P3** (parent real-time notification on session completion) | Enabled-by the engine substrate; NOT exercised here (the emitters are). This ticket's parent notifications are link-outcome only. |
 | **INV-P4** (link data model) | Resolved substrate — reused as-is. |
 | Session/Wallet invariants (INV-S*, INV-W*) | N/A — zero session/financial state touched. |
 
 ### Canonical workflows (`docs/workflows/04-parent-supervision-handshake.md`)
-This ticket implements §4.4 ("Student Confirmation") and consumes §4.2/§4.3 (discovery + request, shipped by DEV1-013/014). The Admin onboarding override (§8-resolved) is recognized as the sole sanctioned NON-handshake writer of `students.parent_id`, living outside this flow — no path in this ticket bypasses the student's decision.
+This ticket implements §4.4 ("Student Confirmation") and consumes §4.2/§4.3 (discovery + request, shipped). The Admin onboarding override (§8-resolved) is recognized as the sole sanctioned NON-handshake writer of `students.parent_id`, living outside this flow — no path in this ticket bypasses the student's decision.
 
 ---
 
@@ -215,7 +215,7 @@ This ticket implements §4.4 ("Student Confirmation") and consumes §4.2/§4.3 (
 |---|---|---|---|---|---|
 | REQ-001/002/003/004 (baseline, inventory, i18n, types) | — | — | — | — | Baseline outcome file; substrate inventory outcome |
 | REQ-010 (pending list) | B.14, INV-P1 | `ParentLinkRequestService.listMyIncoming` | `myIncomingParentLinkRequests` | Student link-requests view (`frontend/views/students/link-requests/**` — verify per REQ-002) | Existing service tests (extend); journey step 2 |
-| REQ-011 (notification + deep link) | A.4 | `emitRequestNotificationTx` (DEV1-014 substrate) | `myNotifications` / drawer documents | `frontend/components/ui/NotificationDrawer*.tsx` deep-link behavior | Component/contract test pinning `parent_link_request` route resolution |
+| REQ-011 (notification + deep link) | A.4 | `emitRequestNotificationTx` (substrate) | `myNotifications` / drawer documents | `frontend/components/ui/NotificationDrawer*.tsx` deep-link behavior | Component/contract test pinning `parent_link_request` route resolution |
 | REQ-012 (confirm) | A.2, B.12, INV-P1, INV-P4 | `respondToLinkRequest` + `respondToPendingForStudent` + `StudentRepository.linkParentIfUnlinked` + sibling sweep | `respondToParentLinkRequest(accept: true)` | Decision CTA on link-requests view | Journey step 7; chaos two-parent race (existing `parent-link-request.chaos.test.ts` coverage confirmed/extended) |
 | REQ-013 (reject) | INV-P1 | `respondToLinkRequest` (reject branch) | `respondToParentLinkRequest(accept: false)` | Decision CTA | Journey step 6; parent-notification spy assertion |
 | REQ-014 (expiry liveness) | B.14 | `classifyUnclaimableRequest` / render-time mapping | (read render + mutation denial) | `isLinkRequestActionable` / `displayLinkRequestStatus` consumers | Boundary instant test (`expiresAt == now`); wire expiry cell |
@@ -230,7 +230,7 @@ This ticket implements §4.4 ("Student Confirmation") and consumes §4.2/§4.3 (
 | REQ-060–065 (test coverage) | — | — | — | — | The suites enumerated in each REQ row |
 | REQ-070/071 (documentation) | — | — | — | — | Diff-proven doc updates; ledger gate (zero ❌/⚠️) |
 
-**1:1 journey mapping:** §2.9 journeys map onto `test/workflows/parents/student-confirmation-of-link.journey.test.ts` (test-first, REQ-062); the shared DEV1-014 journey (`test/workflows/parents/parent-link-request.journey.test.ts` — existence verified per REQ-002) continues to own the request-creation leg coverage.
+**1:1 journey mapping:** §2.9 journeys map onto `test/workflows/parents/student-confirmation-of-link.journey.test.ts` (test-first, REQ-062); the shared journey (`test/workflows/parents/parent-link-request.journey.test.ts` — existence verified per REQ-002) continues to own the request-creation leg coverage.
 ```
 
 ---
@@ -278,12 +278,12 @@ This ticket implements §4.4 ("Student Confirmation") and consumes §4.2/§4.3 (
 
 ### Business Constraints
 - Dual-actor rule: only the addressed student may respond; the requester (parent) cannot self-confirm.
-- Denylist behavior owned by DEV1-014's substrate; this ticket pins it via tests only.
+- Denylist behavior owned by the substrate; this ticket pins it via tests only.
 
 ### Assumptions
-- `parent_link_requests` schema, service (`respondToLinkRequest`, `listMyIncoming` or equivalent), repos, Pothos resolvers, and documents exist per DEV1-014 outcome (tx-outcome.md). Verification gate 0.2 confirms before any build work.
-- DEV1-016 supplies the `respondToLinkRequest` mutation document + page wrappers; DEV1-015 consumes/verifies them rather than re-authoring.
-- J-REQ-01 journey test existing & pinned by DEV1-014 remains the authoritative end-to-end journey; DEV1-015 re-runs, does not fork it.
+- `parent_link_requests` schema, service (`respondToLinkRequest`, `listMyIncoming` or equivalent), repos, Pothos resolvers, and documents exist per outcome (tx-outcome.md). Verification gate 0.2 confirms before any build work.
+- supplies the `respondToLinkRequest` mutation document + page wrappers; consumes/verifies them rather than re-authoring.
+- J-REQ-01 journey test existing & pinned by remains the authoritative end-to-end journey; re-runs, does not fork it.
 
 ## 8. Success Criteria
 
@@ -304,11 +304,11 @@ This ticket implements §4.4 ("Student Confirmation") and consumes §4.2/§4.3 (
 
 | Term | Definition |
 |---|---|
-| **DEV1-014 substrate** | The service/repo/resolver/notification spine for parent link requests, implemented ahead of DEV1-015 per sprint order. |
+| ** substrate** | The service/repo/resolver/notification spine for parent link requests, implemented ahead of per sprint order. |
 | **Denylist** | Per-student table preventing a specific parent from requesting again after rejection (`parent_link_denylist` or equivalent). |
 | **J-REQ-01** | Journey requirement: parent sends request → student confirms → parent notified; embodied by `test/workflows/parents/parent-link-request.journey.test.ts`. |
 | **Sub-loop** | `bun run scripts/health/sub-loop.ts <file> --lifecycle duplicates` — per-file quality verification (tsgo→oxlint→biome→lint→duplicates). |
 | **Verification-first** | Rule that every "update/reuse" claim must be checked in code before claimed; failure = STOP + ledger entry, not speculative rewriting. |
-| **Zero-schema / zero-types proof** | Evidence (grep + git diff) that DEV1-015 adds no Drizzle schema tables/columns and no `backend/types/` files. |
+| **Zero-schema / zero-types proof** | Evidence (grep + git diff) that adds no Drizzle schema tables/columns and no `backend/types/` files. |
 | **Discoverability card** | The NEW dashboard component surfacing pending parent-link requests on `/student/dashboard`. |
 - **Dashboard card**: discoverability iteration for pending link requests on the student home screen (the only new UI surface introduced by this ticket).

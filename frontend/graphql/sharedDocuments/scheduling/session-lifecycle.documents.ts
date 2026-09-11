@@ -17,16 +17,16 @@ import type {
  * `session.documents.ts` (which re-exports every sibling, so the
  * deep-import path and the export surface are unchanged).
  *
- * Five mutations over the DEV3-004 SDL surface: the creation/lifecycle
+ * Five mutations over the session lifecycle SDL surface: the creation/lifecycle
  * quartet (`createSession`, `startSession`, `completeSession`,
- * `cancelSession`) plus the DEV3-012 dual-confirmation mutation
+ * `cancelSession`) plus the dual-confirmation mutation
  * (`confirmSessionCompletion`). Every `Session` payload selects `id` first
  * so Apollo Client normalizes returned rows into the cache — consumers
  * converge lists via the returned `Session!` payloads WITHOUT refetch
  * storms (per `sharedDocuments/AGENTS.md` "id Field Requirement" and plan
  * §5.4 "no refetch").
  *
- * Every `Session` selection carries the DEV3-005 dispute/cancel-audit
+ * Every `Session` selection carries the dispute/cancel-audit
  * fields (`cancelReason`, `disputeReason`, `disputedAt`, `resolutionNote`,
  * `resolvedAt` — all nullable) so the rows that render them (cancelled
  * rows with a persisted cancel reason; the admin arbitration list) and
@@ -173,7 +173,7 @@ export const cancelSessionMutationDocument: TypedDocumentNode<CancelSessionMutat
 `;
 
 /**
- * `confirmSessionCompletion(id: ID!)` — DEV3-012 (R-201/R-202): the
+ * `confirmSessionCompletion(id: ID!)` — R-201/R-202: the
  * student's completion confirmation, the second dual-confirmation half.
  * IDEMPOTENT — a repeat confirm, the teacher caller, or an already-released
  * hold returns the current `Session!` payload with ZERO financial writes;

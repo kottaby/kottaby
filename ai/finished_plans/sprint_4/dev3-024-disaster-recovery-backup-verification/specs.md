@@ -1,15 +1,15 @@
-# Requirements & Specification: DEV3-024 — Disaster Recovery & Backup Verification
+# Requirements & Specification: Disaster Recovery & Backup Verification
 
 ## Document Information
 
 - **Feature Name**: Disaster Recovery & Backup Verification
-- **Ticket**: DEV3-024 — `docs/planning/TICKETS.md` §Sprint 4 (Owner Stream: Dev 3, Sprint 4, 5 SP, Blocked By: none)
+- **Ticket**: `docs/planning/TICKETS.md` §Sprint 4 (Owner Stream: Dev 3, Sprint 4, 5 SP, Blocked By: none)
 - **Target Directory**: `ai/plans/sprint_4/dev3-024-disaster-recovery-backup-verification`
 - **Outcome Directory**: `ai/plans/sprint_4/dev3-024-disaster-recovery-backup-verification/outcome`
 - **Version**: 1.0
 - **Date**: 2026-09-05
 - **Author**: Dev 3 stream (spec authored by planning agent)
-- **Stakeholders**: Platform Operator / SRE (Dev 3), Admin (business acceptor), DEV3-026 launch-checklist executor, Academy ownership
+- **Stakeholders**: Platform Operator / SRE (Dev 3), Admin (business acceptor), launch-checklist executor, Academy ownership
 - **Related Canonical Documents**: `docs/planning/PRODUCTION_READINESS.md` §7.1–7.5 · `docs/specs/state-machine-invariants.md` (INV-W1..W8, INV-B1..B6, INV-U1..U5 as post-restore oracles) · `docs/specs/open-decisions-and-gaps.md` (A.4 notifications, A.5 audit_logs) · `docs/DATABASE_MIGRATIONS.md` · `docs/SQLITE_LOCAL_DEV.md` · `docs/notifications/realtime-engine.md` (persist-first rationale: DB restore restores notification truth)
 
 ---
@@ -22,11 +22,11 @@ This specification defines the requirements for: (1) a scripted, manifest-bearin
 
 ### Feature Summary
 
-Ship executable, verifiable disaster-recovery tooling (`backup` + `restore-verify` ops scripts with manifests, oracle checks, and reports) plus the canonical runbook that defines RPO = 1 hour and RTO = 4 hours and scripts the full disaster drill, unlocking PRODUCTION_READINESS §7.1–7.5 for DEV3-026.
+Ship executable, verifiable disaster-recovery tooling (`backup` + `restore-verify` ops scripts with manifests, oracle checks, and reports) plus the canonical runbook that defines RPO = 1 hour and RTO = 4 hours and scripts the full disaster drill, unlocking PRODUCTION_READINESS §7.1–7.5 for the launch checklist.
 
 ### Business Value
 
-- Converts a **launch-blocking checklist block into executable, evidenced procedures** — DEV3-026 cannot sign off §7 without this ticket's artifacts and drill evidence.
+- Converts a **launch-blocking checklist block into executable, evidenced procedures** — the launch checklist cannot sign off §7 without this ticket's artifacts and drill evidence.
 - **Caps worst-case loss**: RPO bounds data loss at 1 hour; RTO bounds downtime at 4 hours, with measurements, not vibes.
 - **Protects the trust tables**: wallet/escrow/audit-log integrity is verified after restore against the same invariants the application enforces, so a "successful" restore can never silently corrupt financial history.
 - **De-risks operations**: a runbook that a never-before-seen operator can execute cold, verified by drill.
@@ -77,7 +77,7 @@ Every capability claimed in this spec was checked against the filesystem BEFORE 
 
 #### Acceptance Criteria
 
-1. WHEN implementation begins THEN the system SHALL record baseline counts — `bun tsgo 2>&1 | grep -c "error TS"`, `bun biome:check`, and `bun run scripts/lint-service.ts --json --id baseline-dev3-024` — into `ai/plans/sprint_4/dev3-024-disaster-recovery-backup-verification/outcome/phase0-baseline.md`.
+1. WHEN implementation begins THEN the system SHALL record baseline counts — `bun tsgo 2>&1 | grep -c "error TS"`, `bun biome:check`, and `bun run scripts/lint-service.ts --json --id baseline` — into `ai/plans/sprint_4/dev3-024-disaster-recovery-backup-verification/outcome/phase0-baseline.md`.
 2. WHEN implementation begins THEN the ledger `ai/plans/sprint_4/dev3-024-disaster-recovery-backup-verification/deferred-items.md` SHALL exist (created at planning; D-001..D-003 pre-seeded) and every deferred decision SHALL have a ledger row before its task may close.
 3. WHEN an agent starts any task THEN it SHALL read ALL files in `ai/plans/sprint_4/dev3-024-disaster-recovery-backup-verification/outcome/` first.
 4. WHEN an agent completes a task THEN it SHALL write `outcome/<task-id>-outcome.md` with findings, cross-file dependencies, and carry-over points.
@@ -203,7 +203,7 @@ Every capability claimed in this spec was checked against the filesystem BEFORE 
 ### REQ-019: Restore Evidence Report
 
 1. WHEN verification completes THEN the system SHALL write `restore-report.json` (manifest echo, re-verified artifact hash, redacted target db name, start/duration, structural table results, per-oracle results, final verdict) into the run directory AND print a human summary ending in `VERDICT: PASS|FAIL` plus the absolute report path.
-2. WHEN the report exists THEN it SHALL be consumable by DEV3-026 as §7.2/7.3 evidence (report path + verdict are the evidence interface).
+2. WHEN the report exists THEN it SHALL be consumable by the launch checklist as §7.2/7.3 evidence (report path + verdict are the evidence interface).
 3. WHEN the artifact hash in the report differs from the manifest hash THEN the report itself SHALL be treated as FAIL (tamper-evident self-consistency).
 
 ### REQ-025: Zero Production Mutation
@@ -231,7 +231,7 @@ Every capability claimed in this spec was checked against the filesystem BEFORE 
 
 ### REQ-028: Documentation Linkage
 
-1. WHEN the runbook lands THEN root `AGENTS.md` Important References SHALL gain a one-line pointer to `docs/ops/disaster-recovery.md`, and `docs/planning/PRODUCTION_READINESS.md` references SHALL be noted in the outcome — but flipping §7 checkboxes remains DEV3-026's exclusive authority.
+1. WHEN the runbook lands THEN root `AGENTS.md` Important References SHALL gain a one-line pointer to `docs/ops/disaster-recovery.md`, and `docs/planning/PRODUCTION_READINESS.md` references SHALL be noted in the outcome — but flipping §7 checkboxes remains the launch checklist's exclusive authority.
 
 ### REQ-029: Script Registration
 
@@ -309,7 +309,7 @@ This table satisfies the mandatory UX/Navigation gate by **documented negation**
 | Operator | shell + prod DSN | backup; restore-verify to scratch; read reports; run drill | target production for restore (guard, REQ-016); publish unverified artifacts (REQ-019) |
 | Admin | in-app role | view runbook; consume drill evidence | trigger backup/restore via app (no surface, REQ-032) |
 | CI runner (future) | scheduled job (D-002) | run verify on schedule | write production |
-| DEV3-026 executor | launch checklist | consume runbook + reports | ratify §7 without evidence |
+| Launch-checklist executor | launch checklist | consume runbook + reports | ratify §7 without evidence |
 
 **Negative steps enforced by design:** app-triggered backup (denied — no surface); restore-to-production (denied — guard); restore without explicit target (denied — arg contract).
 
@@ -341,8 +341,8 @@ This table satisfies the mandatory UX/Navigation gate by **documented negation**
 - No shell injection surface: all process spawns use argv arrays (`Bun.spawn`), never composed shell strings.
 
 ### Business Constraints
-- Sprint 4, 5 SP; `Blocked By: none`; must land before DEV3-026 sign-off.
-- Launch checklist §7 flips only via DEV3-026 — this ticket produces evidence, not checkbox authority.
+- Sprint 4, 5 SP; `Blocked By: none`; must land before launch-checklist sign-off.
+- Launch checklist §7 flips only via that checklist — this ticket produces evidence, not checkbox authority.
 
 ### Assumptions
 - Production is Neon-managed Postgres (per `.env.example` + migrations doc); an equivalent self-hosted Postgres satisfies the same flow.
@@ -388,7 +388,7 @@ This table satisfies the mandatory UX/Navigation gate by **documented negation**
 
 ## Requirements Review Checklist (author self-certification)
 
-- [x] All roles addressed (operator primary; in-app roles explicitly denied; DEV3-026 consumer).
+- [x] All roles addressed (operator primary; in-app roles explicitly denied; launch-checklist consumer).
 - [x] Normal, edge, error cases covered (happy path + failure surfacing + chaos tiers).
 - [x] Requirements are testable/measurable (exit codes, verdicts, countdowns, hashes).
 - [x] No conflicting requirements (single-writer scripts; guard single-variable rule).

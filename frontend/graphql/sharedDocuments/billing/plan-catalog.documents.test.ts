@@ -1,5 +1,5 @@
 /**
- * Plan Catalog Frontend GraphQL Documents Tests — DEV1-005 Task 4.1.TE
+ * Plan Catalog Frontend GraphQL Documents Tests
  *
  * Verifies:
  *  - REQ-061: Document definitions for all 5 plan operations exist and are valid.

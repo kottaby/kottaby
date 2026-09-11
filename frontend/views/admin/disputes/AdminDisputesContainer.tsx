@@ -13,7 +13,7 @@ import { Sessions, useAppTranslation } from "@/shared/locale";
 
 /**
  * AdminDisputesContainer — the client orchestrator behind `/disputes`
- * (DEV3-005 R-111, the admin arbitration queue).
+ * (R-111, the admin arbitration queue).
  *
  * Stateful composition ONLY (mirrors the student/teacher sessions
  * orchestrators): the 1-based page lives in local `useState` and re-keys the
@@ -31,7 +31,7 @@ import { Sessions, useAppTranslation } from "@/shared/locale";
  * generic error / empty / rows + pager) resolves in
  * {@link AdminDisputesBody} below the always-on chrome.
  *
- * Arbitration-dialog wiring (DEV3-005 R-104/R-111) — the
+ * Arbitration-dialog wiring (R-104/R-111) — the
  * `resolveSessionDispute` mutation and its code classification live in
  * `ResolveDisputeDialog` (+ its `useResolveSessionDispute` seam); EVERY
  * outcome surfaces a snackbar through {@link useAdminDisputesNotice}

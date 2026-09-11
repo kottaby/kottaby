@@ -1,7 +1,7 @@
 ---
 name: open-ticket-issue
 description: >
-  Open a GitHub issue for a planning ticket (e.g. DEV1-005) on this repo's GitHub remote,
+  Open a GitHub issue for a planning ticket on this repo's GitHub remote,
   with the correct sprint milestone, labels, assignee, dependency cross-links, and a plan-backed
   issue body. Use this skill when: (1) the user asks to open/create a GitHub issue for a ticket,
   sprint, or plan under ai/plans, (2) the user wants issues synced from docs/planning/TICKETS.md,
@@ -21,7 +21,7 @@ backed by its implementation plan under `ai/plans/sprint_N/<slug>/` when one exi
 
 ## Required Inputs (confirm before creating)
 
-- **Ticket ID** (e.g. `DEV1-005`) or the plan directory path.
+- **Ticket ID** or the plan directory path.
 - **Assignee** (GitHub login). NEVER create the issue without one — ask if not given.
 - Whether the ticket is **already implemented** (a "Status" line is only allowed with evidence; see Content Rules).
 

@@ -1,4 +1,4 @@
-# Technical Architecture & Implementation Design: DEV3-001 — CI/CD Pipeline with DBML & Mermaid Validation
+# Technical Architecture & Implementation Design: CI/CD Pipeline with DBML & Mermaid Validation
 
 > **Spec**: `ai/plans/dev3-001-ci-cd-pipeline/specs.md` (REQ-001..REQ-085)
 > **Nature**: Infrastructure-only ticket. No application domain code, no GraphQL surface, no Drizzle schema changes. The deliverable is a merge-blocking GitHub Actions pipeline, committed CI composition scripts (`scripts/ci/`), caching/security configuration, verification evidence, and knowledge propagation.
@@ -536,4 +536,4 @@ N/A to pipeline code. REQ-013/021 safeguard is structural: database interaction 
 | REQ-070..077 (self-verification incl. sabotage & concurrency evidence) | §5.5 verification protocol |
 | REQ-080..085 (canonical doc, AGENTS/ROADMAP propagation, deferred gate, outcome protocol, workflow header) | §5.1–5.2, §6.6 |
 
-**Bottom line**: DEV3-001 ships one workflow, three committed CI scripts (two with bun:test unit coverage), one env template, one canonical doc, surgical AGENTS.md/ROADMAP references, and seven pieces of recorded pipeline verification evidence — with zero application-code, schema, or API-surface changes, and every security/parity/integrity requirement mapped to a concrete enforcement mechanism.
+**Bottom line**: This ticket ships one workflow, three committed CI scripts (two with bun:test unit coverage), one env template, one canonical doc, surgical AGENTS.md/ROADMAP references, and seven pieces of recorded pipeline verification evidence — with zero application-code, schema, or API-surface changes, and every security/parity/integrity requirement mapped to a concrete enforcement mechanism.

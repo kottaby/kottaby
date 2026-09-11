@@ -1,9 +1,9 @@
 ```markdown
-# Technical Architecture & Implementation Design: DEV2-003 — Shared Types & Interface Contracts
+# Technical Architecture & Implementation Design: Shared Types & Interface Contracts
 
 ## 1. System Overview & Architecture Diagram
 
-DEV2-003 is a **substrate-only** deliverable: the canonical cross-stream contract type library living in `backend/types/contracts/`. It touches **zero** database tables, **zero** GraphQL resolvers, and **zero** frontend files. Its "architecture" is the type-composition pipeline that derives cross-stream integration payloads from the already-implemented DEV1-001 canonical entity types and canonical enums, plus a small set of runtime guards/assertion helpers colocated in the same subtree under a non-`.types.ts` filename (per `backend/services/AGENTS.md` split rule: types → `backend/types/`, runtime helpers → non-`.types` filename).
+This ticket is a **substrate-only** deliverable: the canonical cross-stream contract type library living in `backend/types/contracts/`. It touches **zero** database tables, **zero** GraphQL resolvers, and **zero** frontend files. Its "architecture" is the type-composition pipeline that derives cross-stream integration payloads from the already-implemented the Database Schema Migration ticket canonical entity types and canonical enums, plus a small set of runtime guards/assertion helpers colocated in the same subtree under a non-`.types.ts` filename (per `backend/services/AGENTS.md` split rule: types → `backend/types/`, runtime helpers → non-`.types` filename).
 
 ### Interaction Diagram (Type-Compile Pipeline)
 
@@ -39,14 +39,14 @@ DEV2-003 is a **substrate-only** deliverable: the canonical cross-stream contrac
 ┌──────────────────────────────────────────────────────────────────────────────┐
 │  FUTURE CONSUMERS (later tickets — this ticket ships NO consumer)            │
 │                                                                              │
-│  DEV3-004/008 SessionService/MatchingService  ─▶ SessionRequestContract,     │
+│ the Session Creation & Lifecycle ticket SessionService/MatchingService ─▶ SessionRequestContract, │
 │                                                   TeacherAvailabilitySnapshot│
-│  DEV2-006/007 verification loop               ─▶ EvaluationSessionContract   │
-│  DEV3-012/013/014 dual-confirm + escrow       ─▶ DualConfirmationState,      │
+│ verification loop ─▶ EvaluationSessionContract │
+│ dual-confirm + escrow ─▶ DualConfirmationState, │
 │                                                  EscrowTriggerContract,      │
 │                                                  WalletCreditContract,       │
 │                                                  EscrowReleaseContract       │
-│  DEV3-010 NotificationService / DEV3-020 Audit─▶ SessionEventNotificationCtr │
+│ NotificationService / Audit─▶ SessionEventNotificationCtr │
 │                                                  AuditLogWriteContract       │
 └──────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -57,20 +57,20 @@ DEV2-003 is a **substrate-only** deliverable: the canonical cross-stream contrac
 
 | # | Decision | Options Considered | Pros / Cons | Rationale (Maintainability, Scalability, Reliability) |
 |---|---|---|---|---|
-| 1 | **Composition-only derivations** (`Pick`/`Omit`/intersection/indexed-access from canonical `*SelectType`s) | (a) Re-declare fields inline; (b) composition from canonical types; (c) `satisfies` re-definition | (a) Drift when schema changes — compile breaks far from the contract. (b) Contract types move in lockstep with DEV1-001 types; a schema rename instantly breaks the contract at `tsgo` time (desired: "type changes require cross-stream review" becomes machine-enforced). (c) Same as (a). | Chosen (b). Reliability: this ticket exists to convert cross-stream mismatch into compile errors; composition is the only approach that guarantees zero drift. Mandates REQ-011. |
+| 1 | **Composition-only derivations** (`Pick`/`Omit`/intersection/indexed-access from canonical `*SelectType`s) | (a) Re-declare fields inline; (b) composition from canonical types; (c) `satisfies` re-definition | (a) Drift when schema changes — compile breaks far from the contract. (b) Contract types move in lockstep with the Database Schema Migration ticket types; a schema rename instantly breaks the contract at `tsgo` time (desired: "type changes require cross-stream review" becomes machine-enforced). (c) Same as (a). | Chosen (b). Reliability: This ticket exists to convert cross-stream mismatch into compile errors; composition is the only approach that guarantees zero drift. Mandates REQ-011. |
 | 2 | **Enum-members-as-literal-constraints** (`sessionType: SessionType.StudentSession`) instead of raw string literals | (a) raw literal types (`"student_session"`); (b) TS-enum-member-typed fields; (c) widened `SessionType` | (a) Violates REQ-002 (no string literals where enum types expected); oxlint `no-unsafe-enum-comparison` and the semantic checklist flag this class. (b) Nominal at the type level, assignable INTO the pgEnum union at Drizzle insert time (string-enum members are subtypes of their literal), so consumers can feed contracts directly into `SessionInsertType`-shaped inserts. (c) Too wide — would allow `sessionType: TeacherEvaluation` on a student-session contract, invalidating the Contract-1/Contract-4 split (A.8). | Chosen (b). String enums in `backend/enum/**` are single-source; member-typed fields give compile-time family separation without re-declaring unions. |
 | 3 | **Escrow trigger constructibility** via non-null narrowing + a single `buildEscrowTrigger(state)` helper | (a) Plain fields, runtime checks in consumers; (b) `NonNullable<>` narrowing + helper; (c) branded types (`Brand<Date, "ConfirmedAt">`) | (a) Compilable without dual confirmation — violates INV-S3 at the very layer meant to encode it. (b) Minimal machinery, zero nominal-branding complexity, `tsgo`-checked; helper is the ONLY sanctioned constructor-funnel and throws `ValidationError` if either timestamp is null. (c) Heavier, marginal extra safety, hurts readability and future resolver interop. | Chosen (b). Encodes REQ-018/REQ-043: escrow release without dual confirmation is unrepresentable in well-typed code; the helper forces callers to read DB-derived `DualConfirmationState` instead of stitching two half-confirms. |
-| 4 | **Both-or-neither polymorphic pointer** as a two-variant union (`relatedEntityType`/`relatedEntityId` both present or both absent) | (a) Two independent optional fields; (b) union of variants; (c) single `relatedEntity?: { type; id }` wrapper | (a) Allows the invalid half-populated state `type` set / `id` null — runtime ambiguity for NotificationService routing. (b) Compile-time impossibility of the half state; degrades gracefully in consumers. (c) Deviates from the flat DEV1-001 shape (`NotificationSelectType` has two columns) — would require a mapping layer, prohibited by stores/graphql "NO MAPPING" rules. | Chosen (b). Matches schema shape 1:1 while eliminating the invalid state at the type level (REQ-021). |
+| 4 | **Both-or-neither polymorphic pointer** as a two-variant union (`relatedEntityType`/`relatedEntityId` both present or both absent) | (a) Two independent optional fields; (b) union of variants; (c) single `relatedEntity?: { type; id }` wrapper | (a) Allows the invalid half-populated state `type` set / `id` null — runtime ambiguity for NotificationService routing. (b) Compile-time impossibility of the half state; degrades gracefully in consumers. (c) Deviates from the flat the Database Schema Migration ticket shape (`NotificationSelectType` has two columns) — would require a mapping layer, prohibited by stores/graphql "NO MAPPING" rules. | Chosen (b). Matches schema shape 1:1 while eliminating the invalid state at the type level (REQ-021). |
 | 5 | **Runtime guards colocated in `contract-guards.ts` (NOT `.types.ts`)** | (a) Guards inside `.types.ts`; (b) separate `.helpers`/non-types file; (c) guards in a future service | (a) Violates `backend/types/AGENTS.md` split rule (.types.ts = type-only surface). (b) Keeps the types barrel pure (barrel exports * from types files only; guards file has its own named export consumed directly), while REQ-042's "pure type guards/assertion helpers allowed" is honored. (c) Defers the guard vocabulary into per-stream silos — defeats the single-contract purpose. | Chosen (b). REQ-051 requires localized errors at throw time; guards take `t` (translation bag) as a parameter — zero i18n imports inside the library. |
 | 6 | **Contract error catalog as `const` code map; messages externalized** | (a) `DomainError` subclasses with embedded keys; (b) code const map + caller-localized message; (c) string messages in library | (a) Overkill for two guard failure modes; subclasses belong to `backend/lib/errors.ts`. (b) REQ-050 shape: codes live here, message resolution via `getServerTranslations(locale, …)`/`ctx.t(…)` in the *caller* — library remains import-free of `shared/locale` (no i18n coupling, REQ-051). (c) Banned (REQ-051, REQ-073 static scan). | Chosen (b). Preserves invariant that `backend/types/contracts/**` compiles with zero i18n/zero runtime deps beyond `backend/lib/errors` for `ValidationError`. |
 | 7 | **"Type conformance as the gate"** — `.test-d.ts` (tsgo-checked, not executed) + `bun:test` guard/spec scans | (a) Runtime-only tests; (b) type tests via `expectTypeOf`; (c) hybrid `.test-d.ts` + runtime tests | (a) Cannot verify "unconstructible" states. (b) Requires pulling vitest-style helpers not configured for `bun:test`; `satisfies` + `@ts-expect-error` are dependency-free. (c) `.test-d.ts` suffix is outside bun's `*.test.ts` glob (not executed) but inside tsconfig (type-checked) — the compile step IS the test runner for negatives; runtime tiers run normally. | Chosen (c). REQ-070: a broken positive (`satisfies` mismatch) or an unexpectedly-compiling negative (`@ts-expect-error` unused) fails `tsgo` — no test harness needed for the type tier. |
-| 8 | **No `runInRollback` / repo tests in this ticket** | — | Substrate ticket with zero DB surface (REQ-072). DB-layer gates (rollback wrapper, `tx` propagation, 100% repo coverage) reattach at consumer tickets (DEV1-007+, DEV3-004+) which will import these contracts. | Prevents false confidence from vacuous DB tests and keeps the ticket's test ratio honest: tier coverage is on guards, not DB. |
+| 8 | **No `runInRollback` / repo tests in this ticket** | — | Substrate ticket with zero DB surface (REQ-072). DB-layer gates (rollback wrapper, `tx` propagation, 100% repo coverage) reattach at consumer tickets which will import these contracts. | Prevents false confidence from vacuous DB tests and keeps the ticket's test ratio honest: tier coverage is on guards, not DB. |
 
 ---
 
 ## 2. Data Models & Database Schema
 
-### 2.1 Existing Schema Verification (READ-ONLY confirmation — DEV1-001 implemented)
+### 2.1 Existing Schema Verification (READ-ONLY confirmation — the Database Schema Migration ticket implemented)
 
 Every canonical type this ticket composes from already exists. Verification is a read audit, not a migration:
 
@@ -162,7 +162,7 @@ backend/types/contracts/
 // backend/types/contracts/session-request.contract.types.ts
 /**
  * Contract 1 — Session Creation (Dev 1 → Dev 3), TEAM_ALLOCATION.md §Contract 1.
- * Governs DEV3-004 SessionService.createFromRequest / DEV3-008 MatchingService.
+ * Governs the Session Creation & Lifecycle ticket SessionService.createFromRequest / MatchingService.
  * Decision refs: A.8 (session_type), A.10 (intent), B.2 (24h deadline),
  * B.3 (platform-set fee), B.4 (hold-at-request), INV-S4 (both FKs mandatory).
  * IDs: studentId must equal callers ctx-derived student identity (consumers assert BOLA at runtime).
@@ -302,12 +302,12 @@ All messages pass through `ctx.t("errors")` / `getServerTranslations(locale, "er
 
 | Caller role | Authority over contracts | Notes |
 |---|---|---|
-| Anonymous | — (none) | No public surface; registration already live (DEV1-002) and does NOT consume this library |
-| Student | None (runtime) | Contracts are internal service-to-service payloads; a future `requestSession` mutation (DEV3-004) consumes `SessionRequestContract` but is role-gated at that ticket |
+| Anonymous | — (none) | No public surface; registration already live (the User Registration ticket) and does NOT consume this library |
+| Student | None (runtime) | Contracts are internal service-to-service payloads; a future `requestSession` mutation (the Session Creation & Lifecycle ticket) consumes `SessionRequestContract` but is role-gated at that ticket |
 | Parent | None | Contract 5 notifications are *outputs to* parent; no parent-callable mutation uses them (INV-P2 read-only preserved) |
 | Teacher | None (runtime) | Contract 2 snapshots are read-models produced by services, not teacher-supplied input |
 | Supervisor | None | Extended approvals community: no supervisor scope at all in substrate |
-| Super Admin | None (runtime) | Contract 6 write contract is consumed by admin-mutation services only (DEV3-016+, DEV2-010/018) — authScoping lands in those tickets |
+| Super Admin | None (runtime) | Contract 6 write contract is consumed by admin-mutation services only — authScoping lands in those tickets |
 
 **Pothos `authScopes`: N/A for this ticket** (no resolvers are authored).
 
@@ -330,7 +330,7 @@ File: `backend/types/contracts/contract-guards.ts` (pure, stateless, dependency-
 
 ```typescript
 export function parseTeacherSubjects(
-  raw: TeacherSelectType["subjects"], // string | null  (JSON-encoded array per DEV1-001 note)
+  raw: TeacherSelectType["subjects"], // string | null (JSON-encoded array per the Database Schema Migration ticket note)
   t: ErrorsTranslationBag              // caller-provided; no i18n import here (REQ-051)
 ): TeacherSubjectsParsed {
   if (raw === null) return [];
@@ -371,13 +371,13 @@ This ticket ships no runtime mutations; concurrency contribution is **type-encod
 
 | Scenario | Actors | Risk | Type-Level Mitigation in DJ-003 | Runtime Owner (ticket) |
 |---|---|---|---|---|
-| Two students request two sessions racing the same online teacher | 2 students ↔ 1 teacher slot | Double-booking | `SessionRequestContract.idempotencyKey` is mandatory; `idempotencyKey` semantics documented as DB-unique-enforced; `TeacherAvailabilitySnapshotContract` is explicitly a **point-in-time snapshot** — JSDoc mandates re-assertion of `isOnline` + `is_approved` inside the session-creation `SELECT FOR UPDATE` transaction | DEV3-004 / DEV3-008 (INV-S5/S6, INV-A2) |
-| Teacher toggles offline while matching is using their snapshot | Teacher toggle ↔ MatchingService | Stale availability shown | Snapshot type carries `readonly` fields + staleness JSDoc (B.15 ≤15min); consumer MUST treat snapshot as advisory and re-read under lock | DEV3-008 (B.15) |
-| Dual-confirmation race: teacher + student confirm independently | teacher + student | Escrow triggered twice / on half-confirm | `EscrowTriggerContract` needs BOTH non-null timestamps and is ONLY constructible via `buildEscrowTrigger(state)` fed from a re-read `DualConfirmationState` row; constructing from two independent half-confirms is unrepresentable (REQ-043) | DEV3-012 (SOLCTIZE... i.e., read-modify-write on `session` row with `SELECT FOR UPDATE` inside tx) |
-| Cancel vs dual-confirm interleave (24h auto-cancel) | cron/auto-cancel ↔ student confirm | Refund double-run or confirm-after-cancel | `EscrowReleaseContract` and `WalletCreditContract` are disjoint shapes (release has no money fields; credit requires dual-confirmed non-null state); both carry mandatory idempotency keys — consumer runs them under the same row-lock discipline | DEV3-012/013 (B.2/B.4, INV-S1/S2) |
-| Evaluation loop consumes same evaluator twice | Applicant booking x5 | INV-TV2 violation | `EvaluationSessionContract.completedEvaluatorIds: readonly number[]` is the *evidence* shape; consumers must filter by it; type-level readonly prevents downstream mutation of the evidence | DEV2-006/007 (INV-TV2) |
-| Idempotency-key double submit (client retry storm) | Client ↔ mutation | Duplicate insert | The key field is the contract of the keys; consumers enforce via unique index and translate 23505 via `Error.cause` traversal into `ConflictError` (per `docs/auth/user-registration.md` §6) — note recorded in docs from this ticket | DEV3-004/013, docs/IDEMPOTENCY.md |
-| In-session exclusibility leakage ("inSession" flag duplication) | Dev2 availability writer ↔ Dev3 matcher | Two sources of truth diverge | REQ-016: no parallel `inSession` flag exists in the type library — expressed only via `isOnline: false`; negative conformance test asserts an `inSession` property cannot be added without the positive test breaking shape | DEV2-011/013 (INV-A2/A3) |
+| Two students request two sessions racing the same online teacher | 2 students ↔ 1 teacher slot | Double-booking | `SessionRequestContract.idempotencyKey` is mandatory; `idempotencyKey` semantics documented as DB-unique-enforced; `TeacherAvailabilitySnapshotContract` is explicitly a **point-in-time snapshot** — JSDoc mandates re-assertion of `isOnline` + `is_approved` inside the session-creation `SELECT FOR UPDATE` transaction | (INV-S5/S6, INV-A2) |
+| Teacher toggles offline while matching is using their snapshot | Teacher toggle ↔ MatchingService | Stale availability shown | Snapshot type carries `readonly` fields + staleness JSDoc (B.15 ≤15min); consumer MUST treat snapshot as advisory and re-read under lock | (B.15) |
+| Dual-confirmation race: teacher + student confirm independently | teacher + student | Escrow triggered twice / on half-confirm | `EscrowTriggerContract` needs BOTH non-null timestamps and is ONLY constructible via `buildEscrowTrigger(state)` fed from a re-read `DualConfirmationState` row; constructing from two independent half-confirms is unrepresentable (REQ-043) | (SOLCTIZE... i.e., read-modify-write on `session` row with `SELECT FOR UPDATE` inside tx) |
+| Cancel vs dual-confirm interleave (24h auto-cancel) | cron/auto-cancel ↔ student confirm | Refund double-run or confirm-after-cancel | `EscrowReleaseContract` and `WalletCreditContract` are disjoint shapes (release has no money fields; credit requires dual-confirmed non-null state); both carry mandatory idempotency keys — consumer runs them under the same row-lock discipline | (B.2/B.4, INV-S1/S2) |
+| Evaluation loop consumes same evaluator twice | Applicant booking x5 | INV-TV2 violation | `EvaluationSessionContract.completedEvaluatorIds: readonly number[]` is the *evidence* shape; consumers must filter by it; type-level readonly prevents downstream mutation of the evidence | (INV-TV2) |
+| Idempotency-key double submit (client retry storm) | Client ↔ mutation | Duplicate insert | The key field is the contract of the keys; consumers enforce via unique index and translate 23505 via `Error.cause` traversal into `ConflictError` (per `docs/auth/user-registration.md` §6) — note recorded in docs from this ticket | the Session Creation & Lifecycle ticket, docs/IDEMPOTENCY.md |
+| In-session exclusibility leakage ("inSession" flag duplication) | Dev2 availability writer ↔ Dev3 matcher | Two sources of truth diverge | REQ-016: no parallel `inSession` flag exists in the type library — expressed only via `isOnline: false`; negative conformance test asserts an `inSession` property cannot be added without the positive test breaking shape | (INV-A2/A3) |
 
 **Explicit statements:**
 - **No `SELECT FOR UPDATE` or advisory locks in this ticket** — there is no mutated mutable row; lock requirements are pinned into JSDoc at each snapshot/trigger site for the consumers.
@@ -435,7 +435,7 @@ This ticket has **no UI, no routes, no navigation changes**. All subsections bel
 - `bun tsgo` (exit 0, zero new errors vs baseline)
 - `bun run test backend/types/contracts` (guard + static-assertion suites green)
 - REQ-061 codegen byte-identity gate
-- No screenshot or E2E phase. E2E/browser verification attaches at consumer tickets (DEV3-004+).
+- No screenshot or E2E phase. E2E/browser verification attaches at consumer tickets (the Session Creation & Lifecycle ticket).
 
 ---
 
@@ -447,13 +447,13 @@ Even though the substrate is type-only, it is the *enforcement point* where the 
 
 | Contract | Required ownership identifiers (non-nullable) | Runtime assertion owner (consumer ticket) |
 |---|---|---|
-| `SessionRequestContract` | `studentId`, `teacherId` | DEV3-004 asserts `studentId` resolves from `ctx.user.id` (student flow) or admin-managed onboarding; teacher identity via directory/selection, not client-supplied balancing |
-| `TeacherAvailabilitySnapshotContract` | `teacherId` | DEV3-008 query caller (snapshot is server-derived; never trust client-supplied snapshot) |
-| `EvaluationSessionContract` | `evaluatedId`, `evaluatorId` | DEV2-006 asserts `evaluatedId === ctx.user.id` (applicant self-scope), `evaluatorId` from assignment |
-| `DualConfirmationState` / `EscrowTriggerContract` / `EscrowReleaseContract` | `sessionId` | DEV3-012 asserts `ctx.user.id` equals `session.teacherId` or `session.studentId` (whoever acts), cross-checked per action |
-| `WalletCreditContract` | `walletId`, `sessionId` | DEV3-013/014: wallet resolved server-side from `session.teacherId` (never client-supplied) |
-| `SessionEventNotificationContract` | `userId` (recipient) | DEV3-010: recipients resolved server-side; a client may never push `userId` for another user |
-| `AuditLogWriteContract` | `actorId` | DEV3-020: always `ctx.user.id` under admin authScope; never an input |
+| `SessionRequestContract` | `studentId`, `teacherId` | the Session Creation & Lifecycle ticket asserts `studentId` resolves from `ctx.user.id` (student flow) or admin-managed onboarding; teacher identity via directory/selection, not client-supplied balancing |
+| `TeacherAvailabilitySnapshotContract` | `teacherId` | query caller (snapshot is server-derived; never trust client-supplied snapshot) |
+| `EvaluationSessionContract` | `evaluatedId`, `evaluatorId` | asserts `evaluatedId === ctx.user.id` (applicant self-scope), `evaluatorId` from assignment |
+| `DualConfirmationState` / `EscrowTriggerContract` / `EscrowReleaseContract` | `sessionId` | asserts `ctx.user.id` equals `session.teacherId` or `session.studentId` (whoever acts), cross-checked per action |
+| `WalletCreditContract` | `walletId`, `sessionId` | wallet resolved server-side from `session.teacherId` (never client-supplied) |
+| `SessionEventNotificationContract` | `userId` (recipient) | recipients resolved server-side; a client may never push `userId` for another user |
+| `AuditLogWriteContract` | `actorId` | always `ctx.user.id` under admin authScope; never an input |
 | `ActorContextRef` | `userId`, `role` | Hand-off only; resolution from authenticated session context |
 
 **Identifier-less "fetch-anything" shapes are PROHIBITED** — enforced by REQ-073 static scan (regex for exported interfaces lacking any `Id`/`userId`/`teacherId`/`studentId`/`walletId`/`sessionId`/`actorId` field) and by the conformance negative tests.
@@ -463,7 +463,7 @@ Even though the substrate is type-only, it is the *enforcement point* where the 
 | Rule | Mechanism |
 |---|---|
 | Closed-shape contracts | All contract interfaces are **`readonly` closed interfaces** — TypeScript rejects extra properties at call sites; an implementer adding fields must touch `backend/types/contracts/` (which triggers the change-governance path, REQ-083) |
-| No `{ ...input }` spread into DB | REQ-073 static assertion scans `backend/types/contracts/**` for spread-into-call patterns and fails on any match; consumer tickets (DEV1-007+, DEV3-004+) re-enforce via their own BOPLA audits — binding sentence in `docs/backend/cross-stream-contracts.md` |
+| No `{ ...input }` spread into DB | REQ-073 static assertion scans `backend/types/contracts/**` for spread-into-call patterns and fails on any match; consumer tickets re-enforce via their own BOPLA audits — binding sentence in `docs/backend/cross-stream-contracts.md` |
 | Insert-side narrowing | Consumer DB inserts use explicit field mappings derived from contracts; contracts never expose `id`, `createdAt`, `updatedAt` inputs (`AuditLogWriteContract`, `SessionEventNotificationContract`, `WalletCreditContract` all omit) |
 
 ### 6.3 BFLA — Broken Function-Level Authorization (REQ-032)
@@ -482,7 +482,7 @@ Even though the substrate is type-only, it is the *enforcement point* where the 
 | `passwordHash`, tokens, credentials, secrets | `ActorContextRef` carries ONLY `userId` + `role` (REQ-023). Conformance negatives include `passwordHash` on every contract |
 | User governance flags (A.7) | Absent from every contract — governance is platform-internal state queried from `users` at the authorization layer, not handed across streams |
 | Balance ledger columns (`balanceHifz`/`balanceTajweed`/`balanceReviews`) | Absent (REQ-014); balances belong to Dev 1's ledger, not cross-stream payloads |
-| Payments: gateway secrets / card data | Only DEV1-001 audit fields may be `Pick`ed in future payment contracts: `paymentMethod` / `paymentReference` / `paymentVerifiedAt` (B.9) — and none are needed by this ticket's six contracts; the doc's REQ-034 note codifies this ceiling |
+| Payments: gateway secrets / card data | Only the Database Schema Migration ticket audit fields may be `Pick`ed in future payment contracts: `paymentMethod` / `paymentReference` / `paymentVerifiedAt` (B.9) — and none are needed by this ticket's six contracts; the doc's REQ-034 note codifies this ceiling |
 | Soft-delete leakage via error paths | Library throws only `ValidationError`/`ConflictError` on *input-shape* problems — no entity lookups occur, so no deleted-row disclosure path exists |
 | Error string disclosure | All messages are translation keys resolved by the caller (REQ-051); the library itself holds zero strings beyond error **codes** |
 
@@ -490,7 +490,7 @@ Even though the substrate is type-only, it is the *enforcement point* where the 
 
 - `parseTeacherSubjects` rejects: empty string, non-JSON, non-array JSON, non-string items — fuzz-tested across Tier 3 (randomized non-enum payloads) and Tier 4 (SQL/LIKE payloads `"%"`, `"_"`, `"\\"`, control chars, NUL bytes, RTL/unicode, huge payloads) with `Promise.allSettled` concurrency storms to confirm statelessness.
 - `assertSessionIntent` / `assertEvaluationSessionType` fail-closed on unknown strings (no case-folding/normalization unless a documented mapper is later added — none added here).
-- The contract-library has **no searchable endpoints**; the binding rule (`escapeLikeWildcards` prior to LIKE/ILIKE) is recorded for consumers (DEV3-008/009 do introduce directory search and MUST obey).
+- The contract-library has **no searchable endpoints**; the binding rule (`escapeLikeWildcards` prior to LIKE/ILIKE) is recorded for consumers (do introduce directory search and MUST obey).
 
 ### 6.6 Error-Code Catalog (REQ-050 contribution)
 
@@ -519,7 +519,7 @@ export type ContractErrorCode = (typeof ContractErrorCodes)[keyof typeof Contrac
 | `session-completion-escrow.contract.types.ts` | 3 (Dual-Confirm & Escrow) | Dev3 → Dev1+2 | B.2, B.3, B.4, B.18 | INV-S3, INV-W1/W3/W4/W6/W7/W8, INV-PAY2 | 03 (lifecycle & escrow) |
 | `session-notification.contract.types.ts` | 5 (Parent / Session Notifications) | Dev3 → Dev1 | A.4 | INV-P3 (parent notification output); INV-P2 scope preserved | 03, 04 |
 | `admin-audit.contract.types.ts` | 6 (Admin Operations / Audit) | Dev3 → all | A.5, A.7 (governance exclusion note) | INV-U1/U4 context; append-only doc anchor | 05 (admin governance) |
-| `contract-guards.ts`, `contract-error-codes.constants.ts` | Cross-cutting | all | C.5 (explicit exclusion note: contracts carry NO user-linked recitation fields — DEV3-007 owns session recitation) | IDEMPOTENCY.md; DomainError extensions.code spec | all |
+| `contract-guards.ts`, `contract-error-codes.constants.ts` | Cross-cutting | all | C.5 (explicit exclusion note: contracts carry NO user-linked recitation fields — the Recitation Record per Session (1:1) ticket owns session recitation) | IDEMPOTENCY.md; DomainError extensions.code spec | all |
 
 ## Appendix B — Execution Gates (final gate checklist recorded in tasks)
 

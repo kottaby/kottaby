@@ -1,8 +1,8 @@
-# Trackable Implementation Tasks: DEV2-004 — Teacher Applicant Registration & Applicants Table
+# Trackable Implementation Tasks: Teacher Applicant Registration & Applicants Table
 
 > **Plan directory:** `ai/plans/dev2-004-teacher-applicant-registration/`
 > **Governing documents:** `specs.md` (REQ-001..REQ-083), `plan.md`, `.agents/skills/spec-implementation/SKILL.md`, `tasks-template.md`
-> **Nature of ticket:** Mostly-verification + small-additive. The registration→applicants write path ALREADY EXISTS (DEV1-002). Do NOT rebuild it. Net-new scope: `ApplicantStatus` enum, `ApplicantLifecycleService`, one new repo method, `myApplicantProfile` query, applicant status card, and permanent contract-lock tests.
+> **Nature of ticket:** Mostly-verification + small-additive. The registration→applicants write path ALREADY EXISTS (the User Registration ticket). Do NOT rebuild it. Net-new scope: `ApplicantStatus` enum, `ApplicantLifecycleService`, one new repo method, `myApplicantProfile` query, applicant status card, and permanent contract-lock tests.
 
 ---
 
@@ -28,7 +28,7 @@ The following protocol applies to EVERY task in this file. It is not optional an
    - Self-review every produced file against: atomicity & tx propagation, env-config compliance, zero dead code, zero cross-layer imports (`shared/` purity; no `frontend/`→`backend/` leaks), enums as VALUE imports in runtime positions, canonical types only, `DomainError` discipline, i18n-only strings, no `console.*`, no hardcoded colors/style props.
 
 5. **Outcome Documentation (MANDATORY after EVERY task)**
-   - Write `outcome/<task-id>-outcome.md` containing: summary of what was done, files changed, files DELIBERATELY NOT changed (especially DEV1-001/DEV1-002-owned surfaces), verification command outputs, cross-file dependencies introduced, deviations vs plan, follow-ups for later tasks.
+   - Write `outcome/<task-id>-outcome.md` containing: summary of what was done, files changed, files DELIBERATELY NOT changed (especially the Database Schema Migration ticket/ticket-owned surfaces), verification command outputs, cross-file dependencies introduced, deviations vs plan, follow-ups for later tasks.
 
 6. **Outcome Section Updates for Review/Repair Tasks**
    - For review-task outcomes, explicitly list: findings, repair file paths, which tests were re-run, and residual risk.
@@ -37,7 +37,7 @@ The following protocol applies to EVERY task in this file. It is not optional an
    - Mark boxes `[x]` ONLY after the two agent-browser/health self-loops (where applicable) and verification commands pass. Unsupported claims of completion are protocol violations.
 
 8. **Scope Freeze Discipline**
-   - Files owned by DEV1-001 (`backend/db/schema/**`), DEV1-002 (`RegistrationService`, `auth.mutation.ts`, `RegisterPublicRole`), DEV2-001/DEV2-002 (auth context, authScopes engine) are VERIFY-ONLY unless a contract-lock test proves a defect. Any such defect ⇒ defer via `deferred-items.md` + coordinated fix; never inline-patch as a workaround.
+   - Files owned by the Database Schema Migration ticket (`backend/db/schema/**`), the User Registration ticket (`RegistrationService`, `auth.mutation.ts`, `RegisterPublicRole`), the JWT Authentication Service ticket (auth context, authScopes engine) are VERIFY-ONLY unless a contract-lock test proves a defect. Any such defect ⇒ defer via `deferred-items.md` + coordinated fix; never inline-patch as a workaround.
 
 ---
 
@@ -67,17 +67,17 @@ The following protocol applies to EVERY task in this file. It is not optional an
     - `backend/db/schema/enums.ts` — `user_role` pgEnum contains `parent` (C.1)
     - `backend/db/schema/users/users.ts` — governance fields (A.7)
     - `backend/types/teachers/applicant.types.ts` — `ApplicantSelectType`, `ApplicantInsertType` exist
-    - `backend/db/repo/teachers/applicant.repository.ts` — `create(userId, tx)` exists (DEV1-002); NOTE whether `findByUserId` already exists and its exact signature (+ whether it uses the `queryDb(tx)` Neon-HTTP pattern — this determines REQ-044 approach)
-    - `backend/services/auth/` (or DEV1-002 location) `RegistrationService` — teacher branch calls applicant create inside `withTransaction(outerTx)`; record exact dispatch path (CreateRoleChild dispatcher)
-    - DEV2-002 authScope engine: `role` scope implementation, canonical UNAUTHORIZED/FORBIDDEN codes
+    - `backend/db/repo/teachers/applicant.repository.ts` — `create(userId, tx)` exists (the User Registration ticket); NOTE whether `findByUserId` already exists and its exact signature (+ whether it uses the `queryDb(tx)` Neon-HTTP pattern — this determines REQ-044 approach)
+    - `backend/services/auth/` (or the User Registration ticket location) `RegistrationService` — teacher branch calls applicant create inside `withTransaction(outerTx)`; record exact dispatch path (CreateRoleChild dispatcher)
+    - the Role-Based Authorization Middleware ticket authScope engine: `role` scope implementation, canonical UNAUTHORIZED/FORBIDDEN codes
     - `backend/db/test/entity-setup.ts` — verify `createTestUser`/registration helpers; NOTE whether a `createTestApplicant` helper exists
-    - `backend/db/test/logic/auth/` — locate the existing DEV1-002 registration test module (target of REQ-071 extension)
+    - `backend/db/test/logic/auth/` — locate the existing the User Registration ticket registration test module (target of REQ-071 extension)
     - `shared/locale/types/**` + `shared/locale/ar/**` + `shared/locale/en/**` — existing `errors` namespace keys; determine whether an `applicant` namespace exists
     - `frontend/graphql/sharedDocuments/teachers/` — barrel conventions
     - `docs/specs/open-decisions-and-gaps.md` (B.6, B.7, A.7, C.2), `docs/specs/state-machine-invariants.md` (INV-TV1..TV7), `docs/workflows/01-teacher-verification-workflow.md`, `docs/auth/user-registration.md`, `docs/auth/jwt-authentication-service.md`, `docs/graphql/domain-error-extensions-code.md`, `docs/drizzle/prepared-statements.md`, `docs/graphql/dataloader-batching.md`
   - Applicable AGENTS.md: root `AGENTS.md`, `backend/db/AGENTS.md`, `backend/db/repo/AGENTS.md`, `backend/services/AGENTS.md`, `backend/types/AGENTS.md`, `backend/enum/AGENTS.md`, `shared/locale/AGENTS.md`
   - _Requirements: REQ-002, REQ-083_
-  - [x] 0.2.BLOCK **Missing Artifact Gate**: IF any required artifact is missing/mismatched THEN record a ❌ entry in `deferred-items.md` and block dependent tasks — NEVER patch DEV1-001/DEV1-002-owned files in place as a workaround without an explicit, second coordinated fix line.
+  - [x] 0.2.BLOCK **Missing Artifact Gate**: IF any required artifact is missing/mismatched THEN record a ❌ entry in `deferred-items.md` and block dependent tasks — NEVER patch the Database Schema Migration ticket/ticket-owned files in place as a workaround without an explicit, second coordinated fix line.
   - [x] 0.2.SR **Semantic Review**: verification outcome records exact file paths, method signatures, and the findByUserId/queryDb determination as facts for downstream tasks.
   - [x] 0.2.OC **Outcome**: write `outcome/0.2-outcome.md` with the verified artifact inventory and signature catalog.
 
@@ -217,7 +217,7 @@ The following protocol applies to EVERY task in this file. It is not optional an
     - `ApplicantStatus`/`UserRole` as VALUE imports (runtime use).
     - Plain `new Error(...)` PROHIBITED — `DomainError` subclasses only with `extensions.code`.
     - NO writes in the guard/profile paths (pure read+compute); NO locks introduced (advisory-at-isolation-level documented, REQ-043).
-    - Cooldown math duration-AGNOSTIC (INV-TV4 durations are a DEV2-008 write-time concern).
+    - Cooldown math duration-AGNOSTIC (INV-TV4 durations are a write-time concern).
     - `logger.logDomainError` for expected domain rejections ONLY; happy path emits NOTHING (REQ-053); unexpected internals bubble to GraphQL masking boundary; `logger.error` reserved for true 5xx; `console.*` forbidden.
   - [x] 2.2.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts backend/services/teachers/applicant-lifecycle.service.ts --lifecycle duplicates` (exit code 0).
   - [x] 2.2.TE **Test Engineering** — 4-Tier (`backend/services/teachers/applicant-lifecycle.service.test.ts` — mocked-repo pure service tier where appropriate + DB-tier cases via `runInRollback`):
@@ -270,7 +270,7 @@ The following protocol applies to EVERY task in this file. It is not optional an
 
 - [x] 3.2 Implement the `ApplicantProfile` object reference with all seven fields
   - Files to create:
-    - CREATE `backend/graphql/pothos/teachers/applicant.pothos.ts` — `gqlSchemaBuilder.objectRef<ApplicantProfileReturnType>("ApplicantProfile").implement({ ... })` exposing: non-nullable `id` (str.required or per-project ID exposure pattern — REQUIRED for Apollo cache normalization / DataLoader rules, REQ-060), `status` typed via `ApplicantStatusPothosEnum`, `verificationAttempts`, nullable `lastAttemptAt`, nullable `cooldownUntil`, non-nullable `cooldownActive`, non-nullable `canPurchaseVerification`. DateTime scalar for timestamp fields follows the EXACT pattern DEV1-002 established for timestamp exposure on existing objects (VERIFY that pattern first — plan §3.1 note; record choice in outcome).
+    - CREATE `backend/graphql/pothos/teachers/applicant.pothos.ts` — `gqlSchemaBuilder.objectRef<ApplicantProfileReturnType>("ApplicantProfile").implement({ ... })` exposing: non-nullable `id` (str.required or per-project ID exposure pattern — REQUIRED for Apollo cache normalization / DataLoader rules, REQ-060), `status` typed via `ApplicantStatusPothosEnum`, `verificationAttempts`, nullable `lastAttemptAt`, nullable `cooldownUntil`, non-nullable `cooldownActive`, non-nullable `canPurchaseVerification`. DateTime scalar for timestamp fields follows the EXACT pattern the User Registration ticket established for timestamp exposure on existing objects (VERIFY that pattern first — plan §3.1 note; record choice in outcome).
     - MODIFY the teachers-domain Pothos barrel if conventions require it (per `backend/graphql/pothos/**` AGENTS.md).
   - Applicable AGENTS.md: `backend/graphql/pothos/AGENTS.md`
   - _Requirements: REQ-060, REQ-004 (canonical return type is the object shape), REQ-032 (closed output)_
@@ -285,11 +285,11 @@ The following protocol applies to EVERY task in this file. It is not optional an
 
 - [x] 3.3 Implement the zero-argument, role-gated `myApplicantProfile` query
   - Files to create/modify:
-    - CREATE `backend/graphql/query/teachers/applicant.query.ts` — `gqlSchemaBuilder.queryField("myApplicantProfile", (t) => t.field({ type: ApplicantProfileRef, nullable: true, authScopes: { role: [UserRole.Teacher] }, resolve: async (_root, _args, ctx) => ApplicantLifecycleService.getMyApplicantProfile(ctx.user.id, ctx.locale) }))` — VERIFY the exact authScopes/key/ctx-locale access pattern against the DEV2-002 engine and an existing role-gated query before authoring.
+    - CREATE `backend/graphql/query/teachers/applicant.query.ts` — `gqlSchemaBuilder.queryField("myApplicantProfile", (t) => t.field({ type: ApplicantProfileRef, nullable: true, authScopes: { role: [UserRole.Teacher] }, resolve: async (_root, _args, ctx) => ApplicantLifecycleService.getMyApplicantProfile(ctx.user.id, ctx.locale) }))` — VERIFY the exact authScopes/key/ctx-locale access pattern against the Role-Based Authorization Middleware ticket engine and an existing role-gated query before authoring.
     - MODIFY the teachers query-domain index/barrel per existing conventions so the field registers.
     - VERIFY-ONLY the top-level query barrel re-exports teachers domain (edit only if missing).
   - Applicable AGENTS.md: `backend/graphql/AGENTS.md`, `backend/graphql/pothos/AGENTS.md`, root `AGENTS.md`
-  - _Requirements: REQ-017, REQ-030 (ZERO args — identity exclusively `ctx.user.id`), REQ-031 (`{ role: [UserRole.Teacher] }`; 401 anonymous / 403 non-teacher via DEV2-002), REQ-035, REQ-050 (DomainError discipline; localized via `ctx.t("errors")` where the service needs it — VERIFY ctx.locale propagation pattern in 0.2), REQ-034 (no new rate-limit surface)_
+  - _Requirements: REQ-017, REQ-030 (ZERO args — identity exclusively `ctx.user.id`), REQ-031 (`{ role: [UserRole.Teacher] }`; 401 anonymous / 403 non-teacher via the Role-Based Authorization Middleware ticket), REQ-035, REQ-050 (DomainError discipline; localized via `ctx.t("errors")` where the service needs it — VERIFY ctx.locale propagation pattern in 0.2), REQ-034 (no new rate-limit surface)_
   - Invariants enforced: `UserRole` is a VALUE import; resolver body contains NO business logic and NO try/catch swallowing; NEVER `new Error`; no local types; query sits in the AUTHENTICATED surface (not public).
   - [x] 3.3.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts backend/graphql/query/teachers/applicant.query.ts --lifecycle duplicates` (exit code 0), plus barrel file.
   - [x] 3.3.TE **Test Engineering** — 4-Tier (detailed assertions implemented in Task 5.3; this subtask authors the integration test file `frontend/graphql/test/teachers/applicant-profile.test.ts` — or the established GraphQL test location per 0.2 conventions — using `setupTestServerLifecycle` + `testClient`):
@@ -299,7 +299,7 @@ The following protocol applies to EVERY task in this file. It is not optional an
     - Tier 4 (BOLA probe): attempt to pass ANY args / craft payload variants targeting foreign ids ⇒ schema rejects unknown-args by construction (no-parameter-surface proof, REQ-030/075); denies disclose nothing about target existence (uniform localized deny, REQ-035).
   - [x] 3.3.SEC **Security & Tenancy Audit**: BOLA — inspect generated SDL: NO args on the field; BFLA — authScopes exactly `{ role: [UserRole.Teacher] }`; role≠certification boundary intact (REQ-033); no write path granted; deny messages canonical localized (no oracle).
   - [x] 3.3.SR **Semantic Review**: one-line delegation resolver; ctx identity only; zero dead code; canonical types; value imports; no cross-layer imports.
-  - [x] 3.3.IV **Instruction Verification**: validate against `backend/graphql/**` AGENTS.md, DEV2-002 authScope instruction files, auto-discovered instructions.
+  - [x] 3.3.IV **Instruction Verification**: validate against `backend/graphql/**` AGENTS.md, the Role-Based Authorization Middleware ticket authScope instruction files, auto-discovered instructions.
   - [x] 3.3.OC **Outcome**: write `outcome/3.3-outcome.md`.
 
 ### Task 3.4 — Schema Regeneration & Codegen Commit
@@ -348,11 +348,11 @@ The following protocol applies to EVERY task in this file. It is not optional an
         1. Loading → MUI `Skeleton` card (title + badge line + CTA placeholder).
         2. Permission-denied class errors (UNAUTHORIZED/FORBIDDEN) → existing `PermissionDeniedFallback` pattern — never bare null on page-level deny.
         3. `data.myApplicantProfile === null` (certified) → CertifiedSummary branch ("You are certified" style copy — translated; NOT applicant copy).
-        4. `Pending` → status chip + awaiting-purchase prompt (purchase CTA routes are DEV2-005 scope — render affordance as out-of-scope informational if no route exists; document).
+        4. `Pending` → status chip + awaiting-purchase prompt (purchase CTA routes scope — render affordance as out-of-scope informational if no route exists; document).
         5. `InEvaluation` → chip + attempt counter + progress hint.
         6. `Failed` + `cooldownActive` → warning chip + ICU-formatted locale-aware cooldown expiry date + DISABLED re-apply CTA with explanatory copy.
-        7. `Failed` + `canPurchaseVerification` → info/success affordance + ENABLED re-apply CTA (dev2-005 target route; if route undefined in this sprint, CTA is present but routes to the documented placeholder per plan consumers note — record decision in outcome).
-        8. Corrupt/unknown status (defensive, though server fails closed) → generic inline alert per DEV3-002 mapping contract — never crash.
+        7. `Failed` + `canPurchaseVerification` → info/success affordance + ENABLED re-apply CTA ( target route; if route undefined in this sprint, CTA is present but routes to the documented placeholder per plan consumers note — record decision in outcome).
+        8. Corrupt/unknown status (defensive, though server fails closed) → generic inline alert per the Shared Error Handling & Response Contracts ticket mapping contract — never crash.
       - MUI v9 rules STRICTLY: all styling via `sx={{ ... }}` ONLY — NO direct style props (`fontWeight`, `mb`, `mt`, `p`, `textAlign`, `display`, …) on Typography/Box/Stack/Grid; colors EXCLUSIVELY via `theme.palette.*` (no hex/rgb literals); icons `*Outlined` ONLY (e.g., `ErrorOutline` FORBIDDEN → `ErrorOutlined`); `React.SubmitEvent`/`React.SyntheticEvent<HTMLFormElement>` for any form (none expected here); `<Box component="alert">`/`aria-busy` patterns per `frontend/AGENTS.md`.
       - RTL discipline: logical properties (`marginInlineStart/End`, `text-align: start`); locale-aware date formatting via existing project i18n date util (VERIFY util location in 0.2; do NOT introduce raw `toLocaleDateString` bypasses).
   - Applicable AGENTS.md: `frontend/AGENTS.md`, `frontend/views/AGENTS.md`, `frontend/components/ui/AGENTS.md`, plus discovered instruction files (`frontend.instructions.md`, `mobile-desktop.instructions.md`)
@@ -376,14 +376,14 @@ The following protocol applies to EVERY task in this file. It is not optional an
 
 - [x] 4.3 Mount `ApplicantStatusCard` inside the existing teacher dashboard surface
   - Files to modify:
-    - MODIFY the existing teacher dashboard container/view (path identified in 0.2 — e.g., `frontend/views/teachers/dashboard/<container>.tsx` and/or `app/(dashboard)/teacher/dashboard/page.tsx`) — insert `<ApplicantStatusCard />` above the fold inside the existing role-gated region; EXISTING page-level guards (`withPageAuth({ roles: [UserRole.Teacher] })` / layout guard from DEV2-001/002) MUST remain the only server-side boundary — NO new guard logic, NO route changes.
+    - MODIFY the existing teacher dashboard container/view (path identified in 0.2 — e.g., `frontend/views/teachers/dashboard/<container>.tsx` and/or `app/(dashboard)/teacher/dashboard/page.tsx`) — insert `<ApplicantStatusCard />` above the fold inside the existing role-gated region; EXISTING page-level guards (`withPageAuth({ roles: [UserRole.Teacher] })` / layout guard from the JWT Authentication Service ticket) MUST remain the only server-side boundary — NO new guard logic, NO route changes.
   - Applicable AGENTS.md: `app/AGENTS.md` (if present), `frontend/AGENTS.md`, `frontend/views/AGENTS.md`
   - _Requirements: REQ-062, REQ-063 (per-audience: student/parent/admin/supervisor never reach it; certified sheikh sees certified branch)_
   - [x] 4.3.QL **Quality Loop**: sub-loop on every modified dashboard file (exit code 0).
-  - [x] 4.3.TE **Unit / Component Tests**: Happy DOM mount test — card renders within the dashboard composition under applicant mock; certified mock renders certified branch; RoleMismatch (covered by page guard) documented as unreachable (server guard evidence from DEV2-001/002 referenced, not re-implemented).
+  - [x] 4.3.TE **Unit / Component Tests**: Happy DOM mount test — card renders within the dashboard composition under applicant mock; certified mock renders certified branch; RoleMismatch (covered by page guard) documented as unreachable (server guard evidence from the JWT Authentication Service ticket referenced, not re-implemented).
   - [x] 4.3.BF **Agent-Browser Functional Self-Loop**:
     - Launch dev server / connect via Playwright as applicant + certified teacher; load `/teacher/dashboard`; assert card position/composition, network call ordering (no duplicate `myApplicantProfile` calls), tab/scroll interactions stable.
-    - Role-negative sweep: log in as student/parent/admin and request `/teacher/dashboard` directly — assert the EXISTING guard denies (observe canonical deny UX; if guard misbehaves, that is a DEFECT in DEV2-001/002 surface ⇒ `deferred-items.md` ❌ + block, DO NOT patch here).
+    - Role-negative sweep: log in as student/parent/admin and request `/teacher/dashboard` directly — assert the EXISTING guard denies (observe canonical deny UX; if guard misbehaves, that is a DEFECT in the JWT Authentication Service ticket surface ⇒ `deferred-items.md` ❌ + block, DO NOT patch here).
     - Iterative self-loop until clean.
   - [x] 4.3.BS **Agent-Browser Visual & Styling Self-Loop (Screenshot Analysis)**:
     - Screenshot the FULL dashboard page (not just the card) at Desktop 1440x900 / Tablet 768px / Mobile 375px × en-LTR / ar-RTL; verify card grid behavior (desktop multi-column → tablet 2-col → mobile single full-bleed per plan §5.2/§5.5), no layout regressions to pre-existing dashboard elements, spacing rhythm consistency.
@@ -398,9 +398,9 @@ The following protocol applies to EVERY task in this file. It is not optional an
 
 ### Task 5.1 — Registration Contract Lock Tests (REQ-010 / REQ-011)
 
-- [x] 5.1 Permanently lock the DEV1-002 registration → applicants contract
+- [x] 5.1 Permanently lock the User Registration ticket registration → applicants contract
   - Files to modify/create:
-    - MODIFY the existing registration logic test module identified in 0.2 (e.g., `backend/db/test/logic/auth/<registration test file>.test.ts`) — ADD the contract-lock cases (do NOT rewrite existing DEV1-002 tests):
+    - MODIFY the existing registration logic test module identified in 0.2 (e.g., `backend/db/test/logic/auth/<registration test file>.test.ts`) — ADD the contract-lock cases (do NOT rewrite existing the User Registration ticket tests):
       1. Teacher registration via the production `registerUser` path ⇒ EXACTLY one `users` row + EXACTLY one `applicants` row (shared PK assertion) + `teacher` table rowcount delta = 0 (REQ-010, B.7).
       2. Exact defaults: `status = 'pending'`, `verification_attempts = 0`, `last_attempt_at IS NULL`, `cooldown_until IS NULL`, timestamps set (REQ-011, B.6).
       3. Forced child-insert failure (inject failure at the applicants insert inside the nested transaction) ⇒ ZERO residual `users` AND `applicants` rows (SAVEPOINT-aware rollback proof, REQ-040).
@@ -449,7 +449,7 @@ The following protocol applies to EVERY task in this file. It is not optional an
   - [x] 5.3.QL **Quality Loop**: sub-loop on test file (exit code 0).
   - [x] 5.3.SEC **Security & Tenancy Audit**: `CombinedGraphQLErrors`-class assertions verify error codes — no stack/PII leakage in errors.
   - [x] 5.3.SR **Semantic Review**: matrix table in outcome maps every row to its REQ.
-  - [x] 5.3.IV **Instruction Verification**: graphql test-layer conventions + DEV2-002 contract doc.
+  - [x] 5.3.IV **Instruction Verification**: graphql test-layer conventions + the Role-Based Authorization Middleware ticket contract doc.
   - [x] 5.3.OC **Outcome**: write `outcome/5.3-outcome.md`.
 
 ### Task 5.4 — Security Tier Probes & Fuzz Lock (REQ-075)
@@ -474,8 +474,8 @@ The following protocol applies to EVERY task in this file. It is not optional an
     - `bun tsgo`, `bun biome:check`, `bun run scripts/lint-service.ts --json --id final` → diff counts vs 0.1 baseline (target: ZERO new issues attributable to this ticket; pre-existing exempt files from 0.1 remain exempt).
     - Full suite runs: `bun run test:db`, service tests, `bun run test:graphql`, `bun run test:ui:components` (as applicable per 0.2 script inventory) — ALL GREEN.
     - `git diff -- backend/db/schema/** backend/db/migration/**` EMPTY (final re-proof, REQ-045).
-    - `grep -c "❌\|⚠️" deferred-items.md` MUST equal 0 — forward items for DEV2-005 (purchase wiring consuming `assertCanPurchaseVerification` + `recordReapplication`) MUST be expressed as RESOLVED reference entries targeted at DEV2-005, not open debt.
-    - Files deliberately NOT changed (list verbatim): `RegistrationService`, `auth.mutation.ts`, `RegisterPublicRole` enum path, all `backend/db/schema/**`, DEV2-001/002 auth files.
+    - `grep -c "❌\|⚠️" deferred-items.md` MUST equal 0 — forward items for (purchase wiring consuming `assertCanPurchaseVerification` + `recordReapplication`) MUST be expressed as RESOLVED reference entries targeted at, not open debt.
+    - Files deliberately NOT changed (list verbatim): `RegistrationService`, `auth.mutation.ts`, `RegisterPublicRole` enum path, all `backend/db/schema/**`, the JWT Authentication Service ticket auth files.
   - _Requirements: REQ-001, REQ-045, REQ-076_
   - [x] 5.5.SR **Semantic Review**: any nonzero Δ is either fixed or is a filed deferred entry with an owning ticket; no silent red.
   - [x] 5.5.OC **Outcome**: write `outcome/5.5-outcome.md` with the full differential table.
@@ -521,7 +521,7 @@ The following protocol applies to EVERY task in this file. It is not optional an
 ### Task 6.5 — Deferred-Items Check & Wave Closure
 
 - [x] 6.5 Reconcile all wave findings and close the ledger
-  - Any wave finding not resolved in-wave ⇒ classify: repair now, or RESOLVED-reference entry targeting the owning ticket (DEV2-005 forward wiring entries must read as contracts-ready notes, not debt).
+  - Any wave finding not resolved in-wave ⇒ classify: repair now, or RESOLVED-reference entry targeting the owning ticket (forward wiring entries must read as contracts-ready notes, not debt).
   - Final: `grep -c "❌\|⚠️" deferred-items.md` = 0; all outcome files updated with repair evidence.
   - _Requirements: REQ-076_
   - [x] 6.5.OC **Outcome**: write `outcome/6.5-outcome.md`.
@@ -535,12 +535,12 @@ The following protocol applies to EVERY task in this file. It is not optional an
 - [x] 7.1 Author `docs/teachers/applicant-lifecycle.md` (introduce `docs/teachers/` subdir per domain-mapping conventions)
   - Files to create:
     - CREATE `docs/teachers/applicant-lifecycle.md` containing:
-      1. **Applicant state machine** (REQ-013): `pending → in_evaluation` (DEV2-005 purchase), `in_evaluation → passed | failed` (DEV2-007 aggregation), `failed → in_evaluation` (re-purchase after full cooldown via this ticket's guard), `passed → teacher row exists` (DEV2-007 write); transition table binding on Sprint-1 DEV2-005..DEV2-010 chain.
-      2. **Cooldown & attempt contracts** (REQ-014/015/016): authoritative read source `applicants.cooldown_until` ONLY; `cooldownActive ⇔ cooldown_until IS NOT NULL AND cooldown_until > now()` (strict `>`); atomic single-statement increment contract; the two-source split — login/session gating reads `users.suspended` (DEV2-001/002 domain, INV-U2); re-purchase gating reads `applicants.cooldown_until` (INV-TV3); duration-setting (30d Tajweed / 90d Hifz, INV-TV4) is a DEV2-008 WRITE-time concern — DEV2-004's guard is deliberately duration-agnostic (record so DEV2-008 does not re-litigate); INV-TV6 note (failed applicant keeps student privileges post DEV2-009 conversion; applicants row untouched).
-      3. **Query contract & precedence** (REQ-017/D5): zero-args `myApplicantProfile`, role-gated, `null` = certified / no active applicant file (single non-oracular answer); governed accounts never reach the resolver (DEV2-002 fail-closed context).
-      4. **Advisory-isolation note** (REQ-043): guard is advisory-at-its-isolation-level; racing purchase writes are DEV2-005's transactional responsibility.
-      5. **"Registration already ships in DEV1-002" grounding note** — REQ-002/010: the write path was verified & test-locked, never rebuilt; cite the REQ-071 lock suite.
-      6. **Consumer guidance table** for DEV2-005 (call `assertCanPurchaseVerification` before purchase; call `recordReapplication` on successful re-purchase — both accept optional `tx` and MUST receive the purchase transaction's tx), DEV2-006/007 (status transition write-offs), DEV2-008 (cooldown writer contract), DEV2-009 (failed→student conversion co-existence), DEV2-010 (override surface reads AUDIT_LOGS), DEV3-019 (direct onboarding boundary).
+      1. **Applicant state machine** (REQ-013): `pending → in_evaluation` (purchase), `in_evaluation → passed | failed` (aggregation), `failed → in_evaluation` (re-purchase after full cooldown via this ticket's guard), `passed → teacher row exists` (write); transition table binding on Sprint-1 chain.
+      2. **Cooldown & attempt contracts** (REQ-014/015/016): authoritative read source `applicants.cooldown_until` ONLY; `cooldownActive ⇔ cooldown_until IS NOT NULL AND cooldown_until > now()` (strict `>`); atomic single-statement increment contract; the two-source split — login/session gating reads `users.suspended` (the JWT Authentication Service ticket domain, INV-U2); re-purchase gating reads `applicants.cooldown_until` (INV-TV3); duration-setting (30d Tajweed / 90d Hifz, INV-TV4) is a WRITE-time concern — this ticket's guard is deliberately duration-agnostic (record so does not re-litigate); INV-TV6 note (failed applicant keeps student privileges post conversion; applicants row untouched).
+      3. **Query contract & precedence** (REQ-017/D5): zero-args `myApplicantProfile`, role-gated, `null` = certified / no active applicant file (single non-oracular answer); governed accounts never reach the resolver (the Role-Based Authorization Middleware ticket fail-closed context).
+      4. **Advisory-isolation note** (REQ-043): guard is advisory-at-its-isolation-level; racing purchase writes are transactional responsibility.
+      5. **"Registration already ships in the User Registration ticket" grounding note** — REQ-002/010: the write path was verified & test-locked, never rebuilt; cite the REQ-071 lock suite.
+      6. **Consumer guidance table** for (call `assertCanPurchaseVerification` before purchase; call `recordReapplication` on successful re-purchase — both accept optional `tx` and MUST receive the purchase transaction's tx), (status transition write-offs), (cooldown writer contract), (failed→student conversion co-existence), (override surface reads AUDIT_LOGS), (direct onboarding boundary).
       7. **Invariant anchoring** (REQ-081): explicit bindings to INV-TV1..TV7 (with the per-invariant service note from specs §3), B.6/B.7, Workflow 01 stage mapping; change/addendum section (empty unless a gap was discovered — none expected; state explicitly if so).
   - Applicable AGENTS.md: root `AGENTS.md` (doc conventions), `docs/` conventions
   - _Requirements: REQ-013, REQ-080, REQ-081_
@@ -565,7 +565,7 @@ The following protocol applies to EVERY task in this file. It is not optional an
 
 - [x] 7.3 Synthesize the complete ticket outcome package
   - Files to create:
-    - `outcome/final-synthesis-outcome.md` containing: full task-checkbox ledger (every `[x]` evidenced by command output), final baseline-vs-final differential (tsgo/biome/lint — REQ-076), test inventory with run commands + results (5.x suites, coverage numbers), schema-drift empty-diff proof, SDL/codegen delta summary, security matrix verdicts (pentester waiver references), deferred-items final state (count of ❌/⚠️ = 0; list of resolved forward-reference entries for DEV2-005), files-deliberately-NOT-changed list, cross-references to all phase outcomes, and the M1-gate contribution statement (applicant can register, see lifecycle position, consume cooldown/eligibility contract).
+    - `outcome/final-synthesis-outcome.md` containing: full task-checkbox ledger (every `[x]` evidenced by command output), final baseline-vs-final differential (tsgo/biome/lint — REQ-076), test inventory with run commands + results (5.x suites, coverage numbers), schema-drift empty-diff proof, SDL/codegen delta summary, security matrix verdicts (pentester waiver references), deferred-items final state (count of ❌/⚠️ = 0; list of resolved forward-reference entries), files-deliberately-NOT-changed list, cross-references to all phase outcomes, and the M1-gate contribution statement (applicant can register, see lifecycle position, consume cooldown/eligibility contract).
   - [x] 7.3.SR **Semantic Review**: synthesis contains NO unsupported claims — every assertion cites a file path or command output in an outcome file.
   - [x] 7.3.OC **Outcome**: the synthesis file IS the outcome artifact.
 
@@ -577,6 +577,6 @@ The following protocol applies to EVERY task in this file. It is not optional an
 |---|---|
 | Teacher registration → `applicants` row, status `'pending'`, attempts 0, `cooldown_until` null, NO `teacher` record | Task 5.1 (REQ-010/011 lock suite) |
 | Applicant views profile → sees applicant status, not teacher status | Tasks 3.3, 4.2, 5.3 (REQ-017/018/063; certified→null precedence) |
-| Failed applicant: `cooldown_until` set; after expiry re-purchase permitted; attempts incremented; `last_attempt_at` updated | Tasks 2.1, 2.2, 5.2 (REQ-014/015/042/072 boundary+concurrency matrix); duration-agnostic guard contract documented for DEV2-008 writer (Task 7.1) |
+| Failed applicant: `cooldown_until` set; after expiry re-purchase permitted; attempts incremented; `last_attempt_at` updated | Tasks 2.1, 2.2, 5.2 (REQ-014/015/042/072 boundary+concurrency matrix); duration-agnostic guard contract documented for writer (Task 7.1) |
 
 **Final gates (ALL must be green):** zero new tsgo/biome/lint vs baseline · empty schema diff · all test suites green · 100% stmt/branch on new logic · `grep -c "❌\|⚠️" deferred-items.md` = 0 · `docs/teachers/applicant-lifecycle.md` exists · cross-links in `docs/auth/user-registration.md`, `backend/services/AGENTS.md`, root `AGENTS.md`.

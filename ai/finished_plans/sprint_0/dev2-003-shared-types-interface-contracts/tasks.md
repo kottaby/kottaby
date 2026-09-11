@@ -1,9 +1,9 @@
-# Trackable Implementation Tasks: DEV2-003 — Shared Types & Interface Contracts
+# Trackable Implementation Tasks: Shared Types & Interface Contracts
 
 > **Plan**: `ai/plans/dev2-003-shared-types-interface-contracts/plan.md`
 > **Spec**: `ai/plans/dev2-003-shared-types-interface-contracts/specs.md`
 > **Deferred Items Ledger**: `ai/plans/dev2-003-shared-types-interface-contracts/deferred-items.md`
-> **Scope Note**: This is a **substrate-only** ticket. It ships TypeScript contract types, runtime guards, conformance tests, and documentation. **Zero** DB schema changes, **zero** GraphQL resolvers, **zero** frontend files. Phases 1, 3, and 4 are therefore **N/A gates** (their only job is to *prove* the no-change invariant), and the standard Agent-Browser UI loops do **not** apply — they reattach at consumer tickets (DEV3-004+).
+> **Scope Note**: This is a **substrate-only** ticket. It ships TypeScript contract types, runtime guards, conformance tests, and documentation. **Zero** DB schema changes, **zero** GraphQL resolvers, **zero** frontend files. Phases 1, 3, and 4 are therefore **N/A gates** (their only job is to *prove* the no-change invariant), and the standard Agent-Browser UI loops do **not** apply — they reattach at consumer tickets (the Session Creation & Lifecycle ticket).
 
 ---
 
@@ -43,7 +43,7 @@ These rules bind **every** task in this document. They are not optional and not 
     3. Run `bun run scripts/lint-service.ts --json --id baseline` — record JSON output.
     4. Run `git status --porcelain` — confirm clean tree (mandatory precondition for REQ-061 byte-identity gate).
     5. Record hashes: `md5sum backend/graphql/schema.graphql > /tmp/dev2-003-schema-baseline.md5` and hash-snapshot of `frontend/graphql/generated/` tree.
-    6. Initialize `deferred-items.md` from the template with an explicit entry: *"Shared view-model placement in `shared/types/` (REQ-062) — evaluated only if a consumer ticket needs it; otherwise no entry."* and *"DB-layer gates (runInRollback/tx) — N/A, reattach at DEV1-007+/DEV3-004+."*
+    6. Initialize `deferred-items.md` from the template with an explicit entry: *"Shared view-model placement in `shared/types/` (REQ-062) — evaluated only if a consumer ticket needs it; otherwise no entry."* and *"DB-layer gates (runInRollback/tx) — N/A, reattach at."*
     7. Write `outcome/phase0-baseline-outcome.md` with all counts, hashes, and the git SHA.
   - _Requirements: REQ-001, REQ-061, REQ-074_
 
@@ -75,7 +75,7 @@ These rules bind **every** task in this document. They are not optional and not 
 
 ## Phase 1: Types, Enums & Database Schema
 
-> **PHASE STATUS: N/A — SUBSTRATE TICKET (schema already implemented by DEV1-001).**
+> **PHASE STATUS: N/A — SUBSTRATE TICKET (schema already implemented by the Database Schema Migration ticket).**
 > This ticket adds **no tables, columns, indexes, enums, or pgEnum registrations**. `bun run db push` MUST NOT be executed. `db/schema.dbml` MUST remain byte-identical. The only work is verification that nothing changed.
 
 - [x] 1.N/A Database No-Change Gate (verification only — no schema work permitted)
@@ -133,11 +133,11 @@ These rules bind **every** task in this document. They are not optional and not 
     - Create: `backend/types/contracts/teacher-availability.contract.types.ts`
     - Update barrel: `backend/types/contracts/index.ts`
   - Binding content:
-    - JSDoc header: Contract 2, streams Dev2→Dev3, decisions B.10 (on-demand — no fixed assignment), B.15 (staleness ≤15min enforced by DEV2-011, NOT this type), B.16 (`requestPreference`); invariants INV-A1..A4.
+    - JSDoc header: Contract 2, streams Dev2→Dev3, decisions B.10 (on-demand — no fixed assignment), B.15 (staleness ≤15min enforced NOT this type), B.16 (`requestPreference`); invariants INV-A1..A4.
     - `TeacherSubjectsParsed` — `readonly string[]` parse target (REQ-015).
     - `TeacherMatchingLanguagesInput` — `Pick<StudentSelectType, "primaryLanguage" | "anotherLanguage">`.
     - `TeacherAvailabilitySnapshotContract` — readonly fields: `teacherId`, `isOnline`, `averageRating` (sourced verbatim from `TeacherSelectType["averageRating"]` — decimal `string | null`, preserved per REQ-011), `subjects: TeacherSubjectsParsed` (parsed form; raw JSON-string type preserved via a documented alias), `requestPreference: TeacherRequestPreference`, matcher-relevant `country` via `Pick<UserSelectType, ...>` and language fields via `Pick<StudentSelectType, ...>`.
-    - **TOCTOU JSDoc (REQ-041)**: point-in-time snapshot statement; consumers (DEV3-004/008) MUST re-assert `isOnline` + `is_approved` inside the session-creation `SELECT FOR UPDATE` transaction; INV-S5 certified-teacher check at creation.
+    - **TOCTOU JSDoc (REQ-041)**: point-in-time snapshot statement; consumers (the Session Creation & Lifecycle ticket) MUST re-assert `isOnline` + `is_approved` inside the session-creation `SELECT FOR UPDATE` transaction; INV-S5 certified-teacher check at creation.
     - **REQ-016**: NO parallel `inSession` flag anywhere in the file — exclusability is expressed ONLY via `isOnline: false` (INV-A2/A3).
   - Applicable AGENTS.md: `backend/types/AGENTS.md`
   - _Requirements: REQ-011, REQ-012, REQ-015, REQ-016, REQ-024, REQ-029, REQ-041_
@@ -155,13 +155,13 @@ These rules bind **every** task in this document. They are not optional and not 
   - Binding content:
     - JSDoc header: Contract 4, streams Dev2→Dev3, decisions C.3 (both FKs to `users.id`, NEVER `teacher.id`), A.8, A.10; invariant INV-TV2.
     - `export const EVALUATION_SESSION_INTENT = SessionIntent.Evaluation;`
-    - `EvaluationSessionContract` — readonly: `sessionType: SessionType.TeacherEvaluation | SessionType.ReEvaluation`, `intent: typeof EVALUATION_SESSION_INTENT`, `evaluatedId: EvaluationSelectType["evaluatedId"]`, `evaluatorId: EvaluationSelectType["evaluatorId"]`, `completedEvaluatorIds: readonly number[]` (INV-TV2 distinct-evaluator evidence shape for DEV2-007 aggregation), `idempotencyKey: string`.
+    - `EvaluationSessionContract` — readonly: `sessionType: SessionType.TeacherEvaluation | SessionType.ReEvaluation`, `intent: typeof EVALUATION_SESSION_INTENT`, `evaluatedId: EvaluationSelectType["evaluatedId"]`, `evaluatorId: EvaluationSelectType["evaluatorId"]`, `completedEvaluatorIds: readonly number[]` (INV-TV2 distinct-evaluator evidence shape for aggregation), `idempotencyKey: string`.
     - JSDoc mandate: consuming service MUST reject `evaluatedId === evaluatorId` (runtime rule reference; REQ-017 doc requirement).
   - Applicable AGENTS.md: `backend/types/AGENTS.md`
   - _Requirements: REQ-012, REQ-017, REQ-024, REQ-027, REQ-029, REQ-033_
   - [ ] 2.3.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts backend/types/contracts/evaluation-session.contract.types.ts --lifecycle duplicates` (exit code 0)
   - [ ] 2.3.TE **Test Engineering**: Conformance negatives (`@ts-expect-error`): `sessionType: SessionType.StudentSession`, `intent: SessionIntent.Hifz`, mutable `completedEvaluatorIds.push` attempt (asserted via `readonly number[]` incompat), missing `evaluatorId`. `runInRollback` N/A.
-  - [ ] 2.3.SEC **Security & Tenancy Audit**: BOLA grounding — `evaluatedId` asserted to `ctx.user.id` by consumer DEV2-006 (documented in JSDoc); BFLA separation — no role-elevating fields (`isEvaluator`/`isApproved` structurally absent, REQ-030/032).
+  - [] 2.3.SEC **Security & Tenancy Audit**: BOLA grounding — `evaluatedId` asserted to `ctx.user.id` by consumer (documented in JSDoc); BFLA separation — no role-elevating fields (`isEvaluator`/`isApproved` structurally absent, REQ-030/032).
   - [ ] 2.3.SR **Semantic Review**: C.3 compliance — NO reference to `teacher.id` PK for evaluator/evaluated; `readonly number[]` evidence immutability; zero string literals for enum-typed fields.
   - [ ] 2.3.IV **Instruction Verification**: Validate against plan §2.3 and Appendix A (workflow 01 + 03 pinning).
 
@@ -172,16 +172,16 @@ These rules bind **every** task in this document. They are not optional and not 
     - Update barrel: `backend/types/contracts/index.ts`
   - Binding content (authoritative — plan §2.3 excerpt reproduced here as contract):
     - `export const WALLET_CREDIT_TRANSACTION_TYPE = TransactionType.Earning;` and `export const WALLET_CREDIT_TRANSACTION_STATUS = TransactionStatus.Completed;` (enum-member value refs only).
-    - `DualConfirmationState` — readonly: `sessionId: SessionSelectType["id"]`, `confirmedByTeacherAt: SessionSelectType["confirmedByTeacherAt"]` (nullable), `confirmedByStudentAt: SessionSelectType["confirmedByStudentAt"]` (nullable), `confirmationDeadline: NonNullable<SessionSelectType["confirmationDeadline"]>`. JSDoc (REQ-043): caller-timestamp partials advance ONLY their own column; full state re-read from DB; escrow trigger NOT constructible from two independent half-confirms; read-modify-write mandate implemented in DEV3-012.
+    - `DualConfirmationState` — readonly: `sessionId: SessionSelectType["id"]`, `confirmedByTeacherAt: SessionSelectType["confirmedByTeacherAt"]` (nullable), `confirmedByStudentAt: SessionSelectType["confirmedByStudentAt"]` (nullable), `confirmationDeadline: NonNullable<SessionSelectType["confirmationDeadline"]>`. JSDoc (REQ-043): caller-timestamp partials advance ONLY their own column; full state re-read from DB; escrow trigger NOT constructible from two independent half-confirms; read-modify-write mandate implemented.
     - `EscrowTriggerContract` — readonly: `sessionId`, `confirmedByTeacherAt: NonNullable<...>`, `confirmedByStudentAt: NonNullable<...>`, `idempotencyKey: string`. JSDoc: INV-S3 — construct via `buildEscrowTrigger(...)` ONLY (Decision 3 — constructor-funnel).
     - `WalletCreditContract` — readonly at every depth: `walletId: WalletSelectType["id"]`, `sessionId: NonNullable<TeacherTransactionSelectType["sessionId"]>` (INV-W7 earnings link), `amount: TeacherTransactionSelectType["amount"]` (decimal string preserved verbatim — REQ-011), `type: typeof WALLET_CREDIT_TRANSACTION_TYPE`, `status: typeof WALLET_CREDIT_TRANSACTION_STATUS`, `idempotencyKey: string`. JSDoc: financial records immutable post-insert (INV-W6, INV-PAY2) — NO `updateWalletCredit` shape may exist anywhere in the library; non-negative enforced by INV-W8 + DB check (consumer).
-    - `export type EscrowReleaseReason = "CancellationConfirmed" | "ConfirmationTimeout";` (literal union localized ONLY in this file — reused by DEV3-012/013, REQ-020).
+    - `export type EscrowReleaseReason = "CancellationConfirmed" | "ConfirmationTimeout";` (literal union localized ONLY in this file — reused REQ-020).
     - `EscrowReleaseContract` — readonly: `sessionId`, `releaseReason: EscrowReleaseReason`, `holdIdempotencyKey?: string` (REQ-040 hold-identity pairing), `idempotencyKey: string`. **PROHIBITED**: `amount`, `walletId` fields — a release carrying money MUST be a compile-time impossibility.
   - Applicable AGENTS.md: `backend/types/AGENTS.md`, `docs/IDEMPOTENCY.md`
   - _Requirements: REQ-012, REQ-018, REQ-019, REQ-020, REQ-024, REQ-027, REQ-029, REQ-040, REQ-043, REQ-044_
   - [ ] 2.4.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts backend/types/contracts/session-completion-escrow.contract.types.ts --lifecycle duplicates` (exit code 0)
   - [ ] 2.4.TE **Test Engineering**: Conformance negatives (`@ts-expect-error`): (a) `EscrowTriggerContract` construction with one timestamp `null`; (b) `WalletCreditContract` missing `sessionId`; (c) `WalletCreditContract` with `type: TransactionType.PlatformFee` (or any non-Earning member); (d) `EscrowReleaseContract` carrying `amount`/`walletId`; (e) `EscrowReleaseContract` without `idempotencyKey`; (f) duplicate-key note anchor for REQ-044 (documentation-level, no runtime). `runInRollback` N/A — substrate ticket.
-  - [ ] 2.4.SEC **Security & Tenancy Audit**: BOPLA — money-carrying and money-releasing shapes are structurally disjoint; no mass-assignment vector; REQ-030 forbidden fields absent; idempotency-note references DEV1-002's 23505→`ConflictError` `Error.cause` traversal pattern (docs/auth/user-registration.md §6) without implementing translation logic (REQ-044).
+  - [] 2.4.SEC **Security & Tenancy Audit**: BOPLA — money-carrying and money-releasing shapes are structurally disjoint; no mass-assignment vector; REQ-030 forbidden fields absent; idempotency-note references the User Registration ticket's 23505→`ConflictError` `Error.cause` traversal pattern (docs/auth/user-registration.md §6) without implementing translation logic (REQ-044).
   - [ ] 2.4.SR **Semantic Review**: Disjointness of credit/release shapes verified; NonNullable narrowing matches authoritative bodies in plan §2.3; decimal-string preservation on `amount`/`fee` (NO `number` re-declaration); idempotency fields mandatory on all mutating creates (REQ-027).
   - [ ] 2.4.IV **Instruction Verification**: Cross-check against `docs/IDEMPOTENCY.md` §Affected Operations, `docs/specs/state-machine-invariants.md` INV-S3/W4/W6/W7/W8, plan decision #3 (constructor-funnel).
 
@@ -191,7 +191,7 @@ These rules bind **every** task in this document. They are not optional and not 
     - Create: `backend/types/contracts/session-notification.contract.types.ts`
     - Update barrel: `backend/types/contracts/index.ts`
   - Binding content:
-    - JSDoc header: Contract 5, streams Dev3→Dev1, decision A.4; INV-P3 (parent notifications are system OUTPUTS only; linking workflows DEV1-013/014/015 explicitly excluded).
+    - JSDoc header: Contract 5, streams Dev3→Dev1, decision A.4; INV-P3 (parent notifications are system OUTPUTS only; linking workflows explicitly excluded).
     - `SessionEventNotificationType` — `NotificationType.SessionRequest | NotificationType.SessionCompletion | NotificationType.SessionCancellation` (enum-member union; sibling types `ParentLinkRequest`, `SystemBroadcast`, `PaymentConfirmation`, `EvaluationResult` handled by sibling contracts per REQ-021 — a documented comment maps them, no types built for them here beyond the union gate).
     - `SessionEventNotificationEntityRef` — both-or-neither union (plan Decision 4): `{ readonly relatedEntityType: string; readonly relatedEntityId: number } | { readonly relatedEntityType?: undefined; readonly relatedEntityId?: undefined }`.
     - `SessionEventNotificationContract` — readonly: `userId: NotificationSelectType["userId"]`, `type: SessionEventNotificationType`, `title`, `body`, `idempotencyKey?: string`, `entityRef: SessionEventNotificationEntityRef`. **PROHIBITED**: `isRead` in input shape (system-managed, A.4); `id`/`createdAt` inputs.
@@ -199,7 +199,7 @@ These rules bind **every** task in this document. They are not optional and not 
   - _Requirements: REQ-012, REQ-021, REQ-024, REQ-029, REQ-033_
   - [ ] 2.5.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts backend/types/contracts/session-notification.contract.types.ts --lifecycle duplicates` (exit code 0)
   - [ ] 2.5.TE **Test Engineering**: Conformance tests: positive both-present entityRef and both-absent entityRef; negatives (`@ts-expect-error`): half-populated entityRef (`relatedEntityType` set, `relatedEntityId` absent), `isRead: false` inclusion, `type: NotificationType.PaymentConfirmation` on the session-event contract (family separation). `runInRollback` N/A.
-  - [ ] 2.5.SEC **Security & Tenancy Audit**: BOLA — `userId` is recipient-resolved server-side (JSDoc binding rule for DEV3-010: client may never push `userId` for another user); both-or-neither union eliminates ambiguous routing half-state.
+  - [] 2.5.SEC **Security & Tenancy Audit**: BOLA — `userId` is recipient-resolved server-side (JSDoc binding rule for client may never push `userId` for another user); both-or-neither union eliminates ambiguous routing half-state.
   - [ ] 2.5.SR **Semantic Review**: Union shape matches schema 1:1 (flat two columns) with zero mapping layers; enum-member union (no string literals); A.4 `isRead` exclusion verified; readonly at all depths.
   - [ ] 2.5.IV **Instruction Verification**: Validate against plan Decision 4 rationale and Appendix A (workflows 03 + 04).
 
@@ -217,7 +217,7 @@ These rules bind **every** task in this document. They are not optional and not 
   - _Requirements: REQ-012, REQ-022, REQ-023, REQ-024, REQ-032, REQ-033_
   - [ ] 2.6.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts backend/types/contracts/admin-audit.contract.types.ts --lifecycle duplicates` (exit code 0)
   - [ ] 2.6.TE **Test Engineering**: Conformance negatives (`@ts-expect-error`): `AuditLogWriteContract` containing `id` or `createdAt`; `ActorContextRef` containing `email: string` or `passwordHash: string`; `actionType: "admin_override"` string-literal instead of `AuditActionType` member. `runInRollback` N/A.
-  - [ ] 2.6.SEC **Security & Tenancy Audit**: BFLA — file-family separation verified (student-facing files do not import this file); governance flags absent (A.7/REQ-030); `actorId` documented as `ctx.user.id`-derived only, never an input (DEV3-020 binding rule in JSDoc).
+  - [] 2.6.SEC **Security & Tenancy Audit**: BFLA — file-family separation verified (student-facing files do not import this file); governance flags absent (A.7/REQ-030); `actorId` documented as `ctx.user.id`-derived only, never an input (binding rule in JSDoc).
   - [ ] 2.6.SR **Semantic Review**: Composition from `AuditLogSelectType` via indexed-access/Pick; append-only JSDoc anchor present; no role-elevating fields; zero mutable exports.
   - [ ] 2.6.IV **Instruction Verification**: Validate against plan §6.3/6.4 forbidden-field registry and Appendix A row for contract 6 (workflow 05).
 
@@ -229,7 +229,7 @@ These rules bind **every** task in this document. They are not optional and not 
   - Binding content:
     - `ContractErrorCodes` const object (plan §6.6 EXACT body) with keys === values: `CONTRACT_SUBJECTS_PARSE_INVALID`, `CONTRACT_SESSION_INTENT_INVALID`, `CONTRACT_EVALUATION_SESSION_TYPE_INVALID`, `ESCROW_TRIGGER_CONFIRMATION_INCOMPLETE`; plus `export type ContractErrorCode = (typeof ContractErrorCodes)[keyof typeof ContractErrorCodes];` (REQ-050).
     - `parseTeacherSubjects(raw: TeacherSelectType["subjects"], t)` — plan §4.2 exact behavioral contract: `null` → `[]`; empty/whitespace → throw `ValidationError`; malformed JSON → throw; non-array → throw; non-string items → throw; always `ValidationError(ContractErrorCodes.CONTRACT_SUBJECTS_PARSE_INVALID, ...)`. **Caller's translation bag is a PARAMETER — zero i18n imports in the library** (REQ-051).
-    - `isSessionIntent(value)` / `assertSessionIntent(value, t)` — fail-closed canonicalization against the DEV1-001 `SessionIntent` value set; NO case-folding / loose normalization (REQ-053); unknown → `ValidationError(CONTRACT_SESSION_INTENT_INVALID, ...)`.
+    - `isSessionIntent(value)` / `assertSessionIntent(value, t)` — fail-closed canonicalization against the Database Schema Migration ticket `SessionIntent` value set; NO case-folding / loose normalization (REQ-053); unknown → `ValidationError(CONTRACT_SESSION_INTENT_INVALID, ...)`.
     - `isEvaluationSessionType(value)` / `assertEvaluationSessionType(value, t)` — accepts `SessionType.TeacherEvaluation | SessionType.ReEvaluation` only; rejects `StudentSession` with `ValidationError(CONTRACT_EVALUATION_SESSION_TYPE_INVALID, ...)`.
     - `buildEscrowTrigger(state: DualConfirmationState, idempotencyKey: string, t)` — constructor-funnel: both timestamps null → throw `ConflictError` (state conflict, `ESCROW_TRIGGER_CONFIRMATION_INCOMPLETE`); else returns the narrowed trigger (plan §4.2).
     - **Global guard rules (REQ-052)**: guards return parsed canonical value or throw; `is*` boolean predicates + `assert*` throwers are the ONLY secondary pattern; silent `null` swallowing PROHIBITED.
@@ -299,7 +299,7 @@ These rules bind **every** task in this document. They are not optional and not 
 ## Phase 4: Frontend GraphQL Documents, Stores & UI Views
 
 > **PHASE STATUS: N/A — ZERO FRONTEND SURFACE (REQ-062).**
-> No pages, views, components, stores, hooks, or GraphQL documents. The standard UI subtask pipeline (`.BF` Agent-Browser functional loop, `.BS` visual/screenshot loop across Desktop 1440×900 / Tablet 768×1024 / Mobile 375×812, Arabic RTL + English LTR) is **NOT APPLICABLE** — there are no URL endpoints to drive. These loops reattach verbatim at consumer tickets with UI (DEV3-004 booking UI onward). The only Phase-4 work is boundary verification.
+> No pages, views, components, stores, hooks, or GraphQL documents. The standard UI subtask pipeline (`.BF` Agent-Browser functional loop, `.BS` visual/screenshot loop across Desktop 1440×900 / Tablet 768×1024 / Mobile 375×812, Arabic RTL + English LTR) is **NOT APPLICABLE** — there are no URL endpoints to drive. These loops reattach verbatim at consumer tickets with UI (the Session Creation & Lifecycle ticket booking UI onward). The only Phase-4 work is boundary verification.
 
 - [x] 4.N/A Frontend Boundary Enforcement Check (REQ-062 — import-boundary proof)
   - Files to verify (read-only): `frontend/**`, `app/**`, `frontend/graphql/sharedDocuments/**`, `frontend/stores/**`
@@ -409,7 +409,7 @@ These rules bind **every** task in this document. They are not optional and not 
   - _Requirements: REQ-042, REQ-044, REQ-050, REQ-051, REQ-052, REQ-053_
 - [x] 6.3 **review-frontend Wave** — Boundary & drift audit (substrate-adjusted)
   - Scope: `frontend/**`, `app/**`, codegen outputs.
-  - Verify: REQ-062 (zero `@/backend/types/contracts` imports in frontend/app), REQ-061 (codegen byte-identity re-check against `phase3` hashes), REQ-002 (no i18n surface introduced — the ticket shipped zero user-facing strings; confirm by scan), REQ-063 note (forward-binding; no action needed now). Mark UI-loop items explicitly: *"`.BF`/`.BS` Agent-Browser loops N/A — no UI surface; reattach at DEV3-004+."*
+  - Verify: REQ-062 (zero `@/backend/types/contracts` imports in frontend/app), REQ-061 (codegen byte-identity re-check against `phase3` hashes), REQ-002 (no i18n surface introduced — the ticket shipped zero user-facing strings; confirm by scan), REQ-063 note (forward-binding; no action needed now). Mark UI-loop items explicitly: *"`.BF`/`.BS` Agent-Browser loops N/A — no UI surface; reattach at the Session Creation & Lifecycle ticket."*
   - Write findings to `outcome/phase6-review-frontend-outcome.md`.
   - _Requirements: REQ-002, REQ-061, REQ-062, REQ-063_
 - [x] 6.4 **pentester Wave** — Security & tenancy substrate audit
@@ -436,7 +436,7 @@ These rules bind **every** task in this document. They are not optional and not 
     2. **Composition-Only Rule** — `Pick`/`Omit`/indexed-access mandate; prohibition on inline column re-declaration (REQ-011) with one drifting example showing the compile-failure it would cause.
     3. **Forbidden-Field Registry** — REQ-030 table (credentials, governance flags, balances, payment secrets) + the conformance negative-test pattern used to enforce it.
     4. **Decision/Invariant Mapping Table** — populate from plan Appendix A verbatim (REQ-082): decisions A.4, A.5, A.7, A.8, A.10, B.2, B.3/B.4, B.9, B.10, B.15, B.16, B.18, C.3, C.5(negative); invariants INV-S1..S8, INV-A1..A4, INV-W1/W3/W4/W6/W7/W8, INV-PAY1/PAY2, INV-TV1..TV7, INV-P1..P4; workflows 01–05.
-    5. **Consumer-Ticket Wiring List** — DEV1-007, DEV2-006/007/011, DEV3-004/008/010/012/013/014/016/020 with the exact contract each consumes (spec traceability note).
+    5. **Consumer-Ticket Wiring List** — with the exact contract each consumes (spec traceability note).
     6. **"@ts-expect-error Conformance" Pattern Guide** — how future contract evolution adds positive/negative anchors in the same PR (REQ-080).
     7. **Change Governance Statement** (REQ-083) — (1) conformance-suite update in same PR, (2) review by ALL affected stream owners (mirrors TEAM_ALLOCATION "Contract changes" rule), (3) deferred-items note only if cross-ticket coordination is deferred.
     8. **Binding Rules for Consumers** — NO `{ ...input }` spreads (REQ-031), idempotency-key enforcement at services (REQ-027), `escapeLikeWildcards` before LIKE/ILIKE (REQ-035), `id` on every GraphQL selection (REQ-063), TOCTOU re-assertion inside write transactions (REQ-041), 23505→`ConflictError` via `Error.cause` traversal (REQ-044).

@@ -1,5 +1,5 @@
 /**
- * Plan Catalog Concurrency & Chaos Tests — DEV1-005 Task 5.2.TE
+ * Plan Catalog Concurrency & Chaos Tests
  *
  * Implements REQ-040, REQ-045, REQ-074:
  * Proves that concurrent operations across GraphQL mutations are safe, race-free,

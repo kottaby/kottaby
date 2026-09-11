@@ -5,9 +5,9 @@ import type { ReactNode } from "react";
 import type { SessionRowAction } from "@/frontend/views/student/sessions/sessionRowAction";
 
 /**
- * The caller-supplied lifecycle CTAs (teacher Start/Complete, DEV3-012
- * student Confirm) — the mapping stays byte-identical to the original
- * in-row implementation. The tooltip-carrying variant (DEV3-012 confirm)
+ * The caller-supplied lifecycle CTAs (teacher Start/Complete, student
+ * Confirm) — the mapping stays byte-identical to the original
+ * in-row implementation. The tooltip-carrying variant (confirm)
  * rides the SAME testid/button shape as the plain variant so callers and
  * suites stay uniform.
  */

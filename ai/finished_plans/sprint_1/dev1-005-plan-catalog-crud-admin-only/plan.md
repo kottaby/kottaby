@@ -1,14 +1,14 @@
-# Technical Architecture & Implementation Design: DEV1-005 — Plan Catalog CRUD (Admin Only)
+# Technical Architecture & Implementation Design: Plan Catalog CRUD (Admin Only)
 
 > **Plan of record:** `ai/plans/dev1-005-plan-catalog-crud-admin-only/`
 > **Specs:** `specs.md` REQ-001..REQ-083
-> **Canonical refs:** `docs/auth/user-registration.md` (23505 cause-chain precedent), `docs/graphql/domain-error-extensions-code.md`, `docs/auth/jwt-authentication-service.md` (authScopes contract), `docs/DATABASE_MIGRATIONS.md`, `docs/IDEMPOTENCY.md`, `docs/specs/open-decisions-and-gaps.md`, `docs/specs/state-machine-invariants.md`, `docs/workflows/05-admin-governance-override.md`, plus the DEV1-004 guarded-update precedent (`ai/plans/dev1-004-free-trial-session-provisioning/plan.md`)
+> **Canonical refs:** `docs/auth/user-registration.md` (23505 cause-chain precedent), `docs/graphql/domain-error-extensions-code.md`, `docs/auth/jwt-authentication-service.md` (authScopes contract), `docs/DATABASE_MIGRATIONS.md`, `docs/IDEMPOTENCY.md`, `docs/specs/open-decisions-and-gaps.md`, `docs/specs/state-machine-invariants.md`, `docs/workflows/05-admin-governance-override.md`, plus the Free Trial Session Provisioning ticket guarded-update precedent (`ai/plans/dev1-004-free-trial-session-provisioning/plan.md`)
 
 ---
 
 ## 1. System Overview & Architecture Diagram
 
-DEV1-005 is a **full vertical slice**: one schema delta (two lifecycle columns on `plans`), one new repository, one new service, five new GraphQL operations (2 queries + 3 mutations), and one admin page (`/admin/plans`). The monetization catalog becomes a server-managed, role-gated, lifecycle-aware resource.
+This ticket is a **full vertical slice**: one schema delta (two lifecycle columns on `plans`), one new repository, one new service, five new GraphQL operations (2 queries + 3 mutations), and one admin page (`/admin/plans`). The monetization catalog becomes a server-managed, role-gated, lifecycle-aware resource.
 
 ### 1.1 Write Path (Create / Edit / Deactivate / Reactivate)
 
@@ -50,7 +50,7 @@ DEV1-005 is a **full vertical slice**: one schema delta (two lifecycle columns o
 │   ├─ setActiveStatusOnce(id, target, tx?)       guarded conditional UPDATE: │
 │   │     SET is_active=<t>, deactivated_at=<t?now():null>, updated_at=now()  │
 │   │     WHERE id=@id AND is_active = NOT <t>   RETURNING *   (atomic, no    │
-│   │     SELECT-then-UPDATE — DEV1-004 grant-once pattern)                   │
+│ │     SELECT-then-UPDATE — the Free Trial Session Provisioning ticket grant-once pattern) │
 │   ├─ existsById(id, tx?)                        (post-guard disambiguation) │
 │   ├─ listActive(tx?)   WHERE is_active = true ORDER BY created_at ASC       │
 │   └─ listAll(tx?)      ORDER BY created_at ASC                              │
@@ -84,14 +84,14 @@ Server Component: app/(dashboard)/admin/plans/page.tsx
 
 | # | Decision | Options Considered | Pros / Cons | Rationale (Maintainability, Scalability, Reliability) |
 |---|---|---|---|---|
-| D1 | **Lifecycle via `is_active` + `deactivated_at` delta on `plans`** (DEV1-004-style per-ticket schema delta) | (a) `status` enum (`active`/`deactivated`/…); (b) boolean + timestamp; (c) separate lifecycle table | (a) Pros: extensible states. Cons: new pgEnum + enum files for a binary lifecycle today — over-engineering (YAGNI); migration churn. (b) Pros: minimal, self-documenting, `deactivated_at` is audit-adjacent metadata, default `true` backfills all existing rows (zero backfill migration). Cons: future states require a follow-up delta. (c) Pros: normalized. Cons: unjustified for a two-state toggle. | REQ-010. Boolean + nullable timestamp is the smallest contract that satisfies "no longer visible to students for purchase; existing subscriptions remain active." Default `true` makes `db push` non-destructive. Drizzle schema + `$infer*` types land in one commit set (REQ-042). |
-| D2 | **State transitions via single guarded conditional `UPDATE … WHERE id AND is_active = <opposite> RETURNING *`** | (a) SELECT-then-UPDATE; (b) advisory lock; (c) guarded conditional UPDATE | (a) TOCTOU: two concurrent deactivations both read `is_active=true`, both succeed silently — REQ-040 violated. (b) Serializes correctly but adds lock plumbing for a trivially lock-free statement. (c) Row-lock inside the statement serializes; loser sees empty RETURNING → mapped to `PLAN_ALREADY_*`. Zero extra infra. | REQ-014/015/040. Direct reuse of the DEV1-004 `grantFreeTrialOnce` atomicity pattern (proven, reviewed). TOCTOU window = 0; the predicate is evaluated under the row's write lock. |
+| D1 | **Lifecycle via `is_active` + `deactivated_at` delta on `plans`** (the Free Trial Session Provisioning ticket-style per-ticket schema delta) | (a) `status` enum (`active`/`deactivated`/…); (b) boolean + timestamp; (c) separate lifecycle table | (a) Pros: extensible states. Cons: new pgEnum + enum files for a binary lifecycle today — over-engineering (YAGNI); migration churn. (b) Pros: minimal, self-documenting, `deactivated_at` is audit-adjacent metadata, default `true` backfills all existing rows (zero backfill migration). Cons: future states require a follow-up delta. (c) Pros: normalized. Cons: unjustified for a two-state toggle. | REQ-010. Boolean + nullable timestamp is the smallest contract that satisfies "no longer visible to students for purchase; existing subscriptions remain active." Default `true` makes `db push` non-destructive. Drizzle schema + `$infer*` types land in one commit set (REQ-042). |
+| D2 | **State transitions via single guarded conditional `UPDATE … WHERE id AND is_active = <opposite> RETURNING *`** | (a) SELECT-then-UPDATE; (b) advisory lock; (c) guarded conditional UPDATE | (a) TOCTOU: two concurrent deactivations both read `is_active=true`, both succeed silently — REQ-040 violated. (b) Serializes correctly but adds lock plumbing for a trivially lock-free statement. (c) Row-lock inside the statement serializes; loser sees empty RETURNING → mapped to `PLAN_ALREADY_*`. Zero extra infra. | REQ-014/015/040. Direct reuse of the Free Trial Session Provisioning ticket `grantFreeTrialOnce` atomicity pattern (proven, reviewed). TOCTOU window = 0; the predicate is evaluated under the row's write lock. |
 | D3 | **Guard-ambiguity resolution: empty RETURNING → `existsById` probe → NotFound vs Conflict** | (a) probe first, then update; (b) update first, probe on empty | (a) Reintroduces TOCTOU on the *state* branch (row could flip between probe and guarded update — harmless here because the second update would empty-match, but adds a wasted round-trip on the hot path). (b) One statement hot path; probe only on the failure path (cold). | (b). Plan state churn is admin-frequency (rare); correctness preserved because the guarded UPDATE remains the only mutation primitive. The probe is read-only and its result cannot be stale-misused (a re-check after a concurrent flip still yields the correct user-facing outcome class: the row *is* in the target state → `PLAN_ALREADY_*` is accurate at response time if we re-read post-update — see §4.3 race table). |
-| D4 | **Price as decimal STRING end-to-end (`String!` in GraphQL, `string` in TS, regex-validated in service)** | (a) `Float!`; (b) `String!`; (c) fixed-point Int (cents) | (a) Float precision loss violates money discipline (e.g., 19.99 corruptible). (b) Preserves Drizzle `decimal(10,2)` → `string` inference verbatim; regex `^\d{1,8}(\.\d{1,2})?$` fits the column exactly; UI renders without conversion. (c) Requires a unit contract (`priceInCents`) diverging from DEV1-001 schema — forbidden drift. | REQ-012/022. Follows the schema as-is; zero arithmetic is performed on price in this ticket, so string carry is safe and lossless. |
+| D4 | **Price as decimal STRING end-to-end (`String!` in GraphQL, `string` in TS, regex-validated in service)** | (a) `Float!`; (b) `String!`; (c) fixed-point Int (cents) | (a) Float precision loss violates money discipline (e.g., 19.99 corruptible). (b) Preserves Drizzle `decimal(10,2)` → `string` inference verbatim; regex `^\d{1,8}(\.\d{1,2})?$` fits the column exactly; UI renders without conversion. (c) Requires a unit contract (`priceInCents`) diverging from the Database Schema Migration ticket schema — forbidden drift. | REQ-012/022. Follows the schema as-is; zero arithmetic is performed on price in this ticket, so string carry is safe and lossless. |
 | D5 | **Two read operations (`planCatalog` active-only, `adminPlans` full) instead of one query with a client-side filter arg** | (a) single `plans(includeInactive)` gated per-arg; (b) two named operations | (a) An argument-controlled visibility gate on a shared field is a latent BFLA hazard (student passing `includeInactive:true`) and complicates authScope documentation. (b) Visibility is enforced at the *field* level by Pothos authScopes — structurally impossible for non-admins to reach the full catalog. Slightly more SDL. | REQ-016/030/064. Server-side predicate lives in exactly one repository method (`listActive`). The split mirrors the per-audience rendering table and makes the REQ-072 role-matrix cells individually testable. |
 | D6 | **No delete surface, no pagination, no search; catalog reads ORDER BY `created_at` ASC** | (a) include cursor pagination now; (b) plain ordered list | (a) Catalog is a small admin-managed lookup set (dozens of rows); pagination adds relay plumbing with zero user value today. (b) Deterministic ordering for Apollo cache + tests; growth revisit documented in canonical doc (REQ-034 ruling). | REQ-020/034. `deletePlan` absence is an *invariant* (INV-PC3) proven by schema grep, not a product oversight. |
-| D7 | **Service-first validation with `extensions.fields[]` per-field errors; DB CHECKs stay as the safety net; `\23514` → ValidationError translation via cause-chain** | (a) rely on DB CHECKs only; (b) service-only; (c) both | (a) Raw `23514` leaks SQL text / poor UX, violates REQ-012 per-field mapping. (b) Loses defense-in-depth against scripts/bugs (REQ-035). (c) Double cost is trivial (validation is pure CPU). | REQ-012/035/052. Mirrors DEV1-002's `isUniqueViolation` precedent; the `23514` translation is a *fallback* path proven by a direct-write bypass test (REQ-073). |
-| D8 | **New leaf repositories/service under `billing/` domain** (not `plans/`) | (a) new domain dir `plans/`; (b) existing `billing/` | The DEV1-001 layout already groups `plans.ts`, `subscriptions.ts`, `wallet.ts` under `billing/` schema/types; repo/service/domains mirror that layout per AGENTS.md conventions. Creating a parallel `plans/` domain fragments the billing domain. | Consistency with the established sub-directory taxonomy; minimal barrel churn. |
+| D7 | **Service-first validation with `extensions.fields[]` per-field errors; DB CHECKs stay as the safety net; `\23514` → ValidationError translation via cause-chain** | (a) rely on DB CHECKs only; (b) service-only; (c) both | (a) Raw `23514` leaks SQL text / poor UX, violates REQ-012 per-field mapping. (b) Loses defense-in-depth against scripts/bugs (REQ-035). (c) Double cost is trivial (validation is pure CPU). | REQ-012/035/052. Mirrors the User Registration ticket's `isUniqueViolation` precedent; the `23514` translation is a *fallback* path proven by a direct-write bypass test (REQ-073). |
+| D8 | **New leaf repositories/service under `billing/` domain** (not `plans/`) | (a) new domain dir `plans/`; (b) existing `billing/` | The Database Schema Migration ticket layout already groups `plans.ts`, `subscriptions.ts`, `wallet.ts` under `billing/` schema/types; repo/service/domains mirror that layout per AGENTS.md conventions. Creating a parallel `plans/` domain fragments the billing domain. | Consistency with the established sub-directory taxonomy; minimal barrel churn. |
 
 ---
 
@@ -149,7 +149,7 @@ export type PlanUpdateInput = {
 
 Barrel: `backend/types/billing/index.ts` already re-exports `./plan.types` — no barrel change needed.
 
-Rules compliance: no service-layer `.types.ts`; `DBTransaction` imported from `@/backend/types`; no resolver-local types. The new columns flow into `PlanSelectType` automatically (`StudentSelectType.balanceTrial` precedent from DEV1-004).
+Rules compliance: no service-layer `.types.ts`; `DBTransaction` imported from `@/backend/types`; no resolver-local types. The new columns flow into `PlanSelectType` automatically (`StudentSelectType.balanceTrial` precedent from the Free Trial Session Provisioning ticket).
 
 ### 2.5 Enums
 
@@ -236,8 +236,8 @@ extend type Mutation {
 
 **authScopes (REQ-030):**
 - `planCatalog`: `{ authenticated: true }` — `scopeAuth` throws `UnauthorizedError` (401 `UNAUTHORIZED`) with no context.
-- `adminPlans`, all three mutations: `{ authenticated: true, role: [UserRole.Admin] }` — the role scope returns `false` (403 `FORBIDDEN`) for authenticated non-admin `ctx.role` (student/parent/teacher). Fail-closed per the DEV2-002 contract. `UserRole` is a **value import**, used as `UserRole.Admin`.
-- No `permission` scope wiring (DEV2-002 placeholder documented; role is the coarse gate for this ticket).
+- `adminPlans`, all three mutations: `{ authenticated: true, role: [UserRole.Admin] }` — the role scope returns `false` (403 `FORBIDDEN`) for authenticated non-admin `ctx.role` (student/parent/teacher). Fail-closed per the Role-Based Authorization Middleware ticket contract. `UserRole` is a **value import**, used as `UserRole.Admin`.
+- No `permission` scope wiring (the Role-Based Authorization Middleware ticket placeholder documented; role is the coarse gate for this ticket).
 - Rate-limit posture: inherits the platform global/fail-open stub (REQ-034); no per-field limiter additions.
 
 **Resolver behavior:**
@@ -308,7 +308,7 @@ Contract rules per method:
 - **`setPlanActiveStatus`**: validate `id` → `PlanRepository.setActiveStatusOnce(id, isActive, tx)` → `null` returned → `PlanRepository.existsById(id, tx)` → `false` → `NotFoundError("PLAN", …)`; `true` → `ConflictError` with code `PLAN_ALREADY_INACTIVE` / `PLAN_ALREADY_ACTIVE` via `new ConflictError(tErrors.planCatalog.planAlready…)` (custom code set per overloaded Validation/Conflict patterns in the error doc) → `logger.logDomainError` with `{ code, entity: "plans", entityId: id }`.
 - All expected rejections use `logger.logDomainError`; unexpected → `logger.error` (REQ-053). No `console.*`.
 - **Zero writes** to `subscriptions`, `student_subscriptions`, `students`, `wallet`, `teacher_transaction` — the service file physically has no imports of those tables (grep-verifiable; REQ-017/018 defense).
-- Audit hook: after a successful transition, emit a log/event seam comment + `logger.info` marking the mutation for the future DEV3-020 audit integration (deferred item D1 — no `audit_logs` writes in this ticket).
+- Audit hook: after a successful transition, emit a log/event seam comment + `logger.info` marking the mutation for the future audit integration (deferred item D1 — no `audit_logs` writes in this ticket).
 
 ### 4.2 New Repository — `backend/db/repo/billing/plan.repository.ts`
 
@@ -351,7 +351,7 @@ export namespace PlanRepository {
 | Double-deactivation of the same plan (two admins / double-click) | 2 admin mutations | Duplicate transition attempts → misleading success or double `deactivated_at` churn | Guarded UPDATE serializes on the row lock; loser empty-matches → probe → `PLAN_ALREADY_INACTIVE` (REQ-040). Proven by `Promise.allSettled` chaos test yielding exactly one success + one conflict; final row transitioned exactly once. |
 | Deactivate ↔ reactivate interleave | 2 admin mutations | State mismatch vs. response | Each statement is atomic; outcomes serialize. The post-empty `existsById` probe result is only used to choose NotFound-vs-Conflict class; the Conflict message is accurate at response time because the row IS in the target state (that's *why* the guard failed). Documented reasoning in canonical doc (D3). |
 | Concurrent `updatePlan` patches | 2 admins | Divergent final state | Last-write-wins per-field-patch, explicitly ruled acceptable for a low-frequency admin catalog (REQ-045); no version column added (documented non-goal). Both updates are single statements; no partial patch can apply because each executes in its own implicit tx. |
-| Browse-then-deactivate mid-purchase | Student (DEV1-006) vs Admin | Purchase of a deactivated plan | Forward contract only (REQ-044 / deferred D2): `planCatalog` already excludes inactive at browse time; DEV1-006 MUST re-validate `is_active` inside its purchase transaction using `PlanRepository.listActive`/a `findActiveById` consumer added by THAT ticket. This ticket ships the predicate, not the enforcement. |
+| Browse-then-deactivate mid-purchase | Student (the Subscription Purchase via Payment Gateway ticket) vs Admin | Purchase of a deactivated plan | Forward contract only (REQ-044 / deferred D2): `planCatalog` already excludes inactive at browse time; the Subscription Purchase via Payment Gateway ticket MUST re-validate `is_active` inside its purchase transaction using `PlanRepository.listActive`/a `findActiveById` consumer added by THAT ticket. This ticket ships the predicate, not the enforcement. |
 | Create double-submit | Admin retries | Two identical plan rows | Tolerated by explicit decision (REQ-043): plans lack a natural unique key; `docs/IDEMPOTENCY.md` scope (Student/Invoice/Class/Payment) excludes plans; UI disables submit while in flight as the practical mitigation. |
 | `23514` from a direct-write bypass (script/bug) | Any writer | Negative/invalid row | DB CHECKs reject regardless of app behavior (REQ-035); on the service path, cause-chain translation converts any residual 23514 into localized `VALIDATION` (REQ-052). |
 | TOCTOU on `existsById` probe | Admin × post-guard probe | Wrong error class if row deleted between guard and probe | Plans are never deleted (INV-PC3 — no delete surface exists), so the probe's NotFound/Conflict classification is stable. The only entity-level races are state flips, which serialize through the guard itself. |
@@ -375,7 +375,7 @@ export namespace PlanRepository {
 | `/admin/plans` | Plan catalog management (list, create, edit, activate/deactivate) | `withPageAuth({ roles: [UserRole.Admin], redirectTo: "/admin/plans" })` (SSR) | Super Admin only |
 | `/api/graphql` | Hosts the 5 new operations | per §3.3 matrix | — |
 
-No student-facing browsing page ships in this ticket — the student catalog consumption UI belongs to DEV1-006; the `planCatalog` query ships here as the backend contract.
+No student-facing browsing page ships in this ticket — the student catalog consumption UI belongs to the Subscription Purchase via Payment Gateway ticket; the `planCatalog` query ships here as the backend contract.
 
 ### 5.2 Sidebar & Navigation Integration
 
@@ -429,7 +429,7 @@ frontend/views/admin/plans/PlanCatalogContainer.tsx       (client)
 
 - **MUI v9 discipline (REQ-063):** all layout/spacing/typography via `sx`; no direct style props; icons `*Outlined`; colors exclusively `theme.palette.*` via theme-callback pattern (status chips use `theme.palette.success.*` / `theme.palette.grey.*` scales — no hex); `FormEvent` banned → `React.SubmitEvent`/`React.SyntheticEvent<HTMLFormElement>`; error `TextField`s carry `aria-invalid={!!error}`; page-level deny fallback uses `PermissionDeniedFallback` pattern (`LockOutlined` + `role="alert"`) if any section-level gating renders (the page itself is SSR-guarded).
 - **State/data:** mutations use Apollo cache `updateQuery`/refetch of `adminPlansQueryDocument` (returning `Plan!` payloads auto-normalize by `id`); no Zustand store is introduced (server-state lives in Apollo cache only; no `persist` anywhere).
-- **Error rendering:** `UNAUTHORIZED` handled by global errorLink refresh/logout flow; `FORBIDDEN` → localized toast/`PermissionDeniedFallback`; `VALIDATION` + `extensions.fields[]` → RHF-style field mapping to dialog fields; `PLAN_ALREADY_*` / `PLAN_NOT_FOUND` → localized inline alert on the dialog/row; masked `INTERNAL_SERVER_ERROR` → generic localized toast with correlation guidance (DEV3-002 contract consumption).
+- **Error rendering:** `UNAUTHORIZED` handled by global errorLink refresh/logout flow; `FORBIDDEN` → localized toast/`PermissionDeniedFallback`; `VALIDATION` + `extensions.fields[]` → RHF-style field mapping to dialog fields; `PLAN_ALREADY_*` / `PLAN_NOT_FOUND` → localized inline alert on the dialog/row; masked `INTERNAL_SERVER_ERROR` → generic localized toast with correlation guidance (the Shared Error Handling & Response Contracts ticket contract consumption).
 
 ### 5.5 Visual Design & Responsive Specifications
 
@@ -470,7 +470,7 @@ frontend/views/admin/plans/PlanCatalogContainer.tsx       (client)
 
 ### 6.1 BOLA / IDOR
 
-- Admin identity derives exclusively from `ctx.user.id`/`ctx.role` (DEV2-001 verified context); no input carries actor identity (REQ-032).
+- Admin identity derives exclusively from `ctx.user.id`/`ctx.role` (the JWT Authentication Service ticket verified context); no input carries actor identity (REQ-032).
 - `plan.id` is a **non-sensitive catalog identifier**: enumeration reveals only public commercial data; therefore `PLAN_NOT_FOUND` (not `FORBIDDEN`) is the documented response class for a bad `id` — the canonical doc explicitly warns future sensitive resources not to inherit this ruling by copy-paste (REQ-032 ruling record).
 - No row in this domain is owned by a non-admin tenant; tenancy scoping (`tenantId`/ownership filters) is structurally unnecessary here and documented as such.
 
@@ -485,7 +485,7 @@ frontend/views/admin/plans/PlanCatalogContainer.tsx       (client)
 - All four admin surfaces (3 mutations + `adminPlans`) carry `authScopes: { authenticated: true, role: [UserRole.Admin] }` — student/parent/teacher tokens receive `FORBIDDEN` *before the resolver body executes* (REQ-030).
 - `planCatalog` is authenticated-read-only — no privilege beyond browsing commerce metadata (REQ-033 least privilege; payload contains no user/financial/governance joins).
 - The SSR page guard is the boundary for the UI; container-level client gating is UX-only (never the security boundary, per `app/AGENTS.md`).
-- Governed admins (deleted/blocked) fail earlier at the DEV2-001 fail-closed context boundary (no usable `ctx.user`) — REQ-030 note.
+- Governed admins (deleted/blocked) fail earlier at the JWT Authentication Service ticket fail-closed context boundary (no usable `ctx.user`) — REQ-030 note.
 
 ### 6.4 SQL Injection / LIKE Sanitization
 
@@ -495,7 +495,7 @@ frontend/views/admin/plans/PlanCatalogContainer.tsx       (client)
 ### 6.5 Error Disclosure Confidentiality
 
 - Field-validation messages are localized generic rules (length/range/format) — no internal state, SQL, or driver text is echoed (REQ-050/052).
-- The `23514` fallback translation never surfaces constraint names or SQL text; unexpected driver errors mask at the DEV3-002 boundary to `INTERNAL_SERVER_ERROR` with full server-side `logger.error` fidelity (REQ-053).
+- The `23514` fallback translation never surfaces constraint names or SQL text; unexpected driver errors mask at the Shared Error Handling & Response Contracts ticket boundary to `INTERNAL_SERVER_ERROR` with full server-side `logger.error` fidelity (REQ-053).
 - No soft-deleted/governance state can be probed through this surface (plans carry no linkage to user governance).
 
 ### 6.6 Verification Anchors (tie-ins for tasks)
@@ -504,4 +504,4 @@ frontend/views/admin/plans/PlanCatalogContainer.tsx       (client)
 - `bun run generate:gqlSchema && bun codegen`; REQ-020 no-delete grep assertion on the generated schema; role-matrix integration tests (`setupTestServerLifecycle` + `testClient`) asserting every §3.3 cell's `extensions.code`.
 - `bun test --coverage` on new service/repo suites — 100% statements/branches (REQ-070); chaos probes per §4.3 (REQ-074); fixture-immutability test proving subscriptions/balances byte-identical after deactivate/edit (REQ-075).
 - `bun run scripts/health/sub-loop.ts <file> --lifecycle duplicates` exit 0 per created/modified file (REQ-077).
-- Knowledge propagation outputs: canonical `docs/billing/plan-catalog.md`; INV-PC1..PC3 addendum in `docs/specs/state-machine-invariants.md`; decisions addendum (schema delta, forward-only edits, title-encoded taxonomy, create double-submit tolerance) in `docs/specs/open-decisions-and-gaps.md`; rule-only one-liner references in `backend/services/AGENTS.md`, `backend/graphql/AGENTS.md`, and root `AGENTS.md` Important References (REQ-080..082); deferred-items ledger pre-seeded with D1 (audit integration → DEV3-020) and D2 (purchase-time re-validation → DEV1-006), non-blocking per the template enforcement rule (REQ
+- Knowledge propagation outputs: canonical `docs/billing/plan-catalog.md`; INV-PC1..PC3 addendum in `docs/specs/state-machine-invariants.md`; decisions addendum (schema delta, forward-only edits, title-encoded taxonomy, create double-submit tolerance) in `docs/specs/open-decisions-and-gaps.md`; rule-only one-liner references in `backend/services/AGENTS.md`, `backend/graphql/AGENTS.md`, and root `AGENTS.md` Important References (REQ-080..082); deferred-items ledger pre-seeded with D1 (audit integration →) and D2 (purchase-time re-validation → the Subscription Purchase via Payment Gateway ticket), non-blocking per the template enforcement rule (REQ

@@ -36,7 +36,7 @@ the agent-browser skill, or a global rule file) — and the entry records where 
 - Fix waves rediscovered the same recipes per finding. → landed: `references/fix-patterns.md`.
 - Free-form outcome files made scores non-comparable. → landed: `references/outcome-template.md`.
 
-### 2026-09-11 — DEV1-006-subscription-purchase-payment-gateway (visual-improvement-loop R1)
+### 2026-09-11 — subscription-purchase-payment-gateway (visual-improvement-loop R1)
 
 - Subagent contexts in the current environment do NOT receive image payloads — single-image inspectors
   must run via the `z-ai vision` CLI in Bash, one image per call, with the rubric inlined in the CLI

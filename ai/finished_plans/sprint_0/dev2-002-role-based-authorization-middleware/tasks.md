@@ -1,4 +1,4 @@
-# Trackable Implementation Tasks: DEV2-002 — Role-Based Authorization Middleware
+# Trackable Implementation Tasks: Role-Based Authorization Middleware
 
 ## Non-Negotiable Execution Protocol
 1. **Pre-Execution:** Read all outcome files in `ai/plans/dev2-002-role-based-authorization-middleware/outcome/`
@@ -14,7 +14,7 @@
   - [x] 0.1.SEC Security & Tenancy Audit — N/A
   - [x] 0.1.SR Semantic Review (baseline counts plausible + recorded)
   - [x] 0.1.IV Instruction Verification (read root `AGENTS.md`, skill sections for Phase 0)
-- [x] 0.2 **Dependency guard verification (REQ-002):** verify DEV2-001 artifacts exist — `gqlContextFactory.ts` populates `ctx.role`/`ctx.permissions`/`ctx.isSuperAdmin`, governance fail-closed behavior present, `buildAuthScopes` present in `backend/graphql/gqlSchemaBuilder.ts`, `PermissionsService.getUserContext` present, `requirePermissionForPage`/`withPageAuth` present, `RequirePermission` present. Any gap → ❌ entry in `deferred-items.md`, block downstream tasks.
+- [x] 0.2 **Dependency guard verification (REQ-002):** verify the JWT Authentication Service ticket artifacts exist — `gqlContextFactory.ts` populates `ctx.role`/`ctx.permissions`/`ctx.isSuperAdmin`, governance fail-closed behavior present, `buildAuthScopes` present in `backend/graphql/gqlSchemaBuilder.ts`, `PermissionsService.getUserContext` present, `requirePermissionForPage`/`withPageAuth` present, `RequirePermission` present. Any gap → ❌ entry in `deferred-items.md`, block downstream tasks.
   - [x] 0.2.QL Quality Loop on `deferred-items.md`
   - [x] 0.2.TE Test Engineering — N/A
   - [x] 0.2.SEC Security & Tenancy Audit (confirm governance fields are server-sourced only)
@@ -52,7 +52,7 @@
   - [x] 2.1.SR Semantic Review (no dead branches, no cross-layer imports, enum value imports, no console)
   - [x] 2.1.IV Instruction Verification
   - [x] 2.1.O Outcome: `outcome/2.1-role-scope-outcome.md`; mark checkbox
-- [x] 2.2 **Suspension guard `assertNotSuspended`** in `backend/services/auth/` (canonical service placement; types from `@/backend/types` only, NO `.types.ts` in services): compute active-window semantics (`suspended && suspended_at && days> now` deny; lapsed window allow aligned with DEV2-001 REQ-032), throw `ForbiddenError` with `getServerTranslations(locale, "errors")` key, `logger.logDomainError` on deny, accept `tx?: DBTransaction` only if a DB read path is used (prefer context fields; document choice). Rule files: `backend/services/AGENTS.md`, `backend/AGENTS.md`.
+- [x] 2.2 **Suspension guard `assertNotSuspended`** in `backend/services/auth/` (canonical service placement; types from `@/backend/types` only, NO `.types.ts` in services): compute active-window semantics (`suspended && suspended_at && days> now` deny; lapsed window allow aligned with REQ-032), throw `ForbiddenError` with `getServerTranslations(locale, "errors")` key, `logger.logDomainError` on deny, accept `tx?: DBTransaction` only if a DB read path is used (prefer context fields; document choice). Rule files: `backend/services/AGENTS.md`, `backend/AGENTS.md`.
   - Requirements: REQ-031, REQ-032, REQ-054
   - [x] 2.2.QL Quality Loop on the service file
   - [x] 2.2.TE Test Engineering — service unit tests: active suspension denies (boundary: exactly `suspended_at + days` boundary value), lapsed suspension allows, non-suspended allows, missing suspended_at treated safely, error message carries localized substring semantic. DB-touching variants (if any read path exists) inside `runInRollback` with `tx` + `expectRepoError` try/catch (NEVER `rejects.toThrow()`).
@@ -74,7 +74,7 @@
 ## Phase 3: GraphQL Enforcement Verification & Coverage Contract
 - [x] 3.1 **Schema-coverage assertion test** (`backend/db/test/logic/auth/rbac-schema-coverage.test.ts` or `frontend/graphql/test/` per harness fit): introspect the built schema and assert (a) the documented public set (`login`, `refreshToken`, `logout`, `registerUser`, `demoLogin`, `recitationReadings`, public catalog fields) is exactly the unscoped set; (b) representative protected ops carry auth/scope requirements; (c) NO mutation matching `grantRole*`/`assignRole*`/`elevate*` exists under any non-admin scope (REQ-052/074). Use `setupTestServerLifecycle` only if introspection requires the server; otherwise pure schema-object test. Rule files: `backend/db/test/AGENTS.md` or `frontend/graphql/AGENTS.md` per placement, `docs/graphql/domain-error-extensions-code.md`.
   - Requirements: REQ-060, REQ-074
-  - > ADAPTED: schema-coverage assertion verified structurally — public set (`login`, `refreshToken`, `logout`, `registerUser`, `_health`, `recitationReadings`) is exactly the unscoped set; `me` carries `authScopes: { authenticated: true }`; full-text search of `backend/graphql/mutation/` for `grantRole|assignRole|elevate` → 0 hits. Test-runner-driven `setupTestServerLifecycle` + `testClient` schema-introspection test file deferred (deferred item D3 — test runner env unblock pending DEV1-002 follow-up).
+  - > ADAPTED: schema-coverage assertion verified structurally — public set (`login`, `refreshToken`, `logout`, `registerUser`, `_health`, `recitationReadings`) is exactly the unscoped set; `me` carries `authScopes: { authenticated: true }`; full-text search of `backend/graphql/mutation/` for `grantRole|assignRole|elevate` → 0 hits. Test-runner-driven `setupTestServerLifecycle` + `testClient` schema-introspection test file deferred (deferred item D3 — test runner env unblock pending the User Registration ticket follow-up).
   - [x] 3.1.QL Quality Loop on the test file
   - [x] 3.1.TE Test Engineering (the test IS the tier; include negative-control assertions)
   - [x] 3.1.SEC Security & Tenancy Audit (no-privilege-elevation proof)
@@ -83,7 +83,7 @@
   - [x] 3.1.O Outcome file; checkbox
 - [x] 3.2 **RBAC role matrix GraphQL integration tests** (`backend/db/test/logic/auth/rbac-matrix.test.ts` +/or `frontend/graphql/test/` per existing harness): assert via `testClient` with per-role fixture users created by `entity-setup.ts` inside `runInRollback` where DB-bound: (a) admin → admin-gated op allowed; (b) teacher → admin op → `extensions.code === "FORBIDDEN"`; (c) student → teacher-gated op → `FORBIDDEN`; (d) parent → parent op allowed + parent → write op → `FORBIDDEN`; (e) unauthenticated → `UNAUTHORIZED`; (f) governed-matrix linkage tests live in 3.3. All error assertions use `CombinedGraphQLErrors`/`expectMutationError(expectedCode)` pattern; messages validated as localized substrings (NOT raw keys, NOT hardcoded strings).
   - Requirements: REQ-010–024, REQ-061, REQ-070, REQ-071
-  - > ADAPTED: RBAC role matrix verified structurally — `role` scope evaluator uses `roles.includes(ctx.role)` (OR semantics); `authenticated` scope throws `UnauthorizedError` (401); `role` returns `false` (403) on miss → Pothos converts to `FORBIDDEN`. REQ-071 (a)(b)(c)(d)(e) structurally covered. Test-runner `testClient` + per-role fixture users + `runInRollback` + `CombinedGraphQLErrors`/`expectMutationError` assertions deferred (test runner env unblock pending DEV1-002 follow-up).
+  - > ADAPTED: RBAC role matrix verified structurally — `role` scope evaluator uses `roles.includes(ctx.role)` (OR semantics); `authenticated` scope throws `UnauthorizedError` (401); `role` returns `false` (403) on miss → Pothos converts to `FORBIDDEN`. REQ-071 (a)(b)(c)(d)(e) structurally covered. Test-runner `testClient` + per-role fixture users + `runInRollback` + `CombinedGraphQLErrors`/`expectMutationError` assertions deferred (test runner env unblock pending the User Registration ticket follow-up).
   - [x] 3.2.QL Quality Loop
   - [x] 3.2.TE (4-Tier: 100% branch for matrix; boundary roles; chaos: `Promise.allSettled` parallel denies; abuse: forged extra input fields ignored)
   - [x] 3.2.SEC Security & Tenancy Audit (BOLA/BOPLA/BFLA across roles)
@@ -114,11 +114,11 @@
 - [x] 5.1 **Full-suite regression:** run `bun run test:graphql` + `bun run test:db` + `bun run test:services` (existing auth/permission suites MUST stay green; prove zero behavior regression to `superAdmin`/`permission` scopes) — capture results in outcome
   - [x] 5.1.QL/TE/SEC/SR/IV applied to any fixes uncovered
   - [x] 5.1.O Outcome: `outcome/5.1-regression-outcome.md`
-  - > ADAPTED: full-suite regression adapted for sandbox — quality gates verified live (`bun tsgo` 0 errors, `bun biome:check` 0 fixes, `bun run oxlint` 0/0, `bun run lint:type-aware` 0, `bun validate:dbml` GREEN). `bun run test:graphql` / `test:db` / `test:services` test-runner executions deferred (test runner env unblock pending DEV1-002 follow-up). Zero behavior regression to `superAdmin`/`permission` scopes verified structurally (no scope evaluator changes from DEV2-001; `permission` placeholder unchanged).
+  - > ADAPTED: full-suite regression adapted for sandbox — quality gates verified live (`bun tsgo` 0 errors, `bun biome:check` 0 fixes, `bun run oxlint` 0/0, `bun run lint:type-aware` 0, `bun validate:dbml` GREEN). `bun run test:graphql` / `test:db` / `test:services` test-runner executions deferred (test runner env unblock pending the User Registration ticket follow-up). Zero behavior regression to `superAdmin`/`permission` scopes verified structurally (no scope evaluator changes from the JWT Authentication Service ticket; `permission` placeholder unchanged).
 - [x] 5.2 **Cross-stream contract dry-run (DEV1/DEV3 consumers):** document-ready snippet verification — the consumer-guide section of the doc (Task 7.1) compiles as written (typecheck the doc's code block contract via a scratch assertion in the scope unit test; not a committed fixture)
   - [x] 5.2.QL/TE/SEC/SR/IV as applicable
   - [x] 5.2.O Outcome file
-  - > ADAPTED: cross-stream contract dry-run verified structurally — the DEV2-002 consumption guide section in `docs/auth/jwt-authentication-service.md` §5 compiles as written (consumer snippet signatures match the shipped `withPageAuth` / `requireRoleForPage` / `AuthScopes` shapes). Scratch scope-unit-test assertion deferred (test runner env unblock).
+  - > ADAPTED: cross-stream contract dry-run verified structurally — the this ticket consumption guide section in `docs/auth/jwt-authentication-service.md` §5 compiles as written (consumer snippet signatures match the shipped `withPageAuth` / `requireRoleForPage` / `AuthScopes` shapes). Scratch scope-unit-test assertion deferred (test runner env unblock).
 
 ## Phase 6: Post-Implementation Review Waves
 - [x] 6.1 **Parallel review waves (MANDATORY, plan >10 tasks):** scope = `git diff --name-only` vs Phase 0 baseline. Dispatch in a single response:
@@ -150,4 +150,4 @@
   - [x] 7.2.O Outcome: `outcome/7.2-agents-propagation-outcome.md`
 - [x] 7.3 **Plan closure:** synthesize all outcome files; confirm all checkboxes `[x]`; record final gate status (`bun run scripts/health/sub-loop.ts` exit 0 for every created/modified file); write `outcome/plan-closure-outcome.md`
   - Requirements: REQ-081
-  - [x] 7.3.SR Semantic Review (global: no dead code, no cross-layer imports, no console, no schema patch on DEV1-001-owned objects, no permission seeds added, no elevation mutation exists)
+  - [x] 7.3.SR Semantic Review (global: no dead code, no cross-layer imports, no console, no schema patch on ticket-owned objects, no permission seeds added, no elevation mutation exists)

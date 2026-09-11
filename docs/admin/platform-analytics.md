@@ -236,7 +236,7 @@ Any change to this surface that breaks a journey assertion is a contract change 
 
 ## 10. Rollout Summary
 
-DEV3-022c ships:
+The platform-analytics surface ships:
 
 - `backend/types/admin/platform-analytics.types.ts` — the eleven canonical shapes (root + 10 section/point types), every member `readonly`, no `id`, money as `string`.
 - `backend/db/repo/admin/platform-analytics.repository.ts` + `platform-analytics-query-helpers.ts` — ten dumb-reader aggregate methods; dual-branch executor (tx → Drizzle builder; no-tx → raw parameterized `queryDb`; the global `db` is never imported); UTC-only calendar helpers; the trend decoder.

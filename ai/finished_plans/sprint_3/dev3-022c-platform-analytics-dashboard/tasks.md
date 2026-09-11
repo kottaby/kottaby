@@ -1,10 +1,10 @@
 ```markdown
-# Tasks — DEV3-022c Platform Analytics Dashboard
+# Tasks — Platform Analytics Dashboard
 
 > **Plan directory (verbatim):** `ai/plans/sprint_3/dev3-022c-platform-analytics-dashboard`
 > **Specs:** `ai/plans/sprint_3/dev3-022c-platform-analytics-dashboard/specs.md` (REQ-001..REQ-083)
 > **Plan:** `ai/plans/sprint_3/dev3-022c-platform-analytics-dashboard/plan.md` (D1..D13)
-> **Blocking dependency:** DEV3-016 (admin user-management substrate) — shipped and test-locked; reused by reference, never forked.
+> **Blocking dependency:** (admin user-management substrate) — shipped and test-locked; reused by reference, never forked.
 > **Governing refs:** `docs/admin/user-management.md`, `docs/graphql/error-handling-contract.md`, `docs/drizzle/prepared-statements.md`, `docs/graphql/dataloader-batching.md`, `docs/specs/open-decisions-and-gaps.md` (A.5/A.7/A.9/B.9/B.15/B.6/B.7), `docs/specs/state-machine-invariants.md` (read-only consumption), `docs/workflows/05-admin-governance-override.md`, `docs/testing/workflow-journey-tests.md`, `test/workflows/AGENTS.md`
 
 ---
@@ -49,7 +49,7 @@ Every task in this file is executed under ALL of the following rules, without ex
     - The full `backend/db/test/entity-setup.ts` helper inventory + parameter convention — CONFIRM the ABSENCE of subscription/payment/session/report/evaluation/wallet/teacher-transaction factories (the verified gap that Task 1.3 fills — the file is 174 lines; eight fixture factories are confirmed ABSENT).
     - `recharts` present in `package.json` dependencies.
     - Admin nav block at `frontend/views/dashboard/navItems.ts:126-135`; governance fields at `backend/db/schema/users/users.ts:30-37`; `session` columns at `backend/db/schema/classes/session.ts:32-56`; `student_payments` at `backend/db/schema/billing/student-payments.ts:23-48`; `subscriptions` at `backend/db/schema/billing/subscriptions.ts:19-42`; `teacher` at `backend/db/schema/teachers/teacher.ts:19-38`; `reports` rating check at `backend/db/schema/classes/reports.ts:29,36-41`; `evaluations` at `backend/db/schema/teachers/evaluations.ts:32,34,43`; `teacher_transaction` at `backend/db/schema/billing/teacher-transaction.ts:26-49`; pg enum mirrors at `backend/db/schema/enums.ts:9-114`.
-    - CONFIRM the ABSENCE of `frontend/views/admin/analytics/**` and `test/ui/components/admin/**` (net-new CREATEs — plan D12); `frontend/views/admin/`, `app/(dashboard)/admin/`, and `test/workflows/admin/` EXIST (the latter already holds the DEV3-016 journey suites).
+    - CONFIRM the ABSENCE of `frontend/views/admin/analytics/**` and `test/ui/components/admin/**` (net-new CREATEs — plan D12); `frontend/views/admin/`, `app/(dashboard)/admin/`, and `test/workflows/admin/` EXIST (the latter already holds the journey suites).
   - Verify instructive file inventory for citation discipline: the ONLY instruction files are `.agents/instructions/{frontend,backend,tests}.instructions.md`; layer AGENTS.md files (`backend/AGENTS.md`, `frontend/AGENTS.md`, `frontend/graphql/AGENTS.md`, `shared/AGENTS.md`, `backend/services/AGENTS.md`, `test/workflows/AGENTS.md`, `test/ui/AGENTS.md`, `app/AGENTS.md` per bundle presence) — cite ONLY files confirmed present.
   - _Requirements: REQ-002_
   - [x] 0.2.OUT Write `ai/plans/sprint_3/dev3-022c-platform-analytics-dashboard/outcome/0.2-prerequisites-outcome.md` with the full verified-anchor table.
@@ -95,7 +95,7 @@ Every task in this file is executed under ALL of the following rules, without ex
   - [x] 1.3.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts backend/db/test/entity-setup.ts --lifecycle duplicates` (exit 0).
   - [x] 1.3.TE **Test Engineering**: each factory is exercised inside the journey suite (Task 2.x) and repo suite (Task 2.5) — no standalone factory test file; assert factory return shapes satisfy TypeScript and the inserted rows round-trip (spot-checked in repo tests).
   - [x] 1.3.SEC **Security & Tenancy Audit**: factories accept explicit actor/owner ids — no implicit role or privilege synthesis; no factory writes audit rows or notifications.
-  - [x] 1.3.SR **Semantic Review**: ZERO edits to existing helper signatures (DEV3-016-reliant suites must stay green); enum value imports only; no duplicated insert logic between factories.
+  - [x] 1.3.SR **Semantic Review**: ZERO edits to existing helper signatures (suites must stay green); enum value imports only; no duplicated insert logic between factories.
   - [x] 1.3.IV **Instruction Verification**: validate against `.agents/instructions/tests.instructions.md` + discovered AGENTS.md.
   - [x] 1.3.OUT Write outcome.
 
@@ -126,7 +126,7 @@ Every task in this file is executed under ALL of the following rules, without ex
 > MANDATORY test-first ordering: journey tasks 2.1–2.4 are authored and RED before the repository (2.5) and service (2.6) surfaces exist.
 
 - [x] 2.1 [Write Journey A — Cold platform honesty — TEST-FIRST]
-  - Create `test/workflows/admin/platform-analytics.journey.test.ts` (the file ALL four journeys share; the `test/workflows/admin/` directory already exists (DEV3-016 journey suites) — the harness layer itself is verified present in 0.2, so no harness scaffolding is owed; if verification in 0.2 found the harness absent, this task additionally scaffolds helpers + `test/workflows/AGENTS.md` per Architectural Invariant 10).
+  - Create `test/workflows/admin/platform-analytics.journey.test.ts` (the file ALL four journeys share; the `test/workflows/admin/` directory already exists (journey suites) — the harness layer itself is verified present in 0.2, so no harness scaffolding is owed; if verification in 0.2 found the harness absent, this task additionally scaffolds helpers + `test/workflows/AGENTS.md` per Architectural Invariant 10).
   - Provision the admin-only cast via `provisionAdminActor` from `@/test/workflows/helpers` (real permission-group membership — NEVER monkey-patched); commit fixtures in `beforeAll` inside ONE `db.transaction`; capture the PRE-SUITE baseline of every journey-touched counter by direct DB counts (baseline = whatever the shared DB already holds — asserted, never assumed zero).
   - Steps: admin reads via `PlatformAnalyticsService.getPlatformAnalytics(adminId, locale)` — until the service exists, this test is RED by design.
   - Assert: every journey-owned metric == pre-suite baseline + 0; `sessionTrendDaily` fully populated with 30 zero-filled buckets relative to the read's day; `revenueTrendDaily` skeleton-consistent; BOTH rating averages `null` for families with no journey rows (never fabricated 0).
@@ -217,7 +217,7 @@ Every task in this file is executed under ALL of the following rules, without ex
 - [x] 2.M [Mid-Point Review Gate]
   - [x] Verify: `bun tsgo` and `bun run biome:check` counts == baseline (no new errors introduced by Phases 1–2).
   - [x] Verify: journey suite GREEN (A–D), repo suite GREEN, service suite GREEN.
-  - [x] Verify: `git diff -- backend/db/schema/ backend/db/migration/` EMPTY (REQ-043); `git diff -- backend/db/repo/admin/admin-user.repository.ts` EMPTY (reuse-not-rebuild — the DEV3-016 repo is untouched).
+  - [x] Verify: `git diff -- backend/db/schema/ backend/db/migration/` EMPTY (REQ-043); `git diff -- backend/db/repo/admin/admin-user.repository.ts` EMPTY (reuse-not-rebuild — the repo is untouched).
   - [x] Verify: `deferred-items.md` has no unlogged ❌/⚠️; log anything discovered so far.
   - [x] Semantic self-review of Phases 1–2 against the full checklist.
   - [x] 2.M.OUT Write `outcome/2M-midpoint-review-outcome.md`.
@@ -361,7 +361,7 @@ Every task in this file is executed under ALL of the following rules, without ex
     - `bun run test/scripts/run-test.ts backend/graphql/test/platform-analytics.query.test.ts`
     - `bun run test/scripts/run-test.ts backend/graphql/test/sdl-static-assertions.test.ts` + `schema-surface.test.ts` + `handshake-code-surface.test.ts` + `plan-catalog.schema.test.ts`
     - `bun run test/scripts/run-test.ts test/workflows/admin/platform-analytics.journey.test.ts`
-  - Confirm `AdminUserRepository`'s pre-existing DEV3-016 suites are UNTOUCHED and still green (run the admin-user repo/service/graphql suites as differential regression).
+  - Confirm `AdminUserRepository`'s pre-existing suites are UNTOUCHED and still green (run the admin-user repo/service/graphql suites as differential regression).
   - _Requirements: REQ-070..REQ-076_
   - [x] 5.1.OUT Write outcome with green evidence per suite.
 

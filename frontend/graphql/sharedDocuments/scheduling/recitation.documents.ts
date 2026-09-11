@@ -7,7 +7,7 @@ import type {
 } from "@/frontend/graphql/generated/gql/graphql";
 
 /**
- * Session-recitation shared GraphQL documents (DEV3-007) — the write-once
+ * Session-recitation shared GraphQL documents — the write-once
  * per-session recitation record surfaced to session participants.
  *
  * Two operations over the session-recitation SDL surface: the nullable

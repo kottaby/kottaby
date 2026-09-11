@@ -1,4 +1,4 @@
-# Technical Architecture & Implementation Design: DEV2-001 — JWT Authentication Service
+# Technical Architecture & Implementation Design: JWT Authentication Service
 
 ## 1. System Overview & Architecture Diagram
 
@@ -73,7 +73,7 @@ stateDiagram-v2
 **Key decisions:**
 1. **Reuse, don't rebuild** — existing `jwt.ts` / `auth.mutation.ts` / `SessionService` are the canonical implementations; this ticket fixes and hardens them.
 2. **Stale-JTI honored only when identity is independently anchored** by a valid `session_id` session — replay protection on the cookie-less path preserved.
-3. **No schema work** — all persistence assumed from DEV1-001 / existing session table; gaps escalate to `deferred-items.md`.
+3. **No schema work** — all persistence assumed from the Database Schema Migration ticket / existing session table; gaps escalate to `deferred-items.md`.
 
 ## 2. Data Models & Database Schema
 
@@ -81,9 +81,9 @@ stateDiagram-v2
 
 | Table | Usage in this ticket | Owner |
 |---|---|---|
-| `users` | Read by email; verify `role` (user_role), governance fields; bump `last_active_at` on successful auth/session touch | DEV1-001 |
-| auth session store (as used by `SessionService.createAuthSession` / `preloadSession`) | create on login, rotate `jti` on refresh, invalidate on logout | existing substrate (DEV1-001 gap escalation if absent) |
-| `audit_logs` (optional) | login-failure observability stays in `logger`; NO new audit rows in this ticket (append-only anyway, A.5) | DEV1-001 |
+| `users` | Read by email; verify `role` (user_role), governance fields; bump `last_active_at` on successful auth/session touch | the Database Schema Migration ticket |
+| auth session store (as used by `SessionService.createAuthSession` / `preloadSession`) | create on login, rotate `jti` on refresh, invalidate on logout | existing substrate (the Database Schema Migration ticket gap escalation if absent) |
+| `audit_logs` (optional) | login-failure observability stays in `logger`; NO new audit rows in this ticket (append-only anyway, A.5) | the Database Schema Migration ticket |
 
 **Canonical types (new/refined, `backend/types/auth/`):**
 
@@ -149,7 +149,7 @@ Constraints:
 | Audience | Difference |
 |---|---|
 | GUEST | Full login form; localized placeholders/errors; governance errors render as distinct inline banners (deleted/blocked/suspended) vs generic invalid-credentials |
-| STUDENT / PARENT / TEACHER / SUPERVISOR / ADMIN (already authed) | Bounced from `/login` to `/dashboard` by `(auth)` layout; post-login landing identical (role routing occurs post-DEV2-002) |
+| STUDENT / PARENT / TEACHER / SUPERVISOR / ADMIN (already authed) | Bounced from `/login` to `/dashboard` by `(auth)` layout; post-login landing identical (role routing occurs post-the Role-Based Authorization Middleware ticket) |
 
 ### Apollo GraphQL Documents & UI Components
 - Documents (`frontend/graphql/sharedDocuments/auth/`): `loginUserMutationDocument`, `refreshTokenMutationDocument`, `logoutMutationDocument`, `meQueryDocument` — `TypedDocumentNode` from `@apollo/client`, `id` in all selections, codegen types only, no mapping layers.

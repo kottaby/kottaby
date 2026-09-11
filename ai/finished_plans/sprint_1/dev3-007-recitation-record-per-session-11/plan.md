@@ -1,7 +1,7 @@
-# Technical Architecture & Implementation Design: DEV3-007 — Recitation Record per Session (1:1)
+# Technical Architecture & Implementation Design: Recitation Record per Session (1:1)
 
 **Plan directory (verbatim — all artifacts, ledger paths, and self-references in this plan use exactly this string):** `ai/plans/sprint_1/dev3-007-recitation-record-per-session-11`
-**Ticket:** DEV3-007 · Sprint 1 · Dev 3 · 2 SP · Blocked-By satisfied (DEV3-004 shipped — `docs/sessions/session-lifecycle.md`)
+**Ticket:** this ticket · Sprint 1 · Dev 3 · 2 SP · Blocked-By satisfied (the Session Creation & Lifecycle ticket shipped — `docs/sessions/session-lifecycle.md`)
 **Binding anchors:** Decision **C.5** (`docs/specs/open-decisions-and-gaps.md`), session-domain oracle ruling (`docs/sessions/session-lifecycle.md` §7), permanent-retention rule (`docs/workflows/05-admin-governance-override.md` §8), Qira'ah non-resurrection guard (`docs/auth/qiraah-selection-and-c5.md` §6.1).
 
 ---
@@ -15,8 +15,8 @@ The `recitation` table **already exists and already enforces the 1:1 contract at
 | Shipped | NOT shipped (negative registry) |
 |---|---|
 | `RecitationRepository` (closed 2-method namespace) | update / delete / list methods — recitation is write-once (retention rule) |
-| `RecitationRecordService.setSessionRecitation` (write pipeline) | no admin override surface (DEV3-021 owns) |
-| `RecitationRecordService.getSessionRecitation` (collapse read) | no parent read surface (DEV1-016 owns portal projection) |
+| `RecitationRecordService.setSessionRecitation` (write pipeline) | no admin override surface (owns) |
+| `RecitationRecordService.getSessionRecitation` (collapse read) | no parent read surface (owns portal projection) |
 | Mutation `setSessionRecitation` + Query `sessionRecitation` | no UI page/form/nav (non-goal 3); no notification rows; no audit rows |
 | Two typed shared documents + barrels | no `apolloCache.ts` change (frozen policy surface at `frontend/providers/apollo/apolloCache.test.ts:95-106`) |
 | i18n: 2 flat error keys (`recitationAlreadyExists`, `recitationSessionNotWriteable`) | no dispatcher/error-map row (RECITATION_* codes are adopted locally by future forms) |
@@ -28,7 +28,7 @@ The `recitation` table **already exists and already enforces the 1:1 contract at
 ```text
 WRITE (teacher)                                    READ (participant)
 ─────────────────                                  ─────────────────
-React form (future DEV3-006/DEV2-014)              Any participant view (future consumers)
+React form (future) Any participant view (future consumers)
         │                                                  │
         ▼                                                  ▼
 setSessionRecitationMutationDocument          sessionRecitationQueryDocument
@@ -92,7 +92,7 @@ sequenceDiagram
 | 6 | **Reuse session-lifecycle guard/governance helpers verbatim** — `assertPositiveSafeSessionId`, `isPositiveSafeSessionId`, `assertActorGovernanceClean` | reuse vs rewrite twins | rewrite forks the REQ-054 proven guards; twins drift | Import from `backend/services/classes/session-lifecycle.guards.ts:111-135` and `…governance.ts:39-62`. Single source; existing suites keep pinning them. |
 | 7 | **Mutation = teacher `$all` scope; Query = `authenticated` only, service-owned tenancy** | role-gate the query too? | role-gating the query would need a multi-role `$all` variant (`student`+`teacher`) — but parent/admin must also evaluate (to null); simplest honest wall is authenticated + service-side participant predicate | The query's whole contract is "collapse via participant predicate from the DB row" — the scope map only keeps anonymous callers out (401). Proven identical to `sessionById` (`backend/graphql/query/classes/session-lifecycle.query.ts:43-60`). |
 | 8 | **GraphQL object named `SessionRecitation`** (not `Recitation`) | `Recitation` vs `SessionRecitation` | bare `Recitation` collides conceptually with the Qira'ah vocabulary (`RecitationReading`, `docs/auth/qiraah-selection-and-c5.md`) — future readers WILL conflate them | Names away from the Qira'ah domain. Payload fields `name`/`description` stay free text; NO recitation-reading linkage ever (C.5 is session-linkage; the Qira'ah doc §6.1 prohibition on user-linked rows stands). |
-| 9 | **Zero notifications + zero audit rows in this slice**; enforced by source-pin + oracle tests | emit parent wave here? | parent-completion wave is DEV1-017's emitter; audit logs admin actions only (A.5) — a teacher authoring a record is not an admin action | Single-writer engine discipline (`docs/notifications/realtime-engine.md` REQ-010). The service source NEVER imports `NotificationEngine` or `AuditService` — pinned by a static test (pattern at `backend/services/classes/session-lifecycle.service.test.ts:957-1054`). |
+| 9 | **Zero notifications + zero audit rows in this slice**; enforced by source-pin + oracle tests | emit parent wave here? | parent-completion wave is emitter; audit logs admin actions only (A.5) — a teacher authoring a record is not an admin action | Single-writer engine discipline (`docs/notifications/realtime-engine.md` REQ-010). The service source NEVER imports `NotificationEngine` or `AuditService` — pinned by a static test (pattern at `backend/services/classes/session-lifecycle.service.test.ts:957-1054`). |
 | 10 | **Repository namespace is CLOSED at two methods** (`insertOnce`, `findBySessionId`) — no update/delete/list | ship `update` "just in case"? | a correction surface is a future audited, separately-designed ticket (deferred D1); the static namespace-key lock makes drift a failing test | Permanent retention + write-once is the domain rule; the cheapest correct enforcement is structural absence + a runtime key-set pin. |
 
 **REQ cross-walk (plan section map):** REQ-001/002/003 → §1 scope + §2 types + §6 i18n · REQ-010-018 → §2 + §4 · REQ-030-035 → §3 + §6 · REQ-040-043 → §4 concurrency · REQ-050-053 → §3 error contract + §6 · REQ-060-065 → §3 + §5 · REQ-070-074 → §4.7 test surfaces · REQ-080/081 → §1 registry + knowledge-propagation note (§5.7/§7 of tasks phase).
@@ -279,8 +279,8 @@ NO try/catch, NO error mapping in the resolver — the service never throws for 
 | Teacher, governed (suspended/blocked/deleted/absent) | `FORBIDDEN` (service re-check, pre-tx) | service read has no governance gate (historical records stay readable — INV-U5) |
 | Student, own session | `FORBIDDEN` (scope) | row or `null` |
 | Student, foreign session | `FORBIDDEN` (scope) | `null` |
-| Parent (any session) | `FORBIDDEN` (scope) | `null` (portal read = DEV1-016, out of scope) |
-| Admin (non-participant) | `FORBIDDEN` (scope) | `null` (admin review surface = DEV3-021, out of scope) |
+| Parent (any session) | `FORBIDDEN` (scope) | `null` (portal read =, out of scope) |
+| Admin (non-participant) | `FORBIDDEN` (scope) | `null` (admin review surface =, out of scope) |
 
 ---
 
@@ -399,7 +399,7 @@ PRESENT ──(update/delete)──▶ ∅ (no such surface exists — retention
 
 ### 5.3 Role-based access & per-audience rendering
 
-No route exists; the access matrix is carried entirely by the API surface (§3.6). The future authoring form (DEV3-006/DEV2-014 consumers) and future observer surfaces (DEV1-016 parent portal, DEV3-021 admin review) are the tickets that own UX/breakpoint/RTL matrices.
+No route exists; the access matrix is carried entirely by the API surface (§3.6). The future authoring form (consumers) and future observer surfaces (parent portal, admin review) are the tickets that own UX/breakpoint/RTL matrices.
 
 ### 5.4 Frontend artifact contract (the ONLY frontend changes)
 

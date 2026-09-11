@@ -1533,9 +1533,9 @@ describe("SessionLifecycleService — transactional flows (runInRollback)", () =
   });
 });
 
-// ─── DEV3-005 dispute pair (openSessionDispute / resolveSessionDispute) ──
+// ─── Dispute pair (openSessionDispute / resolveSessionDispute) ──
 
-describe("SessionLifecycleService — DEV3-005 dispute pair (runInRollback)", () => {
+describe("SessionLifecycleService — dispute pair (runInRollback)", () => {
   test("openSessionDispute happy path: BOTH live states move to disputed with the trimmed reason, the hold frozen, zero balance delta", async () => {
     await runInRollback(async tx => {
       const actors = await createSessionActors(tx);
@@ -1814,7 +1814,7 @@ describe("SessionLifecycleService — DEV3-005 dispute pair (runInRollback)", ()
 
       expect(resolved.status).toBe(SessionStatus.Completed);
       // The hold is consumed — and NO wallet credit is part of this outcome
-      // (D2/DEV3-012 owns credit): the student's lanes stay exactly as they
+      // (D2/the confirmation pair owns credit): the student's lanes stay exactly as they
       // were after the original debit.
       expect(resolved.feeHeld).toBe(false);
       expect(resolved.resolutionNote).toBe("held per policy");
@@ -2390,9 +2390,9 @@ describe("SessionLifecycleService — REQ-043 chaos (production tx path, committ
   );
 });
 
-// ─── DEV3-012 dual confirmation + deadline sweeper ──────────────────────────
+// ─── Dual confirmation + deadline sweeper ──────────────────────────
 
-describe("SessionLifecycleService — DEV3-012 dual confirmation (runInRollback)", () => {
+describe("SessionLifecycleService — dual confirmation (runInRollback)", () => {
   test("confirmSessionCompletion happy path: student stamp + hold release + EXACTLY ONE earning credit (ledger row + wallet increment) in one flow", async () => {
     await runInRollback(async tx => {
       const actors = await createSessionActors(tx);
@@ -2518,7 +2518,7 @@ describe("SessionLifecycleService — DEV3-012 dual confirmation (runInRollback)
   });
 });
 
-describe("SessionLifecycleService — DEV3-012 deadline sweeper (runInRollback)", () => {
+describe("SessionLifecycleService — deadline sweeper (runInRollback)", () => {
   test("sweepExpiredSessions: expired scheduled rows cancel + same-lane refund; live rows untouched; second sweep is a zero-row no-op", async () => {
     await runInRollback(async tx => {
       const actors = await createSessionActors(tx);

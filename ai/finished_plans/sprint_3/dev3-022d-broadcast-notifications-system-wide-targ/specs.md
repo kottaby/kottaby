@@ -1,14 +1,14 @@
-# Requirements & Specification: DEV3-022d — Broadcast Notifications (System-Wide & Targeted)
+# Requirements & Specification: Broadcast Notifications (System-Wide & Targeted)
 
 > **Plan directory (verbatim):** `ai/plans/sprint_3/dev3-022d-broadcast-notifications-system-wide-targ`
-> **Ticket:** DEV3-022d — Broadcast Notifications (System-Wide & Targeted) · Dev 3 · Sprint 3 · 3 SP · Blocked by DEV3-010 (shipped)
-> **Governing sources:** `docs/specs/open-decisions-and-gaps.md` (A.4, A.4.1–A.4.3, A.5, A.7, B.8/C.2) · `docs/specs/state-machine-invariants.md` (INV-U1..U5, no new INV minted) · `docs/workflows/05-admin-governance-override.md` (§2 state machine `Notification_Broadcast`, §7.2 audit list) · `docs/notifications/realtime-engine.md` (§3.2 consumption table row DEV3-022d, REQ-010/011/012/013/015/027/028, deferred items D1–D9) · `docs/admin/user-management.md` (guarded patterns, JR-C-1, scope-split) · `docs/graphql/api-gateway-and-routing.md` (REQ-018 registration contract) · `docs/IDEMPOTENCY.md` (fail-closed booking posture this feature deliberately does NOT inherit — see §3)
+> **Ticket:** Broadcast Notifications (System-Wide & Targeted) · Dev 3 · Sprint 3 · 3 SP · Blocked (shipped)
+> **Governing sources:** `docs/specs/open-decisions-and-gaps.md` (A.4, A.4.1–A.4.3, A.5, A.7, B.8/C.2) · `docs/specs/state-machine-invariants.md` (INV-U1..U5, no new INV minted) · `docs/workflows/05-admin-governance-override.md` (§2 state machine `Notification_Broadcast`, §7.2 audit list) · `docs/notifications/realtime-engine.md` (§3.2 consumption table row, REQ-010/011/012/013/015/027/028, deferred items D1–D9) · `docs/admin/user-management.md` (guarded patterns, JR-C-1, scope-split) · `docs/graphql/api-gateway-and-routing.md` (REQ-018 registration contract) · `docs/IDEMPOTENCY.md` (fail-closed booking posture this feature deliberately does NOT inherit — see §3)
 
 ---
 
 ## 1. Executive Summary & Problem Statement
 
-**Feature:** A Super Admin composes an announcement and the platform materializes one `notifications` row of type `system_broadcast` per recipient — system-wide, or targeted to a cohort (all teachers / all students / all parents / all users in a country / all users with an active subscription to a specific plan) — and pushes it in real time to every online recipient. This ticket is the `system_broadcast` *emitter* that `docs/notifications/realtime-engine.md` §3.2 explicitly assigns to DEV3-022d: **the engine ships the bulk primitive (`emitForUsers`); cohort resolution is this ticket's obligation** (engine REQ-027 — the engine never resolves roles or all-users).
+**Feature:** A Super Admin composes an announcement and the platform materializes one `notifications` row of type `system_broadcast` per recipient — system-wide, or targeted to a cohort (all teachers / all students / all parents / all users in a country / all users with an active subscription to a specific plan) — and pushes it in real time to every online recipient. This ticket is the `system_broadcast` *emitter* that `docs/notifications/realtime-engine.md` §3.2 explicitly assigns: **the engine ships the bulk primitive (`emitForUsers`); cohort resolution is this ticket's obligation** (engine REQ-027 — the engine never resolves roles or all-users).
 
 **Problem from user perspective:**
 - **Super Admin:** today there is no way to announce maintenance windows, plan changes, or platform news. He must either stay silent or abuse a per-user manual path that does not exist. He needs: compose once → choose cohort → confirm → every intended inbox (and every online socket) receives it exactly once, and the action is on the audit trail.
@@ -24,7 +24,7 @@
 
 **Non-goals (explicitly OUT of scope):**
 - No changes to the notification engine internals, inbox queries/mutations, WS sidecar, transports, or fan-out envelope shape. The engine is consumed, never edited.
-- No editing/deletion of emitted notifications; no broadcast history browse UI (the audit trail IS the record — REQ-021; a read-back UI is DEV3-020's audit surface).
+- No editing/deletion of emitted notifications; no broadcast history browse UI (the audit trail IS the record — REQ-021; a read-back UI is the audit surface).
 - No scheduled/recurring broadcasts, no email/SMS/push channels (inbox + realtime socket only, per the engine's scope).
 - No per-recipient locale routing of copy: broadcasts are **admin-authored free text** (not translation keys), so the same `title`/`body` is stored verbatim for every recipient. This is the documented localization-at-emitter boundary (engine REQ-015/028) — there is nothing to localize at emit time. Recorded explicitly as decision DB-3 in §3.
 - No user-preference/opt-out model for announcements (system announcements are mandatory-delivery by design; a preferences layer is the engine's deferred item D4, untouched here).
@@ -126,7 +126,7 @@
 ### 2.8 Documentation & Knowledge Gates
 
 - **REQ-080 (Canonical Doc):** WHEN implementation completes THEN `docs/notifications/broadcast-notifications.md` SHALL exist documenting: the cohort taxonomy + governance-exclusion ruling (REQ-015), the header-key/replay contract, the cap + chunked-mode deferred item, the audit contract (entityType + widening rationale), and the import-by-reference rules for future emitters (engine §3.2 table link-back).
-- **REQ-081 (AGENTS.md Propagation):** WHEN knowledge propagation runs THEN `backend/services/AGENTS.md` SHALL gain a broadcast-service one-liner (rules + doc link), `docs/notifications/realtime-engine.md` §3.2 table SHALL mark DEV3-022d as shipped (outcome-note link), `backend/db/repo/AGENTS.md` SHALL register the audience repository convention, and root `AGENTS.md` Important References SHALL gain one line for the canonical doc. AGENTS entries are rules/references only.
+- **REQ-081 (AGENTS.md Propagation):** WHEN knowledge propagation runs THEN `backend/services/AGENTS.md` SHALL gain a broadcast-service one-liner (rules + doc link), `docs/notifications/realtime-engine.md` §3.2 table SHALL mark as shipped (outcome-note link), `backend/db/repo/AGENTS.md` SHALL register the audience repository convention, and root `AGENTS.md` Important References SHALL gain one line for the canonical doc. AGENTS entries are rules/references only.
 - **REQ-082 (Outcome Protocol):** WHEN every task executes THEN the executor SHALL read all prior `outcome/` files first, write `outcome/<task-id>-outcome.md` afterward, and update task checkboxes; Phase 1.5 `@plan-review` SHALL run before implementation.
 
 ### 2.9 Cross-Actor Workflow Scenarios (Journeys)
@@ -193,7 +193,7 @@
 
 **State-Machine & Invariants posture (`docs/specs/state-machine-invariants.md`):** NO new invariant is minted (engine doc §3.10 precedent: the engine owns the append-only/read-latch properties; this ticket inherits them). The ticket is **enabled-by, not modifies**: INV-U1/U4/U5 (soft-delete governance — excluded from cohorts), INV-P3 (unrelated), Session INV-S1..S8 (untouched), Wallet INV-W1..W8 (untouched), INV-TV1..TV7 (untouched), INV-PAY1..5 (untouched).
 
-**Canonical Workflows:** `docs/workflows/05-admin-governance-override.md` — implements the `Notification_Broadcast` state of the admin governance state machine (§2) and the §7.2 audit requirement ("Notification Broadcast" row); `docs/notifications/realtime-engine.md` §3.2 consumption-table row for DEV3-022d gets marked shipped (REQ-081).
+**Canonical Workflows:** `docs/workflows/05-admin-governance-override.md` — implements the `Notification_Broadcast` state of the admin governance state machine (§2) and the §7.2 audit requirement ("Notification Broadcast" row); `docs/notifications/realtime-engine.md` §3.2 consumption-table row for gets marked shipped (REQ-081).
 
 **Architectural standards:** `docs/IDEMPOTENCY.md` (broadcasts are NOT in the mandated key set; header-key + engine claim is a deliberate, documented elevation of the notification path's own port — see A.4.2) · `docs/DATABASE_MIGRATIONS.md` (zero migrations; `db push` never invoked) · `docs/drizzle/prepared-statements.md` + `docs/graphql/dataloader-batching.md` (no N+1 surface: single batched audience read + one multi-row insert; resolvers expose no per-parent service fetch) · `docs/graphql/api-gateway-and-routing.md` REQ-018 registration contract (side-effect barrel, codegen in set, authScopes declared, public allowlist untouched).
 
@@ -233,4 +233,4 @@
 
 ---
 
-**End of Specification — DEV3-022d.** Governing next step: Phase 1.5 — invoke `@plan-review` on the complete plan (`specs.md` + `plan.md` + `tasks.md`) before any implementation begins.
+**End of Specification.** Governing next step: Phase 1.5 — invoke `@plan-review` on the complete plan (`specs.md` + `plan.md` + `tasks.md`) before any implementation begins.

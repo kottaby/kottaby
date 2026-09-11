@@ -502,7 +502,7 @@ describeBranchIsolation("PlatformAnalyticsRepository — Tier 1: every method ×
       const teacherRow = await createTestTeacherRow(tx, teacherUser.id);
       const student = await seedStudent(tx);
       const sessionRow = await createTestSession(tx, teacherRow.id, student.id);
-      // One report per session (`reports_session_id_unique` arbiter, DEV3-006):
+      // One report per session (`reports_session_id_unique` arbiter):
       // the unrated probe row lives on its own session — it still never joins
       // the average or the count.
       const unratedSessionRow = await createTestSession(tx, teacherRow.id, student.id);

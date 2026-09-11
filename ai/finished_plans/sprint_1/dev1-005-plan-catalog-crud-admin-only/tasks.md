@@ -1,9 +1,9 @@
-# Implementation Tasks — DEV1-005: Plan Catalog CRUD (Admin Only)
+# Implementation Tasks — Plan Catalog CRUD (Admin Only)
 
-> **Ticket:** `[DEV1-005] Plan Catalog CRUD (Admin Only)` (Owner: Dev 1 · Sprint 1 · 3 SP)
+> **Ticket:** `Plan Catalog CRUD (Admin Only)` (Owner: Dev 1 · Sprint 1 · 3 SP)
 > **Plan directory:** `ai/plans/dev1-005-plan-catalog-crud-admin-only/`
 > **Source of truth:** `specs.md` (REQ-001..REQ-083) + `plan.md` (D1..D8)
-> **Blocking dependencies (verified in Phase 0):** DEV1-001, DEV1-002, DEV2-001, DEV2-002
+> **Blocking dependencies (verified in Phase 0):** the Database Schema Migration ticket
 
 ---
 
@@ -41,8 +41,8 @@ The executing agent MUST follow this protocol for **every task** — no exceptio
   - _Requirements: REQ-001_
   - [x] 0.1.1 Run and record baseline error counts as JSON artifacts: `bun tsgo`, `bun biome:check`, `bun run scripts/lint-service.ts --json --id baseline`, `git diff --name-only`
   - [x] 0.1.2 Initialize `deferred-items.md` pre-seeded with:
-    - **D1** — Audit-log integration for plan mutations → target **DEV3-020** (non-blocking; hook points only in this ticket)
-    - **D2** — Purchase-time active-plan re-validation (`is_active = true` inside purchase transaction) → target **DEV1-006** (non-blocking forward contract; this ticket ships the predicate)
+    - **D1** — Audit-log integration for plan mutations → target **** (non-blocking; hook points only in this ticket)
+    - **D2** — Purchase-time active-plan re-validation (`is_active = true` inside purchase transaction) → target **the Subscription Purchase via Payment Gateway ticket** (non-blocking forward contract; this ticket ships the predicate)
   - [x] 0.1.3 Write `outcome/phase0-baseline-outcome.md` capturing baseline counts verbatim (numbers must be comparable at Phase 7 final-delta check, REQ-083)
   - [x] 0.1.SR **Semantic Review**: baseline artifacts exist and are machine-comparable; ledger matches template structure
   - [x] 0.1.IV **Instruction Verification**: confirm the ledger template and baseline commands against root AGENTS.md
@@ -50,15 +50,15 @@ The executing agent MUST follow this protocol for **every task** — no exceptio
 ### Task 0.2 — Prerequisite & Dependency Guard Verification
 
 - [x] 0.2 Verify all blocking-dependency artifacts exist before domain work starts
-  - Files to read (no modification): `backend/db/schema/billing/plans.ts`, `db/schema.dbml`, `backend/types/billing/plan.types.ts`, `backend/services/` (registration service from DEV1-002), `backend/graphql/gqlSchemaBuilder.ts`, `shared/locale/` structure
+  - Files to read (no modification): `backend/db/schema/billing/plans.ts`, `db/schema.dbml`, `backend/types/billing/plan.types.ts`, `backend/services/` (registration service from the User Registration ticket), `backend/graphql/gqlSchemaBuilder.ts`, `shared/locale/` structure
 - [ ] 0.2 Verify all blocking-dependency artifacts exist before domain work starts
-  - Files to read (no modification): `backend/db/schema/billing/plans.ts`, `backend/types/billing/plan.types.ts`, `backend/services/` (registration service from DEV1-002), `backend/graphql/gqlSchemaBuilder.ts`, `shared/locale/` structure
+  - Files to read (no modification): `backend/db/schema/billing/plans.ts`, `backend/types/billing/plan.types.ts`, `backend/services/` (registration service from the User Registration ticket), `backend/graphql/gqlSchemaBuilder.ts`, `shared/locale/` structure
   - _Requirements: REQ-004_
-  - [x] 0.2.1 Verify DEV1-001 artifacts: `plans` table present with `plans_session_count_check`, `plans_price_check`, `plans_interval_days_check`; `paymentGateway`/`subscriptionStatus` enums exist; `PlanSelectType`/`PlanInsertType` exist in `backend/types/billing/plan.types.ts`
-  - [x] 0.2.2 Verify DEV1-002 artifacts: `registerUser`/`createAdminUser` service paths exist; `isUniqueViolation`-style cause-chain translation precedent located for reuse pattern (REQ-052)
-  - [x] 0.2.3 Verify DEV2-001 artifacts: JWT context factory producing `ctx.user` / `ctx.role` / `ctx.locale`; `withPageAuth({ roles, redirectTo })` server guard contract
-  - [x] 0.2.4 Verify DEV2-002 artifacts: `role` authScope in `backend/graphql/gqlSchemaBuilder.ts` with OR semantics and fail-closed evaluation; `authenticated` scope → `UnauthorizedError` (401)
-  - [x] 0.2.5 Verify DEV1-004 guarded-update precedent (`grantFreeTrialOnce`-pattern) exists as the reference implementation for REQ-014/015
+  - [x] 0.2.1 Verify the Database Schema Migration ticket artifacts: `plans` table present with `plans_session_count_check`, `plans_price_check`, `plans_interval_days_check`; `paymentGateway`/`subscriptionStatus` enums exist; `PlanSelectType`/`PlanInsertType` exist in `backend/types/billing/plan.types.ts`
+  - [x] 0.2.2 Verify the User Registration ticket artifacts: `registerUser`/`createAdminUser` service paths exist; `isUniqueViolation`-style cause-chain translation precedent located for reuse pattern (REQ-052)
+  - [x] 0.2.3 Verify the JWT Authentication Service ticket artifacts: JWT context factory producing `ctx.user` / `ctx.role` / `ctx.locale`; `withPageAuth({ roles, redirectTo })` server guard contract
+  - [x] 0.2.4 Verify the Role-Based Authorization Middleware ticket artifacts: `role` authScope in `backend/graphql/gqlSchemaBuilder.ts` with OR semantics and fail-closed evaluation; `authenticated` scope → `UnauthorizedError` (401)
+  - [x] 0.2.5 Verify the Free Trial Session Provisioning ticket guarded-update precedent (`grantFreeTrialOnce`-pattern) exists as the reference implementation for REQ-014/015
   - [x] 0.2.6 IF any artifact is missing → record a ❌ entry in `deferred-items.md` and BLOCK dependent tasks; otherwise record verification evidence
   - [x] 0.2.SR **Semantic Review**: every dependency cell has verifiable evidence (file path + symbol), not assumptions
   - [x] 0.2.IV **Instruction Verification**: `docs/specs/open-decisions-and-gaps.md` re-read to confirm REQ-081 addendum authorization for the schema delta (A-category)
@@ -214,7 +214,7 @@ The executing agent MUST follow this protocol for **every task** — no exceptio
     - Tier 3: chaos — `setActiveStatusOnce` double-guard: second identical transition returns `null` (empty RETURNING), row transitioned exactly once
     - Tier 4: security — direct-write CHECK bypass attempts (`session_count <= 0`, `price < 0`, `interval_days <= 0`) rejected at DB layer, asserted via `expectRepoError` try/catch (REQ-035)
   - [x] 2.2.SEC **Security & Tenancy Audit**: all queries Drizzle-parameterized; no LIKE/search surface (`escapeLikeWildcards` documented N/A); guarded update is the ONLY mutation primitive for state (TOCTOU window = 0)
-  - [x] 2.2.SR **Semantic Review**: zero business rules/translations/log strings in the repository; `DBTransaction` imported from `@/backend/types` only; single-statement writes (no explicit transaction needed, REQ-041); methods composable via optional `tx` for future DEV1-009 consumers
+  - [x] 2.2.SR **Semantic Review**: zero business rules/translations/log strings in the repository; `DBTransaction` imported from `@/backend/types` only; single-statement writes (no explicit transaction needed, REQ-041); methods composable via optional `tx` for future consumers
   - [x] 2.2.IV **Instruction Verification**: `backend/db/repo/AGENTS.md` (`queryDb(tx)` pattern, tx-last convention, prepared-statement read-path rules) + `docs/drizzle/prepared-statements.md`
   - [x] 2.2.OD **Outcome**: `outcome/2.2-plan-repository-outcome.md`
 
@@ -228,12 +228,12 @@ The executing agent MUST follow this protocol for **every task** — no exceptio
   - Applicable AGENTS.md: `backend/services/AGENTS.md`; instruction docs: `docs/graphql/domain-error-extensions-code.md`
   - _Requirements: REQ-011, REQ-012, REQ-013, REQ-014, REQ-015, REQ-016, REQ-017, REQ-018, REQ-031, REQ-032, REQ-040, REQ-050, REQ-051, REQ-052, REQ-053_
   - [x] 2.3.1 Implement module-scope pure `validatePlanInput(input, tErrors)` — collects field-error map, throws ONE `ValidationError` with `extensions.fields[]` (`{field, code, message}` localized): title trim/≤255, `sessionCount` integer ≥1, `price` regex `^\d{1,8}(\.\d{1,2})?$` (module-level const), `currency` regex `^[A-Z]{3}$`, `intervalDays` integer ≥1
-  - [x] 2.3.2 Implement `createPlan(input, locale, tx?)` — validate BEFORE any write → explicit field-by-field insert mapping (`title: input.title.trim()`, …) with NO `{ ...input }` spread; `isActive`/`deactivatedAt`/timestamps never mapped from input → `PlanRepository.insertPlan(insert, tx)` → catch-path `23505`/`23514` cause-chain translation to localized `ValidationError` (DEV1-002 `isUniqueViolation` precedent; REQ-052)
+  - [x] 2.3.2 Implement `createPlan(input, locale, tx?)` — validate BEFORE any write → explicit field-by-field insert mapping (`title: input.title.trim()`, …) with NO `{ ...input }` spread; `isActive`/`deactivatedAt`/timestamps never mapped from input → `PlanRepository.insertPlan(insert, tx)` → catch-path `23505`/`23514` cause-chain translation to localized `ValidationError` (the User Registration ticket `isUniqueViolation` precedent; REQ-052)
   - [x] 2.3.3 Implement `updatePlan(id, patch, locale, tx?)` — id coercion (positive integer; invalid → `ValidationError`) → empty-patch → `VALIDATION` (`planPatchEmpty`) → validate every supplied field → whitelist patch key-by-key → repo `updatePlanFields` → `null` → `NotFoundError("PLAN", …)` (entity name only — double-suffix rule)
   - [x] 2.3.4 Implement `setPlanActiveStatus(id, isActive, locale, tx?)` — id validation → `setActiveStatusOnce` (guarded) → `null` return → `existsById` probe → `false` → `NotFoundError("PLAN", …)`; `true` → `ConflictError` with custom code `PLAN_ALREADY_INACTIVE` / `PLAN_ALREADY_ACTIVE` (REQ-050 map) → `logger.logDomainError` with `{ code, entity: "plans", entityId: id }`
   - [x] 2.3.5 Implement `listActiveCatalog(locale, tx?)` → `PlanRepository.listActive(tx)`; `listForAdmin(includeInactive, locale, tx?)` → `includeInactive ? listAll(tx) : listActive(tx)` (single-predicate consumption)
   - [x] 2.3.6 All expected rejections via `logger.logDomainError`; unexpected via `logger.error`; NO `console.*`; log payloads limited to plan id + code (REQ-053)
-  - [x] 2.3.7 Emit the DEV3-020 audit hook seam (`logger.info` + marked comment) after every successful transition — D1 deferred-item linkage; NO `audit_logs` writes
+  - [x] 2.3.7 Emit the audit hook seam (`logger.info` + marked comment) after every successful transition — D1 deferred-item linkage; NO `audit_logs` writes
   - [x] 2.3.8 Physical zero-import guarantee: the service file contains NO imports of `subscriptions`, `student_subscriptions`, `student_payments`, `students`, `wallet`, `teacher_transaction` tables (grep-verifiable forward-only/no-cascade proof, REQ-017/018)
   - [x] 2.3.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts backend/services/billing/plan-catalog.service.ts --lifecycle duplicates` (exit 0)
   - [x] 2.3.TE **Test Engineering**: `backend/db/test/logic/billing/plan-catalog.service.test.ts` — 4-Tier:
@@ -296,7 +296,7 @@ The executing agent MUST follow this protocol for **every task** — no exceptio
   - [x] 3.2.TE **Test Engineering**: integration tests via `setupTestServerLifecycle` + `testClient`: active-only filtering proven (deactivated fixture absent from `planCatalog`, present in `adminPlans`); `includeInactive: false` path on `adminPlans`; role cells per REQ-064 matrix
   - [x] 3.2.SEC **Security & Tenancy Audit**: visibility gate at FIELD level (structurally impossible for non-admin to reach full catalog — D5); no LIKE/search input (escapeLikeWildcards documented N/A); BFLA pre-check proven before resolver body
   - [x] 3.2.SR **Semantic Review**: enum value imports; ctx-context usage only (no service-locator antipatterns); fail-closed posture
-  - [x] 3.2.IV **Instruction Verification**: `backend/graphql/AGENTS.md` query conventions + DEV2-002 authScopes contract per `docs/auth/jwt-authentication-service.md`
+  - [x] 3.2.IV **Instruction Verification**: `backend/graphql/AGENTS.md` query conventions + the Role-Based Authorization Middleware ticket authScopes contract per `docs/auth/jwt-authentication-service.md`
   - [x] 3.2.OD **Outcome**: `outcome/3.2-catalog-queries-outcome.md`
 
 ### Task 3.3 — Catalog Mutations (`createPlan`, `updatePlan`, `setPlanActiveStatus`)
@@ -516,7 +516,7 @@ The executing agent MUST follow this protocol for **every task** — no exceptio
 - [x] 5.3 Close the REQ-070 coverage target and run the full differential test + lint baseline comparison
   - _Requirements: REQ-070, REQ-077, REQ-083 (partial), REQ-023_
   - [x] 5.3.1 `bun test --coverage` on ALL new/modified backend suites — assert 100% statements/branches on new service/repo files (incl. both zero-row guard branches)
-  - [x] 5.3.2 Run full impacted suites: `bun run scripts/run-test/run-test.ts` for every new test file; assert DEV1-002/DEV2-001 auth suites REMAIN GREEN (registration/refresh contract untouched, REQ-023)
+  - [x] 5.3.2 Run full impacted suites: `bun run scripts/run-test/run-test.ts` for every new test file; assert the User Registration ticket auth suites REMAIN GREEN (registration/refresh contract untouched, REQ-023)
   - [x] 5.3.3 Run `bun tsgo`, `bun biome:check`, `bun validate:dbml` — compare to Phase 0 baseline: zero NEW errors
   - [x] 5.3.4 Re-run REQ-020 no-delete grep + REQ-016 single-predicate grep + REQ-031 no-spread grep as the verification bundle
   - [x] 5.3.QL **Quality Loop**: sub-loop across every created/modified file in the change set (final sweep, exit 0 each)
@@ -525,7 +525,7 @@ The executing agent MUST follow this protocol for **every task** — no exceptio
   - [x] 5.3.IV **Instruction Verification**: quality-gate rules per root AGENTS.md
   - [x] 5.3.OD **Outcome**: `outcome/5.3-coverage-differential-outcome.md`
   - [ ] 5.3.1 `bun test --coverage` on ALL new/modified backend suites — assert 100% statements/branches on new service/repo files (incl. both zero-row guard branches)
-  - [ ] 5.3.2 Run full impacted suites: `bun run scripts/run-test/run-test.ts` for every new test file; assert DEV1-002/DEV2-001 auth suites REMAIN GREEN (registration/refresh contract untouched, REQ-023)
+  - [] 5.3.2 Run full impacted suites: `bun run scripts/run-test/run-test.ts` for every new test file; assert the User Registration ticket auth suites REMAIN GREEN (registration/refresh contract untouched, REQ-023)
   - [ ] 5.3.3 Run `bun tsgo`, `bun biome:check` — compare to Phase 0 baseline: zero NEW errors
   - [ ] 5.3.4 Re-run REQ-020 no-delete grep + REQ-016 single-predicate grep + REQ-031 no-spread grep as the verification bundle
   - [ ] 5.3.QL **Quality Loop**: sub-loop across every created/modified file in the change set (final sweep, exit 0 each)
@@ -576,7 +576,7 @@ The executing agent MUST follow this protocol for **every task** — no exceptio
 
 - [x] 6.5 Audit the deferred-items ledger against the REQ-083 close gate
   - _Requirements: REQ-001, REQ-083_
-  - [x] 6.5.1 Run `grep -c "❌\|⚠️" ai/plans/dev1-005-plan-catalog-crud-admin-only/deferred-items.md` — MUST equal exactly the pre-seeded entries (D1 → DEV3-020, D2 → DEV1-006), both non-blocking with documented owners; any additional open marker MUST be resolved first
+  - [x] 6.5.1 Run `grep -c "❌\|⚠️" ai/plans/dev1-005-plan-catalog-crud-admin-only/deferred-items.md` — MUST equal exactly the pre-seeded entries (D1 →, D2 → the Subscription Purchase via Payment Gateway ticket), both non-blocking with documented owners; any additional open marker MUST be resolved first
   - [x] 6.5.OD **Outcome**: `outcome/6.5-deferred-gate-outcome.md`
 
 ---
@@ -587,7 +587,7 @@ The executing agent MUST follow this protocol for **every task** — no exceptio
 
 - [x] 7.1 Author `docs/billing/plan-catalog.md`
   - _Requirements: REQ-080, REQ-032, REQ-033, REQ-043, REQ-044, REQ-045_
-  - [x] 7.1.1 Structure: Why (FR-2.1/2.2/2.3) → lifecycle columns (D1) → guarded state-transition pattern (D2/D3) → catalog/admin visibility split (D5) → forward-only edits + no price snapshot trade-off → error code map → consumption guides for DEV1-006 (incl. purchase-time re-validation contract D2-deferred), DEV2-005 (verification plan lookup rule), DEV1-009 (transactional composition of repo methods)
+  - [x] 7.1.1 Structure: Why (FR-2.1/2.2/2.3) → lifecycle columns (D1) → guarded state-transition pattern (D2/D3) → catalog/admin visibility split (D5) → forward-only edits + no price snapshot trade-off → error code map → consumption guides for the Subscription Purchase via Payment Gateway ticket (incl. purchase-time re-validation contract D2-deferred), (verification plan lookup rule), (transactional composition of repo methods)
   - [x] 7.1.2 Explicit warnings: catalog-ID non-sensitivity ruling is NOT inheritable by sensitive resources; `escapeLikeWildcards` mandated for any future catalog search; title is admin-authored data NOT i18n keys
   - [x] 7.1.QL/IV: doc lint + cross-link validation
   - [x] 7.1.OD **Outcome**: `outcome/7.1-canonical-doc-outcome.md`
@@ -597,7 +597,7 @@ The executing agent MUST follow this protocol for **every task** — no exceptio
 - [x] 7.2 Update `docs/specs/state-machine-invariants.md` and `docs/specs/open-decisions-and-gaps.md`
   - _Requirements: REQ-081, REQ-010, REQ-015, REQ-018, REQ-020, REQ-043_
   - [x] 7.2.1 Add "Plan Catalog Lifecycle" section: **INV-PC1** (deactivated plan never appears in active catalog / never purchasable while inactive), **INV-PC2** (deactivation/edit never mutates existing subscriptions or credited balances), **INV-PC3** (no hard deletion of plan rows)
-  - [x] 7.2.2 Add resolved addendum to `open-decisions-and-gaps.md`: activation-flag schema delta (A-category), reactivation semantics (marker cleared, audit history via DEV3-020), forward-only edit semantics, title-encoded taxonomy (FR-2.2 reaffirmed), verification-plan lookup rule ownership (FR-2.3 → DEV1-006/DEV2-005), create double-submit tolerance ruling (REQ-043), no-pagination/no-index rulings with revisit triggers
+  - [x] 7.2.2 Add resolved addendum to `open-decisions-and-gaps.md`: activation-flag schema delta (A-category), reactivation semantics (marker cleared, audit history), forward-only edit semantics, title-encoded taxonomy (FR-2.2 reaffirmed), verification-plan lookup rule ownership (FR-2.3 →), create double-submit tolerance ruling (REQ-043), no-pagination/no-index rulings with revisit triggers
   - [x] 7.2.QL/IV: doc lint; confirm numbering consistency with the existing 33-decision register
   - [x] 7.2.OD **Outcome**: `outcome/7.2-spec-addenda-outcome.md`
 
@@ -618,12 +618,12 @@ The executing agent MUST follow this protocol for **every task** — no exceptio
   - _Requirements: REQ-001, REQ-083_
   - [x] 7.4.1 Re-run `bun tsgo`, `bun biome:check`, `bun run scripts/lint-service.ts --json`, `bun validate:dbml` — prove zero NEW errors versus the Phase 0 baseline (numbers recorded side-by-side)
   - [x] 7.4.2 Verify every task has its `outcome/<task-id>-outcome.md`; produce the outcome index
-  - [x] 7.4.3 Final deferred-items attestation: only D1 (→ DEV3-020) and D2 (→ DEV1-006) remain, both non-blocking with owners
-  - [x] 7.4.4 Synthesize `outcome/7.4-plan-closure-outcome.md`: REQ-by-REQ satisfaction table (REQ-001..REQ-083), quality-gate evidence bundle (sub-loop exits, coverage report, SDL grep assertions, role-matrix proof, browser-loop screenshot archive references), and forward handoff notes to DEV1-006 / DEV1-009 / DEV2-005 / DEV3-020
+  - [x] 7.4.3 Final deferred-items attestation: only D1 (→) and D2 (→ the Subscription Purchase via Payment Gateway ticket) remain, both non-blocking with owners
+  - [x] 7.4.4 Synthesize `outcome/7.4-plan-closure-outcome.md`: REQ-by-REQ satisfaction table (REQ-001..REQ-083), quality-gate evidence bundle (sub-loop exits, coverage report, SDL grep assertions, role-matrix proof, browser-loop screenshot archive references), and forward handoff notes
   - [ ] 7.4.1 Re-run `bun tsgo`, `bun biome:check`, `bun run scripts/lint-service.ts --json` — prove zero NEW errors versus the Phase 0 baseline (numbers recorded side-by-side)
   - [ ] 7.4.2 Verify every task has its `outcome/<task-id>-outcome.md`; produce the outcome index
-  - [ ] 7.4.3 Final deferred-items attestation: only D1 (→ DEV3-020) and D2 (→ DEV1-006) remain, both non-blocking with owners
-  - [ ] 7.4.4 Synthesize `outcome/7.4-plan-closure-outcome.md`: REQ-by-REQ satisfaction table (REQ-001..REQ-083), quality-gate evidence bundle (sub-loop exits, coverage report, SDL grep assertions, role-matrix proof, browser-loop screenshot archive references), and forward handoff notes to DEV1-006 / DEV1-009 / DEV2-005 / DEV3-020
+  - [] 7.4.3 Final deferred-items attestation: only D1 (→) and D2 (→ the Subscription Purchase via Payment Gateway ticket) remain, both non-blocking with owners
+  - [] 7.4.4 Synthesize `outcome/7.4-plan-closure-outcome.md`: REQ-by-REQ satisfaction table (REQ-001..REQ-083), quality-gate evidence bundle (sub-loop exits, coverage report, SDL grep assertions, role-matrix proof, browser-loop screenshot archive references), and forward handoff notes
 
 ---
 

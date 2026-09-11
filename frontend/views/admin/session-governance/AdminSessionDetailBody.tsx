@@ -18,7 +18,7 @@ import type { SessionsLabels } from "@/shared/locale/types/sessions";
 
 /**
  * AdminSessionDetailBody — the shared read-only body of the governance
- * session detail panel (`/admin/session-governance`, DEV3-021): the
+ * session detail panel (`/admin/session-governance`): the
  * loading skeleton, the error/retry arm, the absent-row arm and the
  * settled arm over the {@link DetailMetaGrid}.
  *

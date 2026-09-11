@@ -213,7 +213,7 @@ const CANCELLED_PAYLOAD = sessionFixture({ id: ROW_SCHEDULED_A, status: SessionS
 
 /**
  * Lifecycle → expected visible teacher CTAs (Record lookup keyed by the enum
- * member strings — never an enum comparison). DEV3-005 extends the matrix:
+ * member strings — never an enum comparison). Disputes extend the matrix:
  * the dispute affordance joins Start/Cancel on disputable rows, and a
  * DISPUTED row keeps the Cancel CTA VISIBLE but DISABLED (`cancel-disabled`
  * — the state machine forbids cancelling it; the ONLY edge out is admin
@@ -485,7 +485,7 @@ for (const locale of componentSuiteLocales) {
     complete: t.completeSession,
     cancel: t.cancelSession,
     dispute: t.openDispute,
-    // The DISABLED cancel CTA a disputed row keeps visible (DEV3-005).
+    // The DISABLED cancel CTA a disputed row keeps visible.
     "cancel-disabled": t.cancelSession,
   };
 
@@ -606,8 +606,8 @@ for (const locale of componentSuiteLocales) {
       }
 
       // Toolbar: the "all" token is rendered + selected and every lifecycle
-      // status chip is offered — INCLUDING Disputed (DEV3-005 made the
-      // disputed state reachable on participant surfaces, so its filter
+      // status chip is offered — INCLUDING Disputed (the
+      // disputed state is reachable on participant surfaces, so its filter
       // chip is offered like any other lifecycle status).
       expectStatusFilterToolbar(t);
     });
@@ -1024,7 +1024,7 @@ for (const locale of componentSuiteLocales) {
       ).toBeDefined();
     });
 
-    test("branch 20 — dispute dialog (DEV3-005): opens, REQUIRED-reason gate blocks an empty submit, dismisses cleanly", async () => {
+    test("branch 20 — dispute dialog: opens, REQUIRED-reason gate blocks an empty submit, dismisses cleanly", async () => {
       renderTeacherSessions([teacherListPageMock([sessionFixture({ id: ROW_SCHEDULED_A })])], locale);
 
       // 1. Row dispute CTA → the dispute dialog opens (click events DO work
@@ -1048,7 +1048,7 @@ for (const locale of componentSuiteLocales) {
     // delivery React 19 + Happy DOM do not support (the controlled
     // onChange never fires; the native-setter + bubbled input event is also
     // unreachable). Body INTACT — one-line flip re-enables. Compensating
-    // controls: the real-browser DEV3-005 4.1 agent-browser loop (open
+    // controls: the real-browser task-4.1 agent-browser loop (open
     // dispute → chip flips) + the branch-20 empty-submit gate above.
     test.skip("branch 21 — dispute flow typed: live counter → submit → success snackbar + DISPUTED chip flip", async () => {
       renderTeacherSessions(
@@ -1079,7 +1079,7 @@ for (const locale of componentSuiteLocales) {
     // D8-class (deferred-items.md D8 family) — SKIPped for the same typed-
     // input reason as branch 21: the dispute error arms are only reachable
     // with a valid typed reason. Body INTACT — one-line flip re-enables.
-    // Compensating control: the real-browser DEV3-005 4.1 loop drives the
+    // Compensating control: the real-browser task-4.1 loop drives the
     // error surface (raced/invalid dispute → localized snackbar).
     test.skip("branch 22 — dispute submit error: SESSION_INVALID_TRANSITION → error snackbar, row stays scheduled", async () => {
       renderTeacherSessions(
@@ -1099,13 +1099,13 @@ for (const locale of componentSuiteLocales) {
       await expectDisputeRejectionConvergence(ROW_SCHEDULED_A, te.sessionInvalidTransition, t);
     });
 
-    // DEV3-012 — the teacher surface's confirm-state display (the row is
+    // Confirm-state display on the teacher surface (the row is
     // payload-driven, so the shared SessionRow renders it for BOTH roles):
     // a completed hold-marked unstamped row shows the awaiting pill (WHY
     // the wallet credit has not fired) and NEVER a confirm CTA (the
     // teacher's stamp was already written by completeSession), while a
     // student-stamped row shows the confirmation meta cell instead.
-    test("branch 23 — DEV3-012 confirm-state display: awaiting pill + stamp meta, never a confirm CTA", async () => {
+    test("branch 23 — confirm-state display: awaiting pill + stamp meta, never a confirm CTA", async () => {
       const pendingId = "9306";
       const stampedId = "9307";
       const confirmedIso = "2099-02-11T09:15:00.000Z";

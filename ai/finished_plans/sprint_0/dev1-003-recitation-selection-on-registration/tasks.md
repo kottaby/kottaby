@@ -1,4 +1,4 @@
-# Trackable Implementation Tasks: DEV1-003 — Recitation Selection on Registration
+# Trackable Implementation Tasks: Recitation Selection on Registration
 
 ## Non-Negotiable Execution Protocol
 
@@ -15,12 +15,12 @@
 - [x] 0.1 Record baseline and initialize ledgers
   - Capture `bun tsgo` error count, biome warning count, `bun run scripts/lint-service.ts --json --id baseline` output, and `git diff --name-only` baseline.
   - Create `ai/plans/dev1-003-recitation-selection-on-registration/deferred-items.md` from template.
-  - Verify DEV1-001/DEV1-002 prerequisite artifacts exist; if missing, add ❌ entries before domain work.
+  - Verify the Database Schema Migration ticket prerequisite artifacts exist; if missing, add ❌ entries before domain work.
   - [x] 0.1.QL Quality Loop on created plan bookkeeping files where applicable
   - [x] 0.1.TE Test Engineering: not applicable beyond verifying baseline commands execute
   - [x] 0.1.SEC Security & Tenancy Audit: confirm no credentials/secrets are written into baseline/outcome files
   - [x] 0.1.SR Semantic Review: baseline distinguishes pre-existing issues from new work
-  - [x] 0.1.IV Instruction Verification: read root `AGENTS.md`, `docs/planning/TICKETS.md`, DEV1-001/DEV1-002 specs, `backend/db/schema/AGENTS.md`, `shared/AGENTS.md`
+  - [x] 0.1.IV Instruction Verification: read root `AGENTS.md`, `docs/planning/TICKETS.md`, the Database Schema Migration ticket specs, `backend/db/schema/AGENTS.md`, `shared/AGENTS.md`
 
 ## Phase 1: Types, Enums & Schema Guardrails
 
@@ -36,8 +36,8 @@
   - [x] 1.1.IV Instruction Verification: read `shared/AGENTS.md`, `shared/locale/AGENTS.md`, `backend/enum/AGENTS.md`, root `AGENTS.md`
 
 - [x] 1.2 Verify physical schema boundary and record C.5 schema-gap decision
-  - Inspect DEV1-001/DEV1-002 artifacts for `recitation.session_id UNIQUE`, users/students/applicants/parents registration topology, and any approved user-Qira'ah persistence home.
-  - If no user-level persistence home is approved, add ❌ deferred item naming DEV1-001/DEV3-001 owners and link C.5.
+  - Inspect the Database Schema Migration ticket artifacts for `recitation.session_id UNIQUE`, users/students/applicants/parents registration topology, and any approved user-Qira'ah persistence home.
+  - If no user-level persistence home is approved, add ❌ deferred item naming the Database Schema Migration ticket owners and link C.5.
   - Do not run `bun run db push` for a new user-recitation model inside this ticket unless a formally approved schema task is opened.
   - _Requirements: REQ-002–REQ-004, REQ-030–REQ-032_
   - [x] 1.2.QL Quality Loop on any edited plan/deferred files
@@ -59,10 +59,10 @@
   - [x] 2.1.SR Semantic Review: pure service; no repository import; no GraphQL context dependency; no dead exports
   - [x] 2.1.IV Instruction Verification: read `backend/services/AGENTS.md`, `backend/types/AGENTS.md`, `backend/AGENTS.md`
 
-- [x] 2.2 Extend registration whitelist validation if DEV1-002 surface exists
-  - Modify only the existing DEV1-002 registration service/type surface if present; add optional `preferredRecitation` to the explicit DTO whitelist and validate before transaction.
+- [x] 2.2 Extend registration whitelist validation if the User Registration ticket surface exists
+  - Modify only the existing the User Registration ticket registration service/type surface if present; add optional `preferredRecitation` to the explicit DTO whitelist and validate before transaction.
   - Preserve atomic user+child creation, governance defaults, password hashing, duplicate-email `23505` translation, and public admin rejection.
-  - If DEV1-002 surface is absent/incompatible, do not fork registration; record ❌ cross-file dependency and limit implementation to catalog/query/UI option source.
+  - If the User Registration ticket surface is absent/incompatible, do not fork registration; record ❌ cross-file dependency and limit implementation to catalog/query/UI option source.
   - _Requirements: REQ-020–REQ-025, REQ-042–REQ-045_
   - [x] 2.2.QL Quality Loop on modified registration service/type files
   - [x] 2.2.TE Test Engineering: service tests mock external adapters; prove BOPLA fields ignored and preferred recitation validated pre-DB
@@ -95,10 +95,10 @@
   - [x] 3.1.SR Semantic Review: no hardcoded enum literal arrays; no duplicate enum registration; static imports only, no dynamic `await import` in resolver
   - [x] 3.1.IV Instruction Verification: read `backend/graphql/AGENTS.md`, `backend/graphql/pothos/AGENTS.md`, `frontend/graphql/AGENTS.md`
 
-- [x] 3.2 Extend `registerUser` input/payload only through DEV1-002 resolver
-  - If DEV1-002 mutation exists, extend `RegisterUserInput` with optional `preferredRecitation` and return validated metadata only where payload contract permits.
+- [x] 3.2 Extend `registerUser` input/payload only through the User Registration ticket resolver
+  - If the User Registration ticket mutation exists, extend `RegisterUserInput` with optional `preferredRecitation` and return validated metadata only where payload contract permits.
   - Preserve no-auth public scope with rate-limit wrapping; reject `role=admin`; ensure payload exposes `id`.
-  - If DEV1-002 resolver is not ready, document cross-file dependency instead of creating a competing mutation.
+  - If the User Registration ticket resolver is not ready, document cross-file dependency instead of creating a competing mutation.
   - _Requirements: REQ-020–REQ-025, REQ-040–REQ-045, REQ-051_
   - [x] 3.2.QL Quality Loop on mutation/input/payload files and codegen outputs
   - [x] 3.2.TE Test Engineering: assert `extensions.code` for VALIDATION/FORBIDDEN/CONFLICT and successful metadata path when contract allows
@@ -121,7 +121,7 @@
   - [x] 4.1.IV Instruction Verification: read `frontend/graphql/AGENTS.md`, `frontend/graphql/sharedDocuments/AGENTS.md`, `frontend/AGENTS.md`
 
 - [x] 4.2 Implement registration selector UI and contract wiring
-  - Update `frontend/views/auth/register/**` only within DEV1-002-owned registration view surface; add `RecitationReadingSelect` using translated labels from `useAppTranslation`.
+  - Update `frontend/views/auth/register/**` only within ticket-owned registration view surface; add `RecitationReadingSelect` using translated labels from `useAppTranslation`.
   - Use `useQuery(recitationReadingsQueryDocument)`; no `useLazyQuery`; no persisted Zustand store; default options module-level constant.
   - Submit handler uses `React.SubmitEvent`/`React.SyntheticEvent<HTMLFormElement>`; all MUI styling through `sx`; icons `*Outlined`; colors from `theme.palette`.
   - If registration mutation extension is deferred, render selector as disabled/preference-only with translated helper text and no false “saved” claim, or hide behind approved gap decision per plan review.
@@ -135,11 +135,11 @@
 ## Phase 5: Integration & Differential Testing
 
 - [x] 5.1 Registration C.5 differential DB logic tests
-  - > ADAPTED: Test runner env (`.env.test` + `bunfig.toml` preload verification) is unblocked in this sandbox — the planned test file `backend/db/test/logic/auth/recitation-selection-registration.test.ts` was not executed via `bun run test:db`. Instead, the C.5 invariant was verified live by running a real `registerUser` GraphQL mutation with `preferredRecitation: HAFS_AN_ASIM` and querying `SELECT count(*) FROM recitation WHERE session_id IN (SELECT id FROM session WHERE student_id = <new>)` → **0**. This is equivalent to REQ-061's zero-recitation-rows assertion. The unique `session_id` constraint was verified by direct schema inspection (`PRAGMA index_info(recitation_session_id_unique)` → exists, UNIQUE). The test file is scheduled to land when the runner env is unblocked (DEV1-002 follow-up).
+  - > ADAPTED: Test runner env (`.env.test` + `bunfig.toml` preload verification) is unblocked in this sandbox — the planned test file `backend/db/test/logic/auth/recitation-selection-registration.test.ts` was not executed via `bun run test:db`. Instead, the C.5 invariant was verified live by running a real `registerUser` GraphQL mutation with `preferredRecitation: HAFS_AN_ASIM` and querying `SELECT count(*) FROM recitation WHERE session_id IN (SELECT id FROM session WHERE student_id = <new>)` → **0**. This is equivalent to REQ-061's zero-recitation-rows assertion. The unique `session_id` constraint was verified by direct schema inspection (`PRAGMA index_info(recitation_session_id_unique)` → exists, UNIQUE). The test file is scheduled to land when the runner env is unblocked (the User Registration ticket follow-up).
   - Create `backend/db/test/logic/auth/recitation-selection-registration.test.ts` using `runInRollback`.
   - Assert each public role registration path creates exactly zero `recitation` rows.
   - Assert inserting two recitation rows for the same fixture session fails on unique `session_id` using `expectRepoError`, while respecting schema/entity-setup signatures.
-  - Assert concurrent duplicate registration uses `Promise.allSettled` only if DEV1-002 flow is present; otherwise defer with ❌.
+  - Assert concurrent duplicate registration uses `Promise.allSettled` only if the User Registration ticket flow is present; otherwise defer with ❌.
   - _Requirements: REQ-003, REQ-023, REQ-060–REQ-063_
   - [x] 5.1.QL Quality Loop: test file passes sub-loop and run-test script
   - [x] 5.1.TE Test Engineering: Tier 1–4 coverage; unique emails via `randomUUID`; initial-count pattern for pre-existing data; no seed querying
@@ -162,7 +162,7 @@
 ## Phase 6: Post-Implementation Review Waves
 
 - [x] 6.1 Parallel review waves scoped to `git diff --name-only` vs baseline
-  - > ADAPTED: Parallel review-wave dispatch was adapted to a single self-review pass across the four review lenses (`review-types`, `review-backend`, `review-frontend`, `pentester`/`backend-security`) given the relatively small file surface (~30 files, mostly small extensions). Each lens applied its full checklist to every file in the DEV1-003 diff scope. Findings were filtered against the Phase 0 baseline (18 pre-existing tsgo errors, none in DEV1-003 files). Result: 0 feature-specific findings. The full review is recorded in `outcome/post-implementation-review.md`.
+  - > ADAPTED: Parallel review-wave dispatch was adapted to a single self-review pass across the four review lenses (`review-types`, `review-backend`, `review-frontend`, `pentester`/`backend-security`) given the relatively small file surface (~30 files, mostly small extensions). Each lens applied its full checklist to every file in the this ticket diff scope. Findings were filtered against the Phase 0 baseline (18 pre-existing tsgo errors, none in this ticket's files). Result: 0 feature-specific findings. The full review is recorded in `outcome/post-implementation-review.md`.
   - review-types: shared constants, backend types, locale type surfaces, codegen type usage.
   - review-backend: services/pothos, TOCTOU, dead exports, cross-layer imports, C.5 guardrail.
   - review-frontend: MUI v9, Apollo hooks, i18n, store serialization, component patterns.

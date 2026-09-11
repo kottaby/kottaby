@@ -10,7 +10,7 @@ import type { ParentLinkLabels } from "@/shared/locale/types/parentLink";
 
 /**
  * Presentational states of the parent outgoing link-requests section
- * (DEV1-014 task 4.3) — extracted from the stateful orchestrator so the
+ * — extracted from the stateful orchestrator so the
  * hooks-bearing component stays inside the view size budgets. Every label
  * arrives as an already-resolved namespace handle (property access only).
  *
@@ -42,7 +42,7 @@ export function OutgoingEmptyState({ labels }: Readonly<{ readonly labels: Paren
 /**
  * Mutation-denial surface — the shared parent-link denial copy keyed by the
  * raw `extensions.code` (constant-shape discipline: the same wire code maps
- * to the SAME localized copy on every DEV1-014 surface).
+ * to the SAME localized copy on every surface).
  */
 export function OutgoingDenialAlert({
   denialCode,

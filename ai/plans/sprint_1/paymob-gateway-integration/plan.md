@@ -8,10 +8,10 @@
 ## Document Information
 
 - **Feature Name**: Paymob Gateway Integration — real subscription purchase payments + purchase funnel
-- **Ticket**: none in `docs/planning/TICKETS.md` (intentional — anchor is `docs/planning/SPRINT_PLAN.md:161` + the DEV1-006 forward contract at `ai/plans/sprint_1/DEV1-006-subscription-purchase-payment-gateway/deferred-items.md:45`)
-- **Blocked By**: DEV1-006 backend execution — this plan EXTENDS its planned-but-unwritten seams (`PaymentGatewayPort`, purchase/activation services, `app/api/payments/webhook/route.ts`, repos); it does not fork them
+- **Ticket**: none in `docs/planning/TICKETS.md` (intentional — anchor is `docs/planning/SPRINT_PLAN.md:161` + the subscription-purchase plan's forward contract at `ai/plans/sprint_1/subscription-purchase-payment-gateway/deferred-items.md:45`)
+- **Blocked By**: the subscription-purchase plan backend execution — this plan EXTENDS its planned-but-unwritten seams (`PaymentGatewayPort`, purchase/activation services, `app/api/payments/webhook/route.ts`, repos); it does not fork them
 - **Version**: 1.0 · **Date**: 2026-09-07
-- **Related Documents**: `.agents/skills/paymob-payments/SKILL.md` + `references/` (vendor mirror), `docs/IDEMPOTENCY.md`, `docs/notifications/realtime-engine.md`, `docs/graphql/error-handling-contract.md`, `docs/graphql/api-gateway-and-routing.md`, `docs/billing/plan-catalog.md`, `ai/plans/sprint_1/DEV1-006-subscription-purchase-payment-gateway/{specs,plan,tasks}.md`, research digests in `outcome/research-00..05-*.md`
+- **Related Documents**: `.agents/skills/paymob-payments/SKILL.md` + `references/` (vendor mirror), `docs/IDEMPOTENCY.md`, `docs/notifications/realtime-engine.md`, `docs/graphql/error-handling-contract.md`, `docs/graphql/api-gateway-and-routing.md`, `docs/billing/plan-catalog.md`, `ai/plans/sprint_1/subscription-purchase-payment-gateway/{specs,plan,tasks}.md`, research digests in `outcome/research-00..05-*.md`
 
 ---
 
@@ -19,7 +19,7 @@
 
 ### 1.1 What this is
 
-The Sprint-2 real-gateway ticket: a Paymob adapter behind DEV1-006's `PaymentGatewayPort`, a verify-before-trust webhook receiver, env/credential configuration, a stuck-pending reconciliation sweep, and the student purchase funnel UI deferred by DEV1-006 REQ-064. The mock adapter remains the default for unconfigured environments; `PAYMENT_GATEWAY_PROVIDER=paymob` activates real payments.
+The Sprint-2 real-gateway ticket: a Paymob adapter behind the subscription-purchase plan's `PaymentGatewayPort`, a verify-before-trust webhook receiver, env/credential configuration, a stuck-pending reconciliation sweep, and the student purchase funnel UI deferred by the subscription-purchase plan REQ-064. The mock adapter remains the default for unconfigured environments; `PAYMENT_GATEWAY_PROVIDER=paymob` activates real payments.
 
 ### 1.2 Interaction diagram
 
@@ -27,12 +27,12 @@ The Sprint-2 real-gateway ticket: a Paymob adapter behind DEV1-006's `PaymentGat
 sequenceDiagram
     actor S as Student
     participant FE as Funnel UI (student views)
-    participant GQ as GraphQL (purchaseSubscription — DEV1-006)
-    participant PS as SubscriptionPurchaseService (DEV1-006)
+    participant GQ as GraphQL (purchaseSubscription — the subscription-purchase plan)
+    participant PS as SubscriptionPurchaseService (the subscription-purchase plan)
     participant GW as PaymobPaymentGateway (THIS PLAN)
     participant PM as Paymob (accept.paymob.com)
     participant WH as app/api/payments/webhook (route)
-    participant AS as SubscriptionActivationService (DEV1-006)
+    participant AS as SubscriptionActivationService (the subscription-purchase plan)
     participant NE as NotificationEngine
     S->>FE: Buy plan
     FE->>GQ: purchaseSubscription(planId, x-idempotency-key)
@@ -58,17 +58,17 @@ sequenceDiagram
 
 | # | Decision | Rationale | Alternatives rejected |
 |---|---|---|---|
-| D1 | EXTEND DEV1-006's reserved seams (port, factory, route, services); zero parallel payment stack | Port architecture is the sanctioned doctrine (DEV1-006 D1); fork would duplicate purchase/activation logic | A bespoke paymob-only purchase path |
+| D1 | EXTEND the subscription-purchase plan's reserved seams (port, factory, route, services); zero parallel payment stack | Port architecture is the sanctioned doctrine (the subscription-purchase plan D1); fork would duplicate purchase/activation logic | A bespoke paymob-only purchase path |
 | D2 | Unified Checkout redirect (not Pixel embedded) | Zero PCI surface; wallets + 3DS hosted by Paymob; minimal UI surface | Pixel JS SDK (heavier integration, styling burden) — re-visitable later (ledger) |
 | D3 | Checkout host env-configurable: `PAYMOB_CHECKOUT_BASE_URL`, default `https://eg.checkout.paymob.com` | Live docs (2026-07-22) moved hosts vs mirror's `accept.paymob.com/unifiedcheckout/` (research-02 §3); config survives upstream churn | Hardcoding either host |
-| D4 | `providerReference := specialReference := purchase claim key`; intention id (`pi_…`) NOT persisted | Activation resolves by `reference == providerReference` (DEV1-006 flow); inquiry recovers intention data by `merchant_order_id` when needed | Storing `pi_…` in `subscriptions.payment_reference` (breaks callback correlation) |
+| D4 | `providerReference := specialReference := purchase claim key`; intention id (`pi_…`) NOT persisted | Activation resolves by `reference == providerReference` (the subscription-purchase plan flow); inquiry recovers intention data by `merchant_order_id` when needed | Storing `pi_…` in `subscriptions.payment_reference` (breaks callback correlation) |
 | D5 | Fulfill ONLY on the HMAC-verified POST processed callback; GET response callback is display-only | GET params are client-spoofable; `success==true` in a URL never moves money state | Trusting the redirect; HMAC-verifying the redirect then trusting it (still display-only by ruling) |
-| D6 | ONE provider-dispatched route at DEV1-006's reserved `/api/payments/webhook` (classification `provider-ack-exempt`) | Single exemption surface; A4 registry discipline; future adapters join the same dispatch | A separate `/api/paymob/webhook` route (second webhook surface to secure/audit) |
+| D6 | ONE provider-dispatched route at the subscription-purchase plan's reserved `/api/payments/webhook` (classification `provider-ack-exempt`) | Single exemption surface; A4 registry discipline; future adapters join the same dispatch | A separate `/api/paymob/webhook` route (second webhook surface to secure/audit) |
 | D7 | No Paymob auth-token caching; token minted per reconciliation run; no module-level mutable state | Token TTL is 1 hour (mirror §6); sweep needs ≤1 token/run; module state violates the stateless posture | Shared token cache with TTL/mutex |
-| D8 | `student_payments.provider_transaction_id` nullable column; trigger amended to allow NULL→value ONLY within the guarded `pending→paid|failed` transition | Auditable gateway correlation without weakening the immutability record (migration 5 on top of DEV1-006's planned migration 4) | A separate join table (overkill for one immutable-ish field) |
+| D8 | `student_payments.provider_transaction_id` nullable column; trigger amended to allow NULL→value ONLY within the guarded `pending→paid|failed` transition | Auditable gateway correlation without weakening the immutability record (migration 5 on top of the subscription-purchase plan's planned migration 4) | A separate join table (overkill for one immutable-ish field) |
 | D9 | Intention retry ONLY when no response was received, reusing the same `special_reference` | Paymob rejects reused `special_reference` — the retry is naturally collision-proof | Blind retry on any error (double-charge risk class) |
 | D10 | Reconciliation sweep via transaction inquiry (`api/ecommerce/orders/transaction_inquiry` by `merchant_order_id`), active only when `PAYMOB_API_KEY` set | Webhook delivery/retries are not documented as guaranteed (mirror §8 — no documented retry policy); a backstop is required for money state | Trusting callbacks alone; client-side polling as trigger |
-| D11 | NO new GraphQL operations — the funnel consumes DEV1-006's `purchaseSubscription` / `mySubscriptions` + existing `planCatalog` | Keeps the API surface single-owner (DEV1-006); REQ-017 descriptor already carries `checkoutUrl` | A paymob-specific mutation/query pair |
+| D11 | NO new GraphQL operations — the funnel consumes the subscription-purchase plan's `purchaseSubscription` / `mySubscriptions` + existing `planCatalog` | Keeps the API surface single-owner (the subscription-purchase plan); REQ-017 descriptor already carries `checkoutUrl` | A paymob-specific mutation/query pair |
 | D12 | New `checkout` i18n namespace (types/en/ar + `defineNamespace` + parity test), reusing `plans`/`errors` where overlapping | `plans` namespace is admin-CRUD-shaped (`shared/locale/types/plans/index.ts:10-70`); funnel copy is a distinct corpus | Overloading `plans`; hardcoded strings |
 | D13 | Webhook ignores (200, logged) `TOKEN` / refund / void / unknown-type callbacks | Same endpoint receives card-token payloads (mirror §3); refunds are out of scope but their parental callbacks still arrive | 4xx/5xx on unrecognized types (would poison provider retry behavior) |
 
@@ -85,7 +85,7 @@ See the ground-truth table in `specs.md` §1 (every row verified 2026-09-07 with
 | Subject | Change | Kind |
 |---|---|---|
 | `student_payments` | ADD `provider_transaction_id varchar(64) NULL` | Drizzle column + migration |
-| migration `5-student-payments-provider-transaction.sql` (+ `-sqlite.sql` pair) | ALTER TABLE add column; amend `prevent_student_payments_update`-family rule so the guarded status transition MAY also set `provider_transaction_id` from NULL; all other columns frozen (layers onto DEV1-006's planned `4-student-payments-status-transition.sql` — ordering guard: file name keeps numeric sequence) | custom SQL migration (repo convention: schema via push, trigger logic via migration) |
+| migration `5-student-payments-provider-transaction.sql` (+ `-sqlite.sql` pair) | ALTER TABLE add column; amend `prevent_student_payments_update`-family rule so the guarded status transition MAY also set `provider_transaction_id` from NULL; all other columns frozen (layers onto the subscription-purchase plan's planned `4-student-payments-status-transition.sql` — ordering guard: file name keeps numeric sequence) | custom SQL migration (repo convention: schema via push, trigger logic via migration) |
 | `student-subscriptions` / `subscriptions` / `plans` | NONE | — |
 
 ### 2.3 Canonical types (`backend/types/`)
@@ -93,9 +93,9 @@ See the ground-truth table in `specs.md` §1 (every row verified 2026-09-07 with
 | Type | File | Notes |
 |---|---|---|
 | `PaymobIntentionRequest`, `PaymobIntentionResponse`, `PaymobProcessedCallbackBody`, `PaymobResponseCallbackParams`, `PaymobTokenCallbackBody`, `PaymobAuthTokenResponse`, `PaymobTransactionInquiryResult`, `PaymobResolvedConfig` | CREATE `backend/types/billing/paymob.types.ts` (+ barrel `backend/types/billing/index.ts` if the type barrel lists siblings — verify) | vendor-shaped DTOs; field names mirror Paymob exactly (snake_case); boundary-mapped to camelCase domain types before any service sees them |
-| `PaymentCheckoutInput` | EXTEND (DEV1-006-owned) `backend/types/billing/payment-gateway.types.ts`: += `specialReference: string`, `billing: { firstName: string; lastName: string; email: string; phone: string \| null }` | amendment A1 (deferred-items) |
+| `PaymentCheckoutInput` | EXTEND (the subscription-purchase plan-owned) `backend/types/billing/payment-gateway.types.ts`: += `specialReference: string`, `billing: { firstName: string; lastName: string; email: string; phone: string \| null }` | amendment A1 (deferred-items) |
 | `PaymentWebhookEvent` | EXTEND (same file): += `providerTransactionId?: string` | amendment A2 |
-| `WebhookParseInput = { rawBody: string; query: Record<string, string \| undefined> }`; port signature `parseWebhookEvent(input: WebhookParseInput): PaymentWebhookEvent \| null` | EXTEND (same file) — replaces DEV1-006's planned `parseWebhookEvent(rawBody: string)` | amendment A3; `null` return = "acknowledged, intentionally ignored" (TOKEN/refund/unknown) |
+| `WebhookParseInput = { rawBody: string; query: Record<string, string \| undefined> }`; port signature `parseWebhookEvent(input: WebhookParseInput): PaymentWebhookEvent \| null` | EXTEND (same file) — replaces the subscription-purchase plan's planned `parseWebhookEvent(rawBody: string)` | amendment A3; `null` return = "acknowledged, intentionally ignored" (TOKEN/refund/unknown) |
 
 ---
 
@@ -103,16 +103,16 @@ See the ground-truth table in `specs.md` §1 (every row verified 2026-09-07 with
 
 ### 3.1 GraphQL SDL — no schema delta
 
-This plan adds NO GraphQL types/operations. The funnel consumes (qualified references to DEV1-006, which owns them):
+This plan adds NO GraphQL types/operations. The funnel consumes (qualified references to the subscription-purchase plan, which owns them):
 
-- `purchaseSubscription(input: PurchaseSubscriptionInput!): PurchaseSubscriptionPayload!` where the payload carries `checkout: PaymentCheckout { provider: PaymentGateway!, providerReference: String!, checkoutUrl: String }` (DEV1-006 `plan.md:105` area + its REQ-017).
-- `mySubscriptions: [Subscription!]!` (DEV1-006) for the result + my-subscriptions pages.
+- `purchaseSubscription(input: PurchaseSubscriptionInput!): PurchaseSubscriptionPayload!` where the payload carries `checkout: PaymentCheckout { provider: PaymentGateway!, providerReference: String!, checkoutUrl: String }` (the subscription-purchase plan `plan.md:105` area + its REQ-017).
+- `mySubscriptions: [Subscription!]!` (the subscription-purchase plan) for the result + my-subscriptions pages.
 - `planCatalog` for the catalog page (EXISTS: `backend/graphql/query/plan-catalog.query.ts:18`).
-- Codegen gate: after DEV1-006's resolvers land, run `bun run generate:gqlSchema && bun codegen` so the funnel's `TypedDocumentNode`s materialize (verified absent today — research-05 §0).
+- Codegen gate: after the subscription-purchase plan's resolvers land, run `bun run generate:gqlSchema && bun codegen` so the funnel's `TypedDocumentNode`s materialize (verified absent today — research-05 §0).
 
 ### 3.2 Resolver surface & authScopes — no change
 
-`purchaseSubscription` / `mySubscriptions` remain student-scoped exactly as DEV1-006 specifies (`{ $all: { authenticated: true, role: [UserRole.Student] } }`, identity from `ctx.user.id` — DEV1-006 `plan.md:135-136`). This plan prohibits any resolver widening.
+`purchaseSubscription` / `mySubscriptions` remain student-scoped exactly as the subscription-purchase plan specifies (`{ $all: { authenticated: true, role: [UserRole.Student] } }`, identity from `ctx.user.id` — the subscription-purchase plan `plan.md:135-136`). This plan prohibits any resolver widening.
 
 ### 3.3 Permission matrix delta
 
@@ -187,7 +187,7 @@ Compliance registrations (MANDATORY, same change set as the route):
 
 **`backend/services/billing/payment-gateway/paymob/paymob.reconcile.ts`** (CREATE):
 
-- `reconcilePendingPaymobPayments(deps: { now: Date; batchLimit?: number }): Promise<{ checked: number; confirmed: number; failed: number; skipped: number }>` — gated off (returns `{checked:0,…}` + log) when provider ≠ paymob or `PAYMOB_API_KEY` absent; finds `student_payments` rows `status=pending AND payment_gateway=paymob AND created_at < now - config.reconcilePendingMinutes` via a NEW `StudentPaymentRepository.findStalePendingByGateway(gateway, olderThan: Date, limit: number)` (amendment A4 to DEV1-006's planned repo); per row: inquiry by `merchant_order_id` (== `subscriptions.payment_reference` via the subscription join), then routes outcome through the SAME activation surface as the webhook (`SubscriptionActivationService.processWebhookEvent`) — never a bespoke update
+- `reconcilePendingPaymobPayments(deps: { now: Date; batchLimit?: number }): Promise<{ checked: number; confirmed: number; failed: number; skipped: number }>` — gated off (returns `{checked:0,…}` + log) when provider ≠ paymob or `PAYMOB_API_KEY` absent; finds `student_payments` rows `status=pending AND payment_gateway=paymob AND created_at < now - config.reconcilePendingMinutes` via a NEW `StudentPaymentRepository.findStalePendingByGateway(gateway, olderThan: Date, limit: number)` (amendment A4 to the subscription-purchase plan's planned repo); per row: inquiry by `merchant_order_id` (== `subscriptions.payment_reference` via the subscription join), then routes outcome through the SAME activation surface as the webhook (`SubscriptionActivationService.processWebhookEvent`) — never a bespoke update
 - `findStalePendingByGateway` implementation: Drizzle select, `queryDb` for non-tx read per `backend/db/repo/AGENTS.md`
 
 **`app/api/cron/reconcile-paymob-payments/route.ts`** (CREATE — follows `app/api/cron/sweep-sessions/route.ts` exactly):
@@ -196,32 +196,32 @@ Compliance registrations (MANDATORY, same change set as the route):
 
 **`backend/types/billing/paymob.types.ts`** (CREATE): per §2.3 — vendor DTOs only, no logic, no re-exports of domain types
 
-**DEV1-006-owned files this plan amends (amendments A1–A5, each mirrored in `deferred-items.md`):**
+**the subscription-purchase plan-owned files this plan amends (amendments A1–A5, each mirrored in `deferred-items.md`):**
 
-| # | File (DEV1-006-planned) | Amendment |
+| # | File (the subscription-purchase plan-planned) | Amendment |
 |---|---|---|
 | A1 | `backend/types/billing/payment-gateway.types.ts` | `PaymentCheckoutInput` += `specialReference`, `billing` |
 | A2 | same | `PaymentWebhookEvent` += `providerTransactionId?: string` |
 | A3 | same | `parseWebhookEvent(rawBody)` → `parseWebhookEvent(input: WebhookParseInput): PaymentWebhookEvent \| null` |
 | A4 | `backend/db/repo/billing/student-payment.repository.ts` | += `findStalePendingByGateway(gateway, olderThan, limit)` |
-| A5 | `backend/lib/env.ts` consumption | DEV1-006's planned `resolveEnvConfig("PAYMENT_GATEWAY_PROVIDER")` factory key — that helper does NOT exist (`backend/lib/env.ts` is the mechanism); the factory reads the typed config getter instead |
+| A5 | `backend/lib/env.ts` consumption | the subscription-purchase plan's planned `resolveEnvConfig("PAYMENT_GATEWAY_PROVIDER")` factory key — that helper does NOT exist (`backend/lib/env.ts` is the mechanism); the factory reads the typed config getter instead |
 
 ### 4.2 Race & concurrency register
 
 | Race | Guard | Test proof |
 |---|---|---|
-| Duplicate webhook delivery → double credit | guarded `pending→paid` transition (DEV1-006 mark-once) — second delivery is a zero-row no-op | REQ-025 route test + repo test |
+| Duplicate webhook delivery → double credit | guarded `pending→paid` transition (the subscription-purchase plan mark-once) — second delivery is a zero-row no-op | REQ-025 route test + repo test |
 | Webhook racing reconciliation inquiry for the same payment | both funnel through the same guarded transition; loser sees no-op | journey test with interleaved calls |
 | Replay with tampered amount on an already-paid payment | HMAC fails → 401, nothing runs | REQ-070 tamper vector |
 | Intention timeout after Paymob received it (unknown state) | no blind retry (REQ-051); claim stays pending; sweep resolves via inquiry | adapter test asserting no re-POST on unknown-state timeout |
-| `special_reference` collision across users | claim key is globally unique (DEV1-006 claim table unique constraint); Paymob also rejects reuse | unit test asserts adapter passes claim key through unchanged |
+| `special_reference` collision across users | claim key is globally unique (the subscription-purchase plan claim table unique constraint); Paymob also rejects reuse | unit test asserts adapter passes claim key through unchanged |
 | Webhook fired while provider mode flipped mid-flight | route re-reads config per request (no module state — REQ-033); mode gate first | route test with flipped env |
 
 ### 4.3 Journey design (money state machine + side effects)
 
 ```mermaid
 stateDiagram-v2
-    [*] --> payment_pending: purchaseSubscription (DEV1-006, claim + pending pair)
+    [*] --> payment_pending: purchaseSubscription (the subscription-purchase plan, claim + pending pair)
     payment_pending --> payment_paid: verified processed callback success (HMAC + amount + currency) / reconciliation PAID
     payment_pending --> payment_failed: verified processed callback declined / reconciliation UNPAID-expired
     payment_pending --> payment_pending: replay / TOKEN / refund-shaped callbacks (no-op)
@@ -233,7 +233,7 @@ stateDiagram-v2
 
 | Transition | Rows written | Notification | Idempotency anchor |
 |---|---|---|---|
-| pending→paid | `student_payments.status`, `provider_transaction_id`, subscription activation, lane credits (DEV1-006 surface), notification row | `payment_confirmation` (success) persist-first / publish post-commit | guarded zero-row second attempt |
+| pending→paid | `student_payments.status`, `provider_transaction_id`, subscription activation, lane credits (the subscription-purchase plan surface), notification row | `payment_confirmation` (success) persist-first / publish post-commit | guarded zero-row second attempt |
 | pending→failed | `student_payments.status`, notification row | `payment_confirmation` (failure) | same guard |
 | any → no-op (replay/TOKEN/refund/unknown) | none | none | HMAC verify still runs |
 
@@ -263,7 +263,7 @@ Routes, access, nav, and per-audience rendering are fixed in `specs.md` §4. Imp
 
 **i18n:** new `checkout` namespace (D12): `shared/locale/types/checkout/index.ts`, `shared/locale/en/checkout/index.ts`, `shared/locale/ar/checkout/index.ts`, `shared/locale/namespaces/checkout/checkout.namespace.ts`, `checkoutTranslations` registered in `shared/locale/types/message.ts` (`Translations`) + `shared/locale/{en,ar}/messages.ts`, barrel registrations, `shared/locale/checkout-namespace.parity.test.ts`; nav `Plans` entry added to the student list reusing label conventions at `frontend/views/dashboard/nav/navItems.ts:53-74`.
 
-**Storybook:** `frontend/stories/pages/student/Plans.stories.tsx`, `CheckoutResult.stories.tsx`, `MySubscriptions.stories.tsx` + colocated fixtures; arms: Default / Loading / Empty / PaymentFailed / Pending (mirror the DEV1-006 prototype states).
+**Storybook:** `frontend/stories/pages/student/Plans.stories.tsx`, `CheckoutResult.stories.tsx`, `MySubscriptions.stories.tsx` + colocated fixtures; arms: Default / Loading / Empty / PaymentFailed / Pending (mirror the subscription-purchase plan's prototype states).
 
 ---
 
@@ -276,7 +276,7 @@ Routes, access, nav, and per-audience rendering are fixed in `specs.md` §4. Imp
 | Amount/currency manipulation | server-side price from catalog row; fulfillment equality check against stored cents | REQ-011/023/044 |
 | Secret leakage to client bundle | secrets read only in `backend/**`; public key is the only client-visible credential; redacting logger | REQ-040/043 |
 | Payment-state spoofing via the GET redirect | redirect is display-only; truth comes from an authenticated re-query | REQ-027/063 |
-| BOLA across students | all resolution through the reference/claim bound to the purchasing `ctx.user.id` (DEV1-006 contract); pages student-scoped | REQ-045 |
+| BOLA across students | all resolution through the reference/claim bound to the purchasing `ctx.user.id` (the subscription-purchase plan contract); pages student-scoped | REQ-045 |
 | BOPLA / mass assignment | intention payload assembled field-by-field server-side; no spread of client input | REQ-044 |
 | Body bomb / slow POST | 64 KiB bounded raw read; 413 beyond | REQ-021 |
 | Webhook enumerability (does this deployment pay?) | 404 mode gate when provider ≠ paymob; no envelope leaks | REQ-041 |
@@ -289,7 +289,7 @@ Routes, access, nav, and per-audience rendering are fixed in `specs.md` §4. Imp
 |---|---|---|
 | Config | env keys + getters | `backend/lib/env.ts`, `.env.example`, `backend/lib/test-ci-env.ts` |
 | Types | vendor DTOs | `backend/types/billing/paymob.types.ts` |
-| Port amendments | A1–A3 | `backend/types/billing/payment-gateway.types.ts` (with DEV1-006 executor per ledger) |
+| Port amendments | A1–A3 | `backend/types/billing/payment-gateway.types.ts` (with the subscription-purchase plan executor per ledger) |
 | HMAC | verify + builders | `…/payment-gateway/paymob/paymob.hmac.ts`, `paymob.constants.ts` |
 | Mapping | intention/callback mappers | `…/paymob/paymob.mapper.ts` |
 | HTTP | injectable client | `…/paymob/paymob.http.ts` |
@@ -319,7 +319,7 @@ Routes, access, nav, and per-audience rendering are fixed in `specs.md` §4. Imp
 | Mapper unit | colocated `…/paymob.mapper.test.ts` | same | cents conversion, billing placeholders, descriptor assembly, callback→event mapping |
 | Adapter unit | colocated `…/paymob.adapter.test.ts` | same | mocked fetch; field-by-field body assertions; retry semantics; fail-closed config |
 | Route suite | `app/api/payments/webhook/__tests__/` (or route-colocated per existing route-test precedent — verify at execution) | same | REQ-053 matrix, replay, variants, mode gate |
-| Repository | `backend/db/test/logic/billing/student-payment.repository.test.ts` (EXTEND DEV1-006's planned suite at its planned location) | `bun run test/scripts/run-test.ts` | `runInRollback` + `tx`; provider-transaction-id allowance + frozen-column proofs |
+| Repository | `backend/db/test/logic/billing/student-payment.repository.test.ts` (EXTEND the subscription-purchase plan's planned suite at its planned location) | `bun run test/scripts/run-test.ts` | `runInRollback` + `tx`; provider-transaction-id allowance + frozen-column proofs |
 | Reconciliation service | colocated unit + repo-backed cases | same | gating, batching, inquiry→activation handoff |
 | Journey | `test/workflows/billing/paymob-purchase-journey.test.ts` | per `docs/testing/workflow-journey-tests.md` | REQ-074 end-to-end with mock HTTP boundary + real DB |
 | UI components | under `test/ui/components/` per `test/ui/AGENTS.md` | `bun run test:ui:components` | funnel views incl. failed/pending arms |
@@ -330,10 +330,10 @@ Routes, access, nav, and per-audience rendering are fixed in `specs.md` §4. Imp
 ## 10. Deployment, Migration & Compatibility
 
 1. **Provision** (out-of-band): Paymob dashboard — collect `sk_test/sk_live` key pairs, `pk_*` public key, HMAC secret, card + (optional) wallet integration IDs (test set first); set processed-callback URL to `https://<host>/api/payments/webhook` and redirection URL to `https://<host>/student/checkout/result` on the integration IDs (per-intention overrides also sent by the adapter — REQ-022 fields).
-2. **Order of rollout**: DEV1-006 lands (mock provider) → this plan's schema migration 5 (push + migration) → env keys set → deploy with `PAYMENT_GATEWAY_PROVIDER=mock` → flip to `paymob` per environment → smoke-test one purchase with test credentials.
+2. **Order of rollout**: the subscription-purchase plan lands (mock provider) → this plan's schema migration 5 (push + migration) → env keys set → deploy with `PAYMENT_GATEWAY_PROVIDER=mock` → flip to `paymob` per environment → smoke-test one purchase with test credentials.
 3. **Rollback**: set `PAYMENT_GATEWAY_PROVIDER=mock` (webhook immediately 404s; purchases resume mock behavior); schema column is additive and stays inert.
 4. **Migrations**: schema column via the project's db push flow; trigger-amendment SQL via the numbered migration pair (repo rule: push for schema, migrate for custom SQL).
-5. **Compatibility**: mock adapter untouched; existing analytics reads untouched; no GraphQL schema drift; DEV1-005/006 contracts preserved verbatim except the recorded A1–A5 amendments.
+5. **Compatibility**: mock adapter untouched; existing analytics reads untouched; no GraphQL schema drift; upstream plan-catalog/purchase contracts preserved verbatim except the recorded A1–A5 amendments.
 
 ---
 

@@ -1,4 +1,4 @@
-# Requirements & Specification: DEV3-006 — Session Report & Homework Infrastructure
+# Requirements & Specification: this ticket — Session Report & Homework Infrastructure
 
 **Feature slug / plan directory (verbatim):** `ai/plans/sprint_1/dev3-006-session-report-homework-infrastructure`
 **Self-reference discipline:** every header, task 0.1, and the deferred-items ledger path in the downstream plan/tasks docs MUST use this exact string.
@@ -10,36 +10,36 @@
 ## 1. Executive Summary & Problem Statement
 
 ### Feature
-DEV3-006 ships the **session report & homework infrastructure** for the Kottab LMS P2P teaching model: the guarded write path and participant read path over the pre-existing `reports` and `home_work` tables (both landed in DEV1-001's foundational schema: `backend/db/schema/classes/reports.ts`, `backend/db/schema/classes/home-work.ts`). A report record carries `teacher_notes` + `student_rating_by_teacher` (0–5); a homework record carries Jadid (new memorization) and Madi (review) assignment fields — ayah ranges, grades (0–100), and `surah_juz_ref` enum references (decision B.11). Reports reach the teacher **via the session row only** (`reports.session_id → session.teacher_id`; the redundant `reports.teacher_id` was eliminated by decision C.4). This ticket is the **infrastructure layer**: repositories, canonical types, the guarded service, the GraphQL surface, and the notification seam. The full teacher submission UX flow is owned downstream by DEV2-014 (recorded consumer contract).
+this ticket ships the **session report & homework infrastructure** for the Kottab LMS P2P teaching model: the guarded write path and participant read path over the pre-existing `reports` and `home_work` tables (both landed in the foundational schema ticket's foundational schema: `backend/db/schema/classes/reports.ts`, `backend/db/schema/classes/home-work.ts`). A report record carries `teacher_notes` + `student_rating_by_teacher` (0–5); a homework record carries Jadid (new memorization) and Madi (review) assignment fields — ayah ranges, grades (0–100), and `surah_juz_ref` enum references (decision B.11). Reports reach the teacher **via the session row only** (`reports.session_id → session.teacher_id`; the redundant `reports.teacher_id` was eliminated by decision C.4). This ticket is the **infrastructure layer**: repositories, canonical types, the guarded service, the GraphQL surface, and the notification seam. The full teacher submission UX flow is owned downstream by the submit-UX ticket (recorded consumer contract).
 
 ### Problem from user perspective
 - **Teacher (Certified Sheikh):** after marking a session complete, the teacher must record what happened — performance notes, a rating of the student, the grade for the previous assignment, and the next assignment (Jadid + Madi). Today there is no callable surface: the tables exist but nothing writes or reads them, so Workflow 03's "Submit Session Report" step is unwired.
 - **Student:** needs to see the report and know their next homework assignment; cross-teacher continuity (Workflow 03 §4.2) demands the assignment live on a durable row readable regardless of which teacher sees the student next.
 - **Parent:** expects a notification when a linked child's session completes *and* its report exists (Workflow 04 §6 trigger).
 - **Admin:** reviews reports during dispute resolution (Workflow 03 §7) — the rows must be trustworthy, permanently retained, and never authored by anyone but the owning teacher.
-- **Downstream developers (DEV2-014, DEV1-016/017, DEV3-012/013):** need one canonical guarded primitive they can compose, so that INV-S7 (report only on `completed` sessions), INV-S8 (homework only with a report), and INV-HW1..HW4 are **structurally** enforced rather than re-litigated per consumer.
+- **Downstream developers (the submit-UX ticket, the parent-portal tickets, the dual-confirmation/escrow tickets):** need one canonical guarded primitive they can compose, so that INV-S7 (report only on `completed` sessions), INV-S8 (homework only with a report), and INV-HW1..HW4 are **structurally** enforced rather than re-litigated per consumer.
 
 ### Business value
-Reports and homework are the pedagogical spine of the platform (Workflow 03 §4–§5): they carry grading, homework chaining across non-dedicated teachers (the P2P anti-disintermediation model), and the evidence base for admin dispute arbitration (B.18) and teacher re-evaluation (Workflow 01). Without this infrastructure, dual confirmation (DEV3-012) has nothing to confirm *against*, and the escrow release has no pedagogical evidence trail.
+Reports and homework are the pedagogical spine of the platform (Workflow 03 §4–§5): they carry grading, homework chaining across non-dedicated teachers (the P2P anti-disintermediation model), and the evidence base for admin dispute arbitration (B.18) and teacher re-evaluation (Workflow 01). Without this infrastructure, dual confirmation (the dual-confirmation ticket) has nothing to confirm *against*, and the escrow release has no pedagogical evidence trail.
 
 ### Actors involved
 | Actor | Role here |
 |---|---|
 | Certified Teacher (owning the session) | Submits report + homework; reads them |
 | Student (session participant) | Reads report + homework; observes notifications |
-| Parent (linked via `students.parent_id`) | Receives the completion-report notification (INV-P3 surface); **no** report read surface here (DEV1-016 owns the portal) |
+| Parent (linked via `students.parent_id`) | Receives the completion-report notification (INV-P3 surface); **no** report read surface here (the parent-portal ticket owns the portal) |
 | Admin / foreign teachers / unlinked parents | Denied — oracle-collapsed reads, role/state denials on writes |
-| Downstream consumers | DEV2-014 (submission UX), DEV2-015 (Surah/Juz tracking UI), DEV1-016/017 (parent portal + display), DEV2-017 (rating aggregation), DEV2-019 (admin academic tracking) |
+| Downstream consumers | submission UX, Surah/Juz tracking UI, parent portal + display, rating aggregation, and admin academic tracking |
 
 ### Non-goals (explicitly OUT of scope)
-- **Teacher-facing submit/edit UI pages and report browsing UI** — owned by DEV2-014 (workflow: report submission flow). This ticket ships the wire contract consumable; no views/pages are built.
-- **Parent monitoring portal reads** (`sessionReport` visibility for parents via `students.parent_id` authorization) — DEV1-016's surface. Parents here receive notifications only.
-- **Homework grading UX, first-vs-subsequent-session grading choreography UI** — DEV2-014/DEV2-015.
-- **Aggregating `teacher.average_rating` from `reports.student_rating_by_teacher`** — DEV2-017 owns the aggregation; this ticket stores the per-session rating verbatim (INV-E4's substrate).
-- **Session status transitions** (complete/start/cancel/dispute) — DEV3-004 shipped them; this ticket consumes `session.status` read-only as its gate input.
-- **Escrow / wallet / balance writes** — INV-S3: zero `teacher_transaction`/`wallet` writes here; the report submission does not release the hold (DEV3-012/013 own release).
-- **Recitation row creation** (1:1 session → recitation) — DEV3-007 (C.5).
-- **`progress` (Tajweed curriculum) updates** — DEV1-011 (FR-6.3).
+- **Teacher-facing submit/edit UI pages and report browsing UI** — owned by the submit-UX ticket (workflow: report submission flow). This ticket ships the wire contract consumable; no views/pages are built.
+- **Parent monitoring portal reads** (`sessionReport` visibility for parents via `students.parent_id` authorization) — the parent-portal ticket's surface. Parents here receive notifications only.
+- **Homework grading UX, first-vs-subsequent-session grading choreography UI** — the submit/tracking UX tickets.
+- **Aggregating `teacher.average_rating` from `reports.student_rating_by_teacher`** — the rating-aggregation ticket owns the aggregation; this ticket stores the per-session rating verbatim (INV-E4's substrate).
+- **Session status transitions** (complete/start/cancel/dispute) — the session-lifecycle ticket shipped them; this ticket consumes `session.status` read-only as its gate input.
+- **Escrow / wallet / balance writes** — INV-S3: zero `teacher_transaction`/`wallet` writes here; the report submission does not release the hold (the dual-confirmation/escrow tickets own release).
+- **Recitation row creation** (1:1 session → recitation) — the recitation ticket (C.5).
+- **`progress` (Tajweed curriculum) updates** — the Tajweed-curriculum ticket (FR-6.3).
 - **Schema greenfielding** — `reports` and `home_work` exist; this ticket *verifies and minimally amends* (push-only), never re-creates.
 
 ---
@@ -67,7 +67,7 @@ Reports and homework are the pedagogical spine of the platform (Workflow 03 §4�
 - **REQ-014 (Homework assignment payload — Jadid & Madi):** WHEN homework is assigned THEN the input SHALL carry the Jadid block (`currentFromAyah`, `currentToAyah`, `currentSurahJuz`) and the Madi block (`revisionFromAyah`, `revisionToAyah`, `revisionSurahJuz`) as optional cohesive blocks; system SHALL validate: `from ≤ to` when both ayah endpoints are present, ayah numbers are positive safe integers, and Surah/Juz values are members of the SHIPPED `SurahJuzRef` enum (`backend/enum/shared/surah-juz-ref.enum.ts` — 5 surah examples + 30 juz; values outside the enum are rejected `VALIDATION` pre-DB). **The enum is enum-complete as shipped; widening to all 114 surahs is NOT this ticket** (record in deferred ledger).
 - **REQ-015 (First-session vs subsequent-session grading — INV-HW3/HW4):** WHEN the submission carries grade values THEN system SHALL route them to the student's **prior ungraded** homework row (via `findLatestUngradedByStudentId`) using the one-shot guarded update of REQ-011; the newly assigned row's own grade columns SHALL remain unset at assignment time. IF the grade columns in `backend/db/schema/classes/home-work.ts` are NOT NULL today THEN the plan SHALL relax them to nullable via `bun run db push` (schema delta, push-only discipline per `docs/DATABASE_MIGRATIONS.md`) before implementing this requirement, because assignment-without-grade (INV-HW3) requires NULL grades. WHEN no prior ungraded homework exists (true first session) THEN the submission SHALL carry no grades and the grade-routing step SHALL no-op (never an error).
 - **REQ-016 (Rating & note validation):** WHEN a report is submitted THEN system SHALL validate pre-DB: `studentRatingByTeacher` is an integer in `0..5`; `teacherNotes` is a non-empty-after-trim string of at most 2000 characters; homework grades, when present, are integers in `0..100`. All denials are localized `ValidationError` (422) with the `VALIDATION` code and zero DB writes. The DB CHECK constraints (`reports` 0–5, `home_work` 0–100) remain the backstop; the service never relies on them as the primary error path.
-- **REQ-017 (Participant reads):** WHEN a session participant (the session's student OR its teacher) reads a report or homework THEN the system SHALL return the row; WHEN any other caller reads them THEN the system SHALL return **null** — foreign ≡ nonexistent, the DEV3-004 sessions-are-sensitive oracle ruling applied verbatim (no id-enumeration oracle). Reads SHALL perform zero writes (render purity).
+- **REQ-017 (Participant reads):** WHEN a session participant (the session's student OR its teacher) reads a report or homework THEN the system SHALL return the row; WHEN any other caller reads them THEN the system SHALL return **null** — foreign ≡ nonexistent, the session-lifecycle ticket's sessions-are-sensitive oracle ruling applied verbatim (no id-enumeration oracle). Reads SHALL perform zero writes (render purity).
 - **REQ-018 (Post-submit notification choreography):** WHEN the first report for a session commits THEN the system SHALL, inside the same `withTransaction`, emit via `NotificationEngine.emitForUser` exactly: (a) one notification to the **student** in the student's persisted locale (fallback: platform default), and (b) one notification to the **linked parent** iff `students.parent_id` is non-null for that student (INV-P1 gating — unlinked ⇒ no parent emission), in the parent's persisted locale. Each emission SHALL use `type = NotificationType.SessionCompletion`, `relatedEntityType = "session"`, `relatedEntityId = session.id`, and a deterministic idempotency key `session:{sessionId}:report`. Publishing SHALL happen strictly after the caller's commit via `NotificationEngine.publishReceipts` (publish-after-commit; a rollback ghost-pushes nothing). Replies to the already-reported session SHALL emit nothing.
 - **REQ-019 (Copy composition):** WHEN notification copy is composed THEN it SHALL be composed in the **recipient's** persisted locale per the recipient-locale obligation proven by `SessionRequestNotificationService` (`backend/services/classes/session-request-notification.service.ts`), interpolate only counterparty full names, and carry NO ids, grades, or note content in the stored copy (privacy hygiene — the body is a link invite, not a content mirror).
 
@@ -85,7 +85,7 @@ Reports and homework are the pedagogical spine of the platform (Workflow 03 §4�
 - **REQ-041 (Single transaction, total rollback):** WHEN submission executes THEN report creation, homework assignment, prior-homework grading, and in-tx notification rows SHALL share ONE `withTransaction` unit; a forced mid-unit failure leaves zero `reports`, zero `home_work`, zero `notifications` rows and zero publishes (proven by test).
 - **REQ-042 (tx propagation):** WHEN any repository or engine call executes inside the flow THEN it SHALL receive the unit's `tx` (no `db` fallback inside the transactional path).
 - **REQ-043 (Idempotency ruling):** Repeat submission (network retry, double-click) SHALL resolve to the same `SESSION_REPORT_ALREADY_EXISTS` conflict via REQ-040's arbiter — no separate idempotency-key table (notification emissions are themselves claim-keyed per REQ-018 so the engine's replay discipline holds for the side-effect).
-- **REQ-044 (Hold/wallet purity):** WHEN the submission completes THEN system SHALL perform ZERO writes to `students` balance lanes, `session.fee_held`, `wallet`, or `teacher_transaction` (INV-S3: earnings only on dual confirmation; hold release is DEV3-012/013's).
+- **REQ-044 (Hold/wallet purity):** WHEN the submission completes THEN system SHALL perform ZERO writes to `students` balance lanes, `session.fee_held`, `wallet`, or `teacher_transaction` (INV-S3: earnings only on dual confirmation; hold release is the dual-confirmation/escrow tickets's).
 
 ### 2.5 Validation & Error Contracts
 
@@ -111,7 +111,7 @@ The taxonomy stays within the closed system of `docs/graphql/domain-error-extens
 - **REQ-051 (Mutation):** `submitSessionReport(id: ID!, input: SubmitSessionReportInput!): SessionReport!` — `id` is the session id; the input is a closed whitelist (`teacherNotes`, `studentRatingByTeacher`, optional `homework` block with the REQ-014 fields, optional `previousGrades` block with `currentGrade`/`revisionGrade`). No server-derivable field appears in the input.
 - **REQ-052 (Queries):** `sessionReport(sessionId: ID!): SessionReport` (nullable) and `sessionHomework(sessionId: ID!): SessionHomeWork` (nullable) — participant-scoped null-collapse per REQ-017/REQ-030.
 - **REQ-053 (Codegen + surface freeze):** after implementing, run `bun run generate:gqlSchema` + `bun codegen`, pin the new types/fields/enum in `backend/graphql/test/schema-surface.test.ts` baseline inventory, and pin the SDL in the session SDL suite (`backend/graphql/test/session-sdl.test.ts`-style static assertions where applicable).
-- **REQ-054 (Frontend documents):** `frontend/graphql/sharedDocuments/scheduling/session-report.documents.ts` with `TypedDocumentNode`s for the mutation and both queries — `id` selected FIRST in every object selection; embedded-page envelopes (if any) registered `keyFields: false` in `frontend/providers/apollo/apolloCache.ts`. **No UI views/pages in this ticket** (DEV2-014 consumes); documents are the consumable contract.
+- **REQ-054 (Frontend documents):** `frontend/graphql/sharedDocuments/scheduling/session-report.documents.ts` with `TypedDocumentNode`s for the mutation and both queries — `id` selected FIRST in every object selection; embedded-page envelopes (if any) registered `keyFields: false` in `frontend/providers/apollo/apolloCache.ts`. **No UI views/pages in this ticket** (the submit-UX ticket consumes); documents are the consumable contract.
 - **REQ-055 (MUI v9):** any touched frontend file obeys `sx`-only styling, `*Outlined` icon names, theme-palette colors, `React.SyntheticEvent<HTMLFormElement>` (no `FormEvent`).
 
 ### 2.7 Test Coverage
@@ -126,7 +126,7 @@ The taxonomy stays within the closed system of `docs/graphql/domain-error-extens
 
 - **REQ-070 (Canonical doc):** `docs/sessions/session-report-homework.md` — the canonical reference (gate invariants, co-creation contract, first-vs-subsequent grading ruling, notification choreography, oracle ruling, consumer table) following the house doc style (Why → Pattern → Rules → What NOT to Do → Rollout Summary → Related Documents).
 - **REQ-071 (AGENTS.md updates):** `backend/db/repo/AGENTS.md` (classes repositories), `backend/services/AGENTS.md` (report service + single-writer notifications discipline), `backend/types/AGENTS.md`, `backend/graphql/AGENTS.md` (new enum registration + objects), `shared/AGENTS.md` (namespace additions), root `AGENTS.md` Important References one-line pointer.
-- **REQ-072 (Consumer-doc amendment):** `docs/sessions/session-lifecycle.md` §10 consumer table SHALL be amended: INV-S7/S8 enforcement has landed in this surface (remove the "DEV3-005-owned" forward note for the report/homework seam), and `docs/sessions/session-lifecycle.md`'s report row gains the "implementation shipped" citation.
+- **REQ-072 (Consumer-doc amendment):** `docs/sessions/session-lifecycle.md` §10 consumer table SHALL be amended: INV-S7/S8 enforcement has landed in this surface (remove the "upstream-owned" forward note for the report/homework seam), and `docs/sessions/session-lifecycle.md`'s report row gains the "implementation shipped" citation.
 
 ### 2.9 Cross-Actor Workflow Scenarios (Journeys)
 
@@ -136,9 +136,9 @@ The taxonomy stays within the closed system of `docs/graphql/domain-error-extens
 |---|---|---|---|
 | Owning Teacher (certified, session owner) | `teacher` | submit report + homework on their COMPLETED session; read report/homework | submit on scheduled/started/cancelled/disputed sessions; submit a second report; re-grade already-graded homework |
 | Session Student | `student` | read the report/homework of their session; receives notification | submit a report (role-gated); touch grades |
-| Linked Parent (`students.parent_id ≠ null`) | `parent` | receive the completion-report notification | read report/homework (null collapse until DEV1-016); receive anything when unlinked |
+| Linked Parent (`students.parent_id ≠ null`) | `parent` | receive the completion-report notification | read report/homework (null collapse until the parent-portal ticket); receive anything when unlinked |
 | Foreign Teacher | `teacher` | nothing on this session | submit (ownership denial); read (null collapse) |
-| Admin | `admin` | nothing via this surface (governance reads are DEV3-021's) | submit (role denial); participant reads (null collapse) |
+| Admin | `admin` | nothing via this surface (governance reads are the admin session-governance ticket's) | submit (role denial); participant reads (null collapse) |
 | Anonymous | — | nothing | UNAUTHORIZED pre-resolver |
 
 #### Ordered Step List
@@ -183,7 +183,7 @@ The taxonomy stays within the closed system of `docs/graphql/domain-error-extens
 
 | Invariant | Enforcement in this ticket |
 |---|---|
-| **INV-S7** (report only on `completed`) | REQ-012 gate 4 — the sole gate for the write surface lands here (the session-lifecycle slice recorded this seam as DEV3-006's); session-lifecycle doc amended accordingly (REQ-072). |
+| **INV-S7** (report only on `completed`) | REQ-012 gate 4 — the sole gate for the write surface lands here (the session-lifecycle slice recorded this seam as this ticket's); session-lifecycle doc amended accordingly (REQ-072). |
 | **INV-S8** (homework only with a report) | REQ-013 atomic co-creation — homework existence without a report for the same session is structurally unreachable through the write path. |
 | **INV-HW1** (homework linked to exactly one session) | `home_work.session_id` NOT NULL FK; the insert binds the verified session id only. (Session-uniqueness of homework rows: one assignment row per session is enforced by the flow's single-submission ruling; the plan SHALL verify and document whether a unique constraint exists and add one push-only if absent — recorded verification task.) |
 | **INV-HW2** (grades 0–100) | Service validation (REQ-016) + existing CHECK constraints as backstop. |
@@ -218,4 +218,4 @@ The taxonomy stays within the closed system of `docs/graphql/domain-error-extens
 | REQ-062 | journeys | — | — | — | `test/workflows/classes/session-report-homework.journey.test.ts` (test-first) |
 | REQ-070..072 | — | — | — | — | knowledge-propagation task + docs diff review |
 
-**Explicit ledger pre-seeds for `ai/plans/sprint_1/dev3-006-session-report-homework-infrastructure/deferred-items.md`:** (D1) `SurahJuzRef` enum completeness (all 114 surahs) — deferred enum-content work, owner: curriculum/content stream; (D2) parent report read surface — DEV1-016; (D3) teacher submission UX — DEV2-014; (D4) rating aggregation to `teacher.average_rating` — DEV2-017; (D5) edit/amend/void a submitted report — not in MVP vocabulary (append-only by design; any future correction flow = compensating new artifacts, never UPDATE of the report truth beyond the one-shot grade seam).
+**Explicit ledger pre-seeds for `ai/plans/sprint_1/dev3-006-session-report-homework-infrastructure/deferred-items.md`:** (D1) `SurahJuzRef` enum completeness (all 114 surahs) — deferred enum-content work, owner: curriculum/content stream; (D2) parent report read surface — the parent-portal ticket; (D3) teacher submission UX — the submit-UX ticket; (D4) rating aggregation to `teacher.average_rating` — the rating-aggregation ticket; (D5) edit/amend/void a submitted report — not in MVP vocabulary (append-only by design; any future correction flow = compensating new artifacts, never UPDATE of the report truth beyond the one-shot grade seam).

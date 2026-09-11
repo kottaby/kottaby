@@ -5,7 +5,7 @@
  * soft-delete / reactivate cross-actor governance).
  *
  * The cast shape is NOT expressible by `createJourneyFixtures`
- * (the DEV3-004 / DEV3-016 generic admin journey cast) because the
+ * (the generic admin journey cast) because the
  * governance lifecycle requires:
  *  - TWO admins (Admin A acting, Admin B observing) — the generic
  *    cast provisions exactly one admin.

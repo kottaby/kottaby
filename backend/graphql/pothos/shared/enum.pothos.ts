@@ -18,7 +18,7 @@
  *  - `RecitationReading`, `ApplicantStatus`
  *  - `SessionStatus`, `SessionType`, `SessionIntent` (scheduling domain)
  *  - `DisputeResolution` (admin arbitration outcome vocabulary)
- *  - `TransactionType`, `TransactionStatus` (billing ledger vocabulary, DEV3-013)
+ *  - `TransactionType`, `TransactionStatus` (billing ledger vocabulary)
  *  - `PaymentGateway`, `PaymentStatus`, `SubscriptionStatus`,
  *    `SubscriptionCreditLane` (subscription purchase + settlement vocabulary)
  *  - `AdminUserGovernanceFilter` (active|suspended|blocked|deleted — admin directory filter)
@@ -162,7 +162,7 @@ export const SessionIntentPothosEnum = gqlSchemaBuilder.enumType(SessionIntent, 
 
 /**
  * GraphQL `TransactionType` enum (earning|withdrawal|bonus) — the
- * `teacher_transaction` ledger vocabulary (DEV3-013).
+ * `teacher_transaction` ledger vocabulary.
  *
  * Registered ONCE from the canonical TS enum
  * (`backend/enum/billing/transaction-type.enum.ts`) mirroring the
@@ -174,7 +174,7 @@ export const TransactionTypePothosEnum = gqlSchemaBuilder.enumType(TransactionTy
 
 /**
  * GraphQL `TransactionStatus` enum (pending|completed|failed) — the
- * `teacher_transaction` ledger settlement vocabulary (DEV3-013).
+ * `teacher_transaction` ledger settlement vocabulary.
  *
  * Registered ONCE from the canonical TS enum
  * (`backend/enum/billing/transaction-status.enum.ts`) mirroring the
@@ -258,7 +258,7 @@ export const AdminUserGovernanceFilterPothosEnum = gqlSchemaBuilder.enumType(Adm
  * Registered ONCE from the canonical TS enum that mirrors the
  * `audit_action_type` pgEnum. Backs the per-user activity timeline on the
  * admin user detail surface (scoped `audit_logs` read-back); the global
- * audit-trail browsing surface remains owned by DEV3-020.
+ * audit-trail browsing surface remains owned.
  */
 export const AuditActionTypePothosEnum = gqlSchemaBuilder.enumType(AuditActionType, {
   name: "AuditActionType",

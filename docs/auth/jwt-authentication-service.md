@@ -376,7 +376,7 @@ function throwSuspendedError(locale: string): never {
 
 The session-creation service consumes this helper to enforce the active-suspension-window deny on session-creation-class operations.
 
-> **Note (DEV3-017):** The shared suspension-window predicate NOW EXISTS at `backend/lib/auth/suspension-window.ts#isSuspensionActive` and is consumed by login / `refreshToken` / SSR (`assertUserActive` + `getServerUserContext`). Session-creation gating remains the owning consumer (forward pointer — see D2). See `docs/admin/account-governance.md`.
+> **Note:** The shared suspension-window predicate NOW EXISTS at `backend/lib/auth/suspension-window.ts#isSuspensionActive` and is consumed by login / `refreshToken` / SSR (`assertUserActive` + `getServerUserContext`). Session-creation gating remains the owning consumer (forward pointer — see D2). See `docs/admin/account-governance.md`.
 
 ### 5.4 SSR parity
 

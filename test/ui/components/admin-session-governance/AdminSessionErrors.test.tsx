@@ -5,7 +5,7 @@
  * mirroring the admin disputes + container suites exactly): the suite BODY
  * lives in the sibling `AdminSessionErrors.suite.tsx` — the ERROR-DISPLAY +
  * ELIGIBILITY-GATING tier of the admin session-governance surface
- * (DEV3-021, tasks 5.2.4 "403 error tenant denial display" + gating):
+ * (tasks 5.2.4 "403 error tenant denial display" + gating):
  *
  *   ROW TIER — the `AdminSessionRow` kebab gating matrix across the five
  *   lifecycle statuses through the Record lookup tables: scheduled (timing

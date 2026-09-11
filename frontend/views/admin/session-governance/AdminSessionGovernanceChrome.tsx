@@ -13,7 +13,7 @@ import type { SessionsLabels } from "@/shared/locale/types/sessions";
 
 /**
  * AdminSessionGovernanceChrome — the ALWAYS-ON chrome of the admin session
- * governance directory (`/admin/session-governance`, DEV3-021): the page
+ * governance directory (`/admin/session-governance`): the page
  * title over the sticky honest-count bar, the per-status summary strip
  * ({@link AdminSessionSummaryStrip}), and the directory filter bar
  * ({@link AdminSessionFilterBar}). It renders in EVERY branch of the body

@@ -1,4 +1,4 @@
-# Technical Architecture & Implementation Design: DEV2-004 — Teacher Applicant Registration & Applicants Table
+# Technical Architecture & Implementation Design: Teacher Applicant Registration & Applicants Table
 
 > **Plan of record:** `ai/plans/dev2-004-teacher-applicant-registration/`
 > **Specs:** `specs.md` REQ-001..REQ-083
@@ -10,14 +10,14 @@
 
 ### 1.1 Scope Statement
 
-DEV2-004 is a **mostly-verification + small-additive ticket**. The applicant write path (registration → `applicants` row) already exists from DEV1-002 and is structurally correct. The net-new work is:
+This ticket is a **mostly-verification + small-additive ticket**. The applicant write path (registration → `applicants` row) already exists from the User Registration ticket and is structurally correct. The net-new work is:
 
 1. **Canonical vocabulary:** `ApplicantStatus` TS enum over the existing `varchar(50)` column (NO `pgEnum`, NO schema change).
 2. **Lifecycle substrate:** `ApplicantLifecycleService` (cooldown guard + attempt-counter contract + profile shaping) and one new repo method (`recordVerificationAttempt`).
 3. **Read surface:** no-argument `myApplicantProfile` GraphQL query gated to `role: [UserRole.Teacher]` plus an applicant status card on the teacher-applicant dashboard.
 4. **Permanent test locks** for the registration contract (zero `teacher` rows, exact applicant defaults, full rollback).
 
-New write paths are intentionally minimal and server-internal only; DEV2-005..010 consume the contracts.
+New write paths are intentionally minimal and server-internal only; consume the contracts.
 
 ### 1.2 Data Flow — New Surfaces
 
@@ -44,13 +44,13 @@ New write paths are intentionally minimal and server-internal only; DEV2-005..01
                                    ▼
 ┌── REPOSITORY ───────────────────────────────────────────────────────────────┐
 │ ApplicantRepository (backend/db/repo/teachers/)                              │
-│   create(userId, tx)                                  (EXISTING — DEV1-002)  │
+│ create(userId, tx) (EXISTING — the User Registration ticket) │
 │   findByUserId(userId, tx?)                           (new if absent)        │
 │   recordVerificationAttempt(userId, tx?)              (NEW — single UPDATE)  │
 └──────────────────────────────────┬───────────────────────────────────────────┘
                                    ▼
 ┌── POSTGRESQL ───────────────────────────────────────────────────────────────┐
-│ applicants (DEV1-001 — UNCHANGED): id PK=FK users.id,                        │
+│ applicants (UNCHANGED): id PK=FK users.id, │
 │   verification_attempts int default 0, last_attempt_at ts,                   │
 │   cooldown_until ts, status varchar(50) default 'pending'                    │
 │ users (UNCHANGED): role user_role, governance fields (A.7)                   │
@@ -81,14 +81,14 @@ GraphQL integration (setupTestServerLifecycle + testClient)
 
 | #  | Decision | Options Considered | Pros / Cons | Rationale (Maintainability, Scalability, Reliability) |
 |----|----------|--------------------|-------------|--------------------------------------------------------|
-| D1 | `ApplicantStatus` as a plain TS enum over the existing `varchar(50)` | (a) add a `pgEnum("applicant_status", …)`; (b) TS enum + guard only | (a) Pros: DB-enforced values. Cons: requires schema change + `db push` — violates REQ-045; DEV1-001 already shipped varchar contract. (b) Pros: zero schema drift; app-layer guard is the canonical gate. Cons: DB doesn't reject raw junk writes. | (b). The Drizzle schema ground truth defines status as varchar; the canonical value set is documented in this plan; all writes in-scope are server-internal through the canonical enum. REQ-012 mandates exactly this. |
-| D2 | Cooldown computed purely from `applicants.cooldown_until` (never `users.suspended`) | (a) single-source from users.suspended; (b) applicants.cooldown_until only; (c) read both | (a) conflates governance gates (login/session) with re-purchase eligibility — violates A.7/INV-TV3 two-source split. (c) ambiguous rules when values disagree. (b) unambiguous, duration-agnostic (INV-TV4 handled at write time by DEV2-008). | (b). REQ-015/016 explicitly fix this separation. The guard becomes: `cooldown_until IS NOT NULL AND cooldown_until > now()`. |
+| D1 | `ApplicantStatus` as a plain TS enum over the existing `varchar(50)` | (a) add a `pgEnum("applicant_status", …)`; (b) TS enum + guard only | (a) Pros: DB-enforced values. Cons: requires schema change + `db push` — violates REQ-045; the Database Schema Migration ticket already shipped varchar contract. (b) Pros: zero schema drift; app-layer guard is the canonical gate. Cons: DB doesn't reject raw junk writes. | (b). The Drizzle schema ground truth defines status as varchar; the canonical value set is documented in this plan; all writes in-scope are server-internal through the canonical enum. REQ-012 mandates exactly this. |
+| D2 | Cooldown computed purely from `applicants.cooldown_until` (never `users.suspended`) | (a) single-source from users.suspended; (b) applicants.cooldown_until only; (c) read both | (a) conflates governance gates (login/session) with re-purchase eligibility — violates A.7/INV-TV3 two-source split. (c) ambiguous rules when values disagree. (b) unambiguous, duration-agnostic (INV-TV4 handled at write time). | (b). REQ-015/016 explicitly fix this separation. The guard becomes: `cooldown_until IS NOT NULL AND cooldown_until > now()`. |
 | D3 | Attempt increment = single atomic `UPDATE … SET verification_attempts = verification_attempts + 1, last_attempt_at = now() … RETURNING *` | (a) SELECT then UPDATE; (b) advisory lock/multi-statement; (c) single in-place UPDATE | (a) Pros: simple reads. Cons: TOCTOU window; concurrent increments lose a write. (b) Reliable but heavier than needed; pointless on a counter row. (c) Pros: no TOCTOU, zero lost updates under concurrency; atomicity delegated to the DB. Cons: none material. | (c). REQ-014/042 mandate no read-modify-write for the counter; a single statement is the minimal correct primitive. |
-| D4 | Profile query is zero-argument; identity is `ctx.user.id` | (a) accept `userId: ID` arg; (b) context-only | (a) Pros: flexible for admin consumers. Cons: massive BOLA/IDOR surface on self-service data; REQ-030 forbids. (b) Pros: structurally impossible to read someone else's applicant file; resilient to client tamper. Cons: admin lateral read needed later (DEV3-016) — that's a separate privileged operation. | (b). REQ-030. Admin/supervisor lateral reads are out-of-scope and will be their own admin-scoped resolver in a later ticket. |
+| D4 | Profile query is zero-argument; identity is `ctx.user.id` | (a) accept `userId: ID` arg; (b) context-only | (a) Pros: flexible for admin consumers. Cons: massive BOLA/IDOR surface on self-service data; REQ-030 forbids. (b) Pros: structurally impossible to read someone else's applicant file; resilient to client tamper. Cons: admin lateral read needed later — that's a separate privileged operation. | (b). REQ-030. Admin/supervisor lateral reads are out-of-scope and will be their own admin-scoped resolver in a later ticket. |
 | D5 | New query is nullable `myApplicantProfile: ApplicantProfile \| null` — `null` = certified teacher / no active applicant file | (a) throw `APPLICANT_NOT_FOUND` when a certified teacher calls; (b) return null | (a) mixes control flow with errors and turns a legitimate state into a client error; leaks state semantics via error channels. (b) Pros: certified state is a first-class render branch, easy UI; aligns with REQ-017 precedence. | (b). Clean preconditions for restricted consumers; the frontend treats `null` as the "certified" rendering branch. |
 | D6 | ApplicantStatus Pothos registered once via enum-object form in `shared/enum.pothos.ts` | (a) `values: [...]` literal registration; (b) enum-object registration from TS enum | (a) violates the CRITICAL enum registration rule (drift risk). (b) single-source registration. | (b). Mandatory per `backend/graphql/pothos/AGENTS.md`; REQ-061 requires it. Codegen sync follows. |
 | D7 | Status card is a client component on the teacher-applicant dashboard; all copy from compile-time i18n | (a) server-rendered profile into a client card with props only; (b) client fetch via Apollo | (a) Pros: fewer client hooks; Cons: needs new SSR data plumbing whose only surface is this card; wastes a Cold-Start read on the whole dashboard for one card. (b) Pros: simple, cache-normalized via Apollo `id`, fetch-on-demand. Cons: one extra round trip. | (b). The data is only needed when the applicant visits their own dashboard; an Apollo query keeps server components clean and matches the existing frontend GraphQL conventions. |
-| D8 | No new admin/supervisor surfaces | — | Adding one here would multiply BFLA concerns (BOLA across tenant boundaries), belong to DEV3-016/019 surface maps, and exceed a 3-SP verify+contract ticket. | Scope integrity. The permission matrix below documents this non-existence explicitly (REQ-030/032). |
+| D8 | No new admin/supervisor surfaces | — | Adding one here would multiply BFLA concerns (BOLA across tenant boundaries), belong to surface maps, and exceed a 3-SP verify+contract ticket. | Scope integrity. The permission matrix below documents this non-existence explicitly (REQ-030/032). |
 
 ---
 
@@ -96,7 +96,7 @@ GraphQL integration (setupTestServerLifecycle + testClient)
 
 ### 2.1 Existing Schema Verification (READ-ONLY)
 
-All required structures exist from DEV1-001. Verification targets (no edits are allowed):
+All required structures exist from the Database Schema Migration ticket. Verification targets (no edits are allowed):
 
 | Element | Existing implementation | Verified at |
 |---|---|---|
@@ -197,11 +197,11 @@ extend type Query {
 }
 ```
 
-> Note on scalar choice: `lastAttemptAt`/`cooldownUntil` surface through the project's existing DateTime scalar patterns; the Pothos side exposes them as nullable DateTime fields. The exact scalar name follows whatever DEV1-002 established for timestamp exposure on `User`/`Student`; verification at implementation time.
+> Note on scalar choice: `lastAttemptAt`/`cooldownUntil` surface through the project's existing DateTime scalar patterns; the Pothos side exposes them as nullable DateTime fields. The exact scalar name follows whatever the User Registration ticket established for timestamp exposure on `User`/`Student`; verification at implementation time.
 
 ### 3.2 Registration Behavior (UNCHANGED — verify only)
 
-`registerUser` (existing, DEV1-002) requires **no surface change**. Its teacher branch already creates `applicants` via the existing repo and never creates a `teacher` row. REQ-060 / REQ-010 jointly mean: no edits to `auth.mutation.ts`, `RegistrationService`, or `RegisterPublicRole`. Permanent tests (§4.4) lock this surface.
+`registerUser` (existing, the User Registration ticket) requires **no surface change**. Its teacher branch already creates `applicants` via the existing repo and never creates a `teacher` row. REQ-060 / REQ-010 jointly mean: no edits to `auth.mutation.ts`, `RegistrationService`, or `RegisterPublicRole`. Permanent tests (§4.4) lock this surface.
 
 ### 3.3 Pothos Implementation Contract
 
@@ -210,7 +210,7 @@ extend type Query {
 | File | `backend/graphql/query/teachers/applicant.query.ts` (NEW) + domain barrel wiring |
 | Object type | `backend/graphql/pothos/teachers/applicant.pothos.ts` (NEW): `gqlSchemaBuilder.objectRef<ApplicantProfileReturnType>("ApplicantProfile")` exposing every field; `id` always exposed |
 | Enum registration | `backend/graphql/pothos/shared/enum.pothos.ts`: `ApplicantStatusPothosEnum = gqlSchemaBuilder.enumType(ApplicantStatus, { name: "ApplicantStatus" })` (enum-object form, CRITICAL) |
-| authScopes | `{ role: [UserRole.Teacher] }` — evaluates against DEV1-002's context after DEV2-002's `role` scope; unauth → `UNAUTHORIZED`, wrong-role → `FORBIDDEN` |
+| authScopes | `{ role: [UserRole.Teacher] }` — evaluates against the User Registration ticket's context after the Role-Based Authorization Middleware ticket's `role` scope; unauth → `UNAUTHORIZED`, wrong-role → `FORBIDDEN` |
 | Resolver body | delegates entirely to `ApplicantLifecycleService.getMyApplicantProfile(ctx.user.id, ctx.locale)`; localized errors via `ctx.t("errors")`/`ctx.t("applicant")`; NO try/catch swallowing; plain `Error` never thrown |
 | Codegen | run `bun run generate:gqlSchema && bun codegen`; commit generated artifacts in the same change set (REQ-061) |
 
@@ -219,7 +219,7 @@ extend type Query {
 | Scenario | Code | Producer |
 |---|---|---|
 | anonymous caller | `UNAUTHORIZED` | Pothos `scopeAuth`/`authenticated` layer |
-| authed non-teacher | `FORBIDDEN` | DEV2-002 `role` scope |
+| authed non-teacher | `FORBIDDEN` | the Role-Based Authorization Middleware ticket `role` scope |
 | certified teacher calls (no `applicants` row) | returns `null` (no error) | Service precedence |
 | stored status is junk (corrupt row) | `VALIDATION` (custom code) | `isApplicantStatus` failure path |
 | cooldown blocks re-purchase | `APPLICANT_COOLDOWN_ACTIVE` | `ApplicantLifecycleService.assertCanPurchaseVerification` (ValidationError with custom code) |
@@ -232,9 +232,9 @@ extend type Query {
 | Anonymous | ✅ public + rate-limit stub (unchanged) | ❌ `UNAUTHORIZED` | no new public surface |
 | Student | ✅ (if registering self) | ❌ `FORBIDDEN` | no privilege surface |
 | Parent | ✅ (if registering self) | ❌ `FORBIDDEN` | INV-P2 unaffected |
-| Teacher applicant | ✅ registration path | ✅ own profile only | cert-flag not consumable (DEV2-011+) |
+| Teacher applicant | ✅ registration path | ✅ own profile only | cert-flag not consumable |
 | Certified Sheikh | n/a (already registered) | ✅ → returns `null` | null = certified state, UI renders "certified" branch |
-| Supervisor | n/a | ❌ `FORBIDDEN` | later lateral read is DEV3-016 scope |
+| Supervisor | n/a | ❌ `FORBIDDEN` | later lateral read scope |
 | Super Admin | ✅ (only via DEV3 onboarding) | ❌ `FORBIDDEN` by scope; uses admin surfaces later | no admin read here (REQ-032) |
 
 ---
@@ -243,7 +243,7 @@ extend type Query {
 
 ### 4.1 New Service — `applicant-lifecycle.service.ts`
 
-Location: `backend/services/teachers/applicant-lifecycle.service.ts` (domain folder matches DEV1-002/DEV1-003 teacher domains).
+Location: `backend/services/teachers/applicant-lifecycle.service.ts` (domain folder matches the User Registration ticket teacher domains).
 
 ```typescript
 // namespace pattern, runtime only — NO types here (backend/types owns them)
@@ -270,10 +270,10 @@ export namespace ApplicantLifecycleService {
 **Behavior contracts:**
 
 - **`getMyApplicantProfile`** — 1 read of `applicants` by PK; if no row ⇒ `null` (certified / not-an-applicant answer); if row exists, validate `status` via `isApplicantStatus`; compute `cooldownActive = cooldownUntil !== null && cooldownUntil > now` and `canPurchaseVerification = !cooldownActive && status !== ApplicantStatus.Passed`. All pure compute after a single read — **no write, no lock**.
-- **`assertCanPurchaseVerification`** — single read + pure compute against a captured `now`. Throws `ValidationError("APPLICANT_COOLDOWN_ACTIVE", t.<keyInterpolatingCooldownUntil>)` when active; `NotFoundError("APPLICANT", t.applicantNotFound)` when no `applicants` row; no-op otherwise. Documented (REQ-043) as advisory-at-its-isolation-level — the racing purchase write ultimately lives in DEV2-005's transactional flow.
+- **`assertCanPurchaseVerification`** — single read + pure compute against a captured `now`. Throws `ValidationError("APPLICANT_COOLDOWN_ACTIVE", t.<keyInterpolatingCooldownUntil>)` when active; `NotFoundError("APPLICANT", t.applicantNotFound)` when no `applicants` row; no-op otherwise. Documented (REQ-043) as advisory-at-its-isolation-level — the racing purchase write ultimately lives in transactional flow.
 - **`recordReapplication`** — delegates to `ApplicantRepository.recordVerificationAttempt(userId, tx)`. Zero-row return ⇒ `NotFoundError("APPLICANT", …)` + `logger.logDomainError` (REQ-052). NEVER logs full payloads; never uses `console.*`.
 
-**Logging discipline (REQ-052):** only expected domain rejections go through `logDomainError` with context `{ code, entity: "applicants", entityId: userId }`; unexpected internals bubble upward to the GraphQL masking boundary (DEV3-002). `logger.error` stays reserved for true 5xx.
+**Logging discipline (REQ-052):** only expected domain rejections go through `logDomainError` with context `{ code, entity: "applicants", entityId: userId }`; unexpected internals bubble upward to the GraphQL masking boundary (the Shared Error Handling & Response Contracts ticket). `logger.error` stays reserved for true 5xx.
 
 ### 4.2 Repository — `backend/db/repo/teachers/applicant.repository.ts` (existing, add methods only)
 
@@ -287,20 +287,20 @@ Conventions per `backend/db/repo/AGENTS.md`:
 
 BOPLA: `recordVerificationAttempt` accepts zero client input — no whitelist concerns.
 
-### 4.3 Existing DEV1-002 Surface (Verify-Only)
+### 4.3 Existing the User Registration ticket Surface (Verify-Only)
 
 `RegistrationService` / `StudentRepository` / `ApplicantRepository.create` etc. are not modified unless tests prove a defect. Test helpers: verify `createTestApplicant`/registration helpers exist in `backend/db/test/entity-setup.ts`; add only if missing (Rule 17: verify signatures first).
 
 ### 4.4 Concurrency & Race Condition Assessment
 
-This ticket's runtime writes are minimal (one atomic counter update + one pure read). The only heavy transactional concern is *guarding* the existing DEV1-002 flow behavior under stress tests, not changing it.
+This ticket's runtime writes are minimal (one atomic counter update + one pure read). The only heavy transactional concern is *guarding* the existing the User Registration ticket flow behavior under stress tests, not changing it.
 
 | Scenario | Actors | Risk | Mitigation |
 |---|---|---|---|
 | Concurrent registration with same email | 2 anonymous clients | duplicate account → duplicate applicant | Existing `users.email` 23505 → `ConflictError` translation (inherited, REQ-040); verified by race test via `Promise.allSettled` inside `runInRollback`. |
-| Forced failure mid-registration (child insert fails after user insert) | tx internal | partial account | DEV1-002 `withTransaction(outerTx)` SAVEPOINT-aware pattern; lock tests assert zero residual `users`/`applicants` rows. |
+| Forced failure mid-registration (child insert fails after user insert) | tx internal | partial account | the User Registration ticket `withTransaction(outerTx)` SAVEPOINT-aware pattern; lock tests assert zero residual `users`/`applicants` rows. |
 | Two application recordings on same applicant | service concurrent invocations | lost update on `verification_attempts` | REQ-042: single in-place UPDATE with server-side `+ 1` — atomic under PG isolation; concurrency test asserts final attempts = 2 after two concurrent calls. |
-| Rapid calls to `assertCanPurchaseVerification` at exact cooldown boundary | 1 caller, repetitive | flaky allow/block | Capture `now` once per call; deterministic results per request; the racing write is DEV2-005's responsibility (documented in canonical doc). |
+| Rapid calls to `assertCanPurchaseVerification` at exact cooldown boundary | 1 caller, repetitive | flaky allow/block | Capture `now` once per call; deterministic results per request; the racing write is responsibility (documented in canonical doc). |
 | Certified teacher probes profile | certified sheikh client | information leak about applicant state precedence | Service returns `null` strictly after checking `applicants` row existence; does not distinguish "never an applicant" from "passed" publicly (REQ-035); role gate keeps non-teachers out wholesale. |
 | Junk `status` strings committed outside app | admin scripts / future bug | UI/render inconsistency | `isApplicantStatus` guard at service boundary fails closed with `ValidationError`. |
 | `db push` drift mid-ticket | dev machine | schema divergence | REQ-045: empty-schema-diff gate; no `db push` is ever run for this ticket. |
@@ -330,7 +330,7 @@ No new routes; one new on-dashboard surface.
 |---|---|---|---|
 | `/teacher/dashboard` (existing) | Renders new `<ApplicantStatusCard />` when the caller is a teacher with an active applicants file | `authenticated` + role-gated page wrapper (existing) | teacher (applicant + certified — certified branch renders differently) |
 
-The existing page-level guards from DEV2-001/DEV2-002 (`withPageAuth({ roles: [UserRole.Teacher] })` / layout guard) stay the **server-side boundary**; the client card is UI affordance only.
+The existing page-level guards from the JWT Authentication Service ticket (`withPageAuth({ roles: [UserRole.Teacher] })` / layout guard) stay the **server-side boundary**; the client card is UI affordance only.
 
 ### 5.2 Sidebar & Navigation Integration
 
@@ -347,7 +347,7 @@ The existing page-level guards from DEV2-001/DEV2-002 (`withPageAuth({ roles: [U
 | Teacher — Applicant (pending) | status chip "Pending Evaluation" (translated), attempts count, no cooldown block |
 | Teacher — Applicant (in_evaluation) | "In Evaluation" chip, attempt count, target info (5 sessions) simplification |
 | Teacher — Applicant (failed, cooldown active) | `COOLDOWN_UNTIL` rendered via ICU-formatted date; re-application CTA **disabled** with explanatory copy |
-| Teacher — Applicant (failed, cooldown expired) | "Eligible to Re-apply" affordance (CTA enabled, purchases route handled later by DEV2-005) |
+| Teacher — Applicant (failed, cooldown expired) | "Eligible to Re-apply" affordance (CTA enabled, purchases route handled later) |
 | Teacher — Certified Sheikh | the existing certified-teacher dashboard state; the status card shows the certified summary — never pending/evaluation copy |
 | Supervisor | never reaches the surface |
 | Admin | never reaches the surface (admin dashboard is separate) |
@@ -384,11 +384,11 @@ app/(dashboard)/teacher/dashboard/page.tsx          (Server Component, existing 
 | Loading | MUI Skeleton card (title, one badge line, one CTA placeholder) |
 | Error (UNAUTHORIZED / FORBIDDEN) | Existing `PermissionDeniedFallback` pattern — never bare null on a page-level deny |
 | `null` payload (certified) | Certified summary: "You are certified" + shortcut to main teaching surfaces |
-| Pending | Chip + "awaiting purchase" prompt (purchase flow is DEV2-005 scope) |
+| Pending | Chip + "awaiting purchase" prompt (purchase flow scope) |
 | In-Evaluation | Chip + attempt counter + progress hint |
 | Failed / Cooldown Active | Warning chip + expiry date + disabled re-apply CTA |
 | Failed / Cooldown Expired | Success/info-style affordance with active re-apply CTA |
-| Status unknown/corrupt | Inline generic error toast/alert via the DEV3-002 mapping contract — never crash |
+| Status unknown/corrupt | Inline generic error toast/alert via the Shared Error Handling & Response Contracts ticket mapping contract — never crash |
 
 **Agent-Browser Verification Protocol:** verification is compile + integration + component-test based (no new URLs to screenshot). Equivalents: GraphQL `testClient` matrix tests, Happy DOM card render tests across all five branches + RTL, and page-load smoke on `/teacher/dashboard` within the existing role-based E2E suite (reused, not newly authored as a dedicated E2E run).
 
@@ -401,9 +401,9 @@ app/(dashboard)/teacher/dashboard/page.tsx          (Server Component, existing 
 | **BOLA / IDOR** | `myApplicantProfile` takes **no arguments** — identity is only `ctx.user.id` (REQ-030). The surface to pass a foreign user id *does not exist*. Reads inside service/repo use the caller's own user id as PK. No cross-tenant joins introduced. |
 | **BOPLA (mass assignment)** | No client input maps into any DB write in this ticket. `ApplicantProfileReturnType` is a closed `readonly` shape; the only write is the server-internal `recordVerificationAttempt` (no input shape). No `{ ...input }` spread anywhere; static review asserts zero hits in diff. |
 | **BFLA (function-level authorization)** | `authScopes: { role: [UserRole.Teacher] }` gate the only new operation; non-teachers get `FORBIDDEN`. Nothing in this ticket grants certification: no mutation writes `teacher.is_approved`, `is_evaluator`, `is_online`, `subjects`, or `request_preference` (REQ-033). Admin/supervisor lateral reads do NOT exist here (zero mutation surface for privilege escalation). |
-| **Error oracles / disclosure** | Rejections are canonical localized denies; errors never reveal whether some *other* user has an applicants row, nor which governance flag produced a deny for the caller's own account beyond the documented public copy (REQ-035, A.7 governance-nondisclosure from DEV1-002). |
-| **SQL / LIKE injection** | No LIKE/ILIKE user-driven queries in this ticket; all writes are parameterized via Drizzle/`sql` templates with no string concatenation and no inline `--` comments. Future search surfaces that consume applicants (e.g., admin filters in DEV3-016) must use `escapeLikeWildcards` — noted for downstream. |
-| **Soft-delete / governance integrity** | Read paths handle `isDeleted/isBlocked/suspended` upstream in DEV2-001/002 (fail-closed contexts); this ticket's service does not leak "governed but readable" rows. INV-U5 preserved: applicants rows survive governance actions untouched. |
+| **Error oracles / disclosure** | Rejections are canonical localized denies; errors never reveal whether some *other* user has an applicants row, nor which governance flag produced a deny for the caller's own account beyond the documented public copy (REQ-035, A.7 governance-nondisclosure from the User Registration ticket). |
+| **SQL / LIKE injection** | No LIKE/ILIKE user-driven queries in this ticket; all writes are parameterized via Drizzle/`sql` templates with no string concatenation and no inline `--` comments. Future search surfaces that consume applicants (e.g., admin filters) must use `escapeLikeWildcards` — noted for downstream. |
+| **Soft-delete / governance integrity** | Read paths handle `isDeleted/isBlocked/suspended` upstream in the JWT Authentication Service ticket (fail-closed contexts); this ticket's service does not leak "governed but readable" rows. INV-U5 preserved: applicants rows survive governance actions untouched. |
 | **Timing/oracle on cooldown boundary** | Cooldown evaluation is a pure read against a single captured `now`; no write-at-read pattern exists in the guard. |
 | **Token / secret hygiene** | No tokens or credentials are logged; PII in `logDomainError` context is limited to codes + entity id. |
 
@@ -415,4 +415,4 @@ app/(dashboard)/teacher/dashboard/page.tsx          (Server Component, existing 
 2. `bun run generate:gqlSchema && bun codegen` after all GraphQL work, artifacts committed in the same change set.
 3. Per-file `bun run scripts/health/sub-loop.ts <file> --lifecycle duplicates` exit 0 for every created/modified file.
 4. Test suites: logic tests, service tests, GraphQL integration tests (via `setupTestServerLifecycle` + `testClient`), component tests — all green (`bun run test:db`, `bun run test:services`, `bun run test:graphql`, `bun run test:ui:components` as applicable), 100% statement/branch on new logic, `bun run test/scripts/run-test.ts` used for DB-bound tests.
-5. Final gates: zero new tsgo/biome/lint issues vs Phase-0 baseline; `grep -c "❌\|⚠️"` on `deferred-items.md` = 0 (forward items for DEV2-005 purchase wiring must be expressed as resolved reference entries, not open debt); canonical doc `docs/teachers/applicant-lifecycle.md` exists and is referenced from `docs/auth/user-registration.md`, `backend/services/AGENTS.md`, and the root `AGENTS.md` Important References.
+5. Final gates: zero new tsgo/biome/lint issues vs Phase-0 baseline; `grep -c "❌\|⚠️"` on `deferred-items.md` = 0 (forward items for purchase wiring must be expressed as resolved reference entries, not open debt); canonical doc `docs/teachers/applicant-lifecycle.md` exists and is referenced from `docs/auth/user-registration.md`, `backend/services/AGENTS.md`, and the root `AGENTS.md` Important References.

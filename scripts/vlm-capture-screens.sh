@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Capture all DEV3-017 screenshots in one tight bash session.
+# Capture all account-governance screenshots in one tight bash session.
 # Restarts dev server, logs in, navigates, captures screenshots at 4 viewports × 2 locales.
 # Designed to complete BEFORE the sandbox kills the Turbopack dev process.
 set -e

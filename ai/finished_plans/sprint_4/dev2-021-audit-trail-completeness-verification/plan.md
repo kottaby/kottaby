@@ -1,8 +1,8 @@
-# Technical Design: DEV2-021 — Audit Trail Completeness Verification
+# Technical Design: Audit Trail Completeness Verification
 
 ## Document Information
 
-- **Feature**: Audit Trail Completeness Verification (DEV2-021, Sprint 4, Dev 2, 3 SP)
+- **Feature**: Audit Trail Completeness Verification (Sprint 4, Dev 2, 3 SP)
 - **Spec**: `ai/plans/sprint_4/dev2-021-audit-trail-completeness-verification/specs.md`
 - **Plan Directory**: `ai/plans/sprint_4/dev2-021-audit-trail-completeness-verification`
 - **Outcome Directory**: `ai/plans/sprint_4/dev2-021-audit-trail-completeness-verification/outcome`
@@ -30,7 +30,7 @@ Turn "every admin action is audited" from belief into a permanently enforced pro
 #### Decision: Remediate the two confirmed gaps in-scope rather than defer
 **Context:** Census authoring proved plan-catalog (G-06) and dispute arbitration (G-07) emit zero audit rows.
 **Options:** (a) defer both to new tickets; (b) fix here.
-**Decision:** (b). Both seams are pre-built (`// DEV3-020 audit hook seam` markers; `resolveSessionDispute` already has `withTransaction` + adminId + admin gate). Deferring would make the journey red at birth and violate the ticket's own definition of completeness.
+**Decision:** (b). Both seams are pre-built (`// audit hook seam` markers; `resolveSessionDispute` already has `withTransaction` + adminId + admin gate). Deferring would make the journey red at birth and violate the ticket's own definition of completeness.
 **Rationale:** 3 SP ticket, seams designed for exactly this fill-in.
 
 #### Decision: `setPlanActiveStatus` maps deactivate→Suspend, activate→Reactivate

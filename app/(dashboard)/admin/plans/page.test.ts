@@ -1,5 +1,5 @@
 /**
- * Admin Plans Page Unit Tests — DEV1-005 Task 4.2.TE
+ * Admin Plans Page Unit Tests
  *
  * Verifies:
  *  - REQ-002, REQ-062, REQ-064: Server component page metadata and export contract.

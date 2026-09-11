@@ -10,33 +10,33 @@ Research complete. Here is the digest.
 |---|---|
 | `.agents/spec-process-guide/templates/requirements-template.md` (308 lines), `design-template.md` (624), `tasks-template.md` (652), `deferred-items-template.md` (154), `checklists.md` (558), `plan-review-template.md` (108) | Canonical templates |
 | `ai/prompt.md` (24 lines) | Generator contract (post-generation audit, deliverables list) |
-| `ai/plans/sprint_1/DEV1-006-subscription-purchase-payment-gateway/{specs,plan,tasks,deferred-items}.md` (253/335/234/61 lines), `outcome/plan-review-R1.md` (83 lines) | Newest sibling plan — de-facto current house style |
+| `ai/plans/sprint_1/subscription-purchase-payment-gateway/{specs,plan,tasks,deferred-items}.md` (253/335/234/61 lines), `outcome/plan-review-R1.md` (83 lines) | Newest sibling plan — de-facto current house style |
 | `ai/finished_plans/sprint_1/dev1-005-plan-catalog-crud-admin-only/{specs,plan,tasks}.md` | Finished plan consistency check |
 | `ai/plans/sprint_1/dev3-005-…`, `dev3-006-…`, `ai/plans/sprint_3/dev1-015-…`, `ai/finished_plans/sprint_1/dev3-004-…`, `dev2-004-…` | Cross-plan REQ-range probes |
 
 ---
 
-## 1. Verbatim header / front-matter blocks (as actually used by DEV1-006, the current house style)
+## 1. Verbatim header / front-matter blocks (as actually used by the subscription-purchase plan, the current house style)
 
-The generic templates use a `## Document Information` bullet block; the live plan convention wraps it in a path-first header. DEV1-006's are canonical for a new plan:
+The generic templates use a `## Document Information` bullet block; the live plan convention wraps it in a path-first header. The subscription-purchase plan's are canonical for a new plan:
 
-**specs.md** (`ai/plans/sprint_1/DEV1-006-subscription-purchase-payment-gateway/specs.md:1-19`):
+**specs.md** (`ai/plans/sprint_1/subscription-purchase-payment-gateway/specs.md:1-19`):
 ```markdown
-# Requirements & Specification: DEV1-006 — Subscription Purchase via Payment Gateway
+# Requirements & Specification: Subscription Purchase via Payment Gateway
 
-**Plan directory:** `ai/plans/sprint_1/DEV1-006-subscription-purchase-payment-gateway/`
-**Specs path:** `ai/plans/sprint_1/DEV1-006-subscription-purchase-payment-gateway/specs.md`
-**Deferred-items ledger:** `ai/plans/sprint_1/DEV1-006-subscription-purchase-payment-gateway/deferred-items.md`
-**Outcome directory:** `ai/plans/sprint_1/DEV1-006-subscription-purchase-payment-gateway/outcome/`
+**Plan directory:** `ai/plans/sprint_1/subscription-purchase-payment-gateway/`
+**Specs path:** `ai/plans/sprint_1/subscription-purchase-payment-gateway/specs.md`
+**Deferred-items ledger:** `ai/plans/sprint_1/subscription-purchase-payment-gateway/deferred-items.md`
+**Outcome directory:** `ai/plans/sprint_1/subscription-purchase-payment-gateway/outcome/`
 
 ## Document Information
 
 - **Feature Name**: Subscription Purchase via Payment Gateway
-- **Ticket Reference**: `docs/planning/TICKETS.md:449-493` (DEV1-006, Sprint 1, 5 pts, Blocked By DEV1-005 — done in `ai/finished_plans/sprint_1/dev1-005-plan-catalog-crud-admin-only/`)
-- **Target Directory**: `ai/plans/sprint_1/DEV1-006-subscription-purchase-payment-gateway/`
-- **Outcome Directory**: `ai/plans/sprint_1/DEV1-006-subscription-purchase-payment-gateway/outcome/`
-- **Companion Plan**: `ai/plans/sprint_1/DEV1-006-subscription-purchase-payment-gateway/plan.md`
-- **Companion Tasks**: `ai/plans/sprint_1/DEV1-006-subscription-purchase-payment-gateway/tasks.md`
+- **Ticket Reference**: `docs/planning/TICKETS.md:449-493` (the subscription-purchase plan, Sprint 1, 5 pts, Blocked By the plan-catalog ticket — done in `ai/finished_plans/sprint_1/dev1-005-plan-catalog-crud-admin-only/`)
+- **Target Directory**: `ai/plans/sprint_1/subscription-purchase-payment-gateway/`
+- **Outcome Directory**: `ai/plans/sprint_1/subscription-purchase-payment-gateway/outcome/`
+- **Companion Plan**: `ai/plans/sprint_1/subscription-purchase-payment-gateway/plan.md`
+- **Companion Tasks**: `ai/plans/sprint_1/subscription-purchase-payment-gateway/tasks.md`
 - **Version**: 1.0
 - **Date**: 2026-09-06
 - **Author**: Spec Plan Generator (swarm)
@@ -45,9 +45,9 @@ The generic templates use a `## Document Information` bullet block; the live pla
 
 **plan.md** (`plan.md:1-13`):
 ```markdown
-# Technical Architecture & Implementation Design: DEV1-006 — Subscription Purchase via Payment Gateway
+# Technical Architecture & Implementation Design: Subscription Purchase via Payment Gateway
 
-**Plan directory:** `ai/plans/sprint_1/DEV1-006-subscription-purchase-payment-gateway/`
+**Plan directory:** `ai/plans/sprint_1/subscription-purchase-payment-gateway/`
 **Specs:** `…/specs.md`
 **Tasks:** `…/tasks.md`
 **Deferred-items ledger:** `…/deferred-items.md`
@@ -55,23 +55,23 @@ The generic templates use a `## Document Information` bullet block; the live pla
 ## Document Information
 
 - **Feature Name**: …
-- **Ticket**: DEV1-006 (Sprint 1, 5 pts) — `docs/planning/TICKETS.md:449-493`
+- **Ticket**: the subscription-purchase plan (Sprint 1, 5 pts) — `docs/planning/TICKETS.md:449-493`
 - **Version**: 1.0 · **Date**: 2026-09-06
 - **Related Documents**: `docs/billing/plan-catalog.md`, `docs/IDEMPOTENCY.md`, `docs/notifications/realtime-engine.md`, `docs/graphql/error-handling-contract.md`, `docs/specs/state-machine-invariants.md`, `docs/specs/open-decisions-and-gaps.md`, `docs/planning/SPRINT_PLAN.md`
 ```
 
 **tasks.md** (`tasks.md:1-18`):
 ```markdown
-# `tasks.md` — DEV1-006: Subscription Purchase via Payment Gateway
+# `tasks.md` — Subscription Purchase via Payment Gateway
 
-**Plan directory:** `ai/plans/sprint_1/DEV1-006-subscription-purchase-payment-gateway/`
+**Plan directory:** `ai/plans/sprint_1/subscription-purchase-payment-gateway/`
 **Specs:** `specs.md` · **Plan:** `plan.md` · **Ledger:** `deferred-items.md` · **Outcomes:** `outcome/`
 
 **Nature of this ticket:** buys-side money flow — …
 
 ## Document Information
 
-- **Feature**: … · **Ticket**: DEV1-006 (Sprint 1, 5 pts)
+- **Feature**: … · **Ticket**: the subscription-purchase plan (Sprint 1, 5 pts)
 - **Version**: 1.0 · **Date**: 2026-09-06
 
 ### Numbering & Traceability Conventions
@@ -86,21 +86,21 @@ The generic templates use a `## Document Information` bullet block; the live pla
 ```markdown
 # Deferred Items Ledger
 
-**Feature:** `DEV1-006-subscription-purchase-payment-gateway`
-**Plan:** `ai/plans/sprint_1/DEV1-006-subscription-purchase-payment-gateway/`
+**Feature:** `subscription-purchase-payment-gateway`
+**Plan:** `ai/plans/sprint_1/subscription-purchase-payment-gateway/`
 **Created:** `2026-09-06`
 ```
-(dev3-006's variant at `ai/plans/sprint_1/dev3-006-session-report-homework-infrastructure/deferred-items.md:1-5` uses `**Feature:**` + `**Plan Directory:**` + `**Created:**` — same shape.)
+(the session-report plan's variant at `ai/plans/sprint_1/dev3-006-session-report-homework-infrastructure/deferred-items.md:1-5` uses `**Feature:**` + `**Plan Directory:**` + `**Created:**` — same shape.)
 
 Convention variance to note (pick one and stay consistent):
-- dev3-006 tasks.md opens with blockquote-style `> **Plan directory (verbatim — used in every header, ledger path, outcome path, and self-reference below):** …` (`dev3-006…/tasks.md:1-8`) and an explicit scope ruling line; DEV1-006 uses the compact bold-line block above. Both are accepted; DEV1-006 is the most recent money-flow plan and the best template for this Paymob plan.
-- Finished dev1-005 uses a `> **Target ticket:** … / > **Plan directory:** … / > **Blocking dependencies:** … / > **Critical reconciliation note:** …` quote block (`dev1-005…/specs.md:3-6`) and a "Source of truth" line citing the REQ range (`dev1-005…/tasks.md:5`: `> **Source of truth:** `specs.md` (REQ-001..REQ-083) + `plan.md` (D1..D8)`).
+- The session-report plan's tasks.md opens with blockquote-style `> **Plan directory (verbatim — used in every header, ledger path, outcome path, and self-reference below):** …` (`dev3-006…/tasks.md:1-8`) and an explicit scope ruling line; the subscription-purchase plan uses the compact bold-line block above. Both are accepted; the subscription-purchase plan is the most recent money-flow plan and the best template for this Paymob plan.
+- The finished plan-catalog plan uses a `> **Target ticket:** … / > **Plan directory:** … / > **Blocking dependencies:** … / > **Critical reconciliation note:** …` quote block (`dev1-005…/specs.md:3-6`) and a "Source of truth" line citing the REQ range (`dev1-005…/tasks.md:5`: `> **Source of truth:** `specs.md` (REQ-001..REQ-083) + `plan.md` (D1..D8)`).
 
 ---
 
 ## 2. Complete ordered section outlines per doc
 
-### specs.md (DEV1-006 actual outline — supersedes template’s generic order)
+### specs.md (the subscription-purchase plan actual outline — supersedes template’s generic order)
 1. `## Document Information` (+ header block above)
 2. `## Introduction` → `### Feature Summary`, `### Business Value`, `### Scope` (IN/OUT bullets, `specs.md:29-31`)
 3. `## 1. Executive Summary & Problem Statement` — includes the **Verification-first ground-truth table** (Substrate / State / Evidence with `path:line`) (`specs.md:33-55`)
@@ -115,9 +115,9 @@ Convention variance to note (pick one and stay consistent):
 9. `## 7. Success Criteria` (Definition of Done checklist + Acceptance Metrics)
 10. `## 8. Glossary` (term table)
 
-Requirements-template givens that must carry over: Requirement 0/0.5 baseline + i18n/enum protocol (`requirements-template.md:44-84`) — DEV1-006 consolidated these into its §2.0 block.
+Requirements-template givens that must carry over: Requirement 0/0.5 baseline + i18n/enum protocol (`requirements-template.md:44-84`) — the subscription-purchase plan consolidated these into its §2.0 block.
 
-### plan.md (DEV1-006 actual outline)
+### plan.md (the subscription-purchase plan actual outline)
 1. `## 1. System Overview & Architecture` → `### 1.1 What this is`, `### 1.2 Interaction diagram` (mermaid sequenceDiagram), `### 1.3 Key Design Decisions` — numbered **D1..D10** table: `| # | Decision | Rationale | Alternatives rejected |` (`plan.md:15-57`)
 2. `## 2. Data Models & Database Schema` → 2.1 existing-schema verification table (`path:line`) / 2.2 schema deltas (CREATE/EXTEND/MIGRATION) / 2.3 canonical `backend/types/` types
 3. `## 3. API Contracts & Pothos Resolvers` → 3.1 SDL sketch in a `graphql` fence; 3.2 resolver shape & authScopes table; 3.3 permission matrix; 3.4 REST webhook contract (incl. ROUTE_INVENTORY registration row)
@@ -130,9 +130,9 @@ Requirements-template givens that must carry over: Requirement 0/0.5 baseline + 
 10. `## 10. Deployment, Migration & Compatibility`
 11. `## Appendix — Governing rule files (read at execution per task)` (`plan.md:332-335`)
 
-Note: `ai/prompt.md:16` mandates `plan.md` MUST contain "Overview+decisions, Data Models, API Contracts+SDL+permission matrix, Services/Repo signatures+concurrency assessment+Journey Design, UX/Nav spec — even if explicit no-UI ruling, Security/Tenancy mitigations" — DEV1-006's outline is the living example.
+Note: `ai/prompt.md:16` mandates `plan.md` MUST contain "Overview+decisions, Data Models, API Contracts+SDL+permission matrix, Services/Repo signatures+concurrency assessment+Journey Design, UX/Nav spec — even if explicit no-UI ruling, Security/Tenancy mitigations" — the subscription-purchase plan's outline is the living example.
 
-### tasks.md (DEV1-006 actual structure)
+### tasks.md (the subscription-purchase plan actual structure)
 1. Header block + `### Numbering & Traceability Conventions` (verbatim above)
 2. `## Non-Negotiable Execution Protocol` — 5 numbered items (`tasks.md:20-26`):
    ```markdown
@@ -142,7 +142,7 @@ Note: `ai/prompt.md:16` mandates `plan.md` MUST contain "Overview+decisions, Dat
    4. **No plan-meta in code** — comments/JSDoc never reference REQ ids, task ids, or plan paths.
    5. **Evidence or it didn't happen** — checkboxes flip only with outcome-file evidence.
    ```
-   (dev3-006 expands this into P1..P7 protocols, incl. P7 instruction-file reality constraint.)
+   (the session-report plan expands this into P1..P7 protocols, incl. P7 instruction-file reality constraint.)
 3. `## Phase 0: Pre-Implementation Baseline (MANDATORY)` — task 0.1 (record tsgo/biome/lint baseline counts; write `outcome/0.1-outcome.md`; `_Requirements: REQ-001_`)
 4. `## Phase 1.5: Plan Review Gate (MANDATORY — executed at planning time)` — task 1.1 marked `[x]` by the author, verdict recorded in `outcome/plan-review-R1.md` (`tasks.md:36-40`)
 5. Domain phases (Phase 2 "Schema, Enums & Types"; Phase 3 "Repositories (interleaved 100%-coverage tests)"; Phase 4 "Payment Gateway Port"; Phase 5 "Purchase Service"; **Phase 2.5 Mid-Point Backend Review Gate** placed after the backend block — `tasks.md:127-132`; Phase 6 "Activation Service & Webhook"; Phase 7 "GraphQL Surface"; Phase 8 "Catalog Lane Propagation + Admin Form Delta"; Phase 9 "Cross-Actor Journey Tests"; Phase 10 "Final Gate & Knowledge Propagation" with 12.1 baseline-compare + `grep -c "❌\|⚠️" deferred-items.md` == 0 and 13.1 knowledge propagation)
@@ -155,12 +155,12 @@ Task entry shape (verbatim example, `tasks.md:80-83`):
   - [ ] 4.1.QL · [ ] 4.1.TE — `backend/db/test/logic/billing/subscription.repository.test.ts` (runInRollback, tx everywhere, zero-row guarded path proven; 100% coverage per `backend/db/test/AGENTS.md` rule 14) · [ ] 4.1.SEC · [ ] 4.1.SR · [ ] 4.1.IV
   - _Requirements: REQ-002, REQ-004, REQ-030, REQ-031, REQ-070_
 ```
-Two accepted subtask styles: the compact one-liner above (DEV1-006, dev3-005) or fully expanded subtask bullets with task-specific TE/SEC content (dev3-006, e.g. `dev3-006…/tasks.md:127-131`). CREATE/EXTEND kind labels are mandatory per touched path.
+Two accepted subtask styles: the compact one-liner above (the subscription-purchase plan, the dual-confirmation plan) or fully expanded subtask bullets with task-specific TE/SEC content (the session-report plan, e.g. `dev3-006…/tasks.md:127-131`). CREATE/EXTEND kind labels are mandatory per touched path.
 
-### deferred-items.md (DEV1-006 actual structure, `deferred-items.md:1-61`)
+### deferred-items.md (the subscription-purchase plan actual structure, `deferred-items.md:1-61`)
 1. Header (above) → `## Purpose` (verbatim from template line 11)
 2. `## Ledger Table` with columns `| ID | Deferred Item | Source Task | Target Task | Status | Verified By | Notes |`; empty-at-authoring convention: a single `(none at plan-authoring time)` row (`deferred-items.md:19`)
-3. `## Status Values` — ✅ Done / ⚠️ Partial / ❌ Blocked / 🔄 In Progress (dev3-006 adds a fifth: `📅 **Forward** — Pre-seeded forward item owned by a later ticket; non-blocking for this plan`, `dev3-006…/deferred-items.md:24-28`)
+3. `## Status Values` — ✅ Done / ⚠️ Partial / ❌ Blocked / 🔄 In Progress (the session-report plan adds a fifth: `📅 **Forward** — Pre-seeded forward item owned by a later ticket; non-blocking for this plan`, `dev3-006…/deferred-items.md:24-28`)
 4. `## Inbound Forward Contracts (resolved BY this plan — NOT deferred items)` — table `| External contract | Source | How this plan resolves it |` (`deferred-items.md:32-37`)
 5. `## Known Cross-Ticket Deferrals (NOT this plan's ledger entries)` — table `| Item | Owning ticket | Note |` with the explicit sentence *"These belong to downstream tickets and are recorded here so their consumers see them — they MUST NOT block this plan's completion gate"* (`deferred-items.md:39-48`)
 6. `## Enforcement` — names the final gate task id and the grep command with `Expected: 0`; exit criteria sentence (`deferred-items.md:52-61`)
@@ -168,7 +168,7 @@ Two accepted subtask styles: the compact one-liner above (DEV1-006, dev3-005) or
 ### outcome/plan-review-R1.md (verdict format)
 Template: `.agents/spec-process-guide/templates/plan-review-template.md` — header `## Review Round: <N>` / `## Date:` / `## Subagents Dispatched:` → `## Summary` (Total/Blocking/Medium/Low counts) → `## Findings by Dimension` table (Paths Existence, i18n Compliance, GraphQL Accuracy, Component Props, Permissions/Enums, Existing Components, Architecture Compliance, Cross-Reference Consistency + plan-specific rows like "Registry/Route Compliance", "UX/Nav ruling", "Traceability (specs↔tasks)") → `## Detailed Findings` (F1.. with Location/Expected/Actual/Fix Applied) → `## Dimension Pass Notes` → `## Post-Fix Verification` checklist → `## Lessons for Future Plans` → `## Traceability` → `## Next Steps`.
 
-Actual DEV1-006 R1 verdict line (`outcome/plan-review-R1.md:18`): `- **Verdict after fixes:** ✅ **Plan passes all AGENTS.md rules** (all 4 fixed in-file; re-verified by grep).` Header variation (`:3-5`): `## Review Round: 1 (Phase 1.5 gate)`, `## Subagents Dispatched: none — review executed inline …` (inline review is an accepted mode). Final checklist includes the structure gate verbatim (`:82`).
+Actual the subscription-purchase plan R1 verdict line (`outcome/plan-review-R1.md:18`): `- **Verdict after fixes:** ✅ **Plan passes all AGENTS.md rules** (all 4 fixed in-file; re-verified by grep).` Header variation (`:3-5`): `## Review Round: 1 (Phase 1.5 gate)`, `## Subagents Dispatched: none — review executed inline …` (inline review is an accepted mode). Final checklist includes the structure gate verbatim (`:82`).
 
 ---
 
@@ -230,9 +230,9 @@ Sequence: **QL → TE → SEC → SR → IV → Mark `[x]`** (`tasks-template.md
   - Validate the file against the rules in those files
 ```
 
-**Practice note:** DEV1-006 and dev3-005 use the compact inline form `[ ] X.Y.QL / TE (…task-specific…) / SEC (…) / SR / IV` instead of the full expansion; dev3-006 and dev1-005 use expanded per-task versions with task-specific TE/SEC content. Both pass review; choose per plan size.
+**Practice note:** the subscription-purchase plan and the dual-confirmation plan use the compact inline form `[ ] X.Y.QL / TE (…task-specific…) / SEC (…) / SR / IV` instead of the full expansion; the session-report plan and the plan-catalog plan use expanded per-task versions with task-specific TE/SEC content. Both pass review; choose per plan size.
 
-**Absolute path staleness warning:** the template's IV block and the Layer-to-Instructions mapping table (`tasks-template.md:119-138`) hardcode `/home/ahmed/Projects/kottaby/...` — the actual repo root is `/home/ahmed/Projects/kottaby_kottaby`. Live plans (DEV1-006, dev3-006) do NOT echo absolute paths per task; they rely on `sub-loop.ts` auto-discovery plus a P7/appendix rule listing only *verified* paths (`dev3-006…/tasks.md` P7; `DEV1-006…/plan.md:332-335` appendix). Follow that, not the template literals.
+**Absolute path staleness warning:** the template's IV block and the Layer-to-Instructions mapping table (`tasks-template.md:119-138`) hardcode `/home/ahmed/Projects/kottaby/...` — the actual repo root is `/home/ahmed/Projects/kottaby_kottaby`. Live plans (the subscription-purchase plan, the session-report plan) do NOT echo absolute paths per task; they rely on `sub-loop.ts` auto-discovery plus a P7/appendix rule listing only *verified* paths (`dev3-006…/tasks.md` P7; `subscription-purchase-plan…/plan.md:332-335` appendix). Follow that, not the template literals.
 
 ---
 
@@ -242,17 +242,17 @@ Sequence: **QL → TE → SEC → SR → IV → Mark `[x]`** (`tasks-template.md
 
 | Plan | REQ range used (grep of its specs.md) |
 |---|---|
-| DEV1-006 (`ai/plans/sprint_1/DEV1-006…/specs.md`) | REQ-001..005, 010..017, 020..028, 030..034, 040..045, 050..053, 060..065, 070..075, 080..082 |
-| dev1-005 (`ai/finished_plans/sprint_1/dev1-005…/specs.md`) | REQ-001.. up to REQ-083 |
-| dev3-004 (`ai/finished_plans/sprint_1/dev3-004…/specs.md`) | REQ-001..004, 010..023, 030..036, 040..047, 050..054, 060..065, 070..077, 080..083 |
-| dev2-004 (`ai/finished_plans/sprint_1/dev2-004…/specs.md`) | REQ-001.. REQ-083 |
-| dev3-006 (`ai/plans/sprint_1/dev3-006…/specs.md`) | REQ-001..003, 010..019, 030..034, 040..044, 050..055, 060..064, 070..072 |
-| dev3-005 (`ai/plans/sprint_1/dev3-005…/specs.md`) | **NO REQ-* at all** — requires are expressed as INV-S1…S8 invariant refs; REQ-* numbering is strong convention, not universal law |
-| dev1-015 (`ai/plans/sprint_3/dev1-015…/specs.md`) | REQ-001..071 (contains two malformed tokens `REQ-01`, `REQ-05` — typos, not a convention) |
+| the subscription-purchase plan (`ai/plans/sprint_1/subscription-purchase-plan…/specs.md`) | REQ-001..005, 010..017, 020..028, 030..034, 040..045, 050..053, 060..065, 070..075, 080..082 |
+| the plan-catalog plan (`ai/finished_plans/sprint_1/dev1-005…/specs.md`) | REQ-001.. up to REQ-083 |
+| the session-lifecycle plan (`ai/finished_plans/sprint_1/dev3-004…/specs.md`) | REQ-001..004, 010..023, 030..036, 040..047, 050..054, 060..065, 070..077, 080..083 |
+| the applicant-lifecycle plan (`ai/finished_plans/sprint_1/dev2-004…/specs.md`) | REQ-001.. REQ-083 |
+| the session-report plan (`ai/plans/sprint_1/dev3-006…/specs.md`) | REQ-001..003, 010..019, 030..034, 040..044, 050..055, 060..064, 070..072 |
+| the dual-confirmation plan (`ai/plans/sprint_1/dev3-005…/specs.md`) | **NO REQ-* at all** — requires are expressed as INV-S1…S8 invariant refs; REQ-* numbering is strong convention, not universal law |
+| the sprint-3 plan (`ai/plans/sprint_3/dev1-015…/specs.md`) | REQ-001..071 (contains two malformed tokens `REQ-01`, `REQ-05` — typos, not a convention) |
 
 De-facto band convention (shared across plans but numbering is still local): **001-005** = execution-protocol block (baseline, quality loop, i18n, test-runner, enums), **010s/020s** = core flow, **030s** = concurrency/db integrity, **040s** = security/authz/tenancy, **050s** = validation/errors/localization, **060s** = GraphQL/UX, **070s** = testing obligations, **080s** = knowledge propagation/spec hygiene.
 
-**Free-range ruling for the new Paymob plan: REQ-001 and up — the whole namespace is local to the plan.** Because the new plan is a successor to DEV1-006 (real adapter on the port DEV1-006 built), the plan author MUST qualify every cross-plan REQ citation with the owning plan path, e.g. how DEV1-006 cites `ai/finished_plans/sprint_1/dev1-005-plan-catalog-crud-admin-only/specs.md:83` (its deferred item D2)" (`deferred-items.md:36`).
+**Free-range ruling for the new Paymob plan: REQ-001 and up — the whole namespace is local to the plan.** Because the new plan is a successor to the subscription-purchase plan (real adapter on the port the subscription-purchase plan builds), the plan author MUST qualify every cross-plan REQ citation with the owning plan path, e.g. how the subscription-purchase plan cites `ai/finished_plans/sprint_1/dev1-005-plan-catalog-crud-admin-only/specs.md:83` (its deferred item D2)" (`deferred-items.md:36`).
 
 ---
 
@@ -261,7 +261,7 @@ De-facto band convention (shared across plans but numbering is still local): **0
 - Every task bullet ends with `_Requirements: REQ-…_` in **expanded** id lists — "no ranges" so grep-verifiable (`tasks.md:17`).
 - `ai/prompt.md:17` mandates the machine check after authoring: ``for r in $(grep -oE 'REQ-[0-9]+' specs.md | sort -u); do grep -q "$r" tasks.md || echo MISSING: $r; done`` — **zero misses**, "including ranges in section headers" (so the Traceability Map's grouped/ranged cells are tolerated only because each REQ also appears expanded in `_Requirements:` lines).
 - tasks.md must end with a `## Traceability Map (REQ → tasks)` table (`tasks.md:199-234`).
-- dev1-005 adds a `> **Source of truth:** `specs.md` (REQ-001..REQ-083) + `plan.md` (D1..D8)` line (`dev1-005…/tasks.md:5`) binding spec range + design decision ids.
+- The plan-catalog plan adds a `> **Source of truth:** `specs.md` (REQ-001..REQ-083) + `plan.md` (D1..D8)` line (`dev1-005…/tasks.md:5`) binding spec range + design decision ids.
 - Design decisions are cited as D1..Dn between plan.md and tasks/specs (e.g. "plan D7", `(D2)` in `deferred-items.md:49`).
 - Checkbox rule: `[ ]` → `[x]` only with outcome-file evidence ("Evidence or it didn't happen", `tasks.md:26`); outcome files at `outcome/<task-id>-outcome.md`; the Phase-1.5 review outcome is `outcome/plan-review-R1.md`.
 
@@ -269,23 +269,23 @@ De-facto band convention (shared across plans but numbering is still local): **0
 
 ## 6. Cross-plan reference conventions (incl. deferred items)
 
-- **Full path + line cite**: `ai/finished_plans/sprint_1/dev1-005-plan-catalog-crud-admin-only/specs.md:83` (`DEV1-006 deferred-items.md:36`). Never bare ticket ids alone when citing a deferral.
-- **Inbound vs outbound split** in the ledger: `## Inbound Forward Contracts (resolved BY this plan — NOT deferred items)` and `## Known Cross-Ticket Deferrals (NOT this plan's ledger entries)` with the explicit "MUST NOT block this plan's completion gate" sentence (DEV1-006 `deferred-items.md:32-48`). Only DEV1-006's ledger carries the exact "Known Cross-Ticket Deferrals" heading among current plans (grep of all `deferred-items.md`).
+- **Full path + line cite**: `ai/finished_plans/sprint_1/dev1-005-plan-catalog-crud-admin-only/specs.md:83` (the subscription-purchase plan's `deferred-items.md:36`). Never bare ticket ids alone when citing a deferral.
+- **Inbound vs outbound split** in the ledger: `## Inbound Forward Contracts (resolved BY this plan — NOT deferred items)` and `## Known Cross-Ticket Deferrals (NOT this plan's ledger entries)` with the explicit "MUST NOT block this plan's completion gate" sentence (the subscription-purchase plan `deferred-items.md:32-48`). Only the subscription-purchase plan's ledger carries the exact "Known Cross-Ticket Deferrals" heading among current plans (grep of all `deferred-items.md`).
 - **Cross-ticket shorthand ids**: root `AGENTS.md` cites `ai/plans/dev3-002-shared-error-handling-response-contracts/deferred-items.md` entries as `BLT-01..BLT-03`; `ai/plans/sprint_3/dev3-021-admin-session-governance/deferred-items.md:15` consumes it as `- **D-05** … (BLT-03)`. So: prefix-style stable ledger ids exist as a cross-plan vocabulary.
-- **Pre-seeded forward items**: dev1-005 seeds D1/D2 at baseline with target tickets (`dev1-005…/tasks.md:44-45`, `specs.md:41`); dev3-006 formalizes a `📅 Forward` status for this.
-- **Spec-to-spec forward contracts**: DEV1-006's REQ-011 is titled "(Purchase-Time Activation Re-validation — fulfills DEV1-005 REQ-044/D2)" — pattern: name the fulfilling REQ in the consumer plan, cite the producer's `path:line` + its ledger id.
+- **Pre-seeded forward items**: the plan-catalog plan seeds D1/D2 at baseline with target tickets (`dev1-005…/tasks.md:44-45`, `specs.md:41`); the session-report plan formalizes a `📅 Forward` status for this.
+- **Spec-to-spec forward contracts**: the subscription-purchase plan's REQ-011 is titled "(Purchase-Time Activation Re-validation — fulfills the plan-catalog ticket REQ-044/D2)" — pattern: name the fulfilling REQ in the consumer plan, cite the producer's `path:line` + its ledger id.
 - **Verification-first substrate table** (specs §1) doubles as the cross-plan intake: rows state whether upstream artifacts EXIST/NOT FOUND with grep evidence, e.g. `specs.md:39-49`.
 
 ---
 
 ## 7. Negative findings / traps the plan author must avoid
 
-1. **No Paymob ticket exists** in `docs/planning/TICKETS.md` (grep for `paymob|Paymob`: zero hits). The mandate anchor is `docs/planning/SPRINT_PLAN.md:160` — risk-table row `| Payment gateway integration delays | Mock payment service for development; integrate real gateway in Sprint 2 |` (DEV1-006 cites this as `SPRINT_PLAN.md:161`). The ticket's "Blocked By / Ticket Reference" header line will need a non-TICKETS source or an explicit no-ticket ruling.
+1. **No Paymob ticket exists** in `docs/planning/TICKETS.md` (grep for `paymob|Paymob`: zero hits). The mandate anchor is `docs/planning/SPRINT_PLAN.md:160` — risk-table row `| Payment gateway integration delays | Mock payment service for development; integrate real gateway in Sprint 2 |` (the subscription-purchase plan cites this as `SPRINT_PLAN.md:161`). The ticket's "Blocked By / Ticket Reference" header line will need a non-TICKETS source or an explicit no-ticket ruling.
 2. **`.agents/skills/paymob-payments/` EXISTS** — a Paymob skill with an offline mirror of `developers.paymob.com` (116 pages), `references/cheatsheet.md`, HMAC key-order docs. The plan should cite it; the skills `write-tests`, `test-expert`, `idor-testing`, `pentester` referenced *inside the tasks-template TE/SEC headings* (`tasks-template.md:65,79`) do **NOT** exist in `.agents/skills/` — do not copy those dead skill links.
-3. **Instruction-file path split**: `.agents/instructions/{backend,frontend,tests}.instructions.md` EXIST (verified); `.github/instructions/` does NOT exist. Root `AGENTS.md` and DEV1-006's tasks.md mention `.github/instructions/` — dev3-006's P7 rule documents the live reality (cite only verified files). Follow dev3-006's P7.
+3. **Instruction-file path split**: `.agents/instructions/{backend,frontend,tests}.instructions.md` EXIST (verified); `.github/instructions/` does NOT exist. Root `AGENTS.md` and the subscription-purchase plan's tasks.md mention `.github/instructions/` — the session-report plan's P7 rule documents the live reality (cite only verified files). Follow the session-report plan's P7.
 4. **Root `AGENTS.md` stale references**: `docs/workflows/plan-doc-reconciliation.md` and `ai/plans/dev3-002-shared-error-handling-response-contracts/deferred-items.md` are cited in root AGENTS.md but do NOT exist in this tree. If the new plan cites them, mark NOT FOUND.
-5. **DEV1-006 reserves `/api/payments/webhook` + env keys `PAYMENT_GATEWAY_PROVIDER`, `PAYMENT_WEBHOOK_SECRET`, `PAYMENT_WEBHOOK_ENABLED`, constant `MAX_PAYMENT_WEBHOOK_BODY_BYTES = 64_000`, port types `PaymentGatewayPort`/`PaymentCheckoutSession`/`PaymentWebhookEvent`, and factory `getPaymentGateway()` (`plan.md:199-202`, `tasks.md:102-107`)** — the Paymob plan's relationship (EXTEND adapter family vs. replace route) must be decided and cited.
-6. The tasks-template Layer table (`tasks-template.md:123-138`) also lists layers whose AGENTS.md may not exist per dev3-006's P7 (e.g. `frontend/views/AGENTS.md`, `frontend/components/ui/AGENTS.md` are flagged as non-existent there) — re-verify each before citing.
+5. **the subscription-purchase plan reserves `/api/payments/webhook` + env keys `PAYMENT_GATEWAY_PROVIDER`, `PAYMENT_WEBHOOK_SECRET`, `PAYMENT_WEBHOOK_ENABLED`, constant `MAX_PAYMENT_WEBHOOK_BODY_BYTES = 64_000`, port types `PaymentGatewayPort`/`PaymentCheckoutSession`/`PaymentWebhookEvent`, and factory `getPaymentGateway()` (`plan.md:199-202`, `tasks.md:102-107`)** — the Paymob plan's relationship (EXTEND adapter family vs. replace route) must be decided and cited.
+6. The tasks-template Layer table (`tasks-template.md:123-138`) also lists layers whose AGENTS.md may not exist per the session-report plan's P7 (e.g. `frontend/views/AGENTS.md`, `frontend/components/ui/AGENTS.md` are flagged as non-existent there) — re-verify each before citing.
 7. `ai/plans/sprint_1/dev1-015-…` is actually at `ai/plans/sprint_3/dev1-015-…` — sprint folder placement follows the ticket's Sprint field, not stream number.
 
 ## 8. Post-generation obligations (from `ai/prompt.md:14-19`)

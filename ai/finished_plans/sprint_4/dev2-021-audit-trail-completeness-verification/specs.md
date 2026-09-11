@@ -1,24 +1,24 @@
-# Requirements & Specification: DEV2-021 — Audit Trail Completeness Verification
+# Requirements & Specification: Audit Trail Completeness Verification
 
 ## Document Information
 
 - **Feature Name**: Audit Trail Completeness Verification
-- **Ticket**: DEV2-021 — `docs/planning/TICKETS.md:2838` (Owner Stream: Dev 2, Sprint 4, 3 SP, Blocked By: DEV3-020)
+- **Ticket**: `docs/planning/TICKETS.md:2838` (Owner Stream: Dev 2, Sprint 4, 3 SP, Blocked By: the audit-emission foundation ticket)
 - **Target Directory**: `ai/plans/sprint_4/dev2-021-audit-trail-completeness-verification`
 - **Outcome Directory**: `ai/plans/sprint_4/dev2-021-audit-trail-completeness-verification/outcome`
 - **Version**: 1.0
 - **Date**: 2026-09-05
 - **Author**: Dev 2 stream (spec authored by planning agent)
-- **Stakeholders**: Platform Auditor / Compliance (consumer), Dev 2 (author), Dev 3 (owner of the emission contract in DEV3-016/DEV3-020), DEV3-026 launch-checklist executor (PRODUCTION_READINESS §1.3)
+- **Stakeholders**: Platform Auditor / Compliance (consumer), Dev 2 (author), Dev 3 (owner of the audit-emission contract), launch-checklist executor (PRODUCTION_READINESS §1.3)
 - **Related Canonical Documents**: `docs/admin/audit-trail.md` (read surface + two-tier immutability proof) · `docs/admin/user-management.md` §2.4 (audit-emission contract) · `docs/workflows/05-admin-governance-override.md` §7 (audit trail requirements + action catalog) · `docs/specs/open-decisions-and-gaps.md` decision A.5 · `docs/planning/PRODUCTION_READINESS.md` §1.3 · `docs/testing/workflow-journey-tests.md` · `test/workflows/AGENTS.md`
 
 ---
 
 ## Introduction
 
-The platform's governance story (FR-10.5, Workflow 05 §7.1) rests on one claim: **every administrative action is permanently logged in `audit_logs`**. DEV3-016/DEV3-020 built the write primitive (`AuditService.createAuditLog`) and the admin user-management emitters; DEV3-018, the broadcast surface, and earlier admin work added more emitters; `docs/admin/audit-trail.md` documents the read surface and the two-tier immutability proof. What has never existed is the **completeness proof**: an automated, self-maintaining verification that every shipped admin action actually mints its audit row — and that any future admin mutation silently shipped without one fails CI immediately.
+The platform's governance story (FR-10.5, Workflow 05 §7.1) rests on one claim: **every administrative action is permanently logged in `audit_logs`**. The audit-emission foundation and admin user-management work built the write primitive (`AuditService.createAuditLog`) and the admin user-management emitters; cold-start teacher certification, the broadcast surface, and earlier admin work added more emitters; `docs/admin/audit-trail.md` documents the read surface and the two-tier immutability proof. What has never existed is the **completeness proof**: an automated, self-maintaining verification that every shipped admin action actually mints its audit row — and that any future admin mutation silently shipped without one fails CI immediately.
 
-Verified on disk (Phase-0 table below): three admin surfaces — plan-catalog (`createPlan` / `updatePlan` / `setPlanActiveStatus`, each carrying an explicit `// DEV3-020 audit hook seam` comment) and session-dispute arbitration (`resolveSessionDispute`) — are shipped admin mutations with **zero audit emission**. A verification-only ticket that ignores them would ship a red suite; this ticket therefore both (a) closes the two confirmed gaps at their pre-built seams, and (b) delivers the standing verification harness: a machine-readable census of every admin action plus journey coverage proving row-shape, chronology, and zero-missing oracles.
+Verified on disk (Phase-0 table below): three admin surfaces — plan-catalog (`createPlan` / `updatePlan` / `setPlanActiveStatus`, each carrying an explicit `// audit hook seam` comment) and session-dispute arbitration (`resolveSessionDispute`) — are shipped admin mutations with **zero audit emission**. A verification-only ticket that ignores them would ship a red suite; this ticket therefore both (a) closes the two confirmed gaps at their pre-built seams, and (b) delivers the standing verification harness: a machine-readable census of every admin action plus journey coverage proving row-shape, chronology, and zero-missing oracles.
 
 ### Feature Summary
 
@@ -26,7 +26,7 @@ Ship (1) a typed **admin action census** — the single machine-readable catalog
 
 ### Business Value
 
-- Converts PRODUCTION_READINESS §1.3 from assertion to evidence — DEV3-026 cannot sign off audit-trail completeness without it.
+- Converts PRODUCTION_READINESS §1.3 from assertion to evidence — the launch checklist cannot sign off audit-trail completeness without it.
 - Catches audit drift permanently: adding an admin mutation without extending the census fails the static test.
 - Closes real compliance holes (plan-catalog, dispute arbitration) found *by* the census — the ticket pays for itself at authoring time.
 - Immutable + complete + chronological = the trail a compliance review actually needs.
@@ -55,7 +55,7 @@ Every claim below was probed against the live tree before authoring. Prose-only 
 | G-03 | Canonical writer | `backend/services/admin/audit.service.ts` — `AuditService.createAuditLog(input, tx)`, insert-only, details truncated ≤2000, failure throws (rolls caller tx) | EXISTS | CONSUME as-is |
 | G-04 | Write contract | `backend/types/contracts/admin-audit.contract.types.ts:22` — `AuditLogWriteContract` (actorId ctx-derived, actionType, entityType, entityId nullable, details ≤2000 JSON-string) | EXISTS | CONSUME as-is |
 | G-05 | Shipped emitters | `user-management.service.ts:313` (Create), `:374` (Update), `:438` (Delete/Reactivate) via `buildAuditContract` (`user-management.helpers.ts:334-348`, entityType `"user"`); `cold-start-certification.service.ts:204` (Override, entityType `"teacher"`); `admin-broadcast.service.ts:397` (Create, entityType `"notification_broadcast"`) | EXISTS | VERIFY via journey |
-| G-06 | GAP — plan catalog | `backend/services/billing/plan-catalog.service.ts:229` (createPlan), `:264` (updatePlan), `:314` (setPlanActiveStatus) each carry `// DEV3-020 audit hook seam` with NO emission; mutations admin-gated at `backend/graphql/mutation/plan-catalog.mutation.ts` (`createPlan`, `updatePlan`, `setPlanActiveStatus`, `authScopes: { role: [UserRole.Admin] }`, resolvers have `ctx.user` available) | SHIPPED, UNAUDITED | REMEDIATE (in scope) |
+| G-06 | GAP — plan catalog | `backend/services/billing/plan-catalog.service.ts:229` (createPlan), `:264` (updatePlan), `:314` (setPlanActiveStatus) each carry `// audit hook seam` with NO emission; mutations admin-gated at `backend/graphql/mutation/plan-catalog.mutation.ts` (`createPlan`, `updatePlan`, `setPlanActiveStatus`, `authScopes: { role: [UserRole.Admin] }`, resolvers have `ctx.user` available) | SHIPPED, UNAUDITED | REMEDIATE (in scope) |
 | G-07 | GAP — session dispute | `SessionLifecycleService.resolveSessionDispute(adminId, sessionId, resolution, note, locale, outerTx?)` at `backend/services/classes/session-lifecycle.service.ts:418`; admin-gated `resolveSessionDispute` mutation (`backend/graphql/mutation/classes/session-lifecycle.mutation.ts`, `$all: { authenticated, role: [UserRole.Admin] }`); NO audit emission in the `withTransaction` block | SHIPPED, UNAUDITED | REMEDIATE (in scope) |
 | G-08 | Admin mutation inventory | grep `role: [UserRole.Admin]` over `backend/graphql/mutation/**` → `admin-users` (3 fields), `admin-teachers` (1), `admin-broadcast` (1), `plan-catalog` (3), `session-lifecycle` (1) — 9 admin mutations total | ENUMERATED | Census basis |
 | G-09 | Unshipped Workflow-05 categories | No admin subscription management, financial adjustment, password-reset, session reschedule/reassign mutations exist anywhere in `backend/graphql/mutation/**`; `wallet.service.ts` has zero admin paths | NOT SHIPPED | DEFER (ledger D-301+) |
@@ -64,7 +64,7 @@ Every claim below was probed against the live tree before authoring. Prose-only 
 | G-12 | Journey harness | `test/workflows/helpers/` (`provisionAdminActor`, `TrackedFixtures`), `withAuditDeleteTriggersSuspended` teardown helper, row-count oracles — all as used by `test/workflows/admin/audit-trail.journey.test.ts` | EXISTING | REUSE |
 | G-13 | Existing audit journey | `test/workflows/admin/audit-trail.journey.test.ts` (647 lines) covers user-management produce/observe/filter/deny + fixture lanes; does NOT cover plan-catalog, dispute, broadcast produce path | PARTIAL | New sibling journey; existing suite untouched |
 | G-14 | i18n / locale | Translation access in service layer = `getServerTranslations(locale).errorsTranslations` (`@/shared/locale/server-graphql`); services take `locale: string` param. No `Translation.` enum exists | CONFIRMED | Follow existing |
-| G-15 | DEV3-020 plan dir | Absent from `ai/plans/sprint_3/` — emission shipped in code without a plan dir | N/A | No blocking reads |
+| G-15 | Audit-emission plan dir | Absent from `ai/plans/sprint_3/` — emission shipped in code without a plan dir | N/A | No blocking reads |
 
 ---
 
@@ -75,7 +75,7 @@ Every claim below was probed against the live tree before authoring. Prose-only 
 **User Story:** As the executing agent, I need a recorded quality baseline and outcome ledger so new issues are distinguishable from pre-existing ones and no analysis is re-done.
 
 #### Acceptance Criteria
-1. WHEN implementation begins THEN `bun tsgo`, `bun biome:check`, and `bun run scripts/lint-service.ts --json --id baseline-dev2-021` baselines SHALL be recorded into `ai/plans/sprint_4/dev2-021-audit-trail-completeness-verification/outcome/phase0-baseline.md`.
+1. WHEN implementation begins THEN `bun tsgo`, `bun biome:check`, and `bun run scripts/lint-service.ts --json --id baseline` baselines SHALL be recorded into `ai/plans/sprint_4/dev2-021-audit-trail-completeness-verification/outcome/phase0-baseline.md`.
 2. WHEN implementation begins THEN the ledger `ai/plans/sprint_4/dev2-021-audit-trail-completeness-verification/deferred-items.md` SHALL exist (pre-seeded D-001..D-004 at planning time) and every deferred decision SHALL have a ledger row before its task may close.
 3. WHEN an agent starts any task THEN it SHALL read ALL files under `ai/plans/sprint_4/dev2-021-audit-trail-completeness-verification/outcome/` first.
 4. WHEN a task completes THEN the agent SHALL write `outcome/<task-id>-outcome.md` with findings and carry-overs, and flip its `tasks.md` checkbox `[ ]` → `[x]`.
@@ -140,7 +140,7 @@ Every claim below was probed against the live tree before authoring. Prose-only 
 3. WHEN `PlanCatalogService.setPlanActiveStatus` succeeds THEN exactly ONE row SHALL be appended: `actionType=Suspend` when deactivating, `Reactivate` when activating (enum semantics: activation restores availability, deactivation suspends it), `entityType="plan"`, `entityId=id`, `details` = `{ isActive }`.
 4. WHEN any plan-catalog mutation fails (validation, PLAN_NOT_FOUND, conflict, already-in-target-status) THEN ZERO audit rows SHALL be minted (row-count oracle).
 5. WHEN the mutations are invoked THEN `actorId` SHALL be threaded from `ctx.user.id` (resolver change in `backend/graphql/mutation/plan-catalog.mutation.ts`), `assertActorAdmin`-style re-assertion SHALL run per the canonical gate (`admin-gate.helpers.ts:59`), and the audit insert SHALL share the mutation's transaction (`withTransaction` discipline).
-6. WHEN the service signatures change THEN the three `// DEV3-020 audit hook seam` comments SHALL be replaced by the real emission — the seam is consumed, not preserved.
+6. WHEN the service signatures change THEN the three `// audit hook seam` comments SHALL be replaced by the real emission — the seam is consumed, not preserved.
 
 #### Additional Details
 - **Priority**: High · **Complexity**: Medium · **Dependencies**: REQ-010 · **Assumptions**: service tests for plan-catalog live under `test:services`; the mutations keep their existing public GraphQL signatures (input/args unchanged; actor threading is resolver-internal).
@@ -287,10 +287,10 @@ The feature's core IS a cross-actor workflow: a producer admin writes, a distinc
 - Journey suites in `test/workflows/**` are NOT wrapped by `run-test.ts`; backend logic/repo tests route through `bun run test/scripts/run-test.ts`.
 
 ### Business Constraints
-- PRODUCTION_READINESS §1.3 rows are launch-gate — the harness must be green for DEV3-026 sign-off.
+- PRODUCTION_READINESS §1.3 rows are launch-gate — the harness must be green for launch-checklist sign-off.
 
 ### Assumptions
-- DEV3-020's emission foundation (`AuditService`, contract, triggers) is final — verified present.
+- The prior emission foundation (`AuditService`, contract, triggers) is final — verified present.
 - Admin session-governance read queries (`session-lifecycle.query.ts`) are read-only and need no audit rows (reads are not audited by design).
 
 ## Success Criteria

@@ -4,7 +4,7 @@
  * Happy DOM + Apollo `MockedProvider` tier (`test/ui/components/admin`,
  * mirroring the student/teacher sessions suites exactly): the suite BODY
  * lives in the sibling `AdminDisputesContainer.suite.tsx` — ONE render case
- * per branch of the admin disputes visual state matrix (DEV3-005 R-111),
+ * per branch of the admin disputes visual state matrix (R-111),
  * driven across BOTH locales (loading skeleton · FORBIDDEN fallback ·
  * generic error · drained-queue empty state · populated rows with the filed
  * dispute reason · arbitration dialog gates · resolve→Cancel success ·

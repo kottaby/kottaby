@@ -1,11 +1,11 @@
-# DEV3-006 — Session Report & Homework Infrastructure: Trackable Implementation Tasks
+# Session Report & Homework Infrastructure: Trackable Implementation Tasks
 
 > **Plan directory (verbatim — used in every header, ledger path, outcome path, and self-reference below):** `ai/plans/sprint_1/dev3-006-session-report-homework-infrastructure`
 > **Specs of record:** `ai/plans/sprint_1/dev3-006-session-report-homework-infrastructure/specs.md`
 > **Plan of record:** `ai/plans/sprint_1/dev3-006-session-report-homework-infrastructure/plan.md`
 > **Deferred-items ledger:** `ai/plans/sprint_1/dev3-006-session-report-homework-infrastructure/deferred-items.md`
 > **Outcome directory:** `ai/plans/sprint_1/dev3-006-session-report-homework-infrastructure/outcome/`
-> **Scope ruling for this ticket:** backend infrastructure + GraphQL surface + frontend **documents only**. NO UI views/pages ship (DEV2-014 owns the submit UX). Therefore: NO `.BF`/`.BS` agent-browser loops, nav changes, or view tasks anywhere in this plan. Phase 4 contains typed documents + contract tests only.
+> **Scope ruling for this ticket:** backend infrastructure + GraphQL surface + frontend **documents only**. NO UI views/pages ship (the submit-UX ticket owns the submit UX). Therefore: NO `.BF`/`.BS` agent-browser loops, nav changes, or view tasks anywhere in this plan. Phase 4 contains typed documents + contract tests only.
 
 ---
 
@@ -68,9 +68,9 @@ The ONLY instruction files that exist are `.agents/instructions/frontend.instruc
 
     Ledger pre-seeds (from specs §Traceability — copy verbatim as rows D1–D5):
     - **D1** — `SurahJuzRef` enum completeness (expand 5 surah examples → all 114 surahs). Owner: curriculum/content stream. Status: DEFERRED.
-    - **D2** — Parent report read surface (parent `sessionReport`/`sessionHomework` visibility via `students.parent_id`). Owner: DEV1-016 (parent portal). Status: DEFERRED.
-    - **D3** — Teacher report submission/browsing UX (submit form, report views). Owner: DEV2-014. Status: DEFERRED.
-    - **D4** — Aggregating `teacher.average_rating` from `reports.student_rating_by_teacher`. Owner: DEV2-017. Status: DEFERRED.
+    - **D2** — Parent report read surface (parent `sessionReport`/`sessionHomework` visibility via `students.parent_id`). Owner: the parent-portal ticket (parent portal). Status: DEFERRED.
+    - **D3** — Teacher report submission/browsing UX (submit form, report views). Owner: the submit-UX ticket. Status: DEFERRED.
+    - **D4** — Aggregating `teacher.average_rating` from `reports.student_rating_by_teacher`. Owner: the rating-aggregation ticket. Status: DEFERRED.
     - **D5** — Edit/amend/void semantics for submitted reports (compensating-artifact flow; append-only by design here). Owner: future ticket. Status: DEFERRED.
   - _Requirements: REQ-001_
 
@@ -95,7 +95,7 @@ The ONLY instruction files that exist are `.agents/instructions/frontend.instruc
     - `backend/graphql/test/schema-surface.test.ts` and the session SDL test file (record actual names/paths).
     - `frontend/graphql/sharedDocuments/scheduling/` barrel structure and `frontend/providers/apollo/apolloCache.ts`.
     - Locale machine: `shared/locale/` errors + notifications namespace files (en + ar), their typed interfaces, and the parity-suite harness.
-  - Verify DEV3-004's session-lifecycle surface is merged/available on the working branch (this ticket consumes its governance helper, transition probe, and oracle ruling).
+  - Verify the session-lifecycle ticket's session-lifecycle surface is merged/available on the working branch (this ticket consumes its governance helper, transition probe, and oracle ruling).
   - _Requirements: REQ-001, REQ-002, REQ-003_
 
 ---
@@ -172,7 +172,7 @@ The ONLY instruction files that exist are `.agents/instructions/frontend.instruc
   - If `test/workflows/` scaffolding is missing (per 0.2 verification), this task ALSO scaffolds the layer per Architectural Invariant 10: `test/workflows/AGENTS.md` + `test/workflows/helpers/` cast helpers with REAL permission-group membership rows (never monkey-patched permission resolution) + `SpiedFanoutTransport` for notifications.
   - Provision actor cast (committed fixtures in `beforeAll`, tracked IDs, hard-delete in `afterAll` — `runInRollback` FORBIDDEN):
     - Certified owning teacher T (real role + verification state), session student S, linked parent P (`students.parent_id = P.id`), unlinked-parent student variant S′ for the INV-P1 negative branch, foreign teacher Ft, admin A.
-    - Sessions: σ in `completed` status (provision via DEV3-004's service-level completion path where feasible — NOT raw UPDATE surgery; raw fixture seeding only where the service path is not composeable, and justify in outcome), σ₂ as the second completed session (created at journey time per step 9).
+    - Sessions: σ in `completed` status (provision via the session-lifecycle ticket's service-level completion path where feasible — NOT raw UPDATE surgery; raw fixture seeding only where the service path is not composeable, and justify in outcome), σ₂ as the second completed session (created at journey time per step 9).
   - Steps as sequential service calls with explicit `actorUserId`, asserting BOTH cross-actor visibility AND side-effect counts after every step (assertion oracle = plan §4.4 side-effect matrix table — copy it into the test file header comment as the living spec):
     1. Setup committed; baseline row counts recorded (`reports`, `home_work`, `notifications`, wallet lanes, `session.fee_held`).
     2. Foreign teacher submits on σ → `NotFoundError`-class denial (`SESSION_NOT_FOUND`); zero rows; zero notifications; zero publishes (spied transport empty).
@@ -333,7 +333,7 @@ The ONLY instruction files that exist are `.agents/instructions/frontend.instruc
   - Instruction files: `.agents/instructions/backend.instructions.md`, `.agents/instructions/tests.instructions.md`; `backend/services/AGENTS.md`.
   - _Requirements: REQ-012, REQ-013, REQ-015, REQ-016, REQ-030, REQ-032, REQ-034, REQ-040, REQ-041, REQ-042, REQ-043, REQ-044, INV-S7, INV-S8, INV-HW3, INV-HW4, INV-S3_
   - [x] 2.7.QL **Quality Loop**: sub-loop on service + test (exit 0).
-  - [x] 2.7.TE **Test Engineering**: 4-tier suite green via `run-test.ts`; 100% statement/branch on the service module; storm determinism evidence in outcome (repeat run ×3 — DEV3-004 precedent).
+  - [x] 2.7.TE **Test Engineering**: 4-tier suite green via `run-test.ts`; 100% statement/branch on the service module; storm determinism evidence in outcome (repeat run ×3 — the session-lifecycle ticket precedent).
   - [x] 2.7.SEC **Security & Tenancy Audit**: BOLA (oracle collapse + owner gate + governance re-check), BOPLA (field-by-field only), BFLA (service re-asserts teacher role/ownership even though resolver scopes also guard — defense in depth); verify NO input field can steer `sessionId`/`studentId`/`teacherId`.
   - [x] 2.7.SR **Semantic Review**: pipeline order matches plan exactly; tx propagated to ALL repo/engine calls (grep `, tx)` completeness); single-withTransaction; publish strictly post-commit; zero dead branches.
   - [x] 2.7.IV **Instruction Verification**: as 2.2.IV.
@@ -436,7 +436,7 @@ The ONLY instruction files that exist are `.agents/instructions/frontend.instruc
   - Update `frontend/graphql/sharedDocuments/scheduling/index.ts` barrel (+3 exports); root `frontend/graphql/sharedDocuments/index.ts` ONLY if it does not re-export the scheduling barrel (verified in 0.2).
   - Apollo cache: NO `keyFields: false` additions needed (both objects carry `id`; no envelope types on this surface) — VERIFY in `frontend/providers/apollo/apolloCache.ts` and record the no-change decision with anchor in the outcome.
   - Add document contract tests (location per frontend test convention recorded in 0.2): selection-set AST assertions — `id` is the first selection on every object type; no field outside the plan §3.1 contract is selected; documents reference only codegen-known fields (type-checked by codegen output).
-  - NO component, page, store, hook, or nav file is touched. If any temptation arises (e.g., "minimal submit button"), STOP and add the impulse to the deferred ledger instead — DEV2-014 owns it (D3).
+  - NO component, page, store, hook, or nav file is touched. If any temptation arises (e.g., "minimal submit button"), STOP and add the impulse to the deferred ledger instead — the submit-UX ticket owns it (D3).
   - Instruction files: `.agents/instructions/frontend.instructions.md`; `frontend/AGENTS.md`, `frontend/graphql/AGENTS.md` (verify existence in 0.2).
   - _Requirements: REQ-054, REQ-055_
   - [x] 4.1.QL **Quality Loop**: sub-loop on documents module + barrels + tests (exit 0).
@@ -507,11 +507,11 @@ The ONLY instruction files that exist are `.agents/instructions/frontend.instruc
 ## Phase 7: Knowledge Propagation & Documentation
 
 - [x] 7.1 [Canonical doc: docs/sessions/session-report-homework.md]
-  - Write the canonical reference in house doc style (Why → Pattern → Rules → What NOT to Do → Rollout Summary → Related Documents) covering: gate invariants (INV-S7 write gate; governance re-check), report+homework co-creation contract (INV-S8), first-vs-subsequent grading ruling (INV-HW3/HW4 + D5 split), one-shot grade guard, one-report-per-session unique arbiter + `SESSION_REPORT_ALREADY_EXISTS`, oracle-collapse reads (D9), notification choreography (REQ-018/019, recipient-locale, publish-after-commit, idempotency key `session:{id}:report`), append-only posture (D10), pure-wallet discipline (INV-S3), and the consumer table (DEV2-014 submit UX, DEV2-015 Surah/Juz UI, DEV1-016/017 parent portal, DEV2-017 rating aggregation, DEV3-012/013 dual-confirmation/escrow, DEV2-019 admin tracking) with "what each may rely on" rows.
+  - Write the canonical reference in house doc style (Why → Pattern → Rules → What NOT to Do → Rollout Summary → Related Documents) covering: gate invariants (INV-S7 write gate; governance re-check), report+homework co-creation contract (INV-S8), first-vs-subsequent grading ruling (INV-HW3/HW4 + D5 split), one-shot grade guard, one-report-per-session unique arbiter + `SESSION_REPORT_ALREADY_EXISTS`, oracle-collapse reads (D9), notification choreography (REQ-018/019, recipient-locale, publish-after-commit, idempotency key `session:{id}:report`), append-only posture (D10), pure-wallet discipline (INV-S3), and the consumer table (submit UX, Surah/Juz UI, parent portal, rating aggregation, dual-confirmation/escrow, admin tracking) with "what each may rely on" rows.
   - _Requirements: REQ-070_
 
 - [x] 7.2 [Session-lifecycle doc amendment + AGENTS.md propagation]
-  - `docs/sessions/session-lifecycle.md` (UPDATE) — §10 consumer table: amend the INV-S7/S8 enforcement note — this surface LANDED in DEV3-006 (remove the "DEV3-005-owned/forward" phrasing; cite `docs/sessions/session-report-homework.md`); amend the report row to "implementation shipped" with the plan-directory citation.
+  - `docs/sessions/session-lifecycle.md` (UPDATE) — §10 consumer table: amend the INV-S7/S8 enforcement note — this surface LANDED in this ticket (remove the "upstream-owned/forward" phrasing; cite `docs/sessions/session-report-homework.md`); amend the report row to "implementation shipped" with the plan-directory citation.
   - AGENTS.md updates (each a minimal, surgical addition; verify file existence before editing):
     - `backend/db/repo/AGENTS.md` — classes repositories: report/home-work repos + `lockForReportGate`/`findReportWaveContextById` additions; one-report/one-homework-per-session constraint names.
     - `backend/services/AGENTS.md` — `SessionReportService` entry (write gate, atomic co-creation, publish-after-commit) + single-writer Notifications discipline reaffirmation.
@@ -527,7 +527,7 @@ The ONLY instruction files that exist are `.agents/instructions/frontend.instruc
     - Phase 6 findings resolution record (each finding: fixed-in-task / deferred-with-ledger-row).
     - Final test matrix (5.2 + post-fix reruns), coverage evidence, drift evidence, baseline compliance evidence.
     - Deferred-items final snapshot (D1–D5 + any additions).
-    - Known limitations & handoff notes for DEV2-014 (consumable documents list: exact export names + file path), DEV1-016 (parent read surface boundary), DEV2-017 (rating rows location).
+    - Known limitations & handoff notes for the submit-UX ticket (consumable documents list: exact export names + file path), the parent-portal ticket (parent read surface boundary), the rating-aggregation ticket (rating rows location).
   - Flip ALL remaining checkboxes only after this file exists.
   - _Requirements: REQ-001, REQ-070, REQ-071, REQ-072_
 

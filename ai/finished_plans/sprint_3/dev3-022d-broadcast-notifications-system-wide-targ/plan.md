@@ -1,8 +1,8 @@
-# Technical Architecture & Implementation Design: DEV3-022d — Broadcast Notifications (System-Wide & Targeted)
+# Technical Architecture & Implementation Design: Broadcast Notifications (System-Wide & Targeted)
 
 > **Plan of record:** `ai/plans/sprint_3/dev3-022d-broadcast-notifications-system-wide-targ/`
 > **Specs:** `specs.md` REQ-001..REQ-082, journeys §2.9, decisions DB-1..DB-6
-> **Canonical refs:** `docs/notifications/realtime-engine.md` (§3.2 emitter contract — this ticket IS the DEV3-022d row), `docs/admin/user-management.md` (guarded patterns, JR-C-1), `docs/graphql/api-gateway-and-routing.md` (REQ-018), `docs/specs/open-decisions-and-gaps.md` (A.4, A.4.1–A.4.3, A.5, A.7, B.8/C.2), `docs/workflows/05-admin-governance-override.md` (§2 `Notification_Broadcast`, §7.2)
+> **Canonical refs:** `docs/notifications/realtime-engine.md` (§3.2 emitter contract — this ticket IS the row), `docs/admin/user-management.md` (guarded patterns, JR-C-1), `docs/graphql/api-gateway-and-routing.md` (REQ-018), `docs/specs/open-decisions-and-gaps.md` (A.4, A.4.1–A.4.3, A.5, A.7, B.8/C.2), `docs/workflows/05-admin-governance-override.md` (§2 `Notification_Broadcast`, §7.2)
 
 ---
 
@@ -10,7 +10,7 @@
 
 ### 1.1 Scope Statement
 
-DEV3-022d is a **composition ticket on shipped substrate**. The notification engine (DEV3-010) already provides every durable-delivery primitive: `emitForUsers` (batch insert inside a caller `tx`, no publish), `publishReceipts` (post-commit fan-out), the claim-cache port (`SET NX EX` claim + stored-receipt replay), and the fan-out transports. The admin user-management vertical (DEV3-016) ships the admin-actor re-verification discipline (`assertActorAdmin`), the in-tx audit writer (`AuditService.createAuditLog`), and the canonical active-subscription predicate. What does NOT exist anywhere in the tree: cohort resolution (who receives what), the admin compose mutation, the `RedisClaimCache` adapter for the engine's injected port, and the admin UI. This ticket's net-new work is exactly and only that gap.
+ is a **composition ticket on shipped substrate**. The notification engine already provides every durable-delivery primitive: `emitForUsers` (batch insert inside a caller `tx`, no publish), `publishReceipts` (post-commit fan-out), the claim-cache port (`SET NX EX` claim + stored-receipt replay), and the fan-out transports. The admin user-management vertical ships the admin-actor re-verification discipline (`assertActorAdmin`), the in-tx audit writer (`AuditService.createAuditLog`), and the canonical active-subscription predicate. What does NOT exist anywhere in the tree: cohort resolution (who receives what), the admin compose mutation, the `RedisClaimCache` adapter for the engine's injected port, and the admin UI. This ticket's net-new work is exactly and only that gap.
 
 Nothing is modified in the engine, inbox queries/mutations, transports, or WS sidecar; `git diff` on `backend/db/schema/**` and `backend/db/migration/**` is empty (REQ-044).
 
@@ -52,7 +52,7 @@ Nothing is modified in the engine, inbox queries/mutations, transports, or WS si
 │      → stores receipt (claim key) → ONE fan-out envelope (full id list)        │
 └──────────────────────────────┬───────────────────────────────────────────────┘
                                ▼
-┌── FAN-OUT (existing DEV3-010 substrate — untouched) ─────────────────────────┐
+┌── FAN-OUT (existing          substrate — untouched) ─────────────────────────┐
 │ transport.publishFanout(recipientIds, projectedPayload) → WS sidecar → toast  │
 └──────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -419,4 +419,4 @@ Errors namespace (flat, domain-prefixed keys alongside the sanctioned `planCatal
 
 - **Ledger seed (`deferred-items.md`):** D1 chunked mega-broadcast (>5000 cohorts) → future scale ticket (engine already supports multi-emit patterns); D2 crash-between-commit-and-`publishReceipts` double-insert residual (engine §3.6 document-locked posture) → engine hardening stream.
 - **Canonical doc:** `docs/notifications/broadcast-notifications.md` (REQ-080) — cohort taxonomy, governance-exclusion ruling, header-key/replay contract, cap + deferred chunking, audit contract (`notification_broadcast` entity + contract widening), consumption rules for future emitters (import-by-reference from engine §3.2 table).
-- **Knowledge propagation (REQ-081):** `backend/services/AGENTS.md` broadcast-service one-liner; `docs/notifications/realtime-engine.md` §3.2 DEV3-022d row marked shipped; `backend/db/repo/AGENTS.md` audience-repository convention line; root `AGENTS.md` Important References gains the canonical doc entry; outcome files under `ai/plans/sprint_3/dev3-022d-broadcast-notifications-system-wide-targ/outcome/` per task.
+- **Knowledge propagation (REQ-081):** `backend/services/AGENTS.md` broadcast-service one-liner; `docs/notifications/realtime-engine.md` §3.2 row marked shipped; `backend/db/repo/AGENTS.md` audience-repository convention line; root `AGENTS.md` Important References gains the canonical doc entry; outcome files under `ai/plans/sprint_3/dev3-022d-broadcast-notifications-system-wide-targ/outcome/` per task.

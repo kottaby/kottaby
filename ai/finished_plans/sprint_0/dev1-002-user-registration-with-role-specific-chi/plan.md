@@ -1,8 +1,8 @@
-# Technical Architecture & Implementation Design: DEV1-002 — User Registration with Role-Specific Child Table Creation
+# Technical Architecture & Implementation Design: User Registration with Role-Specific Child Table Creation
 
 ## 1. System Overview & Architecture Diagram
 
-Registration is a **public GraphQL mutation** backed by a single transactional service flow. No new tables, enums, or columns are introduced — DEV1-001 owns all schema. This ticket builds the *behavioral contract* on top of the physical schema.
+Registration is a **public GraphQL mutation** backed by a single transactional service flow. No new tables, enums, or columns are introduced — the Database Schema Migration ticket owns all schema. This ticket builds the *behavioral contract* on top of the physical schema.
 
 ```
 Client (Register form)
@@ -35,20 +35,20 @@ PostgreSQL (users + role child tables; unique(email), unique(handshake_code), CH
 |---|---|---|
 | D1 | **Single service transaction** wraps user + child inserts | Atomicity (REQ-030). A partial account is unrecoverable garbage; rollback is the only safe failure mode. All repo methods receive `tx`. |
 | D2 | **Server-generated identity** (`users.id`, `handshake_code`) | BOLA/BOPLA defense (REQ-023/024). Client input contains no identifiers and no governance/balance fields; the input type physically omits them. |
-| D3 | **Public resolver rejects `role=admin`; service supports it** | BFLA (REQ-015/022). The service-level `createAdminUser` is reused by DEV3-016/018 onboarding (super-admin gated); coupling it to the public mutation would be a privilege-escalation hole. The gate lives in the resolver layer, so the stay-private service path needs no duplicate checks. |
+| D3 | **Public resolver rejects `role=admin`; service supports it** | BFLA (REQ-015/022). The service-level `createAdminUser` is reused by onboarding (super-admin gated); coupling it to the public mutation would be a privilege-escalation hole. The gate lives in the resolver layer, so the stay-private service path needs no duplicate checks. |
 | D4 | **Unique constraints are authoritative; pre-checks are advisory** | TOCTOU: a `findByEmail` pre-check is for the friendly UX path only — the actual guard is PostgreSQL `users_email_unique` + `23505` translation (REQ-032). Same for handshake codes via retry (REQ-031). |
 | D5 | **Only hashed passwords touch the DB** | REQ-020. Hashing happens before the transaction opens; plaintext never crosses into repo/input types. |
 | D6 | **Handshake retry is bounded & transactional** | Collision probability is tiny but nonzero; retry ≤ 5 generations inside the same `tx`, then `ConflictError` with domain log (REQ-031). Codes: `KSB-` prefix + 8 uppercase alphanumeric from `crypto.randomUUID()`-derived entropy, matching `varchar(50)`. |
 
 ## 2. Data Models & Database Schema
 
-**No schema changes.** All structures come from DEV1-001. Contract consumed by this ticket (verification-only):
+**No schema changes.** All structures come from the Database Schema Migration ticket. Contract consumed by this ticket (verification-only):
 
 - `users`: `id` (uuid PK), `name`, `email` (UNIQUE), `phone`, `password_hash`, `gender` (categorical column per DBML), `country`, `role user_role` (`admin|teacher|student|parent`), governance fields (A.7), `last_active_at`.
 - `students`: `id` (PK = FK→`users.id`, cascade), `handshake_code varchar(50) UNIQUE NOT NULL`, `parent_id uuid NULL → users.id`, `balance_hifz/tajweed/reviews int NOT NULL DEFAULT 0 CHECK (>= 0)`.
 - `applicants`: `id` (shared PK), `status`, `verification_attempts`, `last_attempt_at`, `cooldown_until`.
 - `parents` / `admin`: `id` (shared PK) + timestamps.
-- **NOT created at registration:** `teacher` row (B.7), `recitation` row (DEV1-003), trial credits (DEV1-004).
+- **NOT created at registration:** `teacher` row (B.7), `recitation` row (the Recitation Selection on Registration ticket), trial credits (the Free Trial Session Provisioning ticket).
 
 **Canonical types (new file):** `backend/types/users/registration.types.ts`
 - `RegistrationSubmitInput` — whitelisted public contract: `name, email, phone, password, gender, country, role` (no `id`, no governance fields, no balances, no `handshakeCode`).
@@ -57,7 +57,7 @@ PostgreSQL (users + role child tables; unique(email), unique(handshake_code), CH
 - `AdminRegistrationSubmitInput` — internal (service-only) variant permitting `role=admin`, not referenced by any Pothos input type.
 - Barrels: add `export * from "./registration.types";` to `backend/types/users/index.ts`.
 
-**Sanity checks on DEV1-001 outputs** (no edits, verify-only at Phase 1): `user_role` includes `parent` (C.1); gender remains a categorical column (no gender enum); applicant status enum registered in `backend/db/schema/enums.ts` + `backend/enum/<subdir>`.
+**Sanity checks on the Database Schema Migration ticket outputs** (no edits, verify-only at Phase 1): `user_role` includes `parent` (C.1); gender remains a categorical column (no gender enum); applicant status enum registered in `backend/db/schema/enums.ts` + `backend/enum/<subdir>`.
 
 ## 3. API Contracts & Pothos Resolvers
 
@@ -86,7 +86,7 @@ mutation RegisterUser($input: RegisterUserInput!) {
 |---|---|---|---|
 | Anonymous | ✅ | ❌ FORBIDDEN/VALIDATION | n/a (no ctx) |
 | Student/Teacher/Parent | ✅ (self-registration only; server ignores any foreign IDs) | ❌ | ❌ (requires super-admin gate, DEV3 path) |
-| Super Admin | ✅ | ❌ (use DEV3 onboarding) | ✅ via DEV3-016/018 surface |
+| Super Admin | ✅ | ❌ (use DEV3 onboarding) | ✅ via surface |
 
 ## 4. Backend Services & Repositories
 

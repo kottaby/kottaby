@@ -9,11 +9,11 @@ import type {
 } from "@/frontend/graphql/generated/gql/graphql";
 
 /**
- * Session DISPUTE documents (DEV3-005) — the arbitration third of the split
+ * Session DISPUTE documents — the arbitration third of the split
  * out of `session.documents.ts` (which re-exports every sibling, so the
  * deep-import path and the export surface are unchanged).
  *
- * The DEV3-005 dispute trio: the participant escalation mutation
+ * The dispute trio: the participant escalation mutation
  * (`openSessionDispute`), the ADMIN arbitration mutation
  * (`resolveSessionDispute`) and the ADMIN read of the arbitration queue
  * (`adminDisputedSessions`). Every `Session` payload selects `id` first so
@@ -22,7 +22,7 @@ import type {
  * `sharedDocuments/AGENTS.md` "id Field Requirement" and plan §5.4 "no
  * refetch").
  *
- * Every `Session` selection carries the DEV3-005 dispute/cancel-audit
+ * Every `Session` selection carries the dispute/cancel-audit
  * fields (`cancelReason`, `disputeReason`, `disputedAt`, `resolutionNote`,
  * `resolvedAt` — all nullable) so the rows that render them (cancelled
  * rows with a persisted cancel reason; the admin arbitration list) and

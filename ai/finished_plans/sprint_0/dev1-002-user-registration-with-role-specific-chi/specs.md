@@ -1,31 +1,31 @@
-# Requirements & Specification: DEV1-002 — User Registration with Role-Specific Child Table Creation
+# Requirements & Specification: User Registration with Role-Specific Child Table Creation
 
 ## 1. Executive Summary & Problem Statement
 
-**Feature:** Implement the user registration endpoint that atomically creates a `users` record and the corresponding role-specific child table record (`admin`, `students`, `parents`, `applicants`) via shared-PK inheritance (child PK = FK to `users.id`, `ON DELETE CASCADE`), per the Kottaby Academy schema ground truth delivered by DEV1-001.
+**Feature:** Implement the user registration endpoint that atomically creates a `users` record and the corresponding role-specific child table record (`admin`, `students`, `parents`, `applicants`) via shared-PK inheritance (child PK = FK to `users.id`, `ON DELETE CASCADE`), per the Kottaby Academy schema ground truth delivered by the Database Schema Migration ticket.
 
 **Problem from the user perspective:** A new user (student, aspiring teacher, or parent) must be able to register with name, email, phone, password, gender, country, and role. Each role has a distinct onboarding contract:
 
 - A **student** needs segregated zeroed balances (`balance_hifz`, `balance_tajweed`, `balance_reviews`) and a unique `handshake_code` so a parent can later link to them (A.2, A.3, INV-B1).
 - A **teacher applicant** must NOT receive a `teacher` row on registration — they receive an `applicants` row with `status='pending'` and enter the verification pipeline (B.6, B.7). Granting teacher privileges before evaluation would compromise platform quality (FR-3.1).
-- A **parent** needs a `parents` row (A.1) so that parent–child linking (DEV1-013+) has a persistence home.
-- An **admin** record exists for governance tooling, but creating one is a privileged operation reserved for super-admin onboarding (DEV3-016/018) — never the public flow.
+- A **parent** needs a `parents` row (A.1) so that parent–child linking has a persistence home.
+- An **admin** record exists for governance tooling, but creating one is a privileged operation reserved for super-admin onboarding — never the public flow.
 
-**Business value:** Registration is the entry point to every downstream flow in the roadmap: subscriptions (DEV1-005+), the teacher evaluation loop (DEV2-004+), the parent handshake (DEV1-013+), and admin governance (DEV3-016+). An incorrect child-record topology (e.g., creating a `teacher` row for an applicant, or missing governance defaults) corrupts every state machine built on top of it. Atomicity and email uniqueness here prevent partial/corrupt accounts and duplicate-account fraud (INV-U4, FR-1.1, FR-1.2).
+**Business value:** Registration is the entry point to every downstream flow in the roadmap: subscriptions (the Plan Catalog CRUD (Admin Only) ticket), the teacher evaluation loop (the Teacher Applicant Registration ticket), the parent handshake, and admin governance. An incorrect child-record topology (e.g., creating a `teacher` row for an applicant, or missing governance defaults) corrupts every state machine built on top of it. Atomicity and email uniqueness here prevent partial/corrupt accounts and duplicate-account fraud (INV-U4, FR-1.1, FR-1.2).
 
 **Actors involved:**
 - **Student / Teacher Applicant / Parent (callers):** submit the public registration form.
 - **Super Admin (privileged caller):** creates `admin` records through the admin-gated onboarding path (not the public mutation).
 - **Matching engine / Parent portal / Evaluation loop (downstream consumers):** read `teacher.subjects`, `students.handshake_code`, `students.parent_id`, `applicants.status` — all assume the registration contract holds.
-- **Audit & governance subsystem:** governance fields on `users` (A.7: `is_deleted`, `deleted_at`, `suspended`, `suspended_at`, `suspended_period_days`, `is_blocked`, `blocked_at`, `last_active_at`) drive login gating (DEV2-002) and inactivity timeouts (DEV2-012, B.15).
+- **Audit & governance subsystem:** governance fields on `users` (A.7: `is_deleted`, `deleted_at`, `suspended`, `suspended_at`, `suspended_period_days`, `is_blocked`, `blocked_at`, `last_active_at`) drive login gating (the Role-Based Authorization Middleware ticket) and inactivity timeouts (B.15).
 
-**Non-goals (explicitly out of scope for DEV1-002):**
-- No login/JWT issuance redesign (DEV2-001 owns token issuance; registration only provisions identity and returns the created user).
-- No free-trial balance crediting logic beyond establishing the zeroed balance columns (DEV1-004 owns trial crediting).
-- No recitation (Qira'ah) record creation (DEV1-003 owns recitation selection; C.5 recitation is session-linked).
-- No verification-plan purchase, evaluation sessions, or cooldown logic (DEV2-004–DEV2-010).
-- No handshake-code *consumption* (parent link workflow is DEV1-013/014/015) — only generation.
-- No schema changes: all tables/enums/columns are owned by DEV1-001. If a schema gap is discovered, it is logged in `deferred-items.md` and escalated, not patched inline.
+**Non-goals (explicitly out of scope for this ticket):**
+- No login/JWT issuance redesign (the JWT Authentication Service ticket owns token issuance; registration only provisions identity and returns the created user).
+- No free-trial balance crediting logic beyond establishing the zeroed balance columns (the Free Trial Session Provisioning ticket owns trial crediting).
+- No recitation (Qira'ah) record creation (the Recitation Selection on Registration ticket owns recitation selection; C.5 recitation is session-linked).
+- No verification-plan purchase, evaluation sessions, or cooldown logic.
+- No handshake-code *consumption* (parent link workflow) — only generation.
+- No schema changes: all tables/enums/columns are owned by the Database Schema Migration ticket. If a schema gap is discovered, it is logged in `deferred-items.md` and escalated, not patched inline.
 
 ---
 
@@ -34,7 +34,7 @@
 ### 2.1 Baseline & Foundational Preparation
 
 - **REQ-001** (`baseline`): WHEN implementation work begins THEN the executing agent SHALL record baseline `tsgo` / `biome` / `lint-service` error counts and initialize `ai/plans/dev1-002-user-registration/deferred-items.md` so that new defects are distinguishable from pre-existing ones.
-- **REQ-002** (`dependency guard`): WHEN implementation starts THEN the agent SHALL verify DEV1-001 artifacts exist (Drizzle tables `users`, `students`, `parents`, `admin`, `applicants`; enums `user_role`, `applicant status`) and SHALL block domain work — recording a ❌ entry in `deferred-items.md` — if any DEV1-001 artifact is missing.
+- **REQ-002** (`dependency guard`): WHEN implementation starts THEN the agent SHALL verify the Database Schema Migration ticket artifacts exist (Drizzle tables `users`, `students`, `parents`, `admin`, `applicants`; enums `user_role`, `applicant status`) and SHALL block domain work — recording a ❌ entry in `deferred-items.md` — if any Database Schema Migration artifact is missing.
 - **REQ-003** (`type discipline`): WHEN any code is authored THEN all entity types SHALL come from `backend/types/<domain>/<entity>.types.ts` (`{Entity}SelectType`, `{Entity}InsertType`, `{Entity}ReturnType`, and a new `RegistrationSubmitInput`), and no local type definitions SHALL appear in Pothos, service, or repository files.
 
 ### 2.2 Core Registration (Happy Paths)
@@ -44,7 +44,7 @@
 - **REQ-012** (`role=student`): WHEN a user registers as `student` THEN the system SHALL create a `students` row sharing the user's PK with `balance_hifz=0`, `balance_tajweed=0`, `balance_reviews=0`, `parent_id=NULL`, and a server-generated unique `handshake_code` (A.2, A.3, INV-B1, INV-B5).
 - **REQ-013** (`role=teacher`): WHEN a user registers as `teacher` THEN the system SHALL create an `applicants` row sharing the user's PK with `status='pending'`, `verification_attempts=0`, `last_attempt_at=NULL`, `cooldown_until=NULL`, and SHALL NOT create any row in `teacher` (B.6, B.7, FR-3.1).
 - **REQ-014** (`role=parent`): WHEN a user registers as `parent` THEN the system SHALL create a `parents` row sharing the user's PK (A.1, C.1).
-- **REQ-015** (`role=admin`, privileged path): WHEN a `users` row with `role=admin` is created THEN the system SHALL create an `admin` row sharing the user's PK; AND the public registration mutation SHALL NOT accept `role=admin` — admin creation is reachable only through the permission-gated onboarding surface owned by DEV3-016 (the service method supports it; the public resolver rejects it).
+- **REQ-015** (`role=admin`, privileged path): WHEN a `users` row with `role=admin` is created THEN the system SHALL create an `admin` row sharing the user's PK; AND the public registration mutation SHALL NOT accept `role=admin` — admin creation is reachable only through the permission-gated onboarding surface owned by (the service method supports it; the public resolver rejects it).
 
 ### 2.3 Security & Credentials
 

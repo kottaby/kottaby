@@ -1,4 +1,4 @@
-# Technical Architecture & Implementation Design: DEV3-006 — Session Report & Homework Infrastructure
+# Technical Architecture & Implementation Design: this ticket — Session Report & Homework Infrastructure
 
 > **Plan directory (verbatim, used by every header/ledger/self-reference):** `ai/plans/sprint_1/dev3-006-session-report-homework-infrastructure`
 > **Specs of record:** `ai/plans/sprint_1/dev3-006-session-report-homework-infrastructure/specs.md` (REQ-001…REQ-072)
@@ -9,12 +9,12 @@
 
 ## 1. System Overview & Architecture Diagram
 
-DEV3-006 is an **infrastructure-only** ticket: the guarded report+homework write surface, the participant read surface, and the notification seam over the pre-existing `reports` / `home_work` tables. No UI ships (DEV2-014 owns the submission UX); the consumable contract is GraphQL + typed documents.
+this ticket is an **infrastructure-only** ticket: the guarded report+homework write surface, the participant read surface, and the notification seam over the pre-existing `reports` / `home_work` tables. No UI ships (the submit-UX ticket owns the submission UX); the consumable contract is GraphQL + typed documents.
 
 ```
                           ┌────────────────────────────────────────────────────────────┐
                           │                         CLIENT                              │
-                          │  (future DEV2-014 teacher submit form — NOT in this scope)  │
+                          │  (future the submit-UX ticket teacher submit form — NOT in this scope)  │
                           └──────────────┬─────────────────────────────────────────────┘
                                          │ Apollo Client (TypedDocumentNode documents)
                                          ▼
@@ -53,17 +53,17 @@ DEV3-006 is an **infrastructure-only** ticket: the guarded report+homework write
 
 | # | Decision | Options Considered | Pros / Cons | Rationale (Maintainability, Scalability, Reliability) |
 |---|---|---|---|---|
-| D1 | **Unique-constraint arbiter** for one-report-per-session: add `reports_session_id_unique` via `bun run db push`; 23505 ⇒ `ConflictError("SESSION_REPORT_ALREADY_EXISTS", …)` via cause-chain traversal. | (a) SELECT-then-INSERT guard; (b) guarded UPDATE pre-check; (c) DB unique (chosen). | (a) has a TOCTOU hole and fails the double-submit storm; (b) is write-to-read misuse; (c) is race-proof, zero-window, mirrors `session_request_idempotency` claim-table pattern shipped in DEV3-004 and the `parent_link_requests_pending_pair_unique` arbiter in DEV1-014. | Reliability: the DB is the only trustworthy arbiter under connection-level concurrency. Scalability: one index. Maintainability: one canonical mapping site via `isUniqueViolation` (`backend/services/shared/user-provisioning.helpers.ts`). |
+| D1 | **Unique-constraint arbiter** for one-report-per-session: add `reports_session_id_unique` via `bun run db push`; 23505 ⇒ `ConflictError("SESSION_REPORT_ALREADY_EXISTS", …)` via cause-chain traversal. | (a) SELECT-then-INSERT guard; (b) guarded UPDATE pre-check; (c) DB unique (chosen). | (a) has a TOCTOU hole and fails the double-submit storm; (b) is write-to-read misuse; (c) is race-proof, zero-window, mirrors `session_request_idempotency` claim-table pattern shipped in the session-lifecycle ticket and the `parent_link_requests_pending_pair_unique` arbiter in the parent-link ticket. | Reliability: the DB is the only trustworthy arbiter under connection-level concurrency. Scalability: one index. Maintainability: one canonical mapping site via `isUniqueViolation` (`backend/services/shared/user-provisioning.helpers.ts`). |
 | D2 | **Session gate uses one `SELECT … FOR UPDATE` row lock** (`SessionRepository.lockForReportGate`), then predicate classification. | (a) plain probe read (reuse `findTransitionProbe`); (b) FOR UPDATE lock (chosen); (c) guarded predicate UPDATE-style trick. | (a) leaves a TOCTOU window against concurrent dispute-arbitration status flips (B.18 surface); (b) serializes status mutation vs. gate read on the same row; (c) misapplies the transition pattern — report submission does not mutate `session`. | Reliability: closes the cancel/dispute-vs-report race. Cost: one row lock held for milliseconds, only inside our own tx — no cross-surface deadlock risk because we are the only service locking `session` rows under this name (verified against bundled `session.repository.ts`: no FOR UPDATE on `session` today). |
-| D3 | **Replay-throw, never replay-return** for duplicate submissions: a second submit resolves `SESSION_REPORT_ALREADY_EXISTS` (409), never returns the existing report. | (a) return existing row (idempotent read-back); (b) throw (chosen). | (a) would mask a logic bug (double-click vs genuine confusion) and contradicts the DEV3-004 replay-throw ruling (`docs/sessions/session-lifecycle.md` §6, §9a). (b) keeps the surface honest; the client maps 409 → informational notice via the error-link contract. | Consistency with the session-booking replay ruling; identical user experience for double-submits platform-wide. |
+| D3 | **Replay-throw, never replay-return** for duplicate submissions: a second submit resolves `SESSION_REPORT_ALREADY_EXISTS` (409), never returns the existing report. | (a) return existing row (idempotent read-back); (b) throw (chosen). | (a) would mask a logic bug (double-click vs genuine confusion) and contradicts the session-lifecycle ticket's replay-throw ruling (`docs/sessions/session-lifecycle.md` §6, §9a). (b) keeps the surface honest; the client maps 409 → informational notice via the error-link contract. | Consistency with the session-booking replay ruling; identical user experience for double-submits platform-wide. |
 | D4 | **Grade routing order: grade-the-prior-row BEFORE inserting the new assignment**, inside the same tx; grade target = newest ungraded row of the student via `findLatestUngradedByStudentId` + one-shot guarded `gradeHomeWorkOnce` (`WHERE … AND current_grade IS NULL AND revision_grade IS NULL`). | (a) insert-then-grade (broken — the just-inserted row wins "newest ungraded"); (b) grade-before-insert (chosen); (c) grade the explicitly referenced prior session id (adds an identity input — BOLA surface). | (a) self-grades the new row; (c) accepts caller-supplied homework identity (oracle/tamper risk). (b) is correct and needs no identity input. | Reliability: INV-HW3/HW4 structurally enforced; re-grade attempts hit the zero-row guarded miss. Maintainability: no request-time identity beyond the session id. |
 | D5 | **First-session = no-op, not an error** when no prior ungraded homework exists and `previousGrades` is present? — NO: `previousGrades` with NO prior ungraded row ⇒ no-op ONLY when `previousGrades` is absent; if `previousGrades` present but there is nothing to grade, the grades are **validated then discarded with the submission succeeding** (assignment-only arms stay valid). Edge resolution chosen: presence of `previousGrades` with zero gradeable rows is silently absorbed only when the session is genuinely the first (no prior homework rows at all); when prior rows exist but are already graded, the one-shot guard yields `null` ⇒ `ConflictError` (`CONFLICT`, localized `homeworkAlreadyGraded`). | (a) always error when grades have no target; (b) always silently absorb; (c) split (chosen). | (a) breaks the genuine first-session payload shape teachers will send from one form; (b) silently swallows a re-grade attempt, hiding the write-once rule (INV-HW4). | Preserves INV-HW3 (first session: no grades to record) while keeping the write-once semantics loud and typed. |
 | D6 | **Notification seam: one module function `notifySessionReportReady(sessionId, locale, tx, options)`** reading the wave context once (student + teacher + linked parent via one joined read) and emitting up to two rows via `NotificationEngine.emitForUser`, receipts returned; the service publishes via `NotificationEngine.publishReceipts` strictly after its own commit. | (a) two exported emitters with two context reads; (b) one function, one read (chosen); (c) fold into `session-request-notification.service.ts`. | (a) doubles the wave-context read; (c) muddles that module's six-wave taxonomy (request lifecycle) with report lifecycle. | Follows the shipped pattern (`docs/notifications/session-request-notifications.md`) — emitters own recipient-locale composition; engine stays single-writer; publish-after-commit is structural. Idempotency key `session:{id}:report` per REQ-018; engine claim digests differentiate recipients because the digest binds the recipient id set (`buildEmitClaimKey`). |
 | D7 | **`SurahJuzRef` Pothos enum registered ONCE** in `backend/graphql/pothos/shared/enum.pothos.ts` (enum-object form), plus a new fail-closed guard `isSurahJuzRef` added to `backend/enum/shared/surah-juz-ref.enum.ts` (mirrors `isApplicantStatus`/`isSessionIntent` pattern). | (a) hand-write SDL values; (b) register real TS enum (chosen); (c) reuse `String` on the wire. | (a)/(c) break the enum-object registration mandate and codegen parity. | Hard rule from the gateway/API-gateway surface discipline; exhaustive mappers become compile-guarded. |
 | D8 | **No new custom domain code beyond `SESSION_REPORT_ALREADY_EXISTS`** — journey step 10's re-grade conflict rides plain `ConflictError(message)` (fixed code `CONFLICT`); reads collapse to `null`. | (a) mint `HOMEWORK_ALREADY_GRADED`; (b) reuse `CONFLICT` (chosen). | (a) contradicts specs §2.5 ("the only NEW code is SESSION_REPORT_ALREADY_EXISTS"); (b) satisfies "typed conflict" via the class + localized message from the flat `errors` namespace without touching the taxonomy freeze. | Honors the closed-taxonomy rule in `docs/graphql/error-handling-contract.md` and the spec's own code budget. |
-| D9 | **Reads return `null` for foreign/nonexistent** (oracle collapse), writes throw `SESSION_NOT_FOUND` — verbatim reuse of the DEV3-004 sensitive-domain ruling. | (a) distinguishable 403 on foreign; (b) collapse (chosen). | Sessions/reports leak balances-adjacent context + participant identity; per `docs/sessions/session-lifecycle.md` §7 the collapse is non-negotiable. | Security ruling consistency; one test oracle reproves it at the wire tier. |
+| D9 | **Reads return `null` for foreign/nonexistent** (oracle collapse), writes throw `SESSION_NOT_FOUND` — verbatim reuse of the session-lifecycle ticket's sensitive-domain ruling. | (a) distinguishable 403 on foreign; (b) collapse (chosen). | Sessions/reports leak balances-adjacent context + participant identity; per `docs/sessions/session-lifecycle.md` §7 the collapse is non-negotiable. | Security ruling consistency; one test oracle reproves it at the wire tier. |
 | D10 | **No report edit/update/void surface.** Submission is append-only truth (permanent retention, PRODUCTION_READINESS §1.4); corrections are compensating artifacts owned by a future ticket. | (a) add update mutation now; (b) append-only (chosen). | (a) re-opens dispute-evidence integrity (Workflow 03 §7). | Data-integrity rules in `docs/specs/functional-requirements.md` §11; keeps this ticket's state machine trivially safe. |
-| D11 | **No UI / no nav change in this ticket** — only typed GraphQL documents land frontend-side. | (a) ship a minimal submit form; (b) documents only (chosen). | (a) would collide with DEV2-014's UI ticket and duplicate i18n/copy work twice. | Specs §1 non-goals are explicit; the consumable contract is the documents module + codegen types. |
+| D11 | **No UI / no nav change in this ticket** — only typed GraphQL documents land frontend-side. | (a) ship a minimal submit form; (b) documents only (chosen). | (a) would collide with the submit-UX ticket's UI ticket and duplicate i18n/copy work twice. | Specs §1 non-goals are explicit; the consumable contract is the documents module + codegen types. |
 
 ---
 
@@ -237,7 +237,7 @@ Inherited fail-open platform stub (`backend/lib/ratelimit.ts`) — no new limite
 | Operation | Anonymous | Student (participant) | Student (foreign) | Teacher (owner) | Teacher (foreign) | Parent (linked) | Parent (other) | Admin |
 |---|---|---|---|---|---|---|---|---|
 | `submitSessionReport` | `UNAUTHORIZED` (401, pre-resolver) | `FORBIDDEN` (403, scope) | `FORBIDDEN` (403, scope) | ✅ transition (per state gate) | `SESSION_NOT_FOUND` (oracle per REQ-030) | `FORBIDDEN` | `FORBIDDEN` | `FORBIDDEN` (scope) |
-| `sessionReport` | `UNAUTHORIZED` | ✅ row | `null` | ✅ row | `null` | `null` (even linked — DEV1-016 owns parent reads) | `null` | `null` |
+| `sessionReport` | `UNAUTHORIZED` | ✅ row | `null` | ✅ row | `null` | `null` (even linked — the parent-portal ticket owns parent reads) | `null` | `null` |
 | `sessionHomework` | `UNAUTHORIZED` | ✅ row | `null` | ✅ row | `null` | `null` | `null` | `null` |
 
 ---
@@ -428,7 +428,7 @@ These rows are the literal assertion set of `test/workflows/classes/session-repo
 
 ## 5. Frontend UX & Navigation Specification
 
-**This ticket ships NO UI (specs §1 non-goals; D11).** The frontend deliverable is the consumable typed-documents contract; UX surfaces belong to DEV2-014 (submit UX), DEV2-015 (Surah/Juz UI), DEV1-016/017 (parent portal).
+**This ticket ships NO UI (specs §1 non-goals; D11).** The frontend deliverable is the consumable typed-documents contract; UX surfaces belong to the submit-UX, Surah/Juz UI, and parent-portal tickets.
 
 ### Routes & URLs Table
 
@@ -438,7 +438,7 @@ These rows are the literal assertion set of `test/workflows/classes/session-repo
 
 ### Sidebar & Navigation Integration
 
-No change. Verified against the bundled `frontend/views/dashboard/nav/navItems.ts`: no Homework/Reports item is claimed or retargeted by this ticket (DEV2-014 will retarget any catch-all `ComingSoon` item at its own time). **No mobile bottom-nav work exists anywhere (none exists in the codebase).**
+No change. Verified against the bundled `frontend/views/dashboard/nav/navItems.ts`: no Homework/Reports item is claimed or retargeted by this ticket (the submit-UX ticket will retarget any catch-all `ComingSoon` item at its own time). **No mobile bottom-nav work exists anywhere (none exists in the codebase).**
 
 ### Per-Audience Rendering Table
 
@@ -447,7 +447,7 @@ No change. Verified against the bundled `frontend/views/dashboard/nav/navItems.t
 | Student | consumes `sessionReport`/`sessionHomework` reads in a future UI; this ticket ships only the documents + null-collapse semantics |
 | Parent | no read surface (null by design); receives notification only (side effect) |
 | Teacher | future submit form consumes `submitSessionReportMutationDocument` |
-| Supervisor/Admin | nothing (governance reads stay on DEV3-021's surface) |
+| Supervisor/Admin | nothing (governance reads stay on the admin session-governance ticket's surface) |
 
 ### Apollo GraphQL Documents & UI Components
 
@@ -465,9 +465,9 @@ Barrels: `frontend/graphql/sharedDocuments/scheduling/index.ts` (+3 exports) and
 
 ### Visual Design & Responsive Specifications
 
-- **Breakpoints / components / states:** N/A — zero components ship. Forward note for DEV2-014: follow the MUI v9 `sx`-only, `*Outlined` icons, palette-token discipline; teacher submit form is a desktop-first (1440px) form with a mobile (375px) stacked variant; Arabic RTL requires start/end alignment and RTL-safe date/ayah formatting.
+- **Breakpoints / components / states:** N/A — zero components ship. Forward note for the submit-UX ticket: follow the MUI v9 `sx`-only, `*Outlined` icons, palette-token discipline; teacher submit form is a desktop-first (1440px) form with a mobile (375px) stacked variant; Arabic RTL requires start/end alignment and RTL-safe date/ayah formatting.
 - **RTL/i18n:** all user-facing copy of THIS ticket is server-side (errors + notification copy) in `shared/locale` with en/ar parity; client documents carry no copy.
-- **Agent-Browser Verification Protocol:** deferred to DEV2-014 (no page exists to screenshot). This ticket's functional verification is through the GraphQL wire suites + journey suite; verification steps for live browsing will assert zero drift on `/student/dashboard`, `/teacher/dashboard` only as regression smoke (no new visual surface expected).
+- **Agent-Browser Verification Protocol:** deferred to the submit-UX ticket (no page exists to screenshot). This ticket's functional verification is through the GraphQL wire suites + journey suite; verification steps for live browsing will assert zero drift on `/student/dashboard`, `/teacher/dashboard` only as regression smoke (no new visual surface expected).
 
 ---
 
@@ -490,4 +490,4 @@ Barrels: `frontend/graphql/sharedDocuments/scheduling/index.ts` (+3 exports) and
 - i18n: errors keys `sessionReportAlreadyExists`, `homeworkAlreadyGraded`, validation keys (notes/rating/grade/ayah-range/surah-guard); notification slots `eventSessionReportReady*`; parity suites updated.
 - Frontend: `session-report.documents.ts` + barrels + document-contract tests; `bun run generate:gqlSchema` + `bun codegen`; `schema-surface.test.ts` baseline refresh; SDL assertions for the new types/fields/enum.
 - Tests: repo suites, service 4-tier suite, chaos (double-submit storm + forced mid-tx rollback), GraphQL wire matrix, journey (`test/workflows/classes/session-report-homework.journey.test.ts`, **test-first**) with committed fixtures + tracked `afterAll`, `SpiedFanoutTransport`-spied publishes.
-- Docs/knowledge: `docs/sessions/session-report-homework.md` canonical doc; REQ-072 amendment of `docs/sessions/session-lifecycle.md` §10 (INV-S7/S8 now landed here); AGENTS.md pointers; ledger at `ai/plans/sprint_1/dev3-006-session-report-homework-infrastructure/deferred-items.md` pre-seeded with D1 (full 114-surah enum expansion), D2 (parent read surface → DEV1-016), D3 (submit UX → DEV2-014), D4 (rating aggregation → DEV2-017), D5 (report amendment semantics — future compensating-artifact flow).
+- Docs/knowledge: `docs/sessions/session-report-homework.md` canonical doc; REQ-072 amendment of `docs/sessions/session-lifecycle.md` §10 (INV-S7/S8 now landed here); AGENTS.md pointers; ledger at `ai/plans/sprint_1/dev3-006-session-report-homework-infrastructure/deferred-items.md` pre-seeded with D1 (full 114-surah enum expansion), D2 (parent read surface → the parent-portal ticket), D3 (submit UX → the submit-UX ticket), D4 (rating aggregation → the rating-aggregation ticket), D5 (report amendment semantics — future compensating-artifact flow).

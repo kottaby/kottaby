@@ -1,9 +1,9 @@
-# Requirements & Specification: DEV1-003 — Recitation Selection on Registration
+# Requirements & Specification: Recitation Selection on Registration
 
-> **Target ticket:** `[DEV1-003] Recitation Selection on Registration`  
-> **Plan directory:** `ai/plans/dev1-003-recitation-selection-on-registration/`  
-> **Blocking dependency:** DEV1-002 registration contract and DEV1-001 schema ground truth  
-> **Critical reconciliation note:** The ticket text says “recitation … linked to the user” and “1:M”, while resolved decision **C.5** and DEV1-001 REQ-020 state the opposite: `recitation.user_id` was renamed to `recitation.session_id`, `session_id` is unique, and the relationship is **1:1 session → recitation**. This plan treats **C.5 + DEV1-001 as authoritative** and refuses to recreate `recitation.user_id` semantics inline. Registration may capture and validate a Qira'ah preference, but durable user-level persistence is a schema/contract gap unless a DEV1-001-approved user-preference home exists.
+> **Target ticket:** `Recitation Selection on Registration`
+> **Plan directory:** `ai/plans/dev1-003-recitation-selection-on-registration/`
+> **Blocking dependency:** the User Registration ticket registration contract and the Database Schema Migration ticket schema ground truth
+> **Critical reconciliation note:** The ticket text says “recitation … linked to the user” and “1:M”, while resolved decision **C.5** and REQ-020 state the opposite: `recitation.user_id` was renamed to `recitation.session_id`, `session_id` is unique, and the relationship is **1:1 session → recitation**. This plan treats **C.5 + the Database Schema Migration ticket as authoritative** and refuses to recreate `recitation.user_id` semantics inline. Registration may capture and validate a Qira'ah preference, but durable user-level persistence is a schema/contract gap unless a the Database Schema Migration ticket-approved user-preference home exists.
 
 ## 1. Executive Summary & Problem Statement
 
@@ -18,12 +18,12 @@
 - **Student:** downstream consumer of Qira'ah-aware matching and Tajweed/Hifz session intent.
 - **Teacher applicant:** downstream evaluation context may use Qira'ah information, but applicant registration still must not create `teacher` rows.
 - **Dev 3 matching/session engine:** consumes a validated Qira'ah vocabulary and owns actual `recitation` rows for sessions.
-- **Schema/contract owners:** DEV1-001 owns physical schema; DEV3-001 owns DBML validation; this ticket must escalate rather than patch if a durable user-level Qira'ah home is absent.
+- **Schema/contract owners:** the Database Schema Migration ticket owns physical schema; the CI/CD Pipeline ticket owns DBML validation; this ticket must escalate rather than patch if a durable user-level Qira'ah home is absent.
 
 **Non-goals:**
 - No creation of `recitation` rows during registration.
 - No resurrection of `recitation.user_id` or 1:M user → recitation modeling.
-- No schema drift: no inline DBML/Drizzle structural patch unless explicitly approved through the DEV1-001/DEV3-001 schema path and validated by `bun validate:dbml`.
+- No schema drift: no inline DBML/Drizzle structural patch unless explicitly approved through the Database Schema Migration ticket schema path and validated by `bun validate:dbml`.
 - No teacher verification, cooldown, subscription, free-trial crediting, session escrow, or matching algorithm behavior.
 - No login/JWT redesign.
 - No hardcoded Arabic/English strings; all labels/errors use compile-time i18n.
@@ -35,9 +35,9 @@
 ### 2.1 Baseline, Dependency Guards & Conflict Handling
 
 - **REQ-001** (`baseline`): WHEN implementation begins THEN the executing agent SHALL record baseline `tsgo`, `biome`, and `lint-service` counts and SHALL initialize `ai/plans/dev1-003-recitation-selection-on-registration/deferred-items.md` and `outcome/phase0-baseline-outcome.md`.
-- **REQ-002** (`dependency guard`): WHEN domain work starts THEN the agent SHALL verify DEV1-001/DEV1-002 artifacts exist for `users`, `students`, `parents`, `applicants`, registration input/service/resolver surfaces, and the C.5 session-linked `recitation` shape; IF any required artifact is missing THEN the agent SHALL record a ❌ deferred item and block dependent tasks.
+- **REQ-002** (`dependency guard`): WHEN domain work starts THEN the agent SHALL verify the Database Schema Migration ticket artifacts exist for `users`, `students`, `parents`, `applicants`, registration input/service/resolver surfaces, and the C.5 session-linked `recitation` shape; IF any required artifact is missing THEN the agent SHALL record a ❌ deferred item and block dependent tasks.
 - **REQ-003** (`C.5 authoritative`): WHEN implementing recitation behavior THEN the system SHALL treat `recitation.session_id UNIQUE NOT NULL` as authoritative and SHALL NOT create, update, or imply user-linked recitation rows.
-- **REQ-004** (`schema gap escalation`): WHEN durable user-level Qira'ah persistence is required and no DEV1-001-approved user-preference table/column exists THEN the agent SHALL record a ❌ schema-gap deferred item naming DEV1-001/DEV3-001 as owners and SHALL NOT patch schema inline inside DEV1-003.
+- **REQ-004** (`schema gap escalation`): WHEN durable user-level Qira'ah persistence is required and no Database Schema Migration-approved user-preference table/column exists THEN the agent SHALL record a ❌ schema-gap deferred item naming the Database Schema Migration ticket as owners and SHALL NOT patch schema inline inside this ticket.
 - **REQ-005** (`type discipline`): WHEN code is authored THEN all types SHALL come from canonical locations (`shared/constants/` for cross-layer recitation catalog values, `backend/types/**` for backend service/API types, GraphQL codegen types for frontend), and no local ad-hoc entity types SHALL appear in Pothos, services, repositories, or views.
 
 ### 2.2 Canonical Recitation-Reading Catalog
@@ -57,7 +57,7 @@
 
 ### 2.4 Post-Registration / Session-Linked Boundary
 
-- **REQ-030**: WHEN a session is created by the owning session engine THEN any recitation row SHALL be session-linked with unique `session_id`; DEV1-003 SHALL only provide the shared enum/validation vocabulary and SHALL NOT implement DEV3-007 session recitation persistence.
+- **REQ-030**: WHEN a session is created by the owning session engine THEN any recitation row SHALL be session-linked with unique `session_id`; this ticket SHALL only provide the shared enum/validation vocabulary and SHALL NOT implement the Recitation Record per Session (1:1) ticket session recitation persistence.
 - **REQ-031**: WHEN a user later changes their preferred reading THEN the mutation SHALL be gated by authentication and a lawful persistence target; IF the target is absent THEN the public change-preference mutation SHALL remain blocked and recorded in `deferred-items.md`.
 - **REQ-032**: WHEN the matching engine needs Qira'ah filters THEN it SHALL consume the canonical catalog/enum and the later approved user-preference contract rather than querying `recitation` by `user_id`.
 
@@ -81,7 +81,7 @@
 
 - **REQ-060**: WHEN DB logic tests run THEN each SHALL use `runInRollback`, pass `tx` to every repository/Drizzle call, create data only through `entity-setup.ts` helpers, and use the `expectRepoError` try/catch helper rather than `expect(...).rejects.toThrow()`.
 - **REQ-061**: WHEN registration tests run THEN they SHALL prove registration creates zero `recitation` rows for every public role and SHALL prove `recitation.session_id` remains unique when a session-linked fixture is inserted inside rollback.
-- **REQ-062**: WHEN catalog/validation tests run THEN they SHALL cover unknown values, unicode/RTL labels, boundary enum values, extra BOPLA fields, public `role=admin` rejection, and duplicate-email race behavior inherited from DEV1-002 via `Promise.allSettled`.
+- **REQ-062**: WHEN catalog/validation tests run THEN they SHALL cover unknown values, unicode/RTL labels, boundary enum values, extra BOPLA fields, public `role=admin` rejection, and duplicate-email race behavior inherited from the User Registration ticket via `Promise.allSettled`.
 - **REQ-063**: WHEN GraphQL integration tests run THEN they SHALL use `setupTestServerLifecycle` + `testClient`, assert `extensions.code` for `VALIDATION`/`FORBIDDEN`/`CONFLICT`, and assert `recitationReadings` returns the canonical ordered catalog without authentication.
 - **REQ-064**: WHEN component tests run THEN they SHALL use Happy DOM + Apollo mocks, `translation-preload.ts`, `readTranslation(handle, locale)`, `TestWrapper locale`, and SHALL not hardcode Arabic/English strings.
 
@@ -98,10 +98,10 @@
 |---|---|---|---|---|
 | REQ-001 / REQ-002 | Plan baseline `ai/plans/dev1-003-recitation-selection-on-registration/` | — | — | `outcome/phase0-baseline-outcome.md`; plan-review gate |
 | REQ-003 / REQ-004 | C.5 guardrail in service docs + deferred ledger | Registration metadata only; no recitation rows | Registration helper text explains selection is a preference | DB logic test asserting zero registration-time recitation rows |
-| REQ-005 | `backend/types/users/registration.types.ts` extension only if DEV1-002 surface exists | Canonical Pothos input refs | Codegen types only | `review-types` wave; tsgo via sub-loop |
+| REQ-005 | `backend/types/users/registration.types.ts` extension only if the User Registration ticket surface exists | Canonical Pothos input refs | Codegen types only | `review-types` wave; tsgo via sub-loop |
 | REQ-010–REQ-013 | `shared/constants/recitation-reading.enum.ts`; backend enum shim if needed | `RecitationReadingPothosEnum` in `shared/enum.pothos.ts` | Options from codegen enum | Shared constant test; GraphQL enum codegen compile check |
-| REQ-020–REQ-024 | `RegistrationService` optional whitelist validation if DEV1-002 exists | `RegisterUserInput.preferredRecitation` guarded | Register form selector | Validation matrix; applicant no-teacher assertion |
-| REQ-030–REQ-032 | No session recitation implementation; boundary documented | DEV3-007 owns session recitation mutation | Not in registration | C.5 unique `session_id` rollback test |
+| REQ-020–REQ-024 | `RegistrationService` optional whitelist validation if the User Registration ticket exists | `RegisterUserInput.preferredRecitation` guarded | Register form selector | Validation matrix; applicant no-teacher assertion |
+| REQ-030–REQ-032 | No session recitation implementation; boundary documented | the Recitation Record per Session (1:1) ticket owns session recitation mutation | Not in registration | C.5 unique `session_id` rollback test |
 | REQ-040–REQ-045 | `RecitationCatalogService.validate` + registration whitelist | `extensions.code` assertions | Translated inline errors | BOPLA/BFLA/validation/security tests |
 | REQ-050–REQ-053 | Catalog service no-DB | `recitationReadings` query | `RegisterContainer` selector | GraphQL integration + component tests |
 | REQ-060–REQ-064 | `backend/db/test/entity-setup.ts` reuse; no seed data | Test client harness | Component test preloads | `backend/db/test/logic/auth/recitation-selection*.test.ts`; frontend GraphQL/component tests |

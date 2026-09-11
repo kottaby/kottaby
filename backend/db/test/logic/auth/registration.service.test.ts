@@ -55,7 +55,7 @@ const UNIQUE_VIOLATION_PG_CODE = "23505";
  * Marker message proving the forced failure fired at the applicants child-insert
  * stage inside the service-owned nested transaction (rollback residual proof).
  */
-const FORCED_APPLICANT_FAILURE_MESSAGE = "DEV2-004 forced applicants-insert failure";
+const FORCED_APPLICANT_FAILURE_MESSAGE = "forced applicants-insert failure";
 
 /**
  * Non-secret fixture hash used by the duplicate-email race rows — bcrypt-shaped,

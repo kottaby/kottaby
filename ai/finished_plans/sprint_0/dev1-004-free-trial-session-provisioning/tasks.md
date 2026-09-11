@@ -1,6 +1,6 @@
-# Trackable Implementation Tasks: DEV1-004 — Free Trial Session Provisioning
+# Trackable Implementation Tasks: Free Trial Session Provisioning
 
-**Ticket**: DEV1-004 | **Stream**: Dev 1 | **Sprint**: 0 | **Points**: 3 | **Blocked By**: DEV1-002 ✅
+**Ticket**: Free Trial Session Provisioning | **Stream**: Dev 1 | **Sprint**: 0 | **Points**: 3 | **Blocked By**: the User Registration ticket ✅
 **Spec**: `specs.md` (approved) | **Plan**: `plan.md` (approved) | **Plan Dir**: `ai/plans/dev1-004-free-trial-session-provisioning/`
 **Nature of Slice**: **Backend-only vertical slice** — schema delta + shared constant + i18n key + repository method + domain service + registration hook. **Zero GraphQL surface, zero frontend views.** Phase 4 executes as contract-verification only (REQ-060/REQ-063); no Agent-Browser loops apply because no UI ships.
 
@@ -29,13 +29,13 @@
     - `bun biome:check` → record diagnostic count
     - `bun run lint-service` (JSON mode) → record per-rule counts
   - Create `ai/plans/dev1-004-free-trial-session-provisioning/deferred-items.md` from the spec-implementation template and **pre-seed exactly two entries**:
-    - **D1**: Trial-grant notification dispatch → target ticket DEV3-010 (notifications engine exists per A.4; dispatch deferred). Status: non-blocking, explicitly deferred per REQ-083.
-    - **D2**: Trial eligibility + trial-first decrement *execution* → target tickets DEV3-004 / DEV3-013. Only the forward CONTRACT (REQ-020..022) ships here. Status: non-blocking.
+    - **D1**: Trial-grant notification dispatch → target ticket (notifications engine exists per A.4; dispatch deferred). Status: non-blocking, explicitly deferred per REQ-083.
+    - **D2**: Trial eligibility + trial-first decrement *execution* → target tickets. Only the forward CONTRACT (REQ-020..022) ships here. Status: non-blocking.
   - Record `git rev-parse HEAD` and `git diff --name-only` baseline snapshot in the outcome file (used by REQ-076 deviation accounting).
   - _Requirements: REQ-001, REQ-076, REQ-083_
 
-- [x] **0.2 Prerequisite & Blocker Verification (DEV1-002 Dependency Gate)**
-  - Verify DEV1-002/DEV1-003 artifacts exist and are current:
+- [x] **0.2 Prerequisite & Blocker Verification (the User Registration ticket Dependency Gate)**
+  - Verify the User Registration ticket artifacts exist and are current:
     - `backend/services/auth/registration.service.ts` — `registerUser` + `createRoleChild` + `withTransaction(outerTx)` SAVEPOINT pattern
     - `backend/db/repo/students/student.repository.ts` — `createForRegistration` + handshake retry loop
     - `backend/types/students/student.types.ts` — `StudentSelectType`/`StudentInsertType` via `$inferSelect`/`$inferInsert`
@@ -186,7 +186,7 @@
 
     export namespace StudentTrialService {
       /** FR-2.6 / REQ-017: the ONLY trial-grant entry point. Idempotent at SQL level.
-       * Future callers: DEV2-009 conversion, DEV3-019 direct onboarding. */
+       * Future callers: conversion, direct onboarding. */
       export async function grantFreeTrial(
         studentId: number,
         locale: string,
@@ -288,7 +288,7 @@
     1. Snapshot the current generated schema; run `bun run generate:gqlSchema && bun codegen`.
     2. Diff generated schema + generated documents against the Phase 0.1 snapshot → MUST contain **zero trial-related members** (no query, mutation, object-type field, or input-type field).
     3. Grep `backend/graphql/` for `balanceTrial|trial_granted|balance_trial|trialGranted` → expect ZERO hits (Pothos fields are explicit `t.expose*` enumerations; new DB columns must not leak, per `backend/graphql/AGENTS.md`).
-    4. Verify `RegisterUserInput`, `RegisterPayload`, and `Student` Pothos objects are unchanged vs DEV1-002/DEV1-003 baseline.
+    4. Verify `RegisterUserInput`, `RegisterPayload`, and `Student` Pothos objects are unchanged vs the User Registration ticket baseline.
     5. Record the forward-exposure contract note (REQ-062) verbatim in the outcome: any future exposure MUST use canonical `Student` object with `id` + `t.loadable()`/DataLoader batching per `docs/graphql/dataloader-batching.md` and canonical `@/backend/types` imports.
   - Applicable instruction files: `backend/graphql/AGENTS.md`, `docs/graphql/dataloader-batching.md`, `docs/graphql/domain-error-extensions-code.md`
   - _Requirements: REQ-023, REQ-030, REQ-060, REQ-061, REQ-062_
@@ -328,7 +328,7 @@
   - Steps:
     1. Full test suite: `bun test` (root) → green; record duration & counts.
     2. Coverage assertion: `bun test --coverage backend/services/students/ backend/db/repo/students/ backend/services/auth/` → new/modified code at **100% statement + branch**; export coverage summary into outcome.
-    3. Differential run vs DEV1-002/003 outcomes: assert every previously-passing registration/auth suite still passes unchanged (no behavior drift on teacher/parent/admin paths).
+    3. Differential run vs the User Registration ticket outcomes: assert every previously-passing registration/auth suite still passes unchanged (no behavior drift on teacher/parent/admin paths).
     4. REQ-072/073/074/075 evidence mapping table in outcome: requirement → test name → file → result.
     5. Seed integration: `bun run db seed` twice → idempotent; inspect 2 sample seeded students.
     6. End-to-end registration smoke path (service-level, within `runInRollback`): student registers → row shows grant → simulated second provisioning attempt → localized `ConflictError`; verify `logger.logDomainError` captured with structured context.
@@ -368,7 +368,7 @@
   - _Requirements: REQ-030..035, REQ-042, REQ-033_
 
 - [x] **6.5 Deferred-Items Ledger Gate**
-  - Run: `grep -c "❌\|⚠️" ai/plans/dev1-004-free-trial-session-provisioning/deferred-items.md` → MUST equal **0**, with the explicit exception that D1 (→ DEV3-010) and D2 (→ DEV3-004/DEV3-013) are pre-seeded, targeted, documented as non-blocking per the deferred-items template enforcement rules.
+  - Run: `grep -c "❌\|⚠️" ai/plans/dev1-004-free-trial-session-provisioning/deferred-items.md` → MUST equal **0**, with the explicit exception that D1 (→) and D2 (→) are pre-seeded, targeted, documented as non-blocking per the deferred-items template enforcement rules.
   - If any NEW items surfaced during phases 1–5: either resolve them pre-close or formally append with target ticket + justification and record in outcome.
   - Outcome: `outcome/6.5-deferred-gate-outcome.md`
   - _Requirements: REQ-083, REQ-001_
@@ -384,7 +384,7 @@
     - **DEV3 forward contract**: eligibility = paid lane > 0 OR `balance_trial > 0` (INV-B4 extension); trial-first decrement order (INV-B8); no expiry (INV-B3 explicitly non-applied); DataLoader/GraphQL exposure rules (REQ-062);
     - **Anti-patterns**: never credit `balance_hifz` with trials; never poll paid lanes for eligibility where trial applies first; never expose a grant mutation; never re-grant via admin UI without auditing;
     - **Rollout summary**: schema delta, push-only discipline, seed parity;
-    - **Related documents**: links to `docs/auth/user-registration.md`, `docs/specs/state-machine-invariants.md`, `docs/workflows/03-session-lifecycle.md`, DEV1-002 outcomes.
+    - **Related documents**: links to `docs/auth/user-registration.md`, `docs/specs/state-machine-invariants.md`, `docs/workflows/03-session-lifecycle.md`, the User Registration ticket outcomes.
   - Outcome: `outcome/7.1-canonical-doc-outcome.md`
   - _Requirements: REQ-080, REQ-020, REQ-021, REQ-022_
 

@@ -1,4 +1,4 @@
-# Tasks — DEV3-021 Admin Session Governance
+# Tasks — Admin Session Governance
 
 > **Plan directory (verbatim):** `ai/plans/sprint_3/dev3-021-admin-session-governance`
 > **Specs:** `specs.md` (REQ-001..REQ-081) · **Plan:** `plan.md` (D-01..D-07)

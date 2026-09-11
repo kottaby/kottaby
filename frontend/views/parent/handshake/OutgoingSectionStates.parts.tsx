@@ -8,7 +8,7 @@ import type { ErrorsLabels } from "@/shared/locale/types/errors";
 
 /**
  * Unsettled-branch states of the parent outgoing link-requests section
- * (DEV1-014 task 4.3) — the retryable/generic-failure/skeleton chain split
+ * — the retryable/generic-failure/skeleton chain split
  * out of `OutgoingSectionStates.tsx` to honor the 150-line view budget.
  * Presentational only: every label arrives as an already-resolved namespace
  * handle (property access only).

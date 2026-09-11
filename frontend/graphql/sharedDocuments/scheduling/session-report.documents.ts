@@ -9,12 +9,12 @@ import type {
 } from "@/frontend/graphql/generated/gql/graphql";
 
 /**
- * Session REPORT + HOMEWORK documents (DEV3-006) — the grading/review third
+ * Session REPORT + HOMEWORK documents — the grading/review third
  * of the scheduling family split out of `session.documents.ts` (which
  * re-exports every sibling, so the deep-import path and the export surface
  * are unchanged).
  *
- * The DEV3-006 trio: the teacher submit mutation (`submitSessionReport`)
+ * The trio: the teacher submit mutation (`submitSessionReport`)
  * and the two participant reads of the resulting artifacts
  * (`sessionReport`, `sessionHomework` — both NULLABLE roots). Every
  * `SessionReport`/`SessionHomeWork` payload selects `id` first so Apollo
@@ -24,7 +24,7 @@ import type {
  * `apolloCache.ts`.
  *
  * Selection contract (plan §5, pinned by `session-report.documents.test.ts`):
- * `id` FIRST on every object selection and NO field beyond the DEV3-006
+ * `id` FIRST on every object selection and NO field beyond the
  * object contracts (`SessionReport` = 6 fields, `SessionHomeWork` = 12);
  * `createdAt`/`updatedAt` ride the registered `DateTime` scalar (codegen
  * `string`); the homework enum legs select as `SurahJuzRef` codegen enum

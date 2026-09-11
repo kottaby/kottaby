@@ -4,7 +4,7 @@
  * Happy DOM + Apollo `MockedProvider` tier (`test/ui/components/admin-session-governance`,
  * mirroring the admin disputes suite exactly): the suite BODY lives in the
  * sibling `AdminSessionGovernanceContainer.suite.tsx` — ONE render case per
- * branch of the admin session-governance visual state matrix (DEV3-021),
+ * branch of the admin session-governance visual state matrix,
  * driven across BOTH locales:
  *
  *   loading skeleton · 403/FORBIDDEN tenant-denial fallback · masked error ·

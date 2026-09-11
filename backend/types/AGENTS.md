@@ -92,9 +92,9 @@ Completed migrations:
 
 - See `docs/quality/linting-rules.md` for Oxlint & ESLint/sonarjs fix recipes. NEVER use `oxlint-disable` comments.
 
-## DEV1-001 Schema Footprint
+## Schema Footprint
 
-DEV1-001 established the 15-enum registry (`backend/db/schema/enums.ts`) + 22-table canonical types. All `$inferSelect`/`$inferInsert` types derive from `backend/db/schema/<domain>/`, which is the sole structural ground truth.
+The 15-enum registry (`backend/db/schema/enums.ts`) + 22-table canonical types. All `$inferSelect`/`$inferInsert` types derive from `backend/db/schema/<domain>/`, which is the sole structural ground truth.
 
 ## Contracts Subtree
 

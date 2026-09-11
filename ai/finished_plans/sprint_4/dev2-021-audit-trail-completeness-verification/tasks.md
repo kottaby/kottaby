@@ -1,8 +1,8 @@
-# Tasks: DEV2-021 — Audit Trail Completeness Verification
+# Tasks: Audit Trail Completeness Verification
 
 ## Document Information
 
-- **Feature**: Audit Trail Completeness Verification (DEV2-021, Sprint 4)
+- **Feature**: Audit Trail Completeness Verification (Sprint 4)
 - **Plan Directory**: `ai/plans/sprint_4/dev2-021-audit-trail-completeness-verification`
 - **Spec**: `specs.md` · **Design**: `plan.md` · **Ledger**: `deferred-items.md` · **Outcomes**: `outcome/`
 

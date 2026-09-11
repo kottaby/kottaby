@@ -1,14 +1,14 @@
-# tasks.md — DEV3-018: Cold-Start Bootstrapping (Direct Sheikh Certification)
+# tasks.md —: Cold-Start Bootstrapping (Direct Sheikh Certification)
 
 ```markdown
-# Trackable Implementation Tasks — DEV3-018 (Cold-Start Bootstrapping — Direct Sheikh Certification)
+# Trackable Implementation Tasks — (Cold-Start Bootstrapping — Direct Sheikh Certification)
 
 > **Plan directory (verbatim — every header, ledger path, outcome path, and self-reference in this file MUST use this exact string):** `ai/plans/sprint_3/dev3-018-cold-start-bootstrapping-direct-sheikh-c`
 > **Specs:** `ai/plans/sprint_3/dev3-018-cold-start-bootstrapping-direct-sheikh-c/specs.md`
 > **Plan:** `ai/plans/sprint_3/dev3-018-cold-start-bootstrapping-direct-sheikh-c/plan.md`
 > **Ledger:** `ai/plans/sprint_3/dev3-018-cold-start-bootstrapping-direct-sheikh-c/deferred-items.md`
 > **Outcomes:** `ai/plans/sprint_3/dev3-018-cold-start-bootstrapping-direct-sheikh-c/outcome/`
-> **Blocked by:** DEV3-016 (SHIPPED — verified in-tree; import-by-reference obligations honored)
+> **Blocked:** (SHIPPED — verified in-tree; import-by-reference obligations honored)
 > **Scope shape:** Backend-dominant (types/i18n → repos → services → resolver) + ONE frontend GraphQL DOCUMENT (no UI — D-UI ledger deferral, REQ-063) + ONE mandatory test-first journey. **Zero DB schema tasks** (REQ-045 zero-drift gate). **No `.BF`/`.BS` browser loops anywhere** — REQ-063 ships no markup; those stages are explicitly recorded as N/A-with-rationale on the document task.
 
 ---
@@ -31,7 +31,7 @@
   - Run and capture: `bun tsgo`, `bun biome:check`, `bun run scripts/lint-service.ts --json --id baseline` — record exact error/warning counts.
   - Record pre-existing modified-file set: `git diff --name-only` (verbatim list in the outcome).
   - Record schema-drift pre-state: `git diff --stat -- backend/db/schema/** backend/db/migration/**` (expected empty NOW; re-verified empty at Phase 5).
-  - Initialize `ai/plans/sprint_3/dev3-018-cold-start-bootstrapping-direct-sheikh-c/deferred-items.md` from `.agents/spec-process-guide/templates/deferred-items-template.md` and seed it with the five pre-registered RESOLVED-REFERENCE entries from plan.md: **D-UI** (admin certify affordance → admin teacher-management surface ticket), **D-EVALUATOR-ELEVATION** (raise `is_evaluator` on an already-certified teacher → separate governance mutation ticket), **D-LOCALE-ROUTING** (per-recipient notification localization → engine D2 lineage), **D-RATE-LIMIT** (bespoke certification limiter → rate-limiting hardening stream), **D-GATE-SHARING** (DEV3-022c/022d collision → consume-and-extend rule).
+  - Initialize `ai/plans/sprint_3/dev3-018-cold-start-bootstrapping-direct-sheikh-c/deferred-items.md` from `.agents/spec-process-guide/templates/deferred-items-template.md` and seed it with the five pre-registered RESOLVED-REFERENCE entries from plan.md: **D-UI** (admin certify affordance → admin teacher-management surface ticket), **D-EVALUATOR-ELEVATION** (raise `is_evaluator` on an already-certified teacher → separate governance mutation ticket), **D-LOCALE-ROUTING** (per-recipient notification localization → engine D2 lineage), **D-RATE-LIMIT** (bespoke certification limiter → rate-limiting hardening stream), **D-GATE-SHARING** (collision → consume-and-extend rule).
   - Write `ai/plans/sprint_3/dev3-018-cold-start-bootstrapping-direct-sheikh-c/outcome/0-baseline-outcome.md` with counts + diff set + ledger seed confirmation.
   - _Requirements: REQ-001, REQ-076_
 
@@ -157,13 +157,13 @@
   - [x] 2.3.IV **Instruction Verification**: `.agents/instructions/backend.instructions.md` validated.
   - _Requirements: REQ-012, REQ-044, REQ-070_
 
-- [x] 2.4 [Extract shared admin gate — CREATE `admin-gate.helpers.ts`, REWIRE DEV3-016 service (first-lander)]
+- [x] 2.4 [Extract shared admin gate — CREATE `admin-gate.helpers.ts`, REWIRE service (first-lander)]
   - CREATE `backend/services/admin/admin-gate.helpers.ts`:
     - `assertActorAdmin(actorId, locale, outerTx?)` — moved VERBATIM (byte-parity) from `backend/services/admin/user-management.service.ts:240-271`.
     - NEW `assertActorAdminActive(actorId, locale, outerTx?)` — role gate PLUS governance clause in deterministic order `isDeleted → ForbiddenError(t.accountDeleted)`; `isBlocked → ForbiddenError(t.accountBlocked)`; `suspended → ForbiddenError(t.accountSuspended)` (existing flat keys `shared/locale/en/errors/index.ts:17-19` — no new keys). ONE `logger.logDomainError` per denial with `{ code, entity: "user", entityId: actorId, locale }`; ZERO reads/writes past the gate.
   - UPDATE `backend/services/admin/user-management.service.ts` — DELETE the private copy, import from the helper. ZERO behavior drift: the 61-test service suite + 3-test chaos suite are the regression lock — run both and require unchanged green.
   - UPDATE `backend/services/admin/index.ts` — add `export * from "./admin-gate.helpers";`.
-  - Extraction-collision rule (REQ-004): re-verify `admin-gate.helpers.ts` is still absent before creating; if DEV3-022c/022d landed it first, consume-and-extend additively instead of creating (record which branch was taken in the outcome).
+  - Extraction-collision rule (REQ-004): re-verify `admin-gate.helpers.ts` is still absent before creating; if landed it first, consume-and-extend additively instead of creating (record which branch was taken in the outcome).
   - Instruction files: `.agents/instructions/backend.instructions.md`
   - [x] 2.4.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts backend/services/admin/admin-gate.helpers.ts --lifecycle duplicates` (exit 0); same for `user-management.service.ts` and the barrel.
   - [x] 2.4.TE **Test Engineering**: run existing locks green — `bun run test/scripts/run-test.ts backend/services/admin/user-management.service.test.ts` + `.../user-management.chaos.test.ts`. CREATE `backend/services/admin/admin-gate.helpers.test.ts`: Tier-1 role branches; Tier-2 governance ordering (deleted>blocked>suspended precedence when multiple flags set); Tier-4 BFLA — actorId=0 → UNAUTHORIZED; non-admin → FORBIDDEN; governed → FORBIDDEN; all pre-DB (spy/transaction-count proof of zero DB interaction past the gate).
@@ -276,7 +276,7 @@
 - [x] 5.2 [Cross-entity purity oracle + devil's-advocate differential run — REQ-020]
   - Extend service tests (5.x assertions live in `backend/services/admin/cold-start-certification.service.test.ts` or the chaos file): snapshot COUNTs of `users`, `wallet`, `subscriptions`, `plans`, `session`, `teacher_transaction`-adjacent tables before/after a successful certification ⇒ UNCHANGED; only `teacher`/`applicants`/`audit_logs`/`notifications` move.
   - Run the FULL affected sweep green: `bun run test/scripts/run-test.ts backend/services/admin`, `bun run test/scripts/run-test.ts backend/db/repo/teachers`, `bun run test/scripts/run-test.ts backend/graphql/test`, `bun run test/scripts/run-test.ts shared/locale`, `bun run test/scripts/run-test.ts frontend/graphql`, `bun run test/scripts/run-test.ts test/workflows/admin/cold-start-certification.journey.test.ts`.
-  - Verify DEV3-016 regression locks unchanged-green (service 61 + chaos 3 suites).
+  - Verify regression locks unchanged-green (service 61 + chaos 3 suites).
   - [x] 5.2.SR **Semantic Review**: no test weakened to pass; every failure is fixed in implementation, not in the assertion.
   - _Requirements: REQ-020, REQ-070..REQ-076 (070-076)_
 
@@ -330,7 +330,7 @@
   - _Requirements: REQ-080_
 
 - [x] 7.2 [Inbound/outbound doc reconciliation — one-line pointers ONLY]
-  - UPDATE `docs/admin/user-management.md` §6: DEV3-018 scope-split row gains a one-line SHIPPED pointer to `docs/admin/cold-start-certification.md` (NO renumbering, NO invariant re-litigation).
+  - UPDATE `docs/admin/user-management.md` §6: scope-split row gains a one-line SHIPPED pointer to `docs/admin/cold-start-certification.md` (NO renumbering, NO invariant re-litigation).
   - UPDATE `docs/teachers/applicant-lifecycle.md` §6 consumer table: "Direct admin onboarding" row gains a one-line link to the new canonical doc.
   - VERIFY untouched: `docs/specs/open-decisions-and-gaps.md` and `docs/specs/state-machine-invariants.md` MUST show zero diff (`git diff -- docs/specs/` empty) — this ticket mints no decisions/invariants.
   - [x] 7.2.QL **Quality Loop**: sub-loop on both edited docs (exit 0).
@@ -345,7 +345,7 @@
   - _Requirements: REQ-082_
 
 - [x] 7.4 [Outcome synthesis & ticket closure]
-  - Write `ai/plans/sprint_3/dev3-018-cold-start-bootstrapping-direct-sheikh-c/outcome/FINAL-outcome.md`: full task checklist snapshot (all `[x]`), baseline-vs-final gate table (tsgo/biome/lint/zero-drift/ledger), test inventory with commands + results, deferred-items final state (all RESOLVED-REFERENCE), deviations ledger (empty expected), and downstream-consumption notes (DEV2-006 committee availability; DEV3-020 audit read-back; DEV3-022c/022d gate sharing).
+  - Write `ai/plans/sprint_3/dev3-018-cold-start-bootstrapping-direct-sheikh-c/outcome/FINAL-outcome.md`: full task checklist snapshot (all `[x]`), baseline-vs-final gate table (tsgo/biome/lint/zero-drift/ledger), test inventory with commands + results, deferred-items final state (all RESOLVED-REFERENCE), deviations ledger (empty expected), and downstream-consumption notes (committee availability; audit read-back; gate sharing).
   - Final verification pass: every task's `outcome/<task-id>-outcome.md` exists; every checkbox is `[x]`; ALL Phase 5 commands re-verified green in ONE final run.
   - _Requirements: REQ-076, REQ-083_
 
@@ -353,5 +353,5 @@
 
 ## COMPLETION DEFINITION (ALL must hold)
 
-- [x]-equivalent acceptance state when: Journey J-1 green end-to-end; closed error surface (`UNAUTHORIZED`, `FORBIDDEN`, `USER_NOT_FOUND`, `TEACHER_ROLE_REQUIRED`, `TEACHER_ACCOUNT_GOVERNED`, `TEACHER_ALREADY_CERTIFIED`, `VALIDATION`) each test-pinned; `$all` conjunction introspection-pinned; codegen artifacts committed alongside baseline re-pins; `git diff -- backend/db/schema/** backend/db/migration/**` EMPTY; tsgo/biome/lint deltas ZERO vs baseline; `grep -c "❌\|⚠️" ai/plans/sprint_3/dev3-018-cold-start-bootstrapping-direct-sheikh-c/deferred-items.md` = 0; `docs/admin/cold-start-certification.md` exists; AGENTS propagation lines present; DEV3-016 regression suites unchanged-green.
+- [x]-equivalent acceptance state when: Journey J-1 green end-to-end; closed error surface (`UNAUTHORIZED`, `FORBIDDEN`, `USER_NOT_FOUND`, `TEACHER_ROLE_REQUIRED`, `TEACHER_ACCOUNT_GOVERNED`, `TEACHER_ALREADY_CERTIFIED`, `VALIDATION`) each test-pinned; `$all` conjunction introspection-pinned; codegen artifacts committed alongside baseline re-pins; `git diff -- backend/db/schema/** backend/db/migration/**` EMPTY; tsgo/biome/lint deltas ZERO vs baseline; `grep -c "❌\|⚠️" ai/plans/sprint_3/dev3-018-cold-start-bootstrapping-direct-sheikh-c/deferred-items.md` = 0; `docs/admin/cold-start-certification.md` exists; AGENTS propagation lines present; regression suites unchanged-green.
 ```

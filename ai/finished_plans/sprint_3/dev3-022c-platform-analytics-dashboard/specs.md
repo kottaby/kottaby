@@ -1,10 +1,10 @@
 ```markdown
-# Requirements & Specification: DEV3-022c — Platform Analytics Dashboard
+# Requirements & Specification: Platform Analytics Dashboard
 
 > **Sprint:** 3 · **Owner Stream:** Dev 3 · **Effort:** 5 SP
-> **Target ticket:** DEV3-022c — Platform Analytics Dashboard (`docs/planning/TICKETS.md` §Sprint 3; decision ref FR-10.6)
+> **Target ticket:** — Platform Analytics Dashboard (`docs/planning/TICKETS.md` §Sprint 3; decision ref FR-10.6)
 > **Plan directory (verbatim):** `ai/plans/sprint_3/dev3-022c-platform-analytics-dashboard`
-> **Blocking dependency:** DEV3-016 (Admin CRUD + user stats substrate) — shipped (`docs/admin/user-management.md`); the dependents in this ticket's read-path (`AdminUserRepository.getStats` at `backend/db/repo/admin/admin-user.repository.ts:450-485`, `AdminUserManagementService` actor gate, `adminUsers` query family at `backend/graphql/query/admin/admin-users.query.ts`) are present in the bundled code and reused by reference, never forked.
+> **Blocking dependency:** (Admin CRUD + user stats substrate) — shipped (`docs/admin/user-management.md`); the dependents in this ticket's read-path (`AdminUserRepository.getStats` at `backend/db/repo/admin/admin-user.repository.ts:450-485`, `AdminUserManagementService` actor gate, `adminUsers` query family at `backend/graphql/query/admin/admin-users.query.ts`) are present in the bundled code and reused by reference, never forked.
 >
 > **Critical design note (Existing Codebase State):** This is a **read-only aggregate surface**. NO schema change, NO mutation, NO notification, NO audit-write is introduced — `git diff` on `backend/db/schema/**` and `backend/db/migration/**` MUST be empty at completion. The user-population counters ALREADY exist (`AdminUserRepository.getStats`); the net-new work is: (a) one analytics aggregate repository (sessions / payments / subscriptions / teacher presence / ratings / health indicators / trends), (b) one admin service composing them in ONE snapshot transaction, (c) ONE zero-argument admin GraphQL query, (d) one admin dashboard page (cards + breakdowns + a trend chart), (e) the journey + matrix test locks. All timestamps expose through the registered `DateTime` scalar (`backend/graphql/pothos/shared/scalar.pothos.ts:28`) — the pre-scalar `toISOString()`→`String` workaround is PROHIBITED on the new types.
 
@@ -15,19 +15,19 @@
 - **Feature:** An admin-only, single-query platform analytics dashboard (FR-10.6 / Workflow 05 "Platform Analytics"): one server-side snapshot composed of user counters, session lifecycle counters, revenue aggregates, subscription state distribution, teacher presence, rating aggregates, operational health indicators, and 30-day daily trends — rendered as a dashboard page with stat cards, breakdown sections, and a trend chart.
 - **Problem from user perspective:**
   - **Super Admin** needs one truthful "state of the platform" surface — today the only aggregate read is `adminUserStats` (user counters only, `backend/graphql/query/admin/admin-users.query.ts:102-118`). Sessions, money, subscriptions, and teacher presence have NO aggregate read at all; answering "how many sessions this week" or "revenue this month" requires hand-written SQL.
-  - **Operations review / audit readers** (DEV3-020 adjacency) get a page whose numbers they can trust because every figure is computed from set-oriented SQL against the real tables, never cached and never client-assembled.
+  - **Operations review / audit readers** (adjacency) get a page whose numbers they can trust because every figure is computed from set-oriented SQL against the real tables, never cached and never client-assembled.
   - **Other roles** (teacher, student, parent) must never see platform-wide aggregates — the surface is BFLA-gated at three layers.
 - **Business value:** FR-10.6 is an M3 "Parent Portal & Admin Governance" scope item (`docs/planning/ROADMAP.md` §M3) and a `docs/planning/PRODUCTION_READINESS.md` launch-adjacent capability (platform health/oversight). It is also the rendering substrate later analytics tickets (drill-down pages, CSV export, cached/alerted metrics) build on — those are explicitly OUT of scope here.
 - **Actors involved:**
   - **Admin (caller/observer):** the ONLY authorized reader.
   - **Student / Teacher / Parent (data subjects & denial probes):** their payments, subscriptions, sessions, and ratings are the OBSERVED substrate; as callers they MUST be denied (403 at the scope layer, 403 at the service layer, byte-identical zero side effects).
   - **Governed admin (suspended/blocked/deleted holding a live token):** MUST be denied at the SERVICE tier (request-time governance re-check — see REQ-032; the GraphQL context boundary is documented as NOT fail-closed for governed users).
-  - **Downstream consumers:** DEV3-020 (audit browsing — unaffected; reads never audit), future drill-down/export tickets.
+  - **Downstream consumers:** (audit browsing — unaffected; reads never audit), future drill-down/export tickets.
 - **Non-goals (explicitly OUT of scope):**
   - NO writes, mutations, or invalidations of any kind (zero `notifications`, zero `audit_logs`, zero state mutation — read purity is a tested invariant).
   - NO drill-down detail pages, NO CSV/PDF export, NO date-range pickers, NO custom granularity arguments (windows are fixed by contract — REQ-012/015).
   - NO server-side caching of metrics (fresh read per request; client polls on a fixed interval) and NO realtime-push of metrics (the WS fan-out engine is untouched).
-  - NO per-teacher / per-student / per-plan drill-down, NO financial auditing surfaces (wallets/withdrawals detail is DEV3-022b — this ticket surfaces only the two WHOLE-PLATFORM health counters), NO admin user-management edits (DEV3-016 surface untouched).
+  - NO per-teacher / per-student / per-plan drill-down, NO financial auditing surfaces (wallets/withdrawals detail is — this ticket surfaces only the two WHOLE-PLATFORM health counters), NO admin user-management edits (surface untouched).
   - NO new enums, NO new tables/columns, NO prepared-statement surface obligations beyond the documented dynamic-query posture.
   - NO `escapeLikeWildcards` surface: there is ZERO user-authored search/filter text on this feature (verified constraint — the obligation does not arise).
 
@@ -194,4 +194,4 @@
 | REQ-080..083 (docs/propagation) | knowledge protocol | — | — | — | `docs/admin/platform-analytics.md`; AGENTS updates; outcome files |
 ```
 
-*End of `specs.md` for DEV3-022c — Phase 2 (design) and Phase 3 (tasks) follow in their own artifacts; Phase 1.5 `@plan-review` MUST pass before any implementation begins.*
+*End of `specs.md` — Phase 2 (design) and Phase 3 (tasks) follow in their own artifacts; Phase 1.5 `@plan-review` MUST pass before any implementation begins.*

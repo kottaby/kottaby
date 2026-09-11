@@ -9,7 +9,7 @@
  * `isInputEventSupported === false`).
  *
  * The COMPONENT-CONTRACT tier of the four admin session-governance
- * interaction surfaces (DEV3-021 / tasks 5.2.4 "ALL dialog open/confirm/
+ * interaction surfaces (tasks 5.2.4 "ALL dialog open/confirm/
  * submit paths"): the reschedule, cancel and reassign dialogs plus the
  * join-observation banner render HERE IN ISOLATION — props in, callbacks
  * out — while every confirm/submit path additionally fires the REAL 5.1

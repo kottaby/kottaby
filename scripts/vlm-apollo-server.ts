@@ -1,6 +1,6 @@
 /**
  * Standalone Apollo HTTP server for VLM-based functional verification of
- * DEV3-017 account governance.
+ * account governance.
  *
  * Bypasses Next.js (the dev server crashes on this sandbox) by using
  * `@apollo/server`'s `startStandaloneServer` directly with the project's

@@ -1,4 +1,4 @@
-# Trackable Implementation Tasks: DEV3-010 — Real-Time Notification Engine (WebSocket)
+# Trackable Implementation Tasks: Real-Time Notification Engine (WebSocket)
 
 > **Plan directory:** `ai/plans/dev3-010-realtime-notification-engine/`
 > **Specs:** `specs.md` (REQ-001..REQ-083, Journeys J1–J2) · **Architecture:** `plan.md` (Decisions D1–D12)
@@ -35,7 +35,7 @@
 - [x] 0.1 [Record error baseline and initialize the deferred-items ledger]
   - Run and record verbatim counts: `bun tsgo`, `bun biome:check`, `bun run scripts/lint-service.ts --json --id baseline`, `git diff --name-only`
   - Create `ai/plans/dev3-010-realtime-notification-engine/deferred-items.md` from the template; pre-seed as non-blocking forward items:
-    - **D1** — emitter wiring per event type → DEV3-011 / DEV1-016 / DEV1-017 / DEV2-016 / DEV3-012 / DEV3-013 / DEV3-022d
+    - **D1** — emitter wiring per event type → 
     - **D2** — recipient-locale copy storage → requires future `users.locale` decision (NEVER patched inline)
     - **D3** — production WS host provisioning → deployment workstream
     - **D4** — multi-channel / unified-preferences integration → notification-preferences ticket
@@ -49,8 +49,8 @@
   - Verify `backend/db/schema/notifications/notifications.ts` holds exactly the A.4 columns (`id`, `user_id`, `type`, `title`, `body`, `is_read`, `related_entity_type`, `related_entity_id`, `created_at`) + `notifications_user_id_idx` + `notifications_user_id_is_read_idx`
   - Verify `notificationType` pgEnum in `backend/db/schema/enums.ts` and TS mirror `NotificationType` in `backend/enum/notifications/notification-type.enum.ts` both carry exactly the 7 sanctioned values
   - Verify the existing `backend/db/repo/notifications/` repository surface and catalogue its methods for additive extension (never re-implementation)
-  - Verify DEV2-001 `verifyAccessToken`, DEV2-002 `authenticated` authScope, DEV2-003 `SessionEventNotificationContract`/`SessionEventNotificationType` in `@/backend/types/contracts`, DEV3-002 masking boundary, DEV3-003 gateway posture
-  - IF any artifact is missing → record ❌ in `deferred-items.md` and block dependent tasks; NEVER patch DEV1-001-owned structures inline
+  - Verify `verifyAccessToken`, `authenticated` authScope, `SessionEventNotificationContract`/`SessionEventNotificationType` in `@/backend/types/contracts`, masking boundary, gateway posture
+  - IF any artifact is missing → record ❌ in `deferred-items.md` and block dependent tasks; NEVER patch structures inline
   - Write audit results to `outcome/0.2-outcome.md`
   - _Requirements: REQ-004, REQ-002_
   - [x] 0.2.IV **Instruction Verification**: validate findings against `docs/specs/open-decisions-and-gaps.md` (A.4), `docs/specs/state-machine-invariants.md` (INV-P2/P3), `docs/DATABASE_MIGRATIONS.md`
@@ -242,7 +242,7 @@
   - Transaction composition: own-commit path = insert → commit → single `publishFanout` (batch = ONE publish with full recipient list); caller-tx path = insert in caller tx → return `NotificationDeliveryReceipt` WITHOUT publishing; `publishReceipts` = post-commit publisher; publish failure post-commit → `logger.logDomainError({ code: "NOTIFICATION_DELIVERY_DEGRADED", entity: "notifications" })` and RESOLVE
   - One `now` per batch (REQ-047); batch insert in ONE statement via repo (REQ-013); `withTransaction(outerTx)` SAVEPOINT-aware composition
   - i18n via `getServerTranslations(locale, "errors")` — property access; zero translation/templating of `title`/`body` (verbatim storage, REQ-015/028)
-  - Applicable instructions: `backend/services/AGENTS.md`, `docs/IDEMPOTENCY.md` (deviation ruling), DEV1-002 tx-composition precedent
+  - Applicable instructions: `backend/services/AGENTS.md`, `docs/IDEMPOTENCY.md` (deviation ruling), tx-composition precedent
   - _Requirements: REQ-010, REQ-011, REQ-012, REQ-013, REQ-015, REQ-016, REQ-040, REQ-042, REQ-043, REQ-047_
   - [x] 2.6.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts <each-file> --lifecycle duplicates` (exit 0)
   - [x] 2.6.TE **Test Engineering** (`backend/services/notifications/notification-engine.emit.test.ts` + DB-bound tier): Tier 1 — emit single/batch happy paths, validation branch matrix, duplicate-key suppression; Tier 2 — boundary titles (0/1/255/256 chars), entityRef half-pairs; Tier 3 — **forced-OUTER-tx rollback → ZERO rows AND ZERO publishes** (spied transport), cache outage fail-open persists + warns, publish-failure post-commit swallowed-with-log; Tier 4 — hostile id/type/key fuzz. Service tier with mocked transport+cache; DB tier in `runInRollback` via `bun run test/scripts/run-test.ts`
@@ -515,7 +515,7 @@
 
 - [x] 7.1 [Author `docs/notifications/realtime-engine.md`]
   - Structure: Why → Pattern → Rules → What NOT to Do → Rollout Summary → Related Documents
-  - Mandatory content: persist-first/push-second rule (REQ-011); publish-after-commit + caller-tx receipt composition (REQ-012/042) with consumption-guide code sketch; emit contract + localization-at-emitter boundary (engine never translates — REQ-015/028); WS handshake security model + full close-code vocabulary (4401/4429/4009/1013/1001); backplane port + both adapters + fail-open-on-push-failure ruling; fail-open idempotency deviation rationale (D5); catch-up self-heal contract; connection-cap policy; bounded-state exception scope; consumption guide for DEV3-011 / DEV1-016 / DEV1-017 / DEV2-016 / DEV3-012 / DEV3-013 / DEV3-022d (import engine contracts, never write rows directly, honor publish-after-commit)
+  - Mandatory content: persist-first/push-second rule (REQ-011); publish-after-commit + caller-tx receipt composition (REQ-012/042) with consumption-guide code sketch; emit contract + localization-at-emitter boundary (engine never translates — REQ-015/028); WS handshake security model + full close-code vocabulary (4401/4429/4009/1013/1001); backplane port + both adapters + fail-open-on-push-failure ruling; fail-open idempotency deviation rationale (D5); catch-up self-heal contract; connection-cap policy; bounded-state exception scope; consumption guide (import engine contracts, never write rows directly, honor publish-after-commit)
   - Explicit statement: NO new state-machine invariants minted (append-only + one-way read latch is documented, not INV-numbered); INV-P3 referenced as ENABLED-BY this engine
   - _Requirements: REQ-080, REQ-081_
 

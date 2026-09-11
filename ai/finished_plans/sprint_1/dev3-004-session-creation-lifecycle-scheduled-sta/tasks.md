@@ -1,14 +1,14 @@
-# tasks.md — DEV3-004: Session Creation & Lifecycle (Scheduled → Started → Completed/Cancelled)
+# tasks.md — Session Creation & Lifecycle (Scheduled → Started → Completed/Cancelled)
 
 > **Plan of record:** `ai/plans/sprint_1/dev3-004-session-creation-lifecycle-scheduled-sta/`
 > **Specs:** `specs.md` REQ-001..REQ-083, REQ-J1..REQ-J6 · **Plan:** `plan.md` §1–§6
-> **Ticket:** [DEV3-004] Session Creation & Lifecycle · Dev 3 · Sprint 1 · 5 SP
+> **Ticket:** Session Creation & Lifecycle · Dev 3 · Sprint 1 · 5 SP
 
 ---
 
 ## Non-Negotiable Execution Protocol (BINDING FOR EVERY TASK)
 
-1. **Pre-Execution outcome knowledge read:** before editing any file, read the relevant `AGENTS.md` layers and any prior `outcome/*-outcome.md` files pertaining to that layer (especially DEV1-004 guarded-decrement precedent, DEV1-005 guarded-update/probe precedent, DEV1-002 cause-chain pattern, DEV2-004 `$all` authScopes lesson).
+1. **Pre-Execution outcome knowledge read:** before editing any file, read the relevant `AGENTS.md` layers and any prior `outcome/*-outcome.md` files pertaining to that layer (especially the Free Trial Session Provisioning ticket guarded-decrement precedent, the Plan Catalog CRUD (Admin Only) ticket guarded-update/probe precedent, the User Registration ticket cause-chain pattern, the Teacher Applicant Registration ticket `$all` authScopes lesson).
 2. **Post-Edit verification:** after EVERY created/modified file, run `bun run scripts/health/sub-loop.ts <file-path> --lifecycle duplicates` — exit code 0 is mandatory before proceeding.
 3. **Test execution:** all test files run via `bun run test/scripts/run-test.ts <test-path>` (never raw `bun test` for DB suites); journey suites also verified with `bun run test/scripts/run-test.ts test/workflows` once the harness exists (raw `bun test test/workflows` misses `--env-file=.env.test` — see `docs/testing/workflow-journey-tests.md:101` and `test/workflows/AGENTS.md:48-56`).
 4. **Semantic self-review:** before marking any task complete, self-review against the semantic checklist (atomicity, env-config, zero dead code, no cross-layer imports, enums as VALUE imports, tx propagation, no `console.*`, no `...input` spreads).
@@ -24,11 +24,11 @@
 - [x] 0.1 [Record baseline and seed deferred-items ledger]
   - Record baseline error counts: `bun tsgo`, `bun biome:check`, `bun run scripts/lint-service.ts --json --id baseline`, `git diff --name-only` → capture into `outcome/0.1-outcome.md` (per protocol #5).
   - Initialize `ai/plans/sprint_1/dev3-004-session-creation-lifecycle-scheduled-sta/deferred-items.md` (the file already EXISTS in this plan dir as an empty template; plan.md — updated separately — defines D1–D5, extended D6–D7 by gate rulings) by seeding the following non-blocking forward items into it:
-    - **D1** — session request/lifecycle event notifications → DEV3-010/DEV3-011
-    - **D2** — dual-confirmation student confirm + 24h auto-cancel sweeper + wallet credit → DEV3-012/DEV3-013
-    - **D3** — `is_online` availability assertion + directory wiring → DEV3-008/DEV2-011
-    - **D4** — student-facing booking UI over the directory → DEV3-009
-    - **D5** — INV-S6/S7/S8 + `disputed` state → DEV3-005/DEV2-013/DEV3-022
+    - **D1** — session request/lifecycle event notifications
+    - **D2** — dual-confirmation student confirm + 24h auto-cancel sweeper + wallet credit
+    - **D3** — `is_online` availability assertion + directory wiring
+    - **D4** — student-facing booking UI over the directory
+    - **D5** — INV-S6/S7/S8 + `disputed` state
   - _Requirements: REQ-001, REQ-083_
 
 ### 0.2 — Prerequisite Verification & Dependency Guard (READ-ONLY)
@@ -40,7 +40,7 @@
   - Verify `teacher.isApproved` in `backend/db/schema/teachers/teacher.ts`.
   - **Collision check:** confirm NO existing `SessionRepository`/`SessionLifecycleService` anywhere in code (both absent — verify by grep; the `Lifecycle` suffix is chosen for naming clarity, NOT as a collision shield). Note the ground truth: NO auth `SessionService` exists in code either (`backend/services/auth/` holds only `auth.service.ts` + `registration.service.ts`; the `SessionService` name appears solely as a future-contract doc comment in `backend/types/contracts/session-request.contract.types.ts:3`), and NO `class_instances`/`ClassSessionService` subsystem pre-exists in code (docs/AGENTS.md prose only).
   - Verify which of `SessionStatus`/`SessionIntent`/`SessionType` are ALREADY registered in `backend/graphql/pothos/shared/enum.pothos.ts` — ONLY missing ones will be registered in Phase 3.
-  - Verify `DUPLICATE_REQUEST` exists in the `ErrorCode` union; identify the exact custom-code construction facility DEV1-005/DEV2-004 used (`backend/lib/errors/`). Ground truth to confirm: `ConflictError` has a FIXED `"CONFLICT"` code (`backend/lib/errors.ts:159-163`) — only `ValidationError` ships an overloaded `(code, message)` ctor (`errors.ts:65-130`); custom 409 codes therefore REQUIRE the additive `ConflictError` extension scheduled as a prerequisite in 2.8.
+  - Verify `DUPLICATE_REQUEST` exists in the `ErrorCode` union; identify the exact custom-code construction facility the Plan Catalog CRUD (Admin Only) ticket used (`backend/lib/errors/`). Ground truth to confirm: `ConflictError` has a FIXED `"CONFLICT"` code (`backend/lib/errors.ts:159-163`) — only `ValidationError` ships an overloaded `(code, message)` ctor (`errors.ts:65-130`); custom 409 codes therefore REQUIRE the additive `ConflictError` extension scheduled as a prerequisite in 2.8.
   - Verify `ctx.idempotencyKey` is captured by `createGraphQLContext` (read `docs/IDEMPOTENCY.md` + context builder).
   - Verify `SessionRequestContract` in `@/backend/types/contracts` and its structural invariants.
   - Verify `test/workflows/` existence and read `test/workflows/AGENTS.md`; check whether `test/workflows/helpers/` exists (scaffold gap lands in 2.1).
@@ -63,7 +63,7 @@
 
 - [x] 1.1 [Create `HeldBalanceLane` enum + type guard]
   - **Files:** CREATE `backend/enum/scheduling/held-balance-lane.enum.ts` (`Trial`/`Hifz`/`Tajweed` string enum + `isHeldBalanceLane` guard); UPDATE `backend/enum/scheduling/index.ts` barrel.
-  - **Instructions:** `backend/enum/AGENTS.md`, ApplicantStatus varchar-enum precedent (DEV1-001/DEV2-004).
+  - **Instructions:** `backend/enum/AGENTS.md`, ApplicantStatus varchar-enum precedent (the Database Schema Migration ticket).
   - _Requirements: REQ-013(a), REQ-045_
   - [x] 1.1.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts backend/enum/scheduling/held-balance-lane.enum.ts --lifecycle duplicates` (exit 0)
   - [x] 1.1.TE **Test Engineering**: 4-Tier — Tier 1 branch coverage of guard (valid members, casing variants, empty string); Tier 2 boundary (unicode/RTL strings); Tier 3 chaos (symbol/object/null/undefined hostile fuzz); Tier 4 (guard can never coerce a non-string). Run via `bun run test/scripts/run-test.ts <path>`.
@@ -103,7 +103,7 @@
 
 - [x] 1.4 [Create `shared/constants/session-fees.constants.ts`]
   - **Files:** CREATE `shared/constants/session-fees.constants.ts` (`SESSION_FEE_HIFZ`/`SESSION_FEE_TAJWEED` decimal strings, `SESSION_FEE_CURRENCY = "EGP"`, `SESSION_CONFIRMATION_WINDOW_MS` = 24h); UPDATE `shared/constants/index.ts` barrel.
-  - Decimal STRINGS end-to-end (DEV1-005 money discipline); zero arithmetic on fees anywhere.
+  - Decimal STRINGS end-to-end (the Plan Catalog CRUD (Admin Only) ticket money discipline); zero arithmetic on fees anywhere.
   - **Rules:** `shared/` NEVER imports from `@/frontend`, `@/backend`, `@/app` — this file has ZERO imports.
   - _Requirements: REQ-021_
   - [x] 1.4.QL **Quality Loop**: sub-loop (exit 0)
@@ -183,7 +183,7 @@
   - **Files:** UPDATE `backend/db/repo/students/student.repository.ts` ONLY (additive; never fork/re-implement).
   - `decrementLaneIfAvailable(studentId: number, lane: HeldBalanceLane, tx?: DBTransaction): Promise<boolean>` — ONE guarded conditional UPDATE per lane (`UPDATE students SET balance_<lane> = balance_<lane> - 1, updated_at = now() WHERE id = $1 AND balance_<lane> > 0`), lane column resolved from a frozen `{ HeldBalanceLane → column }` map keyed by enum members (never caller strings); returns row-match boolean.
   - `incrementLane(studentId: number, lane: HeldBalanceLane, tx?: DBTransaction): Promise<void>` — unguarded `+1` refund (no upper bound exists; CHECK ≥ 0 cannot trip on `+1`).
-  - **Instructions:** `backend/db/repo/AGENTS.md`; DEV1-004 `grantFreeTrialOnce` guarded-decrement precedent.
+  - **Instructions:** `backend/db/repo/AGENTS.md`; the Free Trial Session Provisioning ticket `grantFreeTrialOnce` guarded-decrement precedent.
   - _Requirements: REQ-012, REQ-017, REQ-042, REQ-044, REQ-071_
   - [x] 2.4.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts backend/db/repo/students/student.repository.ts --lifecycle duplicates` (exit 0)
   - [x] 2.4.TE **Test Engineering**: 4-Tier — Tier 1: every lane branch (trial/hifz/tajweed hit + miss → boolean correctness, `runInRollback`, `tx` passed); Tier 2: balance exactly 1 → 0; balance 0 → miss; Tier 3: concurrent decrements on one row via `Promise.allSettled` → exactly one crosses; CHECK never tripped; Tier 4: lane-column map cannot be reached by caller string injection. Run via `bun run test/scripts/run-test.ts <path>`; failures asserted via `expectRepoError`-class helpers on translated substrings; NEVER `rejects.toThrow()` inside `runInRollback`.
@@ -211,7 +211,7 @@
   - **File:** CREATE `backend/db/repo/classes/session.repository.ts` (namespace `SessionRepository`; every method `tx?: DBTransaction` LAST).
   - Methods per plan §4.2: `insertSession` (INSERT … RETURNING); `findById`; `startSessionOnce` (`WHERE id ∧ teacher_id ∧ status='scheduled'` sets `startedAt/updatedAt`); `completeSessionOnce` (`status='started'` + fused `EXISTS(SELECT 1 FROM teacher WHERE teacher.id = session.teacher_id AND is_approved)` sets `completed/endedAt/confirmedByTeacherAt`); `cancelSessionOnce` (`id ∧ (student_id=? ∨ teacher_id=?) ∧ status IN ('scheduled','started')` sets `cancelled`, `feeHeld=false`); `findTransitionProbe` (Pick-projection cold probe ONLY); `listForStudent`/`listForTeacher` + `countForStudent`/`countForTeacher` sharing ONE module-scope predicate builder (`ORDER BY created_at DESC, id DESC`, bound LIMIT/OFFSET).
   - Reads use `queryDb(tx)` pattern; NO prepared statements; NO `inArray`; NO `--` comments in any `sql`.
-  - **Instructions:** `backend/db/repo/AGENTS.md`; DEV1-005 guarded-update + probe precedent.
+  - **Instructions:** `backend/db/repo/AGENTS.md`; the Plan Catalog CRUD (Admin Only) ticket guarded-update + probe precedent.
   - _Requirements: REQ-010, REQ-015, REQ-016, REQ-017, REQ-020, REQ-041, REQ-044, REQ-047, REQ-071_
   - [x] 2.6.QL **Quality Loop**: sub-loop (exit 0)
   - [x] 2.6.TE **Test Engineering**: 4-Tier — Tier 1: every method's hit/miss branch (`runInRollback`, `tx` everywhere, `entity-setup.ts` fixtures only); Tier 2: pagination edges (page 1 exact-size, page beyond range → empty items + honest totalCount); Tier 3: guarded transitions under `Promise.allSettled` duplication → exactly one winner per transition; Tier 4: status filter validated BEFORE reaching query (service-boundary test tie-in); constraint probes prove INV-S4 NOT NULL rejection.
@@ -227,7 +227,7 @@
   - Methods: `insertClaim(insert, tx?)` (raw INSERT; 23505 bubbles to service cause-chain handler); `updateClaimSessionId(claimId, sessionId, tx?)` (phase-4 backfill); `findByKey(key, tx?)` (replay-branch join).
   - _Requirements: REQ-013(b), REQ-014, REQ-071_
   - [x] 2.7.QL **Quality Loop**: sub-loop (exit 0)
-  - [x] 2.7.TE **Test Engineering**: Tier 1 — insert/find/backfill round-trip inside `runInRollback`; Tier 2 — 128-char key accepted; Tier 3 — duplicate insert surfaces 23505 with the PG cause chain intact (DEV1-002 cycle-safe traversal fixture — assert via `isUniqueViolation`-style helper); Tier 4 — key never coerced/truncated silently.
+  - [x] 2.7.TE **Test Engineering**: Tier 1 — insert/find/backfill round-trip inside `runInRollback`; Tier 2 — 128-char key accepted; Tier 3 — duplicate insert surfaces 23505 with the PG cause chain intact (the User Registration ticket cycle-safe traversal fixture — assert via `isUniqueViolation`-style helper); Tier 4 — key never coerced/truncated silently.
   - [x] 2.7.SEC **Security & Tenancy Audit**: key is opaque bound parameter; never logged; userId FK cascade correct.
   - [x] 2.7.SR **Semantic Review**: minimal surface (3 methods); zero cross-domain imports.
   - [x] 2.7.IV **Instruction Verification**: `backend/db/repo/AGENTS.md`, `docs/IDEMPOTENCY.md`.
@@ -240,11 +240,11 @@
   - **Error-construction prerequisite (additive change to `backend/lib/errors.ts`):** extend `ConflictError` with an overloaded `(code, message)` constructor mirroring the `ValidationError` precedent (`errors.ts:65-130`) — today `ConflictError` has a FIXED `"CONFLICT"` code (`errors.ts:159-163`), so custom 409 codes are unconstructible otherwise; alternatively construct `DomainError(code, message)` directly. **Ruling (2026-08-30, orchestrator) [B2]:** this extension is required ONLY for the custom 409 codes — `TEACHER_NOT_CERTIFIED`, `SESSION_INVALID_TRANSITION`, `DUPLICATE_REQUEST`. `INSUFFICIENT_BALANCE` is NOT one of them: per REQ-050 (spec authority) it is constructed as `ValidationError("INSUFFICIENT_BALANCE", …)` on the ALREADY-EXISTING `(code, message)` overload → HTTP **422** (no class extension needed for this code; plan §1.2/§3.3 amended accordingly — do NOT route this code through the extended `ConflictError`). Map all custom 409 codes through whichever construction lands.
   - **Tx-helper prerequisite:** `withTransaction(outerTx)` is module-private in `backend/services/auth/registration.service.ts:128-136` — extract it to a shared services helper (or locally re-implement it) BEFORE this service uses it.
   - **`createSession`** — pre-DB boundary validation (REQ-054): non-empty ≤128 idempotency key (`idempotencyKeyRequired`); positive-safe-integer guards for `teacherId`/`studentId` (NO `as number`); intent ∈ {`SessionIntent.Hifz`, `SessionIntent.Tajweed`} else `VALIDATION`+`invalidSessionIntent`; capture ONE `now` (REQ-046). Then `withTransaction(outerTx)` with EXACT four-phase order (REQ-040): (1) teacher lock + certification assert (null → `NotFoundError("TEACHER", …)`; `isApproved=false` → `ConflictError("TEACHER_NOT_CERTIFIED", …)` via the extended ctor above); (2) guarded debit ladder trial → intent lane, all-miss → `ValidationError("INSUFFICIENT_BALANCE", …)` → 422 (Ruling 2026-08-30 — REQ-050; rollback-only cleanup); (3) claim insert with 23505 → cycle-safe cause chain → `DUPLICATE_REQUEST` replay branch THROWS the 409 (client maps success-equivalent per REQ-065; replay tx rolls back its own partial writes — zero new rows; Ruling 2026-08-30); (4) session insert with server-side defaults (status/type/fee from constants/feeHeld=true/deadline = now+24h) + claim `sessionId` backfill.
-  - **`startSession`/`completeSession`/`cancelSession`** — single guarded UPDATE via repo; zero rows → ONE cold probe → class disambiguation (`SESSION_NOT_FOUND` / `SESSION_INVALID_TRANSITION` / complete-only `TEACHER_NOT_CERTIFIED`); probe NEVER influences writes (D5). Cancel refunds the returned row's `heldBalanceLane` lane by +1 in the same tx (trial→trial, paid→paid); cancelled keeps `startedAt`, leaves `endedAt` NULL; `reason` validated ≤500 then DISCARDED (documented, DEV3-005 owns persistence).
+  - **`startSession`/`completeSession`/`cancelSession`** — single guarded UPDATE via repo; zero rows → ONE cold probe → class disambiguation (`SESSION_NOT_FOUND` / `SESSION_INVALID_TRANSITION` / complete-only `TEACHER_NOT_CERTIFIED`); probe NEVER influences writes (D5). Cancel refunds the returned row's `heldBalanceLane` lane by +1 in the same tx (trial→trial, paid→paid); cancelled keeps `startedAt`, leaves `endedAt` NULL; `reason` validated ≤500 then DISCARDED (documented, the Session Status State Machine ticket owns persistence).
   - **Governance re-check (REQ-023 SHALL — Ruling 2026-08-30, bounded scope):** on `createSession` (acting student), `startSession` (acting teacher) and `completeSession` (acting teacher) the service re-checks the ACTING user's governance status — **deleted/blocked/suspended → `FORBIDDEN`** — as defense-in-depth behind the login/SSR boundary; **`cancelSession` is EXEMPT** (a governed student may still cancel in-flight sessions — REQ-023 no-punishment clause). Ground truth so the implementer does not guess (do NOT over-engineer): the governance fields live on `users` as `isDeleted` (`is_deleted`), `isBlocked` (`is_blocked`), `suspended` (`suspended`) — `backend/db/schema/users/users.ts:23-29` — and `UserRepository.findById` (`backend/db/repo/users/user.repository.ts:74`) already materializes all three on `UserSelectType`; the login boundary's own check treats `isDeleted || isBlocked || suspended` as governed (`backend/services/auth/auth.service.ts:72-81`) — mirror that predicate. WHICH read to use (reuse of an existing fetch vs a lightweight status read) is the implementer's choice; reads only — no new governance writes, no context-boundary changes.
   - **Reads** — `getSessionById` oracle-safe (null for nonexistent AND non-participant); lists: validated page bounds (page ≥ 1, pageSize 1..50, default 25), pre-DB `SessionStatus` guard on filter, honest `{items,totalCount,page,pageSize}`.
   - **Contracts consumed:** `getServerTranslations(locale)` (SINGLE-arg — it returns the full translations tree, `shared/locale/server-graphql.ts:3-5`) for `errors` messages; `logger.logDomainError` with `{code, entity:"session", entityId?}` only; ZERO imports of notifications/audit/wallet/transaction/reports modules (REQ-018/019).
-  - **Instructions:** `backend/services/AGENTS.md`; DEV1-002 `withTransaction(outerTx)` SAVEPOINT pattern; DEV1-005 probe pattern.
+  - **Instructions:** `backend/services/AGENTS.md`; the User Registration ticket `withTransaction(outerTx)` SAVEPOINT pattern; the Plan Catalog CRUD (Admin Only) ticket probe pattern.
   - _Requirements: REQ-010..REQ-023 (incl. REQ-022 deadline contract), REQ-030..REQ-036 (incl. REQ-035 abuse posture), REQ-040..REQ-047, REQ-050..REQ-054, REQ-071, REQ-073_
   - [x] 2.8.QL **Quality Loop**: sub-loop (exit 0)
   - [x] 2.8.TE **Test Engineering**: 4-Tier on REAL repos inside `runInRollback` — Tier 1: 100% statement/branch (every debit-ladder branch trial-hit/hifz-hit/tajweed-hit/total-miss; every probe-classification branch; replay branch; every validation guard); Tier 2: deadline = now+24h EXACTLY; boundary pagination; 500-char reason; Tier 3: rollback proof — forced insert-failure leaves ZERO rows in all three tables AND the key is reusable (REQ-040); REQ-042 double-cancel refunds EXACTLY once; REQ-043 chaos `Promise.allSettled` scenarios (a)–(e); REQ-072 full 4×3 legality matrix + trial-first ordering proof (student with both lanes books twice: trial then paid); INV-S4 constraint probes; Tier 4: every denial path typed per REQ-050 (incl. `INSUFFICIENT_BALANCE` surfaced as `ValidationError`/422 — Ruling 2026-08-30); governance re-check branches covered (governed acting user → `FORBIDDEN` on create/start/complete; cancel exempt — REQ-023); `intent=evaluation` rejected pre-DB. `bun test --coverage` evidence; run via `bun run test/scripts/run-test.ts <path>`.
@@ -411,13 +411,13 @@
 ## Phase 7: Knowledge Propagation & Documentation
 
 - [x] 7.1 [Canonical doc: `docs/sessions/session-lifecycle.md`]
-  - Structure: Why → State machine + guarded-transition pattern → four-phase creation invariant → hold-as-debit ruling & B.4 reconciliation (supersedes TEAM_ALLOCATION Contract-1 phrasing) → trial-first ladder + same-lane refund → idempotency claim design → **oracle ruling contrast-with-plans + anti-copy-paste warning** (sessions sensitive ⇒ collapse; plans public ⇒ NOT_FOUND fine) → `is_online` deferral note (D3) → consumer-guidance table for DEV3-005/006/011/012/013/021 + DEV2-016 → Rollout summary → Related Documents.
-  - Bind invariants: INV-S1..S8 (S6/S7/S8 explicitly DEV3-005-owned), INV-B1/B4/B8, INV-W3/W4, INV-U2/U5, INV-TV1; decisions A.8/A.10/B.2/B.3/B.4/B.18/C.5.
+  - Structure: Why → State machine + guarded-transition pattern → four-phase creation invariant → hold-as-debit ruling & B.4 reconciliation (supersedes TEAM_ALLOCATION Contract-1 phrasing) → trial-first ladder + same-lane refund → idempotency claim design → **oracle ruling contrast-with-plans + anti-copy-paste warning** (sessions sensitive ⇒ collapse; plans public ⇒ NOT_FOUND fine) → `is_online` deferral note (D3) → consumer-guidance table for → Rollout summary → Related Documents.
+  - Bind invariants: INV-S1..S8 (S6/S7/S8 explicitly ticket-owned), INV-B1/B4/B8, INV-W3/W4, INV-U2/U5, INV-TV1; decisions A.8/A.10/B.2/B.3/B.4/B.18/C.5.
   - _Requirements: REQ-080, REQ-081_
   - Write `outcome/7.1-outcome.md`.
 
 - [x] 7.2 [Decisions addendum + state-machine cross-reference]
-  - Append addendum to `docs/specs/open-decisions-and-gaps.md`: (i) hold-as-debit + same-lane refund ruling; (ii) interim constant fees (forward: plan-linked pricing → DEV3-013); (iii) `is_online` assertion deferral (owners DEV3-008/DEV2-011); (iv) `session_request_idempotency` table + 24h-sweeper deferral; (v) sessions-are-sensitive oracle ruling (contrast DEV1-005).
+  - Append addendum to `docs/specs/open-decisions-and-gaps.md`: (i) hold-as-debit + same-lane refund ruling; (ii) interim constant fees (forward: plan-linked pricing →); (iii) `is_online` assertion deferral (owners); (iv) `session_request_idempotency` table + 24h-sweeper deferral; (v) sessions-are-sensitive oracle ruling (contrast the Plan Catalog CRUD (Admin Only) ticket).
   - `docs/specs/state-machine-invariants.md`: cross-reference line ONLY — zero renumbering.
   - _Requirements: REQ-081_
   - Write `outcome/7.2-outcome.md`.

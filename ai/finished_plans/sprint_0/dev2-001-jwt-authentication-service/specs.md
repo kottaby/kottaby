@@ -1,28 +1,28 @@
-# Requirements & Specification: DEV2-001 — JWT Authentication Service
+# Requirements & Specification: JWT Authentication Service
 
-> **Target ticket:** `[DEV2-001] JWT Authentication Service`
+> **Target ticket:** `JWT Authentication Service`
 > **Plan directory:** `ai/plans/dev2-001-jwt-authentication-service/`
-> **Blocking dependency:** DEV1-001 (schema ground truth: `users` table with unified governance fields `is_deleted | deleted_at | suspended | suspended_at | suspended_period_days | is_blocked | blocked_at | last_active_at` per A.7/B.15, `user_role` enum = `admin|teacher|student|parent` per C.1) — NOT DEV1-002 (registration returns the created user only; token issuance is explicitly owned by this ticket per DEV1-002 non-goals).
-> **Critical design note:** The Kottaby codebase already contains a partially-built auth substrate (`backend/lib/auth/jwt.ts`, `server-auth.ts`, `gqlContextFactory.ts`, `backend/graphql/mutation/auth.mutation.ts` with `login` / `refreshToken` / `logout`, `SessionService`, auth rate-limiting, `rotateTokensAndSession`, `setAuthCookies`). DEV2-001 SHALL **reconcile, complete, and contractually harden** this substrate against the Draft Academy domain model (role claim for DEV2-002 RBAC, governance-field login gating, refresh rotation race semantics) rather than rebuild it. Any schema gap discovered (e.g., auth-session persistence shape) is owned by DEV1-001 and must be escalated to `deferred-items.md`, never patched inline.
+> **Blocking dependency:** the Database Schema Migration ticket (schema ground truth: `users` table with unified governance fields `is_deleted | deleted_at | suspended | suspended_at | suspended_period_days | is_blocked | blocked_at | last_active_at` per A.7/B.15, `user_role` enum = `admin|teacher|student|parent` per C.1) — NOT the User Registration ticket (registration returns the created user only; token issuance is explicitly owned by this ticket per the User Registration ticket non-goals).
+> **Critical design note:** The Kottaby codebase already contains a partially-built auth substrate (`backend/lib/auth/jwt.ts`, `server-auth.ts`, `gqlContextFactory.ts`, `backend/graphql/mutation/auth.mutation.ts` with `login` / `refreshToken` / `logout`, `SessionService`, auth rate-limiting, `rotateTokensAndSession`, `setAuthCookies`). This ticket SHALL **reconcile, complete, and contractually harden** this substrate against the Draft Academy domain model (role claim for the Role-Based Authorization Middleware ticket RBAC, governance-field login gating, refresh rotation race semantics) rather than rebuild it. Any schema gap discovered (e.g., auth-session persistence shape) is owned by the Database Schema Migration ticket and must be escalated to `deferred-items.md`, never patched inline.
 
 ## 1. Executive Summary & Problem Statement
 
 **Feature:** Deliver the canonical JWT authentication contract for Draft Academy: a public `login` mutation (email + password → access token + refresh token + server session), token verification wired into both request paths (GraphQL context factory and Server Component `getServerUserContext`), token refresh/rotation, and logout. The access token carries `user_id`, `role` (`user_role` enum), and expiry; the refresh token carries a rotating `jti` bound to the server-side session. Login enforces governance gating (soft-deleted / blocked / suspended users are denied) and brute-force rate limiting, with cold-start resilience (fail-open limiter, `retryTransient` on DB reads, `SERVICE_UNAVAILABLE` on exhaustion).
 
-**Problem from the user perspective:** Every actor in the platform (Student, Teacher Applicant, Certified Sheikh, Parent, Super Admin) must be able to sign in securely and stay signed in across page loads without infinite `/login ↔ /dashboard` redirect loops (documented failure class in `docs/auth/REDIRECT_LOOP_FIX*.md`), and without being locked out by transient cold-start failures. At the same time, the platform must reject invalid, expired, or tampered tokens (401 semantics) and deny access to governed accounts (403 semantics) so that DEV2-002's RBAC middleware has a trustworthy identity + role to authorize against.
+**Problem from the user perspective:** Every actor in the platform (Student, Teacher Applicant, Certified Sheikh, Parent, Super Admin) must be able to sign in securely and stay signed in across page loads without infinite `/login ↔ /dashboard` redirect loops (documented failure class in `docs/auth/REDIRECT_LOOP_FIX*.md`), and without being locked out by transient cold-start failures. At the same time, the platform must reject invalid, expired, or tampered tokens (401 semantics) and deny access to governed accounts (403 semantics) so that the Role-Based Authorization Middleware ticket's RBAC middleware has a trustworthy identity + role to authorize against.
 
-**Business value:** This is Sprint 0's shared foundation on the critical path: DEV2-002 (RBAC), DEV3-004+ (session engine), DEV1-013+ (parent portal), and every authenticated surface presume a working token contract. The refresh-rotation race fix (stale `refresh_token` JTI across parallel tabs) and the governance gate are launch-blocking production-readiness criteria (§4.1 of `PRODUCTION_READINESS.md`).
+**Business value:** This is Sprint 0's shared foundation on the critical path: the Role-Based Authorization Middleware ticket (RBAC), the Session Creation & Lifecycle ticket (session engine), (parent portal), and every authenticated surface presume a working token contract. The refresh-rotation race fix (stale `refresh_token` JTI across parallel tabs) and the governance gate are launch-blocking production-readiness criteria (§4.1 of `PRODUCTION_READINESS.md`).
 
 **Actors involved:**
 - **All five personas (Student / Teacher Applicant / Certified Sheikh / Parent / Super Admin):** authenticate via the same login flow; the JWT `role` claim drives their downstream experience.
-- **Dev 2 Stream (owner):** DEV2-002 consumes `ctx.user`, `ctx.role`, and `ctx.permissions` produced by this ticket's context factory.
-- **Dev 1 / Dev 3 (consumers):** registration (DEV1-002) hands off to login; admin/parent portals presume stable SSR auth.
+- **Dev 2 Stream (owner):** the Role-Based Authorization Middleware ticket consumes `ctx.user`, `ctx.role`, and `ctx.permissions` produced by this ticket's context factory.
+- **Dev 1 / Dev 3 (consumers):** registration (the User Registration ticket) hands off to login; admin/parent portals presume stable SSR auth.
 - **Frontend auth client (AuthProvider / Apollo authLink):** holds the access token in memory, set as an httpOnly `access_token` cookie for SSR.
 
 **Non-goals (explicitly out of scope):**
-- No schema changes: `users` governance fields, enums, and any auth-session tables are owned by DEV1-001 (REQ-002 guard + escalation only).
-- No RBAC permission enforcement design (DEV2-002 owns role→permission gating; this ticket only guarantees a verifiable `role` claim and context).
-- No registration flow changes (DEV1-002); no login UI redesign beyond error/wiring corrections.
+- No schema changes: `users` governance fields, enums, and any auth-session tables are owned by the Database Schema Migration ticket (REQ-002 guard + escalation only).
+- No RBAC permission enforcement design (the Role-Based Authorization Middleware ticket owns role→permission gating; this ticket only guarantees a verifiable `role` claim and context).
+- No registration flow changes (the User Registration ticket); no login UI redesign beyond error/wiring corrections.
 - No impersonation, group simulation, or permission override surfaces.
 - No OAuth / password-reset / MFA flows.
 - No new public mutations beyond the existing auth surface (`login`, `refreshToken`, `logout`, `me`); `demoLogin` preserved as-is.
@@ -34,7 +34,7 @@
 ### 2.1 Baseline, Dependency Guards & Type Discipline
 
 - **REQ-001** (`baseline`): WHEN implementation begins THEN the executing agent SHALL record baseline `tsgo` / `biome` / `lint-service` counts and SHALL initialize `ai/plans/dev2-001-jwt-authentication-service/deferred-items.md` and `outcome/phase0-baseline-outcome.md`.
-- **REQ-002** (`dependency guard`): WHEN domain work starts THEN the agent SHALL verify DEV1-001 artifacts exist (`users` table incl. governance fields, `user_role` enum; any session-persistence table used by `SessionService`); IF any required artifact is missing THEN the agent SHALL record a ❌ entry in `deferred-items.md` and block dependent tasks.
+- **REQ-002** (`dependency guard`): WHEN domain work starts THEN the agent SHALL verify the Database Schema Migration ticket artifacts exist (`users` table incl. governance fields, `user_role` enum; any session-persistence table used by `SessionService`); IF any required artifact is missing THEN the agent SHALL record a ❌ entry in `deferred-items.md` and block dependent tasks.
 - **REQ-003** (`type discipline`): WHEN code is authored THEN all types SHALL come from canonical locations: `backend/types/auth/` (`LoginSubmitInput`, `AuthTokensReturnType`, `SessionReturnType`, `UserContext`-adjacent types) and `@/backend/types` barrels; NO local type definitions SHALL appear in Pothos, service, or repository files; `DBTransaction` / `DBQueryExecutor` SHALL be imported from `@/backend/types` only.
 - **REQ-004** (`existing-substrate reuse'): WHEN implementing THEN the agent SHALL reuse the existing modules (`backend/lib/auth/jwt.ts`, `SessionService`, `gqlContextFactory.ts`, `ratelimit.ts`, `retryTransient`) and SHALL modify them in place for defect fixes; duplicated parallel auth helpers SHALL NOT be created (canonical service pattern, duplication rules).
 
@@ -59,7 +59,7 @@
 - **REQ-031**: WHEN a login attempt targets an account with `is_blocked = true` THEN the system SHALL reject with localized 403 semantics.
 - **REQ-032**: WHEN a login attempt targets an account with `suspended = true` and the suspension period is still active (`suspended_at + suspended_period_days > now`) THEN the system SHALL reject with localized 403 semantics; WHEN the suspension period has lapsed THEN login SHALL proceed and `last_active_at` SHALL be updated.
 - **REQ-033**: WHEN any authenticated request executes for a governed account (deleted/blocked currently-active) THEN the context factory SHALL fail closed (401/403 semantics) rather than issue a usable context (INV-U3).
-- **REQ-034**: WHEN a session request succeeds for an authenticated, active user THEN `users.last_active_at` SHALL be refreshed (foundation for DEV2-012's 15-minute inactivity rule, B.15) via the cheapest path that avoids per-request write amplification (documented cadence/threshold decision in `plan.md`).
+- **REQ-034**: WHEN a session request succeeds for an authenticated, active user THEN `users.last_active_at` SHALL be refreshed (foundation for 15-minute inactivity rule, B.15) via the cheapest path that avoids per-request write amplification (documented cadence/threshold decision in `plan.md`).
 
 ### 2.5 Brute-Force & Availability Defenses
 
@@ -92,8 +92,8 @@
 
 ### 2.9 Documentation & Knowledge Gates
 
-- **REQ-080**: WHEN the plan closes THEN the agent SHALL create the canonical reference doc `docs/auth/jwt-authentication-service.md` (token claims contract, cookie matrix, rotation/stale-JTI state machine, governance gating, rate-limit resilience contract, DEV2-002 consumption guide), update the affected layer `AGENTS.md` files (`backend/services/AGENTS.md`, `backend/graphql/AGENTS.md`, root `AGENTS.md` Important References), and write all task outcomes under `ai/plans/dev2-001-jwt-authentication-service/outcome/`.
-- **REQ-081**: WHEN all tasks complete THEN `bun run scripts/health/sub-loop.ts <file> --lifecycle duplicates` SHALL exit 0 for every created/modified file, and the semantic review checklist SHALL pass: no cross-layer imports, no `console.*`, no token logging, enums as value imports where used at runtime, no read-then-write race without atomic rotation, no schema patch on DEV1-001-owned objects.
+- **REQ-080**: WHEN the plan closes THEN the agent SHALL create the canonical reference doc `docs/auth/jwt-authentication-service.md` (token claims contract, cookie matrix, rotation/stale-JTI state machine, governance gating, rate-limit resilience contract, the Role-Based Authorization Middleware ticket consumption guide), update the affected layer `AGENTS.md` files (`backend/services/AGENTS.md`, `backend/graphql/AGENTS.md`, root `AGENTS.md` Important References), and write all task outcomes under `ai/plans/dev2-001-jwt-authentication-service/outcome/`.
+- **REQ-081**: WHEN all tasks complete THEN `bun run scripts/health/sub-loop.ts <file> --lifecycle duplicates` SHALL exit 0 for every created/modified file, and the semantic review checklist SHALL pass: no cross-layer imports, no `console.*`, no token logging, enums as value imports where used at runtime, no read-then-write race without atomic rotation, no schema patch on ticket-owned objects.
 
 ---
 

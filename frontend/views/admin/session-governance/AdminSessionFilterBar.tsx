@@ -10,7 +10,7 @@ import type { SessionsLabels } from "@/shared/locale/types/sessions";
 
 /**
  * AdminSessionFilterBar — the directory filter bar of the admin session
- * governance surface (`/admin/session-governance`, DEV3-021): the section
+ * governance surface (`/admin/session-governance`): the section
  * shell over the teacher/student user-id inputs (whole numbers only; the
  * wire members are `Int`), the {@link AdminSessionFilterFields} selects +
  * creation window, and the APPLY/RESET action row. APPLY validates the

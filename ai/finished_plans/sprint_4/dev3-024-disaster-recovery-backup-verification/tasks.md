@@ -1,4 +1,4 @@
-# Tasks: DEV3-024 — Disaster Recovery & Backup Verification
+# Tasks: Disaster Recovery & Backup Verification
 
 ## Document Information
 
@@ -46,7 +46,7 @@ Sequence: QL → TE → SEC → SR → IV → `[x]`.
 ## Phase 0 — Pre-Implementation Baseline (blocking)
 
 - [x] 0.1 **Record baseline & verify ledger**
-  - Run `bun tsgo 2>&1 | grep "error TS" | wc -l`, `bun biome:check`, `bun run scripts/lint-service.ts --json --id baseline-dev3-024`; write `outcome/phase0-baseline.md` with all three counts/artifacts.
+  - Run `bun tsgo 2>&1 | grep "error TS" | wc -l`, `bun biome:check`, `bun run scripts/lint-service.ts --json --id baseline`; write `outcome/phase0-baseline.md` with all three counts/artifacts.
   - Confirm `deferred-items.md` exists with D-001..D-003 forward rows.
   - _Requirements: REQ-000 (specs); skill Phase-0._
 - [x] 0.2 **Toolchain & anchor probe**
@@ -141,7 +141,7 @@ Sequence: QL → TE → SEC → SR → IV → `[x]`.
   - QL each modified file; SR vs content policy (no code/prose dumps); IV.
   - Write `outcome/7.1-knowledge-propagation-outcome.md`.
   - _Requirements: REQ-028, REQ-070, REQ-071, REQ-072._
-- [x] 7.2 **Deferred ledger sweep**: D-001..D-003 confirmed 📅 Forward with owners (D-001 operator/DEV3-026, D-002 post-launch CI, D-003 post-launch infra); zero ❌ rows; write `outcome/7.2-ledger-sweep-outcome.md`.
+- [x] 7.2 **Deferred ledger sweep**: D-001..D-003 confirmed 📅 Forward with owners (D-001 operator/launch checklist, D-002 post-launch CI, D-003 post-launch infra); zero ❌ rows; write `outcome/7.2-ledger-sweep-outcome.md`.
   - _Requirements: REQ-000.2, REQ-070.3 (ledger clean at plan close)._
 
 ## Phase 8 — Post-Implementation Review Wave (mandatory: plan exceeds 10 subtasked units; executes BEFORE Phase 7 writes)
@@ -149,7 +149,7 @@ Sequence: QL → TE → SEC → SR → IV → `[x]`.
 - [x] 8.1 **Dispatch review agents** scoped to `git diff --name-only` vs Phase-0 baseline: backend-reviewer (scripts/ops correctness, races, TOCTOU, dead code), pentester/idor (guard bypass attempts, credential-leak probes, arg injection, confinement escape), types-reviewer (manifest/report contracts, no canonical-type pollution). Aggregate; fix-file dispatch with sub-loop per file; repeat until zero feature findings.
   - Write `outcome/post-implementation-review.md`.
   - _Process gate (skill Phase-8 review wave); no REQ mapping (consumes REQ-000.4 outcome ledger)._
-- [x] 8.2 **Final gate**: full `bun quality-gate` green against Phase-0 baseline; all checkboxes `[x]`; ledger clean; outcome summary enumerates DEV3-026 handoff artifacts (`docs/ops/disaster-recovery.md`, drill evidence path, sample PASS report path).
+- [x] 8.2 **Final gate**: full `bun quality-gate` green against Phase-0 baseline; all checkboxes `[x]`; ledger clean; outcome summary enumerates launch-checklist handoff artifacts (`docs/ops/disaster-recovery.md`, drill evidence path, sample PASS report path).
   - _Requirements: REQ-000 (baseline comparison); specs §Definition of Done._
 
 ---

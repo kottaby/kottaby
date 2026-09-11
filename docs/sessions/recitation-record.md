@@ -1,10 +1,10 @@
 # Session Recitation Record — Canonical Reference
 
 **Domain:** Sessions — the write-once `recitation` record (1:1 companion of a `session` row)
-**Status:** Implemented and verified (DEV3-007 — the single write/read surface over the session-linked record)
+**Status:** Implemented and verified (the single write/read surface over the session-linked record)
 **Source of truth for:** the one-record-per-session binding, the write-once + unique-arbiter rule, the oracle-safe collapse read, the write-acceptance status window, the governance re-check posture, the closed error taxonomy, and the consumer obligations for every ticket that writes or reads session recitation records.
 
-This document is the single canonical reference for the session recitation record. Downstream tickets (DEV3-006, DEV2-014, DEV1-016, DEV3-021) MUST read it before touching `recitation`, the record's GraphQL surface, or the shared documents. The record is written **exactly once** — the guarded primitives live in `RecitationRepository` and are composed by `RecitationRecordService`; consumers import that service by reference, never re-implement it, and never reach the table directly.
+This document is the single canonical reference for the session recitation record. Downstream surfaces (the session report flow, the teacher submit-report flow, the parent portal, and admin review) MUST read it before touching `recitation`, the record's GraphQL surface, or the shared documents. The record is written **exactly once** — the guarded primitives live in `RecitationRepository` and are composed by `RecitationRecordService`; consumers import that service by reference, never re-implement it, and never reach the table directly.
 
 ---
 
@@ -98,10 +98,10 @@ Every consumer writes and reads THROUGH `RecitationRecordService` (import-by-ref
 
 | Ticket | What it must (and must not) do with this slice |
 |---|---|
-| **DEV3-006** (session report flow) | Compose the record write inside its own unit by passing the caller's transaction as `setSessionRecitation`'s FINAL optional parameter — the flow then runs under a SAVEPOINT on it and commits or rolls back atomically with the report. Never insert into `recitation` directly; never open a parallel write path "for convenience". |
-| **DEV2-014** (teacher submit-report flow) | The authoring surface drives the wire mutation `setSessionRecitation` through the shared document — the wire passes NO transaction (the service opens its own top-level unit). Adopt the `RECITATION_ALREADY_EXISTS` conflict locally in the form (there is no dispatcher row); map `fields[]` to per-field helper text; select `id` first and keep the documents identity-variable-free (caller identity is never wire-visible). |
-| **DEV1-016** (parent portal) | Parents are non-participants on this surface: reads collapse to `null` and writes are `FORBIDDEN` pre-resolver. A parent-facing projection is a separately designed surface that still reads through this service — it must NOT widen the participant predicate here and must not query the table. |
-| **DEV3-021** (admin review) | Admins collapse to `null` today like any non-participant. The future admin review surface ships its OWN authScopes and reads through this service; no override write exists anywhere, and none may be added without a separately designed audited ruling. |
+| **Session report flow** | Compose the record write inside its own unit by passing the caller's transaction as `setSessionRecitation`'s FINAL optional parameter — the flow then runs under a SAVEPOINT on it and commits or rolls back atomically with the report. Never insert into `recitation` directly; never open a parallel write path "for convenience". |
+| **Teacher submit-report flow** | The authoring surface drives the wire mutation `setSessionRecitation` through the shared document — the wire passes NO transaction (the service opens its own top-level unit). Adopt the `RECITATION_ALREADY_EXISTS` conflict locally in the form (there is no dispatcher row); map `fields[]` to per-field helper text; select `id` first and keep the documents identity-variable-free (caller identity is never wire-visible). |
+| **Parent portal** | Parents are non-participants on this surface: reads collapse to `null` and writes are `FORBIDDEN` pre-resolver. A parent-facing projection is a separately designed surface that still reads through this service — it must NOT widen the participant predicate here and must not query the table. |
+| **Admin review** | Admins collapse to `null` today like any non-participant. The future admin review surface ships its OWN authScopes and reads through this service; no override write exists anywhere, and none may be added without a separately designed audited ruling. |
 
 Composition seam summary: the final optional transaction parameter is the ONLY sanctioned multi-table composition point; the wire path passes none (the resolver deliberately omits the argument), so the top-level GraphQL flow is exactly one service-owned transaction. Everything the service does inside that unit is pure: `recitation`-table writes only.
 
@@ -111,10 +111,10 @@ Writing, reading, or being denied on this surface emits **zero** `notifications`
 
 Owning tickets, so nobody "helpfully" fills the gap here:
 
-- **Parent session-completion wave:** DEV1-017 owns the parent-facing notification emitters. This surface must stay a silent writer — a record landing is not a notification event.
+- **Parent session-completion wave:** the parent-notification surface owns the parent-facing notification emitters. This surface must stay a silent writer — a record landing is not a notification event.
 - **Audit trail:** audit logs *admin* actions; a teacher authoring a record is not an admin action. Any future audit story for recitation corrections belongs to the separately designed correction surface (§3), not to stray inserts here.
 
-Consumers composing this seam (DEV3-006 / DEV2-014) inherit the purity: attach YOUR flow's notifications and audit rows to YOUR surface's events — never to this one.
+Consumers composing this seam (the report and submit flows) inherit the purity: attach YOUR flow's notifications and audit rows to YOUR surface's events — never to this one.
 
 ## 10. Replay Ruling — Conflict, Not Keys
 

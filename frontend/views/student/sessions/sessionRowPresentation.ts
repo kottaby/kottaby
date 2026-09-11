@@ -89,7 +89,7 @@ export const CANCELLABLE_STATUSES: Record<string, true> = {
 };
 
 /**
- * Confirm-pending lookup (DEV3-012) — the student's confirm affordance and
+ * Confirm-pending lookup — the student's confirm affordance and
  * the "awaiting student confirmation" hint key off this status via Record
  * lookup (never an enum comparison). The row additionally requires the
  * student stamp to be unset and the hold still marked.

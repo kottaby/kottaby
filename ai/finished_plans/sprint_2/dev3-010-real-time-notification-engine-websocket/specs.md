@@ -1,21 +1,21 @@
-# Requirements & Specification: DEV3-010 — Real-Time Notification Engine (WebSocket)
+# Requirements & Specification: Real-Time Notification Engine (WebSocket)
 
-> **Target ticket:** `[DEV3-010] Real-Time Notification Engine (WebSocket)` (Owner: Dev 3 · Sprint 2 · 8 SP)
+> **Target ticket:** ` Real-Time Notification Engine (WebSocket)` (Owner: Dev 3 · Sprint 2 · 8 SP)
 > **Plan directory:** `ai/plans/dev3-010-realtime-notification-engine/`
-> **Blocking dependencies:** DEV1-001 (`notifications` table + `notification_type` pgEnum — Decision A.4), DEV1-002 (user registration → `users` rows for recipient fan-out), DEV2-001 (`verifyAccessToken` token verification for the WS handshake), DEV2-002 (`authenticated`/`role` authScopes + verified `ctx.user`/`ctx.role` context), DEV2-003 (`SessionEventNotificationContract` substrate — the emit-side input vocabulary), DEV3-002 (error taxonomy + masking boundary), DEV3-003 (API gateway posture: transport guard, public-operation default-deny, route registration discipline).
+> **Blocking dependencies:** (`notifications` table + `notification_type` pgEnum — Decision A.4), (user registration → `users` rows for recipient fan-out), (`verifyAccessToken` token verification for the WS handshake), (`authenticated`/`role` authScopes + verified `ctx.user`/`ctx.role` context), (`SessionEventNotificationContract` substrate — the emit-side input vocabulary), (error taxonomy + masking boundary), (API gateway posture: transport guard, public-operation default-deny, route registration discipline).
 > **Critical reconciliation note (transport topology):** The ticket says "WebSocket push." Next.js 16 App Router route handlers **cannot host WebSocket connections**, and the deployment lineage (serverless-cold-start docs, `app/api/graphql/route.ts`) is serverless-first. This ticket therefore delivers the engine as: (1) the **durable inbox** on the existing A.4 `notifications` table (persistence is the source of truth even when the user is offline — AC #2), (2) a **dedicated Bun-native WebSocket sidecar process** (`bun run ws`, port-separated from Next.js) that authenticates handshakes via the existing httpOnly `access_token` cookie + Origin allowlist, subscribes to a fan-out backplane, and pushes to connected users, and (3) a **client realtime hook with deterministic catch-up** (WS push for latency, refetch for truth, existing 120s polling posture as the graceful-degradation floor). The sidecar is NOT part of the Next.js gateway surface; the internal ingest/health endpoints it exposes live outside `app/api/**` and are governed by this spec rather than `ROUTE_INVENTORY`.
 
 ---
 
 ## 1. Executive Summary & Problem Statement
 
-- **Feature**: The platform's in-app **notification engine** — the single service-side substrate that (a) persists notifications into the A.4 `notifications` table, (b) fans them out in real time to connected users over WebSocket, and (c) exposes the recipient-facing GraphQL inbox API (list with type/read filters + pagination, unread count, mark-read single/bulk). Emitters in future tickets (DEV3-011 session requests, DEV1-016/017 parent completion, DEV3-022d admin broadcast, payment/evaluation events) call the engine's `emit*` contract; the engine owns persistence ordering, realtime delivery, oracle-safe reads, and connection lifecycle. All seven `notification_type` values (`session_request`, `session_completion`, `session_cancellation`, `parent_link_request`, `system_broadcast`, `payment_confirmation`, `evaluation_result`) are engine-level citizens from day one.
+- **Feature**: The platform's in-app **notification engine** — the single service-side substrate that (a) persists notifications into the A.4 `notifications` table, (b) fans them out in real time to connected users over WebSocket, and (c) exposes the recipient-facing GraphQL inbox API (list with type/read filters + pagination, unread count, mark-read single/bulk). Emitters in future tickets (session requests, parent completion, admin broadcast, payment/evaluation events) call the engine's `emit*` contract; the engine owns persistence ordering, realtime delivery, oracle-safe reads, and connection lifecycle. All seven `notification_type` values (`session_request`, `session_completion`, `session_cancellation`, `parent_link_request`, `system_broadcast`, `payment_confirmation`, `evaluation_result`) are engine-level citizens from day one.
 
 - **Problem from user perspective**:
   - **Student (Yusuf)**: when something happens to *his* account — a session acceptance/cancellation, a payment confirmation — he must see it instantly in-app if online, and must never silently lose it if offline (the persisted row is the guarantee).
   - **Certified Sheikh (Sheikh Abdullah)**: a session request that arrives 30 seconds late is a dead request (Workflow 02 presence model); he needs sub-second push to his open dashboard, with the unread-badge truth always recoverable from the DB if the socket hiccups.
-  - **Parent (Fatima)**: is linked and waits passively — session completion events on her child must reach her feed without her polling constantly (INV-P3's preconditions live here; the actual emitters ship in DEV1-016/017).
-  - **Super Admin**: future broadcast tooling (DEV3-022d) needs a bulk fan-out primitive that can write one row per cohort member atomically and fan out cheaply — built into the engine now, exposed by that ticket later.
+  - **Parent (Fatima)**: is linked and waits passively — session completion events on her child must reach her feed without her polling constantly (INV-P3's preconditions live here; the actual emitters ship).
+  - **Super Admin**: future broadcast tooling needs a bulk fan-out primitive that can write one row per cohort member atomically and fan out cheaply — built into the engine now, exposed by that ticket later.
   - **Dev 1 / Dev 2 (consumers)**: need one exported emit contract and one read model — never a second notification writer.
 
 - **Business value**: Real-time-ish delivery is the difference between an abandoned on-demand marketplace and a responsive one (FR-9.1/9.2/9.3). The inbox persists every event durably, which is also the audit-adjacent substrate for the M2 gate ("notifications fire" — demonstrable). Consolidating all inbox reads/writes/realtime behind one engine eliminates N divergent notification implementations across streams and makes BOLA/oracle safety enforceable in one place.
@@ -23,16 +23,16 @@
 - **Actors involved**:
   - **Runtime callers (emitters, this ticket)**: none operational — no domain event sources exist yet in other tickets; the engine ships with its emit contract verified by **test-only emitter invocations** and locked by the cross-actor journey suite (Section 2.9).
   - **Recipient callers (this ticket's GraphQL surface)**: every authenticated role (student, teacher/applicant, parent, admin) reads ONLY their own inbox.
-  - **Downstream emitter consumers**: DEV3-011 (session_request accept/decline wave), DEV1-016/017 (session completion → parent), DEV2-016/017 (evaluation_result), DEV3-012/013 (cancellation/payment_confirmation), DEV3-022d (system_broadcast admin surface).
+  - **Downstream emitter consumers**: (session_request accept/decline wave), (session completion → parent), (evaluation_result), (cancellation/payment_confirmation), (system_broadcast admin surface).
   - **Explicitly NOT actors**: anonymous callers (no reads, no WS), parents writing into a child's inbox (INV-P2 — parents are read-only *recipients*), students causing writes to a teacher's inbox directly (emitters are server-side only).
 
-- **Non-goals** (explicitly OUT of scope for DEV3-010):
-  1. **Domain emitters** — no event sources are wired here; DEV3-011/DEV1-016/DEV1-017/DEV2-016/DEV3-012/013/DEV3-022d own the semantic triggers. The emit contract, its typing, and its prohibition registry ship now and are proven via test-only emitters + journey suite.
-  2. **Admin broadcast mutation/UI** — DEV3-022d owns the admin-facing surface; the engine ships ONLY the internal `emitForUsers` bulk primitive it will consume.
+- **Non-goals** (explicitly OUT of scope):
+  1. **Domain emitters** — no event sources are wired here; own the semantic triggers. The emit contract, its typing, and its prohibition registry ship now and are proven via test-only emitters + journey suite.
+  2. **Admin broadcast mutation/UI** — the broadcast ticket owns the admin-facing surface; the engine ships ONLY the internal `emitForUsers` bulk primitive it will consume.
   3. **Multi-channel fan-out** (email/SMS/WhatsApp/push, user notification preferences, `notificationDeliveries` tracking) — the pre-existing `CommunicationService`/`dispatchWithPreferences` infrastructure is a separate channel pipeline; this ticket adds the zero-channel in-app inbox lane and MUST NOT entangle with that pipeline (integration lands later — deferred item D4).
   4. **Preferred-locale persistence for notification copy** — the emitter localizes `title`/`body` at emit time (contract metadata is pre-rendered strings); a `users.locale` column and recipient-side re-localization is a deferred schema-class concern (D2), never patched inline.
   5. **Read-receipts/`readAt` timestamp, sound/vibration, mobile push registration, WebRTC, message threading, action buttons on notifications** — none exist in the A.4 schema; no schema drift is introduced to fake them.
-  6. **WebSocket presence/online-status system** (teacher `is_online` heartbeat duty belongs to DEV2-011/012/013). The WS sidecar's connection registry is delivery plumbing, NOT availability truth.
+  6. **WebSocket presence/online-status system** (teacher `is_online` heartbeat duty belongs). The WS sidecar's connection registry is delivery plumbing, NOT availability truth.
   7. **Provisioning the production WS host** (container/VM deployment, TLS termination config) — documented as deferred item D3; local/dev/test topologies are fully specified and tested here.
   8. **Any change to `notifications` schema, to the `notification_type` enum values, to app route inventory, or to existing multi-channel notification flows.**
 
@@ -42,7 +42,7 @@
 
 ### 2.1 Baseline & Foundational Preparation (MANDATORY)
 
-- **REQ-001 (Pre-Implementation Baseline & Ledger)**: WHEN implementation begins THEN the executing agent SHALL record baseline error counts (`bun tsgo`, `bun biome:check`, `bun run scripts/lint-service.ts --json --id baseline`, `git diff --name-only`) AND SHALL initialize `ai/plans/dev3-010-realtime-notification-engine/deferred-items.md` from the template AND SHALL write `outcome/phase0-baseline-outcome.md`. Pre-seeded non-blocking forward items: **D1** (emitter wiring per event type → DEV3-011/DEV1-016/DEV1-017/DEV2-016/DEV3-012/DEV3-013/DEV3-022d), **D2** (recipient-locale copy storage → requires future `users.locale` decision), **D3** (production WS host provisioning → deployment workstream), **D4** (multi-channel/unified-preferences integration → notification-preferences ticket).
+- **REQ-001 (Pre-Implementation Baseline & Ledger)**: WHEN implementation begins THEN the executing agent SHALL record baseline error counts (`bun tsgo`, `bun biome:check`, `bun run scripts/lint-service.ts --json --id baseline`, `git diff --name-only`) AND SHALL initialize `ai/plans/dev3-010-realtime-notification-engine/deferred-items.md` from the template AND SHALL write `outcome/phase0-baseline-outcome.md`. Pre-seeded non-blocking forward items: **D1** (emitter wiring per event type →), **D2** (recipient-locale copy storage → requires future `users.locale` decision), **D3** (production WS host provisioning → deployment workstream), **D4** (multi-channel/unified-preferences integration → notification-preferences ticket).
 
 - **REQ-002 (Type-Safe i18n & Enum Value Imports Compliance)**:
   - Client components MUST use `useAppTranslation(Translation.<Namespace>)` with the `Translation` enum and property access (`t.propertyName`); never string-literal namespaces, never `t('key')`.
@@ -53,7 +53,7 @@
 
 - **REQ-003 (Canonical Types Discipline)**: All types SHALL come from canonical locations: `NotificationSelectType`/`NotificationInsertType` exist in `backend/types/notifications/notification.types.ts` — this ticket EXTENDS that file additively with `NotificationReturnType` (inbox projection: same row minus nothing — no forbidden fields exist, but the alias is the GraphQL binding anchor) and the input shape `NotificationListFilterInput` (`{ type?: NotificationType | null; isRead?: boolean | null; limit: number; offset: number }`) and the result shape `NotificationListPageReturnType` (`{ items: NotificationReturnType[]; totalCount: number; hasMore: boolean }`), plus `NotificationEmitInput`/`NotificationEmitBatchInput` (emit contracts). `DBTransaction` from `@/backend/types`. `SessionEventNotificationContract`/`SessionEventNotificationType` are CONSUMED from `@/backend/types/contracts` and never redefined. NO service-layer `.types.ts` files; NO local type definitions in Pothos files; NO new type file apart from the additive extension of the existing canonical file.
 
-- **REQ-004 (Dependency Guard — Reuse, Don't Rebuild)**: WHEN domain work starts THEN the agent SHALL verify: (a) `backend/db/schema/notifications/notifications.ts` exists with exactly the A.4 columns (`id`, `user_id`, `type`, `title`, `body`, `is_read`, `related_entity_type`, `related_entity_id`, `created_at`) and the `notifications_user_id_idx` + `notifications_user_id_is_read_idx` indexes; (b) the `notificationType` pgEnum in `backend/db/schema/enums.ts` and TS mirror `NotificationType` in `backend/enum/notifications/notification-type.enum.ts` both hold exactly the 7 sanctioned values; (c) the existing `backend/db/repo/notifications/` repository surface (the pre-existing `NotificationRepository` namespace) — VERIFY its methods and EXTEND additively; if a needed method exists already it MUST be reused, never re-implemented; (d) DEV2-001 `verifyAccessToken` helper + DEV2-002 authScopes. IF any required artifact is missing THEN record a ❌ entry in `deferred-items.md` and block dependent tasks — never patch DEV1-001-owned structures inline.
+- **REQ-004 (Dependency Guard — Reuse, Don't Rebuild)**: WHEN domain work starts THEN the agent SHALL verify: (a) `backend/db/schema/notifications/notifications.ts` exists with exactly the A.4 columns (`id`, `user_id`, `type`, `title`, `body`, `is_read`, `related_entity_type`, `related_entity_id`, `created_at`) and the `notifications_user_id_idx` + `notifications_user_id_is_read_idx` indexes; (b) the `notificationType` pgEnum in `backend/db/schema/enums.ts` and TS mirror `NotificationType` in `backend/enum/notifications/notification-type.enum.ts` both hold exactly the 7 sanctioned values; (c) the existing `backend/db/repo/notifications/` repository surface (the pre-existing `NotificationRepository` namespace) — VERIFY its methods and EXTEND additively; if a needed method exists already it MUST be reused, never re-implemented; (d) the `verifyAccessToken` helper + authScopes. IF any required artifact is missing THEN record a ❌ entry in `deferred-items.md` and block dependent tasks — never patch structures inline.
 
 ### 2.2 Core Feature Logic / Happy Paths
 
@@ -81,7 +81,7 @@
 
 - **REQ-021 (Realtime Push Message Shape)**: WHEN the engine delivers over WS THEN the message SHALL be a bounded JSON envelope `{ v: 1, kind: "notification", data: { id, type, title, body, relatedEntityType, relatedEntityId, createdAt } }` — only fields present in the inbox row; no WS payload SHALL ever contain the recipient's email/phone/PII, other users' data, balances, governance flags, or reduplicated history; the server protocol is **push-only** (client frames other than pong/close are ignored-closed per RFC hygiene), and every outbound message SHALL carry the DB row's `id` so the client can dedupe/cache-normalize.
 
-- **REQ-022 (WS Handshake Auth — Cookie + Origin, Fail-Closed)**: WHEN a client opens the WS handshake THEN the sidecar SHALL: (a) enforce the Origin allowlist (reject-and-close otherwise — CSWSH defense); (b) read the `access_token` httpOnly cookie from upgrade headers and verify via DEV2-001 `verifyAccessToken` (`null`-on-any-failure → close `4401` policy code); (c) derive `userId` exclusively from the verified token (`ctx.role` NOT required — every authenticated role may receive notifications); NO token/ticket/payload from URL query strings SHALL be honored (query tokens leak into logs); Bearer-cookie garbage SHALL close, never 500.
+- **REQ-022 (WS Handshake Auth — Cookie + Origin, Fail-Closed)**: WHEN a client opens the WS handshake THEN the sidecar SHALL: (a) enforce the Origin allowlist (reject-and-close otherwise — CSWSH defense); (b) read the `access_token` httpOnly cookie from upgrade headers and verify via `verifyAccessToken` (`null`-on-any-failure → close `4401` policy code); (c) derive `userId` exclusively from the verified token (`ctx.role` NOT required — every authenticated role may receive notifications); NO token/ticket/payload from URL query strings SHALL be honored (query tokens leak into logs); Bearer-cookie garbage SHALL close, never 500.
 
 - **REQ-023 (Connection Registry — Bounded, Per-User Caps, Heartbeat)**: WHEN the sidecar runs THEN it SHALL maintain only bounded in-process state: a connection registry (Map by connection id) with (a) global connection cap, (b) per-user cap (excess newest connection closes the OLDEST with a `4009` policy code — documented), (c) 30s server pings with 2-miss termination, (d) graceful shutdown that closes sockets with `1001` and a final goodbye frame. Module-level mutable state here is a **sanctioned, bounded exception** to the ban on module-level mutable state — caps and bounds SHALL be constants and tests SHALL assert enforcement.
 
@@ -91,7 +91,7 @@
 
 - **REQ-026 (Filtering Correctness)**: WHEN `type`/`isRead` filters are applied THEN results and `totalCount` SHALL agree exactly (the same predicate feeds both list and count); combined filters SHALL use parameterized Drizzle conditions only (no string SQL building); no LIKE/ILIKE search exists on the inbox in this ticket (`escapeLikeWildcards` explicitly N/A — recorded so reviewers don't flag it as an omission).
 
-- **REQ-027 (Broadcast Primitive — Cohort Fan-Out)**: WHEN `emitForUsers` is fed a cohort THEN it SHALL accept EXPLICIT recipient id lists from the caller (cohort resolution is the future admin mutation's concern, DEV3-022d); the engine SHALL NOT provide role/all-user resolution queries in this ticket (BFLA containment of fan-out authority).
+- **REQ-027 (Broadcast Primitive — Cohort Fan-Out)**: WHEN `emitForUsers` is fed a cohort THEN it SHALL accept EXPLICIT recipient id lists from the caller (cohort resolution is the future admin mutation's concern); the engine SHALL NOT provide role/all-user resolution queries in this ticket (BFLA containment of fan-out authority).
 
 - **REQ-028 (Content Safety on Stored Copy)**: WHEN the engine persists `title`/`body` THEN it SHALL store the emitter-provided text verbatim after length/emptiness validation (the DB is plain varchar/text); the engine does NOT sanitize HTML/script payloads itself — the FRONTEND rendering rule (REQ-063) is the XSS defense: rendering SHALL be pure text nodes via MUI Typography with no `dangerouslySetInnerHTML` anywhere in the notification UI (static-assertion enforced).
 
@@ -109,13 +109,13 @@
 
 - **REQ-034 (WS Message Discipline)**: WHEN the sidecar receives client frames THEN it SHALL accept only protocol frames (pong/close); JSON/text payloads from clients SHALL be ignored (and the connection MAY be policy-closed after repeated abuse) — the server is push-only; the sidecar SHALL cap frame/message size defensively even though the path is unused (Bun defaults honored and asserted).
 
-- **REQ-035 (Error Disclosure Hygiene)**: WHEN errors surface THEN messages SHALL be localized generic copy — never disclosing whether a notification id belongs to another user, recipient state, connection tables, or internal topology; masked unexpected failures follow the DEV3-002 boundary (`INTERNAL_SERVER_ERROR` with `extensions.requestId`, full fidelity server-side via `logger.error`).
+- **REQ-035 (Error Disclosure Hygiene)**: WHEN errors surface THEN messages SHALL be localized generic copy — never disclosing whether a notification id belongs to another user, recipient state, connection tables, or internal topology; masked unexpected failures follow the boundary (`INTERNAL_SERVER_ERROR` with `extensions.requestId`, full fidelity server-side via `logger.error`).
 
 - **REQ-036 (Rate Limiting Posture)**: WHEN inbox queries execute THEN they SHALL inherit the platform's existing fail-open global limiter posture (no new public surface — REQ-034 of prior tickets' precedent); pagination caps (max 50) bound read cost; the WS handshake has its own per-IP throttle (REQ-033) so socket storms cannot bypass the GraphQL limiter.
 
 - **REQ-037 (Logging Hygiene)**: WHEN logging occurs THEN: expected domain rejections → `logger.logDomainError` with `{ code, entity: "notifications", entityId? }`; delivery degradation → warn-tier via the logger (never `console.*`); connection lifecycle logs SHALL carry connection-id + user-id only (no tokens, no IPs beyond aggregate counters, no payloads).
 
-- **REQ-038 (Governance Interaction)**: WHEN a governed caller (suspended/blocked/deleted) reaches the GraphQL layer THEN existing DEV2-001/002 fail-closed context denies BEFORE resolvers (no inbox-specific handling); the WS handshake verifies the JWT only (freshness of governance state is NOT re-checked per socket — documented trade-off: continued socket receipt of already-emitted events after suspension is harmless read-only scope; new emit targeting a governed user remains possible server-side and is the emitter's concern per governance rules on those tickets).
+- **REQ-038 (Governance Interaction)**: WHEN a governed caller (suspended/blocked/deleted) reaches the GraphQL layer THEN existing fail-closed context denies BEFORE resolvers (no inbox-specific handling); the WS handshake verifies the JWT only (freshness of governance state is NOT re-checked per socket — documented trade-off: continued socket receipt of already-emitted events after suspension is harmless read-only scope; new emit targeting a governed user remains possible server-side and is the emitter's concern per governance rules on those tickets).
 
 - **REQ-039 (No Enumeration via Timing/Shape)**: WHEN non-participant probing occurs THEN foreign mark-read, unauthenticated reads, forged WS handshakes SHALL all fail with the same localized NOT_FOUND/UNAUTHORIZED classes regardless of target existence, and response shapes SHALL be constant across those branches.
 
@@ -143,7 +143,7 @@
 
 ### 2.5 Validation & Error Contracts
 
-- **REQ-050 (DomainError Discipline)**: WHEN any failure surfaces THEN it SHALL be a `DomainError` subclass — `NotFoundError("NOTIFICATION", …)` (auto `NOTIFICATION_NOT_FOUND`), `ValidationError(...)` (bounded input failures incl. enum guard + pagination bounds), `UnauthorizedError` (scopeAuth), plus masked `INTERNAL_SERVER_ERROR` at the boundary — with `extensions.code` per `docs/graphql/domain-error-extensions-code.md` and the DEV3-002 taxonomy; plain `new Error(...)` is PROHIBITED in any touched module.
+- **REQ-050 (DomainError Discipline)**: WHEN any failure surfaces THEN it SHALL be a `DomainError` subclass — `NotFoundError("NOTIFICATION", …)` (auto `NOTIFICATION_NOT_FOUND`), `ValidationError ` (bounded input failures incl. enum guard + pagination bounds), `UnauthorizedError` (scopeAuth), plus masked `INTERNAL_SERVER_ERROR` at the boundary — with `extensions.code` per `docs/graphql/domain-error-extensions-code.md` and the taxonomy; plain `new Error ` is PROHIBITED in any touched module.
 
 - **REQ-051 (i18n Key Registry — errors namespace)**: WHEN errors are produced THEN new keys SHALL be minimal and live in the EXISTING `errors` namespace across `shared/locale/types/errors/index.ts`, `shared/locale/en/errors/index.ts`, `shared/locale/ar/errors/index.ts` (MessageSchema parity = compile gate): at minimum `notificationNotFound`; the list validates `notifications.*` filter/pagination failures with the existing generic validation keys where possible (NO near-duplicate keys).
 
@@ -235,7 +235,7 @@
 
 ### 2.8 Documentation & Knowledge Gates
 
-- **REQ-080 (Canonical Doc)**: WHEN knowledge propagation runs THEN `docs/notifications/realtime-engine.md` SHALL be created (Why → Pattern → Rules → What NOT to Do → Rollout Summary → Related Documents) covering: the persist-first/push-second rule, publish-after-commit composition (incl. the caller-tx receipt pattern), emit contract + localization boundary (engine never translates), WS handshake security model (cookie + Origin, close codes), backplane port + both transports + fail-open-on-push-failure ruling, catch-up self-healing (DB truth + refetch), connection-cap policy, bounded-state exceptions, and the consumption guide for DEV3-011/DEV1-016/DEV1-017/DEV2-016/DEV3-012/013/DEV3-022d.
+- **REQ-080 (Canonical Doc)**: WHEN knowledge propagation runs THEN `docs/notifications/realtime-engine.md` SHALL be created (Why → Pattern → Rules → What NOT to Do → Rollout Summary → Related Documents) covering: the persist-first/push-second rule, publish-after-commit composition (incl. the caller-tx receipt pattern), emit contract + localization boundary (engine never translates), WS handshake security model (cookie + Origin, close codes), backplane port + both transports + fail-open-on-push-failure ruling, catch-up self-healing (DB truth + refetch), connection-cap policy, bounded-state exceptions, and the consumption guide.
 
 - **REQ-081 (Decisions & Invariant Anchoring)**: WHEN propagation runs THEN the canonical doc SHALL bind Decision A.4 (the table this engine serves) and record the ticket's reconciliation addenda in `docs/specs/open-decisions-and-gaps.md`'s addendum style: (i) WS-via-sidecar topology ruling, (ii) emit-fail-open vs booking-fail-closed distinction for idempotency, (iii) copy-localization-at-emitter ruling + the `users.locale` forward gap. NO new state-machine invariants are minted (notifications have no lifecycle beyond the one-way read latch — explicitly documented rather than INV-numbered); INV-P3 (parent session-completion notification) is referenced as ENABLED-BY this engine with emitters in follow-ups.
 
@@ -264,7 +264,7 @@ Ordered steps (actor → action → expected shared state):
 
 1. System: commit fixtures — student + certified teacher users (tracked IDs) → both have ZERO inbox rows.
 2. Teacher (as observer): `myNotifications` ⇒ empty page, `myUnreadNotificationCount` ⇒ 0.
-3. Emitter (acting on behalf of a future DEV3-011 session-request event): `emitForUser({ userId: teacher, type: session_request, title/body pre-localized, entityRef: { type: "session", id } })` ⇒ ONE persisted row for teacher, `is_read=false`.
+3. Emitter (acting on behalf of a future session-request event): `emitForUser({ userId: teacher, type: session_request, title/body pre-localized, entityRef: { type: "session", id } })` ⇒ ONE persisted row for teacher, `is_read=false`.
 4. Teacher (observes): unread count ⇒ 1; first page shows the row with correct type/entity ref; and the spied fan-out transport observed EXACTLY ONE publish addressed ONLY to teacher.
 5. Student (observer, denial): own inbox stays EMPTY; badge stays 0 (proves no accidental fan-out).
 6. Teacher: `markNotificationRead(id)` ⇒ row read; badge back to 0; `isRead=true`.
@@ -297,15 +297,15 @@ Ordered steps (actor → action → expected shared state):
 
 ### Decision References (`docs/specs/open-decisions-and-gaps.md`)
 
-| Decision | Relevance to DEV3-010 | Binding Requirement |
+| Decision | Relevance to  | Binding Requirement |
 |---|---|---|
 | **A.4 (notifications table created)** | The entire ticket executes ON this table (the engine's durable inbox); zero schema change, verified by REQ-004/048. | REQ-004, REQ-010, REQ-048 |
 | **A.1 / A.2 (parents; parent_id FK)** | Parent recipients exist as first-class users; parent inboxes behave identically (Journey J2). | REQ-017, REQ-030; §2.9 |
 | **B.12 / B.13 / B.14 (parent link shape)** | Affect only WHAT future emitters emit (e.g., `parent_link_request`), not the engine's mechanics — the engine is content/type agnostic beyond the enum gate. | REQ-014, REQ-015 |
 | **B.10 (on-demand matching)** | Latency matters socially (session requests); implemented as sub-second push + self-healing catch-up. | REQ-021, REQ-025 |
 | **docs/IDEMPOTENCY.md** | Notification events are outside the mandated key-set (Student/Invoice/Class/Payment create); the engine nevertheless offers optional emitter-key dedupe with a deliberately FAIL-OPEN mode (documented deviation: persistence/never-blocking-domain-events wins over strict duplicate prevention). | REQ-016, REQ-081 addendum |
-| **DEV2-003 Contract 5 (Session Event Notifications)** | `SessionEventNotificationContract` is CONSUMED (its field vocabulary maps into `NotificationEmitInput`); no re-definition; honoring "isRead is system-set; userId server-resolved" rules from the contract registry. | REQ-003, REQ-015 |
-| **Gateway routing rules (DEV3-003)** | GraphQL ops follow the registration contract (barrel + authScopes + codegen in the same commit); the WS sidecar is explicitly NOT an `app/api` surface (its internal endpoints/health are process-internal, documented exemption to `ROUTE_INVENTORY` gating). | REQ-032, REQ-061 |
+| ** Contract 5 (Session Event Notifications)** | `SessionEventNotificationContract` is CONSUMED (its field vocabulary maps into `NotificationEmitInput`); no re-definition; honoring "isRead is system-set; userId server-resolved" rules from the contract registry. | REQ-003, REQ-015 |
+| **Gateway routing rules ** | GraphQL ops follow the registration contract (barrel + authScopes + codegen in the same commit); the WS sidecar is explicitly NOT an `app/api` surface (its internal endpoints/health are process-internal, documented exemption to `ROUTE_INVENTORY` gating). | REQ-032, REQ-061 |
 | **Pre-existing multi-channel notification infra** | `CommunicationService`/preferences/deliveries remain the OTHER channel pipeline; D4 integration is forward-deferred; REQ clauses forbid entangling now (no mixed writes). | REQ-010, Non-goal 3, §2.9-scope note |
 
 ### State Machine & Lifecycle Invariants (`docs/specs/state-machine-invariants.md`)
@@ -315,16 +315,16 @@ Ordered steps (actor → action → expected shared state):
 | **INV-S1..S8 (session)** | UNAFFECTED — engine never writes session rows; only FUTURE emitters reference session ids inside `related_entity_*` opaque pointers. |
 | **INV-B*/W*/PAY** (billing/wallet/payments) | UNAFFECTED — zero writes. |
 | **INV-P2 (parent read-only)** | UPHELD — parents receive rows but cannot create/modify notification state beyond their own read latch; their inbox UI is read-only content + mark-read. |
-| **INV-P3 (child session completion → parent notified)** | ENABLED (substrate exists); EMITTERS ship in DEV1-016/017 (forward binding recorded). |
+| **INV-P3 (child session completion → parent notified)** | ENABLED (substrate exists); EMITTERS ship in (forward binding recorded). |
 | **INV-U* (governance)** | Respected via fail-closed context parity (REQ-038); no governance mutation exists here. |
 | **NEW lifecycle invariants** | NONE introduced — deliberate: the notification row has no state machine (append-only + one-way is_read latch). This absence is DOCUMENTED in the canonical doc so reviewers don't confuse it for an omission. |
 
 ### Canonical Workflow Alignment (`docs/workflows/`)
 
-- **Workflow 02 (On-Demand Matching)**: request latency assumptions are satisfied via WS push + catch-up; presence/locking remains DEV2-011/012/013 + DEV3-004 territory.
-- **Workflow 03 (Session Lifecycle & Escrow)**: the dual-confirmation/completion notifications hang off future emitters (DEV3-012/013 → parent + participants); the engine guarantees their rows durable and their pushes immediate-but-best-effort.
+- **Workflow 02 (On-Demand Matching)**: request latency assumptions are satisfied via WS push + catch-up; presence/locking remains another ticket's territory.
+- **Workflow 03 (Session Lifecycle & Escrow)**: the dual-confirmation/completion notifications hang off future emitters (→ parent + participants); the engine guarantees their rows durable and their pushes immediate-but-best-effort.
 - **Workflow 04 (Parent Supervision Handshake)**: `parent_link_request` is a first-class type the engine already supports; emitters land with the linking ticket.
-- **Workflow 05 (Admin Governance Override)**: broadcasts become admin-surfaced in DEV3-022d; the engine pre-ships ONLY the internal primitive (REQ-027) and the audit coupling remains the admin surface's obligation (A.5 untouched here).
+- **Workflow 05 (Admin Governance Override)**: broadcasts become admin-surfaced; the engine pre-ships ONLY the internal primitive (REQ-027) and the audit coupling remains the admin surface's obligation (A.5 untouched here).
 
 ### Architectural Standards
 
@@ -339,7 +339,7 @@ Ordered steps (actor → action → expected shared state):
 
 | Requirement ID | Decision Ref / Invariant | Backend Service / Repo | GraphQL Mutation/Query | Frontend View | Test Coverage |
 |---|---|---|---|---|---|
-| REQ-001..004 | Baseline protocol; A.4/DEV1-001 presence verify; DEV2-003 contract substrate | Verify-only audits + deferred-items ledger | — | — | `outcome/phase0-baseline-outcome.md`; plan-review gate |
+| REQ-001..004 | Baseline protocol; A.4/ presence verify; contract substrate | Verify-only audits + deferred-items ledger | — | — | `outcome/phase0-baseline-outcome.md`; plan-review gate |
 | REQ-002/051/052 | i18n rules (`shared/locale/AGENTS.md`) | `getServerTranslations(locale, "errors")` + errors key additions | resolver `ctx.t` discipline | `Translation.Notifications` property consumption | MessageSchema parity compile gate; component tests via translation-preload |
 | REQ-003 | Canonical types discipline | `backend/types/notifications/notification.types.ts` (additive); contracts consumed | Pothos object/input backed by canonical types | codegen types direct | `tsgo` gate; review-types wave |
 | REQ-010/011/013/043 | REQ single-writer rule; persist-first | `NotificationEngine.emit*`; `NotificationRepository.create*` additive | — (internal) | — | REQ-072 service/DB suites (fan-out atomicity, single publish, rollback safety) |
@@ -351,7 +351,7 @@ Ordered steps (actor → action → expected shared state):
 | REQ-018 | Existing polling-posture interplay | `countUnread` repo method | `myUnreadNotificationCount` | App-bar badge | DB + integration + badge component tests incl. pluralization |
 | REQ-019/029 | Append-only + oracle-safe latch | guarded `UPDATE … WHERE id AND user_id RETURNING` | `markNotificationRead` | Per-row action | idempotent double-mark; foreign→NOT_FOUND; zero-write probe |
 | REQ-020 | Set-based one-statement bulk | `markAllReadForUser(type?)` | `markAllNotificationsRead` | Mark-all action | affected-count assertions; empty-set zero; filtered variant |
-| REQ-022/033/034 | DEV2-001 verify failures return null; CSWSH | WS sidecar handshake module (cookie read via upgrade headers + Origin check + throttle) | — | `useNotificationRealtime` handshake client | REQ-073 handshake matrix; query-token rejection; throttle probe |
+| REQ-022/033/034 |  verify failures return null; CSWSH | WS sidecar handshake module (cookie read via upgrade headers + Origin check + throttle) | — | `useNotificationRealtime` handshake client | REQ-073 handshake matrix; query-token rejection; throttle probe |
 | REQ-023/046 | Bounded-state sanctioned exception | Connection registry + caps + heartbeat + shutdown | — | — | cap eviction 4009; heartbeat timeout; graceful 1001; bounds assertions |
 | REQ-024/045 | Env-config registry; transport port | `NotificationFanoutTransport` port + 2 adapters (Redis pub/sub, in-process) | — | — | both adapter tiers; malformed payload drop; redis reconnect behavior |
 | REQ-025/064 | Self-heal-by-refetch design | — | count/list refetch contracts | hook backoff + catch-up + silent degradation | reconnect flicker storm; dedupe by id; no-toast-storm assertion |
@@ -360,21 +360,21 @@ Ordered steps (actor → action → expected shared state):
 | REQ-035/039 | Error-disclosure rules | localized generic copy; constant shapes | `extensions.code` contract | via errorLink mapping | denial-shape constancy across probes |
 | REQ-036 | Limit posture precedent | pagination caps; per-IP handshake bucket | — | — | cap boundary tests; bucket-exhaust close |
 | REQ-037 | Logging rules | `logger.logDomainError`/`logger.error` only | — | frontend `logger` warns only | static scan (no `console.*`); log-context field caps |
-| REQ-038 | INV-U*/DEV2-001 boundaries | no governance logic here | relies on existing context | — | governed-account denies via integration suite |
-| REQ-040/041 | tx/atomicity rules (DEV1-002/004 precedents) | repo `tx?: DBTransaction` LAST param; single statements | — | — | tx-propagation verification; single-statement assertions |
+| REQ-038 | INV-U*/ boundaries | no governance logic here | relies on existing context | — | governed-account denies via integration suite |
+| REQ-040/041 | tx/atomicity rules (precedents) | repo `tx?: DBTransaction` LAST param; single statements | — | — | tx-propagation verification; single-statement assertions |
 | REQ-047 | Time discipline | one `now` per batch + DB defaults | — | — | sibling-row identical timestamps; order tiebreak by id |
 | REQ-048 | Zero-drift policy (`docs/DATABASE_MIGRATIONS.md`) | — (schema untouched) | — | — | `git diff backend/db/schema/**` empty gate |
 | REQ-049 | env-config registry conventions | config module + invalidation parity | — | — | registry inclusion test; invalidation coverage |
-| REQ-050/053/055 | DEV3-002 taxonomy + masking | `NotFoundError("NOTIFICATION", …)` etc. | `extensions.code` assertions | errorLink code-only behavior | code matrix tests; no-silent-path scan |
+| REQ-050/053/055 |  taxonomy + masking | `NotFoundError("NOTIFICATION", …)` etc. | `extensions.code` assertions | errorLink code-only behavior | code matrix tests; no-silent-path scan |
 | REQ-060..062 | Pothos conventions + codegen doctrine | `pothos/notifications/*`, query/mutation subtrees | REQ-060 SDL exact | documents per REQ-062 | schema snapshot; codegen diff committed; doc naming static checks |
 | REQ-063/065/066/067 | MUI v9/RTL/a11y; single-socket ownership | — | — | `frontend/views/notifications/…` + app-bar badge + hook | component matrix (both locales); dangerouslySetInnerHTML-scan; remount dedupe |
-| REQ-068 | DEV3-002 client contract | — | — | errorLink branching via code | mapping assertions reuse + notification-specific paths |
+| REQ-068 |  client contract | — | — | errorLink branching via code | mapping assertions reuse + notification-specific paths |
 | REQ-069 | Depth/complexity hygiene | flat object by design | capped list payload | — | depth/static schema review |
 | REQ-070..079 | Test pyramid + quality-loop rules + journey layer | `backend/db/test/logic/notifications/*`, service tests, WS suite, integration | `test/workflows/notifications/*` + scaffolding | component tier; no E2E requirement beyond page smoke | coverage reports; deterministic double-runs; CI pickup verified |
 | REQ-080..083 | Knowledge-propagation protocol | `docs/notifications/realtime-engine.md` + decisions addendum + AGENTS one-liners | — | — | doc-structure checklist; `test/workflows/AGENTS.md` authored; deferred gate grep = 0 minus D1–D4 |
 
-**Traceability note for consumers:** DEV3-011 (session-request wave), DEV1-016/017 (parent completion consumption + portal), DEV2-016/017 (evaluation_result emitters), DEV3-012/013 (cancellation/payment_confirmation emitters), DEV3-022d (broadcast admin surface over `emitForUsers`), and DEV2-011/012/013 (availability — MUST NOT reuse the WS sidecar for presence) SHALL reference these REQ ranges in their traceability matrices, SHALL import the engine's emit contracts rather than writing `notifications` rows directly, and SHALL honor the publish-after-commit composition (REQ-012) whenever they carry their own transaction. Violations are caught at Phase-1.5 plan review and by the single-writer static scans registered in this ticket's test suite.
+**Traceability note for consumers:** (session-request wave), (parent completion consumption + portal), (evaluation_result emitters), (cancellation/payment_confirmation emitters), (broadcast admin surface over `emitForUsers`), and (availability — MUST NOT reuse the WS sidecar for presence) SHALL reference these REQ ranges in their traceability matrices, SHALL import the engine's emit contracts rather than writing `notifications` rows directly, and SHALL honor the publish-after-commit composition (REQ-012) whenever they carry their own transaction. Violations are caught at Phase-1.5 plan review and by the single-writer static scans registered in this ticket's test suite.
 
 ---
 
-**End of Specification — DEV3-010.** Ready for `ai/plans/dev3-010-realtime-notification-engine/plan.md` (Phase 2 design), gated by `@plan-review` (Phase 1.5) before any implementation begins.
+**End of Specification.** Ready for `ai/plans/dev3-010-realtime-notification-engine/plan.md` (Phase 2 design), gated by `@plan-review` (Phase 1.5) before any implementation begins.

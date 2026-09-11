@@ -1,4 +1,4 @@
-# Implementation Tasks: DEV3-022d — Broadcast Notifications (System-Wide & Targeted)
+# Implementation Tasks: Broadcast Notifications (System-Wide & Targeted)
 
 > **Plan directory (verbatim — used everywhere below):** `ai/plans/sprint_3/dev3-022d-broadcast-notifications-system-wide-targ`
 > **Specs:** `ai/plans/sprint_3/dev3-022d-broadcast-notifications-system-wide-targ/specs.md` (REQ-001..REQ-082, §2.9 journeys, DB-1..DB-6)
@@ -286,7 +286,7 @@
 
 - [x] 7.2 [AGENTS.md propagation + engine doc status flip]
   - UPDATE `backend/services/AGENTS.md` — broadcast-service one-liner (rules + link to the canonical doc).
-  - UPDATE `docs/notifications/realtime-engine.md` — §3.2 consumption table row DEV3-022d marked SHIPPED with outcome-note link (content rules unchanged — the engine is consumed, not edited).
+  - UPDATE `docs/notifications/realtime-engine.md` — §3.2 consumption table row marked SHIPPED with outcome-note link (content rules unchanged — the engine is consumed, not edited).
   - UPDATE `backend/db/repo/AGENTS.md` — register the audience-repository convention (DISTINCT + id ASC + governance predicate + exact-match country).
   - UPDATE root `AGENTS.md` — Important References gains one line for `docs/notifications/broadcast-notifications.md`.
   - Entries are rules/references ONLY (no duplicated implementation prose).

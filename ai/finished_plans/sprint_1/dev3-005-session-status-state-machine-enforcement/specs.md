@@ -1,20 +1,20 @@
-# DEV3-005 — Session Status State Machine Enforcement: Requirements
+# Session Status State Machine Enforcement: Requirements
 
 <!-- Plan directory (verbatim — used in every header and self-reference):
      ai/plans/sprint_1/dev3-005-session-status-state-machine-enforcement -->
 
 - **Feature Name**: Session Status State Machine Enforcement
-- **Ticket**: DEV3-005 (docs/planning/TICKETS.md:1024) — Sprint 1, Dev 3, 3 SP, blocked by DEV3-004 (shipped, PR #46)
+- **Ticket**: Session Status State Machine (docs/planning/TICKETS.md:1024) — Sprint 1, Dev 3, 3 SP, blocked by the Session Creation & Lifecycle ticket (shipped, PR #46)
 - **Target Directory**: `ai/plans/sprint_1/dev3-005-session-status-state-machine-enforcement/`
 - **Outcome Directory**: `ai/plans/sprint_1/dev3-005-session-status-state-machine-enforcement/outcome/`
 - **Spec of record for invariants**: `docs/specs/state-machine-invariants.md` §1 (INV-S1..S8), B.18
-- **Implementation base**: `docs/sessions/session-lifecycle.md` (DEV3-004 shipped slice), `backend/db/repo/classes/session.repository.ts`, `backend/services/classes/session-lifecycle.*.ts`
+- **Implementation base**: `docs/sessions/session-lifecycle.md` (the Session Creation & Lifecycle ticket shipped slice), `backend/db/repo/classes/session.repository.ts`, `backend/services/classes/session-lifecycle.*.ts`
 - **Version**: 1.0
 - **Date**: 2026-09-05
 
 ## Introduction
 
-DEV3-004 shipped the session lifecycle (scheduled → started → completed/cancelled, dual confirmation, escrow hold-as-debit, dispute open/resolve) with INV-S1..S5 enforced structurally. DEV3-005 closes the remaining invariant surface: INV-S6 (in-session `is_online` lock), the INV-S7/INV-S8 enforcement points (report-only-on-completed, homework-only-after-report) as shared, testable gates, plus an exhaustive transition-matrix validation layer so that every legal and illegal session state transition is codified, guarded, and regression-locked by tests.
+the Session Creation & Lifecycle ticket shipped the session lifecycle (scheduled → started → completed/cancelled, dual confirmation, escrow hold-as-debit, dispute open/resolve) with INV-S1..S5 enforced structurally. This ticket closes the remaining invariant surface: INV-S6 (in-session `is_online` lock), the INV-S7/INV-S8 enforcement points (report-only-on-completed, homework-only-after-report) as shared, testable gates, plus an exhaustive transition-matrix validation layer so that every legal and illegal session state transition is codified, guarded, and regression-locked by tests.
 
 The dispute surface (B.18) is already implemented (`openDisputeOnce`, `resolveDisputeCancelOnce`, `resolveDisputeCompleteOnce`, `listAdminDisputed`) — this ticket VERIFIES it end-to-end with journey tests rather than re-implementing it. Verify-then-claim: nothing already shipped is re-created.
 
@@ -22,11 +22,11 @@ The dispute surface (B.18) is already implemented (`openDisputeOnce`, `resolveDi
 Enforce the complete session state machine — single guarded-writer transitions, in-session teacher offline lock, reported-only-on-completed and homework-only-after-report gates — with codified transition matrix and machine-checked tests.
 
 ### Business Value
-Eliminates financial escrow corruption (double-refunds, ghost completions), protects teacher directory integrity (INV-A2 tie-in), and gives DEV3-006 (report/homework infra) authoritative gate functions to consume.
+Eliminates financial escrow corruption (double-refunds, ghost completions), protects teacher directory integrity (INV-A2 tie-in), and gives (report/homework infra) authoritative gate functions to consume.
 
 ### Scope
-**In scope:** transition-matrix module + re-entrant guards; INV-S6 lock write + release at `started` entry/exit; INV-S7/INV-S8 shared gate functions consumed by DEV3-006; dispute-flow journey verification; denial classification consistency.
-**Out of scope:** report/homework TABLES and submission mutations (DEV3-006); teacher availability toggle UI (DEV2-011); inactivity sweeper (DEV2-012); directory filtering (DEV2-013/DEV3-008); sweeper cron (DEV3-012); a `session_status_history` table (deferred — ledger D3).
+**In scope:** transition-matrix module + re-entrant guards; INV-S6 lock write + release at `started` entry/exit; INV-S7/INV-S8 shared gate functions consumed; dispute-flow journey verification; denial classification consistency.
+**Out of scope:** report/homework TABLES and submission mutations; teacher availability toggle UI; inactivity sweeper; directory filtering; sweeper cron; a `session_status_history` table (deferred — ledger D3).
 
 ## Requirements
 
@@ -71,22 +71,22 @@ Eliminates financial escrow corruption (double-refunds, ghost completions), prot
 1. WHEN `startSessionOnce` succeeds THEN the SAME transaction SHALL set `teacher.is_online = false` exactly once (guarded UPDATE or service-composed write; rollback of either aborts both).
 2. WHEN a `started` session reaches `completed` or `cancelled` THEN the SAME transaction SHALL restore `teacher.is_online = true` IF AND ONLY IF the teacher was forced offline by this lock and the teacher is still active (INV-A4 ceiling: the restore never resurrects a manually-offline or inactivated account).
 3. WHEN a disputed session resolves to `completed`/`cancelled` from `started` THEN the lock release SHALL apply identically via the arbitration write path.
-4. WHEN the toggle surface lands (DEV2-011) THEN its pre-write guard shall be able to call `assertTeacherNotInActiveSession(teacherId, tx)` exported from this plan's guard surface (denial = `FORBIDDEN`-class ConflictError, oracle: no session id disclosed).
-5. WHEN the lock state is observed THEN directory queries (read side, future DEV2-013) can rely on `is_online = false` for every `started` session — the invariant is write-side, verified by tests here.
+4. WHEN the toggle surface lands THEN its pre-write guard shall be able to call `assertTeacherNotInActiveSession(teacherId, tx)` exported from this plan's guard surface (denial = `FORBIDDEN`-class ConflictError, oracle: no session id disclosed).
+5. WHEN the lock state is observed THEN directory queries (read side, future) can rely on `is_online = false` for every `started` session — the invariant is write-side, verified by tests here.
 
-**Priority:** High | **Complexity:** Medium | **Dependencies:** `teacher.is_online` column (exists, `backend/db/schema/teachers/teacher.ts`); toggle surface itself is DEV2-011.**
+**Priority:** High | **Complexity:** Medium | **Dependencies:** `teacher.is_online` column (exists, `backend/db/schema/teachers/teacher.ts`); toggle surface itself.**
 
 ### Requirement 3: INV-S7/INV-S8 Enforcement Gates
 
-**User Story:** As the DEV3-006 implementer, I want authoritative gate functions, so report/homework timing constraints are enforced in exactly one place.
+**User Story:** As the implementer, I want authoritative gate functions, so report/homework timing constraints are enforced in exactly one place.
 
 #### Acceptance Criteria
 1. WHEN report submission is attempted THEN `assertSessionCompletedForReport(sessionId, tx)` SHALL pass only for `status = completed` (INV-S7) and throw `SESSION_INVALID_TRANSITION` ConflictError otherwise — identical denial shape to lifecycle transitions.
 2. WHEN homework creation is attempted THEN `assertReportSubmittedForHomework(sessionId, tx)` SHALL pass only when a `reports` row exists for the session (INV-S8), else throw a localized ConflictError.
-3. WHEN DEV3-006 ships its submission mutation THEN it SHALL consume these gates (cross-plan contract recorded in ledger D1) — no duplicated inline status checks.
+3. WHEN ships its submission mutation THEN it SHALL consume these gates (cross-plan contract recorded in ledger D1) — no duplicated inline status checks.
 4. WHEN the gates run THEN they SHALL execute inside the caller's transaction (`tx` propagated), never opening their own.
 
-**Priority:** High | **Complexity:** Low | **Dependencies:** `reports` table (schema exists at `backend/db/schema/classes/reports.ts`); consumption by DEV3-006.
+**Priority:** High | **Complexity:** Low | **Dependencies:** `reports` table (schema exists at `backend/db/schema/classes/reports.ts`); consumption.
 
 ### Requirement 4: Dispute Lifecycle Verification (B.18)
 
@@ -98,7 +98,7 @@ Eliminates financial escrow corruption (double-refunds, ghost completions), prot
 3. WHEN dispute resolution CANCELs a held session THEN the refund returns to the recorded `held_balance_lane` via `refundHeldLaneToProvenance` (journey-verified lane integrity).
 4. WHEN `listAdminDisputedSessions` runs THEN rows SHALL be disputed-only, newest-first, with matching `countAdminDisputedSessions` totals.
 
-**Priority:** High | **Complexity:** Medium (mostly tests) | **Dependencies:** DEV3-004 surface (already shipped).
+**Priority:** High | **Complexity:** Medium (mostly tests) | **Dependencies:** the Session Creation & Lifecycle ticket surface (already shipped).
 
 ### Requirement 5: Regression-Locked Denial & Rollback Behavior
 
@@ -114,10 +114,10 @@ Eliminates financial escrow corruption (double-refunds, ghost completions), prot
 
 ### Requirement 6: Documentation & Knowledge Propagation
 
-**User Story:** As a future agent, I want the session-lifecycle doc updated, so DEV3-006..013 consume the right seams.
+**User Story:** As a future agent, I want the session-lifecycle doc updated, so consume the right seams.
 
 #### Acceptance Criteria
-1. WHEN this plan completes THEN `docs/sessions/session-lifecycle.md` §10 consumer table SHALL be amended: INV-S6 gate landed (lock + release points cited), INV-S7/S8 gate functions live (with `path:line`), and the "DEV3-005-owned" forward notes resolved.
+1. WHEN this plan completes THEN `docs/sessions/session-lifecycle.md` §10 consumer table SHALL be amended: INV-S6 gate landed (lock + release points cited), INV-S7/S8 gate functions live (with `path:line`), and the "this-ticket-owned" forward notes resolved.
 2. WHEN this plan completes THEN `docs/specs/state-machine-invariants.md` §1 implementation-reference line SHALL be updated to note INV-S6 landed and the dispute surface verified.
 3. WHEN this plan completes THEN the outcome directory SHALL contain per-task outcome files and a final review summary.
 
@@ -125,19 +125,19 @@ Eliminates financial escrow corruption (double-refunds, ghost completions), prot
 
 ## UX/Navigation Requirements (MANDATORY)
 
-**No-UI ruling (explicit):** DEV3-005 ships ZERO new routes, zero navigation items, zero frontend views, and zero GraphQL schema changes. All enforcement is backend-internal (repository/service guards) consumed by EXISTING Pothos mutations (`startSession`, `completeSession`, `cancelSession`, `openSessionDispute`, `resolveSessionDispute` in `backend/graphql/mutation/classes/session-lifecycle.mutation.ts`) and by the FUTURE DEV3-006/DEV2-011 surfaces.
+**No-UI ruling (explicit):** this ticket ships ZERO new routes, zero navigation items, zero frontend views, and zero GraphQL schema changes. All enforcement is backend-internal (repository/service guards) consumed by EXISTING Pothos mutations (`startSession`, `completeSession`, `cancelSession`, `openSessionDispute`, `resolveSessionDispute` in `backend/graphql/mutation/classes/session-lifecycle.mutation.ts`) and by the FUTURE surfaces.
 
 ### Affected Existing Mutations & Permission Posture (unchanged)
 
-| Operation | Actor gate | What changes with DEV3-005 |
+| Operation | Actor gate | What changes with this ticket |
 |---|---|---|
 | `startSession` | participant (teacher) | + tx-composed `is_online=false` lock write (INV-S6) |
 | `completeSession` | teacher-owner + certification | + lock release on `started` exit |
 | `cancelSession` | participant | + lock release when cancelling from `started` |
 | `openSessionDispute` | participant | none (verification only) |
 | `resolveSessionDispute` | admin | + lock release when resolving from `started` |
-| `submitSessionReport` (DEV3-006) | teacher-owner | consumes INV-S7 gate |
-| homework creation (DEV3-006) | teacher-owner | consumes INV-S8 gate |
+| `submitSessionReport` | teacher-owner | consumes INV-S7 gate |
+| homework creation | teacher-owner | consumes INV-S8 gate |
 
 Sidebar/role matrix: **N/A** — no navigation surface.
 
@@ -190,19 +190,19 @@ Sidebar/role matrix: **N/A** — no navigation surface.
 - Drizzle push discipline for any schema-adjacent touch (this plan targets NO schema change; if one proves unavoidable it is ledger-blocked, not improvised).
 
 ### Business Constraints
-- Escrow: refunds only ever go to the recorded `held_balance_lane` (INV-B8 provenance); DEV3-005 must not weaken this.
+- Escrow: refunds only ever go to the recorded `held_balance_lane` (INV-B8 provenance); this ticket must not weaken this.
 - B.18: `disputed` has no non-admin exit.
 
 ### Assumptions
-- DEV3-004 completion-earning dual-confirmation (INV-S3) is shipped and untouched.
-- DEV2-011 will build the manual toggle and will consume `assertTeacherNotInActiveSession`.
+- the Session Creation & Lifecycle ticket completion-earning dual-confirmation (INV-S3) is shipped and untouched.
+- will build the manual toggle and will consume `assertTeacherNotInActiveSession`.
 
 ## Success Criteria
 
 ### Definition of Done
 - [ ] Transition matrix module exists; all six primitive helpers cite or consult it as appropriate; illegal transitions all denied.
 - [ ] INV-S6 lock/release composed inside start/complete/cancel/resolve transactions; journey J2 green.
-- [ ] INV-S7/INV-S8 gate functions exported with localized denials and unit coverage; DEV3-006 consumption contract documented.
+- [] INV-S7/INV-S8 gate functions exported with localized denials and unit coverage; consumption contract documented.
 - [ ] Dispute journey J1 green (open once, deny duplicates, resolve exactly-once, lane-intact refund).
 - [ ] Race/rollback suite green (Req 5).
 - [ ] Docs updated; zero unresolved ❌/⚠️ in the deferred ledger; quality gate green at baseline.
@@ -226,4 +226,4 @@ Sidebar/role matrix: **N/A** — no navigation surface.
 - [x] Roles identified (teacher/student/admin); journeys captured with actor table + steps + observer-perspective EARS.
 - [x] EARS format throughout; testable criteria.
 - [x] No-UI ruling stated explicitly in UX/Navigation section.
-- [x] Dependencies and deviations (DEV3-006 consumption, DEV2-011 seam) recorded.
+- [x] Dependencies and deviations (consumption, seam) recorded.

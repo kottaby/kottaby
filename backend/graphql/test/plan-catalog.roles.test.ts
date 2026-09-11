@@ -1,5 +1,5 @@
 /**
- * Plan Catalog GraphQL Role-Matrix Integration Suite — DEV1-005 Task 3.6.TE
+ * Plan Catalog GraphQL Role-Matrix Integration Suite
  *
  * Implements REQ-030, REQ-064, REQ-072:
  * Proves BFLA and authScopes across all roles (Anonymous, Student, Parent, Teacher, Admin)

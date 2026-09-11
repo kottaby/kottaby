@@ -58,7 +58,7 @@ When frontend and backend both need the same enum values:
 
 ## Free Trial Sizing Constant
 
-`shared/constants/free-trial.constants.ts` holds `FREE_TRIAL_SESSION_COUNT` — the single source of truth for trial sizing (one free trial session per newly registered student). The constant lives in the shared layer (zero imports from `@/backend/**`, `@/frontend/**`, or `@/app/**`) so any future consumer — the DEV3 booking flow, a future admin dashboard, a future frontend trial-balance badge — can import it without violating layer isolation. See `docs/students/free-trial-provisioning.md` for the full trial-provisioning contract.
+`shared/constants/free-trial.constants.ts` holds `FREE_TRIAL_SESSION_COUNT` — the single source of truth for trial sizing (one free trial session per newly registered student). The constant lives in the shared layer (zero imports from `@/backend/**`, `@/frontend/**`, or `@/app/**`) so any future consumer — the booking flow, a future admin dashboard, a future frontend trial-balance badge — can import it without violating layer isolation. See `docs/students/free-trial-provisioning.md` for the full trial-provisioning contract.
 
 ## Recitation Catalog (Qira'ah)
 

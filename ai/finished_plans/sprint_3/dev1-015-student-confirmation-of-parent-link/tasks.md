@@ -1,4 +1,4 @@
-# `tasks.md` — DEV1-015: Student Confirmation of Parent Link
+# `tasks.md` —: Student Confirmation of Parent Link
 
 **Plan directory (verbatim):** `ai/plans/sprint_3/dev1-015-student-confirmation-of-parent-link`
 **Specs:** `ai/plans/sprint_3/dev1-015-student-confirmation-of-parent-link/specs.md`
@@ -6,13 +6,13 @@
 **Deferred-items ledger:** `ai/plans/sprint_3/dev1-015-student-confirmation-of-parent-link/deferred-items.md`
 **Outcome directory:** `ai/plans/sprint_3/dev1-015-student-confirmation-of-parent-link/outcome/`
 
-> **Nature of this ticket:** This is a **closure + discoverability slice** on the already-verified DEV1-014 substrate. It ships **zero new GraphQL root fields, zero schema/migration drift, zero new service write paths, zero new notification types**. Its delta is: (1) the NEW dashboard discoverability card, (2) notification→decision-route deep-link convergence (verify-and-close), (3) nav retargeting (verify-and-fix), (4) a test-first cross-actor journey + regression cells. **Re-implementation of shipped DEV1-014 surfaces is FORBIDDEN.**
+> **Nature of this ticket:** This is a **closure + discoverability slice** on the already-verified substrate. It ships **zero new GraphQL root fields, zero schema/migration drift, zero new service write paths, zero new notification types**. Its delta is: (1) the NEW dashboard discoverability card, (2) notification→decision-route deep-link convergence (verify-and-close), (3) nav retargeting (verify-and-fix), (4) a test-first cross-actor journey + regression cells. **Re-implementation of shipped surfaces is FORBIDDEN.**
 
 ---
 
 ## Document Information
 
-- **Feature Name**: DEV1-015 — Student Confirmation of Parent Link
+- **Feature Name**: Student Confirmation of Parent Link
 - **Target Directory**: `ai/plans/sprint_3/dev1-015-student-confirmation-of-parent-link/`
 - **Requirements**: `specs.md` · **Design**: `plan.md` · **Ledger**: `deferred-items.md` · **Outcomes**: `outcome/`
 - **Version**: 1.0 · **Date**: 2026-09-05
@@ -49,7 +49,7 @@
 
 ### 0.2 Verification-First Substrate Inventory (MANDATORY GATE)
 
-- [x] 0.2 Verify the complete DEV1-014 substrate against bundled code and produce the Reuse/Create classification table
+- [x] 0.2 Verify the complete substrate against bundled code and produce the Reuse/Create classification table
   - Verify by locating (path + exported symbol) — NOT by docs prose:
     1. `ParentLinkRequestService.respondToLinkRequest` and `listMyIncoming` in `backend/services/parents/parent-link-request.service.ts`
     2. `classifyUnclaimableRequest`, `raiseUnclaimableDenial`, `requireActor` in `backend/services/parents/parent-link-request.helpers.ts` — record the EXACT typed-denial vocabulary (codes + error classes + constructor shapes) found; this freezes REQ-041
@@ -63,7 +63,7 @@
     10. Student link-requests view under `frontend/views/students/link-requests/**` and its live route under `app/` (locate via `rg "myIncomingParentLinkRequests" app/ frontend/views/students/`) — record the EXACT route path string; this becomes the shared route constant for the card CTA, nav entry, and notification deep-link
     11. The student link-requests nav entry in `frontend/views/dashboard/nav/navItems.ts` (the file importing `LinkOutlined as LinkChildIcon`) — record whether its `route` targets the real student route or the `[feature]` catch-all ComingSoon page → this decides whether task 4.4 is RETARGET or NO-OP
     12. Notification drawer deep-link resolution in `frontend/components/ui/NotificationDrawerBody.tsx` / `useNotificationDrawerActions.ts` (`handleOpenNotification`) — record whether a `relatedEntityType === "parent_link_request"` branch exists and where it routes → decides whether task 4.1 is PIN-ONLY or CLOSE-GAP
-    13. The DEV1-014 journey `test/workflows/parents/parent-link-request.journey.test.ts`, the cast helpers under `test/workflows/helpers/` (including the `SpiedFanoutTransport` seam), and `test/workflows/AGENTS.md`
+    13. The journey `test/workflows/parents/parent-link-request.journey.test.ts`, the cast helpers under `test/workflows/helpers/` (including the `SpiedFanoutTransport` seam), and `test/workflows/AGENTS.md`
     14. Existing suites to extend (not rewrite): `backend/services/parents/parent-link-request.service.test.ts`, `parent-link-request.chaos.test.ts`, `parent-link-request.static-locks.test.ts` (same parents dir), `backend/graphql/test/parent-link.wire.test.ts`, `frontend/graphql/sharedDocuments/parents/parent-link.documents.test.ts`, `frontend/views/dashboard/nav/navItems.test.ts`
     15. The `parentLink` i18n namespace handle and label surface (`shared/locale/types/parentLink*` + en/ar sources) — record which card-copy keys already exist vs which must be added
   - For each item: classify **REUSE / UPDATE / CREATE** with the anchor evidence. Any item absent that specs/plan assumed present → CREATE task + ledger entry. Any item where specs/plan diverges from code reality → ledger entry + proceed against CODE truth.
@@ -101,7 +101,7 @@
   - `test/workflows/` already exists (verified in 0.2) — provisioning/cast helpers, `SpiedFanoutTransport`, and `test/workflows/AGENTS.md` are REUSED, not rescaffolded. If 0.2 found any helper missing, scaffold JUST that helper per Architectural Invariant 10 and ledger the gap.
   - Provision the actor cast via the parents-domain cast helper in `test/workflows/helpers/` with REAL permission-group membership rows (NEVER monkey-patch permission resolution): UUID-prefixed fixtures — ≥2 parents, ≥1 unlinked student, 1 already-linked student, 1 governed (suspended) student.
   - Steps as sequential service calls with `actorUserId`:
-    1. Parent A creates link request (DEV1-014 `requestLink` surface via service) → assert: `parent_link_requests(pending)` row + exactly ONE `notifications` row (type `parent_link_request`, `relatedEntityType="parent_link_request"`, `relatedEntityId=requestId`) + spied fanout receipt addressed to the student.
+    1. Parent A creates link request (`requestLink` surface via service) → assert: `parent_link_requests(pending)` row + exactly ONE `notifications` row (type `parent_link_request`, `relatedEntityType="parent_link_request"`, `relatedEntityId=requestId`) + spied fanout receipt addressed to the student.
     2. Student lists incoming via `listMyIncoming` → assert parent's FULL name present, expiry present (J-REQ-01 service-side truth feeding the dashboard card).
     3. DENIAL: teacher/admin/foreign-student actor calls `respondToLinkRequest` / `listMyIncoming` → honest permission failure (FORBIDDEN class); assert zero rows changed and zero notification rows (J-REQ-04).
     4. DENIAL: student submits foreign/nonexistent `requestId` → constant NOT_FOUND shape, byte-identical across foreign vs absent; zero writes.
@@ -114,13 +114,13 @@
     11. NOTIFICATION deep-link data contract: the persisted notification row carries `relatedEntityType/relatedEntityId` sufficient for the drawer route resolution pinned in task 4.1 (J-REQ-01 half).
   - Committed fixtures in `beforeAll` + tracked hard-delete in `afterAll` (FK-safe order: notifications → parent_link_requests → students → parents → users) — NEVER `runInRollback` (services spawn their own transactions).
   - Spy notification dispatch/fanout via the existing `SpiedFanoutTransport` seam; NEVER hit real email/SMS/push channels.
-  - **Run the journey now — it MUST pass against the existing services** (this proves REQ-017/REQ-030..035 closure; a failure here is a DEV1-014 defect → STOP, ledger entry, fix-forward decision).
+  - **Run the journey now — it MUST pass against the existing services** (this proves REQ-017/REQ-030..035 closure; a failure here is a defect → STOP, ledger entry, fix-forward decision).
   - Verify: `bun run test/scripts/run-test.ts test/workflows` green (never raw `bun test` — it skips `--env-file=.env.test`).
   - _Requirements: REQ-062 (J-REQ-01..J-REQ-05), REQ-012, REQ-013, REQ-014, REQ-017, REQ-020, REQ-021, REQ-022, REQ-030–035, REQ-065_
 
 - [x] 2.2 Audit existing service/repo suites against acceptance criteria; add ONLY genuinely missing regression cells
   - Diff `backend/services/parents/parent-link-request.service.test.ts` and `parent-link-request.chaos.test.ts` coverage against specs §2 acceptance criteria and produce the cell-by-cell coverage table in the outcome.
-  - Add ONLY missing cells (expected candidates; each must be justified by the diff audit — no duplicates of DEV1-014 cells):
+  - Add ONLY missing cells (expected candidates; each must be justified by the diff audit — no duplicates of cells):
     - Publish-after-commit spy assertion: a forced mid-transaction failure yields ZERO `publishReceipts` calls and ZERO notification rows (REQ-034), if not already pinned.
     - Double-respond idempotency: second respond on a resolved request → already-resolved conflict; exactly ONE parent notification total (REQ-013 idempotency), if not already pinned.
     - Log-hygiene assertion: denial paths emit at most ONE bounded `logDomainError` with `{ code, entity: "parent_link_requests", entityId, locale }` and NEVER handshake codes or party names; happy paths log NOTHING (REQ-024).
@@ -267,7 +267,7 @@
 
 - [x] 4.5 Pin the decision page's existing behavior (regression, no redesign)
   - Run the existing suites for `frontend/views/students/link-requests/**` (located per 0.2) and `parent-link.documents.test.ts`-adjacent component suites — all green, unmodified.
-  - If any suite references behavior 4.1–4.4 changed (it should not), reconcile via the shared route constant, never by editing the DEV1-014 view logic.
+  - If any suite references behavior 4.1–4.4 changed (it should not), reconcile via the shared route constant, never by editing the view logic.
   - _Requirements: REQ-010, REQ-014, REQ-016, REQ-060_
   - Outcome: `4.5-outcome.md`.
 
@@ -277,7 +277,7 @@
 
 - [x] 5.1 Full integration battery & differential verification
   - Run (each via `bun run test/scripts/run-test.ts <path>`):
-    1. `test/workflows` (entire journey layer — new + DEV1-014 journey both green)
+    1. `test/workflows` (entire journey layer — new + existing journey suites both green)
     2. `backend/services/parents` (service + chaos + static-locks)
     3. `backend/graphql/test/parent-link.wire.test.ts` + `backend/graphql/test/schema-surface.test.ts` (baseline byte-identical)
     4. `test/ui/components/students/PendingParentLinkRequestsCard.test.tsx` + nav tests + drawer deep-link tests + dashboard-home slot tests
@@ -330,7 +330,7 @@
 ## Phase 7: Knowledge Propagation & Documentation
 
 - [x] 7.1 Amend the canonical parent-link doc (no fork)
-  - Edit `docs/parents/parent-link-request.md`: add a **DEV1-015 closure section** recording: the dashboard discoverability card (files, data path, render states), the notification deep-link pin/close result, nav retargeting outcome (or no-op proof), the new journey file + added wire/service cells, and the verified INV-P1 closure statement.
+  - Edit `docs/parents/parent-link-request.md`: add a ** closure section** recording: the dashboard discoverability card (files, data path, render states), the notification deep-link pin/close result, nav retargeting outcome (or no-op proof), the new journey file + added wire/service cells, and the verified INV-P1 closure statement.
   - Do NOT fork a parallel canonical doc; do NOT edit/renumber `docs/specs/state-machine-invariants.md` or `docs/specs/open-decisions-and-gaps.md` (bind by reference — B.14, INV-P1, A.2/A.4/B.12 — only).
   - _Requirements: REQ-070_
 

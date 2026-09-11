@@ -1,15 +1,15 @@
-# Implementation Tasks: DEV1-013 — Student Handshake Code Generation
+# Implementation Tasks: Student Handshake Code Generation
 
 > **Plan of record:** `ai/plans/dev1-013-student-handshake-code-generation/`
 > **Specs:** `specs.md` REQ-001..REQ-083 (incl. REQ-J1..J5) · **Design:** `plan.md` D1–D13
-> **Ticket:** DEV1-013 (Owner: Dev 1 · Sprint 3 · 2 SP) · **Blocked by:** DEV1-001, DEV1-002, DEV2-001, DEV2-002 (all shipped — verify-only)
-> **Scope note:** This is a verification-plus-additive ticket. The DEV1-002 generation path is verify-only (zero production modification). Zero schema drift. Zero mutations. Zero side-effect writes.
+> **Ticket:** (Owner: Dev 1 · Sprint 3 · 2 SP) · **Blocked:** (all shipped — verify-only)
+> **Scope note:** This is a verification-plus-additive ticket. The generation path is verify-only (zero production modification). Zero schema drift. Zero mutations. Zero side-effect writes.
 
 ---
 
 ## Non-Negotiable Execution Protocol (Applies to EVERY Task)
 
-1. **Pre-Execution Outcome Knowledge Read** — Before touching any file, read the `outcome/*.md` of every completed task in this plan plus any `outcome/` artifacts from DEPENDENCY tickets (DEV1-001/002, DEV2-001/002). Record what you will reuse vs. add in the task outcome.
+1. **Pre-Execution Outcome Knowledge Read** — Before touching any file, read the `outcome/*.md` of every completed task in this plan plus any `outcome/` artifacts from DEPENDENCY tickets. Record what you will reuse vs. add in the task outcome.
 2. **Post-Edit Verification** — After editing ANY file, run:
    `bun run scripts/health/sub-loop.ts <file-path> --lifecycle duplicates` → MUST exit 0 before proceeding.
 3. **Test Execution** — Run every test file via:
@@ -36,9 +36,9 @@
   - `bun run scripts/lint-service.ts --json --id baseline` output (full JSON artifact path recorded)
   - `git status --porcelain` and `git diff --name-only` dirty-worktree snapshot (prove a clean starting tree; if dirty, document and defer remediation with an ❌ ledger entry)
 - Create `ai/plans/dev1-013-student-handshake-code-generation/deferred-items.md` from `.agents/spec-process-guide/templates/deferred-items-template.md`, pre-seeded with exactly three non-blocking forward entries:
-  - **D1** — Parent page "Send link request" CTA wire-up → owning ticket DEV1-014 (status: forward-note, non-blocking)
-  - **D2** — Real per-parent/per-IP rate limiting for the discovery query → owning stream DEV2-002 (status: forward-note, non-blocking; brute-force mitigation rationale recorded per REQ-034)
-  - **D3** — Direct-onboarding (B.6-family) code generation reuse via the shared `generateHandshakeCode` service entry point → owning ticket DEV3-019 (status: forward-note, non-blocking)
+  - **D1** — Parent page "Send link request" CTA wire-up → owning ticket (status: forward-note, non-blocking)
+  - **D2** — Real per-parent/per-IP rate limiting for the discovery query → owning stream (status: forward-note, non-blocking; brute-force mitigation rationale recorded per REQ-034)
+  - **D3** — Direct-onboarding (B.6-family) code generation reuse via the shared `generateHandshakeCode` service entry point → owning ticket (status: forward-note, non-blocking)
 - _Requirements: REQ-001, REQ-034, REQ-083_
 
 ### - [x] 0.2 Dependency Guard — Verify (Do NOT Rebuild) Existing Artifacts
@@ -46,12 +46,12 @@
   1. `backend/db/schema/students/students.ts` — `handshake_code varchar(50) NOT NULL`, `unique("students_handshake_code_unique")`, `parent_id` nullable FK → `users.id` ON DELETE SET NULL, shared-PK `students.id = users.id`
   2. `backend/db/schema/users/users.ts` — governance columns: `is_deleted`, `is_blocked`, `suspended`, `suspended_at`, `suspended_period_days`
   3. `RegistrationService` / `StudentRepository.createForRegistration` — bounded (≤5) in-transaction `23505`-retry generation emitting `KSB-<8 uppercase hex>` per `docs/auth/user-registration.md` §2 (verify-only per D1)
-  4. DEV2-002 scope system: `authenticated` and `role` scopes resolvable; confirm `$all` conjunction behavior documented in `docs/teachers/applicant-lifecycle.md` §3 is still current
+  4. scope system: `authenticated` and `role` scopes resolvable; confirm `$all` conjunction behavior documented in `docs/teachers/applicant-lifecycle.md` §3 is still current
   5. `withPageAuth({ roles, redirectTo })` server wrapper exists for `/parent/handshake` guarding
   6. `frontend/providers/apollo/apolloCache.ts` — locate `typePolicies` and the existing embedded-value precedent (`AdminNoteInfo` / `OnlineMeetingInfo`)
   7. Confirm `test/workflows/` DOES NOT exist → task 2.2 must scaffold it
   - [ ] 0.2.SR **Semantic Review**: assert zero modifications were made by this task (`git diff` still equals the 0.1 snapshot)
-- **STOP RULE:** If any artifact is missing/broken → record ❌ in `deferred-items.md` with the owning ticket and HALT this plan; never patch a DEV1-001/DEV1-002/DEV2-002-owned file inline.
+- **STOP RULE:** If any artifact is missing/broken → record ❌ in `deferred-items.md` with the owning ticket and HALT this plan; never patch a file inline.
 - _Requirements: REQ-004_
 
 ### - [x] 0.3 Phase-1.5 Plan-Review Gate
@@ -73,7 +73,7 @@
 - [ ] 1.1.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts shared/constants/handshake-code.constants.ts --lifecycle duplicates` (exit 0); also run against `shared/constants/index.ts` (exit 0)
 - [ ] 1.1.TE **Test Engineering**: 4-Tier on the guards — Tier 1: every branch of `isHandshakeCode` (non-string types incl. object/array/undefined, empty string, valid code); Tier 2: boundary lengths (7/8/9 hex chars, prefix variants `KSB`/`KSB-`, leading/trailing whitespace pre/post-normalization); Tier 3: hostile fuzz inputs — `%KSB-ABCD1234` (LIKE wildcard), underscore, backslash, unicode/RTL payloads, emoji, NUL bytes, multi-KB strings; Tier 4: normalization idempotence (`normalize(normalize(x)) === normalize(x)`) and proof that lowercase-of-valid normalizes into acceptance. Run via `bun run test/scripts/run-test.ts <path>`.
 - [ ] 1.1.SEC **Security & Tenancy Audit**: confirm the regex is ReDoS-safe (anchored, bounded `{8}`, no nested quantifiers), and that normalization cannot smuggle a second string past validation (validations run strictly AFTER normalization).
-- [ ] 1.1.SR **Semantic Review**: constants are the ONLY source of the pattern in the repo (grep for any duplicated `KSB-` regex in new code — zero hits outside this file and the existing DEV1-002 generator which MAY consume the builder only if byte-identical and its locks stay green); pure functions; zero side effects.
+- 1.1.SR **Semantic Review**: constants are the ONLY source of the pattern in the repo (grep for any duplicated `KSB-` regex in new code — zero hits outside this file and the existing generator which MAY consume the builder only if byte-identical and its locks stay green); pure functions; zero side effects.
 - [ ] 1.1.IV **Instruction Verification**: read `shared/AGENTS.md` and any `*.instructions.md` auto-discovered for `shared/constants/`; confirm compliance in the outcome.
 - Outcome: `outcome/1.1-handshake-code-constants-outcome.md`.
 
@@ -94,7 +94,7 @@
 ### - [x] 1.3 Canonical Types — extend `backend/types/students/student.types.ts`
 - Add (additive-only; existing exports unchanged):
   - `HandshakeCodeLookupReturnType` — readonly `{ maskedName: string; linkable: boolean }` (per plan §2.2).
-  - `HandshakeDiscoveryRowType` — `Pick<StudentSelectType, "parentId"> & Pick<UserSelectType, "fullName" | "isDeleted" | "isBlocked" | "suspended" | "suspendedAt" | "suspendedPeriodDays">` with `UserSelectType` imported from `@/backend/types` (indexed-access composition only — no re-derived column shapes per the DEV2-003 contract rule).
+  - `HandshakeDiscoveryRowType` — `Pick<StudentSelectType, "parentId"> & Pick<UserSelectType, "fullName" | "isDeleted" | "isBlocked" | "suspended" | "suspendedAt" | "suspendedPeriodDays">` with `UserSelectType` imported from `@/backend/types` (indexed-access composition only — no re-derived column shapes per the contract rule).
 - Verify `backend/types/students/index.ts` already re-exports `./student.types` (no barrel edit expected; if missing, one-line additive fix + note in outcome).
 - FORBIDDEN: local types in Pothos files later; service-layer `.types.ts` files; any new entity types file.
 - _Requirements: REQ-003, REQ-015, REQ-019_
@@ -137,7 +137,7 @@
 - ALL tests inside `runInRollback`; every repository/Drizzle call receives `tx` in the correct param position; entities ONLY via `entity-setup.ts` (never seed data); NEVER `expect(...).rejects.toThrow()` inside `runInRollback`.
 - _Requirements: REQ-010, REQ-012, REQ-013, REQ-040, REQ-041, REQ-071, REQ-072_
 - [ ] 2.1.QL **Quality Loop**: sub-loop `--lifecycle duplicates` on every new test file (exit 0)
-- [ ] 2.1.TE **Test Engineering**: execute each file via `bun run test/scripts/run-test.ts <path>`; all green WITHOUT any production-code change (this is the D1 verification promise — if ANY lock fails against the existing implementation, STOP: record ❌ in `deferred-items.md` citing the defective DEV1-002/DEV1-001 surface and halt dependent tasks).
+- 2.1.TE **Test Engineering**: execute each file via `bun run test/scripts/run-test.ts <path>`; all green WITHOUT any production-code change (this is the D1 verification promise — if ANY lock fails against the existing implementation, STOP: record ❌ in `deferred-items.md` citing the defective surface and halt dependent tasks).
 - [ ] 2.1.SEC **Security & Tenancy Audit**: forced-duplicate tests must demonstrate constraint-level (not app-level) enforcement — i.e. enforcement survives direct repository writes that bypass service guards.
 - [ ] 2.1.SR **Semantic Review**: no test monkey-patches production modules; collision fixture uses only documented injection seams or direct constrained inserts; zero `console.*`.
 - [ ] 2.1.IV **Instruction Verification**: read `backend/db/test/AGENTS.md` (incl. rule 15 — fixtures not seeds) and auto-discovered instruction files; confirm compliance.
@@ -146,15 +146,15 @@
 ### - [x] 2.2 Scaffold `test/workflows/` + Write Handshake-Discovery Journey Test (TEST-FIRST — REQ-077)
 - **Scaffold (mandatory — the layer does not exist per 0.2):**
   - `test/workflows/AGENTS.md` — journey rules per Architectural Invariant 10: sequential actor-attributed steps calling REAL services against the REAL test DB; fixtures COMMITTED in `beforeAll` and HARD-DELETED in `afterAll` with tracked IDs; `runInRollback` FORBIDDEN (services spawn their own transactions); permissions resolve honestly via real role membership — NEVER monkey-patched; side effects (none exist in this ticket — REQ-023) asserted absent; spies configured for notification dispatch should any future step emit one (NEVER real email/SMS/push).
-  - `test/workflows/helpers/journey-fixtures.ts` — cast builders: `registerStudentActor()` (real `RegistrationService.registerUser` → returns `{ userId, handshakeCode }`), `registerParentActor()`, `linkStudentToParentFixture(studentId, parentUserId)` (direct repository write emulating DEV1-014's future mutation), `setGovernanceFixture(userId, { isDeleted | isBlocked | suspended... })`, and a tracked-ID registry powering the `afterAll` hard-delete teardown.
+  - `test/workflows/helpers/journey-fixtures.ts` — cast builders: `registerStudentActor` (real `RegistrationService.registerUser` → returns `{ userId, handshakeCode }`), `registerParentActor`, `linkStudentToParentFixture(studentId, parentUserId)` (direct repository write emulating the future mutation), `setGovernanceFixture(userId, { isDeleted | isBlocked | suspended... })`, and a tracked-ID registry powering the `afterAll` hard-delete teardown.
 - **Journey test** — `test/workflows/parents/handshake-discovery.test.ts` executing specs §2.9 steps 1→8 in order, calling `RegistrationService` / `StudentHandshakeService` with `actorUserId`-derived ids (service layer only; GraphQL role-matrix denials live in the REQ-074 tier, cross-referenced not duplicated):
   1. *System*: register student → assert `handshakeCode` matches `HANDSHAKE_CODE_PATTERN`, unique, non-null (REQ-J1 precondition).
   2. *Student*: `getMyHandshakeCode(studentUserId)` returns own code verbatim. **Step 2b denials**: documented in-test via scope-layer cross-reference (GraphQL tier owns `FORBIDDEN`/`UNAUTHORIZED` assertions — journey asserts the service rejects a null/foreign-identity call shape honestly where applicable).
   3. *Parent*: `findStudentByHandshakeCode(code)` → `{ maskedName, linkable: true }`; assert `maskedName ≠ fullName` and the payload object has EXACTLY two keys (REJ-J1).
   4. *Parent*: lowercase variant of the real code RESOLVES identically; structurally invalid input rejects with `ValidationError`; valid-format-but-missing code returns `null` (no throw) (observer outcomes per REQ-J-first-class states).
-  5. *Fixture (DEV1-014 emulation)*: `linkStudentToParentFixture(...)` → *Second Parent*: same code → `linkable: false`; assert payload contains NO parent identity, NO ids (REQ-J2).
+  5. *Fixture (emulation)*: `linkStudentToParentFixture ` → *Second Parent*: same code → `linkable: false`; assert payload contains NO parent identity, NO ids (REQ-J2).
   6. *Fixture*: three governance variants (isDeleted / isBlocked / active suspension) → *Parent* re-searches SAME code each time → `null`, byte-identical outcome to a nonexistent code (REQ-J3).
-  7. *Record-only step*: deleted/blocked callers are denied at the DEV2-002 context boundary (upstream fail-closed) — asserted as a documented comment + cross-reference, not re-tested here.
+  7. *Record-only step*: deleted/blocked callers are denied at the context boundary (upstream fail-closed) — asserted as a documented comment + cross-reference, not re-tested here.
   8. *Teardown*: every tracked fixture id hard-deleted; assert residue probe queries return empty.
 - Actors per the specs §2.9 actor table: Student (Yusuf), Parent (Fatima), Second Parent, Teacher/Admin/Supervisor/Anonymous (denied; GraphQL tier), System (registration service).
 - _Requirements: REQ-077, REQ-J1, REQ-J2, REQ-J3, REQ-J4, REQ-J5, REQ-010, REQ-016, REQ-018, REQ-019, REQ-020, REQ-021, REQ-023_
@@ -307,7 +307,7 @@
   - Local state: `codeInput` + `validatedCode` (derived via `normalizeHandshakeCode` + `isHandshakeCode` from the SHARED constants module — frontend consumes the same canonical gate).
   - `useQuery(findStudentByHandshakeCodeQueryDocument, { variables: { code: validatedCode }, skip: !validatedCode })` — NO `useLazyQuery` anywhere (REQ-063).
   - `HandshakeCodeSearchForm`: submit handler typed `React.SubmitEvent`/`React.SyntheticEvent<HTMLFormElement>` (NEVER `FormEvent`); field carries `aria-invalid={!!formatError}`; on submit → validate; invalid → inline helper `invalidFormat` (NO network call — the skip gate must prevent it); valid → set `validatedCode`.
-  - Outcome states (exactly per plan §5.5): idle → page description only; searching → result-region skeleton; `null` → inline `notFoundTitle`/`notFoundDescription` (deliberately NOT error styling); found + `linkable` → masked-name card + `canLinkDescription` (**NO "Send link request" CTA — D1/DEV1-014**; do not even render a disabled placeholder button); found + `!linkable` → masked-name card + `alreadyLinkedTitle`/`alreadyLinkedDescription` (`linkable`-driven copy).
+  - Outcome states (exactly per plan §5.5): idle → page description only; searching → result-region skeleton; `null` → inline `notFoundTitle`/`notFoundDescription` (deliberately NOT error styling); found + `linkable` → masked-name card + `canLinkDescription` (**NO "Send link request" CTA — D1**; do not even render a disabled placeholder button); found + `!linkable` → masked-name card + `alreadyLinkedTitle`/`alreadyLinkedDescription` (`linkable`-driven copy).
   - GraphQL failures → `extensions.code` branching: `VALIDATION` (server-side re-judgment) → inline input error; `FORBIDDEN` → existing `PermissionDeniedFallback`-pattern surface; unexpected → localized generic error. Never branch on HTTP status.
 - **Navigation:** add ONE parent-nav item "Link my child" (translated from the `handshakeCode` namespace) after the parent's existing dashboard entries, icon `LinkOutlined`; mobile bottom nav unchanged (verify the parent's nav contract first — default: untouched).
 - MUI v9 discipline: `sx`-only styling; theme-callback colors; logical properties (`marginInlineStart/End`, `text-align: start`) for full RTL mirroring; masked Arabic names render naturally RTL; ≥44px tap targets on mobile.
@@ -348,7 +348,7 @@
   - Every new/edited test file individually via `bun run test/scripts/run-test.ts <path>` (enumerate: shared constants spec, mask spec, generation lock suite, repository spec, service spec, graphql integration spec, component specs — student card + parent page, SSR guard specs).
   - `bun test test/workflows` (full journey directory green).
   - `bun test --coverage` evidence for the four new backend/shared modules at **100% statement + branch** (REQ-070); attach the coverage table.
-  - Adjacent-suite differential runs (no regressions): the existing auth/registration test suites (`RegistrationService` locks from DEV1-002 era) must still pass untouched — paste results.
+  - Adjacent-suite differential runs (no regressions): the existing auth/registration test suites (`RegistrationService` locks from era) must still pass untouched — paste results.
 - _Requirements: REQ-070, REQ-071, REQ-072, REQ-073, REQ-074, REQ-075, REQ-077_
 
 ### - [x] 5.2 Differential & Discipline Verification Gates
@@ -383,7 +383,7 @@
 
 ### - [x] 6.4 `pentester` Wave + Deferred-Items Gate
 - Independent adversarial review: BOLA (zero-argument self-query; capability-by-code rationale audited against REQ-030 — confirm parent-role gate + minimal payload make the capability safe); BFLA `$all` scope correctness on BOTH queries incl. sibling-role cells (REQ-031); BOPLA closed inputs (REQ-032); oracle hygiene — network-level indistinguishability of {nonexistent, governed} and absence of timing/difference signals worth asserting (REQ-033); injection fuzz closure on `code` (REQ-035); rate-limit residual risk formally bounded to deferred item **D2** (REQ-034) — flagged posture must match the ledger, no scope creep.
-- **Deferred-items gate:** `grep -c "❌\|⚠️" ai/plans/dev1-013-student-handshake-code-generation/deferred-items.md` MUST equal 0 EXCLUDING the three pre-seeded forward notes D1 (→DEV1-014), D2 (→DEV2-002), D3 (→DEV3-019); verify each forward note cites its owning ticket and non-blocking status (REQ-083).
+- **Deferred-items gate:** `grep -c "❌\|⚠️" ai/plans/dev1-013-student-handshake-code-generation/deferred-items.md` MUST equal 0 EXCLUDING the three pre-seeded forward notes D1 (→), D2 (→), D3 (→); verify each forward note cites its owning ticket and non-blocking status (REQ-083).
 - Outcome: `outcome/6.4-pentester-and-deferred-gate-outcome.md`.
 - _Requirements: REQ-030, REQ-031, REQ-032, REQ-033, REQ-034, REQ-035, REQ-076, REQ-083_
 
@@ -396,9 +396,9 @@
   - Code format + generation contract (link `docs/auth/user-registration.md` §2; collision model: 16⁸ ≈ 4.3B space, in-transaction bounded retry on `23505`, `ConflictError` on exhaustion — describe, never re-implement) (REQ-024).
   - Discovery payload minimalism ruling (REQ-015..019) + mask algorithm contract (deterministic, grapheme-aware, total function, empty-input placeholder).
   - Governance-exclusion collapse rule (`isDeleted`/`isBlocked`/active suspension ⇒ byte-identical to "never existed") (REQ-021).
-  - Null-not-error not-found precedent (REQ-016, citing the DEV2-004 precedent).
-  - **Binding forward contract for DEV1-014:** re-resolve the student by re-submitting the handshake code inside its own transaction; never trust a stored/transmitted id; re-check `parentId IS NULL` server-side (this ticket's `linkable` read is advisory).
-  - Brute-force posture + D2 forward note (role gate, minimal payload, 32-bit-hex keyspace, future real limiter via DEV2-002) (REQ-034).
+  - Null-not-error not-found precedent (REQ-016, citing the precedent).
+  - **Binding forward contract:** re-resolve the student by re-submitting the handshake code inside its own transaction; never trust a stored/transmitted id; re-check `parentId IS NULL` server-side (this ticket's `linkable` read is advisory).
+  - Brute-force posture + D2 forward note (role gate, minimal payload, 32-bit-hex keyspace, future real limiter) (REQ-034).
   - B.12 semantics of `linkable`; B.13 (per-child gating, never per-parent); B.14 explicitly out of scope here (no link requests exist); INV-P1 anchoring (discovery ≠ monitoring).
 - _Requirements: REQ-024, REQ-080_
 - [ ] 7.1.SR **Semantic Review**: structure checklist satisfied; every numeric/behavioral claim matches shipped code (no aspirational content); English-only domain doc per docs conventions.
@@ -422,8 +422,8 @@
   - Task ledger: every task id → status → outcome file link (completeness: every `[x]` must map to an existing outcome; the 0.3 plan-review outcome predates all implementation outcomes).
   - Baseline comparison table (0.1 vs final): `tsgo` / `biome:check` / lint-service — zero new findings asserted command-by-command (REQ-076).
   - Coverage table (REQ-070) + journey suite summary (REQ-J1..J5 mapping to test steps).
-  - Deferred ledger final state: exactly D1/D2/D3 as non-blocking forward notes with owning tickets (DEV1-014, DEV2-002, DEV3-019) — `grep -c "❌\|⚠️"` = 0 excluding those three (REQ-083).
-  - Forward-consumer notices to embed into DEV1-014/015 planning seeds: REQ-019 re-resolution-by-code contract, REQ-018 `linkable` advisory semantics, REQ-021 governance-collapse rule.
+  - Deferred ledger final state: exactly D1/D2/D3 as non-blocking forward notes with owning tickets — `grep -c "❌\|⚠️"` = 0 excluding those three (REQ-083).
+  - Forward-consumer notices to embed into planning seeds: REQ-019 re-resolution-by-code contract, REQ-018 `linkable` advisory semantics, REQ-021 governance-collapse rule.
 - Flip all remaining checkboxes ONLY after this gate passes.
 - _Requirements: REQ-076, REQ-083_
 

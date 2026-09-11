@@ -1,4 +1,4 @@
-# Tasks — DEV3-012 Dual-Confirmation Completion Handshake (24h Timeout)
+# Tasks — Dual-Confirmation Completion Handshake (24h Timeout)
 
 **Plan Directory:** `ai/plans/sprint_2/dev3-012-dual-confirmation-completion-handshake/`
 **Related:** `specs.md` · `plan.md` · `deferred-items.md` (same directory)
@@ -94,7 +94,7 @@ Ground truth: repo primitives and services EXIST as cited in specs/plan; new cod
 - [x] 5. Update `docs/sessions/session-lifecycle.md`
   - §2.1 state machine: dual-confirmation + two-leg sweep now implemented; `disputed` producer surface confirmed (pre-completion)
   - §2.2 guarded-transition table: add `sweepExpiredCompletedOnce` row
-  - Resolve "DEV3-012/013" pending annotations for the 012 part (013 escrow depth stays)
+  - Resolve "" pending annotations for the 012 part (013 escrow depth stays)
   - Side-effect table additions: prompt + auto-cancel notification rows
   - Verify root `AGENTS.md` Important References line for this doc remains accurate (no new doc created; description update only if needed)
   - [x] 5.QL: sub-loop on the doc

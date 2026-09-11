@@ -5,7 +5,7 @@
  * mirroring the AdminDisputesContainer two-phase bootstrap exactly): the
  * suite BODY lives in the sibling `GovernanceActionsSection.suite.tsx` — ONE
  * render case per branch of the governance-actions visual state matrix
- * (DEV3-017 REQ-063/064/065), driven across BOTH locales.
+ * (REQ-063/064/065), driven across BOTH locales.
  *
  * WHY this file exists (two-phase bootstrap) — identical root cause to the
  * admin/teachers/student entries: Bun evaluates an entry test file's

@@ -13,7 +13,7 @@
 
 | # | Severity | Finding | Disposition |
 |---|---|---|---|
-| T1 | LOW | `SessionReportWaveParticipant` exported but unused outside its file | **Recorded-no-change** — deliberate public wave vocabulary (`SessionReportWaveContext` field type; future DEV1-016 consumer) |
+| T1 | LOW | `SessionReportWaveParticipant` exported but unused outside its file | **Recorded-no-change** — deliberate public wave vocabulary (`SessionReportWaveContext` field type; future the parent-portal ticket consumer) |
 | T2 | NIT | `isSurahJuzRef` widening cast (Set alternative) | Recorded-no-change — safe widening, house pattern |
 | T3 | NIT | Barrel ordering (pre-existing line) | Recorded-no-change — pre-existing convention |
 | T4 | NIT | "2000" hardcoded in error copy | Recorded-no-change — repo convention precedent (`planTitleTooLong` "255") |

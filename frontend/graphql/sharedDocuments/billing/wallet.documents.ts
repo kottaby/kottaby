@@ -7,9 +7,9 @@ import type {
 } from "@/frontend/graphql/generated/gql/graphql";
 
 /**
- * Shared GraphQL documents for the teacher wallet domain (DEV3-013).
+ * Shared GraphQL documents for the teacher wallet domain.
  *
- * Two operations over the DEV3-013 SDL surface: the self-wallet read
+ * Two operations over the teacher wallet SDL surface: the self-wallet read
  * (`myWallet`) and the payout write (`requestWithdrawal`). Both payloads
  * select `id` FIRST on the `Wallet` object so Apollo Client normalizes the
  * returned rows into the cache — the withdrawal response converges

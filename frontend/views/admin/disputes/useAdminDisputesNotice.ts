@@ -6,7 +6,7 @@ import { Errors, Sessions, useAppTranslation } from "@/shared/locale";
 
 /**
  * useAdminDisputesNotice — the arbitration-outcome notice slot for
- * `AdminDisputesContainer` (DEV3-005 R-104/R-111): one transient snackbar
+ * `AdminDisputesContainer` (R-104/R-111): one transient snackbar
  * notice (success / info / error) plus the outcome handlers the
  * `ResolveDisputeDialog` invokes. EVERY outcome surfaces a snackbar:
  *

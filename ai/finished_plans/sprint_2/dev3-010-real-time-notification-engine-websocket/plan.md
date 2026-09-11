@@ -1,4 +1,4 @@
-# Technical Architecture & Implementation Design: DEV3-010 — Real-Time Notification Engine (WebSocket)
+# Technical Architecture & Implementation Design: Real-Time Notification Engine (WebSocket)
 
 > **Plan of record:** `ai/plans/dev3-010-realtime-notification-engine/`
 > **Specs:** `specs.md` REQ-001..REQ-083, cross-actor journeys J1/J2 (§2.9)
@@ -10,14 +10,14 @@
 
 ### 1.1 Scope Statement
 
-DEV3-010 ships the platform's **in-app notification engine**: a single write path (`NotificationEngine.emit*`) into the existing A.4 `notifications` table, a recipient-scoped GraphQL inbox (list / unread count / mark-one / mark-all), a **Bun-native WebSocket sidecar process** for sub-second fan-out, and a client realtime hook with refetch-based self-healing. No GraphQL mutation can create a notification; emit is server-internal and consumed by future domain tickets through the shipped contract.
+ ships the platform's **in-app notification engine**: a single write path (`NotificationEngine.emit*`) into the existing A.4 `notifications` table, a recipient-scoped GraphQL inbox (list / unread count / mark-one / mark-all), a **Bun-native WebSocket sidecar process** for sub-second fan-out, and a client realtime hook with refetch-based self-healing. No GraphQL mutation can create a notification; emit is server-internal and consumed by future domain tickets through the shipped contract.
 
 **Transport topology reconciliation (binding):** Next.js 16 App Router route handlers cannot hold WebSocket connections and the deployment lineage is serverless-first. The realtime lane therefore lives in a **separate Bun process** (`bun run ws`, its own port) that is *not* an `app/api/**` route: it never enters `ROUTE_INVENTORY` (its process-internal health/ingress surface is governed by this plan, not by `docs/graphql/api-gateway-and-routing.md` Rule 3). The Next.js app process publishes fan-out events to the sidecar through a **transport port** with two adapters (Redis pub/sub default, in-process for tests/single-process harnesses).
 
 ### 1.2 Write Path — Emit (persist-first, publish-after-commit)
 
 ```
-┌── FUTURE EMITTER (DEV3-011 / DEV1-017 / DEV3-022d …; TEST-ONLY for this ticket) ─┐
+┌── FUTURE EMITTER (                                …; TEST-ONLY for this ticket) ─┐
 │  calls NotificationEngine.emitForUser(input, locale, tx?)                        │
 │  or  NotificationEngine.emitForUsers(batch, locale, tx?)   (server-internal)     │
 └──────────────────────────────────────┬───────────────────────────────────────────┘
@@ -78,7 +78,7 @@ NotificationEngine                               backend/ws/notification-ws-serv
                                                           ▼
 Client (per tab, one socket): useNotificationRealtime
   handshake: WS connect w/ httpOnly access_token cookie + Origin allowlist
-  ├─ cookie verify via verifyAccessToken (DEV2-001) ─ null → close 4401 (REQ-022)
+  ├─ cookie verify via verifyAccessToken (        ) ─ null → close 4401 (REQ-022)
   ├─ Origin mismatch → reject (CSWSH) · burst → 4429 (bucket throttle, REQ-033)
   ├─ on message → Apollo cache merge by id (dedupe) + localized toast
   └─ on reconnect → backoff (1s→2s→…30s + jitter) → CATCH-UP:
@@ -92,7 +92,7 @@ Client (per tab, one socket): useNotificationRealtime
 |---|---|---|---|---|
 | D1 | **Realtime lane lives in a Bun-native WS sidecar process** (`bun run ws`), not in Next.js route handlers | (a) WebSocket route in `app/api/ws/route.ts`; (b) Bun sidecar process; (c) third-party realtime SaaS (Pusher-class) | (a) Pros: single process. Cons: structurally impossible — App Router route handlers cannot host upgraded connections in Next.js 16; serverless instances have no stable process for sockets. (b) Pros: real `Bun.serve` upgrade support; horizontal separation from the request lifecycle; independently deployable/scalable. Cons: second process to operate (D3 deferred item covers provisioning). (c) Pros: zero ops. Cons: new vendor, cost, latency boundary, and a fan-out contract foreign to the codebase's self-hosted posture — premature at this milestone. | **(b).** The ticket prose says "WebSocket push," and the gateway's documented posture is HTTP request/response only (`docs/graphql/api-gateway-and-routing.md` Rule 9). The sidecar honors the ticket intent without perverting the gateway; the reconciliation is recorded in specs §2.9 style and §6 traceability. |
 | D2 | **Persist-first, push-second; durable inbox is the only truth** | (a) fire-and-forget WS with ephemeral payload only; (b) DB-first always | (a) Pros: lowest latency. Cons: offline users lose events forever — violates AC #2 of the ticket outright; no auditability. (b) Pros: correctness under disconnection, self-healing catch-up, testable without sockets; WS becomes a latency optimization layer, never a correctness dependency. Cons: one DB write per event is mandatory even when the user is offline (acceptable — writes are cheap, single-statement). | **(b).** REQ-011. The engine treats the socket layer as always-suspect infrastructure; correctness lives in `notifications`. This makes the entire realtime layer degradable without data loss (REQ-064). |
-| D3 | **Publish-after-commit; receipt-consumption pattern for tx-owning callers** — emit inside caller `tx` returns receipts; caller calls `publishReceipts(receipts)` *after* its transaction resolves | (a) engine always publishes immediately after insert; (b) outbox table polled by a sweeper; (c) two-phase API: persist-in-tx + separate publish | (a) **Broken** under caller transactions: a ghost push observes a row that later rolls back. (b) Pros: bulletproof at-least-once-ability. Cons: schema drift (a table) + new sweeper process for a best-effort channel — massive over-engineering relative to the self-heal catch-up the client already runs. (c) Pros: exact invariant with zero extra infra; matches DEV1-002/DEV3-004's `withTransaction(outerTx)` SAVEPOINT composition. Cons: consumers must remember to publish — enshrined in the canonical doc consumption guide. | **(c).** REQ-012/REQ-042. Ghost pushes are test-proven impossible (forced-rollback test observes zero rows AND zero publishes). The outbox is rejected as an incorrect use of a durable mechanism on a best-effort channel. |
+| D3 | **Publish-after-commit; receipt-consumption pattern for tx-owning callers** — emit inside caller `tx` returns receipts; caller calls `publishReceipts(receipts)` *after* its transaction resolves | (a) engine always publishes immediately after insert; (b) outbox table polled by a sweeper; (c) two-phase API: persist-in-tx + separate publish | (a) **Broken** under caller transactions: a ghost push observes a row that later rolls back. (b) Pros: bulletproof at-least-once-ability. Cons: schema drift (a table) + new sweeper process for a best-effort channel — massive over-engineering relative to the self-heal catch-up the client already runs. (c) Pros: exact invariant with zero extra infra; matches the `withTransaction(outerTx)` SAVEPOINT composition. Cons: consumers must remember to publish — enshrined in the canonical doc consumption guide. | **(c).** REQ-012/REQ-042. Ghost pushes are test-proven impossible (forced-rollback test observes zero rows AND zero publishes). The outbox is rejected as an incorrect use of a durable mechanism on a best-effort channel. |
 | D4 | **Backplane behind a port** (`NotificationFanoutTransport`) with Redis pub/sub (default) + in-process (test/harness) adapters | (a) direct Redis coupling in the engine; (b) port + two adapters; (c) DB LISTEN/NOTIFY | (a) Cons: untestable offline, hard-couples unit suites to a Redis dependency, today violates `backend/services/AGENTS.md` mock-adapter discipline. (b) Pros: sidecar is transport-agnostic; tests use in-process and still prove publish-after-commit + payload validation end-to-end. (c) Pros: zero new infra. Cons: Postgres connections as a message bus do not survive serverless topology and conflate durable DB health with ephemeral delivery. | **(b).** REQ-024. Future swap to a managed stream (e.g. larger fan-out scale) touches one adapter, not the engine. |
 | D5 | **Emit idempotency = best-effort, fail-OPEN on cache outage** | (a) fail-closed like booking mutations; (b) fail-open with structured warn | (a) Cons: a Redis blip would block *session completion*, *payment confirmation* etc. — turning a notification-dedupe nicety into a domain outage. (b) Pros: domain events are never hostage to cache health; worst case is a duplicate row the user dismisses — recoverable noise. Cons: permits rare duplicates. | **(b).** REQ-016. Deliberate, documented deviation from `docs/IDEMPOTENCY.md`'s fail-closed posture for booking-class mutations; notification emission is outside that doc's mandated key set (Student/Invoice/Class/Payment). The ruling is recorded in the canonical doc + decisions addendum (REQ-081). |
 | D6 | **All inbox operations are self-scoped by construction**: identity = `ctx.user.id` exclusively; no identity input exists on any operation; `markNotificationRead` guards with `WHERE id AND user_id` | (a) accept `userId` input for admin convenience; (b) context-only identity | (a) Cons: instant BOLA surface on a sensitive per-user datastore (IDOR by parameter). (b) Pros: foreign targeting is *structurally impossible* — the cheapest, strongest defense; oracle-safe: foreign/nonexistent id → identical `NOTIFICATION_NOT_FOUND`. | **(b).** REQ-030. Parent/parent-of-child lateral reads are deliberately impossible at this layer — parents see child events only via rows emitted *to the parent* (INV-P2/P3 boundary, Journey J1 step 8). |
@@ -101,7 +101,7 @@ Client (per tab, one socket): useNotificationRealtime
 | D9 | **Module-level mutable state allowed ONLY in the sidecar, and ONLY bounded**: connection registry with global + per-user caps, eviction `4009`, ping/pong liveness, graceful `1001` shutdown | (a) in-memory per the general rule ban; (b) unbounded registry; (c) bounded registry + external state nowhere else | (a)/(b) Cons: general codebase rule and unbounded growth → memory DoS. (c) Pros: a socket server *is* a stateful process — the rule's exception must be explicit, bounded, and test-proven; every cap has a documented policy code. | REQ-023/046. The sanctioned exception is carved out and test-locked (caps, eviction order, miss-2 termination), so "bounded" is an assertion, not a promise. |
 | D10 | **Engine never translates; emitters own localized copy** — the engine stores `title`/`body` verbatim (bounded), never renders templates, never touched by locale resolution | (a) engine-localized copy by recipient locale; (b) emitter-localized | (a) Cons: requires per-recipient locale knowledge at emit time — a `users.locale` column does not exist (deferred schema gap D2, must NOT be patched inline); templates in the engine would entangle i18n with fan-out batch semantics. (b) Pros: the PORT-definition says emitters already know their domain context+locale; single-writer simplicity; `SessionEventNotificationContract` already treats title/body as opaque strings. | **(b).** REQ-015/028; the schema-gap ruling (recipient-locale persistence) is deferred to D2 with explicit ownership, never inline-patched (REQ-048). |
 | D11 | **Frontend truth = Apollo cache + refetch-on-reconnect; WS frames only MERGE into cache (dedupe by id)** | (a) WS-only live feed; (b) cache-merge with catch-up refetch; (c) Zustand feed store | (a) Cons: dropped push = permanent divergence (unacceptable). (b) Pros: divergence is mathematically bounded by the next refetch; no new state container; `id`-normalized `Notification` objects make merge trivial. (c) Cons: second source of truth vs Apollo; `frontend/stores` rules would also reject socket handle persistence. | **(b).** REQ-025/063. "Toast is ephemeral; the badge and page are authoritative" — reconnects refetch, duplicates self-dismiss by id dedupe. |
-| D12 | **`test/workflows/` journey layer is scaffolded by this ticket** with committed fixtures (no `runInRollback`), tracked teardown, spied transports | (a) force journeys into `runInRollback` logic suites; (b) scaffold the layer per rules | (a) Cons: services own their transactions in journey scenarios — rollback would forbid committed cross-service flows; the new layer exists precisely because of this mismatch. (b) Pros: reusable cross-actor harness for this and future tickets (DEV1-016/DEV2-016/DEV3-012 will all need it); spec-mandated (Section 2.9 of specs). | **(b).** REQ-077. The layer ships with `AGENTS.md`, `TrackedFixtures`, actor-context factory, and spied-transport conventions so every future journey suite inherits honest-permission discipline. |
+| D12 | **`test/workflows/` journey layer is scaffolded by this ticket** with committed fixtures (no `runInRollback`), tracked teardown, spied transports | (a) force journeys into `runInRollback` logic suites; (b) scaffold the layer per rules | (a) Cons: services own their transactions in journey scenarios — rollback would forbid committed cross-service flows; the new layer exists precisely because of this mismatch. (b) Pros: reusable cross-actor harness for this and future tickets (will all need it); spec-mandated (Section 2.9 of specs). | **(b).** REQ-077. The layer ships with `AGENTS.md`, `TrackedFixtures`, actor-context factory, and spied-transport conventions so every future journey suite inherits honest-permission discipline. |
 
 ---
 
@@ -109,7 +109,7 @@ Client (per tab, one socket): useNotificationRealtime
 
 ### 2.1 Existing Schema Verification (READ-ONLY — zero drift, REQ-048)
 
-All structures exist from DEV1-001 (Decision A.4). `git diff` on `backend/db/schema/**` and `backend/db/migration/**` MUST be empty at completion.
+All structures exist from (Decision A.4). `git diff` on `backend/db/schema/**` and `backend/db/migration/**` MUST be empty at completion.
 
 | Contract dependency | Existing implementation | Verified at |
 |---|---|---|
@@ -290,7 +290,7 @@ extend type Mutation {
 | Anonymous caller | `scopeAuth` (authenticated scope) | `UNAUTHORIZED` | 401 |
 | `limit`/`offset`/`id`/`type`/emit-shape violations | `ValidationError` | `VALIDATION` | 422 |
 | Foreign or nonexistent `id` on mark-one (identical response class) | `NotFoundError("NOTIFICATION", …)` | `NOTIFICATION_NOT_FOUND` | 404-class, oracle-safe |
-| Unexpected driver/service failure | boundary masking (DEV3-002) | `INTERNAL_SERVER_ERROR` | 500, `extensions.requestId` attached |
+| Unexpected driver/service failure | boundary masking  | `INTERNAL_SERVER_ERROR` | 500, `extensions.requestId` attached |
 | WS handshake failures | **Never GraphQL.** Socket close codes: `4401` unauthenticated · `4429` handshake throttle · `4009` per-user cap eviction · `1013` global capacity · `1001` server shutdown | n/a | policy codes documented in canonical doc |
 
 `NotFoundError` receives the entity name `"NOTIFICATION"` (never the full code — double-suffix rule, `docs/graphql/domain-error-extensions-code.md`).
@@ -314,7 +314,7 @@ Parents are **read-only + self-latch**: they view/mark their OWN rows — never 
 
 ### 4.1 New Service — `backend/services/notifications/notification-engine.service.ts`
 
-Namespace `NotificationEngine`. No types live here (`backend/services/AGENTS.md`); all shapes come from `@/backend/types`. Every method takes `tx?: DBTransaction` last and composes the DEV1-002 `withTransaction(outerTx)` SAVEPOINT-aware pattern.
+Namespace `NotificationEngine`. No types live here (`backend/services/AGENTS.md`); all shapes come from `@/backend/types`. Every method takes `tx?: DBTransaction` last and composes the `withTransaction(outerTx)` SAVEPOINT-aware pattern.
 
 ```typescript
 // EMIT (server-internal; never wired to a resolver — grep-enforced)
@@ -480,10 +480,10 @@ NO role-specific routes; NO admin-only notification page (admin's inbox arrives 
 | Audience | What they see |
 |---|---|
 | Student | Own inbox; session/payment-related entries as emitted to them (future tickets); filters; mark controls |
-| Teacher (applicant) | Same surface; future `evaluation_result` events (DEV2-016/017 emitters) will land here |
+| Teacher (applicant) | Same surface; future `evaluation_result` events (emitters) will land here |
 | Teacher (certified) | Same surface; future `session_request`/`session_cancellation` entries |
 | Parent | Same surface, READ-ONLY content + own mark-read controls (INV-P2); child events arrive as rows addressed to the parent (INV-P3 via emitters, not via child inbox access) |
-| Super Admin | Same surface; future `system_broadcast` receipts (received, not composed — broadcast composition surface is DEV3-022d) |
+| Super Admin | Same surface; future `system_broadcast` receipts (received, not composed — broadcast composition surface is) |
 | Anonymous | Never reach the page (server-side redirect to `/login` via page auth) and every GraphQL op 401s |
 
 ### 5.4 Apollo GraphQL Documents & UI Components
@@ -576,7 +576,7 @@ frontend/views/notifications/
 
 ### 6.1 BOLA / IDOR
 
-- Identity derives EXCLUSIVELY from `ctx.user.id` (DEV2-001 verified-context pipeline). `myNotifications`/`myUnreadNotificationCount` accept NO identity args; `markNotificationRead` takes only `id`; `markAllNotificationsRead` takes only `type` (REQ-030).
+- Identity derives EXCLUSIVELY from `ctx.user.id` (verified-context pipeline). `myNotifications`/`myUnreadNotificationCount` accept NO identity args; `markNotificationRead` takes only `id`; `markAllNotificationsRead` takes only `type` (REQ-030).
 - `markNotificationRead` guards at the row layer with `WHERE id AND user_id` → foreign targeting returns `NOTIFICATION_NOT_FOUND`, byte-identical in shape to a nonexistent id — no existence oracle (REQ-035/039). Response shapes across denial branches stay constant.
 - Parent→child and sibling-tenant cross-reads are structurally impossible at this surface; the ONLY parent pathway is an emitter writing to the parent's OWN userId (INV-P2/P3 honored; Journey J1 step 8 proves it).
 - Emit-side fan-out recipient lists are explicit caller inputs to a server-internal function; no client can ever invoke it (BFLA §6.3).
@@ -591,8 +591,8 @@ frontend/views/notifications/
 
 - All four GraphQL ops = `authScopes: { authenticated: true }` — anonymous → 401 `UNAUTHORIZED` before resolvers execute (REQ-032); NO role/permission/superAdmin scope (every role owns an inbox — no privilege tier exists in read paths).
 - **Zero notification-CUD operations GraphQL-side** — static schema assertion greps for `create|delete|updateNotification*` and fails on presence (REQ-032/060).
-- Emit primitives are imported by ZERO resolver files — static scan proves `emitForUser`/`emitForUsers` never appear in `backend/graphql/**` (only services/tests). The bulk primitive reserved for DEV3-022d cannot be exercised now by construction (REQ-027).
-- WS handshake surface accepts no GraphQL operations at all; governance-blocked accounts (deleted/blocked/suspended) are denied upstream at context creation (DEV2-001/002 fail-closed); the socket does not re-verify governance continuously — documented trade-off (existing rows already emitted remain readable; NO new emit authorization advantage is granted) recorded in the canonical doc (REQ-038).
+- Emit primitives are imported by ZERO resolver files — static scan proves `emitForUser`/`emitForUsers` never appear in `backend/graphql/**` (only services/tests). The bulk primitive reserved for the future broadcast consumer cannot be exercised now by construction (REQ-027).
+- WS handshake surface accepts no GraphQL operations at all; governance-blocked accounts (deleted/blocked/suspended) are denied upstream at context creation (fail-closed); the socket does not re-verify governance continuously — documented trade-off (existing rows already emitted remain readable; NO new emit authorization advantage is granted) recorded in the canonical doc (REQ-038).
 
 ### 6.4 Injection & Sanitization
 
@@ -604,12 +604,12 @@ frontend/views/notifications/
 
 ### 6.5 Rate Limiting & Abuse
 
-- GraphQL inbox ops inherit the platform's existing global/fail-open limiter posture (precedent per DEV1-002/DEV2-002 — REQ-036); pagination cap 50 bounds read cost. `myUnreadNotificationCount` is the existing badge-polling consumer's path; no change to `NOTIFICATION_COUNT_POLL_INTERVAL_MS` posture.
+- GraphQL inbox ops inherit the platform's existing global/fail-open limiter posture (shipped precedent — REQ-036); pagination cap 50 bounds read cost. `myUnreadNotificationCount` is the existing badge-polling consumer's path; no change to `NOTIFICATION_COUNT_POLL_INTERVAL_MS` posture.
 - WS handshake per-IP token bucket closes bursts with `4429` (REQ-033); reconnected clients bypass GraphQL rate limiters entirely (no loop-amplification on the HTTP layer).
 
 ### 6.6 Error Disclosure, Logging & Hygiene
 
-- Client-visible messages are localized generic copy (errors namespace); `NOTIFICATION_NOT_FOUND` reveals nothing about other users' rows; masked 500s surface ONLY generic copy + `requestId` correlation (REQ-035; DEV3-002 boundary).
+- Client-visible messages are localized generic copy (errors namespace); `NOTIFICATION_NOT_FOUND` reveals nothing about other users' rows; masked 500s surface ONLY generic copy + `requestId` correlation (REQ-035; boundary).
 - Logs: expected rejects → `logger.logDomainError` `{ code, entity: "notifications", entityId? }`; degradation (publish failure, transport outage) → single warn-tier entry per occurrence (not per-row spam); unexpected → `logger.error`. **NEVER `console.*`** anywhere in the diff; log context carries ids/codes — no titles, no bodies, no tokens, no cookies (REQ-037).
 - WS close codes are the entire socket error vocabulary and are documented (`4401/4429/4009/1013/1001`) — no information-bearing payload ever rides a close reason string beyond the policy code.
 

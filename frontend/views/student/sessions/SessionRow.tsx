@@ -47,7 +47,7 @@ import { Sessions, useAppLocale, useAppTranslation } from "@/shared/locale";
  * Role seam (4.3): the optional `actions` prop adds lifecycle CTAs BESIDE the
  * Cancel button without forking the row — the teacher container passes
  * Start (`Scheduled`) / Complete (`Started`) descriptors, each carrying its
- * own in-flight `disabled` state; the DEV3-012 student container passes the
+ * own in-flight `disabled` state; the student container passes the
  * Confirm descriptor (`Completed` + stamp unset + hold marked), which may
  * additionally carry a `tooltip` (the financial consequence explainer) and
  * a `color` token; terminal statuses receive an empty list otherwise.
@@ -56,7 +56,7 @@ import { Sessions, useAppLocale, useAppTranslation } from "@/shared/locale";
  * INSIDE this row's action stack — the wrapper would have to duplicate the
  * meta/actions layout to sit next to it.
  *
- * DEV3-012 confirm-state display: the row renders the student-confirmation
+ * Confirm-state display: the row renders the student-confirmation
  * meta cell whenever the stamp is set (dual-confirmation visibility for
  * BOTH roles) and an "awaiting student confirmation" info pill on the
  * exactly-once pending shape (`Completed` ∧ stamp unset ∧ `feeHeld`) — the
@@ -91,7 +91,7 @@ interface SessionRowProps {
   /** Cancel-CTA intent — the container owns dialog open/close state. */
   readonly onCancelIntent: (sessionId: string) => void;
   /**
-   * Dispute-CTA intent (DEV3-005) — the container owns the dispute dialog
+   * Dispute-CTA intent — the container owns the dispute dialog
    * open/close state. When omitted the dispute affordance never renders
    * (the affordance matrix stays caller-driven).
    */

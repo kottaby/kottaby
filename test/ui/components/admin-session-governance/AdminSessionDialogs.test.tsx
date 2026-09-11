@@ -4,8 +4,8 @@
  * Happy DOM + Apollo `MockedProvider` tier (`test/ui/components/admin-session-governance`,
  * mirroring the admin disputes + container suites exactly): the suite BODY
  * lives in the sibling `AdminSessionDialogs.suite.tsx` — the COMPONENT-
- * CONTRACT tier of the four governance interaction surfaces (DEV3-021,
- * tasks 5.2.4 "ALL dialog open/confirm/submit paths"):
+ * CONTRACT tier of the four governance interaction surfaces
+ * (tasks 5.2.4 "ALL dialog open/confirm/submit paths"):
  *
  *   reschedule dialog (closed mount · open shell with prefilled pair ·
  *   valid confirm firing `AdminSessionReschedule` with ISO instants ·

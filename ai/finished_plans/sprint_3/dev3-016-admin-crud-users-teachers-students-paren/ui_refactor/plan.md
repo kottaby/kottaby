@@ -1,4 +1,4 @@
-# DEV3-016 Admin User Management — UI Refactor to Prototype Parity
+# Admin User Management — UI Refactor to Prototype Parity
 
 **Goal:** make the implemented Admin User Management surfaces visually match the prototype
 images under `../prototype/` to a 10/10 visual-parity score, in both light and dark mode,
@@ -258,7 +258,7 @@ containers (1036 + 823 lines) into focused files. Every file passes the per-file
 - App shell re-skin (sidebar/topbar) — product-wide decision.
 - Bulk-select checkbox column & Export button — no backend contract (deferred; do not fake).
 - Global palette hue change — brand palette is owned at theme level.
-- Audit-page browsing UI — DEV3-020 per plan's deferred ledger.
+- Audit-page browsing UI — deferred per the plan's deferred ledger.
 
 ## 7. Verification loop (mandatory, per-iteration)
 

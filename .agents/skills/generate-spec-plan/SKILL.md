@@ -3,7 +3,7 @@ name: generate-spec-plan
 description: >
   Generate exhaustive, line-accurate implementation plans for tickets in docs/planning/TICKETS.md
   using Repomix code bundling and the Spec-Driven Development methodology. Use when:
-  (1) creating a new implementation plan for a ticket (e.g. DEV1-002, DEV2-005),
+  (1) creating a new implementation plan for a ticket (e.g. the ticket ID from `docs/planning/TICKETS.md`),
   (2) converting a feature specification or ticket into an 8-phase spec-driven plan,
   (3) running automated plan generation via repomix and Kimi K3 / LLM models.
 license: MIT
@@ -40,23 +40,23 @@ Follow this process when asked to generate a plan for a ticket or feature:
     ```
     - Type any keywords (e.g. `registration`, `teacher`, `DEV2`) to filter in real-time.
     - Use `↑` / `↓` arrow keys to highlight the desired ticket and press `Enter` to select.
-  - **Direct Mode**: Pass the ticket ID directly via `--ticket` (e.g., `DEV1-002`, `DEV2-005`).
+  - **Direct Mode**: Pass the ticket ID directly via `--ticket` (e.g., the ticket ID from `docs/planning/TICKETS.md`).
   - Or supply a custom feature description via `--query`.
 
 - [ ] **Step 2: Dry Run & Token Budget Verification**
   - Execute the script with `--dry-run` to verify Repomix bundling and token counts:
     ```bash
-    python3 scripts/python/run_spec_plan.py --ticket DEV1-002 --dry-run
+    python3 scripts/python/run_spec_plan.py --ticket <ticket-id> --dry-run
     ```
 
 - [ ] **Step 3: Execute Plan Generation**
   - Run the orchestrator against the local router or direct NVIDIA API:
     ```bash
     # Via local router (default):
-    python3 scripts/python/run_spec_plan.py --ticket DEV1-002
+    python3 scripts/python/run_spec_plan.py --ticket <ticket-id>
 
     # Via direct NVIDIA API key:
-    python3 scripts/python/run_spec_plan.py --ticket DEV1-002 --direct-nvidia
+    python3 scripts/python/run_spec_plan.py --ticket <ticket-id> --direct-nvidia
 
     # For a custom prompt / feature query:
     python3 scripts/python/run_spec_plan.py --query "Implement teacher onboarding flow"
@@ -83,7 +83,7 @@ python3 scripts/run_spec_plan_kimi.py [OPTIONS]
 
 | Option | Default | Description |
 |---|---|---|
-| `--ticket` | `None` | Ticket ID from `docs/planning/TICKETS.md` (e.g. `DEV1-002`) |
+| `--ticket` | `None` | Ticket ID from `docs/planning/TICKETS.md` |
 | `--query` | `None` | Custom feature prompt if not using an existing ticket |
 | `--tickets-file` | `docs/planning/TICKETS.md` | Path to ticket catalog |
 | `--output-plan` | `ai/plans/<ticket>/plan-<time>.md` | Custom output filepath |

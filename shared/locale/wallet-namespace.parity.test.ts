@@ -1,5 +1,5 @@
 /**
- * `wallet`-namespace + wallet error-key locale verification (DEV3-013)
+ * `wallet`-namespace + wallet error-key locale verification
  * · ar+en parity gates over the NEW `wallet` UI namespace and the
  *   `walletInvalidAmount` key added to the `errors` namespace, plus
  *   synchronous resolution checks through `getTranslations(locale)`.

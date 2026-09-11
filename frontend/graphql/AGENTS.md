@@ -103,9 +103,9 @@ Current embedded types:
 - `OnlineMeetingInfo` (fields: `joinUrl`, `logoUrl`, `meetingId`, `platform`,
   `providerName`, `source`) — no `id`.
 - `HealthCheck` (fields: `service`, `status`, `timestamp`, `version`) — no `id`;
-  scalar-only probe object exposed by `Query._health` (dev3-003 Task 4.1).
+  scalar-only probe object exposed by `Query._health`.
 - `NotificationListPage` (fields: `hasMore`, `items`, `totalCount`) — no `id`;
-  notifications-inbox pagination wrapper (dev3-010 Task 3.1). The normalizable
+  notifications-inbox pagination wrapper. The normalizable
   entities are the `Notification` rows inside `items` (each carries `id`).
 - `AdminAuditLogPage` (fields: `items`, `page`, `pageSize`, `totalCount`) — no
   `id`; admin audit-trail pagination wrapper. The normalizable entities are

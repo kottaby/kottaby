@@ -16,7 +16,7 @@ import type { AppLocale } from "@/shared/locale/AppLocale";
 
 /**
  * The meta band: fee / deadline / created (+ the teacher & student
- * confirmation moments when the lifecycle set them) and the DEV3-012
+ * confirmation moments when the lifecycle set them) and the confirm-
  * pending pill. The confirm-pending derivation travels WITH the values it
  * decorates: a completed row whose student stamp is still unset AND whose
  * hold is still marked (the exactly-once financial shape). An
@@ -37,7 +37,7 @@ export function SessionRowMeta({
   /** Teacher-confirmation moment — rendered ONLY when the lifecycle set it. */
   const teacherConfirmedText =
     session.confirmedByTeacherAt === null ? null : formatApplicantDate(session.confirmedByTeacherAt, locale);
-  /** Student-confirmation moment (DEV3-012) — rendered ONLY when the stamp is set. */
+  /** Student-confirmation moment — rendered ONLY when the stamp is set. */
   const studentConfirmedText =
     session.confirmedByStudentAt === null ? null : formatApplicantDate(session.confirmedByStudentAt, locale);
   const isConfirmPending =
@@ -69,7 +69,7 @@ export function SessionRowMeta({
 }
 
 /**
- * DEV3-012 pending hint — a completed session whose hold is still marked
+ * Confirm-pending hint — a completed session whose hold is still marked
  * and whose student stamp is unset. On the teacher surface it explains WHY
  * the wallet credit has not fired; on the student surface it names what the
  * Confirm CTA settles. Info-toned pill through theme tokens (no raw hex).

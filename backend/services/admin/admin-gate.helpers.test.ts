@@ -6,7 +6,7 @@
  * (7 call sites), `AuditTrailService`, and `AdminBroadcastService` via the
  * same import; `assertActorAdminActive` (role gate + governance clause)
  * layers the deleted → blocked → suspended governance ordering on top of it.
- * The DEV3-016 service/chaos suites pin the gate's behavior THROUGH the
+ * The service/chaos suites pin the gate's behavior THROUGH the
  * calling services (anonymous + non-admin denials with zero writes/audit),
  * but no existing suite pins the gate's "actor row missing" branch directly —
  * the journey fixtures deliberately avoid it (see the file-scope cast comment

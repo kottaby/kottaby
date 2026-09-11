@@ -1,9 +1,9 @@
 /**
- * WalletService — the teacher's self-service wallet surface (DEV3-013,
- * R-301/R-302/R-303): the balance + ledger read and the payout
+ * WalletService — the teacher's self-service wallet surface
+ * (R-301/R-302/R-303): the balance + ledger read and the payout
  * (withdrawal-request) write.
  *
- * `getMyWallet` composes the DEV3-012 `ensureWalletOnce` primitive (an
+ * `getMyWallet` composes the `ensureWalletOnce` primitive (an
  * idempotent `ON CONFLICT DO NOTHING` ensure, so a brand-new certified
  * teacher gets an honest zeroed wallet instead of an error) with a
  * newest-first ledger page capped at `WALLET_LEDGER_PAGE_LIMIT` (50) rows —

@@ -27,7 +27,7 @@ interface OutgoingLinkRequestCancelDialogProps {
 
 /**
  * OutgoingLinkRequestCancelDialog — the translated withdrawal gate for the
- * parent's own pending request (DEV1-014 task 4.3). The body copy is the
+ * parent's own pending request. The body copy is the
  * static `cancelDialogBody` slot (no name interpolation — the masked-name
  * row is already on screen). The dialog is form-bearing: the submit button
  * is `type="submit"` inside a `<Box component="form">` so the React 19

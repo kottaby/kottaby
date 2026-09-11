@@ -11,7 +11,7 @@ import { Common, Sessions, useAppTranslation } from "@/shared/locale";
 
 /**
  * ResolveDisputeDialog — the ADMIN arbitration seam for one disputed session
- * (`/disputes`, DEV3-005 R-111 / backend R-104). Structural sibling of the
+ * (`/disputes`, R-111 / backend R-104). Structural sibling of the
  * participant `CancelSessionConfirmDialog` family: same portal/dialog/form
  * discipline, but the decision space is EXACTLY ONE terminal outcome
  * (the localized radios live in {@link ResolveDisputeOptionGroup}).

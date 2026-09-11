@@ -11,7 +11,7 @@ import {
 
 /**
  * AdminSessionGovernanceDialogs — the governance-dialog slot of the admin
- * session-governance container (DEV3-021): exactly ONE of the three
+ * session-governance container: exactly ONE of the three
  * governance dialogs (reschedule / cancel / reassign) mounts while the
  * container's dialog state targets it; the slot renders nothing while the
  * state is `null`. Pure presentational composition over a fragment (no

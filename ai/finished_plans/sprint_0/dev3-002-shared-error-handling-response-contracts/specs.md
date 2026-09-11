@@ -1,8 +1,8 @@
-# Requirements & Specification: DEV3-002 — Shared Error Handling & Response Contracts
+# Requirements & Specification: Shared Error Handling & Response Contracts
 
 > **Plan of record:** `ai/plans/dev3-002-shared-error-handling-response-contracts/`
 > **Canonical refs:** `docs/graphql/domain-error-extensions-code.md`, `docs/auth/user-registration.md`, `docs/backend/login-cold-start-resilience.md`, `docs/IDEMPOTENCY.md`, `docs/specs/open-decisions-and-gaps.md`, `docs/specs/state-machine-invariants.md`
-> **Ticket metadata:** Owner Dev 3 (Shared) · Sprint 0 · 3 SP · Blocked by: none (foundation ticket; DEV3-003 API gateway & all stream work builds on this contract)
+> **Ticket metadata:** Owner Dev 3 (Shared) · Sprint 0 · 3 SP · Blocked by: none (foundation ticket; the API Gateway & Routing Skeleton ticket API gateway & all stream work builds on this contract)
 
 ---
 
@@ -10,7 +10,7 @@
 
 ### Feature
 
-DEV3-002 establishes the **single, canonical error-handling and response contract** for the entire Kottaby / Draft Academy platform. It formalizes how every layer — Pothos resolvers, backend services, Drizzle repositories, Next.js API routes (`app/api/**`), and the frontend Apollo error pipeline — produces, translates, masks, localizes, and consumes errors and success responses. It defines:
+This ticket establishes the **single, canonical error-handling and response contract** for the entire Kottaby / Draft Academy platform. It formalizes how every layer — Pothos resolvers, backend services, Drizzle repositories, Next.js API routes (`app/api/**`), and the frontend Apollo error pipeline — produces, translates, masks, localizes, and consumes errors and success responses. It defines:
 
 1. The **canonical error code taxonomy** (DomainError subclass → `extensions.code` → HTTP status semantic) that all three dev streams code against.
 2. The **GraphQL error masking boundary** (Apollo formatting hook) guaranteeing that internal failures never leak stack traces, SQL, secrets, or PII to clients.
@@ -33,7 +33,7 @@ DEV3-002 establishes the **single, canonical error-handling and response contrac
 
 - **Platform integrity:** one contract prevents the per-stream drift that would otherwise produce three different error shapes in Sprint 1–4 (Student stream, Teacher stream, Matching/Admin stream).
 - **Security posture:** a single masking boundary eliminates an entire class of information-disclosure vulnerabilities (stack/SQL/PII leakage) before the M4 security gate (`docs/planning/PRODUCTION_READINESS.md` §4.3.3).
-- **Faster downstream delivery:** DEV1-002's 23505→ConflictError pattern, the login cold-start `SERVICE_UNAVAILABLE` precedent, and the DEV1-003 `VALIDATION` enum guard all become reusable contract clauses instead of per-ticket reinvention.
+- **Faster downstream delivery:** the User Registration ticket's 23505→ConflictError pattern, the login cold-start `SERVICE_UNAVAILABLE` precedent, and the Recitation Selection on Registration ticket `VALIDATION` enum guard all become reusable contract clauses instead of per-ticket reinvention.
 - **Observability & dispute resolution:** correlation IDs + immutable typed codes underpin the audit-trail and dispute workflows (Workflow 03/05) and the M4 financial-safety verification.
 - **Trust & conversion:** localized, field-accurate errors directly affect student signup and payment completion rates.
 
@@ -49,13 +49,13 @@ DEV3-002 establishes the **single, canonical error-handling and response contrac
 | **Mobile / external API clients** | Rely on stable `extensions.code` + `409 DUPLICATE_REQUEST` semantics |
 | **Observability/logging pipeline** | Receives full-fidelity server-side error logs with `requestId` correlation (`logger`/`logDomainError`, never `console.*`) |
 
-### Non-goals (OUT of scope for DEV3-002)
+### Non-goals (OUT of scope for this ticket)
 
 - **Re-implementing the DomainError class hierarchy** — it exists; this ticket standardizes its surrounding contract only.
-- **Domain-specific error taxonomies** for individual features (e.g., session transition codes, quota ledger codes) — those land in their owning tickets (DEV3-004, DEV1-007, etc.) but MUST conform to this contract.
-- **The API gateway/routing skeleton itself** — that is DEV3-003 (blocked by this ticket's response-envelope contract only).
-- **Real rate-limiter backends** (Redis sliding window) — DEV2-002/DEV2-001 scope. This ticket only defines the `RATE_LIMITED` / `TOO_MANY_REQUESTS` code and HTTP 429 semantic. The existing fail-open stub posture is preserved.
-- **WebSocket/real-time push failure channels** — owns to DEV3-010 notification engine; only the error-code convention is fixed here.
+- **Domain-specific error taxonomies** for individual features (e.g., session transition codes, quota ledger codes) — those land in their owning tickets (etc.) but MUST conform to this contract.
+- **The API gateway/routing skeleton itself** — that is the API Gateway & Routing Skeleton ticket (blocked by this ticket's response-envelope contract only).
+- **Real rate-limiter backends** (Redis sliding window) — the Role-Based Authorization Middleware ticket scope. This ticket only defines the `RATE_LIMITED` / `TOO_MANY_REQUESTS` code and HTTP 429 semantic. The existing fail-open stub posture is preserved.
+- **WebSocket/real-time push failure channels** — owns to notification engine; only the error-code convention is fixed here.
 - **Monitoring dashboards, paging, external APM configuration** — this ticket guarantees log emission contract only (see `docs/observability/new-relic-integration.md` for APM).
 - **Idempotency storage mechanics** — `docs/IDEMPOTENCY.md` governs storage; this contract only mandates the response shape and code when a duplicate is detected.
 - **Changing HTTP transport semantics of the GraphQL endpoint** — GraphQL domain errors continue to ride HTTP 200 with `errors[]` per Apollo convention; the HTTP status column of the taxonomy governs API routes and transport-level failures (see REQ-016).
@@ -131,7 +131,7 @@ WHEN an `app/api/**` route succeeds THEN it SHALL return 200 for reads/acknowled
 WHEN an unauthenticated caller (no/invalid/expired credentials, no session cookie set) invokes an auth-gated GraphQL field THEN the system SHALL return `UNAUTHORIZED`. WHEN an authenticated caller lacking the required permission/role invokes a gated field THEN the system SHALL return `FORBIDDEN`. The two codes SHALL NOT be interchanged.
 
 #### REQ-021 (Governance State Nondisclosure)
-WHEN authentication is rejected due to account governance state (`is_deleted`, `is_blocked`, `suspended` per Decision A.7) THEN the system SHALL return the generic localized invalid-credentials / unauthorized message WITHOUT disclosing which governance flag caused the rejection, matching the DEV1-002 login contract (`docs/auth/user-registration.md` §7.2).
+WHEN authentication is rejected due to account governance state (`is_deleted`, `is_blocked`, `suspended` per Decision A.7) THEN the system SHALL return the generic localized invalid-credentials / unauthorized message WITHOUT disclosing which governance flag caused the rejection, matching the User Registration ticket login contract (`docs/auth/user-registration.md` §7.2).
 
 #### REQ-022 (Duplicate-Request / Idempotency Response)
 WHEN a duplicate idempotency key is detected per `docs/IDEMPOTENCY.md` THEN the system SHALL respond with code `DUPLICATE_REQUEST` (HTTP 409 on API routes), a localized message, and `details` MAY carry the original operation's entity reference — never the original payload echo.
@@ -181,7 +181,7 @@ WHEN any error is logged server-side THEN credential material (tokens, passwords
 WHEN the masking boundary, envelope helper, or code-mapping utilities execute THEN they SHALL be deterministic and side-effect free — no database reads/writes, no cache mutations, no network calls. (Audit logging on mutation success/failure business paths remains the job of the owning service, per Workflow 05.)
 
 #### REQ-041 (Transaction Rollback Preservation)
-WHEN a typed error is thrown inside a Drizzle transaction THEN the framework's rollback semantics SHALL be fully preserved (the DEV1-002 precedent: forced child-insert failure → complete rollback), and error-handling code SHALL NOT catch-and-suppress transaction errors in a way that converts a rollback into a partial commit.
+WHEN a typed error is thrown inside a Drizzle transaction THEN the framework's rollback semantics SHALL be fully preserved (the User Registration ticket precedent: forced child-insert failure → complete rollback), and error-handling code SHALL NOT catch-and-suppress transaction errors in a way that converts a rollback into a partial commit.
 
 #### REQ-042 (Cycle-Safe Cause Traversal)
 WHEN traversing `Error.cause` chains (23505 detection, Drizzle wrapper unwrapping) THEN the traversal SHALL be cycle-guarded (bounded visited set, per the existing `isUniqueViolation` implementation) and SHALL terminate on non-Error causes.
@@ -280,18 +280,18 @@ WHEN this plan is considered complete THEN `grep -c "❌\|⚠️" ai/plans/dev3-
 
 ### Decision References (`docs/specs/open-decisions-and-gaps.md`)
 
-| Decision | Relevance to DEV3-002 | Contract Clause |
+| Decision | Relevance to this ticket | Contract Clause |
 |---|---|---|
 | **A.4 / A.5** (notifications, audit_logs) | Failure notification text and audit-log error `details` MUST respect masking/secret rules. | REQ-011, REQ-030, REQ-035 |
 | **A.7** (governance fields on `users`) | Governance-driven auth rejection must not disclose which flag fired (oracle resistance). | REQ-021 |
-| **B.2 / B.4 / B.18** (24h dual confirmation, escrow, disputes) | Session/escrow failures (expired deadline, dispute transitions, release-on-cancel) are expected business rejections → typed codes, never masked 500s. Defined here as the *rule*; owning tickets (DEV3-012/013/022) implement specific codes. | REQ-010 row 5/7, REQ-025 |
-| **B.9** (offline payment fields) | Missing/invalid `payment_reference` on offline onboarding → `VALIDATION` + field errors, by DEV3-019 within this contract. | REQ-015 |
-| **B.14** (7-day link-request expiry) | Expired parent handshake → specific typed rejection (not 404, not 500); DEV1-014/015 owns the code, this contract fixes its shape. | REQ-014, REQ-015 |
+| **B.2 / B.4 / B.18** (24h dual confirmation, escrow, disputes) | Session/escrow failures (expired deadline, dispute transitions, release-on-cancel) are expected business rejections → typed codes, never masked 500s. Defined here as the *rule*; owning tickets implement specific codes. | REQ-010 row 5/7, REQ-025 |
+| **B.9** (offline payment fields) | Missing/invalid `payment_reference` on offline onboarding → `VALIDATION` + field errors, by within this contract. | REQ-015 |
+| **B.14** (7-day link-request expiry) | Expired parent handshake → specific typed rejection (not 404, not 500); owns the code, this contract fixes its shape. | REQ-014, REQ-015 |
 | **B.17** (prorated plan changes) | Proration conflicts surface as `CONFLICT`/typed validation under this taxonomy. | REQ-010 |
 | **C.1–C.5** (parent role, generic `user_id` subscriptions, evaluation FK split, `reports` FK, recitation 1:1) | Cross-cutting identity/FK guarantees mean `NotFoundError` entity naming spans these entities; naming convention fixed here (REQ-052) prevents double-suffixed codes (`SUGGESTION_NOT_FOUND_NOT_FOUND`). | REQ-052 |
 | **`docs/IDEMPOTENCY.md`** | The `DUPLICATE_REQUEST`/409/24h/idempotency-release clauses are contractual behavior text for this feature's taxonomy. | REQ-022, REQ-043 |
-| **DEV1-002 precedent** (`docs/auth/user-registration.md`) | 23505 cause-chain traversal → `ConflictError`; BOPLA whitelist; BFLA runtime gate; model for REQ-018/032/033. | REQ-018, REQ-032, REQ-033, REQ-041 |
-| **DEV1-003 precedent** (`docs/auth/qiraah-selection-and-c5.md`) | Type-guard enum validation → `VALIDATION`; schema-level BFLA gating. Model for REQ-002/032. | REQ-002, REQ-032 |
+| **the User Registration ticket precedent** (`docs/auth/user-registration.md`) | 23505 cause-chain traversal → `ConflictError`; BOPLA whitelist; BFLA runtime gate; model for REQ-018/032/033. | REQ-018, REQ-032, REQ-033, REQ-041 |
+| **the Recitation Selection on Registration ticket precedent** (`docs/auth/qiraah-selection-and-c5.md`) | Type-guard enum validation → `VALIDATION`; schema-level BFLA gating. Model for REQ-002/032. | REQ-002, REQ-032 |
 | **`docs/backend/login-cold-start-resilience.md`** | Distinguishes `SERVICE_UNAVAILABLE` from `INTERNAL_SERVER_ERROR` and from client accountability codes. | REQ-010 row 9, REQ-023 |
 
 ### State Machine & Lifecycle Invariants (`docs/specs/state-machine-invariants.md`)
@@ -306,7 +306,7 @@ This ticket enforces NO state transitions itself; instead, it fixes **how invari
 | **INV-B1..B6 (Balances)** | Zero/insufficient balance request denial → `VALIDATION`-class typed code, 422 semantic (never 500), matching Sprint-1 acceptance text ("Insufficient balance"). |
 | **INV-W1..W8 (Wallet)** | Check-constraint trips (negative balance/amount) and immutability tampering SHALL surface as `CONFLICT`; withdrawal more-than-balance → 422 semantic. Financial-record immutability attempts SHALL also be audit-logged per Workflow 05 by owning services. |
 | **INV-P1..P4 (Parent link)** | Unconfirmed-parent access → REQ-031 oracle-resistant selection (`{ENTITY}_NOT_FOUND` preferred); write attempts by parent → `FORBIDDEN` (MVP read-only). |
-| **INV-U1..U5 (Account states)** | Governance-state auth failures obey REQ-021 nondisclosure; soft-deleted-access attempts → `FORBIDDEN` per DEV2-002 acceptance criteria without flag disclosure in public flows. |
+| **INV-U1..U5 (Account states)** | Governance-state auth failures obey REQ-021 nondisclosure; soft-deleted-access attempts → `FORBIDDEN` per the Role-Based Authorization Middleware ticket acceptance criteria without flag disclosure in public flows. |
 | **INV-PAY1..PAY5 (Payments)** | Immutable-record corrections attempted as in-place mutation → `CONFLICT`; payment-gateway failures → typed provider-failure code (owning tickets) inside the taxonomy. |
 | **INV-HW/INV-PR/INV-E** | Grade-range (0–100), rating-range (0–5), and curriculum-boundary violations → field-level `VALIDATION` with `extensions.fields[]`. |
 
@@ -315,7 +315,7 @@ This ticket enforces NO state transitions itself; instead, it fixes **how invari
 - **Workflow 01 (Teacher Verification):** evaluation/cooldown rejections surface as typed codes + localized reasons; admin override failures audit-logged by owner services.
 - **Workflow 02 (Matching):** availability/session-request rejections are expected business outcomes — typed codes, never opaque 500s.
 - **Workflow 03 (Session Lifecycle & Escrow):** dual-confirmation timeouts and escrow release failures must distinguish terminal (`VALIDATION`/`CONFLICT`) from retryable (`SERVICE_UNAVAILABLE`) so clients don't abandon recoverable flows.
-- **Workflow 04 (Parent Handshake):** link-request expiry/rejection codes are fixed in shape here, content owned by DEV1-014/015.
+- **Workflow 04 (Parent Handshake):** link-request expiry/rejection codes are fixed in shape here, content.
 - **Workflow 05 (Admin Governance):** every admin-mutation failure FLOW logs through `logger.logDomainError`; the error payload consumed by the Admin UI follows REQ-061 mapping (`FORBIDDEN` → `PermissionDeniedFallback`).
 
 ---
@@ -325,42 +325,42 @@ This ticket enforces NO state transitions itself; instead, it fixes **how invari
 | Requirement ID | Decision Ref / Invariant | Backend Service / Module | GraphQL Mutation/Query Surface | Frontend View / Layer | Test Coverage |
 |---|---|---|---|---|---|
 | REQ-001 | Execution protocol (spec skill) | — | — | — | Phase-0 baseline outcome file; counts snapshot |
-| REQ-002 | DEV1-003 i18n/enum precedents | All touched modules | All resolvers in scope | All error UI (`errorLink`, form fields) | tsgo compile gate; i18n namespace lint; REQ-075 parity |
+| REQ-002 | the Recitation Selection on Registration ticket i18n/enum precedents | All touched modules | All resolvers in scope | All error UI (`errorLink`, form fields) | tsgo compile gate; i18n namespace lint; REQ-075 parity |
 | REQ-003 | Canonical types discipline | `backend/types/errors/api-error.types.ts` | Pothos objects consume types | `graphql.ts` codegen consumption | tsgo; plan-review gate |
 | REQ-010 | B.2/B.4/B.17/B.18; taxonomy foundation | `backend/lib/errors.ts` (taxonomy map) | Apollo `errors[].extensions.code` | `errorLink` mapping table | REQ-071 matrix; unit: taxonomy lookup (REQ-070) |
 | REQ-011 | PROD_READINESS §4.3.3; A.5 | GraphQL bootstrap masking hook | All operations | Generic internal-error toast | REQ-070/071 masked path; REQ-074 leakage probe |
 | REQ-012 | Audit/log hygiene | `@/backend/lib/logger` integration | — | — | Log-capture assertion via run-test harness (REQ-077) |
 | REQ-013 | Observability | Context factory (`requestId` capture/generation) | `extensions` (dev) / logs | Correlation display in error toast | REQ-072 body/log correlation assertions |
-| REQ-014 | DEV1-002/003 precedent | All DomainError throw sites | All operations | Field-level + toast rendering | REQ-071 per-code assertions |
+| REQ-014 | the User Registration ticket precedent | All DomainError throw sites | All operations | Field-level + toast rendering | REQ-071 per-code assertions |
 | REQ-015 | B.9/B.17; INV-HW2/INV-E1 | `ValidationError` fields payload builder | `extensions.fields[]` on mutations | RHF field error mapping | REQ-071 shape + localization test; REQ-074 |
 | REQ-016 | Apollo convention docs | Apollo route config | Transport behavior | REQ-061 (branch on code) | Transport test: malformed JSON → 400 (REQ-072) |
 | REQ-017 | Workflow 05; ticket AC | Shared `api-error` helper (envelope producer) | — | — | REQ-072 envelope matrix |
-| REQ-018 | DEV1-002 23505 precedent | `backend/lib/errors.ts` (+envelope helper reuse) | — | — | REQ-070 cause-chain unit tests (PG 23505 + SQLite parity) |
+| REQ-018 | the User Registration ticket 23505 precedent | `backend/lib/errors.ts` (+envelope helper reuse) | — | — | REQ-070 cause-chain unit tests (PG 23505 + SQLite parity) |
 | REQ-019 | Ticket AC (200/201) | Route convention in `app/api/**` | — | — | REQ-072 success-path tests |
-| REQ-020 | DEV2-002 ACs; Pothos authScopes rule | `gqlSchemaBuilder` scopeAuth config | Gated fields/mutations | Refresh→login flow; PermissionDeniedFallback | REQ-071 UNAUTHORIZED vs FORBIDDEN pair |
-| REQ-021 | A.7; INV-U2/U3/U4; DEV1-002 §7.2 | Auth/login service failure path | `login` failure path | Generic login error copy | Integration: governance-state rejection sameness (no oracle) |
+| REQ-020 | the Role-Based Authorization Middleware ticket ACs; Pothos authScopes rule | `gqlSchemaBuilder` scopeAuth config | Gated fields/mutations | Refresh→login flow; PermissionDeniedFallback | REQ-071 UNAUTHORIZED vs FORBIDDEN pair |
+| REQ-021 | A.7; INV-U2/U3/U4; the User Registration ticket §7.2 | Auth/login service failure path | `login` failure path | Generic login error copy | Integration: governance-state rejection sameness (no oracle) |
 | REQ-022 | `docs/IDEMPOTENCY.md` B-rules | Idempotency guard integration point | Idempotent mutations | "Already submitted" notice | REQ-076 concurrent replay burst |
 | REQ-023 | login-cold-start resilience | `retryTransient` exhaustion sites | Cold-start failure paths | Retryable inline notice | Simulated exhaustion → 503 code assertion |
-| REQ-024 | DEV2-002 future; BFLA guards | `backend/lib/ratelimit.ts` contract surface | Login/register rate limits | Rate-limit notice copy | Limiter-triggered 429 code test (flag-gated `TEST_ENFORCE_RATE_LIMIT`) |
+| REQ-024 | the Role-Based Authorization Middleware ticket future; BFLA guards | `backend/lib/ratelimit.ts` contract surface | Login/register rate limits | Rate-limit notice copy | Limiter-triggered 429 code test (flag-gated `TEST_ENFORCE_RATE_LIMIT`) |
 | REQ-025 | Workflow 05 logging rules | All services in scope | — | — | Log-level assertion (debug under TEST_SERVER) |
 | REQ-026 | domain-error doc anti-patterns | All new/touched catch sites | — | — | Review gate + semantic checklist; regression grep in plan files |
 | REQ-027 | Quota/deleteClassInstance precedents | Result-type contracts on warning-capable mutations | `warnings` payload fields | Notice surfacing in UI | GraphQL test asserting warnings propagation |
 | REQ-030 | PROD_READINESS §4.3 | Masking hook + envelope helper | All operations | — | REQ-074 forced-failure leakage scan (PROD config) |
 | REQ-031 | INV-P1; BOLA rules | Ownership-checking services (convention) | Resource queries | — | REQ-074 cross-tenant probe tests |
-| REQ-032 | DEV1-003 §5.1 BFLA | `RegisterPublicRole` gating pattern reuse | Public mutations | — | Schema-gate-before-resolver assertion (REQ-071 BAD_REQUEST/VALIDATION pre-execution) |
-| REQ-033 | DEV1-002 BOPLA | Fields/details explicit mapping | `extensions.fields[]` | Form field mapping | Contract test: no input echo in details |
+| REQ-032 | the Recitation Selection on Registration ticket §5.1 BFLA | `RegisterPublicRole` gating pattern reuse | Public mutations | — | Schema-gate-before-resolver assertion (REQ-071 BAD_REQUEST/VALIDATION pre-execution) |
+| REQ-033 | the User Registration ticket BOPLA | Fields/details explicit mapping | `extensions.fields[]` | Form field mapping | Contract test: no input echo in details |
 | REQ-034 | Public-endpoint abuse | Login/register reject paths | Public mutations | Generic copy | Attempts-counter nondisclosure test |
 | REQ-035 | Meeting/WhatsApp credential rules | Logger redaction discipline | — | — | Code review gate + redaction unit test on log context builder |
 | REQ-040 | Concurrency purity rule | Envelope/mask/taxonomy modules | — | — | REQ-076 purity test (no DB writes emitted) |
-| REQ-041 | DEV1-002 rollback precedent | Transaction-wrapped services in scope | Mutations | — | REQ-073 forced-failure rollback test |
-| REQ-042 | DEV1-002 cause-chain gotcha | `isUniqueViolation` traversal | — | — | Cyclic-cause fuzz unit test |
+| REQ-041 | the User Registration ticket rollback precedent | Transaction-wrapped services in scope | Mutations | — | REQ-073 forced-failure rollback test |
+| REQ-042 | the User Registration ticket cause-chain gotcha | `isUniqueViolation` traversal | — | — | Cyclic-cause fuzz unit test |
 | REQ-043 | `docs/IDEMPOTENCY.md` | Contract wording/docs | — | — | Doc assertion in plan review; replay-after-5xx test where guard exists |
 | REQ-050 | shared/AGENTS.md i18n rules | `getServerTranslations`/`ctx.t` usage sites | All resolvers | All error UI | REQ-075; forbidden-import lint scan |
 | REQ-051 | Namespace registry rules | `shared/locale/{types,ar,en}/errors/` additions | — | — | tsgo MessageSchema compile gate + parity test |
 | REQ-052 | C.1–C.5 entity naming; domain-error doc | All throw sites in touched modules | — | — | Unit: NotFoundError code derivation (no double suffix) |
 | REQ-053 | Canonical types | `backend/types/errors/*.types.ts` | Pothos input/output typing (warnings) | Codegen types | tsgo + codegen sync (REQ-064) |
 | REQ-054 | i18n compile-time guarantee | Locale registry wiring | — | — | Missing-key compile failure demonstration in test fixture |
-| REQ-055 | DEV1-002 §8 keys | Reuse audit of new keys | — | — | Duplication check (`check:duplicates`) + review gate |
+| REQ-055 | the User Registration ticket §8 keys | Reuse audit of new keys | — | — | Duplication check (`check:duplicates`) + review gate |
 | REQ-060 | GraphQL boundary | Apollo server/route bootstrap file | Global | — | Boot test: single-registration assertion |
 | REQ-061 | Frontend error UX | — | All error consumption | `errorLink`, `PermissionDeniedFallback`, RHF mapping | Component tests per code branch (REQ-075 string rules) |
 | REQ-062 | frontend/AGENTS.md MUI v9 | — | — | Error/skeleton components | Component tests + static lint (no direct style props) |
@@ -374,4 +374,4 @@ This ticket enforces NO state transitions itself; instead, it fixes **how invari
 
 ---
 
-**End of Specification — DEV3-002.** Ready for `ai/plans/dev3-002-shared-error-handling-response-contracts/plan.md` (Phase 2 design) gated by `@plan-review` (Phase 1.5) before any implementation begins.
+**End of Specification — this ticket.** Ready for `ai/plans/dev3-002-shared-error-handling-response-contracts/plan.md` (Phase 2 design) gated by `@plan-review` (Phase 1.5) before any implementation begins.

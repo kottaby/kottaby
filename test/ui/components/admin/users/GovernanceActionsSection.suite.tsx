@@ -10,7 +10,7 @@
  *
  * Happy DOM + Apollo `MockedProvider` tier (`test/ui/components/admin/users`):
  * ONE render case per branch of the governance-actions visual state matrix
- * (DEV3-017 REQ-063/064/065), driven across BOTH locales:
+ * (REQ-063/064/065), driven across BOTH locales:
  *
  *   4-state button visibility (active · suspended · blocked · deleted) ·
  *   suspend dialog periodDays client-side 1..3650 gate (0/3651/abc rejected,

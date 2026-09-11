@@ -1,14 +1,14 @@
 /**
  * Shared GraphQL documents for the session lifecycle + dispute + report
- * domain (DEV3-004 + DEV3-005 + DEV3-012 + DEV3-006) — RE-EXPORT HUB.
+ * domain — RE-EXPORT HUB.
  *
- * Fourteen operations over the DEV3-004 + DEV3-006 SDL surfaces: three reads
+ * Fourteen operations over the session lifecycle + report/homework SDL surfaces: three reads
  * (`sessionById`, `myStudentSessions`, `myTeacherSessions`), the
  * lifecycle quartet of mutations (`createSession`, `startSession`,
- * `completeSession`, `cancelSession`), the DEV3-005 dispute trio
+ * `completeSession`, `cancelSession`), the dispute trio
  * (`openSessionDispute`, `resolveSessionDispute` mutations + the
- * `adminDisputedSessions` admin read), the DEV3-012 dual-confirmation
- * mutation (`confirmSessionCompletion`) and the DEV3-006 report/homework
+ * `adminDisputedSessions` admin read), the dual-confirmation
+ * mutation (`confirmSessionCompletion`) and the report/homework
  * trio (`submitSessionReport` mutation + the `sessionReport`,
  * `sessionHomework` reads).
  *
@@ -23,7 +23,7 @@
  *
  * Split map (each sibling keeps the shared field-shape contract: every
  * `Session` payload selects `id` first for cache normalization and carries
- * the DEV3-005 dispute/cancel-audit fields — see the sibling headers):
+ * the dispute/cancel-audit fields — see the sibling headers):
  *
  *  - `session-reads.documents.ts`      — `sessionById`,
  *    `myStudentSessions`, `myTeacherSessions`;
@@ -32,7 +32,7 @@
  *  - `session-disputes.documents.ts`   — `openSessionDispute`,
  *    `resolveSessionDispute`, `adminDisputedSessions`;
  *  - `session-report.documents.ts`     — `submitSessionReport`,
- *    `sessionReport`, `sessionHomework` (DEV3-006).
+ *    `sessionReport`, `sessionHomework`).
  */
 
 export * from "@/frontend/graphql/sharedDocuments/scheduling/session-disputes.documents";

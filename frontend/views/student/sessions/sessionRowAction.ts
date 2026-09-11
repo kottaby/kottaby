@@ -1,6 +1,6 @@
 /**
  * One extra lifecycle CTA rendered beside the Cancel button (teacher
- * Start/Complete today, the DEV3-012 student Confirm tomorrow; generically
+ * Start/Complete today, the student Confirm tomorrow; generically
  * shaped so the row stays role-agnostic). `disabled` is the CALLER'S
  * per-mutation in-flight state — the row never owns mutation bookkeeping.
  *
@@ -15,7 +15,7 @@ export interface SessionRowAction {
   /** Disabled while THIS action's own mutation is in flight. */
   readonly disabled?: boolean;
   /**
-   * Optional consequence explainer (DEV3-012 confirm) — rendered as a
+   * Optional consequence explainer (confirm) — rendered as a
    * tooltip; the row stays a pure affordance either way.
    */
   readonly tooltip?: string;

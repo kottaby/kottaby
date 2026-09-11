@@ -8,7 +8,7 @@
  * document already registered).
  *
  * The lifecycle status-badge matrix of the admin session-governance
- * directory (DEV3-021): `AdminSessionRowStatusCell` is the shared status
+ * directory: `AdminSessionRowStatusCell` is the shared status
  * chip driven EXCLUSIVELY by the shared presentation tables
  * (`STATUS_ICON` / `STATUS_TONE` / `STATUS_LABEL_KEY` of the student
  * sessions row family). The suite pins:

@@ -1,5 +1,5 @@
 /**
- * Cross-actor journey — parent→child link request workflow (DEV1-014).
+ * Cross-actor journey — parent→child link request workflow.
  *
  * Executes the three §2.9 journeys against REAL services on the REAL test
  * database (sequential, actor-attributed steps; later steps observe the
@@ -374,7 +374,7 @@ async function expectNotFoundShape(fn: () => Promise<unknown>): Promise<string> 
   return errorFingerprint(error);
 }
 
-describe("Journey — parent→child link request workflow (DEV1-014, journeys A→C)", () => {
+describe("Journey — parent→child link request workflow (journeys A→C)", () => {
   beforeAll(async () => {
     // RED-posture FIRST statement: load the not-yet-existing service module
     // through a non-analyzable specifier. When the surface is absent this

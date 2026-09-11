@@ -11,7 +11,7 @@ import type { SessionsLabels } from "@/shared/locale/types/sessions";
 
 /**
  * AdminSessionFilterFields — the value fields of the governance directory
- * filter bar (`/admin/session-governance`, DEV3-021): the session-type and
+ * filter bar (`/admin/session-governance`): the session-type and
  * session-status selects (token space: an explicit "all" token clears the
  * filter — no enum comparisons) and the half-open creation window (`date`
  * inputs committed as inclusive from-midnight / EXCLUSIVE to-midnight UTC

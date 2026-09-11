@@ -1,4 +1,4 @@
-# Technical Architecture & Implementation Design: DEV3-002 — Shared Error Handling & Response Contracts
+# Technical Architecture & Implementation Design: Shared Error Handling & Response Contracts
 
 > **Plan of record:** `ai/plans/dev3-002-shared-error-handling-response-contracts/`
 > **Specs:** `specs.md` REQ-001..REQ-083
@@ -10,7 +10,7 @@
 
 ### 1.1 Scope Statement
 
-DEV3-002 is a **cross-cutting contract ticket with zero database-table changes**. It standardizes how every layer produces, translates, masks, localizes, serializes, and consumes errors. The `DomainError` hierarchy (`backend/lib/errors.ts`) and the 23505 cause-chain translator (`isUniqueViolation`) **already exist** from DEV1-002 — this design standardizes the contract surface **around** them without re-inventing them.
+This ticket is a **cross-cutting contract ticket with zero database-table changes**. It standardizes how every layer produces, translates, masks, localizes, serializes, and consumes errors. The `DomainError` hierarchy (`backend/lib/errors.ts`) and the 23505 cause-chain translator (`isUniqueViolation`) **already exist** from the User Registration ticket — this design standardizes the contract surface **around** them without re-inventing them.
 
 ### 1.2 Error Production & Masking Pipeline (GraphQL Path)
 
@@ -81,14 +81,14 @@ apiErrorResponse (lib/api/api-response.ts)
 
 | # | Decision | Options Considered | Pros / Cons | Rationale (Maintainability, Scalability, Reliability) |
 |---|---|---|---|---|
-| D1 | **Extend** the existing `DomainError` hierarchy; add a *taxonomy module* beside it rather than modifying throw sites | (a) Rebuild hierarchy (b) Extend + taxonomy map (c) Pothos plugin-errors type registration | (a) breaks 5+ downstream throw sites; (b) additive, zero-drift; (c) forces resolver-local error classes, violates "resolvers throw, boundary formats" | (b). DEV1-002/Dev2 error docs (`domain-error-extensions-code.md`) already establish hierarchy semantics; taxonomy is data, not a class change. Lowest blast radius across three dev streams. |
+| D1 | **Extend** the existing `DomainError` hierarchy; add a *taxonomy module* beside it rather than modifying throw sites | (a) Rebuild hierarchy (b) Extend + taxonomy map (c) Pothos plugin-errors type registration | (a) breaks 5+ downstream throw sites; (b) additive, zero-drift; (c) forces resolver-local error classes, violates "resolvers throw, boundary formats" | (b). the User Registration ticket/Dev2 error docs (`domain-error-extensions-code.md`) already establish hierarchy semantics; taxonomy is data, not a class change. Lowest blast radius across three dev streams. |
 | D2 | **Mask at the response boundary with request context** (post-execution response post-processor invoked from the GraphQL HTTP handler path; same pure function also exportable for Apollo `formatError`/`willSendResponse` plugin wiring) | (a) Apollo `formatError` alone (b) Per-resolver try/catch (c) Response-boundary post-processor with `{locale, requestId}` | (a) lacks `ctx.locale` + `ctx.requestId` in Apollo's `formatError(formatted, error)` signature — masked generic message could not be localized; (b) violates REQ-040 purity and guarantees misses; (c) has full request context, single registration point (REQ-060) | (c). REQ-011 requires the masked message to be localized and correlated. Only the boundary sees both the thrown error and `{locale, requestId}`. One registration = no per-stream drift. |
 | D3 | Model REQ-010 codes as a **TS string-union `ErrorCode` + const map** in `backend/types/errors/`; NO DB enum, NO GraphQL enum | (a) `pgEnum` + GraphQL enum (b) TS union + map (c) GraphQL enum only | (a) error codes are transport metadata (`extensions.code` is `String` in GraphQL `extensions`), not persisted rows — a DB enum is wrong-layer coupling; (c) codegen enum adds schema churn with zero consumer benefit since clients branch on string codes | (b). `extensions.code` is conventionally `string`; a TS union gives compile-time safety without schema/DB churn, and mobile clients read raw strings per `docs/IDEMPOTENCY.md`. |
 | D4 | **`requestId` resolved once in the context factory / route entry** (`resolveRequestId`): honor `X-Request-Id`, else `crypto.randomUUID()`; stored on `ctx.requestId` | (a) Per-resolver middleware (b) Context-factory resolution (c) Async-local storage | (a) N registrations, drift risk; (c) Bun/Next lambda support for ALS is fragile for serverless cold starts | (b). Consistent with existing `gqlContextFactory` preload pattern (`preloadSession`); deterministic, testable, zero new runtime deps. |
 | D5 | **API-route envelope as two pure helpers** `apiSuccessResponse(data, {requestId, status})` / `apiErrorResponse(error, {locale, requestId})` in `backend/lib/api/api-response.ts` | (a) Higher-order `withApiEnvelope(handler)` wrapper (b) Pure helpers (c) Next.js middleware | (a) wraps route modules opaquely and fights Next route typing; (c) middleware can't see handler-thrown errors reliably | (b). Explicit, SSR/route-agnostic, trivially unit-testable to 100% (REQ-070), composable with webhook-ack exemptions (REQ-019). |
 | D6 | **Field errors ride `extensions.fields: [{field, code, message}]`** attached by the boundary when the thrown error is a `ValidationError` carrying a field map | (a) Encode fields in `details` JSON string (b) Dedicated `FieldValidationError` subclass w/ serialized array (c) `extensions.fields` structured | (a) unparseable by RHF; (b) adds class explosion | (c). Directly consumable by React Hook Form `setError`, matches REQ-015 shape exactly, keeps `DomainError` hierarchy stable. |
 | D7 | **Keep GraphQL domain errors on HTTP 200** (Apollo convention); HTTP status semantic column governs `app/api/**` and transport failures only | (a) Status-driven GraphQL (b) Convention-faithful 200 + `errors[]` | (a) breaks Apollo Client error pipeline; contradicts REQ-016 | (b). REQ-016/REQ-061: frontend MUST branch on `extensions.code`; transport statuses stay 400/405/413 only. |
-| D8 | **Extend the existing `errors` i18n namespace** with REQ-051 keys; reuse `auth` keys for field validations (REQ-055) | (a) New `errors-contract` namespace (b) Extend `errors` | (a) duplicates, violates REQ-055 duplication intent | (b). `errors` namespace exists from DEV1-002; additive keys keep `MessageSchema` compile-time gate (REQ-054). |
+| D8 | **Extend the existing `errors` i18n namespace** with REQ-051 keys; reuse `auth` keys for field validations (REQ-055) | (a) New `errors-contract` namespace (b) Extend `errors` | (a) duplicates, violates REQ-055 duplication intent | (b). `errors` namespace exists from the User Registration ticket; additive keys keep `MessageSchema` compile-time gate (REQ-054). |
 | D9 | **Frontend mapping centralized in `errorLink`** with a documented code→behavior table; `PermissionDeniedFallback` for page/section `FORBIDDEN`, toasts for mutation contexts, RHF field mapping for `VALIDATION` | (a) Per-component handling (b) Central link + documented fallbacks | (a) three-stream drift, missed branches | (b). Single mapping table (REQ-061) is the whole point of a *shared* contract. |
 | D10 | **Convention (not scanner): `{ENTITY}_NOT_FOUND` preferred over `FORBIDDEN` where existence is sensitive** (REQ-031), enforced by plan-review + tests, not a lint rule | (a) Lint rule (b) Convention + security tests | (a) false-positive-prone (many legitimate FORBIDDENs) | (b). Documented in the canonical doc + REQ-074 cross-tenant probe; pragmatic. |
 
@@ -159,7 +159,7 @@ Barrels: `backend/types/errors/index.ts` → `export * from "./api-error.types";
 
 ### 2.3 i18n Data Contract (REQ-050/051/054/055)
 
-Extend the existing `errors` namespace (DEV1-002) — **no new namespace**:
+Extend the existing `errors` namespace (the User Registration ticket) — **no new namespace**:
 
 | File | Change |
 |---|---|
@@ -279,7 +279,7 @@ This ticket introduces **no mutable rows, balances, quotas, or locks** — it is
 | Interleaved errors on one request + simultaneous logging streams | Boundary post-processor × `logger` | Interleaved/redaction-missed logs | `redactLogContext` is a pure, total function applied to every boundary log call; structured single-call logging (no multi-write assembly). No module-level mutable state anywhere in the new modules (severity-check: bounded-state rule). |
 | Error.cause cycles (exotic wrapped errors) | Boundary traversal | Infinite loop in unwrap | Reuse the existing cycle-guarded `isUniqueViolation` traversal with a visited set; mask path never recursively walks — one-hop unwrap + classify (REQ-042). |
 | Request races on shared requestId generation | Two requests | Collision | `crypto.randomUUID()` per request at context factory; no shared counter/state. |
-| TOCTOU on uniqueness (`users.email`) | Two concurrent registrations | Pre-check race | **Existing DEV1-002 stance preserved**: no SELECT-pre-check; rely on constraint + 23505 translation inside the transaction. This contract standardizes the translation reuse, not the timing. |
+| TOCTOU on uniqueness (`users.email`) | Two concurrent registrations | Pre-check race | **Existing the User Registration ticket stance preserved**: no SELECT-pre-check; rely on constraint + 23505 translation inside the transaction. This contract standardizes the translation reuse, not the timing. |
 | Rollback semantics under typed errors | Service tx blocks | Partial commit | REQ-041: typed throws propagate through `db.transaction` unchanged; boundary runs **after** commit/rollback resolution; masking never swallows rollback errors. |
 | Redis/atomic ops | — | — | None in scope; no caching/locking is introduced. |
 
@@ -308,7 +308,7 @@ None. No navigation delta for this ticket (explicitly recorded to satisfy the na
 | Audience | What differs |
 |---|---|
 | Student | Localized field-level form errors (registration fields reuse `auth` keys); insufficient-balance/cooldown typed messages as inline notices; retryable `SERVICE_UNAVAILABLE`/"try again" notice; masked 500 → generic localized toast + correlation guidance |
-| Parent | Oracle-resistant failures (foreign child code → generic not-found); link expired/rejected typed messages (shape fixed here, copy owned by DEV1-014/015); read-only write attempts → `FORBIDDEN` → `PermissionDeniedFallback` |
+| Parent | Oracle-resistant failures (foreign child code → generic not-found); link expired/rejected typed messages (shape fixed here, copy); read-only write attempts → `FORBIDDEN` → `PermissionDeniedFallback` |
 | Teacher (incl. applicant) | Report/grade range errors as field-level messages; cooldown/threshold textual distinction (REQ — INV-TV3/B.1 locality); wallet/insufficient withdrawal as typed 422-class notice |
 | Supervisor | `FORBIDDEN` on out-of-scope mutations → `PermissionDeniedFallback` (never bare `null` — `frontend/AGENTS.md` accessibility rule) |
 | Super Admin | Conflict on immutable-financial tamper attempts; all failures correlated via `requestId` in the toast/log for audit-trail lookup (Workflow 05) |
@@ -381,7 +381,7 @@ None. No navigation delta for this ticket (explicitly recorded to satisfy the na
 
 - `authScopes` gating is the execution boundary; schema-layer input gating (e.g., `RegisterPublicRole` excluding `admin`) fires **before resolver execution** and yields `VALIDATION`/400-class without touching services (test-locked).
 - Runtime role backstops (e.g., `ROLE_FORBIDDEN`) remain and produce typed codes per taxonomy.
-- Public endpoints' brute-force responses never disclose lockout counters/thresholds or account existence (REQ-021/034); governance-state rejections reuse the single generic invalid-credentials message (A.7 / DEV1-002 §7.2 parity test asserts identical bodies across `is_deleted`/`is_blocked`/`suspended`/wrong-password cases).
+- Public endpoints' brute-force responses never disclose lockout counters/thresholds or account existence (REQ-021/034); governance-state rejections reuse the single generic invalid-credentials message (A.7 / the User Registration ticket §7.2 parity test asserts identical bodies across `is_deleted`/`is_blocked`/`suspended`/wrong-password cases).
 
 ### 6.4 Injection & Sanitization (REQ-074)
 

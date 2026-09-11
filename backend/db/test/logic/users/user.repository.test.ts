@@ -1,6 +1,6 @@
 /**
  * UserRepository locale tests — the `users.locale` column surface of the
- * DEV3-010 D2 backend vertical.
+ * D2 locale backend vertical.
  *
  * Per `backend/db/test/AGENTS.md` + `backend/db/test/logic/AGENTS.md`:
  *  - Write/transactional cases run inside `runInRollback`; `tx` is passed to

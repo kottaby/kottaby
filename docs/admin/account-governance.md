@@ -4,9 +4,9 @@
 
 **Domain:** Admin / Identity-and-governance core (Workflow 05 §5 — "Suspend / Block / Unblock / Unsuspend" governance surface)
 **Specs:** `docs/specs/functional-requirements.md`, `docs/specs/state-machine-invariants.md` (§6 Student Account Lifecycle, INV-U1..U5), `docs/specs/open-decisions-and-gaps.md` (A.7 governance on `users`)
-**Status:** Implemented and verified (DEV3-017)
+**Status:** Implemented and verified
 
-This document is the single canonical reference for the suspend/block governance surface shipped by DEV3-017. It rides on top of the DEV3-016 substrate (`AdminUserRepository` + `AdminUserManagementService` + `AuditService`) and forks ZERO new writers, ZERO new guards beyond the strict active-actor variant, and ZERO new audit-action vocabulary. All layers (types, predicate, repo, service, auth boundary, GraphQL, frontend, tests) MUST conform to the contracts described here. Code blocks are **illustrative and NON-authoritative** — the authoritative implementations are cited by path in each section.
+This document is the single canonical reference for the suspend/block governance surface. It rides on top of the user-management substrate (`AdminUserRepository` + `AdminUserManagementService` + `AuditService`) and forks ZERO new writers, ZERO new guards beyond the strict active-actor variant, and ZERO new audit-action vocabulary. All layers (types, predicate, repo, service, auth boundary, GraphQL, frontend, tests) MUST conform to the contracts described here. Code blocks are **illustrative and NON-authoritative** — the authoritative implementations are cited by path in each section.
 
 ---
 
@@ -17,11 +17,11 @@ The platform's user lifecycle distinguishes four governance states on `users`. H
 | State | Column signal | Reversible? | Owner |
 |---|---|---|---|
 | active | `is_deleted=false` ∧ `suspended=false` ∧ `is_blocked=false` | — | default |
-| suspended | `suspended=true` ∧ active window (`suspendedAt` + `suspendedPeriodDays` strictly after `now`) | yes — by lapse or unsuspend | DEV3-017 |
-| blocked | `is_blocked=true` | yes — by unblock | DEV3-017 |
-| soft-deleted | `is_deleted=true` ∧ `deleted_at=now` | yes — by reactivate (DEV3-016) | DEV3-016 + DEV3-017 inherits |
+| suspended | `suspended=true` ∧ active window (`suspendedAt` + `suspendedPeriodDays` strictly after `now`) | yes — by lapse or unsuspend | — |
+| blocked | `is_blocked=true` | yes — by unblock | — |
+| soft-deleted | `is_deleted=true` ∧ `deleted_at=now` | yes — by reactivate | — |
 
-Workflow 05 §5 owns the suspend / block / unsuspend / unblock lifecycle as the admin governance surface; DEV3-016 owns the soft-delete / reactivate surface; DEV3-017 ships the suspend/block governance windows ON TOP of the DEV3-016 substrate (same `AdminUserRepository` + `AdminUserManagementService` + `AuditService` substrate; zero new writers/guards forked).
+Workflow 05 §5 owns the suspend / block / unsuspend / unblock lifecycle as the admin governance surface; the user-management surface owns soft-delete / reactivate; this surface ships the suspend/block governance windows ON TOP of the user-management substrate (same `AdminUserRepository` + `AdminUserManagementService` + `AuditService` substrate; zero new writers/guards forked).
 
 The three load-bearing requirements:
 
@@ -35,7 +35,7 @@ The three load-bearing requirements:
 
 ### 1. Guarded single-statement transitions + zero-row classifier + ONE in-tx audit row
 
-Every governance mutation follows this exact pipeline (mirrors the `setDeletedOnce` precedent shipped by DEV3-016):
+Every governance mutation follows this exact pipeline (mirrors the `setDeletedOnce` precedent from the user-management surface):
 
 1. **Pre-transaction strict actor guard** — `assertActiveActorAdmin(actorId, locale)` runs BEFORE the transaction opens (when no outerTx). The strict guard checks the actor is an active admin AND not in any denial state (deleted / blocked / actively-suspended), in deterministic order: `isDeleted → isBlocked → isSuspensionActive`.
 2. **id + periodDays validation** — positive-int id re-assertion; `periodDays` validated as integer `1..3650` on the suspend direction ONLY (unsuspend ignores `periodDays` entirely — silent NULL would mint a corrupt permanent lockout).
@@ -63,7 +63,7 @@ Block/unblock DO NOT introduce a new `AuditActionType` member (REQ-045 zero sche
 | block | `Suspend` | `["isBlocked","blockedAt"]` | `true` |
 | unblock | `Reactivate` | `["isBlocked","blockedAt"]` | `false` |
 
-DEV3-020's audit browser distinguishes via `details.changedFields`. Vocabulary widening (dedicated block/unblock members) is forward-pointer D6 — owned by a future governed schema decision. NEVER widen `audit_action_type` ad-hoc.
+The audit-trail browser distinguishes via `details.changedFields`. Vocabulary widening (dedicated block/unblock members) is forward-pointer D6 — owned by a future governed schema decision. NEVER widen `audit_action_type` ad-hoc.
 
 ### 3. Shared predicate + auth consumers
 
@@ -86,7 +86,7 @@ Window end = `suspendedAt + suspendedPeriodDays × 24h` (86,400,000 ms per day),
 3. **Uniform `USER_ALREADY_DELETED` deleted-target rule**: any governance mutation on a soft-deleted user throws `USER_ALREADY_DELETED` (never `USER_NOT_FOUND` — the row exists; it is just deleted). The classifier disambiguates honestly via `findGovernanceState`.
 4. **Axis independence**: suspend/block are orthogonal axes. A user can be both suspended AND blocked simultaneously; transitions on one axis do not touch the other.
 5. **Lapse = READ-ONLY on the auth path**: a LAPSED suspension restores access with ZERO writes. The predicate is pure READ — no UPDATE fires on the auth boundary. REQ-019 zero-write proof: columns byte-identical before/after a lapsed-suspension login.
-6. **Strict active-actor guard on governance mutations**: `assertActiveActorAdmin` (the strict variant) runs on `setUserSuspended` / `setUserBlocked` ONLY. DEV3-016's existing mutations (create / update / delete / reactivate) keep the relaxed `assertActorAdmin` guard (REQ-031 — their existing suites are the byte-equivalence net). Backporting the strict guard onto DEV3-016 is forward-pointer D4.
+6. **Strict active-actor guard on governance mutations**: `assertActiveActorAdmin` (the strict variant) runs on `setUserSuspended` / `setUserBlocked` ONLY. The user-management mutations (create / update / delete / reactivate) keep the relaxed `assertActorAdmin` guard (REQ-031 — their existing suites are the byte-equivalence net). Backporting the strict guard onto that surface is forward-pointer D4.
 
 ---
 
@@ -101,7 +101,7 @@ Window end = `suspendedAt + suspendedPeriodDays × 24h` (86,400,000 ms per day),
 
 ---
 
-## Rollout Summary (DEV3-017)
+## Rollout Summary
 
 ### Mutations registered
 
@@ -124,13 +124,13 @@ Window end = `suspendedAt + suspendedPeriodDays × 24h` (86,400,000 ms per day),
 
 ### Baseline reconciliation
 
-- `schema-surface.test.ts` + `sdl-static-assertions.test.ts`: RECONCILED to mirror the live 23-op Mutation root (was 7-op stale baseline — pre-existing DEV3-016 inventory drift). Documented one-time reconciliation — NOT a silent baseline flip.
+- `schema-surface.test.ts` + `sdl-static-assertions.test.ts`: RECONCILED to mirror the live 23-op Mutation root (was 7-op stale baseline — pre-existing user-management inventory drift). Documented one-time reconciliation — NOT a silent baseline flip.
 
 ---
 
 ## Related Documents
 
-- `docs/admin/user-management.md` — DEV3-016 substrate + §6 scope-split row (DEV3-017 = shipped)
+- `docs/admin/user-management.md` — the substrate + §6 scope-split row (this surface = shipped)
 - `docs/auth/jwt-authentication-service.md` §5.3/§5.7 — window predicate now exists at `backend/lib/auth/suspension-window.ts`; consumed by login / refresh / SSR; session-creation gating remains the owning consumer (forward pointer)
 - `docs/parents/handshake-code-discovery.md` — window math extracted to the shared predicate (its R3 table stays the semantic source)
 - `docs/workflows/05-admin-governance-override.md` §5 — Workflow 05 §5 cross-actor lifecycle ownership

@@ -1,4 +1,4 @@
-# DEV3-020 — Immutable Audit Logging for All Admin Actions: Implementation Tasks
+# Immutable Audit Logging for All Admin Actions: Implementation Tasks
 
 > **Plan directory (verbatim — used in every header, ledger path, outcome path, and self-reference below):** `ai/plans/sprint_3/dev3-020-immutable-audit-logging-for-all-admin-ac`
 > **Specs:** `ai/plans/sprint_3/dev3-020-immutable-audit-logging-for-all-admin-ac/specs.md` (REQ-001..083, J-AUD-01..05)
@@ -34,7 +34,7 @@
     3. `frontend/views/admin/audit/` (the `frontend/views/admin/` directory itself EXISTS with index/plans/users — only the `audit/` subdirectory is new) and `app/(dashboard)/audit/page.tsx` — expected CREATE.
     4. Any existing audit-immutability / audit-trail test under `backend/db/test/logic/audit/` — bundle shows none → verify.
     5. `/audit` routing: confirm the `[feature]` catch-all relationship so the new static route wins by Next.js precedence (REQ-064).
-    6. `backend/services/admin/admin-gate.helpers.ts` existence (DEV3-022c extraction direction) → decides D2 import-vs-extract branch.
+    6. `backend/services/admin/admin-gate.helpers.ts` existence (extraction direction) → decides D2 import-vs-extract branch.
     7. `shared/locale/adminUsers-namespace.parity.test.ts` existence (VERIFIED ABSENT — parity suite inventory is exactly applicant/errors/handshakeCode/notifications/plans) → decides D13 verify-or-create.
     8. `frontend/providers/apollo/apolloCache.ts` registered policies vs the frozen inventory assertion in `apolloCache.test.ts:176-185` (reconcile the known `NotificationListPage` drift — VERIFY live set, never subtract).
     9. `backend/graphql/test/schema-surface.test.ts` (`PRE_3_1_QUERY_FIELDS`, additions assertion, whole-schema type-name additions) and `sdl-static-assertions.test.ts` (`FROZEN_QUERY_FIELDS`) LIVE contents → the Task-3.2 re-pin targets; absorb any concurrently-landed Sprint-3 fields additively.
@@ -77,9 +77,9 @@
 ## Phase 2: Repositories & Backend Services
 
 - [x] **2.1 Shared admin gate + audit coercion extraction (`admin-gate.helpers.ts` — VERIFY-OR-CREATE, D2)**
-  - **IF** Task 0.2 found `backend/services/admin/admin-gate.helpers.ts` existing (DEV3-022c landed first): import `assertActorAdmin` from it; ADD `toAuditActionType` extracted VERBATIM from `backend/services/admin/user-management.service.ts:130-149` (extend, never fork).
+  - **IF** Task 0.2 found `backend/services/admin/admin-gate.helpers.ts` existing (landed first): import `assertActorAdmin` from it; ADD `toAuditActionType` extracted VERBATIM from `backend/services/admin/user-management.service.ts:130-149` (extend, never fork).
   - **ELSE:** CREATE `backend/services/admin/admin-gate.helpers.ts` carrying BOTH functions extracted VERBATIM: `assertActorAdmin(actorId, locale, outerTx?)` (from `user-management.service.ts:240-271`) and `toAuditActionType(raw)` (from :130-149).
-  - UPDATE `backend/services/admin/user-management.service.ts`: DELETE the private copies; import from the shared module. ZERO behavior/API drift — the existing DEV3-016 suites are the byte-equivalence regression lock.
+  - UPDATE `backend/services/admin/user-management.service.ts`: DELETE the private copies; import from the shared module. ZERO behavior/API drift — the existing suites are the byte-equivalence regression lock.
   - UPDATE `backend/services/admin/index.ts`: export the helpers module.
   - Applicable instructions: `.agents/instructions/backend.instructions.md`, `backend/services/AGENTS.md`.
   - _Requirements: REQ-004, REQ-030, REQ-076_
@@ -118,7 +118,7 @@
   - [x] 2.3.QL **Quality Loop:** `bun run scripts/health/sub-loop.ts backend/db/repo/audit/audit-trail.repository.ts --lifecycle duplicates` (exit 0).
   - [x] 2.3.TE **Test Engineering (REQ-070):** CREATE `backend/db/test/logic/audit/audit-trail.repository.test.ts` under `runInRollback` with `tx` propagated to EVERY call and `expectRepoError` try/catch (NEVER `rejects.toThrow`): each filter dimension alone + combined; ordering + `id` tiebreak; page-window continuity with no overlap; out-of-range page → empty items, honest count; empty-set honesty; join projection integrity (`actorName` present); null `entityId`/`details` pass-through; zero-write oracle (row counts unchanged). Run: `bun run test/scripts/run-test.ts backend/db/test/logic/audit/audit-trail.repository.test.ts`.
   - [x] 2.3.SEC **Security & Tenancy Audit:** all values Drizzle-parameterized; zero LIKE surface; filters are data, never authorization inputs (REQ-031); no governance filters.
-  - [x] 2.3.SR **Semantic Review:** no dead code; repo-local row types documented as the DEV3-016 precedent; no cross-layer imports.
+  - [x] 2.3.SR **Semantic Review:** no dead code; repo-local row types documented as the precedent; no cross-layer imports.
   - [x] 2.3.IV **Instruction Verification:** validate against auto-discovered AGENTS/instruction files incl. `backend/db/repo/AGENTS.md`.
   - Write `outcome/2.3-outcome.md`.
 
@@ -179,7 +179,7 @@
 - [x] **3.2 Codegen + schema-surface baseline re-pin (SAME change set — atomic)**
   - Run `bun run generate:gqlSchema && bun codegen`; commit regenerated artifacts (SDL + generated types) IN THE SAME change set as Task 3.1.
   - UPDATE `backend/graphql/test/schema-surface.test.ts`: additions assertion gains `"adminAuditLogs"` (sorted computed literal — VERIFY against the live regenerated schema; absorb any concurrently-landed sibling Sprint-3 fields additively, NEVER drop entries); whole-schema type-name additions gain `AdminAuditLogEntry`, `AdminAuditLogFiltersInput`, `AdminAuditLogPage`.
-  - UPDATE `backend/graphql/test/sdl-static-assertions.test.ts`: `FROZEN_QUERY_FIELDS` gains `"adminAuditLogs"` in sorted position (verify live contents first; reconcile the documented possibility that the frozen list predates DEV3-016's surface — re-pin against the regenerated SDL and RECORD the reconciliation).
+  - UPDATE `backend/graphql/test/sdl-static-assertions.test.ts`: `FROZEN_QUERY_FIELDS` gains `"adminAuditLogs"` in sorted position (verify live contents first; reconcile the documented possibility that the frozen list predates the surface — re-pin against the regenerated SDL and RECORD the reconciliation).
   - KEEP GREEN UNCHANGED: `backend/graphql/test/plan-catalog.schema.test.ts` committed-SDL byte-parity; `backend/graphql/test/handshake-code-surface.test.ts` frozen-six public-allowlist pin — NO edits to those files.
   - Run: `bun run test/scripts/run-test.ts backend/graphql/test/schema-surface.test.ts` (+ the other three surface files).
   - _Requirements: REQ-060, REQ-061, REQ-062_
@@ -286,7 +286,7 @@
 
 - [x] **5.1 Journey green + full differential suite run**
   - Re-run the Task-2.2 journey — MUST now be GREEN: `bun run test/scripts/run-test.ts test/workflows/admin/audit-trail.journey.test.ts` (differential vs the recorded 2.2 red state).
-  - Run the complete affected matrix: `backend/db/test/logic/audit/*` (repo + immutability), `backend/services/admin/*` (new service + DEV3-016 regression): `bun run test/scripts/run-test.ts backend/db/test/logic/audit` / `backend/services/admin`; `bun run test/scripts/run-test.ts backend/graphql/test` (surface + wire matrix + SDL parity + handshake allowlist); locale parity; frontend documents/cache/nav; `bun run test/scripts/run-test.ts test/ui/components/admin`.
+  - Run the complete affected matrix: `backend/db/test/logic/audit/*` (repo + immutability), `backend/services/admin/*` (new service + existing-surface regression): `bun run test/scripts/run-test.ts backend/db/test/logic/audit` / `backend/services/admin`; `bun run test/scripts/run-test.ts backend/graphql/test` (surface + wire matrix + SDL parity + handshake allowlist); locale parity; frontend documents/cache/nav; `bun run test/scripts/run-test.ts test/ui/components/admin`.
   - REQ-043 chaos: confirm the forced mid-read failure case surfaces masked `INTERNAL_SERVER_ERROR` with exactly one correlated log (service chaos tier) — cross-check REQ-071 chaos coverage recorded in 2.4.
   - Coverage gate: 100% statement/branch on ALL new service/repository code (REQ-076).
   - _Requirements: REQ-070..077_ (outcome: `outcome/5.1-outcome.md`)
@@ -303,11 +303,11 @@
 ## Phase 6: Post-Implementation Review Waves (parallel)
 
 - [x] **6.1 review-types wave**
-  - Verify: canonical types only in `backend/types/audit/audit-trail.types.ts`; repo-local row types are the documented DEV3-016-style exception; NO service-layer `.types.ts`; NO local types in Pothos files; barrel edits minimal; codegen types consumed, never handwritten.
+  - Verify: canonical types only in `backend/types/audit/audit-trail.types.ts`; repo-local row types are the documented exception; NO service-layer `.types.ts`; NO local types in Pothos files; barrel edits minimal; codegen types consumed, never handwritten.
   - _Requirements: REQ-003, REQ-061_ → `outcome/6.1-review-types-outcome.md`
 
 - [x] **6.2 review-backend wave**
-  - Verify: pipeline order REQ-053; D3 single-snapshot read; gate extraction byte-equivalence (DEV3-016 suites green); immutability triple (REQ-019/020) including which trigger branch executed; closed error set; D6 masked-internal branch; logging hygiene (REQ-035); `tx` propagation and `(tx ?? db)` discipline everywhere.
+  - Verify: pipeline order REQ-053; D3 single-snapshot read; gate extraction byte-equivalence (suites green); immutability triple (REQ-019/020) including which trigger branch executed; closed error set; D6 masked-internal branch; logging hygiene (REQ-035); `tx` propagation and `(tx?? db)` discipline everywhere.
   - _Requirements: REQ-004, REQ-013..022, REQ-030..053, REQ-070..073_ → `outcome/6.2-review-backend-outcome.md`
 
 - [x] **6.3 review-frontend wave**

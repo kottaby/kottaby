@@ -31,7 +31,7 @@
  *    blast radius of a governance mutation is high enough to warrant
  *    re-validating the actor's governance state. The legacy CRUD methods
  *    (list / detail / create / update / soft-delete) keep the relaxed
- *    variant per REQ-031 (no behavior change to DEV3-016).
+ *    variant per REQ-031 (no behavior change).
  *  - BOPLA: `createUser` and `updateUser` build their payloads field-by-field
  *    (never `{ ...input }` spreads) via `user-management.helpers.ts`.
  *    Transport-tampered extra fields are ignored by construction.
@@ -200,7 +200,7 @@ export namespace AdminUserManagementService {
    *
    * Scoped read-back discipline: this surfaces ONE user's governance
    * timeline only. The global audit-trail browsing surface remains owned
-   * by DEV3-020 (deferred-items ledger D1).
+   * by the audit-trail service (deferred-items ledger D1).
    */
   export async function getUserActivity(
     userId: number,

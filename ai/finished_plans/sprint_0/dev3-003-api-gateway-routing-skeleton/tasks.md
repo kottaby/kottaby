@@ -1,8 +1,8 @@
-# Implementation Tasks: DEV3-003 — API Gateway & Routing Skeleton
+# Implementation Tasks: API Gateway & Routing Skeleton
 
 > **Plan of record:** `ai/plans/dev3-003-api-gateway-routing-skeleton/`
 > **Specs:** `specs.md` REQ-001..REQ-083 | **Plan:** `plan.md` D1–D10
-> **Sprint 0 · Dev 3 (Shared) · 3 SP · Blocked by DEV3-002**
+> **Sprint 0 · Dev 3 (Shared) · 3 SP · Blocked by the Shared Error Handling & Response Contracts ticket**
 
 ---
 
@@ -15,7 +15,7 @@
 4. **Semantic Review Self-Check:** Before marking any task `[x]`, self-review against the semantic checklist: atomicity, env-config registration, zero dead code, no cross-layer imports (`shared/` purity, frontend↔backend isolation), enums as value imports (never `import type` in runtime positions), no `console.*`, no hardcoded colors/strings, no `await import(` in GraphQL modules, `headers.append` only for `Set-Cookie`.
 5. **Outcome Documentation:** After EVERY task, write `ai/plans/dev3-003-api-gateway-routing-skeleton/outcome/<task-id>-outcome.md` containing: summary, files changed/NOT changed + why, verification results (commands + exit codes), cross-file dependencies discovered, carry-forward knowledge for downstream tasks.
 6. **Checkbox Tracking:** Update `[ ]` → `[x]` immediately after the task's outcome file is written and verified. Never batch-check.
-7. **Deferred-Items Discipline:** Any discovered defect in substrate (DEV2-001/002, DEV3-002) is NOT patched inline. Record `❌` (blocking) or `⚠️` (non-blocking, requires owner ticket) in `deferred-items.md` and route the fix via the owning stream.
+7. **Deferred-Items Discipline:** Any discovered defect in substrate (the JWT Authentication Service ticket) is NOT patched inline. Record `❌` (blocking) or `⚠️` (non-blocking, requires owner ticket) in `deferred-items.md` and route the fix via the owning stream.
 8. **Applies Invariants:** Zero DB/schema drift (`bun validate:dbml` green, empty `git diff` on `backend/db/**`); closed public-operation allowlist; 401/403 exclusivity preserved; transport failures use real HTTP statuses; GraphQL domain errors ride HTTP 200 per Apollo convention.
 
 > **UI-Task Pipeline Note:** This ticket ships **zero user-facing UI** (plan §5 — "no user-facing UI. No page routes are added, removed, or modified"). Consequently, NO task in this plan instantiates the frontend 7-stage pipeline (`.BF` Agent-Browser Functional Self-Loop / `.BS` Visual & Styling Screenshot Self-Loop), because there is no page, component, form, navigation, or rendered surface to exercise. The single frontend touch (Task 4.1 — Apollo cache policy) is non-visual and is verified via its unit/component test tier plus the REQ-075 coverage gate. This N/A determination is recorded in the Phase 0 baseline outcome and re-confirmed at the Phase 6 review-frontend wave.
@@ -35,7 +35,7 @@
   - Pre-seed deferred ledger rows (non-blocking; each MUST carry an explicit owner ticket and ✅/targeted status per REQ-083):
     1. ⚠️→✅-targeted: Gateway HTTP-layer per-IP throttling (REQ-035) — owner: production-hardening/Sprint-4 ticket.
     2. ⚠️→✅-targeted: DB-backed readiness probe (REQ-012 tail) — owner: future readiness-probe ticket.
-    3. ⚠️→✅-targeted: Optional `healthCheckQueryDocument` frontend document (REQ-062 tail) — owner: first consumer (DEV3-001 CI smoke or observability tooling).
+    3. ⚠️→✅-targeted: Optional `healthCheckQueryDocument` frontend document (REQ-062 tail) — owner: first consumer (the CI/CD Pipeline ticket CI smoke or observability tooling).
     4. ⚠️→✅-targeted: `/api/logs` envelope adoption — owner: observability ticket (REQ-019).
     5. ⚠️→✅-targeted: `/api/cron/ticker`, `/api/cron/execute` envelope adoption — owner: cron-service ticket (REQ-019).
     6. ⚠️→✅-targeted: `/api/set-locale` envelope adoption — owner: i18n ticket (REQ-019).
@@ -47,11 +47,11 @@
 
 - [x] 0.2 Prerequisite Substrate Verification (REQ-004 Dependency Guard)
   - Verify existence AND shape of consumed artifacts (evidence = file path + symbol name + grep output captured in outcome):
-    - DEV3-002: `finalizeGraphqlErrors`, `resolveRequestId`, `apiSuccessResponse`, `apiErrorResponse`, error-code taxonomy module, `MAX_GRAPHQL_BODY_BYTES` (if already defined by DEV3-002) vs. needing definition here.
-    - DEV2-001: `gqlContextFactory`, `ctx.authCookieOut` accumulator, `docs/auth/jwt-authentication-service.md` cookie matrix (`session_id` 7d / `refresh_token` 7d / `access_token` 15m, `httpOnly`, `sameSite: strict`, `secure` in prod).
-    - DEV2-002: `buildAuthScopes`, scopeAuth/authScopes chain, 401-vs-403 semantics, existing D3 schema-coverage test location.
-    - DEV1-002: `RegisterPublicRole` schema-layer gate (admin excluded) on `registerUser`.
-    - DEV2-001 env posture: `IS_DEMO` flag gate present inside the `demoLogin` resolver (plan §3.3 — if absent/broken → ❌ ledger row + owning-stream fix, NOT local workaround).
+    - `finalizeGraphqlErrors`, `resolveRequestId`, `apiSuccessResponse`, `apiErrorResponse`, error-code taxonomy module, `MAX_GRAPHQL_BODY_BYTES` (if already defined by the Shared Error Handling & Response Contracts ticket) vs. needing definition here.
+    - `gqlContextFactory`, `ctx.authCookieOut` accumulator, `docs/auth/jwt-authentication-service.md` cookie matrix (`session_id` 7d / `refresh_token` 7d / `access_token` 15m, `httpOnly`, `sameSite: strict`, `secure` in prod).
+    - `buildAuthScopes`, scopeAuth/authScopes chain, 401-vs-403 semantics, existing D3 schema-coverage test location.
+    - `RegisterPublicRole` schema-layer gate (admin excluded) on `registerUser`.
+    - the JWT Authentication Service ticket env posture: `IS_DEMO` flag gate present inside the `demoLogin` resolver (plan §3.3 — if absent/broken → ❌ ledger row + owning-stream fix, NOT local workaround).
     - Env-config registry: determine whether `APP_VERSION` must be registered in `env-config-keys.ts` (env-config semantic rule).
   - Verify codebase start-points exist per plan §4.1: `app/api/graphql/route.ts`, `backend/graphql/gqlContextFactory.ts`, `frontend/providers/apollo/apolloCache.ts`, `backend/graphql/query/index.ts`, `backend/graphql/pothos/shared/enum.pothos.ts`, `frontend/graphql/test/` harness (`setupTestServerLifecycle`, `testClient`).
   - Enumerate the actual `app/api/**/route.ts` file set on disk; append any route not in plan §3.5 to the ledger audit list (drives Task 2.2 route inventory).
@@ -72,7 +72,7 @@
 
 - [x] 1.1 Create Canonical Gateway Types (`backend/types/gateway/`)
   - Create:
-    - `backend/types/gateway/health-check.types.ts` — `HealthCheckReturnType { readonly status: "ok"; readonly service: "kottaby"; readonly version: string; readonly timestamp: string }` (plan §2.2; interface is acceptable for transport-contract types per DEV3-002 `backend/types/errors/` precedent; no `Schema` suffix — not a DB table).
+    - `backend/types/gateway/health-check.types.ts` — `HealthCheckReturnType { readonly status: "ok"; readonly service: "kottaby"; readonly version: string; readonly timestamp: string }` (plan §2.2; interface is acceptable for transport-contract types per the Shared Error Handling & Response Contracts ticket `backend/types/errors/` precedent; no `Schema` suffix — not a DB table).
     - `backend/types/gateway/gateway-context.types.ts` — `GatewayRequestMetadata { readonly requestId: string; readonly idempotencyKey: string | null }` (documentary contract over context, no runtime construction), `TransportErrorKind` string union (`"METHOD_NOT_ALLOWED" | "UNSUPPORTED_CONTENT_TYPE" | "PAYLOAD_TOO_LARGE" | "MALFORMED_JSON"`), `TransportGuardResult` discriminated union (`{ ok: true; body: unknown } | { ok: false; kind: TransportErrorKind }`).
     - `backend/types/gateway/index.ts` — barrel with `./`-relative `export *` lines only.
   - Modify: `backend/types/index.ts` — add `export * from "./gateway";` (one `/` per path, `./` relative).
@@ -83,14 +83,14 @@
   - [x] 1.1.TE **Test Engineering**: Tier 1 — static assertion (registered in Task 2.3's suite, A5) that `backend/types/gateway/**/*.types.ts` contains no runtime/`export const` statements. Tier 2 — type-level compile check via `bun tsgo` equals baseline + 0. (No DB surface → `runInRollback` N/A; recorded.)
   - [x] 1.1.SEC **Security & Tenancy Audit**: No identity-bearing fields in types beyond documentary `GatewayRequestMetadata`; `requestId`/`idempotencyKey` explicitly documented as non-authorization headers (BOLA §6.1).
   - [x] 1.1.SR **Semantic Review**: No cross-layer imports (`shared/`, `frontend/`, `app/`); no dead exports; `readonly` on all fields; barrel purity (no re-export of non-type symbols).
-  - [x] 1.1.IV **Instruction Verification**: Read `backend/types/AGENTS.md` naming/barrel rules and confirm `backend/types/errors/` DEV3-002 precedent shape matches.
+  - [x] 1.1.IV **Instruction Verification**: Read `backend/types/AGENTS.md` naming/barrel rules and confirm `backend/types/errors/` the Shared Error Handling & Response Contracts ticket precedent shape matches.
   - [x] 1.1.OC **Outcome**: Write `outcome/1.1-outcome.md`; check boxes.
 
 - [x] 1.2 Zero-Drift Database Verification
   - Run `bun validate:dbml` (GREEN, byte-identical `db/schema.dbml`); confirm `git diff` empty across `backend/db/schema/**`, `backend/db/migration/**`, `backend/drizzle*/**`; confirm `bun run db push` is NOT run.
   - No GraphQL enum registrations — confirm `backend/graphql/pothos/shared/enum.pothos.ts`, `backend/enum/**`, `backend/db/schema/enums.ts` untouched (plan §2.3 "Enums: None").
   - _Requirements: REQ-044, REQ-076_
-  - [x] 1.2.SR **Semantic Review**: Any discovered schema gap → ❌ ledger row owned by DEV1-001; never patched inline.
+  - [x] 1.2.SR **Semantic Review**: Any discovered schema gap → ❌ ledger row owned by the Database Schema Migration ticket; never patched inline.
   - [x] 1.2.OC **Outcome**: Write `outcome/1.2-outcome.md` with `validate:dbml` output + empty-diff evidence; check boxes.
 
 ---
@@ -115,14 +115,14 @@
   - Create:
     - `backend/lib/gateway/public-operations.ts` — `PUBLIC_OPERATION_NAMES` (`["login","refreshToken","logout","registerUser","recitationReadings","_health"] as const`), `PublicOperationName` derived type, `PUBLIC_OPERATIONS: ReadonlySet<string>`, `isPublicOperation` type guard (plan §3.3, D3). Per-entry security rationale comments citing REQ-017.
     - `backend/lib/gateway/route-inventory.ts` — classifying constant for every `app/api/**/route.ts` discovered in Task 0.2: `{ path, classification: "gateway" | "envelope" | "provider-ack-exempt" | "deferred" }` — single source shared by the canonical doc table (REQ-019).
-    - `backend/lib/gateway/transport-guard.ts` — pure result-returning helpers (D5): `assertAllowedMethod`, `assertJsonContentType`, `assertWithinBodyLimit`, composing `guardTransport(request): Promise<TransportGuardResult>`; `MAX_GRAPHQL_BODY_BYTES` frozen constant (defined here if DEV3-002 did not provide it — Task 0.2 evidence decides; new constant documented in canonical doc).
+    - `backend/lib/gateway/transport-guard.ts` — pure result-returning helpers (D5): `assertAllowedMethod`, `assertJsonContentType`, `assertWithinBodyLimit`, composing `guardTransport(request): Promise<TransportGuardResult>`; `MAX_GRAPHQL_BODY_BYTES` frozen constant (defined here if the Shared Error Handling & Response Contracts ticket did not provide it — Task 0.2 evidence decides; new constant documented in canonical doc).
   - NO throws anywhere in transport-guard (D5 — result unions, never throw-as-control-flow).
   - _Requirements: REQ-010 (steps 1–3), REQ-015, REQ-016, REQ-017, REQ-019; D3, D5_
   - [x] 2.2.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts backend/lib/gateway/public-operations.ts --lifecycle duplicates`; same for `route-inventory.ts`, `transport-guard.ts` (exit 0).
   - [x] 2.2.TE **Test Engineering**: `backend/lib/gateway/*.test.ts` via `run-test.ts`. Tier 1: every guard branch (allowed POST; each disallowed method; present/absent/wrong content-type; at-limit/over-limit/missing content-length; parseable/malformed JSON). Tier 2 (boundary): body exactly at limit vs limit+1; allowlist: `isPublicOperation` true for all 6 entries, false for `"me"`, `"adminMutations"`, empty string, case-variants (`"Login"` must be FALSE — exact-match). Tier 3 (chaos): concurrent `guardTransport` calls (100×) produce independent results (REQ-040). Tier 4 (security): allowlist contains zero write-capable privileged ops (REQ-032 assertion constant); crafted headers cannot flip a transport verdict.
   - [x] 2.2.SEC **Security & Tenancy Audit**: BFLA — closed allowlist constant, any addition requires doc rationale (D3 rule comment); BOPLA — guard reads fixed header whitelist only; guard cannot mutate identity context (runs pre-context).
   - [x] 2.2.SR **Semantic Review**: Frozen constants; no module-level mutable Maps/Sets/counters mutated at runtime (ReadonlySet construction at load is bounded/immutable thereafter); no dynamic imports; no business logic leaking from services.
-  - [x] 2.2.IV **Instruction Verification**: `backend/lib/AGENTS.md`; confirm no duplication of DEV3-002 request-id/envelope helpers (extend-in-place only; REQ-004).
+  - [x] 2.2.IV **Instruction Verification**: `backend/lib/AGENTS.md`; confirm no duplication of the Shared Error Handling & Response Contracts ticket request-id/envelope helpers (extend-in-place only; REQ-004).
   - [x] 2.2.OC **Outcome**: Write `outcome/2.2-outcome.md`; check boxes.
 
 - [x] 2.3 Implement Static Assertion Suite (REQ-073 — bun:test, no server, no new dependencies, D9)
@@ -137,7 +137,7 @@
   - [x] 2.3.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts backend/lib/gateway/static-assertions.test.ts --lifecycle duplicates` (exit 0).
   - [x] 2.3.TE **Test Engineering**: Tier 1 — each assertion executes and currently passes on the real tree. Tier 2 — each assertion has a proven failing negative fixture. Tier 3 — glob iteration is deterministic (sorted) so CI/local parity holds. Tier 4 — scans never write to disk; read-only traversal.
   - [x] 2.3.SEC **Security & Tenancy Audit**: A4 inventory completeness is itself a security gate (no unclassified attack surface, REQ-019); A3 enforces the no-`console.*` disclosure rule (REQ-034).
-  - [x] 2.3.SR **Semantic Review**: Regex patterns escaped correctly; no false positives on comments (document accepted lexical caveat in outcome — D9 trade-off); test runs in `test:graphql`-adjacent stack and DEV3-001 `tests` stage.
+  - [x] 2.3.SR **Semantic Review**: Regex patterns escaped correctly; no false positives on comments (document accepted lexical caveat in outcome — D9 trade-off); test runs in `test:graphql`-adjacent stack and the CI/CD Pipeline ticket `tests` stage.
   - [x] 2.3.IV **Instruction Verification**: bun:test conventions; test placed beside library per existing test-colocation rules.
   - [x] 2.3.OC **Outcome**: Write `outcome/2.3-outcome.md`; check boxes.
 
@@ -166,8 +166,8 @@
 
 - [x] 3.2 Restructure `app/api/graphql/route.ts` into the Seven-Step Pipeline
   - Modify `app/api/graphql/route.ts` to implement REQ-010's canonical order (D1, D5, D7):
-    1. `guardTransport(request)` → on `ok:false` map kind → real HTTP status + DEV3-002 envelope + `requestId` (`METHOD_NOT_ALLOWED`→405 + `Allow: POST`; `UNSUPPORTED_CONTENT_TYPE`→400; `PAYLOAD_TOO_LARGE`→413; `MALFORMED_JSON`→400) and RETURN IMMEDIATELY (engine never invoked).
-    2. `requestId = resolveRequestId(request.headers)` (DEV3-002; honor `X-Request-Id`, else `crypto.randomUUID()`).
+    1. `guardTransport(request)` → on `ok:false` map kind → real HTTP status + the Shared Error Handling & Response Contracts ticket envelope + `requestId` (`METHOD_NOT_ALLOWED`→405 + `Allow: POST`; `UNSUPPORTED_CONTENT_TYPE`→400; `PAYLOAD_TOO_LARGE`→413; `MALFORMED_JSON`→400) and RETURN IMMEDIATELY (engine never invoked).
+    2. `requestId = resolveRequestId(request.headers)` (the Shared Error Handling & Response Contracts ticket; honor `X-Request-Id`, else `crypto.randomUUID()`).
     3. Capture `idempotencyKey = headers["X-Idempotency-Key"] ?? null` (propagation-only).
     4. `ctx = await gqlContextFactory(request)` extended with requestId/idempotencyKey (see 3.3).
     5–6. Invoke engine: validate → scopeAuth/authScopes → resolver (inside Apollo execution; no reordering by route code).
@@ -179,21 +179,21 @@
   - _Requirements: REQ-010, REQ-011, REQ-013, REQ-014, REQ-015, REQ-016, REQ-020, REQ-033, REQ-034, REQ-042, REQ-051; D1, D5, D7_
   - [x] 3.2.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts app/api/graphql/route.ts --lifecycle duplicates` (exit 0).
   - [x] 3.2.TE **Test Engineering**: Full behavioral proof deferred to Task 5.1's integration matrix; here handler-unit tier via injected fakes: ordering assertion (transport rejection never constructs context — spy-based), cookie-merge-unconditional-on-error probe (REQ-042), 405 `Allow: POST` header assertion, 400/413 envelope shape + `requestId` presence. Boundaries: empty body, whitespace-only body, content-length missing.
-  - [x] 3.2.SEC **Security & Tenancy Audit**: (BOLA) identity remains exclusively factory-derived — no header/arg path to identity (REQ-030); (BOPLA) context assembly whitelist only (REQ-031); no stack/SQL/env/path leakage on any failure path (REQ-034); envelope uses DEV3-002 helpers, never hand-rolled.
+  - [x] 3.2.SEC **Security & Tenancy Audit**: (BOLA) identity remains exclusively factory-derived — no header/arg path to identity (REQ-030); (BOPLA) context assembly whitelist only (REQ-031); no stack/SQL/env/path leakage on any failure path (REQ-034); envelope uses the Shared Error Handling & Response Contracts ticket helpers, never hand-rolled.
   - [x] 3.2.SR **Semantic Review**: Composition purity (no domain imports, no service imports — only lib/envelope/factory/engine); `headers.append` only; no module-level mutable state; request-scoped everything (REQ-040).
-  - [x] 3.2.IV **Instruction Verification**: `app/AGENTS.md`, `app/api/**` route conventions; DEV3-002 `docs/graphql/error-response-contract.md` consumed, not forked (REQ-004).
+  - [x] 3.2.IV **Instruction Verification**: `app/AGENTS.md`, `app/api/**` route conventions; the Shared Error Handling & Response Contracts ticket `docs/graphql/error-response-contract.md` consumed, not forked (REQ-004).
   - [x] 3.2.OC **Outcome**: Write `outcome/3.2-outcome.md`; check boxes.
 
 - [x] 3.3 Extend `gqlContextFactory` In-Place (requestId + idempotencyKey)
-  - Modify `backend/graphql/gqlContextFactory.ts` MINIMALLY: add `requestId` (if DEV3-002 did not land it) and `idempotencyKey` capture into the returned context. Extend in place; NO parallel helper, NO fork (D10, REQ-004). Cookie matrix, governance fail-closed path, and refresh-rotation behavior UNTOUCHED (REQ-011, REQ-033, REQ-035; plan §4.3).
-  - If DEV2-001 substrate defect is discovered → ❌ ledger row + owning-stream fix, not a local workaround (protocol §7).
+  - Modify `backend/graphql/gqlContextFactory.ts` MINIMALLY: add `requestId` (if the Shared Error Handling & Response Contracts ticket did not land it) and `idempotencyKey` capture into the returned context. Extend in place; NO parallel helper, NO fork (D10, REQ-004). Cookie matrix, governance fail-closed path, and refresh-rotation behavior UNTOUCHED (REQ-011, REQ-033, REQ-035; plan §4.3).
+  - If the JWT Authentication Service ticket substrate defect is discovered → ❌ ledger row + owning-stream fix, not a local workaround (protocol §7).
   - _Requirements: REQ-010 (step 4), REQ-030, REQ-031, REQ-043; D10_
   - [x] 3.3.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts backend/graphql/gqlContextFactory.ts --lifecycle duplicates` (exit 0).
   - [x] 3.3.TE **Test Engineering**: Tier 1 — context carries requestId/idempotencyKey when headers present/absent. Tier 2 — null idempotencyKey when header absent (not empty string). Tier 3 — concurrent factory calls (distinct users) produce isolated contexts (supports REQ-074). Tier 4 — both keys provably cannot influence identity fields (assert ctx identity equals factory-verified identity independent of header values).
-  - [x] 3.3.SEC **Security & Tenancy Audit**: Deviation risk assessment — changes are additive context fields only; DEV2-001's 401 semantics, governance fail-closed, and cookie sizing matrix preserved verbatim (regression via existing DEV2-001 tests must stay green).
+  - [x] 3.3.SEC **Security & Tenancy Audit**: Deviation risk assessment — changes are additive context fields only; the JWT Authentication Service ticket's 401 semantics, governance fail-closed, and cookie sizing matrix preserved verbatim (regression via existing the JWT Authentication Service ticket tests must stay green).
   - [x] 3.3.SR **Semantic Review**: Single source of truth preserved; no duplicated context-adjacent helper exists post-edit (grep evidence in outcome per REQ-004).
   - [x] 3.3.IV **Instruction Verification**: `backend/graphql/AGENTS.md`; `docs/auth/jwt-authentication-service.md` "What NOT to Do" section honored.
-  - [x] 3.3.OC **Outcome**: Write `outcome/3.3-outcome.md` including DEV2-001 regression evidence; check boxes.
+  - [x] 3.3.OC **Outcome**: Write `outcome/3.3-outcome.md` including the JWT Authentication Service ticket regression evidence; check boxes.
 
 - [x] 3.4 Implement `/api/health` HTTP Probe + Introspection Gate + CORS Posture
   - Create `app/api/health/route.ts`: `GET` only → `return apiSuccessResponse(HealthCheckService.getHealthStatus(), { requestId: resolveRequestId(request.headers) })`. NO auth, NO GraphQL parse, NO DB. One of exactly two sanctioned probes (D2).
@@ -204,7 +204,7 @@
   - [x] 3.4.TE **Test Engineering**: Tier 1 — GET returns 200 + envelope `{ data, requestId }` with the exact 4-field payload; `requestId` honors inbound `X-Request-Id`. Tier 2 — non-GET method on `/api/health` returns 405 (Next.js semantics documented). Tier 4 — payload disclosure regex scan (no path/env/secrets).
   - [x] 3.4.SEC **Security & Tenancy Audit**: No auth requirement is INTENTIONAL (LB probe) and matches the allowlist posture; introspection gate is code-explicit not ambient; no wildcard `Access-Control-Allow-Origin` introduced (REQ-053).
   - [x] 3.4.SR **Semantic Review**: Pure composition; no `console.*`; envelope helper used (not hand-rolled JSON); third health surface provably absent (grep for other `health` routes in outcome).
-  - [x] 3.4.IV **Instruction Verification**: `app/AGENTS.md` route conventions; DEV3-002 envelope helper contract.
+  - [x] 3.4.IV **Instruction Verification**: `app/AGENTS.md` route conventions; the Shared Error Handling & Response Contracts ticket envelope helper contract.
   - [x] 3.4.OC **Outcome**: Write `outcome/3.4-outcome.md`; check boxes.
 
 ---
@@ -215,7 +215,7 @@
   - Modify `frontend/providers/apollo/apolloCache.ts`: add `HealthCheck: { keyFields: false }` to `typePolicies` + one policy-list comment (embedded-type normalization policy, REQ-061, D4).
   - Decide (evidence-based) whether any current consumer requires `healthCheckQueryDocument` at `frontend/graphql/sharedDocuments/shared/health.documents.ts`:
     - If YES: create it — `gql` imported from `@apollo/client`, `TypedDocumentNode<HealthCheckQuery>`, no second type param (no-arg query), barrel-registered per `frontend/graphql/sharedDocuments/AGENTS.md` naming rules.
-    - If NO: mark the REQ-062-tail pre-seeded ledger row ✅-targeted with owner "first consumer (DEV3-001 CI smoke / observability tooling)" and record the decision in the outcome.
+    - If NO: mark the REQ-062-tail pre-seeded ledger row ✅-targeted with owner "first consumer (the CI/CD Pipeline ticket CI smoke / observability tooling)" and record the decision in the outcome.
   - NO new components, hooks, stores, pages, navigation, or MUI surface (plan §5).
   - _Requirements: REQ-061, REQ-062, REQ-063_
   - [x] 4.1.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts frontend/providers/apollo/apolloCache.ts --lifecycle duplicates` (+ document file if created) (exit 0).
@@ -252,7 +252,7 @@
     - (f) authenticated-but-forbidden role-gated op → `extensions.code = "FORBIDDEN"` with resolver side-effects provably absent.
     - (g) synthetic raw non-DomainError throw (test-only forced failure fixture, not a shipped public field) → masked `INTERNAL_SERVER_ERROR`; payload scanned for stack/SQL/env/path leakage (REQ-034); captured log contains original error + SAME requestId.
     - (h) `X-Request-Id: <fixed>` inbound → echoed in error `requestId` and log correlation.
-    - (i) `login` happy path → exactly three `Set-Cookie` headers (`session_id`, `refresh_token`, `access_token`) with DEV2-001 matrix flags (attributes from DEV2-001 fixtures).
+    - (i) `login` happy path → exactly three `Set-Cookie` headers (`session_id`, `refresh_token`, `access_token`) with the JWT Authentication Service ticket matrix flags (attributes from the JWT Authentication Service ticket fixtures).
     - `/api/health` GET → 200 + envelope; unknown path (`/api/definitely-not-a-route`) → 404, no engine activity.
     - Preflight probe: no wildcard `Access-Control-Allow-Origin` on authenticated surfaces (REQ-053).
     - Production-config introspection denied; non-prod introspection permitted (REQ-036).
@@ -266,8 +266,8 @@
   - [x] 5.1.OC **Outcome**: Write `outcome/5.1-outcome.md` with per-matrix-row pass evidence; check boxes.
 
 - [x] 5.2 Allowlist Coverage Gate (REQ-072 — BLOCKING)
-  - Create `frontend/graphql/test/gateway/allowlist-coverage.test.ts` (or extend DEV2-002's D3 test in place — decision recorded): introspect the built schema and assert (1) every query/mutation field either declares an authScope or appears in `PUBLIC_OPERATIONS`; (2) 1:1 exact agreement between the allowlist constant and the schema's unscoped set (drift in either direction FAILS); (3) no `grantRole*`/`assignRole*`/`elevate*` mutation exists under any non-admin scope.
-  - Wire the suite into `bun run test:graphql` and confirm it executes inside the DEV3-001 CI `tests` stage (local↔CI parity evidence in outcome).
+  - Create `frontend/graphql/test/gateway/allowlist-coverage.test.ts` (or extend the Role-Based Authorization Middleware ticket's D3 test in place — decision recorded): introspect the built schema and assert (1) every query/mutation field either declares an authScope or appears in `PUBLIC_OPERATIONS`; (2) 1:1 exact agreement between the allowlist constant and the schema's unscoped set (drift in either direction FAILS); (3) no `grantRole*`/`assignRole*`/`elevate*` mutation exists under any non-admin scope.
+  - Wire the suite into `bun run test:graphql` and confirm it executes inside the CI/CD Pipeline ticket CI `tests` stage (local↔CI parity evidence in outcome).
   - _Requirements: REQ-017, REQ-032, REQ-072; D3_
   - [x] 5.2.QL **Quality Loop**: sub-loop on the test file (exit 0).
   - [x] 5.2.SR/IV**: Negative-fixture proof (temporarily scoped-out test field in a sandbox build or synthetic schema proves the gate actually fails on drift — documented in outcome).
@@ -277,7 +277,7 @@
   - Create `frontend/graphql/test/gateway/concurrency.chaos.test.ts`:
     - Two CONCURRENT logins for distinct users → response A carries only A's three cookies; response B carries only B's; no cross-contamination (REQ-040/037).
     - `Promise.allSettled` storm (≥50) of `_health` → all 200, each with a fresh ISO timestamp.
-    - Concurrent refresh-rotation race → converges per DEV2-001 REQ-021 stale-JTI contract (unchanged by gateway).
+    - Concurrent refresh-rotation race → converges per REQ-021 stale-JTI contract (unchanged by gateway).
     - requestId uniqueness across storm (no collision, no shared counter).
   - _Requirements: REQ-037, REQ-040, REQ-041, REQ-074_
   - [x] 5.3.QL **Quality Loop**: sub-loop on the test file (exit 0).
@@ -324,7 +324,7 @@
 
 - [x] 7.1 Canonical Doc — `docs/graphql/api-gateway-and-routing.md`
   - Structure: Why → Pattern → Rules → What NOT to Do → Rollout Summary → Related Documents (per canonical-doc template).
-  - Content MUST cover: seven-step processing order (REQ-010), transport failure matrix (REQ-015 incl. `MAX_GRAPHQL_BODY_BYTES` value), public allowlist + per-entry rationale + "how to add an entry" rule (REQ-017), the TWO sanctioned health probes + explicit "no third health surface" rule (REQ-012/013), the **stream route-registration contract** (REQ-018 — resolver module placement, side-effect barrels, no `await import(`, Pothos object/DataLoader rules, single enum-registration site, authScope declaration requirement, codegen-in-same-commit rule), the non-GraphQL route inventory table sourced from `route-inventory.ts` (REQ-019), CORS/method/introspection policies (D6/D7/D8), explicit N/A affirmations (no REST route tree, no WebSocket transport, `escapeLikeWildcards` N/A here with forward contract to DEV3-008/009), and the forward note that any future health-status tooling UI follows the standard responsive/MUI matrix.
+  - Content MUST cover: seven-step processing order (REQ-010), transport failure matrix (REQ-015 incl. `MAX_GRAPHQL_BODY_BYTES` value), public allowlist + per-entry rationale + "how to add an entry" rule (REQ-017), the TWO sanctioned health probes + explicit "no third health surface" rule (REQ-012/013), the **stream route-registration contract** (REQ-018 — resolver module placement, side-effect barrels, no `await import(`, Pothos object/DataLoader rules, single enum-registration site, authScope declaration requirement, codegen-in-same-commit rule), the non-GraphQL route inventory table sourced from `route-inventory.ts` (REQ-019), CORS/method/introspection policies (D6/D7/D8), explicit N/A affirmations (no REST route tree, no WebSocket transport, `escapeLikeWildcards` N/A here with forward contract), and the forward note that any future health-status tooling UI follows the standard responsive/MUI matrix.
   - [x] 7.1.SR **Semantic Review**: Matrix tables appear HERE only — layer AGENTS files must not duplicate them (content-policy rule).
   - [x] 7.1.OC Write `outcome/7.1-outcome.md`; check boxes.
   - _Requirements: REQ-080, REQ-018, REQ-019_
@@ -338,7 +338,7 @@
   - _Requirements: REQ-081_
 
 - [x] 7.3 Outcome Synthesis & Completion Gate
-  - Synthesize all `outcome/*.md` files into the final close-out summary (files changed, verification ledger, carry-forward knowledge for DEV3-001 CI wiring, DEV3-008/009 search consumers, Sprint-1 stream consumers of REQ-018).
+  - Synthesize all `outcome/*.md` files into the final close-out summary (files changed, verification ledger, carry-forward knowledge for the CI/CD Pipeline ticket CI wiring, search consumers, Sprint-1 stream consumers of REQ-018).
   - Run the completion gate and attach machine output: `grep -c "❌\|⚠️" ai/plans/dev3-003-api-gateway-routing-skeleton/deferred-items.md` MUST output **0** (REQ-083 — every pre-seeded row carries an explicit owner + ✅/targeted status per the template semantics verified in 6.5).
   - Final evidence bundle: baseline-vs-post diff (zero new errors), `validate:dbml` green, codegen-diff limited to `_health`/`HealthCheck`, REQ-071/072/074 suite results, per-file sub-loop exit-0 log.
   - Mark REQ-083 complete; confirm ALL tasks above are `[x]`.

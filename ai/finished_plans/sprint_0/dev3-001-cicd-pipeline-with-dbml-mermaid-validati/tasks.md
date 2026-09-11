@@ -1,4 +1,4 @@
-# tasks.md — DEV3-001: CI/CD Pipeline with DBML & Mermaid Validation
+# tasks.md — CI/CD Pipeline with DBML & Mermaid Validation
 
 > **Plan artifacts**: `ai/plans/dev3-001-ci-cd-pipeline/`
 > **Spec**: `specs.md` (REQ-001..REQ-085) · **Plan**: `plan.md` (Decisions #1–#14)

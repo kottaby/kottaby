@@ -2,7 +2,7 @@
  * Shared user-provisioning helpers composed by BOTH the public registration
  * flow (`RegistrationService`) and the admin user-creation flow
  * (`AdminUserManagementService.createUser`). Extracted so the two write
- * paths keep composing the SAME DEV1-002 primitives (single-source rule —
+ * paths keep composing the SAME registration primitives (single-source rule —
  * see `docs/admin/user-management.md` "DO NOT touch the registration write
  * path" and `docs/auth/user-registration.md` §2 handshake contract):
  *

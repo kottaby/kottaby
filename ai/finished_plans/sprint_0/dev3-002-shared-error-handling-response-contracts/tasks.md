@@ -1,4 +1,4 @@
-# DEV3-002 — Shared Error Handling & Response Contracts: Implementation Tasks
+# Shared Error Handling & Response Contracts: Implementation Tasks
 
 > **Plan of record:** `ai/plans/dev3-002-shared-error-handling-response-contracts/`
 > **Specs:** REQ-001..REQ-083 · **Ticket:** Dev 3 (Shared) · Sprint 0 · 3 SP
@@ -143,13 +143,13 @@
 - [x] 2.3 Extend `backend/lib/errors.ts` contract surface
   - Files to modify:
     - `backend/lib/errors.ts` — add optional `readonly fields?: readonly ApiFieldErrorType[]` to `ValidationError` (backwards-compatible: existing overloaded constructors unchanged, existing throw sites compile without edits); wire 23505→`CONFLICT` reuse of existing cycle-safe `isUniqueViolation` into the envelope translation path; keep `NotFoundError(entity, message)` entity-name semantics (prevents double-suffixed codes — REQ-052)
-  - Applicable AGENTS.md / instructions: `backend/AGENTS.md`, `docs/graphql/domain-error-extensions-code.md`, `docs/auth/user-registration.md` (DEV1-002 23505 precedent)
+  - Applicable AGENTS.md / instructions: `backend/AGENTS.md`, `docs/graphql/domain-error-extensions-code.md`, `docs/auth/user-registration.md` (the User Registration ticket 23505 precedent)
   - _Requirements: REQ-015, REQ-018, REQ-033, REQ-042, REQ-052_
   - Rules: additively extend ONLY; do NOT re-implement the hierarchy or `isUniqueViolation`; `fields` construction must be explicit property-mapped from validated structures (never `{ ...input }` echo — REQ-033).
   - [x] 2.3.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts backend/lib/errors.ts --lifecycle duplicates` (exit 0)
   - [x] 2.3.TE **Test Engineering**: Tier 1 (100% branches: ValidationError with fields, without fields, custom overloaded code form, default form); Tier 2 (PG `23505` wrapped via Drizzle cause chain → `CONFLICT`; SQLite `UNIQUE constraint failed` parity translation); Tier 3 (cyclic-cause fuzz: cause graphs with loops/tails → deterministic classification, no hang); Tier 4 (input-echo probe: build a field-carrying ValidationError from attacker-shaped input, assert response `fields`/`details` contain only mapped structure, never raw echoes/upstream driver text). Run via `bun run test/scripts/run-test.ts`. Existing throw sites regression-check via `bun tsgo` (backwards compatibility proof).
   - [x] 2.3.SEC **Security & Tenancy Audit**: `NotFoundError` never receives full codes (entity dues only) — audit constructor call sites touched; BOPLA: field map is a whitelist projection; no spread of client input into any client-visible property
-  - [x] 2.3.SR **Semantic Review**: single canonical location for DomainError extensions (parallel taxonomy/mask modules in `errors/` directory, no split brain); no comment-driven parameterization changes that alter DEV1-002 translation behavior; zero dead exports
+  - [x] 2.3.SR **Semantic Review**: single canonical location for DomainError extensions (parallel taxonomy/mask modules in `errors/` directory, no split brain); no comment-driven parameterization changes that alter the User Registration ticket translation behavior; zero dead exports
   - [x] 2.3.IV **Instruction Verification**: validate constructor extensions, barrel re-exports, and 23505 reuse against `backend/AGENTS.md` and `docs/graphql/domain-error-extensions-code.md`
 
 ### 2.4 API Route Envelope Helpers
@@ -363,7 +363,7 @@
     - `Promise.allSettled` replay burst on a shared idempotency key → exactly one success + all others `DUPLICATE_REQUEST` (409 on API routes)
     - After-marked-`5xx` first attempt → same-key retry allowed (contract wording: 24h expiry semantic, REQ-043)
     - Error-path purity: instrument/masked-taxonomy/envelope modules prove zero DB writes emitted from translation/masking utilities
-    - Forced child-insert failure inside a transaction → complete rollback preserved; typed error propagates; boundary masking does not swallow the rollback error (REQ-041 — DEV1-002 precedent test reused/extended)
+    - Forced child-insert failure inside a transaction → complete rollback preserved; typed error propagates; boundary masking does not swallow the rollback error (REQ-041 — the User Registration ticket precedent test reused/extended)
   - Write `outcome/5.4-outcome.md`.
 
 ### 5.5 i18n Parity & UI Test-String Discipline Gate
@@ -442,7 +442,7 @@ Run these four review waves CONCURRENTLY after Phase 5 is green, then the deferr
 ### 7.3 Outcome Synthesis & Handoff
 - [x] 7.3 Synthesize carry-forward knowledge for downstream tickets (synthesis of record: [`outcome/plan-completion-outcome.md`](outcome/plan-completion-outcome.md); task's original sketch named it `7.3-synthesis.md` — content delivered there + §4 contract clauses / reusable patterns / exemption register / invariant recap)
   - Files to create:
-    - `ai/plans/dev3-002-shared-error-handling-response-contracts/outcome/7.3-synthesis.md` — cross-cutting summary: (a) the contract clauses downstream streams (DEV3-003 gateway, DEV1-007 sessions, DEV3-004 quotas, DEV2-002 rate-limit backends, DEV1-014/015 parent handshake, DEV3-012/013/022 wallets/escrow) MUST code against; (b) reusable patterns established (401/403 pairing test, 23505 reuse, fields-mapping helper, `PermissionDeniedFallback`, `expectMutationError(expectedCode)` matrix harness); (c) the exemption register; (d) verified invariants recap (zero DB drift, zero new baseline errors, masking enforced everywhere)
+    - `ai/plans/dev3-002-shared-error-handling-response-contracts/outcome/7.3-synthesis.md` — cross-cutting summary: (a) the contract clauses downstream streams (the API Gateway & Routing Skeleton ticket gateway, sessions, the Session Creation & Lifecycle ticket quotas, the Role-Based Authorization Middleware ticket rate-limit backends, parent handshake, wallets/escrow) MUST code against; (b) reusable patterns established (401/403 pairing test, 23505 reuse, fields-mapping helper, `PermissionDeniedFallback`, `expectMutationError(expectedCode)` matrix harness); (c) the exemption register; (d) verified invariants recap (zero DB drift, zero new baseline errors, masking enforced everywhere)
   - _Requirements: REQ-082, REQ-083_
   - Final verification sweep: all `[x]` checkboxes in this `tasks.md`; all outcome files present; `deferred-items.md` gate re-run (count = 0).
 

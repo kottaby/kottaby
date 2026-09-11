@@ -98,7 +98,7 @@ The whole layer (via the approved runner):
 bun run test/scripts/run-test.ts test/workflows
 ```
 
-## Helpers (`test/workflows/helpers/`) — scaffolded by DEV3-004 task 2.1
+## Helpers (`test/workflows/helpers/`)
 
 The helpers directory exists and is the ONLY shared-scaffolding home for this layer
 (rule 10). Import it via `@/test/workflows/helpers` (rule 8); its `index.ts` is a pure

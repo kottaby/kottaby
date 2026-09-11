@@ -1,8 +1,8 @@
-# Technical Architecture & Implementation Design: DEV1-013 — Student Handshake Code Generation
+# Technical Architecture & Implementation Design: Student Handshake Code Generation
 
 > **Plan of record:** `ai/plans/dev1-013-student-handshake-code-generation/`
 > **Specs:** `specs.md` REQ-001..REQ-083 (incl. REQ-J1..J5)
-> **Canonical refs:** `docs/auth/user-registration.md` §2 (existing generation contract), `docs/teachers/applicant-lifecycle.md` (DEV2-004 verify-plus-additive precedent + `$all` authScope lesson), `docs/specs/open-decisions-and-gaps.md` (A.2, A.3, B.12, B.13, B.14), `docs/specs/state-machine-invariants.md` (INV-P1..P4, INV-U1/U4/U5), `docs/workflows/04-parent-supervision-handshake.md`, `docs/graphql/domain-error-extensions-code.md`, `docs/graphql/error-handling-contract.md`, `docs/auth/jwt-authentication-service.md`, `frontend/graphql/AGENTS.md` (embedded type normalization policy)
+> **Canonical refs:** `docs/auth/user-registration.md` §2 (existing generation contract), `docs/teachers/applicant-lifecycle.md` (verify-plus-additive precedent + `$all` authScope lesson), `docs/specs/open-decisions-and-gaps.md` (A.2, A.3, B.12, B.13, B.14), `docs/specs/state-machine-invariants.md` (INV-P1..P4, INV-U1/U4/U5), `docs/workflows/04-parent-supervision-handshake.md`, `docs/graphql/domain-error-extensions-code.md`, `docs/graphql/error-handling-contract.md`, `docs/auth/jwt-authentication-service.md`, `frontend/graphql/AGENTS.md` (embedded type normalization policy)
 
 ---
 
@@ -10,7 +10,7 @@
 
 ### 1.1 Scope Statement
 
-DEV1-013 is a **mostly-verification + small-additive ticket** (the DEV2-004 precedent). The handshake-code generation path (`generateHandshakeCode()` → `KSB-<8 uppercase hex>` → bounded in-transaction 23505 retry) shipped in DEV1-002 and is structurally correct; the DB uniqueness (`students_handshake_code_unique`) and NOT NULL constraints shipped in DEV1-001. This ticket's net-new surface is exactly four things:
+ is a **mostly-verification + small-additive ticket** (the precedent). The handshake-code generation path (`generateHandshakeCode` → `KSB-<8 uppercase hex>` → bounded in-transaction 23505 retry) shipped in and is structurally correct; the DB uniqueness (`students_handshake_code_unique`) and NOT NULL constraints shipped. This ticket's net-new surface is exactly four things:
 
 1. **Permanent test locks** on format, uniqueness, nullability, immutability, and rollback purity of the existing generation path (no production-code change).
 2. **Student self-read**: zero-argument `myHandshakeCode: String!` query, `role: [student]`.
@@ -66,19 +66,19 @@ PostgreSQL  (NO writes; NO locks; NO cache)
 
 | # | Decision | Options Considered | Pros / Cons | Rationale (Maintainability, Scalability, Reliability) |
 |---|----------|--------------------|-------------|--------------------------------------------------------|
-| D1 | **Generation is verify-only** — lock the DEV1-002 path with permanent tests; no production-code change to registration | (a) re-plan generation in this ticket; (b) lock tests only | (a) Cons: violates Existing Codebase State rule; re-litigates a proven path. (b) Pros: zero regression risk; locks become CI gates. | REQ-010/040. The `backend/db/schema/` ground truth and `docs/auth/user-registration.md` §2 define the contract; this ticket's job is making regressions impossible, not re-implementation. |
+| D1 | **Generation is verify-only** — lock the path with permanent tests; no production-code change to registration | (a) re-plan generation in this ticket; (b) lock tests only | (a) Cons: violates Existing Codebase State rule; re-litigates a proven path. (b) Pros: zero regression risk; locks become CI gates. | REQ-010/040. The `backend/db/schema/` ground truth and `docs/auth/user-registration.md` §2 define the contract; this ticket's job is making regressions impossible, not re-implementation. |
 | D2 | **Canonical pattern + guards in `shared/constants/handshake-code.constants.ts`** (`HANDSHAKE_CODE_PREFIX`, `HANDSHAKE_CODE_PATTERN = /^KSB-[0-9A-F]{8}$/`, `isHandshakeCode`, `normalizeHandshakeCode`) | (a) backend-only regex in service; (b) shared constants module | (a) Cons: frontend validation copy duplicates the pattern → drift. (b) Pros: one regex, one normalization, importable by both layers; shared-layer purity preserved (zero `@/backend`/... imports). | REQ-011. Shared-layer isolation is enforced by ESLint `no-restricted-imports`; the module is dependency-free by construction. |
 | D3 | **Masking as a pure total helper `maskFullName` in `shared/lib/mask-full-name.ts`** — first grapheme of each whitespace-separated part + fixed mask cluster; `Intl.Segmenter` grapheme granularity | (a) server-only string slicing by code units; (b) grapheme-aware segmentation in shared lib | (a) Cons: splits surrogate pairs / combining marks → corrupt Arabic & emoji names; throws on width assumptions. (b) Pros: deterministic (same input → same mask, locale-independent), total (never throws — empty input returns a fixed placeholder), 100% branch-coverable. | REQ-017/054. Grapheme correctness is a hard correctness property for Arabic RTL names; purity keeps it service-resolver-and-frontend reusable without I/O. |
-| D4 | **Not-found is a nullable payload, never an error** (`findStudentByHandshakeCode → null`) | (a) throw `STUDENT_NOT_FOUND`; (b) return null | (a) Cons: weaponizes the error channel into an existence oracle signal; forces UI to branch on exceptions for a first-class UI state. (b) Pros: DEV2-004 precedence (`myApplicantProfile` null = certified); discovery misses render as a normal inline state. | REQ-016. Also collapses governance-excluded children into the SAME null channel, so no observer can distinguish "never existed" from "deleted/blocked/suspended" (REQ-021/033). |
+| D4 | **Not-found is a nullable payload, never an error** (`findStudentByHandshakeCode → null`) | (a) throw `STUDENT_NOT_FOUND`; (b) return null | (a) Cons: weaponizes the error channel into an existence oracle signal; forces UI to branch on exceptions for a first-class UI state. (b) Pros: precedence (`myApplicantProfile` null = certified); discovery misses render as a normal inline state. | REQ-016. Also collapses governance-excluded children into the SAME null channel, so no observer can distinguish "never existed" from "deleted/blocked/suspended" (REQ-021/033). |
 | D5 | **Governance exclusion evaluated service-side over fetched governance columns** (not a SQL `WHERE` filter) | (a) SQL predicate `WHERE NOT is_deleted AND NOT is_blocked AND NOT suspended-window`; (b) fetch governance fields + pure predicate in service | (a) Cons: duplicates the suspension-window math (`suspended_at + days > now`) as SQL and as app code — drift risk; harder to unit-fuzz. (b) Pros: one pure function, exact match to the fail-closed semantics of the pending `assertNotSuspended` contract; four boundary fixtures trivially testable. Cons: one extra column read (trivial). | REQ-021. The suspension window math is a product rule; keeping it in TS keeps the DB query a trivial parameterized equality and makes fail-closed behavior reviewable in one function. |
 | D6 | **`linkable = parentId IS NULL` computed server-side; raw `parentId` never in payload** | (a) expose `parentId` and let client derive; (b) derive server-side | (a) Cons: leaks the incumbent parent's FK (the very identity B.12 confidentiality denies); invites client-side trust of a raceable value. (b) Pros: the read-side B.12 signal without identity disclosure. | REQ-018/019/033; REQ-J2 locks "second parent never learns WHICH parent is linked". |
 | D7 | **`HandshakeCodeLookup` carries NO `id`; Apollo registers it as embedded (`keyFields: false`)** | (a) expose `id` for normalization; (b) id-free value object + `keyFields: false` | (a) Cons: defeats REQ-019 (no DB identity in payload) — the entire minimal-payload ruling. (b) Pros: cache warning eliminated structurally; the lookup result is joinable only by re-submitting the code (capability-by-code). | REQ-019/061. Follows the existing `AdminNoteInfo`/`OnlineMeetingInfo` embedded-type precedent in `frontend/providers/apollo/apolloCache.ts`. |
-| D8 | **authScopes use the `$all` conjunction shape**: `{ $all: { authenticated: true, role: [UserRole.X] } }` | (a) `{ authenticated: true, role: [...] }` without `$all`; (b) `$all` | (a) Cons: Pothos scope-auth combines sibling keys with ANY semantics — an authenticated wrong-role caller could pass; and anonymous now maps to FORBIDDEN instead of UNAUTHORIZED (proven live during DEV2-004). (b) Pros: 401/403 semantics exactly per the authScopes contract. | REQ-031. The lesson is documented in `docs/teachers/applicant-lifecycle.md` §3 and is binding here. |
+| D8 | **authScopes use the `$all` conjunction shape**: `{ $all: { authenticated: true, role: [UserRole.X] } }` | (a) `{ authenticated: true, role: [...] }` without `$all`; (b) `$all` | (a) Cons: Pothos scope-auth combines sibling keys with ANY semantics — an authenticated wrong-role caller could pass; and anonymous now maps to FORBIDDEN instead of UNAUTHORIZED (proven live during the applicant-lifecycle work). (b) Pros: 401/403 semantics exactly per the authScopes contract. | REQ-031. The lesson is documented in `docs/teachers/applicant-lifecycle.md` §3 and is binding here. |
 | D9 | **Normalize-then-validate input**: `trim → toUpperCase → regex` before ANY DB read; lowercase variants of a real code resolve; structural garbage fails `VALIDATION` pre-DB | (a) exact-case equality only; (b) normalize-then-validate | (a) Cons: parents typing `ksb-…` from a printed card fail unnecessarily — poor UX at zero security gain (the keyspace is case-normalized by definition: the alphabet contains no letters that differ by case in meaning). (b) Pros: canonical acceptance surface; the regex remains the single gate. | REQ-020. Case is presentation, not entropy: normalization preserves collision-freedom because generation emits uppercase only. |
 | D10 | **No caching at all — including no negative caching** | (a) cache misses/hits; (b) zero cache | (a) Cons: negative-cache staleness breaks "code created after first miss must be findable immediately" (REQ-044); governance changes would go stale. (b) Pros: every lookup reads live state; single-scalar equality on a unique index is O(log n). | REQ-044. At catalog-of-codes scale this is free; a future rate limiter (D2 ledger) owns abuse resistance instead. |
 | D11 | **Log hygiene: the submitted code is never logged** | (a) log raw input in domain errors; (b) elide the code entirely from log context | (a) Cons: the code is a bearer-ish capability (possession = masked-identity discovery); logging it leaks the capability to log readers; attacker fuzz strings flood logs. (b) Pros: bounded `{ code, entity, locale }` context only. | REQ-052 strengthens to elision. Spec allows logging "after validation success"; this design documents the stricter elision as the shipped posture. |
-| D12 | **TWO surfaces, minimal footprint**: additive student card on the existing profile surface; ONE new route `/parent/handshake` | (a) dedicated student route; (b) card reuse + single parent page | (a) Cons: navigation churn for a single code display. (b) Pros: student UX touches zero routing; parent journey gets a clean bookmarkable entry that DEV1-014 extends (the "send link request" CTA slot). | REQ-064. Sidebar adds ONE parent item; mobile bottom nav unchanged. |
-| D13 | **Journey harness scaffolded under `test/workflows/`** (helpers + `AGENTS.md`) with committed fixtures, tracked-ID teardown, and no `runInRollback` | (a) reuse `runInRollback` logic tests only; (b) scaffold journeys | (a) Cons: services spawn their own transactions — rollback wrappers deadlock the journey. (b) Pros: REQ-077 mandate; becomes the permanent substrate for DEV1-014/015 handshake journeys. | Requested feature has ≥2 actors over shared state: journey tests are mandatory per project rule 10. |
+| D12 | **TWO surfaces, minimal footprint**: additive student card on the existing profile surface; ONE new route `/parent/handshake` | (a) dedicated student route; (b) card reuse + single parent page | (a) Cons: navigation churn for a single code display. (b) Pros: student UX touches zero routing; parent journey gets a clean bookmarkable entry that extends (the "send link request" CTA slot). | REQ-064. Sidebar adds ONE parent item; mobile bottom nav unchanged. |
+| D13 | **Journey harness scaffolded under `test/workflows/`** (helpers + `AGENTS.md`) with committed fixtures, tracked-ID teardown, and no `runInRollback` | (a) reuse `runInRollback` logic tests only; (b) scaffold journeys | (a) Cons: services spawn their own transactions — rollback wrappers deadlock the journey. (b) Pros: REQ-077 mandate; becomes the permanent substrate for handshake journeys. | Requested feature has ≥2 actors over shared state: journey tests are mandatory per project rule 10. |
 
 ---
 
@@ -86,7 +86,7 @@ PostgreSQL  (NO writes; NO locks; NO cache)
 
 ### 2.1 Existing Schema Verification (READ-ONLY — zero drift, REQ-045)
 
-`backend/db/schema/` is the sole structural ground truth. All required structures exist from DEV1-001 (+ DEV1-002 write path):
+`backend/db/schema/` is the sole structural ground truth. All required structures exist from earlier sprint-1 tickets (+ the registration write path):
 
 | Contract dependency | Existing implementation | Verified at |
 |---|---|---|
@@ -163,7 +163,7 @@ maskFullName(fullName: string): string
 ```
 
 - **Total function**: no throw paths; no I/O; no locale; deterministic.
-- Lives in shared so the future DEV1-015 pending-request review UI can mask server-side OR reuse client-side preview without duplication.
+- Lives in shared so the future pending-request review UI can mask server-side OR reuse client-side preview without duplication.
 
 ### 2.5 i18n — two surfaces (REQ-051)
 
@@ -215,7 +215,7 @@ type HandshakeCodeLookup {
 | Query module | `backend/graphql/query/students/handshake-code.query.ts` (NEW + barrel wiring): two query fields |
 | authScopes | `myHandshakeCode`: `{ $all: { authenticated: true, role: [UserRole.Student] } }` · `findStudentByHandshakeCode`: `{ $all: { authenticated: true, role: [UserRole.Parent] } }` — **D8 shape mandatory**; `UserRole` is a VALUE import from `@/backend/enum/users/user-role.enum` |
 | Resolver bodies | Thin: delegate to `StudentHandshakeService` with `ctx.user.id` + `ctx.locale`; no try/catch swallowing; DomainErrors propagate to the masking boundary unchanged (boundary-only finalizer per the error contract) |
-| Rate limiting | unchanged platform posture (fail-open stub; real limiting owned by DEV2-002 — deferred note D2; REQ-034) |
+| Rate limiting | unchanged platform posture (fail-open stub; real limiting lives in a future ticket — deferred note D2; REQ-034) |
 
 ### 3.3 Error Mapping (`extensions.code`)
 
@@ -239,7 +239,7 @@ type HandshakeCodeLookup {
 | Parent | `FORBIDDEN` | ✅ discovery payload | ✅ renders | n/a |
 | Teacher (applicant or certified) | `FORBIDDEN` | `FORBIDDEN` | redirect → `/dashboard` | n/a |
 | Supervisor (permission-group identity; underlying `users.role` ≠ student/parent) | `FORBIDDEN` | `FORBIDDEN` | redirect → `/dashboard` | n/a |
-| Super Admin | `FORBIDDEN` | `FORBIDDEN` | redirect → `/dashboard` (admin CRUD surfaces belong to DEV3-016-era tickets) | n/a |
+| Super Admin | `FORBIDDEN` | `FORBIDDEN` | redirect → `/dashboard` (admin CRUD surfaces belong to -era tickets) | n/a |
 
 ---
 
@@ -299,14 +299,14 @@ export function isGovernanceExcludedFromDiscovery(
 
 | Scenario | Actors | Risk | Mitigation |
 |---|---|---|---|
-| Two registrations collide on the same generated code | 2 registration transactions | Duplicate code row | DB unique constraint is the arbiter; the DEV1-002 bounded in-transaction retry (≤5) absorbs it; concurrent-collision suite proves exactly one commit wins, loser retries a fresh code (REQ-041/072) |
+| Two registrations collide on the same generated code | 2 registration transactions | Duplicate code row | DB unique constraint is the arbiter; the bounded in-transaction retry (≤5) absorbs it; concurrent-collision suite proves exactly one commit wins, loser retries a fresh code (REQ-041/072) |
 | Parent searches WHILE registration is committing | parent + registration tx | Half-visible student | Reads see committed state only; the `students` row is invisible pre-commit — no partial observation possible |
-| `linkable` read races a future link write | parent read vs DEV1-014 mutation (future) | Stale `linkable: true` shown just as link lands | **Documented advisory read**: REQ-019's forward contract REQUIRES DEV1-014 to re-resolve by code and re-check `parentId IS NULL` inside its OWN transaction. This ticket ships no write path, so no TOCTOU window exists here. |
+| `linkable` read races a future link write | parent read vs mutation (future) | Stale `linkable: true` shown just as link lands | **Documented advisory read**: REQ-019's forward contract REQUIRES to re-resolve by code and re-check `parentId IS NULL` inside its OWN transaction. This ticket ships no write path, so no TOCTOU window exists here. |
 | Governance flip mid-lookup | admin flip vs parent read | Child disappears between check and any follow-up | Each lookup evaluates one row snapshot against one captured `now`; next lookup re-reads live state (no cache, D10) |
 | Repeated invalid-code probing | abuser parent token | Cheap oracle probing | Pre-DB regex rejection costs ~µs; role gate + minimal payload + D2 forward rate-limit note bound residual risk (REQ-034) |
 | Negative-cache staleness | infra | Code created after a miss never found | No caching layer exists anywhere on this surface (REQ-044) |
 
-**Locking summary:** no `SELECT FOR UPDATE`, no advisory locks, no Redis — every operation is a pure read against committed state. **TOCTOU guarantee:** this ticket performs zero writes, hence zero write-side TOCTOU windows; the only advisory window (`linkable`) is explicitly owned forward by DEV1-014. No module-level mutable state in any new module.
+**Locking summary:** no `SELECT FOR UPDATE`, no advisory locks, no Redis — every operation is a pure read against committed state. **TOCTOU guarantee:** this ticket performs zero writes, hence zero write-side TOCTOU windows; the only advisory window (`linkable`) is explicitly owned forward. No module-level mutable state in any new module.
 
 ### 4.4 Cross-Actor Journey Design (MANDATORY — specs §2.9)
 
@@ -316,11 +316,11 @@ export function isGovernanceExcludedFromDiscovery(
 stateDiagram-v2
   [*] --> Nonexistent
   Nonexistent --> ActiveUnlinked: System(registerUser role=student) — code generated, parentId NULL
-  ActiveUnlinked --> ActiveLinked: DEV1-014 link mutation (OUT OF SCOPE; journey emulates via fixture)
+  ActiveUnlinked --> ActiveLinked: link mutation (OUT OF SCOPE; journey emulates via fixture)
   ActiveUnlinked --> GovernedExcluded: Admin governance — isDeleted / isBlocked / active suspension
   ActiveLinked --> GovernedExcluded: Admin governance flip — parent visibility ends INSTANTLY
   GovernedExcluded --> ActiveUnlinked: Admin reactivation (governance cleared; linkage absent)
-  ActiveLinked --> [*]: DEV1-016/017 monitoring era (not this ticket)
+  ActiveLinked --> [*]: monitoring era (not this ticket)
 ```
 
 **Transition → driver → visibility mapping:**
@@ -328,7 +328,7 @@ stateDiagram-v2
 | # | Transition | Driving actor/permission | Observable after transition |
 |---|---|---|---|
 | T1 | Nonexistent → ActiveUnlinked | System (registration service; no human) | Student sees own code; any parent with the code sees masked identity + `linkable: true` |
-| T2 | ActiveUnlinked → ActiveLinked | DEV1-014 (student-confirmed link; emulated by fixture here) | Parents see same masked identity + `linkable: false`; incumbent parent identity NEVER disclosed |
+| T2 | ActiveUnlinked → ActiveLinked |  (student-confirmed link; emulated by fixture here) | Parents see same masked identity + `linkable: false`; incumbent parent identity NEVER disclosed |
 | T3 | any → GovernedExcluded | Admin governance write (fixture here) | Parents see `null` — byte-identical to "code never existed" |
 | T4 | GovernedExcluded → ActiveUnlinked | Admin reactivation (fixture) | Discovery restores exactly (code unchanged — immutability REQ-013) |
 
@@ -336,7 +336,7 @@ stateDiagram-v2
 
 | Flow | Rows written | Notifications (channel → recipient) | Idempotency |
 |---|---|---|---|
-| Registration (T1) | `users` +1, `students` +1 with `handshakeCode` (existing DEV1-002 behavior — verified, not modified) | none added by this ticket | `users.email` 23505 → localized ConflictError (existing) |
+| Registration (T1) | `users` +1, `students` +1 with `handshakeCode` (existing behavior — verified, not modified) | none added by this ticket | `users.email` 23505 → localized ConflictError (existing) |
 | `myHandshakeCode` | none | none | read-only; no key needed |
 | `findStudentByHandshakeCode` | none | none | read-only; no key needed |
 | Audit rows | none in this ticket | — | — |
@@ -470,7 +470,7 @@ existing student profile container (existing)
 
 - Exact `$all`-conjunction scopes per D8: anonymous → 401 semantics; every wrong role (including the sibling role on each surface) → 403 semantics — evaluated before any resolver body runs.
 - No admin/supervisor read bypass is added; no `grantRole*`/`elevate*`-class surface exists anywhere near this ticket.
-- Governance-blocked/deleted callers are denied fail-closed at the DEV2-001/002 context boundary before reaching either resolver.
+- Governance-blocked/deleted callers are denied fail-closed at the context boundary before reaching either resolver.
 
 ### 6.4 Injection / Sanitization (REQ-022/035)
 
@@ -492,4 +492,4 @@ existing student profile container (existing)
 - **Test tiers:** shared-helper suites (guard fuzz + mask 4-tier incl. RTL/emoji/combining/empty branches) → 100% branch coverage; DB lock suite (`runInRollback` + `expectRepoError` + `entity-setup.ts` only, via `bun run scripts/run-test/run-test.ts`); service matrix (REQ-073); GraphQL integration matrix via `setupTestServerLifecycle` + `testClient` (REQ-074, incl. forbidden-key payload scans and the full role matrix); component suites via `test/ui` component runner (REQ-075); journey suite `test/workflows/parents/handshake-discovery.test.ts` (REQ-077).
 - **Immutability scan (REQ-013):** static assertion that no write path targets `handshakeCode` outside the registration insert path.
 - **Knowledge propagation outputs:** canonical `docs/parents/handshake-code-discovery.md`; one-line cross-reference into `docs/auth/user-registration.md` (handshake section) and `docs/workflows/04-parent-supervision-handshake.md`; rule-only one-liners in `backend/services/AGENTS.md`, `backend/db/repo/AGENTS.md`, `frontend/graphql/AGENTS.md` (embedded-type list entry), and root `AGENTS.md` Important References.
-- **Deferred-items ledger pre-seeded (non-blocking, per template):** **D1** link-request CTA wire-up → DEV1-014; **D2** real per-parent rate limiting → DEV2-002 stream; **D3** direct-onboarding code-generation reuse via the shared generator contract → DEV3-019. Final gate: `grep -c "❌\|⚠️" ai/plans/dev1-013-student-handshake-code-generation/deferred-items.md` = 0 excluding D1–D3.
+- **Deferred-items ledger pre-seeded (non-blocking, per template):** **D1** link-request CTA wire-up → the follow-up link-request ticket; **D2** real per-parent rate limiting → the platform rate-limiting stream; **D3** direct-onboarding code-generation reuse via the shared generator contract → the onboarding ticket. Final gate: `grep -c "❌\|⚠️" ai/plans/dev1-013-student-handshake-code-generation/deferred-items.md` = 0 excluding D1–D3.

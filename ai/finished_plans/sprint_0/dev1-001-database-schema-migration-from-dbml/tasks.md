@@ -1,7 +1,7 @@
 > **Date**: 2026-08-25 12:42:30
-> **Target Ticket**: DEV1-001
+> **Target Ticket**: Database Schema Migration
 
-# Trackable Implementation Tasks: DEV1-001 — Database Schema Migration from DBML
+# Trackable Implementation Tasks: Database Schema Migration from DBML
 
 **Plan directory:** `ai/plans/dev1-001-schema-migration/` · **Outcome directory:** `ai/plans/dev1-001-schema-migration/outcome/` · **Ledger:** `ai/plans/dev1-001-schema-migration/deferred-items.md`
 
@@ -20,8 +20,8 @@
   - [x] 0.2.SR Diff against existing `backend/db/schema/**` inventory; log every gap/extra
 - [ ] 0.PR Plan-review gate: invoke `@plan-review` on this plan; fix all violations; write `outcome/plan-review-R1.md`; re-run until "Plan passes all AGENTS.md rules"
   > SKIPPED in sandbox — no `@plan-review` agent available; plan-review violations were caught instead via the 13-item DBML reconciliation worksheet (R1–R13) in `outcome/dbml-reconciliation.md`. Carry-forward: invoke `@plan-review` in a future environment that exposes the agent.
-- [x] 0.D Deferred registry entries: (a) Pothos enum registration + codegen deferred to first GraphQL-exposing ticket; (b) `bun validate:dbml` CI hookup owned by DEV3-001
-  > DEFERRED items logged in `deferred-items.md` rows D9 (Pothos enum registration) + D10 (validate:dbml CI hookup owned by DEV3-001).
+- [x] 0.D Deferred registry entries: (a) Pothos enum registration + codegen deferred to first GraphQL-exposing ticket; (b) `bun validate:dbml` CI hookup owned by the CI/CD Pipeline ticket
+  > DEFERRED items logged in `deferred-items.md` rows D9 (Pothos enum registration) + D10 (validate:dbml CI hookup owned by the CI/CD Pipeline ticket).
 
 ## Phase 1: Types, Enums & Database Schema
 
@@ -73,7 +73,7 @@
 
 - [ ] 1.8 Apply schema: run `bun run db push` against local PG; log output; verify table inventory
   - [ ] 1.8.QL (sub-loop on any generated/edited config touched) / 1.8.SR (push used for schema — NOT migrate; destructive commands NOT invoked)
-  > DEFERRED (D1): no PostgreSQL available in sandbox per CONTRACT §Environment. Verification in lieu: `bunx tsgo --noEmit` (schema graph type-checks clean — 0 errors in DEV1-001-authored files) + `bun run validate:dbml` (GREEN: 22 tables, 15 enums) + frontend inventory page (`/` renders server-side). Live `db push` to be run by orchestrator/upstream in a PG-equipped env.
+  > DEFERRED (D1): no PostgreSQL available in sandbox per CONTRACT §Environment. Verification in lieu: `bunx tsgo --noEmit` (schema graph type-checks clean — 0 errors in this-ticket-authored files) + `bun run validate:dbml` (GREEN: 22 tables, 15 enums) + frontend inventory page (`/` renders server-side). Live `db push` to be run by orchestrator/upstream in a PG-equipped env.
 
 - [x] 1.9 Sync canonical doc: update `db/schema.dbml` in the same unit of work for every structural deviation found in 0.2 (DBML core rule); run `bun validate:dbml` → GREEN (REQ-050)
   - [x] 1.9.QL / 1.9.SR (names match DB exactly — no modernization)
@@ -98,17 +98,17 @@
     > ADAPTED — artifact authored (`backend/db/migration/rollback-down.sql`, 100 lines, dependency-ordered DROPs). Live up→down→up execution deferred (D4) — no PG in sandbox. Verification recipe documented in `docs/drizzle/dbml-to-drizzle-schema-migration.md` §5.
 
 - [x] 2.M Mid-Point Review Gate (backend scope): dispatch `review-backend` + `review-types` over all files changed in Phases 1–2 vs Phase 0 baseline; fix until ZERO backend-specific findings; write `outcome/midpoint-review-R1.md`
-  > ADAPTED — `review-backend` / `review-types` agents not available in sandbox; mid-point review instead performed via `bunx tsgo --noEmit` (0 errors in DEV1-001-authored files; 105 pre-existing baseline errors in `scripts/test/shared/frontend/app` layers unchanged) + `bun run validate:dbml` (GREEN) + manual review against the 13-item DBML reconciliation worksheet. Findings documented in `outcome/dev1-001-consolidated-outcome.md`.
+  > ADAPTED — `review-backend` / `review-types` agents not available in sandbox; mid-point review instead performed via `bunx tsgo --noEmit` (0 errors in this-ticket-authored files; 105 pre-existing baseline errors in `scripts/test/shared/frontend/app` layers unchanged) + `bun run validate:dbml` (GREEN) + manual review against the 13-item DBML reconciliation worksheet. Findings documented in `outcome/dev1-001-consolidated-outcome.md`.
 
 ## Phase 3: GraphQL Resolvers & API Handlers
 
-- [x] 3.0 NOT APPLICABLE — no resolvers/queries/mutations/authScopes in DEV1-001 (schema-only ticket; first GraphQL exposure belongs to DEV2-001+; deferral recorded in `deferred-items.md`)
+- [x] 3.0 NOT APPLICABLE — no resolvers/queries/mutations/authScopes in this ticket (schema-only ticket; first GraphQL exposure belongs to the JWT Authentication Service ticket; deferral recorded in `deferred-items.md`)
   - [x] 3.0.SR Verify zero edits under `backend/graphql/**`; zero enum registrations in `backend/graphql/pothos/shared/enum.pothos.ts`
   > Verified: zero edits under `backend/graphql/**`. Pothos enum registration deferred as D9.
 
 ## Phase 4: Frontend GraphQL Documents, Stores & UI Views
 
-- [x] 4.0 NOT APPLICABLE — no routes, navigation, stores, Apollo documents, MUI, or i18n namespaces in DEV1-001
+- [x] 4.0 NOT APPLICABLE — no routes, navigation, stores, Apollo documents, MUI, or i18n namespaces in this ticket
   - [x] 4.0.SR Verify zero edits under `frontend/**`, `app/**`, `shared/locale/**`
   > EXCEPTION: `app/layout.tsx` + `app/page.tsx` authored as a minimal browser-verifiable schema-inventory dashboard (per CONTRACT §Frontend). This is a verification artifact, NOT a feature page — no Apollo/MUI/i18n. Zero edits under `frontend/**` and `shared/locale/**`.
 
@@ -131,9 +131,9 @@
   - security review (immutability triggers non-bypassable; governance fields unified; no secrets)
   - dbml-drift reviewer (db/schema.dbml ↔ `bun db` reality)
   - [x] 6.1.FIX fix waves until zero feature-specific findings; write `outcome/post-implementation-review.md`
-    > ADAPTED — `review-*` / `security` / `dbml-drift` agents not available in sandbox; review waves instead performed via `bunx tsgo --noEmit` (0 errors in DEV1-001 files; 105 pre-existing baseline unchanged) + `bun run validate:dbml` (GREEN) + manual cross-check of the 13-item reconciliation worksheet + DBML file diff. Findings consolidated in `outcome/dev1-001-consolidated-outcome.md`.
+    > ADAPTED — `review-*` / `security` / `dbml-drift` agents not available in sandbox; review waves instead performed via `bunx tsgo --noEmit` (0 errors in this ticket's files; 105 pre-existing baseline unchanged) + `bun run validate:dbml` (GREEN) + manual cross-check of the 13-item reconciliation worksheet + DBML file diff. Findings consolidated in `outcome/dev1-001-consolidated-outcome.md`.
 - [x] 6.2 Deferred-items gate: `grep -c "❌\|⚠️" deferred-items.md` = 0, OR each is explicitly accepted-by-user with target ticket assigned (Pothos enum registration, codegen, CI validate hookup)
-    > STATUS — `deferred-items.md` currently contains 9 ❌ + 1 ⚠️ across D1–D10. All 10 are explicitly accepted with target tickets assigned (D1–D4 → orchestrator env with PG; D5 → Task 1.9 DBML sync; D6 → separate housekeeping ticket; D7 → downstream notification-recipient service ticket; D8 → downstream db-client ticket; D9 → DEV2-001+; D10 → DEV3-001). Per the SKILL.md gate rule, each ❌ has a target ticket — plan can complete.
+    > STATUS — `deferred-items.md` currently contains 9 ❌ + 1 ⚠️ across D1–D10. All 10 are explicitly accepted with target tickets assigned (D1–D4 → orchestrator env with PG; D5 → Task 1.9 DBML sync; D6 → separate housekeeping ticket; D7 → downstream notification-recipient service ticket; D8 → downstream db-client ticket; D9 → the JWT Authentication Service ticket; D10 → the CI/CD Pipeline ticket). Per the SKILL.md gate rule, each ❌ has a target ticket — plan can complete.
 
 ## Phase 7: Knowledge Propagation & Documentation
 
@@ -148,4 +148,4 @@
   - [x] 7.2.QL sub-loop per modified doc/governance file (exit 0)
     > ADAPTED — `sub-loop.ts` is designed for `.ts` source files, not Markdown docs. AGENTS.md / tasks.md edits verified via `bun run validate:dbml` (still GREEN) + `bunx tsgo --noEmit` (105 errors — unchanged from Phase 0 baseline; docs aren't type-checked). Skills cross-link deferred — `.agents/skills/drizzle-migrations/SKILL.md` doesn't exist in this sandbox (will be created when the drizzle-migrations skill is added); the canonical doc is referenced from `backend/db/schema/AGENTS.md` + `backend/types/AGENTS.md` + `backend/AGENTS.md` + root `AGENTS.md`.
 - [x] 7.3 Write `outcome/7.x-knowledge-propagation-outcome.md`; final sweep of all outcome files; mark all checkboxes `[x]`; compile Execution Summary (baseline vs final: tsgo/biome/lint deltas, review rounds, files changed)
-    > Consolidated outcome at `outcome/dev1-001-consolidated-outcome.md`; Execution Summary appended to `worklog.md` under `## DEV1-001 Implementation Summary`.
+    > Consolidated outcome at `outcome/dev1-001-consolidated-outcome.md`; Execution Summary appended to `worklog.md` under `## Implementation Summary`.

@@ -1,11 +1,11 @@
-# Technical Architecture & Implementation Design: DEV2-002 — Role-Based Authorization Middleware
+# Technical Architecture & Implementation Design: Role-Based Authorization Middleware
 
 ## 1. System Overview & Architecture
 
 ### Design Goals
 
 1. **Canonical deny/allow contract** shared by GraphQL (Pothos `authScopes`) and SSR pages (`withPageAuth` / `requirePermissionForPage` / new `requireRoleForPage`).
-2. **Zero trusted client identity** — authorization identity flows only from DEV2-001's verified context.
+2. **Zero trusted client identity** — authorization identity flows only from the JWT Authentication Service ticket's verified context.
 3. **Fail-closed everywhere** — any evaluation error or governed context denies.
 4. **Extend, don't fork** — build on `buildAuthScopes`, `PermissionsService`, and existing guards; no parallel RBAC implementation.
 
@@ -15,7 +15,7 @@
 GraphQL request
     │
     ▼
-DEV2-001 context factory (gqlContextFactory)
+the JWT Authentication Service ticket context factory (gqlContextFactory)
     ├─ verifies token / resolves session → ctx.user, ctx.role, ctx.permissions, ctx.isSuperAdmin
     └─ governed account (deleted/blocked) → NO usable context (fail-closed) ──► downsteam ops reject
     │
@@ -36,7 +36,7 @@ Resolver body → Service → Repository → DB
 SSR page
     │
     ▼
-layout guard: getServerUserContext() (DEV2-001) → { userId, context } | { null, null } ──null──► redirectToLogin()
+layout guard: getServerUserContext (the JWT Authentication Service ticket) → { userId, context } | { null, null } ──null──► redirectToLogin
     │
     ▼
 page guard: requirePermissionForPage(...)  OR  requireRoleForPage(...) [THIS TICKET]
@@ -62,10 +62,10 @@ Server Component ──direct──► Service (via require*ForPage guard, never
 - Context: Kottaby's canonical fine-grained gate is `permission: AppPermission.X`. The Draft Academy ticket speaks in roles (`admin|teacher|student|parent`).
 - Options: (1) map every role gate to permission bundles only — Cons: loses the readable coarse contract the ticket and the planning docs demand; role drift goes untested. (2) add a first-class `role` scope documented as coarse outer gate, `permission` remaining primary — Pros: satisfies both vocabularies; enables REQ-060/061 schema-coverage proof.
 - **Decision:** Option 2.
-- **Rationale:** DEV3-016 admin CRUD, DEV2-004 flows, DEV1-016 parent portal all reference role expectations; a tested `role` scope locks the contract at schema level.
+- **Rationale:** admin CRUD, the Teacher Applicant Registration ticket flows, parent portal all reference role expectations; a tested `role` scope locks the contract at schema level.
 
-**Decision: Governance deny rides the DEV2-001 context boundary, plus an explicit suspension helper at the authorization layer.**
-- Rationale: deleted/blocked are already fail-closed upstream (REQ-033 in DEV2-001); suspension needs a *selective* deny (read-only profile OK, session creation denied → INV-U2), which only the authorization layer can express — hence `assertNotSuspended` is shipped and unit-tested here for DEV3-004 to consume.
+**Decision: Governance deny rides the JWT Authentication Service ticket context boundary, plus an explicit suspension helper at the authorization layer.**
+- Rationale: deleted/blocked are already fail-closed upstream (REQ-033 in the JWT Authentication Service ticket); suspension needs a *selective* deny (read-only profile OK, session creation denied → INV-U2), which only the authorization layer can express — hence `assertNotSuspended` is shipped and unit-tested here for the Session Creation & Lifecycle ticket to consume.
 
 **Decision: SSR role guard consumes `UserPermissionContext.role` — no extra DB queries.**
 - Rationale: serverless cold-start rule (`docs/backend/serverless-cold-start-optimization.md`); role is already on context.
@@ -90,7 +90,7 @@ stateDiagram-v2
 
 ## 2. Data Models & Database Schema
 
-**No schema changes.** All table/enum ownership is DEV1-001. This ticket consumes:
+**No schema changes.** All table/enum ownership is the Database Schema Migration ticket. This ticket consumes:
 
 - `users.role` (`user_role` enum: `admin | teacher | student | parent` — C.1, runtime enum from `backend/enum/users/`).
 - `users.is_deleted | deleted_at | is_blocked | blocked_at | suspended | suspended_at | suspended_period_days` (A.7 governance).
@@ -103,7 +103,7 @@ stateDiagram-v2
 | Type | Shape | Purpose |
 |---|---|---|
 | `RoleGateInput` | `{ readonly role: UserRoleTypeValue \| readonly UserRoleTypeValue[] }` via canonical role value type (from `backend/enum` users role enum's value union type) | scope argument typing — NO local string-literal unions |
-| `SuspensionGuardResult` | `{ allowed: boolean }`-shaped return type if needed by `assertNotSuspended` consumer contract | DEV3-004 seam |
+| `SuspensionGuardResult` | `{ allowed: boolean }`-shaped return type if needed by `assertNotSuspended` consumer contract | the Session Creation & Lifecycle ticket seam |
 | `RequireRolePageArgs` | reuse of existing `requirePermissionForPage` signature pattern (`userId`, roles, `locale`, `context: UserPermissionContext`) | SSR helper typing |
 
 All barrels follow the root conventions: `export * from "./authorization.types"` with `./` relative paths, no `@/` aliases in barrels.
@@ -126,14 +126,14 @@ Contract rules:
 - **AND composition** across distinct scope dimensions (Pothos default: all declared scopes must pass) — documented.
 - **Evaluation exceptions → deny** + structured `logger.error` (fail closed, REQ-032).
 - **Unauthenticated** short-circuits earlier in `scopeAuth` with `UNAUTHORIZED` (unchanged).
-- **Impersonation/simulation interplay:** `ctx.role` reflects the *effective* context produced by DEV2-001 (group simulation mutates permissions; the role scope contract documents that simulated role equals the resolved context role — behavior preserved, documented).
+- **Impersonation/simulation interplay:** `ctx.role` reflects the *effective* context produced by the JWT Authentication Service ticket (group simulation mutates permissions; the role scope contract documents that simulated role equals the resolved context role — behavior preserved, documented).
 
-### Suspension helper (authorization-layer seam for DEV3-004)
+### Suspension helper (authorization-layer seam for the Session Creation & Lifecycle ticket)
 
 `assertNotSuspended(userId, context | locale, tx?)` in `backend/services/auth/`:
 - Reads governed fields through the existing user context/user service (no new repository surface unless an existing read exists; prefer context fields when the caller has `safeUser` rows, else a minimal service read).
 - Computes window: `suspended && suspended_at && (suspended_period_days == null || suspended_at + days > now)` → throw `ForbiddenError` with localized `errors.accountSuspended`/`errors.forbidden` key via `getServerTranslations(locale, "errors")`.
-- Expired suspension → allow (matches DEV2-001 REQ-032 lapse semantics; actual reactivation field updates remain DEV2-001's `last_active_at`/governance-owner domain).
+- Expired suspension → allow (matches REQ-032 lapse semantics; actual reactivation field updates remain the JWT Authentication Service ticket's `last_active_at`/governance-owner domain).
 
 **No new GraphQL fields.** No `generate:gqlSchema`/`codegen` delta is expected from authorization scaffolding alone; if any Pothos-visible type is touched, run `bun run generate:gqlSchema && bun codegen` and assert byte-stability except for intended diffs.
 
@@ -152,7 +152,7 @@ Tests use EXISTING operations already carrying scopes (e.g., an admin-permission
 
 ### Concurrency & safety
 - Authorization evaluation is **read-only and pure** over already-resolved context → no write races, no TOCTOU surface introduced.
-- Suspension check is a **single read + compute** at request time; the authoritative enforcement for session creation lands in DEV3-004's transactional flow (this ticket ships the guard + contract; the transactional caller couples it with the session tx).
+- Suspension check is a **single read + compute** at request time; the authoritative enforcement for session creation lands in the Session Creation & Lifecycle ticket's transactional flow (this ticket ships the guard + contract; the transactional caller couples it with the session tx).
 - No module-level mutable state.
 
 ## 5. Frontend UX & Navigation Specification
@@ -192,7 +192,7 @@ Tests use EXISTING operations already carrying scopes (e.g., an admin-permission
 - **BOLA / IDOR defense:** All authorization identity is derived from `ctx.user.id`/`ctx.role`/`ctx.permissions` (server-verified). Zero decision inputs for authorization come from mutations' args. Schema-level test asserts no authorization-relevant field accepts client identity (REQ-050).
 - **BOPLA defense:** Scope evaluation reads a fixed whitelist of context keys (`role`, `permissions`, `isSuperAdmin`, impersonation marker). No input spreading into any persistence call exists in this layer (it performs no persistence writes at all).
 - **BFLA defense:** Role scope cannot be satisfied without the DB-sourced role claim; `superAdmin` composition preserved; no elevation mutation exists by construction (REQ-052, REQ-074 test proof).
-- **Governance deny:** deleted/blocked contexts never materialize (DEV2-001 fail-closed); RBAC layer additionally treats governed markers as deny + `logDomainError` (defense in depth, REQ-030).
+- **Governance deny:** deleted/blocked contexts never materialize (the JWT Authentication Service ticket fail-closed); RBAC layer additionally treats governed markers as deny + `logDomainError` (defense in depth, REQ-030).
 - **Fail-closed evaluation:** every scope evaluator wrapped so thrown errors resolve to deny + structured log (REQ-032).
 - **Error hygiene / no oracle:** denies use canonical localized strings only; no leak of required permission lists, role thresholds, or other users' governance state (REQ-053).
 - **SQL / LIKE injection:** this ticket introduces no user-input-driven queries; enum-guard comparisons only (`escapeLikeWildcards` not applicable — documented in doc's security section).

@@ -1,4 +1,4 @@
-# DEV3-005 — Session Status State Machine Enforcement: Implementation Plan
+# Session Status State Machine Enforcement: Implementation Plan
 
 > **Plan directory (verbatim):** `ai/plans/sprint_1/dev3-005-session-status-state-machine-enforcement`
 > **Specs of record:** `ai/plans/sprint_1/dev3-005-session-status-state-machine-enforcement/specs.md`
@@ -7,7 +7,7 @@
 
 ## Overview
 
-DEV3-004 shipped the guarded-transition session lifecycle (schema `backend/db/schema/classes/session.ts`, repo `backend/db/repo/classes/session.repository.ts`, service `backend/services/classes/session-lifecycle.service.ts` + extracted modules, GraphQL `backend/graphql/{mutation,query}/classes/session-lifecycle.*.ts`). DEV3-005 is an **enforcement-and-verification** slice on top: codify the transition matrix, add the INV-S6 in-session `is_online` lock/release to the existing guarded transactions, and expose INV-S7/INV-S8 gate functions for DEV3-006. No new tables, no new GraphQL operations, no UI.
+the Session Creation & Lifecycle ticket shipped the guarded-transition session lifecycle (schema `backend/db/schema/classes/session.ts`, repo `backend/db/repo/classes/session.repository.ts`, service `backend/services/classes/session-lifecycle.service.ts` + extracted modules, GraphQL `backend/graphql/{mutation,query}/classes/session-lifecycle.*.ts`). This ticket is an **enforcement-and-verification** slice on top: codify the transition matrix, add the INV-S6 in-session `is_online` lock/release to the existing guarded transactions, and expose INV-S7/INV-S8 gate functions. No new tables, no new GraphQL operations, no UI.
 
 ### Design Goals
 - Single source of truth for legal transitions (matrix), reused by guards and tests.
@@ -29,9 +29,9 @@ DEV3-004 shipped the guarded-transition session lifecycle (schema `backend/db/sc
 **Rationale:** matches the established composition style (e.g. `creditTeacherEarning` inside `confirmSessionCompletion`, `session-lifecycle.confirmation.ts:42-56`).
 
 #### Decision 3: INV-S7/INV-S8 as exported gate functions in the lifecycle service layer
-**Context:** DEV3-006's specs (REQ-012/013) assume a completed-session gate and a report-exists gate; the canonical place is beside the other lifecycle guards so future surfaces (recitation, evaluation) can reuse them.
+**Context:** specs (REQ-012/013) assume a completed-session gate and a report-exists gate; the canonical place is beside the other lifecycle guards so future surfaces (recitation, evaluation) can reuse them.
 **Decision:** Add `assertSessionCompletedForReport(sessionId, tx)` and `assertReportSubmittedForHomework(sessionId, tx)` to a new `session-lifecycle.enforcement.ts` module, re-exported through `session-lifecycle.service.ts`; denials via the existing `rejectTransitionMiss`-compatible shapes and the `errors` locale keys (`sessionInvalidTransition`, plus one new key `homeworkRequiresReport` — en/ar parity).
-**Rationale:** single enforcement point; DEV3-006 imports, never duplicates.
+**Rationale:** single enforcement point; imports, never duplicates.
 
 #### Decision 4: Dispute surface = verification-only
 The dispute writers/listing already exist and are unit-tested (`session.repository.test.ts:529+`,). This plan adds journey-level multi-actor verification (escrow lane intact + exactly-once) rather than any code change, unless journeys expose a defect (then fix minimally and record in outcome).
@@ -43,7 +43,7 @@ The dispute writers/listing already exist and are unit-tested (`session.reposito
 | start + INV-S6 lock | `startSessionOnce` + `TeacherRepository.setOnline(false)` | guarded UPDATE on session; teacher UPDATE unconditional within tx (teacher id already pinned by session row) | tx rollback ⇒ no stale lock |
 | complete/cancel from `started` + release | status writer + `setOnline(true)` | release only when the transitioned row came from `started` (probe/`*Once` returning row carries prior state classification via caller flow) | rollback ⇒ lock persists, teacher stays offline (safe direction) |
 | resolve dispute + release | `resolveDispute*Once` + refund + `setOnline(true)` when prior state was `started` | exactly-once guards; lane refund primitive `refundHeldLaneToProvenance` | rollback ⇒ dispute stays open, retryable |
-| capture rule | was-online capture | To avoid resurrecting a teacher who manually went offline mid-session (DEV2-011 era), release is computed as `priorOnline` captured at START (stored on the tx, derived from the teacher row read inside the start tx). Today no toggle exists, so `false→true` restore cannot resurrect a deliberate offline; the predicate is documented as the DEV2-011 seam (ledger D2). | n/a — documented seam |
+| capture rule | was-online capture | To avoid resurrecting a teacher who manually went offline mid-session (era), release is computed as `priorOnline` captured at START (stored on the tx, derived from the teacher row read inside the start tx). Today no toggle exists, so `false→true` restore cannot resurrect a deliberate offline; the predicate is documented as the seam (ledger D2). | n/a — documented seam |
 
 MariaDB-style read-your-writes within the tx is guaranteed by passing `tx` to every call; the ambient `db` is forbidden inside these flows (P4 of the execution protocol).
 
@@ -63,7 +63,7 @@ No schema change. Leveraged existing columns:
 ```ts
 export async function setOnline(id: number, online: boolean, tx?: DBTransaction): Promise<TeacherSelectType | null>
 ```
-Guarded `UPDATE teacher SET is_online=$2, updated_at=now() WHERE id=$1 RETURNING *`. No certification predicate (offline is always allowed; online restoration is policy-free here — the flip-side gating is DEV2-011's toggle and the certification INV-A1 gate lives there).
+Guarded `UPDATE teacher SET is_online=$2, updated_at=now() WHERE id=$1 RETURNING *`. No certification predicate (offline is always allowed; online restoration is policy-free here — the flip-side gating is toggle and the certification INV-A1 gate lives there).
 
 ### New: `backend/services/classes/session-lifecycle.enforcement.ts` (pure gates; re-exported via `session-lifecycle.service.ts`)
 ```ts
@@ -94,11 +94,11 @@ Localized denials: `ConflictError("SESSION_INVALID_TRANSITION", t.sessionInvalid
 
 ## UX / Navigation Specification
 
-**Explicit no-UI ruling:** zero routes, zero sidebar entries, zero per-audience rendering deltas. All behavior is enforced inside existing mutations; the only user-visible change is the (already-known) typed error on illegal transitions and, operationally, teachers disappearing from any future directory while in-session (INV-A3 consumption is DEV2-013/DEV3-008 scope).
+**Explicit no-UI ruling:** zero routes, zero sidebar entries, zero per-audience rendering deltas. All behavior is enforced inside existing mutations; the only user-visible change is the (already-known) typed error on illegal transitions and, operationally, teachers disappearing from any future directory while in-session (INV-A3 consumption scope).
 
 ## Security / Tenancy Posture
 
-- Oracle safety preserved: gates throw the SAME `SESSION_INVALID_TRANSITION` for wrong-state regardless of the caller's visibility; `assertSessionCompletedForReport`/`assertReportSubmittedForHomework` are internal-only (DEV3-006 applies participation checks before them).
+- Oracle safety preserved: gates throw the SAME `SESSION_INVALID_TRANSITION` for wrong-state regardless of the caller's visibility; `assertSessionCompletedForReport`/`assertReportSubmittedForHomework` are internal-only (applies participation checks before them).
 - BOPLA: gates take ids derived from server-side rows, never client payloads.
 - BFLA: no new mutations; dispute resolve stays admin-gated (verified by journey role matrix).
 - Escrow: release/refund ordering unchanged; lane provenance (`isHeldBalanceLane` fail-closed) untouched.

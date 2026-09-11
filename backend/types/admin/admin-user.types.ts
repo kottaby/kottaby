@@ -123,8 +123,8 @@ export interface AdminUserStatsReturnType {
  *  - `createdAt` is the audit row's immutable insert timestamp.
  *
  * This is a deliberately SCOPED read-back (one user's governance
- * timeline), NOT the global audit-trail browsing surface — that remains
- * owned by DEV3-020 per the deferred-items ledger (D1).
+ * timeline), NOT the global audit-trail browsing surface, per the
+ * deferred-items ledger (D1).
  */
 export interface AdminUserActivityEntryReturnType {
   readonly id: number;

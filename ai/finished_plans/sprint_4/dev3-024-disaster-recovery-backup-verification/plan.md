@@ -1,4 +1,4 @@
-# Design Document: DEV3-024 — Disaster Recovery & Backup Verification
+# Design Document: Disaster Recovery & Backup Verification
 
 ## Document Information
 
@@ -8,7 +8,7 @@
 - **Version**: 1.0
 - **Date**: 2026-09-05
 - **Author**: Dev 3 stream (planning agent)
-- **Reviewers**: DEV3-026 executor (downstream consumer), Admin stakeholder
+- **Reviewers**: Launch-checklist executor (downstream consumer), Admin stakeholder
 - **Related Documents**: `ai/plans/sprint_4/dev3-024-disaster-recovery-backup-verification/specs.md` (requirements), `tasks.md` (execution), `deferred-items.md` (ledger), `docs/planning/PRODUCTION_READINESS.md` §7, `docs/DATABASE_MIGRATIONS.md`, `docs/SQLITE_LOCAL_DEV.md`, `docs/notifications/realtime-engine.md`
 
 ## Overview
@@ -18,14 +18,14 @@ This design delivers disaster recovery as **operator tooling, not application co
 1. **`backup-database.ts`** — produces a transactionally-consistent `pg_dump -Fc` artifact into an isolated timestamped run directory, then writes a `manifest.json` (provenance + SHA-256 + Drizzle journal hash) so every backup is independently verifiable.
 2. **`restore-verify.ts`** — consumes a run directory, re-verifies the artifact hash, **refuses any production-shaped target via the existing destructive-command guard**, restores into an explicit scratch/staging DSN with `pg_restore`, then proves the restore: structural table checks plus an **invariant oracle registry** that re-executes the platform's financial/governance invariants (INV-W*, INV-B*, INV-U*, A.5) as read-only SQL predicates, finally emitting a tamper-evident `restore-report.json` ending in `VERDICT: PASS|FAIL`.
 
-A canonical runbook (`docs/ops/disaster-recovery.md`) ratifies **RPO = 1 hour / RTO = 4 hours**, documents scheduling, embedding the scripts into a step-timed recovery procedure and a cold-start drill whose measured duration becomes the RTO evidence consumed by DEV3-026 for PRODUCTION_READINESS §7 sign-off.
+A canonical runbook (`docs/ops/disaster-recovery.md`) ratifies **RPO = 1 hour / RTO = 4 hours**, documents scheduling, embedding the scripts into a step-timed recovery procedure and a cold-start drill whose measured duration becomes the RTO evidence consumed by the launch checklist for PRODUCTION_READINESS §7 sign-off.
 
 ### Design Goals
 
 - **Proof over hope** — every backup carries a verifiable manifest; every restore claim terminates in a PASS/FAIL report. No unverifiable artifact counts as a backup (specs REQ-011.3).
 - **Production can never be the restore target** — the *existing* `assessDestructiveDbCommandSafety()` decides, assessed on the very DSN string passed to `pg_restore` (single-variable TOCTOU-safe), plus a mandatory `--yes-i-understand` human gate.
 - **Conventions-preserving** — identical bootstrap (`scripts/dbActions/envFile.ts`), flags (`--env`), exit codes (0/1/2), help layout, stdout-as-ops-record (`console.*` exemption), and colocated `*.test.ts` as `scripts/ops/sweep-expired-link-requests.ts` and `scripts/dbActions/*`.
-- **Evidence-generating** — manifests, reports, and the drill timing file feed DEV3-026's PRODUCTION_READINESS §7.1–7.5 sign-off directly.
+- **Evidence-generating** — manifests, reports, and the drill timing file feed the launch checklist's PRODUCTION_READINESS §7.1–7.5 sign-off directly.
 - **Zero application surface** — nothing in `app/`, `backend/graphql/`, `frontend/`, or `backend/db/schema/` changes; `git diff` on those trees MUST be empty.
 
 ### Key Design Decisions
@@ -44,7 +44,7 @@ A canonical runbook (`docs/ops/disaster-recovery.md`) ratifies **RPO = 1 hour / 
 
 #### Decision 4: Timestamped run directories + manifest/report artifacts (not a single rolling file)
 
-**Context:** Backup storage layout. **Options:** (a) overwrite `latest.dump`; (b) run directories `backups/<utc>/` with tmp→final atomic rename and lockfile; (c) push straight to object storage. **Decision:** (b), with (c) forward-deferred as D-003 — the manifest format is designed so a future uploader can consume run directories without producer changes. **Rationale:** idempotent re-runs, crash-safe atomicity, retains failed-run evidence, and keeps a clean evidence trail for DEV3-026.
+**Context:** Backup storage layout. **Options:** (a) overwrite `latest.dump`; (b) run directories `backups/<utc>/` with tmp→final atomic rename and lockfile; (c) push straight to object storage. **Decision:** (b), with (c) forward-deferred as D-003 — the manifest format is designed so a future uploader can consume run directories without producer changes. **Rationale:** idempotent re-runs, crash-safe atomicity, retains failed-run evidence, and keeps a clean evidence trail for the launch checklist.
 
 #### Decision 5: No i18n / no logger package in ops scripts
 
@@ -117,7 +117,7 @@ graph TB
     SCRATCH[("Scratch / Staging Postgres\n(restore + verify target)")]
     FS[("backups/<UTC>/\ndump.pgc + manifest.json + restore-report.json\n(gitignored, 0600)")]
     DOC["docs/ops/disaster-recovery.md\n(RPO 1h / RTO 4h, drill)"]
-    DEV326["DEV3-026 Launch Checklist\n(PRODUCTION_READINESS (section)7 consumer)"]
+    LC["Launch Checklist\n(PRODUCTION_READINESS (section)7 consumer)"]
 
     BAK --> ENVH --> PROD
     BAK --> FS
@@ -128,7 +128,7 @@ graph TB
     RV --> SCRATCH
     DOC -. defines .-> BAK
     DOC -. defines .-> RV
-    FS --> DEV326
+    FS --> LC
 ```
 
 ### High-Level Flow
@@ -330,7 +330,7 @@ Logging strategy: stdout is the ops record (family convention); artifacts are th
 ## Migration and Compatibility
 
 - **Data migration:** none. **Compatibility:** works against Postgres 14+ (toolchain probe enforces pg_dump major ≥ server major); Neon branches eligible as scratch targets; SQLite dialect unsupported (documented).
-- **Integration impact:** DEV3-026 consumes runbook + drill evidence for §7.1–7.5; DEV3-022/023 (invariant & load tests) remain orthogonal; oracle registry may grow as new invariants land (data-append only).
+- **Integration impact:** the launch checklist consumes runbook + drill evidence for §7.1–7.5; the invariant & load-test tickets remain orthogonal; oracle registry may grow as new invariants land (data-append only).
 
 ## Design Review Checklist (author self-certification)
 

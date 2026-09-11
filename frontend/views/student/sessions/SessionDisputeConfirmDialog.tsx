@@ -13,7 +13,7 @@ import { Errors, Sessions, useAppTranslation } from "@/shared/locale";
 /**
  * SessionDisputeConfirmDialog — the confirm-and-reason seam for opening a
  * dispute on a `Scheduled`/`Started` session (student or teacher side,
- * DEV3-005 R-110). Structural twin of `CancelSessionConfirmDialog`: same
+ * R-110). Structural twin of `CancelSessionConfirmDialog`: same
  * portal/dialog/controlled-textarea form, REQUIRED reason instead of
  * optional, and a snackbar-mapped error vocabulary instead of the row-evict
  * arm.

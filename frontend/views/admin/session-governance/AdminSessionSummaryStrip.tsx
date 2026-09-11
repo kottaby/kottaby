@@ -9,7 +9,7 @@ import type { SessionsLabels } from "@/shared/locale/types/sessions";
 
 /**
  * AdminSessionSummaryStrip — the per-status summary strip of the admin
- * session governance directory (`/admin/session-governance`, DEV3-021):
+ * session governance directory (`/admin/session-governance`):
  * one card per lifecycle status over the LOADED directory page (real data
  * only; the container passes the honest server `totalCount` for the sticky
  * bar and nothing is extrapolated across pages) plus the needs-attention

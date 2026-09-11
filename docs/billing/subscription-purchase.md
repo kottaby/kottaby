@@ -350,23 +350,23 @@ All three are registered in the typed env snapshot registry; `resetPaymentGatewa
 
 ## 10. Consumer Guidance
 
-- **DEV1-007 (segregated crediting refinement / reviews-lane hold semantics):** the crediting
+- **Segregated crediting refinement / reviews-lane hold semantics:** the crediting
   primitive is `StudentRepository.creditLaneBalance` + the frozen `CREDIT_LANE_BALANCE_COLUMNS` map.
   The hold/debit vocabulary (`LANE_BALANCE_COLUMNS`, held-fee lane type) is a deliberate separate
   world — do not merge the two maps or smuggle the reviews lane into hold semantics. NULL-lane credit
   is a no-op by inherited convention; if NULL→0 seeding is ever wanted, that is a NEW explicit
   decision.
-- **DEV1-008 (validity windows / expiry sweep):** activation stamps the window (`endDate − startDate
+- **Validity windows / expiry sweep:** activation stamps the window (`endDate − startDate
   === intervalDays` exactly) and `paymentVerifiedAt`. The expiry job owns balance zeroing and status
   transitions at window end; purchases never mutate existing subscriptions (renewal = a new pending
   pair), so overlapping windows resolve at expiry time, not purchase time.
-- **DEV1-009 (admin subscription management / ledger follow-up):** reads beyond `mySubscriptions`
+- **Admin subscription management / ledger follow-up:** reads beyond `mySubscriptions`
   are deliberately absent (BOLA minimization) — add admin reads as new owner-scoped surfaces, never
   by widening the existing ones. Stuck `pending` pairs (e.g. zero-price purchases confirmed
   neutrally by the mock) and `failed` payments with `pending` subscriptions are the operator
   follow-up backlog; the ledger trigger means fixes are compensating rows or guarded transitions,
   never edits.
-- **DEV2-005 (teacher verification purchase):** verification-plan purchase rides this exact flow —
+- **Teacher verification purchase:** verification-plan purchase rides this exact flow —
   no special-casing. The verification plan is looked up from the catalog (active-only; title
   `"New Teacher Verification & Evaluation Plan"`, `reviews` lane) and the confirmed callback credits
   the reviews lane like any other plan.

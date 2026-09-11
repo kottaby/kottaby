@@ -1,4 +1,4 @@
-# Trackable Implementation Tasks: DEV1-002 — User Registration with Role-Specific Child Table Creation
+# Trackable Implementation Tasks: User Registration with Role-Specific Child Table Creation
 
 ## Non-Negotiable Execution Protocol
 1. **Pre-Execution:** Read all outcome files in `ai/plans/dev1-002-user-registration/outcome/` before ANY task.
@@ -11,7 +11,7 @@
 
 ## Phase 0: Pre-Implementation Baseline
 - [x] 0.1 Record baseline error counts (`tsgo`, `biome`, `lint-service`) and initialize `ai/plans/dev1-002-user-registration/deferred-items.md` (from the template). _Requirements: REQ-001_
-- [x] 0.2 Verify DEV1-001 prerequisites exist: `users/students/parents/admin/applicants` Drizzle tables with governance fields, `user_role` enum incl. `parent`, applicant status enum registered in `backend/db/schema/enums.ts` and `backend/enum/`. Read `entity-setup.ts` signatures (`createTestUser`, `createTestStudent`, `createTestParent`). Any gap → ❌ in deferred-items and STOP domain work. Write `outcome/phase0-baseline-outcome.md`. _Requirements: REQ-002_
+- [x] 0.2 Verify the Database Schema Migration ticket prerequisites exist: `users/students/parents/admin/applicants` Drizzle tables with governance fields, `user_role` enum incl. `parent`, applicant status enum registered in `backend/db/schema/enums.ts` and `backend/enum/`. Read `entity-setup.ts` signatures (`createTestUser`, `createTestStudent`, `createTestParent`). Any gap → ❌ in deferred-items and STOP domain work. Write `outcome/phase0-baseline-outcome.md`. _Requirements: REQ-002_
 
 ## Phase 1: Types, Enums & Schema Contract Verification
 - [x] 1.1 Create `backend/types/users/registration.types.ts` (`RegistrationSubmitInput`, `RegisterPublicRole`, `RegistrationReturnType`, `AdminRegistrationSubmitInput`) + barrel export in `backend/types/users/index.ts`. Files: `backend/types/users/registration.types.ts`, `backend/types/users/index.ts`. AGENTS: `backend/types/AGENTS.md`, `backend/AGENTS.md`. Instructions: `.github/instructions/backend.instructions.md`. _Requirements: REQ-003_
@@ -78,4 +78,4 @@
   - [x] 7.1.QL Quality Loop (`--lifecycle duplicates`, exit 0) per modified file
   - [x] 7.1.SR Semantic Review: AGENTS.md files contain rules/references only (no code dumps)
   - [x] 7.1.IV Instruction Verification.
-- [x] 7.2 Write final outcome synthesis `ai/plans/dev1-002-user-registration/outcome/plan-completion-outcome.md` (baseline vs final counts, review waves, deferred items resolved, carry-over notes for DEV1-003/DEV1-004/DEV2-001).
+- [x] 7.2 Write final outcome synthesis `ai/plans/dev1-002-user-registration/outcome/plan-completion-outcome.md` (baseline vs final counts, review waves, deferred items resolved, carry-over notes for the Recitation Selection on Registration ticket).

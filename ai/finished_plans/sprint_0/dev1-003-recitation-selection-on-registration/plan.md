@@ -1,12 +1,12 @@
-# Technical Architecture & Implementation Design: DEV1-003 — Recitation Selection on Registration
+# Technical Architecture & Implementation Design: Recitation Selection on Registration
 
 ## 1. System Overview & Architecture Diagram
 
 ### 1.1 Architectural decision: C.5 wins over the stale 1:M sentence
 
-DEV1-003 is implemented as a **Qira'ah vocabulary + registration preference contract**, not as user-linked `recitation` persistence. The physical `recitation` table remains session-scoped: `recitation.session_id` is unique and NOT NULL, one row per session, owned by the session engine (DEV3-004/DEV3-007). This prevents three concrete failures:
+This ticket is implemented as a **Qira'ah vocabulary + registration preference contract**, not as user-linked `recitation` persistence. The physical `recitation` table remains session-scoped: `recitation.session_id` is unique and NOT NULL, one row per session, owned by the session engine (the Session Creation & Lifecycle ticket). This prevents three concrete failures:
 
-1. **Schema corruption:** recreating `recitation.user_id` contradicts DEV1-001 REQ-020 and DBML ground truth.
+1. **Schema corruption:** recreating `recitation.user_id` contradicts REQ-020 and DBML ground truth.
 2. **Matching ambiguity:** Dev 3 matching must consume an approved user-preference contract, not infer preference from session recitation rows that do not exist before a session.
 3. **Security/integrity risk:** free-text or client-supplied recitation rows would bypass enum validation and could be abused for payload injection or cache poisoning.
 
@@ -22,41 +22,41 @@ Public Register UI
   → shared/constants/recitation-reading.enum.ts (no DB)
 
 Registration submit
-  → registerUserMutationDocument (DEV1-002 surface, guarded)
+  → registerUserMutationDocument (the User Registration ticket surface, guarded)
   → Pothos registerUser(input)
   → rate-limit guard (fail-open transient)
   → BFLA public-role gate (student|teacher|parent only)
   → RegistrationService.registerUser(...)
   → explicit DTO whitelist (no spread)
   → validate preferredRecitation against canonical catalog
-  → create users + role child row in one tx (owned by DEV1-002)
-  → ZERO recitation inserts in DEV1-003
+  → create users + role child row in one tx (owned by the User Registration ticket)
+  → ZERO recitation inserts in this ticket
   → payload returns user id + optionally echoed validated preferredRecitation as metadata
 
 Session flow (future/owned by DEV3)
   → session created with session_id
-  → DEV3-007 may create at most one recitation row for that session_id
+  → the Recitation Record per Session (1:1) ticket may create at most one recitation row for that session_id
   → unique constraint enforces C.5
 ```
 
 ### 1.3 Component boundaries
 
 - **Shared:** owns the cross-layer `RecitationReading` enum/catalog and label type contracts. Must never import frontend/backend/app.
-- **Backend types:** owns `RegistrationSubmitInput` extension only if DEV1-002’s registration type surface exists; otherwise the gap is deferred.
+- **Backend types:** owns `RegistrationSubmitInput` extension only if the User Registration ticket's registration type surface exists; otherwise the gap is deferred.
 - **Backend service:** owns catalog listing and validation helpers; owns no recitation-table writes.
-- **Backend GraphQL/Pothos:** owns public catalog query and enum registration; delegates registration business rules之一 to DEV1-002 service; throws only DomainError subclasses.
+- **Backend GraphQL/Pothos:** owns public catalog query and enum registration; delegates registration business rules之一 to the User Registration ticket service; throws only DomainError subclasses.
 - **Frontend GraphQL:** owns `recitationReadingsQueryDocument`; imports hooks from `@apollo/client/react`; no `useLazyQuery`.
 - **Frontend views:** owns registration UI selector; MUI v9 `sx` only; compile-time i18n only.
-- **DB layer:** no DEV1-003 structural schema change unless an approved schema task is explicitly opened through DEV1-001/DEV3-001.
+- **DB layer:** no this ticket structural schema change unless an approved schema task is explicitly opened through the Database Schema Migration ticket.
 
 ### 1.4 Deferred schema-gap lane
 
 If DEV3 matching requires durable user-level Qira'ah before first session, open a formal schema-gap item rather than patching:
 
-- Candidate A: `users.preferred_recitation` enum/varchar column — low cardinality, simple, but touches DEV1-001 users table.
+- Candidate A: `users.preferred_recitation` enum/varchar column — low cardinality, simple, but touches the Database Schema Migration ticket users table.
 - Candidate B: `user_recitation_preferences` table — more normalized, supports audit/history, but adds table beyond DBML 22 and needs DBML update.
 - Candidate C: store only in session/intake draft — insufficient for matching before booking.
-- Default plan stance: **do not choose A/B inside DEV1-003**; record ❌ in `deferred-items.md`, expose validated selection in contract, and keep implementation compilable and test-covered.
+- Default plan stance: **do not choose A/B inside this ticket**; record ❌ in `deferred-items.md`, expose validated selection in contract, and keep implementation compilable and test-covered.
 
 ---
 
@@ -64,15 +64,15 @@ If DEV3 matching requires durable user-level Qira'ah before first session, open 
 
 ### 2.1 No new physical table in this plan
 
-DEV1-003 must not add a physical recitation persistence model. The existing ground truth remains:
+This ticket must not add a physical recitation persistence model. The existing ground truth remains:
 
-| Table | Relevant invariant | DEV1-003 behavior |
+| Table | Relevant invariant | This ticket's behavior |
 |---|---|---|
-| `users` | role + governance fields owned by DEV1-001/DEV1-002 | no changes |
+| `users` | role + governance fields owned by the Database Schema Migration ticket | no changes |
 | `students` | shared PK, `handshake_code UNIQUE`, zeroed balances | no changes; registration must still create zero recitation rows |
 | `parents` | shared PK | no changes |
 | `applicants` | `status='pending'`, attempts/cooldown owned by DEV2 | no changes; teacher registration still creates applicant not teacher |
-| `recitation` | `session_id uuid NOT NULL UNIQUE` → 1:1 session | DEV1-003 performs no insert/update/delete |
+| `recitation` | `session_id uuid NOT NULL UNIQUE` → 1:1 session | This ticket performs no insert/update/delete |
 
 ### 2.2 Canonical shared enum
 
@@ -95,19 +95,19 @@ Rules:
 
 ### 2.3 Canonical types
 
-Only if DEV1-002 registration type file exists:
+Only if the User Registration ticket registration type file exists:
 
 ```ts
 // backend/types/users/registration.types.ts
 import type { RecitationReading } from "@/shared/constants/recitation-reading.enum";
 
 export type RegistrationSubmitInput = {
-  // existing DEV1-002 whitelisted fields only
+  // existing the User Registration ticket whitelisted fields only
   readonly preferredRecitation?: RecitationReading | null;
 };
 ```
 
-No new `{Entity}SelectType`/`{Entity}InsertType` is created for user recitation because there is no lawful table target. `DBTransaction` propagation rules remain mandatory for any touched DEV1-002 service method.
+No new `{Entity}SelectType`/`{Entity}InsertType` is created for user recitation because there is no lawful table target. `DBTransaction` propagation rules remain mandatory for any touched the User Registration ticket service method.
 
 ---
 
@@ -136,7 +136,7 @@ Pothos:
 
 ### 3.2 Registration input extension — guarded dependency
 
-Preferred target if DEV1-002 surface is present:
+Preferred target if the User Registration ticket surface is present:
 
 ```graphql
 input RegisterUserInput {
@@ -158,7 +158,7 @@ Resolver behavior:
 - Payload must expose `id` for Apollo normalization.
 - No resolver-local types; use canonical input/return types.
 
-If DEV1-002 register mutation is absent or has not merged the input extension, do not fork a parallel register mutation. Record a ❌ deferred item and implement only shared catalog/query/UI option source behind the gap.
+If the User Registration ticket register mutation is absent or has not merged the input extension, do not fork a parallel register mutation. Record a ❌ deferred item and implement only shared catalog/query/UI option source behind the gap.
 
 ### 3.3 Authenticated preference change — blocked unless persistence approved
 
@@ -185,7 +185,7 @@ Rules:
 
 ### 4.2 `RegistrationService` touchpoints — conditional
 
-Only modify DEV1-002’s service if it exists and the task is explicitly coordinated:
+Only modify the User Registration ticket's service if it exists and the task is explicitly coordinated:
 - Add optional `preferredRecitation` to whitelisted DTO handling.
 - Validate before transaction.
 - Keep one transaction for `users` + role child row.
@@ -236,7 +236,7 @@ Public auth stack only:
 
 Documents:
 - `recitationReadingsQueryDocument` in `frontend/graphql/sharedDocuments/auth/recitation.documents.ts` or domain-matching subdir; barrel exports updated; codegen run.
-- Registration document update only if DEV1-002 mutation is extended; include `id` in payload selection.
+- Registration document update only if the User Registration ticket mutation is extended; include `id` in payload selection.
 
 Component tree:
 ```text

@@ -6,7 +6,7 @@ import { SessionStickyBar } from "@/frontend/components/ui/sessionList";
 
 /**
  * AdminDisputesChrome — the ALWAYS-ON chrome of the admin arbitration queue
- * (`/disputes`, DEV3-005 R-111): the page title over the sticky honest-count
+ * (`/disputes`, R-111): the page title over the sticky honest-count
  * bar. It renders in EVERY branch of the body state matrix (skeleton /
  * denial / error / empty / rows), which is why it lifts out of the
  * container unchanged — only the body BELOW it swaps.

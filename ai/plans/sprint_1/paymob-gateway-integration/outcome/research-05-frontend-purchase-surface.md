@@ -2,7 +2,7 @@
 
 ## 0. Critical negative findings (verify before planning)
 
-- **`purchaseSubscription` / `mySubscriptions` do NOT exist in code.** Only in `ai/plans/sprint_1/DEV1-006-subscription-purchase-payment-gateway/{specs,plan,tasks}.md`. `frontend/graphql/generated/schema.graphql` has no `Subscription` object type, no purchase mutation (grep: only `hasActiveSubscription` on some type at :55/:139 and `PlatformAnalyticsSubscriptions` at :565). `backend/services/billing/` contains only `plan-catalog.service.ts` + `wallet.service.ts` — no purchase service. DB tables DO exist: `backend/db/schema/billing/subscriptions.ts`, `student-payments.ts`, `student-subscriptions.ts`, `plans.ts`. DEV1-006's specs.md:120 (REQ-064) explicitly says "This ticket ships NO student-facing purchase UI."
+- **`purchaseSubscription` / `mySubscriptions` do NOT exist in code.** Only in `ai/plans/sprint_1/subscription-purchase-payment-gateway/{specs,plan,tasks}.md`. `frontend/graphql/generated/schema.graphql` has no `Subscription` object type, no purchase mutation (grep: only `hasActiveSubscription` on some type at :55/:139 and `PlatformAnalyticsSubscriptions` at :565). `backend/services/billing/` contains only `plan-catalog.service.ts` + `wallet.service.ts` — no purchase service. DB tables DO exist: `backend/db/schema/billing/subscriptions.ts`, `student-payments.ts`, `student-subscriptions.ts`, `plans.ts`. the subscription-purchase plan's specs.md:120 (REQ-064) explicitly says "This ticket ships NO student-facing purchase UI."
 - **The shared UI primitives from `frontend/COMPONENT_PATTERNS.md` do NOT exist as components.** `PageContainer`, `PageHeader`, `SectionPanel`, `AppDataGrid`, shared `MetricCard`, shared `StatusBadge` — NOT FOUND in `frontend/components/ui/` (real contents: `PermissionDeniedFallback.tsx`, `RetryableNotice.tsx`, `NoticeSnackbar.tsx`, `ErrorRetryAlert.tsx`, `IconCircleEmptyState.tsx`, `GraphQLErrorSurfaceHost.tsx`, `graphqlErrorSurface/`, `sessionList/`, notification drawer files, `fieldError.ts`, `focusRing.ts`, `useNotificationDrawerActions.ts`). Only a feature-local `frontend/views/admin/analytics/MetricCard.tsx` exists. Likewise `frontend/mobile/` and `frontend/desktop/` dirs referenced by COMPONENT_PATTERNS.md are NOT FOUND.
 - **`RequirePermission` client component: NOT FOUND** anywhere in `frontend/` (only doc references). `requirePermissionForPage` / `AppPermission` from `app/AGENTS.md`: NOT FOUND in `backend/lib/auth/` or `backend/enum/`. The actual in-tree mechanism is the **role-based** `withPageAuth`.
 - `docs/auth/permission-architecture.md` — NOT FOUND (root AGENTS.md references it; `docs/auth/` contains only jwt-authentication-service, qiraah-selection-and-c5, REDIRECT_LOOP_FIX*, user-registration).
@@ -10,7 +10,7 @@
 - `frontend/NEW_PAGE_WORKFLOW.md` — NOT FOUND (referenced by `.agents/instructions/frontend.instructions.md` but absent from `frontend/`).
 - `frontend/stores/` contains only `AGENTS.md` — no store files currently.
 - `frontend/graphql/sharedDocuments/AGENTS.md` "Layout" listing is stale: actual subdirs are only `admin/ auth/ billing/ notifications/ parents/ scheduling/ students/ teachers/` (no `sessions/`, `classes/`, `meeting/`, `permissions/`, `profile/`, `reports/`, `resources/`, `shared/`, `suggestions/`, `complaints/`, `supervisor/`).
-- New plan dir `ai/plans/sprint_1/paymob-gateway-integration/` does **not yet exist** (sprint_1 siblings: DEV1-006, dev3-005, dev3-006, dev3-007).
+- New plan dir `ai/plans/sprint_1/paymob-gateway-integration/` does **not yet exist** (sprint_1 already holds sibling plans for subscription-purchase, dual-confirmation, session-report, and recitation).
 - No external-redirect precedent: zero `window.location.assign`/`href` usages in `frontend/views/**`. Only sanitizer `frontend/lib/safeRedirect.ts` (internal paths) and `frontend/providers/apollo/utils/auth-recovery.ts:228` (`globalThis.window.location.href`). The redirect-to-Paymob-iframe/portal pattern must be specified fresh.
 
 ## 1. Candidate routes + view directories
@@ -51,7 +51,7 @@ Source of truth: `frontend/graphql/sharedDocuments/AGENTS.md` + working exemplar
 - **`id` on every object type in every selection set** (rule at sharedDocuments/AGENTS.md:113-114).
 - **Hooks**: `useQuery` / `useMutation` from `@apollo/client/react` ONLY (e.g. `PlanCatalogContainer.tsx:16`, `usePlanStatusDialog.ts:16,43`). `useLazyQuery` banned. Exemplar stateful query: `useQuery(adminPlansQueryDocument, { variables: { includeInactive: true }, fetchPolicy: "cache-and-network" })` (`PlanCatalogContainer.tsx:38-41`).
 - **Codegen gate**: none of the purchase types exist yet. After the backend mutation/query land you MUST run `bun run generate:gqlSchema && bun codegen` (AGENTS.md:107-111) — until then `PurchaseSubscriptionMutation` etc. are absent from `frontend/graphql/generated/gql/graphql.ts`.
-- **Idempotency key transport** (purchase is idempotent per DEV1-006): pattern at `frontend/views/admin/broadcasts/useBroadcastComposeSend.ts:35-63` — mint with `randomUUID()` helper into a `useRef` at scenario start, send via `context: { headers: { "x-idempotency-key": composeKeyRef.current } }` (:49), rotate the key ONLY on success; failed submits keep the same key.
+- **Idempotency key transport** (purchase is idempotent per the subscription-purchase plan): pattern at `frontend/views/admin/broadcasts/useBroadcastComposeSend.ts:35-63` — mint with `randomUUID()` helper into a `useRef` at scenario start, send via `context: { headers: { "x-idempotency-key": composeKeyRef.current } }` (:49), rotate the key ONLY on success; failed submits keep the same key.
 - **Error surfacing**: mutation error behavior comes from `frontend/providers/apollo/error-link.map.ts` (`mapGraphQLErrorByCode`, branch on `extensions.code` — never HTTP status); `DUPLICATE_REQUEST` is success-equivalent UX (see treatment notes in `frontend/views/student/sessions/StudentSessionsContainer.tsx:61`); VALIDATION field errors project through `frontend/lib/mutationFieldErrors.ts` / `frontend/components/ui/fieldError.ts`. `GraphQLErrorSurfaceHost` (mounted once via AppClientProviders) is the ONLY error-listener host — pages must NOT register their own.
 
 ## 4. Component / UX conventions for the redirect-to-gateway funnel
@@ -77,7 +77,7 @@ export default async function StudentXPage() {
 
 - `withPageAuth` from `@/frontend/lib/auth/withPageAuth` (`frontend/lib/auth/withPageAuth.ts:67-105`): anonymous → `redirect("/login?redirect=<path>")`; role mismatch → that caller's role dashboard via `roleDashboardPath` (never bare `/dashboard`). No permission check exists in-tree today.
 - `UserRole` import: `@/backend/enum/users/user-role.enum` (page-level) — see `student/sessions/page.tsx:2`, `wallet/page.tsx:2`.
-- GraphQL-side enforcement (when backend lands): DEV1-006 specs.md:69 specifies `authScopes: { $all: { authenticated: true, role: [UserRole.Student] } }` with studentId derived from `ctx.user.id`, never input — frontend should never send studentId.
+- GraphQL-side enforcement (when backend lands): the subscription-purchase plan specs.md:69 specifies `authScopes: { $all: { authenticated: true, role: [UserRole.Student] } }` with studentId derived from `ctx.user.id`, never input — frontend should never send studentId.
 - Do NOT gate `/dashboard` pages with client wrappers; the server page guard is the only authz boundary (comment: `app/(dashboard)/student/sessions/page.tsx:14-19`).
 
 ## 6. Storybook placement
@@ -87,7 +87,7 @@ export default async function StudentXPage() {
 - Harness: `StoryApolloProvider` (wraps MockLink responses) + `DashboardStoryFrame` from `@/frontend/stories/lib/storyHarness`; global decorator supplies theme + locale. Meta pattern `title: "Pages/Admin/Plans"`, `tags: ["autodocs"]`, `layout: "fullscreen"`; story arms include `Default` (fixture mocks) and `Loading` (never-resolving mock) — see `frontend/stories/pages/admin/Plans.stories.tsx:20-56`.
 - Suggested new stories: `frontend/stories/pages/student/PlanCatalog.stories.tsx`, `.../Checkout.stories.tsx`, `.../MySubscriptions.stories.tsx` with matching `*.fixtures.ts`, covering default / loading / empty / payment-failed states (prototype states: active / pending / failed / empty).
 
-## 7. Prototype screens (`ai/plans/sprint_1/DEV1-006-subscription-purchase-payment-gateway/prototype/screens.json`, 12 screens)
+## 7. Prototype screens (`ai/plans/sprint_1/subscription-purchase-payment-gateway/prototype/screens.json`, 12 screens)
 
 Purchase-funnel-relevant (all by title/file, PNGs not opened):
 
@@ -107,7 +107,7 @@ Not purchase-journey (admin-sided): Plan Catalog Dashboard, New Plan Form, Edit 
 
 ## 8. Companion facts worth anchoring in the plan
 
-- DEV1-006 deferred the purchase UI explicitly (specs.md:100-102, 119-120, 181): backend contract = `purchaseSubscription(input: PurchaseSubscriptionInput!): PurchaseSubscriptionPayload!` and `mySubscriptions: [Subscription!]!`; its `tasks.md:156` names target backend files (`backend/graphql/mutation/subscription-purchase.mutation.ts`, `backend/graphql/query/subscription.query.ts`) that do not yet exist. Check with the plan author whether Paymob plan supersedes/depends on DEV1-006 backend execution.
+- the subscription-purchase plan deferred the purchase UI explicitly (specs.md:100-102, 119-120, 181): backend contract = `purchaseSubscription(input: PurchaseSubscriptionInput!): PurchaseSubscriptionPayload!` and `mySubscriptions: [Subscription!]!`; its `tasks.md:156` names target backend files (`backend/graphql/mutation/subscription-purchase.mutation.ts`, `backend/graphql/query/subscription.query.ts`) that do not yet exist. Check with the plan author whether Paymob plan supersedes/depends on the subscription-purchase plan backend execution.
 - `navItems.ts:112` – student `/subscriptions` nav link is already wired; shipping the page removes a catch-all catch. Nav labels come from `DashboardLabels`/`HandshakeCodeLabels` with collision-guard typing (`navItems.ts:53-74`).
 - Teacher wallet flow (`frontend/views/teacher/wallet/`) is the closest money-domain UI precedent (balance card, ledger, withdraw dialog, `useTeacherWalletWithdraw` mutation hook, `SNACKBAR_AUTOHIDE_MS` shared const in `teacherWalletShared.ts`).
 - `docs/billing/plan-catalog.md` exists for the plan-catalog backend contract; no docs for subscriptions/payments yet.
