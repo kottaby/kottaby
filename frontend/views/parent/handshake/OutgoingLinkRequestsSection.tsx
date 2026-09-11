@@ -1,27 +1,16 @@
 "use client";
 
 import { useMutation, useQuery } from "@apollo/client/react";
-import { Stack, Typography } from "@mui/material";
+import type React from "react";
 import { type ReactNode, useState } from "react";
-import { PermissionDeniedFallback } from "@/frontend/components/ui/PermissionDeniedFallback";
 import {
   cancelParentLinkRequestMutationDocument,
   myOutgoingParentLinkRequestsQueryDocument,
 } from "@/frontend/graphql/sharedDocuments";
 import { extractErrorCode } from "@/frontend/lib/graphql-error-utils";
-import { OutgoingLinkRequestCancelDialog } from "@/frontend/views/parent/handshake/OutgoingLinkRequestCancelDialog";
-import {
-  OutgoingLinkRequestCard,
-  type PendingCancellation,
-} from "@/frontend/views/parent/handshake/OutgoingLinkRequestCard";
-import {
-  OutgoingDenialAlert,
-  OutgoingEmptyState,
-  OutgoingSettledList,
-  OutgoingSuccessToast,
-} from "@/frontend/views/parent/handshake/OutgoingSectionStates";
-import { OutgoingUnsettledBody } from "@/frontend/views/parent/handshake/OutgoingSectionStates.parts";
-import { Common, Errors, ParentLink, useAppLocale, useAppTranslation } from "@/shared/locale";
+import type { PendingCancellation } from "@/frontend/views/parent/handshake/OutgoingLinkRequestCard";
+import { OutgoingLinkRequestsSectionView } from "@/frontend/views/parent/handshake/OutgoingLinkRequestsSectionView";
+import { ParentLink, useAppTranslation } from "@/shared/locale";
 
 /**
  * OutgoingLinkRequestsSection — the "requests you've sent" list of the
@@ -64,9 +53,6 @@ import { Common, Errors, ParentLink, useAppLocale, useAppTranslation } from "@/s
 
 export function OutgoingLinkRequestsSection(): ReactNode {
   const t = useAppTranslation(ParentLink);
-  const te = useAppTranslation(Errors);
-  const commonT = useAppTranslation(Common);
-  const locale = useAppLocale();
 
   const { data, error, loading, refetch } = useQuery(myOutgoingParentLinkRequestsQueryDocument);
   const [cancelRequest] = useMutation(cancelParentLinkRequestMutationDocument);
@@ -88,13 +74,7 @@ export function OutgoingLinkRequestsSection(): ReactNode {
   // authoritative states.
   const [nowMs] = useState(() => Date.now());
 
-  // Denial class — replaces the whole section, mirroring the denial-surface
-  // precedent on the student incoming container.
   const queryErrorCode = error === undefined ? null : extractErrorCode(error);
-  if (queryErrorCode === "UNAUTHORIZED" || queryErrorCode === "FORBIDDEN") {
-    return <PermissionDeniedFallback />;
-  }
-
   const rows = data?.myOutgoingParentLinkRequests;
   const cancelInFlight = cancellingRequestId !== null;
 
@@ -141,62 +121,21 @@ export function OutgoingLinkRequestsSection(): ReactNode {
     await refetch().catch(() => undefined);
   };
 
-  // The section body branch (flat if/else chain — no nested ternary,
-  // mirroring the student IncomingBody): unsettled states → empty state →
-  // the settled `component="output"` list region.
-  let sectionBody: ReactNode;
-  if (rows === undefined) {
-    sectionBody = (
-      <OutgoingUnsettledBody
-        queryErrorCode={queryErrorCode}
-        errorLabels={te}
-        retryLabel={commonT.retry}
-        onRetry={handleRetry}
-        retryPending={retryPending}
-      />
-    );
-  } else if (rows.length === 0) {
-    sectionBody = <OutgoingEmptyState labels={t} />;
-  } else {
-    sectionBody = (
-      <OutgoingSettledList
-        listLabel={t.outgoingTitle}
-        busy={loading || cancelInFlight}
-        rowNodes={rows.map(row => (
-          <OutgoingLinkRequestCard
-            key={row.id}
-            row={row}
-            labels={t}
-            locale={locale}
-            nowMs={nowMs}
-            cancelInFlight={cancelInFlight}
-            onCancel={setCancelDecision}
-          />
-        ))}
-      />
-    );
-  }
-
   return (
-    <Stack spacing={2} sx={{ width: "100%" }} data-testid="parent-outgoing-section">
-      <Typography variant="h5" component="h2" sx={{ fontWeight: 700 }}>
-        {t.outgoingTitle}
-      </Typography>
-
-      {denialCode !== null ? <OutgoingDenialAlert denialCode={denialCode} errorLabels={te} /> : null}
-
-      {sectionBody}
-
-      <OutgoingLinkRequestCancelDialog
-        requestId={cancelDecision === null ? null : cancelDecision.requestId}
-        labels={t}
-        commonLabels={commonT}
-        pending={cancelInFlight}
-        onSubmit={handleCancelSubmit}
-        onClose={() => setCancelDecision(null)}
-      />
-
-      <OutgoingSuccessToast copy={successToast} onClose={() => setSuccessToast(null)} />
-    </Stack>
+    <OutgoingLinkRequestsSectionView
+      rows={rows}
+      queryErrorCode={queryErrorCode}
+      loading={loading}
+      cancelInFlight={cancelInFlight}
+      cancelDecision={cancelDecision}
+      successToast={successToast}
+      denialCode={denialCode}
+      retryPending={retryPending}
+      nowMs={nowMs}
+      onToastClose={() => setSuccessToast(null)}
+      onCancelDecisionChange={setCancelDecision}
+      onRetry={handleRetry}
+      onCancelSubmit={handleCancelSubmit}
+    />
   );
 }
