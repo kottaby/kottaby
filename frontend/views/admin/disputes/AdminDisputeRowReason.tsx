@@ -1,8 +1,9 @@
 "use client";
 
 import { ExpandLessOutlined as CollapseIcon, ExpandMoreOutlined as ExpandIcon } from "@mui/icons-material";
-import { IconButton, Stack, Typography } from "@mui/material";
+import { IconButton, Stack, Tooltip, Typography } from "@mui/material";
 import { type ReactNode, useState } from "react";
+import { focusVisibleRingSx } from "@/frontend/components/ui/focusRing";
 import type { SessionsLabels } from "@/shared/locale/types/sessions";
 
 /**
@@ -38,23 +39,20 @@ export function AdminDisputeRowReason({ sessionId, reason, t }: Readonly<AdminDi
         <Typography variant="overline" sx={theme => ({ color: theme.palette.text.secondary })}>
           {t.disputeReasonMeta}
         </Typography>
-        <IconButton
-          size="small"
-          aria-expanded={reasonExpanded}
-          aria-label={reasonExpanded ? t.disputeReasonCollapse : t.disputeReasonExpand}
-          data-testid={`admin-dispute-reason-toggle-${sessionId}`}
-          onClick={() => {
-            setReasonExpanded(prev => !prev);
-          }}
-          sx={theme => ({
-            "&:focus-visible": {
-              outline: `2px solid ${theme.palette.outline}`,
-              outlineOffset: 2,
-            },
-          })}
-        >
-          {reasonExpanded ? <CollapseIcon fontSize="small" /> : <ExpandIcon fontSize="small" />}
-        </IconButton>
+        <Tooltip title={reasonExpanded ? t.disputeReasonCollapse : t.disputeReasonExpand}>
+          <IconButton
+            size="small"
+            aria-expanded={reasonExpanded}
+            aria-label={reasonExpanded ? t.disputeReasonCollapse : t.disputeReasonExpand}
+            data-testid={`admin-dispute-reason-toggle-${sessionId}`}
+            onClick={() => {
+              setReasonExpanded(prev => !prev);
+            }}
+            sx={focusVisibleRingSx}
+          >
+            {reasonExpanded ? <CollapseIcon fontSize="small" /> : <ExpandIcon fontSize="small" />}
+          </IconButton>
+        </Tooltip>
       </Stack>
       <Typography
         data-testid={`admin-dispute-reason-${sessionId}`}
