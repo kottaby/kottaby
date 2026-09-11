@@ -79,7 +79,9 @@ function createMockSession(overrides: Partial<SessionReturnType> = {}): SessionR
   };
 }
 
-function createMockClaim(overrides: Partial<SessionRequestIdempotencySelectType> = {}): SessionRequestIdempotencySelectType {
+function createMockClaim(
+  overrides: Partial<SessionRequestIdempotencySelectType> = {}
+): SessionRequestIdempotencySelectType {
   return {
     id: 50,
     idempotencyKey: "test-idempotency-key",
@@ -160,12 +162,7 @@ describe("session-lifecycle.booking — assertBookingBoundary", () => {
     });
 
     test("throws ValidationError for invalid or out-of-vocabulary session intents", () => {
-      const invalidIntents: unknown[] = [
-        SessionIntent.Evaluation,
-        "invalid_intent",
-        "HIFZ",
-        "TAJWEED",
-      ];
+      const invalidIntents: unknown[] = [SessionIntent.Evaluation, "invalid_intent", "HIFZ", "TAJWEED"];
 
       for (const badIntent of invalidIntents) {
         const baseInput: SessionSubmitInput = { teacherId: 2, intent: SessionIntent.Hifz };
@@ -191,7 +188,9 @@ describe("session-lifecycle.booking — assertBookingBoundary", () => {
 
       expect(() => assertBookingBoundary(1, input, "k", t())).not.toThrow();
       expect(() => assertBookingBoundary(1, input, "k".repeat(MAX_IDEMPOTENCY_KEY_LENGTH), t())).not.toThrow();
-      expect(() => assertBookingBoundary(1, input, "k".repeat(MAX_IDEMPOTENCY_KEY_LENGTH + 1), t())).toThrow(ValidationError);
+      expect(() => assertBookingBoundary(1, input, "k".repeat(MAX_IDEMPOTENCY_KEY_LENGTH + 1), t())).toThrow(
+        ValidationError
+      );
     });
   });
 
@@ -243,7 +242,10 @@ describe("session-lifecycle.booking — bookSessionInTx", () => {
 
     test("teacher not certified (isApproved false) throws ConflictError with TEACHER_NOT_CERTIFIED code and logs domain error", async () => {
       logSpy = spyOn(logger, "logDomainError").mockImplementation(() => {});
-      const lockSpy = spyOn(TeacherRepository, "lockForCertificationCheck").mockResolvedValue({ id: 10, isApproved: false });
+      const lockSpy = spyOn(TeacherRepository, "lockForCertificationCheck").mockResolvedValue({
+        id: 10,
+        isApproved: false,
+      });
       const fakeTx = createFakeTx();
       const input: SessionSubmitInput = { teacherId: 10, intent: SessionIntent.Hifz };
 
@@ -269,7 +271,10 @@ describe("session-lifecycle.booking — bookSessionInTx", () => {
 
     test("teacher not certified (isApproved null) throws ConflictError with TEACHER_NOT_CERTIFIED code and logs domain error", async () => {
       logSpy = spyOn(logger, "logDomainError").mockImplementation(() => {});
-      const lockSpy = spyOn(TeacherRepository, "lockForCertificationCheck").mockResolvedValue({ id: 10, isApproved: null });
+      const lockSpy = spyOn(TeacherRepository, "lockForCertificationCheck").mockResolvedValue({
+        id: 10,
+        isApproved: null,
+      });
       const fakeTx = createFakeTx();
       const input: SessionSubmitInput = { teacherId: 10, intent: SessionIntent.Hifz };
 
@@ -294,14 +299,21 @@ describe("session-lifecycle.booking — bookSessionInTx", () => {
     });
 
     test("trial lane debit hit: debits trial lane first, creates session with Trial lane provenance, backfills claim session ID", async () => {
-      const lockSpy = spyOn(TeacherRepository, "lockForCertificationCheck").mockResolvedValue({ id: 2, isApproved: true });
+      const lockSpy = spyOn(TeacherRepository, "lockForCertificationCheck").mockResolvedValue({
+        id: 2,
+        isApproved: true,
+      });
       const decSpy = spyOn(StudentRepository, "decrementLaneIfAvailable").mockImplementation(async (_id, lane) => {
         return lane === HeldBalanceLane.Trial;
       });
-      const claimSpy = spyOn(SessionRequestIdempotencyRepository, "insertClaim").mockResolvedValue(createMockClaim({ id: 50 }));
+      const claimSpy = spyOn(SessionRequestIdempotencyRepository, "insertClaim").mockResolvedValue(
+        createMockClaim({ id: 50 })
+      );
       const expectedSession = createMockSession({ heldBalanceLane: HeldBalanceLane.Trial });
       const insertSessionSpy = spyOn(SessionRepository, "insertSession").mockResolvedValue(expectedSession);
-      const backfillSpy = spyOn(SessionRequestIdempotencyRepository, "updateClaimSessionId").mockResolvedValue(undefined);
+      const backfillSpy = spyOn(SessionRequestIdempotencyRepository, "updateClaimSessionId").mockResolvedValue(
+        undefined
+      );
 
       const fakeTx = createFakeTx();
       const input: SessionSubmitInput = { teacherId: 2, intent: SessionIntent.Hifz };
@@ -338,14 +350,25 @@ describe("session-lifecycle.booking — bookSessionInTx", () => {
     });
 
     test("intent lane debit hit: trial lane fails, intent lane (Tajweed) succeeds, creates session with Tajweed lane provenance", async () => {
-      const lockSpy = spyOn(TeacherRepository, "lockForCertificationCheck").mockResolvedValue({ id: 2, isApproved: true });
+      const lockSpy = spyOn(TeacherRepository, "lockForCertificationCheck").mockResolvedValue({
+        id: 2,
+        isApproved: true,
+      });
       const decSpy = spyOn(StudentRepository, "decrementLaneIfAvailable").mockImplementation(async (_id, lane) => {
         return lane === HeldBalanceLane.Tajweed;
       });
-      const claimSpy = spyOn(SessionRequestIdempotencyRepository, "insertClaim").mockResolvedValue(createMockClaim({ id: 51 }));
-      const expectedSession = createMockSession({ intent: SessionIntent.Tajweed, fee: SESSION_FEE_TAJWEED, heldBalanceLane: HeldBalanceLane.Tajweed });
+      const claimSpy = spyOn(SessionRequestIdempotencyRepository, "insertClaim").mockResolvedValue(
+        createMockClaim({ id: 51 })
+      );
+      const expectedSession = createMockSession({
+        intent: SessionIntent.Tajweed,
+        fee: SESSION_FEE_TAJWEED,
+        heldBalanceLane: HeldBalanceLane.Tajweed,
+      });
       const insertSessionSpy = spyOn(SessionRepository, "insertSession").mockResolvedValue(expectedSession);
-      const backfillSpy = spyOn(SessionRequestIdempotencyRepository, "updateClaimSessionId").mockResolvedValue(undefined);
+      const backfillSpy = spyOn(SessionRequestIdempotencyRepository, "updateClaimSessionId").mockResolvedValue(
+        undefined
+      );
 
       const fakeTx = createFakeTx();
       const input: SessionSubmitInput = { teacherId: 2, intent: SessionIntent.Tajweed };
@@ -380,7 +403,10 @@ describe("session-lifecycle.booking — bookSessionInTx", () => {
 
     test("all-miss debit ladder: trial lane and intent lane both miss throws ValidationError INSUFFICIENT_BALANCE and logs domain error", async () => {
       logSpy = spyOn(logger, "logDomainError").mockImplementation(() => {});
-      const lockSpy = spyOn(TeacherRepository, "lockForCertificationCheck").mockResolvedValue({ id: 2, isApproved: true });
+      const lockSpy = spyOn(TeacherRepository, "lockForCertificationCheck").mockResolvedValue({
+        id: 2,
+        isApproved: true,
+      });
       const decSpy = spyOn(StudentRepository, "decrementLaneIfAvailable").mockResolvedValue(false);
 
       const fakeTx = createFakeTx();
@@ -411,12 +437,21 @@ describe("session-lifecycle.booking — bookSessionInTx", () => {
 
     test("duplicate claim key by same caller: replays with ConflictError DUPLICATE_REQUEST and logs domain error", async () => {
       logSpy = spyOn(logger, "logDomainError").mockImplementation(() => {});
-      const lockSpy = spyOn(TeacherRepository, "lockForCertificationCheck").mockResolvedValue({ id: 2, isApproved: true });
+      const lockSpy = spyOn(TeacherRepository, "lockForCertificationCheck").mockResolvedValue({
+        id: 2,
+        isApproved: true,
+      });
       const decSpy = spyOn(StudentRepository, "decrementLaneIfAvailable").mockResolvedValue(true);
 
-      const uniqueViolationError = Object.assign(new Error("duplicate key value violates unique constraint"), { code: "23505" });
-      const claimSpy = spyOn(SessionRequestIdempotencyRepository, "insertClaim").mockRejectedValue(uniqueViolationError);
-      const findKeySpy = spyOn(SessionRequestIdempotencyRepository, "findByKey").mockResolvedValue(createMockClaim({ userId: 1, sessionId: 100 }));
+      const uniqueViolationError = Object.assign(new Error("duplicate key value violates unique constraint"), {
+        code: "23505",
+      });
+      const claimSpy = spyOn(SessionRequestIdempotencyRepository, "insertClaim").mockRejectedValue(
+        uniqueViolationError
+      );
+      const findKeySpy = spyOn(SessionRequestIdempotencyRepository, "findByKey").mockResolvedValue(
+        createMockClaim({ userId: 1, sessionId: 100 })
+      );
 
       const fakeTx = createFakeTx();
       const input: SessionSubmitInput = { teacherId: 2, intent: SessionIntent.Hifz };
@@ -446,12 +481,21 @@ describe("session-lifecycle.booking — bookSessionInTx", () => {
 
     test("duplicate claim key by DIFFERENT caller: replays with NotFoundError SESSION_NOT_FOUND and logs domain error", async () => {
       logSpy = spyOn(logger, "logDomainError").mockImplementation(() => {});
-      const lockSpy = spyOn(TeacherRepository, "lockForCertificationCheck").mockResolvedValue({ id: 2, isApproved: true });
+      const lockSpy = spyOn(TeacherRepository, "lockForCertificationCheck").mockResolvedValue({
+        id: 2,
+        isApproved: true,
+      });
       const decSpy = spyOn(StudentRepository, "decrementLaneIfAvailable").mockResolvedValue(true);
 
-      const uniqueViolationError = Object.assign(new Error("duplicate key value violates unique constraint"), { code: "23505" });
-      const claimSpy = spyOn(SessionRequestIdempotencyRepository, "insertClaim").mockRejectedValue(uniqueViolationError);
-      const findKeySpy = spyOn(SessionRequestIdempotencyRepository, "findByKey").mockResolvedValue(createMockClaim({ userId: 999, sessionId: 100 }));
+      const uniqueViolationError = Object.assign(new Error("duplicate key value violates unique constraint"), {
+        code: "23505",
+      });
+      const claimSpy = spyOn(SessionRequestIdempotencyRepository, "insertClaim").mockRejectedValue(
+        uniqueViolationError
+      );
+      const findKeySpy = spyOn(SessionRequestIdempotencyRepository, "findByKey").mockResolvedValue(
+        createMockClaim({ userId: 999, sessionId: 100 })
+      );
 
       const fakeTx = createFakeTx();
       const input: SessionSubmitInput = { teacherId: 2, intent: SessionIntent.Hifz };
@@ -482,11 +526,18 @@ describe("session-lifecycle.booking — bookSessionInTx", () => {
 
     test("vanished claim on duplicate unique violation (claim is null) replays with ConflictError DUPLICATE_REQUEST", async () => {
       logSpy = spyOn(logger, "logDomainError").mockImplementation(() => {});
-      const lockSpy = spyOn(TeacherRepository, "lockForCertificationCheck").mockResolvedValue({ id: 2, isApproved: true });
+      const lockSpy = spyOn(TeacherRepository, "lockForCertificationCheck").mockResolvedValue({
+        id: 2,
+        isApproved: true,
+      });
       const decSpy = spyOn(StudentRepository, "decrementLaneIfAvailable").mockResolvedValue(true);
 
-      const uniqueViolationError = Object.assign(new Error("duplicate key value violates unique constraint"), { code: "23505" });
-      const claimSpy = spyOn(SessionRequestIdempotencyRepository, "insertClaim").mockRejectedValue(uniqueViolationError);
+      const uniqueViolationError = Object.assign(new Error("duplicate key value violates unique constraint"), {
+        code: "23505",
+      });
+      const claimSpy = spyOn(SessionRequestIdempotencyRepository, "insertClaim").mockRejectedValue(
+        uniqueViolationError
+      );
       const findKeySpy = spyOn(SessionRequestIdempotencyRepository, "findByKey").mockResolvedValue(null);
 
       const fakeTx = createFakeTx();
@@ -510,7 +561,10 @@ describe("session-lifecycle.booking — bookSessionInTx", () => {
     });
 
     test("non-unique-violation error during claim insert rethrows untouched without calling replayBooking", async () => {
-      const lockSpy = spyOn(TeacherRepository, "lockForCertificationCheck").mockResolvedValue({ id: 2, isApproved: true });
+      const lockSpy = spyOn(TeacherRepository, "lockForCertificationCheck").mockResolvedValue({
+        id: 2,
+        isApproved: true,
+      });
       const decSpy = spyOn(StudentRepository, "decrementLaneIfAvailable").mockResolvedValue(true);
 
       const genericDbError = new Error("database connection timeout");
@@ -538,12 +592,19 @@ describe("session-lifecycle.booking — bookSessionInTx", () => {
 
   describe("Tier 2 — boundary cases & date offset calculation", () => {
     test("confirmation deadline is calculated as exactly now + 86400000 ms", async () => {
-      const lockSpy = spyOn(TeacherRepository, "lockForCertificationCheck").mockResolvedValue({ id: 2, isApproved: true });
+      const lockSpy = spyOn(TeacherRepository, "lockForCertificationCheck").mockResolvedValue({
+        id: 2,
+        isApproved: true,
+      });
       const decSpy = spyOn(StudentRepository, "decrementLaneIfAvailable").mockResolvedValue(true);
-      const claimSpy = spyOn(SessionRequestIdempotencyRepository, "insertClaim").mockResolvedValue(createMockClaim({ id: 80 }));
+      const claimSpy = spyOn(SessionRequestIdempotencyRepository, "insertClaim").mockResolvedValue(
+        createMockClaim({ id: 80 })
+      );
       const expectedSession = createMockSession();
       const insertSessionSpy = spyOn(SessionRepository, "insertSession").mockResolvedValue(expectedSession);
-      const backfillSpy = spyOn(SessionRequestIdempotencyRepository, "updateClaimSessionId").mockResolvedValue(undefined);
+      const backfillSpy = spyOn(SessionRequestIdempotencyRepository, "updateClaimSessionId").mockResolvedValue(
+        undefined
+      );
 
       const fakeTx = createFakeTx();
       const input: SessionSubmitInput = { teacherId: 2, intent: SessionIntent.Hifz };
@@ -564,15 +625,20 @@ describe("session-lifecycle.booking — bookSessionInTx", () => {
 
   describe("Tier 3 — chaos & statelessness", () => {
     test("concurrent bookSessionInTx invocations execute cleanly and independently", async () => {
-      const lockSpy = spyOn(TeacherRepository, "lockForCertificationCheck").mockResolvedValue({ id: 2, isApproved: true });
+      const lockSpy = spyOn(TeacherRepository, "lockForCertificationCheck").mockResolvedValue({
+        id: 2,
+        isApproved: true,
+      });
       const decSpy = spyOn(StudentRepository, "decrementLaneIfAvailable").mockResolvedValue(true);
-      const claimSpy = spyOn(SessionRequestIdempotencyRepository, "insertClaim").mockImplementation(async (arg) =>
+      const claimSpy = spyOn(SessionRequestIdempotencyRepository, "insertClaim").mockImplementation(async arg =>
         createMockClaim({ idempotencyKey: arg.idempotencyKey })
       );
-      const insertSessionSpy = spyOn(SessionRepository, "insertSession").mockImplementation(async (arg) =>
+      const insertSessionSpy = spyOn(SessionRepository, "insertSession").mockImplementation(async arg =>
         createMockSession({ intent: arg.intent })
       );
-      const backfillSpy = spyOn(SessionRequestIdempotencyRepository, "updateClaimSessionId").mockResolvedValue(undefined);
+      const backfillSpy = spyOn(SessionRequestIdempotencyRepository, "updateClaimSessionId").mockResolvedValue(
+        undefined
+      );
 
       const fakeTx = createFakeTx();
       const now = new Date();
@@ -600,13 +666,20 @@ describe("session-lifecycle.booking — bookSessionInTx", () => {
   describe("Tier 4 — security & domain logging payload safety", () => {
     test("domain error log payloads never contain sensitive idempotency keys", async () => {
       logSpy = spyOn(logger, "logDomainError").mockImplementation(() => {});
-      const lockSpy = spyOn(TeacherRepository, "lockForCertificationCheck").mockResolvedValue({ id: 2, isApproved: true });
+      const lockSpy = spyOn(TeacherRepository, "lockForCertificationCheck").mockResolvedValue({
+        id: 2,
+        isApproved: true,
+      });
       const decSpy = spyOn(StudentRepository, "decrementLaneIfAvailable").mockResolvedValue(true);
 
       const uniqueViolationError = Object.assign(new Error("duplicate key"), { code: "23505" });
-      const claimSpy = spyOn(SessionRequestIdempotencyRepository, "insertClaim").mockRejectedValue(uniqueViolationError);
+      const claimSpy = spyOn(SessionRequestIdempotencyRepository, "insertClaim").mockRejectedValue(
+        uniqueViolationError
+      );
       const sensitiveKey = "SUPER_SECRET_IDEMPOTENCY_KEY_12345";
-      const findKeySpy = spyOn(SessionRequestIdempotencyRepository, "findByKey").mockResolvedValue(createMockClaim({ userId: 1 }));
+      const findKeySpy = spyOn(SessionRequestIdempotencyRepository, "findByKey").mockResolvedValue(
+        createMockClaim({ userId: 1 })
+      );
 
       const fakeTx = createFakeTx();
       const input: SessionSubmitInput = { teacherId: 2, intent: SessionIntent.Hifz };
