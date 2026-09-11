@@ -3,11 +3,11 @@
 import { PersonAddOutlined as PersonAddIcon } from "@mui/icons-material";
 import { Box, Divider, Link as MuiLink, Stack, Typography } from "@mui/material";
 import Link from "next/link";
+import { AuthFormHeader, AuthSubmitButton } from "@/frontend/components/AuthFormShared";
 import {
   getRoleHelperText,
   RegisterAccountSection,
   RegisterPreferencesSection,
-  RegisterSubmitButton,
   useRegisterFormState,
   useRegisterSubmit,
 } from "@/frontend/views/auth/register";
@@ -28,7 +28,7 @@ import { Auth, Recitation, useAppTranslation } from "@/shared/locale";
  * {@link useRegisterFormState}, the submit pipeline in
  * {@link useRegisterSubmit}, pure helpers/constants in `registerFormUtils`,
  * and the sections in `RegisterAccountSection` / `RegisterPreferencesSection`
- * (+ `RegisterIdentityFields`, `RegisterSubmitButton`, `SectionLabel`,
+ * (+ `RegisterIdentityFields`, `AuthSubmitButton`, `SectionLabel`,
  * `PasswordStrengthMeter`).
  *
  * State: React Hook Form owns the inputs (`register` + `Controller`) so a
@@ -79,34 +79,11 @@ export function RegisterForm() {
   return (
     <Box sx={{ width: "100%", maxWidth: { xs: 560, md: 640 } }}>
       {/* === Header === */}
-      <Stack spacing={1} sx={{ mb: 4 }}>
-        <Stack direction="row" spacing={1.5} sx={{ alignItems: "center" }}>
-          <Box
-            sx={{
-              width: 44,
-              height: 44,
-              borderRadius: 2,
-              bgcolor: "var(--mui-palette-secondary-main)",
-              color: "var(--mui-palette-onSecondary)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              boxShadow: theme => `0 6px 16px ${theme.palette.secondary.main}33`,
-              flexShrink: 0,
-            }}
-          >
-            <PersonAddIcon sx={{ fontSize: 22 }} />
-          </Box>
-          <Stack spacing={0.25}>
-            <Typography variant="h5" component="h1" sx={{ fontWeight: 700, lineHeight: 1.2 }}>
-              {t.registerTitle}
-            </Typography>
-            <Typography variant="body2" sx={{ color: "var(--mui-palette-text-secondary)" }}>
-              {t.registerSubtitle}
-            </Typography>
-          </Stack>
-        </Stack>
-      </Stack>
+      <AuthFormHeader
+        icon={<PersonAddIcon sx={{ fontSize: 22 }} />}
+        title={t.registerTitle}
+        subtitle={t.registerSubtitle}
+      />
 
       <Box component="form" onSubmit={handleSubmit(onSubmit)} noValidate>
         {/* === Section 1: Account Information === */}
@@ -138,7 +115,7 @@ export function RegisterForm() {
             successMessage={successMessage}
           />
 
-          <RegisterSubmitButton busy={loading || isSubmitting} succeeded={successMessage !== null} label={t.submit} />
+          <AuthSubmitButton loading={loading || isSubmitting} disabled={successMessage !== null} label={t.submit} />
         </Stack>
       </Box>
 

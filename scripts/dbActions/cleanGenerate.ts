@@ -71,10 +71,5 @@ export async function cleanGenerate(): Promise<number> {
     globalThis.console.warn("⚠️  Migration failed. Seeding might fail if tables are missing.");
   }
 
-  // 6. Seed
-  // globalThis.console.log("\nSeeding database...");
-  // code = await runBunCommand(["run", "backend/db/scripts/drizzleSeed.ts"]);
-  // if (code !== 0) return code;
-
   return 0;
 }

@@ -1,22 +1,19 @@
 "use client";
 
 import { useMutation } from "@apollo/client/react";
-import { Dialog, DialogContent, DialogTitle } from "@mui/material";
-import { type ReactNode, useState } from "react";
+import type { ReactNode } from "react";
 import { openSessionDisputeMutationDocument } from "@/frontend/graphql/sharedDocuments";
-import { SessionDialogActionButtons } from "@/frontend/views/student/sessions/SessionDialogActionButtons";
-import { SessionDialogReasonField } from "@/frontend/views/student/sessions/SessionDialogReasonField";
-import { SessionDialogWarningCallout } from "@/frontend/views/student/sessions/SessionDialogWarningCallout";
+import { SessionConfirmDialogLayout } from "@/frontend/views/student/sessions/SessionConfirmDialogLayout";
 import { handleDisputeSessionMutationError } from "@/frontend/views/student/sessions/sessionDialogErrorArms";
 import { Errors, Sessions, useAppTranslation } from "@/shared/locale";
 
 /**
  * SessionDisputeConfirmDialog — the confirm-and-reason seam for opening a
  * dispute on a `Scheduled`/`Started` session (student or teacher side,
- * R-110). Structural twin of `CancelSessionConfirmDialog`: same
- * portal/dialog/controlled-textarea form, REQUIRED reason instead of
- * optional, and a snackbar-mapped error vocabulary instead of the row-evict
- * arm.
+ * R-110). Shares its portal/dialog/controlled-textarea form with
+ * `CancelSessionConfirmDialog` via `SessionConfirmDialogLayout`: REQUIRED
+ * reason instead of optional, and a snackbar-mapped error vocabulary
+ * instead of the row-evict arm.
  *
  * Mutation behavior (plan §3.1 — dispute flow, NO refetch):
  *
@@ -82,12 +79,6 @@ export function SessionDisputeConfirmDialog({
   const t = useAppTranslation(Sessions);
   const te = useAppTranslation(Errors);
 
-  const [reason, setReason] = useState("");
-  const [reasonInvalid, setReasonInvalid] = useState(false);
-  // Fresh-dialog discipline: the container mounts this dialog UNMOUNTED-KEYED
-  // per session (`key={sessionId}` in the role containers), so every open
-  // starts from the initial draft state — no reset effect needed.
-
   const [openDispute, { loading }] = useMutation(openSessionDisputeMutationDocument, {
     // Cache NORMALIZE on success — rewrite the transitioned dispute fields
     // onto the normalized `Session:<id>` entity (belt-and-braces over the
@@ -121,65 +112,24 @@ export function SessionDisputeConfirmDialog({
     },
   });
 
-  const handleSubmit = (event: React.SubmitEvent<HTMLFormElement>): void => {
-    event.preventDefault();
-    if (loading) return;
-    const trimmed = reason.trim();
-    // UI-seam gate (mirrors the backend VALIDATION contract): the reason is
-    // REQUIRED and trimmed 1..500. An invalid submit never reaches the wire.
-    if (trimmed.length < 1 || trimmed.length > MAX_DISPUTE_REASON_LENGTH) {
-      setReasonInvalid(true);
-      return;
-    }
-    setReasonInvalid(false);
-    void openDispute({ variables: { id: sessionId, reason: trimmed } });
-  };
-
-  // Dismissal gate — enforces the `onClose` prop contract at the dialog
-  // itself: backdrop click and Escape are IGNORED while the mutation is
-  // pending (the cancel Button is separately disabled while loading).
-  const handleDialogClose = (): void => {
-    if (!loading) {
-      onClose();
-    }
-  };
-
   return (
-    <Dialog
+    <SessionConfirmDialogLayout
+      idPrefix="dispute-session"
       open={open}
-      onClose={handleDialogClose}
-      fullWidth
-      maxWidth="sm"
-      slotProps={{ paper: { component: "form", onSubmit: handleSubmit } }}
-      aria-labelledby="dispute-session-dialog-title"
-    >
-      <DialogTitle id="dispute-session-dialog-title" sx={theme => ({ color: theme.palette.onSurface })}>
-        {t.disputeConfirmTitle}
-      </DialogTitle>
-      <DialogContent sx={{ display: "grid", gap: 2 }}>
-        <SessionDialogWarningCallout message={t.disputeConfirmBody} />
-        <SessionDialogReasonField
-          value={reason}
-          onValueChange={value => {
-            setReason(value);
-            // Live validation relief — an edit clears a raised flag.
-            setReasonInvalid(false);
-          }}
-          label={t.disputeReasonLabel}
-          placeholder={t.disputeReasonPlaceholder}
-          required
-          error={reasonInvalid}
-          helperText={reasonInvalid ? t.disputeReasonRequired : `${reason.length}/${MAX_DISPUTE_REASON_LENGTH}`}
-          maxLength={MAX_DISPUTE_REASON_LENGTH}
-        />
-      </DialogContent>
-      <SessionDialogActionButtons
-        loading={loading}
-        onClose={onClose}
-        submitLabel={t.openDispute}
-        submitColor="warning"
-        submitDisabled={loading}
-      />
-    </Dialog>
+      onClose={onClose}
+      title={t.disputeConfirmTitle}
+      warningMessage={t.disputeConfirmBody}
+      reasonLabel={t.disputeReasonLabel}
+      reasonPlaceholder={t.disputeReasonPlaceholder}
+      reasonRequired={true}
+      reasonRequiredMessage={t.disputeReasonRequired}
+      maxLength={MAX_DISPUTE_REASON_LENGTH}
+      loading={loading}
+      onSubmit={reason => {
+        void openDispute({ variables: { id: sessionId, reason } });
+      }}
+      submitLabel={t.openDispute}
+      submitColor="warning"
+    />
   );
 }

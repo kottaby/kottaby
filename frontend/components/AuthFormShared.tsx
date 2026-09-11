@@ -74,15 +74,23 @@ export function PasswordField({
   autoComplete,
   helperText,
   error,
+  inputRef,
+  name,
+  onBlur,
+  "aria-invalid": ariaInvalid,
 }: Readonly<{
   label: string;
-  value: string;
-  onChange: (value: string) => void;
+  value?: string;
+  onChange?: React.ChangeEventHandler<HTMLInputElement | HTMLTextAreaElement>;
   showPassword: boolean;
   onToggleShow: () => void;
   autoComplete: string;
   helperText?: string;
   error?: boolean;
+  inputRef?: React.Ref<HTMLInputElement>;
+  name?: string;
+  onBlur?: React.FocusEventHandler<HTMLInputElement | HTMLTextAreaElement>;
+  "aria-invalid"?: boolean | "false" | "true" | "grammar" | "spelling";
 }>): ReactNode {
   // audit-R4: the toggle's accessible name MUST localize (it was hardcoded
   // English "Show password"/"Hide password", leaking EN copy onto ar pages).
@@ -93,15 +101,19 @@ export function PasswordField({
       label={label}
       type={showPassword ? "text" : "password"}
       value={value}
-      onChange={e => onChange(e.target.value)}
+      onChange={onChange}
+      name={name}
+      inputRef={inputRef}
+      onBlur={onBlur}
       required
       fullWidth
       autoComplete={autoComplete}
       helperText={helperText ?? " "}
       error={error}
+      aria-invalid={ariaInvalid}
       // audit-R7/P2: roomier line boxes for multi-line Arabic helper copy.
       slotProps={{
-        formHelperText: { sx: { lineHeight: 1.6 } },
+        formHelperText: { sx: { lineHeight: 1.6 }, "aria-live": "polite" },
         input: {
           startAdornment: <LockOutlined fontSize="small" sx={{ mr: 1, color: "var(--mui-palette-action-active)" }} />,
           endAdornment: (
