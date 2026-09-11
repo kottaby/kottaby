@@ -17,7 +17,7 @@
 - **Version**: 1.0
 - **Date**: 2026-09-11
 - **Author**: Design author (planning wave) — all `path:line` citations below re-verified against the live tree on 2026-09-11 before being written
-- **Requirements**: `ai/plans/sprint_3/parent-read-only-monitoring-portal/specs.md` (26 REQs: 001-002 protocol, 010-016 reads, 020-024 authz, 030-031 GraphQL, 040-043 UX/i18n, 050-054 testing, 060-062 gates; journeys J1-J4)
+- **Requirements**: `ai/plans/sprint_3/parent-read-only-monitoring-portal/specs.md` (28 REQs: 001-002 protocol, 010-016 reads, 020-024 authz, 030-031 GraphQL, 040-043 UX/i18n, 050-054 testing, 060-062 gates; journeys J1-J4)
 - **Research basis**: `ai/plans/sprint_3/parent-read-only-monitoring-portal/outcome/research-00-planning-basis.md` (rulings R-A..R-J — binding; this plan fleshes them out, never re-opens them)
 
 ### Related Documents
@@ -34,7 +34,7 @@
 
 ## 1. Overview
 
-The portal is a **read-only vertical slice**: five new parent-scoped GraphQL queries over four existing read models (`session`, `reports`, `home_work`, `progress`), one new service (`ParentMonitoringService`) guarded by one new gate (`requireLinkedChild`), one new i18n namespace (`parentMonitoring`), and two new App Router routes on the parent dashboard. Zero schema changes, zero new mutations, zero writes of any kind. Every REQ (010..043) traces to a repo read + service method + root query field + view tab; every invariant (INV-P1 link gate, INV-P2 read-only) is enforced at a named code seam.
+The portal is a **read-only vertical slice**: five new parent-scoped GraphQL queries over four existing read models (`session`, `reports`, `home_work`, `progress`), one new service (`ParentMonitoringService`) guarded by one new gate (`requireLinkedChild`), one new i18n namespace (`parentMonitoring`), and two App Router routes (one ComingSoon-stub replacement + one new `[studentId]` detail segment) on the parent dashboard. Zero schema changes, zero new mutations, zero writes of any kind. Every REQ (010..043) traces to a repo read + service method + root query field + view tab; every invariant (INV-P1 link gate, INV-P2 read-only) is enforced at a named code seam.
 
 ### Design Goals
 
@@ -77,7 +77,7 @@ The portal is a **read-only vertical slice**: five new parent-scoped GraphQL que
 **D6 — URL-param child switcher; NO Zustand (R-G).**
 - *Context:* specs REQ-011/041; `zustand` is absent from `package.json`; `frontend/stores/` holds only AGENTS.md.
 - *Decision:* `?student=<id>` and `?tab=<attendance|reports|homework|evaluations|progress>` as the only cross-view state; Apollo `useQuery` variables re-keyed on `studentId` (precedent `frontend/views/teacher/sessions/TeacherSessionsContainer.tsx`). Transient UI (tab focus, dialog open) is component-local `useState`.
-- *Rationale:* refresh/sharing/deep-linking work for free; adds no dependency the repo does not run.
+- *Rationale:* refresh/sharing/deep-linking work for free; adds no dependency the repo does not run. The unmasked-`fullName` ruling on linked-child payloads anchors to the shipped precedent `backend/services/classes/session-report-notification.service.ts:191` (the completion notification already emits the full name to the linked parent); R9 masking (`docs/parents/parent-link-request.md:139`) scopes to pre-confirmation surfaces only.
 
 **D7 — Zero schema changes (R-J).**
 - *Decision:* no `pgTable` edits, no migrations, `drizzle-kit push/generate` NOT run. Tasks still assert schema-parity (the `bun run generate:gqlSchema` + `bun codegen` pair is for GRAPHQL codegen only).
@@ -98,7 +98,7 @@ The portal is a **read-only vertical slice**: five new parent-scoped GraphQL que
 - *Rationale:* ticket AC is explicit and ratified (REQ-022); the copy constant-ness is what makes the oracle close.
 
 **D11 — Gate+read inside ONE read-only transaction (TOCTOU ruling, §4.3).**
-- *Decision:* every portal service method runs `withTransaction` (the `@/backend/lib/db/with-transaction` helper used by `parent-link-request.helpers.ts:27`); the link gate and the data reads share one snapshot.
+- *Decision:* every portal service method runs `withTransaction` (the `@/backend/lib/db/with-transaction` helper used by `parent-link-request.helpers.ts:29`); the link gate and the data reads share one snapshot.
 - *Rationale:* a revocation landing between the gate and the read cannot leak rows within a single response; cross-request staleness is nonexistent by construction (no authz cache).
 
 **D12 — Parent-shaped Pothos objects, NOT reuse of `Session`/`SessionReport`/`SessionHomeWork`.**
@@ -294,7 +294,7 @@ Enum members serialize via the ONCE-registered `SessionStatusPothosEnum` (`backe
 
 ### 3.2 Pothos object + resolver modules
 
-**CREATE `backend/graphql/pothos/parents/parent-monitoring.pothos.ts`** — one module, all eight parent objects, following the conventions at `backend/graphql/pothos/parents/parent-link-request.pothos.ts:40-51`: single `objectRef<...ReturnType>("GraphQLName")` per type, `t.exposeID("id")` FIRST on every entity shape, timestamps via `t.expose(..., { type: "DateTime" })`, enums via the once-registered Pothos enums, nullable marks exactly matching the TS nullability (BOPLA), zero inline logic, import of the ReturnTypes from `@/backend/types/parents` (barrel) only — NO local type definitions.
+**CREATE `backend/graphql/pothos/parents/parent-monitoring.pothos.ts`** — one module, all ten GraphQL types (`ParentLinkedChild`, `ParentAttendanceEntry`, `ParentAttendancePage`, `ParentReportEntry`, `ParentReportPage`, `ParentHomeworkTrack`, `ParentHomeworkEntry`, `ParentHomeworkPage`, `ParentHomeworkPosition`, `ParentChildProgress` — per §3.1), following the conventions at `backend/graphql/pothos/parents/parent-link-request.pothos.ts:40-51`: single `objectRef<...ReturnType>("GraphQLName")` per type, `t.exposeID("id")` FIRST on every entity shape, timestamps via `t.expose(..., { type: "DateTime" })`, enums via the once-registered Pothos enums, nullable marks exactly matching the TS nullability (BOPLA), zero inline logic, import of the ReturnTypes from the canonical `@/backend/types` surface only — NO local type definitions.
 
 **CREATE `backend/graphql/query/parents/parent-monitoring.query.ts`** — registers the five root fields by side effect; NO named exports; barrel update (`UPDATE backend/graphql/query/parents/index.ts`: append `import "./parent-monitoring.query";` — the barrel then chains into `query/index.ts` → `gqlSchema.ts` unchanged).
 
@@ -385,7 +385,7 @@ export const ParentMonitoringService = {
 
 `ParentPageInput` is defined in the SAME canonical types file (`backend/types/parents/parent-monitoring.types.ts`): `{ readonly page?: number; readonly pageSize?: number }`.
 
-Every method shape: (1) `await requireActor(parentActorId, UserRole.Parent, locale, undefined, false)` — relaxed READ path per the helper's own docblock (`parent-link-request.helpers.ts:234-236`, "self-scoped history stays visible"; a governed-but-not-deleted parent may still read); (2) for student-scoped methods, open ONE read-only transaction via `withTransaction` (`@/backend/lib/db/with-transaction` import precedent `parent-link-request.helpers.ts:27`) and run gate + reads within it. `requireActor` is imported directly from `./parent-link-request.helpers` (same-domain sibling import precedent: `session.repository.ts` ↔ `session.repository.helpers.ts`).
+Every method shape: (1) `await requireActor(parentActorId, UserRole.Parent, locale, undefined, false)` — relaxed READ path per the helper's own docblock (`parent-link-request.helpers.ts:234-236`, "self-scoped history stays visible"; a governed-but-not-deleted parent may still read); (2) for student-scoped methods, open ONE read-only transaction via `withTransaction` (`@/backend/lib/db/with-transaction` import precedent `parent-link-request.helpers.ts:29`) and run gate + reads within it. `requireActor` is imported directly from `./parent-link-request.helpers` (same-domain sibling import precedent: `session.repository.ts` ↔ `session.repository.helpers.ts`).
 
 **NEW gate — `requireLinkedChild` in `backend/services/parents/parent-monitoring.helpers.ts`** (exact shape; modeled on `requireActor` at `backend/services/parents/parent-link-request.helpers.ts:246-298`, including its denial-discipline docblock contract):
 
@@ -410,12 +410,14 @@ export async function requireLinkedChild(
   const student = await StudentRepository.findById(studentId, tx);             // R-A: the student row IS the grant
   if (student === null || student.parentId !== parentActorId) return deny();   // INV-P1
   const childUser = await UserRepository.findById(studentId, tx);              // governance re-check
-  if (childUser === null || childUser.isDeleted) return deny();                // REQ-021.3 serverance — same shape
+  if (childUser === null || childUser.isDeleted) return deny();                // REQ-021.3 severance — same shape
   return student;
 }
 ```
 
 Denied probes produce exactly ONE bounded `logDomainError` (REQ-022.2), zero rows, zero writes, and identical response bytes across nonexistent/foreign/never-linked/severed cases (D10 oracle posture). Per-surface projection mapping (session row → `ParentAttendanceEntryReturnType`, report+session pair → `ParentReportEntryReturnType`, `HomeWorkSelectType` → track blocks + `ParentHomeworkPositionReturnType` extraction) lives in the SAME helpers file as pure functions.
+
+**Governance ruling for `requireLinkedChild`:** child soft-delete severs access immediately — `users.isDeleted = true` forces the constant denial on the very next read (workflow rule `docs/workflows/04-parent-supervision-handshake.md:164`). Child suspended/blocked (`users.suspended` / `users.isBlocked`) does NOT sever parent read access — deliberate: suspension governs the child's LOGIN posture, not the parent's monitoring posture, so the gate checks `isDeleted` only and never the suspension flags (note the pseudo-signature above checks `childUser.isDeleted` alone).
 
 ### 4.3 Concurrency & Race Condition Assessment
 
@@ -428,7 +430,7 @@ Reads only ⇒ structurally low risk; assessed anyway:
 | Two parents, one student | Impossible by schema (B.12, one parent per student) | N/A — one-row grant |
 | Writes from portal | None exist | **No advisory locks, no FOR UPDATE, no idempotency claims — stated explicitly: the portal's write-set is empty (INV-P2/REQ-023)** |
 
-**Pagination decision (records REQ-011.2's deterministic choice):** the portal root with NO `?student` param **auto-selects the first linked child** (stable list order) and redirects to `/parent/children/<id>`; zero-children renders the localized empty state. Deterministic, deep-link-friendly.
+**Pagination decision (records REQ-011.2's deterministic choice — PINNED):** the portal root server page is a guard-only shell (per specs NFR 5.1) — it performs NO server-side auto-select/redirect. When the URL carries NO `?student` param, the CLIENT root container resolves the selection AFTER `myLinkedChildren` resolves: it auto-selects the first linked child (stable list order) client-side and navigates to `/parent/children/<id>`; zero-children renders the localized empty state. Deterministic, deep-link-friendly.
 
 ### 4.4 Cross-Actor Journey Design (mirrors specs J1–J4; assertion source for `test/workflows/parents/parent-monitoring.journey.test.ts`)
 
@@ -476,12 +478,12 @@ Other-actor actors (teacher flow writes, notification emitter) ship nothing in t
 
 | Route (file) | Purpose | Guard | Roles |
 |---|---|---|---|
-| `app/(dashboard)/parent/children/page.tsx` (UPDATE — replaces ComingSoon stub :20-22) | Portal root: resolves `?student=`; empty ⇒ auto-redirect to first child (deterministic, §4.3) or localized empty state | `withPageAuth({ roles: [UserRole.Parent], redirectTo: "/parent/children" })` (pattern: `app/(dashboard)/parent/handshake/page.tsx:33-36`) | parent |
+| `app/(dashboard)/parent/children/page.tsx` (UPDATE — replaces ComingSoon stub :20-22) | Portal root — guard-only server shell (PINNED, specs NFR 5.1): NO server-side auto-select/redirect; renders the client root container, which resolves a missing `?student=` param client-side after `myLinkedChildren` resolves (auto-selects first child) or shows the localized empty state (§4.3) | `withPageAuth({ roles: [UserRole.Parent], redirectTo: "/parent/children" })` (pattern: `app/(dashboard)/parent/handshake/page.tsx:33-36`) | parent |
 | `app/(dashboard)/parent/children/[studentId]/page.tsx` (CREATE) | Child detail: server shell awaits `params` (`const { studentId } = await params`), parses/supplies `pageSize`-free view params (`?tab=`, `?session=` deep-link anchor) via `searchParams`, renders the client container | same `withPageAuth` + service-side `requireLinkedChild` on every backing query | parent (own linked child only) |
 
 **Deep-link contract (R-I):** `/parent/children/<studentId>?tab=reports&session=<sessionId>` — the target DEV1-017's `session_completion` notifications will emit; component layer resolves the tab and scrolls to the row.
 
-Clients NEVER hand-roll param parsing: server page extracts + validates (integer coercion failures redirect to the portal root), and passes plain props into the container. No `useSearchParams` suspense gymnastics in server files.
+Clients NEVER hand-roll param parsing: server pages extract + validate detail params (integer coercion failures on `[studentId]` redirect to the portal root) and pass plain props into the container; on the portal ROOT the server page stays a guard-only shell and the CLIENT container resolves a missing `?student=` (PINNED, §4.3) — there is no server-side auto-select/redirect. No `useSearchParams` suspense gymnastics in server files.
 
 ### 5.2 Sidebar navigation integration (REQ-042)
 
@@ -550,20 +552,21 @@ Export names: `myLinkedChildrenQueryDocument`, `parentChildProgressQueryDocument
 | `AttendanceTab.tsx` / `ReportsTab.tsx` / `HomeworkTab.tsx` / `EvaluationsTab.tsx` / `ProgressTab.tsx` | One tab per surface; EvaluationsTab consumes `parentChildReports` rows (D9) |
 | `index.ts` barrel + co-located state/projection helpers | components-only exports |
 
-**State matrix per tab:** `loading` → skeleton; `error` FORBIDDEN (via `extractErrorCode` + `mapGraphQLErrorByCode` "permission-fallback") → `PermissionDeniedFallback`; other errors → `ErrorRetryAlert` (`frontend/components/ui/ErrorRetryAlert.tsx:34`); data-empty → `IconCircleEmptyState` (`:30`) with localized copy; data → rows. Deep-link `?session=` scrolls the Reports tab to that `sessionId`.
+**State matrix per tab:** `loading` → skeleton; `error` FORBIDDEN (via `extractErrorCode` + `mapGraphQLErrorByCode` "permission-fallback") → `PermissionDeniedFallback`; other errors → `ErrorRetryAlert` (`frontend/components/ui/ErrorRetryAlert.tsx:28`); data-empty → `IconCircleEmptyState` (`:30`) with localized copy; data → rows. Deep-link `?session=` scrolls the Reports tab to that `sessionId`. Deep-link `?session=` scrolls the Reports tab to that `sessionId`.
 
-**Styling:** MUI v9 `sx` ONLY (no style props on Typography/Stack/Box/Grid), `*Outlined` icon names, theme palette callbacks (`theme.palette.*` + Material 3 `on*` siblings) — no hardcoded colors. No `AppDataGrid`/`MetricCard`/`PageContainer` — they do NOT exist (verified `frontend/components/ui/` listing); plain `Stack`/`Card` composition instead.
+**Styling:** MUI v9 `sx` ONLY (no style props on Typography/Stack/Box/Grid), `*Outlined` icon names, theme palette callbacks (`theme.palette.*` + Material 3 `on*` siblings) — no hardcoded colors. `AppDataGrid`/`MetricCard`/`PageContainer` do NOT exist in `frontend/components/ui/` (verified listing) — plain `Stack`/`Card` composition instead. CAUTION: a view-local `MetricCard` lives at `frontend/views/admin/analytics/MetricCard.tsx:34` — it is analytics-scoped and MUST NOT be imported here.
 
 ### 5.7 i18n — `parentMonitoring` namespace ceremony (REQ-043, exact files)
 
 1. CREATE `shared/locale/types/parentMonitoring/index.ts` — `ParentMonitoringLabels` type (strings; `(count: number) => string` for pluralized counts; interpolation functions for names).
-2. CREATE `shared/locale/namespaces/parentMonitoring/parentMonitoring.namespace.ts` — `export const ParentMonitoring = defineNamespace<ParentMonitoringLabels>("parentMonitoring.parentMonitoring", translations => translations.parentMonitoringTranslations);` (verbatim shape of `shared/locale/namespaces/parentLink/parentLink.namespace.ts:3-6`).
-3. CREATE `shared/locale/namespaces/parentMonitoring/index.ts` barrel.
-4. CREATE `shared/locale/en/parentMonitoring/index.ts` (`parentMonitoringEn: ParentMonitoringLabels`). Keys must cover: tab labels (attendance/reports/homework/evaluations/progress), Jadid/Madi track names, column labels, empty-state title/body per surface, switcher label, "not rated yet" / "none assigned", detail-page title. 
-5. CREATE `shared/locale/ar/parentMonitoring/index.ts` (`parentMonitoringAr`) — full Arabic parity.
-6. UPDATE `shared/locale/namespaces/registry.ts` (insert `ParentMonitoring` import + entry inside the :27-47 object, alphabetical), UPDATE `namespaces/index.ts` barrel.
-7. UPDATE `shared/locale/en/messages.ts` + `shared/locale/ar/messages.ts` (`parentMonitoringTranslations: parentMonitoringEn/…Ar` on the aggregates).
-8. CREATE `shared/locale/parentMonitoring-namespace.parity.test.ts` — key/shape parity check (precedent `shared/locale/parentLink-namespace.parity.test.ts`).
+2. UPDATE `shared/locale/types/message.ts` — import `ParentMonitoringLabels` and add `parentMonitoringTranslations: ParentMonitoringLabels;` to the `Translations` interface (precedent: `parentLinkTranslations: ParentLinkLabels;` at `shared/locale/types/message.ts:39`). REQUIRED before step 3 — the handle's getter references `translations.parentMonitoringTranslations`.
+3. CREATE `shared/locale/namespaces/parentMonitoring/parentMonitoring.namespace.ts` — `export const ParentMonitoring = defineNamespace<ParentMonitoringLabels>("parentMonitoring.parentMonitoring", translations => translations.parentMonitoringTranslations);` (verbatim shape of `shared/locale/namespaces/parentLink/parentLink.namespace.ts:4-7`).
+4. CREATE `shared/locale/namespaces/parentMonitoring/index.ts` barrel.
+5. CREATE `shared/locale/en/parentMonitoring/index.ts` (`parentMonitoringEn: ParentMonitoringLabels`). Keys must cover: tab labels (attendance/reports/homework/evaluations/progress), Jadid/Madi track names, column labels, empty-state title/body per surface, switcher label, "not rated yet" / "none assigned", detail-page title. 
+6. CREATE `shared/locale/ar/parentMonitoring/index.ts` (`parentMonitoringAr`) — full Arabic parity.
+7. UPDATE `shared/locale/namespaces/registry.ts` (insert `ParentMonitoring` import + entry inside the :27-47 object, alphabetical), UPDATE `namespaces/index.ts` barrel.
+8. UPDATE `shared/locale/en/messages.ts` + `shared/locale/ar/messages.ts` (`parentMonitoringTranslations: parentMonitoringEn/…Ar` on the aggregates).
+9. CREATE `shared/locale/parentMonitoring-namespace.parity.test.ts` — key/shape parity check (precedent `shared/locale/parentLink-namespace.parity.test.ts`).
 
 Consumption: client views `useAppTranslation(ParentMonitoring)`; server pages `getTranslations(locale)` single-arg → `.parentMonitoringTranslations`; NO `Translation.` enum, NO two-arg `getTranslations`, denial copy stays on `errorsTranslations` (no duplicate denial keys — REQ-043.4).
 
@@ -605,7 +608,7 @@ Runner discipline everywhere: `bun run test/scripts/run-test.ts <path>` — NEVE
 
 | Layer | New suites | Key assertions |
 |---|---|---|
-| Repo (REQ-050) | `backend/db/test/repo/students/student.parent-monitoring.repository.test.ts`; `backend/db/test/repo/classes/report.parent.repository.test.ts`; `backend/db/test/repo/classes/home-work.parent.repository.test.ts`; `backend/db/test/repo/classes/progress.repository.test.ts` (CREATE) | `runInRollback` + `tx` on EVERY repo call; fixtures via `backend/db/test/helpers/entity-setup.ts` (signatures re-verified at authoring); try/catch helper for rejection assertions (never `rejects.toThrow`); ordering/pagination windows; join predicates isolate cross-student leakage |
+| Repo (REQ-050) | `backend/db/test/repo/students/student.parent-monitoring.repository.test.ts`; `backend/db/test/repo/classes/report.parent.repository.test.ts`; `backend/db/test/repo/classes/home-work.parent.repository.test.ts`; `backend/db/test/repo/classes/progress.repository.test.ts` (CREATE) | `runInRollback` + `tx` on EVERY repo call; fixtures via `backend/db/test/entity-setup.ts` (signatures re-verified at authoring); try/catch helper for rejection assertions (never `rejects.toThrow`); ordering/pagination windows; join predicates isolate cross-student leakage |
 
 | Layer | New suites | Key assertions |
 |---|---|---|

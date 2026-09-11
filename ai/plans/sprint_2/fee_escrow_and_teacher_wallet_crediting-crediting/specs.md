@@ -49,7 +49,7 @@ This plan therefore closes the loop: it re-proves each acceptance criterion agai
 - New schema, columns, enums, resolvers, routes, or UI — none are needed; any discovered gap becomes a `deferred-items.md` row, not scope creep.
 - Withdrawal settlement (admin approve/reject) — `Teacher Withdrawal Workflow & Admin Approval` ticket (`docs/planning/TICKETS.md:1799-1845`); `TransactionStatus.Failed` is intentionally unused today (`backend/services/billing/wallet.service.ts` writes only pending withdrawal intents).
 - Runtime adoption of the escrow idempotency-key contract types — deferred (see REQ-8, ledger D1).
-- The `db/schema.dbml` sync — owned by `ai/plans/sprint_1/Segregated Session Balance-crediting/` (its deferred dbml-sync requirement); do not duplicate.
+- The `db/schema.dbml` sync — owned by `ai/plans/sprint_1/segregated_session_balance-crediting/` (its deferred dbml-sync requirement); do not duplicate.
 
 ---
 
@@ -93,7 +93,7 @@ This plan therefore closes the loop: it re-proves each acceptance criterion agai
 3. WHEN the booking input arrives THEN it SHALL contain no fee field — the client cannot name a price (input type `SessionSubmitInput {teacherId, intent}`, `backend/types/classes/session.types.ts`).
 4. IF the student's trial lane and intent lane are both empty THEN the system SHALL throw `ValidationError("INSUFFICIENT_BALANCE", …)` and SHALL roll back the entire transaction (zero rows) (throw at `session-lifecycle.booking.ts:95-116`).
 
-5. WHEN the request is replayed with the same idempotency key THEN the system SHALL return the first booking's session without a second hold (`SessionRequestIdempotencyRepository.insertClaim` savepoint-bracketed, `session-lifecycle.booking.ts:225-238`; `replayBooking` at `:162-182`).
+5. WHEN the request is replayed with the same idempotency key THEN the system SHALL reject with `ConflictError("DUPLICATE_REQUEST")` (409, localized) and SHALL insert zero new rows and touch no lane — replay never returns and never double-holds (`SessionRequestIdempotencyRepository.insertClaim` savepoint-bracketed, `session-lifecycle.booking.ts:225-238`; replay-by-throw at `:162-182`).
 
 #### Evidence (verified 2026-09-11)
 
@@ -106,7 +106,7 @@ This plan therefore closes the loop: it re-proves each acceptance criterion agai
 
 #### Additional Details
 
-- **Priority:** P0 (ticket blocker for everything money-side) · **Complexity:** none (verification only) · **Dependencies:** `ai/plans/sprint_1/Segregated Session Balance-crediting/` ratification D1 (hold-as-debit) — compatible, not blocking.
+- **Priority:** P0 (ticket blocker for everything money-side) · **Complexity:** none (verification only) · **Dependencies:** `ai/plans/sprint_1/segregated_session_balance-crediting/` ratification D1 (hold-as-debit) — compatible, not blocking.
 - **Semantics note:** "Held" = guarded **debit of one unit** from `balance_trial` first, else the intent lane (`decrementLaneIfAvailable`, `backend/db/repo/students/student.repository.ts:478-493`). See REQ-6 for the wording reconciliation.
 
 ---
@@ -160,7 +160,7 @@ This plan therefore closes the loop: it re-proves each acceptance criterion agai
 | AC2 credit composition | `session-lifecycle.confirmation.ts:48-59,129`; `wallet.repository.ts:64-98` | `session-lifecycle.service.test.ts:2396` (exactly one earning); journey `test/workflows/sessions/session-dual-confirmation.journey.test.ts:451` |
 | AC3 lazy wallet | `wallet.repository.ts:45-50` | journey :348 (teacher starts wallet-less) + :451 |
 | AC4 replay arms | `session-lifecycle.confirmation.ts:86-104` | service suite :2439, :2469; journey :492 |
-| AC5 fail-closed fee | `session-lifecycle.confirmation.ts:123-127` | covered by booking-invariant guard test :1109 |
+| AC5 fail-closed fee | `session-lifecycle.confirmation.ts:123-127` | no dedicated test — branch is unreachable while the booking invariant (AC1, test :1109) holds; noted as a candidate edge case for the Sprint 4 Financial Safety suite |
 | Race confirm-vs-sweep | predicates in `session.repository.ts:433-455,473-517` | repo suite :1582, :1617; journey :620 (exactly ONE financial outcome) |
 
 #### Additional Details
@@ -233,7 +233,7 @@ This plan therefore closes the loop: it re-proves each acceptance criterion agai
 
 #### Acceptance Criteria
 
-1. WHEN the ticket gherkin says "balance held (not decremented yet)" (`docs/planning/TICKETS.md:1722`) THEN the plan SHALL record the binding ruling: **hold = guarded debit of one unit at request** (trial-first per INV-B4), settlement flips `fee_held = false` and credits the wallet, cancellation re-increments the SAME lane — as ruled in `ai/finished_plans/sprint_1/session-creation-lifecycle-scheduled-sta/specs.md` ruling #2 and ratified by `ai/plans/sprint_1/Segregated Session Balance-crediting/plan.md` D1.
+1. WHEN the ticket gherkin says "balance held (not decremented yet)" (`docs/planning/TICKETS.md:1722`) THEN the plan SHALL record the binding ruling: **hold = guarded debit of one unit at request** (trial-first per INV-B4), settlement flips `fee_held = false` and credits the wallet, cancellation re-increments the SAME lane — as ruled in `ai/finished_plans/sprint_1/session-creation-lifecycle-scheduled-sta/specs.md` ruling #2 and ratified by `ai/plans/sprint_1/segregated_session_balance-crediting/plan.md` D1.
 2. WHEN the ticket implies dispute-after-confirmation THEN the plan SHALL record the shipped divergence: `disputed` is not reachable from `completed`; arbitration diverges per dual-confirmation plan decision D-2 (`ai/finished_plans/sprint_2/dual-confirmation-completion-handshake/plan.md`) — no code change.
 3. WHEN the wallet credit is described as money THEN the plan SHALL record that student-side escrow is unit lanes while teacher-side credit is the EGP fee string — the two sides reconcile at settlement by design, and the Sprint 4 Financial Safety Verification ticket (`docs/planning/TICKETS.md:2985-3026`) owns the end-to-end money audit.
 4. WHEN the reconciliation is complete THEN it SHALL live in `outcome/3.x-reconciliation-outcome.md` AND the propagated doc (Task 4) — code remains untouched.

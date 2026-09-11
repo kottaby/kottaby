@@ -10,7 +10,7 @@
 ## Document Information
 
 - **Feature Name**: Parent Read-Only Monitoring Portal
-- **Ticket**: `docs/planning/TICKETS.md:1988-2036` (Owner Stream: Dev 1, Sprint 3, 8 SP, Blocked By: "Student Confirmation of Parent Link" + "Session Request Notification to Teacher" — both shipped: `ai/finished_plans/sprint_3/dev1-015-student-confirmation-of-parent-link/`, `ai/finished_plans/sprint_3/dev3-011-session-request-notification-to-teacher/`)
+- **Ticket**: `docs/planning/TICKETS.md:1988-2036` (Owner Stream: Dev 1, Sprint 3, 8 SP, Blocked By: "Student Confirmation of Parent Link" + "Session Request Notification to Teacher" — both shipped: `ai/finished_plans/sprint_3/student-confirmation-of-parent-link/`, `ai/finished_plans/sprint_2/session-request-notification-to-teacher/`)
 - **Target Directory**: `ai/plans/sprint_3/parent-read-only-monitoring-portal`
 - **Outcome Directory**: `ai/plans/sprint_3/parent-read-only-monitoring-portal/outcome/`
 - **Version**: 1.0
@@ -34,7 +34,7 @@ Every substrate below was re-probed against the live tree by the spec author BEF
 | `session` table (attendance source) | EXISTS | `backend/db/schema/classes/session.ts:50`; `status` pgEnum :60 (`session_status` : `backend/db/schema/enums.ts:23` = scheduled/started/completed/cancelled/disputed); `startedAt`/`endedAt` :66-67; indexes incl. `session_student_id_idx` :84 |
 | `reports` table (session reports + per-session evaluation data) | EXISTS | `backend/db/schema/classes/reports.ts:20`; `sessionId` NN+unique :24-26/:36; `teacherNotes` :27; `studentRatingByTeacher` int CHECK 0-5 :28/:37-40; `reports_session_id_idx` :41. NO `teacher_id` column (reached via session) |
 | `home_work` table (Jadid `current*` + Madi `revision*`) | EXISTS | `backend/db/schema/classes/home-work.ts:23`; `current*` columns :30-33, `revision*` :34-37; grade CHECKs 0-100 :46-47; `sessionId` NN+unique :27-29/:45 |
-| `progress` table | EXISTS — SKELETON (`studentId`, nullable `lessonId`, timestamps; NO score/completed_at) | `backend/db/schema/classes/progress.ts:19-33`; indexes `progress_student_id_idx` :33 |
+| `progress` table | EXISTS — SKELETON (`studentId`, nullable `lessonId`, timestamps; NO score/completed_at) | `backend/db/schema/classes/progress.ts:19-34`; indexes `progress_student_id_idx` :33 |
 | `lessons` table | EXISTS — SKELETON (`planId` nullable, `title` only) | `backend/db/schema/classes/lessons.ts:17-29` |
 | `evaluations` table | EXISTS — sheikh→teacher-candidate orientation; NOT child-scoped; EXCLUDED from portal (ruling R-C) | `backend/db/schema/teachers/evaluations.ts:21-47`; header :9-14 (evaluator/evaluated FKs, session nullable, score 0-100 CHECK :43, soft-delete) |
 | `SessionRepository.listForStudent` / `countForStudent` + shared predicate helper | EXISTS | `backend/db/repo/classes/session.repository.ts:528` / `:558`; shared predicate builder in `session.repository.helpers.ts` (template for parent-scoped reads) |
@@ -42,7 +42,7 @@ Every substrate below was re-probed against the live tree by the spec author BEF
 | `HomeWorkRepository.findBySessionId` / `findLatestByStudentId` | EXISTS | `backend/db/repo/classes/home-work.repository.ts:74` / `:122` |
 | `StudentRepository.linkParentIfUnlinked` (single writer of `students.parent_id`) | EXISTS | `backend/db/repo/students/student.repository.ts:443`; single-writer rule `docs/parents/parent-link-request.md` rule R2 |
 | `StudentRepository.findById` | EXISTS | `backend/db/repo/students/student.repository.ts:356` |
-| `StudentRepository.listLinkedChildrenByParentId` | MISSING — CREATE | no such member (verified: full export list at `student.repository.ts:253-565`) |
+| `StudentRepository.listLinkedChildrenByParentId` | MISSING — CREATE | no such member (verified: full export span of the repository at `student.repository.ts:230-608` — namespace opens :230, file ends :608) |
 | Parent-scoped session/report/homework/progress repo read variants | MISSING — CREATE | `backend/db/repo/classes/*` has owner/student-scoped reads only |
 | `ParentLinkRequestService` + `requireActor` helper (pattern to reuse) | EXISTS | `backend/services/parents/parent-link-request.service.ts`; helper `requireActor(actorId, expectedRole, locale, tx, enforceGovernance)` at `parent-link-request.helpers.ts:246-298` (fresh DB re-check, `UnauthorizedError`/`ForbiddenError`, governance-aware, constant-copy denial) |
 | `requireLinkedChild` confirmed-link gate | MISSING — CREATE | no such helper exists anywhere (grep-verified) |
@@ -53,11 +53,11 @@ Every substrate below was re-probed against the live tree by the spec author BEF
 | Parent nav block in sidebar config | EXISTS — NEEDS FIX (`/children` → `/parent/children`) | `frontend/views/dashboard/nav/navItems.ts:133-139` (`NAV_ITEMS_BY_ROLE[UserRole.Parent]`; dead route at :136); `DashboardNavItem` shape :40-44; label resolution :190-199 |
 | `/parent/children` page | EXISTS as ComingSoon stub — replaced by this plan (ruling R-H) | `app/(dashboard)/parent/children/page.tsx:16-22` (`ComingSoonView feature="children"`) |
 | Parent dashboard + handshake pages | EXIST | `app/(dashboard)/parent/dashboard/page.tsx` (via `createRoleDashboardPage`), `app/(dashboard)/parent/handshake/page.tsx` (`withPageAuth({ roles: [UserRole.Parent] })`) |
-| i18n namespace handles registry | EXISTS — new `parentMonitoring` handle MISSING (CREATE) | `shared/locale/namespaces/registry.ts:27-47` — 20 handles; no parent-monitoring namespace |
+| i18n namespace handles registry | EXISTS — new `parentMonitoring` handle MISSING (CREATE) | `shared/locale/namespaces/registry.ts:27-47` — 19 handles; no parent-monitoring namespace |
 | Shared locale accessors (single-arg, property access) | EXIST | `shared/locale/server.ts:15-17` `getTranslations(locale)`; client `useAppTranslation(handle)` `shared/locale/client/use-app-translation.ts:8-17` |
-| Shared UI primitives (`ErrorRetryAlert`, `PermissionDeniedFallback`, `NoticeSnackbar`, `IconCircleEmptyState`) | EXIST | `frontend/components/ui/` listing (verified). NOTE: no `AppDataGrid`/`MetricCard`/`PageContainer` components exist in the repo (root AGENTS.md §File Organization is stale there) — the portal MUST NOT cite them |
+| Shared UI primitives (`ErrorRetryAlert`, `PermissionDeniedFallback`, `NoticeSnackbar`, `IconCircleEmptyState`) | EXIST | `frontend/components/ui/` listing (verified). NOTE: no `AppDataGrid`/`MetricCard`/`PageContainer` components exist in `frontend/components/ui/` (root AGENTS.md §File Organization is stale there) — the portal MUST NOT cite them. CAUTION: a view-local `MetricCard` DOES exist at `frontend/views/admin/analytics/MetricCard.tsx:34`; it is admin-analytics-private and MUST NOT be imported by this feature |
 | Attendance as a first-class table | MISSING — intentionally NOT created (ruling R-B: derived read over `session.status`) | grep over `backend/db/schema/**` finds no attendance table |
-| `Progress*`/`Lessons*` types, `ParentReturnType`, attendance types | MISSING — CREATE in `backend/types/` (never in service files) | `backend/types/parents/parent.types.ts:3` (`ParentSelectType` only); no `Progress*`/`Lessons*` exports anywhere in `backend/types/` |
+| Parent-monitoring projection types (`ParentLinkedChildReturnType`, `ParentAttendanceEntryReturnType`/`ParentAttendancePageReturnType`, `ParentReportEntryReturnType`, `ParentChildProgressReturnType`, `ParentHomeworkPositionReturnType`, `ParentPageInput` — full set per plan §2.3) | MISSING — CREATE in `backend/types/parents/parent-monitoring.types.ts` (never in service files) | `backend/types/parents/parent.types.ts:3` (`ParentSelectType` only); none of the parent-monitoring projection types exist anywhere in `backend/types/`; `ParentReturnType` is deliberately NOT created by this plan |
 | Confirmed-link authorization gate (service-level) | MISSING — CREATE | covered above (`requireLinkedChild`); enforced per R-A on `students.parent_id` only |
 | Journey test precedent for INV-P1 | EXISTS | `test/workflows/parents/student-confirmation-of-link.journey.test.ts` (+ `parent-link-request.journey.test.ts`, `handshake-discovery.test.ts`) |
 | Wire-test precedent (role×op matrix, Bearer auth, en/ar copy) | EXISTS | `backend/graphql/test/parent-link.wire.test.ts` |
@@ -97,7 +97,7 @@ Every substrate below was re-probed against the live tree by the spec author BEF
 
 #### Acceptance Criteria
 1. WHEN implementation begins THEN the executor SHALL record the measured baseline captured in `ai/plans/sprint_3/parent-read-only-monitoring-portal/outcome/0-baseline-outcome.md` (already measured 2026-09-11 from `/tmp/baseline-pp/`: `bun tsgo` error count **0**, `bun biome:check` warning count **0**, `bun run scripts/lint-service.ts --json --id baseline` full-repo `exitCode` **0**) so new issues are attributable.
-2. WHEN implementation begins THEN the ledger `ai/plans/sprint_3/parent-read-only-monitoring-portal/deferred-items.md` SHALL exist (pre-seeded D1..D4 at planning time) and every mid-task deferral SHALL gain a ledger row before its task may close.
+2. WHEN implementation begins THEN the ledger `ai/plans/sprint_3/parent-read-only-monitoring-portal/deferred-items.md` SHALL exist (pre-seeded D1..D5 at planning time) and every mid-task deferral SHALL gain a ledger row before its task may close.
 3. WHEN an executing agent starts any task THEN it SHALL read ALL files under `ai/plans/sprint_3/parent-read-only-monitoring-portal/outcome/` before writing code.
 4. WHEN a task completes THEN the agent SHALL write `outcome/<task-id>-outcome.md` (research findings, implementation details, cross-file dependencies, carry-overs) AND flip the task checkbox `[ ]` → `[x]` in `ai/plans/sprint_3/parent-read-only-monitoring-portal/tasks.md`.
 5. WHEN any file is modified THEN `bun run scripts/health/sub-loop.ts <file> --lifecycle duplicates` SHALL exit 0 on that file before the next file is touched (progressive tsgo → oxlint → biome → lint → duplicates).
@@ -136,7 +136,7 @@ Every substrate below was re-probed against the live tree by the spec author BEF
 4. IF a linked student's account is soft-deleted THEN that student SHALL NOT appear in the list and SHALL be denied at every detail read (severance per `docs/workflows/04-parent-supervision-handshake.md:164`).
 
 #### Additional Details
-- **Priority**: High · **Complexity**: Medium · **Dependencies**: REQ-020, REQ-021 · **Assumptions**: child's `fullName` IS shown — masking applies to pre-confirmation discovery only, not to one's own confirmed children (ruling R-G).
+- **Priority**: High · **Complexity**: Medium · **Dependencies**: REQ-020, REQ-021 · **Assumptions**: child's `fullName` IS shown — masking applies to pre-confirmation discovery only, not to one's own confirmed children (ruling R-G). Precedent reconciliation: the SHIPPED emitter `backend/services/classes/session-report-notification.service.ts:191` already includes the child's full name (`wave.student.fullName`) in the parent's completion-notification copy, so full-name display for a confirmed-linked child is the platform's ratified posture; masking (R9, `docs/parents/parent-link-request.md:139`) applies to pre-confirmation discovery and link-request surfaces only.
 
 #### REQ-011: Child Switcher (Multi-Child Navigation)
 
@@ -245,11 +245,11 @@ Every substrate below was re-probed against the live tree by the spec author BEF
 #### Acceptance Criteria
 1. WHEN any portal service read executes THEN it SHALL first verify `students.parentId === callerId` for the requested student via a new `requireLinkedChild(parentActorId, studentId, locale, tx)` gate modeled on `requireActor` (`parent-link-request.helpers.ts:246-298`): fresh DB read, `UnauthorizedError` for unauthenticated, `ForbiddenError` for link mismatch, localized constant copy, one bounded `logDomainError`.
 2. WHEN the portal authorizes reads THEN it SHALL read ONLY `students.parentId` (via `StudentRepository.findById`, `student.repository.ts:356`) — it SHALL NEVER query `parent_link_requests` for authorization (`docs/parents/parent-link-request.md:121-122`).
-3. WHEN the linked student's account is soft-deleted (`users.isDeleted = true`) THEN the gate SHALL deny with the SAME constant 403 shape as a never-linked probe (severance is immediate, no branch disclosure).
+3. WHEN the linked student's account is soft-deleted (`users.isDeleted = true`) THEN the gate SHALL deny with the SAME constant 403 shape as a never-linked probe (severance is immediate per `docs/workflows/04-parent-supervision-handshake.md:164`, no branch disclosure). BY CONTRAST, a suspended/blocked child does NOT sever read access — monitoring is NOT the login posture (deliberate governance ruling; the workflow doc's severance governs soft-delete only).
 4. IF the admin set `students.parent_id` directly at onboarding (override path, `docs/workflows/04-parent-supervision-handshake.md:166`) THEN the grant SHALL be honored identically to a handshake-confirmed link — the gate reads the row, not its provenance.
 
 #### Additional Details
-- **Priority**: High · **Complexity**: Medium · **Dependencies**: REQ-020 · **Assumptions**: the link tables' statuses (`linkStatus` confirmed/expired) are history; only the live FK governs reads.
+- **Priority**: High · **Complexity**: Medium · **Dependencies**: REQ-020 · **Assumptions**: the link tables' statuses (`linkStatus` confirmed/expired) are history; only the live FK governs reads; soft-deleted child severs access immediately (`docs/workflows/04-parent-supervision-handshake.md:164`), while suspension/blocks do NOT sever the parent's read access (monitoring ≠ login posture, deliberate — no scope expansion implied).
 
 #### REQ-022: 403 on Unlinked / Cross-Child Probes (Observer-Safe)
 
@@ -302,7 +302,7 @@ Every substrate below was re-probed against the live tree by the spec author BEF
 #### Acceptance Criteria
 1. WHEN the schema is finalized THEN it SHALL register at minimum: `myLinkedChildren` (zero-arg, REQ-010), and per-child paginated reads `parentChildSessions` / `parentChildReports` / `parentChildHomework` / `parentChildProgress` taking a `studentId` argument plus pagination (exact field names fixed at plan time, one per REQ-012..016 surface).
 2. WHEN pagination arguments are accepted THEN they SHALL follow the existing `SessionListFilterInput`/`SessionPageReturnType` shape conventions (`backend/types/classes/session.types.ts:49,58`) — honest total + page window.
-3. WHEN Pothos object types are authored THEN each SHALL follow the `pothos/<domain>/<entity>.pothos.ts` convention with `t.exposeID("id")` first, `DateTime` exposures for timestamps, and backing `...ReturnType` interfaces from `backend/types/` — NO local type definitions in Pothos files; new types (`ParentReturnType`, `Progress*`, portal page types) are CREATEd in `backend/types/parents/` (+ `classes/` where canonical), never in service files (service-layer `.types.ts` files are prohibited).
+3. WHEN Pothos object types are authored THEN each SHALL follow the `pothos/<domain>/<entity>.pothos.ts` convention with `t.exposeID("id")` first, `DateTime` exposures for timestamps, and backing `...ReturnType` interfaces from `backend/types/` — NO local type definitions in Pothos files; the CREATE set is the parent-monitoring projection types per plan §2.3 (`ParentLinkedChildReturnType`, `ParentAttendanceEntryReturnType`/`ParentAttendancePageReturnType`, `ParentReportEntryReturnType`/`ParentReportPageReturnType`, `ParentHomework*ReturnType`, `ParentChildProgressReturnType`, `ParentHomeworkPositionReturnType`, `ParentPageInput`), CREATEd in `backend/types/parents/parent-monitoring.types.ts` (+ `classes/` where canonical), never in service files (service-layer `.types.ts` files are prohibited); no `ParentReturnType` is created.
 4. WHEN new documents/types are authored THEN `bun run generate:gqlSchema` AND `bun codegen` SHALL be re-run, and the generated `frontend/graphql/generated/` output committed.
 5. WHEN query fields register THEN they SHALL ride the `query/<domain>/` side-effect-barrel mechanism (new `query/parents/parent-monitoring.query.ts` imported via `query/parents/index.ts` → `query/index.ts` → `gqlSchema.ts`) and pass ROUTE_INVENTORY/registration checks.
 
@@ -334,7 +334,7 @@ Every substrate below was re-probed against the live tree by the spec author BEF
 2. WHEN child detail views exist THEN they SHALL live under `app/(dashboard)/parent/children/[studentId]/` (App Router dynamic segment) with tabbed sections: attendance / reports / homework / evaluations / progress.
 3. WHEN a tab is selected THEN the active section SHALL be expressible in the URL (tab via search param or segment) so a single URL is a shareable/deep-linkable destination (forward contract for DEV1-017, ruling R-I).
 4. WHEN a non-parent hits any portal route THEN `withPageAuth` SHALL deny per its existing redirect/forbidden behavior, with the client fallback in `DashboardLayout` intact.
-5. WHEN server components render user-facing text THEN they SHALL use `getTranslations(locale)` single-arg + property access (REQ-002); client views use `useAppTranslation(parentMonitoring)`-handle equivalents.
+5. WHEN server components render user-facing text THEN they SHALL use `getTranslations(locale)` single-arg + property access (REQ-002); client views use `useAppTranslation(ParentMonitoring)` — `ParentMonitoring` is the camelCase namespace HANDLE object registered in `shared/locale/namespaces/registry.ts`, NOT a string argument.
 
 #### Additional Details
 - **Priority**: High · **Complexity**: Medium · **Dependencies**: REQ-041, REQ-043 · **Assumptions**: routes carry NO `[locale]` segment (locale via cookie); Next.js 16 docs (`node_modules/next/dist/docs/`) consulted for any new App Router usage.
@@ -387,7 +387,7 @@ Every substrate below was re-probed against the live tree by the spec author BEF
 #### Acceptance Criteria
 1. WHEN repo tests are written THEN they SHALL live under `backend/db/test/repo/`, run inside `runInRollback`, and pass `tx` to EVERY repository call inside the transaction (mixing `tx` and `db` calls prohibited — deadlock risk).
 2. WHEN asserting rejections inside `runInRollback` THEN tests SHALL use the try/catch helper — NEVER `expect(...).rejects.toThrow()`.
-3. WHEN fixtures are needed THEN they SHALL be built via `backend/db/test/helpers/entity-setup.ts` (no seed-data reads); helper signatures verified at authoring time.
+3. WHEN fixtures are needed THEN they SHALL be built via `backend/db/test/entity-setup.ts` (no seed-data reads); helper signatures verified at authoring time.
 4. WHEN tests run THEN they SHALL execute via `bun run test/scripts/run-test.ts <path>` — never raw `bun test`.
 
 #### Additional Details
@@ -617,6 +617,13 @@ EARS:
 - **R-E (read surfaces):** the portal adds NEW parent-scoped queries; participant-only `sessionReport`/`sessionHomework` stay untouched.
 - **R-A (grant):** authorization reads ONLY `students.parentId`; `parent_link_requests` is history (per the shipped consumer contract).
 
+**Rulings R-F..R-J (enumerated here for completeness; brief anchors only):**
+- **R-F — denial codes:** unlinked / cross-child / nonexistent `studentId` probes all return the SAME constant localized 403 via `errorsTranslations.forbidden` (REQ-022); per INV-P2 the portal exposes QUERY fields only, zero new mutations (REQ-023).
+- **R-G — multi-child navigation & confirmed-child naming:** the child switcher state lives in the `?student=<id>` URL search param; NO Zustand, no global store (REQ-011/REQ-041). A confirmed-linked child's `fullName` IS shown to its own parent (masking — R9 — applies to pre-confirmation discovery/link-request surfaces only; REQ-010, precedent `backend/services/classes/session-report-notification.service.ts:191`).
+- **R-H — routes:** the portal REPLACES the ComingSoon stub at `/parent/children` and adds the `[studentId]` child-detail segment (REQ-040).
+- **R-I — deep-link forward contract:** tab/entity state is URL-expressible so DEV1-017's completion notifications can deep-link into the portal (REQ-013.4, REQ-040.3).
+- **R-J — zero schema changes:** no new tables, no new columns anywhere (non-goal 6; §6.1).
+
 ### 6.3 Assumptions
 - Both blocked-by tickets are shipped (handshake-code discovery, link-request workflow, student confirmation — verified `ai/finished_plans/`).
 - One parent per student (B.12); a parent may have many children (B.13).
@@ -669,4 +676,4 @@ EARS:
 | **Oracle collapse** | The participant-only report/homework queries' null-on-deny behavior (existing, untouched — R-E) |
 | **EARS** | Easy Approach to Requirements Syntax (WHEN/IF/WHILE/WHERE + SHALL) |
 | **`requireLinkedChild`** | The NEW service-side gate (this plan) verifying `students.parentId === callerId`; modeled on `requireActor` |
-| **R-A … R-J** | Ratified design rulings listed in §6.2 (grant source, attendance derivation, evaluation source, progress source, new read surfaces, denial codes, multi-child, routes, deep-link contract, no schema change) |
+| **R-A … R-J** | This plan's ratified design rulings: R-A..R-E enumerated in §6.2; R-F (denial codes / queries-only) at REQ-022/023; R-G (multi-child `?student=` URL param) at REQ-011; R-H (portal routes replace ComingSoon) at REQ-040; R-I (deep-link forward contract for DEV1-017) at REQ-040 non-goals; R-J (zero schema changes) at constraints §6.1 / non-goal 6 — R-F..R-J are also enumerated compactly at the end of §6.2 |

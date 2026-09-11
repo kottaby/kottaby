@@ -20,6 +20,7 @@ This ledger tracks all work deferred from one task to another (or forward to ano
 | D2 | DEV1-017 "Parent Session Completion Notification" deep-link target contract — the portal's report view URL (`/parent/children/[studentId]?tab=reports...`) is the notification target | specs REQ-013/REQ-040 (ruling R-I) | DEV1-017 (sibling ticket) | 📅 Forward | — | Emitter ALREADY ships: `SessionReportNotificationService.notifySessionReportReady` (`backend/services/classes/session-report-notification.service.ts:147`) emits `session_completion` when `students.parent_id` set; display surface owned by DEV1-017. This plan only guarantees the deep-linkable route exists. |
 | D3 | E2E browser journey coverage of the portal (Playwright lane) | specs REQ-054 | DEV1-019 (sibling ticket, consumes this portal) | 📅 Forward | — | This plan ships service/db journey coverage at `test/workflows/parents/`; full E2E is DEV1-019's scope |
 | D4 | First-class attendance table (dedicated attendance entity with per-date rows) | specs REQ-012 (ruling R-B) | Future product ticket IF required | 📅 Forward | — | NOT a gap for MVP: attendance is a derived read over `session.status` + `startedAt`/`endedAt`; introduce a table only if product later requires explicit absence/makeup semantics |
+| D5 | Rate limiting on parent child-id probing (portal read queries) | plan §6 (REQ-022) | Post-MVP security hardening ticket | 📅 Forward | — | Zero oracle signal: every `studentId` mismatch cause (nonexistent / unlinked / severed) returns one constant 403 copy from `errorsTranslations.forbidden`; caller is always an authenticated parent (no anonymous abuse path); page-size clamps cap per-request payload cost, so probing yields nothing to amplify |
 
 ---
 
@@ -77,4 +78,4 @@ grep -c "❌\|⚠️" ai/plans/sprint_3/parent-read-only-monitoring-portal/defer
 
 **Exit criteria:** Plan cannot be marked complete if any ❌ or ⚠️ status remains. `📅 Forward` rows are cross-ticket contracts — they remain open here BY DESIGN and are closed only when the owning ticket ships (tracked in its own plan, not this one).
 
-> Authoring-time state: D1..D4 are all 📅 Forward; zero ❌/⚠️ rows — the ledger starts clean.
+> Authoring-time state: D1..D5 are all 📅 Forward; zero ❌/⚠️ rows — the ledger starts clean.

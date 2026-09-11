@@ -63,7 +63,7 @@
 - [ ] 4. **Knowledge Propagation & Closure**
   - [ ] 4.1 Read ALL outcome files; synthesize the escrow/ledger invariants.
   - [ ] 4.2 Create `docs/billing/escrow-and-wallet-crediting.md` — canonical reference: hold-as-debit semantics, settle/release/race matrix, INV-W1/W2/W3/W4/W7/W8 + INV-B4/INV-S3 mapping to schema + code citations, deferral pointers (D1/D2), and the dependent-ticket boundary hand-offs (Withdrawal, Re-Evaluation Deduction, Financial Safety Verification). Follow the docs file structure (Why / Pattern / Rules / What NOT to do / Rollout Summary / Related Documents).
-  - [ ] 4.3 Deferred-items gate: `grep -c "❌\|⚠️" deferred-items.md` — count of **in-plan-target** rows must be 0 (D1/D2 target external tickets and are exempt per their Notes); record the grep output in `outcome/4.x-knowledge-propagation-outcome.md`.
+  - [ ] 4.3 Deferred-items gate: run `grep -c "❌\|⚠️" deferred-items.md` — expected raw output is **3** (rows D1, D2, and the Status Legend line), i.e. zero ❌/⚠️ rows whose Target Task is inside this plan; D1/D2 target external tickets and are exempt per the ledger's gate rule. Record the grep output in `outcome/4.x-knowledge-propagation-outcome.md`.
   - [ ] 4.QL (sub-loop on `docs/billing/escrow-and-wallet-crediting.md`) / SEC / SR / IV — docs conventions per root AGENTS.md (no summary-file sprawl: this is canonical domain documentation, not a plan report).
   - _Requirements: REQ-6, REQ-7, REQ-8_
 

@@ -32,7 +32,7 @@
 
 1. **P1 — Pre-Execution Outcome Read.** Before executing ANY task, read ALL files under `ai/plans/sprint_3/parent-read-only-monitoring-portal/outcome/` (starting with `0-baseline-outcome.md` and `research-00-planning-basis.md`). Prior findings are authoritative — do not re-research what an outcome already settled (REQ-001.3).
 2. **P2 — Per-File Quality Verification Loop.** Whenever a file is created/modified, run `bun run scripts/health/sub-loop.ts <file> --lifecycle duplicates` and reach exit code 0 (progressive tsgo → oxlint → biome → lint → duplicates, short-circuits at first failure) BEFORE touching the next file (REQ-001.5). NEVER clear caches; never add `oxlint-disable`/`jscpd:ignore`.
-3. **P3 — Test Discipline.** Run suites via `bun run test/scripts/run-test.ts <path>` — NEVER raw `bun test` for db/service/wire/workflow lanes. DB tests: ALWAYS `runInRollback`, pass `tx` to EVERY repo call inside the transaction, NEVER `expect(...).rejects.toThrow()` inside rollback (try/catch helper only), fixtures via `backend/db/test/helpers/entity-setup.ts` (never seed data). Journey tests (`test/workflows/`): real services + real DB, committed fixtures in `beforeAll`, tracked hard-delete cleanup in `afterAll`, NO `runInRollback`.
+3. **P3 — Test Discipline.** Run suites via `bun run test/scripts/run-test.ts <path>` — NEVER raw `bun test` for db/service/wire/workflow lanes. DB tests: ALWAYS `runInRollback`, pass `tx` to EVERY repo call inside the transaction, NEVER `expect(...).rejects.toThrow()` inside rollback (try/catch helper only), fixtures via `backend/db/test/entity-setup.ts` (never seed data). Journey tests (`test/workflows/`): real services + real DB, committed fixtures in `beforeAll`, tracked hard-delete cleanup in `afterAll`, NO `runInRollback`.
 4. **P4 — Semantic Review Before `[x]`**. Before marking any subtask complete, run the X.Y.SR checklist (authz/tenancy, race conditions, env-config registration, dead code, cross-layer imports, enum value imports, deferred items logged). `sub-loop.ts` covers mechanics only; it cannot catch semantic bugs. Code comments MUST NOT contain REQ ids, task ids, or plan paths.
 5. **P5 — Outcome File Per Task.** After each task completes (implementation + quality checks), write `outcome/<task-id>-outcome.md` (research findings, implementation details, cross-file dependencies, carry-overs) (REQ-001.4).
 6. **P6 — Checkbox Tracking.** Flip `[ ]` → `[x]` in THIS file only after P2/P4/P5 are satisfied for the task (REQ-001.4).
@@ -88,7 +88,9 @@ QL → TE → SEC → SR → IV → mark [x]
 | `backend/db/test/repo/**` | `backend/AGENTS.md`, `backend/db/test/AGENTS.md` | `backend.instructions.md`, `tests.instructions.md` |
 | `backend/graphql/test/**` | `backend/AGENTS.md`, `backend/graphql/AGENTS.md` | `backend.instructions.md`, `tests.instructions.md` |
 | `shared/locale/**` | `shared/AGENTS.md`, `shared/locale/AGENTS.md` | — |
+| `shared/locale/*parity*.test.ts` | `shared/AGENTS.md`, `shared/locale/AGENTS.md` | `tests.instructions.md` |
 | `frontend/graphql/sharedDocuments/parents/**` | `frontend/AGENTS.md`, `frontend/graphql/AGENTS.md`, `frontend/graphql/sharedDocuments/AGENTS.md` | `frontend.instructions.md` |
+| `frontend/providers/**` | `frontend/AGENTS.md`, `frontend/graphql/AGENTS.md` | `frontend.instructions.md` |
 | `frontend/views/{parent,dashboard}/**` | `frontend/AGENTS.md`, `frontend/views/AGENTS.md` | `frontend.instructions.md` |
 | `app/(dashboard)/parent/**` | `app/AGENTS.md` | `frontend.instructions.md` |
 | `test/ui/components/**` | `test/ui/AGENTS.md` | `tests.instructions.md` |
@@ -110,7 +112,7 @@ Read-only vertical slice, bottom-up: canonical types → repository parent-scope
 ## Phase 0 — Pre-Implementation Baseline (blocking)
 
 - [ ] 0.1 Verify and confirm the recorded baseline + ledger
-  - Read `ai/plans/sprint_3/parent-read-only-monitoring-portal/outcome/0-baseline-outcome.md` (measured 2026-09-11 from `/tmp/baseline-pp/`: tsgo errors 0, biome warnings 0, lint-service full-repo exit 0) and CONFIRM the numbers still hold on the implementation branch (rerun `bun tsgo`, `bun biome:check`, `bun run scripts/lint-service.ts --json --id baseline-confirm` if drift is suspected); confirm `deferred-items.md` exists with the pre-seeded rows D1..D4 (curriculum-traversal stats, DEV1-017 deep-link forward contract, DEV1-019 E2E lane, attendance-table rule); confirm no `❌`/`⚠️` rows.
+  - Read `ai/plans/sprint_3/parent-read-only-monitoring-portal/outcome/0-baseline-outcome.md` (measured 2026-09-11 from `/tmp/baseline-pp/`: tsgo errors 0, biome warnings 0, lint-service full-repo exit 0) and CONFIRM the numbers still hold on the implementation branch (rerun `bun tsgo`, `bun biome:check`, `bun run scripts/lint-service.ts --json --id baseline-confirm` if drift is suspected); confirm `deferred-items.md` exists with the pre-seeded rows D1..D5 (curriculum-traversal stats, DEV1-017 deep-link forward contract, DEV1-019 E2E lane, attendance-table rule, probe rate-limiting deferral); confirm no `❌`/`⚠️` rows.
   - Re-probe a sample of plan `path:line` anchors in the live tree (e.g. `backend/db/schema/students/students.ts:32`, `backend/db/repo/students/student.repository.ts:356`, `app/(dashboard)/parent/children/page.tsx`, `frontend/views/dashboard/nav/navItems.ts:133-139`) and note any drift in the outcome file before proceeding.
   - TE: N/A (process task, no runtime code) · SEC: N/A (no code surface)
   - [ ] 0.1.SR **Semantic Review**: baseline deltas (if any) are attributable before implementation; ledger rows intact
@@ -135,7 +137,7 @@ Read-only vertical slice, bottom-up: canonical types → repository parent-scope
 ## Phase 2 — Backend types, repositories & services
 
 - [ ] 2.1 Canonical parent-monitoring types
-  - CREATE `backend/types/parents/parent-monitoring.types.ts` with the nine closed read projections verbatim from plan §2.3: `ParentLinkedChildReturnType`, `ParentAttendanceEntryReturnType`, `ParentAttendancePageReturnType`, `ParentReportEntryReturnType`, `ParentReportPageReturnType`, `ParentHomeworkTrackReturnType`, `ParentHomeworkEntryReturnType`, `ParentHomeworkPageReturnType`, `ParentHomeworkPositionReturnType`, `ParentChildProgressReturnType`, plus the shared `ParentPageInput` (`{ readonly page?: number; readonly pageSize?: number }`). All members `readonly`; `SessionStatus` / `SurahJuzRef` as VALUE imports from `@/backend/enum/...` (types-only usage still via `import type` where erased at runtime — follow the layer's existing convention); nullability exactly as designed (rating/notes nullable, never coerced).
+  - CREATE `backend/types/parents/parent-monitoring.types.ts` with the ten closed read projections verbatim from plan §2.3: `ParentLinkedChildReturnType`, `ParentAttendanceEntryReturnType`, `ParentAttendancePageReturnType`, `ParentReportEntryReturnType`, `ParentReportPageReturnType`, `ParentHomeworkTrackReturnType`, `ParentHomeworkEntryReturnType`, `ParentHomeworkPageReturnType`, `ParentHomeworkPositionReturnType`, `ParentChildProgressReturnType`, plus the shared `ParentPageInput` (`{ readonly page?: number; readonly pageSize?: number }`). All members `readonly`; `SessionStatus` / `SurahJuzRef` as VALUE imports from `@/backend/enum/...` (types-only usage still via `import type` where erased at runtime — follow the layer's existing convention); nullability exactly as designed (rating/notes nullable, never coerced).
   - UPDATE `backend/types/parents/index.ts` with `export * from "./parent-monitoring.types";` (relative `./` only; root `@/backend/types` barrel re-exports the parents barrel already — VERIFY, do not duplicate).
   - Deliberately NOT created (plan §2.3): `ParentChildOverviewReturnType`, `ParentReturnType`, any `evaluations` DTO.
   - [ ] 2.1.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts backend/types/parents/parent-monitoring.types.ts --lifecycle duplicates` (and the barrel) exit 0
@@ -144,12 +146,13 @@ Read-only vertical slice, bottom-up: canonical types → repository parent-scope
   - [ ] 2.1.SR **Semantic Review**: closed shapes, `readonly`, no re-opened entity types
   - [ ] 2.1.IV **Instruction Verification**: read files printed by sub-loop (`backend/types/AGENTS.md`, `backend/AGENTS.md`, backend instructions)
   - Write outcome: `outcome/2.1-types-outcome.md`
-  - _Requirements: REQ-010, REQ-012, REQ-013, REQ-014, REQ-015, REQ-016, REQ-030_
+  - _Requirements: REQ-002, REQ-010, REQ-012, REQ-013, REQ-014, REQ-015, REQ-016, REQ-030_
 
 - [ ] 2.2 Repository reads — linked children + progress count
   - UPDATE `backend/db/repo/students/student.repository.ts`: ADD `StudentRepository.listLinkedChildrenByParentId(parentId: number, tx?: DBQueryExecutor): Promise<ParentLinkedChildReturnType-projecting rows>` — join `students → users`, predicates `students.parentId = parentId AND users.isDeleted = false`, order `students.createdAt ASC, students.id ASC` (stable; rides `students_parent_id_idx`). Namespace-member style; `tx` LAST; NO permission logic in the repo.
   - CREATE `backend/db/repo/classes/progress.repository.ts`: `ProgressRepository.countForStudent(studentId: number, tx?: DBQueryExecutor): Promise<number>` (`SELECT count(*) FROM progress WHERE student_id = $1`, `.mapWith(Number)`); UPDATE `backend/db/repo/classes/index.ts` barrel (`export * from "./progress.repository";`).
   - No writes of any kind introduced; no `inArray`+prepared-statement violations (repo layer rule).
+  - Executor conventions (per `backend/db/repo/AGENTS.md` + `.agents/instructions/backend.instructions.md` and the sibling repos in this directory): bare reads go through `queryDb(tx)` from `@/backend/db` (raw parameterized SQL, `tx` last); simple read-only queries (e.g. the new count reads) use a module-level Prepared Statement 2.0 per `docs/drizzle/prepared-statements.md` and the existing-sibling-repo convention.
   - [ ] 2.2.QL **Quality Loop**: sub-loop exit 0 on all three touched files
   - [ ] 2.2.TE **Test Engineering**: covered jointly by task 6.1 suites (this task authors the reads; branches pinned there) — inline check: compile + repo exports resolve
   - [ ] 2.2.SEC **Security & Tenancy Audit**: predicates are caller-scoped only (`parentId = $1`, `student_id = $1`); listRepository returns no soft-deleted rows (severance predicate)
@@ -162,6 +165,7 @@ Read-only vertical slice, bottom-up: canonical types → repository parent-scope
   - UPDATE `backend/db/repo/classes/report.repository.ts`: ADD `ReportRepository.listForStudent(studentId, limit, offset, tx?: DBTransaction)` returning report rows joined to their session (session `status`, `startedAt`) and `ReportRepository.countForStudent(studentId, tx?)` — SAME predicate set in both (single shared predicate/extract so the pair never drifts); inner join `reports ⋈ session ON session_id AND session.student_id = $1`; order `session.startedAt DESC NULLS LAST, reports.id DESC`.
   - UPDATE `backend/db/repo/classes/home-work.repository.ts`: ADD the same pair (`listForStudent` / `countForStudent`) over `home_work`, identical join/order discipline; CONFIRM existing `findLatestByStudentId` (`:122`) is reused unchanged by the service (D3).
   - Both repo pairs return the raw select rows; the parent-shaped projection mapping happens in the service helpers (plan §4.2) — never in the repo.
+  - Executor conventions (same as task 2.2): bare reads go through `queryDb(tx)` from `@/backend/db` (raw parameterized SQL, `tx` last); simple read-only queries use a module-level Prepared Statement 2.0 per `docs/drizzle/prepared-statements.md`, `backend/db/repo/AGENTS.md` + `.agents/instructions/backend.instructions.md` and the sibling-repo convention.
   - [ ] 2.3.QL **Quality Loop**: sub-loop exit 0 on both files
   - [ ] 2.3.TE **Test Engineering**: covered by task 6.1 suites; inline check: shared predicate reused by list+count (no drift risk) verified by reading the diff
   - [ ] 2.3.SEC **Security & Tenancy Audit**: every row returned is provably `session.student_id = $gatedStudent`; joins cannot fan out cross-student
@@ -187,7 +191,7 @@ Read-only vertical slice, bottom-up: canonical types → repository parent-scope
 ## Phase 3 — GraphQL layer
 
 - [ ] 3.1 Pothos parent-object types
-  - CREATE `backend/graphql/pothos/parents/parent-monitoring.pothos.ts`: all eight parent objects from plan §3.1 (`ParentLinkedChild`, `ParentAttendanceEntry`, `ParentAttendancePage`, `ParentReportEntry`, `ParentReportPage`, `ParentHomeworkTrack`, `ParentHomeworkEntry`, `ParentHomeworkPage`, `ParentHomeworkPosition`, `ParentChildProgress`) as single `objectRef<...ReturnType>("GraphQLName")` each, backed by the task-2.1 types imported from `@/backend/types/parents` (NO local type definitions); `t.exposeID("id")` first on entity shapes; timestamps via `t.expose(..., { type: "DateTime" })`; enums via the ONCE-registered `SessionStatusPothosEnum` / `SurahJuzRefPothosEnum` from `backend/graphql/pothos/shared/enum.pothos.ts` (never re-register); nullability marks EXACTLY matching the TS nullability (notes/rating/track blocks nullable).
+  - CREATE `backend/graphql/pothos/parents/parent-monitoring.pothos.ts`: all ten parent objects from plan §3.1 (`ParentLinkedChild`, `ParentAttendanceEntry`, `ParentAttendancePage`, `ParentReportEntry`, `ParentReportPage`, `ParentHomeworkTrack`, `ParentHomeworkEntry`, `ParentHomeworkPage`, `ParentHomeworkPosition`, `ParentChildProgress`) as single `objectRef<...ReturnType>("GraphQLName")` each, backed by the task-2.1 types imported from `@/backend/types/parents` (NO local type definitions); `t.exposeID("id")` first on entity shapes; timestamps via `t.expose(..., { type: "DateTime" })`; enums via the ONCE-registered `SessionStatusPothosEnum` / `SurahJuzRefPothosEnum` from `backend/graphql/pothos/shared/enum.pothos.ts` (never re-register); nullability marks EXACTLY matching the TS nullability (notes/rating/track blocks nullable).
   - The existing participant objects (`SessionPothosObject`, `SessionReportPothosObject`, `SessionHomeWorkPothosObject`) are NOT touched (D4/REQ-031).
   - [ ] 3.1.QL **Quality Loop**: sub-loop exit 0 on the new file
   - [ ] 3.1.TE **Test Engineering**: N/A as a standalone suite (schema-surface assertions land in 3.3); inline: compile-time object-shape pinning via the generated-schema diff in 3.3
@@ -223,8 +227,9 @@ Read-only vertical slice, bottom-up: canonical types → repository parent-scope
 
 ## Phase 4 — i18n namespace (`parentMonitoring` full ceremony)
 
-- [ ] 4.1 `parentMonitoring` namespace ceremony (all seven artifacts)
+- [ ] 4.1 `parentMonitoring` namespace ceremony (all eight artifacts)
   - CREATE `shared/locale/types/parentMonitoring/index.ts` — `ParentMonitoringLabels` (plain strings; `(count: number) => string` functions for pluralized counts; interpolation functions where values are inlined).
+  - UPDATE `shared/locale/types/message.ts` — import `ParentMonitoringLabels` and add `parentMonitoringTranslations: ParentMonitoringLabels;` to the `Translations` interface (precedent: `parentLinkTranslations` at `shared/locale/types/message.ts:39` — verify before editing).
   - CREATE `shared/locale/namespaces/parentMonitoring/parentMonitoring.namespace.ts` — `defineNamespace<ParentMonitoringLabels>(...)` verbatim-shaped after `shared/locale/namespaces/parentLink/parentLink.namespace.ts`; CREATE `shared/locale/namespaces/parentMonitoring/index.ts` barrel.
   - CREATE `shared/locale/en/parentMonitoring/index.ts` (`parentMonitoringEn`) and `shared/locale/ar/parentMonitoring/index.ts` (`parentMonitoringAr`) — FULL Arabic parity; cover tab labels (attendance/reports/homework/evaluations/progress), Jadid/Madi track labels, per-surface empty-state title+body, switcher label, "not rated yet" / "none assigned" / "no recorded progress yet" states, detail-page titles.
   - UPDATE `shared/locale/namespaces/registry.ts` (alphabetical entry), `shared/locale/namespaces/index.ts` barrel, `shared/locale/en/messages.ts`, `shared/locale/ar/messages.ts` (aggregate `parentMonitoringTranslations`).
@@ -234,7 +239,7 @@ Read-only vertical slice, bottom-up: canonical types → repository parent-scope
   - [ ] 4.1.TE **Test Engineering**: the parity test IS Tier 1/2 (key parity, shape parity incl. function-typed leaves); run via `bun run test/scripts/run-test.ts shared/locale/parentMonitoring-namespace.parity.test.ts`
   - [ ] 4.1.SEC **Security & Tenancy Audit**: N/A (copy-only, no code surface) — verify no child/identity data strings hardcoded in labels
   - [ ] 4.1.SR **Semantic Review**: shared layer purity (no `@/backend`/`@/frontend` imports); no hardcoded user-facing strings left for the views to need
-  - [ ] 4.1.IV **Instruction Verification**: `shared/AGENTS.md` + `shared/locale/AGENTS.md` read
+  - [ ] 4.1.IV **Instruction Verification**: `shared/AGENTS.md` + `shared/locale/AGENTS.md` + `tests.instructions.md` (parity test) read
   - Write outcome: `outcome/4.1-i18n-namespace-outcome.md`
   - _Requirements: REQ-002, REQ-043_
 
@@ -255,7 +260,7 @@ Read-only vertical slice, bottom-up: canonical types → repository parent-scope
   - _Requirements: REQ-002, REQ-024, REQ-030_
 
 - [ ] 5.2 Portal routes + nav fix
-  - UPDATE `app/(dashboard)/parent/children/page.tsx`: replace the `ComingSoonView` stub with the real portal root — `withPageAuth({ roles: [UserRole.Parent] })` guard (pattern from `app/(dashboard)/parent/handshake/page.tsx`); server component awaits `searchParams`, resolves `?student=`, applies the deterministic no-param behavior (auto-select first linked child → redirect to `/parent/children/<id>`; zero children → localized empty state; per plan §4.3), renders the client root container.
+  - UPDATE `app/(dashboard)/parent/children/page.tsx`: replace the `ComingSoonView` stub with the real portal root as a **guard-only server shell** — `withPageAuth({ roles: [UserRole.Parent] })` guard (pattern from `app/(dashboard)/parent/handshake/page.tsx`); the server component awaits `searchParams` and passes the raw `?student=` value through as a plain prop — it MUST NOT auto-select the first linked child and MUST NOT redirect to `/parent/children/<id>` (pinned decision: no data fetch, no `myLinkedChildren` resolution, no first-child redirect on the server). The CLIENT root container resolves a missing `?student=` AFTER `useQuery(myLinkedChildrenQueryDocument)` resolves (auto-select first linked child → navigate to `/parent/children/<id>`; zero children → localized empty state; per plan §4.3/§5.6).
   - CREATE `app/(dashboard)/parent/children/[studentId]/page.tsx`: server shell awaits `params` (`Promise<{ studentId: string }>` per Next.js 16 async-params convention — verify against `node_modules/next/dist/docs/` before writing any App Router code), coerces/validates the id (integer-coercion failures redirect to the portal root), extracts `?tab=`/`?session=` from `searchParams`, passes plain props into the detail container. `withPageAuth` parent-only.
   - UPDATE `frontend/views/dashboard/nav/navItems.ts` (inside `NAV_ITEMS_BY_ROLE[UserRole.Parent]`, ~:133-139): retarget the Children entry route `/children` → `/parent/children`, keeping `labelKey: "children"` and the existing icon; single-config drives both drawers — no per-breakpoint work, NO bottom nav.
   - Before writing ANY Next.js code: consult `node_modules/next/dist/docs/` for the dynamic-routes and page conventions (async `params`/`searchParams`) per this repo's Next.js 16 discipline.
@@ -268,7 +273,7 @@ Read-only vertical slice, bottom-up: canonical types → repository parent-scope
   - _Requirements: REQ-002, REQ-040, REQ-041, REQ-042_
 
 - [ ] 5.3 Portal view components
-  - CREATE `frontend/views/parent/monitoring/` module per plan §5.6: `ParentChildrenRootContainer.tsx` (`useQuery(myLinkedChildrenQueryDocument)`; empty → `IconCircleEmptyState` + handshake CTA; ≥1 → switcher + select), `ParentChildDetailContainer.tsx` (owns child switcher writing `?student=` via Next.js navigation — NO Zustand, NO global store; MUI `Tabs` writing `?tab=`; ALL child `useQuery` hooks re-keyed on `studentId` so rows never leak across children), and the five tabs `AttendanceTab.tsx` / `ReportsTab.tsx` / `HomeworkTab.tsx` / `EvaluationsTab.tsx` (consumes `parentChildReports` rows through the evaluations lens — D9) / `ProgressTab.tsx`; barrel `index.ts` (components only).
+  - CREATE `frontend/views/parent/monitoring/` module per plan §5.6: `ParentChildrenRootContainer.tsx` (`useQuery(myLinkedChildrenQueryDocument)`; missing `?student=` resolved CLIENT-SIDE after the query resolves — auto-select first linked child → navigate to `/parent/children/<id>` (pinned decision: never on the server page); empty → `IconCircleEmptyState` + handshake CTA; ≥1 → switcher + select), `ParentChildDetailContainer.tsx` (owns child switcher writing `?student=` via Next.js navigation — NO Zustand, NO global store; MUI `Tabs` writing `?tab=`; ALL child `useQuery` hooks re-keyed on `studentId` so rows never leak across children), and the five tabs `AttendanceTab.tsx` / `ReportsTab.tsx` / `HomeworkTab.tsx` / `EvaluationsTab.tsx` (consumes `parentChildReports` rows through the evaluations lens — D9) / `ProgressTab.tsx`; barrel `index.ts` (components only).
   - State matrix per tab (plan §5.6): loading → skeleton; FORBIDDEN via `extractErrorCode` + `mapGraphQLErrorByCode` (precedent `frontend/views/admin/analytics/PlatformAnalyticsContainer.tsx`) → `PermissionDeniedFallback`; other errors → `ErrorRetryAlert`; empty → localized `IconCircleEmptyState`; data → rows. Deep-link `?session=` scrolls the Reports tab to that session row (R-I forward contract for DEV1-017). All copy from `useAppTranslation(ParentMonitoring)` / server `getTranslations(locale)` single-arg; en/ar strings from task 4.1; Jadid/Madi verbatim labels and surah/juz localized names honored; null rating renders "not rated yet" — NEVER `0`.
   - Styling: MUI v9 `sx` ONLY (no style props on Typography/Stack/Box/Grid), `*Outlined` icons, theme palette callbacks + Material 3 `on*` siblings — NO hardcoded colors; plain `Stack`/`Card` composition (`AppDataGrid`/`MetricCard`/`PageContainer` DO NOT EXIST — do not import). No mutation affordances anywhere in the portal UI (REQ-023.3).
   - [ ] 5.3.QL **Quality Loop**: sub-loop exit 0 on every new file (one pass each before moving on)
@@ -279,13 +284,23 @@ Read-only vertical slice, bottom-up: canonical types → repository parent-scope
   - Write outcome: `outcome/5.3-views-outcome.md`
   - _Requirements: REQ-002, REQ-011, REQ-013, REQ-014, REQ-015, REQ-016, REQ-023, REQ-040, REQ-041, REQ-043_
 
+- [ ] 5.4 Apollo cache registration for the no-`id` portal types
+  - UPDATE `frontend/providers/apollo/apolloCache.ts`: register the six no-`id` GraphQL portal types from plan §3.1 — `ParentAttendancePage`, `ParentReportPage`, `ParentHomeworkPage`, `ParentHomeworkTrack`, `ParentHomeworkPosition`, `ParentChildProgress` — each as `{ keyFields: false }` under `typePolicies`, per the embedded-type normalization policy (`frontend/graphql/AGENTS.md`; live registry at `frontend/providers/apollo/apolloCache.ts`). Append after the last documented entry with a per-family inline comment, and extend the file's header docblock to name the new family (existing convention): the `*Page` wrappers' normalizable entities are the `id`-carrying `*Entry` rows inside `items`, so the wrappers themselves never need an identity; `ParentHomeworkTrack`, `ParentHomeworkPosition` and `ParentChildProgress` are embedded value objects read back through their enclosing parent and replaced wholesale on refetch.
+  - [ ] 5.4.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts frontend/providers/apollo/apolloCache.ts --lifecycle duplicates` exit 0
+  - [ ] 5.4.TE **Test Engineering**: N/A per the pipeline's scoping rule — cache-config-only change with no runtime code branches; behavior is exercised by 6.4's mocked-Apollo state matrix (re-keyed per-child reads never leak cross-child rows)
+  - [ ] 5.4.SEC **Security & Tenancy Audit**: N/A per the scoping rule — no auth surface; verify no `id`-carrying type (`ParentLinkedChild`, `ParentAttendanceEntry`, `ParentReportEntry`, `ParentHomeworkEntry`) is registered with `keyFields: false` (would break per-entity cache identity)
+  - [ ] 5.4.SR **Semantic Review**: exactly the plan §3.1 no-`id` set registered — nothing more, nothing less
+  - [ ] 5.4.IV **Instruction Verification**: `frontend/graphql/AGENTS.md` (embedded-type policy) + `frontend/AGENTS.md` + frontend instructions read
+  - Write outcome: `outcome/5.4-apollo-cache-outcome.md`
+  - _Requirements: REQ-030, REQ-053_
+
 ---
 
 ## Phase 6 — Testing & journeys
 
 - [ ] 6.1 Repository tests
   - CREATE/EXTEND suites per plan §8: `backend/db/test/repo/students/student.parent-monitoring.repository.test.ts`, `backend/db/test/repo/classes/report.parent.repository.test.ts`, `backend/db/test/repo/classes/home-work.parent.repository.test.ts`, `backend/db/test/repo/classes/progress.repository.test.ts` (CREATE).
-  - Discipline (REQ-050): every suite wrapped in `runInRollback`; `tx` passed to EVERY repo call inside the transaction; try/catch rejection helper (NEVER `expect(...).rejects.toThrow()`); fixtures built via `backend/db/test/helpers/entity-setup.ts` (verify helper signatures at authoring time; never seed data).
+  - Discipline (REQ-050): every suite wrapped in `runInRollback`; `tx` passed to EVERY repo call inside the transaction; try/catch rejection helper (NEVER `expect(...).rejects.toThrow()`); fixtures built via `backend/db/test/entity-setup.ts` (verify helper signatures at authoring time; never seed data).
   - Coverage: join predicates isolate cross-student leakage; ordering (`createdAt ASC` list, `startedAt DESC NULLS LAST, id DESC` windows); pagination windows (limit/offset both pairs describe the same set); soft-deleted child excluded from the children list; progress count 0 vs N.
   - Run: `bun run test/scripts/run-test.ts <path>` per suite until green.
   - [ ] 6.1.QL **Quality Loop**: sub-loop exit 0 per test file
@@ -337,7 +352,7 @@ Read-only vertical slice, bottom-up: canonical types → repository parent-scope
 
 - [ ] 6.5 Journey tests J1-J4
   - CREATE `test/workflows/parents/parent-monitoring.journey.test.ts` (precedent: `test/workflows/parents/student-confirmation-of-link.journey.test.ts`; read `test/workflows/AGENTS.md` + `docs/testing/workflow-journey-tests.md` FIRST; write TEST-FIRST against the plan §4.4 service contract where the consuming implementation is still in flight).
-  - Real services + real DB; committed fixtures in `beforeAll` via `backend/db/test/helpers/entity-setup.ts` (never seed data); tracked hard-delete cleanup in `afterAll`; NEVER `runInRollback` in the journey lane; notification dispatch boundary spied (never real channels).
+  - Real services + real DB; committed fixtures in `beforeAll` via `backend/db/test/entity-setup.ts` (never seed data); tracked hard-delete cleanup in `afterAll`; NEVER `runInRollback` in the journey lane; notification dispatch boundary spied (never real channels).
   - Journeys (specs §4): **J1** teacher completes session (real existing service surface) + submits report/homework → parent reads them via the portal services AND the `?session=` deep link resolves to the same record; never-linked parent's attempt → 403. **J2** sever the link (clear `students.parentId` / soft-delete the student via existing seams) → EVERY portal read immediately 403s and the children list excludes the child (no cache may extend visibility). **J3** unlinked parent probes foreign/nonexistent ids → constant 403 byte-identical across causes, asserted in BOTH en and ar. **J4** two confirmed children → both listed; per-child reads return that child's rows only.
   - Run via `bun run test/scripts/run-test.ts <path>` until green.
   - [ ] 6.5.QL **Quality Loop**: sub-loop exit 0 on the suite
@@ -369,12 +384,12 @@ Read-only vertical slice, bottom-up: canonical types → repository parent-scope
 - [ ] 8.1 Final quality gate + ledger enforcement
   - Run the full `bun quality-gate` (tsgo → oxlint → biome → lint → duplicates); all green. Compare against the baseline (task 0.1 counts): any new error MUST be attributable to this plan's files.
   - Schema-parity assertion (D7/R-J): `git diff` over `backend/db/schema/` is EMPTY for this plan's delta; `drizzle-kit` push/generate NOT run.
-  - Ledger enforcement (BLOCKING): `grep -c "❌\|⚠️" ai/plans/sprint_3/parent-read-only-monitoring-portal/deferred-items.md` MUST equal 0; `📅 Forward` items (D1 curriculum-depth, D2 DEV1-017 deep-link, D3 DEV1-019 E2E, D4 attendance table) are exempt per the ledger's forward status but MUST be re-asserted as still-open.
+  - Ledger enforcement (BLOCKING): `awk '/^## Ledger Table/,/^## Status Values/' ai/plans/sprint_3/parent-read-only-monitoring-portal/deferred-items.md | grep -c "❌\|⚠️"` MUST equal 0 (scoped to the ledger table so the Status Values legend glyphs do not self-match — paymob precedent); `📅 Forward` items (D1 curriculum-depth, D2 DEV1-017 deep-link, D3 DEV1-019 E2E, D4 attendance table, D5 probe rate-limiting) are exempt per the ledger's forward status but MUST be re-asserted as still-open.
   - Traceability loop: `for r in $(grep -oE 'REQ-[0-9]+' specs.md | sort -u); do grep -q "$r" tasks.md || echo MISSING: $r; done` — zero misses; every task checkbox `[x]`.
   - [ ] 8.1.SR **Semantic Review**: outcome directory complete (one file per task); no orphan `❌` carry-overs
   - [ ] 8.1.IV **Instruction Verification**: quality-gate rules respected (no cache clearing anywhere in this plan)
   - Write outcome: `outcome/8.1-final-gate-outcome.md`
-  - _Requirements: REQ-001, REQ-061_
+  - _Requirements: REQ-001, REQ-061, REQ-062_
 
 - [ ] 8.2 Knowledge propagation (canonical doc)
   - CREATE `docs/parents/monitoring-portal.md` (docs structure: Why → Pattern → Rules → Anti-patterns → Rollout Summary → Related Documents) consolidating ALL outcome files: the five query contracts + BOLA posture (identity from context only), the `requireLinkedChild` gate (R-A / INV-P1) and its constant-403 oracle, read-only posture (INV-P2), attendance derivation (R-B), evaluations disambiguation (R-C), progress-source ruling (R-D), the untouched participant-only surfaces (R-E), the `/parent/children/<studentId>?tab=reports&session=<id>` deep-link contract for DEV1-017 (R-I), and consumer guidance for DEV1-019.
@@ -407,7 +422,7 @@ Read-only vertical slice, bottom-up: canonical types → repository parent-scope
 | REQ-022 | 2.4, 3.2, 6.2, 6.3, 6.5 |
 | REQ-023 | 3.2, 3.3, 5.3, 7.1 |
 | REQ-024 | 2.4, 3.2, 5.1, 6.3 |
-| REQ-030 | 2.1, 3.1, 3.2, 3.3, 5.1, 6.3 |
+| REQ-030 | 2.1, 3.1, 3.2, 3.3, 5.1, 5.4, 6.3 |
 | REQ-031 | 3.3, 7.1 |
 | REQ-040 | 5.2, 5.3, 6.4 |
 | REQ-041 | 5.2, 5.3, 6.4 |
@@ -416,7 +431,7 @@ Read-only vertical slice, bottom-up: canonical types → repository parent-scope
 | REQ-050 | 6.1 |
 | REQ-051 | 6.2 |
 | REQ-052 | 6.3 |
-| REQ-053 | 6.4 |
+| REQ-053 | 5.4, 6.4 |
 | REQ-054 | 6.5 |
 | REQ-060 | 1.1 |
 | REQ-061 | 7.1, 8.1 |
@@ -438,5 +453,5 @@ ALL of the following MUST hold before the plan may be marked finished:
 - [ ] R-E: `sessionReport`/`sessionHomework` participant-only queries byte-unchanged (diff-proof recorded).
 - [ ] R-A grep-lock: zero `parent_link_requests` reads in portal code; R-C grep-lock: zero `evaluations` reads.
 - [ ] R-J: zero Drizzle schema changes; generated GraphQL codegen artifacts committed and current.
-- [ ] `deferred-items.md` ledger has zero `❌`/`⚠️` rows; `📅 Forward` items (D1-D4) still tracked and linked to their owning tickets.
+- [ ] `deferred-items.md` ledger has zero `❌`/`⚠️` rows (scoped grep: `awk '/^## Ledger Table/,/^## Status Values/'` … `grep -c "❌\|⚠️"` = 0); `📅 Forward` items (D1-D5) still tracked and linked to their owning tickets.
 - [ ] Canonical doc `docs/parents/monitoring-portal.md` published; root `AGENTS.md` Important References updated; `docs/parents/parent-link-request.md` forward pointer satisfied.

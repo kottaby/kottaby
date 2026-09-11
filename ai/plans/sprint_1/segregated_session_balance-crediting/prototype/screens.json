@@ -1,0 +1,58 @@
+[
+  {
+    "screenId": "ddeb0a7d282242c69c699c20e51f2ef9",
+    "title": "Kottaby Admin - Student Detail & Segregated Balances",
+    "file": "admin-student-detail-lanes-default-desktop.png",
+    "deviceType": "DESKTOP",
+    "state": "default"
+  },
+  {
+    "screenId": "ed0e365733b545ddb36cb3c7c6050310",
+    "title": "Plan Catalog \u2014 Lane Designation",
+    "file": "admin-plan-catalog-lanes-default-desktop.png",
+    "deviceType": "DESKTOP",
+    "state": "default"
+  },
+  {
+    "screenId": "f9aacfae664e4bb480249d390d6e49c6",
+    "title": "Activation Credit Timeline",
+    "file": "activation-credit-timeline-default-desktop.png",
+    "deviceType": "DESKTOP",
+    "state": "default"
+  },
+  {
+    "screenId": "45e3d01e24f14ab899ead108180f7c7c",
+    "title": "Booking \u2014 Hold Ladder (trial first)",
+    "file": "booking-hold-ladder-default-mobile.png",
+    "deviceType": "MOBILE",
+    "state": "default"
+  },
+  {
+    "screenId": "84fdef913dae4554a3252c8b547add3d",
+    "title": "Booking Denied \u2014 INSUFFICIENT_BALANCE",
+    "file": "booking-denied-insufficient-balance-error-mobile.png",
+    "deviceType": "MOBILE",
+    "state": "error"
+  },
+  {
+    "screenId": "9f68cc82dc8e409aad357e90b3d91e30",
+    "title": "Session Completed \u2014 Hold Consumed",
+    "file": "session-completed-hold-consumed-default-mobile.png",
+    "deviceType": "MOBILE",
+    "state": "default"
+  },
+  {
+    "screenId": "34dbc4ef42fa419cb2bfbf614cae0133",
+    "title": "Hold Refunds & Provenance",
+    "file": "hold-refunds-provenance-default-desktop.png",
+    "deviceType": "DESKTOP",
+    "state": "default"
+  },
+  {
+    "screenId": "ad3d976b618748b596580ad3a2a78a82",
+    "title": "Balance Ledger \u2014 All Movements",
+    "file": "balance-ledger-movements-default-desktop.png",
+    "deviceType": "DESKTOP",
+    "state": "default"
+  }
+]

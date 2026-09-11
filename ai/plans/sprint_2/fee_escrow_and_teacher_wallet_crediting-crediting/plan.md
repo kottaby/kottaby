@@ -37,7 +37,7 @@ Both ticket surfaces shipped inside Session Creation & Lifecycle and Dual-Confir
 
 **D2 — Hold-as-debit is the binding escrow semantics.**
 *Context:* Ticket gherkin says "balance held (not decremented yet)"; shipped behavior debits one lane unit at request (trial-first), with provenance in `held_balance_lane`.
-*Decision:* Ratify the shipped semantics (already ruled in session-creation specs.md ruling #2 and Segregated plan D1). The ticket wording is superseded and noted as such.
+*Decision:* Ratify the shipped semantics (already ruled in session-creation specs.md ruling #2 and ratified by `ai/plans/sprint_1/segregated_session_balance-crediting/plan.md` D1). The ticket wording is superseded and noted as such.
 *Rationale:* The debit-at-request model is what makes double-booking races lose by construction (guarded `UPDATE … WHERE balance > 0`).
 
 **D3 — No runtime adoption of the escrow idempotency-key contracts.**
@@ -122,8 +122,8 @@ No new user-facing strings. Compliance obligations carried by this plan: (1) all
 | Current State | Trigger (actor + action) | Next State | Guard / Permission |
 |---|---|---|---|
 | — (no row) | Student `createSession` | `scheduled`, `fee_held=true` | lane debit succeeds; certified-teacher lock; idempotency claim |
-| `scheduled`, held | Teacher `startSession` | `in_progress`, held | participant teacher |
-| `in_progress`, held | Teacher `completeSession` + report | `completed`, held, teacher stamp | participant teacher |
+| `scheduled`, held | Teacher `startSession` | `started`, held | participant teacher |
+| `started`, held | Teacher `completeSession` + report | `completed`, held, teacher stamp | participant teacher |
 | `completed`, held | Student `confirmSessionCompletion` | `completed`, `fee_held=false`, **earning written** | guarded UPDATE predicate (REQ-3 AC1) |
 | held-any-state | Participant `cancelSession` | `cancelled`, `fee_held=false`, lane refunded | participant; transition whitelist |
 | `completed`, held, deadline lapsed | System sweeper | `cancelled`, `fee_held=false`, lane refunded | `confirmation_deadline < now` |
@@ -196,17 +196,19 @@ Money-side settlement composes INSIDE the confirmation transaction (`session-lif
 ## API Design (existing — SDL re-proven by REQ-7.2)
 
 ```graphql
-# booking / lifecycle (excerpt — authoritative SDL in schema)
+# escrow/wallet surface (excerpt — authoritative SDL in the generated schema)
+# the request idempotency key rides the HTTP header into ctx.idempotencyKey,
+# it is NOT a mutation argument (session-lifecycle.mutation.ts:138)
 type Mutation {
-  createSession(input: SessionSubmitInput!, idempotencyKey: String!): Session!
-  startSession(sessionId: Int!): Session!
-  completeSession(sessionId: Int!, ...): Session!
-  cancelSession(sessionId: Int!, reason: String): Session!
-  confirmSessionCompletion(sessionId: Int!): Session!   # settle + wallet credit
-  resolveSessionDispute(sessionId: Int!, ...): Session! # admin
+  createSession(input: CreateSessionInput!): Session!
+  startSession(id: ID!): Session!
+  completeSession(id: ID!): Session!
+  cancelSession(id: ID!, reason: String): Session!
+  confirmSessionCompletion(id: ID!): Session!            # settle + wallet credit
+  resolveSessionDispute(id: ID!, resolution: DisputeResolution!, note: String): Session!
+  requestWithdrawal(input: RequestWithdrawalInput!): Wallet!  # returns updated wallet
 }
-type Query { myWallet: WalletView! }                      # teacher-only, lazy-ensure
-type Mutation { requestWithdrawal(input: WithdrawalInput!): TeacherTransaction! }
+type Query { myWallet: Wallet! }                          # teacher-only, lazy-ensure
 ```
 
 `Session.fee: String` (nullable), `Session.feeHeld: Boolean!` — `session.pothos.ts:170,174-175`. SDL delta from this plan: **zero**.
