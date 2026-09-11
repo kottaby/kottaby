@@ -1,8 +1,7 @@
 import { expect, test, spyOn } from "bun:test";
 import { renderHook } from "@testing-library/react";
 import { useAppLocale, LocaleContext, type LocaleContextValue } from "@/shared/locale/localeContext";
-import type { ReactNode } from "react";
-import { useMemo } from "react";
+import { type ReactNode, useMemo } from "react";
 
 function EnglishWrapper({ children }: Readonly<{ children: ReactNode }>) {
   const value = useMemo<LocaleContextValue>(() => ({ locale: "en" }), []);
