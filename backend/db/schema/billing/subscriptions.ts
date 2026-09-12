@@ -50,6 +50,7 @@ export const subscriptions = pgTable(
   t => [
     index("subscriptions_user_id_idx").on(t.userId),
     index("subscriptions_plan_id_idx").on(t.planId),
+    index("subscriptions_active_end_date_idx").on(t.endDate).where(sql`${t.status} = 'active'`),
     uniqueIndex("subscriptions_payment_reference_unique")
       .on(t.paymentReference)
       .where(sql`${t.paymentReference} IS NOT NULL`),

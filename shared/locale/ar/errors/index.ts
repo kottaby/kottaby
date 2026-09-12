@@ -81,6 +81,7 @@ export const errorsAr: ErrorsLabels = {
   homeworkRequiresReport: "يجب إرسال تقرير الجلسة قبل إنشاء الواجب.",
   teacherInActiveSession: "هذا المعلم في جلسة نشطة حالياً وهو غير متاح.",
   teacherNotFound: "لم يتم العثور على المعلم المحدد.",
+  subscriptionExpired: "انتهت صلاحية اشتراكك.",
   insufficientBalance: "رصيدك غير كافٍ لإتمام هذا الطلب.",
   idempotencyKeyRequired: "مفتاح منع تكرار الطلب مفقود. يرجى إعادة المحاولة.",
   invalidSessionIntent: "غرض الجلسة المطلوب غير صالح.",

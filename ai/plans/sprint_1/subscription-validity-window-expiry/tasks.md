@@ -47,23 +47,23 @@ Foundation-first: schema index → types → locale key → **journey test FIRST
 
 ## Phase 2: Foundation (Schema · Types · Locale)
 
-- [ ] 2.1 Partial index on `subscriptions` (Decision D5)
+- [x] 2.1 Partial index on `subscriptions` (Decision D5)
   - EXTEND `backend/db/schema/billing/subscriptions.ts` index list with `index("subscriptions_active_end_date_idx").on(t.endDate).where(sql`…status = 'active'…`)` — same `.where(sql\`…\`)` idiom as the existing partial unique index in that file; NO `--` comments inside any `sql` template.
   - Apply DDL via `bun run db` (push path per schema AGENTS + tasks-template convention); verify drift-free; NO custom SQL migration (guarded UPDATEs are app-level parameterized statements).
-  - [ ] 2.1.QL · [ ] 2.1.TE (schema-shape compile + push verification; index present in reflected schema) · [ ] 2.1.SEC · [ ] 2.1.SR · [ ] 2.1.IV (`/home/ahmed/Projects/kottaby_kottaby/AGENTS.md`, `/home/ahmed/Projects/kottaby_kottaby/backend/AGENTS.md`, `/home/ahmed/Projects/kottaby_kottaby/backend/db/schema/AGENTS.md`, `/home/ahmed/Projects/kottaby_kottaby/.agents/instructions/backend.instructions.md`)
+  - [x] 2.1.QL · [x] 2.1.TE (schema-shape compile + push verification; index present in reflected schema) · [x] 2.1.SEC · [x] 2.1.SR · [x] 2.1.IV (`/home/ahmed/Projects/kottaby_kottaby/AGENTS.md`, `/home/ahmed/Projects/kottaby_kottaby/backend/AGENTS.md`, `/home/ahmed/Projects/kottaby_kottaby/backend/db/schema/AGENTS.md`, `/home/ahmed/Projects/kottaby_kottaby/.agents/instructions/backend.instructions.md`)
   - Write `outcome/2.1-outcome.md`
   - _Requirements: REQ-002, REQ-022_
 
-- [ ] 2.2 Canonical types EXTEND
+- [x] 2.2 Canonical types EXTEND
   - EXTEND `backend/types/billing/subscription.types.ts` with `ExpiredDueSubscriptionRow` (`{ readonly id; readonly userId; readonly planId }` — batch-flip RETURNING projection) and `SubscriptionExpirySweepReturnType` (`{ readonly expired; readonly lanesZeroed }` — counts-only contract); barrel via existing `export *`; NO service-layer `.types.ts`.
-  - [ ] 2.2.QL · [ ] 2.2.TE (type-level compile: whole-repo tsgo green) · [ ] 2.2.SEC · [ ] 2.2.SR · [ ] 2.2.IV (`/home/ahmed/Projects/kottaby_kottaby/AGENTS.md`, `/home/ahmed/Projects/kottaby_kottaby/backend/AGENTS.md`, `/home/ahmed/Projects/kottaby_kottaby/backend/types/AGENTS.md`, `/home/ahmed/Projects/kottaby_kottaby/.agents/instructions/backend.instructions.md`)
+  - [x] 2.2.QL · [x] 2.2.TE (type-level compile: whole-repo tsgo green) · [x] 2.2.SEC · [x] 2.2.SR · [x] 2.2.IV (`/home/ahmed/Projects/kottaby_kottaby/AGENTS.md`, `/home/ahmed/Projects/kottaby_kottaby/backend/AGENTS.md`, `/home/ahmed/Projects/kottaby_kottaby/backend/types/AGENTS.md`, `/home/ahmed/Projects/kottaby_kottaby/.agents/instructions/backend.instructions.md`)
   - Write `outcome/2.2-outcome.md`
   - _Requirements: REQ-002, REQ-021_
 
-- [ ] 2.3 Locale key `subscriptionExpired` (3 files — REQ-032 recipe)
+- [x] 2.3 Locale key `subscriptionExpired` (3 files — REQ-032 recipe)
   - (1) Type: `shared/locale/types/errors/labels.ts` — `ErrorsLabels` flat entry beside `insufficientBalance` (docblock: self-contained sentence, no identifiers); (2) `shared/locale/en/errors/index.ts`; (3) `shared/locale/ar/errors/index.ts` (RTL-safe). Errors namespace already wired — NO `message.ts` registration, NO new namespace.
   - FORBIDDEN: `Translation.*` enum, two-arg `getTranslations`, `next-intl`, `getBackendTranslations`, `shared/messages/`, hardcoded strings.
-  - [ ] 2.3.QL · [ ] 2.3.TE (`shared/locale/errors-namespace.parity.test.ts` via `bun run test/scripts/run-test.ts shared/locale/errors-namespace.parity.test.ts` green) · [ ] 2.3.SEC · [ ] 2.3.SR · [ ] 2.3.IV (`/home/ahmed/Projects/kottaby_kottaby/AGENTS.md`, `/home/ahmed/Projects/kottaby_kottaby/shared/AGENTS.md`)
+  - [x] 2.3.QL · [x] 2.3.TE (`shared/locale/errors-namespace.parity.test.ts` via `bun run test/scripts/run-test.ts shared/locale/errors-namespace.parity.test.ts` green — 21 pass / 0 fail) · [x] 2.3.SEC · [x] 2.3.SR · [x] 2.3.IV (`/home/ahmed/Projects/kottaby_kottaby/AGENTS.md`, `/home/ahmed/Projects/kottaby_kottaby/shared/AGENTS.md`)
   - Write `outcome/2.3-outcome.md`
   - _Requirements: REQ-002, REQ-003, REQ-032_
 

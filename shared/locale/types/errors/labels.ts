@@ -170,6 +170,8 @@ export interface ErrorsLabels {
   readonly teacherInActiveSession: string;
   /** "The selected teacher was not found." — teacher lookup miss on booking (dedicated key, not the generic `notFound`). */
   readonly teacherNotFound: string;
+  /** Expiry reject — the caller's subscription validity window has ended, so the booking cannot be funded by it. */
+  readonly subscriptionExpired: string;
   /** Balance reject — the caller's lane balances cannot cover the booking fee. */
   readonly insufficientBalance: string;
   /** Missing `X-Idempotency-Key` header on an idempotent write surface. */
