@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { sanitizeUrlCredentials } from "./url";
+import { sanitizeUrlCredentials } from "@/backend/lib/utils/url";
 
 describe("sanitizeUrlCredentials", () => {
   test("returns empty string for undefined or empty string", () => {
