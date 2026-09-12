@@ -104,7 +104,7 @@ Backend-first with a **test-first journey** authored right after repo primitives
   - Outcome: `outcome/2.6-notification-waves-outcome.md`
   - _Requirements: REQ-7_
 
-- [ ] 2.7 Mid-Point Review Gate (backend-only)
+- [x] 2.7 Mid-Point Review Gate (backend-only)
   - Dispatch review-backend / review-types / review-config subagents over Tasks 2.1–2.6 diff; fix findings; re-review to zero backend-specific findings
   - Run `bun run test/scripts/run-test.ts` on the new repo/service suites; journey suite may be green by now
   - Outcome: `outcome/midpoint-review-R1.md`

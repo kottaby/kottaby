@@ -50,3 +50,18 @@ Stage Summary:
 - Journey suite green 13/0 BEFORE GraphQL surface (test-first paid off)
 - Carry-forward to 3.1: resolver binds flows WITHOUT outerTx (internal post-commit publish); dispatch Cancel/Complete→shipped resolve, Refund/PartialRefund/Uphold→arbitrateDispute; append partialAmount to resolve input; schema regen ships with dispatch
 - Flagged for 2.7 review gate: 5 knip dead exports (4 helpers in arbitration helpers, ArbitrateDisputeInput)
+
+---
+Task ID: 2.7
+Agent: Spec Implementation Orchestrator
+Task: Mid-point review gate R1 (per SKILL.md §Mid-Point Review Gate)
+
+Work Log:
+- 4 review passes over Phase 2 diff (427c162..HEAD): backend (TOCTOU/atomicity/dead code), types, tests (Tier1-4 + race semantics), config (schema push correctness)
+- Findings: 2 MEDIUM (5 knip dead exports: 4 helper de-exports + ArbitrateDisputeInput removed); fixes applied, knip 5→0, tsgo 0
+- Re-review Round 2: CLEAN — zero backend-specific findings
+- Green matrix: repo 83/0, wallet 10/0, arbitration 21/0, notifications 13/0, journey 13/0, enums 29/0+25/0, parity 127/0+21/0
+
+Stage Summary:
+- Gate PASSED; outcome/midpoint-review-R1.md written; checkbox 2.7 [x]
+- 3.1 note: schema regen MUST ship with resolver dispatch; resolver omits outer tx (flows own publish-after-commit)

@@ -1,4 +1,3 @@
-import type { DisputeResolution } from "@/backend/enum/scheduling/dispute-resolution.enum";
 import type { AdminAuditLogEntryReturnType } from "@/backend/types/audit/audit-trail.types";
 import type { HomeWorkReturnType } from "@/backend/types/classes/home-work.types";
 import type { RecitationReturnType } from "@/backend/types/classes/recitation.types";
@@ -43,33 +42,6 @@ export type SessionArbitrationProbeType = Pick<
   SessionSelectType,
   "id" | "status" | "studentId" | "teacherId" | "fee" | "feeHeld" | "heldBalanceLane" | "confirmedByStudentAt"
 >;
-
-/**
- * The strict arbitration payload for the consumed-escrow outcomes: the
- * acting admin's identity, the target session, the binding outcome, the
- * optional free-text resolution note, the optional partial-refund amount,
- * and the copy locale for localized rejections.
- *
- * `adminId` is the authenticated actor resolved server-side — never a
- * client assertion. `resolution` is the outcome selector only; which
- * members are legal for a given row is a service-layer classification
- * decision (held escrow stays on `Cancel`/`Complete`, consumed escrow on
- * `Refund`/`PartialRefund`/`Uphold`), enforced before any write.
- * `note` and `partialAmount` are explicit `string | null` — never
- * `undefined` — so an absent amount is distinguishable from a lost field.
- * `partialAmount` is a decimal string carried verbatim (two-fraction
- * money, strictly between zero and the session fee, legal only with the
- * partial outcome); the amount's validation and the wallet/lane legs it
- * drives are service concerns, not payload concerns.
- */
-export interface ArbitrateDisputeInput {
-  readonly adminId: number;
-  readonly sessionId: number;
-  readonly resolution: DisputeResolution;
-  readonly note: string | null;
-  readonly partialAmount: string | null;
-  readonly locale: string;
-}
 
 /**
  * Admin case-review read: the complete evidence bundle an admin's

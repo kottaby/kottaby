@@ -48,7 +48,7 @@ import type { AuditLogWriteContract, DBTransaction, SessionArbitrationProbeType 
 import type { getServerTranslations } from "@/shared/locale/server-graphql";
 
 /** The errors-namespace slice, typed once for this module's denial classifiers. */
-export type ArbitrationErrorsTranslations = ReturnType<typeof getServerTranslations>["errorsTranslations"];
+type ArbitrationErrorsTranslations = ReturnType<typeof getServerTranslations>["errorsTranslations"];
 
 /**
  * The strict decimal shape of a partial refund amount: digits only, an
@@ -66,7 +66,7 @@ const SESSION_ENTITY_TYPE = "session";
  * is traceable end to end through the ledger because the row names its
  * session (and the row's `session_id` FK keys it again structurally).
  */
-export function disputeRefundLedgerDescription(sessionId: number): string {
+function disputeRefundLedgerDescription(sessionId: number): string {
   return `Dispute refund reversal — Session #${sessionId}`;
 }
 
@@ -75,11 +75,7 @@ export function disputeRefundLedgerDescription(sessionId: number): string {
  * to the row's escrow generation. Typed as the plain `VALIDATION` code per
  * the arbitration error matrix, carrying the dedicated localized copy.
  */
-export function rejectResolutionFamilyMismatch(
-  denial: string,
-  sessionId: number,
-  t: ArbitrationErrorsTranslations
-): never {
+function rejectResolutionFamilyMismatch(denial: string, sessionId: number, t: ArbitrationErrorsTranslations): never {
   logger.logDomainError(denial, {
     code: "VALIDATION",
     entity: "session",
@@ -89,7 +85,7 @@ export function rejectResolutionFamilyMismatch(
 }
 
 /** Partial-amount denial: the supplied amount failed the validation matrix. */
-export function rejectPartialAmountInvalid(denial: string, sessionId: number, t: ArbitrationErrorsTranslations): never {
+function rejectPartialAmountInvalid(denial: string, sessionId: number, t: ArbitrationErrorsTranslations): never {
   logger.logDomainError(denial, {
     code: "VALIDATION",
     entity: "session",
@@ -124,7 +120,7 @@ export function assertArbitrationResolution(
 }
 
 /** Strict decimal shape check for a partial refund amount (see the pattern). */
-export function isPartialAmountShape(value: string): boolean {
+function isPartialAmountShape(value: string): boolean {
   return PARTIAL_AMOUNT_PATTERN.test(value);
 }
 
