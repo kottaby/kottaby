@@ -264,3 +264,57 @@ Stage Summary:
 - Task 5.2 COMPLETE: reconciliation backstop HTTP surface landed (REQ-041/043/035); stage-1 commit 609ff37 on feat/paymob-gateway-integration (route+test+inventory row+inventory pins), docs commit follows
 - Carry-forward: 5.4/5.5 callback-channel work is the next Phase-5 consumer of provider gating (getPaymentGatewayProvider route-level pattern now has TWO landed consumers — webhook branch + this cron gate); 8.1 journey can drive the cron surface via this suite's mock.module seam or let the real sweep run (5.1's namespace-spy seam); 9.1 final gate sees SIX pinned inventory paths now — any future route moves that snapshot again
 
+---
+Task ID: session-continuation-2
+Agent: Spec Implementation Orchestrator (paymob-gateway-integration)
+Task: Session resume after context exhaustion + tool outage — environment restoration + continuation-point resolution (per SKILL.md §Plan Intake & Validation)
+
+Work Log:
+- Re-read SKILL.md in FULL (spec-implementation) before any other action (hard rule 1); re-read tasks.md + worklog.md (input only — SKILL.md always wins)
+- Branch: feat/paymob-gateway-integration confirmed; local ahead-1 docs commit (UUID message) amended to repo convention and pushed -> origin @ 0ad47cc; PR #129 OPEN (gh 2.63.2 reinstalled to ~/.local/bin + token auth OK)
+- Continuation point from tasks.md: 0.1,1.1,2.1,2.2,2.3,3.1,3.2,3.3,4.1,4.2,5.1,5.2,5.4 all [x] with outcomes; no stale [-]; first open task = 5.5; queue: 5.5,5.6,6.1,7.1,7.2,7.3,7.4,7.5,8.1,9.1,9.2
+- Sandbox reset guard triggered: .env overwritten (SQLite), .env.test wiped, db/pglite wiped, gh uninstalled. Restored .env + .env.test (DB_PROVIDER=pglite, PGLITE_DATA_DIR ./db/pglite[pglite-test], placeholder DATABASE_URL required by dbActions envFile validation, ADMIN_EMAIL=admin@test.com / ADMIN_PASSWORD=12345678)
+- Gotcha fixed: stale postmaster.pid from aborted first PGlite init caused WASM Aborted() on every open — rm -rf + re-init; migrations applied through 20260911175854_custom_5 + sweet_ted_forrester; seed OK (admin@test.com role=admin verified)
+- Working tree cleaned of 579 permission-bit-only mode changes; mid-session tool outage (403 on all tools) rode out without state loss
+
+Stage Summary:
+- Environment fully restored (pglite migrated+seeded, env files, gh, push, PR verified); continuation point = task 5.5
+- Next: dispatch task 5.5 + 6.1 + 7.1 in parallel (disjoint layers per SKILL.md §Dispatch Model)
+
+---
+Task ID: 7.1
+Agent: general-purpose subagent
+Task: GraphQL documents + codegen
+
+Work Log:
+- Read plan docs (specs REQ-060/REQ-075, plan §3.1/§5, tasks 7.1-7.5), outcome/0.1 seam pins + research-05, landed Pothos objects (purchase-checkout/subscription/student-payment) — selection sets extracted verbatim, zero invented fields
+- CREATED frontend/graphql/sharedDocuments/billing/subscription-purchase.documents.ts (purchaseSubscriptionMutationDocument + mySubscriptionsQueryDocument; id-first full rows; byte-identical StudentSubscription selection across both docs so the cache shape never forks) + barrel export in billing/index.ts
+- DEVIATION (lint-forced): GraphQL operation named PurchaseSubscriptionPlan, not PurchaseSubscription — @graphql-eslint/naming-convention forbids the Subscription SUFFIX on operation names; export const names unchanged; generated types therefore PurchaseSubscriptionPlanMutation(Variables)
+- bun run generate:gqlSchema (schema.graphql byte-identical, zero drift) + bun codegen (graphql.ts +57 purely additive: 3 enums SubscriptionStatus/PaymentStatus/PaymentGateway + PurchaseSubscriptionInput + both operation type families + typed DocumentNode consts); idempotent across re-runs (md5-stable)
+- 7.1.TE: colocated structural-lock suite 15 pass/0 fail/47 expect (named ops + channel + variables, argument wiring, selection snapshots incl. embedded-wrappers-select-no-id, compile-time variables-whitelist pin, TypedDocumentNode binding, barrel parity, enum wire names); neighbors green: billing dir 20/0, documents.contract 26/0, notification 12/0
+- sub-loop exit 0 x3 files (documents/barrel/test); clean comments (no REQ/task/plan refs — grep-verified)
+- D-711 logged in deferred-items.md: apolloCache keyFields:false entries for PurchaseSubscriptionPayload/PaymentCheckout needed at first mutation consumption (7.2) — outside 7.1 scoped file contract
+- Commits: 98354f9 (code, scoped staging — parallel 6.1 locale work untouched) + 8e54ffa (docs: outcome + checkboxes + ledger); pushed origin (remote verified at 8e54ffa)
+
+Stage Summary:
+- 7.1 [x] complete; funnel documents + codegen types landed for 7.2/7.3/7.4
+- Carry-forward for 7.2/7.3/7.4: hooks are NOT generated (consumers call useQuery/useMutation from @apollo/client/react with the TypedDocumentNode consts); PurchaseSubscriptionPlanMutationVariables = { input: { planId } } (idempotency key = x-idempotency-key context header, NOT a variable); checkoutUrl: string | null (null = mock refetch branch); SubscriptionStatus has NO Failed member — failed arm derives from PaymentStatus via the mutation payload + GET hints; money = decimal strings; D-711 typePolicies at 7.2
+
+---
+Task ID: 6.1
+Agent: general-purpose subagent
+Task: checkout locale namespace
+
+Work Log:
+- Read worklog + specs (REQ-003/052/066 + consumer REQs 027/044/045/054/060-065) + plan §5/D12 + tasks 7.2/7.3/7.4 acceptance criteria + research-05 (frontend surface map) + prototype screens.json + ALL wallet/plans namespace templates (types/en/ar/namespace/barrel/registry/parity-test shapes) + shared/AGENTS.md + shared/locale/AGENTS.md
+- Key inventory derived from the GraphQL ground truth (Plan.sessionCount/intervalDays/price/currency/balanceLane, SubscriptionStatus enum, StudentSubscription startDate/endDate nullable) + REQ-065 storybook arms: 54 keys (51 strings + 3 typed interpolation functions) across catalog / confirm-dialog / result-branches / subscriptions / shared sections
+- Created types/checkout (CheckoutLabels, wallet-style JSDoc), en/ar leaves (checkoutEn/checkoutAr — natural Arabic, singular/dual/plural grammar branches per adminSessionGovernance countLine precedent, billing vocabulary reused from plans/wallet/notifications), namespaces/checkout/checkout.namespace.ts (Checkout handle, "checkout.checkout") + per-namespace barrel; registered checkoutTranslations in types/message.ts + en/ar messages.ts + namespaces barrel + registry
+- Created checkout-namespace.parity.test.ts (wallet template): key-set identity + 51 non-empty string keys + interpolation arity×both locales + count/day/lane containment + en/ar grammar-arm pins + registry wiring + sync resolution + default-locale fallback + Arabic-script sanity
+- Verification: sub-loop --lifecycle duplicates exit 0 ×11 files (all first-run); checkout parity 69 pass/0 fail (257 expect); regressions wallet 35/0, plans 4/0, server.test 21/0, notifications 125/0, errors 21/0; tsgo project-wide 0 errors (re-verified after parallel 7.1 codegen commit landed); plan-meta grep over 11 files zero matches; scope = exactly 11 files (git status verified; orchestrator's worklog entry left unstaged)
+- 6.1.SEC: no secrets/user data/HTML-injection surfaces — plain strings + typed named-argument interpolation only; money VALUES never keyed (Intl per REQ-054)
+- Wrote outcome/6.1-outcome.md with the FULL key inventory (en→ar carry-forward table for 7.2/7.3/7.4); tasks.md 6.1 + 6.1.QL/.TE/.SEC/.SR/.IV → [x]; deferred-items.md += D-611 (shared/AGENTS.md legacy-loader prose drift — 📅 Forward, non-blocking)
+- Commits: c3a851c feat(locale) + d396cae docs(plans); pushed origin feat/paymob-gateway-integration (remote verified == local d396cae; remote was not ahead so the blocked pull-rebase was moot)
+
+Stage Summary:
+- Task 6.1 COMPLETE: checkout namespace landed + registered + parity/interpolation-locked (REQ-003/052/066); branch pushed
+- Carry-forward: 7.2/7.3/7.4 consume via useAppTranslation(Checkout) / getTranslations(locale).checkoutTranslations — zero hardcoded copy needed; nav Plans label goes through DashboardLabels (7.2 boundary); transport errors via existing errors.subscriptionPurchase; D-711 typePolicies land with 7.2
