@@ -23,14 +23,19 @@
  *
  * Write methods take an optional `tx: DBTransaction` as their last parameter.
  */
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, gte, ilike, lte, sql } from "drizzle-orm";
 import { db, queryDb } from "@/backend/db";
 import { studentPayments } from "@/backend/db/schema/billing/student-payments";
+import { students } from "@/backend/db/schema/students/students";
+import { users } from "@/backend/db/schema/users/users";
+import { PaymentGateway } from "@/backend/enum/billing/payment-gateway.enum";
 import { PaymentStatus } from "@/backend/enum/billing/payment-status.enum";
 import { ConflictError } from "@/backend/lib/errors";
 import type {
+  AdminStudentPaymentRow,
   DBQueryExecutor,
   DBTransaction,
+  NormalizedAdminPaymentFilters,
   StudentPaymentInsertType,
   StudentPaymentSelectType,
 } from "@/backend/types";
@@ -55,6 +60,90 @@ const PAYMENT_READ_COLUMNS = `
 `;
 
 /**
+ * Admin-audit column projection for raw `queryDb` reads — the payment
+ * columns plus the student's display name resolved through the
+ * `students` → `users` join (students share their PK with `users.id`;
+ * email is not wired to the admin surface). Payment columns are qualified
+ * with `student_payments.` because the join makes the bare `id` ambiguous.
+ */
+const ADMIN_PAYMENT_READ_COLUMNS = `
+  student_payments.id, student_payments.student_id AS "studentId",
+  student_payments.subscription_id AS "subscriptionId",
+  student_payments.amount AS "amount", student_payments.currency AS "currency",
+  student_payments.payment_gateway AS "paymentGateway",
+  student_payments.status AS "status",
+  student_payments.created_at AS "createdAt",
+  student_payments.updated_at AS "updatedAt",
+  users.full_name AS "studentName"
+`;
+
+/**
+ * Builds the ANDed predicate chain from the normalized admin-audit filters.
+ * Absent or null members are skipped (the audit view falls back to the
+ * unfiltered listing rather than erroring). `studentNameSearch` carries the
+ * service-escaped, `%..%`-wrapped pattern and is bound directly to the
+ * `ilike` predicate — never re-escaped. Returns `undefined` when no filter
+ * applies (Drizzle treats it as no WHERE clause).
+ */
+function buildAdminPaymentFilterChain(filters: NormalizedAdminPaymentFilters) {
+  const conditions = [];
+  if (filters.studentId !== null) {
+    conditions.push(eq(studentPayments.studentId, filters.studentId));
+  }
+  if (filters.studentNameSearch !== null) {
+    conditions.push(ilike(users.fullName, filters.studentNameSearch));
+  }
+  if (filters.status !== null) {
+    conditions.push(eq(studentPayments.status, filters.status));
+  }
+  if (filters.paymentGateway !== null) {
+    conditions.push(eq(studentPayments.paymentGateway, filters.paymentGateway));
+  }
+  if (filters.from !== null) {
+    conditions.push(gte(studentPayments.createdAt, filters.from));
+  }
+  if (filters.to !== null) {
+    conditions.push(lte(studentPayments.createdAt, filters.to));
+  }
+  if (conditions.length === 0) {
+    return undefined;
+  }
+  if (conditions.length === 1) {
+    return conditions[0];
+  }
+  return and(...conditions);
+}
+
+/**
+ * Builds the raw-SQL predicate chain for the non-transactional
+ * `queryDb` admin-audit branch, mirroring `buildAdminPaymentFilterChain`
+ * exactly. `params` collects the bound values in order; every predicate
+ * uses a positional placeholder — no string interpolation of values.
+ * Returns the empty string when no filter applies.
+ */
+function buildAdminPaymentRawFilterChain(filters: NormalizedAdminPaymentFilters, params: unknown[]): string {
+  const clauses: string[] = [];
+  if (filters.studentId !== null) {
+    clauses.push(`student_payments.student_id = $${params.push(filters.studentId)}`);
+  }
+  if (filters.studentNameSearch !== null) {
+    clauses.push(`users.full_name ILIKE $${params.push(filters.studentNameSearch)}`);
+  }
+  if (filters.status !== null) {
+    clauses.push(`student_payments.status::text = $${params.push(filters.status)}`);
+  }
+  if (filters.paymentGateway !== null) {
+    clauses.push(`student_payments.payment_gateway::text = $${params.push(filters.paymentGateway)}`);
+  }
+  if (filters.from !== null) {
+    clauses.push(`student_payments.created_at >= $${params.push(filters.from)}`);
+  }
+  if (filters.to !== null) {
+    clauses.push(`student_payments.created_at <= $${params.push(filters.to)}`);
+  }
+  return clauses.length === 0 ? "" : ` WHERE ${clauses.join(" AND ")}`;
+}
+/**
  * One guarded status decision — the shared body of the paid/failed
  * writers. The update touches ONLY the lifecycle status (plus the bookkeep
  * timestamp); the DB trigger re-verifies that every frozen financial
@@ -76,6 +165,62 @@ async function markStatusOnce(
     .where(and(eq(studentPayments.subscriptionId, subscriptionId), eq(studentPayments.status, PaymentStatus.Pending)))
     .returning();
   return row ?? null;
+}
+
+/**
+ * Narrows the raw `$inferSelect` pgEnum string-literal unions to the
+ * canonical TS enums (lexically identical values — the same pure type-level
+ * narrowing the wallet repository's settlement-probe mappers perform). An
+ * unrecognized value is a hard error, never a silent fallback — the pgEnum
+ * constraint makes it unreachable, so reaching it means a broken schema
+ * contract that must surface loudly.
+ */
+function toAdminPaymentStatusEnum(status: StudentPaymentSelectType["status"]): PaymentStatus {
+  if (status === PaymentStatus.Pending) {
+    return PaymentStatus.Pending;
+  }
+  if (status === PaymentStatus.Paid) {
+    return PaymentStatus.Paid;
+  }
+  if (status === PaymentStatus.Refunded) {
+    return PaymentStatus.Refunded;
+  }
+  if (status === PaymentStatus.Failed) {
+    return PaymentStatus.Failed;
+  }
+  throw new ConflictError(
+    `StudentPaymentRepository: unrecognized payment status value ${JSON.stringify(status)} — the pgEnum constraint makes this unreachable`
+  );
+}
+
+function toAdminPaymentGatewayEnum(gateway: StudentPaymentSelectType["paymentGateway"]): PaymentGateway {
+  for (const member of Object.values(PaymentGateway)) {
+    if (member === gateway) {
+      return member;
+    }
+  }
+  throw new ConflictError(
+    `StudentPaymentRepository: unrecognized payment gateway value ${JSON.stringify(gateway)} — the pgEnum constraint makes this unreachable`
+  );
+}
+
+function toAdminPaymentRow(row: {
+  id: number;
+  studentId: number;
+  subscriptionId: number | null;
+  amount: string;
+  currency: string;
+  paymentGateway: StudentPaymentSelectType["paymentGateway"];
+  status: StudentPaymentSelectType["status"];
+  createdAt: Date;
+  updatedAt: Date;
+  studentName: string;
+}): AdminStudentPaymentRow {
+  return {
+    ...row,
+    status: toAdminPaymentStatusEnum(row.status),
+    paymentGateway: toAdminPaymentGatewayEnum(row.paymentGateway),
+  };
 }
 
 export namespace StudentPaymentRepository {
@@ -165,5 +310,97 @@ export namespace StudentPaymentRepository {
     tx?: DBTransaction
   ): Promise<StudentPaymentSelectType | null> {
     return markStatusOnce(subscriptionId, PaymentStatus.Failed, tx);
+  }
+
+  /**
+   * Newest-first admin-audit page over the `student_payments` ledger, each
+   * row joined with its student's display identity (`students.id` shares the
+   * `users` PK, so one join resolves both name and email).
+   *
+   * Follows the dual-branch bare-read idiom: a Drizzle select on the
+   * supplied transaction executor when one is passed, raw parameterized SQL
+   * via `queryDb` (Neon HTTP fast path) otherwise. The `studentNameSearch`
+   * filter carries the service-escaped, `%..%`-wrapped pattern and is bound
+   * directly to the `ilike` comparison — the repository never re-escapes.
+   *
+   * @returns Up to `limit` audit rows starting at `offset`, newest first.
+   */
+  export async function listForAdminAudit(
+    filters: NormalizedAdminPaymentFilters,
+    limit: number,
+    offset: number,
+    tx?: DBTransaction
+  ): Promise<AdminStudentPaymentRow[]> {
+    if (tx) {
+      const rows = await tx
+        .select({
+          id: studentPayments.id,
+          studentId: studentPayments.studentId,
+          subscriptionId: studentPayments.subscriptionId,
+          amount: studentPayments.amount,
+          currency: studentPayments.currency,
+          paymentGateway: studentPayments.paymentGateway,
+          status: studentPayments.status,
+          createdAt: studentPayments.createdAt,
+          updatedAt: studentPayments.updatedAt,
+          studentName: users.fullName,
+        })
+        .from(studentPayments)
+        .innerJoin(students, eq(students.id, studentPayments.studentId))
+        .innerJoin(users, eq(users.id, students.id))
+        .where(buildAdminPaymentFilterChain(filters))
+        .orderBy(desc(studentPayments.id))
+        .limit(limit)
+        .offset(offset);
+      return rows.map(toAdminPaymentRow);
+    }
+    const params: unknown[] = [];
+    const whereClause = buildAdminPaymentRawFilterChain(filters, params);
+    const result = await queryDb<AdminStudentPaymentRow>(
+      `SELECT ${ADMIN_PAYMENT_READ_COLUMNS}
+         FROM student_payments
+         JOIN students ON students.id = student_payments.student_id
+         JOIN users ON users.id = students.id${whereClause}
+        ORDER BY student_payments.id DESC
+        LIMIT ${limit} OFFSET ${offset}`,
+      params
+    );
+    return result.rows;
+  }
+
+  /**
+   * Count of the admin-audit ledger view — the exact same predicate chain as
+   * `listForAdminAudit`, without the join (unless the name search is set,
+   * which filters on the joined `users` row). Mirrors the dual-branch idiom.
+   *
+   * @returns The number of ledger rows the filtered audit page contains.
+   */
+  export async function countForAdminAudit(
+    filters: NormalizedAdminPaymentFilters,
+    tx?: DBTransaction
+  ): Promise<number> {
+    const needsJoin = filters.studentNameSearch !== null;
+    if (tx) {
+      const query = tx.select({ total: sql<number>`count(*)::int` }).from(studentPayments);
+      const joined = needsJoin
+        ? query
+            .innerJoin(students, eq(students.id, studentPayments.studentId))
+            .innerJoin(users, eq(users.id, students.id))
+        : query;
+      const rows = await joined.where(buildAdminPaymentFilterChain(filters));
+      return rows[0]?.total ?? 0;
+    }
+    const params: unknown[] = [];
+    const whereClause = buildAdminPaymentRawFilterChain(filters, params);
+    const joinClause = needsJoin
+      ? ` JOIN students ON students.id = student_payments.student_id
+         JOIN users ON users.id = students.id`
+      : "";
+    const result = await queryDb<{ total: number }>(
+      `SELECT count(*)::int AS "total"
+         FROM student_payments${joinClause}${whereClause}`,
+      params
+    );
+    return result.rows[0]?.total ?? 0;
   }
 }

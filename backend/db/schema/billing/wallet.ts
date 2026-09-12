@@ -9,8 +9,11 @@ import { teacher } from "@/backend/db/schema/teachers/teacher";
  * current `balance` (must be >= 0) and the cumulative `total_earning`
  * (must be >= 0). Both decimals default to "0" (string default for drizzle
  * decimal type). All mutations flow through `teacher_transaction` rows; the
- * wallet balance is updated atomically by the trigger that enforces
- * transaction immutability + wallet consistency.
+ * wallet balance/total_earning are maintained by guarded repository UPDATEs
+ * in `WalletRepository` — the credit/debit UPDATE runs in the same
+ * transaction as the ledger insert (the repository's insufficient-funds
+ * guard and the `>= 0` CHECK constraints protect the balance), not by a
+ * database trigger.
  *
  * The wallet is created when a teacher is approved.
  */

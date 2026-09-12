@@ -14,12 +14,17 @@ import { transactionStatus, transactionType } from "@/backend/db/schema/enums";
  * session deletion (`set null`) — the transaction survives as a record of
  * the earning even if the originating session is later removed.
  *
- * IMMUTABLE: this table is append-only. UPDATE and DELETE are blocked by a
- * trigger (`3-immutability-triggers.sql`); corrections are made via a new
- * compensating transaction row, never by editing an existing one. This
+ * IMMUTABLE: this table is append-only. DELETE is blocked by a trigger, and
+ * UPDATE is permitted only to settle a pending withdrawal (`type` =
+ * 'withdrawal', `status` pending -> completed | failed) with every other
+ * column frozen — a settled row is final and earning/bonus rows never move
+ * (`5-teacher-transaction-settlement.sql`). All other UPDATEs are blocked by
+ * the trigger (`3-immutability-triggers.sql`); corrections are made via a
+ * new compensating transaction row, never by editing an existing one. This
  * preserves the audit trail for financial reconciliation. The wallet
- * balance/total_earning are updated atomically by the same trigger that
- * blocks row mutation.
+ * balance/total_earning are maintained by guarded repository UPDATEs in
+ * `WalletRepository` (credit/debit run in the same transaction as the ledger
+ * insert), not by a trigger.
  *
  * Imports `session` from the classes domain for the nullable session link.
  */

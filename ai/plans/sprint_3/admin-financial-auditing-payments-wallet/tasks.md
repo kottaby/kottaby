@@ -36,7 +36,7 @@ Foundation-first with interleaved tests: trigger amendment → types → repo pr
 
 ### Task 0: Pre-Implementation Baseline & Ledgers
 
-- [ ] 0. Establish error baseline + ledgers
+- [x] 0. Establish error baseline + ledgers
   - Run: `bun tsgo 2>&1 | grep "error TS" | wc -l > /tmp/baseline-tsgo.txt`; `bun biome:check 2>&1 | grep -c "warn" > /tmp/baseline-biome.txt`; `bun run scripts/lint-service.ts --json --id baseline > /tmp/baseline-lint.json`
   - Confirm ledger: `ai/plans/sprint_3/admin-financial-auditing-payments-wallet/deferred-items.md` (seeded at planning time)
   - Write outcome: `outcome/0-baseline-outcome.md`
@@ -51,7 +51,7 @@ Foundation-first with interleaved tests: trigger amendment → types → repo pr
 
 ### Phase 2: Backend Foundation
 
-- [ ] 2.1 Trigger amendment migration (D-2) + duplicate-dir verification
+- [x] 2.1 Trigger amendment migration (D-2) + duplicate-dir verification
   - Formally verify the two `custom_4-student-payments-status-transition` dirs (`backend/drizzle/20260907182426_…` / `20260908103411_…`) hold payload-identical SQL; record the diff in the outcome (resolves ledger D1)
   - Author `backend/db/migration/5-teacher-transaction-settlement.sql`: `CREATE OR REPLACE FUNCTION prevent_teacher_transaction_update()` permitting ONLY `pending AND type='withdrawal' → completed|failed` with ALL other columns frozen (`IS NOT DISTINCT FROM`; `updated_at` legitimately changes and is excluded from the freeze — same as the `4-student-payments` precedent)
   - Author the parity variant `5-teacher-transaction-settlement-sqlite.sql` (legacy libsql dialect parity ONLY) AND register it in `EXCLUDED_FILES` at `backend/db/scripts/applyCustomMigrations.ts:58-68` — CRITICAL: an unregistered `*.sql` file gets bundled into the PG pipeline and aborts `bun db migrate`. pglite test DBs consume the PG file (pglite = postgres dialect, PL/pgSQL-supported).
@@ -61,13 +61,13 @@ Foundation-first with interleaved tests: trigger amendment → types → repo pr
   - Outcome: `outcome/2.1-trigger-amendment-outcome.md`
   - _Requirements: REQ-4, REQ-5, REQ-9_
 
-- [ ] 2.2 Canonical types
+- [x] 2.2 Canonical types
   - Create `backend/types/billing/admin-finance.types.ts` per plan.md (NormalizedAdminPaymentFilters, AdminStudentPaymentRow, page wrappers, AdminWalletTransactionFilters, AdminTeacherWalletReturnType/Probe, AdminWithdrawalQueueRow/Page, WithdrawalSettlementProbe, AdminWalletAdjustmentSubmitInput); export via the `backend/types` barrel
   - [ ] 2.2.QL exit 0 · [ ] 2.2.TE type-only (no runtime tests) · [ ] 2.2.SEC no client data widened · [ ] 2.2.SR no duplicate/derivative type definitions of existing shapes · [ ] 2.2.IV read printed rule files
   - Outcome: `outcome/2.2-types-outcome.md`
   - _Requirements: REQ-1, REQ-2, REQ-3, REQ-6_
 
-- [ ] 2.3 Enum + repository primitives + 100% repo tests
+- [x] 2.3 Enum + repository primitives + 100% repo tests
   - New `backend/enum/billing/wallet-adjustment-direction.enum.ts` (`Credit`/`Debit`) + barrel exports
   - `backend/db/repo/billing/student-payment.repository.ts`: `listForAdminAudit`, `countForAdminAudit` (students→users join; `escapeLikeWildcards` on name search; newest-first)
   - `backend/db/repo/billing/wallet.repository.ts`: `findAdminWalletProbe`, `listTransactionsForAdmin` + `countTransactionsForAdmin`, `listPendingWithdrawals` + `countPendingWithdrawals` (predicate parity with the analytics counter), `findSettlementProbe`, `settleWithdrawalOnce`, `restoreWithdrawalDebitOnce`, `creditBonusOnce`, `debitAdjustmentOnce`
@@ -77,7 +77,7 @@ Foundation-first with interleaved tests: trigger amendment → types → repo pr
   - Outcome: `outcome/2.3-repo-primitives-outcome.md`
   - _Requirements: REQ-1, REQ-2, REQ-3, REQ-4, REQ-5, REQ-6, REQ-9_
 
-- [ ] 2.4 Journey test authored TEST-FIRST (expected red until 2.5 lands)
+- [x] 2.4 Journey test authored TEST-FIRST (expected red until 2.5 lands)
   - Create `test/workflows/billing/admin-financial-auditing.journey.test.ts`: J-W1 approve, J-W2 reject (balance restore asserted), J-ADJ credit+debit (+ insufficient-funds denial), payment-audit filter visibility, denials (non-admin service call → reject), concurrent double-settle race (exactly one winner)
   - Per `test/workflows/AGENTS.md`: real services + real DB, committed fixtures via actor-context helpers + tracked `afterAll` cleanup, NO `runInRollback`, no `expect.rejects`, prefix via `journeyPrefix("billing")` (`jrn_billing_<8hex>`)
   - Immutable-ledger teardown: journey-created `teacher_transaction` rows are DELETE-blocked by trigger — hard-delete them FIRST in `afterAll` inside `withImmutabilityTriggersSuspended(["teacher_transaction"])` (helper in `test/helpers/db-cleanup.ts`), never register them in the tracked-fixture registry; audit rows likewise via `withAuditDeleteTriggersSuspended:83` (precedent: the billing `subscription-purchase` journey's payment cleanup)
@@ -123,7 +123,7 @@ Foundation-first with interleaved tests: trigger amendment → types → repo pr
   - Outcome: `outcome/4.1-documents-outcome.md`
   - _Requirements: REQ-1, REQ-2, REQ-3, REQ-0.5_
 
-- [ ] 4.2 Locale: `adminFinance` namespace + error keys (en + ar) + parity
+- [x] 4.2 Locale: `adminFinance` namespace + error keys (en + ar) + parity
   - 5 touchpoints (`shared/locale/types/adminFinance/`, `en/`, `ar/`, `namespaces/adminFinance/`, registry + both `messages.ts`); dashboard `finances` nav label in `shared/locale/{en,ar}/dashboard/`; error keys `withdrawalRequestNotFound`, `withdrawalNotPending`, `invalidAdjustmentAmount`, `adjustmentReasonRequired` (en + ar)
   - Parity test `shared/locale/adminFinance-namespace.parity.test.ts` mirrors the sibling parity tests; errors parity stays green
   - [ ] 4.2.QL exit 0 · [ ] 4.2.TE parity tests green · [ ] 4.2.SEC N/A · [ ] 4.2.SR zero hardcoded strings touched · [ ] 4.2.IV read printed rule files

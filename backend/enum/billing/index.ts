@@ -4,3 +4,4 @@ export * from "./subscription-credit-lane.enum";
 export * from "./subscription-status.enum";
 export * from "./transaction-status.enum";
 export * from "./transaction-type.enum";
+export * from "./wallet-adjustment-direction.enum";

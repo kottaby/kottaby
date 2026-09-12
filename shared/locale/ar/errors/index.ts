@@ -101,4 +101,8 @@ export const errorsAr: ErrorsLabels = {
   homeworkAssignmentBlocksRequired: "يجب تحديد جزء الحفظ أو جزء المراجعة على الأقل في الواجب.",
   sessionRescheduleWindowInvalid: "يجب أن يكون وقت البدء قبل وقت الانتهاء.",
   sessionRescheduleStartInPast: "لا يمكن أن يكون وقت البدء في الماضي بأكثر من 5 دقائق.",
+  withdrawalRequestNotFound: "لم يتم العثور على طلب السحب المطلوب.",
+  withdrawalNotPending: "طلب السحب هذا لم يعد قيد الانتظار.",
+  invalidAdjustmentAmount: "أدخل مبلغ تعديل صالحاً (قيمة موجبة بخانتين عشريتين كحد أقصى).",
+  adjustmentReasonRequired: "سبب التعديل مطلوب ولا يمكن تركه فارغاً.",
 };

@@ -373,7 +373,7 @@ describe("deferred rows trace to the canonical deferred set; coverage map stays 
     expect(ACTION_TYPE_COVERAGE[AuditActionType.Override]).toBe("wired");
     expect(ACTION_TYPE_COVERAGE[AuditActionType.Suspend]).toBe("wired");
     expect(ACTION_TYPE_COVERAGE[AuditActionType.Reactivate]).toBe("wired");
-    expect(ACTION_TYPE_COVERAGE[AuditActionType.Adjust]).toBe("fixture");
+    expect(ACTION_TYPE_COVERAGE[AuditActionType.Adjust]).toBe("wired");
   });
 
   test("coverage marked wired is backed by a wired census row emitting that verb", () => {

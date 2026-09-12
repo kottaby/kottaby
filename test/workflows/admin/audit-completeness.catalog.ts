@@ -179,6 +179,29 @@ export const ADMIN_ACTION_CENSUS: readonly AdminActionCensusEntry[] = [
     kind: "wired",
   },
 
+  // ── Admin financial auditing (AdminFinancialAuditingService) ───────────────
+  {
+    mutationField: "approveWithdrawal",
+    serviceEntry: "AdminFinancialAuditingService.approveWithdrawal",
+    expectedActionTypes: [AuditActionType.Override],
+    expectedEntityType: "teacher_transaction",
+    kind: "wired",
+  },
+  {
+    mutationField: "rejectWithdrawal",
+    serviceEntry: "AdminFinancialAuditingService.rejectWithdrawal",
+    expectedActionTypes: [AuditActionType.Override],
+    expectedEntityType: "teacher_transaction",
+    kind: "wired",
+  },
+  {
+    mutationField: "adjustTeacherWallet",
+    serviceEntry: "AdminFinancialAuditingService.adjustTeacherWallet",
+    expectedActionTypes: [AuditActionType.Adjust],
+    expectedEntityType: "teacher_transaction",
+    kind: "wired",
+  },
+
   // ── Deferred producers (ledger-backed future surfaces) ─────────────────────
   {
     mutationField: "(future) adminExtendSubscription / adminCancelSubscription",
@@ -187,14 +210,6 @@ export const ADMIN_ACTION_CENSUS: readonly AdminActionCensusEntry[] = [
     expectedEntityType: "subscription",
     kind: "deferred",
     deferredRef: "D-001",
-  },
-  {
-    mutationField: "(future) adminAdjustWallet / withdrawal approval",
-    serviceEntry: "financial adjustment surface — unshipped",
-    expectedActionTypes: [AuditActionType.Adjust],
-    expectedEntityType: "wallet",
-    kind: "deferred",
-    deferredRef: "D-002",
   },
   {
     mutationField: "(future) adminResetUserPassword",
@@ -220,5 +235,5 @@ export const ACTION_TYPE_COVERAGE: Record<AuditActionType, "wired" | "fixture" |
   [AuditActionType.Override]: "wired",
   [AuditActionType.Suspend]: "wired",
   [AuditActionType.Reactivate]: "wired",
-  [AuditActionType.Adjust]: "fixture",
+  [AuditActionType.Adjust]: "wired",
 };

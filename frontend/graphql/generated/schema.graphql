@@ -1,3 +1,10 @@
+input AdjustTeacherWalletInput {
+  amount: String!
+  direction: WalletAdjustmentDirection!
+  reason: String!
+  teacherId: ID!
+}
+
 type AdminApplicantExportEnvelope {
   rows: [AdminApplicantItem!]!
   total: Int!
@@ -156,6 +163,34 @@ type AdminStudentPage {
   total: Int!
 }
 
+type AdminStudentPayment {
+  amount: String!
+  createdAt: DateTime!
+  currency: String!
+  id: ID!
+  paymentGateway: PaymentGateway!
+  status: PaymentStatus!
+  studentId: ID!
+  studentName: String!
+  subscriptionId: ID
+}
+
+type AdminStudentPaymentPage {
+  items: [AdminStudentPayment!]!
+  page: Int!
+  pageSize: Int!
+  totalCount: Int!
+}
+
+input AdminStudentPaymentsFilterInput {
+  from: DateTime
+  paymentGateway: PaymentGateway
+  status: PaymentStatus
+  studentId: ID
+  studentName: String
+  to: DateTime
+}
+
 type AdminStudentSnapshot {
   anotherLanguage: String
   balanceHifz: Int
@@ -213,6 +248,18 @@ type AdminTeacherSnapshot {
   isApproved: Boolean!
   isEvaluator: Boolean!
   isOnline: Boolean!
+}
+
+type AdminTeacherWallet {
+  balance: String
+  currency: String!
+  page: Int!
+  pageSize: Int!
+  teacherId: ID!
+  teacherName: String!
+  totalCount: Int!
+  totalEarning: String
+  transactions: [TeacherTransaction!]!
 }
 
 input AdminUpdateUserInput {
@@ -310,6 +357,26 @@ type AdminUserStats {
   suspendedCount: Int!
   teachersCount: Int!
   totalCount: Int!
+}
+
+input AdminWalletTransactionFilterInput {
+  from: DateTime
+  status: TransactionStatus
+  to: DateTime
+  type: TransactionType
+}
+
+type AdminWithdrawalQueuePage {
+  items: [AdminWithdrawalQueueRow!]!
+  page: Int!
+  pageSize: Int!
+  totalCount: Int!
+}
+
+type AdminWithdrawalQueueRow {
+  teacherName: String!
+  transaction: TeacherTransaction!
+  walletBalance: String!
 }
 
 enum AppLocale {
@@ -467,6 +534,8 @@ type LogoutPayload {
 }
 
 type Mutation {
+  adjustTeacherWallet(input: AdjustTeacherWalletInput!): TeacherTransaction!
+
   """
   Broadcasts an admin-authored announcement to the audience selected server-side and returns the persisted recipient count.
   """
@@ -501,6 +570,7 @@ type Mutation {
   adminSetUserDeleted(deleted: Boolean!, id: Int!): AdminUserDetail!
   adminSetUserSuspended(id: Int!, periodDays: Int, suspended: Boolean!): AdminUserDetail!
   adminUpdateUser(id: Int!, input: AdminUpdateUserInput!): AdminUserDetail!
+  approveWithdrawal(transactionId: ID!): TeacherTransaction!
 
   """
   Withdraws exactly one of the caller's own pending link requests (silent fold — zero notifications). A foreign or nonexistent id is indistinguishable — PARENT_LINK_REQUEST_NOT_FOUND with no existence oracle.
@@ -568,6 +638,7 @@ type Mutation {
   """
   refreshToken(refreshToken: String!): RefreshTokenPayload!
   registerUser(input: RegisterUserInput!): User!
+  rejectWithdrawal(reason: String!, transactionId: ID!): TeacherTransaction!
 
   """
   Submits a parent-child link request for the student owning the handshake code. A valid-format code matching no eligible student answers null (missing and governance-excluded are indistinguishable); already-linked and already-pending targets surface their dedicated conflicts.
@@ -859,6 +930,7 @@ type Query {
   _health: HealthCheck!
   adminAuditLogs(filters: AdminAuditLogFiltersInput, page: Int, pageSize: Int): AdminAuditLogPage!
   adminDisputedSessions(filter: SessionListFilterInput, limit: Int = 25, offset: Int = 0): SessionPage!
+  adminPendingWithdrawals(page: Int, pageSize: Int): AdminWithdrawalQueuePage!
 
   """Admin-only query to list plans, optionally including inactive plans."""
   adminPlans(
@@ -880,10 +952,12 @@ type Query {
   List every session for the admin governance directory (admin-only): all rows regardless of state or ownership, newest first, paged with an honest total. Rows carry the server-derived needsAttention badge — presentation only, never an authorization signal.
   """
   adminSessions(filter: AdminSessionListFilterInput!, page: Int = 1, pageSize: Int = 25): SessionPage!
+  adminStudentPayments(filters: AdminStudentPaymentsFilterInput, page: Int, pageSize: Int): AdminStudentPaymentPage!
   adminStudents(filters: AdminStudentFiltersInput, page: Int, pageSize: Int): AdminStudentPage!
   adminStudentsExport(filters: AdminStudentFiltersInput): AdminStudentExportEnvelope!
   adminTeacherApplicants(filters: AdminApplicantFiltersInput, page: Int, pageSize: Int): AdminApplicantPage!
   adminTeacherApplicantsExport(filters: AdminApplicantFiltersInput): AdminApplicantExportEnvelope!
+  adminTeacherWallet(filters: AdminWalletTransactionFilterInput, page: Int, pageSize: Int, teacherId: ID!): AdminTeacherWallet!
   adminTeachers(filters: AdminTeacherFiltersInput, page: Int, pageSize: Int): AdminTeacherPage!
   adminTeachersExport(filters: AdminTeacherFiltersInput): AdminTeacherExportEnvelope!
   adminUserActivity(id: Int!, limit: Int): [AdminUserActivityEntry!]!
@@ -1290,4 +1364,9 @@ type Wallet {
   totalEarning: String!
   transactions: [TeacherTransaction!]!
   updatedAt: DateTime!
+}
+
+enum WalletAdjustmentDirection {
+  Credit
+  Debit
 }
