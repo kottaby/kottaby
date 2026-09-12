@@ -53,58 +53,58 @@
 
 ## Phase 1 — Data Substrate (schema, types, i18n)
 
-### - [x] 1.1 Schema: Write-Once Arbiter + Doc-Comment — `backend/db/schema/teachers/evaluations.ts`
+### - [ ] 1.1 Schema: Write-Once Arbiter + Doc-Comment — `backend/db/schema/teachers/evaluations.ts`
 - Add `unique("evaluations_session_evaluator_unique").on(t.sessionId, t.evaluatorId)` as the last element of the constraint block (:42-47, after the three indexes) and add `unique` to the `drizzle-orm/pg-core` import (:2).
 - Rewrite the file header doc-comment (:6-19) to document BOTH consumers (applicant evaluation pipeline; student→teacher session rating, `score = rating × 20`).
 - Apply with `bun run db push` (schema change; never `db migrate` for this); capture the generated DDL in the outcome; confirm the index exists (`\d evaluations` or DB introspection).
 - Verify no data-loss prompt appears (zero existing writer rows — evidence in `outcome/phase0-baseline-outcome.md`).
 - _Requirements: REQ-003_
-- [x] 1.1.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts backend/db/schema/teachers/evaluations.ts --lifecycle duplicates` (exit 0).
-- [x] 1.1.TE **Test Engineering**: covered transitively by 2.1's repo tests (23505 assertion) — marked here with the transitive note (2.1 not yet executed; name `evaluations_session_evaluator_unique` locked by 1.1).
-- [x] 1.1.SEC **Security & Tenancy Audit**: index introduces no read surface; confirm no existing query breaks (grep all `evaluations` table readers: `platform-analytics.repository.ts` only).
-- [x] 1.1.SR **Semantic Review**: constraint name spelled identically in schema and in the service's 23505 mapping (task 2.3); snapshot/drizzle metadata committed by the push flow.
-- [x] 1.1.IV **Instruction Verification**: read `backend/db/schema/AGENTS.md` + printed instruction files; comply.
+- [ ] 1.1.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts backend/db/schema/teachers/evaluations.ts --lifecycle duplicates` (exit 0).
+- [ ] 1.1.TE **Test Engineering**: covered transitively by 2.1's repo tests (23505 assertion) — mark here once those pass.
+- [ ] 1.1.SEC **Security & Tenancy Audit**: index introduces no read surface; confirm no existing query breaks (grep all `evaluations` table readers: `platform-analytics.repository.ts` only).
+- [ ] 1.1.SR **Semantic Review**: constraint name spelled identically in schema and in the service's 23505 mapping (task 2.3); snapshot/drizzle metadata committed by the push flow.
+- [ ] 1.1.IV **Instruction Verification**: read `backend/db/schema/AGENTS.md` + printed instruction files; comply.
 
-### - [x] 1.2 Canonical Types — `backend/types/teachers/evaluation.types.ts`, `backend/types/classes/session.types.ts`
+### - [ ] 1.2 Canonical Types — `backend/types/teachers/evaluation.types.ts`, `backend/types/classes/session.types.ts`
 - Extend evaluation types per `plan.md` §2.3: `EvaluationInsertType`, `EvaluationReturnType` (Omit `isDeleted`/`deletedAt`/`notes`/`updatedAt`), `EvaluationSubmitInput { readonly rating: number }`.
 - Add `SessionRatingEligibilityProbeType` (Pick of id/studentId/teacherId/status/confirmedByTeacherAt/confirmedByStudentAt) beside — not altering — `SessionTransitionProbeRowType` (:72-75).
 - No barrel edits needed (`export *` covers new symbols); verify with a type-level consumer import in the outcome.
 - _Requirements: REQ-004, REQ-001.7_
-- [x] 1.2.QL **Quality Loop**: sub-loop on BOTH files, exit 0.
-- [x] 1.2.TE **Test Engineering**: type-level correctness is tsgo-enforced (Tier 1); no runtime tests for type aliases.
-- [x] 1.2.SEC **Security & Tenancy Audit**: ReturnType omit-list hides soft-delete internals + notes from GraphQL consumers.
-- [x] 1.2.SR **Semantic Review**: no duplicate probe types; no new local types elsewhere (Pothos must import these).
-- [x] 1.2.IV **Instruction Verification**: read `backend/types/AGENTS.md` + printed instructions.
+- [ ] 1.2.QL **Quality Loop**: sub-loop on BOTH files, exit 0.
+- [ ] 1.2.TE **Test Engineering**: type-level correctness is tsgo-enforced (Tier 1); no runtime tests for type aliases.
+- [ ] 1.2.SEC **Security & Tenancy Audit**: ReturnType omit-list hides soft-delete internals + notes from GraphQL consumers.
+- [ ] 1.2.SR **Semantic Review**: no duplicate probe types; no new local types elsewhere (Pothos must import these).
+- [ ] 1.2.IV **Instruction Verification**: read `backend/types/AGENTS.md` + printed instructions.
 
-### - [x] 1.3 i18n Keys — `shared/locale/types/errors/labels.ts`, `shared/locale/{en,ar}/errors/index.ts`, `shared/locale/types/sessions/labels.ts`, `shared/locale/{en,ar}/sessions/labels.ts`
+### - [ ] 1.3 i18n Keys — `shared/locale/types/errors/labels.ts`, `shared/locale/{en,ar}/errors/index.ts`, `shared/locale/types/sessions/labels.ts`, `shared/locale/{en,ar}/sessions/labels.ts`
 - `errors` (REQ-007): add `evaluationSessionNotCompleted`, `evaluationAlreadySubmitted`, `teacherRatingInvalid` (en+ar, real translations — not transliterations).
 - `sessions` (REQ-009.7): add `rateTeacher`, `rateTeacherTooltip`, `rateTeacherDialogTitle`, `rateTeacherDialogSubmit`, `rateTeacherDialogCancel`, `rateTeacherSuccess`, `teacherRatedChip`, `ratingStarAriaLabel (position: number) => string` (en+ar; typed interpolation in `types/sessions/labels.ts`).
 - Do NOT touch `sessionRatingRange` (`en/errors/index.ts:97` — belongs to the report flow).
 - Run parity: `bun run test/scripts/run-test.ts shared/locale/sessions-namespace.parity.test.ts` and `…/errors-namespace.parity.test.ts`.
 - _Requirements: REQ-002, REQ-007, REQ-009_
-- [x] 1.3.QL **Quality Loop**: sub-loop on each touched locale/type file (exit 0).
-- [x] 1.3.TE **Test Engineering**: the two parity suites (key parity, ICU placeholder agreement, Arabic-script sanity) — extend nothing; they verify automatically.
-- [x] 1.3.SEC **Security & Tenancy Audit**: n/a (static strings).
-- [x] 1.3.SR **Semantic Review**: interpolation signatures identical en↔ar; no key collisions with existing `sessions` keys (`statusCompleted`, `confirmCompletion`, …).
-- [x] 1.3.IV **Instruction Verification**: read `shared/locale/AGENTS.md`, `shared/AGENTS.md` + printed instructions (`@/shared/locale` alias imports only).
+- [ ] 1.3.QL **Quality Loop**: sub-loop on each touched locale/type file (exit 0).
+- [ ] 1.3.TE **Test Engineering**: the two parity suites (key parity, ICU placeholder agreement, Arabic-script sanity) — extend nothing; they verify automatically.
+- [ ] 1.3.SEC **Security & Tenancy Audit**: n/a (static strings).
+- [ ] 1.3.SR **Semantic Review**: interpolation signatures identical en↔ar; no key collisions with existing `sessions` keys (`statusCompleted`, `confirmCompletion`, …).
+- [ ] 1.3.IV **Instruction Verification**: read `shared/locale/AGENTS.md`, `shared/AGENTS.md` + printed instructions (`@/shared/locale` alias imports only).
 ---
 
 ## Phase 2 — Backend (repository → journey-first → service)
 
-### - [x] 2.1 Repository — `backend/db/repo/teachers/evaluation.repository.ts` (NEW) + `backend/db/repo/classes/session.repository.ts` (EXTEND) + `backend/db/repo/teachers/index.ts` (barrel)
+### - [ ] 2.1 Repository — `backend/db/repo/teachers/evaluation.repository.ts` (NEW) + `backend/db/repo/classes/session.repository.ts` (EXTEND) + `backend/db/repo/teachers/index.ts` (barrel)
 - Create `EvaluationRepository` namespace with `insertOnce(values: Pick<EvaluationInsertType, "evaluatedId" | "evaluatorId" | "sessionId" | "score">, tx)` (typed payload — precedent `insertReport(insert: ReportInsertType, …)` at `backend/db/repo/classes/report.repository.ts:54`) and `listByEvaluator(evaluatorId, tx?)` exactly as specified in `plan.md` §4.2 (soft-delete exclusion mirroring `platform-analytics.repository.ts:384`, order `createdAt DESC, id DESC`). The non-transactional `listByEvaluator` path MUST go through `queryDb` raw SQL per `backend/AGENTS.md:24` (precedent `report.repository.ts:63-72`); the tx path stays Drizzle.
 - Extend `SessionRepository` with `findRatingEligibilityProbe(sessionId, tx)` (non-locking; projection = `SessionRatingEligibilityProbeType`; `tx` REQUIRED).
 - Add the barrel export; keep the repo free of business logic, translations, and error translation.
 - Tests: NEW `backend/db/test/repo/teachers/evaluation.repository.test.ts` — happy-path insert (FK columns + converted score), unique-index 23505 via `expectRepoError` + `constraintNameOf(err) === "evaluations_session_evaluator_unique"`, soft-delete exclusion (soft-deleted row filtered; NULL `is_deleted` rows still returned), ordering with 3 rows, `sessionId: null` rows unaffected by the unique index. Probe coverage added in the closest session repo test file's style (six-column projection, unknown id → null).
 - Run: `bun run test/scripts/run-test.ts backend/db/test/repo/teachers/evaluation.repository.test.ts`.
 - _Requirements: REQ-005, REQ-012, REQ-013.1_
-- [x] 2.1.QL **Quality Loop**: sub-loop on all three edited/created files (exit 0).
-- [x] 2.1.TE **Test Engineering**: Tier 1 100% branch coverage of both functions; Tier 2 boundaries (_nullable_ `sessionId`, `isDeleted` tri-state false/null/true); Tier 3 concurrent `insertOnce` pair under `Promise.allSettled`; Tier 4 enormous/absurd ids.
-- [x] 2.1.SEC **Security & Tenancy Audit**: `listByEvaluator` is caller-scoped (no teacherId/evaluatedId filter parameter that could widen reads); raw 23505 surfaces untranslated for the service to own.
-- [x] 2.1.SR **Semantic Review**: no SELECT-then-INSERT helpers; `tx` unoptional on writes; probe never feeds a guarded update.
-- [x] 2.1.IV **Instruction Verification**: read `backend/db/repo/AGENTS.md`, `backend/AGENTS.md` + printed instructions.
+- [ ] 2.1.QL **Quality Loop**: sub-loop on all three edited/created files (exit 0).
+- [ ] 2.1.TE **Test Engineering**: Tier 1 100% branch coverage of both functions; Tier 2 boundaries (_nullable_ `sessionId`, `isDeleted` tri-state false/null/true); Tier 3 concurrent `insertOnce` pair under `Promise.allSettled`; Tier 4 enormous/absurd ids.
+- [ ] 2.1.SEC **Security & Tenancy Audit**: `listByEvaluator` is caller-scoped (no teacherId/evaluatedId filter parameter that could widen reads); raw 23505 surfaces untranslated for the service to own.
+- [ ] 2.1.SR **Semantic Review**: no SELECT-then-INSERT helpers; `tx` unoptional on writes; probe never feeds a guarded update.
+- [ ] 2.1.IV **Instruction Verification**: read `backend/db/repo/AGENTS.md`, `backend/AGENTS.md` + printed instructions.
 
-### - [ ] 2.2 Journey Test (test-first, RED) — `test/workflows/teachers/student-teacher-rating.journey.test.ts` (NEW dir)
+### - [x] 2.2 Journey Test (test-first, RED) — `test/workflows/teachers/student-teacher-rating.journey.test.ts` (NEW dir)
 - Author the journey for REQ-J1..J4 BEFORE the service exists (RED by failure): new directory `test/workflows/teachers/`.
 - Harness (verified patterns): `bun:test`; import real services `SessionLifecycleService` + (future) `StudentEvaluationService`; `journeyPrefix("teachers")`; `createSessionFixtureRegistry()` (`test/workflows/helpers/journey-fixture-registry.ts:122`); `beforeAll` commits fixtures via `buildSessionJourneyCast` (`test/workflows/helpers/session-cast.ts:280-284`); every created row `registry.track(...)`ed; `afterAll` `registry.cleanup()`; final test asserts `registry.trackedCount()`.
 - **Registry extension (required first)**: `JourneyTrackedTable` + `JOURNEY_TRACKED_TABLE_DELETE_ORDER` (`test/workflows/helpers/journey-fixture-registry.ts:67-77`) currently do NOT include `evaluations`, and `track("evaluations", …)` would throw. Add `"evaluations"` to the tracked-table union and to the delete order BEFORE `users` (the `evaluator_id → users.id` FK is RESTRICT, `evaluations.ts:28-30` — user teardown must see the rating rows already gone). Extend `test/workflows/helpers/helpers.self-test.test.ts` accordingly (`test/workflows/AGENTS.md` self-test rule).
@@ -112,11 +112,11 @@
 - Denial assertions via local try/catch helper asserting `DomainError.code` + exact translated message from `getServerTranslations("en").errorsTranslations` (pattern: `session-dual-confirmation.journey.test.ts:135-149`). NO `runInRollback` in this file (`test/workflows/AGENTS.md:8-11`).
 - Run (RED expected pre-2.3): `bun run test/scripts/run-test.ts test/workflows/teachers/student-teacher-rating.journey.test.ts`.
 - _Requirements: REQ-J1, REQ-J2, REQ-J3, REQ-J4, REQ-013.3_
-- [ ] 2.2.QL **Quality Loop**: sub-loop on the new file (exit 0; the file may fail tests — type/lint must pass).
-- [ ] 2.2.TE **Test Engineering**: this IS the Tier-1..4 journey deliverable; chaos leg = concurrent dup race.
-- [ ] 2.2.SEC **Security & Tenancy Audit**: REQ-J4 oracle identity asserted byte-identically (same code + message for unknown id and foreign session).
-- [ ] 2.2.SR **Semantic Review**: fixtures are committed (not rollback); every row tracked; no seed-data usage.
-- [ ] 2.2.IV **Instruction Verification**: read `test/workflows/AGENTS.md` + tests instructions.
+- [x] 2.2.QL **Quality Loop**: sub-loop on the new file (exit 0; the file may fail tests — type/lint must pass).
+- [x] 2.2.TE **Test Engineering**: this IS the Tier-1..4 journey deliverable; chaos leg = concurrent dup race.
+- [x] 2.2.SEC **Security & Tenancy Audit**: REQ-J4 oracle identity asserted byte-identically (same code + message for unknown id and foreign session).
+- [x] 2.2.SR **Semantic Review**: fixtures are committed (not rollback); every row tracked; no seed-data usage.
+- [x] 2.2.IV **Instruction Verification**: read `test/workflows/AGENTS.md` + tests instructions.
 ### - [ ] 2.3 Service — `backend/services/teachers/student-evaluation.service.ts` (NEW) + `backend/services/teachers/index.ts`
 - Implement `StudentEvaluationService.submitTeacherEvaluation` and `listMyTeacherEvaluations` exactly per `plan.md` §4.1 (guard order, `withTransaction`, probe gate, oracle collapse, 23505 mapping, one `logDomainError` per denial, success logs nothing).
 - Reuse `assertPositiveSafeSessionId` (`backend/services/classes/session-lifecycle.guards.ts:123`) — do not re-implement id guards.
