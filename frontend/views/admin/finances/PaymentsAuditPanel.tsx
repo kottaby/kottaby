@@ -48,7 +48,7 @@ import { DirectoryHeaderCell } from "@/frontend/views/admin/directory-shared/Dir
 import { DirectoryMobileCardList } from "@/frontend/views/admin/directory-shared/DirectoryMobileCardList";
 import type { DirectoryTableHeader } from "@/frontend/views/admin/directory-shared/DirectoryTableScaffold";
 import { directoryTableCardSx } from "@/frontend/views/admin/directory-shared/directory-skins";
-import { AdminFinancePaginationBar } from "@/frontend/views/admin/finances/AdminFinancePaginationBar";
+import { FinanceTableFooter } from "@/frontend/views/admin/finances/FinanceTableFooter";
 import { PaymentsFilterBar } from "@/frontend/views/admin/finances/PaymentsFilterBar";
 import {
   type AppliedPaymentFilters,
@@ -72,15 +72,21 @@ const PAYMENTS_SKELETON_KEYS = [
   "admin-payment-skeleton-8",
 ] as const;
 
-/** Payment lifecycle → tonal lane (paid = success, pending = warning, failed/refunded = error/neutral). */
+/**
+ * Payment lifecycle → tonal lane over the canonical capitalized
+ * `PaymentStatus` wire values (Paid = success, Pending = warning,
+ * Failed = error, Refunded = neutral); unknown wire values fall to neutral.
+ */
 function paymentStatusTone(status: string): DirectoryTone {
   switch (status) {
-    case "paid":
+    case "Paid":
       return "success";
-    case "pending":
+    case "Pending":
       return "warning";
-    case "failed":
+    case "Failed":
       return "error";
+    case "Refunded":
+      return "neutral";
     default:
       return "neutral";
   }
@@ -325,28 +331,13 @@ function PaymentsTableCard({
           </TableBody>
         </Table>
       </TableContainer>
-      <Stack
-        direction="row"
-        sx={theme => ({
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: 2,
-          flexWrap: "wrap",
-          py: 2,
-          px: 2.5,
-          borderTop: `1px solid ${theme.palette.border.light}`,
-        })}
-      >
-        <Typography variant="body2" component="p" sx={theme => ({ color: theme.palette.text.secondary })}>
-          {labels.paymentsResultCount(totalCount)}
-        </Typography>
-        <AdminFinancePaginationBar
-          page={page}
-          pageSize={pageSize}
-          totalCount={totalCount}
-          onPageChange={onPageChange}
-        />
-      </Stack>
+      <FinanceTableFooter
+        countLine={labels.paymentsResultCount(totalCount)}
+        page={page}
+        pageSize={pageSize}
+        totalCount={totalCount}
+        onPageChange={onPageChange}
+      />
     </Card>
   );
 }

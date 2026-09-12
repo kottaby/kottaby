@@ -13,15 +13,22 @@
  *    refetches keep the current rows visible while the fresh page streams
  *    in). Filters are a normalized wire shape (`AdminStudentPaymentsFilterInput`)
  *    built from the applied filter state — unset members ride as `null`
- *    (the absent field), dates serialize to ISO-8601 UTC instants.
+ *    (the absent field), dates serialize to ISO-8601 UTC instants. The
+ *    `previousData` fallback is scoped to the current variables (the
+ *    envelope's echoed `page`/`pageSize` pair) — a filter/page change never
+ *    renders the stale page's rows while loading.
  *  - `useAdminTeacherWallet` — the wallet inspector read keyed to the
  *    picked teacher. The query is SKIPPED while no teacher is picked (the
  *    picker seeds from the `?teacherId=` deep link) via `skipToken`, which
  *    forces the `standby` fetch policy — standby watchers are excluded
  *    from every refetch path (`refetchQueries` skips them), so no network
- *    request can ever fire with the `"0"` sentinel variables.
+ *    request can ever fire with the `"0"` sentinel variables. The
+ *    `previousData` fallback is scoped to the CURRENT teacher (the
+ *    document's embedded `adminTeacherWallet.teacherId`) — a teacher
+ *    switch never renders the other teacher's wallet while loading.
  *  - `useAdminPendingWithdrawals` — the oldest-first payout queue (the
- *    backend's own ordering; `id ASC`).
+ *    backend's own ordering; `id ASC`). The `previousData` fallback is
+ *    scoped to the current variables (the echoed `page`/`pageSize` pair).
  *
  * Writes — the mutation hooks own the cache-refresh arm AND the error
  * classification:
@@ -237,9 +244,12 @@ export function useAdminStudentPayments(initialFilters: AppliedPaymentFilters = 
     fetchPolicy: "cache-and-network",
   });
 
-  // `errorPolicy: "none"` (the default) drops `data` when a refetch fails;
-  // `previousData` keeps the last good page visible beside the error alert.
-  const pageData = data ?? previousData;
+  // The fallback is scoped to the current variables (echoed
+  // `page`/`pageSize`): a filter/page change never renders stale rows.
+  const prevPayments = previousData?.adminStudentPayments;
+  const pageData =
+    data ??
+    (prevPayments?.page === variables.page && prevPayments?.pageSize === variables.pageSize ? previousData : undefined);
   const items = pageData?.adminStudentPayments.items ?? [];
   const totalCount = pageData?.adminStudentPayments.totalCount ?? 0;
   const hasError = Boolean(error);
@@ -312,10 +322,15 @@ export function useAdminTeacherWallet(
     teacherId === null ? skipToken : { fetchPolicy: "cache-and-network" as const, variables }
   );
 
-  const pageData = data ?? previousData;
-  // The null-pair `balance`/`totalEarning` means the teacher has no wallet
-  // row yet — the honest no-wallet state the inspector renders (never fake
-  // zeros). The pair is forwarded VERBATIM: `null` while unresolved too.
+  // The fallback is scoped to the current teacher (the embedded
+  // `adminTeacherWallet.teacherId`): a teacher switch never renders the
+  // other teacher's wallet while loading. The `"0"` sentinel cannot cross
+  // the null boundary (skipToken → standby, no refetch), but the guard is
+  // total. The null-pair `balance`/`totalEarning` means no wallet row yet —
+  // forwarded VERBATIM (never fake zeros).
+  const pageData =
+    data ??
+    (previousData && previousData.adminTeacherWallet.teacherId === variables.teacherId ? previousData : undefined);
   const wallet = pageData?.adminTeacherWallet ?? null;
   const hasError = Boolean(error);
 
@@ -369,7 +384,14 @@ export function useAdminPendingWithdrawals() {
     fetchPolicy: "cache-and-network",
   });
 
-  const pageData = data ?? previousData;
+  // The fallback is scoped to the current variables (echoed
+  // `page`/`pageSize`): a page change never renders stale rows.
+  const prevWithdrawals = previousData?.adminPendingWithdrawals;
+  const pageData =
+    data ??
+    (prevWithdrawals?.page === variables.page && prevWithdrawals?.pageSize === variables.pageSize
+      ? previousData
+      : undefined);
   const items = pageData?.adminPendingWithdrawals.items ?? [];
   const totalCount = pageData?.adminPendingWithdrawals.totalCount ?? 0;
   const hasError = Boolean(error);

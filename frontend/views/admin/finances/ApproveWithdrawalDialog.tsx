@@ -9,7 +9,9 @@
  * Structural sibling of the session-governance dialog family: the gated
  * `Dialog` shell (backdrop click and Escape are IGNORED while the mutation
  * is pending — the cancel Button is separately disabled), the form element
- * hosted on the paper, and `React.SubmitEvent` discipline.
+ * hosted on the paper, and `React.SubmitEvent` discipline — carried by the
+ * shared {@link GovernanceFormDialog} / {@link GovernanceDialogActions}
+ * atoms.
  *
  * The mutation lives in the parent panel's `useApproveWithdrawal` seam —
  * this dialog is presentational and receives the trigger + in-flight flag.
@@ -18,8 +20,12 @@
  * targets, keyboard-focusable dialog (`aria-labelledby`).
  */
 
-import { Button, Dialog, DialogActions, DialogContent, DialogTitle, Typography } from "@mui/material";
+import { Typography } from "@mui/material";
 import type { ReactNode } from "react";
+import {
+  GovernanceDialogActions,
+  GovernanceFormDialog,
+} from "@/frontend/views/admin/session-governance/dialogFormAtoms";
 import { AdminFinance, Common, useAppTranslation } from "@/shared/locale";
 
 interface ApproveWithdrawalDialogProps {
@@ -54,43 +60,27 @@ export function ApproveWithdrawalDialog({
     onSubmit();
   };
 
-  const handleDialogClose = (): void => {
-    if (!loading) {
-      onClose();
-    }
-  };
-
   return (
-    <Dialog
+    <GovernanceFormDialog
       open={open}
-      onClose={handleDialogClose}
-      fullWidth
-      maxWidth="sm"
-      slotProps={{ paper: { component: "form", onSubmit: handleSubmit } }}
-      aria-labelledby="approve-withdrawal-dialog-title"
+      onClose={onClose}
+      loading={loading}
+      onSubmit={handleSubmit}
+      titleId="approve-withdrawal-dialog-title"
+      title={t.approveAction}
+      actions={
+        <GovernanceDialogActions
+          onClose={onClose}
+          loading={loading}
+          cancelLabel={tc.cancel}
+          submitLabel={t.approveAction}
+          submitTestId={submitTestId}
+        />
+      }
     >
-      <DialogTitle id="approve-withdrawal-dialog-title" sx={theme => ({ color: theme.palette.onSurface })}>
-        {t.approveAction}
-      </DialogTitle>
-      <DialogContent sx={{ display: "grid", gap: 2 }}>
-        <Typography variant="body2" component="p" sx={theme => ({ color: theme.palette.text.secondary })}>
-          {teacherName}
-        </Typography>
-      </DialogContent>
-      <DialogActions sx={{ px: 3, pb: 3, gap: 1 }}>
-        <Button onClick={onClose} disabled={loading} sx={{ minHeight: { xs: 44, sm: 40 }, px: 3 }}>
-          {tc.cancel}
-        </Button>
-        <Button
-          type="submit"
-          variant="contained"
-          disabled={loading}
-          data-testid={submitTestId}
-          sx={{ minHeight: { xs: 44, sm: 40 }, px: 3 }}
-        >
-          {t.approveAction}
-        </Button>
-      </DialogActions>
-    </Dialog>
+      <Typography variant="body2" component="p" sx={theme => ({ color: theme.palette.text.secondary })}>
+        {teacherName}
+      </Typography>
+    </GovernanceFormDialog>
   );
 }

@@ -11,7 +11,8 @@
  * Structural sibling of {@link ApproveWithdrawalDialog}: the gated
  * `Dialog` shell (backdrop click and Escape are IGNORED while the mutation
  * is pending), the form element hosted on the paper, and
- * `React.SubmitEvent` discipline.
+ * `React.SubmitEvent` discipline — carried by the shared
+ * {@link GovernanceFormDialog} / {@link GovernanceDialogActions} atoms.
  *
  * The mutation lives in the parent panel's `useRejectWithdrawal` seam —
  * this dialog is presentational and receives the trigger + in-flight flag.
@@ -20,8 +21,12 @@
  * targets, keyboard-focusable dialog (`aria-labelledby`).
  */
 
-import { Button, Dialog, DialogActions, DialogContent, DialogTitle, TextField } from "@mui/material";
+import { TextField } from "@mui/material";
 import { type ReactNode, useEffect, useState } from "react";
+import {
+  GovernanceDialogActions,
+  GovernanceFormDialog,
+} from "@/frontend/views/admin/session-governance/dialogFormAtoms";
 import { AdminFinance, Errors, useAppTranslation } from "@/shared/locale";
 
 interface RejectWithdrawalDialogProps {
@@ -74,61 +79,43 @@ export function RejectWithdrawalDialog({
     onSubmit(trimmed);
   };
 
-  const handleDialogClose = (): void => {
-    if (!loading) {
-      onClose();
-    }
-  };
-
   return (
-    <Dialog
+    <GovernanceFormDialog
       open={open}
-      onClose={handleDialogClose}
-      fullWidth
-      maxWidth="sm"
-      slotProps={{ paper: { component: "form", onSubmit: handleSubmit } }}
-      aria-labelledby={`reject-withdrawal-dialog-title-${transactionId}`}
-    >
-      <DialogTitle
-        id={`reject-withdrawal-dialog-title-${transactionId}`}
-        sx={theme => ({ color: theme.palette.onSurface })}
-      >
-        {t.rejectDialogTitle}
-      </DialogTitle>
-      <DialogContent sx={{ display: "grid", gap: 2 }}>
-        <TextField
-          label={t.rejectReasonLabel}
-          placeholder={t.rejectReasonPlaceholder}
-          value={reason}
-          onChange={event => {
-            setReason(event.target.value);
-            setReasonInvalid(false);
-          }}
-          required
-          multiline
-          minRows={3}
-          error={reasonInvalid}
-          helperText={reasonInvalid ? te.adjustmentReasonRequired : undefined}
-          aria-invalid={reasonInvalid}
-          data-testid={`reject-withdrawal-reason-${transactionId}`}
-          slotProps={{ htmlInput: { autoComplete: "off" } }}
+      onClose={onClose}
+      loading={loading}
+      onSubmit={handleSubmit}
+      titleId={`reject-withdrawal-dialog-title-${transactionId}`}
+      title={t.rejectDialogTitle}
+      actions={
+        <GovernanceDialogActions
+          onClose={onClose}
+          loading={loading}
+          cancelLabel={t.rejectCancel}
+          submitLabel={t.rejectConfirm}
+          submitTestId={submitTestId}
+          submitDisabled={reason.trim() === ""}
+          submitColor="error"
         />
-      </DialogContent>
-      <DialogActions sx={{ px: 3, pb: 3, gap: 1 }}>
-        <Button onClick={onClose} disabled={loading} sx={{ minHeight: { xs: 44, sm: 40 }, px: 3 }}>
-          {t.rejectCancel}
-        </Button>
-        <Button
-          type="submit"
-          variant="contained"
-          color="error"
-          disabled={loading || reason.trim() === ""}
-          data-testid={submitTestId}
-          sx={{ minHeight: { xs: 44, sm: 40 }, px: 3 }}
-        >
-          {t.rejectConfirm}
-        </Button>
-      </DialogActions>
-    </Dialog>
+      }
+    >
+      <TextField
+        label={t.rejectReasonLabel}
+        placeholder={t.rejectReasonPlaceholder}
+        value={reason}
+        onChange={event => {
+          setReason(event.target.value);
+          setReasonInvalid(false);
+        }}
+        required
+        multiline
+        minRows={3}
+        error={reasonInvalid}
+        helperText={reasonInvalid ? te.adjustmentReasonRequired : undefined}
+        aria-invalid={reasonInvalid}
+        data-testid={`reject-withdrawal-reason-${transactionId}`}
+        slotProps={{ htmlInput: { autoComplete: "off" } }}
+      />
+    </GovernanceFormDialog>
   );
 }

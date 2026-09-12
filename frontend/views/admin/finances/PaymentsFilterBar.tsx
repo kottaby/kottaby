@@ -14,8 +14,7 @@
  * discipline, theme-palette colors, ≥44px touch targets.
  */
 
-import { FilterListOutlined } from "@mui/icons-material";
-import { Box, Button, FormControl, InputLabel, MenuItem, Select, Stack, TextField, Typography } from "@mui/material";
+import { FormControl, InputLabel, MenuItem, Select, Stack, TextField } from "@mui/material";
 import { type ReactNode, useId, useState } from "react";
 import {
   type PaymentGateway,
@@ -23,6 +22,8 @@ import {
   type PaymentStatus,
   PaymentStatus as PaymentStatusEnum,
 } from "@/frontend/graphql/generated/gql/graphql";
+import { FilterActionsRow } from "@/frontend/views/admin/directory-shared/FilterActionsRow";
+import { FilterSectionShell } from "@/frontend/views/admin/directory-shared/FilterSectionShell";
 import type { AppliedPaymentFilters } from "@/frontend/views/admin/finances/useAdminFinanceQueries";
 import { useAppTranslation } from "@/shared/locale/client";
 import { AdminFinance } from "@/shared/locale/namespaces/adminFinance";
@@ -134,29 +135,12 @@ export function PaymentsFilterBar({ onApply, onReset }: Readonly<PaymentsFilterB
   };
 
   return (
-    <Box
-      component="form"
+    <FilterSectionShell
+      testId="admin-finances-payments-filters"
+      title={t.studentSearchLabel}
+      gridTemplateColumns={{ xs: "1fr", sm: "repeat(2, 1fr)", md: "repeat(4, 1fr)" }}
       onSubmit={handleSubmit}
-      noValidate
-      data-testid="admin-finances-payments-filters"
-      sx={theme => ({
-        display: "grid",
-        gap: 2,
-        gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)", md: "repeat(4, 1fr)" },
-        p: { xs: 2, sm: 2.5 },
-        borderRadius: 3,
-        border: "1px solid",
-        borderColor: theme.palette.outlineVariant,
-        bgcolor: theme.palette.surfaceContainerLow,
-      })}
     >
-      <Stack sx={{ flexDirection: "row", alignItems: "center", gap: 1, gridColumn: "1 / -1" }}>
-        <FilterListOutlined fontSize="small" sx={theme => ({ color: theme.palette.text.secondary })} />
-        <Typography variant="subtitle2" component="h2" sx={{ fontWeight: 700 }}>
-          {t.studentSearchLabel}
-        </Typography>
-      </Stack>
-
       <TextField
         id={SEARCH_INPUT_ID}
         fullWidth
@@ -234,43 +218,14 @@ export function PaymentsFilterBar({ onApply, onReset }: Readonly<PaymentsFilterB
         />
       </Stack>
 
-      <Stack
-        sx={{
-          flexDirection: { xs: "column", sm: "row" },
-          gap: 1.5,
-          gridColumn: "1 / -1",
-          justifyContent: "flex-end",
-          alignItems: { xs: "stretch", sm: "center" },
-        }}
-      >
-        <Button
-          variant="outlined"
-          onClick={handleReset}
-          data-testid="admin-finances-filters-reset"
-          sx={theme => ({
-            minHeight: { xs: 44, sm: 40 },
-            px: 3,
-            // Quiet must stay legible on the dark filter card — the reset
-            // rides the near-white text + solid outline pair.
-            color: theme.palette.text.primary,
-            borderColor: theme.palette.outline,
-            "&:hover": {
-              borderColor: theme.palette.primary.main,
-              backgroundColor: "transparent",
-            },
-          })}
-        >
-          {t.resetFilters}
-        </Button>
-        <Button
-          type="submit"
-          variant="contained"
-          data-testid="admin-finances-filters-apply"
-          sx={{ minHeight: { xs: 44, sm: 40 }, px: 3 }}
-        >
-          {t.applyFilters}
-        </Button>
-      </Stack>
-    </Box>
+      <FilterActionsRow
+        onReset={handleReset}
+        resetTestId="admin-finances-filters-reset"
+        resetLabel={t.resetFilters}
+        applySubmitsForm
+        applyTestId="admin-finances-filters-apply"
+        applyLabel={t.applyFilters}
+      />
+    </FilterSectionShell>
   );
 }

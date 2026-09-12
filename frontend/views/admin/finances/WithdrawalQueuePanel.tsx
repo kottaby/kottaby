@@ -41,6 +41,7 @@ import {
   TableRow,
   Typography,
 } from "@mui/material";
+import type { SxProps, Theme } from "@mui/material/styles";
 import { type ReactNode, useState } from "react";
 import { ErrorRetryAlert } from "@/frontend/components/ui/ErrorRetryAlert";
 import { NoticeSnackbar } from "@/frontend/components/ui/NoticeSnackbar";
@@ -50,9 +51,14 @@ import { formatApplicantDate } from "@/frontend/lib/i18n/format-date";
 import { mapGraphQLErrorByCode } from "@/frontend/providers/apollo/error-link.map";
 import { formatMoneyAmount } from "@/frontend/views/admin/analytics/platform-analytics-display";
 import { DirectoryHeaderCell } from "@/frontend/views/admin/directory-shared/DirectoryHeaderCell";
-import { directoryTableCardSx } from "@/frontend/views/admin/directory-shared/directory-skins";
+import {
+  directoryPanelCardSx,
+  directorySkeletonCardSx,
+  directoryTableCardSx,
+} from "@/frontend/views/admin/directory-shared/directory-skins";
 import { AdminFinancePaginationBar } from "@/frontend/views/admin/finances/AdminFinancePaginationBar";
 import { ApproveWithdrawalDialog } from "@/frontend/views/admin/finances/ApproveWithdrawalDialog";
+import { FinanceTableFooter } from "@/frontend/views/admin/finances/FinanceTableFooter";
 import { RejectWithdrawalDialog } from "@/frontend/views/admin/finances/RejectWithdrawalDialog";
 import {
   useAdminPendingWithdrawals,
@@ -77,6 +83,79 @@ const WITHDRAWALS_SKELETON_KEYS = [
 
 /** Snackbar autohide — the shared container-notice cadence. */
 const NOTICE_AUTOHIDE_MS = 4000;
+
+/** The shared settle action button skin — theme-palette colors only. */
+function settleButtonSx(hoverLane: "approve" | "reject"): SxProps<Theme> {
+  return theme => ({
+    minHeight: 44,
+    px: 2,
+    borderRadius: 2,
+    border: "1px solid",
+    borderColor: theme.palette.outline,
+    bgcolor: "transparent",
+    color: theme.palette.text.primary,
+    cursor: "pointer",
+    "&:hover": { borderColor: hoverLane === "reject" ? theme.palette.error.main : theme.palette.primary.main },
+  });
+}
+
+interface QueueSettleButtonsProps {
+  /** The transaction id (both testids key on it). */
+  readonly transactionId: string;
+  /** Approve intent — opens the approve confirm dialog. */
+  readonly onApprove: () => void;
+  /** Reject intent — opens the reject dialog (mandatory reason). */
+  readonly onReject: () => void;
+  /** Localized approve CTA copy. */
+  readonly approveLabel: string;
+  /** Localized reject CTA copy. */
+  readonly rejectLabel: string;
+  /** Extra row alignment (the mobile cards right-align the pair). */
+  readonly justifyContent?: "flex-end";
+}
+
+/** The approve/reject settle-button pair (shared by the desktop rows and the mobile cards). */
+function QueueSettleButtons({
+  transactionId,
+  onApprove,
+  onReject,
+  approveLabel,
+  rejectLabel,
+  justifyContent,
+}: Readonly<QueueSettleButtonsProps>): ReactNode {
+  return (
+    <Stack direction="row" spacing={1} sx={{ justifyContent }}>
+      <Box
+        component="button"
+        type="button"
+        onClick={onApprove}
+        data-testid={`admin-finances-approve-${transactionId}`}
+        sx={settleButtonSx("approve")}
+      >
+        {approveLabel}
+      </Box>
+      <Box
+        component="button"
+        type="button"
+        onClick={onReject}
+        data-testid={`admin-finances-reject-${transactionId}`}
+        sx={settleButtonSx("reject")}
+      >
+        {rejectLabel}
+      </Box>
+    </Stack>
+  );
+}
+
+/** Mobile queue row card skin — the panel card recipe plus 16px padding. */
+function mobileQueueRowCardSx(): SxProps<Theme> {
+  return theme => ({
+    borderRadius: "12px",
+    border: `1px solid ${theme.palette.border.light}`,
+    boxShadow: theme.palette.shadow.card,
+    p: 2,
+  });
+}
 
 /** Settlement status → tonal lane (pending = warning; settled = terminal). */
 function withdrawalStatusTone(status: string): DirectoryTone {
@@ -154,50 +233,17 @@ function WithdrawalRow({
         />
       </TableCell>
       <TableCell sx={theme => ({ borderBottom: `1px solid ${theme.palette.border.light}` })}>
-        <Stack direction="row" spacing={1}>
-          <Box
-            component="button"
-            type="button"
-            onClick={() => {
-              onApprove(item);
-            }}
-            data-testid={`admin-finances-approve-${item.transaction.id}`}
-            sx={theme => ({
-              minHeight: 44,
-              px: 2,
-              borderRadius: 2,
-              border: "1px solid",
-              borderColor: theme.palette.outline,
-              bgcolor: "transparent",
-              color: theme.palette.text.primary,
-              cursor: "pointer",
-              "&:hover": { borderColor: theme.palette.primary.main },
-            })}
-          >
-            {t.approveAction}
-          </Box>
-          <Box
-            component="button"
-            type="button"
-            onClick={() => {
-              onReject(item);
-            }}
-            data-testid={`admin-finances-reject-${item.transaction.id}`}
-            sx={theme => ({
-              minHeight: 44,
-              px: 2,
-              borderRadius: 2,
-              border: "1px solid",
-              borderColor: theme.palette.outline,
-              bgcolor: "transparent",
-              color: theme.palette.text.primary,
-              cursor: "pointer",
-              "&:hover": { borderColor: theme.palette.error.main },
-            })}
-          >
-            {t.rejectAction}
-          </Box>
-        </Stack>
+        <QueueSettleButtons
+          transactionId={item.transaction.id}
+          onApprove={() => {
+            onApprove(item);
+          }}
+          onReject={() => {
+            onReject(item);
+          }}
+          approveLabel={t.approveAction}
+          rejectLabel={t.rejectAction}
+        />
       </TableCell>
     </TableRow>
   );
@@ -273,36 +319,287 @@ function WithdrawalTableCard({
           ))}
         </TableBody>
       </Table>
-      <Stack
-        direction="row"
-        sx={theme => ({
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: 2,
-          flexWrap: "wrap",
-          py: 2,
-          px: 2.5,
-          borderTop: `1px solid ${theme.palette.border.light}`,
-        })}
-      >
-        <Typography variant="body2" component="p" sx={theme => ({ color: theme.palette.text.secondary })}>
-          {t.pendingWithdrawalsCount(totalCount)}
-        </Typography>
-        <AdminFinancePaginationBar
-          page={page}
-          pageSize={pageSize}
-          totalCount={totalCount}
-          onPageChange={onPageChange}
-        />
+      <FinanceTableFooter
+        countLine={t.pendingWithdrawalsCount(totalCount)}
+        page={page}
+        pageSize={pageSize}
+        totalCount={totalCount}
+        onPageChange={onPageChange}
+      />
+    </Card>
+  );
+}
+
+/** One queue row of the mobile card stack. */
+function WithdrawalMobileCardRow({
+  item,
+  locale,
+  onApprove,
+  onReject,
+}: Readonly<{
+  item: AdminPendingWithdrawalsQuery_adminPendingWithdrawals_items;
+  locale: string;
+  onApprove: (item: AdminPendingWithdrawalsQuery_adminPendingWithdrawals_items) => void;
+  onReject: (item: AdminPendingWithdrawalsQuery_adminPendingWithdrawals_items) => void;
+}>): ReactNode {
+  const t = useAppTranslation(AdminFinanceNs);
+  return (
+    <Card sx={mobileQueueRowCardSx()}>
+      <Stack spacing={1}>
+        <Stack direction="row" sx={{ alignItems: "center", justifyContent: "space-between", gap: 2 }}>
+          <Typography variant="body2" sx={{ fontWeight: 600 }}>
+            {item.teacherName}
+          </Typography>
+          <TonalChip
+            tone={withdrawalStatusTone(item.transaction.status)}
+            label={withdrawalStatusLabel(item.transaction.status, t)}
+          />
+        </Stack>
+        <Stack direction="row" sx={{ alignItems: "center", justifyContent: "space-between", gap: 2 }}>
+          <Typography variant="caption" component="p" sx={theme => ({ color: theme.palette.text.secondary })}>
+            {t.amountHeader}
+          </Typography>
+          <Typography variant="body2" sx={{ fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>
+            {formatMoneyAmount(item.transaction.amount)}
+          </Typography>
+        </Stack>
+        <Stack direction="row" sx={{ alignItems: "center", justifyContent: "space-between", gap: 2 }}>
+          <Typography variant="caption" component="p" sx={theme => ({ color: theme.palette.text.secondary })}>
+            {t.walletBalanceHeader}
+          </Typography>
+          <Typography variant="body2" sx={{ fontVariantNumeric: "tabular-nums" }}>
+            {formatMoneyAmount(item.walletBalance)}
+          </Typography>
+        </Stack>
+        <Stack direction="row" sx={{ alignItems: "center", justifyContent: "space-between", gap: 2 }}>
+          <Typography variant="caption" component="p" sx={theme => ({ color: theme.palette.text.secondary })}>
+            {t.requestedAtHeader}
+          </Typography>
+          <Typography variant="body2">{formatApplicantDate(item.transaction.createdAt, locale)}</Typography>
+        </Stack>
+        <QueueSettleButtons
+          transactionId={item.transaction.id}
+          onApprove={() => {
+            onApprove(item);
+          }}
+          onReject={() => {
+            onReject(item);
+          }}
+          approveLabel={t.approveAction}
+          rejectLabel={t.rejectAction}
+          justifyContent="flex-end"
+        />{" "}
       </Stack>
     </Card>
+  );
+}
+
+/**
+ * Mobile (<md) withdrawal-queue card stack: stable-key skeleton cards while
+ * loading, the honest empty state, and one card per pending request with
+ * the same settle actions as the desktop rows.
+ */
+function WithdrawalMobileCards({
+  items,
+  loading,
+  locale,
+  onApprove,
+  onReject,
+}: Readonly<{
+  items: readonly AdminPendingWithdrawalsQuery_adminPendingWithdrawals_items[];
+  loading: boolean;
+  locale: string;
+  onApprove: (item: AdminPendingWithdrawalsQuery_adminPendingWithdrawals_items) => void;
+  onReject: (item: AdminPendingWithdrawalsQuery_adminPendingWithdrawals_items) => void;
+}>): ReactNode {
+  const t = useAppTranslation(AdminFinanceNs);
+  return (
+    <Stack spacing={2}>
+      {loading && items.length === 0
+        ? WITHDRAWALS_SKELETON_KEYS.slice(0, 4).map(rowKey => <Card key={rowKey} sx={directorySkeletonCardSx()} />)
+        : null}
+      {!loading && items.length === 0 ? (
+        <Card sx={directoryPanelCardSx()}>
+          <Stack spacing={1} sx={{ alignItems: "center", py: 6 }}>
+            <EmptyIcon sx={theme => ({ fontSize: 48, color: theme.palette.text.secondary })} />
+            <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+              {t.withdrawalsEmpty}
+            </Typography>
+          </Stack>
+        </Card>
+      ) : null}
+      {items.map(item => (
+        <WithdrawalMobileCardRow
+          key={item.transaction.id}
+          item={item}
+          locale={locale}
+          onApprove={onApprove}
+          onReject={onReject}
+        />
+      ))}
+    </Stack>
+  );
+}
+
+/**
+ * The settle dialogs slot of the panel: the Approve confirm dialog and the
+ * Reject reason dialog, each keyed per transaction id so a stale dialog
+ * never survives a row change.
+ */
+function WithdrawalSettleDialogs({
+  approveTarget,
+  rejectTarget,
+  approve,
+  reject,
+  onCloseApprove,
+  onCloseReject,
+}: Readonly<{
+  approveTarget: AdminPendingWithdrawalsQuery_adminPendingWithdrawals_items | null;
+  rejectTarget: AdminPendingWithdrawalsQuery_adminPendingWithdrawals_items | null;
+  approve: { approve: (id: string) => void; loading: boolean };
+  reject: { reject: (id: string, reason: string) => void; loading: boolean };
+  onCloseApprove: () => void;
+  onCloseReject: () => void;
+}>): ReactNode {
+  return (
+    <>
+      {approveTarget !== null ? (
+        <ApproveWithdrawalDialog
+          key={`approve-${approveTarget.transaction.id}`}
+          teacherName={approveTarget.teacherName}
+          open
+          onClose={onCloseApprove}
+          onSubmit={() => {
+            approve.approve(approveTarget.transaction.id);
+          }}
+          loading={approve.loading}
+          submitTestId={`approve-withdrawal-submit-${approveTarget.transaction.id}`}
+        />
+      ) : null}
+
+      {rejectTarget !== null ? (
+        <RejectWithdrawalDialog
+          key={`reject-${rejectTarget.transaction.id}`}
+          transactionId={rejectTarget.transaction.id}
+          open
+          onClose={onCloseReject}
+          onSubmit={reason => {
+            reject.reject(rejectTarget.transaction.id, reason);
+          }}
+          loading={reject.loading}
+          submitTestId={`reject-withdrawal-submit-${rejectTarget.transaction.id}`}
+        />
+      ) : null}
+    </>
+  );
+}
+
+/**
+ * The queue's status body: the FORBIDDEN denied-notice alert, the shared
+ * retry alert on a failed query, or the desktop table + mobile cards with
+ * pagination.
+ */
+function WithdrawalQueueStatusBody({
+  queue,
+  locale,
+  onApprove,
+  onReject,
+}: Readonly<{
+  queue: ReturnType<typeof useAdminPendingWithdrawals>;
+  locale: string;
+  onApprove: (item: AdminPendingWithdrawalsQuery_adminPendingWithdrawals_items) => void;
+  onReject: (item: AdminPendingWithdrawalsQuery_adminPendingWithdrawals_items) => void;
+}>): ReactNode {
+  const t = useAppTranslation(AdminFinanceNs);
+  const tc = useAppTranslation(Common);
+  const handlePageChange = (nextPage: number): void => {
+    queue.setPage(nextPage);
+  };
+  const errorCode = queue.error ? extractErrorCode(queue.error) : null;
+  const denied =
+    errorCode !== null &&
+    mapGraphQLErrorByCode(errorCode, { contextKind: "query", hasForm: false })?.kind === "permission-fallback";
+
+  if (denied) {
+    return (
+      <Alert
+        severity="error"
+        variant="outlined"
+        sx={{ borderRadius: "12px" }}
+        data-testid="admin-finances-withdrawals-denied"
+      >
+        <AlertTitle sx={{ fontWeight: 700 }}>{t.forbiddenTitle}</AlertTitle>
+        <Typography variant="body2" component="p">
+          {t.forbiddenBody}
+        </Typography>
+      </Alert>
+    );
+  }
+  if (queue.hasError) {
+    return (
+      <ErrorRetryAlert
+        title={t.errorTitle}
+        retryLabel={tc.retry}
+        retryPending={queue.loading}
+        onRetry={() => {
+          void queue.refetch();
+        }}
+      >
+        <Typography variant="body2" component="p">
+          {errorCode === null ? "" : `(${errorCode})`}
+        </Typography>
+      </ErrorRetryAlert>
+    );
+  }
+  return (
+    <>
+      {/* Desktop (≥md): the hand-rolled queue table card. */}
+      <Box sx={{ display: { xs: "none", md: "block" } }}>
+        <WithdrawalTableCard
+          items={queue.items}
+          loading={queue.loading}
+          locale={locale}
+          totalCount={queue.totalCount}
+          page={queue.page}
+          pageSize={queue.pageSize}
+          onPageChange={handlePageChange}
+          onApprove={onApprove}
+          onReject={onReject}
+        />
+      </Box>
+      {/* Mobile (<md): per-request cards + pagination. */}
+      <Box sx={{ display: { xs: "block", md: "none" } }}>
+        <WithdrawalMobileCards
+          items={queue.items}
+          loading={queue.loading}
+          locale={locale}
+          onApprove={onApprove}
+          onReject={onReject}
+        />
+        <Stack
+          direction="row"
+          sx={theme => ({
+            justifyContent: "flex-end",
+            mt: 2,
+            pt: 2,
+            borderTop: `1px solid ${theme.palette.border.light}`,
+          })}
+        >
+          <AdminFinancePaginationBar
+            page={queue.page}
+            pageSize={queue.pageSize}
+            totalCount={queue.totalCount}
+            onPageChange={handlePageChange}
+          />
+        </Stack>
+      </Box>
+    </>
   );
 }
 
 /** The withdrawal payout queue panel: rows + settle dialogs + snackbar. */
 export function WithdrawalQueuePanel(): ReactNode {
   const t = useAppTranslation(AdminFinanceNs);
-  const tc = useAppTranslation(Common);
   const te = useAppTranslation(Errors);
   const locale = useAppLocale();
   const queue = useAdminPendingWithdrawals();
@@ -357,15 +654,6 @@ export function WithdrawalQueuePanel(): ReactNode {
   const approve = useApproveWithdrawal(outcomeCallbacks);
   const reject = useRejectWithdrawal(outcomeCallbacks);
 
-  const errorCode = queue.error ? extractErrorCode(queue.error) : null;
-  const denied =
-    errorCode !== null &&
-    mapGraphQLErrorByCode(errorCode, { contextKind: "query", hasForm: false })?.kind === "permission-fallback";
-
-  const handlePageChange = (nextPage: number): void => {
-    queue.setPage(nextPage);
-  };
-
   return (
     <Stack spacing={3} data-testid="admin-finances-withdrawals-panel">
       <Stack direction="row" sx={{ alignItems: "center", justifyContent: "space-between", gap: 2 }}>
@@ -374,227 +662,25 @@ export function WithdrawalQueuePanel(): ReactNode {
         </Typography>
       </Stack>
 
-      {(() => {
-        if (denied) {
-          return (
-            <Alert
-              severity="error"
-              variant="outlined"
-              sx={{ borderRadius: "12px" }}
-              data-testid="admin-finances-withdrawals-denied"
-            >
-              <AlertTitle sx={{ fontWeight: 700 }}>{t.forbiddenTitle}</AlertTitle>
-              <Typography variant="body2" component="p">
-                {t.forbiddenBody}
-              </Typography>
-            </Alert>
-          );
-        }
-        if (queue.hasError) {
-          return (
-            <ErrorRetryAlert
-              title={t.errorTitle}
-              retryLabel={tc.retry}
-              retryPending={queue.loading}
-              onRetry={() => {
-                void queue.refetch();
-              }}
-            >
-              <Typography variant="body2" component="p">
-                {errorCode === null ? "" : `(${errorCode})`}
-              </Typography>
-            </ErrorRetryAlert>
-          );
-        }
-        return (
-          <>
-            {/* Desktop (≥md): the hand-rolled queue table card. */}
-            <Box sx={{ display: { xs: "none", md: "block" } }}>
-              <WithdrawalTableCard
-                items={queue.items}
-                loading={queue.loading}
-                locale={locale}
-                totalCount={queue.totalCount}
-                page={queue.page}
-                pageSize={queue.pageSize}
-                onPageChange={handlePageChange}
-                onApprove={setApproveTarget}
-                onReject={setRejectTarget}
-              />
-            </Box>
-            {/* Mobile (<md): per-request cards. */}
-            <Box sx={{ display: { xs: "block", md: "none" } }}>
-              <Stack spacing={2}>
-                {queue.loading && queue.items.length === 0
-                  ? WITHDRAWALS_SKELETON_KEYS.slice(0, 4).map(rowKey => (
-                      <Card
-                        key={rowKey}
-                        sx={theme => ({
-                          borderRadius: "12px",
-                          border: `1px solid ${theme.palette.border.light}`,
-                          boxShadow: theme.palette.shadow.card,
-                          p: 2,
-                          height: 132,
-                        })}
-                      />
-                    ))
-                  : null}
-                {!queue.loading && queue.items.length === 0 ? (
-                  <Card
-                    sx={theme => ({
-                      borderRadius: "12px",
-                      border: `1px solid ${theme.palette.border.light}`,
-                      boxShadow: theme.palette.shadow.card,
-                    })}
-                  >
-                    <Stack spacing={1} sx={{ alignItems: "center", py: 6 }}>
-                      <EmptyIcon sx={theme => ({ fontSize: 48, color: theme.palette.text.secondary })} />
-                      <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
-                        {t.withdrawalsEmpty}
-                      </Typography>
-                    </Stack>
-                  </Card>
-                ) : null}
-                {queue.items.map((item: AdminPendingWithdrawalsQuery_adminPendingWithdrawals_items) => (
-                  <Card
-                    key={item.transaction.id}
-                    sx={theme => ({
-                      borderRadius: "12px",
-                      border: `1px solid ${theme.palette.border.light}`,
-                      boxShadow: theme.palette.shadow.card,
-                      p: 2,
-                    })}
-                  >
-                    <Stack spacing={1}>
-                      <Stack direction="row" sx={{ alignItems: "center", justifyContent: "space-between", gap: 2 }}>
-                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                          {item.teacherName}
-                        </Typography>
-                        <TonalChip
-                          tone={withdrawalStatusTone(item.transaction.status)}
-                          label={withdrawalStatusLabel(item.transaction.status, t)}
-                        />
-                      </Stack>
-                      <Stack direction="row" sx={{ alignItems: "center", justifyContent: "space-between", gap: 2 }}>
-                        <Typography
-                          variant="caption"
-                          component="p"
-                          sx={theme => ({ color: theme.palette.text.secondary })}
-                        >
-                          {t.amountHeader}
-                        </Typography>
-                        <Typography variant="body2" sx={{ fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>
-                          {formatMoneyAmount(item.transaction.amount)}
-                        </Typography>
-                      </Stack>
-                      <Stack direction="row" sx={{ alignItems: "center", justifyContent: "space-between", gap: 2 }}>
-                        <Typography
-                          variant="caption"
-                          component="p"
-                          sx={theme => ({ color: theme.palette.text.secondary })}
-                        >
-                          {t.walletBalanceHeader}
-                        </Typography>
-                        <Typography variant="body2" sx={{ fontVariantNumeric: "tabular-nums" }}>
-                          {formatMoneyAmount(item.walletBalance)}
-                        </Typography>
-                      </Stack>
-                      <Stack direction="row" sx={{ alignItems: "center", justifyContent: "space-between", gap: 2 }}>
-                        <Typography
-                          variant="caption"
-                          component="p"
-                          sx={theme => ({ color: theme.palette.text.secondary })}
-                        >
-                          {t.requestedAtHeader}
-                        </Typography>
-                        <Typography variant="body2">
-                          {formatApplicantDate(item.transaction.createdAt, locale)}
-                        </Typography>
-                      </Stack>
-                      <Stack direction="row" spacing={1} sx={{ justifyContent: "flex-end" }}>
-                        <Box
-                          component="button"
-                          type="button"
-                          onClick={() => {
-                            setApproveTarget(item);
-                          }}
-                          data-testid={`admin-finances-approve-${item.transaction.id}`}
-                          sx={theme => ({
-                            minHeight: 44,
-                            px: 2,
-                            borderRadius: 2,
-                            border: "1px solid",
-                            borderColor: theme.palette.outline,
-                            bgcolor: "transparent",
-                            color: theme.palette.text.primary,
-                            cursor: "pointer",
-                            "&:hover": { borderColor: theme.palette.primary.main },
-                          })}
-                        >
-                          {t.approveAction}
-                        </Box>
-                        <Box
-                          component="button"
-                          type="button"
-                          onClick={() => {
-                            setRejectTarget(item);
-                          }}
-                          data-testid={`admin-finances-reject-${item.transaction.id}`}
-                          sx={theme => ({
-                            minHeight: 44,
-                            px: 2,
-                            borderRadius: 2,
-                            border: "1px solid",
-                            borderColor: theme.palette.outline,
-                            bgcolor: "transparent",
-                            color: theme.palette.text.primary,
-                            cursor: "pointer",
-                            "&:hover": { borderColor: theme.palette.error.main },
-                          })}
-                        >
-                          {t.rejectAction}
-                        </Box>
-                      </Stack>
-                    </Stack>
-                  </Card>
-                ))}
-              </Stack>
-            </Box>
-          </>
-        );
-      })()}
+      <WithdrawalQueueStatusBody
+        queue={queue}
+        locale={locale}
+        onApprove={setApproveTarget}
+        onReject={setRejectTarget}
+      />
 
-      {approveTarget !== null ? (
-        <ApproveWithdrawalDialog
-          key={`approve-${approveTarget.transaction.id}`}
-          teacherName={approveTarget.teacherName}
-          open
-          onClose={() => {
-            setApproveTarget(null);
-          }}
-          onSubmit={() => {
-            approve.approve(String(approveTarget.transaction.id));
-          }}
-          loading={approve.loading}
-          submitTestId={`approve-withdrawal-submit-${approveTarget.transaction.id}`}
-        />
-      ) : null}
-
-      {rejectTarget !== null ? (
-        <RejectWithdrawalDialog
-          key={`reject-${rejectTarget.transaction.id}`}
-          transactionId={String(rejectTarget.transaction.id)}
-          open
-          onClose={() => {
-            setRejectTarget(null);
-          }}
-          onSubmit={reason => {
-            reject.reject(String(rejectTarget.transaction.id), reason);
-          }}
-          loading={reject.loading}
-          submitTestId={`reject-withdrawal-submit-${rejectTarget.transaction.id}`}
-        />
-      ) : null}
+      <WithdrawalSettleDialogs
+        approveTarget={approveTarget}
+        rejectTarget={rejectTarget}
+        approve={approve}
+        reject={reject}
+        onCloseApprove={() => {
+          setApproveTarget(null);
+        }}
+        onCloseReject={() => {
+          setRejectTarget(null);
+        }}
+      />
 
       <NoticeSnackbar notice={notice} autoHideDuration={NOTICE_AUTOHIDE_MS} onClose={dismissNotice} />
     </Stack>

@@ -183,11 +183,12 @@ describe("AdminFinancesWithdrawalQueue (en / LTR)", () => {
     expect(screen.getAllByText(t.pendingWithdrawalsCount(1)).length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText(t.walletBalanceHeader).length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText(t.requestedAtHeader).length).toBeGreaterThanOrEqual(1);
-    // The shared pagination bar renders in the queue card footer; on a
-    // single page both controls sit disabled at the bounds.
-    expect(screen.getByTestId("admin-finances-pagination")).toBeDefined();
-    expect(screen.getByTestId("admin-finances-pagination-next").hasAttribute("disabled")).toBe(true);
-    expect(screen.getByTestId("admin-finances-pagination-prev").hasAttribute("disabled")).toBe(true);
+    // The shared pagination bar renders in the desktop queue card footer
+    // AND below the mobile card stack; on a single page both controls sit
+    // disabled at the bounds.
+    expect(screen.getAllByTestId("admin-finances-pagination").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByTestId("admin-finances-pagination-next")[0].hasAttribute("disabled")).toBe(true);
+    expect(screen.getAllByTestId("admin-finances-pagination-prev")[0].hasAttribute("disabled")).toBe(true);
   });
 
   test("approve calls the mutation with exactly `{ transactionId }`", async () => {
