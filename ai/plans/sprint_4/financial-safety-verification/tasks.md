@@ -103,7 +103,7 @@ Verification-only plan (D-1). Sequence: baseline → gap matrix (research) → r
 
 ### Task 4: Cross-actor adversarial journey (headline scenarios)
 
-- [ ] 4. Create `test/workflows/billing/financial-safety-verification.journey.test.ts` (one journey file, prefixed `jrn_billing_finsec_<uuid8>`)
+- [x] 4. Create `test/workflows/billing/financial-safety-verification.journey.test.ts` (one journey file, prefixed `jrn_billing_finsec_<uuid8>`)
   - Cast: `provisionStudentActor`, `provisionCertifiedTeacherActor`, `provisionAdminActor` from `test/workflows/helpers/`; committed fixtures in `beforeAll`; full tracked cleanup + zero-residue probes in `afterAll`.
   - **Step A — Double-spend race (REQ-1):** fund student exactly 1 hifz credit; fire N=4 concurrent `createSession` via `Promise.allSettled`; assert exactly 1 fulfilled, lane == 0, exactly one `session` row with `fee_held=true`, all losers classified (INSUFFICIENT_BALANCE/DUPLICATE_REQUEST). Sum-invariant assertions (serialization-safe). Complements — does not duplicate — the real-PG service-tier chaos proof REQ-043(d) (`session-lifecycle.service.test.ts:2314`).
   - **Step B — Escrow cancel release (REQ-2):** cancel the won session; assert lane restored exactly once, ledger row count == 0 for that session; re-attempt cancel → rejected, lane unchanged. `held_balance_lane` still set post-release.
@@ -114,41 +114,41 @@ Verification-only plan (D-1). Sequence: baseline → gap matrix (research) → r
   - **Step F — Adversarial immutability (REQ-3):** direct tx-level UPDATE on the created earning row inside the journey's own tx → exception observed; row unchanged.
   - **Step G — Denials:** non-participant confirm/cancel and a parent-role wallet read rejected through real auth paths.
   - Notifications: spy at transport boundary where emitters fire (completion prompt); assert no financial notification leaks on cancel/release.
-  - [ ] 4.QL **Quality Loop**: sub-loop on the journey file → exit 0.
-  - [ ] 4.TE **Test Engineering**: `bun run test/scripts/run-test.ts test/workflows/billing/financial-safety-verification.journey.test.ts` until green; then `bun run test/scripts/run-test.ts test/workflows` (layer-wide no-regression). Serialized-runtime path logged, never silently skipped.
-  - [ ] 4.SEC **Security & Tenancy Audit**: honest auth only; per-run prefixed fixtures; no ledger residue; immutability teardown via sanctioned trigger-suspension precedent (`session-dual-confirmation.journey.test.ts:41-45`).
-  - [ ] 4.SR **Semantic Review**: NO `runInRollback`; no `expect().rejects.toThrow()` (try/catch + translated substrings via `getServerTranslations("en")`); `@/` imports; clean comments (no REQ/task refs in code).
-  - [ ] 4.IV **Instruction Verification**: read `test/workflows/AGENTS.md` + `tests.instructions.md` (auto-printed), validate.
+  - [x] 4.QL **Quality Loop**: sub-loop on the journey file → exit 0.
+  - [x] 4.TE **Test Engineering**: `bun run test/scripts/run-test.ts test/workflows/billing/financial-safety-verification.journey.test.ts` until green; then `bun run test/scripts/run-test.ts test/workflows` (layer-wide no-regression). Serialized-runtime path logged, never silently skipped.
+  - [x] 4.SEC **Security & Tenancy Audit**: honest auth only; per-run prefixed fixtures; no ledger residue; immutability teardown via sanctioned trigger-suspension precedent (`session-dual-confirmation.journey.test.ts:41-45`).
+  - [x] 4.SR **Semantic Review**: NO `runInRollback`; no `expect().rejects.toThrow()` (try/catch + translated substrings via `getServerTranslations("en")`); `@/` imports; clean comments (no REQ/task refs in code).
+  - [x] 4.IV **Instruction Verification**: read `test/workflows/AGENTS.md` + `tests.instructions.md` (auto-printed), validate.
   - Write `outcome/4-journey-outcome.md` incl. any defect evidence.
   - _Requirements: REQ-1, REQ-2, REQ-3, REQ-4, REQ-5, REQ-6, REQ-0_
 
 ### Task 5: Matrix ratification & full-suite verification
 
-- [ ] 5. Ratify the coverage matrix end-state
+- [x] 5. Ratify the coverage matrix end-state
   - Update `outcome/01-verification-gap-matrix.md`: every row → COVERED with final path:line (no NEW REQUIRED remaining).
   - Run full layers: `bun run test:services`, `bun run test:db`, `bun run test/scripts/run-test.ts test/workflows` — all green; compare error counts vs `/tmp/baseline-*.txt`.
   - Grep-audit new files for anti-patterns: no `Translation.` enum misuse, no two-arg `getTranslations`, no `@/frontend/utils/logger` in backend, no raw `bun test`, no `.rejects.toThrow` in db tests.
   - Doc-only exemption note: Tasks 5–7 touch only `outcome/*.md` / `docs/**` markdown — the QL gate still applies (sub-loop run), TE/SEC/SR are satisfied by the matrix + baseline-diff assertions in place of executable tests.
-  - [ ] 5.QL **Quality Loop**: sub-loop `duplicates` lifecycle on the updated matrix doc → exit 0.
-  - [ ] 5.IV **Instruction Verification**: validate edited docs against sub-loop-printed rule files (root `AGENTS.md` docs rules).
+  - [x] 5.QL **Quality Loop**: sub-loop `duplicates` lifecycle on the updated matrix doc → exit 0.
+  - [x] 5.IV **Instruction Verification**: validate edited docs against sub-loop-printed rule files (root `AGENTS.md` docs rules).
   - Write `outcome/5-matrix-ratification-outcome.md`.
   - _Requirements: REQ-6, REQ-0_
 
 ### Task 6: Final quality gate, deferred enforcement & knowledge propagation (MANDATORY)
 
-- [ ] 6. Final quality gate & deferred-items enforcement
+- [x] 6. Final quality gate & deferred-items enforcement
   - Deferred enforcement (BLOCKING): `grep -c "❌\|⚠️" ai/plans/sprint_4/financial-safety-verification/deferred-items.md` → 0 (or every item explicitly re-routed to an owning ticket with ✅-recorded re-route note).
   - Re-run baseline diff: tsgo/biome/lint counts vs `/tmp/baseline-*`; zero new errors.
-  - [ ] 6.QL **Quality Loop**: sub-loop re-run on every file this plan created → exit 0.
-  - [ ] 6.IV **Instruction Verification**: confirm each created file passed its auto-discovered rule files (recorded in prior QL outcomes).
+  - [x] 6.QL **Quality Loop**: sub-loop re-run on every file this plan created → exit 0.
+  - [x] 6.IV **Instruction Verification**: confirm each created file passed its auto-discovered rule files (recorded in prior QL outcomes).
   - _Requirements: REQ-0, REQ-6_
 
-- [ ] 7. Knowledge propagation & documentation
+- [x] 7. Knowledge propagation & documentation
   - Synthesize all `outcome/` files.
   - Create canonical doc `docs/billing/financial-safety-verification.md` (Why → Verified invariants table with test path:line anchors → how to extend probes → anti-patterns → rollout summary).
   - Rule-file policy: AGENTS.md / `.agents/instructions/` are hand-curated — do NOT edit.
   - Quality loop on the doc file via sub-loop (duplicates lifecycle) → exit 0.
-  - [ ] 7.IV **Instruction Verification**: root `AGENTS.md` + `.agents/instructions/` untouched (hand-curated); the new doc validated against repo docs conventions.
+  - [x] 7.IV **Instruction Verification**: root `AGENTS.md` + `.agents/instructions/` untouched (hand-curated); the new doc validated against repo docs conventions.
   - Write `outcome/7-knowledge-propagation-outcome.md`.
   - _Requirements: REQ-6, REQ-0_
 
