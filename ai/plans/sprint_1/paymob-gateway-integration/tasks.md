@@ -96,9 +96,9 @@
   - CREATE `backend/services/billing/payment-gateway/paymob/paymob.reconcile.ts` — `reconcilePendingPaymobPayments({ now, batchLimit })`: provider/API-key gating; stale-pending query via A4 repo method; per row: `mintAuthToken` → `transactionInquiryByMerchantRef`; PAID/UNPAID outcomes funneled through `SubscriptionActivationService.processWebhookEvent` (no bespoke update); bounded batch; per-row summary log.
   - [x] 5.1.QL · [x] 5.1.TE — gating (returns zero-count when unconfigured), inquiry mapping, handoff identity with webhook path, batch cap honored · [x] 5.1.SEC — inquiry token never logged · [x] 5.1.SR — no token caching (D7) · [x] 5.1.IV
   - _Requirements: REQ-004, REQ-033, REQ-035, REQ-036_
-- [ ] 5.2 Cron route
+- [x] 5.2 Cron route
   - CREATE `app/api/cron/reconcile-paymob-payments/route.ts` following `app/api/cron/sweep-sessions/route.ts` (GET-only, `CRON_SECRET` timing-safe compare, 404 when inactive, `apiSuccessResponse`/`apiErrorResponse`, `resolveRequestId`); register in `ROUTE_INVENTORY` (A4 assertion green).
-  - [ ] 5.2.QL · [ ] 5.2.TE — bearer ok/missing/wrong; mode gate; happy path delegates · [ ] 5.2.SEC · [ ] 5.2.SR · [ ] 5.2.IV
+  - [x] 5.2.QL · [x] 5.2.TE — bearer ok/missing/wrong; mode gate; happy path delegates · [x] 5.2.SEC · [x] 5.2.SR · [x] 5.2.IV
   - _Requirements: REQ-041, REQ-043, REQ-035_
 - [ ] 5.4 Callback channel factory + simulation channel (the fully-implemented dev default)
   - CREATE `backend/types/billing/callback-channel.types.ts` (`CallbackChannelKind`, `CallbackChannelPort`), `backend/services/billing/payment-gateway/callback-channel/callback-channel.factory.ts` (`getCallbackChannel()` — `real` in production / provider≠paymob, `ngrok` only when BOTH `NGROK_AUTHTOKEN` + `NGROK_DOMAIN` set AND probe passes, else `simulation` + one structured log), and `…/callback-channel/simulation-callback-channel.channel.ts` (synthesizes Paymob-shaped processed callbacks signed via the PRODUCTION `paymob.hmac.ts` builder with `PAYMOB_HMAC_SECRET`, POSTs `?hmac=<digest>` to the local webhook; supports confirm/fail/replay/cross-user; fail-closed guard in production). No consumer reads `NGROK_*` directly.
