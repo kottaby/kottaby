@@ -33,7 +33,7 @@ Foundation-first: schema index → types → locale key → **journey test FIRST
 
 ## Phase 0: Pre-Implementation Baseline (MANDATORY)
 
-- [ ] 0.1 Record baseline & confirm ledger
+- [x] 0.1 Record baseline & confirm ledger
   - Run `bun tsgo 2>&1 | grep "error TS" | wc -l`, `bun biome:check`, `bun run scripts/lint-service.ts --json --id baseline`; store counts in `/tmp/baseline-*.txt`.
   - Confirm `deferred-items.md` exists (authored at spec time, closed at the Phase 1.5 gate: D1 ✅ and D3 ✅ ratified by `outcome/plan-review-R1.md`; D2 ❌ is the sanctioned open item — its resolution is the 9.1 documented ops handoff; all other statuses must be ✅ before 8.1's gate).
   - Write `outcome/0.1-baseline-outcome.md` with counts + environment notes.
@@ -41,7 +41,7 @@ Foundation-first: schema index → types → locale key → **journey test FIRST
 
 ## Phase 1.5: Plan Review Gate (MANDATORY — executed at planning time)
 
-- [ ] 1.1 Plan review via `@plan-review` skill
+- [x] 1.1 Plan review via `@plan-review` skill
   - Verdict + fixes recorded in `outcome/plan-review-R1.md` BEFORE any implementation task starts; the gate ratifies plan.md Decisions D1–D7 verbatim (no redesign) — this closes ledger **D1** (O1 semantic ratified) and **D3** (no wired booking-UI surface exists; the snackbar arm is deferred to the ticket that lands it, per corrected Decision D7).
   - _Requirements: REQ-001_
 
