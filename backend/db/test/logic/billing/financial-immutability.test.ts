@@ -6,8 +6,11 @@
  *
  *  1. Trigger-presence probe — `pg_trigger` is queried for ALL THREE tables
  *     and BOTH the BEFORE UPDATE and BEFORE DELETE triggers must be present
- *     AND enabled (`tgenabled ≠ 'D'`) on each. A missing or disabled trigger
- *     fails the probe instead of silently weakening the tamper proofs.
+ *     with the wiring proven from `tgtype`: row-level, BEFORE timing, and
+ *     bound to the expected event. They must also fire for
+ *     application-origin DML (`tgenabled` 'O' or 'A') — a disabled ('D') or
+ *     replica-only ('R') trigger, or one timed AFTER / bound to the wrong
+ *     event, fails the probe instead of silently weakening the tamper proofs.
  *
  *  2. Adversarial tamper probes — inside `runInRollback`, each direct
  *     `tx.update(...)` / `tx.delete(...)` attempt is bracketed in its own
@@ -23,7 +26,9 @@
  *     UPDATE fails identically on repeat, in a separate savepoint); and
  *     the compensating-row doctrine (a corrective INSERT succeeds while
  *     mutation of the original row fails — corrections flow through new
- *     rows, never in-place edits).
+ *     rows, never in-place edits); plus direct UPDATE/DELETE probes against
+ *     a fixture audit_logs row — the third immutable table gets the same
+ *     behavioral proof, not just the presence probe.
  *
  * DB SAFETY: every database statement in this file runs inside
  * `runInRollback` with the `tx` passed through — no fixture row ever
@@ -33,6 +38,7 @@
 
 import { describe, expect, test } from "bun:test";
 import { eq, sql } from "drizzle-orm";
+import { auditLogs } from "@/backend/db/schema/audit/audit-logs";
 import { studentPayments } from "@/backend/db/schema/billing/student-payments";
 import { teacherTransaction } from "@/backend/db/schema/billing/teacher-transaction";
 import {
@@ -44,6 +50,7 @@ import {
   createTestWallet,
 } from "@/backend/db/test/entity-setup";
 import { expectRepoError, runInRollback } from "@/backend/db/test/test-utils";
+import { AuditActionType } from "@/backend/enum/audit/audit-action-type.enum";
 import { PaymentStatus } from "@/backend/enum/billing/payment-status.enum";
 import { TransactionType } from "@/backend/enum/billing/transaction-type.enum";
 import type { DBTransaction } from "@/backend/types";
@@ -66,39 +73,89 @@ const TEACHER_TX_IMMUTABLE = "teacher_transaction is immutable";
 const TEACHER_TX_UPDATE_MSG = "UPDATE is not permitted";
 const TEACHER_TX_DELETE_MSG = "DELETE is not permitted";
 const PAYMENTS_IMMUTABLE = "student_payments is immutable";
+const AUDIT_IMMUTABLE = "audit_logs is immutable";
+const AUDIT_UPDATE_MSG = "UPDATE is not permitted";
+const AUDIT_DELETE_MSG = "DELETE is not permitted";
 
 // ─── Trigger-presence probe helpers ──────────────────────────────────────────
 
-/** One `pg_trigger` row's identity + firing state for a table. */
+/** One `pg_trigger` row's identity, firing state, and event wiring. */
 interface TriggerState {
   readonly name: string;
   readonly enabled: string;
+  readonly before: boolean;
+  readonly rowLevel: boolean;
+  readonly onUpdate: boolean;
+  readonly onDelete: boolean;
 }
 
-/** Same probe shape as the audit-immutability suite — non-internal triggers on one table. */
+/**
+ * `pg_trigger.tgtype` bit values (PostgreSQL trigger type bitmask): bit 0 =
+ * row-level, bit 1 = BEFORE, bit 3 = DELETE, bit 4 = UPDATE. A
+ * statement-level, AFTER, or wrong-event trigger must fail the shape check
+ * below even when it happens to be enabled.
+ */
+const TGTYPE_ROW = 1;
+const TGTYPE_BEFORE = 2;
+const TGTYPE_DELETE = 8;
+const TGTYPE_UPDATE = 16;
+
+/** Same probe shape as the audit-immutability suite, extended with the trigger's event wiring. */
 async function probeTriggerStates(tx: DBTransaction, table: string): Promise<TriggerState[]> {
-  const discovered = await tx.execute<{ tgname: string; tgenabled: string }>(
-    sql`SELECT tgname, tgenabled FROM pg_trigger WHERE tgrelid = ${table}::regclass AND NOT tgisinternal`
+  const discovered = await tx.execute<{
+    tgname: string;
+    tgenabled: string;
+    isBefore: boolean;
+    isRowLevel: boolean;
+    onUpdate: boolean;
+    onDelete: boolean;
+  }>(
+    sql`SELECT
+          tgname,
+          tgenabled,
+          (tgtype & ${TGTYPE_BEFORE}) > 0 AS "isBefore",
+          (tgtype & ${TGTYPE_ROW}) > 0 AS "isRowLevel",
+          (tgtype & ${TGTYPE_UPDATE}) > 0 AS "onUpdate",
+          (tgtype & ${TGTYPE_DELETE}) > 0 AS "onDelete"
+        FROM pg_trigger
+        WHERE tgrelid = ${table}::regclass AND NOT tgisinternal`
   );
   return discovered.rows
-    .map(row => ({ name: row.tgname, enabled: row.tgenabled }))
+    .map(row => ({
+      name: row.tgname,
+      enabled: row.tgenabled,
+      before: row.isBefore,
+      rowLevel: row.isRowLevel,
+      onUpdate: row.onUpdate,
+      onDelete: row.onDelete,
+    }))
     .toSorted((a, b) => a.name.localeCompare(b.name));
 }
 
-/** True only when the named trigger is installed AND enabled (a disabled trigger never fires). */
-function isTriggerEnforcing(states: readonly TriggerState[], triggerName: string): boolean {
+/**
+ * True only when the named trigger is installed, fires for
+ * application-origin DML (`tgenabled` 'O' or 'A' — a replica-only 'R' or
+ * disabled 'D' trigger never guards the tamper proofs), and is wired as a
+ * row-level BEFORE trigger bound to the expected event.
+ */
+function isTriggerEnforcing(states: readonly TriggerState[], triggerName: string, event: "update" | "delete"): boolean {
   const state = states.find(candidate => candidate.name === triggerName);
-  return state !== undefined && state.enabled !== "D";
+  if (state === undefined) {
+    return false;
+  }
+  const firesForApplicationDml = state.enabled === "O" || state.enabled === "A";
+  const boundToEvent = event === "update" ? state.onUpdate : state.onDelete;
+  return firesForApplicationDml && state.before && state.rowLevel && boundToEvent;
 }
 
-/** Asserts BOTH the BEFORE UPDATE and BEFORE DELETE triggers are present AND enabled. */
+/** Asserts BOTH the BEFORE UPDATE and BEFORE DELETE triggers are present, firing for app DML, and event-wired. */
 function expectTriggerPairEnforcing(
   states: readonly TriggerState[],
   updateTrigger: string,
   deleteTrigger: string
 ): void {
-  expect(isTriggerEnforcing(states, updateTrigger)).toBe(true);
-  expect(isTriggerEnforcing(states, deleteTrigger)).toBe(true);
+  expect(isTriggerEnforcing(states, updateTrigger, "update")).toBe(true);
+  expect(isTriggerEnforcing(states, deleteTrigger, "delete")).toBe(true);
 }
 
 // ─── Savepoint + tamper helpers ──────────────────────────────────────────────
@@ -216,6 +273,36 @@ async function insertStudentPaymentFixture(tx: DBTransaction) {
   const user = await createTestUser(tx);
   const student = await createTestStudent(tx, user.id);
   return createTestStudentPayment(tx, student.id, null, { status: PaymentStatus.Paid });
+}
+
+/**
+ * INSERTs one fixture audit_logs row inside the caller's transaction (user →
+ * audit row; the append path is NEVER blocked) and returns it for tamper
+ * attempts — the audit trail gets the same behavioral proof as the ledgers.
+ */
+async function insertAuditLogFixture(tx: DBTransaction) {
+  const user = await createTestUser(tx);
+  const [row] = await tx
+    .insert(auditLogs)
+    .values({
+      actorId: user.id,
+      actionType: AuditActionType.Create,
+      entityType: "user",
+      entityId: user.id,
+      details: null,
+    })
+    .returning({ id: auditLogs.id, details: auditLogs.details });
+  if (!row) {
+    throw new Error("audit fixture insert returned no rows");
+  }
+  return row;
+}
+
+/** Independent read-back oracle for the audit trail. */
+async function expectAuditLogPresent(tx: DBTransaction, id: number): Promise<void> {
+  const [row] = await tx.select({ id: auditLogs.id }).from(auditLogs).where(eq(auditLogs.id, id)).limit(1);
+  expect(row).toBeDefined();
+  expect(row?.id).toBe(id);
 }
 
 const describeTriggerTier = isPgliteProvider() ? describe.skip : describe;
@@ -389,6 +476,42 @@ describeTriggerTier("financial ledger immutability — student_payments tamper t
       });
 
       await expectStudentPaymentPresent(tx, payment.id);
+    });
+  });
+});
+
+describeTriggerTier("financial ledger immutability — audit_logs tamper tier", () => {
+  test("direct UPDATE on an audit row is rejected and the row stays unchanged", async () => {
+    await runInRollback(async tx => {
+      const fixture = await insertAuditLogFixture(tx);
+      await expectAuditLogPresent(tx, fixture.id);
+
+      await withinSavepoint(tx, "audit_update_probe", async () => {
+        const error = await expectRepoError(() =>
+          tx.update(auditLogs).set({ details: "tamper attempt" }).where(eq(auditLogs.id, fixture.id))
+        );
+        const chain = errorMessageChain(error);
+        expect(chain).toContain(AUDIT_IMMUTABLE);
+        expect(chain).toContain(AUDIT_UPDATE_MSG);
+      });
+
+      await expectAuditLogPresent(tx, fixture.id);
+    });
+  });
+
+  test("direct DELETE of an audit row is rejected and the row stays present", async () => {
+    await runInRollback(async tx => {
+      const fixture = await insertAuditLogFixture(tx);
+      await expectAuditLogPresent(tx, fixture.id);
+
+      await withinSavepoint(tx, "audit_delete_probe", async () => {
+        const error = await expectRepoError(() => tx.delete(auditLogs).where(eq(auditLogs.id, fixture.id)));
+        const chain = errorMessageChain(error);
+        expect(chain).toContain(AUDIT_IMMUTABLE);
+        expect(chain).toContain(AUDIT_DELETE_MSG);
+      });
+
+      await expectAuditLogPresent(tx, fixture.id);
     });
   });
 });

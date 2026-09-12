@@ -41,8 +41,9 @@
  *
  * Layer contract (`test/workflows/AGENTS.md`):
  *  - NO `runInRollback` — fixtures commit in `beforeAll`; every row
- *    (fixtures AND service-created sessions/claims) is registered in a
- *    `TrackedFixtures` registry and hard-deleted FK-safely in `afterAll`.
+ *    (fixtures AND service-created sessions/claims/wallets) is registered
+ *    in a `TrackedFixtures` registry and hard-deleted FK-safely in
+ *    `afterAll`.
  *  - Per-run `jrn_billing_finsec_<8hex>` prefix on user labels, idempotency
  *    keys, and fixture descriptions — repeated or parallel runs never
  *    collide.
@@ -79,7 +80,7 @@ import { SessionStatus } from "@/backend/enum/scheduling/session-status.enum";
 import { ConflictError, DomainError } from "@/backend/lib/errors";
 import { WalletService } from "@/backend/services/billing/wallet.service";
 import { SessionLifecycleService } from "@/backend/services/classes/session-lifecycle.service";
-import { NotificationEngine } from "@/backend/services/notifications";
+import * as NotificationServices from "@/backend/services/notifications";
 import type {
   NotificationDeliveryReceipt,
   SessionReturnType,
@@ -151,6 +152,15 @@ let stepCEarningRow: TeacherTransactionSelectType;
 /** The teacher's wallet row (assigned by the dual-confirm credit step). */
 let teacherWallet: WalletSelectType;
 
+/**
+ * The append-only earning/withdrawal ledger row ids the journey created.
+ * The registry's plain deletes cannot drain a trigger-locked table, so
+ * these rows are hard-deleted by EXPLICIT id in `afterAll` under the
+ * sanctioned immutability-trigger suspension — the zero-count re-probes
+ * afterwards still fail loudly on any untracked row.
+ */
+const trackedLedgerRowIds: number[] = [];
+
 /** The exact translated denial messages for the default test locale. */
 function errorTexts() {
   return getServerTranslations(LOCALE).errorsTranslations;
@@ -159,6 +169,11 @@ function errorTexts() {
 /** Type-guard read of a caught rejection's `extensions.code`. */
 function denialCode(error: unknown): string {
   return error instanceof DomainError ? error.code : "";
+}
+
+/** Type-guard read of a caught rejection's message (pairs with the instanceof assertions upstream). */
+function rejectionMessage(error: unknown): string {
+  return error instanceof DomainError ? error.message : "";
 }
 
 /**
@@ -266,12 +281,14 @@ async function trackIdempotencyClaim(key: string, label: string): Promise<void> 
  * Installs a recording no-op over the engine's publish contract: no
  * realtime channel is ever touched, and each dispatch is logged together
  * with the receipts (and their recipient ids) so a step can assert both
- * THAT a publish happened and WHICH users it targeted. The spy is
- * installed once in `beforeAll` and restored in `afterAll`.
+ * THAT a publish happened and WHICH users it targeted. The spy rides the
+ * namespace import of the notifications module (the dispatched boundary
+ * seam per `test/workflows/AGENTS.md` rule 5), is installed once in
+ * `beforeAll`, and is restored in `afterAll`.
  */
 function spyPublication(): { calls: NotificationDeliveryReceipt[][]; stop: () => void } {
   const calls: NotificationDeliveryReceipt[][] = [];
-  const spy = spyOn(NotificationEngine, "publishReceipts").mockImplementation(async receipts => {
+  const spy = spyOn(NotificationServices.NotificationEngine, "publishReceipts").mockImplementation(async receipts => {
     calls.push([...receipts]);
   });
   return { calls, stop: () => spy.mockRestore() };
@@ -333,21 +350,16 @@ afterAll(async () => {
   publication?.stop();
 
   // The earning-ledger rows the journey created are append-only
-  // (DELETE-blocked) and restrict-delete their way into the wallets, which
-  // the registry teardown would otherwise cascade away with the teacher
-  // rows. They are removed under the sanctioned append-only trigger
-  // suspension, then the registry hard-deletes the rest in FK-safe order.
-  const walletRows = await db
-    .select({ id: wallet.id })
-    .from(wallet)
-    .where(inArray(wallet.teacherId, [teacher.userId, teacher2.userId]));
-  const walletIds = walletRows.map(row => row.id);
-  await withImmutabilityTriggersSuspended(["teacher_transaction"], async () => {
-    if (walletIds.length > 0) {
-      await db.delete(teacherTransaction).where(inArray(teacherTransaction.walletId, walletIds));
-    }
-    await db.delete(wallet).where(inArray(wallet.teacherId, [teacher.userId, teacher2.userId]));
-  });
+  // (DELETE-blocked): they are hard-deleted FIRST, by their explicitly
+  // tracked ids, under the sanctioned append-only trigger suspension —
+  // the registry's plain deletes could never drain a trigger-locked
+  // table. The wallets and every other committed row are then drained by
+  // the registry itself, in reverse-registration (FK-safe) order.
+  if (trackedLedgerRowIds.length > 0) {
+    await withImmutabilityTriggersSuspended(["teacher_transaction"], () =>
+      db.delete(teacherTransaction).where(inArray(teacherTransaction.id, trackedLedgerRowIds))
+    );
+  }
 
   await registry.cleanup();
 
@@ -399,7 +411,13 @@ describe("Journey — cross-actor adversarial financial-safety verification (rea
     expect(rejectedReasons).toHaveLength(RACE_ATTEMPTS - 1);
     for (const reason of rejectedReasons) {
       expect(reason).toBeInstanceOf(DomainError);
-      expect(["INSUFFICIENT_BALANCE", "DUPLICATE_REQUEST"]).toContain(denialCode(reason));
+      const code = denialCode(reason);
+      expect(["INSUFFICIENT_BALANCE", "DUPLICATE_REQUEST"]).toContain(code);
+      // The winner is unknown up front, so the expected translated copy
+      // follows the ACTUAL denial code each loser carried.
+      const expectedMessage =
+        code === "INSUFFICIENT_BALANCE" ? errorTexts().insufficientBalance : errorTexts().duplicateRequest;
+      expect(rejectionMessage(reason)).toBe(expectedMessage);
     }
 
     // The funded unit was consumed exactly once — never twice.
@@ -474,6 +492,7 @@ describe("Journey — cross-actor adversarial financial-safety verification (rea
     );
     expect(reCancel).toBeInstanceOf(DomainError);
     expect(denialCode(reCancel)).toBe("SESSION_INVALID_TRANSITION");
+    expect(reCancel.message).toBe(errorTexts().sessionInvalidTransition);
     expect(reCancel).toBeInstanceOf(ConflictError);
 
     // The re-cancel wrote nothing: the lane refund did not repeat.
@@ -524,6 +543,7 @@ describe("Journey — cross-actor adversarial financial-safety verification (rea
       await readTeacherWalletRow(teacher.userId),
       "teacher wallet after the confirm credit"
     );
+    registry.register(wallet, teacherWallet.id);
     const ledgerRows = await readLedgerRowsForWallet(teacherWallet.id);
     expect(ledgerRows).toHaveLength(1);
     const earningRow = ledgerRows[0];
@@ -532,6 +552,7 @@ describe("Journey — cross-actor adversarial financial-safety verification (rea
     expect(earningRow?.amount).toBe(SESSION_FEE_HIFZ);
     expect(earningRow?.sessionId).toBe(sessionC.id);
     stepCEarningRow = earningRow;
+    trackedLedgerRowIds.push(stepCEarningRow.id);
 
     // The wallet was credited by EXACTLY the session fee once.
     expect(teacherWallet.balance).toBe(SESSION_FEE_HIFZ);
@@ -564,6 +585,7 @@ describe("Journey — cross-actor adversarial financial-safety verification (rea
     const reason = rejectedReasons[0];
     expect(reason).toBeInstanceOf(DomainError);
     expect(denialCode(reason)).toBe("WALLET_INSUFFICIENT_FUNDS");
+    expect(rejectionMessage(reason)).toBe(errorTexts().insufficientBalance);
     expect(reason).toBeInstanceOf(ConflictError);
     // The wallet is drained to EXACTLY zero.
     const drained = requiredWalletRow(await readTeacherWalletRow(teacher.userId), "teacher wallet after the drain");
@@ -580,6 +602,9 @@ describe("Journey — cross-actor adversarial financial-safety verification (rea
     expect(withdrawals).toHaveLength(1);
     expect(withdrawals[0]?.status).toBe(TransactionStatus.Pending);
     expect(withdrawals[0]?.amount).toBe(SESSION_FEE_HIFZ);
+    const withdrawalRowId = withdrawals[0]?.id ?? -1;
+    expect(withdrawalRowId).toBeGreaterThan(0);
+    trackedLedgerRowIds.push(withdrawalRowId);
 
     // The wallet identity on exact decimal strings: balance = earnings −
     // withdrawals (never `Number()` on an amount).
@@ -617,6 +642,7 @@ describe("Journey — cross-actor adversarial financial-safety verification (rea
     // TEACHER2's wallet row exists BEFORE the credits race.
     const ensured = await db.transaction(tx => WalletRepository.ensureWalletOnce(teacher2.userId, tx));
     const wallet2 = requiredWalletRow(ensured, "teacher2 pre-ensured wallet");
+    registry.register(wallet, wallet2.id);
     expect(await countWalletsForTeacher(teacher2.userId)).toBe(1);
 
     // Two completed fixture sessions for the teacher — the credits'
@@ -680,6 +706,9 @@ describe("Journey — cross-actor adversarial financial-safety verification (rea
     const ledgerRows = await readLedgerRowsForWallet(after.id);
     expect(ledgerRows).toHaveLength(2);
     expect(ledgerRows.every(row => row.type === "earning")).toBe(true);
+    for (const ledgerRow of ledgerRows) {
+      trackedLedgerRowIds.push(ledgerRow.id);
+    }
   });
 
   test("step F — adversarial immutability: a direct ledger UPDATE is blocked by the append-only trigger; the row reads back byte-identical", async () => {
@@ -760,10 +789,15 @@ describe("Journey — cross-actor adversarial financial-safety verification (rea
 
   test("step H — teardown worklist is complete: every service-created row is tracked for the afterAll hard-delete", () => {
     // 12 fixture rows (6 users + 6 role-children) + 4 sessions + 2
-    // idempotency claims.
-    expect(registry.size).toBe(18);
+    // idempotency claims + 2 wallets — all on the registry; the 4
+    // append-only ledger rows live on the explicit trackedLedgerRowIds
+    // worklist (their DELETE is trigger-blocked outside the suspension
+    // window, so the registry cannot drain them).
+    expect(registry.size).toBe(20);
     expect(registry.records.filter(record => record.table === session)).toHaveLength(4);
     expect(registry.records.filter(record => record.table === sessionRequestIdempotency)).toHaveLength(2);
+    expect(registry.records.filter(record => record.table === wallet)).toHaveLength(2);
+    expect(trackedLedgerRowIds).toHaveLength(4);
     expect(admin.userId).toBeGreaterThan(0);
   });
 });
