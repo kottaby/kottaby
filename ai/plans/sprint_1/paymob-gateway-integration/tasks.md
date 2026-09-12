@@ -116,9 +116,9 @@
 
 ## Phase 6: i18n
 
-- [ ] 6.1 `checkout` locale namespace
+- [x] 6.1 `checkout` locale namespace
   - CREATE `shared/locale/types/checkout/index.ts`, `shared/locale/en/checkout/index.ts`, `shared/locale/ar/checkout/index.ts`, `shared/locale/namespaces/checkout/checkout.namespace.ts`; register `checkoutTranslations` in `shared/locale/types/message.ts` (`Translations`) + `shared/locale/{en,ar}/messages.ts` + the namespace barrel; CREATE `shared/locale/checkout-namespace.parity.test.ts` (wallet/plans namespaces as templates).
-  - [ ] 6.1.QL · [ ] 6.1.TE — parity + interpolation-type tests · [ ] 6.1.SEC · [ ] 6.1.SR · [ ] 6.1.IV
+  - [x] 6.1.QL · [x] 6.1.TE — parity + interpolation-type tests · [x] 6.1.SEC · [x] 6.1.SR · [x] 6.1.IV
   - _Requirements: REQ-003, REQ-052, REQ-066_
 
 ---
