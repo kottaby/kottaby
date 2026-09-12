@@ -51,15 +51,15 @@ Backend-first with a **test-first journey** authored right after repo primitives
 
 ### Phase 2: Backend Foundation
 
-- [ ] 2.1 Enum extensions (DisputeResolution + NotificationType) and schema push
+- [x] 2.1 Enum extensions (DisputeResolution + NotificationType) and schema push
   - Extend `backend/enum/scheduling/dispute-resolution.enum.ts` (+ `Refund`, `PartialRefund`, `Uphold`; update `isDisputeResolution` coverage stays total)
   - Extend `NotificationType` TS mirror (`backend/enum/notifications/notification-type.enum.ts`) with `session_dispute_opened` / `session_dispute_resolved`, then the pgEnum list in `backend/db/schema/enums.ts:69`; run `bun run db push`
   - Regenerate nothing else yet (GraphQL surfaces come in 3.1)
-  - [ ] 2.1.QL `bun run scripts/health/sub-loop.ts <each edited file> --lifecycle duplicates` (exit 0)
-  - [ ] 2.1.TE enum unit-level assertions: new members present; guard totality (`Object.values` round-trip)
-  - [ ] 2.1.SEC N/A (values only) — confirm no behavior drift in shipped members (snapshot the enum list pre/post)
-  - [ ] 2.1.SR value imports used where consumed; no dead members
-  - [ ] 2.1.IV read printed rule files; validate
+  - [x] 2.1.QL `bun run scripts/health/sub-loop.ts <each edited file> --lifecycle duplicates` (exit 0)
+  - [x] 2.1.TE enum unit-level assertions: new members present; guard totality (`Object.values` round-trip)
+  - [x] 2.1.SEC N/A (values only) — confirm no behavior drift in shipped members (snapshot the enum list pre/post)
+  - [x] 2.1.SR value imports used where consumed; no dead members
+  - [x] 2.1.IV read printed rule files; validate
   - Outcome: `outcome/2.1-enum-extensions-outcome.md`
   - _Requirements: REQ-1, REQ-5, REQ-7_
 
