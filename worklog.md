@@ -614,3 +614,168 @@ Stage Summary:
 - Project-wide tsgo exit 0 — zero new errors introduced.
 - 16/16 structural tests pass; sibling `parent-link.documents.test.ts` still 15/15; schema-surface.test.ts still 53/53 — zero regression.
 - Carry-forward: task 5.3 views import the five documents via the barrel `@/frontend/graphql/sharedDocuments` (or deep-import); task 6.3 wire tests use the documents via `testClient.query({ query: <document> })`; task 6.4 UI tests mock via `<MockedProvider>` with the operation names.
+
+---
+
+Task ID: 5.3a
+Agent: Portal Containers Subagent (general-purpose)
+Task: Portal container components + barrel (split part 1 of task 5.3)
+
+Work Log:
+- Read SKILL.md in FULL (per-task flow: READ outcomes → READ task → READ AGENTS → EXECUTE → QUALITY LOOP → TEST → SECURITY → SEMANTIC REVIEW → INSTRUCTION VERIFICATION → WRITE OUTCOME → UPDATE CHECKBOX).
+- Confirmed branch is `feat/parent-read-only-monitoring-portal` (the sandbox resets HEAD to `main` between bash invocations — every command started with `git checkout feat/parent-read-only-monitoring-portal 2>/dev/null || true` then verified with `git branch --show-current`).
+- Read ALL outcome files: 0.1-baseline-confirm-outcome, 0-baseline-outcome, plan-review-R1, research-00-planning-basis, 2.1-types-outcome, 2.2-repo-children-progress-outcome, 2.3-repo-reports-homework-outcome, 2.4-service-gate-outcome, 3.1-pothos-objects-outcome, 3.2-query-registration-outcome, 4.1-i18n-namespace-outcome (the 62 label slots — containers consume `portalPageTitle`, `portalPageSubtitle`, `childrenCount(count)`, `childSwitcherLabel`, `childrenEmptyTitle`, `childrenEmptyBody`, `childrenEmptyCta`, `detailPageTitle(childName)`, `detailPageSubtitle`, all five `tab*` labels, `loadErrorBody`, `loadingLabel`), 5.4-apollo-cache-outcome (the six no-`id` portal types registered with `keyFields: false`). The 5.1-documents-outcome.md file is committed on the feature branch (commit 8103f54) — confirmed `myLinkedChildrenQueryDocument` + the four per-student documents exist at `frontend/graphql/sharedDocuments/parents/parent-monitoring.documents.ts` and are re-exported via the `@/frontend/graphql/sharedDocuments` barrel.
+- Read plan files: plan.md §5.6 (view module layout — the two containers + barrel + five tabs; state matrix per tab; MUI v9 `sx`-only styling; `*Outlined` icons; theme palette callbacks; NO `AppDataGrid`/`MetricCard`/`PageContainer` imports; plain `Stack`/`Card` composition); tasks.md task 5.3 section (lines 275-285) — the orchestrator's split into 5.3a (containers + barrel) + 5.3b (five tabs).
+- Read AGENTS.md (root), frontend/AGENTS.md, frontend/views/AGENTS.md, .agents/instructions/frontend.instructions.md — all four applicable rule files (the same set later printed by sub-loop).
+- Read sibling files for the `extractErrorCode` / `mapGraphQLErrorByCode` precedent: `frontend/views/admin/analytics/PlatformAnalyticsContainer.tsx` (the canonical precedent — uses `extractErrorCode(error)` + `mapGraphQLErrorByCode(errorCode, { contextKind: "query", hasForm: false })?.kind === "permission-fallback"` for the sticky-denial logic. Our containers use the simpler `errorCode === "FORBIDDEN" || errorCode === "UNAUTHORIZED"` direct string comparison because there's NO poll interval — so no sticky-denial snapshotless re-attempt window to defend against. The behavior is equivalent for the FORBIDDEN/UNAUTHORIZED subset — both routes terminate at `PermissionDeniedFallback`).
+- Searched for `IconCircleEmptyState` / `PermissionDeniedFallback` / `ErrorRetryAlert` actual locations: `frontend/components/ui/IconCircleEmptyState.tsx`, `frontend/components/ui/PermissionDeniedFallback.tsx`, `frontend/components/ui/ErrorRetryAlert.tsx`. Confirmed `extractErrorCode` lives at `frontend/lib/graphql-error-utils.ts`.
+- Inspected prototype screenshots SEQUENTIALLY via `prototype/screens.json` (sub-agent context cannot render PNGs directly — the visual contract was derived from screen titles + device types + state variants, cross-referenced with plan.md §5.6 + the parentMonitoring i18n key inventory from task 4.1 outcome):
+  - `children-list-default-desktop.png` ("My Children - list", DESKTOP, default) → `ParentChildrenRootContainer` data state: portal header (title + subtitle + count) + list of clickable child cards.
+  - `children-list-empty-desktop.png` ("My Children - empty state", DESKTOP, empty) → `ParentChildrenRootContainer` 0-children branch: `IconCircleEmptyState` with `GroupOutlined` icon + handshake CTA button deep-linking to `/parent/handshake`.
+  - `child-detail-attendance-desktop.png` ("Child detail - Attendance tab", DESKTOP, default) → `ParentChildDetailContainer` + `AttendanceTab`: header (title + subtitle + switcher) + MUI Tabs strip + attendance rows.
+
+Execution:
+- The 3 in-scope files (`ParentChildrenRootContainer.tsx`, `ParentChildDetailContainer.tsx`, `index.ts`) ALREADY EXISTED in the working tree as untracked files from a prior partial attempt. The previous run's `5.3-views-outcome.md` (also untracked) documents the full surface; the orchestrator's split into 5.3a + 5.3b required re-verification of the container + barrel subset only.
+- VERIFIED the existing implementation matches the spec:
+  - `ParentChildrenRootContainer.tsx` (163 lines): `useQuery(myLinkedChildrenQueryDocument)` (zero-arg); auto-select-first `useEffect` calls `router.replace('/parent/children/<firstId>')` when `?student=` is missing AND children list is non-empty (PINNED §4.3 — client-side, never server-side). Render state matrix: loading → `ChildrenListSkeleton`; FORBIDDEN/UNAUTHORIZED → `PermissionDeniedFallback`; other errors → `ErrorRetryAlert`; zero children → `IconCircleEmptyState` + handshake CTA button; ≥1 → portal header + count + `ChildCard` grid. Props: `{ student: string | null }` (the raw `?student=` URL value — null if absent).
+  - `ParentChildDetailContainer.tsx` (174 lines): owns MUI `Tabs` (writes `?tab=` via `router.replace` — no history churn per tab click) and `ChildSwitcher` (writes path segment via `router.push` — back-button support). Forwards `?session=` deep-link (DEV1-017 R-I) to the Reports tab (NaN-safe `Number(session)` parsing). URL IS the state (D6): the active tab + active student + deep-link session are ALL derived from URL props on every render — ZERO `useState` for any of them (grep-verified). ALL per-tab `useQuery` hooks live in the tab components (task 5.3b) and re-key on `studentId`. Tab keys are type-guarded via `isTabKey(value): value is TabKey` (no `as` cast — `no-unsafe-type-assertion` honored). Props: `{ studentId: number; tab: string | null; session: string | null }` (server-validated plain props).
+  - `index.ts` (20 lines): components-only barrel — `export * from "./ParentChildrenRootContainer"`, `export * from "./ParentChildDetailContainer"`, plus `export * from "./AttendanceTab"`, `export * from "./EvaluationsTab"`, `export * from "./HomeworkTab"`, `export * from "./ProgressTab"`, `export * from "./ReportsTab"`. Presentational parts (`*.parts.tsx`) and `parentMonitoringDisplay.ts` stay deep-imported — not part of the public surface.
+- Tab-handoff approach chosen: DIRECT STATIC IMPORT. The 5 tab components already exist in the working tree (pre-existing untracked from a prior partial attempt) and compile cleanly against the task-5.1 documents (verified via `bun tsgo` exit 0 on the whole module). Rather than introduce lazy/dynamic import indirection or stub-and-replace placeholders, the container imports the existing tab components via direct static imports. Task 5.3b will finalize / verify the five tab implementations; the container's import surface is stable either way. Documented this choice in the interim outcome file.
+
+5.3a.QL Quality Loop — sub-loop.ts --lifecycle duplicates (NO fix iterations needed):
+- `ParentChildrenRootContainer.tsx`: ✅ tsgo ✅ oxlint ✅ biome:check ✅ lint:type-aware ✅ check:duplicates → exit 0.
+- `ParentChildDetailContainer.tsx`: ✅ tsgo ✅ oxlint ✅ biome:check ✅ lint:type-aware ✅ check:duplicates → exit 0.
+- `index.ts` (barrel): ✅ tsgo ✅ oxlint ✅ biome:check ✅ lint:type-aware ✅ check:duplicates → exit 0.
+
+5.3a.TE Test Engineering: state-matrix coverage lands in task 6.4 (Happy DOM + mocked Apollo). Inline verification: every container's 4 states (loading/empty/data/FORBIDDEN) are enumerated in the docblock + props contract. The state matrix is uniform across both containers + the five tabs (5.3b), so the 6.4 test lane can parameterize one matrix over the seven components.
+
+5.3a.SEC Security & Tenancy Audit:
+- **No mutation affordances (REQ-023.3)**: grep `useMutation|gql\`mutation|graphql.*Mutation` on the 3 files → ZERO hits.
+- **Server error text never rendered raw**: grep `error\.message|error\?\.message` → ZERO hits. All error surfacing rides `extractErrorCode` (FORBIDDEN/UNAUTHORIZED → `PermissionDeniedFallback`; other → `ErrorRetryAlert` with localized copy).
+- **No cross-child data leak (re-key verified)**: the root + detail containers' `useQuery(myLinkedChildrenQueryDocument)` is zero-arg (caller identity IS the read scope). ALL per-tab `useQuery` hooks (task 5.3b) re-key on `studentId` (path segment writes drive the prop). Apollo cache isolation honored.
+- **BOLA-tight variable surface (REQ-024.4)**: the four per-student documents send ONLY `studentId` + optional `page`/`pageSize` — no identity/role/auth hints.
+
+5.3a.SR Semantic Review (full checklist):
+- Race Conditions & Concurrency — N/A (pure read surface; the single `useEffect` is idempotent — `router.replace` to a deterministic URL).
+- Environment & Configuration — N/A.
+- No dead branches — every `if`/`switch` arm in the state matrix is reachable.
+- No cross-layer imports — grep `from "@/backend|from "@/app"` on the 3 files → ZERO hits. Only `@/frontend`, `@/shared`, `@apollo/client`, `@mui/material`, `next/navigation`, `react`.
+- No manual ReturnType construction — all types are codegen-emitted or `ParentMonitoringLabels`.
+- Clean comments — grep `REQ-[0-9]+|Task [0-9]\.[0-9]|task [0-9]\.[0-9]|Phase [0-9]|\.ai/plans|specs\.md|tasks\.md|plan\.md` → ZERO hits.
+- No hardcoded colors — grep `#[0-9a-fA-F]{3,8}|rgb\(|rgba\(` → ZERO hits.
+- URL IS the state — grep `useState` on the 3 files → ZERO hits.
+
+5.3a.IV Instruction Verification: read all rule files printed by sub-loop discovery (AGENTS.md root, frontend/AGENTS.md, frontend/views/AGENTS.md, .agents/instructions/frontend.instructions.md — four files). All rules honored:
+- AGENTS.md root: `@/` alias discipline; MUI v9 `sx`-only; `*Outlined` icons; compile-time TS i18n; NO `next-intl`; Apollo hooks from `@apollo/client/react`; NO `useLazyQuery`; `id` FIRST in selection sets.
+- frontend/AGENTS.md: theme palette callbacks (no hex/rgb); `on<Color>` siblings; `component="output"` for `aria-busy`; error-surface seams (`PermissionDeniedFallback` / `ErrorRetryAlert`).
+- frontend/views/AGENTS.md: layer-wide rules defer to `frontend/AGENTS.md`.
+- .agents/instructions/frontend.instructions.md: MUI v9 breaking changes (no style props); React 19 patterns (no `FormEvent`); Next.js 16 async params/searchParams (server page owns these — client containers receive plain props); `useQuery` from `@apollo/client/react`; TypedDocumentNode convention; theme callback pattern; no hardcoded colors; i18n via `useAppTranslation("<namespace>")` from `@/shared/locale/client`.
+
+WROTE outcome file at `ai/plans/sprint_3/parent-read-only-monitoring-portal/outcome/5.3a-containers-outcome.md` (interim; the final `5.3-views-outcome.md` is written by 5.3b). Documents: summary, the 3 in-scope files, the tab-handoff approach chosen (direct static import — 5 tabs already existed in working tree), state matrix, URL-param contract, full verification results (sub-loop exit 0 on all 3 files, no fix iterations), carry-forward knowledge for 5.3b (the 5 tabs need final sub-loop verification + state-matrix audit + D12 null-fallback audit + write final `5.3-views-outcome.md` + mark the 5.3 checkbox).
+
+DID NOT update the 5.3 checkbox in `tasks.md` (5.3b completes it per the orchestrator's split instructions).
+
+Stage Summary:
+- Three files in scope (containers + barrel), all sub-loop exit 0 at the deepest lifecycle stage (tsgo + oxlint + biome:check + lint:type-aware + check:duplicates — no fix iterations needed).
+- Tab-handoff approach: DIRECT STATIC IMPORT (the 5 tab components already existed in the working tree as untracked files from a prior partial attempt — they compile cleanly against the task-5.1 documents; no lazy/dynamic indirection, no stub-and-replace churn).
+- URL IS the state (D6): ZERO `useState` on either container; the only `useEffect` is the root container's auto-select-first `router.replace` (PINNED §4.3 — client-side, never server-side).
+- ZERO mutation affordances (REQ-023.3 honored).
+- ZERO cross-layer imports (`@/backend` / `@/app`).
+- ZERO plan-artifact references in comments.
+- ZERO hardcoded colors.
+- Carry-forward: 5.3b finalizes the 5 tab components (sub-loop verification + state-matrix audit + D12 null-fallback audit) and writes the final `5.3-views-outcome.md` consolidating 5.3a + 5.3b; the 5.3 checkbox in `tasks.md` is marked `[x]` only after 5.3b.
+
+---
+
+Task ID: 5.3b
+Agent: Portal Views Subagent (general-purpose) — split part 2 of task 5.3
+Task: Verify + finalize the five tab components + presentational parts + display helpers (split part 2 of task 5.3)
+
+Work Log:
+- Read SKILL.md in FULL (per-task flow: READ outcomes → READ task → READ AGENTS → EXECUTE → QUALITY LOOP → TEST → SECURITY → SEMANTIC REVIEW → INSTRUCTION VERIFICATION → WRITE OUTCOME → UPDATE CHECKBOX).
+- Confirmed branch is `feat/parent-read-only-monitoring-portal` (the sandbox resets HEAD to `main` between bash invocations — every command started with `git checkout feat/parent-read-only-monitoring-portal 2>/dev/null || true` then verified with `git branch --show-current`).
+- Read ALL outcome files: 0.1-baseline-confirm-outcome, 0-baseline-outcome, plan-review-R1, research-00-planning-basis, 2.1-types-outcome, 2.2-repo-children-progress-outcome, 2.3-repo-reports-homework-outcome, 2.4-service-gate-outcome, 3.1-pothos-objects-outcome, 3.2-query-registration-outcome, 3.3-codegen-sdl-lock-outcome, 4.1-i18n-namespace-outcome (the 62 label slots — tabs consume `attendanceSectionTitle`/`attendanceCount(count)`/`attendanceEmptyTitle`/`attendanceEmptyBody`/5×`attendanceStatus*` + `reportsSectionTitle`/`reportsCount(count)`/`reportsEmptyTitle`/`reportsEmptyBody`/`reportsColumnDate`/`reportsColumnNotes`/`reportsColumnRating`/`ratingNotRated` + `homeworkSectionTitle`/`homeworkCount(count)`/`homeworkEmptyTitle`/`homeworkEmptyBody`/`homeworkColumnDate`/`homeworkColumnJadid`/`homeworkColumnMadi`/`homeworkColumnGrade`/`trackJadid`/`trackMadi`/`trackNoneAssigned` + `evaluationsSectionTitle`/`evaluationsCount(count)`/`evaluationsEmptyTitle`/`evaluationsEmptyBody`/`evaluationsColumnDate`/`evaluationsColumnScore`/`evaluationsColumnNotes`/`ratingNotRated` + `progressSectionTitle`/`progressRowCount(count)`/`progressEmptyTitle`/`progressEmptyBody`/`progressNoRecorded`/`progressLatestJadidLabel`/`progressLatestMadiLabel`/`progressPositionNone` + `loadingLabel`/`loadErrorBody`), 5.1-documents-outcome (the five `TypedDocumentNode`s), 5.3a-containers-outcome (interim containers outcome — verified the two containers + barrel, documented tab-handoff approach as DIRECT STATIC IMPORT since the 5 tabs already existed in the working tree), 5.4-apollo-cache-outcome (the six no-`id` portal types registered `keyFields: false`). Also re-read the pre-existing `5.3-views-outcome.md` (untracked, from prior partial attempt — already documented the full surface but with somewhat misleading file-attribution; 5.3b consolidates it into the final outcome).
+- Read plan files: plan.md §5.6 (view module layout — state matrix per tab; MUI v9 `sx`-only styling; `*Outlined` icons; theme palette callbacks; NO `AppDataGrid`/`MetricCard`/`PageContainer` imports; plain `Stack`/`Card` composition; deep-link `?session=` scrolls the Reports tab to that session row); tasks.md task 5.3 section (lines 275-285) — the orchestrator's split into 5.3a (containers + barrel) + 5.3b (five tabs).
+- Read AGENTS.md (root), frontend/AGENTS.md, frontend/views/AGENTS.md, .agents/instructions/frontend.instructions.md — all four applicable rule files (the same set later printed by sub-loop on every tab file).
+- Read every file in `frontend/views/parent/monitoring/`: the 5 tab `.tsx` files (`AttendanceTab.tsx`, `ReportsTab.tsx`, `HomeworkTab.tsx`, `EvaluationsTab.tsx`, `ProgressTab.tsx`), the 5 `.parts.tsx` siblings (containing the skeleton + row presentational parts), the 2 container `.tsx` files + their `.parts.tsx` siblings (already verified by 5.3a — re-read for the consolidated outcome), `parentMonitoringDisplay.ts` (the locale-neutral display helpers: `attendanceStatusLabel` exhaustive `SessionStatus` → label-slot lookup + `formatSurahJuzRef` codegen enum → presentable run), and `index.ts` (components-only barrel).
+- Inspected prototype screenshots SEQUENTIALLY via `prototype/screens.json` (sub-agent context has no `ReadMediaFile` capability — the visual contract was derived from screen titles + device types + state variants, cross-referenced with plan.md §5.6 + the parentMonitoring i18n key inventory from task 4.1 outcome — the same approach as 5.3a):
+  - `child-detail-attendance-desktop.png` ("Child detail - Attendance tab", DESKTOP, default) → `AttendanceTab` data state: section title + count + per-row Card with date + status chip.
+  - `child-detail-reports-desktop.png` ("Child detail - Session Reports tab", DESKTOP, default) → `ReportsTab` data state: section title + count + per-row Card with date + rating chip + teacher notes; deep-link `?session=` scrolls + highlights the matching row.
+  - `child-detail-homework-desktop.png` ("Child detail - Homework tab (Jadid/Madi)", DESKTOP, default) → `HomeworkTab` data state: section title + count + per-row Card with date + Jadid block + Madi block (each: surah/juz + ayah range + grade).
+  - `child-detail-evaluations-desktop.png` ("Child detail - Evaluations tab", DESKTOP, default) → `EvaluationsTab` data state: section title + count + per-row Card with date + score + notes (evaluations lens on the report record — same `parentChildReports` query, different projection).
+  - `child-detail-progress-desktop.png` ("Child detail - Progress tab (Tajweed position)", DESKTOP, default) → `ProgressTab` data state: row-count heading + latest Jadid position block + latest Madi position block.
+  - `child-detail-denied-desktop.png` ("Child detail - 403 Permission Denied", DESKTOP, denied) → `PermissionDeniedFallback` rendered by EVERY tab + both containers on FORBIDDEN/UNAUTHORIZED (`LockOutlined` icon + title + description + `role="alert"` — constant shape across all denial classes).
+
+Execution:
+- The 11 in-scope files for 5.3b (5 tabs + 5 parts + `parentMonitoringDisplay.ts`) ALREADY EXISTED in the working tree as untracked files from a prior partial attempt. 5.3b's job was to VERIFY, FINALIZE, and complete task 5.3 — NOT to author from scratch.
+- VERIFIED every tab implementation matches the spec:
+  - `AttendanceTab.tsx` (114 lines): `useQuery(parentChildSessionsQueryDocument, { variables: { studentId: props.studentId, page: undefined, pageSize: undefined } })`. Render state matrix verified: loading→`AttendanceSkeleton` (component="output" aria-busy); FORBIDDEN/UNAUTHORIZED→`PermissionDeniedFallback`; other error→`ErrorRetryAlert`; zero rows→`IconCircleEmptyState` with `CalendarMonthOutlined`; ≥1→per-row `AttendanceRow` cards with date + status chip (via `attendanceStatusLabel` exhaustive lookup).
+  - `ReportsTab.tsx` (122 lines): `useQuery(parentChildReportsQueryDocument, { variables: { studentId, page: undefined, pageSize: undefined } })`. Same state matrix. Deep-link `?session={number|null}` forwarded to each `ReportRow` for scroll-into-view.
+  - `HomeworkTab.tsx` (112 lines): `useQuery(parentChildHomeworkQueryDocument, ...)`. Same state matrix. Per-row `HomeworkRow` renders both Jadid + Madi `HomeworkTrackBlock`s.
+  - `EvaluationsTab.tsx` (118 lines): `useQuery(parentChildReportsQueryDocument, ...)` — the SAME document `ReportsTab` uses (verified: `EvaluationsTab.tsx:10` imports `parentChildReportsQueryDocument`, NOT a separate evaluations document). Evaluations is a client-side projection of the report rows.
+  - `ProgressTab.tsx` (137 lines): `useQuery(parentChildProgressQueryDocument, { variables: { studentId: props.studentId } })`. State matrix: loading→`ProgressSkeleton`; FORBIDDEN/UNAUTHORIZED→`PermissionDeniedFallback`; other error→`ErrorRetryAlert`; empty (`progressRowCount === 0 && latestJadidPosition === null && latestMadiPosition === null`)→`IconCircleEmptyState` with `TrendingUpOutlined`; otherwise→row-count heading + Jadid position block + Madi position block (each falls back to `progressPositionNone` inline copy when its slot is null; `progressNoRecorded` inline copy above the position blocks when `progressRowCount === 0` but a position is non-null).
+- Per-tab D12 null-fallback audit:
+  - `studentRatingByTeacher === null` → `ratingNotRated` ("Not rated yet") — verified at `ReportsTab.parts.tsx:68` and `EvaluationsTab.parts.tsx:61` (`rating === null ? labels.ratingNotRated : `${rating}`` — NEVER `0`).
+  - `jadid`/`madi` track block null OR `track?.surahJuz == null` → `trackNoneAssigned` ("None assigned") — verified at `HomeworkTab.parts.tsx:109,124` (covers both wholly-null block AND partial-null block defensive branch).
+  - `latestJadidPosition === null` / `latestMadiPosition === null` → `progressPositionNone` ("None") — verified at `ProgressTab.parts.tsx:74,76` (renders inside the `ProgressPositionBlock` when `position === null`).
+  - `progressRowCount === 0` (with at least one non-null position) → `progressNoRecorded` ("No recorded progress yet") — verified at `ProgressTab.tsx:100-104`.
+- Deep-link `?session=` flow audit (R-I for session-scoped notifications):
+  - URL `/parent/children/<id>?tab=reports&session=<sessionId>` → server page extracts `session` as string → `ParentChildDetailContainer.tsx:98-99` NaN-safe parsing (`Number.isNaN` check) → `sessionArg: number | null` → forwarded to `<ReportsTab session={sessionArg} />` at line 112 → `ReportsTab.tsx:95` passes `deepLinkSessionId={props.session}` to each `ReportRow` → `ReportsTab.parts.tsx:58` computes `isDeepLinkTarget = deepLinkSessionId !== null && deepLinkSessionId === row.sessionId` → `useEffect` at lines 60-64 calls `rowRef.current.scrollIntoView({ behavior: "smooth", block: "center" })` when `isDeepLinkTarget && rowRef.current !== null` → matching row also gets `aria-current="true"` (line 76) + primary-color 2px border (lines 83-84).
+- Comment cleanup (the ONLY code changes 5.3b made — no behavior change):
+  - `EvaluationsTab.tsx:18` — removed `(D9 collapse: reports + evaluations share one query, two client-side projections)` → rephrased to "reports and evaluations share one query with two client-side projections" (clean domain-language description).
+  - `ParentChildDetailContainer.tsx:25` — removed `(D6 — URL IS the state, no Zustand)` → `(URL IS the state — no parallel local copy, no Zustand)`.
+  - `ParentChildDetailContainer.tsx:34` — removed `(DEV1-017 deep-link target)` → `(the deep-link target for session-scoped notifications)`.
+  - `ProgressTab.tsx:18` — removed `(D3 honest-read posture — no fabricated percentages over the skeleton curriculum tables)` → rephrased to "The read is honest — no fabricated percentages over the skeleton curriculum tables; the count and the two latest positions are surfaced verbatim."
+  - `ParentChildrenRootContainer.tsx:19` — removed `(PINNED decision)` parenthetical → rephrased to "Auto-selection of the first linked child happens CLIENT-SIDE in this container".
+  - `index.ts:7` — removed `task-6.4` reference → rephrased to "the component-test lane".
+  - Post-cleanup grep: `REQ-[0-9]+|Task [0-9]\.[0-9]|task [0-9]\.[0-9]|task-[0-9]|Phase [0-9]|\.ai/plans|specs\.md|tasks\.md|plan\.md|\bD[0-9]+\b|DEV1-[0-9]+|INV-P[0-9]+|PINNED|R-[A-J]\b` on the 16-file module → ZERO hits.
+
+5.3b.QL Quality Loop — sub-loop.ts --lifecycle duplicates (NO fix iterations needed for code; one comment-cleanup iteration):
+- Pre-cleanup: ran sub-loop on each of the 11 5.3b files (`AttendanceTab.tsx`, `AttendanceTab.parts.tsx`, `ReportsTab.tsx`, `ReportsTab.parts.tsx`, `HomeworkTab.tsx`, `HomeworkTab.parts.tsx`, `EvaluationsTab.tsx`, `EvaluationsTab.parts.tsx`, `ProgressTab.tsx`, `ProgressTab.parts.tsx`, `parentMonitoringDisplay.ts`) → ALL exit 0 (tsgo + oxlint + biome:check + lint:type-aware + check:duplicates — no fix iterations needed).
+- Applied the 5 comment cleanups above.
+- Post-cleanup: re-ran sub-loop on each of the 5 modified files (`EvaluationsTab.tsx`, `ParentChildDetailContainer.tsx`, `ProgressTab.tsx`, `ParentChildrenRootContainer.tsx`, `index.ts`) → ALL exit 0.
+
+5.3b.TE Test Engineering: state-matrix coverage lands in task 6.4 (Happy DOM + mocked Apollo). Inline verification: every tab's 5 states (loading/FORBIDDEN/other-error/empty/data) are enumerated in the component's docblock + props contract. The state matrix is uniform across all five tabs + both containers, so the 6.4 test lane can parameterize one matrix over seven components. Stable `data-testid` hooks documented per tab in the outcome file.
+
+5.3b.SEC Security & Tenancy Audit:
+- **No mutation affordances (REQ-023.3)**: grep `useMutation|useApolloClient.*mutate|gql\`mutation|graphql.*Mutation` on the 16-file module → ZERO hits.
+- **Server error text never rendered raw**: grep `error\.message|error\?\.message` → ZERO hits. All error surfacing rides `extractErrorCode` (FORBIDDEN/UNAUTHORIZED → `PermissionDeniedFallback`; other → `ErrorRetryAlert` with localized copy).
+- **No cross-child data leak (re-key verified)**: all 5 tab `useQuery` hooks pass `variables: { studentId: props.studentId, ... }` — Apollo re-fetches whenever `studentId` changes (path segment writes drive the prop). Cache isolation honored.
+- **EvaluationsTab uses the reports query, NOT a separate evaluations query**: verified `EvaluationsTab.tsx:10` imports `parentChildReportsQueryDocument` (same document `ReportsTab.tsx:10` uses). Evaluations is a client-side projection.
+- **No fake data**: every rendered value flows from a real `useQuery` hook. Skeleton placeholders use stable string keys (`"attendance-skeleton-1"`, etc.) — the only invented content, and the sanctioned scaffolding state.
+- **BOLA-tight variable surface (REQ-024.4)**: the four per-student documents send ONLY `studentId` + optional `page`/`pageSize` — no identity/role/auth hints.
+
+5.3b.SR Semantic Review (full checklist):
+- Race Conditions & Concurrency — N/A (pure read surface; the two `useEffect`s are bounded — root container's auto-select-first is idempotent; `ReportRow`'s scroll-into-view runs once per `isDeepLinkTarget` transition on its own row's ref).
+- Environment & Configuration — N/A.
+- No dead branches — every `if`/`switch` arm in the state matrix is reachable. The ProgressTab's `isEmpty` check is the only compound condition and is structurally sound — every operand (`progressRowCount === 0`, `latestJadidPosition === null`, `latestMadiPosition === null`) is individually reachable.
+- No cross-layer imports — grep `from "@/backend|from "@/app"` on the 16-file module → ZERO hits. Only `@/frontend`, `@/shared`, `@apollo/client`, `@mui/material`, `next/navigation`, `react`.
+- No manual ReturnType construction — all types are codegen-emitted (`*Query_*_items`, `*Query_*_child`, etc.) or `ParentMonitoringLabels`.
+- Clean comments — grep plan-artifact patterns (ruling names, task ids, REQ ids, plan paths, PINNED, DEV1-xxx, INV-Px) → ZERO hits post-cleanup.
+- No hardcoded colors — grep `#[0-9a-fA-F]{3,8}|rgb\(|rgba\(` → ZERO hits.
+- URL IS the state — grep `useState` on the 16-file module → ZERO hits.
+- No non-existent component imports — grep `AppDataGrid|MetricCard|PageContainer` → ZERO hits. Plain `Stack`/`Card`/`Box` composition only.
+- All icons are `*Outlined` (`CalendarMonthOutlined`, `DescriptionOutlined`, `MenuBookOutlined`, `GradingOutlined`, `TrendingUpOutlined`, `GroupOutlined`, `LinkOutlined`) — MUI v9 icon naming convention honored.
+- Tab keys type-guarded via `isTabKey(value): value is TabKey` in `ParentChildDetailContainer.tsx` (no `as` cast — `no-unsafe-type-assertion` honored).
+- Schema & Types — `SessionStatus` imported as VALUE import in `parentMonitoringDisplay.ts` (used in the `SESSION_STATUS_LABEL_KEYS` lookup table); `SurahJuzRef` imported as TYPE import (used only in the `formatSurahJuzRef` parameter type).
+- Scope Boundary — only `frontend/views/parent/monitoring/` files touched. The 5.3b comment-cleanup pass touched 5 files — all comment-only edits, no behavior change.
+
+5.3b.IV Instruction Verification: read all rule files printed by sub-loop discovery (AGENTS.md root, frontend/AGENTS.md, frontend/views/AGENTS.md, .agents/instructions/frontend.instructions.md — four files). All rules honored — no in-file rule violations, no cross-file blockers caused by this task.
+
+WROTE final outcome file at `ai/plans/sprint_3/parent-read-only-monitoring-portal/outcome/5.3-views-outcome.md` — consolidated 5.3a (containers + barrel) + 5.3b (5 tabs + parts + display helpers) into the complete task-5.3 outcome. Documents: summary, task-split recap, all 16 files in scope (with sub-loop exit 0 per file), state matrix per tab (verified — uniform across all 5 tabs), D12 null-fallback audit (with code-line citations), URL-param contract, deep-link `?session=` flow (end-to-end with code-line citations), prototype-to-component mapping, verification results (5.3b.QL/TE/SEC/SR/IV), carry-forward knowledge for task 6.4 (stable data-testid hooks + mocked-provider variable surface + re-key verification + deep-link assertion + EvaluationsTab=ReportsTab-query-different-projection + FORBIDDEN assertion).
+
+UPDATED tasks.md: changed `- [ ] 5.3 Portal view components` to `- [x] 5.3 Portal view components` (only the main task line; .QL/.TE/.SEC/.SR/.IV subtask checkboxes left as-is per task instructions).
+
+Stage Summary:
+- 16 files in scope (2 containers + 2 container parts + 5 tabs + 5 tab parts + 1 display helper + 1 barrel), all sub-loop exit 0 at the deepest lifecycle stage (tsgo + oxlint + biome:check + lint:type-aware + check:duplicates — no fix iterations needed for code; one comment-cleanup iteration for plan-artifact references).
+- State matrix uniform across all 5 tabs: loading→skeleton, FORBIDDEN/UNAUTHORIZED→`PermissionDeniedFallback`, other error→`ErrorRetryAlert`, empty→`IconCircleEmptyState`, data→per-row Cards. All 5 branches reachable — no dead arms.
+- D12 null-fallbacks verified: null rating → "Not rated yet" (NEVER `0`); null track blocks → "None assigned"; null latest position → "None"; zero progress count with non-null position → "No recorded progress yet".
+- Deep-link `?session=` scrolls the matching Reports row into view + highlights it (primary-color 2px border + `aria-current="true"`).
+- EvaluationsTab consumes `parentChildReports` query (NOT a separate evaluations query) — evaluations is a client-side projection of the report rows.
+- ZERO mutation affordances (REQ-023.3 honored).
+- ZERO cross-layer imports (`@/backend` / `@/app`).
+- ZERO plan-artifact references in comments (post-cleanup).
+- ZERO hardcoded colors.
+- ZERO non-existent component imports (`AppDataGrid`/`MetricCard`/`PageContainer`).
+- URL IS the state — ZERO `useState` on the 16-file module.
+- Carry-forward: task 6.4 (UI component tests) parameterizes one state matrix over 5 tabs + 2 containers; stable `data-testid` hooks documented per tab; mocked-provider variable surface documented per the five task-5.1 documents.
