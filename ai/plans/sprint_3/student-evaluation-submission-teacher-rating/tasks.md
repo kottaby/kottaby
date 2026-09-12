@@ -162,17 +162,17 @@
 - [x] 3.3.SEC **Security & Tenancy Audit**: caller-scoped service call; no args that could widen scope.
 - [x] 3.3.SR **Semantic Review**: non-paginated by design (D12) — note in outcome.
 - [x] 3.3.IV **Instruction Verification**: read `backend/graphql/query/AGENTS.md` + printed instructions.
-### - [ ] 3.4 Registration, SDL Pins, Wire Tests, Codegen
+### - [x] 3.4 Registration, SDL Pins, Wire Tests, Codegen
 - Run `bun run generate:gqlSchema && bun codegen`; commit the regenerated artifacts.
 - Extend `backend/graphql/test/sdl-static-assertions.test.ts`: `Evaluation` type fields, `submitTeacherEvaluation`, `myTeacherEvaluations` pins.
 - NEW `backend/graphql/test/student-evaluation.wire.test.ts` (`setupTestServerLifecycle` + `testClient` + `expectMutationError`): anonymous → UNAUTHORIZED; teacher/parent role → FORBIDDEN; happy-path mutation returns the row (score = rating×20); all four spec'd error codes pinned; query returns only the caller's rows; `extensions.fields` present on VALIDATION.
 - Run `bun run test:graphql`.
 - _Requirements: REQ-008, REQ-011, REQ-013.4_
-- [ ] 3.4.QL **Quality Loop**: sub-loop on the two test files (exit 0).
-- [ ] 3.4.TE **Test Engineering**: covers Tier-1 wire matrix + Tier-4 role matrix; error `code` assertions only, never HTTP status.
-- [ ] 3.4.SEC **Security & Tenancy Audit**: proves the REQ-011 role matrix over the wire.
-- [ ] 3.4.SR **Semantic Review**: no public-operation allowlist edit; SDL pins are additive.
-- [ ] 3.4.IV **Instruction Verification**: read the backend GraphQL test guidance (`backend/graphql/AGENTS.md`, error-contract docs) + tests instructions.
+- [x] 3.4.QL **Quality Loop**: sub-loop on the two test files (exit 0).
+- [x] 3.4.TE **Test Engineering**: covers Tier-1 wire matrix + Tier-4 role matrix; error `code` assertions only, never HTTP status.
+- [x] 3.4.SEC **Security & Tenancy Audit**: proves the REQ-011 role matrix over the wire.
+- [x] 3.4.SR **Semantic Review**: no public-operation allowlist edit; SDL pins are additive.
+- [x] 3.4.IV **Instruction Verification**: read the backend GraphQL test guidance (`backend/graphql/AGENTS.md`, error-contract docs) + tests instructions.
 
 ---
 

@@ -437,6 +437,20 @@ const RECITATION_RECORD_MUTATION_FIELDS = ["setSessionRecitation"] as const;
 const RECITATION_RECORD_QUERY_FIELDS = ["sessionRecitation"] as const;
 /** record object + its closed two-member input (name + optional description). */
 const RECITATION_RECORD_TYPE_NAMES = ["SessionRecitation", "SessionRecitationInput"] as const;
+/**
+ * student-evaluation rating pair — the sanctioned Phase-3 addition.
+ * The mutation is student-gated
+ * (`$all { authenticated: true, role: [UserRole.Student] }`) with a
+ * NON-nullable payload; the query is caller-scoped (rater id server-bound,
+ * zero arguments) with a NON-nullable list payload. Both are authScopes-gated
+ * — neither is allowlist material; the public-operation registry stays
+ * byte-unchanged.
+ */
+const STUDENT_EVALUATION_MUTATION_FIELDS = ["submitTeacherEvaluation"] as const;
+/** caller-scoped read — the non-paginated own-ratings list. */
+const STUDENT_EVALUATION_QUERY_FIELDS = ["myTeacherEvaluations"] as const;
+/** record object + its closed one-member input (whole-star rating). */
+const STUDENT_EVALUATION_TYPE_NAMES = ["Evaluation", "SubmitTeacherEvaluationInput"] as const;
 
 /**
  * R1–R3 admin directory query trio — RECONCILED baseline drift (the
@@ -619,7 +633,8 @@ describe("Query._health — retyped probe surface", () => {
     // parent-link read pair + R1–R3 admin directory trio (shipped but never
     // pinned — re-anchored alongside the R4 statusCounts aggregate) + the
     // R5 admin directory export trio (the sanctioned export-all read
-    // surface).
+    // surface) + the student-evaluation caller-scoped read
+    // (`myTeacherEvaluations`).
     const additions = fieldNames.filter(name => !(PRE_3_1_QUERY_FIELDS as readonly string[]).includes(name));
     expect(additions.toSorted((a, b) => a.localeCompare(b))).toEqual(
       [
@@ -639,6 +654,7 @@ describe("Query._health — retyped probe surface", () => {
         ...RECONCILED_PARENT_LINK_QUERY_FIELDS,
         ...RECONCILED_ADMIN_AUDIT_QUERY_FIELDS,
         ...RECITATION_RECORD_QUERY_FIELDS,
+        ...STUDENT_EVALUATION_QUERY_FIELDS,
       ].toSorted((a, b) => a.localeCompare(b))
     );
   });
@@ -700,7 +716,7 @@ describe("HealthCheck object shape — four scalar fields, no id", () => {
 });
 
 describe("Surface freeze — pinned additions vs the baseline inventory", () => {
-  test("mutation set grows ONLY by the sanctioned additions (quartet + dispute pair + confirm + payout + admin-user trio + admin-governance pair + session-governance quartet + session-report write + the subscription purchase write + the reconciled parent-link trio + broadcast/certify pair + the session-recitation write)", () => {
+  test("mutation set grows ONLY by the sanctioned additions (quartet + dispute pair + confirm + payout + admin-user trio + admin-governance pair + session-governance quartet + session-report write + the subscription purchase write + the reconciled parent-link trio + broadcast/certify pair + the session-recitation write + the student-evaluation rating write)", () => {
     const mutationFields = graphQLSchema.getMutationType()?.getFields() ?? {};
     const names = Object.keys(mutationFields).toSorted((a, b) => a.localeCompare(b));
 
@@ -718,8 +734,9 @@ describe("Surface freeze — pinned additions vs the baseline inventory", () => 
     // session-report write, the subscription purchase write, the
     // RECONCILED parent-link trio + admin broadcast/certify pair (shipped
     // but never pinned — re-anchored alongside the R4 statusCounts
-    // aggregate), and the session-recitation write
-    // (`setSessionRecitation`). All authScopes-gated — none is allowlist
+    // aggregate), the session-recitation write
+    // (`setSessionRecitation`), and the student-evaluation rating write
+    // (`submitTeacherEvaluation`). All authScopes-gated — none is allowlist
     // material; the public-operation registry stays byte-unchanged.
     expect(names).toEqual(
       [
@@ -736,6 +753,7 @@ describe("Surface freeze — pinned additions vs the baseline inventory", () => 
         ...RECONCILED_PARENT_LINK_MUTATION_FIELDS,
         ...RECONCILED_ADMIN_BROADCAST_CERTIFY_MUTATION_FIELDS,
         ...RECITATION_RECORD_MUTATION_FIELDS,
+        ...STUDENT_EVALUATION_MUTATION_FIELDS,
       ].toSorted((a, b) => a.localeCompare(b))
     );
     expect(names).not.toContain("_health");
@@ -857,7 +875,7 @@ describe("Surface freeze — pinned additions vs the baseline inventory", () => 
     }
   });
 
-  test("whole-schema named-type delta is pinned: refreshed baseline delta (DateTime scalar + HealthCheck probe + handshake surface) + session objects/inputs + scheduling/arbitration/ledger enums + wallet surface + admin-user-management surface + the parent-link objects (extend step) + the eleven analytics value objects + the governance inputs + the subscription purchase surface (objects, input, root operations) + the reconciled audit/broadcast/directory surfaces + the R5 export envelopes + the session-report surface (2 objects + 4 inputs + the recitation enum) + the recitation record pair", () => {
+  test("whole-schema named-type delta is pinned: refreshed baseline delta (DateTime scalar + HealthCheck probe + handshake surface) + session objects/inputs + scheduling/arbitration/ledger enums + wallet surface + admin-user-management surface + the parent-link objects (extend step) + the eleven analytics value objects + the governance inputs + the subscription purchase surface (objects, input, root operations) + the reconciled audit/broadcast/directory surfaces + the R5 export envelopes + the session-report surface (2 objects + 4 inputs + the recitation enum) + the recitation record pair + the student-evaluation record object + input", () => {
     const post = new Set(sdlTypeNames());
 
     for (const name of PRE_3_1_TYPE_NAMES) {
@@ -888,6 +906,7 @@ describe("Surface freeze — pinned additions vs the baseline inventory", () => 
         ...R4R_ADMIN_DIRECTORY_TYPE_NAMES,
         ...R5_ADMIN_EXPORT_TYPE_NAMES,
         ...RECITATION_RECORD_TYPE_NAMES,
+        ...STUDENT_EVALUATION_TYPE_NAMES,
       ].toSorted((a, b) => a.localeCompare(b))
     );
   });

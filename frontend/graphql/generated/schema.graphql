@@ -396,6 +396,15 @@ enum DisputeResolution {
   Complete
 }
 
+type Evaluation {
+  createdAt: DateTime!
+  evaluatedId: Int!
+  evaluatorId: Int!
+  id: ID!
+  score: Int
+  sessionId: Int
+}
+
 enum Gender {
   Female
   Male
@@ -608,6 +617,11 @@ type Mutation {
   Submit the teacher's report for one completed session: notes, the student rating, and the optional homework composites (previous-row grades + the new assignment) settle atomically. A duplicate submission replays SESSION_REPORT_ALREADY_EXISTS.
   """
   submitSessionReport(id: ID!, input: SubmitSessionReportInput!): SessionReport!
+
+  """
+  Submit the calling student's rating of one session's teacher: a whole-star 1..5 rating stored on the 0-100 score scale, exactly once per session. An unfinished handshake surfaces EVALUATION_SESSION_NOT_COMPLETED, a re-submission EVALUATION_ALREADY_SUBMITTED, and an unknown or foreign session is indistinguishable from SESSION_NOT_FOUND. Student-only.
+  """
+  submitTeacherEvaluation(input: SubmitTeacherEvaluationInput!, sessionId: ID!): Evaluation!
 
   """
   Persists the caller's app locale preference (UI + notification-copy language) and returns the updated user. Idempotent. Self-scoped — identity is derived from the verified context, never from arguments.
@@ -919,6 +933,7 @@ type Query {
   The caller's own subscriptions across every lifecycle status, newest first. Student-only.
   """
   mySubscriptions: [StudentSubscription!]!
+  myTeacherEvaluations: [Evaluation!]!
   myTeacherSessions(filter: SessionListFilterInput, page: Int = 1, pageSize: Int = 25): SessionPage!
 
   """
@@ -1155,6 +1170,10 @@ input SubmitSessionReportInput {
   previousGrades: HomeWorkGradeInput
   studentRatingByTeacher: Int!
   teacherNotes: String!
+}
+
+input SubmitTeacherEvaluationInput {
+  rating: Int!
 }
 
 enum SubscriptionCreditLane {
