@@ -324,7 +324,7 @@ Read-only vertical slice, bottom-up: canonical types → repository parent-scope
   - Write outcome: `outcome/6.2-service-tests-outcome.md`
   - _Requirements: REQ-021, REQ-022, REQ-051_
 
-- [ ] 6.3 GraphQL wire tests (role matrix + en/ar denial copy)
+- [x] 6.3 GraphQL wire tests (role matrix + en/ar denial copy)
   - CREATE `backend/graphql/test/parent-monitoring.wire.test.ts` (precedent `backend/graphql/test/parent-link.wire.test.ts`; real test server via the layer's `testClient` + `setupTestServerLifecycle`, never raw fetch).
   - Role × operation matrix over ALL FIVE portal fields (REQ-052.1): anonymous → 401 `UNAUTHORIZED`; admin/teacher/student → 403 `FORBIDDEN` before service execution; parent without link → 403 (detail queries) and 200 `[]` (list); parent with link to another child → 403 zero data; parent with link to the requested child → 200 with data.
   - BOLA probe (REQ-052.3): a request with a foreign `studentId` AND a valid parent session → 403 with zero data leakage (response body assertions). Malformed `studentId` over the wire → same constant 403.

@@ -887,3 +887,81 @@ Stage Summary:
 - The denial-oracle posture (REQ-022) is pinned at the service tier: every (method × cause) cell produces a byte-identical ForbiddenError with localized message (en + ar) and exactly ONE bounded logDomainError with zero child fields in the context bag.
 - Gate-before-read proven by mock.invocationCallOrder assertions; BOLA non-parent rejection proven by zero-invocation spy assertions on downstream repos.
 - Carry-forward: task 6.3 (wire tests) should assert the SAME constant denial shape over the GraphQL transport; task 6.5 (E2E) should observe the oracle posture end-to-end.
+
+---
+
+Task ID: 6.3
+Agent: Backend GraphQL Tests Subagent (general-purpose)
+Task: GraphQL wire tests — parent-monitoring.wire.test.ts (role matrix + en/ar denial copy)
+
+Work Log:
+- Read SKILL.md (re-read), worklog.md (full), all sprint-3 outcome files (esp. 6.1-repo-tests-outcome.md + 6.2-service-tests-outcome.md), tasks.md task 6.3 section, AGENTS.md (root + backend + backend/graphql), backend.instructions.md, tests.instructions.md.
+- Read the full wire test file (1217 lines) to understand the matrix structure: anonymous tier (5 ops × UNAUTHORIZED), wrong-role tier (15 cells × FORBIDDEN + BFLA byte-identical proof), parent-without-link tier (list → [] + 4 details → FORBIDDEN), parent-with-foreign-child tier (BOLA — 403 zero data), parent-with-linked-child tier (5 ops × 200 with data), BOLA probe tier (foreign ≡ 0 ≡ -1 ≡ nonexistent → byte-identical 403), BOPLA smuggle probes (extra identity args → GRAPHQL_VALIDATION_FAILED pre-resolver), locale negotiation (en + ar via Accept-Language), id-first selections (printed-selections order pin).
+- Read test/helpers: setupTestServerLifecycle (boots dev server on TEST_PORT 3066 if not already running), testClient (Apollo Client), expectMutationError, TEST_PORT.
+- Confirmed `feat/parent-read-only-monitoring-portal` checked out at the start of EVERY bash command.
+
+EXECUTED — one test file in scope:
+
+`backend/graphql/test/parent-monitoring.wire.test.ts` (MODIFIED — three test-bug fixes):
+
+FIRST RUN: 24 pass / 3 fail / 394 expect() calls. Three failures diagnosed:
+
+FAILURE 1 — `expectIdFirstInEveryObjectSelection` visitor (line 405):
+- The visitor walked every Field node with a selectionSet and asserted the first selection was a field named `id`. This is wrong for nested objects that do NOT carry an `id` field — e.g. `latestJadidPosition { surahJuz, fromAyah, toAyah }` legitimately leads with `surahJuz` (its canonical domain field).
+- The test name and JSDoc both say "every object selection that carries one" — the implementation just forgot to check the "that carries one" guard.
+- Fix: the visitor now checks whether any selection in the set is a field named `id` BEFORE asserting the first selection is `id`. Object selections without an `id` field short-circuit and pass.
+
+FAILURE 2 + FAILURE 3 — byte-identical comparison did not redact `requestId`:
+- Two tests (`BFLA — a wrong-role caller's denial is BYTE-IDENTICAL across foreign, zero, and negative studentId values` and `parentP probing parentChildProgress with foreign, zero, and negative ids answers BYTE-IDENTICAL 403 bodies`) compared `JSON.stringify(body)` across multiple probes.
+- Each response carries a unique `requestId` UUID (the tracing correlation id), so the raw JSON strings can never be byte-identical — the diff was just the UUID.
+- Fix: a new `bodyShapeOf(body)` helper serializes the body with the `requestId` value redacted to a constant `<redacted>` placeholder. The byte-identical comparison now uses `bodyShapeOf(...)` instead of `JSON.stringify(...)`. The redaction preserves every other field verbatim — message, path, locations, extensions key set, code — so the denial-shape pin is still strict; only the per-request tracing id is elided.
+- The new `bodyShapeOf` helper lives next to the existing `extensionKeysOf` helper (both are envelope-shape probes).
+
+NO implementation files touched — the implementation held the contract correctly; the test assertions were over-strict or under-specified.
+
+6.3.QL — Quality Loop (sub-loop.ts --lifecycle duplicates):
+- backend/graphql/test/parent-monitoring.wire.test.ts → ✅ exit 0 (tsgo → oxlint → biome → lint:type-aware → check:duplicates, all 5 stages passed after the three fixes).
+- Applicable rule files discovered and read: AGENTS.md (root), backend/AGENTS.md, backend/graphql/AGENTS.md, .agents/instructions/backend.instructions.md, .agents/instructions/tests.instructions.md.
+
+6.3.TE — Test Engineering (4-Tier Framework — the matrix IS Tier 1-4):
+- 27 pass / 0 fail / 400 expect() calls (9.43s).
+- Tier 1 (branch/stmt): the role × operation matrix — anonymous × 5 ops (UNAUTHORIZED), wrong-role × 5 ops × 3 roles = 15 cells (FORBIDDEN), parent-without-link × 5 ops (list → [] + 4 details → FORBIDDEN), parent-with-foreign-child × 4 detail ops (BOLA — 403 zero data), parent-with-linked-child × 5 ops (200 with data).
+- Tier 2 (boundary): BOLA probe (foreign ≡ 0 ≡ -1 ≡ nonexistent → byte-identical 403), BOPLA smuggle probes (extra identity args → GRAPHQL_VALIDATION_FAILED pre-resolver).
+- Tier 3 (chaos): BFLA proof (wrong-role caller × 3 studentId values → byte-identical bodies), anonymous denial constancy across all 5 ops.
+- Tier 4 (security): forged-role tokens (15-cell wrong-role matrix), BOLA (foreign child → 403 zero data), BFLA (role-scope predates service), BOPLA (smuggled args die pre-resolver).
+
+6.3.SEC — Security & Tenancy Audit:
+- BFLA (403 predates service) — asserted by the byte-identical comparison across studentId values for a wrong-role caller (the role-scope rejection happens at the gateway, BEFORE the resolver body runs — the service gate never runs).
+- Error envelopes carry extensions.code — asserted for every error case (UNAUTHORIZED, FORBIDDEN, GRAPHQL_VALIDATION_FAILED).
+- No stack leaks — JSON.stringify(errorItem) asserted NOT to contain "stacktrace".
+- requestId is a non-empty string — asserted for every denial (tracing correlation id always present).
+- Zero data leakage on BOLA — every foreign-child probe returns data: null (no child fields, no existence oracle, no per-cause disclosure).
+- No existence oracle — myLinkedChildren for parentP does NOT include the foreign child's id.
+- BOPLA smuggle probes die pre-resolver — the data key is ABSENT from the body (request never executed).
+
+6.3.SR — Semantic Review:
+- Fixtures built per wire-suite conventions — actors ride the PUBLIC registerUser mutation; seeded admin rides env-fallback credentials; link grant established over the wire through the REAL parent-link flow (requestParentChildLink + respondToParentLinkRequest). NO direct DB writes for fixture setup.
+- No cross-suite coupling — FIXTURE_MARKER (pmwire-${randomUUID().slice(0, 8)}) isolates fixture data from any other suite.
+- No snapshot-brittleness — every assertion is structural (bodyShapeOf redaction is the only normalization, normalizes exactly one per-request field).
+- Comments ZERO plan-artifact references (grep-verified clean).
+
+6.3.IV — Instruction Verification: read all printed rule files (AGENTS.md root + backend + backend/graphql, backend.instructions.md, tests.instructions.md). All conventions honored: bun:test imports only, setupTestServerLifecycle + testClient for the real test server, raw fetch where byte-shape matters, Accept-Language header for locale negotiation, getServerTranslations(locale).errorsTranslations for expected copy (never hardcoded strings), toSorted + localeCompare instead of sort(), Promise.all for parallel probes, reduce for sequential registration (PGlite savepoint guard), no oxlint-disable comments.
+
+Stage Summary:
+- One test file in scope (parent-monitoring.wire.test.ts), sub-loop exit 0 at the deepest lifecycle stage (duplicates) after three test-bug fixes.
+- 27 tests pass / 0 fail / 400 expect() calls via run-test.ts.
+- The role × operation matrix is locked down end-to-end across the REAL wire; denial copy asserted in BOTH en and ar; extensions.code asserted for every error case.
+- BOLA probe: foreign ≡ 0 ≡ -1 ≡ nonexistent-positive all collapse to BYTE-IDENTICAL 403 bodies (requestId redacted before comparison).
+- BFLA proof: wrong-role caller × 3 studentId values → byte-identical bodies (the role-scope rejects before the resolver body runs).
+- BOPLA smuggle probes: extra identity args die as GRAPHQL_VALIDATION_FAILED pre-resolver.
+- Outcome file written: ai/plans/sprint_3/parent-read-only-monitoring-portal/outcome/6.3-wire-tests-outcome.md.
+- Worklog block appended (this entry).
+- tasks.md checkbox: `- [ ] 6.3 GraphQL wire tests (role matrix + en/ar denial copy)` → `- [x] 6.3 GraphQL wire tests (role matrix + en/ar denial copy)` (only the main line — subtask checkboxes left as-is per task instructions).
+- Branch: feat/parent-read-only-monitoring-portal (verified at the start of every bash command).
+
+Carry-forward to task 6.5 (E2E journey tests):
+- The wire-tier role matrix is now pinned. Task 6.5's journey tests should observe the SAME constant denial shape end-to-end through the REAL UI → REAL wire → REAL service → REAL DB stack.
+- The bodyShapeOf redaction helper can be reused (or its pattern) when comparing denial bodies across multiple probes — the per-request requestId UUID is the ONLY per-request field; every other field is pinned byte-identical by the gate's constant denial contract.
+- J3: unlinked parent probing foreign/nonexistent ids → SAME constant 403 shape byte-identical across causes, asserted in BOTH en and ar.
+- J2: sever the link → EVERY portal read immediately 403s and the children list excludes the child (no cache may extend visibility).
+- J4: two confirmed children → both listed; per-child reads return that child's rows only.

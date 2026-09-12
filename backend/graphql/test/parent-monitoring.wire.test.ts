@@ -154,6 +154,18 @@ function extensionKeysOf(errorItem: Record<string, unknown>): string[] {
   return Object.keys(recordOf(errorItem.extensions, "expected extensions")).toSorted((a, b) => a.localeCompare(b));
 }
 
+/**
+ * Serializes a wire body with the per-request `requestId` redacted — the
+ * correlation id is intentionally unique per request (tracing contract), so
+ * byte-identical denial-shape comparisons across multiple probes must
+ * normalize it. The redaction preserves every other field verbatim, so the
+ * assertion still pins the denial SHAPE (message, path, locations,
+ * extensions key set, code) — only the per-request UUID is elided.
+ */
+function bodyShapeOf(body: Record<string, unknown>): string {
+  return JSON.stringify(body).replace(/"requestId":"[^"]+"/g, '"requestId":"<redacted>"');
+}
+
 // ─── Wire helpers ────────────────────────────────────────────────────────────
 
 const GRAPHQL_URL = `http://localhost:${TEST_PORT}/api/graphql`;
@@ -399,6 +411,16 @@ function expectIdFirstInEveryObjectSelection(documentText: string): void {
     Field: {
       enter(node) {
         if (node.selectionSet === undefined) {
+          return;
+        }
+        // Only object selections that ACTUALLY carry an `id` field are
+        // subject to the id-first pin — nested objects without an `id`
+        // (e.g. `latestJadidPosition { surahJuz, fromAyah, toAyah }`) are
+        // free to lead with their canonical domain field.
+        const hasIdField = node.selectionSet.selections.some(
+          selection => selection.kind === "Field" && selection.name.value === "id"
+        );
+        if (!hasIdField) {
           return;
         }
         const first = node.selectionSet.selections[0];
@@ -868,8 +890,11 @@ describe("wire matrix — wrong-role tier (admin, teacher, student × 5 ops)", (
       expect(errorMessageOf(item)).toBe(tEn.forbidden);
     }
     // Byte-identical across all three probes (no arg-dependent divergence).
-    expect(JSON.stringify(bodies[1])).toBe(JSON.stringify(bodies[0]));
-    expect(JSON.stringify(bodies[2])).toBe(JSON.stringify(bodies[0]));
+    // The per-request `requestId` UUID is redacted before comparison — it
+    // is intentionally unique per request (tracing contract), so the
+    // denial-shape comparison normalizes it.
+    expect(bodyShapeOf(bodies[1])).toBe(bodyShapeOf(bodies[0]));
+    expect(bodyShapeOf(bodies[2])).toBe(bodyShapeOf(bodies[0]));
   });
 });
 
@@ -1061,9 +1086,12 @@ describe("wire matrix — BOLA probe (foreign ≡ malformed studentId → consta
       // Zero data leakage on every arm.
       expect(recordOf(items[0], "expected an error item")).toBeTruthy();
     }
-    // Byte-identical across ALL four probes (no cause disclosure).
+    // Byte-identical across ALL four probes (no cause disclosure). The
+    // per-request `requestId` UUID is redacted before comparison — it is
+    // intentionally unique per request (tracing contract), so the
+    // denial-shape comparison normalizes it.
     for (const body of bodies.slice(1)) {
-      expect(JSON.stringify(body)).toBe(JSON.stringify(bodies[0]));
+      expect(bodyShapeOf(body)).toBe(bodyShapeOf(bodies[0]));
     }
   });
 
