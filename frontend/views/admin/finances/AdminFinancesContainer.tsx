@@ -65,10 +65,13 @@ export function AdminFinancesContainer(): ReactNode {
   const pathname = usePathname();
   const [activeTab, setActiveTab] = useState<FinancesTab>(() => parseFinancesUrlTab(searchParams));
   // The wallet picker's deep-link seed — read ONCE on mount (a live params
-  // ref would re-seed on every URL write; the picker owns later edits).
+  // ref would re-seed on every URL write; the picker owns later edits) as
+  // the initial picker selection.
   const [teacherIdSeed] = useState<number | null>(() => parseTeacherIdParam(searchParams));
-  // The picker's CURRENT selection (mirrored back into the URL by the
-  // write effect below — the wallet tab's own key).
+  // The picker's CURRENT selection (initialized from the mount seed and
+  // mirrored back into the URL by the write effect below — the wallet
+  // tab's own key). Handed down to the panel so the wallet query follows
+  // every picker change.
   const [walletTeacherId, setWalletTeacherId] = useState<number | null>(teacherIdSeed);
 
   // Sync the picked teacher down to the panel when the URL seed changes
@@ -163,7 +166,7 @@ export function AdminFinancesContainer(): ReactNode {
         aria-labelledby={TAB_IDS.wallet.tab}
         hidden={activeTab !== "wallet"}
       >
-        <WalletInspectorPanel initialTeacherId={teacherIdSeed} onTeacherChange={handleWalletTeacherChange} />
+        <WalletInspectorPanel initialTeacherId={walletTeacherId} onTeacherChange={handleWalletTeacherChange} />
       </Box>
     </Stack>
   );

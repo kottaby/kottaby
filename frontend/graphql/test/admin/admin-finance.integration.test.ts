@@ -14,8 +14,9 @@
  *    mutations, and the `WalletAdjustmentDirection` enum appear in the
  *    introspected schema.
  *  - Tier 4 happy paths through the REAL services — the withdrawal settle +
- *    adjust flows (fixtures provisioned per the sibling integration tests'
- *    direct-DB patterns; approve/reject mutate real immutable rows).
+ *    adjust flows (fixtures provisioned via the sanctioned `@/test/helpers`
+ *    fixture seam plus minimal direct-DB wallet setup; approve/reject mutate
+ *    real immutable rows).
  *
  * Authentication per role (multi-role isolation):
  *  - The shared `testClient` sends NO cookies between tests, so every
@@ -36,10 +37,14 @@
  *    the settlement audit rows go under
  *    `withAuditDeleteTriggersSuspended`. Neither ledger is ever registered
  *    in a tracked fixture registry (a leak there must fail loudly).
- *  - Direct-DB usage (`db.insert(users)` + admin/teacher child rows + the
- *    wallet fixture) is required because admin is NOT publicly registrable
- *    (`RegisterPublicRole` BFLA exclusion) and the wallet/payout flow needs
- *    real funded headroom.
+ *  - Direct-DB usage is limited to fixture provisioning that has no
+ *    sanctioned shared helper (the teacher user insert + the funded wallet
+ *    fixture the payout flow needs for real headroom). The admin actor and
+ *    the certified teacher child row go through the sanctioned
+ *    `@/test/helpers` fixture seam (`insertAdminUserWithChildRow`,
+ *    `insertCertifiedTeacherRow`) — admin is NOT publicly registrable
+ *    (`RegisterPublicRole` BFLA exclusion). Every behavioral assertion runs
+ *    through `testClient`.
  *
  * Per `frontend/graphql/test/AGENTS.md`:
  *  - Documents imported via `@/frontend/graphql/sharedDocuments/admin/...`
@@ -59,16 +64,19 @@ import { db } from "@/backend/db";
 import { auditLogs } from "@/backend/db/schema/audit/audit-logs";
 import { teacherTransaction } from "@/backend/db/schema/billing/teacher-transaction";
 import { wallet } from "@/backend/db/schema/billing/wallet";
-import { admin } from "@/backend/db/schema/users/admin";
-import { teacher } from "@/backend/db/schema/teachers/teacher";
 import { users } from "@/backend/db/schema/users/users";
 import { hashPassword } from "@/backend/lib/auth/password";
-import { RegisterPublicRole, TransactionStatus, TransactionType, WalletAdjustmentDirection } from "@/frontend/graphql/generated/gql/graphql";
 import {
+  RegisterPublicRole,
+  TransactionStatus,
+  TransactionType,
+  WalletAdjustmentDirection,
+} from "@/frontend/graphql/generated/gql/graphql";
+import {
+  adjustTeacherWalletMutationDocument,
   adminPendingWithdrawalsQueryDocument,
   adminStudentPaymentsQueryDocument,
   adminTeacherWalletQueryDocument,
-  adjustTeacherWalletMutationDocument,
   approveWithdrawalMutationDocument,
   rejectWithdrawalMutationDocument,
 } from "@/frontend/graphql/sharedDocuments/admin/admin-finance.documents";
@@ -82,6 +90,8 @@ import {
   deleteUsersByIds,
   describeGraphqlSuite,
   expectMutationError,
+  insertAdminUserWithChildRow,
+  insertCertifiedTeacherRow,
   setupTestServerLifecycle,
   testClient,
 } from "@/test/helpers";
@@ -124,7 +134,7 @@ interface ActorBundle {
  * Registers a non-admin user through the PUBLIC registerUser mutation,
  * then logs in through the PUBLIC login mutation to obtain a real bearer
  * token. Admin is NOT publicly registrable — use
- * {@link provisionAdminActor} (direct-DB fixture) instead.
+ * {@link provisionAdminActor} (sanctioned fixture seam) instead.
  */
 async function registerAndLogin(role: RegisterPublicRole): Promise<ActorBundle> {
   const email = uniqueEmail(role.toLowerCase());
@@ -160,30 +170,20 @@ async function registerAndLogin(role: RegisterPublicRole): Promise<ActorBundle> 
 }
 
 /**
- * Engineers an admin actor directly in the DB (admin role is excluded
- * from the public registration surface — BFLA defense). Real bcrypt hash
- * lets the public login mutation mint a genuine session for the probe.
+ * Engineers an admin actor through the sanctioned `@/test/helpers` fixture
+ * seam (admin role is excluded from the public registration surface — BFLA
+ * defense). Real bcrypt hash lets the public login mutation mint a genuine
+ * session for the probe.
  */
 async function provisionAdminActor(): Promise<ActorBundle> {
   const email = uniqueEmail("admin");
-  const [user] = await db
-    .insert(users)
-    .values({
-      fullName: "Admin Finance Probe",
-      email,
-      phone: "+201234567891",
-      passwordHash: await hashPassword(TEST_CREDENTIAL),
-      role: "admin",
-      isDeleted: false,
-      suspended: false,
-      isBlocked: false,
-      lastActiveAt: new Date(),
-    })
-    .returning();
-  if (!user) throw new Error("admin user insert returned no rows");
-  trackCreatedUser(user.id);
-  const [adminRow] = await db.insert(admin).values({ id: user.id }).returning();
-  if (!adminRow) throw new Error("admin child-row insert returned no rows");
+  const userId = await insertAdminUserWithChildRow({
+    fullName: "Admin Finance Probe",
+    email,
+    phone: "+201234567891",
+    password: TEST_CREDENTIAL,
+  });
+  trackCreatedUser(userId);
 
   const loggedIn = await testClient.mutate({
     mutation: loginMutationDocument,
@@ -193,13 +193,15 @@ async function provisionAdminActor(): Promise<ActorBundle> {
   const accessToken = loggedIn.data?.login?.accessToken;
   if (!accessToken) throw new Error("admin login returned no accessToken");
 
-  return { userId: user.id, email, accessToken };
+  return { userId, email, accessToken };
 }
 
 /**
- * Engineers a certified teacher actor directly in the DB (a `teacher` child
- * row with `isApproved = true`) so the payout request flow can file a real
- * withdrawal against a funded wallet.
+ * Engineers a certified teacher actor directly in the DB — the certified
+ * teacher child row comes from the sanctioned `@/test/helpers` fixture seam;
+ * the remaining direct-DB insert (the teacher user + the funded wallet
+ * fixture) has no shared helper and is scoped to fixture provisioning only.
+ * The payout request flow needs a real funded headroom.
  */
 async function provisionTeacherActor(): Promise<ActorBundle & { readonly walletId: number }> {
   const email = uniqueEmail("teacher");
@@ -219,8 +221,7 @@ async function provisionTeacherActor(): Promise<ActorBundle & { readonly walletI
     .returning();
   if (!user) throw new Error("teacher user insert returned no rows");
   trackCreatedUser(user.id);
-  const [teacherRow] = await db.insert(teacher).values({ id: user.id, isApproved: true }).returning();
-  if (!teacherRow) throw new Error("teacher child-row insert returned no rows");
+  await insertCertifiedTeacherRow(user.id);
 
   // Funded wallet fixture — the shipped payout flow reserves the debit at
   // REQUEST time, so the approve leg needs real headroom.
@@ -386,6 +387,23 @@ describeGraphqlSuite("Admin financial-auditing GraphQL integration", () => {
       expect(await countAllAuditRows()).toBe(auditBefore);
     });
 
+    test("adjustTeacherWallet → UNAUTHORIZED; zero audit writes", async () => {
+      const auditBefore = await countAllAuditRows();
+      const result = await testClient.mutate({
+        mutation: adjustTeacherWalletMutationDocument,
+        variables: {
+          input: {
+            teacherId: "1",
+            amount: "5.00",
+            direction: WalletAdjustmentDirection.Credit,
+            reason: "anonymous adjust probe",
+          },
+        },
+      });
+      expectMutationError(result.error, "UNAUTHORIZED");
+      expect(await countAllAuditRows()).toBe(auditBefore);
+    });
+
     test("the six operations enumerated (drift guard)", () => {
       expect(ADMIN_FINANCE_OPERATIONS).toHaveLength(6);
     });
@@ -454,6 +472,25 @@ describeGraphqlSuite("Admin financial-auditing GraphQL integration", () => {
         const result = await testClient.mutate({
           mutation: rejectWithdrawalMutationDocument,
           variables: { transactionId: "1", reason: "denied probe" },
+          context: bearer(accessToken),
+        });
+        expectMutationError(result.error, "FORBIDDEN");
+        expect(await countAllAuditRows()).toBe(auditBefore);
+      });
+
+      test(`${role} actor → adjustTeacherWallet → FORBIDDEN; zero audit writes`, async () => {
+        const { accessToken } = await registerAndLogin(role);
+        const auditBefore = await countAllAuditRows();
+        const result = await testClient.mutate({
+          mutation: adjustTeacherWalletMutationDocument,
+          variables: {
+            input: {
+              teacherId: "1",
+              amount: "5.00",
+              direction: WalletAdjustmentDirection.Credit,
+              reason: "denied adjust probe",
+            },
+          },
           context: bearer(accessToken),
         });
         expectMutationError(result.error, "FORBIDDEN");
@@ -705,9 +742,7 @@ describeGraphqlSuite("Admin financial-auditing GraphQL integration", () => {
         variables: { teacherId: String(teacherFixture.userId), filters: null, page: 1, pageSize: 25 },
         context: bearer(adminActor.accessToken),
       });
-      expect(Number(walletAfter.data?.adminTeacherWallet?.balance ?? "-1")).toBe(
-        balanceBefore + Number(ADJUST_AMOUNT)
-      );
+      expect(Number(walletAfter.data?.adminTeacherWallet?.balance ?? "-1")).toBe(balanceBefore + Number(ADJUST_AMOUNT));
 
       // Exactly one audit row reconstructs the decision.
       expect(await countAllAuditRows()).toBe(auditBefore + 1);

@@ -41,10 +41,8 @@
  * field-by-field copy. No module-level mutable state; no swallowed catches.
  */
 
-import { eq } from "drizzle-orm";
 import { db } from "@/backend/db";
 import { StudentPaymentRepository, TeacherRepository, UserRepository, WalletRepository } from "@/backend/db/repo";
-import { wallet } from "@/backend/db/schema/billing/wallet";
 import { TransactionStatus } from "@/backend/enum/billing/transaction-status.enum";
 import { TransactionType } from "@/backend/enum/billing/transaction-type.enum";
 import { WalletAdjustmentDirection } from "@/backend/enum/billing/wallet-adjustment-direction.enum";
@@ -116,8 +114,7 @@ async function readInSnapshot<T>(
  * (masked generic internal) rather than a fabricated identity.
  */
 async function readWalletById(walletId: number, tx: DBTransaction): Promise<WalletSelectType> {
-  const rows = await tx.select().from(wallet).where(eq(wallet.id, walletId)).limit(1);
-  const row = rows[0];
+  const row = await WalletRepository.findById(walletId, tx);
   if (!row) {
     throw new Error(`AdminFinancialAuditingService: wallet row ${String(walletId)} vanished mid-transaction`);
   }

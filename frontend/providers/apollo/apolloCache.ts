@@ -36,6 +36,29 @@ import { InMemoryCache } from "@apollo/client";
  * aggregate), read back embedded under the root field and replaced
  * wholesale on every refetch.
  */
+const adminFinanceTypePolicies = {
+  // Admin financial-auditing envelope family — the id-less wrapper types
+  // of the payments audit / wallet inspector / withdrawal queue surfaces.
+  // The normalizable entities are the row objects carrying an `id`
+  // inside any wrapper (`AdminStudentPayment` rows inside
+  // `AdminStudentPaymentPage.items`, `TeacherTransaction` rows inside
+  // `AdminTeacherWallet.transactions` and inside
+  // `AdminWithdrawalQueueRow.transaction`), so the wrappers themselves
+  // never need an identity.
+  AdminStudentPaymentPage: {
+    keyFields: false,
+  },
+  AdminTeacherWallet: {
+    keyFields: false,
+  },
+  AdminWithdrawalQueueRow: {
+    keyFields: false,
+  },
+  AdminWithdrawalQueuePage: {
+    keyFields: false,
+  },
+} as const;
+
 export function createApolloCache(): InMemoryCache {
   return new InMemoryCache({
     typePolicies: {
@@ -73,26 +96,8 @@ export function createApolloCache(): InMemoryCache {
       AdminAuditLogPage: {
         keyFields: false,
       },
-      // Admin financial-auditing envelope family — the id-less wrapper types
-      // of the payments audit / wallet inspector / withdrawal queue surfaces.
-      // The normalizable entities are the row objects carrying an `id`
-      // inside any wrapper (`AdminStudentPayment` rows inside
-      // `AdminStudentPaymentPage.items`, `TeacherTransaction` rows inside
-      // `AdminTeacherWallet.transactions` and inside
-      // `AdminWithdrawalQueueRow.transaction`), so the wrappers themselves
-      // never need an identity.
-      AdminStudentPaymentPage: {
-        keyFields: false,
-      },
-      AdminTeacherWallet: {
-        keyFields: false,
-      },
-      AdminWithdrawalQueueRow: {
-        keyFields: false,
-      },
-      AdminWithdrawalQueuePage: {
-        keyFields: false,
-      },
+      // See `adminFinanceTypePolicies` above.
+      ...adminFinanceTypePolicies,
       OnlineMeetingInfo: {
         keyFields: false,
       },

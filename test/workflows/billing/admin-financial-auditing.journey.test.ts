@@ -52,6 +52,11 @@
  * - error assertions through a try/catch helper + translated substrings
  *   from the localized errors bundle — never `.rejects.toThrow()` and no
  *   hardcoded English expectation strings;
+ * - the notification dispatch boundary is intercepted for the whole suite
+ *   (`spyOn(NotificationEngine, "publishReceipts")` recording no-op,
+ *   installed in `beforeAll`, restored in `afterAll`) — every step is a
+ *   zero-dispatch guard, so nothing can ever reach a realtime/email/SMS
+ *   provider from this flow, today or after a future dispatch path lands;
  * - per-run `jrn_billing_<8hex>` prefix on every fixture label;
  * - cross-actor visibility asserted BOTH directions plus denial probes.
  *
@@ -66,7 +71,7 @@
  * residue greppable.
  */
 
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { afterAll, beforeAll, describe, expect, spyOn, test } from "bun:test";
 import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/backend/db";
 import { auditLogs } from "@/backend/db/schema/audit/audit-logs";
@@ -84,11 +89,13 @@ import { WalletAdjustmentDirection } from "@/backend/enum/billing/wallet-adjustm
 import { ConflictError, DomainError, ForbiddenError, UnauthorizedError } from "@/backend/lib/errors";
 import { AdminFinancialAuditingService } from "@/backend/services/billing/admin-financial-auditing.service";
 import { WalletService } from "@/backend/services/billing/wallet.service";
+import { NotificationEngine } from "@/backend/services/notifications";
 import type {
   AdminWalletAdjustmentSubmitInput,
   AdminWalletTransactionFilters,
   DBTransaction,
   NormalizedAdminPaymentFilters,
+  NotificationDeliveryReceipt,
   StudentPaymentSelectType,
   TeacherTransactionSelectType,
   UserSelectType,
@@ -189,6 +196,43 @@ function adjustmentInput(
   reason: string
 ): AdminWalletAdjustmentSubmitInput {
   return { teacherId, amount, direction, reason };
+}
+
+// ─── Notification dispatch spy (external effects always intercepted) ─────────
+
+/**
+ * Installs a recording no-op over the engine's publish contract: no realtime
+ * channel is ever touched, and each dispatch is recorded together with the
+ * receipts (and their recipient ids) so a step can assert both THAT a publish
+ * happened and WHICH users it targeted. The financial-auditing flow is
+ * expected to be silent — every assertion below is a zero-dispatch guard, so
+ * a future dispatch path cannot reach a configured provider unnoticed. The
+ * spy is installed once in `beforeAll` and restored in `afterAll`.
+ */
+function spyPublication(): { calls: NotificationDeliveryReceipt[][]; stop: () => void } {
+  const calls: NotificationDeliveryReceipt[][] = [];
+  const spy = spyOn(NotificationEngine, "publishReceipts").mockImplementation(async receipts => {
+    calls.push([...receipts]);
+  });
+  return { calls, stop: () => spy.mockRestore() };
+}
+
+let publication: ReturnType<typeof spyPublication> | undefined;
+
+/** Every recipient id the spy has recorded so far, in publish order. */
+function publishedUserIds(): number[] {
+  return (publication?.calls ?? []).flatMap(receipts => receipts.flatMap(receipt => receipt.recipientUserIds));
+}
+
+/** How many publish dispatches the spy has recorded so far. */
+function publicationCallCount(): number {
+  return publication?.calls.length ?? 0;
+}
+
+/** Zero-dispatch guard: the spy saw no publish AND no targeted user ids. */
+function expectNoDispatches(): void {
+  expect(publicationCallCount()).toBe(0);
+  expect(publishedUserIds()).toEqual([]);
 }
 
 // ─── Error-capture oracles (try/catch — never `.rejects.toThrow()`) ──────────
@@ -362,9 +406,15 @@ beforeAll(async () => {
       tracked.register(studentPayments, row.id);
     }
   });
+
+  // No realtime delivery for the whole suite: the financial-auditing flow
+  // must be silent, so every dispatch is recorded (and later asserted zero).
+  publication = spyPublication();
 });
 
 afterAll(async () => {
+  publication?.stop();
+
   // 1. Immutable-ledger teardown leg FIRST: the append-only triggers block a
   //    plain DELETE, so the sanctioned suspension wraps exactly this leg.
   //    These rows are never registered in the tracked registry — a leak
@@ -470,6 +520,10 @@ describe("cross-actor journey: admin financial auditing (payout settlement + adj
     expect(audits[0]?.actionType).toBe(AuditActionType.Override);
     expect(audits[0]?.entityType).toBe(TXN_ENTITY_TYPE);
     expect(audits[0]?.entityId).toBe(pending.id);
+
+    // The approval leg is silent: zero dispatches, and the DB agrees.
+    expectNoDispatches();
+    expect(await countNotificationsForUser(teacherA.userId)).toBe(0);
   });
 
   test("step 2 — Teacher: fresh payout request; Admin rejects it; the balance is restored and the ledger shows failed", async () => {
@@ -503,6 +557,10 @@ describe("cross-actor journey: admin financial auditing (payout settlement + adj
     const audits = await readAuditsForTransaction(pending.id);
     expect(audits).toHaveLength(1);
     expect(audits[0]?.actionType).toBe(AuditActionType.Override);
+
+    // The rejection leg is silent: zero dispatches, and the DB agrees.
+    expectNoDispatches();
+    expect(await countNotificationsForUser(teacherB.userId)).toBe(0);
   });
 
   test("step 3 — Admin: credit books a bonus, debit books a marked withdrawal, and an over-balance debit commits zero rows", async () => {
@@ -513,7 +571,12 @@ describe("cross-actor journey: admin financial auditing (payout settlement + adj
     // lifetime earnings UNCHANGED.
     const credit = await AdminFinancialAuditingService.adjustTeacherWallet(
       adminActor.userId,
-      adjustmentInput(teacherA.userId, ADJUST_CREDIT, WalletAdjustmentDirection.Credit, prefixedReason("goodwill credit")),
+      adjustmentInput(
+        teacherA.userId,
+        ADJUST_CREDIT,
+        WalletAdjustmentDirection.Credit,
+        prefixedReason("goodwill credit")
+      ),
       LOCALE
     );
     expect(credit.type).toBe(TransactionType.Bonus);
@@ -532,7 +595,12 @@ describe("cross-actor journey: admin financial auditing (payout settlement + adj
     const payoutRow = await readLedgerRow(payoutTxnId);
     const debit = await AdminFinancialAuditingService.adjustTeacherWallet(
       adminActor.userId,
-      adjustmentInput(teacherA.userId, ADJUST_DEBIT, WalletAdjustmentDirection.Debit, prefixedReason("duplicate payout correction")),
+      adjustmentInput(
+        teacherA.userId,
+        ADJUST_DEBIT,
+        WalletAdjustmentDirection.Debit,
+        prefixedReason("duplicate payout correction")
+      ),
       LOCALE
     );
     expect(debit.type).toBe(TransactionType.Withdrawal);
@@ -565,7 +633,12 @@ describe("cross-actor journey: admin financial auditing (payout settlement + adj
     await expectInsufficientFunds(() =>
       AdminFinancialAuditingService.adjustTeacherWallet(
         adminActor.userId,
-        adjustmentInput(teacherA.userId, ADJUST_OVER_BALANCE, WalletAdjustmentDirection.Debit, prefixedReason("over-balance probe")),
+        adjustmentInput(
+          teacherA.userId,
+          ADJUST_OVER_BALANCE,
+          WalletAdjustmentDirection.Debit,
+          prefixedReason("over-balance probe")
+        ),
         LOCALE
       )
     );
@@ -579,6 +652,10 @@ describe("cross-actor journey: admin financial auditing (payout settlement + adj
     const debitAudits = await readAuditsForTransaction(debit.id);
     expect(debitAudits).toHaveLength(1);
     expect(debitAudits[0]?.actionType).toBe(AuditActionType.Adjust);
+
+    // The adjustment leg is silent: zero dispatches, and the DB agrees.
+    expectNoDispatches();
+    expect(await countNotificationsForUser(teacherA.userId)).toBe(0);
   });
 
   test("step 4 — Admin: the payments status filter shows only matching rows, a non-matching filter is honestly empty, and the student's rows are untouched", async () => {
@@ -616,6 +693,10 @@ describe("cross-actor journey: admin financial auditing (payout settlement + adj
     // Cross-actor: the student's own ledger rows are byte-identical after
     // the admin reads.
     expect(await readStudentPaymentRows(studentActor.userId)).toEqual(rowsBefore);
+
+    // The audit-visibility leg is silent: zero dispatches, and the DB agrees.
+    expectNoDispatches();
+    expect(await countNotificationsForUser(studentActor.userId)).toBe(0);
   });
 
   test("step 5 — Denials: non-admin callers are forbidden through the real admin gate, anonymous is unauthorized, zero audit rows", async () => {
@@ -636,7 +717,12 @@ describe("cross-actor journey: admin financial auditing (payout settlement + adj
       () =>
         AdminFinancialAuditingService.adjustTeacherWallet(
           teacherA.userId,
-          adjustmentInput(teacherA.userId, "5.00", WalletAdjustmentDirection.Credit, prefixedReason("self credit probe")),
+          adjustmentInput(
+            teacherA.userId,
+            "5.00",
+            WalletAdjustmentDirection.Credit,
+            prefixedReason("self credit probe")
+          ),
           LOCALE
         ),
       ForbiddenError,
@@ -676,6 +762,12 @@ describe("cross-actor journey: admin financial auditing (payout settlement + adj
     // Every denial wrote ZERO audit rows for any fixture actor.
     expect(await countAuditLogsForActor(adminActor.userId)).toBe(adminAuditsBefore);
     expect(await countAuditLogsForActor(teacherA.userId)).toBe(teacherAuditsBefore);
+
+    // The denial matrix is silent: zero dispatches (denials never fan out),
+    // and the DB agrees.
+    expectNoDispatches();
+    expect(await countNotificationsForUser(teacherA.userId)).toBe(0);
+    expect(await countNotificationsForUser(studentActor.userId)).toBe(0);
   });
 
   test("step 6 — Concurrent double settlement: exactly one approve wins, one audit row exists, and the balance moved once", async () => {
@@ -714,5 +806,10 @@ describe("cross-actor journey: admin financial auditing (payout settlement + adj
     expect(audits[0]?.actionType).toBe(AuditActionType.Override);
     const row = await readLedgerRow(pending.id);
     expect(row.status).toBe(TransactionStatus.Completed);
+
+    // The double-settlement race is silent: zero dispatches (even the losing
+    // conflict fans nothing out), and the DB agrees.
+    expectNoDispatches();
+    expect(await countNotificationsForUser(teacherA.userId)).toBe(0);
   });
 });

@@ -42,14 +42,15 @@ import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { db, queryDb } from "@/backend/db";
 import { auditLogs } from "@/backend/db/schema/audit/audit-logs";
 import { plans } from "@/backend/db/schema/billing/plans";
-import { session } from "@/backend/db/schema/classes/session";
 import { teacherTransaction } from "@/backend/db/schema/billing/teacher-transaction";
 import { wallet } from "@/backend/db/schema/billing/wallet";
+import { session } from "@/backend/db/schema/classes/session";
 import { notifications } from "@/backend/db/schema/notifications/notifications";
 import { students } from "@/backend/db/schema/students/students";
 import { applicants } from "@/backend/db/schema/teachers/applicants";
 import { teacher } from "@/backend/db/schema/teachers/teacher";
 import { users } from "@/backend/db/schema/users/users";
+import { createTestWallet } from "@/backend/db/test/entity-setup";
 import { AuditActionType } from "@/backend/enum/audit/audit-action-type.enum";
 import { TransactionStatus } from "@/backend/enum/billing/transaction-status.enum";
 import { TransactionType } from "@/backend/enum/billing/transaction-type.enum";
@@ -81,12 +82,12 @@ import type {
 import { getServerTranslations } from "@/shared/locale/server-graphql";
 // Deep import (same rationale as the sibling journeys — the `test/helpers`
 // barrel pulls the Apollo test client into backend-only graphs).
-import { countUsersByIds, withAuditDeleteTriggersSuspended, withImmutabilityTriggersSuspended } from "@/test/helpers/db-cleanup";
-import { createTestWallet } from "@/backend/db/test/entity-setup";
 import {
-  ADMIN_ACTION_CENSUS,
-  type AdminActionCensusEntry,
-} from "@/test/workflows/admin/audit-completeness.catalog";
+  countUsersByIds,
+  withAuditDeleteTriggersSuspended,
+  withImmutabilityTriggersSuspended,
+} from "@/test/helpers/db-cleanup";
+import { ADMIN_ACTION_CENSUS, type AdminActionCensusEntry } from "@/test/workflows/admin/audit-completeness.catalog";
 import {
   ANONYMOUS_ACTOR_ID,
   type JourneyActor,
@@ -1125,13 +1126,25 @@ describe("Audit-trail completeness journey — execute every admin action, prove
     if (!approveAction?.entityId || !rejectAction?.entityId || !adjustAction?.entityId) {
       throw new Error("finance leg: expected all three census executions to carry a ledger anchor id");
     }
-    const approvedRows = await db.select().from(teacherTransaction).where(eq(teacherTransaction.id, approveAction.entityId)).limit(1);
+    const approvedRows = await db
+      .select()
+      .from(teacherTransaction)
+      .where(eq(teacherTransaction.id, approveAction.entityId))
+      .limit(1);
     expect(approvedRows[0]?.status).toBe(TransactionStatus.Completed);
 
-    const rejectedRows = await db.select().from(teacherTransaction).where(eq(teacherTransaction.id, rejectAction.entityId)).limit(1);
+    const rejectedRows = await db
+      .select()
+      .from(teacherTransaction)
+      .where(eq(teacherTransaction.id, rejectAction.entityId))
+      .limit(1);
     expect(rejectedRows[0]?.status).toBe(TransactionStatus.Failed);
 
-    const adjustedRows = await db.select().from(teacherTransaction).where(eq(teacherTransaction.id, adjustAction.entityId)).limit(1);
+    const adjustedRows = await db
+      .select()
+      .from(teacherTransaction)
+      .where(eq(teacherTransaction.id, adjustAction.entityId))
+      .limit(1);
     expect(adjustedRows[0]?.type).toBe(TransactionType.Bonus);
     expect(adjustedRows[0]?.status).toBe(TransactionStatus.Completed);
   });

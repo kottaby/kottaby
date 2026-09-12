@@ -35,9 +35,12 @@
  *    failure before a resolver ever runs (BOPLA boundary).
  */
 
-import { gqlSchemaBuilder } from "@/backend/graphql/pothos/builder";
-import { AdminStudentPaymentPothosObject, AdminWithdrawalQueueRowPothosObject } from "@/backend/graphql/pothos/billing/admin-finance.pothos";
+import {
+  AdminStudentPaymentPothosObject,
+  AdminWithdrawalQueueRowPothosObject,
+} from "@/backend/graphql/pothos/billing/admin-finance.pothos";
 import { TeacherTransactionPothosObject } from "@/backend/graphql/pothos/billing/wallet.pothos";
+import { gqlSchemaBuilder } from "@/backend/graphql/pothos/builder";
 import {
   PaymentGatewayPothosEnum,
   PaymentStatusPothosEnum,

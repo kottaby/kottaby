@@ -36,13 +36,13 @@
 import { describe, expect, test } from "bun:test";
 import { defaultLocale } from "@/shared/locale/AppLocale";
 import { adminFinanceAr } from "@/shared/locale/ar/adminFinance";
-import { arMessages } from "@/shared/locale/ar/messages";
 import { errorsAr } from "@/shared/locale/ar/errors";
+import { arMessages } from "@/shared/locale/ar/messages";
 import { adminFinanceEn } from "@/shared/locale/en/adminFinance";
-import { enMessages } from "@/shared/locale/en/messages";
 import { errorsEn } from "@/shared/locale/en/errors";
-import { namespaces } from "@/shared/locale/namespaces/index";
+import { enMessages } from "@/shared/locale/en/messages";
 import { AdminFinance } from "@/shared/locale/namespaces/adminFinance";
+import { namespaces } from "@/shared/locale/namespaces/index";
 import { getTranslations } from "@/shared/locale/server";
 
 // ─── Mandated registries ─────────────────────────────────────────────────────

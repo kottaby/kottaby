@@ -50,18 +50,18 @@ import type {
   RejectWithdrawalMutationVariables,
 } from "@/frontend/graphql/generated/gql/graphql";
 import {
+  adjustTeacherWalletMutationDocument as adjustTeacherWalletViaBarrel,
   adminPendingWithdrawalsQueryDocument as adminPendingWithdrawalsViaBarrel,
   adminStudentPaymentsQueryDocument as adminStudentPaymentsViaBarrel,
   adminTeacherWalletQueryDocument as adminTeacherWalletViaBarrel,
-  adjustTeacherWalletMutationDocument as adjustTeacherWalletViaBarrel,
   approveWithdrawalMutationDocument as approveWithdrawalViaBarrel,
   rejectWithdrawalMutationDocument as rejectWithdrawalViaBarrel,
 } from "@/frontend/graphql/sharedDocuments";
 import {
+  adjustTeacherWalletMutationDocument,
   adminPendingWithdrawalsQueryDocument,
   adminStudentPaymentsQueryDocument,
   adminTeacherWalletQueryDocument,
-  adjustTeacherWalletMutationDocument,
   approveWithdrawalMutationDocument,
   rejectWithdrawalMutationDocument,
 } from "@/frontend/graphql/sharedDocuments/admin/admin-finance.documents";
@@ -215,9 +215,7 @@ describe("admin-finance documents — variable wiring into root-field arguments"
       argumentVariableNames(selectionPath(operationOrThrow(adminStudentPaymentsQueryDocument), "adminStudentPayments"))
     ).toEqual(["filters", "page", "pageSize"]);
     expect(
-      argumentVariableNames(
-        selectionPath(operationOrThrow(adminTeacherWalletQueryDocument), "adminTeacherWallet")
-      )
+      argumentVariableNames(selectionPath(operationOrThrow(adminTeacherWalletQueryDocument), "adminTeacherWallet"))
     ).toEqual(["teacherId", "filters", "page", "pageSize"]);
     expect(
       argumentVariableNames(
@@ -234,9 +232,7 @@ describe("admin-finance documents — variable wiring into root-field arguments"
       argumentVariableNames(selectionPath(operationOrThrow(rejectWithdrawalMutationDocument), "rejectWithdrawal"))
     ).toEqual(["transactionId", "reason"]);
     expect(
-      argumentVariableNames(
-        selectionPath(operationOrThrow(adjustTeacherWalletMutationDocument), "adjustTeacherWallet")
-      )
+      argumentVariableNames(selectionPath(operationOrThrow(adjustTeacherWalletMutationDocument), "adjustTeacherWallet"))
     ).toEqual(["input"]);
   });
 
@@ -351,10 +347,8 @@ describe("admin-finance documents — codegen binding + barrel parity", () => {
       adminStudentPaymentsQueryDocument;
     const teacherWallet: TypedDocumentNode<AdminTeacherWalletQuery, AdminTeacherWalletQueryVariables> =
       adminTeacherWalletQueryDocument;
-    const pendingWithdrawals: TypedDocumentNode<
-      AdminPendingWithdrawalsQuery,
-      AdminPendingWithdrawalsQueryVariables
-    > = adminPendingWithdrawalsQueryDocument;
+    const pendingWithdrawals: TypedDocumentNode<AdminPendingWithdrawalsQuery, AdminPendingWithdrawalsQueryVariables> =
+      adminPendingWithdrawalsQueryDocument;
     const approve: TypedDocumentNode<ApproveWithdrawalMutation, ApproveWithdrawalMutationVariables> =
       approveWithdrawalMutationDocument;
     const reject: TypedDocumentNode<RejectWithdrawalMutation, RejectWithdrawalMutationVariables> =

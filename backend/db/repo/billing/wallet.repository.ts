@@ -119,6 +119,18 @@ export namespace WalletRepository {
   }
 
   /**
+   * Cold-path read of one wallet row by its primary key (probe/verification
+   * use).
+   *
+   * @returns The wallet row, or `null` when no wallet has that id.
+   */
+  export async function findById(walletId: number, tx?: DBTransaction): Promise<WalletSelectType | null> {
+    const executor = tx ?? db;
+    const rows = await executor.select().from(wallet).where(eq(wallet.id, walletId)).limit(1);
+    return rows[0] ?? null;
+  }
+
+  /**
    * Cold-path ledger read for one wallet (test/verification use).
    *
    * @returns Every ledger row for the wallet, newest first.
@@ -151,6 +163,13 @@ export namespace WalletRepository {
    * method name, carried verbatim into the unreachable zero-row INSERT
    * error so each public entry point keeps its own message.
    *
+   * When `tx` is supplied, both writes compose on the caller's
+   * transaction. When `tx` is NOT supplied, the pair is wrapped in ONE
+   * atomic top-level transaction (`db.transaction`), so a missed guarded
+   * debit (`null` return on insufficient funds) rolls the ledger INSERT
+   * back with it — no orphan ledger row can survive without its matching
+   * balance change.
+   *
    * @returns The inserted ledger row, or `null` when the guarded UPDATE
    *     matched zero rows (insufficient funds — the caller classifies).
    */
@@ -164,7 +183,10 @@ export namespace WalletRepository {
     methodLabel: string,
     tx?: DBTransaction
   ): Promise<TeacherTransactionSelectType | null> {
-    const executor = tx ?? db;
+    if (!tx) {
+      return db.transaction(nested => debitWithLedgerRow(insert, ledgerStatus, methodLabel, nested));
+    }
+    const executor = tx;
     const ledgerRows = await executor
       .insert(teacherTransaction)
       .values({
@@ -327,7 +349,10 @@ export namespace WalletRepository {
 
   /**
    * The pending-withdrawal settlement queue, oldest first (the
-   * longest-waiting payout heads the queue per the settlement specs). The
+   * longest-waiting payout heads the queue per the settlement specs):
+   * ordered by `createdAt` ascending with `id` as the stable tie-breaker,
+   * so a backfilled withdrawal with an older `createdAt` cannot be
+   * stranded behind newer insertion-order rows. The
    * predicate is EXACT parity with the analytics counter
    * (`type = withdrawal AND status = pending`). Each row carries the
    * teacher's display name and the wallet's current balance (decimal
@@ -357,7 +382,7 @@ export namespace WalletRepository {
           eq(teacherTransaction.status, TransactionStatus.Pending)
         )
       )
-      .orderBy(teacherTransaction.id)
+      .orderBy(teacherTransaction.createdAt, teacherTransaction.id)
       .limit(limit)
       .offset(offset);
   }

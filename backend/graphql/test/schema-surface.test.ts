@@ -1564,9 +1564,9 @@ describe("admin financial-auditing surface — exact arg shapes + `$all` scope p
     // over its siblings.
     const documents = [
       { source: "{ adminStudentPayments { totalCount } }", path: "adminStudentPayments" },
-      { source: "{ adminTeacherWallet(teacherId: \"1\") { teacherId } }", path: "adminTeacherWallet" },
+      { source: '{ adminTeacherWallet(teacherId: "1") { teacherId } }', path: "adminTeacherWallet" },
       { source: "{ adminPendingWithdrawals { totalCount } }", path: "adminPendingWithdrawals" },
-      { source: "mutation { approveWithdrawal(transactionId: \"1\") { id } }", path: "approveWithdrawal" },
+      { source: 'mutation { approveWithdrawal(transactionId: "1") { id } }', path: "approveWithdrawal" },
       {
         source: 'mutation { rejectWithdrawal(transactionId: "1", reason: "x") { id } }',
         path: "rejectWithdrawal",
@@ -1781,9 +1781,7 @@ describe("Codegen sync — committed SDL is byte-identical to the built schema",
     expect(committedSdl).toContain(
       "adminTeacherWallet(filters: AdminWalletTransactionFilterInput, page: Int, pageSize: Int, teacherId: ID!): AdminTeacherWallet!"
     );
-    expect(committedSdl).toContain(
-      "adminPendingWithdrawals(page: Int, pageSize: Int): AdminWithdrawalQueuePage!"
-    );
+    expect(committedSdl).toContain("adminPendingWithdrawals(page: Int, pageSize: Int): AdminWithdrawalQueuePage!");
     expect(committedSdl).toContain("approveWithdrawal(transactionId: ID!): TeacherTransaction!");
     expect(committedSdl).toContain("rejectWithdrawal(reason: String!, transactionId: ID!): TeacherTransaction!");
     expect(committedSdl).toContain("adjustTeacherWallet(input: AdjustTeacherWalletInput!): TeacherTransaction!");

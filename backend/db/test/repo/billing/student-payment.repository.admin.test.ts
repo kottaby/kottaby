@@ -3,10 +3,15 @@
  * `countForAdminAudit` against the live `kottaby_test` PostgreSQL instance.
  *
  * Per `backend/db/test/AGENTS.md`:
- *  - Every test runs inside `runInRollback`; `tx` is passed to EVERY repo
- *    call, entity-setup helper, and direct Drizzle query.
+ *  - Transactional tests run inside `runInRollback`; `tx` is passed to EVERY
+ *    repo call, entity-setup helper, and direct Drizzle query.
  *  - Entities are created ONLY via `entity-setup.ts` helpers — never seed
  *    data; unique emails/names via `randomUUID()`.
+ *  - The non-transactional raw-branch fixture (the `queryDb` fast path
+ *    cannot see uncommitted rows) is a COMMITTED bundle created in a test
+ *    and hard-deleted in `afterAll` (cleanup rule 9) — the immutable
+ *    ledger delete runs under `withImmutabilityTriggersSuspended`, so the
+ *    run leaves ZERO residue in the shared test DB.
  *  - Read-only suite (no throwing paths): misses are honest empty pages
  *    asserted directly.
  *
@@ -20,24 +25,31 @@
  *    literally and NOT widen the match).
  *  - Ordering: newest-first (id DESC).
  *  - Pagination: limit/offset slicing + honest empty page beyond range.
+ *  - Raw branch: the no-tx `queryDb` fast path resolves the same joined
+ *    rows against a committed fixture.
  */
 
-import { describe, expect, test } from "bun:test";
+import { afterAll, describe, expect, test } from "bun:test";
 import { randomUUID } from "node:crypto";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { db } from "@/backend/db";
 import { StudentPaymentRepository } from "@/backend/db/repo";
 import { studentPayments } from "@/backend/db/schema/billing/student-payments";
 import { students } from "@/backend/db/schema/students/students";
+import { users } from "@/backend/db/schema/users/users";
 import { createTestStudent, createTestStudentPayment, createTestUser } from "@/backend/db/test/entity-setup";
 import { type DBTransaction, runInRollback } from "@/backend/db/test/test-utils";
 import { PaymentGateway } from "@/backend/enum/billing/payment-gateway.enum";
 import { PaymentStatus } from "@/backend/enum/billing/payment-status.enum";
 import { escapeLikeWildcards } from "@/backend/lib/db/escape-like-wildcards";
 import type { NormalizedAdminPaymentFilters } from "@/backend/types";
+import { withImmutabilityTriggersSuspended } from "@/test/helpers/db-cleanup";
 
 /** Shared `now` timestamp per test body (timestamp consistency rule). */
 const now = new Date();
+
+/** Per-run unique marker for the committed raw-branch fixture name. */
+let rawBranchMarker = "";
 
 /** All-null filter shape — "no filter applied" for the admin audit reads. */
 function noFilters(): NormalizedAdminPaymentFilters {
@@ -337,61 +349,81 @@ describe("StudentPaymentRepository.listForAdminAudit — ordering & pagination",
   });
 });
 
-describe("StudentPaymentRepository.listForAdminAudit — non-transactional raw branch", () => {
-  test("resolves the same joined rows via queryDb when no tx is supplied", async () => {
-    const marker = randomUUID().slice(0, 8);
-    // The non-tx branch reads COMMITTED data only — this fixture commits,
-    // is asserted on, and is hard-deleted in a finally (cleanup rule 9).
-    let createdUserIds: number[] = [];
-    try {
-      const committed = await db.transaction(async tx => {
-        const user = await createTestUser(tx, {
-          role: "student",
-          fullName: `Raw Branch ${marker}`,
-        });
-        const student = await createTestStudent(tx, user.id);
-        await createTestStudentPayment(tx, student.id, null);
-        return { studentUserId: user.id, studentId: student.id };
-      });
-      createdUserIds = [committed.studentUserId];
+/**
+ * Non-transactional raw branch — the `queryDb` fast path runs WITHOUT a
+ * transaction by definition, so its fixture must be COMMITTED (an
+ * uncommitted row is invisible to the pool path). The committed bundle is
+ * hard-deleted in `afterAll` (cleanup rule 9): the immutable-ledger delete
+ * is wrapped in `withImmutabilityTriggersSuspended` — the same sanctioned
+ * teardown the billing journey suite uses — so the run leaves ZERO residue
+ * in the shared `kottaby_test` DB (no permanent payment row, no retained
+ * identity rows, and repeat runs are byte-identical).
+ */
+describe("StudentPaymentRepository.listForAdminAudit — non-transactional raw branch (committed fixture)", () => {
+  const committedUserIds: number[] = [];
+  const committedPaymentIds: number[] = [];
+  let committedStudentId = 0;
 
-      const fullName = `Raw Branch ${marker}`;
-      const pattern = `%${escapeLikeWildcards(fullName)}%`;
-      const rows = await StudentPaymentRepository.listForAdminAudit(
-        { ...noFilters(), studentNameSearch: pattern },
-        50,
-        0
+  afterAll(async () => {
+    // FK-dependency order: the immutable ledger row FIRST (restrict-bound
+    // to students), under trigger suspension — a plain DELETE raises from
+    // the immutability trigger. Then the identity rows (students first,
+    // then users, whose students FK cascades but is deleted explicitly for
+    // determinism).
+    if (committedPaymentIds.length > 0) {
+      await withImmutabilityTriggersSuspended(["student_payments"], () =>
+        db.delete(studentPayments).where(inArray(studentPayments.id, committedPaymentIds))
       );
-      const total = await StudentPaymentRepository.countForAdminAudit({ ...noFilters(), studentNameSearch: pattern });
-
-      expect(total).toBe(1);
-      expect(rows).toHaveLength(1);
-      expect(rows[0]?.studentId).toBe(committed.studentId);
-      expect(rows[0]?.studentName).toBe(fullName);
-    } finally {
-      // The student_payments ledger is IMMUTABLE (DELETE blocked by the
-      // trigger), and `student_payments_student_id_students_id_fkey` is
-      // `restrict` — the committed payment row permanently blocks the
-      // students-row delete. Only the removable identity rows are
-      // hard-deleted (raise-safe): the user row (whose students FK is
-      // cascade, but the students row still exists and restricts it, so a
-      // students delete must precede or be skipped) and the students row
-      // when no ledger row blocks it. The leftover identity pair is inert:
-      // the fixture is unique per run (randomUUID marker) and its payment
-      // row is a permanent audit row per the ledger contract.
-      for (const userId of createdUserIds) {
-        const [student] = await db.select().from(students).where(eq(students.id, userId)).limit(1);
-        if (student) {
-          const paymentRows = await db
-            .select()
-            .from(studentPayments)
-            .where(eq(studentPayments.studentId, student.id))
-            .limit(1);
-          if (paymentRows.length === 0) {
-            await db.delete(students).where(eq(students.id, userId));
-          }
-        }
-      }
     }
+    await Promise.all(
+      committedUserIds.map(async userId => {
+        await db.delete(students).where(eq(students.id, userId));
+        await db.delete(users).where(eq(users.id, userId));
+      })
+    );
+    committedPaymentIds.length = 0;
+    committedUserIds.length = 0;
+    committedStudentId = 0;
+  });
+
+  test("commits the fixture bundle first (pool-visible rows)", async () => {
+    // The committed bundle is created on the pool path (the committed
+    // fixture the raw branch needs); the rollback wrapper transaction
+    // performs NO writes — it only anchors the wrapper contract, so the
+    // outer transaction still guarantees zero test-side residue.
+    await runInRollback(async tx => {
+      rawBranchMarker = randomUUID().slice(0, 8);
+      const committed = await db.transaction(async poolTx => {
+        const user = await createTestUser(poolTx, { role: "student", fullName: `Raw Branch ${rawBranchMarker}` });
+        const student = await createTestStudent(poolTx, user.id);
+        const payment = await createTestStudentPayment(poolTx, student.id, null);
+        return { studentUserId: user.id, studentId: student.id, paymentId: payment.id };
+      });
+      committedUserIds.push(committed.studentUserId);
+      committedPaymentIds.push(committed.paymentId);
+      committedStudentId = committed.studentId;
+      expect(committedStudentId).toBeGreaterThan(0);
+      // tx is intentionally unused — the rollback wrapper transaction
+      // performs no writes; the fixture lives on the pool path.
+      tx.select();
+    });
+  });
+
+  test("resolves the same joined rows via queryDb when no tx is supplied", async () => {
+    expect(committedStudentId).toBeGreaterThan(0);
+    const fullName = `Raw Branch ${rawBranchMarker}`;
+    const pattern = `%${escapeLikeWildcards(fullName)}%`;
+    const rows = await StudentPaymentRepository.listForAdminAudit(
+      { ...noFilters(), studentNameSearch: pattern },
+      50,
+      0
+    );
+    const total = await StudentPaymentRepository.countForAdminAudit({ ...noFilters(), studentNameSearch: pattern });
+
+    expect(total).toBe(1);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.studentId).toBe(committedStudentId);
+    expect(rows[0]?.studentName).toBe(fullName);
+    expect(rows[0]?.amount).toBe("100.00");
   });
 });

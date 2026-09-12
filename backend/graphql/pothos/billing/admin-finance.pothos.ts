@@ -28,8 +28,8 @@
  *    never re-declared here.
  */
 
-import { gqlSchemaBuilder } from "@/backend/graphql/pothos/builder";
 import { TeacherTransactionPothosObject } from "@/backend/graphql/pothos/billing/wallet.pothos";
+import { gqlSchemaBuilder } from "@/backend/graphql/pothos/builder";
 import { PaymentGatewayPothosEnum, PaymentStatusPothosEnum } from "@/backend/graphql/pothos/shared/enum.pothos";
 import type { AdminStudentPaymentRow, AdminWithdrawalQueueRow } from "@/backend/types";
 

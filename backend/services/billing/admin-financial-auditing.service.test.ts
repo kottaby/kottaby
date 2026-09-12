@@ -340,7 +340,10 @@ describe("AdminFinancialAuditingService.rejectWithdrawal (runInRollback)", () =>
     await runInRollback(async tx => {
       const adminId = await createAdmin(tx);
       const teacherId = await createTeacher(tx);
-      const walletId = await seedWalletBalance(tx, teacherId, "100.00", "100.00");
+      // Fixture mirrors the real request-debit state: the wallet held 100.00
+      // pre-request; the request debited the 50.00 reserve, so the wallet now
+      // holds 50.00 available with the pending 50.00 ledger row outstanding.
+      const walletId = await seedWalletBalance(tx, teacherId, "50.00", "100.00");
       const pendingId = await seedPendingWithdrawal(tx, walletId, "50.00");
 
       const rejected = await AdminFinancialAuditingService.rejectWithdrawal(
@@ -354,9 +357,9 @@ describe("AdminFinancialAuditingService.rejectWithdrawal (runInRollback)", () =>
       expect(rejected.id).toBe(pendingId);
       expect(rejected.status).toBe(TransactionStatus.Failed);
 
-      // The reserve was restored: strictly additive credit back.
+      // The reserve was restored: the pre-request balance (100.00) is back.
       const walletRow = await readWallet(tx, teacherId);
-      expect(walletRow.balance).toBe("150.00");
+      expect(walletRow.balance).toBe("100.00");
 
       // One audit row with the rejection vocabulary: reasonPresent BOOLEAN,
       // never the raw reason text anywhere in the details JSON.
