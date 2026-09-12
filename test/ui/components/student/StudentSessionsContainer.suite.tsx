@@ -78,6 +78,7 @@ import {
   cancelSessionMutationDocument,
   confirmSessionCompletionMutationDocument,
   myStudentSessionsQueryDocument,
+  myTeacherEvaluationsQueryDocument,
   openSessionDisputeMutationDocument,
 } from "@/frontend/graphql/sharedDocuments";
 import { MAX_CANCEL_REASON_LENGTH } from "@/frontend/views/student/sessions/CancelSessionConfirmDialog";
@@ -395,9 +396,23 @@ function confirmErrorMock(code: string): MockLink.MockedResponse {
 /** Alias for the scaffold's lazily-bound live-DOM screen (see its module docs). */
 const screen = liveScreen;
 
+/**
+ * Single-operation mock answering the rated-session read with an EMPTY
+ * rating history — the container's Rate gate reads `myTeacherEvaluations`
+ * beside the sessions list, so every render supplies its settled shape (the
+ * unchanged pre-gate behavior: NO session is rated). Rate-gate-specific
+ * history shapes belong to the dedicated rate-dialog cases.
+ */
+function emptyRatedSetMock(): MockLink.MockedResponse {
+  return {
+    request: { query: myTeacherEvaluationsQueryDocument },
+    result: { data: { myTeacherEvaluations: [] } },
+  };
+}
+
 /** Renders the container under TestWrapper (LocaleProvider → emotion → theme). */
 function renderSessions(mocks: ReadonlyArray<MockLink.MockedResponse>, locale: AppLocale): RenderResult {
-  return renderWithMocks(<StudentSessionsContainer />, mocks, locale);
+  return renderWithMocks(<StudentSessionsContainer />, [...mocks, emptyRatedSetMock()], locale);
 }
 
 /** Clicks a row's cancel affordance and resolves once the dialog is open. */

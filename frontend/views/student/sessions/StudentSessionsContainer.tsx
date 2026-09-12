@@ -13,7 +13,9 @@ import { useStudentSessionCancelArms } from "@/frontend/views/student/sessions/u
 import { useStudentSessionConfirm } from "@/frontend/views/student/sessions/useStudentSessionConfirm";
 import { useStudentSessionDialogSlots } from "@/frontend/views/student/sessions/useStudentSessionDialogSlots";
 import { useStudentSessionDisputeArms } from "@/frontend/views/student/sessions/useStudentSessionDisputeArms";
+import { useMyTeacherEvaluations } from "@/frontend/views/student/sessions/useMyTeacherEvaluations";
 import { useStudentSessionNotices } from "@/frontend/views/student/sessions/useStudentSessionNotices";
+import { useStudentSessionRateArms } from "@/frontend/views/student/sessions/useStudentSessionRateArms";
 import { Errors, Sessions, useAppTranslation } from "@/shared/locale";
 
 /**
@@ -29,9 +31,11 @@ import { Errors, Sessions, useAppTranslation } from "@/shared/locale";
  * role logic. The stateful machinery lives in the sibling hooks:
  * `useStudentSessionDialogSlots` (dialog slots + per-row in-flight slot
  * book), `useStudentSessionNotices` (row alerts + snackbar notice),
- * `useStudentSessionCancelArms` / `useStudentSessionDisputeArms` (dialog
- * outcome routing) and `useStudentSessionConfirm` (the container-owned
- * confirm-completion mutation).
+ * `useStudentSessionCancelArms` / `useStudentSessionDisputeArms` /
+ * `useStudentSessionRateArms` (dialog outcome routing),
+ * `useStudentSessionConfirm` (the container-owned confirm-completion
+ * mutation) and `useMyTeacherEvaluations` (the rated-session-id set the
+ * Rate gate consumes).
  *
  * Render branches (visual state matrix) — the chrome (page title + filter
  * chips) renders in EVERY branch; only the body BELOW it swaps
@@ -98,6 +102,20 @@ import { Errors, Sessions, useAppTranslation } from "@/shared/locale";
  * row untouched and the stamp would stay unset — an affordance there would
  * be dishonest.
  *
+ * Rate-dialog wiring — the `submitTeacherEvaluation` mutation and its code
+ * classification live in {@link RateTeacherDialog}; the row's Rate CTA
+ * renders ONLY on the dual-confirmed-completed shape whose id is absent
+ * from the rated set (`useMyTeacherEvaluations`), whose write-once
+ * end-state renders the read-only rated chip instead:
+ *
+ * | Outcome (extensions.code) | Container behavior |
+ * |---------------------------|--------------------|
+ * | success | `sessions.rateTeacherSuccess` success snackbar; the rating row lands in the rated set via the dialog's cache append (no refetch); the rate dialog closes |
+ * | `SESSION_NOT_FOUND` | `errors.sessionNotFound` error snackbar (cache eviction + list filtering are owned by the dialog's not-found arm — the row has already left the list here) |
+ * | `EVALUATION_ALREADY_SUBMITTED` | the row is marked rated (the CTA yields to the rated chip); the localized notice renders app-scope through the mapped error surface; the dialog closes |
+ * | `EVALUATION_SESSION_NOT_COMPLETED` | the localized notice renders app-scope through the mapped error surface; the dialog closes |
+ * | `FORBIDDEN` / masked `INTERNAL_SERVER_ERROR` / anything else | error snackbar with the copy the dialog resolved (`errors.forbidden` / `sessions.genericError`); the dialog stays open for a retry |
+ *
  * Query-context errors classify through the SINGLE
  * `mapGraphQLErrorByCode` table (`frontend/providers/apollo/error-link.map.ts`)
  * — never the server `message`.
@@ -114,10 +132,10 @@ import { Errors, Sessions, useAppTranslation } from "@/shared/locale";
 /**
  * The student sessions view: ALWAYS-ON chrome (title + sticky filter chips)
  * over a swapping body — skeleton / permission fallback / error notice /
- * empty (generic or filtered) / rows — plus the cancel/dispute dialogs and
- * the snackbar chrome. State + callbacks only (extracted to sibling hooks);
- * the body resolver (`StudentSessionsBody`) keeps the chrome rendering in
- * EVERY branch (the user never loses the filter row).
+ * empty (generic or filtered) / rows — plus the cancel/dispute/rate dialogs
+ * and the snackbar chrome. State + callbacks only (extracted to sibling
+ * hooks); the body resolver (`StudentSessionsBody`) keeps the chrome
+ * rendering in EVERY branch (the user never loses the filter row).
  */
 export function StudentSessionsContainer(): ReactNode {
   const t = useAppTranslation(Sessions);
@@ -140,14 +158,21 @@ export function StudentSessionsContainer(): ReactNode {
     },
   });
 
+  // The rated-session-id read — the Rate gate's own cache territory (the
+  // sessions-list payload is never widened for it).
+  const { ratedSessionIds, markSessionRated } = useMyTeacherEvaluations();
+
   const {
     cancelDialogSessionId,
     disputeDialogSessionId,
+    rateDialogSessionId,
     inFlightSlots,
     openCancelDialog,
     closeCancelDialog,
     openDisputeDialog,
     closeDisputeDialog,
+    openRateDialog,
+    closeRateDialog,
     claimConfirmSlot,
     clearConfirmSlot,
   } = useStudentSessionDialogSlots();
@@ -166,6 +191,15 @@ export function StudentSessionsContainer(): ReactNode {
     sessionsCopy: t,
     errorsCopy: te,
     closeDisputeDialog,
+    setRowAlerts,
+    setNotice,
+  });
+
+  const rateArms = useStudentSessionRateArms({
+    sessionsCopy: t,
+    errorsCopy: te,
+    closeRateDialog,
+    markSessionRated,
     setRowAlerts,
     setNotice,
   });
@@ -199,13 +233,17 @@ export function StudentSessionsContainer(): ReactNode {
         disputeInFlightSlots={inFlightSlots}
         inFlightSlots={inFlightSlots}
         onConfirm={handleConfirm}
+        ratedSessionIds={ratedSessionIds}
+        onRate={openRateDialog}
         t={t}
       />
       <StudentSessionsDialogs
         cancelDialogSessionId={cancelDialogSessionId}
         disputeDialogSessionId={disputeDialogSessionId}
+        rateDialogSessionId={rateDialogSessionId}
         onCloseCancelDialog={closeCancelDialog}
         onCloseDisputeDialog={closeDisputeDialog}
+        onCloseRateDialog={closeRateDialog}
         onCancelled={cancelArms.handleCancelled}
         onSessionMissing={cancelArms.handleSessionMissing}
         onInvalidTransition={cancelArms.handleInvalidTransition}
@@ -215,6 +253,11 @@ export function StudentSessionsContainer(): ReactNode {
         onDisputeSessionMissing={disputeArms.handleDisputeSessionMissing}
         onDisputeInvalidTransition={disputeArms.handleDisputeInvalidTransition}
         onDisputeFailure={disputeArms.handleDisputeFailure}
+        onRated={rateArms.handleRated}
+        onRateSessionMissing={rateArms.handleSessionMissing}
+        onRateSessionNotCompleted={rateArms.handleSessionNotCompleted}
+        onRateAlreadySubmitted={rateArms.handleAlreadySubmitted}
+        onRateFailure={rateArms.handleFailure}
       />
       <StudentSessionsNoticeSnackbar notice={notice} onDismiss={dismissNotice} />
     </Stack>

@@ -261,9 +261,11 @@ function mapValidationRow(code: string, context: GraphQLErrorMappingContext): Gr
 }
 
 /**
- * Rows 4–8 — inline notices: not-found family, conflict, duplicate-replay
- * (success-equivalent per docs/IDEMPOTENCY.md §3), rate-limited retry-later,
- * and service-unavailable manual retry. RATE_LIMITED deliberately copies NO
+ * Rows 4–10 — inline notices: not-found family, conflict, the teacher-
+ * rating gate + write-once rejections (both domain-conflict denials with
+ * their OWN localized copy), duplicate-replay (success-equivalent per
+ * docs/IDEMPOTENCY.md §3), rate-limited retry-later, and service-
+ * unavailable manual retry. RATE_LIMITED deliberately copies NO
  * thresholds/counters/rate-window metadata onto the action.
  */
 function mapInlineNoticeRow(code: string, context: GraphQLErrorMappingContext): GraphQLErrorAction | null {
@@ -282,6 +284,30 @@ function mapInlineNoticeRow(code: string, context: GraphQLErrorMappingContext): 
       noticeKind: "conflict",
       messageKey: "conflict",
       tone: "error",
+      retryable: false,
+    });
+  }
+  if (code === "EVALUATION_SESSION_NOT_COMPLETED") {
+    // Teacher-rating gate rejection — the row's OWN localized denial copy
+    // (not the generic conflict copy), non-retryable until the handshake
+    // completes.
+    return withCorrelation(context, {
+      kind: "notice",
+      noticeKind: "conflict",
+      messageKey: "evaluationSessionNotCompleted",
+      tone: "error",
+      retryable: false,
+    });
+  }
+  if (code === "EVALUATION_ALREADY_SUBMITTED") {
+    // Teacher-rating write-once rejection — the rating EXISTS, so the
+    // outcome is what the caller asked for: neutral info tone (never an
+    // error treatment); consumers mark the row rated.
+    return withCorrelation(context, {
+      kind: "notice",
+      noticeKind: "conflict",
+      messageKey: "evaluationAlreadySubmitted",
+      tone: "info",
       retryable: false,
     });
   }
@@ -343,6 +369,8 @@ function mapMaskedInternalRow(code: string, context: GraphQLErrorMappingContext)
  * | VALIDATION                                   | otherwise          | toast (`validation`); pairs still attached for form-bound consumers |
  * | NOT_FOUND / `{ENTITY}_NOT_FOUND`             | any                | notice not-found (`notFound`) |
  * | CONFLICT                                     | any                | notice conflict (`conflict`) |
+ * | EVALUATION_SESSION_NOT_COMPLETED             | any                | notice conflict (`evaluationSessionNotCompleted`) |
+ * | EVALUATION_ALREADY_SUBMITTED                 | any                | notice conflict, info tone (`evaluationAlreadySubmitted`) — consumers mark the row rated |
  * | DUPLICATE_REQUEST                            | any                | notice duplicate-request (`duplicateRequest`, success-equivalent) |
  * | RATE_LIMITED (+legacy RATE_LIMIT_EXCEEDED)   | any                | notice retry-later (`rateLimitExceeded`) — thresholds/counters NEVER surfaced |
  * | SERVICE_UNAVAILABLE                          | any                | notice retryable-service-unavailable (`serviceUnavailable`) |
