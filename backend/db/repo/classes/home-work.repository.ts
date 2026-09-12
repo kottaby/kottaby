@@ -258,12 +258,12 @@ export namespace HomeWorkRepository {
         .offset(offset);
     }
     const result = await queryDb<HomeWorkSelectType>(
-      `SELECT id, session_id AS "sessionId",
-              current_from_ayah AS "currentFromAyah", current_to_ayah AS "currentToAyah",
-              current_grade AS "currentGrade", current_surah_juz AS "currentSurahJuz",
-              revision_from_ayah AS "revisionFromAyah", revision_to_ayah AS "revisionToAyah",
-              revision_grade AS "revisionGrade", revision_surah_juz AS "revisionSurahJuz",
-              created_at AS "createdAt", updated_at AS "updatedAt"
+      `SELECT hw.id, hw.session_id AS "sessionId",
+              hw.current_from_ayah AS "currentFromAyah", hw.current_to_ayah AS "currentToAyah",
+              hw.current_grade AS "currentGrade", hw.current_surah_juz AS "currentSurahJuz",
+              hw.revision_from_ayah AS "revisionFromAyah", hw.revision_to_ayah AS "revisionToAyah",
+              hw.revision_grade AS "revisionGrade", hw.revision_surah_juz AS "revisionSurahJuz",
+              hw.created_at AS "createdAt", hw.updated_at AS "updatedAt"
        FROM home_work hw
        INNER JOIN session s ON s.id = hw.session_id AND s.student_id = $1
        ORDER BY s.started_at DESC NULLS LAST, hw.id DESC

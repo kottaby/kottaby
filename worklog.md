@@ -859,3 +859,31 @@ Carry-forward to task 6.4 (mocked-Apollo state matrix):
 - The route shells' contracts into the client containers are fixed: root `<ParentChildrenRootContainer student={string | null} />`, detail `<ParentChildDetailContainer studentId={number} tab={string | null} session={string | null} />`.
 - Task 6.4's component-test lane can mount the client containers directly with these prop shapes (Happy DOM does not mount server components).
 - Task 6.4's E2E lane (Playwright) should additionally verify the integer-coercion redirect behavior on the detail route: requests to `/parent/children/abc`, `/parent/children/0`, `/parent/children/-5`, `/parent/children/12.5` should redirect to `/parent/children` (server-side redirect — outside Happy DOM's reach).
+
+---
+
+Task ID: 6.2
+Agent: Backend Services Subagent (general-purpose)
+Task: Service tests (gate + shape) — parent-monitoring.helpers.test.ts + parent-monitoring.service.test.ts
+
+Work Log:
+- Read SKILL.md (re-read), worklog.md, all sprint-3 outcome files (esp. 2.4-service-gate-outcome.md), tasks.md task 6.2 section, AGENTS.md (root + backend + backend/services), backend.instructions.md, tests.instructions.md.
+- Read sibling tests: parent-link-request.helpers.test.ts (mock pattern + silenceDomainLog + trackSpy + afterEach restoration), parent-link-request.service.test.ts (4-Tier mixed suite convention, errorFingerprint, compareStrings, expectRepoError).
+- Read implementation: parent-monitoring.helpers.ts (requireLinkedChild gate + clampPageInput + 4 projection mappers + composeChildProgress + fail-closed enum narrowing), parent-monitoring.service.ts (5-method namespace), parent-monitoring.types.ts (10 projection interfaces).
+- Authored backend/services/parents/parent-monitoring.helpers.test.ts — 51 tests covering clampPageInput (9 tests), mapSessionToAttendanceEntry (4), mapReportRowToEntry (5), mapHomeWorkRowToEntry (6), composeChildProgress (6), requireLinkedChild happy path (1) + denial oracle (20 tests: 5 causes × en/ar + oracle-uniformity + zero-child-fields + malformed-ids + severed-user-missing + happy-path-zero-logs).
+- Authored backend/services/parents/parent-monitoring.service.test.ts — 75 tests covering Tier 1 (10 happy-path + empty-set branches across all 5 methods), Tier 2 (10 boundary arms: pagination clamp echo, null passthrough, closed-shape assertions), Tier 3 (2 concurrent Promise.allSettled tests), Tier 4 (40 per-cell denial-oracle tests = 4 methods × 5 causes × 2 locales + oracle-uniformity + 1 log-context-bag test + 5 BOLA non-parent rejection tests + 3 gate-before-read call-ordering tests + 3 requireActor token-role denial tests).
+- Per-file quality loop: both files exit 0 at sub-loop --lifecycle duplicates (tsgo + oxlint + biome:check + lint:type-aware + check:duplicates all passed).
+- Test execution via run-test.ts: helpers 51 pass / 0 fail / 153 expect() calls (1162ms); service 75 pass / 0 fail / 229 expect() calls (992ms). Total 126 pass / 0 fail / 382 expect() calls.
+- Denial-oracle pin: every per-student method × every denial cause produces byte-identical ForbiddenError (code FORBIDDEN + errorsTranslations.forbidden message) for BOTH en and ar locales. Explicit oracle-uniformity test runs all 20 cells via Promise.all and asserts Set.size === 1. Exactly ONE bounded logDomainError per denial with context bag { code, entity, entityId, locale } — ZERO child fields.
+- SEC: denial responses carry zero child fields (asserted via Object.keys(context) equals exactly [code, entity, entityId, locale]); exactly one logDomainError per denial (spy assertion); BOPLA closed-shape assertions on every projection mapper (updatedAt dropped, no teacherId/fee/heldBalanceLane/cancelReason/disputeReason/confirmationDeadline); BOLA non-parent actor rejected before any data read (downstream repo calls record ZERO invocations).
+- SR: no DB seed reads (all fixtures are literals passed through mocked repos); gate-before-read proven by mock.invocationCallOrder spy assertions; no dead branches; comments ZERO plan-artifact references (grep-verified clean).
+- IV: read all printed rule files (AGENTS.md root + backend + backend/services, backend.instructions.md, tests.instructions.md).
+- Wrote outcome/6.2-service-tests-outcome.md.
+- Marked tasks.md `- [x] 6.2 Service tests (gate + shape)` (only the main task line — subtask checkboxes left as-is).
+
+Stage Summary:
+- Two test files created (helpers + service), both sub-loop exit 0 at the deepest lifecycle stage.
+- 126 tests pass / 0 fail across both files via run-test.ts.
+- The denial-oracle posture (REQ-022) is pinned at the service tier: every (method × cause) cell produces a byte-identical ForbiddenError with localized message (en + ar) and exactly ONE bounded logDomainError with zero child fields in the context bag.
+- Gate-before-read proven by mock.invocationCallOrder assertions; BOLA non-parent rejection proven by zero-invocation spy assertions on downstream repos.
+- Carry-forward: task 6.3 (wire tests) should assert the SAME constant denial shape over the GraphQL transport; task 6.5 (E2E) should observe the oracle posture end-to-end.

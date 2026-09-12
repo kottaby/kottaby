@@ -38,6 +38,7 @@ import { HandshakeCode } from "@/shared/locale/namespaces/handshakeCode";
 import { Landing } from "@/shared/locale/namespaces/landing";
 import { Notifications } from "@/shared/locale/namespaces/notifications";
 import { ParentLink } from "@/shared/locale/namespaces/parentLink";
+import { ParentMonitoring } from "@/shared/locale/namespaces/parentMonitoring";
 
 /** Mutable navigation state consumed by the mocked `next/navigation` exports. */
 export interface TestNavigationState {
@@ -47,12 +48,29 @@ export interface TestNavigationState {
   pathname: string;
   /** Number of `router.refresh()` invocations (locale-switch side effect). */
   refreshCount: number;
+  /** Recorded `router.push(href)` arguments, in call order. */
+  readonly pushCalls: string[];
+  /** Recorded `router.replace(href)` arguments, in call order. */
+  readonly replaceCalls: string[];
+}
+
+/**
+ * Reset helper for the recorded-navigation arrays — call between tests so
+ * push/replace assertions read only the current test's traffic. The locale,
+ * pathname and refreshCount fields are reset directly by callers (their
+ * pre-existing convention).
+ */
+export function resetNavigationCalls(): void {
+  testNavigationState.pushCalls.length = 0;
+  testNavigationState.replaceCalls.length = 0;
 }
 
 export const testNavigationState: TestNavigationState = {
   locale: "ar",
   pathname: "/",
   refreshCount: 0,
+  pushCalls: [],
+  replaceCalls: [],
 };
 
 void mock.module("next/navigation", () => ({
@@ -60,8 +78,12 @@ void mock.module("next/navigation", () => ({
   usePathname: () => testNavigationState.pathname,
   useSearchParams: () => new URLSearchParams(),
   useRouter: () => ({
-    push: () => undefined,
-    replace: () => undefined,
+    push: (href: string) => {
+      testNavigationState.pushCalls.push(href);
+    },
+    replace: (href: string) => {
+      testNavigationState.replaceCalls.push(href);
+    },
     back: () => undefined,
     forward: () => undefined,
     prefetch: () => undefined,
@@ -99,6 +121,10 @@ for (const translations of [arMessages, enMessages]) {
   // incoming queue + parent outgoing section) surface missing-key drift at
   // preload time.
   ParentLink.getLabels(translations);
+  // Warm the ParentMonitoring handle so the parent read-only monitoring
+  // portal suites (root + detail containers + five tabs) surface missing-key
+  // drift at preload time.
+  ParentMonitoring.getLabels(translations);
   // Warm the admin-directory handles (users / students / teachers) so the
   // admin mobile-card + empty-state suites surface missing-key drift at
   // preload time.

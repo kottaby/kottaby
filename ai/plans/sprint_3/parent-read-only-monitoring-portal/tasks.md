@@ -311,7 +311,7 @@ Read-only vertical slice, bottom-up: canonical types → repository parent-scope
   - Write outcome: `outcome/6.1-repo-tests-outcome.md`
   - _Requirements: REQ-050_
 
-- [ ] 6.2 Service tests (gate + shape)
+- [x] 6.2 Service tests (gate + shape)
   - CREATE `backend/services/parents/parent-monitoring.service.test.ts` (+ helpers colocated tests for `requireLinkedChild` and the mappers, following the sibling `parent-link-request.helpers.test.ts` convention).
   - Coverage (REQ-051): linked parent → data for every method; unlinked parent → `ForbiddenError`; cross-child id → `ForbiddenError`; soft-deleted child → `ForbiddenError` (SAME constant copy across all four denial classes); malformed id (non-integer, ≤0) → same shape; empty sets → honest empty payloads (`[]`, count 0, null positions); page/pageSize clamping echoed (1 lower, 50 upper, defaults); ordering of windows pinned.
   - Denial copy asserted against `getServerTranslations(locale).errorsTranslations.forbidden` for BOTH `en` and `ar` — never raw strings (REQ-051.2). Token-role denial (non-parent actor id) → `ForbiddenError`.
