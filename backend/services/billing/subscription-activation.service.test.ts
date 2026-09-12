@@ -51,10 +51,22 @@
  *  - Tier 4 (abuse): a tampered (reduced) amount quarantines with zero
  *    mutation; the zero-credit replay proof — balance read before/after a
  *    duplicate delivery is byte-identical and the decided rows untouched.
+ *  - Window-arithmetic lock-in (Tier 2 boundaries, verify-and-pin — the
+ *    activation flow's window arithmetic is pinned, never re-implemented):
+ *    the committed row's endDate − startDate equals the plan row's
+ *    intervalDays × 86_400_000 exactly (one captured `now`; the
+ *    second-precision form is pinned as well), the minimum plan interval
+ *    (interval_days = 1, the CHECK's > 0 floor) yields an exactly-one-day
+ *    window, the leap-day-adjacent property is pinned via the observed-row
+ *    delta cross-checked against UTC calendar-field normalization, and
+ *    interval_days = 0 / NULL is impossible by the plans_interval_days_check
+ *    DB CHECK + NOT NULL (DB-layer probe + live table-config introspection;
+ *    subscriptions carries no interval column at all).
  */
 
 import { afterEach, describe, expect, spyOn, test } from "bun:test";
 import { eq } from "drizzle-orm";
+import { getTableConfig } from "drizzle-orm/pg-core";
 import { db } from "@/backend/db";
 import { NotificationRepository } from "@/backend/db/repo";
 import { plans } from "@/backend/db/schema/billing/plans";
@@ -69,7 +81,7 @@ import {
   createTestSubscription,
   createTestUser,
 } from "@/backend/db/test/entity-setup";
-import { runInRollback } from "@/backend/db/test/test-utils";
+import { constraintNameOf, expectRepoError, runInRollback } from "@/backend/db/test/test-utils";
 import { PaymentGateway } from "@/backend/enum/billing/payment-gateway.enum";
 import { PaymentStatus } from "@/backend/enum/billing/payment-status.enum";
 import { SubscriptionCreditLane } from "@/backend/enum/billing/subscription-credit-lane.enum";
@@ -91,6 +103,7 @@ import type {
 } from "@/backend/types";
 import { getServerTranslations } from "@/shared/locale/server-graphql";
 import { isPgliteProvider } from "@/test/helpers/skip-when-pglite";
+import { secondPrecisionMs } from "@/test/workflows/helpers/second-precision";
 
 /** Concurrent-transaction cases run ONLY on a real multi-connection PostgreSQL. */
 const testOnRealPostgres = isPgliteProvider() ? test.skip : test;
@@ -890,5 +903,174 @@ describe("SubscriptionActivationService — forged deliveries (Tier 4: abuse)", 
       expect(subAfter?.startDate?.getTime()).toBe(subBefore?.startDate?.getTime());
       expect(subAfter?.updatedAt?.getTime()).toBe(subBefore?.updatedAt?.getTime());
     });
+  });
+});
+
+describe("SubscriptionActivationService — validity-window arithmetic lock-in (Tier 2: boundaries)", () => {
+  test("committed window: endDate − startDate === plan.intervalDays × 86_400_000 exactly, anchored at the activation instant", async () => {
+    await runInRollback(async tx => {
+      // A non-default interval (37 days, not the fixture's 30) so the delta
+      // below can only come from the plan ROW's interval_days — the window
+      // is read from the activating plan row, never guessed or re-stored.
+      const { plan, subscription, payment } = await provisionPendingPair(tx, { intervalDays: 37 });
+      expect(plan.intervalDays).toBe(37);
+      spyNotificationSeams();
+
+      const before = new Date(Date.now() - 1000);
+      const outcome = await SubscriptionActivationService.processWebhookEvent(
+        confirmedEvent(subscription.paymentReference ?? "", payment.amount),
+        "en",
+        tx
+      );
+      const after = new Date(Date.now() + 1000);
+      expect(outcome).toEqual({ processed: true });
+
+      const subRows = await tx.select().from(subscriptions).where(eq(subscriptions.id, subscription.id)).limit(1);
+      const sub = subRows[0];
+      expect(sub?.status).toBe(SubscriptionStatus.Active);
+      const start = stampedDateOf(sub?.startDate, "subscriptions.start_date");
+      const end = stampedDateOf(sub?.endDate, "subscriptions.end_date");
+
+      // The window is anchored at the REAL activation instant (the flow
+      // captures `now` once in-transaction) — the delta is the contract.
+      expect(start.getTime()).toBeGreaterThanOrEqual(before.getTime());
+      expect(start.getTime()).toBeLessThanOrEqual(after.getTime());
+
+      // 86_400_000 ms/day mirrors the service's module-private MS_PER_DAY
+      // constant (subscription-activation.service.ts:96 — deliberately not
+      // re-exported; the service file is pinned, never modified). Both
+      // endpoints derive from that single captured `now`, so the delta
+      // carries NO sub-second noise and the exact form is the honest pin.
+      expect(end.getTime() - start.getTime()).toBe(plan.intervalDays * 86_400_000);
+
+      // Second-precision form — the same window survives the timestamp
+      // resolution floor the journey fixtures rely on: a whole-day interval
+      // is a whole-second multiple, so flooring both endpoints preserves the
+      // delta exactly (the pin would still hold if storage ever rounded the
+      // timestamps to whole seconds).
+      expect(secondPrecisionMs(end) - secondPrecisionMs(start)).toBe(plan.intervalDays * 86_400_000);
+
+      // One captured `now` for the whole write: the verification stamp is
+      // the same instant as the window's start.
+      expect(stampedDateOf(sub?.paymentVerifiedAt, "subscriptions.payment_verified_at").getTime()).toBe(
+        start.getTime()
+      );
+    });
+  });
+
+  test("minimum plan interval: intervalDays = 1 (the CHECK's > 0 floor) activates an exactly-one-day window", async () => {
+    await runInRollback(async tx => {
+      const { plan, subscription, payment } = await provisionPendingPair(tx, { intervalDays: 1 });
+      expect(plan.intervalDays).toBe(1);
+      spyNotificationSeams();
+
+      const outcome = await SubscriptionActivationService.processWebhookEvent(
+        confirmedEvent(subscription.paymentReference ?? "", payment.amount),
+        "en",
+        tx
+      );
+      expect(outcome).toEqual({ processed: true });
+
+      const subRows = await tx.select().from(subscriptions).where(eq(subscriptions.id, subscription.id)).limit(1);
+      const sub = subRows[0];
+      expect(sub?.status).toBe(SubscriptionStatus.Active);
+      const start = stampedDateOf(sub?.startDate, "subscriptions.start_date");
+      const end = stampedDateOf(sub?.endDate, "subscriptions.end_date");
+
+      // The floor interval passes the activation ceiling guard (only values
+      // ABOVE it quarantine — the over-ceiling case is pinned separately)
+      // and yields a window of EXACTLY one day.
+      expect(end.getTime() - start.getTime()).toBe(86_400_000);
+      expect(secondPrecisionMs(end) - secondPrecisionMs(start)).toBe(86_400_000);
+    });
+  });
+
+  test("leap-day-adjacent activation: the observed window delta is absolute-epoch arithmetic that agrees with UTC calendar normalization", async () => {
+    await runInRollback(async tx => {
+      // The flow captures its activation instant with `new Date()` internally
+      // (subscription-activation.service.ts:360) — pinning `now` to a Feb-29
+      // wall-clock instant would mean mocking the GLOBAL Date constructor
+      // shared by the entire engine stack (driver, ORM, fixture helpers), an
+      // intervention of the same grade as re-implementing the flow. So the
+      // leap-day property is pinned the honest way: a REAL activation, the
+      // OBSERVED row timestamps, and the delta — the DELTA is the point, not
+      // wall-clock control.
+      const { plan, subscription, payment } = await provisionPendingPair(tx, { intervalDays: 30 });
+      spyNotificationSeams();
+
+      const outcome = await SubscriptionActivationService.processWebhookEvent(
+        confirmedEvent(subscription.paymentReference ?? "", payment.amount),
+        "en",
+        tx
+      );
+      expect(outcome).toEqual({ processed: true });
+
+      const subRows = await tx.select().from(subscriptions).where(eq(subscriptions.id, subscription.id)).limit(1);
+      const start = stampedDateOf(subRows[0]?.startDate, "subscriptions.start_date");
+      const end = stampedDateOf(subRows[0]?.endDate, "subscriptions.end_date");
+
+      // Pure elapsed-time arithmetic: intervalDays × 86_400_000 ms added to
+      // the observed start. A leap day cannot skew this — Feb 29 exists only
+      // in calendar-field arithmetic, and the window's writer never touches
+      // calendar fields.
+      expect(end.getTime() - start.getTime()).toBe(plan.intervalDays * 86_400_000);
+
+      // Cross-check against the computation that DOES know about Feb 29:
+      // UTC calendar-field normalization (Date.UTC normalizes day-of-month
+      // overflow through month lengths and leap years). The epoch-ms
+      // arithmetic must agree with it exactly for the observed activation
+      // instant — whenever the observed window spans a Feb 29 this IS the
+      // leap-day case, and since the two paths agree for every instant, the
+      // pin holds on every run regardless of the host clock.
+      const calendarLanding = Date.UTC(
+        start.getUTCFullYear(),
+        start.getUTCMonth(),
+        start.getUTCDate() + plan.intervalDays,
+        start.getUTCHours(),
+        start.getUTCMinutes(),
+        start.getUTCSeconds(),
+        start.getUTCMilliseconds()
+      );
+      expect(end.getTime()).toBe(calendarLanding);
+    });
+  });
+
+  test("interval_days = 0 is impossible by DB CHECK — plans_interval_days_check fires; the floor value 1 inserts", async () => {
+    await runInRollback(async tx => {
+      // Control first: the same insert shape with the floor value (1)
+      // commits — the CHECK is `> 0`, so the failure below is the ZERO, not
+      // the insert shape.
+      const floorPlan = await createTestPlan(tx, { intervalDays: 1 });
+      expect(floorPlan.intervalDays).toBe(1);
+
+      // The violation probe — the LAST statement of the transaction (a CHECK
+      // violation aborts the tx; every later statement would fail with 25P02,
+      // so nothing may follow it — the plan-catalog-schema suite's pattern).
+      const err = await expectRepoError(() => createTestPlan(tx, { intervalDays: 0 }));
+      expect(constraintNameOf(err)).toBe("plans_interval_days_check");
+    });
+  });
+
+  test("schema-definition pin: interval_days is NOT NULL on plans, carries plans_interval_days_check, and subscriptions stores no interval column", () => {
+    // Introspection of the live drizzle table configs (no DB I/O): the pin
+    // fails if the schema definition drifts from the contracted shape; the
+    // DB-level probe above proves the running database enforces it.
+    const plansConfig = getTableConfig(plans);
+    const intervalColumn = plansConfig.columns.find(column => column.name === "interval_days");
+    if (!intervalColumn) {
+      throw new Error("expected the plans table to define an interval_days column");
+    }
+    // NULL impossible: the column is NOT NULL — a plan row can never carry a
+    // null interval for the window arithmetic to read.
+    expect(intervalColumn.notNull).toBe(true);
+    // Zero impossible: the CHECK lives on the table config under its
+    // constraint name (the same name the DB-level probe above catches).
+    expect(plansConfig.checks.map(constraint => constraint.name)).toContain("plans_interval_days_check");
+
+    // The interval-source discipline: interval_days is a PLANS column only —
+    // the subscriptions table stores no interval value at all, so the window
+    // can only ever be computed from the activating plan row.
+    const subscriptionsConfig = getTableConfig(subscriptions);
+    expect(subscriptionsConfig.columns.some(column => column.name.includes("interval"))).toBe(false);
   });
 });
