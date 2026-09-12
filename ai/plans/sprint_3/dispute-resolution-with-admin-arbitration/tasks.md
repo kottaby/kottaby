@@ -35,7 +35,7 @@ Backend-first with a **test-first journey** authored right after repo primitives
 
 ### Task 0: Pre-Implementation Baseline & Ledgers
 
-- [ ] 0. Establish error baseline + ledgers
+- [x] 0. Establish error baseline + ledgers
   - Run: `bun tsgo 2>&1 | grep "error TS" | wc -l > /tmp/baseline-tsgo.txt`; `bun biome:check 2>&1 | grep -c "warn" > /tmp/baseline-biome.txt`; `bun run scripts/lint-service.ts --json --id baseline > /tmp/baseline-lint.json`
   - Confirm ledger: `ai/plans/sprint_3/dispute-resolution-with-admin-arbitration/deferred-items.md` (already seeded at planning time)
   - Write outcome: `outcome/0-baseline-outcome.md` (counts + any pre-existing anomalies observed)
