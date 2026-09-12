@@ -215,6 +215,14 @@ export interface ErrorsLabels {
   readonly homeworkSurahJuzInvalid: string;
   /** Validation reject — a homework assignment carries neither the current nor the revision block. */
   readonly homeworkAssignmentBlocksRequired: string;
+  /** "The requested withdrawal was not found." — admin settlement lookup miss on a teacher_transaction id → NotFoundError. */
+  readonly withdrawalRequestNotFound: string;
+  /** "This withdrawal request is no longer pending." — settlement reject once the row was already approved or rejected → ConflictError. */
+  readonly withdrawalNotPending: string;
+  /** "Enter a valid adjustment amount (a positive value with up to 2 decimal places)." — pre-DB manual wallet-adjustment amount reject → ValidationError. */
+  readonly invalidAdjustmentAmount: string;
+  /** "An adjustment reason is required and cannot be empty." — pre-DB manual wallet-adjustment reason reject → ValidationError. */
+  readonly adjustmentReasonRequired: string;
 }
 
 export type ErrorMessageKey = {

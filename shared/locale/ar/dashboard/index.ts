@@ -14,6 +14,7 @@ export const dashboardAr: DashboardLabels = {
   students: "الطلاب",
   plans: "الخطط",
   audit: "سجل التدقيق",
+  finances: "المالية",
   analytics: "التحليلات",
   broadcasts: "الإعلانات",
   disputes: "النزاعات",

@@ -102,4 +102,8 @@ export const errorsEn: ErrorsLabels = {
   homeworkAssignmentBlocksRequired: "Provide at least one homework assignment block (new portion or revision).",
   sessionRescheduleWindowInvalid: "The start time must be before the end time.",
   sessionRescheduleStartInPast: "The start time cannot be more than 5 minutes in the past.",
+  withdrawalRequestNotFound: "The requested withdrawal was not found.",
+  withdrawalNotPending: "This withdrawal request is no longer pending.",
+  invalidAdjustmentAmount: "Enter a valid adjustment amount (a positive value with up to 2 decimal places).",
+  adjustmentReasonRequired: "An adjustment reason is required and cannot be empty.",
 };

@@ -39,7 +39,6 @@
 import { describe, expect, test } from "bun:test";
 import { randomUUID } from "node:crypto";
 import { eq, sql } from "drizzle-orm";
-import { db } from "@/backend/db";
 import { teacherTransaction, wallet } from "@/backend/db/schema/billing";
 import { WalletRepository } from "@/backend/db/repo";
 import {

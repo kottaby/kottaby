@@ -62,9 +62,18 @@ const PAYMENT_READ_COLUMNS = `
  * Admin-audit column projection for raw `queryDb` reads — the payment
  * columns plus the student's display identity resolved through the
  * `students` → `users` join (students share their PK with `users.id`).
+ * Payment columns are qualified with `student_payments.` because the join
+ * makes the bare `id` ambiguous.
  */
 const ADMIN_PAYMENT_READ_COLUMNS = `
-  ${PAYMENT_READ_COLUMNS}, users.full_name AS "studentName", users.email AS "studentEmail"
+  student_payments.id, student_payments.student_id AS "studentId",
+  student_payments.subscription_id AS "subscriptionId",
+  student_payments.amount AS "amount", student_payments.currency AS "currency",
+  student_payments.payment_gateway AS "paymentGateway",
+  student_payments.status AS "status",
+  student_payments.created_at AS "createdAt",
+  student_payments.updated_at AS "updatedAt",
+  users.full_name AS "studentName", users.email AS "studentEmail"
 `;
 
 /**

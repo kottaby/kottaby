@@ -67,7 +67,7 @@ Foundation-first with interleaved tests: trigger amendment → types → repo pr
   - Outcome: `outcome/2.2-types-outcome.md`
   - _Requirements: REQ-1, REQ-2, REQ-3, REQ-6_
 
-- [ ] 2.3 Enum + repository primitives + 100% repo tests
+- [x] 2.3 Enum + repository primitives + 100% repo tests
   - New `backend/enum/billing/wallet-adjustment-direction.enum.ts` (`Credit`/`Debit`) + barrel exports
   - `backend/db/repo/billing/student-payment.repository.ts`: `listForAdminAudit`, `countForAdminAudit` (students→users join; `escapeLikeWildcards` on name search; newest-first)
   - `backend/db/repo/billing/wallet.repository.ts`: `findAdminWalletProbe`, `listTransactionsForAdmin` + `countTransactionsForAdmin`, `listPendingWithdrawals` + `countPendingWithdrawals` (predicate parity with the analytics counter), `findSettlementProbe`, `settleWithdrawalOnce`, `restoreWithdrawalDebitOnce`, `creditBonusOnce`, `debitAdjustmentOnce`
@@ -77,7 +77,7 @@ Foundation-first with interleaved tests: trigger amendment → types → repo pr
   - Outcome: `outcome/2.3-repo-primitives-outcome.md`
   - _Requirements: REQ-1, REQ-2, REQ-3, REQ-4, REQ-5, REQ-6, REQ-9_
 
-- [ ] 2.4 Journey test authored TEST-FIRST (expected red until 2.5 lands)
+- [x] 2.4 Journey test authored TEST-FIRST (expected red until 2.5 lands)
   - Create `test/workflows/billing/admin-financial-auditing.journey.test.ts`: J-W1 approve, J-W2 reject (balance restore asserted), J-ADJ credit+debit (+ insufficient-funds denial), payment-audit filter visibility, denials (non-admin service call → reject), concurrent double-settle race (exactly one winner)
   - Per `test/workflows/AGENTS.md`: real services + real DB, committed fixtures via actor-context helpers + tracked `afterAll` cleanup, NO `runInRollback`, no `expect.rejects`, prefix via `journeyPrefix("billing")` (`jrn_billing_<8hex>`)
   - Immutable-ledger teardown: journey-created `teacher_transaction` rows are DELETE-blocked by trigger — hard-delete them FIRST in `afterAll` inside `withImmutabilityTriggersSuspended(["teacher_transaction"])` (helper in `test/helpers/db-cleanup.ts`), never register them in the tracked-fixture registry; audit rows likewise via `withAuditDeleteTriggersSuspended:83` (precedent: the billing `subscription-purchase` journey's payment cleanup)
@@ -123,7 +123,7 @@ Foundation-first with interleaved tests: trigger amendment → types → repo pr
   - Outcome: `outcome/4.1-documents-outcome.md`
   - _Requirements: REQ-1, REQ-2, REQ-3, REQ-0.5_
 
-- [ ] 4.2 Locale: `adminFinance` namespace + error keys (en + ar) + parity
+- [x] 4.2 Locale: `adminFinance` namespace + error keys (en + ar) + parity
   - 5 touchpoints (`shared/locale/types/adminFinance/`, `en/`, `ar/`, `namespaces/adminFinance/`, registry + both `messages.ts`); dashboard `finances` nav label in `shared/locale/{en,ar}/dashboard/`; error keys `withdrawalRequestNotFound`, `withdrawalNotPending`, `invalidAdjustmentAmount`, `adjustmentReasonRequired` (en + ar)
   - Parity test `shared/locale/adminFinance-namespace.parity.test.ts` mirrors the sibling parity tests; errors parity stays green
   - [ ] 4.2.QL exit 0 · [ ] 4.2.TE parity tests green · [ ] 4.2.SEC N/A · [ ] 4.2.SR zero hardcoded strings touched · [ ] 4.2.IV read printed rule files

@@ -8,5 +8,6 @@
   "chat.permissions.default": "autopilot",
   "editor.codeActionsOnSave": {
     "source.fixAll.oxc": "always"
-  }
+  },
+  "chat.utilitySmallModel": "customendpoint/nvidia/z-ai/glm-5.3-flash"
 }
