@@ -541,3 +541,76 @@ Stage Summary:
 - Sub-loop exit 0 at the deepest lifecycle stage (duplicates).
 - Tier 4 rename-drift probe: three probes (field-name, return-type, arg-shape) all caught the deliberate rename; all reverted.
 - Carry-forward for task 5.1: a SECOND codegen refresh is required after the portal GraphQL documents land (the `gql/graphql.ts` output is byte-unchanged in THIS task because no documents existed yet).
+
+---
+
+Task ID: 5.1
+Agent: Frontend GraphQL Documents Subagent (general-purpose)
+Task: GraphQL documents + codegen
+
+Work Log:
+- Read SKILL.md in FULL (per-task flow: READ outcomes → READ task → READ AGENTS → EXECUTE → QUALITY LOOP → TEST → SECURITY → SEMANTIC REVIEW → INSTRUCTION VERIFICATION → WRITE OUTCOME → UPDATE CHECKBOX).
+- Confirmed branch is `feat/parent-read-only-monitoring-portal` (the sandbox resets HEAD to `main` between bash invocations — every command started with `git checkout feat/parent-read-only-monitoring-portal 2>/dev/null || true` then verified with `git branch --show-current`; used `git checkout -f` to recover from working-tree conflicts when the sandbox left stale modifications).
+- Read ALL outcome files: 0.1-baseline-confirm-outcome, 0-baseline-outcome, plan-review-R1, research-00-planning-basis, 2.1-types-outcome (the ten closed read projections + `ParentPageInput`), 2.2-repo-children-progress-outcome, 2.3-repo-reports-homework-outcome, 2.4-service-gate-outcome, 3.1-pothos-objects-outcome (the ten Pothos object refs + `id` FIRST on the four entity-shaped objects via `t.exposeID("id")`), 3.2-query-registration-outcome (the five root query field names + arg shapes — `myLinkedChildren` zero-arg; `parentChildProgress(studentId: Int!)`; `parentChildSessions/Reports/Homework(studentId: Int!, page: Int, pageSize: Int)`), 3.3-codegen-sdl-lock-outcome (the SDL is locked with the five fields + ten types; `graphql.ts` was byte-unchanged at 3.3 because no portal documents existed yet — this task triggers the second codegen refresh), 4.1-i18n-namespace-outcome, 5.4-apollo-cache-outcome (the six no-`id` portal types registered with `keyFields: false` in `apolloCache.ts`).
+- Read plan files: specs.md REQ-002 (translation/enum compliance — N/A for documents layer), REQ-024 (BOLA — identity from ctx.user.id ONLY; AC4: frontend sends ONLY studentId + pagination, never identity/role/auth hints), REQ-030 (the five new query field names + arg shapes + AC4: codegen refresh after documents authored); plan.md §5.5 (the five documents verbatim with `id` FIRST in every selection, `TypedDocumentNode` typing, NO `useLazyQuery`, the five export names); tasks.md task 5.1 section (lines 250-260).
+- Read sibling files end-to-end BEFORE writing: `frontend/graphql/sharedDocuments/parents/parent-link.documents.ts` (the sibling — matched its `TypedDocumentNode` typing, `gql` tag usage, docblock style, export style, `id`-first convention); `frontend/graphql/sharedDocuments/parents/parent-link.documents.test.ts` (the test precedent — AST helpers + contract table + barrel parity + codegen binding proof); `frontend/graphql/sharedDocuments/parents/index.ts` (the barrel I'd update); `frontend/graphql/sharedDocuments/admin/audit-trail.documents.ts` (paginated-read document precedent — `page: Int, pageSize: Int` optional arg shape); the generated types in `frontend/graphql/generated/gql/graphql.ts`; the generated SDL in `frontend/graphql/generated/schema.graphql` (confirmed the exact field names + arg shapes + selection paths for the five portal queries + ten object types).
+- Read AGENTS.md (root), frontend/AGENTS.md, frontend/graphql/AGENTS.md, frontend/graphql/sharedDocuments/AGENTS.md, .agents/instructions/frontend.instructions.md, .agents/instructions/tests.instructions.md — all six applicable rule files (the same set later printed by sub-loop).
+
+Execution:
+- CREATED `frontend/graphql/sharedDocuments/parents/parent-monitoring.documents.ts` — five `TypedDocumentNode`-typed query documents (NO `useLazyQuery` — documents only, not hooks):
+  1. `myLinkedChildrenQueryDocument: TypedDocumentNode<MyLinkedChildrenQuery>` — zero-arg list query; selects `id fullName createdAt` from `myLinkedChildren` (`id` FIRST for Apollo cache normalization).
+  2. `parentChildProgressQueryDocument: TypedDocumentNode<ParentChildProgressQuery, ParentChildProgressQueryVariables>` — `$studentId: Int!` arg; selects `child { id fullName createdAt } progressRowCount latestJadidPosition { surahJuz fromAyah toAyah } latestMadiPosition { surahJuz fromAyah toAyah }` (the detail-header + progress-tab single payload — `child` re-projects the same `ParentLinkedChild` selection as the list, `id` FIRST).
+  3. `parentChildSessionsQueryDocument: TypedDocumentNode<ParentChildSessionsQuery, ParentChildSessionsQueryVariables>` — `$studentId: Int!, $page: Int, $pageSize: Int` args; selects `items { id status startedAt endedAt createdAt } totalCount page pageSize` (the honest envelope — `id` FIRST on each `ParentAttendanceEntry`).
+  4. `parentChildReportsQueryDocument: TypedDocumentNode<ParentChildReportsQuery, ParentChildReportsQueryVariables>` — same arg shape; selects `items { id sessionId sessionStatus sessionStartedAt teacherNotes studentRatingByTeacher createdAt } totalCount page pageSize` (`id` FIRST on each `ParentReportEntry`; nullable `teacherNotes`/`studentRatingByTeacher` flow through as `string | null` / `number | null`).
+  5. `parentChildHomeworkQueryDocument: TypedDocumentNode<ParentChildHomeworkQuery, ParentChildHomeworkQueryVariables>` — same arg shape; selects `items { id sessionId jadid { surahJuz fromAyah toAyah grade } madi { surahJuz fromAyah toAyah grade } createdAt } totalCount page pageSize` (`id` FIRST on each `ParentHomeworkEntry`; `jadid`/`madi` are nullable embedded `ParentHomeworkTrack` value objects).
+- UPDATED `frontend/graphql/sharedDocuments/parents/index.ts` barrel — appended `export * from "./parent-monitoring.documents";` after the existing `export * from "./parent-link.documents";` line.
+- CREATED `frontend/graphql/sharedDocuments/parents/parent-monitoring.documents.test.ts` — structural lock over the five documents (16 tests / 148 expect() calls) mirroring the sibling `parent-link.documents.test.ts` precedent: AST helpers (operationOrThrow, subFields, subField, selectionPath, fieldNames, variableNames, argumentVariableNames) + contract table (PARENT_MONITORING_DOCUMENT_TABLE) + three describe blocks (named operations + channel + variables; id-first + canonical row shapes; codegen binding + barrel parity). Asserts every document is a single named `query` operation with the exact sanctioned variable set; every declared variable is wired into its root-field argument; the variable surface is EXACTLY `studentId` + optional `page`/`pageSize` (zero parent/actor/user/role/auth/token hints — REQ-024.4); the list query is zero-argument; every entity-shaped object selection carries `id` FIRST with the exact canonical row; the progress `child` echo re-projects the same `ParentLinkedChild` selection as the list; every page wrapper carries the honest envelope; the progress composite + homework track/position blocks carry NO `id` (embedded value types); the top-level barrel re-exports the SAME document instances (cache-key safety); the documents remain `TypedDocumentNode`-typed against generated operation types (compile-time proof by assignment).
+
+5.1 Codegen refresh:
+- `bun run generate:gqlSchema` — wrote `frontend/graphql/generated/schema.graphql` (36003 bytes, byte-identical to the task-3.3 committed output — the SDL does not change because documents are operation-derived, not schema-derived).
+- `bun codegen` — extended `frontend/graphql/generated/gql/graphql.ts` by +70 lines: five new `{OperationName}Query` types, five new `{OperationName}QueryVariables` types, ten new `{OperationName}_{field}[_{subField}]` extracted field types, five new `*Document` const exports at the file tail. All generated, none hand-edited (REQ-030.4 honored).
+- Variable shapes verified:
+  - `MyLinkedChildrenQueryVariables` = `Exact<{ [key: string]: never }>` (zero-arg)
+  - `ParentChildProgressQueryVariables` = `Exact<{ studentId: number }>`
+  - `ParentChildSessionsQueryVariables` = `Exact<{ studentId: number; page: number | null | undefined; pageSize: number | null | undefined }>`
+  - `ParentChildReportsQueryVariables` = `Exact<{ studentId: number; page: number | null | undefined; pageSize: number | null | undefined }>`
+  - `ParentChildHomeworkQueryVariables` = `Exact<{ studentId: number; page: number | null | undefined; pageSize: number | null | undefined }>`
+
+5.1.QL Quality Loop — sub-loop.ts --lifecycle duplicates (1 fix iteration):
+- **Iteration 1** (test file with `tagedList` typo): tsgo FAILED — TS6133 `typedList` declared but never read; TS2304 Cannot find name `tagedList`. The runtime-use assertion `expect(tagedList.loc).toBeDefined()` referenced the wrong name.
+- **Iteration 2** (renamed `tagedList` → `typedList` in the `expect(typedList.loc).toBeDefined()` assertion): ✅ tsgo ✅ oxlint ✅ biome:check ✅ lint:type-aware ✅ check:duplicates → exit 0 on all three files (documents, barrel, test).
+- Project-wide `bun tsgo` exit 0 — zero new errors introduced by this task.
+
+5.1.TE Test Engineering:
+- `bun run test/scripts/run-test.ts frontend/graphql/sharedDocuments/parents/parent-monitoring.documents.test.ts` → 16 pass / 0 fail / 148 expect() calls / 139ms.
+- Sibling regression: `parent-link.documents.test.ts` → 15 pass / 0 fail / 112 expect() calls (the barrel update did not break the sibling surface).
+- Schema-surface regression: `backend/graphql/test/schema-surface.test.ts` → 53 pass / 0 fail / 595 expect() calls (the codegen refresh did not regress the SDL lock from task 3.3).
+
+5.1.SEC Security & Tenancy Audit:
+- **REQ-024.4 (BOLA — no client-supplied identity in request body)**: grep-verified ZERO identity-arg references (`parentId`, `parentActorId`, `actorId`, `userId`, `$role`, `$auth`, `$token`) in any GraphQL document body. ONE match — the JSDoc header line documenting the BOLA boundary itself ("no `parentId` / `actorId` / `userId` / role / auth hint exists anywhere in the documents"). The ONLY variables in the document bodies are `$studentId`, `$page`, `$pageSize` — exactly the three sanctioned variables per plan §5.5 + REQ-024.4. `studentId` is gated inside `requireLinkedChild` (task 2.4 service layer — the TOCTOU seal) before ANY data read; the page args are forwarded as an explicit closed whitelist server-side (task 3.2 resolver — no `...args` spread). Parent identity arrives exclusively from `ctx.user.id` server-side.
+- **BFLA**: documents are read-only `query` operations only — ZERO mutations on the portal surface (INV-P2 / REQ-023). The structural test's "single named query operation" assertion pins this per document (`operation.operation === "query"`).
+- **BOPLA output-side**: every entity-shaped selection exposes exactly the plan §2.3 projection set — no billing/fee/wallet/held-lane/confirmation-deadline/dispute/internal-audit columns reachable. The structural test's "exact canonical row" assertions pin this per selection.
+- **Apollo cache normalization**: `id` FIRST on every entity-shaped selection (4 entity types). The 6 no-`id` types are registered with `keyFields: false` in `apolloCache.ts` (task 5.4) — verified by the "carries no `id`" assertions on the page wrappers, the homework track blocks, the homework position blocks, and the progress composite.
+
+5.1.SR Semantic Review (full checklist):
+- Race Conditions & Concurrency — N/A (pure document declarations, no runtime code, no async paths, no module-level mutable state).
+- Environment & Configuration — N/A.
+- Code Quality & Clean Comments — no dead branches; no cross-layer imports (only `@apollo/client` + `@/frontend/graphql/generated/gql/graphql`); no manual ReturnType construction; clean comments (ZERO plan-artifact references, grep-verified); NO `useLazyQuery`; NO `oxlint-disable`/`jscpd:ignore`.
+- Schema & Types — all types via `import type` from the single `graphql.ts` file; `TypedDocumentNode` convention honored; codegen output NOT hand-edited.
+- Scope Boundary — only files listed in the task definition modified.
+
+5.1.IV Instruction Verification:
+- Applicable rule files (printed by sub-loop.ts discovery) read in FULL and validated against: AGENTS.md (root), frontend/AGENTS.md, frontend/graphql/AGENTS.md, frontend/graphql/sharedDocuments/AGENTS.md, .agents/instructions/frontend.instructions.md, .agents/instructions/tests.instructions.md. No in-file rule violations. No cross-file blockers caused by this task.
+
+WROTE outcome file at `ai/plans/sprint_3/parent-read-only-monitoring-portal/outcome/5.1-documents-outcome.md` (summary, files created/modified, files NOT modified + reasons, the five documents + their selection sets + variables verbatim, the codegen refresh result, full verification results including the 1 fix iteration, carry-forward knowledge for tasks 5.2/5.3/6.x, cross-file dependency report — NONE, all dependencies already committed on the feature branch).
+
+UPDATED tasks.md: changed `- [ ] 5.1 GraphQL documents + codegen` to `- [x] 5.1 GraphQL documents + codegen` (only the main task line; .QL/.TE/.SEC/.SR/.IV subtask checkboxes left as-is per task instructions).
+
+Stage Summary:
+- Five parent-portal `TypedDocumentNode` query documents created: `myLinkedChildrenQueryDocument`, `parentChildProgressQueryDocument`, `parentChildSessionsQueryDocument`, `parentChildReportsQueryDocument`, `parentChildHomeworkQueryDocument`. All `TypedDocumentNode`-typed against generated operation types; `id` FIRST in every entity-shaped selection; docblock per document; NO `useLazyQuery`.
+- The four per-student reads send ONLY `studentId` + optional `page`/`pageSize` — NEVER identity/role/auth hints (REQ-024.4). The list query is zero-argument (caller identity IS the read scope).
+- Codegen refresh: SDL byte-identical to task-3.3 output (documents don't change the schema); `graphql.ts` +70 lines (five `*Query` types + five `*QueryVariables` types + ten extracted-field types + five `*Document` consts). NO hand-edits to generated files.
+- Two new files + one modified barrel + one regenerated codegen output; all sub-loop exit 0 at the deepest lifecycle stage (tsgo + oxlint + biome:check + lint:type-aware + check:duplicates all passed).
+- Project-wide tsgo exit 0 — zero new errors introduced.
+- 16/16 structural tests pass; sibling `parent-link.documents.test.ts` still 15/15; schema-surface.test.ts still 53/53 — zero regression.
+- Carry-forward: task 5.3 views import the five documents via the barrel `@/frontend/graphql/sharedDocuments` (or deep-import); task 6.3 wire tests use the documents via `testClient.query({ query: <document> })`; task 6.4 UI tests mock via `<MockedProvider>` with the operation names.

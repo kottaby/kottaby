@@ -247,7 +247,7 @@ Read-only vertical slice, bottom-up: canonical types → repository parent-scope
 
 ## Phase 5 — Frontend documents, routes & views
 
-- [ ] 5.1 GraphQL documents + codegen
+- [x] 5.1 GraphQL documents + codegen
   - CREATE `frontend/graphql/sharedDocuments/parents/parent-monitoring.documents.ts` with the five documents (`myLinkedChildrenQueryDocument`, `parentChildProgressQueryDocument`, `parentChildSessionsQueryDocument`, `parentChildReportsQueryDocument`, `parentChildHomeworkQueryDocument`) per plan §5.5: `TypedDocumentNode`-typed against generated types, `id` FIRST in every selection set, docblock per document, NO `useLazyQuery`. Documents send ONLY `studentId` + pagination — never identity/role hints (REQ-024.4).
   - UPDATE `frontend/graphql/sharedDocuments/parents/index.ts` barrel.
   - Re-run `bun run generate:gqlSchema` + `bun codegen` (documents now resolve against the generated schema) and commit the final generated output.
