@@ -158,7 +158,7 @@ export default defineConfig({
       // `student.repository.zero-lane.helpers.ts`); the remaining wrappers
       // plus the admin-directory read pushed the counted lines past the
       // 300 ceiling. Bump the file ceiling (same pattern as
-      // user-management.service.ts above); function-level limits still apply
+      // the user-management.service.ts override below); function-level limits still apply
       // per-method.
       files: ["backend/db/repo/students/student.repository.ts"],
       rules: {
