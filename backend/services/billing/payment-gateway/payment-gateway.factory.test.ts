@@ -32,6 +32,7 @@ import {
   getPaymentGateway,
   resetPaymentGateway,
 } from "@/backend/services/billing/payment-gateway/payment-gateway.factory";
+import { PaymobPaymentGateway } from "@/backend/services/billing/payment-gateway/paymob/paymob.adapter";
 import { getServerTranslations } from "@/shared/locale/server-graphql";
 
 // ─── Env-manipulation fixture (restored after every case) ───────────────────
@@ -109,6 +110,12 @@ describe("getPaymentGateway provider resolution", () => {
     expect(getPaymentGateway()).toBeInstanceOf(MockPaymentGatewayAdapter);
   });
 
+  test("the paymob provider resolves the PaymobPaymentGateway adapter", () => {
+    process.env.PAYMENT_GATEWAY_PROVIDER = "paymob";
+    resetPaymentGateway();
+    expect(getPaymentGateway()).toBeInstanceOf(PaymobPaymentGateway);
+  });
+
   test("an empty or whitespace-only provider falls back to mock, never fails", () => {
     for (const value of ["", "   "]) {
       process.env.PAYMENT_GATEWAY_PROVIDER = value;
@@ -118,7 +125,7 @@ describe("getPaymentGateway provider resolution", () => {
   });
 
   test("an unknown provider fails closed with the typed unsupported error", () => {
-    process.env.PAYMENT_GATEWAY_PROVIDER = "paymob";
+    process.env.PAYMENT_GATEWAY_PROVIDER = "stripe";
     resetPaymentGateway();
 
     const caught = catchSync(() => getPaymentGateway());
@@ -128,11 +135,11 @@ describe("getPaymentGateway provider resolution", () => {
     expect(rejection).not.toBeNull();
     expect(rejection?.code).toBe("PAYMENT_GATEWAY_UNSUPPORTED");
     expect(rejection?.message).toBe(getServerTranslations("en").errorsTranslations.validation);
-    expect(rejection?.message).not.toContain("paymob");
+    expect(rejection?.message).not.toContain("stripe");
   });
 
   test("the fail-closed message follows the requested locale", () => {
-    process.env.PAYMENT_GATEWAY_PROVIDER = "paymob";
+    process.env.PAYMENT_GATEWAY_PROVIDER = "stripe";
     resetPaymentGateway();
 
     const caught = catchSync(() => getPaymentGateway("ar"));
@@ -172,7 +179,7 @@ describe("getPaymentGateway singleton + resetPaymentGateway completeness", () =>
 
   test("the singleton keeps serving across an env change until reset", () => {
     const cached = getPaymentGateway();
-    process.env.PAYMENT_GATEWAY_PROVIDER = "paymob";
+    process.env.PAYMENT_GATEWAY_PROVIDER = "stripe";
     expect(getPaymentGateway()).toBe(cached);
   });
 
@@ -181,7 +188,7 @@ describe("getPaymentGateway singleton + resetPaymentGateway completeness", () =>
     expect(stale).toBeInstanceOf(MockPaymentGatewayAdapter);
 
     // Provider swap to an unsupported value: reset must surface the change.
-    process.env.PAYMENT_GATEWAY_PROVIDER = "paymob";
+    process.env.PAYMENT_GATEWAY_PROVIDER = "stripe";
     resetPaymentGateway();
     expect(catchSync(() => getPaymentGateway())).toBeInstanceOf(DomainError);
 
@@ -202,20 +209,30 @@ describe("getPaymentGateway singleton + resetPaymentGateway completeness", () =>
     // …then flip the raw env WITHOUT any explicit env-cache reset: the
     // factory's own reset must invalidate the snapshot too, or the stale
     // snapshot would keep resolving the mock adapter.
-    process.env.PAYMENT_GATEWAY_PROVIDER = "paymob";
+    process.env.PAYMENT_GATEWAY_PROVIDER = "stripe";
     resetPaymentGateway();
     expect(catchSync(() => getPaymentGateway())).toBeInstanceOf(DomainError);
   });
 });
 
-// ─── Mock adapter: checkout determinism ─────────────────────────────────────
+// ─── Mock adapter: checkout determinism ─────────────────────────────────
+
+/** A well-formed checkout input carrying the correlation + billing fields the port requires. */
+const CHECKOUT_INPUT = {
+  studentId: 7,
+  planId: 3,
+  amount: "150.00",
+  currency: "EGP",
+  specialReference: "purchase-claim-key",
+  billing: { firstName: "Test", lastName: "Student", email: "student@test.local", phone: null },
+};
 
 describe("MockPaymentGatewayAdapter.createCheckout determinism", () => {
   const adapter = new MockPaymentGatewayAdapter();
 
   test("each checkout mints a fresh mock_<uuid> reference with no checkout URL", async () => {
-    const first = await adapter.createCheckout({ studentId: 7, planId: 3, amount: "150.00", currency: "EGP" });
-    const second = await adapter.createCheckout({ studentId: 7, planId: 3, amount: "150.00", currency: "EGP" });
+    const first = await adapter.createCheckout(CHECKOUT_INPUT);
+    const second = await adapter.createCheckout(CHECKOUT_INPUT);
 
     expect(first.provider).toBe(PaymentGateway.Mock);
     expect(second.provider).toBe(PaymentGateway.Mock);
@@ -230,9 +247,15 @@ describe("MockPaymentGatewayAdapter.createCheckout determinism", () => {
 
   test("checkout never throws — any well-formed input resolves", async () => {
     const inputs = [
-      { studentId: 1, planId: 1, amount: "0.00", currency: "EGP" },
-      { studentId: Number.MAX_SAFE_INTEGER, planId: 999_999, amount: "99999999.99", currency: "USD" },
-      { studentId: 42, planId: 5, amount: "", currency: "" },
+      { ...CHECKOUT_INPUT, studentId: 1, planId: 1, amount: "0.00", currency: "EGP" },
+      {
+        ...CHECKOUT_INPUT,
+        studentId: Number.MAX_SAFE_INTEGER,
+        planId: 999_999,
+        amount: "99999999.99",
+        currency: "USD",
+      },
+      { ...CHECKOUT_INPUT, studentId: 42, planId: 5, amount: "", currency: "" },
     ];
     const sessions = await Promise.all(inputs.map(input => adapter.createCheckout(input)));
     for (const session of sessions) {
@@ -251,7 +274,7 @@ describe("MockPaymentGatewayAdapter.parseWebhookEvent envelope", () => {
 
   /** Parses a body, returning the thrown value (or null when parsing succeeded). */
   function parseError(rawBody: string): unknown {
-    return catchSync(() => adapter.parseWebhookEvent(rawBody));
+    return catchSync(() => adapter.parseWebhookEvent({ rawBody, query: {} }));
   }
 
   function expectMalformed(rawBody: string): void {
@@ -262,29 +285,34 @@ describe("MockPaymentGatewayAdapter.parseWebhookEvent envelope", () => {
   }
 
   test("a confirmed callback parses into the verified-event contract", () => {
-    const event = adapter.parseWebhookEvent(
-      JSON.stringify({ reference: "mock_abc", outcome: "confirmed", amount: "150.00", currency: "EGP" })
-    );
+    // Query members ride along untouched — the mock has no query-signed
+    // delivery variant, so URL fields never leak into the parsed event.
+    const event = adapter.parseWebhookEvent({
+      rawBody: JSON.stringify({ reference: "mock_abc", outcome: "confirmed", amount: "150.00", currency: "EGP" }),
+      query: { hmac: "attacker-supplied", amount_cents: "999" },
+    });
     expect(event).toEqual({ reference: "mock_abc", outcome: "confirmed", amount: "150.00", currency: "EGP" });
   });
 
   test("a failed callback parses with the failed outcome", () => {
-    const event = adapter.parseWebhookEvent(
-      JSON.stringify({ reference: "mock_abc", outcome: "failed", amount: "150.00", currency: "EGP" })
-    );
+    const event = adapter.parseWebhookEvent({
+      rawBody: JSON.stringify({ reference: "mock_abc", outcome: "failed", amount: "150.00", currency: "EGP" }),
+      query: {},
+    });
     expect(event.outcome).toBe("failed");
   });
 
   test("extra payload members are dropped — only the four contract fields survive", () => {
-    const event = adapter.parseWebhookEvent(
-      JSON.stringify({
+    const event = adapter.parseWebhookEvent({
+      rawBody: JSON.stringify({
         reference: "mock_abc",
         outcome: "confirmed",
         amount: "150.00",
         currency: "EGP",
         injectedField: "attacker-controlled",
-      })
-    );
+      }),
+      query: {},
+    });
     expect(Object.keys(event).toSorted((a, b) => a.localeCompare(b))).toEqual([
       "amount",
       "currency",

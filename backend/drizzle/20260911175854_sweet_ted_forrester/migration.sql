@@ -1,0 +1,1 @@
+ALTER TABLE "student_payments" ADD COLUMN IF NOT EXISTS "provider_transaction_id" varchar(64);

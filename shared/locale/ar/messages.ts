@@ -6,6 +6,7 @@ import { adminUsersAr } from "@/shared/locale/ar/adminUsers";
 import { analyticsAr } from "@/shared/locale/ar/analytics";
 import { applicantAr } from "@/shared/locale/ar/applicant";
 import { authAr } from "@/shared/locale/ar/auth";
+import { checkoutAr } from "@/shared/locale/ar/checkout";
 import { commonAr } from "@/shared/locale/ar/common";
 import { dashboardAr } from "@/shared/locale/ar/dashboard";
 import { errorsAr } from "@/shared/locale/ar/errors";
@@ -30,6 +31,7 @@ export const arMessages: Translations = {
   applicantTranslations: applicantAr,
   sessionsTranslations: sessionsAr,
   walletTranslations: walletAr,
+  checkoutTranslations: checkoutAr,
   adminUsersTranslations: adminUsersAr,
   adminTeachersTranslations: adminTeachersAr,
   adminStudentsTranslations: adminStudentsAr,

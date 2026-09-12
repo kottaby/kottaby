@@ -75,6 +75,7 @@ import { ConflictError, isPgUniqueViolation, NotFoundError, ValidationError } fr
 import { logger } from "@/backend/lib/logger";
 import { getPaymentGateway } from "@/backend/services/billing/payment-gateway/payment-gateway.factory";
 import { MAX_INTERVAL_DAYS, MAX_SESSION_COUNT } from "@/backend/services/billing/plan-catalog.helpers";
+import { buildCheckoutBillingInput, isPositiveSafeId } from "@/backend/services/billing/subscription-purchase.helpers";
 import { assertActorGovernanceClean } from "@/backend/services/classes/session-lifecycle.governance";
 import type {
   DBQueryExecutor,
@@ -104,11 +105,6 @@ const PAYMENT_PROCESSING_CONFLICT_MESSAGE = "Payment could not be processed.";
 
 /** The localized errors bundle shape consumed by every flow in this file. */
 type ErrorsTranslations = ReturnType<typeof getServerTranslations>["errorsTranslations"];
-
-/** Positive safe-integer guard for caller-supplied identifiers (no casts). */
-function isPositiveSafeId(value: number): boolean {
-  return Number.isSafeInteger(value) && value > 0;
-}
 
 /**
  * The carryable-key check: a claimable idempotency key is present and
@@ -576,13 +572,18 @@ export namespace SubscriptionPurchaseService {
     // network boundary. The amount/currency pair is the plan row's own,
     // carried verbatim; the client cannot influence either. Both values are
     // captured here so the in-transaction body can re-compare them against
-    // the fresh plan row before committing anything.
-    const gateway = getPaymentGateway(locale);
-    const checkout = await gateway.createCheckout({
+    // the fresh plan row before committing anything. The special reference
+    // is the purchase-claim key itself: the provider echoes it back on
+    // every callback and fulfillment resolves the pending pair by it, so
+    // the claim and the provider order share one correlation identity. The
+    // billing identity derives server-side from the purchaser's user row.
+    const checkout = await getPaymentGateway(locale).createCheckout({
       studentId: studentUserId,
       planId: plan.id,
       amount: plan.price,
       currency: plan.currency,
+      specialReference: idempotencyKey,
+      billing: await buildCheckoutBillingInput(studentUserId, t, outerTx),
     });
 
     return withTransaction(outerTx, tx =>

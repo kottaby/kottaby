@@ -26,6 +26,7 @@ import { PaymentGateway } from "@/backend/enum/billing/payment-gateway.enum";
 import { getPaymentGatewayProvider, resetEnvironmentCache } from "@/backend/lib/env";
 import { ValidationError } from "@/backend/lib/errors";
 import { MockPaymentGatewayAdapter } from "@/backend/services/billing/payment-gateway/mock-payment-gateway.adapter";
+import { PaymobPaymentGateway } from "@/backend/services/billing/payment-gateway/paymob/paymob.adapter";
 import type { PaymentGatewayPort } from "@/backend/types";
 import { getServerTranslations } from "@/shared/locale/server-graphql";
 
@@ -44,6 +45,7 @@ let gateway: PaymentGatewayPort | null = null;
  */
 const GATEWAY_ADAPTERS: Readonly<Record<string, () => PaymentGatewayPort>> = {
   [PaymentGateway.Mock]: () => new MockPaymentGatewayAdapter(),
+  [PaymentGateway.Paymob]: () => new PaymobPaymentGateway(),
 };
 
 /**

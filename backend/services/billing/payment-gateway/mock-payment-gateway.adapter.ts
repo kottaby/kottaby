@@ -11,10 +11,15 @@
  *    re-derives prices (the purchase service owns that discipline).
  *  - `parseWebhookEvent` parses the mock gateway's callback envelope — a
  *    JSON object `{ reference, outcome, amount, currency }` — into the
- *    provider-agnostic `PaymentWebhookEvent`. Malformed JSON and payloads
- *    outside the envelope shape raise a typed validation error that the
- *    webhook route catches and converts into a masked error response;
- *    raw payload content never enters the message.
+ *    provider-agnostic `PaymentWebhookEvent`. The body is taken from the
+ *    parse input verbatim; query parameters exist in the contract for
+ *    query-signed providers and are deliberately unused here (the mock
+ *    signs nothing in a URL). Malformed JSON and payloads outside the
+ *    envelope shape raise a typed validation error that the webhook route
+ *    catches and converts into a masked error response; raw payload
+ *    content never enters the message. The mock defines no
+ *    verified-but-ignored callback variant, so parsing never returns
+ *    null — every accepted delivery is a real settlement event.
  *
  * The webhook surface is server-to-server (the caller is the gateway, not a
  * localized user), so parser rejections resolve their message from the
@@ -29,6 +34,7 @@ import type {
   PaymentCheckoutSession,
   PaymentGatewayPort,
   PaymentWebhookEvent,
+  WebhookParseInput,
 } from "@/backend/types";
 import { getServerTranslations } from "@/shared/locale/server-graphql";
 
@@ -71,14 +77,16 @@ export class MockPaymentGatewayAdapter implements PaymentGatewayPort {
    * Parses a mock gateway callback body into the verified-event contract.
    * Accepts only the exact envelope shape — any other structure (malformed
    * JSON, non-object roots, missing/ill-typed members, unknown outcomes) is
-   * rejected with a typed validation error for the route to mask.
+   * rejected with a typed validation error for the route to mask. Only the
+   * raw body is read: the mock has no query-signed delivery variant. Never
+   * returns null — see the module docblock.
    */
-  parseWebhookEvent(rawBody: string): PaymentWebhookEvent {
+  parseWebhookEvent(input: WebhookParseInput): PaymentWebhookEvent {
     const validationMessage = localizedValidationMessage();
 
     let parsed: unknown;
     try {
-      parsed = JSON.parse(rawBody);
+      parsed = JSON.parse(input.rawBody);
     } catch {
       throw new ValidationError("PAYMENT_WEBHOOK_MALFORMED", validationMessage);
     }

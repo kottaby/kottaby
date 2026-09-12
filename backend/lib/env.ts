@@ -103,6 +103,32 @@ const DEFAULT_WS_MAX_CONNECTIONS = 1000;
 /** Per-user connection cap used when `WS_MAX_CONNECTIONS_PER_USER` is unset or unusable. */
 const DEFAULT_WS_MAX_CONNECTIONS_PER_USER = 5;
 
+/** Payment-gateway intention-API base host used when `PAYMOB_API_BASE_URL` is unset or empty. */
+const DEFAULT_PAYMOB_API_BASE_URL = "https://accept.paymob.com";
+
+/**
+ * Hosted-checkout URL prefix used when `PAYMOB_CHECKOUT_BASE_URL` is unset or
+ * empty. The checkout URL is assembled from this prefix, so it carries the
+ * full host (+ optional path) — the upstream hosted-checkout host has moved
+ * before, and this default is the current documented one (the earlier
+ * `https://accept.paymob.com/unifiedcheckout/` value remains a valid
+ * operator-configured fallback).
+ */
+const DEFAULT_PAYMOB_CHECKOUT_BASE_URL = "https://eg.checkout.paymob.com";
+
+/** Upstream gateway HTTP timeout (ms) used when `PAYMOB_HTTP_TIMEOUT_MS` is unset or unusable. */
+const DEFAULT_PAYMOB_HTTP_TIMEOUT_MS = 10000;
+
+/**
+ * Age (in minutes) a pending gateway payment may reach before the
+ * reconciliation sweep inquires about it, used when
+ * `PAYMOB_RECONCILE_PENDING_MINUTES` is unset or unusable.
+ */
+const DEFAULT_PAYMOB_RECONCILE_PENDING_MINUTES = 30;
+
+/** Local dev-server port the ngrok tunnel forwards to when `NGROK_PORT` is unset or unusable. */
+const DEFAULT_NGROK_PORT = 3000;
+
 /**
  * Trims an env value; empty and whitespace-only values count as "not set"
  * (same emptiness semantics as {@link optionalEnv}).
@@ -131,8 +157,9 @@ function parsePortEnv(raw: string | undefined, fallback: number): number {
 }
 
 /**
- * Parses a positive-integer env value (connection caps). Accepts plain
- * decimal integers `>= 1`; anything else falls back to the provided default.
+ * Parses a positive-integer env value (connection caps, timeouts, sweep
+ * windows). Accepts plain decimal integers `>= 1`; anything else falls back
+ * to the provided default.
  */
 function parsePositiveIntegerEnv(raw: string | undefined, fallback: number): number {
   const trimmed = raw?.trim() ?? "";
@@ -141,6 +168,31 @@ function parsePositiveIntegerEnv(raw: string | undefined, fallback: number): num
   }
   const parsed = Number.parseInt(trimmed, 10);
   return parsed >= 1 ? parsed : fallback;
+}
+
+/**
+ * Parses an optional integer env value (provider integration IDs). Accepts
+ * plain non-negative decimal integers; ANYTHING else — missing, empty,
+ * fractional, signed, or garbage — resolves to `null` so the receiving
+ * configuration counts the key as unconfigured and provider guards fail
+ * closed at request time instead of sending a guessed identifier upstream.
+ */
+function parseOptionalIntegerEnv(raw: string | undefined): number | null {
+  const trimmed = raw?.trim() ?? "";
+  if (!/^\d+$/u.test(trimmed)) {
+    return null;
+  }
+  return Number.parseInt(trimmed, 10);
+}
+
+/**
+ * Resolves a secret-bearing env value. Returns the trimmed value, or `null`
+ * when the key is missing/empty/whitespace-only — an empty string is NEVER a
+ * configured secret, so callers can distinguish "unset" from `""` uniformly
+ * via `null`.
+ */
+function nullableSecretEnvValue(raw: string | undefined): string | null {
+  return trimmedEnvValue(raw) ?? null;
 }
 
 /**
@@ -243,6 +295,48 @@ export interface EnvironmentConfig {
    * A disabled surface must be indistinguishable from an unknown path.
    */
   paymentWebhookEnabled: boolean;
+  /**
+   * Provider-facing configuration for the Paymob payment gateway. Secret
+   * members are resolved server-side only; every nullable member is `null`
+   * when its key is unset/empty so request-time provider guards can fail
+   * closed on a partially configured gateway.
+   */
+  paymob: {
+    /** Server-side token used to authenticate intention creation; `null` = unconfigured. */
+    secretKey: string | null;
+    /** Client-safe public key carried (as a URL parameter) by the hosted-checkout URL. */
+    publicKey: string | null;
+    /** Shared HMAC-SHA512 secret verifying gateway callbacks; `null` = unconfigured. */
+    hmacSecret: string | null;
+    /** Server-to-server API key enabling reconciliation inquiries; `null` = unconfigured. */
+    apiKey: string | null;
+    /** Card integration ID (integer); `null` = unconfigured → the gateway guard fails closed. */
+    integrationIdCard: number | null;
+    /** Mobile-wallet integration ID (integer); optional even when the card ID is configured. */
+    integrationIdWallet: number | null;
+    /** Intention-API base host (no path). */
+    apiBaseUrl: string;
+    /** Hosted-checkout URL prefix (full host + optional path) checkout URLs are assembled from. */
+    checkoutBaseUrl: string;
+    /** Upstream gateway HTTP timeout in milliseconds. */
+    httpTimeoutMs: number;
+    /** Pending-payment age (minutes) that triggers a reconciliation inquiry. */
+    reconcilePendingMinutes: number;
+  };
+  /**
+   * ngrok tunnel configuration for non-production callback delivery. Purely
+   * a dev/test convenience — never read on the production path — and both
+   * nullable members are `null` unless explicitly configured (the tunnel
+   * callback channel is only eligible when BOTH are set).
+   */
+  ngrok: {
+    /** ngrok authtoken; `null` = not configured (tunnel channel ineligible). */
+    authtoken: string | null;
+    /** Reserved public ngrok domain; `null` = not configured (tunnel channel ineligible). */
+    domain: string | null;
+    /** Local dev-server port the tunnel forwards to (default 3000). */
+    port: number;
+  };
 }
 
 /**
@@ -276,6 +370,26 @@ function readEnvironment(): EnvironmentConfig {
     paymentGatewayProvider: (trimmedEnvValue(process.env.PAYMENT_GATEWAY_PROVIDER) ?? "mock").toLowerCase(),
     paymentWebhookSecret: trimmedEnvValue(process.env.PAYMENT_WEBHOOK_SECRET),
     paymentWebhookEnabled: trimmedEnvValue(process.env.PAYMENT_WEBHOOK_ENABLED) === "true",
+    paymob: {
+      secretKey: nullableSecretEnvValue(process.env.PAYMOB_SECRET_KEY),
+      publicKey: nullableSecretEnvValue(process.env.PAYMOB_PUBLIC_KEY),
+      hmacSecret: nullableSecretEnvValue(process.env.PAYMOB_HMAC_SECRET),
+      apiKey: nullableSecretEnvValue(process.env.PAYMOB_API_KEY),
+      integrationIdCard: parseOptionalIntegerEnv(process.env.PAYMOB_INTEGRATION_ID_CARD),
+      integrationIdWallet: parseOptionalIntegerEnv(process.env.PAYMOB_INTEGRATION_ID_WALLET),
+      apiBaseUrl: trimmedEnvValue(process.env.PAYMOB_API_BASE_URL) ?? DEFAULT_PAYMOB_API_BASE_URL,
+      checkoutBaseUrl: trimmedEnvValue(process.env.PAYMOB_CHECKOUT_BASE_URL) ?? DEFAULT_PAYMOB_CHECKOUT_BASE_URL,
+      httpTimeoutMs: parsePositiveIntegerEnv(process.env.PAYMOB_HTTP_TIMEOUT_MS, DEFAULT_PAYMOB_HTTP_TIMEOUT_MS),
+      reconcilePendingMinutes: parsePositiveIntegerEnv(
+        process.env.PAYMOB_RECONCILE_PENDING_MINUTES,
+        DEFAULT_PAYMOB_RECONCILE_PENDING_MINUTES
+      ),
+    },
+    ngrok: {
+      authtoken: nullableSecretEnvValue(process.env.NGROK_AUTHTOKEN),
+      domain: nullableSecretEnvValue(process.env.NGROK_DOMAIN),
+      port: parsePortEnv(process.env.NGROK_PORT, DEFAULT_NGROK_PORT),
+    },
   };
 }
 
@@ -440,6 +554,22 @@ export function getPaymentWebhookSecret(): string | undefined {
  */
 export function isPaymentWebhookEnabled(): boolean {
   return getEnvironmentConfig().paymentWebhookEnabled;
+}
+
+/**
+ * Provider-facing Paymob gateway configuration (the `paymob` members of
+ * {@link EnvironmentConfig}).
+ *
+ * Reads through {@link getEnvironmentConfig}, so the snapshot — including
+ * every secret — is cached until {@link resetEnvironmentCache} runs (e.g.
+ * after an env-file swap). Nullable members are `null` when their key is
+ * unset/empty; consumers (adapter guards, the reconciliation sweep) must
+ * treat `null` credentials as "gateway not configured" and fail closed at
+ * request time. Secrets here are server-side only — this module must never
+ * be imported by client code, and the values must never be logged.
+ */
+export function getPaymobConfig(): EnvironmentConfig["paymob"] {
+  return getEnvironmentConfig().paymob;
 }
 
 /**

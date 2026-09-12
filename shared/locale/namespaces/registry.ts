@@ -12,6 +12,7 @@ import { AdminUsers } from "@/shared/locale/namespaces/adminUsers";
 import { Analytics } from "@/shared/locale/namespaces/analytics";
 import { Applicant } from "@/shared/locale/namespaces/applicant";
 import { Auth } from "@/shared/locale/namespaces/auth";
+import { Checkout } from "@/shared/locale/namespaces/checkout";
 import { Common } from "@/shared/locale/namespaces/common";
 import { Dashboard } from "@/shared/locale/namespaces/dashboard";
 import { Errors } from "@/shared/locale/namespaces/errors";
@@ -33,6 +34,7 @@ export const namespaces = {
   Analytics,
   Applicant,
   Auth,
+  Checkout,
   Common,
   Dashboard,
   Errors,

@@ -19,9 +19,11 @@
  *   2. SIBLING REGRESSION PIN — the pre-existing embedded entries
  *      (`AdminNoteInfo`, `OnlineMeetingInfo`) keep their `keyFields: false`
  *      posture, the eleven `PlatformAnalytics*` dashboard entries join at
+ *      `keyFields: false`, the purchase-funnel pair
+ *      (`PurchaseSubscriptionPayload` / `PaymentCheckout`) joins at
  *      `keyFields: false`, and the `AdminDashboardScheduleResult.rows`
  *      replace-not-merge precedent stays exactly as authored (the
- *      eighteen-entry policy surface is FROZEN; a new embedded type must
+ *      twenty-entry policy surface is FROZEN; a new embedded type must
  *      extend, never shrink, this list per frontend/graphql/AGENTS.md
  *      embedded-type policy).
  *
@@ -202,6 +204,18 @@ describe("createApolloCache — initialised InMemoryCache config exposure", () =
     expect(keyFieldsOf(policies, "AdminAuditLogPage")).toBe(false);
   });
 
+  test("typePolicies.PurchaseSubscriptionPayload.keyFields === false", () => {
+    const cache = createApolloCache();
+    const policies = typePoliciesOf(cache);
+    expect(keyFieldsOf(policies, "PurchaseSubscriptionPayload")).toBe(false);
+  });
+
+  test("typePolicies.PaymentCheckout.keyFields === false", () => {
+    const cache = createApolloCache();
+    const policies = typePoliciesOf(cache);
+    expect(keyFieldsOf(policies, "PaymentCheckout")).toBe(false);
+  });
+
   test("all eleven PlatformAnalytics embedded types keep keyFields:false", () => {
     const cache = createApolloCache();
     const policies = typePoliciesOf(cache);
@@ -210,7 +224,7 @@ describe("createApolloCache — initialised InMemoryCache config exposure", () =
     }
   });
 
-  test("policy surface is FROZEN to the eighteen documented entries", () => {
+  test("policy surface is FROZEN to the twenty documented entries", () => {
     const cache = createApolloCache();
     expect(Object.keys(typePoliciesOf(cache)).toSorted((a, b) => a.localeCompare(b))).toEqual([
       "AdminAuditLogPage",
@@ -220,6 +234,7 @@ describe("createApolloCache — initialised InMemoryCache config exposure", () =
       "HealthCheck",
       "NotificationListPage",
       "OnlineMeetingInfo",
+      "PaymentCheckout",
       "PlatformAnalytics",
       "PlatformAnalyticsCurrencyRevenue",
       "PlatformAnalyticsHealth",
@@ -231,6 +246,7 @@ describe("createApolloCache — initialised InMemoryCache config exposure", () =
       "PlatformAnalyticsSubscriptions",
       "PlatformAnalyticsTeachers",
       "PlatformAnalyticsUsers",
+      "PurchaseSubscriptionPayload",
     ]);
   });
 });

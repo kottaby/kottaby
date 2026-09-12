@@ -63,6 +63,8 @@ const EXCLUDED_FILES = new Set<string>([
   "3-immutability-triggers-sqlite.sql",
   // SQLite-specific status-transition trigger parity (SQLite dialect only)
   "4-student-payments-status-transition-sqlite.sql",
+  // SQLite-specific provider-transaction trigger parity (SQLite dialect only)
+  "5-student-payments-provider-transaction-sqlite.sql",
   // Rollback scripts are manual down migrations, not applied automatically
   "rollback-down.sql",
 ]);

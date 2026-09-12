@@ -6,6 +6,7 @@ import type { AdminUsersLabels } from "@/shared/locale/types/adminUsers";
 import type { AnalyticsLabels } from "@/shared/locale/types/analytics";
 import type { ApplicantLabels } from "@/shared/locale/types/applicant";
 import type { AuthLabels } from "@/shared/locale/types/auth";
+import type { CheckoutLabels } from "@/shared/locale/types/checkout";
 import type { CommonLabels } from "@/shared/locale/types/common";
 import type { DashboardLabels } from "@/shared/locale/types/dashboard";
 import type { ErrorsLabels } from "@/shared/locale/types/errors";
@@ -29,6 +30,7 @@ export interface Translations {
   applicantTranslations: ApplicantLabels;
   sessionsTranslations: SessionsLabels;
   walletTranslations: WalletLabels;
+  checkoutTranslations: CheckoutLabels;
   adminUsersTranslations: AdminUsersLabels;
   adminTeachersTranslations: AdminTeachersLabels;
   adminStudentsTranslations: AdminStudentsLabels;
