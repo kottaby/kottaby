@@ -1,3 +1,4 @@
+export * from "./admin-finance.types";
 export * from "./payment-gateway.types";
 export * from "./plan.types";
 export * from "./student-payment.types";

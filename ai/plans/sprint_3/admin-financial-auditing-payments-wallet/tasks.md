@@ -36,7 +36,7 @@ Foundation-first with interleaved tests: trigger amendment → types → repo pr
 
 ### Task 0: Pre-Implementation Baseline & Ledgers
 
-- [ ] 0. Establish error baseline + ledgers
+- [x] 0. Establish error baseline + ledgers
   - Run: `bun tsgo 2>&1 | grep "error TS" | wc -l > /tmp/baseline-tsgo.txt`; `bun biome:check 2>&1 | grep -c "warn" > /tmp/baseline-biome.txt`; `bun run scripts/lint-service.ts --json --id baseline > /tmp/baseline-lint.json`
   - Confirm ledger: `ai/plans/sprint_3/admin-financial-auditing-payments-wallet/deferred-items.md` (seeded at planning time)
   - Write outcome: `outcome/0-baseline-outcome.md`
@@ -51,7 +51,7 @@ Foundation-first with interleaved tests: trigger amendment → types → repo pr
 
 ### Phase 2: Backend Foundation
 
-- [ ] 2.1 Trigger amendment migration (D-2) + duplicate-dir verification
+- [x] 2.1 Trigger amendment migration (D-2) + duplicate-dir verification
   - Formally verify the two `custom_4-student-payments-status-transition` dirs (`backend/drizzle/20260907182426_…` / `20260908103411_…`) hold payload-identical SQL; record the diff in the outcome (resolves ledger D1)
   - Author `backend/db/migration/5-teacher-transaction-settlement.sql`: `CREATE OR REPLACE FUNCTION prevent_teacher_transaction_update()` permitting ONLY `pending AND type='withdrawal' → completed|failed` with ALL other columns frozen (`IS NOT DISTINCT FROM`; `updated_at` legitimately changes and is excluded from the freeze — same as the `4-student-payments` precedent)
   - Author the parity variant `5-teacher-transaction-settlement-sqlite.sql` (legacy libsql dialect parity ONLY) AND register it in `EXCLUDED_FILES` at `backend/db/scripts/applyCustomMigrations.ts:58-68` — CRITICAL: an unregistered `*.sql` file gets bundled into the PG pipeline and aborts `bun db migrate`. pglite test DBs consume the PG file (pglite = postgres dialect, PL/pgSQL-supported).
@@ -61,7 +61,7 @@ Foundation-first with interleaved tests: trigger amendment → types → repo pr
   - Outcome: `outcome/2.1-trigger-amendment-outcome.md`
   - _Requirements: REQ-4, REQ-5, REQ-9_
 
-- [ ] 2.2 Canonical types
+- [x] 2.2 Canonical types
   - Create `backend/types/billing/admin-finance.types.ts` per plan.md (NormalizedAdminPaymentFilters, AdminStudentPaymentRow, page wrappers, AdminWalletTransactionFilters, AdminTeacherWalletReturnType/Probe, AdminWithdrawalQueueRow/Page, WithdrawalSettlementProbe, AdminWalletAdjustmentSubmitInput); export via the `backend/types` barrel
   - [ ] 2.2.QL exit 0 · [ ] 2.2.TE type-only (no runtime tests) · [ ] 2.2.SEC no client data widened · [ ] 2.2.SR no duplicate/derivative type definitions of existing shapes · [ ] 2.2.IV read printed rule files
   - Outcome: `outcome/2.2-types-outcome.md`
