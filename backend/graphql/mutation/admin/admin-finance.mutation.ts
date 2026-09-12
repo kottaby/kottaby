@@ -24,6 +24,8 @@
  *    `ctx.user.id` — never from args or input (BOLA-safe by construction).
  *  - ID args (`transactionId`, `input.teacherId`) are wire `ID`s —
  *    converted to positive-safe integers at the resolver boundary via
+ *    `coerceDecimalSessionId` (decimal-ONLY string coercion — no
+ *    `Number()`-style syntax generosity: "0x1f" stays invalid) +
  *    `requirePositiveIntId` (no `as number`).
  *  - Input args are copied FIELD-BY-FIELD into the service's closed
  *    submit whitelist — NO `{ ...input }` spread. The input type is the
@@ -42,12 +44,12 @@
  *    `mutation/admin/index.ts` → `mutation/index.ts` → `gqlSchema.ts`.
  */
 
-import { UserRole } from "@/backend/enum/users/user-role.enum";
 import { WalletAdjustmentDirection } from "@/backend/enum/billing/wallet-adjustment-direction.enum";
-import { gqlSchemaBuilder } from "@/backend/graphql/pothos/builder";
-import { TeacherTransactionPothosObject } from "@/backend/graphql/pothos/billing/wallet.pothos";
+import { UserRole } from "@/backend/enum/users/user-role.enum";
 import { AdjustTeacherWalletInput } from "@/backend/graphql/pothos/admin/admin-finance.pothos";
-import { requireAdminUser, requirePositiveIntId } from "@/backend/graphql/shared";
+import { TeacherTransactionPothosObject } from "@/backend/graphql/pothos/billing/wallet.pothos";
+import { gqlSchemaBuilder } from "@/backend/graphql/pothos/builder";
+import { coerceDecimalSessionId, requireAdminUser, requirePositiveIntId } from "@/backend/graphql/shared";
 import { AdminFinancialAuditingService } from "@/backend/services/billing/admin-financial-auditing.service";
 
 // Side-effect: register the `approveWithdrawal` mutation field.
@@ -65,11 +67,11 @@ gqlSchemaBuilder.mutationField("approveWithdrawal", t =>
     },
     resolve: async (_root, args, ctx) => {
       const user = await requireAdminUser(ctx);
-      // Wire `ID` → numeric ledger key at the resolver boundary (positive-
-      // safe-integer guard, no `as number`).
+      // Wire `ID` → numeric ledger key at the resolver boundary (decimal-
+      // only string coercion + positive-safe-integer guard, no `as number`).
       return AdminFinancialAuditingService.approveWithdrawal(
         user.id,
-        requirePositiveIntId(Number(args.transactionId), "transactionId"),
+        requirePositiveIntId(coerceDecimalSessionId(args.transactionId), "transactionId"),
         ctx.locale
       );
     },
@@ -94,7 +96,7 @@ gqlSchemaBuilder.mutationField("rejectWithdrawal", t =>
       const user = await requireAdminUser(ctx);
       return AdminFinancialAuditingService.rejectWithdrawal(
         user.id,
-        requirePositiveIntId(Number(args.transactionId), "transactionId"),
+        requirePositiveIntId(coerceDecimalSessionId(args.transactionId), "transactionId"),
         args.reason,
         ctx.locale
       );
@@ -124,7 +126,7 @@ gqlSchemaBuilder.mutationField("adjustTeacherWallet", t =>
       return AdminFinancialAuditingService.adjustTeacherWallet(
         user.id,
         {
-          teacherId: requirePositiveIntId(Number(args.input.teacherId), "teacherId"),
+          teacherId: requirePositiveIntId(coerceDecimalSessionId(args.input.teacherId), "teacherId"),
           amount: args.input.amount,
           direction:
             args.input.direction === WalletAdjustmentDirection.Debit

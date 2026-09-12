@@ -20,7 +20,7 @@
  */
 
 import { AuditActionType } from "@/backend/enum/audit/audit-action-type.enum";
-import { WalletAdjustmentDirection } from "@/backend/enum/billing/wallet-adjustment-direction.enum";
+import type { WalletAdjustmentDirection } from "@/backend/enum/billing/wallet-adjustment-direction.enum";
 import { ValidationError } from "@/backend/lib/errors";
 import type { AuditLogWriteContract } from "@/backend/types";
 import type { getServerTranslations } from "@/shared/locale/server-graphql";
@@ -104,6 +104,38 @@ export function composeDebitDescription(reason: string): string {
 }
 
 /**
+ * Serializes audit details under the `audit_logs.details` column ceiling
+ * WITHOUT ever storing truncated (unparseable) JSON: a plain slice can cut
+ * mid-JSON, so instead the details object is rebuilt with keys dropped
+ * (least-significant first) until the serialized form fits the cap. Every
+ * value here is a bounded primitive (short string / number / boolean), so
+ * key-dropping always converges well before the object is emptied; if a
+ * pathological payload still overflowed, the final fallback is a
+ * minimal parseable record. The `action` marker is preserved whenever it
+ * can possibly fit — it is the audit trail's decision vocabulary.
+ */
+export function serializeAuditDetails(details: Record<string, unknown>): string {
+  if (JSON.stringify(details).length <= AUDIT_DETAILS_MAX_LENGTH) {
+    return JSON.stringify(details);
+  }
+  const keys = Object.keys(details)
+    .filter(key => key !== "action")
+    .reverse();
+  let candidate: Record<string, unknown> = { ...details };
+  for (const key of keys) {
+    const { [key]: _dropped, ...rest } = candidate;
+    candidate = rest;
+    const serialized = JSON.stringify(candidate);
+    if (serialized.length <= AUDIT_DETAILS_MAX_LENGTH) {
+      return serialized;
+    }
+  }
+  const action = details.action;
+  const minimal: Record<string, unknown> = typeof action === "string" ? { action } : {};
+  return JSON.stringify(minimal);
+}
+
+/**
  * Builds the audit contract for a settled withdrawal (approve / reject) —
  * the D-4 vocabulary: `Override` action on the `teacher_transaction` entity,
  * details carrying the action marker, the verbatim amount, the wallet and
@@ -133,7 +165,7 @@ export function buildWithdrawalSettleAuditContract(input: {
     actionType: AuditActionType.Override,
     entityType: TRANSACTION_ENTITY_TYPE,
     entityId: input.transactionId,
-    details: JSON.stringify(details).slice(0, AUDIT_DETAILS_MAX_LENGTH),
+    details: serializeAuditDetails(details),
   };
 }
 
@@ -168,6 +200,6 @@ export function buildWalletAdjustmentAuditContract(input: {
     actionType: AuditActionType.Adjust,
     entityType: TRANSACTION_ENTITY_TYPE,
     entityId: input.transactionId,
-    details: JSON.stringify(details).slice(0, AUDIT_DETAILS_MAX_LENGTH),
+    details: serializeAuditDetails(details),
   };
 }

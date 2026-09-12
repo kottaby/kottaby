@@ -26,11 +26,11 @@
 import { and, asc, desc, eq, gte, ilike, lte, sql } from "drizzle-orm";
 import { db, queryDb } from "@/backend/db";
 import { studentPayments } from "@/backend/db/schema/billing/student-payments";
+import { students } from "@/backend/db/schema/students/students";
+import { users } from "@/backend/db/schema/users/users";
 import { PaymentGateway } from "@/backend/enum/billing/payment-gateway.enum";
 import { PaymentStatus } from "@/backend/enum/billing/payment-status.enum";
 import { ConflictError } from "@/backend/lib/errors";
-import { students } from "@/backend/db/schema/students/students";
-import { users } from "@/backend/db/schema/users/users";
 import type {
   AdminStudentPaymentRow,
   DBQueryExecutor,
@@ -61,10 +61,10 @@ const PAYMENT_READ_COLUMNS = `
 
 /**
  * Admin-audit column projection for raw `queryDb` reads — the payment
- * columns plus the student's display identity resolved through the
- * `students` → `users` join (students share their PK with `users.id`).
- * Payment columns are qualified with `student_payments.` because the join
- * makes the bare `id` ambiguous.
+ * columns plus the student's display name resolved through the
+ * `students` → `users` join (students share their PK with `users.id`;
+ * email is not wired to the admin surface). Payment columns are qualified
+ * with `student_payments.` because the join makes the bare `id` ambiguous.
  */
 const ADMIN_PAYMENT_READ_COLUMNS = `
   student_payments.id, student_payments.student_id AS "studentId",
@@ -74,7 +74,7 @@ const ADMIN_PAYMENT_READ_COLUMNS = `
   student_payments.status AS "status",
   student_payments.created_at AS "createdAt",
   student_payments.updated_at AS "updatedAt",
-  users.full_name AS "studentName", users.email AS "studentEmail"
+  users.full_name AS "studentName"
 `;
 
 /**
@@ -114,13 +114,6 @@ function buildAdminPaymentFilterChain(filters: NormalizedAdminPaymentFilters) {
   return and(...conditions);
 }
 
-/**
- * Builds the raw-SQL predicate chain for the non-transactional
- * `queryDb` admin-audit branch, mirroring `buildAdminPaymentFilterChain`
- * exactly. `params` collects the bound values in order; every predicate
- * uses a positional placeholder — no string interpolation of values.
- * Returns the empty string when no filter applies.
- */
 /**
  * Builds the raw-SQL predicate chain for the non-transactional
  * `queryDb` admin-audit branch, mirroring `buildAdminPaymentFilterChain`
@@ -177,7 +170,10 @@ async function markStatusOnce(
 /**
  * Narrows the raw `$inferSelect` pgEnum string-literal unions to the
  * canonical TS enums (lexically identical values — the same pure type-level
- * narrowing the wallet repository's settlement-probe mappers perform).
+ * narrowing the wallet repository's settlement-probe mappers perform). An
+ * unrecognized value is a hard error, never a silent fallback — the pgEnum
+ * constraint makes it unreachable, so reaching it means a broken schema
+ * contract that must surface loudly.
  */
 function toAdminPaymentStatusEnum(status: StudentPaymentSelectType["status"]): PaymentStatus {
   if (status === PaymentStatus.Pending) {
@@ -189,18 +185,23 @@ function toAdminPaymentStatusEnum(status: StudentPaymentSelectType["status"]): P
   if (status === PaymentStatus.Refunded) {
     return PaymentStatus.Refunded;
   }
-  return PaymentStatus.Failed;
+  if (status === PaymentStatus.Failed) {
+    return PaymentStatus.Failed;
+  }
+  throw new ConflictError(
+    `StudentPaymentRepository: unrecognized payment status value ${JSON.stringify(status)} — the pgEnum constraint makes this unreachable`
+  );
 }
 
-function toAdminPaymentGatewayEnum(
-  gateway: StudentPaymentSelectType["paymentGateway"]
-): PaymentGateway {
+function toAdminPaymentGatewayEnum(gateway: StudentPaymentSelectType["paymentGateway"]): PaymentGateway {
   for (const member of Object.values(PaymentGateway)) {
     if (member === gateway) {
       return member;
     }
   }
-  return PaymentGateway.Other;
+  throw new ConflictError(
+    `StudentPaymentRepository: unrecognized payment gateway value ${JSON.stringify(gateway)} — the pgEnum constraint makes this unreachable`
+  );
 }
 
 function toAdminPaymentRow(row: {
@@ -214,7 +215,6 @@ function toAdminPaymentRow(row: {
   createdAt: Date;
   updatedAt: Date;
   studentName: string;
-  studentEmail: string;
 }): AdminStudentPaymentRow {
   return {
     ...row,
@@ -344,7 +344,6 @@ export namespace StudentPaymentRepository {
           createdAt: studentPayments.createdAt,
           updatedAt: studentPayments.updatedAt,
           studentName: users.fullName,
-          studentEmail: users.email,
         })
         .from(studentPayments)
         .innerJoin(students, eq(students.id, studentPayments.studentId))
@@ -382,9 +381,7 @@ export namespace StudentPaymentRepository {
   ): Promise<number> {
     const needsJoin = filters.studentNameSearch !== null;
     if (tx) {
-      const query = tx
-        .select({ total: sql<number>`count(*)::int` })
-        .from(studentPayments);
+      const query = tx.select({ total: sql<number>`count(*)::int` }).from(studentPayments);
       const joined = needsJoin
         ? query
             .innerJoin(students, eq(students.id, studentPayments.studentId))

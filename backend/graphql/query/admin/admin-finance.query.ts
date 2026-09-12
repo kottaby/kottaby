@@ -18,6 +18,8 @@
  *    own throw, so the belt is invisible when the scope did its job).
  *  - ID args (`teacherId`, `studentId`) are wire `ID`s — converted to
  *    positive-safe integers at the resolver boundary via
+ *    `coerceDecimalSessionId` (decimal-ONLY string coercion — no
+ *    `Number()`-style syntax generosity: "0x1f" stays invalid) +
  *    `requirePositiveIntId` (no `as number`), so the service always
  *    receives a numeric ledger key.
  *  - Filter args are copied FIELD-BY-FIELD into the service's closed
@@ -44,7 +46,12 @@ import {
   AdminWithdrawalQueuePagePothosObject,
 } from "@/backend/graphql/pothos/admin";
 import { gqlSchemaBuilder } from "@/backend/graphql/pothos/builder";
-import { adminOnlyAuthScopes, requireAdminUser, requirePositiveIntId } from "@/backend/graphql/shared";
+import {
+  adminOnlyAuthScopes,
+  coerceDecimalSessionId,
+  requireAdminUser,
+  requirePositiveIntId,
+} from "@/backend/graphql/shared";
 import { AdminFinancialAuditingService } from "@/backend/services/billing/admin-financial-auditing.service";
 
 // Side-effect: register the `adminStudentPayments` query field.
@@ -67,7 +74,10 @@ gqlSchemaBuilder.queryField("adminStudentPayments", t =>
       return AdminFinancialAuditingService.listStudentPaymentsForAdmin(
         user.id,
         {
-          studentId: args.filters?.studentId == null ? null : requirePositiveIntId(Number(args.filters.studentId), "studentId"),
+          studentId:
+            args.filters?.studentId == null
+              ? null
+              : requirePositiveIntId(coerceDecimalSessionId(args.filters.studentId), "studentId"),
           studentNameSearch: args.filters?.studentName ?? null,
           status: args.filters?.status ?? null,
           paymentGateway: args.filters?.paymentGateway ?? null,
@@ -95,9 +105,9 @@ gqlSchemaBuilder.queryField("adminTeacherWallet", t =>
     authScopes: adminOnlyAuthScopes,
     resolve: async (_root, args, ctx) => {
       const user = await requireAdminUser(ctx);
-      // Wire `ID` → numeric ledger key at the resolver boundary (positive-
-      // safe-integer guard, no `as number`).
-      const teacherId = requirePositiveIntId(Number(args.teacherId), "teacherId");
+      // Wire `ID` → numeric ledger key at the resolver boundary (decimal-
+      // only string coercion + positive-safe-integer guard, no `as number`).
+      const teacherId = requirePositiveIntId(coerceDecimalSessionId(args.teacherId), "teacherId");
       // Closed-input whitelist copy — exactly the four ledger filter
       // members, never a spread of the wire input.
       return AdminFinancialAuditingService.getTeacherWalletForAdmin(

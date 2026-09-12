@@ -11,8 +11,8 @@
  *    asserted directly.
  *
  * Coverage map:
- *  - Join resolution: studentName/studentEmail populated and correct via
- *    the students→users shared-PK join.
+ *  - Join resolution: studentName populated and correct via the
+ *    students→users shared-PK join.
  *  - Filter matrix: studentId, status, paymentGateway, from/to range —
  *    each alone + combined; count parity with list length in every case.
  *  - Name search: marker substring match, case-insensitivity (ILIKE), and
@@ -26,14 +26,14 @@ import { describe, expect, test } from "bun:test";
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { db } from "@/backend/db";
+import { StudentPaymentRepository } from "@/backend/db/repo";
 import { studentPayments } from "@/backend/db/schema/billing/student-payments";
 import { students } from "@/backend/db/schema/students/students";
-import { StudentPaymentRepository } from "@/backend/db/repo";
 import { createTestStudent, createTestStudentPayment, createTestUser } from "@/backend/db/test/entity-setup";
-import { runInRollback, type DBTransaction } from "@/backend/db/test/test-utils";
-import { escapeLikeWildcards } from "@/backend/lib/db/escape-like-wildcards";
+import { type DBTransaction, runInRollback } from "@/backend/db/test/test-utils";
 import { PaymentGateway } from "@/backend/enum/billing/payment-gateway.enum";
 import { PaymentStatus } from "@/backend/enum/billing/payment-status.enum";
+import { escapeLikeWildcards } from "@/backend/lib/db/escape-like-wildcards";
 import type { NormalizedAdminPaymentFilters } from "@/backend/types";
 
 /** Shared `now` timestamp per test body (timestamp consistency rule). */
@@ -75,11 +75,10 @@ async function createStudentWithPayment(
 }
 
 describe("StudentPaymentRepository.listForAdminAudit — join resolution", () => {
-  test("populates studentName/studentEmail correctly from the joined users row", async () => {
+  test("populates studentName correctly from the joined users row", async () => {
     await runInRollback(async tx => {
       const studentName = `Joined Student ${randomUUID().slice(0, 8)}`;
-      const studentEmail = `joined-${randomUUID()}@test.local`;
-      const user = await createTestUser(tx, { role: "student", fullName: studentName, email: studentEmail });
+      const user = await createTestUser(tx, { role: "student", fullName: studentName });
       const student = await createTestStudent(tx, user.id);
       const payment = await createTestStudentPayment(tx, student.id, null);
 
@@ -93,7 +92,6 @@ describe("StudentPaymentRepository.listForAdminAudit — join resolution", () =>
       expect(rows).toHaveLength(1);
       expect(rows[0]?.id).toBe(payment.id);
       expect(rows[0]?.studentName).toBe(studentName);
-      expect(rows[0]?.studentEmail).toBe(studentEmail);
       expect(rows[0]?.studentId).toBe(student.id);
       expect(rows[0]?.amount).toBe("100.00");
     });
@@ -145,7 +143,10 @@ describe("StudentPaymentRepository.listForAdminAudit — filter matrix", () => {
         0,
         tx
       );
-      const total = await StudentPaymentRepository.countForAdminAudit({ ...noFilters(), status: PaymentStatus.Paid }, tx);
+      const total = await StudentPaymentRepository.countForAdminAudit(
+        { ...noFilters(), status: PaymentStatus.Paid },
+        tx
+      );
 
       expect(total).toBeGreaterThanOrEqual(1);
       expect(rows.map(row => row.id)).toContain(paid.paymentId);
@@ -367,7 +368,6 @@ describe("StudentPaymentRepository.listForAdminAudit — non-transactional raw b
       expect(rows).toHaveLength(1);
       expect(rows[0]?.studentId).toBe(committed.studentId);
       expect(rows[0]?.studentName).toBe(fullName);
-      expect(rows[0]?.studentEmail).toContain("@test.local");
     } finally {
       // The student_payments ledger is IMMUTABLE (DELETE blocked by the
       // trigger), and `student_payments_student_id_students_id_fkey` is

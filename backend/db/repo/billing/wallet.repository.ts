@@ -248,7 +248,6 @@ export namespace WalletRepository {
       .select({
         wallet: wallet,
         teacherName: users.fullName,
-        teacherEmail: users.email,
       })
       .from(wallet)
       .innerJoin(teacher, eq(teacher.id, wallet.teacherId))
@@ -406,7 +405,9 @@ export namespace WalletRepository {
     if (type === TransactionType.Bonus) {
       return TransactionType.Bonus;
     }
-    return TransactionType.Bonus;
+    throw new Error(
+      `WalletRepository: unrecognized teacher_transaction.type value ${JSON.stringify(type)} — the pgEnum constraint makes this unreachable`
+    );
   }
 
   function toTransactionStatusEnum(status: TeacherTransactionSelectType["status"]): TransactionStatus {
@@ -416,7 +417,12 @@ export namespace WalletRepository {
     if (status === TransactionStatus.Completed) {
       return TransactionStatus.Completed;
     }
-    return TransactionStatus.Failed;
+    if (status === TransactionStatus.Failed) {
+      return TransactionStatus.Failed;
+    }
+    throw new Error(
+      `WalletRepository: unrecognized teacher_transaction.status value ${JSON.stringify(status)} — the pgEnum constraint makes this unreachable`
+    );
   }
 
   /**

@@ -7,9 +7,14 @@
  * The three list surfaces are pure paginated reads: the admin gate first,
  * then the paired count + listing inside ONE repeatable-read transaction
  * (the audit-trail precedent) so `totalCount` and `items` can never tear
- * across a concurrent producer commit. The payments view never writes;
- * inspection never fabricates a wallet row — a wallet-less teacher renders
- * the honest null-pair state with the teacher identity still resolved.
+ * across a concurrent producer commit. When no outer transaction is
+ * supplied, the count + page pair shares its own snapshot; the surrounding
+ * identity and probe reads (admin gate, wallet probes, settlement probes)
+ * run on a SEPARATE top-level transaction and are best-effort,
+ * non-authoritative reads outside that snapshot — no write decision ever
+ * trusts them. The payments view never writes; inspection never fabricates
+ * a wallet row — a wallet-less teacher renders the honest null-pair state
+ * with the teacher identity still resolved.
  *
  * The three mutations compose a guarded ledger/wallet write with an audit
  * insert in ONE transaction:
@@ -40,6 +45,9 @@ import { eq } from "drizzle-orm";
 import { db } from "@/backend/db";
 import { StudentPaymentRepository, TeacherRepository, UserRepository, WalletRepository } from "@/backend/db/repo";
 import { wallet } from "@/backend/db/schema/billing/wallet";
+import { TransactionStatus } from "@/backend/enum/billing/transaction-status.enum";
+import { TransactionType } from "@/backend/enum/billing/transaction-type.enum";
+import { WalletAdjustmentDirection } from "@/backend/enum/billing/wallet-adjustment-direction.enum";
 import { escapeLikeWildcards } from "@/backend/lib/db/escape-like-wildcards";
 import { withTransaction } from "@/backend/lib/db/with-transaction";
 import { ConflictError, NotFoundError } from "@/backend/lib/errors";
@@ -56,9 +64,6 @@ import {
   composeDebitDescription,
   normalizeAdjustmentReason,
 } from "@/backend/services/billing/admin-financial-auditing.service.helpers";
-import { TransactionStatus } from "@/backend/enum/billing/transaction-status.enum";
-import { TransactionType } from "@/backend/enum/billing/transaction-type.enum";
-import { WalletAdjustmentDirection } from "@/backend/enum/billing/wallet-adjustment-direction.enum";
 import type {
   AdminStudentPaymentPageReturnType,
   AdminStudentPaymentRow,
@@ -79,11 +84,19 @@ import { getServerTranslations } from "@/shared/locale/server-graphql";
 type ErrorsTranslations = ReturnType<typeof getServerTranslations>["errorsTranslations"];
 
 /**
- * Runs the paired reads inside ONE consistent-snapshot transaction (the
- * audit-trail precedent). When the caller supplied a transaction, execution
- * joins it as a nested block; otherwise a fresh top-level transaction opens
- * at the `repeatable read` isolation level so the count and the listing
- * observe the same committed state.
+ * Runs the paired count + page reads inside ONE consistent snapshot. When
+ * the caller supplied a transaction, execution joins it as a nested block;
+ * otherwise a fresh top-level transaction opens at the `repeatable read`
+ * isolation level so the count and the listing observe the same committed
+ * state.
+ *
+ * The guarantee covers the count + page PAIR only. When no outer transaction
+ * is supplied, the surrounding identity and probe reads (admin gate, wallet
+ * probes, settlement probes) run on a SEPARATE top-level transaction and are
+ * therefore best-effort, non-authoritative reads OUTSIDE this snapshot —
+ * no write decision ever trusts them (every guarded repo primitive
+ * re-asserts its predicate in SQL; the probes exist for human-readable
+ * error disambiguation only).
  */
 async function readInSnapshot<T>(
   outerTx: DBTransaction | undefined,
@@ -180,11 +193,7 @@ export namespace AdminFinancialAuditingService {
         from: filters.from ?? null,
         to: filters.to ?? null,
       };
-      const { resolvedPage, resolvedPageSize, offset } = resolvePageBounds(
-        page ?? 1,
-        pageSize ?? undefined,
-        locale
-      );
+      const { resolvedPage, resolvedPageSize, offset } = resolvePageBounds(page ?? 1, pageSize ?? undefined, locale);
 
       const [pageRows, totalCount] = await readInSnapshot(
         outerTx,
@@ -230,11 +239,7 @@ export namespace AdminFinancialAuditingService {
 
     return withTransaction(outerTx, async tx => {
       await assertActorAdmin(actorUserId, locale, tx);
-      const { resolvedPage, resolvedPageSize, offset } = resolvePageBounds(
-        page ?? 1,
-        pageSize ?? undefined,
-        locale
-      );
+      const { resolvedPage, resolvedPageSize, offset } = resolvePageBounds(page ?? 1, pageSize ?? undefined, locale);
 
       const probe = await WalletRepository.findAdminWalletProbe(teacherId, tx);
       const teacherName = await resolveTeacherName(teacherId, probe, t, tx);
@@ -290,7 +295,9 @@ export namespace AdminFinancialAuditingService {
    * balance, oldest first (longest-waiting first).
    *
    * Pure read: zero writes, zero audit rows. The paired count + listing
-   * share ONE repeatable-read snapshot (same contract as the other lists).
+   * share ONE repeatable-read snapshot (same contract as the other lists);
+   * the probe reads around it remain best-effort, non-authoritative reads
+   * outside that snapshot (see `readInSnapshot`).
    */
   export async function listPendingWithdrawalsForAdmin(
     actorUserId: number,
@@ -301,11 +308,7 @@ export namespace AdminFinancialAuditingService {
   ): Promise<AdminWithdrawalQueuePageReturnType> {
     return withTransaction(outerTx, async tx => {
       await assertActorAdmin(actorUserId, locale, tx);
-      const { resolvedPage, resolvedPageSize, offset } = resolvePageBounds(
-        page ?? 1,
-        pageSize ?? undefined,
-        locale
-      );
+      const { resolvedPage, resolvedPageSize, offset } = resolvePageBounds(page ?? 1, pageSize ?? undefined, locale);
 
       const [pageRows, totalCount] = await readInSnapshot(
         outerTx,

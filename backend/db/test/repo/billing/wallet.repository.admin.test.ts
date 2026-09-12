@@ -39,15 +39,15 @@
 import { describe, expect, test } from "bun:test";
 import { randomUUID } from "node:crypto";
 import { eq, sql } from "drizzle-orm";
-import { teacherTransaction, wallet } from "@/backend/db/schema/billing";
 import { WalletRepository } from "@/backend/db/repo";
+import { teacherTransaction, wallet } from "@/backend/db/schema/billing";
 import {
   createTestTeacherRow,
   createTestTeacherTransaction,
   createTestUser,
   createTestWallet,
 } from "@/backend/db/test/entity-setup";
-import { expectRepoError, runInRollback, type DBTransaction } from "@/backend/db/test/test-utils";
+import { type DBTransaction, expectRepoError, runInRollback } from "@/backend/db/test/test-utils";
 import { TransactionStatus } from "@/backend/enum/billing/transaction-status.enum";
 import { TransactionType } from "@/backend/enum/billing/transaction-type.enum";
 import type { AdminWalletTransactionFilters } from "@/backend/types";
@@ -83,11 +83,9 @@ describe("WalletRepository.findAdminWalletProbe", () => {
   test("returns the wallet row plus teacher identity in one joined read", async () => {
     await runInRollback(async tx => {
       const teacherName = `Probe Teacher ${randomUUID().slice(0, 8)}`;
-      const teacherEmail = `probe-${randomUUID()}@test.local`;
       const user = await createTestUser(tx, {
         role: "teacher",
         fullName: teacherName,
-        email: teacherEmail,
       });
       await createTestTeacherRow(tx, user.id);
       const teacherWallet = await createTestWallet(tx, user.id, { balance: "250.50" });
@@ -99,7 +97,6 @@ describe("WalletRepository.findAdminWalletProbe", () => {
       expect(probe.wallet.id).toBe(teacherWallet.id);
       expect(probe.wallet.balance).toBe("250.50");
       expect(probe.teacherName).toBe(teacherName);
-      expect(probe.teacherEmail).toBe(teacherEmail);
     });
   });
 
@@ -566,10 +563,7 @@ describe("WalletRepository.debitAdjustmentOnce", () => {
       expect(after?.balance).toBe("10.00");
       // The ledger row EXISTS inside this transaction (the caller's rollback
       // removes it — the composition contract).
-      const orphanRows = await tx
-        .select()
-        .from(teacherTransaction)
-        .where(eq(teacherTransaction.walletId, walletId));
+      const orphanRows = await tx.select().from(teacherTransaction).where(eq(teacherTransaction.walletId, walletId));
       expect(orphanRows).toHaveLength(1);
     });
   });
