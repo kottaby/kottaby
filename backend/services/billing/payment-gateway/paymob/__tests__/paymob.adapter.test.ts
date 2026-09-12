@@ -10,11 +10,13 @@
  *    any network or verification work.
  *  - Checkout: the intention body is built from the server-derived input
  *    (field-by-field asserted), the secret key rides as the documented
- *    `Token` header, and the callback URL members compose from the
- *    deployment's resolved callback channel (tunnel channel → public
- *    tunnel URL; real/simulation channel → members omitted, the vendor
- *    falls back to the dashboard URL); the descriptor echoes the
- *    correlation key — never the intention id. Upstream rejections surface
+ *    `Token` header, and the callback URL members compose ONLY from the
+ *    tunnel channel (`ngrok` — the public tunnel URL, because Paymob must
+ *    call that URL for the delivery to land on the local server); the real
+ *    and simulation channels compose nothing — members omitted, the vendor
+ *    falls back to the dashboard URL (the simulation channel delivers to
+ *    the local route itself, and its public base is the local dev origin);
+ *    the descriptor echoes the correlation key — never the intention id. Upstream rejections surface
  *    sanitized; the upstream body never reaches the caller.
  *  - Webhook dispatch (verified-before-trusted): the presented `hmac` is
  *    verified with the shape-matched key list BEFORE any member is acted
@@ -375,7 +377,18 @@ describe("PaymobPaymentGateway.createCheckout", () => {
     );
   });
 
-  test("omits the callback URL members when the resolved channel carries no public base", async () => {
+  test("omits the callback URL members when the resolved channel is the simulation channel — its public base is the local dev origin", async () => {
+    setAdapterEnv({ PAYMENT_GATEWAY_PROVIDER: PaymentGateway.Paymob });
+    const { adapter, calls } = adapterServing(new Response(JSON.stringify(INTENTION_RESPONSE), { status: 201 }));
+
+    await adapter.createCheckout(CHECKOUT_INPUT);
+
+    const body = JSON.parse(calls[0].body);
+    expect("notification_url" in body).toBe(false);
+    expect("redirection_url" in body).toBe(false);
+  });
+
+  test("omits the callback URL members when the resolved channel is the real channel (dashboard-configured callback URLs)", async () => {
     setAdapterEnv({ PAYMENT_GATEWAY_PROVIDER: PaymentGateway.Mock });
     const { adapter, calls } = adapterServing(new Response(JSON.stringify(INTENTION_RESPONSE), { status: 201 }));
 

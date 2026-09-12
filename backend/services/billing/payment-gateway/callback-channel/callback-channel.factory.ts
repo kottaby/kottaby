@@ -50,11 +50,18 @@ import type { CallbackChannelPort } from "@/backend/types";
  * The resolved channel is a lazy singleton (same shape as the payment
  * gateway factory): `resetCallbackChannel()` drops it together with the
  * shared env snapshot, so configuration swaps take effect on the next
- * resolution without a process restart.
+ * resolution without a process restart. Concurrent first callers share one
+ * in-flight resolution, so a burst of first calls cannot double-run the
+ * tunnel acquisition (double agent spawn, double fallback log); a reset
+ * mid-flight discards the pending cache write so the next resolution
+ * re-reads configuration from scratch.
  */
 
 /** The resolved channel singleton (bounded to exactly one instance; reset-able). */
 let channel: CallbackChannelPort | null = null;
+
+/** The in-flight first resolution, shared by concurrent callers (reset-able). */
+let channelResolution: Promise<CallbackChannelPort> | null = null;
 
 /**
  * Injectable test-delivery seams for the tunnel channel's outbound surfaces
@@ -118,13 +125,23 @@ const REAL_CALLBACK_CHANNEL: CallbackChannelPort = {
  * Returns the active callback delivery channel, resolving it on first use
  * and reusing the resolved instance afterwards. Development resolution may
  * consult the tunnel acquisition seam, so the first call is awaitable.
+ * Concurrent first callers share the same in-flight resolution: the tunnel
+ * acquisition (agent spawn, fallback logging) runs at most once per
+ * resolution epoch.
  */
 export async function getCallbackChannel(): Promise<CallbackChannelPort> {
   if (channel) {
     return channel;
   }
-  channel = await resolveCallbackChannel();
-  return channel;
+  if (channelResolution === null) {
+    const resolution = resolveCallbackChannel().then(resolved => {
+      channel = resolved;
+      channelResolution = null;
+      return resolved;
+    });
+    channelResolution = resolution;
+  }
+  return channelResolution;
 }
 
 /**
@@ -135,6 +152,7 @@ export async function getCallbackChannel(): Promise<CallbackChannelPort> {
  */
 export function resetCallbackChannel(): void {
   channel = null;
+  channelResolution = null;
   testDeliverySeams = null;
   resetEnvironmentCache();
 }
@@ -181,11 +199,13 @@ async function resolveCallbackChannel(): Promise<CallbackChannelPort> {
 /**
  * The single acquisition seam for the development tunnel channel. Tunnel
  * eligibility is decided here from the typed ngrok configuration (both the
- * authtoken and the reserved public domain must be set); the eligible case
- * constructs the tunnel channel and verifies its readiness sequence — the
- * channel spawns the ngrok agent and probes the PUBLIC reserved-domain
+ * authtoken and a usable reserved public domain must be set); the eligible
+ * case constructs the tunnel channel and verifies its readiness sequence —
+ * the channel spawns the ngrok agent and probes the PUBLIC reserved-domain
  * URL — falling back to simulation with a named reason when that sequence
- * fails. The detail carries the tunnel's own error message (never the
+ * fails. A failed readiness sequence disposes the spawned channel first, so
+ * an acquisition that never became ready cannot leak the ngrok child
+ * process. The detail carries the tunnel's own error message (never the
  * authtoken); an unconfigured deployment is never an error.
  */
 async function acquireTunnelChannel(): Promise<TunnelAcquisition> {
@@ -193,10 +213,18 @@ async function acquireTunnelChannel(): Promise<TunnelAcquisition> {
   if (!authtoken || !domain) {
     return { fallbackReason: "ngrok-not-configured" };
   }
-  const tunnel = new NgrokCallbackChannel(resolveNgrokChannelConfig(authtoken, domain));
+  if (domain.includes("://")) {
+    return { fallbackReason: "ngrok-not-configured" };
+  }
+  const normalizedDomain = domain.endsWith("/") ? domain.slice(0, -1) : domain;
+  if (normalizedDomain.length === 0) {
+    return { fallbackReason: "ngrok-not-configured" };
+  }
+  const tunnel = new NgrokCallbackChannel(resolveNgrokChannelConfig(authtoken, normalizedDomain));
   try {
     await tunnel.ensureReady();
   } catch (error) {
+    tunnel.dispose();
     return {
       fallbackReason: "ngrok-unreachable",
       fallbackDetail: error instanceof Error ? error.message : String(error),
@@ -208,9 +236,10 @@ async function acquireTunnelChannel(): Promise<TunnelAcquisition> {
 /**
  * Reads the ngrok channel's configuration from the typed env snapshot. The
  * eligibility check already narrowed the authtoken and the domain (both
- * configured); the test-delivery seams (transport, spawn, cleanup
- * registration) are injectable so channel-aware tests and tooling can drive
- * the channel without touching the network or the real agent binary.
+ * configured and normalized — no scheme prefix, no trailing slash); the
+ * test-delivery seams (transport, spawn, cleanup registration) are
+ * injectable so channel-aware tests and tooling can drive the channel
+ * without touching the network or the real agent binary.
  */
 function resolveNgrokChannelConfig(authtoken: string, domain: string): NgrokCallbackChannelConfig {
   const { hmacSecret, httpTimeoutMs } = getPaymobConfig();

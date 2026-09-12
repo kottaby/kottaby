@@ -14,8 +14,10 @@
  *  - Cents guard: accepted shapes ("0.01", "250.00", one fraction digit,
  *    zero) and rejected shapes (three fraction digits, non-numeric text,
  *    empty, trailing/leading dot, sign prefix, negative) — rejections are
- *    `ValidationError`s thrown before any network call, and cent values
- *    beyond the safe integer range are rejected too.
+ *    `ValidationError`s carrying the localized purchase-rejection copy from
+ *    the compile-time `errors` bundle (pinned against the en leaf) thrown
+ *    before any network call, and cent values beyond the safe integer
+ *    range are rejected too.
  *  - Checkout descriptor: the URL is the configured checkout prefix plus
  *    EXACTLY the two documented query parameters (pinned for a path-less
  *    prefix and for a legacy prefix with path + trailing slash); the
@@ -44,6 +46,7 @@ import type {
   PaymobProcessedCallbackBody,
   PaymobResolvedConfig,
 } from "@/backend/types";
+import { errorsEn } from "@/shared/locale/en/errors";
 
 type TransactionObj = PaymobProcessedCallbackBody["obj"];
 
@@ -276,12 +279,16 @@ describe("buildIntentionRequest cents guard", () => {
     expect(buildRequest({ input: { amount: "0" } }).amount).toBe(0);
   });
 
-  test("rejects more than two fraction digits", () => {
-    expect(() => buildRequest({ input: { amount: "1.234" } })).toThrow(ValidationError);
+  test("rejects more than two fraction digits with the localized shape copy", () => {
+    const rejection = () => buildRequest({ input: { amount: "1.234" } });
+    expect(rejection).toThrow(ValidationError);
+    expect(rejection).toThrow(errorsEn.subscriptionPurchase.planPriceShapeInvalid);
   });
 
-  test("rejects non-numeric, empty, and dot-shaped text", () => {
-    expect(() => buildRequest({ input: { amount: "abc" } })).toThrow(ValidationError);
+  test("rejects non-numeric, empty, and dot-shaped text with the localized shape copy", () => {
+    const rejection = () => buildRequest({ input: { amount: "abc" } });
+    expect(rejection).toThrow(ValidationError);
+    expect(rejection).toThrow(errorsEn.subscriptionPurchase.planPriceShapeInvalid);
     expect(() => buildRequest({ input: { amount: "" } })).toThrow(ValidationError);
     expect(() => buildRequest({ input: { amount: "12." } })).toThrow(ValidationError);
     expect(() => buildRequest({ input: { amount: ".5" } })).toThrow(ValidationError);
@@ -293,8 +300,10 @@ describe("buildIntentionRequest cents guard", () => {
     expect(() => buildRequest({ input: { amount: "+1.00" } })).toThrow(ValidationError);
   });
 
-  test("rejects amounts whose cent value leaves the safe integer range", () => {
-    expect(() => buildRequest({ input: { amount: "99999999999999999.99" } })).toThrow(ValidationError);
+  test("rejects amounts whose cent value leaves the safe integer range with the localized range copy", () => {
+    const rejection = () => buildRequest({ input: { amount: "99999999999999999.99" } });
+    expect(rejection).toThrow(ValidationError);
+    expect(rejection).toThrow(errorsEn.subscriptionPurchase.planPriceOutOfRange);
     expect(() => buildRequest({ input: { amount: "92233720368547.75" } })).toThrow(ValidationError);
   });
 

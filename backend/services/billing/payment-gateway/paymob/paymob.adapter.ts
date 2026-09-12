@@ -187,12 +187,19 @@ function isTokenCallbackObj(value: unknown): value is PaymobTokenCallbackObj {
 
 /**
  * Resolves the callback URLs from the deployment's resolved callback
- * channel. The tunnel channel serves the deployment's webhook receiver at
- * its public tunnel URL (development with an operator-configured reserved
- * domain); the real production channel and the offline simulation channel
- * carry no outward-reachable base on this path, so the members are omitted
- * and the vendor falls back to the callback URL configured on the merchant
- * dashboard — an operator setup step, never a fabricated URL.
+ * channel. ONLY the tunnel channel composes the members: it serves the
+ * deployment's webhook receiver at its public tunnel URL (development with
+ * an operator-configured reserved domain), and Paymob must call THAT URL
+ * for the delivery to land on the local server.
+ *
+ * The real production channel and the offline simulation channel compose
+ * nothing. The real channel's deliveries belong at the callback URL
+ * configured on the merchant dashboard — an operator setup step, never a
+ * fabricated URL. The simulation channel's public base is the local dev
+ * origin (the channel delivers to it itself); attaching it to an intention
+ * would hand the real vendor a `http://localhost:<port>` callback URL and
+ * override the operator's dashboard configuration, so the members are
+ * omitted there too and the vendor falls back to the dashboard URL.
  *
  * The channel is resolved through the callback-channel factory: the
  * notification URL composition is a consumer of the ONE channel resolver
@@ -201,13 +208,12 @@ function isTokenCallbackObj(value: unknown): value is PaymobTokenCallbackObj {
  */
 async function resolveCallbackUrls(): Promise<{ notificationUrl?: string; redirectionUrl?: string }> {
   const channel = await getCallbackChannel();
-  const publicBaseUrl = channel.publicBaseUrl;
-  if (publicBaseUrl === null) {
+  if (channel.kind !== "ngrok" || channel.publicBaseUrl === null) {
     return {};
   }
   return {
-    notificationUrl: `${publicBaseUrl}${WEBHOOK_PATH}`,
-    redirectionUrl: `${publicBaseUrl}${CHECKOUT_RESULT_PATH}`,
+    notificationUrl: `${channel.publicBaseUrl}${WEBHOOK_PATH}`,
+    redirectionUrl: `${channel.publicBaseUrl}${CHECKOUT_RESULT_PATH}`,
   };
 }
 

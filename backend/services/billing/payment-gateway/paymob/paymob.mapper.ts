@@ -3,6 +3,10 @@
  * arguments: no environment reads, no I/O, no logging, no module state. The
  * adapter resolves the configuration and callback URLs itself and passes
  * them in, so these functions stay deterministic and directly testable.
+ * The amount guard's rejection copy is the one deliberate import: the
+ * compile-time translation bundle is a pure in-memory lookup (no env, no
+ * I/O), so determinism holds — user-facing money rejections localize like
+ * every other purchase denial.
  *
  * Money crosses this boundary as integer minor units: the provider's
  * intention API carries amounts in cents (`amount`, `items[].amount`, and
@@ -37,6 +41,7 @@ import type {
   PaymobProcessedCallbackBody,
   PaymobResolvedConfig,
 } from "@/backend/types";
+import { getServerTranslations } from "@/shared/locale/server-graphql";
 
 /** Placeholder the integration fills unknown billing members with. */
 const BILLING_PLACEHOLDER = "NA";
@@ -45,18 +50,41 @@ const BILLING_PLACEHOLDER = "NA";
 const DECIMAL_AMOUNT_PATTERN = /^\d+(\.\d{1,2})?$/;
 
 /**
+ * Locale-free gateway surface: the amount-guard rejections use the
+ * deployment default, mirroring the adapter's parser-rejection idiom — the
+ * purchase mutation carries the request locale to the checkout call, but
+ * the guard copy is not request-parameterized (same `GATEWAY_LOCALE`
+ * discipline the sibling adapter's `localizedValidationMessage` follows).
+ */
+const GATEWAY_LOCALE = "en";
+
+/** Reads the shared localized purchase-rejection copy for the guard. */
+function localizedPurchaseRejections(): {
+  planPriceShapeInvalid: string;
+  planPriceOutOfRange: string;
+} {
+  const subscriptionPurchase = getServerTranslations(GATEWAY_LOCALE).errorsTranslations.subscriptionPurchase;
+  return {
+    planPriceShapeInvalid: subscriptionPurchase.planPriceShapeInvalid,
+    planPriceOutOfRange: subscriptionPurchase.planPriceOutOfRange,
+  };
+}
+
+/**
  * Converts a decimal money string into integer cents. Fraction digits
  * beyond two, non-numeric shapes, signs, and values whose cent amount
- * exceeds the safe integer range are rejected before any network call.
+ * exceeds the safe integer range are rejected before any network call with
+ * the localized purchase-rejection copy (the same compile-time `errors`
+ * bundle the purchase mutation's other denials use).
  */
 function convertAmountToCents(amount: string): number {
   if (!DECIMAL_AMOUNT_PATTERN.test(amount)) {
-    throw new ValidationError("Plan price must be a non-negative decimal amount with at most two fraction digits.");
+    throw new ValidationError(localizedPurchaseRejections().planPriceShapeInvalid);
   }
   const [wholePart, fractionPart = ""] = amount.split(".");
   const cents = Number(wholePart) * 100 + Number(fractionPart.padEnd(2, "0"));
   if (!Number.isSafeInteger(cents)) {
-    throw new ValidationError("Plan price exceeds the supported amount range.");
+    throw new ValidationError(localizedPurchaseRejections().planPriceOutOfRange);
   }
   return cents;
 }

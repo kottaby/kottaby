@@ -351,6 +351,118 @@ describe("getCallbackChannel resolution", () => {
     expect(probeCount).toBe(1);
   });
 
+  test("strips a trailing slash from the configured domain before composing the spawn command", async () => {
+    enableDevPaymobWithTunnelEnv();
+    process.env.NGROK_DOMAIN = "factory-test-domain.ngrok.app/";
+    const probedUrls: string[] = [];
+    configureCallbackChannelTestDelivery({
+      spawnAgent: ({ command }) => {
+        capturedSpawnCommand = [...command];
+        return { kill: () => {} };
+      },
+      fetch: async url => {
+        probedUrls.push(url);
+        return new Response(null, { status: 200 });
+      },
+    });
+
+    const channel = await getCallbackChannel();
+
+    expect(channel.kind).toBe("ngrok");
+    expect(channel.publicBaseUrl).toBe("https://factory-test-domain.ngrok.app");
+    expect(capturedSpawnCommand).toEqual(["ngrok", "http", "--url=https://factory-test-domain.ngrok.app", "3000"]);
+    expect(probedUrls).toEqual(["https://factory-test-domain.ngrok.app/api/health"]);
+  });
+
+  test("falls back with ngrok-not-configured for a domain carrying a scheme prefix", async () => {
+    enableDevPaymobWithTunnelEnv();
+    process.env.NGROK_DOMAIN = "https://factory-test-domain.ngrok.app";
+    let spawnCount = 0;
+    configureCallbackChannelTestDelivery({
+      spawnAgent: () => {
+        spawnCount += 1;
+        return { kill: () => {} };
+      },
+      fetch: async () => new Response(null, { status: 200 }),
+    });
+
+    const channel = await getCallbackChannel();
+
+    expect(channel.kind).toBe("simulation");
+    expect(readFallbackReason()).toBe("ngrok-not-configured");
+    expect(spawnCount).toBe(0);
+    expect(infoSpy).toHaveBeenCalledTimes(1);
+  });
+
+  test("falls back with ngrok-not-configured for a domain that is only a slash", async () => {
+    enableDevPaymobWithTunnelEnv();
+    process.env.NGROK_DOMAIN = "/";
+    let spawnCount = 0;
+    configureCallbackChannelTestDelivery({
+      spawnAgent: () => {
+        spawnCount += 1;
+        return { kill: () => {} };
+      },
+      fetch: async () => new Response(null, { status: 200 }),
+    });
+
+    const channel = await getCallbackChannel();
+
+    expect(channel.kind).toBe("simulation");
+    expect(readFallbackReason()).toBe("ngrok-not-configured");
+    expect(spawnCount).toBe(0);
+  });
+
+  test("disposes the spawned agent when the tunnel probe fails", async () => {
+    enableDevPaymobWithTunnelEnv();
+    let killCount = 0;
+    configureCallbackChannelTestDelivery({
+      spawnAgent: () => ({
+        kill: () => {
+          killCount += 1;
+        },
+      }),
+      fetch: async () => new Response(null, { status: 503 }),
+    });
+
+    const channel = await getCallbackChannel();
+
+    expect(channel.kind).toBe("simulation");
+    expect(readFallbackReason()).toBe("ngrok-unreachable");
+    expect(killCount).toBe(1);
+  });
+
+  test("concurrent first callers share one resolution — one spawn, one fallback log", async () => {
+    enableDevPaymobWithTunnelEnv();
+    // Short readiness budget so the failing probe falls back quickly.
+    process.env.PAYMOB_HTTP_TIMEOUT_MS = "600";
+    let spawnCount = 0;
+    configureCallbackChannelTestDelivery({
+      spawnAgent: () => {
+        spawnCount += 1;
+        return { kill: () => {} };
+      },
+      fetch: async () => {
+        throw new Error("connect ECONNREFUSED");
+      },
+    });
+
+    const [first, second, third] = await Promise.all([
+      getCallbackChannel(),
+      getCallbackChannel(),
+      getCallbackChannel(),
+    ]);
+
+    delete envBag.PAYMOB_HTTP_TIMEOUT_MS;
+
+    expect(first).toBe(second);
+    expect(second).toBe(third);
+    expect(first.kind).toBe("simulation");
+    expect(readFallbackReason()).toBe("ngrok-unreachable");
+    expect(spawnCount).toBe(1);
+    expect(infoSpy).toHaveBeenCalledTimes(1);
+  });
+
   test("honors the configured dev-server port as the simulation public base", async () => {
     enableDevPaymob();
     process.env.NGROK_PORT = "4123";

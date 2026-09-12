@@ -109,9 +109,10 @@ function parseAmountToCents(amount: string): number {
 /**
  * Derives a stable positive transaction id from the delivery reference
  * (FNV-1a, folded into the vendor's 9-digit id range): repeated deliveries
- * of the same arguments reproduce the same id — true replay semantics —
- * while distinct references never collide on the auditable provider
- * transaction id recorded by fulfillment.
+ * of the same arguments reproduce the same id — true replay semantics.
+ * Folding a 32-bit hash into the 9-digit space CAN collide across distinct
+ * references — this is a dev-only synthetic id for local replay scenarios,
+ * not a production uniqueness guarantee.
  */
 function deriveTransactionId(reference: string): number {
   let hash = 2166136261;
@@ -202,7 +203,7 @@ export class SimulationCallbackChannel implements CallbackChannelPort {
   async ensureReady(): Promise<void> {
     this.assertDevelopmentRuntime();
     const probeUrl = `${this.config.localBaseUrl}${HEALTH_PATH}`;
-    const response = await this.requestLocalSurface(probeUrl, "health");
+    const response = await this.requestLocalSurface(probeUrl, "health", { method: "GET" });
     if (!response.ok) {
       throw new DomainError(
         "PAYMENT_CALLBACK_SIMULATION_UNREACHABLE",
@@ -228,7 +229,11 @@ export class SimulationCallbackChannel implements CallbackChannelPort {
     this.assertDevelopmentRuntime();
     const { body, hmac } = buildSimulatedProcessedCallback(delivery, this.config.hmacSecret);
     const targetUrl = `${this.config.localBaseUrl}${WEBHOOK_PATH}?${HMAC_QUERY_PARAM}=${hmac}`;
-    const response = await this.requestLocalSurface(targetUrl, "webhook", JSON.stringify(body));
+    const response = await this.requestLocalSurface(targetUrl, "webhook", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
     if (!response.ok) {
       throw new DomainError(
         "PAYMENT_CALLBACK_SIMULATION_DELIVERY_FAILED",
@@ -241,15 +246,15 @@ export class SimulationCallbackChannel implements CallbackChannelPort {
    * Requests one local dev-server surface under the probe timeout and
    * returns the response. The health probe and the webhook delivery share
    * this seam so both fail with the same unreachable diagnosis when the
-   * local server is not answering.
+   * local server is not answering. `init` carries the per-surface request
+   * shape (the health surface is GET-only, the webhook delivery is a signed
+   * POST).
    */
-  private async requestLocalSurface(url: string, surface: string, body?: string): Promise<Response> {
+  private async requestLocalSurface(url: string, surface: string, init: RequestInit): Promise<Response> {
     const transport = this.config.fetch ?? defaultSurfaceFetch;
     try {
       return await transport(url, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body,
+        ...init,
         signal: AbortSignal.timeout(this.config.probeTimeoutMs),
       });
     } catch {

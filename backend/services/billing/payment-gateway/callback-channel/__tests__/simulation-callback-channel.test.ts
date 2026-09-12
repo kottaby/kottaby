@@ -316,7 +316,7 @@ describe("SimulationCallbackChannel", () => {
     expect(channel.publicBaseUrl).toBe(LOCAL_BASE_URL);
   });
 
-  test("ensureReady probes the local health surface", async () => {
+  test("ensureReady probes the local health surface with GET", async () => {
     const { transport, calls } = makeTransport(() => new Response(null, { status: 200 }));
     const channel = new SimulationCallbackChannel(channelConfig({ fetch: transport }));
 
@@ -324,7 +324,8 @@ describe("SimulationCallbackChannel", () => {
 
     expect(calls).toHaveLength(1);
     expect(calls[0].url).toBe(`${LOCAL_BASE_URL}/api/health`);
-    expect(calls[0].method).toBe("POST");
+    expect(calls[0].method).toBe("GET");
+    expect(calls[0].body).toBeNull();
   });
 
   test("ensureReady fails with a typed unreachable error when the health surface errors", async () => {

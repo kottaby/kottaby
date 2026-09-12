@@ -56,6 +56,15 @@ export interface NgrokAgentProcess {
 }
 
 /**
+ * Development channel lifecycle seam — terminates any spawned agent so an
+ * abandoned tunnel channel (a failed acquisition, a re-resolution after
+ * reset) cannot leak the child process.
+ */
+export interface CallbackChannelDisposal {
+  dispose(): void;
+}
+
+/**
  * Injectable spawn seam — tests and tooling start a fake agent instead of
  * the real binary.
  */
@@ -118,7 +127,7 @@ interface ProbeOutcome {
 }
 
 /** Development tunnel callback channel against the reserved public domain. */
-export class NgrokCallbackChannel implements CallbackChannelPort {
+export class NgrokCallbackChannel implements CallbackChannelPort, CallbackChannelDisposal {
   readonly kind: CallbackChannelKind = "ngrok";
   readonly publicBaseUrl: string;
 
@@ -267,6 +276,16 @@ export class NgrokCallbackChannel implements CallbackChannelPort {
     } catch {
       throw new DomainError("PAYMENT_CALLBACK_NGROK_UNREACHABLE", `The ngrok tunnel did not answer at ${url}.`);
     }
+  }
+
+  /**
+   * Terminates the spawned agent, if any — the lifecycle seam the factory's
+   * failed-acquisition path calls so a tunnel that never became ready does
+   * not leave an orphaned child process behind. Idempotent: disposing a
+   * channel without a live agent is a no-op.
+   */
+  dispose(): void {
+    this.terminateAgent();
   }
 
   /** Kills the spawned agent, if any (process-exit cleanup seam). */
