@@ -175,3 +175,21 @@ Work Log:
 Stage Summary:
 - Task 3.3 COMPLETE: Paymob outbound transport (bounded sanitized retries, timeout discipline) + the paymob PaymentGatewayPort adapter (fail-closed config, shape-dispatched webhook trust boundary) + lazy factory registration landed; committing on feat/paymob-gateway-integration
 - Carry-forward: 4.1 route dispatches via adapter.parseWebhookEvent({rawBody, query}) and maps UnauthorizedError→401, PAYMENT_WEBHOOK_MALFORMED ValidationError→400-family, SERVICE_UNAVAILABLE DomainError→service-unavailable, null→2.3 no-op ack envelope; 5.1 reconcile sweep reuses PaymobHttpClient.transactionInquiryByMerchantRef (token in request BODY, fresh token per inquiry) and is the single owner of unknown-state (timed-out delivered) requests; itemName = locale-free CHECKOUT_ITEM_NAME "Subscription" constant (single edit point if per-plan names wanted); callback URLs optional by contract (NEXT_PUBLIC_BASE_URL unset → members omitted → dashboard fallback)
+sandbox symbolic-ref defense validated at 2026-09-12T06:20:42+00:00
+
+---
+Task ID: session-setup
+Agent: Spec Implementation Orchestrator
+Task: Continuation session bootstrap — clone, branch defense, env/DB setup
+
+Work Log:
+- Per SKILL.md §Plan Intake: cloned kottaby repo, checked out feat/paymob-gateway-integration at eb7be4b (9 feature commits; tasks 0.1–3.3 [x] with outcome files)
+- Identified sandbox "git-restore warfare" (external process repeatedly runs `git checkout main`) — countered via `git symbolic-ref refs/heads/main refs/heads/feat/paymob-gateway-integration` (validated: commits always land on feat; origin/main untouched)
+- bun install (1260 pkgs); created .env + .env.test with DB_PROVIDER=pglite, PGLITE_DATA_DIR=./db/pglite, ADMIN_EMAIL=admin@test.com
+- DB bootstrapped: dbActions migrate (12 migrations incl. custom 5) + seed — both exit 0
+- Verified test infra: run-test.ts paymob.hmac.test.ts → 23 pass / 0 fail
+- Remaining queue: 4.1, 4.2, 5.1, 5.2, 5.4, 5.5, 5.6, 6.1, 7.1–7.5, 8.1, 9.1, 9.2
+
+Stage Summary:
+- Environment ready; Phase 0 baseline (0.1) already valid at eb7be4b — NOT re-executed per continuation rules
+- Subagents MUST commit+push after each task (sandbox reset defense); work on feat branch only
