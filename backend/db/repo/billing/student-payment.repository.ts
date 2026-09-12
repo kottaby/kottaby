@@ -26,6 +26,7 @@
 import { and, asc, desc, eq, gte, ilike, lte, sql } from "drizzle-orm";
 import { db, queryDb } from "@/backend/db";
 import { studentPayments } from "@/backend/db/schema/billing/student-payments";
+import { PaymentGateway } from "@/backend/enum/billing/payment-gateway.enum";
 import { PaymentStatus } from "@/backend/enum/billing/payment-status.enum";
 import { ConflictError } from "@/backend/lib/errors";
 import { students } from "@/backend/db/schema/students/students";
@@ -173,6 +174,55 @@ async function markStatusOnce(
   return row ?? null;
 }
 
+/**
+ * Narrows the raw `$inferSelect` pgEnum string-literal unions to the
+ * canonical TS enums (lexically identical values — the same pure type-level
+ * narrowing the wallet repository's settlement-probe mappers perform).
+ */
+function toAdminPaymentStatusEnum(status: StudentPaymentSelectType["status"]): PaymentStatus {
+  if (status === PaymentStatus.Pending) {
+    return PaymentStatus.Pending;
+  }
+  if (status === PaymentStatus.Paid) {
+    return PaymentStatus.Paid;
+  }
+  if (status === PaymentStatus.Refunded) {
+    return PaymentStatus.Refunded;
+  }
+  return PaymentStatus.Failed;
+}
+
+function toAdminPaymentGatewayEnum(
+  gateway: StudentPaymentSelectType["paymentGateway"]
+): PaymentGateway {
+  for (const member of Object.values(PaymentGateway)) {
+    if (member === gateway) {
+      return member;
+    }
+  }
+  return PaymentGateway.Other;
+}
+
+function toAdminPaymentRow(row: {
+  id: number;
+  studentId: number;
+  subscriptionId: number | null;
+  amount: string;
+  currency: string;
+  paymentGateway: StudentPaymentSelectType["paymentGateway"];
+  status: StudentPaymentSelectType["status"];
+  createdAt: Date;
+  updatedAt: Date;
+  studentName: string;
+  studentEmail: string;
+}): AdminStudentPaymentRow {
+  return {
+    ...row,
+    status: toAdminPaymentStatusEnum(row.status),
+    paymentGateway: toAdminPaymentGatewayEnum(row.paymentGateway),
+  };
+}
+
 export namespace StudentPaymentRepository {
   /**
    * Inserts a new payment ledger row in the `pending` lifecycle state —
@@ -282,7 +332,7 @@ export namespace StudentPaymentRepository {
     tx?: DBTransaction
   ): Promise<AdminStudentPaymentRow[]> {
     if (tx) {
-      return tx
+      const rows = await tx
         .select({
           id: studentPayments.id,
           studentId: studentPayments.studentId,
@@ -303,6 +353,7 @@ export namespace StudentPaymentRepository {
         .orderBy(desc(studentPayments.id))
         .limit(limit)
         .offset(offset);
+      return rows.map(toAdminPaymentRow);
     }
     const params: unknown[] = [];
     const whereClause = buildAdminPaymentRawFilterChain(filters, params);

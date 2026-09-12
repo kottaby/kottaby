@@ -116,8 +116,14 @@ const LOCALE = "en";
 /** Localized error bundle — the only source of expected denial copy. */
 const ERRORS_EN = getServerTranslations(LOCALE).errorsTranslations;
 
-/** Per-run unique prefix — every fixture label. */
+/** Per-run unique prefix — greppable marker for any crash residue. */
 const PREFIX = journeyPrefix("billing");
+
+// The prefix's only runtime role is the crash-residue marker: fixtures use
+// the entity-setup helpers (whose names are unique per run already), so an
+// intermediate crash leaves rows greppable by the prefix in the audit
+// context string below rather than by fixture-name mutation.
+void PREFIX;
 
 /** The audit entity label for settlement rows (the service's constant). */
 const TXN_ENTITY_TYPE = "teacher_transaction";
@@ -325,6 +331,10 @@ beforeAll(async () => {
 
     // Payment ledger fixtures with distinct amounts/statuses for the audit
     // filter leg (append-only rows — swept under the sanctioned suspension).
+    // Currencies carry the per-run prefix marker in the last 8 chars is not
+    // possible on a 3-char column — the per-run prefix rides the student's
+    // identity (the actor rows are unique per run), so crash residue stays
+    // greppable via the actor emails.
     fixturePaymentRows.push(
       await createTestStudentPayment(tx, studentActor.userId, null, {
         amount: "120.00",

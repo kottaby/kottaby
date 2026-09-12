@@ -24,11 +24,15 @@ export interface NormalizedAdminPaymentFilters {
 
 /**
  * A student payment row joined with its student's display identity for the
- * admin payments ledger view.
+ * admin payments ledger view. The lifecycle columns are re-typed to their
+ * canonical TypeScript enums (the raw `$inferSelect` projection carries the
+ * pgEnum string-literal unions, which the GraphQL enum refs cannot match).
  */
-export interface AdminStudentPaymentRow extends StudentPaymentSelectType {
+export interface AdminStudentPaymentRow extends Omit<StudentPaymentSelectType, "status" | "paymentGateway"> {
   studentName: string;
   studentEmail: string;
+  status: PaymentStatus;
+  paymentGateway: PaymentGateway;
 }
 
 export interface AdminStudentPaymentPageReturnType {
@@ -59,6 +63,8 @@ export interface AdminWalletTransactionFilters {
 export interface AdminTeacherWalletReturnType {
   balance: string | null;
   totalEarning: string | null;
+  /** Render label only — the platform currency constant (the wallet table has no currency column). */
+  currency: string;
   teacherId: number;
   teacherName: string;
   transactions: readonly TeacherTransactionSelectType[];

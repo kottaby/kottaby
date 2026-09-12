@@ -29,6 +29,13 @@ import type { getServerTranslations } from "@/shared/locale/server-graphql";
 export const TRANSACTION_ENTITY_TYPE = "teacher_transaction";
 
 /**
+ * The render label for wallet amounts (the platform currency constant).
+ * The `wallet` table has no currency column — the constant rides the same
+ * convention as the shipped wallet Pothos object's `currency` field.
+ */
+export const ADMIN_WALLET_CURRENCY_LABEL = "EGP";
+
+/**
  * The adjustment amount shape: 1-7 integer digits, an optional 1-2 digit
  * fraction — the exact decimal-string grammar the shipped payout request
  * uses. The cap matches the `wallet.balance` column capacity

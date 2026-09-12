@@ -1779,13 +1779,13 @@ describe("Codegen sync — committed SDL is byte-identical to the built schema",
       "adminStudentPayments(filters: AdminStudentPaymentsFilterInput, page: Int, pageSize: Int): AdminStudentPaymentPage!"
     );
     expect(committedSdl).toContain(
-      "adminTeacherWallet(teacherId: ID!, filters: AdminWalletTransactionFilterInput, page: Int, pageSize: Int): AdminTeacherWallet!"
+      "adminTeacherWallet(filters: AdminWalletTransactionFilterInput, page: Int, pageSize: Int, teacherId: ID!): AdminTeacherWallet!"
     );
     expect(committedSdl).toContain(
       "adminPendingWithdrawals(page: Int, pageSize: Int): AdminWithdrawalQueuePage!"
     );
     expect(committedSdl).toContain("approveWithdrawal(transactionId: ID!): TeacherTransaction!");
-    expect(committedSdl).toContain("rejectWithdrawal(transactionId: ID!, reason: String!): TeacherTransaction!");
+    expect(committedSdl).toContain("rejectWithdrawal(reason: String!, transactionId: ID!): TeacherTransaction!");
     expect(committedSdl).toContain("adjustTeacherWallet(input: AdjustTeacherWalletInput!): TeacherTransaction!");
     expect(committedSdl).toContain("enum WalletAdjustmentDirection {");
     expect(committedSdl).toContain("type AdminStudentPaymentPage {");

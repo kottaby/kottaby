@@ -53,7 +53,7 @@
 
 import { afterAll, describe, expect, test } from "bun:test";
 import { randomUUID } from "node:crypto";
-import { eq, sql } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 
 import { db } from "@/backend/db";
 import { auditLogs } from "@/backend/db/schema/audit/audit-logs";
@@ -309,12 +309,7 @@ describeGraphqlSuite("Admin financial-auditing GraphQL integration", () => {
   afterAll(async () => {
     if (createdLedgerTxnIds.size > 0) {
       await withImmutabilityTriggersSuspended(["teacher_transaction"], () =>
-        db.delete(teacherTransaction).where(
-          eq(
-            teacherTransaction.id,
-            Math.max(...createdLedgerTxnIds, 0)
-          )
-        )
+        db.delete(teacherTransaction).where(inArray(teacherTransaction.id, [...createdLedgerTxnIds]))
       );
     }
 

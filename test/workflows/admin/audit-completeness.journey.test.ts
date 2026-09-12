@@ -309,6 +309,9 @@ let joinSessionId = 0;
 
 /** Row-count oracles — captured after the cast commit, restored by teardown. */
 let auditBaseline = 0;
+/** Pre-existing trail rows' verb + entity-type counts (the seeded plan-catalog rows). */
+let baselineVerbCounts = new Map<AuditActionType, number>();
+let baselineTypeCounts = new Map<string, number>();
 let notificationBaseline = 0;
 
 /**
@@ -637,6 +640,9 @@ const censusRunners: Record<string, CensusRunner> = {
     expect(settled.status).toBe(TransactionStatus.Completed);
     record(executed, entry, AuditActionType.Override, pending.id, {
       action: "withdrawal_approved",
+      amount: pending.amount,
+      walletId: pending.walletId,
+      teacherId: financeTeacherId,
     });
   },
 
@@ -664,6 +670,9 @@ const censusRunners: Record<string, CensusRunner> = {
     expect(rejected.status).toBe(TransactionStatus.Failed);
     record(executed, entry, AuditActionType.Override, pending.id, {
       action: "withdrawal_rejected",
+      amount: pending.amount,
+      walletId: pending.walletId,
+      teacherId: financeTeacherId,
       reasonPresent: true,
     });
   },
@@ -688,7 +697,11 @@ const censusRunners: Record<string, CensusRunner> = {
     record(executed, entry, AuditActionType.Adjust, credit.id, {
       action: "wallet_adjustment",
       direction: WalletAdjustmentDirection.Credit,
+      amount: credit.amount,
+      teacherId: financeTeacherId,
+      walletId: credit.walletId,
       reasonPresent: true,
+      balanceAfter: "525.00",
     });
   },
 };
@@ -849,8 +862,21 @@ describe("Audit-trail completeness journey — execute every admin action, prove
     });
 
     // Row-count oracles: whole-table baselines the legs assert deltas against.
+    // The verb + entity-type baselines account for pre-existing trail rows
+    // (the seeded plan-catalog creates) that the whole-table axis sweeps
+    // observe but the journey's execution log does not own.
     auditBaseline = await countAllAuditRows();
     notificationBaseline = await countAllNotificationRows();
+    const preExistingRows = await db
+      .select({ actionType: auditLogs.actionType, entityType: auditLogs.entityType })
+      .from(auditLogs);
+    baselineVerbCounts = new Map<AuditActionType, number>();
+    baselineTypeCounts = new Map<string, number>();
+    for (const row of preExistingRows) {
+      const verb = row.actionType as AuditActionType;
+      baselineVerbCounts.set(verb, (baselineVerbCounts.get(verb) ?? 0) + 1);
+      baselineTypeCounts.set(row.entityType, (baselineTypeCounts.get(row.entityType) ?? 0) + 1);
+    }
   });
 
   afterAll(async () => {
@@ -914,8 +940,9 @@ describe("Audit-trail completeness journey — execute every admin action, prove
 
   test("system: cast and fixture sessions committed with clean audit and notification footprints", async () => {
     // 6 actors × (users row + role-child row) + the five fixture sessions
-    // (dispute + reschedule + cancel + reassign + join).
-    expect(tracked.size).toBe(17);
+    // (dispute + reschedule + cancel + reassign + join) + the finance
+    // teacher's funded wallet fixture.
+    expect(tracked.size).toBe(18);
 
     // The dispatch map covers every wired census row — a census row without
     // a runner would silently skip execution and fake completeness.
@@ -1079,20 +1106,22 @@ describe("Audit-trail completeness journey — execute every admin action, prove
     const legActions = await executeCensusRows(FINANCE_LEG);
     executedActions.push(...legActions);
 
-    // Every settlement mints exactly one Override row on its ledger anchor;
-    // the adjustment mints the Adjust verb (ticket-pinned).
+    // The adjustment mints the Adjust verb (ticket-pinned); every settlement
+    // mints exactly one Override row on its ledger anchor. The verb order
+    // mirrors the FINANCE_LEG execution order (adjust first).
     expect(legActions).toHaveLength(3);
     expect(legActions.map(action => action.actionType)).toEqual([
-      AuditActionType.Override,
-      AuditActionType.Override,
       AuditActionType.Adjust,
+      AuditActionType.Override,
+      AuditActionType.Override,
     ]);
     expect(await countAllAuditRows()).toBe(auditBefore + legActions.length);
     expect(await countAllAuditRows()).toBe(auditBaseline + executedActions.length);
 
     // Each settlement committed its own side effect with the trail row: the
     // approved row settled `completed`, the rejected row settled `failed`.
-    const [approveAction, rejectAction, adjustAction] = legActions;
+    // The destructure mirrors the FINANCE_LEG execution order (adjust first).
+    const [adjustAction, approveAction, rejectAction] = legActions;
     if (!approveAction?.entityId || !rejectAction?.entityId || !adjustAction?.entityId) {
       throw new Error("finance leg: expected all three census executions to carry a ledger anchor id");
     }
@@ -1282,8 +1311,8 @@ describe("Audit-trail completeness journey — execute every admin action, prove
     expect(observerRow.entityId).toBe(parentActor.userId);
 
     // Action-type axis: every enum value's subset, counted from the
-    // execution log plus the fixture lane.
-    const expectedVerbCounts = new Map<AuditActionType, number>();
+    // execution log plus the fixture lane plus the pre-existing baseline.
+    const expectedVerbCounts = new Map<AuditActionType, number>(baselineVerbCounts);
     for (const action of executedActions) {
       expectedVerbCounts.set(action.actionType, (expectedVerbCounts.get(action.actionType) ?? 0) + 1);
     }
@@ -1301,8 +1330,9 @@ describe("Audit-trail completeness journey — execute every admin action, prove
       }
     }
 
-    // Entity-type axis: the same counting discipline across entity types.
-    const expectedTypeCounts = new Map<string, number>();
+    // Entity-type axis: the same counting discipline across entity types,
+    // including the pre-existing baseline rows.
+    const expectedTypeCounts = new Map<string, number>(baselineTypeCounts);
     for (const action of executedActions) {
       expectedTypeCounts.set(action.entityType, (expectedTypeCounts.get(action.entityType) ?? 0) + 1);
     }

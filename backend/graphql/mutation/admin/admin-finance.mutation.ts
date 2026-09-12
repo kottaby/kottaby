@@ -42,11 +42,12 @@
  *    `mutation/admin/index.ts` → `mutation/index.ts` → `gqlSchema.ts`.
  */
 
+import { UserRole } from "@/backend/enum/users/user-role.enum";
 import { WalletAdjustmentDirection } from "@/backend/enum/billing/wallet-adjustment-direction.enum";
 import { gqlSchemaBuilder } from "@/backend/graphql/pothos/builder";
 import { TeacherTransactionPothosObject } from "@/backend/graphql/pothos/billing/wallet.pothos";
 import { AdjustTeacherWalletInput } from "@/backend/graphql/pothos/admin/admin-finance.pothos";
-import { adminOnlyAuthScopes, requireAdminUser, requirePositiveIntId } from "@/backend/graphql/shared";
+import { requireAdminUser, requirePositiveIntId } from "@/backend/graphql/shared";
 import { AdminFinancialAuditingService } from "@/backend/services/billing/admin-financial-auditing.service";
 
 // Side-effect: register the `approveWithdrawal` mutation field.
@@ -56,7 +57,12 @@ gqlSchemaBuilder.mutationField("approveWithdrawal", t =>
     args: {
       transactionId: t.arg({ type: "ID", required: true }),
     },
-    authScopes: adminOnlyAuthScopes,
+    authScopes: {
+      $all: {
+        authenticated: true,
+        role: [UserRole.Admin],
+      },
+    },
     resolve: async (_root, args, ctx) => {
       const user = await requireAdminUser(ctx);
       // Wire `ID` → numeric ledger key at the resolver boundary (positive-
@@ -78,7 +84,12 @@ gqlSchemaBuilder.mutationField("rejectWithdrawal", t =>
       transactionId: t.arg({ type: "ID", required: true }),
       reason: t.arg({ type: "String", required: true }),
     },
-    authScopes: adminOnlyAuthScopes,
+    authScopes: {
+      $all: {
+        authenticated: true,
+        role: [UserRole.Admin],
+      },
+    },
     resolve: async (_root, args, ctx) => {
       const user = await requireAdminUser(ctx);
       return AdminFinancialAuditingService.rejectWithdrawal(
@@ -98,7 +109,12 @@ gqlSchemaBuilder.mutationField("adjustTeacherWallet", t =>
     args: {
       input: t.arg({ type: AdjustTeacherWalletInput, required: true }),
     },
-    authScopes: adminOnlyAuthScopes,
+    authScopes: {
+      $all: {
+        authenticated: true,
+        role: [UserRole.Admin],
+      },
+    },
     resolve: async (_root, args, ctx) => {
       const user = await requireAdminUser(ctx);
       // Closed-input whitelist copy — exactly the four service-recognized

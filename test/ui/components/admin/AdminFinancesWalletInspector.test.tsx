@@ -29,7 +29,7 @@ await import("@/test/ui/components/next-dynamic-mock");
 
 // ─── Post-DOM module wiring (top-level await — LOAD ORDERING CONTRACT) ───────
 
-const { cleanup, fireEvent, screen, waitFor } = await import("@testing-library/react");
+const { cleanup, fireEvent, screen, waitFor, within } = await import("@testing-library/react");
 const { renderWithWrapper } = await import("@/test/ui/components/TestWrapper");
 
 import { afterEach, describe, expect, test } from "bun:test";
@@ -107,7 +107,10 @@ const WALLET_TX = {
 
 function walletMock(data: Record<string, unknown>): MockLink.MockedResponse {
   return {
-    request: { query: adminTeacherWalletQueryDocument, variables: { teacherId: String(TEACHER_ID), filters: {}, page: 1, pageSize: 10 } },
+    request: {
+      query: adminTeacherWalletQueryDocument,
+      variables: { teacherId: String(TEACHER_ID), filters: { type: undefined, status: undefined, from: undefined, to: undefined }, page: 1, pageSize: 10 },
+    },
     result: { data },
   };
 }
@@ -184,18 +187,18 @@ const NO_WALLET = {
 
 describe("AdminFinancesWalletInspector (en / LTR)", () => {
   test("populated wallet renders the summary cards + ledger through the real mocked documents", async () => {
-    renderInspector([teachersMock(), walletMock(POPULATED_WALLET)]);
+    renderInspector([teachersMock(), teachersMock(), walletMock(POPULATED_WALLET), walletMock(POPULATED_WALLET)]);
 
     await waitFor(() => expect(screen.getByTestId("admin-finances-balance-card")).toBeDefined());
+    await waitFor(() => expect(screen.getByText("900.00")).toBeDefined());
     expect(screen.getByText(t.balanceLabel)).toBeDefined();
     expect(screen.getByText(t.totalEarningsLabel)).toBeDefined();
-    expect(screen.getByText("900.00")).toBeDefined();
     expect(screen.getByText("1,240.00")).toBeDefined();
-    expect(screen.getByText("Session payout")).toBeDefined();
+    expect(screen.getAllByText("Session payout").length).toBeGreaterThanOrEqual(1);
   });
 
   test("the honest no-wallet state renders the empty copy — never fake zeros", async () => {
-    renderInspector([teachersMock(), walletMock(NO_WALLET)]);
+    renderInspector([teachersMock(), teachersMock(), walletMock(NO_WALLET), walletMock(NO_WALLET)]);
 
     await waitFor(() => expect(screen.getByTestId("admin-finances-balance-card")).toBeDefined());
     // The null-pair renders the namespace's empty copy on BOTH cards.
@@ -206,6 +209,8 @@ describe("AdminFinancesWalletInspector (en / LTR)", () => {
   test("adjust calls the mutation with the input object `{ teacherId, amount, direction, reason }`", async () => {
     renderInspector([
       teachersMock(),
+      teachersMock(),
+      walletMock(POPULATED_WALLET),
       walletMock(POPULATED_WALLET),
       adjustMock({
         input: {
@@ -221,8 +226,16 @@ describe("AdminFinancesWalletInspector (en / LTR)", () => {
 
     fireEvent.click(screen.getByTestId("admin-finances-adjust-open"));
 
-    fireEvent.change(screen.getByTestId("admin-finances-adjust-amount"), { target: { value: "50.00" } });
-    fireEvent.change(screen.getByTestId("admin-finances-adjust-reason"), { target: { value: "Goodwill bonus" } });
+    // The dialog resolves open through the shared prologue idiom, then the
+    // fields are driven via the dialog-scoped label association (the MUI
+    // label/input ids are generated inside the portal).
+    const dialog = await waitFor(() => screen.getByRole("dialog", { hidden: true }));
+    fireEvent.change(within(dialog).getByRole("textbox", { name: t.adjustAmountLabel, hidden: true }), {
+      target: { value: "50.00" },
+    });
+    fireEvent.change(within(dialog).getByRole("textbox", { name: t.adjustReasonLabel, hidden: true }), {
+      target: { value: "Goodwill bonus" },
+    });
 
     fireEvent.click(screen.getByTestId("admin-finances-adjust-submit"));
 
@@ -236,7 +249,7 @@ describe("AdminFinancesWalletInspector (en / LTR)", () => {
 
 describe("AdminFinancesWalletInspector (ar / RTL)", () => {
   test("renders the Arabic labels through the same handle over the RTL provider stack", async () => {
-    renderInspector([teachersMock(), walletMock(POPULATED_WALLET)], "ar");
+    renderInspector([teachersMock(), teachersMock(), walletMock(POPULATED_WALLET), walletMock(POPULATED_WALLET)], "ar");
 
     await waitFor(() => expect(screen.getByTestId("admin-finances-balance-card")).toBeDefined());
     expect(screen.getByText(tar.balanceLabel)).toBeDefined();

@@ -48,6 +48,7 @@ import { assertActorAdmin } from "@/backend/services/admin/admin-gate.helpers";
 import { AuditService } from "@/backend/services/admin/audit.service";
 import { resolvePageBounds } from "@/backend/services/admin/user-management.helpers";
 import {
+  ADMIN_WALLET_CURRENCY_LABEL,
   assertValidAdjustmentAmount,
   buildWalletAdjustmentAuditContract,
   buildWithdrawalSettleAuditContract,
@@ -243,6 +244,7 @@ export namespace AdminFinancialAuditingService {
         return {
           balance: null,
           totalEarning: null,
+          currency: ADMIN_WALLET_CURRENCY_LABEL,
           teacherId,
           teacherName,
           transactions: [],
@@ -270,6 +272,7 @@ export namespace AdminFinancialAuditingService {
       return {
         balance: probe.wallet.balance,
         totalEarning: probe.wallet.totalEarning,
+        currency: ADMIN_WALLET_CURRENCY_LABEL,
         teacherId,
         teacherName,
         transactions: pageRows,
