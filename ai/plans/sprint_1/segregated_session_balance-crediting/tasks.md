@@ -22,7 +22,7 @@
 
 ## Phase 0 — Baseline & Ledger
 
-- [ ] 0.1 Establish error baseline and confirm the deferred-items ledger
+- [x] 0.1 Establish error baseline and confirm the deferred-items ledger
   - Record baseline counts: `bun tsgo 2>&1 | grep -c "error TS"`; `bun biome:check 2>&1 | grep -c "warn"`; `bun run scripts/lint-service.ts --json --id baseline > /tmp/baseline-lint.json`
   - Confirm `deferred-items.md` exists (created at plan generation) and note its initial entries D1–D5
   - Write `outcome/0-baseline-outcome.md` with the counts
@@ -30,7 +30,7 @@
 
 ## Phase 1 — Substrate Verification Audit
 
-- [ ] 1.1 Verify the shipped substrate against every ticket AC and record execution evidence
+- [x] 1.1 Verify the shipped substrate against every ticket AC and record execution evidence
   - Run and cite (green output pasted into the outcome):
     - `bun run test/scripts/run-test.ts backend/db/test/repo/students/student.repository.test.ts` (credit lanes :351-483; CHECK rejection :428-460)
     - `bun run test/scripts/run-test.ts backend/services/billing/subscription-activation.service.test.ts` (credit :523-573, replay :380-404/861-885, NULL-lane quarantine :450-482)
@@ -47,55 +47,55 @@
 
 ## Phase 2 — Gap Closure (test-tier only)
 
-- [ ] 2.1 Tajweed-lane service-level credit test (close REQ-017)
+- [x] 2.1 Tajweed-lane service-level credit test (close REQ-017)
   - File: `backend/services/billing/subscription-activation.service.test.ts` — add one test mirroring the Hifz case (:523-542) with a `SubscriptionCreditLane.Tajweed`-laned plan: confirmed webhook → `balance_tajweed += sessionCount`, hifz/reviews/trial untouched
   - This retires the file's own "hifz/tajweed byte-identical" assumption note (:39) with an executable proof
-  - - [ ] 2.1.QL `bun run scripts/health/sub-loop.ts backend/services/billing/subscription-activation.service.test.ts --lifecycle duplicates` → exit 0
-  - [ ] 2.1.TE Tier 1–4 per house pipeline; service tier: mock external adapters (`backend/services/AGENTS.md` testing rules)
-  - [ ] 2.1.SEC no new input surface (assert no caller-controlled lane/amount path is introduced)
-  - [ ] 2.1.SR + 2.1.IV semantic checklist + read printed rule files (`backend/services/AGENTS.md`, `backend/AGENTS.md`, `.agents/instructions/backend.instructions.md`, `.agents/instructions/tests.instructions.md`)
+  - - [x] 2.1.QL `bun run scripts/health/sub-loop.ts backend/services/billing/subscription-activation.service.test.ts --lifecycle duplicates` → exit 0
+  - [x] 2.1.TE Tier 1–4 per house pipeline; service tier: mock external adapters (`backend/services/AGENTS.md` testing rules)
+  - [x] 2.1.SEC no new input surface (assert no caller-controlled lane/amount path is introduced)
+  - [x] 2.1.SR + 2.1.IV semantic checklist + read printed rule files (`backend/services/AGENTS.md`, `backend/AGENTS.md`, `.agents/instructions/backend.instructions.md`, `.agents/instructions/tests.instructions.md`)
   - Run: `bun run test/scripts/run-test.ts backend/services/billing/subscription-activation.service.test.ts` (green)
   - Outcome: `outcome/2.1-tajweed-service-test-outcome.md`
   - _Requirements: REQ-017, REQ-030_
 
-- [ ] 2.2 Tajweed journey leg (close REQ-018)
+- [x] 2.2 Tajweed journey leg (close REQ-018)
   - File: `test/workflows/billing/subscription-purchase.journey.test.ts` — extend J1 with a Tajweed-laned plan leg (pattern after the Hifz leg :506-545 and Reviews leg :765-813): purchase (mock gateway) → signed webhook → `balance_tajweed == PLAN_SESSION_COUNT`, sibling lanes untouched; duplicate webhook replay ⇒ no second credit
   - Fixtures via `createTestPlan(tx, { balanceLane: SubscriptionCreditLane.Tajweed, ... })` + the suite's tracked registry; per-run `jrn_billing_<8hex>` prefix
-  - [ ] 2.2.QL sub-loop on the journey file → exit 0
-  - [ ] 2.2.TE follows `test/workflows/AGENTS.md` (NO runInRollback; tracked cleanup; spied transports)
-  - [ ] 2.2.SEC denial probe stays green; foreign-actor invariance asserted per journey rules
-  - [ ] 2.2.SR + 2.2.IV semantic checklist + printed rule files (`test/workflows/AGENTS.md`, tests.instructions.md)
+  - [x] 2.2.QL sub-loop on the journey file → exit 0
+  - [x] 2.2.TE follows `test/workflows/AGENTS.md` (NO runInRollback; tracked cleanup; spied transports)
+  - [x] 2.2.SEC denial probe stays green; foreign-actor invariance asserted per journey rules
+  - [x] 2.2.SR + 2.2.IV semantic checklist + printed rule files (`test/workflows/AGENTS.md`, tests.instructions.md)
   - Run: `bun run test/scripts/run-test.ts test/workflows/billing/subscription-purchase.journey.test.ts` (green, twice → idempotent teardown proof)
   - Outcome: `outcome/2.2-tajweed-journey-outcome.md`
   - _Requirements: REQ-018, REQ-031_
 
-- [ ] 2.3 GraphQL-transport pin for `INSUFFICIENT_BALANCE` (close REQ-021)
+- [x] 2.3 GraphQL-transport pin for `INSUFFICIENT_BALANCE` (close REQ-021)
   - New file: `backend/graphql/test/session-booking-balance.test.ts` — drive `createSession` via `testClient` as a zero-balance student (trial = 0 and intent lane = 0); assert `errors[0].extensions.code === "INSUFFICIENT_BALANCE"` and the localized message matches `getServerTranslations("en").errorsTranslations.insufficientBalance`; assert no `sessions` row was created and the subscription/payment rows are untouched; repeat with a funded lane → success control
   - Follow the harness/patterns of `backend/graphql/test/session-lifecycle-mutations.test.ts` (setupTestServerLifecycle + testClient, no raw fetch)
-  - [ ] 2.3.QL sub-loop on the new test file → exit 0
-  - [ ] 2.3.TE Tier 1–4; Tier 4 includes unauthenticated call → UNAUTHORIZED, and teacher-role call → FORBIDDEN (BFLA probe)
-  - [ ] 2.3.SEC verifies no balance values leak in the denied response payload
-  - [ ] 2.3.SR + 2.3.IV semantic checklist + printed rule files (`backend/graphql/AGENTS.md`, backend instructions, tests instructions)
+  - [x] 2.3.QL sub-loop on the new test file → exit 0
+  - [x] 2.3.TE Tier 1–4; Tier 4 includes unauthenticated call → UNAUTHORIZED, and teacher-role call → FORBIDDEN (BFLA probe)
+  - [x] 2.3.SEC verifies no balance values leak in the denied response payload
+  - [x] 2.3.SR + 2.3.IV semantic checklist + printed rule files (`backend/graphql/AGENTS.md`, backend instructions, tests instructions)
   - Run: `bun run test:graphql` (green)
   - Outcome: `outcome/2.3-graphql-insufficient-balance-outcome.md`
   - _Requirements: REQ-021, REQ-032_
 
 ## Phase 3 — Documentation Sync & Ratification
 
-- [ ] 3.1 DBML parity sync (close REQ-028)
+- [x] 3.1 DBML parity sync (close REQ-028)
   - `db/schema.dbml`: students table (:218-231) — add `balance_trial` (default 0, not null), `trial_granted_at`, and the four `students_balance_*_check` CHECK notes; `plans` (:277-288) — add `balance_lane` (enum `subscription_credit_lane`, nullable) with a note that NULL lanes fail closed; subscriptions — add the `subscriptions_payment_reference_unique` partial index entry (mirror `backend/db/schema/billing/subscriptions.ts:53-55`)
   - Docs-only; MUST NOT diverge from `backend/db/schema/` (re-verify each line against the Drizzle source while editing)
-  - [ ] 3.1.QL sub-loop on `db/schema.dbml` → exit 0; no dedicated DBML validator exists in the repo today (verified — `scripts/validate-mermaid.ts` is absent), so parity is enforced by re-reading the Drizzle source per edited line
-  - [ ] 3.1.TE N/A (documentation artifact); 3.1.SEC N/A; 3.1.SR checklist; 3.1.IV read printed rule files
+  - [x] 3.1.QL sub-loop on `db/schema.dbml` → exit 0; no dedicated DBML validator exists in the repo today (verified — `scripts/validate-mermaid.ts` is absent), so parity is enforced by re-reading the Drizzle source per edited line
+  - [x] 3.1.TE N/A (documentation artifact); 3.1.SEC N/A; 3.1.SR checklist; 3.1.IV read printed rule files
   - Outcome: `outcome/3.1-dbml-sync-outcome.md`
   - _Requirements: REQ-028_
 
-- [ ] 3.2 Ratification record + readiness check-off + canonical doc (REQ-024, REQ-025, REQ-026, REQ-033, REQ-034)
+- [x] 3.2 Ratification record + readiness check-off + canonical doc (REQ-024, REQ-025, REQ-026, REQ-033, REQ-034)
   - Ratify D1–D4 (plan.md §1.3) by recording them in the canonical doc with invariant bindings
   - Tick `docs/planning/PRODUCTION_READINESS.md:243-248` §5.3.1–5.3.5 with evidence refs collected in Task 1.1 + Phase 2 executions (5.3.1→REQ-010; 5.3.2→REQ-013/017/018; 5.3.3 (expiry — NON-ticket item, leave unchecked and note WHY: DEV1-008 scope); 5.3.4→REQ-020/021; 5.3.5→REQ-015/018) — only tick boxes whose evidence actually executed
   - Create `docs/billing/segregated-session-balance.md` (Why → Lane model → Credit path → Hold/refund path → Guarded-mutation rules → Ratified semantics D1–D4 → Anti-patterns → Test map → Related docs), cross-linking `docs/billing/subscription-purchase.md`, `docs/sessions/session-lifecycle.md`, `docs/specs/state-machine-invariants.md` §4.2
-  - [ ] 3.2.QL sub-loop on each modified/created file → exit 0
-  - [ ] 3.2.TE N/A (docs); 3.2.SEC N/A; 3.2.SR checklist (verify no REQ/Task/Phase ids leak into product code comments — docs may reference them); 3.2.IV printed rule files
+  - [x] 3.2.QL sub-loop on each modified/created file → exit 0 (nothing-to-lint-for-.md counts as pass — tsgo stage green, oxlint/lint report no files; recorded in outcome)
+  - [x] 3.2.TE N/A (docs); 3.2.SEC N/A; 3.2.SR checklist (verify no REQ/Task/Phase ids leak into product code comments — docs may reference them); 3.2.IV printed rule files
   - Outcome: `outcome/3.2-ratification-and-docs-outcome.md`
   - _Requirements: REQ-024, REQ-025, REQ-026, REQ-033, REQ-034_
 
