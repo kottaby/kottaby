@@ -10,6 +10,7 @@
 import { VisibilityOutlined as ViewIcon } from "@mui/icons-material";
 import { IconButton, Tooltip } from "@mui/material";
 import type { ReactNode } from "react";
+import { focusVisibleRingSx } from "@/frontend/components/ui/focusRing";
 
 interface DirectoryViewDetailsButtonProps {
   /** The tooltip + aria-label (the drawer's viewDetails label). */
@@ -28,6 +29,7 @@ export function DirectoryViewDetailsButton({
         aria-label={viewDetailsLabel}
         onClick={onViewDetails}
         sx={theme => ({
+          ...focusVisibleRingSx,
           // ≥44px touch target via transparent padding; the icon stays
           // visually 20px.
           p: 1.5,
